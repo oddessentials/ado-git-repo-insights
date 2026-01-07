@@ -16,6 +16,11 @@
     "icons": {
         "default": "images/icon.png"
     },
+    "content": {
+        "details": {
+            "path": "overview.md"
+        }
+    },
     "files": [
         {
             "path": "tasks/extract-prs"
