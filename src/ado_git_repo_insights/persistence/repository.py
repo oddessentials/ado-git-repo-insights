@@ -46,9 +46,7 @@ class PRRepository:
 
     # --- Extraction Metadata ---
 
-    def get_last_extraction_date(
-        self, organization: str, project: str
-    ) -> date | None:
+    def get_last_extraction_date(self, organization: str, project: str) -> date | None:
         """Get the last successful extraction date for a project.
 
         Args:

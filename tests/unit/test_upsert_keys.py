@@ -130,9 +130,7 @@ class TestStableKeys:
             cycle_time_minutes=120.0,
         )
 
-        cursor = db_manager.execute(
-            "SELECT pull_request_uid FROM pull_requests"
-        )
+        cursor = db_manager.execute("SELECT pull_request_uid FROM pull_requests")
         row = cursor.fetchone()
         assert row["pull_request_uid"] == "repo-xyz-42"
 

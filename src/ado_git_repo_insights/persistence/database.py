@@ -8,9 +8,10 @@ from __future__ import annotations
 
 import logging
 import sqlite3
+from collections.abc import Iterator
 from contextlib import contextmanager
 from pathlib import Path
-from typing import TYPE_CHECKING, Iterator
+from typing import TYPE_CHECKING
 
 from .models import SCHEMA_SQL
 
@@ -159,7 +160,9 @@ class DatabaseManager:
         return self.connection.execute(sql, parameters)
 
     def executemany(
-        self, sql: str, parameters: list[tuple]  # noqa: UP006
+        self,
+        sql: str,
+        parameters: list[tuple],  # noqa: UP006
     ) -> Cursor:
         """Execute a SQL statement with multiple parameter sets.
 
@@ -179,11 +182,8 @@ class DatabaseManager:
             Current schema version number.
         """
         try:
-            cursor = self.execute(
-                "SELECT MAX(version) as version FROM schema_version"
-            )
+            cursor = self.execute("SELECT MAX(version) as version FROM schema_version")
             row = cursor.fetchone()
             return row["version"] if row else 0
         except sqlite3.Error:
             return 0
-

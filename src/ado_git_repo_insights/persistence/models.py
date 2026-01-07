@@ -143,4 +143,3 @@ SORT_KEYS: dict[str, list[str]] = {
     "users": ["user_id"],
     "reviewers": ["pull_request_uid", "user_id"],
 }
-
