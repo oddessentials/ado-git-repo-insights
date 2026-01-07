@@ -69,6 +69,18 @@ class Config:
         if not self.pat:
             raise ConfigurationError("PAT is required")
 
+    def __repr__(self) -> str:
+        """Repr with masked PAT (Invariant 19: Never expose secrets)."""
+        return (
+            f"Config(organization={self.organization!r}, "
+            f"projects={self.projects!r}, "
+            f"pat='********', "  # Masked
+            f"database={self.database!r}, "
+            f"api={self.api!r}, "
+            f"backfill={self.backfill!r}, "
+            f"date_range={self.date_range!r})"
+        )
+
     def log_summary(self) -> None:
         """Log configuration summary (with PAT masked)."""
         logger.info(f"Organization: {self.organization}")
