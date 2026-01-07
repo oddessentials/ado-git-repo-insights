@@ -81,7 +81,11 @@ class DatabaseManager:
                 self._validate_schema()
 
         except sqlite3.Error as e:
+            self.close()  # Ensure connection is closed on error
             raise DatabaseError(f"Failed to connect to database: {e}") from e
+        except DatabaseError:
+            self.close()  # Ensure connection is closed on validation error
+            raise
 
     def close(self) -> None:
         """Close the database connection."""

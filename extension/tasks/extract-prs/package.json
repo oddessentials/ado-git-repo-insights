@@ -1,0 +1,9 @@
+{
+    "name": "ado-insights-task",
+    "version": "1.0.0",
+    "description": "Azure DevOps task for ado-git-repo-insights",
+    "main": "index.js",
+    "dependencies": {
+        "azure-pipelines-task-lib": "^4.0.0"
+    }
+}
