@@ -1,5 +1,5 @@
 ```md
-# invariants.md — ado-git-repo-insights
+# agents/invariants.md — ado-git-repo-insights
 
 This document defines the non-negotiable invariants for ado-git-repo-insights.
 All implementation choices must preserve these properties. If an invariant cannot be met,

@@ -1,5 +1,5 @@
 ```md
-# docs/definition-of-done.md — ado-git-repo-insights
+# agents/definition-of-done.md — ado-git-repo-insights
 
 This document defines the Definition of Done (DoD) for ado-git-repo-insights.
 Work is not “done” until the checks below are implemented, automated where possible, and passing.
