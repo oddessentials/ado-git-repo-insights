@@ -1,0 +1,119 @@
+# Sample Azure DevOps Pipeline for ado-git-repo-insights
+# Copy this to your repository and customize for your environment.
+
+trigger: none  # Manual or scheduled only
+
+# Daily extraction schedule
+schedules:
+  - cron: "0 6 * * *"  # Daily at 6 AM UTC
+    displayName: "Daily PR Extraction"
+    branches:
+      include: [main]
+    always: true
+
+  # Weekly backfill for data convergence (Adjustment 1)
+  - cron: "0 6 * * 0"  # Weekly on Sunday at 6 AM UTC
+    displayName: "Weekly Backfill"
+    branches:
+      include: [main]
+    always: true
+
+pool:
+  vmImage: 'ubuntu-latest'
+
+variables:
+  - group: ado-insights-secrets  # Contains PAT_SECRET
+  - name: ARTIFACT_NAME
+    value: 'ado-insights-db'
+  - name: ORGANIZATION
+    value: 'YourOrganization'
+  - name: PROJECTS
+    value: 'ProjectOne,ProjectTwo'
+  # Adjustment 7: Extended retention for SQLite artifact
+  # Configure in pipeline settings or use pinned artifacts
+
+stages:
+  - stage: Extract
+    jobs:
+      - job: ExtractPRs
+        steps:
+          # Download previous SQLite database (if exists)
+          # Adjustment 7: Missing artifact = first-run behavior
+          - task: DownloadPipelineArtifact@2
+            displayName: 'Download Previous Database'
+            inputs:
+              buildType: 'specific'
+              project: '$(System.TeamProjectId)'
+              pipeline: '$(Build.DefinitionId)'
+              buildVersionToDownload: 'latest'
+              artifactName: '$(ARTIFACT_NAME)'
+              targetPath: '$(Pipeline.Workspace)/data'
+            continueOnError: true  # First run won't have artifact
+
+          # Log artifact status
+          - script: |
+              if [ -f "$(Pipeline.Workspace)/data/ado-insights.sqlite" ]; then
+                echo "##[section]Found existing database"
+                ls -la $(Pipeline.Workspace)/data/
+              else
+                echo "##[warning]No existing database - first run or artifact expired"
+                mkdir -p $(Pipeline.Workspace)/data
+              fi
+            displayName: 'Check Database Status'
+
+          # Setup Python
+          - task: UsePythonVersion@0
+            inputs:
+              versionSpec: '3.10'
+
+          - script: |
+              pip install ado-git-repo-insights
+            displayName: 'Install Package'
+
+          # Determine extraction mode based on schedule
+          - script: |
+              if [[ "$(Build.Reason)" == "Schedule" && "$(date +%u)" == "0" ]]; then
+                echo "##vso[task.setvariable variable=BACKFILL_DAYS]60"
+                echo "##[section]Running in BACKFILL mode (60 days)"
+              else
+                echo "##vso[task.setvariable variable=BACKFILL_DAYS]"
+                echo "##[section]Running in INCREMENTAL mode"
+              fi
+            displayName: 'Determine Extraction Mode'
+
+          # Run extraction
+          - script: |
+              BACKFILL_ARG=""
+              if [ -n "$(BACKFILL_DAYS)" ]; then
+                BACKFILL_ARG="--backfill-days $(BACKFILL_DAYS)"
+              fi
+
+              ado-insights extract \
+                --organization $(ORGANIZATION) \
+                --projects "$(PROJECTS)" \
+                --pat $(PAT_SECRET) \
+                --database "$(Pipeline.Workspace)/data/ado-insights.sqlite" \
+                $BACKFILL_ARG
+            displayName: 'Extract PR Data'
+
+          # Generate CSVs
+          - script: |
+              ado-insights generate-csv \
+                --database "$(Pipeline.Workspace)/data/ado-insights.sqlite" \
+                --output "$(Pipeline.Workspace)/csv_output"
+            displayName: 'Generate CSVs'
+
+          # Adjustment 2: Publish ONLY on success
+          - task: PublishPipelineArtifact@1
+            displayName: 'Publish Database Artifact'
+            condition: succeeded()
+            inputs:
+              targetPath: '$(Pipeline.Workspace)/data'
+              artifact: '$(ARTIFACT_NAME)'
+
+          - task: PublishPipelineArtifact@1
+            displayName: 'Publish CSV Artifacts'
+            condition: succeeded()
+            inputs:
+              targetPath: '$(Pipeline.Workspace)/csv_output'
+              artifact: 'csv-output'

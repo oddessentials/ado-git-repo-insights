@@ -1,0 +1,40 @@
+# ado-git-repo-insights Configuration
+# Copy this to config.yaml and customize for your environment.
+
+# Organization-level configuration
+organization: MyOrg
+
+# List of projects to extract (replaces one-project-per-command model)
+# URL-encoded names are supported for projects with spaces
+projects:
+  - ProjectOne
+  - ProjectTwo
+  - Project%20Three
+
+# Optional: Override extraction date range
+# If not specified, defaults to incremental from last run
+# date_range:
+#   start: 2024-01-01
+#   end: 2024-12-31
+
+# API configuration
+api:
+  base_url: https://dev.azure.com
+  version: 7.1-preview.1
+  rate_limit_sleep_seconds: 0.5
+  max_retries: 3
+  retry_delay_seconds: 5
+  retry_backoff_multiplier: 2.0  # Exponential backoff
+
+# Backfill configuration (Adjustment 1: Periodic backfill for data convergence)
+# Weekly backfill re-extracts recent PRs to catch late edits, reopened PRs, reviewer changes
+backfill:
+  enabled: true
+  window_days: 60  # Re-extract last 60 days (configurable 30-90)
+
+# Storage configuration (Adjustment 8: Azure Storage is one-way authoritative switch)
+# When enabled, Azure Storage becomes the ONLY persistence layer
+# storage:
+#   backend: azure  # Options: artifact (default), azure
+#   connection_string: ${AZURE_STORAGE_CONNECTION}
+#   container: ado-insights

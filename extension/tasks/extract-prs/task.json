@@ -1,0 +1,80 @@
+{
+    "$schema": "https://raw.githubusercontent.com/Microsoft/azure-pipelines-task-lib/master/tasks.schema.json",
+    "id": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+    "name": "ExtractPullRequests",
+    "friendlyName": "Extract Pull Request Metrics",
+    "description": "Extracts PR data from Azure DevOps and generates PowerBI-compatible CSVs",
+    "category": "Utility",
+    "author": "Your Name",
+    "version": {
+        "Major": 1,
+        "Minor": 0,
+        "Patch": 0
+    },
+    "instanceNameFormat": "Extract PR Metrics",
+    "inputs": [
+        {
+            "name": "organization",
+            "type": "string",
+            "label": "Organization",
+            "required": true,
+            "helpMarkDown": "Azure DevOps organization name"
+        },
+        {
+            "name": "projects",
+            "type": "multiLine",
+            "label": "Projects",
+            "required": true,
+            "helpMarkDown": "List of project names (one per line or comma-separated)"
+        },
+        {
+            "name": "pat",
+            "type": "string",
+            "label": "Personal Access Token",
+            "required": true,
+            "helpMarkDown": "PAT with Code (Read) scope. Use $(PAT_SECRET) from variable groups."
+        },
+        {
+            "name": "database",
+            "type": "string",
+            "label": "Database Path",
+            "required": false,
+            "defaultValue": "$(Pipeline.Workspace)/data/ado-insights.sqlite",
+            "helpMarkDown": "Path to SQLite database file"
+        },
+        {
+            "name": "outputDir",
+            "type": "string",
+            "label": "CSV Output Directory",
+            "required": false,
+            "defaultValue": "$(Pipeline.Workspace)/csv_output",
+            "helpMarkDown": "Directory for generated CSV files"
+        },
+        {
+            "name": "startDate",
+            "type": "string",
+            "label": "Start Date (Optional)",
+            "required": false,
+            "helpMarkDown": "Override start date (YYYY-MM-DD). Defaults to incremental."
+        },
+        {
+            "name": "endDate",
+            "type": "string",
+            "label": "End Date (Optional)",
+            "required": false,
+            "helpMarkDown": "Override end date (YYYY-MM-DD). Defaults to yesterday."
+        },
+        {
+            "name": "backfillDays",
+            "type": "string",
+            "label": "Backfill Days (Optional)",
+            "required": false,
+            "helpMarkDown": "Number of days to backfill for convergence (e.g., 60)"
+        }
+    ],
+    "execution": {
+        "Node16": {
+            "target": "index.js"
+        }
+    }
+}
