@@ -1,3 +1,10 @@
+## [1.0.6](https://github.com/oddessentials/ado-git-repo-insights/compare/v1.0.5...v1.0.6) (2026-01-13)
+
+
+### Bug Fixes
+
+* Resolve deprecation warnings and add coverage threshold ([139cc7e](https://github.com/oddessentials/ado-git-repo-insights/commit/139cc7ea0643bfac9a2ed88d8742e2a9b2e15727))
+
 ## [1.0.5](https://github.com/oddessentials/ado-git-repo-insights/compare/v1.0.4...v1.0.5) (2026-01-13)
 
 
