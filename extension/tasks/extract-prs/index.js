@@ -1,11 +1,11 @@
 /**
  * Node.js wrapper for ado-git-repo-insights Python CLI.
- * 
+ *
  * Adjustment 6: Locked Node → Python Execution Contract
  * - Python 3.10+ required
  * - Explicit entrypoint: python -m ado_git_repo_insights.cli
  * - Fail-fast diagnostics if runtime environment invalid
- * 
+ *
  * Invariant 17: Must run on hosted and self-hosted agents
  * Invariant 18: Clear failures with actionable logs
  * Invariant 19: PAT is never logged

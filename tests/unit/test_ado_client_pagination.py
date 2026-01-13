@@ -17,7 +17,7 @@ from ado_git_repo_insights.config import APIConfig
 from ado_git_repo_insights.extractor.ado_client import ADOClient, ExtractionError
 
 
-@pytest.fixture
+@pytest.fixture()
 def api_config() -> APIConfig:
     """Create a test API config with fast retries."""
     return APIConfig(
@@ -30,7 +30,7 @@ def api_config() -> APIConfig:
     )
 
 
-@pytest.fixture
+@pytest.fixture()
 def client(api_config: APIConfig) -> ADOClient:
     """Create a test ADO client."""
     return ADOClient(
