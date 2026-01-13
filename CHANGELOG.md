@@ -1,3 +1,10 @@
+## [1.0.5](https://github.com/oddessentials/ado-git-repo-insights/compare/v1.0.4...v1.0.5) (2026-01-13)
+
+
+### Bug Fixes
+
+* Match PyPI environment name to trusted publisher config ([f106638](https://github.com/oddessentials/ado-git-repo-insights/commit/f106638d18a141ecd9825eeeb12949b5294d16bc))
+
 ## [1.0.4](https://github.com/oddessentials/ado-git-repo-insights/compare/v1.0.3...v1.0.4) (2026-01-13)
 
 
