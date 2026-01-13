@@ -1,3 +1,10 @@
+## [1.0.1](https://github.com/oddessentials/ado-git-repo-insights/compare/v1.0.0...v1.0.1) (2026-01-13)
+
+
+### Bug Fixes
+
+* Make PyPI publishing optional with continue-on-error ([21ef435](https://github.com/oddessentials/ado-git-repo-insights/commit/21ef4358888e9a9c808cb46acc6e7cb58cc299d9))
+
 # 1.0.0 (2026-01-13)
 
 
