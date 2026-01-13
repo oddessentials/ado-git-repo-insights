@@ -23,4 +23,14 @@ repos:
         additional_dependencies:
           - types-requests
           - types-PyYAML
+          - pandas-stubs
         args: [--config-file=pyproject.toml]
+
+  - repo: local
+    hooks:
+      - id: pytest
+        name: pytest
+        entry: .venv/Scripts/python.exe -m pytest tests/ --no-cov -q
+        language: system
+        pass_filenames: false
+        stages: [pre-push]

@@ -109,7 +109,9 @@ class ADOClient:
             time.sleep(self.config.rate_limit_sleep_seconds)
             current_date += timedelta(days=1)
 
-    def _fetch_prs_for_date_paginated(self, project: str, dt: date) -> list[dict[str, Any]]:
+    def _fetch_prs_for_date_paginated(
+        self, project: str, dt: date
+    ) -> list[dict[str, Any]]:
         """Fetch all PRs for a single date, handling continuation tokens.
 
         Invariant 12: Complete pagination via continuation tokens.
