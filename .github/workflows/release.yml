@@ -2,18 +2,57 @@ name: Release
 
 on:
   push:
-    tags:
-      - 'v*'
+    branches:
+      - main
+  workflow_dispatch:
 
 permissions:
   contents: write
+  issues: write
+  pull-requests: write
   id-token: write
 
 jobs:
+  release:
+    runs-on: ubuntu-latest
+    outputs:
+      new_release_published: ${{ steps.semantic.outputs.new_release_published }}
+      new_release_version: ${{ steps.semantic.outputs.new_release_version }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Semantic Release
+        id: semantic
+        uses: cycjimmy/semantic-release-action@v4
+        with:
+          semantic_version: 24
+          extra_plugins: |
+            @semantic-release/changelog@6
+            @semantic-release/git@10
+            @semantic-release/exec@6
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
   build-python:
+    needs: release
+    if: needs.release.outputs.new_release_published == 'true'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
 
       - name: Set up Python
         uses: actions/setup-python@v5
@@ -35,9 +74,13 @@ jobs:
           path: dist/
 
   build-extension:
+    needs: release
+    if: needs.release.outputs.new_release_published == 'true'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: main
 
       - name: Set up Node.js
         uses: actions/setup-node@v4
@@ -62,7 +105,8 @@ jobs:
           path: extension/*.vsix
 
   publish-pypi:
-    needs: [build-python, build-extension]
+    needs: [release, build-python, build-extension]
+    if: needs.release.outputs.new_release_published == 'true'
     runs-on: ubuntu-latest
     environment: pypi
     steps:
@@ -75,16 +119,13 @@ jobs:
       - name: Publish to PyPI
         uses: pypa/gh-action-pypi-publish@release/v1
         with:
-          # Uses trusted publishing (OIDC)
-          # Configure at: https://pypi.org/manage/project/ado-git-repo-insights/settings/publishing/
           skip-existing: true
 
-  create-release:
-    needs: [build-python, build-extension]
+  upload-release-assets:
+    needs: [release, build-python, build-extension]
+    if: needs.release.outputs.new_release_published == 'true'
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-
       - name: Download Python artifacts
         uses: actions/download-artifact@v4
         with:
@@ -97,17 +138,10 @@ jobs:
           name: vsix-extension
           path: extension/
 
-      - name: Get version from tag
-        id: version
-        run: echo "VERSION=${GITHUB_REF#refs/tags/v}" >> $GITHUB_OUTPUT
-
-      - name: Create GitHub Release
+      - name: Upload Release Assets
         uses: softprops/action-gh-release@v1
         with:
-          name: Release v${{ steps.version.outputs.VERSION }}
-          draft: false
-          prerelease: false
-          generate_release_notes: true
+          tag_name: v${{ needs.release.outputs.new_release_version }}
           files: |
             dist/*.whl
             dist/*.tar.gz
