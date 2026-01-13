@@ -1,3 +1,18 @@
+# [1.2.0](https://github.com/oddessentials/ado-git-repo-insights/compare/v1.1.0...v1.2.0) (2026-01-13)
+
+
+### Bug Fixes
+
+* address P1 and P2 CI gate failures ([2d772e4](https://github.com/oddessentials/ado-git-repo-insights/commit/2d772e457c022d3573f84b1cdd2ef6d41df55ebd))
+* correct test case for 52-char ADO PAT format ([41b8a3d](https://github.com/oddessentials/ado-git-repo-insights/commit/41b8a3db7dec61e398acf6588a7f8842845ab7db))
+* harden monitoring implementation with production-readiness fixes ([002e0cc](https://github.com/oddessentials/ado-git-repo-insights/commit/002e0ccd450cc6f4e3f2cc5e753bee6518167b2f))
+* remove empty parentheses from pytest fixtures (PT001) ([5ce0a06](https://github.com/oddessentials/ado-git-repo-insights/commit/5ce0a068bb9b8fe4a82a88c12175b3a539d359ee))
+
+
+### Features
+
+* implement monitoring and logging infrastructure ([5e6eb39](https://github.com/oddessentials/ado-git-repo-insights/commit/5e6eb39ed47115e15fe383ccf900f6e83ae55727))
+
 # [1.1.0](https://github.com/oddessentials/ado-git-repo-insights/compare/v1.0.6...v1.1.0) (2026-01-13)
 
 
