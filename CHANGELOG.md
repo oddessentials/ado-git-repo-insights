@@ -1,3 +1,10 @@
+## [1.0.2](https://github.com/oddessentials/ado-git-repo-insights/compare/v1.0.1...v1.0.2) (2026-01-13)
+
+
+### Bug Fixes
+
+* Re-enable PyPI publishing after trusted publisher setup ([83285e8](https://github.com/oddessentials/ado-git-repo-insights/commit/83285e8f59fe171166024b4fb39dba28f77fd6e7))
+
 ## [1.0.1](https://github.com/oddessentials/ado-git-repo-insights/compare/v1.0.0...v1.0.1) (2026-01-13)
 
 
