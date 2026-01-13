@@ -162,7 +162,9 @@ How long data and logs persist—and who can access them—depends entirely on *
 
 ## Appendix: Test Evidence
 
-All claims in this document are backed by automated tests. The tables below map each claim to the tests that verify it.
+This appendix maps **code behavior claims** to automated tests. **Operational claims** about Azure DevOps infrastructure (RBAC, artifact retention, pipeline secrets) describe platform features and are validated via [ADO Pipeline Smoke Check](docs/ado-pipeline-smoke-check.md).
+
+> **Note:** Secret redaction is enforced by the logging pipeline configuration. All loggers MUST use `RedactingFormatter` or `JsonlHandler` to maintain this guarantee.
 
 ### Data & Storage Claims
 
@@ -179,28 +181,43 @@ All claims in this document are backed by automated tests. The tables below map 
 
 | Claim | Test Evidence |
 |-------|---------------|
-| Never logs secrets (PATs, tokens) | `test_secret_redaction.py`, `test_logging_config.py::TestRedactingFormatter`, `test_redaction.py` |
+| Secret redaction enforced by logging config | `test_logging_config.py::TestRedactingFormatter`, `test_logging_config.py::TestJsonlRedactionStructuredFields` |
 | Logs to console or JSONL | `test_logging_config.py::TestSetupLogging`, `test_logging_config.py::TestJsonlHandler` |
 | `run_summary.json` always written | `test_run_summary.py::TestRunSummary.test_write` |
 | Summary written even on failure | `test_run_summary.py::test_create_minimal_summary` |
-| Summary includes status/errors | `test_run_summary.py::test_to_dict`, `test_run_summary.py::test_normalizes_error_on_init` |
-| Emits `##vso` commands in ADO | `test_run_summary.py::test_emit_ado_commands_in_ado_failure`, `test_emit_ado_commands_in_ado_warnings` |
-| Config printed with PAT masked | `test_config_validation.py::test_config_repr_masks_pat`, `test_secret_redaction.py::test_config_log_summary_masks_pat` |
+| Non-zero exit code on failure | `test_cli_exit_code.py` (4 tests) |
+| Emits `##vso` commands in ADO | `test_run_summary.py::test_emit_ado_commands_in_ado_failure` |
+| Config printed with PAT masked | `test_config_validation.py::test_config_repr_masks_pat` |
+| Artifacts directory created | `test_artifacts_dir.py` (4 tests) |
 
 ### Governance Claims
 
 | Claim | Test Evidence |
 |-------|---------------|
 | No secrets at rest | `test_secret_redaction.py` (5 tests) |
-| Failures visible and auditable | `test_run_summary.py` (ADO commands, summary output) |
+| Failures visible and auditable | `test_run_summary.py`, `test_cli_exit_code.py` |
 | Outputs reproducible | `test_golden_outputs.py::test_golden_output_deterministic` |
+
+### Operational Claims (Platform Features)
+
+The following describe Azure DevOps platform behavior and cannot be verified via unit tests:
+
+| Claim | ADO Feature | Validation |
+|-------|-------------|------------|
+| PAT stored as secure pipeline secret | Pipeline Variables | Manual / ADO audit |
+| RBAC controls artifact access | Project Permissions | ADO configuration |
+| Artifact retention policies | Build Retention Settings | ADO configuration |
+| Artifact download → update → publish | Pipeline Artifacts | [Smoke Check](docs/ado-pipeline-smoke-check.md) |
 
 ### Test Categories
 
 | Category | Files | Purpose |
 |----------|-------|---------|
-| **Unit** | `tests/unit/` (12 files) | Isolated component testing |
+| **Unit** | `tests/unit/` (16 files) | Isolated component testing |
 | **Integration** | `tests/integration/` (5 files) | End-to-end workflow validation |
-| **Redaction** | `tests/test_redaction.py` | Secret filtering edge cases |
+| **Drift Guard** | `test_summary_drift_guard.py` | CI guard for documentation accuracy |
 
-Run all tests: `pytest tests/ -v`
+### CI Integration
+
+- Run all tests: `pytest tests/ -v`
+- Drift guard runs on every CI build to prevent stale documentation
