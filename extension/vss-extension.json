@@ -3,7 +3,7 @@
     "id": "ado-git-repo-insights",
     "name": "Git Repo Insights",
     "version": "1.0.0",
-    "publisher": "your-publisher-id",
+    "publisher": "OddEssentials",
     "targets": [
         {
             "id": "Microsoft.VisualStudio.Services"
@@ -40,6 +40,6 @@
     ],
     "repository": {
         "type": "git",
-        "uri": "https://github.com/your-org/ado-git-repo-insights"
+        "uri": "https://github.com/oddessentials/ado-git-repo-insights.git"
     }
 }

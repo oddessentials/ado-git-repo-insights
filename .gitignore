@@ -85,6 +85,7 @@ csv_output/
 
 # Azure DevOps extension
 *.vsix
+node_modules/
 
 # OS files
 .DS_Store
