@@ -140,3 +140,85 @@ class TestSetupLogging:
             setup_logging(config)
             root = logging.getLogger()
             assert len(root.handlers) >= 1
+
+
+class TestJsonlRedactionStructuredFields:
+    """Tests for JSONL redaction across message, exception, and structured fields."""
+
+    def test_jsonl_redacts_exception_traceback(self) -> None:
+        """JSONL handler redacts secrets appearing in exception tracebacks."""
+        import sys
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            log_file = Path(tmpdir) / "test.log.jsonl"
+            handler = JsonlHandler(log_file)
+            pat = "a" * 52
+
+            # Create an exception containing the PAT
+            try:
+                raise ValueError(f"Auth failed with PAT: {pat}")
+            except ValueError:
+                exc_info = sys.exc_info()
+
+            record = logging.LogRecord(
+                name="test",
+                level=logging.ERROR,
+                pathname="",
+                lineno=0,
+                msg="Exception occurred",
+                args=(),
+                exc_info=exc_info,
+            )
+            handler.emit(record)
+
+            content = log_file.read_text()
+            # PAT should not appear anywhere in the output
+            assert pat not in content
+
+    def test_jsonl_redacts_structured_extra_fields(self) -> None:
+        """JSONL handler redacts secrets in structured extra attributes."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            log_file = Path(tmpdir) / "test.log.jsonl"
+            handler = JsonlHandler(log_file)
+            pat = "a" * 52
+
+            record = logging.LogRecord(
+                name="test",
+                level=logging.INFO,
+                pathname="",
+                lineno=0,
+                msg="Processing request",
+                args=(),
+                exc_info=None,
+            )
+            # Add structured extra field containing a secret
+            record.auth_token = pat
+            record.bearer = f"Bearer {pat}"
+
+            handler.emit(record)
+
+            content = log_file.read_text()
+            # PAT should be redacted even in structured fields
+            assert pat not in content
+
+    def test_jsonl_redacts_nested_dict_in_args(self) -> None:
+        """JSONL handler redacts secrets in message args."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            log_file = Path(tmpdir) / "test.log.jsonl"
+            handler = JsonlHandler(log_file)
+            pat = "a" * 52
+
+            record = logging.LogRecord(
+                name="test",
+                level=logging.INFO,
+                pathname="",
+                lineno=0,
+                msg="Config: %s",
+                args=({"pat": pat, "org": "TestOrg"},),
+                exc_info=None,
+            )
+            handler.emit(record)
+
+            content = log_file.read_text()
+            # PAT should not appear in serialized output
+            assert pat not in content

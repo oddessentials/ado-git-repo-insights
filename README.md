@@ -1,5 +1,10 @@
 # ado-git-repo-insights
 
+![CI](https://github.com/oddessentials/ado-git-repo-insights/actions/workflows/ci.yml/badge.svg)
+[![codecov](https://codecov.io/gh/oddessentials/ado-git-repo-insights/graph/badge.svg)](https://codecov.io/gh/oddessentials/ado-git-repo-insights)
+![Python](https://img.shields.io/badge/python-3.10%20%7C%203.11%20%7C%203.12-blue)
+![License](https://img.shields.io/badge/license-MIT-green)
+
 Extract Azure DevOps Pull Request metrics to SQLite and generate PowerBI-compatible CSVs.
 
 ## Overview
