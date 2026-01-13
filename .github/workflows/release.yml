@@ -109,10 +109,8 @@ jobs:
     if: needs.release.outputs.new_release_published == 'true'
     runs-on: ubuntu-latest
     environment: pypi
-    # PyPI trusted publishing must be configured at:
+    # PyPI trusted publishing configured at:
     # https://pypi.org/manage/project/ado-git-repo-insights/settings/publishing/
-    # Add: oddessentials/ado-git-repo-insights, workflow: release.yml, environment: pypi
-    continue-on-error: true  # Don't fail release if PyPI not configured
     steps:
       - name: Download Python artifacts
         uses: actions/download-artifact@v4
