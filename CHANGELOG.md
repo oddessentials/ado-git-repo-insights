@@ -1,3 +1,10 @@
+## [1.0.3](https://github.com/oddessentials/ado-git-repo-insights/compare/v1.0.2...v1.0.3) (2026-01-13)
+
+
+### Bug Fixes
+
+* Fix formatting and add pre-push quality gates ([3c4399e](https://github.com/oddessentials/ado-git-repo-insights/commit/3c4399e324fd4fc37611b28a6211cad87ae5ddb2))
+
 ## [1.0.2](https://github.com/oddessentials/ado-git-repo-insights/compare/v1.0.1...v1.0.2) (2026-01-13)
 
 
