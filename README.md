@@ -51,6 +51,9 @@ ado-insights extract \
   --database ./ado-insights.sqlite
 ```
 
+> **Note**: End date defaults to yesterday (to avoid incomplete data).
+> Include today: `--end-date $(date +%Y-%m-%d)` (Bash) or `--end-date (Get-Date -Format yyyy-MM-dd)` (PowerShell)
+
 #### Generate CSVs
 
 ```bash

@@ -270,9 +270,22 @@ The system guarantees:
 ### Common Issues
 
 **Q: "No PRs extracted" but I know there are PRs**
-- Check date range: `--start-date` / `--end-date`
-- Verify project names match exactly (case-sensitive)
-- Confirm PAT has access to the project
+
+1. **PRs closed today are excluded** — End date defaults to yesterday
+   ```powershell
+   # Include today explicitly
+   ado-insights extract --end-date (Get-Date -Format yyyy-MM-dd) ...
+   ```
+
+2. **Only completed PRs are extracted** — Active/draft PRs are skipped
+   - The tool queries by **closed date**, not creation date
+   - This is by design for cycle time metrics
+
+3. **Timezone differences** — Tool uses local dates; ADO API uses UTC
+   - A PR's closed date may appear as a different local date depending on your timezone
+
+4. **Project names are case-sensitive**
+5. **PAT lacks Code (Read) access to the project**
 
 **Q: CSV has different columns than expected**
 - This is a contract violation. File an issue.
@@ -287,6 +300,12 @@ The system guarantees:
 - Could be rate limiting or large volume
 - Check logs for retry messages
 - Try extracting that date alone with debug logging
+
+### Debugging
+
+- **Enable JSONL logging**: `--log-format jsonl`
+- **Log location**: `run_artifacts/*.jsonl`
+- **Run summary**: `run_artifacts/run_summary.json` (always written, even on failure)
 
 ---
 
