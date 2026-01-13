@@ -91,13 +91,17 @@ class JsonlHandler(logging.Handler):
 
     def emit(self, record: logging.LogRecord) -> None:
         try:
+            # P1 Fix: Redact the message before writing to JSONL
+            message = record.getMessage()
+            redacted_message = self.redaction_config.redact_value(message)
+
             log_entry: dict[str, Any] = {
                 "timestamp": self.formatter.formatTime(record)
                 if self.formatter
                 else "",
                 "level": record.levelname,
                 "logger": record.name,
-                "message": record.getMessage(),
+                "message": redacted_message,
             }
 
             # Add extra fields if present (context dict)

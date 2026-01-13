@@ -240,15 +240,27 @@ def cmd_extract(args: Namespace) -> int:
 
     except ConfigurationError as e:
         logger.error(f"Configuration error: {e}")
-        first_fatal_error = f"Configuration error: {e}"
+        # P2 Fix: Write minimal summary for caught errors
+        minimal_summary = create_minimal_summary(
+            f"Configuration error: {e}", args.artifacts_dir
+        )
+        minimal_summary.write(args.artifacts_dir / "run_summary.json")
         return 1
     except DatabaseError as e:
         logger.error(f"Database error: {e}")
-        first_fatal_error = f"Database error: {e}"
+        # P2 Fix: Write minimal summary for caught errors
+        minimal_summary = create_minimal_summary(
+            f"Database error: {e}", args.artifacts_dir
+        )
+        minimal_summary.write(args.artifacts_dir / "run_summary.json")
         return 1
     except ExtractionError as e:
         logger.error(f"Extraction error: {e}")
-        first_fatal_error = f"Extraction error: {e}"
+        # P2 Fix: Write minimal summary for caught errors
+        minimal_summary = create_minimal_summary(
+            f"Extraction error: {e}", args.artifacts_dir
+        )
+        minimal_summary.write(args.artifacts_dir / "run_summary.json")
         return 1
 
 
