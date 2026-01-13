@@ -19,7 +19,22 @@ This tool replaces the MongoDB-based `ado-pull-request-metrics` with a lightweig
 pip install ado-git-repo-insights
 ```
 
-### CLI Usage
+## Usage Options
+
+This tool provides **two ways** to extract Azure DevOps Pull Request metrics:
+
+| Aspect | CLI (Option 1) | Extension (Option 2) |
+|--------|----------------|----------------------|
+| **Requires Python** | Yes | No (bundled) |
+| **Installation** | `pip install` | Upload VSIX to ADO |
+| **Pipeline syntax** | Script steps | Task step |
+| **Works outside ADO** | Yes | No (ADO only) |
+| **Flexibility** | Higher | Standard |
+
+### Option 1: Python CLI
+
+Best for users comfortable with Python/pip, custom scripts, and non-ADO CI/CD systems.
+
 
 #### First Run (Extract Data)
 
@@ -49,6 +64,25 @@ ado-insights extract \
   --database ./ado-insights.sqlite \
   --backfill-days 60
 ```
+
+### Option 2: Azure DevOps Extension
+
+Best for teams that prefer the ADO pipeline editor UI or want a self-contained task without managing Python dependencies.
+
+```yaml
+steps:
+  - task: ExtractPullRequests@1
+    inputs:
+      organization: 'MyOrg'
+      projects: 'Project1,Project2'
+      pat: '$(PAT_SECRET)'
+      database: '$(Pipeline.Workspace)/data/ado-insights.sqlite'
+      outputDir: '$(Pipeline.Workspace)/csv_output'
+```
+
+**Installation:**
+1. Download the `.vsix` from [GitHub Releases](https://github.com/oddessentials/ado-git-repo-insights/releases)
+2. Install in your ADO organization: Organization Settings → Extensions → Browse local extensions
 
 ## Configuration
 
