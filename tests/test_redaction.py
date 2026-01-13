@@ -65,9 +65,9 @@ def test_redaction_config_redacts_actual_secrets():
             f"Input:  '{test_string}'\\n"
             f"Output: '{result}'"
         )
-        assert (
-            "***REDACTED***" in result
-        ), f"Redaction marker missing for: {description}"
+        assert "***REDACTED***" in result, (
+            f"Redaction marker missing for: {description}"
+        )
 
 
 def test_redaction_config_key_denylist():
