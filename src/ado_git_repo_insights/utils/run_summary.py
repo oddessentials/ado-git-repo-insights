@@ -8,11 +8,35 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import subprocess
 from dataclasses import dataclass, field
 from datetime import date
 from pathlib import Path
 from typing import Any, Literal
+
+
+def normalize_error_message(error: str, max_length: int = 500) -> str:
+    """Normalize and bound error messages to prevent secret leakage.
+
+    Args:
+        error: Raw error message.
+        max_length: Maximum length for bounded message.
+
+    Returns:
+        Normalized error message.
+    """
+    # Strip URLs with query strings (can contain secrets)
+    error = re.sub(r"https?://[^\s]+\?[^\s]+", "[URL_WITH_PARAMS]", error)
+
+    # Strip full URLs (can contain hostnames/paths)
+    error = re.sub(r"https?://[^\s]+", "[URL]", error)
+
+    # Truncate to max length
+    if len(error) > max_length:
+        error = error[:max_length] + "...[truncated]"
+
+    return error
 
 
 @dataclass
@@ -50,6 +74,11 @@ class RunSummary:
     final_status: Literal["success", "failed"]
     per_project_status: dict[str, str] = field(default_factory=dict)
     first_fatal_error: str | None = None
+
+    def __post_init__(self) -> None:
+        """Normalize error message on initialization."""
+        if self.first_fatal_error:
+            self.first_fatal_error = normalize_error_message(self.first_fatal_error)
 
     def to_dict(self) -> dict[str, Any]:
         """Convert to dictionary for JSON serialization."""
@@ -173,5 +202,5 @@ def create_minimal_summary(
         timings=RunTimings(),
         warnings=[],
         final_status="failed",
-        first_fatal_error=error_message,
+        first_fatal_error=normalize_error_message(error_message),
     )
