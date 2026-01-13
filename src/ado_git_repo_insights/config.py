@@ -10,6 +10,7 @@ import os
 from dataclasses import dataclass, field
 from datetime import date
 from pathlib import Path
+from typing import Any
 
 import yaml
 
@@ -124,7 +125,7 @@ def load_config(
         ConfigurationError: If configuration is invalid.
     """
     # Start with defaults
-    config_data: dict = {}
+    config_data: dict[str, Any] = {}
 
     # Load from file if provided
     if config_path and config_path.exists():

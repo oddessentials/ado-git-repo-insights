@@ -12,6 +12,7 @@ import time
 from collections.abc import Iterator
 from dataclasses import dataclass
 from datetime import date, timedelta
+from typing import Any
 
 import requests
 from requests.exceptions import HTTPError, RequestException
@@ -77,7 +78,7 @@ class ADOClient:
         project: str,
         start_date: date,
         end_date: date,
-    ) -> Iterator[dict]:
+    ) -> Iterator[dict[str, Any]]:
         """Fetch completed PRs for a date range with automatic pagination.
 
         Adjustment 4: Handles continuation tokens, bounded retries with backoff.
@@ -108,7 +109,7 @@ class ADOClient:
             time.sleep(self.config.rate_limit_sleep_seconds)
             current_date += timedelta(days=1)
 
-    def _fetch_prs_for_date_paginated(self, project: str, dt: date) -> list[dict]:
+    def _fetch_prs_for_date_paginated(self, project: str, dt: date) -> list[dict[str, Any]]:
         """Fetch all PRs for a single date, handling continuation tokens.
 
         Invariant 12: Complete pagination via continuation tokens.
@@ -120,7 +121,7 @@ class ADOClient:
         Returns:
             List of all PRs for the date.
         """
-        all_prs: list[dict] = []
+        all_prs: list[dict[str, Any]] = []
         continuation_token: str | None = None
 
         while True:
@@ -144,7 +145,7 @@ class ADOClient:
         project: str,
         dt: date,
         token: str | None,
-    ) -> tuple[list[dict], str | None]:
+    ) -> tuple[list[dict[str, Any]], str | None]:
         """Fetch a single page of PRs with retry logic.
 
         Invariant 13: Bounded retries with exponential backoff.

@@ -11,7 +11,7 @@ import sqlite3
 from collections.abc import Iterator
 from contextlib import contextmanager
 from pathlib import Path
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 from .models import SCHEMA_SQL
 
@@ -151,7 +151,7 @@ class DatabaseManager:
         finally:
             cursor.close()
 
-    def execute(self, sql: str, parameters: tuple = ()) -> Cursor:  # noqa: UP006
+    def execute(self, sql: str, parameters: tuple[Any, ...] = ()) -> Cursor:  # noqa: UP006
         """Execute a single SQL statement.
 
         Args:
@@ -166,7 +166,7 @@ class DatabaseManager:
     def executemany(
         self,
         sql: str,
-        parameters: list[tuple],  # noqa: UP006
+        parameters: list[tuple[Any, ...]],  # noqa: UP006
     ) -> Cursor:
         """Execute a SQL statement with multiple parameter sets.
 
