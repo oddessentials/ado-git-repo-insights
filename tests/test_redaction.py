@@ -47,7 +47,10 @@ def test_redaction_config_redacts_actual_secrets():
     secret_cases = [
         # 52-character ADO PAT
         ("a" * 52, "52-char ADO PAT"),
-        ("AbcDefGh1234567890AbcDefGh1234567890AbcDefGh1234", "Valid ADO PAT format"),
+        (
+            "AbcDefGh1234567890AbcDefGh1234567890AbcDefGh12345678",
+            "Valid ADO PAT format",
+        ),  # Exactly 52 chars
         # Bearer tokens
         (
             "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0NTY3ODkwIn0",
