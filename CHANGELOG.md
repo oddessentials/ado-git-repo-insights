@@ -1,3 +1,10 @@
+# [1.1.0](https://github.com/oddessentials/ado-git-repo-insights/compare/v1.0.6...v1.1.0) (2026-01-13)
+
+
+### Features
+
+* expand CI matrix for cross-platform testing and consolidate docs ([8d88fb4](https://github.com/oddessentials/ado-git-repo-insights/commit/8d88fb4980de07ef83de35babd8c574a83eef6c1))
+
 ## [1.0.6](https://github.com/oddessentials/ado-git-repo-insights/compare/v1.0.5...v1.0.6) (2026-01-13)
 
 
