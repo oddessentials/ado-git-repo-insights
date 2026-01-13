@@ -1,3 +1,10 @@
+## [1.0.4](https://github.com/oddessentials/ado-git-repo-insights/compare/v1.0.3...v1.0.4) (2026-01-13)
+
+
+### Bug Fixes
+
+* Add pandas-stubs to dev dependencies for CI mypy ([902045c](https://github.com/oddessentials/ado-git-repo-insights/commit/902045cdf7ec71348918bc2abd116fd4be587283))
+
 ## [1.0.3](https://github.com/oddessentials/ado-git-repo-insights/compare/v1.0.2...v1.0.3) (2026-01-13)
 
 
