@@ -38,15 +38,18 @@ stages:
       - job: ExtractPRs
         steps:
           # Download previous SQLite database (if exists)
-          # Adjustment 7: Missing artifact = first-run behavior
+          # CRITICAL: Download from latest SUCCESSFUL run of THIS PIPELINE to avoid corrupt state
+          # buildVersionToDownload: 'latest' + allowFailedBuilds: false = latest successful
+          # artifactName must exactly match $(ARTIFACT_NAME) or download silently fails
           - task: DownloadPipelineArtifact@2
-            displayName: 'Download Previous Database'
+            displayName: 'Download Previous Database (Golden)'
             inputs:
-              buildType: 'specific'
-              project: '$(System.TeamProjectId)'
-              pipeline: '$(Build.DefinitionId)'
-              buildVersionToDownload: 'latest'
-              artifactName: '$(ARTIFACT_NAME)'
+              buildType: 'specific'  # Download from this pipeline, not current run
+              project: '$(System.TeamProjectId)'  # Same project
+              pipeline: '$(Build.DefinitionId)'  # Same pipeline definition
+              buildVersionToDownload: 'latest'  # Latest run matching criteria
+              allowFailedBuilds: false  # CRITICAL: Only successful runs
+              artifactName: '$(ARTIFACT_NAME)'  # Must match exactly
               targetPath: '$(Pipeline.Workspace)/data'
             continueOnError: true  # First run won't have artifact
 
@@ -81,7 +84,7 @@ stages:
               fi
             displayName: 'Determine Extraction Mode'
 
-          # Run extraction
+          # Run extraction with artifacts directory
           - script: |
               BACKFILL_ARG=""
               if [ -n "$(BACKFILL_DAYS)" ]; then
@@ -93,6 +96,7 @@ stages:
                 --projects "$(PROJECTS)" \
                 --pat $(PAT_SECRET) \
                 --database "$(Pipeline.Workspace)/data/ado-insights.sqlite" \
+                --artifacts-dir "$(Pipeline.Workspace)/run_artifacts" \
                 $BACKFILL_ARG
             displayName: 'Extract PR Data'
 
@@ -103,17 +107,37 @@ stages:
                 --output "$(Pipeline.Workspace)/csv_output"
             displayName: 'Generate CSVs'
 
-          # Adjustment 2: Publish ONLY on success
+          # FORENSIC ARTIFACTS: Always publish for debugging (even on failure)
+
+          # Candidate DB: Always published with unique name to preserve failure state
+          # Use BuildId (unique per run) not BuildNumber (can collide across branches)
           - task: PublishPipelineArtifact@1
-            displayName: 'Publish Database Artifact'
+            displayName: 'Publish Database Artifact (Candidate)'
+            condition: always()
+            inputs:
+              targetPath: '$(Pipeline.Workspace)/data'
+              artifact: 'ado-insights-db-candidate-$(Build.BuildId)'
+
+          # Golden DB: Only published on success (used for next run's download)
+          - task: PublishPipelineArtifact@1
+            displayName: 'Publish Database Artifact (Golden)'
             condition: succeeded()
             inputs:
               targetPath: '$(Pipeline.Workspace)/data'
               artifact: '$(ARTIFACT_NAME)'
 
+          # CSV Artifacts: Always published for forensic debugging of transform errors
           - task: PublishPipelineArtifact@1
             displayName: 'Publish CSV Artifacts'
-            condition: succeeded()
+            condition: always()
             inputs:
               targetPath: '$(Pipeline.Workspace)/csv_output'
               artifact: 'csv-output'
+
+          # Run Artifacts: Always published (run_summary.json, logs)
+          - task: PublishPipelineArtifact@1
+            displayName: 'Publish Run Artifacts'
+            condition: always()
+            inputs:
+              targetPath: '$(Pipeline.Workspace)/run_artifacts'
+              artifact: 'run-artifacts'

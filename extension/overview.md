@@ -28,7 +28,7 @@ Extract Azure DevOps Pull Request metrics and generate PowerBI-compatible CSVs.
    - publish: $(Pipeline.Workspace)/data
      artifact: ado-insights-db
      condition: succeeded()
-   
+
    - publish: $(Pipeline.Workspace)/csv_output
      artifact: csv-reports
      condition: succeeded()

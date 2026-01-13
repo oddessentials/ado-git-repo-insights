@@ -5,6 +5,8 @@ from __future__ import annotations
 import argparse
 import logging
 import sys
+import time
+from datetime import date
 from pathlib import Path
 from typing import TYPE_CHECKING
 
@@ -13,14 +15,19 @@ from .extractor.ado_client import ADOClient, ExtractionError
 from .extractor.pr_extractor import PRExtractor
 from .persistence.database import DatabaseError, DatabaseManager
 from .transform.csv_generator import CSVGenerationError, CSVGenerator
+from .utils.logging_config import LoggingConfig, setup_logging
+from .utils.run_summary import (
+    RunCounts,
+    RunSummary,
+    RunTimings,
+    create_minimal_summary,
+    get_git_sha,
+    get_tool_version,
+)
 
 if TYPE_CHECKING:
     from argparse import Namespace
 
-logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s - %(levelname)s - %(message)s",
-)
 logger = logging.getLogger(__name__)
 
 
@@ -30,6 +37,22 @@ def create_parser() -> argparse.ArgumentParser:  # pragma: no cover
         prog="ado-insights",
         description="Extract Azure DevOps PR metrics and generate PowerBI-compatible CSVs.",
     )
+
+    # Global options
+    parser.add_argument(
+        "--log-format",
+        type=str,
+        choices=["console", "jsonl"],
+        default="console",
+        help="Log format: console (human-readable) or jsonl (structured)",
+    )
+    parser.add_argument(
+        "--artifacts-dir",
+        type=Path,
+        default=Path("run_artifacts"),
+        help="Directory for run artifacts (summary, logs)",
+    )
+
     subparsers = parser.add_subparsers(dest="command", required=True)
 
     # Extract command
@@ -103,6 +126,13 @@ def create_parser() -> argparse.ArgumentParser:  # pragma: no cover
 
 def cmd_extract(args: Namespace) -> int:
     """Execute the extract command."""
+    start_time = time.perf_counter()
+    timing = RunTimings()
+    counts = RunCounts()
+    warnings_list: list[str] = []
+    per_project_status: dict[str, str] = {}
+    first_fatal_error: str | None = None
+
     try:
         # Load and validate configuration
         config = load_config(
@@ -118,6 +148,7 @@ def cmd_extract(args: Namespace) -> int:
         config.log_summary()
 
         # Connect to database
+        extract_start = time.perf_counter()
         db = DatabaseManager(config.database)
         db.connect()
 
@@ -136,11 +167,72 @@ def cmd_extract(args: Namespace) -> int:
             extractor = PRExtractor(client, db, config)
             summary = extractor.extract_all(backfill_days=args.backfill_days)
 
+            # Collect timing
+            timing.extract_seconds = time.perf_counter() - extract_start
+
+            # Collect counts and warnings
+            counts.prs_fetched = summary.total_prs
+            if hasattr(summary, "warnings"):
+                warnings_list.extend(summary.warnings)
+
+            # Collect per-project status
+            for project_result in summary.projects:
+                status = "success" if project_result.success else "failed"
+                per_project_status[project_result.project] = status
+
+                # Capture first fatal error
+                if not project_result.success and first_fatal_error is None:
+                    first_fatal_error = (
+                        project_result.error
+                        or f"Extraction failed for project: {project_result.project}"
+                    )
+
+            # Fail-fast: any project failure = exit 1
             if not summary.success:
                 logger.error("Extraction failed")
+                timing.total_seconds = time.perf_counter() - start_time
+
+                # Write failure summary
+                run_summary = RunSummary(
+                    tool_version=get_tool_version(),
+                    git_sha=get_git_sha(),
+                    organization=config.organization,
+                    projects=config.projects,
+                    date_range_start=str(config.date_range.start or date.today()),
+                    date_range_end=str(config.date_range.end or date.today()),
+                    counts=counts,
+                    timings=timing,
+                    warnings=warnings_list,
+                    final_status="failed",
+                    per_project_status=per_project_status,
+                    first_fatal_error=first_fatal_error,
+                )
+                run_summary.write(args.artifacts_dir / "run_summary.json")
+                run_summary.print_final_line()
+                run_summary.emit_ado_commands()
                 return 1
 
             logger.info(f"Extraction complete: {summary.total_prs} PRs")
+            timing.total_seconds = time.perf_counter() - start_time
+
+            # Write success summary
+            run_summary = RunSummary(
+                tool_version=get_tool_version(),
+                git_sha=get_git_sha(),
+                organization=config.organization,
+                projects=config.projects,
+                date_range_start=str(config.date_range.start or date.today()),
+                date_range_end=str(config.date_range.end or date.today()),
+                counts=counts,
+                timings=timing,
+                warnings=warnings_list,
+                final_status="success",
+                per_project_status=per_project_status,
+                first_fatal_error=None,
+            )
+            run_summary.write(args.artifacts_dir / "run_summary.json")
+            run_summary.print_final_line()
+            run_summary.emit_ado_commands()
             return 0
 
         finally:
@@ -148,12 +240,27 @@ def cmd_extract(args: Namespace) -> int:
 
     except ConfigurationError as e:
         logger.error(f"Configuration error: {e}")
+        # P2 Fix: Write minimal summary for caught errors
+        minimal_summary = create_minimal_summary(
+            f"Configuration error: {e}", args.artifacts_dir
+        )
+        minimal_summary.write(args.artifacts_dir / "run_summary.json")
         return 1
     except DatabaseError as e:
         logger.error(f"Database error: {e}")
+        # P2 Fix: Write minimal summary for caught errors
+        minimal_summary = create_minimal_summary(
+            f"Database error: {e}", args.artifacts_dir
+        )
+        minimal_summary.write(args.artifacts_dir / "run_summary.json")
         return 1
     except ExtractionError as e:
         logger.error(f"Extraction error: {e}")
+        # P2 Fix: Write minimal summary for caught errors
+        minimal_summary = create_minimal_summary(
+            f"Extraction error: {e}", args.artifacts_dir
+        )
+        minimal_summary.write(args.artifacts_dir / "run_summary.json")
         return 1
 
 
@@ -200,6 +307,19 @@ def main() -> int:
     parser = create_parser()
     args = parser.parse_args()
 
+    # Setup logging early
+    log_config = LoggingConfig(
+        format=getattr(args, "log_format", "console"),
+        artifacts_dir=getattr(args, "artifacts_dir", Path("run_artifacts")),
+    )
+    setup_logging(log_config)
+
+    # Ensure artifacts directory exists
+    artifacts_dir = getattr(args, "artifacts_dir", Path("run_artifacts"))
+    artifacts_dir.mkdir(parents=True, exist_ok=True)
+
+    summary_path = artifacts_dir / "run_summary.json"
+
     try:
         if args.command == "extract":
             return cmd_extract(args)
@@ -210,9 +330,23 @@ def main() -> int:
             return 1
     except KeyboardInterrupt:
         logger.info("Operation cancelled by user")
+
+        # Write minimal failure summary if success summary doesn't exist
+        if not summary_path.exists():
+            minimal_summary = create_minimal_summary(
+                "Operation cancelled by user", artifacts_dir
+            )
+            minimal_summary.write(summary_path)
+
         return 130
     except Exception as e:
         logger.exception(f"Unexpected error: {e}")
+
+        # Write minimal failure summary if success summary doesn't exist
+        if not summary_path.exists():
+            minimal_summary = create_minimal_summary(str(e), artifacts_dir)
+            minimal_summary.write(summary_path)
+
         return 1
 
 
