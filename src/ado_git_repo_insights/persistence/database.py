@@ -188,6 +188,6 @@ class DatabaseManager:
         try:
             cursor = self.execute("SELECT MAX(version) as version FROM schema_version")
             row = cursor.fetchone()
-            return row["version"] if row else 0
+            return int(row["version"]) if row and row["version"] is not None else 0
         except sqlite3.Error:
             return 0

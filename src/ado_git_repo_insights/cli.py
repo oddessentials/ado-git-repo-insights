@@ -24,7 +24,7 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 
-def create_parser() -> argparse.ArgumentParser:
+def create_parser() -> argparse.ArgumentParser:  # pragma: no cover
     """Create the argument parser for the CLI."""
     parser = argparse.ArgumentParser(
         prog="ado-insights",

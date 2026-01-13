@@ -25,6 +25,7 @@ repos:
           - types-PyYAML
           - pandas-stubs
         args: [--config-file=pyproject.toml]
+        exclude: ^tests/  # Tests checked by CI with full dependencies
 
   - repo: local
     hooks:
