@@ -17,7 +17,7 @@ from ado_git_repo_insights.persistence.database import DatabaseManager
 from ado_git_repo_insights.persistence.repository import PRRepository
 
 
-@pytest.fixture()
+@pytest.fixture
 def db_manager() -> DatabaseManager:
     """Create a temporary database for testing."""
     with tempfile.TemporaryDirectory() as tmpdir:
@@ -28,7 +28,7 @@ def db_manager() -> DatabaseManager:
         manager.close()
 
 
-@pytest.fixture()
+@pytest.fixture
 def repository(db_manager: DatabaseManager) -> PRRepository:
     """Create a repository instance for testing."""
     return PRRepository(db_manager)

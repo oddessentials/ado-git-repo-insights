@@ -107,7 +107,7 @@ def create_golden_database(db: DatabaseManager) -> None:
     repo.upsert_reviewer("repo-003-25", "user-alice", 10, "repo-003")
 
 
-@pytest.fixture()
+@pytest.fixture
 def golden_db() -> tuple[DatabaseManager, Path, Path]:
     """Create a golden database and output directories."""
     with tempfile.TemporaryDirectory() as tmpdir:
