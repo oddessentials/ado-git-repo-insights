@@ -190,12 +190,48 @@ jobs:
 
       - name: Publish to VS Marketplace
         run: |
-          VSIX_FILE=$(ls extension/*.vsix | head -1)
+          set -euo pipefail
+
+          # Find VSIX file
+          VSIX_FILE=$(ls extension/*.vsix 2>/dev/null | head -1)
           if [[ -z "$VSIX_FILE" ]]; then
             echo "::error::No VSIX file found in extension/"
             exit 1
           fi
-          echo "Publishing $VSIX_FILE to VS Marketplace"
-          tfx extension publish --vsix "$VSIX_FILE" --token "${{ secrets.VS_MARKETPLACE_PAT }}"
+
+          # Extract and validate version from VSIX filename
+          VSIX_VERSION=$(echo "$VSIX_FILE" | grep -oP '\d+\.\d+\.\d+' || echo "unknown")
+          echo "Publishing $VSIX_FILE (version $VSIX_VERSION) to VS Marketplace"
+
+          # Validate PAT is set
+          if [[ -z "${VS_MARKETPLACE_PAT:-}" ]]; then
+            echo "::error::VS_MARKETPLACE_PAT secret is not set"
+            exit 1
+          fi
+
+          # Publish with retries (marketplace can be flaky)
+          MAX_RETRIES=3
+          RETRY_DELAY=10
+          for ((i=1; i<=MAX_RETRIES; i++)); do
+            echo "Publish attempt $i of $MAX_RETRIES..."
+            if tfx extension publish \
+                --vsix "$VSIX_FILE" \
+                --token "$VS_MARKETPLACE_PAT" \
+                --no-prompt \
+                --no-wait-validation; then
+              echo "✓ Successfully published to VS Marketplace"
+              exit 0
+            else
+              EXIT_CODE=$?
+              echo "::warning::Publish attempt $i failed with exit code $EXIT_CODE"
+              if [[ $i -lt $MAX_RETRIES ]]; then
+                echo "Retrying in $RETRY_DELAY seconds..."
+                sleep $RETRY_DELAY
+              fi
+            fi
+          done
+
+          echo "::error::Failed to publish after $MAX_RETRIES attempts"
+          exit 1
         env:
           VS_MARKETPLACE_PAT: ${{ secrets.VS_MARKETPLACE_PAT }}
