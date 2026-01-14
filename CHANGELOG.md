@@ -1,3 +1,10 @@
+## [2.0.1](https://github.com/oddessentials/ado-git-repo-insights/compare/v2.0.0...v2.0.1) (2026-01-14)
+
+
+### Bug Fixes
+
+* upgrade tfx-cli to latest for private extension publish fix ([9c57688](https://github.com/oddessentials/ado-git-repo-insights/commit/9c57688eb2fcbb9ad6b7d0db537abe8365719326))
+
 # [2.0.0](https://github.com/oddessentials/ado-git-repo-insights/compare/v1.3.0...v2.0.0) (2026-01-14)
 
 
