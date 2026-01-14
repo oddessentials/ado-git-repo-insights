@@ -270,11 +270,11 @@ class TestAggregateGenerator:
         generator = AggregateGenerator(db, output_dir)
         manifest = generator.generate_all()
 
-        # Verify feature flags (all disabled in Phase 3.1)
+        # Verify feature flags (all disabled when no stubs/ML generated)
         assert manifest.features["teams"] is False
         assert manifest.features["comments"] is False
-        assert manifest.features["ml"] is False
-        assert manifest.features["ai_insights"] is False
+        assert manifest.features["predictions"] is False  # Phase 3.5
+        assert manifest.features["ai_insights"] is False  # Phase 3.5
 
     def test_aggregate_index_includes_file_sizes(
         self, sample_db: tuple[DatabaseManager, Path], tmp_path: Path
