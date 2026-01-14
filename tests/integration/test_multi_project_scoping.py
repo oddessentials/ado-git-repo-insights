@@ -51,7 +51,7 @@ def make_mock_pr(
     }
 
 
-@pytest.fixture()
+@pytest.fixture
 def multi_project_setup() -> tuple[DatabaseManager, Config, Path]:
     """Set up database and config for multi-project testing."""
     with tempfile.TemporaryDirectory() as tmpdir:

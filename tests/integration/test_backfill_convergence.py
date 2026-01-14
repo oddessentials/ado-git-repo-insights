@@ -52,7 +52,7 @@ def make_mock_pr(
     }
 
 
-@pytest.fixture()
+@pytest.fixture
 def backfill_setup() -> tuple[DatabaseManager, Config, Path]:
     """Set up database and config for backfill testing."""
     with tempfile.TemporaryDirectory() as tmpdir:
