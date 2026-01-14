@@ -1,16 +1,17 @@
 # Extension Verification Test Pipeline
 # Purpose: Test the ADO extension task (not just CLI)
 # Uses: ExtractPullRequests@1 task from the installed extension
+# Cross-platform: Uses pwsh (PowerShell Core) which works on Windows, Linux, Mac
 
 trigger: none  # Manual only
 
 pool:
-  name: 'Default'
+  name: 'Default'  # Self-hosted agent
 
 variables:
   - group: ado-insights-secrets  # Contains PAT_SECRET
   - name: ARTIFACT_NAME
-    value: 'ado-insights-db-ext-test'  # Isolated namespace for extension testing
+    value: 'ado-insights-db-ext-test'
 
 stages:
   - stage: Extract
@@ -19,33 +20,40 @@ stages:
       - job: ExtractPRs
         displayName: 'Run Extension Task'
         steps:
-          # Download previous database (if exists)
+          # Step 1: Create all directories upfront (cross-platform)
+          - pwsh: |
+              $dataDir = "$(Pipeline.Workspace)/data"
+              $csvDir = "$(Pipeline.Workspace)/csv_output"
+              $artifactsDir = "$(Pipeline.Workspace)/run_artifacts"
+
+              New-Item -ItemType Directory -Force -Path $dataDir | Out-Null
+              New-Item -ItemType Directory -Force -Path $csvDir | Out-Null
+              New-Item -ItemType Directory -Force -Path $artifactsDir | Out-Null
+
+              Write-Host "##[section]Directories created successfully"
+            displayName: 'Create Directories'
+
+          # Step 2: Try to download previous database (will fail on first run - that's OK)
           - task: DownloadPipelineArtifact@2
-            displayName: 'Download Previous Database (Golden)'
+            displayName: 'Download Previous Database (if exists)'
+            continueOnError: true
             inputs:
-              buildType: 'specific'
-              project: '$(System.TeamProjectId)'
-              pipeline: '$(Build.DefinitionId)'
-              buildVersionToDownload: 'latest'
-              allowFailedBuilds: false
+              buildType: 'current'
               artifactName: '$(ARTIFACT_NAME)'
               targetPath: '$(Pipeline.Workspace)/data'
-            continueOnError: true
 
-          # Create directories and check artifact status
+          # Step 3: Check if database exists
           - pwsh: |
-              New-Item -ItemType Directory -Force -Path "$(Pipeline.Workspace)/data"
-              New-Item -ItemType Directory -Force -Path "$(Pipeline.Workspace)/csv_output"
-              New-Item -ItemType Directory -Force -Path "$(Pipeline.Workspace)/run_artifacts"
-              if (Test-Path "$(Pipeline.Workspace)/data/ado-insights.sqlite") {
-                Write-Host "##[section]Found existing database (Run 2+)"
+              $dbPath = "$(Pipeline.Workspace)/data/ado-insights.sqlite"
+              if (Test-Path $dbPath) {
+                Write-Host "##[section]Found existing database - incremental run"
                 Get-ChildItem "$(Pipeline.Workspace)/data"
               } else {
-                Write-Host "##[warning]No existing database - first run"
+                Write-Host "##[warning]No existing database - first run (this is expected)"
               }
-            displayName: 'Setup and Check Database Status'
+            displayName: 'Check Database Status'
 
-          # Run the extension task
+          # Step 4: Run the extension task
           - task: ExtractPullRequests@1
             displayName: 'Extract PR Metrics'
             inputs:
@@ -58,15 +66,7 @@ stages:
               database: '$(Pipeline.Workspace)/data/ado-insights.sqlite'
               outputDir: '$(Pipeline.Workspace)/csv_output'
 
-          # Candidate DB: Always published (forensic)
-          - task: PublishPipelineArtifact@1
-            displayName: 'Publish Candidate DB'
-            condition: always()
-            inputs:
-              targetPath: '$(Pipeline.Workspace)/data'
-              artifact: 'ado-insights-db-candidate-$(Build.BuildId)'
-
-          # Golden DB: Only on success
+          # Step 5: Publish artifacts
           - task: PublishPipelineArtifact@1
             displayName: 'Publish Golden DB'
             condition: succeeded()
@@ -74,7 +74,13 @@ stages:
               targetPath: '$(Pipeline.Workspace)/data'
               artifact: '$(ARTIFACT_NAME)'
 
-          # CSV Artifacts
+          - task: PublishPipelineArtifact@1
+            displayName: 'Publish Candidate DB (forensic)'
+            condition: always()
+            inputs:
+              targetPath: '$(Pipeline.Workspace)/data'
+              artifact: 'ado-insights-db-candidate-$(Build.BuildId)'
+
           - task: PublishPipelineArtifact@1
             displayName: 'Publish CSVs'
             condition: always()
@@ -82,7 +88,6 @@ stages:
               targetPath: '$(Pipeline.Workspace)/csv_output'
               artifact: 'csv-output'
 
-          # Run Artifacts (if extension creates them)
           - task: PublishPipelineArtifact@1
             displayName: 'Publish Run Artifacts'
             condition: always()
