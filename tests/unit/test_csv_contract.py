@@ -20,7 +20,7 @@ from ado_git_repo_insights.persistence.repository import PRRepository
 from ado_git_repo_insights.transform.csv_generator import CSVGenerator
 
 
-@pytest.fixture
+@pytest.fixture()
 def db_with_data() -> tuple[DatabaseManager, Path]:
     """Create a database with sample data for testing."""
     with tempfile.TemporaryDirectory() as tmpdir:
