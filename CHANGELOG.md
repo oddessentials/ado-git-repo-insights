@@ -1,3 +1,10 @@
+# [2.1.0](https://github.com/oddessentials/ado-git-repo-insights/compare/v2.0.1...v2.1.0) (2026-01-14)
+
+
+### Features
+
+* enterprise-grade task versioning with decoupled Major ([641b350](https://github.com/oddessentials/ado-git-repo-insights/commit/641b3505c89e300aefde6f20d6f9190006dd8c38))
+
 ## [2.0.1](https://github.com/oddessentials/ado-git-repo-insights/compare/v2.0.0...v2.0.1) (2026-01-14)
 
 
