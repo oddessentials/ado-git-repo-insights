@@ -1,3 +1,10 @@
+## [2.1.1](https://github.com/oddessentials/ado-git-repo-insights/compare/v2.1.0...v2.1.1) (2026-01-14)
+
+
+### Bug Fixes
+
+* catch JSONDecodeError in API retry logic ([a7008d6](https://github.com/oddessentials/ado-git-repo-insights/commit/a7008d65c89e70bbd6b5b12732b963fec1577210))
+
 # [2.1.0](https://github.com/oddessentials/ado-git-repo-insights/compare/v2.0.1...v2.1.0) (2026-01-14)
 
 
