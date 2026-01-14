@@ -80,7 +80,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: main
+          ref: v${{ needs.release.outputs.new_release_version }}  # Checkout release TAG
 
       - name: Set up Node.js
         uses: actions/setup-node@v4
@@ -88,7 +88,27 @@ jobs:
           node-version: '20'
 
       - name: Install tfx-cli
-        run: npm install -g tfx-cli
+        run: npm install -g tfx-cli@0.17.x
+
+      - name: Validate Version Consistency
+        run: |
+          VERSION="${{ needs.release.outputs.new_release_version }}"
+          VSS_VERSION=$(jq -r '.version' extension/vss-extension.json)
+          TASK_VERSION=$(jq -r '.version | "\(.Major).\(.Minor).\(.Patch)"' extension/tasks/extract-prs/task.json)
+
+          echo "Expected version: $VERSION"
+          echo "vss-extension.json: $VSS_VERSION"
+          echo "task.json: $TASK_VERSION"
+
+          if [[ "$VSS_VERSION" != "$VERSION" ]]; then
+            echo "::error::Version mismatch: vss-extension.json has $VSS_VERSION, expected $VERSION"
+            exit 1
+          fi
+          if [[ "$TASK_VERSION" != "$VERSION" ]]; then
+            echo "::error::Version mismatch: task.json has $TASK_VERSION, expected $VERSION"
+            exit 1
+          fi
+          echo "✓ All versions match: $VERSION"
 
       - name: Install task dependencies
         working-directory: extension/tasks/extract-prs
@@ -148,3 +168,34 @@ jobs:
             dist/*.whl
             dist/*.tar.gz
             extension/*.vsix
+
+  # Optional: Publish to VS Marketplace (requires VS_MARKETPLACE_PAT secret)
+  publish-marketplace:
+    needs: [release, build-extension]
+    if: |
+      needs.release.outputs.new_release_published == 'true' &&
+      github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    environment: publish-marketplace  # Requires approval if configured
+    continue-on-error: false  # Fail hard, never warn
+    steps:
+      - name: Download VSIX artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: vsix-extension
+          path: extension/
+
+      - name: Install tfx-cli
+        run: npm install -g tfx-cli@0.17.x
+
+      - name: Publish to VS Marketplace
+        run: |
+          VSIX_FILE=$(ls extension/*.vsix | head -1)
+          if [[ -z "$VSIX_FILE" ]]; then
+            echo "::error::No VSIX file found in extension/"
+            exit 1
+          fi
+          echo "Publishing $VSIX_FILE to VS Marketplace"
+          tfx extension publish --vsix "$VSIX_FILE" --token "${{ secrets.VS_MARKETPLACE_PAT }}"
+        env:
+          VS_MARKETPLACE_PAT: ${{ secrets.VS_MARKETPLACE_PAT }}
