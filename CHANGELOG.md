@@ -1,3 +1,10 @@
+## [2.1.3](https://github.com/oddessentials/ado-git-repo-insights/compare/v2.1.2...v2.1.3) (2026-01-14)
+
+
+### Bug Fixes
+
+* correct database input name mismatch in extension task ([cfafb3a](https://github.com/oddessentials/ado-git-repo-insights/commit/cfafb3affb05a14a27f1648a4062e31652a87282))
+
 ## [2.1.2](https://github.com/oddessentials/ado-git-repo-insights/compare/v2.1.1...v2.1.2) (2026-01-14)
 
 
