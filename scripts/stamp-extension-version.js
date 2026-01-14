@@ -2,6 +2,7 @@
  * Version stamping script for ADO extension release automation.
  *
  * Updates version in:
+ * - VERSION (plain text for run_summary.py)
  * - extension/vss-extension.json (string: "X.Y.Z")
  * - extension/tasks/extract-prs/task.json (object: {Major, Minor, Patch})
  *
@@ -75,6 +76,11 @@ function main() {
     };
     fs.writeFileSync(taskPath, JSON.stringify(task, null, 4) + '\n');
     console.log(`✓ Updated task.json to ${major}.${minor}.${patch}`);
+
+    // Update VERSION file (for run_summary.py get_tool_version)
+    const versionPath = path.join(__dirname, '../VERSION');
+    fs.writeFileSync(versionPath, version + '\n');
+    console.log(`✓ Updated VERSION to ${version}`);
 
     console.log('Version stamping complete.');
 }
