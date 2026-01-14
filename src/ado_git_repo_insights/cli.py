@@ -29,6 +29,8 @@ from .utils.run_summary import (
 if TYPE_CHECKING:
     from argparse import Namespace
 
+    from .config import Config
+
 logger = logging.getLogger(__name__)
 
 
@@ -103,6 +105,25 @@ def create_parser() -> argparse.ArgumentParser:  # pragma: no cover
         type=int,
         help="Number of days to backfill for convergence",
     )
+    # Phase 3.4: Comments extraction (§6)
+    extract_parser.add_argument(
+        "--include-comments",
+        action="store_true",
+        default=False,
+        help="Extract PR threads and comments (feature-flagged)",
+    )
+    extract_parser.add_argument(
+        "--comments-max-prs-per-run",
+        type=int,
+        default=100,
+        help="Max PRs to fetch comments for per run (rate limit protection)",
+    )
+    extract_parser.add_argument(
+        "--comments-max-threads-per-pr",
+        type=int,
+        default=50,
+        help="Max threads to fetch per PR (optional limit)",
+    )
 
     # Generate CSV command
     csv_parser = subparsers.add_parser(
@@ -147,6 +168,140 @@ def create_parser() -> argparse.ArgumentParser:  # pragma: no cover
     )
 
     return parser
+
+
+def _extract_comments(
+    client: ADOClient,
+    db: DatabaseManager,
+    config: Config,
+    max_prs: int,
+    max_threads_per_pr: int,
+) -> dict[str, int | bool]:
+    """Extract PR threads and comments with rate limiting.
+
+    §6: Incremental strategy - only fetch for PRs in backfill window.
+    Rate limit protection via max_prs and max_threads_per_pr.
+
+    Args:
+        client: ADO API client.
+        db: Database manager.
+        config: Application config.
+        max_prs: Maximum PRs to process per run.
+        max_threads_per_pr: Maximum threads per PR (0 = unlimited).
+
+    Returns:
+        Stats dict with threads, comments, prs_processed, capped.
+    """
+    import json
+
+    from .persistence.repository import PRRepository
+
+    repo = PRRepository(db)
+    stats: dict[str, int | bool] = {
+        "threads": 0,
+        "comments": 0,
+        "prs_processed": 0,
+        "capped": False,
+    }
+
+    # Get recently completed PRs to extract comments for
+    # Limit by max_prs to avoid rate limiting
+    cursor = db.execute(
+        """
+        SELECT pull_request_uid, pull_request_id, repository_id
+        FROM pull_requests
+        WHERE status = 'completed'
+        ORDER BY closed_date DESC
+        LIMIT ?
+        """,
+        (max_prs,),
+    )
+    prs_to_process = cursor.fetchall()
+
+    if len(prs_to_process) >= max_prs:
+        stats["capped"] = True
+
+    for pr_row in prs_to_process:
+        pr_uid = pr_row["pull_request_uid"]
+        pr_id = pr_row["pull_request_id"]
+        repo_id = pr_row["repository_id"]
+
+        # §6: Incremental sync - check last_updated
+        last_updated = repo.get_thread_last_updated(pr_uid)
+
+        try:
+            # Fetch threads from API
+            threads = client.get_pr_threads(
+                project=config.projects[0],  # TODO: get project from PR
+                repository_id=repo_id,
+                pull_request_id=pr_id,
+            )
+
+            # Apply max_threads_per_pr limit
+            if max_threads_per_pr > 0 and len(threads) > max_threads_per_pr:
+                threads = threads[:max_threads_per_pr]
+
+            for thread in threads:
+                thread_id = str(thread.get("id", ""))
+                thread_updated = thread.get("lastUpdatedDate", "")
+                thread_created = thread.get("publishedDate", thread_updated)
+                thread_status = thread.get("status", "unknown")
+
+                # §6: Skip unchanged threads (incremental sync)
+                if last_updated and thread_updated <= last_updated:
+                    continue
+
+                # Serialize thread context
+                thread_context = None
+                if "threadContext" in thread:
+                    thread_context = json.dumps(thread["threadContext"])
+
+                # Upsert thread
+                repo.upsert_thread(
+                    thread_id=thread_id,
+                    pull_request_uid=pr_uid,
+                    status=thread_status,
+                    thread_context=thread_context,
+                    last_updated=thread_updated,
+                    created_at=thread_created,
+                    is_deleted=thread.get("isDeleted", False),
+                )
+                stats["threads"] = int(stats["threads"]) + 1
+
+                # Process comments in thread
+                for comment in thread.get("comments", []):
+                    comment_id = str(comment.get("id", ""))
+                    author = comment.get("author", {})
+                    author_id = author.get("id", "unknown")
+
+                    # Upsert author first to avoid FK violation (same as P2 fix)
+                    repo.upsert_user(
+                        user_id=author_id,
+                        display_name=author.get("displayName", "Unknown"),
+                        email=author.get("uniqueName"),
+                    )
+
+                    repo.upsert_comment(
+                        comment_id=comment_id,
+                        thread_id=thread_id,
+                        pull_request_uid=pr_uid,
+                        author_id=author_id,
+                        content=comment.get("content"),
+                        comment_type=comment.get("commentType", "text"),
+                        created_at=comment.get("publishedDate", ""),
+                        last_updated=comment.get("lastUpdatedDate"),
+                        is_deleted=comment.get("isDeleted", False),
+                    )
+                    stats["comments"] = int(stats["comments"]) + 1
+
+            stats["prs_processed"] = int(stats["prs_processed"]) + 1
+
+        except ExtractionError as e:
+            logger.warning(f"Failed to extract comments for PR {pr_uid}: {e}")
+            # Continue with other PRs - don't fail entire run
+
+    db.connection.commit()
+    return stats
 
 
 def cmd_extract(args: Namespace) -> int:
@@ -238,6 +393,32 @@ def cmd_extract(args: Namespace) -> int:
                 return 1
 
             logger.info(f"Extraction complete: {summary.total_prs} PRs")
+
+            # Phase 3.4: Extract comments if enabled (§6)
+            comments_stats = {
+                "threads": 0,
+                "comments": 0,
+                "prs_processed": 0,
+                "capped": False,
+            }
+            if getattr(args, "include_comments", False):
+                logger.info("Extracting PR comments (--include-comments enabled)")
+                comments_stats = _extract_comments(
+                    client=client,
+                    db=db,
+                    config=config,
+                    max_prs=getattr(args, "comments_max_prs_per_run", 100),
+                    max_threads_per_pr=getattr(args, "comments_max_threads_per_pr", 50),
+                )
+                logger.info(
+                    f"Comments extraction: {comments_stats['threads']} threads, "
+                    f"{comments_stats['comments']} comments from {comments_stats['prs_processed']} PRs"
+                )
+                if comments_stats["capped"]:
+                    warnings_list.append(
+                        f"Comments extraction capped at {args.comments_max_prs_per_run} PRs"
+                    )
+
             timing.total_seconds = time.perf_counter() - start_time
 
             # Write success summary
