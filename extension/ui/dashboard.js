@@ -19,6 +19,9 @@ async function init() {
     cacheElements();
     setupEventListeners();
 
+    // Restore state from URL if present
+    restoreStateFromUrl();
+
     // Determine dataset base URL
     // In ADO extension context, this comes from build artifacts
     const baseUrl = getDatasetBaseUrl();
@@ -291,6 +294,7 @@ function handleDateRangeChange(e) {
     startDate.setDate(startDate.getDate() - days);
 
     currentDateRange = { start: startDate, end: endDate };
+    updateUrlState();
     refreshMetrics();
 }
 
@@ -308,6 +312,7 @@ function applyCustomDates() {
         end: new Date(end)
     };
 
+    updateUrlState();
     refreshMetrics();
 }
 
@@ -325,6 +330,9 @@ function switchTab(tabId) {
         content.classList.toggle('active', content.id === `tab-${tabId}`);
         content.classList.toggle('hidden', content.id !== `tab-${tabId}`);
     });
+
+    // Update URL
+    updateUrlState();
 }
 
 /**
@@ -390,6 +398,66 @@ function median(arr) {
     const sorted = [...arr].sort((a, b) => a - b);
     const mid = Math.floor(sorted.length / 2);
     return sorted.length % 2 ? sorted[mid] : (sorted[mid - 1] + sorted[mid]) / 2;
+}
+
+/**
+ * Update URL with current filter state (§3.2 requirement).
+ */
+function updateUrlState() {
+    const params = new URLSearchParams(window.location.search);
+
+    // Preserve dataset param
+    const datasetParam = params.get('dataset');
+
+    const newParams = new URLSearchParams();
+    if (datasetParam) newParams.set('dataset', datasetParam);
+
+    // Add date range
+    if (currentDateRange.start) {
+        newParams.set('start', currentDateRange.start.toISOString().split('T')[0]);
+    }
+    if (currentDateRange.end) {
+        newParams.set('end', currentDateRange.end.toISOString().split('T')[0]);
+    }
+
+    // Add active tab
+    const activeTab = document.querySelector('.tab.active');
+    if (activeTab && activeTab.dataset.tab !== 'metrics') {
+        newParams.set('tab', activeTab.dataset.tab);
+    }
+
+    // Update URL without reload
+    const newUrl = `${window.location.pathname}?${newParams.toString()}`;
+    window.history.replaceState({}, '', newUrl);
+}
+
+/**
+ * Restore state from URL parameters.
+ */
+function restoreStateFromUrl() {
+    const params = new URLSearchParams(window.location.search);
+
+    // Restore date range
+    const startParam = params.get('start');
+    const endParam = params.get('end');
+    if (startParam && endParam) {
+        currentDateRange = {
+            start: new Date(startParam),
+            end: new Date(endParam)
+        };
+        // Select 'custom' in dropdown
+        if (elements.dateRange) {
+            elements.dateRange.value = 'custom';
+            elements.customDates?.classList.remove('hidden');
+        }
+    }
+
+    // Restore tab
+    const tabParam = params.get('tab');
+    if (tabParam) {
+        // Will be applied after DOM is ready
+        setTimeout(() => switchTab(tabParam), 0);
+    }
 }
 
 // Initialize on DOM ready

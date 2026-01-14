@@ -162,6 +162,20 @@ The following CSVs are generated with **exact schema and column order** for Powe
 | `users.csv` | `user_id`, `display_name`, `email` |
 | `reviewers.csv` | `pull_request_uid`, `user_id`, `vote`, `repository_id` |
 
+## Security & Permissions
+
+### PR Insights Dashboard (Phase 3)
+
+The PR Insights dashboard reads data from pipeline-produced artifacts. **Users must have Build Read permission** on the analytics pipeline to view dashboard data.
+
+| Requirement | Details |
+|-------------|---------|
+| **Permission scope** | Build → Read on the pipeline that produces artifacts |
+| **No special redaction** | Data is not filtered per-user; access is all-or-nothing |
+| **Artifact retention** | Operators must configure retention for their desired analytics window |
+
+If a user lacks permissions, the dashboard displays: *"No access to analytics pipeline artifacts. Ask an admin for Build Read on pipeline X."*
+
 ## Governance
 
 This project is governed by authoritative documents in `agents/`:
