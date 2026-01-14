@@ -1,3 +1,12 @@
+# [2.2.0](https://github.com/oddessentials/ado-git-repo-insights/compare/v2.1.3...v2.2.0) (2026-01-14)
+
+
+### Features
+
+* **phase3:** add chunked aggregates generator and CLI command ([4d319c7](https://github.com/oddessentials/ado-git-repo-insights/commit/4d319c77fe7ac2894d79dd81a309d6bc9c036636))
+* **phase3:** add dataset-driven PR Insights UI hub ([1ee608e](https://github.com/oddessentials/ado-git-repo-insights/commit/1ee608ecec6af5a3507b441cebdbdaca5104fe92))
+* **phase3:** add generateAggregates option to extension task ([4ac877d](https://github.com/oddessentials/ado-git-repo-insights/commit/4ac877d8c9fecc5b51e58c36cf274c070e6a98d4))
+
 ## [2.1.3](https://github.com/oddessentials/ado-git-repo-insights/compare/v2.1.2...v2.1.3) (2026-01-14)
 
 
