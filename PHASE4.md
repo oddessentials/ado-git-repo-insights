@@ -1,55 +1,171 @@
-## Phase 4 — Extension Test & Ops Hardening (Short Plan)
+# Phase 4 — Extension Test & Operations Hardening
 
-### 1) Extension-side Test Harness (highest value)
+**Implementation Plan**
 
-* Add a small **UI test harness** that mocks Azure DevOps REST calls used by the extension:
+## Objective
 
-  * “latest successful run” discovery
-  * artifact download URLs
-  * permission denied / 404 / no runs / transient failures
-* Implement a few **golden JSON fixtures** (manifest + aggregates) and run UI tests against them.
-* DoD: UI tests can run in CI without needing a real pipeline run.
+Harden the Azure DevOps extension so it behaves predictably under real-world enterprise conditions: permission issues, missing artifacts, schema drift, and large datasets. Phase 4 focuses on testability, contract enforcement, recovery UX, performance stability, and operational visibility.
 
-### 2) Contract Tests Between Python Outputs and UI Inputs
+---
 
-* Define explicit JSON schemas for:
+## 1. Extension-side Test Harness
+
+Implement a deterministic UI test harness that exercises the extension without requiring a live Azure DevOps pipeline.
+
+### Requirements
+
+* Mock the Azure DevOps Extension SDK authentication flow used in production.
+* Mock Azure DevOps REST API responses for:
+
+  * latest successful pipeline run discovery
+  * artifact metadata lookup
+  * artifact file download
+* Support simulated responses for:
+
+  * no successful runs
+  * missing artifacts
+  * permission denied (401/403)
+  * pipeline or project not found (404)
+  * transient server failures (5xx)
+
+### Fixtures
+
+* Create golden JSON fixtures containing:
 
   * `dataset-manifest.json`
-  * `dimensions.json`
-  * `weekly_rollups/*.json`
-  * `distributions/*.json`
-* Add:
+  * representative aggregate datasets
+* Tests must load fixtures through the same loader code paths used in production.
 
-  * Python-side schema validation tests (producer)
-  * UI-side schema validation tests (consumer)
-* DoD: schema breaking changes fail CI immediately.
+### Definition of Done
 
-### 3) Permission & Recovery UX Hardening
+* UI tests run fully in CI with no live ADO dependencies.
+* Loader behavior is verified across success and failure cases.
 
-* In the UI, explicitly detect and message:
+---
 
-  * missing Build Read
-  * pipeline/project not found
-  * artifacts missing
-  * dataset version mismatch
-* Add “Retry” and “Open pipeline run” links where possible.
-* DoD: no “blank screen” failure modes.
+## 2. Producer–Consumer Contract Enforcement
 
-### 4) Performance Guardrails for Large Orgs
+Establish strict, versioned contracts between Python outputs and extension inputs.
 
-* Add chunk-fetch limits and progressive rendering behavior:
+### Scope
 
-  * warn on very large date ranges
-  * cache chunks, avoid re-fetch
-  * cap concurrent fetches to avoid browser thrash
-* Add a lightweight perf test using large synthetic aggregate fixtures.
-* DoD: UI remains responsive with “big fixture” datasets.
+Define JSON schemas for:
 
-### 5) Operational Checks (low effort, prevents silent failure)
+* `dataset-manifest.json`
+* `dimensions.json`
+* `weekly_rollups/*.json`
+* `distributions/*.json`
 
-* Add a startup check/report in pipeline output that prints:
+### Requirements
 
-  * artifact size, row counts
-  * comment/team coverage flags
-  * retention guidance reminder
-* DoD: operators can detect drift and scaling issues from logs/manifest alone.
+* Each schema includes:
+
+  * `schema_version`
+  * `dataset_version`
+* Breaking changes require a dataset version bump.
+* The extension must support the current and immediately previous dataset version.
+
+### Tests
+
+* Python-side tests validate generated output against schemas.
+* Extension-side tests validate loaded datasets against the same schemas.
+
+### Definition of Done
+
+* Any schema-breaking change fails CI immediately.
+* Python and extension stay compatible without lockstep deployment.
+
+---
+
+## 3. Permission & Recovery UX Hardening
+
+Eliminate blank or ambiguous UI states caused by runtime failures.
+
+### Error Model
+
+Define a single typed error model with at least:
+
+* `NO_PERMISSION`
+* `NOT_FOUND`
+* `NO_RUNS`
+* `NO_ARTIFACTS`
+* `VERSION_MISMATCH`
+* `TRANSIENT_ERROR`
+
+### UI Behavior
+
+* Map each error type to:
+
+  * deterministic user-facing messaging
+  * available recovery actions (Retry, Open Pipeline Run, etc.)
+* All loader failures must resolve to a defined UI state.
+
+### Definition of Done
+
+* No blank screens under any failure condition.
+* Users always receive a clear explanation and next step.
+
+---
+
+## 4. Performance Guardrails for Large Organizations
+
+Ensure UI remains responsive with large datasets.
+
+### Requirements
+
+* Implement chunked data loading with:
+
+  * capped concurrent fetches
+  * caching of previously loaded chunks
+* Warn users on very large date ranges before loading.
+* Progressive rendering: partial data renders while loading continues.
+
+### Testing
+
+* Create a large synthetic dataset fixture.
+* Add a performance test that:
+
+  * loads the fixture
+  * verifies first meaningful render within a fixed time budget
+  * ensures no unbounded memory growth
+
+### Definition of Done
+
+* UI remains responsive with large fixtures.
+* Performance regressions fail CI.
+
+---
+
+## 5. Operational Visibility & Drift Detection
+
+Provide operators with immediate insight into dataset health and scale.
+
+### Pipeline Output
+
+Emit a structured operational summary that includes:
+
+* artifact size
+* row counts per dataset
+* coverage indicators (teams, comments, etc.)
+* retention guidance reminders
+
+### Constraints
+
+* Output must be non-sensitive and follow existing redaction rules.
+* Format must be consistent and machine-parseable.
+
+### Definition of Done
+
+* Operators can detect scale, retention, and data-quality issues from logs or manifest alone.
+
+---
+
+## Completion Criteria
+
+Phase 4 is complete when:
+
+* Extension tests run in CI without live ADO dependencies
+* Producer–consumer schema enforcement is active on both sides
+* All runtime failures map to deterministic UI states
+* Large datasets render without UI degradation
+* Operational summaries reliably surface drift and scale issues
