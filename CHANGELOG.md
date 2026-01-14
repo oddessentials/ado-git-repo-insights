@@ -1,3 +1,11 @@
+## [1.2.2](https://github.com/oddessentials/ado-git-repo-insights/compare/v1.2.1...v1.2.2) (2026-01-14)
+
+
+### Bug Fixes
+
+* cross-platform pipeline with proper first-run handling ([0c9e692](https://github.com/oddessentials/ado-git-repo-insights/commit/0c9e69206866cdba9738913870ae357b79597cb6))
+* use PowerShell for Windows self-hosted agent ([b4bc030](https://github.com/oddessentials/ado-git-repo-insights/commit/b4bc03090d7333e00f75e536ac58d6ff18cb6e1c))
+
 ## [1.2.1](https://github.com/oddessentials/ado-git-repo-insights/compare/v1.2.0...v1.2.1) (2026-01-14)
 
 
