@@ -194,10 +194,7 @@ class TestTeamPersistence:
             "INSERT INTO projects (organization_name, project_name) VALUES (?, ?)",
             ("org1", "proj1"),
         )
-        db.execute(
-            "INSERT INTO users (user_id, display_name, email) VALUES (?, ?, ?)",
-            ("user1", "Test User", "test@example.com"),
-        )
+        # Note: user1 is NOT pre-inserted - testing that upsert_team_member creates it
         repo.upsert_team(
             team_id="team1",
             team_name="Test Team",
@@ -206,8 +203,14 @@ class TestTeamPersistence:
         )
         db.connection.commit()
 
-        # Add member
-        repo.upsert_team_member(team_id="team1", user_id="user1", is_team_admin=True)
+        # Add member (no need to pre-insert user - upsert_team_member handles it)
+        repo.upsert_team_member(
+            team_id="team1",
+            user_id="user1",
+            display_name="Test User",
+            email="test@example.com",
+            is_team_admin=True,
+        )
         db.connection.commit()
 
         # Verify
@@ -229,22 +232,16 @@ class TestTeamPersistence:
             "INSERT INTO projects (organization_name, project_name) VALUES (?, ?)",
             ("org1", "proj1"),
         )
-        db.execute(
-            "INSERT INTO users (user_id, display_name, email) VALUES (?, ?, ?)",
-            ("user1", "User 1", "u1@example.com"),
-        )
-        db.execute(
-            "INSERT INTO users (user_id, display_name, email) VALUES (?, ?, ?)",
-            ("user2", "User 2", "u2@example.com"),
-        )
+        # Note: users are NOT pre-inserted - testing that upsert_team_member creates them
         repo.upsert_team(
             team_id="team1",
             team_name="Test Team",
             project_name="proj1",
             organization_name="org1",
         )
-        repo.upsert_team_member("team1", "user1")
-        repo.upsert_team_member("team1", "user2")
+        # Add members - upsert_team_member now handles user creation
+        repo.upsert_team_member("team1", "user1", "User 1", "u1@example.com")
+        repo.upsert_team_member("team1", "user2", "User 2", "u2@example.com")
         db.connection.commit()
 
         # Verify members exist

@@ -416,17 +416,27 @@ class PRRepository:
         self,
         team_id: str,
         user_id: str,
+        display_name: str,
+        email: str | None = None,
         is_team_admin: bool = False,
     ) -> None:
         """Insert or update a team membership.
 
         §5: Represents current membership, not historical.
 
+        Note: Team members may not exist in the users table (they may never
+        have authored a PR), so we upsert the user from team API data first.
+
         Args:
             team_id: Team identifier.
             user_id: User identifier.
+            display_name: User display name from team API.
+            email: User email from team API.
             is_team_admin: Whether user is a team admin.
         """
+        # First ensure user exists (P2 fix: avoid FK violation)
+        self.upsert_user(user_id=user_id, display_name=display_name, email=email)
+
         self.db.execute(
             """
             INSERT INTO team_members (team_id, user_id, is_team_admin)
