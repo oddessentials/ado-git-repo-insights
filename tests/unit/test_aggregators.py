@@ -314,3 +314,234 @@ class TestChunkSelection:
             # Dates should be valid ISO format
             date.fromisoformat(rollup["start_date"])
             date.fromisoformat(rollup["end_date"])
+
+
+class TestStubGeneration:
+    """Tests for Phase 3.5 stub generation gating and determinism."""
+
+    def test_enable_ml_stubs_without_env_var_raises(
+        self,
+        sample_db: tuple[DatabaseManager, Path],
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        """--enable-ml-stubs without ALLOW_ML_STUBS=1 raises StubGenerationError."""
+        from ado_git_repo_insights.transform.aggregators import (
+            AggregationError,
+            StubGenerationError,
+        )
+
+        # Ensure env var is not set
+        monkeypatch.delenv("ALLOW_ML_STUBS", raising=False)
+
+        db, _ = sample_db
+        output_dir = tmp_path / "output"
+
+        generator = AggregateGenerator(db, output_dir, enable_ml_stubs=True)
+
+        with pytest.raises(AggregationError) as exc_info:
+            generator.generate_all()
+
+        # Verify the cause is StubGenerationError
+        assert isinstance(exc_info.value.__cause__, StubGenerationError)
+        assert "ALLOW_ML_STUBS" in str(exc_info.value)
+
+    def test_enable_ml_stubs_with_env_var_generates_files(
+        self,
+        sample_db: tuple[DatabaseManager, Path],
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        """--enable-ml-stubs with ALLOW_ML_STUBS=1 generates predictions and insights."""
+        monkeypatch.setenv("ALLOW_ML_STUBS", "1")
+
+        db, _ = sample_db
+        output_dir = tmp_path / "output"
+
+        generator = AggregateGenerator(
+            db, output_dir, enable_ml_stubs=True, seed_base="test-seed"
+        )
+        manifest = generator.generate_all()
+
+        # Check files were created
+        predictions_file = output_dir / "predictions" / "trends.json"
+        insights_file = output_dir / "insights" / "summary.json"
+
+        assert predictions_file.exists(), "predictions/trends.json should exist"
+        assert insights_file.exists(), "insights/summary.json should exist"
+
+        # Check feature flags enabled
+        assert manifest.features["predictions"] is True
+        assert manifest.features["ai_insights"] is True
+
+    def test_stub_output_is_deterministic(
+        self,
+        sample_db: tuple[DatabaseManager, Path],
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        """Same seed produces identical JSON output across runs."""
+        monkeypatch.setenv("ALLOW_ML_STUBS", "1")
+
+        db, _ = sample_db
+
+        # Run 1
+        output_dir1 = tmp_path / "output1"
+        generator1 = AggregateGenerator(
+            db, output_dir1, enable_ml_stubs=True, seed_base="deterministic-seed"
+        )
+        generator1.generate_all()
+
+        # Run 2 with same seed
+        output_dir2 = tmp_path / "output2"
+        generator2 = AggregateGenerator(
+            db, output_dir2, enable_ml_stubs=True, seed_base="deterministic-seed"
+        )
+        generator2.generate_all()
+
+        # Compare predictions (excluding generated_at which varies)
+        with (output_dir1 / "predictions" / "trends.json").open() as f1:
+            pred1 = json.load(f1)
+        with (output_dir2 / "predictions" / "trends.json").open() as f2:
+            pred2 = json.load(f2)
+
+        # Remove timestamp for comparison
+        del pred1["generated_at"]
+        del pred2["generated_at"]
+
+        assert pred1 == pred2, "Predictions should be identical with same seed"
+
+        # Compare insights
+        with (output_dir1 / "insights" / "summary.json").open() as f1:
+            ins1 = json.load(f1)
+        with (output_dir2 / "insights" / "summary.json").open() as f2:
+            ins2 = json.load(f2)
+
+        del ins1["generated_at"]
+        del ins2["generated_at"]
+
+        assert ins1 == ins2, "Insights should be identical with same seed"
+
+    def test_non_stub_run_does_not_generate_files(
+        self, sample_db: tuple[DatabaseManager, Path], tmp_path: Path
+    ) -> None:
+        """Without --enable-ml-stubs, predictions/insights files are not generated."""
+        db, _ = sample_db
+        output_dir = tmp_path / "output"
+
+        generator = AggregateGenerator(db, output_dir, enable_ml_stubs=False)
+        generator.generate_all()
+
+        predictions_file = output_dir / "predictions" / "trends.json"
+        insights_file = output_dir / "insights" / "summary.json"
+
+        assert not predictions_file.exists(), (
+            "predictions should not exist without stubs"
+        )
+        assert not insights_file.exists(), "insights should not exist without stubs"
+
+    def test_non_stub_run_sets_predictions_false(
+        self, sample_db: tuple[DatabaseManager, Path], tmp_path: Path
+    ) -> None:
+        """Without stubs, features.predictions should be False."""
+        db, _ = sample_db
+        output_dir = tmp_path / "output"
+
+        generator = AggregateGenerator(db, output_dir, enable_ml_stubs=False)
+        manifest = generator.generate_all()
+
+        assert manifest.features["predictions"] is False
+
+    def test_non_stub_run_sets_ai_insights_false(
+        self, sample_db: tuple[DatabaseManager, Path], tmp_path: Path
+    ) -> None:
+        """Without stubs, features.ai_insights should be False."""
+        db, _ = sample_db
+        output_dir = tmp_path / "output"
+
+        generator = AggregateGenerator(db, output_dir, enable_ml_stubs=False)
+        manifest = generator.generate_all()
+
+        assert manifest.features["ai_insights"] is False
+
+    def test_stub_output_includes_is_stub_true(
+        self,
+        sample_db: tuple[DatabaseManager, Path],
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        """Stub output files must include is_stub: true."""
+        monkeypatch.setenv("ALLOW_ML_STUBS", "1")
+
+        db, _ = sample_db
+        output_dir = tmp_path / "output"
+
+        generator = AggregateGenerator(
+            db, output_dir, enable_ml_stubs=True, seed_base="test"
+        )
+        generator.generate_all()
+
+        with (output_dir / "predictions" / "trends.json").open() as f:
+            predictions = json.load(f)
+        with (output_dir / "insights" / "summary.json").open() as f:
+            insights = json.load(f)
+
+        assert predictions.get("is_stub") is True, "predictions must have is_stub: true"
+        assert insights.get("is_stub") is True, "insights must have is_stub: true"
+
+    def test_stub_output_includes_generated_by(
+        self,
+        sample_db: tuple[DatabaseManager, Path],
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        """Stub output files must include generated_by: 'phase3.5-stub-v1'."""
+        monkeypatch.setenv("ALLOW_ML_STUBS", "1")
+
+        db, _ = sample_db
+        output_dir = tmp_path / "output"
+
+        generator = AggregateGenerator(
+            db, output_dir, enable_ml_stubs=True, seed_base="test"
+        )
+        generator.generate_all()
+
+        with (output_dir / "predictions" / "trends.json").open() as f:
+            predictions = json.load(f)
+        with (output_dir / "insights" / "summary.json").open() as f:
+            insights = json.load(f)
+
+        expected_generator = "phase3.5-stub-v1"
+        assert predictions.get("generated_by") == expected_generator
+        assert insights.get("generated_by") == expected_generator
+
+    def test_manifest_includes_stub_warning(
+        self,
+        sample_db: tuple[DatabaseManager, Path],
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        """Manifest must include warnings: ['STUB DATA - NOT PRODUCTION'] when stubs enabled."""
+        monkeypatch.setenv("ALLOW_ML_STUBS", "1")
+
+        db, _ = sample_db
+        output_dir = tmp_path / "output"
+
+        generator = AggregateGenerator(
+            db, output_dir, enable_ml_stubs=True, seed_base="test"
+        )
+        manifest = generator.generate_all()
+
+        assert "STUB DATA - NOT PRODUCTION" in manifest.warnings
+
+    def test_manifest_no_warning_without_stubs(
+        self, sample_db: tuple[DatabaseManager, Path], tmp_path: Path
+    ) -> None:
+        """Manifest should not include stub warning when stubs are disabled."""
+        db, _ = sample_db
+        output_dir = tmp_path / "output"
+
+        generator = AggregateGenerator(db, output_dir, enable_ml_stubs=False)
+        manifest = generator.generate_all()
+
+        assert "STUB DATA - NOT PRODUCTION" not in manifest.warnings
