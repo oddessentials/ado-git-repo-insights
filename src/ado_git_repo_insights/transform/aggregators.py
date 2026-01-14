@@ -97,6 +97,8 @@ class DatasetManifest:
     manifest_schema_version: int = MANIFEST_SCHEMA_VERSION
     dataset_schema_version: int = DATASET_SCHEMA_VERSION
     aggregates_schema_version: int = AGGREGATES_SCHEMA_VERSION
+    predictions_schema_version: int = PREDICTIONS_SCHEMA_VERSION  # Phase 3.5
+    insights_schema_version: int = INSIGHTS_SCHEMA_VERSION  # Phase 3.5
     generated_at: str = ""
     run_id: str = ""
     warnings: list[str] = field(default_factory=list)  # Phase 3.5: stub warnings
