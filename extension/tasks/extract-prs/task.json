@@ -9,7 +9,7 @@
     "version": {
         "Major": 1,
         "Minor": 0,
-        "Patch": 0
+        "Patch": 1
     },
     "instanceNameFormat": "Extract PR Metrics",
     "inputs": [
@@ -74,6 +74,9 @@
     ],
     "execution": {
         "Node20": {
+            "target": "index.js"
+        },
+        "Node16": {
             "target": "index.js"
         }
     }

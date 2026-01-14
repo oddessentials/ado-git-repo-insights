@@ -28,6 +28,12 @@ stages:
               Write-Host "##[section]Directories created"
             displayName: 'Create Directories'
 
+          # Step 1.5: Ensure Node.js is available (required for extension task)
+          - task: UseNode@1
+            displayName: 'Install Node.js 20'
+            inputs:
+              version: '20.x'
+
           # Step 2: Download previous DB (branch-isolated, first run will fail - OK)
           - task: DownloadPipelineArtifact@2
             displayName: 'Download Previous Database (Golden)'

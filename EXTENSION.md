@@ -88,6 +88,12 @@ stages:
               New-Item -ItemType Directory -Force -Path "$(Pipeline.Workspace)/csv_output" | Out-Null
             displayName: 'Create Directories'
 
+          # Step 1.5: Ensure Node.js is available (for self-hosted agents)
+          - task: UseNode@1
+            displayName: 'Install Node.js 20'
+            inputs:
+              version: '20.x'
+
           # Step 2: Download previous DB (branch-isolated)
           - task: DownloadPipelineArtifact@2
             displayName: 'Download Previous Database'
