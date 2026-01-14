@@ -14,6 +14,7 @@ from .config import ConfigurationError, load_config
 from .extractor.ado_client import ADOClient, ExtractionError
 from .extractor.pr_extractor import PRExtractor
 from .persistence.database import DatabaseError, DatabaseManager
+from .transform.aggregators import AggregateGenerator, AggregationError
 from .transform.csv_generator import CSVGenerationError, CSVGenerator
 from .utils.logging_config import LoggingConfig, setup_logging
 from .utils.run_summary import (
@@ -119,6 +120,30 @@ def create_parser() -> argparse.ArgumentParser:  # pragma: no cover
         type=Path,
         default=Path("csv_output"),
         help="Output directory for CSV files",
+    )
+
+    # Generate Aggregates command (Phase 3)
+    agg_parser = subparsers.add_parser(
+        "generate-aggregates",
+        help="Generate chunked JSON aggregates for UI (Phase 3)",
+    )
+    agg_parser.add_argument(
+        "--database",
+        type=Path,
+        required=True,
+        help="Path to SQLite database file",
+    )
+    agg_parser.add_argument(
+        "--output",
+        type=Path,
+        default=Path("aggregates_output"),
+        help="Output directory for aggregate files",
+    )
+    agg_parser.add_argument(
+        "--run-id",
+        type=str,
+        default="",
+        help="Pipeline run ID for manifest metadata",
     )
 
     return parser
@@ -302,6 +327,50 @@ def cmd_generate_csv(args: Namespace) -> int:
         return 1
 
 
+def cmd_generate_aggregates(args: Namespace) -> int:
+    """Execute the generate-aggregates command (Phase 3)."""
+    logger.info("Generating JSON aggregates...")
+    logger.info(f"Database: {args.database}")
+    logger.info(f"Output: {args.output}")
+
+    if not args.database.exists():
+        logger.error(f"Database not found: {args.database}")
+        return 1
+
+    try:
+        db = DatabaseManager(args.database)
+        db.connect()
+
+        try:
+            generator = AggregateGenerator(
+                db=db,
+                output_dir=args.output,
+                run_id=args.run_id,
+            )
+            manifest = generator.generate_all()
+
+            logger.info("Aggregate generation complete:")
+            logger.info(
+                f"  Weekly rollups: {len(manifest.aggregate_index.weekly_rollups)}"
+            )
+            logger.info(
+                f"  Distributions: {len(manifest.aggregate_index.distributions)}"
+            )
+            logger.info(f"  Manifest: {args.output / 'dataset-manifest.json'}")
+
+            return 0
+
+        finally:
+            db.close()
+
+    except DatabaseError as e:
+        logger.error(f"Database error: {e}")
+        return 1
+    except AggregationError as e:
+        logger.error(f"Aggregation error: {e}")
+        return 1
+
+
 def main() -> int:
     """Main entry point for the CLI."""
     parser = create_parser()
@@ -325,6 +394,8 @@ def main() -> int:
             return cmd_extract(args)
         elif args.command == "generate-csv":
             return cmd_generate_csv(args)
+        elif args.command == "generate-aggregates":
+            return cmd_generate_aggregates(args)
         else:
             parser.print_help()
             return 1
