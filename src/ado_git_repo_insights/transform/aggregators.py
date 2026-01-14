@@ -5,14 +5,19 @@ Generates JSON aggregates from SQLite for scale-safe UI rendering:
 - distributions/YYYY.json - Yearly distribution data
 - dimensions.json - Filter dimensions (repos, users, teams)
 - dataset-manifest.json - Discovery metadata with schema versions
+- predictions/trends.json - Trend forecasts (Phase 3.5)
+- insights/summary.json - AI insights (Phase 3.5)
 """
 
 from __future__ import annotations
 
+import hashlib
 import json
 import logging
+import os
+import random
 from dataclasses import asdict, dataclass, field
-from datetime import date, datetime, timezone
+from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
@@ -27,6 +32,13 @@ logger = logging.getLogger(__name__)
 MANIFEST_SCHEMA_VERSION = 1
 DATASET_SCHEMA_VERSION = 1
 AGGREGATES_SCHEMA_VERSION = 1
+
+# Phase 3.5 schema versions
+PREDICTIONS_SCHEMA_VERSION = 1
+INSIGHTS_SCHEMA_VERSION = 1
+
+# Stub generator identifier
+STUB_GENERATOR_ID = "phase3.5-stub-v1"
 
 
 class AggregationError(Exception):
@@ -85,8 +97,11 @@ class DatasetManifest:
     manifest_schema_version: int = MANIFEST_SCHEMA_VERSION
     dataset_schema_version: int = DATASET_SCHEMA_VERSION
     aggregates_schema_version: int = AGGREGATES_SCHEMA_VERSION
+    predictions_schema_version: int = PREDICTIONS_SCHEMA_VERSION  # Phase 3.5
+    insights_schema_version: int = INSIGHTS_SCHEMA_VERSION  # Phase 3.5
     generated_at: str = ""
     run_id: str = ""
+    warnings: list[str] = field(default_factory=list)  # Phase 3.5: stub warnings
     aggregate_index: AggregateIndex = field(default_factory=AggregateIndex)
     defaults: dict[str, Any] = field(default_factory=dict)
     limits: dict[str, Any] = field(default_factory=dict)
@@ -98,6 +113,7 @@ class AggregateGenerator:
     """Generate chunked JSON aggregates from SQLite.
 
     Phase 3: Produces weekly rollups and distributions for lazy UI loading.
+    Phase 3.5: Optionally generates predictions/insights stubs.
     """
 
     def __init__(
@@ -105,6 +121,8 @@ class AggregateGenerator:
         db: DatabaseManager,
         output_dir: Path,
         run_id: str = "",
+        enable_ml_stubs: bool = False,
+        seed_base: str = "",
     ) -> None:
         """Initialize the aggregate generator.
 
@@ -112,10 +130,14 @@ class AggregateGenerator:
             db: Database manager instance.
             output_dir: Directory for aggregate output.
             run_id: Pipeline run ID for manifest.
+            enable_ml_stubs: Whether to generate stub predictions/insights (Phase 3.5).
+            seed_base: Base string for deterministic stub seeding.
         """
         self.db = db
         self.output_dir = output_dir
         self.run_id = run_id or datetime.now(timezone.utc).strftime("%Y%m%d%H%M%S")
+        self.enable_ml_stubs = enable_ml_stubs
+        self.seed_base = seed_base or self.run_id
 
     def generate_all(self) -> DatasetManifest:
         """Generate all aggregate files and manifest.
@@ -125,6 +147,7 @@ class AggregateGenerator:
 
         Raises:
             AggregationError: If generation fails.
+            StubGenerationError: If stubs requested without ALLOW_ML_STUBS env var.
         """
         # Create output directories
         self.output_dir.mkdir(parents=True, exist_ok=True)
@@ -149,10 +172,40 @@ class AggregateGenerator:
             dist_index = self._generate_distributions()
             logger.info(f"Generated {len(dist_index)} distribution files")
 
+            # Phase 3.5: Generate predictions/insights stubs if enabled
+            predictions_generated = False
+            insights_generated = False
+            warnings: list[str] = []
+
+            if self.enable_ml_stubs:
+                # Generate predictions stub
+                pred_gen = PredictionGenerator(self.output_dir, self.seed_base)
+                pred_gen.generate()  # Raises StubGenerationError if env var missing
+                predictions_generated = True
+
+                # Generate insights stub
+                insights_gen = InsightsGenerator(self.output_dir, self.seed_base)
+                insights_gen.generate()
+                insights_generated = True
+
+                warnings.append("STUB DATA - NOT PRODUCTION")
+                logger.warning(
+                    "Generated stub predictions/insights - NOT FOR PRODUCTION"
+                )
+            else:
+                # Check if files already exist (from previous runs or real ML)
+                predictions_generated = (
+                    self.output_dir / "predictions" / "trends.json"
+                ).exists()
+                insights_generated = (
+                    self.output_dir / "insights" / "summary.json"
+                ).exists()
+
             # Build manifest
             manifest = DatasetManifest(
                 generated_at=datetime.now(timezone.utc).isoformat(),
                 run_id=self.run_id,
+                warnings=warnings,
                 aggregate_index=AggregateIndex(
                     weekly_rollups=weekly_index,
                     distributions=dist_index,
@@ -162,8 +215,8 @@ class AggregateGenerator:
                 features={
                     "teams": len(dimensions.teams) > 0,  # Phase 3.3: dynamic
                     "comments": self._has_comments(),  # Phase 3.4: dynamic
-                    "ml": False,  # Phase 3.5
-                    "ai_insights": False,  # Phase 3.5
+                    "predictions": predictions_generated,  # Phase 3.5: file-gated
+                    "ai_insights": insights_generated,  # Phase 3.5: file-gated
                 },
                 coverage={
                     "total_prs": self._get_pr_count(),
@@ -469,3 +522,222 @@ class AggregateGenerator:
         """Write JSON file with deterministic formatting."""
         with path.open("w", encoding="utf-8") as f:
             json.dump(data, f, indent=2, sort_keys=True)
+
+
+class StubGenerationError(Exception):
+    """Stub generation failed due to missing ALLOW_ML_STUBS env var."""
+
+
+class PredictionGenerator:
+    """Generate predictions stub data for Phase 3.5.
+
+    Produces deterministic synthetic forecasts using a stable seed.
+    Only enabled with --enable-ml-stubs AND ALLOW_ML_STUBS=1 env var.
+    """
+
+    METRICS = [
+        ("pr_throughput", "count"),
+        ("cycle_time_minutes", "minutes"),
+        ("review_time_minutes", "minutes"),
+    ]
+    HORIZON_WEEKS = 4
+
+    def __init__(
+        self,
+        output_dir: Path,
+        seed_base: str = "",
+    ) -> None:
+        """Initialize the prediction generator.
+
+        Args:
+            output_dir: Directory for output files.
+            seed_base: Base string for deterministic seeding (e.g., org+project).
+        """
+        self.output_dir = output_dir
+        self.seed_base = seed_base
+
+    def generate(self) -> dict[str, Any] | None:
+        """Generate predictions stub file.
+
+        Returns:
+            Dict with predictions data if generated, None otherwise.
+
+        Raises:
+            StubGenerationError: If ALLOW_ML_STUBS env var not set.
+        """
+        if not os.environ.get("ALLOW_ML_STUBS") == "1":
+            raise StubGenerationError(
+                "Stub generation requires ALLOW_ML_STUBS=1 environment variable. "
+                "This is a safety gate to prevent accidental use of synthetic data."
+            )
+
+        predictions_dir = self.output_dir / "predictions"
+        predictions_dir.mkdir(parents=True, exist_ok=True)
+
+        forecasts = []
+        today = date.today()
+        # Monday-align to start of current week
+        start_monday = today - timedelta(days=today.weekday())
+
+        for metric, unit in self.METRICS:
+            values = []
+            for week_offset in range(self.HORIZON_WEEKS):
+                period_start = start_monday + timedelta(weeks=week_offset)
+
+                # Deterministic seed per metric+period
+                seed_str = f"{self.seed_base}:{metric}:{period_start.isoformat()}"
+                seed = int(hashlib.sha256(seed_str.encode()).hexdigest()[:8], 16)
+                rng = random.Random(seed)  # noqa: S311 - intentional for deterministic stubs
+
+                # Generate synthetic values based on metric type
+                if metric == "pr_throughput":
+                    base_value = rng.randint(15, 45)
+                    variance = rng.randint(3, 10)
+                else:  # time metrics in minutes
+                    base_value = rng.randint(120, 480)
+                    variance = rng.randint(30, 120)
+
+                values.append(
+                    {
+                        "period_start": period_start.isoformat(),
+                        "predicted": base_value,
+                        "lower_bound": max(0, base_value - variance),
+                        "upper_bound": base_value + variance,
+                    }
+                )
+
+            forecasts.append(
+                {
+                    "metric": metric,
+                    "unit": unit,
+                    "horizon_weeks": self.HORIZON_WEEKS,
+                    "values": values,
+                }
+            )
+
+        predictions = {
+            "schema_version": PREDICTIONS_SCHEMA_VERSION,
+            "generated_at": datetime.now(timezone.utc).isoformat(),
+            "is_stub": True,
+            "generated_by": STUB_GENERATOR_ID,
+            "forecasts": forecasts,
+        }
+
+        # Write file
+        file_path = predictions_dir / "trends.json"
+        with file_path.open("w", encoding="utf-8") as f:
+            json.dump(predictions, f, indent=2, sort_keys=True)
+
+        logger.info("Generated predictions/trends.json (stub data)")
+        return predictions
+
+
+class InsightsGenerator:
+    """Generate AI insights stub data for Phase 3.5.
+
+    Produces deterministic synthetic insights using a stable seed.
+    Only enabled with --enable-ml-stubs AND ALLOW_ML_STUBS=1 env var.
+    """
+
+    # Sample insight templates for stub generation
+    INSIGHT_TEMPLATES = [
+        {
+            "category": "bottleneck",
+            "severity": "warning",
+            "title": "Code review latency increasing",
+            "description": "Average time from PR creation to first review has increased "
+            "by 15% over the past 4 weeks. This may indicate reviewer capacity constraints.",
+        },
+        {
+            "category": "trend",
+            "severity": "info",
+            "title": "PR throughput stable",
+            "description": "Weekly PR merge rate has remained consistent at approximately "
+            "25-30 PRs per week over the analyzed period.",
+        },
+        {
+            "category": "anomaly",
+            "severity": "critical",
+            "title": "Unusual cycle time spike detected",
+            "description": "P90 cycle time increased significantly in the most recent week, "
+            "exceeding the historical 95th percentile threshold.",
+        },
+    ]
+
+    def __init__(
+        self,
+        output_dir: Path,
+        seed_base: str = "",
+    ) -> None:
+        """Initialize the insights generator.
+
+        Args:
+            output_dir: Directory for output files.
+            seed_base: Base string for deterministic seeding.
+        """
+        self.output_dir = output_dir
+        self.seed_base = seed_base
+
+    def generate(self) -> dict[str, Any] | None:
+        """Generate insights stub file.
+
+        Returns:
+            Dict with insights data if generated, None otherwise.
+
+        Raises:
+            StubGenerationError: If ALLOW_ML_STUBS env var not set.
+        """
+        if not os.environ.get("ALLOW_ML_STUBS") == "1":
+            raise StubGenerationError(
+                "Stub generation requires ALLOW_ML_STUBS=1 environment variable."
+            )
+
+        insights_dir = self.output_dir / "insights"
+        insights_dir.mkdir(parents=True, exist_ok=True)
+
+        # Deterministic selection of insights based on seed
+        seed_str = f"{self.seed_base}:insights"
+        seed = int(hashlib.sha256(seed_str.encode()).hexdigest()[:8], 16)
+        rng = random.Random(seed)  # noqa: S311 - intentional for deterministic stubs
+
+        # Generate 2-3 insights from templates
+        num_insights = rng.randint(2, 3)
+        selected_templates = rng.sample(
+            self.INSIGHT_TEMPLATES, min(num_insights, len(self.INSIGHT_TEMPLATES))
+        )
+
+        insights_list = []
+        for i, template in enumerate(selected_templates):
+            insight_id = hashlib.sha256(
+                f"{self.seed_base}:insight:{i}".encode()
+            ).hexdigest()[:12]
+
+            insights_list.append(
+                {
+                    "id": f"stub-{insight_id}",
+                    "category": template["category"],
+                    "severity": template["severity"],
+                    "title": template["title"],
+                    "description": template["description"],
+                    "affected_entities": [
+                        f"project:{self.seed_base.split(':')[0] if ':' in self.seed_base else 'default'}"
+                    ],
+                    "evidence_refs": [],
+                }
+            )
+
+        insights = {
+            "schema_version": INSIGHTS_SCHEMA_VERSION,
+            "generated_at": datetime.now(timezone.utc).isoformat(),
+            "is_stub": True,
+            "generated_by": STUB_GENERATOR_ID,
+            "insights": insights_list,
+        }
+
+        # Write file
+        file_path = insights_dir / "summary.json"
+        with file_path.open("w", encoding="utf-8") as f:
+            json.dump(insights, f, indent=2, sort_keys=True)
+
+        logger.info("Generated insights/summary.json (stub data)")
+        return insights

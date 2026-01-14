@@ -1,0 +1,59 @@
+# gitleaks configuration for ado-git-repo-insights
+# See: https://github.com/gitleaks/gitleaks
+
+title = "ADO Git Repo Insights Gitleaks Config"
+
+[extend]
+# Use default gitleaks rules as base
+useDefault = true
+
+# Allowlist for test fixtures and examples
+[allowlist]
+description = "Allow known test fixtures and documentation"
+
+  # Allow test files with fake tokens/secrets
+  [[allowlist.paths]]
+  regex = '''tests/.*\.py'''
+  description = "Test fixtures may contain fake secrets for testing"
+
+  [[allowlist.paths]]
+  regex = '''tests/fixtures/.*'''
+  description = "Test fixture directory"
+
+  [[allowlist.paths]]
+  regex = '''.*\.example\..*'''
+  description = "Example configuration files"
+
+  [[allowlist.paths]]
+  regex = '''config\.example\.yaml'''
+  description = "Example config file"
+
+  [[allowlist.paths]]
+  regex = '''.*sample-pipeline\.yml'''
+  description = "Sample pipeline documentation"
+
+  [[allowlist.paths]]
+  regex = '''extension-verification-test\.yml'''
+  description = "Extension verification test template"
+
+  [[allowlist.paths]]
+  regex = '''insights-verification-test\.yml'''
+  description = "Insights verification test template"
+
+  [[allowlist.paths]]
+  regex = '''docs/.*'''
+  description = "Documentation may contain sanitized examples"
+
+  [[allowlist.paths]]
+  regex = '''\.md$'''
+  description = "Markdown documentation files"
+
+  # Allow package-lock.json which may contain integrity hashes
+  [[allowlist.paths]]
+  regex = '''package-lock\.json'''
+  description = "npm lockfile integrity hashes"
+
+  # Allow the .gitleaks.toml itself
+  [[allowlist.paths]]
+  regex = '''\.gitleaks\.toml'''
+  description = "This configuration file"

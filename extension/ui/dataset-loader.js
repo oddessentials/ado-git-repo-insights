@@ -189,7 +189,7 @@ class DatasetLoader {
 
     /**
      * Check if a feature is enabled in the dataset.
-     * @param {string} feature - teams, comments, ml, ai_insights
+     * @param {string} feature - teams, comments, predictions, ai_insights
      * @returns {boolean}
      */
     isFeatureEnabled(feature) {
@@ -212,6 +212,146 @@ class DatasetLoader {
      */
     getDefaultRangeDays() {
         return this.manifest?.defaults?.default_date_range_days || 90;
+    }
+
+    /**
+     * Load predictions data (Phase 3.5).
+     * Returns typed state objects per contract:
+     * - { state: "disabled" } when feature flag is false
+     * - { state: "missing" } on 404
+     * - { state: "auth" } on 401/403
+     * - { state: "invalid", error, message } on schema failure
+     * - { state: "ok", data } on success
+     * @returns {Promise<Object>} Typed state object (never null)
+     */
+    async loadPredictions() {
+        if (!this.isFeatureEnabled('predictions')) {
+            return { state: 'disabled' };
+        }
+
+        try {
+            const url = this.resolvePath('predictions/trends.json');
+            const response = await fetch(url);
+
+            if (!response.ok) {
+                if (response.status === 404) {
+                    return { state: 'missing' };
+                }
+                if (response.status === 401 || response.status === 403) {
+                    return { state: 'auth' };
+                }
+                return { state: 'error', error: 'PRED_003', message: `HTTP ${response.status}` };
+            }
+
+            const predictions = await response.json();
+
+            // Validate schema version
+            const validationResult = this.validatePredictionsSchema(predictions);
+            if (!validationResult.valid) {
+                console.error('[DatasetLoader] Invalid predictions schema:', validationResult.error);
+                return { state: 'invalid', error: 'PRED_001', message: validationResult.error };
+            }
+
+            return { state: 'ok', data: predictions };
+        } catch (err) {
+            console.error('[DatasetLoader] Error loading predictions:', err);
+            return { state: 'error', error: 'PRED_002', message: err.message };
+        }
+    }
+
+    /**
+     * Load AI insights data (Phase 3.5).
+     * Returns typed state objects per contract:
+     * - { state: "disabled" } when feature flag is false
+     * - { state: "missing" } on 404
+     * - { state: "auth" } on 401/403
+     * - { state: "invalid", error, message } on schema failure
+     * - { state: "ok", data } on success
+     * @returns {Promise<Object>} Typed state object (never null)
+     */
+    async loadInsights() {
+        if (!this.isFeatureEnabled('ai_insights')) {
+            return { state: 'disabled' };
+        }
+
+        try {
+            const url = this.resolvePath('insights/summary.json');
+            const response = await fetch(url);
+
+            if (!response.ok) {
+                if (response.status === 404) {
+                    return { state: 'missing' };
+                }
+                if (response.status === 401 || response.status === 403) {
+                    return { state: 'auth' };
+                }
+                return { state: 'error', error: 'AI_003', message: `HTTP ${response.status}` };
+            }
+
+            const insights = await response.json();
+
+            // Validate schema version
+            const validationResult = this.validateInsightsSchema(insights);
+            if (!validationResult.valid) {
+                console.error('[DatasetLoader] Invalid insights schema:', validationResult.error);
+                return { state: 'invalid', error: 'AI_001', message: validationResult.error };
+            }
+
+            return { state: 'ok', data: insights };
+        } catch (err) {
+            console.error('[DatasetLoader] Error loading insights:', err);
+            return { state: 'error', error: 'AI_002', message: err.message };
+        }
+    }
+
+    /**
+     * Validate predictions schema (Phase 3.5).
+     * @param {Object} predictions
+     * @returns {{valid: boolean, error?: string}}
+     */
+    validatePredictionsSchema(predictions) {
+        if (!predictions) return { valid: false, error: 'Missing predictions data' };
+        if (typeof predictions.schema_version !== 'number') {
+            return { valid: false, error: 'Missing schema_version' };
+        }
+        if (predictions.schema_version > 1) {
+            return { valid: false, error: `Unsupported schema version: ${predictions.schema_version}` };
+        }
+        if (!Array.isArray(predictions.forecasts)) {
+            return { valid: false, error: 'Missing forecasts array' };
+        }
+        // Validate each forecast has required fields
+        for (const forecast of predictions.forecasts) {
+            if (!forecast.metric || !forecast.unit || !Array.isArray(forecast.values)) {
+                return { valid: false, error: 'Invalid forecast structure' };
+            }
+        }
+        return { valid: true };
+    }
+
+    /**
+     * Validate insights schema (Phase 3.5).
+     * @param {Object} insights
+     * @returns {{valid: boolean, error?: string}}
+     */
+    validateInsightsSchema(insights) {
+        if (!insights) return { valid: false, error: 'Missing insights data' };
+        if (typeof insights.schema_version !== 'number') {
+            return { valid: false, error: 'Missing schema_version' };
+        }
+        if (insights.schema_version > 1) {
+            return { valid: false, error: `Unsupported schema version: ${insights.schema_version}` };
+        }
+        if (!Array.isArray(insights.insights)) {
+            return { valid: false, error: 'Missing insights array' };
+        }
+        // Validate each insight has required fields
+        for (const insight of insights.insights) {
+            if (!insight.id || !insight.category || !insight.severity || !insight.title) {
+                return { valid: false, error: 'Invalid insight structure' };
+            }
+        }
+        return { valid: true };
     }
 
     /**

@@ -14,7 +14,11 @@ from .config import ConfigurationError, load_config
 from .extractor.ado_client import ADOClient, ExtractionError
 from .extractor.pr_extractor import PRExtractor
 from .persistence.database import DatabaseError, DatabaseManager
-from .transform.aggregators import AggregateGenerator, AggregationError
+from .transform.aggregators import (
+    AggregateGenerator,
+    AggregationError,
+    StubGenerationError,
+)
 from .transform.csv_generator import CSVGenerationError, CSVGenerator
 from .utils.logging_config import LoggingConfig, setup_logging
 from .utils.run_summary import (
@@ -165,6 +169,19 @@ def create_parser() -> argparse.ArgumentParser:  # pragma: no cover
         type=str,
         default="",
         help="Pipeline run ID for manifest metadata",
+    )
+    # Phase 3.5: Stub generation (requires ALLOW_ML_STUBS=1 env var)
+    agg_parser.add_argument(
+        "--enable-ml-stubs",
+        action="store_true",
+        default=False,
+        help="Generate stub predictions/insights (requires ALLOW_ML_STUBS=1 env var)",
+    )
+    agg_parser.add_argument(
+        "--seed-base",
+        type=str,
+        default="",
+        help="Base string for deterministic stub seeding",
     )
 
     return parser
@@ -527,6 +544,8 @@ def cmd_generate_aggregates(args: Namespace) -> int:
                 db=db,
                 output_dir=args.output,
                 run_id=args.run_id,
+                enable_ml_stubs=getattr(args, "enable_ml_stubs", False),
+                seed_base=getattr(args, "seed_base", ""),
             )
             manifest = generator.generate_all()
 
@@ -537,7 +556,13 @@ def cmd_generate_aggregates(args: Namespace) -> int:
             logger.info(
                 f"  Distributions: {len(manifest.aggregate_index.distributions)}"
             )
+            logger.info(f"  Predictions: {manifest.features.get('predictions', False)}")
+            logger.info(f"  AI Insights: {manifest.features.get('ai_insights', False)}")
             logger.info(f"  Manifest: {args.output / 'dataset-manifest.json'}")
+
+            if manifest.warnings:
+                for warning in manifest.warnings:
+                    logger.warning(f"  ⚠️ {warning}")
 
             return 0
 
@@ -546,6 +571,9 @@ def cmd_generate_aggregates(args: Namespace) -> int:
 
     except DatabaseError as e:
         logger.error(f"Database error: {e}")
+        return 1
+    except StubGenerationError as e:
+        logger.error(f"Stub generation error: {e}")
         return 1
     except AggregationError as e:
         logger.error(f"Aggregation error: {e}")

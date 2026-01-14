@@ -255,19 +255,286 @@ function renderCycleDistribution(distributions) {
 }
 
 /**
- * Update feature tabs based on manifest flags.
+ * Update feature tabs based on manifest flags (Phase 3.5).
+ * Loads and renders predictions/insights when enabled.
  */
-function updateFeatureTabs() {
+async function updateFeatureTabs() {
     // Predictions tab
     const predictionsContent = document.getElementById('tab-predictions');
-    if (!loader.isFeatureEnabled('ml')) {
-        predictionsContent.querySelector('.feature-unavailable')?.classList.remove('hidden');
+    const predictionsUnavailable = document.getElementById('predictions-unavailable');
+
+    const predictionsResult = await loader.loadPredictions();
+
+    switch (predictionsResult.state) {
+        case 'disabled':
+            // Feature not enabled - show unavailable message
+            if (predictionsUnavailable) {
+                predictionsUnavailable.classList.remove('hidden');
+            }
+            break;
+        case 'missing':
+            // File not found - show empty state
+            renderPredictionsEmpty(predictionsContent);
+            break;
+        case 'auth':
+            // Authentication error
+            renderPredictionsError(predictionsContent, 'AUTH', 'Authentication required to access predictions.');
+            break;
+        case 'invalid':
+        case 'error':
+            // Schema validation failed or fetch error
+            renderPredictionsError(predictionsContent, predictionsResult.error, predictionsResult.message);
+            break;
+        case 'ok':
+            // Success - render data
+            if (predictionsResult.data?.forecasts?.length > 0) {
+                renderPredictions(predictionsContent, predictionsResult.data);
+            } else {
+                renderPredictionsEmpty(predictionsContent);
+            }
+            break;
+        default:
+            // Unknown state - shouldn't happen
+            console.error('[Dashboard] Unknown predictions state:', predictionsResult.state);
+            renderPredictionsError(predictionsContent, 'UNKNOWN', 'Unexpected error loading predictions.');
     }
 
     // AI Insights tab
     const aiContent = document.getElementById('tab-ai-insights');
-    if (!loader.isFeatureEnabled('ai_insights')) {
-        aiContent.querySelector('.feature-unavailable')?.classList.remove('hidden');
+    const aiUnavailable = document.getElementById('ai-unavailable');
+
+    const insightsResult = await loader.loadInsights();
+
+    switch (insightsResult.state) {
+        case 'disabled':
+            // Feature not enabled - show unavailable message
+            if (aiUnavailable) {
+                aiUnavailable.classList.remove('hidden');
+            }
+            break;
+        case 'missing':
+            // File not found - show empty state
+            renderInsightsEmpty(aiContent);
+            break;
+        case 'auth':
+            // Authentication error
+            renderInsightsError(aiContent, 'AUTH', 'Authentication required to access AI insights.');
+            break;
+        case 'invalid':
+        case 'error':
+            // Schema validation failed or fetch error
+            renderInsightsError(aiContent, insightsResult.error, insightsResult.message);
+            break;
+        case 'ok':
+            // Success - render data
+            if (insightsResult.data?.insights?.length > 0) {
+                renderAIInsights(aiContent, insightsResult.data);
+            } else {
+                renderInsightsEmpty(aiContent);
+            }
+            break;
+        default:
+            // Unknown state - shouldn't happen
+            console.error('[Dashboard] Unknown insights state:', insightsResult.state);
+            renderInsightsError(aiContent, 'UNKNOWN', 'Unexpected error loading insights.');
+    }
+}
+
+/**
+ * Render predictions data as table with trend indicators.
+ * @param {HTMLElement} container
+ * @param {Object} predictions
+ */
+function renderPredictions(container, predictions) {
+    const content = document.createElement('div');
+    content.className = 'predictions-content';
+
+    // Stub warning banner
+    if (predictions.is_stub) {
+        content.innerHTML += `
+            <div class="stub-warning">
+                ⚠️ This data is synthetic (stub) and for demonstration only.
+            </div>
+        `;
+    }
+
+    // Render each metric forecast
+    predictions.forecasts.forEach(forecast => {
+        const metricSection = document.createElement('div');
+        metricSection.className = 'forecast-section';
+
+        const metricLabel = forecast.metric.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
+
+        metricSection.innerHTML = `
+            <h4>${metricLabel} (${forecast.unit})</h4>
+            <table class="forecast-table">
+                <thead>
+                    <tr>
+                        <th>Week Starting</th>
+                        <th>Predicted</th>
+                        <th>Range</th>
+                        <th>Trend</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    ${forecast.values.map((v, i, arr) => {
+            const trend = i > 0 ? (v.predicted > arr[i - 1].predicted ? '📈' : v.predicted < arr[i - 1].predicted ? '📉' : '➡️') : '➡️';
+            return `
+                            <tr>
+                                <td>${v.period_start}</td>
+                                <td>${v.predicted}</td>
+                                <td>${v.lower_bound} - ${v.upper_bound}</td>
+                                <td>${trend}</td>
+                            </tr>
+                        `;
+        }).join('')}
+                </tbody>
+            </table>
+        `;
+        content.appendChild(metricSection);
+    });
+
+    // Generated info
+    content.innerHTML += `
+        <div class="generated-info">
+            Generated: ${new Date(predictions.generated_at).toLocaleString()}
+            ${predictions.generated_by ? ` | By: ${predictions.generated_by}` : ''}
+        </div>
+    `;
+
+    // Replace unavailable message
+    const unavailable = container.querySelector('.feature-unavailable');
+    if (unavailable) unavailable.classList.add('hidden');
+
+    container.appendChild(content);
+}
+
+/**
+ * Render predictions error state.
+ */
+function renderPredictionsError(container, errorCode, message) {
+    const unavailable = container.querySelector('.feature-unavailable');
+    if (unavailable) {
+        unavailable.innerHTML = `
+            <div class="icon">⚠️</div>
+            <h2>Unable to Display Predictions</h2>
+            <p>${message || 'An error occurred loading predictions data.'}</p>
+            <p class="hint">[Error code: ${errorCode}]</p>
+        `;
+        unavailable.classList.remove('hidden');
+    }
+}
+
+/**
+ * Render predictions empty state.
+ */
+function renderPredictionsEmpty(container) {
+    const unavailable = container.querySelector('.feature-unavailable');
+    if (unavailable) {
+        unavailable.innerHTML = `
+            <div class="icon">📊</div>
+            <h2>No Prediction Data Yet</h2>
+            <p>Predictions are enabled but no data is available for the selected time range.</p>
+        `;
+        unavailable.classList.remove('hidden');
+    }
+}
+
+/**
+ * Render AI insights as cards grouped by severity.
+ * @param {HTMLElement} container
+ * @param {Object} insights
+ */
+function renderAIInsights(container, insights) {
+    const content = document.createElement('div');
+    content.className = 'insights-content';
+
+    // Stub warning banner
+    if (insights.is_stub) {
+        content.innerHTML += `
+            <div class="stub-warning">
+                ⚠️ This data is synthetic (stub) and for demonstration only.
+            </div>
+        `;
+    }
+
+    // Group by severity
+    const severityOrder = ['critical', 'warning', 'info'];
+    const grouped = {};
+    insights.insights.forEach(insight => {
+        if (!grouped[insight.severity]) grouped[insight.severity] = [];
+        grouped[insight.severity].push(insight);
+    });
+
+    severityOrder.forEach(severity => {
+        if (!grouped[severity]) return;
+
+        const severityIcons = { critical: '🔴', warning: '🟡', info: '🔵' };
+
+        content.innerHTML += `
+            <div class="severity-section">
+                <h4>${severityIcons[severity] || ''} ${severity.charAt(0).toUpperCase() + severity.slice(1)}</h4>
+                <div class="insight-cards">
+                    ${grouped[severity].map(insight => `
+                        <div class="insight-card ${insight.severity}">
+                            <div class="insight-category">${insight.category}</div>
+                            <h5>${insight.title}</h5>
+                            <p>${insight.description}</p>
+                            ${insight.affected_entities?.length ? `
+                                <div class="affected-entities">
+                                    Affects: ${insight.affected_entities.join(', ')}
+                                </div>
+                            ` : ''}
+                        </div>
+                    `).join('')}
+                </div>
+            </div>
+        `;
+    });
+
+    // Generated info
+    content.innerHTML += `
+        <div class="generated-info">
+            Generated: ${new Date(insights.generated_at).toLocaleString()}
+            ${insights.generated_by ? ` | By: ${insights.generated_by}` : ''}
+        </div>
+    `;
+
+    // Replace unavailable message
+    const unavailable = container.querySelector('.feature-unavailable');
+    if (unavailable) unavailable.classList.add('hidden');
+
+    container.appendChild(content);
+}
+
+/**
+ * Render insights error state.
+ */
+function renderInsightsError(container, errorCode, message) {
+    const unavailable = container.querySelector('.feature-unavailable');
+    if (unavailable) {
+        unavailable.innerHTML = `
+            <div class="icon">⚠️</div>
+            <h2>Unable to Display AI Insights</h2>
+            <p>${message || 'An error occurred loading insights data.'}</p>
+            <p class="hint">[Error code: ${errorCode}]</p>
+        `;
+        unavailable.classList.remove('hidden');
+    }
+}
+
+/**
+ * Render insights empty state.
+ */
+function renderInsightsEmpty(container) {
+    const unavailable = container.querySelector('.feature-unavailable');
+    if (unavailable) {
+        unavailable.innerHTML = `
+            <div class="icon">🤖</div>
+            <h2>No Insights Available</h2>
+            <p>AI analysis is enabled but no insights were generated for the current data.</p>
+        `;
+        unavailable.classList.remove('hidden');
     }
 }
 
