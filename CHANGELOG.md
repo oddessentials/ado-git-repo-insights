@@ -1,3 +1,17 @@
+# [2.3.0](https://github.com/oddessentials/ado-git-repo-insights/compare/v2.2.0...v2.3.0) (2026-01-14)
+
+
+### Bug Fixes
+
+* address reviewer concerns P1 & P2 ([eba807f](https://github.com/oddessentials/ado-git-repo-insights/commit/eba807fb6f64ff2950e6eeffabf0b43c5a20e48f))
+
+
+### Features
+
+* **phase3.3:** implement team dimension extraction ([0894eb2](https://github.com/oddessentials/ado-git-repo-insights/commit/0894eb240f7e1a3e835a4e4f1e22129e071f1ee3))
+* **phase3.4:** implement --include-comments CLI flag with rate limits ([2053b23](https://github.com/oddessentials/ado-git-repo-insights/commit/2053b23b07722ea760bd7c5ab4f69e9e22909fd2))
+* **phase3.4:** implement comments/threads extraction ([2b29632](https://github.com/oddessentials/ado-git-repo-insights/commit/2b296325fd245cf99b8038c968332c56afdbb32e))
+
 # [2.2.0](https://github.com/oddessentials/ado-git-repo-insights/compare/v2.1.3...v2.2.0) (2026-01-14)
 
 
