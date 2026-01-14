@@ -95,6 +95,35 @@ CREATE TABLE IF NOT EXISTS reviewers (
 );
 CREATE INDEX IF NOT EXISTS idx_reviewers_pr ON reviewers(pull_request_uid);
 
+-- Phase 3.3: Teams (current-state membership)
+-- Teams are project-scoped and fetched per run
+CREATE TABLE IF NOT EXISTS teams (
+    team_id TEXT PRIMARY KEY,
+    team_name TEXT NOT NULL,
+    project_name TEXT NOT NULL,
+    organization_name TEXT NOT NULL,
+    description TEXT,
+    last_updated TEXT NOT NULL,  -- ISO 8601 timestamp of last fetch
+    FOREIGN KEY (organization_name, project_name)
+        REFERENCES projects(organization_name, project_name)
+);
+CREATE INDEX IF NOT EXISTS idx_teams_project
+    ON teams(organization_name, project_name);
+
+-- Team membership mapping (team_id ↔ user_id)
+-- Represents current membership, not historical snapshots
+CREATE TABLE IF NOT EXISTS team_members (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    team_id TEXT NOT NULL,
+    user_id TEXT NOT NULL,
+    is_team_admin INTEGER DEFAULT 0,
+    FOREIGN KEY (team_id) REFERENCES teams(team_id),
+    FOREIGN KEY (user_id) REFERENCES users(user_id),
+    UNIQUE(team_id, user_id)
+);
+CREATE INDEX IF NOT EXISTS idx_team_members_team ON team_members(team_id);
+CREATE INDEX IF NOT EXISTS idx_team_members_user ON team_members(user_id);
+
 -- Schema version for future migrations
 CREATE TABLE IF NOT EXISTS schema_version (
     version INTEGER PRIMARY KEY,

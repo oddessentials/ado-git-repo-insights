@@ -374,3 +374,122 @@ class PRRepository:
             )
 
         logger.debug(f"Upserted PR: {pull_request_uid}")
+
+    # --- Phase 3.3: Team Operations ---
+
+    def upsert_team(
+        self,
+        team_id: str,
+        team_name: str,
+        project_name: str,
+        organization_name: str,
+        description: str | None = None,
+    ) -> None:
+        """Insert or update a team.
+
+        §5: Teams are project-scoped, represent current state.
+
+        Args:
+            team_id: Stable team identifier.
+            team_name: Team name.
+            project_name: Project name.
+            organization_name: Organization name.
+            description: Optional team description.
+        """
+        from datetime import datetime, timezone
+
+        now = datetime.now(timezone.utc).isoformat()
+
+        self.db.execute(
+            """
+            INSERT INTO teams (team_id, team_name, project_name, organization_name, description, last_updated)
+            VALUES (?, ?, ?, ?, ?, ?)
+            ON CONFLICT(team_id) DO UPDATE SET
+                team_name = excluded.team_name,
+                description = excluded.description,
+                last_updated = excluded.last_updated
+            """,
+            (team_id, team_name, project_name, organization_name, description, now),
+        )
+
+    def upsert_team_member(
+        self,
+        team_id: str,
+        user_id: str,
+        is_team_admin: bool = False,
+    ) -> None:
+        """Insert or update a team membership.
+
+        §5: Represents current membership, not historical.
+
+        Args:
+            team_id: Team identifier.
+            user_id: User identifier.
+            is_team_admin: Whether user is a team admin.
+        """
+        self.db.execute(
+            """
+            INSERT INTO team_members (team_id, user_id, is_team_admin)
+            VALUES (?, ?, ?)
+            ON CONFLICT(team_id, user_id) DO UPDATE SET
+                is_team_admin = excluded.is_team_admin
+            """,
+            (team_id, user_id, 1 if is_team_admin else 0),
+        )
+
+    def clear_team_members(self, team_id: str) -> None:
+        """Clear all members for a team before refresh.
+
+        Used to ensure current-state membership on each run.
+
+        Args:
+            team_id: Team identifier.
+        """
+        self.db.execute(
+            "DELETE FROM team_members WHERE team_id = ?",
+            (team_id,),
+        )
+
+    def get_teams_for_project(
+        self, organization_name: str, project_name: str
+    ) -> list[dict[str, Any]]:
+        """Get all teams for a project.
+
+        Args:
+            organization_name: Organization name.
+            project_name: Project name.
+
+        Returns:
+            List of team dictionaries.
+        """
+        cursor = self.db.execute(
+            """
+            SELECT team_id, team_name, description, last_updated
+            FROM teams
+            WHERE organization_name = ? AND project_name = ?
+            ORDER BY team_name
+            """,
+            (organization_name, project_name),
+        )
+        return [dict(row) for row in cursor.fetchall()]
+
+    def get_team_members(self, team_id: str) -> list[dict[str, Any]]:
+        """Get all members for a team.
+
+        Args:
+            team_id: Team identifier.
+
+        Returns:
+            List of member dictionaries with user info.
+        """
+        cursor = self.db.execute(
+            """
+            SELECT tm.user_id, u.display_name, u.email, tm.is_team_admin
+            FROM team_members tm
+            LEFT JOIN users u ON tm.user_id = u.user_id
+            WHERE tm.team_id = ?
+            ORDER BY u.display_name
+            """,
+            (team_id,),
+        )
+        return [dict(row) for row in cursor.fetchall()]

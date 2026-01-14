@@ -66,6 +66,7 @@ class Dimensions:
     repositories: list[dict[str, Any]] = field(default_factory=list)
     users: list[dict[str, Any]] = field(default_factory=list)
     projects: list[dict[str, Any]] = field(default_factory=list)
+    teams: list[dict[str, Any]] = field(default_factory=list)  # Phase 3.3
     date_range: dict[str, str] = field(default_factory=dict)
 
 
@@ -159,7 +160,7 @@ class AggregateGenerator:
                 defaults={"default_date_range_days": 90},
                 limits={"max_date_range_days_soft": 730},
                 features={
-                    "teams": False,  # Phase 3.3
+                    "teams": len(dimensions.teams) > 0,  # Phase 3.3: dynamic
                     "comments": False,  # Phase 3.4
                     "ml": False,  # Phase 3.5
                     "ai_insights": False,  # Phase 3.5
@@ -167,6 +168,7 @@ class AggregateGenerator:
                 coverage={
                     "total_prs": self._get_pr_count(),
                     "date_range": dimensions.date_range,
+                    "teams_count": len(dimensions.teams),  # Phase 3.3
                 },
             )
 
@@ -232,10 +234,24 @@ class AggregateGenerator:
                 "max": date_range_df.iloc[0]["max_date"][:10],
             }
 
+        # Phase 3.3: Teams
+        teams_df = pd.read_sql_query(
+            """
+            SELECT t.team_id, t.team_name, t.project_name, t.organization_name,
+                   COUNT(tm.user_id) as member_count
+            FROM teams t
+            LEFT JOIN team_members tm ON t.team_id = tm.team_id
+            GROUP BY t.team_id, t.team_name, t.project_name, t.organization_name
+            ORDER BY t.organization_name, t.project_name, t.team_name
+            """,
+            self.db.connection,
+        )
+
         return Dimensions(
             repositories=list(repos_df.to_dict(orient="records")),  # type: ignore[arg-type]
             users=list(users_df.to_dict(orient="records")),  # type: ignore[arg-type]
             projects=list(projects_df.to_dict(orient="records")),  # type: ignore[arg-type]
+            teams=list(teams_df.to_dict(orient="records")),  # type: ignore[arg-type]
             date_range=date_range,
         )
 

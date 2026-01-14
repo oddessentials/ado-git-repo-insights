@@ -280,3 +280,104 @@ class ADOClient:
             raise ExtractionError(
                 f"Failed to connect to {self.organization}/{project}: {e}"
             ) from e
+
+    # Phase 3.3: Team extraction methods
+
+    def get_teams(self, project: str) -> list[dict[str, Any]]:
+        """Fetch all teams for a project.
+
+        §5: Teams are project-scoped, fetched once per run per project.
+
+        Args:
+            project: Project name.
+
+        Returns:
+            List of team dictionaries.
+
+        Raises:
+            ExtractionError: If team fetch fails (allows graceful degradation).
+        """
+        url = (
+            f"{self.base_url}/_apis/projects/{project}/teams"
+            f"?api-version={self.config.version}"
+        )
+
+        all_teams: list[dict[str, Any]] = []
+        continuation_token: str | None = None
+
+        while True:
+            page_url = url
+            if continuation_token:
+                page_url += f"&continuationToken={continuation_token}"
+
+            try:
+                response = requests.get(page_url, headers=self.headers, timeout=30)
+                response.raise_for_status()
+
+                continuation_token = response.headers.get("x-ms-continuationtoken")
+                data = response.json()
+                teams = data.get("value", [])
+                all_teams.extend(teams)
+
+                if not continuation_token:
+                    break
+
+            except (RequestException, HTTPError) as e:
+                raise ExtractionError(
+                    f"Failed to fetch teams for {project}: {e}"
+                ) from e
+
+            time.sleep(self.config.rate_limit_sleep_seconds)
+
+        logger.info(f"Fetched {len(all_teams)} teams for {project}")
+        return all_teams
+
+    def get_team_members(self, project: str, team_id: str) -> list[dict[str, Any]]:
+        """Fetch all members of a team.
+
+        §5: Membership fetched once per run per team.
+
+        Args:
+            project: Project name.
+            team_id: Team identifier.
+
+        Returns:
+            List of team member dictionaries.
+
+        Raises:
+            ExtractionError: If member fetch fails.
+        """
+        url = (
+            f"{self.base_url}/_apis/projects/{project}/teams/{team_id}/members"
+            f"?api-version={self.config.version}"
+        )
+
+        all_members: list[dict[str, Any]] = []
+        continuation_token: str | None = None
+
+        while True:
+            page_url = url
+            if continuation_token:
+                page_url += f"&continuationToken={continuation_token}"
+
+            try:
+                response = requests.get(page_url, headers=self.headers, timeout=30)
+                response.raise_for_status()
+
+                continuation_token = response.headers.get("x-ms-continuationtoken")
+                data = response.json()
+                members = data.get("value", [])
+                all_members.extend(members)
+
+                if not continuation_token:
+                    break
+
+            except (RequestException, HTTPError) as e:
+                raise ExtractionError(
+                    f"Failed to fetch members for team {team_id}: {e}"
+                ) from e
+
+            time.sleep(self.config.rate_limit_sleep_seconds)
+
+        logger.debug(f"Fetched {len(all_members)} members for team {team_id}")
+        return all_members
