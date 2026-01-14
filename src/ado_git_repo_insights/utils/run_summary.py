@@ -120,7 +120,8 @@ class RunSummary:
 
     def print_final_line(self) -> None:
         """Print one-liner summary to stdout."""
-        status_symbol = "✓" if self.final_status == "success" else "✗"
+        # Use ASCII symbols for Windows cp1252 compatibility
+        status_symbol = "[OK]" if self.final_status == "success" else "[FAIL]"
         print(
             f"{status_symbol} {self.final_status.upper()}: "
             f"{self.counts.prs_fetched} PRs extracted, "
