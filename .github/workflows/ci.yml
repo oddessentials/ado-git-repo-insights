@@ -29,6 +29,20 @@ jobs:
           python -m pip install --upgrade pip
           pip install -e .[dev]
 
+      - name: Verify Ruff Version Consistency
+        run: |
+          # Extract ruff version from pre-commit config
+          PRECOMMIT_RUFF=$(grep -A1 'ruff-pre-commit' .pre-commit-config.yaml | grep 'rev:' | sed 's/.*v//')
+          INSTALLED_RUFF=$(ruff --version | awk '{print $2}')
+          echo "Pre-commit ruff: $PRECOMMIT_RUFF"
+          echo "Installed ruff: $INSTALLED_RUFF"
+          if [[ "$PRECOMMIT_RUFF" != "$INSTALLED_RUFF" ]]; then
+            echo "::error::Ruff version mismatch! pre-commit has v$PRECOMMIT_RUFF but installed is $INSTALLED_RUFF"
+            echo "Update .pre-commit-config.yaml or pyproject.toml to match"
+            exit 1
+          fi
+        shell: bash
+
       - name: Lint with Ruff
         run: |
           ruff check .
