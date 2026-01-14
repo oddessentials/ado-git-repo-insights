@@ -1,37 +1,262 @@
-* **Lock the Phase 3.5 contract (no drift):** Update `dataset-contract.md` to define *fixed* file locations (`predictions/trends.json`, `insights/summary.json`), manifest flags (`features.predictions`, `features.ai_insights`), and UI state rules (`missing` → “Not generated yet”, `invalid` → “Unable to display…”, `empty` → “No data yet”). Include `schema_version` on both JSON roots, plus required `generated_at`, and for stubs required `is_stub` + `generated_by`.
+# Phase 3.5 Gap Closure — Final Implementation Plan
 
-* **Define the Predictions JSON (extensible + deterministic):** Use `period_start: "YYYY-MM-DD"` (Monday-aligned). Support multiple metrics via an enum (`pr_throughput`, `cycle_time_minutes`, `review_time_minutes`), multiple horizons per metric, and include a `unit` field per metric (even if redundant) to prevent future UI labeling drift. Require bounds fields (`predicted`, `lower_bound`, `upper_bound`) and allow forward-compatible unknown fields.
+**Objective:**
+Close all remaining automation, validation, and test gaps so Phase 3.5 ships as a **stable, extensible, enterprise-ready ML dashboard foundation**.
+No shortcuts. No deferrals. No ambiguity.
 
-* **Define the Insights JSON (descriptive-only, future-ready):** Keep insights descriptive (no recommendations). Require fields: `id`, `category`, `severity`, `title`, `description`, `affected_entities[]`. Add optional `evidence_refs[]` (strings) for future traceability without forcing it now.
+---
 
-* **Implement aggregator output gating (presence drives flags):** In `aggregators.py`, write predictions/insights files only when generated; set `features.predictions=true` if and only if `predictions/trends.json` is written; set `features.ai_insights=true` if and only if `insights/summary.json` is written. If neither exists, flags must be false.
+## 1. Python JSON Schema Validation (Required)
 
-* **Add stub generator (safe + reproducible, $0):** Add `PredictionGenerator` (and `InsightsGenerator`) that produces *deterministic* synthetic data using a stable seed (e.g., hash of `org+project+metric+horizon+period_start`). Gate stub generation behind `--enable-ml-stubs` *and* `ALLOW_ML_STUBS=1`; if flag is passed without env var, hard-fail with a clear error. When stubs are produced, set root fields `is_stub: true`, `generated_by: "phase3.5-stub-v1"` and add a manifest banner field like `warnings: ["STUB DATA - NOT PRODUCTION"]`.
+### Files
 
-* **CLI wiring:** In `cli.py`, add `--enable-ml-stubs` to `generate-aggregates`. Ensure non-stub runs never require `ALLOW_ML_STUBS`; only the stub path is gated.
+* `tests/unit/test_predictions_schema.py` **[NEW]**
+* `tests/unit/test_insights_schema.py` **[NEW]**
 
-* **Dataset loader foundation (ADO artifact, no unzip requirement in UI):** Extend `dataset-loader.js` to load JSON via ADO Build Artifacts REST endpoints (authenticated via extension SDK) without relying on a local `./dataset/` filesystem. Implement a single abstraction: `fetchDatasetFile(relPath)` where `relPath` is the conventional path (e.g., `predictions/trends.json`). The implementation should resolve the artifact download URL for the dataset artifact and fetch the specific file content via supported ADO artifact APIs (or the artifact file listing endpoints) without downloading and extracting a zip in the browser.
+### Predictions Schema Tests (`test_predictions_schema.py`)
 
-* **UI wiring + rendering (null-safe, minimal deps):** In `dashboard.js`, update `updateFeatureTabs()` to:
+Implement strict validation tests for `predictions/trends.json`:
 
-  * Show Predictions tab if `features.predictions===true`, else hide.
-  * Show AI Insights tab if `features.ai_insights===true`, else hide.
-  * For each enabled tab, attempt load → validate schema → render; on missing show “Not generated yet”; on invalid show “Unable to display…” and log details to console with a non-sensitive diagnostic code.
-    Implement `renderPredictions()` as a simple table + lightweight trend indicators (no chart libs this phase). Implement `renderAIInsights()` as cards grouped by `severity/category`.
+* Valid schema passes
+* Missing required root fields **fail**:
 
-* **Schema validation (shared, strict, forward-compatible):** Add a small JSON schema validator module used by both Python tests and JS (or mirror logic): required fields enforced; unknown fields allowed; explicit unit/metric enums enforced. Invalid should not throw uncaught errors—always return a typed error.
+  * `schema_version`
+  * `generated_at`
+  * `forecasts`
+* Each forecast entry must:
 
-* **Tests (cover the real risks, still $0):**
+  * Use a valid metric enum:
+    `pr_throughput | cycle_time_minutes | review_time_minutes`
+  * Include a valid `unit` matching the metric
+  * Include `period_start` formatted as `YYYY-MM-DD` and **Monday-aligned**
+  * Include bounds fields: `predicted`, `lower_bound`, `upper_bound`
+* Invalid metric enum **fails**
+* Invalid `period_start` format or weekday **fails**
+* Unknown fields are **allowed** (forward-compatible)
+* Empty `forecasts[]` is **valid** and represents an empty state
 
-  * `[NEW] tests/unit/test_predictions_schema.py`: validate predictions JSON against contract (including units, period_start format, horizons).
-  * `[NEW] tests/unit/test_insights_schema.py`: validate insights JSON against contract.
-  * `[MODIFY] tests/unit/test_aggregators.py`: verify flags are set only when files exist; verify stub outputs deterministic across runs; verify stub gating via `ALLOW_ML_STUBS`.
-  * `[NEW] extension tests (jsdom)`: test tab behavior + placeholders for missing/invalid/empty states; test render functions never throw on null/partial data.
+### Insights Schema Tests (`test_insights_schema.py`)
 
-* **CI prerequisites (pinned + low-noise):** Add GitHub CI secret scan using **gitleaks** with pinned versions and an allowlist file. Start warn-only but restrict output to avoid leaking secrets in logs; scope to PR diff for PRs and full scan on main.
+Implement strict validation tests for `insights/summary.json`:
 
-* **Verification checklist (must pass before merge):**
+* Valid schema passes
+* Missing required root fields **fail**:
 
-  * `generate-aggregates` without stubs produces no predictions/insights files and flags remain false.
-  * `generate-aggregates --enable-ml-stubs` fails unless `ALLOW_ML_STUBS=1`; with env var, produces deterministic stub files + manifest warnings.
-  * Extension can load predictions/insights from the ADO build artifact via REST and render: present, missing, invalid, and empty cases with correct messaging and no console exceptions.
+  * `schema_version`
+  * `generated_at`
+  * `insights`
+* Each insight must include:
+
+  * `id`
+  * `category` (`bottleneck | trend | anomaly`)
+  * `severity` (`info | warning | critical`)
+  * `title`
+  * `description`
+  * `affected_entities[]`
+* Invalid category or severity enum **fails**
+* Optional `evidence_refs[]` allowed
+* Unknown fields allowed (forward-compatible)
+
+---
+
+## 2. Aggregator Stub Gating & Determinism (Required)
+
+### File
+
+* `tests/unit/test_aggregators.py` **[MODIFY]**
+
+### Add `TestStubGeneration` test class
+
+Implement **all** of the following tests:
+
+* `--enable-ml-stubs` **without** `ALLOW_ML_STUBS=1`
+  → raises `StubGenerationError`
+* `--enable-ml-stubs` **with** `ALLOW_ML_STUBS=1`
+  → generates predictions + insights stub files
+* Stub output is **deterministic**:
+
+  * Same seed base produces identical JSON across runs
+* Non-stub run:
+
+  * Does **not** generate predictions/insights files
+  * Sets `features.predictions=false`
+  * Sets `features.ai_insights=false`
+* Stub output files must include:
+
+  * `is_stub: true`
+  * `generated_by: "phase3.5-stub-v1"`
+* Dataset manifest must include:
+
+  * `warnings: ["STUB DATA - NOT PRODUCTION"]`
+
+---
+
+## 3. gitleaks CI Secret Scan (Required)
+
+### Files
+
+* `.gitleaks.toml` **[NEW]**
+* `ci.yml` **[MODIFY]**
+
+### gitleaks Configuration
+
+Create `.gitleaks.toml` with allowlists for:
+
+* Test fixtures containing fake tokens
+* Documentation/examples
+
+### CI Job (`ci.yml`)
+
+Add job:
+
+```yaml
+secret-scan:
+  runs-on: ubuntu-latest
+  steps:
+    - uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+    - uses: gitleaks/gitleaks-action@v2.3.9
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      with:
+        args: --config=.gitleaks.toml
+```
+
+Rules:
+
+* Pinned gitleaks version (`v2.3.9`)
+* PRs: diff-only scan (default behavior)
+* `main`: full history scan
+* Warn-only mode (do not block PRs)
+
+---
+
+## 4. Extension Test Infrastructure (Required)
+
+### Files
+
+* `extension/package.json` **[MODIFY]**
+* `extension/jest.config.js` **[NEW]**
+* `extension/tests/dataset-loader.test.js` **[NEW]**
+* `extension/tests/dashboard.test.js` **[NEW]**
+
+### Setup
+
+* Add `jest`, `jsdom`, and required mocks as dev dependencies
+* Configure Jest for `jsdom` environment
+* Mock `fetch` in all tests (no network access)
+
+---
+
+## 5. Dataset Loader Contract Tests (Required)
+
+### File
+
+* `extension/tests/dataset-loader.test.js`
+
+Implement tests for loader behavior:
+
+* `validatePredictionsSchema()`:
+
+  * Returns `{ valid: true }` for valid input
+  * Returns `{ valid: false, error }` for invalid input
+* `validateInsightsSchema()`:
+
+  * Returns typed error objects
+  * **Never throws**
+* `loadPredictions()`:
+
+  * Returns `{ state: "disabled" }` when feature flag is false
+  * Returns `{ state: "missing" }` on 404
+  * Returns `{ state: "auth" }` on 401/403
+  * Returns `{ state: "invalid" }` on schema failure
+  * Returns `{ state: "ok", data }` on success
+
+Typed states are mandatory; `null` is not acceptable.
+
+---
+
+## 6. Dashboard Rendering Tests (Required)
+
+### File
+
+* `extension/tests/dashboard.test.js`
+
+Implement tests to guarantee UI stability:
+
+* `renderPredictions()`:
+
+  * Handles `null` / `undefined` safely
+  * Renders stub warning when `is_stub=true`
+* `renderAIInsights()`:
+
+  * Groups insights by severity correctly
+* Error states:
+
+  * Missing → “Not generated yet”
+  * Invalid → “Unable to display insights” + diagnostic code
+  * Empty → “No data yet”
+* Rendering functions **must never throw**
+
+---
+
+## 7. CI Integration for Extension Tests (Required)
+
+### File
+
+* `ci.yml` **[MODIFY]**
+
+Add job:
+
+```yaml
+extension-tests:
+  runs-on: ubuntu-latest
+  steps:
+    - uses: actions/checkout@v4
+    - uses: actions/setup-node@v4
+      with:
+        node-version: '20'
+    - run: cd extension && npm ci
+    - run: cd extension && npm test
+```
+
+---
+
+## 8. Required Implementation Order
+
+1. Python schema validation tests
+2. Aggregator stub gating + determinism
+3. gitleaks CI + allowlist
+4. Extension test infrastructure
+5. Dataset loader contract tests
+6. Dashboard rendering tests
+7. CI wiring
+
+---
+
+## 9. Acceptance Criteria (Must Pass)
+
+CI must pass all of the following:
+
+```bash
+pytest tests/unit/test_predictions_schema.py -v
+pytest tests/unit/test_insights_schema.py -v
+pytest tests/unit/test_aggregators.py::TestStubGeneration -v
+cd extension && npm test
+```
+
+gitleaks runs on every PR.
+
+---
+
+## Explicitly Out of Scope (Not Part of This Work)
+
+* ML model implementation (Phase 4+)
+* LLM insight generation
+* UI polish beyond correctness and stability
+
+---
+
+**Outcome:**
+Phase 3.5 delivers a **credible, extensible ML dashboard foundation** with strict contracts, deterministic behavior, CI enforcement, and UI resilience suitable for enterprise rollout.
