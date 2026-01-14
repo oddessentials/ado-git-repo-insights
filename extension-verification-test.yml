@@ -32,16 +32,18 @@ stages:
               targetPath: '$(Pipeline.Workspace)/data'
             continueOnError: true
 
-          # Log artifact status
-          - script: |
-              if [ -f "$(Pipeline.Workspace)/data/ado-insights.sqlite" ]; then
-                echo "##[section]Found existing database (Run 2+)"
-                ls -la $(Pipeline.Workspace)/data/
-              else
-                echo "##[warning]No existing database - first run"
-                mkdir -p $(Pipeline.Workspace)/data
-              fi
-            displayName: 'Check Database Status'
+          # Create directories and check artifact status
+          - pwsh: |
+              New-Item -ItemType Directory -Force -Path "$(Pipeline.Workspace)/data"
+              New-Item -ItemType Directory -Force -Path "$(Pipeline.Workspace)/csv_output"
+              New-Item -ItemType Directory -Force -Path "$(Pipeline.Workspace)/run_artifacts"
+              if (Test-Path "$(Pipeline.Workspace)/data/ado-insights.sqlite") {
+                Write-Host "##[section]Found existing database (Run 2+)"
+                Get-ChildItem "$(Pipeline.Workspace)/data"
+              } else {
+                Write-Host "##[warning]No existing database - first run"
+              }
+            displayName: 'Setup and Check Database Status'
 
           # Run the extension task
           - task: ExtractPullRequests@1
