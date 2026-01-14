@@ -82,22 +82,28 @@ stages:
     jobs:
       - job: ExtractPRs
         steps:
-          # Create directories (cross-platform)
+          # Step 1: Create directories FIRST
           - pwsh: |
               New-Item -ItemType Directory -Force -Path "$(Pipeline.Workspace)/data" | Out-Null
               New-Item -ItemType Directory -Force -Path "$(Pipeline.Workspace)/csv_output" | Out-Null
             displayName: 'Create Directories'
 
-          # Download previous database (if exists)
+          # Step 2: Download previous DB (branch-isolated)
           - task: DownloadPipelineArtifact@2
             displayName: 'Download Previous Database'
-            continueOnError: true
+            continueOnError: true  # First run will fail - OK
             inputs:
-              buildType: 'current'
+              buildType: 'specific'
+              project: '$(System.TeamProjectId)'
+              definition: '$(System.DefinitionId)'
+              runVersion: 'latestFromBranch'
+              runBranch: '$(Build.SourceBranch)'
+              allowPartiallySucceededBuilds: false
+              allowFailedBuilds: false
               artifactName: 'ado-insights-db'
               targetPath: '$(Pipeline.Workspace)/data'
 
-          # Run the extension task
+          # Step 3: Run the extension task
           - task: ExtractPullRequests@1
             displayName: 'Extract PR Metrics'
             inputs:
@@ -109,10 +115,8 @@ stages:
               pat: '$(PAT_SECRET)'
               database: '$(Pipeline.Workspace)/data/ado-insights.sqlite'
               outputDir: '$(Pipeline.Workspace)/csv_output'
-              # Optional: endDate: '2026-01-13'
-              # Optional: backfillDays: '60'
 
-          # Publish Golden DB (only on success)
+          # Step 4: Publish Golden DB (only on success)
           - task: PublishPipelineArtifact@1
             displayName: 'Publish Database'
             condition: succeeded()
@@ -120,7 +124,7 @@ stages:
               targetPath: '$(Pipeline.Workspace)/data'
               artifact: 'ado-insights-db'
 
-          # Publish CSVs
+          # Step 5: Publish CSVs
           - task: PublishPipelineArtifact@1
             displayName: 'Publish CSVs'
             condition: always()

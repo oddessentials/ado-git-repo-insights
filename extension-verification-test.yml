@@ -20,36 +20,37 @@ stages:
       - job: ExtractPRs
         displayName: 'Run Extension Task'
         steps:
-          # Step 1: Create all directories upfront (cross-platform)
+          # Step 1: Create directories FIRST (before download attempt)
           - pwsh: |
-              $dataDir = "$(Pipeline.Workspace)/data"
-              $csvDir = "$(Pipeline.Workspace)/csv_output"
-              $artifactsDir = "$(Pipeline.Workspace)/run_artifacts"
-
-              New-Item -ItemType Directory -Force -Path $dataDir | Out-Null
-              New-Item -ItemType Directory -Force -Path $csvDir | Out-Null
-              New-Item -ItemType Directory -Force -Path $artifactsDir | Out-Null
-
-              Write-Host "##[section]Directories created successfully"
+              New-Item -ItemType Directory -Force -Path "$(Pipeline.Workspace)/data" | Out-Null
+              New-Item -ItemType Directory -Force -Path "$(Pipeline.Workspace)/csv_output" | Out-Null
+              New-Item -ItemType Directory -Force -Path "$(Pipeline.Workspace)/run_artifacts" | Out-Null
+              Write-Host "##[section]Directories created"
             displayName: 'Create Directories'
 
-          # Step 2: Try to download previous database (will fail on first run - that's OK)
+          # Step 2: Download previous DB (branch-isolated, first run will fail - OK)
           - task: DownloadPipelineArtifact@2
-            displayName: 'Download Previous Database (if exists)'
+            displayName: 'Download Previous Database (Golden)'
             continueOnError: true
             inputs:
-              buildType: 'current'
+              buildType: 'specific'
+              project: '$(System.TeamProjectId)'
+              definition: '$(System.DefinitionId)'
+              runVersion: 'latestFromBranch'
+              runBranch: '$(Build.SourceBranch)'
+              allowPartiallySucceededBuilds: false
+              allowFailedBuilds: false
               artifactName: '$(ARTIFACT_NAME)'
               targetPath: '$(Pipeline.Workspace)/data'
 
-          # Step 3: Check if database exists
+          # Step 3: Check DB status (defensive - don't assume download succeeded)
           - pwsh: |
               $dbPath = "$(Pipeline.Workspace)/data/ado-insights.sqlite"
               if (Test-Path $dbPath) {
                 Write-Host "##[section]Found existing database - incremental run"
                 Get-ChildItem "$(Pipeline.Workspace)/data"
               } else {
-                Write-Host "##[warning]No existing database - first run (this is expected)"
+                Write-Host "##[warning]No database found - first run (new DB will be created)"
               }
             displayName: 'Check Database Status'
 
@@ -66,7 +67,7 @@ stages:
               database: '$(Pipeline.Workspace)/data/ado-insights.sqlite'
               outputDir: '$(Pipeline.Workspace)/csv_output'
 
-          # Step 5: Publish artifacts
+          # Step 5: Publish Golden DB (only on success)
           - task: PublishPipelineArtifact@1
             displayName: 'Publish Golden DB'
             condition: succeeded()
@@ -74,6 +75,7 @@ stages:
               targetPath: '$(Pipeline.Workspace)/data'
               artifact: '$(ARTIFACT_NAME)'
 
+          # Step 6: Publish Candidate DB (forensic - always)
           - task: PublishPipelineArtifact@1
             displayName: 'Publish Candidate DB (forensic)'
             condition: always()
@@ -81,6 +83,7 @@ stages:
               targetPath: '$(Pipeline.Workspace)/data'
               artifact: 'ado-insights-db-candidate-$(Build.BuildId)'
 
+          # Step 7: Publish CSVs
           - task: PublishPipelineArtifact@1
             displayName: 'Publish CSVs'
             condition: always()
@@ -88,6 +91,7 @@ stages:
               targetPath: '$(Pipeline.Workspace)/csv_output'
               artifact: 'csv-output'
 
+          # Step 8: Publish Run Artifacts
           - task: PublishPipelineArtifact@1
             displayName: 'Publish Run Artifacts'
             condition: always()
