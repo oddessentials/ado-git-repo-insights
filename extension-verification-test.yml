@@ -5,7 +5,7 @@
 trigger: none  # Manual only
 
 pool:
-  vmImage: 'ubuntu-latest'
+  name: 'Default'
 
 variables:
   - group: ado-insights-secrets  # Contains PAT_SECRET
