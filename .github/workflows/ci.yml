@@ -180,3 +180,21 @@ jobs:
         with:
           name: vsix
           path: extension/*.vsix
+
+  # Phase 3.5: Extension UI unit tests
+  extension-tests:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install dependencies
+        working-directory: extension
+        run: npm ci
+
+      - name: Run Extension UI Tests
+        working-directory: extension
+        run: npm test
