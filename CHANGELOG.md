@@ -1,3 +1,10 @@
+## [2.1.2](https://github.com/oddessentials/ado-git-repo-insights/compare/v2.1.1...v2.1.2) (2026-01-14)
+
+
+### Bug Fixes
+
+* use ASCII symbols for Windows cp1252 compatibility ([f7bc5f8](https://github.com/oddessentials/ado-git-repo-insights/commit/f7bc5f83a3d8fd48c1ed6fb166f6f7b78d27b601))
+
 ## [2.1.1](https://github.com/oddessentials/ado-git-repo-insights/compare/v2.1.0...v2.1.1) (2026-01-14)
 
 
