@@ -1,3 +1,16 @@
+# [2.4.0](https://github.com/oddessentials/ado-git-repo-insights/compare/v2.3.0...v2.4.0) (2026-01-14)
+
+
+### Bug Fixes
+
+* **manifest:** add predictions/insights schema versions to DatasetManifest ([d4886c0](https://github.com/oddessentials/ado-git-repo-insights/commit/d4886c07ca4cdcf86febd4ece427494f388a26ff))
+* **phase3.5:** implement typed state returns per contract ([5d81311](https://github.com/oddessentials/ado-git-repo-insights/commit/5d81311116b57ebd3b449d467e77aed2641d3139))
+
+
+### Features
+
+* **phase3.5:** implement predictions + AI insights rendering ([6a85b47](https://github.com/oddessentials/ado-git-repo-insights/commit/6a85b47522efc2abb8d1558fe8b4b869aee471d4))
+
 # [2.3.0](https://github.com/oddessentials/ado-git-repo-insights/compare/v2.2.0...v2.3.0) (2026-01-14)
 
 
