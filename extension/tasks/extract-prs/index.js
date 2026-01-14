@@ -128,8 +128,52 @@ async function run() {
         const startDate = tl.getInput('startDate', false);
         const endDate = tl.getInput('endDate', false);
         const backfillDays = tl.getInput('backfillDays', false);
-        const databasePath = tl.getInput('databasePath', false) || 'ado-insights.sqlite';
-        const outputDir = tl.getInput('outputDir', false) || 'csv_output';
+        // CRITICAL: Input name must match task.json contract ('database', not 'databasePath')
+        const databaseInput = tl.getInput('database', false) || 'ado-insights.sqlite';
+        const outputDirInput = tl.getInput('outputDir', false) || 'csv_output';
+
+        // Normalize paths to absolute for deterministic behavior across agents
+        const databasePath = path.resolve(databaseInput);
+        const outputDir = path.resolve(outputDirInput);
+
+        // Validate database directory is writable (fail fast on misconfiguration)
+        const fs = require('fs');
+        const dbDir = path.dirname(databasePath);
+        try {
+            if (!fs.existsSync(dbDir)) {
+                fs.mkdirSync(dbDir, { recursive: true });
+                tl.debug(`Created database directory: ${dbDir}`);
+            }
+            // Test writability
+            const testFile = path.join(dbDir, '.write-test-' + Date.now());
+            fs.writeFileSync(testFile, 'test');
+            fs.unlinkSync(testFile);
+        } catch (err) {
+            tl.setResult(tl.TaskResult.Failed,
+                `Database directory is not writable: ${dbDir}\n` +
+                `Error: ${err.message}\n\n` +
+                `Resolution: Ensure the database path points to a writable location.`
+            );
+            return;
+        }
+
+        // Validate output directory is writable
+        try {
+            if (!fs.existsSync(outputDir)) {
+                fs.mkdirSync(outputDir, { recursive: true });
+                tl.debug(`Created output directory: ${outputDir}`);
+            }
+            const testFile = path.join(outputDir, '.write-test-' + Date.now());
+            fs.writeFileSync(testFile, 'test');
+            fs.unlinkSync(testFile);
+        } catch (err) {
+            tl.setResult(tl.TaskResult.Failed,
+                `Output directory is not writable: ${outputDir}\n` +
+                `Error: ${err.message}\n\n` +
+                `Resolution: Ensure the output path points to a writable location.`
+            );
+            return;
+        }
 
         // Log configuration (Invariant 19: Never log PAT)
         console.log('='.repeat(50));
@@ -137,13 +181,38 @@ async function run() {
         console.log('='.repeat(50));
         console.log(`Organization: ${organization}`);
         console.log(`Projects: ${projects.split(/[\n,]/).map(p => p.trim()).filter(Boolean).join(', ')}`);
-        console.log(`Database: ${databasePath}`);
-        console.log(`Output: ${outputDir}`);
+        console.log(`Database (input): ${databaseInput}`);
+        console.log(`Database (resolved): ${databasePath}`);
+        console.log(`Output (input): ${outputDirInput}`);
+        console.log(`Output (resolved): ${outputDir}`);
         console.log(`PAT: ********`);  // Invariant 19: Redacted
         if (startDate) console.log(`Start Date: ${startDate}`);
         if (endDate) console.log(`End Date: ${endDate}`);
         if (backfillDays) console.log(`Backfill Days: ${backfillDays}`);
         console.log('='.repeat(50));
+
+        // Validate date formats if provided (fail fast on invalid input)
+        const datePattern = /^\d{4}-\d{2}-\d{2}$/;
+        if (startDate && !datePattern.test(startDate)) {
+            tl.setResult(tl.TaskResult.Failed,
+                `Invalid startDate format: "${startDate}"\n` +
+                `Expected format: YYYY-MM-DD (e.g., 2026-01-01)`
+            );
+            return;
+        }
+        if (endDate && !datePattern.test(endDate)) {
+            tl.setResult(tl.TaskResult.Failed,
+                `Invalid endDate format: "${endDate}"\n` +
+                `Expected format: YYYY-MM-DD (e.g., 2026-01-13)`
+            );
+            return;
+        }
+        if (startDate && endDate && startDate > endDate) {
+            tl.setResult(tl.TaskResult.Failed,
+                `Invalid date range: startDate (${startDate}) is after endDate (${endDate})`
+            );
+            return;
+        }
 
         // Build extraction command
         const extractArgs = [

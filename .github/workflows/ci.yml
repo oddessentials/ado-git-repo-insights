@@ -143,6 +143,12 @@ jobs:
       - name: Install tfx-cli
         run: npm install -g tfx-cli
 
+      - name: Validate Task Input Names
+        run: node scripts/validate-task-inputs.js
+
+      - name: Run Extension Unit Tests
+        run: node extension/tasks/extract-prs/index.test.js
+
       - name: Build Extension
         working-directory: extension
         run: |
