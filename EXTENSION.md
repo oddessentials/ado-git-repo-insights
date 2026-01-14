@@ -72,7 +72,7 @@ The extension requires a PAT stored securely in a variable group.
 trigger: none
 
 pool:
-  vmImage: 'ubuntu-latest'
+  vmImage: 'ubuntu-latest'  # Or 'windows-latest' or 'name: Default' for self-hosted
 
 variables:
   - group: ado-insights-secrets
@@ -82,24 +82,34 @@ stages:
     jobs:
       - job: ExtractPRs
         steps:
-          # Download previous database (if exists)
+          # Step 1: Create directories FIRST
+          - pwsh: |
+              New-Item -ItemType Directory -Force -Path "$(Pipeline.Workspace)/data" | Out-Null
+              New-Item -ItemType Directory -Force -Path "$(Pipeline.Workspace)/csv_output" | Out-Null
+            displayName: 'Create Directories'
+
+          # Step 1.5: Ensure Node.js is available (for self-hosted agents)
+          - task: UseNode@1
+            displayName: 'Install Node.js 20'
+            inputs:
+              version: '20.x'
+
+          # Step 2: Download previous DB (branch-isolated)
           - task: DownloadPipelineArtifact@2
             displayName: 'Download Previous Database'
+            continueOnError: true  # First run will fail - OK
             inputs:
               buildType: 'specific'
               project: '$(System.TeamProjectId)'
-              pipeline: '$(Build.DefinitionId)'
-              buildVersionToDownload: 'latest'
+              definition: '$(System.DefinitionId)'
+              runVersion: 'latestFromBranch'
+              runBranch: '$(Build.SourceBranch)'
+              allowPartiallySucceededBuilds: false
               allowFailedBuilds: false
               artifactName: 'ado-insights-db'
               targetPath: '$(Pipeline.Workspace)/data'
-            continueOnError: true
 
-          # Create data directory if first run
-          - script: mkdir -p $(Pipeline.Workspace)/data
-            displayName: 'Ensure Data Directory'
-
-          # Run the extension task
+          # Step 3: Run the extension task
           - task: ExtractPullRequests@1
             displayName: 'Extract PR Metrics'
             inputs:
@@ -111,10 +121,8 @@ stages:
               pat: '$(PAT_SECRET)'
               database: '$(Pipeline.Workspace)/data/ado-insights.sqlite'
               outputDir: '$(Pipeline.Workspace)/csv_output'
-              # Optional: endDate: '2026-01-13'
-              # Optional: backfillDays: '60'
 
-          # Publish Golden DB (only on success)
+          # Step 4: Publish Golden DB (only on success)
           - task: PublishPipelineArtifact@1
             displayName: 'Publish Database'
             condition: succeeded()
@@ -122,7 +130,7 @@ stages:
               targetPath: '$(Pipeline.Workspace)/data'
               artifact: 'ado-insights-db'
 
-          # Publish CSVs
+          # Step 5: Publish CSVs
           - task: PublishPipelineArtifact@1
             displayName: 'Publish CSVs'
             condition: always()

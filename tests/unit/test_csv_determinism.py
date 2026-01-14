@@ -27,7 +27,7 @@ def hash_file(path: Path) -> str:
     return sha256.hexdigest()
 
 
-@pytest.fixture()
+@pytest.fixture
 def db_with_varied_data() -> tuple[DatabaseManager, Path, Path]:
     """Create a database with varied data to test determinism."""
     with tempfile.TemporaryDirectory() as tmpdir:

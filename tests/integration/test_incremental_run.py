@@ -51,7 +51,7 @@ def make_mock_pr(
     }
 
 
-@pytest.fixture()
+@pytest.fixture
 def incremental_setup() -> tuple[DatabaseManager, Config, Path]:
     """Set up database and config for incremental testing."""
     with tempfile.TemporaryDirectory() as tmpdir:
