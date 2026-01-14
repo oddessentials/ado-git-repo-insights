@@ -232,3 +232,66 @@ class TestRetryAndBackoff:
 
         # The error should mention the specific date
         assert "2024-01-02" in str(exc_info.value)
+
+    @patch("ado_git_repo_insights.extractor.ado_client.requests.get")
+    def test_retry_on_json_decode_error(
+        self, mock_get: MagicMock, client: ADOClient
+    ) -> None:
+        """HTTP 200 with invalid JSON triggers retry and logs error.
+
+        Regression test: JSONDecodeError was not caught, bypassing retry logic.
+        """
+        import json
+
+        # Create mock response that returns 200 but invalid JSON
+        invalid_response = MagicMock()
+        invalid_response.status_code = 200
+        invalid_response.text = "<!DOCTYPE html><html>Error page</html>"
+        invalid_response.headers = {"Content-Type": "text/html"}
+        invalid_response.raise_for_status = MagicMock()  # No exception
+        invalid_response.json.side_effect = json.JSONDecodeError(
+            "Expecting value", "<!DOCTYPE", 0
+        )
+
+        # Second call succeeds
+        valid_response = make_mock_response([{"pullRequestId": 1}], None)
+
+        mock_get.side_effect = [invalid_response, valid_response]
+
+        result = list(
+            client.get_pull_requests("TestProject", date(2024, 1, 1), date(2024, 1, 1))
+        )
+
+        # Should succeed after retry
+        assert len(result) == 1
+        assert client.stats.retries_used == 1
+        assert mock_get.call_count == 2
+
+    @patch("ado_git_repo_insights.extractor.ado_client.requests.get")
+    def test_json_decode_error_fails_after_max_retries(
+        self, mock_get: MagicMock, client: ADOClient
+    ) -> None:
+        """Persistent invalid JSON fails after max retries."""
+        import json
+
+        # All calls return invalid JSON
+        invalid_response = MagicMock()
+        invalid_response.status_code = 200
+        invalid_response.text = "<html>Error</html>"
+        invalid_response.headers = {}
+        invalid_response.raise_for_status = MagicMock()
+        invalid_response.json.side_effect = json.JSONDecodeError(
+            "Expecting value", "<html>", 0
+        )
+
+        mock_get.return_value = invalid_response
+
+        with pytest.raises(ExtractionError) as exc_info:
+            list(
+                client.get_pull_requests(
+                    "TestProject", date(2024, 1, 1), date(2024, 1, 1)
+                )
+            )
+
+        assert "Max retries" in str(exc_info.value)
+        assert client.stats.retries_used == 2  # max_retries from config

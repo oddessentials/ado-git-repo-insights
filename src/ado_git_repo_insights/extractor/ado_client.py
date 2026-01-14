@@ -7,6 +7,7 @@ and fail-fast on partial failures per Invariants 12-13 and Adjustment 4.
 from __future__ import annotations
 
 import base64
+import json
 import logging
 import time
 from collections.abc import Iterator
@@ -72,6 +73,36 @@ class ADOClient:
             "Authorization": f"Basic {encoded}",
             "Content-Type": "application/json",
         }
+
+    def _log_invalid_response(
+        self, response: requests.Response, error: json.JSONDecodeError
+    ) -> None:
+        """Log details of invalid JSON response for debugging.
+
+        Invariant 19: Never log auth headers or sensitive data.
+        Truncates body to avoid log bloat.
+        """
+        max_body_len = 2048  # Safe truncation limit
+
+        # Safely get response body
+        try:
+            body = response.text[:max_body_len] if response.text else "<empty>"
+        except Exception:
+            body = "<unable to decode response body>"
+
+        # Sanitize headers (remove auth)
+        safe_headers = {
+            k: v
+            for k, v in response.headers.items()
+            if k.lower() not in ("authorization", "x-ms-pat", "cookie")
+        }
+
+        logger.warning(
+            f"Invalid JSON response - Status: {response.status_code}, "
+            f"Headers: {safe_headers}, "
+            f"Body (truncated): {body!r}, "
+            f"Parse error: {error}"
+        )
 
     def get_pull_requests(
         self,
@@ -177,9 +208,14 @@ class ADOClient:
                 data = response.json()
                 return data.get("value", []), next_token
 
-            except (RequestException, HTTPError) as e:
+            except (RequestException, HTTPError, json.JSONDecodeError) as e:
                 last_error = e
                 self.stats.retries_used += 1
+
+                # Safe logging for JSON decode errors (Invariant 19: no auth headers)
+                if isinstance(e, json.JSONDecodeError):
+                    self._log_invalid_response(response, e)
+
                 logger.warning(
                     f"Attempt {attempt}/{self.config.max_retries} failed: {e}"
                 )
