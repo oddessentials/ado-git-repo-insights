@@ -6,6 +6,12 @@
  * - extension/vss-extension.json (string: "X.Y.Z")
  * - extension/tasks/extract-prs/task.json (object: {Major, Minor, Patch})
  *
+ * VERSIONING POLICY:
+ * - Extension version (vss-extension.json): Follows semantic-release (X.Y.Z)
+ * - Task version (task.json): Major is PRESERVED unless BREAKING TASK CHANGE
+ *   - Task Major changes ONLY for breaking contract changes (inputs/outputs/behavior)
+ *   - Task Minor/Patch follow extension Minor/Patch
+ *
  * Called by semantic-release via @semantic-release/exec:
  *   node scripts/stamp-extension-version.js ${nextRelease.version}
  */
@@ -15,17 +21,23 @@ const path = require('path');
 
 const VERSION_REGEX = /^(\d+)\.(\d+)\.(\d+)$/;
 
-function main() {
-    const version = process.argv[2];
+// Paths relative to this script
+const PATHS = {
+    vss: path.join(__dirname, '../extension/vss-extension.json'),
+    task: path.join(__dirname, '../extension/tasks/extract-prs/task.json'),
+    version: path.join(__dirname, '../VERSION'),
+};
 
-    // Defensive guard: version must be provided
+/**
+ * Validate version string format
+ */
+function parseVersion(version) {
     if (!version) {
         console.error('ERROR: Version argument required');
         console.error('Usage: node stamp-extension-version.js <version>');
         process.exit(1);
     }
 
-    // Defensive guard: version must be valid X.Y.Z format
     const match = version.match(VERSION_REGEX);
     if (!match) {
         console.error(`ERROR: Invalid version format "${version}"`);
@@ -37,49 +49,103 @@ function main() {
     const minor = parseInt(match[2], 10);
     const patch = parseInt(match[3], 10);
 
-    // Defensive guard: parsed values must be valid numbers
+    // Fail fast on NaN
     if (isNaN(major) || isNaN(minor) || isNaN(patch)) {
-        console.error(`ERROR: Version components are not valid numbers: ${major}.${minor}.${patch}`);
+        console.error(`ERROR: Version components parsed as NaN: ${major}.${minor}.${patch}`);
         process.exit(1);
     }
 
-    // Defensive guard: version components must be non-negative
     if (major < 0 || minor < 0 || patch < 0) {
         console.error(`ERROR: Version components must be non-negative: ${major}.${minor}.${patch}`);
         process.exit(1);
     }
 
+    return { major, minor, patch };
+}
+
+/**
+ * Validate vss-extension.json schema (version must be string)
+ */
+function validateVssSchema(vss) {
+    if (typeof vss.version !== 'string' && vss.version !== undefined) {
+        console.error('ERROR: vss-extension.json version must be a string');
+        console.error(`Found: ${JSON.stringify(vss.version)}`);
+        process.exit(1);
+    }
+}
+
+/**
+ * Validate task.json schema (version must be object with Major, Minor, Patch)
+ */
+function validateTaskSchema(task) {
+    const v = task.version;
+    if (!v || typeof v !== 'object') {
+        console.error('ERROR: task.json version must be an object');
+        console.error(`Found: ${JSON.stringify(v)}`);
+        process.exit(1);
+    }
+
+    if (typeof v.Major !== 'number' || typeof v.Minor !== 'number' || typeof v.Patch !== 'number') {
+        console.error('ERROR: task.json version must have numeric Major, Minor, Patch');
+        console.error(`Found: ${JSON.stringify(v)}`);
+        process.exit(1);
+    }
+}
+
+/**
+ * Read and parse JSON file with error handling
+ */
+function readJson(filePath, desc) {
+    if (!fs.existsSync(filePath)) {
+        console.error(`ERROR: ${desc} not found at ${filePath}`);
+        process.exit(1);
+    }
+
+    try {
+        return JSON.parse(fs.readFileSync(filePath, 'utf8'));
+    } catch (e) {
+        console.error(`ERROR: Failed to parse ${desc}: ${e.message}`);
+        process.exit(1);
+    }
+}
+
+/**
+ * Write JSON file with consistent formatting
+ */
+function writeJson(filePath, data) {
+    fs.writeFileSync(filePath, JSON.stringify(data, null, 4) + '\n');
+}
+
+function main() {
+    const version = process.argv[2];
+    const { major, minor, patch } = parseVersion(version);
+
     console.log(`Stamping extension version: ${version}`);
 
-    // Update vss-extension.json (string version)
-    const vssPath = path.join(__dirname, '../extension/vss-extension.json');
-    if (!fs.existsSync(vssPath)) {
-        console.error(`ERROR: vss-extension.json not found at ${vssPath}`);
-        process.exit(1);
-    }
-    const vss = JSON.parse(fs.readFileSync(vssPath, 'utf8'));
+    // === Update vss-extension.json (string version) ===
+    const vss = readJson(PATHS.vss, 'vss-extension.json');
+    validateVssSchema(vss);
     vss.version = version;
-    fs.writeFileSync(vssPath, JSON.stringify(vss, null, 4) + '\n');
+    writeJson(PATHS.vss, vss);
     console.log(`✓ Updated vss-extension.json to ${version}`);
 
-    // Update task.json (object version)
-    const taskPath = path.join(__dirname, '../extension/tasks/extract-prs/task.json');
-    if (!fs.existsSync(taskPath)) {
-        console.error(`ERROR: task.json not found at ${taskPath}`);
-        process.exit(1);
-    }
-    const task = JSON.parse(fs.readFileSync(taskPath, 'utf8'));
+    // === Update task.json (object version, PRESERVE Major) ===
+    const task = readJson(PATHS.task, 'task.json');
+    validateTaskSchema(task);
+
+    const currentTaskMajor = task.version.Major;
+
+    // POLICY: Task Major is preserved, only Minor/Patch updated
     task.version = {
-        Major: major,
+        Major: currentTaskMajor,
         Minor: minor,
         Patch: patch
     };
-    fs.writeFileSync(taskPath, JSON.stringify(task, null, 4) + '\n');
-    console.log(`✓ Updated task.json to ${major}.${minor}.${patch}`);
+    writeJson(PATHS.task, task);
+    console.log(`✓ Updated task.json to ${currentTaskMajor}.${minor}.${patch} (Major preserved)`);
 
-    // Update VERSION file (for run_summary.py get_tool_version)
-    const versionPath = path.join(__dirname, '../VERSION');
-    fs.writeFileSync(versionPath, version + '\n');
+    // === Update VERSION file ===
+    fs.writeFileSync(PATHS.version, version + '\n');
     console.log(`✓ Updated VERSION to ${version}`);
 
     console.log('Version stamping complete.');
