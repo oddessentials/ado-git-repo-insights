@@ -216,11 +216,17 @@ class DatasetLoader {
 
     /**
      * Load predictions data (Phase 3.5).
-     * @returns {Promise<Object|null>} Predictions object or null if unavailable
+     * Returns typed state objects per contract:
+     * - { state: "disabled" } when feature flag is false
+     * - { state: "missing" } on 404
+     * - { state: "auth" } on 401/403
+     * - { state: "invalid", error, message } on schema failure
+     * - { state: "ok", data } on success
+     * @returns {Promise<Object>} Typed state object (never null)
      */
     async loadPredictions() {
         if (!this.isFeatureEnabled('predictions')) {
-            return null;
+            return { state: 'disabled' };
         }
 
         try {
@@ -229,10 +235,12 @@ class DatasetLoader {
 
             if (!response.ok) {
                 if (response.status === 404) {
-                    console.debug('[DatasetLoader] Predictions file not found');
-                    return null;
+                    return { state: 'missing' };
                 }
-                throw new Error(`Failed to load predictions: ${response.status}`);
+                if (response.status === 401 || response.status === 403) {
+                    return { state: 'auth' };
+                }
+                return { state: 'error', error: 'PRED_003', message: `HTTP ${response.status}` };
             }
 
             const predictions = await response.json();
@@ -241,23 +249,29 @@ class DatasetLoader {
             const validationResult = this.validatePredictionsSchema(predictions);
             if (!validationResult.valid) {
                 console.error('[DatasetLoader] Invalid predictions schema:', validationResult.error);
-                return { error: 'PRED_001', message: validationResult.error };
+                return { state: 'invalid', error: 'PRED_001', message: validationResult.error };
             }
 
-            return predictions;
+            return { state: 'ok', data: predictions };
         } catch (err) {
             console.error('[DatasetLoader] Error loading predictions:', err);
-            return { error: 'PRED_002', message: err.message };
+            return { state: 'error', error: 'PRED_002', message: err.message };
         }
     }
 
     /**
      * Load AI insights data (Phase 3.5).
-     * @returns {Promise<Object|null>} Insights object or null if unavailable
+     * Returns typed state objects per contract:
+     * - { state: "disabled" } when feature flag is false
+     * - { state: "missing" } on 404
+     * - { state: "auth" } on 401/403
+     * - { state: "invalid", error, message } on schema failure
+     * - { state: "ok", data } on success
+     * @returns {Promise<Object>} Typed state object (never null)
      */
     async loadInsights() {
         if (!this.isFeatureEnabled('ai_insights')) {
-            return null;
+            return { state: 'disabled' };
         }
 
         try {
@@ -266,10 +280,12 @@ class DatasetLoader {
 
             if (!response.ok) {
                 if (response.status === 404) {
-                    console.debug('[DatasetLoader] Insights file not found');
-                    return null;
+                    return { state: 'missing' };
                 }
-                throw new Error(`Failed to load insights: ${response.status}`);
+                if (response.status === 401 || response.status === 403) {
+                    return { state: 'auth' };
+                }
+                return { state: 'error', error: 'AI_003', message: `HTTP ${response.status}` };
             }
 
             const insights = await response.json();
@@ -278,13 +294,13 @@ class DatasetLoader {
             const validationResult = this.validateInsightsSchema(insights);
             if (!validationResult.valid) {
                 console.error('[DatasetLoader] Invalid insights schema:', validationResult.error);
-                return { error: 'AI_001', message: validationResult.error };
+                return { state: 'invalid', error: 'AI_001', message: validationResult.error };
             }
 
-            return insights;
+            return { state: 'ok', data: insights };
         } catch (err) {
             console.error('[DatasetLoader] Error loading insights:', err);
-            return { error: 'AI_002', message: err.message };
+            return { state: 'error', error: 'AI_002', message: err.message };
         }
     }
 

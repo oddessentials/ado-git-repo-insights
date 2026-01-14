@@ -263,44 +263,80 @@ async function updateFeatureTabs() {
     const predictionsContent = document.getElementById('tab-predictions');
     const predictionsUnavailable = document.getElementById('predictions-unavailable');
 
-    if (loader.isFeatureEnabled('predictions')) {
-        const predictions = await loader.loadPredictions();
-        if (predictions?.error) {
-            // Invalid schema or fetch error
-            renderPredictionsError(predictionsContent, predictions.error, predictions.message);
-        } else if (predictions?.forecasts?.length > 0) {
-            renderPredictions(predictionsContent, predictions);
-        } else {
-            // Empty data
+    const predictionsResult = await loader.loadPredictions();
+
+    switch (predictionsResult.state) {
+        case 'disabled':
+            // Feature not enabled - show unavailable message
+            if (predictionsUnavailable) {
+                predictionsUnavailable.classList.remove('hidden');
+            }
+            break;
+        case 'missing':
+            // File not found - show empty state
             renderPredictionsEmpty(predictionsContent);
-        }
-    } else {
-        // Not generated - show unavailable message
-        if (predictionsUnavailable) {
-            predictionsUnavailable.classList.remove('hidden');
-        }
+            break;
+        case 'auth':
+            // Authentication error
+            renderPredictionsError(predictionsContent, 'AUTH', 'Authentication required to access predictions.');
+            break;
+        case 'invalid':
+        case 'error':
+            // Schema validation failed or fetch error
+            renderPredictionsError(predictionsContent, predictionsResult.error, predictionsResult.message);
+            break;
+        case 'ok':
+            // Success - render data
+            if (predictionsResult.data?.forecasts?.length > 0) {
+                renderPredictions(predictionsContent, predictionsResult.data);
+            } else {
+                renderPredictionsEmpty(predictionsContent);
+            }
+            break;
+        default:
+            // Unknown state - shouldn't happen
+            console.error('[Dashboard] Unknown predictions state:', predictionsResult.state);
+            renderPredictionsError(predictionsContent, 'UNKNOWN', 'Unexpected error loading predictions.');
     }
 
     // AI Insights tab
     const aiContent = document.getElementById('tab-ai-insights');
     const aiUnavailable = document.getElementById('ai-unavailable');
 
-    if (loader.isFeatureEnabled('ai_insights')) {
-        const insights = await loader.loadInsights();
-        if (insights?.error) {
-            // Invalid schema or fetch error
-            renderInsightsError(aiContent, insights.error, insights.message);
-        } else if (insights?.insights?.length > 0) {
-            renderAIInsights(aiContent, insights);
-        } else {
-            // Empty data
+    const insightsResult = await loader.loadInsights();
+
+    switch (insightsResult.state) {
+        case 'disabled':
+            // Feature not enabled - show unavailable message
+            if (aiUnavailable) {
+                aiUnavailable.classList.remove('hidden');
+            }
+            break;
+        case 'missing':
+            // File not found - show empty state
             renderInsightsEmpty(aiContent);
-        }
-    } else {
-        // Not generated - show unavailable message
-        if (aiUnavailable) {
-            aiUnavailable.classList.remove('hidden');
-        }
+            break;
+        case 'auth':
+            // Authentication error
+            renderInsightsError(aiContent, 'AUTH', 'Authentication required to access AI insights.');
+            break;
+        case 'invalid':
+        case 'error':
+            // Schema validation failed or fetch error
+            renderInsightsError(aiContent, insightsResult.error, insightsResult.message);
+            break;
+        case 'ok':
+            // Success - render data
+            if (insightsResult.data?.insights?.length > 0) {
+                renderAIInsights(aiContent, insightsResult.data);
+            } else {
+                renderInsightsEmpty(aiContent);
+            }
+            break;
+        default:
+            // Unknown state - shouldn't happen
+            console.error('[Dashboard] Unknown insights state:', insightsResult.state);
+            renderInsightsError(aiContent, 'UNKNOWN', 'Unexpected error loading insights.');
     }
 }
 

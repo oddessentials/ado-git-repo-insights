@@ -167,44 +167,44 @@ describe('DatasetLoader', () => {
             loader.manifest = validManifest;
         });
 
-        it('returns null when feature flag is false (disabled state)', async () => {
+        it('returns { state: "disabled" } when feature flag is false', async () => {
             loader.manifest = { ...validManifest, features: { predictions: false } };
 
             const result = await loader.loadPredictions();
-            expect(result).toBeNull();
+            expect(result).toEqual({ state: 'disabled' });
         });
 
-        it('returns null on 404 (missing state)', async () => {
+        it('returns { state: "missing" } on 404', async () => {
             fetch.mockImplementation(() => mockFetch404());
 
             const result = await loader.loadPredictions();
-            expect(result).toBeNull();
+            expect(result).toEqual({ state: 'missing' });
         });
 
-        it('returns error object on 401 (auth state)', async () => {
+        it('returns { state: "auth" } on 401', async () => {
             fetch.mockImplementation(() => mockFetch401());
 
             const result = await loader.loadPredictions();
-            expect(result).toHaveProperty('error');
+            expect(result).toEqual({ state: 'auth' });
         });
 
-        it('returns error object on 403 (auth state)', async () => {
+        it('returns { state: "auth" } on 403', async () => {
             fetch.mockImplementation(() => mockFetch403());
 
             const result = await loader.loadPredictions();
-            expect(result).toHaveProperty('error');
+            expect(result).toEqual({ state: 'auth' });
         });
 
-        it('returns error object on schema failure (invalid state)', async () => {
+        it('returns { state: "invalid" } on schema failure', async () => {
             const invalidData = { schema_version: 99, forecasts: [] };
             fetch.mockImplementation(() => mockFetchResponse(invalidData));
 
             const result = await loader.loadPredictions();
-            expect(result).toHaveProperty('error');
+            expect(result.state).toBe('invalid');
             expect(result.error).toBe('PRED_001');
         });
 
-        it('returns predictions data on success (ok state)', async () => {
+        it('returns { state: "ok", data } on success', async () => {
             const validData = {
                 schema_version: 1,
                 generated_at: '2026-01-14T12:00:00Z',
@@ -219,21 +219,24 @@ describe('DatasetLoader', () => {
             fetch.mockImplementation(() => mockFetchResponse(validData));
 
             const result = await loader.loadPredictions();
-            expect(result).toEqual(validData);
+            expect(result.state).toBe('ok');
+            expect(result.data).toEqual(validData);
         });
 
-        it('never returns undefined (typed states are mandatory)', async () => {
+        it('always returns typed state object (never null or undefined)', async () => {
             const testCases = [
-                () => mockFetch404(),
-                () => mockFetch401(),
-                () => mockFetchResponse({ schema_version: 99 }),
-                () => mockFetchResponse({ schema_version: 1, forecasts: [] }),
+                { mock: () => mockFetch404(), expectedState: 'missing' },
+                { mock: () => mockFetch401(), expectedState: 'auth' },
+                { mock: () => mockFetchResponse({ schema_version: 99 }), expectedState: 'invalid' },
+                { mock: () => mockFetchResponse({ schema_version: 1, forecasts: [] }), expectedState: 'ok' },
             ];
 
-            for (const mockFn of testCases) {
-                fetch.mockImplementation(mockFn);
+            for (const { mock, expectedState } of testCases) {
+                fetch.mockImplementation(mock);
                 const result = await loader.loadPredictions();
+                expect(result).not.toBeNull();
                 expect(result).not.toBeUndefined();
+                expect(result.state).toBe(expectedState);
             }
         });
     });
@@ -250,37 +253,37 @@ describe('DatasetLoader', () => {
             loader.manifest = validManifest;
         });
 
-        it('returns null when feature flag is false (disabled state)', async () => {
+        it('returns { state: "disabled" } when feature flag is false', async () => {
             loader.manifest = { ...validManifest, features: { ai_insights: false } };
 
             const result = await loader.loadInsights();
-            expect(result).toBeNull();
+            expect(result).toEqual({ state: 'disabled' });
         });
 
-        it('returns null on 404 (missing state)', async () => {
+        it('returns { state: "missing" } on 404', async () => {
             fetch.mockImplementation(() => mockFetch404());
 
             const result = await loader.loadInsights();
-            expect(result).toBeNull();
+            expect(result).toEqual({ state: 'missing' });
         });
 
-        it('returns error object on 401 (auth state)', async () => {
+        it('returns { state: "auth" } on 401', async () => {
             fetch.mockImplementation(() => mockFetch401());
 
             const result = await loader.loadInsights();
-            expect(result).toHaveProperty('error');
+            expect(result).toEqual({ state: 'auth' });
         });
 
-        it('returns error object on schema failure (invalid state)', async () => {
+        it('returns { state: "invalid" } on schema failure', async () => {
             const invalidData = { schema_version: 99, insights: [] };
             fetch.mockImplementation(() => mockFetchResponse(invalidData));
 
             const result = await loader.loadInsights();
-            expect(result).toHaveProperty('error');
+            expect(result.state).toBe('invalid');
             expect(result.error).toBe('AI_001');
         });
 
-        it('returns insights data on success (ok state)', async () => {
+        it('returns { state: "ok", data } on success', async () => {
             const validData = {
                 schema_version: 1,
                 generated_at: '2026-01-14T12:00:00Z',
@@ -298,7 +301,8 @@ describe('DatasetLoader', () => {
             fetch.mockImplementation(() => mockFetchResponse(validData));
 
             const result = await loader.loadInsights();
-            expect(result).toEqual(validData);
+            expect(result.state).toBe('ok');
+            expect(result.data).toEqual(validData);
         });
     });
 
