@@ -1,3 +1,10 @@
+## [1.2.1](https://github.com/oddessentials/ado-git-repo-insights/compare/v1.2.0...v1.2.1) (2026-01-14)
+
+
+### Bug Fixes
+
+* handle corrupt extraction metadata with warn+fallback ([e0792a1](https://github.com/oddessentials/ado-git-repo-insights/commit/e0792a1c55a3ca3e8011805e8808229a79cce0dc))
+
 # [1.2.0](https://github.com/oddessentials/ado-git-repo-insights/compare/v1.1.0...v1.2.0) (2026-01-13)
 
 
