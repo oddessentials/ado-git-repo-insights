@@ -61,7 +61,8 @@ stages:
             displayName: 'Check Database Status'
 
           # Step 4: Run the extension task
-          - task: ExtractPullRequests@1
+          # Task Major version: 2 (update only on BREAKING TASK CHANGE)
+          - task: ExtractPullRequests@2
             displayName: 'Extract PR Metrics'
             inputs:
               organization: 'oddessentials'

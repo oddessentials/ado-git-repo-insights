@@ -92,23 +92,37 @@ jobs:
 
       - name: Validate Version Consistency
         run: |
+          set -euo pipefail
           VERSION="${{ needs.release.outputs.new_release_version }}"
+
+          # Parse expected version components
+          EXPECTED_MINOR=$(echo "$VERSION" | cut -d. -f2)
+          EXPECTED_PATCH=$(echo "$VERSION" | cut -d. -f3)
+
+          # Get actual versions
           VSS_VERSION=$(jq -r '.version' extension/vss-extension.json)
-          TASK_VERSION=$(jq -r '.version | "\(.Major).\(.Minor).\(.Patch)"' extension/tasks/extract-prs/task.json)
+          TASK_MAJOR=$(jq -r '.version.Major' extension/tasks/extract-prs/task.json)
+          TASK_MINOR=$(jq -r '.version.Minor' extension/tasks/extract-prs/task.json)
+          TASK_PATCH=$(jq -r '.version.Patch' extension/tasks/extract-prs/task.json)
 
-          echo "Expected version: $VERSION"
+          echo "Expected extension version: $VERSION"
           echo "vss-extension.json: $VSS_VERSION"
-          echo "task.json: $TASK_VERSION"
+          echo "task.json: $TASK_MAJOR.$TASK_MINOR.$TASK_PATCH"
 
+          # Validate vss-extension.json matches release version exactly
           if [[ "$VSS_VERSION" != "$VERSION" ]]; then
             echo "::error::Version mismatch: vss-extension.json has $VSS_VERSION, expected $VERSION"
             exit 1
           fi
-          if [[ "$TASK_VERSION" != "$VERSION" ]]; then
-            echo "::error::Version mismatch: task.json has $TASK_VERSION, expected $VERSION"
+
+          # Validate task.json Minor/Patch match (Major is preserved, not checked)
+          if [[ "$TASK_MINOR" != "$EXPECTED_MINOR" ]] || [[ "$TASK_PATCH" != "$EXPECTED_PATCH" ]]; then
+            echo "::error::Task version mismatch: Minor.Patch is $TASK_MINOR.$TASK_PATCH, expected $EXPECTED_MINOR.$EXPECTED_PATCH"
             exit 1
           fi
-          echo "✓ All versions match: $VERSION"
+
+          echo "✓ vss-extension.json matches: $VERSION"
+          echo "✓ task.json Minor.Patch matches: $TASK_MINOR.$TASK_PATCH (Major preserved at $TASK_MAJOR)"
 
       - name: Install task dependencies
         working-directory: extension/tasks/extract-prs
