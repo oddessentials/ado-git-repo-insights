@@ -1,3 +1,19 @@
+# [1.3.0](https://github.com/oddessentials/ado-git-repo-insights/compare/v1.2.2...v1.3.0) (2026-01-14)
+
+
+### Bug Fixes
+
+* add Node16 fallback and UseNode task for Windows compatibility ([f60094c](https://github.com/oddessentials/ado-git-repo-insights/commit/f60094cdf442c4b7cc7031dccec437ba76f9491e))
+* correct artifact download logic ([cc0c6dd](https://github.com/oddessentials/ado-git-repo-insights/commit/cc0c6dd27520dbaff06ce9357f256703ed0f7ee9))
+* handle whitespace in ruff version comparison ([91681b2](https://github.com/oddessentials/ado-git-repo-insights/commit/91681b2a2d351587d2ba28f8e18e4f5c5d0776b9))
+* stamp script now writes VERSION file for run_summary.py ([4618c26](https://github.com/oddessentials/ado-git-repo-insights/commit/4618c26ef299ce5d606cb125abdc97fdd8c194d2))
+* update pre-commit ruff to v0.14.11 and fix lint errors ([b7c0724](https://github.com/oddessentials/ado-git-repo-insights/commit/b7c0724a8b981d4e89505d52d7014877a9fd35f1))
+
+
+### Features
+
+* add extension release automation ([0951a6f](https://github.com/oddessentials/ado-git-repo-insights/commit/0951a6fdc066498b9c6fd2aa50ad3e6a949b7b22))
+
 ## [1.2.2](https://github.com/oddessentials/ado-git-repo-insights/compare/v1.2.1...v1.2.2) (2026-01-14)
 
 
