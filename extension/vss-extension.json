@@ -24,6 +24,10 @@
     "files": [
         {
             "path": "tasks/extract-prs"
+        },
+        {
+            "path": "ui",
+            "addressable": true
         }
     ],
     "contributions": [
@@ -35,6 +39,18 @@
             ],
             "properties": {
                 "name": "tasks/extract-prs"
+            }
+        },
+        {
+            "id": "pr-insights-hub",
+            "type": "ms.vss-web.hub",
+            "targets": [
+                "ms.vss-build-web.build-results-hub-group"
+            ],
+            "properties": {
+                "name": "PR Insights",
+                "uri": "ui/index.html",
+                "iconName": "Chart"
             }
         }
     ],

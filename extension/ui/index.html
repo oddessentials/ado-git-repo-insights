@@ -1,0 +1,120 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PR Insights Dashboard</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <div id="app">
+        <!-- Header -->
+        <header class="dashboard-header">
+            <h1>PR Insights</h1>
+            <div id="dataset-info" class="dataset-info">
+                <span id="run-info">Loading...</span>
+            </div>
+        </header>
+
+        <!-- Error/Loading States -->
+        <div id="error-state" class="error-state hidden">
+            <div class="error-icon">⚠️</div>
+            <h2 id="error-title">Dataset Unavailable</h2>
+            <p id="error-message"></p>
+            <button id="retry-btn" class="btn">Retry</button>
+        </div>
+
+        <div id="loading-state" class="loading-state">
+            <div class="spinner"></div>
+            <p>Loading dataset...</p>
+        </div>
+
+        <!-- Main Content -->
+        <main id="main-content" class="main-content hidden">
+            <!-- Filter Bar -->
+            <div class="filter-bar">
+                <div class="filter-group">
+                    <label for="date-range">Date Range</label>
+                    <select id="date-range">
+                        <option value="30">Last 30 days</option>
+                        <option value="90" selected>Last 90 days</option>
+                        <option value="180">Last 180 days</option>
+                        <option value="365">Last year</option>
+                        <option value="custom">Custom</option>
+                    </select>
+                </div>
+                <div id="custom-dates" class="filter-group hidden">
+                    <input type="date" id="start-date">
+                    <span>to</span>
+                    <input type="date" id="end-date">
+                    <button id="apply-dates" class="btn btn-small">Apply</button>
+                </div>
+            </div>
+
+            <!-- Tabs -->
+            <nav class="tabs">
+                <button class="tab active" data-tab="metrics">Metrics</button>
+                <button class="tab" data-tab="predictions">Predictions</button>
+                <button class="tab" data-tab="ai-insights">AI Insights</button>
+            </nav>
+
+            <!-- Tab Content -->
+            <section id="tab-metrics" class="tab-content active">
+                <div class="metrics-grid">
+                    <!-- Summary Cards -->
+                    <div class="summary-cards">
+                        <div class="card">
+                            <h3>Total PRs</h3>
+                            <div id="total-prs" class="metric-value">-</div>
+                        </div>
+                        <div class="card">
+                            <h3>Cycle Time (P50)</h3>
+                            <div id="cycle-p50" class="metric-value">-</div>
+                        </div>
+                        <div class="card">
+                            <h3>Cycle Time (P90)</h3>
+                            <div id="cycle-p90" class="metric-value">-</div>
+                        </div>
+                        <div class="card">
+                            <h3>Contributors</h3>
+                            <div id="authors-count" class="metric-value">-</div>
+                        </div>
+                    </div>
+
+                    <!-- Charts -->
+                    <div class="chart-container">
+                        <h3>PR Throughput Over Time</h3>
+                        <div id="throughput-chart" class="chart"></div>
+                    </div>
+
+                    <div class="chart-container">
+                        <h3>Cycle Time Distribution</h3>
+                        <div id="cycle-distribution" class="chart"></div>
+                    </div>
+                </div>
+            </section>
+
+            <section id="tab-predictions" class="tab-content hidden">
+                <div id="predictions-unavailable" class="feature-unavailable">
+                    <div class="icon">🔮</div>
+                    <h2>Predictions Not Generated</h2>
+                    <p>ML predictions were not generated in this dataset run.</p>
+                    <p class="hint">Enable ML features in the pipeline configuration.</p>
+                </div>
+            </section>
+
+            <section id="tab-ai-insights" class="tab-content hidden">
+                <div id="ai-unavailable" class="feature-unavailable">
+                    <div class="icon">🤖</div>
+                    <h2>AI Insights Not Generated</h2>
+                    <p>AI analysis was not included in this dataset run.</p>
+                    <p class="hint">Enable AI features in the pipeline configuration.</p>
+                </div>
+            </section>
+        </main>
+    </div>
+
+    <script src="dataset-loader.js"></script>
+    <script src="dashboard.js"></script>
+</body>
+</html>

@@ -70,6 +70,22 @@
             "label": "Backfill Days (Optional)",
             "required": false,
             "helpMarkDown": "Number of days to backfill for convergence (e.g., 60)"
+        },
+        {
+            "name": "generateAggregates",
+            "type": "boolean",
+            "label": "Generate Aggregates (Phase 3)",
+            "required": false,
+            "defaultValue": "false",
+            "helpMarkDown": "Generate chunked JSON aggregates for the PR Insights UI dashboard"
+        },
+        {
+            "name": "aggregatesDir",
+            "type": "string",
+            "label": "Aggregates Output Directory",
+            "required": false,
+            "defaultValue": "$(Pipeline.Workspace)/aggregates",
+            "helpMarkDown": "Directory for aggregate JSON files (used with generateAggregates)"
         }
     ],
     "execution": {
