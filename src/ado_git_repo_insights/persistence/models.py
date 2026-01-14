@@ -124,6 +124,39 @@ CREATE TABLE IF NOT EXISTS team_members (
 CREATE INDEX IF NOT EXISTS idx_team_members_team ON team_members(team_id);
 CREATE INDEX IF NOT EXISTS idx_team_members_user ON team_members(user_id);
 
+-- Phase 3.4: PR Threads/Comments (feature-flagged)
+-- Normalized tables indexed by PR UID and update time
+CREATE TABLE IF NOT EXISTS pr_threads (
+    thread_id TEXT PRIMARY KEY,
+    pull_request_uid TEXT NOT NULL,
+    status TEXT,  -- active, fixed, closed, etc.
+    thread_context TEXT,  -- JSON: file path, line range, etc.
+    last_updated TEXT NOT NULL,  -- ISO 8601, used for incremental sync
+    created_at TEXT NOT NULL,
+    is_deleted INTEGER DEFAULT 0,
+    FOREIGN KEY (pull_request_uid) REFERENCES pull_requests(pull_request_uid)
+);
+CREATE INDEX IF NOT EXISTS idx_pr_threads_pr ON pr_threads(pull_request_uid);
+CREATE INDEX IF NOT EXISTS idx_pr_threads_updated ON pr_threads(last_updated);
+
+CREATE TABLE IF NOT EXISTS pr_comments (
+    comment_id TEXT PRIMARY KEY,
+    thread_id TEXT NOT NULL,
+    pull_request_uid TEXT NOT NULL,
+    author_id TEXT NOT NULL,
+    content TEXT,
+    comment_type TEXT,  -- text, codeChange, system
+    created_at TEXT NOT NULL,
+    last_updated TEXT,
+    is_deleted INTEGER DEFAULT 0,
+    FOREIGN KEY (thread_id) REFERENCES pr_threads(thread_id),
+    FOREIGN KEY (pull_request_uid) REFERENCES pull_requests(pull_request_uid),
+    FOREIGN KEY (author_id) REFERENCES users(user_id)
+);
+CREATE INDEX IF NOT EXISTS idx_pr_comments_thread ON pr_comments(thread_id);
+CREATE INDEX IF NOT EXISTS idx_pr_comments_pr ON pr_comments(pull_request_uid);
+CREATE INDEX IF NOT EXISTS idx_pr_comments_author ON pr_comments(author_id);
+
 -- Schema version for future migrations
 CREATE TABLE IF NOT EXISTS schema_version (
     version INTEGER PRIMARY KEY,

@@ -161,7 +161,7 @@ class AggregateGenerator:
                 limits={"max_date_range_days_soft": 730},
                 features={
                     "teams": len(dimensions.teams) > 0,  # Phase 3.3: dynamic
-                    "comments": False,  # Phase 3.4
+                    "comments": self._has_comments(),  # Phase 3.4: dynamic
                     "ml": False,  # Phase 3.5
                     "ai_insights": False,  # Phase 3.5
                 },
@@ -169,6 +169,7 @@ class AggregateGenerator:
                     "total_prs": self._get_pr_count(),
                     "date_range": dimensions.date_range,
                     "teams_count": len(dimensions.teams),  # Phase 3.3
+                    "comments": self._get_comments_coverage(),  # Phase 3.4
                 },
             )
 
@@ -400,6 +401,50 @@ class AggregateGenerator:
         )
         row = cursor.fetchone()
         return int(row["cnt"]) if row else 0
+
+    def _has_comments(self) -> bool:
+        """Check if comments data exists."""
+        cursor = self.db.execute("SELECT COUNT(*) as cnt FROM pr_threads")
+        row = cursor.fetchone()
+        return int(row["cnt"]) > 0 if row else False
+
+    def _get_comments_coverage(self) -> dict[str, Any]:
+        """Get comments coverage statistics.
+
+        §6: coverage.comments: "full" | "partial" | "disabled"
+        """
+        # Count threads and comments
+        thread_cursor = self.db.execute("SELECT COUNT(*) as cnt FROM pr_threads")
+        thread_row = thread_cursor.fetchone()
+        thread_count = int(thread_row["cnt"]) if thread_row else 0
+
+        comment_cursor = self.db.execute("SELECT COUNT(*) as cnt FROM pr_comments")
+        comment_row = comment_cursor.fetchone()
+        comment_count = int(comment_row["cnt"]) if comment_row else 0
+
+        # Count PRs with threads
+        prs_with_threads_cursor = self.db.execute(
+            "SELECT COUNT(DISTINCT pull_request_uid) as cnt FROM pr_threads"
+        )
+        prs_with_threads_row = prs_with_threads_cursor.fetchone()
+        prs_with_threads = (
+            int(prs_with_threads_row["cnt"]) if prs_with_threads_row else 0
+        )
+
+        if thread_count == 0:
+            status = "disabled"
+        else:
+            # For now, assume full coverage if any comments exist
+            # A more complex implementation would track capped state
+            status = "full"
+
+        return {
+            "status": status,
+            "threads_fetched": thread_count,
+            "comments_fetched": comment_count,
+            "prs_with_threads": prs_with_threads,
+            "capped": False,  # Set by extraction when limits hit
+        }
 
     def _write_json(self, path: Path, data: dict[str, Any]) -> None:
         """Write JSON file with deterministic formatting."""

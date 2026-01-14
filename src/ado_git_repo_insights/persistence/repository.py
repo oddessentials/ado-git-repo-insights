@@ -493,3 +493,160 @@ class PRRepository:
             (team_id,),
         )
         return [dict(row) for row in cursor.fetchall()]
+
+    # --- Phase 3.4: Thread/Comment Operations ---
+
+    def upsert_thread(
+        self,
+        thread_id: str,
+        pull_request_uid: str,
+        status: str | None,
+        thread_context: str | None,
+        last_updated: str,
+        created_at: str,
+        is_deleted: bool = False,
+    ) -> None:
+        """Insert or update a PR thread.
+
+        §6: Indexed by last_updated for incremental sync.
+
+        Args:
+            thread_id: Thread identifier.
+            pull_request_uid: PR unique identifier.
+            status: Thread status (active, fixed, closed).
+            thread_context: JSON context (file, line range).
+            last_updated: ISO 8601 timestamp.
+            created_at: ISO 8601 timestamp.
+            is_deleted: Whether thread is deleted.
+        """
+        self.db.execute(
+            """
+            INSERT INTO pr_threads (
+                thread_id, pull_request_uid, status, thread_context,
+                last_updated, created_at, is_deleted
+            ) VALUES (?, ?, ?, ?, ?, ?, ?)
+            ON CONFLICT(thread_id) DO UPDATE SET
+                status = excluded.status,
+                thread_context = excluded.thread_context,
+                last_updated = excluded.last_updated,
+                is_deleted = excluded.is_deleted
+            """,
+            (
+                thread_id,
+                pull_request_uid,
+                status,
+                thread_context,
+                last_updated,
+                created_at,
+                1 if is_deleted else 0,
+            ),
+        )
+
+    def upsert_comment(
+        self,
+        comment_id: str,
+        thread_id: str,
+        pull_request_uid: str,
+        author_id: str,
+        content: str | None,
+        comment_type: str | None,
+        created_at: str,
+        last_updated: str | None = None,
+        is_deleted: bool = False,
+    ) -> None:
+        """Insert or update a PR comment.
+
+        Args:
+            comment_id: Comment identifier.
+            thread_id: Parent thread identifier.
+            pull_request_uid: PR unique identifier.
+            author_id: Author user ID.
+            content: Comment text content.
+            comment_type: Type (text, codeChange, system).
+            created_at: ISO 8601 timestamp.
+            last_updated: ISO 8601 timestamp.
+            is_deleted: Whether comment is deleted.
+        """
+        self.db.execute(
+            """
+            INSERT INTO pr_comments (
+                comment_id, thread_id, pull_request_uid, author_id,
+                content, comment_type, created_at, last_updated, is_deleted
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ON CONFLICT(comment_id) DO UPDATE SET
+                content = excluded.content,
+                last_updated = excluded.last_updated,
+                is_deleted = excluded.is_deleted
+            """,
+            (
+                comment_id,
+                thread_id,
+                pull_request_uid,
+                author_id,
+                content,
+                comment_type,
+                created_at,
+                last_updated,
+                1 if is_deleted else 0,
+            ),
+        )
+
+    def get_thread_last_updated(self, pull_request_uid: str) -> str | None:
+        """Get the most recent thread update time for a PR.
+
+        §6: Used for incremental sync to avoid refetching unchanged threads.
+
+        Args:
+            pull_request_uid: PR unique identifier.
+
+        Returns:
+            ISO 8601 timestamp of most recent update, or None.
+        """
+        cursor = self.db.execute(
+            """
+            SELECT MAX(last_updated) as max_updated
+            FROM pr_threads
+            WHERE pull_request_uid = ?
+            """,
+            (pull_request_uid,),
+        )
+        row = cursor.fetchone()
+        return row["max_updated"] if row and row["max_updated"] else None
+
+    def get_thread_count(self, pull_request_uid: str | None = None) -> int:
+        """Get thread count, optionally filtered by PR.
+
+        Args:
+            pull_request_uid: Optional PR filter.
+
+        Returns:
+            Thread count.
+        """
+        if pull_request_uid:
+            cursor = self.db.execute(
+                "SELECT COUNT(*) FROM pr_threads WHERE pull_request_uid = ?",
+                (pull_request_uid,),
+            )
+        else:
+            cursor = self.db.execute("SELECT COUNT(*) FROM pr_threads")
+        row = cursor.fetchone()
+        return int(row[0]) if row else 0
+
+    def get_comment_count(self, pull_request_uid: str | None = None) -> int:
+        """Get comment count, optionally filtered by PR.
+
+        Args:
+            pull_request_uid: Optional PR filter.
+
+        Returns:
+            Comment count.
+        """
+        if pull_request_uid:
+            cursor = self.db.execute(
+                "SELECT COUNT(*) FROM pr_comments WHERE pull_request_uid = ?",
+                (pull_request_uid,),
+            )
+        else:
+            cursor = self.db.execute("SELECT COUNT(*) FROM pr_comments")
+        row = cursor.fetchone()
+        return int(row[0]) if row else 0

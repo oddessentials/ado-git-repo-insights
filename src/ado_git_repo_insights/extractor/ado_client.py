@@ -381,3 +381,72 @@ class ADOClient:
 
         logger.debug(f"Fetched {len(all_members)} members for team {team_id}")
         return all_members
+
+    # Phase 3.4: PR Threads/Comments extraction
+
+    def get_pr_threads(
+        self,
+        project: str,
+        repository_id: str,
+        pull_request_id: int,
+    ) -> list[dict[str, Any]]:
+        """Fetch all threads for a pull request.
+
+        §6: Incremental strategy - caller should filter by lastUpdatedDate.
+
+        Args:
+            project: Project name.
+            repository_id: Repository ID.
+            pull_request_id: PR ID.
+
+        Returns:
+            List of thread dictionaries.
+
+        Raises:
+            ExtractionError: If thread fetch fails.
+        """
+        url = (
+            f"{self.base_url}/{project}/_apis/git/repositories/{repository_id}"
+            f"/pullRequests/{pull_request_id}/threads"
+            f"?api-version={self.config.version}"
+        )
+
+        all_threads: list[dict[str, Any]] = []
+        continuation_token: str | None = None
+
+        while True:
+            page_url = url
+            if continuation_token:
+                page_url += f"&continuationToken={continuation_token}"
+
+            try:
+                response = requests.get(page_url, headers=self.headers, timeout=30)
+
+                # Handle rate limiting (429) with bounded backoff
+                if response.status_code == 429:
+                    retry_after = int(response.headers.get("Retry-After", 60))
+                    logger.warning(f"Rate limited, waiting {retry_after}s")
+                    time.sleep(min(retry_after, 120))  # Cap at 2 minutes
+                    continue
+
+                response.raise_for_status()
+
+                continuation_token = response.headers.get("x-ms-continuationtoken")
+                data = response.json()
+                threads = data.get("value", [])
+                all_threads.extend(threads)
+
+                if not continuation_token:
+                    break
+
+            except (RequestException, HTTPError) as e:
+                raise ExtractionError(
+                    f"Failed to fetch threads for PR {pull_request_id}: {e}"
+                ) from e
+
+            time.sleep(self.config.rate_limit_sleep_seconds)
+
+        logger.debug(
+            f"Fetched {len(all_threads)} threads for PR {repository_id}/{pull_request_id}"
+        )
+        return all_threads
