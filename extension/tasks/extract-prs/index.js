@@ -128,6 +128,9 @@ async function run() {
         const startDate = tl.getInput('startDate', false);
         const endDate = tl.getInput('endDate', false);
         const backfillDays = tl.getInput('backfillDays', false);
+        // Phase 3: Aggregates generation
+        const generateAggregates = tl.getBoolInput('generateAggregates', false);
+        const aggregatesDirInput = tl.getInput('aggregatesDir', false) || 'aggregates';
         // CRITICAL: Input name must match task.json contract ('database', not 'databasePath')
         const databaseInput = tl.getInput('database', false) || 'ado-insights.sqlite';
         const outputDirInput = tl.getInput('outputDir', false) || 'csv_output';
@@ -135,6 +138,7 @@ async function run() {
         // Normalize paths to absolute for deterministic behavior across agents
         const databasePath = path.resolve(databaseInput);
         const outputDir = path.resolve(outputDirInput);
+        const aggregatesDir = path.resolve(aggregatesDirInput);
 
         // Validate database directory is writable (fail fast on misconfiguration)
         const fs = require('fs');
@@ -189,6 +193,10 @@ async function run() {
         if (startDate) console.log(`Start Date: ${startDate}`);
         if (endDate) console.log(`End Date: ${endDate}`);
         if (backfillDays) console.log(`Backfill Days: ${backfillDays}`);
+        if (generateAggregates) {
+            console.log(`Generate Aggregates: true`);
+            console.log(`Aggregates Dir: ${aggregatesDir}`);
+        }
         console.log('='.repeat(50));
 
         // Validate date formats if provided (fail fast on invalid input)
@@ -229,7 +237,8 @@ async function run() {
         if (backfillDays) extractArgs.push('--backfill-days', backfillDays);
 
         // Run extraction
-        console.log('\n[1/2] Running extraction...');
+        const totalSteps = generateAggregates ? 3 : 2;
+        console.log(`\n[1/${totalSteps}] Running extraction...`);
         const extractResult = await runPython(pythonCmd, extractArgs);
         if (!extractResult) return;
 
@@ -242,15 +251,46 @@ async function run() {
         ];
 
         // Run CSV generation
-        console.log('\n[2/2] Generating CSVs...');
+        console.log(`\n[2/${totalSteps}] Generating CSVs...`);
         const csvResult = await runPython(pythonCmd, csvArgs);
         if (!csvResult) return;
 
+        // Phase 3: Generate aggregates if enabled
+        if (generateAggregates) {
+            // Validate aggregates directory
+            try {
+                if (!fs.existsSync(aggregatesDir)) {
+                    fs.mkdirSync(aggregatesDir, { recursive: true });
+                    tl.debug(`Created aggregates directory: ${aggregatesDir}`);
+                }
+            } catch (err) {
+                tl.setResult(tl.TaskResult.Failed,
+                    `Aggregates directory is not writable: ${aggregatesDir}\n` +
+                    `Error: ${err.message}`
+                );
+                return;
+            }
+
+            const aggArgs = [
+                '-m', CLI_MODULE,
+                'generate-aggregates',
+                '--database', databasePath,
+                '--output', aggregatesDir,
+            ];
+
+            console.log(`\n[3/${totalSteps}] Generating aggregates...`);
+            const aggResult = await runPython(pythonCmd, aggArgs);
+            if (!aggResult) return;
+        }
+
         // Success
         console.log('\n' + '='.repeat(50));
-        console.log('Extraction and CSV generation completed successfully!');
+        console.log('Extraction and generation completed successfully!');
         console.log(`Database: ${databasePath}`);
         console.log(`CSVs: ${outputDir}/`);
+        if (generateAggregates) {
+            console.log(`Aggregates: ${aggregatesDir}/`);
+        }
         console.log('='.repeat(50));
 
         tl.setResult(tl.TaskResult.Succeeded, 'Extraction completed successfully');
