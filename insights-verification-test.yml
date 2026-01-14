@@ -1,0 +1,132 @@
+# Verification Test Pipeline for ado-git-repo-insights
+# Purpose: Test extraction, convergence, and CSV contract validation
+# Artifact namespace: ado-insights-db-test (isolated from production)
+
+trigger: none  # Manual only
+
+pool:
+  vmImage: 'ubuntu-latest'
+
+variables:
+  - group: ado-insights-secrets  # Contains PAT_SECRET
+  - name: ARTIFACT_NAME
+    value: 'ado-insights-db-test'  # ISOLATED namespace for testing
+  - name: ORGANIZATION
+    value: 'oddessentials'
+  - name: PROJECTS
+    value: 'marketing,engineering,hospitality'
+
+stages:
+  - stage: Extract
+    displayName: 'Extract and Validate'
+    jobs:
+      - job: ExtractPRs
+        displayName: 'Extract PR Data'
+        steps:
+          # Download previous database (if exists)
+          - task: DownloadPipelineArtifact@2
+            displayName: 'Download Previous Database (Golden)'
+            inputs:
+              buildType: 'specific'
+              project: '$(System.TeamProjectId)'
+              pipeline: '$(Build.DefinitionId)'
+              buildVersionToDownload: 'latest'
+              allowFailedBuilds: false
+              artifactName: '$(ARTIFACT_NAME)'
+              targetPath: '$(Pipeline.Workspace)/data'
+            continueOnError: true  # First run won't have artifact
+
+          # Log artifact status
+          - script: |
+              if [ -f "$(Pipeline.Workspace)/data/ado-insights.sqlite" ]; then
+                echo "##[section]Found existing database (Run 2+)"
+                ls -la $(Pipeline.Workspace)/data/
+              else
+                echo "##[warning]No existing database - first run"
+                mkdir -p $(Pipeline.Workspace)/data
+              fi
+            displayName: 'Check Database Status'
+
+          # Setup Python
+          - task: UsePythonVersion@0
+            inputs:
+              versionSpec: '3.10'
+
+          - script: pip install ado-git-repo-insights
+            displayName: 'Install Package'
+
+          # Run extraction with today's date (include recent PRs)
+          - script: |
+              END_DATE=$(date +%Y-%m-%d)
+              echo "##[section]Extracting with end date: $END_DATE"
+
+              ado-insights --artifacts-dir "$(Pipeline.Workspace)/run_artifacts" extract \
+                --organization $(ORGANIZATION) \
+                --projects "$(PROJECTS)" \
+                --pat $(PAT_SECRET) \
+                --database "$(Pipeline.Workspace)/data/ado-insights.sqlite" \
+                --end-date $END_DATE
+            displayName: 'Extract PR Data'
+
+          # Generate CSVs
+          - script: |
+              ado-insights generate-csv \
+                --database "$(Pipeline.Workspace)/data/ado-insights.sqlite" \
+                --output "$(Pipeline.Workspace)/csv_output"
+            displayName: 'Generate CSVs'
+
+          # CSV Contract Validation Gate (MUST pass before Golden publish)
+          - script: |
+              pip install pytest
+              python -c "
+              from ado_git_repo_insights.persistence.database import DatabaseManager
+              from ado_git_repo_insights.transform.csv_generator import CSVGenerator
+              from pathlib import Path
+
+              db = DatabaseManager(Path('$(Pipeline.Workspace)/data/ado-insights.sqlite'))
+              db.connect()
+              gen = CSVGenerator(db, Path('$(Pipeline.Workspace)/csv_output'))
+              gen.validate_schemas()
+              print('##[section]CSV Contract Validation PASSED')
+              db.close()
+              "
+            displayName: 'CSV Contract Validation'
+
+          # Candidate DB: Always published (forensic)
+          - task: PublishPipelineArtifact@1
+            displayName: 'Publish Candidate DB'
+            condition: always()
+            inputs:
+              targetPath: '$(Pipeline.Workspace)/data'
+              artifact: 'ado-insights-db-candidate-$(Build.BuildId)'
+
+          # Golden DB: Only on success
+          - task: PublishPipelineArtifact@1
+            displayName: 'Publish Golden DB'
+            condition: succeeded()
+            inputs:
+              targetPath: '$(Pipeline.Workspace)/data'
+              artifact: '$(ARTIFACT_NAME)'
+
+          # CSV Artifacts
+          - task: PublishPipelineArtifact@1
+            displayName: 'Publish CSVs'
+            condition: always()
+            inputs:
+              targetPath: '$(Pipeline.Workspace)/csv_output'
+              artifact: 'csv-output'
+
+          # Run Artifacts (logs, summary)
+          - task: PublishPipelineArtifact@1
+            displayName: 'Publish Run Artifacts'
+            condition: always()
+            inputs:
+              targetPath: '$(Pipeline.Workspace)/run_artifacts'
+              artifact: 'run-artifacts'
+
+          # Summary output
+          - script: |
+              echo "##[section]Run Summary"
+              cat $(Pipeline.Workspace)/run_artifacts/run_summary.json || echo "No summary found"
+            displayName: 'Display Run Summary'
+            condition: always()
