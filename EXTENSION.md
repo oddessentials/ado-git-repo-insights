@@ -72,7 +72,7 @@ The extension requires a PAT stored securely in a variable group.
 trigger: none
 
 pool:
-  vmImage: 'ubuntu-latest'
+  vmImage: 'ubuntu-latest'  # Or 'windows-latest' or 'name: Default' for self-hosted
 
 variables:
   - group: ado-insights-secrets
@@ -82,22 +82,20 @@ stages:
     jobs:
       - job: ExtractPRs
         steps:
+          # Create directories (cross-platform)
+          - pwsh: |
+              New-Item -ItemType Directory -Force -Path "$(Pipeline.Workspace)/data" | Out-Null
+              New-Item -ItemType Directory -Force -Path "$(Pipeline.Workspace)/csv_output" | Out-Null
+            displayName: 'Create Directories'
+
           # Download previous database (if exists)
           - task: DownloadPipelineArtifact@2
             displayName: 'Download Previous Database'
+            continueOnError: true
             inputs:
-              buildType: 'specific'
-              project: '$(System.TeamProjectId)'
-              pipeline: '$(Build.DefinitionId)'
-              buildVersionToDownload: 'latest'
-              allowFailedBuilds: false
+              buildType: 'current'
               artifactName: 'ado-insights-db'
               targetPath: '$(Pipeline.Workspace)/data'
-            continueOnError: true
-
-          # Create data directory if first run
-          - script: mkdir -p $(Pipeline.Workspace)/data
-            displayName: 'Ensure Data Directory'
 
           # Run the extension task
           - task: ExtractPullRequests@1
