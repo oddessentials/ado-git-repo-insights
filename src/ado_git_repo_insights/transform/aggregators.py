@@ -66,6 +66,7 @@ class Dimensions:
     repositories: list[dict[str, Any]] = field(default_factory=list)
     users: list[dict[str, Any]] = field(default_factory=list)
     projects: list[dict[str, Any]] = field(default_factory=list)
+    teams: list[dict[str, Any]] = field(default_factory=list)  # Phase 3.3
     date_range: dict[str, str] = field(default_factory=dict)
 
 
@@ -159,14 +160,16 @@ class AggregateGenerator:
                 defaults={"default_date_range_days": 90},
                 limits={"max_date_range_days_soft": 730},
                 features={
-                    "teams": False,  # Phase 3.3
-                    "comments": False,  # Phase 3.4
+                    "teams": len(dimensions.teams) > 0,  # Phase 3.3: dynamic
+                    "comments": self._has_comments(),  # Phase 3.4: dynamic
                     "ml": False,  # Phase 3.5
                     "ai_insights": False,  # Phase 3.5
                 },
                 coverage={
                     "total_prs": self._get_pr_count(),
                     "date_range": dimensions.date_range,
+                    "teams_count": len(dimensions.teams),  # Phase 3.3
+                    "comments": self._get_comments_coverage(),  # Phase 3.4
                 },
             )
 
@@ -232,10 +235,33 @@ class AggregateGenerator:
                 "max": date_range_df.iloc[0]["max_date"][:10],
             }
 
+        # Phase 3.3: Teams (defensive for legacy DBs without teams table)
+        try:
+            teams_df = pd.read_sql_query(
+                """
+                SELECT t.team_id, t.team_name, t.project_name, t.organization_name,
+                       COUNT(tm.user_id) as member_count
+                FROM teams t
+                LEFT JOIN team_members tm ON t.team_id = tm.team_id
+                GROUP BY t.team_id, t.team_name, t.project_name, t.organization_name
+                ORDER BY t.organization_name, t.project_name, t.team_name
+                """,
+                self.db.connection,
+            )
+        except Exception as e:
+            # P1 fix: Legacy databases may not have teams table
+            logger.debug(f"Teams table not available (legacy DB?): {e}")
+            teams_df = pd.DataFrame()
+
         return Dimensions(
             repositories=list(repos_df.to_dict(orient="records")),  # type: ignore[arg-type]
             users=list(users_df.to_dict(orient="records")),  # type: ignore[arg-type]
             projects=list(projects_df.to_dict(orient="records")),  # type: ignore[arg-type]
+            teams=(
+                list(teams_df.to_dict(orient="records"))  # type: ignore[arg-type]
+                if not teams_df.empty
+                else []
+            ),
             date_range=date_range,
         )
 
@@ -384,6 +410,60 @@ class AggregateGenerator:
         )
         row = cursor.fetchone()
         return int(row["cnt"]) if row else 0
+
+    def _has_comments(self) -> bool:
+        """Check if comments data exists."""
+        try:
+            cursor = self.db.execute("SELECT COUNT(*) as cnt FROM pr_threads")
+            row = cursor.fetchone()
+            return int(row["cnt"]) > 0 if row else False
+        except Exception:
+            # Legacy DB may not have pr_threads table
+            return False
+
+    def _get_comments_coverage(self) -> dict[str, Any]:
+        """Get comments coverage statistics.
+
+        §6: coverage.comments: "full" | "partial" | "disabled"
+        """
+        try:
+            # Count threads and comments
+            thread_cursor = self.db.execute("SELECT COUNT(*) as cnt FROM pr_threads")
+            thread_row = thread_cursor.fetchone()
+            thread_count = int(thread_row["cnt"]) if thread_row else 0
+
+            comment_cursor = self.db.execute("SELECT COUNT(*) as cnt FROM pr_comments")
+            comment_row = comment_cursor.fetchone()
+            comment_count = int(comment_row["cnt"]) if comment_row else 0
+
+            # Count PRs with threads
+            prs_with_threads_cursor = self.db.execute(
+                "SELECT COUNT(DISTINCT pull_request_uid) as cnt FROM pr_threads"
+            )
+            prs_with_threads_row = prs_with_threads_cursor.fetchone()
+            prs_with_threads = (
+                int(prs_with_threads_row["cnt"]) if prs_with_threads_row else 0
+            )
+        except Exception:
+            # Legacy DB may not have comments tables
+            thread_count = 0
+            comment_count = 0
+            prs_with_threads = 0
+
+        if thread_count == 0:
+            status = "disabled"
+        else:
+            # For now, assume full coverage if any comments exist
+            # A more complex implementation would track capped state
+            status = "full"
+
+        return {
+            "status": status,
+            "threads_fetched": thread_count,
+            "comments_fetched": comment_count,
+            "prs_with_threads": prs_with_threads,
+            "capped": False,  # Set by extraction when limits hit
+        }
 
     def _write_json(self, path: Path, data: dict[str, Any]) -> None:
         """Write JSON file with deterministic formatting."""

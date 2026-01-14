@@ -374,3 +374,289 @@ class PRRepository:
             )
 
         logger.debug(f"Upserted PR: {pull_request_uid}")
+
+    # --- Phase 3.3: Team Operations ---
+
+    def upsert_team(
+        self,
+        team_id: str,
+        team_name: str,
+        project_name: str,
+        organization_name: str,
+        description: str | None = None,
+    ) -> None:
+        """Insert or update a team.
+
+        §5: Teams are project-scoped, represent current state.
+
+        Args:
+            team_id: Stable team identifier.
+            team_name: Team name.
+            project_name: Project name.
+            organization_name: Organization name.
+            description: Optional team description.
+        """
+        from datetime import datetime, timezone
+
+        now = datetime.now(timezone.utc).isoformat()
+
+        self.db.execute(
+            """
+            INSERT INTO teams (team_id, team_name, project_name, organization_name, description, last_updated)
+            VALUES (?, ?, ?, ?, ?, ?)
+            ON CONFLICT(team_id) DO UPDATE SET
+                team_name = excluded.team_name,
+                description = excluded.description,
+                last_updated = excluded.last_updated
+            """,
+            (team_id, team_name, project_name, organization_name, description, now),
+        )
+
+    def upsert_team_member(
+        self,
+        team_id: str,
+        user_id: str,
+        display_name: str,
+        email: str | None = None,
+        is_team_admin: bool = False,
+    ) -> None:
+        """Insert or update a team membership.
+
+        §5: Represents current membership, not historical.
+
+        Note: Team members may not exist in the users table (they may never
+        have authored a PR), so we upsert the user from team API data first.
+
+        Args:
+            team_id: Team identifier.
+            user_id: User identifier.
+            display_name: User display name from team API.
+            email: User email from team API.
+            is_team_admin: Whether user is a team admin.
+        """
+        # First ensure user exists (P2 fix: avoid FK violation)
+        self.upsert_user(user_id=user_id, display_name=display_name, email=email)
+
+        self.db.execute(
+            """
+            INSERT INTO team_members (team_id, user_id, is_team_admin)
+            VALUES (?, ?, ?)
+            ON CONFLICT(team_id, user_id) DO UPDATE SET
+                is_team_admin = excluded.is_team_admin
+            """,
+            (team_id, user_id, 1 if is_team_admin else 0),
+        )
+
+    def clear_team_members(self, team_id: str) -> None:
+        """Clear all members for a team before refresh.
+
+        Used to ensure current-state membership on each run.
+
+        Args:
+            team_id: Team identifier.
+        """
+        self.db.execute(
+            "DELETE FROM team_members WHERE team_id = ?",
+            (team_id,),
+        )
+
+    def get_teams_for_project(
+        self, organization_name: str, project_name: str
+    ) -> list[dict[str, Any]]:
+        """Get all teams for a project.
+
+        Args:
+            organization_name: Organization name.
+            project_name: Project name.
+
+        Returns:
+            List of team dictionaries.
+        """
+        cursor = self.db.execute(
+            """
+            SELECT team_id, team_name, description, last_updated
+            FROM teams
+            WHERE organization_name = ? AND project_name = ?
+            ORDER BY team_name
+            """,
+            (organization_name, project_name),
+        )
+        return [dict(row) for row in cursor.fetchall()]
+
+    def get_team_members(self, team_id: str) -> list[dict[str, Any]]:
+        """Get all members for a team.
+
+        Args:
+            team_id: Team identifier.
+
+        Returns:
+            List of member dictionaries with user info.
+        """
+        cursor = self.db.execute(
+            """
+            SELECT tm.user_id, u.display_name, u.email, tm.is_team_admin
+            FROM team_members tm
+            LEFT JOIN users u ON tm.user_id = u.user_id
+            WHERE tm.team_id = ?
+            ORDER BY u.display_name
+            """,
+            (team_id,),
+        )
+        return [dict(row) for row in cursor.fetchall()]
+
+    # --- Phase 3.4: Thread/Comment Operations ---
+
+    def upsert_thread(
+        self,
+        thread_id: str,
+        pull_request_uid: str,
+        status: str | None,
+        thread_context: str | None,
+        last_updated: str,
+        created_at: str,
+        is_deleted: bool = False,
+    ) -> None:
+        """Insert or update a PR thread.
+
+        §6: Indexed by last_updated for incremental sync.
+
+        Args:
+            thread_id: Thread identifier.
+            pull_request_uid: PR unique identifier.
+            status: Thread status (active, fixed, closed).
+            thread_context: JSON context (file, line range).
+            last_updated: ISO 8601 timestamp.
+            created_at: ISO 8601 timestamp.
+            is_deleted: Whether thread is deleted.
+        """
+        self.db.execute(
+            """
+            INSERT INTO pr_threads (
+                thread_id, pull_request_uid, status, thread_context,
+                last_updated, created_at, is_deleted
+            ) VALUES (?, ?, ?, ?, ?, ?, ?)
+            ON CONFLICT(thread_id) DO UPDATE SET
+                status = excluded.status,
+                thread_context = excluded.thread_context,
+                last_updated = excluded.last_updated,
+                is_deleted = excluded.is_deleted
+            """,
+            (
+                thread_id,
+                pull_request_uid,
+                status,
+                thread_context,
+                last_updated,
+                created_at,
+                1 if is_deleted else 0,
+            ),
+        )
+
+    def upsert_comment(
+        self,
+        comment_id: str,
+        thread_id: str,
+        pull_request_uid: str,
+        author_id: str,
+        content: str | None,
+        comment_type: str | None,
+        created_at: str,
+        last_updated: str | None = None,
+        is_deleted: bool = False,
+    ) -> None:
+        """Insert or update a PR comment.
+
+        Args:
+            comment_id: Comment identifier.
+            thread_id: Parent thread identifier.
+            pull_request_uid: PR unique identifier.
+            author_id: Author user ID.
+            content: Comment text content.
+            comment_type: Type (text, codeChange, system).
+            created_at: ISO 8601 timestamp.
+            last_updated: ISO 8601 timestamp.
+            is_deleted: Whether comment is deleted.
+        """
+        self.db.execute(
+            """
+            INSERT INTO pr_comments (
+                comment_id, thread_id, pull_request_uid, author_id,
+                content, comment_type, created_at, last_updated, is_deleted
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ON CONFLICT(comment_id) DO UPDATE SET
+                content = excluded.content,
+                last_updated = excluded.last_updated,
+                is_deleted = excluded.is_deleted
+            """,
+            (
+                comment_id,
+                thread_id,
+                pull_request_uid,
+                author_id,
+                content,
+                comment_type,
+                created_at,
+                last_updated,
+                1 if is_deleted else 0,
+            ),
+        )
+
+    def get_thread_last_updated(self, pull_request_uid: str) -> str | None:
+        """Get the most recent thread update time for a PR.
+
+        §6: Used for incremental sync to avoid refetching unchanged threads.
+
+        Args:
+            pull_request_uid: PR unique identifier.
+
+        Returns:
+            ISO 8601 timestamp of most recent update, or None.
+        """
+        cursor = self.db.execute(
+            """
+            SELECT MAX(last_updated) as max_updated
+            FROM pr_threads
+            WHERE pull_request_uid = ?
+            """,
+            (pull_request_uid,),
+        )
+        row = cursor.fetchone()
+        return row["max_updated"] if row and row["max_updated"] else None
+
+    def get_thread_count(self, pull_request_uid: str | None = None) -> int:
+        """Get thread count, optionally filtered by PR.
+
+        Args:
+            pull_request_uid: Optional PR filter.
+
+        Returns:
+            Thread count.
+        """
+        if pull_request_uid:
+            cursor = self.db.execute(
+                "SELECT COUNT(*) FROM pr_threads WHERE pull_request_uid = ?",
+                (pull_request_uid,),
+            )
+        else:
+            cursor = self.db.execute("SELECT COUNT(*) FROM pr_threads")
+        row = cursor.fetchone()
+        return int(row[0]) if row else 0
+
+    def get_comment_count(self, pull_request_uid: str | None = None) -> int:
+        """Get comment count, optionally filtered by PR.
+
+        Args:
+            pull_request_uid: Optional PR filter.
+
+        Returns:
+            Comment count.
+        """
+        if pull_request_uid:
+            cursor = self.db.execute(
+                "SELECT COUNT(*) FROM pr_comments WHERE pull_request_uid = ?",
+                (pull_request_uid,),
+            )
+        else:
+            cursor = self.db.execute("SELECT COUNT(*) FROM pr_comments")
+        row = cursor.fetchone()
+        return int(row[0]) if row else 0
