@@ -1,0 +1,32 @@
+{
+    "week": "2026-W02",
+    "start_date": "2026-01-06",
+    "end_date": "2026-01-12",
+    "pr_count": 30,
+    "cycle_time_p50": 240.5,
+    "cycle_time_p90": 720.0,
+    "review_time_p50": 60.0,
+    "review_time_p90": 180.0,
+    "authors_count": 8,
+    "reviewers_count": 12,
+    "by_repository": {
+        "main-repo": {
+            "pr_count": 22,
+            "cycle_time_p50": 200.0
+        },
+        "secondary-repo": {
+            "pr_count": 8,
+            "cycle_time_p50": 360.0
+        }
+    },
+    "by_team": {
+        "Backend Team": {
+            "pr_count": 18,
+            "cycle_time_p50": 180.0
+        },
+        "Frontend Team": {
+            "pr_count": 12,
+            "cycle_time_p50": 300.0
+        }
+    }
+}

@@ -1,0 +1,101 @@
+{
+    "$schema": "http://json-schema.org/draft-07/schema#",
+    "$id": "https://oddessentials.com/schemas/ado-git-repo-insights/predictions.schema.json",
+    "title": "Predictions Schema",
+    "description": "ML predictions for PR metrics (Phase 3.5)",
+    "type": "object",
+    "required": [
+        "schema_version",
+        "generated_at",
+        "forecasts"
+    ],
+    "properties": {
+        "schema_version": {
+            "type": "integer",
+            "minimum": 1,
+            "description": "Schema version for compatibility checking"
+        },
+        "generated_at": {
+            "type": "string",
+            "format": "date-time",
+            "description": "ISO 8601 timestamp of generation"
+        },
+        "generated_by": {
+            "type": "string",
+            "description": "Generator identifier (e.g., phase3.5-stub-v1)"
+        },
+        "is_stub": {
+            "type": "boolean",
+            "description": "True if this is synthetic stub data"
+        },
+        "forecasts": {
+            "type": "array",
+            "items": {
+                "type": "object",
+                "required": [
+                    "metric",
+                    "unit",
+                    "values"
+                ],
+                "properties": {
+                    "metric": {
+                        "type": "string",
+                        "enum": [
+                            "pr_throughput",
+                            "cycle_time_minutes",
+                            "review_time_minutes"
+                        ],
+                        "description": "Metric being forecasted"
+                    },
+                    "unit": {
+                        "type": "string",
+                        "enum": [
+                            "count",
+                            "minutes"
+                        ],
+                        "description": "Unit of measurement"
+                    },
+                    "horizon_weeks": {
+                        "type": "integer",
+                        "minimum": 1,
+                        "description": "Forecast horizon in weeks"
+                    },
+                    "values": {
+                        "type": "array",
+                        "items": {
+                            "type": "object",
+                            "required": [
+                                "period_start",
+                                "predicted",
+                                "lower_bound",
+                                "upper_bound"
+                            ],
+                            "properties": {
+                                "period_start": {
+                                    "type": "string",
+                                    "format": "date",
+                                    "description": "Week start date (must be Monday)"
+                                },
+                                "predicted": {
+                                    "type": "number",
+                                    "description": "Predicted value"
+                                },
+                                "lower_bound": {
+                                    "type": "number",
+                                    "description": "Lower confidence bound"
+                                },
+                                "upper_bound": {
+                                    "type": "number",
+                                    "description": "Upper confidence bound"
+                                }
+                            },
+                            "additionalProperties": true
+                        }
+                    }
+                },
+                "additionalProperties": true
+            }
+        }
+    },
+    "additionalProperties": true
+}

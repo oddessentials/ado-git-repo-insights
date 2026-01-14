@@ -1,0 +1,61 @@
+{
+    "manifest_schema_version": 1,
+    "dataset_schema_version": 1,
+    "aggregates_schema_version": 1,
+    "predictions_schema_version": 1,
+    "insights_schema_version": 1,
+    "generated_at": "2026-01-14T12:00:00Z",
+    "run_id": "test-run-12345678",
+    "defaults": {
+        "default_date_range_days": 90
+    },
+    "limits": {
+        "max_weekly_files": 52,
+        "max_distribution_files": 5
+    },
+    "features": {
+        "teams": true,
+        "comments": true,
+        "predictions": true,
+        "ai_insights": true
+    },
+    "coverage": {
+        "total_prs": 150,
+        "date_range": {
+            "min": "2025-10-01",
+            "max": "2026-01-14"
+        },
+        "comments": "full"
+    },
+    "aggregate_index": {
+        "weekly_rollups": [
+            {
+                "week": "2026-W01",
+                "path": "aggregates/weekly_rollups/2026-W01.json",
+                "pr_count": 25,
+                "size_bytes": 1024
+            },
+            {
+                "week": "2026-W02",
+                "path": "aggregates/weekly_rollups/2026-W02.json",
+                "pr_count": 30,
+                "size_bytes": 1152
+            }
+        ],
+        "distributions": [
+            {
+                "year": "2025",
+                "path": "aggregates/distributions/2025.json",
+                "total_prs": 100,
+                "size_bytes": 2048
+            },
+            {
+                "year": "2026",
+                "path": "aggregates/distributions/2026.json",
+                "total_prs": 50,
+                "size_bytes": 1536
+            }
+        ]
+    },
+    "warnings": []
+}
