@@ -15,6 +15,8 @@ from typing import TYPE_CHECKING
 from unittest.mock import MagicMock, patch
 
 if TYPE_CHECKING:
+    import pytest
+
     from ado_git_repo_insights.extractor.pr_extractor import PRExtractor
 
 
@@ -176,3 +178,89 @@ class TestBackfillMode:
         # Should use backfill (Jan 15 - 7 = Jan 8), not incremental (Jan 11)
         expected = real_date(2026, 1, 8)
         assert result == expected
+
+
+class TestCorruptMetadataHandling:
+    """Tests for handling corrupt or invalid extraction metadata.
+
+    These tests verify that corrupt metadata doesn't halt pipelines unexpectedly.
+    Expected behavior: warn and use default (Jan 1), not hard fail.
+    """
+
+    def test_corrupt_metadata_date_format_warns_and_uses_default(
+        self, caplog: pytest.LogCaptureFixture
+    ) -> None:
+        """Invalid date format in metadata should warn and fall back to Jan 1.
+
+        If extraction_metadata contains an unparseable date (e.g., from DB corruption),
+        the system should log a warning and use the first-run default, not crash.
+        """
+        import logging
+
+        from ado_git_repo_insights.persistence.repository import PRRepository
+
+        frozen = real_date(2026, 3, 15)
+        FrozenDate.set_today(frozen)
+
+        # Create a mock database that returns an invalid date format
+        mock_db = MagicMock()
+        mock_cursor = MagicMock()
+        mock_cursor.fetchone.return_value = {"last_extraction_date": "not-a-valid-date"}
+        mock_db.execute.return_value = mock_cursor
+
+        repository = PRRepository(mock_db)
+
+        with caplog.at_level(logging.WARNING):
+            result = repository.get_last_extraction_date("TestOrg", "TestProject")
+
+        # Should return None (treated as first run) and log a warning
+        assert result is None
+        assert "corrupt" in caplog.text.lower() or "invalid" in caplog.text.lower()
+
+    def test_empty_string_metadata_returns_none(self) -> None:
+        """Empty string in metadata should be treated as no metadata."""
+        from ado_git_repo_insights.persistence.repository import PRRepository
+
+        mock_db = MagicMock()
+        mock_cursor = MagicMock()
+        mock_cursor.fetchone.return_value = {"last_extraction_date": ""}
+        mock_db.execute.return_value = mock_cursor
+
+        repository = PRRepository(mock_db)
+        result = repository.get_last_extraction_date("TestOrg", "TestProject")
+
+        # Empty string should return None (first run behavior)
+        assert result is None
+
+    def test_null_metadata_returns_none(self) -> None:
+        """NULL value in metadata should be treated as no metadata."""
+        from ado_git_repo_insights.persistence.repository import PRRepository
+
+        mock_db = MagicMock()
+        mock_cursor = MagicMock()
+        mock_cursor.fetchone.return_value = {"last_extraction_date": None}
+        mock_db.execute.return_value = mock_cursor
+
+        repository = PRRepository(mock_db)
+        result = repository.get_last_extraction_date("TestOrg", "TestProject")
+
+        assert result is None
+
+    def test_future_date_in_metadata_is_allowed(self) -> None:
+        """Future dates in metadata should be returned as-is (no validation).
+
+        The extractor will handle the "start > end" case appropriately.
+        """
+        from ado_git_repo_insights.persistence.repository import PRRepository
+
+        mock_db = MagicMock()
+        mock_cursor = MagicMock()
+        # Future date stored in metadata
+        mock_cursor.fetchone.return_value = {"last_extraction_date": "2099-12-31"}
+        mock_db.execute.return_value = mock_cursor
+
+        repository = PRRepository(mock_db)
+        result = repository.get_last_extraction_date("TestOrg", "TestProject")
+
+        # Future dates are valid ISO format, should be returned
+        assert result == real_date(2099, 12, 31)

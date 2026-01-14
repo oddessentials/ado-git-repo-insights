@@ -54,7 +54,7 @@ class PRRepository:
             project: Project name.
 
         Returns:
-            Last extraction date, or None if never extracted.
+            Last extraction date, or None if never extracted or metadata is corrupt.
         """
         cursor = self.db.execute(
             """
@@ -65,7 +65,19 @@ class PRRepository:
         )
         row = cursor.fetchone()
         if row:
-            return date.fromisoformat(row["last_extraction_date"])
+            date_value = row["last_extraction_date"]
+            # Handle NULL or empty string
+            if not date_value:
+                return None
+            # Handle corrupt date format gracefully (warn + fallback)
+            try:
+                return date.fromisoformat(date_value)
+            except (ValueError, TypeError) as e:
+                logger.warning(
+                    f"Invalid/corrupt extraction metadata date for "
+                    f"{organization}/{project}: '{date_value}' - {e}"
+                )
+                return None
         return None
 
     def update_extraction_metadata(
