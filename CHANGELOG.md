@@ -1,3 +1,24 @@
+# [2.0.0](https://github.com/oddessentials/ado-git-repo-insights/compare/v1.3.0...v2.0.0) (2026-01-14)
+
+
+* feat!: v2.0.0 release automation and marketplace publishing ([b9c7c15](https://github.com/oddessentials/ado-git-repo-insights/commit/b9c7c159d764ef6f4e5bc8b5833702fa3e3f0a81))
+
+
+### Bug Fixes
+
+* enterprise-grade Marketplace publish with retries and validation ([5881a6a](https://github.com/oddessentials/ado-git-repo-insights/commit/5881a6ac71844e74be95df936b00055de9d279b1))
+
+
+### BREAKING CHANGES
+
+* Extension release automation is now the sole version authority.
+Manual version edits to vss-extension.json or task.json are no longer permitted.
+
+- Automated version stamping via semantic-release
+- VSIX published to VS Marketplace on release
+- VERSION file synced for run_summary.py
+- Ruff version consistency enforced in CI
+
 # [1.3.0](https://github.com/oddessentials/ado-git-repo-insights/compare/v1.2.2...v1.3.0) (2026-01-14)
 
 
