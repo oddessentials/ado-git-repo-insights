@@ -1,3 +1,10 @@
+# [2.5.0](https://github.com/oddessentials/ado-git-repo-insights/compare/v2.4.0...v2.5.0) (2026-01-14)
+
+
+### Features
+
+* **phase4:** implement Phase 4 gap closures ([d2ed889](https://github.com/oddessentials/ado-git-repo-insights/commit/d2ed889d60f721646c0e3110774f15910a06e745))
+
 # [2.4.0](https://github.com/oddessentials/ado-git-repo-insights/compare/v2.3.0...v2.4.0) (2026-01-14)
 
 
