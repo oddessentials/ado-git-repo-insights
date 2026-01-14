@@ -223,13 +223,22 @@ class AggregateGenerator:
                     "date_range": dimensions.date_range,
                     "teams_count": len(dimensions.teams),  # Phase 3.3
                     "comments": self._get_comments_coverage(),  # Phase 3.4
+                    # Phase 4 §5: Operational visibility
+                    "row_counts": self._get_row_counts(),
                 },
+            )
+
+            # Phase 4 §5: Calculate total artifact size after manifest written
+            # We'll add this after initial manifest write
+            manifest_dict = asdict(manifest)
+            manifest_dict["operational"] = self._get_operational_summary(
+                weekly_index, dist_index
             )
 
             # Write manifest
             self._write_json(
                 self.output_dir / "dataset-manifest.json",
-                asdict(manifest),
+                manifest_dict,
             )
             logger.info("Generated dataset-manifest.json")
 
@@ -516,6 +525,82 @@ class AggregateGenerator:
             "comments_fetched": comment_count,
             "prs_with_threads": prs_with_threads,
             "capped": False,  # Set by extraction when limits hit
+        }
+
+    def _get_row_counts(self) -> dict[str, int]:
+        """Get row counts for key tables (Phase 4 §5: Operational visibility)."""
+        counts: dict[str, int] = {}
+
+        # PRs
+        try:
+            cursor = self.db.execute("SELECT COUNT(*) as cnt FROM pull_requests")
+            row = cursor.fetchone()
+            counts["pull_requests"] = int(row["cnt"]) if row else 0
+        except Exception:
+            counts["pull_requests"] = 0
+
+        # Reviewers
+        try:
+            cursor = self.db.execute("SELECT COUNT(*) as cnt FROM reviewers")
+            row = cursor.fetchone()
+            counts["reviewers"] = int(row["cnt"]) if row else 0
+        except Exception:
+            counts["reviewers"] = 0
+
+        # Users
+        try:
+            cursor = self.db.execute("SELECT COUNT(*) as cnt FROM users")
+            row = cursor.fetchone()
+            counts["users"] = int(row["cnt"]) if row else 0
+        except Exception:
+            counts["users"] = 0
+
+        # Repositories
+        try:
+            cursor = self.db.execute("SELECT COUNT(*) as cnt FROM repositories")
+            row = cursor.fetchone()
+            counts["repositories"] = int(row["cnt"]) if row else 0
+        except Exception:
+            counts["repositories"] = 0
+
+        return counts
+
+    def _get_operational_summary(
+        self,
+        weekly_index: list[dict[str, Any]],
+        dist_index: list[dict[str, Any]],
+    ) -> dict[str, Any]:
+        """Generate operational summary for operators (Phase 4 §5).
+
+        Provides immediate insight into dataset health and scale.
+        """
+        # Calculate total artifact size from indexes
+        total_size = sum(item.get("size_bytes", 0) for item in weekly_index)
+        total_size += sum(item.get("size_bytes", 0) for item in dist_index)
+
+        # Add dimensions file size if it exists
+        dimensions_path = self.output_dir / "aggregates" / "dimensions.json"
+        if dimensions_path.exists():
+            total_size += dimensions_path.stat().st_size
+
+        # Add predictions/insights sizes if they exist
+        for extra_file in [
+            self.output_dir / "predictions" / "trends.json",
+            self.output_dir / "insights" / "summary.json",
+        ]:
+            if extra_file.exists():
+                total_size += extra_file.stat().st_size
+
+        return {
+            "artifact_size_bytes": total_size,
+            "weekly_rollup_count": len(weekly_index),
+            "distribution_count": len(dist_index),
+            "retention_notice": (
+                "Data older than 2 years may have reduced detail. "
+                "Consider archiving old data periodically."
+                if len(dist_index) > 2
+                else None
+            ),
         }
 
     def _write_json(self, path: Path, data: dict[str, Any]) -> None:

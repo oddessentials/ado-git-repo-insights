@@ -1,0 +1,94 @@
+{
+    "$schema": "http://json-schema.org/draft-07/schema#",
+    "$id": "https://oddessentials.com/schemas/ado-git-repo-insights/insights.schema.json",
+    "title": "AI Insights Schema",
+    "description": "AI-generated insights for PR analytics (Phase 3.5)",
+    "type": "object",
+    "required": [
+        "schema_version",
+        "generated_at",
+        "insights"
+    ],
+    "properties": {
+        "schema_version": {
+            "type": "integer",
+            "minimum": 1,
+            "description": "Schema version for compatibility checking"
+        },
+        "generated_at": {
+            "type": "string",
+            "format": "date-time",
+            "description": "ISO 8601 timestamp of generation"
+        },
+        "generated_by": {
+            "type": "string",
+            "description": "Generator identifier"
+        },
+        "is_stub": {
+            "type": "boolean",
+            "description": "True if this is synthetic stub data"
+        },
+        "insights": {
+            "type": "array",
+            "items": {
+                "type": "object",
+                "required": [
+                    "id",
+                    "category",
+                    "severity",
+                    "title",
+                    "description",
+                    "affected_entities"
+                ],
+                "properties": {
+                    "id": {
+                        "type": "string",
+                        "description": "Unique insight identifier"
+                    },
+                    "category": {
+                        "type": "string",
+                        "enum": [
+                            "bottleneck",
+                            "trend",
+                            "anomaly"
+                        ],
+                        "description": "Insight category"
+                    },
+                    "severity": {
+                        "type": "string",
+                        "enum": [
+                            "info",
+                            "warning",
+                            "critical"
+                        ],
+                        "description": "Severity level"
+                    },
+                    "title": {
+                        "type": "string",
+                        "description": "Short insight title"
+                    },
+                    "description": {
+                        "type": "string",
+                        "description": "Detailed explanation"
+                    },
+                    "affected_entities": {
+                        "type": "array",
+                        "items": {
+                            "type": "string"
+                        },
+                        "description": "Entities affected (e.g., team:Backend)"
+                    },
+                    "evidence_refs": {
+                        "type": "array",
+                        "items": {
+                            "type": "string"
+                        },
+                        "description": "References to supporting data"
+                    }
+                },
+                "additionalProperties": true
+            }
+        }
+    },
+    "additionalProperties": true
+}

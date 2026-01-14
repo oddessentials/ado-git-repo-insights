@@ -1,0 +1,47 @@
+{
+    "schema_version": 1,
+    "generated_at": "2026-01-14T12:00:00Z",
+    "generated_by": "phase3.5-stub-v1",
+    "is_stub": true,
+    "insights": [
+        {
+            "id": "insight-001",
+            "category": "bottleneck",
+            "severity": "warning",
+            "title": "Review latency increasing",
+            "description": "Average time to first review has increased by 15% over the past 4 weeks.",
+            "affected_entities": [
+                "team:Backend Team"
+            ],
+            "evidence_refs": [
+                "weekly_rollup:2026-W01",
+                "weekly_rollup:2026-W02"
+            ]
+        },
+        {
+            "id": "insight-002",
+            "category": "trend",
+            "severity": "info",
+            "title": "PR throughput stable",
+            "description": "Weekly PR count remains consistent at approximately 28 PRs/week.",
+            "affected_entities": [
+                "project:test-project"
+            ],
+            "evidence_refs": []
+        },
+        {
+            "id": "insight-003",
+            "category": "anomaly",
+            "severity": "critical",
+            "title": "Cycle time spike detected",
+            "description": "P90 cycle time exceeded 12 hours threshold on 2026-01-10.",
+            "affected_entities": [
+                "repo:secondary-repo",
+                "team:Frontend Team"
+            ],
+            "evidence_refs": [
+                "weekly_rollup:2026-W02"
+            ]
+        }
+    ]
+}

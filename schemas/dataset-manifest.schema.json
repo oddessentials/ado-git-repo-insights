@@ -1,0 +1,192 @@
+{
+    "$schema": "http://json-schema.org/draft-07/schema#",
+    "$id": "https://oddessentials.com/schemas/ado-git-repo-insights/dataset-manifest.schema.json",
+    "title": "Dataset Manifest",
+    "description": "Discovery manifest for ADO Git Repo Insights datasets (Phase 3+)",
+    "type": "object",
+    "required": [
+        "manifest_schema_version",
+        "dataset_schema_version",
+        "aggregates_schema_version",
+        "generated_at",
+        "features",
+        "coverage",
+        "aggregate_index"
+    ],
+    "properties": {
+        "manifest_schema_version": {
+            "type": "integer",
+            "minimum": 1,
+            "description": "Manifest schema version for extension compatibility"
+        },
+        "dataset_schema_version": {
+            "type": "integer",
+            "minimum": 1,
+            "description": "Dataset format version"
+        },
+        "aggregates_schema_version": {
+            "type": "integer",
+            "minimum": 1,
+            "description": "Aggregates file format version"
+        },
+        "predictions_schema_version": {
+            "type": "integer",
+            "minimum": 1,
+            "description": "Predictions schema version (Phase 3.5+)"
+        },
+        "insights_schema_version": {
+            "type": "integer",
+            "minimum": 1,
+            "description": "AI insights schema version (Phase 3.5+)"
+        },
+        "generated_at": {
+            "type": "string",
+            "format": "date-time",
+            "description": "ISO 8601 timestamp of generation"
+        },
+        "run_id": {
+            "type": "string",
+            "description": "Pipeline run identifier"
+        },
+        "defaults": {
+            "type": "object",
+            "properties": {
+                "default_date_range_days": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "default": 90
+                }
+            }
+        },
+        "limits": {
+            "type": "object",
+            "properties": {
+                "max_weekly_files": {
+                    "type": "integer"
+                },
+                "max_distribution_files": {
+                    "type": "integer"
+                }
+            }
+        },
+        "features": {
+            "type": "object",
+            "properties": {
+                "teams": {
+                    "type": "boolean"
+                },
+                "comments": {
+                    "type": "boolean"
+                },
+                "predictions": {
+                    "type": "boolean"
+                },
+                "ai_insights": {
+                    "type": "boolean"
+                }
+            },
+            "required": []
+        },
+        "coverage": {
+            "type": "object",
+            "properties": {
+                "total_prs": {
+                    "type": "integer",
+                    "minimum": 0
+                },
+                "date_range": {
+                    "type": "object",
+                    "properties": {
+                        "min": {
+                            "type": "string",
+                            "format": "date"
+                        },
+                        "max": {
+                            "type": "string",
+                            "format": "date"
+                        }
+                    }
+                },
+                "comments": {
+                    "type": "string",
+                    "enum": [
+                        "full",
+                        "partial",
+                        "disabled"
+                    ]
+                }
+            }
+        },
+        "aggregate_index": {
+            "type": "object",
+            "required": [
+                "weekly_rollups",
+                "distributions"
+            ],
+            "properties": {
+                "weekly_rollups": {
+                    "type": "array",
+                    "items": {
+                        "type": "object",
+                        "required": [
+                            "week",
+                            "path"
+                        ],
+                        "properties": {
+                            "week": {
+                                "type": "string",
+                                "pattern": "^\\d{4}-W\\d{2}$"
+                            },
+                            "path": {
+                                "type": "string"
+                            },
+                            "pr_count": {
+                                "type": "integer",
+                                "minimum": 0
+                            },
+                            "size_bytes": {
+                                "type": "integer",
+                                "minimum": 0
+                            }
+                        }
+                    }
+                },
+                "distributions": {
+                    "type": "array",
+                    "items": {
+                        "type": "object",
+                        "required": [
+                            "year",
+                            "path"
+                        ],
+                        "properties": {
+                            "year": {
+                                "type": "string",
+                                "pattern": "^\\d{4}$"
+                            },
+                            "path": {
+                                "type": "string"
+                            },
+                            "total_prs": {
+                                "type": "integer",
+                                "minimum": 0
+                            },
+                            "size_bytes": {
+                                "type": "integer",
+                                "minimum": 0
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "warnings": {
+            "type": "array",
+            "items": {
+                "type": "string"
+            },
+            "description": "Optional warnings (e.g., STUB DATA)"
+        }
+    },
+    "additionalProperties": true
+}

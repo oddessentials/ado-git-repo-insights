@@ -1,0 +1,53 @@
+{
+    "repositories": [
+        {
+            "id": "repo-1",
+            "name": "main-repo",
+            "project": "test-project"
+        },
+        {
+            "id": "repo-2",
+            "name": "secondary-repo",
+            "project": "test-project"
+        }
+    ],
+    "users": [
+        {
+            "id": "user-1",
+            "displayName": "Alice Developer",
+            "uniqueName": "alice@example.com"
+        },
+        {
+            "id": "user-2",
+            "displayName": "Bob Engineer",
+            "uniqueName": "bob@example.com"
+        },
+        {
+            "id": "user-3",
+            "displayName": "Carol Reviewer",
+            "uniqueName": "carol@example.com"
+        }
+    ],
+    "projects": [
+        {
+            "id": "proj-1",
+            "name": "test-project"
+        }
+    ],
+    "teams": [
+        {
+            "id": "team-1",
+            "name": "Backend Team",
+            "projectId": "proj-1"
+        },
+        {
+            "id": "team-2",
+            "name": "Frontend Team",
+            "projectId": "proj-1"
+        }
+    ],
+    "date_range": {
+        "min": "2025-10-01",
+        "max": "2026-01-14"
+    }
+}
