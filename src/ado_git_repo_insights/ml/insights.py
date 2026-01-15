@@ -166,12 +166,12 @@ class LLMInsightsGenerator:
         prompt = f"""You are a DevOps metrics analyst. Analyze the following pull request metrics and provide up to 3 actionable insights.
 
 **Metrics Summary:**
-- Total PRs: {stats['total_prs']}
-- Date range: {stats['date_range_start']} to {stats['date_range_end']}
-- Average cycle time: {stats['avg_cycle_time_minutes']} minutes
-- P90 cycle time: {stats['p90_cycle_time_minutes']} minutes
-- Authors: {stats['authors_count']}
-- Repositories: {stats['repositories_count']}
+- Total PRs: {stats["total_prs"]}
+- Date range: {stats["date_range_start"]} to {stats["date_range_end"]}
+- Average cycle time: {stats["avg_cycle_time_minutes"]} minutes
+- P90 cycle time: {stats["p90_cycle_time_minutes"]} minutes
+- Authors: {stats["authors_count"]}
+- Repositories: {stats["repositories_count"]}
 
 **Instructions:**
 - Provide up to 3 insights, one per category: "bottleneck", "trend", "anomaly"
@@ -272,7 +272,7 @@ Respond ONLY with valid JSON matching this format."""
         # Note: Use deterministic fallback for empty datasets
         cursor = self.db.execute(
             """
-            SELECT 
+            SELECT
                 MAX(closed_date) as max_closed,
                 MAX(COALESCE(updated_at, closed_date)) as max_updated
             FROM pull_requests
@@ -280,7 +280,9 @@ Respond ONLY with valid JSON matching this format."""
         )
         row = cursor.fetchone()
         max_closed = row["max_closed"] if row and row["max_closed"] else "empty-dataset"
-        max_updated = row["max_updated"] if row and row["max_updated"] else "empty-dataset"
+        max_updated = (
+            row["max_updated"] if row and row["max_updated"] else "empty-dataset"
+        )
 
         # Use canonical JSON with sorted keys for deterministic hashing
         # This prevents cache misses from non-deterministic ordering or whitespace
@@ -298,9 +300,7 @@ Respond ONLY with valid JSON matching this format."""
         key_string = "|".join(str(p) for p in key_parts)
         return hashlib.sha256(key_string.encode()).hexdigest()
 
-    def _check_cache(
-        self, cache_path: Path, cache_key: str
-    ) -> dict[str, Any] | None:
+    def _check_cache(self, cache_path: Path, cache_key: str) -> dict[str, Any] | None:
         """Check if valid cache exists.
 
         Args:
@@ -326,7 +326,9 @@ Respond ONLY with valid JSON matching this format."""
             cached_at = datetime.fromisoformat(cache_data["cached_at"])
             age_hours = (datetime.now(timezone.utc) - cached_at).total_seconds() / 3600
             if age_hours > self.cache_ttl_hours:
-                logger.debug(f"Cache expired: {age_hours:.1f}h > {self.cache_ttl_hours}h")
+                logger.debug(
+                    f"Cache expired: {age_hours:.1f}h > {self.cache_ttl_hours}h"
+                )
                 return None
 
             logger.info(f"Cache hit: age {age_hours:.1f}h")
@@ -407,7 +409,7 @@ Respond ONLY with valid JSON matching this format."""
             # Handle empty datasets (None values) with deterministic fallback
             cursor = self.db.execute(
                 """
-                SELECT 
+                SELECT
                     MAX(closed_date) as max_closed,
                     MAX(COALESCE(updated_at, closed_date)) as max_updated
                 FROM pull_requests
@@ -415,11 +417,17 @@ Respond ONLY with valid JSON matching this format."""
             )
             row = cursor.fetchone()
             # Deterministic fallback for empty datasets
-            max_closed = row["max_closed"] if row and row["max_closed"] else "empty-dataset"
-            max_updated = row["max_updated"] if row and row["max_updated"] else "empty-dataset"
+            max_closed = (
+                row["max_closed"] if row and row["max_closed"] else "empty-dataset"
+            )
+            max_updated = (
+                row["max_updated"] if row and row["max_updated"] else "empty-dataset"
+            )
 
             # Validate and enforce contract with deterministic IDs
-            return self._validate_and_fix_insights(insights_json, max_closed, max_updated)
+            return self._validate_and_fix_insights(
+                insights_json, max_closed, max_updated
+            )
 
         except Exception as e:
             logger.warning(f"OpenAI API error: {type(e).__name__}: {e}")

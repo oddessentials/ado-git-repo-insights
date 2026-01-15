@@ -14,7 +14,13 @@ class TestMLCLIFlags:
     def test_cli_help_includes_predictions_flag(self) -> None:
         """--enable-predictions flag appears in CLI help."""
         result = subprocess.run(  # noqa: S603 - controlled subprocess call with known arguments
-            [sys.executable, "-m", "ado_git_repo_insights.cli", "generate-aggregates", "--help"],
+            [
+                sys.executable,
+                "-m",
+                "ado_git_repo_insights.cli",
+                "generate-aggregates",
+                "--help",
+            ],
             capture_output=True,
             text=True,
             check=False,
@@ -26,7 +32,13 @@ class TestMLCLIFlags:
     def test_cli_help_includes_insights_flag(self) -> None:
         """--enable-insights flag appears in CLI help."""
         result = subprocess.run(  # noqa: S603 - controlled subprocess call with known arguments
-            [sys.executable, "-m", "ado_git_repo_insights.cli", "generate-aggregates", "--help"],
+            [
+                sys.executable,
+                "-m",
+                "ado_git_repo_insights.cli",
+                "generate-aggregates",
+                "--help",
+            ],
             capture_output=True,
             text=True,
             check=False,
@@ -38,7 +50,13 @@ class TestMLCLIFlags:
     def test_cli_help_includes_dry_run_flag(self) -> None:
         """--insights-dry-run flag appears in CLI help."""
         result = subprocess.run(  # noqa: S603 - controlled subprocess call with known arguments
-            [sys.executable, "-m", "ado_git_repo_insights.cli", "generate-aggregates", "--help"],
+            [
+                sys.executable,
+                "-m",
+                "ado_git_repo_insights.cli",
+                "generate-aggregates",
+                "--help",
+            ],
             capture_output=True,
             text=True,
             check=False,
@@ -47,7 +65,9 @@ class TestMLCLIFlags:
         assert result.returncode == 0
         assert "--insights-dry-run" in result.stdout
 
-    def test_enable_insights_without_api_key_fails_early(self, tmp_path: Path, monkeypatch: any) -> None:
+    def test_enable_insights_without_api_key_fails_early(
+        self, tmp_path: Path, monkeypatch: any
+    ) -> None:
         """--enable-insights without OPENAI_API_KEY fails early with clear message."""
         # Remove API key if set
         monkeypatch.delenv("OPENAI_API_KEY", raising=False)

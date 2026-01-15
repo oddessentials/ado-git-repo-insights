@@ -19,10 +19,10 @@ class TestEdgeCaseIDStability:
     def test_id_stability_empty_dataset(self, tmp_path: Path) -> None:
         """IDs are deterministic even with empty dataset."""
         from ado_git_repo_insights.ml.insights import LLMInsightsGenerator
-        
+
         # Mock database with NO pull requests
         mock_db = Mock()
-        
+
         def mock_execute(query: str) -> Mock:
             cursor = Mock()
             if "COUNT(*)" in query and "completed" in query:
@@ -39,9 +39,9 @@ class TestEdgeCaseIDStability:
             else:
                 cursor.fetchone.return_value = {}
             return cursor
-        
+
         mock_db.execute = mock_execute
-        
+
         # Mock OpenAI response
         mock_response_data = {
             "insights": [
@@ -55,43 +55,47 @@ class TestEdgeCaseIDStability:
                 }
             ]
         }
-        
+
         mock_client = Mock()
         mock_response = Mock()
         mock_response.choices = [Mock()]
         mock_response.choices[0].message.content = json.dumps(mock_response_data)
         mock_client.chat.completions.create.return_value = mock_response
-        
+
         # Generate twice with same empty dataset
-        with patch("ado_git_repo_insights.ml.insights.openai.OpenAI", return_value=mock_client), \
-             patch.dict("os.environ", {"OPENAI_API_KEY": "test-key"}):
-            
+        with (
+            patch(
+                "ado_git_repo_insights.ml.insights.openai.OpenAI",
+                return_value=mock_client,
+            ),
+            patch.dict("os.environ", {"OPENAI_API_KEY": "test-key"}),
+        ):
             # First run
             gen1 = LLMInsightsGenerator(db=mock_db, output_dir=tmp_path)
             gen1.generate()
-            
+
             insights_file = tmp_path / "insights" / "summary.json"
             with insights_file.open("r") as f:
                 data1 = json.load(f)
             ids_run1 = [insight["id"] for insight in data1["insights"]]
-            
+
             # Clear cache and output for second run
             cache_file = tmp_path / "insights" / "cache.json"
             if cache_file.exists():
                 cache_file.unlink()
             insights_file.unlink()
-            
+
             # Second run with same data
             gen2 = LLMInsightsGenerator(db=mock_db, output_dir=tmp_path)
             gen2.generate()
-            
+
             with insights_file.open("r") as f:
                 data2 = json.load(f)
             ids_run2 = [insight["id"] for insight in data2["insights"]]
-        
+
         # IDs must be identical for empty dataset
         assert ids_run1 == ids_run2, "IDs changed across runs with empty dataset"
-        
+
         # IDs should use deterministic "empty-dataset" marker
         for id_val in ids_run1:
             assert id_val.startswith("trend-"), "ID should start with category"
@@ -99,10 +103,10 @@ class TestEdgeCaseIDStability:
     def test_id_stability_with_data(self, tmp_path: Path) -> None:
         """IDs are stable across repeated runs with identical DB markers."""
         from ado_git_repo_insights.ml.insights import LLMInsightsGenerator
-        
+
         # Mock database with consistent data
         mock_db = Mock()
-        
+
         def mock_execute(query: str) -> Mock:
             cursor = Mock()
             if "COUNT(*)" in query and "completed" in query:
@@ -125,9 +129,9 @@ class TestEdgeCaseIDStability:
             else:
                 cursor.fetchone.return_value = {}
             return cursor
-        
+
         mock_db.execute = mock_execute
-        
+
         # Mock OpenAI response
         mock_response_data = {
             "insights": [
@@ -149,44 +153,52 @@ class TestEdgeCaseIDStability:
                 },
             ]
         }
-        
+
         mock_client = Mock()
         mock_response = Mock()
         mock_response.choices = [Mock()]
         mock_response.choices[0].message.content = json.dumps(mock_response_data)
         mock_client.chat.completions.create.return_value = mock_response
-        
+
         # Generate twice with same data
-        with patch("ado_git_repo_insights.ml.insights.openai.OpenAI", return_value=mock_client), \
-             patch.dict("os.environ", {"OPENAI_API_KEY": "test-key"}):
-            
+        with (
+            patch(
+                "ado_git_repo_insights.ml.insights.openai.OpenAI",
+                return_value=mock_client,
+            ),
+            patch.dict("os.environ", {"OPENAI_API_KEY": "test-key"}),
+        ):
             # First run
             gen1 = LLMInsightsGenerator(db=mock_db, output_dir=tmp_path)
             gen1.generate()
-            
+
             insights_file = tmp_path / "insights" / "summary.json"
             with insights_file.open("r") as f:
                 data1 = json.load(f)
             ids_run1 = [insight["id"] for insight in data1["insights"]]
-            
+
             # Clear cache and output for second run
             cache_file = tmp_path / "insights" / "cache.json"
             if cache_file.exists():
                 cache_file.unlink()
             insights_file.unlink()
-            
+
             # Second run with identical DB markers
             gen2 = LLMInsightsGenerator(db=mock_db, output_dir=tmp_path)
             gen2.generate()
-            
+
             with insights_file.open("r") as f:
                 data2 = json.load(f)
             ids_run2 = [insight["id"] for insight in data2["insights"]]
-        
+
         # IDs must be identical across runs
         assert ids_run1 == ids_run2, "IDs changed across runs with identical data"
-        
+
         # Verify format: category-{hash}
-        for insight, id_val in zip(mock_response_data["insights"], ids_run1, strict=True):
+        for insight, id_val in zip(
+            mock_response_data["insights"], ids_run1, strict=True
+        ):
             expected_prefix = insight["category"] + "-"
-            assert id_val.startswith(expected_prefix), f"ID should start with {expected_prefix}"
+            assert id_val.startswith(expected_prefix), (
+                f"ID should start with {expected_prefix}"
+            )

@@ -24,7 +24,7 @@ class TestInsightsContract:
     def mock_db(self) -> Mock:
         """Mock database with sample PR data."""
         db = Mock()
-        
+
         # Mock PR stats queries
         def mock_execute(query: str) -> Mock:
             cursor = Mock()
@@ -49,7 +49,7 @@ class TestInsightsContract:
             else:
                 cursor.fetchone.return_value = {}
             return cursor
-        
+
         db.execute = mock_execute
         return db
 
@@ -77,19 +77,26 @@ class TestInsightsContract:
             ]
         }
 
-    def test_insights_schema_structure(self, mock_db: Mock, mock_openai_response: dict, tmp_path: Path) -> None:
+    def test_insights_schema_structure(
+        self, mock_db: Mock, mock_openai_response: dict, tmp_path: Path
+    ) -> None:
         """Insights JSON has exact required structure."""
         from ado_git_repo_insights.ml.insights import LLMInsightsGenerator
-        
+
         # Mock OpenAI client
         mock_client = Mock()
         mock_response = Mock()
         mock_response.choices = [Mock()]
         mock_response.choices[0].message.content = json.dumps(mock_openai_response)
         mock_client.chat.completions.create.return_value = mock_response
-        
-        with patch("ado_git_repo_insights.ml.insights.openai.OpenAI", return_value=mock_client), \
-             patch.dict("os.environ", {"OPENAI_API_KEY": "test-key"}):
+
+        with (
+            patch(
+                "ado_git_repo_insights.ml.insights.openai.OpenAI",
+                return_value=mock_client,
+            ),
+            patch.dict("os.environ", {"OPENAI_API_KEY": "test-key"}),
+        ):
             generator = LLMInsightsGenerator(
                 db=mock_db,
                 output_dir=tmp_path,
@@ -98,24 +105,24 @@ class TestInsightsContract:
                 dry_run=False,
             )
             success = generator.generate()
-        
+
         assert success is True
-        
+
         # Verify file exists
         insights_file = tmp_path / "insights" / "summary.json"
         assert insights_file.exists()
-        
+
         # Load and validate structure
         with insights_file.open("r") as f:
             data = json.load(f)
-        
+
         # Root fields
         assert "schema_version" in data
         assert "generated_at" in data
         assert "is_stub" in data
         assert "generated_by" in data
         assert "insights" in data
-        
+
         # Type validation
         assert isinstance(data["schema_version"], int)
         assert isinstance(data["generated_at"], str)
@@ -123,111 +130,146 @@ class TestInsightsContract:
         assert isinstance(data["generated_by"], str)
         assert isinstance(data["insights"], list)
 
-    def test_insights_contract_values(self, mock_db: Mock, mock_openai_response: dict, tmp_path: Path) -> None:
+    def test_insights_contract_values(
+        self, mock_db: Mock, mock_openai_response: dict, tmp_path: Path
+    ) -> None:
         """Insights JSON has exact contract-compliant values."""
         from ado_git_repo_insights.ml.insights import (
             GENERATOR_ID,
             INSIGHTS_SCHEMA_VERSION,
             LLMInsightsGenerator,
         )
-        
+
         mock_client = Mock()
         mock_response = Mock()
         mock_response.choices = [Mock()]
         mock_response.choices[0].message.content = json.dumps(mock_openai_response)
         mock_client.chat.completions.create.return_value = mock_response
-        
-        with patch("ado_git_repo_insights.ml.insights.openai.OpenAI", return_value=mock_client), \
-             patch.dict("os.environ", {"OPENAI_API_KEY": "test-key"}):
+
+        with (
+            patch(
+                "ado_git_repo_insights.ml.insights.openai.OpenAI",
+                return_value=mock_client,
+            ),
+            patch.dict("os.environ", {"OPENAI_API_KEY": "test-key"}),
+        ):
             generator = LLMInsightsGenerator(db=mock_db, output_dir=tmp_path)
             generator.generate()
-        
+
         insights_file = tmp_path / "insights" / "summary.json"
         with insights_file.open("r") as f:
             data = json.load(f)
-        
+
         # Contract values
         assert data["schema_version"] == INSIGHTS_SCHEMA_VERSION
         assert data["schema_version"] == 1  # Locked value
         assert data["is_stub"] is False  # Real ML, not stub
         assert data["generated_by"] == GENERATOR_ID
-        
+
         # Timestamp format
         datetime.fromisoformat(data["generated_at"])  # Should not raise
 
-    def test_insight_category_enums(self, mock_db: Mock, mock_openai_response: dict, tmp_path: Path) -> None:
+    def test_insight_category_enums(
+        self, mock_db: Mock, mock_openai_response: dict, tmp_path: Path
+    ) -> None:
         """Insight categories match exact contract enums."""
         from ado_git_repo_insights.ml.insights import LLMInsightsGenerator
-        
+
         valid_categories = {"bottleneck", "trend", "anomaly"}
-        
+
         mock_client = Mock()
         mock_response = Mock()
         mock_response.choices = [Mock()]
         mock_response.choices[0].message.content = json.dumps(mock_openai_response)
         mock_client.chat.completions.create.return_value = mock_response
-        
-        with patch("ado_git_repo_insights.ml.insights.openai.OpenAI", return_value=mock_client), \
-             patch.dict("os.environ", {"OPENAI_API_KEY": "test-key"}):
+
+        with (
+            patch(
+                "ado_git_repo_insights.ml.insights.openai.OpenAI",
+                return_value=mock_client,
+            ),
+            patch.dict("os.environ", {"OPENAI_API_KEY": "test-key"}),
+        ):
             generator = LLMInsightsGenerator(db=mock_db, output_dir=tmp_path)
             generator.generate()
-        
+
         insights_file = tmp_path / "insights" / "summary.json"
         with insights_file.open("r") as f:
             data = json.load(f)
-        
+
         for insight in data["insights"]:
             assert insight["category"] in valid_categories
 
-    def test_insight_severity_enums(self, mock_db: Mock, mock_openai_response: dict, tmp_path: Path) -> None:
+    def test_insight_severity_enums(
+        self, mock_db: Mock, mock_openai_response: dict, tmp_path: Path
+    ) -> None:
         """Insight severities match exact contract enums."""
         from ado_git_repo_insights.ml.insights import LLMInsightsGenerator
-        
+
         valid_severities = {"info", "warning", "critical"}
-        
+
         mock_client = Mock()
         mock_response = Mock()
         mock_response.choices = [Mock()]
         mock_response.choices[0].message.content = json.dumps(mock_openai_response)
         mock_client.chat.completions.create.return_value = mock_response
-        
-        with patch("ado_git_repo_insights.ml.insights.openai.OpenAI", return_value=mock_client), \
-             patch.dict("os.environ", {"OPENAI_API_KEY": "test-key"}):
+
+        with (
+            patch(
+                "ado_git_repo_insights.ml.insights.openai.OpenAI",
+                return_value=mock_client,
+            ),
+            patch.dict("os.environ", {"OPENAI_API_KEY": "test-key"}),
+        ):
             generator = LLMInsightsGenerator(db=mock_db, output_dir=tmp_path)
             generator.generate()
-        
+
         insights_file = tmp_path / "insights" / "summary.json"
         with insights_file.open("r") as f:
             data = json.load(f)
-        
+
         for insight in data["insights"]:
             assert insight["severity"] in valid_severities
 
-    def test_insight_required_fields(self, mock_db: Mock, mock_openai_response: dict, tmp_path: Path) -> None:
+    def test_insight_required_fields(
+        self, mock_db: Mock, mock_openai_response: dict, tmp_path: Path
+    ) -> None:
         """Each insight has all required fields."""
         from ado_git_repo_insights.ml.insights import LLMInsightsGenerator
-        
+
         mock_client = Mock()
         mock_response = Mock()
         mock_response.choices = [Mock()]
         mock_response.choices[0].message.content = json.dumps(mock_openai_response)
         mock_client.chat.completions.create.return_value = mock_response
-        
-        with patch("ado_git_repo_insights.ml.insights.openai.OpenAI", return_value=mock_client), \
-             patch.dict("os.environ", {"OPENAI_API_KEY": "test-key"}):
+
+        with (
+            patch(
+                "ado_git_repo_insights.ml.insights.openai.OpenAI",
+                return_value=mock_client,
+            ),
+            patch.dict("os.environ", {"OPENAI_API_KEY": "test-key"}),
+        ):
             generator = LLMInsightsGenerator(db=mock_db, output_dir=tmp_path)
             generator.generate()
-        
+
         insights_file = tmp_path / "insights" / "summary.json"
         with insights_file.open("r") as f:
             data = json.load(f)
-        
-        required_fields = ["id", "category", "severity", "title", "description", "affected_entities"]
-        
+
+        required_fields = [
+            "id",
+            "category",
+            "severity",
+            "title",
+            "description",
+            "affected_entities",
+        ]
+
         for insight in data["insights"]:
             for field in required_fields:
                 assert field in insight, f"Missing required field: {field}"
-            
+
             # Type validation
             assert isinstance(insight["id"], str)
             assert isinstance(insight["category"], str)
@@ -236,39 +278,51 @@ class TestInsightsContract:
             assert isinstance(insight["description"], str)
             assert isinstance(insight["affected_entities"], list)
 
-    def test_deterministic_ids(self, mock_db: Mock, mock_openai_response: dict, tmp_path: Path) -> None:
+    def test_deterministic_ids(
+        self, mock_db: Mock, mock_openai_response: dict, tmp_path: Path
+    ) -> None:
         """Insight IDs are deterministic based on data, not random."""
         from ado_git_repo_insights.ml.insights import LLMInsightsGenerator
-        
+
         mock_client = Mock()
         mock_response = Mock()
         mock_response.choices = [Mock()]
         mock_response.choices[0].message.content = json.dumps(mock_openai_response)
         mock_client.chat.completions.create.return_value = mock_response
-        
-        with patch("ado_git_repo_insights.ml.insights.openai.OpenAI", return_value=mock_client), \
-             patch.dict("os.environ", {"OPENAI_API_KEY": "test-key"}):
+
+        with (
+            patch(
+                "ado_git_repo_insights.ml.insights.openai.OpenAI",
+                return_value=mock_client,
+            ),
+            patch.dict("os.environ", {"OPENAI_API_KEY": "test-key"}),
+        ):
             generator = LLMInsightsGenerator(db=mock_db, output_dir=tmp_path)
             generator.generate()
-        
+
         insights_file = tmp_path / "insights" / "summary.json"
         with insights_file.open("r") as f:
             data1 = json.load(f)
-        
+
         # Generate again (cache will be hit, but IDs should be same)
-        with patch("ado_git_repo_insights.ml.insights.openai.OpenAI", return_value=mock_client), \
-             patch.dict("os.environ", {"OPENAI_API_KEY": "test-key"}):
+        with (
+            patch(
+                "ado_git_repo_insights.ml.insights.openai.OpenAI",
+                return_value=mock_client,
+            ),
+            patch.dict("os.environ", {"OPENAI_API_KEY": "test-key"}),
+        ):
             generator2 = LLMInsightsGenerator(db=mock_db, output_dir=tmp_path)
             generator2.generate()
-        
+
         with insights_file.open("r") as f:
             data2 = json.load(f)
-        
+
         # IDs should be identical
         ids1 = [insight["id"] for insight in data1["insights"]]
         ids2 = [insight["id"] for insight in data2["insights"]]
         assert ids1 == ids2
-        
+
         # IDs should follow pattern: {category}-{hash}
         for insight in data1["insights"]:
             assert insight["id"].startswith(insight["category"] + "-")
@@ -276,7 +330,7 @@ class TestInsightsContract:
     def test_dry_run_no_file_written(self, mock_db: Mock, tmp_path: Path) -> None:
         """Dry-run mode writes prompt artifact but NOT summary.json."""
         from ado_git_repo_insights.ml.insights import LLMInsightsGenerator
-        
+
         # Dry-run doesn't need API key
         generator = LLMInsightsGenerator(
             db=mock_db,
@@ -284,14 +338,14 @@ class TestInsightsContract:
             dry_run=True,
         )
         success = generator.generate()
-        
+
         # Should return False (no summary written)
         assert success is False
-        
+
         # Prompt artifact should exist
         prompt_file = tmp_path / "insights" / "prompt.json"
         assert prompt_file.exists()
-        
+
         # Summary should NOT be written
         insights_file = tmp_path / "insights" / "summary.json"
         assert not insights_file.exists()
@@ -299,7 +353,7 @@ class TestInsightsContract:
     def test_affected_entities_enforcement(self, mock_db: Mock, tmp_path: Path) -> None:
         """affected_entities is enforced even if LLM omits it."""
         from ado_git_repo_insights.ml.insights import LLMInsightsGenerator
-        
+
         # Mock response WITHOUT affected_entities
         mock_response_data = {
             "insights": [
@@ -313,22 +367,27 @@ class TestInsightsContract:
                 }
             ]
         }
-        
+
         mock_client = Mock()
         mock_response = Mock()
         mock_response.choices = [Mock()]
         mock_response.choices[0].message.content = json.dumps(mock_response_data)
         mock_client.chat.completions.create.return_value = mock_response
-        
-        with patch("ado_git_repo_insights.ml.insights.openai.OpenAI", return_value=mock_client), \
-             patch.dict("os.environ", {"OPENAI_API_KEY": "test-key"}):
+
+        with (
+            patch(
+                "ado_git_repo_insights.ml.insights.openai.OpenAI",
+                return_value=mock_client,
+            ),
+            patch.dict("os.environ", {"OPENAI_API_KEY": "test-key"}),
+        ):
             generator = LLMInsightsGenerator(db=mock_db, output_dir=tmp_path)
             generator.generate()
-        
+
         insights_file = tmp_path / "insights" / "summary.json"
         with insights_file.open("r") as f:
             data = json.load(f)
-        
+
         # affected_entities should be enforced as empty array
         for insight in data["insights"]:
             assert "affected_entities" in insight

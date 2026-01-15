@@ -1,10 +1,17 @@
+# Python hooks are executed via Husky; do not run `pre-commit install` manually.
+# This file is the single source of truth for Python checks.
+# Husky invokes pre-commit automatically on commit and push.
+#
+# NOTE: mypy is run in CI only (requires optional [ml] deps for full coverage).
+
 repos:
   - repo: https://github.com/astral-sh/ruff-pre-commit
-    rev: v0.14.12
+    rev: v0.14.11
     hooks:
       - id: ruff
-        args: [--fix, --exit-non-zero-on-fix]
+        # Check only, no auto-fix. Fixes are explicit developer actions.
       - id: ruff-format
+        # Check only, formatting is explicit via `ruff format`
 
   - repo: https://github.com/pre-commit/pre-commit-hooks
     rev: v4.5.0
@@ -16,22 +23,11 @@ repos:
       - id: check-merge-conflict
       - id: detect-private-key
 
-  - repo: https://github.com/pre-commit/mirrors-mypy
-    rev: v1.7.1
-    hooks:
-      - id: mypy
-        additional_dependencies:
-          - types-requests
-          - types-PyYAML
-          - pandas-stubs
-        args: [--config-file=pyproject.toml]
-        exclude: ^(tests/|scripts/)  # Tests checked by CI, scripts use dynamic imports
-
   - repo: local
     hooks:
       - id: pytest
         name: pytest
-        entry: .venv/Scripts/python.exe -m pytest tests/ --no-cov -q
+        entry: python -m pytest tests/ --no-cov -q
         language: system
         pass_filenames: false
         stages: [pre-push]

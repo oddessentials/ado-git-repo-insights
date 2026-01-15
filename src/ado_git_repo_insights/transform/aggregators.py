@@ -225,9 +225,7 @@ class AggregateGenerator:
             # Legacy enable_ml_stubs (LOUD WARNING - maps to stub mode)
             elif self.enable_ml_stubs:
                 # Hard warning to prevent accidental stub usage in production
-                logger.warning(
-                    "=" * 80
-                )
+                logger.warning("=" * 80)
                 logger.warning(
                     "WARNING: --enable-ml-stubs is DEPRECATED and generates "
                     "STUB DATA with is_stub:true"
@@ -238,9 +236,7 @@ class AggregateGenerator:
                 logger.warning(
                     "To explicitly use stubs for testing, use --stub-mode instead."
                 )
-                logger.warning(
-                    "=" * 80
-                )
+                logger.warning("=" * 80)
 
                 pred_gen = PredictionGenerator(self.output_dir, self.seed_base)
                 pred_gen.generate()
@@ -356,7 +352,9 @@ class AggregateGenerator:
             logger.error(
                 "OpenAI SDK not installed. Install ML extras: pip install -e '.[ml]'"
             )
-            raise AggregationError("OpenAI SDK required for --enable-insights") from None
+            raise AggregationError(
+                "OpenAI SDK required for --enable-insights"
+            ) from None
 
         try:
             insights_gen = LLMInsightsGenerator(

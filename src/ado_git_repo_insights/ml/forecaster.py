@@ -90,7 +90,9 @@ class ProphetForecaster:
 
         if df.empty:
             # No data - write empty forecasts
-            logger.info("No PR data available for predictions - writing empty forecasts")
+            logger.info(
+                "No PR data available for predictions - writing empty forecasts"
+            )
             return self._write_predictions(forecasts=[])
 
         # Try to import prophet
@@ -228,9 +230,7 @@ class ProphetForecaster:
         if today.weekday() == 0:
             next_monday = today
 
-        future_dates = [
-            next_monday + timedelta(weeks=i) for i in range(HORIZON_WEEKS)
-        ]
+        future_dates = [next_monday + timedelta(weeks=i) for i in range(HORIZON_WEEKS)]
         future_df = pd.DataFrame({"ds": pd.to_datetime(future_dates)})
 
         # Predict

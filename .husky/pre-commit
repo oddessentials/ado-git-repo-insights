@@ -1,13 +1,30 @@
 #!/bin/sh
-# Pre-commit hook: Fast lint checks only
-# Full tests run on pre-push
+# Pre-commit hook: Invoke pre-commit framework for Python checks
+# Python hooks are executed via Husky; do not run `pre-commit install` manually
 
-echo "[pre-commit] Running pre-commit checks..."
-
-# Python linting (if python files changed)
+# Check if any Python files are staged
 if git diff --cached --name-only | grep -q '\.py$'; then
-    echo "[pre-commit] Python files changed, running ruff..."
-    ruff check src/ tests/ --fix || exit 1
-fi
+    echo "[pre-commit] Python files staged, running pre-commit checks..."
 
-echo "[pre-commit] ✅ Pre-commit checks passed"
+    # Detect pre-commit installation
+    if command -v pre-commit >/dev/null 2>&1; then
+        PRE_COMMIT="pre-commit"
+    elif [ -f ".venv/Scripts/pre-commit.exe" ]; then
+        PRE_COMMIT=".venv/Scripts/pre-commit.exe"
+    elif [ -f ".venv/bin/pre-commit" ]; then
+        PRE_COMMIT=".venv/bin/pre-commit"
+    else
+        echo ""
+        echo "[pre-commit] ❌ pre-commit not found!"
+        echo "[pre-commit] Install with: pip install pre-commit"
+        echo "[pre-commit] Or activate your venv: source .venv/bin/activate (Linux) or .venv\\Scripts\\activate (Windows)"
+        exit 1
+    fi
+
+    # Run pre-commit on staged files only (commit stage)
+    $PRE_COMMIT run --hook-stage pre-commit || exit 1
+
+    echo "[pre-commit] ✅ Python checks passed"
+else
+    echo "[pre-commit] No Python files staged, skipping Python checks"
+fi

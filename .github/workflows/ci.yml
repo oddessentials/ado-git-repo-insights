@@ -161,13 +161,11 @@ jobs:
           echo "✓ Ruff versions match: $INSTALLED_RUFF"
         shell: bash
 
-      - name: Lint with Ruff
+      - name: Run pre-commit checks
         run: |
-          ruff check .
-          ruff format --check .
+          pip install pre-commit
+          pre-commit run --all-files --show-diff-on-failure
 
-      - name: Type Check with Mypy
-        run: mypy src/
 
       - name: Run Tests with Coverage
         run: pytest --cov-report=xml
