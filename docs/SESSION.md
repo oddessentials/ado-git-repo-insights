@@ -68,9 +68,10 @@ All objectives implemented and verified:
 
 | Document | Purpose |
 |----------|---------|
-| [agents/INVARIANTS.md](agents/INVARIANTS.md) | 25 invariants |
-| [agents/definition-of-done.md](agents/definition-of-done.md) | Completion criteria |
-| [agents/victory-gates.md](agents/victory-gates.md) | Verification gates |
-| [docs/runbook.md](docs/runbook.md) | Operational runbook |
+| [INVARIANTS.md](../agents/INVARIANTS.md) | 25 invariants |
+| [definition-of-done.md](../agents/definition-of-done.md) | Completion criteria |
+| [victory-gates.md](../agents/victory-gates.md) | Verification gates |
+| [runbook.md](runbook.md) | Operational runbook |
 | [EXTENSION.md](EXTENSION.md) | Extension setup |
-| [PHASE5.md](PHASE5.md) | Next phase plan |
+| [PHASE6.md](PHASE6.md) | Next phase plan |
+
