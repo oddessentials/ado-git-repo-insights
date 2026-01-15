@@ -1,13 +1,13 @@
 **Recommendation**
 
-* **Phase 5A (fast win): local HTML dashboard** (static site + tiny local server)
-* **Phase 5B (optional): TUI “ops console”** for quick summaries + health checks
+* **Phase 6A (fast win): local HTML dashboard** (static site + tiny local server)
+* **Phase 6B (optional): TUI “ops console”** for quick summaries + health checks
 
 ---
 
-## Phase 5 — Local Dashboard Experience (Short Plan)
+## Phase 6 — Local Dashboard Experience (Short Plan)
 
-### 5.1 Local “serve dashboard” command (HTML)
+### 6.1 Local “serve dashboard” command (HTML)
 
 * Add a CLI command, e.g.:
 
@@ -27,7 +27,7 @@
 * Fast initial render (loads dimensions + default date range chunks only)
 * Identical aggregate schemas as extension UI (no forked formats)
 
-### 5.2 “Build dataset locally” convenience
+### 6.2 “Build dataset locally” convenience
 
 * Add:
 
@@ -41,7 +41,7 @@
 * Deterministic outputs (same inputs → same files)
 * Easy to zip/share a dataset folder
 
-### 5.3 Optional: Local extraction + dashboard in one flow
+### 6.3 Optional: Local extraction + dashboard in one flow
 
 * `ado-insights run --org X --projects ... --include-comments` (existing)
 * followed by:
@@ -49,7 +49,7 @@
   * auto-build aggregates
   * launch dashboard automatically if `--open` is passed
 
-### 5.4 Testing requirements (keep it tight)
+### 6.4 Testing requirements (keep it tight)
 
 * Python tests:
 

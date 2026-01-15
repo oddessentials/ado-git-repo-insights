@@ -52,10 +52,8 @@ All objectives implemented and verified:
 ## Known Limitations
 
 ### Deferred to Phase 5
-- ML predictions (Prophet)
-- AI insights (LLM)
-- Team dimension extraction
-- Comments/threads extraction
+- ML predictions (Prophet) — replacing current stubs
+- AI insights (LLM) — replacing current stubs
 
 ### Operational
 - Dashboard requires Build Read permission
