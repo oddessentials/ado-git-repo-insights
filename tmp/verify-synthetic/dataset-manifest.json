@@ -1,0 +1,95 @@
+{
+  "aggregate_index": {
+    "distributions": [
+      {
+        "end_date": "2025-12-31",
+        "path": "aggregates/distributions/2025.json",
+        "size_bytes": 487,
+        "start_date": "2025-01-01",
+        "year": "2025"
+      },
+      {
+        "end_date": "2026-12-31",
+        "path": "aggregates/distributions/2026.json",
+        "size_bytes": 486,
+        "start_date": "2026-01-01",
+        "year": "2026"
+      }
+    ],
+    "weekly_rollups": [
+      {
+        "end_date": "2025-12-21",
+        "path": "aggregates/weekly_rollups/2025-W51.json",
+        "size_bytes": 232,
+        "start_date": "2025-12-15",
+        "week": "2025-W51"
+      },
+      {
+        "end_date": "2025-12-28",
+        "path": "aggregates/weekly_rollups/2025-W52.json",
+        "size_bytes": 235,
+        "start_date": "2025-12-22",
+        "week": "2025-W52"
+      },
+      {
+        "end_date": "2026-01-04",
+        "path": "aggregates/weekly_rollups/2026-W01.json",
+        "size_bytes": 234,
+        "start_date": "2025-12-29",
+        "week": "2026-W01"
+      },
+      {
+        "end_date": "2026-01-11",
+        "path": "aggregates/weekly_rollups/2026-W02.json",
+        "size_bytes": 233,
+        "start_date": "2026-01-05",
+        "week": "2026-W02"
+      }
+    ]
+  },
+  "aggregates_schema_version": 1,
+  "coverage": {
+    "comments": {
+      "status": "disabled"
+    },
+    "date_range": {
+      "max": "2026-01-14",
+      "min": "2025-12-10"
+    },
+    "row_counts": {
+      "pull_requests": 100,
+      "repositories": 8,
+      "reviewers": 0,
+      "users": 10
+    },
+    "teams_count": 2,
+    "total_prs": 100
+  },
+  "dataset_schema_version": 1,
+  "defaults": {
+    "default_date_range_days": 90
+  },
+  "features": {
+    "ai_insights": false,
+    "comments": false,
+    "predictions": false,
+    "teams": true
+  },
+  "generated_at": "2026-01-15T00:23:07.089796+00:00",
+  "insights_schema_version": 1,
+  "limits": {
+    "max_date_range_days_soft": 730
+  },
+  "manifest_schema_version": 1,
+  "operational": {
+    "artifact_size_bytes": 4829,
+    "distribution_count": 2,
+    "retention_notice": null,
+    "weekly_rollup_count": 4
+  },
+  "predictions_schema_version": 1,
+  "run_id": "synthetic-99",
+  "warnings": [
+    "SYNTHETIC TEST DATA"
+  ]
+}
