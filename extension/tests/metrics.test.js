@@ -9,50 +9,10 @@
  */
 
 describe('Metrics Collector (Phase 4)', () => {
-    let performanceBackup;
-
-    beforeAll(() => {
-        // Polyfill performance API for jsdom
-        performanceBackup = global.performance;
-        global.performance = {
-            marks: new Map(),
-            measures: [],
-            now: () => Date.now(),
-            mark(name) {
-                this.marks.set(name, this.now());
-            },
-            measure(name, start, end) {
-                const startTime = this.marks.get(start) || 0;
-                const endTime = this.marks.get(end) || this.now();
-                this.measures.push({ name, duration: endTime - startTime, entryType: 'measure' });
-            },
-            getEntriesByName(name, type) {
-                if (type === 'measure') {
-                    return this.measures.filter(m => m.name === name);
-                }
-                return [];
-            },
-            clearMarks() {
-                this.marks.clear();
-            },
-            clearMeasures() {
-                this.measures = [];
-            }
-        };
-    });
-
-    afterAll(() => {
-        global.performance = performanceBackup;
-    });
+    // Performance API polyfill is provided by tests/setup.js
 
     beforeEach(() => {
-        // Reset performance state if it exists
-        if (global.performance && global.performance.marks) {
-            global.performance.marks.clear();
-            global.performance.measures = [];
-        }
-
-        // Clear window globals
+        // Clear window/process globals for production/debug flag tests
         delete global.window;
         delete global.process;
     });
@@ -117,13 +77,12 @@ describe('Metrics Collector (Phase 4)', () => {
     });
 
     it('Metrics collector mark() creates performance mark', () => {
-        // Simulate debug-enabled collector
+        // Test collector behavior with our polyfill (no guards needed in test env)
         const collector = {
             marks: new Map(),
             mark(name) {
-                if (!performance || !performance.mark) return;
-                performance.mark(name);
-                this.marks.set(name, performance.now());
+                global.performance.mark(name);
+                this.marks.set(name, global.performance.now());
             }
         };
 
@@ -134,16 +93,17 @@ describe('Metrics Collector (Phase 4)', () => {
     });
 
     it('Metrics collector measure() creates performance measure', () => {
+        // Test collector behavior with our polyfill (no guards needed in test env)
         const collector = {
             marks: new Map(),
             measures: [],
             mark(name) {
-                performance.mark(name);
-                this.marks.set(name, performance.now());
+                global.performance.mark(name);
+                this.marks.set(name, global.performance.now());
             },
             measure(name, startMark, endMark) {
-                performance.measure(name, startMark, endMark);
-                const entries = performance.getEntriesByName(name, 'measure');
+                global.performance.measure(name, startMark, endMark);
+                const entries = global.performance.getEntriesByName(name, 'measure');
                 if (entries.length > 0) {
                     this.measures.push({
                         name,
@@ -164,18 +124,19 @@ describe('Metrics Collector (Phase 4)', () => {
     });
 
     it('Metrics collector reset() clears all metrics', () => {
+        // Test collector behavior with our polyfill (no guards needed in test env)
         const collector = {
             marks: new Map(),
             measures: [],
             mark(name) {
-                performance.mark(name);
-                this.marks.set(name, performance.now());
+                global.performance.mark(name);
+                this.marks.set(name, global.performance.now());
             },
             reset() {
                 this.marks.clear();
                 this.measures = [];
-                if (performance && performance.clearMarks) performance.clearMarks();
-                if (performance && performance.clearMeasures) performance.clearMeasures();
+                global.performance.clearMarks();
+                global.performance.clearMeasures();
             }
         };
 

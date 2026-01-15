@@ -18,6 +18,30 @@ describe('Synthetic Fixture Consumer Validation', () => {
         ensureDir(fixtureDir);
     });
 
+    beforeEach(() => {
+        // Configure fetch mock to read file:// URLs from disk
+        global.fetch.mockImplementation(async (url) => {
+            if (url.startsWith('file://')) {
+                const filePath = url.replace('file://', '');
+                try {
+                    const content = fs.readFileSync(filePath, 'utf-8');
+                    return {
+                        ok: true,
+                        status: 200,
+                        json: async () => JSON.parse(content)
+                    };
+                } catch (err) {
+                    if (err.code === 'ENOENT') {
+                        return { ok: false, status: 404, statusText: 'Not Found' };
+                    }
+                    throw err;
+                }
+            }
+            // Non-file URLs return 404 by default
+            return { ok: false, status: 404, statusText: 'Not Found' };
+        });
+    });
+
     /**
      * Generate a synthetic fixture on-demand.
      */
