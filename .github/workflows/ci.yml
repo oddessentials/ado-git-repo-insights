@@ -36,6 +36,52 @@ jobs:
         # Warn-only mode: don't block PRs, just report
         continue-on-error: true
 
+  # Guard: Detect CRLF in files that run in Unix CI
+  line-ending-guard:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Check for CRLF in Unix-executed files
+        run: |
+          set -euo pipefail
+          echo "Scanning for CRLF line endings in CI-executed files..."
+
+          FOUND_CRLF=false
+
+          # Check Husky hooks
+          if grep -rlI $'\r' .husky/ 2>/dev/null; then
+            echo "::error::CRLF detected in .husky/"
+            FOUND_CRLF=true
+          fi
+
+          # Check shell scripts
+          if find . -name "*.sh" -type f | xargs grep -lI $'\r' 2>/dev/null; then
+            echo "::error::CRLF detected in *.sh files"
+            FOUND_CRLF=true
+          fi
+
+          # Check .github/scripts
+          if grep -rlI $'\r' .github/scripts/ 2>/dev/null; then
+            echo "::error::CRLF detected in .github/scripts/"
+            FOUND_CRLF=true
+          fi
+
+          # Check scripts directory
+          if grep -rlI $'\r' scripts/ 2>/dev/null; then
+            echo "::error::CRLF detected in scripts/"
+            FOUND_CRLF=true
+          fi
+
+          if [[ "$FOUND_CRLF" == "true" ]]; then
+            echo ""
+            echo "::error::CRLF line endings found in files that run in CI."
+            echo "Fix: Run 'git add --renormalize .' after adding .gitattributes"
+            exit 1
+          fi
+
+          echo "✓ No CRLF detected in Unix-executed files"
+
   # Guard: Block task Major changes without explicit marker
   task-major-guard:
     runs-on: ubuntu-latest

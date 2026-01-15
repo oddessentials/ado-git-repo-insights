@@ -1,0 +1,46 @@
+# Default: auto-detect text files, normalize to LF in repo
+* text=auto eol=lf
+
+# ─────────────────────────────────────────────────────────
+# SCRIPTS: Must always be LF (executed in Unix CI)
+# ─────────────────────────────────────────────────────────
+*.sh text eol=lf
+*.bash text eol=lf
+*.zsh text eol=lf
+.husky/* text eol=lf
+.github/** text eol=lf
+scripts/** text eol=lf
+
+# ─────────────────────────────────────────────────────────
+# CODE: LF for cross-platform consistency
+# ─────────────────────────────────────────────────────────
+*.py text eol=lf
+*.js text eol=lf
+*.ts text eol=lf
+*.json text eol=lf
+*.yml text eol=lf
+*.yaml text eol=lf
+*.md text eol=lf
+*.html text eol=lf
+*.css text eol=lf
+
+# ─────────────────────────────────────────────────────────
+# WINDOWS-SPECIFIC: CRLF where required
+# ─────────────────────────────────────────────────────────
+*.bat text eol=crlf
+*.cmd text eol=crlf
+*.ps1 text eol=crlf
+
+# ─────────────────────────────────────────────────────────
+# BINARIES: Never normalize (prevents corruption)
+# ─────────────────────────────────────────────────────────
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.ico binary
+*.pdf binary
+*.vsix binary
+*.whl binary
+*.tar.gz binary
+*.zip binary

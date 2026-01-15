@@ -203,6 +203,22 @@ mypy src/
 pytest
 ```
 
+## Contributing
+
+### Line Endings (Windows Developers)
+
+This repo uses LF line endings for cross-platform compatibility. The `.gitattributes` file handles this automatically, but for best results:
+
+```bash
+# Recommended: Let .gitattributes be the source of truth
+git config core.autocrlf false
+
+# Alternative: Convert on commit (but not checkout)
+git config core.autocrlf input
+```
+
+If you see "CRLF will be replaced by LF" warnings, that's expected behavior.
+
 ## License
 
 MIT
