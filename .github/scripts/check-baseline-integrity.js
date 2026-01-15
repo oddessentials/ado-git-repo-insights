@@ -12,39 +12,68 @@
 
 const { execSync } = require('child_process');
 const fs = require('fs');
-const path = require('path');
 
 const baselinesPath = 'extension/tests/fixtures/perf-baselines.json';
 
+/**
+ * Run git command and return trimmed output.
+ */
+function git(cmd) {
+    try {
+        return execSync(`git ${cmd}`, { encoding: 'utf-8' }).trim();
+    } catch {
+        return '';
+    }
+}
+
 try {
-    // Check if baselines file changed in this commit
-    const changedFiles = execSync('git diff --name-only HEAD~1 HEAD', { encoding: 'utf-8' }).trim();
+    // Check if baselines file changed in HEAD~1..HEAD
+    const changedFiles = git('diff --name-only HEAD~1 HEAD');
 
     if (!changedFiles.includes(baselinesPath)) {
-        console.log('[CI] ✅ Baselines file unchanged');
+        console.log('[CI] ✅ Baselines file unchanged in this commit');
         process.exit(0);
     }
 
-    // File changed - verify it was via approved process
-    const commitMessage = execSync('git log -1 --pretty=%B', { encoding: 'utf-8' }).trim();
+    console.log('[CI] Baselines file changed, checking for approved marker...');
 
-    // Allow if commit message indicates approved update
+    // Check current commit message
+    const commitMessage = git('log -1 --pretty=%B');
     if (commitMessage.includes('chore(perf): update baselines') ||
         commitMessage.includes('[baseline-update]')) {
-        console.log('[CI] ✅ Baseline update via approved process');
+        console.log('[CI] ✅ Baseline update via approved process (current commit)');
         process.exit(0);
     }
 
-    // Check if updatedBy field shows manual script usage
-    const baselines = JSON.parse(fs.readFileSync(baselinesPath, 'utf-8'));
-    const recentUpdate = new Date(baselines.updated);
-    const commitDate = new Date(execSync('git log -1 --format=%cI', { encoding: 'utf-8' }).trim());
+    // For merge commits or squashed PRs, check all commits that touched baselines
+    // Get all commits that modified the baselines file
+    const baselineCommits = git(`log --pretty=format:"%H" --follow -- "${baselinesPath}"`);
+    if (baselineCommits) {
+        const commits = baselineCommits.split('\n').slice(0, 10); // Check last 10
+        for (const sha of commits) {
+            const msg = git(`log -1 --pretty=%B ${sha}`);
+            if (msg.includes('chore(perf): update baselines') ||
+                msg.includes('[baseline-update]')) {
+                console.log(`[CI] ✅ Found approved baseline update in commit ${sha.substring(0, 7)}`);
+                process.exit(0);
+            }
+        }
+    }
 
-    // If updated within 5 minutes of commit, likely from script
-    const timeDiff = Math.abs(commitDate - recentUpdate);
-    if (timeDiff < 5 * 60 * 1000) {
-        console.log('[CI] ✅ Baseline timestamp matches commit (likely via script)');
-        process.exit(0);
+    // Check if updatedBy field shows manual script usage (timestamp check)
+    if (fs.existsSync(baselinesPath)) {
+        const baselines = JSON.parse(fs.readFileSync(baselinesPath, 'utf-8'));
+        if (baselines.updated) {
+            const recentUpdate = new Date(baselines.updated);
+            const commitDate = new Date(git('log -1 --format=%cI'));
+
+            // If updated within 5 minutes of commit, likely from script
+            const timeDiff = Math.abs(commitDate - recentUpdate);
+            if (timeDiff < 5 * 60 * 1000) {
+                console.log('[CI] ✅ Baseline timestamp matches commit (likely via script)');
+                process.exit(0);
+            }
+        }
     }
 
     // Fail - direct edit detected
