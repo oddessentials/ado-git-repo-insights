@@ -195,3 +195,170 @@ describe('Performance Baseline Tests (Simplified)', () => {
         fs.writeFileSync(summaryPath, JSON.stringify(summary, null, 2));
     });
 });
+
+/**
+ * Phase 4: Automated Scaling Gates
+ *
+ * Parameterized performance tests at 1k/5k/10k PRs with regression detection.
+ * Mode: 'trend' (warn) or 'absolute' (fail) based on PERF_MODE env var.
+ */
+describe.each([1000, 5000, 10000])('Scaling Performance at %d PRs', (prCount) => {
+    const perfFixturesDir = path.join(__dirname, '..', '..', 'tmp', 'perf-fixtures');
+    const baselinesPath = path.join(__dirname, 'fixtures', 'perf-baselines.json');
+    const warmupRuns = 2;
+    const measureRuns = 3;
+    const regressionThreshold = 0.20;
+    const mode = process.env.PERF_MODE || 'trend';
+
+    let baselines = {};
+
+    beforeAll(() => {
+        // Load committed baselines
+        if (fs.existsSync(baselinesPath)) {
+            baselines = JSON.parse(fs.readFileSync(baselinesPath, 'utf-8'));
+        }
+    });
+
+    /**
+     * Measure with warm-up and averaging
+     */
+    function measureWithWarmup(operation) {
+        const times = [];
+
+        // Warmup
+        for (let i = 0; i < warmupRuns; i++) {
+            operation();
+        }
+
+        // GC between runs if available
+        if (global.gc) global.gc();
+
+        // Measure
+        for (let i = 0; i < measureRuns; i++) {
+            const start = performance.now();
+            operation();
+            const end = performance.now();
+            times.push(end - start);
+            if (global.gc) global.gc();
+        }
+
+        // Return median
+        times.sort((a, b) => a - b);
+        return times[Math.floor(times.length / 2)];
+    }
+
+    /**
+     * Check regression against baseline
+     */
+    function checkRegression(testName, actual, baseline) {
+        if (!baseline) {
+            console.warn(`[PERF] No baseline for ${testName}, recording: ${actual.toFixed(2)}ms`);
+            return;
+        }
+
+        const regression = (actual - baseline) / baseline;
+        const message = `[PERF] ${testName}: ${actual.toFixed(2)}ms vs baseline ${baseline.toFixed(2)}ms (${(regression * 100).toFixed(1)}% change)`;
+
+        if (regression > regressionThreshold) {
+            if (mode === 'absolute') {
+                throw new Error(`${message} - REGRESSION DETECTED`);
+            } else {
+                console.warn(`${message} - WARNING`);
+            }
+        } else {
+            console.log(message);
+        }
+    }
+
+    test(`${prCount} PR fixture generation within budget`, () => {
+        const fixtureDir = path.join(perfFixturesDir, `${prCount}pr`);
+        const scriptPath = path.join(__dirname, '..', '..', 'scripts', 'generate-synthetic-dataset.py');
+
+        // Clean previous run
+        if (fs.existsSync(fixtureDir)) {
+            fs.rmSync(fixtureDir, { recursive: true, force: true });
+        }
+
+        const duration = measureWithWarmup(() => {
+            execSync(
+                `python "${scriptPath}" --pr-count ${prCount} --seed 42 --output "${fixtureDir}"`,
+                { stdio: 'pipe' }
+            );
+        });
+
+        // Budget scales linearly with PR count
+        const budget = (5000 * (prCount / 1000)) * 2; // 2x tolerance
+        expect(duration).toBeLessThan(budget);
+
+        // Check regression
+        const baselineKey = `${prCount}pr_fixture_gen_ms`;
+        const baseline = baselines.metrics?.[baselineKey];
+        checkRegression(`${prCount}pr-fixture-gen`, duration, baseline);
+
+        console.log(JSON.stringify({
+            test: `fixture_generation_${prCount}pr`,
+            duration_ms: duration,
+            budget_ms: budget,
+            baseline_ms: baseline || 'N/A'
+        }));
+    }, 60000); // 60s timeout for large fixtures
+
+    test(`${prCount} PR manifest parse within budget`, () => {
+        const fixtureDir = path.join(perfFixturesDir, `${prCount}pr`);
+        const manifestPath = path.join(fixtureDir, 'dataset-manifest.json');
+
+        // Generate if not exists
+        if (!fs.existsSync(manifestPath)) {
+            const scriptPath = path.join(__dirname, '..', '..', 'scripts', 'generate-synthetic-dataset.py');
+            execSync(
+                `python "${scriptPath}" --pr-count ${prCount} --seed 42 --output "${fixtureDir}"`,
+                { stdio: 'pipe' }
+            );
+        }
+
+        const duration = measureWithWarmup(() => {
+            const content = fs.readFileSync(manifestPath, 'utf-8');
+            const manifest = JSON.parse(content);
+            expect(manifest.manifest_schema_version).toBe(1);
+        });
+
+        // Manifest parse should be constant time
+        const budget = 50;
+        expect(duration).toBeLessThan(budget);
+
+        const baselineKey = `${prCount}pr_manifest_parse_ms`;
+        const baseline = baselines.metrics?.[baselineKey];
+        checkRegression(`${prCount}pr-manifest-parse`, duration, baseline);
+    });
+
+    test(`${prCount} PR bulk JSON parse scales sub-linearly`, () => {
+        const fixtureDir = path.join(perfFixturesDir, `${prCount}pr`);
+        const manifestPath = path.join(fixtureDir, 'dataset-manifest.json');
+
+        if (!fs.existsSync(manifestPath)) {
+            const scriptPath = path.join(__dirname, '..', '..', 'scripts', 'generate-synthetic-dataset.py');
+            execSync(
+                `python "${scriptPath}" --pr-count ${prCount} --seed 42 --output "${fixtureDir}"`,
+                { stdio: 'pipe' }
+            );
+        }
+
+        const manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf-8'));
+
+        const duration = measureWithWarmup(() => {
+            for (const entry of manifest.aggregate_index.weekly_rollups) {
+                const rollupPath = path.join(fixtureDir, entry.path);
+                const rollupData = JSON.parse(fs.readFileSync(rollupPath, 'utf-8'));
+                expect(rollupData.week).toBeDefined();
+            }
+        });
+
+        // Budget scales sub-linearly: O(sqrt(n))
+        const budget = 500 * Math.sqrt(prCount / 1000);
+        expect(duration).toBeLessThan(budget);
+
+        const baselineKey = `${prCount}pr_bulk_parse_ms`;
+        const baseline = baselines.metrics?.[baselineKey];
+        checkRegression(`${prCount}pr-bulk-parse`, duration, baseline);
+    });
+});

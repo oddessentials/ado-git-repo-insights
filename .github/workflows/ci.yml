@@ -198,3 +198,19 @@ jobs:
       - name: Run Extension UI Tests
         working-directory: extension
         run: npm test
+
+  # Phase 4: Performance baseline integrity guard
+  baseline-integrity:
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 2  # Need previous commit for diff
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Check Baseline Integrity
+        run: node .github/scripts/check-baseline-integrity.js
