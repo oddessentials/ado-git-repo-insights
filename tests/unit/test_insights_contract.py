@@ -3,14 +3,17 @@
 These tests validate the EXACT JSON output schema against the Phase 5 contract.
 They are a HARD RELEASE GATE - any failures block merge.
 
-Tests use mocked OpenAI to avoid requiring [ml] extras in base CI.
+Tests use sys.modules patching to inject fake openai module, avoiding [ml] extras
+in base CI while ensuring tests work regardless of whether openai is installed.
 """
 
 from __future__ import annotations
 
 import json
+import sys
 from datetime import datetime
 from pathlib import Path
+from types import ModuleType
 from typing import Any
 from unittest.mock import Mock, patch
 
@@ -77,24 +80,30 @@ class TestInsightsContract:
             ]
         }
 
-    def test_insights_schema_structure(
-        self, mock_db: Mock, mock_openai_response: dict, tmp_path: Path
-    ) -> None:
-        """Insights JSON has exact required structure."""
-        from ado_git_repo_insights.ml.insights import LLMInsightsGenerator
+    @pytest.fixture
+    def fake_openai_module(self, mock_openai_response: dict[str, Any]) -> ModuleType:
+        """Create a fake openai module with mock OpenAI client."""
+        fake_module = ModuleType("openai")
 
-        # Mock OpenAI client
+        # Create mock client
         mock_client = Mock()
         mock_response = Mock()
         mock_response.choices = [Mock()]
         mock_response.choices[0].message.content = json.dumps(mock_openai_response)
         mock_client.chat.completions.create.return_value = mock_response
 
+        # OpenAI class returns the mock client
+        fake_module.OpenAI = Mock(return_value=mock_client)  # type: ignore[attr-defined]
+        return fake_module
+
+    def test_insights_schema_structure(
+        self, mock_db: Mock, fake_openai_module: ModuleType, tmp_path: Path
+    ) -> None:
+        """Insights JSON has exact required structure."""
+        from ado_git_repo_insights.ml.insights import LLMInsightsGenerator
+
         with (
-            patch(
-                "ado_git_repo_insights.ml.insights.openai.OpenAI",
-                return_value=mock_client,
-            ),
+            patch.dict(sys.modules, {"openai": fake_openai_module}),
             patch.dict("os.environ", {"OPENAI_API_KEY": "test-key"}),
         ):
             generator = LLMInsightsGenerator(
@@ -131,7 +140,7 @@ class TestInsightsContract:
         assert isinstance(data["insights"], list)
 
     def test_insights_contract_values(
-        self, mock_db: Mock, mock_openai_response: dict, tmp_path: Path
+        self, mock_db: Mock, fake_openai_module: ModuleType, tmp_path: Path
     ) -> None:
         """Insights JSON has exact contract-compliant values."""
         from ado_git_repo_insights.ml.insights import (
@@ -140,17 +149,8 @@ class TestInsightsContract:
             LLMInsightsGenerator,
         )
 
-        mock_client = Mock()
-        mock_response = Mock()
-        mock_response.choices = [Mock()]
-        mock_response.choices[0].message.content = json.dumps(mock_openai_response)
-        mock_client.chat.completions.create.return_value = mock_response
-
         with (
-            patch(
-                "ado_git_repo_insights.ml.insights.openai.OpenAI",
-                return_value=mock_client,
-            ),
+            patch.dict(sys.modules, {"openai": fake_openai_module}),
             patch.dict("os.environ", {"OPENAI_API_KEY": "test-key"}),
         ):
             generator = LLMInsightsGenerator(db=mock_db, output_dir=tmp_path)
@@ -170,24 +170,15 @@ class TestInsightsContract:
         datetime.fromisoformat(data["generated_at"])  # Should not raise
 
     def test_insight_category_enums(
-        self, mock_db: Mock, mock_openai_response: dict, tmp_path: Path
+        self, mock_db: Mock, fake_openai_module: ModuleType, tmp_path: Path
     ) -> None:
         """Insight categories match exact contract enums."""
         from ado_git_repo_insights.ml.insights import LLMInsightsGenerator
 
         valid_categories = {"bottleneck", "trend", "anomaly"}
 
-        mock_client = Mock()
-        mock_response = Mock()
-        mock_response.choices = [Mock()]
-        mock_response.choices[0].message.content = json.dumps(mock_openai_response)
-        mock_client.chat.completions.create.return_value = mock_response
-
         with (
-            patch(
-                "ado_git_repo_insights.ml.insights.openai.OpenAI",
-                return_value=mock_client,
-            ),
+            patch.dict(sys.modules, {"openai": fake_openai_module}),
             patch.dict("os.environ", {"OPENAI_API_KEY": "test-key"}),
         ):
             generator = LLMInsightsGenerator(db=mock_db, output_dir=tmp_path)
@@ -201,24 +192,15 @@ class TestInsightsContract:
             assert insight["category"] in valid_categories
 
     def test_insight_severity_enums(
-        self, mock_db: Mock, mock_openai_response: dict, tmp_path: Path
+        self, mock_db: Mock, fake_openai_module: ModuleType, tmp_path: Path
     ) -> None:
         """Insight severities match exact contract enums."""
         from ado_git_repo_insights.ml.insights import LLMInsightsGenerator
 
         valid_severities = {"info", "warning", "critical"}
 
-        mock_client = Mock()
-        mock_response = Mock()
-        mock_response.choices = [Mock()]
-        mock_response.choices[0].message.content = json.dumps(mock_openai_response)
-        mock_client.chat.completions.create.return_value = mock_response
-
         with (
-            patch(
-                "ado_git_repo_insights.ml.insights.openai.OpenAI",
-                return_value=mock_client,
-            ),
+            patch.dict(sys.modules, {"openai": fake_openai_module}),
             patch.dict("os.environ", {"OPENAI_API_KEY": "test-key"}),
         ):
             generator = LLMInsightsGenerator(db=mock_db, output_dir=tmp_path)
@@ -232,22 +214,13 @@ class TestInsightsContract:
             assert insight["severity"] in valid_severities
 
     def test_insight_required_fields(
-        self, mock_db: Mock, mock_openai_response: dict, tmp_path: Path
+        self, mock_db: Mock, fake_openai_module: ModuleType, tmp_path: Path
     ) -> None:
         """Each insight has all required fields."""
         from ado_git_repo_insights.ml.insights import LLMInsightsGenerator
 
-        mock_client = Mock()
-        mock_response = Mock()
-        mock_response.choices = [Mock()]
-        mock_response.choices[0].message.content = json.dumps(mock_openai_response)
-        mock_client.chat.completions.create.return_value = mock_response
-
         with (
-            patch(
-                "ado_git_repo_insights.ml.insights.openai.OpenAI",
-                return_value=mock_client,
-            ),
+            patch.dict(sys.modules, {"openai": fake_openai_module}),
             patch.dict("os.environ", {"OPENAI_API_KEY": "test-key"}),
         ):
             generator = LLMInsightsGenerator(db=mock_db, output_dir=tmp_path)
@@ -279,22 +252,13 @@ class TestInsightsContract:
             assert isinstance(insight["affected_entities"], list)
 
     def test_deterministic_ids(
-        self, mock_db: Mock, mock_openai_response: dict, tmp_path: Path
+        self, mock_db: Mock, fake_openai_module: ModuleType, tmp_path: Path
     ) -> None:
         """Insight IDs are deterministic based on data, not random."""
         from ado_git_repo_insights.ml.insights import LLMInsightsGenerator
 
-        mock_client = Mock()
-        mock_response = Mock()
-        mock_response.choices = [Mock()]
-        mock_response.choices[0].message.content = json.dumps(mock_openai_response)
-        mock_client.chat.completions.create.return_value = mock_response
-
         with (
-            patch(
-                "ado_git_repo_insights.ml.insights.openai.OpenAI",
-                return_value=mock_client,
-            ),
+            patch.dict(sys.modules, {"openai": fake_openai_module}),
             patch.dict("os.environ", {"OPENAI_API_KEY": "test-key"}),
         ):
             generator = LLMInsightsGenerator(db=mock_db, output_dir=tmp_path)
@@ -306,10 +270,7 @@ class TestInsightsContract:
 
         # Generate again (cache will be hit, but IDs should be same)
         with (
-            patch(
-                "ado_git_repo_insights.ml.insights.openai.OpenAI",
-                return_value=mock_client,
-            ),
+            patch.dict(sys.modules, {"openai": fake_openai_module}),
             patch.dict("os.environ", {"OPENAI_API_KEY": "test-key"}),
         ):
             generator2 = LLMInsightsGenerator(db=mock_db, output_dir=tmp_path)
@@ -368,17 +329,16 @@ class TestInsightsContract:
             ]
         }
 
+        fake_openai = ModuleType("openai")
         mock_client = Mock()
         mock_response = Mock()
         mock_response.choices = [Mock()]
         mock_response.choices[0].message.content = json.dumps(mock_response_data)
         mock_client.chat.completions.create.return_value = mock_response
+        fake_openai.OpenAI = Mock(return_value=mock_client)  # type: ignore[attr-defined]
 
         with (
-            patch(
-                "ado_git_repo_insights.ml.insights.openai.OpenAI",
-                return_value=mock_client,
-            ),
+            patch.dict(sys.modules, {"openai": fake_openai}),
             patch.dict("os.environ", {"OPENAI_API_KEY": "test-key"}),
         ):
             generator = LLMInsightsGenerator(db=mock_db, output_dir=tmp_path)

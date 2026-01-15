@@ -72,10 +72,24 @@ class TestMLCLIFlags:
         # Remove API key if set
         monkeypatch.delenv("OPENAI_API_KEY", raising=False)
 
-        # Create minimal test database
+        # Create minimal valid database file so we reach the API key validation
         db_path = tmp_path / "test.db"
-        # Note: This would require a real DB or mock, simplify for now
-        # Just verify CLI parsing doesn't crash
+        # Create empty SQLite database with tables
+        import sqlite3
+
+        conn = sqlite3.connect(str(db_path))
+        conn.execute(
+            "CREATE TABLE IF NOT EXISTS pull_requests (id INTEGER PRIMARY KEY)"
+        )
+        conn.close()
+
+        output_dir = tmp_path / "output"
+        output_dir.mkdir(exist_ok=True)
+
+        # Note: This runs in a subprocess, so monkeypatch doesn't affect it.
+        # We must explicitly control the environment via env= parameter.
+        env = {k: v for k, v in os.environ.items() if k != "OPENAI_API_KEY"}
+
         result = subprocess.run(  # noqa: S603 - controlled subprocess call with known arguments
             [
                 sys.executable,
@@ -85,15 +99,22 @@ class TestMLCLIFlags:
                 "--database",
                 str(db_path),
                 "--output",
-                str(tmp_path / "output"),
+                str(output_dir),
                 "--enable-insights",
             ],
             capture_output=True,
             text=True,
             check=False,
-            env={**os.environ, "OPENAI_API_KEY": ""},  # Explicitly unset
+            env=env,
+            cwd=str(tmp_path),  # Ensure clean working directory
         )
 
         # Should fail with clear error
         assert result.returncode != 0
-        assert "OPENAI_API_KEY" in result.stderr or "OPENAI_API_KEY" in result.stdout
+        # Check stderr (logging) or stdout for the error message
+        combined_output = result.stdout + result.stderr
+        assert "OPENAI_API_KEY" in combined_output, (
+            f"Expected 'OPENAI_API_KEY' in output. Got:\n"
+            f"stdout: {result.stdout}\n"
+            f"stderr: {result.stderr}"
+        )

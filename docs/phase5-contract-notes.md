@@ -178,7 +178,7 @@ Producer sets these in `AggregateGenerator.generate_all()` (line 218-219):
 
 2. **Schema version**: Must be integer, not string. UI rejects `schema_version > 1`.
 
-3. **`is_stub` field**: 
+3. **`is_stub` field**:
    - Stubs set `is_stub: true`
    - Real ML output MUST set `is_stub: false`
    - UI renders a warning banner when `is_stub: true`

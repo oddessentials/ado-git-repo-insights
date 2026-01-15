@@ -4,12 +4,17 @@ These tests validate that insight IDs remain deterministic across:
 - Empty datasets (no PRs)
 - None DB markers
 - Repeated runs with identical data
+
+Uses sys.modules patching to inject fake openai module, ensuring tests work
+regardless of whether openai is installed.
 """
 
 from __future__ import annotations
 
 import json
+import sys
 from pathlib import Path
+from types import ModuleType
 from unittest.mock import Mock, patch
 
 
@@ -33,11 +38,14 @@ class TestEdgeCaseIDStability:
                 cursor.fetchone.return_value = {"avg_cycle": 0, "max_cycle": 0}
             elif "COUNT(DISTINCT" in query:
                 cursor.fetchone.return_value = {"cnt": 0}
+            elif "COUNT(*)" in query and "repositories" in query:
+                cursor.fetchone.return_value = {"cnt": 0}
             elif "MAX(closed_date)" in query:
                 # Empty dataset returns None
                 cursor.fetchone.return_value = {"max_closed": None, "max_updated": None}
             else:
-                cursor.fetchone.return_value = {}
+                # Default fallback with empty cnt
+                cursor.fetchone.return_value = {"cnt": 0}
             return cursor
 
         mock_db.execute = mock_execute
@@ -56,18 +64,18 @@ class TestEdgeCaseIDStability:
             ]
         }
 
+        # Create fake openai module
+        fake_openai = ModuleType("openai")
         mock_client = Mock()
         mock_response = Mock()
         mock_response.choices = [Mock()]
         mock_response.choices[0].message.content = json.dumps(mock_response_data)
         mock_client.chat.completions.create.return_value = mock_response
+        fake_openai.OpenAI = Mock(return_value=mock_client)  # type: ignore[attr-defined]
 
         # Generate twice with same empty dataset
         with (
-            patch(
-                "ado_git_repo_insights.ml.insights.openai.OpenAI",
-                return_value=mock_client,
-            ),
+            patch.dict(sys.modules, {"openai": fake_openai}),
             patch.dict("os.environ", {"OPENAI_API_KEY": "test-key"}),
         ):
             # First run
@@ -120,6 +128,8 @@ class TestEdgeCaseIDStability:
                 cursor.fetchone.return_value = {"avg_cycle": 300.0, "max_cycle": 900.0}
             elif "COUNT(DISTINCT" in query:
                 cursor.fetchone.return_value = {"cnt": 10}
+            elif "COUNT(*)" in query and "repositories" in query:
+                cursor.fetchone.return_value = {"cnt": 3}
             elif "MAX(closed_date)" in query:
                 # Stable markers
                 cursor.fetchone.return_value = {
@@ -127,7 +137,8 @@ class TestEdgeCaseIDStability:
                     "max_updated": "2026-01-15T12:00:00Z",
                 }
             else:
-                cursor.fetchone.return_value = {}
+                # Default fallback
+                cursor.fetchone.return_value = {"cnt": 0}
             return cursor
 
         mock_db.execute = mock_execute
@@ -154,18 +165,18 @@ class TestEdgeCaseIDStability:
             ]
         }
 
+        # Create fake openai module
+        fake_openai = ModuleType("openai")
         mock_client = Mock()
         mock_response = Mock()
         mock_response.choices = [Mock()]
         mock_response.choices[0].message.content = json.dumps(mock_response_data)
         mock_client.chat.completions.create.return_value = mock_response
+        fake_openai.OpenAI = Mock(return_value=mock_client)  # type: ignore[attr-defined]
 
         # Generate twice with same data
         with (
-            patch(
-                "ado_git_repo_insights.ml.insights.openai.OpenAI",
-                return_value=mock_client,
-            ),
+            patch.dict(sys.modules, {"openai": fake_openai}),
             patch.dict("os.environ", {"OPENAI_API_KEY": "test-key"}),
         ):
             # First run

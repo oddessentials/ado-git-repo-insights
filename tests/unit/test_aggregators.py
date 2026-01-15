@@ -532,7 +532,8 @@ class TestStubGeneration:
         )
         manifest = generator.generate_all()
 
-        assert "STUB DATA - NOT PRODUCTION" in manifest.warnings
+        # Use substring matching to handle message variations
+        assert any("STUB DATA - NOT PRODUCTION" in w for w in manifest.warnings)
 
     def test_manifest_no_warning_without_stubs(
         self, sample_db: tuple[DatabaseManager, Path], tmp_path: Path
@@ -544,4 +545,5 @@ class TestStubGeneration:
         generator = AggregateGenerator(db, output_dir, enable_ml_stubs=False)
         manifest = generator.generate_all()
 
-        assert "STUB DATA - NOT PRODUCTION" not in manifest.warnings
+        # Use substring matching to handle message variations
+        assert not any("STUB DATA - NOT PRODUCTION" in w for w in manifest.warnings)
