@@ -218,7 +218,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          fetch-depth: 2  # Need previous commit for diff
+          fetch-depth: 0  # Full history needed to find baseline-update commits
 
       - uses: actions/setup-node@v4
         with:
