@@ -168,7 +168,36 @@ jobs:
 
 
       - name: Run Tests with Coverage
-        run: pytest --cov-report=xml
+        id: pytest
+        run: |
+          # Run pytest and capture output for test count validation
+          python -m pytest --cov-report=xml -v 2>&1 | tee pytest_output.txt
+          PYTEST_EXIT=${PIPESTATUS[0]}
+
+          # Extract test count from pytest output
+          PASSED=$(grep -oP '\d+(?= passed)' pytest_output.txt | tail -1 || echo "0")
+          echo "Tests passed: $PASSED"
+          echo "passed_count=$PASSED" >> $GITHUB_OUTPUT
+
+          exit $PYTEST_EXIT
+        shell: bash
+
+      - name: Validate Test Count (Python)
+        if: matrix.os == 'ubuntu-latest' && matrix.python-version == '3.11'
+        run: |
+          # Minimum expected test count (update when adding tests)
+          MIN_TESTS=325
+          PASSED=${{ steps.pytest.outputs.passed_count }}
+
+          echo "Python tests passed: $PASSED (minimum: $MIN_TESTS)"
+
+          if [[ "$PASSED" -lt "$MIN_TESTS" ]]; then
+            echo "::error::Test count dropped below minimum! Expected >= $MIN_TESTS, got $PASSED"
+            echo "::error::If tests were intentionally removed, update MIN_TESTS in ci.yml"
+            exit 1
+          fi
+          echo "✓ Test count validation passed"
+        shell: bash
 
       - name: Upload Coverage
         uses: codecov/codecov-action@v5
@@ -177,6 +206,7 @@ jobs:
           token: ${{ secrets.CODECOV_TOKEN }}
           files: ./coverage.xml
           fail_ci_if_error: false
+
 
   # Phase 5: Test base installation without [ml] extras
   # Enforces optional-dependency isolation - ML features must not leak into base
@@ -305,8 +335,34 @@ jobs:
         run: npm ci
 
       - name: Run Extension UI Tests
+        id: npm_test
         working-directory: extension
-        run: npm test
+        run: |
+          npm test 2>&1 | tee npm_test_output.txt
+          NPM_EXIT=${PIPESTATUS[0]}
+
+          # Extract test count from jest output (format: "X passed")
+          PASSED=$(grep -oP '\d+(?= passed)' npm_test_output.txt | tail -1 || echo "0")
+          echo "Extension tests passed: $PASSED"
+          echo "passed_count=$PASSED" >> $GITHUB_OUTPUT
+
+          exit $NPM_EXIT
+
+      - name: Validate Test Count (Extension)
+        run: |
+          # Minimum expected extension test count (update when adding tests)
+          MIN_TESTS=125
+          PASSED=${{ steps.npm_test.outputs.passed_count }}
+
+          echo "Extension tests passed: $PASSED (minimum: $MIN_TESTS)"
+
+          if [[ "$PASSED" -lt "$MIN_TESTS" ]]; then
+            echo "::error::Extension test count dropped below minimum! Expected >= $MIN_TESTS, got $PASSED"
+            echo "::error::If tests were intentionally removed, update MIN_TESTS in ci.yml"
+            exit 1
+          fi
+          echo "✓ Extension test count validation passed"
+        shell: bash
 
   # Phase 4: Performance baseline integrity guard
   baseline-integrity:
