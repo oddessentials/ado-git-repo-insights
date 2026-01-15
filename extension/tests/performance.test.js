@@ -1,0 +1,197 @@
+/**
+ * Baseline Performance Tests (Simplified)
+ *
+ * Focuses on fixture generation timing and basic metrics.
+ * Full DatasetLoader integration tests deferred due to fetch mocking complexity.
+ *
+ * TODO(phase4-gap): Add full DatasetLoader mocked fetch tests when Jest environment stabilizes
+ */
+
+const { execSync } = require('child_process');
+const fs = require('fs');
+const path = require('path');
+
+describe('Performance Baseline Tests (Simplified)', () => {
+    const perfFixturesDir = path.join(__dirname, '..', '..', 'tmp', 'perf-fixtures');
+
+    /**
+     * Measure operation timing
+     */
+    function measureTiming(operation) {
+        const start = performance.now();
+        operation();
+        const end = performance.now();
+        return end - start;
+    }
+
+    /**
+     * Measure memory delta
+     */
+    function measureMemoryDelta(operation) {
+        if (global.gc) {
+            global.gc();
+        }
+
+        const startMem = process.memoryUsage().heapUsed;
+        operation();
+        const endMem = process.memoryUsage().heapUsed;
+
+        return endMem - startMem;
+    }
+
+    test('1k PR fixture generation completes within budget', () => {
+        const outputDir = path.join(perfFixturesDir, '1000pr');
+        const scriptPath = path.join(__dirname, '..', '..', 'scripts', 'generate-synthetic-dataset.py');
+
+        // Clean previous run
+        if (fs.existsSync(outputDir)) {
+            fs.rmSync(outputDir, { recursive: true, force: true });
+        }
+
+        // Baseline: 5s, Budget: 10s (2x tolerance)
+        const duration = measureTiming(() => {
+            execSync(
+                `python "${scriptPath}" --pr-count 1000 --seed 42 --output "${outputDir}"`,
+                { stdio: 'pipe' }
+            );
+        });
+
+        expect(duration).toBeLessThan(10000);
+        expect(fs.existsSync(path.join(outputDir, 'dataset-manifest.json'))).toBe(true);
+
+        console.log(JSON.stringify({
+            test: 'fixture_generation_1k',
+            duration_ms: duration,
+            budget_ms: 10000,
+            baseline_ms: 5000
+        }));
+    });
+
+    test('manifest parsing completes within budget', () => {
+        const manifestPath = path.join(perfFixturesDir, '1000pr', 'dataset-manifest.json');
+
+        if (!fs.existsSync(manifestPath)) {
+            // Generate if not exists
+            const scriptPath = path.join(__dirname, '..', '..', 'scripts', 'generate-synthetic-dataset.py');
+            const outputDir = path.join(perfFixturesDir, '1000pr');
+            execSync(
+                `python "${scriptPath}" --pr-count 1000 --seed 42 --output "${outputDir}"`,
+                { stdio: 'pipe' }
+            );
+        }
+
+        // Baseline: 10ms, Budget: 50ms (generous for file I/O)
+        const duration = measureTiming(() => {
+            const content = fs.readFileSync(manifestPath, 'utf-8');
+            const manifest = JSON.parse(content);
+
+            // Validate basic structure
+            expect(manifest.manifest_schema_version).toBe(1);
+            expect(manifest.aggregate_index).toBeDefined();
+        });
+
+        expect(duration).toBeLessThan(50);
+
+        console.log(JSON.stringify({
+            test: 'manifest_parse',
+            duration_ms: duration,
+            budget_ms: 50,
+            baseline_ms: 10
+        }));
+    });
+
+    test('bulk JSON parsing (all rollups) completes within budget', () => {
+        const fixtureDir = path.join(perfFixturesDir, '1000pr');
+        const manifestPath = path.join(fixtureDir, 'dataset-manifest.json');
+
+        if (!fs.existsSync(manifestPath)) {
+            const scriptPath = path.join(__dirname, '..', '..', 'scripts', 'generate-synthetic-dataset.py');
+            execSync(
+                `python "${scriptPath}" --pr-count 1000 --seed 42 --output "${fixtureDir}"`,
+                { stdio: 'pipe' }
+            );
+        }
+
+        const manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf-8'));
+
+        // Baseline: 100ms, Budget: 500ms (2x tolerance + file I/O)
+        const duration = measureTiming(() => {
+            for (const entry of manifest.aggregate_index.weekly_rollups) {
+                const rollupPath = path.join(fixtureDir, entry.path);
+                const rollupData = JSON.parse(fs.readFileSync(rollupPath, 'utf-8'));
+
+                // Simulate processing
+                expect(rollupData.week).toBeDefined();
+                expect(rollupData.pr_count).toBeGreaterThan(0);
+            }
+        });
+
+        expect(duration).toBeLessThan(500);
+
+        console.log(JSON.stringify({
+            test: 'bulk_json_parse',
+            duration_ms: duration,
+            budget_ms: 500,
+            baseline_ms: 100,
+            files_parsed: manifest.aggregate_index.weekly_rollups.length
+        }));
+    });
+
+    test('memory footprint for 1k dataset remains within ceiling', () => {
+        const fixtureDir = path.join(perfFixturesDir, '1000pr');
+        const manifestPath = path.join(fixtureDir, 'dataset-manifest.json');
+
+        if (!fs.existsSync(manifestPath)) {
+            const scriptPath = path.join(__dirname, '..', '..', 'scripts', 'generate-synthetic-dataset.py');
+            execSync(
+                `python "${scriptPath}" --pr-count 1000 --seed 42 --output "${fixtureDir}"`,
+                { stdio: 'pipe' }
+            );
+        }
+
+        // Budget: 20MB delta (conservative for file I/O + parsing)
+        const memoryDelta = measureMemoryDelta(() => {
+            const manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf-8'));
+            const dimensions = JSON.parse(fs.readFileSync(
+                path.join(fixtureDir, 'aggregates', 'dimensions.json'),
+                'utf-8'
+            ));
+
+            // Load some rollups
+            const rollups = [];
+            for (let i = 0; i < 5 && i < manifest.aggregate_index.weekly_rollups.length; i++) {
+                const entry = manifest.aggregate_index.weekly_rollups[i];
+                const rollupPath = path.join(fixtureDir, entry.path);
+                rollups.push(JSON.parse(fs.readFileSync(rollupPath, 'utf-8')));
+            }
+
+            // Keep references
+            return { manifest, dimensions, rollups };
+        });
+
+        const memoryDeltaMB = memoryDelta / (1024 * 1024);
+        expect(memoryDeltaMB).toBeLessThan(20);
+
+        console.log(JSON.stringify({
+            test: 'memory_footprint',
+            memory_delta_mb: memoryDeltaMB,
+            budget_mb: 20,
+            baseline_mb: 10
+        }));
+    });
+
+    afterAll(() => {
+        // Write summary for CI artifacts
+        const summaryPath = path.join(__dirname, '..', '..', 'tmp', 'perf-summary.json');
+        const summary = {
+            timestamp: new Date().toISOString(),
+            fixture_size: '1000 PRs',
+            tests_run: 4,
+            note: 'Simplified tests - full DatasetLoader integration deferred',
+            gap: 'TODO: Add DatasetLoader mocked fetch tests (phase4-gap)'
+        };
+
+        fs.mkdirSync(path.dirname(summaryPath), { recursive: true });
+        fs.writeFileSync(summaryPath, JSON.stringify(summary, null, 2));
+    });
+});
