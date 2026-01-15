@@ -1,14 +1,3 @@
-"""Prophet-based trend forecaster for Phase 5.
-
-Produces predictions/trends.json with contract-compliant forecasts:
-- schema_version: 1
-- is_stub: false
-- generated_by: "prophet-v1.0"
-- Metrics: pr_throughput, cycle_time_minutes, review_time_minutes
-- Monday-aligned period_start dates
-- horizon_weeks: 4
-"""
-
 from __future__ import annotations
 
 import json
@@ -20,6 +9,8 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 import pandas as pd
+
+from .date_utils import align_to_monday
 
 if TYPE_CHECKING:
     from ..persistence.database import DatabaseManager
@@ -107,7 +98,10 @@ class ProphetForecaster:
             from prophet import Prophet
         except ImportError:
             logger.warning(
-                "Prophet not installed. Install ML extras: pip install -e '.[ml]'"
+                "Predictions skipped: Prophet not installed. "
+                "Install with: pip install -e '.[ml]' "
+                "and ensure cmdstan/prophet prerequisites are met. "
+                "See https://facebook.github.io/prophet/docs/installation.html"
             )
             return False
 
@@ -166,10 +160,10 @@ class ProphetForecaster:
             .reset_index()
         )
 
-        # Calculate week start date (Monday)
+        # Calculate week start date (Monday) using dedicated utility
         weekly["week_start"] = weekly.apply(
-            lambda row: date.fromisocalendar(
-                int(row["iso_year"]), int(row["iso_week"]), 1
+            lambda row: align_to_monday(
+                date.fromisocalendar(int(row["iso_year"]), int(row["iso_week"]), 1)
             ),
             axis=1,
         )
@@ -247,9 +241,8 @@ class ProphetForecaster:
         for _, row in forecast.iterrows():
             period_start = pd.Timestamp(row["ds"]).date()
 
-            # Ensure Monday-aligned
-            if period_start.weekday() != 0:
-                period_start = period_start - timedelta(days=period_start.weekday())
+            # Ensure Monday-aligned using utility
+            period_start = align_to_monday(period_start)
 
             values.append(
                 {

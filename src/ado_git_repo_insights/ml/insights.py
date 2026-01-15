@@ -28,7 +28,12 @@ logger = logging.getLogger(__name__)
 # Schema version (locked)
 INSIGHTS_SCHEMA_VERSION = 1
 GENERATOR_ID = "openai-v1.0"
-PROMPT_VERSION = "phase5-openai-prompt-v1"
+
+# Cache invalidation control:
+# Bumping PROMPT_VERSION intentionally invalidates all cached insights.
+# This ensures users get fresh insights after prompt improvements or bug fixes.
+# Current: "phase5-v2" (bumped from v1 for deterministic cache key fix)
+PROMPT_VERSION = "phase5-v2"
 
 # Default model (can be overridden with OPENAI_MODEL env var)
 # PHASE5.md locked decision: gpt-5-nano
@@ -82,8 +87,8 @@ class LLMInsightsGenerator:
         insights_dir = self.output_dir / "insights"
         insights_dir.mkdir(parents=True, exist_ok=True)
 
-        # Build prompt
-        prompt = self._build_prompt()
+        # Build prompt (returns prompt string and canonical data for cache key)
+        prompt, prompt_data = self._build_prompt()
 
         if self.dry_run:
             # Dry-run: write prompt artifact and exit
@@ -105,7 +110,7 @@ class LLMInsightsGenerator:
 
         # Check cache
         cache_path = insights_dir / "cache.json"
-        cache_key = self._get_cache_key(prompt)
+        cache_key = self._get_cache_key(prompt_data)
 
         cached_insights = self._check_cache(cache_path, cache_key)
         if cached_insights:
@@ -142,14 +147,21 @@ class LLMInsightsGenerator:
         )
         return True
 
-    def _build_prompt(self) -> str:
+    def _build_prompt(self) -> tuple[str, dict[str, Any]]:
         """Build the prompt for OpenAI.
 
         Returns:
-            Prompt string with PR metrics summary.
+            Tuple of (prompt_string, canonical_data_dict)
+            The canonical_data_dict is used for deterministic cache key generation.
         """
         # Get aggregate stats from database
         stats = self._get_pr_stats()
+
+        # Canonical data for cache key (sorted, normalized)
+        canonical_data = {
+            "prompt_version": PROMPT_VERSION,
+            "stats": stats,
+        }
 
         prompt = f"""You are a DevOps metrics analyst. Analyze the following pull request metrics and provide up to 3 actionable insights.
 
@@ -183,7 +195,7 @@ class LLMInsightsGenerator:
 
 Respond ONLY with valid JSON matching this format."""
 
-        return prompt
+        return prompt, canonical_data
 
     def _get_pr_stats(self) -> dict[str, Any]:
         """Get PR statistics from database for prompt.
@@ -245,11 +257,11 @@ Respond ONLY with valid JSON matching this format."""
             "repositories_count": repositories_count,
         }
 
-    def _get_cache_key(self, prompt: str) -> str:
-        """Generate deterministic cache key.
+    def _get_cache_key(self, prompt_data: dict[str, Any]) -> str:
+        """Generate deterministic cache key using canonical JSON.
 
         Args:
-            prompt: The prompt string.
+            prompt_data: Canonical data dict (not prompt string)
 
         Returns:
             SHA256 hash of cache key inputs.
@@ -257,6 +269,7 @@ Respond ONLY with valid JSON matching this format."""
         # Deterministic DB freshness markers:
         # 1. Max closed_date from PRs
         # 2. Max updated_at (if available) to catch backfill/metadata changes
+        # Note: Use deterministic fallback for empty datasets
         cursor = self.db.execute(
             """
             SELECT 
@@ -266,12 +279,13 @@ Respond ONLY with valid JSON matching this format."""
             """
         )
         row = cursor.fetchone()
-        max_closed = row["max_closed"] if row and row["max_closed"] else "empty"
-        max_updated = row["max_updated"] if row and row["max_updated"] else max_closed
+        max_closed = row["max_closed"] if row and row["max_closed"] else "empty-dataset"
+        max_updated = row["max_updated"] if row and row["max_updated"] else "empty-dataset"
 
-        # Use prompt version hash instead of raw content to avoid
-        # serialization-order or formatting issues
-        prompt_hash = hashlib.sha256(prompt.encode()).hexdigest()[:16]
+        # Use canonical JSON with sorted keys for deterministic hashing
+        # This prevents cache misses from non-deterministic ordering or whitespace
+        canonical_json = json.dumps(prompt_data, sort_keys=True, ensure_ascii=True)
+        prompt_hash = hashlib.sha256(canonical_json.encode()).hexdigest()[:16]
 
         # Cache key components
         key_parts = [
@@ -389,20 +403,39 @@ Respond ONLY with valid JSON matching this format."""
                 logger.warning(f"Failed to parse OpenAI response as JSON: {e}")
                 return None
 
-            # Validate and enforce contract
-            return self._validate_and_fix_insights(insights_json)
+            # Get DB freshness markers for deterministic ID generation
+            # Handle empty datasets (None values) with deterministic fallback
+            cursor = self.db.execute(
+                """
+                SELECT 
+                    MAX(closed_date) as max_closed,
+                    MAX(COALESCE(updated_at, closed_date)) as max_updated
+                FROM pull_requests
+                """
+            )
+            row = cursor.fetchone()
+            # Deterministic fallback for empty datasets
+            max_closed = row["max_closed"] if row and row["max_closed"] else "empty-dataset"
+            max_updated = row["max_updated"] if row and row["max_updated"] else "empty-dataset"
+
+            # Validate and enforce contract with deterministic IDs
+            return self._validate_and_fix_insights(insights_json, max_closed, max_updated)
 
         except Exception as e:
             logger.warning(f"OpenAI API error: {type(e).__name__}: {e}")
             return None
 
     def _validate_and_fix_insights(
-        self, insights_json: dict[str, Any]
+        self, insights_json: dict[str, Any], max_closed: str, max_updated: str
     ) -> dict[str, Any] | None:
         """Validate and fix insights to match contract.
 
+        Generates deterministic IDs to ensure cache stability and prevent UI flicker.
+
         Args:
             insights_json: Raw JSON from OpenAI.
+            max_closed: Max closed_date from database (for ID generation).
+            max_updated: Max updated_at from database (for ID generation).
 
         Returns:
             Contract-compliant insights or None if invalid.
@@ -418,7 +451,7 @@ Respond ONLY with valid JSON matching this format."""
 
         # Fix each insight
         fixed_insights = []
-        for insight in insights_list:
+        for idx, insight in enumerate(insights_list):
             if not isinstance(insight, dict):
                 continue
 
@@ -426,8 +459,20 @@ Respond ONLY with valid JSON matching this format."""
             if "affected_entities" not in insight:
                 insight["affected_entities"] = []  # Enforce empty array if missing
 
-            # Validate required fields exist
-            required = ["id", "category", "severity", "title", "description"]
+            # Validate category (needed for deterministic ID)
+            category = insight.get("category", "unknown")
+            if not isinstance(category, str):
+                logger.warning(f"Insight missing valid category: {insight}")
+                continue
+
+            # Generate deterministic ID based on category + dataset + prompt version
+            # This ensures the same data produces the same IDs across cache hits
+            id_input = f"{category}|{max_closed}|{max_updated}|{PROMPT_VERSION}|{idx}"
+            deterministic_id = hashlib.sha256(id_input.encode()).hexdigest()[:12]
+            insight["id"] = f"{category}-{deterministic_id}"
+
+            # Validate other required fields exist
+            required = ["severity", "title", "description"]
             if not all(field in insight for field in required):
                 logger.warning(f"Insight missing required fields: {insight}")
                 continue
