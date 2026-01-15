@@ -13,9 +13,90 @@ let currentDateRange = { start: null, end: null };
 const elements = {};
 
 /**
+ * Phase 4: Production-safe metrics collector
+ * Only active when:
+ * 1. NOT in production (NODE_ENV !== 'production')
+ * 2. window.__DASHBOARD_DEBUG__ is set OR ?debug query param present
+ */
+const IS_PRODUCTION = typeof process !== 'undefined' && process.env.NODE_ENV === 'production';
+const DEBUG_ENABLED = !IS_PRODUCTION && (
+    (typeof window !== 'undefined' && window.__DASHBOARD_DEBUG__) ||
+    (typeof window !== 'undefined' && new URLSearchParams(window.location.search).has('debug'))
+);
+
+const metricsCollector = DEBUG_ENABLED ? {
+    marks: new Map(),
+    measures: [],
+
+    /**
+     * Record a performance mark
+     */
+    mark(name) {
+        if (!performance || !performance.mark) return;
+        try {
+            performance.mark(name);
+            this.marks.set(name, performance.now());
+        } catch (e) {
+            // Ignore errors in production-like environments
+        }
+    },
+
+    /**
+     * Record a performance measure between two marks
+     */
+    measure(name, startMark, endMark) {
+        if (!performance || !performance.measure) return;
+        try {
+            performance.measure(name, startMark, endMark);
+            const entries = performance.getEntriesByName(name, 'measure');
+            if (entries.length > 0) {
+                this.measures.push({
+                    name,
+                    duration: entries[entries.length - 1].duration,
+                    timestamp: Date.now()
+                });
+            }
+        } catch (e) {
+            // Ignore errors
+        }
+    },
+
+    /**
+     * Get all recorded metrics
+     */
+    getMetrics() {
+        return {
+            marks: Array.from(this.marks.entries()).map(([name, time]) => ({ name, time })),
+            measures: [...this.measures]
+        };
+    },
+
+    /**
+     * Reset all metrics (for testing)
+     */
+    reset() {
+        this.marks.clear();
+        this.measures = [];
+        if (performance && performance.clearMarks) {
+            performance.clearMarks();
+        }
+        if (performance && performance.clearMeasures) {
+            performance.clearMeasures();
+        }
+    }
+} : null;
+
+// Expose metrics for debugging/testing
+if (DEBUG_ENABLED && typeof window !== 'undefined') {
+    window.__dashboardMetrics = metricsCollector;
+}
+
+/**
  * Initialize the dashboard.
  */
 async function init() {
+    if (metricsCollector) metricsCollector.mark('dashboard-init');
+
     cacheElements();
     setupEventListeners();
 
@@ -158,11 +239,14 @@ async function refreshMetrics() {
  * Render summary metric cards.
  */
 function renderSummaryCards(rollups) {
+    if (metricsCollector) metricsCollector.mark('render-summary-cards-start');
+
     if (!rollups.length) {
         elements.totalPrs.textContent = '0';
         elements.cycleP50.textContent = '-';
         elements.cycleP90.textContent = '-';
         elements.authorsCount.textContent = '0';
+        if (metricsCollector) metricsCollector.mark('render-summary-cards-end');
         return;
     }
 
@@ -189,6 +273,12 @@ function renderSummaryCards(rollups) {
     // Sum unique authors (approximate from weekly counts)
     const authorsCount = rollups.reduce((sum, r) => sum + r.authors_count, 0);
     elements.authorsCount.textContent = Math.round(authorsCount / rollups.length).toLocaleString();
+
+    if (metricsCollector) {
+        metricsCollector.mark('render-summary-cards-end');
+        metricsCollector.mark('first-meaningful-paint');
+        metricsCollector.measure('init-to-fmp', 'dashboard-init', 'first-meaningful-paint');
+    }
 }
 
 /**
