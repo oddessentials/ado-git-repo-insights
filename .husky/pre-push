@@ -1,0 +1,15 @@
+#!/bin/sh
+# Pre-push hook: Run baseline integrity check before pushing
+# This prevents CI failures from direct baseline edits
+
+echo "[pre-push] Running baseline integrity check..."
+node .github/scripts/check-baseline-integrity.js
+
+if [ $? -ne 0 ]; then
+    echo ""
+    echo "[pre-push] ❌ Push blocked: Baseline integrity check failed"
+    echo "[pre-push] Run 'npm run perf:update-baseline' in extension/ to update baselines properly"
+    exit 1
+fi
+
+echo "[pre-push] ✅ Baseline integrity check passed"
