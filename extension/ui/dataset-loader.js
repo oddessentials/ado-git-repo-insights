@@ -12,6 +12,170 @@ const SUPPORTED_DATASET_VERSION = 1;
 const SUPPORTED_AGGREGATES_VERSION = 1;
 
 /**
+ * Semaphore for bounded concurrent fetching (Phase 4).
+ * All fetches and retries MUST acquire through this singleton.
+ */
+const fetchSemaphore = {
+    maxConcurrent: 4,
+    maxRetries: 1,
+    retryDelayMs: 200,
+    active: 0,
+    queue: [],
+
+    /**
+     * Acquire a semaphore slot. Blocks until slot available.
+     * @returns {Promise<void>}
+     */
+    acquire() {
+        return new Promise((resolve) => {
+            if (this.active < this.maxConcurrent) {
+                this.active++;
+                resolve();
+            } else {
+                this.queue.push(resolve);
+            }
+        });
+    },
+
+    /**
+     * Release a semaphore slot. Unblocks next waiter if any.
+     */
+    release() {
+        if (this.queue.length > 0) {
+            const next = this.queue.shift();
+            next();
+        } else {
+            this.active--;
+        }
+    },
+
+    /**
+     * Get current state (for testing).
+     * @returns {{ active: number, queued: number }}
+     */
+    getState() {
+        return { active: this.active, queued: this.queue.length };
+    },
+
+    /**
+     * Reset semaphore state (for testing).
+     */
+    reset() {
+        this.active = 0;
+        this.queue = [];
+    }
+};
+
+/**
+ * Create an LRU cache with TTL and bounded size (Phase 4).
+ * @param {Function} clock - Injected time source (default: Date.now)
+ * @returns {Object} Cache instance
+ */
+function createRollupCache(clock = Date.now) {
+    const maxSize = 52;           // 1 year of weeks
+    const ttlMs = 5 * 60 * 1000;  // 5 minutes
+    const entries = new Map();    // key -> { value, createdAt, touchedAt }
+
+    /**
+     * Required fields for cache key. Throws if any missing.
+     */
+    const requiredKeyFields = ['week', 'org', 'project', 'repo'];
+
+    return {
+        maxSize,
+        ttlMs,
+        clock,
+
+        /**
+         * Build composite cache key. Throws if required params missing.
+         * @param {Object} params
+         * @returns {string}
+         */
+        makeKey(params) {
+            for (const field of requiredKeyFields) {
+                if (!params[field]) {
+                    throw new Error(`Cache key missing required field: ${field}`);
+                }
+            }
+            const { week, org, project, repo, branch = '', apiVersion = '1' } = params;
+            return `${week}|${org}|${project}|${repo}|${branch}|${apiVersion}`;
+        },
+
+        /**
+         * Get cached value if valid (not expired, updates LRU order).
+         * @param {string} key
+         * @returns {*} Cached value or undefined
+         */
+        get(key) {
+            const entry = entries.get(key);
+            if (!entry) return undefined;
+
+            const now = clock();
+            if (now - entry.createdAt > ttlMs) {
+                entries.delete(key);
+                return undefined;
+            }
+
+            // Update LRU touch time
+            entry.touchedAt = now;
+            return entry.value;
+        },
+
+        /**
+         * Set cache value, evicting oldest if at capacity.
+         * @param {string} key
+         * @param {*} value
+         */
+        set(key, value) {
+            const now = clock();
+
+            // Evict oldest by touchedAt if at capacity
+            if (entries.size >= maxSize && !entries.has(key)) {
+                let oldestKey = null;
+                let oldestTime = Infinity;
+                for (const [k, v] of entries) {
+                    if (v.touchedAt < oldestTime) {
+                        oldestTime = v.touchedAt;
+                        oldestKey = k;
+                    }
+                }
+                if (oldestKey) entries.delete(oldestKey);
+            }
+
+            entries.set(key, {
+                value,
+                createdAt: now,
+                touchedAt: now
+            });
+        },
+
+        /**
+         * Check if key exists and is not expired.
+         * @param {string} key
+         * @returns {boolean}
+         */
+        has(key) {
+            return this.get(key) !== undefined;
+        },
+
+        /**
+         * Clear all entries.
+         */
+        clear() {
+            entries.clear();
+        },
+
+        /**
+         * Get cache size (for testing).
+         * @returns {number}
+         */
+        size() {
+            return entries.size;
+        }
+    };
+}
+
+/**
  * Dataset loader state
  */
 class DatasetLoader {
@@ -140,6 +304,206 @@ class DatasetLoader {
         }
 
         return results.sort((a, b) => a.week.localeCompare(b.week));
+    }
+
+    /**
+     * Get weekly rollups with concurrent fetching, progress reporting, and caching (Phase 4).
+     *
+     * Return model:
+     * - data: Rollup[] - Successfully fetched rollups
+     * - missingWeeks: string[] - 404s (data unavailable)
+     * - failedWeeks: string[] - 5xx after retry exhausted
+     * - partial: boolean - true if any week missing/failed
+     * - authError: boolean - true if any 401/403
+     * - degraded: boolean - partial || authError
+     *
+     * INVARIANT: if authError && data.length === 0 → throws AUTH_REQUIRED
+     *
+     * @param {Date} startDate
+     * @param {Date} endDate
+     * @param {Object} context - { org, project, repo, branch?, apiVersion? }
+     * @param {Function} onProgress - ({ loaded, total, currentWeek }) => void
+     * @param {Object} cache - Optional cache instance (default: module-level)
+     * @returns {Promise<Object>} Result object with explicit state
+     */
+    async getWeeklyRollupsWithProgress(startDate, endDate, context, onProgress = () => { }, cache = null) {
+        if (!this.manifest) {
+            throw new Error('Manifest not loaded. Call loadManifest() first.');
+        }
+
+        const allWeeks = this.getWeeksInRange(startDate, endDate);
+        const data = [];
+        const missingWeeks = [];
+        const failedWeeks = [];
+        let authError = false;
+
+        // Use provided cache or default simple cache
+        const useCache = cache || {
+            makeKey: (params) => params.week,
+            get: (key) => this.rollupCache.get(key),
+            set: (key, value) => this.rollupCache.set(key, value),
+            has: (key) => this.rollupCache.has(key)
+        };
+
+        // Separate cache hits from fetch needed
+        const cachedResults = [];
+        const weeksToFetch = [];
+
+        for (const weekStr of allWeeks) {
+            try {
+                const cacheKey = useCache.makeKey({ week: weekStr, ...context });
+                const cached = useCache.get(cacheKey);
+                if (cached !== undefined) {
+                    cachedResults.push(cached);
+                } else {
+                    weeksToFetch.push(weekStr);
+                }
+            } catch {
+                // Cache key failed, need to fetch
+                weeksToFetch.push(weekStr);
+            }
+        }
+
+        // Batch concurrent fetches with semaphore
+        const batches = [];
+        for (let i = 0; i < weeksToFetch.length; i += fetchSemaphore.maxConcurrent) {
+            batches.push(weeksToFetch.slice(i, i + fetchSemaphore.maxConcurrent));
+        }
+
+        let loaded = 0;
+        const total = weeksToFetch.length;
+
+        for (const batch of batches) {
+            const batchPromises = batch.map(async (weekStr) => {
+                // Progress: report week being requested
+                onProgress({ loaded, total, currentWeek: weekStr });
+
+                // Find in index
+                const indexEntry = this.manifest.aggregate_index.weekly_rollups.find(
+                    r => r.week === weekStr
+                );
+
+                if (!indexEntry) {
+                    missingWeeks.push(weekStr);
+                    return { week: weekStr, status: 'missing' };
+                }
+
+                // Fetch with semaphore and retry
+                return await this._fetchWeekWithRetry(weekStr, indexEntry, context, useCache);
+            });
+
+            const results = await Promise.allSettled(batchPromises);
+
+            for (const result of results) {
+                loaded++;
+                if (result.status === 'fulfilled') {
+                    const outcome = result.value;
+                    if (outcome.status === 'ok') {
+                        data.push(outcome.data);
+                    } else if (outcome.status === 'missing') {
+                        // Record if not already in missingWeeks (might be from fetch 404)
+                        if (!missingWeeks.includes(outcome.week)) {
+                            missingWeeks.push(outcome.week);
+                        }
+                    } else if (outcome.status === 'auth') {
+                        authError = true;
+                    } else if (outcome.status === 'failed') {
+                        failedWeeks.push(outcome.week);
+                    }
+                } else {
+                    // Promise rejected - shouldn't happen with our error handling
+                    failedWeeks.push('unknown');
+                }
+            }
+        }
+
+        // Combine cached and fetched
+        const allData = [...cachedResults, ...data];
+        const partial = missingWeeks.length > 0 || failedWeeks.length > 0;
+        const degraded = partial || authError;
+
+        // INVARIANT: auth error with no data = hard fail
+        if (authError && allData.length === 0) {
+            const error = new Error('Authentication required');
+            error.code = 'AUTH_REQUIRED';
+            throw error;
+        }
+
+        // Final progress
+        onProgress({ loaded: total, total, currentWeek: null });
+
+        return {
+            data: allData.sort((a, b) => a.week.localeCompare(b.week)),
+            missingWeeks,
+            failedWeeks,
+            partial,
+            authError,
+            degraded
+        };
+    }
+
+    /**
+     * Fetch a single week with semaphore control and bounded retry.
+     * @private
+     */
+    async _fetchWeekWithRetry(weekStr, indexEntry, context, cache) {
+        let retries = 0;
+
+        while (retries <= fetchSemaphore.maxRetries) {
+            await fetchSemaphore.acquire();
+            try {
+                const url = this.resolvePath(indexEntry.path);
+                const response = await fetch(url);
+
+                if (response.ok) {
+                    const data = await response.json();
+                    try {
+                        const cacheKey = cache.makeKey({ week: weekStr, ...context });
+                        cache.set(cacheKey, data);
+                    } catch {
+                        // Cache key error, still return data
+                    }
+                    return { week: weekStr, status: 'ok', data };
+                }
+
+                if (response.status === 401 || response.status === 403) {
+                    return { week: weekStr, status: 'auth' };
+                }
+
+                if (response.status === 404) {
+                    return { week: weekStr, status: 'missing' };
+                }
+
+                // 5xx - retry once
+                if (response.status >= 500 && retries < fetchSemaphore.maxRetries) {
+                    retries++;
+                    await this._delay(fetchSemaphore.retryDelayMs);
+                    continue;
+                }
+
+                return { week: weekStr, status: 'failed', error: response.status };
+            } catch (err) {
+                // Network error - retry once
+                if (retries < fetchSemaphore.maxRetries) {
+                    retries++;
+                    await this._delay(fetchSemaphore.retryDelayMs);
+                    continue;
+                }
+                return { week: weekStr, status: 'failed', error: err.message };
+            } finally {
+                fetchSemaphore.release();
+            }
+        }
+
+        return { week: weekStr, status: 'failed', error: 'max retries exceeded' };
+    }
+
+    /**
+     * Delay helper for retry backoff.
+     * @private
+     */
+    _delay(ms) {
+        return new Promise(resolve => setTimeout(resolve, ms));
     }
 
     /**
@@ -411,7 +775,9 @@ class DatasetLoader {
 // Export for use
 if (typeof window !== 'undefined') {
     window.DatasetLoader = DatasetLoader;
+    window.fetchSemaphore = fetchSemaphore;
+    window.createRollupCache = createRollupCache;
 }
 if (typeof module !== 'undefined') {
-    module.exports = { DatasetLoader };
+    module.exports = { DatasetLoader, fetchSemaphore, createRollupCache };
 }
