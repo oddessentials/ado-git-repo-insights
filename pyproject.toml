@@ -39,6 +39,10 @@ dev = [
     "types-PyYAML>=6.0",
     "pandas-stubs>=2.0.0",
 ]
+ml = [
+    "prophet>=1.1.0",
+    "openai>=1.0.0",
+]
 
 [project.scripts]
 ado-insights = "ado_git_repo_insights.cli:main"

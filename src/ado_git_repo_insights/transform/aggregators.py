@@ -114,6 +114,7 @@ class AggregateGenerator:
 
     Phase 3: Produces weekly rollups and distributions for lazy UI loading.
     Phase 3.5: Optionally generates predictions/insights stubs.
+    Phase 5: Integrates Prophet forecaster and OpenAI insights.
     """
 
     def __init__(
@@ -123,6 +124,13 @@ class AggregateGenerator:
         run_id: str = "",
         enable_ml_stubs: bool = False,
         seed_base: str = "",
+        # Phase 5: ML parameters
+        enable_predictions: bool = False,
+        enable_insights: bool = False,
+        insights_max_tokens: int = 1000,
+        insights_cache_ttl_hours: int = 24,
+        insights_dry_run: bool = False,
+        stub_mode: bool = False,
     ) -> None:
         """Initialize the aggregate generator.
 
@@ -132,12 +140,25 @@ class AggregateGenerator:
             run_id: Pipeline run ID for manifest.
             enable_ml_stubs: Whether to generate stub predictions/insights (Phase 3.5).
             seed_base: Base string for deterministic stub seeding.
+            enable_predictions: Enable Prophet-based forecasting (Phase 5).
+            enable_insights: Enable OpenAI-based insights (Phase 5).
+            insights_max_tokens: Max tokens for OpenAI response.
+            insights_cache_ttl_hours: Cache TTL for insights.
+            insights_dry_run: Write prompt artifact without calling API.
+            stub_mode: Use deprecated stubs instead of real ML.
         """
         self.db = db
         self.output_dir = output_dir
         self.run_id = run_id or datetime.now(timezone.utc).strftime("%Y%m%d%H%M%S")
         self.enable_ml_stubs = enable_ml_stubs
         self.seed_base = seed_base or self.run_id
+        # Phase 5
+        self.enable_predictions = enable_predictions
+        self.enable_insights = enable_insights
+        self.insights_max_tokens = insights_max_tokens
+        self.insights_cache_ttl_hours = insights_cache_ttl_hours
+        self.insights_dry_run = insights_dry_run
+        self.stub_mode = stub_mode
 
     def generate_all(self) -> DatasetManifest:
         """Generate all aggregate files and manifest.
@@ -149,6 +170,8 @@ class AggregateGenerator:
             AggregationError: If generation fails.
             StubGenerationError: If stubs requested without ALLOW_ML_STUBS env var.
         """
+        import warnings as py_warnings
+
         # Create output directories
         self.output_dir.mkdir(parents=True, exist_ok=True)
         (self.output_dir / "aggregates").mkdir(exist_ok=True)
@@ -172,18 +195,24 @@ class AggregateGenerator:
             dist_index = self._generate_distributions()
             logger.info(f"Generated {len(dist_index)} distribution files")
 
-            # Phase 3.5: Generate predictions/insights stubs if enabled
+            # Phase 5: ML features generation
             predictions_generated = False
             insights_generated = False
             warnings: list[str] = []
 
-            if self.enable_ml_stubs:
-                # Generate predictions stub
+            # Stub mode (deprecated, for testing only)
+            if self.stub_mode:
+                py_warnings.warn(
+                    "Stub mode is deprecated. Use --enable-predictions and "
+                    "--enable-insights for real ML features.",
+                    DeprecationWarning,
+                    stacklevel=2,
+                )
+                # Use legacy stubs
                 pred_gen = PredictionGenerator(self.output_dir, self.seed_base)
-                pred_gen.generate()  # Raises StubGenerationError if env var missing
+                pred_gen.generate()
                 predictions_generated = True
 
-                # Generate insights stub
                 insights_gen = InsightsGenerator(self.output_dir, self.seed_base)
                 insights_gen.generate()
                 insights_generated = True
@@ -192,14 +221,57 @@ class AggregateGenerator:
                 logger.warning(
                     "Generated stub predictions/insights - NOT FOR PRODUCTION"
                 )
+
+            # Legacy enable_ml_stubs (LOUD WARNING - maps to stub mode)
+            elif self.enable_ml_stubs:
+                # Hard warning to prevent accidental stub usage in production
+                logger.warning(
+                    "=" * 80
+                )
+                logger.warning(
+                    "WARNING: --enable-ml-stubs is DEPRECATED and generates "
+                    "STUB DATA with is_stub:true"
+                )
+                logger.warning(
+                    "Use --enable-predictions and --enable-insights for real ML features."
+                )
+                logger.warning(
+                    "To explicitly use stubs for testing, use --stub-mode instead."
+                )
+                logger.warning(
+                    "=" * 80
+                )
+
+                pred_gen = PredictionGenerator(self.output_dir, self.seed_base)
+                pred_gen.generate()
+                predictions_generated = True
+
+                insights_gen = InsightsGenerator(self.output_dir, self.seed_base)
+                insights_gen.generate()
+                insights_generated = True
+
+                warnings.append("STUB DATA - NOT PRODUCTION - DEPRECATED FLAG USED")
+                logger.warning(
+                    "Generated stub predictions/insights - NOT FOR PRODUCTION"
+                )
+
             else:
-                # Check if files already exist (from previous runs or real ML)
-                predictions_generated = (
-                    self.output_dir / "predictions" / "trends.json"
-                ).exists()
-                insights_generated = (
-                    self.output_dir / "insights" / "summary.json"
-                ).exists()
+                # Phase 5: Real ML features
+                if self.enable_predictions:
+                    predictions_generated = self._generate_predictions()
+
+                if self.enable_insights:
+                    insights_generated = self._generate_insights()
+
+                # Check if files exist from previous runs
+                if not predictions_generated:
+                    predictions_generated = (
+                        self.output_dir / "predictions" / "trends.json"
+                    ).exists()
+                if not insights_generated:
+                    insights_generated = (
+                        self.output_dir / "insights" / "summary.json"
+                    ).exists()
 
             # Build manifest
             manifest = DatasetManifest(
@@ -215,8 +287,8 @@ class AggregateGenerator:
                 features={
                     "teams": len(dimensions.teams) > 0,  # Phase 3.3: dynamic
                     "comments": self._has_comments(),  # Phase 3.4: dynamic
-                    "predictions": predictions_generated,  # Phase 3.5: file-gated
-                    "ai_insights": insights_generated,  # Phase 3.5: file-gated
+                    "predictions": predictions_generated,  # Phase 3.5/5: file-gated
+                    "ai_insights": insights_generated,  # Phase 3.5/5: file-gated
                 },
                 coverage={
                     "total_prs": self._get_pr_count(),
@@ -246,6 +318,58 @@ class AggregateGenerator:
 
         except Exception as e:
             raise AggregationError(f"Failed to generate aggregates: {e}") from e
+
+    def _generate_predictions(self) -> bool:
+        """Generate Prophet-based predictions (Phase 5).
+
+        Returns:
+            True if predictions file was successfully written, False otherwise.
+        """
+        try:
+            from ..ml.forecaster import ProphetForecaster
+        except ImportError:
+            logger.warning(
+                "Prophet not installed. Install ML extras: pip install -e '.[ml]'"
+            )
+            return False
+
+        try:
+            forecaster = ProphetForecaster(
+                db=self.db,
+                output_dir=self.output_dir,
+            )
+            return forecaster.generate()
+        except Exception as e:
+            logger.warning(f"Prediction generation failed: {type(e).__name__}: {e}")
+            return False
+
+    def _generate_insights(self) -> bool:
+        """Generate OpenAI-based insights (Phase 5).
+
+        Returns:
+            True if insights file was written, False otherwise.
+        """
+        try:
+            from ..ml.insights import LLMInsightsGenerator
+        except ImportError:
+            # This should not happen as CLI validates openai is installed
+            logger.error(
+                "OpenAI SDK not installed. Install ML extras: pip install -e '.[ml]'"
+            )
+            raise AggregationError("OpenAI SDK required for --enable-insights") from None
+
+        try:
+            insights_gen = LLMInsightsGenerator(
+                db=self.db,
+                output_dir=self.output_dir,
+                max_tokens=self.insights_max_tokens,
+                cache_ttl_hours=self.insights_cache_ttl_hours,
+                dry_run=self.insights_dry_run,
+            )
+            return insights_gen.generate()
+        except Exception as e:
+            logger.warning(f"Insights generation failed: {type(e).__name__}: {e}")
+            return False
 
     def _generate_dimensions(self) -> Dimensions:
         """Generate filter dimensions from SQLite."""

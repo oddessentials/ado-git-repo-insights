@@ -183,6 +183,44 @@ def create_parser() -> argparse.ArgumentParser:  # pragma: no cover
         default="",
         help="Base string for deterministic stub seeding",
     )
+    # Phase 5: ML feature flags
+    agg_parser.add_argument(
+        "--enable-predictions",
+        action="store_true",
+        default=False,
+        help="Enable Prophet-based trend forecasting (requires prophet package)",
+    )
+    agg_parser.add_argument(
+        "--enable-insights",
+        action="store_true",
+        default=False,
+        help="Enable OpenAI-based insights (requires openai package and OPENAI_API_KEY)",
+    )
+    agg_parser.add_argument(
+        "--insights-max-tokens",
+        type=int,
+        default=1000,
+        help="Maximum tokens for OpenAI insights response (default: 1000)",
+    )
+    agg_parser.add_argument(
+        "--insights-cache-ttl-hours",
+        type=int,
+        default=24,
+        help="Cache TTL for insights in hours (default: 24)",
+    )
+    agg_parser.add_argument(
+        "--insights-dry-run",
+        action="store_true",
+        default=False,
+        help="Generate prompt artifact without calling OpenAI API",
+    )
+    # Hidden flag for stub mode (testing only, not in help)
+    agg_parser.add_argument(
+        "--stub-mode",
+        action="store_true",
+        default=False,
+        help=argparse.SUPPRESS,  # Hidden from help
+    )
 
     return parser
 
@@ -526,7 +564,7 @@ def cmd_generate_csv(args: Namespace) -> int:
 
 
 def cmd_generate_aggregates(args: Namespace) -> int:
-    """Execute the generate-aggregates command (Phase 3)."""
+    """Execute the generate-aggregates command (Phase 3 + Phase 5 ML)."""
     logger.info("Generating JSON aggregates...")
     logger.info(f"Database: {args.database}")
     logger.info(f"Output: {args.output}")
@@ -534,6 +572,30 @@ def cmd_generate_aggregates(args: Namespace) -> int:
     if not args.database.exists():
         logger.error(f"Database not found: {args.database}")
         return 1
+
+    # Phase 5: Early validation for insights
+    enable_insights = getattr(args, "enable_insights", False)
+    insights_dry_run = getattr(args, "insights_dry_run", False)
+    if enable_insights:
+        # Check for OPENAI_API_KEY only if NOT in dry-run mode
+        # Dry-run doesn't call API so shouldn't require a key
+        import os
+
+        if not insights_dry_run and not os.environ.get("OPENAI_API_KEY"):
+            logger.error(
+                "OPENAI_API_KEY is required for --enable-insights. "
+                "Set the environment variable, or use --insights-dry-run for prompt iteration."
+            )
+            return 1
+
+        # Check for openai package (needed even for dry-run to build prompt)
+        try:
+            import openai  # noqa: F401
+        except ImportError:
+            logger.error(
+                "OpenAI SDK not installed. Install ML extras: pip install -e '.[ml]'"
+            )
+            return 1
 
     try:
         db = DatabaseManager(args.database)
@@ -546,6 +608,13 @@ def cmd_generate_aggregates(args: Namespace) -> int:
                 run_id=args.run_id,
                 enable_ml_stubs=getattr(args, "enable_ml_stubs", False),
                 seed_base=getattr(args, "seed_base", ""),
+                # Phase 5: ML parameters
+                enable_predictions=getattr(args, "enable_predictions", False),
+                enable_insights=enable_insights,
+                insights_max_tokens=getattr(args, "insights_max_tokens", 1000),
+                insights_cache_ttl_hours=getattr(args, "insights_cache_ttl_hours", 24),
+                insights_dry_run=getattr(args, "insights_dry_run", False),
+                stub_mode=getattr(args, "stub_mode", False),
             )
             manifest = generator.generate_all()
 
