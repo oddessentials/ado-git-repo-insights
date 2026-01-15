@@ -567,20 +567,93 @@ function handleDateRangeChange(e) {
 
 /**
  * Apply custom date range.
+ * Shows warning modal if range exceeds 365 days.
  */
-function applyCustomDates() {
+async function applyCustomDates() {
     const start = elements.startDate.value;
     const end = elements.endDate.value;
 
     if (!start || !end) return;
 
-    currentDateRange = {
-        start: new Date(start),
-        end: new Date(end)
-    };
+    const startDate = new Date(start);
+    const endDate = new Date(end);
+    const daysDiff = Math.floor((endDate - startDate) / (1000 * 60 * 60 * 24));
 
+    // Show warning if range > 365 days
+    if (daysDiff > 365) {
+        const proceed = await showDateRangeWarning(daysDiff);
+        if (!proceed) {
+            // User chose to adjust range - do nothing
+            return;
+        }
+    }
+
+    currentDateRange = { start: startDate, end: endDate };
     updateUrlState();
     refreshMetrics();
+}
+
+/**
+ * Show date-range warning modal for large ranges.
+ * @param {number} days - Number of days in the range
+ * @returns {Promise<boolean>} - True if user chooses to continue, false to adjust
+ */
+function showDateRangeWarning(days) {
+    return new Promise((resolve) => {
+        // Create modal if it doesn't exist
+        let modal = document.getElementById('date-range-warning-modal');
+        if (!modal) {
+            modal = document.createElement('div');
+            modal.id = 'date-range-warning-modal';
+            modal.className = 'modal';
+            modal.innerHTML = `
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h3>⚠️ Large Date Range</h3>
+                    </div>
+                    <div class="modal-body">
+                        <p>You've selected a date range of <strong id="modal-days"></strong> days.</p>
+                        <p>Loading data for large date ranges may take longer and could impact performance.</p>
+                        <p>Consider adjusting your date range for better performance.</p>
+                    </div>
+                    <div class="modal-footer">
+                        <button id="modal-adjust" class="btn btn-secondary">Adjust Range</button>
+                        <button id="modal-continue" class="btn btn-primary">Continue Anyway</button>
+                    </div>
+                </div>
+            `;
+            document.body.appendChild(modal);
+        }
+
+        // Update days count
+        document.getElementById('modal-days').textContent = days;
+
+        // Show modal
+        modal.classList.add('show');
+
+        // Handle button clicks
+        const adjustBtn = document.getElementById('modal-adjust');
+        const continueBtn = document.getElementById('modal-continue');
+
+        const cleanup = () => {
+            modal.classList.remove('show');
+            adjustBtn.removeEventListener('click', onAdjust);
+            continueBtn.removeEventListener('click', onContinue);
+        };
+
+        const onAdjust = () => {
+            cleanup();
+            resolve(false);
+        };
+
+        const onContinue = () => {
+            cleanup();
+            resolve(true);
+        };
+
+        adjustBtn.addEventListener('click', onAdjust);
+        continueBtn.addEventListener('click', onContinue);
+    });
 }
 
 /**
