@@ -13,9 +13,90 @@ let currentDateRange = { start: null, end: null };
 const elements = {};
 
 /**
+ * Phase 4: Production-safe metrics collector
+ * Only active when:
+ * 1. NOT in production (NODE_ENV !== 'production')
+ * 2. window.__DASHBOARD_DEBUG__ is set OR ?debug query param present
+ */
+const IS_PRODUCTION = typeof process !== 'undefined' && process.env.NODE_ENV === 'production';
+const DEBUG_ENABLED = !IS_PRODUCTION && (
+    (typeof window !== 'undefined' && window.__DASHBOARD_DEBUG__) ||
+    (typeof window !== 'undefined' && new URLSearchParams(window.location.search).has('debug'))
+);
+
+const metricsCollector = DEBUG_ENABLED ? {
+    marks: new Map(),
+    measures: [],
+
+    /**
+     * Record a performance mark
+     */
+    mark(name) {
+        if (!performance || !performance.mark) return;
+        try {
+            performance.mark(name);
+            this.marks.set(name, performance.now());
+        } catch (e) {
+            // Ignore errors in production-like environments
+        }
+    },
+
+    /**
+     * Record a performance measure between two marks
+     */
+    measure(name, startMark, endMark) {
+        if (!performance || !performance.measure) return;
+        try {
+            performance.measure(name, startMark, endMark);
+            const entries = performance.getEntriesByName(name, 'measure');
+            if (entries.length > 0) {
+                this.measures.push({
+                    name,
+                    duration: entries[entries.length - 1].duration,
+                    timestamp: Date.now()
+                });
+            }
+        } catch (e) {
+            // Ignore errors
+        }
+    },
+
+    /**
+     * Get all recorded metrics
+     */
+    getMetrics() {
+        return {
+            marks: Array.from(this.marks.entries()).map(([name, time]) => ({ name, time })),
+            measures: [...this.measures]
+        };
+    },
+
+    /**
+     * Reset all metrics (for testing)
+     */
+    reset() {
+        this.marks.clear();
+        this.measures = [];
+        if (performance && performance.clearMarks) {
+            performance.clearMarks();
+        }
+        if (performance && performance.clearMeasures) {
+            performance.clearMeasures();
+        }
+    }
+} : null;
+
+// Expose metrics for debugging/testing
+if (DEBUG_ENABLED && typeof window !== 'undefined') {
+    window.__dashboardMetrics = metricsCollector;
+}
+
+/**
  * Initialize the dashboard.
  */
 async function init() {
+    if (metricsCollector) metricsCollector.mark('dashboard-init');
+
     cacheElements();
     setupEventListeners();
 
@@ -158,11 +239,14 @@ async function refreshMetrics() {
  * Render summary metric cards.
  */
 function renderSummaryCards(rollups) {
+    if (metricsCollector) metricsCollector.mark('render-summary-cards-start');
+
     if (!rollups.length) {
         elements.totalPrs.textContent = '0';
         elements.cycleP50.textContent = '-';
         elements.cycleP90.textContent = '-';
         elements.authorsCount.textContent = '0';
+        if (metricsCollector) metricsCollector.mark('render-summary-cards-end');
         return;
     }
 
@@ -189,6 +273,12 @@ function renderSummaryCards(rollups) {
     // Sum unique authors (approximate from weekly counts)
     const authorsCount = rollups.reduce((sum, r) => sum + r.authors_count, 0);
     elements.authorsCount.textContent = Math.round(authorsCount / rollups.length).toLocaleString();
+
+    if (metricsCollector) {
+        metricsCollector.mark('render-summary-cards-end');
+        metricsCollector.mark('first-meaningful-paint');
+        metricsCollector.measure('init-to-fmp', 'dashboard-init', 'first-meaningful-paint');
+    }
 }
 
 /**
@@ -567,20 +657,93 @@ function handleDateRangeChange(e) {
 
 /**
  * Apply custom date range.
+ * Shows warning modal if range exceeds 365 days.
  */
-function applyCustomDates() {
+async function applyCustomDates() {
     const start = elements.startDate.value;
     const end = elements.endDate.value;
 
     if (!start || !end) return;
 
-    currentDateRange = {
-        start: new Date(start),
-        end: new Date(end)
-    };
+    const startDate = new Date(start);
+    const endDate = new Date(end);
+    const daysDiff = Math.floor((endDate - startDate) / (1000 * 60 * 60 * 24));
 
+    // Show warning if range > 365 days
+    if (daysDiff > 365) {
+        const proceed = await showDateRangeWarning(daysDiff);
+        if (!proceed) {
+            // User chose to adjust range - do nothing
+            return;
+        }
+    }
+
+    currentDateRange = { start: startDate, end: endDate };
     updateUrlState();
     refreshMetrics();
+}
+
+/**
+ * Show date-range warning modal for large ranges.
+ * @param {number} days - Number of days in the range
+ * @returns {Promise<boolean>} - True if user chooses to continue, false to adjust
+ */
+function showDateRangeWarning(days) {
+    return new Promise((resolve) => {
+        // Create modal if it doesn't exist
+        let modal = document.getElementById('date-range-warning-modal');
+        if (!modal) {
+            modal = document.createElement('div');
+            modal.id = 'date-range-warning-modal';
+            modal.className = 'modal';
+            modal.innerHTML = `
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h3>⚠️ Large Date Range</h3>
+                    </div>
+                    <div class="modal-body">
+                        <p>You've selected a date range of <strong id="modal-days"></strong> days.</p>
+                        <p>Loading data for large date ranges may take longer and could impact performance.</p>
+                        <p>Consider adjusting your date range for better performance.</p>
+                    </div>
+                    <div class="modal-footer">
+                        <button id="modal-adjust" class="btn btn-secondary">Adjust Range</button>
+                        <button id="modal-continue" class="btn btn-primary">Continue Anyway</button>
+                    </div>
+                </div>
+            `;
+            document.body.appendChild(modal);
+        }
+
+        // Update days count
+        document.getElementById('modal-days').textContent = days;
+
+        // Show modal
+        modal.classList.add('show');
+
+        // Handle button clicks
+        const adjustBtn = document.getElementById('modal-adjust');
+        const continueBtn = document.getElementById('modal-continue');
+
+        const cleanup = () => {
+            modal.classList.remove('show');
+            adjustBtn.removeEventListener('click', onAdjust);
+            continueBtn.removeEventListener('click', onContinue);
+        };
+
+        const onAdjust = () => {
+            cleanup();
+            resolve(false);
+        };
+
+        const onContinue = () => {
+            cleanup();
+            resolve(true);
+        };
+
+        adjustBtn.addEventListener('click', onAdjust);
+        continueBtn.addEventListener('click', onContinue);
+    });
 }
 
 /**

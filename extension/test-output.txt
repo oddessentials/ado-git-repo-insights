@@ -1,0 +1,15 @@
+PASS tests/synthetic-fixtures.test.js
+  Synthetic Fixture Consumer Validation
+    ΓêÜ 1000 PR fixture passes loadManifest validation (1 ms)
+    ΓêÜ generated manifest has correct schema versions (1 ms)
+    ΓêÜ generated rollups load successfully (9 ms)
+    ΓêÜ generated dimensions load successfully (2 ms)
+    ΓêÜ 5k PR fixture generates successfully
+    ΓêÜ 10k PR fixture generates successfully (1 ms)
+    ΓêÜ deterministic generation: same seed produces identical manifest structure (1 ms)
+
+Test Suites: 1 passed, 1 total
+Tests:       7 passed, 7 total
+Snapshots:   0 total
+Time:        0.452 s, estimated 1 s
+Ran all test suites matching /tests\\synthetic-fixtures.test.js/i.

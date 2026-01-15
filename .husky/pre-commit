@@ -1,0 +1,13 @@
+#!/bin/sh
+# Pre-commit hook: Fast lint checks only
+# Full tests run on pre-push
+
+echo "[pre-commit] Running pre-commit checks..."
+
+# Python linting (if python files changed)
+if git diff --cached --name-only | grep -q '\.py$'; then
+    echo "[pre-commit] Python files changed, running ruff..."
+    ruff check src/ tests/ --fix || exit 1
+fi
+
+echo "[pre-commit] ✅ Pre-commit checks passed"

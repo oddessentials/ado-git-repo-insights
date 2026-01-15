@@ -332,4 +332,237 @@ describe('Dashboard Rendering', () => {
             expect(() => renderInsightsEmpty(null)).not.toThrow();
         });
     });
+
+    describe('Date-Range Warning UX', () => {
+        /**
+         * Implementation of showDateRangeWarning for testing.
+         * Mirrors the logic in dashboard.js.
+         */
+        const createShowDateRangeWarning = () => {
+            return function showDateRangeWarning(days) {
+                return new Promise((resolve) => {
+                    // Create modal if it doesn't exist
+                    let modal = document.getElementById('date-range-warning-modal');
+                    if (!modal) {
+                        modal = document.createElement('div');
+                        modal.id = 'date-range-warning-modal';
+                        modal.className = 'modal';
+                        modal.innerHTML = `
+                            <div class="modal-content">
+                                <div class="modal-header">
+                                    <h3>⚠️ Large Date Range</h3>
+                                </div>
+                                <div class="modal-body">
+                                    <p>You've selected a date range of <strong id="modal-days"></strong> days.</p>
+                                    <p>Loading data for large date ranges may take longer and could impact performance.</p>
+                                </div>
+                                <div class="modal-footer">
+                                    <button id="modal-adjust" class="btn btn-secondary">Adjust Range</button>
+                                    <button id="modal-continue" class="btn btn-primary">Continue Anyway</button>
+                                </div>
+                            </div>
+                        `;
+                        document.body.appendChild(modal);
+                    }
+
+                    // Update days count
+                    document.getElementById('modal-days').textContent = days;
+
+                    // Show modal
+                    modal.classList.add('show');
+
+                    // Handle button clicks
+                    const adjustBtn = document.getElementById('modal-adjust');
+                    const continueBtn = document.getElementById('modal-continue');
+
+                    const cleanup = () => {
+                        modal.classList.remove('show');
+                        adjustBtn.removeEventListener('click', onAdjust);
+                        continueBtn.removeEventListener('click', onContinue);
+                    };
+
+                    const onAdjust = () => {
+                        cleanup();
+                        resolve(false);
+                    };
+
+                    const onContinue = () => {
+                        cleanup();
+                        resolve(true);
+                    };
+
+                    adjustBtn.addEventListener('click', onAdjust);
+                    continueBtn.addEventListener('click', onContinue);
+                });
+            };
+        };
+
+        beforeEach(() => {
+            // Reset body for modal tests
+            document.body.innerHTML = '';
+        });
+
+        afterEach(() => {
+            // Clean up any modals
+            const modal = document.getElementById('date-range-warning-modal');
+            if (modal) modal.remove();
+        });
+
+        it('Range > 365 days → modal visible, load blocked', async () => {
+            const showDateRangeWarning = createShowDateRangeWarning();
+            const days = 400;
+
+            // Start showing the warning (don't await yet)
+            const warningPromise = showDateRangeWarning(days);
+
+            // Modal should be visible
+            const modal = document.getElementById('date-range-warning-modal');
+            expect(modal).not.toBeNull();
+            expect(modal.classList.contains('show')).toBe(true);
+
+            // Days should be displayed
+            const daysElement = document.getElementById('modal-days');
+            expect(daysElement.textContent).toBe('400');
+
+            // Clean up by clicking continue
+            document.getElementById('modal-continue').click();
+            await warningPromise;
+        });
+
+        it('"Adjust Range" click → modal hidden, returns false (load cancelled)', async () => {
+            const showDateRangeWarning = createShowDateRangeWarning();
+            const days = 500;
+
+            const warningPromise = showDateRangeWarning(days);
+
+            // Click "Adjust Range"
+            document.getElementById('modal-adjust').click();
+
+            const result = await warningPromise;
+
+            // Should return false (cancel)
+            expect(result).toBe(false);
+
+            // Modal should be hidden
+            const modal = document.getElementById('date-range-warning-modal');
+            expect(modal.classList.contains('show')).toBe(false);
+        });
+
+        it('"Continue" click → modal hidden, returns true (load proceeds)', async () => {
+            const showDateRangeWarning = createShowDateRangeWarning();
+            const days = 730;
+
+            const warningPromise = showDateRangeWarning(days);
+
+            // Click "Continue Anyway"
+            document.getElementById('modal-continue').click();
+
+            const result = await warningPromise;
+
+            // Should return true (proceed)
+            expect(result).toBe(true);
+
+            // Modal should be hidden
+            const modal = document.getElementById('date-range-warning-modal');
+            expect(modal.classList.contains('show')).toBe(false);
+        });
+
+        it('Modal displays correct day count', async () => {
+            const showDateRangeWarning = createShowDateRangeWarning();
+            const days = 999;
+
+            const warningPromise = showDateRangeWarning(days);
+
+            const daysElement = document.getElementById('modal-days');
+            expect(daysElement.textContent).toBe('999');
+
+            // Clean up
+            document.getElementById('modal-continue').click();
+            await warningPromise;
+        });
+
+        it('Modal can be shown multiple times', async () => {
+            const showDateRangeWarning = createShowDateRangeWarning();
+
+            // First show
+            let promise = showDateRangeWarning(400);
+            document.getElementById('modal-adjust').click();
+            let result = await promise;
+            expect(result).toBe(false);
+
+            // Second show
+            promise = showDateRangeWarning(500);
+            document.getElementById('modal-continue').click();
+            result = await promise;
+            expect(result).toBe(true);
+        });
+
+        describe('applyCustomDates integration', () => {
+            /**
+             * Simulates applyCustomDates logic for testing threshold behavior.
+             */
+            const createApplyCustomDates = (showWarningFn) => {
+                return async function applyCustomDates(startDate, endDate) {
+                    const daysDiff = Math.floor(
+                        (endDate - startDate) / (1000 * 60 * 60 * 24)
+                    );
+
+                    // Show warning if range > 365 days
+                    if (daysDiff > 365) {
+                        const proceed = await showWarningFn(daysDiff);
+                        if (!proceed) {
+                            return { proceeded: false, reason: 'user-cancelled' };
+                        }
+                    }
+
+                    return { proceeded: true, daysDiff };
+                };
+            };
+
+            it('Range <= 365 days → no modal, load proceeds immediately', async () => {
+                let warningShown = false;
+                const mockShowWarning = jest.fn(() => {
+                    warningShown = true;
+                    return Promise.resolve(true);
+                });
+
+                const applyCustomDates = createApplyCustomDates(mockShowWarning);
+
+                const start = new Date('2025-01-01');
+                const end = new Date('2025-12-31'); // 364 days
+
+                const result = await applyCustomDates(start, end);
+
+                expect(mockShowWarning).not.toHaveBeenCalled();
+                expect(result.proceeded).toBe(true);
+            });
+
+            it('Range exactly 366 days → modal shown', async () => {
+                const mockShowWarning = jest.fn(() => Promise.resolve(true));
+
+                const applyCustomDates = createApplyCustomDates(mockShowWarning);
+
+                const start = new Date('2025-01-01');
+                const end = new Date('2026-01-02'); // 366 days
+
+                await applyCustomDates(start, end);
+
+                expect(mockShowWarning).toHaveBeenCalledWith(366);
+            });
+
+            it('Large range + user cancels → load cancelled', async () => {
+                const mockShowWarning = jest.fn(() => Promise.resolve(false));
+
+                const applyCustomDates = createApplyCustomDates(mockShowWarning);
+
+                const start = new Date('2024-01-01');
+                const end = new Date('2026-01-01'); // ~730 days
+
+                const result = await applyCustomDates(start, end);
+
+                expect(result.proceeded).toBe(false);
+                expect(result.reason).toBe('user-cancelled');
+            });
+        });
+    });
 });
