@@ -165,8 +165,14 @@ jobs:
       - name: Run base-compatible tests
         run: |
           # Run tests that MUST work without [ml] extras
+          # 1. CLI flag tests (no ML imports)
           pytest tests/unit/test_ml_cli_flags.py -v
-          echo "✓ CLI flags tests passed without [ml] extras"
+          # 2. Schema validation tests (no ML imports)
+          pytest tests/unit/test_insights_schema.py -v
+          pytest tests/unit/test_predictions_schema.py -v
+          # 3. Test that CLI entrypoint doesn't import ML at parse time
+          python -c "from ado_git_repo_insights.cli import main; print('✓ CLI imports OK')"
+          echo "✓ All base tests passed without [ml] extras"
 
 
   build:
