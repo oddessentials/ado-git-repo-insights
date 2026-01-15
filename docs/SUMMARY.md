@@ -162,7 +162,7 @@ How long data and logs persist—and who can access them—depends entirely on *
 
 ## Appendix: Test Evidence
 
-This appendix maps **code behavior claims** to automated tests. **Operational claims** about Azure DevOps infrastructure (RBAC, artifact retention, pipeline secrets) describe platform features and are validated via [ADO Pipeline Smoke Check](docs/ado-pipeline-smoke-check.md).
+This appendix maps **code behavior claims** to automated tests. **Operational claims** about Azure DevOps infrastructure (RBAC, artifact retention, pipeline secrets) describe platform features and are validated via [ADO Pipeline Smoke Check](ado-pipeline-smoke-check.md).
 
 > **Note:** Secret redaction is enforced by the logging pipeline configuration. All loggers MUST use `RedactingFormatter` or `JsonlHandler` to maintain this guarantee.
 
@@ -207,7 +207,7 @@ The following describe Azure DevOps platform behavior and cannot be verified via
 | PAT stored as secure pipeline secret | Pipeline Variables | Manual / ADO audit |
 | RBAC controls artifact access | Project Permissions | ADO configuration |
 | Artifact retention policies | Build Retention Settings | ADO configuration |
-| Artifact download → update → publish | Pipeline Artifacts | [Smoke Check](docs/ado-pipeline-smoke-check.md) |
+| Artifact download → update → publish | Pipeline Artifacts | [Smoke Check](ado-pipeline-smoke-check.md) |
 
 ### Test Categories
 
