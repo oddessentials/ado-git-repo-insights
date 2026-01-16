@@ -264,7 +264,8 @@ async function resolveFromPipelineId(pipelineId, projectId) {
 
     if (!builds || builds.length === 0) {
         // Get pipeline name for better error message
-        const definitions = await buildClient.getDefinitions(projectId, null, null, null, null, null, [pipelineId]);
+        // queryOrder (5th param): 2 = definitionNameAscending (required by Azure DevOps API)
+        const definitions = await buildClient.getDefinitions(projectId, null, null, null, 2, null, null, null, [pipelineId]);
         const name = definitions?.[0]?.name || `ID ${pipelineId}`;
         throw createNoSuccessfulBuildsError(name);
     }
@@ -276,7 +277,8 @@ async function resolveFromPipelineId(pipelineId, projectId) {
     const hasAggregates = artifacts.some(a => a.name === 'aggregates');
 
     if (!hasAggregates) {
-        const definitions = await buildClient.getDefinitions(projectId, null, null, null, null, null, [pipelineId]);
+        // queryOrder (5th param): 2 = definitionNameAscending (required by Azure DevOps API)
+        const definitions = await buildClient.getDefinitions(projectId, null, null, null, 2, null, null, null, [pipelineId]);
         const name = definitions?.[0]?.name || `ID ${pipelineId}`;
         throw createArtifactsMissingError(name, latestBuild.id);
     }
