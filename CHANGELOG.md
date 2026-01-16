@@ -1,3 +1,33 @@
+# [2.6.0](https://github.com/oddessentials/ado-git-repo-insights/compare/v2.5.0...v2.6.0) (2026-01-16)
+
+
+### Bug Fixes
+
+* add noqa comments for XML parsing security warnings ([b14381a](https://github.com/oddessentials/ado-git-repo-insights/commit/b14381a2ee58c392dac89801d8132ce5607ecb6f))
+* **ci:** disable coverage for test-base-no-ml subset tests ([673aad3](https://github.com/oddessentials/ado-git-repo-insights/commit/673aad38103a885f4b90b0b1b2ff8ca0f7610e79))
+* **ci:** improve baseline integrity check for PR merge context ([12e4b85](https://github.com/oddessentials/ado-git-repo-insights/commit/12e4b8535bc5c3674aa1902277f9e6c8846f2ae1))
+* **ci:** increase fetch-depth for baseline integrity check ([aac976f](https://github.com/oddessentials/ado-git-repo-insights/commit/aac976ffac6e03b04593b05f5c067a31c278f124))
+* **phase4:** add performance API polyfill and fix synthetic fixture tests ([6672b82](https://github.com/oddessentials/ado-git-repo-insights/commit/6672b8210ad433ba131628722f12b5a49e993f1e))
+
+
+### Features
+
+* Phase 5 Advanced Analytics & ML implementation ([5f2dd30](https://github.com/oddessentials/ado-git-repo-insights/commit/5f2dd307f5acc41bde81cab57056dd0531fe8fa0))
+* **phase4:** add automated date-range warning UX with tests ([002626d](https://github.com/oddessentials/ado-git-repo-insights/commit/002626decd01c69201585004f9c2feb1bb467226))
+* **phase4:** add baseline performance tests (simplified) ([841d8d9](https://github.com/oddessentials/ado-git-repo-insights/commit/841d8d9aa6ae82845a02fc4b640cbaa10c63781a))
+* **phase4:** add chunked loading with progress and caching ([10f8c1f](https://github.com/oddessentials/ado-git-repo-insights/commit/10f8c1fd6cc5d5e5694add488b250a69746fd72c))
+* **phase4:** add CI scaling gates at 1k/5k/10k PRs ([455c821](https://github.com/oddessentials/ado-git-repo-insights/commit/455c8215ea97747b074581ade0e44006e54f8039))
+* **phase4:** add contract-validated synthetic generator ([4cd9d11](https://github.com/oddessentials/ado-git-repo-insights/commit/4cd9d116ba21db95ee5b3ed1fe159e0be7edefd5))
+* **phase4:** add structured rendering metrics ([1fcdbd9](https://github.com/oddessentials/ado-git-repo-insights/commit/1fcdbd93ec304ddbe019a66fbd303d3c17960cc1))
+* **phase5:** add ID stability edge-case tests and base-no-ML CI job ([63d02d7](https://github.com/oddessentials/ado-git-repo-insights/commit/63d02d71f5e1beb960286c42ed0fae73c83ac4ec))
+* **phase5:** add ID stability tests and harden base-no-ML CI ([0c7b3a2](https://github.com/oddessentials/ado-git-repo-insights/commit/0c7b3a23d630d732fa1b345903004fad47c92bbf))
+* **phase5:** harden ML implementation with contract tests and deterministic IDs ([884e579](https://github.com/oddessentials/ado-git-repo-insights/commit/884e57945e9d8e8d6e89748b5235c101e43be406))
+
+
+### Performance Improvements
+
+* **ci:** optimize test-base-no-ml job ([4a84332](https://github.com/oddessentials/ado-git-repo-insights/commit/4a84332301818b804a597aa0f8cc691a8fba833b))
+
 # [2.5.0](https://github.com/oddessentials/ado-git-repo-insights/compare/v2.4.0...v2.5.0) (2026-01-14)
 
 
