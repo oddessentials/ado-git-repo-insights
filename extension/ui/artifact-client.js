@@ -39,9 +39,11 @@ class ArtifactClient {
         const webContext = VSS.getWebContext();
         this.collectionUri = webContext.collection.uri;
 
-        // Get auth token from SDK
-        const authTokenService = await VSS.getService(VSS.ServiceIds.AuthTokenService);
-        this.authToken = await authTokenService.getToken();
+        // Get auth token from SDK using the correct method
+        // Note: VSS.getAccessToken() is the documented way to get tokens
+        // VSS.ServiceIds.AuthTokenService doesn't exist in the bundled SDK
+        const tokenResult = await VSS.getAccessToken();
+        this.authToken = tokenResult.token;
 
         this.initialized = true;
         return this;
