@@ -43,6 +43,7 @@ jobs:
             @semantic-release/exec@6
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          HUSKY: 0  # CI is authoritative; hooks are developer UX
 
   build-python:
     needs: release

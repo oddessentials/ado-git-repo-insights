@@ -72,4 +72,3 @@ All objectives implemented and verified:
 | [runbook.md](runbook.md) | Operational runbook |
 | [EXTENSION.md](EXTENSION.md) | Extension setup |
 | [PHASE6.md](PHASE6.md) | Next phase plan |
-

@@ -36,6 +36,52 @@ jobs:
         # Warn-only mode: don't block PRs, just report
         continue-on-error: true
 
+  # Guard: Detect CRLF in files that run in Unix CI
+  line-ending-guard:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Check for CRLF in Unix-executed files
+        run: |
+          set -euo pipefail
+          echo "Scanning for CRLF line endings in CI-executed files..."
+
+          FOUND_CRLF=false
+
+          # Check Husky hooks
+          if grep -rlI $'\r' .husky/ 2>/dev/null; then
+            echo "::error::CRLF detected in .husky/"
+            FOUND_CRLF=true
+          fi
+
+          # Check shell scripts
+          if find . -name "*.sh" -type f | xargs grep -lI $'\r' 2>/dev/null; then
+            echo "::error::CRLF detected in *.sh files"
+            FOUND_CRLF=true
+          fi
+
+          # Check .github/scripts
+          if grep -rlI $'\r' .github/scripts/ 2>/dev/null; then
+            echo "::error::CRLF detected in .github/scripts/"
+            FOUND_CRLF=true
+          fi
+
+          # Check scripts directory
+          if grep -rlI $'\r' scripts/ 2>/dev/null; then
+            echo "::error::CRLF detected in scripts/"
+            FOUND_CRLF=true
+          fi
+
+          if [[ "$FOUND_CRLF" == "true" ]]; then
+            echo ""
+            echo "::error::CRLF line endings found in files that run in CI."
+            echo "Fix: Run 'git add --renormalize .' after adding .gitattributes"
+            exit 1
+          fi
+
+          echo "✓ No CRLF detected in Unix-executed files"
+
   # Guard: Block task Major changes without explicit marker
   task-major-guard:
     runs-on: ubuntu-latest
@@ -115,16 +161,43 @@ jobs:
           echo "✓ Ruff versions match: $INSTALLED_RUFF"
         shell: bash
 
-      - name: Lint with Ruff
+      - name: Run pre-commit checks
         run: |
-          ruff check .
-          ruff format --check .
+          pip install pre-commit
+          pre-commit run --all-files --show-diff-on-failure
 
-      - name: Type Check with Mypy
-        run: mypy src/
 
       - name: Run Tests with Coverage
-        run: pytest --cov-report=xml
+        id: pytest
+        run: |
+          # Run pytest with JUnit XML output for robust CI gating
+          # -q -ra: quiet mode with short test summary (passed/failed/skipped/xfailed/error)
+          # --junit-xml: machine-readable output for CI validation
+          # --cov-report=xml: coverage report for codecov
+          python -m pytest \
+            -q -ra \
+            --junit-xml=test-results.xml \
+            --cov-report=xml \
+            --tb=short \
+            2>&1 | tee pytest_output.txt
+          PYTEST_EXIT=${PIPESTATUS[0]}
+
+          # Always run validation even if pytest fails, to provide detailed diagnostics
+          echo "pytest_exit=$PYTEST_EXIT" >> $GITHUB_OUTPUT
+          exit $PYTEST_EXIT
+        shell: bash
+
+      - name: Validate Test Results (Python)
+        if: always() && matrix.os == 'ubuntu-latest' && matrix.python-version == '3.11'
+        run: |
+          # Robust test validation using JUnit XML parsing
+          # MIN_COLLECTED: Minimum expected tests (update when adding/removing tests)
+          # MAX_SKIPS: Maximum allowed skipped tests (0 = no skips allowed in CI)
+          python .github/scripts/validate-test-results.py \
+            test-results.xml \
+            --min-collected=312 \
+            --max-skips=0
+        shell: bash
 
       - name: Upload Coverage
         uses: codecov/codecov-action@v5
@@ -133,6 +206,56 @@ jobs:
           token: ${{ secrets.CODECOV_TOKEN }}
           files: ./coverage.xml
           fail_ci_if_error: false
+
+
+  # Phase 5: Test base installation without [ml] extras
+  # Enforces optional-dependency isolation - ML features must not leak into base
+  # Functional validation job: verifies base package works without [ml] extras.
+  # This is NOT a coverage job - coverage is enforced in the main 'test' job.
+  test-base-no-ml:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # For setuptools_scm
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install base dependencies only (no [ml])
+        run: |
+          python -m pip install --upgrade pip
+          # Install base package WITHOUT [ml] extras
+          pip install -e .
+          # Install pytest only (no pytest-cov - coverage validated in main test job)
+          pip install pytest
+
+      - name: Verify optional dependencies NOT installed
+        run: |
+          # These should fail if [ml] was accidentally installed
+          if python -c "import prophet" >/dev/null 2>&1; then
+            echo "::error::Prophet should not be installed"
+            exit 1
+          fi
+          if python -c "import openai" >/dev/null 2>&1; then
+            echo "::error::OpenAI should not be installed"
+            exit 1
+          fi
+          echo "✓ Optional ML dependencies correctly NOT installed"
+
+      - name: Run base-compatible tests
+        run: |
+          # Run tests that MUST work without [ml] extras (single invocation for efficiency)
+          # Override addopts to exclude coverage (pyproject.toml includes --cov)
+          pytest -v -o "addopts=-ra -q" \
+            tests/unit/test_ml_cli_flags.py \
+            tests/unit/test_insights_schema.py \
+            tests/unit/test_predictions_schema.py
+          # Test that CLI entrypoint doesn't import ML at parse time
+          python -c "from ado_git_repo_insights.cli import main; print('✓ CLI imports OK')"
+          echo "✓ All base tests passed without [ml] extras"
+
 
   build:
     runs-on: ubuntu-latest
@@ -220,8 +343,27 @@ jobs:
         run: npm ci
 
       - name: Run Extension UI Tests
+        id: npm_test
         working-directory: extension
-        run: npm test
+        run: |
+          # Run Jest with JUnit XML output for robust CI gating
+          npm run test:ci 2>&1 | tee npm_test_output.txt
+          NPM_EXIT=${PIPESTATUS[0]}
+
+          echo "npm_exit=$NPM_EXIT" >> $GITHUB_OUTPUT
+          exit $NPM_EXIT
+
+      - name: Validate Test Results (Extension)
+        if: always()
+        run: |
+          # Robust test validation using JUnit XML parsing
+          # MIN_COLLECTED: Minimum expected tests (update when adding/removing tests)
+          # MAX_SKIPS: Maximum allowed skipped tests (0 = no skips allowed in CI)
+          python .github/scripts/validate-test-results.py \
+            extension/test-results.xml \
+            --min-collected=125 \
+            --max-skips=0
+        shell: bash
 
   # Phase 4: Performance baseline integrity guard
   baseline-integrity:
