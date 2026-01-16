@@ -1,3 +1,23 @@
+# [2.7.0](https://github.com/oddessentials/ado-git-repo-insights/compare/v2.6.0...v2.7.0) (2026-01-16)
+
+
+### Bug Fixes
+
+* **pipeline:** add aggregates artifact for dashboard discovery (Phase 5) ([8032d92](https://github.com/oddessentials/ado-git-repo-insights/commit/8032d929c272259ed7cc92571f4a7f84daaf4282))
+
+
+### Features
+
+* **extension:** move hub to project-level and add settings ([6430866](https://github.com/oddessentials/ado-git-repo-insights/commit/64308663b3b2fbdc846f4132337674938a951144))
+* **pipeline:** add production pipeline template (Phase 4) ([d64d417](https://github.com/oddessentials/ado-git-repo-insights/commit/d64d4178de25ff526adfa356626772bf6ad93136))
+* **task:** enable generateAggregates by default ([66201e9](https://github.com/oddessentials/ado-git-repo-insights/commit/66201e928c336ec6a78acd252e67bc2280d09ea6))
+* **ui:** add SDK integration and settings page (Phase 3) ([91c82a4](https://github.com/oddessentials/ado-git-repo-insights/commit/91c82a47e3da55ab2883724aebed6356af95e155))
+
+
+### Reverts
+
+* remove manual version bump (let semantic-release handle it) ([88ca261](https://github.com/oddessentials/ado-git-repo-insights/commit/88ca261ed6dfa83ab151c51f9aade5aa54f62e3f))
+
 # [2.6.0](https://github.com/oddessentials/ado-git-repo-insights/compare/v2.5.0...v2.6.0) (2026-01-16)
 
 
