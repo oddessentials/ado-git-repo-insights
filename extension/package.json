@@ -18,5 +18,8 @@
     "jest-junit": {
         "outputDirectory": ".",
         "outputName": "test-results.xml"
+    },
+    "dependencies": {
+        "vss-web-extension-sdk": "^5.141.0"
     }
 }
