@@ -8,7 +8,9 @@
         "test:watch": "jest --watch",
         "test:coverage": "jest --coverage",
         "test:ci": "jest --ci --reporters=default --reporters=jest-junit",
-        "perf:update-baseline": "node scripts/update-perf-baseline.js"
+        "perf:update-baseline": "node scripts/update-perf-baseline.js",
+        "copy-sdk": "bash scripts/copy-vss-sdk.sh",
+        "postinstall": "bash scripts/copy-vss-sdk.sh"
     },
     "devDependencies": {
         "jest": "^29.7.0",
@@ -18,5 +20,8 @@
     "jest-junit": {
         "outputDirectory": ".",
         "outputName": "test-results.xml"
+    },
+    "dependencies": {
+        "vss-web-extension-sdk": "^5.141.0"
     }
 }
