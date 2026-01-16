@@ -234,18 +234,24 @@ jobs:
       - name: Verify optional dependencies NOT installed
         run: |
           # These should fail if [ml] was accidentally installed
-          python -c "import prophet" 2>/dev/null && echo "::error::Prophet should not be installed" && exit 1 || true
-          python -c "import openai" 2>/dev/null && echo "::error::OpenAI should not be installed" && exit 1 || true
+          if python -c "import prophet" >/dev/null 2>&1; then
+            echo "::error::Prophet should not be installed"
+            exit 1
+          fi
+          if python -c "import openai" >/dev/null 2>&1; then
+            echo "::error::OpenAI should not be installed"
+            exit 1
+          fi
           echo "✓ Optional ML dependencies correctly NOT installed"
 
       - name: Run base-compatible tests
         run: |
-          # Run tests that MUST work without [ml] extras
+          # Run tests that MUST work without [ml] extras (single invocation for efficiency)
           # Override addopts to exclude coverage (pyproject.toml includes --cov)
-          ADDOPTS="-ra -q"
-          pytest tests/unit/test_ml_cli_flags.py -v -o "addopts=$ADDOPTS"
-          pytest tests/unit/test_insights_schema.py -v -o "addopts=$ADDOPTS"
-          pytest tests/unit/test_predictions_schema.py -v -o "addopts=$ADDOPTS"
+          pytest -v -o "addopts=-ra -q" \
+            tests/unit/test_ml_cli_flags.py \
+            tests/unit/test_insights_schema.py \
+            tests/unit/test_predictions_schema.py
           # Test that CLI entrypoint doesn't import ML at parse time
           python -c "from ado_git_repo_insights.cli import main; print('✓ CLI imports OK')"
           echo "✓ All base tests passed without [ml] extras"
