@@ -1,3 +1,10 @@
+## [2.7.4](https://github.com/oddessentials/ado-git-repo-insights/compare/v2.7.3...v2.7.4) (2026-01-16)
+
+
+### Bug Fixes
+
+* **extension:** add queryOrder to prevent pagination error ([d56480b](https://github.com/oddessentials/ado-git-repo-insights/commit/d56480bb937e63dce49c85c998e8d1f8fcf2b051))
+
 ## [2.7.3](https://github.com/oddessentials/ado-git-repo-insights/compare/v2.7.2...v2.7.3) (2026-01-16)
 
 
