@@ -326,7 +326,8 @@ async function discoverInsightsPipelines(projectId) {
     const matches = [];
 
     // Get pipeline definitions (limit for performance)
-    const definitions = await buildClient.getDefinitions(projectId, null, null, null, null, 50);
+    // queryOrder: 2 = definitionNameAscending (required for pagination)
+    const definitions = await buildClient.getDefinitions(projectId, null, null, null, null, 50, null, null, 2);
 
     for (const def of definitions) {
         // Get latest successful build
