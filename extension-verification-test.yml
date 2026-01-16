@@ -25,6 +25,7 @@ stages:
               New-Item -ItemType Directory -Force -Path "$(Pipeline.Workspace)/data" | Out-Null
               New-Item -ItemType Directory -Force -Path "$(Pipeline.Workspace)/csv_output" | Out-Null
               New-Item -ItemType Directory -Force -Path "$(Pipeline.Workspace)/run_artifacts" | Out-Null
+              New-Item -ItemType Directory -Force -Path "$(Pipeline.Workspace)/aggregates" | Out-Null
               Write-Host "##[section]Directories created"
             displayName: 'Create Directories'
 
@@ -44,7 +45,7 @@ stages:
               definition: '$(System.DefinitionId)'
               runVersion: 'latestFromBranch'
               runBranch: '$(Build.SourceBranch)'
-              allowPartiallySucceededBuilds: false
+              allowPartiallySucceededBuilds: true
               allowFailedBuilds: false
               artifactName: '$(ARTIFACT_NAME)'
               targetPath: '$(Pipeline.Workspace)/data'
@@ -62,6 +63,7 @@ stages:
 
           # Step 4: Run the extension task
           # Task Major version: 2 (update only on BREAKING TASK CHANGE)
+          # generateAggregates defaults to true in v2.7.0+
           - task: ExtractPullRequests@2
             displayName: 'Extract PR Metrics'
             inputs:
@@ -73,6 +75,7 @@ stages:
               pat: '$(PAT_SECRET)'
               database: '$(Pipeline.Workspace)/data/ado-insights.sqlite'
               outputDir: '$(Pipeline.Workspace)/csv_output'
+              aggregatesDir: '$(Pipeline.Workspace)/aggregates'
 
           # Step 5: Publish Golden DB (only on success)
           - task: PublishPipelineArtifact@1
@@ -81,6 +84,14 @@ stages:
             inputs:
               targetPath: '$(Pipeline.Workspace)/data'
               artifact: '$(ARTIFACT_NAME)'
+
+          # Step 5b: Publish Aggregates (enables dashboard auto-discovery)
+          - task: PublishPipelineArtifact@1
+            displayName: 'Publish Aggregates'
+            condition: succeeded()
+            inputs:
+              targetPath: '$(Pipeline.Workspace)/aggregates'
+              artifact: 'aggregates'
 
           # Step 6: Publish Candidate DB (forensic - always)
           - task: PublishPipelineArtifact@1
