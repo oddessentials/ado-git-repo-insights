@@ -1,3 +1,10 @@
+## [2.7.3](https://github.com/oddessentials/ado-git-repo-insights/compare/v2.7.2...v2.7.3) (2026-01-16)
+
+
+### Bug Fixes
+
+* **extension:** use VSS.getAccessToken() instead of broken AuthTokenService ([ccc65aa](https://github.com/oddessentials/ado-git-repo-insights/commit/ccc65aae98e4063b401e150e437ac166ba67c028))
+
 ## [2.7.2](https://github.com/oddessentials/ado-git-repo-insights/compare/v2.7.1...v2.7.2) (2026-01-16)
 
 
