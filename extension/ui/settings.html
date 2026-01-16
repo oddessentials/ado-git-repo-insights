@@ -17,18 +17,36 @@
 
         <div class="settings-content">
             <section class="setting-group">
-                <h2>Pipeline Configuration</h2>
+                <h2>Pipeline Source</h2>
                 <p class="setting-help">
-                    By default, the dashboard auto-discovers pipelines that publish an "aggregates" artifact.
-                    If you have multiple matching pipelines, or want to specify a particular one, enter its ID below.
+                    Specify which project and pipeline to load insights from.
+                    By default, the dashboard auto-discovers pipelines in the current project.
                 </p>
 
+                <!-- Project Selection -->
                 <div class="setting-field">
-                    <label for="pipeline-id">Pipeline ID (optional)</label>
+                    <label for="project-select">Source Project</label>
+                    <div class="project-input-group">
+                        <!-- Dropdown (shown when project listing is available) -->
+                        <select id="project-select" class="project-dropdown" style="display: none;">
+                            <option value="">Loading projects...</option>
+                        </select>
+                        <!-- Text fallback (shown when dropdown unavailable) -->
+                        <input type="text" id="project-id" class="project-text" placeholder="Current project">
+                    </div>
+                    <p class="field-hint">
+                        Leave empty to use the current project. Enter a Project ID or select from the dropdown.
+                        Find the project ID in Project Settings → Overview.
+                    </p>
+                </div>
+
+                <!-- Pipeline Definition ID -->
+                <div class="setting-field">
+                    <label for="pipeline-id">Pipeline Definition ID (optional)</label>
                     <input type="number" id="pipeline-id" placeholder="Auto-discover" min="1">
                     <p class="field-hint">
-                        Leave empty to auto-detect. Find the pipeline ID in the URL when viewing the pipeline
-                        (e.g., <code>?definitionId=<strong>123</strong></code>).
+                        Leave empty to auto-detect. Find the definition ID in the URL when viewing the pipeline
+                        (e.g., <code>?definitionId=<strong>5</strong></code>).
                     </p>
                 </div>
             </section>
