@@ -13,6 +13,10 @@
     "categories": [
         "Azure Pipelines"
     ],
+    "scopes": [
+        "vso.build",
+        "vso.settings"
+    ],
     "icons": {
         "default": "images/icon.png"
     },
@@ -45,12 +49,25 @@
             "id": "pr-insights-hub",
             "type": "ms.vss-web.hub",
             "targets": [
-                "ms.vss-build-web.build-results-hub-group"
+                "ms.vss-web.project-hub"
             ],
             "properties": {
                 "name": "PR Insights",
+                "order": 99,
                 "uri": "ui/index.html",
                 "iconName": "Chart"
+            }
+        },
+        {
+            "id": "pr-insights-settings",
+            "type": "ms.vss-web.hub",
+            "targets": [
+                "ms.vss-web.project-admin-hub-group"
+            ],
+            "properties": {
+                "name": "PR Insights Settings",
+                "order": 50,
+                "uri": "ui/settings.html"
             }
         }
     ],
