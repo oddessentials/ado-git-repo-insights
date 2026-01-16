@@ -175,6 +175,7 @@ async function getPipelineName(pipelineId) {
                 const definitions = await client.getDefinitions(
                     webContext.project.id,
                     null, null, null, null, null,
+                    null, null,
                     [pipelineId]
                 );
 

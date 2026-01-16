@@ -49,7 +49,7 @@
             "id": "pr-insights-hub",
             "type": "ms.vss-web.hub",
             "targets": [
-                "ms.vss-web.project-hub"
+                "ms.vss-code-web.code-hub-group"
             ],
             "properties": {
                 "name": "PR Insights",
