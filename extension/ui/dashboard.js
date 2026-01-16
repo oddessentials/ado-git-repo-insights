@@ -17,8 +17,9 @@ let artifactClient = null;
 let currentDateRange = { start: null, end: null };
 let sdkInitialized = false;
 
-// Settings key for extension data storage
-const SETTINGS_KEY = 'pr-insights-pipeline-id';
+// Settings keys for extension data storage (must match settings.js)
+const SETTINGS_KEY_PROJECT = 'pr-insights-source-project';
+const SETTINGS_KEY_PIPELINE = 'pr-insights-pipeline-id';
 
 // DOM element cache
 const elements = {};
@@ -178,21 +179,30 @@ function parseQueryParams() {
 }
 
 /**
- * Get pipeline ID from extension settings.
+ * Get source configuration from extension settings.
  *
- * @returns {Promise<number|null>}
+ * @returns {Promise<{ projectId: string|null, pipelineId: number|null }>}
  */
-async function getSettingsPipelineId() {
+async function getSourceConfig() {
+    const result = { projectId: null, pipelineId: null };
     try {
         const dataService = await VSS.getService(VSS.ServiceIds.ExtensionData);
-        const savedPipelineId = await dataService.getValue(SETTINGS_KEY, { scopeType: 'User' });
+
+        // Get source project ID
+        const savedProjectId = await dataService.getValue(SETTINGS_KEY_PROJECT, { scopeType: 'User' });
+        if (savedProjectId && typeof savedProjectId === 'string' && savedProjectId.trim()) {
+            result.projectId = savedProjectId.trim();
+        }
+
+        // Get pipeline definition ID
+        const savedPipelineId = await dataService.getValue(SETTINGS_KEY_PIPELINE, { scopeType: 'User' });
         if (savedPipelineId && typeof savedPipelineId === 'number' && savedPipelineId > 0) {
-            return savedPipelineId;
+            result.pipelineId = savedPipelineId;
         }
     } catch (e) {
         console.log('Could not read extension settings:', e);
     }
-    return null;
+    return result;
 }
 
 /**
@@ -215,28 +225,36 @@ async function resolveConfiguration() {
         return { directUrl: queryResult.value };
     }
 
-    // From here on, we need the SDK and Build API
+    // Get current project context
     const webContext = VSS.getWebContext();
-    const projectId = webContext.project.id;
+    const currentProjectId = webContext.project.id;
 
-    // Initialize artifact client
-    artifactClient = new ArtifactClient(projectId);
+    // Get configured source from settings
+    const sourceConfig = await getSourceConfig();
+
+    // Determine which project to use for artifact access
+    // Priority: settings > current context
+    const targetProjectId = sourceConfig.projectId || currentProjectId;
+
+    console.log(`Source project: ${targetProjectId}${sourceConfig.projectId ? ' (from settings)' : ' (current context)'}`);
+
+    // Initialize artifact client with target project
+    artifactClient = new ArtifactClient(targetProjectId);
     await artifactClient.initialize();
 
     // Mode: explicit pipelineId from query
     if (queryResult.mode === 'explicit') {
-        return await resolveFromPipelineId(queryResult.value, projectId);
+        return await resolveFromPipelineId(queryResult.value, targetProjectId);
     }
 
-    // Check settings
-    const settingsPipelineId = await getSettingsPipelineId();
-    if (settingsPipelineId) {
-        console.log(`Using pipeline ID from settings: ${settingsPipelineId}`);
-        return await resolveFromPipelineId(settingsPipelineId, projectId);
+    // Check settings for pipeline ID
+    if (sourceConfig.pipelineId) {
+        console.log(`Using pipeline definition ID from settings: ${sourceConfig.pipelineId}`);
+        return await resolveFromPipelineId(sourceConfig.pipelineId, targetProjectId);
     }
 
-    // Mode: discovery
-    return await discoverAndResolve(projectId);
+    // Mode: discovery in target project
+    return await discoverAndResolve(targetProjectId);
 }
 
 /**
