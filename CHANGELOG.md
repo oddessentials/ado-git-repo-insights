@@ -1,3 +1,10 @@
+## [2.7.1](https://github.com/oddessentials/ado-git-repo-insights/compare/v2.7.0...v2.7.1) (2026-01-16)
+
+
+### Bug Fixes
+
+* **ui:** bundle VSS SDK locally to avoid CDN version drift ([25065aa](https://github.com/oddessentials/ado-git-repo-insights/commit/25065aad4d9c9593c175920735bfce84df7b8a81))
+
 # [2.7.0](https://github.com/oddessentials/ado-git-repo-insights/compare/v2.6.0...v2.7.0) (2026-01-16)
 
 
