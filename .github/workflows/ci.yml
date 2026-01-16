@@ -210,6 +210,8 @@ jobs:
 
   # Phase 5: Test base installation without [ml] extras
   # Enforces optional-dependency isolation - ML features must not leak into base
+  # Functional validation job: verifies base package works without [ml] extras.
+  # This is NOT a coverage job - coverage is enforced in the main 'test' job.
   test-base-no-ml:
     runs-on: ubuntu-latest
     steps:
@@ -226,8 +228,8 @@ jobs:
           python -m pip install --upgrade pip
           # Install base package WITHOUT [ml] extras
           pip install -e .
-          # Install test dependencies
-          pip install pytest pytest-cov
+          # Install pytest only (no pytest-cov - coverage validated in main test job)
+          pip install pytest
 
       - name: Verify optional dependencies NOT installed
         run: |
@@ -239,14 +241,12 @@ jobs:
       - name: Run base-compatible tests
         run: |
           # Run tests that MUST work without [ml] extras
-          # Note: --no-cov disables coverage since this is a subset test,
-          # not the full test suite (coverage is validated in the main test job)
-          # 1. CLI flag tests (no ML imports)
-          pytest tests/unit/test_ml_cli_flags.py -v --no-cov
-          # 2. Schema validation tests (no ML imports)
-          pytest tests/unit/test_insights_schema.py -v --no-cov
-          pytest tests/unit/test_predictions_schema.py -v --no-cov
-          # 3. Test that CLI entrypoint doesn't import ML at parse time
+          # Override addopts to exclude coverage (pyproject.toml includes --cov)
+          ADDOPTS="-ra -q"
+          pytest tests/unit/test_ml_cli_flags.py -v -o "addopts=$ADDOPTS"
+          pytest tests/unit/test_insights_schema.py -v -o "addopts=$ADDOPTS"
+          pytest tests/unit/test_predictions_schema.py -v -o "addopts=$ADDOPTS"
+          # Test that CLI entrypoint doesn't import ML at parse time
           python -c "from ado_git_repo_insights.cli import main; print('✓ CLI imports OK')"
           echo "✓ All base tests passed without [ml] extras"
 
