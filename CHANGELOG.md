@@ -1,3 +1,10 @@
+## [2.7.6](https://github.com/oddessentials/ado-git-repo-insights/compare/v2.7.5...v2.7.6) (2026-01-16)
+
+
+### Bug Fixes
+
+* **extension:** add queryOrder to all getDefinitions calls ([b74be8a](https://github.com/oddessentials/ado-git-repo-insights/commit/b74be8a0ea42d4b8bf81e73e31d088a504133ecd))
+
 ## [2.7.5](https://github.com/oddessentials/ado-git-repo-insights/compare/v2.7.4...v2.7.5) (2026-01-16)
 
 
