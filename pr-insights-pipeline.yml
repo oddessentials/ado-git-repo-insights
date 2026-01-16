@@ -1,0 +1,149 @@
+# PR Insights Pipeline Template
+# Production-ready pipeline for extracting PR metrics and generating dashboard data.
+#
+# Setup:
+# 1. Copy this file to your repository
+# 2. Create a variable group named 'ado-insights-secrets' with:
+#    - PAT_SECRET: Personal Access Token with vso.code (read) scope
+# 3. Update ORGANIZATION and PROJECTS variables below
+# 4. Run the pipeline at least once for the dashboard to work
+#
+# The dashboard auto-discovers this pipeline by the 'aggregates' artifact.
+
+trigger: none  # Manual or scheduled only
+
+# Daily schedule - extracts recent PRs incrementally
+# Weekly on Sunday - performs a 60-day backfill for data convergence
+schedules:
+  - cron: "0 6 * * *"  # Daily at 6 AM UTC
+    displayName: "Daily PR Extraction"
+    branches:
+      include: [main]
+    always: true
+
+pool:
+  vmImage: 'ubuntu-latest'
+
+variables:
+  - group: ado-insights-secrets  # Contains PAT_SECRET
+  - name: ARTIFACT_NAME
+    value: 'ado-insights-db'
+  - name: ORGANIZATION
+    value: 'YourOrganization'  # TODO: Update this
+  - name: PROJECTS
+    value: 'ProjectOne,ProjectTwo'  # TODO: Update this (comma-separated)
+
+stages:
+  - stage: Extract
+    jobs:
+      - job: ExtractPRs
+        steps:
+          # Download previous SQLite database (if exists)
+          # CRITICAL: Only from latest SUCCESSFUL run to avoid corrupt state
+          - task: DownloadPipelineArtifact@2
+            displayName: 'Download Previous Database'
+            inputs:
+              buildType: 'specific'
+              project: '$(System.TeamProjectId)'
+              pipeline: '$(Build.DefinitionId)'
+              buildVersionToDownload: 'latest'
+              allowFailedBuilds: false
+              allowPartiallySucceededBuilds: true
+              artifactName: '$(ARTIFACT_NAME)'
+              targetPath: '$(Pipeline.Workspace)/data'
+            continueOnError: true  # First run won't have artifact
+
+          # Log artifact status
+          - script: |
+              if [ -f "$(Pipeline.Workspace)/data/ado-insights.sqlite" ]; then
+                echo "##[section]Found existing database"
+                ls -la $(Pipeline.Workspace)/data/
+              else
+                echo "##[warning]No existing database - first run or artifact expired"
+                mkdir -p $(Pipeline.Workspace)/data
+              fi
+            displayName: 'Check Database Status'
+
+          # Setup Python
+          - task: UsePythonVersion@0
+            inputs:
+              versionSpec: '3.10'
+
+          - script: |
+              pip install ado-git-repo-insights
+            displayName: 'Install Package'
+
+          # Conditional: Incremental extraction (non-Sunday or manual runs)
+          - script: |
+              echo "##[section]Running INCREMENTAL extraction"
+              ado-insights extract \
+                --organization $(ORGANIZATION) \
+                --projects "$(PROJECTS)" \
+                --pat $(PAT_SECRET) \
+                --database "$(Pipeline.Workspace)/data/ado-insights.sqlite" \
+                --artifacts-dir "$(Pipeline.Workspace)/run_artifacts"
+            displayName: 'Extract PRs (Incremental)'
+            condition: and(succeeded(), or(ne(variables['Build.Reason'], 'Schedule'), ne(variables['System.DayOfWeek'], 'Sunday')))
+
+          # Conditional: Backfill extraction (Sunday scheduled runs only)
+          - script: |
+              echo "##[section]Running BACKFILL extraction (60 days)"
+              ado-insights extract \
+                --organization $(ORGANIZATION) \
+                --projects "$(PROJECTS)" \
+                --pat $(PAT_SECRET) \
+                --database "$(Pipeline.Workspace)/data/ado-insights.sqlite" \
+                --artifacts-dir "$(Pipeline.Workspace)/run_artifacts" \
+                --backfill-days 60
+            displayName: 'Extract PRs (Backfill)'
+            condition: and(succeeded(), eq(variables['Build.Reason'], 'Schedule'), eq(variables['System.DayOfWeek'], 'Sunday'))
+
+          # Generate CSVs for PowerBI
+          - script: |
+              ado-insights generate-csv \
+                --database "$(Pipeline.Workspace)/data/ado-insights.sqlite" \
+                --output "$(Pipeline.Workspace)/csv_output"
+            displayName: 'Generate CSVs'
+
+          # === ARTIFACTS ===
+
+          # Candidate DB: Always published with unique name (preserves failure state)
+          - task: PublishPipelineArtifact@1
+            displayName: 'Publish Database (Candidate)'
+            condition: always()
+            inputs:
+              targetPath: '$(Pipeline.Workspace)/data'
+              artifact: 'ado-insights-db-candidate-$(Build.BuildId)'
+
+          # Golden DB: Only on success (used for next run's download)
+          - task: PublishPipelineArtifact@1
+            displayName: 'Publish Database (Golden)'
+            condition: succeeded()
+            inputs:
+              targetPath: '$(Pipeline.Workspace)/data'
+              artifact: '$(ARTIFACT_NAME)'
+
+          # Aggregates: Dashboard data (dataset-manifest.json, rollups, distributions)
+          # The PR Insights hub discovers pipelines by the presence of this artifact
+          - task: PublishPipelineArtifact@1
+            displayName: 'Publish Aggregates'
+            condition: succeeded()
+            inputs:
+              targetPath: '$(Pipeline.Workspace)/run_artifacts/aggregates'
+              artifact: 'aggregates'
+
+          # CSV Output: PowerBI-compatible exports
+          - task: PublishPipelineArtifact@1
+            displayName: 'Publish CSV Artifacts'
+            condition: always()
+            inputs:
+              targetPath: '$(Pipeline.Workspace)/csv_output'
+              artifact: 'csv-output'
+
+          # Run Artifacts: Logs and metadata (forensic debugging)
+          - task: PublishPipelineArtifact@1
+            displayName: 'Publish Run Artifacts'
+            condition: always()
+            inputs:
+              targetPath: '$(Pipeline.Workspace)/run_artifacts'
+              artifact: 'run-artifacts'
