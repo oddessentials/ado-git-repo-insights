@@ -1,3 +1,10 @@
+## [2.7.5](https://github.com/oddessentials/ado-git-repo-insights/compare/v2.7.4...v2.7.5) (2026-01-16)
+
+
+### Bug Fixes
+
+* **extension:** correct queryOrder parameter position ([3d6efb3](https://github.com/oddessentials/ado-git-repo-insights/commit/3d6efb368ebbcdfdf8b168076f4fe3539f5b2d6f))
+
 ## [2.7.4](https://github.com/oddessentials/ado-git-repo-insights/compare/v2.7.3...v2.7.4) (2026-01-16)
 
 
