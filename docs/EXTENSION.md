@@ -4,10 +4,13 @@ This guide explains how to install and use the **Git Repo Insights** extension i
 
 ## Overview
 
-The extension provides a pipeline task that extracts Pull Request metrics from Azure DevOps and generates PowerBI-compatible CSV files.
+The extension provides:
+- A pipeline task that extracts Pull Request metrics from Azure DevOps
+- A project-level **PR Insights** dashboard hub
+- PowerBI-compatible CSV output
 
 **Publisher**: OddEssentials
-**Task Name**: `ExtractPullRequests`
+**Task Name**: `ExtractPullRequests@2`
 **Friendly Name**: Extract Pull Request Metrics
 
 ---
@@ -66,6 +69,8 @@ The extension requires a PAT stored securely in a variable group.
 
 ## Pipeline Configuration
 
+For a production-ready pipeline, copy [pr-insights-pipeline.yml](../pr-insights-pipeline.yml) from the repository.
+
 ### Using the Extension Task
 
 ```yaml
@@ -86,6 +91,7 @@ stages:
           - pwsh: |
               New-Item -ItemType Directory -Force -Path "$(Pipeline.Workspace)/data" | Out-Null
               New-Item -ItemType Directory -Force -Path "$(Pipeline.Workspace)/csv_output" | Out-Null
+              New-Item -ItemType Directory -Force -Path "$(Pipeline.Workspace)/aggregates" | Out-Null
             displayName: 'Create Directories'
 
           # Step 1.5: Ensure Node.js is available (for self-hosted agents)
@@ -104,13 +110,14 @@ stages:
               definition: '$(System.DefinitionId)'
               runVersion: 'latestFromBranch'
               runBranch: '$(Build.SourceBranch)'
-              allowPartiallySucceededBuilds: false
+              allowPartiallySucceededBuilds: true
               allowFailedBuilds: false
               artifactName: 'ado-insights-db'
               targetPath: '$(Pipeline.Workspace)/data'
 
           # Step 3: Run the extension task
-          - task: ExtractPullRequests@1
+          # generateAggregates defaults to true in v2.7.0+
+          - task: ExtractPullRequests@2
             displayName: 'Extract PR Metrics'
             inputs:
               organization: 'oddessentials'
@@ -121,6 +128,7 @@ stages:
               pat: '$(PAT_SECRET)'
               database: '$(Pipeline.Workspace)/data/ado-insights.sqlite'
               outputDir: '$(Pipeline.Workspace)/csv_output'
+              aggregatesDir: '$(Pipeline.Workspace)/aggregates'
 
           # Step 4: Publish Golden DB (only on success)
           - task: PublishPipelineArtifact@1
@@ -130,7 +138,15 @@ stages:
               targetPath: '$(Pipeline.Workspace)/data'
               artifact: 'ado-insights-db'
 
-          # Step 5: Publish CSVs
+          # Step 5: Publish Aggregates (enables dashboard discovery)
+          - task: PublishPipelineArtifact@1
+            displayName: 'Publish Aggregates'
+            condition: succeeded()
+            inputs:
+              targetPath: '$(Pipeline.Workspace)/aggregates'
+              artifact: 'aggregates'
+
+          # Step 6: Publish CSVs
           - task: PublishPipelineArtifact@1
             displayName: 'Publish CSVs'
             condition: always()
@@ -153,6 +169,8 @@ stages:
 | `startDate` | No | - | Override start date (YYYY-MM-DD) |
 | `endDate` | No | Yesterday | Override end date (YYYY-MM-DD) |
 | `backfillDays` | No | - | Days to backfill for convergence |
+| `generateAggregates` | No | `true` | Generate JSON aggregates for dashboard |
+| `aggregatesDir` | No | `$(Pipeline.Workspace)/aggregates` | Aggregates output directory |
 
 ---
 
@@ -164,7 +182,7 @@ stages:
 2. Run the pipeline manually
 3. Verify:
    - Log shows "No existing database - first run"
-   - Artifacts published: `ado-insights-db`, `csv-output`
+   - Artifacts published: `ado-insights-db`, `aggregates`, `csv-output`
    - `run_summary.json` shows success
 
 ### Run 2: Convergence Test
@@ -174,6 +192,13 @@ stages:
    - Log shows "Found existing database"
    - Previous database is downloaded and updated
    - Row counts are non-decreasing
+
+### Verify Dashboard
+
+After a successful pipeline run:
+1. Navigate to your project in Azure DevOps
+2. Look for **PR Insights** in the project menu
+3. The dashboard should auto-discover the pipeline and display metrics
 
 ---
 
@@ -188,8 +213,15 @@ stages:
 ### "Task not found"
 
 1. Verify extension is installed in your organization
-2. Check task name: `ExtractPullRequests@1`
+2. Check task name: `ExtractPullRequests@2`
 3. Ensure pipeline agent can reach marketplace
+
+### "Dashboard not showing"
+
+1. Verify the pipeline published an `aggregates` artifact
+2. Check that the artifact contains `dataset-manifest.json`
+3. Ensure you have Build (Read) permission on the pipeline
+4. Try adding `?pipelineId=<id>` to the dashboard URL
 
 ### "Python not found"
 
@@ -203,4 +235,27 @@ The extension auto-installs Python dependencies. If this fails:
 
 | Version | Date | Changes |
 |---------|------|---------|
+| 2.7.0 | 2026-01 | Project-level dashboard hub, generateAggregates enabled by default, settings page |
+| 2.6.0 | 2026-01 | Task version 2.6.0 |
 | 1.0.0 | 2026-01 | Initial release |
+
+---
+
+## PR Insights Dashboard
+
+The **PR Insights** hub appears in the project navigation after installing the extension. It displays metrics from pipeline-produced aggregates.
+
+### Configuration Precedence
+
+The dashboard resolves configuration in this order:
+
+1. **`?dataset=<url>`** — Direct URL (dev/testing only, HTTPS required)
+2. **`?pipelineId=<id>`** — Query parameter override
+3. **Extension settings** — User-scoped saved preference (Project Settings → PR Insights Settings)
+4. **Auto-discovery** — Find pipelines with 'aggregates' artifact containing `dataset-manifest.json`
+
+### Settings Page
+
+Configure a default pipeline via: Project Settings → PR Insights Settings
+
+Settings are **user-scoped** — each team member can configure their own preference.

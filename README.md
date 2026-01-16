@@ -79,7 +79,7 @@ Best for teams that prefer the ADO pipeline editor UI or want a self-contained t
 
 ```yaml
 steps:
-  - task: ExtractPullRequests@1
+  - task: ExtractPullRequests@2
     inputs:
       organization: 'MyOrg'
       projects: 'Project1,Project2'
@@ -91,6 +91,16 @@ steps:
 **Installation:**
 1. Download the `.vsix` from [GitHub Releases](https://github.com/oddessentials/ado-git-repo-insights/releases)
 2. Install in your ADO organization: Organization Settings → Extensions → Browse local extensions
+
+### PR Insights Dashboard
+
+Once the extension is installed and a pipeline runs successfully with the `aggregates` artifact published, the **PR Insights** hub appears in the project navigation menu. The dashboard auto-discovers pipelines that publish aggregates.
+
+**Configuration precedence:**
+1. `?dataset=<url>` — Direct URL (dev/testing only)
+2. `?pipelineId=<id>` — Query parameter override
+3. Extension settings — User-scoped saved preference (Project Settings → PR Insights Settings)
+4. Auto-discovery — Find pipelines with 'aggregates' artifact
 
 ## Configuration
 
@@ -125,9 +135,16 @@ ado-insights extract --config config.yaml --pat $ADO_PAT
 
 ## Azure DevOps Pipeline Integration
 
-See [sample-pipeline.yml](sample-pipeline.yml) for a complete example.
+Use [pr-insights-pipeline.yml](pr-insights-pipeline.yml) for a production-ready template that includes:
+- Daily incremental extraction
+- Sunday backfill for data convergence
+- Dashboard-compatible `aggregates` artifact
 
-### Scheduled Daily Extraction
+See [sample-pipeline.yml](sample-pipeline.yml) for additional reference.
+
+### Daily Schedule with Sunday Backfill
+
+The production template uses a single daily schedule that detects Sundays for backfill:
 
 ```yaml
 schedules:
@@ -138,16 +155,7 @@ schedules:
     always: true
 ```
 
-### Weekly Backfill
-
-```yaml
-schedules:
-  - cron: "0 6 * * 0"  # Weekly on Sunday
-    displayName: "Weekly Backfill"
-    branches:
-      include: [main]
-    always: true
-```
+On Sundays, the pipeline automatically performs a 60-day backfill for data convergence.
 
 ## CSV Output Contract
 
