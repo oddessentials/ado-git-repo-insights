@@ -124,6 +124,21 @@ jobs:
           fi
         shell: bash
 
+  # Guard: Block manual version bumps (semantic-release handles versioning)
+  version-guard:
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Check for manual version changes
+        run: |
+          chmod +x scripts/check-version-unchanged.sh
+          ./scripts/check-version-unchanged.sh origin/${{ github.base_ref }}
+        shell: bash
+
   test:
     strategy:
       fail-fast: false

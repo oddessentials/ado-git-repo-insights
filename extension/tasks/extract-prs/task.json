@@ -74,10 +74,10 @@
         {
             "name": "generateAggregates",
             "type": "boolean",
-            "label": "Generate Aggregates (Phase 3)",
+            "label": "Generate Aggregates",
             "required": false,
-            "defaultValue": "false",
-            "helpMarkDown": "Generate chunked JSON aggregates for the PR Insights UI dashboard"
+            "defaultValue": "true",
+            "helpMarkDown": "Generate JSON aggregates for the PR Insights dashboard. Adds ~5-10s to pipeline runtime. Disable if you only need CSV output."
         },
         {
             "name": "aggregatesDir",
