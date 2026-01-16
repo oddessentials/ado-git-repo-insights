@@ -5,6 +5,8 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>PR Insights Dashboard</title>
     <link rel="stylesheet" href="styles.css">
+    <!-- Azure DevOps Extension SDK -->
+    <script src="https://cdn.vsassets.io/v/M250_20250113.1/_scripts/TFS/min/VSS.SDK.min.js"></script>
 </head>
 <body>
     <div id="app">
@@ -16,14 +18,65 @@
             </div>
         </header>
 
-        <!-- Error/Loading States -->
+        <!-- Setup Required Panel -->
+        <div id="setup-required" class="setup-panel hidden">
+            <div class="setup-icon">📊</div>
+            <h2>Setup Required</h2>
+            <p id="setup-message">No PR Insights pipeline found in this project.</p>
+            <div class="search-scope-hint">
+                <span class="scope-icon">🔍</span>
+                <span>Searching in project: <strong id="current-project-name">...</strong></span>
+            </div>
+            <div class="setup-instructions">
+                <h3>Quick Setup</h3>
+                <ol id="setup-steps">
+                    <li>Create a pipeline from <code>pr-insights-pipeline.yml</code></li>
+                    <li>Ensure it publishes an "aggregates" artifact</li>
+                    <li>Run it at least once successfully</li>
+                    <li>Return here to view your dashboard</li>
+                </ol>
+                <p class="hint">To use a pipeline from another project, add <code>?pipelineId=&lt;id&gt;</code> to the URL.</p>
+                <p><a id="docs-link" href="https://github.com/oddessentials/ado-git-repo-insights#setup" target="_blank">📖 Full Documentation</a></p>
+            </div>
+            <button id="setup-retry-btn" class="btn">Check Again</button>
+        </div>
+
+        <!-- Multiple Pipelines Panel -->
+        <div id="multiple-pipelines" class="setup-panel hidden">
+            <div class="setup-icon">🔀</div>
+            <h2>Multiple Pipelines Found</h2>
+            <p id="multiple-message">Found multiple pipelines with aggregates. Please select one:</p>
+            <div id="pipeline-list" class="pipeline-list">
+                <!-- Populated dynamically -->
+            </div>
+            <p class="hint">Or configure a default in Project Settings → PR Insights Settings</p>
+        </div>
+
+        <!-- Permission Denied Panel -->
+        <div id="permission-denied" class="setup-panel hidden">
+            <div class="setup-icon">🔒</div>
+            <h2>Permission Denied</h2>
+            <p id="permission-message">You don't have permission to access pipeline artifacts.</p>
+            <div class="setup-instructions">
+                <h3>To resolve:</h3>
+                <ol>
+                    <li>Request "Build (Read)" permission from your project administrator</li>
+                    <li>Ensure you have access to view pipeline artifacts</li>
+                    <li>If using a service account, verify its permissions</li>
+                </ol>
+            </div>
+            <button id="permission-retry-btn" class="btn">Try Again</button>
+        </div>
+
+        <!-- Generic Error State -->
         <div id="error-state" class="error-state hidden">
             <div class="error-icon">⚠️</div>
-            <h2 id="error-title">Dataset Unavailable</h2>
+            <h2 id="error-title">Error</h2>
             <p id="error-message"></p>
             <button id="retry-btn" class="btn">Retry</button>
         </div>
 
+        <!-- Loading State -->
         <div id="loading-state" class="loading-state">
             <div class="spinner"></div>
             <p>Loading dataset...</p>
@@ -114,6 +167,9 @@
         </main>
     </div>
 
+    <!-- Load modules in dependency order -->
+    <script src="error-types.js"></script>
+    <script src="artifact-client.js"></script>
     <script src="dataset-loader.js"></script>
     <script src="dashboard.js"></script>
 </body>

@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PR Insights Settings</title>
+    <link rel="stylesheet" href="styles.css">
+    <!-- Azure DevOps Extension SDK -->
+    <script src="https://cdn.vsassets.io/v/M250_20250113.1/_scripts/TFS/min/VSS.SDK.min.js"></script>
+</head>
+<body>
+    <div class="settings-container">
+        <header class="settings-header">
+            <h1>PR Insights Settings</h1>
+            <p class="settings-description">Configure your PR Insights dashboard preferences.</p>
+        </header>
+
+        <div class="settings-content">
+            <section class="setting-group">
+                <h2>Pipeline Configuration</h2>
+                <p class="setting-help">
+                    By default, the dashboard auto-discovers pipelines that publish an "aggregates" artifact.
+                    If you have multiple matching pipelines, or want to specify a particular one, enter its ID below.
+                </p>
+
+                <div class="setting-field">
+                    <label for="pipeline-id">Pipeline ID (optional)</label>
+                    <input type="number" id="pipeline-id" placeholder="Auto-discover" min="1">
+                    <p class="field-hint">
+                        Leave empty to auto-detect. Find the pipeline ID in the URL when viewing the pipeline
+                        (e.g., <code>?definitionId=<strong>123</strong></code>).
+                    </p>
+                </div>
+            </section>
+
+            <section class="setting-group">
+                <h2>Current Status</h2>
+                <div id="status-display" class="status-display">
+                    <p>Checking configuration...</p>
+                </div>
+            </section>
+
+            <div class="settings-actions">
+                <button id="save-btn" class="btn btn-primary">Save Settings</button>
+                <button id="clear-btn" class="btn btn-secondary">Clear</button>
+                <span id="status-message" class="status-message"></span>
+            </div>
+        </div>
+
+        <footer class="settings-footer">
+            <p class="scope-note">
+                Settings are saved per-user. Other team members will need to configure their own preferences
+                or use the <code>?pipelineId=</code> URL parameter.
+            </p>
+            <p>
+                <a href="https://github.com/oddessentials/ado-git-repo-insights#configuration" target="_blank">
+                    Documentation
+                </a>
+            </p>
+        </footer>
+    </div>
+
+    <script src="settings.js"></script>
+</body>
+</html>

@@ -519,6 +519,333 @@ body {
     color: var(--text-tertiary);
 }
 
+/* Setup Panel */
+.setup-panel {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    min-height: 400px;
+    text-align: center;
+    padding: 40px;
+    max-width: 600px;
+    margin: 40px auto;
+    background: var(--bg-primary);
+    border-radius: var(--radius-lg);
+    box-shadow: var(--shadow-md);
+}
+
+.setup-panel .setup-icon {
+    font-size: 64px;
+    margin-bottom: 24px;
+}
+
+.setup-panel h2 {
+    font-size: 24px;
+    font-weight: 600;
+    color: var(--text-primary);
+    margin-bottom: 12px;
+}
+
+.setup-panel p {
+    color: var(--text-secondary);
+    margin-bottom: 8px;
+    max-width: 500px;
+}
+
+.setup-panel .hint {
+    font-size: 12px;
+    color: var(--text-tertiary);
+    margin-top: 16px;
+}
+
+.search-scope-hint {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 12px 16px;
+    background: var(--bg-secondary);
+    border-radius: var(--radius);
+    margin: 16px 0;
+    font-size: 13px;
+    color: var(--text-secondary);
+}
+
+.search-scope-hint .scope-icon {
+    font-size: 16px;
+}
+
+.setup-instructions {
+    text-align: left;
+    background: var(--bg-secondary);
+    border-radius: var(--radius);
+    padding: 20px 24px;
+    margin: 20px 0;
+    width: 100%;
+}
+
+.setup-instructions h3 {
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--text-primary);
+    margin-bottom: 12px;
+}
+
+.setup-instructions ol {
+    padding-left: 20px;
+    margin: 0;
+}
+
+.setup-instructions li {
+    margin-bottom: 8px;
+    color: var(--text-secondary);
+    line-height: 1.5;
+}
+
+.setup-instructions code {
+    background: var(--bg-tertiary);
+    padding: 2px 6px;
+    border-radius: 3px;
+    font-family: 'Consolas', 'Monaco', monospace;
+    font-size: 12px;
+}
+
+.setup-panel .btn {
+    margin-top: 20px;
+}
+
+/* Pipeline List (Multiple Pipelines Panel) */
+.pipeline-list {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    width: 100%;
+    margin: 20px 0;
+}
+
+.pipeline-option {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 12px 16px;
+    background: var(--bg-secondary);
+    border-radius: var(--radius);
+    text-decoration: none;
+    color: var(--text-primary);
+    transition: all 0.15s ease;
+    border: 1px solid transparent;
+}
+
+.pipeline-option:hover {
+    background: var(--primary-light);
+    border-color: var(--primary);
+}
+
+.pipeline-option strong {
+    font-weight: 600;
+}
+
+.pipeline-option .pipeline-id {
+    font-size: 12px;
+    color: var(--text-tertiary);
+    font-family: 'Consolas', 'Monaco', monospace;
+}
+
+/* Settings Page */
+.settings-container {
+    max-width: 600px;
+    margin: 0 auto;
+    padding: 24px;
+}
+
+.settings-header {
+    margin-bottom: 24px;
+}
+
+.settings-header h1 {
+    font-size: 24px;
+    font-weight: 600;
+    color: var(--text-primary);
+    margin-bottom: 8px;
+}
+
+.settings-description {
+    color: var(--text-secondary);
+}
+
+.settings-content {
+    background: var(--bg-primary);
+    border-radius: var(--radius-lg);
+    box-shadow: var(--shadow-sm);
+    overflow: hidden;
+}
+
+.setting-group {
+    padding: 24px;
+    border-bottom: 1px solid var(--border);
+}
+
+.setting-group:last-child {
+    border-bottom: none;
+}
+
+.setting-group h2 {
+    font-size: 16px;
+    font-weight: 600;
+    color: var(--text-primary);
+    margin-bottom: 8px;
+}
+
+.setting-help {
+    font-size: 13px;
+    color: var(--text-secondary);
+    margin-bottom: 16px;
+    line-height: 1.5;
+}
+
+.setting-field {
+    margin-top: 16px;
+}
+
+.setting-field label {
+    display: block;
+    font-weight: 500;
+    color: var(--text-primary);
+    margin-bottom: 8px;
+    font-size: 13px;
+}
+
+.setting-field input[type="number"] {
+    width: 100%;
+    max-width: 200px;
+    padding: 8px 12px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    font-size: 14px;
+    font-family: var(--font-family);
+}
+
+.setting-field input:focus {
+    outline: none;
+    border-color: var(--primary);
+    box-shadow: 0 0 0 2px var(--primary-light);
+}
+
+.field-hint {
+    font-size: 12px;
+    color: var(--text-tertiary);
+    margin-top: 8px;
+    line-height: 1.5;
+}
+
+.field-hint code {
+    background: var(--bg-tertiary);
+    padding: 2px 6px;
+    border-radius: 3px;
+    font-family: 'Consolas', 'Monaco', monospace;
+}
+
+/* Settings Actions */
+.settings-actions {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 16px 24px;
+    background: var(--bg-secondary);
+}
+
+.btn-secondary {
+    background: var(--bg-tertiary);
+    color: var(--text-primary);
+}
+
+.btn-secondary:hover {
+    background: var(--border);
+}
+
+.btn-primary {
+    background: var(--primary);
+    color: white;
+}
+
+.btn-primary:hover {
+    background: var(--primary-dark);
+}
+
+.status-message {
+    font-size: 13px;
+    margin-left: auto;
+}
+
+.status-success {
+    color: var(--success);
+}
+
+.status-error {
+    color: var(--error);
+}
+
+/* Status Display */
+.status-display {
+    background: var(--bg-secondary);
+    border-radius: var(--radius);
+    padding: 16px;
+}
+
+.status-display p {
+    margin-bottom: 8px;
+    font-size: 13px;
+    color: var(--text-secondary);
+}
+
+.status-display p:last-child {
+    margin-bottom: 0;
+}
+
+.status-display strong {
+    color: var(--text-primary);
+}
+
+.status-warning {
+    color: var(--warning);
+}
+
+.status-hint {
+    font-style: italic;
+    color: var(--text-tertiary);
+}
+
+/* Settings Footer */
+.settings-footer {
+    margin-top: 24px;
+    padding: 16px 0;
+    text-align: center;
+}
+
+.scope-note {
+    font-size: 12px;
+    color: var(--text-tertiary);
+    margin-bottom: 12px;
+    line-height: 1.5;
+}
+
+.scope-note code {
+    background: var(--bg-tertiary);
+    padding: 2px 6px;
+    border-radius: 3px;
+    font-family: 'Consolas', 'Monaco', monospace;
+}
+
+.settings-footer a {
+    color: var(--primary);
+    text-decoration: none;
+    font-size: 13px;
+}
+
+.settings-footer a:hover {
+    text-decoration: underline;
+}
+
 /* Responsive */
 @media (max-width: 768px) {
     .dashboard-header {
@@ -534,5 +861,18 @@ body {
 
     .summary-cards {
         grid-template-columns: repeat(2, 1fr);
+    }
+
+    .setup-panel {
+        margin: 20px;
+        padding: 24px;
+    }
+
+    .settings-container {
+        padding: 16px;
+    }
+
+    .settings-actions {
+        flex-wrap: wrap;
     }
 }
