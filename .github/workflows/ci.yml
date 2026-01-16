@@ -239,11 +239,13 @@ jobs:
       - name: Run base-compatible tests
         run: |
           # Run tests that MUST work without [ml] extras
+          # Note: --no-cov disables coverage since this is a subset test,
+          # not the full test suite (coverage is validated in the main test job)
           # 1. CLI flag tests (no ML imports)
-          pytest tests/unit/test_ml_cli_flags.py -v
+          pytest tests/unit/test_ml_cli_flags.py -v --no-cov
           # 2. Schema validation tests (no ML imports)
-          pytest tests/unit/test_insights_schema.py -v
-          pytest tests/unit/test_predictions_schema.py -v
+          pytest tests/unit/test_insights_schema.py -v --no-cov
+          pytest tests/unit/test_predictions_schema.py -v --no-cov
           # 3. Test that CLI entrypoint doesn't import ML at parse time
           python -c "from ado_git_repo_insights.cli import main; print('✓ CLI imports OK')"
           echo "✓ All base tests passed without [ml] extras"
