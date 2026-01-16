@@ -1,3 +1,11 @@
+# [2.8.0](https://github.com/oddessentials/ado-git-repo-insights/compare/v2.7.6...v2.8.0) (2026-01-16)
+
+
+### Features
+
+* **dashboard:** use configured source project for cross-project access ([54fa822](https://github.com/oddessentials/ado-git-repo-insights/commit/54fa822231dc5f00ed32fa2aeb74206bef2bca48))
+* **settings:** add cross-project support with graceful degradation ([bfb8009](https://github.com/oddessentials/ado-git-repo-insights/commit/bfb8009087dd21605a617ec0699109c42df88811))
+
 ## [2.7.6](https://github.com/oddessentials/ado-git-repo-insights/compare/v2.7.5...v2.7.6) (2026-01-16)
 
 
