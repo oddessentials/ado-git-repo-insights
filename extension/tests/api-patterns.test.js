@@ -49,24 +49,31 @@ describe('Build API Call Patterns', () => {
             const dashboardCode = fs.readFileSync(dashboardPath, 'utf8');
 
             // Find the discoverInsightsPipelines function's getDefinitions call
-            // It should include queryOrder parameter (the 9th parameter)
+            // queryOrder should be the 5th parameter (after project, name, repositoryId, repositoryType)
             const functionMatch = dashboardCode.match(
                 /async function discoverInsightsPipelines[\s\S]*?getDefinitions\([^)]+\)/
             );
 
             expect(functionMatch).not.toBeNull();
 
-            // The getDefinitions call should have 9 parameters (with queryOrder as 9th)
-            // Pattern: getDefinitions(projectId, null, null, null, null, 50, null, null, 2)
+            // The getDefinitions call should have queryOrder as 5th parameter
+            // Pattern: getDefinitions(projectId, null, null, null, 2, 50)
+            // Parameters: project, name, repositoryId, repositoryType, queryOrder, top
             const callPattern = functionMatch[0].match(/getDefinitions\(([^)]+)\)/);
             expect(callPattern).not.toBeNull();
 
             const args = callPattern[1].split(',').map(a => a.trim());
-            expect(args.length).toBeGreaterThanOrEqual(9);
 
-            // 9th argument should be queryOrder (value 2 = definitionNameAscending)
-            const queryOrderArg = args[8];
+            // Should have at least 6 parameters (project + 4 nulls + queryOrder + top)
+            expect(args.length).toBeGreaterThanOrEqual(6);
+
+            // 5th argument (index 4) should be queryOrder (value 2 = definitionNameAscending)
+            const queryOrderArg = args[4];
             expect(queryOrderArg).toBe('2');
+
+            // 6th argument (index 5) should be top (value 50)
+            const topArg = args[5];
+            expect(topArg).toBe('50');
         });
 
         it('should verify specific pipeline ID lookups do NOT need queryOrder', () => {
