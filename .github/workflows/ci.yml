@@ -73,6 +73,19 @@ jobs:
             FOUND_CRLF=true
           fi
 
+          # Check extension UI files (catches CRLF from npm packages like vss-web-extension-sdk)
+          if grep -rlI $'\r' extension/ui/ 2>/dev/null; then
+            echo "::error::CRLF detected in extension/ui/"
+            echo "::error::If copying from npm, use extension/scripts/copy-vss-sdk.sh to normalize line endings"
+            FOUND_CRLF=true
+          fi
+
+          # Check extension scripts
+          if grep -rlI $'\r' extension/scripts/ 2>/dev/null; then
+            echo "::error::CRLF detected in extension/scripts/"
+            FOUND_CRLF=true
+          fi
+
           if [[ "$FOUND_CRLF" == "true" ]]; then
             echo ""
             echo "::error::CRLF line endings found in files that run in CI."
