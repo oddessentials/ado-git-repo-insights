@@ -172,10 +172,12 @@ async function getPipelineName(pipelineId) {
             try {
                 const client = BuildRestClient.getClient();
                 const webContext = VSS.getWebContext();
+                // queryOrder (5th param): 2 = definitionNameAscending (required by Azure DevOps API)
                 const definitions = await client.getDefinitions(
                     webContext.project.id,
-                    null, null, null, null, null,
-                    null, null,
+                    null, null, null,
+                    2,    // queryOrder: definitionNameAscending
+                    null, null, null,
                     [pipelineId]
                 );
 
