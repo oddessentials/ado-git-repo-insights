@@ -1,3 +1,10 @@
+## [2.7.2](https://github.com/oddessentials/ado-git-repo-insights/compare/v2.7.1...v2.7.2) (2026-01-16)
+
+
+### Bug Fixes
+
+* **ui:** correct hub target and settings API call ([c60eb82](https://github.com/oddessentials/ado-git-repo-insights/commit/c60eb82201913c60adf80384b99224c57b4c10bc))
+
 ## [2.7.1](https://github.com/oddessentials/ado-git-repo-insights/compare/v2.7.0...v2.7.1) (2026-01-16)
 
 
