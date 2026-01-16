@@ -12,7 +12,7 @@ Exit codes:
 """
 
 import sys
-import xml.etree.ElementTree as ET
+import xml.etree.ElementTree as ET  # noqa: S405
 from pathlib import Path
 
 
@@ -23,9 +23,12 @@ def parse_junit_xml(xml_path: str) -> dict:
     - pytest: <testsuites><testsuite tests="N" ...>
     - jest-junit: <testsuites tests="N" ...><testsuite ...>
     - single testsuite: <testsuite tests="N" ...>
+
+    Note: We use the standard library XML parser here because we're parsing
+    our own CI-generated test results, not untrusted external data.
     """
     try:
-        tree = ET.parse(xml_path)
+        tree = ET.parse(xml_path)  # noqa: S314
         root = tree.getroot()
 
         # Handle different JUnit XML structures
@@ -177,16 +180,18 @@ def main():
     )
 
     # Print summary
-    print(f"\n{'='*60}")
+    print(f"\n{'=' * 60}")
     print("Test Results Summary")
-    print(f"{'='*60}")
+    print(f"{'=' * 60}")
     print(f"  Collected: {results['collected']}")
-    print(f"  Passed:    {results['collected'] - results['failures'] - results['errors'] - results['skipped']}")
+    print(
+        f"  Passed:    {results['collected'] - results['failures'] - results['errors'] - results['skipped']}"
+    )
     print(f"  Failed:    {results['failures']}")
     print(f"  Errors:    {results['errors']}")
     print(f"  Skipped:   {results['skipped']}")
     print(f"  Time:      {results['time']:.2f}s")
-    print(f"{'='*60}\n")
+    print(f"{'=' * 60}\n")
 
     # Print validation messages
     for msg in messages:
