@@ -111,6 +111,139 @@ class ArtifactClient {
     }
 
     /**
+     * Get artifact metadata using SDK's BuildRestClient.
+     * This uses the same auth mechanism that works for getArtifacts().
+     *
+     * @param {number} buildId - Build ID
+     * @param {string} artifactName - Artifact name
+     * @returns {Promise<object|null>} Artifact metadata or null if not found
+     */
+    async getArtifactMetadata(buildId, artifactName) {
+        this._ensureInitialized();
+
+        return new Promise((resolve, reject) => {
+            VSS.require(['TFS/Build/RestClient'], async (BuildRestClient) => {
+                try {
+                    const client = BuildRestClient.getClient();
+                    const artifact = await client.getArtifact(this.projectId, buildId, artifactName);
+                    resolve(artifact);
+                } catch (e) {
+                    if (e.status === 404) {
+                        resolve(null);
+                    } else {
+                        reject(e);
+                    }
+                }
+            });
+        });
+    }
+
+    /**
+     * Get artifact content via SDK - downloads as ArrayBuffer.
+     * Uses BuildRestClient.getArtifactContentZip which properly authenticates.
+     *
+     * For Container artifacts, we need to use the FileContainer API.
+     * This method handles both cases.
+     *
+     * @param {number} buildId - Build ID
+     * @param {string} artifactName - Artifact name
+     * @param {string} filePath - Path within artifact
+     * @returns {Promise<object>} Parsed JSON content
+     */
+    async getArtifactFileViaSdk(buildId, artifactName, filePath) {
+        this._ensureInitialized();
+
+        // First get artifact metadata to determine type
+        const artifact = await this.getArtifactMetadata(buildId, artifactName);
+        if (!artifact) {
+            throw new Error(`Artifact '${artifactName}' not found in build ${buildId}`);
+        }
+
+        // For Container artifacts, we need to use the FileContainer API
+        // The resource.data contains the container ID
+        if (artifact.resource && artifact.resource.type === 'Container') {
+            return this._getFileFromContainer(artifact, filePath);
+        }
+
+        // For PipelineArtifact type, use the download URL approach
+        // but with proper SDK authentication
+        if (artifact.resource && artifact.resource.downloadUrl) {
+            return this._getFileFromDownloadUrl(artifact.resource.downloadUrl, filePath);
+        }
+
+        throw new Error(`Unsupported artifact type: ${artifact.resource?.type}`);
+    }
+
+    /**
+     * Get file from a Container artifact using FileContainer API.
+     * @private
+     */
+    async _getFileFromContainer(artifact, filePath) {
+        // Container data format: "#/containerId/path"
+        const containerData = artifact.resource.data;
+        const containerMatch = containerData.match(/#\/(\d+)\//);
+        if (!containerMatch) {
+            throw new Error(`Invalid container data format: ${containerData}`);
+        }
+
+        const containerId = containerMatch[1];
+
+        // Use FileContainer REST API to get the file
+        return new Promise((resolve, reject) => {
+            VSS.require(['VSS/Service', 'TFS/DistributedTask/FileContainerRestClient'], async (Service, FileContainerClient) => {
+                try {
+                    const webContext = VSS.getWebContext();
+                    const client = Service.getClient(FileContainerClient.FileContainerHttpClient);
+
+                    // Normalize file path (ensure it starts with artifact name)
+                    const normalizedPath = filePath.startsWith(artifact.name + '/')
+                        ? filePath
+                        : `${artifact.name}/${filePath}`;
+
+                    // Get items in container
+                    const items = await client.getItems(containerId, null, normalizedPath);
+
+                    if (!items || items.length === 0) {
+                        throw new Error(`File '${filePath}' not found in artifact`);
+                    }
+
+                    // Get the file content URL and fetch it
+                    const fileItem = items[0];
+                    if (fileItem.contentLocation) {
+                        const response = await this._authenticatedFetch(fileItem.contentLocation);
+                        if (!response.ok) {
+                            throw new Error(`Failed to fetch file content: ${response.status}`);
+                        }
+                        resolve(await response.json());
+                    } else {
+                        throw new Error('File item has no content location');
+                    }
+                } catch (e) {
+                    reject(e);
+                }
+            });
+        });
+    }
+
+    /**
+     * Get file from artifact download URL (for PipelineArtifact type).
+     * @private
+     */
+    async _getFileFromDownloadUrl(downloadUrl, filePath) {
+        // For pipeline artifacts, the download URL points to a zip
+        // We need a different approach - use the subPath parameter
+        const normalizedPath = filePath.startsWith('/') ? filePath : '/' + filePath;
+        const url = downloadUrl.replace('format=zip', 'format=file') +
+            `&subPath=${encodeURIComponent(normalizedPath)}`;
+
+        const response = await this._authenticatedFetch(url);
+        if (!response.ok) {
+            throw new Error(`Failed to fetch file: ${response.status}`);
+        }
+        return response.json();
+    }
+
+    /**
      * Get list of artifacts for a build.
      *
      * @param {number} buildId - Build ID
@@ -214,17 +347,25 @@ class AuthenticatedDatasetLoader {
 
     /**
      * Load and validate the dataset manifest.
+     * Uses SDK-based file access to avoid 401 errors on direct file URLs.
      *
      * @returns {Promise<object>} The manifest object
      */
     async loadManifest() {
-        this.manifest = await this.artifactClient.getArtifactFile(
-            this.buildId,
-            this.artifactName,
-            'dataset-manifest.json'
-        );
-        this.validateManifest(this.manifest);
-        return this.manifest;
+        try {
+            // The manifest is inside the nested 'aggregates' folder within the artifact
+            // Path: aggregates/aggregates/dataset-manifest.json
+            this.manifest = await this.artifactClient.getArtifactFileViaSdk(
+                this.buildId,
+                this.artifactName,
+                'aggregates/dataset-manifest.json'
+            );
+            this.validateManifest(this.manifest);
+            return this.manifest;
+        } catch (error) {
+            // Re-throw with more context
+            throw new Error(`Failed to load dataset manifest: ${error.message}`);
+        }
     }
 
     /**
@@ -274,7 +415,7 @@ class AuthenticatedDatasetLoader {
     async loadDimensions() {
         if (this.dimensions) return this.dimensions;
 
-        this.dimensions = await this.artifactClient.getArtifactFile(
+        this.dimensions = await this.artifactClient.getArtifactFileViaSdk(
             this.buildId,
             this.artifactName,
             'aggregates/dimensions.json'
@@ -314,7 +455,7 @@ class AuthenticatedDatasetLoader {
             }
 
             try {
-                const rollup = await this.artifactClient.getArtifactFile(
+                const rollup = await this.artifactClient.getArtifactFileViaSdk(
                     this.buildId,
                     this.artifactName,
                     indexEntry.path
@@ -362,7 +503,7 @@ class AuthenticatedDatasetLoader {
             }
 
             try {
-                const dist = await this.artifactClient.getArtifactFile(
+                const dist = await this.artifactClient.getArtifactFileViaSdk(
                     this.buildId,
                     this.artifactName,
                     indexEntry.path
