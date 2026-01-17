@@ -311,6 +311,17 @@ body {
     border-radius: 0 0 var(--radius) var(--radius);
 }
 
+.export-separator {
+    height: 1px;
+    background: var(--border);
+    margin: 4px 0;
+}
+
+.export-option.export-raw {
+    font-weight: 500;
+    color: var(--primary-dark);
+}
+
 /* Comparison Mode Banner */
 .comparison-banner {
     display: flex;

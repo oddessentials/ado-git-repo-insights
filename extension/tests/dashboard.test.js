@@ -1484,6 +1484,218 @@ describe('Sprint 5: Comparison Mode & Export', () => {
         });
     });
 
+    describe('downloadRawDataZip', () => {
+        /**
+         * Mock artifact client for testing
+         */
+        const createMockArtifactClient = (options = {}) => {
+            return {
+                getArtifactMetadata: jest.fn().mockResolvedValue(options.artifact || null),
+                _authenticatedFetch: jest.fn().mockResolvedValue({
+                    ok: options.fetchOk !== false,
+                    status: options.fetchStatus || 200,
+                    statusText: options.statusText || 'OK',
+                    blob: jest.fn().mockResolvedValue(new Blob(['test'], { type: 'application/zip' }))
+                })
+            };
+        };
+
+        /**
+         * Create downloadRawDataZip function for testing
+         */
+        const createDownloadRawDataZip = (currentBuildId, artifactClient, showToastFn, elementsExportMenu) => {
+            return async function downloadRawDataZip() {
+                elementsExportMenu?.classList.add('hidden');
+
+                if (!currentBuildId || !artifactClient) {
+                    showToastFn('Raw data not available in direct URL mode', 'error');
+                    return { success: false, reason: 'no-build-id' };
+                }
+
+                try {
+                    const artifact = await artifactClient.getArtifactMetadata(currentBuildId, 'csv-output');
+
+                    if (!artifact) {
+                        showToastFn('Raw CSV artifact not found in this pipeline run', 'error');
+                        return { success: false, reason: 'no-artifact' };
+                    }
+
+                    const downloadUrl = artifact.resource?.downloadUrl;
+                    if (!downloadUrl) {
+                        showToastFn('Download URL not available', 'error');
+                        return { success: false, reason: 'no-url' };
+                    }
+
+                    let zipUrl = downloadUrl;
+                    if (!zipUrl.includes('format=zip')) {
+                        const separator = zipUrl.includes('?') ? '&' : '?';
+                        zipUrl = `${zipUrl}${separator}format=zip`;
+                    }
+
+                    const response = await artifactClient._authenticatedFetch(zipUrl);
+
+                    if (!response.ok) {
+                        if (response.status === 403 || response.status === 401) {
+                            showToastFn('Permission denied to download artifacts', 'error');
+                        } else {
+                            showToastFn(`Download failed: ${response.statusText}`, 'error');
+                        }
+                        return { success: false, reason: 'fetch-failed' };
+                    }
+
+                    return { success: true, zipUrl };
+                } catch (err) {
+                    showToastFn('Failed to download raw data', 'error');
+                    return { success: false, reason: 'error' };
+                }
+            };
+        };
+
+        it('shows error when buildId is not available', async () => {
+            const showToast = jest.fn();
+            const downloadRawDataZip = createDownloadRawDataZip(null, null, showToast, null);
+
+            const result = await downloadRawDataZip();
+
+            expect(result.success).toBe(false);
+            expect(result.reason).toBe('no-build-id');
+            expect(showToast).toHaveBeenCalledWith('Raw data not available in direct URL mode', 'error');
+        });
+
+        it('shows error when artifact is not found', async () => {
+            const showToast = jest.fn();
+            const artifactClient = createMockArtifactClient({ artifact: null });
+            const downloadRawDataZip = createDownloadRawDataZip(123, artifactClient, showToast, null);
+
+            const result = await downloadRawDataZip();
+
+            expect(result.success).toBe(false);
+            expect(result.reason).toBe('no-artifact');
+            expect(showToast).toHaveBeenCalledWith('Raw CSV artifact not found in this pipeline run', 'error');
+        });
+
+        it('shows error when download URL is missing', async () => {
+            const showToast = jest.fn();
+            const artifactClient = createMockArtifactClient({
+                artifact: { name: 'csv-output', resource: {} }
+            });
+            const downloadRawDataZip = createDownloadRawDataZip(123, artifactClient, showToast, null);
+
+            const result = await downloadRawDataZip();
+
+            expect(result.success).toBe(false);
+            expect(result.reason).toBe('no-url');
+            expect(showToast).toHaveBeenCalledWith('Download URL not available', 'error');
+        });
+
+        it('adds format=zip to URL if not present', async () => {
+            const showToast = jest.fn();
+            const artifactClient = createMockArtifactClient({
+                artifact: {
+                    name: 'csv-output',
+                    resource: { downloadUrl: 'https://example.com/artifact?artifactName=csv-output' }
+                }
+            });
+            const downloadRawDataZip = createDownloadRawDataZip(123, artifactClient, showToast, null);
+
+            const result = await downloadRawDataZip();
+
+            expect(result.success).toBe(true);
+            expect(result.zipUrl).toContain('format=zip');
+            expect(artifactClient._authenticatedFetch).toHaveBeenCalledWith(
+                expect.stringContaining('format=zip')
+            );
+        });
+
+        it('preserves format=zip if already present', async () => {
+            const showToast = jest.fn();
+            const artifactClient = createMockArtifactClient({
+                artifact: {
+                    name: 'csv-output',
+                    resource: { downloadUrl: 'https://example.com/artifact?format=zip' }
+                }
+            });
+            const downloadRawDataZip = createDownloadRawDataZip(123, artifactClient, showToast, null);
+
+            const result = await downloadRawDataZip();
+
+            expect(result.success).toBe(true);
+            // Should not have double format=zip
+            expect((result.zipUrl.match(/format=zip/g) || []).length).toBe(1);
+        });
+
+        it('handles 403 permission denied', async () => {
+            const showToast = jest.fn();
+            const artifactClient = createMockArtifactClient({
+                artifact: {
+                    name: 'csv-output',
+                    resource: { downloadUrl: 'https://example.com/artifact' }
+                },
+                fetchOk: false,
+                fetchStatus: 403
+            });
+            const downloadRawDataZip = createDownloadRawDataZip(123, artifactClient, showToast, null);
+
+            const result = await downloadRawDataZip();
+
+            expect(result.success).toBe(false);
+            expect(showToast).toHaveBeenCalledWith('Permission denied to download artifacts', 'error');
+        });
+
+        it('handles 401 unauthorized', async () => {
+            const showToast = jest.fn();
+            const artifactClient = createMockArtifactClient({
+                artifact: {
+                    name: 'csv-output',
+                    resource: { downloadUrl: 'https://example.com/artifact' }
+                },
+                fetchOk: false,
+                fetchStatus: 401
+            });
+            const downloadRawDataZip = createDownloadRawDataZip(123, artifactClient, showToast, null);
+
+            const result = await downloadRawDataZip();
+
+            expect(result.success).toBe(false);
+            expect(showToast).toHaveBeenCalledWith('Permission denied to download artifacts', 'error');
+        });
+
+        it('handles other fetch errors', async () => {
+            const showToast = jest.fn();
+            const artifactClient = createMockArtifactClient({
+                artifact: {
+                    name: 'csv-output',
+                    resource: { downloadUrl: 'https://example.com/artifact' }
+                },
+                fetchOk: false,
+                fetchStatus: 500,
+                statusText: 'Internal Server Error'
+            });
+            const downloadRawDataZip = createDownloadRawDataZip(123, artifactClient, showToast, null);
+
+            const result = await downloadRawDataZip();
+
+            expect(result.success).toBe(false);
+            expect(showToast).toHaveBeenCalledWith('Download failed: Internal Server Error', 'error');
+        });
+
+        it('hides export menu when called', async () => {
+            const showToast = jest.fn();
+            const artifactClient = createMockArtifactClient({
+                artifact: {
+                    name: 'csv-output',
+                    resource: { downloadUrl: 'https://example.com/artifact' }
+                }
+            });
+            const exportMenu = { classList: { add: jest.fn() } };
+            const downloadRawDataZip = createDownloadRawDataZip(123, artifactClient, showToast, exportMenu);
+
+            await downloadRawDataZip();
+
+            expect(exportMenu.classList.add).toHaveBeenCalledWith('hidden');
+        });
+    });
+
     describe('Comparison Mode State', () => {
         beforeEach(() => {
             document.body.innerHTML = `

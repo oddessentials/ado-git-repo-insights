@@ -18,6 +18,7 @@ let currentDateRange = { start: null, end: null };
 let currentFilters = { repos: [], teams: [] };
 let comparisonMode = false;
 let cachedRollups = []; // Cache for export
+let currentBuildId = null; // Store build ID for raw data download
 let sdkInitialized = false;
 
 // Settings keys for extension data storage (must match settings.js)
@@ -414,9 +415,11 @@ async function init() {
         if (config.directUrl) {
             // Direct URL mode (for testing)
             loader = new DatasetLoader(config.directUrl);
+            currentBuildId = null;
         } else {
             // Artifact mode
             loader = artifactClient.createDatasetLoader(config.buildId, config.artifactName);
+            currentBuildId = config.buildId;
         }
 
         // Load and display dataset
@@ -623,6 +626,7 @@ function cacheElements() {
     elements.exportMenu = document.getElementById('export-menu');
     elements.exportCsv = document.getElementById('export-csv');
     elements.exportLink = document.getElementById('export-link');
+    elements.exportRawZip = document.getElementById('export-raw-zip');
 }
 
 /**
@@ -658,6 +662,7 @@ function setupEventListeners() {
     elements.exportBtn?.addEventListener('click', toggleExportMenu);
     elements.exportCsv?.addEventListener('click', exportToCsv);
     elements.exportLink?.addEventListener('click', copyShareableLink);
+    elements.exportRawZip?.addEventListener('click', downloadRawDataZip);
 
     // Close export menu when clicking outside
     document.addEventListener('click', (e) => {
@@ -1812,6 +1817,82 @@ async function copyShareableLink() {
         document.execCommand('copy');
         document.body.removeChild(textArea);
         showToast('Link copied to clipboard', 'success');
+    }
+}
+
+/**
+ * Download raw CSV data as a ZIP file from the pipeline artifact.
+ * Downloads the csv-output artifact which contains all PowerBI-compatible CSVs:
+ * - organizations.csv
+ * - projects.csv
+ * - repositories.csv
+ * - pull_requests.csv
+ * - users.csv
+ * - reviewers.csv
+ */
+async function downloadRawDataZip() {
+    elements.exportMenu?.classList.add('hidden');
+
+    if (!currentBuildId || !artifactClient) {
+        showToast('Raw data not available in direct URL mode', 'error');
+        return;
+    }
+
+    try {
+        showToast('Preparing download...', 'success');
+
+        // Get the csv-output artifact metadata
+        const artifact = await artifactClient.getArtifactMetadata(currentBuildId, 'csv-output');
+
+        if (!artifact) {
+            showToast('Raw CSV artifact not found in this pipeline run', 'error');
+            return;
+        }
+
+        // Get the download URL for the ZIP
+        const downloadUrl = artifact.resource?.downloadUrl;
+        if (!downloadUrl) {
+            showToast('Download URL not available', 'error');
+            return;
+        }
+
+        // Ensure it's requesting ZIP format
+        let zipUrl = downloadUrl;
+        if (!zipUrl.includes('format=zip')) {
+            const separator = zipUrl.includes('?') ? '&' : '?';
+            zipUrl = `${zipUrl}${separator}format=zip`;
+        }
+
+        // Fetch the ZIP with authentication
+        const response = await artifactClient._authenticatedFetch(zipUrl);
+
+        if (!response.ok) {
+            if (response.status === 403 || response.status === 401) {
+                showToast('Permission denied to download artifacts', 'error');
+            } else {
+                showToast(`Download failed: ${response.statusText}`, 'error');
+            }
+            return;
+        }
+
+        // Get the blob and trigger download
+        const blob = await response.blob();
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.href = url;
+
+        const dateStr = new Date().toISOString().split('T')[0];
+        link.download = `pr-insights-raw-data-${dateStr}.zip`;
+
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        URL.revokeObjectURL(url);
+
+        showToast('Download started', 'success');
+    } catch (err) {
+        console.error('Failed to download raw data:', err);
+        showToast('Failed to download raw data', 'error');
     }
 }
 
