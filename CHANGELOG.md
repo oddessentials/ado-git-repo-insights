@@ -1,3 +1,17 @@
+# [3.0.0](https://github.com/oddessentials/ado-git-repo-insights/compare/v2.8.2...v3.0.0) (2026-01-17)
+
+
+### Bug Fixes
+
+* **artifact:** use getArtifacts lookup instead of broken SDK getArtifact ([6f6ad55](https://github.com/oddessentials/ado-git-repo-insights/commit/6f6ad559eb6c7f5f2f98840122b95b61b119153e))
+
+
+### BREAKING CHANGES
+
+* **artifact:** Replaced SDK-based artifact metadata retrieval with
+direct API lookup. This fixes cross-project artifact access but changes
+the internal implementation approach.
+
 ## [2.8.2](https://github.com/oddessentials/ado-git-repo-insights/compare/v2.8.1...v2.8.2) (2026-01-17)
 
 
