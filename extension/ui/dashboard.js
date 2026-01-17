@@ -301,16 +301,8 @@ async function resolveFromPipelineId(pipelineId, projectId) {
         throw createArtifactsMissingError(name, latestBuild.id);
     }
 
-    // Verify manifest exists
-    const hasManifest = await artifactClient.hasArtifactFile(
-        latestBuild.id,
-        'aggregates',
-        'dataset-manifest.json'
-    );
-
-    if (!hasManifest) {
-        throw createArtifactsMissingError(`Pipeline ${pipelineId}`, latestBuild.id);
-    }
+    // Note: Manifest existence is verified at load time via SDK, not via preflight check
+    // (preflight HEAD requests fail with 401 on direct file URLs)
 
     return { buildId: latestBuild.id, artifactName: 'aggregates' };
 }
@@ -368,20 +360,13 @@ async function discoverInsightsPipelines(projectId) {
             const artifacts = await artifactClient.getArtifacts(latestBuild.id);
             if (!artifacts.some(a => a.name === 'aggregates')) continue;
 
-            // Verify manifest exists
-            const hasManifest = await artifactClient.hasArtifactFile(
-                latestBuild.id,
-                'aggregates',
-                'dataset-manifest.json'
-            );
-
-            if (hasManifest) {
-                matches.push({
-                    id: def.id,
-                    name: def.name,
-                    buildId: latestBuild.id
-                });
-            }
+            // Aggregates artifact exists - add to matches
+            // (manifest existence is verified at load time via SDK)
+            matches.push({
+                id: def.id,
+                name: def.name,
+                buildId: latestBuild.id
+            });
         } catch (e) {
             // Skip pipelines we can't access
             console.debug(`Skipping pipeline ${def.name}:`, e);
