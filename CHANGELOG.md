@@ -1,3 +1,11 @@
+## [3.0.2](https://github.com/oddessentials/ado-git-repo-insights/compare/v3.0.1...v3.0.2) (2026-01-17)
+
+
+### Bug Fixes
+
+* **artifact:** remove duplicated aggregates/ prefix from file paths ([d19688e](https://github.com/oddessentials/ado-git-repo-insights/commit/d19688eb27652de571273922ed496f56c5d6410f))
+* **artifact:** try Container API for PipelineArtifacts first ([63376ca](https://github.com/oddessentials/ado-git-repo-insights/commit/63376caf8aca5b0aee281b10b7f7e9f53aa4ceb4))
+
 ## [3.0.1](https://github.com/oddessentials/ado-git-repo-insights/compare/v3.0.0...v3.0.1) (2026-01-17)
 
 
