@@ -597,6 +597,13 @@ function cacheElements() {
     elements.clearFilters = document.getElementById('clear-filters');
     elements.activeFilters = document.getElementById('active-filters');
     elements.filterChips = document.getElementById('filter-chips');
+
+    // Sparkline elements
+    elements.totalPrsSparkline = document.getElementById('total-prs-sparkline');
+    elements.cycleP50Sparkline = document.getElementById('cycle-p50-sparkline');
+    elements.cycleP90Sparkline = document.getElementById('cycle-p90-sparkline');
+    elements.authorsSparkline = document.getElementById('authors-sparkline');
+    elements.reviewersSparkline = document.getElementById('reviewers-sparkline');
 }
 
 /**
@@ -825,6 +832,71 @@ function renderDelta(element, percentChange, inverse = false) {
 }
 
 /**
+ * Render a sparkline SVG from data points.
+ * @param {HTMLElement} element - Container element
+ * @param {Array<number>} values - Data values (last 8 points shown)
+ */
+function renderSparkline(element, values) {
+    if (!element || !values || values.length < 2) {
+        if (element) element.innerHTML = '';
+        return;
+    }
+
+    // Take last 8 values for sparkline
+    const data = values.slice(-8);
+    const width = 60;
+    const height = 24;
+    const padding = 2;
+
+    const minVal = Math.min(...data);
+    const maxVal = Math.max(...data);
+    const range = maxVal - minVal || 1;
+
+    // Calculate points
+    const points = data.map((val, i) => {
+        const x = padding + (i / (data.length - 1)) * (width - padding * 2);
+        const y = height - padding - ((val - minVal) / range) * (height - padding * 2);
+        return { x, y };
+    });
+
+    // Create path
+    const pathD = points.map((p, i) => `${i === 0 ? 'M' : 'L'} ${p.x.toFixed(1)} ${p.y.toFixed(1)}`).join(' ');
+
+    // Create area path (closed)
+    const areaD = pathD + ` L ${points[points.length - 1].x.toFixed(1)} ${height - padding} L ${points[0].x.toFixed(1)} ${height - padding} Z`;
+
+    // Last point for dot
+    const lastPoint = points[points.length - 1];
+
+    element.innerHTML = `
+        <svg viewBox="0 0 ${width} ${height}" preserveAspectRatio="none">
+            <path class="sparkline-area" d="${areaD}"/>
+            <path class="sparkline-line" d="${pathD}"/>
+            <circle class="sparkline-dot" cx="${lastPoint.x.toFixed(1)}" cy="${lastPoint.y.toFixed(1)}" r="2"/>
+        </svg>
+    `;
+}
+
+/**
+ * Extract sparkline data from rollups.
+ * @param {Array} rollups - Weekly rollup data
+ * @returns {Object} - Arrays of values for each metric
+ */
+function extractSparklineData(rollups) {
+    if (!rollups || !rollups.length) {
+        return { prCounts: [], p50s: [], p90s: [], authors: [], reviewers: [] };
+    }
+
+    return {
+        prCounts: rollups.map(r => r.pr_count || 0),
+        p50s: rollups.map(r => r.cycle_time_p50).filter(v => v !== null && v !== undefined),
+        p90s: rollups.map(r => r.cycle_time_p90).filter(v => v !== null && v !== undefined),
+        authors: rollups.map(r => r.authors_count || 0),
+        reviewers: rollups.map(r => r.reviewers_count || 0)
+    };
+}
+
+/**
  * Render summary metric cards.
  * @param {Array} rollups - Current period rollups
  * @param {Array} prevRollups - Previous period rollups for comparison
@@ -843,6 +915,14 @@ function renderSummaryCards(rollups, prevRollups = []) {
     if (elements.reviewersCount) {
         elements.reviewersCount.textContent = current.avgReviewers.toLocaleString();
     }
+
+    // Render sparklines
+    const sparklineData = extractSparklineData(rollups);
+    renderSparkline(elements.totalPrsSparkline, sparklineData.prCounts);
+    renderSparkline(elements.cycleP50Sparkline, sparklineData.p50s);
+    renderSparkline(elements.cycleP90Sparkline, sparklineData.p90s);
+    renderSparkline(elements.authorsSparkline, sparklineData.authors);
+    renderSparkline(elements.reviewersSparkline, sparklineData.reviewers);
 
     // Render deltas (only if we have previous period data)
     if (prevRollups && prevRollups.length > 0) {
@@ -869,7 +949,26 @@ function renderSummaryCards(rollups, prevRollups = []) {
 }
 
 /**
- * Render throughput chart.
+ * Calculate moving average for trend line.
+ * @param {Array<number>} values - Data values
+ * @param {number} window - Window size (default 4)
+ * @returns {Array<number|null>} - Moving averages (null for first window-1 points)
+ */
+function calculateMovingAverage(values, window = 4) {
+    const result = [];
+    for (let i = 0; i < values.length; i++) {
+        if (i < window - 1) {
+            result.push(null);
+        } else {
+            const sum = values.slice(i - window + 1, i + 1).reduce((a, b) => a + b, 0);
+            result.push(sum / window);
+        }
+    }
+    return result;
+}
+
+/**
+ * Render throughput chart with trend line overlay.
  */
 function renderThroughputChart(rollups) {
     if (!rollups || !rollups.length) {
@@ -877,9 +976,12 @@ function renderThroughputChart(rollups) {
         return;
     }
 
-    const maxCount = Math.max(...rollups.map(r => r.pr_count || 0));
+    const prCounts = rollups.map(r => r.pr_count || 0);
+    const maxCount = Math.max(...prCounts);
+    const movingAvg = calculateMovingAverage(prCounts, 4);
 
-    const html = rollups.map(r => {
+    // Render bar chart
+    const barsHtml = rollups.map(r => {
         const height = maxCount > 0 ? ((r.pr_count || 0) / maxCount * 100) : 0;
         return `
             <div class="bar-container" title="${r.week}: ${r.pr_count || 0} PRs">
@@ -889,7 +991,59 @@ function renderThroughputChart(rollups) {
         `;
     }).join('');
 
-    elements.throughputChart.innerHTML = `<div class="bar-chart">${html}</div>`;
+    // Render trend line SVG overlay
+    let trendLineHtml = '';
+    if (rollups.length >= 4) {
+        const validPoints = movingAvg
+            .map((val, i) => ({ val, i }))
+            .filter(p => p.val !== null);
+
+        if (validPoints.length >= 2) {
+            const chartHeight = 200;
+            const chartPadding = 8;
+
+            // Calculate SVG path points
+            const points = validPoints.map(p => {
+                const x = (p.i / (rollups.length - 1)) * 100;
+                const y = maxCount > 0
+                    ? chartHeight - chartPadding - ((p.val / maxCount) * (chartHeight - chartPadding * 2))
+                    : chartHeight / 2;
+                return { x, y };
+            });
+
+            const pathD = points.map((pt, i) => `${i === 0 ? 'M' : 'L'} ${pt.x.toFixed(1)}% ${pt.y.toFixed(1)}`).join(' ');
+
+            trendLineHtml = `
+                <div class="trend-line-overlay">
+                    <svg viewBox="0 0 100 ${chartHeight}" preserveAspectRatio="none">
+                        <path class="trend-line" d="${pathD}" vector-effect="non-scaling-stroke"/>
+                    </svg>
+                </div>
+            `;
+        }
+    }
+
+    // Legend
+    const legendHtml = `
+        <div class="chart-legend">
+            <div class="legend-item">
+                <span class="legend-bar"></span>
+                <span>Weekly PRs</span>
+            </div>
+            <div class="legend-item">
+                <span class="legend-line"></span>
+                <span>4-week avg</span>
+            </div>
+        </div>
+    `;
+
+    elements.throughputChart.innerHTML = `
+        <div class="chart-with-trend">
+            <div class="bar-chart">${barsHtml}</div>
+            ${trendLineHtml}
+        </div>
+        ${legendHtml}
+    `;
 }
 
 /**

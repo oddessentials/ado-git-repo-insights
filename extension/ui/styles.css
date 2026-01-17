@@ -376,6 +376,43 @@ body {
     font-weight: 400;
 }
 
+/* Metric Row (value + sparkline) */
+.metric-row {
+    display: flex;
+    align-items: flex-end;
+    justify-content: space-between;
+    gap: 12px;
+}
+
+/* Sparklines */
+.sparkline {
+    flex-shrink: 0;
+    width: 60px;
+    height: 24px;
+}
+
+.sparkline svg {
+    width: 100%;
+    height: 100%;
+}
+
+.sparkline-line {
+    fill: none;
+    stroke: var(--primary);
+    stroke-width: 1.5;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+}
+
+.sparkline-area {
+    fill: var(--primary-light);
+    opacity: 0.5;
+}
+
+.sparkline-dot {
+    fill: var(--primary);
+}
+
 /* Charts */
 .chart-container {
     background: var(--bg-primary);
@@ -423,6 +460,62 @@ body {
     font-size: 10px;
     color: var(--text-tertiary);
     margin-top: 8px;
+}
+
+/* Trend Line Overlay */
+.chart-with-trend {
+    position: relative;
+}
+
+.trend-line-overlay {
+    position: absolute;
+    top: 0;
+    left: 8px;
+    right: 8px;
+    height: 200px;
+    pointer-events: none;
+}
+
+.trend-line-overlay svg {
+    width: 100%;
+    height: 100%;
+}
+
+.trend-line {
+    fill: none;
+    stroke: #ff8c00;
+    stroke-width: 2;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+}
+
+.chart-legend {
+    display: flex;
+    justify-content: flex-end;
+    gap: 16px;
+    margin-top: 12px;
+    font-size: 12px;
+    color: var(--text-secondary);
+}
+
+.legend-item {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.legend-bar {
+    width: 12px;
+    height: 12px;
+    background: linear-gradient(180deg, var(--primary) 0%, var(--primary-dark) 100%);
+    border-radius: 2px;
+}
+
+.legend-line {
+    width: 16px;
+    height: 2px;
+    background: #ff8c00;
+    border-radius: 1px;
 }
 
 /* Distribution */
