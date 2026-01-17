@@ -1,3 +1,10 @@
+## [3.0.3](https://github.com/oddessentials/ado-git-repo-insights/compare/v3.0.2...v3.0.3) (2026-01-17)
+
+
+### Bug Fixes
+
+* **artifact:** use downloadUrl with format=file&subPath (verified working) ([be53de4](https://github.com/oddessentials/ado-git-repo-insights/commit/be53de426619285a782f97f96556cb41836c3846))
+
 ## [3.0.2](https://github.com/oddessentials/ado-git-repo-insights/compare/v3.0.1...v3.0.2) (2026-01-17)
 
 
