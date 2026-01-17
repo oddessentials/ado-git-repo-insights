@@ -1,3 +1,10 @@
+## [3.0.1](https://github.com/oddessentials/ado-git-repo-insights/compare/v3.0.0...v3.0.1) (2026-01-17)
+
+
+### Bug Fixes
+
+* **artifact:** correct Pipeline Artifact file URL construction ([9eb9b3c](https://github.com/oddessentials/ado-git-repo-insights/commit/9eb9b3c28406c0307d1704d71d25ff94700ec5a3))
+
 # [3.0.0](https://github.com/oddessentials/ado-git-repo-insights/compare/v2.8.2...v3.0.0) (2026-01-17)
 
 
