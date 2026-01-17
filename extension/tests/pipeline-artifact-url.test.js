@@ -131,43 +131,4 @@ describe('Pipeline Artifact URL Construction', () => {
             expect(result).toContain('format=file');
         });
     });
-
-    describe('Artifact File Paths', () => {
-        // These tests verify the correct paths for files within the 'aggregates' artifact.
-        // Files are at the artifact ROOT, not nested in another 'aggregates' folder.
-
-        test('manifest file path should NOT have aggregates/ prefix', () => {
-            // The artifact name IS 'aggregates', so files inside are at root
-            const correctPath = 'dataset-manifest.json';
-            const wrongPath = 'aggregates/dataset-manifest.json';
-
-            // The correct path should not start with the artifact name
-            expect(correctPath).not.toMatch(/^aggregates\//);
-            expect(wrongPath).toMatch(/^aggregates\//);
-        });
-
-        test('dimensions file path should NOT have aggregates/ prefix', () => {
-            const correctPath = 'dimensions.json';
-            const wrongPath = 'aggregates/dimensions.json';
-
-            expect(correctPath).not.toMatch(/^aggregates\//);
-            expect(wrongPath).toMatch(/^aggregates\//);
-        });
-
-        test('weekly rollup paths from manifest should be relative to artifact root', () => {
-            // Rollup paths come from the manifest index
-            // They should be like 'weekly/2024-W01.json', not 'aggregates/weekly/2024-W01.json'
-            const sampleRollupPath = 'weekly/2024-W01.json';
-            expect(sampleRollupPath).not.toMatch(/^aggregates\//);
-        });
-
-        test('file path normalization preserves relative paths', () => {
-            // When building URLs, the path should remain relative to artifact root
-            const filePath = 'dataset-manifest.json';
-            const normalizedPath = filePath.replace(/^\/+/, '').replace(/\/+/g, '/');
-
-            expect(normalizedPath).toBe('dataset-manifest.json');
-            expect('/' + normalizedPath).toBe('/dataset-manifest.json');
-        });
-    });
 });
