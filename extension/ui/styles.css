@@ -184,6 +184,74 @@ body {
     box-shadow: 0 0 0 2px var(--primary-light);
 }
 
+/* Dimension Filter Dropdowns */
+.filter-separator {
+    width: 1px;
+    height: 32px;
+    background: var(--border);
+    margin: 0 8px;
+}
+
+.filter-group select[multiple] {
+    min-width: 140px;
+    max-width: 200px;
+}
+
+#clear-filters {
+    margin-left: auto;
+}
+
+/* Active Filters Display */
+.active-filters {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 12px 20px;
+    background: var(--primary-light);
+    border-radius: var(--radius);
+    margin-bottom: 16px;
+}
+
+.active-filters-label {
+    font-size: 12px;
+    font-weight: 500;
+    color: var(--text-secondary);
+    white-space: nowrap;
+}
+
+.filter-chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+}
+
+.filter-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 4px 10px;
+    background: var(--bg-primary);
+    border: 1px solid var(--primary);
+    border-radius: 16px;
+    font-size: 12px;
+    color: var(--primary-dark);
+}
+
+.filter-chip-label {
+    font-weight: 500;
+}
+
+.filter-chip-remove {
+    cursor: pointer;
+    opacity: 0.7;
+    font-size: 14px;
+    line-height: 1;
+}
+
+.filter-chip-remove:hover {
+    opacity: 1;
+}
+
 /* Tabs */
 .tabs {
     display: flex;

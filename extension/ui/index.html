@@ -102,6 +102,25 @@
                     <input type="date" id="end-date">
                     <button id="apply-dates" class="btn btn-small">Apply</button>
                 </div>
+                <div class="filter-separator"></div>
+                <div class="filter-group" id="repo-filter-group">
+                    <label for="repo-filter">Repository</label>
+                    <select id="repo-filter" multiple>
+                        <option value="" selected>All</option>
+                    </select>
+                </div>
+                <div class="filter-group" id="team-filter-group">
+                    <label for="team-filter">Team</label>
+                    <select id="team-filter" multiple>
+                        <option value="" selected>All</option>
+                    </select>
+                </div>
+                <button id="clear-filters" class="btn btn-small btn-secondary hidden">Clear Filters</button>
+            </div>
+            <!-- Active Filters Display -->
+            <div id="active-filters" class="active-filters hidden">
+                <span class="active-filters-label">Filtering by:</span>
+                <div id="filter-chips" class="filter-chips"></div>
             </div>
 
             <!-- Tabs -->

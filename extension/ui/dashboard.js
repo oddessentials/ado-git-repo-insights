@@ -15,6 +15,7 @@
 let loader = null;
 let artifactClient = null;
 let currentDateRange = { start: null, end: null };
+let currentFilters = { repos: [], teams: [] };
 let sdkInitialized = false;
 
 // Settings keys for extension data storage (must match settings.js)
@@ -587,6 +588,15 @@ function cacheElements() {
     elements.cycleP90Delta = document.getElementById('cycle-p90-delta');
     elements.authorsDelta = document.getElementById('authors-delta');
     elements.reviewersDelta = document.getElementById('reviewers-delta');
+
+    // Filter elements
+    elements.repoFilter = document.getElementById('repo-filter');
+    elements.teamFilter = document.getElementById('team-filter');
+    elements.repoFilterGroup = document.getElementById('repo-filter-group');
+    elements.teamFilterGroup = document.getElementById('team-filter-group');
+    elements.clearFilters = document.getElementById('clear-filters');
+    elements.activeFilters = document.getElementById('active-filters');
+    elements.filterChips = document.getElementById('filter-chips');
 }
 
 /**
@@ -608,6 +618,11 @@ function setupEventListeners() {
     elements.retryBtn?.addEventListener('click', () => init());
     document.getElementById('setup-retry-btn')?.addEventListener('click', () => init());
     document.getElementById('permission-retry-btn')?.addEventListener('click', () => init());
+
+    // Dimension filters
+    elements.repoFilter?.addEventListener('change', handleFilterChange);
+    elements.teamFilter?.addEventListener('change', handleFilterChange);
+    elements.clearFilters?.addEventListener('click', clearAllFilters);
 }
 
 // ============================================================================
@@ -625,7 +640,10 @@ async function loadDataset() {
         const manifest = await loader.loadManifest();
 
         // Load dimensions
-        await loader.loadDimensions();
+        const dimensions = await loader.loadDimensions();
+
+        // Populate filter dropdowns from dimensions
+        populateFilterDropdowns(dimensions);
 
         // Show dataset info
         updateDatasetInfo(manifest);
@@ -1064,6 +1082,232 @@ function switchTab(tabId) {
 }
 
 // ============================================================================
+// Filter Management
+// ============================================================================
+
+/**
+ * Populate filter dropdowns from loaded dimensions.
+ * @param {Object} dimensions - Dimensions data from dimensions.json
+ */
+function populateFilterDropdowns(dimensions) {
+    if (!dimensions) return;
+
+    // Populate repository filter
+    if (elements.repoFilter && dimensions.repositories?.length > 0) {
+        elements.repoFilter.innerHTML = '<option value="">All</option>';
+        dimensions.repositories.forEach(repo => {
+            const option = document.createElement('option');
+            option.value = repo.id || repo.name;
+            option.textContent = repo.name;
+            elements.repoFilter.appendChild(option);
+        });
+        elements.repoFilterGroup?.classList.remove('hidden');
+    } else {
+        elements.repoFilterGroup?.classList.add('hidden');
+    }
+
+    // Populate team filter
+    if (elements.teamFilter && dimensions.teams?.length > 0) {
+        elements.teamFilter.innerHTML = '<option value="">All</option>';
+        dimensions.teams.forEach(team => {
+            const option = document.createElement('option');
+            option.value = team.id || team.name;
+            option.textContent = team.name;
+            elements.teamFilter.appendChild(option);
+        });
+        elements.teamFilterGroup?.classList.remove('hidden');
+    } else {
+        elements.teamFilterGroup?.classList.add('hidden');
+    }
+
+    // Restore filter state from URL
+    restoreFiltersFromUrl();
+}
+
+/**
+ * Handle filter dropdown change.
+ */
+function handleFilterChange() {
+    // Get selected values from multi-select
+    const repoValues = elements.repoFilter
+        ? Array.from(elements.repoFilter.selectedOptions).map(o => o.value).filter(v => v)
+        : [];
+    const teamValues = elements.teamFilter
+        ? Array.from(elements.teamFilter.selectedOptions).map(o => o.value).filter(v => v)
+        : [];
+
+    currentFilters = { repos: repoValues, teams: teamValues };
+
+    updateFilterUI();
+    updateUrlState();
+    refreshMetrics();
+}
+
+/**
+ * Clear all filters.
+ */
+function clearAllFilters() {
+    currentFilters = { repos: [], teams: [] };
+
+    // Reset dropdowns
+    if (elements.repoFilter) {
+        Array.from(elements.repoFilter.options).forEach(o => o.selected = o.value === '');
+    }
+    if (elements.teamFilter) {
+        Array.from(elements.teamFilter.options).forEach(o => o.selected = o.value === '');
+    }
+
+    updateFilterUI();
+    updateUrlState();
+    refreshMetrics();
+}
+
+/**
+ * Remove a specific filter.
+ * @param {string} type - 'repo' or 'team'
+ * @param {string} value - The value to remove
+ */
+function removeFilter(type, value) {
+    if (type === 'repo') {
+        currentFilters.repos = currentFilters.repos.filter(v => v !== value);
+        if (elements.repoFilter) {
+            const option = elements.repoFilter.querySelector(`option[value="${value}"]`);
+            if (option) option.selected = false;
+        }
+    } else if (type === 'team') {
+        currentFilters.teams = currentFilters.teams.filter(v => v !== value);
+        if (elements.teamFilter) {
+            const option = elements.teamFilter.querySelector(`option[value="${value}"]`);
+            if (option) option.selected = false;
+        }
+    }
+
+    updateFilterUI();
+    updateUrlState();
+    refreshMetrics();
+}
+
+/**
+ * Update filter UI (chips and clear button visibility).
+ */
+function updateFilterUI() {
+    const hasFilters = currentFilters.repos.length > 0 || currentFilters.teams.length > 0;
+
+    // Show/hide clear button
+    if (elements.clearFilters) {
+        elements.clearFilters.classList.toggle('hidden', !hasFilters);
+    }
+
+    // Show/hide active filters container and render chips
+    if (elements.activeFilters && elements.filterChips) {
+        elements.activeFilters.classList.toggle('hidden', !hasFilters);
+
+        if (hasFilters) {
+            renderFilterChips();
+        } else {
+            elements.filterChips.innerHTML = '';
+        }
+    }
+}
+
+/**
+ * Render filter chips for active filters.
+ */
+function renderFilterChips() {
+    if (!elements.filterChips) return;
+
+    const chips = [];
+
+    // Repo chips
+    currentFilters.repos.forEach(value => {
+        const label = getFilterLabel('repo', value);
+        chips.push(createFilterChip('repo', value, label));
+    });
+
+    // Team chips
+    currentFilters.teams.forEach(value => {
+        const label = getFilterLabel('team', value);
+        chips.push(createFilterChip('team', value, label));
+    });
+
+    elements.filterChips.innerHTML = chips.join('');
+
+    // Add click handlers for remove buttons
+    elements.filterChips.querySelectorAll('.filter-chip-remove').forEach(btn => {
+        btn.addEventListener('click', () => {
+            removeFilter(btn.dataset.type, btn.dataset.value);
+        });
+    });
+}
+
+/**
+ * Get display label for a filter value.
+ * @param {string} type - 'repo' or 'team'
+ * @param {string} value - The filter value
+ * @returns {string} Display label
+ */
+function getFilterLabel(type, value) {
+    if (type === 'repo' && elements.repoFilter) {
+        const option = elements.repoFilter.querySelector(`option[value="${value}"]`);
+        return option?.textContent || value;
+    }
+    if (type === 'team' && elements.teamFilter) {
+        const option = elements.teamFilter.querySelector(`option[value="${value}"]`);
+        return option?.textContent || value;
+    }
+    return value;
+}
+
+/**
+ * Create HTML for a filter chip.
+ * @param {string} type - 'repo' or 'team'
+ * @param {string} value - The filter value
+ * @param {string} label - Display label
+ * @returns {string} HTML string
+ */
+function createFilterChip(type, value, label) {
+    const prefix = type === 'repo' ? 'repo' : 'team';
+    return `
+        <span class="filter-chip">
+            <span class="filter-chip-label">${prefix}: ${label}</span>
+            <span class="filter-chip-remove" data-type="${type}" data-value="${value}">&times;</span>
+        </span>
+    `;
+}
+
+/**
+ * Restore filters from URL parameters.
+ */
+function restoreFiltersFromUrl() {
+    const params = new URLSearchParams(window.location.search);
+
+    const reposParam = params.get('repos');
+    const teamsParam = params.get('teams');
+
+    if (reposParam) {
+        currentFilters.repos = reposParam.split(',').filter(v => v);
+        if (elements.repoFilter) {
+            currentFilters.repos.forEach(value => {
+                const option = elements.repoFilter.querySelector(`option[value="${value}"]`);
+                if (option) option.selected = true;
+            });
+        }
+    }
+
+    if (teamsParam) {
+        currentFilters.teams = teamsParam.split(',').filter(v => v);
+        if (elements.teamFilter) {
+            currentFilters.teams.forEach(value => {
+                const option = elements.teamFilter.querySelector(`option[value="${value}"]`);
+                if (option) option.selected = true;
+            });
+        }
+    }
+
+    updateFilterUI();
+}
+
+// ============================================================================
 // Utility Functions
 // ============================================================================
 
@@ -1121,6 +1365,14 @@ function updateUrlState() {
     const activeTab = document.querySelector('.tab.active');
     if (activeTab && activeTab.dataset.tab !== 'metrics') {
         newParams.set('tab', activeTab.dataset.tab);
+    }
+
+    // Add filters
+    if (currentFilters.repos.length > 0) {
+        newParams.set('repos', currentFilters.repos.join(','));
+    }
+    if (currentFilters.teams.length > 0) {
+        newParams.set('teams', currentFilters.teams.join(','));
     }
 
     window.history.replaceState({}, '', `${window.location.pathname}?${newParams.toString()}`);
