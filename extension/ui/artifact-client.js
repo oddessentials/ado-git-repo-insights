@@ -180,54 +180,41 @@ class ArtifactClient {
     }
 
     /**
-     * Get file from a Container artifact using FileContainer API.
+     * Get file from a Container artifact.
+     * Uses the artifact's resource.url directly with authenticated fetch.
+     *
+     * Per Azure DevOps REST API docs, container URLs support itemPath parameter.
      * @private
      */
     async _getFileFromContainer(artifact, filePath) {
-        // Container data format: "#/containerId/path"
-        const containerData = artifact.resource.data;
-        const containerMatch = containerData.match(/#\/(\d+)\//);
-        if (!containerMatch) {
-            throw new Error(`Invalid container data format: ${containerData}`);
+        // The artifact.resource.url points to the container
+        // We can append itemPath to get specific files
+        const baseUrl = artifact.resource.url;
+
+        // Normalize file path - ensure it's relative and includes artifact name
+        const normalizedPath = `${artifact.name}/${filePath.replace(/^\//, '')}`;
+
+        // Construct URL with itemPath parameter
+        const separator = baseUrl.includes('?') ? '&' : '?';
+        const url = `${baseUrl}${separator}itemPath=${encodeURIComponent(normalizedPath)}&$format=text`;
+
+        console.log('[_getFileFromContainer] Fetching:', url);
+
+        const response = await this._authenticatedFetch(url);
+
+        if (response.status === 404) {
+            throw new Error(`File '${filePath}' not found in artifact '${artifact.name}'`);
         }
 
-        const containerId = containerMatch[1];
+        if (response.status === 401 || response.status === 403) {
+            throw createPermissionDeniedError('read artifact file');
+        }
 
-        // Use FileContainer REST API to get the file
-        return new Promise((resolve, reject) => {
-            VSS.require(['VSS/Service', 'TFS/DistributedTask/FileContainerRestClient'], async (Service, FileContainerClient) => {
-                try {
-                    const webContext = VSS.getWebContext();
-                    const client = Service.getClient(FileContainerClient.FileContainerHttpClient);
+        if (!response.ok) {
+            throw new Error(`Failed to fetch file from container: ${response.status} ${response.statusText}`);
+        }
 
-                    // Normalize file path (ensure it starts with artifact name)
-                    const normalizedPath = filePath.startsWith(artifact.name + '/')
-                        ? filePath
-                        : `${artifact.name}/${filePath}`;
-
-                    // Get items in container
-                    const items = await client.getItems(containerId, null, normalizedPath);
-
-                    if (!items || items.length === 0) {
-                        throw new Error(`File '${filePath}' not found in artifact`);
-                    }
-
-                    // Get the file content URL and fetch it
-                    const fileItem = items[0];
-                    if (fileItem.contentLocation) {
-                        const response = await this._authenticatedFetch(fileItem.contentLocation);
-                        if (!response.ok) {
-                            throw new Error(`Failed to fetch file content: ${response.status}`);
-                        }
-                        resolve(await response.json());
-                    } else {
-                        throw new Error('File item has no content location');
-                    }
-                } catch (e) {
-                    reject(e);
-                }
-            });
-        });
+        return response.json();
     }
 
     /**
