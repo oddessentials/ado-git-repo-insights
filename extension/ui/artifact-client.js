@@ -111,8 +111,11 @@ class ArtifactClient {
     }
 
     /**
-     * Get artifact metadata using SDK's BuildRestClient.
-     * This uses the same auth mechanism that works for getArtifacts().
+     * Get artifact metadata by looking it up from the artifacts list.
+     *
+     * NOTE: We use getArtifacts() + filter instead of SDK getArtifact() because
+     * the legacy TFS/Build/RestClient SDK has a different parameter order than
+     * documented, causing 404 errors. getArtifacts() is proven to work.
      *
      * @param {number} buildId - Build ID
      * @param {string} artifactName - Artifact name
@@ -121,26 +124,18 @@ class ArtifactClient {
     async getArtifactMetadata(buildId, artifactName) {
         this._ensureInitialized();
 
-        return new Promise((resolve, reject) => {
-            VSS.require(['TFS/Build/RestClient'], async (BuildRestClient) => {
-                try {
-                    const client = BuildRestClient.getClient();
-                    console.log('[getArtifactMetadata] Parameters:', {
-                        projectId: this.projectId,
-                        buildId: buildId,
-                        artifactName: artifactName
-                    });
-                    const artifact = await client.getArtifact(this.projectId, buildId, artifactName);
-                    resolve(artifact);
-                } catch (e) {
-                    if (e.status === 404) {
-                        resolve(null);
-                    } else {
-                        reject(e);
-                    }
-                }
-            });
-        });
+        // Use getArtifacts() which we KNOW works, then find the specific artifact
+        const artifacts = await this.getArtifacts(buildId);
+        const artifact = artifacts.find(a => a.name === artifactName);
+
+        if (!artifact) {
+            console.log(`[getArtifactMetadata] Artifact '${artifactName}' not found in build ${buildId}`);
+            console.log('[getArtifactMetadata] Available artifacts:', artifacts.map(a => a.name));
+            return null;
+        }
+
+        console.log('[getArtifactMetadata] Found artifact:', artifact.name, 'type:', artifact.resource?.type);
+        return artifact;
     }
 
     /**
