@@ -1,3 +1,10 @@
+## [2.8.2](https://github.com/oddessentials/ado-git-repo-insights/compare/v2.8.1...v2.8.2) (2026-01-17)
+
+
+### Bug Fixes
+
+* **artifact:** use resource.url directly for container file access ([92f6f85](https://github.com/oddessentials/ado-git-repo-insights/commit/92f6f8523fd4bc219f2b0108d5727b7f2990b9d2))
+
 ## [2.8.1](https://github.com/oddessentials/ado-git-repo-insights/compare/v2.8.0...v2.8.1) (2026-01-17)
 
 
