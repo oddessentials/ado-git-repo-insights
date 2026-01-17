@@ -604,6 +604,10 @@ function cacheElements() {
     elements.cycleP90Sparkline = document.getElementById('cycle-p90-sparkline');
     elements.authorsSparkline = document.getElementById('authors-sparkline');
     elements.reviewersSparkline = document.getElementById('reviewers-sparkline');
+
+    // New chart elements
+    elements.cycleTimeTrend = document.getElementById('cycle-time-trend');
+    elements.reviewerActivity = document.getElementById('reviewer-activity');
 }
 
 /**
@@ -743,6 +747,8 @@ async function refreshMetrics() {
 
     renderSummaryCards(rollups, prevRollups);
     renderThroughputChart(rollups);
+    renderCycleTimeTrend(rollups);
+    renderReviewerActivity(rollups);
     renderCycleDistribution(distributions);
 }
 
@@ -1082,6 +1088,183 @@ function renderCycleDistribution(distributions) {
     }).join('');
 
     elements.cycleDistribution.innerHTML = html;
+}
+
+/**
+ * Render cycle time trend chart (line chart with P50 and P90).
+ */
+function renderCycleTimeTrend(rollups) {
+    if (!elements.cycleTimeTrend) return;
+
+    if (!rollups || rollups.length < 2) {
+        elements.cycleTimeTrend.innerHTML = '<p class="no-data">Not enough data for trend</p>';
+        return;
+    }
+
+    const p50Data = rollups.map(r => ({ week: r.week, value: r.cycle_time_p50 })).filter(d => d.value !== null);
+    const p90Data = rollups.map(r => ({ week: r.week, value: r.cycle_time_p90 })).filter(d => d.value !== null);
+
+    if (p50Data.length < 2 && p90Data.length < 2) {
+        elements.cycleTimeTrend.innerHTML = '<p class="no-data">No cycle time data available</p>';
+        return;
+    }
+
+    const allValues = [...p50Data.map(d => d.value), ...p90Data.map(d => d.value)];
+    const maxVal = Math.max(...allValues);
+    const minVal = Math.min(...allValues);
+    const range = maxVal - minVal || 1;
+
+    const width = 100;
+    const height = 180;
+    const padding = { top: 10, right: 10, bottom: 25, left: 40 };
+    const chartWidth = width - padding.left - padding.right;
+    const chartHeight = height - padding.top - padding.bottom;
+
+    // Generate paths
+    const generatePath = (data) => {
+        const points = data.map((d, i) => {
+            const dataIndex = rollups.findIndex(r => r.week === d.week);
+            const x = padding.left + (dataIndex / (rollups.length - 1)) * chartWidth;
+            const y = padding.top + chartHeight - ((d.value - minVal) / range) * chartHeight;
+            return { x, y, week: d.week, value: d.value };
+        });
+        const pathD = points.map((p, i) => `${i === 0 ? 'M' : 'L'} ${p.x.toFixed(1)} ${p.y.toFixed(1)}`).join(' ');
+        return { pathD, points };
+    };
+
+    const p50Path = p50Data.length >= 2 ? generatePath(p50Data) : null;
+    const p90Path = p90Data.length >= 2 ? generatePath(p90Data) : null;
+
+    // Y-axis labels
+    const yLabels = [minVal, (minVal + maxVal) / 2, maxVal];
+
+    const svgContent = `
+        <svg viewBox="0 0 ${width} ${height}" preserveAspectRatio="xMidYMid meet">
+            <!-- Grid lines -->
+            ${yLabels.map((val, i) => {
+                const y = padding.top + chartHeight - (i / (yLabels.length - 1)) * chartHeight;
+                return `<line class="line-chart-grid" x1="${padding.left}" y1="${y}" x2="${width - padding.right}" y2="${y}"/>`;
+            }).join('')}
+
+            <!-- Y-axis labels -->
+            ${yLabels.map((val, i) => {
+                const y = padding.top + chartHeight - (i / (yLabels.length - 1)) * chartHeight;
+                return `<text class="line-chart-axis" x="${padding.left - 4}" y="${y + 3}" text-anchor="end">${formatDuration(val)}</text>`;
+            }).join('')}
+
+            <!-- Lines -->
+            ${p90Path ? `<path class="line-chart-p90" d="${p90Path.pathD}" vector-effect="non-scaling-stroke"/>` : ''}
+            ${p50Path ? `<path class="line-chart-p50" d="${p50Path.pathD}" vector-effect="non-scaling-stroke"/>` : ''}
+
+            <!-- Dots -->
+            ${p90Path ? p90Path.points.map(p => `<circle class="line-chart-dot" cx="${p.x}" cy="${p.y}" r="3" fill="var(--warning)" data-week="${p.week}" data-value="${p.value}" data-metric="P90"/>`).join('') : ''}
+            ${p50Path ? p50Path.points.map(p => `<circle class="line-chart-dot" cx="${p.x}" cy="${p.y}" r="3" fill="var(--primary)" data-week="${p.week}" data-value="${p.value}" data-metric="P50"/>`).join('') : ''}
+        </svg>
+    `;
+
+    const legendHtml = `
+        <div class="chart-legend">
+            <div class="legend-item">
+                <span class="chart-tooltip-dot legend-p50"></span>
+                <span>P50 (Median)</span>
+            </div>
+            <div class="legend-item">
+                <span class="chart-tooltip-dot legend-p90"></span>
+                <span>P90</span>
+            </div>
+        </div>
+    `;
+
+    elements.cycleTimeTrend.innerHTML = `<div class="line-chart">${svgContent}</div>${legendHtml}`;
+
+    // Add tooltip interactions
+    addChartTooltips(elements.cycleTimeTrend, (dot) => {
+        const week = dot.dataset.week;
+        const value = parseFloat(dot.dataset.value);
+        const metric = dot.dataset.metric;
+        return `
+            <div class="chart-tooltip-title">${week}</div>
+            <div class="chart-tooltip-row">
+                <span class="chart-tooltip-label">
+                    <span class="chart-tooltip-dot ${metric === 'P50' ? 'legend-p50' : 'legend-p90'}"></span>
+                    ${metric}
+                </span>
+                <span>${formatDuration(value)}</span>
+            </div>
+        `;
+    });
+}
+
+/**
+ * Render reviewer activity chart (horizontal bar chart).
+ */
+function renderReviewerActivity(rollups) {
+    if (!elements.reviewerActivity) return;
+
+    if (!rollups || !rollups.length) {
+        elements.reviewerActivity.innerHTML = '<p class="no-data">No reviewer data available</p>';
+        return;
+    }
+
+    // Take last 8 weeks for display
+    const recentRollups = rollups.slice(-8);
+    const maxReviewers = Math.max(...recentRollups.map(r => r.reviewers_count || 0));
+
+    if (maxReviewers === 0) {
+        elements.reviewerActivity.innerHTML = '<p class="no-data">No reviewer data available</p>';
+        return;
+    }
+
+    const barsHtml = recentRollups.map(r => {
+        const count = r.reviewers_count || 0;
+        const pct = (count / maxReviewers) * 100;
+        const weekLabel = r.week.split('-W')[1];
+        return `
+            <div class="h-bar-row" title="${r.week}: ${count} reviewers">
+                <span class="h-bar-label">W${weekLabel}</span>
+                <div class="h-bar-container">
+                    <div class="h-bar" style="width: ${pct}%"></div>
+                </div>
+                <span class="h-bar-value">${count}</span>
+            </div>
+        `;
+    }).join('');
+
+    elements.reviewerActivity.innerHTML = `<div class="horizontal-bar-chart">${barsHtml}</div>`;
+}
+
+/**
+ * Add tooltip interactions to a chart.
+ * @param {HTMLElement} container - Chart container
+ * @param {Function} contentFn - Function to generate tooltip content from dot element
+ */
+function addChartTooltips(container, contentFn) {
+    const dots = container.querySelectorAll('.line-chart-dot');
+    let tooltip = null;
+
+    dots.forEach(dot => {
+        dot.addEventListener('mouseenter', (e) => {
+            if (!tooltip) {
+                tooltip = document.createElement('div');
+                tooltip.className = 'chart-tooltip';
+                container.appendChild(tooltip);
+            }
+            tooltip.innerHTML = contentFn(dot);
+            tooltip.style.display = 'block';
+
+            // Position tooltip
+            const rect = container.getBoundingClientRect();
+            const dotRect = dot.getBoundingClientRect();
+            tooltip.style.left = `${dotRect.left - rect.left + 10}px`;
+            tooltip.style.top = `${dotRect.top - rect.top - 40}px`;
+        });
+
+        dot.addEventListener('mouseleave', () => {
+            if (tooltip) {
+                tooltip.style.display = 'none';
+            }
+        });
+    });
 }
 
 /**
