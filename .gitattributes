@@ -2,6 +2,13 @@
 * text=auto eol=lf
 
 # ─────────────────────────────────────────────────────────
+# GIT CONFIGURATION FILES: Always LF
+# ─────────────────────────────────────────────────────────
+.gitattributes text eol=lf
+.gitignore text eol=lf
+.gitmodules text eol=lf
+
+# ─────────────────────────────────────────────────────────
 # SCRIPTS: Must always be LF (executed in Unix CI)
 # ─────────────────────────────────────────────────────────
 *.sh text eol=lf
@@ -10,6 +17,13 @@
 .husky/* text eol=lf
 .github/** text eol=lf
 scripts/** text eol=lf
+
+# ─────────────────────────────────────────────────────────
+# CI/CD CONFIGURATION: LF for cross-platform CI
+# ─────────────────────────────────────────────────────────
+Dockerfile text eol=lf
+docker-compose*.yml text eol=lf
+Makefile text eol=lf
 
 # ─────────────────────────────────────────────────────────
 # CODE: LF for cross-platform consistency
@@ -21,6 +35,8 @@ scripts/** text eol=lf
 *.yml text eol=lf
 *.yaml text eol=lf
 *.md text eol=lf
+*.txt text eol=lf
+LICENSE text eol=lf
 *.html text eol=lf
 *.css text eol=lf
 

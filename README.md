@@ -7,6 +7,18 @@
 
 Extract Azure DevOps Pull Request metrics to SQLite and generate PowerBI-compatible CSVs.
 
+---
+
+## 🚀 Get Started
+
+**Install from the Azure DevOps Marketplace:**
+
+[![Install from Marketplace](https://img.shields.io/badge/Install-Azure%20DevOps%20Marketplace-blue?logo=azure-devops)](https://marketplace.visualstudio.com/items?itemName=OddEssentials.ado-git-repo-insights)
+
+👉 **New to this extension?** Follow the **[Installation Guide](docs/INSTALLATION.md)** for step-by-step setup instructions.
+
+---
+
 ## Overview
 
 This tool replaces the MongoDB-based `ado-pull-request-metrics` with a lightweight, file-based solution that:
