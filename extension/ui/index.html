@@ -102,6 +102,57 @@
                     <input type="date" id="end-date">
                     <button id="apply-dates" class="btn btn-small">Apply</button>
                 </div>
+                <div class="filter-separator"></div>
+                <div class="filter-group" id="repo-filter-group">
+                    <label for="repo-filter">Repository</label>
+                    <select id="repo-filter" multiple>
+                        <option value="" selected>All</option>
+                    </select>
+                </div>
+                <div class="filter-group" id="team-filter-group">
+                    <label for="team-filter">Team</label>
+                    <select id="team-filter" multiple>
+                        <option value="" selected>All</option>
+                    </select>
+                </div>
+                <button id="clear-filters" class="btn btn-small btn-secondary hidden">Clear Filters</button>
+                <div class="filter-actions">
+                    <button id="compare-toggle" class="btn btn-small btn-secondary" title="Compare with previous period">
+                        <span class="compare-icon">&#8644;</span> Compare
+                    </button>
+                    <div class="export-dropdown">
+                        <button id="export-btn" class="btn btn-small btn-secondary" title="Export data">
+                            <span class="export-icon">&#8681;</span> Export
+                        </button>
+                        <div id="export-menu" class="export-menu hidden">
+                            <button id="export-csv" class="export-option">Export Summary (CSV)</button>
+                            <button id="export-link" class="export-option">Copy shareable link</button>
+                            <div class="export-separator"></div>
+                            <button id="export-raw-zip" class="export-option">Download Raw Data (ZIP)</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <!-- Active Filters Display -->
+            <div id="active-filters" class="active-filters hidden">
+                <span class="active-filters-label">Filtering by:</span>
+                <div id="filter-chips" class="filter-chips"></div>
+            </div>
+
+            <!-- Comparison Mode Banner -->
+            <div id="comparison-banner" class="comparison-banner hidden">
+                <div class="comparison-periods">
+                    <div class="comparison-period current">
+                        <span class="period-label">Current Period</span>
+                        <span id="current-period-dates" class="period-dates">-</span>
+                    </div>
+                    <span class="comparison-vs">vs</span>
+                    <div class="comparison-period previous">
+                        <span class="period-label">Previous Period</span>
+                        <span id="previous-period-dates" class="period-dates">-</span>
+                    </div>
+                </div>
+                <button id="exit-compare" class="btn btn-small">Exit Comparison</button>
             </div>
 
             <!-- Tabs -->
@@ -118,31 +169,70 @@
                     <div class="summary-cards">
                         <div class="card">
                             <h3>Total PRs</h3>
-                            <div id="total-prs" class="metric-value">-</div>
+                            <div class="metric-row">
+                                <div id="total-prs" class="metric-value">-</div>
+                                <div id="total-prs-sparkline" class="sparkline"></div>
+                            </div>
+                            <div id="total-prs-delta" class="metric-delta"></div>
                         </div>
                         <div class="card">
                             <h3>Cycle Time (P50)</h3>
-                            <div id="cycle-p50" class="metric-value">-</div>
+                            <div class="metric-row">
+                                <div id="cycle-p50" class="metric-value">-</div>
+                                <div id="cycle-p50-sparkline" class="sparkline"></div>
+                            </div>
+                            <div id="cycle-p50-delta" class="metric-delta"></div>
                         </div>
                         <div class="card">
                             <h3>Cycle Time (P90)</h3>
-                            <div id="cycle-p90" class="metric-value">-</div>
+                            <div class="metric-row">
+                                <div id="cycle-p90" class="metric-value">-</div>
+                                <div id="cycle-p90-sparkline" class="sparkline"></div>
+                            </div>
+                            <div id="cycle-p90-delta" class="metric-delta"></div>
                         </div>
                         <div class="card">
                             <h3>Contributors</h3>
-                            <div id="authors-count" class="metric-value">-</div>
+                            <div class="metric-row">
+                                <div id="authors-count" class="metric-value">-</div>
+                                <div id="authors-sparkline" class="sparkline"></div>
+                            </div>
+                            <div id="authors-delta" class="metric-delta"></div>
+                        </div>
+                        <div class="card">
+                            <h3>Reviewers</h3>
+                            <div class="metric-row">
+                                <div id="reviewers-count" class="metric-value">-</div>
+                                <div id="reviewers-sparkline" class="sparkline"></div>
+                            </div>
+                            <div id="reviewers-delta" class="metric-delta"></div>
                         </div>
                     </div>
 
-                    <!-- Charts -->
-                    <div class="chart-container">
-                        <h3>PR Throughput Over Time</h3>
-                        <div id="throughput-chart" class="chart"></div>
+                    <!-- Charts Row 1 -->
+                    <div class="charts-row">
+                        <div class="chart-container">
+                            <h3>PR Throughput Over Time</h3>
+                            <div id="throughput-chart" class="chart"></div>
+                        </div>
+
+                        <div class="chart-container">
+                            <h3>Cycle Time Trend</h3>
+                            <div id="cycle-time-trend" class="chart"></div>
+                        </div>
                     </div>
 
-                    <div class="chart-container">
-                        <h3>Cycle Time Distribution</h3>
-                        <div id="cycle-distribution" class="chart"></div>
+                    <!-- Charts Row 2 -->
+                    <div class="charts-row">
+                        <div class="chart-container">
+                            <h3>Reviewer Activity</h3>
+                            <div id="reviewer-activity" class="chart"></div>
+                        </div>
+
+                        <div class="chart-container">
+                            <h3>Cycle Time Distribution</h3>
+                            <div id="cycle-distribution" class="chart"></div>
+                        </div>
                     </div>
                 </div>
             </section>
