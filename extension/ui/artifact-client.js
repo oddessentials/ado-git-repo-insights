@@ -372,12 +372,12 @@ class AuthenticatedDatasetLoader {
      */
     async loadManifest() {
         try {
-            // The manifest is inside the nested 'aggregates' folder within the artifact
-            // Path: aggregates/aggregates/dataset-manifest.json
+            // The manifest is at the root of the 'aggregates' artifact
+            // (not nested in another 'aggregates' folder)
             this.manifest = await this.artifactClient.getArtifactFileViaSdk(
                 this.buildId,
                 this.artifactName,
-                'aggregates/dataset-manifest.json'
+                'dataset-manifest.json'
             );
             this.validateManifest(this.manifest);
             return this.manifest;
@@ -434,10 +434,11 @@ class AuthenticatedDatasetLoader {
     async loadDimensions() {
         if (this.dimensions) return this.dimensions;
 
+        // dimensions.json is at the root of the artifact
         this.dimensions = await this.artifactClient.getArtifactFileViaSdk(
             this.buildId,
             this.artifactName,
-            'aggregates/dimensions.json'
+            'dimensions.json'
         );
         return this.dimensions;
     }
