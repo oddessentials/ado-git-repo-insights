@@ -116,11 +116,41 @@
                     </select>
                 </div>
                 <button id="clear-filters" class="btn btn-small btn-secondary hidden">Clear Filters</button>
+                <div class="filter-actions">
+                    <button id="compare-toggle" class="btn btn-small btn-secondary" title="Compare with previous period">
+                        <span class="compare-icon">&#8644;</span> Compare
+                    </button>
+                    <div class="export-dropdown">
+                        <button id="export-btn" class="btn btn-small btn-secondary" title="Export data">
+                            <span class="export-icon">&#8681;</span> Export
+                        </button>
+                        <div id="export-menu" class="export-menu hidden">
+                            <button id="export-csv" class="export-option">Export as CSV</button>
+                            <button id="export-link" class="export-option">Copy shareable link</button>
+                        </div>
+                    </div>
+                </div>
             </div>
             <!-- Active Filters Display -->
             <div id="active-filters" class="active-filters hidden">
                 <span class="active-filters-label">Filtering by:</span>
                 <div id="filter-chips" class="filter-chips"></div>
+            </div>
+
+            <!-- Comparison Mode Banner -->
+            <div id="comparison-banner" class="comparison-banner hidden">
+                <div class="comparison-periods">
+                    <div class="comparison-period current">
+                        <span class="period-label">Current Period</span>
+                        <span id="current-period-dates" class="period-dates">-</span>
+                    </div>
+                    <span class="comparison-vs">vs</span>
+                    <div class="comparison-period previous">
+                        <span class="period-label">Previous Period</span>
+                        <span id="previous-period-dates" class="period-dates">-</span>
+                    </div>
+                </div>
+                <button id="exit-compare" class="btn btn-small">Exit Comparison</button>
             </div>
 
             <!-- Tabs -->

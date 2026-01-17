@@ -16,6 +16,8 @@ let loader = null;
 let artifactClient = null;
 let currentDateRange = { start: null, end: null };
 let currentFilters = { repos: [], teams: [] };
+let comparisonMode = false;
+let cachedRollups = []; // Cache for export
 let sdkInitialized = false;
 
 // Settings keys for extension data storage (must match settings.js)
@@ -608,6 +610,19 @@ function cacheElements() {
     // New chart elements
     elements.cycleTimeTrend = document.getElementById('cycle-time-trend');
     elements.reviewerActivity = document.getElementById('reviewer-activity');
+
+    // Comparison mode elements
+    elements.compareToggle = document.getElementById('compare-toggle');
+    elements.comparisonBanner = document.getElementById('comparison-banner');
+    elements.currentPeriodDates = document.getElementById('current-period-dates');
+    elements.previousPeriodDates = document.getElementById('previous-period-dates');
+    elements.exitCompare = document.getElementById('exit-compare');
+
+    // Export elements
+    elements.exportBtn = document.getElementById('export-btn');
+    elements.exportMenu = document.getElementById('export-menu');
+    elements.exportCsv = document.getElementById('export-csv');
+    elements.exportLink = document.getElementById('export-link');
 }
 
 /**
@@ -634,6 +649,22 @@ function setupEventListeners() {
     elements.repoFilter?.addEventListener('change', handleFilterChange);
     elements.teamFilter?.addEventListener('change', handleFilterChange);
     elements.clearFilters?.addEventListener('click', clearAllFilters);
+
+    // Comparison mode
+    elements.compareToggle?.addEventListener('click', toggleComparisonMode);
+    elements.exitCompare?.addEventListener('click', exitComparisonMode);
+
+    // Export
+    elements.exportBtn?.addEventListener('click', toggleExportMenu);
+    elements.exportCsv?.addEventListener('click', exportToCsv);
+    elements.exportLink?.addEventListener('click', copyShareableLink);
+
+    // Close export menu when clicking outside
+    document.addEventListener('click', (e) => {
+        if (!e.target.closest('.export-dropdown')) {
+            elements.exportMenu?.classList.add('hidden');
+        }
+    });
 }
 
 // ============================================================================
@@ -745,11 +776,19 @@ async function refreshMetrics() {
         console.debug('Previous period data not available:', e);
     }
 
+    // Cache rollups for export
+    cachedRollups = rollups;
+
     renderSummaryCards(rollups, prevRollups);
     renderThroughputChart(rollups);
     renderCycleTimeTrend(rollups);
     renderReviewerActivity(rollups);
     renderCycleDistribution(distributions);
+
+    // Update comparison banner if in comparison mode
+    if (comparisonMode) {
+        updateComparisonBanner();
+    }
 }
 
 /**
@@ -1645,6 +1684,154 @@ function restoreFiltersFromUrl() {
 }
 
 // ============================================================================
+// Comparison Mode
+// ============================================================================
+
+/**
+ * Toggle comparison mode on/off.
+ */
+function toggleComparisonMode() {
+    comparisonMode = !comparisonMode;
+
+    elements.compareToggle?.classList.toggle('active', comparisonMode);
+    elements.comparisonBanner?.classList.toggle('hidden', !comparisonMode);
+
+    if (comparisonMode) {
+        updateComparisonBanner();
+    }
+
+    updateUrlState();
+}
+
+/**
+ * Exit comparison mode.
+ */
+function exitComparisonMode() {
+    comparisonMode = false;
+    elements.compareToggle?.classList.remove('active');
+    elements.comparisonBanner?.classList.add('hidden');
+    updateUrlState();
+}
+
+/**
+ * Update the comparison banner with date ranges.
+ */
+function updateComparisonBanner() {
+    if (!currentDateRange.start || !currentDateRange.end) return;
+
+    const formatDate = (date) => date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+
+    // Current period
+    const currentStart = formatDate(currentDateRange.start);
+    const currentEnd = formatDate(currentDateRange.end);
+    if (elements.currentPeriodDates) {
+        elements.currentPeriodDates.textContent = `${currentStart} - ${currentEnd}`;
+    }
+
+    // Previous period
+    const prevPeriod = getPreviousPeriod(currentDateRange.start, currentDateRange.end);
+    const prevStart = formatDate(prevPeriod.start);
+    const prevEnd = formatDate(prevPeriod.end);
+    if (elements.previousPeriodDates) {
+        elements.previousPeriodDates.textContent = `${prevStart} - ${prevEnd}`;
+    }
+}
+
+// ============================================================================
+// Export Functions
+// ============================================================================
+
+/**
+ * Toggle export menu visibility.
+ */
+function toggleExportMenu(e) {
+    e.stopPropagation();
+    elements.exportMenu?.classList.toggle('hidden');
+}
+
+/**
+ * Export current data to CSV.
+ */
+function exportToCsv() {
+    elements.exportMenu?.classList.add('hidden');
+
+    if (!cachedRollups || cachedRollups.length === 0) {
+        showToast('No data to export', 'error');
+        return;
+    }
+
+    // Build CSV content
+    const headers = ['Week', 'Start Date', 'End Date', 'PR Count', 'Cycle Time P50 (min)', 'Cycle Time P90 (min)', 'Authors', 'Reviewers'];
+    const rows = cachedRollups.map(r => [
+        r.week,
+        r.start_date || '',
+        r.end_date || '',
+        r.pr_count || 0,
+        r.cycle_time_p50 !== null ? r.cycle_time_p50.toFixed(1) : '',
+        r.cycle_time_p90 !== null ? r.cycle_time_p90.toFixed(1) : '',
+        r.authors_count || 0,
+        r.reviewers_count || 0
+    ]);
+
+    const csvContent = [headers, ...rows]
+        .map(row => row.map(cell => `"${cell}"`).join(','))
+        .join('\n');
+
+    // Download file
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+
+    const dateStr = new Date().toISOString().split('T')[0];
+    link.download = `pr-insights-${dateStr}.csv`;
+
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+
+    showToast('CSV exported successfully', 'success');
+}
+
+/**
+ * Copy shareable link to clipboard.
+ */
+async function copyShareableLink() {
+    elements.exportMenu?.classList.add('hidden');
+
+    try {
+        await navigator.clipboard.writeText(window.location.href);
+        showToast('Link copied to clipboard', 'success');
+    } catch (err) {
+        // Fallback for older browsers
+        const textArea = document.createElement('textarea');
+        textArea.value = window.location.href;
+        document.body.appendChild(textArea);
+        textArea.select();
+        document.execCommand('copy');
+        document.body.removeChild(textArea);
+        showToast('Link copied to clipboard', 'success');
+    }
+}
+
+/**
+ * Show a toast notification.
+ * @param {string} message - Message to display
+ * @param {string} type - 'success' or 'error'
+ */
+function showToast(message, type = 'success') {
+    const toast = document.createElement('div');
+    toast.className = `toast ${type}`;
+    toast.textContent = message;
+    document.body.appendChild(toast);
+
+    setTimeout(() => {
+        toast.remove();
+    }, 3000);
+}
+
+// ============================================================================
 // Utility Functions
 // ============================================================================
 
@@ -1712,6 +1899,11 @@ function updateUrlState() {
         newParams.set('teams', currentFilters.teams.join(','));
     }
 
+    // Add comparison mode
+    if (comparisonMode) {
+        newParams.set('compare', '1');
+    }
+
     window.history.replaceState({}, '', `${window.location.pathname}?${newParams.toString()}`);
 }
 
@@ -1733,6 +1925,14 @@ function restoreStateFromUrl() {
     const tabParam = params.get('tab');
     if (tabParam) {
         setTimeout(() => switchTab(tabParam), 0);
+    }
+
+    // Restore comparison mode
+    const compareParam = params.get('compare');
+    if (compareParam === '1') {
+        comparisonMode = true;
+        elements.compareToggle?.classList.add('active');
+        elements.comparisonBanner?.classList.remove('hidden');
     }
 }
 

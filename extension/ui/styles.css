@@ -252,6 +252,151 @@ body {
     opacity: 1;
 }
 
+/* Filter Actions (Compare + Export) */
+.filter-actions {
+    display: flex;
+    gap: 8px;
+    margin-left: auto;
+}
+
+.compare-icon,
+.export-icon {
+    font-size: 14px;
+}
+
+#compare-toggle.active {
+    background: var(--primary);
+    color: white;
+}
+
+/* Export Dropdown */
+.export-dropdown {
+    position: relative;
+}
+
+.export-menu {
+    position: absolute;
+    top: 100%;
+    right: 0;
+    margin-top: 4px;
+    background: var(--bg-primary);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow-md);
+    min-width: 160px;
+    z-index: 100;
+}
+
+.export-option {
+    display: block;
+    width: 100%;
+    padding: 10px 16px;
+    text-align: left;
+    border: none;
+    background: none;
+    cursor: pointer;
+    font-size: 13px;
+    color: var(--text-primary);
+}
+
+.export-option:hover {
+    background: var(--bg-secondary);
+}
+
+.export-option:first-child {
+    border-radius: var(--radius) var(--radius) 0 0;
+}
+
+.export-option:last-child {
+    border-radius: 0 0 var(--radius) var(--radius);
+}
+
+/* Comparison Mode Banner */
+.comparison-banner {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 16px 20px;
+    background: linear-gradient(135deg, var(--primary-light) 0%, #e8f4ff 100%);
+    border: 1px solid var(--primary);
+    border-radius: var(--radius-lg);
+    margin-bottom: 16px;
+}
+
+.comparison-periods {
+    display: flex;
+    align-items: center;
+    gap: 24px;
+}
+
+.comparison-period {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.comparison-period .period-label {
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    color: var(--text-secondary);
+}
+
+.comparison-period .period-dates {
+    font-size: 14px;
+    font-weight: 500;
+    color: var(--text-primary);
+}
+
+.comparison-period.current .period-label {
+    color: var(--primary-dark);
+}
+
+.comparison-period.previous .period-label {
+    color: var(--text-tertiary);
+}
+
+.comparison-vs {
+    font-size: 16px;
+    font-weight: 600;
+    color: var(--primary);
+}
+
+/* Toast Notification */
+.toast {
+    position: fixed;
+    bottom: 24px;
+    right: 24px;
+    padding: 12px 20px;
+    background: var(--text-primary);
+    color: white;
+    border-radius: var(--radius);
+    box-shadow: var(--shadow-md);
+    font-size: 13px;
+    z-index: 1000;
+    animation: slideIn 0.3s ease;
+}
+
+.toast.success {
+    background: var(--success);
+}
+
+.toast.error {
+    background: var(--error);
+}
+
+@keyframes slideIn {
+    from {
+        transform: translateY(20px);
+        opacity: 0;
+    }
+    to {
+        transform: translateY(0);
+        opacity: 1;
+    }
+}
+
 /* Tabs */
 .tabs {
     display: flex;
