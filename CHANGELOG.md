@@ -1,3 +1,15 @@
+# [3.1.0](https://github.com/oddessentials/ado-git-repo-insights/compare/v3.0.4...v3.1.0) (2026-01-17)
+
+
+### Features
+
+* **dashboard:** add comparison mode and export functionality (Sprint 5) ([e3fde36](https://github.com/oddessentials/ado-git-repo-insights/commit/e3fde3600f8fd67b13086333abe0c4b54b9b8412))
+* **dashboard:** add cycle time trend and reviewer activity charts (Sprint 4) ([93e14dd](https://github.com/oddessentials/ado-git-repo-insights/commit/93e14dd3118d61922293edacc43762ddc0f21fdc))
+* **dashboard:** add dimension filter bar with dropdowns (Sprint 2) ([393ede3](https://github.com/oddessentials/ado-git-repo-insights/commit/393ede3b8b44f8e9270bbabd03d9146d5f231385))
+* **dashboard:** add raw data ZIP download for pipeline CSV artifacts ([5785d18](https://github.com/oddessentials/ado-git-repo-insights/commit/5785d18aaa33eda95c7c252e266e2cd9c87fd9e2))
+* **dashboard:** add sparklines and trend line overlay (Sprint 3) ([8781ddb](https://github.com/oddessentials/ado-git-repo-insights/commit/8781ddb7bbaab71cd9e2dcd5de383a1563f41a7c))
+* **dashboard:** add trend deltas and reviewers card (Sprint 1) ([660546d](https://github.com/oddessentials/ado-git-repo-insights/commit/660546d526632998f184c3d698a5c030e7f46d82))
+
 ## [3.0.4](https://github.com/oddessentials/ado-git-repo-insights/compare/v3.0.3...v3.0.4) (2026-01-17)
 
 
