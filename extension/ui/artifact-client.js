@@ -214,19 +214,51 @@ class ArtifactClient {
 
     /**
      * Get file from artifact download URL (for PipelineArtifact type).
+     *
+     * Pipeline Artifacts use a different URL structure than Container artifacts.
+     * The downloadUrl points to the Azure Artifacts CDN with format parameter.
+     *
      * @private
      */
     async _getFileFromDownloadUrl(downloadUrl, filePath) {
-        // For pipeline artifacts, the download URL points to a zip
-        // We need a different approach - use the subPath parameter
-        const normalizedPath = filePath.startsWith('/') ? filePath : '/' + filePath;
-        const url = downloadUrl.replace('format=zip', 'format=file') +
-            `&subPath=${encodeURIComponent(normalizedPath)}`;
+        // Normalize file path - remove leading slash, ensure no double slashes
+        const normalizedPath = filePath.replace(/^\/+/, '').replace(/\/+/g, '/');
+
+        // For Pipeline Artifacts, we need to:
+        // 1. Change format from 'zip' to 'file' (or add format=file if not present)
+        // 2. Add subPath parameter with the file path
+
+        let url;
+        if (downloadUrl.includes('format=')) {
+            // Replace existing format parameter
+            url = downloadUrl.replace(/format=\w+/, 'format=file');
+        } else {
+            // Add format parameter
+            const separator = downloadUrl.includes('?') ? '&' : '?';
+            url = `${downloadUrl}${separator}format=file`;
+        }
+
+        // Add subPath parameter - the path should be relative to artifact root
+        url += `&subPath=${encodeURIComponent('/' + normalizedPath)}`;
+
+        console.log('[_getFileFromDownloadUrl] Original URL:', downloadUrl);
+        console.log('[_getFileFromDownloadUrl] File path:', filePath);
+        console.log('[_getFileFromDownloadUrl] Fetching:', url);
 
         const response = await this._authenticatedFetch(url);
-        if (!response.ok) {
-            throw new Error(`Failed to fetch file: ${response.status}`);
+
+        if (response.status === 404) {
+            throw new Error(`File '${filePath}' not found in Pipeline Artifact`);
         }
+
+        if (response.status === 401 || response.status === 403) {
+            throw createPermissionDeniedError('read Pipeline Artifact file');
+        }
+
+        if (!response.ok) {
+            throw new Error(`Failed to fetch file: ${response.status} ${response.statusText}`);
+        }
+
         return response.json();
     }
 
