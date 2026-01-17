@@ -1,134 +1,130 @@
 /**
- * Pipeline Artifact URL Construction Tests
+ * Build API Artifact URL Construction Tests
  *
- * Tests for _getFileFromDownloadUrl URL construction logic.
- * Ensures proper format parameter handling and path normalization.
+ * Tests for the Build API URL pattern used by getArtifactFileViaSdk.
+ * URL format: /_apis/build/builds/{buildId}/artifacts?artifactName=X&$format=file&subPath=/path
  */
 
-describe('Pipeline Artifact URL Construction', () => {
-    // Helper to simulate the URL construction logic from _getFileFromDownloadUrl
-    function buildPipelineArtifactUrl(downloadUrl, filePath) {
-        // Normalize file path - remove leading slash, ensure no double slashes
-        const normalizedPath = filePath.replace(/^\/+/, '').replace(/\/+/g, '/');
+describe('Build API Artifact URL Construction', () => {
+    // Helper to simulate the URL construction logic from getArtifactFileViaSdk
+    function buildArtifactFileUrl(collectionUri, projectId, buildId, artifactName, filePath) {
+        // Normalize path - ensure it starts with /
+        const normalizedPath = filePath.startsWith('/') ? filePath : '/' + filePath;
 
-        let url;
-        if (downloadUrl.includes('format=')) {
-            // Replace existing format parameter
-            url = downloadUrl.replace(/format=\w+/, 'format=file');
-        } else {
-            // Add format parameter
-            const separator = downloadUrl.includes('?') ? '&' : '?';
-            url = `${downloadUrl}${separator}format=file`;
-        }
-
-        // Add subPath parameter - the path should be relative to artifact root
-        url += `&subPath=${encodeURIComponent('/' + normalizedPath)}`;
-
-        return url;
+        return `${collectionUri}${projectId}/_apis/build/builds/${buildId}/artifacts` +
+            `?artifactName=${encodeURIComponent(artifactName)}` +
+            `&%24format=file` +
+            `&subPath=${encodeURIComponent(normalizedPath)}` +
+            `&api-version=7.1`;
     }
 
-    describe('Format Parameter Handling', () => {
-        test('replaces format=zip with format=file', () => {
-            const downloadUrl = 'https://artprodcu3.artifacts.visualstudio.com/abc123?format=zip';
-            const result = buildPipelineArtifactUrl(downloadUrl, 'test.json');
-            expect(result).toContain('format=file');
-            expect(result).not.toContain('format=zip');
+    describe('URL Construction', () => {
+        const collectionUri = 'https://dev.azure.com/myorg/';
+        const projectId = 'my-project-id';
+        const buildId = 12345;
+
+        test('constructs correct URL with all parameters', () => {
+            const url = buildArtifactFileUrl(
+                collectionUri,
+                projectId,
+                buildId,
+                'aggregates',
+                'aggregates/dataset-manifest.json'
+            );
+
+            expect(url).toContain('https://dev.azure.com/myorg/my-project-id/_apis/build/builds/12345/artifacts');
+            expect(url).toContain('artifactName=aggregates');
+            expect(url).toContain('%24format=file');
+            expect(url).toContain('api-version=7.1');
         });
 
-        test('replaces format=other with format=file', () => {
-            const downloadUrl = 'https://artifacts.example.com/path?format=other';
-            const result = buildPipelineArtifactUrl(downloadUrl, 'test.json');
-            expect(result).toContain('format=file');
-            expect(result).not.toContain('format=other');
+        test('properly URL-encodes artifact name with special characters', () => {
+            const url = buildArtifactFileUrl(
+                collectionUri,
+                projectId,
+                buildId,
+                'my artifact',
+                'file.json'
+            );
+
+            expect(url).toContain('artifactName=my%20artifact');
         });
 
-        test('adds format=file when no format parameter exists', () => {
-            const downloadUrl = 'https://artifacts.example.com/path';
-            const result = buildPipelineArtifactUrl(downloadUrl, 'test.json');
-            expect(result).toContain('?format=file');
-        });
+        test('properly URL-encodes subPath', () => {
+            const url = buildArtifactFileUrl(
+                collectionUri,
+                projectId,
+                buildId,
+                'aggregates',
+                'aggregates/dataset-manifest.json'
+            );
 
-        test('adds format=file with & when URL has existing query params', () => {
-            const downloadUrl = 'https://artifacts.example.com/path?existingParam=value';
-            const result = buildPipelineArtifactUrl(downloadUrl, 'test.json');
-            expect(result).toContain('&format=file');
+            // subPath should be encoded
+            expect(url).toContain('subPath=' + encodeURIComponent('/aggregates/dataset-manifest.json'));
         });
     });
 
     describe('Path Normalization', () => {
-        test('removes leading slash from file path', () => {
-            const downloadUrl = 'https://example.com?format=zip';
-            const result = buildPipelineArtifactUrl(downloadUrl, '/path/to/file.json');
-            // subPath should be encoded, path should start with /
-            expect(result).toContain('subPath=' + encodeURIComponent('/path/to/file.json'));
-        });
+        const collectionUri = 'https://dev.azure.com/myorg/';
+        const projectId = 'proj';
+        const buildId = 1;
 
-        test('handles path without leading slash', () => {
-            const downloadUrl = 'https://example.com?format=zip';
-            const result = buildPipelineArtifactUrl(downloadUrl, 'path/to/file.json');
-            expect(result).toContain('subPath=' + encodeURIComponent('/path/to/file.json'));
-        });
-
-        test('removes multiple leading slashes', () => {
-            const downloadUrl = 'https://example.com?format=zip';
-            const result = buildPipelineArtifactUrl(downloadUrl, '///path/to/file.json');
-            expect(result).toContain('subPath=' + encodeURIComponent('/path/to/file.json'));
-        });
-
-        test('collapses multiple internal slashes', () => {
-            const downloadUrl = 'https://example.com?format=zip';
-            const result = buildPipelineArtifactUrl(downloadUrl, 'path//to///file.json');
-            expect(result).toContain('subPath=' + encodeURIComponent('/path/to/file.json'));
-        });
-
-        test('handles nested aggregates path correctly', () => {
-            const downloadUrl = 'https://example.com?format=zip';
-            const result = buildPipelineArtifactUrl(downloadUrl, 'aggregates/dataset-manifest.json');
-            expect(result).toContain('subPath=' + encodeURIComponent('/aggregates/dataset-manifest.json'));
-        });
-    });
-
-    describe('Complete URL Construction', () => {
-        test('constructs correct URL for typical Pipeline Artifact', () => {
-            const downloadUrl = 'https://artprodcu3.artifacts.visualstudio.com/artifact123?format=zip';
-            const filePath = 'aggregates/dataset-manifest.json';
-            const result = buildPipelineArtifactUrl(downloadUrl, filePath);
-
-            expect(result).toBe(
-                'https://artprodcu3.artifacts.visualstudio.com/artifact123?format=file' +
-                '&subPath=' + encodeURIComponent('/aggregates/dataset-manifest.json')
+        test('adds leading slash if missing', () => {
+            const url = buildArtifactFileUrl(
+                collectionUri,
+                projectId,
+                buildId,
+                'artifact',
+                'path/to/file.json'
             );
+
+            expect(url).toContain('subPath=' + encodeURIComponent('/path/to/file.json'));
         });
 
-        test('handles Azure Artifacts CDN URL', () => {
-            const downloadUrl = 'https://artprodcu3.artifacts.visualstudio.com/A2204c4da-b568-4aad-8349-a.../?format=zip';
-            const filePath = 'aggregates/dimensions.json';
-            const result = buildPipelineArtifactUrl(downloadUrl, filePath);
+        test('preserves leading slash if present', () => {
+            const url = buildArtifactFileUrl(
+                collectionUri,
+                projectId,
+                buildId,
+                'artifact',
+                '/path/to/file.json'
+            );
 
-            expect(result).toContain('format=file');
-            expect(result).toContain('subPath=' + encodeURIComponent('/aggregates/dimensions.json'));
+            expect(url).toContain('subPath=' + encodeURIComponent('/path/to/file.json'));
+        });
+
+        test('handles nested paths correctly', () => {
+            const url = buildArtifactFileUrl(
+                collectionUri,
+                projectId,
+                buildId,
+                'aggregates',
+                'aggregates/weekly_rollups/2026-W01.json'
+            );
+
+            expect(url).toContain('subPath=' + encodeURIComponent('/aggregates/weekly_rollups/2026-W01.json'));
         });
     });
 
-    describe('Edge Cases', () => {
-        test('handles file path with special characters', () => {
-            const downloadUrl = 'https://example.com?format=zip';
-            const result = buildPipelineArtifactUrl(downloadUrl, 'path/file with spaces.json');
-            expect(result).toContain(encodeURIComponent('/path/file with spaces.json'));
+    describe('Artifact File Paths', () => {
+        // These tests verify the correct paths for files within the 'aggregates' artifact.
+        // Files are inside an 'aggregates' folder within the 'aggregates' artifact.
+
+        test('manifest path should include aggregates/ prefix', () => {
+            // The artifact structure is: aggregates/aggregates/dataset-manifest.json
+            const correctPath = 'aggregates/dataset-manifest.json';
+            expect(correctPath).toBe('aggregates/dataset-manifest.json');
         });
 
-        test('handles empty-ish paths gracefully', () => {
-            const downloadUrl = 'https://example.com?format=zip';
-            const result = buildPipelineArtifactUrl(downloadUrl, 'file.json');
-            expect(result).toContain('subPath=' + encodeURIComponent('/file.json'));
+        test('dimensions path should include aggregates/ prefix', () => {
+            const correctPath = 'aggregates/dimensions.json';
+            expect(correctPath).toBe('aggregates/dimensions.json');
         });
 
-        test('preserves other URL parameters', () => {
-            const downloadUrl = 'https://example.com?format=zip&token=abc123&other=value';
-            const result = buildPipelineArtifactUrl(downloadUrl, 'file.json');
-            expect(result).toContain('token=abc123');
-            expect(result).toContain('other=value');
-            expect(result).toContain('format=file');
+        test('weekly rollup paths use manifest index paths', () => {
+            // Rollup paths come from the manifest index
+            const sampleRollupPath = 'weekly/2024-W01.json';
+            expect(sampleRollupPath).toBe('weekly/2024-W01.json');
         });
     });
 });

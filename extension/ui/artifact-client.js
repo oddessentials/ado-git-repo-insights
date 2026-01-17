@@ -160,106 +160,29 @@ class ArtifactClient {
         }
 
         console.log('[getArtifactFileViaSdk] Artifact type:', artifact.resource?.type);
-        console.log('[getArtifactFileViaSdk] Has resource.url:', !!artifact.resource?.url);
-        console.log('[getArtifactFileViaSdk] Has downloadUrl:', !!artifact.resource?.downloadUrl);
+        console.log('[getArtifactFileViaSdk] Trying Build API approach for file access');
 
-        // For both Container and PipelineArtifact types, try the resource.url + itemPath approach first
-        // This uses the Azure DevOps Container API which handles auth correctly
-        if (artifact.resource && artifact.resource.url) {
-            try {
-                return await this._getFileFromContainer(artifact, filePath);
-            } catch (e) {
-                console.log('[getArtifactFileViaSdk] Container approach failed, trying downloadUrl:', e.message);
-            }
-        }
+        // For BOTH Container and PipelineArtifact, use the Build API directly
+        // This constructs: /_apis/build/builds/{buildId}/artifacts?artifactName=X&$format=file&subPath=/path
+        const normalizedPath = filePath.startsWith('/') ? filePath : '/' + filePath;
+        const url = `${this.collectionUri}${this.projectId}/_apis/build/builds/${buildId}/artifacts` +
+            `?artifactName=${encodeURIComponent(artifactName)}` +
+            `&%24format=file` +
+            `&subPath=${encodeURIComponent(normalizedPath)}` +
+            `&api-version=7.1`;
 
-        // Fallback: For PipelineArtifact type, try the download URL approach
-        if (artifact.resource && artifact.resource.downloadUrl) {
-            return this._getFileFromDownloadUrl(artifact.resource.downloadUrl, filePath);
-        }
-
-        throw new Error(`Unsupported artifact type: ${artifact.resource?.type}`);
-    }
-
-    /**
-     * Get file from a Container artifact.
-     * Uses the artifact's resource.url directly with authenticated fetch.
-     *
-     * Per Azure DevOps REST API docs, container URLs support itemPath parameter.
-     * @private
-     */
-    async _getFileFromContainer(artifact, filePath) {
-        // The artifact.resource.url points to the container
-        // We can append itemPath to get specific files
-        const baseUrl = artifact.resource.url;
-
-        // Normalize file path - ensure it's relative and includes artifact name
-        const normalizedPath = `${artifact.name}/${filePath.replace(/^\//, '')}`;
-
-        // Construct URL with itemPath parameter
-        const separator = baseUrl.includes('?') ? '&' : '?';
-        const url = `${baseUrl}${separator}itemPath=${encodeURIComponent(normalizedPath)}&$format=text`;
-
-        console.log('[_getFileFromContainer] Fetching:', url);
+        console.log('[getArtifactFileViaSdk] Build API URL:', url);
 
         const response = await this._authenticatedFetch(url);
 
+        console.log('[getArtifactFileViaSdk] Response status:', response.status);
+
         if (response.status === 404) {
-            throw new Error(`File '${filePath}' not found in artifact '${artifact.name}'`);
+            throw new Error(`File '${filePath}' not found in artifact '${artifactName}'`);
         }
 
         if (response.status === 401 || response.status === 403) {
             throw createPermissionDeniedError('read artifact file');
-        }
-
-        if (!response.ok) {
-            throw new Error(`Failed to fetch file from container: ${response.status} ${response.statusText}`);
-        }
-
-        return response.json();
-    }
-
-    /**
-     * Get file from artifact download URL (for PipelineArtifact type).
-     *
-     * Pipeline Artifacts use a different URL structure than Container artifacts.
-     * The downloadUrl points to the Azure Artifacts CDN with format parameter.
-     *
-     * @private
-     */
-    async _getFileFromDownloadUrl(downloadUrl, filePath) {
-        // Normalize file path - remove leading slash, ensure no double slashes
-        const normalizedPath = filePath.replace(/^\/+/, '').replace(/\/+/g, '/');
-
-        // For Pipeline Artifacts, we need to:
-        // 1. Change format from 'zip' to 'file' (or add format=file if not present)
-        // 2. Add subPath parameter with the file path
-
-        let url;
-        if (downloadUrl.includes('format=')) {
-            // Replace existing format parameter
-            url = downloadUrl.replace(/format=\w+/, 'format=file');
-        } else {
-            // Add format parameter
-            const separator = downloadUrl.includes('?') ? '&' : '?';
-            url = `${downloadUrl}${separator}format=file`;
-        }
-
-        // Add subPath parameter - the path should be relative to artifact root
-        url += `&subPath=${encodeURIComponent('/' + normalizedPath)}`;
-
-        console.log('[_getFileFromDownloadUrl] Original URL:', downloadUrl);
-        console.log('[_getFileFromDownloadUrl] File path:', filePath);
-        console.log('[_getFileFromDownloadUrl] Fetching:', url);
-
-        const response = await this._authenticatedFetch(url);
-
-        if (response.status === 404) {
-            throw new Error(`File '${filePath}' not found in Pipeline Artifact`);
-        }
-
-        if (response.status === 401 || response.status === 403) {
-            throw createPermissionDeniedError('read Pipeline Artifact file');
         }
 
         if (!response.ok) {
