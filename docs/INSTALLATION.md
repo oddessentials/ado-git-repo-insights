@@ -30,23 +30,23 @@ Before you begin, ensure you have:
 ## Step 1: Install from Azure DevOps Marketplace
 
 1. **Open the Marketplace Listing**
-   
+
    Go to: [Git Repo Insights on Visual Studio Marketplace](https://marketplace.visualstudio.com/items?itemName=OddEssentials.ado-git-repo-insights)
 
 2. **Click "Get it free"**
-   
+
    This button appears on the extension's marketplace page.
 
 3. **Select Your Organization**
-   
+
    From the dropdown, choose the Azure DevOps organization where you want to install the extension.
 
 4. **Click "Install"**
-   
+
    The extension will be installed in your organization. You'll see a confirmation message.
 
 5. **Click "Proceed to organization"**
-   
+
    This takes you back to your Azure DevOps organization.
 
 > **Note**: If you don't see your organization in the dropdown, ensure you're signed in with an account that has permission to manage extensions.
@@ -58,7 +58,7 @@ Before you begin, ensure you have:
 The extension needs a PAT to read Pull Request data from your repositories.
 
 1. **Open User Settings**
-   
+
    In Azure DevOps, click your profile picture (top right) → **Personal access tokens**
 
 2. **Click "+ New Token"**
@@ -75,9 +75,9 @@ The extension needs a PAT to read Pull Request data from your repositories.
 4. **Click "Create"**
 
 5. **Copy the Token**
-   
+
    > ⚠️ **Important**: Copy the token now — you won't be able to see it again!
-   
+
    Save it temporarily in a secure location (you'll store it properly in the next step).
 
 ---
@@ -87,7 +87,7 @@ The extension needs a PAT to read Pull Request data from your repositories.
 Secrets should never be stored in pipeline YAML files. Use a Variable Group instead.
 
 1. **Navigate to Library**
-   
+
    In your Azure DevOps project: **Pipelines** → **Library**
 
 2. **Click "+ Variable group"**
@@ -101,13 +101,13 @@ Secrets should never be stored in pipeline YAML files. Use a Variable Group inst
 4. **Add the PAT Variable**
 
    Click **+ Add** and enter:
-   
+
    | Name | Value |
    |------|-------|
    | `PAT_SECRET` | Paste your PAT from Step 2 |
 
 5. **Mark as Secret**
-   
+
    Click the 🔒 lock icon next to the value to mark it as a secret.
 
 6. **Click "Save"**
@@ -119,11 +119,11 @@ Secrets should never be stored in pipeline YAML files. Use a Variable Group inst
 Now create a pipeline that uses the extension to extract PR metrics.
 
 1. **Navigate to Pipelines**
-   
+
    In your project: **Pipelines** → **Pipelines** → **New pipeline**
 
 2. **Choose Repository Location**
-   
+
    Select where your pipeline YAML will be stored (e.g., Azure Repos Git, GitHub).
 
 3. **Select "Starter pipeline"** (or paste the YAML below into an existing repo)
@@ -214,7 +214,7 @@ stages:
 5. **Customize the YAML**
 
    Replace the placeholder values:
-   
+
    | Placeholder | Replace With |
    |-------------|--------------|
    | `YOUR_ORG_NAME` | Your Azure DevOps organization name |
@@ -222,7 +222,7 @@ stages:
    | `YOUR_PROJECT_2` | Additional projects (or remove this line) |
 
 6. **Save and Run**
-   
+
    Click **Save and run** → **Save and run** (confirm)
 
 ---
@@ -232,15 +232,15 @@ stages:
 After the pipeline completes:
 
 1. **Check the Run Status**
-   
+
    Navigate to **Pipelines** → Click on your pipeline → View the latest run
-   
+
    ✅ All steps should show green checkmarks
 
 2. **View Published Artifacts**
-   
+
    On the run summary page, look for the **Artifacts** section. You should see:
-   
+
    | Artifact | Purpose |
    |----------|---------|
    | `ado-insights-db` | SQLite database (enables incremental runs) |
@@ -248,7 +248,7 @@ After the pipeline completes:
    | `csv-output` | PowerBI-compatible CSVs |
 
 3. **Download CSVs (Optional)**
-   
+
    Click on `csv-output` → Download to get the generated CSV files.
 
 ---
@@ -258,15 +258,15 @@ After the pipeline completes:
 After a successful pipeline run with the `aggregates` artifact:
 
 1. **Navigate to Your Project**
-   
+
    Go to your Azure DevOps project homepage.
 
 2. **Find "PR Insights" in the Menu**
-   
+
    In the left navigation under **Repos**, you'll see a new hub called **PR Insights**.
 
 3. **View Your Metrics**
-   
+
    The dashboard automatically discovers pipelines that publish aggregates and displays:
    - PR volume trends
    - Cycle time analytics
@@ -274,7 +274,7 @@ After a successful pipeline run with the `aggregates` artifact:
    - And more!
 
 4. **Configure Default Pipeline (Optional)**
-   
+
    If you have multiple pipelines publishing aggregates:
    - Go to **Project Settings** → **PR Insights Settings**
    - Select your preferred default pipeline
