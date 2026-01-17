@@ -264,6 +264,50 @@ body {
     color: var(--text-primary);
 }
 
+/* Trend Delta Indicators */
+.metric-delta {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    margin-top: 8px;
+    font-size: 12px;
+    font-weight: 500;
+    min-height: 18px;
+}
+
+.metric-delta:empty {
+    display: none;
+}
+
+.metric-delta.delta-positive {
+    color: var(--success);
+}
+
+.metric-delta.delta-negative {
+    color: var(--error);
+}
+
+.metric-delta.delta-neutral {
+    color: var(--text-tertiary);
+}
+
+.metric-delta.delta-positive-inverse {
+    color: var(--error);
+}
+
+.metric-delta.delta-negative-inverse {
+    color: var(--success);
+}
+
+.delta-arrow {
+    font-size: 10px;
+}
+
+.delta-label {
+    color: var(--text-tertiary);
+    font-weight: 400;
+}
+
 /* Charts */
 .chart-container {
     background: var(--bg-primary);

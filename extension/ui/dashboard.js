@@ -577,8 +577,16 @@ function cacheElements() {
     elements.cycleP50 = document.getElementById('cycle-p50');
     elements.cycleP90 = document.getElementById('cycle-p90');
     elements.authorsCount = document.getElementById('authors-count');
+    elements.reviewersCount = document.getElementById('reviewers-count');
     elements.throughputChart = document.getElementById('throughput-chart');
     elements.cycleDistribution = document.getElementById('cycle-distribution');
+
+    // Delta elements
+    elements.totalPrsDelta = document.getElementById('total-prs-delta');
+    elements.cycleP50Delta = document.getElementById('cycle-p50-delta');
+    elements.cycleP90Delta = document.getElementById('cycle-p90-delta');
+    elements.authorsDelta = document.getElementById('authors-delta');
+    elements.reviewersDelta = document.getElementById('reviewers-delta');
 }
 
 /**
@@ -669,11 +677,25 @@ function setInitialDateRange() {
 }
 
 /**
+ * Calculate the previous period date range for comparison.
+ * @param {Date} start - Current period start
+ * @param {Date} end - Current period end
+ * @returns {{ start: Date, end: Date }} - Previous period range
+ */
+function getPreviousPeriod(start, end) {
+    const durationMs = end.getTime() - start.getTime();
+    const prevEnd = new Date(start.getTime() - 1); // Day before current start
+    const prevStart = new Date(prevEnd.getTime() - durationMs);
+    return { start: prevStart, end: prevEnd };
+}
+
+/**
  * Refresh metrics for current date range.
  */
 async function refreshMetrics() {
     if (!currentDateRange.start || !currentDateRange.end) return;
 
+    // Load current period data
     const rollups = await loader.getWeeklyRollups(
         currentDateRange.start,
         currentDateRange.end
@@ -684,43 +706,142 @@ async function refreshMetrics() {
         currentDateRange.end
     );
 
-    renderSummaryCards(rollups);
+    // Load previous period data for comparison
+    const prevPeriod = getPreviousPeriod(currentDateRange.start, currentDateRange.end);
+    let prevRollups = [];
+    try {
+        prevRollups = await loader.getWeeklyRollups(prevPeriod.start, prevPeriod.end);
+    } catch (e) {
+        // Previous period data may not exist, continue without it
+        console.debug('Previous period data not available:', e);
+    }
+
+    renderSummaryCards(rollups, prevRollups);
     renderThroughputChart(rollups);
     renderCycleDistribution(distributions);
 }
 
 /**
- * Render summary metric cards.
+ * Calculate metrics from rollups data.
+ * @param {Array} rollups - Weekly rollup data
+ * @returns {Object} - Calculated metrics
  */
-function renderSummaryCards(rollups) {
-    if (metricsCollector) metricsCollector.mark('render-summary-cards-start');
-
+function calculateMetrics(rollups) {
     if (!rollups || !rollups.length) {
-        elements.totalPrs.textContent = '0';
-        elements.cycleP50.textContent = '-';
-        elements.cycleP90.textContent = '-';
-        elements.authorsCount.textContent = '0';
-        if (metricsCollector) metricsCollector.mark('render-summary-cards-end');
-        return;
+        return { totalPrs: 0, cycleP50: null, cycleP90: null, avgAuthors: 0, avgReviewers: 0 };
     }
 
     const totalPrs = rollups.reduce((sum, r) => sum + (r.pr_count || 0), 0);
-    const p50Values = [];
-    const p90Values = [];
 
-    rollups.forEach(r => {
-        if (r.cycle_time_p50 !== null) p50Values.push(r.cycle_time_p50);
-        if (r.cycle_time_p90 !== null) p90Values.push(r.cycle_time_p90);
-    });
+    const p50Values = rollups
+        .map(r => r.cycle_time_p50)
+        .filter(v => v !== null && v !== undefined);
+    const p90Values = rollups
+        .map(r => r.cycle_time_p90)
+        .filter(v => v !== null && v !== undefined);
 
-    elements.totalPrs.textContent = totalPrs.toLocaleString();
-    elements.cycleP50.textContent = p50Values.length ? formatDuration(median(p50Values)) : '-';
-    elements.cycleP90.textContent = p90Values.length ? formatDuration(median(p90Values)) : '-';
+    const authorsSum = rollups.reduce((sum, r) => sum + (r.authors_count || 0), 0);
+    const reviewersSum = rollups.reduce((sum, r) => sum + (r.reviewers_count || 0), 0);
 
-    const authorsCount = rollups.reduce((sum, r) => sum + (r.authors_count || 0), 0);
-    elements.authorsCount.textContent = rollups.length > 0
-        ? Math.round(authorsCount / rollups.length).toLocaleString()
-        : '0';
+    return {
+        totalPrs,
+        cycleP50: p50Values.length ? median(p50Values) : null,
+        cycleP90: p90Values.length ? median(p90Values) : null,
+        avgAuthors: rollups.length > 0 ? Math.round(authorsSum / rollups.length) : 0,
+        avgReviewers: rollups.length > 0 ? Math.round(reviewersSum / rollups.length) : 0
+    };
+}
+
+/**
+ * Calculate percentage change between two values.
+ * @param {number} current - Current value
+ * @param {number} previous - Previous value
+ * @returns {number|null} - Percentage change or null if not calculable
+ */
+function calculatePercentChange(current, previous) {
+    if (previous === null || previous === undefined || previous === 0) {
+        return null;
+    }
+    if (current === null || current === undefined) {
+        return null;
+    }
+    return ((current - previous) / previous) * 100;
+}
+
+/**
+ * Render a delta indicator element.
+ * @param {HTMLElement} element - The delta element
+ * @param {number|null} percentChange - Percentage change
+ * @param {boolean} inverse - If true, positive is bad (e.g., cycle time)
+ */
+function renderDelta(element, percentChange, inverse = false) {
+    if (!element) return;
+
+    if (percentChange === null) {
+        element.innerHTML = '';
+        element.className = 'metric-delta';
+        return;
+    }
+
+    const isNeutral = Math.abs(percentChange) < 2; // Within 2% is neutral
+    const isPositive = percentChange > 0;
+    const absChange = Math.abs(percentChange);
+
+    let cssClass = 'metric-delta ';
+    let arrow = '';
+
+    if (isNeutral) {
+        cssClass += 'delta-neutral';
+        arrow = '~';
+    } else if (isPositive) {
+        cssClass += inverse ? 'delta-negative-inverse' : 'delta-positive';
+        arrow = '&#9650;'; // Up arrow
+    } else {
+        cssClass += inverse ? 'delta-positive-inverse' : 'delta-negative';
+        arrow = '&#9660;'; // Down arrow
+    }
+
+    const sign = isPositive ? '+' : '';
+    element.className = cssClass;
+    element.innerHTML = `<span class="delta-arrow">${arrow}</span> ${sign}${absChange.toFixed(0)}% <span class="delta-label">vs prev</span>`;
+}
+
+/**
+ * Render summary metric cards.
+ * @param {Array} rollups - Current period rollups
+ * @param {Array} prevRollups - Previous period rollups for comparison
+ */
+function renderSummaryCards(rollups, prevRollups = []) {
+    if (metricsCollector) metricsCollector.mark('render-summary-cards-start');
+
+    const current = calculateMetrics(rollups);
+    const previous = calculateMetrics(prevRollups);
+
+    // Render metric values
+    elements.totalPrs.textContent = current.totalPrs.toLocaleString();
+    elements.cycleP50.textContent = current.cycleP50 !== null ? formatDuration(current.cycleP50) : '-';
+    elements.cycleP90.textContent = current.cycleP90 !== null ? formatDuration(current.cycleP90) : '-';
+    elements.authorsCount.textContent = current.avgAuthors.toLocaleString();
+    if (elements.reviewersCount) {
+        elements.reviewersCount.textContent = current.avgReviewers.toLocaleString();
+    }
+
+    // Render deltas (only if we have previous period data)
+    if (prevRollups && prevRollups.length > 0) {
+        renderDelta(elements.totalPrsDelta, calculatePercentChange(current.totalPrs, previous.totalPrs), false);
+        renderDelta(elements.cycleP50Delta, calculatePercentChange(current.cycleP50, previous.cycleP50), true); // Inverse: lower is better
+        renderDelta(elements.cycleP90Delta, calculatePercentChange(current.cycleP90, previous.cycleP90), true); // Inverse: lower is better
+        renderDelta(elements.authorsDelta, calculatePercentChange(current.avgAuthors, previous.avgAuthors), false);
+        renderDelta(elements.reviewersDelta, calculatePercentChange(current.avgReviewers, previous.avgReviewers), false);
+    } else {
+        // Clear deltas if no previous data
+        [elements.totalPrsDelta, elements.cycleP50Delta, elements.cycleP90Delta, elements.authorsDelta, elements.reviewersDelta].forEach(el => {
+            if (el) {
+                el.innerHTML = '';
+                el.className = 'metric-delta';
+            }
+        });
+    }
 
     if (metricsCollector) {
         metricsCollector.mark('render-summary-cards-end');
