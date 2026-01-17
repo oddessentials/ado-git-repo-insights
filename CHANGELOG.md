@@ -1,3 +1,10 @@
+## [2.8.1](https://github.com/oddessentials/ado-git-repo-insights/compare/v2.8.0...v2.8.1) (2026-01-17)
+
+
+### Bug Fixes
+
+* **artifact:** use SDK-based file access to resolve 401 errors ([f81c884](https://github.com/oddessentials/ado-git-repo-insights/commit/f81c884cbdf39589e2a877885bed5e328c07e63d))
+
 # [2.8.0](https://github.com/oddessentials/ado-git-repo-insights/compare/v2.7.6...v2.8.0) (2026-01-16)
 
 
