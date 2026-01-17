@@ -159,14 +159,21 @@ class ArtifactClient {
             throw new Error(`Artifact '${artifactName}' not found in build ${buildId}`);
         }
 
-        // For Container artifacts, we need to use the FileContainer API
-        // The resource.data contains the container ID
-        if (artifact.resource && artifact.resource.type === 'Container') {
-            return this._getFileFromContainer(artifact, filePath);
+        console.log('[getArtifactFileViaSdk] Artifact type:', artifact.resource?.type);
+        console.log('[getArtifactFileViaSdk] Has resource.url:', !!artifact.resource?.url);
+        console.log('[getArtifactFileViaSdk] Has downloadUrl:', !!artifact.resource?.downloadUrl);
+
+        // For both Container and PipelineArtifact types, try the resource.url + itemPath approach first
+        // This uses the Azure DevOps Container API which handles auth correctly
+        if (artifact.resource && artifact.resource.url) {
+            try {
+                return await this._getFileFromContainer(artifact, filePath);
+            } catch (e) {
+                console.log('[getArtifactFileViaSdk] Container approach failed, trying downloadUrl:', e.message);
+            }
         }
 
-        // For PipelineArtifact type, use the download URL approach
-        // but with proper SDK authentication
+        // Fallback: For PipelineArtifact type, try the download URL approach
         if (artifact.resource && artifact.resource.downloadUrl) {
             return this._getFileFromDownloadUrl(artifact.resource.downloadUrl, filePath);
         }
