@@ -1767,8 +1767,8 @@ function exportToCsv() {
         r.start_date || '',
         r.end_date || '',
         r.pr_count || 0,
-        r.cycle_time_p50 !== null ? r.cycle_time_p50.toFixed(1) : '',
-        r.cycle_time_p90 !== null ? r.cycle_time_p90.toFixed(1) : '',
+        r.cycle_time_p50 != null ? r.cycle_time_p50.toFixed(1) : '',
+        r.cycle_time_p90 != null ? r.cycle_time_p90.toFixed(1) : '',
         r.authors_count || 0,
         r.reviewers_count || 0
     ]);
