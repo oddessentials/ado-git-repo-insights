@@ -125,6 +125,11 @@ class ArtifactClient {
             VSS.require(['TFS/Build/RestClient'], async (BuildRestClient) => {
                 try {
                     const client = BuildRestClient.getClient();
+                    console.log('[getArtifactMetadata] Parameters:', {
+                        projectId: this.projectId,
+                        buildId: buildId,
+                        artifactName: artifactName
+                    });
                     const artifact = await client.getArtifact(this.projectId, buildId, artifactName);
                     resolve(artifact);
                 } catch (e) {
