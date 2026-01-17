@@ -1,3 +1,10 @@
+## [3.0.4](https://github.com/oddessentials/ado-git-repo-insights/compare/v3.0.3...v3.0.4) (2026-01-17)
+
+
+### Bug Fixes
+
+* white spacing ([29f5f4d](https://github.com/oddessentials/ado-git-repo-insights/commit/29f5f4d413492f0e41b486d2762932e754b1e95d))
+
 ## [3.0.3](https://github.com/oddessentials/ado-git-repo-insights/compare/v3.0.2...v3.0.3) (2026-01-17)
 
 
