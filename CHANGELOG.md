@@ -1,3 +1,15 @@
+# [3.2.0](https://github.com/oddessentials/ado-git-repo-insights/compare/v3.1.0...v3.2.0) (2026-01-18)
+
+
+### Bug Fixes
+
+* **dashboard:** accept PartiallySucceeded builds and handle stale settings ([f6c3135](https://github.com/oddessentials/ado-git-repo-insights/commit/f6c3135012a857b74c3d8d22a3a8032a470bde56))
+
+
+### Features
+
+* **dashboard:** add feature flag for Phase 5 tabs with Coming Soon state ([a604462](https://github.com/oddessentials/ado-git-repo-insights/commit/a604462a8edf1f2059a8d23f736d4b26486154a4))
+
 # [3.1.0](https://github.com/oddessentials/ado-git-repo-insights/compare/v3.0.4...v3.1.0) (2026-01-17)
 
 
