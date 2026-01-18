@@ -25,6 +25,14 @@ let sdkInitialized = false;
 const SETTINGS_KEY_PROJECT = 'pr-insights-source-project';
 const SETTINGS_KEY_PIPELINE = 'pr-insights-pipeline-id';
 
+// Feature flags
+// Phase 5 features (Predictions, AI Insights) require additional setup:
+// - Prophet library for forecasting
+// - OpenAI API key for AI insights
+// - Pipeline task inputs (enablePredictions, enableInsights) not yet exposed
+// Set to true when Phase 5 is production-ready
+const ENABLE_PHASE5_FEATURES = false;
+
 // DOM element cache
 const elements = {};
 
@@ -426,6 +434,7 @@ async function init() {
 
     cacheElements();
     setupEventListeners();
+    initializePhase5Features();
 
     try {
         // Initialize ADO SDK
@@ -650,6 +659,23 @@ function cacheElements() {
     elements.exportCsv = document.getElementById('export-csv');
     elements.exportLink = document.getElementById('export-link');
     elements.exportRawZip = document.getElementById('export-raw-zip');
+}
+
+/**
+ * Initialize Phase 5 features based on feature flag.
+ * Controls visibility of Predictions and AI Insights tabs.
+ */
+function initializePhase5Features() {
+    const phase5Tabs = document.querySelectorAll('.phase5-tab');
+
+    if (ENABLE_PHASE5_FEATURES) {
+        // Show Phase 5 tabs when feature is enabled
+        phase5Tabs.forEach(tab => tab.classList.remove('hidden'));
+        console.log('Phase 5 features enabled: Predictions and AI Insights tabs visible');
+    } else {
+        // Keep Phase 5 tabs hidden (default state in HTML)
+        console.log('Phase 5 features disabled: Predictions and AI Insights tabs hidden');
+    }
 }
 
 /**

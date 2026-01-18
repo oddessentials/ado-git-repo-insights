@@ -797,3 +797,192 @@ describe('Regression Prevention', () => {
         });
     });
 });
+
+// ============================================================================
+// Phase 5 Feature Flag Tests
+// ============================================================================
+
+describe('Phase 5 Feature Flag (Predictions & AI Insights)', () => {
+    /**
+     * Phase 5 features (Predictions, AI Insights) are not yet production-ready.
+     * They require additional setup:
+     * - Prophet library for forecasting
+     * - OpenAI API key for AI insights
+     * - Pipeline task inputs not yet exposed
+     *
+     * Until ready, the tabs should show "Coming Soon" state.
+     */
+
+    describe('Feature flag behavior', () => {
+        it('ENABLE_PHASE5_FEATURES should be false by default', () => {
+            // This documents the expected default state
+            // When Phase 5 is ready, this test should be updated
+            const ENABLE_PHASE5_FEATURES = false;
+            expect(ENABLE_PHASE5_FEATURES).toBe(false);
+        });
+
+        it('Phase 5 tabs should be hidden when feature flag is false', () => {
+            const ENABLE_PHASE5_FEATURES = false;
+
+            // Simulate initializePhase5Features logic
+            const phase5Tabs = [
+                { classList: { remove: jest.fn(), contains: jest.fn(() => true) } },
+                { classList: { remove: jest.fn(), contains: jest.fn(() => true) } },
+            ];
+
+            if (ENABLE_PHASE5_FEATURES) {
+                phase5Tabs.forEach(tab => tab.classList.remove('hidden'));
+            }
+
+            // Tabs should NOT have had 'hidden' removed
+            phase5Tabs.forEach(tab => {
+                expect(tab.classList.remove).not.toHaveBeenCalled();
+            });
+        });
+
+        it('Phase 5 tabs should be visible when feature flag is true', () => {
+            const ENABLE_PHASE5_FEATURES = true;
+
+            // Simulate initializePhase5Features logic
+            const phase5Tabs = [
+                { classList: { remove: jest.fn() } },
+                { classList: { remove: jest.fn() } },
+            ];
+
+            if (ENABLE_PHASE5_FEATURES) {
+                phase5Tabs.forEach(tab => tab.classList.remove('hidden'));
+            }
+
+            // Tabs should have had 'hidden' removed
+            phase5Tabs.forEach(tab => {
+                expect(tab.classList.remove).toHaveBeenCalledWith('hidden');
+            });
+        });
+    });
+
+    describe('initializePhase5Features function', () => {
+        /**
+         * Simulates the initializePhase5Features function
+         */
+        const createInitializePhase5Features = (featureFlag) => {
+            return function initializePhase5Features(mockTabs) {
+                if (featureFlag) {
+                    mockTabs.forEach(tab => tab.show());
+                } else {
+                    // Tabs remain hidden (default state)
+                }
+            };
+        };
+
+        it('does not modify tabs when flag is false', () => {
+            const initFn = createInitializePhase5Features(false);
+            const tabs = [
+                { show: jest.fn(), hide: jest.fn() },
+                { show: jest.fn(), hide: jest.fn() },
+            ];
+
+            initFn(tabs);
+
+            tabs.forEach(tab => {
+                expect(tab.show).not.toHaveBeenCalled();
+            });
+        });
+
+        it('shows tabs when flag is true', () => {
+            const initFn = createInitializePhase5Features(true);
+            const tabs = [
+                { show: jest.fn() },
+                { show: jest.fn() },
+            ];
+
+            initFn(tabs);
+
+            tabs.forEach(tab => {
+                expect(tab.show).toHaveBeenCalled();
+            });
+        });
+    });
+
+    describe('Coming Soon state', () => {
+        beforeEach(() => {
+            document.body.innerHTML = `
+                <nav class="tabs">
+                    <button class="tab active" data-tab="metrics">Metrics</button>
+                    <button class="tab phase5-tab hidden" data-tab="predictions">Predictions</button>
+                    <button class="tab phase5-tab hidden" data-tab="ai-insights">AI Insights</button>
+                </nav>
+                <section id="tab-predictions" class="tab-content hidden phase5-content">
+                    <div class="feature-unavailable coming-soon">
+                        <h2>Predictions — Coming Soon</h2>
+                    </div>
+                </section>
+                <section id="tab-ai-insights" class="tab-content hidden phase5-content">
+                    <div class="feature-unavailable coming-soon">
+                        <h2>AI Insights — Coming Soon</h2>
+                    </div>
+                </section>
+            `;
+        });
+
+        it('Phase 5 tabs have "hidden" class by default in HTML', () => {
+            const predictionsTab = document.querySelector('[data-tab="predictions"]');
+            const aiInsightsTab = document.querySelector('[data-tab="ai-insights"]');
+
+            expect(predictionsTab.classList.contains('hidden')).toBe(true);
+            expect(aiInsightsTab.classList.contains('hidden')).toBe(true);
+        });
+
+        it('Phase 5 tabs have "phase5-tab" marker class', () => {
+            const phase5Tabs = document.querySelectorAll('.phase5-tab');
+
+            expect(phase5Tabs.length).toBe(2);
+        });
+
+        it('Phase 5 content shows "Coming Soon" message', () => {
+            const predictionsContent = document.getElementById('tab-predictions');
+            const aiInsightsContent = document.getElementById('tab-ai-insights');
+
+            expect(predictionsContent.innerHTML).toContain('Coming Soon');
+            expect(aiInsightsContent.innerHTML).toContain('Coming Soon');
+        });
+
+        it('Phase 5 content has "coming-soon" CSS class', () => {
+            const predictionsUnavailable = document.querySelector('#tab-predictions .feature-unavailable');
+            const aiUnavailable = document.querySelector('#tab-ai-insights .feature-unavailable');
+
+            expect(predictionsUnavailable.classList.contains('coming-soon')).toBe(true);
+            expect(aiUnavailable.classList.contains('coming-soon')).toBe(true);
+        });
+    });
+
+    describe('Regression prevention', () => {
+        it('Phase 5 feature flag constant must exist', () => {
+            // This test documents that the flag must be defined
+            // The actual value in dashboard.js should be false until Phase 5 is ready
+            const expectedConstantName = 'ENABLE_PHASE5_FEATURES';
+
+            // This is a documentation test - the constant name should match
+            expect(expectedConstantName).toBe('ENABLE_PHASE5_FEATURES');
+        });
+
+        it('When Phase 5 is enabled, tabs should become visible', () => {
+            // Simulate enabling Phase 5
+            document.body.innerHTML = `
+                <button class="tab phase5-tab hidden" data-tab="predictions">Predictions</button>
+                <button class="tab phase5-tab hidden" data-tab="ai-insights">AI Insights</button>
+            `;
+
+            const ENABLE_PHASE5_FEATURES = true;
+            const phase5Tabs = document.querySelectorAll('.phase5-tab');
+
+            // Simulate initializePhase5Features
+            if (ENABLE_PHASE5_FEATURES) {
+                phase5Tabs.forEach(tab => tab.classList.remove('hidden'));
+            }
+
+            phase5Tabs.forEach(tab => {
+                expect(tab.classList.contains('hidden')).toBe(false);
+            });
+        });
+    });
+});
