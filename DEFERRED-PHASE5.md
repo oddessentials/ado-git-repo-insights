@@ -6,10 +6,10 @@ This document outlines the work required to enable Phase 5 features (Predictions
 
 ## Current State
 
-- **Feature Flag**: `ENABLE_PHASE5_FEATURES = false` in `extension/ui/dashboard.js`
-- **Tabs**: Hidden by default, showing "Coming Soon" state when manually revealed
-- **ML Code**: Exists in `src/ado_git_repo_insights/ml/` but not integrated with pipeline task
-- **Pipeline Task**: Does not expose `enablePredictions` or `enableInsights` inputs
+- **Feature Flag**: `ENABLE_PHASE5_FEATURES = true` in `extension/ui/dashboard.js`
+- **Tabs**: Visible by default, showing "Coming Soon" state until backend generates data
+- **ML Code**: Exists in `src/ado_git_repo_insights/ml/` and integrated with pipeline task
+- **Pipeline Task**: Exposes `enablePredictions`, `enableInsights`, and `openaiApiKey` inputs (v2.3.0)
 
 ---
 
@@ -115,10 +115,10 @@ aggregates/
 
 ### Phase 5.2: Pipeline Task Integration
 
-1. [ ] Add `enablePredictions` input to task.json
-2. [ ] Add `enableInsights` input to task.json
-3. [ ] Add `openaiApiKey` input to task.json
-4. [ ] Update index.js to pass new inputs to CLI
+1. [x] Add `enablePredictions` input to task.json
+2. [x] Add `enableInsights` input to task.json
+3. [x] Add `openaiApiKey` input to task.json
+4. [x] Update index.js to pass new inputs to CLI
 5. [ ] Test in hosted agent environment (Prophet installation)
 6. [ ] Document agent requirements (Prophet needs C++ compiler)
 
@@ -193,10 +193,12 @@ const ENABLE_PHASE5_FEATURES = true;
 ```
 
 ### Remaining work for full functionality:
-1. Complete Phase 5.1-5.3 tasks (dependencies, pipeline integration, dashboard rendering)
-2. Complete Phase 5.4 tasks 1-4 (documentation)
-3. Integration tests pass in CI
-4. At least one production user has tested successfully
+1. Complete Phase 5.1 tasks (verify CLI flags, add integration tests)
+2. Complete Phase 5.2 tasks 5-6 (hosted agent testing, documentation)
+3. Complete Phase 5.3 tasks (dashboard integration with real data)
+4. Complete Phase 5.4 tasks 1-4 (documentation)
+5. Integration tests pass in CI
+6. At least one production user has tested successfully
 
 ---
 

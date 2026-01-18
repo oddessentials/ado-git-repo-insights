@@ -77,10 +77,13 @@ async function validatePythonEnvironment() {
 
 /**
  * Install the Python package if not already installed.
+ * @param {string} pythonCmd - Python executable command
+ * @param {boolean} withML - Install ML extras (prophet, openai)
  */
-function installPackage(pythonCmd) {
+function installPackage(pythonCmd, withML = false) {
     try {
-        tl.debug(`Checking if ${PACKAGE_NAME} is installed...`);
+        const packageSpec = withML ? `${PACKAGE_NAME}[ml]` : PACKAGE_NAME;
+        tl.debug(`Checking if ${packageSpec} is installed...`);
 
         // Check if package is already installed
         try {
@@ -88,12 +91,32 @@ function installPackage(pythonCmd) {
                 encoding: 'utf-8',
                 stdio: 'pipe'
             });
+
+            // If ML is needed, verify ML dependencies are available
+            if (withML) {
+                try {
+                    execSync(`${pythonCmd} -c "import prophet; import openai"`, {
+                        encoding: 'utf-8',
+                        stdio: 'pipe'
+                    });
+                    tl.debug(`${packageSpec} already installed with ML extras`);
+                    return true;
+                } catch (e) {
+                    // ML dependencies missing, need to install them
+                    tl.debug(`ML dependencies missing, installing ${packageSpec}...`);
+                    execSync(`${pythonCmd} -m pip install "${packageSpec}" --quiet`, {
+                        stdio: 'inherit'
+                    });
+                    return true;
+                }
+            }
+
             tl.debug(`${PACKAGE_NAME} already installed`);
             return true;
         } catch (e) {
             // Package not installed, install it
-            tl.debug(`Installing ${PACKAGE_NAME}...`);
-            execSync(`${pythonCmd} -m pip install ${PACKAGE_NAME} --quiet`, {
+            tl.debug(`Installing ${packageSpec}...`);
+            execSync(`${pythonCmd} -m pip install "${packageSpec}" --quiet`, {
                 stdio: 'inherit'
             });
             return true;
@@ -117,8 +140,13 @@ async function run() {
     const pythonCmd = await validatePythonEnvironment();
     if (!pythonCmd) return;
 
-    // Install package
-    if (!installPackage(pythonCmd)) return;
+    // Phase 5: Check if ML features are requested (need ML extras)
+    const enablePredictions = tl.getBoolInput('enablePredictions', false);
+    const enableInsights = tl.getBoolInput('enableInsights', false);
+    const needsML = enablePredictions || enableInsights;
+
+    // Install package (with ML extras if needed)
+    if (!installPackage(pythonCmd, needsML)) return;
 
     try {
         // Get task inputs
@@ -131,6 +159,8 @@ async function run() {
         // Phase 3: Aggregates generation
         const generateAggregates = tl.getBoolInput('generateAggregates', false);
         const aggregatesDirInput = tl.getInput('aggregatesDir', false) || 'aggregates';
+        // Phase 5: ML features (enablePredictions/enableInsights already read above for install)
+        const openaiApiKey = tl.getInput('openaiApiKey', false);
         // CRITICAL: Input name must match task.json contract ('database', not 'databasePath')
         const databaseInput = tl.getInput('database', false) || 'ado-insights.sqlite';
         const outputDirInput = tl.getInput('outputDir', false) || 'csv_output';
@@ -196,8 +226,22 @@ async function run() {
         if (generateAggregates) {
             console.log(`Generate Aggregates: true`);
             console.log(`Aggregates Dir: ${aggregatesDir}`);
+            if (enablePredictions) console.log(`ML Predictions: enabled`);
+            if (enableInsights) console.log(`AI Insights: enabled`);
+            if (enableInsights && openaiApiKey) console.log(`OpenAI API Key: ********`);
         }
         console.log('='.repeat(50));
+
+        // Phase 5: Validate insights configuration
+        if (enableInsights && !openaiApiKey) {
+            tl.setResult(tl.TaskResult.Failed,
+                `AI Insights enabled but OpenAI API Key not provided.\n\n` +
+                `Resolution:\n` +
+                `1. Create a variable group with OPENAI_API_KEY secret\n` +
+                `2. Set openaiApiKey input to $(OPENAI_API_KEY)`
+            );
+            return;
+        }
 
         // Validate date formats if provided (fail fast on invalid input)
         const datePattern = /^\d{4}-\d{2}-\d{2}$/;
@@ -278,8 +322,22 @@ async function run() {
                 '--output', aggregatesDir,
             ];
 
+            // Phase 5: Add ML flags
+            if (enablePredictions) {
+                aggArgs.push('--enable-predictions');
+            }
+            if (enableInsights) {
+                aggArgs.push('--enable-insights');
+            }
+
             console.log(`\n[3/${totalSteps}] Generating aggregates...`);
-            const aggResult = await runPython(pythonCmd, aggArgs);
+
+            // Phase 5: Set OPENAI_API_KEY environment variable for insights
+            const aggEnv = enableInsights && openaiApiKey
+                ? { OPENAI_API_KEY: openaiApiKey }
+                : {};
+
+            const aggResult = await runPython(pythonCmd, aggArgs, aggEnv);
             if (!aggResult) return;
         }
 
@@ -302,12 +360,16 @@ async function run() {
 
 /**
  * Run Python command and return success status.
+ * @param {string} pythonCmd - Python executable command
+ * @param {string[]} args - Command arguments
+ * @param {Object} extraEnv - Additional environment variables to pass
  */
-function runPython(pythonCmd, args) {
+function runPython(pythonCmd, args, extraEnv = {}) {
     return new Promise((resolve) => {
         const proc = spawn(pythonCmd, args, {
             stdio: 'inherit',
-            shell: process.platform === 'win32'
+            shell: process.platform === 'win32',
+            env: { ...process.env, ...extraEnv }
         });
 
         proc.on('close', (code) => {

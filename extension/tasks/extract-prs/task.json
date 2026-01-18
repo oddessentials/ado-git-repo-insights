@@ -8,7 +8,7 @@
     "author": "Odd Essentials, LLC",
     "version": {
         "Major": 2,
-        "Minor": 2,
+        "Minor": 3,
         "Patch": 0
     },
     "instanceNameFormat": "Extract PR Metrics",
@@ -86,6 +86,32 @@
             "required": false,
             "defaultValue": "$(Pipeline.Workspace)/aggregates",
             "helpMarkDown": "Directory for aggregate JSON files (used with generateAggregates)"
+        },
+        {
+            "name": "enablePredictions",
+            "type": "boolean",
+            "label": "Generate ML Predictions",
+            "required": false,
+            "defaultValue": "false",
+            "helpMarkDown": "Generate trend predictions using Prophet time-series forecasting. Requires generateAggregates to be enabled. Adds ~10-30s to pipeline runtime.",
+            "visibleRule": "generateAggregates = true"
+        },
+        {
+            "name": "enableInsights",
+            "type": "boolean",
+            "label": "Generate AI Insights",
+            "required": false,
+            "defaultValue": "false",
+            "helpMarkDown": "Generate AI-powered insights using OpenAI. Requires generateAggregates and openaiApiKey. Adds ~5-15s to pipeline runtime.",
+            "visibleRule": "generateAggregates = true"
+        },
+        {
+            "name": "openaiApiKey",
+            "type": "string",
+            "label": "OpenAI API Key",
+            "required": false,
+            "helpMarkDown": "OpenAI API key for AI Insights generation. Use $(OPENAI_API_KEY) from a variable group. Required when enableInsights is true.",
+            "visibleRule": "enableInsights = true"
         }
     ],
     "execution": {
