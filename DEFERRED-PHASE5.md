@@ -132,9 +132,9 @@ aggregates/
 
 ### Phase 5.4: Documentation & Enablement
 
-1. [ ] Create "Enable ML Features" documentation page
-2. [ ] Document OpenAI API key setup
-3. [ ] Document Prophet installation requirements
+1. [x] Create "Enable ML Features" documentation page (docs/ENABLE-ML-FEATURES.md)
+2. [x] Document OpenAI API key setup
+3. [x] Document Prophet installation requirements
 4. [ ] Update INSTALLATION.md with ML features section
 5. [x] Set `ENABLE_PHASE5_FEATURES = true` in dashboard.js
 6. [x] Update tests to expect tabs visible by default
