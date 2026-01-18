@@ -114,7 +114,41 @@ Secrets should never be stored in pipeline YAML files. Use a Variable Group inst
 
 ---
 
-## Step 4: Create Your First Pipeline
+## Step 4: Create a Repository for Your Pipeline
+
+Azure DevOps pipelines require a git repository to store the pipeline YAML file. If you already have a repository, skip to Step 5.
+
+### Option A: Create an Azure Repos Repository
+
+1. **Navigate to Repos**
+
+   In your project: **Repos** → **Files**
+
+2. **Initialize a Repository**
+
+   If this is a new project with no repos:
+   - Click **Initialize** to create the default repository
+   - Or click **+ New repository** to create one with a custom name
+
+3. **Name Your Repository** (if creating new)
+
+   | Field | Suggested Value |
+   |-------|-----------------|
+   | **Repository name** | `pr-insights-pipeline` or use an existing repo |
+   | **Add a README** | Optional |
+
+4. **Click "Create"**
+
+### Option B: Use an Existing Repository
+
+You can store the pipeline YAML in any repository you have access to — it doesn't need to be in the project you're analyzing. Common choices:
+- A dedicated "pipelines" or "infrastructure" repository
+- The main repository of the project being analyzed
+- A new repository specifically for PR Insights
+
+---
+
+## Step 5: Create Your First Pipeline
 
 Now create a pipeline that uses the extension to extract PR metrics.
 
@@ -124,7 +158,7 @@ Now create a pipeline that uses the extension to extract PR metrics.
 
 2. **Choose Repository Location**
 
-   Select where your pipeline YAML will be stored (e.g., Azure Repos Git, GitHub).
+   Select **Azure Repos Git** (or GitHub if using an external repo), then select the repository you created/chose in Step 4.
 
 3. **Select "Starter pipeline"** (or paste the YAML below into an existing repo)
 
@@ -227,7 +261,7 @@ stages:
 
 ---
 
-## Step 5: Verify the Pipeline Run
+## Step 6: Verify the Pipeline Run
 
 After the pipeline completes:
 
@@ -253,7 +287,7 @@ After the pipeline completes:
 
 ---
 
-## Step 6: View the PR Insights Dashboard
+## Step 7: View the PR Insights Dashboard
 
 After a successful pipeline run with the `aggregates` artifact:
 
@@ -283,11 +317,40 @@ After a successful pipeline run with the `aggregates` artifact:
 
 ## Next Steps
 
-### Set Up a Schedule
+### Extract Historical Data (Recommended for First Run)
 
-For continuous metrics, add a schedule to your pipeline:
+By default, the first extraction covers PRs from **January 1st of the current year through yesterday**. To include older historical data, add date overrides to your first pipeline run.
+
+**To extract the past year of PR history**, add these inputs to your `ExtractPullRequests@2` task:
 
 ```yaml
+# Add to your ExtractPullRequests@2 task for the FIRST run only
+- task: ExtractPullRequests@2
+  displayName: 'Extract PR Metrics'
+  inputs:
+    organization: 'YOUR_ORG_NAME'
+    projects: |
+      YOUR_PROJECT_1
+    pat: '$(PAT_SECRET)'
+    database: '$(Pipeline.Workspace)/data/ado-insights.sqlite'
+    outputDir: '$(Pipeline.Workspace)/csv_output'
+    aggregatesDir: '$(Pipeline.Workspace)/aggregates'
+    # ↓ Add these for historical extraction (remove after first run)
+    startDate: '2025-01-01'  # One year back from today
+    endDate: '2026-01-17'    # Today's date
+```
+
+> **Note**: After the first run extracts historical data, you can remove `startDate` and `endDate` — subsequent runs will automatically do incremental daily extraction.
+
+> **Tip**: Adjust `startDate` to go back further if needed. Very large date ranges (2+ years) may take longer to process.
+
+### Set Up a Schedule
+
+For continuous metrics, add a schedule trigger to your pipeline:
+
+```yaml
+trigger: none
+
 schedules:
   - cron: "0 6 * * *"  # Daily at 6 AM UTC
     displayName: "Daily PR Extraction"
@@ -298,14 +361,14 @@ schedules:
 
 ### Weekly Backfill
 
-Add a backfill run on Sundays to catch late PR changes:
+Add a backfill run on Sundays to catch late PR changes (reviewers voting after merge, etc.):
 
 ```yaml
-# Add to your ExtractPullRequests@2 task on Sundays
+# Add to your ExtractPullRequests@2 task for weekly backfill
 backfillDays: 60
 ```
 
-See [pr-insights-pipeline.yml](../pr-insights-pipeline.yml) for a production-ready template.
+See [pr-insights-pipeline.yml](../pr-insights-pipeline.yml) for a production-ready template that includes both scheduled extraction and weekly backfill.
 
 ---
 
