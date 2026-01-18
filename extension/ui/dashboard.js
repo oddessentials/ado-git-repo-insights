@@ -210,6 +210,21 @@ async function getSourceConfig() {
 }
 
 /**
+ * Clear stale pipeline ID setting.
+ * Called when a saved pipeline is no longer valid (deleted, no builds, etc.)
+ * to enable auto-discovery on next load.
+ */
+async function clearStalePipelineSetting() {
+    try {
+        const dataService = await VSS.getService(VSS.ServiceIds.ExtensionData);
+        await dataService.setValue(SETTINGS_KEY_PIPELINE, null, { scopeType: 'User' });
+        console.log('Cleared stale pipeline setting to re-enable auto-discovery');
+    } catch (e) {
+        console.warn('Could not clear stale pipeline setting:', e);
+    }
+}
+
+/**
  * Resolve configuration using precedence rules.
  *
  * Order: dataset > pipelineId(query) > settings > discovery
@@ -254,7 +269,15 @@ async function resolveConfiguration() {
     // Check settings for pipeline ID
     if (sourceConfig.pipelineId) {
         console.log(`Using pipeline definition ID from settings: ${sourceConfig.pipelineId}`);
-        return await resolveFromPipelineId(sourceConfig.pipelineId, targetProjectId);
+        try {
+            return await resolveFromPipelineId(sourceConfig.pipelineId, targetProjectId);
+        } catch (error) {
+            // Saved pipeline is invalid (deleted, no builds, no artifacts, etc.)
+            // Automatically clear the stale setting and fall back to discovery
+            console.warn(`Saved pipeline ${sourceConfig.pipelineId} is invalid, falling back to auto-discovery:`, error.message);
+            await clearStalePipelineSetting();
+            // Continue to discovery below
+        }
     }
 
     // Mode: discovery in target project
@@ -279,7 +302,7 @@ async function resolveFromPipelineId(pipelineId, projectId) {
         null, null, null, null, null,
         null,  // reasonFilter
         2,     // statusFilter: Completed
-        2,     // resultFilter: Succeeded
+        6,     // resultFilter: Succeeded (2) | PartiallySucceeded (4) - first runs may be partial due to missing prior artifact
         null, null,
         1      // top
     );
@@ -352,7 +375,7 @@ async function discoverInsightsPipelines(projectId) {
             projectId,
             [def.id],
             null, null, null, null, null,
-            null, 2, 2, null, null, 1
+            null, 2, 6, null, null, 1  // statusFilter=Completed(2), resultFilter=Succeeded(2)|PartiallySucceeded(4)
         );
 
         if (!builds || builds.length === 0) continue;

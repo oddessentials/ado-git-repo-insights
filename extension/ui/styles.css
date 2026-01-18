@@ -1322,12 +1322,49 @@ body {
 }
 
 .status-warning {
-    color: var(--warning);
+    color: #b45309;
+    font-weight: 500;
 }
 
 .status-hint {
     font-style: italic;
     color: var(--text-tertiary);
+}
+
+.status-valid {
+    color: var(--success);
+    font-weight: 500;
+}
+
+.status-invalid {
+    color: var(--error);
+    font-weight: 500;
+}
+
+/* Discovered Pipelines List */
+.discovered-pipelines {
+    list-style: none;
+    padding: 0;
+    margin: 12px 0;
+}
+
+.discovered-pipelines li {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 10px 12px;
+    background: var(--bg-tertiary);
+    border-radius: var(--radius);
+    margin-bottom: 8px;
+}
+
+.discovered-pipelines li:last-child {
+    margin-bottom: 0;
+}
+
+.discovered-pipelines .btn-small {
+    flex-shrink: 0;
 }
 
 /* Settings Footer */
