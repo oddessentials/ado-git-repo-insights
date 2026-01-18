@@ -136,8 +136,8 @@ aggregates/
 2. [ ] Document OpenAI API key setup
 3. [ ] Document Prophet installation requirements
 4. [ ] Update INSTALLATION.md with ML features section
-5. [ ] Set `ENABLE_PHASE5_FEATURES = true` in dashboard.js
-6. [ ] Update tests to expect tabs visible by default
+5. [x] Set `ENABLE_PHASE5_FEATURES = true` in dashboard.js
+6. [x] Update tests to expect tabs visible by default
 
 ---
 
@@ -182,20 +182,21 @@ aggregates/
 
 ---
 
-## When to Enable
+## Current Status
 
-Enable Phase 5 features when:
+Phase 5 feature flag is now **ENABLED**. The Predictions and AI Insights tabs are visible
+in the dashboard and show "Coming Soon" state until the backend generates data.
 
-1. All Phase 5.1-5.4 tasks are complete
-2. Integration tests pass in CI
-3. Documentation is complete
-4. At least one production user has tested successfully
-
-To enable:
 ```javascript
 // extension/ui/dashboard.js line 34
 const ENABLE_PHASE5_FEATURES = true;
 ```
+
+### Remaining work for full functionality:
+1. Complete Phase 5.1-5.3 tasks (dependencies, pipeline integration, dashboard rendering)
+2. Complete Phase 5.4 tasks 1-4 (documentation)
+3. Integration tests pass in CI
+4. At least one production user has tested successfully
 
 ---
 
