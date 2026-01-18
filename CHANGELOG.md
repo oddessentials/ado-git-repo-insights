@@ -1,3 +1,17 @@
+# [3.3.0](https://github.com/oddessentials/ado-git-repo-insights/compare/v3.2.0...v3.3.0) (2026-01-18)
+
+
+### Bug Fixes
+
+* revert manual version bump, remove obsolete planning doc ([df019c0](https://github.com/oddessentials/ado-git-repo-insights/commit/df019c0738ddc0b3b684e940ed8fcd272e879dec))
+* **tests:** resolve ruff linting errors in Phase 5 ML tests ([d816e36](https://github.com/oddessentials/ado-git-repo-insights/commit/d816e3697d1993369f4be82df563faad7d8b435e))
+
+
+### Features
+
+* **dashboard:** enable Phase 5 features (Predictions & AI Insights tabs) ([649f39e](https://github.com/oddessentials/ado-git-repo-insights/commit/649f39e17ca7c778133aed2dba8df0bf360d4b03))
+* **task:** add Phase 5 ML inputs to pipeline task (v2.3.0) ([314c560](https://github.com/oddessentials/ado-git-repo-insights/commit/314c56045ecc531cec7cf60d94b180dc9655b2ea))
+
 # [3.2.0](https://github.com/oddessentials/ado-git-repo-insights/compare/v3.1.0...v3.2.0) (2026-01-18)
 
 
