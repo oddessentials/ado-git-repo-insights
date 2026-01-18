@@ -13,6 +13,7 @@ not just individual components.
 
 import json
 import os
+import sys
 from datetime import date, timedelta
 from pathlib import Path
 from unittest.mock import patch
@@ -21,13 +22,16 @@ import pytest
 
 # Import database layer (always available)
 from ado_git_repo_insights.persistence.database import DatabaseManager
+from ado_git_repo_insights.transform.aggregators import AggregateGenerator
 
 # Import ML modules at module level to avoid reimport issues
 try:
     from ado_git_repo_insights.ml.forecaster import ProphetForecaster
+
     # Check if Prophet is actually importable
     try:
         import prophet  # noqa: F401
+
         FORECASTER_AVAILABLE = True
     except ImportError:
         FORECASTER_AVAILABLE = False
@@ -37,17 +41,17 @@ except ImportError:
 
 try:
     from ado_git_repo_insights.ml.insights import LLMInsightsGenerator
+
     # Check if OpenAI is actually importable
     try:
         import openai  # noqa: F401
+
         INSIGHTS_AVAILABLE = True
     except ImportError:
         INSIGHTS_AVAILABLE = False
 except ImportError:
     LLMInsightsGenerator = None
     INSIGHTS_AVAILABLE = False
-
-from ado_git_repo_insights.transform.aggregators import AggregateGenerator
 
 
 # ============================================================================
@@ -69,7 +73,9 @@ def temp_db_with_prs(temp_db: DatabaseManager) -> DatabaseManager:
     """Database with sample PR data spanning 4+ weeks."""
     # Insert entities in order respecting foreign keys
     # 1. Organizations first
-    temp_db.execute("INSERT INTO organizations (organization_name) VALUES (?)", ("test-org",))
+    temp_db.execute(
+        "INSERT INTO organizations (organization_name) VALUES (?)", ("test-org",)
+    )
 
     # 2. Projects
     temp_db.execute(
@@ -112,7 +118,9 @@ def temp_db_with_prs(temp_db: DatabaseManager) -> DatabaseManager:
 
     for uid, pr_id, closed, cycle_time in prs:
         closed_str = closed.isoformat() + "T12:00:00Z"
-        created_str = (closed - timedelta(minutes=int(cycle_time))).isoformat() + "T12:00:00Z"
+        created_str = (
+            closed - timedelta(minutes=int(cycle_time))
+        ).isoformat() + "T12:00:00Z"
         temp_db.execute(
             """INSERT INTO pull_requests
                (pull_request_uid, pull_request_id, organization_name, project_name,
@@ -221,15 +229,13 @@ class TestProphetForecasterIntegration:
                     "predicted <= upper_bound"
                 )
 
-    def test_forecaster_empty_database(
-        self, temp_db: DatabaseManager, tmp_path: Path
-    ):
+    def test_forecaster_empty_database(self, temp_db: DatabaseManager, tmp_path: Path):
         """Forecaster with empty DB should write empty forecasts array."""
         output_dir = tmp_path / "output"
         output_dir.mkdir()
 
         forecaster = ProphetForecaster(db=temp_db, output_dir=output_dir)
-        result = forecaster.generate()
+        forecaster.generate()
 
         # Should still write file with empty forecasts
         trends_path = output_dir / "predictions" / "trends.json"
@@ -322,24 +328,26 @@ class TestInsightsContractCompliance:
     @pytest.fixture
     def mock_openai_response(self):
         """Create a mock OpenAI response."""
-        return json.dumps({
-            "insights": [
-                {
-                    "category": "trend",
-                    "severity": "info",
-                    "title": "Stable PR throughput",
-                    "description": "PR volume has remained consistent.",
-                    "affected_entities": ["project:test-project"],
-                },
-                {
-                    "category": "bottleneck",
-                    "severity": "warning",
-                    "title": "Review latency detected",
-                    "description": "Some PRs show extended cycle times.",
-                    "affected_entities": ["repo:test-repo"],
-                },
-            ]
-        })
+        return json.dumps(
+            {
+                "insights": [
+                    {
+                        "category": "trend",
+                        "severity": "info",
+                        "title": "Stable PR throughput",
+                        "description": "PR volume has remained consistent.",
+                        "affected_entities": ["project:test-project"],
+                    },
+                    {
+                        "category": "bottleneck",
+                        "severity": "warning",
+                        "title": "Review latency detected",
+                        "description": "Some PRs show extended cycle times.",
+                        "affected_entities": ["repo:test-repo"],
+                    },
+                ]
+            }
+        )
 
     def test_insights_schema_validation(self, mock_openai_response: str):
         """Verify mock insights comply with expected schema."""
@@ -535,8 +543,14 @@ class TestCLIMLFlags:
         """CLI help should document ML flags."""
         import subprocess
 
-        result = subprocess.run(
-            ["python", "-m", "ado_git_repo_insights.cli", "generate-aggregates", "--help"],
+        result = subprocess.run(  # noqa: S603 - trusted test input
+            [
+                sys.executable,
+                "-m",
+                "ado_git_repo_insights.cli",
+                "generate-aggregates",
+                "--help",
+            ],
             capture_output=True,
             text=True,
         )
