@@ -248,6 +248,7 @@ async function updateStatus() {
         const savedPipelineId = await dataService.getValue(SETTINGS_KEY_PIPELINE, { scopeType: 'User' });
         const webContext = VSS.getWebContext();
         const currentProjectName = webContext?.project?.name || 'Unknown';
+        const currentProjectId = webContext?.project?.id;
 
         let html = '';
 
@@ -262,9 +263,24 @@ async function updateStatus() {
             html += `<p><strong>Source Project:</strong> <em>Same as current</em></p>`;
         }
 
-        // Pipeline configuration
+        // Pipeline configuration with validation
         if (savedPipelineId) {
-            html += `<p><strong>Pipeline Definition ID:</strong> ${savedPipelineId}</p>`;
+            html += `<p><strong>Pipeline Definition ID:</strong> ${savedPipelineId}`;
+
+            // Validate the saved pipeline
+            const targetProjectId = savedProjectId || currentProjectId;
+            const validation = await validatePipeline(savedPipelineId, targetProjectId);
+
+            if (validation.valid) {
+                html += ` <span class="status-valid">✓ Valid</span>`;
+                html += `</p>`;
+                html += `<p class="status-hint">Pipeline: "${escapeHtml(validation.name)}" (Build #${validation.buildId})</p>`;
+            } else {
+                html += ` <span class="status-invalid">⚠️ Invalid</span>`;
+                html += `</p>`;
+                html += `<p class="status-warning">⚠️ ${escapeHtml(validation.error)}</p>`;
+                html += `<p class="status-hint">The dashboard will automatically clear this setting and re-discover pipelines. Consider clearing manually to configure a different pipeline.</p>`;
+            }
         } else {
             html += `<p><strong>Mode:</strong> Auto-discovery</p>`;
             html += `<p class="status-hint">The dashboard will automatically find pipelines with an "aggregates" artifact.</p>`;
@@ -323,6 +339,167 @@ async function getPipelineName(pipelineId) {
 }
 
 /**
+ * Validate if a pipeline exists and has successful builds with aggregates artifact.
+ * Returns validation result with details.
+ *
+ * @param {number} pipelineId - Pipeline definition ID to validate
+ * @param {string} projectId - Project ID to check in
+ * @returns {Promise<{valid: boolean, name?: string, buildId?: number, error?: string}>}
+ */
+async function validatePipeline(pipelineId, projectId) {
+    return new Promise((resolve) => {
+        VSS.require(['TFS/Build/RestClient'], async (BuildRestClient) => {
+            try {
+                const client = BuildRestClient.getClient();
+
+                // Check if pipeline definition exists
+                const definitions = await client.getDefinitions(
+                    projectId,
+                    null, null, null,
+                    2,    // queryOrder: definitionNameAscending
+                    null, null, null,
+                    [pipelineId]
+                );
+
+                if (!definitions || definitions.length === 0) {
+                    resolve({ valid: false, error: 'Pipeline definition not found (may have been deleted)' });
+                    return;
+                }
+
+                const pipelineName = definitions[0].name;
+
+                // Check for successful/partially-succeeded builds
+                // resultFilter: 6 = Succeeded(2) | PartiallySucceeded(4)
+                const builds = await client.getBuilds(
+                    projectId,
+                    [pipelineId],
+                    null, null, null, null, null,
+                    null, 2, 6, null, null, 1
+                );
+
+                if (!builds || builds.length === 0) {
+                    resolve({
+                        valid: false,
+                        name: pipelineName,
+                        error: 'No successful builds found'
+                    });
+                    return;
+                }
+
+                resolve({
+                    valid: true,
+                    name: pipelineName,
+                    buildId: builds[0].id
+                });
+            } catch (e) {
+                resolve({ valid: false, error: `Validation failed: ${e.message}` });
+            }
+        });
+    });
+}
+
+/**
+ * Discover pipelines with aggregates artifact in the current project.
+ *
+ * @returns {Promise<Array<{id: number, name: string, buildId: number}>>}
+ */
+async function discoverPipelines() {
+    return new Promise((resolve) => {
+        VSS.require(['TFS/Build/RestClient'], async (BuildRestClient) => {
+            try {
+                const client = BuildRestClient.getClient();
+                const webContext = VSS.getWebContext();
+                const projectId = webContext.project.id;
+                const matches = [];
+
+                // Get pipeline definitions (limit for performance)
+                const definitions = await client.getDefinitions(projectId, null, null, null, 2, 50);
+
+                for (const def of definitions) {
+                    // Get latest successful/partially-succeeded build
+                    const builds = await client.getBuilds(
+                        projectId,
+                        [def.id],
+                        null, null, null, null, null,
+                        null, 2, 6, null, null, 1
+                    );
+
+                    if (!builds || builds.length === 0) continue;
+
+                    const latestBuild = builds[0];
+
+                    // Check for aggregates artifact
+                    try {
+                        const artifacts = await client.getArtifacts(projectId, latestBuild.id);
+                        if (!artifacts.some(a => a.name === 'aggregates')) continue;
+
+                        matches.push({
+                            id: def.id,
+                            name: def.name,
+                            buildId: latestBuild.id
+                        });
+                    } catch (e) {
+                        // Skip pipelines we can't access
+                        console.debug(`Skipping pipeline ${def.name}:`, e);
+                    }
+                }
+
+                resolve(matches);
+            } catch (e) {
+                console.error('Discovery failed:', e);
+                resolve([]);
+            }
+        });
+    });
+}
+
+/**
+ * Run auto-discovery and show results to user.
+ */
+async function runDiscovery() {
+    const statusDisplay = document.getElementById('status-display');
+    const originalContent = statusDisplay.innerHTML;
+    statusDisplay.innerHTML = '<p>🔍 Discovering pipelines with aggregates artifact...</p>';
+
+    try {
+        const matches = await discoverPipelines();
+
+        if (matches.length === 0) {
+            statusDisplay.innerHTML = `
+                <p class="status-warning">⚠️ No PR Insights pipelines found in the current project.</p>
+                <p class="status-hint">Create a pipeline using pr-insights-pipeline.yml and run it at least once.</p>
+            `;
+            showStatus('No pipelines found with aggregates artifact', 'warning');
+            return;
+        }
+
+        let html = `<p><strong>Found ${matches.length} pipeline(s):</strong></p><ul class="discovered-pipelines">`;
+        for (const match of matches) {
+            html += `<li>
+                <strong>${escapeHtml(match.name)}</strong> (ID: ${match.id})
+                <button class="btn btn-small" onclick="selectDiscoveredPipeline(${match.id})">Use This</button>
+            </li>`;
+        }
+        html += '</ul>';
+        html += '<p class="status-hint">Click "Use This" to configure, or clear settings for auto-discovery.</p>';
+
+        statusDisplay.innerHTML = html;
+        showStatus(`Found ${matches.length} pipeline(s)`, 'success');
+    } catch (error) {
+        statusDisplay.innerHTML = originalContent;
+        showStatus('Discovery failed: ' + error.message, 'error');
+    }
+}
+
+/**
+ * Select a discovered pipeline and populate the form.
+ */
+function selectDiscoveredPipeline(pipelineId) {
+    document.getElementById('pipeline-id').value = pipelineId;
+    showStatus(`Pipeline ${pipelineId} selected - click Save to confirm`, 'info');
+}
+
+/**
  * Show status message.
  */
 function showStatus(message, type = 'info') {
@@ -354,6 +531,7 @@ function escapeHtml(text) {
 function setupEventListeners() {
     document.getElementById('save-btn')?.addEventListener('click', saveSettings);
     document.getElementById('clear-btn')?.addEventListener('click', clearSettings);
+    document.getElementById('discover-btn')?.addEventListener('click', runDiscovery);
 
     // Enter key saves
     document.getElementById('pipeline-id')?.addEventListener('keypress', (e) => {

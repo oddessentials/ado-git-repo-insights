@@ -75,7 +75,12 @@ function createMultiplePipelinesError(matches) {
 
 /**
  * Create a "No Successful Builds" error.
- * Shown when a pipeline exists but has no succeeded builds.
+ * Shown when a pipeline exists but has no succeeded or partially succeeded builds.
+ *
+ * Note: The dashboard accepts both "Succeeded" and "PartiallySucceeded" builds.
+ * First-run pipelines often show as PartiallySucceeded because the "Download Previous
+ * Database" step fails (no prior artifact exists), but continues due to continueOnError.
+ * This is expected behavior - the extraction and artifact publishing still succeed.
  *
  * @param {string} pipelineName - Name of the pipeline
  * @returns {PrInsightsError}
@@ -88,8 +93,9 @@ function createNoSuccessfulBuildsError(pipelineName) {
         {
             instructions: [
                 'Check the pipeline for errors',
-                'Run it manually and ensure it succeeds',
-                'Return here after a successful run'
+                'Run it manually and ensure extraction completes',
+                'Note: "Partially Succeeded" builds are acceptable - first runs may show this status because no prior database artifact exists yet, but extraction still works',
+                'Return here after a successful or partially successful run'
             ]
         }
     );

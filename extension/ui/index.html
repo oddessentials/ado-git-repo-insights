@@ -158,8 +158,8 @@
             <!-- Tabs -->
             <nav class="tabs">
                 <button class="tab active" data-tab="metrics">Metrics</button>
-                <button class="tab" data-tab="predictions">Predictions</button>
-                <button class="tab" data-tab="ai-insights">AI Insights</button>
+                <button class="tab phase5-tab hidden" data-tab="predictions">Predictions</button>
+                <button class="tab phase5-tab hidden" data-tab="ai-insights">AI Insights</button>
             </nav>
 
             <!-- Tab Content -->
@@ -237,21 +237,37 @@
                 </div>
             </section>
 
-            <section id="tab-predictions" class="tab-content hidden">
-                <div id="predictions-unavailable" class="feature-unavailable">
+            <section id="tab-predictions" class="tab-content hidden phase5-content">
+                <div id="predictions-unavailable" class="feature-unavailable coming-soon">
                     <div class="icon">🔮</div>
-                    <h2>Predictions Not Generated</h2>
-                    <p>ML predictions were not generated in this dataset run.</p>
-                    <p class="hint">Enable ML features in the pipeline configuration.</p>
+                    <h2>Predictions — Coming Soon</h2>
+                    <p>ML-powered forecasting for PR cycle times and throughput trends.</p>
+                    <p class="hint">This feature is under development and will be available in a future release.</p>
+                    <div class="coming-soon-features">
+                        <h4>Planned Features:</h4>
+                        <ul>
+                            <li>Cycle time forecasts using historical trends</li>
+                            <li>Throughput predictions for capacity planning</li>
+                            <li>Anomaly detection for process changes</li>
+                        </ul>
+                    </div>
                 </div>
             </section>
 
-            <section id="tab-ai-insights" class="tab-content hidden">
-                <div id="ai-unavailable" class="feature-unavailable">
+            <section id="tab-ai-insights" class="tab-content hidden phase5-content">
+                <div id="ai-unavailable" class="feature-unavailable coming-soon">
                     <div class="icon">🤖</div>
-                    <h2>AI Insights Not Generated</h2>
-                    <p>AI analysis was not included in this dataset run.</p>
-                    <p class="hint">Enable AI features in the pipeline configuration.</p>
+                    <h2>AI Insights — Coming Soon</h2>
+                    <p>Intelligent analysis of your PR patterns and team dynamics.</p>
+                    <p class="hint">This feature is under development and will be available in a future release.</p>
+                    <div class="coming-soon-features">
+                        <h4>Planned Features:</h4>
+                        <ul>
+                            <li>Automated bottleneck identification</li>
+                            <li>Reviewer workload recommendations</li>
+                            <li>Process improvement suggestions</li>
+                        </ul>
+                    </div>
                 </div>
             </section>
         </main>

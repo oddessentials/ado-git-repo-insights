@@ -25,6 +25,14 @@ let sdkInitialized = false;
 const SETTINGS_KEY_PROJECT = 'pr-insights-source-project';
 const SETTINGS_KEY_PIPELINE = 'pr-insights-pipeline-id';
 
+// Feature flags
+// Phase 5 features (Predictions, AI Insights) require additional setup:
+// - Prophet library for forecasting
+// - OpenAI API key for AI insights
+// - Pipeline task inputs (enablePredictions, enableInsights) not yet exposed
+// Set to true when Phase 5 is production-ready
+const ENABLE_PHASE5_FEATURES = false;
+
 // DOM element cache
 const elements = {};
 
@@ -210,6 +218,21 @@ async function getSourceConfig() {
 }
 
 /**
+ * Clear stale pipeline ID setting.
+ * Called when a saved pipeline is no longer valid (deleted, no builds, etc.)
+ * to enable auto-discovery on next load.
+ */
+async function clearStalePipelineSetting() {
+    try {
+        const dataService = await VSS.getService(VSS.ServiceIds.ExtensionData);
+        await dataService.setValue(SETTINGS_KEY_PIPELINE, null, { scopeType: 'User' });
+        console.log('Cleared stale pipeline setting to re-enable auto-discovery');
+    } catch (e) {
+        console.warn('Could not clear stale pipeline setting:', e);
+    }
+}
+
+/**
  * Resolve configuration using precedence rules.
  *
  * Order: dataset > pipelineId(query) > settings > discovery
@@ -254,7 +277,15 @@ async function resolveConfiguration() {
     // Check settings for pipeline ID
     if (sourceConfig.pipelineId) {
         console.log(`Using pipeline definition ID from settings: ${sourceConfig.pipelineId}`);
-        return await resolveFromPipelineId(sourceConfig.pipelineId, targetProjectId);
+        try {
+            return await resolveFromPipelineId(sourceConfig.pipelineId, targetProjectId);
+        } catch (error) {
+            // Saved pipeline is invalid (deleted, no builds, no artifacts, etc.)
+            // Automatically clear the stale setting and fall back to discovery
+            console.warn(`Saved pipeline ${sourceConfig.pipelineId} is invalid, falling back to auto-discovery:`, error.message);
+            await clearStalePipelineSetting();
+            // Continue to discovery below
+        }
     }
 
     // Mode: discovery in target project
@@ -279,7 +310,7 @@ async function resolveFromPipelineId(pipelineId, projectId) {
         null, null, null, null, null,
         null,  // reasonFilter
         2,     // statusFilter: Completed
-        2,     // resultFilter: Succeeded
+        6,     // resultFilter: Succeeded (2) | PartiallySucceeded (4) - first runs may be partial due to missing prior artifact
         null, null,
         1      // top
     );
@@ -352,7 +383,7 @@ async function discoverInsightsPipelines(projectId) {
             projectId,
             [def.id],
             null, null, null, null, null,
-            null, 2, 2, null, null, 1
+            null, 2, 6, null, null, 1  // statusFilter=Completed(2), resultFilter=Succeeded(2)|PartiallySucceeded(4)
         );
 
         if (!builds || builds.length === 0) continue;
@@ -403,6 +434,7 @@ async function init() {
 
     cacheElements();
     setupEventListeners();
+    initializePhase5Features();
 
     try {
         // Initialize ADO SDK
@@ -627,6 +659,23 @@ function cacheElements() {
     elements.exportCsv = document.getElementById('export-csv');
     elements.exportLink = document.getElementById('export-link');
     elements.exportRawZip = document.getElementById('export-raw-zip');
+}
+
+/**
+ * Initialize Phase 5 features based on feature flag.
+ * Controls visibility of Predictions and AI Insights tabs.
+ */
+function initializePhase5Features() {
+    const phase5Tabs = document.querySelectorAll('.phase5-tab');
+
+    if (ENABLE_PHASE5_FEATURES) {
+        // Show Phase 5 tabs when feature is enabled
+        phase5Tabs.forEach(tab => tab.classList.remove('hidden'));
+        console.log('Phase 5 features enabled: Predictions and AI Insights tabs visible');
+    } else {
+        // Keep Phase 5 tabs hidden (default state in HTML)
+        console.log('Phase 5 features disabled: Predictions and AI Insights tabs hidden');
+    }
 }
 
 /**
