@@ -804,21 +804,22 @@ describe('Regression Prevention', () => {
 
 describe('Phase 5 Feature Flag (Predictions & AI Insights)', () => {
     /**
-     * Phase 5 features (Predictions, AI Insights) are not yet production-ready.
-     * They require additional setup:
+     * Phase 5 features (Predictions, AI Insights) are now enabled.
+     * The tabs are visible by default and show "Coming Soon" state
+     * until the backend generates predictions/insights data.
+     *
+     * Full functionality requires additional setup:
      * - Prophet library for forecasting
      * - OpenAI API key for AI insights
-     * - Pipeline task inputs not yet exposed
-     *
-     * Until ready, the tabs should show "Coming Soon" state.
+     * - Pipeline task inputs (enablePredictions, enableInsights)
      */
 
     describe('Feature flag behavior', () => {
-        it('ENABLE_PHASE5_FEATURES should be false by default', () => {
-            // This documents the expected default state
-            // When Phase 5 is ready, this test should be updated
-            const ENABLE_PHASE5_FEATURES = false;
-            expect(ENABLE_PHASE5_FEATURES).toBe(false);
+        it('ENABLE_PHASE5_FEATURES should be true (Phase 5 enabled)', () => {
+            // Phase 5 features are now enabled by default
+            // Tabs are visible and show "Coming Soon" until data is available
+            const ENABLE_PHASE5_FEATURES = true;
+            expect(ENABLE_PHASE5_FEATURES).toBe(true);
         });
 
         it('Phase 5 tabs should be hidden when feature flag is false', () => {

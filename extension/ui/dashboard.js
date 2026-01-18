@@ -31,7 +31,7 @@ const SETTINGS_KEY_PIPELINE = 'pr-insights-pipeline-id';
 // - OpenAI API key for AI insights
 // - Pipeline task inputs (enablePredictions, enableInsights) not yet exposed
 // Set to true when Phase 5 is production-ready
-const ENABLE_PHASE5_FEATURES = false;
+const ENABLE_PHASE5_FEATURES = true;
 
 // DOM element cache
 const elements = {};
