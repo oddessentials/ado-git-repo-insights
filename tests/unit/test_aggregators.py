@@ -853,14 +853,14 @@ class TestTeamAggregation:
                 (f"user{i}", f"User {i}", f"user{i}@example.com"),
             )
 
-        # 5. Teams
+        # 5. Teams (last_updated is NOT NULL per schema)
         db.execute(
-            "INSERT INTO teams (team_id, team_name, project_name, organization_name) VALUES (?, ?, ?, ?)",
-            ("team-backend", "Backend Team", "proj1", "org1"),
+            "INSERT INTO teams (team_id, team_name, project_name, organization_name, last_updated) VALUES (?, ?, ?, ?, ?)",
+            ("team-backend", "Backend Team", "proj1", "org1", "2026-01-01T00:00:00Z"),
         )
         db.execute(
-            "INSERT INTO teams (team_id, team_name, project_name, organization_name) VALUES (?, ?, ?, ?)",
-            ("team-frontend", "Frontend Team", "proj1", "org1"),
+            "INSERT INTO teams (team_id, team_name, project_name, organization_name, last_updated) VALUES (?, ?, ?, ?, ?)",
+            ("team-frontend", "Frontend Team", "proj1", "org1", "2026-01-01T00:00:00Z"),
         )
 
         # 6. Team members
@@ -1218,8 +1218,8 @@ class TestTeamAggregation:
 
         # Add a team with no members who have PRs
         db.execute(
-            "INSERT INTO teams (team_id, team_name, project_name, organization_name) VALUES (?, ?, ?, ?)",
-            ("team-empty", "Empty Team", "proj1", "org1"),
+            "INSERT INTO teams (team_id, team_name, project_name, organization_name, last_updated) VALUES (?, ?, ?, ?, ?)",
+            ("team-empty", "Empty Team", "proj1", "org1", "2026-01-01T00:00:00Z"),
         )
         # Add a user who is in the empty team but has no PRs
         db.execute(
