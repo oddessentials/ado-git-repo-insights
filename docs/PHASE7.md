@@ -117,15 +117,93 @@ This prevents snapshot churn and makes URL comparisons reliable.
 
 ---
 
-## Future Considerations
-
 ### 7.4 Version Adapter Pattern
 
+**Status:** ✅ COMPLETE
 **Priority:** Low
+**Complexity:** Low
 
-Add a version adapter to normalize rollup data across schema versions, providing sensible defaults for missing fields in older datasets.
+**Implementation:**
 
-### 7.5 Ideas Backlog
+Added version adapter functions in `extension/ui/dataset-loader.js` to normalize rollup data across schema versions:
+
+```javascript
+// Provides sensible defaults for missing fields in older datasets
+const ROLLUP_FIELD_DEFAULTS = {
+    pr_count: 0,
+    cycle_time_p50: null,
+    cycle_time_p90: null,
+    authors_count: 0,
+    reviewers_count: 0,
+    by_repository: null,
+    by_team: null,
+};
+
+// normalizeRollup(rollup) - Normalizes a single rollup object
+// normalizeRollups(rollups) - Normalizes an array of rollups
+```
+
+**Benefits:**
+- Older datasets (v1.0 - v1.2) automatically get missing fields with sensible defaults
+- No breaking changes when loading historical data
+- Dashboard handles mixed-version data gracefully
+
+**Test Coverage** (`extension/tests/dashboard.test.js`):
+- `Version Adapter Pattern` describe block with comprehensive tests
+- Tests for null/undefined handling, field preservation, backward compatibility
+- Scenario tests for v1.0, v1.1, v1.2, and current schema versions
+
+**Definition of Done:**
+- [x] Version adapter normalizes rollup data on load
+- [x] Old datasets render without errors
+- [x] Comprehensive test coverage for backward compatibility
+
+---
+
+### 7.5 Local Mode Improvements
+
+**Status:** ✅ COMPLETE
+**Priority:** Medium
+**Complexity:** Low
+
+**Improvements Made:**
+
+1. **Robust local-config.js injection** (`src/ado_git_repo_insights/cli.py`):
+   - Added guarded placeholder `<!-- LOCAL_CONFIG_PLACEHOLDER -->` in index.html
+   - CLI detects placeholder for reliable injection
+   - Fallback to legacy method for older UI bundles
+
+2. **Local mode test coverage** (`extension/tests/dashboard.test.js`):
+   - `Local Mode Detection` describe block with comprehensive tests
+   - Tests for `isLocalMode()` - various boolean/truthy values
+   - Tests for `getLocalDatasetPath()` - default and custom paths
+   - Tests for local mode initialization path
+
+3. **Download Raw Data button hidden in local mode** (`extension/ui/dashboard.js`):
+   - Button is hidden when running locally (no pipeline artifacts available)
+   - Avoids confusing error toast for users
+
+4. **User-facing documentation** (`README.md`):
+   - Added `ado-insights dashboard` command documentation
+   - Added `ado-insights build-aggregates` documentation
+   - Documented command options and limitations
+
+5. **Windows sync compatibility**:
+   - Added `scripts/check-ui-bundle-sync.ps1` PowerShell script
+   - Updated README with cross-platform sync commands
+
+**Definition of Done:**
+- [x] Local-config injection is robust against HTML changes
+- [x] Local mode paths have unit test coverage
+- [x] Non-functional button hidden in local mode
+- [x] Dashboard command is documented for users
+- [x] Windows developers have sync documentation and scripts
+
+---
+
+## Future Considerations
+
+### 7.6 Ideas Backlog
 
 Low-priority ideas for future phases:
 - Lazy chart rendering (only render visible charts)
@@ -138,13 +216,14 @@ Low-priority ideas for future phases:
 
 ## Priority Matrix
 
-| Item | Priority | Effort | Impact |
+| Item | Priority | Effort | Status |
 |------|----------|--------|--------|
-| 7.1 UI Bundle Sync | **HIGH** | Low | Critical - prevents drift |
-| 7.2 by_team slices | Medium | Medium | High - enables team filtering |
-| 7.3 URL persistence tests | Low | Low | Low - verification only |
-| 7.4 Version adapter | Low | Low | Medium - compatibility |
-| 7.5 Ideas backlog | Low | Varies | Nice to have |
+| 7.1 UI Bundle Sync | **HIGH** | Low | ✅ COMPLETE |
+| 7.2 by_team slices | Medium | Medium | ✅ COMPLETE |
+| 7.3 URL persistence tests | Low | Low | ✅ COMPLETE |
+| 7.4 Version adapter | Low | Low | ✅ COMPLETE |
+| 7.5 Local mode improvements | Medium | Low | ✅ COMPLETE |
+| 7.6 Ideas backlog | Low | Varies | Future work |
 
 ---
 

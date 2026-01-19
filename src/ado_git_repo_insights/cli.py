@@ -834,10 +834,19 @@ def cmd_dashboard(args: Namespace) -> int:
             content = index_html.read_text()
             # Insert local-config.js before dashboard.js
             if "local-config.js" not in content:
-                content = content.replace(
-                    '<script src="dashboard.js"></script>',
-                    '<script src="local-config.js"></script>\n    <script src="dashboard.js"></script>',
-                )
+                # Primary method: use the guarded placeholder (robust)
+                placeholder = "<!-- LOCAL_CONFIG_PLACEHOLDER: Replaced by CLI for local dashboard mode -->"
+                if placeholder in content:
+                    content = content.replace(
+                        placeholder,
+                        '<script src="local-config.js"></script>',
+                    )
+                else:
+                    # Fallback: legacy injection for older UI bundles
+                    content = content.replace(
+                        '<script src="dashboard.js"></script>',
+                        '<script src="local-config.js"></script>\n    <script src="dashboard.js"></script>',
+                    )
                 index_html.write_text(content)
 
         # Change to serve directory

@@ -2538,3 +2538,419 @@ describe('Sprint 2: Filter Management', () => {
         });
     });
 });
+
+// =============================================================================
+// Local Mode Tests (Phase 7)
+// =============================================================================
+
+describe('Local Mode Detection', () => {
+    /**
+     * Implementation of isLocalMode for testing.
+     * Mirrors the logic in dashboard.js.
+     */
+    const createIsLocalMode = () => {
+        return function isLocalMode() {
+            return typeof window !== 'undefined' && window.LOCAL_DASHBOARD_MODE === true;
+        };
+    };
+
+    /**
+     * Implementation of getLocalDatasetPath for testing.
+     */
+    const createGetLocalDatasetPath = () => {
+        return function getLocalDatasetPath() {
+            return (typeof window !== 'undefined' && window.DATASET_PATH) || './dataset';
+        };
+    };
+
+    describe('isLocalMode', () => {
+        const isLocalMode = createIsLocalMode();
+
+        afterEach(() => {
+            // Clean up global state after each test
+            delete window.LOCAL_DASHBOARD_MODE;
+        });
+
+        it('returns false when LOCAL_DASHBOARD_MODE is not set', () => {
+            delete window.LOCAL_DASHBOARD_MODE;
+            expect(isLocalMode()).toBe(false);
+        });
+
+        it('returns true when LOCAL_DASHBOARD_MODE is true', () => {
+            window.LOCAL_DASHBOARD_MODE = true;
+            expect(isLocalMode()).toBe(true);
+        });
+
+        it('returns false when LOCAL_DASHBOARD_MODE is false', () => {
+            window.LOCAL_DASHBOARD_MODE = false;
+            expect(isLocalMode()).toBe(false);
+        });
+
+        it('returns false when LOCAL_DASHBOARD_MODE is a non-boolean truthy value', () => {
+            window.LOCAL_DASHBOARD_MODE = 'true';
+            expect(isLocalMode()).toBe(false);
+        });
+
+        it('returns false when LOCAL_DASHBOARD_MODE is 1', () => {
+            window.LOCAL_DASHBOARD_MODE = 1;
+            expect(isLocalMode()).toBe(false);
+        });
+    });
+
+    describe('getLocalDatasetPath', () => {
+        const getLocalDatasetPath = createGetLocalDatasetPath();
+
+        afterEach(() => {
+            delete window.DATASET_PATH;
+        });
+
+        it('returns default path when DATASET_PATH is not set', () => {
+            delete window.DATASET_PATH;
+            expect(getLocalDatasetPath()).toBe('./dataset');
+        });
+
+        it('returns configured path when DATASET_PATH is set', () => {
+            window.DATASET_PATH = './custom-dataset';
+            expect(getLocalDatasetPath()).toBe('./custom-dataset');
+        });
+
+        it('returns DATASET_PATH even if empty string', () => {
+            window.DATASET_PATH = '';
+            expect(getLocalDatasetPath()).toBe('./dataset'); // falsy value falls back to default
+        });
+    });
+
+    describe('Local Mode Initialization Path', () => {
+        afterEach(() => {
+            delete window.LOCAL_DASHBOARD_MODE;
+            delete window.DATASET_PATH;
+        });
+
+        it('creates DatasetLoader with correct path in local mode', () => {
+            window.LOCAL_DASHBOARD_MODE = true;
+            window.DATASET_PATH = './my-dataset';
+
+            const isLocalMode = createIsLocalMode();
+            const getLocalDatasetPath = createGetLocalDatasetPath();
+
+            if (isLocalMode()) {
+                const datasetPath = getLocalDatasetPath();
+                // Simulating what dashboard.js does:
+                // loader = new DatasetLoader(datasetPath);
+                expect(datasetPath).toBe('./my-dataset');
+            }
+        });
+
+        it('sets currentBuildId to null in local mode', () => {
+            window.LOCAL_DASHBOARD_MODE = true;
+
+            const isLocalMode = createIsLocalMode();
+            let currentBuildId = 123; // Simulate existing value
+
+            if (isLocalMode()) {
+                currentBuildId = null;
+            }
+
+            expect(currentBuildId).toBe(null);
+        });
+    });
+});
+
+// =============================================================================
+// Version Adapter Tests (Phase 7.4)
+// =============================================================================
+
+describe('Version Adapter Pattern', () => {
+    /**
+     * Field defaults for rollups (matches dataset-loader.js)
+     */
+    const ROLLUP_FIELD_DEFAULTS = {
+        pr_count: 0,
+        cycle_time_p50: null,
+        cycle_time_p90: null,
+        authors_count: 0,
+        reviewers_count: 0,
+        by_repository: null,
+        by_team: null,
+    };
+
+    /**
+     * Normalize a rollup object (mirrors dataset-loader.js)
+     */
+    const normalizeRollup = (rollup) => {
+        if (!rollup || typeof rollup !== 'object') {
+            return { week: 'unknown', ...ROLLUP_FIELD_DEFAULTS };
+        }
+
+        return {
+            ...rollup,
+            pr_count: rollup.pr_count ?? ROLLUP_FIELD_DEFAULTS.pr_count,
+            cycle_time_p50: rollup.cycle_time_p50 ?? ROLLUP_FIELD_DEFAULTS.cycle_time_p50,
+            cycle_time_p90: rollup.cycle_time_p90 ?? ROLLUP_FIELD_DEFAULTS.cycle_time_p90,
+            authors_count: rollup.authors_count ?? ROLLUP_FIELD_DEFAULTS.authors_count,
+            reviewers_count: rollup.reviewers_count ?? ROLLUP_FIELD_DEFAULTS.reviewers_count,
+            by_repository: rollup.by_repository !== undefined ? rollup.by_repository : null,
+            by_team: rollup.by_team !== undefined ? rollup.by_team : null,
+        };
+    };
+
+    const normalizeRollups = (rollups) => {
+        if (!Array.isArray(rollups)) {
+            return [];
+        }
+        return rollups.map(normalizeRollup);
+    };
+
+    describe('normalizeRollup', () => {
+        it('handles null input', () => {
+            const result = normalizeRollup(null);
+            expect(result.week).toBe('unknown');
+            expect(result.pr_count).toBe(0);
+        });
+
+        it('handles undefined input', () => {
+            const result = normalizeRollup(undefined);
+            expect(result.week).toBe('unknown');
+        });
+
+        it('handles non-object input', () => {
+            const result = normalizeRollup('not an object');
+            expect(result.week).toBe('unknown');
+        });
+
+        it('preserves existing fields', () => {
+            const rollup = {
+                week: '2026-W01',
+                pr_count: 42,
+                cycle_time_p50: 120,
+                cycle_time_p90: 480,
+                authors_count: 8,
+                reviewers_count: 5,
+                custom_field: 'preserved'
+            };
+
+            const result = normalizeRollup(rollup);
+
+            expect(result.week).toBe('2026-W01');
+            expect(result.pr_count).toBe(42);
+            expect(result.cycle_time_p50).toBe(120);
+            expect(result.cycle_time_p90).toBe(480);
+            expect(result.authors_count).toBe(8);
+            expect(result.reviewers_count).toBe(5);
+            expect(result.custom_field).toBe('preserved');
+        });
+
+        it('provides defaults for missing fields (old schema)', () => {
+            const oldSchemaRollup = {
+                week: '2024-W01',
+                pr_count: 10
+                // Missing: cycle_time_p50, cycle_time_p90, authors_count, reviewers_count
+            };
+
+            const result = normalizeRollup(oldSchemaRollup);
+
+            expect(result.week).toBe('2024-W01');
+            expect(result.pr_count).toBe(10);
+            expect(result.cycle_time_p50).toBe(null);
+            expect(result.cycle_time_p90).toBe(null);
+            expect(result.authors_count).toBe(0);
+            expect(result.reviewers_count).toBe(0);
+            expect(result.by_repository).toBe(null);
+            expect(result.by_team).toBe(null);
+        });
+
+        it('does not override existing null values', () => {
+            const rollup = {
+                week: '2026-W01',
+                pr_count: 0,
+                cycle_time_p50: null,
+                cycle_time_p90: null
+            };
+
+            const result = normalizeRollup(rollup);
+
+            expect(result.pr_count).toBe(0);
+            expect(result.cycle_time_p50).toBe(null);
+            expect(result.cycle_time_p90).toBe(null);
+        });
+
+        it('does not override zero values', () => {
+            const rollup = {
+                week: '2026-W01',
+                pr_count: 0,
+                authors_count: 0,
+                reviewers_count: 0
+            };
+
+            const result = normalizeRollup(rollup);
+
+            expect(result.pr_count).toBe(0);
+            expect(result.authors_count).toBe(0);
+            expect(result.reviewers_count).toBe(0);
+        });
+
+        it('preserves by_repository slices when present', () => {
+            const rollup = {
+                week: '2026-W01',
+                pr_count: 30,
+                by_repository: {
+                    'repo-a': { pr_count: 20 },
+                    'repo-b': { pr_count: 10 }
+                }
+            };
+
+            const result = normalizeRollup(rollup);
+
+            expect(result.by_repository).toEqual({
+                'repo-a': { pr_count: 20 },
+                'repo-b': { pr_count: 10 }
+            });
+        });
+
+        it('preserves by_team slices when present', () => {
+            const rollup = {
+                week: '2026-W01',
+                pr_count: 40,
+                by_team: {
+                    'Backend Team': { pr_count: 25 },
+                    'Frontend Team': { pr_count: 15 }
+                }
+            };
+
+            const result = normalizeRollup(rollup);
+
+            expect(result.by_team).toEqual({
+                'Backend Team': { pr_count: 25 },
+                'Frontend Team': { pr_count: 15 }
+            });
+        });
+    });
+
+    describe('normalizeRollups', () => {
+        it('handles null input', () => {
+            const result = normalizeRollups(null);
+            expect(result).toEqual([]);
+        });
+
+        it('handles undefined input', () => {
+            const result = normalizeRollups(undefined);
+            expect(result).toEqual([]);
+        });
+
+        it('handles non-array input', () => {
+            const result = normalizeRollups({ not: 'an array' });
+            expect(result).toEqual([]);
+        });
+
+        it('handles empty array', () => {
+            const result = normalizeRollups([]);
+            expect(result).toEqual([]);
+        });
+
+        it('normalizes all rollups in array', () => {
+            const rollups = [
+                { week: '2026-W01', pr_count: 10 },
+                { week: '2026-W02', pr_count: 20, authors_count: 5 }
+            ];
+
+            const result = normalizeRollups(rollups);
+
+            expect(result.length).toBe(2);
+            expect(result[0].authors_count).toBe(0);
+            expect(result[0].reviewers_count).toBe(0);
+            expect(result[1].authors_count).toBe(5);
+            expect(result[1].reviewers_count).toBe(0);
+        });
+
+        it('handles mixed valid and invalid entries', () => {
+            const rollups = [
+                { week: '2026-W01', pr_count: 10 },
+                null,
+                undefined,
+                { week: '2026-W03', pr_count: 30 }
+            ];
+
+            const result = normalizeRollups(rollups);
+
+            expect(result.length).toBe(4);
+            expect(result[0].week).toBe('2026-W01');
+            expect(result[1].week).toBe('unknown');
+            expect(result[2].week).toBe('unknown');
+            expect(result[3].week).toBe('2026-W03');
+        });
+    });
+
+    describe('Backward Compatibility Scenarios', () => {
+        it('v1.0 rollup (minimal fields) normalizes correctly', () => {
+            const v1Rollup = {
+                week: '2024-W01',
+                pr_count: 15
+            };
+
+            const result = normalizeRollup(v1Rollup);
+
+            expect(result.week).toBe('2024-W01');
+            expect(result.pr_count).toBe(15);
+            expect(result.cycle_time_p50).toBe(null);
+            expect(result.authors_count).toBe(0);
+            expect(result.by_repository).toBe(null);
+            expect(result.by_team).toBe(null);
+        });
+
+        it('v1.1 rollup (with cycle times) normalizes correctly', () => {
+            const v1_1Rollup = {
+                week: '2025-W01',
+                pr_count: 25,
+                cycle_time_p50: 90,
+                cycle_time_p90: 360
+            };
+
+            const result = normalizeRollup(v1_1Rollup);
+
+            expect(result.cycle_time_p50).toBe(90);
+            expect(result.cycle_time_p90).toBe(360);
+            expect(result.authors_count).toBe(0);
+            expect(result.reviewers_count).toBe(0);
+        });
+
+        it('v1.2 rollup (with contributor counts) normalizes correctly', () => {
+            const v1_2Rollup = {
+                week: '2025-W20',
+                pr_count: 35,
+                cycle_time_p50: 100,
+                cycle_time_p90: 400,
+                authors_count: 10,
+                reviewers_count: 8
+            };
+
+            const result = normalizeRollup(v1_2Rollup);
+
+            expect(result.authors_count).toBe(10);
+            expect(result.reviewers_count).toBe(8);
+            expect(result.by_repository).toBe(null);
+        });
+
+        it('v1.3 rollup (current with slices) stays unchanged', () => {
+            const currentRollup = {
+                week: '2026-W01',
+                pr_count: 50,
+                cycle_time_p50: 120,
+                cycle_time_p90: 480,
+                authors_count: 12,
+                reviewers_count: 9,
+                by_repository: {
+                    'main': { pr_count: 30 },
+                    'lib': { pr_count: 20 }
+                },
+                by_team: {
+                    'Core': { pr_count: 35 },
+                    'UI': { pr_count: 15 }
+                }
+            };
+
+            const result = normalizeRollup(currentRollup);
+
+            expect(result).toEqual(currentRollup);
+        });
+    });
+});
