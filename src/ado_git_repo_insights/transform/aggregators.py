@@ -451,23 +451,37 @@ class AggregateGenerator:
 
     def _generate_weekly_rollups(self) -> list[dict[str, Any]]:
         """Generate weekly rollup files, one per ISO week."""
-        # Query PRs with closed dates
+        # Query PRs with closed dates and repository info for dimension slicing
         df = pd.read_sql_query(
             """
             SELECT
-                closed_date,
-                cycle_time_minutes,
-                user_id,
-                pull_request_uid
-            FROM pull_requests
-            WHERE closed_date IS NOT NULL AND status = 'completed'
-            ORDER BY closed_date
+                pr.closed_date,
+                pr.cycle_time_minutes,
+                pr.user_id,
+                pr.pull_request_uid,
+                pr.repository_id,
+                r.repository_name
+            FROM pull_requests pr
+            LEFT JOIN repositories r ON pr.repository_id = r.repository_id
+            WHERE pr.closed_date IS NOT NULL AND pr.status = 'completed'
+            ORDER BY pr.closed_date
             """,
             self.db.connection,
         )
 
         if df.empty:
             return []
+
+        # Query reviewers data separately for counting unique reviewers per PR
+        reviewers_df = pd.read_sql_query(
+            """
+            SELECT
+                rv.pull_request_uid,
+                rv.user_id as reviewer_id
+            FROM reviewers rv
+            """,
+            self.db.connection,
+        )
 
         # Convert to datetime and extract ISO week
         df["closed_dt"] = pd.to_datetime(df["closed_date"])
@@ -486,6 +500,16 @@ class AggregateGenerator:
             start_date = date.fromisocalendar(year_int, week_int, 1)
             end_date = date.fromisocalendar(year_int, week_int, 7)
 
+            # Count unique reviewers for PRs in this week
+            week_pr_uids = set(group["pull_request_uid"].tolist())
+            week_reviewers = reviewers_df[
+                reviewers_df["pull_request_uid"].isin(week_pr_uids)
+            ]
+            reviewers_count = week_reviewers["reviewer_id"].nunique()
+
+            # Generate dimension slices for filtering support
+            by_repository = self._generate_repo_slice(group, week_reviewers)
+
             rollup = WeeklyRollup(
                 week=week_str,
                 start_date=start_date.isoformat(),
@@ -498,14 +522,19 @@ class AggregateGenerator:
                 if not group["cycle_time_minutes"].isna().all()
                 else None,
                 authors_count=group["user_id"].nunique(),
-                reviewers_count=0,  # TODO: Add reviewer counting
+                reviewers_count=reviewers_count,
             )
+
+            # Build rollup dict with dimension slices
+            rollup_dict = asdict(rollup)
+            if by_repository:
+                rollup_dict["by_repository"] = by_repository
 
             # Write file
             file_path = (
                 self.output_dir / "aggregates" / "weekly_rollups" / f"{week_str}.json"
             )
-            self._write_json(file_path, asdict(rollup))
+            self._write_json(file_path, rollup_dict)
 
             # Add to index
             index.append(
@@ -519,6 +548,43 @@ class AggregateGenerator:
             )
 
         return index
+
+    def _generate_repo_slice(
+        self, week_group: pd.DataFrame, week_reviewers: pd.DataFrame
+    ) -> dict[str, Any]:
+        """Generate per-repository metrics slice for a week.
+
+        Args:
+            week_group: DataFrame of PRs for the week
+            week_reviewers: DataFrame of reviewers for PRs in this week
+
+        Returns:
+            Dict mapping repository_name to metrics
+        """
+        by_repository: dict[str, Any] = {}
+
+        for repo_name, repo_group in week_group.groupby("repository_name"):
+            if pd.isna(repo_name):
+                continue
+
+            repo_pr_uids = set(repo_group["pull_request_uid"].tolist())
+            repo_reviewers = week_reviewers[
+                week_reviewers["pull_request_uid"].isin(repo_pr_uids)
+            ]
+
+            by_repository[str(repo_name)] = {
+                "pr_count": len(repo_group),
+                "cycle_time_p50": repo_group["cycle_time_minutes"].quantile(0.5)
+                if not repo_group["cycle_time_minutes"].isna().all()
+                else None,
+                "cycle_time_p90": repo_group["cycle_time_minutes"].quantile(0.9)
+                if not repo_group["cycle_time_minutes"].isna().all()
+                else None,
+                "authors_count": repo_group["user_id"].nunique(),
+                "reviewers_count": repo_reviewers["reviewer_id"].nunique(),
+            }
+
+        return by_repository
 
     def _generate_distributions(self) -> list[dict[str, Any]]:
         """Generate yearly distribution files."""

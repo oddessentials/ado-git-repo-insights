@@ -1856,6 +1856,225 @@ describe('Sprint 5: Comparison Mode & Export', () => {
     });
 });
 
+describe('Client-Side Filtering (applyFiltersToRollups)', () => {
+    /**
+     * Apply dimension filters to rollups (mirrors dashboard.js applyFiltersToRollups)
+     */
+    const createApplyFiltersToRollups = () => {
+        return function applyFiltersToRollups(rollups, filters) {
+            if (!filters.repos.length && !filters.teams.length) {
+                return rollups;
+            }
+
+            return rollups.map(rollup => {
+                if (filters.repos.length && rollup.by_repository) {
+                    const selectedRepos = filters.repos
+                        .map(repoId => {
+                            const repoData = rollup.by_repository[repoId];
+                            if (repoData) return repoData;
+                            return Object.entries(rollup.by_repository)
+                                .find(([name]) => name === repoId)?.[1];
+                        })
+                        .filter(Boolean);
+
+                    if (selectedRepos.length === 0) {
+                        return {
+                            ...rollup,
+                            pr_count: 0,
+                            cycle_time_p50: null,
+                            cycle_time_p90: null,
+                            authors_count: 0,
+                            reviewers_count: 0,
+                        };
+                    }
+
+                    const totalPrCount = selectedRepos.reduce((sum, r) => sum + (r.pr_count || 0), 0);
+                    const p50Values = selectedRepos.map(r => r.cycle_time_p50).filter(v => v != null);
+                    const avgP50 = p50Values.length > 0
+                        ? p50Values.reduce((a, b) => a + b, 0) / p50Values.length
+                        : null;
+                    const totalAuthors = selectedRepos.reduce((sum, r) => sum + (r.authors_count || 0), 0);
+                    const totalReviewers = selectedRepos.reduce((sum, r) => sum + (r.reviewers_count || 0), 0);
+
+                    return {
+                        ...rollup,
+                        pr_count: totalPrCount,
+                        cycle_time_p50: avgP50,
+                        authors_count: totalAuthors,
+                        reviewers_count: totalReviewers,
+                        _filtered: true,
+                    };
+                }
+
+                if (filters.teams.length && rollup.by_team) {
+                    const selectedTeams = filters.teams
+                        .map(teamId => rollup.by_team[teamId])
+                        .filter(Boolean);
+
+                    if (selectedTeams.length === 0) {
+                        return {
+                            ...rollup,
+                            pr_count: 0,
+                            cycle_time_p50: null,
+                            authors_count: 0,
+                            reviewers_count: 0,
+                        };
+                    }
+
+                    const totalPrCount = selectedTeams.reduce((sum, t) => sum + (t.pr_count || 0), 0);
+                    return {
+                        ...rollup,
+                        pr_count: totalPrCount,
+                        _filtered: true,
+                    };
+                }
+
+                return rollup;
+            });
+        };
+    };
+
+    const applyFiltersToRollups = createApplyFiltersToRollups();
+
+    it('returns original rollups when no filters are active', () => {
+        const rollups = [
+            { week: '2025-W01', pr_count: 10 },
+            { week: '2025-W02', pr_count: 15 }
+        ];
+        const filters = { repos: [], teams: [] };
+
+        const result = applyFiltersToRollups(rollups, filters);
+
+        expect(result).toEqual(rollups);
+    });
+
+    it('filters by repository using by_repository slices', () => {
+        const rollups = [{
+            week: '2025-W01',
+            pr_count: 30,
+            cycle_time_p50: 100,
+            authors_count: 10,
+            reviewers_count: 8,
+            by_repository: {
+                'main-repo': { pr_count: 20, cycle_time_p50: 80, authors_count: 6, reviewers_count: 5 },
+                'secondary-repo': { pr_count: 10, cycle_time_p50: 140, authors_count: 4, reviewers_count: 3 }
+            }
+        }];
+        const filters = { repos: ['main-repo'], teams: [] };
+
+        const result = applyFiltersToRollups(rollups, filters);
+
+        expect(result[0].pr_count).toBe(20);
+        expect(result[0].cycle_time_p50).toBe(80);
+        expect(result[0].authors_count).toBe(6);
+        expect(result[0].reviewers_count).toBe(5);
+        expect(result[0]._filtered).toBe(true);
+    });
+
+    it('aggregates metrics across multiple selected repos', () => {
+        const rollups = [{
+            week: '2025-W01',
+            pr_count: 50,
+            by_repository: {
+                'repo-a': { pr_count: 20, cycle_time_p50: 60, authors_count: 5, reviewers_count: 3 },
+                'repo-b': { pr_count: 15, cycle_time_p50: 90, authors_count: 4, reviewers_count: 2 },
+                'repo-c': { pr_count: 15, cycle_time_p50: 120, authors_count: 3, reviewers_count: 2 }
+            }
+        }];
+        const filters = { repos: ['repo-a', 'repo-b'], teams: [] };
+
+        const result = applyFiltersToRollups(rollups, filters);
+
+        expect(result[0].pr_count).toBe(35); // 20 + 15
+        expect(result[0].cycle_time_p50).toBe(75); // (60 + 90) / 2
+        expect(result[0].authors_count).toBe(9); // 5 + 4
+        expect(result[0].reviewers_count).toBe(5); // 3 + 2
+    });
+
+    it('returns zeroed metrics when selected repos not found', () => {
+        const rollups = [{
+            week: '2025-W01',
+            pr_count: 30,
+            by_repository: {
+                'repo-a': { pr_count: 30 }
+            }
+        }];
+        const filters = { repos: ['non-existent-repo'], teams: [] };
+
+        const result = applyFiltersToRollups(rollups, filters);
+
+        expect(result[0].pr_count).toBe(0);
+        expect(result[0].cycle_time_p50).toBe(null);
+        expect(result[0].authors_count).toBe(0);
+        expect(result[0].reviewers_count).toBe(0);
+    });
+
+    it('returns original rollup when no slices available for filter', () => {
+        const rollups = [{
+            week: '2025-W01',
+            pr_count: 30
+            // No by_repository field
+        }];
+        const filters = { repos: ['some-repo'], teams: [] };
+
+        const result = applyFiltersToRollups(rollups, filters);
+
+        expect(result[0]).toEqual(rollups[0]);
+    });
+
+    it('filters by team using by_team slices', () => {
+        const rollups = [{
+            week: '2025-W01',
+            pr_count: 40,
+            by_team: {
+                'Backend Team': { pr_count: 25, cycle_time_p50: 100 },
+                'Frontend Team': { pr_count: 15, cycle_time_p50: 80 }
+            }
+        }];
+        const filters = { repos: [], teams: ['Backend Team'] };
+
+        const result = applyFiltersToRollups(rollups, filters);
+
+        expect(result[0].pr_count).toBe(25);
+        expect(result[0]._filtered).toBe(true);
+    });
+
+    it('handles null cycle time values in aggregation', () => {
+        const rollups = [{
+            week: '2025-W01',
+            pr_count: 30,
+            by_repository: {
+                'repo-a': { pr_count: 15, cycle_time_p50: 60 },
+                'repo-b': { pr_count: 15, cycle_time_p50: null }
+            }
+        }];
+        const filters = { repos: ['repo-a', 'repo-b'], teams: [] };
+
+        const result = applyFiltersToRollups(rollups, filters);
+
+        expect(result[0].cycle_time_p50).toBe(60); // Only non-null value
+    });
+
+    it('preserves other rollup fields when filtering', () => {
+        const rollups = [{
+            week: '2025-W01',
+            start_date: '2025-01-01',
+            end_date: '2025-01-07',
+            pr_count: 30,
+            by_repository: {
+                'main-repo': { pr_count: 30, cycle_time_p50: 100 }
+            }
+        }];
+        const filters = { repos: ['main-repo'], teams: [] };
+
+        const result = applyFiltersToRollups(rollups, filters);
+
+        expect(result[0].week).toBe('2025-W01');
+        expect(result[0].start_date).toBe('2025-01-01');
+        expect(result[0].end_date).toBe('2025-01-07');
+    });
+});
+
 describe('Sprint 2: Filter Management', () => {
     /**
      * Create filter chip HTML (mirrors dashboard.js createFilterChip)

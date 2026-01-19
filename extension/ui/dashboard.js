@@ -804,13 +804,121 @@ function getPreviousPeriod(start, end) {
 }
 
 /**
+ * Apply dimension filters to rollups data.
+ * Uses by_repository slices when available for accurate filtering.
+ *
+ * @param {Array} rollups - Raw weekly rollup data
+ * @param {Object} filters - Current filter state { repos: [], teams: [] }
+ * @returns {Array} - Filtered rollups with aggregated metrics
+ */
+function applyFiltersToRollups(rollups, filters) {
+    // No filters active - return original data
+    if (!filters.repos.length && !filters.teams.length) {
+        return rollups;
+    }
+
+    return rollups.map(rollup => {
+        // If we have by_repository slices and repo filter is active, use them
+        if (filters.repos.length && rollup.by_repository) {
+            const selectedRepos = filters.repos
+                .map(repoId => {
+                    // Try to find by ID or name
+                    const repoData = rollup.by_repository[repoId];
+                    if (repoData) return repoData;
+
+                    // Also check if repoId matches a name in the slices
+                    return Object.entries(rollup.by_repository)
+                        .find(([name]) => name === repoId)?.[1];
+                })
+                .filter(Boolean);
+
+            if (selectedRepos.length === 0) {
+                // No matching repos - return zeroed rollup
+                return {
+                    ...rollup,
+                    pr_count: 0,
+                    cycle_time_p50: null,
+                    cycle_time_p90: null,
+                    authors_count: 0,
+                    reviewers_count: 0,
+                };
+            }
+
+            // Aggregate metrics from selected repos
+            const totalPrCount = selectedRepos.reduce((sum, r) => sum + (r.pr_count || 0), 0);
+
+            // For cycle times, we need to compute weighted average or use available values
+            const p50Values = selectedRepos.map(r => r.cycle_time_p50).filter(v => v != null);
+            const p90Values = selectedRepos.map(r => r.cycle_time_p90).filter(v => v != null);
+
+            // Use simple average for now (accurate would require raw data)
+            const avgP50 = p50Values.length > 0
+                ? p50Values.reduce((a, b) => a + b, 0) / p50Values.length
+                : null;
+            const avgP90 = p90Values.length > 0
+                ? p90Values.reduce((a, b) => a + b, 0) / p90Values.length
+                : null;
+
+            // Sum authors and reviewers (may have overlap across repos)
+            const totalAuthors = selectedRepos.reduce((sum, r) => sum + (r.authors_count || 0), 0);
+            const totalReviewers = selectedRepos.reduce((sum, r) => sum + (r.reviewers_count || 0), 0);
+
+            return {
+                ...rollup,
+                pr_count: totalPrCount,
+                cycle_time_p50: avgP50,
+                cycle_time_p90: avgP90,
+                authors_count: totalAuthors,
+                reviewers_count: totalReviewers,
+                _filtered: true, // Mark as filtered for debugging
+            };
+        }
+
+        // If we have by_team slices and team filter is active, use them
+        if (filters.teams.length && rollup.by_team) {
+            const selectedTeams = filters.teams
+                .map(teamId => rollup.by_team[teamId])
+                .filter(Boolean);
+
+            if (selectedTeams.length === 0) {
+                return {
+                    ...rollup,
+                    pr_count: 0,
+                    cycle_time_p50: null,
+                    cycle_time_p90: null,
+                    authors_count: 0,
+                    reviewers_count: 0,
+                };
+            }
+
+            const totalPrCount = selectedTeams.reduce((sum, t) => sum + (t.pr_count || 0), 0);
+            const p50Values = selectedTeams.map(t => t.cycle_time_p50).filter(v => v != null);
+            const avgP50 = p50Values.length > 0
+                ? p50Values.reduce((a, b) => a + b, 0) / p50Values.length
+                : null;
+
+            return {
+                ...rollup,
+                pr_count: totalPrCount,
+                cycle_time_p50: avgP50,
+                _filtered: true,
+            };
+        }
+
+        // No slices available for the active filter - return original
+        // This maintains backward compatibility with older datasets
+        return rollup;
+    });
+}
+
+/**
  * Refresh metrics for current date range.
  */
 async function refreshMetrics() {
     if (!currentDateRange.start || !currentDateRange.end) return;
 
     // Load current period data
-    const rollups = await loader.getWeeklyRollups(
+    const rawRollups = await loader.getWeeklyRollups(
         currentDateRange.start,
         currentDateRange.end
     );
@@ -820,17 +928,21 @@ async function refreshMetrics() {
         currentDateRange.end
     );
 
+    // Apply dimension filters to rollups
+    const rollups = applyFiltersToRollups(rawRollups, currentFilters);
+
     // Load previous period data for comparison
     const prevPeriod = getPreviousPeriod(currentDateRange.start, currentDateRange.end);
     let prevRollups = [];
     try {
-        prevRollups = await loader.getWeeklyRollups(prevPeriod.start, prevPeriod.end);
+        const rawPrevRollups = await loader.getWeeklyRollups(prevPeriod.start, prevPeriod.end);
+        prevRollups = applyFiltersToRollups(rawPrevRollups, currentFilters);
     } catch (e) {
         // Previous period data may not exist, continue without it
         console.debug('Previous period data not available:', e);
     }
 
-    // Cache rollups for export
+    // Cache filtered rollups for export
     cachedRollups = rollups;
 
     renderSummaryCards(rollups, prevRollups);
