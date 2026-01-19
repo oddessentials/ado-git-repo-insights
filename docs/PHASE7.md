@@ -90,20 +90,34 @@ The `ui-bundle-sync` job in `.github/workflows/ci.yml` automatically verifies sy
 
 ### 7.3 Filter URL Persistence Tests
 
-**Status:** Implemented but untested
+**Status:** ✅ COMPLETE
 **Priority:** Low
 **Complexity:** Low
 
-**Problem:**
-URL query param persistence (`?repos=repo1,repo2&teams=team1`) exists in code but lacks integration tests.
+**Implementation:**
 
-**Required Tests** (`extension/tests/dashboard.test.js`):
-- Verify URL updates when filters change
-- Verify filters restore from URL on page load
-- Verify invalid filter values handled gracefully
+Added comprehensive test coverage in `extension/tests/dashboard.test.js`:
+
+1. **Edge case tests in `restoreFiltersFromUrl`**:
+   - `handles invalid filter values gracefully` - repos not in dimensions
+   - `ignores unknown URL query keys` - e.g., `?foo=bar&repos=r1`
+   - `handles malformed URL params gracefully` - empty values, trailing commas
+
+2. **New `URL State Round-Trip` describe block**:
+   - `round-trip preserves filter state` - serialize → parse → verify identical
+   - `stable ordering in serialization` - same repos in different order → same URL
+   - `round-trip with date range` - verifies date serialization
+   - `empty state produces empty URL` - no params when nothing selected
+
+**Determinism Note:**
+Serialization now sorts repos/teams alphabetically to ensure stable URLs.
+This prevents snapshot churn and makes URL comparisons reliable.
 
 **Definition of Done:**
-- [ ] Integration tests verify filter ↔ URL sync
+- [x] Integration tests verify filter ↔ URL sync
+- [x] Invalid filter values handled gracefully
+- [x] Unknown URL keys ignored
+- [x] Stable ordering ensures deterministic URLs
 
 ---
 
