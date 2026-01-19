@@ -28,3 +28,11 @@ if git diff --cached --name-only | grep -q '\.py$'; then
 else
     echo "[pre-commit] No Python files staged, skipping Python checks"
 fi
+
+UI_CHANGED=$(git diff --cached --name-only | grep -E '^extension/ui/|^src/ado_git_repo_insights/ui_bundle/' || true)
+if [ -n "$UI_CHANGED" ]; then
+    echo "[pre-commit] UI files staged, synchronizing ui_bundle..."
+    python scripts/sync_ui_bundle.py
+    git add src/ado_git_repo_insights/ui_bundle
+    echo "[pre-commit] ✅ UI bundle synchronized"
+fi
