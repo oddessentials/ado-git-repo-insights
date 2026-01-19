@@ -47,40 +47,44 @@ The `ui-bundle-sync` job in `.github/workflows/ci.yml` automatically verifies sy
 
 ### 7.2 Team-Based Filtering (`by_team` Slices)
 
-**Status:** Not implemented
+**Status:** ✅ COMPLETE
 **Priority:** Medium
 **Complexity:** Medium
 
-**Problem:**
-The team filter dropdown exists in the UI and is populated from `dimensions.json`, but the backend doesn't generate `by_team` slices in weekly rollups. Selecting a team has no effect on displayed metrics.
+**Implementation:**
 
-**Required Changes:**
+1. **Backend** (`src/ado_git_repo_insights/transform/aggregators.py`):
+   - Added `_generate_team_slice()` method at lines 589-655
+   - Queries `team_members` table to join PR authors to teams
+   - Groups by team and computes metrics (pr_count, cycle_time_p50/p90, authors_count, reviewers_count)
 
-1. **Aggregators** (`src/ado_git_repo_insights/transform/aggregators.py`):
-   - Add `_generate_team_slice()` method
-   - Join PR authors to `team_members` table
-   - Group by team and compute metrics
-
-2. **Weekly Rollup Schema** — add `by_team` field:
+2. **Weekly Rollup Schema** — now includes `by_team` field:
 ```json
 {
   "week": "2026-W02",
   "by_team": {
-    "Backend Team": { "pr_count": 18, "cycle_time_p50": 180.0 },
-    "Frontend Team": { "pr_count": 12, "cycle_time_p50": 240.0 }
+    "Backend Team": { "pr_count": 18, "cycle_time_p50": 180.0, ... },
+    "Frontend Team": { "pr_count": 12, "cycle_time_p50": 240.0, ... }
   }
 }
 ```
 
 3. **Client-side filtering** (`extension/ui/dashboard.js`):
-   - Modify `applyFiltersToRollups()` to handle team filtering
+   - Already implemented at lines 912-914: `applyFiltersToRollups()` handles `by_team`
 
-**Dependencies:**
-- `team_members` table must be populated during extraction
+**Multi-Team Membership Behavior:**
+- Authors in multiple teams have their PRs counted in ALL team slices (intentional)
+- "Show me PRs for team X" = any PR authored by someone who is a member of team X
+- Global totals are computed from base rollup, NOT summed team slices (avoids double-counting)
+
+**Test Coverage** (`tests/unit/test_aggregators.py`):
+- `TestTeamAggregation` class with 8 comprehensive tests
+- Tests single-membership, multi-membership, no-team authors, empty teams
 
 **Definition of Done:**
-- [ ] Team filter changes affect displayed metrics
-- [ ] Multiple team selection aggregates correctly
+- [x] Team filter changes affect displayed metrics
+- [x] Multiple team selection aggregates correctly
+- [x] Multi-team membership documented and tested
 
 ---
 

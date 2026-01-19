@@ -483,6 +483,21 @@ class AggregateGenerator:
             self.db.connection,
         )
 
+        # Query team_members for team-based slicing (defensive for legacy DBs)
+        try:
+            team_members_df = pd.read_sql_query(
+                """
+                SELECT tm.user_id, t.team_name
+                FROM team_members tm
+                INNER JOIN teams t ON tm.team_id = t.team_id
+                """,
+                self.db.connection,
+            )
+        except Exception as e:
+            # Legacy DBs may not have team_members table
+            logger.debug(f"Team members table not available (legacy DB?): {e}")
+            team_members_df = pd.DataFrame()
+
         # Convert to datetime and extract ISO week
         df["closed_dt"] = pd.to_datetime(df["closed_date"])
         df["iso_year"] = df["closed_dt"].dt.isocalendar().year
@@ -509,6 +524,7 @@ class AggregateGenerator:
 
             # Generate dimension slices for filtering support
             by_repository = self._generate_repo_slice(group, week_reviewers)
+            by_team = self._generate_team_slice(group, week_reviewers, team_members_df)
 
             rollup = WeeklyRollup(
                 week=week_str,
@@ -529,6 +545,8 @@ class AggregateGenerator:
             rollup_dict = asdict(rollup)
             if by_repository:
                 rollup_dict["by_repository"] = by_repository
+            if by_team:
+                rollup_dict["by_team"] = by_team
 
             # Write file
             file_path = (
@@ -585,6 +603,74 @@ class AggregateGenerator:
             }
 
         return by_repository
+
+    def _generate_team_slice(
+        self,
+        week_group: pd.DataFrame,
+        week_reviewers: pd.DataFrame,
+        team_members_df: pd.DataFrame,
+    ) -> dict[str, Any]:
+        """Generate per-team metrics slice for a week.
+
+        Authors in multiple teams will have their PRs counted in each team's slice.
+        This is intentional: "show me PRs for team X" means any PR authored by
+        someone who is a member of team X, even if they're also on team Y.
+
+        Global totals should be computed from the base rollup, not by summing
+        team slices, to avoid double-counting.
+
+        Args:
+            week_group: DataFrame of PRs for the week (must have user_id column)
+            week_reviewers: DataFrame of reviewers for PRs in this week
+            team_members_df: DataFrame with team_name and user_id columns
+
+        Returns:
+            Dict mapping team_name to metrics, empty if no team data
+        """
+        if team_members_df.empty:
+            return {}
+
+        by_team: dict[str, Any] = {}
+
+        # Get unique team names
+        team_names = team_members_df["team_name"].unique()
+
+        for team_name in team_names:
+            if pd.isna(team_name):
+                continue
+
+            # Get team members
+            team_member_ids = set(
+                team_members_df[team_members_df["team_name"] == team_name][
+                    "user_id"
+                ].tolist()
+            )
+
+            # Filter PRs to those authored by team members
+            team_prs = week_group[week_group["user_id"].isin(team_member_ids)]
+
+            if team_prs.empty:
+                continue
+
+            # Get reviewers for team PRs
+            team_pr_uids = set(team_prs["pull_request_uid"].tolist())
+            team_reviewers = week_reviewers[
+                week_reviewers["pull_request_uid"].isin(team_pr_uids)
+            ]
+
+            by_team[str(team_name)] = {
+                "pr_count": len(team_prs),
+                "cycle_time_p50": team_prs["cycle_time_minutes"].quantile(0.5)
+                if not team_prs["cycle_time_minutes"].isna().all()
+                else None,
+                "cycle_time_p90": team_prs["cycle_time_minutes"].quantile(0.9)
+                if not team_prs["cycle_time_minutes"].isna().all()
+                else None,
+                "authors_count": team_prs["user_id"].nunique(),
+                "reviewers_count": team_reviewers["reviewer_id"].nunique(),
+            }
+
+        return by_team
 
     def _generate_distributions(self) -> list[dict[str, Any]]:
         """Generate yearly distribution files."""
