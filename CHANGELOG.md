@@ -1,3 +1,17 @@
+# [3.6.0](https://github.com/oddessentials/ado-git-repo-insights/compare/v3.5.1...v3.6.0) (2026-01-19)
+
+
+### Bug Fixes
+
+* **ci:** add two-phase test validation for robust diagnostics ([ea1585a](https://github.com/oddessentials/ado-git-repo-insights/commit/ea1585ae173b8aa68640e6bc70036cf128e50b36))
+* **tests:** add last_updated column to teams test fixtures ([f376e6f](https://github.com/oddessentials/ado-git-repo-insights/commit/f376e6f63fa2952f49bb45e6adacf0c483ebb792))
+
+
+### Features
+
+* **aggregators:** implement by_team dimension slices (Phase 7.2) ([02c0728](https://github.com/oddessentials/ado-git-repo-insights/commit/02c07284a50c150c99fb5591a03da25771c484fd))
+* **ci:** add UI bundle sync verification (Phase 7.1) ([0309a5b](https://github.com/oddessentials/ado-git-repo-insights/commit/0309a5b9ac36435f4679892555e04d544b8a3fd2))
+
 ## [3.5.1](https://github.com/oddessentials/ado-git-repo-insights/compare/v3.5.0...v3.5.1) (2026-01-19)
 
 
