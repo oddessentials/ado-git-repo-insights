@@ -1,3 +1,10 @@
+# [3.4.0](https://github.com/oddessentials/ado-git-repo-insights/compare/v3.3.0...v3.4.0) (2026-01-19)
+
+
+### Features
+
+* **dashboard:** fix reviewer count bug and implement client-side filtering ([4f0526e](https://github.com/oddessentials/ado-git-repo-insights/commit/4f0526e62ae6ea18372ff7a0adb58fb9cd6b8fd5))
+
 # [3.3.0](https://github.com/oddessentials/ado-git-repo-insights/compare/v3.2.0...v3.3.0) (2026-01-18)
 
 
