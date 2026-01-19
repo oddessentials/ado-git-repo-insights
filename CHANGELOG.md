@@ -1,3 +1,10 @@
+# [3.7.0](https://github.com/oddessentials/ado-git-repo-insights/compare/v3.6.0...v3.7.0) (2026-01-19)
+
+
+### Features
+
+* **phase7:** complete local mode improvements and version adapter ([402db57](https://github.com/oddessentials/ado-git-repo-insights/commit/402db57e81cf053fdeda5fc5ece2e2cf4460669b))
+
 # [3.6.0](https://github.com/oddessentials/ado-git-repo-insights/compare/v3.5.1...v3.6.0) (2026-01-19)
 
 
