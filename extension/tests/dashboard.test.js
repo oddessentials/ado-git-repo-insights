@@ -2251,6 +2251,205 @@ describe('Sprint 2: Filter Management', () => {
             expect(currentFilters.repos).toEqual([]);
             expect(currentFilters.teams).toEqual([]);
         });
+
+        it('handles invalid filter values gracefully (repos not in dimensions)', () => {
+            // URL contains 'nonexistent' repo which is not in the dropdown
+            const params = new URLSearchParams('repos=backend,nonexistent,frontend');
+            const reposParam = params.get('repos');
+            let currentFilters = { repos: [], teams: [] };
+            let validFilters = { repos: [], teams: [] };
+
+            if (reposParam) {
+                currentFilters.repos = reposParam.split(',').filter(v => v);
+                const repoFilter = document.getElementById('repo-filter');
+
+                // Only select options that actually exist in the dropdown
+                currentFilters.repos.forEach(value => {
+                    const option = repoFilter.querySelector(`option[value="${value}"]`);
+                    if (option) {
+                        option.selected = true;
+                        validFilters.repos.push(value);
+                    }
+                });
+            }
+
+            // currentFilters contains all parsed values (including invalid)
+            expect(currentFilters.repos).toEqual(['backend', 'nonexistent', 'frontend']);
+            // validFilters contains only values that exist in the dropdown
+            expect(validFilters.repos).toEqual(['backend', 'frontend']);
+        });
+
+        it('ignores unknown URL query keys', () => {
+            // URL contains unknown keys that should be ignored
+            const params = new URLSearchParams('foo=bar&repos=backend&baz=qux&teams=platform');
+            let currentFilters = { repos: [], teams: [] };
+
+            const reposParam = params.get('repos');
+            const teamsParam = params.get('teams');
+
+            if (reposParam) {
+                currentFilters.repos = reposParam.split(',').filter(v => v);
+            }
+            if (teamsParam) {
+                currentFilters.teams = teamsParam.split(',').filter(v => v);
+            }
+
+            // Unknown keys (foo, baz) are simply not read - no errors
+            expect(currentFilters.repos).toEqual(['backend']);
+            expect(currentFilters.teams).toEqual(['platform']);
+            // Verify unknown keys don't pollute the filter state
+            expect(currentFilters).not.toHaveProperty('foo');
+            expect(currentFilters).not.toHaveProperty('baz');
+        });
+
+        it('handles malformed URL params gracefully', () => {
+            // Empty values, trailing commas, multiple commas
+            const params = new URLSearchParams('repos=,,backend,,&teams=');
+            let currentFilters = { repos: [], teams: [] };
+
+            const reposParam = params.get('repos');
+            const teamsParam = params.get('teams');
+
+            if (reposParam) {
+                currentFilters.repos = reposParam.split(',').filter(v => v);
+            }
+            if (teamsParam) {
+                currentFilters.teams = teamsParam.split(',').filter(v => v);
+            }
+
+            // Empty strings are filtered out
+            expect(currentFilters.repos).toEqual(['backend']);
+            expect(currentFilters.teams).toEqual([]);
+        });
+    });
+
+    describe('URL State Round-Trip', () => {
+        /**
+         * Test that serialization and deserialization are inverse operations.
+         * This ensures URL state can be restored exactly after page reload.
+         */
+        const createUpdateUrlState = () => {
+            return function updateUrlState(state) {
+                const params = new URLSearchParams();
+
+                if (state.start) {
+                    params.set('start', state.start.toISOString().split('T')[0]);
+                }
+                if (state.end) {
+                    params.set('end', state.end.toISOString().split('T')[0]);
+                }
+                if (state.repos && state.repos.length > 0) {
+                    // Sort for deterministic ordering
+                    params.set('repos', [...state.repos].sort().join(','));
+                }
+                if (state.teams && state.teams.length > 0) {
+                    // Sort for deterministic ordering
+                    params.set('teams', [...state.teams].sort().join(','));
+                }
+                if (state.compare) {
+                    params.set('compare', '1');
+                }
+
+                return params.toString();
+            };
+        };
+
+        const parseUrlState = (queryString) => {
+            const params = new URLSearchParams(queryString);
+            const state = {};
+
+            const startParam = params.get('start');
+            const endParam = params.get('end');
+            const reposParam = params.get('repos');
+            const teamsParam = params.get('teams');
+            const compareParam = params.get('compare');
+
+            if (startParam) {
+                state.start = new Date(startParam);
+            }
+            if (endParam) {
+                state.end = new Date(endParam);
+            }
+            if (reposParam) {
+                state.repos = reposParam.split(',').filter(v => v).sort();
+            }
+            if (teamsParam) {
+                state.teams = teamsParam.split(',').filter(v => v).sort();
+            }
+            if (compareParam === '1') {
+                state.compare = true;
+            }
+
+            return state;
+        };
+
+        it('round-trip preserves filter state', () => {
+            const updateUrlState = createUpdateUrlState();
+            const originalState = {
+                repos: ['frontend', 'backend', 'api'],
+                teams: ['platform', 'mobile'],
+                compare: true
+            };
+
+            // Serialize to URL
+            const urlParams = updateUrlState(originalState);
+
+            // Deserialize back to state
+            const restoredState = parseUrlState(urlParams);
+
+            // Verify repos and teams match (sorted for comparison)
+            expect(restoredState.repos).toEqual([...originalState.repos].sort());
+            expect(restoredState.teams).toEqual([...originalState.teams].sort());
+            expect(restoredState.compare).toBe(originalState.compare);
+        });
+
+        it('stable ordering in serialization', () => {
+            const updateUrlState = createUpdateUrlState();
+
+            // Same repos in different orders should produce identical URL
+            const state1 = { repos: ['backend', 'frontend', 'api'] };
+            const state2 = { repos: ['api', 'backend', 'frontend'] };
+            const state3 = { repos: ['frontend', 'api', 'backend'] };
+
+            const url1 = updateUrlState(state1);
+            const url2 = updateUrlState(state2);
+            const url3 = updateUrlState(state3);
+
+            // All should produce the same deterministic output
+            expect(url1).toBe(url2);
+            expect(url2).toBe(url3);
+            // Verify it's sorted alphabetically
+            expect(url1).toContain('repos=api%2Cbackend%2Cfrontend');
+        });
+
+        it('round-trip with date range', () => {
+            const updateUrlState = createUpdateUrlState();
+            const originalState = {
+                start: new Date('2025-01-15'),
+                end: new Date('2025-03-20'),
+                repos: ['backend']
+            };
+
+            const urlParams = updateUrlState(originalState);
+            const restoredState = parseUrlState(urlParams);
+
+            expect(restoredState.start.toISOString().split('T')[0]).toBe('2025-01-15');
+            expect(restoredState.end.toISOString().split('T')[0]).toBe('2025-03-20');
+            expect(restoredState.repos).toEqual(['backend']);
+        });
+
+        it('empty state produces empty URL', () => {
+            const updateUrlState = createUpdateUrlState();
+            const emptyState = {
+                repos: [],
+                teams: [],
+                compare: false
+            };
+
+            const urlParams = updateUrlState(emptyState);
+
+            expect(urlParams).toBe('');
+        });
     });
 
     describe('populateFilterDropdowns', () => {

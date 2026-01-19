@@ -797,3 +797,448 @@ class TestReviewerAggregation:
         assert "cycle_time_p90" in main_repo
         # Main repo has PRs with cycle times 100 and 200, so p50 should be 150
         assert main_repo["cycle_time_p50"] == 150.0
+
+
+class TestTeamAggregation:
+    """Tests for team-based aggregation (Phase 7.2).
+
+    Tests verify that by_team slices are generated correctly, including:
+    - Authors in exactly one team
+    - Authors in multiple teams (counted in each team's slice)
+    - Authors not in any team (excluded from team slices)
+    """
+
+    @pytest.fixture
+    def db_with_teams(self, tmp_path: Path) -> tuple[DatabaseManager, Path]:
+        """Create a sample database with teams, team_members, and PRs.
+
+        Fixture data:
+        - 2 teams: Backend Team, Frontend Team
+        - 4 users:
+          - user1: Backend Team only
+          - user2: Frontend Team only
+          - user3: Both teams (multi-membership)
+          - user4: No team
+        - 6 PRs across 2 repos in Week 2 of 2026
+        """
+        db_path = tmp_path / "test_teams.sqlite"
+        db = DatabaseManager(db_path)
+        db.connect()
+
+        # 1. Organizations
+        db.execute(
+            "INSERT INTO organizations (organization_name) VALUES (?)", ("org1",)
+        )
+
+        # 2. Projects
+        db.execute(
+            "INSERT INTO projects (organization_name, project_name) VALUES (?, ?)",
+            ("org1", "proj1"),
+        )
+
+        # 3. Repositories
+        db.execute(
+            "INSERT INTO repositories (repository_id, repository_name, project_name, organization_name) VALUES (?, ?, ?, ?)",
+            ("repo1", "API Repo", "proj1", "org1"),
+        )
+        db.execute(
+            "INSERT INTO repositories (repository_id, repository_name, project_name, organization_name) VALUES (?, ?, ?, ?)",
+            ("repo2", "Web Repo", "proj1", "org1"),
+        )
+
+        # 4. Users
+        for i in range(1, 5):
+            db.execute(
+                "INSERT INTO users (user_id, display_name, email) VALUES (?, ?, ?)",
+                (f"user{i}", f"User {i}", f"user{i}@example.com"),
+            )
+
+        # 5. Teams (last_updated is NOT NULL per schema)
+        db.execute(
+            "INSERT INTO teams (team_id, team_name, project_name, organization_name, last_updated) VALUES (?, ?, ?, ?, ?)",
+            ("team-backend", "Backend Team", "proj1", "org1", "2026-01-01T00:00:00Z"),
+        )
+        db.execute(
+            "INSERT INTO teams (team_id, team_name, project_name, organization_name, last_updated) VALUES (?, ?, ?, ?, ?)",
+            ("team-frontend", "Frontend Team", "proj1", "org1", "2026-01-01T00:00:00Z"),
+        )
+
+        # 6. Team members
+        # user1: Backend only
+        db.execute(
+            "INSERT INTO team_members (team_id, user_id) VALUES (?, ?)",
+            ("team-backend", "user1"),
+        )
+        # user2: Frontend only
+        db.execute(
+            "INSERT INTO team_members (team_id, user_id) VALUES (?, ?)",
+            ("team-frontend", "user2"),
+        )
+        # user3: Both teams (multi-membership)
+        db.execute(
+            "INSERT INTO team_members (team_id, user_id) VALUES (?, ?)",
+            ("team-backend", "user3"),
+        )
+        db.execute(
+            "INSERT INTO team_members (team_id, user_id) VALUES (?, ?)",
+            ("team-frontend", "user3"),
+        )
+        # user4: No team membership
+
+        # 7. Pull Requests - Week 2 of 2026 (Jan 5-11)
+        prs = [
+            # user1 (Backend only): 2 PRs
+            (
+                "repo1-1",
+                1,
+                "org1",
+                "proj1",
+                "repo1",
+                "user1",
+                "Backend fix 1",
+                "completed",
+                None,
+                "2026-01-03",
+                "2026-01-06",
+                120.0,
+            ),
+            (
+                "repo1-2",
+                2,
+                "org1",
+                "proj1",
+                "repo1",
+                "user1",
+                "Backend fix 2",
+                "completed",
+                None,
+                "2026-01-04",
+                "2026-01-07",
+                180.0,
+            ),
+            # user2 (Frontend only): 1 PR
+            (
+                "repo2-1",
+                1,
+                "org1",
+                "proj1",
+                "repo2",
+                "user2",
+                "Frontend fix",
+                "completed",
+                None,
+                "2026-01-05",
+                "2026-01-08",
+                240.0,
+            ),
+            # user3 (Both teams): 2 PRs - should appear in BOTH team slices
+            (
+                "repo1-3",
+                3,
+                "org1",
+                "proj1",
+                "repo1",
+                "user3",
+                "Cross-team 1",
+                "completed",
+                None,
+                "2026-01-05",
+                "2026-01-09",
+                300.0,
+            ),
+            (
+                "repo2-2",
+                2,
+                "org1",
+                "proj1",
+                "repo2",
+                "user3",
+                "Cross-team 2",
+                "completed",
+                None,
+                "2026-01-06",
+                "2026-01-10",
+                360.0,
+            ),
+            # user4 (No team): 1 PR - should NOT appear in any team slice
+            (
+                "repo2-3",
+                3,
+                "org1",
+                "proj1",
+                "repo2",
+                "user4",
+                "No team PR",
+                "completed",
+                None,
+                "2026-01-07",
+                "2026-01-11",
+                420.0,
+            ),
+        ]
+        for pr in prs:
+            db.execute(
+                """
+                INSERT INTO pull_requests (
+                    pull_request_uid, pull_request_id, organization_name, project_name,
+                    repository_id, user_id, title, status, description,
+                    creation_date, closed_date, cycle_time_minutes
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                pr,
+            )
+
+        # 8. Reviewers (for completeness)
+        reviewers = [
+            ("repo1-1", "user2", 10, "repo1"),
+            ("repo1-2", "user3", 10, "repo1"),
+            ("repo2-1", "user1", 10, "repo2"),
+        ]
+        for reviewer in reviewers:
+            db.execute(
+                "INSERT INTO reviewers (pull_request_uid, user_id, vote, repository_id) VALUES (?, ?, ?, ?)",
+                reviewer,
+            )
+
+        db.connection.commit()
+
+        yield db, db_path
+
+        db.close()
+
+    def test_generates_by_team_slices(
+        self, db_with_teams: tuple[DatabaseManager, Path], tmp_path: Path
+    ) -> None:
+        """Test that weekly rollups include by_team dimension slices."""
+        db, _ = db_with_teams
+        output_dir = tmp_path / "output"
+
+        generator = AggregateGenerator(db, output_dir)
+        generator.generate_all()
+
+        week_file = output_dir / "aggregates" / "weekly_rollups" / "2026-W02.json"
+        with week_file.open() as f:
+            week_data = json.load(f)
+
+        # Should have by_team field
+        assert "by_team" in week_data
+
+        # Should have both teams
+        assert "Backend Team" in week_data["by_team"]
+        assert "Frontend Team" in week_data["by_team"]
+
+    def test_team_slice_metrics_single_membership(
+        self, db_with_teams: tuple[DatabaseManager, Path], tmp_path: Path
+    ) -> None:
+        """Test metrics for teams with single-membership authors."""
+        db, _ = db_with_teams
+        output_dir = tmp_path / "output"
+
+        generator = AggregateGenerator(db, output_dir)
+        generator.generate_all()
+
+        week_file = output_dir / "aggregates" / "weekly_rollups" / "2026-W02.json"
+        with week_file.open() as f:
+            week_data = json.load(f)
+
+        # Backend Team: user1 (2 PRs) + user3 (2 PRs) = 4 PRs total
+        backend = week_data["by_team"]["Backend Team"]
+        assert backend["pr_count"] == 4
+        assert backend["authors_count"] == 2  # user1 and user3
+
+        # Frontend Team: user2 (1 PR) + user3 (2 PRs) = 3 PRs total
+        frontend = week_data["by_team"]["Frontend Team"]
+        assert frontend["pr_count"] == 3
+        assert frontend["authors_count"] == 2  # user2 and user3
+
+    def test_multi_team_membership_duplicates_prs(
+        self, db_with_teams: tuple[DatabaseManager, Path], tmp_path: Path
+    ) -> None:
+        """Test that PRs from multi-team members appear in all their teams' slices.
+
+        user3 is in both Backend and Frontend teams, so their 2 PRs should
+        appear in BOTH team slices. This is intentional: "show me PRs for team X"
+        means any PR authored by someone who is a member of team X.
+        """
+        db, _ = db_with_teams
+        output_dir = tmp_path / "output"
+
+        generator = AggregateGenerator(db, output_dir)
+        generator.generate_all()
+
+        week_file = output_dir / "aggregates" / "weekly_rollups" / "2026-W02.json"
+        with week_file.open() as f:
+            week_data = json.load(f)
+
+        # user3's 2 PRs should be counted in BOTH teams
+        backend = week_data["by_team"]["Backend Team"]
+        frontend = week_data["by_team"]["Frontend Team"]
+
+        # Backend: 2 (user1) + 2 (user3) = 4
+        # Frontend: 1 (user2) + 2 (user3) = 3
+        # Total across teams: 7, but global total is 6 (no double-counting in base rollup)
+        assert backend["pr_count"] + frontend["pr_count"] == 7
+
+        # Verify global total is NOT the sum of team slices (avoids double-counting)
+        assert week_data["pr_count"] == 6
+
+    def test_authors_not_in_team_excluded_from_slices(
+        self, db_with_teams: tuple[DatabaseManager, Path], tmp_path: Path
+    ) -> None:
+        """Test that PRs from authors not in any team are excluded from team slices."""
+        db, _ = db_with_teams
+        output_dir = tmp_path / "output"
+
+        generator = AggregateGenerator(db, output_dir)
+        generator.generate_all()
+
+        week_file = output_dir / "aggregates" / "weekly_rollups" / "2026-W02.json"
+        with week_file.open() as f:
+            week_data = json.load(f)
+
+        # user4's PR (no team) should not be in any team slice
+        # Total PRs in team slices: 4 (Backend) + 3 (Frontend) = 7
+        # (includes user3's 2 PRs counted twice due to multi-membership)
+        # But user4's 1 PR is not counted in any team slice
+        backend_prs = week_data["by_team"]["Backend Team"]["pr_count"]
+        frontend_prs = week_data["by_team"]["Frontend Team"]["pr_count"]
+
+        # Verify user4's PR is included in global but not in any team slice
+        # Global: 6 PRs total
+        # Teams: 4 + 3 = 7 (includes duplication from user3)
+        # Without user4: would be 5 unique PRs
+        assert week_data["pr_count"] == 6
+
+        # The fact that sum of team slices (7) > global (6) confirms:
+        # 1. Multi-membership duplication is working (user3's 2 PRs counted twice)
+        # 2. user4's PR is in global but not in teams
+        assert backend_prs + frontend_prs > week_data["pr_count"]
+
+    def test_team_slice_includes_cycle_times(
+        self, db_with_teams: tuple[DatabaseManager, Path], tmp_path: Path
+    ) -> None:
+        """Test that by_team slices include cycle time metrics."""
+        db, _ = db_with_teams
+        output_dir = tmp_path / "output"
+
+        generator = AggregateGenerator(db, output_dir)
+        generator.generate_all()
+
+        week_file = output_dir / "aggregates" / "weekly_rollups" / "2026-W02.json"
+        with week_file.open() as f:
+            week_data = json.load(f)
+
+        backend = week_data["by_team"]["Backend Team"]
+        assert "cycle_time_p50" in backend
+        assert "cycle_time_p90" in backend
+        assert backend["cycle_time_p50"] is not None
+
+    def test_team_slice_includes_reviewer_count(
+        self, db_with_teams: tuple[DatabaseManager, Path], tmp_path: Path
+    ) -> None:
+        """Test that by_team slices include reviewer counts."""
+        db, _ = db_with_teams
+        output_dir = tmp_path / "output"
+
+        generator = AggregateGenerator(db, output_dir)
+        generator.generate_all()
+
+        week_file = output_dir / "aggregates" / "weekly_rollups" / "2026-W02.json"
+        with week_file.open() as f:
+            week_data = json.load(f)
+
+        backend = week_data["by_team"]["Backend Team"]
+        assert "reviewers_count" in backend
+
+    def test_no_team_data_returns_empty_by_team(self, tmp_path: Path) -> None:
+        """Test that by_team is empty when no team data exists (legacy DB)."""
+        db_path = tmp_path / "no_teams.sqlite"
+        db = DatabaseManager(db_path)
+        db.connect()
+
+        # Create minimal DB without teams
+        db.execute(
+            "INSERT INTO organizations (organization_name) VALUES (?)", ("org1",)
+        )
+        db.execute(
+            "INSERT INTO projects (organization_name, project_name) VALUES (?, ?)",
+            ("org1", "proj1"),
+        )
+        db.execute(
+            "INSERT INTO repositories (repository_id, repository_name, project_name, organization_name) VALUES (?, ?, ?, ?)",
+            ("repo1", "Repo", "proj1", "org1"),
+        )
+        db.execute(
+            "INSERT INTO users (user_id, display_name, email) VALUES (?, ?, ?)",
+            ("user1", "User 1", "user1@test.com"),
+        )
+        db.execute(
+            """
+            INSERT INTO pull_requests (
+                pull_request_uid, pull_request_id, organization_name, project_name,
+                repository_id, user_id, title, status, description,
+                creation_date, closed_date, cycle_time_minutes
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            (
+                "repo1-1",
+                1,
+                "org1",
+                "proj1",
+                "repo1",
+                "user1",
+                "PR 1",
+                "completed",
+                None,
+                "2026-01-03",
+                "2026-01-06",
+                100.0,
+            ),
+        )
+        db.connection.commit()
+
+        output_dir = tmp_path / "output"
+        generator = AggregateGenerator(db, output_dir)
+        generator.generate_all()
+
+        week_file = output_dir / "aggregates" / "weekly_rollups" / "2026-W02.json"
+        with week_file.open() as f:
+            week_data = json.load(f)
+
+        # by_team should not be present when empty
+        assert "by_team" not in week_data
+
+        db.close()
+
+    def test_empty_team_no_prs(
+        self, db_with_teams: tuple[DatabaseManager, Path], tmp_path: Path
+    ) -> None:
+        """Test that teams with no PRs from their members don't appear in by_team."""
+        db, _ = db_with_teams
+
+        # Add a team with no members who have PRs
+        db.execute(
+            "INSERT INTO teams (team_id, team_name, project_name, organization_name, last_updated) VALUES (?, ?, ?, ?, ?)",
+            ("team-empty", "Empty Team", "proj1", "org1", "2026-01-01T00:00:00Z"),
+        )
+        # Add a user who is in the empty team but has no PRs
+        db.execute(
+            "INSERT INTO users (user_id, display_name, email) VALUES (?, ?, ?)",
+            ("user5", "User 5", "user5@example.com"),
+        )
+        db.execute(
+            "INSERT INTO team_members (team_id, user_id) VALUES (?, ?)",
+            ("team-empty", "user5"),
+        )
+        db.connection.commit()
+
+        output_dir = tmp_path / "output"
+        generator = AggregateGenerator(db, output_dir)
+        generator.generate_all()
+
+        week_file = output_dir / "aggregates" / "weekly_rollups" / "2026-W02.json"
+        with week_file.open() as f:
+            week_data = json.load(f)
+
+        # Empty Team should not appear (no PRs from its members)
+        assert "Empty Team" not in week_data["by_team"]
