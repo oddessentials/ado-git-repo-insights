@@ -560,7 +560,9 @@ class TestReviewerAggregation:
         db.connect()
 
         # Insert entities
-        db.execute("INSERT INTO organizations (organization_name) VALUES (?)", ("org1",))
+        db.execute(
+            "INSERT INTO organizations (organization_name) VALUES (?)", ("org1",)
+        )
         db.execute(
             "INSERT INTO projects (organization_name, project_name) VALUES (?, ?)",
             ("org1", "proj1"),
@@ -583,9 +585,48 @@ class TestReviewerAggregation:
 
         # Insert PRs - Week 2 of 2026
         prs = [
-            ("repo1-1", 1, "org1", "proj1", "repo1", "user1", "PR 1", "completed", None, "2026-01-03", "2026-01-06", 100.0),
-            ("repo1-2", 2, "org1", "proj1", "repo1", "user2", "PR 2", "completed", None, "2026-01-04", "2026-01-07", 200.0),
-            ("repo2-1", 1, "org1", "proj1", "repo2", "user3", "PR 3", "completed", None, "2026-01-05", "2026-01-08", 300.0),
+            (
+                "repo1-1",
+                1,
+                "org1",
+                "proj1",
+                "repo1",
+                "user1",
+                "PR 1",
+                "completed",
+                None,
+                "2026-01-03",
+                "2026-01-06",
+                100.0,
+            ),
+            (
+                "repo1-2",
+                2,
+                "org1",
+                "proj1",
+                "repo1",
+                "user2",
+                "PR 2",
+                "completed",
+                None,
+                "2026-01-04",
+                "2026-01-07",
+                200.0,
+            ),
+            (
+                "repo2-1",
+                1,
+                "org1",
+                "proj1",
+                "repo2",
+                "user3",
+                "PR 3",
+                "completed",
+                None,
+                "2026-01-05",
+                "2026-01-08",
+                300.0,
+            ),
         ]
         for pr in prs:
             db.execute(
@@ -682,7 +723,9 @@ class TestReviewerAggregation:
         db.connect()
 
         # Insert minimal entities
-        db.execute("INSERT INTO organizations (organization_name) VALUES (?)", ("org1",))
+        db.execute(
+            "INSERT INTO organizations (organization_name) VALUES (?)", ("org1",)
+        )
         db.execute(
             "INSERT INTO projects (organization_name, project_name) VALUES (?, ?)",
             ("org1", "proj1"),
@@ -705,7 +748,20 @@ class TestReviewerAggregation:
                 creation_date, closed_date, cycle_time_minutes
             ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
-            ("repo1-1", 1, "org1", "proj1", "repo1", "user1", "PR 1", "completed", None, "2026-01-03", "2026-01-06", 100.0),
+            (
+                "repo1-1",
+                1,
+                "org1",
+                "proj1",
+                "repo1",
+                "user1",
+                "PR 1",
+                "completed",
+                None,
+                "2026-01-03",
+                "2026-01-06",
+                100.0,
+            ),
         )
         db.connection.commit()
 
