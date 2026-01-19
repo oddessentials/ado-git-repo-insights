@@ -74,6 +74,30 @@ ado-insights generate-csv \
   --output ./csv_output
 ```
 
+#### Generate Aggregates for Dashboard
+
+```bash
+ado-insights build-aggregates \
+  --db ./ado-insights.sqlite \
+  --out ./dataset
+```
+
+#### View Local Dashboard
+
+After generating aggregates, serve the PR Insights dashboard locally:
+
+```bash
+ado-insights dashboard --dataset ./dataset
+```
+
+Options:
+- `--port 8080` — HTTP server port (default: 8080)
+- `--open` — Automatically open browser
+
+The local dashboard provides the same visualizations as the Azure DevOps extension hub, running entirely from your local dataset.
+
+> **Note**: In local mode, the "Download Raw Data (ZIP)" export option is unavailable since there are no pipeline artifacts.
+
 #### Backfill Mode (Weekly Convergence)
 
 ```bash
@@ -238,6 +262,31 @@ git config core.autocrlf input
 ```
 
 If you see "CRLF will be replaced by LF" warnings, that's expected behavior.
+
+### UI Bundle Synchronization
+
+The dashboard UI exists in two locations that must stay synchronized:
+- `extension/ui/` — Source of truth (Azure DevOps extension)
+- `src/ado_git_repo_insights/ui_bundle/` — Copy for pip package
+
+**Sync commands by platform:**
+
+```bash
+# Linux/macOS
+python scripts/sync_ui_bundle.py
+
+# Windows (PowerShell)
+python scripts\sync_ui_bundle.py
+
+# Or use the check scripts:
+# Linux/macOS
+./scripts/check-ui-bundle-sync.sh
+
+# Windows (PowerShell)
+powershell -ExecutionPolicy Bypass -File scripts\check-ui-bundle-sync.ps1
+```
+
+The Python sync script is cross-platform. Always run sync after modifying `extension/ui/` files and commit both locations together.
 
 ## License
 

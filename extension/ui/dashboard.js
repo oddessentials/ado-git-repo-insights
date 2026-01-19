@@ -466,6 +466,13 @@ async function init() {
                 projectNameEl.textContent = 'Local Dashboard';
             }
 
+            // Hide "Download Raw Data (ZIP)" button in local mode
+            // This feature requires pipeline artifacts which aren't available locally
+            const exportRawZip = document.getElementById('export-raw-zip');
+            if (exportRawZip) {
+                exportRawZip.style.display = 'none';
+            }
+
             // Load and display dataset
             await loadDataset();
             return;
