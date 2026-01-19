@@ -547,3 +547,253 @@ class TestStubGeneration:
 
         # Use substring matching to handle message variations
         assert not any("STUB DATA - NOT PRODUCTION" in w for w in manifest.warnings)
+
+
+class TestReviewerAggregation:
+    """Tests for reviewer count aggregation and dimension slicing."""
+
+    @pytest.fixture
+    def db_with_reviewers(self, tmp_path: Path) -> tuple[DatabaseManager, Path]:
+        """Create a sample database with PRs and reviewers."""
+        db_path = tmp_path / "test_reviewers.sqlite"
+        db = DatabaseManager(db_path)
+        db.connect()
+
+        # Insert entities
+        db.execute(
+            "INSERT INTO organizations (organization_name) VALUES (?)", ("org1",)
+        )
+        db.execute(
+            "INSERT INTO projects (organization_name, project_name) VALUES (?, ?)",
+            ("org1", "proj1"),
+        )
+        db.execute(
+            "INSERT INTO repositories (repository_id, repository_name, project_name, organization_name) VALUES (?, ?, ?, ?)",
+            ("repo1", "Main Repo", "proj1", "org1"),
+        )
+        db.execute(
+            "INSERT INTO repositories (repository_id, repository_name, project_name, organization_name) VALUES (?, ?, ?, ?)",
+            ("repo2", "Secondary Repo", "proj1", "org1"),
+        )
+
+        # Insert users (authors and reviewers)
+        for i in range(1, 6):
+            db.execute(
+                "INSERT INTO users (user_id, display_name, email) VALUES (?, ?, ?)",
+                (f"user{i}", f"User {i}", f"user{i}@example.com"),
+            )
+
+        # Insert PRs - Week 2 of 2026
+        prs = [
+            (
+                "repo1-1",
+                1,
+                "org1",
+                "proj1",
+                "repo1",
+                "user1",
+                "PR 1",
+                "completed",
+                None,
+                "2026-01-03",
+                "2026-01-06",
+                100.0,
+            ),
+            (
+                "repo1-2",
+                2,
+                "org1",
+                "proj1",
+                "repo1",
+                "user2",
+                "PR 2",
+                "completed",
+                None,
+                "2026-01-04",
+                "2026-01-07",
+                200.0,
+            ),
+            (
+                "repo2-1",
+                1,
+                "org1",
+                "proj1",
+                "repo2",
+                "user3",
+                "PR 3",
+                "completed",
+                None,
+                "2026-01-05",
+                "2026-01-08",
+                300.0,
+            ),
+        ]
+        for pr in prs:
+            db.execute(
+                """
+                INSERT INTO pull_requests (
+                    pull_request_uid, pull_request_id, organization_name, project_name,
+                    repository_id, user_id, title, status, description,
+                    creation_date, closed_date, cycle_time_minutes
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                pr,
+            )
+
+        # Insert reviewers
+        reviewers = [
+            # PR 1 reviewed by user2 and user3
+            ("repo1-1", "user2", 10, "repo1"),
+            ("repo1-1", "user3", 10, "repo1"),
+            # PR 2 reviewed by user1 and user4
+            ("repo1-2", "user1", 10, "repo1"),
+            ("repo1-2", "user4", 10, "repo1"),
+            # PR 3 reviewed by user1 and user5
+            ("repo2-1", "user1", 10, "repo2"),
+            ("repo2-1", "user5", 10, "repo2"),
+        ]
+        for reviewer in reviewers:
+            db.execute(
+                "INSERT INTO reviewers (pull_request_uid, user_id, vote, repository_id) VALUES (?, ?, ?, ?)",
+                reviewer,
+            )
+
+        db.connection.commit()
+
+        yield db, db_path
+
+        db.close()
+
+    def test_counts_unique_reviewers_per_week(
+        self, db_with_reviewers: tuple[DatabaseManager, Path], tmp_path: Path
+    ) -> None:
+        """Test that reviewers_count reflects unique reviewers in that week."""
+        db, _ = db_with_reviewers
+        output_dir = tmp_path / "output"
+
+        generator = AggregateGenerator(db, output_dir)
+        generator.generate_all()
+
+        # Read the weekly rollup
+        week_file = output_dir / "aggregates" / "weekly_rollups" / "2026-W02.json"
+        assert week_file.exists()
+
+        with week_file.open() as f:
+            week_data = json.load(f)
+
+        # Should have 5 unique reviewers: user1 (reviewed 2 PRs), user2, user3, user4, user5
+        assert week_data["reviewers_count"] == 5
+        assert week_data["pr_count"] == 3
+
+    def test_generates_by_repository_slices(
+        self, db_with_reviewers: tuple[DatabaseManager, Path], tmp_path: Path
+    ) -> None:
+        """Test that weekly rollups include by_repository dimension slices."""
+        db, _ = db_with_reviewers
+        output_dir = tmp_path / "output"
+
+        generator = AggregateGenerator(db, output_dir)
+        generator.generate_all()
+
+        week_file = output_dir / "aggregates" / "weekly_rollups" / "2026-W02.json"
+        with week_file.open() as f:
+            week_data = json.load(f)
+
+        # Should have by_repository field
+        assert "by_repository" in week_data
+
+        # Check Main Repo slice
+        main_repo = week_data["by_repository"].get("Main Repo")
+        assert main_repo is not None
+        assert main_repo["pr_count"] == 2
+        assert main_repo["authors_count"] == 2  # user1 and user2
+        assert main_repo["reviewers_count"] == 4  # user1, user2, user3, user4
+
+        # Check Secondary Repo slice
+        secondary_repo = week_data["by_repository"].get("Secondary Repo")
+        assert secondary_repo is not None
+        assert secondary_repo["pr_count"] == 1
+        assert secondary_repo["authors_count"] == 1  # user3
+        assert secondary_repo["reviewers_count"] == 2  # user1 and user5
+
+    def test_reviewer_count_zero_when_no_reviewers(self, tmp_path: Path) -> None:
+        """Test that reviewers_count is 0 when PRs have no reviewers."""
+        db_path = tmp_path / "no_reviewers.sqlite"
+        db = DatabaseManager(db_path)
+        db.connect()
+
+        # Insert minimal entities
+        db.execute(
+            "INSERT INTO organizations (organization_name) VALUES (?)", ("org1",)
+        )
+        db.execute(
+            "INSERT INTO projects (organization_name, project_name) VALUES (?, ?)",
+            ("org1", "proj1"),
+        )
+        db.execute(
+            "INSERT INTO repositories (repository_id, repository_name, project_name, organization_name) VALUES (?, ?, ?, ?)",
+            ("repo1", "Repo One", "proj1", "org1"),
+        )
+        db.execute(
+            "INSERT INTO users (user_id, display_name, email) VALUES (?, ?, ?)",
+            ("user1", "User 1", "user1@test.com"),
+        )
+
+        # Insert PR without any reviewers
+        db.execute(
+            """
+            INSERT INTO pull_requests (
+                pull_request_uid, pull_request_id, organization_name, project_name,
+                repository_id, user_id, title, status, description,
+                creation_date, closed_date, cycle_time_minutes
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            (
+                "repo1-1",
+                1,
+                "org1",
+                "proj1",
+                "repo1",
+                "user1",
+                "PR 1",
+                "completed",
+                None,
+                "2026-01-03",
+                "2026-01-06",
+                100.0,
+            ),
+        )
+        db.connection.commit()
+
+        output_dir = tmp_path / "output"
+        generator = AggregateGenerator(db, output_dir)
+        generator.generate_all()
+
+        week_file = output_dir / "aggregates" / "weekly_rollups" / "2026-W02.json"
+        with week_file.open() as f:
+            week_data = json.load(f)
+
+        assert week_data["reviewers_count"] == 0
+        assert week_data["by_repository"]["Repo One"]["reviewers_count"] == 0
+
+        db.close()
+
+    def test_by_repository_includes_cycle_times(
+        self, db_with_reviewers: tuple[DatabaseManager, Path], tmp_path: Path
+    ) -> None:
+        """Test that by_repository slices include cycle time metrics."""
+        db, _ = db_with_reviewers
+        output_dir = tmp_path / "output"
+
+        generator = AggregateGenerator(db, output_dir)
+        generator.generate_all()
+
+        week_file = output_dir / "aggregates" / "weekly_rollups" / "2026-W02.json"
+        with week_file.open() as f:
+            week_data = json.load(f)
+
+        main_repo = week_data["by_repository"]["Main Repo"]
+        assert "cycle_time_p50" in main_repo
+        assert "cycle_time_p90" in main_repo
+        # Main repo has PRs with cycle times 100 and 200, so p50 should be 150
+        assert main_repo["cycle_time_p50"] == 150.0
