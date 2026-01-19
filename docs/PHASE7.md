@@ -8,7 +8,7 @@ This document consolidates remaining gaps and maintenance requirements from Phas
 
 ### 7.1 UI Bundle Synchronization (CRITICAL)
 
-**Status:** Manual process required
+**Status:** ✅ COMPLETE
 **Priority:** HIGH (operational risk)
 
 **Issue:**
@@ -31,19 +31,15 @@ When modifying UI files, changes must be made in BOTH locations:
 cp -r extension/ui/* src/ado_git_repo_insights/ui_bundle/
 ```
 
-**Future improvement:**
-Add a CI check to verify sync:
-```bash
-# scripts/check-ui-bundle-sync.sh
-diff -rq extension/ui/ src/ado_git_repo_insights/ui_bundle/ || {
-    echo "ERROR: UI bundle out of sync with extension/ui/"
-    exit 1
-}
-```
+**CI Enforcement:**
+The `ui-bundle-sync` job in `.github/workflows/ci.yml` automatically verifies synchronization on every PR using `scripts/check-ui-bundle-sync.sh`. Features:
+- Patch-format diff output for easy review
+- Ignored patterns: `*.map`, `.DS_Store`, `*.swp`, `*~`, `*.bak`
+- Clear "how to fix" instructions on failure
 
 **Definition of Done:**
-- [ ] Add sync verification to CI workflow
-- [ ] Document in CONTRIBUTING.md
+- [x] Add sync verification to CI workflow (`ui-bundle-sync` job)
+- [x] Document in CONTRIBUTING.md
 
 ---
 

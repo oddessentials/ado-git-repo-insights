@@ -95,6 +95,18 @@ jobs:
 
           echo "✓ No CRLF detected in Unix-executed files"
 
+  # Guard: Verify UI bundle is in sync with extension/ui
+  ui-bundle-sync:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Check UI Bundle Synchronization
+        run: |
+          chmod +x scripts/check-ui-bundle-sync.sh
+          ./scripts/check-ui-bundle-sync.sh
+        shell: bash
+
   # Guard: Block task Major changes without explicit marker
   task-major-guard:
     runs-on: ubuntu-latest
