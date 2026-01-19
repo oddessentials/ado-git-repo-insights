@@ -1,3 +1,11 @@
+## [3.7.1](https://github.com/oddessentials/ado-git-repo-insights/compare/v3.7.0...v3.7.1) (2026-01-19)
+
+
+### Bug Fixes
+
+* lint and format issues from pre-commit ([5cf98c0](https://github.com/oddessentials/ado-git-repo-insights/commit/5cf98c006ff6749c8a9ccdebdcb624008a850635))
+* trailing whitespace and EOF newlines ([0321c80](https://github.com/oddessentials/ado-git-repo-insights/commit/0321c80c01f6f8fe8f6309bcdc4615db8265bb44))
+
 # [3.7.0](https://github.com/oddessentials/ado-git-repo-insights/compare/v3.6.0...v3.7.0) (2026-01-19)
 
 
