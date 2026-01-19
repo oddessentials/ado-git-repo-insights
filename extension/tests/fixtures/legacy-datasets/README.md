@@ -14,7 +14,7 @@ Test fixtures for backward compatibility testing of the version adapter pattern.
 ## Purpose
 
 These fixtures verify that `dataset-loader.js` normalizes old data via the version adapter
-when loaded through `DatasetLoader.getWeeklyRollups()`. Tests must never call 
+when loaded through `DatasetLoader.getWeeklyRollups()`. Tests must never call
 `normalizeRollup()` directly—only via the real loader path.
 
 ## Adding New Fixtures
