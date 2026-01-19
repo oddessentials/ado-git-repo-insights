@@ -1,3 +1,10 @@
+## [3.5.1](https://github.com/oddessentials/ado-git-repo-insights/compare/v3.5.0...v3.5.1) (2026-01-19)
+
+
+### Bug Fixes
+
+* replace ui_bundle symlink with actual files for pip packaging ([6cb3504](https://github.com/oddessentials/ado-git-repo-insights/commit/6cb35048f21805e9cb28bbc47007faeb4eb0bc62))
+
 # [3.5.0](https://github.com/oddessentials/ado-git-repo-insights/compare/v3.4.0...v3.5.0) (2026-01-19)
 
 
