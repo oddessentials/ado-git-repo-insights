@@ -1,3 +1,15 @@
+# [3.5.0](https://github.com/oddessentials/ado-git-repo-insights/compare/v3.4.0...v3.5.0) (2026-01-19)
+
+
+### Bug Fixes
+
+* use relative symlink for ui_bundle (CI compatibility) ([2d27fcd](https://github.com/oddessentials/ado-git-repo-insights/commit/2d27fcd832b45ffc2f74282a9da2453b05d35a76))
+
+
+### Features
+
+* **phase6:** add local dashboard and build-aggregates commands ([3233dcd](https://github.com/oddessentials/ado-git-repo-insights/commit/3233dcde7447ec48f71fa7c19b903ca1501e58be))
+
 # [3.4.0](https://github.com/oddessentials/ado-git-repo-insights/compare/v3.3.0...v3.4.0) (2026-01-19)
 
 
