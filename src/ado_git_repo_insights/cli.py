@@ -794,7 +794,9 @@ def cmd_dashboard(args: Namespace) -> int:
 
     if not manifest_path.exists():
         logger.error(f"dataset-manifest.json not found in {dataset_path}")
-        logger.error("Run 'ado-insights build-aggregates' first to generate the dataset.")
+        logger.error(
+            "Run 'ado-insights build-aggregates' first to generate the dataset."
+        )
         return 1
 
     # Locate UI bundle (packaged with the module)
@@ -846,7 +848,9 @@ def cmd_dashboard(args: Namespace) -> int:
             # Create HTTP handler with CORS headers for local development
             class CORSHTTPRequestHandler(http.server.SimpleHTTPRequestHandler):
                 def end_headers(self):
-                    self.send_header("Cache-Control", "no-cache, no-store, must-revalidate")
+                    self.send_header(
+                        "Cache-Control", "no-cache, no-store, must-revalidate"
+                    )
                     self.send_header("Access-Control-Allow-Origin", "*")
                     super().end_headers()
 
@@ -857,7 +861,9 @@ def cmd_dashboard(args: Namespace) -> int:
             # Allow port reuse
             socketserver.TCPServer.allow_reuse_address = True
 
-            with socketserver.TCPServer(("", args.port), CORSHTTPRequestHandler) as httpd:
+            with socketserver.TCPServer(
+                ("", args.port), CORSHTTPRequestHandler
+            ) as httpd:
                 url = f"http://localhost:{args.port}"
                 logger.info(f"Dashboard running at {url}")
                 logger.info("Press Ctrl+C to stop")
