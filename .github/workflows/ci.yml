@@ -230,7 +230,35 @@ jobs:
       - name: Validate Test Results (Python)
         if: always() && matrix.os == 'ubuntu-latest' && matrix.python-version == '3.11'
         run: |
-          # Robust test validation using JUnit XML parsing
+          # Two-phase validation for robust CI diagnostics
+          # Phase 1: Check if pytest produced output at all
+          if [ ! -f test-results.xml ]; then
+            echo "::error::test-results.xml not found - pytest likely failed to start"
+            echo ""
+            echo "================================================================================"
+            echo "DIAGNOSTIC: pytest did not produce JUnit XML output"
+            echo "================================================================================"
+            echo ""
+            echo "Common causes:"
+            echo "  1. Import error in test file or source code"
+            echo "  2. Syntax error in Python files"
+            echo "  3. Missing dependency"
+            echo "  4. Test collection failed"
+            echo ""
+            echo "Check the 'Run Tests with Coverage' step above for the actual error."
+            echo ""
+            if [ -f pytest_output.txt ]; then
+              echo "================================================================================"
+              echo "Last 50 lines of pytest output:"
+              echo "================================================================================"
+              tail -50 pytest_output.txt
+            fi
+            echo ""
+            echo "================================================================================"
+            exit 1
+          fi
+
+          # Phase 2: Validate test results using JUnit XML parsing
           # MIN_COLLECTED: Minimum expected tests (update when adding/removing tests)
           # MAX_SKIPS: Maximum allowed skipped tests (0 = no skips allowed in CI)
           python .github/scripts/validate-test-results.py \
@@ -396,7 +424,35 @@ jobs:
       - name: Validate Test Results (Extension)
         if: always()
         run: |
-          # Robust test validation using JUnit XML parsing
+          # Two-phase validation for robust CI diagnostics
+          # Phase 1: Check if Jest produced output at all
+          if [ ! -f extension/test-results.xml ]; then
+            echo "::error::extension/test-results.xml not found - Jest likely failed to start"
+            echo ""
+            echo "================================================================================"
+            echo "DIAGNOSTIC: Jest did not produce JUnit XML output"
+            echo "================================================================================"
+            echo ""
+            echo "Common causes:"
+            echo "  1. Syntax error in test file or source code"
+            echo "  2. Missing npm dependency"
+            echo "  3. Jest configuration issue"
+            echo "  4. Test collection failed"
+            echo ""
+            echo "Check the 'Run Extension UI Tests' step above for the actual error."
+            echo ""
+            if [ -f extension/npm_test_output.txt ]; then
+              echo "================================================================================"
+              echo "Last 50 lines of Jest output:"
+              echo "================================================================================"
+              tail -50 extension/npm_test_output.txt
+            fi
+            echo ""
+            echo "================================================================================"
+            exit 1
+          fi
+
+          # Phase 2: Validate test results using JUnit XML parsing
           # MIN_COLLECTED: Minimum expected tests (update when adding/removing tests)
           # MAX_SKIPS: Maximum allowed skipped tests (0 = no skips allowed in CI)
           python .github/scripts/validate-test-results.py \
