@@ -8,7 +8,6 @@ Tests for the `ado-insights dashboard` command to verify:
 Per guardrails: non-brittle assertions, verify injection occurred not full HTML.
 """
 
-import os
 import shutil
 from pathlib import Path
 
@@ -28,7 +27,10 @@ class TestDashboardCommand:
             "manifest_schema_version": 1,
             "dataset_schema_version": 1,
             "aggregates_schema_version": 1,
-            "coverage": {"total_prs": 100, "date_range": {"min": "2025-01-01", "max": "2025-12-31"}},
+            "coverage": {
+                "total_prs": 100,
+                "date_range": {"min": "2025-01-01", "max": "2025-12-31"},
+            },
             "features": {},
             "aggregate_index": {"weekly_rollups": [], "distributions": []},
         }
@@ -92,7 +94,9 @@ class TestDashboardCommand:
         # This should fail
         assert not manifest_path.exists()
 
-    def test_placeholder_injection(self, temp_dataset: Path, temp_ui_bundle: Path, tmp_path: Path) -> None:
+    def test_placeholder_injection(
+        self, temp_dataset: Path, temp_ui_bundle: Path, tmp_path: Path
+    ) -> None:
         """Verify placeholder is replaced with local-config script tag."""
         # Simulate what cmd_dashboard does with temp directory
         serve_dir = tmp_path / "serve"
@@ -123,7 +127,9 @@ class TestDashboardCommand:
         assert '<script src="local-config.js"></script>' in final_content
         assert placeholder not in final_content  # Placeholder removed
 
-    def test_fallback_injection(self, temp_ui_bundle_legacy: Path, tmp_path: Path) -> None:
+    def test_fallback_injection(
+        self, temp_ui_bundle_legacy: Path, tmp_path: Path
+    ) -> None:
         """Verify fallback injection for legacy UI bundles without placeholder."""
         serve_dir = tmp_path / "serve"
         shutil.copytree(temp_ui_bundle_legacy, serve_dir, dirs_exist_ok=True)
@@ -131,8 +137,7 @@ class TestDashboardCommand:
         # Write local config
         local_config = serve_dir / "local-config.js"
         local_config.write_text(
-            "window.LOCAL_DASHBOARD_MODE = true;\n"
-            'window.DATASET_PATH = "./dataset";\n'
+            'window.LOCAL_DASHBOARD_MODE = true;\nwindow.DATASET_PATH = "./dataset";\n'
         )
 
         # Inject into index.html (fallback method)
@@ -154,7 +159,9 @@ class TestDashboardCommand:
         # Script placement: local-config BEFORE dashboard.js
         local_pos = final_content.find("local-config.js")
         dashboard_pos = final_content.find("dashboard.js")
-        assert local_pos < dashboard_pos, "local-config.js must come before dashboard.js"
+        assert local_pos < dashboard_pos, (
+            "local-config.js must come before dashboard.js"
+        )
 
     def test_local_config_content(self, tmp_path: Path) -> None:
         """Verify local-config.js sets correct window variables."""
