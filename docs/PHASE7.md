@@ -25,11 +25,7 @@ The dashboard UI files exist in two locations that must stay synchronized:
 - The `ado-insights dashboard` command requires bundled UI files
 
 **Current process:**
-When modifying UI files, changes must be made in BOTH locations:
-```bash
-# After modifying extension/ui/*, sync to ui_bundle:
-cp -r extension/ui/* src/ado_git_repo_insights/ui_bundle/
-```
+Synchronization is automated via `scripts/sync_ui_bundle.py`, which mirrors `extension/ui/` into `ui_bundle/`. The pre-commit hook runs this sync when UI files are staged, and CI enforces that the synchronized files are committed.
 
 **CI Enforcement:**
 The `ui-bundle-sync` job in `.github/workflows/ci.yml` automatically verifies synchronization on every PR using `scripts/check-ui-bundle-sync.sh`. Features:

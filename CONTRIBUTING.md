@@ -49,10 +49,16 @@ The dashboard UI files exist in **two locations** that must stay synchronized:
 
 ### Synchronization Process
 
-**After modifying any files in `extension/ui/`**, you must sync to `ui_bundle/`:
+UI bundle synchronization is automated:
+
+- The `scripts/sync_ui_bundle.py` script mirrors `extension/ui/` into `ui_bundle/`.
+- The pre-commit hook runs the sync automatically when UI files are staged.
+- CI enforces that the synchronized files are committed.
+
+If you need to sync manually (for example, when running outside of Git hooks), run:
 
 ```bash
-cp -r extension/ui/* src/ado_git_repo_insights/ui_bundle/
+python scripts/sync_ui_bundle.py
 ```
 
 Then commit both locations together.

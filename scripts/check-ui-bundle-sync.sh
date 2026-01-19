@@ -7,8 +7,8 @@
 #   - ui_bundle/ is a copy for Python pip package (symlinks don't work with setuptools wheels)
 #
 # Exit codes:
-#   0 - Directories are in sync
-#   1 - Directories are out of sync (diff shown in patch format)
+#   0 - Directories are in sync and committed
+#   1 - Directories are out of sync or uncommitted changes detected
 #
 set -euo pipefail
 
@@ -29,16 +29,14 @@ if [[ ! -d "$BUNDLE_DIR" ]]; then
     exit 1
 fi
 
+echo "Synchronizing UI bundle from extension/ui..."
+python "$REPO_ROOT/scripts/sync_ui_bundle.py" --source "$SOURCE_DIR" --bundle "$BUNDLE_DIR"
+
 echo "Checking UI bundle synchronization..."
 echo "  Source: extension/ui/"
 echo "  Bundle: src/ado_git_repo_insights/ui_bundle/"
 echo ""
 
-# Use diff with exclude patterns for ignored files
-# -r: recursive
-# -u: unified format (patch-like)
-# -N: treat absent files as empty
-# --exclude: patterns to ignore
 DIFF_OUTPUT=""
 DIFF_EXIT=0
 
@@ -50,31 +48,37 @@ DIFF_OUTPUT=$(diff -ruN \
     --exclude='*.bak' \
     "$SOURCE_DIR" "$BUNDLE_DIR" 2>&1) || DIFF_EXIT=$?
 
-if [[ $DIFF_EXIT -eq 0 ]]; then
-    echo "✓ UI bundle is in sync with extension/ui/"
-    exit 0
+if [[ $DIFF_EXIT -ne 0 ]]; then
+    echo "::error::UI bundle is OUT OF SYNC with extension/ui/"
+    echo ""
+    echo "════════════════════════════════════════════════════════════════════════════════"
+    echo "DIFF (patch format):"
+    echo "════════════════════════════════════════════════════════════════════════════════"
+    echo "$DIFF_OUTPUT"
+    echo ""
+    echo "════════════════════════════════════════════════════════════════════════════════"
+    echo "HOW TO FIX:"
+    echo "════════════════════════════════════════════════════════════════════════════════"
+    echo ""
+    echo "  Run: python scripts/sync_ui_bundle.py"
+    echo ""
+    echo "  Then commit both locations together."
+    echo ""
+    echo "  WHY: The Python pip package requires actual files (not symlinks) because"
+    echo "  setuptools wheel builds don't preserve symlinks. See docs/PHASE7.md for details."
+    echo ""
+    echo "════════════════════════════════════════════════════════════════════════════════"
+    exit 1
 fi
 
-# Directories are out of sync - show helpful error
-echo "::error::UI bundle is OUT OF SYNC with extension/ui/"
-echo ""
-echo "════════════════════════════════════════════════════════════════════════════════"
-echo "DIFF (patch format):"
-echo "════════════════════════════════════════════════════════════════════════════════"
-echo "$DIFF_OUTPUT"
-echo ""
-echo "════════════════════════════════════════════════════════════════════════════════"
-echo "HOW TO FIX:"
-echo "════════════════════════════════════════════════════════════════════════════════"
-echo ""
-echo "  After modifying files in extension/ui/, sync to ui_bundle:"
-echo ""
-echo "    cp -r extension/ui/* src/ado_git_repo_insights/ui_bundle/"
-echo ""
-echo "  Then commit both locations together."
-echo ""
-echo "  WHY: The Python pip package requires actual files (not symlinks) because"
-echo "  setuptools wheel builds don't preserve symlinks. See docs/PHASE7.md for details."
-echo ""
-echo "════════════════════════════════════════════════════════════════════════════════"
-exit 1
+if ! git -C "$REPO_ROOT" diff --quiet -- "$BUNDLE_DIR"; then
+    echo "::error::UI bundle sync generated uncommitted changes."
+    echo ""
+    git -C "$REPO_ROOT" status --short -- "$BUNDLE_DIR"
+    echo ""
+    echo "Commit the synchronized UI bundle before merging."
+    exit 1
+fi
+
+echo "✓ UI bundle is in sync with extension/ui/"
+exit 0
