@@ -1,0 +1,40 @@
+{
+    "manifest_schema_version": 1,
+    "dataset_schema_version": 1,
+    "aggregates_schema_version": 1,
+    "generated_at": "2024-01-15T10:00:00Z",
+    "pipeline_run_id": "legacy-test-fixture",
+    "coverage": {
+        "total_prs": 75,
+        "date_range": {
+            "min": "2024-01-01",
+            "max": "2025-12-31"
+        }
+    },
+    "features": {
+        "teams": false,
+        "comments": false,
+        "predictions": false,
+        "ai_insights": false
+    },
+    "defaults": {
+        "default_date_range_days": 90
+    },
+    "aggregate_index": {
+        "weekly_rollups": [
+            {
+                "week": "2024-W01",
+                "path": "v1.0-rollup.json"
+            },
+            {
+                "week": "2025-W01",
+                "path": "v1.1-rollup.json"
+            },
+            {
+                "week": "2025-W20",
+                "path": "v1.2-rollup.json"
+            }
+        ],
+        "distributions": []
+    }
+}
