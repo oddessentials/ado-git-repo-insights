@@ -1,5 +1,3 @@
-You’re right — my bad.
-
 ## Phase 6 — Local HTML Dashboard Experience (Optimized Plan)
 
 **Goal:** iterate fast on the dashboard by running the _same_ HTML dashboard locally against the _same_ dataset format the extension uses—offline, minimal moving parts.
