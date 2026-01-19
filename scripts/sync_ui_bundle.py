@@ -6,9 +6,9 @@ from __future__ import annotations
 import argparse
 import fnmatch
 import os
-from pathlib import Path
 import shutil
 import sys
+from pathlib import Path
 
 EXCLUDE_PATTERNS = {
     "*.map",
@@ -92,10 +92,7 @@ def main() -> int:
         print(f"::error::{exc}")
         return 1
 
-    print(
-        "UI bundle sync complete: "
-        f"source={args.source} bundle={args.bundle}"
-    )
+    print(f"UI bundle sync complete: source={args.source} bundle={args.bundle}")
     if changes == 0:
         print("No changes required.")
     return 0
