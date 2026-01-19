@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PR Insights Settings</title>
+    <link rel="stylesheet" href="styles.css">
+    <!-- Azure DevOps Extension SDK (bundled locally to avoid CDN version drift) -->
+    <script src="VSS.SDK.min.js"></script>
+</head>
+<body>
+    <div class="settings-container">
+        <header class="settings-header">
+            <h1>PR Insights Settings</h1>
+            <p class="settings-description">Configure your PR Insights dashboard preferences.</p>
+        </header>
+
+        <div class="settings-content">
+            <section class="setting-group">
+                <h2>Pipeline Source</h2>
+                <p class="setting-help">
+                    Specify which project and pipeline to load insights from.
+                    By default, the dashboard auto-discovers pipelines in the current project.
+                </p>
+
+                <!-- Project Selection -->
+                <div class="setting-field">
+                    <label for="project-select">Source Project</label>
+                    <div class="project-input-group">
+                        <!-- Dropdown (shown when project listing is available) -->
+                        <select id="project-select" class="project-dropdown" style="display: none;">
+                            <option value="">Loading projects...</option>
+                        </select>
+                        <!-- Text fallback (shown when dropdown unavailable) -->
+                        <input type="text" id="project-id" class="project-text" placeholder="Current project">
+                    </div>
+                    <p class="field-hint">
+                        Leave empty to use the current project. Enter a Project ID or select from the dropdown.
+                        Find the project ID in Project Settings → Overview.
+                    </p>
+                </div>
+
+                <!-- Pipeline Definition ID -->
+                <div class="setting-field">
+                    <label for="pipeline-id">Pipeline Definition ID (optional)</label>
+                    <input type="number" id="pipeline-id" placeholder="Auto-discover" min="1">
+                    <p class="field-hint">
+                        Leave empty to auto-detect. Find the definition ID in the URL when viewing the pipeline
+                        (e.g., <code>?definitionId=<strong>5</strong></code>).
+                    </p>
+                </div>
+            </section>
+
+            <section class="setting-group">
+                <h2>Current Status</h2>
+                <div id="status-display" class="status-display">
+                    <p>Checking configuration...</p>
+                </div>
+            </section>
+
+            <div class="settings-actions">
+                <button id="save-btn" class="btn btn-primary">Save Settings</button>
+                <button id="clear-btn" class="btn btn-secondary">Clear</button>
+                <button id="discover-btn" class="btn btn-secondary">Re-discover Pipelines</button>
+                <span id="status-message" class="status-message"></span>
+            </div>
+        </div>
+
+        <footer class="settings-footer">
+            <p class="scope-note">
+                Settings are saved per-user. Other team members will need to configure their own preferences
+                or use the <code>?pipelineId=</code> URL parameter.
+            </p>
+            <p>
+                <a href="https://github.com/oddessentials/ado-git-repo-insights#configuration" target="_blank">
+                    Documentation
+                </a>
+            </p>
+        </footer>
+    </div>
+
+    <script src="settings.js"></script>
+</body>
+</html>

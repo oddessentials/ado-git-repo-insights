@@ -50,6 +50,9 @@ ado-insights = "ado_git_repo_insights.cli:main"
 [tool.setuptools.packages.find]
 where = ["src"]
 
+[tool.setuptools.package-data]
+ado_git_repo_insights = ["ui_bundle/**/*"]
+
 [tool.setuptools_scm]
 # Configures setuptools_scm to use git tags for versioning
 
