@@ -427,6 +427,22 @@ async function getBuildClient() {
 // ============================================================================
 
 /**
+ * Check if running in local dashboard mode (Phase 6).
+ * @returns {boolean}
+ */
+function isLocalMode() {
+    return typeof window !== 'undefined' && window.LOCAL_DASHBOARD_MODE === true;
+}
+
+/**
+ * Get local dataset path from window config.
+ * @returns {string}
+ */
+function getLocalDatasetPath() {
+    return (typeof window !== 'undefined' && window.DATASET_PATH) || './dataset';
+}
+
+/**
  * Initialize the dashboard.
  */
 async function init() {
@@ -437,7 +453,25 @@ async function init() {
     initializePhase5Features();
 
     try {
-        // Initialize ADO SDK
+        // Phase 6: Check for local dashboard mode first
+        if (isLocalMode()) {
+            console.log('[Dashboard] Running in local mode');
+            const datasetPath = getLocalDatasetPath();
+            loader = new DatasetLoader(datasetPath);
+            currentBuildId = null;
+
+            // Update UI to indicate local mode
+            const projectNameEl = document.getElementById('current-project-name');
+            if (projectNameEl) {
+                projectNameEl.textContent = 'Local Dashboard';
+            }
+
+            // Load and display dataset
+            await loadDataset();
+            return;
+        }
+
+        // Initialize ADO SDK (only in extension mode)
         await initializeAdoSdk();
 
         // Resolve configuration (may throw typed errors)

@@ -222,6 +222,67 @@ def create_parser() -> argparse.ArgumentParser:  # pragma: no cover
         help=argparse.SUPPRESS,  # Hidden from help
     )
 
+    # Build Aggregates command (Phase 6 - convenience alias)
+    build_parser = subparsers.add_parser(
+        "build-aggregates",
+        help="Build aggregates from SQLite DB (alias for generate-aggregates)",
+    )
+    build_parser.add_argument(
+        "--db",
+        type=Path,
+        required=True,
+        help="Path to SQLite database file",
+    )
+    build_parser.add_argument(
+        "--out",
+        type=Path,
+        default=Path("dataset"),
+        help="Output directory for dataset files (default: ./dataset)",
+    )
+    build_parser.add_argument(
+        "--run-id",
+        type=str,
+        default="local",
+        help="Run ID for manifest metadata (default: local)",
+    )
+    # Phase 5 ML flags (same as generate-aggregates)
+    build_parser.add_argument(
+        "--enable-predictions",
+        action="store_true",
+        default=False,
+        help="Enable Prophet-based trend forecasting",
+    )
+    build_parser.add_argument(
+        "--enable-insights",
+        action="store_true",
+        default=False,
+        help="Enable OpenAI-based insights",
+    )
+
+    # Dashboard command (Phase 6)
+    dashboard_parser = subparsers.add_parser(
+        "dashboard",
+        help="Serve the PR Insights dashboard locally",
+    )
+    dashboard_parser.add_argument(
+        "--dataset",
+        type=Path,
+        required=True,
+        help="Path to dataset folder (containing dataset-manifest.json)",
+    )
+    dashboard_parser.add_argument(
+        "--port",
+        type=int,
+        default=8080,
+        help="Local server port (default: 8080)",
+    )
+    dashboard_parser.add_argument(
+        "--open",
+        action="store_true",
+        default=False,
+        help="Open browser automatically",
+    )
+
     return parser
 
 
@@ -649,6 +710,172 @@ def cmd_generate_aggregates(args: Namespace) -> int:
         return 1
 
 
+def cmd_build_aggregates(args: Namespace) -> int:
+    """Execute the build-aggregates command (Phase 6 - alias for generate-aggregates)."""
+    logger.info("Building aggregates locally...")
+    logger.info(f"Database: {args.db}")
+    logger.info(f"Output: {args.out}")
+
+    if not args.db.exists():
+        logger.error(f"Database not found: {args.db}")
+        return 1
+
+    # Phase 5: Early validation for insights (same as generate-aggregates)
+    enable_insights = getattr(args, "enable_insights", False)
+    if enable_insights:
+        import os
+
+        if not os.environ.get("OPENAI_API_KEY"):
+            logger.error(
+                "OPENAI_API_KEY is required for --enable-insights. "
+                "Set the environment variable, or use --insights-dry-run for prompt iteration."
+            )
+            return 1
+
+        try:
+            import openai  # noqa: F401
+        except ImportError:
+            logger.error(
+                "OpenAI SDK not installed. Install ML extras: pip install -e '.[ml]'"
+            )
+            return 1
+
+    try:
+        db = DatabaseManager(args.db)
+        db.connect()
+
+        try:
+            generator = AggregateGenerator(
+                db=db,
+                output_dir=args.out,
+                run_id=args.run_id,
+                enable_predictions=getattr(args, "enable_predictions", False),
+                enable_insights=enable_insights,
+            )
+            manifest = generator.generate_all()
+
+            logger.info("Build complete:")
+            logger.info(
+                f"  Weekly rollups: {len(manifest.aggregate_index.weekly_rollups)}"
+            )
+            logger.info(
+                f"  Distributions: {len(manifest.aggregate_index.distributions)}"
+            )
+            logger.info(f"  Output: {args.out / 'dataset-manifest.json'}")
+
+            if manifest.warnings:
+                for warning in manifest.warnings:
+                    logger.warning(f"  {warning}")
+
+            return 0
+
+        finally:
+            db.close()
+
+    except DatabaseError as e:
+        logger.error(f"Database error: {e}")
+        return 1
+    except AggregationError as e:
+        logger.error(f"Aggregation error: {e}")
+        return 1
+
+
+def cmd_dashboard(args: Namespace) -> int:
+    """Execute the dashboard command (Phase 6 - local HTTP server)."""
+    import http.server
+    import os
+    import shutil
+    import socketserver
+    import tempfile
+    import webbrowser
+
+    dataset_path = args.dataset.resolve()
+    manifest_path = dataset_path / "dataset-manifest.json"
+
+    if not manifest_path.exists():
+        logger.error(f"dataset-manifest.json not found in {dataset_path}")
+        logger.error("Run 'ado-insights build-aggregates' first to generate the dataset.")
+        return 1
+
+    # Locate UI bundle (packaged with the module)
+    ui_source = Path(__file__).parent / "ui_bundle"
+    if not ui_source.exists():
+        # Fallback: development mode - use extension/ui directly
+        ui_source = Path(__file__).parent.parent.parent.parent / "extension" / "ui"
+
+    if not ui_source.exists():
+        logger.error(f"UI bundle not found at {ui_source}")
+        return 1
+
+    # Create temp directory for serving
+    with tempfile.TemporaryDirectory() as tmpdir:
+        serve_dir = Path(tmpdir)
+
+        # Copy UI files
+        shutil.copytree(ui_source, serve_dir, dirs_exist_ok=True)
+
+        # Copy dataset into serve directory
+        dataset_dest = serve_dir / "dataset"
+        shutil.copytree(dataset_path, dataset_dest, dirs_exist_ok=True)
+
+        # Write local config to enable local mode
+        local_config = serve_dir / "local-config.js"
+        local_config.write_text(
+            "// Auto-generated for local dashboard mode\n"
+            "window.LOCAL_DASHBOARD_MODE = true;\n"
+            'window.DATASET_PATH = "./dataset";\n'
+        )
+
+        # Inject local-config.js into index.html
+        index_html = serve_dir / "index.html"
+        if index_html.exists():
+            content = index_html.read_text()
+            # Insert local-config.js before dashboard.js
+            if "local-config.js" not in content:
+                content = content.replace(
+                    '<script src="dashboard.js"></script>',
+                    '<script src="local-config.js"></script>\n    <script src="dashboard.js"></script>',
+                )
+                index_html.write_text(content)
+
+        # Change to serve directory
+        original_dir = os.getcwd()
+        os.chdir(serve_dir)
+
+        try:
+            # Create HTTP handler with CORS headers for local development
+            class CORSHTTPRequestHandler(http.server.SimpleHTTPRequestHandler):
+                def end_headers(self):
+                    self.send_header("Cache-Control", "no-cache, no-store, must-revalidate")
+                    self.send_header("Access-Control-Allow-Origin", "*")
+                    super().end_headers()
+
+                def log_message(self, format, *log_args):
+                    # Suppress verbose HTTP logs, only show errors
+                    pass
+
+            # Allow port reuse
+            socketserver.TCPServer.allow_reuse_address = True
+
+            with socketserver.TCPServer(("", args.port), CORSHTTPRequestHandler) as httpd:
+                url = f"http://localhost:{args.port}"
+                logger.info(f"Dashboard running at {url}")
+                logger.info("Press Ctrl+C to stop")
+
+                if getattr(args, "open", False):
+                    webbrowser.open(url)
+
+                try:
+                    httpd.serve_forever()
+                except KeyboardInterrupt:
+                    logger.info("\nServer stopped")
+
+        finally:
+            os.chdir(original_dir)
+
+    return 0
+
+
 def main() -> int:
     """Main entry point for the CLI."""
     parser = create_parser()
@@ -674,6 +901,10 @@ def main() -> int:
             return cmd_generate_csv(args)
         elif args.command == "generate-aggregates":
             return cmd_generate_aggregates(args)
+        elif args.command == "build-aggregates":
+            return cmd_build_aggregates(args)
+        elif args.command == "dashboard":
+            return cmd_dashboard(args)
         else:
             parser.print_help()
             return 1
