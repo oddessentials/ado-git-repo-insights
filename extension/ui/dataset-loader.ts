@@ -12,6 +12,18 @@ const SUPPORTED_DATASET_VERSION = 1;
 const SUPPORTED_AGGREGATES_VERSION = 1;
 
 /**
+ * Candidate paths to search for dataset-manifest.json.
+ * Supports nested artifact layouts from Azure DevOps downloads.
+ * Order matters: first match wins.
+ */
+export const DATASET_CANDIDATE_PATHS = [
+    '',              // Root of provided base URL
+    'aggregates',    // Single nesting (common)
+    'aggregates/aggregates',  // Double nesting (ADO artifact download quirk)
+    'dataset',       // Alternative naming
+];
+
+/**
  * Interface for Rollup data structure.
  */
 export interface Rollup {
@@ -285,6 +297,7 @@ export interface IDatasetLoader {
  */
 export class DatasetLoader implements IDatasetLoader {
     protected baseUrl: string;
+    protected effectiveBaseUrl: string | null = null;  // Resolved after probing
     protected manifest: any | null = null;
     protected dimensions: any | null = null;
     protected rollupCache = new Map<string, Rollup>(); // week -> data
@@ -292,12 +305,55 @@ export class DatasetLoader implements IDatasetLoader {
 
     constructor(baseUrl?: string) {
         this.baseUrl = baseUrl || '';
+        this.effectiveBaseUrl = null;  // Will be resolved on first manifest load
+    }
+
+    /**
+     * Resolve the dataset root by probing candidate paths for manifest.
+     * Caches the result for subsequent path resolutions.
+     * @returns The effective base URL or null if not found
+     */
+    async resolveDatasetRoot(): Promise<string | null> {
+        if (this.effectiveBaseUrl !== null) {
+            return this.effectiveBaseUrl || null;
+        }
+
+        for (const candidate of DATASET_CANDIDATE_PATHS) {
+            const candidateBase = candidate
+                ? `${this.baseUrl}/${candidate}`
+                : this.baseUrl;
+            const manifestUrl = candidateBase
+                ? `${candidateBase}/dataset-manifest.json`
+                : 'dataset-manifest.json';
+
+            try {
+                const response = await fetch(manifestUrl, { method: 'HEAD' });
+                if (response.ok) {
+                    console.log(`[DatasetLoader] Found manifest at: ${manifestUrl}`);
+                    this.effectiveBaseUrl = candidateBase;
+                    return candidateBase;
+                }
+            } catch {
+                // Continue to next candidate on network error
+            }
+        }
+
+        // No manifest found in any candidate path
+        console.warn('[DatasetLoader] No manifest found in candidate paths');
+        this.effectiveBaseUrl = '';  // Mark as resolved but empty (fallback to baseUrl)
+        return null;
     }
 
     /**
      * Load and validate the dataset manifest.
+     * Automatically resolves nested dataset root before loading.
      */
     async loadManifest(): Promise<any> {
+        // Resolve dataset root if not already done
+        if (this.effectiveBaseUrl === null) {
+            await this.resolveDatasetRoot();
+        }
+
         const url = this.resolvePath('dataset-manifest.json');
         const response = await fetch(url);
 
@@ -793,10 +849,13 @@ export class DatasetLoader implements IDatasetLoader {
 
     /**
      * Resolve a relative path to full URL.
+     * Uses effectiveBaseUrl if resolved, otherwise falls back to baseUrl.
      */
     protected resolvePath(relativePath: string): string {
-        if (this.baseUrl) {
-            return `${this.baseUrl}/${relativePath}`;
+        // Use effective base URL if resolved (supports nested layouts)
+        const base = this.effectiveBaseUrl !== null ? this.effectiveBaseUrl : this.baseUrl;
+        if (base) {
+            return `${base}/${relativePath}`;
         }
         return relativePath;
     }
