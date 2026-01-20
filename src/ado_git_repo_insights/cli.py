@@ -259,6 +259,53 @@ def create_parser() -> argparse.ArgumentParser:  # pragma: no cover
         help="Enable OpenAI-based insights",
     )
 
+    # Stage Artifacts command (download pipeline artifacts locally)
+    stage_parser = subparsers.add_parser(
+        "stage-artifacts",
+        help="Download pipeline artifacts to local directory for dashboard",
+    )
+    stage_parser.add_argument(
+        "--org",
+        type=str,
+        required=True,
+        help="Azure DevOps organization name",
+    )
+    stage_parser.add_argument(
+        "--project",
+        type=str,
+        required=True,
+        help="Azure DevOps project name",
+    )
+    stage_parser.add_argument(
+        "--pipeline-id",
+        type=int,
+        required=True,
+        help="Pipeline definition ID",
+    )
+    stage_parser.add_argument(
+        "--artifact",
+        type=str,
+        default="aggregates",
+        help="Artifact name to download (default: aggregates)",
+    )
+    stage_parser.add_argument(
+        "--pat",
+        type=str,
+        required=True,
+        help="Personal Access Token with Build (Read) scope",
+    )
+    stage_parser.add_argument(
+        "--out",
+        type=Path,
+        default=Path("./run_artifacts"),
+        help="Output directory (default: ./run_artifacts)",
+    )
+    stage_parser.add_argument(
+        "--run-id",
+        type=int,
+        help="Specific pipeline run ID (default: latest successful)",
+    )
+
     # Dashboard command (Phase 6)
     dashboard_parser = subparsers.add_parser(
         "dashboard",
@@ -267,8 +314,8 @@ def create_parser() -> argparse.ArgumentParser:  # pragma: no cover
     dashboard_parser.add_argument(
         "--dataset",
         type=Path,
-        required=True,
-        help="Path to dataset folder (containing dataset-manifest.json)",
+        default=Path("./run_artifacts"),
+        help="Path to dataset folder or run_artifacts dir (default: ./run_artifacts)",
     )
     dashboard_parser.add_argument(
         "--port",
@@ -780,6 +827,142 @@ def cmd_build_aggregates(args: Namespace) -> int:
         return 1
 
 
+def cmd_stage_artifacts(args: Namespace) -> int:
+    """Execute the stage-artifacts command - download pipeline artifacts locally."""
+    import base64
+    import json
+    import shutil
+    import zipfile
+    from datetime import datetime, timezone
+
+    import requests
+
+    from .utils.dataset_discovery import find_dataset_roots
+
+    logger.info("Staging pipeline artifacts...")
+    logger.info(f"Organization: {args.org}")
+    logger.info(f"Project: {args.project}")
+    logger.info(f"Pipeline ID: {args.pipeline_id}")
+    logger.info(f"Artifact: {args.artifact}")
+    logger.info(f"Output: {args.out}")
+
+    # Build auth headers (Invariant 19: PAT is never logged)
+    pat_bytes = f":{args.pat}".encode()
+    auth_b64 = base64.b64encode(pat_bytes).decode("ascii")
+    headers = {"Authorization": f"Basic {auth_b64}"}
+
+    base_url = f"https://dev.azure.com/{args.org}/{args.project}/_apis"
+
+    try:
+        # Step 1: Get the build (latest successful or specific run-id)
+        if args.run_id:
+            build_url = f"{base_url}/build/builds/{args.run_id}?api-version=7.1"
+            resp = requests.get(build_url, headers=headers, timeout=30)
+            resp.raise_for_status()
+            build = resp.json()
+            build_id = build["id"]
+        else:
+            # Get latest successful build for the pipeline
+            builds_url = (
+                f"{base_url}/build/builds?"
+                f"definitions={args.pipeline_id}&"
+                f"statusFilter=completed&resultFilter=succeeded&"
+                f"$top=1&api-version=7.1"
+            )
+            resp = requests.get(builds_url, headers=headers, timeout=30)
+            resp.raise_for_status()
+            builds = resp.json().get("value", [])
+
+            if not builds:
+                logger.error(
+                    f"No successful builds found for pipeline {args.pipeline_id}"
+                )
+                return 1
+
+            build = builds[0]
+            build_id = build["id"]
+
+        logger.info(f"Using build ID: {build_id}")
+
+        # Step 2: Get artifact download URL
+        artifact_url = (
+            f"{base_url}/build/builds/{build_id}/artifacts?"
+            f"artifactName={args.artifact}&api-version=7.1"
+        )
+        resp = requests.get(artifact_url, headers=headers, timeout=30)
+        resp.raise_for_status()
+        artifact_info = resp.json()
+
+        download_url = artifact_info.get("resource", {}).get("downloadUrl")
+        if not download_url:
+            logger.error(f"Artifact '{args.artifact}' not found in build {build_id}")
+            return 1
+
+        # Step 3: Download the artifact ZIP
+        logger.info("Downloading artifact...")
+        resp = requests.get(download_url, headers=headers, timeout=300, stream=True)
+        resp.raise_for_status()
+
+        # Prepare output directory
+        out_dir = args.out.resolve()
+        if out_dir.exists():
+            shutil.rmtree(out_dir)
+        out_dir.mkdir(parents=True, exist_ok=True)
+
+        # Save and extract ZIP
+        zip_path = out_dir / f"{args.artifact}.zip"
+        with zip_path.open("wb") as f:
+            for chunk in resp.iter_content(chunk_size=8192):
+                f.write(chunk)
+
+        logger.info("Extracting artifact (preserving nested paths)...")
+        with zipfile.ZipFile(zip_path, "r") as zf:
+            zf.extractall(out_dir)
+        zip_path.unlink()  # Clean up ZIP
+
+        # Step 4: Find dataset roots
+        dataset_roots = find_dataset_roots(out_dir)
+
+        # Step 5: Write STAGED.json metadata
+        staged_info = {
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "organization": args.org,
+            "project": args.project,
+            "pipeline_id": args.pipeline_id,
+            "build_id": build_id,
+            "artifact_name": args.artifact,
+            "dataset_root_candidates": [str(p) for p in dataset_roots],
+        }
+        staged_path = out_dir / "STAGED.json"
+        with staged_path.open("w", encoding="utf-8") as f:
+            json.dump(staged_info, f, indent=2)
+
+        logger.info(f"Artifact staged to: {out_dir}")
+        logger.info(f"Dataset root candidates: {len(dataset_roots)}")
+        for root in dataset_roots:
+            logger.info(f"  - {root}")
+
+        if not dataset_roots:
+            logger.warning(
+                "No dataset-manifest.json found. Verify the artifact was published correctly."
+            )
+            return 1
+
+        logger.info("Stage complete. Run 'ado-insights dashboard' to view.")
+        return 0
+
+    except requests.exceptions.HTTPError as e:
+        logger.error(f"HTTP error: {e}")
+        if e.response is not None and e.response.status_code == 401:
+            logger.error(
+                "Authentication failed - check your PAT has Build (Read) scope"
+            )
+        return 1
+    except requests.exceptions.RequestException as e:
+        logger.error(f"Request failed: {e}")
+        return 1
+
+
 def cmd_dashboard(args: Namespace) -> int:
     """Execute the dashboard command (Phase 6 - local HTTP server)."""
     import http.server
@@ -789,14 +972,35 @@ def cmd_dashboard(args: Namespace) -> int:
     import tempfile
     import webbrowser
 
-    dataset_path = args.dataset.resolve()
-    manifest_path = dataset_path / "dataset-manifest.json"
+    from .utils.dataset_discovery import find_dataset_roots, validate_dataset_root
 
-    if not manifest_path.exists():
-        logger.error(f"dataset-manifest.json not found in {dataset_path}")
-        logger.error(
-            "Run 'ado-insights build-aggregates' first to generate the dataset."
-        )
+    # Resolve dataset path using find_dataset_roots for nested layout tolerance
+    input_path = args.dataset.resolve()
+    dataset_roots = find_dataset_roots(input_path)
+
+    if dataset_roots:
+        dataset_path = dataset_roots[0]
+        logger.info(f"Using dataset root: {dataset_path}")
+    else:
+        # Fall back to direct path if it contains manifest
+        manifest_path = input_path / "dataset-manifest.json"
+        if manifest_path.exists():
+            dataset_path = input_path
+            logger.info(f"Using direct dataset path: {dataset_path}")
+        else:
+            logger.error(f"dataset-manifest.json not found in {input_path}")
+            logger.error("Searched paths:")
+            for candidate in [".", "aggregates", "aggregates/aggregates", "dataset"]:
+                logger.error(f"  - {input_path / candidate}")
+            logger.error(
+                "Run 'ado-insights stage-artifacts' or 'ado-insights build-aggregates' first."
+            )
+            return 1
+
+    # Validate the selected dataset root
+    is_valid, error_msg = validate_dataset_root(dataset_path)
+    if not is_valid:
+        logger.error(f"Invalid dataset: {error_msg}")
         return 1
 
     # Locate UI bundle (packaged with the module)
@@ -918,6 +1122,8 @@ def main() -> int:
             return cmd_generate_aggregates(args)
         elif args.command == "build-aggregates":
             return cmd_build_aggregates(args)
+        elif args.command == "stage-artifacts":
+            return cmd_stage_artifacts(args)
         elif args.command == "dashboard":
             return cmd_dashboard(args)
         else:
