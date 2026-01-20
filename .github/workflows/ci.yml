@@ -364,7 +364,7 @@ jobs:
         run: npm install -g tfx-cli
 
       - name: Validate Task Input Names
-        run: node scripts/validate-task-inputs.js
+        run: npx ts-node scripts/validate-task-inputs.ts
 
       - name: Run Extension Unit Tests
         run: node extension/tasks/extract-prs/index.test.js
@@ -409,6 +409,14 @@ jobs:
       - name: Install dependencies
         working-directory: extension
         run: npm ci
+
+      - name: TypeScript Type Check
+        working-directory: extension
+        run: npm run build:check
+
+      - name: ESLint
+        working-directory: extension
+        run: npm run lint
 
       - name: Run Extension UI Tests
         id: npm_test
@@ -457,7 +465,7 @@ jobs:
           # MAX_SKIPS: Maximum allowed skipped tests (0 = no skips allowed in CI)
           python .github/scripts/validate-test-results.py \
             extension/test-results.xml \
-            --min-collected=125 \
+            --min-collected=374 \
             --max-skips=0
         shell: bash
 

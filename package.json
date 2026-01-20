@@ -2,6 +2,7 @@
   "name": "ado-git-repo-insights-release",
   "private": true,
   "devDependencies": {
+    "@oddessentials/repo-standards": "^6.0.0",
     "@semantic-release/changelog": "^6.0.3",
     "@semantic-release/commit-analyzer": "^13.0.0",
     "@semantic-release/exec": "^6.0.3",
@@ -13,6 +14,8 @@
   },
   "version": "3.8.2",
   "scripts": {
-    "prepare": "husky"
+    "prepare": "husky",
+    "standards:ts": "repo-standards typescript-js",
+    "standards:py": "repo-standards python"
   }
 }
