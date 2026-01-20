@@ -831,7 +831,7 @@ def cmd_dashboard(args: Namespace) -> int:
         # Inject local-config.js into index.html
         index_html = serve_dir / "index.html"
         if index_html.exists():
-            content = index_html.read_text()
+            content = index_html.read_text(encoding="utf-8")
             # Insert local-config.js before dashboard.js
             if "local-config.js" not in content:
                 # Primary method: use the guarded placeholder (robust)
@@ -847,7 +847,7 @@ def cmd_dashboard(args: Namespace) -> int:
                         '<script src="dashboard.js"></script>',
                         '<script src="local-config.js"></script>\n    <script src="dashboard.js"></script>',
                     )
-                index_html.write_text(content)
+                index_html.write_text(content, encoding="utf-8")
 
         # Change to serve directory
         original_dir = os.getcwd()
