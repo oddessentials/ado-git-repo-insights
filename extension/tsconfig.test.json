@@ -1,19 +1,12 @@
 {
-    "extends": "./tsconfig.json",
-    "compilerOptions": {
-        "strict": false,
-        "noImplicitAny": false,
-        "strictNullChecks": false,
-        "noUncheckedIndexedAccess": false,
-        "noEmit": true
-    },
-    "include": [
-        "tests/**/*.ts",
-        "ui/**/*.ts",
-        "../types/vss.d.ts"
-    ],
-    "exclude": [
-        "node_modules",
-        "dist"
-    ]
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "strict": false,
+    "noImplicitAny": false,
+    "strictNullChecks": false,
+    "noUncheckedIndexedAccess": false,
+    "noEmit": true
+  },
+  "include": ["tests/**/*.ts", "ui/**/*.ts", "../types/vss.d.ts"],
+  "exclude": ["node_modules", "dist"]
 }

@@ -6,45 +6,44 @@
  */
 
 // Make this file a module (required for declare global)
-export { };
+export {};
 
 declare global {
-    interface Window {
-        LOCAL_DASHBOARD_MODE?: any;
-        DATASET_PATH?: string;
-    }
+  interface Window {
+    LOCAL_DASHBOARD_MODE?: any;
+    DATASET_PATH?: string;
+  }
 }
 
-describe('Local Mode Integration', () => {
-    beforeEach(() => {
-        jest.resetModules();
-        document.body.innerHTML = '';
-        delete window.LOCAL_DASHBOARD_MODE;
-        delete window.DATASET_PATH;
-        (global as any).fetch.mockReset();
-    });
+describe("Local Mode Integration", () => {
+  beforeEach(() => {
+    jest.resetModules();
+    document.body.innerHTML = "";
+    delete window.LOCAL_DASHBOARD_MODE;
+    delete window.DATASET_PATH;
+    (global as any).fetch.mockReset();
+  });
 
-    afterEach(() => {
-        delete window.LOCAL_DASHBOARD_MODE;
-        delete window.DATASET_PATH;
-        jest.restoreAllMocks();
-    });
+  afterEach(() => {
+    delete window.LOCAL_DASHBOARD_MODE;
+    delete window.DATASET_PATH;
+    jest.restoreAllMocks();
+  });
 
-    /**
-     * Simulate the local mode initialization path from dashboard.js
-     */
-    function simulateLocalModeInit(options: { datasetPath?: string; manifestExists?: boolean } = {}) {
-        const {
-            datasetPath = './dataset',
-            manifestExists = true
-        } = options;
+  /**
+   * Simulate the local mode initialization path from dashboard.js
+   */
+  function simulateLocalModeInit(
+    options: { datasetPath?: string; manifestExists?: boolean } = {},
+  ) {
+    const { datasetPath = "./dataset", manifestExists = true } = options;
 
-        // Set up local mode globals
-        window.LOCAL_DASHBOARD_MODE = true;
-        window.DATASET_PATH = datasetPath;
+    // Set up local mode globals
+    window.LOCAL_DASHBOARD_MODE = true;
+    window.DATASET_PATH = datasetPath;
 
-        // Set up DOM with elements that init() manipulates
-        document.body.innerHTML = `
+    // Set up DOM with elements that init() manipulates
+    document.body.innerHTML = `
             <div id="app">
                 <span id="current-project-name">Project Name</span>
                 <button id="export-raw-zip">Download Raw Data (ZIP)</button>
@@ -57,152 +56,166 @@ describe('Local Mode Integration', () => {
             </div>
         `;
 
-        // Mock fetch responses
-        (global as any).fetch.mockImplementation(async (url: string) => {
-            if (url.includes('dataset-manifest.json')) {
-                if (!manifestExists) {
-                    return { ok: false, status: 404, statusText: 'Not Found' };
-                }
-                return {
-                    ok: true,
-                    status: 200,
-                    json: async () => ({
-                        manifest_schema_version: 1,
-                        dataset_schema_version: 1,
-                        aggregates_schema_version: 1,
-                        coverage: { total_prs: 100, date_range: { min: '2025-01-01', max: '2025-12-31' } },
-                        features: {},
-                        defaults: { default_date_range_days: 90 },
-                        aggregate_index: { weekly_rollups: [], distributions: [] }
-                    })
-                };
-            }
-            if (url.includes('dimensions.json')) {
-                return {
-                    ok: true,
-                    status: 200,
-                    json: async () => ({
-                        repositories: [],
-                        users: [],
-                        projects: [],
-                        teams: [],
-                        date_range: { min: '2025-01-01', max: '2025-12-31' }
-                    })
-                };
-            }
-            return { ok: false, status: 404, statusText: 'Not Found' };
-        });
-    }
+    // Mock fetch responses
+    (global as any).fetch.mockImplementation(async (url: string) => {
+      if (url.includes("dataset-manifest.json")) {
+        if (!manifestExists) {
+          return { ok: false, status: 404, statusText: "Not Found" };
+        }
+        return {
+          ok: true,
+          status: 200,
+          json: async () => ({
+            manifest_schema_version: 1,
+            dataset_schema_version: 1,
+            aggregates_schema_version: 1,
+            coverage: {
+              total_prs: 100,
+              date_range: { min: "2025-01-01", max: "2025-12-31" },
+            },
+            features: {},
+            defaults: { default_date_range_days: 90 },
+            aggregate_index: { weekly_rollups: [], distributions: [] },
+          }),
+        };
+      }
+      if (url.includes("dimensions.json")) {
+        return {
+          ok: true,
+          status: 200,
+          json: async () => ({
+            repositories: [],
+            users: [],
+            projects: [],
+            teams: [],
+            date_range: { min: "2025-01-01", max: "2025-12-31" },
+          }),
+        };
+      }
+      return { ok: false, status: 404, statusText: "Not Found" };
+    });
+  }
 
-    describe('UI State Changes', () => {
-        it('hides download button in local mode', async () => {
-            simulateLocalModeInit();
+  describe("UI State Changes", () => {
+    it("hides download button in local mode", async () => {
+      simulateLocalModeInit();
 
-            const exportBtn = document.getElementById('export-raw-zip');
+      const exportBtn = document.getElementById("export-raw-zip");
 
-            // Simulate what init() does in local mode
-            if (window.LOCAL_DASHBOARD_MODE === true) {
-                if (exportBtn) {
-                    exportBtn.style.display = 'none';
-                }
-            }
+      // Simulate what init() does in local mode
+      if (window.LOCAL_DASHBOARD_MODE === true) {
+        if (exportBtn) {
+          exportBtn.style.display = "none";
+        }
+      }
 
-            // Assert user-visible behavior
-            expect(exportBtn?.style.display).toBe('none');
-        });
-
-        it('displays "Local Dashboard" in header', async () => {
-            simulateLocalModeInit();
-
-            const projectNameEl = document.getElementById('current-project-name');
-
-            // Simulate what init() does in local mode
-            if (window.LOCAL_DASHBOARD_MODE === true) {
-                if (projectNameEl) {
-                    projectNameEl.textContent = 'Local Dashboard';
-                }
-            }
-
-            // Assert user-visible behavior
-            expect(projectNameEl?.textContent).toBe('Local Dashboard');
-        });
+      // Assert user-visible behavior
+      expect(exportBtn?.style.display).toBe("none");
     });
 
-    describe('Dataset Loading', () => {
-        it('requests dataset from configured DATASET_PATH', async () => {
-            const customPath = './my-custom-dataset';
-            simulateLocalModeInit({ datasetPath: customPath });
+    it('displays "Local Dashboard" in header', async () => {
+      simulateLocalModeInit();
 
-            // Actually call fetch as the loader would
-            const datasetPath = window.DATASET_PATH || './dataset';
-            await fetch(`${datasetPath}/dataset-manifest.json`);
+      const projectNameEl = document.getElementById("current-project-name");
 
-            // Prove fetch was called with expected path
-            expect(global.fetch).toHaveBeenCalledWith(`${customPath}/dataset-manifest.json`);
-        });
+      // Simulate what init() does in local mode
+      if (window.LOCAL_DASHBOARD_MODE === true) {
+        if (projectNameEl) {
+          projectNameEl.textContent = "Local Dashboard";
+        }
+      }
 
-        it('uses default path when DATASET_PATH not set', async () => {
-            simulateLocalModeInit();
-            delete window.DATASET_PATH;
+      // Assert user-visible behavior
+      expect(projectNameEl?.textContent).toBe("Local Dashboard");
+    });
+  });
 
-            const datasetPath = window.DATASET_PATH || './dataset';
-            await fetch(`${datasetPath}/dataset-manifest.json`);
+  describe("Dataset Loading", () => {
+    it("requests dataset from configured DATASET_PATH", async () => {
+      const customPath = "./my-custom-dataset";
+      simulateLocalModeInit({ datasetPath: customPath });
 
-            expect(global.fetch).toHaveBeenCalledWith('./dataset/dataset-manifest.json');
-        });
+      // Actually call fetch as the loader would
+      const datasetPath = window.DATASET_PATH || "./dataset";
+      await fetch(`${datasetPath}/dataset-manifest.json`);
+
+      // Prove fetch was called with expected path
+      expect(global.fetch).toHaveBeenCalledWith(
+        `${customPath}/dataset-manifest.json`,
+      );
     });
 
-    describe('Error Handling', () => {
-        it('shows error state when dataset-manifest.json missing', async () => {
-            simulateLocalModeInit({ manifestExists: false });
+    it("uses default path when DATASET_PATH not set", async () => {
+      simulateLocalModeInit();
+      delete window.DATASET_PATH;
 
-            const errorState = document.getElementById('error-state');
-            const errorTitle = document.getElementById('error-title');
-            const errorMessage = document.getElementById('error-message');
+      const datasetPath = window.DATASET_PATH || "./dataset";
+      await fetch(`${datasetPath}/dataset-manifest.json`);
 
-            // Simulate error handling path
-            try {
-                const response = await fetch(`${window.DATASET_PATH}/dataset-manifest.json`);
-                if (!response.ok) {
-                    errorState?.classList.remove('hidden');
-                    if (errorTitle) errorTitle.textContent = 'Dataset Not Found';
-                    if (errorMessage) errorMessage.textContent = 'Ensure the analytics pipeline has run successfully.';
-                }
-            } catch (e) {
-                // Network error path
-            }
+      expect(global.fetch).toHaveBeenCalledWith(
+        "./dataset/dataset-manifest.json",
+      );
+    });
+  });
 
-            // Assert user-visible behavior - error panel is visible with actionable message
-            expect(errorState?.classList.contains('hidden')).toBe(false);
-            expect(errorTitle?.textContent).toBe('Dataset Not Found');
-            expect(errorMessage?.textContent).toContain('pipeline');
-        });
+  describe("Error Handling", () => {
+    it("shows error state when dataset-manifest.json missing", async () => {
+      simulateLocalModeInit({ manifestExists: false });
+
+      const errorState = document.getElementById("error-state");
+      const errorTitle = document.getElementById("error-title");
+      const errorMessage = document.getElementById("error-message");
+
+      // Simulate error handling path
+      try {
+        const response = await fetch(
+          `${window.DATASET_PATH}/dataset-manifest.json`,
+        );
+        if (!response.ok) {
+          errorState?.classList.remove("hidden");
+          if (errorTitle) errorTitle.textContent = "Dataset Not Found";
+          if (errorMessage)
+            errorMessage.textContent =
+              "Ensure the analytics pipeline has run successfully.";
+        }
+      } catch (e) {
+        // Network error path
+      }
+
+      // Assert user-visible behavior - error panel is visible with actionable message
+      expect(errorState?.classList.contains("hidden")).toBe(false);
+      expect(errorTitle?.textContent).toBe("Dataset Not Found");
+      expect(errorMessage?.textContent).toContain("pipeline");
+    });
+  });
+
+  describe("Mode Detection", () => {
+    it("isLocalMode returns true when LOCAL_DASHBOARD_MODE is true", () => {
+      window.LOCAL_DASHBOARD_MODE = true;
+
+      // Use the same logic as dashboard.js
+      const isLocal =
+        typeof window !== "undefined" && window.LOCAL_DASHBOARD_MODE === true;
+
+      expect(isLocal).toBe(true);
     });
 
-    describe('Mode Detection', () => {
-        it('isLocalMode returns true when LOCAL_DASHBOARD_MODE is true', () => {
-            window.LOCAL_DASHBOARD_MODE = true;
+    it("isLocalMode returns false for non-boolean truthy values", () => {
+      window.LOCAL_DASHBOARD_MODE = "true"; // string, not boolean
 
-            // Use the same logic as dashboard.js
-            const isLocal = typeof window !== 'undefined' && window.LOCAL_DASHBOARD_MODE === true;
+      const isLocal =
+        typeof window !== "undefined" && window.LOCAL_DASHBOARD_MODE === true;
 
-            expect(isLocal).toBe(true);
-        });
-
-        it('isLocalMode returns false for non-boolean truthy values', () => {
-            window.LOCAL_DASHBOARD_MODE = 'true'; // string, not boolean
-
-            const isLocal = typeof window !== 'undefined' && window.LOCAL_DASHBOARD_MODE === true;
-
-            expect(isLocal).toBe(false);
-        });
-
-        it('getLocalDatasetPath returns DATASET_PATH or default', () => {
-            window.DATASET_PATH = './custom-path';
-
-            const path = (typeof window !== 'undefined' && window.DATASET_PATH) || './dataset';
-
-            expect(path).toBe('./custom-path');
-        });
+      expect(isLocal).toBe(false);
     });
+
+    it("getLocalDatasetPath returns DATASET_PATH or default", () => {
+      window.DATASET_PATH = "./custom-path";
+
+      const path =
+        (typeof window !== "undefined" && window.DATASET_PATH) || "./dataset";
+
+      expect(path).toBe("./custom-path");
+    });
+  });
 });

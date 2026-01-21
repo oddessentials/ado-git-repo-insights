@@ -5,129 +5,159 @@
  * implemented in dashboard.ts and settings.ts.
  */
 
-import * as fs from 'fs';
-import * as path from 'path';
+import * as fs from "fs";
+import * as path from "path";
 
-describe('Cross-Project Settings', () => {
-    describe('dashboard.ts configuration', () => {
-        let dashboardCode: string;
+describe("Cross-Project Settings", () => {
+  describe("dashboard.ts configuration", () => {
+    let dashboardCode: string;
 
-        beforeAll(() => {
-            const dashboardPath = path.join(__dirname, '../ui/dashboard.ts');
-            dashboardCode = fs.readFileSync(dashboardPath, 'utf8');
-        });
-
-        it('should have SETTINGS_KEY_PROJECT constant', () => {
-            expect(dashboardCode).toContain("SETTINGS_KEY_PROJECT = 'pr-insights-source-project'");
-        });
-
-        it('should have SETTINGS_KEY_PIPELINE constant', () => {
-            expect(dashboardCode).toContain("SETTINGS_KEY_PIPELINE = 'pr-insights-pipeline-id'");
-        });
-
-        it('should have getSourceConfig function that returns both projectId and pipelineId', () => {
-            expect(dashboardCode).toContain('async function getSourceConfig()');
-            expect(dashboardCode).toContain('const result: { projectId: string | null; pipelineId: number | null } = { projectId: null, pipelineId: null }');
-        });
-
-        it('should read project setting with SETTINGS_KEY_PROJECT', () => {
-            expect(dashboardCode).toContain("SETTINGS_KEY_PROJECT, { scopeType: 'User' }");
-        });
-
-        it('should log source project origin', () => {
-            expect(dashboardCode).toMatch(/console\.log.*Source project/);
-        });
-
-        it('should use targetProjectId for ArtifactClient initialization', () => {
-            expect(dashboardCode).toContain('new ArtifactClient(targetProjectId)');
-        });
-
-        it('should pass targetProjectId to resolveFromPipelineId', () => {
-            expect(dashboardCode).toContain('resolveFromPipelineId(queryResult.value, targetProjectId)');
-            expect(dashboardCode).toContain('resolveFromPipelineId(sourceConfig.pipelineId, targetProjectId)');
-        });
-
-        it('should pass targetProjectId to discoverAndResolve', () => {
-            expect(dashboardCode).toContain('discoverAndResolve(targetProjectId)');
-        });
+    beforeAll(() => {
+      const dashboardPath = path.join(__dirname, "../ui/dashboard.ts");
+      dashboardCode = fs.readFileSync(dashboardPath, "utf8");
     });
 
-    describe('settings.ts configuration', () => {
-        let settingsCode: string;
-
-        beforeAll(() => {
-            const settingsPath = path.join(__dirname, '../ui/settings.ts');
-            settingsCode = fs.readFileSync(settingsPath, 'utf8');
-        });
-
-        it('should have SETTINGS_KEY_PROJECT constant matching dashboard', () => {
-            expect(settingsCode).toContain("SETTINGS_KEY_PROJECT = 'pr-insights-source-project'");
-        });
-
-        it('should have SETTINGS_KEY_PIPELINE constant matching dashboard', () => {
-            expect(settingsCode).toContain("SETTINGS_KEY_PIPELINE = 'pr-insights-pipeline-id'");
-        });
-
-        it('should have tryLoadProjectDropdown for graceful degradation', () => {
-            expect(settingsCode).toContain('async function tryLoadProjectDropdown()');
-        });
-
-        it('should have getOrganizationProjects for dropdown population', () => {
-            expect(settingsCode).toContain('async function getOrganizationProjects()');
-        });
-
-        it('should have projectDropdownAvailable flag', () => {
-            expect(settingsCode).toContain('let projectDropdownAvailable = false');
-        });
-
-        it('should save project ID separately from pipeline ID', () => {
-            expect(settingsCode).toContain("SETTINGS_KEY_PROJECT, projectId, { scopeType: 'User' }");
-            expect(settingsCode).toContain("SETTINGS_KEY_PIPELINE, pipelineId, { scopeType: 'User' }");
-        });
+    it("should have SETTINGS_KEY_PROJECT constant", () => {
+      expect(dashboardCode).toContain(
+        "SETTINGS_KEY_PROJECT = 'pr-insights-source-project'",
+      );
     });
 
-    describe('settings keys consistency', () => {
-        it('should use the same settings keys in both files', () => {
-            const dashboardPath = path.join(__dirname, '../ui/dashboard.ts');
-            const settingsPath = path.join(__dirname, '../ui/settings.ts');
-
-            const dashboardCode = fs.readFileSync(dashboardPath, 'utf8');
-            const settingsCode = fs.readFileSync(settingsPath, 'utf8');
-
-            // Extract settings keys from both files
-            const dashboardProjectKey = dashboardCode.match(/SETTINGS_KEY_PROJECT\s*=\s*'([^']+)'/)?.[1];
-            const dashboardPipelineKey = dashboardCode.match(/SETTINGS_KEY_PIPELINE\s*=\s*'([^']+)'/)?.[1];
-            const settingsProjectKey = settingsCode.match(/SETTINGS_KEY_PROJECT\s*=\s*'([^']+)'/)?.[1];
-            const settingsPipelineKey = settingsCode.match(/SETTINGS_KEY_PIPELINE\s*=\s*'([^']+)'/)?.[1];
-
-            expect(dashboardProjectKey).toBe('pr-insights-source-project');
-            expect(settingsProjectKey).toBe('pr-insights-source-project');
-            expect(dashboardProjectKey).toBe(settingsProjectKey);
-
-            expect(dashboardPipelineKey).toBe('pr-insights-pipeline-id');
-            expect(settingsPipelineKey).toBe('pr-insights-pipeline-id');
-            expect(dashboardPipelineKey).toBe(settingsPipelineKey);
-        });
+    it("should have SETTINGS_KEY_PIPELINE constant", () => {
+      expect(dashboardCode).toContain(
+        "SETTINGS_KEY_PIPELINE = 'pr-insights-pipeline-id'",
+      );
     });
 
-    describe('vss-extension.json manifest', () => {
-        let manifest: any;
-
-        beforeAll(() => {
-            const manifestPath = path.join(__dirname, '../vss-extension.json');
-            manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf8'));
-        });
-
-        it('should have vso.project scope for listing projects', () => {
-            expect(manifest.scopes).toContain('vso.project');
-        });
-
-        it('should have vso.build scope for accessing artifacts', () => {
-            expect(manifest.scopes).toContain('vso.build');
-        });
-
-        it('should have vso.settings scope for extension data', () => {
-            expect(manifest.scopes).toContain('vso.settings');
-        });
+    it("should have getSourceConfig function that returns both projectId and pipelineId", () => {
+      expect(dashboardCode).toContain("async function getSourceConfig()");
+      expect(dashboardCode).toContain(
+        "const result: { projectId: string | null; pipelineId: number | null } = { projectId: null, pipelineId: null }",
+      );
     });
+
+    it("should read project setting with SETTINGS_KEY_PROJECT", () => {
+      expect(dashboardCode).toContain(
+        "SETTINGS_KEY_PROJECT, { scopeType: 'User' }",
+      );
+    });
+
+    it("should log source project origin", () => {
+      expect(dashboardCode).toMatch(/console\.log.*Source project/);
+    });
+
+    it("should use targetProjectId for ArtifactClient initialization", () => {
+      expect(dashboardCode).toContain("new ArtifactClient(targetProjectId)");
+    });
+
+    it("should pass targetProjectId to resolveFromPipelineId", () => {
+      expect(dashboardCode).toContain(
+        "resolveFromPipelineId(queryResult.value, targetProjectId)",
+      );
+      expect(dashboardCode).toContain(
+        "resolveFromPipelineId(sourceConfig.pipelineId, targetProjectId)",
+      );
+    });
+
+    it("should pass targetProjectId to discoverAndResolve", () => {
+      expect(dashboardCode).toContain("discoverAndResolve(targetProjectId)");
+    });
+  });
+
+  describe("settings.ts configuration", () => {
+    let settingsCode: string;
+
+    beforeAll(() => {
+      const settingsPath = path.join(__dirname, "../ui/settings.ts");
+      settingsCode = fs.readFileSync(settingsPath, "utf8");
+    });
+
+    it("should have SETTINGS_KEY_PROJECT constant matching dashboard", () => {
+      expect(settingsCode).toContain(
+        "SETTINGS_KEY_PROJECT = 'pr-insights-source-project'",
+      );
+    });
+
+    it("should have SETTINGS_KEY_PIPELINE constant matching dashboard", () => {
+      expect(settingsCode).toContain(
+        "SETTINGS_KEY_PIPELINE = 'pr-insights-pipeline-id'",
+      );
+    });
+
+    it("should have tryLoadProjectDropdown for graceful degradation", () => {
+      expect(settingsCode).toContain("async function tryLoadProjectDropdown()");
+    });
+
+    it("should have getOrganizationProjects for dropdown population", () => {
+      expect(settingsCode).toContain(
+        "async function getOrganizationProjects()",
+      );
+    });
+
+    it("should have projectDropdownAvailable flag", () => {
+      expect(settingsCode).toContain("let projectDropdownAvailable = false");
+    });
+
+    it("should save project ID separately from pipeline ID", () => {
+      expect(settingsCode).toContain(
+        "SETTINGS_KEY_PROJECT, projectId, { scopeType: 'User' }",
+      );
+      expect(settingsCode).toContain(
+        "SETTINGS_KEY_PIPELINE, pipelineId, { scopeType: 'User' }",
+      );
+    });
+  });
+
+  describe("settings keys consistency", () => {
+    it("should use the same settings keys in both files", () => {
+      const dashboardPath = path.join(__dirname, "../ui/dashboard.ts");
+      const settingsPath = path.join(__dirname, "../ui/settings.ts");
+
+      const dashboardCode = fs.readFileSync(dashboardPath, "utf8");
+      const settingsCode = fs.readFileSync(settingsPath, "utf8");
+
+      // Extract settings keys from both files
+      const dashboardProjectKey = dashboardCode.match(
+        /SETTINGS_KEY_PROJECT\s*=\s*'([^']+)'/,
+      )?.[1];
+      const dashboardPipelineKey = dashboardCode.match(
+        /SETTINGS_KEY_PIPELINE\s*=\s*'([^']+)'/,
+      )?.[1];
+      const settingsProjectKey = settingsCode.match(
+        /SETTINGS_KEY_PROJECT\s*=\s*'([^']+)'/,
+      )?.[1];
+      const settingsPipelineKey = settingsCode.match(
+        /SETTINGS_KEY_PIPELINE\s*=\s*'([^']+)'/,
+      )?.[1];
+
+      expect(dashboardProjectKey).toBe("pr-insights-source-project");
+      expect(settingsProjectKey).toBe("pr-insights-source-project");
+      expect(dashboardProjectKey).toBe(settingsProjectKey);
+
+      expect(dashboardPipelineKey).toBe("pr-insights-pipeline-id");
+      expect(settingsPipelineKey).toBe("pr-insights-pipeline-id");
+      expect(dashboardPipelineKey).toBe(settingsPipelineKey);
+    });
+  });
+
+  describe("vss-extension.json manifest", () => {
+    let manifest: any;
+
+    beforeAll(() => {
+      const manifestPath = path.join(__dirname, "../vss-extension.json");
+      manifest = JSON.parse(fs.readFileSync(manifestPath, "utf8"));
+    });
+
+    it("should have vso.project scope for listing projects", () => {
+      expect(manifest.scopes).toContain("vso.project");
+    });
+
+    it("should have vso.build scope for accessing artifacts", () => {
+      expect(manifest.scopes).toContain("vso.build");
+    });
+
+    it("should have vso.settings scope for extension data", () => {
+      expect(manifest.scopes).toContain("vso.settings");
+    });
+  });
 });
