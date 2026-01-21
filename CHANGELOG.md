@@ -1,3 +1,10 @@
+# [3.8.0](https://github.com/oddessentials/ado-git-repo-insights/compare/v3.7.1...v3.8.0) (2026-01-21)
+
+
+### Features
+
+* add AI review integration with OSCR and odd-ai-reviewers ([5e6290b](https://github.com/oddessentials/ado-git-repo-insights/commit/5e6290bfe1a5ddb7900ba0cc9203a2f7913007e6))
+
 ## [3.7.1](https://github.com/oddessentials/ado-git-repo-insights/compare/v3.7.0...v3.7.1) (2026-01-19)
 
 
