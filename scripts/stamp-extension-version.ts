@@ -44,10 +44,11 @@ interface TaskJson {
 const VERSION_REGEX = /^(\d+)\.(\d+)\.(\d+)$/;
 
 // Paths relative to this script
+// When compiled, script runs from scripts/dist/, so we need ../../ to reach project root
 const PATHS = {
-    vss: path.join(__dirname, '../extension/vss-extension.json'),
-    task: path.join(__dirname, '../extension/tasks/extract-prs/task.json'),
-    version: path.join(__dirname, '../VERSION'),
+    vss: path.join(__dirname, '../../extension/vss-extension.json'),
+    task: path.join(__dirname, '../../extension/tasks/extract-prs/task.json'),
+    version: path.join(__dirname, '../../VERSION'),
 };
 
 /**

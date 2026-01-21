@@ -15,7 +15,7 @@
         [
             "@semantic-release/exec",
             {
-                "prepareCmd": "node scripts/stamp-extension-version.js ${nextRelease.version}"
+                "prepareCmd": "cd scripts && npx tsc && cd .. && node scripts/dist/stamp-extension-version.js ${nextRelease.version}"
             }
         ],
         [
