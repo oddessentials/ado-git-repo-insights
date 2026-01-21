@@ -95,16 +95,58 @@ jobs:
 
           echo "✓ No CRLF detected in Unix-executed files"
 
-  # Guard: Verify UI bundle is in sync with extension/ui
+  # Guard: Verify UI bundle is in sync with extension/dist/ui (compiled JS)
   ui-bundle-sync:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
 
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install extension dependencies
+        working-directory: extension
+        run: npm ci
+
+      - name: Build UI bundles
+        working-directory: extension
+        run: npm run build:ui
+
+      - name: No TypeScript in ui_bundle Guard
+        run: |
+          echo "Checking for TypeScript files in ui_bundle..."
+          TS_FILES=$(find src/ado_git_repo_insights/ui_bundle -name "*.ts" 2>/dev/null || true)
+          if [[ -n "$TS_FILES" ]]; then
+            echo "::error::TypeScript files found in ui_bundle (must contain only compiled JS):"
+            echo "$TS_FILES"
+            exit 1
+          fi
+          echo "✓ No TypeScript files in ui_bundle"
+
+      - name: No ESM Syntax in ui_bundle Guard
+        run: |
+          echo "Checking for ESM import/export syntax in ui_bundle JS..."
+          ESM_MATCHES=$(grep -rE "^\s*(import|export)\s" src/ado_git_repo_insights/ui_bundle/*.js 2>/dev/null || true)
+          if [[ -n "$ESM_MATCHES" ]]; then
+            echo "::error::ESM import/export syntax found in ui_bundle JS (must be IIFE bundled):"
+            echo "$ESM_MATCHES" | head -10
+            echo "..."
+            echo "Fix: Run 'npm run build:ui' to generate IIFE-bundled JS"
+            exit 1
+          fi
+          echo "✓ No ESM syntax in ui_bundle JS"
+
       - name: Check UI Bundle Synchronization
         run: |
-          chmod +x scripts/check-ui-bundle-sync.sh
-          ./scripts/check-ui-bundle-sync.sh
+          echo "Verifying ui_bundle is synced with extension/dist/ui..."
+          python scripts/sync_ui_bundle.py
+          if ! git diff --quiet -- src/ado_git_repo_insights/ui_bundle; then
+            echo "::error::ui_bundle is out of sync with extension/dist/ui"
+            git diff --stat -- src/ado_git_repo_insights/ui_bundle
+            exit 1
+          fi
+          echo "✓ UI bundle is in sync"
         shell: bash
 
   # Guard: Block task Major changes without explicit marker
