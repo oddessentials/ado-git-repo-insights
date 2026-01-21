@@ -1,3 +1,10 @@
+## [3.8.2](https://github.com/oddessentials/ado-git-repo-insights/compare/v3.8.1...v3.8.2) (2026-01-21)
+
+
+### Bug Fixes
+
+* add permissions for reusable workflow ([5f64b61](https://github.com/oddessentials/ado-git-repo-insights/commit/5f64b61a20f18e5729e2ec02266c2c088d3a491d))
+
 ## [3.8.1](https://github.com/oddessentials/ado-git-repo-insights/compare/v3.8.0...v3.8.1) (2026-01-21)
 
 
