@@ -6,11 +6,11 @@
  */
 
 // Make this file a module (required for declare global)
-export {};
+export { };
 
 declare global {
   interface Window {
-    LOCAL_DASHBOARD_MODE?: any;
+    LOCAL_DASHBOARD_MODE?: boolean | string | number;
     DATASET_PATH?: string;
   }
 }
@@ -201,7 +201,8 @@ describe("Local Mode Integration", () => {
     });
 
     it("isLocalMode returns false for non-boolean truthy values", () => {
-      window.LOCAL_DASHBOARD_MODE = "true"; // string, not boolean
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      (window as any).LOCAL_DASHBOARD_MODE = "true"; // string, not boolean
 
       const isLocal =
         typeof window !== "undefined" && window.LOCAL_DASHBOARD_MODE === true;
