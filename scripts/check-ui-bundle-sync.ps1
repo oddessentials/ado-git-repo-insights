@@ -1,8 +1,8 @@
 # check-ui-bundle-sync.ps1
 #
-# Verifies that extension/ui/ and src/ado_git_repo_insights/ui_bundle/ are synchronized.
+# Verifies that extension/dist/ui/ and src/ado_git_repo_insights/ui_bundle/ are synchronized.
 # These two locations must stay in sync because:
-#   - extension/ui/ is the source of truth for the Azure DevOps extension
+#   - extension/dist/ui/ is the compiled IIFE JS output from esbuild
 #   - ui_bundle/ is a copy for Python pip package (symlinks don't work with setuptools wheels)
 #
 # Exit codes:
@@ -16,12 +16,22 @@ $ErrorActionPreference = "Stop"
 $ScriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
 $RepoRoot = Split-Path -Parent $ScriptDir
 
-$SourceDir = Join-Path $RepoRoot "extension/ui"
+$SourceDir = Join-Path $RepoRoot "extension/dist/ui"
 $BundleDir = Join-Path $RepoRoot "src/ado_git_repo_insights/ui_bundle"
+
+# Build UI first (produces IIFE-bundled JS)
+Write-Host "Building UI bundles..."
+$extDir = Join-Path $RepoRoot "extension"
+if (Test-Path (Join-Path $extDir "package.json")) {
+    Push-Location $extDir
+    npm run build:ui
+    Pop-Location
+}
 
 # Validate directories exist
 if (-not (Test-Path $SourceDir -PathType Container)) {
-    Write-Error "Source directory not found: extension/ui/"
+    Write-Error "Source directory not found: extension/dist/ui/"
+    Write-Host "Run 'npm run build:ui' in extension/ directory first"
     exit 1
 }
 
@@ -30,7 +40,7 @@ if (-not (Test-Path $BundleDir -PathType Container)) {
     exit 1
 }
 
-Write-Host "Synchronizing UI bundle from extension/ui..."
+Write-Host "Synchronizing UI bundle from extension/dist/ui..."
 python "$RepoRoot/scripts/sync_ui_bundle.py" --source "$SourceDir" --bundle "$BundleDir"
 if ($LASTEXITCODE -ne 0) {
     Write-Error "sync_ui_bundle.py failed"
@@ -38,7 +48,7 @@ if ($LASTEXITCODE -ne 0) {
 }
 
 Write-Host "Checking UI bundle synchronization..."
-Write-Host "  Source: extension/ui/"
+Write-Host "  Source: extension/dist/ui/"
 Write-Host "  Bundle: src/ado_git_repo_insights/ui_bundle/"
 Write-Host ""
 
@@ -98,7 +108,7 @@ foreach ($file in $SourceFiles) {
 if ($DiffFound) {
     Write-Host ""
     Write-Host "================================================================================"
-    Write-Host "UI bundle is OUT OF SYNC with extension/ui/"
+    Write-Host "UI bundle is OUT OF SYNC with extension/dist/ui/"
     Write-Host "================================================================================"
     Write-Host ""
     Write-Host "HOW TO FIX:"
@@ -124,5 +134,5 @@ if ($gitStatus) {
     exit 1
 }
 
-Write-Host "[OK] UI bundle is in sync with extension/ui/"
+Write-Host "[OK] UI bundle is in sync with extension/dist/ui/"
 exit 0

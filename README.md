@@ -161,6 +161,8 @@ ado-insights dashboard --dataset ./dataset --open
 
 The system uses **incremental extraction** by default (daily) with optional **backfill mode** to catch late changes (reviewer votes, status updates).
 
+![PR Insights Dashboard](docs/dashboard-default.png)
+
 ---
 
 ## Security

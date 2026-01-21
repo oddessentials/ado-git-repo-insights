@@ -49,6 +49,7 @@ LICENSE text eol=lf
 
 # Override: PowerShell in scripts/ uses LF for CI compatibility
 scripts/*.ps1 text eol=lf
+extension/scripts/*.ps1 text eol=lf
 
 # ─────────────────────────────────────────────────────────
 # BINARIES: Never normalize (prevents corruption)

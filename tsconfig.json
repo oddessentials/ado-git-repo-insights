@@ -1,0 +1,43 @@
+{
+    "compilerOptions": {
+        "target": "ES2020",
+        "module": "CommonJS",
+        "moduleResolution": "node",
+        "strict": true,
+        "noImplicitAny": true,
+        "strictNullChecks": true,
+        "noUncheckedIndexedAccess": true,
+        "esModuleInterop": true,
+        "skipLibCheck": true,
+        "forceConsistentCasingInFileNames": true,
+        "declaration": true,
+        "declarationMap": true,
+        "sourceMap": true,
+        "noEmit": true,
+        "baseUrl": ".",
+        "paths": {
+            "@types/*": [
+                "types/*"
+            ]
+        },
+        "typeRoots": [
+            "./types",
+            "./node_modules/@types"
+        ]
+    },
+    "references": [
+        {
+            "path": "./extension"
+        },
+        {
+            "path": "./scripts"
+        }
+    ],
+    "exclude": [
+        "node_modules",
+        ".venv",
+        "dist",
+        "build",
+        "**/*.test.ts"
+    ]
+}

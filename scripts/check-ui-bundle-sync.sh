@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
 # check-ui-bundle-sync.sh
 #
-# Verifies that extension/ui/ and src/ado_git_repo_insights/ui_bundle/ are synchronized.
+# Verifies that extension/dist/ui/ and src/ado_git_repo_insights/ui_bundle/ are synchronized.
 # These two locations must stay in sync because:
-#   - extension/ui/ is the source of truth for the Azure DevOps extension
+#   - extension/dist/ui/ is the compiled IIFE JS output from esbuild
 #   - ui_bundle/ is a copy for Python pip package (symlinks don't work with setuptools wheels)
 #
 # Exit codes:
@@ -15,12 +15,19 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 
-SOURCE_DIR="$REPO_ROOT/extension/ui"
+SOURCE_DIR="$REPO_ROOT/extension/dist/ui"
 BUNDLE_DIR="$REPO_ROOT/src/ado_git_repo_insights/ui_bundle"
+
+# Build UI first (produces IIFE-bundled JS)
+echo "Building UI bundles..."
+if [[ -f "$REPO_ROOT/extension/package.json" ]]; then
+    (cd "$REPO_ROOT/extension" && npm run build:ui)
+fi
 
 # Validate directories exist
 if [[ ! -d "$SOURCE_DIR" ]]; then
-    echo "::error::Source directory not found: extension/ui/"
+    echo "::error::Source directory not found: extension/dist/ui/"
+    echo "Run 'npm run build:ui' in extension/ directory first"
     exit 1
 fi
 
@@ -29,11 +36,11 @@ if [[ ! -d "$BUNDLE_DIR" ]]; then
     exit 1
 fi
 
-echo "Synchronizing UI bundle from extension/ui..."
+echo "Synchronizing UI bundle from extension/dist/ui..."
 python "$REPO_ROOT/scripts/sync_ui_bundle.py" --source "$SOURCE_DIR" --bundle "$BUNDLE_DIR"
 
 echo "Checking UI bundle synchronization..."
-echo "  Source: extension/ui/"
+echo "  Source: extension/dist/ui/"
 echo "  Bundle: src/ado_git_repo_insights/ui_bundle/"
 echo ""
 
@@ -80,5 +87,5 @@ if ! git -C "$REPO_ROOT" diff --quiet -- "$BUNDLE_DIR"; then
     exit 1
 fi
 
-echo "✓ UI bundle is in sync with extension/ui/"
+echo "✓ UI bundle is in sync with extension/dist/ui/"
 exit 0
