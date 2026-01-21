@@ -1,34 +1,29 @@
 #!/bin/sh
-# Pre-commit hook: Invoke pre-commit framework for Python checks
-# Python hooks are executed via Husky; do not run `pre-commit install` manually
+# Pre-commit hook: Run formatting/linting checks on staged files
+# This prevents the pre-push "--all-files" from modifying files and breaking the push
 
-# Check if any Python files are staged
-if git diff --cached --name-only | grep -q '\.py$'; then
-    echo "[pre-commit] Python files staged, running pre-commit checks..."
-
-    # Detect pre-commit installation
-    if command -v pre-commit >/dev/null 2>&1; then
-        PRE_COMMIT="pre-commit"
-    elif [ -f ".venv/Scripts/pre-commit.exe" ]; then
-        PRE_COMMIT=".venv/Scripts/pre-commit.exe"
-    elif [ -f ".venv/bin/pre-commit" ]; then
-        PRE_COMMIT=".venv/bin/pre-commit"
-    else
-        echo ""
-        echo "[pre-commit] ❌ pre-commit not found!"
-        echo "[pre-commit] Install with: pip install pre-commit"
-        echo "[pre-commit] Or activate your venv: source .venv/bin/activate (Linux) or .venv\\Scripts\\activate (Windows)"
-        exit 1
-    fi
-
-    # Run pre-commit on staged files only (commit stage)
-    $PRE_COMMIT run --hook-stage pre-commit || exit 1
-
-    echo "[pre-commit] ✅ Python checks passed"
+# Detect pre-commit installation
+if command -v pre-commit >/dev/null 2>&1; then
+    PRE_COMMIT="pre-commit"
+elif [ -f ".venv/Scripts/pre-commit.exe" ]; then
+    PRE_COMMIT=".venv/Scripts/pre-commit.exe"
+elif [ -f ".venv/bin/pre-commit" ]; then
+    PRE_COMMIT=".venv/bin/pre-commit"
 else
-    echo "[pre-commit] No Python files staged, skipping Python checks"
+    echo ""
+    echo "[pre-commit] ❌ pre-commit not found!"
+    echo "[pre-commit] Install with: pip install pre-commit"
+    echo "[pre-commit] Or activate your venv: source .venv/bin/activate (Linux) or .venv\\Scripts\\activate (Windows)"
+    exit 1
 fi
 
+# ALWAYS run global fixers (end-of-file, trailing-whitespace) on staged files
+# This prevents the pre-push --all-files from modifying unstaged files
+echo "[pre-commit] Running formatting checks on staged files..."
+$PRE_COMMIT run --hook-stage pre-commit || exit 1
+echo "[pre-commit] ✅ Formatting checks passed"
+
+# Sync UI bundle if UI files were changed
 UI_CHANGED=$(git diff --cached --name-only | grep -E '^extension/ui/|^src/ado_git_repo_insights/ui_bundle/' || true)
 if [ -n "$UI_CHANGED" ]; then
     echo "[pre-commit] UI files staged, synchronizing ui_bundle..."
