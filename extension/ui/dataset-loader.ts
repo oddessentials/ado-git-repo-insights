@@ -13,15 +13,23 @@ const SUPPORTED_AGGREGATES_VERSION = 1;
 
 /**
  * Candidate paths to search for dataset-manifest.json.
- * Supports nested artifact layouts from Azure DevOps downloads.
+ * CRITICAL: Only flat layout supported (manifest at root OR in aggregates/).
+ * Double-nesting (aggregates/aggregates) is DEPRECATED and will hard-fail.
  * Order matters: first match wins.
  */
 export const DATASET_CANDIDATE_PATHS = [
-    '',              // Root of provided base URL
-    'aggregates',    // Single nesting (common)
-    'aggregates/aggregates',  // Double nesting (ADO artifact download quirk)
-    'dataset',       // Alternative naming
+    '',              // Root of provided base URL (preferred)
+    'aggregates',    // Single nesting (legacy ADO artifact download)
 ];
+
+/**
+ * Error message for deprecated double-nested layout.
+ */
+export const DEPRECATED_LAYOUT_ERROR =
+    'Deprecated dataset layout detected (aggregates/aggregates nesting). ' +
+    'This layout is no longer supported. Please re-run the pipeline with the ' +
+    'updated YAML configuration and re-stage artifacts.';
+
 
 /**
  * Interface for Rollup data structure.

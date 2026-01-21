@@ -125,11 +125,12 @@ stages:
 
           # Aggregates: Dashboard data (dataset-manifest.json, rollups, distributions)
           # The PR Insights hub discovers pipelines by the presence of this artifact
+          # CRITICAL: Publish from run_artifacts root (manifest at artifact root per dataset contract)
           - task: PublishPipelineArtifact@1
             displayName: 'Publish Aggregates'
             condition: succeeded()
             inputs:
-              targetPath: '$(Pipeline.Workspace)/run_artifacts/aggregates'
+              targetPath: '$(Pipeline.Workspace)/run_artifacts'
               artifact: 'aggregates'
 
           # CSV Output: PowerBI-compatible exports

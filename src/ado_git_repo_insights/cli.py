@@ -972,10 +972,22 @@ def cmd_dashboard(args: Namespace) -> int:
     import tempfile
     import webbrowser
 
-    from .utils.dataset_discovery import find_dataset_roots, validate_dataset_root
+    from .utils.dataset_discovery import (
+        check_deprecated_layout,
+        find_dataset_roots,
+        validate_dataset_root,
+    )
 
-    # Resolve dataset path using find_dataset_roots for nested layout tolerance
+    # Resolve dataset path
     input_path = args.dataset.resolve()
+
+    # CRITICAL: Check for deprecated nested layout first
+    deprecated_error = check_deprecated_layout(input_path)
+    if deprecated_error:
+        logger.error(deprecated_error)
+        return 1
+
+    # Find dataset roots using only supported candidate paths
     dataset_roots = find_dataset_roots(input_path)
 
     if dataset_roots:
@@ -990,7 +1002,7 @@ def cmd_dashboard(args: Namespace) -> int:
         else:
             logger.error(f"dataset-manifest.json not found in {input_path}")
             logger.error("Searched paths:")
-            for candidate in [".", "aggregates", "aggregates/aggregates", "dataset"]:
+            for candidate in [".", "aggregates"]:
                 logger.error(f"  - {input_path / candidate}")
             logger.error(
                 "Run 'ado-insights stage-artifacts' or 'ado-insights build-aggregates' first."

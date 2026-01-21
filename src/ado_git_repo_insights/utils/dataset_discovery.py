@@ -9,12 +9,20 @@ from pathlib import Path
 logger = logging.getLogger(__name__)
 
 # Priority order of candidate paths to search for dataset-manifest.json
+# CRITICAL: Only flat layout supported (manifest at root OR in aggregates/)
+# Double-nesting (aggregates/aggregates) is DEPRECATED and will hard-fail
 CANDIDATE_PATHS = [
-    ".",  # Root of provided directory
-    "aggregates",  # Single nesting (common)
-    "aggregates/aggregates",  # Double nesting (ADO artifact download quirk)
-    "dataset",  # Alternative naming
+    ".",  # Root of provided directory (preferred)
+    "aggregates",  # Single nesting (legacy ADO artifact download)
 ]
+
+
+# Error message for deprecated layout
+DEPRECATED_LAYOUT_ERROR = (
+    "Deprecated dataset layout detected (aggregates/aggregates nesting). "
+    "This layout is no longer supported. Please re-run the pipeline with the "
+    "updated YAML configuration and re-stage artifacts using 'ado-insights stage-artifacts'."
+)
 
 
 def find_dataset_roots(run_artifacts_dir: Path) -> list[Path]:
@@ -105,3 +113,72 @@ def validate_dataset_root(dataset_path: Path) -> tuple[bool, str | None]:
         return False, f"Invalid JSON in manifest: {e}"
     except OSError as e:
         return False, f"Error reading manifest: {e}"
+
+
+def check_deprecated_layout(run_artifacts_dir: Path) -> str | None:
+    """Check if a deprecated double-nested layout exists.
+
+    Args:
+        run_artifacts_dir: Path to the run_artifacts directory.
+
+    Returns:
+        DEPRECATED_LAYOUT_ERROR message if deprecated layout found, None otherwise.
+    """
+    deprecated_path = (
+        run_artifacts_dir / "aggregates" / "aggregates" / "dataset-manifest.json"
+    )
+    if deprecated_path.exists():
+        logger.error(DEPRECATED_LAYOUT_ERROR)
+        return DEPRECATED_LAYOUT_ERROR
+    return None
+
+
+def validate_manifest_paths(dataset_root: Path) -> tuple[bool, list[str]]:
+    """Validate that all paths in the manifest's aggregate_index exist.
+
+    This is a critical invariant: every path referenced in the manifest
+    must resolve to an existing file relative to the dataset root.
+
+    Args:
+        dataset_root: Path to the dataset root (where dataset-manifest.json lives).
+
+    Returns:
+        Tuple of (all_valid, list_of_missing_paths).
+        If all_valid is True, the list will be empty.
+    """
+    manifest_path = dataset_root / "dataset-manifest.json"
+
+    if not manifest_path.exists():
+        return False, ["dataset-manifest.json not found"]
+
+    try:
+        with manifest_path.open("r", encoding="utf-8") as f:
+            manifest = json.load(f)
+    except (json.JSONDecodeError, OSError) as e:
+        return False, [f"Failed to read manifest: {e}"]
+
+    agg_index = manifest.get("aggregate_index", {})
+    missing_paths: list[str] = []
+
+    # Check weekly_rollups paths
+    for rollup in agg_index.get("weekly_rollups", []):
+        path_str = rollup.get("path", "")
+        if path_str:
+            full_path = dataset_root / path_str
+            if not full_path.exists():
+                missing_paths.append(path_str)
+
+    # Check distributions paths
+    for dist in agg_index.get("distributions", []):
+        path_str = dist.get("path", "")
+        if path_str:
+            full_path = dataset_root / path_str
+            if not full_path.exists():
+                missing_paths.append(path_str)
+
+    if missing_paths:
+        logger.warning(f"Manifest references {len(missing_paths)} missing paths")
+        for path in missing_paths[:5]:  # Log first 5
+            logger.warning(f"  Missing: {path}")
+
+    return len(missing_paths) == 0, missing_paths
