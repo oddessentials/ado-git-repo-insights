@@ -96,17 +96,54 @@ ado-insights generate-csv \
 
 ### 4. View the Dashboard
 
+**Option A: Production Artifacts (Recommended)**
+
+Download artifacts from your Azure DevOps pipeline:
+
+```bash
+ado-insights stage-artifacts \
+  --org MyOrg \
+  --project MyProject \
+  --pipeline-id 123 \
+  --pat $ADO_PAT \
+  --out ./run_artifacts
+
+# Start the dashboard server
+ado-insights dashboard --dataset ./run_artifacts --open
+```
+
+**Option B: Local Database (Dev Mode)**
+
+Generate from a local SQLite database:
+
 ```bash
 # Generate aggregates first
 ado-insights build-aggregates \
   --db ./ado-insights.sqlite \
-  --out ./dataset
+  --out ./run_artifacts
 
 # Start the dashboard server
-ado-insights dashboard --dataset ./dataset --open
+ado-insights dashboard --dataset ./run_artifacts --open
 ```
 
-Options:
+> ⚠️ **Note:** `build-aggregates` is intended for local development. For production use, prefer `stage-artifacts` to download validated pipeline artifacts.
+
+**Option C: Synthetic Testing**
+
+Generate synthetic data for UI testing:
+
+```bash
+# Generate test data
+python scripts/generate-synthetic-dataset.py \
+  --pr-count 100 \
+  --output ./run_artifacts \
+  --seed 42
+
+# Start the dashboard server
+ado-insights dashboard --dataset ./run_artifacts --open
+```
+
+Dashboard options:
 - `--port 8080` — HTTP server port (default: 8080)
 - `--open` — Automatically open browser
 

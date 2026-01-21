@@ -25,12 +25,12 @@ def temp_artifacts_dir(tmp_path: Path) -> Path:
 
 
 def create_manifest(
-    path: Path, schema_version: str = "1.0", weekly_rollups: list | None = None
+    path: Path, manifest_schema_version: int = 1, weekly_rollups: list | None = None
 ) -> None:
     """Create a valid dataset-manifest.json file."""
     path.mkdir(parents=True, exist_ok=True)
     manifest = {
-        "schema_version": schema_version,
+        "manifest_schema_version": manifest_schema_version,
         "aggregate_index": {
             "weekly_rollups": weekly_rollups
             if weekly_rollups is not None
@@ -240,8 +240,10 @@ class TestValidateDatasetRoot:
         assert is_valid is False
         assert "Invalid JSON" in error
 
-    def test_returns_invalid_when_schema_version_missing(self, tmp_path: Path) -> None:
-        """Returns invalid when manifest lacks schema_version."""
+    def test_returns_invalid_when_manifest_schema_version_missing(
+        self, tmp_path: Path
+    ) -> None:
+        """Returns invalid when manifest lacks manifest_schema_version."""
         dataset_dir = tmp_path / "dataset"
         dataset_dir.mkdir()
         (dataset_dir / "dataset-manifest.json").write_text(
@@ -251,14 +253,14 @@ class TestValidateDatasetRoot:
         is_valid, error = validate_dataset_root(dataset_dir)
 
         assert is_valid is False
-        assert "schema_version" in error
+        assert "manifest_schema_version" in error
 
     def test_returns_invalid_when_aggregate_index_missing(self, tmp_path: Path) -> None:
         """Returns invalid when manifest lacks aggregate_index."""
         dataset_dir = tmp_path / "dataset"
         dataset_dir.mkdir()
         (dataset_dir / "dataset-manifest.json").write_text(
-            '{"schema_version": "1.0"}', encoding="utf-8"
+            '{"manifest_schema_version": 1}', encoding="utf-8"
         )
 
         is_valid, error = validate_dataset_root(dataset_dir)

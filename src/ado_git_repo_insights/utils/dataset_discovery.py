@@ -99,8 +99,8 @@ def validate_dataset_root(dataset_path: Path) -> tuple[bool, str | None]:
             manifest = json.load(f)
 
         # Check for required manifest fields
-        if "schema_version" not in manifest:
-            return False, "Manifest missing required field: schema_version"
+        if "manifest_schema_version" not in manifest:
+            return False, "Manifest missing required field: manifest_schema_version"
 
         # Check for aggregates directory or index
         agg_index = manifest.get("aggregate_index", {})
