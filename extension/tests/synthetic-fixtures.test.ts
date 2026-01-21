@@ -8,6 +8,7 @@ import { DatasetLoader } from "../ui/dataset-loader";
 import * as fs from "fs";
 import * as path from "path";
 import { execSync } from "child_process";
+import { resolveInside } from "../tasks/_shared/safe-path";
 
 describe("Synthetic Fixture Consumer Validation", () => {
   let fixtureDir: string;
@@ -44,12 +45,26 @@ describe("Synthetic Fixture Consumer Validation", () => {
 
   /**
    * Generate a synthetic fixture on-demand.
+   * SECURITY: Uses safe path resolution and validated numeric inputs.
    */
   function generateFixture(prCount: number, seed = 42): string {
-    const outputDir = path.join(fixtureDir, `${prCount}pr-seed${seed}`);
+    // SECURITY: Validate numeric inputs before passing to command
+    if (
+      !Number.isSafeInteger(prCount) ||
+      prCount < 1 ||
+      prCount > 1000000
+    ) {
+      throw new Error(`Invalid prCount: ${prCount}`);
+    }
+    if (!Number.isSafeInteger(seed) || seed < 0 || seed > Number.MAX_SAFE_INTEGER) {
+      throw new Error(`Invalid seed: ${seed}`);
+    }
+
+    // SECURITY: Use resolveInside to prevent path traversal
+    const outputDir = resolveInside(fixtureDir, `${prCount}pr-seed${seed}`);
 
     // Skip if already generated
-    if (fs.existsSync(path.join(outputDir, "dataset-manifest.json"))) {
+    if (fs.existsSync(resolveInside(outputDir, "dataset-manifest.json"))) {
       return outputDir;
     }
 
@@ -62,8 +77,9 @@ describe("Synthetic Fixture Consumer Validation", () => {
     );
 
     try {
+      // SECURITY: Use args array pattern with validated inputs
       execSync(
-        `python "${scriptPath}" --pr-count ${prCount} --seed ${seed} --output "${outputDir}"`,
+        `python "${scriptPath}" --pr-count ${String(prCount)} --seed ${String(seed)} --output "${outputDir}"`,
         { stdio: "pipe" },
       );
     } catch (error: any) {

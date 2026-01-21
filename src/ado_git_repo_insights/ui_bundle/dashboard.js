@@ -1248,6 +1248,11 @@ var PRInsightsDashboard = (() => {
   if (DEBUG_ENABLED && typeof window !== "undefined") {
     window.__dashboardMetrics = metricsCollector;
   }
+  function escapeHtml(text) {
+    const div = document.createElement("div");
+    div.textContent = text;
+    return div.innerHTML;
+  }
   async function initializeAdoSdk() {
     if (sdkInitialized) return;
     return new Promise((resolve, reject) => {
@@ -1618,7 +1623,7 @@ var PRInsightsDashboard = (() => {
     if (details?.instructions && Array.isArray(details.instructions)) {
       const stepsList = document.getElementById("setup-steps");
       if (stepsList) {
-        stepsList.innerHTML = details.instructions.map((s) => `<li>${s}</li>`).join("");
+        stepsList.innerHTML = details.instructions.map((s) => `<li>${escapeHtml(s)}</li>`).join("");
       }
     }
     if (details?.docsUrl) {
@@ -1639,9 +1644,9 @@ var PRInsightsDashboard = (() => {
     if (listEl && details?.matches && Array.isArray(details.matches)) {
       listEl.innerHTML = details.matches.map(
         (m) => `
-                <a href="?pipelineId=${m.id}" class="pipeline-option">
-                    <strong>${m.name}</strong>
-                    <span class="pipeline-id">ID: ${m.id}</span>
+                <a href="?pipelineId=${escapeHtml(String(m.id))}" class="pipeline-option">
+                    <strong>${escapeHtml(m.name)}</strong>
+                    <span class="pipeline-id">ID: ${escapeHtml(String(m.id))}</span>
                 </a>
             `
       ).join("");
@@ -2396,16 +2401,16 @@ var PRInsightsDashboard = (() => {
       const label = forecast.metric.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
       content.innerHTML += `
             <div class="forecast-section">
-                <h4>${label} (${forecast.unit})</h4>
+                <h4>${escapeHtml(label)} (${escapeHtml(String(forecast.unit))})</h4>
                 <table class="forecast-table">
                     <thead><tr><th>Week</th><th>Predicted</th><th>Range</th></tr></thead>
                     <tbody>
                         ${forecast.values.map(
         (v) => `
                             <tr>
-                                <td>${v.period_start}</td>
-                                <td>${v.predicted}</td>
-                                <td>${v.lower_bound} - ${v.upper_bound}</td>
+                                <td>${escapeHtml(String(v.period_start))}</td>
+                                <td>${escapeHtml(String(v.predicted))}</td>
+                                <td>${escapeHtml(String(v.lower_bound))} - ${escapeHtml(String(v.upper_bound))}</td>
                             </tr>
                         `
       ).join("")}
@@ -2438,10 +2443,10 @@ var PRInsightsDashboard = (() => {
                 <div class="insight-cards">
                     ${items.map(
         (i) => `
-                        <div class="insight-card ${i.severity}">
-                            <div class="insight-category">${i.category}</div>
-                            <h5>${i.title}</h5>
-                            <p>${i.description}</p>
+                        <div class="insight-card ${escapeHtml(String(i.severity))}">
+                            <div class="insight-category">${escapeHtml(String(i.category))}</div>
+                            <h5>${escapeHtml(String(i.title))}</h5>
+                            <p>${escapeHtml(String(i.description))}</p>
                         </div>
                     `
       ).join("")}

@@ -56,8 +56,8 @@ async function validatePythonEnvironment() {
     if (!pythonCmd) {
       throw new Error(
         `Python ${PYTHON_MIN_VERSION}+ not found.\n` +
-          `Tried commands: ${pythonCommands.join(", ")}\n` +
-          `Please ensure Python is installed and available in PATH.`,
+        `Tried commands: ${pythonCommands.join(", ")}\n` +
+        `Please ensure Python is installed and available in PATH.`,
       );
     }
 
@@ -67,9 +67,9 @@ async function validatePythonEnvironment() {
     tl.setResult(
       tl.TaskResult.Failed,
       `Python environment validation failed:\n${err.message}\n\n` +
-        `Resolution:\n` +
-        `1. On hosted agents: Use 'UsePythonVersion@0' task before this task\n` +
-        `2. On self-hosted agents: Install Python ${PYTHON_MIN_VERSION}+ and add to PATH`,
+      `Resolution:\n` +
+      `1. On hosted agents: Use 'UsePythonVersion@0' task before this task\n` +
+      `2. On self-hosted agents: Install Python ${PYTHON_MIN_VERSION}+ and add to PATH`,
     );
     return null;
   }
@@ -125,9 +125,9 @@ function installPackage(pythonCmd, withML = false) {
     tl.setResult(
       tl.TaskResult.Failed,
       `Failed to install ${PACKAGE_NAME}:\n${err.message}\n\n` +
-        `Resolution:\n` +
-        `1. Check network connectivity\n` +
-        `2. Ensure pip is available: ${pythonCmd} -m pip --version`,
+      `Resolution:\n` +
+      `1. Check network connectivity\n` +
+      `2. Ensure pip is available: ${pythonCmd} -m pip --version`,
     );
     return false;
   }
@@ -189,8 +189,8 @@ async function run() {
       tl.setResult(
         tl.TaskResult.Failed,
         `Database directory is not writable: ${dbDir}\n` +
-          `Error: ${err.message}\n\n` +
-          `Resolution: Ensure the database path points to a writable location.`,
+        `Error: ${err.message}\n\n` +
+        `Resolution: Ensure the database path points to a writable location.`,
       );
       return;
     }
@@ -208,8 +208,8 @@ async function run() {
       tl.setResult(
         tl.TaskResult.Failed,
         `Output directory is not writable: ${outputDir}\n` +
-          `Error: ${err.message}\n\n` +
-          `Resolution: Ensure the output path points to a writable location.`,
+        `Error: ${err.message}\n\n` +
+        `Resolution: Ensure the output path points to a writable location.`,
       );
       return;
     }
@@ -249,9 +249,9 @@ async function run() {
       tl.setResult(
         tl.TaskResult.Failed,
         `AI Insights enabled but OpenAI API Key not provided.\n\n` +
-          `Resolution:\n` +
-          `1. Create a variable group with OPENAI_API_KEY secret\n` +
-          `2. Set openaiApiKey input to $(OPENAI_API_KEY)`,
+        `Resolution:\n` +
+        `1. Create a variable group with OPENAI_API_KEY secret\n` +
+        `2. Set openaiApiKey input to $(OPENAI_API_KEY)`,
       );
       return;
     }
@@ -262,7 +262,7 @@ async function run() {
       tl.setResult(
         tl.TaskResult.Failed,
         `Invalid startDate format: "${startDate}"\n` +
-          `Expected format: YYYY-MM-DD (e.g., 2026-01-01)`,
+        `Expected format: YYYY-MM-DD (e.g., 2026-01-01)`,
       );
       return;
     }
@@ -270,7 +270,7 @@ async function run() {
       tl.setResult(
         tl.TaskResult.Failed,
         `Invalid endDate format: "${endDate}"\n` +
-          `Expected format: YYYY-MM-DD (e.g., 2026-01-13)`,
+        `Expected format: YYYY-MM-DD (e.g., 2026-01-13)`,
       );
       return;
     }
@@ -335,7 +335,7 @@ async function run() {
         tl.setResult(
           tl.TaskResult.Failed,
           `Aggregates directory is not writable: ${aggregatesDir}\n` +
-            `Error: ${err.message}`,
+          `Error: ${err.message}`,
         );
         return;
       }
@@ -394,7 +394,7 @@ function runPython(pythonCmd, args, extraEnv = {}) {
   return new Promise((resolve) => {
     const proc = spawn(pythonCmd, args, {
       stdio: "inherit",
-      shell: process.platform === "win32",
+      shell: false, // SECURITY: Never use shell to prevent command injection
       env: { ...process.env, ...extraEnv },
     });
 

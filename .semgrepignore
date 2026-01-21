@@ -1,0 +1,19 @@
+# Semgrep Ignore Configuration
+# Generated bundles are excluded - source files in extension/ui/** are scanned
+
+# Exclude generated UI bundles (source is scanned via extension/ui/**)
+src/**/ui_bundle/**
+
+# Exclude build outputs
+dist/
+build/
+extension/dist/
+
+# Standard exclusions
+node_modules/
+.git/
+tmp/
+coverage/
+
+# Test fixtures (generated synthetic data)
+extension/tmp/

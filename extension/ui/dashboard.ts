@@ -71,57 +71,71 @@ interface PerformanceMetric {
 
 const metricsCollector = DEBUG_ENABLED
   ? {
-      marks: new Map<string, number>(),
-      measures: [] as PerformanceMetric[],
-      mark(name: string) {
-        if (!performance || !performance.mark) return;
-        try {
-          performance.mark(name);
-          this.marks.set(name, performance.now());
-        } catch (_e) {
-          /* ignore */
-        }
-      },
-      measure(name: string, startMark: string, endMark: string) {
-        if (!performance || !performance.measure) return;
-        try {
-          performance.measure(name, startMark, endMark);
-          const entries = performance.getEntriesByName(name, "measure");
-          if (entries.length > 0) {
-            const lastEntry = entries[entries.length - 1];
-            if (lastEntry) {
-              this.measures.push({
-                name,
-                duration: lastEntry.duration,
-                timestamp: Date.now(),
-              });
-            }
+    marks: new Map<string, number>(),
+    measures: [] as PerformanceMetric[],
+    mark(name: string) {
+      if (!performance || !performance.mark) return;
+      try {
+        performance.mark(name);
+        this.marks.set(name, performance.now());
+      } catch (_e) {
+        /* ignore */
+      }
+    },
+    measure(name: string, startMark: string, endMark: string) {
+      if (!performance || !performance.measure) return;
+      try {
+        performance.measure(name, startMark, endMark);
+        const entries = performance.getEntriesByName(name, "measure");
+        if (entries.length > 0) {
+          const lastEntry = entries[entries.length - 1];
+          if (lastEntry) {
+            this.measures.push({
+              name,
+              duration: lastEntry.duration,
+              timestamp: Date.now(),
+            });
           }
-        } catch (_e) {
-          /* ignore */
         }
-      },
-      getMetrics() {
-        return {
-          marks: Array.from(this.marks.entries()).map(([name, time]) => ({
-            name,
-            time,
-          })),
-          measures: [...this.measures],
-        };
-      },
-      reset() {
-        this.marks.clear();
-        this.measures = [];
-        if (performance && performance.clearMarks) performance.clearMarks();
-        if (performance && performance.clearMeasures)
-          performance.clearMeasures();
-      },
-    }
+      } catch (_e) {
+        /* ignore */
+      }
+    },
+    getMetrics() {
+      return {
+        marks: Array.from(this.marks.entries()).map(([name, time]) => ({
+          name,
+          time,
+        })),
+        measures: [...this.measures],
+      };
+    },
+    reset() {
+      this.marks.clear();
+      this.measures = [];
+      if (performance && performance.clearMarks) performance.clearMarks();
+      if (performance && performance.clearMeasures)
+        performance.clearMeasures();
+    },
+  }
   : null;
 
 if (DEBUG_ENABLED && typeof window !== "undefined") {
   (window as any).__dashboardMetrics = metricsCollector;
+}
+
+// ============================================================================
+// Security Utilities
+// ============================================================================
+
+/**
+ * Escape HTML to prevent XSS attacks.
+ * SECURITY: Use this for any user-controlled or external data before innerHTML.
+ */
+function escapeHtml(text: string): string {
+  const div = document.createElement("div");
+  div.textContent = text;
+  return div.innerHTML;
 }
 
 // ============================================================================
@@ -202,7 +216,7 @@ function parseQueryParams():
         if (!isAdoDomain) {
           console.warn(
             `SECURITY: ?dataset= URL "${urlHost}" is not an Azure DevOps domain. ` +
-              `This parameter is intended for development only.`,
+            `This parameter is intended for development only.`,
           );
         }
       } catch (_e) {
@@ -667,8 +681,9 @@ function showSetupRequired(error: PrInsightsError): void {
   if (details?.instructions && Array.isArray(details.instructions)) {
     const stepsList = document.getElementById("setup-steps");
     if (stepsList) {
+      // SECURITY: Escape instructions to prevent XSS
       stepsList.innerHTML = details.instructions
-        .map((s: string) => `<li>${s}</li>`)
+        .map((s: string) => `<li>${escapeHtml(s)}</li>`)
         .join("");
     }
   }
@@ -696,12 +711,13 @@ function showMultiplePipelines(error: PrInsightsError): void {
   const listEl = document.getElementById("pipeline-list");
   const details = error.details as MultiplePipelinesDetails;
   if (listEl && details?.matches && Array.isArray(details.matches)) {
+    // SECURITY: Escape pipeline names to prevent XSS
     listEl.innerHTML = details.matches
       .map(
         (m: any) => `
-                <a href="?pipelineId=${m.id}" class="pipeline-option">
-                    <strong>${m.name}</strong>
-                    <span class="pipeline-id">ID: ${m.id}</span>
+                <a href="?pipelineId=${escapeHtml(String(m.id))}" class="pipeline-option">
+                    <strong>${escapeHtml(m.name)}</strong>
+                    <span class="pipeline-id">ID: ${escapeHtml(String(m.id))}</span>
                 </a>
             `,
       )
@@ -1477,8 +1493,8 @@ function renderThroughputChart(rollups: Rollup[]): void {
         const y =
           maxCount > 0
             ? chartHeight -
-              chartPadding -
-              (p.val / maxCount) * (chartHeight - chartPadding * 2)
+            chartPadding -
+            (p.val / maxCount) * (chartHeight - chartPadding * 2)
             : chartHeight / 2;
         return { x, y };
       });
@@ -1638,25 +1654,25 @@ function renderCycleTimeTrend(rollups: Rollup[]): void {
         <svg viewBox="0 0 ${width} ${height}" preserveAspectRatio="xMidYMid meet">
             <!-- Grid lines -->
             ${yLabels
-              .map((val, i) => {
-                const y =
-                  padding.top +
-                  chartHeight -
-                  (i / (yLabels.length - 1)) * chartHeight;
-                return `<line class="line-chart-grid" x1="${padding.left}" y1="${y}" x2="${width - padding.right}" y2="${y}"/>`;
-              })
-              .join("")}
+      .map((val, i) => {
+        const y =
+          padding.top +
+          chartHeight -
+          (i / (yLabels.length - 1)) * chartHeight;
+        return `<line class="line-chart-grid" x1="${padding.left}" y1="${y}" x2="${width - padding.right}" y2="${y}"/>`;
+      })
+      .join("")}
 
             <!-- Y-axis labels -->
             ${yLabels
-              .map((val, i) => {
-                const y =
-                  padding.top +
-                  chartHeight -
-                  (i / (yLabels.length - 1)) * chartHeight;
-                return `<text class="line-chart-axis" x="${padding.left - 4}" y="${y + 3}" text-anchor="end">${formatDuration(val)}</text>`;
-              })
-              .join("")}
+      .map((val, i) => {
+        const y =
+          padding.top +
+          chartHeight -
+          (i / (yLabels.length - 1)) * chartHeight;
+        return `<text class="line-chart-axis" x="${padding.left - 4}" y="${y + 3}" text-anchor="end">${formatDuration(val)}</text>`;
+      })
+      .join("")}
 
             <!-- Lines -->
             ${p90Path ? `<path class="line-chart-p90" d="${p90Path.pathD}" vector-effect="non-scaling-stroke"/>` : ""}
@@ -1837,23 +1853,24 @@ function renderPredictions(container: HTMLElement, predictions: any): void {
     const label = forecast.metric
       .replace(/_/g, " ")
       .replace(/\b\w/g, (c: string) => c.toUpperCase());
+    // SECURITY: Escape all user-controlled data to prevent XSS
     content.innerHTML += `
             <div class="forecast-section">
-                <h4>${label} (${forecast.unit})</h4>
+                <h4>${escapeHtml(label)} (${escapeHtml(String(forecast.unit))})</h4>
                 <table class="forecast-table">
                     <thead><tr><th>Week</th><th>Predicted</th><th>Range</th></tr></thead>
                     <tbody>
                         ${forecast.values
-                          .map(
-                            (v: any) => `
+        .map(
+          (v: any) => `
                             <tr>
-                                <td>${v.period_start}</td>
-                                <td>${v.predicted}</td>
-                                <td>${v.lower_bound} - ${v.upper_bound}</td>
+                                <td>${escapeHtml(String(v.period_start))}</td>
+                                <td>${escapeHtml(String(v.predicted))}</td>
+                                <td>${escapeHtml(String(v.lower_bound))} - ${escapeHtml(String(v.upper_bound))}</td>
                             </tr>
                         `,
-                          )
-                          .join("")}
+        )
+        .join("")}
                     </tbody>
                 </table>
             </div>
@@ -1885,21 +1902,22 @@ function renderAIInsights(container: HTMLElement, insights: any): void {
     const items = insights.insights.filter((i: any) => i.severity === severity);
     if (!items.length) return;
 
+    // SECURITY: Escape all user-controlled data to prevent XSS
     content.innerHTML += `
             <div class="severity-section">
                 <h4>${icons[severity]} ${severity.charAt(0).toUpperCase() + severity.slice(1)}</h4>
                 <div class="insight-cards">
                     ${items
-                      .map(
-                        (i: any) => `
-                        <div class="insight-card ${i.severity}">
-                            <div class="insight-category">${i.category}</div>
-                            <h5>${i.title}</h5>
-                            <p>${i.description}</p>
+        .map(
+          (i: any) => `
+                        <div class="insight-card ${escapeHtml(String(i.severity))}">
+                            <div class="insight-category">${escapeHtml(String(i.category))}</div>
+                            <h5>${escapeHtml(String(i.title))}</h5>
+                            <p>${escapeHtml(String(i.description))}</p>
                         </div>
                     `,
-                      )
-                      .join("")}
+        )
+        .join("")}
                 </div>
             </div>
         `;
@@ -2015,13 +2033,13 @@ function handleFilterChange(): void {
 
   const repoValues = repoFilter
     ? Array.from(repoFilter.selectedOptions)
-        .map((o) => o.value)
-        .filter((v) => v)
+      .map((o) => o.value)
+      .filter((v) => v)
     : [];
   const teamValues = teamFilter
     ? Array.from(teamFilter.selectedOptions)
-        .map((o) => o.value)
-        .filter((v) => v)
+      .map((o) => o.value)
+      .filter((v) => v)
     : [];
 
   currentFilters = { repos: repoValues, teams: teamValues };
