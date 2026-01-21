@@ -9,9 +9,12 @@ import pytest
 
 from ado_git_repo_insights.utils.dataset_discovery import (
     CANDIDATE_PATHS,
+    DEPRECATED_LAYOUT_ERROR,
+    check_deprecated_layout,
     find_dataset_roots,
     get_best_dataset_root,
     validate_dataset_root,
+    validate_manifest_paths,
 )
 
 
@@ -21,13 +24,17 @@ def temp_artifacts_dir(tmp_path: Path) -> Path:
     return tmp_path / "run_artifacts"
 
 
-def create_manifest(path: Path, schema_version: str = "1.0") -> None:
+def create_manifest(
+    path: Path, schema_version: str = "1.0", weekly_rollups: list | None = None
+) -> None:
     """Create a valid dataset-manifest.json file."""
     path.mkdir(parents=True, exist_ok=True)
     manifest = {
         "schema_version": schema_version,
         "aggregate_index": {
-            "weekly_rollups": ["aggregates/weekly_rollup_2024-W01.json"],
+            "weekly_rollups": weekly_rollups
+            if weekly_rollups is not None
+            else [{"path": "aggregates/weekly_rollups/2024-W01.json"}],
             "distributions": [],
         },
     }
@@ -62,25 +69,15 @@ class TestFindDatasetRoots:
         assert len(result) == 1
         assert result[0] == (temp_artifacts_dir / "aggregates").resolve()
 
-    def test_finds_manifest_nested_twice(self, temp_artifacts_dir: Path) -> None:
-        """Finds manifest when located in run_artifacts/aggregates/aggregates/."""
+    def test_deprecated_layout_not_supported(self, temp_artifacts_dir: Path) -> None:
+        """Verifies deprecated aggregates/aggregates layout is NOT found."""
         temp_artifacts_dir.mkdir(parents=True)
         create_manifest(temp_artifacts_dir / "aggregates" / "aggregates")
 
         result = find_dataset_roots(temp_artifacts_dir)
 
-        assert len(result) == 1
-        assert result[0] == (temp_artifacts_dir / "aggregates" / "aggregates").resolve()
-
-    def test_finds_manifest_in_dataset_subdir(self, temp_artifacts_dir: Path) -> None:
-        """Finds manifest when located in run_artifacts/dataset/."""
-        temp_artifacts_dir.mkdir(parents=True)
-        create_manifest(temp_artifacts_dir / "dataset")
-
-        result = find_dataset_roots(temp_artifacts_dir)
-
-        assert len(result) == 1
-        assert result[0] == (temp_artifacts_dir / "dataset").resolve()
+        # Deprecated layout should NOT be found
+        assert len(result) == 0
 
     def test_returns_multiple_if_manifests_in_multiple_locations(
         self, temp_artifacts_dir: Path
@@ -111,12 +108,80 @@ class TestFindDatasetRoots:
         assert len(result) == 1
         assert result[0] == (temp_artifacts_dir / "aggregates").resolve()
 
-    def test_candidate_paths_includes_expected_values(self) -> None:
-        """Verifies CANDIDATE_PATHS contains the expected search paths."""
+    def test_candidate_paths_only_includes_supported_values(self) -> None:
+        """Verifies CANDIDATE_PATHS contains only supported search paths."""
         assert "." in CANDIDATE_PATHS
         assert "aggregates" in CANDIDATE_PATHS
-        assert "aggregates/aggregates" in CANDIDATE_PATHS
-        assert "dataset" in CANDIDATE_PATHS
+        # Deprecated paths should NOT be in CANDIDATE_PATHS
+        assert "aggregates/aggregates" not in CANDIDATE_PATHS
+        assert "dataset" not in CANDIDATE_PATHS
+        # Only 2 paths supported
+        assert len(CANDIDATE_PATHS) == 2
+
+
+class TestCheckDeprecatedLayout:
+    """Tests for check_deprecated_layout function."""
+
+    def test_returns_none_when_no_deprecated_layout(
+        self, temp_artifacts_dir: Path
+    ) -> None:
+        """Returns None when deprecated layout not present."""
+        temp_artifacts_dir.mkdir(parents=True)
+        create_manifest(temp_artifacts_dir)
+
+        result = check_deprecated_layout(temp_artifacts_dir)
+
+        assert result is None
+
+    def test_returns_error_when_deprecated_layout_exists(
+        self, temp_artifacts_dir: Path
+    ) -> None:
+        """Returns error message when aggregates/aggregates layout exists."""
+        temp_artifacts_dir.mkdir(parents=True)
+        create_manifest(temp_artifacts_dir / "aggregates" / "aggregates")
+
+        result = check_deprecated_layout(temp_artifacts_dir)
+
+        assert result == DEPRECATED_LAYOUT_ERROR
+
+
+class TestValidateManifestPaths:
+    """Tests for validate_manifest_paths function."""
+
+    def test_returns_true_when_all_paths_exist(self, temp_artifacts_dir: Path) -> None:
+        """Returns True when all indexed paths exist."""
+        temp_artifacts_dir.mkdir(parents=True)
+        # Create manifest with rollups
+        create_manifest(temp_artifacts_dir)
+        # Create the referenced file
+        rollup_dir = temp_artifacts_dir / "aggregates" / "weekly_rollups"
+        rollup_dir.mkdir(parents=True)
+        (rollup_dir / "2024-W01.json").write_text("{}", encoding="utf-8")
+
+        is_valid, missing = validate_manifest_paths(temp_artifacts_dir)
+
+        assert is_valid is True
+        assert missing == []
+
+    def test_returns_false_when_paths_missing(self, temp_artifacts_dir: Path) -> None:
+        """Returns False with list of missing paths."""
+        temp_artifacts_dir.mkdir(parents=True)
+        create_manifest(temp_artifacts_dir)  # References non-existent rollup file
+
+        is_valid, missing = validate_manifest_paths(temp_artifacts_dir)
+
+        assert is_valid is False
+        assert len(missing) == 1
+        assert "aggregates/weekly_rollups/2024-W01.json" in missing[0]
+
+    def test_handles_missing_manifest(self, temp_artifacts_dir: Path) -> None:
+        """Returns False when manifest itself doesn't exist."""
+        temp_artifacts_dir.mkdir(parents=True)
+
+        is_valid, missing = validate_manifest_paths(temp_artifacts_dir)
+
+        assert is_valid is False
+        assert "not found" in missing[0]
 
 
 class TestGetBestDatasetRoot:

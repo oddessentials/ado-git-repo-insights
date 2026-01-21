@@ -27,13 +27,16 @@ describe('DatasetLoader Nested Layout Resolution', () => {
     });
 
     describe('DATASET_CANDIDATE_PATHS', () => {
-        it('includes expected candidate paths in priority order', () => {
+        it('includes only supported candidate paths in priority order', () => {
             expect(DATASET_CANDIDATE_PATHS).toContain('');
             expect(DATASET_CANDIDATE_PATHS).toContain('aggregates');
-            expect(DATASET_CANDIDATE_PATHS).toContain('aggregates/aggregates');
-            expect(DATASET_CANDIDATE_PATHS).toContain('dataset');
+            // Deprecated paths should NOT be included
+            expect(DATASET_CANDIDATE_PATHS).not.toContain('aggregates/aggregates');
+            expect(DATASET_CANDIDATE_PATHS).not.toContain('dataset');
             // Root should be first (highest priority)
             expect(DATASET_CANDIDATE_PATHS[0]).toBe('');
+            // Only 2 paths supported
+            expect(DATASET_CANDIDATE_PATHS).toHaveLength(2);
         });
     });
 
@@ -67,34 +70,20 @@ describe('DatasetLoader Nested Layout Resolution', () => {
             expect(mockFetch).toHaveBeenCalledTimes(2);
         });
 
-        it('finds manifest in aggregates/aggregates/ nested directory', async () => {
+        it('deprecated aggregates/aggregates layout is NOT supported', async () => {
             const loader = new DatasetLoader('./run_artifacts');
 
-            // Root and aggregates return 404, aggregates/aggregates returns 200
+            // Root and aggregates return 404 - deprecated nested layout not probed
             mockFetch
                 .mockResolvedValueOnce({ ok: false })  // root
-                .mockResolvedValueOnce({ ok: false })  // aggregates
-                .mockResolvedValueOnce({ ok: true });  // aggregates/aggregates
+                .mockResolvedValueOnce({ ok: false }); // aggregates
 
             const result = await loader.resolveDatasetRoot();
 
-            expect(result).toBe('./run_artifacts/aggregates/aggregates');
-            expect(mockFetch).toHaveBeenCalledTimes(3);
-        });
-
-        it('finds manifest in dataset/ subdirectory', async () => {
-            const loader = new DatasetLoader('./run_artifacts');
-
-            // Root, aggregates, aggregates/aggregates return 404, dataset returns 200
-            mockFetch
-                .mockResolvedValueOnce({ ok: false })
-                .mockResolvedValueOnce({ ok: false })
-                .mockResolvedValueOnce({ ok: false })
-                .mockResolvedValueOnce({ ok: true });
-
-            const result = await loader.resolveDatasetRoot();
-
-            expect(result).toBe('./run_artifacts/dataset');
+            // Should return null - deprecated path not supported
+            expect(result).toBeNull();
+            // Only 2 probes - aggregates/aggregates NOT probed
+            expect(mockFetch).toHaveBeenCalledTimes(2);
         });
 
         it('returns null when manifest not found in any candidate', async () => {
@@ -217,17 +206,16 @@ describe('DatasetLoader Nested Layout Resolution', () => {
         it('uses effective base URL after resolution', async () => {
             const loader = new DatasetLoader('./run_artifacts');
 
-            // Resolve to aggregates/aggregates/
-            mockFetch.mockResolvedValueOnce({ ok: false });
-            mockFetch.mockResolvedValueOnce({ ok: false });
-            mockFetch.mockResolvedValueOnce({ ok: true });
+            // Resolve to aggregates/
+            mockFetch.mockResolvedValueOnce({ ok: false });  // root
+            mockFetch.mockResolvedValueOnce({ ok: true });   // aggregates
 
             await loader.resolveDatasetRoot();
 
             // Access protected method via type assertion for testing
             const resolved = (loader as any).resolvePath('test.json');
 
-            expect(resolved).toBe('./run_artifacts/aggregates/aggregates/test.json');
+            expect(resolved).toBe('./run_artifacts/aggregates/test.json');
         });
 
         it('falls back to base URL when resolution finds nothing', async () => {
