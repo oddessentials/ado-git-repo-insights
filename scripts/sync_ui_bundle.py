@@ -74,8 +74,8 @@ def main() -> int:
     parser.add_argument(
         "--source",
         type=Path,
-        default=Path("extension/ui"),
-        help="Source UI directory (default: extension/ui)",
+        default=Path("extension/dist/ui"),
+        help="Source UI directory (default: extension/dist/ui - compiled JS)",
     )
     parser.add_argument(
         "--bundle",
