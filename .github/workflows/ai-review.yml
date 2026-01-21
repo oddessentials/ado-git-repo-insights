@@ -1,0 +1,19 @@
+name: AI Review
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
+
+jobs:
+  ai-review:
+    # Only run on PRs from the same repo (not forks)
+    if: github.event.pull_request.head.repo.full_name == github.repository
+    uses: oddessentials/odd-ai-reviewers/.github/workflows/ai-review.yml@main
+    with:
+      target_repo: ${{ github.repository }}
+      target_ref: ${{ github.sha }}
+      pr_number: ${{ github.event.pull_request.number }}
+      runs_on: '["self-hosted", "linux", "ai-review"]'
+    secrets:
+      OLLAMA_BASE_URL: http://ollama-sidecar:11434
+      ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
