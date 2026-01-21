@@ -17,11 +17,15 @@ passes:
     agents: [opencode]
     enabled: true
 
+# Model configuration - use Anthropic Claude
+models:
+  default: claude-sonnet-4-20250514
+
 # Limits sized for PR #50: 111 files, 81,741 diff lines
 limits:
   max_files: 150
   max_diff_lines: 100000
-  max_tokens_per_pr: 100000
+  max_tokens_per_pr: 700000
   max_usd_per_pr: 50.00
   monthly_budget_usd: 500
 
