@@ -225,7 +225,7 @@ def create_parser() -> argparse.ArgumentParser:  # pragma: no cover
     # Build Aggregates command (Phase 6 - convenience alias)
     build_parser = subparsers.add_parser(
         "build-aggregates",
-        help="Build aggregates from SQLite DB (alias for generate-aggregates)",
+        help="Build aggregates from local SQLite DB (DEV/SECONDARY - use stage-artifacts for production)",
     )
     build_parser.add_argument(
         "--db",
@@ -262,7 +262,7 @@ def create_parser() -> argparse.ArgumentParser:  # pragma: no cover
     # Stage Artifacts command (download pipeline artifacts locally)
     stage_parser = subparsers.add_parser(
         "stage-artifacts",
-        help="Download pipeline artifacts to local directory for dashboard",
+        help="Download pipeline artifacts to local directory (RECOMMENDED for dashboard)",
     )
     stage_parser.add_argument(
         "--org",
@@ -759,6 +759,15 @@ def cmd_generate_aggregates(args: Namespace) -> int:
 
 def cmd_build_aggregates(args: Namespace) -> int:
     """Execute the build-aggregates command (Phase 6 - alias for generate-aggregates)."""
+    # DEV MODE WARNING: This command uses local database and is secondary to stage-artifacts
+    logger.warning("")
+    logger.warning("=" * 60)
+    logger.warning("  DEV MODE: Generating aggregates from local database")
+    logger.warning("  For production use, prefer 'ado-insights stage-artifacts'")
+    logger.warning("  to download production-validated artifacts from pipelines.")
+    logger.warning("=" * 60)
+    logger.warning("")
+
     logger.info("Building aggregates locally...")
     logger.info(f"Database: {args.db}")
     logger.info(f"Output: {args.out}")
