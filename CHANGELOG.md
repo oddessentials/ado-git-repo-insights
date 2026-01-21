@@ -1,3 +1,10 @@
+## [3.8.1](https://github.com/oddessentials/ado-git-repo-insights/compare/v3.8.0...v3.8.1) (2026-01-21)
+
+
+### Bug Fixes
+
+* remove linux label from runs_on to fix case-sensitivity mismatch ([66adc6c](https://github.com/oddessentials/ado-git-repo-insights/commit/66adc6c050afa608f4e814eedf4d244f960183b7))
+
 # [3.8.0](https://github.com/oddessentials/ado-git-repo-insights/compare/v3.7.1...v3.8.0) (2026-01-21)
 
 
