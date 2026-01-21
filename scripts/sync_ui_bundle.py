@@ -12,6 +12,7 @@ from pathlib import Path
 
 EXCLUDE_PATTERNS = {
     "*.map",
+    "*.d.ts",  # TypeScript declarations - only compiled JS in ui_bundle
     ".DS_Store",
     "*.swp",
     "*~",
