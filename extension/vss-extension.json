@@ -1,4 +1,5 @@
 {
+<<<<<<< HEAD
   "manifestVersion": 1,
   "id": "ado-git-repo-insights",
   "name": "Git Repo Insights",
@@ -37,6 +38,29 @@
       "properties": {
         "name": "tasks/extract-prs"
       }
+=======
+    "manifestVersion": 1,
+    "id": "ado-git-repo-insights",
+    "name": "Git Repo Insights",
+    "version": "3.8.0",
+    "publisher": "OddEssentials",
+    "targets": [
+        {
+            "id": "Microsoft.VisualStudio.Services"
+        }
+    ],
+    "description": "Extract Azure DevOps Pull Request metrics and generate PowerBI-compatible CSVs.",
+    "categories": [
+        "Azure Pipelines"
+    ],
+    "scopes": [
+        "vso.build",
+        "vso.project",
+        "vso.settings"
+    ],
+    "icons": {
+        "default": "images/icon.png"
+>>>>>>> 61df5c34dc4e110107322b57df729792e8d93e86
     },
     {
       "id": "pr-insights-hub",

@@ -1,4 +1,5 @@
 {
+<<<<<<< HEAD
   "$schema": "https://raw.githubusercontent.com/Microsoft/azure-pipelines-task-lib/master/tasks.schema.json",
   "id": "f8a3b7c2-4d5e-6f01-a2b3-c4d5e6f78901",
   "name": "ExtractPullRequests",
@@ -19,6 +20,19 @@
       "label": "Organization",
       "required": true,
       "helpMarkDown": "Azure DevOps organization name"
+=======
+    "$schema": "https://raw.githubusercontent.com/Microsoft/azure-pipelines-task-lib/master/tasks.schema.json",
+    "id": "f8a3b7c2-4d5e-6f01-a2b3-c4d5e6f78901",
+    "name": "ExtractPullRequests",
+    "friendlyName": "Extract Pull Request Metrics",
+    "description": "Extracts PR data from Azure DevOps and generates PowerBI-compatible CSVs",
+    "category": "Utility",
+    "author": "Odd Essentials, LLC",
+    "version": {
+        "Major": 2,
+        "Minor": 8,
+        "Patch": 0
+>>>>>>> 61df5c34dc4e110107322b57df729792e8d93e86
     },
     {
       "name": "projects",
