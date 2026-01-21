@@ -2,12 +2,18 @@
 
 This document defines the normative contract for PR Insights dataset consumption. Any consumer (extension UI, CLI dashboard, PowerBI) MUST use this contract.
 
+## Breaking Change (v2.0.0)
+
+> [!CAUTION]
+> **Breaking Change (January 2026):** The nested `aggregates/aggregates` artifact layout is deprecated and will cause a hard error. If you encounter this error, re-run your pipeline with the updated YAML configuration and re-stage artifacts with `ado-insights stage-artifacts`.
+
 ## Dataset Layout
 
+The dataset MUST follow this structure, with `dataset-manifest.json` at the artifact root:
+
 ```
-<dataset-root>/
-├── dataset-manifest.json     # Discovery entry point (REQUIRED)
-├── ado-insights.sqlite       # Canonical store (OPTIONAL for UI)
+<artifact-root>/
+├── dataset-manifest.json     # Discovery entry point (REQUIRED, at root)
 ├── aggregates/
 │   ├── dimensions.json       # Filter dimensions
 │   ├── weekly_rollups/
@@ -19,6 +25,13 @@ This document defines the normative contract for PR Insights dataset consumption
 └── insights/                 # Phase 3.5 (OPTIONAL)
     └── summary.json          # AI-generated insights
 ```
+
+**Discovery Rules:**
+- Consumers probe `dataset-manifest.json` in this order: `.` (root), then `aggregates/`
+- The deprecated `aggregates/aggregates` path is **no longer supported**
+- All `aggregate_index[*].path` values resolve relative to the manifest location
+
+
 
 ## Schema Versions
 
