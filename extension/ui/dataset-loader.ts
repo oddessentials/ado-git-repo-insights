@@ -366,9 +366,11 @@ export class DatasetLoader implements IDatasetLoader {
       }
     }
 
-    // No manifest found in any candidate path
-    console.warn("[DatasetLoader] No manifest found in candidate paths");
-    this.effectiveBaseUrl = ""; // Mark as resolved but empty (fallback to baseUrl)
+    // No manifest found in any candidate path - fall back to original baseUrl
+    console.warn(
+      "[DatasetLoader] No manifest found in candidate paths, using baseUrl as fallback",
+    );
+    this.effectiveBaseUrl = this.baseUrl;
     return null;
   }
 

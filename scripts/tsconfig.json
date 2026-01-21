@@ -15,7 +15,11 @@
         "outDir": "./dist",
         "rootDir": ".",
         "baseUrl": ".",
+        "types": [
+            "node"
+        ],
         "typeRoots": [
+            "../node_modules/@types",
             "../types",
             "../extension/node_modules/@types"
         ]

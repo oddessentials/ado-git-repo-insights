@@ -225,7 +225,7 @@ describe("DatasetLoader Nested Layout Resolution", () => {
       const resolved = (loader as any).resolvePath("test.json");
 
       // Falls back to base URL when no nested layout found
-      expect(resolved).toBe("test.json");
+      expect(resolved).toBe("./run_artifacts/test.json");
     });
   });
 });
