@@ -2,7 +2,7 @@
   "manifestVersion": 1,
   "id": "ado-git-repo-insights",
   "name": "Git Repo Insights",
-  "version": "3.7.1",
+  "version": "3.8.0",
   "publisher": "OddEssentials",
   "targets": [
     {
@@ -10,8 +10,14 @@
     }
   ],
   "description": "Extract Azure DevOps Pull Request metrics and generate PowerBI-compatible CSVs.",
-  "categories": ["Azure Pipelines"],
-  "scopes": ["vso.build", "vso.project", "vso.settings"],
+  "categories": [
+    "Azure Pipelines"
+  ],
+  "scopes": [
+    "vso.build",
+    "vso.project",
+    "vso.settings"
+  ],
   "icons": {
     "default": "images/icon.png"
   },
@@ -33,7 +39,9 @@
     {
       "id": "extract-prs-task",
       "type": "ms.vss-distributed-task.task",
-      "targets": ["ms.vss-distributed-task.tasks"],
+      "targets": [
+        "ms.vss-distributed-task.tasks"
+      ],
       "properties": {
         "name": "tasks/extract-prs"
       }
@@ -41,7 +49,9 @@
     {
       "id": "pr-insights-hub",
       "type": "ms.vss-web.hub",
-      "targets": ["ms.vss-code-web.code-hub-group"],
+      "targets": [
+        "ms.vss-code-web.code-hub-group"
+      ],
       "properties": {
         "name": "PR Insights",
         "order": 99,
@@ -52,7 +62,9 @@
     {
       "id": "pr-insights-settings",
       "type": "ms.vss-web.hub",
-      "targets": ["ms.vss-web.project-admin-hub-group"],
+      "targets": [
+        "ms.vss-web.project-admin-hub-group"
+      ],
       "properties": {
         "name": "PR Insights Settings",
         "order": 50,
