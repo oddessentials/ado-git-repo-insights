@@ -1,190 +1,178 @@
-## Implementation Plan (Final) — Dogfood First, No Shortcuts
+## Dataset Layout Fix + Regression Validation (Optimized Execution Plan)
 
-### Non-negotiable outcomes
-
-- Local dashboard **must** work using **real pipeline artifacts** staged into `./run_artifacts/` in the **default nested layout** produced by artifact download (including `aggregates/aggregates/...` when that happens).
-- UI bundle in `src/ado_git_repo_insights/ui_bundle/` must contain **browser-executable JS** (no TS, no ESM `import/export`).
-- Tests + CI must prevent regressions.
+**Branch:** `feat/standards-upgrade`
+**Rule:** Each phase below is **one commit**. Do not mix phases.
 
 ---
 
-## Step 1 — Dogfood: Add “stage pipeline artifacts → ./run_artifacts/” (FIRST, BLOCKING)
+# Target Contract (Must Match Exactly)
 
-### 1.1 Add CLI command (Python)
+```
+artifact-root/
+├── dataset-manifest.json
+└── aggregates/
+    ├── dimensions.json
+    ├── weekly_rollups/...
+    └── distributions/...
+```
 
-**Add:** `ado-insights stage-artifacts` (or `download-artifacts` if that name already exists)
-
-**Behavior**
-
-- Locates the latest successful run (or a specified run) for the configured pipeline.
-- Downloads the **aggregates artifact** exactly as published.
-- Extracts it into `./run_artifacts/` **preserving nested paths** (do not flatten).
-- Writes a small `./run_artifacts/STAGED.json` containing:
-    - timestamp
-    - org/project/pipeline/run identifiers
-    - artifact name
-    - resolved “dataset root candidates” it found (see 1.2)
-
-**Command shape**
-
-- `ado-insights stage-artifacts --org ... --project ... --pipeline-id ... --artifact aggregates --out ./run_artifacts`
-- Optional: `--run-id` to pin an exact run.
-
-### 1.2 Implement deterministic dataset root discovery
-
-**Add:** a single function used by both `stage-artifacts` and `dashboard`:
-
-`find_dataset_roots(run_artifacts_dir) -> list[Path]`
-
-It must return candidates in priority order, e.g.:
-
-- `run_artifacts/` (if `dataset-manifest.json` exists here)
-- `run_artifacts/aggregates/`
-- `run_artifacts/aggregates/aggregates/`
-- (and any other common nesting you’ve observed)
-
-**Acceptance criteria**
-
-- After running `stage-artifacts`, at least one candidate root contains:
-    - `dataset-manifest.json`
-    - `aggregates/` directory (or whatever your manifest expects)
-
-- If none found: fail with a single error explaining:
-    - what was downloaded
-    - what paths were searched
-    - what files were expected
-
-### 1.3 Update `dashboard` command to use staged artifacts
-
-**Update:** `ado-insights dashboard`
-
-- Default behavior: if `--dataset` not provided, use `./run_artifacts/`.
-- It must call `find_dataset_roots()` and choose the first valid root.
-- It must log the selected dataset root path.
-
-**DoD for Step 1**
-
-- One command stages artifacts into `./run_artifacts/` (nested preserved).
-- `ado-insights dashboard` can point at `./run_artifacts` and successfully finds the dataset root (even when nested).
+**Invariant:** `dataset-manifest.json` is at artifact root. All paths in `aggregate_index` resolve relative to that root.
 
 ---
 
-## Step 2 — Make DatasetLoader tolerant to nested artifact layouts (BLOCKING)
+## Phase 1 Commit — Atomic Generator + Pipeline + Discovery + Loader Cutover
 
-### 2.1 Add base-path resolution (one-time, not per-file hacks)
+**Commit message:** `fix(aggregates): move manifest to artifact root and cut over discovery`
 
-**Update (TS):** `DatasetLoader` (or the place that forms URLs/paths)
+### 1. Generator output contract
 
-**Requirement**
+- [MODIFY] `aggregators.py`
+    - Write `dataset-manifest.json` to `output_dir/` (artifact root)
+    - Keep all data under `output_dir/aggregates/...`
+    - Ensure manifest `aggregate_index.*.path` remains relative to manifest root (e.g., `aggregates/weekly_rollups/...`)
 
-- When constructing fetch paths, the loader must support both layouts:
-    - “expected” layout
-    - “nested” artifact layout (e.g., `aggregates/aggregates/...`)
+### 2. Pipeline publish path (remove nesting)
 
-**Implementation approach**
+- [MODIFY] `pr-insights-pipeline.yml`
+    - Change `PublishPipelineArtifact@1.targetPath` from `$(Pipeline.Workspace)/run_artifacts/aggregates` **to** `$(Pipeline.Workspace)/run_artifacts`
+    - Keep artifact name as `aggregates`
 
-- At initialization, determine the “effective dataset root” once:
-    - attempt to fetch `dataset-manifest.json` from candidate roots (relative to provided base)
-    - choose the first that succeeds
+### 3. Template alignment (no drift)
 
-- All subsequent fetches are relative to the effective root.
+- [MODIFY] all extension pipeline templates (`sample-pipeline.yml`, `extension-verification-test.yml`, etc.)
+    - Same publish behavior as above
 
-### 2.2 Add integration tests (Jest/JSDOM)
+### 4. Unified dataset root resolution (clean break)
 
-**Add tests**
+- [MODIFY] `dataset_discovery.py`
+    - `CANDIDATE_PATHS = ['.', 'aggregates']` only
+    - Add `validate_manifest_paths(root)` that asserts every `aggregate_index` referenced file exists
+    - Add **hard error** if deprecated layout detected (`root/aggregates/aggregates/dataset-manifest.json`)
 
-- “loads dataset when manifest lives under `aggregates/aggregates/`”
-- “loads dataset when manifest lives at root”
-- Ensure these tests go through `DatasetLoader` APIs (not direct normalizer calls).
+- [MODIFY] `cli.py` (`cmd_stage_artifacts`, `cmd_dashboard`)
+    - Call only the unified `find_dataset_roots()` + `validate_manifest_paths()` path
+    - No alternate discovery logic in commands
 
-**DoD for Step 2**
+- [MODIFY] `dataset-loader.ts`
+    - `DATASET_CANDIDATE_PATHS = ['', 'aggregates']` only
+    - Remove any `aggregates/aggregates` logic
 
-- Same staged artifacts work whether nested or not.
-- Tests cover both layouts and fail if either breaks.
+**Phase 1 DoD**
 
----
-
-## Step 3 — Fix browser execution: bundle TS to IIFE JS (BLOCKING)
-
-### 3.1 Add esbuild bundling for browser runtime
-
-**Add:** `extension/scripts/bundle-ui.mjs`
-
-- Entry points: `ui/dashboard.ts`, `ui/settings.ts` (and any other UI entrypoints)
-- `bundle: true`
-- `format: 'iife'`
-- `target: 'es2020'`
-- Output: `extension/dist/ui/*.js`
-- Export a stable global surface (example): `window.PRInsights = {...}`
-  (Whatever the HTML expects must be true after bundling.)
-
-### 3.2 Keep `tsc --noEmit` as the typecheck gate
-
-**Do not remove tsc typechecking.**
-
-- `build:check` = `tsc --noEmit`
-- `build:ui` = esbuild bundling
-
-### 3.3 Update UI bundle sync to copy compiled JS
-
-**Update:** `scripts/sync_ui_bundle.py`
-
-- Copy from `extension/dist/ui/` (compiled JS output), not from `extension/ui/` source.
-- Sync target: `src/ado_git_repo_insights/ui_bundle/`
-
-**DoD for Step 3**
-
-- `ui_bundle/` contains JS that runs in the browser via classic `<script>` tags.
-- No ESM `import/export` is present in the shipped `ui_bundle` JS.
+- Generator writes new layout locally.
+- Pipeline YAML publishes new layout (no nesting).
+- CLI + extension both resolve dataset root using only `['.', 'aggregates']`.
+- Deprecated layout triggers the required hard error message.
 
 ---
 
-## Step 4 — Lock regression dataset using dogfooded artifacts (REQUIRED)
+## Phase 2 Commit — Invariant Tests + Fixture Alignment (Python + Extension)
 
-### 4.1 Add a standard “dogfood dataset” workflow
+**Commit message:** `test(regression): enforce manifest paths invariant and align fixtures`
 
-- Run `ado-insights stage-artifacts ... --out ./run_artifacts`
-- Commit **a small representative** staged dataset into the repo (or store it as a test artifact if repo size matters), then:
-    - point integration tests to it
-    - ensure it includes the nested path case
+### 1. Python invariant test
 
-**DoD for Step 4**
+- [NEW] `tests/unit/test_manifest_paths_invariant.py`
+    - Validate every `aggregate_index.weekly_rollups[*].path` and `aggregate_index.distributions[*].path` exists under fixture root
 
-- The regression dataset is produced by your own staging command and is used by tests.
+### 2. Extension invariant test
 
----
+- [NEW] `extension/tests/manifest-paths-invariant.test.ts`
+    - Same invariant for extension fixtures
 
-## Step 5 — CI + Hook Guards (MANDATORY)
+### 3. Update fixtures to match contract
 
-### 5.1 CI: fail if `ui_bundle/` contains TS
+- [DELETE] any nested-layout fixtures (`extension/tests/fixtures/nested-layout/`)
+- [MODIFY] `extension/tests/fixtures/**`
+    - Ensure `dataset-manifest.json` is at fixture root
+    - Ensure all referenced paths exist and match relative paths
 
-- Check for any `*.ts` under `src/ado_git_repo_insights/ui_bundle/` → fail.
+### 4. Synthetic generator alignment
 
-### 5.2 CI: fail if bundled JS contains ESM syntax
+- [MODIFY] `scripts/generate-synthetic-dataset.py`
+    - Output only the new flat manifest-at-root layout
+    - Remove `--layout nested` concept (delete flag + docs + tests referencing it)
 
-- Check shipped JS for ESM tokens:
-    - `^\s*import\s`
-    - `^\s*export\s`
+**Phase 2 DoD**
 
-- Run against `src/ado_git_repo_insights/ui_bundle/*.js` → fail on match.
-
-### 5.3 CI: enforce UI bundle sync
-
-- Run your bundle+sync command in CI.
-- Then verify `extension/ui` (sources) correspond to the built+synced outputs (your existing sync check).
-
-### 5.4 Add/keep Jest + pytest gates
-
-- Full suite runs, no skipped tests.
-- Test-count minimums must still pass (update thresholds only if required by policy, not casually).
-
-**DoD for Step 5**
-
-- CI blocks any PR that reintroduces TS/ESM into `ui_bundle` or breaks staging/path tolerance.
+- `pytest` passes including manifest invariant test.
+- `npm test` passes including TS invariant test.
+- No repo references to `aggregates/aggregates` remain in tests/fixtures.
 
 ---
 
-## Step 6 — Packaging + Validation (MANDATORY)
+## Phase 3 Commit — CLI + UI Labeling (Dev vs Production)
+
+**Commit message:** `feat(cli): label local-db aggregates as DEV mode and stage-artifacts as recommended`
+
+### 1. CLI help text clarity
+
+- [MODIFY] `cli.py` help text
+    - `stage-artifacts`: “Download pipeline artifacts for local dashboard (RECOMMENDED)”
+    - `build-aggregates`: “Generate aggregates from local database (DEV/SECONDARY)”
+
+### 2. Explicit runtime warnings
+
+- [MODIFY] `cmd_build_aggregates`
+    - Log warnings:
+        - “=== DEV MODE: Generating from local database ===”
+        - “For production, use 'ado-insights stage-artifacts' instead.”
+
+### 3. Dashboard banner for local DB source
+
+- [MODIFY] `local-config.js` / dashboard header behavior
+    - If `LOCAL_DASHBOARD_MODE=true` and source indicates local build: show banner
+      `⚠️ DEV MODE: Data from local database, not pipeline`
+
+**Phase 3 DoD**
+
+- Running `build-aggregates` is unmistakably “DEV/secondary”.
+- Staged pipeline artifacts remain the clearly recommended path.
+
+---
+
+## Phase 4 Commit — Docs Update + Breaking Change Notice
+
+**Commit message:** `docs: update dataset artifact structure and staging guidance`
+
+### 1. Update docs to new contract
+
+- [MODIFY] artifact structure docs and user guides
+    - Show the new target contract structure
+    - Include the hard error message guidance: “republish pipeline and re-stage artifacts”
+
+### 2. Explicit breaking change section
+
+- Add a “Breaking Change” note:
+    - Old layout will hard-fail
+    - Required action: republish pipeline after upgrading
+
+**Phase 4 DoD**
+
+- Docs match reality and point users to `stage-artifacts` workflow.
+
+---
+
+# Mandatory Validation Gates (Run in this order)
+
+1. `pytest` → all pass (includes invariant)
+2. `cd extension && npm run build:check` → pass
+3. `cd extension && npm test` → all pass
+4. **Manual dogfood (required before merge):**
+    - Run pipeline with updated version
+    - `ado-insights stage-artifacts ... --out ./run_artifacts`
+    - Confirm `./run_artifacts/dataset-manifest.json` exists at root
+    - `ado-insights dashboard` loads real data (no JS errors, data renders)
+
+---
+
+# Absolute Rules During Implementation
+
+- Do not add or keep any `aggregates/aggregates` fallback logic.
+- Do not merge phases together—**one commit per phase**.
+- Do not treat synthetic fixtures as “dashboard UX validation.” Real UX validation uses staged pipeline artifacts derived from pipeline SQLite.
+
+## Follow-Up Phase — Packaging + Validation (MANDATORY)
 
 ### 6.1 Build VSIX
 
