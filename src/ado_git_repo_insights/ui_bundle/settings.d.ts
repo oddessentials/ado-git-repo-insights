@@ -61,20 +61,25 @@ declare function getProjectNameById(projectId: string): string;
  * Validate if a pipeline exists and has successful builds with aggregates artifact.
  * Returns validation result with details.
  */
-declare function validatePipeline(pipelineId: number, projectId: string): Promise<{
-    valid: boolean;
-    name?: string;
-    buildId?: number;
-    error?: string;
+declare function validatePipeline(
+  pipelineId: number,
+  projectId: string,
+): Promise<{
+  valid: boolean;
+  name?: string;
+  buildId?: number;
+  error?: string;
 }>;
 /**
  * Discover pipelines with aggregates artifact in the current project.
  */
-declare function discoverPipelines(): Promise<Array<{
+declare function discoverPipelines(): Promise<
+  Array<{
     id: number;
     name: string;
     buildId: number;
-}>>;
+  }>
+>;
 /**
  * Run auto-discovery and show results to user.
  */
