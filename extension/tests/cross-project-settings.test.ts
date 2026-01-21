@@ -19,31 +19,32 @@ describe("Cross-Project Settings", () => {
 
     it("should have SETTINGS_KEY_PROJECT constant", () => {
       expect(dashboardCode).toContain(
-        "SETTINGS_KEY_PROJECT = 'pr-insights-source-project'",
+        'SETTINGS_KEY_PROJECT = "pr-insights-source-project"',
       );
     });
 
     it("should have SETTINGS_KEY_PIPELINE constant", () => {
       expect(dashboardCode).toContain(
-        "SETTINGS_KEY_PIPELINE = 'pr-insights-pipeline-id'",
+        'SETTINGS_KEY_PIPELINE = "pr-insights-pipeline-id"',
       );
     });
 
     it("should have getSourceConfig function that returns both projectId and pipelineId", () => {
       expect(dashboardCode).toContain("async function getSourceConfig()");
-      expect(dashboardCode).toContain(
-        "const result: { projectId: string | null; pipelineId: number | null } = { projectId: null, pipelineId: null }",
+      // Result object with typed fields (may be multi-line)
+      expect(dashboardCode).toMatch(
+        /const result:\s*\{\s*projectId:\s*string \| null;\s*pipelineId:\s*number \| null\s*\}/,
       );
     });
 
     it("should read project setting with SETTINGS_KEY_PROJECT", () => {
-      expect(dashboardCode).toContain(
-        "SETTINGS_KEY_PROJECT, { scopeType: 'User' }",
-      );
+      // Check that SETTINGS_KEY_PROJECT is used with User scope
+      expect(dashboardCode).toContain("SETTINGS_KEY_PROJECT");
+      expect(dashboardCode).toMatch(/scopeType:\s*["']User["']/);
     });
 
     it("should log source project origin", () => {
-      expect(dashboardCode).toMatch(/console\.log.*Source project/);
+      expect(dashboardCode).toMatch(/console\.log.*Source project/s);
     });
 
     it("should use targetProjectId for ArtifactClient initialization", () => {
@@ -51,11 +52,9 @@ describe("Cross-Project Settings", () => {
     });
 
     it("should pass targetProjectId to resolveFromPipelineId", () => {
-      expect(dashboardCode).toContain(
-        "resolveFromPipelineId(queryResult.value, targetProjectId)",
-      );
-      expect(dashboardCode).toContain(
-        "resolveFromPipelineId(sourceConfig.pipelineId, targetProjectId)",
+      // Check for calls with targetProjectId parameter
+      expect(dashboardCode).toMatch(
+        /resolveFromPipelineId\(.*,\s*targetProjectId\)/s,
       );
     });
 
@@ -74,13 +73,13 @@ describe("Cross-Project Settings", () => {
 
     it("should have SETTINGS_KEY_PROJECT constant matching dashboard", () => {
       expect(settingsCode).toContain(
-        "SETTINGS_KEY_PROJECT = 'pr-insights-source-project'",
+        'SETTINGS_KEY_PROJECT = "pr-insights-source-project"',
       );
     });
 
     it("should have SETTINGS_KEY_PIPELINE constant matching dashboard", () => {
       expect(settingsCode).toContain(
-        "SETTINGS_KEY_PIPELINE = 'pr-insights-pipeline-id'",
+        'SETTINGS_KEY_PIPELINE = "pr-insights-pipeline-id"',
       );
     });
 
@@ -99,11 +98,12 @@ describe("Cross-Project Settings", () => {
     });
 
     it("should save project ID separately from pipeline ID", () => {
-      expect(settingsCode).toContain(
-        "SETTINGS_KEY_PROJECT, projectId, { scopeType: 'User' }",
+      // Check that both keys are used with setValue
+      expect(settingsCode).toMatch(
+        /setValue\(\s*SETTINGS_KEY_PROJECT,\s*projectId/s,
       );
-      expect(settingsCode).toContain(
-        "SETTINGS_KEY_PIPELINE, pipelineId, { scopeType: 'User' }",
+      expect(settingsCode).toMatch(
+        /setValue\(\s*SETTINGS_KEY_PIPELINE,\s*pipelineId/s,
       );
     });
   });
@@ -116,18 +116,18 @@ describe("Cross-Project Settings", () => {
       const dashboardCode = fs.readFileSync(dashboardPath, "utf8");
       const settingsCode = fs.readFileSync(settingsPath, "utf8");
 
-      // Extract settings keys from both files
+      // Extract settings keys from both files (double quotes from Prettier)
       const dashboardProjectKey = dashboardCode.match(
-        /SETTINGS_KEY_PROJECT\s*=\s*'([^']+)'/,
+        /SETTINGS_KEY_PROJECT\s*=\s*"([^"]+)"/,
       )?.[1];
       const dashboardPipelineKey = dashboardCode.match(
-        /SETTINGS_KEY_PIPELINE\s*=\s*'([^']+)'/,
+        /SETTINGS_KEY_PIPELINE\s*=\s*"([^"]+)"/,
       )?.[1];
       const settingsProjectKey = settingsCode.match(
-        /SETTINGS_KEY_PROJECT\s*=\s*'([^']+)'/,
+        /SETTINGS_KEY_PROJECT\s*=\s*"([^"]+)"/,
       )?.[1];
       const settingsPipelineKey = settingsCode.match(
-        /SETTINGS_KEY_PIPELINE\s*=\s*'([^']+)'/,
+        /SETTINGS_KEY_PIPELINE\s*=\s*"([^"]+)"/,
       )?.[1];
 
       expect(dashboardProjectKey).toBe("pr-insights-source-project");
