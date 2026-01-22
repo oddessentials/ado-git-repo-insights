@@ -2818,71 +2818,139 @@ describe("Sprint 2: Filter Management", () => {
             `;
     });
 
-    it("populates repo dropdown from dimensions", () => {
+    /**
+     * Helper that mirrors the actual populateFilterDropdowns logic from dashboard.ts.
+     * Uses the correct property names from Python aggregator:
+     * - Repositories: repository_id, repository_name, project_name, organization_name
+     * - Teams: team_id, team_name, project_name, organization_name, member_count
+     *
+     * IMPORTANT: Filter values use repository_name/team_name because that's how
+     * the by_repository and by_team slices in weekly rollups are keyed.
+     */
+    const populateFilterDropdowns = (dimensions: any) => {
+      if (!dimensions) return;
+
+      // Populate repository filter
+      const repoFilter = document.getElementById(
+        "repo-filter",
+      ) as HTMLSelectElement | null;
+      const repoFilterGroup = document.getElementById("repo-filter-group");
+      if (repoFilter && dimensions.repositories?.length > 0) {
+        repoFilter.innerHTML = '<option value="">All</option>';
+        dimensions.repositories.forEach((repo: any) => {
+          const option = document.createElement("option");
+          // Use repository_name as value (matches by_repository keys in rollups)
+          option.value = repo.repository_name;
+          option.textContent = repo.repository_name;
+          repoFilter.appendChild(option);
+        });
+        repoFilterGroup?.classList.remove("hidden");
+      } else {
+        repoFilterGroup?.classList.add("hidden");
+      }
+
+      // Populate team filter
+      const teamFilter = document.getElementById(
+        "team-filter",
+      ) as HTMLSelectElement | null;
+      const teamFilterGroup = document.getElementById("team-filter-group");
+      if (teamFilter && dimensions.teams?.length > 0) {
+        teamFilter.innerHTML = '<option value="">All</option>';
+        dimensions.teams.forEach((team: any) => {
+          const option = document.createElement("option");
+          // Use team_name as value (matches by_team keys in rollups)
+          option.value = team.team_name;
+          option.textContent = team.team_name;
+          teamFilter.appendChild(option);
+        });
+        teamFilterGroup?.classList.remove("hidden");
+      } else {
+        teamFilterGroup?.classList.add("hidden");
+      }
+    };
+
+    it("populates repo dropdown from dimensions using repository_name", () => {
+      // Dimensions as produced by Python aggregator (aggregators.py _generate_dimensions)
       const dimensions = {
         repositories: [
-          { id: "repo1", name: "Backend API" },
-          { id: "repo2", name: "Frontend App" },
+          {
+            repository_id: "abc123",
+            repository_name: "Backend API",
+            project_name: "MyProject",
+            organization_name: "MyOrg",
+          },
+          {
+            repository_id: "def456",
+            repository_name: "Frontend App",
+            project_name: "MyProject",
+            organization_name: "MyOrg",
+          },
         ],
         teams: [],
       };
 
-      const repoFilter = document.getElementById("repo-filter");
-      if (dimensions.repositories?.length > 0) {
-        repoFilter.innerHTML = '<option value="">All</option>';
-        dimensions.repositories.forEach((repo) => {
-          const option = document.createElement("option");
-          option.value = repo.id || repo.name;
-          option.textContent = repo.name;
-          repoFilter.appendChild(option);
-        });
-      }
+      populateFilterDropdowns(dimensions);
 
-      expect((repoFilter as HTMLSelectElement).options.length).toBe(3);
-      expect(
-        (
-          repoFilter?.querySelector(
-            'option[value="repo1"]',
-          ) as HTMLOptionElement
-        )?.textContent,
-      ).toBe("Backend API");
-      expect(
-        (
-          repoFilter?.querySelector(
-            'option[value="repo2"]',
-          ) as HTMLOptionElement
-        )?.textContent,
-      ).toBe("Frontend App");
+      const repoFilter = document.getElementById(
+        "repo-filter",
+      ) as HTMLSelectElement;
+      expect(repoFilter.options.length).toBe(3); // "All" + 2 repos
+
+      // Verify options use repository_name as both value and text
+      const backendOption = repoFilter.querySelector(
+        'option[value="Backend API"]',
+      ) as HTMLOptionElement;
+      expect(backendOption).not.toBeNull();
+      expect(backendOption?.textContent).toBe("Backend API");
+
+      const frontendOption = repoFilter.querySelector(
+        'option[value="Frontend App"]',
+      ) as HTMLOptionElement;
+      expect(frontendOption).not.toBeNull();
+      expect(frontendOption?.textContent).toBe("Frontend App");
     });
 
-    it("populates team dropdown from dimensions", () => {
+    it("populates team dropdown from dimensions using team_name", () => {
+      // Dimensions as produced by Python aggregator (aggregators.py _generate_dimensions)
       const dimensions = {
         repositories: [],
         teams: [
-          { id: "team1", name: "Platform Team" },
-          { id: "team2", name: "Mobile Team" },
+          {
+            team_id: "team-uuid-1",
+            team_name: "Platform Team",
+            project_name: "MyProject",
+            organization_name: "MyOrg",
+            member_count: 5,
+          },
+          {
+            team_id: "team-uuid-2",
+            team_name: "Mobile Team",
+            project_name: "MyProject",
+            organization_name: "MyOrg",
+            member_count: 3,
+          },
         ],
       };
 
-      const teamFilter = document.getElementById("team-filter");
-      if (dimensions.teams?.length > 0) {
-        teamFilter.innerHTML = '<option value="">All</option>';
-        dimensions.teams.forEach((team) => {
-          const option = document.createElement("option");
-          option.value = team.id || team.name;
-          option.textContent = team.name;
-          teamFilter.appendChild(option);
-        });
-      }
+      populateFilterDropdowns(dimensions);
 
-      expect((teamFilter as HTMLSelectElement).options.length).toBe(3);
-      expect(
-        (
-          teamFilter?.querySelector(
-            'option[value="team1"]',
-          ) as HTMLOptionElement
-        )?.textContent,
-      ).toBe("Platform Team");
+      const teamFilter = document.getElementById(
+        "team-filter",
+      ) as HTMLSelectElement;
+      expect(teamFilter.options.length).toBe(3); // "All" + 2 teams
+
+      // Verify options use team_name as both value and text
+      const platformOption = teamFilter.querySelector(
+        'option[value="Platform Team"]',
+      ) as HTMLOptionElement;
+      expect(platformOption).not.toBeNull();
+      expect(platformOption?.textContent).toBe("Platform Team");
+
+      const mobileOption = teamFilter.querySelector(
+        'option[value="Mobile Team"]',
+      ) as HTMLOptionElement;
+      expect(mobileOption).not.toBeNull();
+      expect(mobileOption?.textContent).toBe("Mobile Team");
     });
 
     it("hides filter group when no dimensions available", () => {
@@ -2891,18 +2959,97 @@ describe("Sprint 2: Filter Management", () => {
         teams: [],
       };
 
+      populateFilterDropdowns(dimensions);
+
       const repoFilterGroup = document.getElementById("repo-filter-group");
       const teamFilterGroup = document.getElementById("team-filter-group");
 
-      if (!dimensions.repositories?.length) {
-        repoFilterGroup.classList.add("hidden");
-      }
-      if (!dimensions.teams?.length) {
-        teamFilterGroup.classList.add("hidden");
-      }
+      expect(repoFilterGroup?.classList.contains("hidden")).toBe(true);
+      expect(teamFilterGroup?.classList.contains("hidden")).toBe(true);
+    });
 
-      expect(repoFilterGroup.classList.contains("hidden")).toBe(true);
-      expect(teamFilterGroup.classList.contains("hidden")).toBe(true);
+    it("handles null dimensions gracefully", () => {
+      expect(() => populateFilterDropdowns(null)).not.toThrow();
+      expect(() => populateFilterDropdowns(undefined)).not.toThrow();
+    });
+
+    it("filter values match by_repository keys in weekly rollups", () => {
+      // This test ensures the filter values will correctly look up data
+      // in the by_repository slice of weekly rollups
+      const dimensions = {
+        repositories: [
+          {
+            repository_id: "abc123",
+            repository_name: "Backend API",
+            project_name: "MyProject",
+            organization_name: "MyOrg",
+          },
+        ],
+        teams: [],
+      };
+
+      // Sample weekly rollup with by_repository keyed by repository_name
+      const weeklyRollup = {
+        week: "2025-W01",
+        pr_count: 10,
+        by_repository: {
+          "Backend API": { pr_count: 10, cycle_time_p50: 120 },
+        },
+      };
+
+      populateFilterDropdowns(dimensions);
+
+      const repoFilter = document.getElementById(
+        "repo-filter",
+      ) as HTMLSelectElement;
+      const repoOption = repoFilter.querySelector(
+        'option[value="Backend API"]',
+      ) as HTMLOptionElement;
+
+      // The filter value should match the key in by_repository
+      expect(repoOption?.value).toBe("Backend API");
+      expect(weeklyRollup.by_repository[repoOption?.value]).toBeDefined();
+      expect(weeklyRollup.by_repository[repoOption?.value].pr_count).toBe(10);
+    });
+
+    it("filter values match by_team keys in weekly rollups", () => {
+      // This test ensures the filter values will correctly look up data
+      // in the by_team slice of weekly rollups
+      const dimensions = {
+        repositories: [],
+        teams: [
+          {
+            team_id: "team-uuid-1",
+            team_name: "Platform Team",
+            project_name: "MyProject",
+            organization_name: "MyOrg",
+            member_count: 5,
+          },
+        ],
+      };
+
+      // Sample weekly rollup with by_team keyed by team_name
+      const weeklyRollup = {
+        week: "2025-W01",
+        pr_count: 10,
+        by_team: {
+          "Platform Team": { pr_count: 8, cycle_time_p50: 180 },
+        },
+      };
+
+      populateFilterDropdowns(dimensions);
+
+      const teamFilter = document.getElementById(
+        "team-filter",
+      ) as HTMLSelectElement;
+      const teamOption = teamFilter.querySelector(
+        'option[value="Platform Team"]',
+      ) as HTMLOptionElement;
+
+      // The filter value should match the key in by_team
+      expect(teamOption?.value).toBe("Platform Team");
+      expect(weeklyRollup.by_team[teamOption?.value]).toBeDefined();
+      expect(weeklyRollup.by_team[teamOption?.value].pr_count).toBe(8);
     });
   });
 });

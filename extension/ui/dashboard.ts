@@ -1986,6 +1986,13 @@ function switchTab(tabId: string): void {
 
 /**
  * Populate filter dropdowns from loaded dimensions.
+ *
+ * IMPORTANT: The dimensions from aggregators.py use these property names:
+ * - Repositories: repository_id, repository_name, project_name, organization_name
+ * - Teams: team_id, team_name, project_name, organization_name, member_count
+ *
+ * The filter values MUST use repository_name/team_name because that's how
+ * the by_repository and by_team slices in weekly rollups are keyed.
  */
 function populateFilterDropdowns(dimensions: any): void {
   if (!dimensions) return;
@@ -1996,8 +2003,9 @@ function populateFilterDropdowns(dimensions: any): void {
     repoFilter.innerHTML = '<option value="">All</option>';
     dimensions.repositories.forEach((repo: any) => {
       const option = document.createElement("option");
-      option.value = repo.id || repo.name;
-      option.textContent = repo.name;
+      // Use repository_name as value (matches by_repository keys in rollups)
+      option.value = repo.repository_name;
+      option.textContent = repo.repository_name;
       repoFilter.appendChild(option);
     });
     elements["repo-filter-group"]?.classList.remove("hidden");
@@ -2011,8 +2019,9 @@ function populateFilterDropdowns(dimensions: any): void {
     teamFilter.innerHTML = '<option value="">All</option>';
     dimensions.teams.forEach((team: any) => {
       const option = document.createElement("option");
-      option.value = team.id || team.name;
-      option.textContent = team.name;
+      // Use team_name as value (matches by_team keys in rollups)
+      option.value = team.team_name;
+      option.textContent = team.team_name;
       teamFilter.appendChild(option);
     });
     elements["team-filter-group"]?.classList.remove("hidden");
