@@ -2500,8 +2500,8 @@ var PRInsightsDashboard = (() => {
       repoFilter.innerHTML = '<option value="">All</option>';
       dimensions.repositories.forEach((repo) => {
         const option = document.createElement("option");
-        option.value = repo.id || repo.name;
-        option.textContent = repo.name;
+        option.value = repo.repository_name;
+        option.textContent = repo.repository_name;
         repoFilter.appendChild(option);
       });
       elements["repo-filter-group"]?.classList.remove("hidden");
@@ -2513,8 +2513,8 @@ var PRInsightsDashboard = (() => {
       teamFilter.innerHTML = '<option value="">All</option>';
       dimensions.teams.forEach((team) => {
         const option = document.createElement("option");
-        option.value = team.id || team.name;
-        option.textContent = team.name;
+        option.value = team.team_name;
+        option.textContent = team.team_name;
         teamFilter.appendChild(option);
       });
       elements["team-filter-group"]?.classList.remove("hidden");

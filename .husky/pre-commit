@@ -23,11 +23,102 @@ echo "[pre-commit] Running formatting checks on staged files..."
 $PRE_COMMIT run --hook-stage pre-commit || exit 1
 echo "[pre-commit] ✅ Formatting checks passed"
 
-# Sync UI bundle if UI files were changed
-UI_CHANGED=$(git diff --cached --name-only | grep -E '^extension/ui/|^src/ado_git_repo_insights/ui_bundle/' || true)
-if [ -n "$UI_CHANGED" ]; then
-    echo "[pre-commit] UI files staged, synchronizing ui_bundle..."
-    python scripts/sync_ui_bundle.py
-    git add src/ado_git_repo_insights/ui_bundle
-    echo "[pre-commit] ✅ UI bundle synchronized"
+# =============================================================================
+# UI Bundle Build & Sync
+# =============================================================================
+# Automatically builds TypeScript and syncs to ui_bundle when UI-related files
+# are staged. This ensures CI never fails due to stale bundles.
+#
+# Trigger patterns (any of these staged triggers a rebuild):
+#   - extension/ui/*.ts          (TypeScript source)
+#   - extension/scripts/bundle-ui.mjs (build script)
+#   - extension/package.json     (dependencies)
+#   - extension/package-lock.json (lockfile)
+#   - extension/tsconfig*.json   (TypeScript config)
+# =============================================================================
+
+UI_BUILD_TRIGGERS=$(git diff --cached --name-only | grep -E '^extension/(ui/.*\.ts$|scripts/bundle-ui\.mjs$|package\.json$|package-lock\.json$|tsconfig.*\.json$)' || true)
+
+if [ -n "$UI_BUILD_TRIGGERS" ]; then
+    echo ""
+    echo "[pre-commit] 🔧 UI build triggers detected:"
+    echo "$UI_BUILD_TRIGGERS" | sed 's/^/  - /'
+    echo ""
+
+    # -------------------------------------------------------------------------
+    # Guard: Require node_modules to exist (don't run npm install in hooks)
+    # -------------------------------------------------------------------------
+    if [ ! -d "extension/node_modules" ]; then
+        echo "[pre-commit] ❌ extension/node_modules not found!"
+        echo ""
+        echo "  UI files are staged but dependencies are missing."
+        echo "  Run: cd extension && npm ci"
+        echo ""
+        exit 1
+    fi
+
+    # -------------------------------------------------------------------------
+    # Guard: Require clean working tree for extension/ui/ (staged == working)
+    # -------------------------------------------------------------------------
+    # This prevents building from unstaged changes that won't match the commit.
+    UI_UNSTAGED=$(git diff --name-only -- extension/ui/ || true)
+    if [ -n "$UI_UNSTAGED" ]; then
+        echo "[pre-commit] ❌ Unstaged changes in extension/ui/ detected!"
+        echo ""
+        echo "  The following files have unstaged changes:"
+        echo "$UI_UNSTAGED" | sed 's/^/    - /'
+        echo ""
+        echo "  Either stage them (git add) or stash them before committing."
+        echo "  This ensures the build matches exactly what you're committing."
+        echo ""
+        exit 1
+    fi
+
+    # -------------------------------------------------------------------------
+    # Build: Compile TypeScript to extension/dist/ui/
+    # -------------------------------------------------------------------------
+    echo "[pre-commit] 📦 Building UI bundles..."
+    if ! (cd extension && npm run build:ui); then
+        echo ""
+        echo "[pre-commit] ❌ UI build failed!"
+        echo "  Fix the build errors above and try again."
+        exit 1
+    fi
+
+    # -------------------------------------------------------------------------
+    # Sync: Copy from extension/dist/ui/ to src/ado_git_repo_insights/ui_bundle/
+    # -------------------------------------------------------------------------
+    echo "[pre-commit] 🔄 Syncing to ui_bundle..."
+    if ! python scripts/sync_ui_bundle.py; then
+        echo ""
+        echo "[pre-commit] ❌ UI bundle sync failed!"
+        exit 1
+    fi
+
+    # -------------------------------------------------------------------------
+    # Verify: Ensure sync produced no unexpected differences
+    # -------------------------------------------------------------------------
+    if ! git diff --quiet -- src/ado_git_repo_insights/ui_bundle; then
+        echo "[pre-commit] 📝 Staging ui_bundle changes..."
+        git add src/ado_git_repo_insights/ui_bundle
+    fi
+
+    # -------------------------------------------------------------------------
+    # Final check: Verify everything is in sync
+    # -------------------------------------------------------------------------
+    # Re-run sync and check for any remaining differences (catches edge cases)
+    python scripts/sync_ui_bundle.py >/dev/null 2>&1
+    if ! git diff --quiet -- src/ado_git_repo_insights/ui_bundle; then
+        echo ""
+        echo "[pre-commit] ❌ ui_bundle still differs after sync!"
+        echo ""
+        echo "  This indicates a problem with the sync process."
+        echo "  Differences:"
+        git diff --stat -- src/ado_git_repo_insights/ui_bundle
+        echo ""
+        exit 1
+    fi
+
+    echo "[pre-commit] ✅ UI built and synced successfully"
+    echo ""
 fi
