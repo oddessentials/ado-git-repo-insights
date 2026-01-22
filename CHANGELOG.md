@@ -1,3 +1,74 @@
+# [4.0.0](https://github.com/oddessentials/ado-git-repo-insights/compare/v3.8.3...v4.0.0) (2026-01-22)
+
+
+### Bug Fixes
+
+* address reviewer feedback on cli and dependencies ([edb86ce](https://github.com/oddessentials/ado-git-repo-insights/commit/edb86cec9520a31975ddc0bc0bc79bfb96176ea9))
+* **aggregates:** move manifest to artifact root and cut over discovery ([7a569df](https://github.com/oddessentials/ado-git-repo-insights/commit/7a569df1fbc57b70b35a53a5ba6d846b6d5daeca))
+* **build:** cross-platform CRLF→LF normalization for VSS.SDK.min.js ([eb4de2b](https://github.com/oddessentials/ado-git-repo-insights/commit/eb4de2beec685a93c0b748b8d4de9a37c7ea63a7))
+* **build:** update ui_bundle and harden sync script ([d94f482](https://github.com/oddessentials/ado-git-repo-insights/commit/d94f48275aace2975f6dd904242fb3cf43800d1c))
+* **ci:** resolve 4 CI pipeline failures ([c94318a](https://github.com/oddessentials/ado-git-repo-insights/commit/c94318aed5aaa4d86d60aae9d7b83995fff912ec))
+* **cli:** add UTF-8 encoding for dashboard HTML read/write on Windows ([bf1442a](https://github.com/oddessentials/ado-git-repo-insights/commit/bf1442a9a34c46256c0608e67518c3667e89c340))
+* **release:** compile TypeScript stamp script before execution ([a121be3](https://github.com/oddessentials/ado-git-repo-insights/commit/a121be36c4d766e68a3d92ad034cc9e243cef7ac))
+* **release:** harden semantic-release script and dashboard caching ([ae12c4b](https://github.com/oddessentials/ado-git-repo-insights/commit/ae12c4b79c607a408a3038787e4b49b9a25b3e40))
+* resolve merge conflict in vss-extension.json ([4c69c14](https://github.com/oddessentials/ado-git-repo-insights/commit/4c69c14367d3995c4c8912e39dfb8a513dca96c1))
+* resolve merge conflicts from main merge ([55d5d0c](https://github.com/oddessentials/ado-git-repo-insights/commit/55d5d0c84940ee5defd2614a9cfd6a02c434db61))
+* sync package-lock.json with package.json ([7b7807d](https://github.com/oddessentials/ado-git-repo-insights/commit/7b7807dd054a0aaef87d67c4284eb5f45f2b8629))
+* **tests:** align LOCAL_DASHBOARD_MODE type declarations ([fd43cc6](https://github.com/oddessentials/ado-git-repo-insights/commit/fd43cc658059ed26e8251f7b1c0fe8f4e09512dc))
+* **validation:** align schema field check with DatasetManifest contract ([c509439](https://github.com/oddessentials/ado-git-repo-insights/commit/c50943982467bb7e36d0ae8c4f2c9840dc4b4c32))
+
+
+### Features
+
+* **ci:** guards for no TS/ESM in ui_bundle + sync enforcement ([707e4ac](https://github.com/oddessentials/ado-git-repo-insights/commit/707e4aca101eb6e3cdbc4decd82ef9c68bb7ab10))
+* **cli:** label local-db aggregates as DEV mode and stage-artifacts as recommended ([048803e](https://github.com/oddessentials/ado-git-repo-insights/commit/048803e90f130870296dc3c649388dcd8d9e9e3d))
+* **cli:** stage pipeline artifacts to ./run_artifacts + dataset root discovery ([683e53a](https://github.com/oddessentials/ado-git-repo-insights/commit/683e53a98276a2b9def549c186121f5eb50e96c1))
+* **extension:** complete TypeScript conversion and standards alignment ([d990a2f](https://github.com/oddessentials/ado-git-repo-insights/commit/d990a2f62c69f0ba1a30cf49e44b761ac24a6c83))
+* **ui-build:** esbuild IIFE bundling + sync_ui_bundle copies dist JS ([768f251](https://github.com/oddessentials/ado-git-repo-insights/commit/768f251dc931b6f7ee9e237a5836d8697cef0668))
+* **ui:** DatasetLoader root resolution + tests for nested layouts ([9d2087e](https://github.com/oddessentials/ado-git-repo-insights/commit/9d2087ed9267fbcf1230c92833b2cadb8b0ded91))
+
+
+### BREAKING CHANGES
+
+* **aggregates:** Old pipeline runs using nested aggregates/aggregates layout
+will now fail with guidance to re-run the pipeline and re-stage artifacts.
+* **extension:** All extension JavaScript files converted to TypeScript
+
+Phase 1: Tooling Baseline
+- Add root tsconfig.json with strict mode
+- Add extension/tsconfig.json and scripts/tsconfig.json
+- Add types/vss.d.ts for Azure DevOps Extension SDK types
+
+Phase 2: Extension UI Conversion
+- Convert error-codes.js → .ts
+- Convert error-types.js → .ts
+- Convert artifact-client.js → .ts
+- Convert dataset-loader.js → .ts
+- Convert settings.js → .ts
+- Convert dashboard.js → .ts
+
+Phase 3: Extension Tests Conversion
+- Convert jest.config.js → .ts with ts-jest
+- Convert setup.js → .ts
+- Convert all 19 test files to TypeScript
+- Add tsconfig.test.json with relaxed settings for tests
+- All 374 tests passing
+
+Phase 4: Root Scripts Conversion
+- Convert stamp-extension-version.js → .ts
+- Convert validate-task-inputs.js → .ts
+- Convert update-perf-baseline.js → .ts
+
+Phase 5: CI & Quality Gates
+- Add TypeScript type checking step to CI
+- Add ESLint step with @typescript-eslint
+- Update min test count from 125 to 374
+- ESLint passes with 0 errors (150 warnings for transition)
+
+Phase 6: Repo Standards
+- Install @oddessentials/repo-standards v6.0.0
+- Add standards:ts and standards:py npm scripts
+
 ## [3.8.3](https://github.com/oddessentials/ado-git-repo-insights/compare/v3.8.2...v3.8.3) (2026-01-21)
 
 
