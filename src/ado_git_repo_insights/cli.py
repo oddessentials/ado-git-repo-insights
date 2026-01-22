@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import argparse
 import logging
+import shutil
 import sys
 import time
 from datetime import date
@@ -796,6 +797,22 @@ def cmd_build_aggregates(args: Namespace) -> int:
             )
             return 1
 
+    # Clean up stale aggregates from previous runs to prevent data mixing
+    aggregates_dir = (args.out / "aggregates").resolve()
+    output_dir = args.out.resolve()
+
+    # Safety check: ensure aggregates_dir is within the output directory
+    if aggregates_dir.exists():
+        try:
+            aggregates_dir.relative_to(output_dir)
+        except ValueError:
+            logger.error(
+                f"Security: aggregates_dir {aggregates_dir} is not within {output_dir}"
+            )
+            return 1
+        logger.info(f"Cleaning stale aggregates: {aggregates_dir}")
+        shutil.rmtree(aggregates_dir)
+
     try:
         db = DatabaseManager(args.db)
         db.connect()
@@ -1085,6 +1102,8 @@ def cmd_dashboard(args: Namespace) -> int:
                     self.send_header(
                         "Cache-Control", "no-cache, no-store, must-revalidate"
                     )
+                    self.send_header("Pragma", "no-cache")
+                    self.send_header("Expires", "0")
                     self.send_header("Access-Control-Allow-Origin", "*")
                     super().end_headers()
 
