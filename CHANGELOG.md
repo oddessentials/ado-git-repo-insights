@@ -1,3 +1,11 @@
+## [4.0.1](https://github.com/oddessentials/ado-git-repo-insights/compare/v4.0.0...v4.0.1) (2026-01-22)
+
+
+### Bug Fixes
+
+* **build:** auto-build UI bundles in pre-commit hook ([3893243](https://github.com/oddessentials/ado-git-repo-insights/commit/3893243487a923ea8a70e19128d88800bdd2ca38))
+* **dashboard:** use correct property names for filter dropdowns ([f20e6b0](https://github.com/oddessentials/ado-git-repo-insights/commit/f20e6b05e726991d40cc45270453e02933833a89))
+
 # [4.0.0](https://github.com/oddessentials/ado-git-repo-insights/compare/v3.8.3...v4.0.0) (2026-01-22)
 
 
