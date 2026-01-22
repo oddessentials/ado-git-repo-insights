@@ -16,8 +16,7 @@
   "version": "3.8.3",
   "scripts": {
     "prepare": "husky",
-    "scripts:build": "cd scripts && npx tsc",
-    "release:preflight": "node -e \"require('fs').existsSync('scripts/stamp-extension-version.ts') || (console.error('Missing scripts/stamp-extension-version.ts') || process.exit(1))\"",
+    "release:preflight": "node scripts/stamp-extension-version.cjs 0.0.0 --dry-run",
     "standards:ts": "repo-standards typescript-js",
     "standards:py": "repo-standards python"
   }
