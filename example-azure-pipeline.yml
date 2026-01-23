@@ -1,0 +1,96 @@
+trigger: none
+
+schedules:
+  - cron: "0 6 * * *" # Daily at 6 AM UTC
+    displayName: "Daily PR Extraction"
+    branches:
+      include: [main]
+    always: true
+
+pool:
+  vmImage: "ubuntu-latest"
+
+variables:
+  - group: ado-insights-secrets # References your variable group
+
+stages:
+  - stage: Extract
+    displayName: "Extract PR Metrics"
+    jobs:
+      - job: ExtractPRs
+        displayName: "Extract and Publish"
+        steps:
+          # Create required directories
+          - pwsh: |
+              New-Item -ItemType Directory -Force -Path "$(Pipeline.Workspace)/data" | Out-Null
+              New-Item -ItemType Directory -Force -Path "$(Pipeline.Workspace)/csv_output" | Out-Null
+              New-Item -ItemType Directory -Force -Path "$(Pipeline.Workspace)/aggregates" | Out-Null
+            displayName: "Create Directories"
+
+          # Ensure Node.js is available
+          - task: UseNode@1
+            displayName: "Install Node.js 20"
+            inputs:
+              version: "20.x"
+
+          # Install Node20 runner for pipeline tasks (self-hosted agents may not have it)
+          - task: NodeTaskRunnerInstaller@0
+            displayName: "Install Node 20 Task Runner"
+            inputs:
+              runnerVersion: "20"
+
+          # Download previous database (if exists)
+          - task: DownloadPipelineArtifact@2
+            displayName: "Download Previous Database"
+            continueOnError: true # First run will have no artifact - that's OK
+            inputs:
+              buildType: "specific"
+              project: "$(System.TeamProjectId)"
+              definition: "$(System.DefinitionId)"
+              runVersion: "latestFromBranch"
+              runBranch: "$(Build.SourceBranch)"
+              allowPartiallySucceededBuilds: true
+              artifactName: "ado-insights-db"
+              targetPath: "$(Pipeline.Workspace)/data"
+
+          # Run the extraction task
+          - task: ExtractPullRequests@2
+            displayName: "Extract PR Metrics"
+            inputs:
+              organization: "oddessentials"
+              projects: |
+                oddessentials
+                marketing
+                engineering
+                hospitality
+              pat: "$(PAT_SECRET)"
+              database: "$(Pipeline.Workspace)/data/ado-insights.sqlite"
+              outputDir: "$(Pipeline.Workspace)/csv_output"
+              aggregatesDir: "$(Pipeline.Workspace)/aggregates"
+              backfillDays: 15
+              startDate: "2026-01-01" # One year back from today
+              endDate: "2026-01-18" # Today's date
+
+          # Publish database artifact (enables incremental runs)
+          - task: PublishPipelineArtifact@1
+            displayName: "Publish Database"
+            condition: succeeded()
+            inputs:
+              targetPath: "$(Pipeline.Workspace)/data"
+              artifact: "ado-insights-db"
+
+          # Publish aggregates (enables dashboard)
+          - task: PublishPipelineArtifact@1
+            displayName: "Publish Aggregates"
+            condition: succeeded()
+            inputs:
+              targetPath: "$(Pipeline.Workspace)/aggregates"
+              artifact: "aggregates"
+
+          # Publish CSVs for download
+          - task: PublishPipelineArtifact@1
+            displayName: "Publish CSVs"
+            condition: succeeded()
+            inputs:
+              targetPath: "$(Pipeline.Workspace)/csv_output"
+              artifact: "csv-output"

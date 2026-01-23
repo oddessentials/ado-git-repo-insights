@@ -35,6 +35,12 @@ stages:
             inputs:
               version: '20.x'
 
+          # Step 1.6: Install Node20 runner for pipeline tasks (self-hosted agents may not have it)
+          - task: NodeTaskRunnerInstaller@0
+            displayName: 'Install Node 20 Task Runner'
+            inputs:
+              runnerVersion: '20'
+
           # Step 2: Download previous DB (branch-isolated, first run will fail - OK)
           - task: DownloadPipelineArtifact@2
             displayName: 'Download Previous Database (Golden)'
