@@ -6,7 +6,7 @@
  */
 
 // Make this file a module (required for declare global)
-export { };
+export {};
 
 declare global {
   interface Window {

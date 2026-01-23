@@ -148,8 +148,7 @@ export function validatePositiveInt(
   min = 0,
   max = Number.MAX_SAFE_INTEGER,
 ): number {
-  const num =
-    typeof value === "number" ? value : parseInt(String(value), 10);
+  const num = typeof value === "number" ? value : parseInt(String(value), 10);
 
   if (!Number.isSafeInteger(num)) {
     throw new Error(`${name} must be a safe integer, got: ${value}`);

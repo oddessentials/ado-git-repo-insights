@@ -17,14 +17,9 @@
     "rootDir": ".",
     "baseUrl": ".",
     "paths": {
-      "@types/*": [
-        "../types/*"
-      ]
+      "@types/*": ["../types/*"]
     },
-    "typeRoots": [
-      "../types",
-      "./node_modules/@types"
-    ]
+    "typeRoots": ["../types", "./node_modules/@types"]
   },
   "include": [
     "ui/**/*.ts",
@@ -33,9 +28,5 @@
     "*.ts",
     "../types/vss.d.ts"
   ],
-  "exclude": [
-    "node_modules",
-    "dist",
-    "tests"
-  ]
+  "exclude": ["node_modules", "dist", "tests"]
 }
