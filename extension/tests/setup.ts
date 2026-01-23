@@ -5,6 +5,15 @@
  */
 
 import { jest } from "@jest/globals";
+import { TextEncoder, TextDecoder } from "util";
+
+// Polyfill TextEncoder/TextDecoder for jsdom (required by whatwg-url)
+if (typeof global.TextEncoder === "undefined") {
+  global.TextEncoder = TextEncoder;
+}
+if (typeof global.TextDecoder === "undefined") {
+  global.TextDecoder = TextDecoder as typeof global.TextDecoder;
+}
 
 // Define types for global helpers
 // Note: fetch is not re-declared here since it's now a built-in global in Node.js 18+

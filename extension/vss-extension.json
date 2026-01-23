@@ -31,7 +31,7 @@
             "path": "tasks/extract-prs"
         },
         {
-            "path": "ui",
+            "path": "dist/ui",
             "addressable": true
         }
     ],
@@ -55,7 +55,7 @@
             "properties": {
                 "name": "PR Insights",
                 "order": 99,
-                "uri": "ui/index.html",
+                "uri": "dist/ui/index.html",
                 "iconName": "Chart"
             }
         },
@@ -68,7 +68,7 @@
             "properties": {
                 "name": "PR Insights Settings",
                 "order": 50,
-                "uri": "ui/settings.html"
+                "uri": "dist/ui/settings.html"
             }
         }
     ],
