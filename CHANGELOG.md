@@ -1,3 +1,10 @@
+## [4.2.3](https://github.com/oddessentials/ado-git-repo-insights/compare/v4.2.2...v4.2.3) (2026-01-23)
+
+
+### Reverts
+
+* Revert "Merge pull request [#73](https://github.com/oddessentials/ado-git-repo-insights/issues/73) from oddessentials/fix/node16-eol-warning" ([5f4ffa8](https://github.com/oddessentials/ado-git-repo-insights/commit/5f4ffa8609858be91b68a4ab1c1ce87058e30703))
+
 ## [4.2.2](https://github.com/oddessentials/ado-git-repo-insights/compare/v4.2.1...v4.2.2) (2026-01-23)
 
 
