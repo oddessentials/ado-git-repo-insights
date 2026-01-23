@@ -400,7 +400,7 @@ jobs:
 
       - uses: actions/setup-node@v4
         with:
-          node-version: "18"
+          node-version: "20"
 
       - name: Install tfx-cli
         run: npm install -g tfx-cli
@@ -411,7 +411,15 @@ jobs:
       - name: Run Extension Unit Tests
         run: node extension/tasks/extract-prs/index.test.js
 
-      - name: Build Extension
+      - name: Install Extension Dependencies
+        working-directory: extension
+        run: npm ci
+
+      - name: Build UI Bundles
+        working-directory: extension
+        run: npm run build
+
+      - name: Build Extension (VSIX)
         working-directory: extension
         run: |
           # Install task dependencies if package.json exists
@@ -419,6 +427,12 @@ jobs:
             cd tasks/extract-prs && npm install && cd ../..
           fi
           tfx extension create --manifest-globs vss-extension.json
+
+      - name: Run VSIX Inspection Tests (Tier B)
+        working-directory: extension
+        env:
+          VSIX_REQUIRED: 'true'
+        run: npm run test:vsix
 
       - name: Upload Extension
         uses: actions/upload-artifact@v4

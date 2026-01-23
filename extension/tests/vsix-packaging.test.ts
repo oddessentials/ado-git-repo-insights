@@ -1,19 +1,20 @@
 /**
- * VSIX Packaging Contract Tests
+ * VSIX Packaging Contract Tests (Tier A)
  *
  * CRITICAL INVARIANTS:
  * 1. VSIX must package dist/ui (compiled IIFE JS), NOT ui (TypeScript source)
  * 2. All contribution URIs must resolve to existing files in dist/ui
  * 3. JS bundles must be IIFE format (no ESM import/export) for ADO script tags
- * 4. Actual VSIX contents must match expectations (not just filesystem)
  *
  * These tests protect against "tsc overwrote esbuild bundles" regressions.
+ *
+ * NOTE: Tier B tests (actual VSIX inspection) are in vsix-artifact-inspection.test.ts
+ * and only run in jobs that package a VSIX.
  */
 import * as fs from 'fs';
 import * as path from 'path';
-import { execSync } from 'child_process';
 
-describe('VSIX Packaging Contract', () => {
+describe('VSIX Packaging Contract (Tier A)', () => {
     const extensionDir = path.join(__dirname, '..');
     const manifestPath = path.join(extensionDir, 'vss-extension.json');
     let manifest: any;
@@ -212,89 +213,4 @@ describe('VSIX Packaging Contract', () => {
             expect(content).not.toContain('settings.ts');
         });
     });
-});
-
-describe('VSIX Artifact Inspection', () => {
-    const extensionDir = path.join(__dirname, '..');
-    const vsixPattern = /OddEssentials\.ado-git-repo-insights-[\d.]+\.vsix$/;
-
-    // Find the latest VSIX file
-    function findLatestVsix(): string | null {
-        const files = fs.readdirSync(extensionDir);
-        const vsixFiles = files.filter((f) => vsixPattern.test(f));
-        if (vsixFiles.length === 0) return null;
-        // Sort by modification time, newest first
-        vsixFiles.sort((a, b) => {
-            const statA = fs.statSync(path.join(extensionDir, a));
-            const statB = fs.statSync(path.join(extensionDir, b));
-            return statB.mtimeMs - statA.mtimeMs;
-        });
-        return path.join(extensionDir, vsixFiles[0]);
-    }
-
-    // Skip VSIX inspection if no VSIX exists (e.g., fresh clone)
-    const vsixPath = findLatestVsix();
-    const skipVsix = !vsixPath;
-
-    (skipVsix ? describe.skip : describe)(
-        'Actual VSIX Contents (post-package)',
-        () => {
-            let vsixContents: string[] = [];
-
-            beforeAll(() => {
-                if (!vsixPath) return;
-                // Use PowerShell to list VSIX contents (it's a ZIP)
-                try {
-                    const output = execSync(
-                        `powershell -Command "Add-Type -Assembly System.IO.Compression.FileSystem; [System.IO.Compression.ZipFile]::OpenRead('${vsixPath}').Entries | ForEach-Object { $_.FullName }"`,
-                        { encoding: 'utf-8', cwd: extensionDir }
-                    );
-                    vsixContents = output.split(/\r?\n/).filter((l) => l);
-                } catch {
-                    // If PowerShell fails, skip these tests
-                    vsixContents = [];
-                }
-            });
-
-            it('VSIX contains dist/ui directory', () => {
-                expect(vsixContents.some((f) => f.startsWith('dist/ui/'))).toBe(
-                    true
-                );
-            });
-
-            it('VSIX contains dist/ui/*.js files', () => {
-                const jsFiles = vsixContents.filter(
-                    (f) => f.startsWith('dist/ui/') && f.endsWith('.js')
-                );
-                expect(jsFiles).toContain('dist/ui/dashboard.js');
-                expect(jsFiles).toContain('dist/ui/settings.js');
-            });
-
-            it('VSIX contains dist/ui/*.html files', () => {
-                const htmlFiles = vsixContents.filter(
-                    (f) => f.startsWith('dist/ui/') && f.endsWith('.html')
-                );
-                expect(htmlFiles).toContain('dist/ui/index.html');
-                expect(htmlFiles).toContain('dist/ui/settings.html');
-            });
-
-            it('VSIX does NOT contain ui/*.ts source files', () => {
-                const uiTsFiles = vsixContents.filter(
-                    (f) =>
-                        f.startsWith('ui/') &&
-                        f.endsWith('.ts') &&
-                        !f.endsWith('.d.ts')
-                );
-                expect(uiTsFiles).toEqual([]);
-            });
-
-            it('VSIX does NOT contain top-level ui/ directory', () => {
-                // After the fix, there should be no ui/ directory, only dist/ui/
-                const uiDirFiles = vsixContents.filter(
-                    (f) => f.startsWith('ui/') && !f.startsWith('dist/')
-                );
-                expect(uiDirFiles).toEqual([]);
-            });
-        }
-    );
 });
