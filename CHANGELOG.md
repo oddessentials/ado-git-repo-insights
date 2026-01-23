@@ -1,3 +1,10 @@
+# [4.1.0](https://github.com/oddessentials/ado-git-repo-insights/compare/v4.0.2...v4.1.0) (2026-01-23)
+
+
+### Features
+
+* **extension:** add VSIX packaging pipeline with task dependency staging ([a07f59f](https://github.com/oddessentials/ado-git-repo-insights/commit/a07f59f7871997f8f744b43f3b528231a9fe42ff))
+
 ## [4.0.2](https://github.com/oddessentials/ado-git-repo-insights/compare/v4.0.1...v4.0.2) (2026-01-23)
 
 
