@@ -88,8 +88,6 @@ csv_output/
 # Azure DevOps extension
 *.vsix
 node_modules/
-# Task node_modules MUST be committed for VSIX packaging
-!extension/tasks/*/node_modules/
 
 # OS files
 .DS_Store
@@ -108,3 +106,6 @@ tmp/*
 run_artifacts/*
 # Compiled scripts
 scripts/dist/
+
+# VSIX packaging output artifacts
+extension/[0-9]*

@@ -24,6 +24,32 @@ $PRE_COMMIT run --hook-stage pre-commit || exit 1
 echo "[pre-commit] ✅ Formatting checks passed"
 
 # =============================================================================
+# VSS SDK Sync Guard (runs on EVERY commit)
+# =============================================================================
+# Ensures extension/ui/VSS.SDK.min.js matches the npm package.
+# This prevents silent drift when vss-web-extension-sdk updates.
+# If drift is detected, auto-sync and auto-stage the file.
+# =============================================================================
+
+SDK_SRC="extension/node_modules/vss-web-extension-sdk/lib/VSS.SDK.min.js"
+SDK_DEST="extension/ui/VSS.SDK.min.js"
+
+if [ -f "$SDK_SRC" ] && [ -f "$SDK_DEST" ]; then
+    # Normalize and compare (CRLF → LF)
+    SDK_SRC_HASH=$(cat "$SDK_SRC" | tr -d '\r' | sha256sum | cut -d' ' -f1)
+    SDK_DEST_HASH=$(cat "$SDK_DEST" | tr -d '\r' | sha256sum | cut -d' ' -f1)
+
+    if [ "$SDK_SRC_HASH" != "$SDK_DEST_HASH" ]; then
+        echo ""
+        echo "[pre-commit] 🔄 VSS SDK drift detected - syncing from npm package..."
+        (cd extension && node scripts/copy-vss-sdk.mjs)
+        git add "$SDK_DEST"
+        echo "[pre-commit] ✅ VSS SDK synced and staged"
+        echo ""
+    fi
+fi
+
+# =============================================================================
 # UI Bundle Build & Sync
 # =============================================================================
 # Automatically builds TypeScript and syncs to ui_bundle when UI-related files

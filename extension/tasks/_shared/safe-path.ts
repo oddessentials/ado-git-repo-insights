@@ -20,20 +20,20 @@ import * as path from "path";
  * resolveInside('/app/data', '../secret') // THROWS: Path escapes baseDir
  */
 export function resolveInside(baseDir: string, ...parts: string[]): string {
-    const resolvedBase = path.resolve(baseDir);
-    const resolved = path.resolve(baseDir, ...parts);
+  const resolvedBase = path.resolve(baseDir);
+  const resolved = path.resolve(baseDir, ...parts);
 
-    // Check if resolved path is within base directory
-    // Must start with base + separator, or be exactly the base
-    const normalizedBase = resolvedBase + path.sep;
+  // Check if resolved path is within base directory
+  // Must start with base + separator, or be exactly the base
+  const normalizedBase = resolvedBase + path.sep;
 
-    if (!resolved.startsWith(normalizedBase) && resolved !== resolvedBase) {
-        throw new Error(
-            `Path traversal detected: "${parts.join("/")}" escapes base directory "${baseDir}"`,
-        );
-    }
+  if (!resolved.startsWith(normalizedBase) && resolved !== resolvedBase) {
+    throw new Error(
+      `Path traversal detected: "${parts.join("/")}" escapes base directory "${baseDir}"`,
+    );
+  }
 
-    return resolved;
+  return resolved;
 }
 
 /**
@@ -44,10 +44,10 @@ export function resolveInside(baseDir: string, ...parts: string[]): string {
  * @returns true if path is within baseDir
  */
 export function isPathInside(baseDir: string, testPath: string): boolean {
-    try {
-        resolveInside(baseDir, testPath);
-        return true;
-    } catch {
-        return false;
-    }
+  try {
+    resolveInside(baseDir, testPath);
+    return true;
+  } catch {
+    return false;
+  }
 }

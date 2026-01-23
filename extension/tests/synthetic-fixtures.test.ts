@@ -49,14 +49,14 @@ describe("Synthetic Fixture Consumer Validation", () => {
    */
   function generateFixture(prCount: number, seed = 42): string {
     // SECURITY: Validate numeric inputs before passing to command
-    if (
-      !Number.isSafeInteger(prCount) ||
-      prCount < 1 ||
-      prCount > 1000000
-    ) {
+    if (!Number.isSafeInteger(prCount) || prCount < 1 || prCount > 1000000) {
       throw new Error(`Invalid prCount: ${prCount}`);
     }
-    if (!Number.isSafeInteger(seed) || seed < 0 || seed > Number.MAX_SAFE_INTEGER) {
+    if (
+      !Number.isSafeInteger(seed) ||
+      seed < 0 ||
+      seed > Number.MAX_SAFE_INTEGER
+    ) {
       throw new Error(`Invalid seed: ${seed}`);
     }
 
