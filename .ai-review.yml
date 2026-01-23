@@ -7,19 +7,19 @@ passes:
     agents: [semgrep]
     enabled: true
 
-  # Local LLM review (free, requires Ollama sidecar)
-  - name: local-ai
-    agents: [local_llm]
-    enabled: true
+  # # Local LLM review (free, requires Ollama sidecar)
+  # - name: local-ai
+  #   agents: [local_llm]
+  #   enabled: true
 
   # Cloud AI review (uses Anthropic Claude)
   - name: cloud-ai
     agents: [opencode]
     enabled: true
 
-# Model configuration - use Anthropic Claude
+# Model configuration - use Anthropic Claude #claude-sonnet-4-20250514
 models:
-  default: claude-sonnet-4-20250514
+  default: gpt-5.2-2025-12-11
 
 # Limits sized for PR #50: 111 files, 81,741 diff lines
 limits:
