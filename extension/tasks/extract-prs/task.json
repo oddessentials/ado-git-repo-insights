@@ -1,125 +1,125 @@
 {
-  "$schema": "https://raw.githubusercontent.com/Microsoft/azure-pipelines-task-lib/master/tasks.schema.json",
-  "id": "f8a3b7c2-4d5e-6f01-a2b3-c4d5e6f78901",
-  "name": "ExtractPullRequests",
-  "friendlyName": "Extract Pull Request Metrics",
-  "description": "Extracts PR data from Azure DevOps and generates PowerBI-compatible CSVs",
-  "category": "Utility",
-  "author": "Odd Essentials, LLC",
-  "version": {
-    "Major": 2,
-    "Minor": 1,
-    "Patch": 1
-  },
-  "instanceNameFormat": "Extract PR Metrics",
-  "inputs": [
-    {
-      "name": "organization",
-      "type": "string",
-      "label": "Organization",
-      "required": true,
-      "helpMarkDown": "Azure DevOps organization name"
+    "$schema": "https://raw.githubusercontent.com/Microsoft/azure-pipelines-task-lib/master/tasks.schema.json",
+    "id": "f8a3b7c2-4d5e-6f01-a2b3-c4d5e6f78901",
+    "name": "ExtractPullRequests",
+    "friendlyName": "Extract Pull Request Metrics",
+    "description": "Extracts PR data from Azure DevOps and generates PowerBI-compatible CSVs",
+    "category": "Utility",
+    "author": "Odd Essentials, LLC",
+    "version": {
+        "Major": 2,
+        "Minor": 2,
+        "Patch": 0
     },
-    {
-      "name": "projects",
-      "type": "multiLine",
-      "label": "Projects",
-      "required": true,
-      "helpMarkDown": "List of project names (one per line or comma-separated)"
-    },
-    {
-      "name": "pat",
-      "type": "string",
-      "label": "Personal Access Token",
-      "required": true,
-      "helpMarkDown": "PAT with Code (Read) scope. Use $(PAT_SECRET) from variable groups."
-    },
-    {
-      "name": "database",
-      "type": "string",
-      "label": "Database Path",
-      "required": false,
-      "defaultValue": "$(Pipeline.Workspace)/data/ado-insights.sqlite",
-      "helpMarkDown": "Path to SQLite database file"
-    },
-    {
-      "name": "outputDir",
-      "type": "string",
-      "label": "CSV Output Directory",
-      "required": false,
-      "defaultValue": "$(Pipeline.Workspace)/csv_output",
-      "helpMarkDown": "Directory for generated CSV files"
-    },
-    {
-      "name": "startDate",
-      "type": "string",
-      "label": "Start Date (Optional)",
-      "required": false,
-      "helpMarkDown": "Override start date (YYYY-MM-DD). Defaults to incremental."
-    },
-    {
-      "name": "endDate",
-      "type": "string",
-      "label": "End Date (Optional)",
-      "required": false,
-      "helpMarkDown": "Override end date (YYYY-MM-DD). Defaults to yesterday."
-    },
-    {
-      "name": "backfillDays",
-      "type": "string",
-      "label": "Backfill Days (Optional)",
-      "required": false,
-      "helpMarkDown": "Number of days to backfill for convergence (e.g., 60)"
-    },
-    {
-      "name": "generateAggregates",
-      "type": "boolean",
-      "label": "Generate Aggregates",
-      "required": false,
-      "defaultValue": "true",
-      "helpMarkDown": "Generate JSON aggregates for the PR Insights dashboard. Adds ~5-10s to pipeline runtime. Disable if you only need CSV output."
-    },
-    {
-      "name": "aggregatesDir",
-      "type": "string",
-      "label": "Aggregates Output Directory",
-      "required": false,
-      "defaultValue": "$(Pipeline.Workspace)/aggregates",
-      "helpMarkDown": "Directory for aggregate JSON files (used with generateAggregates)"
-    },
-    {
-      "name": "enablePredictions",
-      "type": "boolean",
-      "label": "Generate ML Predictions",
-      "required": false,
-      "defaultValue": "false",
-      "helpMarkDown": "Generate trend predictions using Prophet time-series forecasting. Requires generateAggregates to be enabled. Adds ~10-30s to pipeline runtime.",
-      "visibleRule": "generateAggregates = true"
-    },
-    {
-      "name": "enableInsights",
-      "type": "boolean",
-      "label": "Generate AI Insights",
-      "required": false,
-      "defaultValue": "false",
-      "helpMarkDown": "Generate AI-powered insights using OpenAI. Requires generateAggregates and openaiApiKey. Adds ~5-15s to pipeline runtime.",
-      "visibleRule": "generateAggregates = true"
-    },
-    {
-      "name": "openaiApiKey",
-      "type": "string",
-      "label": "OpenAI API Key",
-      "required": false,
-      "helpMarkDown": "OpenAI API key for AI Insights generation. Use $(OPENAI_API_KEY) from a variable group. Required when enableInsights is true.",
-      "visibleRule": "enableInsights = true"
+    "instanceNameFormat": "Extract PR Metrics",
+    "inputs": [
+        {
+            "name": "organization",
+            "type": "string",
+            "label": "Organization",
+            "required": true,
+            "helpMarkDown": "Azure DevOps organization name"
+        },
+        {
+            "name": "projects",
+            "type": "multiLine",
+            "label": "Projects",
+            "required": true,
+            "helpMarkDown": "List of project names (one per line or comma-separated)"
+        },
+        {
+            "name": "pat",
+            "type": "string",
+            "label": "Personal Access Token",
+            "required": true,
+            "helpMarkDown": "PAT with Code (Read) scope. Use $(PAT_SECRET) from variable groups."
+        },
+        {
+            "name": "database",
+            "type": "string",
+            "label": "Database Path",
+            "required": false,
+            "defaultValue": "$(Pipeline.Workspace)/data/ado-insights.sqlite",
+            "helpMarkDown": "Path to SQLite database file"
+        },
+        {
+            "name": "outputDir",
+            "type": "string",
+            "label": "CSV Output Directory",
+            "required": false,
+            "defaultValue": "$(Pipeline.Workspace)/csv_output",
+            "helpMarkDown": "Directory for generated CSV files"
+        },
+        {
+            "name": "startDate",
+            "type": "string",
+            "label": "Start Date (Optional)",
+            "required": false,
+            "helpMarkDown": "Override start date (YYYY-MM-DD). Defaults to incremental."
+        },
+        {
+            "name": "endDate",
+            "type": "string",
+            "label": "End Date (Optional)",
+            "required": false,
+            "helpMarkDown": "Override end date (YYYY-MM-DD). Defaults to yesterday."
+        },
+        {
+            "name": "backfillDays",
+            "type": "string",
+            "label": "Backfill Days (Optional)",
+            "required": false,
+            "helpMarkDown": "Number of days to backfill for convergence (e.g., 60)"
+        },
+        {
+            "name": "generateAggregates",
+            "type": "boolean",
+            "label": "Generate Aggregates",
+            "required": false,
+            "defaultValue": "true",
+            "helpMarkDown": "Generate JSON aggregates for the PR Insights dashboard. Adds ~5-10s to pipeline runtime. Disable if you only need CSV output."
+        },
+        {
+            "name": "aggregatesDir",
+            "type": "string",
+            "label": "Aggregates Output Directory",
+            "required": false,
+            "defaultValue": "$(Pipeline.Workspace)/aggregates",
+            "helpMarkDown": "Directory for aggregate JSON files (used with generateAggregates)"
+        },
+        {
+            "name": "enablePredictions",
+            "type": "boolean",
+            "label": "Generate ML Predictions",
+            "required": false,
+            "defaultValue": "false",
+            "helpMarkDown": "Generate trend predictions using Prophet time-series forecasting. Requires generateAggregates to be enabled. Adds ~10-30s to pipeline runtime.",
+            "visibleRule": "generateAggregates = true"
+        },
+        {
+            "name": "enableInsights",
+            "type": "boolean",
+            "label": "Generate AI Insights",
+            "required": false,
+            "defaultValue": "false",
+            "helpMarkDown": "Generate AI-powered insights using OpenAI. Requires generateAggregates and openaiApiKey. Adds ~5-15s to pipeline runtime.",
+            "visibleRule": "generateAggregates = true"
+        },
+        {
+            "name": "openaiApiKey",
+            "type": "string",
+            "label": "OpenAI API Key",
+            "required": false,
+            "helpMarkDown": "OpenAI API key for AI Insights generation. Use $(OPENAI_API_KEY) from a variable group. Required when enableInsights is true.",
+            "visibleRule": "enableInsights = true"
+        }
+    ],
+    "execution": {
+        "Node20": {
+            "target": "index.js"
+        },
+        "Node16": {
+            "target": "index.js"
+        }
     }
-  ],
-  "execution": {
-    "Node20": {
-      "target": "index.js"
-    },
-    "Node16": {
-      "target": "index.js"
-    }
-  }
 }

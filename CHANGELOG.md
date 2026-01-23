@@ -1,3 +1,22 @@
+# [4.2.0](https://github.com/oddessentials/ado-git-repo-insights/compare/v4.1.1...v4.2.0) (2026-01-23)
+
+
+### Bug Fixes
+
+* add VSS SDK sync guard to pre-commit hook ([a950256](https://github.com/oddessentials/ado-git-repo-insights/commit/a950256e2c645688af7dc4530d50aa6596224f4f))
+* **ci:** add pretest:ci hook to build UI before test:ci ([273620e](https://github.com/oddessentials/ado-git-repo-insights/commit/273620eced85125e90c34a6bd6673d884cb5e529))
+* **ci:** correct build-extension step order and add shipping invariant ([977ea05](https://github.com/oddessentials/ado-git-repo-insights/commit/977ea05db9871c9aaa49d0a6e2f409ecda582885))
+* **extension:** package dist/ui instead of ui source files ([7922e01](https://github.com/oddessentials/ado-git-repo-insights/commit/7922e01e1f0e3bc9b91011b1863a4506a3708ce4))
+* **gitignore:** remove misleading task node_modules un-ignore ([b8ec7d4](https://github.com/oddessentials/ado-git-repo-insights/commit/b8ec7d48db469e25ce6e407c23b1b7817842ccd4))
+* package ([def8315](https://github.com/oddessentials/ado-git-repo-insights/commit/def8315cbf39c5d36ed5034ae09036cb3c3bcc7a))
+* restructure git hooks and CI test validation ([ac4924c](https://github.com/oddessentials/ado-git-repo-insights/commit/ac4924c88736b69e92d707103fc1d29eae1a9d5f))
+* sync VSS.SDK.min.js with current npm package version ([15b2e27](https://github.com/oddessentials/ado-git-repo-insights/commit/15b2e27e56354591455aebc606f16131827dfb9d))
+
+
+### Features
+
+* **ci:** implement two-tier VSIX test enforcement ([2c1d731](https://github.com/oddessentials/ado-git-repo-insights/commit/2c1d7318b768d0b5ddb7bfd95a5bd83a6ebf5c60))
+
 ## [4.1.1](https://github.com/oddessentials/ado-git-repo-insights/compare/v4.1.0...v4.1.1) (2026-01-23)
 
 
