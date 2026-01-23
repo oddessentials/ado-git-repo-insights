@@ -1,3 +1,11 @@
+## [4.1.1](https://github.com/oddessentials/ado-git-repo-insights/compare/v4.1.0...v4.1.1) (2026-01-23)
+
+
+### Bug Fixes
+
+* BREAKING CHANGE, fix extension ([63b12f0](https://github.com/oddessentials/ado-git-repo-insights/commit/63b12f068cf2bb4ac6eee291a16fa9fb6d7a7ce5))
+* BREAKING CHANGE, fix extension ([d6465ea](https://github.com/oddessentials/ado-git-repo-insights/commit/d6465ea5738db9a8b2ea1f28e61021ecc96f0a93))
+
 # [4.1.0](https://github.com/oddessentials/ado-git-repo-insights/compare/v4.0.2...v4.1.0) (2026-01-23)
 
 
