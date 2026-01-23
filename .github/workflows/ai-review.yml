@@ -22,4 +22,4 @@ jobs:
     secrets:
       # OLLAMA_BASE_URL: http://ollama-sidecar:11434
       ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
-      OPENID_API_KEY: ${{ secrets.OPENID_API_KEY }}
+      OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
