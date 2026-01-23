@@ -106,3 +106,6 @@ tmp/*
 run_artifacts/*
 # Compiled scripts
 scripts/dist/
+
+# VSIX packaging output artifacts
+extension/[0-9]*

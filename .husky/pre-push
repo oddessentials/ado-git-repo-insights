@@ -1,31 +1,10 @@
 #!/bin/sh
 # Pre-push hook: Run all checks before pushing to prevent CI failures
-# Python hooks are executed via Husky; do not run `pre-commit install` manually
+# Order: baseline integrity → Python tests → TypeScript tests
 
-# Detect pre-commit installation
-if command -v pre-commit >/dev/null 2>&1; then
-    PRE_COMMIT="pre-commit"
-elif [ -f ".venv/Scripts/pre-commit.exe" ]; then
-    PRE_COMMIT=".venv/Scripts/pre-commit.exe"
-elif [ -f ".venv/bin/pre-commit" ]; then
-    PRE_COMMIT=".venv/bin/pre-commit"
-else
-    echo ""
-    echo "[pre-push] ❌ pre-commit not found!"
-    echo "[pre-push] Install with: pip install pre-commit"
-    exit 1
-fi
-
-echo "[pre-push] Running pre-commit checks on all files..."
-$PRE_COMMIT run --hook-stage pre-push --all-files
-if [ $? -ne 0 ]; then
-    echo ""
-    echo "[pre-push] ❌ Push blocked: pre-commit checks failed"
-    exit 1
-fi
-echo "[pre-push] ✅ Python checks passed"
-
-echo ""
+# =============================================================================
+# Baseline Integrity Check (must fail fast before any test execution)
+# =============================================================================
 echo "[pre-push] Running baseline integrity check..."
 node .github/scripts/check-baseline-integrity.js
 if [ $? -ne 0 ]; then
@@ -36,9 +15,25 @@ if [ $? -ne 0 ]; then
 fi
 echo "[pre-push] ✅ Baseline integrity check passed"
 
+# =============================================================================
+# Python Tests
+# =============================================================================
+echo ""
+echo "[pre-push] Running Python tests..."
+python -m pytest tests/ --no-cov -q
+if [ $? -ne 0 ]; then
+    echo ""
+    echo "[pre-push] ❌ Push blocked: Python tests failed"
+    exit 1
+fi
+echo "[pre-push] ✅ Python tests passed"
+
+# =============================================================================
+# TypeScript Tests
+# =============================================================================
 echo ""
 echo "[pre-push] Running extension tests..."
-cd extension && npm test
+cd extension && npm run test:ci
 if [ $? -ne 0 ]; then
     echo ""
     echo "[pre-push] ❌ Push blocked: Extension tests failed"

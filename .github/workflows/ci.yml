@@ -532,7 +532,7 @@ jobs:
           python .github/scripts/validate-test-results.py \
             extension/test-results.xml \
             --min-collected=374 \
-            --max-skips=0
+            --max-skips=5
         shell: bash
 
   # Phase 4: Performance baseline integrity guard

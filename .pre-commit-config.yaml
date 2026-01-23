@@ -30,4 +30,4 @@ repos:
         entry: python -m pytest tests/ --no-cov -q
         language: system
         pass_filenames: false
-        stages: [pre-push]
+        stages: [manual]  # Run via Husky pre-push, not pre-commit
