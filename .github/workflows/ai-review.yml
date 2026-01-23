@@ -20,5 +20,6 @@ jobs:
       pr_number: ${{ github.event.pull_request.number }}
       runs_on: '["self-hosted", "ai-review"]'
     secrets:
-      OLLAMA_BASE_URL: http://ollama-sidecar:11434
+      # OLLAMA_BASE_URL: http://ollama-sidecar:11434
       ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+      OPENID_API_KEY: ${{ secrets.OPENID_API_KEY }}
