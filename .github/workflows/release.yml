@@ -125,9 +125,17 @@ jobs:
           echo "✓ vss-extension.json matches: $VERSION"
           echo "✓ task.json Minor.Patch matches: $TASK_MINOR.$TASK_PATCH (Major preserved at $TASK_MAJOR)"
 
-      - name: Install task dependencies
-        working-directory: extension/tasks/extract-prs
-        run: npm install
+      - name: Install extension dependencies
+        working-directory: extension
+        run: npm ci
+
+      - name: Build extension (tsc + esbuild)
+        working-directory: extension
+        run: npm run build
+
+      - name: Stage task dependencies
+        working-directory: extension
+        run: npm run stage:tasks
 
       - name: Create extension package
         working-directory: extension
