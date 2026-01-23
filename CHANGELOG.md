@@ -1,3 +1,10 @@
+## [4.0.2](https://github.com/oddessentials/ado-git-repo-insights/compare/v4.0.1...v4.0.2) (2026-01-23)
+
+
+### Bug Fixes
+
+* **extension:** bundle task node_modules for VSIX packaging ([8422be0](https://github.com/oddessentials/ado-git-repo-insights/commit/8422be07e247c06dff8a3a39ce1dffeec70584f6))
+
 ## [4.0.1](https://github.com/oddessentials/ado-git-repo-insights/compare/v4.0.0...v4.0.1) (2026-01-22)
 
 
