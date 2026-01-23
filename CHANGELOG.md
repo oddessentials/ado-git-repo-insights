@@ -1,3 +1,10 @@
+## [4.2.1](https://github.com/oddessentials/ado-git-repo-insights/compare/v4.2.0...v4.2.1) (2026-01-23)
+
+
+### Bug Fixes
+
+* add build steps to release workflow before VSIX packaging ([d5d45b4](https://github.com/oddessentials/ado-git-repo-insights/commit/d5d45b43205faf344434e8d22ba094f80fe9a58d))
+
 # [4.2.0](https://github.com/oddessentials/ado-git-repo-insights/compare/v4.1.1...v4.2.0) (2026-01-23)
 
 
