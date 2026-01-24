@@ -28,6 +28,14 @@ export interface DimensionFilters {
 }
 
 /**
+ * Date range for comparison periods.
+ */
+export interface DateRange {
+    start: Date;
+    end: Date;
+}
+
+/**
  * Calculate metrics from rollups data.
  * Pure function - no side effects.
  */

@@ -28,3 +28,12 @@ export * from "./ml";
 
 // Chart rendering
 export * from "./charts";
+
+// Filter utilities
+export * from "./filters";
+
+// Comparison mode utilities
+export * from "./comparison";
+
+// Export utilities
+export * from "./export";
