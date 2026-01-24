@@ -43,19 +43,17 @@ import {
 import {
   escapeHtml,
   formatDuration,
-  renderDelta,
-  renderSparkline,
   addChartTooltips,
   showToast,
   rollupsToCsv,
   triggerDownload,
   generateExportFilename,
-  calculateMetrics,
-  calculatePercentChange,
   getPreviousPeriod,
   applyFiltersToRollups,
-  extractSparklineData,
   calculateMovingAverage,
+  // Chart renderer modules with DOM injection
+  renderSummaryCards as renderSummaryCardsModule,
+  type SummaryCardsContainers,
 } from "./modules";
 
 // Dashboard state
@@ -1075,93 +1073,37 @@ async function refreshMetrics(): Promise<void> {
 
 /**
  * Render summary metric cards.
+ * Thin wrapper that builds container references and delegates to extracted module.
  */
 function renderSummaryCards(
   rollups: Rollup[],
   prevRollups: Rollup[] = [],
 ): void {
-  if (metricsCollector) metricsCollector.mark("render-summary-cards-start");
+  // Build container references from cached elements
+  const containers: SummaryCardsContainers = {
+    totalPrs: elements["total-prs"] ?? null,
+    cycleP50: elements["cycle-p50"] ?? null,
+    cycleP90: elements["cycle-p90"] ?? null,
+    authorsCount: elements["authors-count"] ?? null,
+    reviewersCount: elements["reviewers-count"] ?? null,
+    totalPrsSparkline: elements["total-prs-sparkline"] ?? null,
+    cycleP50Sparkline: elements["cycle-p50-sparkline"] ?? null,
+    cycleP90Sparkline: elements["cycle-p90-sparkline"] ?? null,
+    authorsSparkline: elements["authors-sparkline"] ?? null,
+    reviewersSparkline: elements["reviewers-sparkline"] ?? null,
+    totalPrsDelta: elements["total-prs-delta"] ?? null,
+    cycleP50Delta: elements["cycle-p50-delta"] ?? null,
+    cycleP90Delta: elements["cycle-p90-delta"] ?? null,
+    authorsDelta: elements["authors-delta"] ?? null,
+    reviewersDelta: elements["reviewers-delta"] ?? null,
+  };
 
-  const current = calculateMetrics(rollups);
-  const previous = calculateMetrics(prevRollups);
-
-  // Render metric values
-  if (elements["total-prs"])
-    elements["total-prs"].textContent = current.totalPrs.toLocaleString();
-  if (elements["cycle-p50"])
-    elements["cycle-p50"].textContent =
-      current.cycleP50 !== null ? formatDuration(current.cycleP50) : "-";
-  if (elements["cycle-p90"])
-    elements["cycle-p90"].textContent =
-      current.cycleP90 !== null ? formatDuration(current.cycleP90) : "-";
-  if (elements["authors-count"])
-    elements["authors-count"].textContent = current.avgAuthors.toLocaleString();
-  if (elements["reviewers-count"]) {
-    elements["reviewers-count"].textContent =
-      current.avgReviewers.toLocaleString();
-  }
-
-  // Render sparklines
-  const sparklineData = extractSparklineData(rollups);
-  renderSparkline(elements["total-prs-sparkline"], sparklineData.prCounts);
-  renderSparkline(elements["cycle-p50-sparkline"], sparklineData.p50s);
-  renderSparkline(elements["cycle-p90-sparkline"], sparklineData.p90s);
-  renderSparkline(elements["authors-sparkline"], sparklineData.authors);
-  renderSparkline(elements["reviewers-sparkline"], sparklineData.reviewers);
-
-  // Render deltas (only if we have previous period data)
-  if (prevRollups && prevRollups.length > 0) {
-    renderDelta(
-      elements["total-prs-delta"],
-      calculatePercentChange(current.totalPrs, previous.totalPrs),
-      false,
-    );
-    renderDelta(
-      elements["cycle-p50-delta"],
-      calculatePercentChange(current.cycleP50, previous.cycleP50),
-      true,
-    ); // Inverse: lower is better
-    renderDelta(
-      elements["cycle-p90-delta"],
-      calculatePercentChange(current.cycleP90, previous.cycleP90),
-      true,
-    ); // Inverse: lower is better
-    renderDelta(
-      elements["authors-delta"],
-      calculatePercentChange(current.avgAuthors, previous.avgAuthors),
-      false,
-    );
-    renderDelta(
-      elements["reviewers-delta"],
-      calculatePercentChange(current.avgReviewers, previous.avgReviewers),
-      false,
-    );
-  } else {
-    // Clear deltas if no previous data
-    [
-      "total-prs-delta",
-      "cycle-p50-delta",
-      "cycle-p90-delta",
-      "authors-delta",
-      "reviewers-delta",
-    ].forEach((id) => {
-      const el = elements[id];
-      if (el) {
-        el.innerHTML = "";
-        el.className = "metric-delta";
-      }
-    });
-  }
-
-  if (metricsCollector) {
-    metricsCollector.mark("render-summary-cards-end");
-    metricsCollector.mark("first-meaningful-paint");
-    metricsCollector.measure(
-      "init-to-fmp",
-      "dashboard-init",
-      "first-meaningful-paint",
-    );
-  }
+  renderSummaryCardsModule({
+    rollups,
+    prevRollups,
+    containers,
+    metricsCollector,
+  });
 }
 
 // calculateMovingAverage is now imported from "./modules/metrics"

@@ -1442,6 +1442,99 @@ var PRInsightsDashboard = (() => {
     });
   }
 
+  // ui/modules/charts/summary-cards.ts
+  function renderSummaryCards(options) {
+    const { rollups, prevRollups = [], containers, metricsCollector: metricsCollector2 } = options;
+    if (metricsCollector2) metricsCollector2.mark("render-summary-cards-start");
+    const current = calculateMetrics(rollups);
+    const previous = calculateMetrics(prevRollups);
+    renderMetricValues(containers, current);
+    const sparklineData = extractSparklineData(rollups);
+    renderSparklines(containers, sparklineData);
+    if (prevRollups && prevRollups.length > 0) {
+      renderDeltas(containers, current, previous);
+    } else {
+      clearDeltas(containers);
+    }
+    if (metricsCollector2) {
+      metricsCollector2.mark("render-summary-cards-end");
+      metricsCollector2.mark("first-meaningful-paint");
+      metricsCollector2.measure(
+        "init-to-fmp",
+        "dashboard-init",
+        "first-meaningful-paint"
+      );
+    }
+  }
+  function renderMetricValues(containers, metrics) {
+    if (containers.totalPrs) {
+      containers.totalPrs.textContent = metrics.totalPrs.toLocaleString();
+    }
+    if (containers.cycleP50) {
+      containers.cycleP50.textContent = metrics.cycleP50 !== null ? formatDuration(metrics.cycleP50) : "-";
+    }
+    if (containers.cycleP90) {
+      containers.cycleP90.textContent = metrics.cycleP90 !== null ? formatDuration(metrics.cycleP90) : "-";
+    }
+    if (containers.authorsCount) {
+      containers.authorsCount.textContent = metrics.avgAuthors.toLocaleString();
+    }
+    if (containers.reviewersCount) {
+      containers.reviewersCount.textContent = metrics.avgReviewers.toLocaleString();
+    }
+  }
+  function renderSparklines(containers, data) {
+    renderSparkline(containers.totalPrsSparkline, data.prCounts);
+    renderSparkline(containers.cycleP50Sparkline, data.p50s);
+    renderSparkline(containers.cycleP90Sparkline, data.p90s);
+    renderSparkline(containers.authorsSparkline, data.authors);
+    renderSparkline(containers.reviewersSparkline, data.reviewers);
+  }
+  function renderDeltas(containers, current, previous) {
+    renderDelta(
+      containers.totalPrsDelta,
+      calculatePercentChange(current.totalPrs, previous.totalPrs),
+      false
+    );
+    renderDelta(
+      containers.cycleP50Delta,
+      calculatePercentChange(current.cycleP50, previous.cycleP50),
+      true
+      // Inverse: lower is better
+    );
+    renderDelta(
+      containers.cycleP90Delta,
+      calculatePercentChange(current.cycleP90, previous.cycleP90),
+      true
+      // Inverse: lower is better
+    );
+    renderDelta(
+      containers.authorsDelta,
+      calculatePercentChange(current.avgAuthors, previous.avgAuthors),
+      false
+    );
+    renderDelta(
+      containers.reviewersDelta,
+      calculatePercentChange(current.avgReviewers, previous.avgReviewers),
+      false
+    );
+  }
+  function clearDeltas(containers) {
+    const deltaElements = [
+      containers.totalPrsDelta,
+      containers.cycleP50Delta,
+      containers.cycleP90Delta,
+      containers.authorsDelta,
+      containers.reviewersDelta
+    ];
+    deltaElements.forEach((el) => {
+      if (el) {
+        el.innerHTML = "";
+        el.className = "metric-delta";
+      }
+    });
+  }
+
   // ui/modules/export.ts
   var CSV_HEADERS = [
     "Week",
@@ -2158,7 +2251,7 @@ var PRInsightsDashboard = (() => {
       console.debug("Previous period data not available:", e);
     }
     cachedRollups = rollups;
-    renderSummaryCards(rollups, prevRollups);
+    renderSummaryCards2(rollups, prevRollups);
     renderThroughputChart(rollups);
     renderCycleTimeTrend(rollups);
     renderReviewerActivity(rollups);
@@ -2167,77 +2260,30 @@ var PRInsightsDashboard = (() => {
       updateComparisonBanner();
     }
   }
-  function renderSummaryCards(rollups, prevRollups = []) {
-    if (metricsCollector) metricsCollector.mark("render-summary-cards-start");
-    const current = calculateMetrics(rollups);
-    const previous = calculateMetrics(prevRollups);
-    if (elements["total-prs"])
-      elements["total-prs"].textContent = current.totalPrs.toLocaleString();
-    if (elements["cycle-p50"])
-      elements["cycle-p50"].textContent = current.cycleP50 !== null ? formatDuration(current.cycleP50) : "-";
-    if (elements["cycle-p90"])
-      elements["cycle-p90"].textContent = current.cycleP90 !== null ? formatDuration(current.cycleP90) : "-";
-    if (elements["authors-count"])
-      elements["authors-count"].textContent = current.avgAuthors.toLocaleString();
-    if (elements["reviewers-count"]) {
-      elements["reviewers-count"].textContent = current.avgReviewers.toLocaleString();
-    }
-    const sparklineData = extractSparklineData(rollups);
-    renderSparkline(elements["total-prs-sparkline"], sparklineData.prCounts);
-    renderSparkline(elements["cycle-p50-sparkline"], sparklineData.p50s);
-    renderSparkline(elements["cycle-p90-sparkline"], sparklineData.p90s);
-    renderSparkline(elements["authors-sparkline"], sparklineData.authors);
-    renderSparkline(elements["reviewers-sparkline"], sparklineData.reviewers);
-    if (prevRollups && prevRollups.length > 0) {
-      renderDelta(
-        elements["total-prs-delta"],
-        calculatePercentChange(current.totalPrs, previous.totalPrs),
-        false
-      );
-      renderDelta(
-        elements["cycle-p50-delta"],
-        calculatePercentChange(current.cycleP50, previous.cycleP50),
-        true
-      );
-      renderDelta(
-        elements["cycle-p90-delta"],
-        calculatePercentChange(current.cycleP90, previous.cycleP90),
-        true
-      );
-      renderDelta(
-        elements["authors-delta"],
-        calculatePercentChange(current.avgAuthors, previous.avgAuthors),
-        false
-      );
-      renderDelta(
-        elements["reviewers-delta"],
-        calculatePercentChange(current.avgReviewers, previous.avgReviewers),
-        false
-      );
-    } else {
-      [
-        "total-prs-delta",
-        "cycle-p50-delta",
-        "cycle-p90-delta",
-        "authors-delta",
-        "reviewers-delta"
-      ].forEach((id) => {
-        const el = elements[id];
-        if (el) {
-          el.innerHTML = "";
-          el.className = "metric-delta";
-        }
-      });
-    }
-    if (metricsCollector) {
-      metricsCollector.mark("render-summary-cards-end");
-      metricsCollector.mark("first-meaningful-paint");
-      metricsCollector.measure(
-        "init-to-fmp",
-        "dashboard-init",
-        "first-meaningful-paint"
-      );
-    }
+  function renderSummaryCards2(rollups, prevRollups = []) {
+    const containers = {
+      totalPrs: elements["total-prs"] ?? null,
+      cycleP50: elements["cycle-p50"] ?? null,
+      cycleP90: elements["cycle-p90"] ?? null,
+      authorsCount: elements["authors-count"] ?? null,
+      reviewersCount: elements["reviewers-count"] ?? null,
+      totalPrsSparkline: elements["total-prs-sparkline"] ?? null,
+      cycleP50Sparkline: elements["cycle-p50-sparkline"] ?? null,
+      cycleP90Sparkline: elements["cycle-p90-sparkline"] ?? null,
+      authorsSparkline: elements["authors-sparkline"] ?? null,
+      reviewersSparkline: elements["reviewers-sparkline"] ?? null,
+      totalPrsDelta: elements["total-prs-delta"] ?? null,
+      cycleP50Delta: elements["cycle-p50-delta"] ?? null,
+      cycleP90Delta: elements["cycle-p90-delta"] ?? null,
+      authorsDelta: elements["authors-delta"] ?? null,
+      reviewersDelta: elements["reviewers-delta"] ?? null
+    };
+    renderSummaryCards({
+      rollups,
+      prevRollups,
+      containers,
+      metricsCollector
+    });
   }
   function renderThroughputChart(rollups) {
     const chartEl = elements["throughput-chart"];
