@@ -1239,6 +1239,131 @@ var PRInsightsDashboard = (() => {
     return div.innerHTML;
   }
 
+  // ui/modules/metrics.ts
+  function calculateMetrics(rollups) {
+    if (!rollups || !rollups.length) {
+      return {
+        totalPrs: 0,
+        cycleP50: null,
+        cycleP90: null,
+        avgAuthors: 0,
+        avgReviewers: 0
+      };
+    }
+    const totalPrs = rollups.reduce((sum, r) => sum + (r.pr_count || 0), 0);
+    const p50Values = rollups.map((r) => r.cycle_time_p50).filter((v) => v !== null && v !== void 0);
+    const p90Values = rollups.map((r) => r.cycle_time_p90).filter((v) => v !== null && v !== void 0);
+    const authorsSum = rollups.reduce(
+      (sum, r) => sum + (r.authors_count || 0),
+      0
+    );
+    const reviewersSum = rollups.reduce(
+      (sum, r) => sum + (r.reviewers_count || 0),
+      0
+    );
+    return {
+      totalPrs,
+      cycleP50: p50Values.length ? median(p50Values) : null,
+      cycleP90: p90Values.length ? median(p90Values) : null,
+      avgAuthors: rollups.length > 0 ? Math.round(authorsSum / rollups.length) : 0,
+      avgReviewers: rollups.length > 0 ? Math.round(reviewersSum / rollups.length) : 0
+    };
+  }
+  function calculatePercentChange(current, previous) {
+    if (previous === null || previous === void 0 || previous === 0) {
+      return null;
+    }
+    if (current === null || current === void 0) {
+      return null;
+    }
+    return (current - previous) / previous * 100;
+  }
+  function getPreviousPeriod(start, end) {
+    const rangeDays = Math.ceil(
+      (end.getTime() - start.getTime()) / (1e3 * 60 * 60 * 24)
+    );
+    const prevEnd = new Date(start.getTime() - 1);
+    const prevStart = new Date(prevEnd.getTime() - rangeDays * 24 * 60 * 60 * 1e3);
+    return { start: prevStart, end: prevEnd };
+  }
+  function applyFiltersToRollups(rollups, filters) {
+    if (!filters.repos.length && !filters.teams.length) {
+      return rollups;
+    }
+    return rollups.map((rollup) => {
+      if (filters.repos.length && rollup.by_repository) {
+        const selectedRepos = filters.repos.map((repoId) => {
+          const repoData = rollup.by_repository[repoId];
+          if (repoData) return repoData;
+          return Object.entries(rollup.by_repository).find(
+            ([name]) => name === repoId
+          )?.[1];
+        }).filter((r) => r !== void 0);
+        if (selectedRepos.length === 0) {
+          return {
+            ...rollup,
+            pr_count: 0,
+            cycle_time_p50: null,
+            cycle_time_p90: null,
+            authors_count: 0,
+            reviewers_count: 0
+          };
+        }
+        const totalPrCount = selectedRepos.reduce(
+          (sum, count) => sum + count,
+          0
+        );
+        return {
+          ...rollup,
+          pr_count: totalPrCount
+          // NOTE: cycle_time/authors/reviewers preserved from unfiltered rollup
+          // as we don't have per-repo breakdown for these metrics
+        };
+      }
+      if (filters.teams.length && rollup.by_team) {
+        const selectedTeams = filters.teams.map((teamId) => rollup.by_team[teamId]).filter((t) => t !== void 0);
+        if (selectedTeams.length === 0) {
+          return {
+            ...rollup,
+            pr_count: 0,
+            cycle_time_p50: null,
+            cycle_time_p90: null,
+            authors_count: 0,
+            reviewers_count: 0
+          };
+        }
+        const totalPrCount = selectedTeams.reduce(
+          (sum, count) => sum + count,
+          0
+        );
+        return {
+          ...rollup,
+          pr_count: totalPrCount
+          // NOTE: cycle_time/authors/reviewers preserved from unfiltered rollup
+          // as we don't have per-team breakdown for these metrics
+        };
+      }
+      return rollup;
+    });
+  }
+  function extractSparklineData(rollups) {
+    return {
+      prCounts: rollups.map((r) => r.pr_count || 0),
+      p50s: rollups.map((r) => r.cycle_time_p50 || 0),
+      p90s: rollups.map((r) => r.cycle_time_p90 || 0),
+      authors: rollups.map((r) => r.authors_count || 0),
+      reviewers: rollups.map((r) => r.reviewers_count || 0)
+    };
+  }
+  function calculateMovingAverage(values, window2 = 4) {
+    return values.map((_, i) => {
+      if (i < window2 - 1) return null;
+      const slice = values.slice(i - window2 + 1, i + 1);
+      const sum = slice.reduce((a, b) => a + b, 0);
+      return sum / window2;
+    });
+  }
+
   // ui/modules/charts.ts
   function renderDelta(element, percentChange, inverse = false) {
     if (!element) return;
@@ -1293,6 +1418,30 @@ var PRInsightsDashboard = (() => {
             <circle class="sparkline-dot" cx="${lastPoint.x.toFixed(1)}" cy="${lastPoint.y.toFixed(1)}" r="2"/>
         </svg>
     `;
+  }
+  function addChartTooltips(container, contentFn) {
+    const dots = container.querySelectorAll("[data-tooltip]");
+    dots.forEach((dot) => {
+      dot.addEventListener("mouseenter", () => {
+        const content = contentFn(dot);
+        const tooltip = document.createElement("div");
+        tooltip.className = "chart-tooltip";
+        tooltip.innerHTML = content;
+        tooltip.style.position = "absolute";
+        const rect = dot.getBoundingClientRect();
+        tooltip.style.left = `${rect.left + rect.width / 2}px`;
+        tooltip.style.top = `${rect.top - 8}px`;
+        tooltip.style.transform = "translateX(-50%) translateY(-100%)";
+        document.body.appendChild(tooltip);
+        dot.dataset.tooltipId = tooltip.id = `tooltip-${Date.now()}`;
+      });
+      dot.addEventListener("mouseleave", () => {
+        const tooltipId = dot.dataset.tooltipId;
+        if (tooltipId) {
+          document.getElementById(tooltipId)?.remove();
+        }
+      });
+    });
   }
 
   // ui/modules/export.ts
@@ -1984,72 +2133,6 @@ var PRInsightsDashboard = (() => {
       }
     }
   }
-  function getPreviousPeriod(start, end) {
-    const durationMs = end.getTime() - start.getTime();
-    const prevEnd = new Date(start.getTime() - 1);
-    const prevStart = new Date(prevEnd.getTime() - durationMs);
-    return { start: prevStart, end: prevEnd };
-  }
-  function applyFiltersToRollups(rollups, filters) {
-    if (!filters.repos.length && !filters.teams.length) {
-      return rollups;
-    }
-    return rollups.map((rollup) => {
-      if (filters.repos.length && rollup.by_repository) {
-        const selectedRepos = filters.repos.map((repoId) => {
-          const repoData = rollup.by_repository[repoId];
-          if (repoData) return repoData;
-          return Object.entries(rollup.by_repository).find(
-            ([name]) => name === repoId
-          )?.[1];
-        }).filter((r) => r !== void 0);
-        if (selectedRepos.length === 0) {
-          return {
-            ...rollup,
-            pr_count: 0,
-            cycle_time_p50: null,
-            cycle_time_p90: null,
-            authors_count: 0,
-            reviewers_count: 0
-          };
-        }
-        const totalPrCount = selectedRepos.reduce(
-          (sum, count) => sum + count,
-          0
-        );
-        return {
-          ...rollup,
-          pr_count: totalPrCount
-          // NOTE: cycle_time/authors/reviewers preserved from unfiltered rollup
-          // as we don't have per-repo breakdown for these metrics
-        };
-      }
-      if (filters.teams.length && rollup.by_team) {
-        const selectedTeams = filters.teams.map((teamId) => rollup.by_team[teamId]).filter((t) => t !== void 0);
-        if (selectedTeams.length === 0) {
-          return {
-            ...rollup,
-            pr_count: 0,
-            cycle_time_p50: null,
-            cycle_time_p90: null,
-            authors_count: 0,
-            reviewers_count: 0
-          };
-        }
-        const totalPrCount = selectedTeams.reduce(
-          (sum, count) => sum + count,
-          0
-        );
-        return {
-          ...rollup,
-          pr_count: totalPrCount
-          // NOTE: cycle_time/authors/reviewers preserved from unfiltered rollup
-          // as we don't have per-team breakdown for these metrics
-        };
-      }
-      return rollup;
-    });
-  }
   async function refreshMetrics() {
     if (!currentDateRange.start || !currentDateRange.end || !loader) return;
     const rawRollups = await loader.getWeeklyRollups(
@@ -2084,56 +2167,6 @@ var PRInsightsDashboard = (() => {
     if (comparisonMode) {
       updateComparisonBanner();
     }
-  }
-  function calculateMetrics(rollups) {
-    if (!rollups || !rollups.length) {
-      return {
-        totalPrs: 0,
-        cycleP50: null,
-        cycleP90: null,
-        avgAuthors: 0,
-        avgReviewers: 0
-      };
-    }
-    const totalPrs = rollups.reduce((sum, r) => sum + (r.pr_count || 0), 0);
-    const p50Values = rollups.map((r) => r.cycle_time_p50).filter((v) => v !== null && v !== void 0);
-    const p90Values = rollups.map((r) => r.cycle_time_p90).filter((v) => v !== null && v !== void 0);
-    const authorsSum = rollups.reduce(
-      (sum, r) => sum + (r.authors_count || 0),
-      0
-    );
-    const reviewersSum = rollups.reduce(
-      (sum, r) => sum + (r.reviewers_count || 0),
-      0
-    );
-    return {
-      totalPrs,
-      cycleP50: p50Values.length ? median(p50Values) : null,
-      cycleP90: p90Values.length ? median(p90Values) : null,
-      avgAuthors: rollups.length > 0 ? Math.round(authorsSum / rollups.length) : 0,
-      avgReviewers: rollups.length > 0 ? Math.round(reviewersSum / rollups.length) : 0
-    };
-  }
-  function calculatePercentChange(current, previous) {
-    if (previous === null || previous === void 0 || previous === 0) {
-      return null;
-    }
-    if (current === null || current === void 0) {
-      return null;
-    }
-    return (current - previous) / previous * 100;
-  }
-  function extractSparklineData(rollups) {
-    if (!rollups || !rollups.length) {
-      return { prCounts: [], p50s: [], p90s: [], authors: [], reviewers: [] };
-    }
-    return {
-      prCounts: rollups.map((r) => r.pr_count || 0),
-      p50s: rollups.map((r) => r.cycle_time_p50).filter((v) => v !== null && v !== void 0),
-      p90s: rollups.map((r) => r.cycle_time_p90).filter((v) => v !== null && v !== void 0),
-      authors: rollups.map((r) => r.authors_count || 0),
-      reviewers: rollups.map((r) => r.reviewers_count || 0)
-    };
   }
   function renderSummaryCards(rollups, prevRollups = []) {
     if (metricsCollector) metricsCollector.mark("render-summary-cards-start");
@@ -2206,18 +2239,6 @@ var PRInsightsDashboard = (() => {
         "first-meaningful-paint"
       );
     }
-  }
-  function calculateMovingAverage(values, window2 = 4) {
-    const result = [];
-    for (let i = 0; i < values.length; i++) {
-      if (i < window2 - 1) {
-        result.push(null);
-      } else {
-        const sum = values.slice(i - window2 + 1, i + 1).reduce((a, b) => a + b, 0);
-        result.push(sum / window2);
-      }
-    }
-    return result;
   }
   function renderThroughputChart(rollups) {
     const chartEl = elements["throughput-chart"];
@@ -2442,31 +2463,6 @@ var PRInsightsDashboard = (() => {
         `;
     }).join("");
     revEl.innerHTML = `<div class="horizontal-bar-chart">${barsHtml}</div>`;
-  }
-  function addChartTooltips(container, contentFn) {
-    const dots = container.querySelectorAll(".line-chart-dot");
-    let tooltip = null;
-    dots.forEach((dotNode) => {
-      const dot = dotNode;
-      dot.addEventListener("mouseenter", () => {
-        if (!tooltip) {
-          tooltip = document.createElement("div");
-          tooltip.className = "chart-tooltip";
-          container.appendChild(tooltip);
-        }
-        tooltip.innerHTML = contentFn(dot);
-        tooltip.style.display = "block";
-        const rect = container.getBoundingClientRect();
-        const dotRect = dot.getBoundingClientRect();
-        tooltip.style.left = `${dotRect.left - rect.left + 10}px`;
-        tooltip.style.top = `${dotRect.top - rect.top - 40}px`;
-      });
-      dot.addEventListener("mouseleave", () => {
-        if (tooltip) {
-          tooltip.style.display = "none";
-        }
-      });
-    });
   }
   async function updateFeatureTabs() {
     if (!loader) return;
