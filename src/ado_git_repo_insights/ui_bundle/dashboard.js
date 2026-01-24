@@ -1239,6 +1239,62 @@ var PRInsightsDashboard = (() => {
     return div.innerHTML;
   }
 
+  // ui/modules/charts.ts
+  function renderDelta(element, percentChange, inverse = false) {
+    if (!element) return;
+    if (percentChange === null) {
+      element.innerHTML = "";
+      element.className = "metric-delta";
+      return;
+    }
+    const isNeutral = Math.abs(percentChange) < 2;
+    const isPositive = percentChange > 0;
+    const absChange = Math.abs(percentChange);
+    let cssClass = "metric-delta ";
+    let arrow = "";
+    if (isNeutral) {
+      cssClass += "delta-neutral";
+      arrow = "~";
+    } else if (isPositive) {
+      cssClass += inverse ? "delta-negative-inverse" : "delta-positive";
+      arrow = "&#9650;";
+    } else {
+      cssClass += inverse ? "delta-positive-inverse" : "delta-negative";
+      arrow = "&#9660;";
+    }
+    const sign = isPositive ? "+" : "";
+    element.className = cssClass;
+    element.innerHTML = `<span class="delta-arrow">${arrow}</span> ${sign}${absChange.toFixed(0)}% <span class="delta-label">vs prev</span>`;
+  }
+  function renderSparkline(element, values) {
+    if (!element || !values || values.length < 2) {
+      if (element) element.innerHTML = "";
+      return;
+    }
+    const data = values.slice(-8);
+    const width = 60;
+    const height = 24;
+    const padding = 2;
+    const minVal = Math.min(...data);
+    const maxVal = Math.max(...data);
+    const range = maxVal - minVal || 1;
+    const points = data.map((val, i) => {
+      const x = padding + i / (data.length - 1) * (width - padding * 2);
+      const y = height - padding - (val - minVal) / range * (height - padding * 2);
+      return { x, y };
+    });
+    const pathD = points.map((p, i) => `${i === 0 ? "M" : "L"} ${p.x.toFixed(1)} ${p.y.toFixed(1)}`).join(" ");
+    const areaD = pathD + ` L ${points[points.length - 1].x.toFixed(1)} ${height - padding} L ${points[0].x.toFixed(1)} ${height - padding} Z`;
+    const lastPoint = points[points.length - 1];
+    element.innerHTML = `
+        <svg viewBox="0 0 ${width} ${height}" preserveAspectRatio="none">
+            <path class="sparkline-area" d="${areaD}"/>
+            <path class="sparkline-line" d="${pathD}"/>
+            <circle class="sparkline-dot" cx="${lastPoint.x.toFixed(1)}" cy="${lastPoint.y.toFixed(1)}" r="2"/>
+        </svg>
+    `;
+  }
+
   // ui/dashboard.ts
   var loader = null;
   var artifactClient = null;
@@ -2014,60 +2070,6 @@ var PRInsightsDashboard = (() => {
       return null;
     }
     return (current - previous) / previous * 100;
-  }
-  function renderDelta(element, percentChange, inverse = false) {
-    if (!element) return;
-    if (percentChange === null) {
-      element.innerHTML = "";
-      element.className = "metric-delta";
-      return;
-    }
-    const isNeutral = Math.abs(percentChange) < 2;
-    const isPositive = percentChange > 0;
-    const absChange = Math.abs(percentChange);
-    let cssClass = "metric-delta ";
-    let arrow = "";
-    if (isNeutral) {
-      cssClass += "delta-neutral";
-      arrow = "~";
-    } else if (isPositive) {
-      cssClass += inverse ? "delta-negative-inverse" : "delta-positive";
-      arrow = "&#9650;";
-    } else {
-      cssClass += inverse ? "delta-positive-inverse" : "delta-negative";
-      arrow = "&#9660;";
-    }
-    const sign = isPositive ? "+" : "";
-    element.className = cssClass;
-    element.innerHTML = `<span class="delta-arrow">${arrow}</span> ${sign}${absChange.toFixed(0)}% <span class="delta-label">vs prev</span>`;
-  }
-  function renderSparkline(element, values) {
-    if (!element || !values || values.length < 2) {
-      if (element) element.innerHTML = "";
-      return;
-    }
-    const data = values.slice(-8);
-    const width = 60;
-    const height = 24;
-    const padding = 2;
-    const minVal = Math.min(...data);
-    const maxVal = Math.max(...data);
-    const range = maxVal - minVal || 1;
-    const points = data.map((val, i) => {
-      const x = padding + i / (data.length - 1) * (width - padding * 2);
-      const y = height - padding - (val - minVal) / range * (height - padding * 2);
-      return { x, y };
-    });
-    const pathD = points.map((p, i) => `${i === 0 ? "M" : "L"} ${p.x.toFixed(1)} ${p.y.toFixed(1)}`).join(" ");
-    const areaD = pathD + ` L ${points[points.length - 1].x.toFixed(1)} ${height - padding} L ${points[0].x.toFixed(1)} ${height - padding} Z`;
-    const lastPoint = points[points.length - 1];
-    element.innerHTML = `
-        <svg viewBox="0 0 ${width} ${height}" preserveAspectRatio="none">
-            <path class="sparkline-area" d="${areaD}"/>
-            <path class="sparkline-line" d="${pathD}"/>
-            <circle class="sparkline-dot" cx="${lastPoint.x.toFixed(1)}" cy="${lastPoint.y.toFixed(1)}" r="2"/>
-        </svg>
-    `;
   }
   function extractSparklineData(rollups) {
     if (!rollups || !rollups.length) {

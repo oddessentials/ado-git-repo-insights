@@ -25,3 +25,6 @@ export * from "./ml/types";
 
 // ML rendering (Phase 5 expansion point)
 export * from "./ml";
+
+// Chart rendering
+export * from "./charts";
