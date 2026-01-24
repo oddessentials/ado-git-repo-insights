@@ -9,16 +9,9 @@
  * - Rendering functions never throw
  */
 
-// Make this file a module (required for declare global)
-export {};
-
-// Declare global window properties used in local mode tests
-declare global {
-  interface Window {
-    LOCAL_DASHBOARD_MODE?: boolean | string | number;
-    DATASET_PATH?: string;
-  }
-}
+// Make this file a module (required for global augmentation in types.ts)
+// Window interface is declared in ../ui/types.ts
+export { };
 
 // Mock DOM elements and functions from dashboard.js
 // Since dashboard.js uses globals and DOM, we need to set up the environment

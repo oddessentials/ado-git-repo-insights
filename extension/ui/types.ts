@@ -328,7 +328,7 @@ declare global {
         // Dashboard debug/config (optional runtime values)
         __DASHBOARD_DEBUG__?: boolean;
         __dashboardMetrics?: unknown;
-        LOCAL_DASHBOARD_MODE?: boolean;
+        LOCAL_DASHBOARD_MODE?: boolean | string | number; // Wide type to allow testing edge cases
         DATASET_PATH?: string;
         process?: { env?: { NODE_ENV?: string } };
     }
