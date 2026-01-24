@@ -466,24 +466,24 @@ var PRInsightsSettings = (() => {
     return div.innerHTML;
   }
   function setupEventListeners() {
-    document.getElementById("save-btn")?.addEventListener("click", saveSettings);
-    document.getElementById("clear-btn")?.addEventListener("click", clearSettings);
-    document.getElementById("discover-btn")?.addEventListener("click", runDiscovery);
+    document.getElementById("save-btn")?.addEventListener("click", () => void saveSettings());
+    document.getElementById("clear-btn")?.addEventListener("click", () => void clearSettings());
+    document.getElementById("discover-btn")?.addEventListener("click", () => void runDiscovery());
     document.getElementById("pipeline-id")?.addEventListener("keypress", (e) => {
       if (e.key === "Enter") {
-        saveSettings();
+        void saveSettings();
       }
     });
     document.getElementById("project-id")?.addEventListener("keypress", (e) => {
       if (e.key === "Enter") {
-        saveSettings();
+        void saveSettings();
       }
     });
   }
   if (document.readyState === "loading") {
-    document.addEventListener("DOMContentLoaded", init);
+    document.addEventListener("DOMContentLoaded", () => void init());
   } else {
-    init();
+    void init();
   }
   window.selectDiscoveredPipeline = (pipelineId) => {
     const pipelineInput = document.getElementById(

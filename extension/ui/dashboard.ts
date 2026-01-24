@@ -1954,7 +1954,7 @@ function handleDateRangeChange(e: Event): void {
 
   currentDateRange = { start: startDate, end: endDate };
   updateUrlState();
-  refreshMetrics();
+  void refreshMetrics();
 }
 
 function applyCustomDates(): void {
@@ -1965,7 +1965,7 @@ function applyCustomDates(): void {
 
   currentDateRange = { start: new Date(start), end: new Date(end) };
   updateUrlState();
-  refreshMetrics();
+  void refreshMetrics();
 }
 
 function switchTab(tabId: string): void {
@@ -2056,7 +2056,7 @@ function handleFilterChange(): void {
 
   updateFilterUI();
   updateUrlState();
-  refreshMetrics();
+  void refreshMetrics();
 }
 
 /**
@@ -2081,7 +2081,7 @@ function clearAllFilters(): void {
 
   updateFilterUI();
   updateUrlState();
-  refreshMetrics();
+  void refreshMetrics();
 }
 
 /**
@@ -2110,7 +2110,7 @@ function removeFilter(type: string, value: string): void {
 
   updateFilterUI();
   updateUrlState();
-  refreshMetrics();
+  void refreshMetrics();
 }
 
 /**
@@ -2252,7 +2252,7 @@ function toggleComparisonMode(): void {
   }
 
   updateUrlState();
-  refreshMetrics();
+  void refreshMetrics();
 }
 
 /**
@@ -2263,7 +2263,7 @@ function exitComparisonMode(): void {
   elements["compare-toggle"]?.classList.remove("active");
   elements["comparison-banner"]?.classList.add("hidden");
   updateUrlState();
-  refreshMetrics();
+  void refreshMetrics();
 }
 
 /**
@@ -2590,7 +2590,7 @@ function restoreStateFromUrl(): void {
 // ============================================================================
 
 if (document.readyState === "loading") {
-  document.addEventListener("DOMContentLoaded", init);
+  document.addEventListener("DOMContentLoaded", () => void init());
 } else {
-  init();
+  void init();
 }

@@ -8,7 +8,6 @@
 
 import {
   getErrorMessage,
-  type AggregateIndexEntry,
   type DimensionsData,
   type DistributionData,
   type CoverageInfo,

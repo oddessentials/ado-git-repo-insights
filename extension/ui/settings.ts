@@ -645,36 +645,36 @@ function escapeHtml(text: string): string {
  * Set up event listeners.
  */
 function setupEventListeners(): void {
-  document.getElementById("save-btn")?.addEventListener("click", saveSettings);
+  document.getElementById("save-btn")?.addEventListener("click", () => void saveSettings());
   document
     .getElementById("clear-btn")
-    ?.addEventListener("click", clearSettings);
+    ?.addEventListener("click", () => void clearSettings());
   document
     .getElementById("discover-btn")
-    ?.addEventListener("click", runDiscovery);
+    ?.addEventListener("click", () => void runDiscovery());
 
   // Enter key saves
   document
     .getElementById("pipeline-id")
     ?.addEventListener("keypress", (e: KeyboardEvent) => {
       if (e.key === "Enter") {
-        saveSettings();
+        void saveSettings();
       }
     });
   document
     .getElementById("project-id")
     ?.addEventListener("keypress", (e: KeyboardEvent) => {
       if (e.key === "Enter") {
-        saveSettings();
+        void saveSettings();
       }
     });
 }
 
 // Initialize on load
 if (document.readyState === "loading") {
-  document.addEventListener("DOMContentLoaded", init);
+  document.addEventListener("DOMContentLoaded", () => void init());
 } else {
-  init();
+  void init();
 }
 
 // Global exposure for potential inline handlers (though we use addEventListener now)

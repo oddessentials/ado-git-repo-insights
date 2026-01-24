@@ -2488,7 +2488,7 @@ var PRInsightsDashboard = (() => {
     startDate.setDate(startDate.getDate() - days);
     currentDateRange = { start: startDate, end: endDate };
     updateUrlState();
-    refreshMetrics();
+    void refreshMetrics();
   }
   function applyCustomDates() {
     const start = elements["start-date"]?.value;
@@ -2496,7 +2496,7 @@ var PRInsightsDashboard = (() => {
     if (!start || !end) return;
     currentDateRange = { start: new Date(start), end: new Date(end) };
     updateUrlState();
-    refreshMetrics();
+    void refreshMetrics();
   }
   function switchTab(tabId) {
     elements.tabs?.forEach((tab) => {
@@ -2546,7 +2546,7 @@ var PRInsightsDashboard = (() => {
     currentFilters = { repos: repoValues, teams: teamValues };
     updateFilterUI();
     updateUrlState();
-    refreshMetrics();
+    void refreshMetrics();
   }
   function clearAllFilters() {
     currentFilters = { repos: [], teams: [] };
@@ -2564,7 +2564,7 @@ var PRInsightsDashboard = (() => {
     }
     updateFilterUI();
     updateUrlState();
-    refreshMetrics();
+    void refreshMetrics();
   }
   function removeFilter(type, value) {
     if (type === "repo") {
@@ -2588,7 +2588,7 @@ var PRInsightsDashboard = (() => {
     }
     updateFilterUI();
     updateUrlState();
-    refreshMetrics();
+    void refreshMetrics();
   }
   function updateFilterUI() {
     const hasFilters = currentFilters.repos.length > 0 || currentFilters.teams.length > 0;
@@ -2686,14 +2686,14 @@ var PRInsightsDashboard = (() => {
       updateComparisonBanner();
     }
     updateUrlState();
-    refreshMetrics();
+    void refreshMetrics();
   }
   function exitComparisonMode() {
     comparisonMode = false;
     elements["compare-toggle"]?.classList.remove("active");
     elements["comparison-banner"]?.classList.add("hidden");
     updateUrlState();
-    refreshMetrics();
+    void refreshMetrics();
   }
   function updateComparisonBanner() {
     if (!currentDateRange.start || !currentDateRange.end) return;
@@ -2919,9 +2919,9 @@ var PRInsightsDashboard = (() => {
     }
   }
   if (document.readyState === "loading") {
-    document.addEventListener("DOMContentLoaded", init);
+    document.addEventListener("DOMContentLoaded", () => void init());
   } else {
-    init();
+    void init();
   }
 })();
 // Global exports for browser runtime
