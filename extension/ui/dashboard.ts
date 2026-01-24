@@ -54,6 +54,7 @@ import {
   renderThroughputChart as renderThroughputChartModule,
   renderCycleDistribution as renderCycleDistributionModule,
   renderCycleTimeTrend as renderCycleTimeTrendModule,
+  renderReviewerActivity as renderReviewerActivityModule,
 } from "./modules";
 
 // Dashboard state
@@ -1137,45 +1138,10 @@ function renderCycleTimeTrend(rollups: Rollup[]): void {
 
 /**
  * Render reviewer activity chart (horizontal bar chart).
+ * Thin wrapper that delegates to extracted module.
  */
 function renderReviewerActivity(rollups: Rollup[]): void {
-  const revEl = elements["reviewer-activity"];
-  if (!revEl) return;
-
-  if (!rollups || !rollups.length) {
-    revEl.innerHTML = '<p class="no-data">No reviewer data available</p>';
-    return;
-  }
-
-  // Take last 8 weeks for display
-  const recentRollups = rollups.slice(-8);
-  const maxReviewers = Math.max(
-    ...recentRollups.map((r) => r.reviewers_count || 0),
-  );
-
-  if (maxReviewers === 0) {
-    revEl.innerHTML = '<p class="no-data">No reviewer data available</p>';
-    return;
-  }
-
-  const barsHtml = recentRollups
-    .map((r) => {
-      const count = r.reviewers_count || 0;
-      const pct = (count / maxReviewers) * 100;
-      const weekLabel = r.week.split("-W")[1];
-      return `
-            <div class="h-bar-row" title="${r.week}: ${count} reviewers">
-                <span class="h-bar-label">W${weekLabel}</span>
-                <div class="h-bar-container">
-                    <div class="h-bar" style="width: ${pct}%"></div>
-                </div>
-                <span class="h-bar-value">${count}</span>
-            </div>
-        `;
-    })
-    .join("");
-
-  revEl.innerHTML = `<div class="horizontal-bar-chart">${barsHtml}</div>`;
+  renderReviewerActivityModule(elements["reviewer-activity"] ?? null, rollups);
 }
 
 // addChartTooltips is now imported from "./modules/charts"

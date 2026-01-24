@@ -14,5 +14,8 @@ export * from "./throughput";
 // Cycle time charts (distribution and P50/P90 trend)
 export * from "./cycle-time";
 
+// Reviewer activity chart (horizontal bar chart)
+export * from "./reviewer-activity";
+
 // Re-export existing chart utilities from parent charts.ts
 // These will be moved here in a future refactor
