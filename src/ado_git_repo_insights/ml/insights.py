@@ -332,7 +332,9 @@ Respond ONLY with valid JSON matching this format."""
                 return None
 
             logger.info(f"Cache hit: age {age_hours:.1f}h")
-            return cache_data.get("insights_data")
+            # Cast from Any to expected type (cache stores validated insights_data)
+            cached: dict[str, Any] | None = cache_data.get("insights_data")
+            return cached
 
         except Exception as e:
             logger.debug(f"Cache read failed: {e}")
@@ -365,7 +367,7 @@ Respond ONLY with valid JSON matching this format."""
         Returns:
             Insights data dict or None if failed.
         """
-        import openai
+        import openai  # type: ignore[import-not-found]
 
         api_key = os.environ.get("OPENAI_API_KEY")
         if not api_key:
