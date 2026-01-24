@@ -39,8 +39,8 @@ export function parseFiltersFromUrl(params: URLSearchParams): FilterState {
     const teamsParam = params.get("teams");
 
     return {
-        repos: reposParam ? reposParam.split(",").filter((v) => v) : [],
-        teams: teamsParam ? teamsParam.split(",").filter((v) => v) : [],
+        repos: reposParam ? reposParam.split(",").filter((v) => v.trim()) : [],
+        teams: teamsParam ? teamsParam.split(",").filter((v) => v.trim()) : [],
     };
 }
 

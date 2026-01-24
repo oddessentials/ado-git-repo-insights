@@ -42,7 +42,8 @@ export function rollupsToCsv(rollups: Rollup[]): string {
         r.reviewers_count || 0,
     ]);
 
-    return [CSV_HEADERS as unknown as string[], ...rows]
+    const headerRow = CSV_HEADERS.map((h) => h as string);
+    return [headerRow, ...rows]
         .map((row) => row.map((cell) => `"${cell}"`).join(","))
         .join("\n");
 }

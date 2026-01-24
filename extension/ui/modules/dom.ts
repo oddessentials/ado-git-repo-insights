@@ -7,8 +7,10 @@
  * INVARIANT: No other module may use 'any' types. This is enforced by ESLint/tests.
  */
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any -- Single documented exception: DOM cache allows flexible storage; use getElement<T>() for typed access
-const elements: Record<string, any> = {};
+// Type for cached DOM elements - more specific than 'any'
+type CachedDomValue = HTMLElement | NodeListOf<Element> | null;
+
+const elements: Record<string, CachedDomValue> = {};
 
 /**
  * Typed DOM element accessor.

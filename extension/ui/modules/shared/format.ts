@@ -62,7 +62,7 @@ export function formatWeekLabel(week: string): string {
  * Calculate median of a numeric array.
  */
 export function median(arr: number[]): number {
-    if (arr.length === 0) return 0;
+    if (!Array.isArray(arr) || arr.length === 0) return 0;
     const sorted = [...arr].sort((a, b) => a - b);
     const mid = Math.floor(sorted.length / 2);
     return sorted.length % 2 !== 0

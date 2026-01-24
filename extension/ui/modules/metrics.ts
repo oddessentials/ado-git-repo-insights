@@ -128,7 +128,7 @@ export function applyFiltersToRollups(
 
     return rollups.map((rollup) => {
         // If we have by_repository slices and repo filter is active, use them
-        if (filters.repos.length && rollup.by_repository) {
+        if (filters.repos.length && rollup.by_repository && typeof rollup.by_repository === "object") {
             const selectedRepos = filters.repos
                 .map((repoId) => {
                     const repoData = rollup.by_repository![repoId];
@@ -169,7 +169,7 @@ export function applyFiltersToRollups(
         }
 
         // If we have by_team slices and team filter is active, use them
-        if (filters.teams.length && rollup.by_team) {
+        if (filters.teams.length && rollup.by_team && typeof rollup.by_team === "object") {
             const selectedTeams = filters.teams
                 .map((teamId) => rollup.by_team![teamId])
                 .filter((t): t is number => t !== undefined);

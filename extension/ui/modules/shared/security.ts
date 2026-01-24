@@ -8,11 +8,15 @@
 /**
  * Escape HTML to prevent XSS attacks.
  * SECURITY: Use this for any user-controlled or external data before innerHTML.
+ * DOM-FREE: Uses string replacement, no document access.
  */
 export function escapeHtml(text: string): string {
-    const div = document.createElement("div");
-    div.textContent = text;
-    return div.innerHTML;
+    return text
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;")
+        .replace(/'/g, "&#039;");
 }
 
 /**

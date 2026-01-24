@@ -1226,7 +1226,7 @@ var PRInsightsDashboard = (() => {
     return `${days.toFixed(1)}d`;
   }
   function median(arr) {
-    if (arr.length === 0) return 0;
+    if (!Array.isArray(arr) || arr.length === 0) return 0;
     const sorted = [...arr].sort((a, b) => a - b);
     const mid = Math.floor(sorted.length / 2);
     return sorted.length % 2 !== 0 ? sorted[mid] ?? 0 : ((sorted[mid - 1] ?? 0) + (sorted[mid] ?? 0)) / 2;
@@ -1234,9 +1234,7 @@ var PRInsightsDashboard = (() => {
 
   // ui/modules/shared/security.ts
   function escapeHtml(text) {
-    const div = document.createElement("div");
-    div.textContent = text;
-    return div.innerHTML;
+    return text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#039;");
   }
 
   // ui/modules/metrics.ts
@@ -1291,7 +1289,7 @@ var PRInsightsDashboard = (() => {
       return rollups;
     }
     return rollups.map((rollup) => {
-      if (filters.repos.length && rollup.by_repository) {
+      if (filters.repos.length && rollup.by_repository && typeof rollup.by_repository === "object") {
         const selectedRepos = filters.repos.map((repoId) => {
           const repoData = rollup.by_repository[repoId];
           if (repoData) return repoData;
@@ -1320,7 +1318,7 @@ var PRInsightsDashboard = (() => {
           // as we don't have per-repo breakdown for these metrics
         };
       }
-      if (filters.teams.length && rollup.by_team) {
+      if (filters.teams.length && rollup.by_team && typeof rollup.by_team === "object") {
         const selectedTeams = filters.teams.map((teamId) => rollup.by_team[teamId]).filter((t) => t !== void 0);
         if (selectedTeams.length === 0) {
           return {
@@ -1469,7 +1467,8 @@ var PRInsightsDashboard = (() => {
       r.authors_count || 0,
       r.reviewers_count || 0
     ]);
-    return [CSV_HEADERS, ...rows].map((row) => row.map((cell) => `"${cell}"`).join(",")).join("\n");
+    const headerRow = CSV_HEADERS.map((h) => h);
+    return [headerRow, ...rows].map((row) => row.map((cell) => `"${cell}"`).join(",")).join("\n");
   }
   function generateExportFilename(prefix, extension) {
     const dateStr = (/* @__PURE__ */ new Date()).toISOString().split("T")[0];

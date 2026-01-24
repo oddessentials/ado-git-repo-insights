@@ -42,15 +42,16 @@ describe("any-spread prevention", () => {
         expect(violations).toEqual([]);
     });
 
-    it("dom.ts contains the documented any exception", () => {
+    it("dom.ts uses proper union type instead of any", () => {
         const domPath = path.join(modulesDir, "dom.ts");
         const content = fs.readFileSync(domPath, "utf-8");
 
-        // Should contain the documented exception
-        expect(content).toContain("Record<string, any>");
+        // Should contain the CachedDomValue union type (improved from 'any')
+        expect(content).toContain("CachedDomValue");
+        expect(content).toContain("HTMLElement | NodeListOf<Element> | null");
 
-        // Should have a comment explaining the exception
-        expect(content).toMatch(/eslint-disable.*no-explicit-any|DOM cache|single.*any.*exception/i);
+        // Should have a typed elements cache
+        expect(content).toContain("Record<string, CachedDomValue>");
     });
 
     it("dom.ts provides typed getElement accessor", () => {
