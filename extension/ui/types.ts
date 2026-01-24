@@ -178,21 +178,37 @@ export interface WeekLoadResult<T> {
  * Extended Window interface for PR Insights globals.
  * This allows typed assignments like `window.DatasetLoader = DatasetLoader`
  * instead of `(window as any).DatasetLoader = DatasetLoader`.
+ *
+ * ⚠️ WARNING: Do NOT use `typeof import("./module").Export` syntax here!
+ * That creates circular type dependencies (types.ts ↔ dataset-loader.ts)
+ * which causes Jest to silently fail test collection in CI (Linux/Ubuntu).
+ * See: https://github.com/oddessentials/ado-git-repo-insights/pull/78
+ * The `any` types here are intentional - these are runtime globals where
+ * full type safety isn't possible anyway.
  */
 declare global {
     interface Window {
-        // Dataset Loader exports
-        DatasetLoader?: typeof import("./dataset-loader").DatasetLoader;
-        fetchSemaphore?: typeof import("./dataset-loader").fetchSemaphore;
-        createRollupCache?: typeof import("./dataset-loader").createRollupCache;
-        normalizeRollup?: typeof import("./dataset-loader").normalizeRollup;
-        normalizeRollups?: typeof import("./dataset-loader").normalizeRollups;
-        ROLLUP_FIELD_DEFAULTS?: typeof import("./dataset-loader").ROLLUP_FIELD_DEFAULTS;
+        // Dataset Loader exports (typed as unknown to avoid circular imports)
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        DatasetLoader?: any;
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        fetchSemaphore?: any;
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        createRollupCache?: any;
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        normalizeRollup?: any;
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        normalizeRollups?: any;
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        ROLLUP_FIELD_DEFAULTS?: any;
 
-        // Artifact Client exports
-        ArtifactClient?: typeof import("./artifact-client").ArtifactClient;
-        AuthenticatedDatasetLoader?: typeof import("./artifact-client").AuthenticatedDatasetLoader;
-        MockArtifactClient?: typeof import("./artifact-client").MockArtifactClient;
+        // Artifact Client exports (typed as unknown to avoid circular imports)
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        ArtifactClient?: any;
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        AuthenticatedDatasetLoader?: any;
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        MockArtifactClient?: any;
 
         // Settings page exports
         selectDiscoveredPipeline?: (pipelineId: number) => void;
