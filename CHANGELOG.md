@@ -1,3 +1,54 @@
+# [5.0.0](https://github.com/oddessentials/ado-git-repo-insights/compare/v4.2.3...v5.0.0) (2026-01-24)
+
+
+* feat!: harden stage-artifacts contract with strict layout enforcement ([a03432d](https://github.com/oddessentials/ado-git-repo-insights/commit/a03432d504308110e345b741377a5358d6ddd877))
+
+
+### Bug Fixes
+
+* **ci:** add Python setup to ui-bundle-sync job ([9854c7d](https://github.com/oddessentials/ado-git-repo-insights/commit/9854c7ddd63c9b11bba803b7b18c85eab322b6e4))
+* **ci:** resolve TypeScript declaration conflicts causing test collection failure ([1dd821e](https://github.com/oddessentials/ado-git-repo-insights/commit/1dd821e70b27f53efe82ce4e77f0fc2ae105b405))
+* **lint:** replace error: any catches with type-safe error narrowing ([e47bbcf](https://github.com/oddessentials/ado-git-repo-insights/commit/e47bbcfb5268d9c8b467172706610c93ca23e97b))
+* **lint:** resolve floating promise warnings in dashboard.ts and settings.ts ([8908ac1](https://github.com/oddessentials/ado-git-repo-insights/commit/8908ac12610b52931c13381ae0c96c6a973d4268))
+* **lint:** use typed window augmentation for global exports ([01791c4](https://github.com/oddessentials/ado-git-repo-insights/commit/01791c487266b9a0f9978817c387d8795d87da6c))
+* prevent artifact double-nesting at source + harden cli.py ([13d4ae1](https://github.com/oddessentials/ado-git-repo-insights/commit/13d4ae1976dedb4b5360420beaf4d2141e7d9e1f))
+* **types:** correct return types in cli.py ([e8fa8be](https://github.com/oddessentials/ado-git-repo-insights/commit/e8fa8be565945682d3c4704d7da3df748b0c5c7a))
+* **types:** guard optional openai/prophet imports for mypy ([bcc1366](https://github.com/oddessentials/ado-git-repo-insights/commit/bcc13661c451fef35c7041361fec4a827be124c4))
+* **types:** remediate no-explicit-any warnings in dataset-loader and artifact-client ([143ab07](https://github.com/oddessentials/ado-git-repo-insights/commit/143ab070827286e77ee75aa8673bf682ce038a4b))
+* **types:** remove circular typeof import() in Window augmentation ([0c111c9](https://github.com/oddessentials/ado-git-repo-insights/commit/0c111c92067a749c6e13c165cd99a2cb34f50e4a))
+* **types:** remove stale type-ignore comments in aggregators ([c9c9321](https://github.com/oddessentials/ado-git-repo-insights/commit/c9c9321ef57e07d5e184113880e42715ec745ef7))
+
+
+### Features
+
+* deterministic UI bundle sync for local dashboard ([959350e](https://github.com/oddessentials/ado-git-repo-insights/commit/959350e2fb901b2449adb27cf393cdc3f4615463))
+* **types:** add shared type definitions for VSS SDK and data structures ([533912b](https://github.com/oddessentials/ado-git-repo-insights/commit/533912bcb3baeafc5ffd07426144db720893d288))
+
+
+### BREAKING CHANGES
+
+* Legacy 'aggregates/' fallback path removed from dataset discovery.
+Staged artifacts must now have dataset-manifest.json at root (flat layout).
+Use 'ado-insights stage-artifacts' to normalize legacy artifacts.
+
+Changes:
+- Deterministic build selection: sort by finishTime, not API order
+- Accept 'partiallySucceeded' builds (artifacts are valid)
+- Bounded lookback: maximum 10 builds checked per invocation
+- Layout normalization: flatten aggregates/aggregates at extraction time
+- Versioned validation: check manifest_schema_version (v1 only)
+- Fail-fast contract validation before dashboard launch
+- Structured JSON summary: STAGE_SUMMARY={...} for automation parsing
+- New CONTRACT.md documenting all invariants
+
+New tests:
+- 22 tests in test_stage_artifacts.py (build selection, normalization, validation)
+- 3 mutation tests for layout enforcement (prevents re-introduction)
+- Fixed test fixtures for offline testing
+
+Updated tests:
+- test_dataset_discovery.py updated for strict flat-layout-only behavior
+
 ## [4.2.3](https://github.com/oddessentials/ado-git-repo-insights/compare/v4.2.2...v4.2.3) (2026-01-23)
 
 
