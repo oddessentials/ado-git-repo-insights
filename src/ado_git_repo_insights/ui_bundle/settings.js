@@ -90,7 +90,8 @@ var PRInsightsSettings = (() => {
   }
   async function getOrganizationProjects() {
     return new Promise((resolve, reject) => {
-      VSS.require(["TFS/Core/RestClient"], (CoreRestClient) => {
+      VSS.require(["TFS/Core/RestClient"], (...modules) => {
+        const CoreRestClient = modules[0];
         try {
           const client = CoreRestClient.getClient();
           client.getProjects().then((projects) => {
@@ -279,7 +280,8 @@ var PRInsightsSettings = (() => {
   }
   async function validatePipeline(pipelineId, projectId) {
     return new Promise((resolve) => {
-      VSS.require(["TFS/Build/RestClient"], (BuildRestClient) => {
+      VSS.require(["TFS/Build/RestClient"], (...modules) => {
+        const BuildRestClient = modules[0];
         try {
           const client = BuildRestClient.getClient();
           client.getDefinitions(
@@ -301,7 +303,12 @@ var PRInsightsSettings = (() => {
               });
               return;
             }
-            const pipelineName = definitions[0].name;
+            const firstDef = definitions[0];
+            if (!firstDef) {
+              resolve({ valid: false, error: "Definition unexpectedly empty" });
+              return;
+            }
+            const pipelineName = firstDef.name;
             client.getBuilds(
               projectId,
               [pipelineId],
@@ -325,10 +332,15 @@ var PRInsightsSettings = (() => {
                 });
                 return;
               }
+              const firstBuild = builds[0];
+              if (!firstBuild) {
+                resolve({ valid: false, name: pipelineName, error: "Build unexpectedly empty" });
+                return;
+              }
               resolve({
                 valid: true,
                 name: pipelineName,
-                buildId: builds[0].id
+                buildId: firstBuild.id
               });
             }).catch((e) => {
               resolve({
@@ -350,7 +362,8 @@ var PRInsightsSettings = (() => {
   }
   async function discoverPipelines() {
     return new Promise((resolve) => {
-      VSS.require(["TFS/Build/RestClient"], (BuildRestClient) => {
+      VSS.require(["TFS/Build/RestClient"], (...modules) => {
+        const BuildRestClient = modules[0];
         try {
           const client = BuildRestClient.getClient();
           const webContext = VSS.getWebContext();
@@ -380,6 +393,7 @@ var PRInsightsSettings = (() => {
                 );
                 if (!builds || builds.length === 0) continue;
                 const latestBuild = builds[0];
+                if (!latestBuild) continue;
                 const artifacts = await client.getArtifacts(
                   projectId,
                   latestBuild.id

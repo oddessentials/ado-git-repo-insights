@@ -176,14 +176,7 @@ export interface RollupCache {
   maxSize: number;
   ttlMs: number;
   clock: () => number;
-  makeKey(params: {
-    week: string;
-    org: string;
-    project: string;
-    repo: string;
-    branch?: string;
-    apiVersion?: string;
-  }): string;
+  makeKey(params: { week: string;[key: string]: unknown }): string;
   get(key: string): Rollup | undefined;
   set(key: string, value: Rollup): void;
   has(key: string): boolean;
@@ -329,7 +322,7 @@ export interface RollupResult {
  */
 export interface IDatasetLoader {
   loadManifest(): Promise<ManifestSchema>;
-  loadDimensions(): Promise<DimensionsData>;
+  loadDimensions(): Promise<DimensionsData | null>;
   getWeeklyRollups(startDate: Date, endDate: Date): Promise<Rollup[]>;
   getDistributions(startDate: Date, endDate: Date): Promise<DistributionData[]>;
   getCoverage(): CoverageInfo | null;
@@ -396,7 +389,7 @@ export class DatasetLoader implements IDatasetLoader {
    * Load and validate the dataset manifest.
    * Automatically resolves nested dataset root before loading.
    */
-  async loadManifest(): Promise<any> {
+  async loadManifest(): Promise<ManifestSchema> {
     // Resolve dataset root if not already done
     if (this.effectiveBaseUrl === null) {
       await this.resolveDatasetRoot();
@@ -425,7 +418,7 @@ export class DatasetLoader implements IDatasetLoader {
   /**
    * Validate manifest schema versions.
    */
-  protected validateManifest(manifest: any): void {
+  protected validateManifest(manifest: ManifestSchema): void {
     if (!manifest.manifest_schema_version) {
       throw new Error("Invalid manifest: missing schema version");
     }
@@ -438,14 +431,20 @@ export class DatasetLoader implements IDatasetLoader {
       );
     }
 
-    if (manifest.dataset_schema_version > SUPPORTED_DATASET_VERSION) {
+    if (
+      manifest.dataset_schema_version !== undefined &&
+      manifest.dataset_schema_version > SUPPORTED_DATASET_VERSION
+    ) {
       throw new Error(
         `Dataset version ${manifest.dataset_schema_version} not supported. ` +
         `Please update the extension.`,
       );
     }
 
-    if (manifest.aggregates_schema_version > SUPPORTED_AGGREGATES_VERSION) {
+    if (
+      manifest.aggregates_schema_version !== undefined &&
+      manifest.aggregates_schema_version > SUPPORTED_AGGREGATES_VERSION
+    ) {
       throw new Error(
         `Aggregates version ${manifest.aggregates_schema_version} not supported. ` +
         `Please update the extension.`,
@@ -456,7 +455,7 @@ export class DatasetLoader implements IDatasetLoader {
   /**
    * Load dimensions (filter values).
    */
-  async loadDimensions(): Promise<any> {
+  async loadDimensions(): Promise<DimensionsData | null> {
     if (this.dimensions) return this.dimensions;
 
     const url = this.resolvePath("aggregates/dimensions.json");
@@ -546,7 +545,7 @@ export class DatasetLoader implements IDatasetLoader {
     const useCache: RollupCache =
       cache ||
       ({
-        makeKey: (params: any) => params.week,
+        makeKey: (params: { week: string;[key: string]: unknown }) => params.week,
         get: (key: string) => this.rollupCache.get(key),
         set: (key: string, value: Rollup) => this.rollupCache.set(key, value),
         has: (key: string) => this.rollupCache.has(key),
@@ -555,7 +554,7 @@ export class DatasetLoader implements IDatasetLoader {
         clock: Date.now,
         clear: () => this.rollupCache.clear(),
         size: () => this.rollupCache.size,
-      } as any);
+      } satisfies RollupCache);
 
     // Separate cache hits from fetch needed
     const cachedResults: Rollup[] = [];
@@ -641,7 +640,7 @@ export class DatasetLoader implements IDatasetLoader {
 
     // INVARIANT: auth error with no data = hard fail
     if (authError && allData.length === 0) {
-      const error = new Error("Authentication required") as any;
+      const error = new Error("Authentication required") as Error & { code?: string };
       error.code = "AUTH_REQUIRED";
       throw error;
     }
@@ -664,12 +663,12 @@ export class DatasetLoader implements IDatasetLoader {
    */
   protected async _fetchWeekWithRetry(
     weekStr: string,
-    indexEntry: any,
-    context: any,
+    indexEntry: { week: string; path: string },
+    context: Record<string, unknown>,
     cache: RollupCache,
   ): Promise<
     | { week: string; status: "ok"; data: Rollup }
-    | { week: string; status: "auth" | "missing" | "failed"; error?: any }
+    | { week: string; status: "auth" | "missing" | "failed"; error?: string }
   > {
     let retries = 0;
 
@@ -707,7 +706,7 @@ export class DatasetLoader implements IDatasetLoader {
           continue;
         }
 
-        return { week: weekStr, status: "failed", error: response.status };
+        return { week: weekStr, status: "failed", error: `HTTP ${response.status}` };
       } catch (err: unknown) {
         // Network error - retry once
         if (retries < fetchSemaphore.maxRetries) {
@@ -734,14 +733,14 @@ export class DatasetLoader implements IDatasetLoader {
   /**
    * Get yearly distributions for a date range.
    */
-  async getDistributions(startDate: Date, endDate: Date): Promise<any[]> {
+  async getDistributions(startDate: Date, endDate: Date): Promise<DistributionData[]> {
     if (!this.manifest) {
       throw new Error("Manifest not loaded. Call loadManifest() first.");
     }
 
     const startYear = startDate.getFullYear();
     const endYear = endDate.getFullYear();
-    const results: any[] = [];
+    const results: DistributionData[] = [];
 
     for (let year = startYear; year <= endYear; year++) {
       const yearStr = year.toString();
@@ -785,9 +784,9 @@ export class DatasetLoader implements IDatasetLoader {
   /**
    * Get dataset coverage info.
    */
-  getCoverage(): any {
+  getCoverage(): CoverageInfo | null {
     if (!this.manifest) return null;
-    return this.manifest.coverage;
+    return this.manifest.coverage ?? null;
   }
 
   /**
@@ -800,7 +799,7 @@ export class DatasetLoader implements IDatasetLoader {
   /**
    * Load predictions data (Phase 3.5).
    */
-  async loadPredictions(): Promise<any> {
+  async loadPredictions(): Promise<PredictionsData> {
     if (!this.isFeatureEnabled("predictions")) {
       return { state: "disabled" };
     }
@@ -849,7 +848,7 @@ export class DatasetLoader implements IDatasetLoader {
   /**
    * Load AI insights data (Phase 3.5).
    */
-  async loadInsights(): Promise<any> {
+  async loadInsights(): Promise<InsightsData> {
     if (!this.isFeatureEnabled("ai_insights")) {
       return { state: "disabled" };
     }
@@ -898,26 +897,27 @@ export class DatasetLoader implements IDatasetLoader {
   /**
    * Validate predictions schema.
    */
-  protected validatePredictionsSchema(predictions: any): {
+  protected validatePredictionsSchema(predictions: unknown): {
     valid: boolean;
     error?: string;
   } {
-    if (!predictions)
+    if (!predictions || typeof predictions !== "object")
       return { valid: false, error: "Missing predictions data" };
-    if (typeof predictions.schema_version !== "number") {
+    const p = predictions as Record<string, unknown>;
+    if (typeof p.schema_version !== "number") {
       return { valid: false, error: "Missing schema_version" };
     }
-    if (predictions.schema_version > 1) {
+    if (p.schema_version > 1) {
       return {
         valid: false,
-        error: `Unsupported schema version: ${predictions.schema_version}`,
+        error: `Unsupported schema version: ${p.schema_version}`,
       };
     }
-    if (!Array.isArray(predictions.forecasts)) {
+    if (!Array.isArray(p.forecasts)) {
       return { valid: false, error: "Missing forecasts array" };
     }
     // Validate each forecast has required fields
-    for (const forecast of predictions.forecasts) {
+    for (const forecast of p.forecasts as Array<Record<string, unknown>>) {
       if (
         !forecast.metric ||
         !forecast.unit ||
@@ -932,25 +932,27 @@ export class DatasetLoader implements IDatasetLoader {
   /**
    * Validate insights schema.
    */
-  protected validateInsightsSchema(insights: any): {
+  protected validateInsightsSchema(insights: unknown): {
     valid: boolean;
     error?: string;
   } {
-    if (!insights) return { valid: false, error: "Missing insights data" };
-    if (typeof insights.schema_version !== "number") {
+    if (!insights || typeof insights !== "object")
+      return { valid: false, error: "Missing insights data" };
+    const i = insights as Record<string, unknown>;
+    if (typeof i.schema_version !== "number") {
       return { valid: false, error: "Missing schema_version" };
     }
-    if (insights.schema_version > 1) {
+    if (i.schema_version > 1) {
       return {
         valid: false,
-        error: `Unsupported schema version: ${insights.schema_version}`,
+        error: `Unsupported schema version: ${i.schema_version}`,
       };
     }
-    if (!Array.isArray(insights.insights)) {
+    if (!Array.isArray(i.insights)) {
       return { valid: false, error: "Missing insights array" };
     }
     // Validate each insight has required fields
-    for (const insight of insights.insights) {
+    for (const insight of i.insights as Array<Record<string, unknown>>) {
       if (
         !insight.id ||
         !insight.category ||

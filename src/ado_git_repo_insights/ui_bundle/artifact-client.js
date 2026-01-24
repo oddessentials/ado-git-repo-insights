@@ -269,7 +269,9 @@ var PRInsightsArtifactClient = (() => {
           this.artifactName,
           "dataset-manifest.json"
         );
-        this.validateManifest(this.manifest);
+        if (this.manifest) {
+          this.validateManifest(this.manifest);
+        }
         return this.manifest;
       } catch (error) {
         throw new Error(`Failed to load dataset manifest: ${getErrorMessage(error)}`);
@@ -287,12 +289,12 @@ var PRInsightsArtifactClient = (() => {
           `Manifest version ${manifest.manifest_schema_version} not supported.`
         );
       }
-      if (manifest.dataset_schema_version > SUPPORTED_DATASET_VERSION) {
+      if (manifest.dataset_schema_version !== void 0 && manifest.dataset_schema_version > SUPPORTED_DATASET_VERSION) {
         throw new Error(
           `Dataset version ${manifest.dataset_schema_version} not supported.`
         );
       }
-      if (manifest.aggregates_schema_version > SUPPORTED_AGGREGATES_VERSION) {
+      if (manifest.aggregates_schema_version !== void 0 && manifest.aggregates_schema_version > SUPPORTED_AGGREGATES_VERSION) {
         throw new Error(
           `Aggregates version ${manifest.aggregates_schema_version} not supported.`
         );
@@ -444,7 +446,7 @@ var PRInsightsArtifactClient = (() => {
       return !!this.mockData[key];
     }
     async getArtifacts(buildId) {
-      return this.mockData[`${buildId}/artifacts`] || [];
+      return this.mockData[`${buildId}/artifacts`] ?? [];
     }
     createDatasetLoader(buildId, artifactName) {
       return new AuthenticatedDatasetLoader(this, buildId, artifactName);

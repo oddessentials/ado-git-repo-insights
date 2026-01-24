@@ -12,7 +12,14 @@
  * - Falls back to text input when listing isn't available
  */
 
-import { getErrorMessage, type VSSProject } from "./types";
+import {
+  getErrorMessage,
+  type VSSProject,
+  type VSSBuild,
+  type VSSBuildDefinition,
+  type VSSBuildArtifact,
+  type VSSBuildClient,
+} from "./types";
 
 // Settings keys (must match dashboard.js)
 const SETTINGS_KEY_PROJECT = "pr-insights-source-project";
@@ -101,7 +108,7 @@ async function tryLoadProjectDropdown(): Promise<void> {
 
       // Populate dropdown
       dropdown.innerHTML = '<option value="">Current project (auto)</option>';
-      for (const project of projects.sort((a: any, b: any) =>
+      for (const project of projects.sort((a: VSSProject, b: VSSProject) =>
         a.name.localeCompare(b.name),
       )) {
         const option = document.createElement("option");
@@ -135,17 +142,18 @@ async function tryLoadProjectDropdown(): Promise<void> {
  * Get list of projects in the organization.
  * Requires vso.project scope.
  */
-async function getOrganizationProjects(): Promise<any[]> {
+async function getOrganizationProjects(): Promise<VSSProject[]> {
   return new Promise((resolve, reject) => {
-    VSS.require(["TFS/Core/RestClient"], (CoreRestClient: any) => {
+    VSS.require(["TFS/Core/RestClient"], (...modules: unknown[]) => {
+      const CoreRestClient = modules[0] as { getClient: () => { getProjects: () => Promise<VSSProject[]> } };
       try {
         const client = CoreRestClient.getClient();
         client
           .getProjects()
-          .then((projects: any[]) => {
+          .then((projects: VSSProject[]) => {
             resolve(projects || []);
           })
-          .catch((error: any) => {
+          .catch((error: unknown) => {
             reject(error);
           });
       } catch (error) {
@@ -397,7 +405,8 @@ async function validatePipeline(
   error?: string;
 }> {
   return new Promise((resolve) => {
-    VSS.require(["TFS/Build/RestClient"], (BuildRestClient: any) => {
+    VSS.require(["TFS/Build/RestClient"], (...modules: unknown[]) => {
+      const BuildRestClient = modules[0] as { getClient: () => VSSBuildClient };
       try {
         const client = BuildRestClient.getClient();
 
@@ -414,7 +423,7 @@ async function validatePipeline(
             null,
             [pipelineId],
           )
-          .then((definitions: any[]) => {
+          .then((definitions: VSSBuildDefinition[]) => {
             if (!definitions || definitions.length === 0) {
               resolve({
                 valid: false,
@@ -423,7 +432,12 @@ async function validatePipeline(
               return;
             }
 
-            const pipelineName = definitions[0].name;
+            const firstDef = definitions[0];
+            if (!firstDef) {
+              resolve({ valid: false, error: "Definition unexpectedly empty" });
+              return;
+            }
+            const pipelineName = firstDef.name;
 
             // Check for successful/partially-succeeded builds
             // resultFilter: 6 = Succeeded(2) | PartiallySucceeded(4)
@@ -443,7 +457,7 @@ async function validatePipeline(
                 null,
                 1,
               )
-              .then((builds: any[]) => {
+              .then((builds: VSSBuild[]) => {
                 if (!builds || builds.length === 0) {
                   resolve({
                     valid: false,
@@ -453,10 +467,16 @@ async function validatePipeline(
                   return;
                 }
 
+                const firstBuild = builds[0];
+                if (!firstBuild) {
+                  resolve({ valid: false, name: pipelineName, error: "Build unexpectedly empty" });
+                  return;
+                }
+
                 resolve({
                   valid: true,
                   name: pipelineName,
-                  buildId: builds[0].id,
+                  buildId: firstBuild.id,
                 });
               })
               .catch((e: unknown) => {
@@ -486,7 +506,8 @@ async function discoverPipelines(): Promise<
   Array<{ id: number; name: string; buildId: number }>
 > {
   return new Promise((resolve) => {
-    VSS.require(["TFS/Build/RestClient"], (BuildRestClient: any) => {
+    VSS.require(["TFS/Build/RestClient"], (...modules: unknown[]) => {
+      const BuildRestClient = modules[0] as { getClient: () => VSSBuildClient };
       try {
         const client = BuildRestClient.getClient();
         const webContext = VSS.getWebContext();
@@ -495,12 +516,12 @@ async function discoverPipelines(): Promise<
           resolve([]);
           return;
         }
-        const matches: any[] = [];
+        const matches: Array<{ id: number; name: string; buildId: number }> = [];
 
         // Get pipeline definitions (limit for performance)
         client
           .getDefinitions(projectId, null, null, null, 2, 50)
-          .then(async (definitions: any[]) => {
+          .then(async (definitions: VSSBuildDefinition[]) => {
             for (const def of definitions) {
               // Get latest successful/partially-succeeded build
               try {
@@ -523,13 +544,14 @@ async function discoverPipelines(): Promise<
                 if (!builds || builds.length === 0) continue;
 
                 const latestBuild = builds[0];
+                if (!latestBuild) continue;
 
                 // Check for aggregates artifact
                 const artifacts = await client.getArtifacts(
                   projectId,
                   latestBuild.id,
                 );
-                if (!artifacts.some((a: any) => a.name === "aggregates"))
+                if (!artifacts.some((a: VSSBuildArtifact) => a.name === "aggregates"))
                   continue;
 
                 matches.push({

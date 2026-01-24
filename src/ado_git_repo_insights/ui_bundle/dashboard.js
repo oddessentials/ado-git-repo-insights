@@ -264,12 +264,12 @@ var PRInsightsDashboard = (() => {
           `Manifest version ${manifest.manifest_schema_version} not supported. Maximum supported: ${SUPPORTED_MANIFEST_VERSION}. Please update the extension.`
         );
       }
-      if (manifest.dataset_schema_version > SUPPORTED_DATASET_VERSION) {
+      if (manifest.dataset_schema_version !== void 0 && manifest.dataset_schema_version > SUPPORTED_DATASET_VERSION) {
         throw new Error(
           `Dataset version ${manifest.dataset_schema_version} not supported. Please update the extension.`
         );
       }
-      if (manifest.aggregates_schema_version > SUPPORTED_AGGREGATES_VERSION) {
+      if (manifest.aggregates_schema_version !== void 0 && manifest.aggregates_schema_version > SUPPORTED_AGGREGATES_VERSION) {
         throw new Error(
           `Aggregates version ${manifest.aggregates_schema_version} not supported. Please update the extension.`
         );
@@ -450,7 +450,7 @@ var PRInsightsDashboard = (() => {
             await this._delay(fetchSemaphore.retryDelayMs);
             continue;
           }
-          return { week: weekStr, status: "failed", error: response.status };
+          return { week: weekStr, status: "failed", error: `HTTP ${response.status}` };
         } catch (err) {
           if (retries < fetchSemaphore.maxRetries) {
             retries++;
@@ -513,7 +513,7 @@ var PRInsightsDashboard = (() => {
      */
     getCoverage() {
       if (!this.manifest) return null;
-      return this.manifest.coverage;
+      return this.manifest.coverage ?? null;
     }
     /**
      * Get default date range days.
@@ -609,21 +609,22 @@ var PRInsightsDashboard = (() => {
      * Validate predictions schema.
      */
     validatePredictionsSchema(predictions) {
-      if (!predictions)
+      if (!predictions || typeof predictions !== "object")
         return { valid: false, error: "Missing predictions data" };
-      if (typeof predictions.schema_version !== "number") {
+      const p = predictions;
+      if (typeof p.schema_version !== "number") {
         return { valid: false, error: "Missing schema_version" };
       }
-      if (predictions.schema_version > 1) {
+      if (p.schema_version > 1) {
         return {
           valid: false,
-          error: `Unsupported schema version: ${predictions.schema_version}`
+          error: `Unsupported schema version: ${p.schema_version}`
         };
       }
-      if (!Array.isArray(predictions.forecasts)) {
+      if (!Array.isArray(p.forecasts)) {
         return { valid: false, error: "Missing forecasts array" };
       }
-      for (const forecast of predictions.forecasts) {
+      for (const forecast of p.forecasts) {
         if (!forecast.metric || !forecast.unit || !Array.isArray(forecast.values)) {
           return { valid: false, error: "Invalid forecast structure" };
         }
@@ -634,20 +635,22 @@ var PRInsightsDashboard = (() => {
      * Validate insights schema.
      */
     validateInsightsSchema(insights) {
-      if (!insights) return { valid: false, error: "Missing insights data" };
-      if (typeof insights.schema_version !== "number") {
+      if (!insights || typeof insights !== "object")
+        return { valid: false, error: "Missing insights data" };
+      const i = insights;
+      if (typeof i.schema_version !== "number") {
         return { valid: false, error: "Missing schema_version" };
       }
-      if (insights.schema_version > 1) {
+      if (i.schema_version > 1) {
         return {
           valid: false,
-          error: `Unsupported schema version: ${insights.schema_version}`
+          error: `Unsupported schema version: ${i.schema_version}`
         };
       }
-      if (!Array.isArray(insights.insights)) {
+      if (!Array.isArray(i.insights)) {
         return { valid: false, error: "Missing insights array" };
       }
-      for (const insight of insights.insights) {
+      for (const insight of i.insights) {
         if (!insight.id || !insight.category || !insight.severity || !insight.title) {
           return { valid: false, error: "Invalid insight structure" };
         }
@@ -1006,7 +1009,9 @@ var PRInsightsDashboard = (() => {
           this.artifactName,
           "dataset-manifest.json"
         );
-        this.validateManifest(this.manifest);
+        if (this.manifest) {
+          this.validateManifest(this.manifest);
+        }
         return this.manifest;
       } catch (error) {
         throw new Error(`Failed to load dataset manifest: ${getErrorMessage(error)}`);
@@ -1024,12 +1029,12 @@ var PRInsightsDashboard = (() => {
           `Manifest version ${manifest.manifest_schema_version} not supported.`
         );
       }
-      if (manifest.dataset_schema_version > SUPPORTED_DATASET_VERSION2) {
+      if (manifest.dataset_schema_version !== void 0 && manifest.dataset_schema_version > SUPPORTED_DATASET_VERSION2) {
         throw new Error(
           `Dataset version ${manifest.dataset_schema_version} not supported.`
         );
       }
-      if (manifest.aggregates_schema_version > SUPPORTED_AGGREGATES_VERSION2) {
+      if (manifest.aggregates_schema_version !== void 0 && manifest.aggregates_schema_version > SUPPORTED_AGGREGATES_VERSION2) {
         throw new Error(
           `Aggregates version ${manifest.aggregates_schema_version} not supported.`
         );
@@ -1181,7 +1186,7 @@ var PRInsightsDashboard = (() => {
       return !!this.mockData[key];
     }
     async getArtifacts(buildId) {
-      return this.mockData[`${buildId}/artifacts`] || [];
+      return this.mockData[`${buildId}/artifacts`] ?? [];
     }
     createDatasetLoader(buildId, artifactName) {
       return new AuthenticatedDatasetLoader(this, buildId, artifactName);
