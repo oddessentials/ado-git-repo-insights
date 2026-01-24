@@ -1,3 +1,17 @@
+# [5.2.0](https://github.com/oddessentials/ado-git-repo-insights/compare/v5.1.0...v5.2.0) (2026-01-24)
+
+
+### Bug Fixes
+
+* **modules:** address code quality feedback ([53a0c1e](https://github.com/oddessentials/ado-git-repo-insights/commit/53a0c1e5b3f7f844601c73551172ca3d7d887d6c))
+
+
+### Features
+
+* **ci:** add dependency-cruiser for one-way rule enforcement ([c5a774a](https://github.com/oddessentials/ado-git-repo-insights/commit/c5a774ae34ebece776263acbf774ac0eb23b1326))
+* **dashboard:** add filters, comparison, and export modules ([cfe1eab](https://github.com/oddessentials/ado-git-repo-insights/commit/cfe1eaba8f24d3c778375f81429219308174a5f3))
+* **dashboard:** add modular architecture for dashboard refactor ([0aaf161](https://github.com/oddessentials/ado-git-repo-insights/commit/0aaf1617952d406de8e10aceeda3d2d67cd9ade4))
+
 # [5.1.0](https://github.com/oddessentials/ado-git-repo-insights/compare/v5.0.0...v5.1.0) (2026-01-24)
 
 
