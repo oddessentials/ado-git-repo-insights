@@ -1535,6 +1535,69 @@ var PRInsightsDashboard = (() => {
     });
   }
 
+  // ui/modules/charts/throughput.ts
+  function renderThroughputChart(container, rollups) {
+    if (!container) return;
+    if (!rollups || !rollups.length) {
+      container.innerHTML = '<p class="no-data">No data for selected range</p>';
+      return;
+    }
+    const prCounts = rollups.map((r) => r.pr_count || 0);
+    const maxCount = Math.max(...prCounts);
+    const movingAvg = calculateMovingAverage(prCounts, 4);
+    const barsHtml = rollups.map((r) => {
+      const height = maxCount > 0 ? (r.pr_count || 0) / maxCount * 100 : 0;
+      return `
+            <div class="bar-container" title="${r.week}: ${r.pr_count || 0} PRs">
+                <div class="bar" style="height: ${height}%"></div>
+                <div class="bar-label">${r.week.split("-W")[1]}</div>
+            </div>
+        `;
+    }).join("");
+    const trendLineHtml = renderTrendLine(rollups, movingAvg, maxCount);
+    const legendHtml = `
+        <div class="chart-legend">
+            <div class="legend-item">
+                <span class="legend-bar"></span>
+                <span>Weekly PRs</span>
+            </div>
+            <div class="legend-item">
+                <span class="legend-line"></span>
+                <span>4-week avg</span>
+            </div>
+        </div>
+    `;
+    container.innerHTML = `
+        <div class="chart-with-trend">
+            <div class="bar-chart">${barsHtml}</div>
+            ${trendLineHtml}
+        </div>
+        ${legendHtml}
+    `;
+  }
+  function renderTrendLine(rollups, movingAvg, maxCount) {
+    if (rollups.length < 4) return "";
+    const validPoints = movingAvg.map((val, i) => ({ val, i })).filter((p) => p.val !== null);
+    if (validPoints.length < 2) return "";
+    const chartHeight = 200;
+    const chartPadding = 8;
+    const points = validPoints.map((p) => {
+      const x = p.i / (rollups.length - 1) * 100;
+      const y = maxCount > 0 ? chartHeight - chartPadding - p.val / maxCount * (chartHeight - chartPadding * 2) : chartHeight / 2;
+      return { x, y };
+    });
+    const pathD = points.map(
+      (pt, i) => `${i === 0 ? "M" : "L"} ${pt.x.toFixed(1)}% ${pt.y.toFixed(1)}`
+    ).join(" ");
+    return `
+        <div class="trend-line-overlay">
+            <svg viewBox="0 0 100 ${chartHeight}" preserveAspectRatio="none">
+                <path class="trend-line" d="${pathD}" vector-effect="non-scaling-stroke"/>
+            </svg>
+        </div>
+    `;
+  }
+
   // ui/modules/export.ts
   var CSV_HEADERS = [
     "Week",
@@ -2252,7 +2315,7 @@ var PRInsightsDashboard = (() => {
     }
     cachedRollups = rollups;
     renderSummaryCards2(rollups, prevRollups);
-    renderThroughputChart(rollups);
+    renderThroughputChart2(rollups);
     renderCycleTimeTrend(rollups);
     renderReviewerActivity(rollups);
     renderCycleDistribution(distributions);
@@ -2285,67 +2348,8 @@ var PRInsightsDashboard = (() => {
       metricsCollector
     });
   }
-  function renderThroughputChart(rollups) {
-    const chartEl = elements["throughput-chart"];
-    if (!chartEl) return;
-    if (!rollups || !rollups.length) {
-      chartEl.innerHTML = '<p class="no-data">No data for selected range</p>';
-      return;
-    }
-    const prCounts = rollups.map((r) => r.pr_count || 0);
-    const maxCount = Math.max(...prCounts);
-    const movingAvg = calculateMovingAverage(prCounts, 4);
-    const barsHtml = rollups.map((r) => {
-      const height = maxCount > 0 ? (r.pr_count || 0) / maxCount * 100 : 0;
-      return `
-            <div class="bar-container" title="${r.week}: ${r.pr_count || 0} PRs">
-                <div class="bar" style="height: ${height}%"></div>
-                <div class="bar-label">${r.week.split("-W")[1]}</div>
-            </div>
-        `;
-    }).join("");
-    let trendLineHtml = "";
-    if (rollups.length >= 4) {
-      const validPoints = movingAvg.map((val, i) => ({ val, i })).filter((p) => p.val !== null);
-      if (validPoints.length >= 2) {
-        const chartHeight = 200;
-        const chartPadding = 8;
-        const points = validPoints.map((p) => {
-          const x = p.i / (rollups.length - 1) * 100;
-          const y = maxCount > 0 ? chartHeight - chartPadding - p.val / maxCount * (chartHeight - chartPadding * 2) : chartHeight / 2;
-          return { x, y };
-        });
-        const pathD = points.map(
-          (pt, i) => `${i === 0 ? "M" : "L"} ${pt.x.toFixed(1)}% ${pt.y.toFixed(1)}`
-        ).join(" ");
-        trendLineHtml = `
-                <div class="trend-line-overlay">
-                    <svg viewBox="0 0 100 ${chartHeight}" preserveAspectRatio="none">
-                        <path class="trend-line" d="${pathD}" vector-effect="non-scaling-stroke"/>
-                    </svg>
-                </div>
-            `;
-      }
-    }
-    const legendHtml = `
-        <div class="chart-legend">
-            <div class="legend-item">
-                <span class="legend-bar"></span>
-                <span>Weekly PRs</span>
-            </div>
-            <div class="legend-item">
-                <span class="legend-line"></span>
-                <span>4-week avg</span>
-            </div>
-        </div>
-    `;
-    chartEl.innerHTML = `
-        <div class="chart-with-trend">
-            <div class="bar-chart">${barsHtml}</div>
-            ${trendLineHtml}
-        </div>
-        ${legendHtml}
-    `;
+  function renderThroughputChart2(rollups) {
+    renderThroughputChart(elements["throughput-chart"] ?? null, rollups);
   }
   function renderCycleDistribution(distributions) {
     const distEl = elements["cycle-distribution"];
