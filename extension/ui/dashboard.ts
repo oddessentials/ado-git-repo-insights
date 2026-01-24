@@ -39,6 +39,13 @@ import {
   type InsightItem,
 } from "./types";
 
+// Import from extracted modules
+import {
+  escapeHtml,
+  formatDuration,
+  median,
+} from "./modules";
+
 // Dashboard state
 let loader: IDatasetLoader | null = null;
 let artifactClient: ArtifactClient | null = null;
@@ -155,18 +162,9 @@ if (DEBUG_ENABLED && typeof window !== "undefined") {
 }
 
 // ============================================================================
-// Security Utilities
+// Security Utilities - IMPORTED FROM ./modules
+// escapeHtml is now imported from "./modules"
 // ============================================================================
-
-/**
- * Escape HTML to prevent XSS attacks.
- * SECURITY: Use this for any user-controlled or external data before innerHTML.
- */
-function escapeHtml(text: string): string {
-  const div = document.createElement("div");
-  div.textContent = text;
-  return div.innerHTML;
-}
 
 // ============================================================================
 // SDK Initialization
@@ -2506,20 +2504,7 @@ function updateDatasetInfo(manifest: ManifestSchema | null): void {
   }
 }
 
-function formatDuration(minutes: number): string {
-  if (minutes < 60) return `${Math.round(minutes)}m`;
-  if (minutes < 1440) return `${(minutes / 60).toFixed(1)}h`;
-  return `${(minutes / 1440).toFixed(1)}d`;
-}
-
-function median(arr: number[]): number {
-  const sorted = [...arr].sort((a, b) => a - b);
-  const mid = Math.floor(sorted.length / 2);
-  return sorted.length % 2
-    ? sorted[mid]!
-    : (sorted[mid - 1]! + sorted[mid]!) / 2;
-}
-
+// formatDuration and median are now imported from \"./modules\"
 function updateUrlState(): void {
   const params = new URLSearchParams(window.location.search);
   const newParams = new URLSearchParams();

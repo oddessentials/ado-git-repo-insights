@@ -1213,6 +1213,32 @@ var PRInsightsDashboard = (() => {
     window.MockArtifactClient = MockArtifactClient;
   }
 
+  // ui/modules/shared/format.ts
+  function formatDuration(minutes) {
+    if (minutes < 60) {
+      return `${Math.round(minutes)}m`;
+    }
+    const hours = minutes / 60;
+    if (hours < 24) {
+      return `${hours.toFixed(1)}h`;
+    }
+    const days = hours / 24;
+    return `${days.toFixed(1)}d`;
+  }
+  function median(arr) {
+    if (arr.length === 0) return 0;
+    const sorted = [...arr].sort((a, b) => a - b);
+    const mid = Math.floor(sorted.length / 2);
+    return sorted.length % 2 !== 0 ? sorted[mid] ?? 0 : ((sorted[mid - 1] ?? 0) + (sorted[mid] ?? 0)) / 2;
+  }
+
+  // ui/modules/shared/security.ts
+  function escapeHtml(text) {
+    const div = document.createElement("div");
+    div.textContent = text;
+    return div.innerHTML;
+  }
+
   // ui/dashboard.ts
   var loader = null;
   var artifactClient = null;
@@ -1289,11 +1315,6 @@ var PRInsightsDashboard = (() => {
   } : null;
   if (DEBUG_ENABLED && typeof window !== "undefined") {
     window.__dashboardMetrics = metricsCollector;
-  }
-  function escapeHtml(text) {
-    const div = document.createElement("div");
-    div.textContent = text;
-    return div.innerHTML;
   }
   async function initializeAdoSdk() {
     if (sdkInitialized) return;
@@ -2866,16 +2887,6 @@ var PRInsightsDashboard = (() => {
       runInfo.textContent = `Generated: ${generatedAt}`;
       if (runId) runInfo.textContent += ` | Run: ${runId.slice(0, 8)}`;
     }
-  }
-  function formatDuration(minutes) {
-    if (minutes < 60) return `${Math.round(minutes)}m`;
-    if (minutes < 1440) return `${(minutes / 60).toFixed(1)}h`;
-    return `${(minutes / 1440).toFixed(1)}d`;
-  }
-  function median(arr) {
-    const sorted = [...arr].sort((a, b) => a - b);
-    const mid = Math.floor(sorted.length / 2);
-    return sorted.length % 2 ? sorted[mid] : (sorted[mid - 1] + sorted[mid]) / 2;
   }
   function updateUrlState() {
     const params = new URLSearchParams(window.location.search);
