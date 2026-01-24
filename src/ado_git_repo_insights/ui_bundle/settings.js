@@ -1,5 +1,15 @@
 "use strict";
 var PRInsightsSettings = (() => {
+  // ui/types.ts
+  function isErrorWithMessage(error) {
+    return typeof error === "object" && error !== null && "message" in error && typeof error.message === "string";
+  }
+  function getErrorMessage(error) {
+    if (isErrorWithMessage(error)) return error.message;
+    if (typeof error === "string") return error;
+    return "Unknown error";
+  }
+
   // ui/settings.ts
   var SETTINGS_KEY_PROJECT = "pr-insights-source-project";
   var SETTINGS_KEY_PIPELINE = "pr-insights-pipeline-id";
@@ -40,7 +50,7 @@ var PRInsightsSettings = (() => {
       setupEventListeners();
     } catch (error) {
       console.error("Settings initialization failed:", error);
-      showStatus("Failed to initialize settings: " + error.message, "error");
+      showStatus("Failed to initialize settings: " + getErrorMessage(error), "error");
     }
   }
   async function tryLoadProjectDropdown() {
@@ -71,7 +81,7 @@ var PRInsightsSettings = (() => {
     } catch (error) {
       console.log(
         "Project dropdown unavailable, using text input:",
-        error.message
+        getErrorMessage(error)
       );
       projectDropdownAvailable = false;
       dropdown.style.display = "none";
@@ -169,7 +179,7 @@ var PRInsightsSettings = (() => {
       await updateStatus();
     } catch (error) {
       console.error("Failed to save settings:", error);
-      showStatus("Failed to save settings: " + error.message, "error");
+      showStatus("Failed to save settings: " + getErrorMessage(error), "error");
     }
   }
   async function clearSettings() {
@@ -201,7 +211,7 @@ var PRInsightsSettings = (() => {
       await updateStatus();
     } catch (error) {
       console.error("Failed to clear settings:", error);
-      showStatus("Failed to clear settings: " + error.message, "error");
+      showStatus("Failed to clear settings: " + getErrorMessage(error), "error");
     }
   }
   async function updateStatus() {
@@ -260,7 +270,7 @@ var PRInsightsSettings = (() => {
       }
       statusDisplay.innerHTML = html;
     } catch (error) {
-      statusDisplay.innerHTML = `<p class="status-error">Failed to load status: ${escapeHtml(error.message)}</p>`;
+      statusDisplay.innerHTML = `<p class="status-error">Failed to load status: ${escapeHtml(getErrorMessage(error))}</p>`;
     }
   }
   function getProjectNameById(projectId) {
@@ -323,17 +333,17 @@ var PRInsightsSettings = (() => {
             }).catch((e) => {
               resolve({
                 valid: false,
-                error: `Build check failed: ${e.message}`
+                error: `Build check failed: ${getErrorMessage(e)}`
               });
             });
           }).catch((e) => {
             resolve({
               valid: false,
-              error: `Definition fetch failed: ${e.message}`
+              error: `Definition fetch failed: ${getErrorMessage(e)}`
             });
           });
         } catch (e) {
-          resolve({ valid: false, error: `Validation error: ${e.message}` });
+          resolve({ valid: false, error: `Validation error: ${getErrorMessage(e)}` });
         }
       });
     });
@@ -437,7 +447,7 @@ var PRInsightsSettings = (() => {
       showStatus(`Found ${matches.length} pipeline(s)`, "success");
     } catch (error) {
       statusDisplay.innerHTML = originalContent;
-      showStatus("Discovery failed: " + error.message, "error");
+      showStatus("Discovery failed: " + getErrorMessage(error), "error");
     }
   }
   function showStatus(message, type = "info") {

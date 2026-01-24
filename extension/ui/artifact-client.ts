@@ -10,6 +10,7 @@
 
 import { type IDatasetLoader } from "./dataset-loader";
 import { createPermissionDeniedError } from "./error-types";
+import { getErrorMessage } from "./types";
 
 /**
  * Client for accessing pipeline artifacts with authentication.
@@ -299,8 +300,8 @@ export class AuthenticatedDatasetLoader implements IDatasetLoader {
       );
       this.validateManifest(this.manifest);
       return this.manifest;
-    } catch (error: any) {
-      throw new Error(`Failed to load dataset manifest: ${error.message}`);
+    } catch (error: unknown) {
+      throw new Error(`Failed to load dataset manifest: ${getErrorMessage(error)}`);
     }
   }
 

@@ -30,6 +30,18 @@ var PRInsightsDatasetLoader = (() => {
     normalizeRollup: () => normalizeRollup,
     normalizeRollups: () => normalizeRollups
   });
+
+  // ui/types.ts
+  function isErrorWithMessage(error) {
+    return typeof error === "object" && error !== null && "message" in error && typeof error.message === "string";
+  }
+  function getErrorMessage(error) {
+    if (isErrorWithMessage(error)) return error.message;
+    if (typeof error === "string") return error;
+    return "Unknown error";
+  }
+
+  // ui/dataset-loader.ts
   var SUPPORTED_MANIFEST_VERSION = 1;
   var SUPPORTED_DATASET_VERSION = 1;
   var SUPPORTED_AGGREGATES_VERSION = 1;
@@ -476,7 +488,7 @@ var PRInsightsDatasetLoader = (() => {
             await this._delay(fetchSemaphore.retryDelayMs);
             continue;
           }
-          return { week: weekStr, status: "failed", error: err.message };
+          return { week: weekStr, status: "failed", error: getErrorMessage(err) };
         } finally {
           fetchSemaphore.release();
         }
@@ -579,7 +591,7 @@ var PRInsightsDatasetLoader = (() => {
         return { state: "ok", data: predictions };
       } catch (err) {
         console.error("[DatasetLoader] Error loading predictions:", err);
-        return { state: "error", error: "PRED_002", message: err.message };
+        return { state: "error", error: "PRED_002", message: getErrorMessage(err) };
       }
     }
     /**
@@ -621,7 +633,7 @@ var PRInsightsDatasetLoader = (() => {
         return { state: "ok", data: insights };
       } catch (err) {
         console.error("[DatasetLoader] Error loading insights:", err);
-        return { state: "error", error: "AI_002", message: err.message };
+        return { state: "error", error: "AI_002", message: getErrorMessage(err) };
       }
     }
     /**

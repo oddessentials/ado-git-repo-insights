@@ -63,6 +63,16 @@ var PRInsightsArtifactClient = (() => {
     window.PrInsightsError = PrInsightsError;
   }
 
+  // ui/types.ts
+  function isErrorWithMessage(error) {
+    return typeof error === "object" && error !== null && "message" in error && typeof error.message === "string";
+  }
+  function getErrorMessage(error) {
+    if (isErrorWithMessage(error)) return error.message;
+    if (typeof error === "string") return error;
+    return "Unknown error";
+  }
+
   // ui/artifact-client.ts
   var ArtifactClient = class {
     /**
@@ -262,7 +272,7 @@ var PRInsightsArtifactClient = (() => {
         this.validateManifest(this.manifest);
         return this.manifest;
       } catch (error) {
-        throw new Error(`Failed to load dataset manifest: ${error.message}`);
+        throw new Error(`Failed to load dataset manifest: ${getErrorMessage(error)}`);
       }
     }
     validateManifest(manifest) {

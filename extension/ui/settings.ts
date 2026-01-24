@@ -12,6 +12,8 @@
  * - Falls back to text input when listing isn't available
  */
 
+import { getErrorMessage, type VSSProject } from "./types";
+
 // Settings keys (must match dashboard.js)
 const SETTINGS_KEY_PROJECT = "pr-insights-source-project";
 const SETTINGS_KEY_PIPELINE = "pr-insights-pipeline-id";
@@ -19,7 +21,7 @@ const SETTINGS_KEY_PIPELINE = "pr-insights-pipeline-id";
 // State
 let dataService: IExtensionDataService | null = null;
 let projectDropdownAvailable = false;
-let projectList: any[] = [];
+let projectList: VSSProject[] = [];
 
 /**
  * Initialize Azure DevOps Extension SDK.
@@ -74,9 +76,9 @@ async function init(): Promise<void> {
 
     // Set up event listeners
     setupEventListeners();
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error("Settings initialization failed:", error);
-    showStatus("Failed to initialize settings: " + error.message, "error");
+    showStatus("Failed to initialize settings: " + getErrorMessage(error), "error");
   }
 }
 
@@ -116,10 +118,10 @@ async function tryLoadProjectDropdown(): Promise<void> {
     } else {
       throw new Error("No projects returned");
     }
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.log(
       "Project dropdown unavailable, using text input:",
-      error.message,
+      getErrorMessage(error),
     );
     projectDropdownAvailable = false;
 
@@ -250,9 +252,9 @@ async function saveSettings(): Promise<void> {
 
     // Update status display
     await updateStatus();
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error("Failed to save settings:", error);
-    showStatus("Failed to save settings: " + error.message, "error");
+    showStatus("Failed to save settings: " + getErrorMessage(error), "error");
   }
 }
 
@@ -289,9 +291,9 @@ async function clearSettings(): Promise<void> {
       "success",
     );
     await updateStatus();
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error("Failed to clear settings:", error);
-    showStatus("Failed to clear settings: " + error.message, "error");
+    showStatus("Failed to clear settings: " + getErrorMessage(error), "error");
   }
 }
 
@@ -368,8 +370,8 @@ async function updateStatus(): Promise<void> {
     }
 
     statusDisplay.innerHTML = html;
-  } catch (error: any) {
-    statusDisplay.innerHTML = `<p class="status-error">Failed to load status: ${escapeHtml(error.message)}</p>`;
+  } catch (error: unknown) {
+    statusDisplay.innerHTML = `<p class="status-error">Failed to load status: ${escapeHtml(getErrorMessage(error))}</p>`;
   }
 }
 
@@ -457,21 +459,21 @@ async function validatePipeline(
                   buildId: builds[0].id,
                 });
               })
-              .catch((e: any) => {
+              .catch((e: unknown) => {
                 resolve({
                   valid: false,
-                  error: `Build check failed: ${e.message}`,
+                  error: `Build check failed: ${getErrorMessage(e)}`,
                 });
               });
           })
-          .catch((e: any) => {
+          .catch((e: unknown) => {
             resolve({
               valid: false,
-              error: `Definition fetch failed: ${e.message}`,
+              error: `Definition fetch failed: ${getErrorMessage(e)}`,
             });
           });
-      } catch (e: any) {
-        resolve({ valid: false, error: `Validation error: ${e.message}` });
+      } catch (e: unknown) {
+        resolve({ valid: false, error: `Validation error: ${getErrorMessage(e)}` });
       }
     });
   });
@@ -542,7 +544,7 @@ async function discoverPipelines(): Promise<
             }
             resolve(matches);
           })
-          .catch((e: any) => {
+          .catch((e: unknown) => {
             console.error("Discovery: definitions fetch failed:", e);
             resolve([]);
           });
@@ -607,9 +609,9 @@ async function runDiscovery(): Promise<void> {
     }
 
     showStatus(`Found ${matches.length} pipeline(s)`, "success");
-  } catch (error: any) {
+  } catch (error: unknown) {
     statusDisplay.innerHTML = originalContent;
-    showStatus("Discovery failed: " + error.message, "error");
+    showStatus("Discovery failed: " + getErrorMessage(error), "error");
   }
 }
 

@@ -6,6 +6,8 @@
  * usable by both extension UI and future CLI dashboard.
  */
 
+import { getErrorMessage } from "./types";
+
 // Supported schema versions (from dataset-contract.md)
 const SUPPORTED_MANIFEST_VERSION = 1;
 const SUPPORTED_DATASET_VERSION = 1;
@@ -415,22 +417,22 @@ export class DatasetLoader implements IDatasetLoader {
     if (manifest.manifest_schema_version > SUPPORTED_MANIFEST_VERSION) {
       throw new Error(
         `Manifest version ${manifest.manifest_schema_version} not supported. ` +
-          `Maximum supported: ${SUPPORTED_MANIFEST_VERSION}. ` +
-          `Please update the extension.`,
+        `Maximum supported: ${SUPPORTED_MANIFEST_VERSION}. ` +
+        `Please update the extension.`,
       );
     }
 
     if (manifest.dataset_schema_version > SUPPORTED_DATASET_VERSION) {
       throw new Error(
         `Dataset version ${manifest.dataset_schema_version} not supported. ` +
-          `Please update the extension.`,
+        `Please update the extension.`,
       );
     }
 
     if (manifest.aggregates_schema_version > SUPPORTED_AGGREGATES_VERSION) {
       throw new Error(
         `Aggregates version ${manifest.aggregates_schema_version} not supported. ` +
-          `Please update the extension.`,
+        `Please update the extension.`,
       );
     }
   }
@@ -511,7 +513,7 @@ export class DatasetLoader implements IDatasetLoader {
       branch?: string;
       apiVersion?: string;
     },
-    onProgress: (event: ProgressEvent) => void = () => {},
+    onProgress: (event: ProgressEvent) => void = () => { },
     cache: RollupCache | null = null,
   ): Promise<RollupResult> {
     if (!this.manifest) {
@@ -690,14 +692,14 @@ export class DatasetLoader implements IDatasetLoader {
         }
 
         return { week: weekStr, status: "failed", error: response.status };
-      } catch (err: any) {
+      } catch (err: unknown) {
         // Network error - retry once
         if (retries < fetchSemaphore.maxRetries) {
           retries++;
           await this._delay(fetchSemaphore.retryDelayMs);
           continue;
         }
-        return { week: weekStr, status: "failed", error: err.message };
+        return { week: weekStr, status: "failed", error: getErrorMessage(err) };
       } finally {
         fetchSemaphore.release();
       }
@@ -822,9 +824,9 @@ export class DatasetLoader implements IDatasetLoader {
       }
 
       return { state: "ok", data: predictions };
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error("[DatasetLoader] Error loading predictions:", err);
-      return { state: "error", error: "PRED_002", message: err.message };
+      return { state: "error", error: "PRED_002", message: getErrorMessage(err) };
     }
   }
 
@@ -871,9 +873,9 @@ export class DatasetLoader implements IDatasetLoader {
       }
 
       return { state: "ok", data: insights };
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error("[DatasetLoader] Error loading insights:", err);
-      return { state: "error", error: "AI_002", message: err.message };
+      return { state: "error", error: "AI_002", message: getErrorMessage(err) };
     }
   }
 

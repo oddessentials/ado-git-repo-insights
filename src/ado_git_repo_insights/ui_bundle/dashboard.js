@@ -1,5 +1,15 @@
 "use strict";
 var PRInsightsDashboard = (() => {
+  // ui/types.ts
+  function isErrorWithMessage(error) {
+    return typeof error === "object" && error !== null && "message" in error && typeof error.message === "string";
+  }
+  function getErrorMessage(error) {
+    if (isErrorWithMessage(error)) return error.message;
+    if (typeof error === "string") return error;
+    return "Unknown error";
+  }
+
   // ui/dataset-loader.ts
   var SUPPORTED_MANIFEST_VERSION = 1;
   var SUPPORTED_DATASET_VERSION = 1;
@@ -446,7 +456,7 @@ var PRInsightsDashboard = (() => {
             await this._delay(fetchSemaphore.retryDelayMs);
             continue;
           }
-          return { week: weekStr, status: "failed", error: err.message };
+          return { week: weekStr, status: "failed", error: getErrorMessage(err) };
         } finally {
           fetchSemaphore.release();
         }
@@ -549,7 +559,7 @@ var PRInsightsDashboard = (() => {
         return { state: "ok", data: predictions };
       } catch (err) {
         console.error("[DatasetLoader] Error loading predictions:", err);
-        return { state: "error", error: "PRED_002", message: err.message };
+        return { state: "error", error: "PRED_002", message: getErrorMessage(err) };
       }
     }
     /**
@@ -591,7 +601,7 @@ var PRInsightsDashboard = (() => {
         return { state: "ok", data: insights };
       } catch (err) {
         console.error("[DatasetLoader] Error loading insights:", err);
-        return { state: "error", error: "AI_002", message: err.message };
+        return { state: "error", error: "AI_002", message: getErrorMessage(err) };
       }
     }
     /**
@@ -998,7 +1008,7 @@ var PRInsightsDashboard = (() => {
         this.validateManifest(this.manifest);
         return this.manifest;
       } catch (error) {
-        throw new Error(`Failed to load dataset manifest: ${error.message}`);
+        throw new Error(`Failed to load dataset manifest: ${getErrorMessage(error)}`);
       }
     }
     validateManifest(manifest) {
@@ -1403,7 +1413,7 @@ var PRInsightsDashboard = (() => {
       } catch (error) {
         console.warn(
           `Saved pipeline ${sourceConfig.pipelineId} is invalid, falling back to auto-discovery:`,
-          error.message
+          getErrorMessage(error)
         );
         await clearStalePipelineSetting();
       }
@@ -1598,7 +1608,7 @@ var PRInsightsDashboard = (() => {
           break;
       }
     } else {
-      showGenericError("Error", error.message || "An unexpected error occurred");
+      showGenericError("Error", getErrorMessage(error) || "An unexpected error occurred");
     }
   }
   function hideAllPanels() {
