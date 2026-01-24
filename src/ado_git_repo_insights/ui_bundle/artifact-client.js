@@ -316,7 +316,9 @@ var PRInsightsArtifactClient = (() => {
           results.push(this.rollupCache.get(weekStr));
           continue;
         }
-        const indexEntry = this.manifest.aggregate_index?.weekly_rollups?.find((r) => r.week === weekStr);
+        const indexEntry = this.manifest?.aggregate_index?.weekly_rollups?.find(
+          (r) => r.week === weekStr
+        );
         if (!indexEntry) continue;
         try {
           const rollup = await this.artifactClient.getArtifactFileViaSdk(
@@ -343,7 +345,9 @@ var PRInsightsArtifactClient = (() => {
           results.push(this.distributionCache.get(yearStr));
           continue;
         }
-        const indexEntry = this.manifest.aggregate_index?.distributions?.find((d) => d.year === yearStr);
+        const indexEntry = this.manifest?.aggregate_index?.distributions?.find(
+          (d) => d.year === yearStr
+        );
         if (!indexEntry) continue;
         try {
           const dist = await this.artifactClient.getArtifactFileViaSdk(
@@ -386,7 +390,7 @@ var PRInsightsArtifactClient = (() => {
       return this.manifest?.coverage || null;
     }
     getDefaultRangeDays() {
-      return this.manifest?.ui_defaults?.default_range_days || 90;
+      return this.manifest?.defaults?.default_date_range_days || 90;
     }
     async loadPredictions() {
       try {

@@ -68,18 +68,31 @@ export interface DimensionRecord {
 }
 
 export interface ManifestSchema {
+    manifest_schema_version?: number;
+    dataset_schema_version?: number;
+    aggregates_schema_version?: number;
     version?: string | number;
     generated_at?: string;
     coverage?: {
         first_week?: string;
         last_week?: string;
         total_weeks?: number;
+        date_range?: {
+            start?: string;
+            end?: string;
+            min?: string;
+            max?: string;
+        };
     };
     aggregate_index?: {
-        rollups_by_week?: Record<string, { path: string }>;
-        dimensions_by_year?: Record<string, { path: string }>;
+        weekly_rollups?: Array<{ week: string; path: string }>;
+        distributions?: Array<{ year: string; path: string }>;
         predictions?: { path: string };
         ai_insights?: { path: string };
+    };
+    features?: Record<string, boolean>;
+    defaults?: {
+        default_date_range_days?: number;
     };
     ui_defaults?: {
         default_range_days?: number;
@@ -148,6 +161,105 @@ export function getErrorMessage(error: unknown): string {
 export function getErrorCode(error: unknown): string | undefined {
     if (isErrorWithCode(error)) return error.code;
     return undefined;
+}
+
+// =============================================================================
+// Dataset Data Types
+// =============================================================================
+
+/**
+ * Aggregate index entry (weekly rollups or distributions).
+ */
+export interface AggregateIndexEntry {
+    week?: string;
+    year?: string;
+    path: string;
+}
+
+/**
+ * Manifest aggregate index structure.
+ */
+export interface ManifestAggregateIndex {
+    weekly_rollups?: AggregateIndexEntry[];
+    distributions?: AggregateIndexEntry[];
+    predictions?: { path: string };
+    ai_insights?: { path: string };
+}
+
+/**
+ * Dimensions data structure (filter values).
+ */
+export interface DimensionsData {
+    repositories?: Array<{
+        repository_id: string;
+        repository_name: string;
+        project_name?: string;
+        organization_name?: string;
+    }>;
+    teams?: Array<{
+        team_id: string;
+        team_name: string;
+        project_name?: string;
+        member_count?: number;
+    }>;
+    authors?: Array<{
+        author_id: string;
+        author_name: string;
+    }>;
+}
+
+/**
+ * Distribution data structure.
+ */
+export interface DistributionData {
+    year: string;
+    cycle_time_buckets?: Record<string, number>;
+    [key: string]: unknown;
+}
+
+/**
+ * Coverage info from manifest.
+ */
+export interface CoverageInfo {
+    start_date?: string;
+    end_date?: string;
+    first_week?: string;
+    last_week?: string;
+    weeks?: number;
+    total_weeks?: number;
+    total_prs?: number;
+    date_range?: {
+        start?: string;
+        end?: string;
+        min?: string;
+        max?: string;
+    };
+}
+
+/**
+ * Predictions data structure.
+ */
+export interface PredictionsData {
+    state?: "disabled" | "missing" | "auth_required" | "ok" | "unavailable";
+    predictions?: Array<{
+        week: string;
+        pr_count_predicted?: number;
+        cycle_time_p50_predicted?: number;
+    }>;
+    [key: string]: unknown;
+}
+
+/**
+ * AI Insights data structure.
+ */
+export interface InsightsData {
+    state?: "disabled" | "missing" | "auth_required" | "ok" | "unavailable";
+    insights?: Array<{
+        type: string;
+        severity: string;
+        message: string;
+    }>;
+    [key: string]: unknown;
 }
 
 // =============================================================================

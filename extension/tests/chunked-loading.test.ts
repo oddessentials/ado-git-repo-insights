@@ -132,13 +132,23 @@ describe("Phase 4: Chunked Loading", () => {
         repo: "repo",
       });
 
-      cache.set(key, { data: "test" });
+      cache.set(key, {
+        week: "2026-W01",
+        pr_count: 10,
+        cycle_time_p50: null,
+        cycle_time_p90: null,
+        authors_count: 5,
+        reviewers_count: 3,
+        by_repository: null,
+        by_team: null,
+      });
 
       // Advance time by 1 minute (< 5 minute TTL)
       currentTime += 60 * 1000;
 
       const result = cache.get(key);
-      expect(result).toEqual({ data: "test" });
+      expect(result?.week).toBe("2026-W01");
+      expect(result?.pr_count).toBe(10);
     });
 
     it("expires cache after TTL", () => {
@@ -150,7 +160,16 @@ describe("Phase 4: Chunked Loading", () => {
         repo: "repo",
       });
 
-      cache.set(key, { data: "test" });
+      cache.set(key, {
+        week: "2026-W01",
+        pr_count: 10,
+        cycle_time_p50: null,
+        cycle_time_p90: null,
+        authors_count: 5,
+        reviewers_count: 3,
+        by_repository: null,
+        by_team: null,
+      });
 
       // Advance time past TTL (5 minutes + 1ms)
       currentTime += 5 * 60 * 1000 + 1;
@@ -170,7 +189,16 @@ describe("Phase 4: Chunked Loading", () => {
           project: "proj",
           repo: "repo",
         });
-        cache.set(key, { week: i });
+        cache.set(key, {
+          week: `2026-W${i.toString().padStart(2, "0")}`,
+          pr_count: i,
+          cycle_time_p50: null,
+          cycle_time_p90: null,
+          authors_count: 0,
+          reviewers_count: 0,
+          by_repository: null,
+          by_team: null,
+        });
         currentTime += 1000; // Advance time for ordering
       }
 
@@ -192,7 +220,16 @@ describe("Phase 4: Chunked Loading", () => {
         project: "proj",
         repo: "repo",
       });
-      cache.set(week53Key, { week: 53 });
+      cache.set(week53Key, {
+        week: "2026-W53",
+        pr_count: 53,
+        cycle_time_p50: null,
+        cycle_time_p90: null,
+        authors_count: 0,
+        reviewers_count: 0,
+        by_repository: null,
+        by_team: null,
+      });
 
       const week1Key = cache.makeKey({
         week: "2026-W01",

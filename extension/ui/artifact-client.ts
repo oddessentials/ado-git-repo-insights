@@ -8,9 +8,17 @@
  * We must use the SDK's auth token service.
  */
 
-import { type IDatasetLoader } from "./dataset-loader";
+import { type IDatasetLoader, type Rollup } from "./dataset-loader";
 import { createPermissionDeniedError } from "./error-types";
-import { getErrorMessage } from "./types";
+import {
+  getErrorMessage,
+  type ManifestSchema,
+  type DimensionsData,
+  type DistributionData,
+  type CoverageInfo,
+  type PredictionsData,
+  type InsightsData,
+} from "./types";
 
 /**
  * Client for accessing pipeline artifacts with authentication.
@@ -276,10 +284,10 @@ export class AuthenticatedDatasetLoader implements IDatasetLoader {
   private readonly artifactClient: ArtifactClient;
   private readonly buildId: number;
   private readonly artifactName: string;
-  private manifest: any | null = null;
-  private dimensions: any | null = null;
-  private rollupCache = new Map<string, any>();
-  private distributionCache = new Map<string, any>();
+  private manifest: ManifestSchema | null = null;
+  private dimensions: DimensionsData | null = null;
+  private rollupCache = new Map<string, Rollup>();
+  private distributionCache = new Map<string, DistributionData>();
 
   constructor(
     artifactClient: ArtifactClient,
@@ -291,7 +299,7 @@ export class AuthenticatedDatasetLoader implements IDatasetLoader {
     this.artifactName = artifactName;
   }
 
-  async loadManifest(): Promise<any> {
+  async loadManifest(): Promise<ManifestSchema> {
     try {
       this.manifest = await this.artifactClient.getArtifactFileViaSdk(
         this.buildId,
@@ -299,7 +307,7 @@ export class AuthenticatedDatasetLoader implements IDatasetLoader {
         "dataset-manifest.json",
       );
       this.validateManifest(this.manifest);
-      return this.manifest;
+      return this.manifest!;
     } catch (error: unknown) {
       throw new Error(`Failed to load dataset manifest: ${getErrorMessage(error)}`);
     }
@@ -333,31 +341,31 @@ export class AuthenticatedDatasetLoader implements IDatasetLoader {
     }
   }
 
-  async loadDimensions(): Promise<any> {
+  async loadDimensions(): Promise<DimensionsData> {
     if (this.dimensions) return this.dimensions;
     this.dimensions = await this.artifactClient.getArtifactFileViaSdk(
       this.buildId,
       this.artifactName,
       "aggregates/dimensions.json",
     );
-    return this.dimensions;
+    return this.dimensions!;
   }
 
-  async getWeeklyRollups(startDate: Date, endDate: Date): Promise<any[]> {
+  async getWeeklyRollups(startDate: Date, endDate: Date): Promise<Rollup[]> {
     if (!this.manifest) throw new Error("Manifest not loaded.");
 
     const neededWeeks = this.getWeeksInRange(startDate, endDate);
-    const results: any[] = [];
+    const results: Rollup[] = [];
 
     for (const weekStr of neededWeeks) {
       if (this.rollupCache.has(weekStr)) {
-        results.push(this.rollupCache.get(weekStr));
+        results.push(this.rollupCache.get(weekStr)!);
         continue;
       }
 
-      const indexEntry = (
-        this.manifest as any
-      ).aggregate_index?.weekly_rollups?.find((r: any) => r.week === weekStr);
+      const indexEntry = this.manifest?.aggregate_index?.weekly_rollups?.find(
+        (r) => r.week === weekStr,
+      );
 
       if (!indexEntry) continue;
 
@@ -377,23 +385,23 @@ export class AuthenticatedDatasetLoader implements IDatasetLoader {
     return results;
   }
 
-  async getDistributions(startDate: Date, endDate: Date): Promise<any[]> {
+  async getDistributions(startDate: Date, endDate: Date): Promise<DistributionData[]> {
     if (!this.manifest) throw new Error("Manifest not loaded.");
 
     const startYear = startDate.getFullYear();
     const endYear = endDate.getFullYear();
-    const results: any[] = [];
+    const results: DistributionData[] = [];
 
     for (let year = startYear; year <= endYear; year++) {
       const yearStr = String(year);
       if (this.distributionCache.has(yearStr)) {
-        results.push(this.distributionCache.get(yearStr));
+        results.push(this.distributionCache.get(yearStr)!);
         continue;
       }
 
-      const indexEntry = (
-        this.manifest as any
-      ).aggregate_index?.distributions?.find((d: any) => d.year === yearStr);
+      const indexEntry = this.manifest?.aggregate_index?.distributions?.find(
+        (d) => d.year === yearStr,
+      );
 
       if (!indexEntry) continue;
 
@@ -439,17 +447,17 @@ export class AuthenticatedDatasetLoader implements IDatasetLoader {
     return `${d.getUTCFullYear()}-W${String(weekNo).padStart(2, "0")}`;
   }
 
-  getCoverage(): any {
-    return (this.manifest as any)?.coverage || null;
+  getCoverage(): CoverageInfo | null {
+    return this.manifest?.coverage || null;
   }
 
   getDefaultRangeDays(): number {
-    return (this.manifest as any)?.ui_defaults?.default_range_days || 90;
+    return this.manifest?.defaults?.default_date_range_days || 90;
   }
 
-  async loadPredictions(): Promise<any> {
+  async loadPredictions(): Promise<PredictionsData> {
     try {
-      const indexEntry = (this.manifest as any)?.aggregate_index?.predictions;
+      const indexEntry = this.manifest?.aggregate_index?.predictions;
       if (!indexEntry) return { state: "unavailable" };
 
       const data = await this.artifactClient.getArtifactFileViaSdk(
@@ -464,9 +472,9 @@ export class AuthenticatedDatasetLoader implements IDatasetLoader {
     }
   }
 
-  async loadInsights(): Promise<any> {
+  async loadInsights(): Promise<InsightsData> {
     try {
-      const indexEntry = (this.manifest as any)?.aggregate_index?.ai_insights;
+      const indexEntry = this.manifest?.aggregate_index?.ai_insights;
       if (!indexEntry) return { state: "unavailable" };
 
       const data = await this.artifactClient.getArtifactFileViaSdk(

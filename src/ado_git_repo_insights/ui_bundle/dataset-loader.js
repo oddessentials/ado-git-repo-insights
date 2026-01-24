@@ -67,18 +67,19 @@ var PRInsightsDatasetLoader = (() => {
     if (!rollup || typeof rollup !== "object") {
       return { week: "unknown", ...ROLLUP_FIELD_DEFAULTS };
     }
+    const r = rollup;
     return {
       // Preserve all existing fields
-      ...rollup,
+      ...r,
       // Ensure required fields have defaults (don't override if already set)
-      pr_count: rollup.pr_count ?? ROLLUP_FIELD_DEFAULTS.pr_count,
-      cycle_time_p50: rollup.cycle_time_p50 ?? ROLLUP_FIELD_DEFAULTS.cycle_time_p50,
-      cycle_time_p90: rollup.cycle_time_p90 ?? ROLLUP_FIELD_DEFAULTS.cycle_time_p90,
-      authors_count: rollup.authors_count ?? ROLLUP_FIELD_DEFAULTS.authors_count,
-      reviewers_count: rollup.reviewers_count ?? ROLLUP_FIELD_DEFAULTS.reviewers_count,
+      pr_count: r.pr_count ?? ROLLUP_FIELD_DEFAULTS.pr_count,
+      cycle_time_p50: r.cycle_time_p50 ?? ROLLUP_FIELD_DEFAULTS.cycle_time_p50,
+      cycle_time_p90: r.cycle_time_p90 ?? ROLLUP_FIELD_DEFAULTS.cycle_time_p90,
+      authors_count: r.authors_count ?? ROLLUP_FIELD_DEFAULTS.authors_count,
+      reviewers_count: r.reviewers_count ?? ROLLUP_FIELD_DEFAULTS.reviewers_count,
       // by_repository and by_team are optional features - preserve null if missing
-      by_repository: rollup.by_repository !== void 0 ? rollup.by_repository : null,
-      by_team: rollup.by_team !== void 0 ? rollup.by_team : null
+      by_repository: r.by_repository !== void 0 ? r.by_repository : null,
+      by_team: r.by_team !== void 0 ? r.by_team : null
     };
   }
   function normalizeRollups(rollups) {
@@ -335,7 +336,7 @@ var PRInsightsDatasetLoader = (() => {
           results.push(cached);
           continue;
         }
-        const indexEntry = this.manifest.aggregate_index.weekly_rollups.find(
+        const indexEntry = this.manifest?.aggregate_index?.weekly_rollups?.find(
           (r) => r.week === weekStr
         );
         if (!indexEntry) {
@@ -400,7 +401,7 @@ var PRInsightsDatasetLoader = (() => {
       for (const batch of batches) {
         const batchPromises = batch.map(async (weekStr) => {
           onProgress({ loaded, total, currentWeek: weekStr });
-          const indexEntry = this.manifest.aggregate_index.weekly_rollups.find(
+          const indexEntry = this.manifest?.aggregate_index?.weekly_rollups?.find(
             (r) => r.week === weekStr
           );
           if (!indexEntry) {
@@ -518,7 +519,7 @@ var PRInsightsDatasetLoader = (() => {
           results.push(cached);
           continue;
         }
-        const indexEntry = this.manifest.aggregate_index.distributions.find(
+        const indexEntry = this.manifest?.aggregate_index?.distributions?.find(
           (d) => d.year === yearStr
         );
         if (!indexEntry) continue;
