@@ -59,15 +59,17 @@ class TestFindDatasetRoots:
         assert len(result) == 1
         assert result[0] == temp_artifacts_dir.resolve()
 
-    def test_finds_manifest_nested_once(self, temp_artifacts_dir: Path) -> None:
-        """Finds manifest when located in run_artifacts/aggregates/."""
+    def test_nested_manifest_not_found_in_aggregates(
+        self, temp_artifacts_dir: Path
+    ) -> None:
+        """Manifest in aggregates/ is NOT found (legacy fallback removed)."""
         temp_artifacts_dir.mkdir(parents=True)
         create_manifest(temp_artifacts_dir / "aggregates")
 
         result = find_dataset_roots(temp_artifacts_dir)
 
-        assert len(result) == 1
-        assert result[0] == (temp_artifacts_dir / "aggregates").resolve()
+        # Legacy fallback removed - aggregates/ is NOT a candidate path
+        assert len(result) == 0
 
     def test_deprecated_layout_not_supported(self, temp_artifacts_dir: Path) -> None:
         """Verifies deprecated aggregates/aggregates layout is NOT found."""
@@ -79,20 +81,19 @@ class TestFindDatasetRoots:
         # Deprecated layout should NOT be found
         assert len(result) == 0
 
-    def test_returns_multiple_if_manifests_in_multiple_locations(
+    def test_only_finds_root_manifest_not_aggregates(
         self, temp_artifacts_dir: Path
     ) -> None:
-        """Returns all valid roots if manifests exist in multiple candidate paths."""
+        """Only returns root manifest, ignores aggregates/ (no legacy fallback)."""
         temp_artifacts_dir.mkdir(parents=True)
         create_manifest(temp_artifacts_dir)
         create_manifest(temp_artifacts_dir / "aggregates")
 
         result = find_dataset_roots(temp_artifacts_dir)
 
-        # Both should be found, root first (priority order)
-        assert len(result) == 2
+        # Only root is found - aggregates fallback removed
+        assert len(result) == 1
         assert result[0] == temp_artifacts_dir.resolve()
-        assert result[1] == (temp_artifacts_dir / "aggregates").resolve()
 
     def test_skips_invalid_json_manifests(self, temp_artifacts_dir: Path) -> None:
         """Skips manifests that are not valid JSON."""
@@ -100,23 +101,24 @@ class TestFindDatasetRoots:
         (temp_artifacts_dir / "dataset-manifest.json").write_text(
             "not valid json{", encoding="utf-8"
         )
+        # Create valid manifest in aggregates/ but it won't be found (no fallback)
         create_manifest(temp_artifacts_dir / "aggregates")
 
         result = find_dataset_roots(temp_artifacts_dir)
 
-        # Only the valid one should be returned
-        assert len(result) == 1
-        assert result[0] == (temp_artifacts_dir / "aggregates").resolve()
+        # Invalid root JSON is skipped, aggregates/ is not a candidate
+        assert len(result) == 0
 
-    def test_candidate_paths_only_includes_supported_values(self) -> None:
-        """Verifies CANDIDATE_PATHS contains only supported search paths."""
+    def test_candidate_paths_only_includes_strict_root(self) -> None:
+        """Verifies CANDIDATE_PATHS contains ONLY root (strict flat layout)."""
         assert "." in CANDIDATE_PATHS
-        assert "aggregates" in CANDIDATE_PATHS
+        # Legacy fallback removed
+        assert "aggregates" not in CANDIDATE_PATHS
         # Deprecated paths should NOT be in CANDIDATE_PATHS
         assert "aggregates/aggregates" not in CANDIDATE_PATHS
         assert "dataset" not in CANDIDATE_PATHS
-        # Only 2 paths supported
-        assert len(CANDIDATE_PATHS) == 2
+        # Only 1 path supported (strict flat layout)
+        assert len(CANDIDATE_PATHS) == 1
 
 
 class TestCheckDeprecatedLayout:
@@ -195,15 +197,15 @@ class TestGetBestDatasetRoot:
 
         assert result is None
 
-    def test_returns_first_priority_root(self, temp_artifacts_dir: Path) -> None:
-        """Returns the first (highest priority) root when multiple exist."""
+    def test_returns_root_when_multiple_exist(self, temp_artifacts_dir: Path) -> None:
+        """Returns the root when both root and aggregates have manifests."""
         temp_artifacts_dir.mkdir(parents=True)
         create_manifest(temp_artifacts_dir)
         create_manifest(temp_artifacts_dir / "aggregates")
 
         result = get_best_dataset_root(temp_artifacts_dir)
 
-        # Root has higher priority than aggregates/
+        # Only root is found (aggregates not a candidate path)
         assert result == temp_artifacts_dir.resolve()
 
 

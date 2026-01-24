@@ -8,12 +8,12 @@ from pathlib import Path
 
 logger = logging.getLogger(__name__)
 
-# Priority order of candidate paths to search for dataset-manifest.json
-# CRITICAL: Only flat layout supported (manifest at root OR in aggregates/)
-# Double-nesting (aggregates/aggregates) is DEPRECATED and will hard-fail
+# STRICT: Only the flat layout is supported (manifest at root).
+# Legacy nested layouts (aggregates/) are NO LONGER accepted.
+# Use 'ado-insights stage-artifacts' to normalize legacy artifacts.
+# See docs/CONTRACT.md for the authoritative layout specification.
 CANDIDATE_PATHS = [
-    ".",  # Root of provided directory (preferred)
-    "aggregates",  # Single nesting (legacy ADO artifact download)
+    ".",  # Root of provided directory (ONLY valid location)
 ]
 
 
