@@ -18,6 +18,7 @@ import {
   type CoverageInfo,
   type PredictionsData,
   type InsightsData,
+  type VSSBuildArtifact,
 } from "./types";
 
 /**
@@ -58,7 +59,7 @@ export class ArtifactClient {
     this.authToken =
       typeof tokenResult === "string"
         ? tokenResult
-        : (tokenResult as any).token;
+        : (tokenResult as { token: string }).token;
 
     this.initialized = true;
     return this;
@@ -88,7 +89,7 @@ export class ArtifactClient {
     buildId: number,
     artifactName: string,
     filePath: string,
-  ): Promise<any> {
+  ): Promise<unknown> {
     this._ensureInitialized();
 
     const url = this._buildFileUrl(buildId, artifactName, filePath);
@@ -138,11 +139,11 @@ export class ArtifactClient {
   async getArtifactMetadata(
     buildId: number,
     artifactName: string,
-  ): Promise<any | null> {
+  ): Promise<VSSBuildArtifact | null> {
     this._ensureInitialized();
 
     const artifacts = await this.getArtifacts(buildId);
-    const artifact = artifacts.find((a: any) => a.name === artifactName);
+    const artifact = artifacts.find((a: VSSBuildArtifact) => a.name === artifactName);
 
     if (!artifact) {
       console.log(
@@ -161,7 +162,7 @@ export class ArtifactClient {
     buildId: number,
     artifactName: string,
     filePath: string,
-  ): Promise<any> {
+  ): Promise<unknown> {
     this._ensureInitialized();
 
     const artifact = await this.getArtifactMetadata(buildId, artifactName);
@@ -171,7 +172,7 @@ export class ArtifactClient {
       );
     }
 
-    const downloadUrl = (artifact.resource as any)?.downloadUrl;
+    const downloadUrl = artifact.resource?.downloadUrl;
     if (!downloadUrl) {
       throw new Error(
         `No downloadUrl available for artifact '${artifactName}'`,
@@ -213,7 +214,7 @@ export class ArtifactClient {
   /**
    * Get list of artifacts for a build.
    */
-  async getArtifacts(buildId: number): Promise<any[]> {
+  async getArtifacts(buildId: number): Promise<VSSBuildArtifact[]> {
     this._ensureInitialized();
 
     const url = `${this.collectionUri}${this.projectId}/_apis/build/builds/${buildId}/artifacts?api-version=7.1`;
@@ -275,6 +276,22 @@ export class ArtifactClient {
 
     return fetch(url, { ...options, headers });
   }
+
+  /**
+   * Public wrapper for authenticated fetch.
+   * Use this for external callers (e.g., dashboard raw data download).
+   *
+   * @param url - URL to fetch
+   * @param options - Fetch options
+   * @returns Response
+   */
+  public async authenticatedFetch(
+    url: string,
+    options: RequestInit = {},
+  ): Promise<Response> {
+    this._ensureInitialized();
+    return this._authenticatedFetch(url, options);
+  }
 }
 
 /**
@@ -305,15 +322,17 @@ export class AuthenticatedDatasetLoader implements IDatasetLoader {
         this.buildId,
         this.artifactName,
         "dataset-manifest.json",
-      );
-      this.validateManifest(this.manifest);
+      ) as ManifestSchema;
+      if (this.manifest) {
+        this.validateManifest(this.manifest);
+      }
       return this.manifest!;
     } catch (error: unknown) {
       throw new Error(`Failed to load dataset manifest: ${getErrorMessage(error)}`);
     }
   }
 
-  validateManifest(manifest: any): void {
+  validateManifest(manifest: ManifestSchema): void {
     const SUPPORTED_MANIFEST_VERSION = 1;
     const SUPPORTED_DATASET_VERSION = 1;
     const SUPPORTED_AGGREGATES_VERSION = 1;
@@ -328,13 +347,19 @@ export class AuthenticatedDatasetLoader implements IDatasetLoader {
       );
     }
 
-    if (manifest.dataset_schema_version > SUPPORTED_DATASET_VERSION) {
+    if (
+      manifest.dataset_schema_version !== undefined &&
+      manifest.dataset_schema_version > SUPPORTED_DATASET_VERSION
+    ) {
       throw new Error(
         `Dataset version ${manifest.dataset_schema_version} not supported.`,
       );
     }
 
-    if (manifest.aggregates_schema_version > SUPPORTED_AGGREGATES_VERSION) {
+    if (
+      manifest.aggregates_schema_version !== undefined &&
+      manifest.aggregates_schema_version > SUPPORTED_AGGREGATES_VERSION
+    ) {
       throw new Error(
         `Aggregates version ${manifest.aggregates_schema_version} not supported.`,
       );
@@ -347,7 +372,7 @@ export class AuthenticatedDatasetLoader implements IDatasetLoader {
       this.buildId,
       this.artifactName,
       "aggregates/dimensions.json",
-    );
+    ) as DimensionsData;
     return this.dimensions!;
   }
 
@@ -374,7 +399,7 @@ export class AuthenticatedDatasetLoader implements IDatasetLoader {
           this.buildId,
           this.artifactName,
           indexEntry.path,
-        );
+        ) as Rollup;
         this.rollupCache.set(weekStr, rollup);
         results.push(rollup);
       } catch (e) {
@@ -410,7 +435,7 @@ export class AuthenticatedDatasetLoader implements IDatasetLoader {
           this.buildId,
           this.artifactName,
           indexEntry.path,
-        );
+        ) as DistributionData;
         this.distributionCache.set(yearStr, dist);
         results.push(dist);
       } catch (e) {
@@ -496,9 +521,9 @@ export class AuthenticatedDatasetLoader implements IDatasetLoader {
 export class MockArtifactClient {
   public readonly projectId: string = "mock-project";
   public initialized: boolean = true;
-  private mockData: Record<string, any>;
+  private mockData: Record<string, unknown>;
 
-  constructor(mockData: Record<string, any> = {}) {
+  constructor(mockData: Record<string, unknown> = {}) {
     this.mockData = mockData;
   }
 
@@ -510,7 +535,7 @@ export class MockArtifactClient {
     buildId: number,
     artifactName: string,
     filePath: string,
-  ): Promise<any> {
+  ): Promise<unknown> {
     const key = `${buildId}/${artifactName}/${filePath}`;
     if (this.mockData[key]) {
       return JSON.parse(JSON.stringify(this.mockData[key]));
@@ -527,15 +552,15 @@ export class MockArtifactClient {
     return !!this.mockData[key];
   }
 
-  async getArtifacts(buildId: number): Promise<any[]> {
-    return this.mockData[`${buildId}/artifacts`] || [];
+  async getArtifacts(buildId: number): Promise<VSSBuildArtifact[]> {
+    return (this.mockData[`${buildId}/artifacts`] ?? []) as VSSBuildArtifact[];
   }
 
   createDatasetLoader(
     buildId: number,
     artifactName: string,
   ): AuthenticatedDatasetLoader {
-    return new AuthenticatedDatasetLoader(this as any, buildId, artifactName);
+    return new AuthenticatedDatasetLoader(this as unknown as ArtifactClient, buildId, artifactName);
   }
 }
 

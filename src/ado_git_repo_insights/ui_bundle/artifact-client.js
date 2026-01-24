@@ -251,6 +251,18 @@ var PRInsightsArtifactClient = (() => {
       };
       return fetch(url, { ...options, headers });
     }
+    /**
+     * Public wrapper for authenticated fetch.
+     * Use this for external callers (e.g., dashboard raw data download).
+     *
+     * @param url - URL to fetch
+     * @param options - Fetch options
+     * @returns Response
+     */
+    async authenticatedFetch(url, options = {}) {
+      this._ensureInitialized();
+      return this._authenticatedFetch(url, options);
+    }
   };
   var AuthenticatedDatasetLoader = class {
     constructor(artifactClient, buildId, artifactName) {
@@ -269,7 +281,9 @@ var PRInsightsArtifactClient = (() => {
           this.artifactName,
           "dataset-manifest.json"
         );
-        this.validateManifest(this.manifest);
+        if (this.manifest) {
+          this.validateManifest(this.manifest);
+        }
         return this.manifest;
       } catch (error) {
         throw new Error(`Failed to load dataset manifest: ${getErrorMessage(error)}`);
@@ -287,12 +301,12 @@ var PRInsightsArtifactClient = (() => {
           `Manifest version ${manifest.manifest_schema_version} not supported.`
         );
       }
-      if (manifest.dataset_schema_version > SUPPORTED_DATASET_VERSION) {
+      if (manifest.dataset_schema_version !== void 0 && manifest.dataset_schema_version > SUPPORTED_DATASET_VERSION) {
         throw new Error(
           `Dataset version ${manifest.dataset_schema_version} not supported.`
         );
       }
-      if (manifest.aggregates_schema_version > SUPPORTED_AGGREGATES_VERSION) {
+      if (manifest.aggregates_schema_version !== void 0 && manifest.aggregates_schema_version > SUPPORTED_AGGREGATES_VERSION) {
         throw new Error(
           `Aggregates version ${manifest.aggregates_schema_version} not supported.`
         );
@@ -444,7 +458,7 @@ var PRInsightsArtifactClient = (() => {
       return !!this.mockData[key];
     }
     async getArtifacts(buildId) {
-      return this.mockData[`${buildId}/artifacts`] || [];
+      return this.mockData[`${buildId}/artifacts`] ?? [];
     }
     createDatasetLoader(buildId, artifactName) {
       return new AuthenticatedDatasetLoader(this, buildId, artifactName);

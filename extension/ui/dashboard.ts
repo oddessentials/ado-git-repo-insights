@@ -23,8 +23,21 @@ import {
   type SetupRequiredDetails,
   type MultiplePipelinesDetails,
   type ArtifactsMissingDetails,
+  type PipelineMatch,
 } from "./error-types";
-import { getErrorMessage } from "./types";
+import {
+  getErrorMessage,
+  hasMLMethods,
+  type QueryParamResult,
+  type DimensionsData,
+  type DistributionData,
+  type ManifestSchema,
+  type PredictionsRenderData,
+  type InsightsRenderData,
+  type Forecast,
+  type ForecastValue,
+  type InsightItem,
+} from "./types";
 
 // Dashboard state
 let loader: IDatasetLoader | null = null;
@@ -50,7 +63,23 @@ const SETTINGS_KEY_PIPELINE = "pr-insights-pipeline-id";
 const ENABLE_PHASE5_FEATURES = true;
 
 // DOM element cache
+// DOM element cache - stores both HTMLElements and NodeLists
+// eslint-disable-next-line @typescript-eslint/no-explicit-any -- Single documented exception: DOM cache allows flexible storage; use getElement<T>() for typed access
 const elements: Record<string, any> = {};
+
+/**
+ * Typed DOM element accessor.
+ * Provides type-safe access to cached DOM elements.
+ * @param id - Element ID from cache
+ * @returns Typed element or null
+ */
+function getElement<T extends HTMLElement = HTMLElement>(id: string): T | null {
+  const el = elements[id];
+  if (el instanceof HTMLElement) {
+    return el as T;
+  }
+  return null;
+}
 
 /**
  * Phase 4: Production-safe metrics collector
@@ -184,9 +213,7 @@ async function initializeAdoSdk(): Promise<void> {
 /**
  * Parse and validate query parameters.
  */
-function parseQueryParams():
-  | { mode: string; value: any; warning?: string | null }
-  | PrInsightsError {
+function parseQueryParams(): QueryParamResult | PrInsightsError {
   const params = new URLSearchParams(window.location.search);
 
   const datasetUrl = params.get("dataset");
@@ -335,7 +362,8 @@ async function resolveConfiguration(): Promise<{
 
   // Mode: direct URL
   if (queryResult.mode === "direct") {
-    return { directUrl: queryResult.value };
+    // When mode is 'direct', value is always a string (URL)
+    return { directUrl: queryResult.value as string };
   }
 
   // Get current project context
@@ -361,7 +389,8 @@ async function resolveConfiguration(): Promise<{
 
   // Mode: explicit pipelineId from query
   if (queryResult.mode === "explicit") {
-    return await resolveFromPipelineId(queryResult.value, targetProjectId);
+    // When mode is 'explicit', value is always a number (pipeline ID)
+    return await resolveFromPipelineId(queryResult.value as number, targetProjectId);
   }
 
   // Check settings for pipeline ID
@@ -538,7 +567,8 @@ async function discoverInsightsPipelines(
  */
 async function getBuildClient(): Promise<IBuildRestClient> {
   return new Promise((resolve) => {
-    VSS.require(["TFS/Build/RestClient"], (BuildRestClient: any) => {
+    VSS.require(["TFS/Build/RestClient"], (...args: unknown[]) => {
+      const BuildRestClient = args[0] as { getClient(): IBuildRestClient };
       resolve(BuildRestClient.getClient());
     });
   });
@@ -715,7 +745,7 @@ function showMultiplePipelines(error: PrInsightsError): void {
     // SECURITY: Escape pipeline names to prevent XSS
     listEl.innerHTML = details.matches
       .map(
-        (m: any) => `
+        (m: PipelineMatch) => `
                 <a href="?pipelineId=${escapeHtml(String(m.id))}" class="pipeline-option">
                     <strong>${escapeHtml(m.name)}</strong>
                     <span class="pipeline-id">ID: ${escapeHtml(String(m.id))}</span>
@@ -1010,7 +1040,7 @@ function applyFiltersToRollups(
             ([name]) => name === repoId,
           )?.[1];
         })
-        .filter(Boolean) as any[];
+        .filter((r): r is number => r !== undefined);
 
       if (selectedRepos.length === 0) {
         return {
@@ -1023,43 +1053,20 @@ function applyFiltersToRollups(
         };
       }
 
-      // Aggregate metrics
+      // Aggregate metrics - by_repository values are PR counts per repo
       const totalPrCount = selectedRepos.reduce(
-        (sum, r) => sum + (r.pr_count || 0),
-        0,
-      );
-      const p50Values = selectedRepos
-        .map((r) => r.cycle_time_p50)
-        .filter((v) => v != null);
-      const p90Values = selectedRepos
-        .map((r) => r.cycle_time_p90)
-        .filter((v) => v != null);
-
-      const avgP50 =
-        p50Values.length > 0
-          ? p50Values.reduce((a, b) => a + b, 0) / p50Values.length
-          : null;
-      const avgP90 =
-        p90Values.length > 0
-          ? p90Values.reduce((a, b) => a + b, 0) / p90Values.length
-          : null;
-
-      const totalAuthors = selectedRepos.reduce(
-        (sum, r) => sum + (r.authors_count || 0),
-        0,
-      );
-      const totalReviewers = selectedRepos.reduce(
-        (sum, r) => sum + (r.reviewers_count || 0),
+        (sum, count) => sum + count,
         0,
       );
 
+      // When filtering by repo, we only have PR count per repo.
+      // Other metrics (cycle time, authors, reviewers) cannot be filtered
+      // as they're only available at the rollup level, not per-repo.
       return {
         ...rollup,
         pr_count: totalPrCount,
-        cycle_time_p50: avgP50,
-        cycle_time_p90: avgP90,
-        authors_count: totalAuthors,
-        reviewers_count: totalReviewers,
+        // NOTE: cycle_time/authors/reviewers preserved from unfiltered rollup
+        // as we don't have per-repo breakdown for these metrics
       } as Rollup;
     }
 
@@ -1067,7 +1074,7 @@ function applyFiltersToRollups(
     if (filters.teams.length && rollup.by_team) {
       const selectedTeams = filters.teams
         .map((teamId) => rollup.by_team![teamId])
-        .filter(Boolean) as any[];
+        .filter((t): t is number => t !== undefined);
 
       if (selectedTeams.length === 0) {
         return {
@@ -1080,22 +1087,19 @@ function applyFiltersToRollups(
         };
       }
 
+      // Aggregate metrics - by_team values are PR counts per team
       const totalPrCount = selectedTeams.reduce(
-        (sum, t) => sum + (t.pr_count || 0),
+        (sum, count) => sum + count,
         0,
       );
-      const p50Values = selectedTeams
-        .map((t) => t.cycle_time_p50)
-        .filter((v) => v != null);
-      const avgP50 =
-        p50Values.length > 0
-          ? p50Values.reduce((a, b) => a + b, 0) / p50Values.length
-          : null;
 
+      // When filtering by team, we only have PR count per team.
+      // Other metrics are preserved from the unfiltered rollup.
       return {
         ...rollup,
         pr_count: totalPrCount,
-        cycle_time_p50: avgP50,
+        // NOTE: cycle_time/authors/reviewers preserved from unfiltered rollup
+        // as we don't have per-team breakdown for these metrics
       } as Rollup;
     }
 
@@ -1543,7 +1547,7 @@ function renderThroughputChart(rollups: Rollup[]): void {
 /**
  * Render cycle time distribution.
  */
-function renderCycleDistribution(distributions: any[]): void {
+function renderCycleDistribution(distributions: DistributionData[]): void {
   const distEl = elements["cycle-distribution"];
   if (!distEl) return;
 
@@ -1803,21 +1807,23 @@ function addChartTooltips(
 async function updateFeatureTabs(): Promise<void> {
   if (!loader) return;
 
-  // Check if loader supports loadPredictions/loadInsights
-  if (typeof (loader as any).loadPredictions !== "function") return;
+  // Check if loader supports loadPredictions/loadInsights using type guard
+  if (!hasMLMethods(loader)) return;
 
   const predictionsContent = document.getElementById("tab-predictions");
   const predictionsUnavailable = document.getElementById(
     "predictions-unavailable",
   );
   if (predictionsContent) {
-    const predictionsResult = await (loader as any).loadPredictions();
+    const predictionsResult = await loader.loadPredictions();
 
+    // Check for valid predictions data with forecasts
+    const predData = predictionsResult?.data as PredictionsRenderData | undefined;
     if (
       predictionsResult?.state === "ok" &&
-      predictionsResult.data?.forecasts?.length > 0
+      predData?.forecasts?.length && predData.forecasts.length > 0
     ) {
-      renderPredictions(predictionsContent, predictionsResult.data);
+      renderPredictions(predictionsContent, predData);
     } else if (predictionsUnavailable) {
       predictionsUnavailable.classList.remove("hidden");
     }
@@ -1826,13 +1832,15 @@ async function updateFeatureTabs(): Promise<void> {
   const aiContent = document.getElementById("tab-ai-insights");
   const aiUnavailable = document.getElementById("ai-unavailable");
   if (aiContent) {
-    const insightsResult = await (loader as any).loadInsights();
+    const insightsResult = await loader.loadInsights();
 
+    // Check for valid insights data
+    const insData = insightsResult?.data as InsightsRenderData | undefined;
     if (
       insightsResult?.state === "ok" &&
-      insightsResult.data?.insights?.length > 0
+      insData?.insights?.length && insData.insights.length > 0
     ) {
-      renderAIInsights(aiContent, insightsResult.data);
+      renderAIInsights(aiContent, insData);
     } else if (aiUnavailable) {
       aiUnavailable.classList.remove("hidden");
     }
@@ -1842,7 +1850,7 @@ async function updateFeatureTabs(): Promise<void> {
 /**
  * Render predictions.
  */
-function renderPredictions(container: HTMLElement, predictions: any): void {
+function renderPredictions(container: HTMLElement, predictions: PredictionsRenderData): void {
   const content = document.createElement("div");
   content.className = "predictions-content";
 
@@ -1850,7 +1858,7 @@ function renderPredictions(container: HTMLElement, predictions: any): void {
     content.innerHTML += `<div class="stub-warning">⚠️ Demo data</div>`;
   }
 
-  predictions.forecasts.forEach((forecast: any) => {
+  predictions.forecasts.forEach((forecast: Forecast) => {
     const label = forecast.metric
       .replace(/_/g, " ")
       .replace(/\b\w/g, (c: string) => c.toUpperCase());
@@ -1863,7 +1871,7 @@ function renderPredictions(container: HTMLElement, predictions: any): void {
                     <tbody>
                         ${forecast.values
         .map(
-          (v: any) => `
+          (v: ForecastValue) => `
                             <tr>
                                 <td>${escapeHtml(String(v.period_start))}</td>
                                 <td>${escapeHtml(String(v.predicted))}</td>
@@ -1886,7 +1894,7 @@ function renderPredictions(container: HTMLElement, predictions: any): void {
 /**
  * Render AI insights.
  */
-function renderAIInsights(container: HTMLElement, insights: any): void {
+function renderAIInsights(container: HTMLElement, insights: InsightsRenderData): void {
   const content = document.createElement("div");
   content.className = "insights-content";
 
@@ -1900,7 +1908,7 @@ function renderAIInsights(container: HTMLElement, insights: any): void {
     info: "🔵",
   };
   ["critical", "warning", "info"].forEach((severity) => {
-    const items = insights.insights.filter((i: any) => i.severity === severity);
+    const items = insights.insights.filter((i: InsightItem) => i.severity === severity);
     if (!items.length) return;
 
     // SECURITY: Escape all user-controlled data to prevent XSS
@@ -1910,7 +1918,7 @@ function renderAIInsights(container: HTMLElement, insights: any): void {
                 <div class="insight-cards">
                     ${items
         .map(
-          (i: any) => `
+          (i: InsightItem) => `
                         <div class="insight-card ${escapeHtml(String(i.severity))}">
                             <div class="insight-category">${escapeHtml(String(i.category))}</div>
                             <h5>${escapeHtml(String(i.title))}</h5>
@@ -1995,14 +2003,14 @@ function switchTab(tabId: string): void {
  * The filter values MUST use repository_name/team_name because that's how
  * the by_repository and by_team slices in weekly rollups are keyed.
  */
-function populateFilterDropdowns(dimensions: any): void {
+function populateFilterDropdowns(dimensions: DimensionsData | null): void {
   if (!dimensions) return;
 
   // Populate repository filter
-  const repoFilter = elements["repo-filter"] as HTMLSelectElement | null;
-  if (repoFilter && dimensions.repositories?.length > 0) {
+  const repoFilter = getElement<HTMLSelectElement>("repo-filter");
+  if (repoFilter && dimensions.repositories && dimensions.repositories.length > 0) {
     repoFilter.innerHTML = '<option value="">All</option>';
-    dimensions.repositories.forEach((repo: any) => {
+    dimensions.repositories.forEach((repo) => {
       const option = document.createElement("option");
       // Use repository_name as value (matches by_repository keys in rollups)
       option.value = repo.repository_name;
@@ -2015,10 +2023,10 @@ function populateFilterDropdowns(dimensions: any): void {
   }
 
   // Populate team filter
-  const teamFilter = elements["team-filter"] as HTMLSelectElement | null;
-  if (teamFilter && dimensions.teams?.length > 0) {
+  const teamFilter = getElement<HTMLSelectElement>("team-filter");
+  if (teamFilter && dimensions.teams && dimensions.teams.length > 0) {
     teamFilter.innerHTML = '<option value="">All</option>';
-    dimensions.teams.forEach((team: any) => {
+    dimensions.teams.forEach((team) => {
       const option = document.createElement("option");
       // Use team_name as value (matches by_team keys in rollups)
       option.value = team.team_name;
@@ -2422,8 +2430,8 @@ async function downloadRawDataZip(): Promise<void> {
       zipUrl = `${zipUrl}${separator}format=zip`;
     }
 
-    // Use the protected method from ArtifactClient
-    const response = await (artifactClient as any)._authenticatedFetch(zipUrl);
+    // Use the public authenticated fetch method from ArtifactClient
+    const response = await artifactClient.authenticatedFetch(zipUrl);
 
     if (!response.ok) {
       if (response.status === 403 || response.status === 401) {
@@ -2485,11 +2493,11 @@ function showContent(): void {
   elements["main-content"]?.classList.remove("hidden");
 }
 
-function updateDatasetInfo(manifest: any): void {
+function updateDatasetInfo(manifest: ManifestSchema | null): void {
   const generatedAt = manifest?.generated_at
     ? new Date(manifest.generated_at).toLocaleString()
     : "Unknown";
-  const runId = manifest?.run_id || "";
+  const runId = (manifest as { run_id?: string })?.run_id || "";
 
   const runInfo = elements["run-info"];
   if (runInfo) {

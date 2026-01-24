@@ -50,6 +50,40 @@ export interface VSSBuildArtifact {
     };
 }
 
+/**
+ * VSS Build REST Client interface.
+ * Provides typed methods for Build SDK interactions.
+ */
+export interface VSSBuildClient {
+    getDefinitions(
+        project: string,
+        name?: string | null,
+        repositoryId?: string | null,
+        repositoryType?: string | null,
+        queryOrder?: number | null,
+        top?: number | null,
+        continuationToken?: string | null,
+        minMetricsTime?: Date | null,
+        definitionIds?: number[] | null,
+    ): Promise<VSSBuildDefinition[]>;
+    getBuilds(
+        project: string,
+        definitions?: number[] | null,
+        queues?: number[] | null,
+        buildNumber?: string | null,
+        minTime?: Date | null,
+        maxTime?: Date | null,
+        requestedFor?: string | null,
+        reasonFilter?: number | null,
+        statusFilter?: number | null,
+        resultFilter?: number | null,
+        tagFilters?: string[] | null,
+        properties?: string[] | null,
+        top?: number | null,
+    ): Promise<VSSBuild[]>;
+    getArtifacts(project: string, buildId: number): Promise<VSSBuildArtifact[]>;
+}
+
 // =============================================================================
 // Dataset Types
 // =============================================================================
@@ -206,6 +240,23 @@ export interface DimensionsData {
         author_id: string;
         author_name: string;
     }>;
+    users?: Array<{
+        id?: string;
+        name?: string;
+        [key: string]: unknown;
+    }>;
+    projects?: Array<{
+        id?: string;
+        name?: string;
+        [key: string]: unknown;
+    }>;
+    date_range?: {
+        start?: string;
+        end?: string;
+        min?: string;
+        max?: string;
+    };
+    [key: string]: unknown; // Allow for additional fields from fixtures
 }
 
 /**
@@ -240,7 +291,10 @@ export interface CoverageInfo {
  * Predictions data structure.
  */
 export interface PredictionsData {
-    state?: "disabled" | "missing" | "auth_required" | "ok" | "unavailable";
+    state?: "disabled" | "missing" | "auth" | "auth_required" | "ok" | "error" | "invalid" | "unavailable";
+    error?: string;
+    message?: string;
+    data?: unknown;
     predictions?: Array<{
         week: string;
         pr_count_predicted?: number;
@@ -253,7 +307,10 @@ export interface PredictionsData {
  * AI Insights data structure.
  */
 export interface InsightsData {
-    state?: "disabled" | "missing" | "auth_required" | "ok" | "unavailable";
+    state?: "disabled" | "missing" | "auth" | "auth_required" | "ok" | "error" | "invalid" | "unavailable";
+    error?: string;
+    message?: string;
+    data?: unknown;
     insights?: Array<{
         type: string;
         severity: string;
@@ -279,6 +336,91 @@ export interface WeekLoadResult<T> {
     status: LoadStatus;
     data?: T;
     error?: unknown;
+}
+
+// =============================================================================
+// Dashboard Typing Interfaces
+// =============================================================================
+
+/**
+ * Query parameter parsing result (union discriminant).
+ */
+export interface QueryParamResult {
+    mode: "direct" | "explicit" | "discover";
+    value: string | number | null;
+    warning?: string | null;
+}
+
+/**
+ * Single forecast value point.
+ */
+export interface ForecastValue {
+    period_start: string;
+    predicted: number;
+    lower_bound: number;
+    upper_bound: number;
+}
+
+/**
+ * Forecast for a single metric.
+ */
+export interface Forecast {
+    metric: string;
+    unit: string;
+    values: ForecastValue[];
+}
+
+/**
+ * Predictions data for rendering (subset of PredictionsData).
+ */
+export interface PredictionsRenderData {
+    is_stub?: boolean;
+    forecasts: Forecast[];
+}
+
+/**
+ * Single AI insight item.
+ */
+export interface InsightItem {
+    severity: "critical" | "warning" | "info";
+    category: string;
+    title: string;
+    description: string;
+}
+
+/**
+ * AI Insights data for rendering (subset of InsightsData).
+ */
+export interface InsightsRenderData {
+    is_stub?: boolean;
+    insights: InsightItem[];
+}
+
+/**
+ * Extended IDatasetLoader with optional ML methods.
+ * Used for type-safe feature detection.
+ */
+export interface IDatasetLoaderWithML {
+    loadManifest(): Promise<ManifestSchema>;
+    loadDimensions(): Promise<DimensionsData | null>;
+    getWeeklyRollups(startDate: Date, endDate: Date): Promise<unknown[]>;
+    getDistributions(startDate: Date, endDate: Date): Promise<DistributionData[]>;
+    getCoverage(): CoverageInfo | null;
+    getDefaultRangeDays(): number;
+    loadPredictions(): Promise<PredictionsData>;
+    loadInsights(): Promise<InsightsData>;
+}
+
+/**
+ * Type guard for ML-enabled dataset loaders.
+ */
+export function hasMLMethods(loader: unknown): loader is IDatasetLoaderWithML {
+    return (
+        typeof loader === "object" &&
+        loader !== null &&
+        typeof (loader as IDatasetLoaderWithML).loadPredictions === "function" &&
+        typeof (loader as IDatasetLoaderWithML).loadInsights === "function"
+    );
 }
 
 // =============================================================================
