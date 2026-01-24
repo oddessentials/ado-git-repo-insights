@@ -110,7 +110,7 @@ jobs:
 
       - uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version: '22'
 
       - name: Install extension dependencies
         working-directory: extension
@@ -407,7 +407,7 @@ jobs:
 
       - uses: actions/setup-node@v4
         with:
-          node-version: "20"
+          node-version: "22"
 
       - name: Install tfx-cli
         run: npm install -g tfx-cli
@@ -477,7 +477,7 @@ jobs:
 
       - uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version: '22'
 
       - name: Install dependencies
         working-directory: extension
@@ -553,7 +553,7 @@ jobs:
 
       - uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version: '22'
 
       - name: Check Baseline Integrity
         run: node .github/scripts/check-baseline-integrity.js
