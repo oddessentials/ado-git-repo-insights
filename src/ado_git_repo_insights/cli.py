@@ -1267,9 +1267,38 @@ def cmd_dashboard(args: Namespace) -> int:
 
     # Locate UI bundle (packaged with the module)
     ui_source = Path(__file__).parent / "ui_bundle"
-    if not ui_source.exists():
-        # Fallback: development mode - use extension/ui directly
-        ui_source = Path(__file__).parent.parent.parent.parent / "extension" / "ui"
+
+    # Dev mode: sync from extension/dist/ui if available and needed
+    from .utils.ui_sync import (
+        SyncError,
+        is_dev_mode,
+        sync_needed,
+        sync_ui_bundle,
+        validate_dist,
+    )
+
+    dev_mode, repo_root = is_dev_mode()
+    if dev_mode and repo_root:
+        dist_ui = repo_root / "extension" / "dist" / "ui"
+
+        # Validate dist exists and is complete
+        try:
+            validate_dist(dist_ui)
+        except SyncError as e:
+            logger.error(str(e))
+            return 1
+
+        # Check if sync is needed (content-addressed)
+        if sync_needed(dist_ui, ui_source):
+            logger.info("UI bundle out of sync, syncing from extension/dist/ui...")
+            try:
+                manifest = sync_ui_bundle(dist_ui, ui_source)
+                logger.info(f"UI bundle synced: {len(manifest)} files")
+            except SyncError as e:
+                logger.error(str(e))
+                return 1
+        else:
+            logger.debug("UI bundle is up to date")
 
     if not ui_source.exists():
         logger.error(f"UI bundle not found at {ui_source}")
