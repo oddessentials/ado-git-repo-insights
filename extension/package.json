@@ -27,15 +27,15 @@
     "package:vsix": "npm run build && npm run stage:tasks && npx tfx-cli extension create --manifest-globs vss-extension.json"
   },
   "devDependencies": {
-    "@types/jest": "^29.5.14",
+    "@types/jest": "^30.0.0",
     "@types/node": "^25.0.0",
     "@typescript-eslint/eslint-plugin": "^8.20.0",
     "@typescript-eslint/parser": "^8.20.0",
     "dependency-cruiser": "^17.3.7",
     "esbuild": "^0.27.0",
     "eslint": "^9.18.0",
-    "jest": "^29.7.0",
-    "jest-environment-jsdom": "^29.7.0",
+    "jest": "^30.0.0",
+    "jest-environment-jsdom": "^30.0.0",
     "jest-junit": "^16.0.0",
     "prettier": "^3.8.1",
     "ts-jest": "^29.2.5",
