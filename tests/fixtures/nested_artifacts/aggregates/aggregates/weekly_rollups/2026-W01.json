@@ -1,0 +1,18 @@
+{
+    "week": "2026-W01",
+    "start_date": "2025-12-30",
+    "end_date": "2026-01-05",
+    "metrics": {
+        "total_prs": 10,
+        "merged_prs": 8,
+        "abandoned_prs": 1,
+        "active_prs": 1,
+        "authors": 3,
+        "reviewers": 5
+    },
+    "cycle_time": {
+        "p50_hours": 12.5,
+        "p90_hours": 48.0,
+        "mean_hours": 18.2
+    }
+}

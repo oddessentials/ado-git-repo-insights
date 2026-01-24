@@ -112,6 +112,16 @@ ado-insights stage-artifacts \
 ado-insights dashboard --dataset ./run_artifacts --open
 ```
 
+> **Build Selection:** The command selects the most recent completed build with
+> result `succeeded` or `partiallySucceeded`. Artifacts from partially succeeded
+> builds are valid and usable — only non-critical pipeline stages failed.
+
+> **Layout Normalization:** If the artifact has a nested `aggregates/aggregates`
+> structure (legacy layout), it is automatically flattened during extraction.
+> The normalized layout has `dataset-manifest.json` at the root.
+
+
+
 **Option B: Local Database (Dev Mode)**
 
 Generate from a local SQLite database:

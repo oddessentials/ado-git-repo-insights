@@ -281,8 +281,10 @@ def create_parser() -> argparse.ArgumentParser:  # pragma: no cover
         "--pipeline-id",
         type=int,
         required=True,
-        help="Pipeline definition ID",
+        help="Pipeline definition ID. Selects most recent completed build "
+        "(succeeded or partiallySucceeded) by finish time.",
     )
+
     stage_parser.add_argument(
         "--artifact",
         type=str,
@@ -853,17 +855,191 @@ def cmd_build_aggregates(args: Namespace) -> int:
         return 1
 
 
+def _normalize_artifact_layout(out_dir: Path) -> bool:
+    """Normalize nested aggregates/aggregates layout to flat structure.
+
+    Transforms:
+        out_dir/aggregates/dataset-manifest.json
+        out_dir/aggregates/aggregates/...
+
+    Into:
+        out_dir/dataset-manifest.json
+        out_dir/aggregates/...
+
+    Returns:
+        True if normalization was performed, False if already flat.
+    """
+    nested_manifest = out_dir / "aggregates" / "dataset-manifest.json"
+    double_nested = out_dir / "aggregates" / "aggregates"
+
+    if nested_manifest.exists() and double_nested.exists():
+        logger.info("Normalizing nested artifact layout...")
+
+        try:
+            # Move manifest to root
+            root_manifest = out_dir / "dataset-manifest.json"
+            if root_manifest.exists():
+                root_manifest.unlink()
+            shutil.move(str(nested_manifest), str(root_manifest))
+
+            # Move double-nested content up one level
+            aggregates_dir = out_dir / "aggregates"
+            for item in list(double_nested.iterdir()):
+                dest = aggregates_dir / item.name
+                if dest.exists():
+                    if dest.is_dir():
+                        shutil.rmtree(dest)
+                    else:
+                        dest.unlink()
+                shutil.move(str(item), str(dest))
+
+            # Remove empty double-nested folder
+            if double_nested.exists() and not any(double_nested.iterdir()):
+                double_nested.rmdir()
+
+            # Remove empty aggregates folder if manifest was the only thing
+            old_aggregates = out_dir / "aggregates"
+            if old_aggregates.exists():
+                remaining = list(old_aggregates.iterdir())
+                # If only dataset-manifest.json remains (shouldn't happen after move)
+                if not remaining:
+                    old_aggregates.rmdir()
+
+            logger.info("Layout normalized: manifest at root, data in aggregates/")
+            return True
+
+        except (PermissionError, OSError) as e:
+            logger.error(f"Failed to normalize layout: {e}")
+            return False
+
+    return False
+
+
+def _validate_staged_artifacts(out_dir: Path) -> tuple[bool, str, int]:
+    """Validate staged artifacts meet CONTRACT.md requirements.
+
+    Contract version: 1
+    Required structure:
+        out_dir/dataset-manifest.json
+        out_dir/aggregates/weekly_rollups/...
+        out_dir/aggregates/distributions/...
+
+    Returns:
+        (is_valid, error_message, manifest_schema_version)
+
+    Returns:
+        (is_valid, error_message, manifest_schema_version)
+    """
+    import json
+
+    # Contract constants
+    supported_manifest_versions = {1}  # Explicitly supported versions
+
+    manifest_path = out_dir / "dataset-manifest.json"
+
+    # Check manifest exists at root
+    if not manifest_path.exists():
+        return False, f"dataset-manifest.json not found at {out_dir}", 0
+
+    # Parse and validate
+    try:
+        manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    except json.JSONDecodeError as e:
+        return False, f"Invalid JSON in manifest: {e}", 0
+
+    # Check schema version is supported
+    schema_version = manifest.get("manifest_schema_version", 0)
+    if schema_version not in supported_manifest_versions:
+        return (
+            False,
+            f"Unsupported manifest_schema_version: {schema_version}. "
+            f"Supported: {supported_manifest_versions}",
+            schema_version,
+        )
+
+    if "manifest_schema_version" not in manifest:
+        return False, "Manifest missing required field: manifest_schema_version", 0
+
+    if "aggregate_index" not in manifest:
+        return False, "Manifest missing required field: aggregate_index", schema_version
+
+    # Check all indexed paths exist and validate against path traversal
+    missing: list[str] = []
+    agg_index = manifest.get("aggregate_index", {})
+    out_dir_resolved = out_dir.resolve()
+
+    def validate_path(path_str: str) -> tuple[bool, str]:
+        """Validate path is safe and within output directory."""
+        if not path_str:
+            return True, ""
+        # Check for path traversal sequences
+        if ".." in path_str or path_str.startswith("/") or path_str.startswith("\\"):
+            return False, f"Path traversal detected: {path_str}"
+        full_path = (out_dir / path_str).resolve()
+        # Ensure path stays within output directory
+        try:
+            full_path.relative_to(out_dir_resolved)
+        except ValueError:
+            return False, f"Path escapes output directory: {path_str}"
+        return True, ""
+
+    for rollup in agg_index.get("weekly_rollups", []):
+        path_str = rollup.get("path", "")
+        valid, err = validate_path(path_str)
+        if not valid:
+            return False, err, schema_version
+        if path_str:
+            full_path = out_dir / path_str
+            if not full_path.exists():
+                missing.append(path_str)
+
+    for dist in agg_index.get("distributions", []):
+        path_str = dist.get("path", "")
+        valid, err = validate_path(path_str)
+        if not valid:
+            return False, err, schema_version
+        if path_str:
+            full_path = out_dir / path_str
+            if not full_path.exists():
+                missing.append(path_str)
+
+    if missing:
+        return False, f"Missing indexed files: {missing[:5]}", schema_version
+
+    # Check for deprecated double-nesting (hard fail)
+    deprecated = out_dir / "aggregates" / "aggregates" / "dataset-manifest.json"
+    if deprecated.exists():
+        return (
+            False,
+            "DEPRECATED: Double-nested aggregates/aggregates layout detected",
+            schema_version,
+        )
+
+    # Also check for ANY nested aggregates/aggregates structure (hard fail)
+    nested_agg = out_dir / "aggregates" / "aggregates"
+    if nested_agg.exists():
+        return (
+            False,
+            "INVALID: Nested aggregates/aggregates folder exists. "
+            "This violates the flat layout contract.",
+            schema_version,
+        )
+
+    return True, "", schema_version
+
+
 def cmd_stage_artifacts(args: Namespace) -> int:
-    """Execute the stage-artifacts command - download pipeline artifacts locally."""
+    """Execute the stage-artifacts command - download pipeline artifacts locally.
+
+    Selects the most recent completed build (succeeded or partiallySucceeded)
+    by finishTime. Normalizes nested layouts and validates contract compliance.
+    """
     import base64
     import json
-    import shutil
     import zipfile
     from datetime import datetime, timezone
 
     import requests
-
-    from .utils.dataset_discovery import find_dataset_roots
 
     logger.info("Staging pipeline artifacts...")
     logger.info(f"Organization: {args.org}")
@@ -880,35 +1056,54 @@ def cmd_stage_artifacts(args: Namespace) -> int:
     base_url = f"https://dev.azure.com/{args.org}/{args.project}/_apis"
 
     try:
-        # Step 1: Get the build (latest successful or specific run-id)
+        # Step 1: Get the build (deterministic selection or specific run-id)
         if args.run_id:
             build_url = f"{base_url}/build/builds/{args.run_id}?api-version=7.1"
             resp = requests.get(build_url, headers=headers, timeout=30)
             resp.raise_for_status()
             build = resp.json()
             build_id = build["id"]
+            build_result = build.get("result", "unknown")
+            logger.info(
+                f"Using specified build ID: {build_id} (result: {build_result})"
+            )
         else:
-            # Get latest successful build for the pipeline
+            # Fetch recent completed builds with BOUNDED LOOKBACK
+            # Contract: Maximum 10 builds to prevent performance drift
+            # and accidental selection from stale pipelines
+            lookback_limit = 10
             builds_url = (
                 f"{base_url}/build/builds?"
                 f"definitions={args.pipeline_id}&"
-                f"statusFilter=completed&resultFilter=succeeded&"
-                f"$top=1&api-version=7.1"
+                f"statusFilter=completed&"
+                f"$top={lookback_limit}&api-version=7.1"
             )
             resp = requests.get(builds_url, headers=headers, timeout=30)
             resp.raise_for_status()
-            builds = resp.json().get("value", [])
+            all_builds = resp.json().get("value", [])
 
-            if not builds:
+            # Filter for eligible results: succeeded or partiallySucceeded
+            eligible_results = ("succeeded", "partiallySucceeded")
+            eligible = [b for b in all_builds if b.get("result") in eligible_results]
+
+            if not eligible:
                 logger.error(
-                    f"No successful builds found for pipeline {args.pipeline_id}"
+                    f"No eligible builds found for pipeline {args.pipeline_id}. "
+                    f"Builds must have result 'succeeded' or 'partiallySucceeded'."
                 )
                 return 1
 
-            build = builds[0]
-            build_id = build["id"]
+            # Sort by finishTime descending (most recent first) - DETERMINISTIC
+            eligible.sort(key=lambda b: b.get("finishTime", ""), reverse=True)
 
-        logger.info(f"Using build ID: {build_id}")
+            build = eligible[0]
+            build_id = build["id"]
+            build_result = build.get("result", "unknown")
+            build_finish = build.get("finishTime", "unknown")
+            logger.info(
+                f"Selected build ID: {build_id} "
+                f"(result: {build_result}, finished: {build_finish})"
+            )
 
         # Step 2: Get artifact download URL
         artifact_url = (
@@ -921,7 +1116,10 @@ def cmd_stage_artifacts(args: Namespace) -> int:
 
         download_url = artifact_info.get("resource", {}).get("downloadUrl")
         if not download_url:
-            logger.error(f"Artifact '{args.artifact}' not found in build {build_id}")
+            logger.error(
+                f"REQUIRED artifact '{args.artifact}' not found in build {build_id}. "
+                f"Staging cannot proceed without the aggregates artifact."
+            )
             return 1
 
         # Step 3: Download the artifact ZIP
@@ -941,40 +1139,65 @@ def cmd_stage_artifacts(args: Namespace) -> int:
             for chunk in resp.iter_content(chunk_size=8192):
                 f.write(chunk)
 
-        logger.info("Extracting artifact (preserving nested paths)...")
-        with zipfile.ZipFile(zip_path, "r") as zf:
-            zf.extractall(out_dir)
-        zip_path.unlink()  # Clean up ZIP
+        logger.info("Extracting artifact...")
+        try:
+            with zipfile.ZipFile(zip_path, "r") as zf:
+                zf.extractall(out_dir)
+        finally:
+            # Always clean up ZIP, even on extraction failure
+            try:
+                zip_path.unlink(missing_ok=True)
+            except OSError:
+                pass  # Best effort cleanup
 
-        # Step 4: Find dataset roots
-        dataset_roots = find_dataset_roots(out_dir)
+        # Step 4: Normalize layout (flatten nested aggregates/aggregates)
+        was_normalized = _normalize_artifact_layout(out_dir)
+        if was_normalized:
+            logger.info("Nested layout detected and normalized to flat structure")
 
-        # Step 5: Write STAGED.json metadata
+        # Step 5: Validate contract compliance (fail fast)
+        is_valid, error_msg, schema_version = _validate_staged_artifacts(out_dir)
+        if not is_valid:
+            logger.error(f"Contract validation failed: {error_msg}")
+            logger.error(
+                "Staged artifacts do not meet CONTRACT.md requirements. "
+                "Verify the pipeline publishes artifacts correctly."
+            )
+            return 1
+
+        # Step 6: Write STAGED.json metadata
         staged_info = {
             "timestamp": datetime.now(timezone.utc).isoformat(),
             "organization": args.org,
             "project": args.project,
             "pipeline_id": args.pipeline_id,
             "build_id": build_id,
+            "build_result": build_result,
             "artifact_name": args.artifact,
-            "dataset_root_candidates": [str(p) for p in dataset_roots],
+            "layout_normalized": was_normalized,
+            "manifest_schema_version": schema_version,
+            "contract_version": 1,  # Current staging contract version
         }
         staged_path = out_dir / "STAGED.json"
         with staged_path.open("w", encoding="utf-8") as f:
             json.dump(staged_info, f, indent=2)
 
         logger.info(f"Artifact staged to: {out_dir}")
-        logger.info(f"Dataset root candidates: {len(dataset_roots)}")
-        for root in dataset_roots:
-            logger.info(f"  - {root}")
-
-        if not dataset_roots:
-            logger.warning(
-                "No dataset-manifest.json found. Verify the artifact was published correctly."
-            )
-            return 1
-
+        logger.info("Contract validation passed")
         logger.info("Stage complete. Run 'ado-insights dashboard' to view.")
+
+        # Emit structured JSON summary for automation parsing
+        summary = {
+            "status": "success",
+            "build_id": build_id,
+            "build_result": build_result,
+            "manifest_schema_version": schema_version,
+            "contract_version": 1,
+            "layout_normalized": was_normalized,
+            "artifact_root": str(out_dir),
+        }
+        print(f"STAGE_SUMMARY={json.dumps(summary)}")
+
         return 0
 
     except requests.exceptions.HTTPError as e:
@@ -1043,9 +1266,38 @@ def cmd_dashboard(args: Namespace) -> int:
 
     # Locate UI bundle (packaged with the module)
     ui_source = Path(__file__).parent / "ui_bundle"
-    if not ui_source.exists():
-        # Fallback: development mode - use extension/ui directly
-        ui_source = Path(__file__).parent.parent.parent.parent / "extension" / "ui"
+
+    # Dev mode: sync from extension/dist/ui if available and needed
+    from .utils.ui_sync import (
+        SyncError,
+        is_dev_mode,
+        sync_needed,
+        sync_ui_bundle,
+        validate_dist,
+    )
+
+    dev_mode, repo_root = is_dev_mode()
+    if dev_mode and repo_root:
+        dist_ui = repo_root / "extension" / "dist" / "ui"
+
+        # Validate dist exists and is complete
+        try:
+            validate_dist(dist_ui)
+        except SyncError as e:
+            logger.error(str(e))
+            return 1
+
+        # Check if sync is needed (content-addressed)
+        if sync_needed(dist_ui, ui_source):
+            logger.info("UI bundle out of sync, syncing from extension/dist/ui...")
+            try:
+                manifest = sync_ui_bundle(dist_ui, ui_source)
+                logger.info(f"UI bundle synced: {len(manifest)} files")
+            except SyncError as e:
+                logger.error(str(e))
+                return 1
+        else:
+            logger.debug("UI bundle is up to date")
 
     if not ui_source.exists():
         logger.error(f"UI bundle not found at {ui_source}")
@@ -1098,7 +1350,7 @@ def cmd_dashboard(args: Namespace) -> int:
         try:
             # Create HTTP handler with CORS headers for local development
             class CORSHTTPRequestHandler(http.server.SimpleHTTPRequestHandler):
-                def end_headers(self):
+                def end_headers(self) -> None:
                     self.send_header(
                         "Cache-Control", "no-cache, no-store, must-revalidate"
                     )
@@ -1107,7 +1359,7 @@ def cmd_dashboard(args: Namespace) -> int:
                     self.send_header("Access-Control-Allow-Origin", "*")
                     super().end_headers()
 
-                def log_message(self, format, *log_args):
+                def log_message(self, format: str, *log_args: object) -> None:
                     # Suppress verbose HTTP logs, only show errors
                     pass
 

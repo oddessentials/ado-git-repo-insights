@@ -63,6 +63,16 @@ var PRInsightsArtifactClient = (() => {
     window.PrInsightsError = PrInsightsError;
   }
 
+  // ui/types.ts
+  function isErrorWithMessage(error) {
+    return typeof error === "object" && error !== null && "message" in error && typeof error.message === "string";
+  }
+  function getErrorMessage(error) {
+    if (isErrorWithMessage(error)) return error.message;
+    if (typeof error === "string") return error;
+    return "Unknown error";
+  }
+
   // ui/artifact-client.ts
   var ArtifactClient = class {
     /**
@@ -262,7 +272,7 @@ var PRInsightsArtifactClient = (() => {
         this.validateManifest(this.manifest);
         return this.manifest;
       } catch (error) {
-        throw new Error(`Failed to load dataset manifest: ${error.message}`);
+        throw new Error(`Failed to load dataset manifest: ${getErrorMessage(error)}`);
       }
     }
     validateManifest(manifest) {
@@ -306,7 +316,9 @@ var PRInsightsArtifactClient = (() => {
           results.push(this.rollupCache.get(weekStr));
           continue;
         }
-        const indexEntry = this.manifest.aggregate_index?.weekly_rollups?.find((r) => r.week === weekStr);
+        const indexEntry = this.manifest?.aggregate_index?.weekly_rollups?.find(
+          (r) => r.week === weekStr
+        );
         if (!indexEntry) continue;
         try {
           const rollup = await this.artifactClient.getArtifactFileViaSdk(
@@ -333,7 +345,9 @@ var PRInsightsArtifactClient = (() => {
           results.push(this.distributionCache.get(yearStr));
           continue;
         }
-        const indexEntry = this.manifest.aggregate_index?.distributions?.find((d) => d.year === yearStr);
+        const indexEntry = this.manifest?.aggregate_index?.distributions?.find(
+          (d) => d.year === yearStr
+        );
         if (!indexEntry) continue;
         try {
           const dist = await this.artifactClient.getArtifactFileViaSdk(
@@ -376,7 +390,7 @@ var PRInsightsArtifactClient = (() => {
       return this.manifest?.coverage || null;
     }
     getDefaultRangeDays() {
-      return this.manifest?.ui_defaults?.default_range_days || 90;
+      return this.manifest?.defaults?.default_date_range_days || 90;
     }
     async loadPredictions() {
       try {

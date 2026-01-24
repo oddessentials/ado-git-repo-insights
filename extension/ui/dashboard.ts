@@ -11,7 +11,7 @@
  * 4. Auto-discovery - Find pipelines with 'aggregates' artifact
  */
 
-import { DatasetLoader, IDatasetLoader, Rollup } from "./dataset-loader";
+import { DatasetLoader, type IDatasetLoader, type Rollup } from "./dataset-loader";
 import { ArtifactClient } from "./artifact-client";
 import {
   PrInsightsError,
@@ -20,10 +20,11 @@ import {
   createNoSuccessfulBuildsError,
   createArtifactsMissingError,
   createInvalidConfigError,
-  SetupRequiredDetails,
-  MultiplePipelinesDetails,
-  ArtifactsMissingDetails,
+  type SetupRequiredDetails,
+  type MultiplePipelinesDetails,
+  type ArtifactsMissingDetails,
 } from "./error-types";
+import { getErrorMessage } from "./types";
 
 // Dashboard state
 let loader: IDatasetLoader | null = null;
@@ -56,10 +57,10 @@ const elements: Record<string, any> = {};
  */
 const IS_PRODUCTION =
   typeof window !== "undefined" &&
-  (window as any).process?.env?.NODE_ENV === "production";
+  window.process?.env?.NODE_ENV === "production";
 const DEBUG_ENABLED =
   !IS_PRODUCTION &&
-  ((typeof window !== "undefined" && (window as any).__DASHBOARD_DEBUG__) ||
+  ((typeof window !== "undefined" && window.__DASHBOARD_DEBUG__) ||
     (typeof window !== "undefined" &&
       new URLSearchParams(window.location.search).has("debug")));
 
@@ -71,57 +72,57 @@ interface PerformanceMetric {
 
 const metricsCollector = DEBUG_ENABLED
   ? {
-      marks: new Map<string, number>(),
-      measures: [] as PerformanceMetric[],
-      mark(name: string) {
-        if (!performance || !performance.mark) return;
-        try {
-          performance.mark(name);
-          this.marks.set(name, performance.now());
-        } catch (_e) {
-          /* ignore */
-        }
-      },
-      measure(name: string, startMark: string, endMark: string) {
-        if (!performance || !performance.measure) return;
-        try {
-          performance.measure(name, startMark, endMark);
-          const entries = performance.getEntriesByName(name, "measure");
-          if (entries.length > 0) {
-            const lastEntry = entries[entries.length - 1];
-            if (lastEntry) {
-              this.measures.push({
-                name,
-                duration: lastEntry.duration,
-                timestamp: Date.now(),
-              });
-            }
+    marks: new Map<string, number>(),
+    measures: [] as PerformanceMetric[],
+    mark(name: string) {
+      if (!performance || !performance.mark) return;
+      try {
+        performance.mark(name);
+        this.marks.set(name, performance.now());
+      } catch (_e) {
+        /* ignore */
+      }
+    },
+    measure(name: string, startMark: string, endMark: string) {
+      if (!performance || !performance.measure) return;
+      try {
+        performance.measure(name, startMark, endMark);
+        const entries = performance.getEntriesByName(name, "measure");
+        if (entries.length > 0) {
+          const lastEntry = entries[entries.length - 1];
+          if (lastEntry) {
+            this.measures.push({
+              name,
+              duration: lastEntry.duration,
+              timestamp: Date.now(),
+            });
           }
-        } catch (_e) {
-          /* ignore */
         }
-      },
-      getMetrics() {
-        return {
-          marks: Array.from(this.marks.entries()).map(([name, time]) => ({
-            name,
-            time,
-          })),
-          measures: [...this.measures],
-        };
-      },
-      reset() {
-        this.marks.clear();
-        this.measures = [];
-        if (performance && performance.clearMarks) performance.clearMarks();
-        if (performance && performance.clearMeasures)
-          performance.clearMeasures();
-      },
-    }
+      } catch (_e) {
+        /* ignore */
+      }
+    },
+    getMetrics() {
+      return {
+        marks: Array.from(this.marks.entries()).map(([name, time]) => ({
+          name,
+          time,
+        })),
+        measures: [...this.measures],
+      };
+    },
+    reset() {
+      this.marks.clear();
+      this.measures = [];
+      if (performance && performance.clearMarks) performance.clearMarks();
+      if (performance && performance.clearMeasures)
+        performance.clearMeasures();
+    },
+  }
   : null;
 
 if (DEBUG_ENABLED && typeof window !== "undefined") {
-  (window as any).__dashboardMetrics = metricsCollector;
+  window.__dashboardMetrics = metricsCollector;
 }
 
 // ============================================================================
@@ -216,7 +217,7 @@ function parseQueryParams():
         if (!isAdoDomain) {
           console.warn(
             `SECURITY: ?dataset= URL "${urlHost}" is not an Azure DevOps domain. ` +
-              `This parameter is intended for development only.`,
+            `This parameter is intended for development only.`,
           );
         }
       } catch (_e) {
@@ -373,10 +374,10 @@ async function resolveConfiguration(): Promise<{
         sourceConfig.pipelineId,
         targetProjectId,
       );
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.warn(
         `Saved pipeline ${sourceConfig.pipelineId} is invalid, falling back to auto-discovery:`,
-        error.message,
+        getErrorMessage(error),
       );
       await clearStalePipelineSetting();
     }
@@ -553,7 +554,7 @@ async function getBuildClient(): Promise<IBuildRestClient> {
 function isLocalMode(): boolean {
   return (
     typeof window !== "undefined" &&
-    (window as any).LOCAL_DASHBOARD_MODE === true
+    window.LOCAL_DASHBOARD_MODE === true
   );
 }
 
@@ -562,7 +563,7 @@ function isLocalMode(): boolean {
  */
 function getLocalDatasetPath(): string {
   return (
-    (typeof window !== "undefined" && (window as any).DATASET_PATH) ||
+    (typeof window !== "undefined" && window.DATASET_PATH) ||
     "./dataset"
   );
 }
@@ -615,7 +616,7 @@ async function init(): Promise<void> {
     }
 
     await loadDataset();
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error("Dashboard initialization failed:", error);
     handleError(error);
   }
@@ -624,7 +625,7 @@ async function init(): Promise<void> {
 /**
  * Handle errors with appropriate UI panels.
  */
-function handleError(error: any): void {
+function handleError(error: unknown): void {
   hideAllPanels();
 
   if (error instanceof PrInsightsError) {
@@ -646,7 +647,7 @@ function handleError(error: any): void {
         break;
     }
   } else {
-    showGenericError("Error", error.message || "An unexpected error occurred");
+    showGenericError("Error", getErrorMessage(error) || "An unexpected error occurred");
   }
 }
 
@@ -1493,8 +1494,8 @@ function renderThroughputChart(rollups: Rollup[]): void {
         const y =
           maxCount > 0
             ? chartHeight -
-              chartPadding -
-              (p.val / maxCount) * (chartHeight - chartPadding * 2)
+            chartPadding -
+            (p.val / maxCount) * (chartHeight - chartPadding * 2)
             : chartHeight / 2;
         return { x, y };
       });
@@ -1654,25 +1655,25 @@ function renderCycleTimeTrend(rollups: Rollup[]): void {
         <svg viewBox="0 0 ${width} ${height}" preserveAspectRatio="xMidYMid meet">
             <!-- Grid lines -->
             ${yLabels
-              .map((val, i) => {
-                const y =
-                  padding.top +
-                  chartHeight -
-                  (i / (yLabels.length - 1)) * chartHeight;
-                return `<line class="line-chart-grid" x1="${padding.left}" y1="${y}" x2="${width - padding.right}" y2="${y}"/>`;
-              })
-              .join("")}
+      .map((val, i) => {
+        const y =
+          padding.top +
+          chartHeight -
+          (i / (yLabels.length - 1)) * chartHeight;
+        return `<line class="line-chart-grid" x1="${padding.left}" y1="${y}" x2="${width - padding.right}" y2="${y}"/>`;
+      })
+      .join("")}
 
             <!-- Y-axis labels -->
             ${yLabels
-              .map((val, i) => {
-                const y =
-                  padding.top +
-                  chartHeight -
-                  (i / (yLabels.length - 1)) * chartHeight;
-                return `<text class="line-chart-axis" x="${padding.left - 4}" y="${y + 3}" text-anchor="end">${formatDuration(val)}</text>`;
-              })
-              .join("")}
+      .map((val, i) => {
+        const y =
+          padding.top +
+          chartHeight -
+          (i / (yLabels.length - 1)) * chartHeight;
+        return `<text class="line-chart-axis" x="${padding.left - 4}" y="${y + 3}" text-anchor="end">${formatDuration(val)}</text>`;
+      })
+      .join("")}
 
             <!-- Lines -->
             ${p90Path ? `<path class="line-chart-p90" d="${p90Path.pathD}" vector-effect="non-scaling-stroke"/>` : ""}
@@ -1861,16 +1862,16 @@ function renderPredictions(container: HTMLElement, predictions: any): void {
                     <thead><tr><th>Week</th><th>Predicted</th><th>Range</th></tr></thead>
                     <tbody>
                         ${forecast.values
-                          .map(
-                            (v: any) => `
+        .map(
+          (v: any) => `
                             <tr>
                                 <td>${escapeHtml(String(v.period_start))}</td>
                                 <td>${escapeHtml(String(v.predicted))}</td>
                                 <td>${escapeHtml(String(v.lower_bound))} - ${escapeHtml(String(v.upper_bound))}</td>
                             </tr>
                         `,
-                          )
-                          .join("")}
+        )
+        .join("")}
                     </tbody>
                 </table>
             </div>
@@ -1908,16 +1909,16 @@ function renderAIInsights(container: HTMLElement, insights: any): void {
                 <h4>${icons[severity]} ${severity.charAt(0).toUpperCase() + severity.slice(1)}</h4>
                 <div class="insight-cards">
                     ${items
-                      .map(
-                        (i: any) => `
+        .map(
+          (i: any) => `
                         <div class="insight-card ${escapeHtml(String(i.severity))}">
                             <div class="insight-category">${escapeHtml(String(i.category))}</div>
                             <h5>${escapeHtml(String(i.title))}</h5>
                             <p>${escapeHtml(String(i.description))}</p>
                         </div>
                     `,
-                      )
-                      .join("")}
+        )
+        .join("")}
                 </div>
             </div>
         `;
@@ -1953,7 +1954,7 @@ function handleDateRangeChange(e: Event): void {
 
   currentDateRange = { start: startDate, end: endDate };
   updateUrlState();
-  refreshMetrics();
+  void refreshMetrics();
 }
 
 function applyCustomDates(): void {
@@ -1964,7 +1965,7 @@ function applyCustomDates(): void {
 
   currentDateRange = { start: new Date(start), end: new Date(end) };
   updateUrlState();
-  refreshMetrics();
+  void refreshMetrics();
 }
 
 function switchTab(tabId: string): void {
@@ -2042,20 +2043,20 @@ function handleFilterChange(): void {
 
   const repoValues = repoFilter
     ? Array.from(repoFilter.selectedOptions)
-        .map((o) => o.value)
-        .filter((v) => v)
+      .map((o) => o.value)
+      .filter((v) => v)
     : [];
   const teamValues = teamFilter
     ? Array.from(teamFilter.selectedOptions)
-        .map((o) => o.value)
-        .filter((v) => v)
+      .map((o) => o.value)
+      .filter((v) => v)
     : [];
 
   currentFilters = { repos: repoValues, teams: teamValues };
 
   updateFilterUI();
   updateUrlState();
-  refreshMetrics();
+  void refreshMetrics();
 }
 
 /**
@@ -2080,7 +2081,7 @@ function clearAllFilters(): void {
 
   updateFilterUI();
   updateUrlState();
-  refreshMetrics();
+  void refreshMetrics();
 }
 
 /**
@@ -2109,7 +2110,7 @@ function removeFilter(type: string, value: string): void {
 
   updateFilterUI();
   updateUrlState();
-  refreshMetrics();
+  void refreshMetrics();
 }
 
 /**
@@ -2251,7 +2252,7 @@ function toggleComparisonMode(): void {
   }
 
   updateUrlState();
-  refreshMetrics();
+  void refreshMetrics();
 }
 
 /**
@@ -2262,7 +2263,7 @@ function exitComparisonMode(): void {
   elements["compare-toggle"]?.classList.remove("active");
   elements["comparison-banner"]?.classList.add("hidden");
   updateUrlState();
-  refreshMetrics();
+  void refreshMetrics();
 }
 
 /**
@@ -2589,7 +2590,7 @@ function restoreStateFromUrl(): void {
 // ============================================================================
 
 if (document.readyState === "loading") {
-  document.addEventListener("DOMContentLoaded", init);
+  document.addEventListener("DOMContentLoaded", () => void init());
 } else {
-  init();
+  void init();
 }

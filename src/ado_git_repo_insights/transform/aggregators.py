@@ -438,13 +438,11 @@ class AggregateGenerator:
             teams_df = pd.DataFrame()
 
         return Dimensions(
-            repositories=list(repos_df.to_dict(orient="records")),  # type: ignore[arg-type]
-            users=list(users_df.to_dict(orient="records")),  # type: ignore[arg-type]
-            projects=list(projects_df.to_dict(orient="records")),  # type: ignore[arg-type]
+            repositories=list(repos_df.to_dict(orient="records")),
+            users=list(users_df.to_dict(orient="records")),
+            projects=list(projects_df.to_dict(orient="records")),
             teams=(
-                list(teams_df.to_dict(orient="records"))  # type: ignore[arg-type]
-                if not teams_df.empty
-                else []
+                list(teams_df.to_dict(orient="records")) if not teams_df.empty else []
             ),
             date_range=date_range,
         )
@@ -510,8 +508,8 @@ class AggregateGenerator:
             week_str = f"{iso_year}-W{iso_week:02d}"
 
             # Calculate week boundaries (iso_year/iso_week are UInt32 from pandas)
-            year_int = int(iso_year)  # type: ignore[call-overload]
-            week_int = int(iso_week)  # type: ignore[call-overload]
+            year_int = int(iso_year)
+            week_int = int(iso_week)
             start_date = date.fromisocalendar(year_int, week_int, 1)
             end_date = date.fromisocalendar(year_int, week_int, 7)
 

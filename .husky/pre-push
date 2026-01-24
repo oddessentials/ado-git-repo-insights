@@ -29,11 +29,29 @@ fi
 echo "[pre-push] ✅ Python tests passed"
 
 # =============================================================================
+# TypeScript Type Check (fresh, no cache - catches declaration conflicts)
+# =============================================================================
+echo ""
+echo "[pre-push] Running TypeScript type check (fresh)..."
+cd extension
+
+# Clear tsc incremental cache for fresh check (catches declaration merging issues)
+rm -f tsconfig.tsbuildinfo 2>/dev/null
+
+npx tsc --noEmit
+if [ $? -ne 0 ]; then
+    echo ""
+    echo "[pre-push] ❌ Push blocked: TypeScript type check failed"
+    exit 1
+fi
+echo "[pre-push] ✅ TypeScript type check passed"
+
+# =============================================================================
 # TypeScript Tests
 # =============================================================================
 echo ""
 echo "[pre-push] Running extension tests..."
-cd extension && npm run test:ci
+npm run test:ci
 if [ $? -ne 0 ]; then
     echo ""
     echo "[pre-push] ❌ Push blocked: Extension tests failed"

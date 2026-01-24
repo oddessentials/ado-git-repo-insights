@@ -6,6 +6,16 @@
  * usable by both extension UI and future CLI dashboard.
  */
 
+import {
+  getErrorMessage,
+  type DimensionsData,
+  type DistributionData,
+  type CoverageInfo,
+  type PredictionsData,
+  type InsightsData,
+  type ManifestSchema,
+} from "./types";
+
 // Supported schema versions (from dataset-contract.md)
 const SUPPORTED_MANIFEST_VERSION = 1;
 const SUPPORTED_DATASET_VERSION = 1;
@@ -67,27 +77,28 @@ export const ROLLUP_FIELD_DEFAULTS = {
  * @param rollup - Raw rollup data from JSON
  * @returns Normalized rollup with all expected fields
  */
-export function normalizeRollup(rollup: any): Rollup {
+export function normalizeRollup(rollup: unknown): Rollup {
   if (!rollup || typeof rollup !== "object") {
     return { week: "unknown", ...ROLLUP_FIELD_DEFAULTS };
   }
 
+  const r = rollup as Record<string, unknown>;
   return {
     // Preserve all existing fields
-    ...rollup,
+    ...(r as Rollup),
     // Ensure required fields have defaults (don't override if already set)
-    pr_count: rollup.pr_count ?? ROLLUP_FIELD_DEFAULTS.pr_count,
+    pr_count: (r.pr_count as number) ?? ROLLUP_FIELD_DEFAULTS.pr_count,
     cycle_time_p50:
-      rollup.cycle_time_p50 ?? ROLLUP_FIELD_DEFAULTS.cycle_time_p50,
+      (r.cycle_time_p50 as number | null) ?? ROLLUP_FIELD_DEFAULTS.cycle_time_p50,
     cycle_time_p90:
-      rollup.cycle_time_p90 ?? ROLLUP_FIELD_DEFAULTS.cycle_time_p90,
-    authors_count: rollup.authors_count ?? ROLLUP_FIELD_DEFAULTS.authors_count,
+      (r.cycle_time_p90 as number | null) ?? ROLLUP_FIELD_DEFAULTS.cycle_time_p90,
+    authors_count: (r.authors_count as number) ?? ROLLUP_FIELD_DEFAULTS.authors_count,
     reviewers_count:
-      rollup.reviewers_count ?? ROLLUP_FIELD_DEFAULTS.reviewers_count,
+      (r.reviewers_count as number) ?? ROLLUP_FIELD_DEFAULTS.reviewers_count,
     // by_repository and by_team are optional features - preserve null if missing
     by_repository:
-      rollup.by_repository !== undefined ? rollup.by_repository : null,
-    by_team: rollup.by_team !== undefined ? rollup.by_team : null,
+      r.by_repository !== undefined ? (r.by_repository as Record<string, number> | null) : null,
+    by_team: r.by_team !== undefined ? (r.by_team as Record<string, number> | null) : null,
   };
 }
 
@@ -96,7 +107,7 @@ export function normalizeRollup(rollup: any): Rollup {
  * @param rollups - Array of raw rollup data
  * @returns Normalized rollups
  */
-export function normalizeRollups(rollups: any[] | null | undefined): Rollup[] {
+export function normalizeRollups(rollups: unknown[] | null | undefined): Rollup[] {
   if (!Array.isArray(rollups)) {
     return [];
   }
@@ -173,8 +184,8 @@ export interface RollupCache {
     branch?: string;
     apiVersion?: string;
   }): string;
-  get(key: string): any;
-  set(key: string, value: any): void;
+  get(key: string): Rollup | undefined;
+  set(key: string, value: Rollup): void;
   has(key: string): boolean;
   clear(): void;
   size(): number;
@@ -190,7 +201,7 @@ export function createRollupCache(clock: () => number = Date.now): RollupCache {
   const ttlMs = 5 * 60 * 1000; // 5 minutes
   const entries = new Map<
     string,
-    { value: any; createdAt: number; touchedAt: number }
+    { value: Rollup; createdAt: number; touchedAt: number }
   >();
 
   /**
@@ -206,7 +217,14 @@ export function createRollupCache(clock: () => number = Date.now): RollupCache {
     /**
      * Build composite cache key. Throws if required params missing.
      */
-    makeKey(params: any) {
+    makeKey(params: {
+      week: string;
+      org: string;
+      project: string;
+      repo: string;
+      branch?: string;
+      apiVersion?: string;
+    }) {
       for (const field of requiredKeyFields) {
         if (!params[field]) {
           throw new Error(`Cache key missing required field: ${field}`);
@@ -244,7 +262,7 @@ export function createRollupCache(clock: () => number = Date.now): RollupCache {
     /**
      * Set cache value, evicting oldest if at capacity.
      */
-    set(key: string, value: any) {
+    set(key: string, value: Rollup) {
       const now = clock();
 
       // Evict oldest by touchedAt if at capacity
@@ -310,14 +328,14 @@ export interface RollupResult {
  * Shared by both direct (fetch-based) and authenticated (ADO artifact-based) loaders.
  */
 export interface IDatasetLoader {
-  loadManifest(): Promise<any>;
-  loadDimensions(): Promise<any>;
+  loadManifest(): Promise<ManifestSchema>;
+  loadDimensions(): Promise<DimensionsData>;
   getWeeklyRollups(startDate: Date, endDate: Date): Promise<Rollup[]>;
-  getDistributions(startDate: Date, endDate: Date): Promise<any[]>;
-  getCoverage(): any;
+  getDistributions(startDate: Date, endDate: Date): Promise<DistributionData[]>;
+  getCoverage(): CoverageInfo | null;
   getDefaultRangeDays(): number;
-  loadPredictions?(): Promise<any>;
-  loadInsights?(): Promise<any>;
+  loadPredictions?(): Promise<PredictionsData>;
+  loadInsights?(): Promise<InsightsData>;
 }
 
 /**
@@ -326,10 +344,10 @@ export interface IDatasetLoader {
 export class DatasetLoader implements IDatasetLoader {
   protected baseUrl: string;
   protected effectiveBaseUrl: string | null = null; // Resolved after probing
-  protected manifest: any | null = null;
-  protected dimensions: any | null = null;
+  protected manifest: ManifestSchema | null = null;
+  protected dimensions: DimensionsData | null = null;
   protected rollupCache = new Map<string, Rollup>(); // week -> data
-  protected distributionCache = new Map<string, any>(); // year -> data
+  protected distributionCache = new Map<string, DistributionData>(); // year -> data
 
   constructor(baseUrl?: string) {
     this.baseUrl = baseUrl || "";
@@ -415,22 +433,22 @@ export class DatasetLoader implements IDatasetLoader {
     if (manifest.manifest_schema_version > SUPPORTED_MANIFEST_VERSION) {
       throw new Error(
         `Manifest version ${manifest.manifest_schema_version} not supported. ` +
-          `Maximum supported: ${SUPPORTED_MANIFEST_VERSION}. ` +
-          `Please update the extension.`,
+        `Maximum supported: ${SUPPORTED_MANIFEST_VERSION}. ` +
+        `Please update the extension.`,
       );
     }
 
     if (manifest.dataset_schema_version > SUPPORTED_DATASET_VERSION) {
       throw new Error(
         `Dataset version ${manifest.dataset_schema_version} not supported. ` +
-          `Please update the extension.`,
+        `Please update the extension.`,
       );
     }
 
     if (manifest.aggregates_schema_version > SUPPORTED_AGGREGATES_VERSION) {
       throw new Error(
         `Aggregates version ${manifest.aggregates_schema_version} not supported. ` +
-          `Please update the extension.`,
+        `Please update the extension.`,
       );
     }
   }
@@ -473,8 +491,8 @@ export class DatasetLoader implements IDatasetLoader {
       }
 
       // Find in index
-      const indexEntry = this.manifest.aggregate_index.weekly_rollups.find(
-        (r: any) => r.week === weekStr,
+      const indexEntry = this.manifest?.aggregate_index?.weekly_rollups?.find(
+        (r) => r.week === weekStr,
       );
 
       if (!indexEntry) {
@@ -511,7 +529,7 @@ export class DatasetLoader implements IDatasetLoader {
       branch?: string;
       apiVersion?: string;
     },
-    onProgress: (event: ProgressEvent) => void = () => {},
+    onProgress: (event: ProgressEvent) => void = () => { },
     cache: RollupCache | null = null,
   ): Promise<RollupResult> {
     if (!this.manifest) {
@@ -577,8 +595,8 @@ export class DatasetLoader implements IDatasetLoader {
         onProgress({ loaded, total, currentWeek: weekStr });
 
         // Find in index
-        const indexEntry = this.manifest.aggregate_index.weekly_rollups.find(
-          (r: any) => r.week === weekStr,
+        const indexEntry = this.manifest?.aggregate_index?.weekly_rollups?.find(
+          (r) => r.week === weekStr,
         );
 
         if (!indexEntry) {
@@ -690,14 +708,14 @@ export class DatasetLoader implements IDatasetLoader {
         }
 
         return { week: weekStr, status: "failed", error: response.status };
-      } catch (err: any) {
+      } catch (err: unknown) {
         // Network error - retry once
         if (retries < fetchSemaphore.maxRetries) {
           retries++;
           await this._delay(fetchSemaphore.retryDelayMs);
           continue;
         }
-        return { week: weekStr, status: "failed", error: err.message };
+        return { week: weekStr, status: "failed", error: getErrorMessage(err) };
       } finally {
         fetchSemaphore.release();
       }
@@ -736,8 +754,8 @@ export class DatasetLoader implements IDatasetLoader {
       }
 
       // Find in index
-      const indexEntry = this.manifest.aggregate_index.distributions.find(
-        (d: any) => d.year === yearStr,
+      const indexEntry = this.manifest?.aggregate_index?.distributions?.find(
+        (d) => d.year === yearStr,
       );
 
       if (!indexEntry) continue;
@@ -822,9 +840,9 @@ export class DatasetLoader implements IDatasetLoader {
       }
 
       return { state: "ok", data: predictions };
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error("[DatasetLoader] Error loading predictions:", err);
-      return { state: "error", error: "PRED_002", message: err.message };
+      return { state: "error", error: "PRED_002", message: getErrorMessage(err) };
     }
   }
 
@@ -871,9 +889,9 @@ export class DatasetLoader implements IDatasetLoader {
       }
 
       return { state: "ok", data: insights };
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error("[DatasetLoader] Error loading insights:", err);
-      return { state: "error", error: "AI_002", message: err.message };
+      return { state: "error", error: "AI_002", message: getErrorMessage(err) };
     }
   }
 
@@ -1002,10 +1020,10 @@ export class DatasetLoader implements IDatasetLoader {
 
 // Browser global exports for runtime compatibility
 if (typeof window !== "undefined") {
-  (window as any).DatasetLoader = DatasetLoader;
-  (window as any).fetchSemaphore = fetchSemaphore;
-  (window as any).createRollupCache = createRollupCache;
-  (window as any).normalizeRollup = normalizeRollup;
-  (window as any).normalizeRollups = normalizeRollups;
-  (window as any).ROLLUP_FIELD_DEFAULTS = ROLLUP_FIELD_DEFAULTS;
+  window.DatasetLoader = DatasetLoader;
+  window.fetchSemaphore = fetchSemaphore;
+  window.createRollupCache = createRollupCache;
+  window.normalizeRollup = normalizeRollup;
+  window.normalizeRollups = normalizeRollups;
+  window.ROLLUP_FIELD_DEFAULTS = ROLLUP_FIELD_DEFAULTS;
 }

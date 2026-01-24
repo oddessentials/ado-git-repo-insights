@@ -1,5 +1,15 @@
 "use strict";
 var PRInsightsDashboard = (() => {
+  // ui/types.ts
+  function isErrorWithMessage(error) {
+    return typeof error === "object" && error !== null && "message" in error && typeof error.message === "string";
+  }
+  function getErrorMessage(error) {
+    if (isErrorWithMessage(error)) return error.message;
+    if (typeof error === "string") return error;
+    return "Unknown error";
+  }
+
   // ui/dataset-loader.ts
   var SUPPORTED_MANIFEST_VERSION = 1;
   var SUPPORTED_DATASET_VERSION = 1;
@@ -25,18 +35,19 @@ var PRInsightsDashboard = (() => {
     if (!rollup || typeof rollup !== "object") {
       return { week: "unknown", ...ROLLUP_FIELD_DEFAULTS };
     }
+    const r = rollup;
     return {
       // Preserve all existing fields
-      ...rollup,
+      ...r,
       // Ensure required fields have defaults (don't override if already set)
-      pr_count: rollup.pr_count ?? ROLLUP_FIELD_DEFAULTS.pr_count,
-      cycle_time_p50: rollup.cycle_time_p50 ?? ROLLUP_FIELD_DEFAULTS.cycle_time_p50,
-      cycle_time_p90: rollup.cycle_time_p90 ?? ROLLUP_FIELD_DEFAULTS.cycle_time_p90,
-      authors_count: rollup.authors_count ?? ROLLUP_FIELD_DEFAULTS.authors_count,
-      reviewers_count: rollup.reviewers_count ?? ROLLUP_FIELD_DEFAULTS.reviewers_count,
+      pr_count: r.pr_count ?? ROLLUP_FIELD_DEFAULTS.pr_count,
+      cycle_time_p50: r.cycle_time_p50 ?? ROLLUP_FIELD_DEFAULTS.cycle_time_p50,
+      cycle_time_p90: r.cycle_time_p90 ?? ROLLUP_FIELD_DEFAULTS.cycle_time_p90,
+      authors_count: r.authors_count ?? ROLLUP_FIELD_DEFAULTS.authors_count,
+      reviewers_count: r.reviewers_count ?? ROLLUP_FIELD_DEFAULTS.reviewers_count,
       // by_repository and by_team are optional features - preserve null if missing
-      by_repository: rollup.by_repository !== void 0 ? rollup.by_repository : null,
-      by_team: rollup.by_team !== void 0 ? rollup.by_team : null
+      by_repository: r.by_repository !== void 0 ? r.by_repository : null,
+      by_team: r.by_team !== void 0 ? r.by_team : null
     };
   }
   function normalizeRollups(rollups) {
@@ -293,7 +304,7 @@ var PRInsightsDashboard = (() => {
           results.push(cached);
           continue;
         }
-        const indexEntry = this.manifest.aggregate_index.weekly_rollups.find(
+        const indexEntry = this.manifest?.aggregate_index?.weekly_rollups?.find(
           (r) => r.week === weekStr
         );
         if (!indexEntry) {
@@ -358,7 +369,7 @@ var PRInsightsDashboard = (() => {
       for (const batch of batches) {
         const batchPromises = batch.map(async (weekStr) => {
           onProgress({ loaded, total, currentWeek: weekStr });
-          const indexEntry = this.manifest.aggregate_index.weekly_rollups.find(
+          const indexEntry = this.manifest?.aggregate_index?.weekly_rollups?.find(
             (r) => r.week === weekStr
           );
           if (!indexEntry) {
@@ -446,7 +457,7 @@ var PRInsightsDashboard = (() => {
             await this._delay(fetchSemaphore.retryDelayMs);
             continue;
           }
-          return { week: weekStr, status: "failed", error: err.message };
+          return { week: weekStr, status: "failed", error: getErrorMessage(err) };
         } finally {
           fetchSemaphore.release();
         }
@@ -476,7 +487,7 @@ var PRInsightsDashboard = (() => {
           results.push(cached);
           continue;
         }
-        const indexEntry = this.manifest.aggregate_index.distributions.find(
+        const indexEntry = this.manifest?.aggregate_index?.distributions?.find(
           (d) => d.year === yearStr
         );
         if (!indexEntry) continue;
@@ -549,7 +560,7 @@ var PRInsightsDashboard = (() => {
         return { state: "ok", data: predictions };
       } catch (err) {
         console.error("[DatasetLoader] Error loading predictions:", err);
-        return { state: "error", error: "PRED_002", message: err.message };
+        return { state: "error", error: "PRED_002", message: getErrorMessage(err) };
       }
     }
     /**
@@ -591,7 +602,7 @@ var PRInsightsDashboard = (() => {
         return { state: "ok", data: insights };
       } catch (err) {
         console.error("[DatasetLoader] Error loading insights:", err);
-        return { state: "error", error: "AI_002", message: err.message };
+        return { state: "error", error: "AI_002", message: getErrorMessage(err) };
       }
     }
     /**
@@ -998,7 +1009,7 @@ var PRInsightsDashboard = (() => {
         this.validateManifest(this.manifest);
         return this.manifest;
       } catch (error) {
-        throw new Error(`Failed to load dataset manifest: ${error.message}`);
+        throw new Error(`Failed to load dataset manifest: ${getErrorMessage(error)}`);
       }
     }
     validateManifest(manifest) {
@@ -1042,7 +1053,9 @@ var PRInsightsDashboard = (() => {
           results.push(this.rollupCache.get(weekStr));
           continue;
         }
-        const indexEntry = this.manifest.aggregate_index?.weekly_rollups?.find((r) => r.week === weekStr);
+        const indexEntry = this.manifest?.aggregate_index?.weekly_rollups?.find(
+          (r) => r.week === weekStr
+        );
         if (!indexEntry) continue;
         try {
           const rollup = await this.artifactClient.getArtifactFileViaSdk(
@@ -1069,7 +1082,9 @@ var PRInsightsDashboard = (() => {
           results.push(this.distributionCache.get(yearStr));
           continue;
         }
-        const indexEntry = this.manifest.aggregate_index?.distributions?.find((d) => d.year === yearStr);
+        const indexEntry = this.manifest?.aggregate_index?.distributions?.find(
+          (d) => d.year === yearStr
+        );
         if (!indexEntry) continue;
         try {
           const dist = await this.artifactClient.getArtifactFileViaSdk(
@@ -1112,7 +1127,7 @@ var PRInsightsDashboard = (() => {
       return this.manifest?.coverage || null;
     }
     getDefaultRangeDays() {
-      return this.manifest?.ui_defaults?.default_range_days || 90;
+      return this.manifest?.defaults?.default_date_range_days || 90;
     }
     async loadPredictions() {
       try {
@@ -1403,7 +1418,7 @@ var PRInsightsDashboard = (() => {
       } catch (error) {
         console.warn(
           `Saved pipeline ${sourceConfig.pipelineId} is invalid, falling back to auto-discovery:`,
-          error.message
+          getErrorMessage(error)
         );
         await clearStalePipelineSetting();
       }
@@ -1598,7 +1613,7 @@ var PRInsightsDashboard = (() => {
           break;
       }
     } else {
-      showGenericError("Error", error.message || "An unexpected error occurred");
+      showGenericError("Error", getErrorMessage(error) || "An unexpected error occurred");
     }
   }
   function hideAllPanels() {
@@ -2473,7 +2488,7 @@ var PRInsightsDashboard = (() => {
     startDate.setDate(startDate.getDate() - days);
     currentDateRange = { start: startDate, end: endDate };
     updateUrlState();
-    refreshMetrics();
+    void refreshMetrics();
   }
   function applyCustomDates() {
     const start = elements["start-date"]?.value;
@@ -2481,7 +2496,7 @@ var PRInsightsDashboard = (() => {
     if (!start || !end) return;
     currentDateRange = { start: new Date(start), end: new Date(end) };
     updateUrlState();
-    refreshMetrics();
+    void refreshMetrics();
   }
   function switchTab(tabId) {
     elements.tabs?.forEach((tab) => {
@@ -2531,7 +2546,7 @@ var PRInsightsDashboard = (() => {
     currentFilters = { repos: repoValues, teams: teamValues };
     updateFilterUI();
     updateUrlState();
-    refreshMetrics();
+    void refreshMetrics();
   }
   function clearAllFilters() {
     currentFilters = { repos: [], teams: [] };
@@ -2549,7 +2564,7 @@ var PRInsightsDashboard = (() => {
     }
     updateFilterUI();
     updateUrlState();
-    refreshMetrics();
+    void refreshMetrics();
   }
   function removeFilter(type, value) {
     if (type === "repo") {
@@ -2573,7 +2588,7 @@ var PRInsightsDashboard = (() => {
     }
     updateFilterUI();
     updateUrlState();
-    refreshMetrics();
+    void refreshMetrics();
   }
   function updateFilterUI() {
     const hasFilters = currentFilters.repos.length > 0 || currentFilters.teams.length > 0;
@@ -2671,14 +2686,14 @@ var PRInsightsDashboard = (() => {
       updateComparisonBanner();
     }
     updateUrlState();
-    refreshMetrics();
+    void refreshMetrics();
   }
   function exitComparisonMode() {
     comparisonMode = false;
     elements["compare-toggle"]?.classList.remove("active");
     elements["comparison-banner"]?.classList.add("hidden");
     updateUrlState();
-    refreshMetrics();
+    void refreshMetrics();
   }
   function updateComparisonBanner() {
     if (!currentDateRange.start || !currentDateRange.end) return;
@@ -2904,9 +2919,9 @@ var PRInsightsDashboard = (() => {
     }
   }
   if (document.readyState === "loading") {
-    document.addEventListener("DOMContentLoaded", init);
+    document.addEventListener("DOMContentLoaded", () => void init());
   } else {
-    init();
+    void init();
   }
 })();
 // Global exports for browser runtime

@@ -5,15 +5,9 @@
  * Per guardrails: assert user-visible behavior only, fully isolate globals.
  */
 
-// Make this file a module (required for declare global)
-export {};
-
-declare global {
-  interface Window {
-    LOCAL_DASHBOARD_MODE?: boolean | string | number;
-    DATASET_PATH?: string;
-  }
-}
+// Make this file a module (required for global augmentation in types.ts)
+// Window interface is declared in ../ui/types.ts
+export { };
 
 describe("Local Mode Integration", () => {
   beforeEach(() => {

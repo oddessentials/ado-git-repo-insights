@@ -1,0 +1,26 @@
+{
+    "repositories": [
+        {
+            "id": "repo-1",
+            "name": "test-repo-1"
+        },
+        {
+            "id": "repo-2",
+            "name": "test-repo-2"
+        }
+    ],
+    "users": [
+        {
+            "id": "user-1",
+            "display_name": "Test User 1"
+        },
+        {
+            "id": "user-2",
+            "display_name": "Test User 2"
+        },
+        {
+            "id": "user-3",
+            "display_name": "Test User 3"
+        }
+    ]
+}
