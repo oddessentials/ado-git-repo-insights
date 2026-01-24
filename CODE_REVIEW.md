@@ -18,6 +18,6 @@
 
 - **Logging format-string safety (`dashboard.ts` and `artifact-client.ts` info findings):** Replace string concatenation used as a format string with constant format strings (or template literals passed as a single argument). This is low priority; do it opportunistically while touching nearby code.
 
-- **Type-only import consistency (`safe-process.ts` info findings):** Standardize on `import type` for purely type imports to avoid accidental runtime imports and keep bundling predictable. Do in a dedicated cleanup commit (no behavior changes).
+- **Type-only import consistency (`safe-process.ts` info findings):** ✅ RESOLVED - All TypeScript files now use `import type` for purely type imports. ESLint `consistent-type-imports` rule enforced at 'error' level.
 
 - **Preserve the PowerBI CSV contract while fixing any of the above:** Any refactor that touches extraction/normalization/output must keep CSV filenames, column names, and column ordering identical; add a “golden CSV diff” test gate that fails on any schema/order drift.

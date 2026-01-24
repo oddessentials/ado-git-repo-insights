@@ -90,6 +90,8 @@ exclude = [
 [[tool.mypy.overrides]]
 module = [
     "azure.storage.blob",
+    "prophet",
+    "openai",
 ]
 ignore_missing_imports = true
 
