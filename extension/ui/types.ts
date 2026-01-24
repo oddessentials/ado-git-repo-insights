@@ -168,3 +168,43 @@ export interface WeekLoadResult<T> {
     data?: T;
     error?: unknown;
 }
+
+// =============================================================================
+// Window Interface Augmentation
+// Typed global exports for browser compatibility
+// =============================================================================
+
+/**
+ * Extended Window interface for PR Insights globals.
+ * This allows typed assignments like `window.DatasetLoader = DatasetLoader`
+ * instead of `(window as any).DatasetLoader = DatasetLoader`.
+ */
+declare global {
+    interface Window {
+        // Dataset Loader exports
+        DatasetLoader?: typeof import("./dataset-loader").DatasetLoader;
+        fetchSemaphore?: typeof import("./dataset-loader").fetchSemaphore;
+        createRollupCache?: typeof import("./dataset-loader").createRollupCache;
+        normalizeRollup?: typeof import("./dataset-loader").normalizeRollup;
+        normalizeRollups?: typeof import("./dataset-loader").normalizeRollups;
+        ROLLUP_FIELD_DEFAULTS?: typeof import("./dataset-loader").ROLLUP_FIELD_DEFAULTS;
+
+        // Artifact Client exports
+        ArtifactClient?: typeof import("./artifact-client").ArtifactClient;
+        AuthenticatedDatasetLoader?: typeof import("./artifact-client").AuthenticatedDatasetLoader;
+        MockArtifactClient?: typeof import("./artifact-client").MockArtifactClient;
+
+        // Settings page exports
+        selectDiscoveredPipeline?: (pipelineId: number) => void;
+
+        // Dashboard debug/config (optional runtime values)
+        __DASHBOARD_DEBUG__?: boolean;
+        __dashboardMetrics?: unknown;
+        LOCAL_DASHBOARD_MODE?: boolean;
+        DATASET_PATH?: string;
+        process?: { env?: { NODE_ENV?: string } };
+    }
+}
+
+// Required for module augmentation to work
+export { };

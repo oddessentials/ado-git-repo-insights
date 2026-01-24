@@ -57,10 +57,10 @@ const elements: Record<string, any> = {};
  */
 const IS_PRODUCTION =
   typeof window !== "undefined" &&
-  (window as any).process?.env?.NODE_ENV === "production";
+  window.process?.env?.NODE_ENV === "production";
 const DEBUG_ENABLED =
   !IS_PRODUCTION &&
-  ((typeof window !== "undefined" && (window as any).__DASHBOARD_DEBUG__) ||
+  ((typeof window !== "undefined" && window.__DASHBOARD_DEBUG__) ||
     (typeof window !== "undefined" &&
       new URLSearchParams(window.location.search).has("debug")));
 
@@ -122,7 +122,7 @@ const metricsCollector = DEBUG_ENABLED
   : null;
 
 if (DEBUG_ENABLED && typeof window !== "undefined") {
-  (window as any).__dashboardMetrics = metricsCollector;
+  window.__dashboardMetrics = metricsCollector;
 }
 
 // ============================================================================
@@ -554,7 +554,7 @@ async function getBuildClient(): Promise<IBuildRestClient> {
 function isLocalMode(): boolean {
   return (
     typeof window !== "undefined" &&
-    (window as any).LOCAL_DASHBOARD_MODE === true
+    window.LOCAL_DASHBOARD_MODE === true
   );
 }
 
@@ -563,7 +563,7 @@ function isLocalMode(): boolean {
  */
 function getLocalDatasetPath(): string {
   return (
-    (typeof window !== "undefined" && (window as any).DATASET_PATH) ||
+    (typeof window !== "undefined" && window.DATASET_PATH) ||
     "./dataset"
   );
 }

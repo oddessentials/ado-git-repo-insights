@@ -533,7 +533,7 @@ export class MockArtifactClient {
 
 // Browser global exports for runtime compatibility
 if (typeof window !== "undefined") {
-  (window as any).ArtifactClient = ArtifactClient;
-  (window as any).AuthenticatedDatasetLoader = AuthenticatedDatasetLoader;
-  (window as any).MockArtifactClient = MockArtifactClient;
+  window.ArtifactClient = ArtifactClient;
+  window.AuthenticatedDatasetLoader = AuthenticatedDatasetLoader;
+  window.MockArtifactClient = MockArtifactClient;
 }

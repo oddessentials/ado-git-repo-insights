@@ -678,7 +678,7 @@ if (document.readyState === "loading") {
 }
 
 // Global exposure for potential inline handlers (though we use addEventListener now)
-(window as any).selectDiscoveredPipeline = (pipelineId: number) => {
+window.selectDiscoveredPipeline = (pipelineId: number) => {
   const pipelineInput = document.getElementById(
     "pipeline-id",
   ) as HTMLInputElement;

@@ -1004,10 +1004,10 @@ export class DatasetLoader implements IDatasetLoader {
 
 // Browser global exports for runtime compatibility
 if (typeof window !== "undefined") {
-  (window as any).DatasetLoader = DatasetLoader;
-  (window as any).fetchSemaphore = fetchSemaphore;
-  (window as any).createRollupCache = createRollupCache;
-  (window as any).normalizeRollup = normalizeRollup;
-  (window as any).normalizeRollups = normalizeRollups;
-  (window as any).ROLLUP_FIELD_DEFAULTS = ROLLUP_FIELD_DEFAULTS;
+  window.DatasetLoader = DatasetLoader;
+  window.fetchSemaphore = fetchSemaphore;
+  window.createRollupCache = createRollupCache;
+  window.normalizeRollup = normalizeRollup;
+  window.normalizeRollups = normalizeRollups;
+  window.ROLLUP_FIELD_DEFAULTS = ROLLUP_FIELD_DEFAULTS;
 }
