@@ -7,7 +7,7 @@
  * - Python executable must be from allowlist
  */
 
-import { spawn, SpawnOptions, ChildProcess } from "child_process";
+import { spawn, type SpawnOptions, type ChildProcess } from "child_process";
 import * as path from "path";
 
 /**

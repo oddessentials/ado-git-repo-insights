@@ -11,7 +11,7 @@
  * 4. Auto-discovery - Find pipelines with 'aggregates' artifact
  */
 
-import { DatasetLoader, IDatasetLoader, Rollup } from "./dataset-loader";
+import { DatasetLoader, type IDatasetLoader, type Rollup } from "./dataset-loader";
 import { ArtifactClient } from "./artifact-client";
 import {
   PrInsightsError,
@@ -20,9 +20,9 @@ import {
   createNoSuccessfulBuildsError,
   createArtifactsMissingError,
   createInvalidConfigError,
-  SetupRequiredDetails,
-  MultiplePipelinesDetails,
-  ArtifactsMissingDetails,
+  type SetupRequiredDetails,
+  type MultiplePipelinesDetails,
+  type ArtifactsMissingDetails,
 } from "./error-types";
 
 // Dashboard state

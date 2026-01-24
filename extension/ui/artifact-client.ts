@@ -8,7 +8,7 @@
  * We must use the SDK's auth token service.
  */
 
-import { IDatasetLoader } from "./dataset-loader";
+import { type IDatasetLoader } from "./dataset-loader";
 import { createPermissionDeniedError } from "./error-types";
 
 /**
