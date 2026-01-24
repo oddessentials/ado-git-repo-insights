@@ -991,6 +991,18 @@ var PRInsightsDashboard = (() => {
       };
       return fetch(url, { ...options, headers });
     }
+    /**
+     * Public wrapper for authenticated fetch.
+     * Use this for external callers (e.g., dashboard raw data download).
+     *
+     * @param url - URL to fetch
+     * @param options - Fetch options
+     * @returns Response
+     */
+    async authenticatedFetch(url, options = {}) {
+      this._ensureInitialized();
+      return this._authenticatedFetch(url, options);
+    }
   };
   var AuthenticatedDatasetLoader = class {
     constructor(artifactClient2, buildId, artifactName) {
