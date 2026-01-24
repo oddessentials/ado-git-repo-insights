@@ -339,6 +339,111 @@ export interface WeekLoadResult<T> {
 }
 
 // =============================================================================
+// Dashboard Typing Interfaces
+// =============================================================================
+
+/**
+ * Pipeline discovery result from auto-discovery.
+ */
+export interface PipelineMatch {
+    id: number;
+    name: string;
+    buildId: number;
+}
+
+/**
+ * Query parameter parsing result (union discriminant).
+ */
+export interface QueryParamResult {
+    mode: "direct" | "explicit" | "discover";
+    value: string | number | null;
+    warning?: string | null;
+}
+
+/**
+ * Rollup slice metrics (by_repository/by_team value structure).
+ */
+export interface RollupSliceMetrics {
+    pr_count: number;
+    cycle_time_p50: number | null;
+    cycle_time_p90: number | null;
+    authors_count: number;
+    reviewers_count: number;
+}
+
+/**
+ * Single forecast value point.
+ */
+export interface ForecastValue {
+    period_start: string;
+    predicted: number;
+    lower_bound: number;
+    upper_bound: number;
+}
+
+/**
+ * Forecast for a single metric.
+ */
+export interface Forecast {
+    metric: string;
+    unit: string;
+    values: ForecastValue[];
+}
+
+/**
+ * Predictions data for rendering (subset of PredictionsData).
+ */
+export interface PredictionsRenderData {
+    is_stub?: boolean;
+    forecasts: Forecast[];
+}
+
+/**
+ * Single AI insight item.
+ */
+export interface InsightItem {
+    severity: "critical" | "warning" | "info";
+    category: string;
+    title: string;
+    description: string;
+}
+
+/**
+ * AI Insights data for rendering (subset of InsightsData).
+ */
+export interface InsightsRenderData {
+    is_stub?: boolean;
+    insights: InsightItem[];
+}
+
+/**
+ * Extended IDatasetLoader with optional ML methods.
+ * Used for type-safe feature detection.
+ */
+export interface IDatasetLoaderWithML {
+    loadManifest(): Promise<ManifestSchema>;
+    loadDimensions(): Promise<DimensionsData | null>;
+    getWeeklyRollups(startDate: Date, endDate: Date): Promise<unknown[]>;
+    getDistributions(startDate: Date, endDate: Date): Promise<DistributionData[]>;
+    getCoverage(): CoverageInfo | null;
+    getDefaultRangeDays(): number;
+    loadPredictions(): Promise<PredictionsData>;
+    loadInsights(): Promise<InsightsData>;
+}
+
+/**
+ * Type guard for ML-enabled dataset loaders.
+ */
+export function hasMLMethods(loader: unknown): loader is IDatasetLoaderWithML {
+    return (
+        typeof loader === "object" &&
+        loader !== null &&
+        typeof (loader as IDatasetLoaderWithML).loadPredictions === "function" &&
+        typeof (loader as IDatasetLoaderWithML).loadInsights === "function"
+    );
+}
+
+// =============================================================================
 // Window Interface Augmentation
 // Typed global exports for browser compatibility
 // =============================================================================
