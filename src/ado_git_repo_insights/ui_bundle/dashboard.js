@@ -1598,6 +1598,137 @@ var PRInsightsDashboard = (() => {
     `;
   }
 
+  // ui/modules/charts/cycle-time.ts
+  function renderCycleDistribution(container, distributions) {
+    if (!container) return;
+    if (!distributions || !distributions.length) {
+      container.innerHTML = '<p class="no-data">No data for selected range</p>';
+      return;
+    }
+    const buckets = {
+      "0-1h": 0,
+      "1-4h": 0,
+      "4-24h": 0,
+      "1-3d": 0,
+      "3-7d": 0,
+      "7d+": 0
+    };
+    distributions.forEach((d) => {
+      Object.entries(d.cycle_time_buckets || {}).forEach(([key, val]) => {
+        buckets[key] = (buckets[key] || 0) + val;
+      });
+    });
+    const total = Object.values(buckets).reduce((a, b) => a + b, 0);
+    if (total === 0) {
+      container.innerHTML = '<p class="no-data">No cycle time data</p>';
+      return;
+    }
+    const html = Object.entries(buckets).map(([label, count]) => {
+      const pct = (count / total * 100).toFixed(1);
+      return `
+            <div class="dist-row">
+                <span class="dist-label">${label}</span>
+                <div class="dist-bar-bg">
+                    <div class="dist-bar" style="width: ${pct}%"></div>
+                </div>
+                <span class="dist-value">${count} (${pct}%)</span>
+            </div>
+        `;
+    }).join("");
+    container.innerHTML = html;
+  }
+  function renderCycleTimeTrend(container, rollups) {
+    if (!container) return;
+    if (!rollups || rollups.length < 2) {
+      container.innerHTML = '<p class="no-data">Not enough data for trend</p>';
+      return;
+    }
+    const p50Data = rollups.map((r) => ({ week: r.week, value: r.cycle_time_p50 })).filter((d) => d.value !== null);
+    const p90Data = rollups.map((r) => ({ week: r.week, value: r.cycle_time_p90 })).filter((d) => d.value !== null);
+    if (p50Data.length < 2 && p90Data.length < 2) {
+      container.innerHTML = '<p class="no-data">No cycle time data available</p>';
+      return;
+    }
+    const allValues = [
+      ...p50Data.map((d) => d.value),
+      ...p90Data.map((d) => d.value)
+    ];
+    const maxVal = Math.max(...allValues);
+    const minVal = Math.min(...allValues);
+    const range = maxVal - minVal || 1;
+    const width = 100;
+    const height = 180;
+    const padding = { top: 10, right: 10, bottom: 25, left: 40 };
+    const chartWidth = width - padding.left - padding.right;
+    const chartHeight = height - padding.top - padding.bottom;
+    const generatePath = (data) => {
+      const points = data.map((d) => {
+        const dataIndex = rollups.findIndex((r) => r.week === d.week);
+        const x = padding.left + dataIndex / (rollups.length - 1) * chartWidth;
+        const y = padding.top + chartHeight - (d.value - minVal) / range * chartHeight;
+        return { x, y, week: d.week, value: d.value };
+      });
+      const pathD = points.map(
+        (p, i) => `${i === 0 ? "M" : "L"} ${p.x.toFixed(1)} ${p.y.toFixed(1)}`
+      ).join(" ");
+      return { pathD, points };
+    };
+    const p50Path = p50Data.length >= 2 ? generatePath(p50Data) : null;
+    const p90Path = p90Data.length >= 2 ? generatePath(p90Data) : null;
+    const yLabels = [minVal, (minVal + maxVal) / 2, maxVal];
+    const svgContent = `
+        <svg viewBox="0 0 ${width} ${height}" preserveAspectRatio="xMidYMid meet">
+            <!-- Grid lines -->
+            ${yLabels.map((_, i) => {
+      const y = padding.top + chartHeight - i / (yLabels.length - 1) * chartHeight;
+      return `<line class="line-chart-grid" x1="${padding.left}" y1="${y}" x2="${width - padding.right}" y2="${y}"/>`;
+    }).join("")}
+
+            <!-- Y-axis labels -->
+            ${yLabels.map((val, i) => {
+      const y = padding.top + chartHeight - i / (yLabels.length - 1) * chartHeight;
+      return `<text class="line-chart-axis" x="${padding.left - 4}" y="${y + 3}" text-anchor="end">${formatDuration(val)}</text>`;
+    }).join("")}
+
+            <!-- Lines -->
+            ${p90Path ? `<path class="line-chart-p90" d="${p90Path.pathD}" vector-effect="non-scaling-stroke"/>` : ""}
+            ${p50Path ? `<path class="line-chart-p50" d="${p50Path.pathD}" vector-effect="non-scaling-stroke"/>` : ""}
+
+            <!-- Dots -->
+            ${p90Path ? p90Path.points.map((p) => `<circle class="line-chart-dot" cx="${p.x}" cy="${p.y}" r="3" fill="var(--warning)" data-week="${p.week}" data-value="${p.value}" data-metric="P90"/>`).join("") : ""}
+            ${p50Path ? p50Path.points.map((p) => `<circle class="line-chart-dot" cx="${p.x}" cy="${p.y}" r="3" fill="var(--primary)" data-week="${p.week}" data-value="${p.value}" data-metric="P50"/>`).join("") : ""}
+        </svg>
+    `;
+    const legendHtml = `
+        <div class="chart-legend">
+            <div class="legend-item">
+                <span class="chart-tooltip-dot legend-p50"></span>
+                <span>P50 (Median)</span>
+            </div>
+            <div class="legend-item">
+                <span class="chart-tooltip-dot legend-p90"></span>
+                <span>P90</span>
+            </div>
+        </div>
+    `;
+    container.innerHTML = `<div class="line-chart">${svgContent}</div>${legendHtml}`;
+    addChartTooltips(container, (dot) => {
+      const week = dot.dataset["week"];
+      const value = parseFloat(dot.dataset["value"] || "0");
+      const metric = dot.dataset["metric"];
+      return `
+            <div class="chart-tooltip-title">${week}</div>
+            <div class="chart-tooltip-row">
+                <span class="chart-tooltip-label">
+                    <span class="chart-tooltip-dot ${metric === "P50" ? "legend-p50" : "legend-p90"}"></span>
+                    ${metric}
+                </span>
+                <span>${formatDuration(value)}</span>
+            </div>
+        `;
+    });
+  }
+
   // ui/modules/export.ts
   var CSV_HEADERS = [
     "Week",
@@ -2316,9 +2447,9 @@ var PRInsightsDashboard = (() => {
     cachedRollups = rollups;
     renderSummaryCards2(rollups, prevRollups);
     renderThroughputChart2(rollups);
-    renderCycleTimeTrend(rollups);
+    renderCycleTimeTrend2(rollups);
     renderReviewerActivity(rollups);
-    renderCycleDistribution(distributions);
+    renderCycleDistribution2(distributions);
     if (comparisonMode) {
       updateComparisonBanner();
     }
@@ -2351,136 +2482,14 @@ var PRInsightsDashboard = (() => {
   function renderThroughputChart2(rollups) {
     renderThroughputChart(elements["throughput-chart"] ?? null, rollups);
   }
-  function renderCycleDistribution(distributions) {
-    const distEl = elements["cycle-distribution"];
-    if (!distEl) return;
-    if (!distributions || !distributions.length) {
-      distEl.innerHTML = '<p class="no-data">No data for selected range</p>';
-      return;
-    }
-    const buckets = {
-      "0-1h": 0,
-      "1-4h": 0,
-      "4-24h": 0,
-      "1-3d": 0,
-      "3-7d": 0,
-      "7d+": 0
-    };
-    distributions.forEach((d) => {
-      Object.entries(d.cycle_time_buckets || {}).forEach(([key, val]) => {
-        buckets[key] = (buckets[key] || 0) + val;
-      });
-    });
-    const total = Object.values(buckets).reduce((a, b) => a + b, 0);
-    if (total === 0) {
-      distEl.innerHTML = '<p class="no-data">No cycle time data</p>';
-      return;
-    }
-    const html = Object.entries(buckets).map(([label, count]) => {
-      const pct = (count / total * 100).toFixed(1);
-      return `
-            <div class="dist-row">
-                <span class="dist-label">${label}</span>
-                <div class="dist-bar-bg">
-                    <div class="dist-bar" style="width: ${pct}%"></div>
-                </div>
-                <span class="dist-value">${count} (${pct}%)</span>
-            </div>
-        `;
-    }).join("");
-    distEl.innerHTML = html;
+  function renderCycleDistribution2(distributions) {
+    renderCycleDistribution(
+      elements["cycle-distribution"] ?? null,
+      distributions
+    );
   }
-  function renderCycleTimeTrend(rollups) {
-    const trendEl = elements["cycle-time-trend"];
-    if (!trendEl) return;
-    if (!rollups || rollups.length < 2) {
-      trendEl.innerHTML = '<p class="no-data">Not enough data for trend</p>';
-      return;
-    }
-    const p50Data = rollups.map((r) => ({ week: r.week, value: r.cycle_time_p50 })).filter((d) => d.value !== null);
-    const p90Data = rollups.map((r) => ({ week: r.week, value: r.cycle_time_p90 })).filter((d) => d.value !== null);
-    if (p50Data.length < 2 && p90Data.length < 2) {
-      trendEl.innerHTML = '<p class="no-data">No cycle time data available</p>';
-      return;
-    }
-    const allValues = [
-      ...p50Data.map((d) => d.value),
-      ...p90Data.map((d) => d.value)
-    ];
-    const maxVal = Math.max(...allValues);
-    const minVal = Math.min(...allValues);
-    const range = maxVal - minVal || 1;
-    const width = 100;
-    const height = 180;
-    const padding = { top: 10, right: 10, bottom: 25, left: 40 };
-    const chartWidth = width - padding.left - padding.right;
-    const chartHeight = height - padding.top - padding.bottom;
-    const generatePath = (data) => {
-      const points = data.map((d) => {
-        const dataIndex = rollups.findIndex((r) => r.week === d.week);
-        const x = padding.left + dataIndex / (rollups.length - 1) * chartWidth;
-        const y = padding.top + chartHeight - (d.value - minVal) / range * chartHeight;
-        return { x, y, week: d.week, value: d.value };
-      });
-      const pathD = points.map(
-        (p, i) => `${i === 0 ? "M" : "L"} ${p.x.toFixed(1)} ${p.y.toFixed(1)}`
-      ).join(" ");
-      return { pathD, points };
-    };
-    const p50Path = p50Data.length >= 2 ? generatePath(p50Data) : null;
-    const p90Path = p90Data.length >= 2 ? generatePath(p90Data) : null;
-    const yLabels = [minVal, (minVal + maxVal) / 2, maxVal];
-    const svgContent = `
-        <svg viewBox="0 0 ${width} ${height}" preserveAspectRatio="xMidYMid meet">
-            <!-- Grid lines -->
-            ${yLabels.map((val, i) => {
-      const y = padding.top + chartHeight - i / (yLabels.length - 1) * chartHeight;
-      return `<line class="line-chart-grid" x1="${padding.left}" y1="${y}" x2="${width - padding.right}" y2="${y}"/>`;
-    }).join("")}
-
-            <!-- Y-axis labels -->
-            ${yLabels.map((val, i) => {
-      const y = padding.top + chartHeight - i / (yLabels.length - 1) * chartHeight;
-      return `<text class="line-chart-axis" x="${padding.left - 4}" y="${y + 3}" text-anchor="end">${formatDuration(val)}</text>`;
-    }).join("")}
-
-            <!-- Lines -->
-            ${p90Path ? `<path class="line-chart-p90" d="${p90Path.pathD}" vector-effect="non-scaling-stroke"/>` : ""}
-            ${p50Path ? `<path class="line-chart-p50" d="${p50Path.pathD}" vector-effect="non-scaling-stroke"/>` : ""}
-
-            <!-- Dots -->
-            ${p90Path ? p90Path.points.map((p) => `<circle class="line-chart-dot" cx="${p.x}" cy="${p.y}" r="3" fill="var(--warning)" data-week="${p.week}" data-value="${p.value}" data-metric="P90"/>`).join("") : ""}
-            ${p50Path ? p50Path.points.map((p) => `<circle class="line-chart-dot" cx="${p.x}" cy="${p.y}" r="3" fill="var(--primary)" data-week="${p.week}" data-value="${p.value}" data-metric="P50"/>`).join("") : ""}
-        </svg>
-    `;
-    const legendHtml = `
-        <div class="chart-legend">
-            <div class="legend-item">
-                <span class="chart-tooltip-dot legend-p50"></span>
-                <span>P50 (Median)</span>
-            </div>
-            <div class="legend-item">
-                <span class="chart-tooltip-dot legend-p90"></span>
-                <span>P90</span>
-            </div>
-        </div>
-    `;
-    trendEl.innerHTML = `<div class="line-chart">${svgContent}</div>${legendHtml}`;
-    addChartTooltips(trendEl, (dot) => {
-      const week = dot.dataset["week"];
-      const value = parseFloat(dot.dataset["value"] || "0");
-      const metric = dot.dataset["metric"];
-      return `
-            <div class="chart-tooltip-title">${week}</div>
-            <div class="chart-tooltip-row">
-                <span class="chart-tooltip-label">
-                    <span class="chart-tooltip-dot ${metric === "P50" ? "legend-p50" : "legend-p90"}"></span>
-                    ${metric}
-                </span>
-                <span>${formatDuration(value)}</span>
-            </div>
-        `;
-    });
+  function renderCycleTimeTrend2(rollups) {
+    renderCycleTimeTrend(elements["cycle-time-trend"] ?? null, rollups);
   }
   function renderReviewerActivity(rollups) {
     const revEl = elements["reviewer-activity"];

@@ -11,5 +11,8 @@ export * from "./summary-cards";
 // Throughput chart (bar chart with trend line)
 export * from "./throughput";
 
+// Cycle time charts (distribution and P50/P90 trend)
+export * from "./cycle-time";
+
 // Re-export existing chart utilities from parent charts.ts
 // These will be moved here in a future refactor
