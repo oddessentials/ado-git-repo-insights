@@ -957,9 +957,8 @@ def _validate_staged_artifacts(out_dir: Path) -> tuple[bool, str, int]:
             schema_version,
         )
 
-    # Check required fields
     if "manifest_schema_version" not in manifest:
-        return False, "Manifest missing required field: manifest_schema_version"
+        return False, "Manifest missing required field: manifest_schema_version", 0
 
     if "aggregate_index" not in manifest:
         return False, "Manifest missing required field: aggregate_index", schema_version
@@ -1351,7 +1350,7 @@ def cmd_dashboard(args: Namespace) -> int:
         try:
             # Create HTTP handler with CORS headers for local development
             class CORSHTTPRequestHandler(http.server.SimpleHTTPRequestHandler):
-                def end_headers(self):
+                def end_headers(self) -> None:
                     self.send_header(
                         "Cache-Control", "no-cache, no-store, must-revalidate"
                     )
@@ -1360,7 +1359,7 @@ def cmd_dashboard(args: Namespace) -> int:
                     self.send_header("Access-Control-Allow-Origin", "*")
                     super().end_headers()
 
-                def log_message(self, format, *log_args):
+                def log_message(self, format: str, *log_args: object) -> None:
                     # Suppress verbose HTTP logs, only show errors
                     pass
 
