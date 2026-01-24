@@ -343,32 +343,12 @@ export interface WeekLoadResult<T> {
 // =============================================================================
 
 /**
- * Pipeline discovery result from auto-discovery.
- */
-export interface PipelineMatch {
-    id: number;
-    name: string;
-    buildId: number;
-}
-
-/**
  * Query parameter parsing result (union discriminant).
  */
 export interface QueryParamResult {
     mode: "direct" | "explicit" | "discover";
     value: string | number | null;
     warning?: string | null;
-}
-
-/**
- * Rollup slice metrics (by_repository/by_team value structure).
- */
-export interface RollupSliceMetrics {
-    pr_count: number;
-    cycle_time_p50: number | null;
-    cycle_time_p90: number | null;
-    authors_count: number;
-    reviewers_count: number;
 }
 
 /**

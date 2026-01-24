@@ -9,6 +9,9 @@ var PRInsightsDashboard = (() => {
     if (typeof error === "string") return error;
     return "Unknown error";
   }
+  function hasMLMethods(loader2) {
+    return typeof loader2 === "object" && loader2 !== null && typeof loader2.loadPredictions === "function" && typeof loader2.loadInsights === "function";
+  }
 
   // ui/dataset-loader.ts
   var SUPPORTED_MANIFEST_VERSION = 1;
@@ -1229,6 +1232,13 @@ var PRInsightsDashboard = (() => {
   var SETTINGS_KEY_PIPELINE = "pr-insights-pipeline-id";
   var ENABLE_PHASE5_FEATURES = true;
   var elements = {};
+  function getElement(id) {
+    const el = elements[id];
+    if (el instanceof HTMLElement) {
+      return el;
+    }
+    return null;
+  }
   var IS_PRODUCTION = typeof window !== "undefined" && window.process?.env?.NODE_ENV === "production";
   var DEBUG_ENABLED = !IS_PRODUCTION && (typeof window !== "undefined" && window.__DASHBOARD_DEBUG__ || typeof window !== "undefined" && new URLSearchParams(window.location.search).has("debug"));
   var metricsCollector = DEBUG_ENABLED ? {
@@ -1556,7 +1566,8 @@ var PRInsightsDashboard = (() => {
   }
   async function getBuildClient() {
     return new Promise((resolve) => {
-      VSS.require(["TFS/Build/RestClient"], (BuildRestClient) => {
+      VSS.require(["TFS/Build/RestClient"], (...args) => {
+        const BuildRestClient = args[0];
         resolve(BuildRestClient.getClient());
       });
     });
@@ -1862,7 +1873,7 @@ var PRInsightsDashboard = (() => {
           return Object.entries(rollup.by_repository).find(
             ([name]) => name === repoId
           )?.[1];
-        }).filter(Boolean);
+        }).filter((r) => r !== void 0);
         if (selectedRepos.length === 0) {
           return {
             ...rollup,
@@ -1874,32 +1885,18 @@ var PRInsightsDashboard = (() => {
           };
         }
         const totalPrCount = selectedRepos.reduce(
-          (sum, r) => sum + (r.pr_count || 0),
-          0
-        );
-        const p50Values = selectedRepos.map((r) => r.cycle_time_p50).filter((v) => v != null);
-        const p90Values = selectedRepos.map((r) => r.cycle_time_p90).filter((v) => v != null);
-        const avgP50 = p50Values.length > 0 ? p50Values.reduce((a, b) => a + b, 0) / p50Values.length : null;
-        const avgP90 = p90Values.length > 0 ? p90Values.reduce((a, b) => a + b, 0) / p90Values.length : null;
-        const totalAuthors = selectedRepos.reduce(
-          (sum, r) => sum + (r.authors_count || 0),
-          0
-        );
-        const totalReviewers = selectedRepos.reduce(
-          (sum, r) => sum + (r.reviewers_count || 0),
+          (sum, count) => sum + count,
           0
         );
         return {
           ...rollup,
-          pr_count: totalPrCount,
-          cycle_time_p50: avgP50,
-          cycle_time_p90: avgP90,
-          authors_count: totalAuthors,
-          reviewers_count: totalReviewers
+          pr_count: totalPrCount
+          // NOTE: cycle_time/authors/reviewers preserved from unfiltered rollup
+          // as we don't have per-repo breakdown for these metrics
         };
       }
       if (filters.teams.length && rollup.by_team) {
-        const selectedTeams = filters.teams.map((teamId) => rollup.by_team[teamId]).filter(Boolean);
+        const selectedTeams = filters.teams.map((teamId) => rollup.by_team[teamId]).filter((t) => t !== void 0);
         if (selectedTeams.length === 0) {
           return {
             ...rollup,
@@ -1911,15 +1908,14 @@ var PRInsightsDashboard = (() => {
           };
         }
         const totalPrCount = selectedTeams.reduce(
-          (sum, t) => sum + (t.pr_count || 0),
+          (sum, count) => sum + count,
           0
         );
-        const p50Values = selectedTeams.map((t) => t.cycle_time_p50).filter((v) => v != null);
-        const avgP50 = p50Values.length > 0 ? p50Values.reduce((a, b) => a + b, 0) / p50Values.length : null;
         return {
           ...rollup,
-          pr_count: totalPrCount,
-          cycle_time_p50: avgP50
+          pr_count: totalPrCount
+          // NOTE: cycle_time/authors/reviewers preserved from unfiltered rollup
+          // as we don't have per-team breakdown for these metrics
         };
       }
       return rollup;
@@ -2399,15 +2395,16 @@ var PRInsightsDashboard = (() => {
   }
   async function updateFeatureTabs() {
     if (!loader) return;
-    if (typeof loader.loadPredictions !== "function") return;
+    if (!hasMLMethods(loader)) return;
     const predictionsContent = document.getElementById("tab-predictions");
     const predictionsUnavailable = document.getElementById(
       "predictions-unavailable"
     );
     if (predictionsContent) {
       const predictionsResult = await loader.loadPredictions();
-      if (predictionsResult?.state === "ok" && predictionsResult.data?.forecasts?.length > 0) {
-        renderPredictions(predictionsContent, predictionsResult.data);
+      const predData = predictionsResult?.data;
+      if (predictionsResult?.state === "ok" && predData?.forecasts?.length && predData.forecasts.length > 0) {
+        renderPredictions(predictionsContent, predData);
       } else if (predictionsUnavailable) {
         predictionsUnavailable.classList.remove("hidden");
       }
@@ -2416,8 +2413,9 @@ var PRInsightsDashboard = (() => {
     const aiUnavailable = document.getElementById("ai-unavailable");
     if (aiContent) {
       const insightsResult = await loader.loadInsights();
-      if (insightsResult?.state === "ok" && insightsResult.data?.insights?.length > 0) {
-        renderAIInsights(aiContent, insightsResult.data);
+      const insData = insightsResult?.data;
+      if (insightsResult?.state === "ok" && insData?.insights?.length && insData.insights.length > 0) {
+        renderAIInsights(aiContent, insData);
       } else if (aiUnavailable) {
         aiUnavailable.classList.remove("hidden");
       }
@@ -2527,8 +2525,8 @@ var PRInsightsDashboard = (() => {
   }
   function populateFilterDropdowns(dimensions) {
     if (!dimensions) return;
-    const repoFilter = elements["repo-filter"];
-    if (repoFilter && dimensions.repositories?.length > 0) {
+    const repoFilter = getElement("repo-filter");
+    if (repoFilter && dimensions.repositories && dimensions.repositories.length > 0) {
       repoFilter.innerHTML = '<option value="">All</option>';
       dimensions.repositories.forEach((repo) => {
         const option = document.createElement("option");
@@ -2540,8 +2538,8 @@ var PRInsightsDashboard = (() => {
     } else {
       elements["repo-filter-group"]?.classList.add("hidden");
     }
-    const teamFilter = elements["team-filter"];
-    if (teamFilter && dimensions.teams?.length > 0) {
+    const teamFilter = getElement("team-filter");
+    if (teamFilter && dimensions.teams && dimensions.teams.length > 0) {
       teamFilter.innerHTML = '<option value="">All</option>';
       dimensions.teams.forEach((team) => {
         const option = document.createElement("option");
@@ -2818,7 +2816,7 @@ var PRInsightsDashboard = (() => {
         const separator = zipUrl.includes("?") ? "&" : "?";
         zipUrl = `${zipUrl}${separator}format=zip`;
       }
-      const response = await artifactClient._authenticatedFetch(zipUrl);
+      const response = await artifactClient.authenticatedFetch(zipUrl);
       if (!response.ok) {
         if (response.status === 403 || response.status === 401) {
           showToast("Permission denied to download artifacts", "error");
