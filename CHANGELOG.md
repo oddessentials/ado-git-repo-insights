@@ -1,3 +1,16 @@
+# [5.1.0](https://github.com/oddessentials/ado-git-repo-insights/compare/v5.0.0...v5.1.0) (2026-01-24)
+
+
+### Bug Fixes
+
+* **types:** remediate no-explicit-any warnings in Phase 2A/2B/2D ([09375bf](https://github.com/oddessentials/ado-git-repo-insights/commit/09375bfc103c1fea7619652284d07446ad333677))
+
+
+### Features
+
+* **artifact-client:** add public authenticatedFetch() method ([7ed074e](https://github.com/oddessentials/ado-git-repo-insights/commit/7ed074ee23025de827c4a50dfb50f56d3b0d3939))
+* **types:** add dashboard typing interfaces for strict type remediation ([b324fb5](https://github.com/oddessentials/ado-git-repo-insights/commit/b324fb58274937612322648e4fcd87b7faa98dfd))
+
 # [5.0.0](https://github.com/oddessentials/ado-git-repo-insights/compare/v4.2.3...v5.0.0) (2026-01-24)
 
 
