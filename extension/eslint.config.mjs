@@ -49,6 +49,7 @@ export default tseslint.config(
             'coverage/**',
             'ui/VSS.SDK.min.js',
             '**/*.js',           // Ignore remaining JS files during transition
+            '**/*.cjs',          // Ignore CommonJS config files (dependency-cruiser)
             'tests/**',          // Tests type-checked via tsconfig.test.json
             'scripts/**',        // Scripts type-checked via scripts/tsconfig.json
             '**/*.test.ts',      // Test files handled by Jest + tsc
