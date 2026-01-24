@@ -1362,6 +1362,81 @@ var PRInsightsDashboard = (() => {
     });
   }
 
+  // ui/modules/ml.ts
+  var SEVERITY_ICONS = {
+    critical: "\u{1F534}",
+    warning: "\u{1F7E1}",
+    info: "\u{1F535}"
+  };
+  function renderPredictions(container, predictions) {
+    if (!container) return;
+    if (!predictions) return;
+    const content = document.createElement("div");
+    content.className = "predictions-content";
+    if (predictions.is_stub) {
+      content.innerHTML += `<div class="stub-warning">\u26A0\uFE0F Demo data</div>`;
+    }
+    predictions.forecasts.forEach((forecast) => {
+      const label = forecast.metric.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
+      content.innerHTML += `
+            <div class="forecast-section">
+                <h4>${escapeHtml(label)} (${escapeHtml(String(forecast.unit))})</h4>
+                <table class="forecast-table">
+                    <thead><tr><th>Week</th><th>Predicted</th><th>Range</th></tr></thead>
+                    <tbody>
+                        ${forecast.values.map(
+        (v) => `
+                            <tr>
+                                <td>${escapeHtml(String(v.period_start))}</td>
+                                <td>${escapeHtml(String(v.predicted))}</td>
+                                <td>${escapeHtml(String(v.lower_bound))} - ${escapeHtml(String(v.upper_bound))}</td>
+                            </tr>
+                        `
+      ).join("")}
+                    </tbody>
+                </table>
+            </div>
+        `;
+    });
+    const unavailable = container.querySelector(".feature-unavailable");
+    if (unavailable) unavailable.classList.add("hidden");
+    container.appendChild(content);
+  }
+  function renderAIInsights(container, insights) {
+    if (!container) return;
+    if (!insights) return;
+    const content = document.createElement("div");
+    content.className = "insights-content";
+    if (insights.is_stub) {
+      content.innerHTML += `<div class="stub-warning">\u26A0\uFE0F Demo data</div>`;
+    }
+    ["critical", "warning", "info"].forEach((severity) => {
+      const items = insights.insights.filter(
+        (i) => i.severity === severity
+      );
+      if (!items.length) return;
+      content.innerHTML += `
+            <div class="severity-section">
+                <h4>${SEVERITY_ICONS[severity]} ${severity.charAt(0).toUpperCase() + severity.slice(1)}</h4>
+                <div class="insight-cards">
+                    ${items.map(
+        (i) => `
+                        <div class="insight-card ${escapeHtml(String(i.severity))}">
+                            <div class="insight-category">${escapeHtml(String(i.category))}</div>
+                            <h5>${escapeHtml(String(i.title))}</h5>
+                            <p>${escapeHtml(String(i.description))}</p>
+                        </div>
+                    `
+      ).join("")}
+                </div>
+            </div>
+        `;
+    });
+    const unavailable = container.querySelector(".feature-unavailable");
+    if (unavailable) unavailable.classList.add("hidden");
+    container.appendChild(content);
+  }
+
   // ui/modules/charts.ts
   function renderDelta(element, percentChange, inverse = false) {
     if (!element) return;
@@ -2537,7 +2612,7 @@ var PRInsightsDashboard = (() => {
       const predictionsResult = await loader.loadPredictions();
       const predData = predictionsResult?.data;
       if (predictionsResult?.state === "ok" && predData?.forecasts?.length && predData.forecasts.length > 0) {
-        renderPredictions(predictionsContent, predData);
+        renderPredictions2(predictionsContent, predData);
       } else if (predictionsUnavailable) {
         predictionsUnavailable.classList.remove("hidden");
       }
@@ -2548,78 +2623,17 @@ var PRInsightsDashboard = (() => {
       const insightsResult = await loader.loadInsights();
       const insData = insightsResult?.data;
       if (insightsResult?.state === "ok" && insData?.insights?.length && insData.insights.length > 0) {
-        renderAIInsights(aiContent, insData);
+        renderAIInsights2(aiContent, insData);
       } else if (aiUnavailable) {
         aiUnavailable.classList.remove("hidden");
       }
     }
   }
-  function renderPredictions(container, predictions) {
-    const content = document.createElement("div");
-    content.className = "predictions-content";
-    if (predictions.is_stub) {
-      content.innerHTML += `<div class="stub-warning">\u26A0\uFE0F Demo data</div>`;
-    }
-    predictions.forecasts.forEach((forecast) => {
-      const label = forecast.metric.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
-      content.innerHTML += `
-            <div class="forecast-section">
-                <h4>${escapeHtml(label)} (${escapeHtml(String(forecast.unit))})</h4>
-                <table class="forecast-table">
-                    <thead><tr><th>Week</th><th>Predicted</th><th>Range</th></tr></thead>
-                    <tbody>
-                        ${forecast.values.map(
-        (v) => `
-                            <tr>
-                                <td>${escapeHtml(String(v.period_start))}</td>
-                                <td>${escapeHtml(String(v.predicted))}</td>
-                                <td>${escapeHtml(String(v.lower_bound))} - ${escapeHtml(String(v.upper_bound))}</td>
-                            </tr>
-                        `
-      ).join("")}
-                    </tbody>
-                </table>
-            </div>
-        `;
-    });
-    const unavailable = container.querySelector(".feature-unavailable");
-    if (unavailable) unavailable.classList.add("hidden");
-    container.appendChild(content);
+  function renderPredictions2(container, predictions) {
+    renderPredictions(container, predictions);
   }
-  function renderAIInsights(container, insights) {
-    const content = document.createElement("div");
-    content.className = "insights-content";
-    if (insights.is_stub) {
-      content.innerHTML += `<div class="stub-warning">\u26A0\uFE0F Demo data</div>`;
-    }
-    const icons = {
-      critical: "\u{1F534}",
-      warning: "\u{1F7E1}",
-      info: "\u{1F535}"
-    };
-    ["critical", "warning", "info"].forEach((severity) => {
-      const items = insights.insights.filter((i) => i.severity === severity);
-      if (!items.length) return;
-      content.innerHTML += `
-            <div class="severity-section">
-                <h4>${icons[severity]} ${severity.charAt(0).toUpperCase() + severity.slice(1)}</h4>
-                <div class="insight-cards">
-                    ${items.map(
-        (i) => `
-                        <div class="insight-card ${escapeHtml(String(i.severity))}">
-                            <div class="insight-category">${escapeHtml(String(i.category))}</div>
-                            <h5>${escapeHtml(String(i.title))}</h5>
-                            <p>${escapeHtml(String(i.description))}</p>
-                        </div>
-                    `
-      ).join("")}
-                </div>
-            </div>
-        `;
-    });
-    const unavailable = container.querySelector(".feature-unavailable");
-    if (unavailable) unavailable.classList.add("hidden");
-    container.appendChild(content);
+  function renderAIInsights2(container, insights) {
+    renderAIInsights(container, insights);
   }
   function handleDateRangeChange(e) {
     const target = e.target;

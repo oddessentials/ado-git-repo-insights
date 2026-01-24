@@ -34,9 +34,6 @@ import {
   type ManifestSchema,
   type PredictionsRenderData,
   type InsightsRenderData,
-  type Forecast,
-  type ForecastValue,
-  type InsightItem,
 } from "./types";
 
 // Import from extracted modules
@@ -55,6 +52,8 @@ import {
   renderCycleDistribution as renderCycleDistributionModule,
   renderCycleTimeTrend as renderCycleTimeTrendModule,
   renderReviewerActivity as renderReviewerActivityModule,
+  renderPredictions as renderPredictionsModule,
+  renderAIInsights as renderAIInsightsModule,
 } from "./modules";
 
 // Dashboard state
@@ -1194,92 +1193,18 @@ async function updateFeatureTabs(): Promise<void> {
 
 /**
  * Render predictions.
+ * Thin wrapper that delegates to extracted module.
  */
 function renderPredictions(container: HTMLElement, predictions: PredictionsRenderData): void {
-  const content = document.createElement("div");
-  content.className = "predictions-content";
-
-  if (predictions.is_stub) {
-    content.innerHTML += `<div class="stub-warning">⚠️ Demo data</div>`;
-  }
-
-  predictions.forecasts.forEach((forecast: Forecast) => {
-    const label = forecast.metric
-      .replace(/_/g, " ")
-      .replace(/\b\w/g, (c: string) => c.toUpperCase());
-    // SECURITY: Escape all user-controlled data to prevent XSS
-    content.innerHTML += `
-            <div class="forecast-section">
-                <h4>${escapeHtml(label)} (${escapeHtml(String(forecast.unit))})</h4>
-                <table class="forecast-table">
-                    <thead><tr><th>Week</th><th>Predicted</th><th>Range</th></tr></thead>
-                    <tbody>
-                        ${forecast.values
-        .map(
-          (v: ForecastValue) => `
-                            <tr>
-                                <td>${escapeHtml(String(v.period_start))}</td>
-                                <td>${escapeHtml(String(v.predicted))}</td>
-                                <td>${escapeHtml(String(v.lower_bound))} - ${escapeHtml(String(v.upper_bound))}</td>
-                            </tr>
-                        `,
-        )
-        .join("")}
-                    </tbody>
-                </table>
-            </div>
-        `;
-  });
-
-  const unavailable = container.querySelector(".feature-unavailable");
-  if (unavailable) unavailable.classList.add("hidden");
-  container.appendChild(content);
+  renderPredictionsModule(container, predictions);
 }
 
 /**
  * Render AI insights.
+ * Thin wrapper that delegates to extracted module.
  */
 function renderAIInsights(container: HTMLElement, insights: InsightsRenderData): void {
-  const content = document.createElement("div");
-  content.className = "insights-content";
-
-  if (insights.is_stub) {
-    content.innerHTML += `<div class="stub-warning">⚠️ Demo data</div>`;
-  }
-
-  const icons: Record<string, string> = {
-    critical: "🔴",
-    warning: "🟡",
-    info: "🔵",
-  };
-  ["critical", "warning", "info"].forEach((severity) => {
-    const items = insights.insights.filter((i: InsightItem) => i.severity === severity);
-    if (!items.length) return;
-
-    // SECURITY: Escape all user-controlled data to prevent XSS
-    content.innerHTML += `
-            <div class="severity-section">
-                <h4>${icons[severity]} ${severity.charAt(0).toUpperCase() + severity.slice(1)}</h4>
-                <div class="insight-cards">
-                    ${items
-        .map(
-          (i: InsightItem) => `
-                        <div class="insight-card ${escapeHtml(String(i.severity))}">
-                            <div class="insight-category">${escapeHtml(String(i.category))}</div>
-                            <h5>${escapeHtml(String(i.title))}</h5>
-                            <p>${escapeHtml(String(i.description))}</p>
-                        </div>
-                    `,
-        )
-        .join("")}
-                </div>
-            </div>
-        `;
-  });
-
-  const unavailable = container.querySelector(".feature-unavailable");
-  if (unavailable) unavailable.classList.add("hidden");
-  container.appendChild(content);
+  renderAIInsightsModule(container, insights);
 }
 
 // ============================================================================
