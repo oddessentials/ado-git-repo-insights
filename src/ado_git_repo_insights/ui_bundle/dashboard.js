@@ -1295,6 +1295,58 @@ var PRInsightsDashboard = (() => {
     `;
   }
 
+  // ui/modules/export.ts
+  var CSV_HEADERS = [
+    "Week",
+    "Start Date",
+    "End Date",
+    "PR Count",
+    "Cycle Time P50 (min)",
+    "Cycle Time P90 (min)",
+    "Authors",
+    "Reviewers"
+  ];
+  function rollupsToCsv(rollups) {
+    if (!rollups || rollups.length === 0) {
+      return "";
+    }
+    const rows = rollups.map((r) => [
+      r.week,
+      r.start_date || "",
+      r.end_date || "",
+      r.pr_count || 0,
+      r.cycle_time_p50 != null ? r.cycle_time_p50.toFixed(1) : "",
+      r.cycle_time_p90 != null ? r.cycle_time_p90.toFixed(1) : "",
+      r.authors_count || 0,
+      r.reviewers_count || 0
+    ]);
+    return [CSV_HEADERS, ...rows].map((row) => row.map((cell) => `"${cell}"`).join(",")).join("\n");
+  }
+  function generateExportFilename(prefix, extension) {
+    const dateStr = (/* @__PURE__ */ new Date()).toISOString().split("T")[0];
+    return `${prefix}-${dateStr}.${extension}`;
+  }
+  function triggerDownload(content, filename, mimeType = "text/csv;charset=utf-8;") {
+    const blob = content instanceof Blob ? content : new Blob([content], { type: mimeType });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = filename;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+  }
+  function showToast(message, type = "success", durationMs = 3e3) {
+    const toast = document.createElement("div");
+    toast.className = `toast ${type}`;
+    toast.textContent = message;
+    document.body.appendChild(toast);
+    setTimeout(() => {
+      toast.remove();
+    }, durationMs);
+  }
+
   // ui/dashboard.ts
   var loader = null;
   var artifactClient = null;
@@ -2765,37 +2817,9 @@ var PRInsightsDashboard = (() => {
       showToast("No data to export", "error");
       return;
     }
-    const headers = [
-      "Week",
-      "Start Date",
-      "End Date",
-      "PR Count",
-      "Cycle Time P50 (min)",
-      "Cycle Time P90 (min)",
-      "Authors",
-      "Reviewers"
-    ];
-    const rows = cachedRollups.map((r) => [
-      r.week,
-      r.start_date || "",
-      r.end_date || "",
-      r.pr_count || 0,
-      r.cycle_time_p50 != null ? r.cycle_time_p50.toFixed(1) : "",
-      r.cycle_time_p90 != null ? r.cycle_time_p90.toFixed(1) : "",
-      r.authors_count || 0,
-      r.reviewers_count || 0
-    ]);
-    const csvContent = [headers, ...rows].map((row) => row.map((cell) => `"${cell}"`).join(",")).join("\n");
-    const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement("a");
-    link.href = url;
-    const dateStr = (/* @__PURE__ */ new Date()).toISOString().split("T")[0];
-    link.download = `pr-insights-${dateStr}.csv`;
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    URL.revokeObjectURL(url);
+    const csvContent = rollupsToCsv(cachedRollups);
+    const filename = generateExportFilename("pr-insights", "csv");
+    triggerDownload(csvContent, filename);
     showToast("CSV exported successfully", "success");
   }
   async function copyShareableLink() {
@@ -2863,15 +2887,6 @@ var PRInsightsDashboard = (() => {
       console.error("Failed to download raw data:", err);
       showToast("Failed to download raw data", "error");
     }
-  }
-  function showToast(message, type = "success") {
-    const toast = document.createElement("div");
-    toast.className = `toast ${type}`;
-    toast.textContent = message;
-    document.body.appendChild(toast);
-    setTimeout(() => {
-      toast.remove();
-    }, 3e3);
   }
   function showLoading() {
     hideAllPanels();

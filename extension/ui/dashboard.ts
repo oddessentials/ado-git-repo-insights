@@ -46,6 +46,10 @@ import {
   median,
   renderDelta,
   renderSparkline,
+  showToast,
+  rollupsToCsv,
+  triggerDownload,
+  generateExportFilename,
 } from "./modules";
 
 // Dashboard state
@@ -2244,45 +2248,10 @@ function exportToCsv(): void {
     return;
   }
 
-  // Build CSV content
-  const headers = [
-    "Week",
-    "Start Date",
-    "End Date",
-    "PR Count",
-    "Cycle Time P50 (min)",
-    "Cycle Time P90 (min)",
-    "Authors",
-    "Reviewers",
-  ];
-  const rows = cachedRollups.map((r) => [
-    r.week,
-    r.start_date || "",
-    r.end_date || "",
-    r.pr_count || 0,
-    r.cycle_time_p50 != null ? r.cycle_time_p50.toFixed(1) : "",
-    r.cycle_time_p90 != null ? r.cycle_time_p90.toFixed(1) : "",
-    r.authors_count || 0,
-    r.reviewers_count || 0,
-  ]);
-
-  const csvContent = [headers, ...rows]
-    .map((row) => row.map((cell) => `"${cell}"`).join(","))
-    .join("\n");
-
-  // Download file
-  const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
-  const url = URL.createObjectURL(blob);
-  const link = document.createElement("a");
-  link.href = url;
-
-  const dateStr = new Date().toISOString().split("T")[0];
-  link.download = `pr-insights-${dateStr}.csv`;
-
-  document.body.appendChild(link);
-  link.click();
-  document.body.removeChild(link);
-  URL.revokeObjectURL(url);
+  // Use module utilities for CSV generation and download
+  const csvContent = rollupsToCsv(cachedRollups);
+  const filename = generateExportFilename("pr-insights", "csv");
+  triggerDownload(csvContent, filename);
 
   showToast("CSV exported successfully", "success");
 }
@@ -2376,22 +2345,7 @@ async function downloadRawDataZip(): Promise<void> {
   }
 }
 
-/**
- * Show a toast notification.
- */
-function showToast(
-  message: string,
-  type: "success" | "error" = "success",
-): void {
-  const toast = document.createElement("div");
-  toast.className = `toast ${type}`;
-  toast.textContent = message;
-  document.body.appendChild(toast);
-
-  setTimeout(() => {
-    toast.remove();
-  }, 3000);
-}
+// showToast is now imported from "./modules"
 
 // ============================================================================
 // Utility Functions
