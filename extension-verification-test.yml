@@ -75,7 +75,9 @@ stages:
               pat: '$(PAT_SECRET)'
               database: '$(Pipeline.Workspace)/data/ado-insights.sqlite'
               outputDir: '$(Pipeline.Workspace)/csv_output'
-              aggregatesDir: '$(Pipeline.Workspace)/aggregates'
+              # CRITICAL: Write to run_artifacts so manifest is at artifact root
+              # This prevents aggregates/aggregates double-nesting on download
+              aggregatesDir: '$(Pipeline.Workspace)/run_artifacts'
 
           # Step 5: Publish Golden DB (only on success)
           - task: PublishPipelineArtifact@1
@@ -86,11 +88,13 @@ stages:
               artifact: '$(ARTIFACT_NAME)'
 
           # Step 5b: Publish Aggregates (enables dashboard auto-discovery)
+          # CRITICAL: Publish from run_artifacts (manifest at root, data in aggregates/)
+          # This produces correct flat layout on download - no double-nesting
           - task: PublishPipelineArtifact@1
             displayName: 'Publish Aggregates'
             condition: succeeded()
             inputs:
-              targetPath: '$(Pipeline.Workspace)/aggregates'
+              targetPath: '$(Pipeline.Workspace)/run_artifacts'
               artifact: 'aggregates'
 
           # Step 6: Publish Candidate DB (forensic - always)

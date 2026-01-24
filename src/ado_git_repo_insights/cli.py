@@ -875,37 +875,42 @@ def _normalize_artifact_layout(out_dir: Path) -> bool:
     if nested_manifest.exists() and double_nested.exists():
         logger.info("Normalizing nested artifact layout...")
 
-        # Move manifest to root
-        root_manifest = out_dir / "dataset-manifest.json"
-        if root_manifest.exists():
-            root_manifest.unlink()
-        shutil.move(str(nested_manifest), str(root_manifest))
+        try:
+            # Move manifest to root
+            root_manifest = out_dir / "dataset-manifest.json"
+            if root_manifest.exists():
+                root_manifest.unlink()
+            shutil.move(str(nested_manifest), str(root_manifest))
 
-        # Move double-nested content up one level
-        aggregates_dir = out_dir / "aggregates"
-        for item in list(double_nested.iterdir()):
-            dest = aggregates_dir / item.name
-            if dest.exists():
-                if dest.is_dir():
-                    shutil.rmtree(dest)
-                else:
-                    dest.unlink()
-            shutil.move(str(item), str(dest))
+            # Move double-nested content up one level
+            aggregates_dir = out_dir / "aggregates"
+            for item in list(double_nested.iterdir()):
+                dest = aggregates_dir / item.name
+                if dest.exists():
+                    if dest.is_dir():
+                        shutil.rmtree(dest)
+                    else:
+                        dest.unlink()
+                shutil.move(str(item), str(dest))
 
-        # Remove empty double-nested folder
-        if double_nested.exists() and not any(double_nested.iterdir()):
-            double_nested.rmdir()
+            # Remove empty double-nested folder
+            if double_nested.exists() and not any(double_nested.iterdir()):
+                double_nested.rmdir()
 
-        # Remove empty aggregates folder if manifest was the only thing
-        old_aggregates = out_dir / "aggregates"
-        if old_aggregates.exists():
-            remaining = list(old_aggregates.iterdir())
-            # If only dataset-manifest.json remains (shouldn't happen after move)
-            if not remaining:
-                old_aggregates.rmdir()
+            # Remove empty aggregates folder if manifest was the only thing
+            old_aggregates = out_dir / "aggregates"
+            if old_aggregates.exists():
+                remaining = list(old_aggregates.iterdir())
+                # If only dataset-manifest.json remains (shouldn't happen after move)
+                if not remaining:
+                    old_aggregates.rmdir()
 
-        logger.info("Layout normalized: manifest at root, data in aggregates/")
-        return True
+            logger.info("Layout normalized: manifest at root, data in aggregates/")
+            return True
+
+        except (PermissionError, OSError) as e:
+            logger.error(f"Failed to normalize layout: {e}")
+            return False
 
     return False
 
@@ -959,12 +964,31 @@ def _validate_staged_artifacts(out_dir: Path) -> tuple[bool, str, int]:
     if "aggregate_index" not in manifest:
         return False, "Manifest missing required field: aggregate_index", schema_version
 
-    # Check all indexed paths exist
+    # Check all indexed paths exist and validate against path traversal
     missing: list[str] = []
     agg_index = manifest.get("aggregate_index", {})
+    out_dir_resolved = out_dir.resolve()
+
+    def validate_path(path_str: str) -> tuple[bool, str]:
+        """Validate path is safe and within output directory."""
+        if not path_str:
+            return True, ""
+        # Check for path traversal sequences
+        if ".." in path_str or path_str.startswith("/") or path_str.startswith("\\"):
+            return False, f"Path traversal detected: {path_str}"
+        full_path = (out_dir / path_str).resolve()
+        # Ensure path stays within output directory
+        try:
+            full_path.relative_to(out_dir_resolved)
+        except ValueError:
+            return False, f"Path escapes output directory: {path_str}"
+        return True, ""
 
     for rollup in agg_index.get("weekly_rollups", []):
         path_str = rollup.get("path", "")
+        valid, err = validate_path(path_str)
+        if not valid:
+            return False, err, schema_version
         if path_str:
             full_path = out_dir / path_str
             if not full_path.exists():
@@ -972,6 +996,9 @@ def _validate_staged_artifacts(out_dir: Path) -> tuple[bool, str, int]:
 
     for dist in agg_index.get("distributions", []):
         path_str = dist.get("path", "")
+        valid, err = validate_path(path_str)
+        if not valid:
+            return False, err, schema_version
         if path_str:
             full_path = out_dir / path_str
             if not full_path.exists():
@@ -1114,9 +1141,15 @@ def cmd_stage_artifacts(args: Namespace) -> int:
                 f.write(chunk)
 
         logger.info("Extracting artifact...")
-        with zipfile.ZipFile(zip_path, "r") as zf:
-            zf.extractall(out_dir)
-        zip_path.unlink()  # Clean up ZIP
+        try:
+            with zipfile.ZipFile(zip_path, "r") as zf:
+                zf.extractall(out_dir)
+        finally:
+            # Always clean up ZIP, even on extraction failure
+            try:
+                zip_path.unlink(missing_ok=True)
+            except OSError:
+                pass  # Best effort cleanup
 
         # Step 4: Normalize layout (flatten nested aggregates/aggregates)
         was_normalized = _normalize_artifact_layout(out_dir)
