@@ -38,16 +38,19 @@ describe("local/extension mode parity", () => {
     });
 
     describe("error handling parity", () => {
-        it("has showSetupRequired for both modes", () => {
+        it("uses showSetupRequired for both modes", () => {
+            // showSetupRequired may be imported from ./modules or defined locally
             expect(dashboardContent).toContain("showSetupRequired");
         });
 
-        it("has showPermissionDenied for both modes", () => {
+        it("uses showPermissionDenied for both modes", () => {
+            // showPermissionDenied may be imported from ./modules or defined locally
             expect(dashboardContent).toContain("showPermissionDenied");
         });
 
-        it("has handleError for both modes", () => {
-            expect(dashboardContent).toContain("function handleError");
+        it("uses handleError for both modes", () => {
+            // handleError may be imported from ./modules or defined locally
+            expect(dashboardContent).toContain("handleError");
         });
     });
 

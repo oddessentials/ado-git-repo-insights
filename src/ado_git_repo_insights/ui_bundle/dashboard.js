@@ -1362,6 +1362,118 @@ var PRInsightsDashboard = (() => {
     });
   }
 
+  // ui/modules/errors.ts
+  var PANEL_IDS = [
+    "setup-required",
+    "multiple-pipelines",
+    "artifacts-missing",
+    "permission-denied",
+    "error-state",
+    "loading-state",
+    "main-content"
+  ];
+  function handleError(error) {
+    hideAllPanels();
+    if (error instanceof PrInsightsError) {
+      switch (error.type) {
+        case ErrorTypes.SETUP_REQUIRED:
+          showSetupRequired(error);
+          break;
+        case ErrorTypes.MULTIPLE_PIPELINES:
+          showMultiplePipelines(error);
+          break;
+        case ErrorTypes.ARTIFACTS_MISSING:
+          showArtifactsMissing(error);
+          break;
+        case ErrorTypes.PERMISSION_DENIED:
+          showPermissionDenied(error);
+          break;
+        default:
+          showGenericError(error.title, error.message);
+          break;
+      }
+    } else {
+      showGenericError(
+        "Error",
+        getErrorMessage(error) || "An unexpected error occurred"
+      );
+    }
+  }
+  function hideAllPanels() {
+    PANEL_IDS.forEach((id) => {
+      document.getElementById(id)?.classList.add("hidden");
+    });
+  }
+  function showSetupRequired(error) {
+    const panel = document.getElementById("setup-required");
+    if (!panel) return showGenericError(error.title, error.message);
+    const messageEl = document.getElementById("setup-message");
+    if (messageEl) messageEl.textContent = error.message;
+    const details = error.details;
+    if (details?.instructions && Array.isArray(details.instructions)) {
+      const stepsList = document.getElementById("setup-steps");
+      if (stepsList) {
+        stepsList.innerHTML = details.instructions.map((s) => `<li>${escapeHtml(s)}</li>`).join("");
+      }
+    }
+    if (details?.docsUrl) {
+      const docsLink = document.getElementById(
+        "docs-link"
+      );
+      if (docsLink) docsLink.href = String(details.docsUrl);
+    }
+    panel.classList.remove("hidden");
+  }
+  function showMultiplePipelines(error) {
+    const panel = document.getElementById("multiple-pipelines");
+    if (!panel) return showGenericError(error.title, error.message);
+    const messageEl = document.getElementById("multiple-message");
+    if (messageEl) messageEl.textContent = error.message;
+    const listEl = document.getElementById("pipeline-list");
+    const details = error.details;
+    if (listEl && details?.matches && Array.isArray(details.matches)) {
+      listEl.innerHTML = details.matches.map(
+        (m) => `
+                <a href="?pipelineId=${escapeHtml(String(m.id))}" class="pipeline-option">
+                    <strong>${escapeHtml(m.name)}</strong>
+                    <span class="pipeline-id">ID: ${escapeHtml(String(m.id))}</span>
+                </a>
+            `
+      ).join("");
+    }
+    panel.classList.remove("hidden");
+  }
+  function showPermissionDenied(error) {
+    const panel = document.getElementById("permission-denied");
+    if (!panel) return showGenericError(error.title, error.message);
+    const messageEl = document.getElementById("permission-message");
+    if (messageEl) messageEl.textContent = error.message;
+    panel.classList.remove("hidden");
+  }
+  function showGenericError(title, message) {
+    const panel = document.getElementById("error-state");
+    if (!panel) return;
+    const titleEl = document.getElementById("error-title");
+    const messageEl = document.getElementById("error-message");
+    if (titleEl) titleEl.textContent = title;
+    if (messageEl) messageEl.textContent = message;
+    panel.classList.remove("hidden");
+  }
+  function showArtifactsMissing(error) {
+    const panel = document.getElementById("artifacts-missing");
+    if (!panel) return showGenericError(error.title, error.message);
+    const messageEl = document.getElementById("missing-message");
+    if (messageEl) messageEl.textContent = error.message;
+    const details = error.details;
+    if (details?.instructions && Array.isArray(details.instructions)) {
+      const stepsList = document.getElementById("missing-steps");
+      if (stepsList) {
+        stepsList.innerHTML = details.instructions.map((s) => `<li>${escapeHtml(s)}</li>`).join("");
+      }
+    }
+    panel.classList.remove("hidden");
+  }
+
   // ui/modules/ml.ts
   var SEVERITY_ICONS = {
     critical: "\u{1F534}",
@@ -2302,112 +2414,6 @@ var PRInsightsDashboard = (() => {
       console.error("Dashboard initialization failed:", error);
       handleError(error);
     }
-  }
-  function handleError(error) {
-    hideAllPanels();
-    if (error instanceof PrInsightsError) {
-      switch (error.type) {
-        case ErrorTypes.SETUP_REQUIRED:
-          showSetupRequired(error);
-          break;
-        case ErrorTypes.MULTIPLE_PIPELINES:
-          showMultiplePipelines(error);
-          break;
-        case ErrorTypes.ARTIFACTS_MISSING:
-          showArtifactsMissing(error);
-          break;
-        case ErrorTypes.PERMISSION_DENIED:
-          showPermissionDenied(error);
-          break;
-        default:
-          showGenericError(error.title, error.message);
-          break;
-      }
-    } else {
-      showGenericError("Error", getErrorMessage(error) || "An unexpected error occurred");
-    }
-  }
-  function hideAllPanels() {
-    [
-      "setup-required",
-      "multiple-pipelines",
-      "artifacts-missing",
-      "permission-denied",
-      "error-state",
-      "loading-state",
-      "main-content"
-    ].forEach((id) => {
-      document.getElementById(id)?.classList.add("hidden");
-    });
-  }
-  function showSetupRequired(error) {
-    const panel = document.getElementById("setup-required");
-    if (!panel) return showGenericError(error.title, error.message);
-    const messageEl = document.getElementById("setup-message");
-    if (messageEl) messageEl.textContent = error.message;
-    const details = error.details;
-    if (details?.instructions && Array.isArray(details.instructions)) {
-      const stepsList = document.getElementById("setup-steps");
-      if (stepsList) {
-        stepsList.innerHTML = details.instructions.map((s) => `<li>${escapeHtml(s)}</li>`).join("");
-      }
-    }
-    if (details?.docsUrl) {
-      const docsLink = document.getElementById(
-        "docs-link"
-      );
-      if (docsLink) docsLink.href = String(details.docsUrl);
-    }
-    panel.classList.remove("hidden");
-  }
-  function showMultiplePipelines(error) {
-    const panel = document.getElementById("multiple-pipelines");
-    if (!panel) return showGenericError(error.title, error.message);
-    const messageEl = document.getElementById("multiple-message");
-    if (messageEl) messageEl.textContent = error.message;
-    const listEl = document.getElementById("pipeline-list");
-    const details = error.details;
-    if (listEl && details?.matches && Array.isArray(details.matches)) {
-      listEl.innerHTML = details.matches.map(
-        (m) => `
-                <a href="?pipelineId=${escapeHtml(String(m.id))}" class="pipeline-option">
-                    <strong>${escapeHtml(m.name)}</strong>
-                    <span class="pipeline-id">ID: ${escapeHtml(String(m.id))}</span>
-                </a>
-            `
-      ).join("");
-    }
-    panel.classList.remove("hidden");
-  }
-  function showPermissionDenied(error) {
-    const panel = document.getElementById("permission-denied");
-    if (!panel) return showGenericError(error.title, error.message);
-    const messageEl = document.getElementById("permission-message");
-    if (messageEl) messageEl.textContent = error.message;
-    panel.classList.remove("hidden");
-  }
-  function showGenericError(title, message) {
-    const panel = document.getElementById("error-state");
-    if (!panel) return;
-    const titleEl = document.getElementById("error-title");
-    const messageEl = document.getElementById("error-message");
-    if (titleEl) titleEl.textContent = title;
-    if (messageEl) messageEl.textContent = message;
-    panel.classList.remove("hidden");
-  }
-  function showArtifactsMissing(error) {
-    const panel = document.getElementById("artifacts-missing");
-    if (!panel) return showGenericError(error.title, error.message);
-    const messageEl = document.getElementById("missing-message");
-    if (messageEl) messageEl.textContent = error.message;
-    const details = error.details;
-    if (details?.instructions && Array.isArray(details.instructions)) {
-      const stepsList = document.getElementById("missing-steps");
-      if (stepsList) {
-        stepsList.innerHTML = details.instructions.map((s) => `<li>${escapeHtml(s)}</li>`).join("");
-      }
-    }
-    panel.classList.remove("hidden");
   }
   function cacheElements() {
     const ids = [

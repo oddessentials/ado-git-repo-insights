@@ -15,15 +15,10 @@ import { DatasetLoader, type IDatasetLoader, type Rollup } from "./dataset-loade
 import { ArtifactClient } from "./artifact-client";
 import {
   PrInsightsError,
-  ErrorTypes,
   createSetupRequiredError,
   createNoSuccessfulBuildsError,
   createArtifactsMissingError,
   createInvalidConfigError,
-  type SetupRequiredDetails,
-  type MultiplePipelinesDetails,
-  type ArtifactsMissingDetails,
-  type PipelineMatch,
 } from "./error-types";
 import {
   getErrorMessage,
@@ -59,6 +54,9 @@ import {
   getBuildClient,
   isLocalMode,
   getLocalDatasetPath,
+  // Error handling functions (dispatch handled internally)
+  handleError,
+  hideAllPanels,
 } from "./modules";
 
 // Dashboard state
@@ -602,164 +600,12 @@ async function init(): Promise<void> {
   }
 }
 
-/**
- * Handle errors with appropriate UI panels.
- */
-function handleError(error: unknown): void {
-  hideAllPanels();
-
-  if (error instanceof PrInsightsError) {
-    switch (error.type) {
-      case ErrorTypes.SETUP_REQUIRED:
-        showSetupRequired(error);
-        break;
-      case ErrorTypes.MULTIPLE_PIPELINES:
-        showMultiplePipelines(error);
-        break;
-      case ErrorTypes.ARTIFACTS_MISSING:
-        showArtifactsMissing(error);
-        break;
-      case ErrorTypes.PERMISSION_DENIED:
-        showPermissionDenied(error);
-        break;
-      default:
-        showGenericError(error.title, error.message);
-        break;
-    }
-  } else {
-    showGenericError("Error", getErrorMessage(error) || "An unexpected error occurred");
-  }
-}
-
-/**
- * Hide all error/setup panels.
- */
-function hideAllPanels(): void {
-  [
-    "setup-required",
-    "multiple-pipelines",
-    "artifacts-missing",
-    "permission-denied",
-    "error-state",
-    "loading-state",
-    "main-content",
-  ].forEach((id) => {
-    document.getElementById(id)?.classList.add("hidden");
-  });
-}
-
-/**
- * Show setup required panel.
- */
-function showSetupRequired(error: PrInsightsError): void {
-  const panel = document.getElementById("setup-required");
-  if (!panel) return showGenericError(error.title, error.message);
-
-  const messageEl = document.getElementById("setup-message");
-  if (messageEl) messageEl.textContent = error.message;
-
-  const details = error.details as SetupRequiredDetails;
-  if (details?.instructions && Array.isArray(details.instructions)) {
-    const stepsList = document.getElementById("setup-steps");
-    if (stepsList) {
-      // SECURITY: Escape instructions to prevent XSS
-      stepsList.innerHTML = details.instructions
-        .map((s: string) => `<li>${escapeHtml(s)}</li>`)
-        .join("");
-    }
-  }
-
-  if (details?.docsUrl) {
-    const docsLink = document.getElementById(
-      "docs-link",
-    ) as HTMLAnchorElement | null;
-    if (docsLink) docsLink.href = String(details.docsUrl);
-  }
-
-  panel.classList.remove("hidden");
-}
-
-/**
- * Show multiple pipelines panel.
- */
-function showMultiplePipelines(error: PrInsightsError): void {
-  const panel = document.getElementById("multiple-pipelines");
-  if (!panel) return showGenericError(error.title, error.message);
-
-  const messageEl = document.getElementById("multiple-message");
-  if (messageEl) messageEl.textContent = error.message;
-
-  const listEl = document.getElementById("pipeline-list");
-  const details = error.details as MultiplePipelinesDetails;
-  if (listEl && details?.matches && Array.isArray(details.matches)) {
-    // SECURITY: Escape pipeline names to prevent XSS
-    listEl.innerHTML = details.matches
-      .map(
-        (m: PipelineMatch) => `
-                <a href="?pipelineId=${escapeHtml(String(m.id))}" class="pipeline-option">
-                    <strong>${escapeHtml(m.name)}</strong>
-                    <span class="pipeline-id">ID: ${escapeHtml(String(m.id))}</span>
-                </a>
-            `,
-      )
-      .join("");
-  }
-
-  panel.classList.remove("hidden");
-}
-
-/**
- * Show permission denied panel.
- */
-function showPermissionDenied(error: PrInsightsError): void {
-  const panel = document.getElementById("permission-denied");
-  if (!panel) return showGenericError(error.title, error.message);
-
-  const messageEl = document.getElementById("permission-message");
-  if (messageEl) messageEl.textContent = error.message;
-
-  panel.classList.remove("hidden");
-}
-
-/**
- * Show generic error state.
- */
-function showGenericError(title: string, message: string): void {
-  const panel = document.getElementById("error-state");
-  if (!panel) return;
-
-  const titleEl = document.getElementById("error-title");
-  const messageEl = document.getElementById("error-message");
-
-  if (titleEl) titleEl.textContent = title;
-  if (messageEl) messageEl.textContent = message;
-
-  panel.classList.remove("hidden");
-}
-
-/**
- * Show artifacts missing panel.
- */
-function showArtifactsMissing(error: PrInsightsError): void {
-  const panel = document.getElementById("artifacts-missing");
-  if (!panel) return showGenericError(error.title, error.message);
-
-  const messageEl = document.getElementById("missing-message");
-  if (messageEl) messageEl.textContent = error.message;
-
-  const details = error.details as ArtifactsMissingDetails;
-  if (details?.instructions && Array.isArray(details.instructions)) {
-    const stepsList = document.getElementById("missing-steps");
-    if (stepsList) {
-      // SECURITY: Escape instructions to prevent XSS
-      stepsList.innerHTML = details.instructions
-        .map((s: string) => `<li>${escapeHtml(s)}</li>`)
-        .join("");
-    }
-  }
-
-  panel.classList.remove("hidden");
-}
+// ============================================================================
+// Error Handling - IMPORTED FROM ./modules/errors
+// handleError, hideAllPanels, showSetupRequired, showMultiplePipelines,
+// showPermissionDenied, showGenericError, showArtifactsMissing
+// are now imported from "./modules"
+// ============================================================================
 
 // ============================================================================
 // DOM and Event Handling
