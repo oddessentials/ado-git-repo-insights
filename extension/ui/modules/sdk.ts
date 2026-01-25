@@ -11,10 +11,10 @@
  * SDK initialization options.
  */
 export interface SdkInitOptions {
-    /** Timeout in milliseconds for SDK initialization (default: 10000) */
-    timeout?: number;
-    /** Callback executed after VSS.ready() completes */
-    onReady?: () => void;
+  /** Timeout in milliseconds for SDK initialization (default: 10000) */
+  timeout?: number;
+  /** Callback executed after VSS.ready() completes */
+  onReady?: () => void;
 }
 
 /**
@@ -27,7 +27,7 @@ let sdkInitialized = false;
  * Check if the SDK has been initialized.
  */
 export function isSdkInitialized(): boolean {
-    return sdkInitialized;
+  return sdkInitialized;
 }
 
 /**
@@ -35,7 +35,7 @@ export function isSdkInitialized(): boolean {
  * Primarily for testing purposes.
  */
 export function resetSdkState(): void {
-    sdkInitialized = false;
+  sdkInitialized = false;
 }
 
 /**
@@ -61,38 +61,40 @@ export function resetSdkState(): void {
  *   }
  * });
  */
-export async function initializeAdoSdk(options: SdkInitOptions = {}): Promise<void> {
-    // Skip if already initialized
-    if (sdkInitialized) {
-        return;
-    }
+export async function initializeAdoSdk(
+  options: SdkInitOptions = {},
+): Promise<void> {
+  // Skip if already initialized
+  if (sdkInitialized) {
+    return;
+  }
 
-    const { timeout = 10000, onReady } = options;
+  const { timeout = 10000, onReady } = options;
 
-    return new Promise((resolve, reject) => {
-        const timeoutId = setTimeout(() => {
-            reject(new Error("Azure DevOps SDK initialization timed out"));
-        }, timeout);
+  return new Promise((resolve, reject) => {
+    const timeoutId = setTimeout(() => {
+      reject(new Error("Azure DevOps SDK initialization timed out"));
+    }, timeout);
 
-        VSS.init({
-            explicitNotifyLoaded: true,
-            usePlatformScripts: true,
-            usePlatformStyles: true,
-        });
-
-        VSS.ready(() => {
-            clearTimeout(timeoutId);
-            sdkInitialized = true;
-
-            // Execute optional onReady callback
-            if (onReady) {
-                onReady();
-            }
-
-            VSS.notifyLoadSucceeded();
-            resolve();
-        });
+    VSS.init({
+      explicitNotifyLoaded: true,
+      usePlatformScripts: true,
+      usePlatformStyles: true,
     });
+
+    VSS.ready(() => {
+      clearTimeout(timeoutId);
+      sdkInitialized = true;
+
+      // Execute optional onReady callback
+      if (onReady) {
+        onReady();
+      }
+
+      VSS.notifyLoadSucceeded();
+      resolve();
+    });
+  });
 }
 
 /**
@@ -102,12 +104,12 @@ export async function initializeAdoSdk(options: SdkInitOptions = {}): Promise<vo
  * @returns Promise resolving to Build REST client
  */
 export async function getBuildClient(): Promise<IBuildRestClient> {
-    return new Promise((resolve) => {
-        VSS.require(["TFS/Build/RestClient"], (...args: unknown[]) => {
-            const BuildRestClient = args[0] as { getClient(): IBuildRestClient };
-            resolve(BuildRestClient.getClient());
-        });
+  return new Promise((resolve) => {
+    VSS.require(["TFS/Build/RestClient"], (...args: unknown[]) => {
+      const BuildRestClient = args[0] as { getClient(): IBuildRestClient };
+      resolve(BuildRestClient.getClient());
     });
+  });
 }
 
 /**
@@ -117,7 +119,7 @@ export async function getBuildClient(): Promise<IBuildRestClient> {
  * @returns Promise resolving to Extension Data Service
  */
 export async function getExtensionDataService(): Promise<IExtensionDataService> {
-    return VSS.getService<IExtensionDataService>(VSS.ServiceIds.ExtensionData);
+  return VSS.getService<IExtensionDataService>(VSS.ServiceIds.ExtensionData);
 }
 
 /**
@@ -127,10 +129,10 @@ export async function getExtensionDataService(): Promise<IExtensionDataService> 
  * @returns Web context object or undefined if SDK not initialized
  */
 export function getWebContext(): VSS.WebContext | undefined {
-    if (!sdkInitialized) {
-        return undefined;
-    }
-    return VSS.getWebContext();
+  if (!sdkInitialized) {
+    return undefined;
+  }
+  return VSS.getWebContext();
 }
 
 /**
@@ -138,10 +140,7 @@ export function getWebContext(): VSS.WebContext | undefined {
  * Local mode bypasses SDK initialization and uses file-based data.
  */
 export function isLocalMode(): boolean {
-    return (
-        typeof window !== "undefined" &&
-        window.LOCAL_DASHBOARD_MODE === true
-    );
+  return typeof window !== "undefined" && window.LOCAL_DASHBOARD_MODE === true;
 }
 
 /**
@@ -149,8 +148,5 @@ export function isLocalMode(): boolean {
  * Used when running in local development mode.
  */
 export function getLocalDatasetPath(): string {
-    return (
-        (typeof window !== "undefined" && window.DATASET_PATH) ||
-        "./dataset"
-    );
+  return (typeof window !== "undefined" && window.DATASET_PATH) || "./dataset";
 }

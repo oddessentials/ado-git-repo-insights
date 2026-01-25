@@ -24,6 +24,14 @@ import {
 // Import SDK initialization from shared module
 import { initializeAdoSdk } from "./modules";
 
+// Import safe DOM rendering utilities
+import {
+  escapeHtml,
+  renderTrustedHtml,
+  clearElement,
+  createOption,
+} from "./modules/shared/render";
+
 // Settings keys (must match dashboard.js)
 const SETTINGS_KEY_PROJECT = "pr-insights-source-project";
 const SETTINGS_KEY_PIPELINE = "pr-insights-pipeline-id";
@@ -67,7 +75,10 @@ async function init(): Promise<void> {
     setupEventListeners();
   } catch (error: unknown) {
     console.error("Settings initialization failed:", error);
-    showStatus("Failed to initialize settings: " + getErrorMessage(error), "error");
+    showStatus(
+      "Failed to initialize settings: " + getErrorMessage(error),
+      "error",
+    );
   }
 }
 
@@ -88,8 +99,9 @@ async function tryLoadProjectDropdown(): Promise<void> {
       projectList = projects;
       projectDropdownAvailable = true;
 
-      // Populate dropdown
-      dropdown.innerHTML = '<option value="">Current project (auto)</option>';
+      // Populate dropdown - use safe DOM APIs
+      clearElement(dropdown);
+      dropdown.appendChild(createOption("", "Current project (auto)"));
       for (const project of projects.sort((a: VSSProject, b: VSSProject) =>
         a.name.localeCompare(b.name),
       )) {
@@ -127,7 +139,9 @@ async function tryLoadProjectDropdown(): Promise<void> {
 async function getOrganizationProjects(): Promise<VSSProject[]> {
   return new Promise((resolve, reject) => {
     VSS.require(["TFS/Core/RestClient"], (...modules: unknown[]) => {
-      const CoreRestClient = modules[0] as { getClient: () => { getProjects: () => Promise<VSSProject[]> } };
+      const CoreRestClient = modules[0] as {
+        getClient: () => { getProjects: () => Promise<VSSProject[]> };
+      };
       try {
         const client = CoreRestClient.getClient();
         client
@@ -359,9 +373,13 @@ async function updateStatus(): Promise<void> {
       html += `<p class="status-hint">Project dropdown not available - using text input</p>`;
     }
 
-    statusDisplay.innerHTML = html;
+    // SECURITY: html uses escapeHtml for all dynamic values
+    renderTrustedHtml(statusDisplay, html);
   } catch (error: unknown) {
-    statusDisplay.innerHTML = `<p class="status-error">Failed to load status: ${escapeHtml(getErrorMessage(error))}</p>`;
+    renderTrustedHtml(
+      statusDisplay,
+      `<p class="status-error">Failed to load status: ${escapeHtml(getErrorMessage(error))}</p>`,
+    );
   }
 }
 
@@ -451,7 +469,11 @@ async function validatePipeline(
 
                 const firstBuild = builds[0];
                 if (!firstBuild) {
-                  resolve({ valid: false, name: pipelineName, error: "Build unexpectedly empty" });
+                  resolve({
+                    valid: false,
+                    name: pipelineName,
+                    error: "Build unexpectedly empty",
+                  });
                   return;
                 }
 
@@ -475,7 +497,10 @@ async function validatePipeline(
             });
           });
       } catch (e: unknown) {
-        resolve({ valid: false, error: `Validation error: ${getErrorMessage(e)}` });
+        resolve({
+          valid: false,
+          error: `Validation error: ${getErrorMessage(e)}`,
+        });
       }
     });
   });
@@ -498,7 +523,8 @@ async function discoverPipelines(): Promise<
           resolve([]);
           return;
         }
-        const matches: Array<{ id: number; name: string; buildId: number }> = [];
+        const matches: Array<{ id: number; name: string; buildId: number }> =
+          [];
 
         // Get pipeline definitions (limit for performance)
         client
@@ -533,7 +559,11 @@ async function discoverPipelines(): Promise<
                   projectId,
                   latestBuild.id,
                 );
-                if (!artifacts.some((a: VSSBuildArtifact) => a.name === "aggregates"))
+                if (
+                  !artifacts.some(
+                    (a: VSSBuildArtifact) => a.name === "aggregates",
+                  )
+                )
                   continue;
 
                 matches.push({
@@ -568,17 +598,23 @@ async function runDiscovery(): Promise<void> {
   if (!statusDisplay) return;
 
   const originalContent = statusDisplay.innerHTML;
-  statusDisplay.innerHTML =
-    "<p>🔍 Discovering pipelines with aggregates artifact...</p>";
+  // SECURITY: Static content only
+  renderTrustedHtml(
+    statusDisplay,
+    "<p>🔍 Discovering pipelines with aggregates artifact...</p>",
+  );
 
   try {
     const matches = await discoverPipelines();
 
     if (matches.length === 0) {
-      statusDisplay.innerHTML = `
+      renderTrustedHtml(
+        statusDisplay,
+        `
                 <p class="status-warning">⚠️ No PR Insights pipelines found in the current project.</p>
                 <p class="status-hint">Create a pipeline using pr-insights-pipeline.yml and run it at least once.</p>
-            `;
+            `,
+      );
       showStatus("No pipelines found with aggregates artifact", "warning");
       return;
     }
@@ -594,7 +630,8 @@ async function runDiscovery(): Promise<void> {
     html +=
       '<p class="status-hint">Click "Use This" to configure, or clear settings for auto-discovery.</p>';
 
-    statusDisplay.innerHTML = html;
+    // SECURITY: html uses escapeHtml for match.name
+    renderTrustedHtml(statusDisplay, html);
 
     // Add event listeners for discovered pipelines
     for (const match of matches) {
@@ -614,7 +651,7 @@ async function runDiscovery(): Promise<void> {
 
     showStatus(`Found ${matches.length} pipeline(s)`, "success");
   } catch (error: unknown) {
-    statusDisplay.innerHTML = originalContent;
+    renderTrustedHtml(statusDisplay, originalContent);
     showStatus("Discovery failed: " + getErrorMessage(error), "error");
   }
 }
@@ -636,20 +673,15 @@ function showStatus(message: string, type = "info"): void {
   }, 5000);
 }
 
-/**
- * Escape HTML to prevent XSS.
- */
-function escapeHtml(text: string): string {
-  const div = document.createElement("div");
-  div.textContent = text;
-  return div.innerHTML;
-}
+// escapeHtml is now imported from ./modules/shared/render
 
 /**
  * Set up event listeners.
  */
 function setupEventListeners(): void {
-  document.getElementById("save-btn")?.addEventListener("click", () => void saveSettings());
+  document
+    .getElementById("save-btn")
+    ?.addEventListener("click", () => void saveSettings());
   document
     .getElementById("clear-btn")
     ?.addEventListener("click", () => void clearSettings());

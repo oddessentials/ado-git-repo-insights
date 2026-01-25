@@ -11,12 +11,12 @@
  * DOM-FREE: Uses string replacement, no document access.
  */
 export function escapeHtml(text: string): string {
-    return text
-        .replace(/&/g, "&amp;")
-        .replace(/</g, "&lt;")
-        .replace(/>/g, "&gt;")
-        .replace(/"/g, "&quot;")
-        .replace(/'/g, "&#039;");
+  return text
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#039;");
 }
 
 /**
@@ -39,13 +39,13 @@ export function escapeHtml(text: string): string {
  * const optional = safeHtml`<p>${maybeNull}</p>`;
  */
 export function safeHtml(
-    strings: TemplateStringsArray,
-    ...values: unknown[]
+  strings: TemplateStringsArray,
+  ...values: unknown[]
 ): string {
-    return strings.reduce((result, str, i) => {
-        const value = i < values.length ? escapeHtml(String(values[i] ?? "")) : "";
-        return result + str + value;
-    }, "");
+  return strings.reduce((result, str, i) => {
+    const value = i < values.length ? escapeHtml(String(values[i] ?? "")) : "";
+    return result + str + value;
+  }, "");
 }
 
 /**
@@ -53,16 +53,16 @@ export function safeHtml(
  * Only allows http, https, and relative URLs.
  */
 export function sanitizeUrl(url: string): string {
-    const trimmed = url.trim();
-    if (
-        trimmed.startsWith("https://") ||
-        trimmed.startsWith("http://") ||
-        trimmed.startsWith("/") ||
-        trimmed.startsWith("./") ||
-        trimmed.startsWith("?")
-    ) {
-        return trimmed;
-    }
-    // Block javascript:, data:, and other potentially dangerous schemes
-    return "#";
+  const trimmed = url.trim();
+  if (
+    trimmed.startsWith("https://") ||
+    trimmed.startsWith("http://") ||
+    trimmed.startsWith("/") ||
+    trimmed.startsWith("./") ||
+    trimmed.startsWith("?")
+  ) {
+    return trimmed;
+  }
+  // Block javascript:, data:, and other potentially dangerous schemes
+  return "#";
 }

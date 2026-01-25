@@ -143,7 +143,9 @@ export class ArtifactClient {
     this._ensureInitialized();
 
     const artifacts = await this.getArtifacts(buildId);
-    const artifact = artifacts.find((a: VSSBuildArtifact) => a.name === artifactName);
+    const artifact = artifacts.find(
+      (a: VSSBuildArtifact) => a.name === artifactName,
+    );
 
     if (!artifact) {
       console.log(
@@ -318,17 +320,19 @@ export class AuthenticatedDatasetLoader implements IDatasetLoader {
 
   async loadManifest(): Promise<ManifestSchema> {
     try {
-      this.manifest = await this.artifactClient.getArtifactFileViaSdk(
+      this.manifest = (await this.artifactClient.getArtifactFileViaSdk(
         this.buildId,
         this.artifactName,
         "dataset-manifest.json",
-      ) as ManifestSchema;
+      )) as ManifestSchema;
       if (this.manifest) {
         this.validateManifest(this.manifest);
       }
       return this.manifest!;
     } catch (error: unknown) {
-      throw new Error(`Failed to load dataset manifest: ${getErrorMessage(error)}`);
+      throw new Error(
+        `Failed to load dataset manifest: ${getErrorMessage(error)}`,
+      );
     }
   }
 
@@ -368,11 +372,11 @@ export class AuthenticatedDatasetLoader implements IDatasetLoader {
 
   async loadDimensions(): Promise<DimensionsData> {
     if (this.dimensions) return this.dimensions;
-    this.dimensions = await this.artifactClient.getArtifactFileViaSdk(
+    this.dimensions = (await this.artifactClient.getArtifactFileViaSdk(
       this.buildId,
       this.artifactName,
       "aggregates/dimensions.json",
-    ) as DimensionsData;
+    )) as DimensionsData;
     return this.dimensions!;
   }
 
@@ -395,11 +399,11 @@ export class AuthenticatedDatasetLoader implements IDatasetLoader {
       if (!indexEntry) continue;
 
       try {
-        const rollup = await this.artifactClient.getArtifactFileViaSdk(
+        const rollup = (await this.artifactClient.getArtifactFileViaSdk(
           this.buildId,
           this.artifactName,
           indexEntry.path,
-        ) as Rollup;
+        )) as Rollup;
         this.rollupCache.set(weekStr, rollup);
         results.push(rollup);
       } catch (e) {
@@ -410,7 +414,10 @@ export class AuthenticatedDatasetLoader implements IDatasetLoader {
     return results;
   }
 
-  async getDistributions(startDate: Date, endDate: Date): Promise<DistributionData[]> {
+  async getDistributions(
+    startDate: Date,
+    endDate: Date,
+  ): Promise<DistributionData[]> {
     if (!this.manifest) throw new Error("Manifest not loaded.");
 
     const startYear = startDate.getFullYear();
@@ -431,11 +438,11 @@ export class AuthenticatedDatasetLoader implements IDatasetLoader {
       if (!indexEntry) continue;
 
       try {
-        const dist = await this.artifactClient.getArtifactFileViaSdk(
+        const dist = (await this.artifactClient.getArtifactFileViaSdk(
           this.buildId,
           this.artifactName,
           indexEntry.path,
-        ) as DistributionData;
+        )) as DistributionData;
         this.distributionCache.set(yearStr, dist);
         results.push(dist);
       } catch (e) {
@@ -560,7 +567,11 @@ export class MockArtifactClient {
     buildId: number,
     artifactName: string,
   ): AuthenticatedDatasetLoader {
-    return new AuthenticatedDatasetLoader(this as unknown as ArtifactClient, buildId, artifactName);
+    return new AuthenticatedDatasetLoader(
+      this as unknown as ArtifactClient,
+      buildId,
+      artifactName,
+    );
   }
 }
 

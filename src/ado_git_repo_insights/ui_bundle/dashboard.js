@@ -453,7 +453,11 @@ var PRInsightsDashboard = (() => {
             await this._delay(fetchSemaphore.retryDelayMs);
             continue;
           }
-          return { week: weekStr, status: "failed", error: `HTTP ${response.status}` };
+          return {
+            week: weekStr,
+            status: "failed",
+            error: `HTTP ${response.status}`
+          };
         } catch (err) {
           if (retries < fetchSemaphore.maxRetries) {
             retries++;
@@ -563,7 +567,11 @@ var PRInsightsDashboard = (() => {
         return { state: "ok", data: predictions };
       } catch (err) {
         console.error("[DatasetLoader] Error loading predictions:", err);
-        return { state: "error", error: "PRED_002", message: getErrorMessage(err) };
+        return {
+          state: "error",
+          error: "PRED_002",
+          message: getErrorMessage(err)
+        };
       }
     }
     /**
@@ -903,7 +911,9 @@ var PRInsightsDashboard = (() => {
     async getArtifactMetadata(buildId, artifactName) {
       this._ensureInitialized();
       const artifacts = await this.getArtifacts(buildId);
-      const artifact = artifacts.find((a) => a.name === artifactName);
+      const artifact = artifacts.find(
+        (a) => a.name === artifactName
+      );
       if (!artifact) {
         console.log(
           `[getArtifactMetadata] Artifact '${artifactName}' not found in build ${buildId}`
@@ -1029,7 +1039,9 @@ var PRInsightsDashboard = (() => {
         }
         return this.manifest;
       } catch (error) {
-        throw new Error(`Failed to load dataset manifest: ${getErrorMessage(error)}`);
+        throw new Error(
+          `Failed to load dataset manifest: ${getErrorMessage(error)}`
+        );
       }
     }
     validateManifest(manifest) {
@@ -1204,7 +1216,11 @@ var PRInsightsDashboard = (() => {
       return this.mockData[`${buildId}/artifacts`] ?? [];
     }
     createDatasetLoader(buildId, artifactName) {
-      return new AuthenticatedDatasetLoader(this, buildId, artifactName);
+      return new AuthenticatedDatasetLoader(
+        this,
+        buildId,
+        artifactName
+      );
     }
   };
   if (typeof window !== "undefined") {
@@ -1235,6 +1251,51 @@ var PRInsightsDashboard = (() => {
   // ui/modules/shared/security.ts
   function escapeHtml(text) {
     return text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#039;");
+  }
+
+  // ui/modules/shared/render.ts
+  function clearElement(el) {
+    if (!el) return;
+    while (el.firstChild) {
+      el.removeChild(el.firstChild);
+    }
+  }
+  function createElement(tag, attributes, textContent) {
+    const el = document.createElement(tag);
+    if (attributes) {
+      for (const [key, value] of Object.entries(attributes)) {
+        el.setAttribute(key, value);
+      }
+    }
+    if (textContent !== void 0) {
+      el.textContent = textContent;
+    }
+    return el;
+  }
+  function renderNoData(container, message) {
+    if (!container) return;
+    clearElement(container);
+    const p = createElement("p", { class: "no-data" }, message);
+    container.appendChild(p);
+  }
+  function renderTrustedHtml(container, trustedHtml) {
+    if (!container) return;
+    container.innerHTML = trustedHtml;
+  }
+  function appendTrustedHtml(container, trustedHtml) {
+    if (!container) return;
+    const temp = document.createElement("div");
+    temp.innerHTML = trustedHtml;
+    while (temp.firstChild) {
+      container.appendChild(temp.firstChild);
+    }
+  }
+  function createOption(value, text, selected = false) {
+    const option = createElement("option", { value }, text);
+    if (selected) {
+      option.selected = true;
+    }
+    return option;
   }
 
   // ui/modules/metrics.ts
@@ -1281,7 +1342,9 @@ var PRInsightsDashboard = (() => {
       (end.getTime() - start.getTime()) / (1e3 * 60 * 60 * 24)
     );
     const prevEnd = new Date(start.getTime() - 1);
-    const prevStart = new Date(prevEnd.getTime() - rangeDays * 24 * 60 * 60 * 1e3);
+    const prevStart = new Date(
+      prevEnd.getTime() - rangeDays * 24 * 60 * 60 * 1e3
+    );
     return { start: prevStart, end: prevEnd };
   }
   function applyFiltersToRollups(rollups, filters) {
@@ -1307,10 +1370,7 @@ var PRInsightsDashboard = (() => {
             reviewers_count: 0
           };
         }
-        const totalPrCount = selectedRepos.reduce(
-          (sum, count) => sum + count,
-          0
-        );
+        const totalPrCount = selectedRepos.reduce((sum, count) => sum + count, 0);
         return {
           ...rollup,
           pr_count: totalPrCount
@@ -1330,10 +1390,7 @@ var PRInsightsDashboard = (() => {
             reviewers_count: 0
           };
         }
-        const totalPrCount = selectedTeams.reduce(
-          (sum, count) => sum + count,
-          0
-        );
+        const totalPrCount = selectedTeams.reduce((sum, count) => sum + count, 0);
         return {
           ...rollup,
           pr_count: totalPrCount
@@ -1413,7 +1470,11 @@ var PRInsightsDashboard = (() => {
     if (details?.instructions && Array.isArray(details.instructions)) {
       const stepsList = document.getElementById("setup-steps");
       if (stepsList) {
-        stepsList.innerHTML = details.instructions.map((s) => `<li>${escapeHtml(s)}</li>`).join("");
+        clearElement(stepsList);
+        details.instructions.forEach((s) => {
+          const li = createElement("li", {}, s);
+          stepsList.appendChild(li);
+        });
       }
     }
     if (details?.docsUrl) {
@@ -1432,7 +1493,7 @@ var PRInsightsDashboard = (() => {
     const listEl = document.getElementById("pipeline-list");
     const details = error.details;
     if (listEl && details?.matches && Array.isArray(details.matches)) {
-      listEl.innerHTML = details.matches.map(
+      const html = details.matches.map(
         (m) => `
                 <a href="?pipelineId=${escapeHtml(String(m.id))}" class="pipeline-option">
                     <strong>${escapeHtml(m.name)}</strong>
@@ -1440,6 +1501,7 @@ var PRInsightsDashboard = (() => {
                 </a>
             `
       ).join("");
+      renderTrustedHtml(listEl, html);
     }
     panel.classList.remove("hidden");
   }
@@ -1468,7 +1530,11 @@ var PRInsightsDashboard = (() => {
     if (details?.instructions && Array.isArray(details.instructions)) {
       const stepsList = document.getElementById("missing-steps");
       if (stepsList) {
-        stepsList.innerHTML = details.instructions.map((s) => `<li>${escapeHtml(s)}</li>`).join("");
+        clearElement(stepsList);
+        details.instructions.forEach((s) => {
+          const li = createElement("li", {}, s);
+          stepsList.appendChild(li);
+        });
       }
     }
     panel.classList.remove("hidden");
@@ -1486,29 +1552,37 @@ var PRInsightsDashboard = (() => {
     const content = document.createElement("div");
     content.className = "predictions-content";
     if (predictions.is_stub) {
-      content.innerHTML += `<div class="stub-warning">\u26A0\uFE0F Demo data</div>`;
+      const warning = createElement(
+        "div",
+        { class: "stub-warning" },
+        "\u26A0\uFE0F Demo data"
+      );
+      content.appendChild(warning);
     }
     predictions.forecasts.forEach((forecast) => {
       const label = forecast.metric.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
-      content.innerHTML += `
+      appendTrustedHtml(
+        content,
+        `
             <div class="forecast-section">
                 <h4>${escapeHtml(label)} (${escapeHtml(String(forecast.unit))})</h4>
                 <table class="forecast-table">
                     <thead><tr><th>Week</th><th>Predicted</th><th>Range</th></tr></thead>
                     <tbody>
                         ${forecast.values.map(
-        (v) => `
+          (v) => `
                             <tr>
                                 <td>${escapeHtml(String(v.period_start))}</td>
                                 <td>${escapeHtml(String(v.predicted))}</td>
                                 <td>${escapeHtml(String(v.lower_bound))} - ${escapeHtml(String(v.upper_bound))}</td>
                             </tr>
                         `
-      ).join("")}
+        ).join("")}
                     </tbody>
                 </table>
             </div>
-        `;
+        `
+      );
     });
     const unavailable = container.querySelector(".feature-unavailable");
     if (unavailable) unavailable.classList.add("hidden");
@@ -1520,29 +1594,37 @@ var PRInsightsDashboard = (() => {
     const content = document.createElement("div");
     content.className = "insights-content";
     if (insights.is_stub) {
-      content.innerHTML += `<div class="stub-warning">\u26A0\uFE0F Demo data</div>`;
+      const warning = createElement(
+        "div",
+        { class: "stub-warning" },
+        "\u26A0\uFE0F Demo data"
+      );
+      content.appendChild(warning);
     }
     ["critical", "warning", "info"].forEach((severity) => {
       const items = insights.insights.filter(
         (i) => i.severity === severity
       );
       if (!items.length) return;
-      content.innerHTML += `
+      appendTrustedHtml(
+        content,
+        `
             <div class="severity-section">
                 <h4>${SEVERITY_ICONS[severity]} ${severity.charAt(0).toUpperCase() + severity.slice(1)}</h4>
                 <div class="insight-cards">
                     ${items.map(
-        (i) => `
+          (i) => `
                         <div class="insight-card ${escapeHtml(String(i.severity))}">
                             <div class="insight-category">${escapeHtml(String(i.category))}</div>
                             <h5>${escapeHtml(String(i.title))}</h5>
                             <p>${escapeHtml(String(i.description))}</p>
                         </div>
                     `
-      ).join("")}
+        ).join("")}
                 </div>
             </div>
-        `;
+        `
+      );
     });
     const unavailable = container.querySelector(".feature-unavailable");
     if (unavailable) unavailable.classList.add("hidden");
@@ -1553,7 +1635,7 @@ var PRInsightsDashboard = (() => {
   function renderDelta(element, percentChange, inverse = false) {
     if (!element) return;
     if (percentChange === null) {
-      element.innerHTML = "";
+      clearElement(element);
       element.className = "metric-delta";
       return;
     }
@@ -1574,11 +1656,14 @@ var PRInsightsDashboard = (() => {
     }
     const sign = isPositive ? "+" : "";
     element.className = cssClass;
-    element.innerHTML = `<span class="delta-arrow">${arrow}</span> ${sign}${absChange.toFixed(0)}% <span class="delta-label">vs prev</span>`;
+    renderTrustedHtml(
+      element,
+      `<span class="delta-arrow">${arrow}</span> ${sign}${absChange.toFixed(0)}% <span class="delta-label">vs prev</span>`
+    );
   }
   function renderSparkline(element, values) {
     if (!element || !values || values.length < 2) {
-      if (element) element.innerHTML = "";
+      if (element) clearElement(element);
       return;
     }
     const data = values.slice(-8);
@@ -1596,13 +1681,16 @@ var PRInsightsDashboard = (() => {
     const pathD = points.map((p, i) => `${i === 0 ? "M" : "L"} ${p.x.toFixed(1)} ${p.y.toFixed(1)}`).join(" ");
     const areaD = pathD + ` L ${points[points.length - 1].x.toFixed(1)} ${height - padding} L ${points[0].x.toFixed(1)} ${height - padding} Z`;
     const lastPoint = points[points.length - 1];
-    element.innerHTML = `
+    renderTrustedHtml(
+      element,
+      `
         <svg viewBox="0 0 ${width} ${height}" preserveAspectRatio="none">
             <path class="sparkline-area" d="${areaD}"/>
             <path class="sparkline-line" d="${pathD}"/>
             <circle class="sparkline-dot" cx="${lastPoint.x.toFixed(1)}" cy="${lastPoint.y.toFixed(1)}" r="2"/>
         </svg>
-    `;
+    `
+    );
   }
   function addChartTooltips(container, contentFn) {
     const dots = container.querySelectorAll("[data-tooltip]");
@@ -1611,7 +1699,7 @@ var PRInsightsDashboard = (() => {
         const content = contentFn(dot);
         const tooltip = document.createElement("div");
         tooltip.className = "chart-tooltip";
-        tooltip.innerHTML = content;
+        renderTrustedHtml(tooltip, content);
         tooltip.style.position = "absolute";
         const rect = dot.getBoundingClientRect();
         tooltip.style.left = `${rect.left + rect.width / 2}px`;
@@ -1716,7 +1804,7 @@ var PRInsightsDashboard = (() => {
     ];
     deltaElements.forEach((el) => {
       if (el) {
-        el.innerHTML = "";
+        clearElement(el);
         el.className = "metric-delta";
       }
     });
@@ -1726,7 +1814,7 @@ var PRInsightsDashboard = (() => {
   function renderThroughputChart(container, rollups) {
     if (!container) return;
     if (!rollups || !rollups.length) {
-      container.innerHTML = '<p class="no-data">No data for selected range</p>';
+      renderNoData(container, "No data for selected range");
       return;
     }
     const prCounts = rollups.map((r) => r.pr_count || 0);
@@ -1755,13 +1843,16 @@ var PRInsightsDashboard = (() => {
             </div>
         </div>
     `;
-    container.innerHTML = `
+    renderTrustedHtml(
+      container,
+      `
         <div class="chart-with-trend">
             <div class="bar-chart">${barsHtml}</div>
             ${trendLineHtml}
         </div>
         ${legendHtml}
-    `;
+    `
+    );
   }
   function renderTrendLine(rollups, movingAvg, maxCount) {
     if (rollups.length < 4) return "";
@@ -1790,7 +1881,7 @@ var PRInsightsDashboard = (() => {
   function renderCycleDistribution(container, distributions) {
     if (!container) return;
     if (!distributions || !distributions.length) {
-      container.innerHTML = '<p class="no-data">No data for selected range</p>';
+      renderNoData(container, "No data for selected range");
       return;
     }
     const buckets = {
@@ -1808,7 +1899,7 @@ var PRInsightsDashboard = (() => {
     });
     const total = Object.values(buckets).reduce((a, b) => a + b, 0);
     if (total === 0) {
-      container.innerHTML = '<p class="no-data">No cycle time data</p>';
+      renderNoData(container, "No cycle time data");
       return;
     }
     const html = Object.entries(buckets).map(([label, count]) => {
@@ -1823,18 +1914,18 @@ var PRInsightsDashboard = (() => {
             </div>
         `;
     }).join("");
-    container.innerHTML = html;
+    renderTrustedHtml(container, html);
   }
   function renderCycleTimeTrend(container, rollups) {
     if (!container) return;
     if (!rollups || rollups.length < 2) {
-      container.innerHTML = '<p class="no-data">Not enough data for trend</p>';
+      renderNoData(container, "Not enough data for trend");
       return;
     }
     const p50Data = rollups.map((r) => ({ week: r.week, value: r.cycle_time_p50 })).filter((d) => d.value !== null);
     const p90Data = rollups.map((r) => ({ week: r.week, value: r.cycle_time_p90 })).filter((d) => d.value !== null);
     if (p50Data.length < 2 && p90Data.length < 2) {
-      container.innerHTML = '<p class="no-data">No cycle time data available</p>';
+      renderNoData(container, "No cycle time data available");
       return;
     }
     const allValues = [
@@ -1899,7 +1990,10 @@ var PRInsightsDashboard = (() => {
             </div>
         </div>
     `;
-    container.innerHTML = `<div class="line-chart">${svgContent}</div>${legendHtml}`;
+    renderTrustedHtml(
+      container,
+      `<div class="line-chart">${svgContent}</div>${legendHtml}`
+    );
     addChartTooltips(container, (dot) => {
       const week = dot.dataset["week"] || "";
       const value = parseFloat(dot.dataset["value"] || "0");
@@ -1921,7 +2015,7 @@ var PRInsightsDashboard = (() => {
   function renderReviewerActivity(container, rollups) {
     if (!container) return;
     if (!rollups || !rollups.length) {
-      container.innerHTML = '<p class="no-data">No reviewer data available</p>';
+      renderNoData(container, "No reviewer data available");
       return;
     }
     const recentRollups = rollups.slice(-8);
@@ -1929,7 +2023,7 @@ var PRInsightsDashboard = (() => {
       ...recentRollups.map((r) => r.reviewers_count || 0)
     );
     if (maxReviewers === 0) {
-      container.innerHTML = '<p class="no-data">No reviewer data available</p>';
+      renderNoData(container, "No reviewer data available");
       return;
     }
     const barsHtml = recentRollups.map((r) => {
@@ -1946,7 +2040,10 @@ var PRInsightsDashboard = (() => {
             </div>
         `;
     }).join("");
-    container.innerHTML = `<div class="horizontal-bar-chart">${barsHtml}</div>`;
+    renderTrustedHtml(
+      container,
+      `<div class="horizontal-bar-chart">${barsHtml}</div>`
+    );
   }
 
   // ui/modules/export.ts
@@ -2232,7 +2329,10 @@ var PRInsightsDashboard = (() => {
     artifactClient = new ArtifactClient(targetProjectId);
     await artifactClient.initialize();
     if (queryResult.mode === "explicit") {
-      return await resolveFromPipelineId(queryResult.value, targetProjectId);
+      return await resolveFromPipelineId(
+        queryResult.value,
+        targetProjectId
+      );
     }
     if (sourceConfig.pipelineId) {
       console.log(
@@ -2692,7 +2792,8 @@ var PRInsightsDashboard = (() => {
     if (!dimensions) return;
     const repoFilter = getElement("repo-filter");
     if (repoFilter && dimensions.repositories && dimensions.repositories.length > 0) {
-      repoFilter.innerHTML = '<option value="">All</option>';
+      clearElement(repoFilter);
+      repoFilter.appendChild(createOption("", "All"));
       dimensions.repositories.forEach((repo) => {
         const option = document.createElement("option");
         option.value = repo.repository_name;
@@ -2705,7 +2806,8 @@ var PRInsightsDashboard = (() => {
     }
     const teamFilter = getElement("team-filter");
     if (teamFilter && dimensions.teams && dimensions.teams.length > 0) {
-      teamFilter.innerHTML = '<option value="">All</option>';
+      clearElement(teamFilter);
+      teamFilter.appendChild(createOption("", "All"));
       dimensions.teams.forEach((team) => {
         const option = document.createElement("option");
         option.value = team.team_name;
@@ -2780,7 +2882,7 @@ var PRInsightsDashboard = (() => {
       if (hasFilters) {
         renderFilterChips();
       } else {
-        elements["filter-chips"].innerHTML = "";
+        clearElement(elements["filter-chips"]);
       }
     }
   }
@@ -2796,7 +2898,7 @@ var PRInsightsDashboard = (() => {
       const label = getFilterLabel("team", value);
       chips.push(createFilterChip("team", value, label));
     });
-    chipsEl.innerHTML = chips.join("");
+    renderTrustedHtml(chipsEl, chips.join(""));
     chipsEl.querySelectorAll(".filter-chip-remove").forEach((btnNode) => {
       const btn = btnNode;
       btn.addEventListener("click", () => {

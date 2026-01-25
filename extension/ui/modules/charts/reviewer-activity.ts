@@ -9,7 +9,7 @@
  */
 
 import type { Rollup } from "../../dataset-loader";
-import { escapeHtml } from "../shared/security";
+import { escapeHtml, renderNoData, renderTrustedHtml } from "../shared/render";
 
 /**
  * Render reviewer activity chart (horizontal bar chart).
@@ -20,34 +20,34 @@ import { escapeHtml } from "../shared/security";
  * @param rollups - Array of weekly rollup data
  */
 export function renderReviewerActivity(
-    container: HTMLElement | null,
-    rollups: Rollup[],
+  container: HTMLElement | null,
+  rollups: Rollup[],
 ): void {
-    if (!container) return;
+  if (!container) return;
 
-    if (!rollups || !rollups.length) {
-        container.innerHTML = '<p class="no-data">No reviewer data available</p>';
-        return;
-    }
+  if (!rollups || !rollups.length) {
+    renderNoData(container, "No reviewer data available");
+    return;
+  }
 
-    // Take last 8 weeks for display
-    const recentRollups = rollups.slice(-8);
-    const maxReviewers = Math.max(
-        ...recentRollups.map((r) => r.reviewers_count || 0),
-    );
+  // Take last 8 weeks for display
+  const recentRollups = rollups.slice(-8);
+  const maxReviewers = Math.max(
+    ...recentRollups.map((r) => r.reviewers_count || 0),
+  );
 
-    if (maxReviewers === 0) {
-        container.innerHTML = '<p class="no-data">No reviewer data available</p>';
-        return;
-    }
+  if (maxReviewers === 0) {
+    renderNoData(container, "No reviewer data available");
+    return;
+  }
 
-    const barsHtml = recentRollups
-        .map((r) => {
-            const count = r.reviewers_count || 0;
-            const pct = (count / maxReviewers) * 100;
-            const weekLabel = r.week.split("-W")[1] || "";
-            // SECURITY: Escape data-controlled values to prevent XSS
-            return `
+  const barsHtml = recentRollups
+    .map((r) => {
+      const count = r.reviewers_count || 0;
+      const pct = (count / maxReviewers) * 100;
+      const weekLabel = r.week.split("-W")[1] || "";
+      // SECURITY: Escape data-controlled values to prevent XSS
+      return `
             <div class="h-bar-row" title="${escapeHtml(r.week)}: ${count} reviewers">
                 <span class="h-bar-label">W${escapeHtml(weekLabel)}</span>
                 <div class="h-bar-container">
@@ -56,8 +56,12 @@ export function renderReviewerActivity(
                 <span class="h-bar-value">${count}</span>
             </div>
         `;
-        })
-        .join("");
+    })
+    .join("");
 
-    container.innerHTML = `<div class="horizontal-bar-chart">${barsHtml}</div>`;
+  // SECURITY: barsHtml uses escapeHtml for week values, count is numeric
+  renderTrustedHtml(
+    container,
+    `<div class="horizontal-bar-chart">${barsHtml}</div>`,
+  );
 }

@@ -99,20 +99,20 @@ describe("Security Invariants", () => {
 
     // Known-safe variable patterns that don't need escaping
     const safePatterns = [
-      /^(count|pct|duration|width|height|\d+)$/,  // Numeric values
-      /^Math\./,                                   // Math expressions
-      /^icons\[/,                                  // Icon lookups
-      /^(arrow|sign|prefix|cssClass)$/,           // UI constants
-      /^(chartWidth|chartHeight|padding)/,        // Layout values
-      /\.toFixed\(/,                               // Number formatting (any var.toFixed())
-      /^p\.(x|y)/,                                 // Coordinate values
-      /^barsHtml$/,                                // Already-rendered HTML from escapeHtml
-      /^html$/,                                    // Already-assembled HTML
-      /^legendHtml$/,                              // Already-rendered legend
-      /^svgContent$/,                              // Already-rendered SVG
-      /^chips\.join/,                              // Array join of safe chips
-      /^SEVERITY_ICONS\[/,                         // Static icon map
-      /^formatDuration\(/,                         // Duration formatting helper
+      /^(count|pct|duration|width|height|\d+)$/, // Numeric values
+      /^Math\./, // Math expressions
+      /^icons\[/, // Icon lookups
+      /^(arrow|sign|prefix|cssClass)$/, // UI constants
+      /^(chartWidth|chartHeight|padding)/, // Layout values
+      /\.toFixed\(/, // Number formatting (any var.toFixed())
+      /^p\.(x|y)/, // Coordinate values
+      /^barsHtml$/, // Already-rendered HTML from escapeHtml
+      /^html$/, // Already-assembled HTML
+      /^legendHtml$/, // Already-rendered legend
+      /^svgContent$/, // Already-rendered SVG
+      /^chips\.join/, // Array join of safe chips
+      /^SEVERITY_ICONS\[/, // Static icon map
+      /^formatDuration\(/, // Duration formatting helper
     ];
 
     for (const file of uiFiles) {
@@ -126,10 +126,7 @@ describe("Security Invariants", () => {
         const line = lines[i];
 
         // Check for innerHTML with template literals
-        if (
-          /\.innerHTML\s*\+?=\s*`/.test(line) &&
-          /\$\{[^}]+\}/.test(line)
-        ) {
+        if (/\.innerHTML\s*\+?=\s*`/.test(line) && /\$\{[^}]+\}/.test(line)) {
           // Extract all interpolations
           const templateMatch = line.match(/\$\{([^}]+)\}/g);
           if (templateMatch) {
@@ -203,5 +200,81 @@ describe("Security Invariants", () => {
     const content = fs.readFileSync(safePathPath, "utf-8");
     expect(content).toContain("resolveInside");
     expect(content).toContain("Path traversal");
+  });
+
+  test("Safe rendering utilities exist", () => {
+    // SECURITY: Safe DOM rendering utilities must exist
+    const renderPath = path.join(
+      extensionRoot,
+      "extension",
+      "ui",
+      "modules",
+      "shared",
+      "render.ts",
+    );
+
+    expect(fs.existsSync(renderPath)).toBe(true);
+
+    const content = fs.readFileSync(renderPath, "utf-8");
+    expect(content).toContain("clearElement");
+    expect(content).toContain("renderTrustedHtml");
+    expect(content).toContain("renderNoData");
+    expect(content).toContain("createElement");
+    // Verify security documentation
+    expect(content).toContain("SECURITY");
+  });
+
+  test("No outerHTML usage in UI source", () => {
+    // SECURITY: outerHTML can also enable XSS attacks
+    const uiFiles = findFiles(
+      path.join(extensionRoot, "extension", "ui"),
+      /\.ts$/,
+    );
+
+    const violations: string[] = [];
+
+    for (const file of uiFiles) {
+      if (file.includes(".test.")) continue;
+
+      const content = fs.readFileSync(file, "utf-8");
+      const lines = content.split("\n");
+
+      for (let i = 0; i < lines.length; i++) {
+        const line = lines[i];
+        if (/\.outerHTML\s*=/.test(line)) {
+          violations.push(
+            `${file}:${i + 1}: outerHTML assignment is forbidden`,
+          );
+        }
+      }
+    }
+
+    expect(violations).toEqual([]);
+  });
+
+  test("No document.write usage in UI source", () => {
+    // SECURITY: document.write enables XSS and is deprecated
+    const uiFiles = findFiles(
+      path.join(extensionRoot, "extension", "ui"),
+      /\.ts$/,
+    );
+
+    const violations: string[] = [];
+
+    for (const file of uiFiles) {
+      if (file.includes(".test.")) continue;
+
+      const content = fs.readFileSync(file, "utf-8");
+      const lines = content.split("\n");
+
+      for (let i = 0; i < lines.length; i++) {
+        const line = lines[i];
+        if (/document\.write(ln)?\s*\(/.test(line)) {
+          violations.push(`${file}:${i + 1}: document.write is forbidden`);
+        }
+      }
+    }
+
+    expect(violations).toEqual([]);
   });
 });

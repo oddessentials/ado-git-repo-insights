@@ -52,9 +52,9 @@ describe("Cross-Project Settings", () => {
     });
 
     it("should pass targetProjectId to resolveFromPipelineId", () => {
-      // Check for calls with targetProjectId parameter
+      // Check for calls with targetProjectId parameter (multiline-safe)
       expect(dashboardCode).toMatch(
-        /resolveFromPipelineId\(.*,\s*targetProjectId\)/s,
+        /resolveFromPipelineId\([^)]*targetProjectId/s,
       );
     });
 

@@ -11,7 +11,11 @@
  * 4. Auto-discovery - Find pipelines with 'aggregates' artifact
  */
 
-import { DatasetLoader, type IDatasetLoader, type Rollup } from "./dataset-loader";
+import {
+  DatasetLoader,
+  type IDatasetLoader,
+  type Rollup,
+} from "./dataset-loader";
 import { ArtifactClient } from "./artifact-client";
 import {
   PrInsightsError,
@@ -57,6 +61,10 @@ import {
   // Error handling functions (dispatch handled internally)
   handleError,
   hideAllPanels,
+  // Safe DOM rendering utilities
+  clearElement,
+  createOption,
+  renderTrustedHtml,
 } from "./modules";
 
 // Dashboard state
@@ -120,53 +128,53 @@ interface PerformanceMetric {
 
 const metricsCollector = DEBUG_ENABLED
   ? {
-    marks: new Map<string, number>(),
-    measures: [] as PerformanceMetric[],
-    mark(name: string) {
-      if (!performance || !performance.mark) return;
-      try {
-        performance.mark(name);
-        this.marks.set(name, performance.now());
-      } catch (_e) {
-        /* ignore */
-      }
-    },
-    measure(name: string, startMark: string, endMark: string) {
-      if (!performance || !performance.measure) return;
-      try {
-        performance.measure(name, startMark, endMark);
-        const entries = performance.getEntriesByName(name, "measure");
-        if (entries.length > 0) {
-          const lastEntry = entries[entries.length - 1];
-          if (lastEntry) {
-            this.measures.push({
-              name,
-              duration: lastEntry.duration,
-              timestamp: Date.now(),
-            });
-          }
+      marks: new Map<string, number>(),
+      measures: [] as PerformanceMetric[],
+      mark(name: string) {
+        if (!performance || !performance.mark) return;
+        try {
+          performance.mark(name);
+          this.marks.set(name, performance.now());
+        } catch (_e) {
+          /* ignore */
         }
-      } catch (_e) {
-        /* ignore */
-      }
-    },
-    getMetrics() {
-      return {
-        marks: Array.from(this.marks.entries()).map(([name, time]) => ({
-          name,
-          time,
-        })),
-        measures: [...this.measures],
-      };
-    },
-    reset() {
-      this.marks.clear();
-      this.measures = [];
-      if (performance && performance.clearMarks) performance.clearMarks();
-      if (performance && performance.clearMeasures)
-        performance.clearMeasures();
-    },
-  }
+      },
+      measure(name: string, startMark: string, endMark: string) {
+        if (!performance || !performance.measure) return;
+        try {
+          performance.measure(name, startMark, endMark);
+          const entries = performance.getEntriesByName(name, "measure");
+          if (entries.length > 0) {
+            const lastEntry = entries[entries.length - 1];
+            if (lastEntry) {
+              this.measures.push({
+                name,
+                duration: lastEntry.duration,
+                timestamp: Date.now(),
+              });
+            }
+          }
+        } catch (_e) {
+          /* ignore */
+        }
+      },
+      getMetrics() {
+        return {
+          marks: Array.from(this.marks.entries()).map(([name, time]) => ({
+            name,
+            time,
+          })),
+          measures: [...this.measures],
+        };
+      },
+      reset() {
+        this.marks.clear();
+        this.measures = [];
+        if (performance && performance.clearMarks) performance.clearMarks();
+        if (performance && performance.clearMeasures)
+          performance.clearMeasures();
+      },
+    }
   : null;
 
 if (DEBUG_ENABLED && typeof window !== "undefined") {
@@ -217,7 +225,7 @@ function parseQueryParams(): QueryParamResult | PrInsightsError {
         if (!isAdoDomain) {
           console.warn(
             `SECURITY: ?dataset= URL "${urlHost}" is not an Azure DevOps domain. ` +
-            `This parameter is intended for development only.`,
+              `This parameter is intended for development only.`,
           );
         }
       } catch (_e) {
@@ -363,7 +371,10 @@ async function resolveConfiguration(): Promise<{
   // Mode: explicit pipelineId from query
   if (queryResult.mode === "explicit") {
     // When mode is 'explicit', value is always a number (pipeline ID)
-    return await resolveFromPipelineId(queryResult.value as number, targetProjectId);
+    return await resolveFromPipelineId(
+      queryResult.value as number,
+      targetProjectId,
+    );
   }
 
   // Check settings for pipeline ID
@@ -951,10 +962,13 @@ async function updateFeatureTabs(): Promise<void> {
     const predictionsResult = await loader.loadPredictions();
 
     // Check for valid predictions data with forecasts
-    const predData = predictionsResult?.data as PredictionsRenderData | undefined;
+    const predData = predictionsResult?.data as
+      | PredictionsRenderData
+      | undefined;
     if (
       predictionsResult?.state === "ok" &&
-      predData?.forecasts?.length && predData.forecasts.length > 0
+      predData?.forecasts?.length &&
+      predData.forecasts.length > 0
     ) {
       renderPredictions(predictionsContent, predData);
     } else if (predictionsUnavailable) {
@@ -971,7 +985,8 @@ async function updateFeatureTabs(): Promise<void> {
     const insData = insightsResult?.data as InsightsRenderData | undefined;
     if (
       insightsResult?.state === "ok" &&
-      insData?.insights?.length && insData.insights.length > 0
+      insData?.insights?.length &&
+      insData.insights.length > 0
     ) {
       renderAIInsights(aiContent, insData);
     } else if (aiUnavailable) {
@@ -984,7 +999,10 @@ async function updateFeatureTabs(): Promise<void> {
  * Render predictions.
  * Thin wrapper that delegates to extracted module.
  */
-function renderPredictions(container: HTMLElement, predictions: PredictionsRenderData): void {
+function renderPredictions(
+  container: HTMLElement,
+  predictions: PredictionsRenderData,
+): void {
   renderPredictionsModule(container, predictions);
 }
 
@@ -992,7 +1010,10 @@ function renderPredictions(container: HTMLElement, predictions: PredictionsRende
  * Render AI insights.
  * Thin wrapper that delegates to extracted module.
  */
-function renderAIInsights(container: HTMLElement, insights: InsightsRenderData): void {
+function renderAIInsights(
+  container: HTMLElement,
+  insights: InsightsRenderData,
+): void {
   renderAIInsightsModule(container, insights);
 }
 
@@ -1067,8 +1088,14 @@ function populateFilterDropdowns(dimensions: DimensionsData | null): void {
 
   // Populate repository filter
   const repoFilter = getElement<HTMLSelectElement>("repo-filter");
-  if (repoFilter && dimensions.repositories && dimensions.repositories.length > 0) {
-    repoFilter.innerHTML = '<option value="">All</option>';
+  if (
+    repoFilter &&
+    dimensions.repositories &&
+    dimensions.repositories.length > 0
+  ) {
+    // SECURITY: Use safe DOM APIs for filter dropdown
+    clearElement(repoFilter);
+    repoFilter.appendChild(createOption("", "All"));
     dimensions.repositories.forEach((repo) => {
       const option = document.createElement("option");
       // Use repository_name as value (matches by_repository keys in rollups)
@@ -1084,7 +1111,9 @@ function populateFilterDropdowns(dimensions: DimensionsData | null): void {
   // Populate team filter
   const teamFilter = getElement<HTMLSelectElement>("team-filter");
   if (teamFilter && dimensions.teams && dimensions.teams.length > 0) {
-    teamFilter.innerHTML = '<option value="">All</option>';
+    // SECURITY: Use safe DOM APIs for filter dropdown
+    clearElement(teamFilter);
+    teamFilter.appendChild(createOption("", "All"));
     dimensions.teams.forEach((team) => {
       const option = document.createElement("option");
       // Use team_name as value (matches by_team keys in rollups)
@@ -1110,13 +1139,13 @@ function handleFilterChange(): void {
 
   const repoValues = repoFilter
     ? Array.from(repoFilter.selectedOptions)
-      .map((o) => o.value)
-      .filter((v) => v)
+        .map((o) => o.value)
+        .filter((v) => v)
     : [];
   const teamValues = teamFilter
     ? Array.from(teamFilter.selectedOptions)
-      .map((o) => o.value)
-      .filter((v) => v)
+        .map((o) => o.value)
+        .filter((v) => v)
     : [];
 
   currentFilters = { repos: repoValues, teams: teamValues };
@@ -1197,7 +1226,7 @@ function updateFilterUI(): void {
     if (hasFilters) {
       renderFilterChips();
     } else {
-      elements["filter-chips"].innerHTML = "";
+      clearElement(elements["filter-chips"]);
     }
   }
 }
@@ -1221,7 +1250,8 @@ function renderFilterChips(): void {
     chips.push(createFilterChip("team", value, label));
   });
 
-  chipsEl.innerHTML = chips.join("");
+  // SECURITY: Filter chips use escapeHtml for all values
+  renderTrustedHtml(chipsEl, chips.join(""));
 
   chipsEl.querySelectorAll(".filter-chip-remove").forEach((btnNode) => {
     const btn = btnNode as HTMLElement;

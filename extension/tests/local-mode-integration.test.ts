@@ -7,7 +7,7 @@
 
 // Make this file a module (required for global augmentation in types.ts)
 // Window interface is declared in ../ui/types.ts
-export { };
+export {};
 
 describe("Local Mode Integration", () => {
   beforeEach(() => {

@@ -482,7 +482,11 @@ var PRInsightsDatasetLoader = (() => {
             await this._delay(fetchSemaphore.retryDelayMs);
             continue;
           }
-          return { week: weekStr, status: "failed", error: `HTTP ${response.status}` };
+          return {
+            week: weekStr,
+            status: "failed",
+            error: `HTTP ${response.status}`
+          };
         } catch (err) {
           if (retries < fetchSemaphore.maxRetries) {
             retries++;
@@ -592,7 +596,11 @@ var PRInsightsDatasetLoader = (() => {
         return { state: "ok", data: predictions };
       } catch (err) {
         console.error("[DatasetLoader] Error loading predictions:", err);
-        return { state: "error", error: "PRED_002", message: getErrorMessage(err) };
+        return {
+          state: "error",
+          error: "PRED_002",
+          message: getErrorMessage(err)
+        };
       }
     }
     /**

@@ -10,6 +10,42 @@ var PRInsightsSettings = (() => {
     return "Unknown error";
   }
 
+  // ui/modules/shared/security.ts
+  function escapeHtml(text) {
+    return text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#039;");
+  }
+
+  // ui/modules/shared/render.ts
+  function clearElement(el) {
+    if (!el) return;
+    while (el.firstChild) {
+      el.removeChild(el.firstChild);
+    }
+  }
+  function createElement(tag, attributes, textContent) {
+    const el = document.createElement(tag);
+    if (attributes) {
+      for (const [key, value] of Object.entries(attributes)) {
+        el.setAttribute(key, value);
+      }
+    }
+    if (textContent !== void 0) {
+      el.textContent = textContent;
+    }
+    return el;
+  }
+  function renderTrustedHtml(container, trustedHtml) {
+    if (!container) return;
+    container.innerHTML = trustedHtml;
+  }
+  function createOption(value, text, selected = false) {
+    const option = createElement("option", { value }, text);
+    if (selected) {
+      option.selected = true;
+    }
+    return option;
+  }
+
   // ui/error-types.ts
   var PrInsightsError = class extends Error {
     constructor(type, title, message, details = null) {
@@ -75,7 +111,10 @@ var PRInsightsSettings = (() => {
       setupEventListeners();
     } catch (error) {
       console.error("Settings initialization failed:", error);
-      showStatus("Failed to initialize settings: " + getErrorMessage(error), "error");
+      showStatus(
+        "Failed to initialize settings: " + getErrorMessage(error),
+        "error"
+      );
     }
   }
   async function tryLoadProjectDropdown() {
@@ -88,7 +127,8 @@ var PRInsightsSettings = (() => {
       if (projects && projects.length > 0) {
         projectList = projects;
         projectDropdownAvailable = true;
-        dropdown.innerHTML = '<option value="">Current project (auto)</option>';
+        clearElement(dropdown);
+        dropdown.appendChild(createOption("", "Current project (auto)"));
         for (const project of projects.sort(
           (a, b) => a.name.localeCompare(b.name)
         )) {
@@ -257,10 +297,10 @@ var PRInsightsSettings = (() => {
       const currentProjectName = webContext?.project?.name || "Unknown";
       const currentProjectId = webContext?.project?.id;
       let html = "";
-      html += `<p><strong>Current Project:</strong> ${escapeHtml2(currentProjectName)}</p>`;
+      html += `<p><strong>Current Project:</strong> ${escapeHtml(currentProjectName)}</p>`;
       if (savedProjectId) {
         const projectName = getProjectNameById(savedProjectId);
-        html += `<p><strong>Source Project:</strong> ${escapeHtml2(projectName)} <code>${savedProjectId.substring(0, 8)}...</code></p>`;
+        html += `<p><strong>Source Project:</strong> ${escapeHtml(projectName)} <code>${savedProjectId.substring(0, 8)}...</code></p>`;
       } else {
         html += `<p><strong>Source Project:</strong> <em>Same as current</em></p>`;
       }
@@ -275,11 +315,11 @@ var PRInsightsSettings = (() => {
           if (validation.valid) {
             html += ` <span class="status-valid">\u2713 Valid</span>`;
             html += `</p>`;
-            html += `<p class="status-hint">Pipeline: "${escapeHtml2(validation.name || "")}" (Build #${validation.buildId})</p>`;
+            html += `<p class="status-hint">Pipeline: "${escapeHtml(validation.name || "")}" (Build #${validation.buildId})</p>`;
           } else {
             html += ` <span class="status-invalid">\u26A0\uFE0F Invalid</span>`;
             html += `</p>`;
-            html += `<p class="status-warning">\u26A0\uFE0F ${escapeHtml2(validation.error || "")}</p>`;
+            html += `<p class="status-warning">\u26A0\uFE0F ${escapeHtml(validation.error || "")}</p>`;
             html += `<p class="status-hint">The dashboard will automatically clear this setting and re-discover pipelines. Consider clearing manually to configure a different pipeline.</p>`;
           }
         } else {
@@ -294,9 +334,12 @@ var PRInsightsSettings = (() => {
       } else {
         html += `<p class="status-hint">Project dropdown not available - using text input</p>`;
       }
-      statusDisplay.innerHTML = html;
+      renderTrustedHtml(statusDisplay, html);
     } catch (error) {
-      statusDisplay.innerHTML = `<p class="status-error">Failed to load status: ${escapeHtml2(getErrorMessage(error))}</p>`;
+      renderTrustedHtml(
+        statusDisplay,
+        `<p class="status-error">Failed to load status: ${escapeHtml(getErrorMessage(error))}</p>`
+      );
     }
   }
   function getProjectNameById(projectId) {
@@ -359,7 +402,11 @@ var PRInsightsSettings = (() => {
               }
               const firstBuild = builds[0];
               if (!firstBuild) {
-                resolve({ valid: false, name: pipelineName, error: "Build unexpectedly empty" });
+                resolve({
+                  valid: false,
+                  name: pipelineName,
+                  error: "Build unexpectedly empty"
+                });
                 return;
               }
               resolve({
@@ -380,7 +427,10 @@ var PRInsightsSettings = (() => {
             });
           });
         } catch (e) {
-          resolve({ valid: false, error: `Validation error: ${getErrorMessage(e)}` });
+          resolve({
+            valid: false,
+            error: `Validation error: ${getErrorMessage(e)}`
+          });
         }
       });
     });
@@ -423,7 +473,9 @@ var PRInsightsSettings = (() => {
                   projectId,
                   latestBuild.id
                 );
-                if (!artifacts.some((a) => a.name === "aggregates"))
+                if (!artifacts.some(
+                  (a) => a.name === "aggregates"
+                ))
                   continue;
                 matches.push({
                   id: def.id,
@@ -450,27 +502,33 @@ var PRInsightsSettings = (() => {
     const statusDisplay = document.getElementById("status-display");
     if (!statusDisplay) return;
     const originalContent = statusDisplay.innerHTML;
-    statusDisplay.innerHTML = "<p>\u{1F50D} Discovering pipelines with aggregates artifact...</p>";
+    renderTrustedHtml(
+      statusDisplay,
+      "<p>\u{1F50D} Discovering pipelines with aggregates artifact...</p>"
+    );
     try {
       const matches = await discoverPipelines();
       if (matches.length === 0) {
-        statusDisplay.innerHTML = `
+        renderTrustedHtml(
+          statusDisplay,
+          `
                 <p class="status-warning">\u26A0\uFE0F No PR Insights pipelines found in the current project.</p>
                 <p class="status-hint">Create a pipeline using pr-insights-pipeline.yml and run it at least once.</p>
-            `;
+            `
+        );
         showStatus("No pipelines found with aggregates artifact", "warning");
         return;
       }
       let html = `<p><strong>Found ${matches.length} pipeline(s):</strong></p><ul class="discovered-pipelines">`;
       for (const match of matches) {
         html += `<li>
-                <strong>${escapeHtml2(match.name)}</strong> (ID: ${match.id})
+                <strong>${escapeHtml(match.name)}</strong> (ID: ${match.id})
                 <button class="btn btn-small" id="select-pipeline-${match.id}">Use This</button>
             </li>`;
       }
       html += "</ul>";
       html += '<p class="status-hint">Click "Use This" to configure, or clear settings for auto-discovery.</p>';
-      statusDisplay.innerHTML = html;
+      renderTrustedHtml(statusDisplay, html);
       for (const match of matches) {
         document.getElementById(`select-pipeline-${match.id}`)?.addEventListener("click", () => {
           const pipelineInput = document.getElementById(
@@ -485,7 +543,7 @@ var PRInsightsSettings = (() => {
       }
       showStatus(`Found ${matches.length} pipeline(s)`, "success");
     } catch (error) {
-      statusDisplay.innerHTML = originalContent;
+      renderTrustedHtml(statusDisplay, originalContent);
       showStatus("Discovery failed: " + getErrorMessage(error), "error");
     }
   }
@@ -498,11 +556,6 @@ var PRInsightsSettings = (() => {
       statusEl.textContent = "";
       statusEl.className = "status-message";
     }, 5e3);
-  }
-  function escapeHtml2(text) {
-    const div = document.createElement("div");
-    div.textContent = text;
-    return div.innerHTML;
   }
   function setupEventListeners() {
     document.getElementById("save-btn")?.addEventListener("click", () => void saveSettings());
