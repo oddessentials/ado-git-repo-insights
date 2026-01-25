@@ -257,6 +257,20 @@ jobs:
           python -m pip install --upgrade pip
           pip install -e .[dev]
 
+      - name: Verify Pandas Version Policy
+        run: |
+          python -c "
+          import sys
+          import pandas as pd
+          major = int(pd.__version__.split('.')[0])
+          py_minor = sys.version_info.minor
+          expected = 2 if py_minor == 10 else 3
+          if major != expected:
+              print(f'::error::Pandas major version mismatch: got {major}, expected {expected} for Python 3.{py_minor}')
+              sys.exit(1)
+          print(f'✓ Pandas {pd.__version__} (major {major}) correct for Python 3.{py_minor}')
+          "
+
       - name: Verify Ruff Version Consistency
         run: |
           # Extract ruff version from pre-commit config (strip v prefix and whitespace)
@@ -556,11 +570,13 @@ jobs:
           fi
 
           # Phase 2: Validate test results using JUnit XML parsing
-          # MIN_COLLECTED: Minimum expected tests (update when adding/removing tests)
-          # MAX_SKIPS: Maximum allowed skipped tests (0 = no skips allowed in CI)
+          # MIN_COLLECTED: 642 actual tests - 10 tolerance = 632
+          # Policy: Detects material drops while allowing normal growth
+          # Update threshold only when tests intentionally decrease (with PR justification)
+          # MAX_SKIPS: Maximum allowed skipped tests (5 for platform-specific edge cases)
           python .github/scripts/validate-test-results.py \
             extension/test-results.xml \
-            --min-collected=374 \
+            --min-collected=632 \
             --max-skips=5
         shell: bash
 

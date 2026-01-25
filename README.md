@@ -3,8 +3,8 @@
 <!-- CI & Quality -->
 ![CI](https://github.com/oddessentials/ado-git-repo-insights/actions/workflows/ci.yml/badge.svg)
 [![codecov](https://codecov.io/gh/oddessentials/ado-git-repo-insights/graph/badge.svg)](https://codecov.io/gh/oddessentials/ado-git-repo-insights)
-![Python Tests](https://img.shields.io/badge/python_tests-312+-brightgreen)
-![Extension Tests](https://img.shields.io/badge/extension_tests-589+-brightgreen)
+![Python Tests](https://img.shields.io/badge/python_tests-passing-brightgreen)
+![Extension Tests](https://img.shields.io/badge/extension_tests-passing-brightgreen)
 
 <!-- Technology Stack -->
 ![Python](https://img.shields.io/badge/python-3.10%20%7C%203.11%20%7C%203.12-blue)
@@ -12,6 +12,10 @@
 ![TypeScript](https://img.shields.io/badge/TypeScript-5.x-blue?logo=typescript)
 ![Platform](https://img.shields.io/badge/platform-linux%20%7C%20windows%20%7C%20macos-lightgrey)
 ![License](https://img.shields.io/badge/license-MIT-green)
+
+> [!NOTE]
+> **Python Compatibility:** Python 3.10 uses pandas 2.x; Python 3.11+ uses pandas 3.x.
+> Python 3.10 support will be evaluated in a future release.
 
 Extract Azure DevOps Pull Request metrics to SQLite and generate PowerBI-compatible CSVs.
 
