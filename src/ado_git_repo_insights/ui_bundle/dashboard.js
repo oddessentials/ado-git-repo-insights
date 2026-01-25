@@ -1890,6 +1890,48 @@ var PRInsightsDashboard = (() => {
     }, durationMs);
   }
 
+  // ui/modules/sdk.ts
+  var sdkInitialized = false;
+  async function initializeAdoSdk(options = {}) {
+    if (sdkInitialized) {
+      return;
+    }
+    const { timeout = 1e4, onReady } = options;
+    return new Promise((resolve, reject) => {
+      const timeoutId = setTimeout(() => {
+        reject(new Error("Azure DevOps SDK initialization timed out"));
+      }, timeout);
+      VSS.init({
+        explicitNotifyLoaded: true,
+        usePlatformScripts: true,
+        usePlatformStyles: true
+      });
+      VSS.ready(() => {
+        clearTimeout(timeoutId);
+        sdkInitialized = true;
+        if (onReady) {
+          onReady();
+        }
+        VSS.notifyLoadSucceeded();
+        resolve();
+      });
+    });
+  }
+  async function getBuildClient() {
+    return new Promise((resolve) => {
+      VSS.require(["TFS/Build/RestClient"], (...args) => {
+        const BuildRestClient = args[0];
+        resolve(BuildRestClient.getClient());
+      });
+    });
+  }
+  function isLocalMode() {
+    return typeof window !== "undefined" && window.LOCAL_DASHBOARD_MODE === true;
+  }
+  function getLocalDatasetPath() {
+    return typeof window !== "undefined" && window.DATASET_PATH || "./dataset";
+  }
+
   // ui/dashboard.ts
   var loader = null;
   var artifactClient = null;
@@ -1904,7 +1946,6 @@ var PRInsightsDashboard = (() => {
   var comparisonMode = false;
   var cachedRollups = [];
   var currentBuildId = null;
-  var sdkInitialized = false;
   var SETTINGS_KEY_PROJECT = "pr-insights-source-project";
   var SETTINGS_KEY_PIPELINE = "pr-insights-pipeline-id";
   var ENABLE_PHASE5_FEATURES = true;
@@ -1966,30 +2007,6 @@ var PRInsightsDashboard = (() => {
   } : null;
   if (DEBUG_ENABLED && typeof window !== "undefined") {
     window.__dashboardMetrics = metricsCollector;
-  }
-  async function initializeAdoSdk() {
-    if (sdkInitialized) return;
-    return new Promise((resolve, reject) => {
-      const timeout = setTimeout(() => {
-        reject(new Error("Azure DevOps SDK initialization timed out"));
-      }, 1e4);
-      VSS.init({
-        explicitNotifyLoaded: true,
-        usePlatformScripts: true,
-        usePlatformStyles: true
-      });
-      VSS.ready(() => {
-        clearTimeout(timeout);
-        sdkInitialized = true;
-        const webContext = VSS.getWebContext();
-        const projectNameEl = document.getElementById("current-project-name");
-        if (projectNameEl && webContext?.project?.name) {
-          projectNameEl.textContent = webContext.project.name;
-        }
-        VSS.notifyLoadSucceeded();
-        resolve();
-      });
-    });
   }
   function parseQueryParams() {
     const params = new URLSearchParams(window.location.search);
@@ -2236,20 +2253,6 @@ var PRInsightsDashboard = (() => {
     }
     return matches;
   }
-  async function getBuildClient() {
-    return new Promise((resolve) => {
-      VSS.require(["TFS/Build/RestClient"], (...args) => {
-        const BuildRestClient = args[0];
-        resolve(BuildRestClient.getClient());
-      });
-    });
-  }
-  function isLocalMode() {
-    return typeof window !== "undefined" && window.LOCAL_DASHBOARD_MODE === true;
-  }
-  function getLocalDatasetPath() {
-    return typeof window !== "undefined" && window.DATASET_PATH || "./dataset";
-  }
   async function init() {
     if (metricsCollector) metricsCollector.mark("dashboard-init");
     cacheElements();
@@ -2272,7 +2275,15 @@ var PRInsightsDashboard = (() => {
         await loadDataset();
         return;
       }
-      await initializeAdoSdk();
+      await initializeAdoSdk({
+        onReady: () => {
+          const webContext = VSS.getWebContext();
+          const projectNameEl = document.getElementById("current-project-name");
+          if (projectNameEl && webContext?.project?.name) {
+            projectNameEl.textContent = webContext.project.name;
+          }
+        }
+      });
       const config = await resolveConfiguration();
       if (config.directUrl) {
         loader = new DatasetLoader(config.directUrl);

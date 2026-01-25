@@ -40,3 +40,6 @@ export * from "./comparison";
 
 // Export utilities
 export * from "./export";
+
+// SDK initialization
+export * from "./sdk";

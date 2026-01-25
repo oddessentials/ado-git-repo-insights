@@ -10,29 +10,54 @@ var PRInsightsSettings = (() => {
     return "Unknown error";
   }
 
-  // ui/settings.ts
-  var SETTINGS_KEY_PROJECT = "pr-insights-source-project";
-  var SETTINGS_KEY_PIPELINE = "pr-insights-pipeline-id";
-  var dataService = null;
-  var projectDropdownAvailable = false;
-  var projectList = [];
-  async function initializeAdoSdk() {
+  // ui/error-types.ts
+  var PrInsightsError = class extends Error {
+    constructor(type, title, message, details = null) {
+      super(message);
+      this.name = "PrInsightsError";
+      this.type = type;
+      this.title = title;
+      this.details = details;
+    }
+  };
+  if (typeof window !== "undefined") {
+    window.PrInsightsError = PrInsightsError;
+  }
+
+  // ui/modules/sdk.ts
+  var sdkInitialized = false;
+  async function initializeAdoSdk(options = {}) {
+    if (sdkInitialized) {
+      return;
+    }
+    const { timeout = 1e4, onReady } = options;
     return new Promise((resolve, reject) => {
-      const timeout = setTimeout(() => {
+      const timeoutId = setTimeout(() => {
         reject(new Error("Azure DevOps SDK initialization timed out"));
-      }, 1e4);
+      }, timeout);
       VSS.init({
         explicitNotifyLoaded: true,
         usePlatformScripts: true,
         usePlatformStyles: true
       });
       VSS.ready(() => {
-        clearTimeout(timeout);
+        clearTimeout(timeoutId);
+        sdkInitialized = true;
+        if (onReady) {
+          onReady();
+        }
         VSS.notifyLoadSucceeded();
         resolve();
       });
     });
   }
+
+  // ui/settings.ts
+  var SETTINGS_KEY_PROJECT = "pr-insights-source-project";
+  var SETTINGS_KEY_PIPELINE = "pr-insights-pipeline-id";
+  var dataService = null;
+  var projectDropdownAvailable = false;
+  var projectList = [];
   async function init() {
     try {
       await initializeAdoSdk();
@@ -232,10 +257,10 @@ var PRInsightsSettings = (() => {
       const currentProjectName = webContext?.project?.name || "Unknown";
       const currentProjectId = webContext?.project?.id;
       let html = "";
-      html += `<p><strong>Current Project:</strong> ${escapeHtml(currentProjectName)}</p>`;
+      html += `<p><strong>Current Project:</strong> ${escapeHtml2(currentProjectName)}</p>`;
       if (savedProjectId) {
         const projectName = getProjectNameById(savedProjectId);
-        html += `<p><strong>Source Project:</strong> ${escapeHtml(projectName)} <code>${savedProjectId.substring(0, 8)}...</code></p>`;
+        html += `<p><strong>Source Project:</strong> ${escapeHtml2(projectName)} <code>${savedProjectId.substring(0, 8)}...</code></p>`;
       } else {
         html += `<p><strong>Source Project:</strong> <em>Same as current</em></p>`;
       }
@@ -250,11 +275,11 @@ var PRInsightsSettings = (() => {
           if (validation.valid) {
             html += ` <span class="status-valid">\u2713 Valid</span>`;
             html += `</p>`;
-            html += `<p class="status-hint">Pipeline: "${escapeHtml(validation.name || "")}" (Build #${validation.buildId})</p>`;
+            html += `<p class="status-hint">Pipeline: "${escapeHtml2(validation.name || "")}" (Build #${validation.buildId})</p>`;
           } else {
             html += ` <span class="status-invalid">\u26A0\uFE0F Invalid</span>`;
             html += `</p>`;
-            html += `<p class="status-warning">\u26A0\uFE0F ${escapeHtml(validation.error || "")}</p>`;
+            html += `<p class="status-warning">\u26A0\uFE0F ${escapeHtml2(validation.error || "")}</p>`;
             html += `<p class="status-hint">The dashboard will automatically clear this setting and re-discover pipelines. Consider clearing manually to configure a different pipeline.</p>`;
           }
         } else {
@@ -271,7 +296,7 @@ var PRInsightsSettings = (() => {
       }
       statusDisplay.innerHTML = html;
     } catch (error) {
-      statusDisplay.innerHTML = `<p class="status-error">Failed to load status: ${escapeHtml(getErrorMessage(error))}</p>`;
+      statusDisplay.innerHTML = `<p class="status-error">Failed to load status: ${escapeHtml2(getErrorMessage(error))}</p>`;
     }
   }
   function getProjectNameById(projectId) {
@@ -439,7 +464,7 @@ var PRInsightsSettings = (() => {
       let html = `<p><strong>Found ${matches.length} pipeline(s):</strong></p><ul class="discovered-pipelines">`;
       for (const match of matches) {
         html += `<li>
-                <strong>${escapeHtml(match.name)}</strong> (ID: ${match.id})
+                <strong>${escapeHtml2(match.name)}</strong> (ID: ${match.id})
                 <button class="btn btn-small" id="select-pipeline-${match.id}">Use This</button>
             </li>`;
       }
@@ -474,7 +499,7 @@ var PRInsightsSettings = (() => {
       statusEl.className = "status-message";
     }, 5e3);
   }
-  function escapeHtml(text) {
+  function escapeHtml2(text) {
     const div = document.createElement("div");
     div.textContent = text;
     return div.innerHTML;

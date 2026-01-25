@@ -54,6 +54,11 @@ import {
   renderReviewerActivity as renderReviewerActivityModule,
   renderPredictions as renderPredictionsModule,
   renderAIInsights as renderAIInsightsModule,
+  // SDK module functions
+  initializeAdoSdk,
+  getBuildClient,
+  isLocalMode,
+  getLocalDatasetPath,
 } from "./modules";
 
 // Dashboard state
@@ -70,7 +75,6 @@ let currentFilters: { repos: string[]; teams: string[] } = {
 let comparisonMode = false;
 let cachedRollups: Rollup[] = []; // Cache for export
 let currentBuildId: number | null = null; // Store build ID for raw data download
-let sdkInitialized = false;
 
 // Settings keys for extension data storage (must match settings.js)
 const SETTINGS_KEY_PROJECT = "pr-insights-source-project";
@@ -172,47 +176,10 @@ if (DEBUG_ENABLED && typeof window !== "undefined") {
 }
 
 // ============================================================================
-// Security Utilities - IMPORTED FROM ./modules
-// escapeHtml is now imported from "./modules"
+// SDK Initialization - IMPORTED FROM ./modules/sdk
+// initializeAdoSdk, getBuildClient, isLocalMode, getLocalDatasetPath
+// are now imported from "./modules"
 // ============================================================================
-
-// ============================================================================
-// SDK Initialization
-// ============================================================================
-
-/**
- * Initialize Azure DevOps Extension SDK.
- */
-async function initializeAdoSdk(): Promise<void> {
-  if (sdkInitialized) return;
-
-  return new Promise((resolve, reject) => {
-    const timeout = setTimeout(() => {
-      reject(new Error("Azure DevOps SDK initialization timed out"));
-    }, 10000);
-
-    VSS.init({
-      explicitNotifyLoaded: true,
-      usePlatformScripts: true,
-      usePlatformStyles: true,
-    });
-
-    VSS.ready(() => {
-      clearTimeout(timeout);
-      sdkInitialized = true;
-
-      // Update project name in UI
-      const webContext = VSS.getWebContext();
-      const projectNameEl = document.getElementById("current-project-name");
-      if (projectNameEl && webContext?.project?.name) {
-        projectNameEl.textContent = webContext.project.name;
-      }
-
-      VSS.notifyLoadSucceeded();
-      resolve();
-    });
-  });
-}
 
 // ============================================================================
 // Configuration Resolution
@@ -570,41 +537,7 @@ async function discoverInsightsPipelines(
   return matches;
 }
 
-/**
- * Get Build REST client from SDK.
- */
-async function getBuildClient(): Promise<IBuildRestClient> {
-  return new Promise((resolve) => {
-    VSS.require(["TFS/Build/RestClient"], (...args: unknown[]) => {
-      const BuildRestClient = args[0] as { getClient(): IBuildRestClient };
-      resolve(BuildRestClient.getClient());
-    });
-  });
-}
-
-// ============================================================================
-// Main Initialization
-// ============================================================================
-
-/**
- * Check if running in local dashboard mode.
- */
-function isLocalMode(): boolean {
-  return (
-    typeof window !== "undefined" &&
-    window.LOCAL_DASHBOARD_MODE === true
-  );
-}
-
-/**
- * Get local dataset path from window config.
- */
-function getLocalDatasetPath(): string {
-  return (
-    (typeof window !== "undefined" && window.DATASET_PATH) ||
-    "./dataset"
-  );
-}
+// getBuildClient is now imported from "./modules/sdk"
 
 /**
  * Initialize the dashboard.
@@ -637,7 +570,16 @@ async function init(): Promise<void> {
       return;
     }
 
-    await initializeAdoSdk();
+    await initializeAdoSdk({
+      onReady: () => {
+        // Update project name in UI after SDK initialization
+        const webContext = VSS.getWebContext();
+        const projectNameEl = document.getElementById("current-project-name");
+        if (projectNameEl && webContext?.project?.name) {
+          projectNameEl.textContent = webContext.project.name;
+        }
+      },
+    });
     const config = await resolveConfiguration();
 
     if (config.directUrl) {

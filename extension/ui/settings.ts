@@ -21,6 +21,9 @@ import {
   type VSSBuildClient,
 } from "./types";
 
+// Import SDK initialization from shared module
+import { initializeAdoSdk } from "./modules";
+
 // Settings keys (must match dashboard.js)
 const SETTINGS_KEY_PROJECT = "pr-insights-source-project";
 const SETTINGS_KEY_PIPELINE = "pr-insights-pipeline-id";
@@ -30,28 +33,7 @@ let dataService: IExtensionDataService | null = null;
 let projectDropdownAvailable = false;
 let projectList: VSSProject[] = [];
 
-/**
- * Initialize Azure DevOps Extension SDK.
- */
-async function initializeAdoSdk(): Promise<void> {
-  return new Promise((resolve, reject) => {
-    const timeout = setTimeout(() => {
-      reject(new Error("Azure DevOps SDK initialization timed out"));
-    }, 10000);
-
-    VSS.init({
-      explicitNotifyLoaded: true,
-      usePlatformScripts: true,
-      usePlatformStyles: true,
-    });
-
-    VSS.ready(() => {
-      clearTimeout(timeout);
-      VSS.notifyLoadSucceeded();
-      resolve();
-    });
-  });
-}
+// initializeAdoSdk is now imported from "./modules/sdk"
 
 /**
  * Initialize the settings page.

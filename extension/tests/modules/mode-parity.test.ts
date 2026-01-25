@@ -12,8 +12,9 @@ describe("local/extension mode parity", () => {
     const dashboardContent = fs.readFileSync(dashboardPath, "utf-8");
 
     describe("mode detection", () => {
-        it("has isLocalMode function", () => {
-            expect(dashboardContent).toContain("function isLocalMode");
+        it("uses isLocalMode function (from module or local)", () => {
+            // isLocalMode may be imported from ./modules or defined locally
+            expect(dashboardContent).toContain("isLocalMode");
         });
 
         it("checks for localDataset query parameter", () => {
