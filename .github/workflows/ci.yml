@@ -93,7 +93,7 @@ jobs:
             exit 1
           fi
 
-          echo "✓ No CRLF detected in Unix-executed files"
+          echo "[OK] No CRLF detected in Unix-executed files"
 
   # Guard: Verify UI bundle is in sync with extension/dist/ui (compiled JS)
   ui-bundle-sync:
@@ -131,7 +131,7 @@ jobs:
             echo "$STALE_DIRS"
             exit 1
           fi
-          echo "✓ Build output structure is clean"
+          echo "[OK] Build output structure is clean"
 
       - name: No TypeScript in ui_bundle Guard
         run: |
@@ -142,7 +142,7 @@ jobs:
             echo "$TS_FILES"
             exit 1
           fi
-          echo "✓ No TypeScript files in ui_bundle"
+          echo "[OK] No TypeScript files in ui_bundle"
 
       - name: No ESM Syntax in ui_bundle Guard
         run: |
@@ -155,7 +155,7 @@ jobs:
             echo "Fix: Run 'npm run build:ui' to generate IIFE-bundled JS"
             exit 1
           fi
-          echo "✓ No ESM syntax in ui_bundle JS"
+          echo "[OK] No ESM syntax in ui_bundle JS"
 
       - name: Check UI Bundle Synchronization
         run: |
@@ -166,7 +166,7 @@ jobs:
             git diff --stat -- src/ado_git_repo_insights/ui_bundle
             exit 1
           fi
-          echo "✓ UI bundle is in sync"
+          echo "[OK] UI bundle is in sync"
         shell: bash
 
   # Guard: Block task Major changes without explicit marker
@@ -204,7 +204,7 @@ jobs:
             COMMITS=$(git log "origin/${BASE_REF}..HEAD" --pretty=format:"%s" 2>/dev/null || echo "")
 
             if [[ "$PR_TITLE" == *"BREAKING TASK CHANGE:"* ]] || [[ "$COMMITS" == *"BREAKING TASK CHANGE:"* ]]; then
-              echo "✓ BREAKING TASK CHANGE marker found - Major bump approved"
+              echo "[OK] BREAKING TASK CHANGE marker found - Major bump approved"
               echo "::warning::Remember to update extension-verification-test.yml and docs with new @$HEAD_MAJOR"
             else
               echo "::error::Task Major change requires 'BREAKING TASK CHANGE:' in PR title or commit message"
@@ -212,7 +212,7 @@ jobs:
               exit 1
             fi
           else
-            echo "✓ Task Major unchanged ($HEAD_MAJOR)"
+            echo "[OK] Task Major unchanged ($HEAD_MAJOR)"
           fi
         shell: bash
 
@@ -268,7 +268,7 @@ jobs:
           if major != expected:
               print(f'::error::Pandas major version mismatch: got {major}, expected {expected} for Python 3.{py_minor}')
               sys.exit(1)
-          print(f'✓ Pandas {pd.__version__} (major {major}) correct for Python 3.{py_minor}')
+          print(f'[OK] Pandas {pd.__version__} (major {major}) correct for Python 3.{py_minor}')
           "
 
       - name: Verify Ruff Version Consistency
@@ -283,7 +283,7 @@ jobs:
             echo "Update .pre-commit-config.yaml or pyproject.toml to match"
             exit 1
           fi
-          echo "✓ Ruff versions match: $INSTALLED_RUFF"
+          echo "[OK] Ruff versions match: $INSTALLED_RUFF"
         shell: bash
 
       - name: Run pre-commit checks
@@ -395,7 +395,7 @@ jobs:
             echo "::error::OpenAI should not be installed"
             exit 1
           fi
-          echo "✓ Optional ML dependencies correctly NOT installed"
+          echo "[OK] Optional ML dependencies correctly NOT installed"
 
       - name: Run base-compatible tests
         run: |
@@ -406,8 +406,8 @@ jobs:
             tests/unit/test_insights_schema.py \
             tests/unit/test_predictions_schema.py
           # Test that CLI entrypoint doesn't import ML at parse time
-          python -c "from ado_git_repo_insights.cli import main; print('✓ CLI imports OK')"
-          echo "✓ All base tests passed without [ml] extras"
+          python -c "from ado_git_repo_insights.cli import main; print('[OK] CLI imports OK')"
+          echo "[OK] All base tests passed without [ml] extras"
 
 
   build:
@@ -484,7 +484,7 @@ jobs:
             echo "::error::No VSIX file found after packaging - shipping invariant violated"
             exit 1
           fi
-          echo "✓ Found $VSIX_COUNT VSIX file(s)"
+          echo "[OK] Found $VSIX_COUNT VSIX file(s)"
           ls -la *.vsix
 
       - name: Upload Extension Artifact

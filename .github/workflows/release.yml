@@ -121,8 +121,8 @@ jobs:
             exit 1
           fi
 
-          echo "✓ vss-extension.json matches: $VERSION"
-          echo "✓ task.json Minor.Patch matches: $TASK_MINOR.$TASK_PATCH (Major preserved at $TASK_MAJOR)"
+          echo "[OK] vss-extension.json matches: $VERSION"
+          echo "[OK] task.json Minor.Patch matches: $TASK_MINOR.$TASK_PATCH (Major preserved at $TASK_MAJOR)"
 
       - name: Install extension dependencies
         working-directory: extension
@@ -241,7 +241,7 @@ jobs:
                 --token "$VS_MARKETPLACE_PAT" \
                 --no-prompt \
                 --no-wait-validation; then
-              echo "✓ Successfully published to VS Marketplace"
+              echo "[OK] Successfully published to VS Marketplace"
               exit 0
             else
               EXIT_CODE=$?

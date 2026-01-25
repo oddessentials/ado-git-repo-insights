@@ -109,7 +109,7 @@ def validate_results(
             "::error::If tests were intentionally removed, update MIN_COLLECTED in ci.yml"
         )
     else:
-        messages.append(f"✓ Collected tests: {collected} (minimum: {min_collected})")
+        messages.append(f"[OK] Collected tests: {collected} (minimum: {min_collected})")
 
     # Gate 2: No failures or errors
     if failures > 0 or errors > 0:
@@ -118,7 +118,7 @@ def validate_results(
             f"::error::Test failures detected! Failures: {failures}, Errors: {errors}"
         )
     else:
-        messages.append("✓ No failures or errors")
+        messages.append("[OK] No failures or errors")
 
     # Gate 3: Skip limit
     if skipped > max_skips:
@@ -131,9 +131,11 @@ def validate_results(
         )
     else:
         if skipped > 0:
-            messages.append(f"⚠ Skipped tests: {skipped} (max allowed: {max_skips})")
+            messages.append(
+                f"[WARN] Skipped tests: {skipped} (max allowed: {max_skips})"
+            )
         else:
-            messages.append("✓ No skipped tests")
+            messages.append("[OK] No skipped tests")
 
     return passed, messages
 
@@ -198,10 +200,10 @@ def main():
         print(msg)
 
     if passed:
-        print("\n✓ All test validation checks passed")
+        print("\n[OK] All test validation checks passed")
         sys.exit(0)
     else:
-        print("\n✗ Test validation failed")
+        print("\n[FAIL] Test validation failed")
         sys.exit(1)
 
 
