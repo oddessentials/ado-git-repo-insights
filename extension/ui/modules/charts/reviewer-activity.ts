@@ -9,6 +9,7 @@
  */
 
 import type { Rollup } from "../../dataset-loader";
+import { escapeHtml } from "../shared/security";
 
 /**
  * Render reviewer activity chart (horizontal bar chart).
@@ -44,10 +45,11 @@ export function renderReviewerActivity(
         .map((r) => {
             const count = r.reviewers_count || 0;
             const pct = (count / maxReviewers) * 100;
-            const weekLabel = r.week.split("-W")[1];
+            const weekLabel = r.week.split("-W")[1] || "";
+            // SECURITY: Escape data-controlled values to prevent XSS
             return `
-            <div class="h-bar-row" title="${r.week}: ${count} reviewers">
-                <span class="h-bar-label">W${weekLabel}</span>
+            <div class="h-bar-row" title="${escapeHtml(r.week)}: ${count} reviewers">
+                <span class="h-bar-label">W${escapeHtml(weekLabel)}</span>
                 <div class="h-bar-container">
                     <div class="h-bar" style="width: ${pct}%"></div>
                 </div>

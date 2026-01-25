@@ -809,8 +809,9 @@ function showArtifactsMissing(error: PrInsightsError): void {
   if (details?.instructions && Array.isArray(details.instructions)) {
     const stepsList = document.getElementById("missing-steps");
     if (stepsList) {
+      // SECURITY: Escape instructions to prevent XSS
       stepsList.innerHTML = details.instructions
-        .map((s: string) => `<li>${s}</li>`)
+        .map((s: string) => `<li>${escapeHtml(s)}</li>`)
         .join("");
     }
   }
@@ -1466,10 +1467,11 @@ function getFilterLabel(type: string, value: string): string {
  */
 function createFilterChip(type: string, value: string, label: string): string {
   const prefix = type === "repo" ? "repo" : "team";
+  // SECURITY: Escape user-controlled values to prevent XSS
   return `
         <span class="filter-chip">
-            <span class="filter-chip-label">${prefix}: ${label}</span>
-            <span class="filter-chip-remove" data-type="${type}" data-value="${value}">&times;</span>
+            <span class="filter-chip-label">${prefix}: ${escapeHtml(label)}</span>
+            <span class="filter-chip-remove" data-type="${escapeHtml(type)}" data-value="${escapeHtml(value)}">&times;</span>
         </span>
     `;
 }

@@ -11,6 +11,7 @@ import type { Rollup } from "../../dataset-loader";
 import type { DistributionData } from "../../types";
 import { addChartTooltips } from "../charts";
 import { formatDuration } from "../shared/format";
+import { escapeHtml } from "../shared/security";
 
 /**
  * Render cycle time distribution as horizontal bar chart.
@@ -166,8 +167,8 @@ export function renderCycleTimeTrend(
             ${p50Path ? `<path class="line-chart-p50" d="${p50Path.pathD}" vector-effect="non-scaling-stroke"/>` : ""}
 
             <!-- Dots -->
-            ${p90Path ? p90Path.points.map((p) => `<circle class="line-chart-dot" cx="${p.x}" cy="${p.y}" r="3" fill="var(--warning)" data-week="${p.week}" data-value="${p.value}" data-metric="P90"/>`).join("") : ""}
-            ${p50Path ? p50Path.points.map((p) => `<circle class="line-chart-dot" cx="${p.x}" cy="${p.y}" r="3" fill="var(--primary)" data-week="${p.week}" data-value="${p.value}" data-metric="P50"/>`).join("") : ""}
+            ${p90Path ? p90Path.points.map((p) => `<circle class="line-chart-dot" cx="${p.x}" cy="${p.y}" r="3" fill="var(--warning)" data-week="${escapeHtml(p.week)}" data-value="${p.value}" data-metric="P90"/>`).join("") : ""}
+            ${p50Path ? p50Path.points.map((p) => `<circle class="line-chart-dot" cx="${p.x}" cy="${p.y}" r="3" fill="var(--primary)" data-week="${escapeHtml(p.week)}" data-value="${p.value}" data-metric="P50"/>`).join("") : ""}
         </svg>
     `;
 
@@ -188,15 +189,16 @@ export function renderCycleTimeTrend(
 
     // Add tooltip interactions
     addChartTooltips(container, (dot: HTMLElement) => {
-        const week = dot.dataset["week"];
+        const week = dot.dataset["week"] || "";
         const value = parseFloat(dot.dataset["value"] || "0");
-        const metric = dot.dataset["metric"];
+        const metric = dot.dataset["metric"] || "";
+        // SECURITY: Escape data attribute values to prevent XSS
         return `
-            <div class="chart-tooltip-title">${week}</div>
+            <div class="chart-tooltip-title">${escapeHtml(week)}</div>
             <div class="chart-tooltip-row">
                 <span class="chart-tooltip-label">
                     <span class="chart-tooltip-dot ${metric === "P50" ? "legend-p50" : "legend-p90"}"></span>
-                    ${metric}
+                    ${escapeHtml(metric)}
                 </span>
                 <span>${formatDuration(value)}</span>
             </div>

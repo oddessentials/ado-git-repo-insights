@@ -9,6 +9,7 @@
 
 import type { Rollup } from "../../dataset-loader";
 import { calculateMovingAverage } from "../metrics";
+import { escapeHtml } from "../shared/security";
 
 /**
  * Render throughput chart with trend line overlay.
@@ -38,10 +39,12 @@ export function renderThroughputChart(
     const barsHtml = rollups
         .map((r) => {
             const height = maxCount > 0 ? ((r.pr_count || 0) / maxCount) * 100 : 0;
+            const weekLabel = r.week.split("-W")[1] || "";
+            // SECURITY: Escape data-controlled values to prevent XSS
             return `
-            <div class="bar-container" title="${r.week}: ${r.pr_count || 0} PRs">
+            <div class="bar-container" title="${escapeHtml(r.week)}: ${r.pr_count || 0} PRs">
                 <div class="bar" style="height: ${height}%"></div>
-                <div class="bar-label">${r.week.split("-W")[1]}</div>
+                <div class="bar-label">${escapeHtml(weekLabel)}</div>
             </div>
         `;
         })

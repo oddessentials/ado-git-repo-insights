@@ -1622,10 +1622,11 @@ var PRInsightsDashboard = (() => {
     const movingAvg = calculateMovingAverage(prCounts, 4);
     const barsHtml = rollups.map((r) => {
       const height = maxCount > 0 ? (r.pr_count || 0) / maxCount * 100 : 0;
+      const weekLabel = r.week.split("-W")[1] || "";
       return `
-            <div class="bar-container" title="${r.week}: ${r.pr_count || 0} PRs">
+            <div class="bar-container" title="${escapeHtml(r.week)}: ${r.pr_count || 0} PRs">
                 <div class="bar" style="height: ${height}%"></div>
-                <div class="bar-label">${r.week.split("-W")[1]}</div>
+                <div class="bar-label">${escapeHtml(weekLabel)}</div>
             </div>
         `;
     }).join("");
@@ -1770,8 +1771,8 @@ var PRInsightsDashboard = (() => {
             ${p50Path ? `<path class="line-chart-p50" d="${p50Path.pathD}" vector-effect="non-scaling-stroke"/>` : ""}
 
             <!-- Dots -->
-            ${p90Path ? p90Path.points.map((p) => `<circle class="line-chart-dot" cx="${p.x}" cy="${p.y}" r="3" fill="var(--warning)" data-week="${p.week}" data-value="${p.value}" data-metric="P90"/>`).join("") : ""}
-            ${p50Path ? p50Path.points.map((p) => `<circle class="line-chart-dot" cx="${p.x}" cy="${p.y}" r="3" fill="var(--primary)" data-week="${p.week}" data-value="${p.value}" data-metric="P50"/>`).join("") : ""}
+            ${p90Path ? p90Path.points.map((p) => `<circle class="line-chart-dot" cx="${p.x}" cy="${p.y}" r="3" fill="var(--warning)" data-week="${escapeHtml(p.week)}" data-value="${p.value}" data-metric="P90"/>`).join("") : ""}
+            ${p50Path ? p50Path.points.map((p) => `<circle class="line-chart-dot" cx="${p.x}" cy="${p.y}" r="3" fill="var(--primary)" data-week="${escapeHtml(p.week)}" data-value="${p.value}" data-metric="P50"/>`).join("") : ""}
         </svg>
     `;
     const legendHtml = `
@@ -1788,15 +1789,15 @@ var PRInsightsDashboard = (() => {
     `;
     container.innerHTML = `<div class="line-chart">${svgContent}</div>${legendHtml}`;
     addChartTooltips(container, (dot) => {
-      const week = dot.dataset["week"];
+      const week = dot.dataset["week"] || "";
       const value = parseFloat(dot.dataset["value"] || "0");
-      const metric = dot.dataset["metric"];
+      const metric = dot.dataset["metric"] || "";
       return `
-            <div class="chart-tooltip-title">${week}</div>
+            <div class="chart-tooltip-title">${escapeHtml(week)}</div>
             <div class="chart-tooltip-row">
                 <span class="chart-tooltip-label">
                     <span class="chart-tooltip-dot ${metric === "P50" ? "legend-p50" : "legend-p90"}"></span>
-                    ${metric}
+                    ${escapeHtml(metric)}
                 </span>
                 <span>${formatDuration(value)}</span>
             </div>
@@ -1822,10 +1823,10 @@ var PRInsightsDashboard = (() => {
     const barsHtml = recentRollups.map((r) => {
       const count = r.reviewers_count || 0;
       const pct = count / maxReviewers * 100;
-      const weekLabel = r.week.split("-W")[1];
+      const weekLabel = r.week.split("-W")[1] || "";
       return `
-            <div class="h-bar-row" title="${r.week}: ${count} reviewers">
-                <span class="h-bar-label">W${weekLabel}</span>
+            <div class="h-bar-row" title="${escapeHtml(r.week)}: ${count} reviewers">
+                <span class="h-bar-label">W${escapeHtml(weekLabel)}</span>
                 <div class="h-bar-container">
                     <div class="h-bar" style="width: ${pct}%"></div>
                 </div>
@@ -2392,7 +2393,7 @@ var PRInsightsDashboard = (() => {
     if (details?.instructions && Array.isArray(details.instructions)) {
       const stepsList = document.getElementById("missing-steps");
       if (stepsList) {
-        stepsList.innerHTML = details.instructions.map((s) => `<li>${s}</li>`).join("");
+        stepsList.innerHTML = details.instructions.map((s) => `<li>${escapeHtml(s)}</li>`).join("");
       }
     }
     panel.classList.remove("hidden");
@@ -2805,8 +2806,8 @@ var PRInsightsDashboard = (() => {
     const prefix = type === "repo" ? "repo" : "team";
     return `
         <span class="filter-chip">
-            <span class="filter-chip-label">${prefix}: ${label}</span>
-            <span class="filter-chip-remove" data-type="${type}" data-value="${value}">&times;</span>
+            <span class="filter-chip-label">${prefix}: ${escapeHtml(label)}</span>
+            <span class="filter-chip-remove" data-type="${escapeHtml(type)}" data-value="${escapeHtml(value)}">&times;</span>
         </span>
     `;
   }
