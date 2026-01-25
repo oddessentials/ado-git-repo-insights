@@ -120,6 +120,19 @@ jobs:
         working-directory: extension
         run: npm run build:ui
 
+      - name: Stale Build Output Guard
+        run: |
+          echo "Checking for stale subdirectories in dist/ui/modules/..."
+          # After clean build, dist/ui/modules/ should not have subdirectories
+          # (modules are consolidated into single files, not split into charts/, ml/, shared/)
+          STALE_DIRS=$(find extension/dist/ui/modules -mindepth 1 -type d 2>/dev/null || true)
+          if [[ -n "$STALE_DIRS" ]]; then
+            echo "::error::Stale subdirectories in dist/ui/modules/ - build clean step may have failed"
+            echo "$STALE_DIRS"
+            exit 1
+          fi
+          echo "✓ Build output structure is clean"
+
       - name: No TypeScript in ui_bundle Guard
         run: |
           echo "Checking for TypeScript files in ui_bundle..."
