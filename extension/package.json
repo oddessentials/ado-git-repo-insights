@@ -6,6 +6,7 @@
   "scripts": {
     "build:tsc": "tsc",
     "build:check": "tsc --noEmit",
+    "clean:ui": "node -e \"const fs=require('fs'),p=require('path'),d=p.resolve(__dirname,'dist/ui');if(fs.existsSync(d)){fs.rmSync(d,{recursive:true,force:true});console.log('Cleaned',d)}else{console.log('Already clean:',d)}\"",
     "build:ui": "node scripts/bundle-ui.mjs",
     "build": "npm run build:tsc && npm run build:ui",
     "lint": "eslint .",

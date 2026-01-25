@@ -21,10 +21,22 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const uiDir = path.resolve(__dirname, '../ui');
 const outDir = path.resolve(__dirname, '../dist/ui');
 
-// Ensure output directory exists
-if (!fs.existsSync(outDir)) {
-    fs.mkdirSync(outDir, { recursive: true });
+// Safety guard: verify outDir is the expected path before any destructive operations
+const EXPECTED_SUFFIX = path.join('dist', 'ui');
+if (!outDir.endsWith(EXPECTED_SUFFIX)) {
+    console.error(`::error::Safety guard failed: outDir must end with '${EXPECTED_SUFFIX}', got: ${outDir}`);
+    process.exit(1);
 }
+
+// Clean dist/ui directory before building (prevents stale file accumulation)
+// Uses force + retries for Windows reliability with transient file locks
+if (fs.existsSync(outDir)) {
+    fs.rmSync(outDir, { recursive: true, force: true, maxRetries: 3, retryDelay: 100 });
+    console.log('🧹 Cleaned dist/ui/ directory\n');
+}
+
+// Ensure output directory exists
+fs.mkdirSync(outDir, { recursive: true });
 
 // Entry points for UI bundles
 const entryPoints = [
