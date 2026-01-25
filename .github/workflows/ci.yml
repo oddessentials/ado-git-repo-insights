@@ -179,13 +179,18 @@ jobs:
           fetch-depth: 0
 
       - name: Check Task Major Version Change
+        env:
+          # SECURITY: GitHub context values must be passed via env to prevent command injection
+          BASE_REF: ${{ github.base_ref }}
+          PR_TITLE: ${{ github.event.pull_request.title }}
         run: |
           set -euo pipefail
 
           TASK_FILE="extension/tasks/extract-prs/task.json"
 
           # Get base and head Major versions
-          BASE_MAJOR=$(git show origin/${{ github.base_ref }}:$TASK_FILE 2>/dev/null | jq -r '.version.Major' || echo "0")
+          # SECURITY: Use quoted variable to prevent injection
+          BASE_MAJOR=$(git show "origin/${BASE_REF}:${TASK_FILE}" 2>/dev/null | jq -r '.version.Major' || echo "0")
           HEAD_MAJOR=$(jq -r '.version.Major' $TASK_FILE)
 
           echo "Base task Major: $BASE_MAJOR"
@@ -195,8 +200,8 @@ jobs:
             echo "::error::Task Major version changed from $BASE_MAJOR to $HEAD_MAJOR"
 
             # Check for BREAKING TASK CHANGE marker in PR title or commits
-            PR_TITLE="${{ github.event.pull_request.title }}"
-            COMMITS=$(git log origin/${{ github.base_ref }}..HEAD --pretty=format:"%s" 2>/dev/null || echo "")
+            # SECURITY: PR_TITLE comes from env, safely quoted
+            COMMITS=$(git log "origin/${BASE_REF}..HEAD" --pretty=format:"%s" 2>/dev/null || echo "")
 
             if [[ "$PR_TITLE" == *"BREAKING TASK CHANGE:"* ]] || [[ "$COMMITS" == *"BREAKING TASK CHANGE:"* ]]; then
               echo "✓ BREAKING TASK CHANGE marker found - Major bump approved"
@@ -221,9 +226,13 @@ jobs:
           fetch-depth: 0
 
       - name: Check for manual version changes
+        env:
+          # SECURITY: GitHub context values must be passed via env to prevent command injection
+          BASE_REF: ${{ github.base_ref }}
         run: |
           chmod +x scripts/check-version-unchanged.sh
-          ./scripts/check-version-unchanged.sh origin/${{ github.base_ref }}
+          # SECURITY: Use quoted variable to prevent injection
+          ./scripts/check-version-unchanged.sh "origin/${BASE_REF}"
         shell: bash
 
   test:
