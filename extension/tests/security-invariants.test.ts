@@ -86,8 +86,9 @@ describe("Security Invariants", () => {
 
   test("No innerHTML with template literals containing variables in UI source", () => {
     // SECURITY: innerHTML with untrusted data enables XSS attacks
-    // This test checks for the most dangerous pattern: innerHTML = `...${variable}...`
-    // Static HTML templates are allowed (false positive in this case)
+    // This test enforces that all innerHTML with template literals either:
+    // 1. Use escapeHtml() or safeHtml() for interpolated values
+    // 2. Only interpolate known-safe values (numeric, constants)
 
     const uiFiles = findFiles(
       path.join(extensionRoot, "extension", "ui"),
@@ -95,6 +96,24 @@ describe("Security Invariants", () => {
     );
 
     const violations: string[] = [];
+
+    // Known-safe variable patterns that don't need escaping
+    const safePatterns = [
+      /^(count|pct|duration|width|height|\d+)$/,  // Numeric values
+      /^Math\./,                                   // Math expressions
+      /^icons\[/,                                  // Icon lookups
+      /^(arrow|sign|prefix|cssClass)$/,           // UI constants
+      /^(chartWidth|chartHeight|padding)/,        // Layout values
+      /\.toFixed\(/,                               // Number formatting (any var.toFixed())
+      /^p\.(x|y)/,                                 // Coordinate values
+      /^barsHtml$/,                                // Already-rendered HTML from escapeHtml
+      /^html$/,                                    // Already-assembled HTML
+      /^legendHtml$/,                              // Already-rendered legend
+      /^svgContent$/,                              // Already-rendered SVG
+      /^chips\.join/,                              // Array join of safe chips
+      /^SEVERITY_ICONS\[/,                         // Static icon map
+      /^formatDuration\(/,                         // Duration formatting helper
+    ];
 
     for (const file of uiFiles) {
       // Skip test files
@@ -106,55 +125,50 @@ describe("Security Invariants", () => {
       for (let i = 0; i < lines.length; i++) {
         const line = lines[i];
 
-        // Check for dangerous innerHTML patterns without escapeHtml
-        // Pattern: innerHTML containing ${...} without escapeHtml
+        // Check for innerHTML with template literals
         if (
           /\.innerHTML\s*\+?=\s*`/.test(line) &&
-          /\$\{[^}]+\}/.test(line) &&
-          !/escapeHtml/.test(line)
+          /\$\{[^}]+\}/.test(line)
         ) {
-          // Check for safe patterns (static values only)
+          // Extract all interpolations
           const templateMatch = line.match(/\$\{([^}]+)\}/g);
           if (templateMatch) {
             for (const match of templateMatch) {
               const varName = match.slice(2, -1).trim();
-              // Skip numeric/static patterns
+
+              // Skip if using escapeHtml or safeHtml
               if (
-                /^(count|pct|duration|width|height|\d+)$/.test(varName) ||
-                /^Math\./.test(varName) ||
-                /icons\[/.test(varName)
+                varName.includes("escapeHtml") ||
+                varName.includes("safeHtml")
               ) {
                 continue;
               }
-              // Only flag if not using escapeHtml
-              if (!line.includes(`escapeHtml(${varName})`)) {
-                // Allow certain known-safe patterns
-                if (
-                  !varName.includes("escapeHtml") &&
-                  !/^["']/.test(varName) // Skip string literals
-                ) {
-                  violations.push(
-                    `${file}:${i + 1}: innerHTML with ${varName} - consider using escapeHtml()`,
-                  );
-                }
-              }
+
+              // Skip string literals
+              if (/^["']/.test(varName)) continue;
+
+              // Check against safe patterns
+              const isSafe = safePatterns.some((pattern) =>
+                pattern.test(varName),
+              );
+              if (isSafe) continue;
+
+              // This is a potential violation
+              violations.push(
+                `${file}:${i + 1}: innerHTML with ${varName} - must use escapeHtml() or safeHtml()`,
+              );
             }
           }
         }
       }
     }
 
-    // For now, this is advisory - actual XSS issues are fixed by escapeHtml
-    // The violations list helps identify areas that may need additional review
+    // ENFORCEMENT: Test must fail if violations found
     if (violations.length > 0) {
-      console.warn(
-        "Advisory: innerHTML patterns that may need review:",
-        violations.slice(0, 5),
-      );
+      console.error("SECURITY VIOLATIONS - innerHTML without escaping:");
+      violations.forEach((v) => console.error(`  ${v}`));
     }
-
-    // This test passes as long as critical XSS patterns are fixed
-    expect(true).toBe(true);
+    expect(violations).toEqual([]);
   });
 
   test("Python executable allowlist is enforced", () => {
