@@ -1,0 +1,13 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(git fetch:*)",
+      "Bash(pwsh:*)",
+      "Bash(python -m ruff check:*)",
+      "Bash(python -m ruff format:*)",
+      "Bash(python -m mypy:*)",
+      "Bash(python -m pytest:*)",
+      "Bash(python -m ado_git_repo_insights.cli:*)"
+    ]
+  }
+}

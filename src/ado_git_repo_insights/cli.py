@@ -259,6 +259,25 @@ def create_parser() -> argparse.ArgumentParser:  # pragma: no cover
         default=False,
         help="Enable OpenAI-based insights",
     )
+    # Unified dashboard serve flags (Flight 260127A)
+    build_parser.add_argument(
+        "--serve",
+        action="store_true",
+        default=False,
+        help="Start local dashboard server after building aggregates",
+    )
+    build_parser.add_argument(
+        "--open",
+        action="store_true",
+        default=False,
+        help="Open browser automatically (requires --serve)",
+    )
+    build_parser.add_argument(
+        "--port",
+        type=int,
+        default=8080,
+        help="Local server port (requires --serve, default: 8080)",
+    )
 
     # Stage Artifacts command (download pipeline artifacts locally)
     stage_parser = subparsers.add_parser(
@@ -307,6 +326,25 @@ def create_parser() -> argparse.ArgumentParser:  # pragma: no cover
         "--run-id",
         type=int,
         help="Specific pipeline run ID (default: latest successful)",
+    )
+    # Unified dashboard serve flags (Flight 260127A)
+    stage_parser.add_argument(
+        "--serve",
+        action="store_true",
+        default=False,
+        help="Start local dashboard server after staging artifacts",
+    )
+    stage_parser.add_argument(
+        "--open",
+        action="store_true",
+        default=False,
+        help="Open browser automatically (requires --serve)",
+    )
+    stage_parser.add_argument(
+        "--port",
+        type=int,
+        default=8080,
+        help="Local server port (requires --serve, default: 8080)",
     )
 
     # Dashboard command (Phase 6)
@@ -762,6 +800,20 @@ def cmd_generate_aggregates(args: Namespace) -> int:
 
 def cmd_build_aggregates(args: Namespace) -> int:
     """Execute the build-aggregates command (Phase 6 - alias for generate-aggregates)."""
+    # Flag validation (FR-004): --open and --port require --serve
+    serve = getattr(args, "serve", False)
+    open_browser = getattr(args, "open", False)
+    port = getattr(args, "port", 8080)
+
+    if not serve and (open_browser or port != 8080):
+        invalid_flags = []
+        if open_browser:
+            invalid_flags.append("--open")
+        if port != 8080:
+            invalid_flags.append("--port")
+        logger.error(f"{', '.join(invalid_flags)} requires --serve")
+        return 1
+
     # DEV MODE WARNING: This command uses local database and is secondary to stage-artifacts
     logger.warning("")
     logger.warning("=" * 60)
@@ -841,6 +893,14 @@ def cmd_build_aggregates(args: Namespace) -> int:
             if manifest.warnings:
                 for warning in manifest.warnings:
                     logger.warning(f"  {warning}")
+
+            # If --serve is set, start the dashboard server (FR-001)
+            if serve:
+                return _serve_dashboard(
+                    dataset_path=args.out.resolve(),
+                    port=port,
+                    open_browser=open_browser,
+                )
 
             return 0
 
@@ -1041,6 +1101,20 @@ def cmd_stage_artifacts(args: Namespace) -> int:
 
     import requests
 
+    # Flag validation (FR-004): --open and --port require --serve
+    serve = getattr(args, "serve", False)
+    open_browser = getattr(args, "open", False)
+    port = getattr(args, "port", 8080)
+
+    if not serve and (open_browser or port != 8080):
+        invalid_flags = []
+        if open_browser:
+            invalid_flags.append("--open")
+        if port != 8080:
+            invalid_flags.append("--port")
+        logger.error(f"{', '.join(invalid_flags)} requires --serve")
+        return 1
+
     logger.info("Staging pipeline artifacts...")
     logger.info(f"Organization: {args.org}")
     logger.info(f"Project: {args.project}")
@@ -1184,7 +1258,6 @@ def cmd_stage_artifacts(args: Namespace) -> int:
 
         logger.info(f"Artifact staged to: {out_dir}")
         logger.info("Contract validation passed")
-        logger.info("Stage complete. Run 'ado-insights dashboard' to view.")
 
         # Emit structured JSON summary for automation parsing
         summary = {
@@ -1198,6 +1271,16 @@ def cmd_stage_artifacts(args: Namespace) -> int:
         }
         print(f"STAGE_SUMMARY={json.dumps(summary)}")
 
+        # If --serve is set, start the dashboard server
+        if serve:
+            logger.info("Starting dashboard server...")
+            return _serve_dashboard(
+                dataset_path=out_dir,
+                port=port,
+                open_browser=open_browser,
+            )
+
+        logger.info("Stage complete. Run 'ado-insights dashboard' to view.")
         return 0
 
     except requests.exceptions.HTTPError as e:
@@ -1212,8 +1295,24 @@ def cmd_stage_artifacts(args: Namespace) -> int:
         return 1
 
 
-def cmd_dashboard(args: Namespace) -> int:
-    """Execute the dashboard command (Phase 6 - local HTTP server)."""
+def _serve_dashboard(
+    dataset_path: Path,
+    port: int = 8080,
+    open_browser: bool = False,
+) -> int:
+    """Serve the PR Insights dashboard from the given dataset path.
+
+    This is the core server logic extracted from cmd_dashboard for reuse
+    by both the 'dashboard' and 'build-aggregates --serve' commands.
+
+    Args:
+        dataset_path: Path to directory containing dataset-manifest.json
+        port: HTTP server port (default: 8080)
+        open_browser: Whether to open browser automatically
+
+    Returns:
+        Exit code (0 for success, 1 for error)
+    """
     import http.server
     import os
     import shutil
@@ -1221,44 +1320,9 @@ def cmd_dashboard(args: Namespace) -> int:
     import tempfile
     import webbrowser
 
-    from .utils.dataset_discovery import (
-        check_deprecated_layout,
-        find_dataset_roots,
-        validate_dataset_root,
-    )
+    from .utils.dataset_discovery import validate_dataset_root
 
-    # Resolve dataset path
-    input_path = args.dataset.resolve()
-
-    # CRITICAL: Check for deprecated nested layout first
-    deprecated_error = check_deprecated_layout(input_path)
-    if deprecated_error:
-        logger.error(deprecated_error)
-        return 1
-
-    # Find dataset roots using only supported candidate paths
-    dataset_roots = find_dataset_roots(input_path)
-
-    if dataset_roots:
-        dataset_path = dataset_roots[0]
-        logger.info(f"Using dataset root: {dataset_path}")
-    else:
-        # Fall back to direct path if it contains manifest
-        manifest_path = input_path / "dataset-manifest.json"
-        if manifest_path.exists():
-            dataset_path = input_path
-            logger.info(f"Using direct dataset path: {dataset_path}")
-        else:
-            logger.error(f"dataset-manifest.json not found in {input_path}")
-            logger.error("Searched paths:")
-            for candidate in [".", "aggregates"]:
-                logger.error(f"  - {input_path / candidate}")
-            logger.error(
-                "Run 'ado-insights stage-artifacts' or 'ado-insights build-aggregates' first."
-            )
-            return 1
-
-    # Validate the selected dataset root
+    # Validate the dataset root
     is_valid, error_msg = validate_dataset_root(dataset_path)
     if not is_valid:
         logger.error(f"Invalid dataset: {error_msg}")
@@ -1366,14 +1430,12 @@ def cmd_dashboard(args: Namespace) -> int:
             # Allow port reuse
             socketserver.TCPServer.allow_reuse_address = True
 
-            with socketserver.TCPServer(
-                ("", args.port), CORSHTTPRequestHandler
-            ) as httpd:
-                url = f"http://localhost:{args.port}"
+            with socketserver.TCPServer(("", port), CORSHTTPRequestHandler) as httpd:
+                url = f"http://localhost:{port}"
                 logger.info(f"Dashboard running at {url}")
                 logger.info("Press Ctrl+C to stop")
 
-                if getattr(args, "open", False):
+                if open_browser:
                     webbrowser.open(url)
 
                 try:
@@ -1385,6 +1447,52 @@ def cmd_dashboard(args: Namespace) -> int:
             os.chdir(original_dir)
 
     return 0
+
+
+def cmd_dashboard(args: Namespace) -> int:
+    """Execute the dashboard command (Phase 6 - local HTTP server)."""
+    from .utils.dataset_discovery import (
+        check_deprecated_layout,
+        find_dataset_roots,
+    )
+
+    # Resolve dataset path
+    input_path = args.dataset.resolve()
+
+    # CRITICAL: Check for deprecated nested layout first
+    deprecated_error = check_deprecated_layout(input_path)
+    if deprecated_error:
+        logger.error(deprecated_error)
+        return 1
+
+    # Find dataset roots using only supported candidate paths
+    dataset_roots = find_dataset_roots(input_path)
+
+    if dataset_roots:
+        dataset_path = dataset_roots[0]
+        logger.info(f"Using dataset root: {dataset_path}")
+    else:
+        # Fall back to direct path if it contains manifest
+        manifest_path = input_path / "dataset-manifest.json"
+        if manifest_path.exists():
+            dataset_path = input_path
+            logger.info(f"Using direct dataset path: {dataset_path}")
+        else:
+            logger.error(f"dataset-manifest.json not found in {input_path}")
+            logger.error("Searched paths:")
+            for candidate in [".", "aggregates"]:
+                logger.error(f"  - {input_path / candidate}")
+            logger.error(
+                "Run 'ado-insights stage-artifacts' or 'ado-insights build-aggregates' first."
+            )
+            return 1
+
+    # Delegate to shared server function
+    return _serve_dashboard(
+        dataset_path=dataset_path,
+        port=args.port,
+        open_browser=getattr(args, "open", False),
+    )
 
 
 def main() -> int:
