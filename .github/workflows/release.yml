@@ -155,7 +155,7 @@ jobs:
     # https://pypi.org/manage/project/ado-git-repo-insights/settings/publishing/
     steps:
       - name: Download Python artifacts
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v7
         with:
           name: python-dist
           path: dist/
@@ -171,13 +171,13 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Download Python artifacts
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v7
         with:
           name: python-dist
           path: dist/
 
       - name: Download VSIX artifact
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v7
         with:
           name: vsix-extension
           path: extension/
@@ -202,7 +202,7 @@ jobs:
     continue-on-error: false  # Fail hard, never warn
     steps:
       - name: Download VSIX artifact
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v7
         with:
           name: vsix-extension
           path: extension/
