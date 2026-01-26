@@ -74,6 +74,36 @@ function Get-HighestNumberFromSpecs {
     return $highest
 }
 
+function Get-ShortHash {
+    <#
+    .SYNOPSIS
+    Generate a 6-character hash from a string for collision resolution.
+    #>
+    param([string]$InputString)
+    $sha256 = [System.Security.Cryptography.SHA256]::Create()
+    $bytes = [System.Text.Encoding]::UTF8.GetBytes($InputString)
+    $hash = $sha256.ComputeHash($bytes)
+    return ([System.BitConverter]::ToString($hash) -replace '-','').Substring(0,6).ToLower()
+}
+
+function Test-BranchExists {
+    <#
+    .SYNOPSIS
+    Check if a branch name exists locally or on any remote.
+    #>
+    param([string]$BranchName)
+
+    # Check local branches
+    $localMatch = git branch --list $BranchName 2>$null
+    if ($localMatch) { return $true }
+
+    # Check remote branches
+    $remoteMatch = git branch -r --list "*/$BranchName" 2>$null
+    if ($remoteMatch) { return $true }
+
+    return $false
+}
+
 function Get-HighestNumberFromBranches {
     param()
 
@@ -107,8 +137,11 @@ function Get-NextBranchNumber {
     # Fetch all remotes to get latest branch info (suppress errors if no remotes)
     try {
         git fetch --all --prune 2>$null | Out-Null
+        if ($LASTEXITCODE -ne 0) {
+            Write-Warning "[specify] Git fetch failed. Remote branches may not be current."
+        }
     } catch {
-        # Ignore fetch errors
+        Write-Warning "[specify] Git fetch failed. Remote branches may not be current."
     }
 
     # Get highest number from ALL branches (not just matching short name)
@@ -239,6 +272,15 @@ if ($branchName.Length -gt $maxBranchLength) {
     Write-Warning "[specify] Branch name exceeded GitHub's 244-byte limit"
     Write-Warning "[specify] Original: $originalBranchName ($($originalBranchName.Length) bytes)"
     Write-Warning "[specify] Truncated to: $branchName ($($branchName.Length) bytes)"
+}
+
+# FR-004/005/006: Check for branch name collision (local and remote)
+if ($hasGit -and (Test-BranchExists -BranchName $branchName)) {
+    $hashSuffix = Get-ShortHash -InputString "$featureNum-$branchSuffix"
+    $originalCollision = $branchName
+    $branchName = "$branchName-$hashSuffix"
+    Write-Warning "[specify] Branch name '$originalCollision' already exists"
+    Write-Warning "[specify] Resolved collision with hash suffix: $branchName"
 }
 
 if ($hasGit) {
