@@ -1,3 +1,22 @@
+# [5.3.0](https://github.com/oddessentials/ado-git-repo-insights/compare/v5.2.0...v5.3.0) (2026-01-26)
+
+
+### Bug Fixes
+
+* **build:** add clean-before-build to prevent stale file accumulation ([1fa603e](https://github.com/oddessentials/ado-git-repo-insights/commit/1fa603e82184f7ccc7f03b68860f704d206a98a5))
+* **ci:** align test thresholds and add Python 3.10 pandas support (Flight 5 Phases 2-3) ([e59e47e](https://github.com/oddessentials/ado-git-repo-insights/commit/e59e47ea102ea37099208c03c1319be466073c26))
+* **ci:** replace Unicode symbols with ASCII for Windows encoding safety ([f92e4d8](https://github.com/oddessentials/ado-git-repo-insights/commit/f92e4d8192d0c9f0b7c8fb4c5bda281c7fb76f4a))
+* **depcruise:** add targeted chart module exceptions (Flight 5 Phase 1) ([1982217](https://github.com/oddessentials/ado-git-repo-insights/commit/19822179971ccc56fe6df5a232c17646cc773c58))
+* **extension:** update test:vsix to use Jest 30 --testPathPatterns ([f9fcb27](https://github.com/oddessentials/ado-git-repo-insights/commit/f9fcb27e3489406260f00196835ca96145618d1e))
+* remove unused type ignore comment (mypy cleanup) ([d06ac2a](https://github.com/oddessentials/ado-git-repo-insights/commit/d06ac2a4262c0c0400cd4cf0c656721d9a789198))
+* **security:** harden GitHub Actions against command injection ([758f2d8](https://github.com/oddessentials/ado-git-repo-insights/commit/758f2d8c9382ad035c705861bdc7b3f14962147e))
+* **security:** remediate DOM XSS via escapeHtml ([5a6c188](https://github.com/oddessentials/ado-git-repo-insights/commit/5a6c188d72b2aaab83b4ee1001767aabb75fe735))
+
+
+### Features
+
+* **security:** add preventative enforcement for XSS patterns ([5f38539](https://github.com/oddessentials/ado-git-repo-insights/commit/5f38539e84772ee1de65d733c06d55e0f158e4c5))
+
 # [5.2.0](https://github.com/oddessentials/ado-git-repo-insights/compare/v5.1.0...v5.2.0) (2026-01-24)
 
 
