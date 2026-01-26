@@ -126,11 +126,13 @@ No complexity violations. All changes extend existing CLI infrastructure without
 
 **Decision**: Use a combination of environment variables and file existence checks to detect the current shell.
 
-**Detection Order**:
-1. Check `$SHELL` environment variable (Unix/macOS)
-2. Check `$PSModulePath` for PowerShell detection (Windows)
-3. Check `$COMSPEC` for CMD detection (Windows)
-4. Fall back to `bash` if unable to detect
+**Detection Order** (per research.md R1):
+1. Check `$PSModulePath` for PowerShell detection (cross-platform, including Windows)
+2. Check `$SHELL` environment variable (Unix/macOS)
+3. On Windows without PowerShell markers, default to `cmd`
+4. Fall back to `bash` if unable to detect on Unix
+
+**Note**: PowerShell check comes first because `$PSModulePath` is set even when PowerShell is running on Unix/macOS, and this is the most reliable cross-platform signal.
 
 **Shell Configuration Files**:
 | Shell | Config File | Notes |

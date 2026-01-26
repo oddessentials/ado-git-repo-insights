@@ -16,7 +16,7 @@
 - Q: Which shells are officially supported? → A: Supported (full): bash, zsh, PowerShell; Best-effort guidance: fish, nushell, and others
 - Q: How does silent/non-interactive install work? → A: Install commands are non-interactive by design; log deterministic "next steps" text; provide `setup-path --print-only` for scripts that need the PATH command without modifying files
 
-## User Scenarios & Testing *(mandatory)*
+## User Scenarios & Testing _(mandatory)_
 
 ### User Story 1 - First-Time Installation via pipx (Priority: P1)
 
@@ -159,30 +159,37 @@ An IT administrator needs to deploy ado-insights across multiple workstations in
 - What if `setup-path` is run when the tool was installed via pipx/uv?
 - What if `doctor` is run from a different installation than the one on PATH?
 
-## Requirements *(mandatory)*
+## Requirements _(mandatory)_
 
 ### Functional Requirements
 
 **Official Installation Methods (Frictionless):**
+
 - **FR-001**: After following an officially supported install method (`pipx install` or `uv tool install`), `ado-insights` MUST be available in a new terminal without manual PATH edits
 - **FR-002**: Installation via `pipx install ado-git-repo-insights` MUST be officially supported and documented as a primary (P1) method
 - **FR-003**: Installation via `uv tool install ado-git-repo-insights` MUST be officially supported and documented as a primary (P1/P2) method
 
 **pip install (Supported, Not Frictionless):**
+
 - **FR-004**: `pip install ado-git-repo-insights` MUST be supported for dev/advanced users
-- **FR-005**: pip install MUST emit deterministic, copy/paste PATH guidance when the console script directory is not on PATH
+- **FR-005**: When `ado-insights` is invoked and the console script directory is not on PATH, the CLI MUST emit deterministic, copy/paste PATH guidance. Note: This check occurs at CLI startup (first command execution), not during `pip install` itself, since pip does not provide reliable post-install hooks.
 - **FR-006**: PATH guidance MUST target supported shells: bash, zsh, PowerShell (full support); other shells receive best-effort guidance
 - **FR-007**: PATH guidance MUST include the exact scripts directory path for the user's environment
 
 **Explicit PATH Management (setup-path command):**
+
 - **FR-008**: The CLI MUST provide an `ado-insights setup-path` command for users who want automated PATH configuration
-- **FR-009**: `setup-path` MUST modify the appropriate shell configuration file for supported shells (bash: ~/.bashrc, zsh: ~/.zshrc, PowerShell: profile)
+- **FR-009**: `setup-path` MUST modify the appropriate shell configuration file for supported shells:
+  - bash: `~/.bashrc` (or `~/.bash_profile` on macOS if it exists)
+  - zsh: `~/.zshrc`
+  - PowerShell: `$PROFILE` if set; otherwise `$HOME/Documents/PowerShell/Microsoft.PowerShell_profile.ps1` (Windows) or `~/.config/powershell/Microsoft.PowerShell_profile.ps1` (Unix). If the profile file does not exist, `setup-path` MUST create it.
 - **FR-010**: `setup-path` MUST report which file was modified and what changes were made
 - **FR-011**: `setup-path --remove` MUST undo PATH changes made by a previous `setup-path` invocation
 - **FR-012**: `setup-path` MUST be idempotent (running twice does not duplicate PATH entries)
 - **FR-013**: `setup-path --print-only` MUST output the PATH modification command without modifying any files
 
 **Installation Diagnostics (doctor command):**
+
 - **FR-014**: The CLI MUST provide an `ado-insights doctor` command for diagnosing installation issues
 - **FR-015**: `doctor` MUST report the executable location (full path)
 - **FR-016**: `doctor` MUST report which environment the CLI is running from
@@ -190,20 +197,24 @@ An IT administrator needs to deploy ado-insights across multiple workstations in
 - **FR-018**: When conflicts are detected, `doctor` MUST provide exact commands to resolve the conflict
 
 **Cross-Platform Support:**
+
 - **FR-019**: All installation methods MUST work across Windows, macOS, and Linux
 - **FR-020**: The CLI MUST be accessible via the same command name (`ado-insights`) on all platforms
 
 **Installation Behavior:**
+
 - **FR-021**: All installation methods MUST result in equivalent CLI behavior (commands and features work the same; environment location may differ)
 - **FR-022**: Installation MUST complete without requiring elevated/administrator privileges for user-level installation
 - **FR-023**: Installation commands MUST be non-interactive (no prompts)
 - **FR-024**: Installation MUST log deterministic "next steps" text that can be captured by scripts
 
 **Shell Support:**
+
 - **FR-025**: Supported shells (full support): bash, zsh, PowerShell
 - **FR-026**: Other shells (fish, nushell, etc.) receive best-effort guidance only
 
 **Upgrade and Uninstall:**
+
 - **FR-027**: Upgrade MUST work via the same tool used for installation (pipx upgrade, uv upgrade, pip install --upgrade)
 - **FR-028**: Uninstallation via pipx and uv removes the tool; those tools manage their own PATH entries
 - **FR-029**: pip uninstall removes the package; PATH cleanup for `setup-path` changes is via `setup-path --remove`
@@ -217,7 +228,7 @@ An IT administrator needs to deploy ado-insights across multiple workstations in
 - **Shell Configuration File**: Platform-specific file modified by `setup-path` (bash: ~/.bashrc, zsh: ~/.zshrc, PowerShell: profile)
 - **Doctor Report**: Diagnostic output showing installation state, conflicts, and recommended fixes
 
-## Success Criteria *(mandatory)*
+## Success Criteria _(mandatory)_
 
 ### Measurable Outcomes
 

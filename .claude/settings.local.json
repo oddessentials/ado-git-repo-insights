@@ -7,7 +7,8 @@
       "Bash(python -m ruff format:*)",
       "Bash(python -m mypy:*)",
       "Bash(python -m pytest:*)",
-      "Bash(python -m ado_git_repo_insights.cli:*)"
+      "Bash(python -m ado_git_repo_insights.cli:*)",
+      "Bash(powershell -ExecutionPolicy Bypass -File .specify/scripts/powershell/check-prerequisites.ps1 -Json -RequireTasks -IncludeTasks)"
     ]
   }
 }
