@@ -34,9 +34,9 @@ This phase is empty because the project infrastructure already exists. Proceed d
 
 **⚠️ CRITICAL**: User story implementation depends on this refactor being complete first
 
-- [ ] T001 Extract `_serve_dashboard(dataset_path: Path, port: int, open_browser: bool) -> int` function from `cmd_dashboard` in src/ado_git_repo_insights/cli.py (move lines 1230-1387 into new private function)
-- [ ] T002 Refactor `cmd_dashboard` to call `_serve_dashboard(input_path, args.port, getattr(args, "open", False))` in src/ado_git_repo_insights/cli.py
-- [ ] T003 Verify existing `dashboard` command still works after refactor by running `ado-insights dashboard --dataset ./test_dataset --port 8080`
+- [x] T001 Extract `_serve_dashboard(dataset_path: Path, port: int, open_browser: bool) -> int` function from `cmd_dashboard` in src/ado_git_repo_insights/cli.py (move lines 1230-1387 into new private function)
+- [x] T002 Refactor `cmd_dashboard` to call `_serve_dashboard(input_path, args.port, getattr(args, "open", False))` in src/ado_git_repo_insights/cli.py
+- [x] T003 Verify existing `dashboard` command still works after refactor by running `ado-insights dashboard --dataset ./test_dataset --port 8080`
 
 **Checkpoint**: Foundation ready - `_serve_dashboard` function exists and `dashboard` command works unchanged
 
@@ -50,16 +50,16 @@ This phase is empty because the project infrastructure already exists. Proceed d
 
 ### Tests for User Story 1
 
-- [ ] T004 [P] [US1] Create unit test for `--serve` flag acceptance in tests/unit/test_cli_serve_flags.py
-- [ ] T005 [P] [US1] Create unit test for `--serve --open` combination in tests/unit/test_cli_serve_flags.py
-- [ ] T006 [P] [US1] Create unit test for `--serve --port 3000` combination in tests/unit/test_cli_serve_flags.py
+- [x] T004 [P] [US1] Create unit test for `--serve` flag acceptance in tests/unit/test_cli_serve_flags.py
+- [x] T005 [P] [US1] Create unit test for `--serve --open` combination in tests/unit/test_cli_serve_flags.py
+- [x] T006 [P] [US1] Create unit test for `--serve --port 3000` combination in tests/unit/test_cli_serve_flags.py
 
 ### Implementation for User Story 1
 
-- [ ] T007 [US1] Add `--serve` argument to `build_parser` in `create_parser()` in src/ado_git_repo_insights/cli.py (after line 261)
-- [ ] T008 [US1] Add `--open` argument to `build_parser` in `create_parser()` in src/ado_git_repo_insights/cli.py
-- [ ] T009 [US1] Add `--port` argument with default 8080 to `build_parser` in `create_parser()` in src/ado_git_repo_insights/cli.py
-- [ ] T010 [US1] Modify `cmd_build_aggregates` to call `_serve_dashboard(args.out, port, open_browser)` after successful build when `--serve` is set in src/ado_git_repo_insights/cli.py
+- [x] T007 [US1] Add `--serve` argument to `build_parser` in `create_parser()` in src/ado_git_repo_insights/cli.py (after line 261)
+- [x] T008 [US1] Add `--open` argument to `build_parser` in `create_parser()` in src/ado_git_repo_insights/cli.py
+- [x] T009 [US1] Add `--port` argument with default 8080 to `build_parser` in `create_parser()` in src/ado_git_repo_insights/cli.py
+- [x] T010 [US1] Modify `cmd_build_aggregates` to call `_serve_dashboard(args.out, port, open_browser)` after successful build when `--serve` is set in src/ado_git_repo_insights/cli.py
 
 **Checkpoint**: User Story 1 complete - `build-aggregates --serve --open` works end-to-end
 
@@ -73,13 +73,13 @@ This phase is empty because the project infrastructure already exists. Proceed d
 
 ### Tests for User Story 2
 
-- [ ] T011 [P] [US2] Create unit test verifying `build-aggregates` without `--serve` does NOT start server in tests/unit/test_cli_serve_flags.py
-- [ ] T012 [P] [US2] Create unit test verifying `dashboard` command unchanged in tests/unit/test_cli_serve_flags.py
+- [x] T011 [P] [US2] Create unit test verifying `build-aggregates` without `--serve` does NOT start server in tests/unit/test_cli_serve_flags.py
+- [x] T012 [P] [US2] Create unit test verifying `dashboard` command unchanged in tests/unit/test_cli_serve_flags.py
 
 ### Implementation for User Story 2
 
-- [ ] T013 [US2] Add conditional check in `cmd_build_aggregates`: only call `_serve_dashboard` if `getattr(args, "serve", False)` is True in src/ado_git_repo_insights/cli.py
-- [ ] T014 [US2] Verify `cmd_dashboard` function signature unchanged and still callable independently in src/ado_git_repo_insights/cli.py
+- [x] T013 [US2] Add conditional check in `cmd_build_aggregates`: only call `_serve_dashboard` if `getattr(args, "serve", False)` is True in src/ado_git_repo_insights/cli.py
+- [x] T014 [US2] Verify `cmd_dashboard` function signature unchanged and still callable independently in src/ado_git_repo_insights/cli.py
 
 **Checkpoint**: User Story 2 complete - backward compatibility verified
 
@@ -93,15 +93,15 @@ This phase is empty because the project infrastructure already exists. Proceed d
 
 ### Tests for User Story 3
 
-- [ ] T015 [P] [US3] Create unit test for `--open` without `--serve` error in tests/unit/test_cli_serve_flags.py
-- [ ] T016 [P] [US3] Create unit test for `--port 3000` without `--serve` error in tests/unit/test_cli_serve_flags.py
-- [ ] T017 [P] [US3] Create unit test for `--open --port 3000` without `--serve` combined error in tests/unit/test_cli_serve_flags.py
+- [x] T015 [P] [US3] Create unit test for `--open` without `--serve` error in tests/unit/test_cli_serve_flags.py
+- [x] T016 [P] [US3] Create unit test for `--port 3000` without `--serve` error in tests/unit/test_cli_serve_flags.py
+- [x] T017 [P] [US3] Create unit test for `--open --port 3000` without `--serve` combined error in tests/unit/test_cli_serve_flags.py
 
 ### Implementation for User Story 3
 
-- [ ] T018 [US3] Add flag validation at start of `cmd_build_aggregates` before any processing in src/ado_git_repo_insights/cli.py
-- [ ] T019 [US3] Implement validation logic: if `open_browser` or `port != 8080` and not `serve`, log error and return 1 in src/ado_git_repo_insights/cli.py
-- [ ] T020 [US3] Ensure error message lists all invalid flags (e.g., "--open, --port requires --serve") in src/ado_git_repo_insights/cli.py
+- [x] T018 [US3] Add flag validation at start of `cmd_build_aggregates` before any processing in src/ado_git_repo_insights/cli.py
+- [x] T019 [US3] Implement validation logic: if `open_browser` or `port != 8080` and not `serve`, log error and return 1 in src/ado_git_repo_insights/cli.py
+- [x] T020 [US3] Ensure error message lists all invalid flags (e.g., "--open, --port requires --serve") in src/ado_git_repo_insights/cli.py
 
 **Checkpoint**: User Story 3 complete - invalid flag combinations rejected with clear messages
 
@@ -111,10 +111,10 @@ This phase is empty because the project infrastructure already exists. Proceed d
 
 **Purpose**: Documentation updates and final validation
 
-- [ ] T021 [P] Update docs/reference/cli-reference.md with new `--serve`, `--open`, `--port` flags for build-aggregates command
-- [ ] T022 [P] Run `ruff check src/ado_git_repo_insights/cli.py` and `ruff format src/ado_git_repo_insights/cli.py`
-- [ ] T023 [P] Run `mypy src/ado_git_repo_insights/cli.py` to verify type hints
-- [ ] T024 Run full test suite `pytest tests/unit/test_cli_serve_flags.py -v`
+- [x] T021 [P] Update docs/reference/cli-reference.md with new `--serve`, `--open`, `--port` flags for build-aggregates command
+- [x] T022 [P] Run `ruff check src/ado_git_repo_insights/cli.py` and `ruff format src/ado_git_repo_insights/cli.py`
+- [x] T023 [P] Run `mypy src/ado_git_repo_insights/cli.py` to verify type hints
+- [x] T024 Run full test suite `pytest tests/unit/test_cli_serve_flags.py -v`
 - [ ] T025 Manual validation: run quickstart.md scenarios to verify end-to-end flow
 
 ---

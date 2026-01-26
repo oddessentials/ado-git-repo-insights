@@ -151,6 +151,9 @@ ado-insights build-aggregates [OPTIONS]
 |--------|---------|-------------|
 | `--enable-predictions` | `false` | Generate ML predictions (requires `[ml]` extra) |
 | `--enable-insights` | `false` | Generate AI insights (requires `[ml]` extra) |
+| `--serve` | `false` | Start local dashboard server after building |
+| `--open` | `false` | Open browser automatically (requires `--serve`) |
+| `--port PORT` | `8080` | Local server port (requires `--serve`) |
 
 ### Examples
 
@@ -158,6 +161,24 @@ ado-insights build-aggregates [OPTIONS]
 ado-insights build-aggregates \
   --db ./ado-insights.sqlite \
   --out ./dataset
+```
+
+**Build and immediately view dashboard (one command):**
+```bash
+ado-insights build-aggregates \
+  --db ./ado-insights.sqlite \
+  --out ./dataset \
+  --serve \
+  --open
+```
+
+**Build and serve on custom port:**
+```bash
+ado-insights build-aggregates \
+  --db ./ado-insights.sqlite \
+  --out ./dataset \
+  --serve \
+  --port 3000
 ```
 
 **With ML features:**
@@ -181,6 +202,70 @@ ado-insights build-aggregates \
 | `aggregates/distributions/YYYY.json` | Yearly distributions |
 | `predictions/trends.json` | ML forecasts (optional) |
 | `insights/summary.json` | AI insights (optional) |
+
+---
+
+## stage-artifacts
+
+Download pipeline artifacts from Azure DevOps to local directory. **This is the recommended workflow for viewing production data.**
+
+```bash
+ado-insights stage-artifacts [OPTIONS]
+```
+
+### Required Options
+
+| Option | Description |
+|--------|-------------|
+| `--org ORG` | Azure DevOps organization name |
+| `--project PROJECT` | Azure DevOps project name |
+| `--pipeline-id ID` | Pipeline definition ID |
+| `--pat PAT` | Personal Access Token with Build (Read) scope |
+
+### Optional Options
+
+| Option | Default | Description |
+|--------|---------|-------------|
+| `--artifact NAME` | `aggregates` | Artifact name to download |
+| `--out DIR` | `./run_artifacts` | Output directory |
+| `--run-id ID` | Latest | Specific pipeline run ID |
+| `--serve` | `false` | Start local dashboard server after staging |
+| `--open` | `false` | Open browser automatically (requires `--serve`) |
+| `--port PORT` | `8080` | Local server port (requires `--serve`) |
+
+### Examples
+
+**Download and view dashboard (single command):**
+```bash
+ado-insights stage-artifacts \
+  --org oddessentials \
+  --project oddessentials \
+  --pipeline-id 123 \
+  --pat $ADO_PAT \
+  --serve --open
+```
+
+**Download only (two-step workflow):**
+```bash
+ado-insights stage-artifacts \
+  --org oddessentials \
+  --project oddessentials \
+  --pipeline-id 123 \
+  --pat $ADO_PAT
+
+# Then view separately
+ado-insights dashboard --dataset ./run_artifacts --open
+```
+
+**Custom port:**
+```bash
+ado-insights stage-artifacts \
+  --org oddessentials \
+  --project oddessentials \
+  --pipeline-id 123 \
+  --pat $ADO_PAT \
+  --serve --port 3000
+```
 
 ---
 
