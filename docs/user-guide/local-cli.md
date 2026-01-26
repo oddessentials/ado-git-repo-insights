@@ -434,6 +434,95 @@ steps:
 
 ---
 
+## Enterprise & Scripted Deployment
+
+All installation commands are **non-interactive** and suitable for automated deployments.
+
+### Non-Interactive Installation
+
+```bash
+# All methods work without user prompts:
+pipx install ado-git-repo-insights       # No prompts
+uv tool install ado-git-repo-insights    # No prompts
+pip install ado-git-repo-insights        # No prompts
+```
+
+### Scripted PATH Configuration
+
+For automated deployments where PATH setup needs to be scripted:
+
+**Option 1: Capture and Execute**
+
+```bash
+# Bash/Linux
+PATH_CMD=$(python -m ado_git_repo_insights.cli setup-path --print-only)
+echo "$PATH_CMD" >> ~/.bashrc
+source ~/.bashrc
+```
+
+```powershell
+# PowerShell/Windows
+$pathCmd = python -m ado_git_repo_insights.cli setup-path --print-only
+Add-Content $PROFILE $pathCmd
+. $PROFILE
+```
+
+**Option 2: Direct Execution**
+
+```bash
+# Bash - append to profile automatically
+ado-insights setup-path
+
+# Verify (in new shell)
+ado-insights --version
+```
+
+### Ansible Playbook Example
+
+```yaml
+- name: Install ado-insights
+  hosts: analytics_servers
+  tasks:
+    - name: Install via pipx
+      community.general.pipx:
+        name: ado-git-repo-insights
+        state: present
+
+    - name: Verify installation
+      command: ado-insights --version
+      changed_when: false
+```
+
+### Docker Deployment
+
+```dockerfile
+FROM python:3.11-slim
+
+RUN pip install --no-cache-dir pipx && \
+    pipx install ado-git-repo-insights && \
+    pipx ensurepath
+
+# pipx installs to /root/.local/bin
+ENV PATH="/root/.local/bin:$PATH"
+
+ENTRYPOINT ["ado-insights"]
+```
+
+### Validation in CI/CD
+
+```bash
+# Validate installation succeeded
+ado-insights doctor
+
+# Check exit code: 0 = OK, 1 = issues detected
+if [ $? -ne 0 ]; then
+    echo "Installation issues detected"
+    exit 1
+fi
+```
+
+---
+
 ## Output Artifacts
 
 ### Run Summary

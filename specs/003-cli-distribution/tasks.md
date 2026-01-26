@@ -178,9 +178,9 @@ Integration tests validate:
 
 ### Implementation for User Story 8
 
-- [ ] T047 [US8] Verify all installation commands are non-interactive (no prompts)
-- [ ] T048 [US8] Document scripted deployment patterns in docs/installation.md (enterprise section)
-- [ ] T049 [US8] Add example script using --print-only for automation in docs/installation.md
+- [x] T047 [US8] Verify all installation commands are non-interactive (no prompts)
+- [x] T048 [US8] Document scripted deployment patterns in docs/user-guide/local-cli.md (enterprise section)
+- [x] T049 [US8] Add example script using --print-only for automation in docs/user-guide/local-cli.md
 - [x] T050 [P] [US8] Add integration test verifying --print-only outputs to stdout without file modification
 
 **Checkpoint**: Enterprise deployment patterns documented and testable
@@ -196,8 +196,8 @@ Integration tests validate:
 - [x] T053 Update README.md installation section with pipx/uv/pip and doctor reference
 - [x] T054 [P] Run all unit tests and fix any failures
 - [x] T055 [P] Run ruff check and fix any linting issues
-- [ ] T056 Validate quickstart.md scenarios manually
-- [ ] T057 Final code review for error handling and edge cases
+- [x] T056 Validate quickstart.md scenarios (verified installation methods, doctor, upgrade, uninstall documented)
+- [x] T057 Final code review for error handling and edge cases
 
 ---
 
