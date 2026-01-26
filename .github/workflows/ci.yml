@@ -429,7 +429,7 @@ jobs:
           python -m build
 
       - name: Upload Build Artifacts
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: dist
           path: dist/
@@ -488,7 +488,7 @@ jobs:
           ls -la *.vsix
 
       - name: Upload Extension Artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: vsix
           path: extension/*.vsix
