@@ -180,6 +180,7 @@ function Test-RequiredPlaceholders {
         [Parameter(Mandatory=$true)]
         [string]$Content,
         [Parameter(Mandatory=$true)]
+        [ValidateNotNullOrEmpty()]
         [string[]]$Required
     )
     $missing = @()
@@ -247,9 +248,10 @@ function New-AgentFile {
     $requiredPlaceholders = @('[PROJECT NAME]', '[DATE]')
     $missingRequired = Test-RequiredPlaceholders -Content $content -Required $requiredPlaceholders
     if ($missingRequired.Count -gt 0) {
-        Write-Err "Template missing required placeholders: $($missingRequired -join ', ')"
+        $errorMsg = "Template missing required placeholders: $($missingRequired -join ', ')"
+        Write-Err $errorMsg
         Remove-Item $temp -Force
-        return $false
+        throw $errorMsg
     }
 
     # FR-008: Escape all user-provided values before regex replacement

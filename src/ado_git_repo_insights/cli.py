@@ -828,8 +828,9 @@ def _validate_serve_flags(args: Namespace) -> int | None:
 def cmd_build_aggregates(args: Namespace) -> int:
     """Execute the build-aggregates command (Phase 6 - alias for generate-aggregates)."""
     # FR-010: Use shared flag validation
-    if (exit_code := _validate_serve_flags(args)) is not None:
-        return exit_code
+    validation_result = _validate_serve_flags(args)
+    if validation_result is not None:
+        return validation_result
 
     # Extract serve-related flags for use after aggregate generation
     serve = getattr(args, "serve", False)
@@ -1124,8 +1125,9 @@ def cmd_stage_artifacts(args: Namespace) -> int:
     import requests
 
     # FR-010: Use shared flag validation
-    if (exit_code := _validate_serve_flags(args)) is not None:
-        return exit_code
+    validation_result = _validate_serve_flags(args)
+    if validation_result is not None:
+        return validation_result
 
     # Extract serve-related flags for use after artifact staging
     serve = getattr(args, "serve", False)
