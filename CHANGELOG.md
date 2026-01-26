@@ -1,3 +1,10 @@
+# [5.4.0](https://github.com/oddessentials/ado-git-repo-insights/compare/v5.3.0...v5.4.0) (2026-01-26)
+
+
+### Features
+
+* **cli:** implement --serve, --open, --port flags for build-aggregates (Flight 260127A) ([668151e](https://github.com/oddessentials/ado-git-repo-insights/commit/668151e98484f2fb311fe6c6f2b2966407c3047d))
+
 # [5.3.0](https://github.com/oddessentials/ado-git-repo-insights/compare/v5.2.0...v5.3.0) (2026-01-26)
 
 
