@@ -4,6 +4,97 @@ Common issues and solutions for both CLI and Extension users.
 
 ---
 
+## Installation Issues
+
+### "ado-insights: command not found"
+
+**Run the doctor command** to diagnose:
+
+```bash
+python -m ado_git_repo_insights.cli doctor
+```
+
+**Cause:** Scripts directory is not on PATH.
+
+**Solutions by installation method:**
+
+| Method | Fix |
+|--------|-----|
+| pipx | Run: `pipx ensurepath` then restart terminal |
+| uv | Run: `uv tool update-shell` then restart terminal |
+| pip | Run: `ado-insights setup-path` then restart terminal |
+
+**Manual fix:** Add the scripts directory to your PATH. Use `ado-insights setup-path --print-only` to see the command.
+
+### Multiple installations conflict
+
+**Symptoms:** Wrong version runs, or commands behave unexpectedly.
+
+**Diagnose:**
+
+```bash
+ado-insights doctor
+```
+
+If doctor shows "Multiple installations found":
+
+1. **Keep pipx/uv, remove pip:**
+   ```bash
+   pip uninstall ado-git-repo-insights
+   ```
+
+2. **Keep uv, remove pipx:**
+   ```bash
+   pipx uninstall ado-git-repo-insights
+   ```
+
+3. **Start fresh:**
+   ```bash
+   pip uninstall ado-git-repo-insights
+   pipx uninstall ado-git-repo-insights
+   uv tool uninstall ado-git-repo-insights
+   # Then reinstall with your preferred method
+   pipx install ado-git-repo-insights
+   ```
+
+### Upgrade issues
+
+**Upgrade commands by installation method:**
+
+```bash
+# pipx
+pipx upgrade ado-git-repo-insights
+
+# uv
+uv tool upgrade ado-git-repo-insights
+
+# pip
+pip install --upgrade ado-git-repo-insights
+```
+
+### Uninstallation
+
+**If you used setup-path, remove it first:**
+
+```bash
+ado-insights setup-path --remove
+```
+
+**Then uninstall:**
+
+```bash
+# pipx
+pipx uninstall ado-git-repo-insights
+
+# uv
+uv tool uninstall ado-git-repo-insights
+
+# pip
+pip uninstall ado-git-repo-insights
+```
+
+---
+
 ## Authentication Issues
 
 ### "401 Unauthorized"

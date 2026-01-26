@@ -69,15 +69,27 @@ steps:
 
 The Python CLI provides full control for local analysis, custom scripts, and non-ADO CI/CD systems.
 
+### Installation
+
+**Recommended: pipx** (handles PATH automatically)
 ```bash
-pip install ado-git-repo-insights
+pipx install ado-git-repo-insights
 ```
 
-**What you get:**
-- Command-line tool for extraction and CSV generation
-- Local dashboard server
-- Configuration file support
-- Works anywhere Python runs
+**Alternative: uv** (fast, modern)
+```bash
+uv tool install ado-git-repo-insights
+```
+
+**Advanced: pip** (manual PATH setup may be needed)
+```bash
+pip install ado-git-repo-insights
+# If 'ado-insights' not found, run: ado-insights setup-path
+```
+
+Verify installation: `ado-insights --version`
+
+Diagnose issues: `ado-insights doctor`
 
 **Get started:** [CLI User Guide](docs/user-guide/local-cli.md)
 

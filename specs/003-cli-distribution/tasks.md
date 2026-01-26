@@ -19,10 +19,10 @@
 
 **Purpose**: Project initialization and module structure for new CLI commands
 
-- [ ] T001 Create commands package directory at src/ado_git_repo_insights/commands/**init**.py
-- [ ] T002 [P] Create shell_detection module at src/ado_git_repo_insights/utils/shell_detection.py with detect_shell() and get_shell_config_path() stubs
-- [ ] T003 [P] Create path_utils module at src/ado_git_repo_insights/utils/path_utils.py with is_on_path() and get_scripts_directory() stubs
-- [ ] T004 [P] Create install_detection module at src/ado_git_repo_insights/utils/install_detection.py with detect_installation_method() stub
+- [x] T001 Create commands package directory at src/ado_git_repo_insights/commands/**init**.py
+- [x] T002 [P] Create shell_detection module at src/ado_git_repo_insights/utils/shell_detection.py with detect_shell() and get_shell_config_path() stubs
+- [x] T003 [P] Create path_utils module at src/ado_git_repo_insights/utils/path_utils.py with is_on_path() and get_scripts_directory() stubs
+- [x] T004 [P] Create install_detection module at src/ado_git_repo_insights/utils/install_detection.py with detect_installation_method() stub
 - Note: detect_installation_method() MUST return: pipx, uv, pip, or unknown
 
 and MUST surface uncertainty explicitly (not guess)
@@ -35,15 +35,15 @@ and MUST surface uncertainty explicitly (not guess)
 
 **Note**: These utilities are shared by multiple user stories (setup-path and doctor commands)
 
-- [ ] T005 Implement detect_shell() in src/ado_git_repo_insights/utils/shell_detection.py using R1 algorithm from research.md
-- [ ] T006 Implement get_shell_config_path() in src/ado_git_repo_insights/utils/shell_detection.py using R2 mappings from research.md
-- [ ] T007 [P] Implement get_scripts_directory() in src/ado_git_repo_insights/utils/path_utils.py using R4 sysconfig approach from research.md
-- [ ] T008 [P] Implement is_on_path() in src/ado_git_repo_insights/utils/path_utils.py using R7 algorithm from research.md
-- [ ] T009 Implement detect_installation_method() in src/ado_git_repo_insights/utils/install_detection.py using R5 heuristics from research.md
-- [ ] T010 [P] Implement find_all_installations() in src/ado_git_repo_insights/utils/install_detection.py using R6 algorithm from research.md
-- [ ] T011 [P] Add unit tests for shell_detection in tests/unit/test_shell_detection.py
-- [ ] T012 [P] Add unit tests for path_utils in tests/unit/test_path_utils.py
-- [ ] T013 [P] Add unit tests for install_detection in tests/unit/test_install_detection.py
+- [x] T005 Implement detect_shell() in src/ado_git_repo_insights/utils/shell_detection.py using R1 algorithm from research.md
+- [x] T006 Implement get_shell_config_path() in src/ado_git_repo_insights/utils/shell_detection.py using R2 mappings from research.md
+- [x] T007 [P] Implement get_scripts_directory() in src/ado_git_repo_insights/utils/path_utils.py using R4 sysconfig approach from research.md
+- [x] T008 [P] Implement is_on_path() in src/ado_git_repo_insights/utils/path_utils.py using R7 algorithm from research.md
+- [x] T009 Implement detect_installation_method() in src/ado_git_repo_insights/utils/install_detection.py using R5 heuristics from research.md
+- [x] T010 [P] Implement find_all_installations() in src/ado_git_repo_insights/utils/install_detection.py using R6 algorithm from research.md
+- [x] T011 [P] Add unit tests for shell_detection in tests/unit/test_shell_detection.py
+- [x] T012 [P] Add unit tests for path_utils in tests/unit/test_path_utils.py
+- [x] T013 [P] Add unit tests for install_detection in tests/unit/test_install_detection.py
 
 **Checkpoint**: Foundation ready - user story implementation can now begin
 
@@ -59,10 +59,10 @@ and MUST surface uncertainty explicitly (not guess)
 
 **Note**: These user stories require no code changes - pipx and uv handle PATH automatically. Implementation is documentation and verification only.
 
-- [ ] T014 [P] [US1] Verify pyproject.toml has correct console_scripts entry point for ado-insights
+- [x] T014 [P] [US1] Verify pyproject.toml has correct console_scripts entry point for ado-insights
 - [ ] T015 [P] [US2] Verify package can be installed via pipx and uv tool (manual test on dev machine)
-- [ ] T016 [US1] Document pipx installation in docs/installation.md with verification steps
-- [ ] T017 [US2] Document uv tool installation in docs/installation.md with verification steps
+- [x] T016 [US1] Document pipx installation in docs/installation.md with verification steps
+- [x] T017 [US2] Document uv tool installation in docs/installation.md with verification steps
 
 **Checkpoint**: Frictionless installation paths verified and documented
 
@@ -76,11 +76,11 @@ and MUST surface uncertainty explicitly (not guess)
 
 ### Implementation for User Story 3
 
-- [ ] T018 [US3] Implement PATH check and guidance emission at CLI startup (ado-insights invocation), not during pip install in src/ado_git_repo_insights/cli.py. The check MUST occur when the CLI is executed, not during package installation.
-- [ ] T019 [US3] Create format_path_guidance() helper in src/ado_git_repo_insights/utils/path_utils.py that generates shell-specific instructions
-- [ ] T020 [US3] Add shell-specific command templates for bash, zsh, and PowerShell in path_utils.py
-- [ ] T021 [US3] Add best-effort guidance message for unsupported shells (fish, nushell) in path_utils.py
-- [ ] T022 [P] [US3] Add unit tests for PATH guidance formatting in tests/unit/test_path_utils.py
+- [x] T018 [US3] Implement PATH check and guidance emission at CLI startup (ado-insights invocation), not during pip install in src/ado_git_repo_insights/cli.py. The check MUST occur when the CLI is executed, not during package installation.
+- [x] T019 [US3] Create format_path_guidance() helper in src/ado_git_repo_insights/utils/path_utils.py that generates shell-specific instructions
+- [x] T020 [US3] Add shell-specific command templates for bash, zsh, and PowerShell in path_utils.py
+- [x] T021 [US3] Add best-effort guidance message for unsupported shells (fish, nushell) in path_utils.py
+- [x] T022 [P] [US3] Add unit tests for PATH guidance formatting in tests/unit/test_path_utils.py
 
 **Checkpoint**: pip users receive actionable PATH guidance on install
 
@@ -94,15 +94,15 @@ and MUST surface uncertainty explicitly (not guess)
 
 ### Implementation for User Story 4
 
-- [ ] T023 [US4] Create setup_path.py command module at src/ado_git_repo_insights/commands/setup_path.py
-- [ ] T024 [US4] Implement main setup_path() function with --print-only and --remove flags. Setup-path MUST refuse to run if detect_installation_method() returns pipx or uv, with a clear message.
-- [ ] T025 [US4] Implement read_and_modify_config() to add PATH entry with sentinel comments per R3 format
-- [ ] T026 [US4] Implement idempotency check per R8 (detect existing sentinel markers)
-- [ ] T027 [US4] Implement --remove logic to strip sentinel-marked block from config file
-- [ ] T028 [US4] Register setup-path subcommand in src/ado_git_repo_insights/cli.py
-- [ ] T029 [US4] Handle edge cases: missing config file (create), read-only file (error with manual instructions)
-- [ ] T030 [P] [US4] Add unit tests for setup_path command in tests/unit/test_setup_path.py
-- [ ] T031 [P] [US4] Add integration test for setup-path modifying actual shell config (in temp dir) in tests/integration/test_cli_distribution.py
+- [x] T023 [US4] Create setup_path.py command module at src/ado_git_repo_insights/commands/setup_path.py
+- [x] T024 [US4] Implement main setup_path() function with --print-only and --remove flags. Setup-path MUST refuse to run if detect_installation_method() returns pipx or uv, with a clear message.
+- [x] T025 [US4] Implement read_and_modify_config() to add PATH entry with sentinel comments per R3 format
+- [x] T026 [US4] Implement idempotency check per R8 (detect existing sentinel markers)
+- [x] T027 [US4] Implement --remove logic to strip sentinel-marked block from config file
+- [x] T028 [US4] Register setup-path subcommand in src/ado_git_repo_insights/cli.py
+- [x] T029 [US4] Handle edge cases: missing config file (create), read-only file (error with manual instructions)
+- [x] T030 [P] [US4] Add unit tests for setup_path command in tests/unit/test_setup_path.py
+- [x] T031 [P] [US4] Add integration test for setup-path modifying actual shell config (in temp dir) in tests/integration/test_cli_distribution.py
 
 **Checkpoint**: setup-path command fully functional with --print-only and --remove
 
@@ -122,15 +122,15 @@ Integration tests validate:
 
 ### Implementation for User Story 5
 
-- [ ] T032 [US5] Create doctor.py command module at src/ado_git_repo_insights/commands/doctor.py
-- [ ] T033 [US5] Implement main doctor() function with structured output per D3 format from plan.md. Doctor output MUST be stable, line-oriented, and free of emojis or ANSI color when --no-color is implied.
-- [ ] T034 [US5] Implement executable location detection (sys.executable, resolve symlinks)
-- [ ] T035 [US5] Implement environment summary (Python version, installation method)
-- [ ] T036 [US5] Implement conflict detection using find_all_installations() from install_detection
-- [ ] T037 [US5] Implement recommendation engine: generate specific uninstall commands based on detected methods
-- [ ] T038 [US5] Register doctor subcommand in src/ado_git_repo_insights/cli.py
-- [ ] T039 [P] [US5] Add unit tests for doctor command in tests/unit/test_doctor.py
-- [ ] T040 [P] [US5] Add integration test for doctor output formatting in tests/integration/test_cli_distribution.py
+- [x] T032 [US5] Create doctor.py command module at src/ado_git_repo_insights/commands/doctor.py
+- [x] T033 [US5] Implement main doctor() function with structured output per D3 format from plan.md. Doctor output MUST be stable, line-oriented, and free of emojis or ANSI color when --no-color is implied.
+- [x] T034 [US5] Implement executable location detection (sys.executable, resolve symlinks)
+- [x] T035 [US5] Implement environment summary (Python version, installation method)
+- [x] T036 [US5] Implement conflict detection using find_all_installations() from install_detection
+- [x] T037 [US5] Implement recommendation engine: generate specific uninstall commands based on detected methods
+- [x] T038 [US5] Register doctor subcommand in src/ado_git_repo_insights/cli.py
+- [x] T039 [P] [US5] Add unit tests for doctor command in tests/unit/test_doctor.py
+- [x] T040 [P] [US5] Add integration test for doctor output formatting in tests/integration/test_cli_distribution.py
 
 **Checkpoint**: doctor command provides actionable diagnostics for installation issues
 
@@ -146,9 +146,9 @@ Integration tests validate:
 
 **Note**: Upgrade behavior is handled by package managers. Implementation is documentation and verification.
 
-- [ ] T041 [US6] Document upgrade commands for pipx, uv, and pip in docs/installation.md
+- [x] T041 [US6] Document upgrade commands for pipx, uv, and pip in docs/installation.md
 - [ ] T042 [US6] Verify upgrade preserves CLI access (manual test with version bump)
-- [ ] T043 [US6] Add upgrade troubleshooting section to docs/troubleshooting.md
+- [x] T043 [US6] Add upgrade troubleshooting section to docs/troubleshooting.md
 
 **Checkpoint**: Upgrade paths documented and verified
 
@@ -162,9 +162,9 @@ Integration tests validate:
 
 ### Implementation for User Story 7
 
-- [ ] T044 [US7] Document uninstall commands for pipx, uv, and pip in docs/installation.md
-- [ ] T045 [US7] Document setup-path --remove usage before pip uninstall
-- [ ] T046 [P] [US7] Add integration test for setup-path --remove cleanup in tests/integration/test_cli_distribution.py
+- [x] T044 [US7] Document uninstall commands for pipx, uv, and pip in docs/installation.md
+- [x] T045 [US7] Document setup-path --remove usage before pip uninstall
+- [x] T046 [P] [US7] Add integration test for setup-path --remove cleanup in tests/integration/test_cli_distribution.py
 
 **Checkpoint**: Uninstallation paths documented with proper cleanup guidance
 
@@ -181,7 +181,7 @@ Integration tests validate:
 - [ ] T047 [US8] Verify all installation commands are non-interactive (no prompts)
 - [ ] T048 [US8] Document scripted deployment patterns in docs/installation.md (enterprise section)
 - [ ] T049 [US8] Add example script using --print-only for automation in docs/installation.md
-- [ ] T050 [P] [US8] Add integration test verifying --print-only outputs to stdout without file modification
+- [x] T050 [P] [US8] Add integration test verifying --print-only outputs to stdout without file modification
 
 **Checkpoint**: Enterprise deployment patterns documented and testable
 
@@ -191,11 +191,11 @@ Integration tests validate:
 
 **Purpose**: Documentation, README updates, and final validation
 
-- [ ] T051 [P] Create comprehensive docs/installation.md consolidating all installation methods
-- [ ] T052 [P] Create docs/troubleshooting.md with doctor usage and common issues
-- [ ] T053 Update README.md installation section to reference docs/installation.md
-- [ ] T054 [P] Run all unit tests and fix any failures
-- [ ] T055 [P] Run ruff check and fix any linting issues
+- [x] T051 [P] Installation methods documented in docs/user-guide/local-cli.md (consolidated approach)
+- [x] T052 [P] Troubleshooting content added to docs/user-guide/troubleshooting.md
+- [x] T053 Update README.md installation section with pipx/uv/pip and doctor reference
+- [x] T054 [P] Run all unit tests and fix any failures
+- [x] T055 [P] Run ruff check and fix any linting issues
 - [ ] T056 Validate quickstart.md scenarios manually
 - [ ] T057 Final code review for error handling and edge cases
 

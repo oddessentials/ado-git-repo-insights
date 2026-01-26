@@ -24,21 +24,80 @@ This guide covers using the Python CLI for local PR analysis and custom CI/CD in
 
 ## Installation
 
+### Recommended: pipx (Frictionless)
+
+pipx handles PATH configuration automatically and isolates dependencies:
+
+```bash
+# Install pipx if needed
+python -m pip install --user pipx
+pipx ensurepath
+
+# Install ado-insights
+pipx install ado-git-repo-insights
+
+# Verify
+ado-insights --version
+```
+
+### Alternative: uv (Frictionless)
+
+uv is a fast, modern alternative with similar frictionless installation:
+
+```bash
+# Install uv if needed (see https://astral.sh/uv)
+# Then install ado-insights
+uv tool install ado-git-repo-insights
+
+# Verify
+ado-insights --version
+```
+
+### Advanced: pip (Manual PATH Setup)
+
+For developers who prefer pip directly:
+
 ```bash
 pip install ado-git-repo-insights
 ```
 
-Verify installation:
+If `ado-insights` is not found after installation, run:
+
+```bash
+# Option 1: Automatic PATH setup
+ado-insights setup-path
+
+# Option 2: See the command without modifying files
+ado-insights setup-path --print-only
+```
+
+Then restart your terminal.
+
+### Verify Installation
 
 ```bash
 ado-insights --version
 ```
+
+### Diagnose Issues
+
+If you encounter problems:
+
+```bash
+ado-insights doctor
+```
+
+This shows installation location, PATH status, and detects conflicts.
 
 ### Optional: ML Features
 
 For Prophet forecasting and AI insights:
 
 ```bash
+# pipx
+pipx inject ado-git-repo-insights prophet openai
+
+# pip
 pip install ado-git-repo-insights[ml]
 ```
 
