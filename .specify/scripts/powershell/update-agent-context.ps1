@@ -171,6 +171,27 @@ function Format-TechnologyStack {
     return ($parts -join ' + ')
 }
 
+function Test-RequiredPlaceholders {
+    <#
+    .SYNOPSIS
+    FR-007: Validate required placeholders exist in template content.
+    #>
+    param(
+        [Parameter(Mandatory=$true)]
+        [string]$Content,
+        [Parameter(Mandatory=$true)]
+        [ValidateNotNullOrEmpty()]
+        [string[]]$Required
+    )
+    $missing = @()
+    foreach ($placeholder in $Required) {
+        if ($Content -notmatch [Regex]::Escape($placeholder)) {
+            $missing += $placeholder
+        }
+    }
+    return $missing
+}
+
 function Get-ProjectStructure {
     param(
         [Parameter(Mandatory=$false)]
@@ -222,7 +243,20 @@ function New-AgentFile {
     $escaped_branch = $CURRENT_BRANCH
 
     $content = Get-Content -LiteralPath $temp -Raw -Encoding utf8
-    $content = $content -replace '\[PROJECT NAME\]',$ProjectName
+
+    # FR-007: Validate required placeholders exist
+    $requiredPlaceholders = @('[PROJECT NAME]', '[DATE]')
+    $missingRequired = Test-RequiredPlaceholders -Content $content -Required $requiredPlaceholders
+    if ($missingRequired.Count -gt 0) {
+        $errorMsg = "Template missing required placeholders: $($missingRequired -join ', ')"
+        Write-Err $errorMsg
+        Remove-Item $temp -Force
+        throw $errorMsg
+    }
+
+    # FR-008: Escape all user-provided values before regex replacement
+    $escapedProjectName = [Regex]::Escape($ProjectName)
+    $content = $content -replace '\[PROJECT NAME\]',$escapedProjectName
     $content = $content -replace '\[DATE\]',$Date.ToString('yyyy-MM-dd')
 
     # Build the technology stack string safely
@@ -235,13 +269,17 @@ function New-AgentFile {
         $techStackForTemplate = "- $escaped_framework ($escaped_branch)"
     }
 
-    $content = $content -replace '\[EXTRACTED FROM ALL PLAN.MD FILES\]',$techStackForTemplate
+    # FR-008: Escape user-provided values before replacement
+    $escapedTechStackForTemplate = [Regex]::Escape($techStackForTemplate)
+    $content = $content -replace '\[EXTRACTED FROM ALL PLAN.MD FILES\]',$escapedTechStackForTemplate
     # For project structure we manually embed (keep newlines)
     $escapedStructure = [Regex]::Escape($projectStructure)
     $content = $content -replace '\[ACTUAL STRUCTURE FROM PLANS\]',$escapedStructure
-    # Replace escaped newlines placeholder after all replacements
-    $content = $content -replace '\[ONLY COMMANDS FOR ACTIVE TECHNOLOGIES\]',$commands
-    $content = $content -replace '\[LANGUAGE-SPECIFIC, ONLY FOR LANGUAGES IN USE\]',$languageConventions
+    # FR-008: Escape commands before replacement
+    $escapedCommands = [Regex]::Escape($commands)
+    $content = $content -replace '\[ONLY COMMANDS FOR ACTIVE TECHNOLOGIES\]',$escapedCommands
+    $escapedLanguageConventions = [Regex]::Escape($languageConventions)
+    $content = $content -replace '\[LANGUAGE-SPECIFIC, ONLY FOR LANGUAGES IN USE\]',$escapedLanguageConventions
 
     # Build the recent changes string safely
     $recentChangesForTemplate = ""
@@ -253,7 +291,9 @@ function New-AgentFile {
         $recentChangesForTemplate = "- ${escaped_branch}: Added ${escaped_framework}"
     }
 
-    $content = $content -replace '\[LAST 3 FEATURES AND WHAT THEY ADDED\]',$recentChangesForTemplate
+    # FR-008: Escape recent changes before replacement
+    $escapedRecentChanges = [Regex]::Escape($recentChangesForTemplate)
+    $content = $content -replace '\[LAST 3 FEATURES AND WHAT THEY ADDED\]',$escapedRecentChanges
     # Convert literal \n sequences introduced by Escape to real newlines
     $content = $content -replace '\\n',[Environment]::NewLine
 

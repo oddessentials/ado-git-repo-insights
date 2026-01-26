@@ -12,6 +12,7 @@ function Get-RepoRoot {
     }
 
     # Fall back to script location for non-git repos
+    Write-Warning "[specify] Git not available, falling back to script location for repo root"
     return (Resolve-Path (Join-Path $PSScriptRoot "../../..")).Path
 }
 

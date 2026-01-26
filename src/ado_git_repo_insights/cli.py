@@ -798,9 +798,17 @@ def cmd_generate_aggregates(args: Namespace) -> int:
         return 1
 
 
-def cmd_build_aggregates(args: Namespace) -> int:
-    """Execute the build-aggregates command (Phase 6 - alias for generate-aggregates)."""
-    # Flag validation (FR-004): --open and --port require --serve
+def _validate_serve_flags(args: Namespace) -> int | None:
+    """Validate --serve related flags.
+
+    FR-010: Shared validation logic for both cmd_build_aggregates and cmd_stage_artifacts.
+
+    Args:
+        args: Parsed command line arguments
+
+    Returns:
+        1 if validation fails (exit code), None if valid
+    """
     serve = getattr(args, "serve", False)
     open_browser = getattr(args, "open", False)
     port = getattr(args, "port", 8080)
@@ -813,6 +821,21 @@ def cmd_build_aggregates(args: Namespace) -> int:
             invalid_flags.append("--port")
         logger.error(f"{', '.join(invalid_flags)} requires --serve")
         return 1
+
+    return None
+
+
+def cmd_build_aggregates(args: Namespace) -> int:
+    """Execute the build-aggregates command (Phase 6 - alias for generate-aggregates)."""
+    # FR-010: Use shared flag validation
+    validation_result = _validate_serve_flags(args)
+    if validation_result is not None:
+        return validation_result
+
+    # Extract serve-related flags for use after aggregate generation
+    serve = getattr(args, "serve", False)
+    open_browser = getattr(args, "open", False)
+    port = getattr(args, "port", 8080)
 
     # DEV MODE WARNING: This command uses local database and is secondary to stage-artifacts
     logger.warning("")
@@ -1101,19 +1124,15 @@ def cmd_stage_artifacts(args: Namespace) -> int:
 
     import requests
 
-    # Flag validation (FR-004): --open and --port require --serve
+    # FR-010: Use shared flag validation
+    validation_result = _validate_serve_flags(args)
+    if validation_result is not None:
+        return validation_result
+
+    # Extract serve-related flags for use after artifact staging
     serve = getattr(args, "serve", False)
     open_browser = getattr(args, "open", False)
     port = getattr(args, "port", 8080)
-
-    if not serve and (open_browser or port != 8080):
-        invalid_flags = []
-        if open_browser:
-            invalid_flags.append("--open")
-        if port != 8080:
-            invalid_flags.append("--port")
-        logger.error(f"{', '.join(invalid_flags)} requires --serve")
-        return 1
 
     logger.info("Staging pipeline artifacts...")
     logger.info(f"Organization: {args.org}")
@@ -1295,43 +1314,15 @@ def cmd_stage_artifacts(args: Namespace) -> int:
         return 1
 
 
-def _serve_dashboard(
-    dataset_path: Path,
-    port: int = 8080,
-    open_browser: bool = False,
-) -> int:
-    """Serve the PR Insights dashboard from the given dataset path.
-
-    This is the core server logic extracted from cmd_dashboard for reuse
-    by both the 'dashboard' and 'build-aggregates --serve' commands.
+def _sync_ui_bundle_if_needed(ui_source: Path) -> str | None:
+    """FR-011: Sync UI bundle from extension/dist/ui in dev mode.
 
     Args:
-        dataset_path: Path to directory containing dataset-manifest.json
-        port: HTTP server port (default: 8080)
-        open_browser: Whether to open browser automatically
+        ui_source: Path to the UI bundle destination
 
     Returns:
-        Exit code (0 for success, 1 for error)
+        Error message if sync fails, None on success
     """
-    import http.server
-    import os
-    import shutil
-    import socketserver
-    import tempfile
-    import webbrowser
-
-    from .utils.dataset_discovery import validate_dataset_root
-
-    # Validate the dataset root
-    is_valid, error_msg = validate_dataset_root(dataset_path)
-    if not is_valid:
-        logger.error(f"Invalid dataset: {error_msg}")
-        return 1
-
-    # Locate UI bundle (packaged with the module)
-    ui_source = Path(__file__).parent / "ui_bundle"
-
-    # Dev mode: sync from extension/dist/ui if available and needed
     from .utils.ui_sync import (
         SyncError,
         is_dev_mode,
@@ -1348,8 +1339,7 @@ def _serve_dashboard(
         try:
             validate_dist(dist_ui)
         except SyncError as e:
-            logger.error(str(e))
-            return 1
+            return str(e)
 
         # Check if sync is needed (content-addressed)
         if sync_needed(dist_ui, ui_source):
@@ -1358,10 +1348,160 @@ def _serve_dashboard(
                 manifest = sync_ui_bundle(dist_ui, ui_source)
                 logger.info(f"UI bundle synced: {len(manifest)} files")
             except SyncError as e:
-                logger.error(str(e))
-                return 1
+                return str(e)
         else:
             logger.debug("UI bundle is up to date")
+
+    return None
+
+
+def _prepare_serve_directory(
+    ui_source: Path,
+    dataset_path: Path,
+    serve_dir: Path,
+) -> None:
+    """FR-011: Prepare serve directory with UI bundle and dataset.
+
+    Args:
+        ui_source: Path to the UI bundle source
+        dataset_path: Path to the dataset
+        serve_dir: Path to the temporary serve directory
+    """
+    import shutil
+
+    # Copy UI files
+    shutil.copytree(ui_source, serve_dir, dirs_exist_ok=True)
+
+    # Copy dataset into serve directory
+    dataset_dest = serve_dir / "dataset"
+    shutil.copytree(dataset_path, dataset_dest, dirs_exist_ok=True)
+
+    # Write local config to enable local mode
+    local_config = serve_dir / "local-config.js"
+    local_config.write_text(
+        "// Auto-generated for local dashboard mode\n"
+        "window.LOCAL_DASHBOARD_MODE = true;\n"
+        'window.DATASET_PATH = "./dataset";\n'
+    )
+
+    # Inject local-config.js into index.html
+    index_html = serve_dir / "index.html"
+    if index_html.exists():
+        content = index_html.read_text(encoding="utf-8")
+        # Insert local-config.js before dashboard.js
+        if "local-config.js" not in content:
+            # Primary method: use the guarded placeholder (robust)
+            placeholder = "<!-- LOCAL_CONFIG_PLACEHOLDER: Replaced by CLI for local dashboard mode -->"
+            if placeholder in content:
+                content = content.replace(
+                    placeholder,
+                    '<script src="local-config.js"></script>',
+                )
+            else:
+                # Fallback: legacy injection for older UI bundles
+                content = content.replace(
+                    '<script src="dashboard.js"></script>',
+                    '<script src="local-config.js"></script>\n    <script src="dashboard.js"></script>',
+                )
+            index_html.write_text(content, encoding="utf-8")
+
+
+def _run_http_server(
+    serve_dir: Path,
+    port: int,
+    open_browser: bool,
+) -> int:
+    """FR-011: Run HTTP server for the dashboard.
+
+    Args:
+        serve_dir: Path to the directory to serve
+        port: HTTP server port
+        open_browser: Whether to open browser automatically
+
+    Returns:
+        Exit code (0 for success)
+    """
+    import http.server
+    import os
+    import socketserver
+    import webbrowser
+
+    # Change to serve directory
+    original_dir = os.getcwd()
+    os.chdir(serve_dir)
+
+    try:
+        # Create HTTP handler with CORS headers for local development
+        class CORSHTTPRequestHandler(http.server.SimpleHTTPRequestHandler):
+            def end_headers(self) -> None:
+                self.send_header("Cache-Control", "no-cache, no-store, must-revalidate")
+                self.send_header("Pragma", "no-cache")
+                self.send_header("Expires", "0")
+                self.send_header("Access-Control-Allow-Origin", "*")
+                super().end_headers()
+
+            def log_message(self, format: str, *log_args: object) -> None:
+                # Suppress verbose HTTP logs, only show errors
+                pass
+
+        # Allow port reuse
+        socketserver.TCPServer.allow_reuse_address = True
+
+        with socketserver.TCPServer(("", port), CORSHTTPRequestHandler) as httpd:
+            url = f"http://localhost:{port}"
+            logger.info(f"Dashboard running at {url}")
+            logger.info("Press Ctrl+C to stop")
+
+            if open_browser:
+                webbrowser.open(url)
+
+            try:
+                httpd.serve_forever()
+            except KeyboardInterrupt:
+                logger.info("\nServer stopped")
+
+    finally:
+        os.chdir(original_dir)
+
+    return 0
+
+
+def _serve_dashboard(
+    dataset_path: Path,
+    port: int = 8080,
+    open_browser: bool = False,
+) -> int:
+    """Serve the PR Insights dashboard from the given dataset path.
+
+    FR-011: Refactored to use decomposed helper functions for improved
+    maintainability and testability.
+
+    Args:
+        dataset_path: Path to directory containing dataset-manifest.json
+        port: HTTP server port (default: 8080)
+        open_browser: Whether to open browser automatically
+
+    Returns:
+        Exit code (0 for success, 1 for error)
+    """
+    import tempfile
+
+    from .utils.dataset_discovery import validate_dataset_root
+
+    # Validate the dataset root
+    is_valid, error_msg = validate_dataset_root(dataset_path)
+    if not is_valid:
+        logger.error(f"Invalid dataset: {error_msg}")
+        return 1
+
+    # Locate UI bundle (packaged with the module)
+    ui_source = Path(__file__).parent / "ui_bundle"
+
+    # Dev mode: sync from extension/dist/ui if available and needed
+    sync_error = _sync_ui_bundle_if_needed(ui_source)
+    if sync_error:
+        logger.error(sync_error)
+        return 1
 
     if not ui_source.exists():
         logger.error(f"UI bundle not found at {ui_source}")
@@ -1371,82 +1511,11 @@ def _serve_dashboard(
     with tempfile.TemporaryDirectory() as tmpdir:
         serve_dir = Path(tmpdir)
 
-        # Copy UI files
-        shutil.copytree(ui_source, serve_dir, dirs_exist_ok=True)
+        # Prepare serve directory with UI bundle and dataset
+        _prepare_serve_directory(ui_source, dataset_path, serve_dir)
 
-        # Copy dataset into serve directory
-        dataset_dest = serve_dir / "dataset"
-        shutil.copytree(dataset_path, dataset_dest, dirs_exist_ok=True)
-
-        # Write local config to enable local mode
-        local_config = serve_dir / "local-config.js"
-        local_config.write_text(
-            "// Auto-generated for local dashboard mode\n"
-            "window.LOCAL_DASHBOARD_MODE = true;\n"
-            'window.DATASET_PATH = "./dataset";\n'
-        )
-
-        # Inject local-config.js into index.html
-        index_html = serve_dir / "index.html"
-        if index_html.exists():
-            content = index_html.read_text(encoding="utf-8")
-            # Insert local-config.js before dashboard.js
-            if "local-config.js" not in content:
-                # Primary method: use the guarded placeholder (robust)
-                placeholder = "<!-- LOCAL_CONFIG_PLACEHOLDER: Replaced by CLI for local dashboard mode -->"
-                if placeholder in content:
-                    content = content.replace(
-                        placeholder,
-                        '<script src="local-config.js"></script>',
-                    )
-                else:
-                    # Fallback: legacy injection for older UI bundles
-                    content = content.replace(
-                        '<script src="dashboard.js"></script>',
-                        '<script src="local-config.js"></script>\n    <script src="dashboard.js"></script>',
-                    )
-                index_html.write_text(content, encoding="utf-8")
-
-        # Change to serve directory
-        original_dir = os.getcwd()
-        os.chdir(serve_dir)
-
-        try:
-            # Create HTTP handler with CORS headers for local development
-            class CORSHTTPRequestHandler(http.server.SimpleHTTPRequestHandler):
-                def end_headers(self) -> None:
-                    self.send_header(
-                        "Cache-Control", "no-cache, no-store, must-revalidate"
-                    )
-                    self.send_header("Pragma", "no-cache")
-                    self.send_header("Expires", "0")
-                    self.send_header("Access-Control-Allow-Origin", "*")
-                    super().end_headers()
-
-                def log_message(self, format: str, *log_args: object) -> None:
-                    # Suppress verbose HTTP logs, only show errors
-                    pass
-
-            # Allow port reuse
-            socketserver.TCPServer.allow_reuse_address = True
-
-            with socketserver.TCPServer(("", port), CORSHTTPRequestHandler) as httpd:
-                url = f"http://localhost:{port}"
-                logger.info(f"Dashboard running at {url}")
-                logger.info("Press Ctrl+C to stop")
-
-                if open_browser:
-                    webbrowser.open(url)
-
-                try:
-                    httpd.serve_forever()
-                except KeyboardInterrupt:
-                    logger.info("\nServer stopped")
-
-        finally:
-            os.chdir(original_dir)
-
-    return 0
+        # Run HTTP server
+        return _run_http_server(serve_dir, port, open_browser)
 
 
 def cmd_dashboard(args: Namespace) -> int:
