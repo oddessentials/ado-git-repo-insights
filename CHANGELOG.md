@@ -1,3 +1,15 @@
+# [5.5.0](https://github.com/oddessentials/ado-git-repo-insights/compare/v5.4.0...v5.5.0) (2026-01-26)
+
+
+### Bug Fixes
+
+* address code review feedback for serve-related code ([24080c4](https://github.com/oddessentials/ado-git-repo-insights/commit/24080c4c6ea8832967787de9dd8bd2315c0b124d))
+
+
+### Features
+
+* **002:** Address review feedback for --serve feature ([45895e2](https://github.com/oddessentials/ado-git-repo-insights/commit/45895e251e918cce1be70d7c8de8de3dd5edac62))
+
 # [5.4.0](https://github.com/oddessentials/ado-git-repo-insights/compare/v5.3.0...v5.4.0) (2026-01-26)
 
 
