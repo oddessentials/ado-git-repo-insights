@@ -18,8 +18,8 @@ jobs:
       target_repo: ${{ github.repository }}
       target_ref: ${{ github.sha }}
       pr_number: ${{ github.event.pull_request.number }}
-      runs_on: '["self-hosted", "ai-review"]'
+      # runs_on: '["self-hosted", "ai-review"]'
     secrets:
       # OLLAMA_BASE_URL: http://ollama-sidecar:11434
       ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
-      OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+      # OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}

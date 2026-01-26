@@ -11,19 +11,18 @@
  * 4. Auto-discovery - Find pipelines with 'aggregates' artifact
  */
 
-import { DatasetLoader, type IDatasetLoader, type Rollup } from "./dataset-loader";
+import {
+  DatasetLoader,
+  type IDatasetLoader,
+  type Rollup,
+} from "./dataset-loader";
 import { ArtifactClient } from "./artifact-client";
 import {
   PrInsightsError,
-  ErrorTypes,
   createSetupRequiredError,
   createNoSuccessfulBuildsError,
   createArtifactsMissingError,
   createInvalidConfigError,
-  type SetupRequiredDetails,
-  type MultiplePipelinesDetails,
-  type ArtifactsMissingDetails,
-  type PipelineMatch,
 } from "./error-types";
 import {
   getErrorMessage,
@@ -34,28 +33,38 @@ import {
   type ManifestSchema,
   type PredictionsRenderData,
   type InsightsRenderData,
-  type Forecast,
-  type ForecastValue,
-  type InsightItem,
 } from "./types";
 
 // Import from extracted modules
 import {
   escapeHtml,
-  formatDuration,
-  renderDelta,
-  renderSparkline,
-  addChartTooltips,
   showToast,
   rollupsToCsv,
   triggerDownload,
   generateExportFilename,
-  calculateMetrics,
-  calculatePercentChange,
   getPreviousPeriod,
   applyFiltersToRollups,
-  extractSparklineData,
-  calculateMovingAverage,
+  // Chart renderer modules with DOM injection
+  renderSummaryCards as renderSummaryCardsModule,
+  type SummaryCardsContainers,
+  renderThroughputChart as renderThroughputChartModule,
+  renderCycleDistribution as renderCycleDistributionModule,
+  renderCycleTimeTrend as renderCycleTimeTrendModule,
+  renderReviewerActivity as renderReviewerActivityModule,
+  renderPredictions as renderPredictionsModule,
+  renderAIInsights as renderAIInsightsModule,
+  // SDK module functions
+  initializeAdoSdk,
+  getBuildClient,
+  isLocalMode,
+  getLocalDatasetPath,
+  // Error handling functions (dispatch handled internally)
+  handleError,
+  hideAllPanels,
+  // Safe DOM rendering utilities
+  clearElement,
+  createOption,
+  renderTrustedHtml,
 } from "./modules";
 
 // Dashboard state
@@ -72,7 +81,6 @@ let currentFilters: { repos: string[]; teams: string[] } = {
 let comparisonMode = false;
 let cachedRollups: Rollup[] = []; // Cache for export
 let currentBuildId: number | null = null; // Store build ID for raw data download
-let sdkInitialized = false;
 
 // Settings keys for extension data storage (must match settings.js)
 const SETTINGS_KEY_PROJECT = "pr-insights-source-project";
@@ -120,53 +128,53 @@ interface PerformanceMetric {
 
 const metricsCollector = DEBUG_ENABLED
   ? {
-    marks: new Map<string, number>(),
-    measures: [] as PerformanceMetric[],
-    mark(name: string) {
-      if (!performance || !performance.mark) return;
-      try {
-        performance.mark(name);
-        this.marks.set(name, performance.now());
-      } catch (_e) {
-        /* ignore */
-      }
-    },
-    measure(name: string, startMark: string, endMark: string) {
-      if (!performance || !performance.measure) return;
-      try {
-        performance.measure(name, startMark, endMark);
-        const entries = performance.getEntriesByName(name, "measure");
-        if (entries.length > 0) {
-          const lastEntry = entries[entries.length - 1];
-          if (lastEntry) {
-            this.measures.push({
-              name,
-              duration: lastEntry.duration,
-              timestamp: Date.now(),
-            });
-          }
+      marks: new Map<string, number>(),
+      measures: [] as PerformanceMetric[],
+      mark(name: string) {
+        if (!performance || !performance.mark) return;
+        try {
+          performance.mark(name);
+          this.marks.set(name, performance.now());
+        } catch (_e) {
+          /* ignore */
         }
-      } catch (_e) {
-        /* ignore */
-      }
-    },
-    getMetrics() {
-      return {
-        marks: Array.from(this.marks.entries()).map(([name, time]) => ({
-          name,
-          time,
-        })),
-        measures: [...this.measures],
-      };
-    },
-    reset() {
-      this.marks.clear();
-      this.measures = [];
-      if (performance && performance.clearMarks) performance.clearMarks();
-      if (performance && performance.clearMeasures)
-        performance.clearMeasures();
-    },
-  }
+      },
+      measure(name: string, startMark: string, endMark: string) {
+        if (!performance || !performance.measure) return;
+        try {
+          performance.measure(name, startMark, endMark);
+          const entries = performance.getEntriesByName(name, "measure");
+          if (entries.length > 0) {
+            const lastEntry = entries[entries.length - 1];
+            if (lastEntry) {
+              this.measures.push({
+                name,
+                duration: lastEntry.duration,
+                timestamp: Date.now(),
+              });
+            }
+          }
+        } catch (_e) {
+          /* ignore */
+        }
+      },
+      getMetrics() {
+        return {
+          marks: Array.from(this.marks.entries()).map(([name, time]) => ({
+            name,
+            time,
+          })),
+          measures: [...this.measures],
+        };
+      },
+      reset() {
+        this.marks.clear();
+        this.measures = [];
+        if (performance && performance.clearMarks) performance.clearMarks();
+        if (performance && performance.clearMeasures)
+          performance.clearMeasures();
+      },
+    }
   : null;
 
 if (DEBUG_ENABLED && typeof window !== "undefined") {
@@ -174,47 +182,10 @@ if (DEBUG_ENABLED && typeof window !== "undefined") {
 }
 
 // ============================================================================
-// Security Utilities - IMPORTED FROM ./modules
-// escapeHtml is now imported from "./modules"
+// SDK Initialization - IMPORTED FROM ./modules/sdk
+// initializeAdoSdk, getBuildClient, isLocalMode, getLocalDatasetPath
+// are now imported from "./modules"
 // ============================================================================
-
-// ============================================================================
-// SDK Initialization
-// ============================================================================
-
-/**
- * Initialize Azure DevOps Extension SDK.
- */
-async function initializeAdoSdk(): Promise<void> {
-  if (sdkInitialized) return;
-
-  return new Promise((resolve, reject) => {
-    const timeout = setTimeout(() => {
-      reject(new Error("Azure DevOps SDK initialization timed out"));
-    }, 10000);
-
-    VSS.init({
-      explicitNotifyLoaded: true,
-      usePlatformScripts: true,
-      usePlatformStyles: true,
-    });
-
-    VSS.ready(() => {
-      clearTimeout(timeout);
-      sdkInitialized = true;
-
-      // Update project name in UI
-      const webContext = VSS.getWebContext();
-      const projectNameEl = document.getElementById("current-project-name");
-      if (projectNameEl && webContext?.project?.name) {
-        projectNameEl.textContent = webContext.project.name;
-      }
-
-      VSS.notifyLoadSucceeded();
-      resolve();
-    });
-  });
-}
 
 // ============================================================================
 // Configuration Resolution
@@ -254,7 +225,7 @@ function parseQueryParams(): QueryParamResult | PrInsightsError {
         if (!isAdoDomain) {
           console.warn(
             `SECURITY: ?dataset= URL "${urlHost}" is not an Azure DevOps domain. ` +
-            `This parameter is intended for development only.`,
+              `This parameter is intended for development only.`,
           );
         }
       } catch (_e) {
@@ -400,7 +371,10 @@ async function resolveConfiguration(): Promise<{
   // Mode: explicit pipelineId from query
   if (queryResult.mode === "explicit") {
     // When mode is 'explicit', value is always a number (pipeline ID)
-    return await resolveFromPipelineId(queryResult.value as number, targetProjectId);
+    return await resolveFromPipelineId(
+      queryResult.value as number,
+      targetProjectId,
+    );
   }
 
   // Check settings for pipeline ID
@@ -572,41 +546,7 @@ async function discoverInsightsPipelines(
   return matches;
 }
 
-/**
- * Get Build REST client from SDK.
- */
-async function getBuildClient(): Promise<IBuildRestClient> {
-  return new Promise((resolve) => {
-    VSS.require(["TFS/Build/RestClient"], (...args: unknown[]) => {
-      const BuildRestClient = args[0] as { getClient(): IBuildRestClient };
-      resolve(BuildRestClient.getClient());
-    });
-  });
-}
-
-// ============================================================================
-// Main Initialization
-// ============================================================================
-
-/**
- * Check if running in local dashboard mode.
- */
-function isLocalMode(): boolean {
-  return (
-    typeof window !== "undefined" &&
-    window.LOCAL_DASHBOARD_MODE === true
-  );
-}
-
-/**
- * Get local dataset path from window config.
- */
-function getLocalDatasetPath(): string {
-  return (
-    (typeof window !== "undefined" && window.DATASET_PATH) ||
-    "./dataset"
-  );
-}
+// getBuildClient is now imported from "./modules/sdk"
 
 /**
  * Initialize the dashboard.
@@ -639,7 +579,16 @@ async function init(): Promise<void> {
       return;
     }
 
-    await initializeAdoSdk();
+    await initializeAdoSdk({
+      onReady: () => {
+        // Update project name in UI after SDK initialization
+        const webContext = VSS.getWebContext();
+        const projectNameEl = document.getElementById("current-project-name");
+        if (projectNameEl && webContext?.project?.name) {
+          projectNameEl.textContent = webContext.project.name;
+        }
+      },
+    });
     const config = await resolveConfiguration();
 
     if (config.directUrl) {
@@ -662,163 +611,12 @@ async function init(): Promise<void> {
   }
 }
 
-/**
- * Handle errors with appropriate UI panels.
- */
-function handleError(error: unknown): void {
-  hideAllPanels();
-
-  if (error instanceof PrInsightsError) {
-    switch (error.type) {
-      case ErrorTypes.SETUP_REQUIRED:
-        showSetupRequired(error);
-        break;
-      case ErrorTypes.MULTIPLE_PIPELINES:
-        showMultiplePipelines(error);
-        break;
-      case ErrorTypes.ARTIFACTS_MISSING:
-        showArtifactsMissing(error);
-        break;
-      case ErrorTypes.PERMISSION_DENIED:
-        showPermissionDenied(error);
-        break;
-      default:
-        showGenericError(error.title, error.message);
-        break;
-    }
-  } else {
-    showGenericError("Error", getErrorMessage(error) || "An unexpected error occurred");
-  }
-}
-
-/**
- * Hide all error/setup panels.
- */
-function hideAllPanels(): void {
-  [
-    "setup-required",
-    "multiple-pipelines",
-    "artifacts-missing",
-    "permission-denied",
-    "error-state",
-    "loading-state",
-    "main-content",
-  ].forEach((id) => {
-    document.getElementById(id)?.classList.add("hidden");
-  });
-}
-
-/**
- * Show setup required panel.
- */
-function showSetupRequired(error: PrInsightsError): void {
-  const panel = document.getElementById("setup-required");
-  if (!panel) return showGenericError(error.title, error.message);
-
-  const messageEl = document.getElementById("setup-message");
-  if (messageEl) messageEl.textContent = error.message;
-
-  const details = error.details as SetupRequiredDetails;
-  if (details?.instructions && Array.isArray(details.instructions)) {
-    const stepsList = document.getElementById("setup-steps");
-    if (stepsList) {
-      // SECURITY: Escape instructions to prevent XSS
-      stepsList.innerHTML = details.instructions
-        .map((s: string) => `<li>${escapeHtml(s)}</li>`)
-        .join("");
-    }
-  }
-
-  if (details?.docsUrl) {
-    const docsLink = document.getElementById(
-      "docs-link",
-    ) as HTMLAnchorElement | null;
-    if (docsLink) docsLink.href = String(details.docsUrl);
-  }
-
-  panel.classList.remove("hidden");
-}
-
-/**
- * Show multiple pipelines panel.
- */
-function showMultiplePipelines(error: PrInsightsError): void {
-  const panel = document.getElementById("multiple-pipelines");
-  if (!panel) return showGenericError(error.title, error.message);
-
-  const messageEl = document.getElementById("multiple-message");
-  if (messageEl) messageEl.textContent = error.message;
-
-  const listEl = document.getElementById("pipeline-list");
-  const details = error.details as MultiplePipelinesDetails;
-  if (listEl && details?.matches && Array.isArray(details.matches)) {
-    // SECURITY: Escape pipeline names to prevent XSS
-    listEl.innerHTML = details.matches
-      .map(
-        (m: PipelineMatch) => `
-                <a href="?pipelineId=${escapeHtml(String(m.id))}" class="pipeline-option">
-                    <strong>${escapeHtml(m.name)}</strong>
-                    <span class="pipeline-id">ID: ${escapeHtml(String(m.id))}</span>
-                </a>
-            `,
-      )
-      .join("");
-  }
-
-  panel.classList.remove("hidden");
-}
-
-/**
- * Show permission denied panel.
- */
-function showPermissionDenied(error: PrInsightsError): void {
-  const panel = document.getElementById("permission-denied");
-  if (!panel) return showGenericError(error.title, error.message);
-
-  const messageEl = document.getElementById("permission-message");
-  if (messageEl) messageEl.textContent = error.message;
-
-  panel.classList.remove("hidden");
-}
-
-/**
- * Show generic error state.
- */
-function showGenericError(title: string, message: string): void {
-  const panel = document.getElementById("error-state");
-  if (!panel) return;
-
-  const titleEl = document.getElementById("error-title");
-  const messageEl = document.getElementById("error-message");
-
-  if (titleEl) titleEl.textContent = title;
-  if (messageEl) messageEl.textContent = message;
-
-  panel.classList.remove("hidden");
-}
-
-/**
- * Show artifacts missing panel.
- */
-function showArtifactsMissing(error: PrInsightsError): void {
-  const panel = document.getElementById("artifacts-missing");
-  if (!panel) return showGenericError(error.title, error.message);
-
-  const messageEl = document.getElementById("missing-message");
-  if (messageEl) messageEl.textContent = error.message;
-
-  const details = error.details as ArtifactsMissingDetails;
-  if (details?.instructions && Array.isArray(details.instructions)) {
-    const stepsList = document.getElementById("missing-steps");
-    if (stepsList) {
-      stepsList.innerHTML = details.instructions
-        .map((s: string) => `<li>${s}</li>`)
-        .join("");
-    }
-  }
-
-  panel.classList.remove("hidden");
-}
+// ============================================================================
+// Error Handling - IMPORTED FROM ./modules/errors
+// handleError, hideAllPanels, showSetupRequired, showMultiplePipelines,
+// showPermissionDenied, showGenericError, showArtifactsMissing
+// are now imported from "./modules"
+// ============================================================================
 
 // ============================================================================
 // DOM and Event Handling
@@ -1075,408 +873,74 @@ async function refreshMetrics(): Promise<void> {
 
 /**
  * Render summary metric cards.
+ * Thin wrapper that builds container references and delegates to extracted module.
  */
 function renderSummaryCards(
   rollups: Rollup[],
   prevRollups: Rollup[] = [],
 ): void {
-  if (metricsCollector) metricsCollector.mark("render-summary-cards-start");
+  // Build container references from cached elements
+  const containers: SummaryCardsContainers = {
+    totalPrs: elements["total-prs"] ?? null,
+    cycleP50: elements["cycle-p50"] ?? null,
+    cycleP90: elements["cycle-p90"] ?? null,
+    authorsCount: elements["authors-count"] ?? null,
+    reviewersCount: elements["reviewers-count"] ?? null,
+    totalPrsSparkline: elements["total-prs-sparkline"] ?? null,
+    cycleP50Sparkline: elements["cycle-p50-sparkline"] ?? null,
+    cycleP90Sparkline: elements["cycle-p90-sparkline"] ?? null,
+    authorsSparkline: elements["authors-sparkline"] ?? null,
+    reviewersSparkline: elements["reviewers-sparkline"] ?? null,
+    totalPrsDelta: elements["total-prs-delta"] ?? null,
+    cycleP50Delta: elements["cycle-p50-delta"] ?? null,
+    cycleP90Delta: elements["cycle-p90-delta"] ?? null,
+    authorsDelta: elements["authors-delta"] ?? null,
+    reviewersDelta: elements["reviewers-delta"] ?? null,
+  };
 
-  const current = calculateMetrics(rollups);
-  const previous = calculateMetrics(prevRollups);
-
-  // Render metric values
-  if (elements["total-prs"])
-    elements["total-prs"].textContent = current.totalPrs.toLocaleString();
-  if (elements["cycle-p50"])
-    elements["cycle-p50"].textContent =
-      current.cycleP50 !== null ? formatDuration(current.cycleP50) : "-";
-  if (elements["cycle-p90"])
-    elements["cycle-p90"].textContent =
-      current.cycleP90 !== null ? formatDuration(current.cycleP90) : "-";
-  if (elements["authors-count"])
-    elements["authors-count"].textContent = current.avgAuthors.toLocaleString();
-  if (elements["reviewers-count"]) {
-    elements["reviewers-count"].textContent =
-      current.avgReviewers.toLocaleString();
-  }
-
-  // Render sparklines
-  const sparklineData = extractSparklineData(rollups);
-  renderSparkline(elements["total-prs-sparkline"], sparklineData.prCounts);
-  renderSparkline(elements["cycle-p50-sparkline"], sparklineData.p50s);
-  renderSparkline(elements["cycle-p90-sparkline"], sparklineData.p90s);
-  renderSparkline(elements["authors-sparkline"], sparklineData.authors);
-  renderSparkline(elements["reviewers-sparkline"], sparklineData.reviewers);
-
-  // Render deltas (only if we have previous period data)
-  if (prevRollups && prevRollups.length > 0) {
-    renderDelta(
-      elements["total-prs-delta"],
-      calculatePercentChange(current.totalPrs, previous.totalPrs),
-      false,
-    );
-    renderDelta(
-      elements["cycle-p50-delta"],
-      calculatePercentChange(current.cycleP50, previous.cycleP50),
-      true,
-    ); // Inverse: lower is better
-    renderDelta(
-      elements["cycle-p90-delta"],
-      calculatePercentChange(current.cycleP90, previous.cycleP90),
-      true,
-    ); // Inverse: lower is better
-    renderDelta(
-      elements["authors-delta"],
-      calculatePercentChange(current.avgAuthors, previous.avgAuthors),
-      false,
-    );
-    renderDelta(
-      elements["reviewers-delta"],
-      calculatePercentChange(current.avgReviewers, previous.avgReviewers),
-      false,
-    );
-  } else {
-    // Clear deltas if no previous data
-    [
-      "total-prs-delta",
-      "cycle-p50-delta",
-      "cycle-p90-delta",
-      "authors-delta",
-      "reviewers-delta",
-    ].forEach((id) => {
-      const el = elements[id];
-      if (el) {
-        el.innerHTML = "";
-        el.className = "metric-delta";
-      }
-    });
-  }
-
-  if (metricsCollector) {
-    metricsCollector.mark("render-summary-cards-end");
-    metricsCollector.mark("first-meaningful-paint");
-    metricsCollector.measure(
-      "init-to-fmp",
-      "dashboard-init",
-      "first-meaningful-paint",
-    );
-  }
+  renderSummaryCardsModule({
+    rollups,
+    prevRollups,
+    containers,
+    metricsCollector,
+  });
 }
 
-// calculateMovingAverage is now imported from "./modules/metrics"
+// calculateMovingAverage is now imported by ./modules/charts/throughput
 
 /**
  * Render throughput chart with trend line overlay.
+ * Thin wrapper that delegates to extracted module.
  */
 function renderThroughputChart(rollups: Rollup[]): void {
-  const chartEl = elements["throughput-chart"];
-  if (!chartEl) return;
-
-  if (!rollups || !rollups.length) {
-    chartEl.innerHTML = '<p class="no-data">No data for selected range</p>';
-    return;
-  }
-
-  const prCounts = rollups.map((r) => r.pr_count || 0);
-  const maxCount = Math.max(...prCounts);
-  const movingAvg = calculateMovingAverage(prCounts, 4);
-
-  // Render bar chart
-  const barsHtml = rollups
-    .map((r) => {
-      const height = maxCount > 0 ? ((r.pr_count || 0) / maxCount) * 100 : 0;
-      return `
-            <div class="bar-container" title="${r.week}: ${r.pr_count || 0} PRs">
-                <div class="bar" style="height: ${height}%"></div>
-                <div class="bar-label">${r.week.split("-W")[1]}</div>
-            </div>
-        `;
-    })
-    .join("");
-
-  // Render trend line SVG overlay
-  let trendLineHtml = "";
-  if (rollups.length >= 4) {
-    const validPoints = movingAvg
-      .map((val, i) => ({ val, i }))
-      .filter((p): p is { val: number; i: number } => p.val !== null);
-
-    if (validPoints.length >= 2) {
-      const chartHeight = 200;
-      const chartPadding = 8;
-
-      // Calculate SVG path points
-      const points = validPoints.map((p) => {
-        const x = (p.i / (rollups.length - 1)) * 100;
-        const y =
-          maxCount > 0
-            ? chartHeight -
-            chartPadding -
-            (p.val / maxCount) * (chartHeight - chartPadding * 2)
-            : chartHeight / 2;
-        return { x, y };
-      });
-
-      const pathD = points
-        .map(
-          (pt, i) =>
-            `${i === 0 ? "M" : "L"} ${pt.x.toFixed(1)}% ${pt.y.toFixed(1)}`,
-        )
-        .join(" ");
-
-      trendLineHtml = `
-                <div class="trend-line-overlay">
-                    <svg viewBox="0 0 100 ${chartHeight}" preserveAspectRatio="none">
-                        <path class="trend-line" d="${pathD}" vector-effect="non-scaling-stroke"/>
-                    </svg>
-                </div>
-            `;
-    }
-  }
-
-  // Legend
-  const legendHtml = `
-        <div class="chart-legend">
-            <div class="legend-item">
-                <span class="legend-bar"></span>
-                <span>Weekly PRs</span>
-            </div>
-            <div class="legend-item">
-                <span class="legend-line"></span>
-                <span>4-week avg</span>
-            </div>
-        </div>
-    `;
-
-  chartEl.innerHTML = `
-        <div class="chart-with-trend">
-            <div class="bar-chart">${barsHtml}</div>
-            ${trendLineHtml}
-        </div>
-        ${legendHtml}
-    `;
+  renderThroughputChartModule(elements["throughput-chart"] ?? null, rollups);
 }
 
 /**
  * Render cycle time distribution.
+ * Thin wrapper that delegates to extracted module.
  */
 function renderCycleDistribution(distributions: DistributionData[]): void {
-  const distEl = elements["cycle-distribution"];
-  if (!distEl) return;
-
-  if (!distributions || !distributions.length) {
-    distEl.innerHTML = '<p class="no-data">No data for selected range</p>';
-    return;
-  }
-
-  const buckets: Record<string, number> = {
-    "0-1h": 0,
-    "1-4h": 0,
-    "4-24h": 0,
-    "1-3d": 0,
-    "3-7d": 0,
-    "7d+": 0,
-  };
-  distributions.forEach((d) => {
-    Object.entries(d.cycle_time_buckets || {}).forEach(([key, val]) => {
-      buckets[key] = (buckets[key] || 0) + (val as number);
-    });
-  });
-
-  const total = Object.values(buckets).reduce((a, b) => a + b, 0);
-  if (total === 0) {
-    distEl.innerHTML = '<p class="no-data">No cycle time data</p>';
-    return;
-  }
-
-  const html = Object.entries(buckets)
-    .map(([label, count]) => {
-      const pct = ((count / total) * 100).toFixed(1);
-      return `
-            <div class="dist-row">
-                <span class="dist-label">${label}</span>
-                <div class="dist-bar-bg">
-                    <div class="dist-bar" style="width: ${pct}%"></div>
-                </div>
-                <span class="dist-value">${count} (${pct}%)</span>
-            </div>
-        `;
-    })
-    .join("");
-
-  distEl.innerHTML = html;
+  renderCycleDistributionModule(
+    elements["cycle-distribution"] ?? null,
+    distributions,
+  );
 }
 
 /**
  * Render cycle time trend chart (line chart with P50 and P90).
+ * Thin wrapper that delegates to extracted module.
  */
 function renderCycleTimeTrend(rollups: Rollup[]): void {
-  const trendEl = elements["cycle-time-trend"];
-  if (!trendEl) return;
-
-  if (!rollups || rollups.length < 2) {
-    trendEl.innerHTML = '<p class="no-data">Not enough data for trend</p>';
-    return;
-  }
-
-  const p50Data = rollups
-    .map((r) => ({ week: r.week, value: r.cycle_time_p50 }))
-    .filter((d): d is { week: string; value: number } => d.value !== null);
-  const p90Data = rollups
-    .map((r) => ({ week: r.week, value: r.cycle_time_p90 }))
-    .filter((d): d is { week: string; value: number } => d.value !== null);
-
-  if (p50Data.length < 2 && p90Data.length < 2) {
-    trendEl.innerHTML = '<p class="no-data">No cycle time data available</p>';
-    return;
-  }
-
-  const allValues = [
-    ...p50Data.map((d) => d.value),
-    ...p90Data.map((d) => d.value),
-  ];
-  const maxVal = Math.max(...allValues);
-  const minVal = Math.min(...allValues);
-  const range = maxVal - minVal || 1;
-
-  const width = 100;
-  const height = 180;
-  const padding = { top: 10, right: 10, bottom: 25, left: 40 };
-  const chartWidth = width - padding.left - padding.right;
-  const chartHeight = height - padding.top - padding.bottom;
-
-  // Generate paths
-  const generatePath = (data: { week: string; value: number }[]) => {
-    const points = data.map((d) => {
-      const dataIndex = rollups.findIndex((r) => r.week === d.week);
-      const x = padding.left + (dataIndex / (rollups.length - 1)) * chartWidth;
-      const y =
-        padding.top + chartHeight - ((d.value - minVal) / range) * chartHeight;
-      return { x, y, week: d.week, value: d.value };
-    });
-    const pathD = points
-      .map(
-        (p, i) => `${i === 0 ? "M" : "L"} ${p.x.toFixed(1)} ${p.y.toFixed(1)}`,
-      )
-      .join(" ");
-    return { pathD, points };
-  };
-
-  const p50Path = p50Data.length >= 2 ? generatePath(p50Data) : null;
-  const p90Path = p90Data.length >= 2 ? generatePath(p90Data) : null;
-
-  // Y-axis labels
-  const yLabels = [minVal, (minVal + maxVal) / 2, maxVal];
-
-  const svgContent = `
-        <svg viewBox="0 0 ${width} ${height}" preserveAspectRatio="xMidYMid meet">
-            <!-- Grid lines -->
-            ${yLabels
-      .map((val, i) => {
-        const y =
-          padding.top +
-          chartHeight -
-          (i / (yLabels.length - 1)) * chartHeight;
-        return `<line class="line-chart-grid" x1="${padding.left}" y1="${y}" x2="${width - padding.right}" y2="${y}"/>`;
-      })
-      .join("")}
-
-            <!-- Y-axis labels -->
-            ${yLabels
-      .map((val, i) => {
-        const y =
-          padding.top +
-          chartHeight -
-          (i / (yLabels.length - 1)) * chartHeight;
-        return `<text class="line-chart-axis" x="${padding.left - 4}" y="${y + 3}" text-anchor="end">${formatDuration(val)}</text>`;
-      })
-      .join("")}
-
-            <!-- Lines -->
-            ${p90Path ? `<path class="line-chart-p90" d="${p90Path.pathD}" vector-effect="non-scaling-stroke"/>` : ""}
-            ${p50Path ? `<path class="line-chart-p50" d="${p50Path.pathD}" vector-effect="non-scaling-stroke"/>` : ""}
-
-            <!-- Dots -->
-            ${p90Path ? p90Path.points.map((p) => `<circle class="line-chart-dot" cx="${p.x}" cy="${p.y}" r="3" fill="var(--warning)" data-week="${p.week}" data-value="${p.value}" data-metric="P90"/>`).join("") : ""}
-            ${p50Path ? p50Path.points.map((p) => `<circle class="line-chart-dot" cx="${p.x}" cy="${p.y}" r="3" fill="var(--primary)" data-week="${p.week}" data-value="${p.value}" data-metric="P50"/>`).join("") : ""}
-        </svg>
-    `;
-
-  const legendHtml = `
-        <div class="chart-legend">
-            <div class="legend-item">
-                <span class="chart-tooltip-dot legend-p50"></span>
-                <span>P50 (Median)</span>
-            </div>
-            <div class="legend-item">
-                <span class="chart-tooltip-dot legend-p90"></span>
-                <span>P90</span>
-            </div>
-        </div>
-    `;
-
-  trendEl.innerHTML = `<div class="line-chart">${svgContent}</div>${legendHtml}`;
-
-  // Add tooltip interactions
-  addChartTooltips(trendEl, (dot: HTMLElement) => {
-    const week = dot.dataset["week"];
-    const value = parseFloat(dot.dataset["value"] || "0");
-    const metric = dot.dataset["metric"];
-    return `
-            <div class="chart-tooltip-title">${week}</div>
-            <div class="chart-tooltip-row">
-                <span class="chart-tooltip-label">
-                    <span class="chart-tooltip-dot ${metric === "P50" ? "legend-p50" : "legend-p90"}"></span>
-                    ${metric}
-                </span>
-                <span>${formatDuration(value)}</span>
-            </div>
-        `;
-  });
+  renderCycleTimeTrendModule(elements["cycle-time-trend"] ?? null, rollups);
 }
 
 /**
  * Render reviewer activity chart (horizontal bar chart).
+ * Thin wrapper that delegates to extracted module.
  */
 function renderReviewerActivity(rollups: Rollup[]): void {
-  const revEl = elements["reviewer-activity"];
-  if (!revEl) return;
-
-  if (!rollups || !rollups.length) {
-    revEl.innerHTML = '<p class="no-data">No reviewer data available</p>';
-    return;
-  }
-
-  // Take last 8 weeks for display
-  const recentRollups = rollups.slice(-8);
-  const maxReviewers = Math.max(
-    ...recentRollups.map((r) => r.reviewers_count || 0),
-  );
-
-  if (maxReviewers === 0) {
-    revEl.innerHTML = '<p class="no-data">No reviewer data available</p>';
-    return;
-  }
-
-  const barsHtml = recentRollups
-    .map((r) => {
-      const count = r.reviewers_count || 0;
-      const pct = (count / maxReviewers) * 100;
-      const weekLabel = r.week.split("-W")[1];
-      return `
-            <div class="h-bar-row" title="${r.week}: ${count} reviewers">
-                <span class="h-bar-label">W${weekLabel}</span>
-                <div class="h-bar-container">
-                    <div class="h-bar" style="width: ${pct}%"></div>
-                </div>
-                <span class="h-bar-value">${count}</span>
-            </div>
-        `;
-    })
-    .join("");
-
-  revEl.innerHTML = `<div class="horizontal-bar-chart">${barsHtml}</div>`;
+  renderReviewerActivityModule(elements["reviewer-activity"] ?? null, rollups);
 }
 
 // addChartTooltips is now imported from "./modules/charts"
@@ -1498,10 +962,13 @@ async function updateFeatureTabs(): Promise<void> {
     const predictionsResult = await loader.loadPredictions();
 
     // Check for valid predictions data with forecasts
-    const predData = predictionsResult?.data as PredictionsRenderData | undefined;
+    const predData = predictionsResult?.data as
+      | PredictionsRenderData
+      | undefined;
     if (
       predictionsResult?.state === "ok" &&
-      predData?.forecasts?.length && predData.forecasts.length > 0
+      predData?.forecasts?.length &&
+      predData.forecasts.length > 0
     ) {
       renderPredictions(predictionsContent, predData);
     } else if (predictionsUnavailable) {
@@ -1518,7 +985,8 @@ async function updateFeatureTabs(): Promise<void> {
     const insData = insightsResult?.data as InsightsRenderData | undefined;
     if (
       insightsResult?.state === "ok" &&
-      insData?.insights?.length && insData.insights.length > 0
+      insData?.insights?.length &&
+      insData.insights.length > 0
     ) {
       renderAIInsights(aiContent, insData);
     } else if (aiUnavailable) {
@@ -1529,92 +997,24 @@ async function updateFeatureTabs(): Promise<void> {
 
 /**
  * Render predictions.
+ * Thin wrapper that delegates to extracted module.
  */
-function renderPredictions(container: HTMLElement, predictions: PredictionsRenderData): void {
-  const content = document.createElement("div");
-  content.className = "predictions-content";
-
-  if (predictions.is_stub) {
-    content.innerHTML += `<div class="stub-warning">⚠️ Demo data</div>`;
-  }
-
-  predictions.forecasts.forEach((forecast: Forecast) => {
-    const label = forecast.metric
-      .replace(/_/g, " ")
-      .replace(/\b\w/g, (c: string) => c.toUpperCase());
-    // SECURITY: Escape all user-controlled data to prevent XSS
-    content.innerHTML += `
-            <div class="forecast-section">
-                <h4>${escapeHtml(label)} (${escapeHtml(String(forecast.unit))})</h4>
-                <table class="forecast-table">
-                    <thead><tr><th>Week</th><th>Predicted</th><th>Range</th></tr></thead>
-                    <tbody>
-                        ${forecast.values
-        .map(
-          (v: ForecastValue) => `
-                            <tr>
-                                <td>${escapeHtml(String(v.period_start))}</td>
-                                <td>${escapeHtml(String(v.predicted))}</td>
-                                <td>${escapeHtml(String(v.lower_bound))} - ${escapeHtml(String(v.upper_bound))}</td>
-                            </tr>
-                        `,
-        )
-        .join("")}
-                    </tbody>
-                </table>
-            </div>
-        `;
-  });
-
-  const unavailable = container.querySelector(".feature-unavailable");
-  if (unavailable) unavailable.classList.add("hidden");
-  container.appendChild(content);
+function renderPredictions(
+  container: HTMLElement,
+  predictions: PredictionsRenderData,
+): void {
+  renderPredictionsModule(container, predictions);
 }
 
 /**
  * Render AI insights.
+ * Thin wrapper that delegates to extracted module.
  */
-function renderAIInsights(container: HTMLElement, insights: InsightsRenderData): void {
-  const content = document.createElement("div");
-  content.className = "insights-content";
-
-  if (insights.is_stub) {
-    content.innerHTML += `<div class="stub-warning">⚠️ Demo data</div>`;
-  }
-
-  const icons: Record<string, string> = {
-    critical: "🔴",
-    warning: "🟡",
-    info: "🔵",
-  };
-  ["critical", "warning", "info"].forEach((severity) => {
-    const items = insights.insights.filter((i: InsightItem) => i.severity === severity);
-    if (!items.length) return;
-
-    // SECURITY: Escape all user-controlled data to prevent XSS
-    content.innerHTML += `
-            <div class="severity-section">
-                <h4>${icons[severity]} ${severity.charAt(0).toUpperCase() + severity.slice(1)}</h4>
-                <div class="insight-cards">
-                    ${items
-        .map(
-          (i: InsightItem) => `
-                        <div class="insight-card ${escapeHtml(String(i.severity))}">
-                            <div class="insight-category">${escapeHtml(String(i.category))}</div>
-                            <h5>${escapeHtml(String(i.title))}</h5>
-                            <p>${escapeHtml(String(i.description))}</p>
-                        </div>
-                    `,
-        )
-        .join("")}
-                </div>
-            </div>
-        `;
-  });
-
-  const unavailable = container.querySelector(".feature-unavailable");
-  if (unavailable) unavailable.classList.add("hidden");
-  container.appendChild(content);
+function renderAIInsights(
+  container: HTMLElement,
+  insights: InsightsRenderData,
+): void {
+  renderAIInsightsModule(container, insights);
 }
 
 // ============================================================================
@@ -1688,8 +1088,14 @@ function populateFilterDropdowns(dimensions: DimensionsData | null): void {
 
   // Populate repository filter
   const repoFilter = getElement<HTMLSelectElement>("repo-filter");
-  if (repoFilter && dimensions.repositories && dimensions.repositories.length > 0) {
-    repoFilter.innerHTML = '<option value="">All</option>';
+  if (
+    repoFilter &&
+    dimensions.repositories &&
+    dimensions.repositories.length > 0
+  ) {
+    // SECURITY: Use safe DOM APIs for filter dropdown
+    clearElement(repoFilter);
+    repoFilter.appendChild(createOption("", "All"));
     dimensions.repositories.forEach((repo) => {
       const option = document.createElement("option");
       // Use repository_name as value (matches by_repository keys in rollups)
@@ -1705,7 +1111,9 @@ function populateFilterDropdowns(dimensions: DimensionsData | null): void {
   // Populate team filter
   const teamFilter = getElement<HTMLSelectElement>("team-filter");
   if (teamFilter && dimensions.teams && dimensions.teams.length > 0) {
-    teamFilter.innerHTML = '<option value="">All</option>';
+    // SECURITY: Use safe DOM APIs for filter dropdown
+    clearElement(teamFilter);
+    teamFilter.appendChild(createOption("", "All"));
     dimensions.teams.forEach((team) => {
       const option = document.createElement("option");
       // Use team_name as value (matches by_team keys in rollups)
@@ -1731,13 +1139,13 @@ function handleFilterChange(): void {
 
   const repoValues = repoFilter
     ? Array.from(repoFilter.selectedOptions)
-      .map((o) => o.value)
-      .filter((v) => v)
+        .map((o) => o.value)
+        .filter((v) => v)
     : [];
   const teamValues = teamFilter
     ? Array.from(teamFilter.selectedOptions)
-      .map((o) => o.value)
-      .filter((v) => v)
+        .map((o) => o.value)
+        .filter((v) => v)
     : [];
 
   currentFilters = { repos: repoValues, teams: teamValues };
@@ -1818,7 +1226,7 @@ function updateFilterUI(): void {
     if (hasFilters) {
       renderFilterChips();
     } else {
-      elements["filter-chips"].innerHTML = "";
+      clearElement(elements["filter-chips"]);
     }
   }
 }
@@ -1842,7 +1250,8 @@ function renderFilterChips(): void {
     chips.push(createFilterChip("team", value, label));
   });
 
-  chipsEl.innerHTML = chips.join("");
+  // SECURITY: Filter chips use escapeHtml for all values
+  renderTrustedHtml(chipsEl, chips.join(""));
 
   chipsEl.querySelectorAll(".filter-chip-remove").forEach((btnNode) => {
     const btn = btnNode as HTMLElement;
@@ -1876,10 +1285,11 @@ function getFilterLabel(type: string, value: string): string {
  */
 function createFilterChip(type: string, value: string, label: string): string {
   const prefix = type === "repo" ? "repo" : "team";
+  // SECURITY: Escape user-controlled values to prevent XSS
   return `
         <span class="filter-chip">
-            <span class="filter-chip-label">${prefix}: ${label}</span>
-            <span class="filter-chip-remove" data-type="${type}" data-value="${value}">&times;</span>
+            <span class="filter-chip-label">${prefix}: ${escapeHtml(label)}</span>
+            <span class="filter-chip-remove" data-type="${escapeHtml(type)}" data-value="${escapeHtml(value)}">&times;</span>
         </span>
     `;
 }

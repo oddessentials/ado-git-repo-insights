@@ -16,11 +16,10 @@ export default tseslint.config(
             },
         },
         rules: {
-            // === Relaxed rules for JS→TS conversion phase ===
-            // These can be tightened as the codebase matures
-            '@typescript-eslint/no-explicit-any': 'warn',      // Allow any, but warn
-            '@typescript-eslint/no-floating-promises': 'warn', // Warn on floating promises
-            '@typescript-eslint/require-await': 'off',         // Some async functions intentionally don't await
+            // === STRICT RULES - Zero tolerance for regressions ===
+            '@typescript-eslint/no-explicit-any': 'error',      // No any types allowed
+            '@typescript-eslint/no-floating-promises': 'error', // All promises must be handled
+            '@typescript-eslint/require-await': 'off',          // Some async functions intentionally don't await
 
             // === Recommended rules ===
             // Enforce explicit return types on functions (warning only)
@@ -34,7 +33,7 @@ export default tseslint.config(
             // Require explicit type annotations where inference is complex
             '@typescript-eslint/no-inferrable-types': 'off',
             // Enforce consistent type imports
-            '@typescript-eslint/consistent-type-imports': ['warn', {
+            '@typescript-eslint/consistent-type-imports': ['error', {
                 prefer: 'type-imports',
                 fixStyle: 'inline-type-imports',
             }],

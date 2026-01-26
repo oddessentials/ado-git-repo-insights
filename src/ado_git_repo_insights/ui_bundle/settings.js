@@ -10,29 +10,90 @@ var PRInsightsSettings = (() => {
     return "Unknown error";
   }
 
-  // ui/settings.ts
-  var SETTINGS_KEY_PROJECT = "pr-insights-source-project";
-  var SETTINGS_KEY_PIPELINE = "pr-insights-pipeline-id";
-  var dataService = null;
-  var projectDropdownAvailable = false;
-  var projectList = [];
-  async function initializeAdoSdk() {
+  // ui/modules/shared/security.ts
+  function escapeHtml(text) {
+    return text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#039;");
+  }
+
+  // ui/modules/shared/render.ts
+  function clearElement(el) {
+    if (!el) return;
+    while (el.firstChild) {
+      el.removeChild(el.firstChild);
+    }
+  }
+  function createElement(tag, attributes, textContent) {
+    const el = document.createElement(tag);
+    if (attributes) {
+      for (const [key, value] of Object.entries(attributes)) {
+        el.setAttribute(key, value);
+      }
+    }
+    if (textContent !== void 0) {
+      el.textContent = textContent;
+    }
+    return el;
+  }
+  function renderTrustedHtml(container, trustedHtml) {
+    if (!container) return;
+    container.innerHTML = trustedHtml;
+  }
+  function createOption(value, text, selected = false) {
+    const option = createElement("option", { value }, text);
+    if (selected) {
+      option.selected = true;
+    }
+    return option;
+  }
+
+  // ui/error-types.ts
+  var PrInsightsError = class extends Error {
+    constructor(type, title, message, details = null) {
+      super(message);
+      this.name = "PrInsightsError";
+      this.type = type;
+      this.title = title;
+      this.details = details;
+    }
+  };
+  if (typeof window !== "undefined") {
+    window.PrInsightsError = PrInsightsError;
+  }
+
+  // ui/modules/sdk.ts
+  var sdkInitialized = false;
+  async function initializeAdoSdk(options = {}) {
+    if (sdkInitialized) {
+      return;
+    }
+    const { timeout = 1e4, onReady } = options;
     return new Promise((resolve, reject) => {
-      const timeout = setTimeout(() => {
+      const timeoutId = setTimeout(() => {
         reject(new Error("Azure DevOps SDK initialization timed out"));
-      }, 1e4);
+      }, timeout);
       VSS.init({
         explicitNotifyLoaded: true,
         usePlatformScripts: true,
         usePlatformStyles: true
       });
       VSS.ready(() => {
-        clearTimeout(timeout);
+        clearTimeout(timeoutId);
+        sdkInitialized = true;
+        if (onReady) {
+          onReady();
+        }
         VSS.notifyLoadSucceeded();
         resolve();
       });
     });
   }
+
+  // ui/settings.ts
+  var SETTINGS_KEY_PROJECT = "pr-insights-source-project";
+  var SETTINGS_KEY_PIPELINE = "pr-insights-pipeline-id";
+  var dataService = null;
+  var projectDropdownAvailable = false;
+  var projectList = [];
   async function init() {
     try {
       await initializeAdoSdk();
@@ -50,7 +111,10 @@ var PRInsightsSettings = (() => {
       setupEventListeners();
     } catch (error) {
       console.error("Settings initialization failed:", error);
-      showStatus("Failed to initialize settings: " + getErrorMessage(error), "error");
+      showStatus(
+        "Failed to initialize settings: " + getErrorMessage(error),
+        "error"
+      );
     }
   }
   async function tryLoadProjectDropdown() {
@@ -63,7 +127,8 @@ var PRInsightsSettings = (() => {
       if (projects && projects.length > 0) {
         projectList = projects;
         projectDropdownAvailable = true;
-        dropdown.innerHTML = '<option value="">Current project (auto)</option>';
+        clearElement(dropdown);
+        dropdown.appendChild(createOption("", "Current project (auto)"));
         for (const project of projects.sort(
           (a, b) => a.name.localeCompare(b.name)
         )) {
@@ -269,9 +334,12 @@ var PRInsightsSettings = (() => {
       } else {
         html += `<p class="status-hint">Project dropdown not available - using text input</p>`;
       }
-      statusDisplay.innerHTML = html;
+      renderTrustedHtml(statusDisplay, html);
     } catch (error) {
-      statusDisplay.innerHTML = `<p class="status-error">Failed to load status: ${escapeHtml(getErrorMessage(error))}</p>`;
+      renderTrustedHtml(
+        statusDisplay,
+        `<p class="status-error">Failed to load status: ${escapeHtml(getErrorMessage(error))}</p>`
+      );
     }
   }
   function getProjectNameById(projectId) {
@@ -334,7 +402,11 @@ var PRInsightsSettings = (() => {
               }
               const firstBuild = builds[0];
               if (!firstBuild) {
-                resolve({ valid: false, name: pipelineName, error: "Build unexpectedly empty" });
+                resolve({
+                  valid: false,
+                  name: pipelineName,
+                  error: "Build unexpectedly empty"
+                });
                 return;
               }
               resolve({
@@ -355,7 +427,10 @@ var PRInsightsSettings = (() => {
             });
           });
         } catch (e) {
-          resolve({ valid: false, error: `Validation error: ${getErrorMessage(e)}` });
+          resolve({
+            valid: false,
+            error: `Validation error: ${getErrorMessage(e)}`
+          });
         }
       });
     });
@@ -398,7 +473,9 @@ var PRInsightsSettings = (() => {
                   projectId,
                   latestBuild.id
                 );
-                if (!artifacts.some((a) => a.name === "aggregates"))
+                if (!artifacts.some(
+                  (a) => a.name === "aggregates"
+                ))
                   continue;
                 matches.push({
                   id: def.id,
@@ -425,14 +502,20 @@ var PRInsightsSettings = (() => {
     const statusDisplay = document.getElementById("status-display");
     if (!statusDisplay) return;
     const originalContent = statusDisplay.innerHTML;
-    statusDisplay.innerHTML = "<p>\u{1F50D} Discovering pipelines with aggregates artifact...</p>";
+    renderTrustedHtml(
+      statusDisplay,
+      "<p>\u{1F50D} Discovering pipelines with aggregates artifact...</p>"
+    );
     try {
       const matches = await discoverPipelines();
       if (matches.length === 0) {
-        statusDisplay.innerHTML = `
+        renderTrustedHtml(
+          statusDisplay,
+          `
                 <p class="status-warning">\u26A0\uFE0F No PR Insights pipelines found in the current project.</p>
                 <p class="status-hint">Create a pipeline using pr-insights-pipeline.yml and run it at least once.</p>
-            `;
+            `
+        );
         showStatus("No pipelines found with aggregates artifact", "warning");
         return;
       }
@@ -445,7 +528,7 @@ var PRInsightsSettings = (() => {
       }
       html += "</ul>";
       html += '<p class="status-hint">Click "Use This" to configure, or clear settings for auto-discovery.</p>';
-      statusDisplay.innerHTML = html;
+      renderTrustedHtml(statusDisplay, html);
       for (const match of matches) {
         document.getElementById(`select-pipeline-${match.id}`)?.addEventListener("click", () => {
           const pipelineInput = document.getElementById(
@@ -460,7 +543,7 @@ var PRInsightsSettings = (() => {
       }
       showStatus(`Found ${matches.length} pipeline(s)`, "success");
     } catch (error) {
-      statusDisplay.innerHTML = originalContent;
+      renderTrustedHtml(statusDisplay, originalContent);
       showStatus("Discovery failed: " + getErrorMessage(error), "error");
     }
   }
@@ -473,11 +556,6 @@ var PRInsightsSettings = (() => {
       statusEl.textContent = "";
       statusEl.className = "status-message";
     }, 5e3);
-  }
-  function escapeHtml(text) {
-    const div = document.createElement("div");
-    div.textContent = text;
-    return div.innerHTML;
   }
   function setupEventListeners() {
     document.getElementById("save-btn")?.addEventListener("click", () => void saveSettings());

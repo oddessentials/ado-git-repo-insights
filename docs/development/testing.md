@@ -168,7 +168,7 @@ All PRs must pass:
 
 ## Test Coverage
 
-**Target:** 80%+ code coverage
+**Target:** 70%+ code coverage (enforced in CI)
 
 **Check coverage:**
 ```bash

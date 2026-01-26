@@ -367,7 +367,7 @@ Respond ONLY with valid JSON matching this format."""
         Returns:
             Insights data dict or None if failed.
         """
-        import openai  # type: ignore[import-not-found]
+        import openai
 
         api_key = os.environ.get("OPENAI_API_KEY")
         if not api_key:

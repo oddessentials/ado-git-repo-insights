@@ -26,12 +26,16 @@ module.exports = {
             name: "non-shared-modules-cross-import",
             severity: "warn",
             comment:
-                "Non-shared modules should prefer importing via shared/ or types",
+                "Non-shared modules should prefer importing via shared/ or types. " +
+                "Exceptions: charts sub-modules may import charts.ts (shared utilities), " +
+                "and charts/index.ts may re-export chart sub-modules (barrel pattern).",
             from: {
                 path: "^ui/modules/(?!shared/)(?!ml/)(?!index\\.ts$).*\\.ts$",
+                pathNot: "^ui/modules/charts/",
             },
             to: {
                 path: "^ui/modules/(?!shared/)(?!index\\.ts$)(?!ml/types)(?!metrics).*\\.ts$",
+                pathNot: "^ui/modules/charts(\\.ts|/)",
             },
         },
     ],

@@ -19,31 +19,31 @@ const elements: Record<string, CachedDomValue> = {};
  * @returns Typed element or null
  */
 export function getElement<T extends HTMLElement = HTMLElement>(
-    id: string,
+  id: string,
 ): T | null {
-    const el = elements[id];
-    if (el instanceof HTMLElement) {
-        return el as T;
-    }
-    return null;
+  const el = elements[id];
+  if (el instanceof HTMLElement) {
+    return el as T;
+  }
+  return null;
 }
 
 /**
  * Get a NodeList from the cache.
  */
 export function getNodeList(id: string): NodeListOf<Element> | null {
-    const el = elements[id];
-    if (el instanceof NodeList) {
-        return el as NodeListOf<Element>;
-    }
-    return null;
+  const el = elements[id];
+  if (el instanceof NodeList) {
+    return el as NodeListOf<Element>;
+  }
+  return null;
 }
 
 /**
  * Cache a single element by ID.
  */
 export function cacheElement(id: string): void {
-    elements[id] = document.getElementById(id);
+  elements[id] = document.getElementById(id);
 }
 
 /**
@@ -51,69 +51,69 @@ export function cacheElement(id: string): void {
  * Must be called during dashboard initialization.
  */
 export function cacheElements(): void {
-    const ids = [
-        "app",
-        "loading-state",
-        "error-state",
-        "main-content",
-        "error-title",
-        "error-message",
-        "run-info",
-        "date-range",
-        "custom-dates",
-        "start-date",
-        "end-date",
-        "retry-btn",
-        "total-prs",
-        "cycle-p50",
-        "cycle-p90",
-        "authors-count",
-        "reviewers-count",
-        "throughput-chart",
-        "cycle-distribution",
-        "total-prs-delta",
-        "cycle-p50-delta",
-        "cycle-p90-delta",
-        "authors-delta",
-        "reviewers-delta",
-        "repo-filter",
-        "team-filter",
-        "repo-filter-group",
-        "team-filter-group",
-        "clear-filters",
-        "active-filters",
-        "filter-chips",
-        "total-prs-sparkline",
-        "cycle-p50-sparkline",
-        "cycle-p90-sparkline",
-        "authors-sparkline",
-        "reviewers-sparkline",
-        "cycle-time-trend",
-        "reviewer-activity",
-        "compare-toggle",
-        "comparison-banner",
-        "current-period-dates",
-        "previous-period-dates",
-        "exit-compare",
-        "export-btn",
-        "export-menu",
-        "export-csv",
-        "export-link",
-        "export-raw-zip",
-    ];
+  const ids = [
+    "app",
+    "loading-state",
+    "error-state",
+    "main-content",
+    "error-title",
+    "error-message",
+    "run-info",
+    "date-range",
+    "custom-dates",
+    "start-date",
+    "end-date",
+    "retry-btn",
+    "total-prs",
+    "cycle-p50",
+    "cycle-p90",
+    "authors-count",
+    "reviewers-count",
+    "throughput-chart",
+    "cycle-distribution",
+    "total-prs-delta",
+    "cycle-p50-delta",
+    "cycle-p90-delta",
+    "authors-delta",
+    "reviewers-delta",
+    "repo-filter",
+    "team-filter",
+    "repo-filter-group",
+    "team-filter-group",
+    "clear-filters",
+    "active-filters",
+    "filter-chips",
+    "total-prs-sparkline",
+    "cycle-p50-sparkline",
+    "cycle-p90-sparkline",
+    "authors-sparkline",
+    "reviewers-sparkline",
+    "cycle-time-trend",
+    "reviewer-activity",
+    "compare-toggle",
+    "comparison-banner",
+    "current-period-dates",
+    "previous-period-dates",
+    "exit-compare",
+    "export-btn",
+    "export-menu",
+    "export-csv",
+    "export-link",
+    "export-raw-zip",
+  ];
 
-    ids.forEach((id) => {
-        elements[id] = document.getElementById(id);
-    });
+  ids.forEach((id) => {
+    elements[id] = document.getElementById(id);
+  });
 
-    elements.tabs = document.querySelectorAll(".tab");
+  elements.tabs = document.querySelectorAll(".tab");
 }
 
 /**
  * Clear the element cache (useful for testing).
  */
 export function clearElementCache(): void {
-    Object.keys(elements).forEach((key) => {
-        delete elements[key];
-    });
+  Object.keys(elements).forEach((key) => {
+    delete elements[key];
+  });
 }

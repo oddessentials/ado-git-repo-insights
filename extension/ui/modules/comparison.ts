@@ -11,11 +11,11 @@ import type { DateRange } from "./metrics";
  * Format a date for display in comparison banner.
  */
 export function formatComparisonDate(date: Date): string {
-    return date.toLocaleDateString("en-US", {
-        month: "short",
-        day: "numeric",
-        year: "numeric",
-    });
+  return date.toLocaleDateString("en-US", {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+  });
 }
 
 /**
@@ -25,7 +25,7 @@ export function formatComparisonDate(date: Date): string {
  * @returns Formatted string like "Jan 1, 2026 - Jan 7, 2026"
  */
 export function formatDateRangeDisplay(start: Date, end: Date): string {
-    return `${formatComparisonDate(start)} - ${formatComparisonDate(end)}`;
+  return `${formatComparisonDate(start)} - ${formatComparisonDate(end)}`;
 }
 
 /**
@@ -34,14 +34,14 @@ export function formatDateRangeDisplay(start: Date, end: Date): string {
  * @param params - URL search params to update
  */
 export function serializeComparisonToUrl(
-    isEnabled: boolean,
-    params: URLSearchParams,
+  isEnabled: boolean,
+  params: URLSearchParams,
 ): void {
-    if (isEnabled) {
-        params.set("compare", "1");
-    } else {
-        params.delete("compare");
-    }
+  if (isEnabled) {
+    params.set("compare", "1");
+  } else {
+    params.delete("compare");
+  }
 }
 
 /**
@@ -50,7 +50,7 @@ export function serializeComparisonToUrl(
  * @returns Whether comparison mode should be enabled
  */
 export function parseComparisonFromUrl(params: URLSearchParams): boolean {
-    return params.get("compare") === "1";
+  return params.get("compare") === "1";
 }
 
 /**
@@ -60,21 +60,21 @@ export function parseComparisonFromUrl(params: URLSearchParams): boolean {
  * @returns Object with formatted date strings for display
  */
 export function getComparisonBannerData(
-    currentRange: DateRange,
-    previousRange: DateRange,
+  currentRange: DateRange,
+  previousRange: DateRange,
 ): {
-    currentPeriod: string;
-    previousPeriod: string;
+  currentPeriod: string;
+  previousPeriod: string;
 } | null {
-    if (!currentRange.start || !currentRange.end) {
-        return null;
-    }
+  if (!currentRange.start || !currentRange.end) {
+    return null;
+  }
 
-    return {
-        currentPeriod: formatDateRangeDisplay(currentRange.start, currentRange.end),
-        previousPeriod: formatDateRangeDisplay(
-            previousRange.start,
-            previousRange.end,
-        ),
-    };
+  return {
+    currentPeriod: formatDateRangeDisplay(currentRange.start, currentRange.end),
+    previousPeriod: formatDateRangeDisplay(
+      previousRange.start,
+      previousRange.end,
+    ),
+  };
 }

@@ -97,7 +97,7 @@ class ProphetForecaster:
 
         # Try to import prophet
         try:
-            from prophet import Prophet  # type: ignore[import-untyped]
+            from prophet import Prophet
         except ImportError:
             logger.warning(
                 "Predictions skipped: Prophet not installed. "

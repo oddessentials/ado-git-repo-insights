@@ -26,8 +26,11 @@ export * from "./ml/types";
 // ML rendering (Phase 5 expansion point)
 export * from "./ml";
 
-// Chart rendering
+// Chart rendering utilities (renderDelta, renderSparkline, addChartTooltips)
 export * from "./charts";
+
+// Chart renderers (DOM-injected modules)
+export * from "./charts/index";
 
 // Filter utilities
 export * from "./filters";
@@ -37,3 +40,6 @@ export * from "./comparison";
 
 // Export utilities
 export * from "./export";
+
+// SDK initialization
+export * from "./sdk";

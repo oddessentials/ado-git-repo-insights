@@ -160,7 +160,9 @@ var PRInsightsArtifactClient = (() => {
     async getArtifactMetadata(buildId, artifactName) {
       this._ensureInitialized();
       const artifacts = await this.getArtifacts(buildId);
-      const artifact = artifacts.find((a) => a.name === artifactName);
+      const artifact = artifacts.find(
+        (a) => a.name === artifactName
+      );
       if (!artifact) {
         console.log(
           `[getArtifactMetadata] Artifact '${artifactName}' not found in build ${buildId}`
@@ -286,7 +288,9 @@ var PRInsightsArtifactClient = (() => {
         }
         return this.manifest;
       } catch (error) {
-        throw new Error(`Failed to load dataset manifest: ${getErrorMessage(error)}`);
+        throw new Error(
+          `Failed to load dataset manifest: ${getErrorMessage(error)}`
+        );
       }
     }
     validateManifest(manifest) {
@@ -461,7 +465,11 @@ var PRInsightsArtifactClient = (() => {
       return this.mockData[`${buildId}/artifacts`] ?? [];
     }
     createDatasetLoader(buildId, artifactName) {
-      return new AuthenticatedDatasetLoader(this, buildId, artifactName);
+      return new AuthenticatedDatasetLoader(
+        this,
+        buildId,
+        artifactName
+      );
     }
   };
   if (typeof window !== "undefined") {

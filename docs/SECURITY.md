@@ -38,27 +38,68 @@ execFile('python', ['script.py', '--count', String(validatedInput)]);
 spawn('program', [arg1, arg2], { shell: false });
 ```
 
-### 3. No innerHTML with Untrusted Data
+### 3. Safe DOM Rendering (XSS Prevention)
 
-**Policy**: Never insert user-controlled or external data into the DOM using `innerHTML`, `outerHTML`, or `document.write`.
+**Policy**: Never insert user-controlled or external data into the DOM using raw `innerHTML`, `outerHTML`, or `document.write`. Use the centralized safe rendering utilities.
 
-**Why**: This enables Cross-Site Scripting (XSS) attacks.
+**Why**: This enables Cross-Site Scripting (XSS) attacks where malicious scripts can execute in the user's browser context.
 
-**Implementation**:
-```javascript
+**Safe Rendering Utilities**: Located in `extension/ui/modules/shared/render.ts`
+
+| Function | Use Case |
+|----------|----------|
+| `clearElement(el)` | Safe alternative to `el.innerHTML = ""` |
+| `createElement(tag, attrs, text)` | Build elements with safe text content |
+| `renderNoData(container, msg)` | Render "no data" placeholder messages |
+| `renderTrustedHtml(container, html)` | Render HTML when ALL dynamic values are escaped |
+| `appendTrustedHtml(container, html)` | Append HTML when ALL dynamic values are escaped |
+| `createOption(value, text)` | Create `<option>` elements for dropdowns |
+| `escapeHtml(text)` | Escape special HTML characters |
+
+**Implementation Patterns**:
+
+```typescript
 // ❌ NEVER do this
 element.innerHTML = `<div>${userData}</div>`;
 element.innerHTML += userContent;
+element.innerHTML = "";
 
-// ✅ Always do this
-element.textContent = userData; // For plain text
-// Or use DOM APIs:
-const div = document.createElement('div');
-div.textContent = userData;
-element.appendChild(div);
-// Or escape HTML:
-element.innerHTML = `<div>${escapeHtml(userData)}</div>`;
+// ✅ For "no data" states
+import { renderNoData } from "./modules/shared/render";
+renderNoData(container, "No data available");
+
+// ✅ For clearing elements
+import { clearElement } from "./modules/shared/render";
+clearElement(container);
+
+// ✅ For building DOM trees
+import { createElement } from "./modules/shared/render";
+const li = createElement("li", { class: "item" }, userText);
+container.appendChild(li);
+
+// ✅ For filter dropdowns
+import { clearElement, createOption } from "./modules/shared/render";
+clearElement(dropdown);
+dropdown.appendChild(createOption("", "All"));
+Array.from(items).forEach(item => {
+    dropdown.appendChild(createOption(item.id, item.name));
+});
+
+// ✅ For complex HTML with escaped values
+import { escapeHtml, renderTrustedHtml } from "./modules/shared/render";
+const html = `<div class="card">
+    <h3>${escapeHtml(title)}</h3>
+    <p>${escapeHtml(description)}</p>
+</div>`;
+renderTrustedHtml(container, html);
 ```
+
+**Critical Rule**: When using `renderTrustedHtml` or `appendTrustedHtml`:
+- ALL user-controlled strings must be wrapped in `escapeHtml()`
+- Numeric values computed in code are safe without escaping
+- Static strings defined in code are safe without escaping
+- Add a `// SECURITY:` comment explaining why the content is trusted
+
 
 ### 4. Safe Path Resolution
 

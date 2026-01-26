@@ -437,13 +437,33 @@ class AggregateGenerator:
             logger.debug(f"Teams table not available (legacy DB?): {e}")
             teams_df = pd.DataFrame()
 
+        # Cast pandas dict records to list[dict[str, Any]] for type safety
+        # pandas to_dict returns dict[Hashable, Any], we need dict[str, Any]
+        repos_records: list[dict[str, Any]] = [
+            {str(k): v for k, v in r.items()}
+            for r in repos_df.to_dict(orient="records")
+        ]
+        users_records: list[dict[str, Any]] = [
+            {str(k): v for k, v in r.items()}
+            for r in users_df.to_dict(orient="records")
+        ]
+        projects_records: list[dict[str, Any]] = [
+            {str(k): v for k, v in r.items()}
+            for r in projects_df.to_dict(orient="records")
+        ]
+        teams_records: list[dict[str, Any]] = (
+            [
+                {str(k): v for k, v in r.items()}
+                for r in teams_df.to_dict(orient="records")
+            ]
+            if not teams_df.empty
+            else []
+        )
         return Dimensions(
-            repositories=list(repos_df.to_dict(orient="records")),
-            users=list(users_df.to_dict(orient="records")),
-            projects=list(projects_df.to_dict(orient="records")),
-            teams=(
-                list(teams_df.to_dict(orient="records")) if not teams_df.empty else []
-            ),
+            repositories=repos_records,
+            users=users_records,
+            projects=projects_records,
+            teams=teams_records,
             date_range=date_range,
         )
 
@@ -507,9 +527,10 @@ class AggregateGenerator:
         for (iso_year, iso_week), group in df.groupby(["iso_year", "iso_week"]):
             week_str = f"{iso_year}-W{iso_week:02d}"
 
-            # Calculate week boundaries (iso_year/iso_week are UInt32 from pandas)
-            year_int = int(iso_year)
-            week_int = int(iso_week)
+            # iso_year/iso_week come from pandas isocalendar() which are UInt32
+            # Cast via intermediate to satisfy mypy (Hashable -> int)
+            year_int = int(str(iso_year))
+            week_int = int(str(iso_week))
             start_date = date.fromisocalendar(year_int, week_int, 1)
             end_date = date.fromisocalendar(year_int, week_int, 7)
 

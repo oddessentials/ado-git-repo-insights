@@ -89,16 +89,24 @@ export function normalizeRollup(rollup: unknown): Rollup {
     // Ensure required fields have defaults (don't override if already set)
     pr_count: (r.pr_count as number) ?? ROLLUP_FIELD_DEFAULTS.pr_count,
     cycle_time_p50:
-      (r.cycle_time_p50 as number | null) ?? ROLLUP_FIELD_DEFAULTS.cycle_time_p50,
+      (r.cycle_time_p50 as number | null) ??
+      ROLLUP_FIELD_DEFAULTS.cycle_time_p50,
     cycle_time_p90:
-      (r.cycle_time_p90 as number | null) ?? ROLLUP_FIELD_DEFAULTS.cycle_time_p90,
-    authors_count: (r.authors_count as number) ?? ROLLUP_FIELD_DEFAULTS.authors_count,
+      (r.cycle_time_p90 as number | null) ??
+      ROLLUP_FIELD_DEFAULTS.cycle_time_p90,
+    authors_count:
+      (r.authors_count as number) ?? ROLLUP_FIELD_DEFAULTS.authors_count,
     reviewers_count:
       (r.reviewers_count as number) ?? ROLLUP_FIELD_DEFAULTS.reviewers_count,
     // by_repository and by_team are optional features - preserve null if missing
     by_repository:
-      r.by_repository !== undefined ? (r.by_repository as Record<string, number> | null) : null,
-    by_team: r.by_team !== undefined ? (r.by_team as Record<string, number> | null) : null,
+      r.by_repository !== undefined
+        ? (r.by_repository as Record<string, number> | null)
+        : null,
+    by_team:
+      r.by_team !== undefined
+        ? (r.by_team as Record<string, number> | null)
+        : null,
   };
 }
 
@@ -107,7 +115,9 @@ export function normalizeRollup(rollup: unknown): Rollup {
  * @param rollups - Array of raw rollup data
  * @returns Normalized rollups
  */
-export function normalizeRollups(rollups: unknown[] | null | undefined): Rollup[] {
+export function normalizeRollups(
+  rollups: unknown[] | null | undefined,
+): Rollup[] {
   if (!Array.isArray(rollups)) {
     return [];
   }
@@ -176,7 +186,7 @@ export interface RollupCache {
   maxSize: number;
   ttlMs: number;
   clock: () => number;
-  makeKey(params: { week: string;[key: string]: unknown }): string;
+  makeKey(params: { week: string; [key: string]: unknown }): string;
   get(key: string): Rollup | undefined;
   set(key: string, value: Rollup): void;
   has(key: string): boolean;
@@ -426,8 +436,8 @@ export class DatasetLoader implements IDatasetLoader {
     if (manifest.manifest_schema_version > SUPPORTED_MANIFEST_VERSION) {
       throw new Error(
         `Manifest version ${manifest.manifest_schema_version} not supported. ` +
-        `Maximum supported: ${SUPPORTED_MANIFEST_VERSION}. ` +
-        `Please update the extension.`,
+          `Maximum supported: ${SUPPORTED_MANIFEST_VERSION}. ` +
+          `Please update the extension.`,
       );
     }
 
@@ -437,7 +447,7 @@ export class DatasetLoader implements IDatasetLoader {
     ) {
       throw new Error(
         `Dataset version ${manifest.dataset_schema_version} not supported. ` +
-        `Please update the extension.`,
+          `Please update the extension.`,
       );
     }
 
@@ -447,7 +457,7 @@ export class DatasetLoader implements IDatasetLoader {
     ) {
       throw new Error(
         `Aggregates version ${manifest.aggregates_schema_version} not supported. ` +
-        `Please update the extension.`,
+          `Please update the extension.`,
       );
     }
   }
@@ -528,7 +538,7 @@ export class DatasetLoader implements IDatasetLoader {
       branch?: string;
       apiVersion?: string;
     },
-    onProgress: (event: ProgressEvent) => void = () => { },
+    onProgress: (event: ProgressEvent) => void = () => {},
     cache: RollupCache | null = null,
   ): Promise<RollupResult> {
     if (!this.manifest) {
@@ -545,7 +555,8 @@ export class DatasetLoader implements IDatasetLoader {
     const useCache: RollupCache =
       cache ||
       ({
-        makeKey: (params: { week: string;[key: string]: unknown }) => params.week,
+        makeKey: (params: { week: string; [key: string]: unknown }) =>
+          params.week,
         get: (key: string) => this.rollupCache.get(key),
         set: (key: string, value: Rollup) => this.rollupCache.set(key, value),
         has: (key: string) => this.rollupCache.has(key),
@@ -640,7 +651,9 @@ export class DatasetLoader implements IDatasetLoader {
 
     // INVARIANT: auth error with no data = hard fail
     if (authError && allData.length === 0) {
-      const error = new Error("Authentication required") as Error & { code?: string };
+      const error = new Error("Authentication required") as Error & {
+        code?: string;
+      };
       error.code = "AUTH_REQUIRED";
       throw error;
     }
@@ -706,7 +719,11 @@ export class DatasetLoader implements IDatasetLoader {
           continue;
         }
 
-        return { week: weekStr, status: "failed", error: `HTTP ${response.status}` };
+        return {
+          week: weekStr,
+          status: "failed",
+          error: `HTTP ${response.status}`,
+        };
       } catch (err: unknown) {
         // Network error - retry once
         if (retries < fetchSemaphore.maxRetries) {
@@ -733,7 +750,10 @@ export class DatasetLoader implements IDatasetLoader {
   /**
    * Get yearly distributions for a date range.
    */
-  async getDistributions(startDate: Date, endDate: Date): Promise<DistributionData[]> {
+  async getDistributions(
+    startDate: Date,
+    endDate: Date,
+  ): Promise<DistributionData[]> {
     if (!this.manifest) {
       throw new Error("Manifest not loaded. Call loadManifest() first.");
     }
@@ -841,7 +861,11 @@ export class DatasetLoader implements IDatasetLoader {
       return { state: "ok", data: predictions };
     } catch (err: unknown) {
       console.error("[DatasetLoader] Error loading predictions:", err);
-      return { state: "error", error: "PRED_002", message: getErrorMessage(err) };
+      return {
+        state: "error",
+        error: "PRED_002",
+        message: getErrorMessage(err),
+      };
     }
   }
 

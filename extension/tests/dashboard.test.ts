@@ -11,7 +11,7 @@
 
 // Make this file a module (required for global augmentation in types.ts)
 // Window interface is declared in ../ui/types.ts
-export { };
+export {};
 
 // Mock DOM elements and functions from dashboard.js
 // Since dashboard.js uses globals and DOM, we need to set up the environment

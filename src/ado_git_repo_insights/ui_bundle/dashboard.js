@@ -453,7 +453,11 @@ var PRInsightsDashboard = (() => {
             await this._delay(fetchSemaphore.retryDelayMs);
             continue;
           }
-          return { week: weekStr, status: "failed", error: `HTTP ${response.status}` };
+          return {
+            week: weekStr,
+            status: "failed",
+            error: `HTTP ${response.status}`
+          };
         } catch (err) {
           if (retries < fetchSemaphore.maxRetries) {
             retries++;
@@ -563,7 +567,11 @@ var PRInsightsDashboard = (() => {
         return { state: "ok", data: predictions };
       } catch (err) {
         console.error("[DatasetLoader] Error loading predictions:", err);
-        return { state: "error", error: "PRED_002", message: getErrorMessage(err) };
+        return {
+          state: "error",
+          error: "PRED_002",
+          message: getErrorMessage(err)
+        };
       }
     }
     /**
@@ -903,7 +911,9 @@ var PRInsightsDashboard = (() => {
     async getArtifactMetadata(buildId, artifactName) {
       this._ensureInitialized();
       const artifacts = await this.getArtifacts(buildId);
-      const artifact = artifacts.find((a) => a.name === artifactName);
+      const artifact = artifacts.find(
+        (a) => a.name === artifactName
+      );
       if (!artifact) {
         console.log(
           `[getArtifactMetadata] Artifact '${artifactName}' not found in build ${buildId}`
@@ -1029,7 +1039,9 @@ var PRInsightsDashboard = (() => {
         }
         return this.manifest;
       } catch (error) {
-        throw new Error(`Failed to load dataset manifest: ${getErrorMessage(error)}`);
+        throw new Error(
+          `Failed to load dataset manifest: ${getErrorMessage(error)}`
+        );
       }
     }
     validateManifest(manifest) {
@@ -1204,7 +1216,11 @@ var PRInsightsDashboard = (() => {
       return this.mockData[`${buildId}/artifacts`] ?? [];
     }
     createDatasetLoader(buildId, artifactName) {
-      return new AuthenticatedDatasetLoader(this, buildId, artifactName);
+      return new AuthenticatedDatasetLoader(
+        this,
+        buildId,
+        artifactName
+      );
     }
   };
   if (typeof window !== "undefined") {
@@ -1235,6 +1251,51 @@ var PRInsightsDashboard = (() => {
   // ui/modules/shared/security.ts
   function escapeHtml(text) {
     return text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#039;");
+  }
+
+  // ui/modules/shared/render.ts
+  function clearElement(el) {
+    if (!el) return;
+    while (el.firstChild) {
+      el.removeChild(el.firstChild);
+    }
+  }
+  function createElement(tag, attributes, textContent) {
+    const el = document.createElement(tag);
+    if (attributes) {
+      for (const [key, value] of Object.entries(attributes)) {
+        el.setAttribute(key, value);
+      }
+    }
+    if (textContent !== void 0) {
+      el.textContent = textContent;
+    }
+    return el;
+  }
+  function renderNoData(container, message) {
+    if (!container) return;
+    clearElement(container);
+    const p = createElement("p", { class: "no-data" }, message);
+    container.appendChild(p);
+  }
+  function renderTrustedHtml(container, trustedHtml) {
+    if (!container) return;
+    container.innerHTML = trustedHtml;
+  }
+  function appendTrustedHtml(container, trustedHtml) {
+    if (!container) return;
+    const temp = document.createElement("div");
+    temp.innerHTML = trustedHtml;
+    while (temp.firstChild) {
+      container.appendChild(temp.firstChild);
+    }
+  }
+  function createOption(value, text, selected = false) {
+    const option = createElement("option", { value }, text);
+    if (selected) {
+      option.selected = true;
+    }
+    return option;
   }
 
   // ui/modules/metrics.ts
@@ -1281,7 +1342,9 @@ var PRInsightsDashboard = (() => {
       (end.getTime() - start.getTime()) / (1e3 * 60 * 60 * 24)
     );
     const prevEnd = new Date(start.getTime() - 1);
-    const prevStart = new Date(prevEnd.getTime() - rangeDays * 24 * 60 * 60 * 1e3);
+    const prevStart = new Date(
+      prevEnd.getTime() - rangeDays * 24 * 60 * 60 * 1e3
+    );
     return { start: prevStart, end: prevEnd };
   }
   function applyFiltersToRollups(rollups, filters) {
@@ -1307,10 +1370,7 @@ var PRInsightsDashboard = (() => {
             reviewers_count: 0
           };
         }
-        const totalPrCount = selectedRepos.reduce(
-          (sum, count) => sum + count,
-          0
-        );
+        const totalPrCount = selectedRepos.reduce((sum, count) => sum + count, 0);
         return {
           ...rollup,
           pr_count: totalPrCount
@@ -1330,10 +1390,7 @@ var PRInsightsDashboard = (() => {
             reviewers_count: 0
           };
         }
-        const totalPrCount = selectedTeams.reduce(
-          (sum, count) => sum + count,
-          0
-        );
+        const totalPrCount = selectedTeams.reduce((sum, count) => sum + count, 0);
         return {
           ...rollup,
           pr_count: totalPrCount
@@ -1362,11 +1419,223 @@ var PRInsightsDashboard = (() => {
     });
   }
 
+  // ui/modules/errors.ts
+  var PANEL_IDS = [
+    "setup-required",
+    "multiple-pipelines",
+    "artifacts-missing",
+    "permission-denied",
+    "error-state",
+    "loading-state",
+    "main-content"
+  ];
+  function handleError(error) {
+    hideAllPanels();
+    if (error instanceof PrInsightsError) {
+      switch (error.type) {
+        case ErrorTypes.SETUP_REQUIRED:
+          showSetupRequired(error);
+          break;
+        case ErrorTypes.MULTIPLE_PIPELINES:
+          showMultiplePipelines(error);
+          break;
+        case ErrorTypes.ARTIFACTS_MISSING:
+          showArtifactsMissing(error);
+          break;
+        case ErrorTypes.PERMISSION_DENIED:
+          showPermissionDenied(error);
+          break;
+        default:
+          showGenericError(error.title, error.message);
+          break;
+      }
+    } else {
+      showGenericError(
+        "Error",
+        getErrorMessage(error) || "An unexpected error occurred"
+      );
+    }
+  }
+  function hideAllPanels() {
+    PANEL_IDS.forEach((id) => {
+      document.getElementById(id)?.classList.add("hidden");
+    });
+  }
+  function showSetupRequired(error) {
+    const panel = document.getElementById("setup-required");
+    if (!panel) return showGenericError(error.title, error.message);
+    const messageEl = document.getElementById("setup-message");
+    if (messageEl) messageEl.textContent = error.message;
+    const details = error.details;
+    if (details?.instructions && Array.isArray(details.instructions)) {
+      const stepsList = document.getElementById("setup-steps");
+      if (stepsList) {
+        clearElement(stepsList);
+        details.instructions.forEach((s) => {
+          const li = createElement("li", {}, s);
+          stepsList.appendChild(li);
+        });
+      }
+    }
+    if (details?.docsUrl) {
+      const docsLink = document.getElementById(
+        "docs-link"
+      );
+      if (docsLink) docsLink.href = String(details.docsUrl);
+    }
+    panel.classList.remove("hidden");
+  }
+  function showMultiplePipelines(error) {
+    const panel = document.getElementById("multiple-pipelines");
+    if (!panel) return showGenericError(error.title, error.message);
+    const messageEl = document.getElementById("multiple-message");
+    if (messageEl) messageEl.textContent = error.message;
+    const listEl = document.getElementById("pipeline-list");
+    const details = error.details;
+    if (listEl && details?.matches && Array.isArray(details.matches)) {
+      const html = details.matches.map(
+        (m) => `
+                <a href="?pipelineId=${escapeHtml(String(m.id))}" class="pipeline-option">
+                    <strong>${escapeHtml(m.name)}</strong>
+                    <span class="pipeline-id">ID: ${escapeHtml(String(m.id))}</span>
+                </a>
+            `
+      ).join("");
+      renderTrustedHtml(listEl, html);
+    }
+    panel.classList.remove("hidden");
+  }
+  function showPermissionDenied(error) {
+    const panel = document.getElementById("permission-denied");
+    if (!panel) return showGenericError(error.title, error.message);
+    const messageEl = document.getElementById("permission-message");
+    if (messageEl) messageEl.textContent = error.message;
+    panel.classList.remove("hidden");
+  }
+  function showGenericError(title, message) {
+    const panel = document.getElementById("error-state");
+    if (!panel) return;
+    const titleEl = document.getElementById("error-title");
+    const messageEl = document.getElementById("error-message");
+    if (titleEl) titleEl.textContent = title;
+    if (messageEl) messageEl.textContent = message;
+    panel.classList.remove("hidden");
+  }
+  function showArtifactsMissing(error) {
+    const panel = document.getElementById("artifacts-missing");
+    if (!panel) return showGenericError(error.title, error.message);
+    const messageEl = document.getElementById("missing-message");
+    if (messageEl) messageEl.textContent = error.message;
+    const details = error.details;
+    if (details?.instructions && Array.isArray(details.instructions)) {
+      const stepsList = document.getElementById("missing-steps");
+      if (stepsList) {
+        clearElement(stepsList);
+        details.instructions.forEach((s) => {
+          const li = createElement("li", {}, s);
+          stepsList.appendChild(li);
+        });
+      }
+    }
+    panel.classList.remove("hidden");
+  }
+
+  // ui/modules/ml.ts
+  var SEVERITY_ICONS = {
+    critical: "\u{1F534}",
+    warning: "\u{1F7E1}",
+    info: "\u{1F535}"
+  };
+  function renderPredictions(container, predictions) {
+    if (!container) return;
+    if (!predictions) return;
+    const content = document.createElement("div");
+    content.className = "predictions-content";
+    if (predictions.is_stub) {
+      const warning = createElement(
+        "div",
+        { class: "stub-warning" },
+        "\u26A0\uFE0F Demo data"
+      );
+      content.appendChild(warning);
+    }
+    predictions.forecasts.forEach((forecast) => {
+      const label = forecast.metric.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
+      appendTrustedHtml(
+        content,
+        `
+            <div class="forecast-section">
+                <h4>${escapeHtml(label)} (${escapeHtml(String(forecast.unit))})</h4>
+                <table class="forecast-table">
+                    <thead><tr><th>Week</th><th>Predicted</th><th>Range</th></tr></thead>
+                    <tbody>
+                        ${forecast.values.map(
+          (v) => `
+                            <tr>
+                                <td>${escapeHtml(String(v.period_start))}</td>
+                                <td>${escapeHtml(String(v.predicted))}</td>
+                                <td>${escapeHtml(String(v.lower_bound))} - ${escapeHtml(String(v.upper_bound))}</td>
+                            </tr>
+                        `
+        ).join("")}
+                    </tbody>
+                </table>
+            </div>
+        `
+      );
+    });
+    const unavailable = container.querySelector(".feature-unavailable");
+    if (unavailable) unavailable.classList.add("hidden");
+    container.appendChild(content);
+  }
+  function renderAIInsights(container, insights) {
+    if (!container) return;
+    if (!insights) return;
+    const content = document.createElement("div");
+    content.className = "insights-content";
+    if (insights.is_stub) {
+      const warning = createElement(
+        "div",
+        { class: "stub-warning" },
+        "\u26A0\uFE0F Demo data"
+      );
+      content.appendChild(warning);
+    }
+    ["critical", "warning", "info"].forEach((severity) => {
+      const items = insights.insights.filter(
+        (i) => i.severity === severity
+      );
+      if (!items.length) return;
+      appendTrustedHtml(
+        content,
+        `
+            <div class="severity-section">
+                <h4>${SEVERITY_ICONS[severity]} ${severity.charAt(0).toUpperCase() + severity.slice(1)}</h4>
+                <div class="insight-cards">
+                    ${items.map(
+          (i) => `
+                        <div class="insight-card ${escapeHtml(String(i.severity))}">
+                            <div class="insight-category">${escapeHtml(String(i.category))}</div>
+                            <h5>${escapeHtml(String(i.title))}</h5>
+                            <p>${escapeHtml(String(i.description))}</p>
+                        </div>
+                    `
+        ).join("")}
+                </div>
+            </div>
+        `
+      );
+    });
+    const unavailable = container.querySelector(".feature-unavailable");
+    if (unavailable) unavailable.classList.add("hidden");
+    container.appendChild(content);
+  }
+
   // ui/modules/charts.ts
   function renderDelta(element, percentChange, inverse = false) {
     if (!element) return;
     if (percentChange === null) {
-      element.innerHTML = "";
+      clearElement(element);
       element.className = "metric-delta";
       return;
     }
@@ -1387,11 +1656,14 @@ var PRInsightsDashboard = (() => {
     }
     const sign = isPositive ? "+" : "";
     element.className = cssClass;
-    element.innerHTML = `<span class="delta-arrow">${arrow}</span> ${sign}${absChange.toFixed(0)}% <span class="delta-label">vs prev</span>`;
+    renderTrustedHtml(
+      element,
+      `<span class="delta-arrow">${arrow}</span> ${sign}${absChange.toFixed(0)}% <span class="delta-label">vs prev</span>`
+    );
   }
   function renderSparkline(element, values) {
     if (!element || !values || values.length < 2) {
-      if (element) element.innerHTML = "";
+      if (element) clearElement(element);
       return;
     }
     const data = values.slice(-8);
@@ -1409,13 +1681,16 @@ var PRInsightsDashboard = (() => {
     const pathD = points.map((p, i) => `${i === 0 ? "M" : "L"} ${p.x.toFixed(1)} ${p.y.toFixed(1)}`).join(" ");
     const areaD = pathD + ` L ${points[points.length - 1].x.toFixed(1)} ${height - padding} L ${points[0].x.toFixed(1)} ${height - padding} Z`;
     const lastPoint = points[points.length - 1];
-    element.innerHTML = `
+    renderTrustedHtml(
+      element,
+      `
         <svg viewBox="0 0 ${width} ${height}" preserveAspectRatio="none">
             <path class="sparkline-area" d="${areaD}"/>
             <path class="sparkline-line" d="${pathD}"/>
             <circle class="sparkline-dot" cx="${lastPoint.x.toFixed(1)}" cy="${lastPoint.y.toFixed(1)}" r="2"/>
         </svg>
-    `;
+    `
+    );
   }
   function addChartTooltips(container, contentFn) {
     const dots = container.querySelectorAll("[data-tooltip]");
@@ -1424,7 +1699,7 @@ var PRInsightsDashboard = (() => {
         const content = contentFn(dot);
         const tooltip = document.createElement("div");
         tooltip.className = "chart-tooltip";
-        tooltip.innerHTML = content;
+        renderTrustedHtml(tooltip, content);
         tooltip.style.position = "absolute";
         const rect = dot.getBoundingClientRect();
         tooltip.style.left = `${rect.left + rect.width / 2}px`;
@@ -1440,6 +1715,335 @@ var PRInsightsDashboard = (() => {
         }
       });
     });
+  }
+
+  // ui/modules/charts/summary-cards.ts
+  function renderSummaryCards(options) {
+    const { rollups, prevRollups = [], containers, metricsCollector: metricsCollector2 } = options;
+    if (metricsCollector2) metricsCollector2.mark("render-summary-cards-start");
+    const current = calculateMetrics(rollups);
+    const previous = calculateMetrics(prevRollups);
+    renderMetricValues(containers, current);
+    const sparklineData = extractSparklineData(rollups);
+    renderSparklines(containers, sparklineData);
+    if (prevRollups && prevRollups.length > 0) {
+      renderDeltas(containers, current, previous);
+    } else {
+      clearDeltas(containers);
+    }
+    if (metricsCollector2) {
+      metricsCollector2.mark("render-summary-cards-end");
+      metricsCollector2.mark("first-meaningful-paint");
+      metricsCollector2.measure(
+        "init-to-fmp",
+        "dashboard-init",
+        "first-meaningful-paint"
+      );
+    }
+  }
+  function renderMetricValues(containers, metrics) {
+    if (containers.totalPrs) {
+      containers.totalPrs.textContent = metrics.totalPrs.toLocaleString();
+    }
+    if (containers.cycleP50) {
+      containers.cycleP50.textContent = metrics.cycleP50 !== null ? formatDuration(metrics.cycleP50) : "-";
+    }
+    if (containers.cycleP90) {
+      containers.cycleP90.textContent = metrics.cycleP90 !== null ? formatDuration(metrics.cycleP90) : "-";
+    }
+    if (containers.authorsCount) {
+      containers.authorsCount.textContent = metrics.avgAuthors.toLocaleString();
+    }
+    if (containers.reviewersCount) {
+      containers.reviewersCount.textContent = metrics.avgReviewers.toLocaleString();
+    }
+  }
+  function renderSparklines(containers, data) {
+    renderSparkline(containers.totalPrsSparkline, data.prCounts);
+    renderSparkline(containers.cycleP50Sparkline, data.p50s);
+    renderSparkline(containers.cycleP90Sparkline, data.p90s);
+    renderSparkline(containers.authorsSparkline, data.authors);
+    renderSparkline(containers.reviewersSparkline, data.reviewers);
+  }
+  function renderDeltas(containers, current, previous) {
+    renderDelta(
+      containers.totalPrsDelta,
+      calculatePercentChange(current.totalPrs, previous.totalPrs),
+      false
+    );
+    renderDelta(
+      containers.cycleP50Delta,
+      calculatePercentChange(current.cycleP50, previous.cycleP50),
+      true
+      // Inverse: lower is better
+    );
+    renderDelta(
+      containers.cycleP90Delta,
+      calculatePercentChange(current.cycleP90, previous.cycleP90),
+      true
+      // Inverse: lower is better
+    );
+    renderDelta(
+      containers.authorsDelta,
+      calculatePercentChange(current.avgAuthors, previous.avgAuthors),
+      false
+    );
+    renderDelta(
+      containers.reviewersDelta,
+      calculatePercentChange(current.avgReviewers, previous.avgReviewers),
+      false
+    );
+  }
+  function clearDeltas(containers) {
+    const deltaElements = [
+      containers.totalPrsDelta,
+      containers.cycleP50Delta,
+      containers.cycleP90Delta,
+      containers.authorsDelta,
+      containers.reviewersDelta
+    ];
+    deltaElements.forEach((el) => {
+      if (el) {
+        clearElement(el);
+        el.className = "metric-delta";
+      }
+    });
+  }
+
+  // ui/modules/charts/throughput.ts
+  function renderThroughputChart(container, rollups) {
+    if (!container) return;
+    if (!rollups || !rollups.length) {
+      renderNoData(container, "No data for selected range");
+      return;
+    }
+    const prCounts = rollups.map((r) => r.pr_count || 0);
+    const maxCount = Math.max(...prCounts);
+    const movingAvg = calculateMovingAverage(prCounts, 4);
+    const barsHtml = rollups.map((r) => {
+      const height = maxCount > 0 ? (r.pr_count || 0) / maxCount * 100 : 0;
+      const weekLabel = r.week.split("-W")[1] || "";
+      return `
+            <div class="bar-container" title="${escapeHtml(r.week)}: ${r.pr_count || 0} PRs">
+                <div class="bar" style="height: ${height}%"></div>
+                <div class="bar-label">${escapeHtml(weekLabel)}</div>
+            </div>
+        `;
+    }).join("");
+    const trendLineHtml = renderTrendLine(rollups, movingAvg, maxCount);
+    const legendHtml = `
+        <div class="chart-legend">
+            <div class="legend-item">
+                <span class="legend-bar"></span>
+                <span>Weekly PRs</span>
+            </div>
+            <div class="legend-item">
+                <span class="legend-line"></span>
+                <span>4-week avg</span>
+            </div>
+        </div>
+    `;
+    renderTrustedHtml(
+      container,
+      `
+        <div class="chart-with-trend">
+            <div class="bar-chart">${barsHtml}</div>
+            ${trendLineHtml}
+        </div>
+        ${legendHtml}
+    `
+    );
+  }
+  function renderTrendLine(rollups, movingAvg, maxCount) {
+    if (rollups.length < 4) return "";
+    const validPoints = movingAvg.map((val, i) => ({ val, i })).filter((p) => p.val !== null);
+    if (validPoints.length < 2) return "";
+    const chartHeight = 200;
+    const chartPadding = 8;
+    const points = validPoints.map((p) => {
+      const x = p.i / (rollups.length - 1) * 100;
+      const y = maxCount > 0 ? chartHeight - chartPadding - p.val / maxCount * (chartHeight - chartPadding * 2) : chartHeight / 2;
+      return { x, y };
+    });
+    const pathD = points.map(
+      (pt, i) => `${i === 0 ? "M" : "L"} ${pt.x.toFixed(1)}% ${pt.y.toFixed(1)}`
+    ).join(" ");
+    return `
+        <div class="trend-line-overlay">
+            <svg viewBox="0 0 100 ${chartHeight}" preserveAspectRatio="none">
+                <path class="trend-line" d="${pathD}" vector-effect="non-scaling-stroke"/>
+            </svg>
+        </div>
+    `;
+  }
+
+  // ui/modules/charts/cycle-time.ts
+  function renderCycleDistribution(container, distributions) {
+    if (!container) return;
+    if (!distributions || !distributions.length) {
+      renderNoData(container, "No data for selected range");
+      return;
+    }
+    const buckets = {
+      "0-1h": 0,
+      "1-4h": 0,
+      "4-24h": 0,
+      "1-3d": 0,
+      "3-7d": 0,
+      "7d+": 0
+    };
+    distributions.forEach((d) => {
+      Object.entries(d.cycle_time_buckets || {}).forEach(([key, val]) => {
+        buckets[key] = (buckets[key] || 0) + val;
+      });
+    });
+    const total = Object.values(buckets).reduce((a, b) => a + b, 0);
+    if (total === 0) {
+      renderNoData(container, "No cycle time data");
+      return;
+    }
+    const html = Object.entries(buckets).map(([label, count]) => {
+      const pct = (count / total * 100).toFixed(1);
+      return `
+            <div class="dist-row">
+                <span class="dist-label">${label}</span>
+                <div class="dist-bar-bg">
+                    <div class="dist-bar" style="width: ${pct}%"></div>
+                </div>
+                <span class="dist-value">${count} (${pct}%)</span>
+            </div>
+        `;
+    }).join("");
+    renderTrustedHtml(container, html);
+  }
+  function renderCycleTimeTrend(container, rollups) {
+    if (!container) return;
+    if (!rollups || rollups.length < 2) {
+      renderNoData(container, "Not enough data for trend");
+      return;
+    }
+    const p50Data = rollups.map((r) => ({ week: r.week, value: r.cycle_time_p50 })).filter((d) => d.value !== null);
+    const p90Data = rollups.map((r) => ({ week: r.week, value: r.cycle_time_p90 })).filter((d) => d.value !== null);
+    if (p50Data.length < 2 && p90Data.length < 2) {
+      renderNoData(container, "No cycle time data available");
+      return;
+    }
+    const allValues = [
+      ...p50Data.map((d) => d.value),
+      ...p90Data.map((d) => d.value)
+    ];
+    const maxVal = Math.max(...allValues);
+    const minVal = Math.min(...allValues);
+    const range = maxVal - minVal || 1;
+    const width = 100;
+    const height = 180;
+    const padding = { top: 10, right: 10, bottom: 25, left: 40 };
+    const chartWidth = width - padding.left - padding.right;
+    const chartHeight = height - padding.top - padding.bottom;
+    const generatePath = (data) => {
+      const points = data.map((d) => {
+        const dataIndex = rollups.findIndex((r) => r.week === d.week);
+        const x = padding.left + dataIndex / (rollups.length - 1) * chartWidth;
+        const y = padding.top + chartHeight - (d.value - minVal) / range * chartHeight;
+        return { x, y, week: d.week, value: d.value };
+      });
+      const pathD = points.map(
+        (p, i) => `${i === 0 ? "M" : "L"} ${p.x.toFixed(1)} ${p.y.toFixed(1)}`
+      ).join(" ");
+      return { pathD, points };
+    };
+    const p50Path = p50Data.length >= 2 ? generatePath(p50Data) : null;
+    const p90Path = p90Data.length >= 2 ? generatePath(p90Data) : null;
+    const yLabels = [minVal, (minVal + maxVal) / 2, maxVal];
+    const svgContent = `
+        <svg viewBox="0 0 ${width} ${height}" preserveAspectRatio="xMidYMid meet">
+            <!-- Grid lines -->
+            ${yLabels.map((_, i) => {
+      const y = padding.top + chartHeight - i / (yLabels.length - 1) * chartHeight;
+      return `<line class="line-chart-grid" x1="${padding.left}" y1="${y}" x2="${width - padding.right}" y2="${y}"/>`;
+    }).join("")}
+
+            <!-- Y-axis labels -->
+            ${yLabels.map((val, i) => {
+      const y = padding.top + chartHeight - i / (yLabels.length - 1) * chartHeight;
+      return `<text class="line-chart-axis" x="${padding.left - 4}" y="${y + 3}" text-anchor="end">${formatDuration(val)}</text>`;
+    }).join("")}
+
+            <!-- Lines -->
+            ${p90Path ? `<path class="line-chart-p90" d="${p90Path.pathD}" vector-effect="non-scaling-stroke"/>` : ""}
+            ${p50Path ? `<path class="line-chart-p50" d="${p50Path.pathD}" vector-effect="non-scaling-stroke"/>` : ""}
+
+            <!-- Dots -->
+            ${p90Path ? p90Path.points.map((p) => `<circle class="line-chart-dot" cx="${p.x}" cy="${p.y}" r="3" fill="var(--warning)" data-week="${escapeHtml(p.week)}" data-value="${p.value}" data-metric="P90"/>`).join("") : ""}
+            ${p50Path ? p50Path.points.map((p) => `<circle class="line-chart-dot" cx="${p.x}" cy="${p.y}" r="3" fill="var(--primary)" data-week="${escapeHtml(p.week)}" data-value="${p.value}" data-metric="P50"/>`).join("") : ""}
+        </svg>
+    `;
+    const legendHtml = `
+        <div class="chart-legend">
+            <div class="legend-item">
+                <span class="chart-tooltip-dot legend-p50"></span>
+                <span>P50 (Median)</span>
+            </div>
+            <div class="legend-item">
+                <span class="chart-tooltip-dot legend-p90"></span>
+                <span>P90</span>
+            </div>
+        </div>
+    `;
+    renderTrustedHtml(
+      container,
+      `<div class="line-chart">${svgContent}</div>${legendHtml}`
+    );
+    addChartTooltips(container, (dot) => {
+      const week = dot.dataset["week"] || "";
+      const value = parseFloat(dot.dataset["value"] || "0");
+      const metric = dot.dataset["metric"] || "";
+      return `
+            <div class="chart-tooltip-title">${escapeHtml(week)}</div>
+            <div class="chart-tooltip-row">
+                <span class="chart-tooltip-label">
+                    <span class="chart-tooltip-dot ${metric === "P50" ? "legend-p50" : "legend-p90"}"></span>
+                    ${escapeHtml(metric)}
+                </span>
+                <span>${formatDuration(value)}</span>
+            </div>
+        `;
+    });
+  }
+
+  // ui/modules/charts/reviewer-activity.ts
+  function renderReviewerActivity(container, rollups) {
+    if (!container) return;
+    if (!rollups || !rollups.length) {
+      renderNoData(container, "No reviewer data available");
+      return;
+    }
+    const recentRollups = rollups.slice(-8);
+    const maxReviewers = Math.max(
+      ...recentRollups.map((r) => r.reviewers_count || 0)
+    );
+    if (maxReviewers === 0) {
+      renderNoData(container, "No reviewer data available");
+      return;
+    }
+    const barsHtml = recentRollups.map((r) => {
+      const count = r.reviewers_count || 0;
+      const pct = count / maxReviewers * 100;
+      const weekLabel = r.week.split("-W")[1] || "";
+      return `
+            <div class="h-bar-row" title="${escapeHtml(r.week)}: ${count} reviewers">
+                <span class="h-bar-label">W${escapeHtml(weekLabel)}</span>
+                <div class="h-bar-container">
+                    <div class="h-bar" style="width: ${pct}%"></div>
+                </div>
+                <span class="h-bar-value">${count}</span>
+            </div>
+        `;
+    }).join("");
+    renderTrustedHtml(
+      container,
+      `<div class="horizontal-bar-chart">${barsHtml}</div>`
+    );
   }
 
   // ui/modules/export.ts
@@ -1495,6 +2099,48 @@ var PRInsightsDashboard = (() => {
     }, durationMs);
   }
 
+  // ui/modules/sdk.ts
+  var sdkInitialized = false;
+  async function initializeAdoSdk(options = {}) {
+    if (sdkInitialized) {
+      return;
+    }
+    const { timeout = 1e4, onReady } = options;
+    return new Promise((resolve, reject) => {
+      const timeoutId = setTimeout(() => {
+        reject(new Error("Azure DevOps SDK initialization timed out"));
+      }, timeout);
+      VSS.init({
+        explicitNotifyLoaded: true,
+        usePlatformScripts: true,
+        usePlatformStyles: true
+      });
+      VSS.ready(() => {
+        clearTimeout(timeoutId);
+        sdkInitialized = true;
+        if (onReady) {
+          onReady();
+        }
+        VSS.notifyLoadSucceeded();
+        resolve();
+      });
+    });
+  }
+  async function getBuildClient() {
+    return new Promise((resolve) => {
+      VSS.require(["TFS/Build/RestClient"], (...args) => {
+        const BuildRestClient = args[0];
+        resolve(BuildRestClient.getClient());
+      });
+    });
+  }
+  function isLocalMode() {
+    return typeof window !== "undefined" && window.LOCAL_DASHBOARD_MODE === true;
+  }
+  function getLocalDatasetPath() {
+    return typeof window !== "undefined" && window.DATASET_PATH || "./dataset";
+  }
+
   // ui/dashboard.ts
   var loader = null;
   var artifactClient = null;
@@ -1509,7 +2155,6 @@ var PRInsightsDashboard = (() => {
   var comparisonMode = false;
   var cachedRollups = [];
   var currentBuildId = null;
-  var sdkInitialized = false;
   var SETTINGS_KEY_PROJECT = "pr-insights-source-project";
   var SETTINGS_KEY_PIPELINE = "pr-insights-pipeline-id";
   var ENABLE_PHASE5_FEATURES = true;
@@ -1571,30 +2216,6 @@ var PRInsightsDashboard = (() => {
   } : null;
   if (DEBUG_ENABLED && typeof window !== "undefined") {
     window.__dashboardMetrics = metricsCollector;
-  }
-  async function initializeAdoSdk() {
-    if (sdkInitialized) return;
-    return new Promise((resolve, reject) => {
-      const timeout = setTimeout(() => {
-        reject(new Error("Azure DevOps SDK initialization timed out"));
-      }, 1e4);
-      VSS.init({
-        explicitNotifyLoaded: true,
-        usePlatformScripts: true,
-        usePlatformStyles: true
-      });
-      VSS.ready(() => {
-        clearTimeout(timeout);
-        sdkInitialized = true;
-        const webContext = VSS.getWebContext();
-        const projectNameEl = document.getElementById("current-project-name");
-        if (projectNameEl && webContext?.project?.name) {
-          projectNameEl.textContent = webContext.project.name;
-        }
-        VSS.notifyLoadSucceeded();
-        resolve();
-      });
-    });
   }
   function parseQueryParams() {
     const params = new URLSearchParams(window.location.search);
@@ -1708,7 +2329,10 @@ var PRInsightsDashboard = (() => {
     artifactClient = new ArtifactClient(targetProjectId);
     await artifactClient.initialize();
     if (queryResult.mode === "explicit") {
-      return await resolveFromPipelineId(queryResult.value, targetProjectId);
+      return await resolveFromPipelineId(
+        queryResult.value,
+        targetProjectId
+      );
     }
     if (sourceConfig.pipelineId) {
       console.log(
@@ -1841,20 +2465,6 @@ var PRInsightsDashboard = (() => {
     }
     return matches;
   }
-  async function getBuildClient() {
-    return new Promise((resolve) => {
-      VSS.require(["TFS/Build/RestClient"], (...args) => {
-        const BuildRestClient = args[0];
-        resolve(BuildRestClient.getClient());
-      });
-    });
-  }
-  function isLocalMode() {
-    return typeof window !== "undefined" && window.LOCAL_DASHBOARD_MODE === true;
-  }
-  function getLocalDatasetPath() {
-    return typeof window !== "undefined" && window.DATASET_PATH || "./dataset";
-  }
   async function init() {
     if (metricsCollector) metricsCollector.mark("dashboard-init");
     cacheElements();
@@ -1877,7 +2487,15 @@ var PRInsightsDashboard = (() => {
         await loadDataset();
         return;
       }
-      await initializeAdoSdk();
+      await initializeAdoSdk({
+        onReady: () => {
+          const webContext = VSS.getWebContext();
+          const projectNameEl = document.getElementById("current-project-name");
+          if (projectNameEl && webContext?.project?.name) {
+            projectNameEl.textContent = webContext.project.name;
+          }
+        }
+      });
       const config = await resolveConfiguration();
       if (config.directUrl) {
         loader = new DatasetLoader(config.directUrl);
@@ -1896,112 +2514,6 @@ var PRInsightsDashboard = (() => {
       console.error("Dashboard initialization failed:", error);
       handleError(error);
     }
-  }
-  function handleError(error) {
-    hideAllPanels();
-    if (error instanceof PrInsightsError) {
-      switch (error.type) {
-        case ErrorTypes.SETUP_REQUIRED:
-          showSetupRequired(error);
-          break;
-        case ErrorTypes.MULTIPLE_PIPELINES:
-          showMultiplePipelines(error);
-          break;
-        case ErrorTypes.ARTIFACTS_MISSING:
-          showArtifactsMissing(error);
-          break;
-        case ErrorTypes.PERMISSION_DENIED:
-          showPermissionDenied(error);
-          break;
-        default:
-          showGenericError(error.title, error.message);
-          break;
-      }
-    } else {
-      showGenericError("Error", getErrorMessage(error) || "An unexpected error occurred");
-    }
-  }
-  function hideAllPanels() {
-    [
-      "setup-required",
-      "multiple-pipelines",
-      "artifacts-missing",
-      "permission-denied",
-      "error-state",
-      "loading-state",
-      "main-content"
-    ].forEach((id) => {
-      document.getElementById(id)?.classList.add("hidden");
-    });
-  }
-  function showSetupRequired(error) {
-    const panel = document.getElementById("setup-required");
-    if (!panel) return showGenericError(error.title, error.message);
-    const messageEl = document.getElementById("setup-message");
-    if (messageEl) messageEl.textContent = error.message;
-    const details = error.details;
-    if (details?.instructions && Array.isArray(details.instructions)) {
-      const stepsList = document.getElementById("setup-steps");
-      if (stepsList) {
-        stepsList.innerHTML = details.instructions.map((s) => `<li>${escapeHtml(s)}</li>`).join("");
-      }
-    }
-    if (details?.docsUrl) {
-      const docsLink = document.getElementById(
-        "docs-link"
-      );
-      if (docsLink) docsLink.href = String(details.docsUrl);
-    }
-    panel.classList.remove("hidden");
-  }
-  function showMultiplePipelines(error) {
-    const panel = document.getElementById("multiple-pipelines");
-    if (!panel) return showGenericError(error.title, error.message);
-    const messageEl = document.getElementById("multiple-message");
-    if (messageEl) messageEl.textContent = error.message;
-    const listEl = document.getElementById("pipeline-list");
-    const details = error.details;
-    if (listEl && details?.matches && Array.isArray(details.matches)) {
-      listEl.innerHTML = details.matches.map(
-        (m) => `
-                <a href="?pipelineId=${escapeHtml(String(m.id))}" class="pipeline-option">
-                    <strong>${escapeHtml(m.name)}</strong>
-                    <span class="pipeline-id">ID: ${escapeHtml(String(m.id))}</span>
-                </a>
-            `
-      ).join("");
-    }
-    panel.classList.remove("hidden");
-  }
-  function showPermissionDenied(error) {
-    const panel = document.getElementById("permission-denied");
-    if (!panel) return showGenericError(error.title, error.message);
-    const messageEl = document.getElementById("permission-message");
-    if (messageEl) messageEl.textContent = error.message;
-    panel.classList.remove("hidden");
-  }
-  function showGenericError(title, message) {
-    const panel = document.getElementById("error-state");
-    if (!panel) return;
-    const titleEl = document.getElementById("error-title");
-    const messageEl = document.getElementById("error-message");
-    if (titleEl) titleEl.textContent = title;
-    if (messageEl) messageEl.textContent = message;
-    panel.classList.remove("hidden");
-  }
-  function showArtifactsMissing(error) {
-    const panel = document.getElementById("artifacts-missing");
-    if (!panel) return showGenericError(error.title, error.message);
-    const messageEl = document.getElementById("missing-message");
-    if (messageEl) messageEl.textContent = error.message;
-    const details = error.details;
-    if (details?.instructions && Array.isArray(details.instructions)) {
-      const stepsList = document.getElementById("missing-steps");
-      if (stepsList) {
-        stepsList.innerHTML = details.instructions.map((s) => `<li>${s}</li>`).join("");
-      }
-    }
-    panel.classList.remove("hidden");
   }
   function cacheElements() {
     const ids = [
@@ -2158,310 +2670,54 @@ var PRInsightsDashboard = (() => {
       console.debug("Previous period data not available:", e);
     }
     cachedRollups = rollups;
-    renderSummaryCards(rollups, prevRollups);
-    renderThroughputChart(rollups);
-    renderCycleTimeTrend(rollups);
-    renderReviewerActivity(rollups);
-    renderCycleDistribution(distributions);
+    renderSummaryCards2(rollups, prevRollups);
+    renderThroughputChart2(rollups);
+    renderCycleTimeTrend2(rollups);
+    renderReviewerActivity2(rollups);
+    renderCycleDistribution2(distributions);
     if (comparisonMode) {
       updateComparisonBanner();
     }
   }
-  function renderSummaryCards(rollups, prevRollups = []) {
-    if (metricsCollector) metricsCollector.mark("render-summary-cards-start");
-    const current = calculateMetrics(rollups);
-    const previous = calculateMetrics(prevRollups);
-    if (elements["total-prs"])
-      elements["total-prs"].textContent = current.totalPrs.toLocaleString();
-    if (elements["cycle-p50"])
-      elements["cycle-p50"].textContent = current.cycleP50 !== null ? formatDuration(current.cycleP50) : "-";
-    if (elements["cycle-p90"])
-      elements["cycle-p90"].textContent = current.cycleP90 !== null ? formatDuration(current.cycleP90) : "-";
-    if (elements["authors-count"])
-      elements["authors-count"].textContent = current.avgAuthors.toLocaleString();
-    if (elements["reviewers-count"]) {
-      elements["reviewers-count"].textContent = current.avgReviewers.toLocaleString();
-    }
-    const sparklineData = extractSparklineData(rollups);
-    renderSparkline(elements["total-prs-sparkline"], sparklineData.prCounts);
-    renderSparkline(elements["cycle-p50-sparkline"], sparklineData.p50s);
-    renderSparkline(elements["cycle-p90-sparkline"], sparklineData.p90s);
-    renderSparkline(elements["authors-sparkline"], sparklineData.authors);
-    renderSparkline(elements["reviewers-sparkline"], sparklineData.reviewers);
-    if (prevRollups && prevRollups.length > 0) {
-      renderDelta(
-        elements["total-prs-delta"],
-        calculatePercentChange(current.totalPrs, previous.totalPrs),
-        false
-      );
-      renderDelta(
-        elements["cycle-p50-delta"],
-        calculatePercentChange(current.cycleP50, previous.cycleP50),
-        true
-      );
-      renderDelta(
-        elements["cycle-p90-delta"],
-        calculatePercentChange(current.cycleP90, previous.cycleP90),
-        true
-      );
-      renderDelta(
-        elements["authors-delta"],
-        calculatePercentChange(current.avgAuthors, previous.avgAuthors),
-        false
-      );
-      renderDelta(
-        elements["reviewers-delta"],
-        calculatePercentChange(current.avgReviewers, previous.avgReviewers),
-        false
-      );
-    } else {
-      [
-        "total-prs-delta",
-        "cycle-p50-delta",
-        "cycle-p90-delta",
-        "authors-delta",
-        "reviewers-delta"
-      ].forEach((id) => {
-        const el = elements[id];
-        if (el) {
-          el.innerHTML = "";
-          el.className = "metric-delta";
-        }
-      });
-    }
-    if (metricsCollector) {
-      metricsCollector.mark("render-summary-cards-end");
-      metricsCollector.mark("first-meaningful-paint");
-      metricsCollector.measure(
-        "init-to-fmp",
-        "dashboard-init",
-        "first-meaningful-paint"
-      );
-    }
-  }
-  function renderThroughputChart(rollups) {
-    const chartEl = elements["throughput-chart"];
-    if (!chartEl) return;
-    if (!rollups || !rollups.length) {
-      chartEl.innerHTML = '<p class="no-data">No data for selected range</p>';
-      return;
-    }
-    const prCounts = rollups.map((r) => r.pr_count || 0);
-    const maxCount = Math.max(...prCounts);
-    const movingAvg = calculateMovingAverage(prCounts, 4);
-    const barsHtml = rollups.map((r) => {
-      const height = maxCount > 0 ? (r.pr_count || 0) / maxCount * 100 : 0;
-      return `
-            <div class="bar-container" title="${r.week}: ${r.pr_count || 0} PRs">
-                <div class="bar" style="height: ${height}%"></div>
-                <div class="bar-label">${r.week.split("-W")[1]}</div>
-            </div>
-        `;
-    }).join("");
-    let trendLineHtml = "";
-    if (rollups.length >= 4) {
-      const validPoints = movingAvg.map((val, i) => ({ val, i })).filter((p) => p.val !== null);
-      if (validPoints.length >= 2) {
-        const chartHeight = 200;
-        const chartPadding = 8;
-        const points = validPoints.map((p) => {
-          const x = p.i / (rollups.length - 1) * 100;
-          const y = maxCount > 0 ? chartHeight - chartPadding - p.val / maxCount * (chartHeight - chartPadding * 2) : chartHeight / 2;
-          return { x, y };
-        });
-        const pathD = points.map(
-          (pt, i) => `${i === 0 ? "M" : "L"} ${pt.x.toFixed(1)}% ${pt.y.toFixed(1)}`
-        ).join(" ");
-        trendLineHtml = `
-                <div class="trend-line-overlay">
-                    <svg viewBox="0 0 100 ${chartHeight}" preserveAspectRatio="none">
-                        <path class="trend-line" d="${pathD}" vector-effect="non-scaling-stroke"/>
-                    </svg>
-                </div>
-            `;
-      }
-    }
-    const legendHtml = `
-        <div class="chart-legend">
-            <div class="legend-item">
-                <span class="legend-bar"></span>
-                <span>Weekly PRs</span>
-            </div>
-            <div class="legend-item">
-                <span class="legend-line"></span>
-                <span>4-week avg</span>
-            </div>
-        </div>
-    `;
-    chartEl.innerHTML = `
-        <div class="chart-with-trend">
-            <div class="bar-chart">${barsHtml}</div>
-            ${trendLineHtml}
-        </div>
-        ${legendHtml}
-    `;
-  }
-  function renderCycleDistribution(distributions) {
-    const distEl = elements["cycle-distribution"];
-    if (!distEl) return;
-    if (!distributions || !distributions.length) {
-      distEl.innerHTML = '<p class="no-data">No data for selected range</p>';
-      return;
-    }
-    const buckets = {
-      "0-1h": 0,
-      "1-4h": 0,
-      "4-24h": 0,
-      "1-3d": 0,
-      "3-7d": 0,
-      "7d+": 0
+  function renderSummaryCards2(rollups, prevRollups = []) {
+    const containers = {
+      totalPrs: elements["total-prs"] ?? null,
+      cycleP50: elements["cycle-p50"] ?? null,
+      cycleP90: elements["cycle-p90"] ?? null,
+      authorsCount: elements["authors-count"] ?? null,
+      reviewersCount: elements["reviewers-count"] ?? null,
+      totalPrsSparkline: elements["total-prs-sparkline"] ?? null,
+      cycleP50Sparkline: elements["cycle-p50-sparkline"] ?? null,
+      cycleP90Sparkline: elements["cycle-p90-sparkline"] ?? null,
+      authorsSparkline: elements["authors-sparkline"] ?? null,
+      reviewersSparkline: elements["reviewers-sparkline"] ?? null,
+      totalPrsDelta: elements["total-prs-delta"] ?? null,
+      cycleP50Delta: elements["cycle-p50-delta"] ?? null,
+      cycleP90Delta: elements["cycle-p90-delta"] ?? null,
+      authorsDelta: elements["authors-delta"] ?? null,
+      reviewersDelta: elements["reviewers-delta"] ?? null
     };
-    distributions.forEach((d) => {
-      Object.entries(d.cycle_time_buckets || {}).forEach(([key, val]) => {
-        buckets[key] = (buckets[key] || 0) + val;
-      });
-    });
-    const total = Object.values(buckets).reduce((a, b) => a + b, 0);
-    if (total === 0) {
-      distEl.innerHTML = '<p class="no-data">No cycle time data</p>';
-      return;
-    }
-    const html = Object.entries(buckets).map(([label, count]) => {
-      const pct = (count / total * 100).toFixed(1);
-      return `
-            <div class="dist-row">
-                <span class="dist-label">${label}</span>
-                <div class="dist-bar-bg">
-                    <div class="dist-bar" style="width: ${pct}%"></div>
-                </div>
-                <span class="dist-value">${count} (${pct}%)</span>
-            </div>
-        `;
-    }).join("");
-    distEl.innerHTML = html;
-  }
-  function renderCycleTimeTrend(rollups) {
-    const trendEl = elements["cycle-time-trend"];
-    if (!trendEl) return;
-    if (!rollups || rollups.length < 2) {
-      trendEl.innerHTML = '<p class="no-data">Not enough data for trend</p>';
-      return;
-    }
-    const p50Data = rollups.map((r) => ({ week: r.week, value: r.cycle_time_p50 })).filter((d) => d.value !== null);
-    const p90Data = rollups.map((r) => ({ week: r.week, value: r.cycle_time_p90 })).filter((d) => d.value !== null);
-    if (p50Data.length < 2 && p90Data.length < 2) {
-      trendEl.innerHTML = '<p class="no-data">No cycle time data available</p>';
-      return;
-    }
-    const allValues = [
-      ...p50Data.map((d) => d.value),
-      ...p90Data.map((d) => d.value)
-    ];
-    const maxVal = Math.max(...allValues);
-    const minVal = Math.min(...allValues);
-    const range = maxVal - minVal || 1;
-    const width = 100;
-    const height = 180;
-    const padding = { top: 10, right: 10, bottom: 25, left: 40 };
-    const chartWidth = width - padding.left - padding.right;
-    const chartHeight = height - padding.top - padding.bottom;
-    const generatePath = (data) => {
-      const points = data.map((d) => {
-        const dataIndex = rollups.findIndex((r) => r.week === d.week);
-        const x = padding.left + dataIndex / (rollups.length - 1) * chartWidth;
-        const y = padding.top + chartHeight - (d.value - minVal) / range * chartHeight;
-        return { x, y, week: d.week, value: d.value };
-      });
-      const pathD = points.map(
-        (p, i) => `${i === 0 ? "M" : "L"} ${p.x.toFixed(1)} ${p.y.toFixed(1)}`
-      ).join(" ");
-      return { pathD, points };
-    };
-    const p50Path = p50Data.length >= 2 ? generatePath(p50Data) : null;
-    const p90Path = p90Data.length >= 2 ? generatePath(p90Data) : null;
-    const yLabels = [minVal, (minVal + maxVal) / 2, maxVal];
-    const svgContent = `
-        <svg viewBox="0 0 ${width} ${height}" preserveAspectRatio="xMidYMid meet">
-            <!-- Grid lines -->
-            ${yLabels.map((val, i) => {
-      const y = padding.top + chartHeight - i / (yLabels.length - 1) * chartHeight;
-      return `<line class="line-chart-grid" x1="${padding.left}" y1="${y}" x2="${width - padding.right}" y2="${y}"/>`;
-    }).join("")}
-
-            <!-- Y-axis labels -->
-            ${yLabels.map((val, i) => {
-      const y = padding.top + chartHeight - i / (yLabels.length - 1) * chartHeight;
-      return `<text class="line-chart-axis" x="${padding.left - 4}" y="${y + 3}" text-anchor="end">${formatDuration(val)}</text>`;
-    }).join("")}
-
-            <!-- Lines -->
-            ${p90Path ? `<path class="line-chart-p90" d="${p90Path.pathD}" vector-effect="non-scaling-stroke"/>` : ""}
-            ${p50Path ? `<path class="line-chart-p50" d="${p50Path.pathD}" vector-effect="non-scaling-stroke"/>` : ""}
-
-            <!-- Dots -->
-            ${p90Path ? p90Path.points.map((p) => `<circle class="line-chart-dot" cx="${p.x}" cy="${p.y}" r="3" fill="var(--warning)" data-week="${p.week}" data-value="${p.value}" data-metric="P90"/>`).join("") : ""}
-            ${p50Path ? p50Path.points.map((p) => `<circle class="line-chart-dot" cx="${p.x}" cy="${p.y}" r="3" fill="var(--primary)" data-week="${p.week}" data-value="${p.value}" data-metric="P50"/>`).join("") : ""}
-        </svg>
-    `;
-    const legendHtml = `
-        <div class="chart-legend">
-            <div class="legend-item">
-                <span class="chart-tooltip-dot legend-p50"></span>
-                <span>P50 (Median)</span>
-            </div>
-            <div class="legend-item">
-                <span class="chart-tooltip-dot legend-p90"></span>
-                <span>P90</span>
-            </div>
-        </div>
-    `;
-    trendEl.innerHTML = `<div class="line-chart">${svgContent}</div>${legendHtml}`;
-    addChartTooltips(trendEl, (dot) => {
-      const week = dot.dataset["week"];
-      const value = parseFloat(dot.dataset["value"] || "0");
-      const metric = dot.dataset["metric"];
-      return `
-            <div class="chart-tooltip-title">${week}</div>
-            <div class="chart-tooltip-row">
-                <span class="chart-tooltip-label">
-                    <span class="chart-tooltip-dot ${metric === "P50" ? "legend-p50" : "legend-p90"}"></span>
-                    ${metric}
-                </span>
-                <span>${formatDuration(value)}</span>
-            </div>
-        `;
+    renderSummaryCards({
+      rollups,
+      prevRollups,
+      containers,
+      metricsCollector
     });
   }
-  function renderReviewerActivity(rollups) {
-    const revEl = elements["reviewer-activity"];
-    if (!revEl) return;
-    if (!rollups || !rollups.length) {
-      revEl.innerHTML = '<p class="no-data">No reviewer data available</p>';
-      return;
-    }
-    const recentRollups = rollups.slice(-8);
-    const maxReviewers = Math.max(
-      ...recentRollups.map((r) => r.reviewers_count || 0)
+  function renderThroughputChart2(rollups) {
+    renderThroughputChart(elements["throughput-chart"] ?? null, rollups);
+  }
+  function renderCycleDistribution2(distributions) {
+    renderCycleDistribution(
+      elements["cycle-distribution"] ?? null,
+      distributions
     );
-    if (maxReviewers === 0) {
-      revEl.innerHTML = '<p class="no-data">No reviewer data available</p>';
-      return;
-    }
-    const barsHtml = recentRollups.map((r) => {
-      const count = r.reviewers_count || 0;
-      const pct = count / maxReviewers * 100;
-      const weekLabel = r.week.split("-W")[1];
-      return `
-            <div class="h-bar-row" title="${r.week}: ${count} reviewers">
-                <span class="h-bar-label">W${weekLabel}</span>
-                <div class="h-bar-container">
-                    <div class="h-bar" style="width: ${pct}%"></div>
-                </div>
-                <span class="h-bar-value">${count}</span>
-            </div>
-        `;
-    }).join("");
-    revEl.innerHTML = `<div class="horizontal-bar-chart">${barsHtml}</div>`;
+  }
+  function renderCycleTimeTrend2(rollups) {
+    renderCycleTimeTrend(elements["cycle-time-trend"] ?? null, rollups);
+  }
+  function renderReviewerActivity2(rollups) {
+    renderReviewerActivity(elements["reviewer-activity"] ?? null, rollups);
   }
   async function updateFeatureTabs() {
     if (!loader) return;
@@ -2474,7 +2730,7 @@ var PRInsightsDashboard = (() => {
       const predictionsResult = await loader.loadPredictions();
       const predData = predictionsResult?.data;
       if (predictionsResult?.state === "ok" && predData?.forecasts?.length && predData.forecasts.length > 0) {
-        renderPredictions(predictionsContent, predData);
+        renderPredictions2(predictionsContent, predData);
       } else if (predictionsUnavailable) {
         predictionsUnavailable.classList.remove("hidden");
       }
@@ -2485,78 +2741,17 @@ var PRInsightsDashboard = (() => {
       const insightsResult = await loader.loadInsights();
       const insData = insightsResult?.data;
       if (insightsResult?.state === "ok" && insData?.insights?.length && insData.insights.length > 0) {
-        renderAIInsights(aiContent, insData);
+        renderAIInsights2(aiContent, insData);
       } else if (aiUnavailable) {
         aiUnavailable.classList.remove("hidden");
       }
     }
   }
-  function renderPredictions(container, predictions) {
-    const content = document.createElement("div");
-    content.className = "predictions-content";
-    if (predictions.is_stub) {
-      content.innerHTML += `<div class="stub-warning">\u26A0\uFE0F Demo data</div>`;
-    }
-    predictions.forecasts.forEach((forecast) => {
-      const label = forecast.metric.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
-      content.innerHTML += `
-            <div class="forecast-section">
-                <h4>${escapeHtml(label)} (${escapeHtml(String(forecast.unit))})</h4>
-                <table class="forecast-table">
-                    <thead><tr><th>Week</th><th>Predicted</th><th>Range</th></tr></thead>
-                    <tbody>
-                        ${forecast.values.map(
-        (v) => `
-                            <tr>
-                                <td>${escapeHtml(String(v.period_start))}</td>
-                                <td>${escapeHtml(String(v.predicted))}</td>
-                                <td>${escapeHtml(String(v.lower_bound))} - ${escapeHtml(String(v.upper_bound))}</td>
-                            </tr>
-                        `
-      ).join("")}
-                    </tbody>
-                </table>
-            </div>
-        `;
-    });
-    const unavailable = container.querySelector(".feature-unavailable");
-    if (unavailable) unavailable.classList.add("hidden");
-    container.appendChild(content);
+  function renderPredictions2(container, predictions) {
+    renderPredictions(container, predictions);
   }
-  function renderAIInsights(container, insights) {
-    const content = document.createElement("div");
-    content.className = "insights-content";
-    if (insights.is_stub) {
-      content.innerHTML += `<div class="stub-warning">\u26A0\uFE0F Demo data</div>`;
-    }
-    const icons = {
-      critical: "\u{1F534}",
-      warning: "\u{1F7E1}",
-      info: "\u{1F535}"
-    };
-    ["critical", "warning", "info"].forEach((severity) => {
-      const items = insights.insights.filter((i) => i.severity === severity);
-      if (!items.length) return;
-      content.innerHTML += `
-            <div class="severity-section">
-                <h4>${icons[severity]} ${severity.charAt(0).toUpperCase() + severity.slice(1)}</h4>
-                <div class="insight-cards">
-                    ${items.map(
-        (i) => `
-                        <div class="insight-card ${escapeHtml(String(i.severity))}">
-                            <div class="insight-category">${escapeHtml(String(i.category))}</div>
-                            <h5>${escapeHtml(String(i.title))}</h5>
-                            <p>${escapeHtml(String(i.description))}</p>
-                        </div>
-                    `
-      ).join("")}
-                </div>
-            </div>
-        `;
-    });
-    const unavailable = container.querySelector(".feature-unavailable");
-    if (unavailable) unavailable.classList.add("hidden");
-    container.appendChild(content);
+  function renderAIInsights2(container, insights) {
+    renderAIInsights(container, insights);
   }
   function handleDateRangeChange(e) {
     const target = e.target;
@@ -2597,7 +2792,8 @@ var PRInsightsDashboard = (() => {
     if (!dimensions) return;
     const repoFilter = getElement("repo-filter");
     if (repoFilter && dimensions.repositories && dimensions.repositories.length > 0) {
-      repoFilter.innerHTML = '<option value="">All</option>';
+      clearElement(repoFilter);
+      repoFilter.appendChild(createOption("", "All"));
       dimensions.repositories.forEach((repo) => {
         const option = document.createElement("option");
         option.value = repo.repository_name;
@@ -2610,7 +2806,8 @@ var PRInsightsDashboard = (() => {
     }
     const teamFilter = getElement("team-filter");
     if (teamFilter && dimensions.teams && dimensions.teams.length > 0) {
-      teamFilter.innerHTML = '<option value="">All</option>';
+      clearElement(teamFilter);
+      teamFilter.appendChild(createOption("", "All"));
       dimensions.teams.forEach((team) => {
         const option = document.createElement("option");
         option.value = team.team_name;
@@ -2685,7 +2882,7 @@ var PRInsightsDashboard = (() => {
       if (hasFilters) {
         renderFilterChips();
       } else {
-        elements["filter-chips"].innerHTML = "";
+        clearElement(elements["filter-chips"]);
       }
     }
   }
@@ -2701,7 +2898,7 @@ var PRInsightsDashboard = (() => {
       const label = getFilterLabel("team", value);
       chips.push(createFilterChip("team", value, label));
     });
-    chipsEl.innerHTML = chips.join("");
+    renderTrustedHtml(chipsEl, chips.join(""));
     chipsEl.querySelectorAll(".filter-chip-remove").forEach((btnNode) => {
       const btn = btnNode;
       btn.addEventListener("click", () => {
@@ -2728,8 +2925,8 @@ var PRInsightsDashboard = (() => {
     const prefix = type === "repo" ? "repo" : "team";
     return `
         <span class="filter-chip">
-            <span class="filter-chip-label">${prefix}: ${label}</span>
-            <span class="filter-chip-remove" data-type="${type}" data-value="${value}">&times;</span>
+            <span class="filter-chip-label">${prefix}: ${escapeHtml(label)}</span>
+            <span class="filter-chip-remove" data-type="${escapeHtml(type)}" data-value="${escapeHtml(value)}">&times;</span>
         </span>
     `;
   }

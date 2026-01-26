@@ -31,9 +31,9 @@ stages:
 
           # Step 1.5: Ensure Node.js is available (required for extension task)
           - task: UseNode@1
-            displayName: 'Install Node.js 20'
+            displayName: 'Install Node.js 22'
             inputs:
-              version: '20.x'
+              version: '22.x'
 
           # Step 2: Download previous DB (branch-isolated, first run will fail - OK)
           - task: DownloadPipelineArtifact@2
