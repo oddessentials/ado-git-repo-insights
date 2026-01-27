@@ -25,10 +25,10 @@
 
 **Purpose**: Project initialization and TypeScript types for enhanced schemas
 
-- [ ] T001 [P] Extend InsightItem TypeScript interface with v2 fields (data, recommendation) in extension/ui/types.ts
-- [ ] T002 [P] Add InsightData and Recommendation TypeScript interfaces in extension/ui/types.ts
-- [ ] T003 [P] Add data_quality field to PredictionsRenderData interface in extension/ui/types.ts
-- [ ] T004 [P] Add forecaster field to PredictionsRenderData interface in extension/ui/types.ts
+- [x] T001 [P] Extend InsightItem TypeScript interface with v2 fields (data, recommendation) in extension/ui/types.ts
+- [x] T002 [P] Add InsightData and Recommendation TypeScript interfaces in extension/ui/types.ts
+- [x] T003 [P] Add data_quality field to PredictionsRenderData interface in extension/ui/types.ts
+- [x] T004 [P] Add forecaster field to PredictionsRenderData interface in extension/ui/types.ts
 
 ---
 

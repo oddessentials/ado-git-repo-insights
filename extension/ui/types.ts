@@ -391,17 +391,53 @@ export interface Forecast {
  */
 export interface PredictionsRenderData {
   is_stub?: boolean;
+  forecaster?: "linear" | "prophet";
+  data_quality?: "normal" | "low_confidence" | "insufficient";
   forecasts: Forecast[];
 }
 
 /**
- * Single AI insight item.
+ * Insight data with metrics for inline visualization (v2 schema).
+ */
+export interface InsightData {
+  metric: string;
+  current_value: number;
+  previous_value?: number;
+  change_percent?: number;
+  trend_direction: "up" | "down" | "stable";
+  sparkline?: number[];
+}
+
+/**
+ * Actionable recommendation with effort estimate (v2 schema).
+ */
+export interface Recommendation {
+  action: string;
+  priority: "high" | "medium" | "low";
+  effort: "high" | "medium" | "low";
+}
+
+/**
+ * Affected entity (team, repository, or author).
+ */
+export interface AffectedEntity {
+  type: "team" | "repository" | "author";
+  name: string;
+  member_count?: number;
+}
+
+/**
+ * Single AI insight item (v2 schema with enhanced fields).
  */
 export interface InsightItem {
+  id?: string;
   severity: "critical" | "warning" | "info";
   category: string;
   title: string;
   description: string;
+  affected_entities?: AffectedEntity[];
+  data?: InsightData;
+  recommendation?: Recommendation;
 }
 
 /**
