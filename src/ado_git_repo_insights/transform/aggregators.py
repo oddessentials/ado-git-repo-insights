@@ -316,21 +316,19 @@ class AggregateGenerator:
             raise AggregationError(f"Failed to generate aggregates: {e}") from e
 
     def _generate_predictions(self) -> bool:
-        """Generate Prophet-based predictions (Phase 5).
+        """Generate predictions using best available forecaster (Phase 5).
+
+        Uses get_forecaster() factory to auto-detect Prophet availability.
+        Falls back to linear regression (FallbackForecaster) when Prophet
+        is not installed, enabling zero-config predictions (FR-001).
 
         Returns:
             True if predictions file was successfully written, False otherwise.
         """
         try:
-            from ..ml.forecaster import ProphetForecaster
-        except ImportError:
-            logger.warning(
-                "Prophet not installed. Install ML extras: pip install -e '.[ml]'"
-            )
-            return False
+            from ..ml import get_forecaster
 
-        try:
-            forecaster = ProphetForecaster(
+            forecaster = get_forecaster(
                 db=self.db,
                 output_dir=self.output_dir,
             )

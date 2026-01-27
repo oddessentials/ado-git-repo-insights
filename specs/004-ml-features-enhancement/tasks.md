@@ -69,7 +69,7 @@
 - [x] T017 [US1] Implement confidence band calculation using residual standard error in src/ado_git_repo_insights/ml/fallback_forecaster.py
 - [x] T018 [US1] Implement generate() method with identical output schema to ProphetForecaster in src/ado_git_repo_insights/ml/fallback_forecaster.py
 - [x] T019 [US1] Add forecaster field ("linear" or "prophet") to trends.json output in src/ado_git_repo_insights/ml/fallback_forecaster.py
-- [ ] T020 [US1] Modify cli.py to use get_forecaster() factory for auto-detection in src/ado_git_repo_insights/cli.py
+- [x] T020 [US1] Modify aggregators.py to use get_forecaster() factory for auto-detection in src/ado_git_repo_insights/transform/aggregators.py
 - [ ] T021 [P] [US1] Create forecast chart module structure in extension/ui/modules/charts/predictions.ts
 - [ ] T022 [US1] Implement Chart.js line chart with historical data (solid line) in extension/ui/modules/charts/predictions.ts
 - [ ] T023 [US1] Implement forecast data rendering (dashed line) in extension/ui/modules/charts/predictions.ts
