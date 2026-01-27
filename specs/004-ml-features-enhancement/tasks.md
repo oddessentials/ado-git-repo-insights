@@ -70,14 +70,14 @@
 - [x] T018 [US1] Implement generate() method with identical output schema to ProphetForecaster in src/ado_git_repo_insights/ml/fallback_forecaster.py
 - [x] T019 [US1] Add forecaster field ("linear" or "prophet") to trends.json output in src/ado_git_repo_insights/ml/fallback_forecaster.py
 - [x] T020 [US1] Modify aggregators.py to use get_forecaster() factory for auto-detection in src/ado_git_repo_insights/transform/aggregators.py
-- [ ] T021 [P] [US1] Create forecast chart module structure in extension/ui/modules/charts/predictions.ts
-- [ ] T022 [US1] Implement Chart.js line chart with historical data (solid line) in extension/ui/modules/charts/predictions.ts
-- [ ] T023 [US1] Implement forecast data rendering (dashed line) in extension/ui/modules/charts/predictions.ts
-- [ ] T024 [US1] Implement confidence band fill between datasets in extension/ui/modules/charts/predictions.ts
-- [ ] T025 [US1] Add forecaster type indicator ("Linear Forecast" / "Prophet Forecast") in extension/ui/modules/charts/predictions.ts
-- [ ] T026 [US1] Add data quality warning banner for low_confidence state in extension/ui/modules/charts/predictions.ts
-- [ ] T027 [US1] Integrate chart rendering into ml.ts renderPredictions() in extension/ui/modules/ml.ts
-- [ ] T028 [US1] Add CSS styles for forecast charts and confidence bands in extension/ui/styles.css
+- [x] T021 [P] [US1] Create forecast chart module structure in extension/ui/modules/charts/predictions.ts
+- [x] T022 [US1] Implement SVG line chart with historical data (solid line) in extension/ui/modules/charts/predictions.ts
+- [x] T023 [US1] Implement forecast data rendering (dashed line) in extension/ui/modules/charts/predictions.ts
+- [x] T024 [US1] Implement confidence band fill between datasets in extension/ui/modules/charts/predictions.ts
+- [x] T025 [US1] Add forecaster type indicator ("Linear Forecast" / "Prophet Forecast") in extension/ui/modules/charts/predictions.ts
+- [x] T026 [US1] Add data quality warning banner for low_confidence state in extension/ui/modules/charts/predictions.ts
+- [x] T027 [US1] Integrate chart rendering into ml.ts renderPredictions() in extension/ui/modules/ml.ts
+- [x] T028 [US1] Add CSS styles for forecast charts and confidence bands in extension/ui/styles.css
 
 **Checkpoint**: User Story 1 complete - zero-config predictions work with fallback forecaster
 

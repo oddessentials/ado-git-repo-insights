@@ -1540,6 +1540,192 @@ var PRInsightsDashboard = (() => {
     panel.classList.remove("hidden");
   }
 
+  // ui/modules/charts/predictions.ts
+  var FORECASTER_LABELS = {
+    linear: "Linear Forecast",
+    prophet: "Prophet Forecast"
+  };
+  var DATA_QUALITY_MESSAGES = {
+    normal: { label: "High Confidence", cssClass: "quality-normal" },
+    low_confidence: {
+      label: "Low Confidence - More data recommended",
+      cssClass: "quality-low"
+    },
+    insufficient: {
+      label: "Insufficient Data",
+      cssClass: "quality-insufficient"
+    }
+  };
+  function renderForecasterIndicator(forecaster) {
+    const label = FORECASTER_LABELS[forecaster || "linear"] || "Forecast";
+    const cssClass = forecaster === "prophet" ? "forecaster-prophet" : "forecaster-linear";
+    return `<span class="forecaster-badge ${cssClass}">${escapeHtml(label)}</span>`;
+  }
+  function renderDataQualityBanner(dataQuality) {
+    if (!dataQuality || dataQuality === "normal") return "";
+    const quality = DATA_QUALITY_MESSAGES[dataQuality];
+    if (!quality) return "";
+    return `
+    <div class="data-quality-banner ${quality.cssClass}">
+      <span class="quality-icon">&#x26A0;</span>
+      <span class="quality-label">${escapeHtml(quality.label)}</span>
+    </div>
+  `;
+  }
+  function calculateLinePath(values) {
+    if (values.length === 0) return "";
+    return values.map((pt, i) => `${i === 0 ? "M" : "L"} ${pt.x.toFixed(2)} ${pt.y.toFixed(2)}`).join(" ");
+  }
+  function calculateBandPath(upperValues, lowerValues) {
+    if (upperValues.length === 0 || lowerValues.length === 0) return "";
+    const upperPath = upperValues.map((pt, i) => `${i === 0 ? "M" : "L"} ${pt.x.toFixed(2)} ${pt.y.toFixed(2)}`).join(" ");
+    const lowerReversed = [...lowerValues].reverse();
+    const lowerPath = lowerReversed.map((pt) => `L ${pt.x.toFixed(2)} ${pt.y.toFixed(2)}`).join(" ");
+    return `${upperPath} ${lowerPath} Z`;
+  }
+  function renderForecastChart(forecast, historicalData, chartHeight = 200) {
+    const values = forecast.values;
+    if (!values || values.length === 0) {
+      return `<div class="forecast-chart-empty">No forecast data available</div>`;
+    }
+    const allValues = [];
+    if (historicalData) {
+      historicalData.forEach((h) => allValues.push(h.value));
+    }
+    values.forEach((v) => {
+      allValues.push(v.predicted);
+      allValues.push(v.lower_bound);
+      allValues.push(v.upper_bound);
+    });
+    const maxValue = Math.max(...allValues, 1);
+    const minValue = Math.min(...allValues, 0);
+    const range = maxValue - minValue || 1;
+    const padding = 10;
+    const effectiveHeight = chartHeight - padding * 2;
+    const getY = (val) => {
+      const normalized = (val - minValue) / range;
+      return padding + (1 - normalized) * effectiveHeight;
+    };
+    const forecastPoints = [];
+    const upperPoints = [];
+    const lowerPoints = [];
+    const historicalCount = historicalData?.length || 0;
+    const totalPoints = historicalCount + values.length;
+    const getX = (index) => {
+      return (index + 0.5) / totalPoints * 100;
+    };
+    values.forEach((v, i) => {
+      const x = getX(historicalCount + i);
+      forecastPoints.push({ x, y: getY(v.predicted) });
+      upperPoints.push({ x, y: getY(v.upper_bound) });
+      lowerPoints.push({ x, y: getY(v.lower_bound) });
+    });
+    const historicalPoints = [];
+    if (historicalData) {
+      historicalData.forEach((h, i) => {
+        historicalPoints.push({ x: getX(i), y: getY(h.value) });
+      });
+    }
+    const historicalPath = calculateLinePath(historicalPoints);
+    const forecastPath = calculateLinePath(forecastPoints);
+    const bandPath = calculateBandPath(upperPoints, lowerPoints);
+    const metricLabel = forecast.metric.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
+    const allWeeks = [];
+    if (historicalData) {
+      historicalData.forEach((h) => allWeeks.push(h.week));
+    }
+    values.forEach((v) => allWeeks.push(v.period_start));
+    const labelStep = Math.ceil(allWeeks.length / 6);
+    const xAxisLabels = allWeeks.filter((_, i) => i % labelStep === 0).map((week, i) => {
+      const x = getX(i * labelStep);
+      const formatted = formatWeekLabel(week);
+      return `<text x="${x}%" y="${chartHeight - 2}" class="axis-label">${escapeHtml(formatted)}</text>`;
+    }).join("");
+    return `
+    <div class="forecast-chart">
+      <div class="chart-header">
+        <h4>${escapeHtml(metricLabel)}</h4>
+        <span class="chart-unit">(${escapeHtml(forecast.unit)})</span>
+      </div>
+      <div class="chart-svg-container">
+        <svg viewBox="0 0 100 ${chartHeight}" preserveAspectRatio="none" class="forecast-svg">
+          <!-- Confidence band fill -->
+          ${bandPath ? `<path class="confidence-band" d="${bandPath}" />` : ""}
+          <!-- Historical data line (solid) -->
+          ${historicalPath ? `<path class="historical-line" d="${historicalPath}" vector-effect="non-scaling-stroke" />` : ""}
+          <!-- Forecast line (dashed) -->
+          ${forecastPath ? `<path class="forecast-line" d="${forecastPath}" vector-effect="non-scaling-stroke" />` : ""}
+        </svg>
+        <svg viewBox="0 0 100 ${chartHeight}" preserveAspectRatio="xMidYMax meet" class="axis-svg">
+          ${xAxisLabels}
+        </svg>
+      </div>
+      <div class="chart-legend">
+        <div class="legend-item">
+          <span class="legend-line historical"></span>
+          <span>Historical</span>
+        </div>
+        <div class="legend-item">
+          <span class="legend-line forecast"></span>
+          <span>Forecast</span>
+        </div>
+        <div class="legend-item">
+          <span class="legend-band"></span>
+          <span>Confidence</span>
+        </div>
+      </div>
+    </div>
+  `;
+  }
+  function formatWeekLabel(weekStr) {
+    try {
+      const date = new Date(weekStr);
+      if (isNaN(date.getTime())) return weekStr;
+      const month = date.toLocaleString("en-US", { month: "short" });
+      const day = date.getDate();
+      return `${month} ${day}`;
+    } catch {
+      return weekStr;
+    }
+  }
+  function renderPredictionsWithCharts(container, predictions) {
+    if (!container) return;
+    if (!predictions) return;
+    const content = document.createElement("div");
+    content.className = "predictions-charts-content";
+    const headerHtml = `
+    <div class="predictions-header">
+      ${renderForecasterIndicator(predictions.forecaster)}
+      ${renderDataQualityBanner(predictions.data_quality)}
+    </div>
+  `;
+    appendTrustedHtml(content, headerHtml);
+    if (predictions.is_stub) {
+      appendTrustedHtml(
+        content,
+        `<div class="stub-warning">&#x26A0; Demo data - for preview only</div>`
+      );
+    }
+    if (!predictions.forecasts || predictions.forecasts.length === 0) {
+      appendTrustedHtml(
+        content,
+        `<div class="predictions-empty-message">
+        <p>No forecast data available.</p>
+        <p>Run the analytics pipeline with predictions enabled to generate forecasts.</p>
+      </div>`
+      );
+      container.appendChild(content);
+      return;
+    }
+    predictions.forecasts.forEach((forecast) => {
+      const chartHtml = renderForecastChart(forecast);
+      appendTrustedHtml(content, chartHtml);
+    });
+    const unavailable = container.querySelector(".feature-unavailable");
+    if (unavailable) unavailable.classList.add("hidden");
+    container.appendChild(content);
+  }
+
   // ui/modules/ml.ts
   var SEVERITY_ICONS = {
     critical: "\u{1F534}",
@@ -1547,46 +1733,7 @@ var PRInsightsDashboard = (() => {
     info: "\u{1F535}"
   };
   function renderPredictions(container, predictions) {
-    if (!container) return;
-    if (!predictions) return;
-    const content = document.createElement("div");
-    content.className = "predictions-content";
-    if (predictions.is_stub) {
-      const warning = createElement(
-        "div",
-        { class: "stub-warning" },
-        "\u26A0\uFE0F Demo data"
-      );
-      content.appendChild(warning);
-    }
-    predictions.forecasts.forEach((forecast) => {
-      const label = forecast.metric.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
-      appendTrustedHtml(
-        content,
-        `
-            <div class="forecast-section">
-                <h4>${escapeHtml(label)} (${escapeHtml(String(forecast.unit))})</h4>
-                <table class="forecast-table">
-                    <thead><tr><th>Week</th><th>Predicted</th><th>Range</th></tr></thead>
-                    <tbody>
-                        ${forecast.values.map(
-          (v) => `
-                            <tr>
-                                <td>${escapeHtml(String(v.period_start))}</td>
-                                <td>${escapeHtml(String(v.predicted))}</td>
-                                <td>${escapeHtml(String(v.lower_bound))} - ${escapeHtml(String(v.upper_bound))}</td>
-                            </tr>
-                        `
-        ).join("")}
-                    </tbody>
-                </table>
-            </div>
-        `
-      );
-    });
-    const unavailable = container.querySelector(".feature-unavailable");
-    if (unavailable) unavailable.classList.add("hidden");
-    container.appendChild(content);
+    renderPredictionsWithCharts(container, predictions);
   }
   function renderAIInsights(container, insights) {
     if (!container) return;

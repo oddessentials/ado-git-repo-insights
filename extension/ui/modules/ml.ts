@@ -19,12 +19,11 @@ import {
 import type {
   PredictionsRenderData,
   InsightsRenderData,
-  Forecast,
-  ForecastValue,
   InsightItem,
 } from "../types";
 import type { MlDataProvider, MlFeatureState } from "./ml/types";
 import { createInitialMlState } from "./ml/types";
+import { renderPredictionsWithCharts } from "./charts/predictions";
 
 /**
  * Type guard to check if data is valid PredictionsRenderData.
@@ -69,7 +68,7 @@ export function initializePhase5Features(): void {
 }
 
 /**
- * Render predictions tab content.
+ * Render predictions tab content with forecast charts.
  * @param container - The tab container element
  * @param predictions - Predictions data to render (null-safe)
  */
@@ -77,55 +76,8 @@ export function renderPredictions(
   container: HTMLElement | null,
   predictions: PredictionsRenderData | null,
 ): void {
-  if (!container) return;
-  if (!predictions) return;
-
-  const content = document.createElement("div");
-  content.className = "predictions-content";
-
-  if (predictions.is_stub) {
-    const warning = createElement(
-      "div",
-      { class: "stub-warning" },
-      "⚠️ Demo data",
-    );
-    content.appendChild(warning);
-  }
-
-  predictions.forecasts.forEach((forecast: Forecast) => {
-    const label = forecast.metric
-      .replace(/_/g, " ")
-      .replace(/\b\w/g, (c: string) => c.toUpperCase());
-    // SECURITY: Escape all user-controlled data to prevent XSS
-    appendTrustedHtml(
-      content,
-      `
-            <div class="forecast-section">
-                <h4>${escapeHtml(label)} (${escapeHtml(String(forecast.unit))})</h4>
-                <table class="forecast-table">
-                    <thead><tr><th>Week</th><th>Predicted</th><th>Range</th></tr></thead>
-                    <tbody>
-                        ${forecast.values
-                          .map(
-                            (v: ForecastValue) => `
-                            <tr>
-                                <td>${escapeHtml(String(v.period_start))}</td>
-                                <td>${escapeHtml(String(v.predicted))}</td>
-                                <td>${escapeHtml(String(v.lower_bound))} - ${escapeHtml(String(v.upper_bound))}</td>
-                            </tr>
-                        `,
-                          )
-                          .join("")}
-                    </tbody>
-                </table>
-            </div>
-        `,
-    );
-  });
-
-  const unavailable = container.querySelector(".feature-unavailable");
-  if (unavailable) unavailable.classList.add("hidden");
-  container.appendChild(content);
+  // Use the chart-based rendering from predictions module
+  renderPredictionsWithCharts(container, predictions);
 }
 
 /**

@@ -1475,3 +1475,243 @@ body {
         flex-wrap: wrap;
     }
 }
+
+/* =============================================================================
+   Phase 5: ML Features - Forecast Charts
+   ============================================================================= */
+
+/* Predictions container with charts */
+.predictions-charts-content {
+    background: var(--bg-primary);
+    border-radius: var(--radius-lg);
+    padding: 24px;
+    box-shadow: var(--shadow-sm);
+}
+
+/* Predictions header with forecaster indicator */
+.predictions-header {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    margin-bottom: 20px;
+    flex-wrap: wrap;
+}
+
+/* Forecaster type badge */
+.forecaster-badge {
+    display: inline-flex;
+    align-items: center;
+    padding: 6px 12px;
+    border-radius: var(--radius);
+    font-size: 12px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.forecaster-linear {
+    background: #e3f2fd;
+    color: #1565c0;
+    border: 1px solid #90caf9;
+}
+
+.forecaster-prophet {
+    background: #f3e5f5;
+    color: #7b1fa2;
+    border: 1px solid #ce93d8;
+}
+
+/* Data quality warning banner */
+.data-quality-banner {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 16px;
+    border-radius: var(--radius);
+    font-size: 13px;
+}
+
+.quality-normal {
+    background: #e8f5e9;
+    color: #2e7d32;
+    border: 1px solid #a5d6a7;
+}
+
+.quality-low {
+    background: #fff3e0;
+    color: #e65100;
+    border: 1px solid #ffcc80;
+}
+
+.quality-insufficient {
+    background: #ffebee;
+    color: #c62828;
+    border: 1px solid #ef9a9a;
+}
+
+.quality-icon {
+    font-size: 16px;
+}
+
+/* Individual forecast chart */
+.forecast-chart {
+    margin-bottom: 32px;
+    padding: 20px;
+    background: var(--bg-secondary);
+    border-radius: var(--radius);
+    border: 1px solid var(--border);
+}
+
+.forecast-chart .chart-header {
+    display: flex;
+    align-items: baseline;
+    gap: 8px;
+    margin-bottom: 16px;
+}
+
+.forecast-chart .chart-header h4 {
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--text-primary);
+    margin: 0;
+}
+
+.forecast-chart .chart-unit {
+    font-size: 12px;
+    color: var(--text-secondary);
+}
+
+/* SVG chart container */
+.chart-svg-container {
+    position: relative;
+    height: 200px;
+    margin-bottom: 16px;
+}
+
+.forecast-svg {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+}
+
+.axis-svg {
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    width: 100%;
+    height: 20px;
+}
+
+.axis-label {
+    font-size: 10px;
+    fill: var(--text-secondary);
+    text-anchor: middle;
+}
+
+/* Chart line styles */
+.historical-line {
+    fill: none;
+    stroke: var(--accent-color, #0078d4);
+    stroke-width: 2px;
+}
+
+.forecast-line {
+    fill: none;
+    stroke: var(--accent-color, #0078d4);
+    stroke-width: 2px;
+    stroke-dasharray: 6, 4;
+}
+
+.confidence-band {
+    fill: var(--accent-color, #0078d4);
+    fill-opacity: 0.15;
+    stroke: none;
+}
+
+/* Chart legend */
+.forecast-chart .chart-legend {
+    display: flex;
+    gap: 24px;
+    justify-content: center;
+    flex-wrap: wrap;
+}
+
+.forecast-chart .legend-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 12px;
+    color: var(--text-secondary);
+}
+
+.forecast-chart .legend-line {
+    width: 24px;
+    height: 2px;
+    background: var(--accent-color, #0078d4);
+}
+
+.forecast-chart .legend-line.historical {
+    background: var(--accent-color, #0078d4);
+}
+
+.forecast-chart .legend-line.forecast {
+    background: linear-gradient(
+        90deg,
+        var(--accent-color, #0078d4) 0%,
+        var(--accent-color, #0078d4) 40%,
+        transparent 40%,
+        transparent 60%,
+        var(--accent-color, #0078d4) 60%
+    );
+}
+
+.forecast-chart .legend-band {
+    width: 24px;
+    height: 12px;
+    background: var(--accent-color, #0078d4);
+    opacity: 0.15;
+    border-radius: 2px;
+}
+
+/* Empty state for predictions */
+.predictions-empty-message {
+    text-align: center;
+    padding: 40px 20px;
+    color: var(--text-secondary);
+}
+
+.predictions-empty-message p {
+    margin: 8px 0;
+}
+
+.forecast-chart-empty,
+.forecast-table-empty {
+    text-align: center;
+    padding: 20px;
+    color: var(--text-secondary);
+    font-style: italic;
+}
+
+/* Forecast table styles (detailed view) */
+.forecast-table-section {
+    margin-bottom: 24px;
+}
+
+.forecast-table-section h4 {
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--text-primary);
+    margin-bottom: 12px;
+}
+
+.forecast-table .number {
+    text-align: right;
+    font-family: 'SF Mono', 'Consolas', monospace;
+}
+
+.forecast-table .range {
+    color: var(--text-secondary);
+    font-size: 12px;
+}
