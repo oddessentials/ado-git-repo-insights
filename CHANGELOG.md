@@ -1,3 +1,15 @@
+# [5.6.0](https://github.com/oddessentials/ado-git-repo-insights/compare/v5.5.0...v5.6.0) (2026-01-27)
+
+
+### Bug Fixes
+
+* defense-in-depth improvements for CLI distribution ([8cc5e46](https://github.com/oddessentials/ado-git-repo-insights/commit/8cc5e46e08c7648b39848c0e7cf6232aac533e39))
+
+
+### Features
+
+* **cli:** implement T018 PATH guidance at CLI startup ([7a12f55](https://github.com/oddessentials/ado-git-repo-insights/commit/7a12f55a5f3c6ac5332072f4876b83fad7206477))
+
 # [5.5.0](https://github.com/oddessentials/ado-git-repo-insights/compare/v5.4.0...v5.5.0) (2026-01-26)
 
 
