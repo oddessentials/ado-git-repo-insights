@@ -43,14 +43,16 @@ async function copyToClipboard(text: string): Promise<void> {
 
 /**
  * Create a copy button with feedback animation.
+ * Includes WCAG 2.1 AA accessibility attributes.
  * @param yaml - YAML content to copy
  * @param buttonId - Unique ID for the button
  * @returns HTML string for the copy button
  */
 function createCopyButton(yaml: string, buttonId: string): string {
   return `
-    <button class="copy-yaml-btn" id="${buttonId}" data-yaml="${escapeHtml(yaml)}">
-      <span class="copy-icon">📋</span>
+    <button class="copy-yaml-btn" id="${buttonId}" data-yaml="${escapeHtml(yaml)}"
+            type="button" aria-label="Copy YAML snippet to clipboard">
+      <span class="copy-icon" aria-hidden="true">📋</span>
       <span class="copy-text">Copy</span>
     </button>
   `;
@@ -59,10 +61,22 @@ function createCopyButton(yaml: string, buttonId: string): string {
 /**
  * Attach click handlers to copy buttons.
  * Call this after rendering the guide HTML.
+ * Includes WCAG 2.1 AA accessibility (ARIA live announcements).
  * @param container - Container element with copy buttons
  */
 export function attachCopyHandlers(container: HTMLElement): void {
   const buttons = container.querySelectorAll<HTMLButtonElement>(".copy-yaml-btn");
+
+  // Create or get ARIA live region for announcements
+  let liveRegion = document.getElementById("copy-status-live");
+  if (!liveRegion) {
+    liveRegion = document.createElement("div");
+    liveRegion.id = "copy-status-live";
+    liveRegion.setAttribute("role", "status");
+    liveRegion.setAttribute("aria-live", "polite");
+    liveRegion.className = "visually-hidden";
+    document.body.appendChild(liveRegion);
+  }
 
   buttons.forEach((button) => {
     button.addEventListener("click", async () => {
@@ -80,19 +94,30 @@ export function attachCopyHandlers(container: HTMLElement): void {
         // Show success feedback
         if (copyText) copyText.textContent = "Copied!";
         button.classList.add("copied");
+        button.setAttribute("aria-label", "YAML snippet copied to clipboard");
+
+        // Announce to screen readers
+        if (liveRegion) liveRegion.textContent = "YAML snippet copied to clipboard";
 
         // Reset after delay
         setTimeout(() => {
           if (copyText) copyText.textContent = originalText;
           button.classList.remove("copied");
           button.disabled = false;
+          button.setAttribute("aria-label", "Copy YAML snippet to clipboard");
         }, 2000);
       } catch {
         // Show error feedback
         if (copyText) copyText.textContent = "Failed";
+        button.setAttribute("aria-label", "Failed to copy YAML snippet");
+
+        // Announce error to screen readers
+        if (liveRegion) liveRegion.textContent = "Failed to copy YAML snippet";
+
         setTimeout(() => {
           if (copyText) copyText.textContent = originalText;
           button.disabled = false;
+          button.setAttribute("aria-label", "Copy YAML snippet to clipboard");
         }, 2000);
       }
     });

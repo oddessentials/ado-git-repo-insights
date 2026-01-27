@@ -149,8 +149,8 @@ ado-insights build-aggregates [OPTIONS]
 
 | Option | Default | Description |
 |--------|---------|-------------|
-| `--enable-predictions` | `false` | Generate ML predictions (requires `[ml]` extra) |
-| `--enable-insights` | `false` | Generate AI insights (requires `[ml]` extra) |
+| `--enable-predictions` | `false` | Generate ML predictions |
+| `--enable-insights` | `false` | Generate AI insights (requires OpenAI API key) |
 | `--serve` | `false` | Start local dashboard server after building |
 | `--open` | `false` | Open browser automatically (requires `--serve`) |
 | `--port PORT` | `8080` | Local server port (requires `--serve`) |
@@ -181,15 +181,47 @@ ado-insights build-aggregates \
   --port 3000
 ```
 
-**With ML features:**
+**With predictions (zero-config):**
 ```bash
-pip install ado-git-repo-insights[ml]
+# Works out of the box - no additional dependencies
+ado-insights build-aggregates \
+  --db ./ado-insights.sqlite \
+  --out ./dataset \
+  --enable-predictions
+```
+
+**With predictions (Prophet enhanced):**
+```bash
+# Install Prophet for enhanced forecasting
+pip install prophet>=1.1.0
+
+ado-insights build-aggregates \
+  --db ./ado-insights.sqlite \
+  --out ./dataset \
+  --enable-predictions
+```
+
+**With AI insights:**
+```bash
+export OPENAI_API_KEY=sk-...
+
+ado-insights build-aggregates \
+  --db ./ado-insights.sqlite \
+  --out ./dataset \
+  --enable-insights
+```
+
+**Full ML features:**
+```bash
+export OPENAI_API_KEY=sk-...
 
 ado-insights build-aggregates \
   --db ./ado-insights.sqlite \
   --out ./dataset \
   --enable-predictions \
-  --enable-insights
+  --enable-insights \
+  --serve \
+  --open
 ```
 
 ### Output Files
@@ -356,8 +388,86 @@ backfill:
 
 ---
 
+---
+
+## ML Features
+
+The CLI includes machine learning features for predictive analytics and AI-powered insights.
+
+### Predictions
+
+Generate time-series forecasts for PR metrics.
+
+**Zero-Config Mode (Default):**
+```bash
+ado-insights build-aggregates --db data.db --out ./dataset --enable-predictions
+```
+
+Uses NumPy-based linear regression. No additional dependencies required.
+
+**Prophet Mode (Enhanced):**
+```bash
+pip install prophet>=1.1.0
+ado-insights build-aggregates --db data.db --out ./dataset --enable-predictions
+```
+
+Automatically detected when Prophet is installed. Provides seasonality analysis and more accurate forecasts.
+
+**Output:** `predictions/trends.json`
+
+| Field | Description |
+|-------|-------------|
+| `forecaster` | `linear` or `prophet` |
+| `data_quality` | `normal`, `low_confidence`, or `insufficient` |
+| `forecasts` | Array of metric forecasts with confidence bands |
+
+**Data Requirements:**
+
+| Data Quality | Weeks Required | Recommendation |
+|--------------|----------------|----------------|
+| `insufficient` | <4 | Cannot generate predictions |
+| `low_confidence` | 4-7 | Predictions available, accuracy limited |
+| `normal` | 8+ | Full confidence predictions |
+
+### AI Insights
+
+Generate actionable insights using OpenAI.
+
+```bash
+export OPENAI_API_KEY=sk-...
+ado-insights build-aggregates --db data.db --out ./dataset --enable-insights
+```
+
+**Output:** `insights/summary.json`
+
+| Field | Description |
+|-------|-------------|
+| `insights` | Array of insight objects |
+| `insights[].category` | `bottleneck`, `trend`, or `anomaly` |
+| `insights[].severity` | `critical`, `warning`, or `info` |
+| `insights[].recommendation` | Actionable recommendation with priority/effort |
+
+**Caching:**
+- Results cached for 12 hours
+- Cache key includes data freshness markers
+- Delete `insights/cache.json` to force regeneration
+
+**Cost:**
+- ~$0.001-0.01 per pipeline run
+- Caching minimizes API calls
+
+### Environment Variables
+
+| Variable | Description |
+|----------|-------------|
+| `OPENAI_API_KEY` | OpenAI API key (required for `--enable-insights`) |
+| `OPENAI_MODEL` | Model override (default: `gpt-5-nano`) |
+
+---
+
 ## See Also
 
 - [CLI User Guide](../user-guide/local-cli.md) — Getting started with the CLI
 - [CSV Schema](csv-schema.md) — Output file format details
 - [Troubleshooting](../user-guide/troubleshooting.md) — Common issues
+- [Enable ML Features](../internal/enable-ml-features.md) — Detailed ML setup guide

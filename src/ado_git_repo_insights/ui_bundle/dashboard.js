@@ -1572,6 +1572,9 @@ var PRInsightsDashboard = (() => {
     </div>
   `;
   }
+  function sanitizeForId(str) {
+    return str.toLowerCase().replace(/[^a-z0-9_-]/g, "-").replace(/-+/g, "-").replace(/^-|-$/g, "");
+  }
   function calculateLinePath(values) {
     if (values.length === 0) return "";
     return values.map((pt, i) => `${i === 0 ? "M" : "L"} ${pt.x.toFixed(2)} ${pt.y.toFixed(2)}`).join(" ");
@@ -1641,14 +1644,20 @@ var PRInsightsDashboard = (() => {
       const formatted = formatWeekLabel(week);
       return `<text x="${x}%" y="${chartHeight - 2}" class="axis-label">${escapeHtml(formatted)}</text>`;
     }).join("");
+    const latestValue = values[values.length - 1];
+    const accessibleSummary = latestValue ? `${metricLabel} forecast: ${latestValue.predicted.toFixed(1)} ${forecast.unit} (range ${latestValue.lower_bound.toFixed(1)} to ${latestValue.upper_bound.toFixed(1)})` : `${metricLabel} forecast chart`;
+    const safeMetricId = sanitizeForId(forecast.metric);
     return `
-    <div class="forecast-chart">
+    <div class="forecast-chart" role="region" aria-label="${escapeHtml(metricLabel)} forecast">
       <div class="chart-header">
-        <h4>${escapeHtml(metricLabel)}</h4>
+        <h4 id="chart-${safeMetricId}">${escapeHtml(metricLabel)}</h4>
         <span class="chart-unit">(${escapeHtml(forecast.unit)})</span>
       </div>
       <div class="chart-svg-container">
-        <svg viewBox="0 0 100 ${chartHeight}" preserveAspectRatio="none" class="forecast-svg">
+        <svg viewBox="0 0 100 ${chartHeight}" preserveAspectRatio="none" class="forecast-svg"
+             role="img" aria-labelledby="chart-${safeMetricId}"
+             aria-describedby="chart-desc-${safeMetricId}">
+          <desc id="chart-desc-${safeMetricId}">${escapeHtml(accessibleSummary)}</desc>
           <!-- Confidence band fill -->
           ${bandPath ? `<path class="confidence-band" d="${bandPath}" />` : ""}
           <!-- Historical data line (solid) -->
@@ -1656,21 +1665,21 @@ var PRInsightsDashboard = (() => {
           <!-- Forecast line (dashed) -->
           ${forecastPath ? `<path class="forecast-line" d="${forecastPath}" vector-effect="non-scaling-stroke" />` : ""}
         </svg>
-        <svg viewBox="0 0 100 ${chartHeight}" preserveAspectRatio="xMidYMax meet" class="axis-svg">
+        <svg viewBox="0 0 100 ${chartHeight}" preserveAspectRatio="xMidYMax meet" class="axis-svg" aria-hidden="true">
           ${xAxisLabels}
         </svg>
       </div>
-      <div class="chart-legend">
-        <div class="legend-item">
-          <span class="legend-line historical"></span>
+      <div class="chart-legend" role="list" aria-label="Chart legend">
+        <div class="legend-item" role="listitem">
+          <span class="legend-line historical" aria-hidden="true"></span>
           <span>Historical</span>
         </div>
-        <div class="legend-item">
-          <span class="legend-line forecast"></span>
+        <div class="legend-item" role="listitem">
+          <span class="legend-line forecast" aria-hidden="true"></span>
           <span>Forecast</span>
         </div>
-        <div class="legend-item">
-          <span class="legend-band"></span>
+        <div class="legend-item" role="listitem">
+          <span class="legend-band" aria-hidden="true"></span>
           <span>Confidence</span>
         </div>
       </div>
@@ -1765,9 +1774,9 @@ var PRInsightsDashboard = (() => {
 
   // ui/modules/ml.ts
   var SEVERITY_ICONS = {
-    critical: "\u{1F534}",
-    warning: "\u{1F7E1}",
-    info: "\u{1F535}"
+    critical: { icon: "\u{1F534}", label: "Critical" },
+    warning: { icon: "\u{1F7E1}", label: "Warning" },
+    info: { icon: "\u{1F535}", label: "Informational" }
   };
   var PRIORITY_BADGES = {
     high: { label: "High Priority", cssClass: "priority-high" },
@@ -1786,7 +1795,7 @@ var PRInsightsDashboard = (() => {
   };
   function renderInsightSparkline(values, width = 60, height = 20) {
     if (!values || values.length < 2) {
-      return `<span class="sparkline-empty">\u2014</span>`;
+      return `<span class="sparkline-empty" aria-label="No trend data available">\u2014</span>`;
     }
     const minVal = Math.min(...values);
     const maxVal = Math.max(...values);
@@ -1799,8 +1808,12 @@ var PRInsightsDashboard = (() => {
       const y = padding + (1 - (val - minVal) / range) * effectiveHeight;
       return `${x.toFixed(1)},${y.toFixed(1)}`;
     }).join(" ");
+    const firstVal = values[0] ?? 0;
+    const lastVal = values[values.length - 1] ?? 0;
+    const trendDescription = lastVal > firstVal ? "upward trend" : lastVal < firstVal ? "downward trend" : "stable trend";
     return `
-    <svg class="sparkline" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}">
+    <svg class="sparkline" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}"
+         role="img" aria-label="Sparkline showing ${trendDescription} over ${values.length} data points">
       <polyline
         points="${points}"
         fill="none"
@@ -1869,19 +1882,21 @@ var PRInsightsDashboard = (() => {
   `;
   }
   function renderRichInsightCard(insight) {
-    const severityIcon = SEVERITY_ICONS[insight.severity] || SEVERITY_ICONS.info;
+    const defaultSeverity = { icon: "\u{1F535}", label: "Informational" };
+    const severityInfo = SEVERITY_ICONS[insight.severity] ?? defaultSeverity;
     return `
-    <div class="insight-card rich-card ${escapeHtml(String(insight.severity))}">
+    <article class="insight-card rich-card ${escapeHtml(String(insight.severity))}"
+             role="article" aria-labelledby="insight-title-${escapeHtml(String(insight.id))}">
       <div class="insight-header">
-        <span class="severity-icon">${severityIcon}</span>
+        <span class="severity-icon" role="img" aria-label="${severityInfo.label} severity">${severityInfo.icon}</span>
         <span class="insight-category">${escapeHtml(String(insight.category))}</span>
       </div>
-      <h5 class="insight-title">${escapeHtml(String(insight.title))}</h5>
+      <h5 class="insight-title" id="insight-title-${escapeHtml(String(insight.id))}">${escapeHtml(String(insight.title))}</h5>
       <p class="insight-description">${escapeHtml(String(insight.description))}</p>
       ${renderInsightDataSection(insight.data)}
       ${renderAffectedEntities(insight.affected_entities)}
       ${renderRecommendationSection(insight.recommendation)}
-    </div>
+    </article>
   `;
   }
   function renderPreviewBanner() {
@@ -1906,20 +1921,27 @@ var PRInsightsDashboard = (() => {
     if (insights.is_stub) {
       appendTrustedHtml(content, renderPreviewBanner());
     }
+    const defaultSeverityInfo = { icon: "\u{1F535}", label: "Informational" };
     ["critical", "warning", "info"].forEach((severity) => {
       const items = insights.insights.filter(
         (i) => i.severity === severity
       );
       if (!items.length) return;
+      const severityInfo = SEVERITY_ICONS[severity] ?? defaultSeverityInfo;
+      const sectionLabel = `${severity.charAt(0).toUpperCase() + severity.slice(1)} insights`;
       appendTrustedHtml(
         content,
         `
-        <div class="severity-section">
-          <h4>${SEVERITY_ICONS[severity]} ${severity.charAt(0).toUpperCase() + severity.slice(1)}</h4>
-          <div class="insight-cards">
+        <section class="severity-section" role="region" aria-label="${sectionLabel}">
+          <h4>
+            <span role="img" aria-hidden="true">${severityInfo.icon}</span>
+            <span>${severity.charAt(0).toUpperCase() + severity.slice(1)}</span>
+            <span class="visually-hidden">(${items.length} ${items.length === 1 ? "item" : "items"})</span>
+          </h4>
+          <div class="insight-cards" role="feed" aria-label="${sectionLabel} list">
             ${items.map((i) => renderRichInsightCard(i)).join("")}
           </div>
-        </div>
+        </section>
       `
       );
     });

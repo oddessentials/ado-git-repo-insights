@@ -90,6 +90,20 @@ export function renderDataQualityBanner(
 }
 
 /**
+ * Sanitize a string to be safe for use in HTML id/class attributes.
+ * Removes any non-alphanumeric characters except hyphens and underscores.
+ * @param str - String to sanitize
+ * @returns Safe string for use in HTML attributes
+ */
+function sanitizeForId(str: string): string {
+  return str
+    .toLowerCase()
+    .replace(/[^a-z0-9_-]/g, "-")
+    .replace(/-+/g, "-")
+    .replace(/^-|-$/g, "");
+}
+
+/**
  * Calculate SVG path for a line chart.
  * @param values - Array of { x, y } points where x and y are percentages (0-100)
  * @returns SVG path d attribute string
@@ -226,14 +240,26 @@ export function renderForecastChart(
     })
     .join("");
 
+  // Generate accessible summary for screen readers
+  const latestValue = values[values.length - 1];
+  const accessibleSummary = latestValue
+    ? `${metricLabel} forecast: ${latestValue.predicted.toFixed(1)} ${forecast.unit} (range ${latestValue.lower_bound.toFixed(1)} to ${latestValue.upper_bound.toFixed(1)})`
+    : `${metricLabel} forecast chart`;
+
+  // Sanitize metric for use in HTML id attributes (prevents XSS in id/aria-* attributes)
+  const safeMetricId = sanitizeForId(forecast.metric);
+
   return `
-    <div class="forecast-chart">
+    <div class="forecast-chart" role="region" aria-label="${escapeHtml(metricLabel)} forecast">
       <div class="chart-header">
-        <h4>${escapeHtml(metricLabel)}</h4>
+        <h4 id="chart-${safeMetricId}">${escapeHtml(metricLabel)}</h4>
         <span class="chart-unit">(${escapeHtml(forecast.unit)})</span>
       </div>
       <div class="chart-svg-container">
-        <svg viewBox="0 0 100 ${chartHeight}" preserveAspectRatio="none" class="forecast-svg">
+        <svg viewBox="0 0 100 ${chartHeight}" preserveAspectRatio="none" class="forecast-svg"
+             role="img" aria-labelledby="chart-${safeMetricId}"
+             aria-describedby="chart-desc-${safeMetricId}">
+          <desc id="chart-desc-${safeMetricId}">${escapeHtml(accessibleSummary)}</desc>
           <!-- Confidence band fill -->
           ${bandPath ? `<path class="confidence-band" d="${bandPath}" />` : ""}
           <!-- Historical data line (solid) -->
@@ -241,21 +267,21 @@ export function renderForecastChart(
           <!-- Forecast line (dashed) -->
           ${forecastPath ? `<path class="forecast-line" d="${forecastPath}" vector-effect="non-scaling-stroke" />` : ""}
         </svg>
-        <svg viewBox="0 0 100 ${chartHeight}" preserveAspectRatio="xMidYMax meet" class="axis-svg">
+        <svg viewBox="0 0 100 ${chartHeight}" preserveAspectRatio="xMidYMax meet" class="axis-svg" aria-hidden="true">
           ${xAxisLabels}
         </svg>
       </div>
-      <div class="chart-legend">
-        <div class="legend-item">
-          <span class="legend-line historical"></span>
+      <div class="chart-legend" role="list" aria-label="Chart legend">
+        <div class="legend-item" role="listitem">
+          <span class="legend-line historical" aria-hidden="true"></span>
           <span>Historical</span>
         </div>
-        <div class="legend-item">
-          <span class="legend-line forecast"></span>
+        <div class="legend-item" role="listitem">
+          <span class="legend-line forecast" aria-hidden="true"></span>
           <span>Forecast</span>
         </div>
-        <div class="legend-item">
-          <span class="legend-band"></span>
+        <div class="legend-item" role="listitem">
+          <span class="legend-band" aria-hidden="true"></span>
           <span>Confidence</span>
         </div>
       </div>

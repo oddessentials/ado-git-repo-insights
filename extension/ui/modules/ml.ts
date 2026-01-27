@@ -61,12 +61,12 @@ function isInsightsRenderData(data: unknown): data is InsightsRenderData {
 }
 
 /**
- * Severity icons for insight rendering.
+ * Severity icons and accessible labels for insight rendering (WCAG 2.1 AA).
  */
-const SEVERITY_ICONS: Record<string, string> = {
-  critical: "🔴",
-  warning: "🟡",
-  info: "🔵",
+const SEVERITY_ICONS: Record<string, { icon: string; label: string }> = {
+  critical: { icon: "🔴", label: "Critical" },
+  warning: { icon: "🟡", label: "Warning" },
+  info: { icon: "🔵", label: "Informational" },
 };
 
 /**
@@ -99,6 +99,7 @@ const TREND_ICONS: Record<string, string> = {
 /**
  * Render a sparkline as an inline SVG for insight cards (T038).
  * Named distinctly from charts.ts renderSparkline to avoid export conflicts.
+ * Includes WCAG 2.1 AA accessibility attributes (aria-hidden, screen reader text).
  * @param values - Array of numeric values for the sparkline
  * @param width - SVG width (default 60)
  * @param height - SVG height (default 20)
@@ -110,7 +111,7 @@ function renderInsightSparkline(
   height: number = 20,
 ): string {
   if (!values || values.length < 2) {
-    return `<span class="sparkline-empty">—</span>`;
+    return `<span class="sparkline-empty" aria-label="No trend data available">—</span>`;
   }
 
   const minVal = Math.min(...values);
@@ -129,8 +130,14 @@ function renderInsightSparkline(
     })
     .join(" ");
 
+  // Calculate trend direction for accessible description
+  const firstVal = values[0] ?? 0;
+  const lastVal = values[values.length - 1] ?? 0;
+  const trendDescription = lastVal > firstVal ? "upward trend" : lastVal < firstVal ? "downward trend" : "stable trend";
+
   return `
-    <svg class="sparkline" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}">
+    <svg class="sparkline" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}"
+         role="img" aria-label="Sparkline showing ${trendDescription} over ${values.length} data points">
       <polyline
         points="${points}"
         fill="none"
@@ -238,24 +245,27 @@ function renderAffectedEntities(entities: AffectedEntity[] | undefined): string 
 
 /**
  * Render a rich insight card with all v2 schema fields (T039).
+ * Includes WCAG 2.1 AA accessibility attributes (role, aria-labels).
  * @param insight - The insight item to render
  * @returns HTML string for the insight card
  */
 function renderRichInsightCard(insight: InsightItem): string {
-  const severityIcon = SEVERITY_ICONS[insight.severity] || SEVERITY_ICONS.info;
+  const defaultSeverity = { icon: "🔵", label: "Informational" };
+  const severityInfo = SEVERITY_ICONS[insight.severity] ?? defaultSeverity;
 
   return `
-    <div class="insight-card rich-card ${escapeHtml(String(insight.severity))}">
+    <article class="insight-card rich-card ${escapeHtml(String(insight.severity))}"
+             role="article" aria-labelledby="insight-title-${escapeHtml(String(insight.id))}">
       <div class="insight-header">
-        <span class="severity-icon">${severityIcon}</span>
+        <span class="severity-icon" role="img" aria-label="${severityInfo.label} severity">${severityInfo.icon}</span>
         <span class="insight-category">${escapeHtml(String(insight.category))}</span>
       </div>
-      <h5 class="insight-title">${escapeHtml(String(insight.title))}</h5>
+      <h5 class="insight-title" id="insight-title-${escapeHtml(String(insight.id))}">${escapeHtml(String(insight.title))}</h5>
       <p class="insight-description">${escapeHtml(String(insight.description))}</p>
       ${renderInsightDataSection(insight.data)}
       ${renderAffectedEntities(insight.affected_entities)}
       ${renderRecommendationSection(insight.recommendation)}
-    </div>
+    </article>
   `;
 }
 
@@ -321,22 +331,31 @@ export function renderAIInsights(
   }
 
   // Group insights by severity and render with rich cards
+  // Includes WCAG 2.1 AA accessibility (proper headings, roles, aria-labels)
+  const defaultSeverityInfo = { icon: "🔵", label: "Informational" };
   ["critical", "warning", "info"].forEach((severity) => {
     const items = insights.insights.filter(
       (i: InsightItem) => i.severity === severity,
     );
     if (!items.length) return;
 
+    const severityInfo = SEVERITY_ICONS[severity] ?? defaultSeverityInfo;
+    const sectionLabel = `${severity.charAt(0).toUpperCase() + severity.slice(1)} insights`;
+
     // SECURITY: All user-controlled data is escaped in renderRichInsightCard
     appendTrustedHtml(
       content,
       `
-        <div class="severity-section">
-          <h4>${SEVERITY_ICONS[severity]} ${severity.charAt(0).toUpperCase() + severity.slice(1)}</h4>
-          <div class="insight-cards">
+        <section class="severity-section" role="region" aria-label="${sectionLabel}">
+          <h4>
+            <span role="img" aria-hidden="true">${severityInfo.icon}</span>
+            <span>${severity.charAt(0).toUpperCase() + severity.slice(1)}</span>
+            <span class="visually-hidden">(${items.length} ${items.length === 1 ? 'item' : 'items'})</span>
+          </h4>
+          <div class="insight-cards" role="feed" aria-label="${sectionLabel} list">
             ${items.map((i: InsightItem) => renderRichInsightCard(i)).join("")}
           </div>
-        </div>
+        </section>
       `,
     );
   });
