@@ -23,7 +23,10 @@ import type {
 } from "../types";
 import type { MlDataProvider, MlFeatureState } from "./ml/types";
 import { createInitialMlState } from "./ml/types";
-import { renderPredictionsWithCharts } from "./charts/predictions";
+import {
+  renderPredictionsWithCharts,
+  type RollupForChart,
+} from "./charts/predictions";
 
 /**
  * Type guard to check if data is valid PredictionsRenderData.
@@ -71,13 +74,15 @@ export function initializePhase5Features(): void {
  * Render predictions tab content with forecast charts.
  * @param container - The tab container element
  * @param predictions - Predictions data to render (null-safe)
+ * @param rollups - Optional historical rollup data for chart context
  */
 export function renderPredictions(
   container: HTMLElement | null,
   predictions: PredictionsRenderData | null,
+  rollups?: RollupForChart[],
 ): void {
   // Use the chart-based rendering from predictions module
-  renderPredictionsWithCharts(container, predictions);
+  renderPredictionsWithCharts(container, predictions, rollups);
 }
 
 /**

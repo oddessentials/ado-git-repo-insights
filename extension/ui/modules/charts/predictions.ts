@@ -20,6 +20,23 @@ import type {
 import { escapeHtml, appendTrustedHtml } from "../shared/render";
 
 /**
+ * Historical data point for chart rendering.
+ */
+export interface HistoricalDataPoint {
+  week: string;
+  value: number;
+}
+
+/**
+ * Rollup data structure (subset of fields needed for historical data).
+ */
+export interface RollupForChart {
+  week: string;
+  pr_count: number;
+  cycle_time_p50: number | null;
+}
+
+/**
  * Forecaster display names.
  */
 const FORECASTER_LABELS: Record<string, string> = {
@@ -262,6 +279,64 @@ function formatWeekLabel(weekStr: string): string {
 }
 
 /**
+ * Convert ISO week string (e.g., "2026-W04") to ISO date string (Monday of that week).
+ */
+function isoWeekToDate(isoWeek: string): string {
+  // Handle "YYYY-Www" format
+  const match = isoWeek.match(/^(\d{4})-W(\d{2})$/);
+  if (!match || !match[1] || !match[2]) return isoWeek; // Return as-is if not ISO week format
+
+  const year = parseInt(match[1], 10);
+  const week = parseInt(match[2], 10);
+
+  // Calculate the Monday of the given ISO week
+  // Jan 4 is always in week 1 of the ISO year
+  const jan4 = new Date(year, 0, 4);
+  const dayOfWeek = jan4.getDay() || 7; // Convert Sunday (0) to 7
+  const firstMonday = new Date(jan4);
+  firstMonday.setDate(jan4.getDate() - dayOfWeek + 1);
+
+  // Add weeks
+  const targetDate = new Date(firstMonday);
+  targetDate.setDate(firstMonday.getDate() + (week - 1) * 7);
+
+  const isoString = targetDate.toISOString().split("T")[0];
+  return isoString || isoWeek;
+}
+
+/**
+ * Extract historical data points from rollups for a specific metric.
+ * @param rollups - Array of rollup data
+ * @param metric - Metric name to extract (pr_throughput, cycle_time_minutes, etc.)
+ * @returns Array of historical data points sorted by week
+ */
+export function extractHistoricalData(
+  rollups: RollupForChart[],
+  metric: string,
+): HistoricalDataPoint[] {
+  if (!rollups || rollups.length === 0) return [];
+
+  // Map metric names to rollup fields
+  const metricFieldMap: Record<string, keyof RollupForChart> = {
+    pr_throughput: "pr_count",
+    cycle_time_minutes: "cycle_time_p50",
+    review_time_minutes: "cycle_time_p50", // Uses cycle time as proxy
+  };
+
+  const field = metricFieldMap[metric];
+  if (!field) return [];
+
+  return rollups
+    .filter((r) => r[field] !== null && r[field] !== undefined)
+    .map((r) => ({
+      // Convert ISO week format to date if needed
+      week: r.week.includes("-W") ? isoWeekToDate(r.week) : r.week,
+      value: Number(r[field]),
+    }))
+    .sort((a, b) => a.week.localeCompare(b.week));
+}
+
+/**
  * Render forecast values as a data table.
  * Used as fallback or detailed view.
  */
@@ -308,10 +383,12 @@ export function renderForecastTable(forecast: Forecast): string {
  * Render complete predictions section with charts.
  * @param container - Target container element
  * @param predictions - Predictions data to render
+ * @param rollups - Optional historical rollup data for chart context
  */
 export function renderPredictionsWithCharts(
   container: HTMLElement | null,
   predictions: PredictionsRenderData | null,
+  rollups?: RollupForChart[],
 ): void {
   if (!container) return;
   if (!predictions) return;
@@ -349,10 +426,13 @@ export function renderPredictionsWithCharts(
     return;
   }
 
-  // Render each forecast as a chart
+  // Render each forecast as a chart with historical data
   predictions.forecasts.forEach((forecast: Forecast) => {
-    // For now, render without historical data (could be enhanced later)
-    const chartHtml = renderForecastChart(forecast);
+    // Extract historical data for this metric from rollups
+    const historicalData = rollups
+      ? extractHistoricalData(rollups, forecast.metric)
+      : undefined;
+    const chartHtml = renderForecastChart(forecast, historicalData);
     appendTrustedHtml(content, chartHtml);
   });
 

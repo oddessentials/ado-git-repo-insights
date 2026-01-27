@@ -1688,7 +1688,37 @@ var PRInsightsDashboard = (() => {
       return weekStr;
     }
   }
-  function renderPredictionsWithCharts(container, predictions) {
+  function isoWeekToDate(isoWeek) {
+    const match = isoWeek.match(/^(\d{4})-W(\d{2})$/);
+    if (!match || !match[1] || !match[2]) return isoWeek;
+    const year = parseInt(match[1], 10);
+    const week = parseInt(match[2], 10);
+    const jan4 = new Date(year, 0, 4);
+    const dayOfWeek = jan4.getDay() || 7;
+    const firstMonday = new Date(jan4);
+    firstMonday.setDate(jan4.getDate() - dayOfWeek + 1);
+    const targetDate = new Date(firstMonday);
+    targetDate.setDate(firstMonday.getDate() + (week - 1) * 7);
+    const isoString = targetDate.toISOString().split("T")[0];
+    return isoString || isoWeek;
+  }
+  function extractHistoricalData(rollups, metric) {
+    if (!rollups || rollups.length === 0) return [];
+    const metricFieldMap = {
+      pr_throughput: "pr_count",
+      cycle_time_minutes: "cycle_time_p50",
+      review_time_minutes: "cycle_time_p50"
+      // Uses cycle time as proxy
+    };
+    const field = metricFieldMap[metric];
+    if (!field) return [];
+    return rollups.filter((r) => r[field] !== null && r[field] !== void 0).map((r) => ({
+      // Convert ISO week format to date if needed
+      week: r.week.includes("-W") ? isoWeekToDate(r.week) : r.week,
+      value: Number(r[field])
+    })).sort((a, b) => a.week.localeCompare(b.week));
+  }
+  function renderPredictionsWithCharts(container, predictions, rollups) {
     if (!container) return;
     if (!predictions) return;
     const content = document.createElement("div");
@@ -1718,7 +1748,8 @@ var PRInsightsDashboard = (() => {
       return;
     }
     predictions.forecasts.forEach((forecast) => {
-      const chartHtml = renderForecastChart(forecast);
+      const historicalData = rollups ? extractHistoricalData(rollups, forecast.metric) : void 0;
+      const chartHtml = renderForecastChart(forecast, historicalData);
       appendTrustedHtml(content, chartHtml);
     });
     const unavailable = container.querySelector(".feature-unavailable");
@@ -1732,8 +1763,8 @@ var PRInsightsDashboard = (() => {
     warning: "\u{1F7E1}",
     info: "\u{1F535}"
   };
-  function renderPredictions(container, predictions) {
-    renderPredictionsWithCharts(container, predictions);
+  function renderPredictions(container, predictions, rollups) {
+    renderPredictionsWithCharts(container, predictions, rollups);
   }
   function renderAIInsights(container, insights) {
     if (!container) return;
@@ -2877,7 +2908,7 @@ var PRInsightsDashboard = (() => {
       const predictionsResult = await loader.loadPredictions();
       const predData = predictionsResult?.data;
       if (predictionsResult?.state === "ok" && predData?.forecasts?.length && predData.forecasts.length > 0) {
-        renderPredictions2(predictionsContent, predData);
+        renderPredictions2(predictionsContent, predData, cachedRollups);
       } else if (predictionsUnavailable) {
         predictionsUnavailable.classList.remove("hidden");
       }
@@ -2894,8 +2925,8 @@ var PRInsightsDashboard = (() => {
       }
     }
   }
-  function renderPredictions2(container, predictions) {
-    renderPredictions(container, predictions);
+  function renderPredictions2(container, predictions, rollups) {
+    renderPredictions(container, predictions, rollups);
   }
   function renderAIInsights2(container, insights) {
     renderAIInsights(container, insights);

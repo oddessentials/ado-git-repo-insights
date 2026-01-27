@@ -970,7 +970,8 @@ async function updateFeatureTabs(): Promise<void> {
       predData?.forecasts?.length &&
       predData.forecasts.length > 0
     ) {
-      renderPredictions(predictionsContent, predData);
+      // Pass cached rollups for historical data context in charts
+      renderPredictions(predictionsContent, predData, cachedRollups);
     } else if (predictionsUnavailable) {
       predictionsUnavailable.classList.remove("hidden");
     }
@@ -996,14 +997,15 @@ async function updateFeatureTabs(): Promise<void> {
 }
 
 /**
- * Render predictions.
+ * Render predictions with historical data context.
  * Thin wrapper that delegates to extracted module.
  */
 function renderPredictions(
   container: HTMLElement,
   predictions: PredictionsRenderData,
+  rollups?: Rollup[],
 ): void {
-  renderPredictionsModule(container, predictions);
+  renderPredictionsModule(container, predictions, rollups);
 }
 
 /**
