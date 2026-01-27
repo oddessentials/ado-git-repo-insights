@@ -14,7 +14,6 @@ import {
   escapeHtml,
   renderTrustedHtml,
   appendTrustedHtml,
-  createElement,
 } from "./shared/render";
 import type {
   PredictionsRenderData,
@@ -30,6 +29,8 @@ import {
   renderPredictionsWithCharts,
   type RollupForChart,
 } from "./charts/predictions";
+import { canShowSyntheticData } from "./ml/dev-mode";
+import { generateSyntheticPredictions, generateSyntheticInsights } from "./ml/synthetic";
 
 /**
  * Type guard to check if data is valid PredictionsRenderData.
@@ -255,6 +256,23 @@ function renderRichInsightCard(insight: InsightItem): string {
 }
 
 /**
+ * Render prominent preview banner for synthetic data (T056).
+ * Used to clearly indicate that displayed data is demo/preview only.
+ * @returns HTML string for the preview banner
+ */
+function renderPreviewBanner(): string {
+  return `
+    <div class="preview-banner">
+      <span class="preview-icon">&#x26A0;</span>
+      <div class="preview-text">
+        <strong>PREVIEW - Demo Data</strong>
+        <span>This is synthetic data for preview purposes only. Run the analytics pipeline to see real metrics.</span>
+      </div>
+    </div>
+  `;
+}
+
+/**
  * Initialize Phase 5 features in the UI.
  * Sets up tab content areas for ML features.
  */
@@ -293,13 +311,9 @@ export function renderAIInsights(
   const content = document.createElement("div");
   content.className = "insights-content";
 
+  // Show prominent preview banner for synthetic data (T056)
   if (insights.is_stub) {
-    const warning = createElement(
-      "div",
-      { class: "stub-warning" },
-      "⚠️ Demo data",
-    );
-    content.appendChild(warning);
+    appendTrustedHtml(content, renderPreviewBanner());
   }
 
   // Group insights by severity and render with rich cards
@@ -431,11 +445,23 @@ export function renderInsightsEmpty(container: HTMLElement | null): void {
 }
 
 /**
+ * Options for ML renderer behavior.
+ */
+export interface MlRendererOptions {
+  /** Enable dev mode to show synthetic data when real data is unavailable */
+  devMode?: boolean;
+}
+
+/**
  * Create an ML renderer with a data provider.
  * This is the async seam for future service integration.
+ *
+ * @param provider - Data provider for loading ML data
+ * @param options - Optional configuration including devMode flag
  */
-export function createMlRenderer(provider: MlDataProvider) {
+export function createMlRenderer(provider: MlDataProvider, options: MlRendererOptions = {}) {
   let state: MlFeatureState = createInitialMlState();
+  const { devMode = false } = options;
 
   return {
     getState: () => state,
@@ -457,8 +483,19 @@ export function createMlRenderer(provider: MlDataProvider) {
           };
           renderPredictions(container, result.data);
         } else if (result.state === "unavailable") {
-          state = { ...state, predictionsState: "unavailable" };
-          renderPredictionsEmpty(container);
+          // T054: Synthetic fallback for predictions when unavailable
+          if (canShowSyntheticData(devMode)) {
+            const syntheticData = generateSyntheticPredictions();
+            state = {
+              ...state,
+              predictionsState: "loaded",
+              predictionsData: { state: "ok", data: syntheticData },
+            };
+            renderPredictions(container, syntheticData);
+          } else {
+            state = { ...state, predictionsState: "unavailable" };
+            renderPredictionsEmpty(container);
+          }
         } else {
           state = {
             ...state,
@@ -498,8 +535,19 @@ export function createMlRenderer(provider: MlDataProvider) {
           };
           renderAIInsights(container, result.data);
         } else if (result.state === "unavailable") {
-          state = { ...state, insightsState: "unavailable" };
-          renderInsightsEmpty(container);
+          // T055: Synthetic fallback for insights when unavailable
+          if (canShowSyntheticData(devMode)) {
+            const syntheticData = generateSyntheticInsights();
+            state = {
+              ...state,
+              insightsState: "loaded",
+              insightsData: { state: "ok", data: syntheticData },
+            };
+            renderAIInsights(container, syntheticData);
+          } else {
+            state = { ...state, insightsState: "unavailable" };
+            renderInsightsEmpty(container);
+          }
         } else {
           state = {
             ...state,
@@ -528,3 +576,18 @@ export {
   type MlDataProvider,
   type MlFeatureState,
 } from "./ml/types";
+
+// Re-export dev mode utilities (US3)
+export {
+  isProductionEnvironment,
+  canShowSyntheticData,
+  isLocalDevelopment,
+  getCurrentHostname,
+} from "./ml/dev-mode";
+
+// Re-export synthetic data generators (US3)
+export {
+  generateSyntheticPredictions,
+  generateSyntheticInsights,
+  isSyntheticData,
+} from "./ml/synthetic";

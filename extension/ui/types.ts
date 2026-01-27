@@ -391,6 +391,8 @@ export interface Forecast {
  */
 export interface PredictionsRenderData {
   is_stub?: boolean;
+  generated_by?: string;
+  generated_at?: string;
   forecaster?: "linear" | "prophet";
   data_quality?: "normal" | "low_confidence" | "insufficient";
   forecasts: Forecast[];
@@ -445,6 +447,9 @@ export interface InsightItem {
  */
 export interface InsightsRenderData {
   is_stub?: boolean;
+  generated_by?: string;
+  generated_at?: string;
+  schema_version?: number;
   insights: InsightItem[];
 }
 

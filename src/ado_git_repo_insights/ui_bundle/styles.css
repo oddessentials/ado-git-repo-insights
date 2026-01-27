@@ -1317,6 +1317,45 @@ body {
     background: rgba(34, 197, 94, 0.1);
 }
 
+/* Phase 5 US3: Preview Banner for Synthetic Data (T057) */
+.preview-banner {
+    display: flex;
+    align-items: flex-start;
+    gap: 12px;
+    padding: 16px;
+    margin-bottom: 20px;
+    background: linear-gradient(135deg, #fef3c7 0%, #fde68a 100%);
+    border: 2px solid #f59e0b;
+    border-radius: var(--radius);
+    box-shadow: 0 2px 8px rgba(245, 158, 11, 0.2);
+}
+
+.preview-icon {
+    font-size: 24px;
+    flex-shrink: 0;
+    line-height: 1;
+}
+
+.preview-text {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.preview-text strong {
+    font-size: 14px;
+    font-weight: 700;
+    color: #92400e;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.preview-text span {
+    font-size: 13px;
+    color: #78350f;
+    line-height: 1.4;
+}
+
 /* Setup Panel */
 .setup-panel {
     display: flex;

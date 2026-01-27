@@ -1,0 +1,219 @@
+/**
+ * Synthetic Data Generator Module (T050-T053)
+ *
+ * Generates realistic preview data for ML features when real data is unavailable.
+ * Used ONLY in development/preview mode, never in production.
+ *
+ * All synthetic data is clearly marked with:
+ * - is_stub: true
+ * - generated_by: "synthetic-preview"
+ */
+
+import type {
+  PredictionsRenderData,
+  InsightsRenderData,
+  Forecast,
+  ForecastValue,
+  InsightItem,
+} from "../../types";
+
+/**
+ * Generator identifier for synthetic data.
+ */
+const SYNTHETIC_GENERATOR = "synthetic-preview";
+
+/**
+ * Generate a date string offset from today by the given number of weeks.
+ */
+function getWeekOffset(weeks: number): string {
+  const date = new Date();
+  date.setDate(date.getDate() + weeks * 7);
+  return date.toISOString().split("T")[0] ?? "";
+}
+
+/**
+ * Generate synthetic forecast values for a metric.
+ * Creates 4 weeks of realistic forecast data with confidence bands.
+ */
+function generateForecastValues(
+  baseValue: number,
+  trend: "up" | "down" | "stable",
+  variability: number,
+): ForecastValue[] {
+  const values: ForecastValue[] = [];
+  let currentValue = baseValue;
+
+  for (let week = 1; week <= 4; week++) {
+    // Apply trend
+    const trendMultiplier =
+      trend === "up" ? 1.05 : trend === "down" ? 0.95 : 1.0;
+    currentValue = currentValue * trendMultiplier;
+
+    // Add some variability
+    const noise = (Math.random() - 0.5) * variability;
+    const predicted = Math.round(currentValue + noise);
+
+    // Confidence bands (wider as we go further out)
+    const confidenceWidth = variability * (1 + week * 0.3);
+    const lowerBound = Math.round(predicted - confidenceWidth);
+    const upperBound = Math.round(predicted + confidenceWidth);
+
+    values.push({
+      period_start: getWeekOffset(week),
+      predicted: Math.max(0, predicted),
+      lower_bound: Math.max(0, lowerBound),
+      upper_bound: Math.max(0, upperBound),
+    });
+  }
+
+  return values;
+}
+
+/**
+ * Generate synthetic predictions data (T051).
+ *
+ * Creates realistic forecast data for:
+ * - PR Throughput (trending up)
+ * - Cycle Time (trending stable)
+ * - Review Time (trending down - improvement)
+ *
+ * @returns Synthetic predictions data marked as preview
+ */
+export function generateSyntheticPredictions(): PredictionsRenderData {
+  const forecasts: Forecast[] = [
+    {
+      metric: "pr_throughput",
+      unit: "PRs/week",
+      values: generateForecastValues(25, "up", 5),
+    },
+    {
+      metric: "cycle_time_minutes",
+      unit: "minutes",
+      values: generateForecastValues(180, "stable", 30),
+    },
+    {
+      metric: "review_time_minutes",
+      unit: "minutes",
+      values: generateForecastValues(60, "down", 15),
+    },
+  ];
+
+  return {
+    is_stub: true,
+    generated_by: SYNTHETIC_GENERATOR,
+    generated_at: new Date().toISOString(),
+    forecaster: "linear",
+    data_quality: "low_confidence",
+    forecasts,
+  };
+}
+
+/**
+ * Generate synthetic insights data (T052).
+ *
+ * Creates 3 sample insights (one per category) with realistic content:
+ * - Bottleneck: Code review delay (warning)
+ * - Trend: Increasing cycle time (warning)
+ * - Anomaly: Unusual activity spike (info)
+ *
+ * All insights include v2 schema fields (data, recommendation).
+ *
+ * @returns Synthetic insights data marked as preview
+ */
+export function generateSyntheticInsights(): InsightsRenderData {
+  const insights: InsightItem[] = [
+    {
+      id: "synthetic-bottleneck-1",
+      category: "bottleneck",
+      severity: "warning",
+      title: "Code Review Delay Detected",
+      description:
+        "Pull requests are spending 3x longer in code review than the team average. This may indicate reviewer capacity issues.",
+      affected_entities: [
+        { type: "team", name: "Backend Services", member_count: 5 },
+        { type: "repository", name: "api-gateway" },
+      ],
+      data: {
+        metric: "review_time_minutes",
+        current_value: 180,
+        previous_value: 60,
+        change_percent: 200,
+        trend_direction: "up",
+        sparkline: [45, 55, 60, 90, 120, 150, 180],
+      },
+      recommendation: {
+        action: "Consider adding more code reviewers or implementing automated review checks",
+        priority: "high",
+        effort: "medium",
+      },
+    },
+    {
+      id: "synthetic-trend-1",
+      category: "trend",
+      severity: "warning",
+      title: "Cycle Time Increasing",
+      description:
+        "Average cycle time has increased by 25% over the past 4 weeks. This trend suggests growing complexity or process friction.",
+      affected_entities: [
+        { type: "team", name: "Platform Team", member_count: 8 },
+      ],
+      data: {
+        metric: "cycle_time_minutes",
+        current_value: 250,
+        previous_value: 200,
+        change_percent: 25,
+        trend_direction: "up",
+        sparkline: [180, 195, 210, 225, 240, 250],
+      },
+      recommendation: {
+        action: "Review PR sizes and consider breaking down large changes into smaller, reviewable chunks",
+        priority: "medium",
+        effort: "low",
+      },
+    },
+    {
+      id: "synthetic-anomaly-1",
+      category: "anomaly",
+      severity: "info",
+      title: "Unusual Activity Spike",
+      description:
+        "PR volume is 40% higher than typical for this period. This may be related to a planned release or sprint end.",
+      affected_entities: [
+        { type: "author", name: "release-bot" },
+        { type: "repository", name: "frontend-app" },
+      ],
+      data: {
+        metric: "pr_throughput",
+        current_value: 42,
+        previous_value: 30,
+        change_percent: 40,
+        trend_direction: "up",
+        sparkline: [28, 30, 32, 35, 38, 42],
+      },
+      recommendation: {
+        action: "Monitor merge queue capacity and ensure CI/CD pipelines can handle increased load",
+        priority: "low",
+        effort: "low",
+      },
+    },
+  ];
+
+  return {
+    is_stub: true,
+    generated_by: SYNTHETIC_GENERATOR,
+    generated_at: new Date().toISOString(),
+    schema_version: 1,
+    insights,
+  };
+}
+
+/**
+ * Check if data is synthetic (marked as stub).
+ * @param data - Data object to check
+ * @returns true if data has is_stub: true
+ */
+export function isSyntheticData(
+  data: { is_stub?: boolean } | null | undefined,
+): boolean {
+  return data?.is_stub === true;
+}

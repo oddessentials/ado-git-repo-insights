@@ -405,11 +405,17 @@ export function renderPredictionsWithCharts(
   `;
   appendTrustedHtml(content, headerHtml);
 
-  // Render stub warning if applicable
+  // Render prominent preview banner for synthetic/stub data (T056)
   if (predictions.is_stub) {
     appendTrustedHtml(
       content,
-      `<div class="stub-warning">&#x26A0; Demo data - for preview only</div>`,
+      `<div class="preview-banner">
+        <span class="preview-icon">&#x26A0;</span>
+        <div class="preview-text">
+          <strong>PREVIEW - Demo Data</strong>
+          <span>This is synthetic data for preview purposes only. Run the analytics pipeline to see real metrics.</span>
+        </div>
+      </div>`,
     );
   }
 

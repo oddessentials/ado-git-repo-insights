@@ -1733,7 +1733,13 @@ var PRInsightsDashboard = (() => {
     if (predictions.is_stub) {
       appendTrustedHtml(
         content,
-        `<div class="stub-warning">&#x26A0; Demo data - for preview only</div>`
+        `<div class="preview-banner">
+        <span class="preview-icon">&#x26A0;</span>
+        <div class="preview-text">
+          <strong>PREVIEW - Demo Data</strong>
+          <span>This is synthetic data for preview purposes only. Run the analytics pipeline to see real metrics.</span>
+        </div>
+      </div>`
       );
     }
     if (!predictions.forecasts || predictions.forecasts.length === 0) {
@@ -1878,6 +1884,17 @@ var PRInsightsDashboard = (() => {
     </div>
   `;
   }
+  function renderPreviewBanner() {
+    return `
+    <div class="preview-banner">
+      <span class="preview-icon">&#x26A0;</span>
+      <div class="preview-text">
+        <strong>PREVIEW - Demo Data</strong>
+        <span>This is synthetic data for preview purposes only. Run the analytics pipeline to see real metrics.</span>
+      </div>
+    </div>
+  `;
+  }
   function renderPredictions(container, predictions, rollups) {
     renderPredictionsWithCharts(container, predictions, rollups);
   }
@@ -1887,12 +1904,7 @@ var PRInsightsDashboard = (() => {
     const content = document.createElement("div");
     content.className = "insights-content";
     if (insights.is_stub) {
-      const warning = createElement(
-        "div",
-        { class: "stub-warning" },
-        "\u26A0\uFE0F Demo data"
-      );
-      content.appendChild(warning);
+      appendTrustedHtml(content, renderPreviewBanner());
     }
     ["critical", "warning", "info"].forEach((severity) => {
       const items = insights.insights.filter(
