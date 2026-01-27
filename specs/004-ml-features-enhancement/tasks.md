@@ -38,11 +38,11 @@
 
 **⚠️ CRITICAL**: No user story work can begin until this phase is complete
 
-- [ ] T005 Create FallbackForecaster base class with identical interface to ProphetForecaster in src/ado_git_repo_insights/ml/fallback_forecaster.py
-- [ ] T006 Implement data quality assessment function (insufficient/low_confidence/normal) in src/ado_git_repo_insights/ml/fallback_forecaster.py
-- [ ] T007 Implement outlier clipping (3 standard deviations) in src/ado_git_repo_insights/ml/fallback_forecaster.py
-- [ ] T008 Add get_forecaster() factory function for auto-detection in src/ado_git_repo_insights/ml/__init__.py
-- [ ] T009 Export FallbackForecaster from ml package in src/ado_git_repo_insights/ml/__init__.py
+- [x] T005 Create FallbackForecaster base class with identical interface to ProphetForecaster in src/ado_git_repo_insights/ml/fallback_forecaster.py
+- [x] T006 Implement data quality assessment function (insufficient/low_confidence/normal) in src/ado_git_repo_insights/ml/fallback_forecaster.py
+- [x] T007 Implement outlier clipping (3 standard deviations) in src/ado_git_repo_insights/ml/fallback_forecaster.py
+- [x] T008 Add get_forecaster() factory function for auto-detection in src/ado_git_repo_insights/ml/__init__.py
+- [x] T009 Export FallbackForecaster from ml package in src/ado_git_repo_insights/ml/__init__.py
 
 **Checkpoint**: Foundation ready - user story implementation can now begin in parallel
 
