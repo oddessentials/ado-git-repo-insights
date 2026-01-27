@@ -20,6 +20,9 @@ import type {
   PredictionsRenderData,
   InsightsRenderData,
   InsightItem,
+  InsightData,
+  Recommendation,
+  AffectedEntity,
 } from "../types";
 import type { MlDataProvider, MlFeatureState } from "./ml/types";
 import { createInitialMlState } from "./ml/types";
@@ -62,6 +65,196 @@ const SEVERITY_ICONS: Record<string, string> = {
 };
 
 /**
+ * Priority badge labels and CSS classes.
+ */
+const PRIORITY_BADGES: Record<string, { label: string; cssClass: string }> = {
+  high: { label: "High Priority", cssClass: "priority-high" },
+  medium: { label: "Medium Priority", cssClass: "priority-medium" },
+  low: { label: "Low Priority", cssClass: "priority-low" },
+};
+
+/**
+ * Effort badge labels and CSS classes.
+ */
+const EFFORT_BADGES: Record<string, { label: string; cssClass: string }> = {
+  high: { label: "High Effort", cssClass: "effort-high" },
+  medium: { label: "Medium Effort", cssClass: "effort-medium" },
+  low: { label: "Low Effort", cssClass: "effort-low" },
+};
+
+/**
+ * Trend direction icons.
+ */
+const TREND_ICONS: Record<string, string> = {
+  up: "↗",
+  down: "↘",
+  stable: "→",
+};
+
+/**
+ * Render a sparkline as an inline SVG for insight cards (T038).
+ * Named distinctly from charts.ts renderSparkline to avoid export conflicts.
+ * @param values - Array of numeric values for the sparkline
+ * @param width - SVG width (default 60)
+ * @param height - SVG height (default 20)
+ * @returns HTML string for the sparkline SVG
+ */
+function renderInsightSparkline(
+  values: number[] | undefined,
+  width: number = 60,
+  height: number = 20,
+): string {
+  if (!values || values.length < 2) {
+    return `<span class="sparkline-empty">—</span>`;
+  }
+
+  const minVal = Math.min(...values);
+  const maxVal = Math.max(...values);
+  const range = maxVal - minVal || 1;
+  const padding = 2;
+  const effectiveHeight = height - padding * 2;
+  const effectiveWidth = width - padding * 2;
+
+  // Calculate points for polyline
+  const points = values
+    .map((val, i) => {
+      const x = padding + (i / (values.length - 1)) * effectiveWidth;
+      const y = padding + (1 - (val - minVal) / range) * effectiveHeight;
+      return `${x.toFixed(1)},${y.toFixed(1)}`;
+    })
+    .join(" ");
+
+  return `
+    <svg class="sparkline" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}">
+      <polyline
+        points="${points}"
+        fill="none"
+        stroke="currentColor"
+        stroke-width="1.5"
+        stroke-linecap="round"
+        stroke-linejoin="round"
+      />
+    </svg>
+  `;
+}
+
+/**
+ * Render the data section with metric and sparkline (T040).
+ * @param data - Insight data with metric, values, and trend
+ * @returns HTML string for the data section
+ */
+function renderInsightDataSection(data: InsightData | undefined): string {
+  if (!data) return "";
+
+  const metricLabel = data.metric
+    .replace(/_/g, " ")
+    .replace(/\b\w/g, (c) => c.toUpperCase());
+
+  const trendIcon = TREND_ICONS[data.trend_direction] || "";
+  const trendClass = `trend-${data.trend_direction}`;
+
+  // Format change percent
+  const changeDisplay = data.change_percent !== undefined
+    ? `${data.change_percent > 0 ? "+" : ""}${data.change_percent.toFixed(1)}%`
+    : "";
+
+  return `
+    <div class="insight-data-section">
+      <div class="insight-metric">
+        <span class="metric-label">${escapeHtml(metricLabel)}</span>
+        <span class="metric-value">${escapeHtml(String(data.current_value))}</span>
+        ${changeDisplay ? `<span class="metric-change ${trendClass}">${trendIcon} ${escapeHtml(changeDisplay)}</span>` : ""}
+      </div>
+      <div class="insight-sparkline">
+        ${renderInsightSparkline(data.sparkline)}
+      </div>
+    </div>
+  `;
+}
+
+/**
+ * Render the recommendation section with priority/effort badges (T041).
+ * @param recommendation - Recommendation with action, priority, and effort
+ * @returns HTML string for the recommendation section
+ */
+function renderRecommendationSection(recommendation: Recommendation | undefined): string {
+  if (!recommendation) return "";
+
+  const priorityBadge = PRIORITY_BADGES[recommendation.priority] ?? { label: "Medium Priority", cssClass: "priority-medium" };
+  const effortBadge = EFFORT_BADGES[recommendation.effort] ?? { label: "Medium Effort", cssClass: "effort-medium" };
+
+  return `
+    <div class="insight-recommendation">
+      <div class="recommendation-header">
+        <span class="recommendation-label">Recommendation</span>
+        <div class="recommendation-badges">
+          <span class="badge ${priorityBadge.cssClass}">${escapeHtml(priorityBadge.label)}</span>
+          <span class="badge ${effortBadge.cssClass}">${escapeHtml(effortBadge.label)}</span>
+        </div>
+      </div>
+      <p class="recommendation-action">${escapeHtml(recommendation.action)}</p>
+    </div>
+  `;
+}
+
+/**
+ * Render the affected entities display with member counts (T042).
+ * @param entities - Array of affected entities
+ * @returns HTML string for the entities section
+ */
+function renderAffectedEntities(entities: AffectedEntity[] | undefined): string {
+  if (!entities || entities.length === 0) return "";
+
+  const entityItems = entities
+    .map((entity) => {
+      const memberCount = entity.member_count !== undefined
+        ? `<span class="entity-count">(${entity.member_count})</span>`
+        : "";
+      const entityIcon = entity.type === "team" ? "👥"
+        : entity.type === "repository" ? "📁"
+        : "👤";
+      return `
+        <span class="entity-item ${escapeHtml(entity.type)}">
+          <span class="entity-icon">${entityIcon}</span>
+          <span class="entity-name">${escapeHtml(entity.name)}</span>
+          ${memberCount}
+        </span>
+      `;
+    })
+    .join("");
+
+  return `
+    <div class="insight-affected-entities">
+      <span class="entities-label">Affects:</span>
+      <div class="entities-list">${entityItems}</div>
+    </div>
+  `;
+}
+
+/**
+ * Render a rich insight card with all v2 schema fields (T039).
+ * @param insight - The insight item to render
+ * @returns HTML string for the insight card
+ */
+function renderRichInsightCard(insight: InsightItem): string {
+  const severityIcon = SEVERITY_ICONS[insight.severity] || SEVERITY_ICONS.info;
+
+  return `
+    <div class="insight-card rich-card ${escapeHtml(String(insight.severity))}">
+      <div class="insight-header">
+        <span class="severity-icon">${severityIcon}</span>
+        <span class="insight-category">${escapeHtml(String(insight.category))}</span>
+      </div>
+      <h5 class="insight-title">${escapeHtml(String(insight.title))}</h5>
+      <p class="insight-description">${escapeHtml(String(insight.description))}</p>
+      ${renderInsightDataSection(insight.data)}
+      ${renderAffectedEntities(insight.affected_entities)}
+      ${renderRecommendationSection(insight.recommendation)}
+    </div>
+  `;
+}
+
+/**
  * Initialize Phase 5 features in the UI.
  * Sets up tab content areas for ML features.
  */
@@ -86,7 +279,7 @@ export function renderPredictions(
 }
 
 /**
- * Render AI insights tab content.
+ * Render AI insights tab content with rich cards.
  * @param container - The tab container element
  * @param insights - Insights data to render (null-safe)
  */
@@ -109,33 +302,24 @@ export function renderAIInsights(
     content.appendChild(warning);
   }
 
+  // Group insights by severity and render with rich cards
   ["critical", "warning", "info"].forEach((severity) => {
     const items = insights.insights.filter(
       (i: InsightItem) => i.severity === severity,
     );
     if (!items.length) return;
 
-    // SECURITY: Escape all user-controlled data to prevent XSS
+    // SECURITY: All user-controlled data is escaped in renderRichInsightCard
     appendTrustedHtml(
       content,
       `
-            <div class="severity-section">
-                <h4>${SEVERITY_ICONS[severity]} ${severity.charAt(0).toUpperCase() + severity.slice(1)}</h4>
-                <div class="insight-cards">
-                    ${items
-                      .map(
-                        (i: InsightItem) => `
-                        <div class="insight-card ${escapeHtml(String(i.severity))}">
-                            <div class="insight-category">${escapeHtml(String(i.category))}</div>
-                            <h5>${escapeHtml(String(i.title))}</h5>
-                            <p>${escapeHtml(String(i.description))}</p>
-                        </div>
-                    `,
-                      )
-                      .join("")}
-                </div>
-            </div>
-        `,
+        <div class="severity-section">
+          <h4>${SEVERITY_ICONS[severity]} ${severity.charAt(0).toUpperCase() + severity.slice(1)}</h4>
+          <div class="insight-cards">
+            ${items.map((i: InsightItem) => renderRichInsightCard(i)).join("")}
+          </div>
+        </div>
+      `,
     );
   });
 

@@ -1763,6 +1763,121 @@ var PRInsightsDashboard = (() => {
     warning: "\u{1F7E1}",
     info: "\u{1F535}"
   };
+  var PRIORITY_BADGES = {
+    high: { label: "High Priority", cssClass: "priority-high" },
+    medium: { label: "Medium Priority", cssClass: "priority-medium" },
+    low: { label: "Low Priority", cssClass: "priority-low" }
+  };
+  var EFFORT_BADGES = {
+    high: { label: "High Effort", cssClass: "effort-high" },
+    medium: { label: "Medium Effort", cssClass: "effort-medium" },
+    low: { label: "Low Effort", cssClass: "effort-low" }
+  };
+  var TREND_ICONS = {
+    up: "\u2197",
+    down: "\u2198",
+    stable: "\u2192"
+  };
+  function renderInsightSparkline(values, width = 60, height = 20) {
+    if (!values || values.length < 2) {
+      return `<span class="sparkline-empty">\u2014</span>`;
+    }
+    const minVal = Math.min(...values);
+    const maxVal = Math.max(...values);
+    const range = maxVal - minVal || 1;
+    const padding = 2;
+    const effectiveHeight = height - padding * 2;
+    const effectiveWidth = width - padding * 2;
+    const points = values.map((val, i) => {
+      const x = padding + i / (values.length - 1) * effectiveWidth;
+      const y = padding + (1 - (val - minVal) / range) * effectiveHeight;
+      return `${x.toFixed(1)},${y.toFixed(1)}`;
+    }).join(" ");
+    return `
+    <svg class="sparkline" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}">
+      <polyline
+        points="${points}"
+        fill="none"
+        stroke="currentColor"
+        stroke-width="1.5"
+        stroke-linecap="round"
+        stroke-linejoin="round"
+      />
+    </svg>
+  `;
+  }
+  function renderInsightDataSection(data) {
+    if (!data) return "";
+    const metricLabel = data.metric.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
+    const trendIcon = TREND_ICONS[data.trend_direction] || "";
+    const trendClass = `trend-${data.trend_direction}`;
+    const changeDisplay = data.change_percent !== void 0 ? `${data.change_percent > 0 ? "+" : ""}${data.change_percent.toFixed(1)}%` : "";
+    return `
+    <div class="insight-data-section">
+      <div class="insight-metric">
+        <span class="metric-label">${escapeHtml(metricLabel)}</span>
+        <span class="metric-value">${escapeHtml(String(data.current_value))}</span>
+        ${changeDisplay ? `<span class="metric-change ${trendClass}">${trendIcon} ${escapeHtml(changeDisplay)}</span>` : ""}
+      </div>
+      <div class="insight-sparkline">
+        ${renderInsightSparkline(data.sparkline)}
+      </div>
+    </div>
+  `;
+  }
+  function renderRecommendationSection(recommendation) {
+    if (!recommendation) return "";
+    const priorityBadge = PRIORITY_BADGES[recommendation.priority] ?? { label: "Medium Priority", cssClass: "priority-medium" };
+    const effortBadge = EFFORT_BADGES[recommendation.effort] ?? { label: "Medium Effort", cssClass: "effort-medium" };
+    return `
+    <div class="insight-recommendation">
+      <div class="recommendation-header">
+        <span class="recommendation-label">Recommendation</span>
+        <div class="recommendation-badges">
+          <span class="badge ${priorityBadge.cssClass}">${escapeHtml(priorityBadge.label)}</span>
+          <span class="badge ${effortBadge.cssClass}">${escapeHtml(effortBadge.label)}</span>
+        </div>
+      </div>
+      <p class="recommendation-action">${escapeHtml(recommendation.action)}</p>
+    </div>
+  `;
+  }
+  function renderAffectedEntities(entities) {
+    if (!entities || entities.length === 0) return "";
+    const entityItems = entities.map((entity) => {
+      const memberCount = entity.member_count !== void 0 ? `<span class="entity-count">(${entity.member_count})</span>` : "";
+      const entityIcon = entity.type === "team" ? "\u{1F465}" : entity.type === "repository" ? "\u{1F4C1}" : "\u{1F464}";
+      return `
+        <span class="entity-item ${escapeHtml(entity.type)}">
+          <span class="entity-icon">${entityIcon}</span>
+          <span class="entity-name">${escapeHtml(entity.name)}</span>
+          ${memberCount}
+        </span>
+      `;
+    }).join("");
+    return `
+    <div class="insight-affected-entities">
+      <span class="entities-label">Affects:</span>
+      <div class="entities-list">${entityItems}</div>
+    </div>
+  `;
+  }
+  function renderRichInsightCard(insight) {
+    const severityIcon = SEVERITY_ICONS[insight.severity] || SEVERITY_ICONS.info;
+    return `
+    <div class="insight-card rich-card ${escapeHtml(String(insight.severity))}">
+      <div class="insight-header">
+        <span class="severity-icon">${severityIcon}</span>
+        <span class="insight-category">${escapeHtml(String(insight.category))}</span>
+      </div>
+      <h5 class="insight-title">${escapeHtml(String(insight.title))}</h5>
+      <p class="insight-description">${escapeHtml(String(insight.description))}</p>
+      ${renderInsightDataSection(insight.data)}
+      ${renderAffectedEntities(insight.affected_entities)}
+      ${renderRecommendationSection(insight.recommendation)}
+    </div>
+  `;
+  }
   function renderPredictions(container, predictions, rollups) {
     renderPredictionsWithCharts(container, predictions, rollups);
   }
@@ -1787,21 +1902,13 @@ var PRInsightsDashboard = (() => {
       appendTrustedHtml(
         content,
         `
-            <div class="severity-section">
-                <h4>${SEVERITY_ICONS[severity]} ${severity.charAt(0).toUpperCase() + severity.slice(1)}</h4>
-                <div class="insight-cards">
-                    ${items.map(
-          (i) => `
-                        <div class="insight-card ${escapeHtml(String(i.severity))}">
-                            <div class="insight-category">${escapeHtml(String(i.category))}</div>
-                            <h5>${escapeHtml(String(i.title))}</h5>
-                            <p>${escapeHtml(String(i.description))}</p>
-                        </div>
-                    `
-        ).join("")}
-                </div>
-            </div>
-        `
+        <div class="severity-section">
+          <h4>${SEVERITY_ICONS[severity]} ${severity.charAt(0).toUpperCase() + severity.slice(1)}</h4>
+          <div class="insight-cards">
+            ${items.map((i) => renderRichInsightCard(i)).join("")}
+          </div>
+        </div>
+      `
       );
     });
     const unavailable = container.querySelector(".feature-unavailable");

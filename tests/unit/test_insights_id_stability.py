@@ -206,10 +206,13 @@ class TestEdgeCaseIDStability:
         assert ids_run1 == ids_run2, "IDs changed across runs with identical data"
 
         # Verify format: category-{hash}
-        for insight, id_val in zip(
-            mock_response_data["insights"], ids_run1, strict=True
-        ):
-            expected_prefix = insight["category"] + "-"
+        # Note: Insights are sorted by severity (critical > warning > info),
+        # so we cannot assume the order matches mock_response_data.
+        # Instead, verify each insight's ID starts with its category.
+        for insight in data1["insights"]:
+            id_val = insight["id"]
+            category = insight["category"]
+            expected_prefix = category + "-"
             assert id_val.startswith(expected_prefix), (
-                f"ID should start with {expected_prefix}"
+                f"ID '{id_val}' should start with '{expected_prefix}'"
             )

@@ -1081,6 +1081,242 @@ body {
     color: var(--text-tertiary);
 }
 
+/* Phase 5 US2: Enhanced Rich Insight Cards (T039-T043) */
+.insight-card.rich-card {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.insight-card.rich-card .insight-header {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.insight-card.rich-card .severity-icon {
+    font-size: 14px;
+}
+
+.insight-card.rich-card .insight-title {
+    font-size: 15px;
+    font-weight: 600;
+    color: var(--text-primary);
+    margin: 0;
+}
+
+.insight-card.rich-card .insight-description {
+    font-size: 13px;
+    color: var(--text-secondary);
+    line-height: 1.5;
+    margin: 0;
+}
+
+/* Sparkline styles (T038) */
+.sparkline {
+    display: inline-block;
+    vertical-align: middle;
+}
+
+.sparkline polyline {
+    stroke: var(--primary);
+}
+
+.sparkline-empty {
+    color: var(--text-tertiary);
+    font-size: 12px;
+}
+
+/* Data section with metric and sparkline (T040) */
+.insight-data-section {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 10px 12px;
+    background: rgba(0, 0, 0, 0.03);
+    border-radius: var(--radius);
+}
+
+.insight-metric {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+}
+
+.insight-metric .metric-label {
+    font-size: 11px;
+    font-weight: 500;
+    color: var(--text-tertiary);
+    text-transform: uppercase;
+}
+
+.insight-metric .metric-value {
+    font-size: 16px;
+    font-weight: 600;
+    color: var(--text-primary);
+}
+
+.insight-metric .metric-change {
+    font-size: 12px;
+    font-weight: 500;
+    padding: 2px 6px;
+    border-radius: 4px;
+}
+
+.insight-metric .metric-change.trend-up {
+    color: var(--error);
+    background: rgba(239, 68, 68, 0.1);
+}
+
+.insight-metric .metric-change.trend-down {
+    color: var(--success);
+    background: rgba(34, 197, 94, 0.1);
+}
+
+.insight-metric .metric-change.trend-stable {
+    color: var(--text-secondary);
+    background: rgba(0, 0, 0, 0.05);
+}
+
+.insight-sparkline {
+    flex-shrink: 0;
+}
+
+/* Recommendation section (T041) */
+.insight-recommendation {
+    padding: 12px;
+    background: rgba(59, 130, 246, 0.05);
+    border-radius: var(--radius);
+    border: 1px solid rgba(59, 130, 246, 0.1);
+}
+
+.recommendation-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 8px;
+    flex-wrap: wrap;
+    gap: 8px;
+}
+
+.recommendation-label {
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+    color: var(--primary);
+}
+
+.recommendation-badges {
+    display: flex;
+    gap: 6px;
+}
+
+.recommendation-badges .badge {
+    font-size: 10px;
+    font-weight: 500;
+    padding: 2px 8px;
+    border-radius: 10px;
+    text-transform: uppercase;
+}
+
+/* Priority badges */
+.badge.priority-high {
+    background: rgba(239, 68, 68, 0.15);
+    color: #dc2626;
+}
+
+.badge.priority-medium {
+    background: rgba(245, 158, 11, 0.15);
+    color: #d97706;
+}
+
+.badge.priority-low {
+    background: rgba(34, 197, 94, 0.15);
+    color: #16a34a;
+}
+
+/* Effort badges */
+.badge.effort-high {
+    background: rgba(139, 92, 246, 0.15);
+    color: #7c3aed;
+}
+
+.badge.effort-medium {
+    background: rgba(99, 102, 241, 0.15);
+    color: #4f46e5;
+}
+
+.badge.effort-low {
+    background: rgba(34, 211, 238, 0.15);
+    color: #0891b2;
+}
+
+.recommendation-action {
+    font-size: 13px;
+    color: var(--text-primary);
+    line-height: 1.5;
+    margin: 0;
+}
+
+/* Affected entities section (T042) */
+.insight-affected-entities {
+    display: flex;
+    align-items: flex-start;
+    gap: 8px;
+    flex-wrap: wrap;
+}
+
+.entities-label {
+    font-size: 11px;
+    font-weight: 500;
+    color: var(--text-tertiary);
+    text-transform: uppercase;
+    padding-top: 4px;
+}
+
+.entities-list {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+}
+
+.entity-item {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 4px 10px;
+    background: var(--bg-tertiary);
+    border-radius: 12px;
+    font-size: 12px;
+}
+
+.entity-icon {
+    font-size: 11px;
+}
+
+.entity-name {
+    color: var(--text-primary);
+    font-weight: 500;
+}
+
+.entity-count {
+    color: var(--text-tertiary);
+    font-size: 11px;
+}
+
+.entity-item.team {
+    background: rgba(99, 102, 241, 0.1);
+}
+
+.entity-item.repository {
+    background: rgba(245, 158, 11, 0.1);
+}
+
+.entity-item.author {
+    background: rgba(34, 197, 94, 0.1);
+}
+
 /* Setup Panel */
 .setup-panel {
     display: flex;
