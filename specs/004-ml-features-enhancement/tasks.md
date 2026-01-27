@@ -56,19 +56,19 @@
 
 ### Tests for User Story 1
 
-- [ ] T010 [P] [US1] Unit test for linear regression forecasting in tests/unit/test_fallback_forecaster.py
-- [ ] T011 [P] [US1] Unit test for confidence band calculation in tests/unit/test_fallback_forecaster.py
-- [ ] T012 [P] [US1] Unit test for data quality assessment (4+ weeks check) in tests/unit/test_fallback_forecaster.py
-- [ ] T013 [P] [US1] Unit test for outlier clipping logic in tests/unit/test_fallback_forecaster.py
-- [ ] T014 [P] [US1] Integration test for fallback forecaster end-to-end in tests/integration/test_ml_integration.py
-- [ ] T015 [P] [US1] Integration test for Prophet auto-detection in tests/integration/test_ml_integration.py
+- [x] T010 [P] [US1] Unit test for linear regression forecasting in tests/unit/test_fallback_forecaster.py
+- [x] T011 [P] [US1] Unit test for confidence band calculation in tests/unit/test_fallback_forecaster.py
+- [x] T012 [P] [US1] Unit test for data quality assessment (4+ weeks check) in tests/unit/test_fallback_forecaster.py
+- [x] T013 [P] [US1] Unit test for outlier clipping logic in tests/unit/test_fallback_forecaster.py
+- [x] T014 [P] [US1] Integration test for fallback forecaster end-to-end in tests/integration/test_phase5_ml_integration.py
+- [x] T015 [P] [US1] Integration test for Prophet auto-detection in tests/integration/test_phase5_ml_integration.py
 
 ### Implementation for User Story 1
 
-- [ ] T016 [US1] Implement NumPy-based linear regression forecast in src/ado_git_repo_insights/ml/fallback_forecaster.py
-- [ ] T017 [US1] Implement confidence band calculation using residual standard error in src/ado_git_repo_insights/ml/fallback_forecaster.py
-- [ ] T018 [US1] Implement generate() method with identical output schema to ProphetForecaster in src/ado_git_repo_insights/ml/fallback_forecaster.py
-- [ ] T019 [US1] Add forecaster field ("linear" or "prophet") to trends.json output in src/ado_git_repo_insights/ml/fallback_forecaster.py
+- [x] T016 [US1] Implement NumPy-based linear regression forecast in src/ado_git_repo_insights/ml/fallback_forecaster.py
+- [x] T017 [US1] Implement confidence band calculation using residual standard error in src/ado_git_repo_insights/ml/fallback_forecaster.py
+- [x] T018 [US1] Implement generate() method with identical output schema to ProphetForecaster in src/ado_git_repo_insights/ml/fallback_forecaster.py
+- [x] T019 [US1] Add forecaster field ("linear" or "prophet") to trends.json output in src/ado_git_repo_insights/ml/fallback_forecaster.py
 - [ ] T020 [US1] Modify cli.py to use get_forecaster() factory for auto-detection in src/ado_git_repo_insights/cli.py
 - [ ] T021 [P] [US1] Create forecast chart module structure in extension/ui/modules/charts/predictions.ts
 - [ ] T022 [US1] Implement Chart.js line chart with historical data (solid line) in extension/ui/modules/charts/predictions.ts

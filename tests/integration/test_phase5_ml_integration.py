@@ -338,6 +338,198 @@ class TestProphetForecasterIntegration:
 
 
 # ============================================================================
+# FallbackForecaster Integration Tests (T014)
+# ============================================================================
+
+
+class TestFallbackForecasterIntegration:
+    """Integration tests for FallbackForecaster (zero-config linear regression)."""
+
+    def test_fallback_forecaster_generates_valid_trends_json(
+        self,
+        temp_db_with_prs: DatabaseManager,
+        tmp_path: Path,
+    ):
+        """Fallback forecaster should generate valid trends.json without Prophet."""
+        from ado_git_repo_insights.ml.fallback_forecaster import FallbackForecaster
+
+        output_dir = tmp_path / "output"
+        output_dir.mkdir()
+
+        forecaster = FallbackForecaster(db=temp_db_with_prs, output_dir=output_dir)
+        result = forecaster.generate()
+
+        assert result is True
+
+        # trends.json should exist
+        trends_path = output_dir / "predictions" / "trends.json"
+        assert trends_path.exists(), "trends.json should be created"
+
+        # Should be valid JSON with required schema
+        with open(trends_path) as f:
+            trends = json.load(f)
+
+        assert trends["schema_version"] == 1
+        assert "generated_at" in trends
+        assert trends["is_stub"] is False
+        assert trends["forecaster"] == "linear"
+        assert "data_quality" in trends
+        assert "forecasts" in trends
+        assert isinstance(trends["forecasts"], list)
+
+    def test_fallback_forecaster_monday_alignment(
+        self,
+        temp_db_with_prs: DatabaseManager,
+        tmp_path: Path,
+    ):
+        """All fallback forecast period_start dates should be Monday-aligned."""
+        from ado_git_repo_insights.ml.fallback_forecaster import FallbackForecaster
+
+        output_dir = tmp_path / "output"
+        output_dir.mkdir()
+
+        forecaster = FallbackForecaster(db=temp_db_with_prs, output_dir=output_dir)
+        forecaster.generate()
+
+        trends_path = output_dir / "predictions" / "trends.json"
+        with open(trends_path) as f:
+            trends = json.load(f)
+
+        for forecast in trends["forecasts"]:
+            for value in forecast["values"]:
+                period_date = date.fromisoformat(value["period_start"])
+                assert period_date.weekday() == 0, (
+                    f"period_start {value['period_start']} should be Monday"
+                )
+
+    def test_fallback_forecaster_bounds_are_valid(
+        self,
+        temp_db_with_prs: DatabaseManager,
+        tmp_path: Path,
+    ):
+        """Fallback forecast bounds should be valid (lower <= predicted <= upper, lower >= 0)."""
+        from ado_git_repo_insights.ml.fallback_forecaster import FallbackForecaster
+
+        output_dir = tmp_path / "output"
+        output_dir.mkdir()
+
+        forecaster = FallbackForecaster(db=temp_db_with_prs, output_dir=output_dir)
+        forecaster.generate()
+
+        trends_path = output_dir / "predictions" / "trends.json"
+        with open(trends_path) as f:
+            trends = json.load(f)
+
+        for forecast in trends["forecasts"]:
+            for value in forecast["values"]:
+                assert value["lower_bound"] >= 0, "lower_bound should be non-negative"
+                assert value["lower_bound"] <= value["predicted"], (
+                    "lower_bound <= predicted"
+                )
+                assert value["predicted"] <= value["upper_bound"], (
+                    "predicted <= upper_bound"
+                )
+
+    def test_fallback_forecaster_empty_database(
+        self, temp_db: DatabaseManager, tmp_path: Path
+    ):
+        """Fallback forecaster with empty DB should write empty forecasts array."""
+        from ado_git_repo_insights.ml.fallback_forecaster import FallbackForecaster
+
+        output_dir = tmp_path / "output"
+        output_dir.mkdir()
+
+        forecaster = FallbackForecaster(db=temp_db, output_dir=output_dir)
+        result = forecaster.generate()
+
+        assert result is True
+
+        trends_path = output_dir / "predictions" / "trends.json"
+        assert trends_path.exists()
+
+        with open(trends_path) as f:
+            trends = json.load(f)
+
+        assert trends["forecasts"] == []
+        assert trends["data_quality"] == "insufficient"
+
+    def test_fallback_forecaster_data_quality_assessment(
+        self,
+        temp_db_with_prs: DatabaseManager,
+        tmp_path: Path,
+    ):
+        """Fallback forecaster should correctly assess data quality."""
+        from ado_git_repo_insights.ml.fallback_forecaster import FallbackForecaster
+
+        output_dir = tmp_path / "output"
+        output_dir.mkdir()
+
+        forecaster = FallbackForecaster(db=temp_db_with_prs, output_dir=output_dir)
+        forecaster.generate()
+
+        # temp_db_with_prs has 4 weeks of data, which is low_confidence
+        assert forecaster.data_quality is not None
+        assert forecaster.data_quality.status in ("low_confidence", "normal")
+
+
+# ============================================================================
+# Prophet Auto-Detection Tests (T015)
+# ============================================================================
+
+
+class TestProphetAutoDetection:
+    """Integration tests for Prophet auto-detection via get_forecaster()."""
+
+    def test_get_forecaster_returns_fallback_when_prophet_unavailable(
+        self, temp_db: DatabaseManager, tmp_path: Path
+    ):
+        """Factory returns FallbackForecaster when Prophet not installed."""
+        from ado_git_repo_insights.ml import get_forecaster
+        from ado_git_repo_insights.ml.fallback_forecaster import FallbackForecaster
+
+        with patch("ado_git_repo_insights.ml.is_prophet_available", return_value=False):
+            forecaster = get_forecaster(temp_db, tmp_path)
+
+        assert isinstance(forecaster, FallbackForecaster)
+
+    def test_get_forecaster_returns_prophet_when_available(
+        self,
+        temp_db: DatabaseManager,
+        fake_prophet_module: ModuleType,
+        tmp_path: Path,
+    ):
+        """Factory returns ProphetForecaster when Prophet is installed."""
+        from ado_git_repo_insights.ml import get_forecaster
+        from ado_git_repo_insights.ml.forecaster import ProphetForecaster
+
+        with (
+            patch("ado_git_repo_insights.ml.is_prophet_available", return_value=True),
+            patch.dict(sys.modules, {"prophet": fake_prophet_module}),
+        ):
+            forecaster = get_forecaster(temp_db, tmp_path)
+
+        assert isinstance(forecaster, ProphetForecaster)
+
+    def test_get_forecaster_respects_prefer_prophet_false(
+        self, temp_db: DatabaseManager, tmp_path: Path
+    ):
+        """Factory returns FallbackForecaster when prefer_prophet=False."""
+        from ado_git_repo_insights.ml import get_forecaster
+        from ado_git_repo_insights.ml.fallback_forecaster import FallbackForecaster
+
+        forecaster = get_forecaster(temp_db, tmp_path, prefer_prophet=False)
+
+        assert isinstance(forecaster, FallbackForecaster)
+
+    def test_is_prophet_available_returns_bool(self):
+        """is_prophet_available returns a boolean."""
+        from ado_git_repo_insights.ml import is_prophet_available
+
+        result = is_prophet_available()
+        assert isinstance(result, bool)
+
+
+# ============================================================================
 # LLMInsightsGenerator Integration Tests
 # ============================================================================
 
