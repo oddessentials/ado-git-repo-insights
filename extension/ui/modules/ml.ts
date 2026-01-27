@@ -31,6 +31,10 @@ import {
 } from "./charts/predictions";
 import { canShowSyntheticData } from "./ml/dev-mode";
 import { generateSyntheticPredictions, generateSyntheticInsights } from "./ml/synthetic";
+import {
+  renderPredictionsEmptyWithGuide,
+  renderInsightsEmptyWithGuide,
+} from "./ml/setup-guides";
 
 /**
  * Type guard to check if data is valid PredictionsRenderData.
@@ -372,25 +376,14 @@ export function renderPredictionsError(
 }
 
 /**
- * Render predictions empty state.
+ * Render predictions empty state with setup guide (T065).
  * @param container - The tab container element
  */
 export function renderPredictionsEmpty(container: HTMLElement | null): void {
   if (!container) return;
 
-  const content = document.createElement("div");
-  content.className = "predictions-empty";
-  // SECURITY: Static content only
-  renderTrustedHtml(
-    content,
-    `
-    <div class="empty-message">
-      <h4>Predictions Not Generated Yet</h4>
-      <p>Run the analytics pipeline with ML features enabled to see predictions.</p>
-    </div>
-  `,
-  );
-  container.appendChild(content);
+  // Use setup guide for rich empty state
+  renderPredictionsEmptyWithGuide(container);
 }
 
 /**
@@ -423,25 +416,14 @@ export function renderInsightsError(
 }
 
 /**
- * Render insights empty state.
+ * Render insights empty state with setup guide (T066).
  * @param container - The tab container element
  */
 export function renderInsightsEmpty(container: HTMLElement | null): void {
   if (!container) return;
 
-  const content = document.createElement("div");
-  content.className = "insights-empty";
-  // SECURITY: Static content only
-  renderTrustedHtml(
-    content,
-    `
-    <div class="empty-message">
-      <h4>No Insights Available</h4>
-      <p>Run the analytics pipeline with AI features enabled to see bottleneck analysis.</p>
-    </div>
-  `,
-  );
-  container.appendChild(content);
+  // Use setup guide for rich empty state
+  renderInsightsEmptyWithGuide(container);
 }
 
 /**
@@ -591,3 +573,12 @@ export {
   generateSyntheticInsights,
   isSyntheticData,
 } from "./ml/synthetic";
+
+// Re-export setup guide utilities (US4)
+export {
+  renderPredictionsSetupGuide,
+  renderInsightsSetupGuide,
+  getPredictionsYaml,
+  getInsightsYaml,
+  attachCopyHandlers,
+} from "./ml/setup-guides";
