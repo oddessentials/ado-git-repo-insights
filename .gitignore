@@ -112,3 +112,5 @@ scripts/dist/
 
 # VSIX packaging output artifacts
 extension/[0-9]*
+
+.claude/settings.local.json
