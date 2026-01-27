@@ -1,0 +1,88 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "predictions-trends-v1",
+  "title": "Predictions Trends Schema",
+  "description": "Schema for predictions/trends.json output",
+  "type": "object",
+  "required": ["schema_version", "generated_at", "generated_by", "is_stub", "forecaster", "forecasts"],
+  "properties": {
+    "schema_version": {
+      "type": "integer",
+      "const": 1
+    },
+    "generated_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "generated_by": {
+      "type": "string",
+      "enum": ["linear-v1.0", "prophet-v1.0", "synthetic-preview"]
+    },
+    "is_stub": {
+      "type": "boolean"
+    },
+    "forecaster": {
+      "type": "string",
+      "enum": ["linear", "prophet"]
+    },
+    "data_quality": {
+      "type": "string",
+      "enum": ["normal", "low_confidence", "insufficient"]
+    },
+    "forecasts": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/Forecast"
+      }
+    }
+  },
+  "$defs": {
+    "Forecast": {
+      "type": "object",
+      "required": ["metric", "unit", "horizon_weeks", "values"],
+      "properties": {
+        "metric": {
+          "type": "string",
+          "enum": ["pr_throughput", "cycle_time_minutes", "review_time_minutes"]
+        },
+        "unit": {
+          "type": "string",
+          "enum": ["count", "minutes"]
+        },
+        "horizon_weeks": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 12
+        },
+        "values": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/ForecastValue"
+          }
+        }
+      }
+    },
+    "ForecastValue": {
+      "type": "object",
+      "required": ["period_start", "predicted", "lower_bound", "upper_bound"],
+      "properties": {
+        "period_start": {
+          "type": "string",
+          "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+        },
+        "predicted": {
+          "type": "number",
+          "minimum": 0
+        },
+        "lower_bound": {
+          "type": "number",
+          "minimum": 0
+        },
+        "upper_bound": {
+          "type": "number",
+          "minimum": 0
+        }
+      }
+    }
+  }
+}
