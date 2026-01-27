@@ -24,8 +24,12 @@ def detect_installation_method() -> str:
     - pip (system): System-wide pip install
     - unknown: Cannot determine
 
+    Note:
+        exe_path comes from sys.executable, a trusted system value.
+        The string matching heuristics are safe for this trusted input.
+
     Returns:
-        Installation method: "pipx", "uv", "pip", or "unknown"
+        Installation method: \"pipx\", \"uv\", \"pip\", or \"unknown\"
     """
     exe_path = Path(sys.executable).resolve()
     exe_str = str(exe_path).lower()

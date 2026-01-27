@@ -6,10 +6,13 @@ following research.md R4, R7, and R3 algorithms.
 
 from __future__ import annotations
 
+import logging
 import os
 import sys
 import sysconfig
 from pathlib import Path
+
+logger = logging.getLogger(__name__)
 
 
 def get_scripts_directory() -> Path:
@@ -51,7 +54,8 @@ def is_on_path(directory: Path) -> bool:
     """
     try:
         dir_resolved = str(directory.resolve())
-    except (OSError, ValueError):
+    except (OSError, ValueError) as e:
+        logger.debug(f"Failed to resolve directory '{directory}': {e}")
         return False
 
     path_dirs = os.environ.get("PATH", "").split(os.pathsep)
@@ -62,8 +66,9 @@ def is_on_path(directory: Path) -> bool:
         try:
             if str(Path(path_dir).resolve()) == dir_resolved:
                 return True
-        except (OSError, ValueError):
+        except (OSError, ValueError) as e:
             # Invalid path entry, skip
+            logger.debug(f"Skipping invalid PATH entry '{path_dir}': {e}")
             continue
 
     return False

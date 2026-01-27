@@ -29,10 +29,10 @@ def _get_version() -> str:
         Version string or 'unknown'
     """
     try:
-        from importlib.metadata import version
+        from importlib.metadata import PackageNotFoundError, version
 
         return version("ado-git-repo-insights")
-    except Exception:
+    except PackageNotFoundError:
         return "unknown"
 
 
