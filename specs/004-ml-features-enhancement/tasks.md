@@ -91,24 +91,24 @@
 
 ### Tests for User Story 2
 
-- [ ] T029 [P] [US2] Unit test for deterministic insight ordering (severity→category→ID) in tests/unit/test_insights_enhanced.py
-- [ ] T030 [P] [US2] Unit test for enhanced schema validation (v2 fields) in tests/unit/test_insights_enhanced.py
-- [ ] T031 [P] [US2] Unit test for cache file creation and TTL logic in tests/unit/test_insights_enhanced.py
-- [ ] T032 [P] [US2] Contract test for insights-schema-v2.json in tests/unit/test_insights_enhanced.py
+- [x] T029 [P] [US2] Unit test for deterministic insight ordering (severity→category→ID) in tests/unit/test_insights_enhanced.py
+- [x] T030 [P] [US2] Unit test for enhanced schema validation (v2 fields) in tests/unit/test_insights_enhanced.py
+- [x] T031 [P] [US2] Unit test for cache file creation and TTL logic in tests/unit/test_insights_enhanced.py
+- [x] T032 [P] [US2] Contract test for insights-schema-v2.json in tests/unit/test_insights_enhanced.py
 
 ### Implementation for User Story 2
 
-- [ ] T033 [US2] Implement SEVERITY_ORDER constant and sort_insights() function in src/ado_git_repo_insights/ml/insights.py
-- [ ] T034 [US2] Update LLM prompt to request v2 schema (data, recommendation fields) in src/ado_git_repo_insights/ml/insights.py
-- [ ] T035 [US2] Apply deterministic sorting after LLM response parsing in src/ado_git_repo_insights/ml/insights.py
-- [ ] T036 [US2] Update cache file to use insights/cache.json path per FR-006 in src/ado_git_repo_insights/ml/insights.py
-- [ ] T037 [US2] Change cache TTL from 24h to 12h per spec clarification in src/ado_git_repo_insights/ml/insights.py
-- [ ] T038 [P] [US2] Create sparkline rendering utility in extension/ui/modules/ml.ts
-- [ ] T039 [US2] Implement rich insight card layout with severity icon in extension/ui/modules/ml.ts
-- [ ] T040 [US2] Add inline sparkline visualization in insight cards in extension/ui/modules/ml.ts
-- [ ] T041 [US2] Add recommendation section with priority/effort badges in extension/ui/modules/ml.ts
-- [ ] T042 [US2] Add affected entities display with member counts in extension/ui/modules/ml.ts
-- [ ] T043 [US2] Add CSS styles for enhanced insight cards in extension/ui/styles.css
+- [x] T033 [US2] Implement SEVERITY_ORDER constant and sort_insights() function in src/ado_git_repo_insights/ml/insights.py
+- [x] T034 [US2] Update LLM prompt to request v2 schema (data, recommendation fields) in src/ado_git_repo_insights/ml/insights.py
+- [x] T035 [US2] Apply deterministic sorting after LLM response parsing in src/ado_git_repo_insights/ml/insights.py
+- [x] T036 [US2] Update cache file to use insights/cache.json path per FR-006 in src/ado_git_repo_insights/ml/insights.py
+- [x] T037 [US2] Change cache TTL from 24h to 12h per spec clarification in src/ado_git_repo_insights/ml/insights.py
+- [x] T038 [P] [US2] Create sparkline rendering utility in extension/ui/modules/ml.ts
+- [x] T039 [US2] Implement rich insight card layout with severity icon in extension/ui/modules/ml.ts
+- [x] T040 [US2] Add inline sparkline visualization in insight cards in extension/ui/modules/ml.ts
+- [x] T041 [US2] Add recommendation section with priority/effort badges in extension/ui/modules/ml.ts
+- [x] T042 [US2] Add affected entities display with member counts in extension/ui/modules/ml.ts
+- [x] T043 [US2] Add CSS styles for enhanced insight cards in extension/ui/styles.css
 
 **Checkpoint**: User Story 2 complete - AI insights display with recommendations and sparklines
 
@@ -122,23 +122,23 @@
 
 ### Tests for User Story 3
 
-- [ ] T044 [P] [US3] Unit test for isProductionEnvironment() detection in tests/unit/test_dev_mode.py
-- [ ] T045 [P] [US3] Unit test for canShowSyntheticData() logic in tests/unit/test_dev_mode.py
-- [ ] T046 [P] [US3] Integration test asserting synthetic data rejected in production mode in tests/integration/test_production_lock.py
+- [x] T044 [P] [US3] Unit test for isProductionEnvironment() detection in tests/unit/test_dev_mode.py
+- [x] T045 [P] [US3] Unit test for canShowSyntheticData() logic in tests/unit/test_dev_mode.py
+- [x] T046 [P] [US3] Integration test asserting synthetic data rejected in production mode in tests/integration/test_production_lock.py
 
 ### Implementation for User Story 3
 
-- [ ] T047 [P] [US3] Create dev mode detection module in extension/ui/modules/ml/dev-mode.ts
-- [ ] T048 [US3] Implement isProductionEnvironment() with hostname and SDK checks in extension/ui/modules/ml/dev-mode.ts
-- [ ] T049 [US3] Implement canShowSyntheticData() combining environment and devMode param in extension/ui/modules/ml/dev-mode.ts
-- [ ] T050 [P] [US3] Create synthetic data generator module in extension/ui/modules/ml/synthetic.ts
-- [ ] T051 [US3] Implement generateSyntheticPredictions() with realistic forecast data in extension/ui/modules/ml/synthetic.ts
-- [ ] T052 [US3] Implement generateSyntheticInsights() with 3 sample insights in extension/ui/modules/ml/synthetic.ts
-- [ ] T053 [US3] Mark synthetic data with is_stub: true and generated_by: "synthetic-preview" in extension/ui/modules/ml/synthetic.ts
-- [ ] T054 [US3] Integrate synthetic fallback into renderPredictions() when data unavailable in extension/ui/modules/ml.ts
-- [ ] T055 [US3] Integrate synthetic fallback into renderAIInsights() when data unavailable in extension/ui/modules/ml.ts
-- [ ] T056 [US3] Add prominent "PREVIEW - Demo Data" banner for synthetic mode in extension/ui/modules/ml.ts
-- [ ] T057 [US3] Add CSS styles for preview banner in extension/ui/styles.css
+- [x] T047 [P] [US3] Create dev mode detection module in extension/ui/modules/ml/dev-mode.ts
+- [x] T048 [US3] Implement isProductionEnvironment() with hostname and SDK checks in extension/ui/modules/ml/dev-mode.ts
+- [x] T049 [US3] Implement canShowSyntheticData() combining environment and devMode param in extension/ui/modules/ml/dev-mode.ts
+- [x] T050 [P] [US3] Create synthetic data generator module in extension/ui/modules/ml/synthetic.ts
+- [x] T051 [US3] Implement generateSyntheticPredictions() with realistic forecast data in extension/ui/modules/ml/synthetic.ts
+- [x] T052 [US3] Implement generateSyntheticInsights() with 3 sample insights in extension/ui/modules/ml/synthetic.ts
+- [x] T053 [US3] Mark synthetic data with is_stub: true and generated_by: "synthetic-preview" in extension/ui/modules/ml/synthetic.ts
+- [x] T054 [US3] Integrate synthetic fallback into renderPredictions() when data unavailable in extension/ui/modules/ml.ts
+- [x] T055 [US3] Integrate synthetic fallback into renderAIInsights() when data unavailable in extension/ui/modules/ml.ts
+- [x] T056 [US3] Add prominent "PREVIEW - Demo Data" banner for synthetic mode in extension/ui/modules/ml.ts
+- [x] T057 [US3] Add CSS styles for preview banner in extension/ui/styles.css
 
 **Checkpoint**: User Story 3 complete - dev mode preview works, production lock enforced
 
@@ -152,19 +152,19 @@
 
 ### Tests for User Story 4
 
-- [ ] T058 [P] [US4] Unit test for YAML snippet generation in tests/unit/test_setup_guides.py
-- [ ] T059 [P] [US4] Unit test for clipboard copy functionality in tests/unit/test_setup_guides.py
+- [x] T058 [P] [US4] Unit test for YAML snippet generation in tests/unit/test_setup_guides.py
+- [x] T059 [P] [US4] Unit test for clipboard copy functionality in tests/unit/test_setup_guides.py
 
 ### Implementation for User Story 4
 
-- [ ] T060 [P] [US4] Create setup guides module in extension/ui/modules/ml/setup-guides.ts
-- [ ] T061 [US4] Implement predictions setup guide with YAML snippet in extension/ui/modules/ml/setup-guides.ts
-- [ ] T062 [US4] Implement insights setup guide with step-by-step instructions in extension/ui/modules/ml/setup-guides.ts
-- [ ] T063 [US4] Implement clipboard copy with visual confirmation feedback in extension/ui/modules/ml/setup-guides.ts
-- [ ] T064 [US4] Add cost estimate display (~$0.001-0.01 per run) in insights guide in extension/ui/modules/ml/setup-guides.ts
-- [ ] T065 [US4] Integrate setup guides into empty state for Predictions tab in extension/ui/modules/ml.ts
-- [ ] T066 [US4] Integrate setup guides into empty state for Insights tab in extension/ui/modules/ml.ts
-- [ ] T067 [US4] Add CSS styles for setup guide components in extension/ui/styles.css
+- [x] T060 [P] [US4] Create setup guides module in extension/ui/modules/ml/setup-guides.ts
+- [x] T061 [US4] Implement predictions setup guide with YAML snippet in extension/ui/modules/ml/setup-guides.ts
+- [x] T062 [US4] Implement insights setup guide with step-by-step instructions in extension/ui/modules/ml/setup-guides.ts
+- [x] T063 [US4] Implement clipboard copy with visual confirmation feedback in extension/ui/modules/ml/setup-guides.ts
+- [x] T064 [US4] Add cost estimate display (~$0.001-0.01 per run) in insights guide in extension/ui/modules/ml/setup-guides.ts
+- [x] T065 [US4] Integrate setup guides into empty state for Predictions tab in extension/ui/modules/ml.ts
+- [x] T066 [US4] Integrate setup guides into empty state for Insights tab in extension/ui/modules/ml.ts
+- [x] T067 [US4] Add CSS styles for setup guide components in extension/ui/styles.css
 
 **Checkpoint**: User Story 4 complete - setup guidance embedded in dashboard
 
@@ -174,14 +174,14 @@
 
 **Purpose**: Improvements that affect multiple user stories
 
-- [ ] T068 [P] Update docs/internal/enable-ml-features.md with fallback forecaster documentation
-- [ ] T069 [P] Add ML section to CLI reference documentation
-- [ ] T070 Run quickstart.md validation scenarios
-- [ ] T071 [P] Verify WCAG 2.1 AA accessibility for new chart components
-- [ ] T072 [P] Verify WCAG 2.1 AA accessibility for insight cards
-- [ ] T073 Performance benchmark: verify chart render <100ms for 12 weeks data
-- [ ] T074 Run full test suite and verify 80%+ coverage for new modules
-- [ ] T075 Final code review and cleanup
+- [x] T068 [P] Update docs/internal/enable-ml-features.md with fallback forecaster documentation
+- [x] T069 [P] Add ML section to CLI reference documentation
+- [x] T070 Run quickstart.md validation scenarios
+- [x] T071 [P] Verify WCAG 2.1 AA accessibility for new chart components
+- [x] T072 [P] Verify WCAG 2.1 AA accessibility for insight cards
+- [x] T073 Performance benchmark: verify chart render <100ms for 12 weeks data
+- [x] T074 Run full test suite and verify 80%+ coverage for new modules
+- [x] T075 Final code review and cleanup
 
 ---
 
