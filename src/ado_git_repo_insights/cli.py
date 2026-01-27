@@ -21,7 +21,9 @@ from .transform.aggregators import (
     StubGenerationError,
 )
 from .transform.csv_generator import CSVGenerationError, CSVGenerator
+from .utils.install_detection import detect_installation_method
 from .utils.logging_config import LoggingConfig, setup_logging
+from .utils.path_utils import format_path_guidance, get_scripts_directory, is_on_path
 from .utils.run_summary import (
     RunCounts,
     RunSummary,
@@ -30,6 +32,7 @@ from .utils.run_summary import (
     get_git_sha,
     get_tool_version,
 )
+from .utils.shell_detection import detect_shell
 
 if TYPE_CHECKING:
     from argparse import Namespace
@@ -369,6 +372,30 @@ def create_parser() -> argparse.ArgumentParser:  # pragma: no cover
         action="store_true",
         default=False,
         help="Open browser automatically",
+    )
+
+    # Setup-path command (Flight 003 - CLI Distribution Hardening)
+    setup_path_parser = subparsers.add_parser(
+        "setup-path",
+        help="Configure shell PATH for pip users (not needed for pipx/uv)",
+    )
+    setup_path_parser.add_argument(
+        "--print-only",
+        action="store_true",
+        default=False,
+        help="Output the PATH command without modifying any files",
+    )
+    setup_path_parser.add_argument(
+        "--remove",
+        action="store_true",
+        default=False,
+        help="Remove previously added PATH configuration",
+    )
+
+    # Doctor command (Flight 003 - CLI Distribution Hardening)
+    subparsers.add_parser(
+        "doctor",
+        help="Diagnose installation issues and detect conflicts",
     )
 
     return parser
@@ -1564,6 +1591,37 @@ def cmd_dashboard(args: Namespace) -> int:
     )
 
 
+def _check_path_guidance(command: str | None) -> None:
+    """Check if PATH guidance should be emitted (FR-005).
+
+    Emits guidance to stderr if:
+    - Installation method is pip (not pipx/uv)
+    - Scripts directory is NOT on PATH
+    - Command is NOT setup-path or doctor (avoid duplicate messaging)
+
+    This is a non-blocking warning; command execution continues.
+    """
+    # Skip for commands that handle PATH themselves
+    if command in ("setup-path", "doctor"):
+        return
+
+    # Only emit for pip installs (pipx/uv handle PATH automatically)
+    install_method = detect_installation_method()
+    if install_method not in ("pip", "unknown"):
+        return
+
+    # Check if scripts directory is on PATH
+    scripts_dir = get_scripts_directory()
+    if is_on_path(scripts_dir):
+        return
+
+    # Emit guidance to stderr (non-blocking)
+    shell = detect_shell()
+    guidance = format_path_guidance(scripts_dir, shell)
+    print(guidance, file=sys.stderr)
+    print(file=sys.stderr)  # Blank line separator
+
+
 def main() -> int:
     """Main entry point for the CLI."""
     parser = create_parser()
@@ -1575,6 +1633,9 @@ def main() -> int:
         artifacts_dir=getattr(args, "artifacts_dir", Path("run_artifacts")),
     )
     setup_logging(log_config)
+
+    # FR-005 (T018): Emit PATH guidance for pip users if scripts not on PATH
+    _check_path_guidance(args.command)
 
     # Ensure artifacts directory exists
     artifacts_dir = getattr(args, "artifacts_dir", Path("run_artifacts"))
@@ -1595,6 +1656,14 @@ def main() -> int:
             return cmd_stage_artifacts(args)
         elif args.command == "dashboard":
             return cmd_dashboard(args)
+        elif args.command == "setup-path":
+            from .commands.setup_path import cmd_setup_path
+
+            return cmd_setup_path(args)
+        elif args.command == "doctor":
+            from .commands.doctor import cmd_doctor
+
+            return cmd_doctor(args)
         else:
             parser.print_help()
             return 1

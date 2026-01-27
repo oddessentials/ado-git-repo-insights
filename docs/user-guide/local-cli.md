@@ -24,21 +24,80 @@ This guide covers using the Python CLI for local PR analysis and custom CI/CD in
 
 ## Installation
 
+### Recommended: pipx (Frictionless)
+
+pipx handles PATH configuration automatically and isolates dependencies:
+
+```bash
+# Install pipx if needed
+python -m pip install --user pipx
+pipx ensurepath
+
+# Install ado-insights
+pipx install ado-git-repo-insights
+
+# Verify
+ado-insights --version
+```
+
+### Alternative: uv (Frictionless)
+
+uv is a fast, modern alternative with similar frictionless installation:
+
+```bash
+# Install uv if needed (see https://astral.sh/uv)
+# Then install ado-insights
+uv tool install ado-git-repo-insights
+
+# Verify
+ado-insights --version
+```
+
+### Advanced: pip (Manual PATH Setup)
+
+For developers who prefer pip directly:
+
 ```bash
 pip install ado-git-repo-insights
 ```
 
-Verify installation:
+If `ado-insights` is not found after installation, run:
+
+```bash
+# Option 1: Automatic PATH setup
+ado-insights setup-path
+
+# Option 2: See the command without modifying files
+ado-insights setup-path --print-only
+```
+
+Then restart your terminal.
+
+### Verify Installation
 
 ```bash
 ado-insights --version
 ```
+
+### Diagnose Issues
+
+If you encounter problems:
+
+```bash
+ado-insights doctor
+```
+
+This shows installation location, PATH status, and detects conflicts.
 
 ### Optional: ML Features
 
 For Prophet forecasting and AI insights:
 
 ```bash
+# pipx
+pipx inject ado-git-repo-insights prophet openai
+
+# pip
 pip install ado-git-repo-insights[ml]
 ```
 
@@ -371,6 +430,95 @@ steps:
     inputs:
       targetPath: $(System.DefaultWorkingDirectory)/csv_output
       artifact: csv-output
+```
+
+---
+
+## Enterprise & Scripted Deployment
+
+All installation commands are **non-interactive** and suitable for automated deployments.
+
+### Non-Interactive Installation
+
+```bash
+# All methods work without user prompts:
+pipx install ado-git-repo-insights       # No prompts
+uv tool install ado-git-repo-insights    # No prompts
+pip install ado-git-repo-insights        # No prompts
+```
+
+### Scripted PATH Configuration
+
+For automated deployments where PATH setup needs to be scripted:
+
+**Option 1: Capture and Execute**
+
+```bash
+# Bash/Linux
+PATH_CMD=$(python -m ado_git_repo_insights.cli setup-path --print-only)
+echo "$PATH_CMD" >> ~/.bashrc
+source ~/.bashrc
+```
+
+```powershell
+# PowerShell/Windows
+$pathCmd = python -m ado_git_repo_insights.cli setup-path --print-only
+Add-Content $PROFILE $pathCmd
+. $PROFILE
+```
+
+**Option 2: Direct Execution**
+
+```bash
+# Bash - append to profile automatically
+ado-insights setup-path
+
+# Verify (in new shell)
+ado-insights --version
+```
+
+### Ansible Playbook Example
+
+```yaml
+- name: Install ado-insights
+  hosts: analytics_servers
+  tasks:
+    - name: Install via pipx
+      community.general.pipx:
+        name: ado-git-repo-insights
+        state: present
+
+    - name: Verify installation
+      command: ado-insights --version
+      changed_when: false
+```
+
+### Docker Deployment
+
+```dockerfile
+FROM python:3.11-slim
+
+RUN pip install --no-cache-dir pipx && \
+    pipx install ado-git-repo-insights && \
+    pipx ensurepath
+
+# pipx installs to /root/.local/bin
+ENV PATH="/root/.local/bin:$PATH"
+
+ENTRYPOINT ["ado-insights"]
+```
+
+### Validation in CI/CD
+
+```bash
+# Validate installation succeeded
+ado-insights doctor
+
+# Check exit code: 0 = OK, 1 = issues detected
+if [ $? -ne 0 ]; then
+    echo "Installation issues detected"
+    exit 1
+fi
 ```
 
 ---
