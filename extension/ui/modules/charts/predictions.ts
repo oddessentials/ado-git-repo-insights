@@ -37,6 +37,13 @@ export interface RollupForChart {
 }
 
 /**
+ * Maximum data points to render in charts to prevent memory pressure.
+ * Uses "take last N" strategy to preserve most recent/relevant data.
+ * 200 points covers ~4 years of weekly data (more than typical use).
+ */
+const MAX_CHART_POINTS = 200;
+
+/**
  * Forecaster display names.
  */
 const FORECASTER_LABELS: Record<string, string> = {
@@ -352,7 +359,7 @@ export function extractHistoricalData(
   const field = metricFieldMap[metric];
   if (!field) return [];
 
-  return rollups
+  const data = rollups
     .filter((r) => r[field] !== null && r[field] !== undefined)
     .map((r) => ({
       // Convert ISO week format to date if needed
@@ -360,6 +367,13 @@ export function extractHistoricalData(
       value: Number(r[field]),
     }))
     .sort((a, b) => a.week.localeCompare(b.week));
+
+  // Limit data points to prevent memory pressure - take last N (most recent)
+  if (data.length > MAX_CHART_POINTS) {
+    return data.slice(-MAX_CHART_POINTS);
+  }
+
+  return data;
 }
 
 /**

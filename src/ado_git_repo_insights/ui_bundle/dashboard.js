@@ -1541,6 +1541,7 @@ var PRInsightsDashboard = (() => {
   }
 
   // ui/modules/charts/predictions.ts
+  var MAX_CHART_POINTS = 200;
   var FORECASTER_LABELS = {
     linear: "Linear Forecast",
     prophet: "Prophet Forecast"
@@ -1719,11 +1720,15 @@ var PRInsightsDashboard = (() => {
     };
     const field = metricFieldMap[metric];
     if (!field) return [];
-    return rollups.filter((r) => r[field] !== null && r[field] !== void 0).map((r) => ({
+    const data = rollups.filter((r) => r[field] !== null && r[field] !== void 0).map((r) => ({
       // Convert ISO week format to date if needed
       week: r.week.includes("-W") ? isoWeekToDate(r.week) : r.week,
       value: Number(r[field])
     })).sort((a, b) => a.week.localeCompare(b.week));
+    if (data.length > MAX_CHART_POINTS) {
+      return data.slice(-MAX_CHART_POINTS);
+    }
+    return data;
   }
   function renderPredictionsWithCharts(container, predictions, rollups) {
     if (!container) return;
@@ -1783,6 +1788,7 @@ var PRInsightsDashboard = (() => {
   }
 
   // ui/modules/ml.ts
+  var MAX_SPARKLINE_POINTS = 200;
   var SEVERITY_ICONS = {
     critical: { icon: "\u{1F534}", label: "Critical" },
     warning: { icon: "\u{1F7E1}", label: "Warning" },
@@ -1807,23 +1813,24 @@ var PRInsightsDashboard = (() => {
     if (!values || values.length < 2) {
       return `<span class="sparkline-empty" aria-label="No trend data available">\u2014</span>`;
     }
-    const minVal = Math.min(...values);
-    const maxVal = Math.max(...values);
+    const limitedValues = values.length > MAX_SPARKLINE_POINTS ? values.slice(-MAX_SPARKLINE_POINTS) : values;
+    const minVal = Math.min(...limitedValues);
+    const maxVal = Math.max(...limitedValues);
     const range = maxVal - minVal || 1;
     const padding = 2;
     const effectiveHeight = height - padding * 2;
     const effectiveWidth = width - padding * 2;
-    const points = values.map((val, i) => {
-      const x = padding + i / (values.length - 1) * effectiveWidth;
+    const points = limitedValues.map((val, i) => {
+      const x = padding + i / (limitedValues.length - 1) * effectiveWidth;
       const y = padding + (1 - (val - minVal) / range) * effectiveHeight;
       return `${x.toFixed(1)},${y.toFixed(1)}`;
     }).join(" ");
-    const firstVal = values[0] ?? 0;
-    const lastVal = values[values.length - 1] ?? 0;
+    const firstVal = limitedValues[0] ?? 0;
+    const lastVal = limitedValues[limitedValues.length - 1] ?? 0;
     const trendDescription = lastVal > firstVal ? "upward trend" : lastVal < firstVal ? "downward trend" : "stable trend";
     return `
     <svg class="sparkline" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}"
-         role="img" aria-label="Sparkline showing ${trendDescription} over ${values.length} data points">
+         role="img" aria-label="Sparkline showing ${trendDescription} over ${limitedValues.length} data points">
       <polyline
         points="${points}"
         fill="none"
