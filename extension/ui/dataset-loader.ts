@@ -15,6 +15,14 @@ import {
   type InsightsData,
   type ManifestSchema,
 } from "./types";
+import {
+  validateManifest,
+  validateDimensions,
+  validateRollup,
+  validatePredictions,
+  SchemaValidationError,
+  type ValidationResult,
+} from "./schemas";
 
 // Supported schema versions (from dataset-contract.md)
 const SUPPORTED_MANIFEST_VERSION = 1;
@@ -401,6 +409,11 @@ export class DatasetLoader implements IDatasetLoader {
    * Automatically resolves nested dataset root before loading.
    */
   async loadManifest(): Promise<ManifestSchema> {
+    // Return cached manifest if already loaded and validated
+    if (this.manifest) {
+      return this.manifest;
+    }
+
     // Resolve dataset root if not already done
     if (this.effectiveBaseUrl === null) {
       await this.resolveDatasetRoot();
@@ -421,43 +434,55 @@ export class DatasetLoader implements IDatasetLoader {
     }
 
     const manifest = await response.json();
-    this.validateManifest(manifest);
+    this.validateManifestSchema(manifest);
     this.manifest = manifest;
     return manifest;
   }
 
   /**
-   * Validate manifest schema versions.
+   * Validate manifest schema using schema validator.
+   * Throws SchemaValidationError on invalid data.
    */
-  protected validateManifest(manifest: ManifestSchema): void {
-    if (!manifest.manifest_schema_version) {
-      throw new Error("Invalid manifest: missing schema version");
+  protected validateManifestSchema(manifest: unknown): void {
+    const result: ValidationResult = validateManifest(manifest, true);
+    if (!result.valid) {
+      throw new SchemaValidationError(result.errors, "manifest");
     }
 
-    if (manifest.manifest_schema_version > SUPPORTED_MANIFEST_VERSION) {
+    // Log warnings for unknown fields in permissive mode
+    if (result.warnings.length > 0) {
+      console.warn(
+        "[DatasetLoader] Manifest validation warnings:",
+        result.warnings.map((w) => w.message).join("; "),
+      );
+    }
+
+    // Additional version checks after schema validation
+    const m = manifest as ManifestSchema;
+    if (m.manifest_schema_version > SUPPORTED_MANIFEST_VERSION) {
       throw new Error(
-        `Manifest version ${manifest.manifest_schema_version} not supported. ` +
+        `Manifest version ${m.manifest_schema_version} not supported. ` +
           `Maximum supported: ${SUPPORTED_MANIFEST_VERSION}. ` +
           `Please update the extension.`,
       );
     }
 
     if (
-      manifest.dataset_schema_version !== undefined &&
-      manifest.dataset_schema_version > SUPPORTED_DATASET_VERSION
+      m.dataset_schema_version !== undefined &&
+      m.dataset_schema_version > SUPPORTED_DATASET_VERSION
     ) {
       throw new Error(
-        `Dataset version ${manifest.dataset_schema_version} not supported. ` +
+        `Dataset version ${m.dataset_schema_version} not supported. ` +
           `Please update the extension.`,
       );
     }
 
     if (
-      manifest.aggregates_schema_version !== undefined &&
-      manifest.aggregates_schema_version > SUPPORTED_AGGREGATES_VERSION
+      m.aggregates_schema_version !== undefined &&
+      m.aggregates_schema_version > SUPPORTED_AGGREGATES_VERSION
     ) {
       throw new Error(
-        `Aggregates version ${manifest.aggregates_schema_version} not supported. ` +
+        `Aggregates version ${m.aggregates_schema_version} not supported. ` +
           `Please update the extension.`,
       );
     }
@@ -465,6 +490,7 @@ export class DatasetLoader implements IDatasetLoader {
 
   /**
    * Load dimensions (filter values).
+   * Validates against schema and throws SchemaValidationError on invalid data.
    */
   async loadDimensions(): Promise<DimensionsData | null> {
     if (this.dimensions) return this.dimensions;
@@ -476,7 +502,23 @@ export class DatasetLoader implements IDatasetLoader {
       throw new Error(`Failed to load dimensions: ${response.status}`);
     }
 
-    this.dimensions = await response.json();
+    const rawDimensions = await response.json();
+
+    // Validate against schema (strict mode)
+    const result: ValidationResult = validateDimensions(rawDimensions, true);
+    if (!result.valid) {
+      throw new SchemaValidationError(result.errors, "dimensions");
+    }
+
+    // Log warnings for unknown fields
+    if (result.warnings.length > 0) {
+      console.warn(
+        "[DatasetLoader] Dimensions validation warnings:",
+        result.warnings.map((w) => w.message).join("; "),
+      );
+    }
+
+    this.dimensions = rawDimensions as DimensionsData;
     return this.dimensions;
   }
 
@@ -516,6 +558,21 @@ export class DatasetLoader implements IDatasetLoader {
 
       if (response.ok) {
         const rawData = await response.json();
+
+        // Validate rollup data (permissive mode - unknown fields produce warnings)
+        const validationResult: ValidationResult = validateRollup(rawData, false);
+        if (!validationResult.valid) {
+          throw new SchemaValidationError(validationResult.errors, "rollup");
+        }
+
+        // Log warnings for unknown fields in permissive mode
+        if (validationResult.warnings.length > 0) {
+          console.warn(
+            `[DatasetLoader] Rollup validation warnings for ${weekStr}:`,
+            validationResult.warnings.map((w) => w.message).join("; "),
+          );
+        }
+
         // Apply version adapter to normalize rollup data
         const data = normalizeRollup(rawData);
         this.rollupCache.set(weekStr, data);
@@ -820,6 +877,7 @@ export class DatasetLoader implements IDatasetLoader {
 
   /**
    * Load predictions data (Phase 3.5).
+   * Validates against schema (permissive mode - unknown fields produce warnings).
    */
   async loadPredictions(): Promise<PredictionsData> {
     if (!this.isFeatureEnabled("predictions")) {
@@ -846,18 +904,26 @@ export class DatasetLoader implements IDatasetLoader {
 
       const predictions = await response.json();
 
-      // Validate schema version
-      const validationResult = this.validatePredictionsSchema(predictions);
-      if (!validationResult.valid) {
+      // Validate using full schema validator (permissive mode)
+      const schemaResult: ValidationResult = validatePredictions(predictions, false);
+      if (!schemaResult.valid) {
         console.error(
           "[DatasetLoader] Invalid predictions schema:",
-          validationResult.error,
+          schemaResult.errors.map((e) => e.message).join("; "),
         );
         return {
           state: "invalid",
           error: "PRED_001",
-          message: validationResult.error,
+          message: schemaResult.errors[0]?.message ?? "Schema validation failed",
         };
+      }
+
+      // Log warnings for unknown fields in permissive mode
+      if (schemaResult.warnings.length > 0) {
+        console.warn(
+          "[DatasetLoader] Predictions validation warnings:",
+          schemaResult.warnings.map((w) => w.message).join("; "),
+        );
       }
 
       return { state: "ok", data: predictions };

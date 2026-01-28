@@ -1,0 +1,83 @@
+{
+  "aggregate_index": {
+    "distributions": [
+      {
+        "end_date": "2026-12-31",
+        "path": "aggregates/distributions/2026.json",
+        "size_bytes": 268,
+        "start_date": "2026-01-01",
+        "year": "2026"
+      }
+    ],
+    "weekly_rollups": [
+      {
+        "end_date": "2026-01-18",
+        "path": "aggregates/weekly_rollups/2026-W03.json",
+        "size_bytes": 3225,
+        "start_date": "2026-01-12",
+        "week": "2026-W03"
+      },
+      {
+        "end_date": "2026-01-25",
+        "path": "aggregates/weekly_rollups/2026-W04.json",
+        "size_bytes": 2340,
+        "start_date": "2026-01-19",
+        "week": "2026-W04"
+      },
+      {
+        "end_date": "2026-02-01",
+        "path": "aggregates/weekly_rollups/2026-W05.json",
+        "size_bytes": 1959,
+        "start_date": "2026-01-26",
+        "week": "2026-W05"
+      }
+    ]
+  },
+  "aggregates_schema_version": 1,
+  "coverage": {
+    "comments": {
+      "capped": false,
+      "comments_fetched": 0,
+      "prs_with_threads": 0,
+      "status": "disabled",
+      "threads_fetched": 0
+    },
+    "date_range": {
+      "max": "2026-01-27",
+      "min": "2026-01-13"
+    },
+    "row_counts": {
+      "pull_requests": 587,
+      "repositories": 18,
+      "reviewers": 895,
+      "users": 3
+    },
+    "teams_count": 0,
+    "total_prs": 587
+  },
+  "dataset_schema_version": 1,
+  "defaults": {
+    "default_date_range_days": 90
+  },
+  "features": {
+    "ai_insights": false,
+    "comments": false,
+    "predictions": false,
+    "teams": false
+  },
+  "generated_at": "2026-01-28T06:01:39.847508+00:00",
+  "insights_schema_version": 1,
+  "limits": {
+    "max_date_range_days_soft": 730
+  },
+  "manifest_schema_version": 1,
+  "operational": {
+    "artifact_size_bytes": 12000,
+    "distribution_count": 1,
+    "retention_notice": null,
+    "weekly_rollup_count": 3
+  },
+  "predictions_schema_version": 1,
+  "run_id": "20260128060139",
+  "warnings": []
+}

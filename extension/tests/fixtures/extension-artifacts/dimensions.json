@@ -1,0 +1,141 @@
+{
+  "date_range": {
+    "max": "2026-01-27",
+    "min": "2026-01-13"
+  },
+  "projects": [
+    {
+      "organization_name": "oddessentials",
+      "project_name": "engineering"
+    },
+    {
+      "organization_name": "oddessentials",
+      "project_name": "hospitality"
+    },
+    {
+      "organization_name": "oddessentials",
+      "project_name": "marketing"
+    },
+    {
+      "organization_name": "oddessentials",
+      "project_name": "oddessentials"
+    }
+  ],
+  "repositories": [
+    {
+      "organization_name": "oddessentials",
+      "project_name": "engineering",
+      "repository_id": "9a18de00-783b-4298-89c7-7653abff9b0d",
+      "repository_name": "backdate-demo-jan-5"
+    },
+    {
+      "organization_name": "oddessentials",
+      "project_name": "engineering",
+      "repository_id": "167a3203-9db0-449a-8041-515a32cbe0fb",
+      "repository_name": "backdate-demo-jan-7"
+    },
+    {
+      "organization_name": "oddessentials",
+      "project_name": "engineering",
+      "repository_id": "bfc25b28-c079-4302-a456-d03b452cdec5",
+      "repository_name": "backdate-demo-jan-8"
+    },
+    {
+      "organization_name": "oddessentials",
+      "project_name": "engineering",
+      "repository_id": "2da5ef82-f49f-4751-9c5f-66dfff37e931",
+      "repository_name": "core-api"
+    },
+    {
+      "organization_name": "oddessentials",
+      "project_name": "engineering",
+      "repository_id": "401a9992-38bd-4c30-87ee-6a19dbb9cbd6",
+      "repository_name": "core-api-day-1"
+    },
+    {
+      "organization_name": "oddessentials",
+      "project_name": "engineering",
+      "repository_id": "31d690cc-4d0a-4349-b8d9-94460a95ed84",
+      "repository_name": "infra"
+    },
+    {
+      "organization_name": "oddessentials",
+      "project_name": "engineering",
+      "repository_id": "22a6ec29-5dfe-4625-aea8-26f59a3f47d1",
+      "repository_name": "infra-day-1"
+    },
+    {
+      "organization_name": "oddessentials",
+      "project_name": "engineering",
+      "repository_id": "255d8d56-c407-49ab-9811-f4f7d430e2f2",
+      "repository_name": "web-app"
+    },
+    {
+      "organization_name": "oddessentials",
+      "project_name": "engineering",
+      "repository_id": "1f066d96-204f-492f-96d5-f5e5a21a7604",
+      "repository_name": "web-app-day-1"
+    },
+    {
+      "organization_name": "oddessentials",
+      "project_name": "hospitality",
+      "repository_id": "de372e6a-db50-435a-8aaf-00711ebcfb88",
+      "repository_name": "booking-system"
+    },
+    {
+      "organization_name": "oddessentials",
+      "project_name": "hospitality",
+      "repository_id": "c6b48e5c-9e79-4c6c-a519-643733f171bf",
+      "repository_name": "booking-system-day-1"
+    },
+    {
+      "organization_name": "oddessentials",
+      "project_name": "hospitality",
+      "repository_id": "6e863e65-8d70-459a-8697-415197f34628",
+      "repository_name": "guest-portal"
+    },
+    {
+      "organization_name": "oddessentials",
+      "project_name": "hospitality",
+      "repository_id": "73855c1a-b582-4385-b587-4acd6f56eb71",
+      "repository_name": "guest-portal-day-1"
+    },
+    {
+      "organization_name": "oddessentials",
+      "project_name": "marketing",
+      "repository_id": "3fcb1bd4-36bc-4775-836e-ee20931ddd8c",
+      "repository_name": "marketing-content"
+    },
+    {
+      "organization_name": "oddessentials",
+      "project_name": "marketing",
+      "repository_id": "ae4b0c53-da5b-4f61-98cc-8c45440aa2d3",
+      "repository_name": "marketing-site"
+    },
+    {
+      "organization_name": "oddessentials",
+      "project_name": "marketing",
+      "repository_id": "74a0fcc5-7097-4f18-b548-d560725ad113",
+      "repository_name": "marketing-site-day-1"
+    },
+    {
+      "organization_name": "oddessentials",
+      "project_name": "oddessentials",
+      "repository_id": "45ee3442-6494-4529-b8a2-192ac3b93e82",
+      "repository_name": "socialmedia-syndicator"
+    },
+    {
+      "organization_name": "oddessentials",
+      "project_name": "oddessentials",
+      "repository_id": "a00f4461-4a9a-4eb5-9a5d-be35b61d513c",
+      "repository_name": "usg-map"
+    }
+  ],
+  "teams": [],
+  "users": [
+    {
+      "display_name": "PM P",
+      "user_id": "2bb091f5-f9b6-6f95-9734-14dc2aad7d01"
+    }
+  ]
+}

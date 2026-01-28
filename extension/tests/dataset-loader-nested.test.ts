@@ -140,6 +140,8 @@ describe("DatasetLoader Nested Layout Resolution", () => {
       manifest_schema_version: 1,
       dataset_schema_version: 1,
       aggregates_schema_version: 1,
+      generated_at: "2026-01-14T12:00:00Z",
+      run_id: "test-run-123",
       aggregate_index: {
         weekly_rollups: [],
         distributions: [],
@@ -187,7 +189,7 @@ describe("DatasetLoader Nested Layout Resolution", () => {
       // Load dimensions should use effective base URL
       mockFetch.mockResolvedValueOnce({
         ok: true,
-        json: async () => ({ repositories: [], teams: [] }),
+        json: async () => ({ repositories: [], users: [], projects: [], teams: [] }),
       });
 
       await loader.loadDimensions();

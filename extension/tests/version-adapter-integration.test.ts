@@ -158,6 +158,8 @@ describe("Version Adapter Integration", () => {
               manifest_schema_version: 1,
               dataset_schema_version: 1,
               aggregates_schema_version: 1,
+              generated_at: "2026-01-14T12:00:00Z",
+              run_id: "test-run-123",
               coverage: {
                 total_prs: 50,
                 date_range: { min: "2026-01-01", max: "2026-01-07" },
@@ -214,8 +216,8 @@ describe("Version Adapter Integration", () => {
   });
 
   describe("Graceful degradation", () => {
-    it("handles malformed rollup gracefully", async () => {
-      // Mock a completely malformed rollup
+    it("throws SchemaValidationError for malformed rollup data", async () => {
+      // Mock a completely malformed rollup - now with schema validation, this throws
       (global as any).fetch.mockImplementation(async (url: string) => {
         if (url.includes("manifest")) {
           return {
@@ -225,6 +227,8 @@ describe("Version Adapter Integration", () => {
               manifest_schema_version: 1,
               dataset_schema_version: 1,
               aggregates_schema_version: 1,
+              generated_at: "2024-01-14T12:00:00Z",
+              run_id: "test-run-123",
               coverage: {
                 total_prs: 1,
                 date_range: { min: "2024-01-01", max: "2024-01-07" },
@@ -237,7 +241,7 @@ describe("Version Adapter Integration", () => {
             }),
           };
         }
-        // Return malformed data - no week field
+        // Return malformed data - missing required fields
         return {
           ok: true,
           status: 200,
@@ -248,19 +252,10 @@ describe("Version Adapter Integration", () => {
       const loader = new DatasetLoader(fixtureDir);
       await loader.loadManifest();
 
-      const rollups = await loader.getWeeklyRollups(
-        new Date("2024-01-01"),
-        new Date("2024-01-07"),
-      );
-
-      // Graceful degradation - still returns data
-      expect(rollups.length).toBe(1);
-      const rollup = rollups[0];
-
-      // Invalid field preserved, defaults applied
-      expect((rollup as any).invalid).toBe(true);
-      expect(rollup.pr_count).toBe(0);
-      expect(rollup.authors_count).toBe(0);
+      // Schema validation now throws for malformed rollups
+      await expect(
+        loader.getWeeklyRollups(new Date("2024-01-01"), new Date("2024-01-07")),
+      ).rejects.toThrow(/Schema validation failed/);
     });
   });
 });

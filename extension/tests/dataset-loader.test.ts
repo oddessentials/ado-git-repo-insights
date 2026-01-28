@@ -236,6 +236,7 @@ describe("DatasetLoader", () => {
           {
             metric: "pr_throughput",
             unit: "count",
+            horizon_weeks: 4,
             values: [
               {
                 period_start: "2026-01-13",
@@ -263,7 +264,12 @@ describe("DatasetLoader", () => {
           expectedState: "invalid",
         },
         {
-          mock: () => mockFetchResponse({ schema_version: 1, forecasts: [] }),
+          mock: () =>
+            mockFetchResponse({
+              schema_version: 1,
+              generated_at: "2026-01-14T12:00:00Z",
+              forecasts: [],
+            }),
           expectedState: "ok",
         },
       ];
