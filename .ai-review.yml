@@ -1,4 +1,8 @@
 version: 1
+# SECURITY: trusted_only controls whether AI review runs on untrusted PRs
+# When true: Only reviews PRs from trusted contributors (repo members)
+# When false: Reviews all PRs including from forks (current setting for open source)
+# Risk: Malicious PR content could potentially influence AI review output
 trusted_only: false
 
 triggers:

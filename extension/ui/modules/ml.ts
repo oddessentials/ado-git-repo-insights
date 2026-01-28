@@ -350,6 +350,7 @@ export function renderAIInsights(
     );
     if (!items.length) return;
 
+    // eslint-disable-next-line security/detect-object-injection -- SECURITY: severity is typed InsightSeverity enum
     const severityInfo = SEVERITY_ICONS[severity] ?? defaultSeverityInfo;
     const sectionLabel = `${severity.charAt(0).toUpperCase() + severity.slice(1)} insights`;
 

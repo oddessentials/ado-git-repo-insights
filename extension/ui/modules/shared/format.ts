@@ -66,6 +66,8 @@ export function median(arr: number[]): number {
   const sorted = [...arr].sort((a, b) => a - b);
   const mid = Math.floor(sorted.length / 2);
   return sorted.length % 2 !== 0
+    // eslint-disable-next-line security/detect-object-injection -- SECURITY: mid is computed from array length, always valid index
     ? (sorted[mid] ?? 0)
+    // eslint-disable-next-line security/detect-object-injection -- SECURITY: mid/mid-1 are computed from array length, always valid indices
     : ((sorted[mid - 1] ?? 0) + (sorted[mid] ?? 0)) / 2;
 }

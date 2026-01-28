@@ -42,6 +42,7 @@ export function renderCycleDistribution(
   };
   distributions.forEach((d) => {
     Object.entries(d.cycle_time_buckets || {}).forEach(([key, val]) => {
+      // eslint-disable-next-line security/detect-object-injection -- SECURITY: key is from Object.entries iteration over known bucket structure
       buckets[key] = (buckets[key] || 0) + (val as number);
     });
   });

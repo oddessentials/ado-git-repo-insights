@@ -60,42 +60,44 @@ echo "[pre-push] ✅ Pre-commit checks passed"
 # CRLF Line Ending Guard (mirrors CI: line-ending-guard job)
 # =============================================================================
 # Prevents "works locally, fails in CI" issues on Windows
+# Uses NUL-delimited file handling to prevent shell injection via crafted filenames
+# The -- separator prevents option injection from filenames starting with -
 echo ""
 echo "[pre-push] Running CRLF line ending guard..."
 FOUND_CRLF=false
 
-# Check Husky hooks
-if grep -rlI $'\r' .husky/ 2>/dev/null; then
+# Check Husky hooks (NUL-delimited for safe filename handling)
+if find .husky/ -type f -print0 2>/dev/null | xargs -0 grep -l -- $'\r' 2>/dev/null; then
     echo "[pre-push] ❌ CRLF detected in .husky/"
     FOUND_CRLF=true
 fi
 
-# Check shell scripts
-if find . -name "*.sh" -type f -not -path "./node_modules/*" -not -path "./.venv/*" | xargs grep -lI $'\r' 2>/dev/null; then
+# Check shell scripts (NUL-delimited)
+if find . -name "*.sh" -type f -not -path "./node_modules/*" -not -path "./.venv/*" -print0 2>/dev/null | xargs -0 grep -l -- $'\r' 2>/dev/null; then
     echo "[pre-push] ❌ CRLF detected in *.sh files"
     FOUND_CRLF=true
 fi
 
-# Check .github/scripts
-if grep -rlI $'\r' .github/scripts/ 2>/dev/null; then
+# Check .github/scripts (NUL-delimited)
+if find .github/scripts/ -type f -print0 2>/dev/null | xargs -0 grep -l -- $'\r' 2>/dev/null; then
     echo "[pre-push] ❌ CRLF detected in .github/scripts/"
     FOUND_CRLF=true
 fi
 
-# Check scripts directory
-if grep -rlI $'\r' scripts/ 2>/dev/null; then
+# Check scripts directory (NUL-delimited)
+if find scripts/ -type f -print0 2>/dev/null | xargs -0 grep -l -- $'\r' 2>/dev/null; then
     echo "[pre-push] ❌ CRLF detected in scripts/"
     FOUND_CRLF=true
 fi
 
-# Check extension scripts
-if grep -rlI $'\r' extension/scripts/ 2>/dev/null; then
+# Check extension scripts (NUL-delimited)
+if find extension/scripts/ -type f -print0 2>/dev/null | xargs -0 grep -l -- $'\r' 2>/dev/null; then
     echo "[pre-push] ❌ CRLF detected in extension/scripts/"
     FOUND_CRLF=true
 fi
 
-# Check extension UI files (catches CRLF from npm packages like vss-web-extension-sdk)
-if grep -rlI $'\r' extension/ui/ 2>/dev/null; then
+# Check extension UI files (NUL-delimited, catches CRLF from npm packages)
+if find extension/ui/ -type f -print0 2>/dev/null | xargs -0 grep -l -- $'\r' 2>/dev/null; then
     echo "[pre-push] ❌ CRLF detected in extension/ui/"
     echo "[pre-push] If copying from npm, use: cd extension && node scripts/copy-vss-sdk.mjs"
     FOUND_CRLF=true

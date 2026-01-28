@@ -48,9 +48,10 @@ export default tseslint.config(
             'security/detect-unsafe-regex': 'error',
             'security/detect-non-literal-regexp': 'error',
             'security/detect-possible-timing-attacks': 'error',
-            // Disabled: Too many false positives on legitimate obj[key] patterns
+            // Re-enabled with inline suppressions for known false positives
+            // Each suppression requires -- SECURITY: <reason> tag for governance
             // See: https://github.com/eslint-community/eslint-plugin-security/issues/21
-            'security/detect-object-injection': 'off',
+            'security/detect-object-injection': 'error',
         },
     },
     {

@@ -544,7 +544,9 @@ export class MockArtifactClient {
     filePath: string,
   ): Promise<unknown> {
     const key = `${buildId}/${artifactName}/${filePath}`;
+    // eslint-disable-next-line security/detect-object-injection -- SECURITY: key is constructed from function parameters, not user input
     if (this.mockData[key]) {
+      // eslint-disable-next-line security/detect-object-injection -- SECURITY: key is constructed from function parameters, not user input
       return JSON.parse(JSON.stringify(this.mockData[key]));
     }
     throw new Error(`Mock: File not found: ${key}`);
@@ -556,6 +558,7 @@ export class MockArtifactClient {
     filePath: string,
   ): Promise<boolean> {
     const key = `${buildId}/${artifactName}/${filePath}`;
+    // eslint-disable-next-line security/detect-object-injection -- SECURITY: key is constructed from function parameters, not user input
     return !!this.mockData[key];
   }
 

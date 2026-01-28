@@ -137,6 +137,7 @@ export function applyFiltersToRollups(
     ) {
       const selectedRepos = filters.repos
         .map((repoId) => {
+          // eslint-disable-next-line security/detect-object-injection -- SECURITY: repoId comes from validated filter state
           const repoData = rollup.by_repository![repoId];
           if (repoData) return repoData;
 
@@ -178,6 +179,7 @@ export function applyFiltersToRollups(
       typeof rollup.by_team === "object"
     ) {
       const selectedTeams = filters.teams
+        // eslint-disable-next-line security/detect-object-injection -- SECURITY: teamId comes from validated filter state
         .map((teamId) => rollup.by_team![teamId])
         .filter((t): t is number => t !== undefined);
 
