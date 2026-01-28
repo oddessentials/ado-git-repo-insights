@@ -53,7 +53,7 @@
 
 **Goal**: Create schema validators for all 4 JSON artifact types and validate local fixtures against them
 
-**Independent Test**: Run `pnpm test -- --testPathPattern="schema/"` - all fixture files validate successfully
+**Independent Test**: Run `npm test -- --testPathPattern="schema/"` - all fixture files validate successfully
 
 ### Tests for User Story 1
 
@@ -106,7 +106,7 @@
 
 **Goal**: Create shared test harness and achieve tiered coverage thresholds (80% logic, 50% UI/DOM)
 
-**Independent Test**: Run `pnpm test -- --coverage` and verify tiered thresholds pass
+**Independent Test**: Run `npm test -- --coverage` and verify tiered thresholds pass
 
 ### Tests for User Story 3
 
@@ -121,7 +121,8 @@
 - [ ] T037 [US3] Add settings.ts tests using shared harness in `extension/tests/settings-harness.test.ts` - target 50% coverage
 - [ ] T038 [US3] Add modules/dom.ts tests in `extension/tests/modules/dom-coverage.test.ts` - target 50% coverage
 - [ ] T039 [US3] Add modules/errors.ts tests in `extension/tests/modules/errors-coverage.test.ts` - target 50% coverage
-- [ ] T040 [US3] Configure tiered coverage thresholds in `extension/jest.config.ts` per research.md (80% logic paths, 50% UI/DOM paths)
+- [ ] T039a [US3] Add modules/comparison.ts tests in `extension/tests/modules/comparison-coverage.test.ts` - target 50% coverage
+- [ ] T040 [US3] Configure tiered coverage thresholds in `extension/jest.config.ts` per research.md (80% logic paths, 50% UI/DOM paths); exclude barrel exports (modules/index.ts) from thresholds
 - [ ] T041 [US3] Document ratchet-up plan for UI modules in `extension/COVERAGE_RATCHET.md` with current baselines and target dates
 
 **Checkpoint**: Coverage thresholds pass, shared harness enables DOM testing without bespoke mocks
@@ -156,7 +157,7 @@
 
 - [ ] T048 [P] Update quickstart.md with actual file paths after implementation
 - [ ] T049 [P] Add inline documentation to schema validators explaining strictness modes
-- [ ] T050 Run full test suite and verify all thresholds pass: `pnpm test -- --coverage`
+- [ ] T050 Run full test suite and verify all thresholds pass: `npm test -- --coverage`
 - [ ] T051 Verify parity test passes with captured extension artifacts
 - [ ] T052 Review and remove any untagged test skips or add SKIP_REASON tags
 - [ ] T053 Run quickstart.md validation commands and verify all pass
@@ -239,7 +240,7 @@
 
 **Phase 5 (US3 - Coverage)**:
 - T032, T033 (harness tests) can run in parallel
-- T036, T037, T038, T039 (coverage tests) can run in parallel after harness complete
+- T036, T037, T038, T039, T039a (coverage tests) can run in parallel after harness complete
 
 **Phase 6 (US4 - CI)**:
 - T042 (test) before implementation
@@ -271,7 +272,7 @@ Task: "Implement predictions validator in extension/ui/schemas/predictions.schem
 1. Complete Phase 1: Setup (T001-T005)
 2. Complete Phase 2: Foundational (T006-T010)
 3. Complete Phase 3: User Story 1 - Schema Validators (T011-T023)
-4. **STOP and VALIDATE**: Run `pnpm test -- --testPathPattern="schema/"` - all tests pass
+4. **STOP and VALIDATE**: Run `npm test -- --testPathPattern="schema/"` - all tests pass
 5. Deploy/demo if ready - schema parity is verified
 
 ### Incremental Delivery

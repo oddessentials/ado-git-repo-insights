@@ -14,6 +14,11 @@
 - Q: How should coverage thresholds be structured for DOM-heavy codebase? → A: Tiered by path: 80% for logic modules, 50% for UI/DOM modules, ratchet UI upward over time
 - Q: How should the VSS SDK mock surface area be constrained? → A: Enumerated allowlist: Document exact functions used, mock only those in single shared harness
 - Q: How should test skips be governed in CI? → A: Zero skips with tagged exceptions: No skips allowed unless tagged with SKIP_REASON, CI reports all skips
+- Q: Should modules/index.ts (barrel export) be included in coverage thresholds? → A: Exclude from thresholds entirely (no testable logic)
+- Q: Should "70%" references be updated to "tiered thresholds" for consistency? → A: Yes, update all references to "tiered thresholds (80% logic, 50% UI/DOM)"
+- Q: How should schema validation handle an empty JSON object `{}`? → A: Fail validation with "missing required field" error
+- Q: How should nested objects with partial schema compliance be handled? → A: Validate recursively, fail on any nested violation
+- Q: Should SC-003's "within 1 second" timing requirement be kept? → A: Remove timing requirement (correctness over speed; validate-once-and-cache already addresses performance)
 
 ## User Scenarios & Testing *(mandatory)*
 
@@ -58,7 +63,7 @@ As a developer, I want comprehensive test coverage for DOM-dependent modules, so
 
 **Why this priority**: Depends on P1 (schema parity) to ensure test fixtures are valid. Once fixtures are reliable, coverage can be expanded with confidence.
 
-**Independent Test**: Can be tested by running the test suite and verifying coverage metrics meet the 70% threshold across statements, branches, functions, and lines.
+**Independent Test**: Can be tested by running the test suite and verifying coverage metrics meet tiered thresholds (80% for logic modules, 50% for UI/DOM modules) across statements, branches, functions, and lines.
 
 **Acceptance Scenarios**:
 
@@ -81,16 +86,16 @@ As a team lead, I want CI to fail if schema validation fails, so that schema dri
 
 1. **Given** all JSON fixtures match their schemas, **When** the CI pipeline runs, **Then** the schema validation step passes
 2. **Given** a JSON fixture has a schema violation, **When** the CI pipeline runs, **Then** the schema validation step fails and blocks merge
-3. **Given** coverage drops below 70%, **When** the CI pipeline runs, **Then** the coverage check fails and blocks merge
+3. **Given** coverage drops below tiered thresholds (80% logic, 50% UI/DOM), **When** the CI pipeline runs, **Then** the coverage check fails and blocks merge
 
 ---
 
 ### Edge Cases
 
-- What happens when a JSON file is valid JSON but completely empty?
+- What happens when a JSON file is valid JSON but completely empty? → Resolved: Fail validation with "missing required field" error (empty object lacks required fields like manifest_schema_version or week)
 - How does the system handle extra fields in the JSON that aren't in the schema? → Resolved: Per-file strictness (manifest/dimensions=strict, rollup/predictions=permissive with warnings)
 - What happens when the predictions.json file is missing? → Resolved: File optional at schema/type level; downstream types use `predictions?: ...`; tests cover both present and absent cases
-- How does the system handle nested objects with partial schema compliance?
+- How does the system handle nested objects with partial schema compliance? → Resolved: Validate recursively, fail on any nested violation (e.g., missing `week` in `aggregate_index.weekly_rollups[0]` fails validation)
 - What happens when local fixtures exist but ADO artifacts are unavailable during development?
 
 ## Requirements *(mandatory)*
@@ -102,7 +107,7 @@ As a team lead, I want CI to fail if schema validation fails, so that schema dri
 - **FR-003**: DatasetLoader MUST validate incoming JSON data against schemas at runtime using validate-once-and-cache strategy (validate on first load per session, skip validation for subsequent loads of cached data)
 - **FR-004**: DatasetLoader MUST provide clear, actionable error messages when schema validation fails
 - **FR-005**: CI pipeline MUST include a schema validation step that fails the build on schema violations
-- **FR-006**: Test suite MUST achieve tiered coverage thresholds: 80% (statements, branches, functions, lines) for logic modules; 50% for UI/DOM modules (dashboard.ts, settings.ts, comparison.ts, errors.ts, index.ts) with documented ratchet-up plan
+- **FR-006**: Test suite MUST achieve tiered coverage thresholds: 80% (statements, branches, functions, lines) for logic modules; 50% for UI/DOM modules (dashboard.ts, settings.ts, comparison.ts, errors.ts) with documented ratchet-up plan; barrel exports (modules/index.ts) excluded from thresholds
 - **FR-007**: System MUST provide a single shared DOM test harness for testing modules that manipulate the DOM; per-test bespoke mocks are prohibited
 - **FR-008**: System MUST provide mock implementations of VSS SDK via enumerated allowlist: document exact SDK functions used in codebase, mock only those functions in single shared harness, require explicit approval to add new mocked functions
 - **FR-009**: Predictions.json MUST be defined as optional at schema and type level: file may be absent, but if present MUST validate; downstream types MUST represent as optional (`predictions?: ...`); tests MUST cover both present and absent cases
@@ -117,7 +122,7 @@ As a team lead, I want CI to fail if schema validation fails, so that schema dri
 - **JSON Artifact**: Data files (dataset-manifest.json, rollup JSON, dimensions.json, predictions.json) loaded by the dashboard
 - **DatasetLoader**: Component responsible for loading and parsing JSON artifacts, now enhanced with validation
 - **DOM Test Harness**: Single shared reusable test infrastructure for setting up JSDOM environment; bespoke per-test mocks prohibited
-- **VSS SDK Mock Allowlist**: Enumerated list of exact VSS SDK functions used in codebase; only these functions are mocked in the shared harness; additions require explicit approval
+- **VSS SDK Mock Allowlist**: Enumerated list of exact VSS SDK functions used in codebase; only these functions are mocked in the shared harness; additions require explicit approval. **Allowlist**: `VSS.init()`, `VSS.ready()`, `VSS.notifyLoadSucceeded()`, `VSS.getWebContext()`, `VSS.getService(ServiceIds.ExtensionData)`, `VSS.require(["TFS/Build/RestClient"])`
 
 ## Assumptions
 
@@ -133,8 +138,8 @@ As a team lead, I want CI to fail if schema validation fails, so that schema dri
 
 - **SC-001**: All four JSON artifact types (dataset-manifest, rollup, dimensions, predictions) have schema definitions that can be used for validation
 - **SC-002**: 100% of local fixture files pass schema validation
-- **SC-003**: DatasetLoader rejects invalid JSON with error messages that identify the specific validation failure within 1 second
+- **SC-003**: DatasetLoader rejects invalid JSON with error messages that identify the specific validation failure
 - **SC-004**: Test coverage metrics meet tiered thresholds: logic modules exceed 80% (statements, branches, functions, lines); UI/DOM modules exceed 50% with ratchet baseline documented for future increases
 - **SC-005**: CI pipeline blocks merges when schema validation or coverage thresholds fail
-- **SC-006**: DOM test utilities enable testing of previously untested modules (dashboard.ts, settings.ts, comparison.ts, errors.ts, index.ts)
+- **SC-006**: DOM test utilities enable testing of previously untested modules (dashboard.ts, settings.ts, comparison.ts, errors.ts)
 - **SC-007**: No untagged test skips exist in CI; any skip MUST have explicit `SKIP_REASON` tag; CI reports all skipped tests with reasons
