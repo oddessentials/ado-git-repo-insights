@@ -352,12 +352,13 @@ jobs:
             --max-skips=0
         shell: bash
 
-      - name: Upload Coverage
+      - name: Upload Python Coverage
         uses: codecov/codecov-action@v5
-        if: matrix.python-version == '3.11'
+        if: matrix.python-version == '3.11' && matrix.os == 'ubuntu-latest'
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
           files: ./coverage.xml
+          flags: python
           fail_ci_if_error: false
 
 
@@ -579,6 +580,15 @@ jobs:
             --min-collected=632 \
             --max-skips=5
         shell: bash
+
+      - name: Upload TypeScript Coverage
+        uses: codecov/codecov-action@v5
+        if: success()
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
+          files: ./extension/coverage/lcov.info
+          flags: typescript
+          fail_ci_if_error: false
 
   # Phase 4: Performance baseline integrity guard
   baseline-integrity:

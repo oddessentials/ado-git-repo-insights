@@ -1,0 +1,38 @@
+# Codecov configuration
+# See: https://docs.codecov.com/docs/codecov-yaml
+
+coverage:
+  precision: 2
+  round: down
+  range: "50...90"
+
+  status:
+    project:
+      default:
+        target: auto
+        threshold: 2%  # Allow 2% variance from target
+    patch:
+      default:
+        target: auto
+        threshold: 5%  # Be lenient on new code
+
+# Flag configuration for language-specific coverage
+# Enables separate badges: ?flag=python and ?flag=typescript
+flags:
+  python:
+    paths:
+      - src/
+    carryforward: true
+    after_n_builds: 1
+
+  typescript:
+    paths:
+      - extension/ui/
+    carryforward: true
+    after_n_builds: 1
+
+# Comment configuration for PRs
+comment:
+  layout: "header, diff, flags, components"
+  behavior: default
+  require_changes: true

@@ -112,14 +112,16 @@ fi
 echo "[pre-push] ✅ CRLF guard passed"
 
 # =============================================================================
-# Python Tests
+# Python Tests (with coverage threshold enforcement)
 # =============================================================================
 echo ""
-echo "[pre-push] Running Python tests..."
-python -m pytest tests/ --no-cov -q
+echo "[pre-push] Running Python tests with coverage..."
+# Coverage threshold (fail_under = 70) is enforced via pyproject.toml
+# This ensures local/CI parity for coverage requirements
+python -m pytest tests/ -q
 if [ $? -ne 0 ]; then
     echo ""
-    echo "[pre-push] ❌ Push blocked: Python tests failed"
+    echo "[pre-push] ❌ Push blocked: Python tests or coverage threshold failed"
     exit 1
 fi
 echo "[pre-push] ✅ Python tests passed"
@@ -156,14 +158,16 @@ fi
 echo "[pre-push] ✅ ESLint check passed"
 
 # =============================================================================
-# TypeScript Tests
+# TypeScript Tests (with coverage threshold enforcement)
 # =============================================================================
 echo ""
-echo "[pre-push] Running extension tests..."
-npm run test:ci
+echo "[pre-push] Running extension tests with coverage..."
+# Coverage threshold is enforced via jest.config.ts coverageThreshold
+# Uses test:ci base + --coverage for threshold enforcement with CI reporters
+npm run test:ci -- --coverage
 if [ $? -ne 0 ]; then
     echo ""
-    echo "[pre-push] ❌ Push blocked: Extension tests failed"
+    echo "[pre-push] ❌ Push blocked: Extension tests or coverage threshold failed"
     exit 1
 fi
 
