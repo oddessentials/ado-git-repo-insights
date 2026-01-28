@@ -1,12 +1,14 @@
-# ado-git-repo-insights
+# ADO Git Repo Insights
 
 <!-- CI & Quality -->
+
 ![CI](https://github.com/oddessentials/ado-git-repo-insights/actions/workflows/ci.yml/badge.svg)
 [![codecov](https://codecov.io/gh/oddessentials/ado-git-repo-insights/graph/badge.svg)](https://codecov.io/gh/oddessentials/ado-git-repo-insights)
 ![Python Tests](https://img.shields.io/badge/python_tests-passing-brightgreen)
 ![Extension Tests](https://img.shields.io/badge/extension_tests-passing-brightgreen)
 
 <!-- Technology Stack -->
+
 ![Python](https://img.shields.io/badge/python-3.10%20%7C%203.11%20%7C%203.12-blue)
 ![Node.js](https://img.shields.io/badge/node.js-22-green)
 ![TypeScript](https://img.shields.io/badge/TypeScript-5.x-blue?logo=typescript)
@@ -21,24 +23,25 @@ Extract Azure DevOps Pull Request metrics to SQLite and generate PowerBI-compati
 
 ---
 
-## Quick Start
+## 🚀 Quick Start
 
 **Choose your path:**
 
-| I want to... | Use |
-|--------------|-----|
-| Analyze PRs for my team via Azure DevOps pipelines | [ADO Extension](#azure-devops-extension) |
-| Run analysis locally or integrate into custom CI/CD | [Python CLI](#python-cli) |
+| I want to...                                        | Use                                      |
+| --------------------------------------------------- | ---------------------------------------- |
+| Analyze PRs for my team via Azure DevOps pipelines  | [ADO Extension](#azure-devops-extension) |
+| Run analysis locally or integrate into custom CI/CD | [Python CLI](#python-cli)                |
 
 ---
 
-## Azure DevOps Extension
+## ☁️ Azure DevOps Extension
 
 The ADO Extension provides a self-contained pipeline task with a built-in **PR Insights Dashboard** directly in your Azure DevOps project.
 
 [![Install from Marketplace](https://img.shields.io/badge/Install-Azure%20DevOps%20Marketplace-blue?logo=azure-devops)](https://marketplace.visualstudio.com/items?itemName=OddEssentials.ado-git-repo-insights)
 
 **What you get:**
+
 - Pipeline task that extracts PR metrics automatically
 - Interactive dashboard in your ADO project navigation
 - No Python installation required
@@ -50,38 +53,41 @@ The ADO Extension provides a self-contained pipeline task with a built-in **PR I
 
 ```yaml
 variables:
-  - group: ado-insights-secrets  # Contains PAT_SECRET
+    - group: ado-insights-secrets # Contains PAT_SECRET
 
 steps:
-  - task: ExtractPullRequests@2
-    inputs:
-      organization: 'MyOrg'
-      projects: 'Project1,Project2'
-      pat: '$(PAT_SECRET)'
+    - task: ExtractPullRequests@2
+      inputs:
+          organization: "MyOrg"
+          projects: "Project1,Project2"
+          pat: "$(PAT_SECRET)"
 
-  - publish: $(Pipeline.Workspace)/aggregates
-    artifact: aggregates
+    - publish: $(Pipeline.Workspace)/aggregates
+      artifact: aggregates
 ```
 
 ---
 
-## Python CLI
+## 🐍 Python CLI
 
 The Python CLI provides full control for local analysis, custom scripts, and non-ADO CI/CD systems.
 
 ### Installation
 
 **Recommended: pipx** (handles PATH automatically)
+
 ```bash
 pipx install ado-git-repo-insights
 ```
 
 **Alternative: uv** (fast, modern)
+
 ```bash
 uv tool install ado-git-repo-insights
 ```
 
 **Advanced: pip** (manual PATH setup may be needed)
+
 ```bash
 pip install ado-git-repo-insights
 # If 'ado-insights' not found, run: ado-insights setup-path
@@ -115,68 +121,68 @@ ado-insights dashboard --dataset ./dataset --open
 
 ---
 
-## Documentation
+## 📚 Documentation
 
-### For End Users
+### 👤 For End Users
 
-| Document | Description |
-|----------|-------------|
-| [Extension User Guide](docs/user-guide/extension.md) | Complete setup for ADO Extension users |
-| [CLI User Guide](docs/user-guide/local-cli.md) | Complete setup for Python CLI users |
-| [Troubleshooting](docs/user-guide/troubleshooting.md) | Common issues and solutions |
+| Document                                              | Description                            |
+| ----------------------------------------------------- | -------------------------------------- |
+| [Extension User Guide](docs/user-guide/extension.md)  | Complete setup for ADO Extension users |
+| [CLI User Guide](docs/user-guide/local-cli.md)        | Complete setup for Python CLI users    |
+| [Troubleshooting](docs/user-guide/troubleshooting.md) | Common issues and solutions            |
 
-### Reference
+### 📖 Reference
 
-| Document | Description |
-|----------|-------------|
-| [CLI Command Reference](docs/reference/cli-reference.md) | All CLI commands and options |
-| [Task Input Reference](docs/reference/task-reference.md) | Extension task configuration |
-| [CSV Schema](docs/reference/csv-schema.md) | PowerBI-compatible output format |
-| [Dataset Contract](docs/reference/dataset-contract.md) | Dashboard data format specification |
-| [Architecture](docs/reference/architecture.md) | System design and data flow diagrams |
+| Document                                                 | Description                          |
+| -------------------------------------------------------- | ------------------------------------ |
+| [CLI Command Reference](docs/reference/cli-reference.md) | All CLI commands and options         |
+| [Task Input Reference](docs/reference/task-reference.md) | Extension task configuration         |
+| [CSV Schema](docs/reference/csv-schema.md)               | PowerBI-compatible output format     |
+| [Dataset Contract](docs/reference/dataset-contract.md)   | Dashboard data format specification  |
+| [Architecture](docs/reference/architecture.md)           | System design and data flow diagrams |
 
-### Operations
+### ⚙️ Operations
 
-| Document | Description |
-|----------|-------------|
-| [Runbook](docs/operations/runbook.md) | Monitoring, recovery, and operational procedures |
-| [Data Retention](docs/operations/data-retention.md) | Storage model and security posture |
+| Document                                            | Description                                      |
+| --------------------------------------------------- | ------------------------------------------------ |
+| [Runbook](docs/operations/runbook.md)               | Monitoring, recovery, and operational procedures |
+| [Data Retention](docs/operations/data-retention.md) | Storage model and security posture               |
 
-### For Developers
+### 🛠️ For Developers
 
-| Document | Description |
-|----------|-------------|
-| [Contributing Guide](CONTRIBUTING.md) | How to contribute to this project |
-| [Development Setup](docs/development/setup.md) | Setting up the development environment |
-| [Testing Guide](docs/development/testing.md) | Running and writing tests |
-| [UI Bundle Sync](docs/development/ui-bundle-sync.md) | Dashboard UI synchronization process |
-| [Changelog](CHANGELOG.md) | Version history and release notes |
+| Document                                             | Description                            |
+| ---------------------------------------------------- | -------------------------------------- |
+| [Contributing Guide](CONTRIBUTING.md)                | How to contribute to this project      |
+| [Development Setup](docs/development/setup.md)       | Setting up the development environment |
+| [Testing Guide](docs/development/testing.md)         | Running and writing tests              |
+| [UI Bundle Sync](docs/development/ui-bundle-sync.md) | Dashboard UI synchronization process   |
+| [Changelog](CHANGELOG.md)                            | Version history and release notes      |
 
-### Governance
+### 📋 Governance
 
-| Document | Description |
-|----------|-------------|
-| [Invariants](agents/INVARIANTS.md) | 25 non-negotiable system invariants |
-| [Definition of Done](agents/definition-of-done.md) | Completion criteria for features |
-| [Victory Gates](agents/victory-gates.md) | Verification checkpoints |
-
----
-
-## Feature Comparison
-
-| Feature | CLI | Extension |
-|---------|-----|-----------|
-| **Installation** | `pip install` | ADO Marketplace |
-| **Requires Python** | Yes | No (bundled) |
-| **Pipeline syntax** | Script steps | Task step |
-| **Works outside ADO** | Yes | No |
-| **PR Insights Dashboard** | Local server | Built into ADO |
-| **Configuration** | YAML file or CLI args | Task inputs |
-| **Flexibility** | Higher | Standard |
+| Document                                           | Description                         |
+| -------------------------------------------------- | ----------------------------------- |
+| [Invariants](agents/INVARIANTS.md)                 | 25 non-negotiable system invariants |
+| [Definition of Done](agents/definition-of-done.md) | Completion criteria for features    |
+| [Victory Gates](agents/victory-gates.md)           | Verification checkpoints            |
 
 ---
 
-## How It Works
+## ⚖️ Feature Comparison
+
+| Feature                   | CLI                   | Extension       |
+| ------------------------- | --------------------- | --------------- |
+| **Installation**          | `pip install`         | ADO Marketplace |
+| **Requires Python**       | Yes                   | No (bundled)    |
+| **Pipeline syntax**       | Script steps          | Task step       |
+| **Works outside ADO**     | Yes                   | No              |
+| **PR Insights Dashboard** | Local server          | Built into ADO  |
+| **Configuration**         | YAML file or CLI args | Task inputs     |
+| **Flexibility**           | Higher                | Standard        |
+
+---
+
+## ⚡ How It Works
 
 1. **Extract** — Fetches completed PRs from Azure DevOps REST API
 2. **Store** — Persists data in SQLite with UPSERT semantics
@@ -189,7 +195,7 @@ The system uses **incremental extraction** by default (daily) with optional **ba
 
 ---
 
-## Security
+## 🔒 Security
 
 - **PAT with Code (Read) scope** — Minimum required permission
 - **PATs are never logged** — Secrets are redacted from all output
@@ -198,13 +204,13 @@ The system uses **incremental extraction** by default (daily) with optional **ba
 
 ---
 
-## Support
+## 💬 Support
 
 - **Issues & Features:** [GitHub Issues](https://github.com/oddessentials/ado-git-repo-insights/issues)
 - **Publisher:** OddEssentials
 
 ---
 
-## License
+## 📄 License
 
 MIT
