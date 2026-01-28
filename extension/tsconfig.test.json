@@ -5,6 +5,8 @@
     "noImplicitAny": false,
     "strictNullChecks": false,
     "noUncheckedIndexedAccess": false,
+    "noUnusedLocals": false,
+    "noUnusedParameters": false,
     "noEmit": true
   },
   "include": ["tests/**/*.ts", "ui/**/*.ts", "../types/vss.d.ts"],

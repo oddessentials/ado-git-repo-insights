@@ -27,10 +27,10 @@ This feature modifies configuration files across:
 
 **Purpose**: Upgrade @oddessentials/repo-standards to v7.1.1 as prerequisite for all other changes
 
-- [ ] T001 [US1] Update @oddessentials/repo-standards version from ^6.0.0 to ^7.1.1 in package.json
-- [ ] T002 [US1] Run `npm install` to update package-lock.json
-- [ ] T003 [US1] Verify `npm run standards:ts` outputs v7 schema
-- [ ] T004 [US1] Verify `npm run standards:py` outputs v7 schema
+- [x] T001 [US1] Update @oddessentials/repo-standards version from ^6.0.0 to ^7.1.1 in package.json
+- [x] T002 [US1] Run `npm install` to update package-lock.json
+- [x] T003 [US1] Verify `npm run standards:ts` outputs v7 schema
+- [x] T004 [US1] Verify `npm run standards:py` outputs v7 schema
 
 **Checkpoint**: Package upgrade complete. Standards commands show v7 schema.
 
@@ -62,21 +62,21 @@ This feature modifies configuration files across:
 
 #### TypeScript Strictness
 
-- [ ] T005 [P] [US2] Add `noUnusedLocals: true` to compilerOptions in tsconfig.json (root)
-- [ ] T006 [P] [US2] Add `noUnusedParameters: true` to compilerOptions in tsconfig.json (root)
-- [ ] T007 [P] [US2] Add `noUnusedLocals: true` to compilerOptions in extension/tsconfig.json
-- [ ] T008 [P] [US2] Add `noUnusedParameters: true` to compilerOptions in extension/tsconfig.json
-- [ ] T009 [US2] Run `cd extension && npx tsc --noEmit` to verify no compilation errors
-- [ ] T010 [US2] Fix any unused variable errors by prefixing with `_` (if any found)
+- [x] T005 [P] [US2] Add `noUnusedLocals: true` to compilerOptions in tsconfig.json (root)
+- [x] T006 [P] [US2] Add `noUnusedParameters: true` to compilerOptions in tsconfig.json (root)
+- [x] T007 [P] [US2] Add `noUnusedLocals: true` to compilerOptions in extension/tsconfig.json
+- [x] T008 [P] [US2] Add `noUnusedParameters: true` to compilerOptions in extension/tsconfig.json
+- [x] T009 [US2] Run `cd extension && npx tsc --noEmit` to verify no compilation errors
+- [x] T010 [US2] Fix any unused variable errors by prefixing with `_` (if any found)
 
 #### ESLint Security Plugin
 
-- [ ] T011 [US2] Install eslint-plugin-security@^3.0.0 in extension/package.json
-- [ ] T012 [US2] Run `cd extension && npm install` to update lockfile
-- [ ] T013 [US2] Add security plugin import to extension/eslint.config.mjs
-- [ ] T014 [US2] Add security.configs.recommended to ESLint config in extension/eslint.config.mjs
-- [ ] T015 [US2] Configure security rule severities (error for dangerous, warn for risky) in extension/eslint.config.mjs
-- [ ] T016 [US2] Run `cd extension && npm run lint` to verify no ESLint errors
+- [x] T011 [US2] Install eslint-plugin-security@^3.0.0 in extension/package.json
+- [x] T012 [US2] Run `cd extension && npm install` to update lockfile
+- [x] T013 [US2] Add security plugin import to extension/eslint.config.mjs
+- [x] T014 [US2] Add security.configs.recommended to ESLint config in extension/eslint.config.mjs
+- [x] T015 [US2] Configure security rule severities (error for dangerous, warn for risky) in extension/eslint.config.mjs
+- [x] T016 [US2] Run `cd extension && npm run lint` to verify no ESLint errors
 
 **Checkpoint**: TypeScript catches unused variables, ESLint catches security patterns.
 
@@ -90,10 +90,10 @@ This feature modifies configuration files across:
 
 ### Implementation for User Story 3
 
-- [ ] T017 [US3] Add coverageThreshold configuration to extension/jest.config.ts
-- [ ] T018 [US3] Set initial thresholds at current levels (statements: 42, branches: 36, functions: 47, lines: 43)
-- [ ] T019 [US3] Run `cd extension && npm run test:coverage` to verify threshold enforcement works
-- [ ] T020 [US3] Add comment documenting plan to increase thresholds to 70% in extension/jest.config.ts
+- [x] T017 [US3] Add coverageThreshold configuration to extension/jest.config.ts
+- [x] T018 [US3] Set initial thresholds at current levels (statements: 42, branches: 36, functions: 47, lines: 43)
+- [x] T019 [US3] Run `cd extension && npm run test:coverage` to verify threshold enforcement works
+- [x] T020 [US3] Add comment documenting plan to increase thresholds to 70% in extension/jest.config.ts
 
 **Checkpoint**: Coverage thresholds enforced. Test suite fails if coverage drops below thresholds.
 
@@ -107,12 +107,12 @@ This feature modifies configuration files across:
 
 ### Implementation for User Story 4
 
-- [ ] T021 [US4] Add ESLint check section to .husky/pre-push after TypeScript type check
-- [ ] T022 [US4] Add echo statement for ESLint check start in .husky/pre-push
-- [ ] T023 [US4] Add `npm run lint` command to .husky/pre-push
-- [ ] T024 [US4] Add exit code check and failure message for ESLint in .husky/pre-push
-- [ ] T025 [US4] Add success message for ESLint check in .husky/pre-push
-- [ ] T026 [US4] Test pre-push hook by running `.husky/pre-push` manually
+- [x] T021 [US4] Add ESLint check section to .husky/pre-push after TypeScript type check
+- [x] T022 [US4] Add echo statement for ESLint check start in .husky/pre-push
+- [x] T023 [US4] Add `npm run lint` command to .husky/pre-push
+- [x] T024 [US4] Add exit code check and failure message for ESLint in .husky/pre-push
+- [x] T025 [US4] Add success message for ESLint check in .husky/pre-push
+- [x] T026 [US4] Test pre-push hook by running `.husky/pre-push` manually
 
 **Checkpoint**: Pre-push blocks on ESLint failures, matching CI behavior.
 
@@ -126,12 +126,12 @@ This feature modifies configuration files across:
 
 ### Implementation for User Story 5
 
-- [ ] T027 [US5] Create scripts/env_guard.py with shebang and docstring
-- [ ] T028 [US5] Add PROTECTED_VARS list (ADO_PAT, OPENAI_API_KEY, AZURE_DEVOPS_TOKEN) to scripts/env_guard.py
-- [ ] T029 [US5] Implement main() function to check staged files for secret values in scripts/env_guard.py
-- [ ] T030 [US5] Add entry point conditional to scripts/env_guard.py
-- [ ] T031 [US5] Add env-guard hook configuration to .pre-commit-config.yaml
-- [ ] T032 [US5] Test env-guard by running `pre-commit run env-guard` manually
+- [x] T027 [US5] Create scripts/env_guard.py with shebang and docstring
+- [x] T028 [US5] Add PROTECTED_VARS list (ADO_PAT, OPENAI_API_KEY, AZURE_DEVOPS_TOKEN) to scripts/env_guard.py
+- [x] T029 [US5] Implement main() function to check staged files for secret values in scripts/env_guard.py
+- [x] T030 [US5] Add entry point conditional to scripts/env_guard.py
+- [x] T031 [US5] Add env-guard hook configuration to .pre-commit-config.yaml
+- [x] T032 [US5] Test env-guard by running `pre-commit run env-guard` manually
 
 **Checkpoint**: Commits with environment variable values are blocked.
 
@@ -141,14 +141,14 @@ This feature modifies configuration files across:
 
 **Purpose**: Final verification and documentation updates
 
-- [ ] T033 Run full verification: `npm run standards:ts` shows v7 schema
-- [ ] T034 Run full verification: `npm run standards:py` shows v7 schema
-- [ ] T035 Run full verification: `cd extension && npx tsc --noEmit` passes
-- [ ] T036 Run full verification: `cd extension && npm run lint` passes
-- [ ] T037 Run full verification: `cd extension && npm run test:coverage` passes with thresholds
-- [ ] T038 Run full verification: `.husky/pre-push` completes without errors
-- [ ] T039 [P] Update NEXT_STEPS.md to mark completed items
-- [ ] T040 Commit all changes with conventional commit message
+- [x] T033 Run full verification: `npm run standards:ts` shows v7 schema
+- [x] T034 Run full verification: `npm run standards:py` shows v7 schema
+- [x] T035 Run full verification: `cd extension && npx tsc --noEmit` passes
+- [x] T036 Run full verification: `cd extension && npm run lint` passes
+- [x] T037 Run full verification: `cd extension && npm run test:coverage` passes with thresholds
+- [x] T038 Run full verification: `.husky/pre-push` completes without errors
+- [x] T039 [P] Update NEXT_STEPS.md to mark completed items
+- [x] T040 Commit all changes with conventional commit message
 
 ---
 

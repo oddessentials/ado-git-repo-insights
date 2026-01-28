@@ -25,6 +25,13 @@ repos:
 
   - repo: local
     hooks:
+      - id: env-guard
+        name: Environment Variable Guard
+        entry: python scripts/env_guard.py
+        language: python
+        pass_filenames: false
+        always_run: true
+
       - id: pytest
         name: pytest
         entry: python -m pytest tests/ --no-cov -q
