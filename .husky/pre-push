@@ -1,12 +1,14 @@
-#!/bin/sh
+#!/usr/bin/env bash
 # Pre-push hook: Run all checks before pushing to prevent CI failures
 # Enterprise-grade: Mirrors CI checks exactly to catch failures locally
 #
 # Order: baseline integrity → pre-commit --all-files → CRLF guard → Python tests → TS checks
 #
 # This hook ensures NO code reaches CI that would fail. If it passes here, CI passes.
+#
+# Requires bash for pipefail support (available via Git Bash on Windows)
 
-set -e  # Exit on first error for fail-fast behavior
+set -eo pipefail  # Exit on first error, including pipeline failures
 
 # =============================================================================
 # Baseline Integrity Check (must fail fast before any test execution)

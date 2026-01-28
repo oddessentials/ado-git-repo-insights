@@ -18,10 +18,10 @@
 
 **Purpose**: Verify current state and prepare for changes
 
-- [ ] T001 Verify current Python coverage by running `pytest --cov=src/ado_git_repo_insights --cov-report=term-missing`
-- [ ] T002 [P] Verify current TypeScript coverage by running `cd extension && npm run test:coverage`
-- [ ] T003 [P] Install eslint-plugin-security if not present: `cd extension && npm install --save-dev eslint-plugin-security`
-- [ ] T004 [P] Document current coverage baselines in spec notes
+- [x] T001 Verify current Python coverage by running `pytest --cov=src/ado_git_repo_insights --cov-report=term-missing` — **75.65%**
+- [x] T002 [P] Verify current TypeScript coverage by running `cd extension && npm run test:coverage` — **42.47%**
+- [x] T003 [P] Install eslint-plugin-security if not present: `cd extension && npm install --save-dev eslint-plugin-security` — already installed
+- [x] T004 [P] Document current coverage baselines in spec notes — Python 75.65%, TypeScript 42.47%
 
 ---
 
@@ -31,10 +31,10 @@
 
 **⚠️ CRITICAL**: These changes affect multiple features and must be done first
 
-- [ ] T005 Update pre-push hook shebang from `#!/bin/sh` to `#!/usr/bin/env bash` in `.husky/pre-push`
-- [ ] T006 Add `set -o pipefail` after `set -e` in `.husky/pre-push`
-- [ ] T007 Verify ESLint `@typescript-eslint/no-explicit-any` is set to `'error'` in `extension/eslint.config.mjs`
-- [ ] T008 Verify mypy `strict = true` in `pyproject.toml`
+- [x] T005 Update pre-push hook shebang from `#!/bin/sh` to `#!/usr/bin/env bash` in `.husky/pre-push`
+- [x] T006 Add `set -o pipefail` after `set -e` in `.husky/pre-push`
+- [x] T007 Verify ESLint `@typescript-eslint/no-explicit-any` is set to `'error'` in `extension/eslint.config.mjs` — verified
+- [x] T008 Verify mypy `strict = true` in `pyproject.toml` — verified
 
 **Checkpoint**: Foundation ready - user story implementation can begin
 
