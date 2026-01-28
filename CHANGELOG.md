@@ -1,3 +1,10 @@
+# [5.9.0](https://github.com/oddessentials/ado-git-repo-insights/compare/v5.8.0...v5.9.0) (2026-01-28)
+
+
+### Features
+
+* **compliance:** upgrade to @oddessentials/repo-standards v7.1.1 ([c07fc38](https://github.com/oddessentials/ado-git-repo-insights/commit/c07fc382e221b74d450ffe898e98278beb22c9ba))
+
 # [5.8.0](https://github.com/oddessentials/ado-git-repo-insights/compare/v5.7.0...v5.8.0) (2026-01-28)
 
 
