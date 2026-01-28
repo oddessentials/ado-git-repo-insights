@@ -101,6 +101,7 @@ const elements: Record<string, any> = {};
  * @returns Typed element or null
  */
 function getElement<T extends HTMLElement = HTMLElement>(id: string): T | null {
+  // eslint-disable-next-line security/detect-object-injection -- SECURITY: id is string parameter for DOM element lookup, not user input
   const el = elements[id];
   if (el instanceof HTMLElement) {
     return el as T;
@@ -678,6 +679,7 @@ function cacheElements(): void {
   ];
 
   ids.forEach((id) => {
+    // eslint-disable-next-line security/detect-object-injection -- SECURITY: id is from hardcoded array of DOM element IDs
     elements[id] = document.getElementById(id);
   });
 

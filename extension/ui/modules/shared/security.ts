@@ -43,6 +43,7 @@ export function safeHtml(
   ...values: unknown[]
 ): string {
   return strings.reduce((result, str, i) => {
+    // eslint-disable-next-line security/detect-object-injection -- SECURITY: i is loop index bounded by array length
     const value = i < values.length ? escapeHtml(String(values[i] ?? "")) : "";
     return result + str + value;
   }, "");

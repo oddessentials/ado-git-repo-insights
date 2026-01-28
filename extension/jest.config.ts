@@ -14,14 +14,15 @@ const config: Config = {
   collectCoverageFrom: ["ui/**/*.ts", "!ui/**/*.test.ts"],
   coverageDirectory: "coverage",
   coverageReporters: ["text", "lcov"],
-  // Coverage thresholds - start at current levels, plan to increase to 70%
-  // See: specs/007-repo-standards-v7-compliance/plan.md for coverage gap analysis
+  // Coverage thresholds - incremental progress toward 70% target
+  // See: specs/009-enterprise-coverage-upgrade for coverage target plan
+  // Current: ~44%, Target: 70% (requires DOM mocking for 0% coverage modules)
   coverageThreshold: {
     global: {
-      statements: 42,
-      branches: 36,
-      functions: 47,
-      lines: 43,
+      statements: 43,
+      branches: 38,
+      functions: 50,
+      lines: 44,
     },
   },
   // Mock fetch globally

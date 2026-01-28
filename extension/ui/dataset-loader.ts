@@ -229,6 +229,7 @@ export function createRollupCache(clock: () => number = Date.now): RollupCache {
       apiVersion?: string;
     }) {
       for (const field of requiredKeyFields) {
+        // eslint-disable-next-line security/detect-object-injection -- SECURITY: field is from const array of known property names
         if (!params[field]) {
           throw new Error(`Cache key missing required field: ${field}`);
         }
@@ -798,6 +799,7 @@ export class DatasetLoader implements IDatasetLoader {
    */
   isFeatureEnabled(feature: string): boolean {
     if (!this.manifest) return false;
+    // eslint-disable-next-line security/detect-object-injection -- SECURITY: feature is string parameter for checking known feature flags
     return this.manifest.features?.[feature] === true;
   }
 

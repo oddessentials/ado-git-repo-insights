@@ -139,7 +139,10 @@ var PRInsightsErrorCodes = (() => {
     return null;
   }
   function createErrorMessage(errorKey, details = null) {
-    const error = ErrorCodes[errorKey] ?? ErrorCodes.UNKNOWN;
+    const error = (
+      // eslint-disable-next-line security/detect-object-injection -- SECURITY: errorKey is typed ErrorCodeKey from known enum
+      ErrorCodes[errorKey] ?? ErrorCodes.UNKNOWN
+    );
     return {
       code: error.code,
       message: details ? `${error.message} (${details})` : error.message,

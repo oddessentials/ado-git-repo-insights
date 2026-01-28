@@ -1,12 +1,14 @@
-#!/bin/sh
+#!/usr/bin/env bash
 # Pre-push hook: Run all checks before pushing to prevent CI failures
 # Enterprise-grade: Mirrors CI checks exactly to catch failures locally
 #
 # Order: baseline integrity → pre-commit --all-files → CRLF guard → Python tests → TS checks
 #
 # This hook ensures NO code reaches CI that would fail. If it passes here, CI passes.
+#
+# Requires bash for pipefail support (available via Git Bash on Windows)
 
-set -e  # Exit on first error for fail-fast behavior
+set -eo pipefail  # Exit on first error, including pipeline failures
 
 # =============================================================================
 # Baseline Integrity Check (must fail fast before any test execution)
@@ -58,42 +60,44 @@ echo "[pre-push] ✅ Pre-commit checks passed"
 # CRLF Line Ending Guard (mirrors CI: line-ending-guard job)
 # =============================================================================
 # Prevents "works locally, fails in CI" issues on Windows
+# Uses NUL-delimited file handling to prevent shell injection via crafted filenames
+# The -- separator prevents option injection from filenames starting with -
 echo ""
 echo "[pre-push] Running CRLF line ending guard..."
 FOUND_CRLF=false
 
-# Check Husky hooks
-if grep -rlI $'\r' .husky/ 2>/dev/null; then
+# Check Husky hooks (NUL-delimited for safe filename handling)
+if find .husky/ -type f -print0 2>/dev/null | xargs -0 grep -l -- $'\r' 2>/dev/null; then
     echo "[pre-push] ❌ CRLF detected in .husky/"
     FOUND_CRLF=true
 fi
 
-# Check shell scripts
-if find . -name "*.sh" -type f -not -path "./node_modules/*" -not -path "./.venv/*" | xargs grep -lI $'\r' 2>/dev/null; then
+# Check shell scripts (NUL-delimited)
+if find . -name "*.sh" -type f -not -path "./node_modules/*" -not -path "./.venv/*" -print0 2>/dev/null | xargs -0 grep -l -- $'\r' 2>/dev/null; then
     echo "[pre-push] ❌ CRLF detected in *.sh files"
     FOUND_CRLF=true
 fi
 
-# Check .github/scripts
-if grep -rlI $'\r' .github/scripts/ 2>/dev/null; then
+# Check .github/scripts (NUL-delimited)
+if find .github/scripts/ -type f -print0 2>/dev/null | xargs -0 grep -l -- $'\r' 2>/dev/null; then
     echo "[pre-push] ❌ CRLF detected in .github/scripts/"
     FOUND_CRLF=true
 fi
 
-# Check scripts directory
-if grep -rlI $'\r' scripts/ 2>/dev/null; then
+# Check scripts directory (NUL-delimited)
+if find scripts/ -type f -print0 2>/dev/null | xargs -0 grep -l -- $'\r' 2>/dev/null; then
     echo "[pre-push] ❌ CRLF detected in scripts/"
     FOUND_CRLF=true
 fi
 
-# Check extension scripts
-if grep -rlI $'\r' extension/scripts/ 2>/dev/null; then
+# Check extension scripts (NUL-delimited)
+if find extension/scripts/ -type f -print0 2>/dev/null | xargs -0 grep -l -- $'\r' 2>/dev/null; then
     echo "[pre-push] ❌ CRLF detected in extension/scripts/"
     FOUND_CRLF=true
 fi
 
-# Check extension UI files (catches CRLF from npm packages like vss-web-extension-sdk)
-if grep -rlI $'\r' extension/ui/ 2>/dev/null; then
+# Check extension UI files (NUL-delimited, catches CRLF from npm packages)
+if find extension/ui/ -type f -print0 2>/dev/null | xargs -0 grep -l -- $'\r' 2>/dev/null; then
     echo "[pre-push] ❌ CRLF detected in extension/ui/"
     echo "[pre-push] If copying from npm, use: cd extension && node scripts/copy-vss-sdk.mjs"
     FOUND_CRLF=true
@@ -108,14 +112,16 @@ fi
 echo "[pre-push] ✅ CRLF guard passed"
 
 # =============================================================================
-# Python Tests
+# Python Tests (with coverage threshold enforcement)
 # =============================================================================
 echo ""
-echo "[pre-push] Running Python tests..."
-python -m pytest tests/ --no-cov -q
+echo "[pre-push] Running Python tests with coverage..."
+# Coverage threshold (fail_under = 70) is enforced via pyproject.toml
+# This ensures local/CI parity for coverage requirements
+python -m pytest tests/ -q
 if [ $? -ne 0 ]; then
     echo ""
-    echo "[pre-push] ❌ Push blocked: Python tests failed"
+    echo "[pre-push] ❌ Push blocked: Python tests or coverage threshold failed"
     exit 1
 fi
 echo "[pre-push] ✅ Python tests passed"
@@ -152,14 +158,16 @@ fi
 echo "[pre-push] ✅ ESLint check passed"
 
 # =============================================================================
-# TypeScript Tests
+# TypeScript Tests (with coverage threshold enforcement)
 # =============================================================================
 echo ""
-echo "[pre-push] Running extension tests..."
-npm run test:ci
+echo "[pre-push] Running extension tests with coverage..."
+# Coverage threshold is enforced via jest.config.ts coverageThreshold
+# Uses test:ci base + --coverage for threshold enforcement with CI reporters
+npm run test:ci -- --coverage
 if [ $? -ne 0 ]; then
     echo ""
-    echo "[pre-push] ❌ Push blocked: Extension tests failed"
+    echo "[pre-push] ❌ Push blocked: Extension tests or coverage threshold failed"
     exit 1
 fi
 

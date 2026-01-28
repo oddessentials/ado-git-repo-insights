@@ -1723,6 +1723,7 @@ var PRInsightsDashboard = (() => {
     const data = rollups.filter((r) => r[field] !== null && r[field] !== void 0).map((r) => ({
       // Convert ISO week format to date if needed
       week: r.week.includes("-W") ? isoWeekToDate(r.week) : r.week,
+      // eslint-disable-next-line security/detect-object-injection -- SECURITY: field is from local const metricFieldMap, typed as keyof RollupForChart
       value: Number(r[field])
     })).sort((a, b) => a.week.localeCompare(b.week));
     if (data.length > MAX_CHART_POINTS) {

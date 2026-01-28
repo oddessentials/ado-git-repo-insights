@@ -56,31 +56,41 @@ describe("VSIX Artifact Inspection (Tier B)", () => {
 
     if (!vsixPath) return;
 
-    // Extract VSIX contents using unzip (cross-platform)
-    try {
-      // Try unzip first (Linux/Mac)
-      const output = execSync(
-        `unzip -l "${vsixPath}" | awk 'NR>3 {print $4}'`,
-        {
-          encoding: "utf-8",
-          cwd: extensionDir,
-          stdio: ["pipe", "pipe", "pipe"],
-        },
-      );
-      vsixContents = output
-        .split(/\r?\n/)
-        .filter((l) => l && !l.includes("---"));
-    } catch {
-      // Fallback to PowerShell (Windows)
+    // Extract VSIX contents using platform-appropriate method
+    const isWindows = process.platform === "win32";
+
+    if (isWindows) {
+      // Windows: Use PowerShell with proper escaping
       try {
+        // Escape backslashes for PowerShell
+        const escapedPath = vsixPath.replace(/\\/g, "\\\\");
         const output = execSync(
-          `powershell -Command "Add-Type -Assembly System.IO.Compression.FileSystem; [System.IO.Compression.ZipFile]::OpenRead('${vsixPath}').Entries | ForEach-Object { $_.FullName }"`,
+          `powershell -NoProfile -Command "Add-Type -Assembly System.IO.Compression.FileSystem; [System.IO.Compression.ZipFile]::OpenRead('${escapedPath}').Entries | ForEach-Object { $_.FullName }"`,
           { encoding: "utf-8", cwd: extensionDir },
         );
-        vsixContents = output.split(/\r?\n/).filter((l) => l);
+        vsixContents = output.split(/\r?\n/).filter((l) => l.trim());
       } catch (e) {
         if (vsixRequired) {
-          throw new Error(`Failed to read VSIX contents: ${e}`);
+          throw new Error(`Failed to read VSIX contents on Windows: ${e}`);
+        }
+      }
+    } else {
+      // Unix: Use unzip with awk
+      try {
+        const output = execSync(
+          `unzip -l "${vsixPath}" | awk 'NR>3 {print $4}'`,
+          {
+            encoding: "utf-8",
+            cwd: extensionDir,
+            stdio: ["pipe", "pipe", "pipe"],
+          },
+        );
+        vsixContents = output
+          .split(/\r?\n/)
+          .filter((l) => l && !l.includes("---"));
+      } catch (e) {
+        if (vsixRequired) {
+          throw new Error(`Failed to read VSIX contents on Unix: ${e}`);
         }
       }
     }

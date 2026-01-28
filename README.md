@@ -3,7 +3,8 @@
 <!-- CI & Quality -->
 
 ![CI](https://github.com/oddessentials/ado-git-repo-insights/actions/workflows/ci.yml/badge.svg)
-[![codecov](https://codecov.io/gh/oddessentials/ado-git-repo-insights/graph/badge.svg)](https://codecov.io/gh/oddessentials/ado-git-repo-insights)
+[![Python Coverage](https://codecov.io/gh/oddessentials/ado-git-repo-insights/graph/badge.svg?flag=python)](https://codecov.io/gh/oddessentials/ado-git-repo-insights?flags[0]=python)
+[![TypeScript Coverage](https://codecov.io/gh/oddessentials/ado-git-repo-insights/graph/badge.svg?flag=typescript)](https://codecov.io/gh/oddessentials/ado-git-repo-insights?flags[0]=typescript)
 ![Python Tests](https://img.shields.io/badge/python_tests-passing-brightgreen)
 ![Extension Tests](https://img.shields.io/badge/extension_tests-passing-brightgreen)
 

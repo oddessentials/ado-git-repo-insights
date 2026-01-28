@@ -180,6 +180,7 @@ export function createErrorMessage(
   details: string | null = null,
 ): ErrorMessage {
   const error =
+    // eslint-disable-next-line security/detect-object-injection -- SECURITY: errorKey is typed ErrorCodeKey from known enum
     (ErrorCodes as Record<string, ErrorCodeDefinition>)[errorKey] ??
     ErrorCodes.UNKNOWN;
   return {
