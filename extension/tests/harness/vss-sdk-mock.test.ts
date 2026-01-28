@@ -30,8 +30,6 @@ import {
   setMockReadyAsync,
   trackMockInitOptions,
   type VssSdkMocks,
-  type MockWebContext,
-  type MockExtensionDataService,
 } from "./vss-sdk-mock";
 
 describe("VSS SDK Mock", () => {
@@ -165,7 +163,7 @@ describe("VSS SDK Mock", () => {
     it("returns default mock context", () => {
       const mocks = setupVssMocks();
 
-      const context = mocks.getWebContext() as MockWebContext;
+      const context = mocks.getWebContext();
 
       expect(context.account.name).toBe("test-org");
       expect(context.project.name).toBe("test-project");
@@ -175,7 +173,7 @@ describe("VSS SDK Mock", () => {
     it("returns context with all expected properties", () => {
       const mocks = setupVssMocks();
 
-      const context = mocks.getWebContext() as MockWebContext;
+      const context = mocks.getWebContext();
 
       expect(context).toHaveProperty("account");
       expect(context).toHaveProperty("project");
@@ -193,9 +191,7 @@ describe("VSS SDK Mock", () => {
     it("returns extension data service", async () => {
       const mocks = setupVssMocks();
 
-      const service = (await mocks.getService(
-        mocks.ServiceIds.ExtensionData
-      )) as MockExtensionDataService;
+      const service = await mocks.getService(mocks.ServiceIds.ExtensionData);
 
       expect(service).toBeDefined();
       expect(service).toHaveProperty("getValue");
@@ -205,9 +201,7 @@ describe("VSS SDK Mock", () => {
     it("returns service with all expected methods", async () => {
       const mocks = setupVssMocks();
 
-      const service = (await mocks.getService(
-        mocks.ServiceIds.ExtensionData
-      )) as MockExtensionDataService;
+      const service = await mocks.getService(mocks.ServiceIds.ExtensionData);
 
       expect(typeof service.getValue).toBe("function");
       expect(typeof service.setValue).toBe("function");

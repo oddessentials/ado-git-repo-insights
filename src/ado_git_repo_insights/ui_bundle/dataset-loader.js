@@ -1255,6 +1255,19 @@ var PRInsightsDatasetLoader = (() => {
   }
 
   // ui/dataset-loader.ts
+  function validateSchema(data, validator, artifactType, strict, context) {
+    const result = validator(data, strict);
+    if (!result.valid) {
+      throw new SchemaValidationError(result.errors, artifactType);
+    }
+    if (result.warnings.length > 0) {
+      const contextSuffix = context ? ` for ${context}` : "";
+      console.warn(
+        `[DatasetLoader] ${artifactType} validation warnings${contextSuffix}:`,
+        result.warnings.map((w) => w.message).join("; ")
+      );
+    }
+  }
   var SUPPORTED_MANIFEST_VERSION = 1;
   var SUPPORTED_DATASET_VERSION = 1;
   var SUPPORTED_AGGREGATES_VERSION = 1;
@@ -1505,16 +1518,7 @@ var PRInsightsDatasetLoader = (() => {
      * Throws SchemaValidationError on invalid data.
      */
     validateManifestSchema(manifest) {
-      const result = validateManifest(manifest, true);
-      if (!result.valid) {
-        throw new SchemaValidationError(result.errors, "manifest");
-      }
-      if (result.warnings.length > 0) {
-        console.warn(
-          "[DatasetLoader] Manifest validation warnings:",
-          result.warnings.map((w) => w.message).join("; ")
-        );
-      }
+      validateSchema(manifest, validateManifest, "manifest", true);
       const m = manifest;
       if (m.manifest_schema_version > SUPPORTED_MANIFEST_VERSION) {
         throw new Error(
@@ -1544,16 +1548,7 @@ var PRInsightsDatasetLoader = (() => {
         throw new Error(`Failed to load dimensions: ${response.status}`);
       }
       const rawDimensions = await response.json();
-      const result = validateDimensions(rawDimensions, true);
-      if (!result.valid) {
-        throw new SchemaValidationError(result.errors, "dimensions");
-      }
-      if (result.warnings.length > 0) {
-        console.warn(
-          "[DatasetLoader] Dimensions validation warnings:",
-          result.warnings.map((w) => w.message).join("; ")
-        );
-      }
+      validateSchema(rawDimensions, validateDimensions, "dimensions", true);
       this.dimensions = rawDimensions;
       return this.dimensions;
     }
@@ -1583,16 +1578,7 @@ var PRInsightsDatasetLoader = (() => {
         const response = await fetch(url);
         if (response.ok) {
           const rawData = await response.json();
-          const validationResult = validateRollup(rawData, false);
-          if (!validationResult.valid) {
-            throw new SchemaValidationError(validationResult.errors, "rollup");
-          }
-          if (validationResult.warnings.length > 0) {
-            console.warn(
-              `[DatasetLoader] Rollup validation warnings for ${weekStr}:`,
-              validationResult.warnings.map((w) => w.message).join("; ")
-            );
-          }
+          validateSchema(rawData, validateRollup, "rollup", false, weekStr);
           const data = normalizeRollup2(rawData);
           this.rollupCache.set(weekStr, data);
           results.push(data);

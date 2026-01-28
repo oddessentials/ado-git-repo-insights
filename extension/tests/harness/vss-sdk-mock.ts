@@ -57,15 +57,16 @@ export interface MockBuildRestClient {
 }
 
 /**
- * VSS SDK mock structure.
+ * VSS SDK mock structure with typed return values.
+ * Using function type wrappers for Jest 30 compatibility.
  */
 export interface VssSdkMocks {
-  init: jest.Mock;
-  ready: jest.Mock;
-  notifyLoadSucceeded: jest.Mock;
-  getWebContext: jest.Mock;
-  getService: jest.Mock;
-  require: jest.Mock;
+  init: jest.Mock<(options?: Record<string, unknown>) => void>;
+  ready: jest.Mock<(callback: () => void) => void>;
+  notifyLoadSucceeded: jest.Mock<() => void>;
+  getWebContext: jest.Mock<() => MockWebContext>;
+  getService: jest.Mock<(serviceId: string) => Promise<MockExtensionDataService>>;
+  require: jest.Mock<(deps: string[], callback: (...args: unknown[]) => void) => void>;
   ServiceIds: { ExtensionData: string };
 }
 

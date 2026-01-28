@@ -22,7 +22,51 @@ import {
   validatePredictions,
   SchemaValidationError,
   type ValidationResult,
+  type ArtifactType,
 } from "./schemas";
+
+// ============================================================================
+// Validation Helpers
+// ============================================================================
+
+/**
+ * Schema validator function signature.
+ */
+type SchemaValidator = (data: unknown, strict: boolean) => ValidationResult;
+
+/**
+ * Validate data against schema and throw SchemaValidationError on failure.
+ * Logs warnings for unknown fields in permissive mode.
+ *
+ * @param data - Raw data to validate
+ * @param validator - Schema validator function
+ * @param artifactType - Type name for error messages (e.g., "manifest", "rollup")
+ * @param strict - If true, unknown fields cause errors; if false, they cause warnings
+ * @param context - Optional context for log messages (e.g., week identifier)
+ * @throws SchemaValidationError if validation fails
+ */
+function validateSchema(
+  data: unknown,
+  validator: SchemaValidator,
+  artifactType: ArtifactType,
+  strict: boolean,
+  context?: string,
+): void {
+  const result: ValidationResult = validator(data, strict);
+
+  if (!result.valid) {
+    throw new SchemaValidationError(result.errors, artifactType);
+  }
+
+  // Log warnings for unknown fields
+  if (result.warnings.length > 0) {
+    const contextSuffix = context ? ` for ${context}` : "";
+    console.warn(
+      `[DatasetLoader] ${artifactType} validation warnings${contextSuffix}:`,
+      result.warnings.map((w) => w.message).join("; "),
+    );
+  }
+}
 
 // Supported schema versions (from dataset-contract.md)
 const SUPPORTED_MANIFEST_VERSION = 1;
@@ -444,18 +488,7 @@ export class DatasetLoader implements IDatasetLoader {
    * Throws SchemaValidationError on invalid data.
    */
   protected validateManifestSchema(manifest: unknown): void {
-    const result: ValidationResult = validateManifest(manifest, true);
-    if (!result.valid) {
-      throw new SchemaValidationError(result.errors, "manifest");
-    }
-
-    // Log warnings for unknown fields in permissive mode
-    if (result.warnings.length > 0) {
-      console.warn(
-        "[DatasetLoader] Manifest validation warnings:",
-        result.warnings.map((w) => w.message).join("; "),
-      );
-    }
+    validateSchema(manifest, validateManifest, "manifest", true);
 
     // Additional version checks after schema validation
     const m = manifest as ManifestSchema;
@@ -505,18 +538,7 @@ export class DatasetLoader implements IDatasetLoader {
     const rawDimensions = await response.json();
 
     // Validate against schema (strict mode)
-    const result: ValidationResult = validateDimensions(rawDimensions, true);
-    if (!result.valid) {
-      throw new SchemaValidationError(result.errors, "dimensions");
-    }
-
-    // Log warnings for unknown fields
-    if (result.warnings.length > 0) {
-      console.warn(
-        "[DatasetLoader] Dimensions validation warnings:",
-        result.warnings.map((w) => w.message).join("; "),
-      );
-    }
+    validateSchema(rawDimensions, validateDimensions, "dimensions", true);
 
     this.dimensions = rawDimensions as DimensionsData;
     return this.dimensions;
@@ -560,18 +582,7 @@ export class DatasetLoader implements IDatasetLoader {
         const rawData = await response.json();
 
         // Validate rollup data (permissive mode - unknown fields produce warnings)
-        const validationResult: ValidationResult = validateRollup(rawData, false);
-        if (!validationResult.valid) {
-          throw new SchemaValidationError(validationResult.errors, "rollup");
-        }
-
-        // Log warnings for unknown fields in permissive mode
-        if (validationResult.warnings.length > 0) {
-          console.warn(
-            `[DatasetLoader] Rollup validation warnings for ${weekStr}:`,
-            validationResult.warnings.map((w) => w.message).join("; "),
-          );
-        }
+        validateSchema(rawData, validateRollup, "rollup", false, weekStr);
 
         // Apply version adapter to normalize rollup data
         const data = normalizeRollup(rawData);
