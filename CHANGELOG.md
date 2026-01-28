@@ -1,3 +1,17 @@
+# [5.10.0](https://github.com/oddessentials/ado-git-repo-insights/compare/v5.9.0...v5.10.0) (2026-01-28)
+
+
+### Bug Fixes
+
+* **test:** fix VSIX artifact inspection on Windows ([72be951](https://github.com/oddessentials/ado-git-repo-insights/commit/72be9513a0f7a7d661d9e140dc520f03832b031d))
+
+
+### Features
+
+* **coverage:** add Codecov flags and local/CI parity ([9cfe3db](https://github.com/oddessentials/ado-git-repo-insights/commit/9cfe3db27154b0800ebae2ad95e4d1aab14f6ab3))
+* **security:** complete 008 security hardening implementation ([6f40e78](https://github.com/oddessentials/ado-git-repo-insights/commit/6f40e7881e27e046fb12da932a3015663aeac2ca))
+* **security:** Phase 1-2 setup and foundational changes ([dafb955](https://github.com/oddessentials/ado-git-repo-insights/commit/dafb9557b84e8bea6feaa44d1195b8c567094ac0))
+
 # [5.9.0](https://github.com/oddessentials/ado-git-repo-insights/compare/v5.8.0...v5.9.0) (2026-01-28)
 
 
