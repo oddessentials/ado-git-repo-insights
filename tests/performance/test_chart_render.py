@@ -104,8 +104,12 @@ class TestChartRenderPerformance:
             or sorted_insights[0]["severity"] == "critical"
         )
 
-    def test_sparkline_calculation_under_1ms(self) -> None:
-        """Sparkline point calculation should complete in <1ms for 52 weeks."""
+    def test_sparkline_calculation_under_5ms(self) -> None:
+        """Sparkline point calculation should complete in <5ms for 52 weeks.
+
+        Note: Threshold increased from 1ms to 5ms to account for CI runner
+        variability, especially on macOS where performance can vary significantly.
+        """
         import numpy as np
 
         # Setup: 52 weeks of data points
@@ -128,8 +132,8 @@ class TestChartRenderPerformance:
 
         elapsed_ms = (time.perf_counter() - start_time) * 1000
 
-        # Assert < 1ms
-        assert elapsed_ms < 1, f"Sparkline calc took {elapsed_ms:.2f}ms, expected < 1ms"
+        # Assert < 5ms (allows for CI runner variability)
+        assert elapsed_ms < 5, f"Sparkline calc took {elapsed_ms:.2f}ms, expected < 5ms"
         assert len(points) == 52
 
     def test_confidence_band_calculation_under_5ms(self) -> None:

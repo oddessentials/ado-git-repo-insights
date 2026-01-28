@@ -1,0 +1,140 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "forecast-schema.json",
+  "title": "Forecast Output Schema",
+  "description": "Schema for ML forecaster predictions output (trends.json)",
+  "type": "object",
+  "required": [
+    "schema_version",
+    "generated_at",
+    "generated_by",
+    "is_stub",
+    "forecaster",
+    "data_quality",
+    "status",
+    "forecasts"
+  ],
+  "properties": {
+    "schema_version": {
+      "type": "integer",
+      "const": 1,
+      "description": "Schema version number"
+    },
+    "generated_at": {
+      "type": "string",
+      "format": "date-time",
+      "description": "ISO 8601 timestamp of generation"
+    },
+    "generated_by": {
+      "type": "string",
+      "description": "Generator identifier (e.g., 'linear-v1.0')"
+    },
+    "is_stub": {
+      "type": "boolean",
+      "description": "True if this is synthetic/preview data"
+    },
+    "forecaster": {
+      "type": "string",
+      "enum": ["linear", "prophet"],
+      "description": "Forecaster type used"
+    },
+    "data_quality": {
+      "type": "string",
+      "enum": ["normal", "low_confidence", "insufficient"],
+      "description": "Data quality assessment"
+    },
+    "status": {
+      "type": "string",
+      "enum": ["ok", "insufficient_data", "invalid_data", "degraded"],
+      "description": "Forecast generation result status"
+    },
+    "reason_code": {
+      "type": ["string", "null"],
+      "enum": [
+        null,
+        "too_few_weeks",
+        "all_nan",
+        "negative_values_filtered",
+        "constant_series",
+        "outliers_clipped",
+        "stats_undefined",
+        "floor_applied"
+      ],
+      "description": "Machine-readable reason code for status"
+    },
+    "forecasts": {
+      "type": "array",
+      "description": "Array of metric forecasts, ordered alphabetically by metric name",
+      "items": {
+        "$ref": "#/$defs/ForecastMetric"
+      }
+    }
+  },
+  "$defs": {
+    "ForecastMetric": {
+      "type": "object",
+      "required": ["metric", "unit", "horizon_weeks", "values"],
+      "properties": {
+        "metric": {
+          "type": "string",
+          "description": "Metric name (e.g., 'cycle_time_minutes', 'pr_throughput')"
+        },
+        "unit": {
+          "type": "string",
+          "description": "Unit of measurement"
+        },
+        "horizon_weeks": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "Number of weeks forecasted"
+        },
+        "values": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/ForecastValue"
+          }
+        }
+      }
+    },
+    "ForecastValue": {
+      "type": "object",
+      "required": [
+        "period_start",
+        "predicted",
+        "lower_bound",
+        "upper_bound",
+        "constraints_applied"
+      ],
+      "properties": {
+        "period_start": {
+          "type": "string",
+          "format": "date",
+          "description": "ISO date for forecast period start (Monday)"
+        },
+        "predicted": {
+          "type": "number",
+          "minimum": 0,
+          "description": "Predicted value (floored to 0 if negative)"
+        },
+        "lower_bound": {
+          "type": "number",
+          "minimum": 0,
+          "description": "Lower confidence bound"
+        },
+        "upper_bound": {
+          "type": "number",
+          "minimum": 0,
+          "description": "Upper confidence bound"
+        },
+        "constraints_applied": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "enum": ["floor_zero", "outlier_clipped"]
+          },
+          "description": "List of constraints applied to this value"
+        }
+      }
+    }
+  }
+}

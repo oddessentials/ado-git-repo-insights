@@ -40,6 +40,7 @@ dev = [
     "types-PyYAML>=6.0",
     "pandas-stubs>=2.0.0,<3.0.0; python_version < '3.11'",
     "pandas-stubs>=2.0.0; python_version >= '3.11'",
+    "jsonschema>=4.0",
 ]
 ml = [
     "prophet>=1.1.0",

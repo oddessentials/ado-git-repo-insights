@@ -61,6 +61,12 @@ function isInsightsRenderData(data: unknown): data is InsightsRenderData {
 }
 
 /**
+ * Maximum data points for sparklines to prevent memory pressure.
+ * Uses "take last N" strategy to preserve most recent/relevant data.
+ */
+const MAX_SPARKLINE_POINTS = 200;
+
+/**
  * Severity icons and accessible labels for insight rendering (WCAG 2.1 AA).
  */
 const SEVERITY_ICONS: Record<string, { icon: string; label: string }> = {
@@ -114,30 +120,35 @@ function renderInsightSparkline(
     return `<span class="sparkline-empty" aria-label="No trend data available">—</span>`;
   }
 
-  const minVal = Math.min(...values);
-  const maxVal = Math.max(...values);
+  // Limit data points to prevent memory pressure - take last N (most recent)
+  const limitedValues = values.length > MAX_SPARKLINE_POINTS
+    ? values.slice(-MAX_SPARKLINE_POINTS)
+    : values;
+
+  const minVal = Math.min(...limitedValues);
+  const maxVal = Math.max(...limitedValues);
   const range = maxVal - minVal || 1;
   const padding = 2;
   const effectiveHeight = height - padding * 2;
   const effectiveWidth = width - padding * 2;
 
   // Calculate points for polyline
-  const points = values
+  const points = limitedValues
     .map((val, i) => {
-      const x = padding + (i / (values.length - 1)) * effectiveWidth;
+      const x = padding + (i / (limitedValues.length - 1)) * effectiveWidth;
       const y = padding + (1 - (val - minVal) / range) * effectiveHeight;
       return `${x.toFixed(1)},${y.toFixed(1)}`;
     })
     .join(" ");
 
   // Calculate trend direction for accessible description
-  const firstVal = values[0] ?? 0;
-  const lastVal = values[values.length - 1] ?? 0;
+  const firstVal = limitedValues[0] ?? 0;
+  const lastVal = limitedValues[limitedValues.length - 1] ?? 0;
   const trendDescription = lastVal > firstVal ? "upward trend" : lastVal < firstVal ? "downward trend" : "stable trend";
 
   return `
     <svg class="sparkline" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}"
-         role="img" aria-label="Sparkline showing ${trendDescription} over ${values.length} data points">
+         role="img" aria-label="Sparkline showing ${trendDescription} over ${limitedValues.length} data points">
       <polyline
         points="${points}"
         fill="none"

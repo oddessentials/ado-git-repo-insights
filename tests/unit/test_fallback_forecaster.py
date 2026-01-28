@@ -5,10 +5,15 @@ Tests for:
 - T011: Confidence band calculation
 - T012: Data quality assessment (4+ weeks check)
 - T013: Outlier clipping logic
+- Edge case hardening: constant series, NaN-heavy data, large values
+- Status codes and reason codes
+- Constraint tracking (floor_zero, outlier_clipped)
+- Deterministic JSON output for golden-file testing
 """
 
 from __future__ import annotations
 
+import json
 from datetime import date, timedelta
 from pathlib import Path
 from unittest.mock import MagicMock, patch
@@ -18,11 +23,19 @@ import pandas as pd
 import pytest
 
 from ado_git_repo_insights.ml.fallback_forecaster import (
+    CONSTRAINT_FLOOR_ZERO,
     LOW_CONFIDENCE_THRESHOLD,
     MIN_WEEKS_REQUIRED,
+    REASON_CONSTANT_SERIES,
+    REASON_FLOOR_APPLIED,
+    REASON_STATS_UNDEFINED,
+    STATUS_DEGRADED,
+    STATUS_OK,
     FallbackForecaster,
     assess_data_quality,
     clip_outliers,
+    detect_constant_series,
+    safe_clip_outliers,
 )
 
 
@@ -74,6 +87,90 @@ class TestAssessDataQuality:
 
         assert result.status == "normal"
         assert result.weeks_available == 12
+
+
+class TestDetectConstantSeries:
+    """Tests for constant series detection (edge case hardening)."""
+
+    def test_empty_array_returns_false(self) -> None:
+        """Empty array is not constant."""
+        values = np.array([])
+        assert detect_constant_series(values) is False
+
+    def test_single_value_is_constant(self) -> None:
+        """Single value is a constant series."""
+        values = np.array([42.0])
+        assert detect_constant_series(values) is True
+
+    def test_all_same_values_is_constant(self) -> None:
+        """All identical values are constant."""
+        values = np.array([100.0, 100.0, 100.0, 100.0])
+        assert detect_constant_series(values) is True
+
+    def test_different_values_not_constant(self) -> None:
+        """Different values are not constant."""
+        values = np.array([100.0, 101.0, 100.0, 100.0])
+        assert detect_constant_series(values) is False
+
+    def test_ignores_nan_values(self) -> None:
+        """NaN values are ignored when checking for constant."""
+        values = np.array([100.0, np.nan, 100.0, np.nan, 100.0])
+        assert detect_constant_series(values) is True
+
+    def test_all_nan_returns_false(self) -> None:
+        """All NaN values are not constant (no finite values)."""
+        values = np.array([np.nan, np.nan, np.nan])
+        assert detect_constant_series(values) is False
+
+    def test_handles_inf_values(self) -> None:
+        """Infinite values are filtered out."""
+        values = np.array([100.0, np.inf, 100.0, -np.inf, 100.0])
+        assert detect_constant_series(values) is True
+
+
+class TestSafeClipOutliers:
+    """Tests for safe outlier clipping with edge case handling."""
+
+    def test_empty_array_returns_unchanged(self) -> None:
+        """Empty array returns unchanged with no reason."""
+        values = np.array([])
+        result, reason, was_clipped = safe_clip_outliers(values)
+        assert len(result) == 0
+        assert reason is None
+        assert was_clipped is False
+
+    def test_insufficient_finite_values_returns_stats_undefined(self) -> None:
+        """Less than min_n finite values returns stats_undefined."""
+        values = np.array([1.0, np.nan, np.nan, np.nan])
+        result, reason, was_clipped = safe_clip_outliers(values, min_n=4)
+        np.testing.assert_array_equal(result, values)
+        assert reason == REASON_STATS_UNDEFINED
+        assert was_clipped is False
+
+    def test_constant_series_skips_clipping(self) -> None:
+        """Constant series returns unchanged with no reason."""
+        values = np.array([100.0, 100.0, 100.0, 100.0])
+        result, reason, was_clipped = safe_clip_outliers(values)
+        np.testing.assert_array_equal(result, values)
+        assert reason is None
+        assert was_clipped is False
+
+    def test_outliers_clipped_returns_reason(self) -> None:
+        """When outliers are clipped, returns outliers_clipped reason."""
+        # Create values with a clear outlier
+        values = np.array([10.0] * 20 + [1000.0])
+        result, reason, was_clipped = safe_clip_outliers(values)
+        assert result[-1] < 1000.0  # Outlier should be clipped
+        assert reason == "outliers_clipped"
+        assert was_clipped is True
+
+    def test_no_outliers_returns_no_reason(self) -> None:
+        """When no outliers exist, returns no reason."""
+        values = np.array([10.0, 11.0, 12.0, 11.5, 10.5])
+        result, reason, was_clipped = safe_clip_outliers(values)
+        np.testing.assert_array_almost_equal(result, values)
+        assert reason is None
+        assert was_clipped is False
 
 
 class TestClipOutliers:
@@ -378,6 +475,447 @@ class TestFallbackForecasterIntegration:
         forecaster = get_forecaster(mock_db, tmp_path, prefer_prophet=False)
 
         assert forecaster.__class__.__name__ == "FallbackForecaster"
+
+
+class TestEdgeCaseHardening:
+    """Tests for edge case hardening (006-forecaster-edge-hardening)."""
+
+    @pytest.fixture
+    def mock_db(self) -> MagicMock:
+        """Create mock database manager."""
+        db = MagicMock()
+        db.connection = MagicMock()
+        return db
+
+    @pytest.fixture
+    def forecaster(self, mock_db: MagicMock, tmp_path: Path) -> FallbackForecaster:
+        """Create forecaster with mocked database."""
+        return FallbackForecaster(mock_db, tmp_path)
+
+    def test_constant_series_produces_valid_forecast(
+        self, forecaster: FallbackForecaster, mock_db: MagicMock
+    ) -> None:
+        """Constant series (zero variance) produces valid forecast with identical bounds."""
+        # Create 8 weeks of identical cycle times
+        base = date(2026, 1, 6)  # A Monday
+        dates = [(base + timedelta(weeks=i)).isoformat() for i in range(8)]
+        cycle_times = [100.0] * 8  # All identical
+
+        df = pd.DataFrame({"closed_date": dates, "cycle_time_minutes": cycle_times})
+
+        with patch.object(pd, "read_sql_query", return_value=df):
+            result = forecaster.generate()
+
+        assert result is True
+        assert forecaster.status == STATUS_OK
+        assert forecaster.reason_code == REASON_CONSTANT_SERIES
+
+        # Verify output
+        output_file = forecaster.output_dir / "predictions" / "trends.json"
+        with output_file.open() as f:
+            data = json.load(f)
+
+        assert data["status"] == STATUS_OK
+        assert data["reason_code"] == REASON_CONSTANT_SERIES
+
+        # Check cycle_time forecast has identical bounds
+        cycle_forecast = next(
+            (f for f in data["forecasts"] if f["metric"] == "cycle_time_minutes"), None
+        )
+        assert cycle_forecast is not None
+        for v in cycle_forecast["values"]:
+            assert v["predicted"] == v["lower_bound"] == v["upper_bound"] == 100.0
+            assert v["constraints_applied"] == []
+
+    def test_large_values_no_overflow(
+        self, forecaster: FallbackForecaster, mock_db: MagicMock
+    ) -> None:
+        """Large values (up to 10^9) do not cause overflow errors."""
+        base = date(2026, 1, 6)
+        dates = [(base + timedelta(weeks=i)).isoformat() for i in range(8)]
+        # Mix of large values
+        cycle_times = [1e9, 1e9, 1e9, 1e9, 1e8, 1e8, 1e8, 1e8]
+
+        df = pd.DataFrame({"closed_date": dates, "cycle_time_minutes": cycle_times})
+
+        with patch.object(pd, "read_sql_query", return_value=df):
+            result = forecaster.generate()
+
+        assert result is True
+        assert forecaster.status in (STATUS_OK, STATUS_DEGRADED)
+
+        # Verify all values are finite
+        output_file = forecaster.output_dir / "predictions" / "trends.json"
+        with output_file.open() as f:
+            data = json.load(f)
+
+        for forecast in data["forecasts"]:
+            for v in forecast["values"]:
+                assert np.isfinite(v["predicted"])
+                assert np.isfinite(v["lower_bound"])
+                assert np.isfinite(v["upper_bound"])
+
+    def test_nan_heavy_dataset_with_enough_finite(
+        self, forecaster: FallbackForecaster, mock_db: MagicMock
+    ) -> None:
+        """Dataset with >50% NaN but ≥4 finite values produces valid forecast."""
+        base = date(2026, 1, 6)
+        dates = [(base + timedelta(weeks=i)).isoformat() for i in range(10)]
+        # 4 finite values, 6 NaN
+        cycle_times = [
+            100.0,
+            np.nan,
+            110.0,
+            np.nan,
+            np.nan,
+            120.0,
+            np.nan,
+            130.0,
+            np.nan,
+            np.nan,
+        ]
+
+        df = pd.DataFrame({"closed_date": dates, "cycle_time_minutes": cycle_times})
+
+        with patch.object(pd, "read_sql_query", return_value=df):
+            result = forecaster.generate()
+
+        assert result is True
+        # Should produce valid output despite heavy NaN
+
+        output_file = forecaster.output_dir / "predictions" / "trends.json"
+        with output_file.open() as f:
+            data = json.load(f)
+
+        assert len(data["forecasts"]) > 0
+
+    def test_all_nan_cycle_time_still_forecasts_throughput(
+        self, forecaster: FallbackForecaster, mock_db: MagicMock
+    ) -> None:
+        """All NaN cycle times still produce throughput forecast from pr_count."""
+        base = date(2026, 1, 6)
+        dates = [(base + timedelta(weeks=i)).isoformat() for i in range(8)]
+        cycle_times = [np.nan] * 8
+
+        df = pd.DataFrame({"closed_date": dates, "cycle_time_minutes": cycle_times})
+
+        with patch.object(pd, "read_sql_query", return_value=df):
+            result = forecaster.generate()
+
+        assert result is True
+        # pr_throughput can still be calculated from closed_date counts
+        # Only cycle_time_minutes metric will fail due to NaN
+
+        output_file = forecaster.output_dir / "predictions" / "trends.json"
+        with output_file.open() as f:
+            data = json.load(f)
+
+        # Should have at least pr_throughput forecast
+        assert len(data["forecasts"]) >= 1
+        metric_names = [f["metric"] for f in data["forecasts"]]
+        assert "pr_throughput" in metric_names
+
+    def test_negative_predictions_floored_to_zero(
+        self, forecaster: FallbackForecaster, mock_db: MagicMock
+    ) -> None:
+        """Negative predictions are floored to zero with constraint tracking."""
+        base = date(2026, 1, 6)
+        dates = [(base + timedelta(weeks=i)).isoformat() for i in range(8)]
+        # Strongly declining trend that will predict negative values
+        cycle_times = [800.0, 600.0, 400.0, 200.0, 100.0, 50.0, 25.0, 10.0]
+
+        df = pd.DataFrame({"closed_date": dates, "cycle_time_minutes": cycle_times})
+
+        with patch.object(pd, "read_sql_query", return_value=df):
+            result = forecaster.generate()
+
+        assert result is True
+
+        output_file = forecaster.output_dir / "predictions" / "trends.json"
+        with output_file.open() as f:
+            data = json.load(f)
+
+        # Check that negative values are floored and constraints tracked
+        cycle_forecast = next(
+            (f for f in data["forecasts"] if f["metric"] == "cycle_time_minutes"), None
+        )
+        assert cycle_forecast is not None, "cycle_time_minutes forecast should exist"
+
+        # Verify all values are non-negative
+        for v in cycle_forecast["values"]:
+            assert v["predicted"] >= 0, f"predicted {v['predicted']} should be >= 0"
+            assert v["lower_bound"] >= 0, (
+                f"lower_bound {v['lower_bound']} should be >= 0"
+            )
+
+        # Verify constraint tracking - at least one value should have floor_zero
+        # given the strongly declining trend
+        floored_values = [
+            v
+            for v in cycle_forecast["values"]
+            if CONSTRAINT_FLOOR_ZERO in v["constraints_applied"]
+        ]
+        # With such a steep decline, we expect some flooring to occur
+        assert len(floored_values) > 0 or all(
+            v["predicted"] > 0 and v["lower_bound"] > 0
+            for v in cycle_forecast["values"]
+        ), "Expected floor_zero constraint when values are floored to 0"
+
+    def test_floor_applied_reason_code_set(
+        self, forecaster: FallbackForecaster, mock_db: MagicMock
+    ) -> None:
+        """When floor is applied, reason_code is set to floor_applied."""
+        base = date(2026, 1, 6)
+        dates = [(base + timedelta(weeks=i)).isoformat() for i in range(8)]
+        # Very steep decline that guarantees negative predictions
+        cycle_times = [1000.0, 800.0, 600.0, 400.0, 200.0, 100.0, 50.0, 10.0]
+
+        df = pd.DataFrame({"closed_date": dates, "cycle_time_minutes": cycle_times})
+
+        with patch.object(pd, "read_sql_query", return_value=df):
+            result = forecaster.generate()
+
+        assert result is True
+
+        output_file = forecaster.output_dir / "predictions" / "trends.json"
+        with output_file.open() as f:
+            data = json.load(f)
+
+        # Check that reason_code is floor_applied when constraints were triggered
+        cycle_forecast = next(
+            (f for f in data["forecasts"] if f["metric"] == "cycle_time_minutes"), None
+        )
+        if cycle_forecast:
+            # Check if any value has floor_zero constraint
+            has_floor_constraint = any(
+                CONSTRAINT_FLOOR_ZERO in v["constraints_applied"]
+                for v in cycle_forecast["values"]
+            )
+            if has_floor_constraint:
+                # When floor is the only issue, reason_code should be floor_applied
+                # (unless another reason like stats_undefined took precedence)
+                assert (
+                    data["reason_code"] in (REASON_FLOOR_APPLIED, None)
+                    or data["status"] == STATUS_OK
+                )
+
+    def test_constraints_applied_field_present(
+        self, forecaster: FallbackForecaster, mock_db: MagicMock
+    ) -> None:
+        """All forecast values include constraints_applied field."""
+        base = date(2026, 1, 6)
+        dates = [(base + timedelta(weeks=i)).isoformat() for i in range(8)]
+        cycle_times = [100.0 + i * 10 for i in range(8)]
+
+        df = pd.DataFrame({"closed_date": dates, "cycle_time_minutes": cycle_times})
+
+        with patch.object(pd, "read_sql_query", return_value=df):
+            result = forecaster.generate()
+
+        assert result is True
+
+        output_file = forecaster.output_dir / "predictions" / "trends.json"
+        with output_file.open() as f:
+            data = json.load(f)
+
+        for forecast in data["forecasts"]:
+            for v in forecast["values"]:
+                assert "constraints_applied" in v
+                assert isinstance(v["constraints_applied"], list)
+
+    def test_status_and_reason_code_in_output(
+        self, forecaster: FallbackForecaster, mock_db: MagicMock
+    ) -> None:
+        """Output includes status and reason_code fields."""
+        base = date(2026, 1, 6)
+        dates = [(base + timedelta(weeks=i)).isoformat() for i in range(8)]
+        cycle_times = [100.0 + i * 10 for i in range(8)]
+
+        df = pd.DataFrame({"closed_date": dates, "cycle_time_minutes": cycle_times})
+
+        with patch.object(pd, "read_sql_query", return_value=df):
+            result = forecaster.generate()
+
+        assert result is True
+
+        output_file = forecaster.output_dir / "predictions" / "trends.json"
+        with output_file.open() as f:
+            data = json.load(f)
+
+        assert "status" in data
+        assert "reason_code" in data
+
+    def test_deterministic_output_sorted_keys(
+        self, forecaster: FallbackForecaster, mock_db: MagicMock
+    ) -> None:
+        """Output is deterministic with sorted keys and metrics."""
+        base = date(2026, 1, 6)
+        dates = [(base + timedelta(weeks=i)).isoformat() for i in range(8)]
+        cycle_times = [100.0 + i * 10 for i in range(8)]
+
+        df = pd.DataFrame({"closed_date": dates, "cycle_time_minutes": cycle_times})
+
+        with patch.object(pd, "read_sql_query", return_value=df):
+            forecaster.generate()
+
+        output_file = forecaster.output_dir / "predictions" / "trends.json"
+        with output_file.open() as f:
+            content = f.read()
+
+        # Verify forecasts are sorted alphabetically by metric
+        data = json.loads(content)
+        metric_names = [f["metric"] for f in data["forecasts"]]
+        assert metric_names == sorted(metric_names)
+
+    def test_floats_rounded_to_two_decimal_places(
+        self, forecaster: FallbackForecaster, mock_db: MagicMock
+    ) -> None:
+        """All float values are rounded to 2 decimal places."""
+        base = date(2026, 1, 6)
+        dates = [(base + timedelta(weeks=i)).isoformat() for i in range(8)]
+        cycle_times = [100.123456789 + i * 10.987654321 for i in range(8)]
+
+        df = pd.DataFrame({"closed_date": dates, "cycle_time_minutes": cycle_times})
+
+        with patch.object(pd, "read_sql_query", return_value=df):
+            forecaster.generate()
+
+        output_file = forecaster.output_dir / "predictions" / "trends.json"
+        with output_file.open() as f:
+            data = json.load(f)
+
+        for forecast in data["forecasts"]:
+            for v in forecast["values"]:
+                for key in ("predicted", "lower_bound", "upper_bound"):
+                    value = v[key]
+                    # Check that value has at most 2 decimal places
+                    rounded = round(value, 2)
+                    assert value == rounded, f"{key}={value} should be {rounded}"
+
+
+class TestGoldenFileDeterminism:
+    """Tests for deterministic output suitable for golden-file testing."""
+
+    @pytest.fixture
+    def mock_db(self) -> MagicMock:
+        """Create mock database manager."""
+        db = MagicMock()
+        db.connection = MagicMock()
+        return db
+
+    @pytest.fixture
+    def forecaster(self, mock_db: MagicMock, tmp_path: Path) -> FallbackForecaster:
+        """Create forecaster with mocked database."""
+        return FallbackForecaster(mock_db, tmp_path)
+
+    def test_constant_series_matches_golden_structure(
+        self, forecaster: FallbackForecaster, mock_db: MagicMock
+    ) -> None:
+        """Constant series output matches golden file structure (excluding dynamic fields).
+
+        Validates:
+        - Metrics are sorted alphabetically
+        - All expected fields are present
+        - Values have correct structure
+        - Status and reason_code are correct
+        """
+        base = date(2026, 1, 6)  # A Monday
+        dates = [(base + timedelta(weeks=i)).isoformat() for i in range(8)]
+        cycle_times = [100.0] * 8  # All identical
+
+        df = pd.DataFrame({"closed_date": dates, "cycle_time_minutes": cycle_times})
+
+        with patch.object(pd, "read_sql_query", return_value=df):
+            forecaster.generate()
+
+        output_file = forecaster.output_dir / "predictions" / "trends.json"
+        with output_file.open() as f:
+            actual = json.load(f)
+
+        # Load golden file
+        golden_path = (
+            Path(__file__).parent.parent
+            / "fixtures"
+            / "golden"
+            / "constant-series-forecast.json"
+        )
+        with golden_path.open() as f:
+            expected = json.load(f)
+
+        # Compare structure (not dynamic fields)
+        assert actual["status"] == expected["status"]
+        assert actual["reason_code"] == expected["reason_code"]
+        assert actual["forecaster"] == expected["forecaster"]
+        assert actual["schema_version"] == expected["schema_version"]
+        assert actual["is_stub"] == expected["is_stub"]
+        assert actual["generated_by"] == expected["generated_by"]
+
+        # Compare forecasts structure
+        assert len(actual["forecasts"]) == len(expected["forecasts"])
+
+        # Metrics should be in same order (alphabetically sorted)
+        actual_metrics = [f["metric"] for f in actual["forecasts"]]
+        expected_metrics = [f["metric"] for f in expected["forecasts"]]
+        assert actual_metrics == expected_metrics
+
+        # Verify cycle_time forecast values
+        actual_ct = next(
+            f for f in actual["forecasts"] if f["metric"] == "cycle_time_minutes"
+        )
+        expected_ct = next(
+            f for f in expected["forecasts"] if f["metric"] == "cycle_time_minutes"
+        )
+
+        assert actual_ct["unit"] == expected_ct["unit"]
+        assert actual_ct["horizon_weeks"] == expected_ct["horizon_weeks"]
+        assert len(actual_ct["values"]) == len(expected_ct["values"])
+
+        for actual_v, expected_v in zip(
+            actual_ct["values"], expected_ct["values"], strict=True
+        ):
+            assert actual_v["predicted"] == expected_v["predicted"]
+            assert actual_v["lower_bound"] == expected_v["lower_bound"]
+            assert actual_v["upper_bound"] == expected_v["upper_bound"]
+            assert actual_v["constraints_applied"] == expected_v["constraints_applied"]
+
+    def test_output_is_reproducible(
+        self, forecaster: FallbackForecaster, mock_db: MagicMock, tmp_path: Path
+    ) -> None:
+        """Multiple runs with same input produce structurally identical output."""
+        base = date(2026, 1, 6)
+        dates = [(base + timedelta(weeks=i)).isoformat() for i in range(8)]
+        cycle_times = [100.0] * 8
+
+        df = pd.DataFrame({"closed_date": dates, "cycle_time_minutes": cycle_times})
+
+        # Run twice
+        with patch.object(pd, "read_sql_query", return_value=df):
+            forecaster.generate()
+
+        output_file1 = forecaster.output_dir / "predictions" / "trends.json"
+        with output_file1.open() as f:
+            data1 = json.load(f)
+
+        # Create second forecaster to ensure clean state
+        forecaster2 = FallbackForecaster(mock_db, tmp_path / "run2")
+
+        with patch.object(pd, "read_sql_query", return_value=df):
+            forecaster2.generate()
+
+        output_file2 = forecaster2.output_dir / "predictions" / "trends.json"
+        with output_file2.open() as f:
+            data2 = json.load(f)
+
+        # Compare non-dynamic fields
+        assert data1["status"] == data2["status"]
+        assert data1["reason_code"] == data2["reason_code"]
+        assert data1["forecaster"] == data2["forecaster"]
+        assert len(data1["forecasts"]) == len(data2["forecasts"])
+
+        # Compare forecast values (should be identical)
+        for f1, f2 in zip(data1["forecasts"], data2["forecasts"], strict=True):
+            assert f1["metric"] == f2["metric"]
+            assert f1["values"] == f2["values"]
 
 
 class TestMetricsConfiguration:

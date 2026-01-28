@@ -1,0 +1,82 @@
+{
+  "data_quality": "normal",
+  "forecaster": "linear",
+  "forecasts": [
+    {
+      "horizon_weeks": 4,
+      "metric": "cycle_time_minutes",
+      "unit": "minutes",
+      "values": [
+        {
+          "constraints_applied": [],
+          "lower_bound": 100.0,
+          "period_start": "DYNAMIC",
+          "predicted": 100.0,
+          "upper_bound": 100.0
+        },
+        {
+          "constraints_applied": [],
+          "lower_bound": 100.0,
+          "period_start": "DYNAMIC",
+          "predicted": 100.0,
+          "upper_bound": 100.0
+        },
+        {
+          "constraints_applied": [],
+          "lower_bound": 100.0,
+          "period_start": "DYNAMIC",
+          "predicted": 100.0,
+          "upper_bound": 100.0
+        },
+        {
+          "constraints_applied": [],
+          "lower_bound": 100.0,
+          "period_start": "DYNAMIC",
+          "predicted": 100.0,
+          "upper_bound": 100.0
+        }
+      ]
+    },
+    {
+      "horizon_weeks": 4,
+      "metric": "pr_throughput",
+      "unit": "count",
+      "values": [
+        {
+          "constraints_applied": [],
+          "lower_bound": 1.0,
+          "period_start": "DYNAMIC",
+          "predicted": 1.0,
+          "upper_bound": 1.0
+        },
+        {
+          "constraints_applied": [],
+          "lower_bound": 1.0,
+          "period_start": "DYNAMIC",
+          "predicted": 1.0,
+          "upper_bound": 1.0
+        },
+        {
+          "constraints_applied": [],
+          "lower_bound": 1.0,
+          "period_start": "DYNAMIC",
+          "predicted": 1.0,
+          "upper_bound": 1.0
+        },
+        {
+          "constraints_applied": [],
+          "lower_bound": 1.0,
+          "period_start": "DYNAMIC",
+          "predicted": 1.0,
+          "upper_bound": 1.0
+        }
+      ]
+    }
+  ],
+  "generated_at": "DYNAMIC",
+  "generated_by": "linear-v1.0",
+  "is_stub": false,
+  "reason_code": "constant_series",
+  "schema_version": 1,
+  "status": "ok"
+}
