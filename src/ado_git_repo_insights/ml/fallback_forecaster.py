@@ -529,6 +529,9 @@ class FallbackForecaster:
                 final_upper = max(
                     final_predicted * 2, final_predicted + DEFAULT_UPPER_BOUND_MARGIN
                 )
+            # Cap upper bound to prevent unreasonable values (max 10x predicted or +1000)
+            max_reasonable_upper = max(final_predicted * 10, final_predicted + 1000)
+            final_upper = min(final_upper, max_reasonable_upper)
 
             values.append(
                 {

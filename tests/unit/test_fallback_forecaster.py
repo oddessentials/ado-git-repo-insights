@@ -639,14 +639,27 @@ class TestEdgeCaseHardening:
         cycle_forecast = next(
             (f for f in data["forecasts"] if f["metric"] == "cycle_time_minutes"), None
         )
-        if cycle_forecast:
-            for v in cycle_forecast["values"]:
-                assert v["predicted"] >= 0
-                assert v["lower_bound"] >= 0
-                # If floor was applied, constraint should be tracked
-                if v["predicted"] == 0 or v["lower_bound"] == 0:
-                    # Constraint may or may not be present depending on original value
-                    pass  # Just verifying the floor worked
+        assert cycle_forecast is not None, "cycle_time_minutes forecast should exist"
+
+        # Verify all values are non-negative
+        for v in cycle_forecast["values"]:
+            assert v["predicted"] >= 0, f"predicted {v['predicted']} should be >= 0"
+            assert v["lower_bound"] >= 0, (
+                f"lower_bound {v['lower_bound']} should be >= 0"
+            )
+
+        # Verify constraint tracking - at least one value should have floor_zero
+        # given the strongly declining trend
+        floored_values = [
+            v
+            for v in cycle_forecast["values"]
+            if CONSTRAINT_FLOOR_ZERO in v["constraints_applied"]
+        ]
+        # With such a steep decline, we expect some flooring to occur
+        assert len(floored_values) > 0 or all(
+            v["predicted"] > 0 and v["lower_bound"] > 0
+            for v in cycle_forecast["values"]
+        ), "Expected floor_zero constraint when values are floored to 0"
 
     def test_floor_applied_reason_code_set(
         self, forecaster: FallbackForecaster, mock_db: MagicMock
