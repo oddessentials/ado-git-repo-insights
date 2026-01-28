@@ -2,7 +2,7 @@
 
 **Feature Branch**: `009-enterprise-coverage-upgrade`
 **Created**: 2026-01-28
-**Status**: Draft
+**Status**: In Progress (TypeScript: 44%/70% target, Python: 76%/70% target)
 **Input**: User description: Increase TypeScript and Python code coverage to enterprise-grade standards with strict typing enforcement, automatic coverage badges, and deterministic local/CI parity
 
 ## Clarifications

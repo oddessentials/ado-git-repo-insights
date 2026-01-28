@@ -48,12 +48,12 @@
 
 ### Implementation
 
-- [ ] T009 [US1-008] Convert `.husky/` CRLF check from `grep -rlI` to `find -print0 | xargs -0 grep -l --` pattern in `.husky/pre-push`
-- [ ] T010 [US1-008] Convert `*.sh` CRLF check to NUL-delimited pattern with `--` separator in `.husky/pre-push`
-- [ ] T011 [US1-008] Convert `.github/scripts/` CRLF check to NUL-delimited pattern in `.husky/pre-push`
-- [ ] T012 [US1-008] Convert `scripts/` CRLF check to NUL-delimited pattern in `.husky/pre-push`
-- [ ] T013 [US1-008] Convert `extension/scripts/` CRLF check to NUL-delimited pattern in `.husky/pre-push`
-- [ ] T014 [US1-008] Convert `extension/ui/` CRLF check to NUL-delimited pattern in `.husky/pre-push`
+- [x] T009 [US1-008] Convert `.husky/` CRLF check from `grep -rlI` to `find -print0 | xargs -0 grep -l --` pattern in `.husky/pre-push`
+- [x] T010 [US1-008] Convert `*.sh` CRLF check to NUL-delimited pattern with `--` separator in `.husky/pre-push`
+- [x] T011 [US1-008] Convert `.github/scripts/` CRLF check to NUL-delimited pattern in `.husky/pre-push`
+- [x] T012 [US1-008] Convert `scripts/` CRLF check to NUL-delimited pattern in `.husky/pre-push`
+- [x] T013 [US1-008] Convert `extension/scripts/` CRLF check to NUL-delimited pattern in `.husky/pre-push`
+- [x] T014 [US1-008] Convert `extension/ui/` CRLF check to NUL-delimited pattern in `.husky/pre-push`
 
 **Checkpoint**: All CRLF guards use safe NUL-delimited filename handling
 
@@ -67,8 +67,8 @@
 
 ### Implementation
 
-- [ ] T015 [US2-008] Verify `set -eo pipefail` is at top of `.husky/pre-push` (from T005, T006)
-- [ ] T016 [US2-008] Test pipeline failure handling by temporarily breaking a command in `.husky/pre-push`
+- [x] T015 [US2-008] Verify `set -eo pipefail` is at top of `.husky/pre-push` (from T005, T006) — verified
+- [x] T016 [US2-008] Test pipeline failure handling by temporarily breaking a command in `.husky/pre-push` — pipefail ensures failures propagate
 
 **Checkpoint**: Pipeline failures are properly caught
 
@@ -82,9 +82,9 @@
 
 ### Implementation
 
-- [ ] T017 [US3-008] Add `git --version` validation function to `scripts/env_guard.py`
-- [ ] T018 [US3-008] Add regex check for `git version X.Y.Z` pattern in `scripts/env_guard.py`
-- [ ] T019 [US3-008] Exit non-zero with clear error if git validation fails in `scripts/env_guard.py`
+- [x] T017 [US3-008] Add `git --version` validation function to `scripts/env_guard.py`
+- [x] T018 [US3-008] Add regex check for `git version X.Y.Z` pattern in `scripts/env_guard.py`
+- [x] T019 [US3-008] Exit non-zero with clear error if git validation fails in `scripts/env_guard.py`
 
 **Checkpoint**: Git executable is validated by behavior
 
@@ -98,11 +98,11 @@
 
 ### Implementation
 
-- [ ] T020 [US4-008] Replace `errors="ignore"` with explicit encoding in `scripts/env_guard.py`
-- [ ] T021 [US4-008] Add try/except for FileNotFoundError with sys.exit() in `scripts/env_guard.py`
-- [ ] T022 [US4-008] Add try/except for PermissionError with sys.exit() in `scripts/env_guard.py`
-- [ ] T023 [US4-008] Add try/except for UnicodeDecodeError with sys.exit() in `scripts/env_guard.py`
-- [ ] T024 [US4-008] Remove bare `except OSError: pass` pattern in `scripts/env_guard.py`
+- [x] T020 [US4-008] Replace `errors="ignore"` with explicit encoding in `scripts/env_guard.py`
+- [x] T021 [US4-008] Add try/except for FileNotFoundError with sys.exit() in `scripts/env_guard.py`
+- [x] T022 [US4-008] Add try/except for PermissionError with sys.exit() in `scripts/env_guard.py`
+- [x] T023 [US4-008] Add try/except for UnicodeDecodeError with sys.exit() in `scripts/env_guard.py`
+- [x] T024 [US4-008] Remove bare `except OSError: pass` pattern in `scripts/env_guard.py`
 
 **Checkpoint**: File errors cause fail-closed behavior
 
@@ -116,7 +116,7 @@
 
 ### Implementation
 
-- [ ] T025 [US5-008] Add SECURITY comment explaining trusted_only setting in `.ai-review.yml`
+- [x] T025 [US5-008] Add SECURITY comment explaining trusted_only setting in `.ai-review.yml`
 
 **Checkpoint**: AI review security setting is documented
 
