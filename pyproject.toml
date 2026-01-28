@@ -75,6 +75,13 @@ minversion = "7.0"
 addopts = "-ra -q --cov=src/ado_git_repo_insights --cov-report=term-missing"
 testpaths = ["tests"]
 pythonpath = ["src"]
+# Suppress ResourceWarning for unclosed database connections
+# These warnings come from pandas and test fixtures where the connection is
+# managed by the test framework and properly cleaned up at test teardown
+filterwarnings = [
+    "ignore::ResourceWarning",
+    "ignore:unclosed database:ResourceWarning",
+]
 
 [tool.mypy]
 python_version = "3.10"

@@ -32,12 +32,52 @@ GENERATOR_ID = "openai-v1.0"
 # Cache invalidation control:
 # Bumping PROMPT_VERSION intentionally invalidates all cached insights.
 # This ensures users get fresh insights after prompt improvements or bug fixes.
-# Current: "phase5-v2" (bumped from v1 for deterministic cache key fix)
-PROMPT_VERSION = "phase5-v2"
+# Current: "phase5-v3" (bumped for v2 schema with data/recommendation fields)
+PROMPT_VERSION = "phase5-v3"
 
 # Default model (can be overridden with OPENAI_MODEL env var)
 # PHASE5.md locked decision: gpt-5-nano
 DEFAULT_MODEL = "gpt-5-nano"
+
+# Severity ordering for deterministic sorting (T033)
+# Order: critical (highest) > warning > info (lowest)
+SEVERITY_ORDER = ["critical", "warning", "info"]
+
+# Default cache TTL changed to 12 hours per US2 spec (T037)
+DEFAULT_CACHE_TTL_HOURS = 12
+
+
+def sort_insights(insights: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Sort insights deterministically by severity, category, then ID.
+
+    Ordering (per spec clarification):
+    1. Severity descending: critical > warning > info
+    2. Category ascending (alphabetical): anomaly < bottleneck < trend
+    3. ID ascending (alphabetical)
+
+    Args:
+        insights: List of insight dictionaries.
+
+    Returns:
+        Sorted list of insights.
+    """
+    if not insights:
+        return []
+
+    def sort_key(insight: dict[str, Any]) -> tuple[int, str, str]:
+        severity = insight.get("severity", "info")
+        category = insight.get("category", "")
+        insight_id = insight.get("id", "")
+
+        # Severity index (lower = higher priority)
+        try:
+            severity_idx = SEVERITY_ORDER.index(severity)
+        except ValueError:
+            severity_idx = len(SEVERITY_ORDER)  # Unknown severity last
+
+        return (severity_idx, category, insight_id)
+
+    return sorted(insights, key=sort_key)
 
 
 class LLMInsightsGenerator:
@@ -52,7 +92,7 @@ class LLMInsightsGenerator:
         db: DatabaseManager,
         output_dir: Path,
         max_tokens: int = 1000,
-        cache_ttl_hours: int = 24,
+        cache_ttl_hours: int = DEFAULT_CACHE_TTL_HOURS,
         dry_run: bool = False,
     ) -> None:
         """Initialize the insights generator.
@@ -163,7 +203,7 @@ class LLMInsightsGenerator:
             "stats": stats,
         }
 
-        prompt = f"""You are a DevOps metrics analyst. Analyze the following pull request metrics and provide up to 3 actionable insights.
+        prompt = f"""You are a DevOps metrics analyst. Analyze the following pull request metrics and provide up to 3 actionable insights with specific recommendations.
 
 **Metrics Summary:**
 - Total PRs: {stats["total_prs"]}
@@ -176,19 +216,34 @@ class LLMInsightsGenerator:
 **Instructions:**
 - Provide up to 3 insights, one per category: "bottleneck", "trend", "anomaly"
 - For each insight, identify severity: "info", "warning", or "critical"
-- Focus on actual patterns, NOT recommendations
-- Use descriptive language only - no action items
+- Include specific metrics data with current values and trends
+- Provide a concrete, actionable recommendation with effort estimate
 
-**Required JSON format:**
+**Required JSON format (v2 schema):**
 {{
   "insights": [
     {{
       "id": "unique-id",
       "category": "bottleneck | trend | anomaly",
       "severity": "info | warning | critical",
-      "title": "Short summary",
-      "description": "Detailed description of the pattern observed",
-      "affected_entities": ["entity:name", ...]
+      "title": "Short summary (max 60 chars)",
+      "description": "Detailed description with specific numbers",
+      "affected_entities": [
+        {{"type": "team | repository | author", "name": "entity-name", "member_count": 5}}
+      ],
+      "data": {{
+        "metric": "cycle_time_minutes | pr_throughput | review_time_minutes",
+        "current_value": 150,
+        "previous_value": 125,
+        "change_percent": 20.0,
+        "trend_direction": "up | down | stable",
+        "sparkline": [120, 125, 130, 140, 150]
+      }},
+      "recommendation": {{
+        "action": "Specific action to take",
+        "priority": "high | medium | low",
+        "effort": "high | medium | low"
+      }}
     }}
   ]
 }}
@@ -221,12 +276,10 @@ Respond ONLY with valid JSON matching this format."""
         date_range_start = row["min_date"][:10] if row["min_date"] else "N/A"
         date_range_end = row["max_date"][:10] if row["max_date"] else "N/A"
 
-        # Cycle time stats
+        # Average cycle time
         cursor = self.db.execute(
             """
-            SELECT
-                AVG(cycle_time_minutes) as avg_cycle,
-                MAX(cycle_time_minutes) as max_cycle
+            SELECT AVG(cycle_time_minutes) as avg_cycle
             FROM pull_requests
             WHERE cycle_time_minutes IS NOT NULL
             """
@@ -234,8 +287,26 @@ Respond ONLY with valid JSON matching this format."""
         row = cursor.fetchone()
         avg_cycle_time = round(row["avg_cycle"], 1) if row["avg_cycle"] else 0
 
-        # P90 approximation (use 90% of max as rough estimate)
-        p90_cycle_time = round(row["max_cycle"] * 0.9, 1) if row["max_cycle"] else 0
+        # P90 cycle time (true 90th percentile using SQL)
+        # Uses LIMIT/OFFSET approach for SQLite compatibility
+        # Formula: ceil(N * 0.9) - 1 as 0-indexed offset
+        # Implemented as (N * 9 + 9) / 10 - 1 using integer arithmetic
+        # This ensures correct P90 for small datasets (e.g., N=2 returns max, not min)
+        cursor = self.db.execute(
+            """
+            SELECT cycle_time_minutes
+            FROM pull_requests
+            WHERE cycle_time_minutes IS NOT NULL
+            ORDER BY cycle_time_minutes
+            LIMIT 1 OFFSET (
+                SELECT MAX(0, (COUNT(*) * 9 + 9) / 10 - 1)
+                FROM pull_requests
+                WHERE cycle_time_minutes IS NOT NULL
+            )
+            """
+        )
+        row = cursor.fetchone()
+        p90_cycle_time = round(row["cycle_time_minutes"], 1) if row else 0
 
         # Authors
         cursor = self.db.execute(
@@ -489,11 +560,14 @@ Respond ONLY with valid JSON matching this format."""
 
             fixed_insights.append(insight)
 
+        # Apply deterministic sorting (T035): severity desc → category asc → ID asc
+        sorted_insights = sort_insights(fixed_insights)
+
         # Build contract-compliant output
         return {
             "schema_version": INSIGHTS_SCHEMA_VERSION,
             "generated_at": datetime.now(timezone.utc).isoformat(),
             "is_stub": False,
             "generated_by": GENERATOR_ID,
-            "insights": fixed_insights,
+            "insights": sorted_insights,
         }

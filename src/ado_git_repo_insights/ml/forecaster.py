@@ -23,10 +23,10 @@ GENERATOR_ID = "prophet-v1.0"
 HORIZON_WEEKS = 4
 
 # Metric definitions
+# Note: review_time_minutes removed - it used cycle_time as misleading proxy
 METRICS = [
     ("pr_throughput", "count"),
     ("cycle_time_minutes", "minutes"),
-    ("review_time_minutes", "minutes"),
 ]
 
 
@@ -197,7 +197,6 @@ class ProphetForecaster:
         column_map = {
             "pr_throughput": "pr_count",
             "cycle_time_minutes": "cycle_time_p50",
-            "review_time_minutes": "cycle_time_p50",  # Use cycle time as proxy
         }
 
         column = column_map.get(metric)

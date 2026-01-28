@@ -1,0 +1,97 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "predictions-schema-v1.1",
+  "title": "Predictions Output Schema (v1.1 - Review Time Removed)",
+  "description": "Schema for predictions/trends.json output. Version 1.1 removes review_time_minutes metric.",
+  "type": "object",
+  "required": ["schema_version", "generated_at", "is_stub", "generated_by", "forecaster", "data_quality", "forecasts"],
+  "properties": {
+    "schema_version": {
+      "type": "integer",
+      "const": 1,
+      "description": "Schema version (unchanged at 1 for backward compatibility)"
+    },
+    "generated_at": {
+      "type": "string",
+      "format": "date-time",
+      "description": "ISO 8601 timestamp of generation"
+    },
+    "is_stub": {
+      "type": "boolean",
+      "description": "True if synthetic/preview data"
+    },
+    "generated_by": {
+      "type": "string",
+      "enum": ["linear-v1.0", "prophet-v1.0", "synthetic-preview"],
+      "description": "Generator identifier"
+    },
+    "forecaster": {
+      "type": "string",
+      "enum": ["linear", "prophet"],
+      "description": "Forecaster type used"
+    },
+    "data_quality": {
+      "type": "string",
+      "enum": ["normal", "low_confidence", "insufficient"],
+      "description": "Data quality assessment"
+    },
+    "forecasts": {
+      "type": "array",
+      "description": "Array of metric forecasts (2 metrics: pr_throughput, cycle_time_minutes)",
+      "items": {
+        "type": "object",
+        "required": ["metric", "unit", "values"],
+        "properties": {
+          "metric": {
+            "type": "string",
+            "enum": ["pr_throughput", "cycle_time_minutes"],
+            "description": "Metric name (review_time_minutes removed in v1.1)"
+          },
+          "unit": {
+            "type": "string",
+            "enum": ["count", "minutes"],
+            "description": "Unit of measurement"
+          },
+          "horizon_weeks": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 12,
+            "description": "Forecast horizon in weeks"
+          },
+          "values": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": ["period_start", "predicted", "lower_bound", "upper_bound"],
+              "properties": {
+                "period_start": {
+                  "type": "string",
+                  "format": "date",
+                  "description": "Start date of forecast period (ISO 8601)"
+                },
+                "predicted": {
+                  "type": "number",
+                  "minimum": 0,
+                  "description": "Predicted value"
+                },
+                "lower_bound": {
+                  "type": "number",
+                  "minimum": 0,
+                  "description": "Lower confidence bound"
+                },
+                "upper_bound": {
+                  "type": "number",
+                  "minimum": 0,
+                  "description": "Upper confidence bound"
+                }
+              }
+            }
+          }
+        }
+      },
+      "minItems": 0,
+      "maxItems": 2
+    }
+  },
+  "additionalProperties": false
+}

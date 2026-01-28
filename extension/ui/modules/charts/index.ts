@@ -17,8 +17,8 @@ export * from "./cycle-time";
 // Reviewer activity chart (horizontal bar chart)
 export * from "./reviewer-activity";
 
-// Note: ML features (renderPredictions, renderAIInsights) are exported from
-// the parent ./ml module, not here.
+// Predictions charts (forecast with confidence bands)
+export * from "./predictions";
 
 // Re-export existing chart utilities from parent charts.ts
 // These will be moved here in a future refactor

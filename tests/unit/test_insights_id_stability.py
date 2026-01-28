@@ -34,8 +34,11 @@ class TestEdgeCaseIDStability:
                 cursor.fetchone.return_value = {"cnt": 0}
             elif "MIN(closed_date)" in query:
                 cursor.fetchone.return_value = {"min_date": None, "max_date": None}
+            elif "ORDER BY cycle_time_minutes" in query:
+                # P90 percentile query - empty dataset returns None
+                cursor.fetchone.return_value = None
             elif "AVG(cycle_time_minutes)" in query:
-                cursor.fetchone.return_value = {"avg_cycle": 0, "max_cycle": 0}
+                cursor.fetchone.return_value = {"avg_cycle": 0}
             elif "COUNT(DISTINCT" in query:
                 cursor.fetchone.return_value = {"cnt": 0}
             elif "COUNT(*)" in query and "repositories" in query:
@@ -124,8 +127,11 @@ class TestEdgeCaseIDStability:
                     "min_date": "2026-01-01",
                     "max_date": "2026-01-15",
                 }
+            elif "ORDER BY cycle_time_minutes" in query:
+                # P90 percentile query - return 90th percentile value
+                cursor.fetchone.return_value = {"cycle_time_minutes": 810.0}
             elif "AVG(cycle_time_minutes)" in query:
-                cursor.fetchone.return_value = {"avg_cycle": 300.0, "max_cycle": 900.0}
+                cursor.fetchone.return_value = {"avg_cycle": 300.0}
             elif "COUNT(DISTINCT" in query:
                 cursor.fetchone.return_value = {"cnt": 10}
             elif "COUNT(*)" in query and "repositories" in query:
@@ -206,10 +212,13 @@ class TestEdgeCaseIDStability:
         assert ids_run1 == ids_run2, "IDs changed across runs with identical data"
 
         # Verify format: category-{hash}
-        for insight, id_val in zip(
-            mock_response_data["insights"], ids_run1, strict=True
-        ):
-            expected_prefix = insight["category"] + "-"
+        # Note: Insights are sorted by severity (critical > warning > info),
+        # so we cannot assume the order matches mock_response_data.
+        # Instead, verify each insight's ID starts with its category.
+        for insight in data1["insights"]:
+            id_val = insight["id"]
+            category = insight["category"]
+            expected_prefix = category + "-"
             assert id_val.startswith(expected_prefix), (
-                f"ID should start with {expected_prefix}"
+                f"ID '{id_val}' should start with '{expected_prefix}'"
             )

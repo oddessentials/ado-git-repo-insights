@@ -1540,53 +1540,388 @@ var PRInsightsDashboard = (() => {
     panel.classList.remove("hidden");
   }
 
-  // ui/modules/ml.ts
-  var SEVERITY_ICONS = {
-    critical: "\u{1F534}",
-    warning: "\u{1F7E1}",
-    info: "\u{1F535}"
+  // ui/modules/charts/predictions.ts
+  var FORECASTER_LABELS = {
+    linear: "Linear Forecast",
+    prophet: "Prophet Forecast"
   };
-  function renderPredictions(container, predictions) {
+  var DATA_QUALITY_MESSAGES = {
+    normal: { label: "High Confidence", cssClass: "quality-normal" },
+    low_confidence: {
+      label: "Low Confidence - More data recommended",
+      cssClass: "quality-low"
+    },
+    insufficient: {
+      label: "Insufficient Data",
+      cssClass: "quality-insufficient"
+    }
+  };
+  function renderForecasterIndicator(forecaster) {
+    const label = FORECASTER_LABELS[forecaster || "linear"] || "Forecast";
+    const cssClass = forecaster === "prophet" ? "forecaster-prophet" : "forecaster-linear";
+    return `<span class="forecaster-badge ${cssClass}">${escapeHtml(label)}</span>`;
+  }
+  function renderDataQualityBanner(dataQuality) {
+    if (!dataQuality || dataQuality === "normal") return "";
+    const quality = DATA_QUALITY_MESSAGES[dataQuality];
+    if (!quality) return "";
+    return `
+    <div class="data-quality-banner ${quality.cssClass}">
+      <span class="quality-icon">&#x26A0;</span>
+      <span class="quality-label">${escapeHtml(quality.label)}</span>
+    </div>
+  `;
+  }
+  function sanitizeForId(str) {
+    return str.toLowerCase().replace(/[^a-z0-9_-]/g, "-").replace(/-+/g, "-").replace(/^-|-$/g, "");
+  }
+  function calculateLinePath(values) {
+    if (values.length === 0) return "";
+    return values.map((pt, i) => `${i === 0 ? "M" : "L"} ${pt.x.toFixed(2)} ${pt.y.toFixed(2)}`).join(" ");
+  }
+  function calculateBandPath(upperValues, lowerValues) {
+    if (upperValues.length === 0 || lowerValues.length === 0) return "";
+    const upperPath = upperValues.map((pt, i) => `${i === 0 ? "M" : "L"} ${pt.x.toFixed(2)} ${pt.y.toFixed(2)}`).join(" ");
+    const lowerReversed = [...lowerValues].reverse();
+    const lowerPath = lowerReversed.map((pt) => `L ${pt.x.toFixed(2)} ${pt.y.toFixed(2)}`).join(" ");
+    return `${upperPath} ${lowerPath} Z`;
+  }
+  function renderForecastChart(forecast, historicalData, chartHeight = 200) {
+    const values = forecast.values;
+    if (!values || values.length === 0) {
+      return `<div class="forecast-chart-empty">No forecast data available</div>`;
+    }
+    const allValues = [];
+    if (historicalData) {
+      historicalData.forEach((h) => allValues.push(h.value));
+    }
+    values.forEach((v) => {
+      allValues.push(v.predicted);
+      allValues.push(v.lower_bound);
+      allValues.push(v.upper_bound);
+    });
+    const maxValue = Math.max(...allValues, 1);
+    const minValue = Math.min(...allValues, 0);
+    const range = maxValue - minValue || 1;
+    const padding = 10;
+    const effectiveHeight = chartHeight - padding * 2;
+    const getY = (val) => {
+      const normalized = (val - minValue) / range;
+      return padding + (1 - normalized) * effectiveHeight;
+    };
+    const forecastPoints = [];
+    const upperPoints = [];
+    const lowerPoints = [];
+    const historicalCount = historicalData?.length || 0;
+    const totalPoints = historicalCount + values.length;
+    const getX = (index) => {
+      return (index + 0.5) / totalPoints * 100;
+    };
+    values.forEach((v, i) => {
+      const x = getX(historicalCount + i);
+      forecastPoints.push({ x, y: getY(v.predicted) });
+      upperPoints.push({ x, y: getY(v.upper_bound) });
+      lowerPoints.push({ x, y: getY(v.lower_bound) });
+    });
+    const historicalPoints = [];
+    if (historicalData) {
+      historicalData.forEach((h, i) => {
+        historicalPoints.push({ x: getX(i), y: getY(h.value) });
+      });
+    }
+    const historicalPath = calculateLinePath(historicalPoints);
+    const forecastPath = calculateLinePath(forecastPoints);
+    const bandPath = calculateBandPath(upperPoints, lowerPoints);
+    const metricLabel = forecast.metric.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
+    const allWeeks = [];
+    if (historicalData) {
+      historicalData.forEach((h) => allWeeks.push(h.week));
+    }
+    values.forEach((v) => allWeeks.push(v.period_start));
+    const labelStep = Math.ceil(allWeeks.length / 6);
+    const xAxisLabels = allWeeks.filter((_, i) => i % labelStep === 0).map((week, i) => {
+      const x = getX(i * labelStep);
+      const formatted = formatWeekLabel(week);
+      return `<text x="${x}%" y="${chartHeight - 2}" class="axis-label">${escapeHtml(formatted)}</text>`;
+    }).join("");
+    const latestValue = values[values.length - 1];
+    const accessibleSummary = latestValue ? `${metricLabel} forecast: ${latestValue.predicted.toFixed(1)} ${forecast.unit} (range ${latestValue.lower_bound.toFixed(1)} to ${latestValue.upper_bound.toFixed(1)})` : `${metricLabel} forecast chart`;
+    const safeMetricId = sanitizeForId(forecast.metric);
+    return `
+    <div class="forecast-chart" role="region" aria-label="${escapeHtml(metricLabel)} forecast">
+      <div class="chart-header">
+        <h4 id="chart-${safeMetricId}">${escapeHtml(metricLabel)}</h4>
+        <span class="chart-unit">(${escapeHtml(forecast.unit)})</span>
+      </div>
+      <div class="chart-svg-container">
+        <svg viewBox="0 0 100 ${chartHeight}" preserveAspectRatio="none" class="forecast-svg"
+             role="img" aria-labelledby="chart-${safeMetricId}"
+             aria-describedby="chart-desc-${safeMetricId}">
+          <desc id="chart-desc-${safeMetricId}">${escapeHtml(accessibleSummary)}</desc>
+          <!-- Confidence band fill -->
+          ${bandPath ? `<path class="confidence-band" d="${bandPath}" />` : ""}
+          <!-- Historical data line (solid) -->
+          ${historicalPath ? `<path class="historical-line" d="${historicalPath}" vector-effect="non-scaling-stroke" />` : ""}
+          <!-- Forecast line (dashed) -->
+          ${forecastPath ? `<path class="forecast-line" d="${forecastPath}" vector-effect="non-scaling-stroke" />` : ""}
+        </svg>
+        <svg viewBox="0 0 100 ${chartHeight}" preserveAspectRatio="xMidYMax meet" class="axis-svg" aria-hidden="true">
+          ${xAxisLabels}
+        </svg>
+      </div>
+      <div class="chart-legend" role="list" aria-label="Chart legend">
+        <div class="legend-item" role="listitem">
+          <span class="legend-line historical" aria-hidden="true"></span>
+          <span>Historical</span>
+        </div>
+        <div class="legend-item" role="listitem">
+          <span class="legend-line forecast" aria-hidden="true"></span>
+          <span>Forecast</span>
+        </div>
+        <div class="legend-item" role="listitem">
+          <span class="legend-band" aria-hidden="true"></span>
+          <span>Confidence</span>
+        </div>
+      </div>
+    </div>
+  `;
+  }
+  function formatWeekLabel(weekStr) {
+    try {
+      const date = new Date(weekStr);
+      if (isNaN(date.getTime())) return weekStr;
+      const month = date.toLocaleString("en-US", { month: "short" });
+      const day = date.getDate();
+      return `${month} ${day}`;
+    } catch {
+      return weekStr;
+    }
+  }
+  function isoWeekToDate(isoWeek) {
+    const match = isoWeek.match(/^(\d{4})-W(\d{2})$/);
+    if (!match || !match[1] || !match[2]) return isoWeek;
+    const year = parseInt(match[1], 10);
+    const week = parseInt(match[2], 10);
+    const jan4 = new Date(year, 0, 4);
+    const dayOfWeek = jan4.getDay() || 7;
+    const firstMonday = new Date(jan4);
+    firstMonday.setDate(jan4.getDate() - dayOfWeek + 1);
+    const targetDate = new Date(firstMonday);
+    targetDate.setDate(firstMonday.getDate() + (week - 1) * 7);
+    const isoString = targetDate.toISOString().split("T")[0];
+    return isoString || isoWeek;
+  }
+  function extractHistoricalData(rollups, metric) {
+    if (!rollups || rollups.length === 0) return [];
+    const metricFieldMap = {
+      pr_throughput: "pr_count",
+      cycle_time_minutes: "cycle_time_p50"
+    };
+    const field = metricFieldMap[metric];
+    if (!field) return [];
+    return rollups.filter((r) => r[field] !== null && r[field] !== void 0).map((r) => ({
+      // Convert ISO week format to date if needed
+      week: r.week.includes("-W") ? isoWeekToDate(r.week) : r.week,
+      value: Number(r[field])
+    })).sort((a, b) => a.week.localeCompare(b.week));
+  }
+  function renderPredictionsWithCharts(container, predictions, rollups) {
     if (!container) return;
     if (!predictions) return;
     const content = document.createElement("div");
-    content.className = "predictions-content";
+    content.className = "predictions-charts-content";
+    const headerHtml = `
+    <div class="predictions-header">
+      ${renderForecasterIndicator(predictions.forecaster)}
+      ${renderDataQualityBanner(predictions.data_quality)}
+    </div>
+  `;
+    appendTrustedHtml(content, headerHtml);
     if (predictions.is_stub) {
-      const warning = createElement(
-        "div",
-        { class: "stub-warning" },
-        "\u26A0\uFE0F Demo data"
-      );
-      content.appendChild(warning);
-    }
-    predictions.forecasts.forEach((forecast) => {
-      const label = forecast.metric.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
       appendTrustedHtml(
         content,
-        `
-            <div class="forecast-section">
-                <h4>${escapeHtml(label)} (${escapeHtml(String(forecast.unit))})</h4>
-                <table class="forecast-table">
-                    <thead><tr><th>Week</th><th>Predicted</th><th>Range</th></tr></thead>
-                    <tbody>
-                        ${forecast.values.map(
-          (v) => `
-                            <tr>
-                                <td>${escapeHtml(String(v.period_start))}</td>
-                                <td>${escapeHtml(String(v.predicted))}</td>
-                                <td>${escapeHtml(String(v.lower_bound))} - ${escapeHtml(String(v.upper_bound))}</td>
-                            </tr>
-                        `
-        ).join("")}
-                    </tbody>
-                </table>
-            </div>
-        `
+        `<div class="preview-banner">
+        <span class="preview-icon">&#x26A0;</span>
+        <div class="preview-text">
+          <strong>PREVIEW - Demo Data</strong>
+          <span>This is synthetic data for preview purposes only. Run the analytics pipeline to see real metrics.</span>
+        </div>
+      </div>`
       );
+    }
+    if (!predictions.forecasts || predictions.forecasts.length === 0) {
+      appendTrustedHtml(
+        content,
+        `<div class="predictions-empty-message">
+        <p>No forecast data available.</p>
+        <p>Run the analytics pipeline with predictions enabled to generate forecasts.</p>
+      </div>`
+      );
+      container.appendChild(content);
+      return;
+    }
+    predictions.forecasts.forEach((forecast) => {
+      const historicalData = rollups ? extractHistoricalData(rollups, forecast.metric) : void 0;
+      const chartHtml = renderForecastChart(forecast, historicalData);
+      appendTrustedHtml(content, chartHtml);
     });
+    const hasReviewTime = predictions.forecasts.some(
+      (f) => f.metric === "review_time_minutes"
+    );
+    if (!hasReviewTime && predictions.forecasts.length > 0) {
+      appendTrustedHtml(
+        content,
+        `<div class="metric-unavailable">
+        <span class="info-icon">&#x2139;</span>
+        <span class="info-text">Review time forecasts require dedicated review duration data collection, which is not currently available.</span>
+      </div>`
+      );
+    }
     const unavailable = container.querySelector(".feature-unavailable");
     if (unavailable) unavailable.classList.add("hidden");
     container.appendChild(content);
+  }
+
+  // ui/modules/ml.ts
+  var SEVERITY_ICONS = {
+    critical: { icon: "\u{1F534}", label: "Critical" },
+    warning: { icon: "\u{1F7E1}", label: "Warning" },
+    info: { icon: "\u{1F535}", label: "Informational" }
+  };
+  var PRIORITY_BADGES = {
+    high: { label: "High Priority", cssClass: "priority-high" },
+    medium: { label: "Medium Priority", cssClass: "priority-medium" },
+    low: { label: "Low Priority", cssClass: "priority-low" }
+  };
+  var EFFORT_BADGES = {
+    high: { label: "High Effort", cssClass: "effort-high" },
+    medium: { label: "Medium Effort", cssClass: "effort-medium" },
+    low: { label: "Low Effort", cssClass: "effort-low" }
+  };
+  var TREND_ICONS = {
+    up: "\u2197",
+    down: "\u2198",
+    stable: "\u2192"
+  };
+  function renderInsightSparkline(values, width = 60, height = 20) {
+    if (!values || values.length < 2) {
+      return `<span class="sparkline-empty" aria-label="No trend data available">\u2014</span>`;
+    }
+    const minVal = Math.min(...values);
+    const maxVal = Math.max(...values);
+    const range = maxVal - minVal || 1;
+    const padding = 2;
+    const effectiveHeight = height - padding * 2;
+    const effectiveWidth = width - padding * 2;
+    const points = values.map((val, i) => {
+      const x = padding + i / (values.length - 1) * effectiveWidth;
+      const y = padding + (1 - (val - minVal) / range) * effectiveHeight;
+      return `${x.toFixed(1)},${y.toFixed(1)}`;
+    }).join(" ");
+    const firstVal = values[0] ?? 0;
+    const lastVal = values[values.length - 1] ?? 0;
+    const trendDescription = lastVal > firstVal ? "upward trend" : lastVal < firstVal ? "downward trend" : "stable trend";
+    return `
+    <svg class="sparkline" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}"
+         role="img" aria-label="Sparkline showing ${trendDescription} over ${values.length} data points">
+      <polyline
+        points="${points}"
+        fill="none"
+        stroke="currentColor"
+        stroke-width="1.5"
+        stroke-linecap="round"
+        stroke-linejoin="round"
+      />
+    </svg>
+  `;
+  }
+  function renderInsightDataSection(data) {
+    if (!data) return "";
+    const metricLabel = data.metric.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
+    const trendIcon = TREND_ICONS[data.trend_direction] || "";
+    const trendClass = `trend-${data.trend_direction}`;
+    const changeDisplay = data.change_percent !== void 0 ? `${data.change_percent > 0 ? "+" : ""}${data.change_percent.toFixed(1)}%` : "";
+    return `
+    <div class="insight-data-section">
+      <div class="insight-metric">
+        <span class="metric-label">${escapeHtml(metricLabel)}</span>
+        <span class="metric-value">${escapeHtml(String(data.current_value))}</span>
+        ${changeDisplay ? `<span class="metric-change ${trendClass}">${trendIcon} ${escapeHtml(changeDisplay)}</span>` : ""}
+      </div>
+      <div class="insight-sparkline">
+        ${renderInsightSparkline(data.sparkline)}
+      </div>
+    </div>
+  `;
+  }
+  function renderRecommendationSection(recommendation) {
+    if (!recommendation) return "";
+    const priorityBadge = PRIORITY_BADGES[recommendation.priority] ?? { label: "Medium Priority", cssClass: "priority-medium" };
+    const effortBadge = EFFORT_BADGES[recommendation.effort] ?? { label: "Medium Effort", cssClass: "effort-medium" };
+    return `
+    <div class="insight-recommendation">
+      <div class="recommendation-header">
+        <span class="recommendation-label">Recommendation</span>
+        <div class="recommendation-badges">
+          <span class="badge ${priorityBadge.cssClass}">${escapeHtml(priorityBadge.label)}</span>
+          <span class="badge ${effortBadge.cssClass}">${escapeHtml(effortBadge.label)}</span>
+        </div>
+      </div>
+      <p class="recommendation-action">${escapeHtml(recommendation.action)}</p>
+    </div>
+  `;
+  }
+  function renderAffectedEntities(entities) {
+    if (!entities || entities.length === 0) return "";
+    const entityItems = entities.map((entity) => {
+      const memberCount = entity.member_count !== void 0 ? `<span class="entity-count">(${entity.member_count})</span>` : "";
+      const entityIcon = entity.type === "team" ? "\u{1F465}" : entity.type === "repository" ? "\u{1F4C1}" : "\u{1F464}";
+      return `
+        <span class="entity-item ${escapeHtml(entity.type)}">
+          <span class="entity-icon">${entityIcon}</span>
+          <span class="entity-name">${escapeHtml(entity.name)}</span>
+          ${memberCount}
+        </span>
+      `;
+    }).join("");
+    return `
+    <div class="insight-affected-entities">
+      <span class="entities-label">Affects:</span>
+      <div class="entities-list">${entityItems}</div>
+    </div>
+  `;
+  }
+  function renderRichInsightCard(insight) {
+    const defaultSeverity = { icon: "\u{1F535}", label: "Informational" };
+    const severityInfo = SEVERITY_ICONS[insight.severity] ?? defaultSeverity;
+    return `
+    <article class="insight-card rich-card ${escapeHtml(String(insight.severity))}"
+             role="article" aria-labelledby="insight-title-${escapeHtml(String(insight.id))}">
+      <div class="insight-header">
+        <span class="severity-icon" role="img" aria-label="${severityInfo.label} severity">${severityInfo.icon}</span>
+        <span class="insight-category">${escapeHtml(String(insight.category))}</span>
+      </div>
+      <h5 class="insight-title" id="insight-title-${escapeHtml(String(insight.id))}">${escapeHtml(String(insight.title))}</h5>
+      <p class="insight-description">${escapeHtml(String(insight.description))}</p>
+      ${renderInsightDataSection(insight.data)}
+      ${renderAffectedEntities(insight.affected_entities)}
+      ${renderRecommendationSection(insight.recommendation)}
+    </article>
+  `;
+  }
+  function renderPreviewBanner() {
+    return `
+    <div class="preview-banner">
+      <span class="preview-icon">&#x26A0;</span>
+      <div class="preview-text">
+        <strong>PREVIEW - Demo Data</strong>
+        <span>This is synthetic data for preview purposes only. Run the analytics pipeline to see real metrics.</span>
+      </div>
+    </div>
+  `;
+  }
+  function renderPredictions(container, predictions, rollups) {
+    renderPredictionsWithCharts(container, predictions, rollups);
   }
   function renderAIInsights(container, insights) {
     if (!container) return;
@@ -1594,36 +1929,30 @@ var PRInsightsDashboard = (() => {
     const content = document.createElement("div");
     content.className = "insights-content";
     if (insights.is_stub) {
-      const warning = createElement(
-        "div",
-        { class: "stub-warning" },
-        "\u26A0\uFE0F Demo data"
-      );
-      content.appendChild(warning);
+      appendTrustedHtml(content, renderPreviewBanner());
     }
+    const defaultSeverityInfo = { icon: "\u{1F535}", label: "Informational" };
     ["critical", "warning", "info"].forEach((severity) => {
       const items = insights.insights.filter(
         (i) => i.severity === severity
       );
       if (!items.length) return;
+      const severityInfo = SEVERITY_ICONS[severity] ?? defaultSeverityInfo;
+      const sectionLabel = `${severity.charAt(0).toUpperCase() + severity.slice(1)} insights`;
       appendTrustedHtml(
         content,
         `
-            <div class="severity-section">
-                <h4>${SEVERITY_ICONS[severity]} ${severity.charAt(0).toUpperCase() + severity.slice(1)}</h4>
-                <div class="insight-cards">
-                    ${items.map(
-          (i) => `
-                        <div class="insight-card ${escapeHtml(String(i.severity))}">
-                            <div class="insight-category">${escapeHtml(String(i.category))}</div>
-                            <h5>${escapeHtml(String(i.title))}</h5>
-                            <p>${escapeHtml(String(i.description))}</p>
-                        </div>
-                    `
-        ).join("")}
-                </div>
-            </div>
-        `
+        <section class="severity-section" role="region" aria-label="${sectionLabel}">
+          <h4>
+            <span role="img" aria-hidden="true">${severityInfo.icon}</span>
+            <span>${severity.charAt(0).toUpperCase() + severity.slice(1)}</span>
+            <span class="visually-hidden">(${items.length} ${items.length === 1 ? "item" : "items"})</span>
+          </h4>
+          <div class="insight-cards" role="feed" aria-label="${sectionLabel} list">
+            ${items.map((i) => renderRichInsightCard(i)).join("")}
+          </div>
+        </section>
+      `
       );
     });
     const unavailable = container.querySelector(".feature-unavailable");
@@ -2730,7 +3059,7 @@ var PRInsightsDashboard = (() => {
       const predictionsResult = await loader.loadPredictions();
       const predData = predictionsResult?.data;
       if (predictionsResult?.state === "ok" && predData?.forecasts?.length && predData.forecasts.length > 0) {
-        renderPredictions2(predictionsContent, predData);
+        renderPredictions2(predictionsContent, predData, cachedRollups);
       } else if (predictionsUnavailable) {
         predictionsUnavailable.classList.remove("hidden");
       }
@@ -2747,8 +3076,8 @@ var PRInsightsDashboard = (() => {
       }
     }
   }
-  function renderPredictions2(container, predictions) {
-    renderPredictions(container, predictions);
+  function renderPredictions2(container, predictions, rollups) {
+    renderPredictions(container, predictions, rollups);
   }
   function renderAIInsights2(container, insights) {
     renderAIInsights(container, insights);

@@ -1,0 +1,146 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "insights-summary-v2",
+  "title": "AI Insights Schema v2",
+  "description": "Schema for insights/summary.json output with enhanced fields",
+  "type": "object",
+  "required": ["schema_version", "generated_at", "generated_by", "is_stub", "insights"],
+  "properties": {
+    "schema_version": {
+      "type": "integer",
+      "enum": [1, 2]
+    },
+    "generated_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "generated_by": {
+      "type": "string",
+      "enum": ["openai-v1.0", "synthetic-preview"]
+    },
+    "is_stub": {
+      "type": "boolean"
+    },
+    "model": {
+      "type": "string"
+    },
+    "cached": {
+      "type": "boolean"
+    },
+    "cache_age_hours": {
+      "type": "number",
+      "minimum": 0
+    },
+    "insights": {
+      "type": "array",
+      "minItems": 3,
+      "maxItems": 3,
+      "items": {
+        "$ref": "#/$defs/InsightItem"
+      }
+    }
+  },
+  "$defs": {
+    "InsightItem": {
+      "type": "object",
+      "required": ["id", "category", "severity", "title", "description", "affected_entities"],
+      "properties": {
+        "id": {
+          "type": "string",
+          "pattern": "^[a-z]+-[a-z0-9-]+$"
+        },
+        "category": {
+          "type": "string",
+          "enum": ["bottleneck", "trend", "anomaly", "achievement"]
+        },
+        "severity": {
+          "type": "string",
+          "enum": ["critical", "warning", "info"]
+        },
+        "title": {
+          "type": "string",
+          "maxLength": 100
+        },
+        "description": {
+          "type": "string"
+        },
+        "affected_entities": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/AffectedEntity"
+          }
+        },
+        "data": {
+          "$ref": "#/$defs/InsightData"
+        },
+        "recommendation": {
+          "$ref": "#/$defs/Recommendation"
+        }
+      }
+    },
+    "AffectedEntity": {
+      "type": "object",
+      "required": ["type", "name"],
+      "properties": {
+        "type": {
+          "type": "string",
+          "enum": ["team", "repository", "author"]
+        },
+        "name": {
+          "type": "string"
+        },
+        "member_count": {
+          "type": "integer",
+          "minimum": 1
+        }
+      }
+    },
+    "InsightData": {
+      "type": "object",
+      "required": ["metric", "current_value", "trend_direction"],
+      "properties": {
+        "metric": {
+          "type": "string"
+        },
+        "current_value": {
+          "type": "number"
+        },
+        "previous_value": {
+          "type": "number"
+        },
+        "change_percent": {
+          "type": "number"
+        },
+        "trend_direction": {
+          "type": "string",
+          "enum": ["up", "down", "stable"]
+        },
+        "sparkline": {
+          "type": "array",
+          "items": {
+            "type": "number"
+          },
+          "minItems": 5,
+          "maxItems": 5
+        }
+      }
+    },
+    "Recommendation": {
+      "type": "object",
+      "required": ["action", "priority", "effort"],
+      "properties": {
+        "action": {
+          "type": "string"
+        },
+        "priority": {
+          "type": "string",
+          "enum": ["high", "medium", "low"]
+        },
+        "effort": {
+          "type": "string",
+          "enum": ["high", "medium", "low"]
+        }
+      }
+    }
+  }
+}
