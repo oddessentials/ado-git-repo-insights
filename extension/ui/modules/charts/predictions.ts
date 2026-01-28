@@ -343,10 +343,10 @@ export function extractHistoricalData(
   if (!rollups || rollups.length === 0) return [];
 
   // Map metric names to rollup fields
+  // Note: review_time_minutes removed - it used cycle_time as misleading proxy
   const metricFieldMap: Record<string, keyof RollupForChart> = {
     pr_throughput: "pr_count",
     cycle_time_minutes: "cycle_time_p50",
-    review_time_minutes: "cycle_time_p50", // Uses cycle time as proxy
   };
 
   const field = metricFieldMap[metric];
@@ -467,6 +467,21 @@ export function renderPredictionsWithCharts(
     const chartHtml = renderForecastChart(forecast, historicalData);
     appendTrustedHtml(content, chartHtml);
   });
+
+  // Show informational message about review time unavailability (T016)
+  // Review time forecasts were removed because they used cycle time as a misleading proxy
+  const hasReviewTime = predictions.forecasts.some(
+    (f) => f.metric === "review_time_minutes",
+  );
+  if (!hasReviewTime && predictions.forecasts.length > 0) {
+    appendTrustedHtml(
+      content,
+      `<div class="metric-unavailable">
+        <span class="info-icon">&#x2139;</span>
+        <span class="info-text">Review time forecasts require dedicated review duration data collection, which is not currently available.</span>
+      </div>`,
+    );
+  }
 
   // Hide unavailable message if present
   const unavailable = container.querySelector(".feature-unavailable");

@@ -1715,9 +1715,7 @@ var PRInsightsDashboard = (() => {
     if (!rollups || rollups.length === 0) return [];
     const metricFieldMap = {
       pr_throughput: "pr_count",
-      cycle_time_minutes: "cycle_time_p50",
-      review_time_minutes: "cycle_time_p50"
-      // Uses cycle time as proxy
+      cycle_time_minutes: "cycle_time_p50"
     };
     const field = metricFieldMap[metric];
     if (!field) return [];
@@ -1767,6 +1765,18 @@ var PRInsightsDashboard = (() => {
       const chartHtml = renderForecastChart(forecast, historicalData);
       appendTrustedHtml(content, chartHtml);
     });
+    const hasReviewTime = predictions.forecasts.some(
+      (f) => f.metric === "review_time_minutes"
+    );
+    if (!hasReviewTime && predictions.forecasts.length > 0) {
+      appendTrustedHtml(
+        content,
+        `<div class="metric-unavailable">
+        <span class="info-icon">&#x2139;</span>
+        <span class="info-text">Review time forecasts require dedicated review duration data collection, which is not currently available.</span>
+      </div>`
+      );
+    }
     const unavailable = container.querySelector(".feature-unavailable");
     if (unavailable) unavailable.classList.add("hidden");
     container.appendChild(content);

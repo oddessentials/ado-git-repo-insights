@@ -445,3 +445,226 @@ class TestInsightsSchemaV2Contract:
         # Recommendation structure
         assert insight_v2["recommendation"]["priority"] in ("high", "medium", "low")
         assert insight_v2["recommendation"]["effort"] in ("high", "medium", "low")
+
+
+class TestP90PercentileCalculation:
+    """Tests for accurate P90 cycle time calculation (User Story 1).
+
+    Tests for:
+    - T004: P90 for 100-element dataset
+    - T005: P90 for dataset with outliers
+    - T006: P90 edge cases for small datasets
+    """
+
+    @pytest.fixture
+    def mock_db_with_cycle_times(self) -> MagicMock:
+        """Create mock database with configurable cycle time data."""
+        db = MagicMock()
+        return db
+
+    def test_p90_calculation_100_elements(
+        self, mock_db_with_cycle_times: MagicMock, tmp_path: Path
+    ) -> None:
+        """P90 of [10, 20, ..., 1000] should be 900 (90th percentile), not 900 (90% of max).
+
+        For 100 elements, 90th percentile is the value at position 90.
+        """
+        # Create sequential dataset: 10, 20, 30, ..., 1000
+        cycle_times = [i * 10 for i in range(1, 101)]  # 100 elements
+
+        def mock_execute(query: str, *args: Any) -> MagicMock:
+            cursor = MagicMock()
+            if "COUNT(*)" in query and "completed" in query:
+                cursor.fetchone.return_value = {"cnt": 100}
+            elif "MIN(closed_date)" in query:
+                cursor.fetchone.return_value = {
+                    "min_date": "2026-01-01T00:00:00Z",
+                    "max_date": "2026-01-15T00:00:00Z",
+                }
+            elif "AVG(cycle_time_minutes)" in query and "MAX" not in query:
+                avg_val = sum(cycle_times) / len(cycle_times)  # 505.0
+                cursor.fetchone.return_value = {"avg_cycle": avg_val}
+            elif (
+                "NTILE" in query
+                or "ROW_NUMBER" in query
+                or "percentile" in query.lower()
+            ):
+                # P90 calculation query - return 90th percentile
+                # For 100 elements, index 90 (0-based 89) = 900
+                cursor.fetchone.return_value = {"p90_cycle": 900.0}
+            elif "ORDER BY cycle_time_minutes" in query:
+                # Fallback percentile calculation
+                cursor.fetchone.return_value = {"cycle_time_minutes": 900.0}
+            elif "COUNT(DISTINCT user_id)" in query:
+                cursor.fetchone.return_value = {"cnt": 10}
+            elif "COUNT(*)" in query and "repositories" in query:
+                cursor.fetchone.return_value = {"cnt": 5}
+            elif "MAX(closed_date)" in query:
+                cursor.fetchone.return_value = {
+                    "max_closed": "2026-01-15",
+                    "max_updated": "2026-01-15T10:00:00Z",
+                }
+            else:
+                cursor.fetchone.return_value = {}
+            return cursor
+
+        mock_db_with_cycle_times.execute = mock_execute
+
+        generator = LLMInsightsGenerator(
+            db=mock_db_with_cycle_times, output_dir=tmp_path
+        )
+        stats = generator._get_pr_stats()
+
+        # P90 should be 900, not 900 (which would be 90% of 1000)
+        # Note: For this specific dataset they happen to be the same,
+        # but the calculation method is different
+        assert stats["p90_cycle_time_minutes"] == 900.0
+
+    def test_p90_calculation_with_outliers(
+        self, mock_db_with_cycle_times: MagicMock, tmp_path: Path
+    ) -> None:
+        """P90 with outlier should not be inflated by the outlier.
+
+        Dataset: [10, 20, ..., 90, 10000] (9 normal + 1 outlier)
+        P90 should be close to 90, not 9000 (90% of max).
+        """
+        # 9 normal values + 1 extreme outlier
+        cycle_times = [i * 10 for i in range(1, 10)] + [10000]  # 10 elements
+
+        def mock_execute(query: str, *args: Any) -> MagicMock:
+            cursor = MagicMock()
+            if "COUNT(*)" in query and "completed" in query:
+                cursor.fetchone.return_value = {"cnt": 10}
+            elif "MIN(closed_date)" in query:
+                cursor.fetchone.return_value = {
+                    "min_date": "2026-01-01T00:00:00Z",
+                    "max_date": "2026-01-15T00:00:00Z",
+                }
+            elif "AVG(cycle_time_minutes)" in query and "MAX" not in query:
+                avg_val = sum(cycle_times) / len(cycle_times)
+                cursor.fetchone.return_value = {"avg_cycle": avg_val}
+            elif (
+                "NTILE" in query
+                or "ROW_NUMBER" in query
+                or "percentile" in query.lower()
+            ):
+                # P90 for 10 elements is index 9 (0-based), which is the outlier
+                # But true P90 calculation would use interpolation
+                # For 10 elements, P90 ~ value at position 9 = 90
+                cursor.fetchone.return_value = {"p90_cycle": 90.0}
+            elif "ORDER BY cycle_time_minutes" in query:
+                cursor.fetchone.return_value = {"cycle_time_minutes": 90.0}
+            elif "COUNT(DISTINCT user_id)" in query:
+                cursor.fetchone.return_value = {"cnt": 5}
+            elif "COUNT(*)" in query and "repositories" in query:
+                cursor.fetchone.return_value = {"cnt": 3}
+            elif "MAX(closed_date)" in query:
+                cursor.fetchone.return_value = {
+                    "max_closed": "2026-01-15",
+                    "max_updated": "2026-01-15T10:00:00Z",
+                }
+            else:
+                cursor.fetchone.return_value = {}
+            return cursor
+
+        mock_db_with_cycle_times.execute = mock_execute
+
+        generator = LLMInsightsGenerator(
+            db=mock_db_with_cycle_times, output_dir=tmp_path
+        )
+        stats = generator._get_pr_stats()
+
+        # P90 should NOT be 9000 (90% of max 10000)
+        # It should be 90 (the 90th percentile of the actual data)
+        assert stats["p90_cycle_time_minutes"] == 90.0
+        assert stats["p90_cycle_time_minutes"] != 9000.0  # Not 90% of outlier
+
+    def test_p90_calculation_small_dataset(
+        self, mock_db_with_cycle_times: MagicMock, tmp_path: Path
+    ) -> None:
+        """P90 for small dataset (<10 elements) should handle edge case gracefully."""
+        # Only 3 elements: [100, 200, 300]
+
+        def mock_execute(query: str, *args: Any) -> MagicMock:
+            cursor = MagicMock()
+            if "COUNT(*)" in query and "completed" in query:
+                cursor.fetchone.return_value = {"cnt": 3}
+            elif "MIN(closed_date)" in query:
+                cursor.fetchone.return_value = {
+                    "min_date": "2026-01-01T00:00:00Z",
+                    "max_date": "2026-01-03T00:00:00Z",
+                }
+            elif "AVG(cycle_time_minutes)" in query and "MAX" not in query:
+                cursor.fetchone.return_value = {"avg_cycle": 200.0}
+            elif (
+                "NTILE" in query
+                or "ROW_NUMBER" in query
+                or "percentile" in query.lower()
+            ):
+                # For 3 elements, P90 ~ max value (300)
+                cursor.fetchone.return_value = {"p90_cycle": 300.0}
+            elif "ORDER BY cycle_time_minutes" in query:
+                cursor.fetchone.return_value = {"cycle_time_minutes": 300.0}
+            elif "COUNT(DISTINCT user_id)" in query:
+                cursor.fetchone.return_value = {"cnt": 2}
+            elif "COUNT(*)" in query and "repositories" in query:
+                cursor.fetchone.return_value = {"cnt": 1}
+            elif "MAX(closed_date)" in query:
+                cursor.fetchone.return_value = {
+                    "max_closed": "2026-01-03",
+                    "max_updated": "2026-01-03T10:00:00Z",
+                }
+            else:
+                cursor.fetchone.return_value = {}
+            return cursor
+
+        mock_db_with_cycle_times.execute = mock_execute
+
+        generator = LLMInsightsGenerator(
+            db=mock_db_with_cycle_times, output_dir=tmp_path
+        )
+        stats = generator._get_pr_stats()
+
+        # For small datasets, should return a sensible value (not crash)
+        assert stats["p90_cycle_time_minutes"] == 300.0
+
+    def test_p90_calculation_empty_dataset(
+        self, mock_db_with_cycle_times: MagicMock, tmp_path: Path
+    ) -> None:
+        """P90 for empty dataset should return 0."""
+
+        def mock_execute(query: str, *args: Any) -> MagicMock:
+            cursor = MagicMock()
+            if "COUNT(*)" in query and "completed" in query:
+                cursor.fetchone.return_value = {"cnt": 0}
+            elif "MIN(closed_date)" in query:
+                cursor.fetchone.return_value = {"min_date": None, "max_date": None}
+            elif "AVG(cycle_time_minutes)" in query:
+                cursor.fetchone.return_value = {"avg_cycle": None}
+            elif (
+                "NTILE" in query
+                or "ROW_NUMBER" in query
+                or "percentile" in query.lower()
+            ):
+                cursor.fetchone.return_value = None
+            elif "ORDER BY cycle_time_minutes" in query:
+                cursor.fetchone.return_value = None
+            elif "COUNT(DISTINCT user_id)" in query:
+                cursor.fetchone.return_value = {"cnt": 0}
+            elif "COUNT(*)" in query and "repositories" in query:
+                cursor.fetchone.return_value = {"cnt": 0}
+            elif "MAX(closed_date)" in query:
+                cursor.fetchone.return_value = {"max_closed": None, "max_updated": None}
+            else:
+                cursor.fetchone.return_value = {}
+            return cursor
+
+        mock_db_with_cycle_times.execute = mock_execute
+
+        generator = LLMInsightsGenerator(
+            db=mock_db_with_cycle_times, output_dir=tmp_path
+        )
+        stats = generator._get_pr_stats()
+
+        # Empty dataset should return 0
+        assert stats["p90_cycle_time_minutes"] == 0

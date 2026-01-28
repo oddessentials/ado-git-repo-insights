@@ -19,6 +19,11 @@ import {
   initializePhase5Features,
   createInitialMlState,
 } from "../../ui/modules/ml";
+import {
+  createSeededRandom,
+  generateSyntheticPredictions,
+  generateSyntheticInsights,
+} from "../../ui/modules/ml/synthetic";
 import type {
   PredictionsRenderData,
   InsightsRenderData,
@@ -430,5 +435,170 @@ describe("createMlRenderer", () => {
 describe("initializePhase5Features", () => {
   it("completes without error", () => {
     expect(() => initializePhase5Features()).not.toThrow();
+  });
+});
+
+/**
+ * Synthetic Data Determinism Tests (T018-T020)
+ *
+ * Verifies that synthetic preview data is deterministic across page reloads
+ * by using seeded PRNG (mulberry32) instead of Math.random().
+ */
+describe("Synthetic Data Determinism", () => {
+  describe("createSeededRandom (T018)", () => {
+    it("produces consistent sequence across multiple calls", () => {
+      const random1 = createSeededRandom();
+      const random2 = createSeededRandom();
+
+      // Generate 10 values from each generator
+      const sequence1 = Array.from({ length: 10 }, () => random1());
+      const sequence2 = Array.from({ length: 10 }, () => random2());
+
+      // Both generators should produce identical sequences
+      expect(sequence1).toEqual(sequence2);
+    });
+
+    it("produces values in range [0, 1)", () => {
+      const random = createSeededRandom();
+
+      for (let i = 0; i < 100; i++) {
+        const value = random();
+        expect(value).toBeGreaterThanOrEqual(0);
+        expect(value).toBeLessThan(1);
+      }
+    });
+
+    it("produces non-trivial variance (not all same value)", () => {
+      const random = createSeededRandom();
+      const values = Array.from({ length: 10 }, () => random());
+
+      // At least some values should be different
+      const uniqueValues = new Set(values);
+      expect(uniqueValues.size).toBeGreaterThan(1);
+    });
+  });
+
+  describe("generateSyntheticPredictions (T019)", () => {
+    it("returns identical values on consecutive calls", () => {
+      const predictions1 = generateSyntheticPredictions();
+      const predictions2 = generateSyntheticPredictions();
+
+      // Compare forecasts (excluding generated_at which varies by time)
+      expect(predictions1.forecasts).toEqual(predictions2.forecasts);
+      expect(predictions1.is_stub).toEqual(predictions2.is_stub);
+      expect(predictions1.generated_by).toEqual(predictions2.generated_by);
+      expect(predictions1.forecaster).toEqual(predictions2.forecaster);
+      expect(predictions1.data_quality).toEqual(predictions2.data_quality);
+    });
+
+    it("has is_stub flag set to true", () => {
+      const predictions = generateSyntheticPredictions();
+      expect(predictions.is_stub).toBe(true);
+    });
+
+    it("has generated_by set to synthetic-preview", () => {
+      const predictions = generateSyntheticPredictions();
+      expect(predictions.generated_by).toBe("synthetic-preview");
+    });
+
+    it("contains exactly 2 forecasts (pr_throughput, cycle_time_minutes)", () => {
+      const predictions = generateSyntheticPredictions();
+      expect(predictions.forecasts).toHaveLength(2);
+
+      const metrics = predictions.forecasts.map((f) => f.metric);
+      expect(metrics).toContain("pr_throughput");
+      expect(metrics).toContain("cycle_time_minutes");
+    });
+
+    it("each forecast has 4 weeks of values", () => {
+      const predictions = generateSyntheticPredictions();
+
+      for (const forecast of predictions.forecasts) {
+        expect(forecast.values).toHaveLength(4);
+      }
+    });
+
+    it("forecast values have valid structure", () => {
+      const predictions = generateSyntheticPredictions();
+
+      for (const forecast of predictions.forecasts) {
+        for (const value of forecast.values) {
+          expect(typeof value.period_start).toBe("string");
+          expect(typeof value.predicted).toBe("number");
+          expect(typeof value.lower_bound).toBe("number");
+          expect(typeof value.upper_bound).toBe("number");
+          expect(value.predicted).toBeGreaterThanOrEqual(0);
+          expect(value.lower_bound).toBeGreaterThanOrEqual(0);
+          expect(value.upper_bound).toBeGreaterThanOrEqual(value.predicted);
+        }
+      }
+    });
+  });
+
+  describe("generateSyntheticInsights (T020)", () => {
+    it("returns identical values on consecutive calls", () => {
+      const insights1 = generateSyntheticInsights();
+      const insights2 = generateSyntheticInsights();
+
+      // Compare insights (excluding generated_at which varies by time)
+      expect(insights1.insights).toEqual(insights2.insights);
+      expect(insights1.is_stub).toEqual(insights2.is_stub);
+      expect(insights1.generated_by).toEqual(insights2.generated_by);
+      expect(insights1.schema_version).toEqual(insights2.schema_version);
+    });
+
+    it("has is_stub flag set to true", () => {
+      const insights = generateSyntheticInsights();
+      expect(insights.is_stub).toBe(true);
+    });
+
+    it("has generated_by set to synthetic-preview", () => {
+      const insights = generateSyntheticInsights();
+      expect(insights.generated_by).toBe("synthetic-preview");
+    });
+
+    it("contains exactly 3 insights (one per category)", () => {
+      const insights = generateSyntheticInsights();
+      expect(insights.insights).toHaveLength(3);
+
+      const categories = insights.insights.map((i) => i.category);
+      expect(categories).toContain("bottleneck");
+      expect(categories).toContain("trend");
+      expect(categories).toContain("anomaly");
+    });
+
+    it("each insight has required v2 schema fields", () => {
+      const insights = generateSyntheticInsights();
+
+      for (const insight of insights.insights) {
+        // Required base fields
+        expect(insight.id).toBeDefined();
+        expect(insight.category).toBeDefined();
+        expect(insight.severity).toBeDefined();
+        expect(insight.title).toBeDefined();
+        expect(insight.description).toBeDefined();
+
+        // v2 schema fields
+        expect(insight.data).toBeDefined();
+        expect(insight.recommendation).toBeDefined();
+
+        // data fields
+        expect(insight.data?.metric).toBeDefined();
+        expect(insight.data?.current_value).toBeDefined();
+        expect(insight.data?.sparkline).toBeDefined();
+
+        // recommendation fields
+        expect(insight.recommendation?.action).toBeDefined();
+        expect(insight.recommendation?.priority).toBeDefined();
+      }
+    });
+
+    it("insight IDs are deterministic and start with synthetic-", () => {
+      const insights = generateSyntheticInsights();
+
+      for (const insight of insights.insights) {
+        expect(insight.id).toMatch(/^synthetic-/);
+      }
+    });
   });
 });

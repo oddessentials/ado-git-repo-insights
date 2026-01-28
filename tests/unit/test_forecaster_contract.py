@@ -154,11 +154,11 @@ class TestForecasterContract:
         """Forecast metrics match exact contract enums."""
         from ado_git_repo_insights.ml.forecaster import ProphetForecaster
 
-        valid_metrics = {"pr_throughput", "cycle_time_minutes", "review_time_minutes"}
+        # Review time removed in US2 - only 2 metrics now
+        valid_metrics = {"pr_throughput", "cycle_time_minutes"}
         metric_units = {
             "pr_throughput": "count",
             "cycle_time_minutes": "minutes",
-            "review_time_minutes": "minutes",
         }
 
         with patch.dict(sys.modules, {"prophet": fake_prophet_module}):
@@ -281,3 +281,37 @@ class TestForecasterContract:
         # File should NOT be written
         predictions_file = tmp_path / "predictions" / "trends.json"
         assert not predictions_file.exists()
+
+
+class TestProphetMetricsConfiguration:
+    """Tests for Prophet METRICS configuration (US2 - Review Time Removal)."""
+
+    def test_metrics_has_only_two_entries(self) -> None:
+        """METRICS list should only have pr_throughput and cycle_time_minutes.
+
+        Review time was removed because it used cycle time as a misleading proxy.
+        """
+        from ado_git_repo_insights.ml.forecaster import METRICS
+
+        assert len(METRICS) == 2, f"Expected 2 metrics, got {len(METRICS)}"
+
+    def test_metrics_does_not_include_review_time(self) -> None:
+        """METRICS should not include review_time_minutes."""
+        from ado_git_repo_insights.ml.forecaster import METRICS
+
+        metric_names = [m[0] for m in METRICS]
+        assert "review_time_minutes" not in metric_names
+
+    def test_metrics_includes_pr_throughput(self) -> None:
+        """METRICS should include pr_throughput."""
+        from ado_git_repo_insights.ml.forecaster import METRICS
+
+        metric_names = [m[0] for m in METRICS]
+        assert "pr_throughput" in metric_names
+
+    def test_metrics_includes_cycle_time(self) -> None:
+        """METRICS should include cycle_time_minutes."""
+        from ado_git_repo_insights.ml.forecaster import METRICS
+
+        metric_names = [m[0] for m in METRICS]
+        assert "cycle_time_minutes" in metric_names

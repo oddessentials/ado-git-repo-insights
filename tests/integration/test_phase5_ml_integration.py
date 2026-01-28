@@ -123,12 +123,16 @@ def temp_db(tmp_path: Path) -> DatabaseManager:
     db_path = tmp_path / "test.db"
     db = DatabaseManager(db_path)
     db.connect()  # connect() auto-creates schema for new databases
-    return db
+    yield db
+    db.close()  # Properly close connection to avoid ResourceWarning
 
 
 @pytest.fixture
 def temp_db_with_prs(temp_db: DatabaseManager) -> DatabaseManager:
-    """Database with sample PR data spanning 4+ weeks."""
+    """Database with sample PR data spanning 4+ weeks.
+
+    Note: This fixture depends on temp_db which handles cleanup via yield.
+    """
     # Insert entities in order respecting foreign keys
     temp_db.execute(
         "INSERT INTO organizations (organization_name) VALUES (?)", ("test-org",)
@@ -191,6 +195,7 @@ def temp_db_with_prs(temp_db: DatabaseManager) -> DatabaseManager:
         )
 
     temp_db.connection.commit()
+    # No need for cleanup here - temp_db fixture handles it
     return temp_db
 
 

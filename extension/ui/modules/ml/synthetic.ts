@@ -23,6 +23,39 @@ import type {
 const SYNTHETIC_GENERATOR = "synthetic-preview";
 
 /**
+ * Fixed seed for deterministic synthetic data.
+ * Using memorable hex value "seed food" = 0x5EEDF00D
+ */
+const SYNTHETIC_SEED = 0x5eedf00d;
+
+/**
+ * Mulberry32 seeded PRNG algorithm.
+ *
+ * A fast, high-quality 32-bit PRNG that produces deterministic sequences
+ * for a given seed. Used instead of Math.random() for reproducible preview data.
+ *
+ * @param seed - Initial seed value (32-bit integer)
+ * @returns Function that returns the next random number [0, 1)
+ */
+function mulberry32(seed: number): () => number {
+  return function (): number {
+    let t = (seed += 0x6d2b79f5);
+    t = Math.imul(t ^ (t >>> 15), t | 1);
+    t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+
+/**
+ * Create a seeded random number generator for synthetic data.
+ *
+ * @returns Function that returns deterministic random numbers [0, 1)
+ */
+export function createSeededRandom(): () => number {
+  return mulberry32(SYNTHETIC_SEED);
+}
+
+/**
  * Generate a date string offset from today by the given number of weeks.
  */
 function getWeekOffset(weeks: number): string {
@@ -34,11 +67,17 @@ function getWeekOffset(weeks: number): string {
 /**
  * Generate synthetic forecast values for a metric.
  * Creates 4 weeks of realistic forecast data with confidence bands.
+ *
+ * @param baseValue - Starting value for the metric
+ * @param trend - Direction of trend ("up", "down", or "stable")
+ * @param variability - Amount of noise to add
+ * @param random - Seeded random function for deterministic output
  */
 function generateForecastValues(
   baseValue: number,
   trend: "up" | "down" | "stable",
   variability: number,
+  random: () => number,
 ): ForecastValue[] {
   const values: ForecastValue[] = [];
   let currentValue = baseValue;
@@ -49,8 +88,8 @@ function generateForecastValues(
       trend === "up" ? 1.05 : trend === "down" ? 0.95 : 1.0;
     currentValue = currentValue * trendMultiplier;
 
-    // Add some variability
-    const noise = (Math.random() - 0.5) * variability;
+    // Add some variability using seeded random
+    const noise = (random() - 0.5) * variability;
     const predicted = Math.round(currentValue + noise);
 
     // Confidence bands (wider as we go further out)
@@ -75,26 +114,26 @@ function generateForecastValues(
  * Creates realistic forecast data for:
  * - PR Throughput (trending up)
  * - Cycle Time (trending stable)
- * - Review Time (trending down - improvement)
+ *
+ * Uses seeded PRNG for deterministic output across page reloads.
  *
  * @returns Synthetic predictions data marked as preview
  */
 export function generateSyntheticPredictions(): PredictionsRenderData {
+  // Create seeded random for deterministic output
+  const random = createSeededRandom();
+
+  // Note: review_time_minutes removed - it used cycle_time as misleading proxy
   const forecasts: Forecast[] = [
     {
       metric: "pr_throughput",
       unit: "PRs/week",
-      values: generateForecastValues(25, "up", 5),
+      values: generateForecastValues(25, "up", 5, random),
     },
     {
       metric: "cycle_time_minutes",
       unit: "minutes",
-      values: generateForecastValues(180, "stable", 30),
-    },
-    {
-      metric: "review_time_minutes",
-      unit: "minutes",
-      values: generateForecastValues(60, "down", 15),
+      values: generateForecastValues(180, "stable", 30, random),
     },
   ];
 

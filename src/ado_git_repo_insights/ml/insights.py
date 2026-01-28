@@ -276,12 +276,10 @@ Respond ONLY with valid JSON matching this format."""
         date_range_start = row["min_date"][:10] if row["min_date"] else "N/A"
         date_range_end = row["max_date"][:10] if row["max_date"] else "N/A"
 
-        # Cycle time stats
+        # Average cycle time
         cursor = self.db.execute(
             """
-            SELECT
-                AVG(cycle_time_minutes) as avg_cycle,
-                MAX(cycle_time_minutes) as max_cycle
+            SELECT AVG(cycle_time_minutes) as avg_cycle
             FROM pull_requests
             WHERE cycle_time_minutes IS NOT NULL
             """
@@ -289,8 +287,23 @@ Respond ONLY with valid JSON matching this format."""
         row = cursor.fetchone()
         avg_cycle_time = round(row["avg_cycle"], 1) if row["avg_cycle"] else 0
 
-        # P90 approximation (use 90% of max as rough estimate)
-        p90_cycle_time = round(row["max_cycle"] * 0.9, 1) if row["max_cycle"] else 0
+        # P90 cycle time (true 90th percentile using SQL)
+        # Uses LIMIT/OFFSET approach for SQLite compatibility
+        cursor = self.db.execute(
+            """
+            SELECT cycle_time_minutes
+            FROM pull_requests
+            WHERE cycle_time_minutes IS NOT NULL
+            ORDER BY cycle_time_minutes
+            LIMIT 1 OFFSET (
+                SELECT MAX(0, CAST(COUNT(*) * 0.9 AS INTEGER) - 1)
+                FROM pull_requests
+                WHERE cycle_time_minutes IS NOT NULL
+            )
+            """
+        )
+        row = cursor.fetchone()
+        p90_cycle_time = round(row["cycle_time_minutes"], 1) if row else 0
 
         # Authors
         cursor = self.db.execute(

@@ -46,10 +46,10 @@ LOW_CONFIDENCE_THRESHOLD = 8
 OUTLIER_STD_THRESHOLD = 3.0
 
 # Metric definitions (same as ProphetForecaster)
+# Note: review_time_minutes removed - it used cycle_time as misleading proxy
 METRICS = [
     ("pr_throughput", "count"),
     ("cycle_time_minutes", "minutes"),
-    ("review_time_minutes", "minutes"),
 ]
 
 
@@ -274,7 +274,6 @@ class FallbackForecaster:
         column_map = {
             "pr_throughput": "pr_count",
             "cycle_time_minutes": "cycle_time_p50",
-            "review_time_minutes": "cycle_time_p50",  # Use cycle time as proxy
         }
 
         column = column_map.get(metric)
