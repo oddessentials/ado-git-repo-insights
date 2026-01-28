@@ -1,3 +1,15 @@
+# [5.8.0](https://github.com/oddessentials/ado-git-repo-insights/compare/v5.7.0...v5.8.0) (2026-01-28)
+
+
+### Bug Fixes
+
+* address static analysis feedback and flaky CI test ([0d086bf](https://github.com/oddessentials/ado-git-repo-insights/commit/0d086bfebf4dc0f08e753b751df54cfd9b24ca80))
+
+
+### Features
+
+* **ml:** harden forecaster against edge cases ([c9194e5](https://github.com/oddessentials/ado-git-repo-insights/commit/c9194e530ce2013bcdf193bc9cf757b7e13a27fd))
+
 # [5.7.0](https://github.com/oddessentials/ado-git-repo-insights/compare/v5.6.0...v5.7.0) (2026-01-28)
 
 
