@@ -74,15 +74,28 @@ export interface VssSdkMocks {
 // ============================================================================
 
 /**
- * Default mock web context.
+ * Deep freeze an object to make it immutable.
  */
-export const defaultMockWebContext: MockWebContext = {
+function deepFreeze<T extends object>(obj: T): T {
+  Object.freeze(obj);
+  for (const value of Object.values(obj)) {
+    if (value !== null && typeof value === "object" && !Object.isFrozen(value)) {
+      deepFreeze(value);
+    }
+  }
+  return obj;
+}
+
+/**
+ * Default mock web context (immutable).
+ */
+export const defaultMockWebContext: MockWebContext = deepFreeze({
   account: { name: "test-org", id: "org-123" },
   project: { name: "test-project", id: "proj-456" },
   user: { name: "Test User", id: "user-789", email: "test@example.com" },
   host: { name: "dev.azure.com", id: "host-001" },
   team: { name: "Test Team", id: "team-001" },
-};
+});
 
 /**
  * Current mock web context (can be modified via setMockWebContext).
@@ -288,4 +301,124 @@ export function clearMockSettings(): void {
  */
 export function isVssMocksSetup(): boolean {
   return !!(global as unknown as { VSS?: VssSdkMocks }).VSS;
+}
+
+// ============================================================================
+// Advanced Configuration Helpers
+// ============================================================================
+
+/**
+ * Configure mock build client response for getBuilds.
+ *
+ * @param builds - Array of build objects to return
+ */
+export function setMockBuilds(builds: unknown[]): void {
+  const client = getMockBuildRestClient();
+  client.getBuilds.mockImplementation(() => Promise.resolve(builds));
+}
+
+/**
+ * Configure mock build client response for getBuild.
+ *
+ * @param build - Build object to return
+ */
+export function setMockBuild(build: unknown): void {
+  const client = getMockBuildRestClient();
+  client.getBuild.mockImplementation(() => Promise.resolve(build));
+}
+
+/**
+ * Configure mock build client response for getArtifacts.
+ *
+ * @param artifacts - Array of artifact objects to return
+ */
+export function setMockArtifacts(artifacts: unknown[]): void {
+  const client = getMockBuildRestClient();
+  client.getArtifacts.mockImplementation(() => Promise.resolve(artifacts));
+}
+
+/**
+ * Configure mock extension data service to fail with specific error.
+ *
+ * @param key - Setting key that should fail
+ * @param error - Error to throw
+ */
+export function setMockSettingError(key: string, error: Error): void {
+  const service = getMockExtensionDataService();
+  const originalImpl = service.getValue.getMockImplementation();
+
+  service.getValue.mockImplementation((requestedKey: string) => {
+    if (requestedKey === key) {
+      return Promise.reject(error);
+    }
+    if (originalImpl) {
+      return originalImpl(requestedKey);
+    }
+    return Promise.resolve(mockSettingsStorage.get(requestedKey) ?? null);
+  });
+}
+
+/**
+ * Configure mock VSS.getService to fail for specific service.
+ *
+ * @param serviceId - Service ID that should fail
+ * @param error - Error to throw
+ */
+export function setMockServiceError(serviceId: string, error: Error): void {
+  const vss = (global as unknown as { VSS?: VssSdkMocks }).VSS;
+  if (!vss) {
+    throw new Error("VSS mocks not set up. Call setupVssMocks() first.");
+  }
+
+  const originalImpl = vss.getService.getMockImplementation();
+
+  vss.getService.mockImplementation((requestedId: string) => {
+    if (requestedId === serviceId) {
+      return Promise.reject(error);
+    }
+    if (originalImpl) {
+      return originalImpl(requestedId);
+    }
+    return Promise.resolve(getMockExtensionDataService());
+  });
+}
+
+/**
+ * Get the current VSS mocks object.
+ * Throws if mocks are not set up.
+ */
+export function getVssMocks(): VssSdkMocks {
+  const vss = (global as unknown as { VSS?: VssSdkMocks }).VSS;
+  if (!vss) {
+    throw new Error("VSS mocks not set up. Call setupVssMocks() first.");
+  }
+  return vss;
+}
+
+/**
+ * Configure mock VSS.ready to execute async (with delay).
+ *
+ * @param delayMs - Delay in milliseconds before executing callback
+ */
+export function setMockReadyAsync(delayMs: number): void {
+  const vss = getVssMocks();
+  vss.ready.mockImplementation((callback: () => void) => {
+    setTimeout(callback, delayMs);
+  });
+}
+
+/**
+ * Configure mock VSS.init to track options.
+ *
+ * @returns Function that returns the last init options passed
+ */
+export function trackMockInitOptions(): () => unknown {
+  let lastOptions: unknown = undefined;
+  const vss = getVssMocks();
+
+  vss.init.mockImplementation((options: unknown) => {
+    lastOptions = options;
+  });
+
+  return () => lastOptions;
 }

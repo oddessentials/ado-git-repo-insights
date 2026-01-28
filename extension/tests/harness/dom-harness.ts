@@ -9,6 +9,21 @@
 
 import { jest } from "@jest/globals";
 
+// ============================================================================
+// Fixture Types
+// ============================================================================
+
+/**
+ * Loaded fixture data structure.
+ */
+export interface LoadedFixtures {
+  manifest?: unknown;
+  dimensions?: unknown;
+  rollup?: unknown;
+  predictions?: unknown;
+  legacyRollups?: Record<string, unknown>;
+}
+
 /**
  * Options for setting up the DOM test harness.
  */
@@ -213,6 +228,149 @@ export function setupFixtureMocks(
       statusText: "Not Found",
     } as Response);
   });
+}
+
+// ============================================================================
+// Direct Fixture Loading
+// ============================================================================
+
+/**
+ * Load manifest fixture data directly.
+ *
+ * @param variant - "default" or "extension-artifacts"
+ * @returns Manifest data or null if not found
+ */
+export function loadManifestFixture(variant: "default" | "extension-artifacts" = "default"): unknown {
+  try {
+    if (variant === "extension-artifacts") {
+      return require("../fixtures/extension-artifacts/dataset-manifest.json");
+    }
+    return require("../fixtures/dataset-manifest.json");
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Load dimensions fixture data directly.
+ *
+ * @param variant - "default" or "extension-artifacts"
+ * @returns Dimensions data or null if not found
+ */
+export function loadDimensionsFixture(variant: "default" | "extension-artifacts" = "default"): unknown {
+  try {
+    if (variant === "extension-artifacts") {
+      return require("../fixtures/extension-artifacts/dimensions.json");
+    }
+    return require("../fixtures/aggregates/dimensions.json");
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Load weekly rollup fixture data directly.
+ *
+ * @param week - ISO week string (e.g., "2026-W02") or "default"
+ * @returns Rollup data or null if not found
+ */
+export function loadRollupFixture(week: string = "2026-W02"): unknown {
+  try {
+    if (week === "2026-W03") {
+      return require("../fixtures/extension-artifacts/2026-W03.json");
+    }
+    return require("../fixtures/aggregates/weekly_rollups/2026-W02.json");
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Load predictions fixture data directly.
+ *
+ * @param variant - "default" or "extension-artifacts"
+ * @returns Predictions data or null if not found
+ */
+export function loadPredictionsFixture(
+  variant: "default" | "extension-artifacts" = "default"
+): unknown {
+  try {
+    if (variant === "extension-artifacts") {
+      return require("../fixtures/extension-artifacts/predictions.json");
+    }
+    return require("../fixtures/predictions/trends.json");
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Load legacy rollup fixture data for backward compatibility testing.
+ *
+ * @param version - Legacy version ("v1.0", "v1.1", "v1.2")
+ * @returns Legacy rollup data or null if not found
+ */
+export function loadLegacyRollupFixture(version: "v1.0" | "v1.1" | "v1.2"): unknown {
+  try {
+    return require(`../fixtures/legacy-datasets/${version}-rollup.json`);
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Load all fixtures as a bundle.
+ *
+ * @returns Object containing all loaded fixtures
+ */
+export function loadAllFixtures(): LoadedFixtures {
+  return {
+    manifest: loadManifestFixture(),
+    dimensions: loadDimensionsFixture(),
+    rollup: loadRollupFixture(),
+    predictions: loadPredictionsFixture(),
+    legacyRollups: {
+      "v1.0": loadLegacyRollupFixture("v1.0"),
+      "v1.1": loadLegacyRollupFixture("v1.1"),
+      "v1.2": loadLegacyRollupFixture("v1.2"),
+    },
+  };
+}
+
+/**
+ * Create a mock fetch response for fixture data.
+ *
+ * @param data - Data to return
+ * @param options - Response options
+ * @returns Mock Response object
+ */
+export function createMockResponse(
+  data: unknown,
+  options: { ok?: boolean; status?: number; statusText?: string } = {}
+): Response {
+  const { ok = true, status = 200, statusText = "OK" } = options;
+  return {
+    ok,
+    status,
+    statusText,
+    json: () => Promise.resolve(data),
+  } as Response;
+}
+
+/**
+ * Create a mock fetch error response.
+ *
+ * @param status - HTTP status code
+ * @param statusText - Status text
+ * @returns Mock Response object
+ */
+export function createMockErrorResponse(status: number, statusText: string): Response {
+  return {
+    ok: false,
+    status,
+    statusText,
+    json: () => Promise.reject(new Error(`HTTP ${status}: ${statusText}`)),
+  } as Response;
 }
 
 /**
