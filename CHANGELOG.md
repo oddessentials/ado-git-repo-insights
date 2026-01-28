@@ -1,3 +1,23 @@
+# [5.7.0](https://github.com/oddessentials/ado-git-repo-insights/compare/v5.6.0...v5.7.0) (2026-01-28)
+
+
+### Bug Fixes
+
+* **ml:** accuracy fixes for P90 calculation, review time, and synthetic data ([81f84c1](https://github.com/oddessentials/ado-git-repo-insights/commit/81f84c1da6deecb4590ef3b92dd73cdb64954d38))
+* **ml:** use ceiling-based rank for P90 on small datasets ([1e19c3a](https://github.com/oddessentials/ado-git-repo-insights/commit/1e19c3a0734ef3ef75549af101f140af4bbdb8f9))
+* **ui:** display historical data in forecast charts (US1 Acceptance Scenario 4) ([de0e51c](https://github.com/oddessentials/ado-git-repo-insights/commit/de0e51cf9dd3f4fc887c9a6f6db67faf92a6105c))
+
+
+### Features
+
+* **insights:** add deterministic sorting and rich insight cards (Phase 4: US2) ([6c44912](https://github.com/oddessentials/ado-git-repo-insights/commit/6c44912efe497647ffdb18a2d44c10399f834d34))
+* **ml:** add dev mode preview with synthetic data fallback (Phase 5: US3) ([71e3688](https://github.com/oddessentials/ado-git-repo-insights/commit/71e36881a9ebd7b8e5133a145b56932a428d3824))
+* **ml:** add FallbackForecaster for zero-config predictions ([8088921](https://github.com/oddessentials/ado-git-repo-insights/commit/80889218dbaf93908e5e416578374c09d15cf20b))
+* **ml:** add in-dashboard setup guides for ML features (Phase 6: US4) ([bf1c7f6](https://github.com/oddessentials/ado-git-repo-insights/commit/bf1c7f6f4a684839d160ecddf1fe8561ebc44399))
+* **ml:** add v2 type definitions for enhanced insights and predictions ([1f87eab](https://github.com/oddessentials/ado-git-repo-insights/commit/1f87eabd10428f41983260f525640ceeebe45f25))
+* **ml:** use get_forecaster() factory for zero-config predictions (T020) ([1f9bb55](https://github.com/oddessentials/ado-git-repo-insights/commit/1f9bb55ff96d8d61b0c686a1ce2432d6b17cc769))
+* **ui:** add forecast charts with confidence bands (T021-T028) ([6a24635](https://github.com/oddessentials/ado-git-repo-insights/commit/6a24635bf30921f4c4cd638a3c33e446dda5cca1))
+
 # [5.6.0](https://github.com/oddessentials/ado-git-repo-insights/compare/v5.5.0...v5.6.0) (2026-01-27)
 
 
