@@ -9,7 +9,7 @@
     "clean:ui": "node -e \"const fs=require('fs'),p=require('path'),d=p.resolve(__dirname,'dist/ui');if(fs.existsSync(d)){fs.rmSync(d,{recursive:true,force:true});console.log('Cleaned',d)}else{console.log('Already clean:',d)}\"",
     "build:ui": "node scripts/bundle-ui.mjs",
     "build": "npm run build:tsc && npm run build:ui",
-    "lint": "eslint .",
+    "lint": "eslint . --max-warnings=0",
     "depcruise": "npx depcruise ui --config .dependency-cruiser.cjs",
     "format": "prettier --write \"**/*.{ts,js,json,md}\" --ignore-path ../.prettierignore",
     "format:check": "prettier --check \"**/*.{ts,js,json,md}\" --ignore-path ../.prettierignore",
@@ -29,6 +29,7 @@
   },
   "devDependencies": {
     "@types/jest": "^30.0.0",
+    "eslint-plugin-security": "^3.0.0",
     "@types/node": "^25.0.0",
     "@typescript-eslint/eslint-plugin": "^8.20.0",
     "@typescript-eslint/parser": "^8.20.0",

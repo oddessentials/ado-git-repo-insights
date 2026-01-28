@@ -1,9 +1,11 @@
 import eslint from '@eslint/js';
 import tseslint from 'typescript-eslint';
+import security from 'eslint-plugin-security';
 
 export default tseslint.config(
     eslint.configs.recommended,
     ...tseslint.configs.recommended,
+    security.configs.recommended,
     // Removed strict config for initial conversion - can re-enable when types are mature
     {
         languageOptions: {
@@ -37,6 +39,18 @@ export default tseslint.config(
                 prefer: 'type-imports',
                 fixStyle: 'inline-type-imports',
             }],
+
+            // === Security rules (eslint-plugin-security) ===
+            // Errors for dangerous patterns
+            'security/detect-eval-with-expression': 'error',
+            'security/detect-buffer-noassert': 'error',
+            'security/detect-no-csrf-before-method-override': 'error',
+            'security/detect-unsafe-regex': 'error',
+            'security/detect-non-literal-regexp': 'error',
+            'security/detect-possible-timing-attacks': 'error',
+            // Disabled: Too many false positives on legitimate obj[key] patterns
+            // See: https://github.com/eslint-community/eslint-plugin-security/issues/21
+            'security/detect-object-injection': 'off',
         },
     },
     {

@@ -14,6 +14,16 @@ const config: Config = {
   collectCoverageFrom: ["ui/**/*.ts", "!ui/**/*.test.ts"],
   coverageDirectory: "coverage",
   coverageReporters: ["text", "lcov"],
+  // Coverage thresholds - start at current levels, plan to increase to 70%
+  // See: specs/007-repo-standards-v7-compliance/plan.md for coverage gap analysis
+  coverageThreshold: {
+    global: {
+      statements: 42,
+      branches: 36,
+      functions: 47,
+      lines: 43,
+    },
+  },
   // Mock fetch globally
   setupFilesAfterEnv: ["<rootDir>/tests/setup.ts"],
   // Module name mapping for paths

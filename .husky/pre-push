@@ -1,6 +1,12 @@
 #!/bin/sh
 # Pre-push hook: Run all checks before pushing to prevent CI failures
-# Order: baseline integrity → Python tests → TypeScript tests
+# Enterprise-grade: Mirrors CI checks exactly to catch failures locally
+#
+# Order: baseline integrity → pre-commit --all-files → CRLF guard → Python tests → TS checks
+#
+# This hook ensures NO code reaches CI that would fail. If it passes here, CI passes.
+
+set -e  # Exit on first error for fail-fast behavior
 
 # =============================================================================
 # Baseline Integrity Check (must fail fast before any test execution)
@@ -14,6 +20,92 @@ if [ $? -ne 0 ]; then
     exit 1
 fi
 echo "[pre-push] ✅ Baseline integrity check passed"
+
+# =============================================================================
+# Pre-commit --all-files (mirrors CI: pre-commit run --all-files)
+# =============================================================================
+# This catches issues that pre-commit on staged files might miss:
+# - Files modified after staging
+# - Files not included in the commit but changed
+# - Ensures entire codebase passes linting
+echo ""
+echo "[pre-push] Running pre-commit on all files (mirrors CI)..."
+
+# Detect pre-commit installation
+if command -v pre-commit >/dev/null 2>&1; then
+    PRE_COMMIT="pre-commit"
+elif [ -f ".venv/Scripts/pre-commit.exe" ]; then
+    PRE_COMMIT=".venv/Scripts/pre-commit.exe"
+elif [ -f ".venv/bin/pre-commit" ]; then
+    PRE_COMMIT=".venv/bin/pre-commit"
+else
+    echo ""
+    echo "[pre-push] ❌ pre-commit not found!"
+    echo "[pre-push] Install with: pip install pre-commit"
+    exit 1
+fi
+
+$PRE_COMMIT run --all-files
+if [ $? -ne 0 ]; then
+    echo ""
+    echo "[pre-push] ❌ Push blocked: pre-commit checks failed"
+    echo "[pre-push] Run 'pre-commit run --all-files' to see details"
+    exit 1
+fi
+echo "[pre-push] ✅ Pre-commit checks passed"
+
+# =============================================================================
+# CRLF Line Ending Guard (mirrors CI: line-ending-guard job)
+# =============================================================================
+# Prevents "works locally, fails in CI" issues on Windows
+echo ""
+echo "[pre-push] Running CRLF line ending guard..."
+FOUND_CRLF=false
+
+# Check Husky hooks
+if grep -rlI $'\r' .husky/ 2>/dev/null; then
+    echo "[pre-push] ❌ CRLF detected in .husky/"
+    FOUND_CRLF=true
+fi
+
+# Check shell scripts
+if find . -name "*.sh" -type f -not -path "./node_modules/*" -not -path "./.venv/*" | xargs grep -lI $'\r' 2>/dev/null; then
+    echo "[pre-push] ❌ CRLF detected in *.sh files"
+    FOUND_CRLF=true
+fi
+
+# Check .github/scripts
+if grep -rlI $'\r' .github/scripts/ 2>/dev/null; then
+    echo "[pre-push] ❌ CRLF detected in .github/scripts/"
+    FOUND_CRLF=true
+fi
+
+# Check scripts directory
+if grep -rlI $'\r' scripts/ 2>/dev/null; then
+    echo "[pre-push] ❌ CRLF detected in scripts/"
+    FOUND_CRLF=true
+fi
+
+# Check extension scripts
+if grep -rlI $'\r' extension/scripts/ 2>/dev/null; then
+    echo "[pre-push] ❌ CRLF detected in extension/scripts/"
+    FOUND_CRLF=true
+fi
+
+# Check extension UI files (catches CRLF from npm packages like vss-web-extension-sdk)
+if grep -rlI $'\r' extension/ui/ 2>/dev/null; then
+    echo "[pre-push] ❌ CRLF detected in extension/ui/"
+    echo "[pre-push] If copying from npm, use: cd extension && node scripts/copy-vss-sdk.mjs"
+    FOUND_CRLF=true
+fi
+
+if [ "$FOUND_CRLF" = true ]; then
+    echo ""
+    echo "[pre-push] ❌ Push blocked: CRLF line endings found"
+    echo "[pre-push] Fix: Run 'git add --renormalize .' after checking .gitattributes"
+    exit 1
+fi
+echo "[pre-push] ✅ CRLF guard passed"
 
 # =============================================================================
 # Python Tests
@@ -45,6 +137,19 @@ if [ $? -ne 0 ]; then
     exit 1
 fi
 echo "[pre-push] ✅ TypeScript type check passed"
+
+# =============================================================================
+# ESLint Check (mirrors CI extension-tests job)
+# =============================================================================
+echo ""
+echo "[pre-push] Running ESLint..."
+npm run lint
+if [ $? -ne 0 ]; then
+    echo ""
+    echo "[pre-push] ❌ Push blocked: ESLint check failed"
+    exit 1
+fi
+echo "[pre-push] ✅ ESLint check passed"
 
 # =============================================================================
 # TypeScript Tests
