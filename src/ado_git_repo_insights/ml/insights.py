@@ -289,6 +289,9 @@ Respond ONLY with valid JSON matching this format."""
 
         # P90 cycle time (true 90th percentile using SQL)
         # Uses LIMIT/OFFSET approach for SQLite compatibility
+        # Formula: ceil(N * 0.9) - 1 as 0-indexed offset
+        # Implemented as (N * 9 + 9) / 10 - 1 using integer arithmetic
+        # This ensures correct P90 for small datasets (e.g., N=2 returns max, not min)
         cursor = self.db.execute(
             """
             SELECT cycle_time_minutes
@@ -296,7 +299,7 @@ Respond ONLY with valid JSON matching this format."""
             WHERE cycle_time_minutes IS NOT NULL
             ORDER BY cycle_time_minutes
             LIMIT 1 OFFSET (
-                SELECT MAX(0, CAST(COUNT(*) * 0.9 AS INTEGER) - 1)
+                SELECT MAX(0, (COUNT(*) * 9 + 9) / 10 - 1)
                 FROM pull_requests
                 WHERE cycle_time_minutes IS NOT NULL
             )
