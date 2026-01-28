@@ -1,5 +1,5 @@
 version: 1
-trusted_only: true
+trusted_only: false
 
 triggers:
   on: [pull_request]
