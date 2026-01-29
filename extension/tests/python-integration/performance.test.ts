@@ -16,6 +16,7 @@ describe("Performance Baseline Tests (Simplified)", () => {
     __dirname,
     "..",
     "..",
+    "..",
     "tmp",
     "perf-fixtures",
   );
@@ -49,6 +50,7 @@ describe("Performance Baseline Tests (Simplified)", () => {
     const outputDir = path.join(perfFixturesDir, "1000pr");
     const scriptPath = path.join(
       __dirname,
+      "..",
       "..",
       "..",
       "scripts",

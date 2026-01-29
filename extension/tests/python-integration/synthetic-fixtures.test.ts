@@ -4,18 +4,18 @@
  * Ensures generated datasets can be loaded by the extension UI.
  */
 
-import { DatasetLoader } from "../ui/dataset-loader";
+import { DatasetLoader } from "../../ui/dataset-loader";
 import * as fs from "fs";
 import * as path from "path";
 import { execSync } from "child_process";
-import { resolveInside } from "../tasks/_shared/safe-path";
+import { resolveInside } from "../../tasks/_shared/safe-path";
 
 describe("Synthetic Fixture Consumer Validation", () => {
   let fixtureDir: string;
 
   beforeAll(() => {
     // Create temp directory for fixtures
-    fixtureDir = path.join(__dirname, "..", "..", "tmp", "test-fixtures");
+    fixtureDir = path.join(__dirname, "..", "..", "..", "tmp", "test-fixtures");
     ensureDir(fixtureDir);
   });
 
@@ -70,6 +70,7 @@ describe("Synthetic Fixture Consumer Validation", () => {
 
     const scriptPath = path.join(
       __dirname,
+      "..",
       "..",
       "..",
       "scripts",

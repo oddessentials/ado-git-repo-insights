@@ -25,8 +25,8 @@
 
 **Purpose**: Create the shared composite action that all workflow migrations depend on
 
-- [ ] T001 Create directory structure for composite action at `.github/actions/setup-pnpm/`
-- [ ] T002 Create shared pnpm setup composite action at `.github/actions/setup-pnpm/action.yml` with inputs for node-version, cache, and cache-dependency-path
+- [x] T001 Create directory structure for composite action at `.github/actions/setup-pnpm/`
+- [x] T002 Create shared pnpm setup composite action at `.github/actions/setup-pnpm/action.yml` with inputs for node-version, cache, and cache-dependency-path
 
 ---
 
@@ -36,10 +36,10 @@
 
 **⚠️ CRITICAL**: Test isolation must be in place before workflows can reference test:unit vs test:all
 
-- [ ] T003 Create `extension/tests/python-integration/` directory
-- [ ] T004 [P] Move `extension/tests/synthetic-fixtures.test.ts` to `extension/tests/python-integration/synthetic-fixtures.test.ts`
-- [ ] T005 [P] Move `extension/tests/performance.test.ts` to `extension/tests/python-integration/performance.test.ts`
-- [ ] T006 Update test scripts in `extension/package.json`: add test:unit, test:all, remap test to test:unit, update test:watch and test:coverage
+- [x] T003 Create `extension/tests/python-integration/` directory
+- [x] T004 [P] Move `extension/tests/synthetic-fixtures.test.ts` to `extension/tests/python-integration/synthetic-fixtures.test.ts`
+- [x] T005 [P] Move `extension/tests/performance.test.ts` to `extension/tests/python-integration/performance.test.ts`
+- [x] T006 Update test scripts in `extension/package.json`: add test:unit, test:all, remap test to test:unit, update test:watch and test:coverage
 
 **Checkpoint**: Test isolation in place - workflow migrations can now begin
 
