@@ -1,0 +1,138 @@
+{
+  "authors_count": 1,
+  "by_repository": {
+    "backdate-demo-jan-5": {
+      "authors_count": 1,
+      "cycle_time_p50": 1.0,
+      "cycle_time_p90": 1.0,
+      "pr_count": 2,
+      "reviewers_count": 2
+    },
+    "backdate-demo-jan-7": {
+      "authors_count": 1,
+      "cycle_time_p50": 1.0,
+      "cycle_time_p90": 1.0,
+      "pr_count": 2,
+      "reviewers_count": 2
+    },
+    "backdate-demo-jan-8": {
+      "authors_count": 1,
+      "cycle_time_p50": 1.0,
+      "cycle_time_p90": 1.0,
+      "pr_count": 2,
+      "reviewers_count": 2
+    },
+    "booking-system": {
+      "authors_count": 1,
+      "cycle_time_p50": 1.0,
+      "cycle_time_p90": 1.0,
+      "pr_count": 2,
+      "reviewers_count": 1
+    },
+    "booking-system-day-1": {
+      "authors_count": 1,
+      "cycle_time_p50": 1.0,
+      "cycle_time_p90": 1.0,
+      "pr_count": 2,
+      "reviewers_count": 3
+    },
+    "core-api": {
+      "authors_count": 1,
+      "cycle_time_p50": 1.0,
+      "cycle_time_p90": 1.0,
+      "pr_count": 4,
+      "reviewers_count": 2
+    },
+    "core-api-day-1": {
+      "authors_count": 1,
+      "cycle_time_p50": 1.0,
+      "cycle_time_p90": 1.0,
+      "pr_count": 2,
+      "reviewers_count": 1
+    },
+    "guest-portal": {
+      "authors_count": 1,
+      "cycle_time_p50": 1.0,
+      "cycle_time_p90": 1052.208,
+      "pr_count": 3,
+      "reviewers_count": 3
+    },
+    "guest-portal-day-1": {
+      "authors_count": 1,
+      "cycle_time_p50": 1.0,
+      "cycle_time_p90": 1.0,
+      "pr_count": 1,
+      "reviewers_count": 1
+    },
+    "infra": {
+      "authors_count": 1,
+      "cycle_time_p50": 1.0,
+      "cycle_time_p90": 1.0,
+      "pr_count": 3,
+      "reviewers_count": 3
+    },
+    "infra-day-1": {
+      "authors_count": 1,
+      "cycle_time_p50": 1.0,
+      "cycle_time_p90": 1.0,
+      "pr_count": 1,
+      "reviewers_count": 1
+    },
+    "marketing-content": {
+      "authors_count": 1,
+      "cycle_time_p50": 1.0,
+      "cycle_time_p90": 1.0,
+      "pr_count": 2,
+      "reviewers_count": 2
+    },
+    "marketing-site": {
+      "authors_count": 1,
+      "cycle_time_p50": 659.775,
+      "cycle_time_p90": 1186.795,
+      "pr_count": 2,
+      "reviewers_count": 2
+    },
+    "marketing-site-day-1": {
+      "authors_count": 1,
+      "cycle_time_p50": 1.0,
+      "cycle_time_p90": 1.0,
+      "pr_count": 1,
+      "reviewers_count": 1
+    },
+    "socialmedia-syndicator": {
+      "authors_count": 1,
+      "cycle_time_p50": 50.67,
+      "cycle_time_p90": 161.23800000000008,
+      "pr_count": 9,
+      "reviewers_count": 0
+    },
+    "usg-map": {
+      "authors_count": 1,
+      "cycle_time_p50": 17.635,
+      "cycle_time_p90": 29.799000000000003,
+      "pr_count": 2,
+      "reviewers_count": 0
+    },
+    "web-app": {
+      "authors_count": 1,
+      "cycle_time_p50": 1.0,
+      "cycle_time_p90": 1.0,
+      "pr_count": 2,
+      "reviewers_count": 2
+    },
+    "web-app-day-1": {
+      "authors_count": 1,
+      "cycle_time_p50": 1.0,
+      "cycle_time_p90": 1.0,
+      "pr_count": 1,
+      "reviewers_count": 1
+    }
+  },
+  "cycle_time_p50": 1.0,
+  "cycle_time_p90": 70.95000000000006,
+  "end_date": "2026-01-18",
+  "pr_count": 43,
+  "reviewers_count": 3,
+  "start_date": "2026-01-12",
+  "week": "2026-W03"
+}

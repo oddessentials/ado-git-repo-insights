@@ -1,51 +1,39 @@
 {
   "repositories": [
     {
-      "id": "repo-1",
-      "name": "main-repo",
-      "project": "test-project"
+      "repository_id": "repo-1",
+      "repository_name": "main-repo",
+      "organization_name": "test-org",
+      "project_name": "test-project"
     },
     {
-      "id": "repo-2",
-      "name": "secondary-repo",
-      "project": "test-project"
+      "repository_id": "repo-2",
+      "repository_name": "secondary-repo",
+      "organization_name": "test-org",
+      "project_name": "test-project"
     }
   ],
   "users": [
     {
-      "id": "user-1",
-      "displayName": "Alice Developer",
-      "uniqueName": "alice@example.com"
+      "user_id": "user-1",
+      "display_name": "Alice Developer"
     },
     {
-      "id": "user-2",
-      "displayName": "Bob Engineer",
-      "uniqueName": "bob@example.com"
+      "user_id": "user-2",
+      "display_name": "Bob Engineer"
     },
     {
-      "id": "user-3",
-      "displayName": "Carol Reviewer",
-      "uniqueName": "carol@example.com"
+      "user_id": "user-3",
+      "display_name": "Carol Reviewer"
     }
   ],
   "projects": [
     {
-      "id": "proj-1",
-      "name": "test-project"
+      "organization_name": "test-org",
+      "project_name": "test-project"
     }
   ],
-  "teams": [
-    {
-      "id": "team-1",
-      "name": "Backend Team",
-      "projectId": "proj-1"
-    },
-    {
-      "id": "team-2",
-      "name": "Frontend Team",
-      "projectId": "proj-1"
-    }
-  ],
+  "teams": [],
   "date_range": {
     "min": "2025-10-01",
     "max": "2026-01-14"
