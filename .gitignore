@@ -105,7 +105,7 @@ secrets.yml
 
 debug_extraction.py
 test_artifacts
-tmp/*
+**/tmp/
 run_artifacts/*
 # Compiled scripts
 scripts/dist/

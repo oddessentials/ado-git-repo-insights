@@ -238,6 +238,7 @@ describe("Performance Baseline Tests (Simplified)", () => {
       __dirname,
       "..",
       "..",
+      "..",
       "tmp",
       "perf-summary.json",
     );
@@ -267,11 +268,13 @@ describe.each([1000, 5000, 10000])(
       __dirname,
       "..",
       "..",
+      "..",
       "tmp",
       "perf-fixtures",
     );
     const baselinesPath = path.join(
       __dirname,
+      "..",
       "fixtures",
       "perf-baselines.json",
     );
