@@ -9,7 +9,12 @@
  * @module schemas/dimensions.schema
  */
 
-import type { ValidationResult, ValidationError, ValidationWarning, SchemaValidator } from "./types";
+import type {
+  ValidationResult,
+  ValidationError,
+  ValidationWarning,
+  SchemaValidator,
+} from "./types";
 import { validResult, invalidResult, createError } from "./types";
 import {
   isObject,
@@ -113,7 +118,13 @@ export interface Dimensions {
 // Known Fields
 // ============================================================================
 
-const KNOWN_ROOT_FIELDS = new Set(["repositories", "users", "projects", "teams", "date_range"]);
+const KNOWN_ROOT_FIELDS = new Set([
+  "repositories",
+  "users",
+  "projects",
+  "teams",
+  "date_range",
+]);
 
 // Production format fields
 const KNOWN_REPOSITORY_FIELDS = new Set([
@@ -169,7 +180,7 @@ const KNOWN_DATE_RANGE_FIELDS = new Set(["min", "max"]);
 function validateRepositoryEntry(
   data: unknown,
   path: string,
-  strict: boolean
+  strict: boolean,
 ): { errors: ValidationError[]; warnings: ValidationWarning[] } {
   const errors: ValidationError[] = [];
   const warnings: ValidationWarning[] = [];
@@ -180,7 +191,8 @@ function validateRepositoryEntry(
   }
 
   // Check which format is being used
-  const isProductionFormat = "repository_id" in data || "repository_name" in data;
+  const isProductionFormat =
+    "repository_id" in data || "repository_name" in data;
   const isLegacyFormat = "id" in data || "name" in data;
 
   if (isProductionFormat) {
@@ -188,28 +200,40 @@ function validateRepositoryEntry(
     const idReq = validateRequired(data, "repository_id", path);
     if (idReq) errors.push(idReq);
     else {
-      const idErr = validateString(data.repository_id, buildPath(path, "repository_id"));
+      const idErr = validateString(
+        data.repository_id,
+        buildPath(path, "repository_id"),
+      );
       if (idErr) errors.push(idErr);
     }
 
     const nameReq = validateRequired(data, "repository_name", path);
     if (nameReq) errors.push(nameReq);
     else {
-      const nameErr = validateString(data.repository_name, buildPath(path, "repository_name"));
+      const nameErr = validateString(
+        data.repository_name,
+        buildPath(path, "repository_name"),
+      );
       if (nameErr) errors.push(nameErr);
     }
 
     const orgReq = validateRequired(data, "organization_name", path);
     if (orgReq) errors.push(orgReq);
     else {
-      const orgErr = validateString(data.organization_name, buildPath(path, "organization_name"));
+      const orgErr = validateString(
+        data.organization_name,
+        buildPath(path, "organization_name"),
+      );
       if (orgErr) errors.push(orgErr);
     }
 
     const projReq = validateRequired(data, "project_name", path);
     if (projReq) errors.push(projReq);
     else {
-      const projErr = validateString(data.project_name, buildPath(path, "project_name"));
+      const projErr = validateString(
+        data.project_name,
+        buildPath(path, "project_name"),
+      );
       if (projErr) errors.push(projErr);
     }
   } else if (isLegacyFormat) {
@@ -238,12 +262,17 @@ function validateRepositoryEntry(
         path,
         "repository with (repository_id, repository_name) or (id, name)",
         "empty object",
-        `Repository entry at '${path}' must have required identifier fields`
-      )
+        `Repository entry at '${path}' must have required identifier fields`,
+      ),
     );
   }
 
-  const unknown = findUnknownFields(data, KNOWN_REPOSITORY_FIELDS, path, strict);
+  const unknown = findUnknownFields(
+    data,
+    KNOWN_REPOSITORY_FIELDS,
+    path,
+    strict,
+  );
   errors.push(...unknown.errors);
   warnings.push(...unknown.warnings);
 
@@ -256,7 +285,7 @@ function validateRepositoryEntry(
 function validateUserEntry(
   data: unknown,
   path: string,
-  strict: boolean
+  strict: boolean,
 ): { errors: ValidationError[]; warnings: ValidationWarning[] } {
   const errors: ValidationError[] = [];
   const warnings: ValidationWarning[] = [];
@@ -282,7 +311,10 @@ function validateUserEntry(
     const nameReq = validateRequired(data, "display_name", path);
     if (nameReq) errors.push(nameReq);
     else {
-      const nameErr = validateString(data.display_name, buildPath(path, "display_name"));
+      const nameErr = validateString(
+        data.display_name,
+        buildPath(path, "display_name"),
+      );
       if (nameErr) errors.push(nameErr);
     }
   } else if (isLegacyFormat) {
@@ -297,14 +329,20 @@ function validateUserEntry(
     const displayNameReq = validateRequired(data, "displayName", path);
     if (displayNameReq) errors.push(displayNameReq);
     else {
-      const nameErr = validateString(data.displayName, buildPath(path, "displayName"));
+      const nameErr = validateString(
+        data.displayName,
+        buildPath(path, "displayName"),
+      );
       if (nameErr) errors.push(nameErr);
     }
 
     const uniqueNameReq = validateRequired(data, "uniqueName", path);
     if (uniqueNameReq) errors.push(uniqueNameReq);
     else {
-      const uNameErr = validateString(data.uniqueName, buildPath(path, "uniqueName"));
+      const uNameErr = validateString(
+        data.uniqueName,
+        buildPath(path, "uniqueName"),
+      );
       if (uNameErr) errors.push(uNameErr);
     }
   } else {
@@ -313,8 +351,8 @@ function validateUserEntry(
         path,
         "user with (user_id, display_name) or (id, displayName, uniqueName)",
         "empty object",
-        `User entry at '${path}' must have required identifier fields`
-      )
+        `User entry at '${path}' must have required identifier fields`,
+      ),
     );
   }
 
@@ -331,7 +369,7 @@ function validateUserEntry(
 function validateProjectEntry(
   data: unknown,
   path: string,
-  strict: boolean
+  strict: boolean,
 ): { errors: ValidationError[]; warnings: ValidationWarning[] } {
   const errors: ValidationError[] = [];
   const warnings: ValidationWarning[] = [];
@@ -342,7 +380,8 @@ function validateProjectEntry(
   }
 
   // Check which format is being used
-  const isProductionFormat = "organization_name" in data || "project_name" in data;
+  const isProductionFormat =
+    "organization_name" in data || "project_name" in data;
   const isLegacyFormat = "id" in data || "name" in data;
 
   if (isProductionFormat) {
@@ -350,14 +389,20 @@ function validateProjectEntry(
     const orgReq = validateRequired(data, "organization_name", path);
     if (orgReq) errors.push(orgReq);
     else {
-      const orgErr = validateString(data.organization_name, buildPath(path, "organization_name"));
+      const orgErr = validateString(
+        data.organization_name,
+        buildPath(path, "organization_name"),
+      );
       if (orgErr) errors.push(orgErr);
     }
 
     const projReq = validateRequired(data, "project_name", path);
     if (projReq) errors.push(projReq);
     else {
-      const projErr = validateString(data.project_name, buildPath(path, "project_name"));
+      const projErr = validateString(
+        data.project_name,
+        buildPath(path, "project_name"),
+      );
       if (projErr) errors.push(projErr);
     }
   } else if (isLegacyFormat) {
@@ -381,8 +426,8 @@ function validateProjectEntry(
         path,
         "project with (organization_name, project_name) or (id, name)",
         "empty object",
-        `Project entry at '${path}' must have required identifier fields`
-      )
+        `Project entry at '${path}' must have required identifier fields`,
+      ),
     );
   }
 
@@ -399,7 +444,7 @@ function validateProjectEntry(
 function validateTeamEntry(
   data: unknown,
   path: string,
-  strict: boolean
+  strict: boolean,
 ): { errors: ValidationError[]; warnings: ValidationWarning[] } {
   const errors: ValidationError[] = [];
   const warnings: ValidationWarning[] = [];
@@ -411,7 +456,14 @@ function validateTeamEntry(
 
   // Team entries are flexible - validate any string fields present
   // Use hasOwnProperty.call for safe property check (avoids prototype pollution)
-  const stringFields = ["id", "name", "projectId", "team_id", "team_name", "project_id"];
+  const stringFields = [
+    "id",
+    "name",
+    "projectId",
+    "team_id",
+    "team_name",
+    "project_id",
+  ];
   for (const field of stringFields) {
     if (Object.prototype.hasOwnProperty.call(data, field)) {
       const fieldValue = Object.getOwnPropertyDescriptor(data, field)?.value;
@@ -435,7 +487,7 @@ function validateTeamEntry(
 function validateDateRange(
   data: unknown,
   path: string,
-  strict: boolean
+  strict: boolean,
 ): { errors: ValidationError[]; warnings: ValidationWarning[] } {
   const errors: ValidationError[] = [];
   const warnings: ValidationWarning[] = [];
@@ -459,7 +511,12 @@ function validateDateRange(
     if (maxErr) errors.push(maxErr);
   }
 
-  const unknown = findUnknownFields(data, KNOWN_DATE_RANGE_FIELDS, path, strict);
+  const unknown = findUnknownFields(
+    data,
+    KNOWN_DATE_RANGE_FIELDS,
+    path,
+    strict,
+  );
   errors.push(...unknown.errors);
   warnings.push(...unknown.warnings);
 
@@ -477,13 +534,23 @@ function validateDateRange(
  * @param strict - If true, unknown fields cause errors; if false, they cause warnings
  * @returns ValidationResult
  */
-export function validateDimensions(data: unknown, strict: boolean): ValidationResult {
+export function validateDimensions(
+  data: unknown,
+  strict: boolean,
+): ValidationResult {
   const errors: ValidationError[] = [];
   const warnings: ValidationWarning[] = [];
 
   // Must be an object
   if (!isObject(data)) {
-    errors.push(createError("", "object", getTypeName(data), "Dimensions must be an object"));
+    errors.push(
+      createError(
+        "",
+        "object",
+        getTypeName(data),
+        "Dimensions must be an object",
+      ),
+    );
     return invalidResult(errors);
   }
 
@@ -507,7 +574,11 @@ export function validateDimensions(data: unknown, strict: boolean): ValidationRe
   // Validate repository entries
   if ("repositories" in data && isArray(data.repositories)) {
     data.repositories.forEach((item, i) => {
-      const result = validateRepositoryEntry(item, buildPath("repositories", i), strict);
+      const result = validateRepositoryEntry(
+        item,
+        buildPath("repositories", i),
+        strict,
+      );
       errors.push(...result.errors);
       warnings.push(...result.warnings);
     });
@@ -525,7 +596,11 @@ export function validateDimensions(data: unknown, strict: boolean): ValidationRe
   // Validate project entries
   if ("projects" in data && isArray(data.projects)) {
     data.projects.forEach((item, i) => {
-      const result = validateProjectEntry(item, buildPath("projects", i), strict);
+      const result = validateProjectEntry(
+        item,
+        buildPath("projects", i),
+        strict,
+      );
       errors.push(...result.errors);
       warnings.push(...result.warnings);
     });
@@ -574,7 +649,10 @@ export function normalizeDimensions(data: unknown): Dimensions {
   const obj = data as Record<string, unknown>;
 
   return {
-    repositories: obj.repositories as (RepositoryEntry | LegacyRepositoryEntry)[],
+    repositories: obj.repositories as (
+      | RepositoryEntry
+      | LegacyRepositoryEntry
+    )[],
     users: obj.users as (UserEntry | LegacyUserEntry)[],
     projects: obj.projects as (ProjectEntry | LegacyProjectEntry)[],
     teams: (obj.teams as TeamEntry[]) ?? [],

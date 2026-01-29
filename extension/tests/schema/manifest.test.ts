@@ -7,7 +7,6 @@
  * @module tests/schema/manifest.test.ts
  */
 
-import { describe, it, expect } from "@jest/globals";
 import { validateManifest } from "../../ui/schemas/manifest.schema";
 import type { ValidationResult } from "../../ui/schemas/types";
 
@@ -54,7 +53,9 @@ describe("Manifest Schema Validator", () => {
       delete (invalid as Record<string, unknown>).generated_at;
       const result = validateManifest(invalid, true);
       expect(result.valid).toBe(false);
-      expect(result.errors.some((e) => e.field.includes("generated_at"))).toBe(true);
+      expect(result.errors.some((e) => e.field.includes("generated_at"))).toBe(
+        true,
+      );
     });
 
     it("should fail when run_id is missing", () => {
@@ -70,7 +71,9 @@ describe("Manifest Schema Validator", () => {
       delete (invalid as Record<string, unknown>).aggregate_index;
       const result = validateManifest(invalid, true);
       expect(result.valid).toBe(false);
-      expect(result.errors.some((e) => e.field.includes("aggregate_index"))).toBe(true);
+      expect(
+        result.errors.some((e) => e.field.includes("aggregate_index")),
+      ).toBe(true);
     });
   });
 
@@ -86,7 +89,9 @@ describe("Manifest Schema Validator", () => {
       const invalid = { ...validManifest, generated_at: "not-a-date" };
       const result = validateManifest(invalid, true);
       expect(result.valid).toBe(false);
-      expect(result.errors.some((e) => e.field.includes("generated_at"))).toBe(true);
+      expect(result.errors.some((e) => e.field.includes("generated_at"))).toBe(
+        true,
+      );
     });
 
     it("should fail when run_id is not a string", () => {
@@ -138,7 +143,9 @@ describe("Manifest Schema Validator", () => {
       };
       const result = validateManifest(withUnknown, true);
       expect(result.valid).toBe(false);
-      expect(result.errors.some((e) => e.field.includes("unknown_field"))).toBe(true);
+      expect(result.errors.some((e) => e.field.includes("unknown_field"))).toBe(
+        true,
+      );
     });
 
     it("should WARN in permissive mode when unknown fields are present", () => {
@@ -149,7 +156,9 @@ describe("Manifest Schema Validator", () => {
       const result = validateManifest(withUnknown, false);
       expect(result.valid).toBe(true);
       expect(result.warnings.length).toBeGreaterThan(0);
-      expect(result.warnings.some((w) => w.field.includes("unknown_field"))).toBe(true);
+      expect(
+        result.warnings.some((w) => w.field.includes("unknown_field")),
+      ).toBe(true);
     });
   });
 
@@ -173,7 +182,12 @@ describe("Manifest Schema Validator", () => {
         aggregate_index: {
           ...validManifest.aggregate_index,
           weekly_rollups: [
-            { week: "2026-01", path: "some/path.json", pr_count: 10, size_bytes: 100 },
+            {
+              week: "2026-01",
+              path: "some/path.json",
+              pr_count: 10,
+              size_bytes: 100,
+            },
           ],
         },
       };
@@ -201,7 +215,12 @@ describe("Manifest Schema Validator", () => {
         aggregate_index: {
           ...validManifest.aggregate_index,
           distributions: [
-            { year: "25", path: "some/path.json", total_prs: 10, size_bytes: 100 },
+            {
+              year: "25",
+              path: "some/path.json",
+              total_prs: 10,
+              size_bytes: 100,
+            },
           ],
         },
       };

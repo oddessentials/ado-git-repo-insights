@@ -65,8 +65,12 @@ export interface VssSdkMocks {
   ready: jest.Mock<(callback: () => void) => void>;
   notifyLoadSucceeded: jest.Mock<() => void>;
   getWebContext: jest.Mock<() => MockWebContext>;
-  getService: jest.Mock<(serviceId: string) => Promise<MockExtensionDataService>>;
-  require: jest.Mock<(deps: string[], callback: (...args: unknown[]) => void) => void>;
+  getService: jest.Mock<
+    (serviceId: string) => Promise<MockExtensionDataService>
+  >;
+  require: jest.Mock<
+    (deps: string[], callback: (...args: unknown[]) => void) => void
+  >;
   ServiceIds: { ExtensionData: string };
 }
 
@@ -80,7 +84,11 @@ export interface VssSdkMocks {
 function deepFreeze<T extends object>(obj: T): T {
   Object.freeze(obj);
   for (const value of Object.values(obj)) {
-    if (value !== null && typeof value === "object" && !Object.isFrozen(value)) {
+    if (
+      value !== null &&
+      typeof value === "object" &&
+      !Object.isFrozen(value)
+    ) {
       deepFreeze(value);
     }
   }
@@ -117,13 +125,15 @@ const mockSettingsStorage = new Map<string, unknown>();
  */
 export function createMockExtensionDataService(): MockExtensionDataService {
   return {
-    getValue: jest.fn((key: string) => Promise.resolve(mockSettingsStorage.get(key) ?? null)),
+    getValue: jest.fn((key: string) =>
+      Promise.resolve(mockSettingsStorage.get(key) ?? null),
+    ),
     setValue: jest.fn((key: string, value: unknown) => {
       mockSettingsStorage.set(key, value);
       return Promise.resolve(value);
     }),
     getDocument: jest.fn((collection: string, id: string) =>
-      Promise.resolve(mockSettingsStorage.get(`${collection}:${id}`) ?? null)
+      Promise.resolve(mockSettingsStorage.get(`${collection}:${id}`) ?? null),
     ),
     setDocument: jest.fn((collection: string, doc: { id: string }) => {
       mockSettingsStorage.set(`${collection}:${doc.id}`, doc);
@@ -198,14 +208,16 @@ export function setupVssMocks(): VssSdkMocks {
     notifyLoadSucceeded: jest.fn(),
     getWebContext: jest.fn(() => currentMockWebContext),
     getService: jest.fn(() => Promise.resolve(getMockExtensionDataService())),
-    require: jest.fn((deps: string[], callback: (...args: unknown[]) => void) => {
-      // Simulate TFS/Build/RestClient require
-      if (deps.includes("TFS/Build/RestClient")) {
-        callback({ getClient: () => getMockBuildRestClient() });
-      } else {
-        callback();
-      }
-    }),
+    require: jest.fn(
+      (deps: string[], callback: (...args: unknown[]) => void) => {
+        // Simulate TFS/Build/RestClient require
+        if (deps.includes("TFS/Build/RestClient")) {
+          callback({ getClient: () => getMockBuildRestClient() });
+        } else {
+          callback();
+        }
+      },
+    ),
     ServiceIds: { ExtensionData: "ms.vss-features.extension-data-service" },
   };
 

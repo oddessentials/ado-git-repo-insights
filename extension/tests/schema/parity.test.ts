@@ -7,11 +7,22 @@
  * @module tests/schema/parity.test.ts
  */
 
-import { describe, it, expect, beforeAll } from "@jest/globals";
-import { validateManifest, normalizeManifest } from "../../ui/schemas/manifest.schema";
-import { validateRollup, normalizeRollup } from "../../ui/schemas/rollup.schema";
-import { validateDimensions, normalizeDimensions } from "../../ui/schemas/dimensions.schema";
-import { validatePredictions, normalizePredictions } from "../../ui/schemas/predictions.schema";
+import {
+  validateManifest,
+  normalizeManifest,
+} from "../../ui/schemas/manifest.schema";
+import {
+  validateRollup,
+  normalizeRollup,
+} from "../../ui/schemas/rollup.schema";
+import {
+  validateDimensions,
+  normalizeDimensions,
+} from "../../ui/schemas/dimensions.schema";
+import {
+  validatePredictions,
+  normalizePredictions,
+} from "../../ui/schemas/predictions.schema";
 
 // Local fixtures (from test/fixtures/)
 import localManifest from "../fixtures/dataset-manifest.json";
@@ -40,13 +51,20 @@ function isPlaceholder(data: unknown): boolean {
 }
 
 // Convert placeholders to null for test logic
-const extensionManifest = isPlaceholder(extensionManifestRaw) ? null : extensionManifestRaw;
-const extensionDimensions = isPlaceholder(extensionDimensionsRaw) ? null : extensionDimensionsRaw;
-const extensionRollup = isPlaceholder(extensionRollupRaw) ? null : extensionRollupRaw;
-const extensionPredictions = isPlaceholder(extensionPredictionsRaw) ? null : extensionPredictionsRaw;
+const extensionManifest = isPlaceholder(extensionManifestRaw)
+  ? null
+  : extensionManifestRaw;
+const extensionDimensions = isPlaceholder(extensionDimensionsRaw)
+  ? null
+  : extensionDimensionsRaw;
+const extensionRollup = isPlaceholder(extensionRollupRaw)
+  ? null
+  : extensionRollupRaw;
+const extensionPredictions = isPlaceholder(extensionPredictionsRaw)
+  ? null
+  : extensionPredictionsRaw;
 
 describe("Schema Parity Tests", () => {
-
   describe("Local Fixtures Validation", () => {
     it("local manifest passes validation", () => {
       const result = validateManifest(localManifest, true);
@@ -216,7 +234,7 @@ describe("Schema Parity Tests", () => {
 
       // Schema versions should match or be compatible
       expect(localNormalized.manifest_schema_version).toBe(
-        extensionNormalized.manifest_schema_version
+        extensionNormalized.manifest_schema_version,
       );
     });
 
@@ -231,9 +249,16 @@ describe("Schema Parity Tests", () => {
       const extensionNormalized = normalizeDimensions(extensionDimensions);
 
       // If both have repositories, check structure
-      if (localNormalized.repositories.length > 0 && extensionNormalized.repositories.length > 0) {
-        const localRepoKeys = Object.keys(localNormalized.repositories[0]).sort();
-        const extensionRepoKeys = Object.keys(extensionNormalized.repositories[0]).sort();
+      if (
+        localNormalized.repositories.length > 0 &&
+        extensionNormalized.repositories.length > 0
+      ) {
+        const localRepoKeys = Object.keys(
+          localNormalized.repositories[0],
+        ).sort();
+        const extensionRepoKeys = Object.keys(
+          extensionNormalized.repositories[0],
+        ).sort();
         expect(localRepoKeys).toEqual(extensionRepoKeys);
       }
     });

@@ -5,6 +5,7 @@ This document outlines the incremental strategy for raising test coverage thresh
 ## Current State (Phase 5 Complete)
 
 **Global Coverage:**
+
 - Statements: ~50% (threshold: 48%)
 - Branches: ~45% (threshold: 43%)
 - Functions: ~48% (threshold: 46%)
@@ -15,41 +16,48 @@ This document outlines the incremental strategy for raising test coverage thresh
 ## Tiered Threshold Strategy
 
 ### Tier 1: Global Baseline
+
 The global threshold applies to all code. It's intentionally lower to accommodate:
+
 - DOM-heavy modules without full mock coverage (dashboard.ts, settings.ts)
 - Barrel/index files with low function coverage (re-exports)
 - Legacy code paths pending refactoring
 
 ### Tier 2: Critical Paths
+
 Critical modules have higher thresholds enforced:
 
-| Module | Current | Threshold | Target |
-|--------|---------|-----------|--------|
-| `ui/schemas/types.ts` | 100% | 98% | Maintain |
-| `ui/schemas/errors.ts` | 100% | 98% | Maintain |
-| `ui/schemas/rollup.schema.ts` | 93% | 90% | 95% |
-| `ui/dataset-loader.ts` | 82% | 80% | 90% |
-| `ui/error-codes.ts` | 100% | 98% | Maintain |
-| `ui/error-types.ts` | 100% | 98% | Maintain |
+| Module                        | Current | Threshold | Target   |
+| ----------------------------- | ------- | --------- | -------- |
+| `ui/schemas/types.ts`         | 100%    | 98%       | Maintain |
+| `ui/schemas/errors.ts`        | 100%    | 98%       | Maintain |
+| `ui/schemas/rollup.schema.ts` | 93%     | 90%       | 95%      |
+| `ui/dataset-loader.ts`        | 82%     | 80%       | 90%      |
+| `ui/error-codes.ts`           | 100%    | 98%       | Maintain |
+| `ui/error-types.ts`           | 100%    | 98%       | Maintain |
 
 ### Tier 3: Future Critical Paths (Not Yet Enforced)
+
 These modules should be added to coverage thresholds as tests are added:
 
-| Module | Current | Next Threshold |
-|--------|---------|----------------|
-| `ui/artifact-client.ts` | 15% | 40% (after mock integration) |
-| `ui/modules/errors.ts` | 0% | 60% (after DOM harness) |
-| `ui/modules/comparison.ts` | 0% | 60% (after DOM harness) |
+| Module                     | Current | Next Threshold               |
+| -------------------------- | ------- | ---------------------------- |
+| `ui/artifact-client.ts`    | 15%     | 40% (after mock integration) |
+| `ui/modules/errors.ts`     | 0%      | 60% (after DOM harness)      |
+| `ui/modules/comparison.ts` | 0%      | 60% (after DOM harness)      |
 
 ## Ratchet Schedule
 
 ### Phase 5.1 (Current)
+
 - [x] Set global baseline thresholds
 - [x] Enforce tier 2 thresholds for schemas and loaders
 - [x] Create test harnesses (dom-harness, vss-sdk-mock)
 
 ### Phase 5.2 (Next Sprint)
+
 Increase thresholds by 3-5% as tests are added:
+
 ```javascript
 global: {
   statements: 51,  // +3%
@@ -60,11 +68,14 @@ global: {
 ```
 
 Add coverage enforcement for:
+
 - `ui/artifact-client.ts`: 40% minimum
 - `ui/modules/dom.ts`: 93% minimum (already at 95%)
 
 ### Phase 5.3
+
 Increase thresholds by 5%:
+
 ```javascript
 global: {
   statements: 56,
@@ -75,7 +86,9 @@ global: {
 ```
 
 ### Phase 6 (Target)
+
 Final target thresholds:
+
 ```javascript
 global: {
   statements: 70,
@@ -116,10 +129,10 @@ npm test -- --coverage --collectCoverageFrom="ui/schemas/**/*.ts"
 
 ## History
 
-| Date | Phase | Global Statements | Notes |
-|------|-------|-------------------|-------|
-| 2026-01-28 | 5.1 | 48% | Initial tiered thresholds |
+| Date       | Phase | Global Statements | Notes                     |
+| ---------- | ----- | ----------------- | ------------------------- |
+| 2026-01-28 | 5.1   | 48%               | Initial tiered thresholds |
 
 ---
 
-*This document should be updated with each coverage threshold increase.*
+_This document should be updated with each coverage threshold increase._

@@ -7,7 +7,12 @@
  * @module schemas/manifest.schema
  */
 
-import type { ValidationResult, ValidationError, ValidationWarning, SchemaValidator } from "./types";
+import type {
+  ValidationResult,
+  ValidationError,
+  ValidationWarning,
+  SchemaValidator,
+} from "./types";
 import { validResult, invalidResult, createError } from "./types";
 import {
   isObject,
@@ -169,7 +174,12 @@ const KNOWN_COVERAGE_FIELDS = new Set([
   "teams_count", // Production field
 ]);
 const KNOWN_DATE_RANGE_FIELDS = new Set(["min", "max"]);
-const KNOWN_FEATURES_FIELDS = new Set(["teams", "comments", "predictions", "ai_insights"]);
+const KNOWN_FEATURES_FIELDS = new Set([
+  "teams",
+  "comments",
+  "predictions",
+  "ai_insights",
+]);
 const KNOWN_LIMITS_FIELDS = new Set([
   "max_weekly_files",
   "max_distribution_files",
@@ -187,7 +197,7 @@ const KNOWN_DEFAULTS_FIELDS = new Set(["default_date_range_days"]);
 function validateWeeklyRollupEntry(
   data: unknown,
   path: string,
-  strict: boolean
+  strict: boolean,
 ): { errors: ValidationError[]; warnings: ValidationWarning[] } {
   const errors: ValidationError[] = [];
   const warnings: ValidationWarning[] = [];
@@ -214,12 +224,18 @@ function validateWeeklyRollupEntry(
 
   // Optional fields
   if ("size_bytes" in data && data.size_bytes !== undefined) {
-    const sizeErr = validateNonNegativeNumber(data.size_bytes, buildPath(path, "size_bytes"));
+    const sizeErr = validateNonNegativeNumber(
+      data.size_bytes,
+      buildPath(path, "size_bytes"),
+    );
     if (sizeErr) errors.push(sizeErr);
   }
 
   if ("pr_count" in data && data.pr_count !== undefined) {
-    const prCountErr = validateNonNegativeNumber(data.pr_count, buildPath(path, "pr_count"));
+    const prCountErr = validateNonNegativeNumber(
+      data.pr_count,
+      buildPath(path, "pr_count"),
+    );
     if (prCountErr) errors.push(prCountErr);
   }
 
@@ -234,7 +250,12 @@ function validateWeeklyRollupEntry(
   }
 
   // Unknown fields
-  const unknown = findUnknownFields(data, KNOWN_WEEKLY_ROLLUP_FIELDS, path, strict);
+  const unknown = findUnknownFields(
+    data,
+    KNOWN_WEEKLY_ROLLUP_FIELDS,
+    path,
+    strict,
+  );
   errors.push(...unknown.errors);
   warnings.push(...unknown.warnings);
 
@@ -247,7 +268,7 @@ function validateWeeklyRollupEntry(
 function validateDistributionEntry(
   data: unknown,
   path: string,
-  strict: boolean
+  strict: boolean,
 ): { errors: ValidationError[]; warnings: ValidationWarning[] } {
   const errors: ValidationError[] = [];
   const warnings: ValidationWarning[] = [];
@@ -274,12 +295,18 @@ function validateDistributionEntry(
 
   // Optional fields
   if ("size_bytes" in data && data.size_bytes !== undefined) {
-    const sizeErr = validateNonNegativeNumber(data.size_bytes, buildPath(path, "size_bytes"));
+    const sizeErr = validateNonNegativeNumber(
+      data.size_bytes,
+      buildPath(path, "size_bytes"),
+    );
     if (sizeErr) errors.push(sizeErr);
   }
 
   if ("total_prs" in data && data.total_prs !== undefined) {
-    const totalPrsErr = validateNonNegativeNumber(data.total_prs, buildPath(path, "total_prs"));
+    const totalPrsErr = validateNonNegativeNumber(
+      data.total_prs,
+      buildPath(path, "total_prs"),
+    );
     if (totalPrsErr) errors.push(totalPrsErr);
   }
 
@@ -294,7 +321,12 @@ function validateDistributionEntry(
   }
 
   // Unknown fields
-  const unknown = findUnknownFields(data, KNOWN_DISTRIBUTION_FIELDS, path, strict);
+  const unknown = findUnknownFields(
+    data,
+    KNOWN_DISTRIBUTION_FIELDS,
+    path,
+    strict,
+  );
   errors.push(...unknown.errors);
   warnings.push(...unknown.warnings);
 
@@ -307,7 +339,7 @@ function validateDistributionEntry(
 function validateAggregateIndex(
   data: unknown,
   path: string,
-  strict: boolean
+  strict: boolean,
 ): { errors: ValidationError[]; warnings: ValidationWarning[] } {
   const errors: ValidationError[] = [];
   const warnings: ValidationWarning[] = [];
@@ -321,14 +353,17 @@ function validateAggregateIndex(
   const weeklyReq = validateRequired(data, "weekly_rollups", path);
   if (weeklyReq) errors.push(weeklyReq);
   else {
-    const weeklyArrErr = validateArray(data.weekly_rollups, buildPath(path, "weekly_rollups"));
+    const weeklyArrErr = validateArray(
+      data.weekly_rollups,
+      buildPath(path, "weekly_rollups"),
+    );
     if (weeklyArrErr) errors.push(weeklyArrErr);
     else if (isArray(data.weekly_rollups)) {
       data.weekly_rollups.forEach((item, i) => {
         const result = validateWeeklyRollupEntry(
           item,
           buildPath(path, `weekly_rollups[${i}]`),
-          strict
+          strict,
         );
         errors.push(...result.errors);
         warnings.push(...result.warnings);
@@ -340,14 +375,17 @@ function validateAggregateIndex(
   const distReq = validateRequired(data, "distributions", path);
   if (distReq) errors.push(distReq);
   else {
-    const distArrErr = validateArray(data.distributions, buildPath(path, "distributions"));
+    const distArrErr = validateArray(
+      data.distributions,
+      buildPath(path, "distributions"),
+    );
     if (distArrErr) errors.push(distArrErr);
     else if (isArray(data.distributions)) {
       data.distributions.forEach((item, i) => {
         const result = validateDistributionEntry(
           item,
           buildPath(path, `distributions[${i}]`),
-          strict
+          strict,
         );
         errors.push(...result.errors);
         warnings.push(...result.warnings);
@@ -364,7 +402,7 @@ function validateAggregateIndex(
 function validateDateRange(
   data: unknown,
   path: string,
-  strict: boolean
+  strict: boolean,
 ): { errors: ValidationError[]; warnings: ValidationWarning[] } {
   const errors: ValidationError[] = [];
   const warnings: ValidationWarning[] = [];
@@ -388,7 +426,12 @@ function validateDateRange(
     if (maxErr) errors.push(maxErr);
   }
 
-  const unknown = findUnknownFields(data, KNOWN_DATE_RANGE_FIELDS, path, strict);
+  const unknown = findUnknownFields(
+    data,
+    KNOWN_DATE_RANGE_FIELDS,
+    path,
+    strict,
+  );
   errors.push(...unknown.errors);
   warnings.push(...unknown.warnings);
 
@@ -401,7 +444,7 @@ function validateDateRange(
 function validateCoverage(
   data: unknown,
   path: string,
-  strict: boolean
+  strict: boolean,
 ): { errors: ValidationError[]; warnings: ValidationWarning[] } {
   const errors: ValidationError[] = [];
   const warnings: ValidationWarning[] = [];
@@ -413,13 +456,20 @@ function validateCoverage(
 
   // total_prs (required)
   if ("total_prs" in data) {
-    const prErr = validateNonNegativeNumber(data.total_prs, buildPath(path, "total_prs"));
+    const prErr = validateNonNegativeNumber(
+      data.total_prs,
+      buildPath(path, "total_prs"),
+    );
     if (prErr) errors.push(prErr);
   }
 
   // date_range (required if coverage present)
   if ("date_range" in data) {
-    const result = validateDateRange(data.date_range, buildPath(path, "date_range"), strict);
+    const result = validateDateRange(
+      data.date_range,
+      buildPath(path, "date_range"),
+      strict,
+    );
     errors.push(...result.errors);
     warnings.push(...result.warnings);
   }
@@ -434,8 +484,8 @@ function validateCoverage(
           buildPath(path, "comments"),
           "string or object",
           getTypeName(commentsValue),
-          `Expected string or object at '${buildPath(path, "comments")}'`
-        )
+          `Expected string or object at '${buildPath(path, "comments")}'`,
+        ),
       );
     }
   }
@@ -444,14 +494,21 @@ function validateCoverage(
   if ("row_counts" in data && data.row_counts !== undefined) {
     if (!isObject(data.row_counts)) {
       errors.push(
-        createError(buildPath(path, "row_counts"), "object", getTypeName(data.row_counts))
+        createError(
+          buildPath(path, "row_counts"),
+          "object",
+          getTypeName(data.row_counts),
+        ),
       );
     }
   }
 
   // teams_count (optional number - production field)
   if ("teams_count" in data && data.teams_count !== undefined) {
-    const err = validateNonNegativeNumber(data.teams_count, buildPath(path, "teams_count"));
+    const err = validateNonNegativeNumber(
+      data.teams_count,
+      buildPath(path, "teams_count"),
+    );
     if (err) errors.push(err);
   }
 
@@ -468,7 +525,7 @@ function validateCoverage(
 function validateFeatures(
   data: unknown,
   path: string,
-  strict: boolean
+  strict: boolean,
 ): { errors: ValidationError[]; warnings: ValidationWarning[] } {
   const errors: ValidationError[] = [];
   const warnings: ValidationWarning[] = [];
@@ -503,7 +560,7 @@ function validateFeatures(
 function validateLimits(
   data: unknown,
   path: string,
-  strict: boolean
+  strict: boolean,
 ): { errors: ValidationError[]; warnings: ValidationWarning[] } {
   const errors: ValidationError[] = [];
   const warnings: ValidationWarning[] = [];
@@ -514,23 +571,32 @@ function validateLimits(
   }
 
   if ("max_weekly_files" in data && data.max_weekly_files !== undefined) {
-    const err = validateNonNegativeNumber(data.max_weekly_files, buildPath(path, "max_weekly_files"));
+    const err = validateNonNegativeNumber(
+      data.max_weekly_files,
+      buildPath(path, "max_weekly_files"),
+    );
     if (err) errors.push(err);
   }
 
-  if ("max_distribution_files" in data && data.max_distribution_files !== undefined) {
+  if (
+    "max_distribution_files" in data &&
+    data.max_distribution_files !== undefined
+  ) {
     const err = validateNonNegativeNumber(
       data.max_distribution_files,
-      buildPath(path, "max_distribution_files")
+      buildPath(path, "max_distribution_files"),
     );
     if (err) errors.push(err);
   }
 
   // Production field
-  if ("max_date_range_days_soft" in data && data.max_date_range_days_soft !== undefined) {
+  if (
+    "max_date_range_days_soft" in data &&
+    data.max_date_range_days_soft !== undefined
+  ) {
     const err = validateNonNegativeNumber(
       data.max_date_range_days_soft,
-      buildPath(path, "max_date_range_days_soft")
+      buildPath(path, "max_date_range_days_soft"),
     );
     if (err) errors.push(err);
   }
@@ -548,7 +614,7 @@ function validateLimits(
 function validateDefaults(
   data: unknown,
   path: string,
-  strict: boolean
+  strict: boolean,
 ): { errors: ValidationError[]; warnings: ValidationWarning[] } {
   const errors: ValidationError[] = [];
   const warnings: ValidationWarning[] = [];
@@ -558,10 +624,13 @@ function validateDefaults(
     return { errors, warnings };
   }
 
-  if ("default_date_range_days" in data && data.default_date_range_days !== undefined) {
+  if (
+    "default_date_range_days" in data &&
+    data.default_date_range_days !== undefined
+  ) {
     const err = validateNonNegativeNumber(
       data.default_date_range_days,
-      buildPath(path, "default_date_range_days")
+      buildPath(path, "default_date_range_days"),
     );
     if (err) errors.push(err);
   }
@@ -584,13 +653,23 @@ function validateDefaults(
  * @param strict - If true, unknown fields cause errors; if false, they cause warnings
  * @returns ValidationResult
  */
-export function validateManifest(data: unknown, strict: boolean): ValidationResult {
+export function validateManifest(
+  data: unknown,
+  strict: boolean,
+): ValidationResult {
   const errors: ValidationError[] = [];
   const warnings: ValidationWarning[] = [];
 
   // Must be an object
   if (!isObject(data)) {
-    errors.push(createError("", "object", getTypeName(data), "Manifest must be an object"));
+    errors.push(
+      createError(
+        "",
+        "object",
+        getTypeName(data),
+        "Manifest must be an object",
+      ),
+    );
     return invalidResult(errors);
   }
 
@@ -611,17 +690,26 @@ export function validateManifest(data: unknown, strict: boolean): ValidationResu
 
   // Type validations for required fields (only if present)
   if ("manifest_schema_version" in data) {
-    const err = validateNumber(data.manifest_schema_version, "manifest_schema_version");
+    const err = validateNumber(
+      data.manifest_schema_version,
+      "manifest_schema_version",
+    );
     if (err) errors.push(err);
   }
 
   if ("dataset_schema_version" in data) {
-    const err = validateNumber(data.dataset_schema_version, "dataset_schema_version");
+    const err = validateNumber(
+      data.dataset_schema_version,
+      "dataset_schema_version",
+    );
     if (err) errors.push(err);
   }
 
   if ("aggregates_schema_version" in data) {
-    const err = validateNumber(data.aggregates_schema_version, "aggregates_schema_version");
+    const err = validateNumber(
+      data.aggregates_schema_version,
+      "aggregates_schema_version",
+    );
     if (err) errors.push(err);
   }
 
@@ -637,19 +725,35 @@ export function validateManifest(data: unknown, strict: boolean): ValidationResu
 
   // aggregate_index
   if ("aggregate_index" in data) {
-    const result = validateAggregateIndex(data.aggregate_index, "aggregate_index", strict);
+    const result = validateAggregateIndex(
+      data.aggregate_index,
+      "aggregate_index",
+      strict,
+    );
     errors.push(...result.errors);
     warnings.push(...result.warnings);
   }
 
   // Optional fields with type validation
-  if ("predictions_schema_version" in data && data.predictions_schema_version !== undefined) {
-    const err = validateNumber(data.predictions_schema_version, "predictions_schema_version");
+  if (
+    "predictions_schema_version" in data &&
+    data.predictions_schema_version !== undefined
+  ) {
+    const err = validateNumber(
+      data.predictions_schema_version,
+      "predictions_schema_version",
+    );
     if (err) errors.push(err);
   }
 
-  if ("insights_schema_version" in data && data.insights_schema_version !== undefined) {
-    const err = validateNumber(data.insights_schema_version, "insights_schema_version");
+  if (
+    "insights_schema_version" in data &&
+    data.insights_schema_version !== undefined
+  ) {
+    const err = validateNumber(
+      data.insights_schema_version,
+      "insights_schema_version",
+    );
     if (err) errors.push(err);
   }
 
@@ -712,7 +816,10 @@ export function normalizeManifest(data: unknown): DatasetManifest {
     generated_at: obj.generated_at as string,
     run_id: obj.run_id as string,
     defaults: (obj.defaults as Defaults) ?? { default_date_range_days: 90 },
-    limits: (obj.limits as Limits) ?? { max_weekly_files: 52, max_distribution_files: 5 },
+    limits: (obj.limits as Limits) ?? {
+      max_weekly_files: 52,
+      max_distribution_files: 5,
+    },
     features: (obj.features as Features) ?? {},
     coverage: obj.coverage as Coverage | undefined,
     aggregate_index: obj.aggregate_index as AggregateIndex,

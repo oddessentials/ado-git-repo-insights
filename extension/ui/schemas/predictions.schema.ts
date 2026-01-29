@@ -8,7 +8,12 @@
  * @module schemas/predictions.schema
  */
 
-import type { ValidationResult, ValidationError, ValidationWarning, SchemaValidator } from "./types";
+import type {
+  ValidationResult,
+  ValidationError,
+  ValidationWarning,
+  SchemaValidator,
+} from "./types";
 import { validResult, invalidResult, createError } from "./types";
 import {
   isObject,
@@ -76,7 +81,12 @@ const KNOWN_ROOT_FIELDS = new Set([
   "state",
 ]);
 
-const KNOWN_FORECAST_FIELDS = new Set(["metric", "unit", "horizon_weeks", "values"]);
+const KNOWN_FORECAST_FIELDS = new Set([
+  "metric",
+  "unit",
+  "horizon_weeks",
+  "values",
+]);
 
 const KNOWN_FORECAST_VALUE_FIELDS = new Set([
   "period_start",
@@ -95,7 +105,7 @@ const KNOWN_FORECAST_VALUE_FIELDS = new Set([
 function validateForecastValue(
   data: unknown,
   path: string,
-  strict: boolean
+  strict: boolean,
 ): { errors: ValidationError[]; warnings: ValidationWarning[] } {
   const errors: ValidationError[] = [];
   const warnings: ValidationWarning[] = [];
@@ -109,7 +119,10 @@ function validateForecastValue(
   const periodReq = validateRequired(data, "period_start", path);
   if (periodReq) errors.push(periodReq);
   else {
-    const periodErr = validateIsoDate(data.period_start, buildPath(path, "period_start"));
+    const periodErr = validateIsoDate(
+      data.period_start,
+      buildPath(path, "period_start"),
+    );
     if (periodErr) errors.push(periodErr);
   }
 
@@ -117,23 +130,37 @@ function validateForecastValue(
   const predictedReq = validateRequired(data, "predicted", path);
   if (predictedReq) errors.push(predictedReq);
   else {
-    const predictedErr = validateNumber(data.predicted, buildPath(path, "predicted"));
+    const predictedErr = validateNumber(
+      data.predicted,
+      buildPath(path, "predicted"),
+    );
     if (predictedErr) errors.push(predictedErr);
   }
 
   // Optional: lower_bound
   if ("lower_bound" in data && data.lower_bound !== undefined) {
-    const lowerErr = validateNumber(data.lower_bound, buildPath(path, "lower_bound"));
+    const lowerErr = validateNumber(
+      data.lower_bound,
+      buildPath(path, "lower_bound"),
+    );
     if (lowerErr) errors.push(lowerErr);
   }
 
   // Optional: upper_bound
   if ("upper_bound" in data && data.upper_bound !== undefined) {
-    const upperErr = validateNumber(data.upper_bound, buildPath(path, "upper_bound"));
+    const upperErr = validateNumber(
+      data.upper_bound,
+      buildPath(path, "upper_bound"),
+    );
     if (upperErr) errors.push(upperErr);
   }
 
-  const unknown = findUnknownFields(data, KNOWN_FORECAST_VALUE_FIELDS, path, strict);
+  const unknown = findUnknownFields(
+    data,
+    KNOWN_FORECAST_VALUE_FIELDS,
+    path,
+    strict,
+  );
   errors.push(...unknown.errors);
   warnings.push(...unknown.warnings);
 
@@ -146,7 +173,7 @@ function validateForecastValue(
 function validateForecastEntry(
   data: unknown,
   path: string,
-  strict: boolean
+  strict: boolean,
 ): { errors: ValidationError[]; warnings: ValidationWarning[] } {
   const errors: ValidationError[] = [];
   const warnings: ValidationWarning[] = [];
@@ -178,7 +205,7 @@ function validateForecastEntry(
   else {
     const horizonErr = validateNonNegativeNumber(
       data.horizon_weeks,
-      buildPath(path, "horizon_weeks")
+      buildPath(path, "horizon_weeks"),
     );
     if (horizonErr) errors.push(horizonErr);
   }
@@ -192,7 +219,11 @@ function validateForecastEntry(
       errors.push(valuesArrErr);
     } else if (isArray(data.values)) {
       data.values.forEach((item, i) => {
-        const result = validateForecastValue(item, buildPath(path, `values[${i}]`), strict);
+        const result = validateForecastValue(
+          item,
+          buildPath(path, `values[${i}]`),
+          strict,
+        );
         errors.push(...result.errors);
         warnings.push(...result.warnings);
       });
@@ -217,7 +248,10 @@ function validateForecastEntry(
  * @param strict - If true, unknown fields cause errors; if false, they cause warnings
  * @returns ValidationResult
  */
-export function validatePredictions(data: unknown, strict: boolean): ValidationResult {
+export function validatePredictions(
+  data: unknown,
+  strict: boolean,
+): ValidationResult {
   const errors: ValidationError[] = [];
   const warnings: ValidationWarning[] = [];
 
@@ -228,7 +262,14 @@ export function validatePredictions(data: unknown, strict: boolean): ValidationR
 
   // Must be an object
   if (!isObject(data)) {
-    errors.push(createError("", "object", getTypeName(data), "Predictions must be an object"));
+    errors.push(
+      createError(
+        "",
+        "object",
+        getTypeName(data),
+        "Predictions must be an object",
+      ),
+    );
     return invalidResult(errors);
   }
 
@@ -257,7 +298,11 @@ export function validatePredictions(data: unknown, strict: boolean): ValidationR
       errors.push(arrErr);
     } else if (isArray(data.forecasts)) {
       data.forecasts.forEach((item, i) => {
-        const result = validateForecastEntry(item, buildPath("forecasts", i), strict);
+        const result = validateForecastEntry(
+          item,
+          buildPath("forecasts", i),
+          strict,
+        );
         errors.push(...result.errors);
         warnings.push(...result.warnings);
       });

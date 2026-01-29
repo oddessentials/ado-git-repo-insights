@@ -131,7 +131,9 @@ export function isHarnessSetup(): boolean {
 export function getElement<T extends HTMLElement = HTMLElement>(id: string): T {
   const element = document.getElementById(id);
   if (!element) {
-    throw new Error(`Element with id '${id}' not found. Is the DOM harness set up?`);
+    throw new Error(
+      `Element with id '${id}' not found. Is the DOM harness set up?`,
+    );
   }
   return element as T;
 }
@@ -142,7 +144,9 @@ export function getElement<T extends HTMLElement = HTMLElement>(id: string): T {
  * @param id - Element ID (without #)
  * @returns The element or null
  */
-export function queryElement<T extends HTMLElement = HTMLElement>(id: string): T | null {
+export function queryElement<T extends HTMLElement = HTMLElement>(
+  id: string,
+): T | null {
   return document.getElementById(id) as T | null;
 }
 
@@ -162,12 +166,14 @@ export function waitForDom(ms = 0): Promise<void> {
  * @param fixtures - Which fixtures to mock
  */
 export function setupFixtureMocks(
-  fixtures: "manifest" | "dimensions" | "rollup" | "predictions" | "all"
+  fixtures: "manifest" | "dimensions" | "rollup" | "predictions" | "all",
 ): void {
   const mockFetch = (global as unknown as { fetch: jest.Mock }).fetch;
 
   if (!mockFetch || typeof mockFetch.mockImplementation !== "function") {
-    console.warn("Fetch mock not available. Ensure tests/setup.ts is configured.");
+    console.warn(
+      "Fetch mock not available. Ensure tests/setup.ts is configured.",
+    );
     return;
   }
 
@@ -176,7 +182,9 @@ export function setupFixtureMocks(
 
   if (fixtures === "manifest" || fixtures === "all") {
     try {
-      fixtureMap["dataset-manifest.json"] = require("../fixtures/dataset-manifest.json");
+      fixtureMap[
+        "dataset-manifest.json"
+      ] = require("../fixtures/dataset-manifest.json");
     } catch {
       // Fixture not available
     }
@@ -184,7 +192,9 @@ export function setupFixtureMocks(
 
   if (fixtures === "dimensions" || fixtures === "all") {
     try {
-      fixtureMap["aggregates/dimensions.json"] = require("../fixtures/aggregates/dimensions.json");
+      fixtureMap[
+        "aggregates/dimensions.json"
+      ] = require("../fixtures/aggregates/dimensions.json");
     } catch {
       // Fixture not available
     }
@@ -192,8 +202,9 @@ export function setupFixtureMocks(
 
   if (fixtures === "rollup" || fixtures === "all") {
     try {
-      fixtureMap["aggregates/weekly_rollups/2026-W02.json"] =
-        require("../fixtures/aggregates/weekly_rollups/2026-W02.json");
+      fixtureMap[
+        "aggregates/weekly_rollups/2026-W02.json"
+      ] = require("../fixtures/aggregates/weekly_rollups/2026-W02.json");
     } catch {
       // Fixture not available
     }
@@ -201,7 +212,9 @@ export function setupFixtureMocks(
 
   if (fixtures === "predictions" || fixtures === "all") {
     try {
-      fixtureMap["predictions/trends.json"] = require("../fixtures/predictions/trends.json");
+      fixtureMap[
+        "predictions/trends.json"
+      ] = require("../fixtures/predictions/trends.json");
     } catch {
       // Fixture not available
     }
@@ -211,7 +224,7 @@ export function setupFixtureMocks(
   mockFetch.mockImplementation((url: string) => {
     const filename = url.split("/").pop() || "";
     const matchingKey = Object.keys(fixtureMap).find(
-      (key) => url.includes(key) || key.endsWith(filename)
+      (key) => url.includes(key) || key.endsWith(filename),
     );
 
     if (matchingKey && fixtureMap[matchingKey]) {
@@ -240,7 +253,9 @@ export function setupFixtureMocks(
  * @param variant - "default" or "extension-artifacts"
  * @returns Manifest data or null if not found
  */
-export function loadManifestFixture(variant: "default" | "extension-artifacts" = "default"): unknown {
+export function loadManifestFixture(
+  variant: "default" | "extension-artifacts" = "default",
+): unknown {
   try {
     if (variant === "extension-artifacts") {
       return require("../fixtures/extension-artifacts/dataset-manifest.json");
@@ -257,7 +272,9 @@ export function loadManifestFixture(variant: "default" | "extension-artifacts" =
  * @param variant - "default" or "extension-artifacts"
  * @returns Dimensions data or null if not found
  */
-export function loadDimensionsFixture(variant: "default" | "extension-artifacts" = "default"): unknown {
+export function loadDimensionsFixture(
+  variant: "default" | "extension-artifacts" = "default",
+): unknown {
   try {
     if (variant === "extension-artifacts") {
       return require("../fixtures/extension-artifacts/dimensions.json");
@@ -292,7 +309,7 @@ export function loadRollupFixture(week: string = "2026-W02"): unknown {
  * @returns Predictions data or null if not found
  */
 export function loadPredictionsFixture(
-  variant: "default" | "extension-artifacts" = "default"
+  variant: "default" | "extension-artifacts" = "default",
 ): unknown {
   try {
     if (variant === "extension-artifacts") {
@@ -310,7 +327,9 @@ export function loadPredictionsFixture(
  * @param version - Legacy version ("v1.0", "v1.1", "v1.2")
  * @returns Legacy rollup data or null if not found
  */
-export function loadLegacyRollupFixture(version: "v1.0" | "v1.1" | "v1.2"): unknown {
+export function loadLegacyRollupFixture(
+  version: "v1.0" | "v1.1" | "v1.2",
+): unknown {
   try {
     return require(`../fixtures/legacy-datasets/${version}-rollup.json`);
   } catch {
@@ -346,7 +365,7 @@ export function loadAllFixtures(): LoadedFixtures {
  */
 export function createMockResponse(
   data: unknown,
-  options: { ok?: boolean; status?: number; statusText?: string } = {}
+  options: { ok?: boolean; status?: number; statusText?: string } = {},
 ): Response {
   const { ok = true, status = 200, statusText = "OK" } = options;
   return {
@@ -364,7 +383,10 @@ export function createMockResponse(
  * @param statusText - Status text
  * @returns Mock Response object
  */
-export function createMockErrorResponse(status: number, statusText: string): Response {
+export function createMockErrorResponse(
+  status: number,
+  statusText: string,
+): Response {
   return {
     ok: false,
     status,

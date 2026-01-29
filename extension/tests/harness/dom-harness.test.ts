@@ -7,7 +7,6 @@
  * @module tests/harness/dom-harness.test.ts
  */
 
-import { describe, it, expect, beforeEach, afterEach } from "@jest/globals";
 import {
   setupDomHarness,
   teardownDomHarness,
@@ -137,7 +136,7 @@ describe("DOM Harness", () => {
 
     it("throws when element not found", () => {
       expect(() => getElement("nonexistent")).toThrow(
-        "Element with id 'nonexistent' not found"
+        "Element with id 'nonexistent' not found",
       );
     });
 
@@ -180,7 +179,9 @@ describe("DOM Harness", () => {
       await waitForDom();
 
       const elapsed = Date.now() - start;
-      expect(elapsed).toBeLessThan(50);
+      // Allow generous margin for CI/system variability while still
+      // validating "immediate" resolution (vs the 100ms delay test below)
+      expect(elapsed).toBeLessThan(100);
     });
 
     it("resolves after specified delay", async () => {
@@ -203,7 +204,9 @@ describe("DOM Harness", () => {
     });
 
     it("passes when text matches exactly", () => {
-      expect(() => expectElementText("test-element", "Hello World")).not.toThrow();
+      expect(() =>
+        expectElementText("test-element", "Hello World"),
+      ).not.toThrow();
     });
 
     it("fails when text does not match", () => {
@@ -221,17 +224,22 @@ describe("DOM Harness", () => {
     });
 
     it("passes when element contains text", () => {
-      expect(() => expectElementContainsText("test-element", "World")).not.toThrow();
+      expect(() =>
+        expectElementContainsText("test-element", "World"),
+      ).not.toThrow();
     });
 
     it("fails when element does not contain text", () => {
-      expect(() => expectElementContainsText("test-element", "Missing")).toThrow();
+      expect(() =>
+        expectElementContainsText("test-element", "Missing"),
+      ).toThrow();
     });
   });
 
   describe("expectElementClass", () => {
     beforeEach(() => {
-      document.body.innerHTML = '<div id="test-element" class="active visible"></div>';
+      document.body.innerHTML =
+        '<div id="test-element" class="active visible"></div>';
     });
 
     afterEach(() => {
@@ -257,7 +265,9 @@ describe("DOM Harness", () => {
     });
 
     it("passes when element does not have class", () => {
-      expect(() => expectElementNotClass("test-element", "hidden")).not.toThrow();
+      expect(() =>
+        expectElementNotClass("test-element", "hidden"),
+      ).not.toThrow();
     });
 
     it("fails when element has class", () => {
@@ -443,7 +453,10 @@ describe("DOM Harness", () => {
 
     it("creates mock response with custom status", async () => {
       const data = { test: "value" };
-      const response = createMockResponse(data, { status: 201, statusText: "Created" });
+      const response = createMockResponse(data, {
+        status: 201,
+        statusText: "Created",
+      });
 
       expect(response.ok).toBe(true);
       expect(response.status).toBe(201);

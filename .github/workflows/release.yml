@@ -82,10 +82,7 @@ jobs:
         with:
           ref: v${{ needs.release.outputs.new_release_version }}  # Checkout release TAG
 
-      - name: Set up Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: '22'
+      - uses: ./.github/actions/setup-pnpm
 
       - name: Install tfx-cli
         run: npm install -g tfx-cli
@@ -126,15 +123,15 @@ jobs:
 
       - name: Install extension dependencies
         working-directory: extension
-        run: npm ci
+        run: pnpm install --frozen-lockfile
 
       - name: Build extension (tsc + esbuild)
         working-directory: extension
-        run: npm run build
+        run: pnpm run build
 
       - name: Stage task dependencies
         working-directory: extension
-        run: npm run stage:tasks
+        run: pnpm run stage:tasks
 
       - name: Create extension package
         working-directory: extension

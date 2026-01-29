@@ -4,98 +4,141 @@ Outstanding work items for the PR Insights dashboard.
 
 ---
 
-## Task 1: Schema Parity Test (Priority: High)
+## Task 1: Enable Predictions & Insights Features (Priority: High)
 
-**Goal:** Ensure dashboard renders identically across extension, local prod, and local dev modes.
-
-### Problem
-
-The dashboard loads the same JavaScript code in all modes (enforced by CI `ui-bundle-sync` job), but data could differ:
-- Extension mode: Loads JSON from ADO pipeline artifacts
-- Local mode: Loads JSON from local files
-
-If the JSON schemas drift, the same code could produce different output.
-
-### Solution
-
-Create a schema parity test that validates:
-
-1. **dataset-manifest.json** - Manifest structure matches between local fixtures and ADO artifacts
-2. **Rollup JSON** - Weekly rollup structure is identical
-3. **dimensions.json** - Repository/team/user dimension structure matches
-4. **predictions.json** - ML prediction output structure (if enabled)
-
-### Implementation Options
-
-| Approach | Pros | Cons |
-|----------|------|------|
-| JSON Schema (ajv) | Industry standard, reusable | Additional dependency |
-| TypeScript interfaces | Already have types | Runtime validation needed |
-| Zod schemas | Type inference + runtime | New dependency |
-
-### Acceptance Criteria
-
-- [ ] Shared schema definition exists for all JSON artifacts
-- [ ] Local fixtures validated against schema in tests
-- [ ] DatasetLoader validates incoming data against schema
-- [ ] CI fails if schema validation fails
-
----
-
-## Task 2: TypeScript Coverage to 70% (Priority: Medium)
-
-**Blocked by:** Task 1 (Schema Parity Test)
-
-**Goal:** Increase TypeScript test coverage from ~44% to 70% enterprise-grade threshold.
+**Goal:** Make the Predictions and AI Insights tabs usable for end users.
 
 ### Current State
 
-| Metric | Current | Target |
-|--------|---------|--------|
-| Statements | 44% | 70% |
-| Branches | 38% | 70% |
-| Functions | 50% | 70% |
-| Lines | 45% | 70% |
+| Component | Status | Notes |
+|-----------|--------|-------|
+| UI Implementation | Complete | Charts, cards, schemas, validation all working |
+| Feature Flag | Enabled | `ENABLE_PHASE5_FEATURES = true` in `dashboard.ts:90` |
+| Tab Visibility | Hidden | CSS class `hidden` on `.phase5-tab` buttons |
+| Backend Data Generation | Not configured | Pipeline doesn't output artifacts by default |
 
-### Coverage Gaps
+### Problem
 
-Modules with 0% coverage requiring DOM mocking infrastructure:
+The tabs show "Coming Soon" placeholders because:
 
-| Module | Lines | Why Untested |
-|--------|-------|--------------|
-| dashboard.ts | 1634 | Heavy DOM manipulation, SDK initialization |
-| settings.ts | 722 | DOM forms, SDK storage APIs |
-| modules/comparison.ts | 73 | DOM rendering |
-| modules/errors.ts | 215 | DOM error panels |
-| modules/index.ts | 45 | DOM initialization |
+1. **CSS Hidden Class** - Tabs have `hidden` class in `extension/ui/index.html:161-162`:
+   ```html
+   <button class="tab phase5-tab hidden" data-tab="predictions">Predictions</button>
+   <button class="tab phase5-tab hidden" data-tab="ai-insights">AI Insights</button>
+   ```
 
-### Implementation Strategy
+2. **No Data Artifacts** - Even when tabs are visible, without `predictions/trends.json` or `ai_insights/summary.json`, the placeholder is shown.
 
-1. **Create DOM test utilities** - Reusable JSDOM setup with common mocks
-2. **Mock VSS SDK** - Extend existing smoke-render mocks for unit tests
-3. **Test pure functions first** - Extract testable logic from DOM code
-4. **Add integration tests** - Full render cycle with mocked DOM
+### Gap Analysis
 
-### Why Blocked by Schema Parity
+| Gap Type | Severity | Details |
+|----------|----------|---------|
+| Documentation Gap | High | No user-facing docs explaining how to enable these features |
+| Implementation Gap | Medium | Backend pipeline must be configured to output prediction/insights artifacts |
+| UX Gap | Medium | "Coming Soon" doesn't tell users *how* to enable features |
 
-Schema parity tests will:
-- Create fixture data that's guaranteed valid
-- Enable confident testing of data-dependent rendering
-- Prevent false positives from malformed test data
+### Required Backend Configuration
+
+Per embedded setup guides in `extension/ui/modules/ml/setup-guides.ts`:
+
+**For Predictions:**
+```yaml
+build-aggregates:
+  run-predictions: true
+```
+
+**For AI Insights:**
+```yaml
+build-aggregates:
+  run-insights: true
+  openai-api-key: $(OPENAI_API_KEY)
+```
+
+### Key Files Reference
+
+| File | Purpose |
+|------|---------|
+| `extension/ui/dashboard.ts:90` | Feature flag `ENABLE_PHASE5_FEATURES` |
+| `extension/ui/dashboard.ts:692-701` | Tab initialization logic |
+| `extension/ui/dashboard.ts:953-980` | Data loading for predictions/insights |
+| `extension/ui/index.html:161-162` | Tab buttons with hidden class |
+| `extension/ui/index.html:240-272` | "Coming Soon" placeholder sections |
+| `extension/ui/modules/ml/setup-guides.ts` | YAML snippets for setup |
+| `extension/ui/modules/charts/predictions.ts` | Predictions chart rendering |
+| `extension/ui/schemas/predictions.schema.ts` | Predictions data validation |
+| `specs/004-ml-features-enhancement/spec.md` | Feature specification |
 
 ### Acceptance Criteria
 
-- [ ] Coverage threshold set to 70% in jest.config.ts
-- [ ] All coverage metrics exceed 70%
-- [ ] No test skips in CI
-- [ ] DOM test utilities documented for future use
+- [ ] User documentation added explaining how to enable predictions/insights
+- [ ] "Coming Soon" message updated to "Available - Setup Required" with setup link
+- [ ] Pipeline templates include commented-out prediction/insights options
+- [ ] End-to-end test confirms features work when configured
+
+---
+
+## Task 2: Verify Backend Predictions Pipeline (Priority: Medium)
+
+**Blocked by:** Task 1 documentation
+
+**Goal:** Ensure the backend actually generates valid `predictions/trends.json` when configured.
+
+### Questions to Investigate
+
+1. Does the backend code exist to generate predictions?
+2. Is linear regression fallback implemented (per FR-001 in spec)?
+3. Does Prophet auto-detection work (per FR-002 in spec)?
+4. What's the minimum data required for forecasting?
+
+### Expected Outputs
+
+When `run-predictions: true`:
+- `predictions/trends.json` with schema version, forecasts array
+- Forecaster type indicator ("linear" or "prophet")
+- Data quality indicator ("normal", "low_confidence", "insufficient")
+
+### Acceptance Criteria
+
+- [ ] Backend generates valid predictions with linear regression
+- [ ] Prophet auto-detection works when library available
+- [ ] Output validates against `predictions.schema.ts`
+- [ ] Data quality warnings appear for insufficient history
+
+---
+
+## Task 3: Verify Backend Insights Pipeline (Priority: Low)
+
+**Blocked by:** Task 2
+
+**Goal:** Ensure the backend generates valid `ai_insights/summary.json` when configured.
+
+### Questions to Investigate
+
+1. Does the backend code exist to generate AI insights?
+2. How is the OpenAI API called?
+3. Is the 12-hour caching implemented (per spec)?
+4. What data is sent to OpenAI?
+
+### Expected Outputs
+
+When `run-insights: true`:
+- `ai_insights/summary.json` with insights array
+- Each insight has: category, severity, title, description
+- Optional: data, affected_entities, recommendation
+
+### Acceptance Criteria
+
+- [ ] Backend generates valid insights via OpenAI
+- [ ] Caching prevents excessive API calls
+- [ ] Output validates against insights schema in `types.ts`
+- [ ] Graceful degradation when API unavailable
 
 ---
 
 ## Execution Order
 
 ```
-[Task 1: Schema Parity] ──blocks──> [Task 2: TypeScript Coverage 70%]
+[Task 1: Documentation] ──blocks──> [Task 2: Predictions Backend] ──blocks──> [Task 3: Insights Backend]
 ```
 
-Complete schema parity first to establish reliable test fixtures, then use those fixtures to write comprehensive DOM tests.
+Documentation first to understand intended behavior, then verify backend implementation matches spec.

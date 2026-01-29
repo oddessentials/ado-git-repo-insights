@@ -16,6 +16,7 @@ describe("Performance Baseline Tests (Simplified)", () => {
     __dirname,
     "..",
     "..",
+    "..",
     "tmp",
     "perf-fixtures",
   );
@@ -49,6 +50,7 @@ describe("Performance Baseline Tests (Simplified)", () => {
     const outputDir = path.join(perfFixturesDir, "1000pr");
     const scriptPath = path.join(
       __dirname,
+      "..",
       "..",
       "..",
       "scripts",
@@ -96,6 +98,7 @@ describe("Performance Baseline Tests (Simplified)", () => {
         __dirname,
         "..",
         "..",
+        "..",
         "scripts",
         "generate-synthetic-dataset.py",
       );
@@ -135,6 +138,7 @@ describe("Performance Baseline Tests (Simplified)", () => {
     if (!fs.existsSync(manifestPath)) {
       const scriptPath = path.join(
         __dirname,
+        "..",
         "..",
         "..",
         "scripts",
@@ -180,6 +184,7 @@ describe("Performance Baseline Tests (Simplified)", () => {
     if (!fs.existsSync(manifestPath)) {
       const scriptPath = path.join(
         __dirname,
+        "..",
         "..",
         "..",
         "scripts",
@@ -236,6 +241,7 @@ describe("Performance Baseline Tests (Simplified)", () => {
       __dirname,
       "..",
       "..",
+      "..",
       "tmp",
       "perf-summary.json",
     );
@@ -265,11 +271,13 @@ describe.each([1000, 5000, 10000])(
       __dirname,
       "..",
       "..",
+      "..",
       "tmp",
       "perf-fixtures",
     );
     const baselinesPath = path.join(
       __dirname,
+      "..",
       "fixtures",
       "perf-baselines.json",
     );
@@ -350,6 +358,7 @@ describe.each([1000, 5000, 10000])(
         __dirname,
         "..",
         "..",
+        "..",
         "scripts",
         "generate-synthetic-dataset.py",
       );
@@ -395,6 +404,7 @@ describe.each([1000, 5000, 10000])(
           __dirname,
           "..",
           "..",
+          "..",
           "scripts",
           "generate-synthetic-dataset.py",
         );
@@ -426,6 +436,7 @@ describe.each([1000, 5000, 10000])(
       if (!fs.existsSync(manifestPath)) {
         const scriptPath = path.join(
           __dirname,
+          "..",
           "..",
           "..",
           "scripts",

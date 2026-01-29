@@ -30,7 +30,10 @@ import {
   type RollupForChart,
 } from "./charts/predictions";
 import { canShowSyntheticData } from "./ml/dev-mode";
-import { generateSyntheticPredictions, generateSyntheticInsights } from "./ml/synthetic";
+import {
+  generateSyntheticPredictions,
+  generateSyntheticInsights,
+} from "./ml/synthetic";
 import {
   renderPredictionsEmptyWithGuide,
   renderInsightsEmptyWithGuide,
@@ -103,6 +106,48 @@ const TREND_ICONS: Record<string, string> = {
 };
 
 /**
+ * Severity priority for sorting (higher number = higher priority/first).
+ * Used for deterministic ordering: severity DESC → category ASC → id ASC
+ */
+const SEVERITY_PRIORITY: Record<string, number> = {
+  critical: 3,
+  warning: 2,
+  info: 1,
+};
+
+/**
+ * Sort insights deterministically: severity DESC → category ASC → id ASC
+ * Per T037: Ensures consistent ordering across all renderings.
+ *
+ * @param insights - Array of insight items to sort
+ * @returns New sorted array (does not mutate original)
+ */
+export function sortInsights(insights: InsightItem[]): InsightItem[] {
+  return [...insights].sort((a, b) => {
+    // 1. Severity DESC (critical first, then warning, then info)
+    const severityA = SEVERITY_PRIORITY[a.severity] ?? 0;
+    const severityB = SEVERITY_PRIORITY[b.severity] ?? 0;
+    if (severityB !== severityA) {
+      return severityB - severityA;
+    }
+
+    // 2. Category ASC (alphabetical)
+    const categoryCompare = String(a.category).localeCompare(
+      String(b.category),
+    );
+    if (categoryCompare !== 0) {
+      return categoryCompare;
+    }
+
+    // 3. ID ASC (numeric or string comparison)
+    if (typeof a.id === "number" && typeof b.id === "number") {
+      return a.id - b.id;
+    }
+    return String(a.id).localeCompare(String(b.id));
+  });
+}
+
+/**
  * Render a sparkline as an inline SVG for insight cards (T038).
  * Named distinctly from charts.ts renderSparkline to avoid export conflicts.
  * Includes WCAG 2.1 AA accessibility attributes (aria-hidden, screen reader text).
@@ -121,9 +166,10 @@ function renderInsightSparkline(
   }
 
   // Limit data points to prevent memory pressure - take last N (most recent)
-  const limitedValues = values.length > MAX_SPARKLINE_POINTS
-    ? values.slice(-MAX_SPARKLINE_POINTS)
-    : values;
+  const limitedValues =
+    values.length > MAX_SPARKLINE_POINTS
+      ? values.slice(-MAX_SPARKLINE_POINTS)
+      : values;
 
   const minVal = Math.min(...limitedValues);
   const maxVal = Math.max(...limitedValues);
@@ -144,7 +190,12 @@ function renderInsightSparkline(
   // Calculate trend direction for accessible description
   const firstVal = limitedValues[0] ?? 0;
   const lastVal = limitedValues[limitedValues.length - 1] ?? 0;
-  const trendDescription = lastVal > firstVal ? "upward trend" : lastVal < firstVal ? "downward trend" : "stable trend";
+  const trendDescription =
+    lastVal > firstVal
+      ? "upward trend"
+      : lastVal < firstVal
+        ? "downward trend"
+        : "stable trend";
 
   return `
     <svg class="sparkline" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}"
@@ -177,9 +228,10 @@ function renderInsightDataSection(data: InsightData | undefined): string {
   const trendClass = `trend-${data.trend_direction}`;
 
   // Format change percent
-  const changeDisplay = data.change_percent !== undefined
-    ? `${data.change_percent > 0 ? "+" : ""}${data.change_percent.toFixed(1)}%`
-    : "";
+  const changeDisplay =
+    data.change_percent !== undefined
+      ? `${data.change_percent > 0 ? "+" : ""}${data.change_percent.toFixed(1)}%`
+      : "";
 
   return `
     <div class="insight-data-section">
@@ -200,11 +252,19 @@ function renderInsightDataSection(data: InsightData | undefined): string {
  * @param recommendation - Recommendation with action, priority, and effort
  * @returns HTML string for the recommendation section
  */
-function renderRecommendationSection(recommendation: Recommendation | undefined): string {
+function renderRecommendationSection(
+  recommendation: Recommendation | undefined,
+): string {
   if (!recommendation) return "";
 
-  const priorityBadge = PRIORITY_BADGES[recommendation.priority] ?? { label: "Medium Priority", cssClass: "priority-medium" };
-  const effortBadge = EFFORT_BADGES[recommendation.effort] ?? { label: "Medium Effort", cssClass: "effort-medium" };
+  const priorityBadge = PRIORITY_BADGES[recommendation.priority] ?? {
+    label: "Medium Priority",
+    cssClass: "priority-medium",
+  };
+  const effortBadge = EFFORT_BADGES[recommendation.effort] ?? {
+    label: "Medium Effort",
+    cssClass: "effort-medium",
+  };
 
   return `
     <div class="insight-recommendation">
@@ -225,17 +285,23 @@ function renderRecommendationSection(recommendation: Recommendation | undefined)
  * @param entities - Array of affected entities
  * @returns HTML string for the entities section
  */
-function renderAffectedEntities(entities: AffectedEntity[] | undefined): string {
+function renderAffectedEntities(
+  entities: AffectedEntity[] | undefined,
+): string {
   if (!entities || entities.length === 0) return "";
 
   const entityItems = entities
     .map((entity) => {
-      const memberCount = entity.member_count !== undefined
-        ? `<span class="entity-count">(${entity.member_count})</span>`
-        : "";
-      const entityIcon = entity.type === "team" ? "👥"
-        : entity.type === "repository" ? "📁"
-        : "👤";
+      const memberCount =
+        entity.member_count !== undefined
+          ? `<span class="entity-count">(${entity.member_count})</span>`
+          : "";
+      const entityIcon =
+        entity.type === "team"
+          ? "👥"
+          : entity.type === "repository"
+            ? "📁"
+            : "👤";
       return `
         <span class="entity-item ${escapeHtml(entity.type)}">
           <span class="entity-icon">${entityIcon}</span>
@@ -298,6 +364,34 @@ function renderPreviewBanner(): string {
 }
 
 /**
+ * Render stale data warning banner (T038).
+ * Shown when displaying last-known-good data due to fetch failure.
+ * @param generatedAt - Timestamp of the stale data
+ * @returns HTML string for the stale data banner
+ */
+export function renderStaleDataBanner(generatedAt?: string): string {
+  const formattedDate = generatedAt
+    ? new Date(generatedAt).toLocaleDateString("en-US", {
+        year: "numeric",
+        month: "short",
+        day: "numeric",
+        hour: "2-digit",
+        minute: "2-digit",
+      })
+    : "unknown date";
+
+  return `
+    <div class="stale-data-banner">
+      <span class="stale-icon">&#x1F551;</span>
+      <div class="stale-text">
+        <strong>Stale Data</strong>
+        <span>Showing cached data from ${escapeHtml(formattedDate)}. Latest data could not be loaded.</span>
+      </div>
+    </div>
+  `;
+}
+
+/**
  * Initialize Phase 5 features in the UI.
  * Sets up tab content areas for ML features.
  */
@@ -325,10 +419,12 @@ export function renderPredictions(
  * Render AI insights tab content with rich cards.
  * @param container - The tab container element
  * @param insights - Insights data to render (null-safe)
+ * @param isStale - Optional flag indicating this is stale/cached data
  */
 export function renderAIInsights(
   container: HTMLElement | null,
   insights: InsightsRenderData | null,
+  isStale?: boolean,
 ): void {
   if (!container) return;
   if (!insights) return;
@@ -336,16 +432,26 @@ export function renderAIInsights(
   const content = document.createElement("div");
   content.className = "insights-content";
 
+  // T038: Show stale data warning if using cached data
+  if (isStale && insights.generated_at) {
+    appendTrustedHtml(content, renderStaleDataBanner(insights.generated_at));
+  }
+
   // Show prominent preview banner for synthetic data (T056)
   if (insights.is_stub) {
     appendTrustedHtml(content, renderPreviewBanner());
   }
 
-  // Group insights by severity and render with rich cards
+  // T037/T039: Sort all insights deterministically before rendering
+  // Order: severity DESC → category ASC → id ASC
+  const sortedInsights = sortInsights(insights.insights);
+
+  // Group sorted insights by severity and render with rich cards
+  // Sorting is already done, so groups maintain sorted order within
   // Includes WCAG 2.1 AA accessibility (proper headings, roles, aria-labels)
   const defaultSeverityInfo = { icon: "🔵", label: "Informational" };
   ["critical", "warning", "info"].forEach((severity) => {
-    const items = insights.insights.filter(
+    const items = sortedInsights.filter(
       (i: InsightItem) => i.severity === severity,
     );
     if (!items.length) return;
@@ -362,7 +468,7 @@ export function renderAIInsights(
           <h4>
             <span role="img" aria-hidden="true">${severityInfo.icon}</span>
             <span>${severity.charAt(0).toUpperCase() + severity.slice(1)}</span>
-            <span class="visually-hidden">(${items.length} ${items.length === 1 ? 'item' : 'items'})</span>
+            <span class="visually-hidden">(${items.length} ${items.length === 1 ? "item" : "items"})</span>
           </h4>
           <div class="insight-cards" role="feed" aria-label="${sectionLabel} list">
             ${items.map((i: InsightItem) => renderRichInsightCard(i)).join("")}
@@ -457,6 +563,228 @@ export function renderInsightsEmpty(container: HTMLElement | null): void {
   renderInsightsEmptyWithGuide(container);
 }
 
+// =============================================================================
+// State-Specific Rendering (FR-001 through FR-004)
+// Each function renders exactly one state - no mixed UI, no fallthrough.
+// =============================================================================
+
+import type { ArtifactState } from "../types";
+
+/**
+ * Render the invalid-artifact error banner (T026).
+ * Shows error message and file path for debugging.
+ * @param container - The tab container element
+ * @param error - Error message from validation
+ * @param path - Optional file path for reference
+ */
+export function renderInvalidArtifactBanner(
+  container: HTMLElement | null,
+  error: string,
+  path?: string,
+): void {
+  if (!container) return;
+
+  const content = document.createElement("div");
+  content.className = "artifact-error-banner invalid-artifact";
+  renderTrustedHtml(
+    content,
+    `
+    <div class="error-banner">
+      <div class="error-icon">⚠️</div>
+      <div class="error-content">
+        <h4>Invalid Data Format</h4>
+        <p>${escapeHtml(error)}</p>
+        ${path ? `<code class="file-path">${escapeHtml(path)}</code>` : ""}
+      </div>
+    </div>
+  `,
+  );
+
+  // Hide any existing content
+  const unavailable = container.querySelector(".feature-unavailable");
+  if (unavailable) unavailable.classList.add("hidden");
+
+  container.appendChild(content);
+}
+
+/**
+ * Render the unsupported-schema error banner (T027).
+ * Shows version mismatch guidance.
+ * @param container - The tab container element
+ * @param version - The unsupported schema version found
+ * @param supported - The supported version range [min, max]
+ */
+export function renderUnsupportedSchemaBanner(
+  container: HTMLElement | null,
+  version: number,
+  supported: [number, number],
+): void {
+  if (!container) return;
+
+  const content = document.createElement("div");
+  content.className = "artifact-error-banner unsupported-schema";
+  renderTrustedHtml(
+    content,
+    `
+    <div class="error-banner">
+      <div class="error-icon">🔄</div>
+      <div class="error-content">
+        <h4>Unsupported Schema Version</h4>
+        <p>Found schema version <strong>${escapeHtml(String(version))}</strong>, but this dashboard supports versions <strong>${supported[0]}</strong> to <strong>${supported[1]}</strong>.</p>
+        <p class="hint">Please update your pipeline or dashboard to use a compatible version.</p>
+      </div>
+    </div>
+  `,
+  );
+
+  // Hide any existing content
+  const unavailable = container.querySelector(".feature-unavailable");
+  if (unavailable) unavailable.classList.add("hidden");
+
+  container.appendChild(content);
+}
+
+/**
+ * Render the no-data state with quality indication.
+ * @param container - The tab container element
+ * @param quality - Optional quality indicator ("insufficient")
+ * @param featureType - "predictions" or "insights"
+ */
+export function renderNoDataState(
+  container: HTMLElement | null,
+  quality: "insufficient" | undefined,
+  featureType: "predictions" | "insights",
+): void {
+  if (!container) return;
+
+  const content = document.createElement("div");
+  content.className = "artifact-state no-data";
+
+  const message =
+    quality === "insufficient"
+      ? "Not enough historical data to generate meaningful results."
+      : featureType === "predictions"
+        ? "The predictions artifact exists but contains no forecast data."
+        : "The insights artifact exists but contains no insights.";
+
+  const suggestion =
+    quality === "insufficient"
+      ? "Continue running your pipeline to accumulate more data points."
+      : "Check that your pipeline is configured correctly to generate this data.";
+
+  renderTrustedHtml(
+    content,
+    `
+    <div class="no-data-message">
+      <div class="state-icon">📊</div>
+      <h4>${quality === "insufficient" ? "Insufficient Data" : "No Data Available"}</h4>
+      <p>${escapeHtml(message)}</p>
+      <p class="hint">${escapeHtml(suggestion)}</p>
+    </div>
+  `,
+  );
+
+  // Hide any existing content
+  const unavailable = container.querySelector(".feature-unavailable");
+  if (unavailable) unavailable.classList.add("hidden");
+
+  container.appendChild(content);
+}
+
+/**
+ * Render predictions tab based on artifact state (FR-001 through FR-004).
+ * Dispatches to the appropriate renderer based on state type.
+ * First match wins - each state renders exactly one UI variant.
+ *
+ * @param container - The tab container element
+ * @param state - The resolved artifact state
+ * @param rollups - Optional historical rollup data for chart context
+ */
+export function renderPredictionsForState(
+  container: HTMLElement | null,
+  state: ArtifactState,
+  rollups?: RollupForChart[],
+): void {
+  if (!container) return;
+
+  // Clear any existing content first
+  const existingContent = container.querySelectorAll(
+    ".predictions-content, .ml-empty-state, .artifact-error-banner, .artifact-state, .predictions-error",
+  );
+  existingContent.forEach((el) => el.remove());
+
+  switch (state.type) {
+    case "setup-required":
+      renderPredictionsEmpty(container);
+      break;
+
+    case "no-data":
+      renderNoDataState(container, state.quality, "predictions");
+      break;
+
+    case "invalid-artifact":
+      renderInvalidArtifactBanner(container, state.error, state.path);
+      break;
+
+    case "unsupported-schema":
+      renderUnsupportedSchemaBanner(container, state.version, state.supported);
+      break;
+
+    case "ready":
+      // Type guard ensures data is PredictionsRenderData
+      if (isPredictionsRenderData(state.data)) {
+        renderPredictions(container, state.data, rollups);
+      }
+      break;
+  }
+}
+
+/**
+ * Render insights tab based on artifact state (FR-001 through FR-004).
+ * Dispatches to the appropriate renderer based on state type.
+ * First match wins - each state renders exactly one UI variant.
+ *
+ * @param container - The tab container element
+ * @param state - The resolved artifact state
+ */
+export function renderInsightsForState(
+  container: HTMLElement | null,
+  state: ArtifactState,
+): void {
+  if (!container) return;
+
+  // Clear any existing content first
+  const existingContent = container.querySelectorAll(
+    ".insights-content, .ml-empty-state, .artifact-error-banner, .artifact-state, .insights-error",
+  );
+  existingContent.forEach((el) => el.remove());
+
+  switch (state.type) {
+    case "setup-required":
+      renderInsightsEmpty(container);
+      break;
+
+    case "no-data":
+      renderNoDataState(container, state.quality, "insights");
+      break;
+
+    case "invalid-artifact":
+      renderInvalidArtifactBanner(container, state.error, state.path);
+      break;
+
+    case "unsupported-schema":
+      renderUnsupportedSchemaBanner(container, state.version, state.supported);
+      break;
+
+    case "ready":
+      // Type guard ensures data is InsightsRenderData
+      if (isInsightsRenderData(state.data)) {
+        renderAIInsights(container, state.data);
+      }
+      break;
+  }
+}
+
 /**
  * Options for ML renderer behavior.
  */
@@ -472,7 +800,10 @@ export interface MlRendererOptions {
  * @param provider - Data provider for loading ML data
  * @param options - Optional configuration including devMode flag
  */
-export function createMlRenderer(provider: MlDataProvider, options: MlRendererOptions = {}) {
+export function createMlRenderer(
+  provider: MlDataProvider,
+  options: MlRendererOptions = {},
+) {
   let state: MlFeatureState = createInitialMlState();
   const { devMode = false } = options;
 
@@ -613,3 +944,13 @@ export {
   getInsightsYaml,
   attachCopyHandlers,
 } from "./ml/setup-guides";
+
+// Re-export state machine (FR-001 through FR-004)
+export {
+  resolvePredictionsState,
+  resolveInsightsState,
+  getStateMessage,
+  isErrorState,
+  isReadyState,
+  type ArtifactLoadResult,
+} from "./ml/state-machine";

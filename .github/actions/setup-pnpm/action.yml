@@ -1,0 +1,34 @@
+name: 'Setup pnpm'
+description: 'Shared pnpm setup with Node.js and corepack for deterministic package management'
+
+inputs:
+  node-version:
+    description: 'Node.js version to use'
+    required: false
+    default: '22'
+  cache:
+    description: 'Enable pnpm dependency caching (set to "false" for fresh-clone verification)'
+    required: false
+    default: 'true'
+  cache-dependency-path:
+    description: 'Path to pnpm-lock.yaml for cache key generation'
+    required: false
+    default: 'extension/pnpm-lock.yaml'
+
+runs:
+  using: 'composite'
+  steps:
+    - name: Setup pnpm
+      uses: pnpm/action-setup@v4
+      # Version is determined by packageManager field in root package.json
+
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: ${{ inputs.node-version }}
+        cache: ${{ inputs.cache == 'true' && 'pnpm' || '' }}
+        cache-dependency-path: ${{ inputs.cache-dependency-path }}
+
+    - name: Enable Corepack
+      shell: bash
+      run: corepack enable

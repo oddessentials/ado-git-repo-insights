@@ -7,7 +7,6 @@
  * @module tests/schema-validation-error.test.ts
  */
 
-import { describe, it, expect } from "@jest/globals";
 import { SchemaValidationError } from "../ui/schemas/errors";
 import type { ValidationError, ArtifactType } from "../ui/schemas/types";
 
@@ -130,9 +129,24 @@ describe("SchemaValidationError", () => {
 
     it("should show up to 3 errors in message", () => {
       const errors: ValidationError[] = [
-        { field: "field1", expected: "string", actual: "number", message: "Error 1" },
-        { field: "field2", expected: "number", actual: "string", message: "Error 2" },
-        { field: "field3", expected: "array", actual: "object", message: "Error 3" },
+        {
+          field: "field1",
+          expected: "string",
+          actual: "number",
+          message: "Error 1",
+        },
+        {
+          field: "field2",
+          expected: "number",
+          actual: "string",
+          message: "Error 2",
+        },
+        {
+          field: "field3",
+          expected: "array",
+          actual: "object",
+          message: "Error 3",
+        },
       ];
 
       const error = new SchemaValidationError(errors, "manifest");
@@ -144,11 +158,36 @@ describe("SchemaValidationError", () => {
 
     it("should indicate when more than 3 errors exist", () => {
       const errors: ValidationError[] = [
-        { field: "field1", expected: "string", actual: "number", message: "Error 1" },
-        { field: "field2", expected: "number", actual: "string", message: "Error 2" },
-        { field: "field3", expected: "array", actual: "object", message: "Error 3" },
-        { field: "field4", expected: "boolean", actual: "null", message: "Error 4" },
-        { field: "field5", expected: "object", actual: "array", message: "Error 5" },
+        {
+          field: "field1",
+          expected: "string",
+          actual: "number",
+          message: "Error 1",
+        },
+        {
+          field: "field2",
+          expected: "number",
+          actual: "string",
+          message: "Error 2",
+        },
+        {
+          field: "field3",
+          expected: "array",
+          actual: "object",
+          message: "Error 3",
+        },
+        {
+          field: "field4",
+          expected: "boolean",
+          actual: "null",
+          message: "Error 4",
+        },
+        {
+          field: "field5",
+          expected: "object",
+          actual: "array",
+          message: "Error 5",
+        },
       ];
 
       const error = new SchemaValidationError(errors, "rollup");
@@ -197,7 +236,8 @@ describe("SchemaValidationError", () => {
           field: "repositories[0].repository_id",
           expected: "string",
           actual: "number",
-          message: "Expected string at 'repositories[0].repository_id', got number",
+          message:
+            "Expected string at 'repositories[0].repository_id', got number",
         },
       ];
 
@@ -206,12 +246,19 @@ describe("SchemaValidationError", () => {
 
       const lines = detailed.split("\n");
       expect(lines.length).toBeGreaterThan(1);
-      expect(lines.some((line) => line.includes("repositories[0].repository_id"))).toBe(true);
+      expect(
+        lines.some((line) => line.includes("repositories[0].repository_id")),
+      ).toBe(true);
     });
   });
 
   describe("artifact types", () => {
-    const artifactTypes: ArtifactType[] = ["manifest", "rollup", "dimensions", "predictions"];
+    const artifactTypes: ArtifactType[] = [
+      "manifest",
+      "rollup",
+      "dimensions",
+      "predictions",
+    ];
 
     it.each(artifactTypes)("should accept artifact type: %s", (type) => {
       const errors: ValidationError[] = [

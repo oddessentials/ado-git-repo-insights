@@ -65,7 +65,8 @@ function createCopyButton(yaml: string, buttonId: string): string {
  * @param container - Container element with copy buttons
  */
 export function attachCopyHandlers(container: HTMLElement): void {
-  const buttons = container.querySelectorAll<HTMLButtonElement>(".copy-yaml-btn");
+  const buttons =
+    container.querySelectorAll<HTMLButtonElement>(".copy-yaml-btn");
 
   // Create or get ARIA live region for announcements
   let liveRegion = document.getElementById("copy-status-live");
@@ -97,7 +98,8 @@ export function attachCopyHandlers(container: HTMLElement): void {
         button.setAttribute("aria-label", "YAML snippet copied to clipboard");
 
         // Announce to screen readers
-        if (liveRegion) liveRegion.textContent = "YAML snippet copied to clipboard";
+        if (liveRegion)
+          liveRegion.textContent = "YAML snippet copied to clipboard";
 
         // Reset after delay
         setTimeout(() => {

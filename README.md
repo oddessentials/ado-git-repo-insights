@@ -196,6 +196,113 @@ The system uses **incremental extraction** by default (daily) with optional **ba
 
 ---
 
+## 🤖 ML Features (Optional)
+
+The dashboard supports optional ML-powered features for forecasting and insights. These features require additional pipeline configuration.
+
+### Predictions (Time-Series Forecasting)
+
+Enable ML-powered forecasting for PR throughput and cycle times. **Zero-config** — no API key required.
+
+Add to your pipeline YAML:
+
+```yaml
+build-aggregates:
+    run-predictions: true
+```
+
+Features:
+- Cycle time forecasts using historical trends
+- Throughput predictions for capacity planning
+- Confidence intervals for forecast accuracy
+
+### AI Insights (OpenAI-Powered)
+
+Enable AI-powered analysis of your PR patterns. Requires an OpenAI API key.
+
+**Setup:**
+
+1. Get an API key from [platform.openai.com/api-keys](https://platform.openai.com/api-keys)
+2. Add `OPENAI_API_KEY` as a secret variable in your ADO pipeline or variable group
+3. Add to your pipeline YAML:
+
+```yaml
+build-aggregates:
+    run-insights: true
+    openai-api-key: $(OPENAI_API_KEY)
+```
+
+Features:
+- Automated bottleneck identification
+- Reviewer workload recommendations
+- Process improvement suggestions
+
+**Cost:** Approximately $0.001-0.01 per pipeline run (uses GPT-4o-mini).
+
+**Data Privacy:** Only aggregated metrics are sent to OpenAI. The following are **never sent**:
+- PR titles, descriptions, or content
+- User identities or email addresses
+- Code changes or file contents
+- Comments or review feedback
+
+### Troubleshooting ML Features
+
+| State | Cause | Solution |
+|-------|-------|----------|
+| **Setup Required** | Artifact file not found | Enable feature in pipeline YAML and run pipeline |
+| **No Data** | Empty forecasts/insights array | Accumulate more historical data (min. 4 weeks recommended) |
+| **Invalid Artifact** | JSON parse or validation error | Check pipeline logs for generation errors |
+| **Unsupported Schema** | Version mismatch | Update dashboard extension to latest version |
+
+---
+
+## 🛠️ Developer Setup
+
+### Prerequisites
+
+- Node.js 22+
+- Python 3.10+ (for backend/CLI)
+- pnpm (for extension development)
+
+### Extension Development
+
+The extension uses **pnpm** exclusively. npm is not supported.
+
+```bash
+# Enable Corepack (provides pnpm)
+corepack enable
+
+# Install dependencies
+cd extension
+pnpm install
+
+# Build
+pnpm run build
+
+# Run tests
+pnpm test
+
+# Package VSIX
+pnpm run package:vsix
+```
+
+> **Note:** The root `package.json` uses npm for semantic-release tooling. Only the `extension/` directory uses pnpm.
+
+### Python Development
+
+```bash
+# Install with development dependencies
+pip install -e ".[dev]"
+
+# Run tests
+pytest
+
+# Run linting
+ruff check .
+```
+
+---
+
 ## 🔒 Security
 
 - **PAT with Code (Read) scope** — Minimum required permission

@@ -10,19 +10,22 @@
  * @module tests/dataset-loader-validation.test.ts
  */
 
-import { describe, it, expect, beforeEach, jest, afterEach } from "@jest/globals";
 import { DatasetLoader } from "../ui/dataset-loader";
 import { SchemaValidationError } from "../ui/schemas/errors";
 
 // Mock fetch responses
-function createMockFetch(response: unknown, status = 200, ok = true): jest.Mock {
+function createMockFetch(
+  response: unknown,
+  status = 200,
+  ok = true,
+): jest.Mock {
   return jest.fn(() =>
     Promise.resolve({
       ok,
       status,
       statusText: ok ? "OK" : "Error",
       json: () => Promise.resolve(response),
-    })
+    }),
   );
 }
 
@@ -148,7 +151,9 @@ describe("DatasetLoader Validation Integration", () => {
 
   describe("loadManifest validation", () => {
     it("should pass validation for valid manifest", async () => {
-      global.fetch = createMockFetch(validManifest) as unknown as typeof global.fetch;
+      global.fetch = createMockFetch(
+        validManifest,
+      ) as unknown as typeof global.fetch;
 
       const result = await loader.loadManifest();
 
@@ -158,23 +163,38 @@ describe("DatasetLoader Validation Integration", () => {
 
     it("should throw SchemaValidationError when manifest_schema_version is missing", async () => {
       const invalidManifest = { ...validManifest };
-      delete (invalidManifest as Record<string, unknown>).manifest_schema_version;
-      global.fetch = createMockFetch(invalidManifest) as unknown as typeof global.fetch;
+      delete (invalidManifest as Record<string, unknown>)
+        .manifest_schema_version;
+      global.fetch = createMockFetch(
+        invalidManifest,
+      ) as unknown as typeof global.fetch;
 
-      await expect(loader.loadManifest()).rejects.toThrow(SchemaValidationError);
+      await expect(loader.loadManifest()).rejects.toThrow(
+        SchemaValidationError,
+      );
     });
 
     it("should throw SchemaValidationError when manifest_schema_version is wrong type", async () => {
-      const invalidManifest = { ...validManifest, manifest_schema_version: "1" };
-      global.fetch = createMockFetch(invalidManifest) as unknown as typeof global.fetch;
+      const invalidManifest = {
+        ...validManifest,
+        manifest_schema_version: "1",
+      };
+      global.fetch = createMockFetch(
+        invalidManifest,
+      ) as unknown as typeof global.fetch;
 
-      await expect(loader.loadManifest()).rejects.toThrow(SchemaValidationError);
+      await expect(loader.loadManifest()).rejects.toThrow(
+        SchemaValidationError,
+      );
     });
 
     it("should throw SchemaValidationError with field information", async () => {
       const invalidManifest = { ...validManifest };
-      delete (invalidManifest as Record<string, unknown>).manifest_schema_version;
-      global.fetch = createMockFetch(invalidManifest) as unknown as typeof global.fetch;
+      delete (invalidManifest as Record<string, unknown>)
+        .manifest_schema_version;
+      global.fetch = createMockFetch(
+        invalidManifest,
+      ) as unknown as typeof global.fetch;
 
       let caught: SchemaValidationError | null = null;
       try {
@@ -190,14 +210,18 @@ describe("DatasetLoader Validation Integration", () => {
     });
 
     it("should cache validated manifest and skip validation on subsequent calls", async () => {
-      global.fetch = createMockFetch(validManifest) as unknown as typeof global.fetch;
+      global.fetch = createMockFetch(
+        validManifest,
+      ) as unknown as typeof global.fetch;
 
       // First call - should validate
       const result1 = await loader.loadManifest();
 
       // Set fetch to return invalid data (should not be called)
       const invalidManifest = {};
-      global.fetch = createMockFetch(invalidManifest) as unknown as typeof global.fetch;
+      global.fetch = createMockFetch(
+        invalidManifest,
+      ) as unknown as typeof global.fetch;
 
       // Second call - should return cached, not re-fetch
       const result2 = await loader.loadManifest();
@@ -209,12 +233,16 @@ describe("DatasetLoader Validation Integration", () => {
   describe("loadDimensions validation", () => {
     beforeEach(async () => {
       // Load manifest first (required)
-      global.fetch = createMockFetch(validManifest) as unknown as typeof global.fetch;
+      global.fetch = createMockFetch(
+        validManifest,
+      ) as unknown as typeof global.fetch;
       await loader.loadManifest();
     });
 
     it("should pass validation for valid dimensions", async () => {
-      global.fetch = createMockFetch(validDimensions) as unknown as typeof global.fetch;
+      global.fetch = createMockFetch(
+        validDimensions,
+      ) as unknown as typeof global.fetch;
 
       const result = await loader.loadDimensions();
 
@@ -224,9 +252,13 @@ describe("DatasetLoader Validation Integration", () => {
 
     it("should throw SchemaValidationError when repositories is missing", async () => {
       const invalidDimensions = { users: [], projects: [] };
-      global.fetch = createMockFetch(invalidDimensions) as unknown as typeof global.fetch;
+      global.fetch = createMockFetch(
+        invalidDimensions,
+      ) as unknown as typeof global.fetch;
 
-      await expect(loader.loadDimensions()).rejects.toThrow(SchemaValidationError);
+      await expect(loader.loadDimensions()).rejects.toThrow(
+        SchemaValidationError,
+      );
     });
 
     it("should throw SchemaValidationError when repository item is invalid", async () => {
@@ -235,9 +267,13 @@ describe("DatasetLoader Validation Integration", () => {
         users: [],
         projects: [],
       };
-      global.fetch = createMockFetch(invalidDimensions) as unknown as typeof global.fetch;
+      global.fetch = createMockFetch(
+        invalidDimensions,
+      ) as unknown as typeof global.fetch;
 
-      await expect(loader.loadDimensions()).rejects.toThrow(SchemaValidationError);
+      await expect(loader.loadDimensions()).rejects.toThrow(
+        SchemaValidationError,
+      );
     });
 
     it("should include field path in error for nested validation failures", async () => {
@@ -246,7 +282,9 @@ describe("DatasetLoader Validation Integration", () => {
         users: [],
         projects: [],
       };
-      global.fetch = createMockFetch(invalidDimensions) as unknown as typeof global.fetch;
+      global.fetch = createMockFetch(
+        invalidDimensions,
+      ) as unknown as typeof global.fetch;
 
       let caught: SchemaValidationError | null = null;
       try {
@@ -257,11 +295,15 @@ describe("DatasetLoader Validation Integration", () => {
 
       expect(caught).toBeInstanceOf(SchemaValidationError);
       expect(caught?.artifactType).toBe("dimensions");
-      expect(caught?.errors.some((e) => e.field.includes("repository"))).toBe(true);
+      expect(caught?.errors.some((e) => e.field.includes("repository"))).toBe(
+        true,
+      );
     });
 
     it("should cache validated dimensions and skip validation on subsequent calls", async () => {
-      global.fetch = createMockFetch(validDimensions) as unknown as typeof global.fetch;
+      global.fetch = createMockFetch(
+        validDimensions,
+      ) as unknown as typeof global.fetch;
 
       // First call - should validate
       const result1 = await loader.loadDimensions();
@@ -279,16 +321,20 @@ describe("DatasetLoader Validation Integration", () => {
   describe("rollup validation", () => {
     beforeEach(async () => {
       // Load manifest first
-      global.fetch = createMockFetch(validManifest) as unknown as typeof global.fetch;
+      global.fetch = createMockFetch(
+        validManifest,
+      ) as unknown as typeof global.fetch;
       await loader.loadManifest();
     });
 
     it("should pass validation for valid rollup", async () => {
-      global.fetch = createMockFetch(validRollup) as unknown as typeof global.fetch;
+      global.fetch = createMockFetch(
+        validRollup,
+      ) as unknown as typeof global.fetch;
 
       const result = await loader.getWeeklyRollups(
         new Date("2026-01-13"),
-        new Date("2026-01-19")
+        new Date("2026-01-19"),
       );
 
       expect(result).toHaveLength(1);
@@ -298,19 +344,23 @@ describe("DatasetLoader Validation Integration", () => {
     it("should throw SchemaValidationError when week is missing", async () => {
       const invalidRollup = { ...validRollup };
       delete (invalidRollup as Record<string, unknown>).week;
-      global.fetch = createMockFetch(invalidRollup) as unknown as typeof global.fetch;
+      global.fetch = createMockFetch(
+        invalidRollup,
+      ) as unknown as typeof global.fetch;
 
       await expect(
-        loader.getWeeklyRollups(new Date("2026-01-13"), new Date("2026-01-19"))
+        loader.getWeeklyRollups(new Date("2026-01-13"), new Date("2026-01-19")),
       ).rejects.toThrow(SchemaValidationError);
     });
 
     it("should throw SchemaValidationError when week format is invalid", async () => {
       const invalidRollup = { ...validRollup, week: "2026-03" }; // Invalid format
-      global.fetch = createMockFetch(invalidRollup) as unknown as typeof global.fetch;
+      global.fetch = createMockFetch(
+        invalidRollup,
+      ) as unknown as typeof global.fetch;
 
       await expect(
-        loader.getWeeklyRollups(new Date("2026-01-13"), new Date("2026-01-19"))
+        loader.getWeeklyRollups(new Date("2026-01-13"), new Date("2026-01-19")),
       ).rejects.toThrow(SchemaValidationError);
     });
 
@@ -329,13 +379,13 @@ describe("DatasetLoader Validation Integration", () => {
       // First call - should fetch and validate
       const result1 = await loader.getWeeklyRollups(
         new Date("2026-01-13"),
-        new Date("2026-01-19")
+        new Date("2026-01-19"),
       );
 
       // Second call for same range - should use cache
       const result2 = await loader.getWeeklyRollups(
         new Date("2026-01-13"),
-        new Date("2026-01-19")
+        new Date("2026-01-19"),
       );
 
       // Both calls should return same data
@@ -346,14 +396,18 @@ describe("DatasetLoader Validation Integration", () => {
 
     it("should warn on unknown fields in permissive mode", async () => {
       const rollupWithExtra = { ...validRollup, unknown_field: "extra" };
-      global.fetch = createMockFetch(rollupWithExtra) as unknown as typeof global.fetch;
+      global.fetch = createMockFetch(
+        rollupWithExtra,
+      ) as unknown as typeof global.fetch;
 
       // In permissive mode, should warn but not throw
-      const consoleSpy = jest.spyOn(console, "warn").mockImplementation(() => {});
+      const consoleSpy = jest
+        .spyOn(console, "warn")
+        .mockImplementation(() => {});
 
       const result = await loader.getWeeklyRollups(
         new Date("2026-01-13"),
-        new Date("2026-01-19")
+        new Date("2026-01-19"),
       );
 
       expect(result).toHaveLength(1);
@@ -367,12 +421,16 @@ describe("DatasetLoader Validation Integration", () => {
   describe("loadPredictions validation", () => {
     beforeEach(async () => {
       // Load manifest with predictions enabled
-      global.fetch = createMockFetch(validManifest) as unknown as typeof global.fetch;
+      global.fetch = createMockFetch(
+        validManifest,
+      ) as unknown as typeof global.fetch;
       await loader.loadManifest();
     });
 
     it("should pass validation for valid predictions", async () => {
-      global.fetch = createMockFetch(validPredictions) as unknown as typeof global.fetch;
+      global.fetch = createMockFetch(
+        validPredictions,
+      ) as unknown as typeof global.fetch;
 
       const result = await loader.loadPredictions();
 
@@ -381,7 +439,9 @@ describe("DatasetLoader Validation Integration", () => {
 
     it("should return invalid state when schema_version is wrong type", async () => {
       const invalidPredictions = { ...validPredictions, schema_version: "1" };
-      global.fetch = createMockFetch(invalidPredictions) as unknown as typeof global.fetch;
+      global.fetch = createMockFetch(
+        invalidPredictions,
+      ) as unknown as typeof global.fetch;
 
       const result = await loader.loadPredictions();
 
@@ -389,8 +449,13 @@ describe("DatasetLoader Validation Integration", () => {
     });
 
     it("should return invalid state when forecasts is missing", async () => {
-      const invalidPredictions = { schema_version: 1, generated_at: "2026-01-14T12:00:00Z" };
-      global.fetch = createMockFetch(invalidPredictions) as unknown as typeof global.fetch;
+      const invalidPredictions = {
+        schema_version: 1,
+        generated_at: "2026-01-14T12:00:00Z",
+      };
+      global.fetch = createMockFetch(
+        invalidPredictions,
+      ) as unknown as typeof global.fetch;
 
       const result = await loader.loadPredictions();
 
@@ -402,8 +467,13 @@ describe("DatasetLoader Validation Integration", () => {
       const disabledLoader = new DatasetLoader("http://test-api");
       setEffectiveBaseUrl(disabledLoader, "http://test-api");
 
-      const manifestDisabled = { ...validManifest, features: { predictions: false } };
-      global.fetch = createMockFetch(manifestDisabled) as unknown as typeof global.fetch;
+      const manifestDisabled = {
+        ...validManifest,
+        features: { predictions: false },
+      };
+      global.fetch = createMockFetch(
+        manifestDisabled,
+      ) as unknown as typeof global.fetch;
       await disabledLoader.loadManifest();
 
       const result = await disabledLoader.loadPredictions();
@@ -417,7 +487,7 @@ describe("DatasetLoader Validation Integration", () => {
           ok: false,
           status: 404,
           statusText: "Not Found",
-        })
+        }),
       ) as unknown as typeof global.fetch;
 
       const result = await loader.loadPredictions();
@@ -426,10 +496,17 @@ describe("DatasetLoader Validation Integration", () => {
     });
 
     it("should warn on unknown fields and still return valid", async () => {
-      const predictionsWithExtra = { ...validPredictions, unknown_field: "extra" };
-      global.fetch = createMockFetch(predictionsWithExtra) as unknown as typeof global.fetch;
+      const predictionsWithExtra = {
+        ...validPredictions,
+        unknown_field: "extra",
+      };
+      global.fetch = createMockFetch(
+        predictionsWithExtra,
+      ) as unknown as typeof global.fetch;
 
-      const consoleSpy = jest.spyOn(console, "warn").mockImplementation(() => {});
+      const consoleSpy = jest
+        .spyOn(console, "warn")
+        .mockImplementation(() => {});
 
       const result = await loader.loadPredictions();
 
@@ -442,7 +519,9 @@ describe("DatasetLoader Validation Integration", () => {
 
   describe("validation error details", () => {
     beforeEach(async () => {
-      global.fetch = createMockFetch(validManifest) as unknown as typeof global.fetch;
+      global.fetch = createMockFetch(
+        validManifest,
+      ) as unknown as typeof global.fetch;
       await loader.loadManifest();
     });
 
@@ -455,7 +534,9 @@ describe("DatasetLoader Validation Integration", () => {
         users: [{ display_name: "Test" }], // Missing user_id
         projects: [], // Valid but empty
       };
-      global.fetch = createMockFetch(invalidDimensions) as unknown as typeof global.fetch;
+      global.fetch = createMockFetch(
+        invalidDimensions,
+      ) as unknown as typeof global.fetch;
 
       let caught: SchemaValidationError | null = null;
       try {

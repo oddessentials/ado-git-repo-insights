@@ -19,6 +19,30 @@ on:
       - '.gitignore'
 
 jobs:
+  # Guard: Validate CI configuration guards (packageManager, composite action usage)
+  ci-guards:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Validate CI Guards
+        run: bash .github/scripts/validate-ci-guards.sh
+
+  # Guard: Enforce pnpm-only policy (no package-lock.json)
+  pnpm-lockfile-guard:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Check for npm lockfile
+        run: |
+          if [ -f "extension/package-lock.json" ]; then
+            echo "::error::package-lock.json found in extension/"
+            echo "::error::This repository uses pnpm exclusively. Remove package-lock.json and use pnpm install."
+            exit 1
+          fi
+          echo "[OK] No package-lock.json found - pnpm policy enforced"
+
   # Security: Scan for leaked secrets
   secret-scan:
     runs-on: ubuntu-latest
@@ -108,17 +132,15 @@ jobs:
       - name: Install Python package
         run: pip install -e .
 
-      - uses: actions/setup-node@v4
-        with:
-          node-version: '22'
+      - uses: ./.github/actions/setup-pnpm
 
       - name: Install extension dependencies
         working-directory: extension
-        run: npm ci
+        run: pnpm install --frozen-lockfile
 
       - name: Build UI bundles
         working-directory: extension
-        run: npm run build:ui
+        run: pnpm run build:ui
 
       - name: Stale Build Output Guard
         run: |
@@ -442,30 +464,29 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - uses: actions/setup-node@v4
-        with:
-          node-version: "22"
+      - uses: ./.github/actions/setup-pnpm
 
       - name: Install tfx-cli
         run: npm install -g tfx-cli
 
       - name: Install Extension Dependencies
         working-directory: extension
-        run: npm ci
+        run: pnpm install --frozen-lockfile
 
       - name: Validate Task Input Names
-        run: npx ts-node scripts/validate-task-inputs.ts
+        working-directory: extension
+        run: pnpm exec ts-node ../scripts/validate-task-inputs.ts
 
       - name: Run Extension Task Unit Tests
         run: node extension/tasks/extract-prs/index.test.js
 
       - name: Build Extension (tsc + esbuild)
         working-directory: extension
-        run: npm run build
+        run: pnpm run build
 
       - name: Stage Task Dependencies
         working-directory: extension
-        run: npm run stage:tasks
+        run: pnpm run stage:tasks
 
       - name: Package VSIX
         working-directory: extension
@@ -475,7 +496,7 @@ jobs:
         working-directory: extension
         env:
           VSIX_REQUIRED: 'true'
-        run: npm run test:vsix
+        run: pnpm run test:vsix
 
       - name: Verify VSIX Exists (Shipping Invariant)
         working-directory: extension
@@ -512,32 +533,30 @@ jobs:
           python -m pip install --upgrade pip
           pip install -e .[dev]
 
-      - uses: actions/setup-node@v4
-        with:
-          node-version: '22'
+      - uses: ./.github/actions/setup-pnpm
 
       - name: Install dependencies
         working-directory: extension
-        run: npm ci
+        run: pnpm install --frozen-lockfile
 
       - name: TypeScript Type Check
         working-directory: extension
-        run: npm run build:check
+        run: pnpm run build:check
 
       - name: ESLint
         working-directory: extension
-        run: npm run lint
+        run: pnpm run lint
 
       - name: Run Extension UI Tests
-        id: npm_test
+        id: pnpm_test
         working-directory: extension
         run: |
           # Run Jest with JUnit XML output for robust CI gating
-          npm run test:ci 2>&1 | tee npm_test_output.txt
-          NPM_EXIT=${PIPESTATUS[0]}
+          pnpm run test:ci 2>&1 | tee pnpm_test_output.txt
+          PNPM_EXIT=${PIPESTATUS[0]}
 
-          echo "npm_exit=$NPM_EXIT" >> $GITHUB_OUTPUT
-          exit $NPM_EXIT
+          echo "pnpm_exit=$PNPM_EXIT" >> $GITHUB_OUTPUT
+          exit $PNPM_EXIT
 
       - name: Validate Test Results (Extension)
         if: always()
@@ -553,17 +572,17 @@ jobs:
             echo ""
             echo "Common causes:"
             echo "  1. Syntax error in test file or source code"
-            echo "  2. Missing npm dependency"
+            echo "  2. Missing pnpm dependency"
             echo "  3. Jest configuration issue"
             echo "  4. Test collection failed"
             echo ""
             echo "Check the 'Run Extension UI Tests' step above for the actual error."
             echo ""
-            if [ -f extension/npm_test_output.txt ]; then
+            if [ -f extension/pnpm_test_output.txt ]; then
               echo "================================================================================"
               echo "Last 50 lines of Jest output:"
               echo "================================================================================"
-              tail -50 extension/npm_test_output.txt
+              tail -50 extension/pnpm_test_output.txt
             fi
             echo ""
             echo "================================================================================"
@@ -605,3 +624,36 @@ jobs:
 
       - name: Check Baseline Integrity
         run: node .github/scripts/check-baseline-integrity.js
+
+  # FR-034: Fresh-clone verification - proves deterministic builds without cache
+  # FR-011: Also serves as Python-free test isolation enforcement
+  fresh-clone-verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: ./.github/actions/setup-pnpm
+        with:
+          cache: 'false'  # Intentionally disabled to verify fresh install works
+
+      - name: Fresh install (no cache)
+        working-directory: extension
+        run: pnpm install --frozen-lockfile
+
+      - name: Build extension
+        working-directory: extension
+        run: pnpm run build
+
+      - name: Run unit tests (no Python)
+        working-directory: extension
+        run: pnpm test:unit
+
+      - name: Verify deterministic lockfile
+        working-directory: extension
+        run: |
+          if git diff --name-only | grep -q "pnpm-lock.yaml"; then
+            echo "::error::pnpm-lock.yaml changed after fresh install - lockfile not deterministic"
+            git diff pnpm-lock.yaml
+            exit 1
+          fi
+          echo "[OK] Lockfile is deterministic"

@@ -8,7 +8,6 @@
  * @module tests/schema/predictions.test.ts
  */
 
-import { describe, it, expect } from "@jest/globals";
 import { validatePredictions } from "../../ui/schemas/predictions.schema";
 import type { ValidationResult } from "../../ui/schemas/types";
 
@@ -18,7 +17,10 @@ import validPredictions from "../fixtures/predictions/trends.json";
 describe("Predictions Schema Validator", () => {
   describe("valid data", () => {
     it("should pass validation for the fixture file", () => {
-      const result: ValidationResult = validatePredictions(validPredictions, false);
+      const result: ValidationResult = validatePredictions(
+        validPredictions,
+        false,
+      );
       expect(result.valid).toBe(true);
       expect(result.errors).toHaveLength(0);
     });
@@ -66,7 +68,9 @@ describe("Predictions Schema Validator", () => {
       delete (invalid as Record<string, unknown>).schema_version;
       const result = validatePredictions(invalid, false);
       expect(result.valid).toBe(false);
-      expect(result.errors.some((e) => e.field.includes("schema_version"))).toBe(true);
+      expect(
+        result.errors.some((e) => e.field.includes("schema_version")),
+      ).toBe(true);
     });
 
     it("should fail when generated_at is missing", () => {
@@ -74,7 +78,9 @@ describe("Predictions Schema Validator", () => {
       delete (invalid as Record<string, unknown>).generated_at;
       const result = validatePredictions(invalid, false);
       expect(result.valid).toBe(false);
-      expect(result.errors.some((e) => e.field.includes("generated_at"))).toBe(true);
+      expect(result.errors.some((e) => e.field.includes("generated_at"))).toBe(
+        true,
+      );
     });
 
     it("should fail when forecasts is missing", () => {
@@ -82,7 +88,9 @@ describe("Predictions Schema Validator", () => {
       delete (invalid as Record<string, unknown>).forecasts;
       const result = validatePredictions(invalid, false);
       expect(result.valid).toBe(false);
-      expect(result.errors.some((e) => e.field.includes("forecasts"))).toBe(true);
+      expect(result.errors.some((e) => e.field.includes("forecasts"))).toBe(
+        true,
+      );
     });
   });
 
@@ -140,13 +148,17 @@ describe("Predictions Schema Validator", () => {
       };
       const result = validatePredictions(invalid, false);
       expect(result.valid).toBe(false);
-      expect(result.errors.some((e) => e.field.includes("horizon_weeks"))).toBe(true);
+      expect(result.errors.some((e) => e.field.includes("horizon_weeks"))).toBe(
+        true,
+      );
     });
 
     it("should fail when forecast item is missing values", () => {
       const invalid = {
         ...validPredictions,
-        forecasts: [{ metric: "pr_throughput", unit: "count", horizon_weeks: 4 }],
+        forecasts: [
+          { metric: "pr_throughput", unit: "count", horizon_weeks: 4 },
+        ],
       };
       const result = validatePredictions(invalid, false);
       expect(result.valid).toBe(false);
@@ -170,7 +182,9 @@ describe("Predictions Schema Validator", () => {
       };
       const result = validatePredictions(invalid, false);
       expect(result.valid).toBe(false);
-      expect(result.errors.some((e) => e.field.includes("period_start"))).toBe(true);
+      expect(result.errors.some((e) => e.field.includes("period_start"))).toBe(
+        true,
+      );
     });
 
     it("should fail when value is missing predicted", () => {
@@ -182,13 +196,17 @@ describe("Predictions Schema Validator", () => {
             metric: "pr_throughput",
             unit: "count",
             horizon_weeks: 4,
-            values: [{ period_start: "2026-01-13", lower_bound: 22, upper_bound: 34 }],
+            values: [
+              { period_start: "2026-01-13", lower_bound: 22, upper_bound: 34 },
+            ],
           },
         ],
       };
       const result = validatePredictions(invalid, false);
       expect(result.valid).toBe(false);
-      expect(result.errors.some((e) => e.field.includes("predicted"))).toBe(true);
+      expect(result.errors.some((e) => e.field.includes("predicted"))).toBe(
+        true,
+      );
     });
 
     it("should fail when period_start is not ISO date format", () => {
@@ -236,7 +254,9 @@ describe("Predictions Schema Validator", () => {
       const result = validatePredictions(withUnknown, false);
       expect(result.valid).toBe(true);
       expect(result.warnings.length).toBeGreaterThan(0);
-      expect(result.warnings.some((w) => w.field.includes("unknown_field"))).toBe(true);
+      expect(
+        result.warnings.some((w) => w.field.includes("unknown_field")),
+      ).toBe(true);
     });
 
     it("should FAIL in strict mode when unknown fields present", () => {
@@ -246,7 +266,9 @@ describe("Predictions Schema Validator", () => {
       };
       const result = validatePredictions(withUnknown, true);
       expect(result.valid).toBe(false);
-      expect(result.errors.some((e) => e.field.includes("unknown_field"))).toBe(true);
+      expect(result.errors.some((e) => e.field.includes("unknown_field"))).toBe(
+        true,
+      );
     });
 
     it("should warn for unknown fields in forecast items in permissive mode", () => {
@@ -265,7 +287,9 @@ describe("Predictions Schema Validator", () => {
       };
       const result = validatePredictions(withUnknown, false);
       expect(result.valid).toBe(true);
-      expect(result.warnings.some((w) => w.field.includes("extra_field"))).toBe(true);
+      expect(result.warnings.some((w) => w.field.includes("extra_field"))).toBe(
+        true,
+      );
     });
   });
 
@@ -291,6 +315,56 @@ describe("Predictions Schema Validator", () => {
       // If state field is supported, it should validate enum values
       // This test documents expected behavior if state is added
       expect(result.valid).toBe(true);
+    });
+  });
+
+  describe("schema version validation for state machine", () => {
+    it("should pass validation with schema_version 1 (supported)", () => {
+      const data = {
+        schema_version: 1,
+        generated_at: "2026-01-28T12:00:00Z",
+        forecasts: [],
+      };
+      const result = validatePredictions(data, false);
+      expect(result.valid).toBe(true);
+    });
+
+    it("should pass validation with unsupported schema_version (validator does not enforce range)", () => {
+      // Note: The schema validator validates structure, not version range.
+      // Version range enforcement happens in the state machine.
+      const data = {
+        schema_version: 99,
+        generated_at: "2026-01-28T12:00:00Z",
+        forecasts: [],
+      };
+      const result = validatePredictions(data, false);
+      // Schema validation passes - it's the state machine that checks version range
+      expect(result.valid).toBe(true);
+    });
+
+    it("should fail validation when schema_version is not a number", () => {
+      const data = {
+        schema_version: "1",
+        generated_at: "2026-01-28T12:00:00Z",
+        forecasts: [],
+      };
+      const result = validatePredictions(data, false);
+      expect(result.valid).toBe(false);
+      expect(result.errors.some((e) => e.field === "schema_version")).toBe(
+        true,
+      );
+    });
+
+    it("should fail validation when schema_version is missing", () => {
+      const data = {
+        generated_at: "2026-01-28T12:00:00Z",
+        forecasts: [],
+      };
+      const result = validatePredictions(data, false);
+      expect(result.valid).toBe(false);
+      expect(result.errors.some((e) => e.field === "schema_version")).toBe(
+        true,
+      );
     });
   });
 });

@@ -1,0 +1,19 @@
+{
+  "schema_version": 99,
+  "generated_at": "2026-01-28T12:00:00Z",
+  "forecasts": [
+    {
+      "metric": "pr_cycle_time",
+      "unit": "hours",
+      "horizon_weeks": 4,
+      "values": [
+        {
+          "period_start": "2026-01-28",
+          "predicted": 24.5,
+          "lower_bound": 20.0,
+          "upper_bound": 29.0
+        }
+      ]
+    }
+  ]
+}
