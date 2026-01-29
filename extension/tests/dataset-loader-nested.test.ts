@@ -189,7 +189,12 @@ describe("DatasetLoader Nested Layout Resolution", () => {
       // Load dimensions should use effective base URL
       mockFetch.mockResolvedValueOnce({
         ok: true,
-        json: async () => ({ repositories: [], users: [], projects: [], teams: [] }),
+        json: async () => ({
+          repositories: [],
+          users: [],
+          projects: [],
+          teams: [],
+        }),
       });
 
       await loader.loadDimensions();

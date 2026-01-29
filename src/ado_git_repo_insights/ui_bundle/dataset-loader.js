@@ -68,7 +68,9 @@ var PRInsightsDatasetLoader = (() => {
     constructor(errors, artifactType) {
       const errorSummary = errors.slice(0, 3).map((e) => `${e.field}: ${e.message}`).join("; ");
       const moreCount = errors.length > 3 ? ` (+${errors.length - 3} more)` : "";
-      super(`Schema validation failed for ${artifactType}: ${errorSummary}${moreCount}`);
+      super(
+        `Schema validation failed for ${artifactType}: ${errorSummary}${moreCount}`
+      );
       this.name = "SchemaValidationError";
       this.errors = errors;
       this.artifactType = artifactType;
@@ -154,7 +156,12 @@ var PRInsightsDatasetLoader = (() => {
       return createError(path, "number", getTypeName(value));
     }
     if (value < 0) {
-      return createError(path, "number >= 0", String(value), `Expected non-negative number at '${path}'`);
+      return createError(
+        path,
+        "number >= 0",
+        String(value),
+        `Expected non-negative number at '${path}'`
+      );
     }
     return null;
   }
@@ -176,7 +183,11 @@ var PRInsightsDatasetLoader = (() => {
   var YEAR_PATTERN = /^\d{4}$/;
   function validateIsoDate(value, path) {
     if (!isString(value)) {
-      return createError(path, "ISO date string (YYYY-MM-DD)", getTypeName(value));
+      return createError(
+        path,
+        "ISO date string (YYYY-MM-DD)",
+        getTypeName(value)
+      );
     }
     if (!ISO_DATE_PATTERN.test(value)) {
       return createError(
@@ -238,10 +249,20 @@ var PRInsightsDatasetLoader = (() => {
         const fieldPath = buildPath(path, key);
         if (strict) {
           errors.push(
-            createError(fieldPath, "known field", "unknown", `Unknown field '${key}' not allowed in strict mode`)
+            createError(
+              fieldPath,
+              "known field",
+              "unknown",
+              `Unknown field '${key}' not allowed in strict mode`
+            )
           );
         } else {
-          warnings.push(createWarning(fieldPath, `Unknown field '${key}' (ignored in permissive mode)`));
+          warnings.push(
+            createWarning(
+              fieldPath,
+              `Unknown field '${key}' (ignored in permissive mode)`
+            )
+          );
         }
       }
     }
@@ -296,7 +317,12 @@ var PRInsightsDatasetLoader = (() => {
     // Production field
   ]);
   var KNOWN_DATE_RANGE_FIELDS = /* @__PURE__ */ new Set(["min", "max"]);
-  var KNOWN_FEATURES_FIELDS = /* @__PURE__ */ new Set(["teams", "comments", "predictions", "ai_insights"]);
+  var KNOWN_FEATURES_FIELDS = /* @__PURE__ */ new Set([
+    "teams",
+    "comments",
+    "predictions",
+    "ai_insights"
+  ]);
   var KNOWN_LIMITS_FIELDS = /* @__PURE__ */ new Set([
     "max_weekly_files",
     "max_distribution_files",
@@ -324,11 +350,17 @@ var PRInsightsDatasetLoader = (() => {
       if (pathErr) errors.push(pathErr);
     }
     if ("size_bytes" in data && data.size_bytes !== void 0) {
-      const sizeErr = validateNonNegativeNumber(data.size_bytes, buildPath(path, "size_bytes"));
+      const sizeErr = validateNonNegativeNumber(
+        data.size_bytes,
+        buildPath(path, "size_bytes")
+      );
       if (sizeErr) errors.push(sizeErr);
     }
     if ("pr_count" in data && data.pr_count !== void 0) {
-      const prCountErr = validateNonNegativeNumber(data.pr_count, buildPath(path, "pr_count"));
+      const prCountErr = validateNonNegativeNumber(
+        data.pr_count,
+        buildPath(path, "pr_count")
+      );
       if (prCountErr) errors.push(prCountErr);
     }
     if ("start_date" in data && data.start_date !== void 0) {
@@ -339,7 +371,12 @@ var PRInsightsDatasetLoader = (() => {
       const err = validateIsoDate(data.end_date, buildPath(path, "end_date"));
       if (err) errors.push(err);
     }
-    const unknown = findUnknownFields(data, KNOWN_WEEKLY_ROLLUP_FIELDS, path, strict);
+    const unknown = findUnknownFields(
+      data,
+      KNOWN_WEEKLY_ROLLUP_FIELDS,
+      path,
+      strict
+    );
     errors.push(...unknown.errors);
     warnings.push(...unknown.warnings);
     return { errors, warnings };
@@ -364,11 +401,17 @@ var PRInsightsDatasetLoader = (() => {
       if (pathErr) errors.push(pathErr);
     }
     if ("size_bytes" in data && data.size_bytes !== void 0) {
-      const sizeErr = validateNonNegativeNumber(data.size_bytes, buildPath(path, "size_bytes"));
+      const sizeErr = validateNonNegativeNumber(
+        data.size_bytes,
+        buildPath(path, "size_bytes")
+      );
       if (sizeErr) errors.push(sizeErr);
     }
     if ("total_prs" in data && data.total_prs !== void 0) {
-      const totalPrsErr = validateNonNegativeNumber(data.total_prs, buildPath(path, "total_prs"));
+      const totalPrsErr = validateNonNegativeNumber(
+        data.total_prs,
+        buildPath(path, "total_prs")
+      );
       if (totalPrsErr) errors.push(totalPrsErr);
     }
     if ("start_date" in data && data.start_date !== void 0) {
@@ -379,7 +422,12 @@ var PRInsightsDatasetLoader = (() => {
       const err = validateIsoDate(data.end_date, buildPath(path, "end_date"));
       if (err) errors.push(err);
     }
-    const unknown = findUnknownFields(data, KNOWN_DISTRIBUTION_FIELDS, path, strict);
+    const unknown = findUnknownFields(
+      data,
+      KNOWN_DISTRIBUTION_FIELDS,
+      path,
+      strict
+    );
     errors.push(...unknown.errors);
     warnings.push(...unknown.warnings);
     return { errors, warnings };
@@ -394,7 +442,10 @@ var PRInsightsDatasetLoader = (() => {
     const weeklyReq = validateRequired(data, "weekly_rollups", path);
     if (weeklyReq) errors.push(weeklyReq);
     else {
-      const weeklyArrErr = validateArray(data.weekly_rollups, buildPath(path, "weekly_rollups"));
+      const weeklyArrErr = validateArray(
+        data.weekly_rollups,
+        buildPath(path, "weekly_rollups")
+      );
       if (weeklyArrErr) errors.push(weeklyArrErr);
       else if (isArray(data.weekly_rollups)) {
         data.weekly_rollups.forEach((item, i) => {
@@ -411,7 +462,10 @@ var PRInsightsDatasetLoader = (() => {
     const distReq = validateRequired(data, "distributions", path);
     if (distReq) errors.push(distReq);
     else {
-      const distArrErr = validateArray(data.distributions, buildPath(path, "distributions"));
+      const distArrErr = validateArray(
+        data.distributions,
+        buildPath(path, "distributions")
+      );
       if (distArrErr) errors.push(distArrErr);
       else if (isArray(data.distributions)) {
         data.distributions.forEach((item, i) => {
@@ -446,7 +500,12 @@ var PRInsightsDatasetLoader = (() => {
       const maxErr = validateIsoDate(data.max, buildPath(path, "max"));
       if (maxErr) errors.push(maxErr);
     }
-    const unknown = findUnknownFields(data, KNOWN_DATE_RANGE_FIELDS, path, strict);
+    const unknown = findUnknownFields(
+      data,
+      KNOWN_DATE_RANGE_FIELDS,
+      path,
+      strict
+    );
     errors.push(...unknown.errors);
     warnings.push(...unknown.warnings);
     return { errors, warnings };
@@ -459,11 +518,18 @@ var PRInsightsDatasetLoader = (() => {
       return { errors, warnings };
     }
     if ("total_prs" in data) {
-      const prErr = validateNonNegativeNumber(data.total_prs, buildPath(path, "total_prs"));
+      const prErr = validateNonNegativeNumber(
+        data.total_prs,
+        buildPath(path, "total_prs")
+      );
       if (prErr) errors.push(prErr);
     }
     if ("date_range" in data) {
-      const result = validateDateRange(data.date_range, buildPath(path, "date_range"), strict);
+      const result = validateDateRange(
+        data.date_range,
+        buildPath(path, "date_range"),
+        strict
+      );
       errors.push(...result.errors);
       warnings.push(...result.warnings);
     }
@@ -483,12 +549,19 @@ var PRInsightsDatasetLoader = (() => {
     if ("row_counts" in data && data.row_counts !== void 0) {
       if (!isObject(data.row_counts)) {
         errors.push(
-          createError(buildPath(path, "row_counts"), "object", getTypeName(data.row_counts))
+          createError(
+            buildPath(path, "row_counts"),
+            "object",
+            getTypeName(data.row_counts)
+          )
         );
       }
     }
     if ("teams_count" in data && data.teams_count !== void 0) {
-      const err = validateNonNegativeNumber(data.teams_count, buildPath(path, "teams_count"));
+      const err = validateNonNegativeNumber(
+        data.teams_count,
+        buildPath(path, "teams_count")
+      );
       if (err) errors.push(err);
     }
     const unknown = findUnknownFields(data, KNOWN_COVERAGE_FIELDS, path, strict);
@@ -526,7 +599,10 @@ var PRInsightsDatasetLoader = (() => {
       return { errors, warnings };
     }
     if ("max_weekly_files" in data && data.max_weekly_files !== void 0) {
-      const err = validateNonNegativeNumber(data.max_weekly_files, buildPath(path, "max_weekly_files"));
+      const err = validateNonNegativeNumber(
+        data.max_weekly_files,
+        buildPath(path, "max_weekly_files")
+      );
       if (err) errors.push(err);
     }
     if ("max_distribution_files" in data && data.max_distribution_files !== void 0) {
@@ -571,7 +647,14 @@ var PRInsightsDatasetLoader = (() => {
     const errors = [];
     const warnings = [];
     if (!isObject(data)) {
-      errors.push(createError("", "object", getTypeName(data), "Manifest must be an object"));
+      errors.push(
+        createError(
+          "",
+          "object",
+          getTypeName(data),
+          "Manifest must be an object"
+        )
+      );
       return invalidResult(errors);
     }
     const requiredFields = [
@@ -587,15 +670,24 @@ var PRInsightsDatasetLoader = (() => {
       if (err) errors.push(err);
     }
     if ("manifest_schema_version" in data) {
-      const err = validateNumber(data.manifest_schema_version, "manifest_schema_version");
+      const err = validateNumber(
+        data.manifest_schema_version,
+        "manifest_schema_version"
+      );
       if (err) errors.push(err);
     }
     if ("dataset_schema_version" in data) {
-      const err = validateNumber(data.dataset_schema_version, "dataset_schema_version");
+      const err = validateNumber(
+        data.dataset_schema_version,
+        "dataset_schema_version"
+      );
       if (err) errors.push(err);
     }
     if ("aggregates_schema_version" in data) {
-      const err = validateNumber(data.aggregates_schema_version, "aggregates_schema_version");
+      const err = validateNumber(
+        data.aggregates_schema_version,
+        "aggregates_schema_version"
+      );
       if (err) errors.push(err);
     }
     if ("generated_at" in data) {
@@ -607,16 +699,26 @@ var PRInsightsDatasetLoader = (() => {
       if (err) errors.push(err);
     }
     if ("aggregate_index" in data) {
-      const result = validateAggregateIndex(data.aggregate_index, "aggregate_index", strict);
+      const result = validateAggregateIndex(
+        data.aggregate_index,
+        "aggregate_index",
+        strict
+      );
       errors.push(...result.errors);
       warnings.push(...result.warnings);
     }
     if ("predictions_schema_version" in data && data.predictions_schema_version !== void 0) {
-      const err = validateNumber(data.predictions_schema_version, "predictions_schema_version");
+      const err = validateNumber(
+        data.predictions_schema_version,
+        "predictions_schema_version"
+      );
       if (err) errors.push(err);
     }
     if ("insights_schema_version" in data && data.insights_schema_version !== void 0) {
-      const err = validateNumber(data.insights_schema_version, "insights_schema_version");
+      const err = validateNumber(
+        data.insights_schema_version,
+        "insights_schema_version"
+      );
       if (err) errors.push(err);
     }
     if ("defaults" in data && data.defaults !== void 0) {
@@ -682,10 +784,18 @@ var PRInsightsDatasetLoader = (() => {
       return { errors, warnings };
     }
     if ("pr_count" in data) {
-      const err = validateNonNegativeNumber(data.pr_count, buildPath(path, "pr_count"));
+      const err = validateNonNegativeNumber(
+        data.pr_count,
+        buildPath(path, "pr_count")
+      );
       if (err) errors.push(err);
     }
-    const numericFields = ["cycle_time_p50", "cycle_time_p90", "review_time_p50", "review_time_p90"];
+    const numericFields = [
+      "cycle_time_p50",
+      "cycle_time_p90",
+      "review_time_p50",
+      "review_time_p90"
+    ];
     for (const field of numericFields) {
       if (Object.prototype.hasOwnProperty.call(data, field)) {
         const fieldValue = Object.getOwnPropertyDescriptor(data, field)?.value;
@@ -718,7 +828,9 @@ var PRInsightsDatasetLoader = (() => {
     const errors = [];
     const warnings = [];
     if (!isObject(data)) {
-      errors.push(createError("", "object", getTypeName(data), "Rollup must be an object"));
+      errors.push(
+        createError("", "object", getTypeName(data), "Rollup must be an object")
+      );
       return invalidResult(errors);
     }
     const requiredFields = ["week", "pr_count"];
@@ -760,7 +872,11 @@ var PRInsightsDatasetLoader = (() => {
       }
     }
     if (Object.prototype.hasOwnProperty.call(data, "by_repository") && data.by_repository !== void 0) {
-      const result = validateBreakdown(data.by_repository, "by_repository", strict);
+      const result = validateBreakdown(
+        data.by_repository,
+        "by_repository",
+        strict
+      );
       errors.push(...result.errors);
       warnings.push(...result.warnings);
     }
@@ -779,7 +895,13 @@ var PRInsightsDatasetLoader = (() => {
   }
 
   // ui/schemas/dimensions.schema.ts
-  var KNOWN_ROOT_FIELDS3 = /* @__PURE__ */ new Set(["repositories", "users", "projects", "teams", "date_range"]);
+  var KNOWN_ROOT_FIELDS3 = /* @__PURE__ */ new Set([
+    "repositories",
+    "users",
+    "projects",
+    "teams",
+    "date_range"
+  ]);
   var KNOWN_REPOSITORY_FIELDS = /* @__PURE__ */ new Set([
     "repository_id",
     "repository_name",
@@ -831,25 +953,37 @@ var PRInsightsDatasetLoader = (() => {
       const idReq = validateRequired(data, "repository_id", path);
       if (idReq) errors.push(idReq);
       else {
-        const idErr = validateString(data.repository_id, buildPath(path, "repository_id"));
+        const idErr = validateString(
+          data.repository_id,
+          buildPath(path, "repository_id")
+        );
         if (idErr) errors.push(idErr);
       }
       const nameReq = validateRequired(data, "repository_name", path);
       if (nameReq) errors.push(nameReq);
       else {
-        const nameErr = validateString(data.repository_name, buildPath(path, "repository_name"));
+        const nameErr = validateString(
+          data.repository_name,
+          buildPath(path, "repository_name")
+        );
         if (nameErr) errors.push(nameErr);
       }
       const orgReq = validateRequired(data, "organization_name", path);
       if (orgReq) errors.push(orgReq);
       else {
-        const orgErr = validateString(data.organization_name, buildPath(path, "organization_name"));
+        const orgErr = validateString(
+          data.organization_name,
+          buildPath(path, "organization_name")
+        );
         if (orgErr) errors.push(orgErr);
       }
       const projReq = validateRequired(data, "project_name", path);
       if (projReq) errors.push(projReq);
       else {
-        const projErr = validateString(data.project_name, buildPath(path, "project_name"));
+        const projErr = validateString(
+          data.project_name,
+          buildPath(path, "project_name")
+        );
         if (projErr) errors.push(projErr);
       }
     } else if (isLegacyFormat) {
@@ -879,7 +1013,12 @@ var PRInsightsDatasetLoader = (() => {
         )
       );
     }
-    const unknown = findUnknownFields(data, KNOWN_REPOSITORY_FIELDS, path, strict);
+    const unknown = findUnknownFields(
+      data,
+      KNOWN_REPOSITORY_FIELDS,
+      path,
+      strict
+    );
     errors.push(...unknown.errors);
     warnings.push(...unknown.warnings);
     return { errors, warnings };
@@ -903,7 +1042,10 @@ var PRInsightsDatasetLoader = (() => {
       const nameReq = validateRequired(data, "display_name", path);
       if (nameReq) errors.push(nameReq);
       else {
-        const nameErr = validateString(data.display_name, buildPath(path, "display_name"));
+        const nameErr = validateString(
+          data.display_name,
+          buildPath(path, "display_name")
+        );
         if (nameErr) errors.push(nameErr);
       }
     } else if (isLegacyFormat) {
@@ -916,13 +1058,19 @@ var PRInsightsDatasetLoader = (() => {
       const displayNameReq = validateRequired(data, "displayName", path);
       if (displayNameReq) errors.push(displayNameReq);
       else {
-        const nameErr = validateString(data.displayName, buildPath(path, "displayName"));
+        const nameErr = validateString(
+          data.displayName,
+          buildPath(path, "displayName")
+        );
         if (nameErr) errors.push(nameErr);
       }
       const uniqueNameReq = validateRequired(data, "uniqueName", path);
       if (uniqueNameReq) errors.push(uniqueNameReq);
       else {
-        const uNameErr = validateString(data.uniqueName, buildPath(path, "uniqueName"));
+        const uNameErr = validateString(
+          data.uniqueName,
+          buildPath(path, "uniqueName")
+        );
         if (uNameErr) errors.push(uNameErr);
       }
     } else {
@@ -953,13 +1101,19 @@ var PRInsightsDatasetLoader = (() => {
       const orgReq = validateRequired(data, "organization_name", path);
       if (orgReq) errors.push(orgReq);
       else {
-        const orgErr = validateString(data.organization_name, buildPath(path, "organization_name"));
+        const orgErr = validateString(
+          data.organization_name,
+          buildPath(path, "organization_name")
+        );
         if (orgErr) errors.push(orgErr);
       }
       const projReq = validateRequired(data, "project_name", path);
       if (projReq) errors.push(projReq);
       else {
-        const projErr = validateString(data.project_name, buildPath(path, "project_name"));
+        const projErr = validateString(
+          data.project_name,
+          buildPath(path, "project_name")
+        );
         if (projErr) errors.push(projErr);
       }
     } else if (isLegacyFormat) {
@@ -997,7 +1151,14 @@ var PRInsightsDatasetLoader = (() => {
       errors.push(createError(path, "object", getTypeName(data)));
       return { errors, warnings };
     }
-    const stringFields = ["id", "name", "projectId", "team_id", "team_name", "project_id"];
+    const stringFields = [
+      "id",
+      "name",
+      "projectId",
+      "team_id",
+      "team_name",
+      "project_id"
+    ];
     for (const field of stringFields) {
       if (Object.prototype.hasOwnProperty.call(data, field)) {
         const fieldValue = Object.getOwnPropertyDescriptor(data, field)?.value;
@@ -1031,7 +1192,12 @@ var PRInsightsDatasetLoader = (() => {
       const maxErr = validateIsoDate(data.max, buildPath(path, "max"));
       if (maxErr) errors.push(maxErr);
     }
-    const unknown = findUnknownFields(data, KNOWN_DATE_RANGE_FIELDS2, path, strict);
+    const unknown = findUnknownFields(
+      data,
+      KNOWN_DATE_RANGE_FIELDS2,
+      path,
+      strict
+    );
     errors.push(...unknown.errors);
     warnings.push(...unknown.warnings);
     return { errors, warnings };
@@ -1040,7 +1206,14 @@ var PRInsightsDatasetLoader = (() => {
     const errors = [];
     const warnings = [];
     if (!isObject(data)) {
-      errors.push(createError("", "object", getTypeName(data), "Dimensions must be an object"));
+      errors.push(
+        createError(
+          "",
+          "object",
+          getTypeName(data),
+          "Dimensions must be an object"
+        )
+      );
       return invalidResult(errors);
     }
     const requiredArrays = ["repositories", "users", "projects"];
@@ -1058,7 +1231,11 @@ var PRInsightsDatasetLoader = (() => {
     }
     if ("repositories" in data && isArray(data.repositories)) {
       data.repositories.forEach((item, i) => {
-        const result = validateRepositoryEntry(item, buildPath("repositories", i), strict);
+        const result = validateRepositoryEntry(
+          item,
+          buildPath("repositories", i),
+          strict
+        );
         errors.push(...result.errors);
         warnings.push(...result.warnings);
       });
@@ -1072,7 +1249,11 @@ var PRInsightsDatasetLoader = (() => {
     }
     if ("projects" in data && isArray(data.projects)) {
       data.projects.forEach((item, i) => {
-        const result = validateProjectEntry(item, buildPath("projects", i), strict);
+        const result = validateProjectEntry(
+          item,
+          buildPath("projects", i),
+          strict
+        );
         errors.push(...result.errors);
         warnings.push(...result.warnings);
       });
@@ -1112,7 +1293,12 @@ var PRInsightsDatasetLoader = (() => {
     "forecasts",
     "state"
   ]);
-  var KNOWN_FORECAST_FIELDS = /* @__PURE__ */ new Set(["metric", "unit", "horizon_weeks", "values"]);
+  var KNOWN_FORECAST_FIELDS = /* @__PURE__ */ new Set([
+    "metric",
+    "unit",
+    "horizon_weeks",
+    "values"
+  ]);
   var KNOWN_FORECAST_VALUE_FIELDS = /* @__PURE__ */ new Set([
     "period_start",
     "predicted",
@@ -1129,24 +1315,41 @@ var PRInsightsDatasetLoader = (() => {
     const periodReq = validateRequired(data, "period_start", path);
     if (periodReq) errors.push(periodReq);
     else {
-      const periodErr = validateIsoDate(data.period_start, buildPath(path, "period_start"));
+      const periodErr = validateIsoDate(
+        data.period_start,
+        buildPath(path, "period_start")
+      );
       if (periodErr) errors.push(periodErr);
     }
     const predictedReq = validateRequired(data, "predicted", path);
     if (predictedReq) errors.push(predictedReq);
     else {
-      const predictedErr = validateNumber(data.predicted, buildPath(path, "predicted"));
+      const predictedErr = validateNumber(
+        data.predicted,
+        buildPath(path, "predicted")
+      );
       if (predictedErr) errors.push(predictedErr);
     }
     if ("lower_bound" in data && data.lower_bound !== void 0) {
-      const lowerErr = validateNumber(data.lower_bound, buildPath(path, "lower_bound"));
+      const lowerErr = validateNumber(
+        data.lower_bound,
+        buildPath(path, "lower_bound")
+      );
       if (lowerErr) errors.push(lowerErr);
     }
     if ("upper_bound" in data && data.upper_bound !== void 0) {
-      const upperErr = validateNumber(data.upper_bound, buildPath(path, "upper_bound"));
+      const upperErr = validateNumber(
+        data.upper_bound,
+        buildPath(path, "upper_bound")
+      );
       if (upperErr) errors.push(upperErr);
     }
-    const unknown = findUnknownFields(data, KNOWN_FORECAST_VALUE_FIELDS, path, strict);
+    const unknown = findUnknownFields(
+      data,
+      KNOWN_FORECAST_VALUE_FIELDS,
+      path,
+      strict
+    );
     errors.push(...unknown.errors);
     warnings.push(...unknown.warnings);
     return { errors, warnings };
@@ -1187,7 +1390,11 @@ var PRInsightsDatasetLoader = (() => {
         errors.push(valuesArrErr);
       } else if (isArray(data.values)) {
         data.values.forEach((item, i) => {
-          const result = validateForecastValue(item, buildPath(path, `values[${i}]`), strict);
+          const result = validateForecastValue(
+            item,
+            buildPath(path, `values[${i}]`),
+            strict
+          );
           errors.push(...result.errors);
           warnings.push(...result.warnings);
         });
@@ -1205,7 +1412,14 @@ var PRInsightsDatasetLoader = (() => {
       return validResult();
     }
     if (!isObject(data)) {
-      errors.push(createError("", "object", getTypeName(data), "Predictions must be an object"));
+      errors.push(
+        createError(
+          "",
+          "object",
+          getTypeName(data),
+          "Predictions must be an object"
+        )
+      );
       return invalidResult(errors);
     }
     const requiredFields = ["schema_version", "generated_at", "forecasts"];
@@ -1227,7 +1441,11 @@ var PRInsightsDatasetLoader = (() => {
         errors.push(arrErr);
       } else if (isArray(data.forecasts)) {
         data.forecasts.forEach((item, i) => {
-          const result = validateForecastEntry(item, buildPath("forecasts", i), strict);
+          const result = validateForecastEntry(
+            item,
+            buildPath("forecasts", i),
+            strict
+          );
           errors.push(...result.errors);
           warnings.push(...result.warnings);
         });
@@ -1815,7 +2033,10 @@ var PRInsightsDatasetLoader = (() => {
           };
         }
         const predictions = await response.json();
-        const schemaResult = validatePredictions(predictions, false);
+        const schemaResult = validatePredictions(
+          predictions,
+          false
+        );
         if (!schemaResult.valid) {
           console.error(
             "[DatasetLoader] Invalid predictions schema:",

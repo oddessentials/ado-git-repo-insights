@@ -54,7 +54,10 @@ const FORECASTER_LABELS: Record<string, string> = {
 /**
  * Data quality display messages.
  */
-const DATA_QUALITY_MESSAGES: Record<string, { label: string; cssClass: string }> = {
+const DATA_QUALITY_MESSAGES: Record<
+  string,
+  { label: string; cssClass: string }
+> = {
   normal: { label: "High Confidence", cssClass: "quality-normal" },
   low_confidence: {
     label: "Low Confidence - More data recommended",
@@ -73,7 +76,8 @@ export function renderForecasterIndicator(
   forecaster: "linear" | "prophet" | undefined,
 ): string {
   const label = FORECASTER_LABELS[forecaster || "linear"] || "Forecast";
-  const cssClass = forecaster === "prophet" ? "forecaster-prophet" : "forecaster-linear";
+  const cssClass =
+    forecaster === "prophet" ? "forecaster-prophet" : "forecaster-linear";
   return `<span class="forecaster-badge ${cssClass}">${escapeHtml(label)}</span>`;
 }
 
@@ -119,7 +123,9 @@ function sanitizeForId(str: string): string {
 function calculateLinePath(values: Array<{ x: number; y: number }>): string {
   if (values.length === 0) return "";
   return values
-    .map((pt, i) => `${i === 0 ? "M" : "L"} ${pt.x.toFixed(2)} ${pt.y.toFixed(2)}`)
+    .map(
+      (pt, i) => `${i === 0 ? "M" : "L"} ${pt.x.toFixed(2)} ${pt.y.toFixed(2)}`,
+    )
     .join(" ");
 }
 
@@ -138,7 +144,9 @@ function calculateBandPath(
 
   // Upper line forward
   const upperPath = upperValues
-    .map((pt, i) => `${i === 0 ? "M" : "L"} ${pt.x.toFixed(2)} ${pt.y.toFixed(2)}`)
+    .map(
+      (pt, i) => `${i === 0 ? "M" : "L"} ${pt.x.toFixed(2)} ${pt.y.toFixed(2)}`,
+    )
     .join(" ");
 
   // Lower line backward (reverse order)
@@ -161,10 +169,15 @@ export function renderForecastChart(
   historicalData?: Array<{ week: string; value: number }>,
   chartHeight: number = 200,
 ): string {
-  const values = forecast.values;
-  if (!values || values.length === 0) {
+  const rawValues = forecast.values;
+  if (!rawValues || rawValues.length === 0) {
     return `<div class="forecast-chart-empty">No forecast data available</div>`;
   }
+
+  // T028: Sort forecast values chronologically by period_start for deterministic ordering
+  const values = [...rawValues].sort((a, b) =>
+    a.period_start.localeCompare(b.period_start),
+  );
 
   // Combine historical and forecast data for scale calculation
   const allValues: number[] = [];
@@ -385,10 +398,15 @@ export function extractHistoricalData(
  * Used as fallback or detailed view.
  */
 export function renderForecastTable(forecast: Forecast): string {
-  const values = forecast.values;
-  if (!values || values.length === 0) {
+  const rawValues = forecast.values;
+  if (!rawValues || rawValues.length === 0) {
     return `<div class="forecast-table-empty">No forecast data</div>`;
   }
+
+  // T028: Sort forecast values chronologically by period_start for deterministic ordering
+  const values = [...rawValues].sort((a, b) =>
+    a.period_start.localeCompare(b.period_start),
+  );
 
   const metricLabel = forecast.metric
     .replace(/_/g, " ")

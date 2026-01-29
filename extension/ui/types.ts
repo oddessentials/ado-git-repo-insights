@@ -9,6 +9,33 @@
  */
 
 // =============================================================================
+// ML Artifact State Machine Types
+// Discriminated union for strict 5-state gating per FR-001 through FR-004
+// =============================================================================
+
+/**
+ * Artifact state discriminated union.
+ * Each ML tab renders exactly one of these 5 states - no mixed UI, no fallthrough.
+ * State resolution is absolute: once resolved, no further checks run.
+ */
+export type ArtifactState =
+  | { type: "setup-required" }
+  | { type: "no-data"; quality?: "insufficient" }
+  | { type: "invalid-artifact"; error: string; path?: string }
+  | {
+      type: "unsupported-schema";
+      version: number;
+      supported: [number, number];
+    }
+  | { type: "ready"; data: PredictionsRenderData | InsightsRenderData };
+
+/**
+ * Supported schema version range for ML artifacts.
+ * Used by state machine to determine unsupported-schema state.
+ */
+export const ML_SCHEMA_VERSION_RANGE: [number, number] = [1, 1];
+
+// =============================================================================
 // VSS SDK Type Stubs
 // Azure DevOps VSS SDK lacks complete TypeScript definitions.
 // These provide type safety for known API shapes.

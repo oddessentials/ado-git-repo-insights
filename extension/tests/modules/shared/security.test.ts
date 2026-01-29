@@ -7,7 +7,11 @@
  * - sanitizeUrl function
  */
 
-import { escapeHtml, safeHtml, sanitizeUrl } from "../../../ui/modules/shared/security";
+import {
+  escapeHtml,
+  safeHtml,
+  sanitizeUrl,
+} from "../../../ui/modules/shared/security";
 
 describe("security utilities", () => {
   describe("escapeHtml", () => {
@@ -32,7 +36,7 @@ describe("security utilities", () => {
     });
 
     it("escapes all special characters together", () => {
-      const input = '<script>alert("xss" & \'bad\')</script>';
+      const input = "<script>alert(\"xss\" & 'bad')</script>";
       const expected =
         "&lt;script&gt;alert(&quot;xss&quot; &amp; &#039;bad&#039;)&lt;/script&gt;";
       expect(escapeHtml(input)).toBe(expected);
@@ -149,7 +153,9 @@ describe("security utilities", () => {
     });
 
     it("trims whitespace", () => {
-      expect(sanitizeUrl("  https://example.com  ")).toBe("https://example.com");
+      expect(sanitizeUrl("  https://example.com  ")).toBe(
+        "https://example.com",
+      );
     });
 
     it("handles empty string", () => {

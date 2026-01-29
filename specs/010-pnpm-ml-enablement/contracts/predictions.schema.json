@@ -1,0 +1,96 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "predictions.schema.json",
+  "title": "Predictions Artifact",
+  "description": "ML forecast data for PR Insights dashboard",
+  "type": "object",
+  "required": ["schema_version", "generated_at", "forecasts"],
+  "properties": {
+    "schema_version": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 1,
+      "description": "Schema version (currently only version 1 supported)"
+    },
+    "generated_at": {
+      "type": "string",
+      "format": "date-time",
+      "description": "ISO 8601 timestamp of generation"
+    },
+    "generated_by": {
+      "type": "string",
+      "description": "Generator identifier"
+    },
+    "is_stub": {
+      "type": "boolean",
+      "description": "True if synthetic/preview data"
+    },
+    "forecaster": {
+      "type": "string",
+      "enum": ["linear", "prophet"],
+      "description": "Algorithm used for forecasting"
+    },
+    "data_quality": {
+      "type": "string",
+      "enum": ["normal", "low_confidence", "insufficient"],
+      "description": "Data quality indicator"
+    },
+    "forecasts": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/Forecast"
+      },
+      "description": "Array of forecast series"
+    }
+  },
+  "$defs": {
+    "Forecast": {
+      "type": "object",
+      "required": ["metric", "unit", "horizon_weeks", "values"],
+      "properties": {
+        "metric": {
+          "type": "string",
+          "description": "Metric name"
+        },
+        "unit": {
+          "type": "string",
+          "description": "Unit of measurement"
+        },
+        "horizon_weeks": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "Forecast horizon in weeks"
+        },
+        "values": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/ForecastValue"
+          }
+        }
+      }
+    },
+    "ForecastValue": {
+      "type": "object",
+      "required": ["period_start", "predicted"],
+      "properties": {
+        "period_start": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Start of forecast period"
+        },
+        "predicted": {
+          "type": "number",
+          "description": "Predicted value"
+        },
+        "lower_bound": {
+          "type": "number",
+          "description": "Lower confidence bound"
+        },
+        "upper_bound": {
+          "type": "number",
+          "description": "Upper confidence bound"
+        }
+      }
+    }
+  }
+}

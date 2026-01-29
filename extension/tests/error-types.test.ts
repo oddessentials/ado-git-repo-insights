@@ -79,7 +79,10 @@ describe("error-types", () => {
 
     it("includes setup instructions", () => {
       const error = createSetupRequiredError();
-      const details = error.details as { instructions: string[]; docsUrl: string };
+      const details = error.details as {
+        instructions: string[];
+        docsUrl: string;
+      };
 
       expect(details.instructions).toContain(
         "Create a pipeline from pr-insights-pipeline.yml",
@@ -87,13 +90,20 @@ describe("error-types", () => {
       expect(details.instructions).toContain(
         'Ensure it publishes an "aggregates" artifact',
       );
-      expect(details.instructions).toContain("Run it at least once successfully");
-      expect(details.instructions).toContain("Return here to view your dashboard");
+      expect(details.instructions).toContain(
+        "Run it at least once successfully",
+      );
+      expect(details.instructions).toContain(
+        "Return here to view your dashboard",
+      );
     });
 
     it("includes documentation URL", () => {
       const error = createSetupRequiredError();
-      const details = error.details as { instructions: string[]; docsUrl: string };
+      const details = error.details as {
+        instructions: string[];
+        docsUrl: string;
+      };
 
       expect(details.docsUrl).toBe(
         "https://github.com/oddessentials/ado-git-repo-insights#setup",
@@ -165,8 +175,8 @@ describe("error-types", () => {
       const error = createNoSuccessfulBuildsError("Test Pipeline");
       const details = error.details as { instructions: string[] };
 
-      const hasPartiallySucceededNote = details.instructions.some((instruction) =>
-        instruction.includes("Partially Succeeded"),
+      const hasPartiallySucceededNote = details.instructions.some(
+        (instruction) => instruction.includes("Partially Succeeded"),
       );
       expect(hasPartiallySucceededNote).toBe(true);
     });
@@ -217,7 +227,11 @@ describe("error-types", () => {
 
   describe("createInvalidConfigError", () => {
     it("creates error with param and value in message", () => {
-      const error = createInvalidConfigError("pipelineId", "abc", "Must be a number");
+      const error = createInvalidConfigError(
+        "pipelineId",
+        "abc",
+        "Must be a number",
+      );
 
       expect(error.type).toBe(ErrorTypes.INVALID_CONFIG);
       expect(error.title).toBe("Invalid Configuration");
@@ -234,14 +248,22 @@ describe("error-types", () => {
     });
 
     it("provides specific hint for dataset", () => {
-      const error = createInvalidConfigError("dataset", "ftp://bad", "Invalid protocol");
+      const error = createInvalidConfigError(
+        "dataset",
+        "ftp://bad",
+        "Invalid protocol",
+      );
       const details = error.details as { reason: string; hint: string };
 
       expect(details.hint).toContain("valid HTTPS URL");
     });
 
     it("provides generic hint for unknown params", () => {
-      const error = createInvalidConfigError("unknownParam", "value", "Invalid");
+      const error = createInvalidConfigError(
+        "unknownParam",
+        "value",
+        "Invalid",
+      );
       const details = error.details as { reason: string; hint: string };
 
       expect(details.hint).toBe("Check the parameter value and try again");

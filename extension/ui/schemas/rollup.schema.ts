@@ -7,7 +7,12 @@
  * @module schemas/rollup.schema
  */
 
-import type { ValidationResult, ValidationError, ValidationWarning, SchemaValidator } from "./types";
+import type {
+  ValidationResult,
+  ValidationError,
+  ValidationWarning,
+  SchemaValidator,
+} from "./types";
 import { validResult, invalidResult, createError } from "./types";
 import {
   isObject,
@@ -92,7 +97,7 @@ const KNOWN_BREAKDOWN_FIELDS = new Set([
 function validateBreakdownEntry(
   data: unknown,
   path: string,
-  strict: boolean
+  strict: boolean,
 ): { errors: ValidationError[]; warnings: ValidationWarning[] } {
   const errors: ValidationError[] = [];
   const warnings: ValidationWarning[] = [];
@@ -104,13 +109,21 @@ function validateBreakdownEntry(
 
   // pr_count is typically present but not strictly required in breakdowns
   if ("pr_count" in data) {
-    const err = validateNonNegativeNumber(data.pr_count, buildPath(path, "pr_count"));
+    const err = validateNonNegativeNumber(
+      data.pr_count,
+      buildPath(path, "pr_count"),
+    );
     if (err) errors.push(err);
   }
 
   // Optional numeric fields
   // Use hasOwnProperty.call for safe property check (avoids prototype pollution)
-  const numericFields = ["cycle_time_p50", "cycle_time_p90", "review_time_p50", "review_time_p90"];
+  const numericFields = [
+    "cycle_time_p50",
+    "cycle_time_p90",
+    "review_time_p50",
+    "review_time_p90",
+  ];
   for (const field of numericFields) {
     if (Object.prototype.hasOwnProperty.call(data, field)) {
       const fieldValue = Object.getOwnPropertyDescriptor(data, field)?.value;
@@ -134,7 +147,7 @@ function validateBreakdownEntry(
 function validateBreakdown(
   data: unknown,
   path: string,
-  strict: boolean
+  strict: boolean,
 ): { errors: ValidationError[]; warnings: ValidationWarning[] } {
   const errors: ValidationError[] = [];
   const warnings: ValidationWarning[] = [];
@@ -165,13 +178,18 @@ function validateBreakdown(
  * @param strict - If true, unknown fields cause errors; if false, they cause warnings
  * @returns ValidationResult
  */
-export function validateRollup(data: unknown, strict: boolean): ValidationResult {
+export function validateRollup(
+  data: unknown,
+  strict: boolean,
+): ValidationResult {
   const errors: ValidationError[] = [];
   const warnings: ValidationWarning[] = [];
 
   // Must be an object
   if (!isObject(data)) {
-    errors.push(createError("", "object", getTypeName(data), "Rollup must be an object"));
+    errors.push(
+      createError("", "object", getTypeName(data), "Rollup must be an object"),
+    );
     return invalidResult(errors);
   }
 
@@ -227,8 +245,15 @@ export function validateRollup(data: unknown, strict: boolean): ValidationResult
   }
 
   // Optional breakdown objects
-  if (Object.prototype.hasOwnProperty.call(data, "by_repository") && data.by_repository !== undefined) {
-    const result = validateBreakdown(data.by_repository, "by_repository", strict);
+  if (
+    Object.prototype.hasOwnProperty.call(data, "by_repository") &&
+    data.by_repository !== undefined
+  ) {
+    const result = validateBreakdown(
+      data.by_repository,
+      "by_repository",
+      strict,
+    );
     errors.push(...result.errors);
     warnings.push(...result.warnings);
   }
@@ -297,9 +322,12 @@ export function normalizeRollup(data: unknown): WeeklyRollup {
     reviewers_count: isNumber(obj.reviewers_count)
       ? obj.reviewers_count
       : ROLLUP_FIELD_DEFAULTS.reviewers_count,
-    by_repository: (obj.by_repository as Record<string, BreakdownEntry>) ??
+    by_repository:
+      (obj.by_repository as Record<string, BreakdownEntry>) ??
       ROLLUP_FIELD_DEFAULTS.by_repository,
-    by_team: (obj.by_team as Record<string, BreakdownEntry>) ?? ROLLUP_FIELD_DEFAULTS.by_team,
+    by_team:
+      (obj.by_team as Record<string, BreakdownEntry>) ??
+      ROLLUP_FIELD_DEFAULTS.by_team,
   };
 }
 

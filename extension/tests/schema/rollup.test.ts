@@ -82,7 +82,9 @@ describe("Rollup Schema Validator", () => {
       delete (invalid as Record<string, unknown>).pr_count;
       const result = validateRollup(invalid, false);
       expect(result.valid).toBe(false);
-      expect(result.errors.some((e) => e.field.includes("pr_count"))).toBe(true);
+      expect(result.errors.some((e) => e.field.includes("pr_count"))).toBe(
+        true,
+      );
     });
   });
 
@@ -132,7 +134,9 @@ describe("Rollup Schema Validator", () => {
       const invalid = { ...validRollup, start_date: "01-06-2026" };
       const result = validateRollup(invalid, false);
       expect(result.valid).toBe(false);
-      expect(result.errors.some((e) => e.field.includes("start_date"))).toBe(true);
+      expect(result.errors.some((e) => e.field.includes("start_date"))).toBe(
+        true,
+      );
     });
 
     it("should fail when end_date is not ISO date format", () => {
@@ -152,7 +156,9 @@ describe("Rollup Schema Validator", () => {
       const result = validateRollup(withUnknown, false);
       expect(result.valid).toBe(true);
       expect(result.warnings.length).toBeGreaterThan(0);
-      expect(result.warnings.some((w) => w.field.includes("unknown_field"))).toBe(true);
+      expect(
+        result.warnings.some((w) => w.field.includes("unknown_field")),
+      ).toBe(true);
     });
 
     it("should FAIL in strict mode when unknown fields present", () => {
@@ -162,7 +168,9 @@ describe("Rollup Schema Validator", () => {
       };
       const result = validateRollup(withUnknown, true);
       expect(result.valid).toBe(false);
-      expect(result.errors.some((e) => e.field.includes("unknown_field"))).toBe(true);
+      expect(result.errors.some((e) => e.field.includes("unknown_field"))).toBe(
+        true,
+      );
     });
   });
 

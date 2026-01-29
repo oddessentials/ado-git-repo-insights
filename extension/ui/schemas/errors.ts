@@ -37,7 +37,9 @@ export class SchemaValidationError extends Error {
       .join("; ");
     const moreCount = errors.length > 3 ? ` (+${errors.length - 3} more)` : "";
 
-    super(`Schema validation failed for ${artifactType}: ${errorSummary}${moreCount}`);
+    super(
+      `Schema validation failed for ${artifactType}: ${errorSummary}${moreCount}`,
+    );
 
     this.name = "SchemaValidationError";
     this.errors = errors;

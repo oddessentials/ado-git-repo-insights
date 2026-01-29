@@ -920,7 +920,10 @@ export class DatasetLoader implements IDatasetLoader {
       const predictions = await response.json();
 
       // Validate using full schema validator (permissive mode)
-      const schemaResult: ValidationResult = validatePredictions(predictions, false);
+      const schemaResult: ValidationResult = validatePredictions(
+        predictions,
+        false,
+      );
       if (!schemaResult.valid) {
         console.error(
           "[DatasetLoader] Invalid predictions schema:",
@@ -929,7 +932,8 @@ export class DatasetLoader implements IDatasetLoader {
         return {
           state: "invalid",
           error: "PRED_001",
-          message: schemaResult.errors[0]?.message ?? "Schema validation failed",
+          message:
+            schemaResult.errors[0]?.message ?? "Schema validation failed",
         };
       }
 

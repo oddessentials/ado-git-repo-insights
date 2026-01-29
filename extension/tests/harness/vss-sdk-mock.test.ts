@@ -83,7 +83,9 @@ describe("VSS SDK Mock", () => {
     it("provides ServiceIds.ExtensionData", () => {
       const mocks = setupVssMocks();
 
-      expect(mocks.ServiceIds.ExtensionData).toBe("ms.vss-features.extension-data-service");
+      expect(mocks.ServiceIds.ExtensionData).toBe(
+        "ms.vss-features.extension-data-service",
+      );
     });
   });
 
@@ -219,9 +221,12 @@ describe("VSS SDK Mock", () => {
       const mocks = setupVssMocks();
       let buildClient: { getClient: () => unknown } | undefined;
 
-      mocks.require(["TFS/Build/RestClient"], (client: { getClient: () => unknown }) => {
-        buildClient = client;
-      });
+      mocks.require(
+        ["TFS/Build/RestClient"],
+        (client: { getClient: () => unknown }) => {
+          buildClient = client;
+        },
+      );
 
       expect(buildClient).toBeDefined();
       expect(buildClient?.getClient).toBeDefined();
@@ -231,9 +236,14 @@ describe("VSS SDK Mock", () => {
       const mocks = setupVssMocks();
       let restClient: ReturnType<typeof getMockBuildRestClient> | undefined;
 
-      mocks.require(["TFS/Build/RestClient"], (client: { getClient: () => unknown }) => {
-        restClient = client.getClient() as ReturnType<typeof getMockBuildRestClient>;
-      });
+      mocks.require(
+        ["TFS/Build/RestClient"],
+        (client: { getClient: () => unknown }) => {
+          restClient = client.getClient() as ReturnType<
+            typeof getMockBuildRestClient
+          >;
+        },
+      );
 
       expect(restClient).toBeDefined();
       expect(typeof restClient?.getBuilds).toBe("function");
@@ -477,7 +487,10 @@ describe("VSS SDK Mock", () => {
     });
 
     it("configures getBuilds to return specified builds", async () => {
-      const mockBuilds = [{ id: 1, name: "Build 1" }, { id: 2, name: "Build 2" }];
+      const mockBuilds = [
+        { id: 1, name: "Build 1" },
+        { id: 2, name: "Build 2" },
+      ];
 
       setMockBuilds(mockBuilds);
 
@@ -530,7 +543,9 @@ describe("VSS SDK Mock", () => {
       setMockSettingError("restricted-key", error);
 
       const service = getMockExtensionDataService();
-      await expect(service.getValue("restricted-key")).rejects.toThrow("Permission denied");
+      await expect(service.getValue("restricted-key")).rejects.toThrow(
+        "Permission denied",
+      );
     });
 
     it("still allows other keys to work", async () => {
@@ -555,7 +570,7 @@ describe("VSS SDK Mock", () => {
 
       const mocks = getVssMocks();
       await expect(
-        mocks.getService("ms.vss-features.extension-data-service")
+        mocks.getService("ms.vss-features.extension-data-service"),
       ).rejects.toThrow("Service unavailable");
     });
   });
