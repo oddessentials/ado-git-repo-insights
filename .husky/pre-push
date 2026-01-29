@@ -112,6 +112,35 @@ fi
 echo "[pre-push] ✅ CRLF guard passed"
 
 # =============================================================================
+# Python Type Check (mypy) - Immutable Invariant per FR-016
+# =============================================================================
+echo ""
+echo "[pre-push] Running mypy type check..."
+echo "[pre-push] Command: python -m mypy src/"
+
+# Detect mypy installation
+if command -v mypy >/dev/null 2>&1; then
+    MYPY="mypy"
+elif python -m mypy --version >/dev/null 2>&1; then
+    MYPY="python -m mypy"
+else
+    echo ""
+    echo "[pre-push] ❌ mypy not found!"
+    echo "[pre-push] Install with: pip install mypy"
+    exit 1
+fi
+
+$MYPY src/
+if [ $? -ne 0 ]; then
+    echo ""
+    echo "[pre-push] ❌ Push blocked: mypy type check failed"
+    echo "[pre-push] Run 'mypy src/' to see full output"
+    echo "[pre-push] Fix type errors or add justified type: ignore comments"
+    exit 1
+fi
+echo "[pre-push] ✅ mypy type check passed"
+
+# =============================================================================
 # Python Tests (with coverage threshold enforcement)
 # =============================================================================
 echo ""

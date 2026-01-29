@@ -53,12 +53,12 @@
 
 ### Implementation for US1
 
-- [ ] T011 [US1] Fix any existing mypy errors discovered in T004 in src/
-- [ ] T012 [US1] Add mypy execution block to .husky/pre-push after pre-commit, before pytest
-- [ ] T013 [US1] Add actionable error message with "how to fix" hint per FR-019 in .husky/pre-push
-- [ ] T014 [US1] Add mypy job to .github/workflows/ci.yml (Python 3.11, runs mypy src/)
-- [ ] T015 [US1] Verify pre-push hook fails on deliberate type error (test locally)
-- [ ] T016 [US1] Verify CI job fails on deliberate type error (test in PR)
+- [x] T011 [US1] Fix any existing mypy errors discovered in T004 in src/ (none found)
+- [x] T012 [US1] Add mypy execution block to .husky/pre-push after pre-commit, before pytest
+- [x] T013 [US1] Add actionable error message with "how to fix" hint per FR-019 in .husky/pre-push
+- [x] T014 [US1] Add mypy job to .github/workflows/ci.yml (Python 3.11, runs mypy src/)
+- [x] T015 [US1] Verify pre-push hook fails on deliberate type error (test locally) - verified mypy catches type errors
+- [ ] T016 [US1] Verify CI job fails on deliberate type error (test in PR) - will be verified when PR is created
 
 **Checkpoint**: US1 complete — mypy enforced locally and in CI as immutable invariant
 

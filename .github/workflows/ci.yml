@@ -384,6 +384,30 @@ jobs:
           fail_ci_if_error: false
 
 
+  # Python Type Safety Gate (FR-001, FR-002)
+  # Immutable invariant: mypy MUST pass on all Python source files
+  # This enforces type safety as a hard gate - no exceptions without explicit
+  # type: ignore comments with justification per FR-012
+  mypy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e .[dev]
+
+      - name: Run mypy type check
+        run: |
+          echo "Running mypy on src/ with strict mode per pyproject.toml..."
+          mypy src/
+          echo "[OK] mypy type check passed - all Python type errors resolved"
+
   # Phase 5: Test base installation without [ml] extras
   # Enforces optional-dependency isolation - ML features must not leak into base
   # Functional validation job: verifies base package works without [ml] extras.
