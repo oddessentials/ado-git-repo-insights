@@ -230,9 +230,10 @@ const ISO_DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
  * ISO 8601 datetime pattern (YYYY-MM-DDTHH:mm:ss with optional timezone).
  * Uses bounded quantifiers to prevent ReDoS via catastrophic backtracking.
  */
-// eslint-disable-next-line security/detect-unsafe-regex -- Pattern is safe: all groups use bounded quantifiers
+/* eslint-disable security/detect-unsafe-regex -- Pattern is safe: all groups use bounded quantifiers */
 const ISO_DATETIME_PATTERN =
   /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{1,6})?(?:Z|[+-]\d{2}:\d{2})?$/;
+/* eslint-enable security/detect-unsafe-regex */
 
 /**
  * ISO week pattern (YYYY-Www).
