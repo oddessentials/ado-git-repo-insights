@@ -8,7 +8,6 @@
  * @module tests/schema/dimensions.test.ts
  */
 
-import { describe, it, expect } from "@jest/globals";
 import { validateDimensions } from "../../ui/schemas/dimensions.schema";
 import type { ValidationResult } from "../../ui/schemas/types";
 

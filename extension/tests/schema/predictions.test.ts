@@ -8,7 +8,6 @@
  * @module tests/schema/predictions.test.ts
  */
 
-import { describe, it, expect } from "@jest/globals";
 import { validatePredictions } from "../../ui/schemas/predictions.schema";
 import type { ValidationResult } from "../../ui/schemas/types";
 

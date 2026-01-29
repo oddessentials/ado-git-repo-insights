@@ -7,7 +7,6 @@
  * @module tests/schema/rollup.test.ts
  */
 
-import { describe, it, expect } from "@jest/globals";
 import { validateRollup } from "../../ui/schemas/rollup.schema";
 import type { ValidationResult } from "../../ui/schemas/types";
 

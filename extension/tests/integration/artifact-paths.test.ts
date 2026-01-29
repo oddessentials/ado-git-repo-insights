@@ -12,8 +12,6 @@
  * @module tests/integration/artifact-paths.test.ts
  */
 
-import { describe, it, expect } from "@jest/globals";
-
 // Import the actual path constants/patterns used by the loaders
 // We verify these match the documented contract
 

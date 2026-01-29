@@ -7,7 +7,6 @@
  * @module tests/schema/parity.test.ts
  */
 
-import { describe, it, expect, beforeAll } from "@jest/globals";
 import {
   validateManifest,
   normalizeManifest,

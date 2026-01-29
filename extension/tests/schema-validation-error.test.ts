@@ -7,7 +7,6 @@
  * @module tests/schema-validation-error.test.ts
  */
 
-import { describe, it, expect } from "@jest/globals";
 import { SchemaValidationError } from "../ui/schemas/errors";
 import type { ValidationError, ArtifactType } from "../ui/schemas/types";
 

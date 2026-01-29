@@ -10,14 +10,6 @@
  * @module tests/dataset-loader-validation.test.ts
  */
 
-import {
-  describe,
-  it,
-  expect,
-  beforeEach,
-  jest,
-  afterEach,
-} from "@jest/globals";
 import { DatasetLoader } from "../ui/dataset-loader";
 import { SchemaValidationError } from "../ui/schemas/errors";
 

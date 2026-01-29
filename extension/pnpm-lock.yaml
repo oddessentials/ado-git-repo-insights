@@ -12,9 +12,15 @@ importers:
         specifier: ^5.141.0
         version: 5.141.0
     devDependencies:
+      '@jest/globals':
+        specifier: ^30.0.0
+        version: 30.2.0
       '@types/jest':
         specifier: ^30.0.0
         version: 30.0.0
+      '@types/jsdom':
+        specifier: ^21.1.7
+        version: 21.1.7
       '@types/node':
         specifier: ^25.0.0
         version: 25.1.0

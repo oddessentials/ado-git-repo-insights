@@ -7,7 +7,6 @@
  * @module tests/harness/vss-sdk-mock.test.ts
  */
 
-import { describe, it, expect, beforeEach, afterEach } from "@jest/globals";
 import {
   setupVssMocks,
   resetVssMocks,
