@@ -72,12 +72,12 @@
 
 ### Implementation for US2
 
-- [ ] T017 [US2] Audit existing non-null assertions in extension/ui/ using grep or ESLint dry-run
-- [ ] T018 [P] [US2] Fix non-null assertions that can use null checks or optional chaining in extension/ui/
-- [ ] T019 [P] [US2] Add justified suppressions for remaining assertions per FR-007 format in extension/ui/
-- [ ] T020 [US2] Add `@typescript-eslint/no-non-null-assertion: 'error'` rule to extension/eslint.config.mjs
-- [ ] T021 [US2] Verify ESLint now passes with rule enabled (all violations fixed or justified)
-- [ ] T022 [US2] Update .suppression-baseline.json to include new justified suppressions
+- [x] T017 [US2] Audit existing non-null assertions in extension/ui/ using grep or ESLint dry-run (5 found)
+- [x] T018 [P] [US2] Fix non-null assertions that can use null checks or optional chaining in extension/ui/ (2 fixed in artifact-client.ts)
+- [x] T019 [P] [US2] Add justified suppressions for remaining assertions per FR-007 format in extension/ui/ (2 added in metrics.ts)
+- [x] T020 [US2] Add `@typescript-eslint/no-non-null-assertion: 'error'` rule to extension/eslint.config.mjs
+- [x] T021 [US2] Verify ESLint now passes with rule enabled (all violations fixed or justified)
+- [x] T022 [US2] Update .suppression-baseline.json to include new justified suppressions (44 -> 46)
 
 **Checkpoint**: US2 complete — non-null assertion rule enforced; existing code compliant
 

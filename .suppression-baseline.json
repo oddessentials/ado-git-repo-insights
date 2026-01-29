@@ -1,16 +1,16 @@
 {
   "version": 1,
-  "generated_at": "2026-01-29T19:52:47Z",
-  "total": 44,
+  "generated_at": "2026-01-29T20:09:00Z",
+  "total": 46,
   "by_scope": {
     "python-backend": 9,
-    "typescript-extension": 34,
+    "typescript-extension": 36,
     "typescript-tests": 1
   },
   "by_type": {
     "eslint-disable-block": 1,
     "eslint-disable-line": 0,
-    "eslint-disable-next-line": 34,
+    "eslint-disable-next-line": 36,
     "noqa": 9,
     "ts-expect-error": 0,
     "ts-ignore": 0,
@@ -25,7 +25,7 @@
     "extension/ui/modules/charts/cycle-time.ts": 1,
     "extension/ui/modules/charts/predictions.ts": 4,
     "extension/ui/modules/dom.ts": 5,
-    "extension/ui/modules/metrics.ts": 2,
+    "extension/ui/modules/metrics.ts": 4,
     "extension/ui/modules/ml.ts": 1,
     "extension/ui/modules/shared/format.ts": 2,
     "extension/ui/modules/shared/security.ts": 1,
@@ -40,6 +40,7 @@
   },
   "by_rule": {
     "@typescript-eslint/no-explicit-any": 10,
+    "@typescript-eslint/no-non-null-assertion": 2,
     "F401": 3,
     "S311": 2,
     "S603": 1,

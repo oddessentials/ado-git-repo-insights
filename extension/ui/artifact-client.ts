@@ -325,10 +325,11 @@ export class AuthenticatedDatasetLoader implements IDatasetLoader {
         this.artifactName,
         "dataset-manifest.json",
       )) as ManifestSchema;
-      if (this.manifest) {
-        this.validateManifest(this.manifest);
+      if (!this.manifest) {
+        throw new Error("Manifest file is empty or invalid");
       }
-      return this.manifest!;
+      this.validateManifest(this.manifest);
+      return this.manifest;
     } catch (error: unknown) {
       throw new Error(
         `Failed to load dataset manifest: ${getErrorMessage(error)}`,
@@ -377,7 +378,10 @@ export class AuthenticatedDatasetLoader implements IDatasetLoader {
       this.artifactName,
       "aggregates/dimensions.json",
     )) as DimensionsData;
-    return this.dimensions!;
+    if (!this.dimensions) {
+      throw new Error("Dimensions file is empty or invalid");
+    }
+    return this.dimensions;
   }
 
   async getWeeklyRollups(startDate: Date, endDate: Date): Promise<Rollup[]> {

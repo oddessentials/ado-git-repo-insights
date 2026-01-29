@@ -22,6 +22,7 @@ export default tseslint.config(
         rules: {
             // === STRICT RULES - Zero tolerance for regressions ===
             '@typescript-eslint/no-explicit-any': 'error',      // No any types allowed
+            '@typescript-eslint/no-non-null-assertion': 'error', // Prevent unsafe ! assertions (FR-005)
             '@typescript-eslint/no-floating-promises': 'error', // All promises must be handled
             '@typescript-eslint/require-await': 'off',          // Some async functions intentionally don't await
 

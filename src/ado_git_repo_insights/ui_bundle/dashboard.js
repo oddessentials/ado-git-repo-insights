@@ -2496,9 +2496,10 @@ var PRInsightsDashboard = (() => {
           this.artifactName,
           "dataset-manifest.json"
         );
-        if (this.manifest) {
-          this.validateManifest(this.manifest);
+        if (!this.manifest) {
+          throw new Error("Manifest file is empty or invalid");
         }
+        this.validateManifest(this.manifest);
         return this.manifest;
       } catch (error) {
         throw new Error(
@@ -2536,6 +2537,9 @@ var PRInsightsDashboard = (() => {
         this.artifactName,
         "aggregates/dimensions.json"
       );
+      if (!this.dimensions) {
+        throw new Error("Dimensions file is empty or invalid");
+      }
       return this.dimensions;
     }
     async getWeeklyRollups(startDate, endDate) {
@@ -2823,10 +2827,11 @@ var PRInsightsDashboard = (() => {
     }
     return rollups.map((rollup) => {
       if (filters.repos.length && rollup.by_repository && typeof rollup.by_repository === "object") {
+        const byRepository = rollup.by_repository;
         const selectedRepos = filters.repos.map((repoId) => {
-          const repoData = rollup.by_repository[repoId];
+          const repoData = byRepository[repoId];
           if (repoData) return repoData;
-          return Object.entries(rollup.by_repository).find(
+          return Object.entries(byRepository).find(
             ([name]) => name === repoId
           )?.[1];
         }).filter((r) => r !== void 0);
@@ -2849,7 +2854,8 @@ var PRInsightsDashboard = (() => {
         };
       }
       if (filters.teams.length && rollup.by_team && typeof rollup.by_team === "object") {
-        const selectedTeams = filters.teams.map((teamId) => rollup.by_team[teamId]).filter((t) => t !== void 0);
+        const byTeam = rollup.by_team;
+        const selectedTeams = filters.teams.map((teamId) => byTeam[teamId]).filter((t) => t !== void 0);
         if (selectedTeams.length === 0) {
           return {
             ...rollup,

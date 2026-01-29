@@ -283,9 +283,10 @@ var PRInsightsArtifactClient = (() => {
           this.artifactName,
           "dataset-manifest.json"
         );
-        if (this.manifest) {
-          this.validateManifest(this.manifest);
+        if (!this.manifest) {
+          throw new Error("Manifest file is empty or invalid");
         }
+        this.validateManifest(this.manifest);
         return this.manifest;
       } catch (error) {
         throw new Error(
@@ -323,6 +324,9 @@ var PRInsightsArtifactClient = (() => {
         this.artifactName,
         "aggregates/dimensions.json"
       );
+      if (!this.dimensions) {
+        throw new Error("Dimensions file is empty or invalid");
+      }
       return this.dimensions;
     }
     async getWeeklyRollups(startDate, endDate) {
