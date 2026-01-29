@@ -167,7 +167,7 @@ As a CI architect, I need each CI job to have a clearly defined responsibility s
 - The repository uses GitHub Actions for CI/CD
 - pnpm 9.15.0 is the target version (as specified in the existing extension/package.json)
 - Node.js 22 is the target runtime (as referenced in the checklist)
-- Python 3.10+ is required for integration tests (as established in previous features)
+- Python 3.11 is required for integration tests (matching CI configuration)
 - The pandas library is the primary Python dependency for integration tests
 - Corepack is available in the GitHub Actions Node.js environment
 

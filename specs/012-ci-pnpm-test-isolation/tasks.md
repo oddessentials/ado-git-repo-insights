@@ -129,10 +129,12 @@
 
 **Independent Test**: Examine job definitions and verify distinct dependency surfaces
 
+**Note**: After T020-T021, `fresh-clone-verify` becomes the FR-011 enforcement job (runs `test:unit` without Python installed).
+
 ### Implementation for User Story 6
 
-- [ ] T020 [US6] Update fresh-clone-verify job in `.github/workflows/ci.yml` to remove Python setup steps (lines 654-661)
-- [ ] T021 [US6] Update fresh-clone-verify job to run `pnpm test:unit` instead of `pnpm test` (line 683)
+- [ ] T020 [US6] Update fresh-clone-verify job in `.github/workflows/ci.yml` to remove Python setup steps (lines 654-661) — satisfies FR-011
+- [ ] T021 [US6] Update fresh-clone-verify job to run `pnpm test:unit` instead of `pnpm test` (line 683) — satisfies FR-011
 - [ ] T022 [US6] Verify extension-tests and fresh-clone-verify have distinct responsibilities (validation step)
 
 **Checkpoint**: CI jobs have clear, non-overlapping responsibilities.
