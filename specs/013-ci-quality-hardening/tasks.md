@@ -142,7 +142,7 @@
 **Purpose**: Final validation, documentation, and cleanup
 
 - [x] T038 Update quickstart.md with any new scenarios discovered during implementation (added Scenario 5)
-- [ ] T039 Run full pre-push hook and verify all checks pass
+- [x] T039 Run full pre-push hook and verify all checks pass - all 7 checks passed
 - [ ] T040 Run full CI workflow on a test PR and verify all jobs pass
 - [x] T041 Verify baseline idempotency: run audit-suppressions.py --update-baseline twice, confirm byte-identical output
 - [ ] T042 Cross-OS test: verify baseline identical on Windows and Linux (will be verified in CI)
