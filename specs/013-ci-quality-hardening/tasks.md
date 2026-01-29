@@ -34,12 +34,12 @@
 
 **⚠️ CRITICAL**: US3 and US5 depend on this phase
 
-- [ ] T005 Create scripts/audit-suppressions.py with core scanning logic per data-model.md
-- [ ] T006 Implement deterministic JSON output (sorted by scope/rule/kind, forward-slash paths)
-- [ ] T007 Add --update-baseline flag to generate .suppression-baseline.json
-- [ ] T008 Add --diff flag to compare current scan against committed baseline
-- [ ] T009 Add --validate flag to verify baseline format/ordering per FR-020
-- [ ] T010 Generate initial .suppression-baseline.json and commit to repository
+- [x] T005 Create scripts/audit-suppressions.py with core scanning logic per data-model.md
+- [x] T006 Implement deterministic JSON output (sorted by scope/rule/kind, forward-slash paths)
+- [x] T007 Add --update-baseline flag to generate .suppression-baseline.json
+- [x] T008 Add --diff flag to compare current scan against committed baseline
+- [x] T009 Add --validate flag to verify baseline format/ordering per FR-020
+- [x] T010 Generate initial .suppression-baseline.json and commit to repository
 
 **Checkpoint**: `python scripts/audit-suppressions.py` runs successfully; baseline committed
 

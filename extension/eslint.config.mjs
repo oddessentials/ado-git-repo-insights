@@ -8,6 +8,8 @@ export default tseslint.config(
     security.configs.recommended,
     // Removed strict config for initial conversion - can re-enable when types are mature
     {
+        // Configuration for production code (ui/)
+        files: ['ui/**/*.ts'],
         languageOptions: {
             parserOptions: {
                 projectService: {
@@ -55,8 +57,42 @@ export default tseslint.config(
         },
     },
     {
-        // Ignore patterns - test files are type-checked via tsconfig.test.json + Jest
-        // ESLint focuses on production code quality
+        // Configuration for test code (tests/)
+        // Uses tsconfig.test.json which has relaxed strict settings appropriate for tests
+        // Test code has relaxed rules because:
+        // - Tests often need dynamic object manipulation (detect-object-injection)
+        // - Test fixtures use readFileSync with variables (detect-non-literal-fs-filename)
+        // - Test mocks may have unused variables for setup
+        files: ['tests/**/*.ts'],
+        languageOptions: {
+            parserOptions: {
+                project: 'tsconfig.test.json',
+                tsconfigRootDir: import.meta.dirname,
+            },
+        },
+        rules: {
+            // Relaxed rules for test files
+            '@typescript-eslint/no-explicit-any': 'warn',  // Allow any in tests (with warning)
+            '@typescript-eslint/no-floating-promises': 'warn',  // Relaxed for test setup
+            '@typescript-eslint/require-await': 'off',
+            '@typescript-eslint/no-unused-vars': 'warn',  // Relaxed for test fixtures
+            '@typescript-eslint/no-inferrable-types': 'off',
+            '@typescript-eslint/no-require-imports': 'warn',  // Tests often use require() for dynamic imports
+            '@typescript-eslint/consistent-type-imports': 'warn',  // Relaxed for tests
+            'prefer-const': 'warn',  // Style preference, not critical in tests
+            // Security rules - relaxed for test code which often needs dynamic patterns
+            'security/detect-eval-with-expression': 'error',
+            'security/detect-buffer-noassert': 'error',
+            'security/detect-no-csrf-before-method-override': 'error',
+            'security/detect-unsafe-regex': 'error',
+            'security/detect-non-literal-regexp': 'warn',  // Tests may use variable patterns
+            'security/detect-non-literal-fs-filename': 'warn',  // Test fixtures use dynamic paths
+            'security/detect-possible-timing-attacks': 'warn',  // Test assertions may compare
+            'security/detect-object-injection': 'warn',  // Tests often manipulate objects dynamically
+        },
+    },
+    {
+        // Ignore patterns
         ignores: [
             'node_modules/**',
             'dist/**',
@@ -64,9 +100,7 @@ export default tseslint.config(
             'ui/VSS.SDK.min.js',
             '**/*.js',           // Ignore remaining JS files during transition
             '**/*.cjs',          // Ignore CommonJS config files (dependency-cruiser)
-            'tests/**',          // Tests type-checked via tsconfig.test.json
             'scripts/**',        // Scripts type-checked via scripts/tsconfig.json
-            '**/*.test.ts',      // Test files handled by Jest + tsc
             'jest.config.ts',    // Ignore Jest config (handled by tsconfig)
         ],
     }
