@@ -527,25 +527,25 @@ export function hasMLMethods(loader: unknown): loader is IDatasetLoaderWithML {
 declare global {
   interface Window {
     // Dataset Loader exports (typed as unknown to avoid circular imports)
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- REASON: Window globals typed as any to avoid circular imports between IIFE bundles
     DatasetLoader?: any;
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- REASON: Window globals typed as any to avoid circular imports between IIFE bundles
     fetchSemaphore?: any;
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- REASON: Window globals typed as any to avoid circular imports between IIFE bundles
     createRollupCache?: any;
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- REASON: Window globals typed as any to avoid circular imports between IIFE bundles
     normalizeRollup?: any;
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- REASON: Window globals typed as any to avoid circular imports between IIFE bundles
     normalizeRollups?: any;
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- REASON: Window globals typed as any to avoid circular imports between IIFE bundles
     ROLLUP_FIELD_DEFAULTS?: any;
 
     // Artifact Client exports (typed as unknown to avoid circular imports)
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- REASON: Window globals typed as any to avoid circular imports between IIFE bundles
     ArtifactClient?: any;
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- REASON: Window globals typed as any to avoid circular imports between IIFE bundles
     AuthenticatedDatasetLoader?: any;
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- REASON: Window globals typed as any to avoid circular imports between IIFE bundles
     MockArtifactClient?: any;
 
     // Settings page exports
