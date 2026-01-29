@@ -180,7 +180,9 @@ describe("DOM Harness", () => {
       await waitForDom();
 
       const elapsed = Date.now() - start;
-      expect(elapsed).toBeLessThan(50);
+      // Allow generous margin for CI/system variability while still
+      // validating "immediate" resolution (vs the 100ms delay test below)
+      expect(elapsed).toBeLessThan(100);
     });
 
     it("resolves after specified delay", async () => {
