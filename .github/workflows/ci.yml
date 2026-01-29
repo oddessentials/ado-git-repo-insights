@@ -19,6 +19,15 @@ on:
       - '.gitignore'
 
 jobs:
+  # Guard: Validate CI configuration guards (packageManager, composite action usage)
+  ci-guards:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Validate CI Guards
+        run: bash .github/scripts/validate-ci-guards.sh
+
   # Guard: Enforce pnpm-only policy (no package-lock.json)
   pnpm-lockfile-guard:
     runs-on: ubuntu-latest
@@ -617,21 +626,11 @@ jobs:
         run: node .github/scripts/check-baseline-integrity.js
 
   # FR-034: Fresh-clone verification - proves deterministic builds without cache
+  # FR-011: Also serves as Python-free test isolation enforcement
   fresh-clone-verify:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0  # For setuptools_scm
-
-      - uses: actions/setup-python@v5
-        with:
-          python-version: '3.11'
-
-      - name: Install Python dependencies
-        run: |
-          python -m pip install --upgrade pip
-          pip install -e .[dev]
 
       - uses: ./.github/actions/setup-pnpm
         with:
@@ -645,9 +644,9 @@ jobs:
         working-directory: extension
         run: pnpm run build
 
-      - name: Run tests
+      - name: Run unit tests (no Python)
         working-directory: extension
-        run: pnpm test
+        run: pnpm test:unit
 
       - name: Verify deterministic lockfile
         working-directory: extension

@@ -71,8 +71,8 @@
 
 ### Implementation for User Story 2
 
-- [ ] T012 [US2] Verify test scripts in `extension/package.json` correctly exclude python-integration directory (validation of T006)
-- [ ] T013 [US2] Run `pnpm test:unit` locally and verify no Python errors (manual verification, document results)
+- [x] T012 [US2] Verify test scripts in `extension/package.json` correctly exclude python-integration directory (validation of T006)
+- [x] T013 [US2] Run `pnpm test:unit` locally and verify no Python errors (manual verification, document results)
 
 **Checkpoint**: Developers without Python can run unit tests locally.
 
@@ -86,8 +86,8 @@
 
 ### Implementation for User Story 3
 
-- [ ] T014 [US3] Ensure extension-tests job in `.github/workflows/ci.yml` continues to run `pnpm run test:ci` (which includes Python tests)
-- [ ] T015 [US3] Verify extension-tests job still installs Python and runs full test suite (validation step)
+- [x] T014 [US3] Ensure extension-tests job in `.github/workflows/ci.yml` continues to run `pnpm run test:ci` (which includes Python tests)
+- [x] T015 [US3] Verify extension-tests job still installs Python and runs full test suite (validation step)
 
 **Checkpoint**: Full test coverage maintained in extension-tests job.
 
@@ -101,8 +101,8 @@
 
 ### Implementation for User Story 4
 
-- [ ] T016 [P] [US4] Create test documentation at `extension/tests/README.md` documenting test suites, Python requirements, and CI jobs
-- [ ] T017 [P] [US4] Create Python integration test README at `extension/tests/python-integration/README.md` explaining why tests are separated
+- [x] T016 [P] [US4] Create test documentation at `extension/tests/README.md` documenting test suites, Python requirements, and CI jobs
+- [x] T017 [P] [US4] Create Python integration test README at `extension/tests/python-integration/README.md` explaining why tests are separated
 
 **Checkpoint**: Test architecture is documented for onboarding.
 
@@ -116,8 +116,8 @@
 
 ### Implementation for User Story 5
 
-- [ ] T018 [US5] Create regression guard script at `.github/scripts/validate-ci-guards.sh` checking packageManager field and direct pnpm/action-setup usage
-- [ ] T019 [US5] Add ci-guards job to `.github/workflows/ci.yml` that runs validate-ci-guards.sh
+- [x] T018 [US5] Create regression guard script at `.github/scripts/validate-ci-guards.sh` checking packageManager field and direct pnpm/action-setup usage
+- [x] T019 [US5] Add ci-guards job to `.github/workflows/ci.yml` that runs validate-ci-guards.sh
 
 **Checkpoint**: Regression guards prevent configuration drift.
 
@@ -133,9 +133,9 @@
 
 ### Implementation for User Story 6
 
-- [ ] T020 [US6] Update fresh-clone-verify job in `.github/workflows/ci.yml` to remove Python setup steps (lines 654-661) — satisfies FR-011
-- [ ] T021 [US6] Update fresh-clone-verify job to run `pnpm test:unit` instead of `pnpm test` (line 683) — satisfies FR-011
-- [ ] T022 [US6] Verify extension-tests and fresh-clone-verify have distinct responsibilities (validation step)
+- [x] T020 [US6] Update fresh-clone-verify job in `.github/workflows/ci.yml` to remove Python setup steps (lines 654-661) — satisfies FR-011
+- [x] T021 [US6] Update fresh-clone-verify job to run `pnpm test:unit` instead of `pnpm test` (line 683) — satisfies FR-011
+- [x] T022 [US6] Verify extension-tests and fresh-clone-verify have distinct responsibilities (validation step)
 
 **Checkpoint**: CI jobs have clear, non-overlapping responsibilities.
 
