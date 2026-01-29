@@ -2,6 +2,7 @@
 
 <!-- CI & Quality -->
 
+[![AI Review](https://github.com/oddessentials/ado-git-repo-insights/actions/workflows/ai-review.yml/badge.svg)](https://github.com/oddessentials/odd-ai-reviewers/actions/workflows/ai-review.yml)
 ![CI](https://github.com/oddessentials/ado-git-repo-insights/actions/workflows/ci.yml/badge.svg)
 [![Python Coverage](https://codecov.io/gh/oddessentials/ado-git-repo-insights/graph/badge.svg?flag=python)](https://codecov.io/gh/oddessentials/ado-git-repo-insights?flags[0]=python)
 [![TypeScript Coverage](https://codecov.io/gh/oddessentials/ado-git-repo-insights/graph/badge.svg?flag=typescript)](https://codecov.io/gh/oddessentials/ado-git-repo-insights?flags[0]=typescript)
@@ -212,6 +213,7 @@ build-aggregates:
 ```
 
 Features:
+
 - Cycle time forecasts using historical trends
 - Throughput predictions for capacity planning
 - Confidence intervals for forecast accuracy
@@ -233,6 +235,7 @@ build-aggregates:
 ```
 
 Features:
+
 - Automated bottleneck identification
 - Reviewer workload recommendations
 - Process improvement suggestions
@@ -240,6 +243,7 @@ Features:
 **Cost:** Approximately $0.001-0.01 per pipeline run (uses GPT-4o-mini).
 
 **Data Privacy:** Only aggregated metrics are sent to OpenAI. The following are **never sent**:
+
 - PR titles, descriptions, or content
 - User identities or email addresses
 - Code changes or file contents
@@ -247,12 +251,12 @@ Features:
 
 ### Troubleshooting ML Features
 
-| State | Cause | Solution |
-|-------|-------|----------|
-| **Setup Required** | Artifact file not found | Enable feature in pipeline YAML and run pipeline |
-| **No Data** | Empty forecasts/insights array | Accumulate more historical data (min. 4 weeks recommended) |
-| **Invalid Artifact** | JSON parse or validation error | Check pipeline logs for generation errors |
-| **Unsupported Schema** | Version mismatch | Update dashboard extension to latest version |
+| State                  | Cause                          | Solution                                                   |
+| ---------------------- | ------------------------------ | ---------------------------------------------------------- |
+| **Setup Required**     | Artifact file not found        | Enable feature in pipeline YAML and run pipeline           |
+| **No Data**            | Empty forecasts/insights array | Accumulate more historical data (min. 4 weeks recommended) |
+| **Invalid Artifact**   | JSON parse or validation error | Check pipeline logs for generation errors                  |
+| **Unsupported Schema** | Version mismatch               | Update dashboard extension to latest version               |
 
 ---
 
