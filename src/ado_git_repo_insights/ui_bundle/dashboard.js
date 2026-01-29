@@ -4439,6 +4439,7 @@ var PRInsightsDashboard = (() => {
   var SETTINGS_KEY_PROJECT = "pr-insights-source-project";
   var SETTINGS_KEY_PIPELINE = "pr-insights-pipeline-id";
   var elements = {};
+  var elementLists = {};
   function getElement(id) {
     const el = elements[id];
     if (el instanceof HTMLElement) {
@@ -4849,7 +4850,7 @@ var PRInsightsDashboard = (() => {
     ids.forEach((id) => {
       elements[id] = document.getElementById(id);
     });
-    elements.tabs = document.querySelectorAll(".tab");
+    elementLists.tabs = document.querySelectorAll(".tab");
   }
   function initializePhase5Features() {
     console.log("Phase 5 ML features initialized - tabs visible by default");
@@ -4857,9 +4858,10 @@ var PRInsightsDashboard = (() => {
   function setupEventListeners() {
     elements["date-range"]?.addEventListener("change", handleDateRangeChange);
     document.getElementById("apply-dates")?.addEventListener("click", applyCustomDates);
-    elements.tabs?.forEach((tab) => {
-      tab.addEventListener("click", () => {
-        const tabId = tab.dataset["tab"];
+    elementLists.tabs?.forEach((tab) => {
+      const htmlTab = tab;
+      htmlTab.addEventListener("click", () => {
+        const tabId = htmlTab.dataset["tab"];
         if (tabId) switchTab(tabId);
       });
     });
@@ -4910,11 +4912,13 @@ var PRInsightsDashboard = (() => {
       const startDate = new Date(endDate);
       startDate.setDate(startDate.getDate() - defaultDays);
       currentDateRange = { start: startDate, end: endDate };
-      if (elements["start-date"]) {
-        elements["start-date"].value = startDate.toISOString().split("T")[0];
+      const startDateEl = elements["start-date"];
+      const endDateEl = elements["end-date"];
+      if (startDateEl) {
+        startDateEl.value = startDate.toISOString().split("T")[0] ?? "";
       }
-      if (elements["end-date"]) {
-        elements["end-date"].value = endDate.toISOString().split("T")[0];
+      if (endDateEl) {
+        endDateEl.value = endDate.toISOString().split("T")[0] ?? "";
       }
     }
   }
@@ -5078,8 +5082,9 @@ var PRInsightsDashboard = (() => {
     void refreshMetrics();
   }
   function switchTab(tabId) {
-    elements.tabs?.forEach((tab) => {
-      tab.classList.toggle("active", tab.dataset["tab"] === tabId);
+    elementLists.tabs?.forEach((tab) => {
+      const htmlTab = tab;
+      htmlTab.classList.toggle("active", htmlTab.dataset["tab"] === tabId);
     });
     document.querySelectorAll(".tab-content").forEach((content) => {
       content.classList.toggle("active", content.id === `tab-${tabId}`);
@@ -5440,8 +5445,10 @@ var PRInsightsDashboard = (() => {
         dateRangeEl.value = "custom";
         elements["custom-dates"]?.classList.remove("hidden");
       }
-      if (elements["start-date"]) elements["start-date"].value = startParam;
-      if (elements["end-date"]) elements["end-date"].value = endParam;
+      const startEl = elements["start-date"];
+      const endEl = elements["end-date"];
+      if (startEl) startEl.value = startParam;
+      if (endEl) endEl.value = endParam;
     }
     const tabParam = params.get("tab");
     if (tabParam) {

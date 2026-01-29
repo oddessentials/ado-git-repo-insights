@@ -19,10 +19,10 @@
 
 **Purpose**: Verify existing infrastructure and ensure clean baseline
 
-- [ ] T001 Verify mypy is installed and configured in pyproject.toml
-- [ ] T002 [P] Verify tsc --noEmit passes on current codebase in extension/
-- [ ] T003 [P] Verify ESLint passes on current codebase in extension/
-- [ ] T004 Run mypy src/ and document any existing errors to fix
+- [x] T001 Verify mypy is installed and configured in pyproject.toml
+- [x] T002 [P] Verify tsc --noEmit passes on current codebase in extension/
+- [x] T003 [P] Verify ESLint passes on current codebase in extension/
+- [x] T004 Run mypy src/ and document any existing errors to fix
 
 **Checkpoint**: Current codebase passes all existing checks; mypy errors identified
 
