@@ -4,7 +4,6 @@
  * Provides global mocks for fetch and other browser APIs.
  */
 
-import { jest } from "@jest/globals";
 import { TextEncoder, TextDecoder } from "util";
 
 // Polyfill TextEncoder/TextDecoder for jsdom (required by whatwg-url)
