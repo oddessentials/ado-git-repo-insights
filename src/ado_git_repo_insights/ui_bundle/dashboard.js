@@ -1662,7 +1662,7 @@ var PRInsightsDashboard = (() => {
         try {
           const response = await fetch(manifestUrl, { method: "HEAD" });
           if (response.ok) {
-            console.log(`[DatasetLoader] Found manifest at: ${manifestUrl}`);
+            console.log("[DatasetLoader] Found manifest at: %s", manifestUrl);
             this.effectiveBaseUrl = candidateBase;
             return candidateBase;
           }
@@ -2377,9 +2377,7 @@ var PRInsightsDashboard = (() => {
         (a) => a.name === artifactName
       );
       if (!artifact) {
-        console.log(
-          `[getArtifactMetadata] Artifact '${artifactName}' not found in build ${buildId}`
-        );
+        console.log("[getArtifactMetadata] Artifact '%s' not found in build %d", artifactName, buildId);
         return null;
       }
       return artifact;
@@ -2565,7 +2563,7 @@ var PRInsightsDashboard = (() => {
           this.rollupCache.set(weekStr, rollup);
           results.push(rollup);
         } catch (e) {
-          console.warn(`Failed to load rollup for ${weekStr}:`, e);
+          console.warn("Failed to load rollup for %s:", weekStr, e);
         }
       }
       return results;
@@ -2595,7 +2593,7 @@ var PRInsightsDashboard = (() => {
           this.distributionCache.set(yearStr, dist);
           results.push(dist);
         } catch (e) {
-          console.warn(`Failed to load distribution for ${yearStr}:`, e);
+          console.warn("Failed to load distribution for %s:", yearStr, e);
         }
       }
       return results;
@@ -4523,7 +4521,8 @@ var PRInsightsDashboard = (() => {
           const isAdoDomain = urlHost.endsWith("dev.azure.com") || urlHost.endsWith(".visualstudio.com") || urlHost.endsWith(".azure.com");
           if (!isAdoDomain) {
             console.warn(
-              `SECURITY: ?dataset= URL "${urlHost}" is not an Azure DevOps domain. This parameter is intended for development only.`
+              "SECURITY: ?dataset= URL %s is not an Azure DevOps domain. This parameter is intended for development only.",
+              urlHost
             );
           }
         } catch (_e) {
@@ -4611,7 +4610,9 @@ var PRInsightsDashboard = (() => {
     const sourceConfig = await getSourceConfig();
     const targetProjectId = sourceConfig.projectId || currentProjectId;
     console.log(
-      `Source project: ${targetProjectId}${sourceConfig.projectId ? " (from settings)" : " (current context)"}`
+      "Source project: %s%s",
+      targetProjectId,
+      sourceConfig.projectId ? " (from settings)" : " (current context)"
     );
     artifactClient = new ArtifactClient(targetProjectId);
     await artifactClient.initialize();
@@ -4622,9 +4623,7 @@ var PRInsightsDashboard = (() => {
       );
     }
     if (sourceConfig.pipelineId) {
-      console.log(
-        `Using pipeline definition ID from settings: ${sourceConfig.pipelineId}`
-      );
+      console.log("Using pipeline definition ID from settings: %d", sourceConfig.pipelineId);
       try {
         return await resolveFromPipelineId(
           sourceConfig.pipelineId,

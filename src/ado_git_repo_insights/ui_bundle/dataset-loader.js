@@ -1690,7 +1690,7 @@ var PRInsightsDatasetLoader = (() => {
         try {
           const response = await fetch(manifestUrl, { method: "HEAD" });
           if (response.ok) {
-            console.log(`[DatasetLoader] Found manifest at: ${manifestUrl}`);
+            console.log("[DatasetLoader] Found manifest at: %s", manifestUrl);
             this.effectiveBaseUrl = candidateBase;
             return candidateBase;
           }

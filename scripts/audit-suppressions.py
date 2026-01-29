@@ -145,6 +145,10 @@ EXCLUDED_DIRS = {
     ".git",
 }
 
+# Security limits to prevent ReDoS and resource exhaustion
+MAX_FILE_SIZE_BYTES = 10 * 1024 * 1024  # 10 MB
+MAX_LINE_LENGTH = 10000  # chars
+
 
 # =============================================================================
 # Core Functions
@@ -221,6 +225,19 @@ def scan_file(file_path: Path, scope: str, repo_root: Path) -> list[Suppression]
             "ts-expect-error",
         ]
 
+    # SECURITY: Check file size before reading to prevent resource exhaustion
+    try:
+        file_size = file_path.stat().st_size
+        if file_size > MAX_FILE_SIZE_BYTES:
+            print(
+                f"Warning: Skipping {file_path} (size {file_size} exceeds {MAX_FILE_SIZE_BYTES})",
+                file=sys.stderr,
+            )
+            return suppressions
+    except OSError as e:
+        print(f"Warning: Could not stat {file_path}: {e}", file=sys.stderr)
+        return suppressions
+
     try:
         content = file_path.read_text(encoding="utf-8", errors="replace")
     except (OSError, UnicodeDecodeError) as e:
@@ -228,6 +245,24 @@ def scan_file(file_path: Path, scope: str, repo_root: Path) -> list[Suppression]
         return suppressions
 
     for line_num, line in enumerate(content.splitlines(), start=1):
+        # SECURITY: Skip extremely long lines to prevent ReDoS
+        if len(line) > MAX_LINE_LENGTH:
+            continue
+
+        # SECURITY: Pre-filter by keywords before expensive regex matching
+        has_potential_suppression = any(
+            kw in line
+            for kw in (
+                "eslint-disable",
+                "@ts-ignore",
+                "@ts-expect-error",
+                "type:",
+                "noqa",
+            )
+        )
+        if not has_potential_suppression:
+            continue
+
         for pattern_name in patterns_to_check:
             pattern = SUPPRESSION_PATTERNS[pattern_name]
             if pattern.search(line):
@@ -471,6 +506,24 @@ def check_pr_approval() -> bool:
     """
     event_path = os.environ.get("GITHUB_EVENT_PATH")
     if not event_path:
+        return False
+
+    # SECURITY: Validate path before opening
+    event_path_obj = Path(event_path)
+    if not event_path_obj.is_file():
+        print(
+            f"Warning: GITHUB_EVENT_PATH is not a valid file: {event_path}",
+            file=sys.stderr,
+        )
+        return False
+
+    # SECURITY: Check file size to prevent resource exhaustion
+    try:
+        file_size = event_path_obj.stat().st_size
+        if file_size > MAX_FILE_SIZE_BYTES:
+            print(f"Warning: Event file too large: {file_size} bytes", file=sys.stderr)
+            return False
+    except OSError:
         return False
 
     try:

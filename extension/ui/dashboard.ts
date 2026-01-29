@@ -225,8 +225,8 @@ function parseQueryParams(): QueryParamResult | PrInsightsError {
           urlHost.endsWith(".azure.com");
         if (!isAdoDomain) {
           console.warn(
-            `SECURITY: ?dataset= URL "${urlHost}" is not an Azure DevOps domain. ` +
-              `This parameter is intended for development only.`,
+            "SECURITY: ?dataset= URL %s is not an Azure DevOps domain. This parameter is intended for development only.",
+            urlHost,
           );
         }
       } catch (_e) {
@@ -362,7 +362,9 @@ async function resolveConfiguration(): Promise<{
   const targetProjectId = sourceConfig.projectId || currentProjectId;
 
   console.log(
-    `Source project: ${targetProjectId}${sourceConfig.projectId ? " (from settings)" : " (current context)"}`,
+    "Source project: %s%s",
+    targetProjectId,
+    sourceConfig.projectId ? " (from settings)" : " (current context)",
   );
 
   // Initialize artifact client with target project
@@ -380,9 +382,7 @@ async function resolveConfiguration(): Promise<{
 
   // Check settings for pipeline ID
   if (sourceConfig.pipelineId) {
-    console.log(
-      `Using pipeline definition ID from settings: ${sourceConfig.pipelineId}`,
-    );
+    console.log("Using pipeline definition ID from settings: %d", sourceConfig.pipelineId);
     try {
       return await resolveFromPipelineId(
         sourceConfig.pipelineId,

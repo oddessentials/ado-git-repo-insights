@@ -148,9 +148,7 @@ export class ArtifactClient {
     );
 
     if (!artifact) {
-      console.log(
-        `[getArtifactMetadata] Artifact '${artifactName}' not found in build ${buildId}`,
-      );
+      console.log("[getArtifactMetadata] Artifact '%s' not found in build %d", artifactName, buildId);
       return null;
     }
 
@@ -412,7 +410,7 @@ export class AuthenticatedDatasetLoader implements IDatasetLoader {
         this.rollupCache.set(weekStr, rollup);
         results.push(rollup);
       } catch (e) {
-        console.warn(`Failed to load rollup for ${weekStr}:`, e);
+        console.warn("Failed to load rollup for %s:", weekStr, e);
       }
     }
 
@@ -452,7 +450,7 @@ export class AuthenticatedDatasetLoader implements IDatasetLoader {
         this.distributionCache.set(yearStr, dist);
         results.push(dist);
       } catch (e) {
-        console.warn(`Failed to load distribution for ${yearStr}:`, e);
+        console.warn("Failed to load distribution for %s:", yearStr, e);
       }
     }
 
