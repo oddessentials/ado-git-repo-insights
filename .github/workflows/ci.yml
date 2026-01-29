@@ -408,6 +408,23 @@ jobs:
           mypy src/
           echo "[OK] mypy type check passed - all Python type errors resolved"
 
+  # Suppression Audit Gate (FR-008, FR-010, FR-011)
+  # Tracks suppression comment growth and blocks increases without acknowledgment
+  # Direct pushes to main with increases are always rejected (FR-010)
+  suppression-audit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Run suppression audit
+        run: |
+          echo "Running suppression audit against baseline..."
+          python scripts/audit-suppressions.py --diff
+
   # Phase 5: Test base installation without [ml] extras
   # Enforces optional-dependency isolation - ML features must not leak into base
   # Functional validation job: verifies base package works without [ml] extras.

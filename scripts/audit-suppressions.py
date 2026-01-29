@@ -562,6 +562,22 @@ def cmd_validate(baseline_path: Path) -> int:
     return 0
 
 
+def find_unjustified_suppressions(
+    scan_results: dict[str, list[Suppression]],
+) -> list[tuple[str, int, str]]:
+    """
+    Find suppressions missing justification tags per FR-012.
+
+    Returns list of (file_path, line_number, suppression_type) tuples.
+    """
+    unjustified: list[tuple[str, int, str]] = []
+    for file_path, suppressions in scan_results.items():
+        for supp in suppressions:
+            if not supp["has_justification"]:
+                unjustified.append((file_path, supp["line"], supp["type"]))
+    return unjustified
+
+
 def cmd_diff(repo_root: Path, baseline_path: Path) -> int:
     """Compare current scan to baseline and fail if delta > 0 without approval."""
     if not baseline_path.exists():
@@ -584,6 +600,18 @@ def cmd_diff(repo_root: Path, baseline_path: Path) -> int:
     # Scan current codebase
     scan_results = scan_codebase(repo_root)
     current = build_baseline(scan_results, repo_root)
+
+    # Check for unjustified suppressions per FR-012
+    unjustified = find_unjustified_suppressions(scan_results)
+    if unjustified:
+        print(f"[WARN] {len(unjustified)} suppressions missing justification tag:")
+        for file_path, line_num, supp_type in unjustified[:10]:
+            print(f"  {file_path}:{line_num}: {supp_type}")
+        if len(unjustified) > 10:
+            print(f"  ... and {len(unjustified) - 10} more")
+        print()
+        print("Required format: -- REASON: <explanation> or -- SECURITY: <explanation>")
+        print()
 
     # Compute diff
     diff = compute_diff(baseline, current)

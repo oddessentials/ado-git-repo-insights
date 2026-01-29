@@ -91,11 +91,11 @@
 
 ### Implementation for US3
 
-- [ ] T023 [US3] Add suppression-audit job to .github/workflows/ci.yml
-- [ ] T024 [US3] Implement PR body check for SUPPRESSION-INCREASE-APPROVED marker in audit script
-- [ ] T025 [US3] Implement failure message format per FR-011 (previous, new, delta, instruction)
-- [ ] T026 [US3] Implement direct-push-to-main rejection (no override) per FR-010
-- [ ] T027 [US3] Add justification tag validation (-- REASON: or -- SECURITY:) per FR-012
+- [x] T023 [US3] Add suppression-audit job to .github/workflows/ci.yml
+- [x] T024 [US3] Implement PR body check for SUPPRESSION-INCREASE-APPROVED marker in audit script (done in Phase 2)
+- [x] T025 [US3] Implement failure message format per FR-011 (previous, new, delta, instruction) (done in Phase 2)
+- [x] T026 [US3] Implement direct-push-to-main rejection (no override) per FR-010 (done in Phase 2)
+- [x] T027 [US3] Add justification tag validation (-- REASON: or -- SECURITY:) per FR-012
 - [ ] T028 [US3] Verify CI fails when suppression count increases without marker (test in PR)
 - [ ] T029 [US3] Verify CI passes when SUPPRESSION-INCREASE-APPROVED is in PR body
 
