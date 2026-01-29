@@ -28,7 +28,9 @@
     "postinstall": "node scripts/copy-vss-sdk.mjs",
     "stage:tasks": "node scripts/stage-task-deps.mjs",
     "clean:tasks": "node scripts/clean-task-deps.mjs",
-    "package:vsix": "pnpm run build && pnpm run stage:tasks && pnpm exec tfx-cli extension create --manifest-globs vss-extension.json"
+    "package:vsix": "pnpm run build && pnpm run stage:tasks && pnpm exec tfx-cli extension create --manifest-globs vss-extension.json",
+    "hooks:precommit": "cd .. && pre-commit run --all-files",
+    "hooks:prepush": "cd .. && bash .husky/pre-push"
   },
   "devDependencies": {
     "@jest/globals": "^30.0.0",

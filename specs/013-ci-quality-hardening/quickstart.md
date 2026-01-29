@@ -119,6 +119,28 @@ Required format: -- REASON: <explanation> or -- SECURITY: <explanation>
 // eslint-disable-next-line @typescript-eslint/no-explicit-any -- REASON: ADO SDK returns untyped JSON
 ```
 
+---
+
+### Scenario 5: Python Suppression Missing Justification
+
+**Symptom**: Pre-commit fails with Python suppression format error
+
+```
+[FAIL] 1 suppressions missing justification tag:
+  src/ado_git_repo_insights/utils/example.py:42: noqa
+
+Required format: -- REASON: <explanation> or -- SECURITY: <explanation>
+```
+
+**Fix**: Add justification to the Python suppression:
+```python
+# Before (blocked):
+import unused_module  # noqa: F401
+
+# After (allowed):
+import unused_module  # noqa: F401 -- REASON: imported for side effects
+```
+
 ## CI Integration
 
 ### Workflow Jobs
