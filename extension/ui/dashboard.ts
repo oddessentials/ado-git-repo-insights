@@ -1580,22 +1580,24 @@ function updateUrlState(): void {
   const newParams = new URLSearchParams();
 
   // Preserve config params
-  if (params.get("dataset")) newParams.set("dataset", params.get("dataset")!);
-  if (params.get("pipelineId"))
-    newParams.set("pipelineId", params.get("pipelineId")!);
+  const datasetParam = params.get("dataset");
+  if (datasetParam) newParams.set("dataset", datasetParam);
+  const pipelineIdParam = params.get("pipelineId");
+  if (pipelineIdParam) newParams.set("pipelineId", pipelineIdParam);
 
-  // Add date range
+  // Add date range (toISOString format: YYYY-MM-DDTHH:mm:ss.sssZ)
   if (currentDateRange.start) {
-    newParams.set("start", currentDateRange.start.toISOString().split("T")[0]!);
+    newParams.set("start", currentDateRange.start.toISOString().substring(0, 10));
   }
   if (currentDateRange.end) {
-    newParams.set("end", currentDateRange.end.toISOString().split("T")[0]!);
+    newParams.set("end", currentDateRange.end.toISOString().substring(0, 10));
   }
 
   // Add active tab
   const activeTab = document.querySelector(".tab.active") as HTMLElement | null;
-  if (activeTab && activeTab.dataset["tab"] !== "metrics") {
-    newParams.set("tab", activeTab.dataset["tab"]!);
+  const tabValue = activeTab?.dataset["tab"];
+  if (tabValue && tabValue !== "metrics") {
+    newParams.set("tab", tabValue);
   }
 
   // Add filters

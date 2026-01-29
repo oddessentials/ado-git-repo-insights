@@ -2543,8 +2543,9 @@ var PRInsightsDashboard = (() => {
       const neededWeeks = this.getWeeksInRange(startDate, endDate);
       const results = [];
       for (const weekStr of neededWeeks) {
-        if (this.rollupCache.has(weekStr)) {
-          results.push(this.rollupCache.get(weekStr));
+        const cachedRollup = this.rollupCache.get(weekStr);
+        if (cachedRollup) {
+          results.push(cachedRollup);
           continue;
         }
         const indexEntry = this.manifest?.aggregate_index?.weekly_rollups?.find(
@@ -2572,8 +2573,9 @@ var PRInsightsDashboard = (() => {
       const results = [];
       for (let year = startYear; year <= endYear; year++) {
         const yearStr = String(year);
-        if (this.distributionCache.has(yearStr)) {
-          results.push(this.distributionCache.get(yearStr));
+        const cachedDistribution = this.distributionCache.get(yearStr);
+        if (cachedDistribution) {
+          results.push(cachedDistribution);
           continue;
         }
         const indexEntry = this.manifest?.aggregate_index?.distributions?.find(
@@ -3956,8 +3958,10 @@ var PRInsightsDashboard = (() => {
       return { x, y };
     });
     const pathD = points.map((p, i) => `${i === 0 ? "M" : "L"} ${p.x.toFixed(1)} ${p.y.toFixed(1)}`).join(" ");
-    const areaD = pathD + ` L ${points[points.length - 1].x.toFixed(1)} ${height - padding} L ${points[0].x.toFixed(1)} ${height - padding} Z`;
+    const firstPoint = points[0];
     const lastPoint = points[points.length - 1];
+    if (!firstPoint || !lastPoint) return;
+    const areaD = pathD + ` L ${lastPoint.x.toFixed(1)} ${height - padding} L ${firstPoint.x.toFixed(1)} ${height - padding} Z`;
     renderTrustedHtml(
       element,
       `
@@ -5395,18 +5399,20 @@ var PRInsightsDashboard = (() => {
   function updateUrlState() {
     const params = new URLSearchParams(window.location.search);
     const newParams = new URLSearchParams();
-    if (params.get("dataset")) newParams.set("dataset", params.get("dataset"));
-    if (params.get("pipelineId"))
-      newParams.set("pipelineId", params.get("pipelineId"));
+    const datasetParam = params.get("dataset");
+    if (datasetParam) newParams.set("dataset", datasetParam);
+    const pipelineIdParam = params.get("pipelineId");
+    if (pipelineIdParam) newParams.set("pipelineId", pipelineIdParam);
     if (currentDateRange.start) {
-      newParams.set("start", currentDateRange.start.toISOString().split("T")[0]);
+      newParams.set("start", currentDateRange.start.toISOString().substring(0, 10));
     }
     if (currentDateRange.end) {
-      newParams.set("end", currentDateRange.end.toISOString().split("T")[0]);
+      newParams.set("end", currentDateRange.end.toISOString().substring(0, 10));
     }
     const activeTab = document.querySelector(".tab.active");
-    if (activeTab && activeTab.dataset["tab"] !== "metrics") {
-      newParams.set("tab", activeTab.dataset["tab"]);
+    const tabValue = activeTab?.dataset["tab"];
+    if (tabValue && tabValue !== "metrics") {
+      newParams.set("tab", tabValue);
     }
     if (currentFilters.repos.length > 0) {
       newParams.set("repos", currentFilters.repos.join(","));

@@ -387,8 +387,9 @@ export class AuthenticatedDatasetLoader implements IDatasetLoader {
     const results: Rollup[] = [];
 
     for (const weekStr of neededWeeks) {
-      if (this.rollupCache.has(weekStr)) {
-        results.push(this.rollupCache.get(weekStr)!);
+      const cachedRollup = this.rollupCache.get(weekStr);
+      if (cachedRollup) {
+        results.push(cachedRollup);
         continue;
       }
 
@@ -426,8 +427,9 @@ export class AuthenticatedDatasetLoader implements IDatasetLoader {
 
     for (let year = startYear; year <= endYear; year++) {
       const yearStr = String(year);
-      if (this.distributionCache.has(yearStr)) {
-        results.push(this.distributionCache.get(yearStr)!);
+      const cachedDistribution = this.distributionCache.get(yearStr);
+      if (cachedDistribution) {
+        results.push(cachedDistribution);
         continue;
       }
 
