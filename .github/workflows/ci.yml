@@ -36,7 +36,13 @@ jobs:
 
       - name: Check for npm lockfile
         run: |
-          FOUND=$(find . -name "package-lock.json" -not -path "./node_modules/*" 2>/dev/null)
+          set -euo pipefail
+          # Find all package-lock.json files, excluding node_modules
+          # Explicit error handling: if find fails, we fail the job
+          if ! FOUND=$(find . -name "package-lock.json" -not -path "./node_modules/*" 2>&1); then
+            echo "::error::find command failed: $FOUND"
+            exit 1
+          fi
           if [ -n "$FOUND" ]; then
             echo "::error::package-lock.json found:"
             echo "$FOUND"
@@ -75,13 +81,20 @@ jobs:
           # Define search locations
           SEARCH_PATHS=".github/workflows/ package.json scripts/"
 
-          # Allowlist: tfx-cli global install is OK
+          # Allowlist patterns:
+          # - tfx-cli global install (npm install -g tfx-cli)
+          # - This guard job itself (npm-command-guard references)
+          # - Error message strings (::error:: lines that quote npm commands)
           echo "Scanning for npm ci/install commands in: $SEARCH_PATHS"
 
           MATCHES=""
           for path in $SEARCH_PATHS; do
             if [ -e "$path" ]; then
-              FOUND=$(git grep -n "npm ci\|npm install" "$path" 2>/dev/null | grep -v "npm install -g tfx-cli" || true)
+              FOUND=$(git grep -n "npm ci\|npm install" "$path" 2>/dev/null \
+                | grep -v "npm install -g tfx-cli" \
+                | grep -v "npm-command-guard" \
+                | grep -v "::error::" \
+                || true)
               if [ -n "$FOUND" ]; then
                 MATCHES="$MATCHES$FOUND\n"
               fi
