@@ -71,14 +71,14 @@ US2 depends on:
 
 **Purpose**: Verify fix resolves all failing jobs from incident report
 
-- [ ] T005 Push changes and trigger CI workflow
-- [ ] T006 Verify ci.yml `ui-bundle-sync` job passes (line 126)
-- [ ] T007 Verify ci.yml `build-extension` job passes (line 467)
-- [ ] T008 Verify ci.yml `extension-tests` job passes (line 544)
-- [ ] T009 Verify ci.yml `fresh-clone-verify` job passes (line 651)
-- [ ] T010 Verify release.yml `build-extension` job passes (line 85)
-- [ ] T011 Verify extension/test-results.xml is generated in extension-tests job
-- [ ] T012 Verify no quality checks were removed or bypassed (SC-003)
+- [x] T005 Push changes and trigger CI workflow
+- [ ] T006 Verify ci.yml `ui-bundle-sync` job passes (line 126) [PENDING CI]
+- [ ] T007 Verify ci.yml `build-extension` job passes (line 467) [PENDING CI]
+- [ ] T008 Verify ci.yml `extension-tests` job passes (line 544) [PENDING CI]
+- [ ] T009 Verify ci.yml `fresh-clone-verify` job passes (line 651) [PENDING CI]
+- [ ] T010 Verify release.yml `build-extension` job passes (line 85) [PENDING CI]
+- [ ] T011 Verify extension/test-results.xml is generated in extension-tests job [PENDING CI]
+- [x] T012 Verify no quality checks were removed or bypassed (SC-003)
 
 **Checkpoint**: All 5 previously failing jobs now pass
 
