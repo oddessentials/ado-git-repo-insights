@@ -1,3 +1,23 @@
+# [5.12.0](https://github.com/oddessentials/ado-git-repo-insights/compare/v5.11.0...v5.12.0) (2026-01-29)
+
+
+### Bug Fixes
+
+* **ci:** add packageManager to root package.json for pnpm/action-setup@v4 ([bd03eee](https://github.com/oddessentials/ado-git-repo-insights/commit/bd03eeed7ed314e9c4f17759a27186b2a00e898e))
+* **ci:** resolve build-extension and fresh-clone-verify failures ([0b75094](https://github.com/oddessentials/ado-git-repo-insights/commit/0b750949689a2d7cc2bfaf142c7e9de9b69e9da7))
+* correct all remaining scriptPath references in performance.test.ts ([9dd46f5](https://github.com/oddessentials/ado-git-repo-insights/commit/9dd46f5900e33b53da50b8e717246b0f127f8be9))
+* correct relative paths in moved performance test and update gitignore ([e5f4893](https://github.com/oddessentials/ado-git-repo-insights/commit/e5f4893d325d919cf9d9a3f349a252dccd196db8))
+* **test:** increase timing threshold for flaky waitForDom test ([e1ab4c6](https://github.com/oddessentials/ado-git-repo-insights/commit/e1ab4c6fc7ca4c431f20e46ffa1972e09848a58c))
+* **test:** remove @jest/globals import in favor of global jest ([09c3cac](https://github.com/oddessentials/ado-git-repo-insights/commit/09c3cacfee3306bbe9406d5e6bc8420d431a11d4))
+* **test:** resolve @jest/globals module resolution for CI ([4724b38](https://github.com/oddessentials/ado-git-repo-insights/commit/4724b38003c1d4373fbd6a89b8af4de1ad84008d))
+
+
+### Features
+
+* **ci:** add regression guards, documentation, and job separation ([f770fae](https://github.com/oddessentials/ado-git-repo-insights/commit/f770fae8704fbe448621d0c6f5bd825ecd29c258))
+* **ci:** add shared pnpm setup action and isolate Python tests ([c6454dd](https://github.com/oddessentials/ado-git-repo-insights/commit/c6454dd62d4c2044946966ba2afb69639d20a402))
+* **ml:** enable ML features with 5-state gating and migrate to pnpm ([0a2d012](https://github.com/oddessentials/ado-git-repo-insights/commit/0a2d012c5fce776420fb1f517b2822e5c4928252))
+
 # [5.11.0](https://github.com/oddessentials/ado-git-repo-insights/compare/v5.10.0...v5.11.0) (2026-01-29)
 
 
