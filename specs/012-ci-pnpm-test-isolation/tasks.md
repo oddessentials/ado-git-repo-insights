@@ -145,10 +145,10 @@
 
 **Purpose**: Final verification and documentation updates
 
-- [ ] T023 Run full CI workflow and verify all jobs pass
-- [ ] T024 Verify `git grep pnpm/action-setup .github/workflows/` returns no results (only composite action references)
-- [ ] T025 Document implementation in specs/012-ci-pnpm-test-isolation/ (update plan.md verification checklist)
-- [ ] T026 Run quickstart.md verification steps
+- [x] T023 Run full CI workflow and verify all jobs pass
+- [x] T024 Verify `git grep pnpm/action-setup .github/workflows/` returns no results (only composite action references)
+- [x] T025 Document implementation in specs/012-ci-pnpm-test-isolation/ (update plan.md verification checklist)
+- [x] T026 Run quickstart.md verification steps
 
 ---
 

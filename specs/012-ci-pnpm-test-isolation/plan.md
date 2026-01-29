@@ -346,11 +346,11 @@ This installs pandas and other Python dependencies needed for synthetic dataset 
 
 After implementation, verify:
 
-- [ ] `git grep pnpm/action-setup .github/workflows` returns no results
-- [ ] CI logs show `pnpm@9.15.0` in all jobs
-- [ ] `pnpm test:unit` passes locally without Python
-- [ ] `pnpm test:all` passes locally with Python
-- [ ] `fresh-clone-verify` job passes without Python steps
-- [ ] `extension-tests` job passes with Python steps
-- [ ] Removing `packageManager` from root package.json fails CI
-- [ ] Adding inline `pnpm/action-setup` to a workflow fails CI
+- [x] `git grep pnpm/action-setup .github/workflows` returns no results
+- [ ] CI logs show `pnpm@9.15.0` in all jobs (requires CI run)
+- [x] `pnpm test:unit` passes locally without Python (1066 tests)
+- [ ] `pnpm test:all` passes locally with Python (requires Python setup)
+- [ ] `fresh-clone-verify` job passes without Python steps (requires CI run)
+- [ ] `extension-tests` job passes with Python steps (requires CI run)
+- [ ] Removing `packageManager` from root package.json fails CI (requires CI run)
+- [ ] Adding inline `pnpm/action-setup` to a workflow fails CI (requires CI run)
