@@ -97,7 +97,8 @@ class DatabaseManager:
     def _initialize_schema(self) -> None:
         """Create all tables and indexes."""
         try:
-            self._connection.executescript(SCHEMA_SQL)  # type: ignore[union-attr]
+            # Use property accessor which validates connection is active
+            self.connection.executescript(SCHEMA_SQL)
             logger.info("Database schema initialized")
         except sqlite3.Error as e:
             raise DatabaseError(f"Failed to initialize schema: {e}") from e
