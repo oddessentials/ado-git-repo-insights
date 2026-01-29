@@ -80,7 +80,9 @@ def is_prophet_available() -> bool:
         True if Prophet can be imported, False otherwise.
     """
     try:
-        from prophet import Prophet  # noqa: F401
+        from prophet import (
+            Prophet,  # noqa: F401 -- REASON: import used for ML dependency check
+        )
 
         return True
     except ImportError:

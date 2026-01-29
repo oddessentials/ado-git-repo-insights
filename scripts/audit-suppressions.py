@@ -645,6 +645,40 @@ def cmd_diff(repo_root: Path, baseline_path: Path) -> int:
     return 1
 
 
+def cmd_check_justifications(repo_root: Path, python_only: bool = False) -> int:
+    """Check that all suppressions have justification tags per FR-012/FR-017.
+
+    Args:
+        repo_root: Repository root directory
+        python_only: If True, only check Python files (src/ scope)
+
+    Returns:
+        0 if all suppressions have justifications, 1 otherwise
+    """
+    scan_results = scan_codebase(repo_root)
+
+    # Filter to Python only if requested
+    if python_only:
+        scan_results = {
+            path: supps
+            for path, supps in scan_results.items()
+            if path.startswith("src/")
+        }
+
+    unjustified = find_unjustified_suppressions(scan_results)
+
+    if not unjustified:
+        print("[PASS] All suppressions have justification tags")
+        return 0
+
+    print(f"[FAIL] {len(unjustified)} suppressions missing justification tag:")
+    for file_path, line_num, supp_type in unjustified:
+        print(f"  {file_path}:{line_num}: {supp_type}")
+    print()
+    print("Required format: -- REASON: <explanation> or -- SECURITY: <explanation>")
+    return 1
+
+
 # =============================================================================
 # Main
 # =============================================================================
@@ -676,6 +710,16 @@ def main() -> int:
         default=Path(".suppression-baseline.json"),
         help="Path to baseline file (default: .suppression-baseline.json)",
     )
+    parser.add_argument(
+        "--check-justifications",
+        action="store_true",
+        help="Fail if any suppressions are missing justification tags (for pre-commit)",
+    )
+    parser.add_argument(
+        "--python-only",
+        action="store_true",
+        help="Only check Python files (src/ scope)",
+    )
 
     args = parser.parse_args()
 
@@ -694,6 +738,8 @@ def main() -> int:
         return cmd_validate(baseline_path)
     elif args.diff:
         return cmd_diff(repo_root, baseline_path)
+    elif args.check_justifications:
+        return cmd_check_justifications(repo_root, args.python_only)
     else:
         return cmd_count(repo_root)
 

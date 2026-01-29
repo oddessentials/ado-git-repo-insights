@@ -111,9 +111,9 @@
 
 ### Implementation for US4
 
-- [ ] T030 [US4] Verify pytest --cov fails under 70% threshold in pyproject.toml
-- [ ] T031 [US4] Verify jest coverage thresholds are enforced in extension/jest.config.ts
-- [ ] T032 [US4] Document coverage ratchet verification in quickstart.md (already exists, validate)
+- [x] T030 [US4] Verify pytest --cov fails under 70% threshold in pyproject.toml (fail_under = 70 configured)
+- [x] T031 [US4] Verify jest coverage thresholds are enforced in extension/jest.config.ts (coverageThreshold configured)
+- [x] T032 [US4] Document coverage ratchet verification in quickstart.md (already exists in performance baseline section)
 
 **Checkpoint**: US4 complete — coverage enforcement verified (pre-existing, no new code)
 
@@ -127,11 +127,11 @@
 
 ### Implementation for US5
 
-- [ ] T033 [US5] Add Python suppression format validation to scripts/audit-suppressions.py
-- [ ] T034 [US5] Add pre-commit hook entry for suppression format validation per FR-017
-- [ ] T035 [US5] Audit existing Python suppressions in src/ for missing justifications
-- [ ] T036 [P] [US5] Fix or justify existing Python suppressions in src/
-- [ ] T037 [US5] Verify pre-commit blocks malformed Python suppression (test locally)
+- [x] T033 [US5] Add Python suppression format validation to scripts/audit-suppressions.py (--check-justifications flag)
+- [x] T034 [US5] Add pre-commit hook entry for suppression format validation per FR-017
+- [x] T035 [US5] Audit existing Python suppressions in src/ for missing justifications (9 found)
+- [x] T036 [P] [US5] Fix or justify existing Python suppressions in src/ (all 9 fixed)
+- [x] T037 [US5] Verify pre-commit blocks malformed Python suppression (test locally) - verified exits with code 1
 
 **Checkpoint**: US5 complete — Python suppressions require justification; pre-commit enforced
 

@@ -38,3 +38,10 @@ repos:
         language: system
         pass_filenames: false
         stages: [manual]  # Run via Husky pre-push, not pre-commit
+
+      - id: suppression-format
+        name: Python Suppression Format (FR-017)
+        entry: python scripts/audit-suppressions.py --check-justifications --python-only
+        language: system
+        pass_filenames: false
+        types: [python]
