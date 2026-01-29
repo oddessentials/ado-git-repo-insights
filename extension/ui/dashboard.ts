@@ -88,10 +88,10 @@ let currentBuildId: number | null = null; // Store build ID for raw data downloa
 const SETTINGS_KEY_PROJECT = "pr-insights-source-project";
 const SETTINGS_KEY_PIPELINE = "pr-insights-pipeline-id";
 
-// DOM element cache
 // DOM element cache - stores both HTMLElements and NodeLists
-// eslint-disable-next-line @typescript-eslint/no-explicit-any -- Single documented exception: DOM cache allows flexible storage; use getElement<T>() for typed access
-const elements: Record<string, any> = {};
+// Type is more specific than 'any' - allows HTMLElement, NodeList, or null
+type CachedDomValue = HTMLElement | NodeListOf<Element> | null;
+const elements: Record<string, CachedDomValue> = {};
 
 /**
  * Typed DOM element accessor.
