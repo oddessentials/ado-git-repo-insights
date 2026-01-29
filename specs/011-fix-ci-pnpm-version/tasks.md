@@ -177,17 +177,25 @@ This fix is intentionally minimal:
 
 ## Additional Fix: Pre-existing Test Infrastructure Issue
 
-During implementation, discovered a pre-existing issue where `tests/setup.ts` imported
-`jest` from `@jest/globals` which caused TypeScript module resolution failures.
+During implementation, discovered a pre-existing issue with `@jest/globals` module resolution
+that caused TypeScript module resolution failures across 13 test files.
 
-**Root cause**: `import { jest } from "@jest/globals"` in `extension/tests/setup.ts:7`
-**Fix**: Removed the import since `@types/jest` provides the global `jest` object
+**Root cause**: `@jest/globals` was a transitive dependency but not explicitly declared,
+causing TypeScript to fail module resolution in CI environments.
+
+**Fix** (comprehensive approach):
+1. Added `@jest/globals: "^30.0.0"` as explicit devDependency
+2. Added `@types/jsdom: "^21.1.7"` for jsdom type support
+3. Removed redundant `@jest/globals` imports from 12 test files (describe/it/expect are globals via @types/jest)
+4. Kept `import { jest } from "@jest/globals"` in `tests/setup.ts` (required for jest.fn() and jest.Mock)
+
 **Impact**: Without this fix, 0 tests would collect (all 54 test suites fail to start)
 
 Commits:
 1. `bd03eee` - fix(ci): add packageManager to root package.json (original issue)
-2. `09c3cac` - fix(test): remove @jest/globals import (pre-existing issue)
+2. `09c3cac` - fix(test): remove @jest/globals import (initial attempt)
+3. `4724b38` - fix(test): resolve @jest/globals module resolution for CI (comprehensive fix)
 
 Local test verification:
 - Python: 312 tests passed, 75.65% coverage
-- TypeScript: 1092 tests passed (1086 in CI mode)
+- TypeScript: 1092 tests passed across 54 test suites
