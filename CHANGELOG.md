@@ -1,3 +1,26 @@
+# [5.13.0](https://github.com/oddessentials/ado-git-repo-insights/compare/v5.12.0...v5.13.0) (2026-01-29)
+
+
+### Bug Fixes
+
+* **ci:** close review gaps - complete enforcement parity ([45324e3](https://github.com/oddessentials/ado-git-repo-insights/commit/45324e39b2b7e9234930121b96cc61ce155790df)), closes [#3](https://github.com/oddessentials/ado-git-repo-insights/issues/3) [#1](https://github.com/oddessentials/ado-git-repo-insights/issues/1) [#2](https://github.com/oddessentials/ado-git-repo-insights/issues/2)
+* **lint:** scope production lint to ui/ only ([628e6ad](https://github.com/oddessentials/ado-git-repo-insights/commit/628e6ad6ec706cf1539583e3432369c3a4d3e67f))
+* **security:** harden suppression audit and fix log forging ([b90434c](https://github.com/oddessentials/ado-git-repo-insights/commit/b90434c420edebc2ebde43b97649a5c8c969931e))
+* **types:** remove type: ignore comment in database.py ([f37a941](https://github.com/oddessentials/ado-git-repo-insights/commit/f37a9414b52c6684517bea563f8d3ee12d207247))
+* **types:** remove unsafe non-null assertions in TypeScript ([b48428b](https://github.com/oddessentials/ado-git-repo-insights/commit/b48428ba08e7cf6768adc8ffa50f9f6cbc9270ad))
+* **types:** replace any with specific type for DOM cache in dashboard ([6080b0f](https://github.com/oddessentials/ado-git-repo-insights/commit/6080b0f9bf095410dd4ce202a59836a7f5a22911))
+* **types:** resolve mypy errors in ML modules ([8ed7193](https://github.com/oddessentials/ado-git-repo-insights/commit/8ed7193dea4925712839f0c7ea90147c32b48733))
+* **types:** separate DOM element caches for type safety ([65d5f35](https://github.com/oddessentials/ado-git-repo-insights/commit/65d5f35d2b3b15625bfcc96b641a83e2a88bd755))
+
+
+### Features
+
+* **ci:** add mypy type checking to pre-push and CI (Phase 3 - US1) ([87c3bd4](https://github.com/oddessentials/ado-git-repo-insights/commit/87c3bd4bc6bea07b64506d2bcde58fa62ed901c4))
+* **ci:** add suppression audit CI job (Phase 5 - US3) ([6b420be](https://github.com/oddessentials/ado-git-repo-insights/commit/6b420bed210a2d7a911b3669e52cfa7a130b5753))
+* **ci:** add suppression audit script and baseline (Phase 2) ([f0a4408](https://github.com/oddessentials/ado-git-repo-insights/commit/f0a44080855bbb7448c20eb5ee97c4fcf05ef002))
+* **ci:** enforce non-null assertion rule (Phase 4 - US2) ([468c4b8](https://github.com/oddessentials/ado-git-repo-insights/commit/468c4b8600b490decb156e613496fde12007a7ae))
+* **ci:** standardize Python suppression format (Phase 7 - US5) ([f737fea](https://github.com/oddessentials/ado-git-repo-insights/commit/f737fea611fd76d9a8f4e6bb5fff5e8a5e8ef57e))
+
 # [5.12.0](https://github.com/oddessentials/ado-git-repo-insights/compare/v5.11.0...v5.12.0) (2026-01-29)
 
 
