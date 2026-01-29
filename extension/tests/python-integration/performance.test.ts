@@ -98,6 +98,7 @@ describe("Performance Baseline Tests (Simplified)", () => {
         __dirname,
         "..",
         "..",
+        "..",
         "scripts",
         "generate-synthetic-dataset.py",
       );
@@ -137,6 +138,7 @@ describe("Performance Baseline Tests (Simplified)", () => {
     if (!fs.existsSync(manifestPath)) {
       const scriptPath = path.join(
         __dirname,
+        "..",
         "..",
         "..",
         "scripts",
@@ -182,6 +184,7 @@ describe("Performance Baseline Tests (Simplified)", () => {
     if (!fs.existsSync(manifestPath)) {
       const scriptPath = path.join(
         __dirname,
+        "..",
         "..",
         "..",
         "scripts",
@@ -355,6 +358,7 @@ describe.each([1000, 5000, 10000])(
         __dirname,
         "..",
         "..",
+        "..",
         "scripts",
         "generate-synthetic-dataset.py",
       );
@@ -400,6 +404,7 @@ describe.each([1000, 5000, 10000])(
           __dirname,
           "..",
           "..",
+          "..",
           "scripts",
           "generate-synthetic-dataset.py",
         );
@@ -431,6 +436,7 @@ describe.each([1000, 5000, 10000])(
       if (!fs.existsSync(manifestPath)) {
         const scriptPath = path.join(
           __dirname,
+          "..",
           "..",
           "..",
           "scripts",
