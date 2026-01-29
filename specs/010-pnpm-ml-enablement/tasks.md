@@ -63,11 +63,11 @@
 
 ### Tests for User Story 1
 
-- [ ] T017 [P] [US1] Add test in `extension/tests/modules/ml.test.ts` asserting Predictions tab renders `setup-required` state when artifact missing
-- [ ] T018 [P] [US1] Add test asserting Predictions tab renders `ready` state with valid artifact
-- [ ] T019 [P] [US1] Add test asserting Predictions tab renders `invalid-artifact` state with malformed JSON
-- [ ] T020 [P] [US1] Add test asserting Predictions tab renders `unsupported-schema` state with wrong version
-- [ ] T021 [P] [US1] Add test asserting predictions series are ordered chronologically by `period_start`
+- [x] T017 [P] [US1] Add test in `extension/tests/modules/ml.test.ts` asserting Predictions tab renders `setup-required` state when artifact missing
+- [x] T018 [P] [US1] Add test asserting Predictions tab renders `ready` state with valid artifact
+- [x] T019 [P] [US1] Add test asserting Predictions tab renders `invalid-artifact` state with malformed JSON
+- [x] T020 [P] [US1] Add test asserting Predictions tab renders `unsupported-schema` state with wrong version
+- [x] T021 [P] [US1] Add test asserting predictions series are ordered chronologically by `period_start`
 
 ### Implementation for User Story 1
 
@@ -91,11 +91,11 @@
 
 ### Tests for User Story 2
 
-- [ ] T029 [P] [US2] Add test in `extension/tests/modules/ml.test.ts` asserting AI Insights tab renders `setup-required` state when artifact missing
-- [ ] T030 [P] [US2] Add test asserting AI Insights tab renders `ready` state with valid artifact
-- [ ] T031 [P] [US2] Add test asserting insight cards are ordered: severity DESC → category ASC → id ASC
-- [ ] T032 [P] [US2] Add test asserting `no-data` state when insights array is empty
-- [ ] T033 [P] [US2] Add test asserting stale data warning when using last-known-good data
+- [x] T029 [P] [US2] Add test in `extension/tests/modules/ml.test.ts` asserting AI Insights tab renders `setup-required` state when artifact missing
+- [x] T030 [P] [US2] Add test asserting AI Insights tab renders `ready` state with valid artifact
+- [x] T031 [P] [US2] Add test asserting insight cards are ordered: severity DESC → category ASC → id ASC
+- [x] T032 [P] [US2] Add test asserting `no-data` state when insights array is empty
+- [x] T033 [P] [US2] Add test asserting stale data warning when using last-known-good data
 
 ### Implementation for User Story 2
 
