@@ -70,12 +70,26 @@ export interface SchemaValidator<T> {
 /**
  * Artifact types that can be validated.
  */
-export type ArtifactType = "manifest" | "rollup" | "dimensions" | "predictions";
+export type ArtifactType =
+  | "manifest"
+  | "rollup"
+  | "dimensions"
+  | "predictions"
+  | "insights";
+
+/**
+ * Schema version constants for ML artifacts.
+ * Used for validation and unsupported-schema state messages.
+ */
+export const ML_SCHEMA_MIN_VERSION = 1;
+export const ML_SCHEMA_MAX_VERSION = 1;
 
 /**
  * Creates a successful validation result.
  */
-export function validResult(warnings: ValidationWarning[] = []): ValidationResult {
+export function validResult(
+  warnings: ValidationWarning[] = [],
+): ValidationResult {
   return { valid: true, errors: [], warnings };
 }
 
@@ -84,7 +98,7 @@ export function validResult(warnings: ValidationWarning[] = []): ValidationResul
  */
 export function invalidResult(
   errors: ValidationError[],
-  warnings: ValidationWarning[] = []
+  warnings: ValidationWarning[] = [],
 ): ValidationResult {
   return { valid: false, errors, warnings };
 }
@@ -96,7 +110,7 @@ export function createError(
   field: string,
   expected: string,
   actual: string,
-  message?: string
+  message?: string,
 ): ValidationError {
   return {
     field,
@@ -109,7 +123,10 @@ export function createError(
 /**
  * Creates a validation warning.
  */
-export function createWarning(field: string, message?: string): ValidationWarning {
+export function createWarning(
+  field: string,
+  message?: string,
+): ValidationWarning {
   return {
     field,
     message: message || `Unknown field '${field}'`,

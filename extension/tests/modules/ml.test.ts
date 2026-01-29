@@ -70,7 +70,9 @@ describe("renderPredictions", () => {
 
     renderPredictions(container, predictions);
 
-    expect(container.querySelector(".predictions-charts-content")).not.toBeNull();
+    expect(
+      container.querySelector(".predictions-charts-content"),
+    ).not.toBeNull();
     expect(container.querySelector(".forecast-chart")).not.toBeNull();
     expect(container.textContent).toContain("Pr Count");
     expect(container.textContent).toContain("10");
@@ -344,7 +346,9 @@ describe("createMlRenderer", () => {
 
     expect(mockProvider.loadPredictions).toHaveBeenCalled();
     expect(renderer.getState().predictionsState).toBe("loaded");
-    expect(container.querySelector(".predictions-charts-content")).not.toBeNull();
+    expect(
+      container.querySelector(".predictions-charts-content"),
+    ).not.toBeNull();
   });
 
   it("handles unavailable predictions", async () => {

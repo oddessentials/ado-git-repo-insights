@@ -1,6 +1,7 @@
 "use strict";
 var PRInsightsDashboard = (() => {
   // ui/types.ts
+  var ML_SCHEMA_VERSION_RANGE = [1, 1];
   function isErrorWithMessage(error) {
     return typeof error === "object" && error !== null && "message" in error && typeof error.message === "string";
   }
@@ -40,7 +41,9 @@ var PRInsightsDashboard = (() => {
     constructor(errors, artifactType) {
       const errorSummary = errors.slice(0, 3).map((e) => `${e.field}: ${e.message}`).join("; ");
       const moreCount = errors.length > 3 ? ` (+${errors.length - 3} more)` : "";
-      super(`Schema validation failed for ${artifactType}: ${errorSummary}${moreCount}`);
+      super(
+        `Schema validation failed for ${artifactType}: ${errorSummary}${moreCount}`
+      );
       this.name = "SchemaValidationError";
       this.errors = errors;
       this.artifactType = artifactType;
@@ -126,7 +129,12 @@ var PRInsightsDashboard = (() => {
       return createError(path, "number", getTypeName(value));
     }
     if (value < 0) {
-      return createError(path, "number >= 0", String(value), `Expected non-negative number at '${path}'`);
+      return createError(
+        path,
+        "number >= 0",
+        String(value),
+        `Expected non-negative number at '${path}'`
+      );
     }
     return null;
   }
@@ -148,7 +156,11 @@ var PRInsightsDashboard = (() => {
   var YEAR_PATTERN = /^\d{4}$/;
   function validateIsoDate(value, path) {
     if (!isString(value)) {
-      return createError(path, "ISO date string (YYYY-MM-DD)", getTypeName(value));
+      return createError(
+        path,
+        "ISO date string (YYYY-MM-DD)",
+        getTypeName(value)
+      );
     }
     if (!ISO_DATE_PATTERN.test(value)) {
       return createError(
@@ -210,10 +222,20 @@ var PRInsightsDashboard = (() => {
         const fieldPath = buildPath(path, key);
         if (strict) {
           errors.push(
-            createError(fieldPath, "known field", "unknown", `Unknown field '${key}' not allowed in strict mode`)
+            createError(
+              fieldPath,
+              "known field",
+              "unknown",
+              `Unknown field '${key}' not allowed in strict mode`
+            )
           );
         } else {
-          warnings.push(createWarning(fieldPath, `Unknown field '${key}' (ignored in permissive mode)`));
+          warnings.push(
+            createWarning(
+              fieldPath,
+              `Unknown field '${key}' (ignored in permissive mode)`
+            )
+          );
         }
       }
     }
@@ -268,7 +290,12 @@ var PRInsightsDashboard = (() => {
     // Production field
   ]);
   var KNOWN_DATE_RANGE_FIELDS = /* @__PURE__ */ new Set(["min", "max"]);
-  var KNOWN_FEATURES_FIELDS = /* @__PURE__ */ new Set(["teams", "comments", "predictions", "ai_insights"]);
+  var KNOWN_FEATURES_FIELDS = /* @__PURE__ */ new Set([
+    "teams",
+    "comments",
+    "predictions",
+    "ai_insights"
+  ]);
   var KNOWN_LIMITS_FIELDS = /* @__PURE__ */ new Set([
     "max_weekly_files",
     "max_distribution_files",
@@ -296,11 +323,17 @@ var PRInsightsDashboard = (() => {
       if (pathErr) errors.push(pathErr);
     }
     if ("size_bytes" in data && data.size_bytes !== void 0) {
-      const sizeErr = validateNonNegativeNumber(data.size_bytes, buildPath(path, "size_bytes"));
+      const sizeErr = validateNonNegativeNumber(
+        data.size_bytes,
+        buildPath(path, "size_bytes")
+      );
       if (sizeErr) errors.push(sizeErr);
     }
     if ("pr_count" in data && data.pr_count !== void 0) {
-      const prCountErr = validateNonNegativeNumber(data.pr_count, buildPath(path, "pr_count"));
+      const prCountErr = validateNonNegativeNumber(
+        data.pr_count,
+        buildPath(path, "pr_count")
+      );
       if (prCountErr) errors.push(prCountErr);
     }
     if ("start_date" in data && data.start_date !== void 0) {
@@ -311,7 +344,12 @@ var PRInsightsDashboard = (() => {
       const err = validateIsoDate(data.end_date, buildPath(path, "end_date"));
       if (err) errors.push(err);
     }
-    const unknown = findUnknownFields(data, KNOWN_WEEKLY_ROLLUP_FIELDS, path, strict);
+    const unknown = findUnknownFields(
+      data,
+      KNOWN_WEEKLY_ROLLUP_FIELDS,
+      path,
+      strict
+    );
     errors.push(...unknown.errors);
     warnings.push(...unknown.warnings);
     return { errors, warnings };
@@ -336,11 +374,17 @@ var PRInsightsDashboard = (() => {
       if (pathErr) errors.push(pathErr);
     }
     if ("size_bytes" in data && data.size_bytes !== void 0) {
-      const sizeErr = validateNonNegativeNumber(data.size_bytes, buildPath(path, "size_bytes"));
+      const sizeErr = validateNonNegativeNumber(
+        data.size_bytes,
+        buildPath(path, "size_bytes")
+      );
       if (sizeErr) errors.push(sizeErr);
     }
     if ("total_prs" in data && data.total_prs !== void 0) {
-      const totalPrsErr = validateNonNegativeNumber(data.total_prs, buildPath(path, "total_prs"));
+      const totalPrsErr = validateNonNegativeNumber(
+        data.total_prs,
+        buildPath(path, "total_prs")
+      );
       if (totalPrsErr) errors.push(totalPrsErr);
     }
     if ("start_date" in data && data.start_date !== void 0) {
@@ -351,7 +395,12 @@ var PRInsightsDashboard = (() => {
       const err = validateIsoDate(data.end_date, buildPath(path, "end_date"));
       if (err) errors.push(err);
     }
-    const unknown = findUnknownFields(data, KNOWN_DISTRIBUTION_FIELDS, path, strict);
+    const unknown = findUnknownFields(
+      data,
+      KNOWN_DISTRIBUTION_FIELDS,
+      path,
+      strict
+    );
     errors.push(...unknown.errors);
     warnings.push(...unknown.warnings);
     return { errors, warnings };
@@ -366,7 +415,10 @@ var PRInsightsDashboard = (() => {
     const weeklyReq = validateRequired(data, "weekly_rollups", path);
     if (weeklyReq) errors.push(weeklyReq);
     else {
-      const weeklyArrErr = validateArray(data.weekly_rollups, buildPath(path, "weekly_rollups"));
+      const weeklyArrErr = validateArray(
+        data.weekly_rollups,
+        buildPath(path, "weekly_rollups")
+      );
       if (weeklyArrErr) errors.push(weeklyArrErr);
       else if (isArray(data.weekly_rollups)) {
         data.weekly_rollups.forEach((item, i) => {
@@ -383,7 +435,10 @@ var PRInsightsDashboard = (() => {
     const distReq = validateRequired(data, "distributions", path);
     if (distReq) errors.push(distReq);
     else {
-      const distArrErr = validateArray(data.distributions, buildPath(path, "distributions"));
+      const distArrErr = validateArray(
+        data.distributions,
+        buildPath(path, "distributions")
+      );
       if (distArrErr) errors.push(distArrErr);
       else if (isArray(data.distributions)) {
         data.distributions.forEach((item, i) => {
@@ -418,7 +473,12 @@ var PRInsightsDashboard = (() => {
       const maxErr = validateIsoDate(data.max, buildPath(path, "max"));
       if (maxErr) errors.push(maxErr);
     }
-    const unknown = findUnknownFields(data, KNOWN_DATE_RANGE_FIELDS, path, strict);
+    const unknown = findUnknownFields(
+      data,
+      KNOWN_DATE_RANGE_FIELDS,
+      path,
+      strict
+    );
     errors.push(...unknown.errors);
     warnings.push(...unknown.warnings);
     return { errors, warnings };
@@ -431,11 +491,18 @@ var PRInsightsDashboard = (() => {
       return { errors, warnings };
     }
     if ("total_prs" in data) {
-      const prErr = validateNonNegativeNumber(data.total_prs, buildPath(path, "total_prs"));
+      const prErr = validateNonNegativeNumber(
+        data.total_prs,
+        buildPath(path, "total_prs")
+      );
       if (prErr) errors.push(prErr);
     }
     if ("date_range" in data) {
-      const result = validateDateRange(data.date_range, buildPath(path, "date_range"), strict);
+      const result = validateDateRange(
+        data.date_range,
+        buildPath(path, "date_range"),
+        strict
+      );
       errors.push(...result.errors);
       warnings.push(...result.warnings);
     }
@@ -455,12 +522,19 @@ var PRInsightsDashboard = (() => {
     if ("row_counts" in data && data.row_counts !== void 0) {
       if (!isObject(data.row_counts)) {
         errors.push(
-          createError(buildPath(path, "row_counts"), "object", getTypeName(data.row_counts))
+          createError(
+            buildPath(path, "row_counts"),
+            "object",
+            getTypeName(data.row_counts)
+          )
         );
       }
     }
     if ("teams_count" in data && data.teams_count !== void 0) {
-      const err = validateNonNegativeNumber(data.teams_count, buildPath(path, "teams_count"));
+      const err = validateNonNegativeNumber(
+        data.teams_count,
+        buildPath(path, "teams_count")
+      );
       if (err) errors.push(err);
     }
     const unknown = findUnknownFields(data, KNOWN_COVERAGE_FIELDS, path, strict);
@@ -498,7 +572,10 @@ var PRInsightsDashboard = (() => {
       return { errors, warnings };
     }
     if ("max_weekly_files" in data && data.max_weekly_files !== void 0) {
-      const err = validateNonNegativeNumber(data.max_weekly_files, buildPath(path, "max_weekly_files"));
+      const err = validateNonNegativeNumber(
+        data.max_weekly_files,
+        buildPath(path, "max_weekly_files")
+      );
       if (err) errors.push(err);
     }
     if ("max_distribution_files" in data && data.max_distribution_files !== void 0) {
@@ -543,7 +620,14 @@ var PRInsightsDashboard = (() => {
     const errors = [];
     const warnings = [];
     if (!isObject(data)) {
-      errors.push(createError("", "object", getTypeName(data), "Manifest must be an object"));
+      errors.push(
+        createError(
+          "",
+          "object",
+          getTypeName(data),
+          "Manifest must be an object"
+        )
+      );
       return invalidResult(errors);
     }
     const requiredFields = [
@@ -559,15 +643,24 @@ var PRInsightsDashboard = (() => {
       if (err) errors.push(err);
     }
     if ("manifest_schema_version" in data) {
-      const err = validateNumber(data.manifest_schema_version, "manifest_schema_version");
+      const err = validateNumber(
+        data.manifest_schema_version,
+        "manifest_schema_version"
+      );
       if (err) errors.push(err);
     }
     if ("dataset_schema_version" in data) {
-      const err = validateNumber(data.dataset_schema_version, "dataset_schema_version");
+      const err = validateNumber(
+        data.dataset_schema_version,
+        "dataset_schema_version"
+      );
       if (err) errors.push(err);
     }
     if ("aggregates_schema_version" in data) {
-      const err = validateNumber(data.aggregates_schema_version, "aggregates_schema_version");
+      const err = validateNumber(
+        data.aggregates_schema_version,
+        "aggregates_schema_version"
+      );
       if (err) errors.push(err);
     }
     if ("generated_at" in data) {
@@ -579,16 +672,26 @@ var PRInsightsDashboard = (() => {
       if (err) errors.push(err);
     }
     if ("aggregate_index" in data) {
-      const result = validateAggregateIndex(data.aggregate_index, "aggregate_index", strict);
+      const result = validateAggregateIndex(
+        data.aggregate_index,
+        "aggregate_index",
+        strict
+      );
       errors.push(...result.errors);
       warnings.push(...result.warnings);
     }
     if ("predictions_schema_version" in data && data.predictions_schema_version !== void 0) {
-      const err = validateNumber(data.predictions_schema_version, "predictions_schema_version");
+      const err = validateNumber(
+        data.predictions_schema_version,
+        "predictions_schema_version"
+      );
       if (err) errors.push(err);
     }
     if ("insights_schema_version" in data && data.insights_schema_version !== void 0) {
-      const err = validateNumber(data.insights_schema_version, "insights_schema_version");
+      const err = validateNumber(
+        data.insights_schema_version,
+        "insights_schema_version"
+      );
       if (err) errors.push(err);
     }
     if ("defaults" in data && data.defaults !== void 0) {
@@ -654,10 +757,18 @@ var PRInsightsDashboard = (() => {
       return { errors, warnings };
     }
     if ("pr_count" in data) {
-      const err = validateNonNegativeNumber(data.pr_count, buildPath(path, "pr_count"));
+      const err = validateNonNegativeNumber(
+        data.pr_count,
+        buildPath(path, "pr_count")
+      );
       if (err) errors.push(err);
     }
-    const numericFields = ["cycle_time_p50", "cycle_time_p90", "review_time_p50", "review_time_p90"];
+    const numericFields = [
+      "cycle_time_p50",
+      "cycle_time_p90",
+      "review_time_p50",
+      "review_time_p90"
+    ];
     for (const field of numericFields) {
       if (Object.prototype.hasOwnProperty.call(data, field)) {
         const fieldValue = Object.getOwnPropertyDescriptor(data, field)?.value;
@@ -690,7 +801,9 @@ var PRInsightsDashboard = (() => {
     const errors = [];
     const warnings = [];
     if (!isObject(data)) {
-      errors.push(createError("", "object", getTypeName(data), "Rollup must be an object"));
+      errors.push(
+        createError("", "object", getTypeName(data), "Rollup must be an object")
+      );
       return invalidResult(errors);
     }
     const requiredFields = ["week", "pr_count"];
@@ -732,7 +845,11 @@ var PRInsightsDashboard = (() => {
       }
     }
     if (Object.prototype.hasOwnProperty.call(data, "by_repository") && data.by_repository !== void 0) {
-      const result = validateBreakdown(data.by_repository, "by_repository", strict);
+      const result = validateBreakdown(
+        data.by_repository,
+        "by_repository",
+        strict
+      );
       errors.push(...result.errors);
       warnings.push(...result.warnings);
     }
@@ -751,7 +868,13 @@ var PRInsightsDashboard = (() => {
   }
 
   // ui/schemas/dimensions.schema.ts
-  var KNOWN_ROOT_FIELDS3 = /* @__PURE__ */ new Set(["repositories", "users", "projects", "teams", "date_range"]);
+  var KNOWN_ROOT_FIELDS3 = /* @__PURE__ */ new Set([
+    "repositories",
+    "users",
+    "projects",
+    "teams",
+    "date_range"
+  ]);
   var KNOWN_REPOSITORY_FIELDS = /* @__PURE__ */ new Set([
     "repository_id",
     "repository_name",
@@ -803,25 +926,37 @@ var PRInsightsDashboard = (() => {
       const idReq = validateRequired(data, "repository_id", path);
       if (idReq) errors.push(idReq);
       else {
-        const idErr = validateString(data.repository_id, buildPath(path, "repository_id"));
+        const idErr = validateString(
+          data.repository_id,
+          buildPath(path, "repository_id")
+        );
         if (idErr) errors.push(idErr);
       }
       const nameReq = validateRequired(data, "repository_name", path);
       if (nameReq) errors.push(nameReq);
       else {
-        const nameErr = validateString(data.repository_name, buildPath(path, "repository_name"));
+        const nameErr = validateString(
+          data.repository_name,
+          buildPath(path, "repository_name")
+        );
         if (nameErr) errors.push(nameErr);
       }
       const orgReq = validateRequired(data, "organization_name", path);
       if (orgReq) errors.push(orgReq);
       else {
-        const orgErr = validateString(data.organization_name, buildPath(path, "organization_name"));
+        const orgErr = validateString(
+          data.organization_name,
+          buildPath(path, "organization_name")
+        );
         if (orgErr) errors.push(orgErr);
       }
       const projReq = validateRequired(data, "project_name", path);
       if (projReq) errors.push(projReq);
       else {
-        const projErr = validateString(data.project_name, buildPath(path, "project_name"));
+        const projErr = validateString(
+          data.project_name,
+          buildPath(path, "project_name")
+        );
         if (projErr) errors.push(projErr);
       }
     } else if (isLegacyFormat) {
@@ -851,7 +986,12 @@ var PRInsightsDashboard = (() => {
         )
       );
     }
-    const unknown = findUnknownFields(data, KNOWN_REPOSITORY_FIELDS, path, strict);
+    const unknown = findUnknownFields(
+      data,
+      KNOWN_REPOSITORY_FIELDS,
+      path,
+      strict
+    );
     errors.push(...unknown.errors);
     warnings.push(...unknown.warnings);
     return { errors, warnings };
@@ -875,7 +1015,10 @@ var PRInsightsDashboard = (() => {
       const nameReq = validateRequired(data, "display_name", path);
       if (nameReq) errors.push(nameReq);
       else {
-        const nameErr = validateString(data.display_name, buildPath(path, "display_name"));
+        const nameErr = validateString(
+          data.display_name,
+          buildPath(path, "display_name")
+        );
         if (nameErr) errors.push(nameErr);
       }
     } else if (isLegacyFormat) {
@@ -888,13 +1031,19 @@ var PRInsightsDashboard = (() => {
       const displayNameReq = validateRequired(data, "displayName", path);
       if (displayNameReq) errors.push(displayNameReq);
       else {
-        const nameErr = validateString(data.displayName, buildPath(path, "displayName"));
+        const nameErr = validateString(
+          data.displayName,
+          buildPath(path, "displayName")
+        );
         if (nameErr) errors.push(nameErr);
       }
       const uniqueNameReq = validateRequired(data, "uniqueName", path);
       if (uniqueNameReq) errors.push(uniqueNameReq);
       else {
-        const uNameErr = validateString(data.uniqueName, buildPath(path, "uniqueName"));
+        const uNameErr = validateString(
+          data.uniqueName,
+          buildPath(path, "uniqueName")
+        );
         if (uNameErr) errors.push(uNameErr);
       }
     } else {
@@ -925,13 +1074,19 @@ var PRInsightsDashboard = (() => {
       const orgReq = validateRequired(data, "organization_name", path);
       if (orgReq) errors.push(orgReq);
       else {
-        const orgErr = validateString(data.organization_name, buildPath(path, "organization_name"));
+        const orgErr = validateString(
+          data.organization_name,
+          buildPath(path, "organization_name")
+        );
         if (orgErr) errors.push(orgErr);
       }
       const projReq = validateRequired(data, "project_name", path);
       if (projReq) errors.push(projReq);
       else {
-        const projErr = validateString(data.project_name, buildPath(path, "project_name"));
+        const projErr = validateString(
+          data.project_name,
+          buildPath(path, "project_name")
+        );
         if (projErr) errors.push(projErr);
       }
     } else if (isLegacyFormat) {
@@ -969,7 +1124,14 @@ var PRInsightsDashboard = (() => {
       errors.push(createError(path, "object", getTypeName(data)));
       return { errors, warnings };
     }
-    const stringFields = ["id", "name", "projectId", "team_id", "team_name", "project_id"];
+    const stringFields = [
+      "id",
+      "name",
+      "projectId",
+      "team_id",
+      "team_name",
+      "project_id"
+    ];
     for (const field of stringFields) {
       if (Object.prototype.hasOwnProperty.call(data, field)) {
         const fieldValue = Object.getOwnPropertyDescriptor(data, field)?.value;
@@ -1003,7 +1165,12 @@ var PRInsightsDashboard = (() => {
       const maxErr = validateIsoDate(data.max, buildPath(path, "max"));
       if (maxErr) errors.push(maxErr);
     }
-    const unknown = findUnknownFields(data, KNOWN_DATE_RANGE_FIELDS2, path, strict);
+    const unknown = findUnknownFields(
+      data,
+      KNOWN_DATE_RANGE_FIELDS2,
+      path,
+      strict
+    );
     errors.push(...unknown.errors);
     warnings.push(...unknown.warnings);
     return { errors, warnings };
@@ -1012,7 +1179,14 @@ var PRInsightsDashboard = (() => {
     const errors = [];
     const warnings = [];
     if (!isObject(data)) {
-      errors.push(createError("", "object", getTypeName(data), "Dimensions must be an object"));
+      errors.push(
+        createError(
+          "",
+          "object",
+          getTypeName(data),
+          "Dimensions must be an object"
+        )
+      );
       return invalidResult(errors);
     }
     const requiredArrays = ["repositories", "users", "projects"];
@@ -1030,7 +1204,11 @@ var PRInsightsDashboard = (() => {
     }
     if ("repositories" in data && isArray(data.repositories)) {
       data.repositories.forEach((item, i) => {
-        const result = validateRepositoryEntry(item, buildPath("repositories", i), strict);
+        const result = validateRepositoryEntry(
+          item,
+          buildPath("repositories", i),
+          strict
+        );
         errors.push(...result.errors);
         warnings.push(...result.warnings);
       });
@@ -1044,7 +1222,11 @@ var PRInsightsDashboard = (() => {
     }
     if ("projects" in data && isArray(data.projects)) {
       data.projects.forEach((item, i) => {
-        const result = validateProjectEntry(item, buildPath("projects", i), strict);
+        const result = validateProjectEntry(
+          item,
+          buildPath("projects", i),
+          strict
+        );
         errors.push(...result.errors);
         warnings.push(...result.warnings);
       });
@@ -1084,7 +1266,12 @@ var PRInsightsDashboard = (() => {
     "forecasts",
     "state"
   ]);
-  var KNOWN_FORECAST_FIELDS = /* @__PURE__ */ new Set(["metric", "unit", "horizon_weeks", "values"]);
+  var KNOWN_FORECAST_FIELDS = /* @__PURE__ */ new Set([
+    "metric",
+    "unit",
+    "horizon_weeks",
+    "values"
+  ]);
   var KNOWN_FORECAST_VALUE_FIELDS = /* @__PURE__ */ new Set([
     "period_start",
     "predicted",
@@ -1101,24 +1288,41 @@ var PRInsightsDashboard = (() => {
     const periodReq = validateRequired(data, "period_start", path);
     if (periodReq) errors.push(periodReq);
     else {
-      const periodErr = validateIsoDate(data.period_start, buildPath(path, "period_start"));
+      const periodErr = validateIsoDate(
+        data.period_start,
+        buildPath(path, "period_start")
+      );
       if (periodErr) errors.push(periodErr);
     }
     const predictedReq = validateRequired(data, "predicted", path);
     if (predictedReq) errors.push(predictedReq);
     else {
-      const predictedErr = validateNumber(data.predicted, buildPath(path, "predicted"));
+      const predictedErr = validateNumber(
+        data.predicted,
+        buildPath(path, "predicted")
+      );
       if (predictedErr) errors.push(predictedErr);
     }
     if ("lower_bound" in data && data.lower_bound !== void 0) {
-      const lowerErr = validateNumber(data.lower_bound, buildPath(path, "lower_bound"));
+      const lowerErr = validateNumber(
+        data.lower_bound,
+        buildPath(path, "lower_bound")
+      );
       if (lowerErr) errors.push(lowerErr);
     }
     if ("upper_bound" in data && data.upper_bound !== void 0) {
-      const upperErr = validateNumber(data.upper_bound, buildPath(path, "upper_bound"));
+      const upperErr = validateNumber(
+        data.upper_bound,
+        buildPath(path, "upper_bound")
+      );
       if (upperErr) errors.push(upperErr);
     }
-    const unknown = findUnknownFields(data, KNOWN_FORECAST_VALUE_FIELDS, path, strict);
+    const unknown = findUnknownFields(
+      data,
+      KNOWN_FORECAST_VALUE_FIELDS,
+      path,
+      strict
+    );
     errors.push(...unknown.errors);
     warnings.push(...unknown.warnings);
     return { errors, warnings };
@@ -1159,7 +1363,11 @@ var PRInsightsDashboard = (() => {
         errors.push(valuesArrErr);
       } else if (isArray(data.values)) {
         data.values.forEach((item, i) => {
-          const result = validateForecastValue(item, buildPath(path, `values[${i}]`), strict);
+          const result = validateForecastValue(
+            item,
+            buildPath(path, `values[${i}]`),
+            strict
+          );
           errors.push(...result.errors);
           warnings.push(...result.warnings);
         });
@@ -1177,7 +1385,14 @@ var PRInsightsDashboard = (() => {
       return validResult();
     }
     if (!isObject(data)) {
-      errors.push(createError("", "object", getTypeName(data), "Predictions must be an object"));
+      errors.push(
+        createError(
+          "",
+          "object",
+          getTypeName(data),
+          "Predictions must be an object"
+        )
+      );
       return invalidResult(errors);
     }
     const requiredFields = ["schema_version", "generated_at", "forecasts"];
@@ -1199,7 +1414,11 @@ var PRInsightsDashboard = (() => {
         errors.push(arrErr);
       } else if (isArray(data.forecasts)) {
         data.forecasts.forEach((item, i) => {
-          const result = validateForecastEntry(item, buildPath("forecasts", i), strict);
+          const result = validateForecastEntry(
+            item,
+            buildPath("forecasts", i),
+            strict
+          );
           errors.push(...result.errors);
           warnings.push(...result.warnings);
         });
@@ -1786,7 +2005,10 @@ var PRInsightsDashboard = (() => {
           };
         }
         const predictions = await response.json();
-        const schemaResult = validatePredictions(predictions, false);
+        const schemaResult = validatePredictions(
+          predictions,
+          false
+        );
         if (!schemaResult.valid) {
           console.error(
             "[DatasetLoader] Invalid predictions schema:",
@@ -2485,7 +2707,13 @@ var PRInsightsDashboard = (() => {
     if (!Array.isArray(arr) || arr.length === 0) return 0;
     const sorted = [...arr].sort((a, b) => a - b);
     const mid = Math.floor(sorted.length / 2);
-    return sorted.length % 2 !== 0 ? sorted[mid] ?? 0 : ((sorted[mid - 1] ?? 0) + (sorted[mid] ?? 0)) / 2;
+    return sorted.length % 2 !== 0 ? (
+      // eslint-disable-next-line security/detect-object-injection -- SECURITY: mid is computed from array length, always valid index
+      sorted[mid] ?? 0
+    ) : (
+      // eslint-disable-next-line security/detect-object-injection -- SECURITY: mid/mid-1 are computed from array length, always valid indices
+      ((sorted[mid - 1] ?? 0) + (sorted[mid] ?? 0)) / 2
+    );
   }
 
   // ui/modules/shared/security.ts
@@ -2818,20 +3046,27 @@ var PRInsightsDashboard = (() => {
   }
   function calculateLinePath(values) {
     if (values.length === 0) return "";
-    return values.map((pt, i) => `${i === 0 ? "M" : "L"} ${pt.x.toFixed(2)} ${pt.y.toFixed(2)}`).join(" ");
+    return values.map(
+      (pt, i) => `${i === 0 ? "M" : "L"} ${pt.x.toFixed(2)} ${pt.y.toFixed(2)}`
+    ).join(" ");
   }
   function calculateBandPath(upperValues, lowerValues) {
     if (upperValues.length === 0 || lowerValues.length === 0) return "";
-    const upperPath = upperValues.map((pt, i) => `${i === 0 ? "M" : "L"} ${pt.x.toFixed(2)} ${pt.y.toFixed(2)}`).join(" ");
+    const upperPath = upperValues.map(
+      (pt, i) => `${i === 0 ? "M" : "L"} ${pt.x.toFixed(2)} ${pt.y.toFixed(2)}`
+    ).join(" ");
     const lowerReversed = [...lowerValues].reverse();
     const lowerPath = lowerReversed.map((pt) => `L ${pt.x.toFixed(2)} ${pt.y.toFixed(2)}`).join(" ");
     return `${upperPath} ${lowerPath} Z`;
   }
   function renderForecastChart(forecast, historicalData, chartHeight = 200) {
-    const values = forecast.values;
-    if (!values || values.length === 0) {
+    const rawValues = forecast.values;
+    if (!rawValues || rawValues.length === 0) {
       return `<div class="forecast-chart-empty">No forecast data available</div>`;
     }
+    const values = [...rawValues].sort(
+      (a, b) => a.period_start.localeCompare(b.period_start)
+    );
     const allValues = [];
     if (historicalData) {
       historicalData.forEach((h) => allValues.push(h.value));
@@ -3028,7 +3263,297 @@ var PRInsightsDashboard = (() => {
     container.appendChild(content);
   }
 
+  // ui/modules/ml/setup-guides.ts
+  var PREDICTIONS_YAML = `build-aggregates:
+  run-predictions: true`;
+  var INSIGHTS_YAML = `build-aggregates:
+  run-insights: true
+  openai-api-key: $(OPENAI_API_KEY)`;
+  async function copyToClipboard(text) {
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      await navigator.clipboard.writeText(text);
+    } else {
+      const textarea = document.createElement("textarea");
+      textarea.value = text;
+      textarea.style.position = "fixed";
+      textarea.style.opacity = "0";
+      document.body.appendChild(textarea);
+      textarea.select();
+      document.execCommand("copy");
+      document.body.removeChild(textarea);
+    }
+  }
+  function createCopyButton(yaml, buttonId) {
+    return `
+    <button class="copy-yaml-btn" id="${buttonId}" data-yaml="${escapeHtml(yaml)}"
+            type="button" aria-label="Copy YAML snippet to clipboard">
+      <span class="copy-icon" aria-hidden="true">\u{1F4CB}</span>
+      <span class="copy-text">Copy</span>
+    </button>
+  `;
+  }
+  function attachCopyHandlers(container) {
+    const buttons = container.querySelectorAll(".copy-yaml-btn");
+    let liveRegion = document.getElementById("copy-status-live");
+    if (!liveRegion) {
+      liveRegion = document.createElement("div");
+      liveRegion.id = "copy-status-live";
+      liveRegion.setAttribute("role", "status");
+      liveRegion.setAttribute("aria-live", "polite");
+      liveRegion.className = "visually-hidden";
+      document.body.appendChild(liveRegion);
+    }
+    buttons.forEach((button) => {
+      button.addEventListener("click", async () => {
+        const yaml = button.dataset.yaml;
+        if (!yaml) return;
+        button.disabled = true;
+        const copyText = button.querySelector(".copy-text");
+        const originalText = copyText?.textContent || "Copy";
+        try {
+          await copyToClipboard(yaml);
+          if (copyText) copyText.textContent = "Copied!";
+          button.classList.add("copied");
+          button.setAttribute("aria-label", "YAML snippet copied to clipboard");
+          if (liveRegion)
+            liveRegion.textContent = "YAML snippet copied to clipboard";
+          setTimeout(() => {
+            if (copyText) copyText.textContent = originalText;
+            button.classList.remove("copied");
+            button.disabled = false;
+            button.setAttribute("aria-label", "Copy YAML snippet to clipboard");
+          }, 2e3);
+        } catch {
+          if (copyText) copyText.textContent = "Failed";
+          button.setAttribute("aria-label", "Failed to copy YAML snippet");
+          if (liveRegion) liveRegion.textContent = "Failed to copy YAML snippet";
+          setTimeout(() => {
+            if (copyText) copyText.textContent = originalText;
+            button.disabled = false;
+            button.setAttribute("aria-label", "Copy YAML snippet to clipboard");
+          }, 2e3);
+        }
+      });
+    });
+  }
+  function renderPredictionsSetupGuide() {
+    return `
+    <div class="setup-guide predictions-setup">
+      <div class="setup-guide-header">
+        <span class="setup-icon">\u{1F4C8}</span>
+        <h4>Enable Predictions</h4>
+      </div>
+      <p class="setup-description">
+        Add time-series forecasting to your pipeline.
+        <strong>Zero-config</strong> - no API key required.
+      </p>
+      <div class="setup-steps">
+        <div class="setup-step">
+          <span class="step-number">1</span>
+          <span class="step-text">Add this to your pipeline YAML:</span>
+        </div>
+        <div class="yaml-snippet">
+          <pre><code>${escapeHtml(PREDICTIONS_YAML)}</code></pre>
+          ${createCopyButton(PREDICTIONS_YAML, "copy-predictions-yaml")}
+        </div>
+        <div class="setup-step">
+          <span class="step-number">2</span>
+          <span class="step-text">Run your pipeline to generate forecasts</span>
+        </div>
+      </div>
+      <div class="setup-note">
+        <span class="note-icon">\u{1F4A1}</span>
+        <span>Uses NumPy-based linear regression. For Prophet support, install the optional dependency.</span>
+      </div>
+    </div>
+  `;
+  }
+  function renderInsightsSetupGuide() {
+    return `
+    <div class="setup-guide insights-setup">
+      <div class="setup-guide-header">
+        <span class="setup-icon">\u{1F916}</span>
+        <h4>Enable AI Insights</h4>
+      </div>
+      <p class="setup-description">
+        Get actionable insights powered by OpenAI.
+      </p>
+      <div class="cost-estimate">
+        <span class="cost-icon">\u{1F4B0}</span>
+        <span class="cost-text">Estimated cost: <strong>~$0.001-0.01</strong> per pipeline run</span>
+      </div>
+      <div class="setup-steps">
+        <div class="setup-step">
+          <span class="step-number">1</span>
+          <span class="step-text">Get an OpenAI API key from <a href="https://platform.openai.com/api-keys" target="_blank" rel="noopener">platform.openai.com</a></span>
+        </div>
+        <div class="setup-step">
+          <span class="step-number">2</span>
+          <span class="step-text">Add <code>OPENAI_API_KEY</code> as a secret variable in your ADO pipeline or variable group</span>
+        </div>
+        <div class="setup-step">
+          <span class="step-number">3</span>
+          <span class="step-text">Add this to your pipeline YAML:</span>
+        </div>
+        <div class="yaml-snippet">
+          <pre><code>${escapeHtml(INSIGHTS_YAML)}</code></pre>
+          ${createCopyButton(INSIGHTS_YAML, "copy-insights-yaml")}
+        </div>
+        <div class="setup-step">
+          <span class="step-number">4</span>
+          <span class="step-text">Run your pipeline to generate insights</span>
+        </div>
+      </div>
+      <div class="setup-note">
+        <span class="note-icon">\u{1F512}</span>
+        <span>Your API key is stored securely in ADO and never logged or exposed.</span>
+      </div>
+    </div>
+  `;
+  }
+  function renderPredictionsEmptyWithGuide(container) {
+    const content = document.createElement("div");
+    content.className = "ml-empty-state with-guide";
+    appendTrustedHtml(
+      content,
+      `
+    <div class="empty-state-message">
+      <h3>No Prediction Data Available</h3>
+      <p>Enable predictions in your pipeline to see time-series forecasts.</p>
+    </div>
+    ${renderPredictionsSetupGuide()}
+  `
+    );
+    const unavailable = container.querySelector(".feature-unavailable");
+    if (unavailable) unavailable.classList.add("hidden");
+    container.appendChild(content);
+    attachCopyHandlers(content);
+  }
+  function renderInsightsEmptyWithGuide(container) {
+    const content = document.createElement("div");
+    content.className = "ml-empty-state with-guide";
+    appendTrustedHtml(
+      content,
+      `
+    <div class="empty-state-message">
+      <h3>No AI Insights Available</h3>
+      <p>Enable AI insights in your pipeline to get actionable recommendations.</p>
+    </div>
+    ${renderInsightsSetupGuide()}
+  `
+    );
+    const unavailable = container.querySelector(".feature-unavailable");
+    if (unavailable) unavailable.classList.add("hidden");
+    container.appendChild(content);
+    attachCopyHandlers(content);
+  }
+
+  // ui/modules/ml/state-machine.ts
+  function isSchemaVersionSupported(version) {
+    if (typeof version !== "number") return false;
+    const [min, max] = ML_SCHEMA_VERSION_RANGE;
+    return version >= min && version <= max;
+  }
+  function hasPredictionsRequiredFields(data) {
+    if (typeof data !== "object" || data === null) return false;
+    const obj = data;
+    return "schema_version" in obj && "generated_at" in obj && "forecasts" in obj && Array.isArray(obj.forecasts);
+  }
+  function hasInsightsRequiredFields(data) {
+    if (typeof data !== "object" || data === null) return false;
+    const obj = data;
+    return "schema_version" in obj && "generated_at" in obj && "insights" in obj && Array.isArray(obj.insights);
+  }
+  function isPredictionsNoData(data) {
+    if (data.data_quality === "insufficient") return true;
+    if (!data.forecasts || data.forecasts.length === 0) return true;
+    return false;
+  }
+  function isInsightsNoData(data) {
+    if (!data.insights || data.insights.length === 0) return true;
+    return false;
+  }
+  function resolvePredictionsState(result) {
+    if (!result.exists) {
+      return { type: "setup-required" };
+    }
+    if (result.parseError) {
+      return {
+        type: "invalid-artifact",
+        error: result.parseError,
+        path: result.path
+      };
+    }
+    if (!hasPredictionsRequiredFields(result.data)) {
+      return {
+        type: "invalid-artifact",
+        error: "Missing required fields: schema_version, generated_at, or forecasts",
+        path: result.path
+      };
+    }
+    const data = result.data;
+    if (!isSchemaVersionSupported(data.schema_version)) {
+      return {
+        type: "unsupported-schema",
+        version: typeof data.schema_version === "number" ? data.schema_version : -1,
+        supported: ML_SCHEMA_VERSION_RANGE
+      };
+    }
+    const renderData = data;
+    if (isPredictionsNoData(renderData)) {
+      return {
+        type: "no-data",
+        quality: renderData.data_quality === "insufficient" ? "insufficient" : void 0
+      };
+    }
+    return {
+      type: "ready",
+      data: renderData
+    };
+  }
+  function resolveInsightsState(result) {
+    if (!result.exists) {
+      return { type: "setup-required" };
+    }
+    if (result.parseError) {
+      return {
+        type: "invalid-artifact",
+        error: result.parseError,
+        path: result.path
+      };
+    }
+    if (!hasInsightsRequiredFields(result.data)) {
+      return {
+        type: "invalid-artifact",
+        error: "Missing required fields: schema_version, generated_at, or insights",
+        path: result.path
+      };
+    }
+    const data = result.data;
+    if (!isSchemaVersionSupported(data.schema_version)) {
+      return {
+        type: "unsupported-schema",
+        version: typeof data.schema_version === "number" ? data.schema_version : -1,
+        supported: ML_SCHEMA_VERSION_RANGE
+      };
+    }
+    const renderData = data;
+    if (isInsightsNoData(renderData)) {
+      return { type: "no-data" };
+    }
+    return {
+      type: "ready",
+      data: renderData
+    };
+  }
+
   // ui/modules/ml.ts
+  function isPredictionsRenderData(data) {
+    return typeof data === "object" && data !== null && "forecasts" in data && Array.isArray(data.forecasts);
+  }
+  function isInsightsRenderData(data) {
+    return typeof data === "object" && data !== null && "insights" in data && Array.isArray(data.insights);
+  }
   var MAX_SPARKLINE_POINTS = 200;
   var SEVERITY_ICONS = {
     critical: { icon: "\u{1F534}", label: "Critical" },
@@ -3050,6 +3575,30 @@ var PRInsightsDashboard = (() => {
     down: "\u2198",
     stable: "\u2192"
   };
+  var SEVERITY_PRIORITY = {
+    critical: 3,
+    warning: 2,
+    info: 1
+  };
+  function sortInsights(insights) {
+    return [...insights].sort((a, b) => {
+      const severityA = SEVERITY_PRIORITY[a.severity] ?? 0;
+      const severityB = SEVERITY_PRIORITY[b.severity] ?? 0;
+      if (severityB !== severityA) {
+        return severityB - severityA;
+      }
+      const categoryCompare = String(a.category).localeCompare(
+        String(b.category)
+      );
+      if (categoryCompare !== 0) {
+        return categoryCompare;
+      }
+      if (typeof a.id === "number" && typeof b.id === "number") {
+        return a.id - b.id;
+      }
+      return String(a.id).localeCompare(String(b.id));
+    });
+  }
   function renderInsightSparkline(values, width = 60, height = 20) {
     if (!values || values.length < 2) {
       return `<span class="sparkline-empty" aria-label="No trend data available">\u2014</span>`;
@@ -3104,8 +3653,14 @@ var PRInsightsDashboard = (() => {
   }
   function renderRecommendationSection(recommendation) {
     if (!recommendation) return "";
-    const priorityBadge = PRIORITY_BADGES[recommendation.priority] ?? { label: "Medium Priority", cssClass: "priority-medium" };
-    const effortBadge = EFFORT_BADGES[recommendation.effort] ?? { label: "Medium Effort", cssClass: "effort-medium" };
+    const priorityBadge = PRIORITY_BADGES[recommendation.priority] ?? {
+      label: "Medium Priority",
+      cssClass: "priority-medium"
+    };
+    const effortBadge = EFFORT_BADGES[recommendation.effort] ?? {
+      label: "Medium Effort",
+      cssClass: "effort-medium"
+    };
     return `
     <div class="insight-recommendation">
       <div class="recommendation-header">
@@ -3168,20 +3723,42 @@ var PRInsightsDashboard = (() => {
     </div>
   `;
   }
+  function renderStaleDataBanner(generatedAt) {
+    const formattedDate = generatedAt ? new Date(generatedAt).toLocaleDateString("en-US", {
+      year: "numeric",
+      month: "short",
+      day: "numeric",
+      hour: "2-digit",
+      minute: "2-digit"
+    }) : "unknown date";
+    return `
+    <div class="stale-data-banner">
+      <span class="stale-icon">&#x1F551;</span>
+      <div class="stale-text">
+        <strong>Stale Data</strong>
+        <span>Showing cached data from ${escapeHtml(formattedDate)}. Latest data could not be loaded.</span>
+      </div>
+    </div>
+  `;
+  }
   function renderPredictions(container, predictions, rollups) {
     renderPredictionsWithCharts(container, predictions, rollups);
   }
-  function renderAIInsights(container, insights) {
+  function renderAIInsights(container, insights, isStale) {
     if (!container) return;
     if (!insights) return;
     const content = document.createElement("div");
     content.className = "insights-content";
+    if (isStale && insights.generated_at) {
+      appendTrustedHtml(content, renderStaleDataBanner(insights.generated_at));
+    }
     if (insights.is_stub) {
       appendTrustedHtml(content, renderPreviewBanner());
     }
+    const sortedInsights = sortInsights(insights.insights);
     const defaultSeverityInfo = { icon: "\u{1F535}", label: "Informational" };
     ["critical", "warning", "info"].forEach((severity) => {
-      const items = insights.insights.filter(
+      const items = sortedInsights.filter(
         (i) => i.severity === severity
       );
       if (!items.length) return;
@@ -3206,6 +3783,129 @@ var PRInsightsDashboard = (() => {
     const unavailable = container.querySelector(".feature-unavailable");
     if (unavailable) unavailable.classList.add("hidden");
     container.appendChild(content);
+  }
+  function renderPredictionsEmpty(container) {
+    if (!container) return;
+    renderPredictionsEmptyWithGuide(container);
+  }
+  function renderInsightsEmpty(container) {
+    if (!container) return;
+    renderInsightsEmptyWithGuide(container);
+  }
+  function renderInvalidArtifactBanner(container, error, path) {
+    if (!container) return;
+    const content = document.createElement("div");
+    content.className = "artifact-error-banner invalid-artifact";
+    renderTrustedHtml(
+      content,
+      `
+    <div class="error-banner">
+      <div class="error-icon">\u26A0\uFE0F</div>
+      <div class="error-content">
+        <h4>Invalid Data Format</h4>
+        <p>${escapeHtml(error)}</p>
+        ${path ? `<code class="file-path">${escapeHtml(path)}</code>` : ""}
+      </div>
+    </div>
+  `
+    );
+    const unavailable = container.querySelector(".feature-unavailable");
+    if (unavailable) unavailable.classList.add("hidden");
+    container.appendChild(content);
+  }
+  function renderUnsupportedSchemaBanner(container, version, supported) {
+    if (!container) return;
+    const content = document.createElement("div");
+    content.className = "artifact-error-banner unsupported-schema";
+    renderTrustedHtml(
+      content,
+      `
+    <div class="error-banner">
+      <div class="error-icon">\u{1F504}</div>
+      <div class="error-content">
+        <h4>Unsupported Schema Version</h4>
+        <p>Found schema version <strong>${escapeHtml(String(version))}</strong>, but this dashboard supports versions <strong>${supported[0]}</strong> to <strong>${supported[1]}</strong>.</p>
+        <p class="hint">Please update your pipeline or dashboard to use a compatible version.</p>
+      </div>
+    </div>
+  `
+    );
+    const unavailable = container.querySelector(".feature-unavailable");
+    if (unavailable) unavailable.classList.add("hidden");
+    container.appendChild(content);
+  }
+  function renderNoDataState(container, quality, featureType) {
+    if (!container) return;
+    const content = document.createElement("div");
+    content.className = "artifact-state no-data";
+    const message = quality === "insufficient" ? "Not enough historical data to generate meaningful results." : featureType === "predictions" ? "The predictions artifact exists but contains no forecast data." : "The insights artifact exists but contains no insights.";
+    const suggestion = quality === "insufficient" ? "Continue running your pipeline to accumulate more data points." : "Check that your pipeline is configured correctly to generate this data.";
+    renderTrustedHtml(
+      content,
+      `
+    <div class="no-data-message">
+      <div class="state-icon">\u{1F4CA}</div>
+      <h4>${quality === "insufficient" ? "Insufficient Data" : "No Data Available"}</h4>
+      <p>${escapeHtml(message)}</p>
+      <p class="hint">${escapeHtml(suggestion)}</p>
+    </div>
+  `
+    );
+    const unavailable = container.querySelector(".feature-unavailable");
+    if (unavailable) unavailable.classList.add("hidden");
+    container.appendChild(content);
+  }
+  function renderPredictionsForState(container, state, rollups) {
+    if (!container) return;
+    const existingContent = container.querySelectorAll(
+      ".predictions-content, .ml-empty-state, .artifact-error-banner, .artifact-state, .predictions-error"
+    );
+    existingContent.forEach((el) => el.remove());
+    switch (state.type) {
+      case "setup-required":
+        renderPredictionsEmpty(container);
+        break;
+      case "no-data":
+        renderNoDataState(container, state.quality, "predictions");
+        break;
+      case "invalid-artifact":
+        renderInvalidArtifactBanner(container, state.error, state.path);
+        break;
+      case "unsupported-schema":
+        renderUnsupportedSchemaBanner(container, state.version, state.supported);
+        break;
+      case "ready":
+        if (isPredictionsRenderData(state.data)) {
+          renderPredictions(container, state.data, rollups);
+        }
+        break;
+    }
+  }
+  function renderInsightsForState(container, state) {
+    if (!container) return;
+    const existingContent = container.querySelectorAll(
+      ".insights-content, .ml-empty-state, .artifact-error-banner, .artifact-state, .insights-error"
+    );
+    existingContent.forEach((el) => el.remove());
+    switch (state.type) {
+      case "setup-required":
+        renderInsightsEmpty(container);
+        break;
+      case "no-data":
+        renderNoDataState(container, state.quality, "insights");
+        break;
+      case "invalid-artifact":
+        renderInvalidArtifactBanner(container, state.error, state.path);
+        break;
+      case "unsupported-schema":
+        renderUnsupportedSchemaBanner(container, state.version, state.supported);
+        break;
+      case "ready":
+        if (isInsightsRenderData(state.data)) {
+          renderAIInsights(container, state.data);
+        }
+        break;
+    }
   }
 
   // ui/modules/charts.ts
@@ -3734,7 +4434,6 @@ var PRInsightsDashboard = (() => {
   var currentBuildId = null;
   var SETTINGS_KEY_PROJECT = "pr-insights-source-project";
   var SETTINGS_KEY_PIPELINE = "pr-insights-pipeline-id";
-  var ENABLE_PHASE5_FEATURES = true;
   var elements = {};
   function getElement(id) {
     const el = elements[id];
@@ -4149,13 +4848,7 @@ var PRInsightsDashboard = (() => {
     elements.tabs = document.querySelectorAll(".tab");
   }
   function initializePhase5Features() {
-    const phase5Tabs = document.querySelectorAll(".phase5-tab");
-    if (ENABLE_PHASE5_FEATURES) {
-      phase5Tabs.forEach((tab) => tab.classList.remove("hidden"));
-      console.log("Phase 5 features enabled");
-    } else {
-      console.log("Phase 5 features disabled");
-    }
+    console.log("Phase 5 ML features initialized - tabs visible by default");
   }
   function setupEventListeners() {
     elements["date-range"]?.addEventListener("change", handleDateRangeChange);
@@ -4296,39 +4989,64 @@ var PRInsightsDashboard = (() => {
   function renderReviewerActivity2(rollups) {
     renderReviewerActivity(elements["reviewer-activity"] ?? null, rollups);
   }
+  function toArtifactLoadResult(loaderResult, artifactPath) {
+    if (!loaderResult) {
+      return { exists: false, data: null, path: artifactPath };
+    }
+    switch (loaderResult.state) {
+      case "missing":
+      case "disabled":
+      case "unavailable":
+        return { exists: false, data: null, path: artifactPath };
+      case "invalid":
+        return {
+          exists: true,
+          data: loaderResult.data,
+          parseError: loaderResult.message || loaderResult.error || "Schema validation failed",
+          path: artifactPath
+        };
+      case "error":
+      case "auth":
+      case "auth_required":
+        return {
+          exists: true,
+          data: null,
+          parseError: loaderResult.message || loaderResult.error || "Failed to load artifact",
+          path: artifactPath
+        };
+      case "ok":
+        return {
+          exists: true,
+          data: loaderResult.data,
+          path: artifactPath
+        };
+      default:
+        return { exists: false, data: null, path: artifactPath };
+    }
+  }
   async function updateFeatureTabs() {
     if (!loader) return;
     if (!hasMLMethods(loader)) return;
     const predictionsContent = document.getElementById("tab-predictions");
-    const predictionsUnavailable = document.getElementById(
-      "predictions-unavailable"
-    );
     if (predictionsContent) {
       const predictionsResult = await loader.loadPredictions();
-      const predData = predictionsResult?.data;
-      if (predictionsResult?.state === "ok" && predData?.forecasts?.length && predData.forecasts.length > 0) {
-        renderPredictions2(predictionsContent, predData, cachedRollups);
-      } else if (predictionsUnavailable) {
-        predictionsUnavailable.classList.remove("hidden");
-      }
+      const loadResult = toArtifactLoadResult(
+        predictionsResult,
+        "predictions/trends.json"
+      );
+      const state = resolvePredictionsState(loadResult);
+      renderPredictionsForState(predictionsContent, state, cachedRollups);
     }
     const aiContent = document.getElementById("tab-ai-insights");
-    const aiUnavailable = document.getElementById("ai-unavailable");
     if (aiContent) {
       const insightsResult = await loader.loadInsights();
-      const insData = insightsResult?.data;
-      if (insightsResult?.state === "ok" && insData?.insights?.length && insData.insights.length > 0) {
-        renderAIInsights2(aiContent, insData);
-      } else if (aiUnavailable) {
-        aiUnavailable.classList.remove("hidden");
-      }
+      const loadResult = toArtifactLoadResult(
+        insightsResult,
+        "insights/summary.json"
+      );
+      const state = resolveInsightsState(loadResult);
+      renderInsightsForState(aiContent, state);
     }
-  }
-  function renderPredictions2(container, predictions, rollups) {
-    renderPredictions(container, predictions, rollups);
-  }
-  function renderAIInsights2(container, insights) {
-    renderAIInsights(container, insights);
   }
   function handleDateRangeChange(e) {
     const target = e.target;

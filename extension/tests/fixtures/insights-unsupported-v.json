@@ -1,0 +1,13 @@
+{
+  "schema_version": 99,
+  "generated_at": "2026-01-28T12:00:00Z",
+  "insights": [
+    {
+      "id": 1,
+      "category": "velocity",
+      "severity": "warning",
+      "title": "Test Insight",
+      "description": "This is a test insight with unsupported schema version"
+    }
+  ]
+}

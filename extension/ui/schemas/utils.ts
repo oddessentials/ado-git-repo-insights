@@ -92,17 +92,19 @@ export function buildPath(parent: string, key: string | number): string {
 export function validateRequired(
   data: Record<string, unknown>,
   field: string,
-  path: string
+  path: string,
 ): ValidationError | null {
   // Use Object.prototype.hasOwnProperty.call for safe property check (avoids prototype pollution)
   const hasField = Object.prototype.hasOwnProperty.call(data, field);
-  const fieldValue = hasField ? Object.getOwnPropertyDescriptor(data, field)?.value : undefined;
+  const fieldValue = hasField
+    ? Object.getOwnPropertyDescriptor(data, field)?.value
+    : undefined;
   if (!hasField || fieldValue === undefined) {
     return createError(
       buildPath(path, field),
       "required field",
       "missing",
-      `Missing required field '${field}'`
+      `Missing required field '${field}'`,
     );
   }
   return null;
@@ -113,7 +115,7 @@ export function validateRequired(
  */
 export function validateString(
   value: unknown,
-  path: string
+  path: string,
 ): ValidationError | null {
   if (!isString(value)) {
     return createError(path, "string", getTypeName(value));
@@ -126,7 +128,7 @@ export function validateString(
  */
 export function validateNumber(
   value: unknown,
-  path: string
+  path: string,
 ): ValidationError | null {
   if (!isNumber(value)) {
     return createError(path, "number", getTypeName(value));
@@ -139,13 +141,18 @@ export function validateNumber(
  */
 export function validateNonNegativeNumber(
   value: unknown,
-  path: string
+  path: string,
 ): ValidationError | null {
   if (!isNumber(value)) {
     return createError(path, "number", getTypeName(value));
   }
   if (value < 0) {
-    return createError(path, "number >= 0", String(value), `Expected non-negative number at '${path}'`);
+    return createError(
+      path,
+      "number >= 0",
+      String(value),
+      `Expected non-negative number at '${path}'`,
+    );
   }
   return null;
 }
@@ -155,13 +162,18 @@ export function validateNonNegativeNumber(
  */
 export function validatePositiveNumber(
   value: unknown,
-  path: string
+  path: string,
 ): ValidationError | null {
   if (!isNumber(value)) {
     return createError(path, "number", getTypeName(value));
   }
   if (value <= 0) {
-    return createError(path, "number > 0", String(value), `Expected positive number at '${path}'`);
+    return createError(
+      path,
+      "number > 0",
+      String(value),
+      `Expected positive number at '${path}'`,
+    );
   }
   return null;
 }
@@ -171,7 +183,7 @@ export function validatePositiveNumber(
  */
 export function validateBoolean(
   value: unknown,
-  path: string
+  path: string,
 ): ValidationError | null {
   if (!isBoolean(value)) {
     return createError(path, "boolean", getTypeName(value));
@@ -184,7 +196,7 @@ export function validateBoolean(
  */
 export function validateArray(
   value: unknown,
-  path: string
+  path: string,
 ): ValidationError | null {
   if (!isArray(value)) {
     return createError(path, "array", getTypeName(value));
@@ -197,7 +209,7 @@ export function validateArray(
  */
 export function validateObject(
   value: unknown,
-  path: string
+  path: string,
 ): ValidationError | null {
   if (!isObject(value)) {
     return createError(path, "object", getTypeName(value));
@@ -219,7 +231,8 @@ const ISO_DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
  * Uses bounded quantifiers to prevent ReDoS via catastrophic backtracking.
  */
 // eslint-disable-next-line security/detect-unsafe-regex -- Pattern is safe: all groups use bounded quantifiers
-const ISO_DATETIME_PATTERN = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{1,6})?(?:Z|[+-]\d{2}:\d{2})?$/;
+const ISO_DATETIME_PATTERN =
+  /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{1,6})?(?:Z|[+-]\d{2}:\d{2})?$/;
 
 /**
  * ISO week pattern (YYYY-Www).
@@ -236,17 +249,21 @@ const YEAR_PATTERN = /^\d{4}$/;
  */
 export function validateIsoDate(
   value: unknown,
-  path: string
+  path: string,
 ): ValidationError | null {
   if (!isString(value)) {
-    return createError(path, "ISO date string (YYYY-MM-DD)", getTypeName(value));
+    return createError(
+      path,
+      "ISO date string (YYYY-MM-DD)",
+      getTypeName(value),
+    );
   }
   if (!ISO_DATE_PATTERN.test(value)) {
     return createError(
       path,
       "ISO date format (YYYY-MM-DD)",
       value,
-      `Invalid date format at '${path}': expected YYYY-MM-DD`
+      `Invalid date format at '${path}': expected YYYY-MM-DD`,
     );
   }
   return null;
@@ -257,7 +274,7 @@ export function validateIsoDate(
  */
 export function validateIsoDatetime(
   value: unknown,
-  path: string
+  path: string,
 ): ValidationError | null {
   if (!isString(value)) {
     return createError(path, "ISO datetime string", getTypeName(value));
@@ -267,7 +284,7 @@ export function validateIsoDatetime(
       path,
       "ISO datetime format",
       value,
-      `Invalid datetime format at '${path}'`
+      `Invalid datetime format at '${path}'`,
     );
   }
   return null;
@@ -278,7 +295,7 @@ export function validateIsoDatetime(
  */
 export function validateIsoWeek(
   value: unknown,
-  path: string
+  path: string,
 ): ValidationError | null {
   if (!isString(value)) {
     return createError(path, "ISO week string (YYYY-Www)", getTypeName(value));
@@ -288,7 +305,7 @@ export function validateIsoWeek(
       path,
       "ISO week format (YYYY-Www)",
       value,
-      `Invalid week format at '${path}': expected YYYY-Www`
+      `Invalid week format at '${path}': expected YYYY-Www`,
     );
   }
   return null;
@@ -299,7 +316,7 @@ export function validateIsoWeek(
  */
 export function validateYear(
   value: unknown,
-  path: string
+  path: string,
 ): ValidationError | null {
   if (!isString(value)) {
     return createError(path, "year string (YYYY)", getTypeName(value));
@@ -309,7 +326,7 @@ export function validateYear(
       path,
       "year format (YYYY)",
       value,
-      `Invalid year format at '${path}': expected YYYY`
+      `Invalid year format at '${path}': expected YYYY`,
     );
   }
   return null;
@@ -331,7 +348,7 @@ export function findUnknownFields(
   data: Record<string, unknown>,
   knownFields: Set<string>,
   path: string,
-  strict: boolean
+  strict: boolean,
 ): { errors: ValidationError[]; warnings: ValidationWarning[] } {
   const errors: ValidationError[] = [];
   const warnings: ValidationWarning[] = [];
@@ -341,10 +358,20 @@ export function findUnknownFields(
       const fieldPath = buildPath(path, key);
       if (strict) {
         errors.push(
-          createError(fieldPath, "known field", "unknown", `Unknown field '${key}' not allowed in strict mode`)
+          createError(
+            fieldPath,
+            "known field",
+            "unknown",
+            `Unknown field '${key}' not allowed in strict mode`,
+          ),
         );
       } else {
-        warnings.push(createWarning(fieldPath, `Unknown field '${key}' (ignored in permissive mode)`));
+        warnings.push(
+          createWarning(
+            fieldPath,
+            `Unknown field '${key}' (ignored in permissive mode)`,
+          ),
+        );
       }
     }
   }
@@ -358,17 +385,21 @@ export function findUnknownFields(
 export function validateEnum<T extends string>(
   value: unknown,
   allowedValues: readonly T[],
-  path: string
+  path: string,
 ): ValidationError | null {
   if (!isString(value)) {
-    return createError(path, `one of: ${allowedValues.join(", ")}`, getTypeName(value));
+    return createError(
+      path,
+      `one of: ${allowedValues.join(", ")}`,
+      getTypeName(value),
+    );
   }
   if (!allowedValues.includes(value as T)) {
     return createError(
       path,
       `one of: ${allowedValues.join(", ")}`,
       value,
-      `Invalid enum value at '${path}'`
+      `Invalid enum value at '${path}'`,
     );
   }
   return null;

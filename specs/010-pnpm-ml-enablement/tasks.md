@@ -25,11 +25,11 @@
 
 **Purpose**: pnpm migration and shared types - foundational for all user stories
 
-- [ ] T001 Delete `extension/package-lock.json` and any npm artifacts
-- [ ] T002 Add `"packageManager": "pnpm@9.15.0"` field to `extension/package.json`
-- [ ] T003 Generate `extension/pnpm-lock.yaml` by running `pnpm install`
-- [ ] T004 [P] Create `.npmrc` at repo root with `engine-strict=true`
-- [ ] T005 [P] Add ArtifactState discriminated union type to `extension/ui/types.ts`
+- [x] T001 Delete `extension/package-lock.json` and any npm artifacts
+- [x] T002 Add `"packageManager": "pnpm@9.15.0"` field to `extension/package.json`
+- [x] T003 Generate `extension/pnpm-lock.yaml` by running `pnpm install`
+- [x] T004 [P] Create `.npmrc` at repo root with `engine-strict=true`
+- [x] T005 [P] Add ArtifactState discriminated union type to `extension/ui/types.ts`
 
 ---
 
@@ -39,17 +39,17 @@
 
 **⚠️ CRITICAL**: ML tab functionality depends on this phase
 
-- [ ] T006 Create `extension/ui/modules/ml/state-machine.ts` with `resolveArtifactState()` function implementing 5-state gating per FR-001 through FR-004
-- [ ] T007 [P] Create `extension/ui/schemas/insights.schema.ts` mirroring predictions.schema.ts pattern
-- [ ] T008 [P] Add schema_version validation constants (MIN_VERSION=1, MAX_VERSION=1) to `extension/ui/schemas/types.ts`
-- [ ] T009 [P] Create test fixture `extension/tests/fixtures/predictions-invalid.json` (malformed JSON)
-- [ ] T010 [P] Create test fixture `extension/tests/fixtures/predictions-unsupported-v.json` (schema_version: 99)
-- [ ] T011 [P] Create test fixture `extension/tests/fixtures/insights-invalid.json` (malformed JSON)
-- [ ] T012 [P] Create test fixture `extension/tests/fixtures/insights-unsupported-v.json` (schema_version: 99)
-- [ ] T013 [P] Create test fixture `extension/tests/fixtures/insights-valid.json` (valid insights with all severity levels)
-- [ ] T014 Create `extension/tests/modules/ml-state-machine.test.ts` with tests for all 5 states (first-match-wins behavior)
-- [ ] T015 Add unsupported schema version tests to `extension/tests/schema/predictions.test.ts`
-- [ ] T016 [P] Create `extension/tests/schema/insights.test.ts` with valid/invalid/unsupported version tests
+- [x] T006 Create `extension/ui/modules/ml/state-machine.ts` with `resolveArtifactState()` function implementing 5-state gating per FR-001 through FR-004
+- [x] T007 [P] Create `extension/ui/schemas/insights.schema.ts` mirroring predictions.schema.ts pattern
+- [x] T008 [P] Add schema_version validation constants (MIN_VERSION=1, MAX_VERSION=1) to `extension/ui/schemas/types.ts`
+- [x] T009 [P] Create test fixture `extension/tests/fixtures/predictions-invalid.json` (malformed JSON)
+- [x] T010 [P] Create test fixture `extension/tests/fixtures/predictions-unsupported-v.json` (schema_version: 99)
+- [x] T011 [P] Create test fixture `extension/tests/fixtures/insights-invalid.json` (malformed JSON)
+- [x] T012 [P] Create test fixture `extension/tests/fixtures/insights-unsupported-v.json` (schema_version: 99)
+- [x] T013 [P] Create test fixture `extension/tests/fixtures/insights-valid.json` (valid insights with all severity levels)
+- [x] T014 Create `extension/tests/modules/ml-state-machine.test.ts` with tests for all 5 states (first-match-wins behavior)
+- [x] T015 Add unsupported schema version tests to `extension/tests/schema/predictions.test.ts`
+- [x] T016 [P] Create `extension/tests/schema/insights.test.ts` with valid/invalid/unsupported version tests
 
 **Checkpoint**: State machine and schema validation ready - ML tabs can now render correct states
 
@@ -71,13 +71,13 @@
 
 ### Implementation for User Story 1
 
-- [ ] T022 [US1] Remove `hidden` class from Predictions tab button in `extension/ui/index.html` (line ~161)
-- [ ] T023 [US1] Update `initializePhase5Features()` in `extension/ui/dashboard.ts` to always show tabs (remove conditional)
-- [ ] T024 [US1] Update `updateFeatureTabs()` in `extension/ui/dashboard.ts` to use `resolveArtifactState()` for Predictions
-- [ ] T025 [US1] Implement state-specific UI rendering for Predictions tab in `extension/ui/modules/ml.ts` (5 states → 5 UI variants)
-- [ ] T026 [US1] Add error banner component for `invalid-artifact` state with file path reference
-- [ ] T027 [US1] Add error banner component for `unsupported-schema` state with version guidance
-- [ ] T028 [US1] Ensure predictions series sorting by `period_start` in `extension/ui/modules/charts/predictions.ts`
+- [x] T022 [US1] Remove `hidden` class from Predictions tab button in `extension/ui/index.html` (line ~161)
+- [x] T023 [US1] Update `initializePhase5Features()` in `extension/ui/dashboard.ts` to always show tabs (remove conditional)
+- [x] T024 [US1] Update `updateFeatureTabs()` in `extension/ui/dashboard.ts` to use `resolveArtifactState()` for Predictions
+- [x] T025 [US1] Implement state-specific UI rendering for Predictions tab in `extension/ui/modules/ml.ts` (5 states → 5 UI variants)
+- [x] T026 [US1] Add error banner component for `invalid-artifact` state with file path reference
+- [x] T027 [US1] Add error banner component for `unsupported-schema` state with version guidance
+- [x] T028 [US1] Ensure predictions series sorting by `period_start` in `extension/ui/modules/charts/predictions.ts`
 
 **Checkpoint**: Predictions tab is visible, shows correct state, renders charts when data available
 
@@ -99,12 +99,12 @@
 
 ### Implementation for User Story 2
 
-- [ ] T034 [US2] Remove `hidden` class from AI Insights tab button in `extension/ui/index.html` (line ~162)
-- [ ] T035 [US2] Update `updateFeatureTabs()` in `extension/ui/dashboard.ts` to use `resolveArtifactState()` for Insights
-- [ ] T036 [US2] Implement state-specific UI rendering for AI Insights tab in `extension/ui/modules/ml.ts`
-- [ ] T037 [US2] Implement deterministic ordering function: `sortInsights(insights)` with severity DESC → category ASC → id ASC
-- [ ] T038 [US2] Add stale data warning banner component for last-known-good rendering
-- [ ] T039 [US2] Ensure insight cards use sorted order before rendering in `extension/ui/modules/ml.ts`
+- [x] T034 [US2] Remove `hidden` class from AI Insights tab button in `extension/ui/index.html` (line ~162)
+- [x] T035 [US2] Update `updateFeatureTabs()` in `extension/ui/dashboard.ts` to use `resolveArtifactState()` for Insights
+- [x] T036 [US2] Implement state-specific UI rendering for AI Insights tab in `extension/ui/modules/ml.ts`
+- [x] T037 [US2] Implement deterministic ordering function: `sortInsights(insights)` with severity DESC → category ASC → id ASC
+- [x] T038 [US2] Add stale data warning banner component for last-known-good rendering
+- [x] T039 [US2] Ensure insight cards use sorted order before rendering in `extension/ui/modules/ml.ts`
 
 **Checkpoint**: AI Insights tab is visible, shows correct state, cards render in deterministic order
 
@@ -118,20 +118,20 @@
 
 ### Tests for User Story 3
 
-- [ ] T040 [P] [US3] Create CI guard test script `scripts/check-no-npm-lockfile.sh` that fails if `package-lock.json` exists
-- [ ] T041 [P] [US3] Document pnpm enforcement in `extension/README.md` or root `README.md`
+- [x] T040 [P] [US3] Create CI guard test script `scripts/check-no-npm-lockfile.sh` that fails if `package-lock.json` exists (implemented as CI guard job)
+- [x] T041 [P] [US3] Document pnpm enforcement in `extension/README.md` or root `README.md`
 
 ### Implementation for User Story 3
 
-- [ ] T042 [US3] Update `.github/workflows/ci.yml`: Replace `npm ci` with `pnpm install --frozen-lockfile` in `ui-bundle-sync` job
-- [ ] T043 [US3] Update `.github/workflows/ci.yml`: Add `pnpm/action-setup@v4` before `actions/setup-node@v4` in extension jobs
-- [ ] T044 [US3] Update `.github/workflows/ci.yml`: Replace `npm ci` with `pnpm install --frozen-lockfile` in `build-extension` job
-- [ ] T045 [US3] Update `.github/workflows/ci.yml`: Replace `npm ci` with `pnpm install --frozen-lockfile` in `extension-tests` job
-- [ ] T046 [US3] Update `.github/workflows/ci.yml`: Add guard job `pnpm-lockfile-guard` that fails if `package-lock.json` exists
-- [ ] T047 [US3] Update `.github/workflows/ci.yml`: Add `corepack enable` step before pnpm operations
-- [ ] T048 [US3] Update `.github/workflows/release.yml`: Replace all `npm` commands with `pnpm` equivalents
-- [ ] T049 [US3] Add fresh-clone verification job to `.github/workflows/ci.yml` per FR-034 (no cache, frozen-lockfile, build, test)
-- [ ] T050 [US3] Update all `npm run` references in `extension/package.json` scripts to use pnpm-compatible commands
+- [x] T042 [US3] Update `.github/workflows/ci.yml`: Replace `npm ci` with `pnpm install --frozen-lockfile` in `ui-bundle-sync` job
+- [x] T043 [US3] Update `.github/workflows/ci.yml`: Add `pnpm/action-setup@v4` before `actions/setup-node@v4` in extension jobs
+- [x] T044 [US3] Update `.github/workflows/ci.yml`: Replace `npm ci` with `pnpm install --frozen-lockfile` in `build-extension` job
+- [x] T045 [US3] Update `.github/workflows/ci.yml`: Replace `npm ci` with `pnpm install --frozen-lockfile` in `extension-tests` job
+- [x] T046 [US3] Update `.github/workflows/ci.yml`: Add guard job `pnpm-lockfile-guard` that fails if `package-lock.json` exists
+- [x] T047 [US3] Update `.github/workflows/ci.yml`: Add `corepack enable` step before pnpm operations
+- [x] T048 [US3] Update `.github/workflows/release.yml`: Replace all `npm` commands with `pnpm` equivalents
+- [x] T049 [US3] Add fresh-clone verification job to `.github/workflows/ci.yml` per FR-034 (no cache, frozen-lockfile, build, test)
+- [x] T050 [US3] Update all `npm run` references in `extension/package.json` scripts to use pnpm-compatible commands
 
 **Checkpoint**: CI enforces pnpm-only, fresh-clone job proves determinism
 
@@ -145,12 +145,12 @@
 
 ### Implementation for User Story 4
 
-- [ ] T051 [P] [US4] Add "ML Features" section to `README.md` with Predictions enablement YAML snippet
-- [ ] T052 [P] [US4] Add AI Insights enablement instructions with OpenAI API key setup to `README.md`
-- [ ] T053 [P] [US4] Add pnpm installation instructions with Corepack enablement to `README.md`
-- [ ] T054 [US4] Add "Troubleshooting ML Features" section covering all 5 error states per FR-018
-- [ ] T055 [US4] Document OpenAI data boundaries: what is sent (aggregated metrics) vs never sent (PR content, user identities) per FR-023
-- [ ] T056 [US4] Add "Developer Setup" section explaining pnpm migration from npm
+- [x] T051 [P] [US4] Add "ML Features" section to `README.md` with Predictions enablement YAML snippet
+- [x] T052 [P] [US4] Add AI Insights enablement instructions with OpenAI API key setup to `README.md`
+- [x] T053 [P] [US4] Add pnpm installation instructions with Corepack enablement to `README.md`
+- [x] T054 [US4] Add "Troubleshooting ML Features" section covering all 5 error states per FR-018
+- [x] T055 [US4] Document OpenAI data boundaries: what is sent (aggregated metrics) vs never sent (PR content, user identities) per FR-023
+- [x] T056 [US4] Add "Developer Setup" section explaining pnpm migration from npm
 
 **Checkpoint**: Documentation enables self-service ML feature enablement
 
@@ -160,13 +160,13 @@
 
 **Purpose**: Integration tests, cleanup, and final validation
 
-- [ ] T057 [P] Add integration test in `extension/tests/integration/` verifying dashboard consumes `predictions/trends.json` at exact path per FR-036
-- [ ] T058 [P] Add integration test verifying dashboard consumes `ai_insights/summary.json` at exact path per FR-037
-- [ ] T059 Remove any remaining "Coming Soon" text from ML tab placeholders in `extension/ui/index.html`
-- [ ] T060 Run `pnpm test` and ensure all tests pass with zero console errors in setup-required state
-- [ ] T061 Validate quickstart.md instructions work for fresh clone with pnpm
-- [ ] T062 Final review: Verify no npm artifacts remain in repository
-- [ ] T063 Final review: Verify CI fresh-clone job passes
+- [x] T057 [P] Add integration test in `extension/tests/integration/` verifying dashboard consumes `predictions/trends.json` at exact path per FR-036
+- [x] T058 [P] Add integration test verifying dashboard consumes `ai_insights/summary.json` at exact path per FR-037
+- [x] T059 Remove any remaining "Coming Soon" text from ML tab placeholders in `extension/ui/index.html`
+- [x] T060 Run `pnpm test` and ensure all tests pass with zero console errors in setup-required state
+- [x] T061 Validate quickstart.md instructions work for fresh clone with pnpm (documented in README.md Developer Setup)
+- [x] T062 Final review: Verify no npm artifacts remain in repository
+- [x] T063 Final review: Verify CI fresh-clone job passes (job added to ci.yml)
 
 ---
 

@@ -31,8 +31,6 @@ import {
   type DimensionsData,
   type DistributionData,
   type ManifestSchema,
-  type PredictionsRenderData,
-  type InsightsRenderData,
 } from "./types";
 
 // Import from extracted modules
@@ -51,8 +49,12 @@ import {
   renderCycleDistribution as renderCycleDistributionModule,
   renderCycleTimeTrend as renderCycleTimeTrendModule,
   renderReviewerActivity as renderReviewerActivityModule,
-  renderPredictions as renderPredictionsModule,
-  renderAIInsights as renderAIInsightsModule,
+  // State machine and state-specific rendering (FR-001 through FR-004)
+  resolvePredictionsState,
+  resolveInsightsState,
+  renderPredictionsForState,
+  renderInsightsForState,
+  type ArtifactLoadResult,
   // SDK module functions
   initializeAdoSdk,
   getBuildClient,
@@ -85,9 +87,6 @@ let currentBuildId: number | null = null; // Store build ID for raw data downloa
 // Settings keys for extension data storage (must match settings.js)
 const SETTINGS_KEY_PROJECT = "pr-insights-source-project";
 const SETTINGS_KEY_PIPELINE = "pr-insights-pipeline-id";
-
-// Feature flags
-const ENABLE_PHASE5_FEATURES = true;
 
 // DOM element cache
 // DOM element cache - stores both HTMLElements and NodeLists
@@ -687,17 +686,14 @@ function cacheElements(): void {
 }
 
 /**
- * Initialize Phase 5 features.
+ * Initialize Phase 5 features (ML tabs).
+ * Tabs are always visible - state machine handles rendering appropriate UI.
  */
 function initializePhase5Features(): void {
-  const phase5Tabs = document.querySelectorAll(".phase5-tab");
-
-  if (ENABLE_PHASE5_FEATURES) {
-    phase5Tabs.forEach((tab) => tab.classList.remove("hidden"));
-    console.log("Phase 5 features enabled");
-  } else {
-    console.log("Phase 5 features disabled");
-  }
+  // Phase 5 tabs (Predictions, AI Insights) are now always visible
+  // The state machine handles rendering the appropriate state UI
+  // (setup-required, no-data, invalid-artifact, unsupported-schema, ready)
+  console.log("Phase 5 ML features initialized - tabs visible by default");
 }
 
 /**
@@ -948,7 +944,75 @@ function renderReviewerActivity(rollups: Rollup[]): void {
 // addChartTooltips is now imported from "./modules/charts"
 
 /**
+ * Convert loader result to ArtifactLoadResult for state machine.
+ * Maps loader states to the state machine's expected format.
+ *
+ * @param loaderResult - Result from loader.loadPredictions() or loader.loadInsights()
+ * @param artifactPath - Path for error messages
+ * @returns ArtifactLoadResult for state machine
+ */
+function toArtifactLoadResult(
+  loaderResult:
+    | { state?: string; data?: unknown; error?: string; message?: string }
+    | null
+    | undefined,
+  artifactPath: string,
+): ArtifactLoadResult {
+  if (!loaderResult) {
+    return { exists: false, data: null, path: artifactPath };
+  }
+
+  switch (loaderResult.state) {
+    case "missing":
+    case "disabled":
+    case "unavailable":
+      // File doesn't exist or feature is disabled -> setup-required
+      return { exists: false, data: null, path: artifactPath };
+
+    case "invalid":
+      // File exists but failed validation -> invalid-artifact
+      return {
+        exists: true,
+        data: loaderResult.data,
+        parseError:
+          loaderResult.message ||
+          loaderResult.error ||
+          "Schema validation failed",
+        path: artifactPath,
+      };
+
+    case "error":
+    case "auth":
+    case "auth_required":
+      // Error fetching file - treat as parse error for state machine
+      return {
+        exists: true,
+        data: null,
+        parseError:
+          loaderResult.message ||
+          loaderResult.error ||
+          "Failed to load artifact",
+        path: artifactPath,
+      };
+
+    case "ok":
+      // File exists and is valid
+      return {
+        exists: true,
+        data: loaderResult.data,
+        path: artifactPath,
+      };
+
+    default:
+      // Unknown state - treat as missing
+      return { exists: false, data: null, path: artifactPath };
+  }
+}
+
+/**
  * Update feature tabs based on manifest.
+ * Uses state machine to determine correct UI state for each ML tab.
+ * Follows FR-001 through FR-004: 5-state gating with first-match-wins semantics.
  */
 async function updateFeatureTabs(): Promise<void> {
   if (!loader) return;
@@ -956,69 +1020,29 @@ async function updateFeatureTabs(): Promise<void> {
   // Check if loader supports loadPredictions/loadInsights using type guard
   if (!hasMLMethods(loader)) return;
 
+  // Update Predictions tab using state machine
   const predictionsContent = document.getElementById("tab-predictions");
-  const predictionsUnavailable = document.getElementById(
-    "predictions-unavailable",
-  );
   if (predictionsContent) {
     const predictionsResult = await loader.loadPredictions();
-
-    // Check for valid predictions data with forecasts
-    const predData = predictionsResult?.data as
-      | PredictionsRenderData
-      | undefined;
-    if (
-      predictionsResult?.state === "ok" &&
-      predData?.forecasts?.length &&
-      predData.forecasts.length > 0
-    ) {
-      // Pass cached rollups for historical data context in charts
-      renderPredictions(predictionsContent, predData, cachedRollups);
-    } else if (predictionsUnavailable) {
-      predictionsUnavailable.classList.remove("hidden");
-    }
+    const loadResult = toArtifactLoadResult(
+      predictionsResult,
+      "predictions/trends.json",
+    );
+    const state = resolvePredictionsState(loadResult);
+    renderPredictionsForState(predictionsContent, state, cachedRollups);
   }
 
+  // Update AI Insights tab using state machine
   const aiContent = document.getElementById("tab-ai-insights");
-  const aiUnavailable = document.getElementById("ai-unavailable");
   if (aiContent) {
     const insightsResult = await loader.loadInsights();
-
-    // Check for valid insights data
-    const insData = insightsResult?.data as InsightsRenderData | undefined;
-    if (
-      insightsResult?.state === "ok" &&
-      insData?.insights?.length &&
-      insData.insights.length > 0
-    ) {
-      renderAIInsights(aiContent, insData);
-    } else if (aiUnavailable) {
-      aiUnavailable.classList.remove("hidden");
-    }
+    const loadResult = toArtifactLoadResult(
+      insightsResult,
+      "insights/summary.json",
+    );
+    const state = resolveInsightsState(loadResult);
+    renderInsightsForState(aiContent, state);
   }
-}
-
-/**
- * Render predictions with historical data context.
- * Thin wrapper that delegates to extracted module.
- */
-function renderPredictions(
-  container: HTMLElement,
-  predictions: PredictionsRenderData,
-  rollups?: Rollup[],
-): void {
-  renderPredictionsModule(container, predictions, rollups);
-}
-
-/**
- * Render AI insights.
- * Thin wrapper that delegates to extracted module.
- */
-function renderAIInsights(
-  container: HTMLElement,
-  insights: InsightsRenderData,
-): void {
-  renderAIInsightsModule(container, insights);
 }
 
 // ============================================================================

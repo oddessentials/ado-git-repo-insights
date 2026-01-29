@@ -75,11 +75,7 @@ export type {
   Defaults,
 } from "./manifest.schema";
 
-export {
-  validateRollup,
-  normalizeRollup,
-  RollupSchema,
-} from "./rollup.schema";
+export { validateRollup, normalizeRollup, RollupSchema } from "./rollup.schema";
 export type { WeeklyRollup, BreakdownEntry } from "./rollup.schema";
 
 export {
@@ -100,4 +96,8 @@ export {
   normalizePredictions,
   PredictionsSchema,
 } from "./predictions.schema";
-export type { Predictions, Forecast, ForecastValue } from "./predictions.schema";
+export type {
+  Predictions,
+  Forecast,
+  ForecastValue,
+} from "./predictions.schema";

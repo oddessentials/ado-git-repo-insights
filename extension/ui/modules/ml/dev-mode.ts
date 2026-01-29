@@ -12,10 +12,7 @@
 /**
  * Hostname patterns that indicate production Azure DevOps environments.
  */
-const PRODUCTION_PATTERNS: string[] = [
-  "dev.azure.com",
-  "visualstudio.com",
-];
+const PRODUCTION_PATTERNS: string[] = ["dev.azure.com", "visualstudio.com"];
 
 /**
  * Check if the current environment is a production Azure DevOps environment.

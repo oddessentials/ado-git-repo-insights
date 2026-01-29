@@ -181,7 +181,8 @@ export function generateSyntheticInsights(): InsightsRenderData {
         sparkline: [45, 55, 60, 90, 120, 150, 180],
       },
       recommendation: {
-        action: "Consider adding more code reviewers or implementing automated review checks",
+        action:
+          "Consider adding more code reviewers or implementing automated review checks",
         priority: "high",
         effort: "medium",
       },
@@ -205,7 +206,8 @@ export function generateSyntheticInsights(): InsightsRenderData {
         sparkline: [180, 195, 210, 225, 240, 250],
       },
       recommendation: {
-        action: "Review PR sizes and consider breaking down large changes into smaller, reviewable chunks",
+        action:
+          "Review PR sizes and consider breaking down large changes into smaller, reviewable chunks",
         priority: "medium",
         effort: "low",
       },
@@ -230,7 +232,8 @@ export function generateSyntheticInsights(): InsightsRenderData {
         sparkline: [28, 30, 32, 35, 38, 42],
       },
       recommendation: {
-        action: "Monitor merge queue capacity and ensure CI/CD pipelines can handle increased load",
+        action:
+          "Monitor merge queue capacity and ensure CI/CD pipelines can handle increased load",
         priority: "low",
         effort: "low",
       },
