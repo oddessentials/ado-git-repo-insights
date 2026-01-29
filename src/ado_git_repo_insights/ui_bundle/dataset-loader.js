@@ -1520,7 +1520,7 @@ var PRInsightsDatasetLoader = (() => {
     validateManifestSchema(manifest) {
       validateSchema(manifest, validateManifest, "manifest", true);
       const m = manifest;
-      if (m.manifest_schema_version > SUPPORTED_MANIFEST_VERSION) {
+      if (m.manifest_schema_version !== void 0 && m.manifest_schema_version > SUPPORTED_MANIFEST_VERSION) {
         throw new Error(
           `Manifest version ${m.manifest_schema_version} not supported. Maximum supported: ${SUPPORTED_MANIFEST_VERSION}. Please update the extension.`
         );

@@ -491,8 +491,12 @@ export class DatasetLoader implements IDatasetLoader {
     validateSchema(manifest, validateManifest, "manifest", true);
 
     // Additional version checks after schema validation
+    // Schema validator ensures manifest_schema_version exists, but TypeScript needs explicit check
     const m = manifest as ManifestSchema;
-    if (m.manifest_schema_version > SUPPORTED_MANIFEST_VERSION) {
+    if (
+      m.manifest_schema_version !== undefined &&
+      m.manifest_schema_version > SUPPORTED_MANIFEST_VERSION
+    ) {
       throw new Error(
         `Manifest version ${m.manifest_schema_version} not supported. ` +
           `Maximum supported: ${SUPPORTED_MANIFEST_VERSION}. ` +
