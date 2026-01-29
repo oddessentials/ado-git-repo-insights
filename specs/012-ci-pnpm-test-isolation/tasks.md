@@ -53,11 +53,11 @@
 
 ### Implementation for User Story 1
 
-- [ ] T007 [US1] Update ui-bundle-sync job in `.github/workflows/ci.yml` to use composite action (lines 126-135)
-- [ ] T008 [P] [US1] Update build-extension job in `.github/workflows/ci.yml` to use composite action (lines 467-476)
-- [ ] T009 [P] [US1] Update extension-tests job in `.github/workflows/ci.yml` to use composite action (lines 545-554)
-- [ ] T010 [P] [US1] Update fresh-clone-verify job in `.github/workflows/ci.yml` to use composite action with cache: 'false' (lines 663-670)
-- [ ] T011 [US1] Verify `packageManager` field exists in root `package.json` (no change needed, document verification)
+- [x] T007 [US1] Update ui-bundle-sync job in `.github/workflows/ci.yml` to use composite action (lines 126-135)
+- [x] T008 [P] [US1] Update build-extension job in `.github/workflows/ci.yml` to use composite action (lines 467-476)
+- [x] T009 [P] [US1] Update extension-tests job in `.github/workflows/ci.yml` to use composite action (lines 545-554)
+- [x] T010 [P] [US1] Update fresh-clone-verify job in `.github/workflows/ci.yml` to use composite action with cache: 'false' (lines 663-670)
+- [x] T011 [US1] Verify `packageManager` field exists in root `package.json` (no change needed, document verification)
 
 **Checkpoint**: All 4 target workflows now use composite action. CI should pass with pnpm@9.15.0 in all logs.
 

@@ -123,16 +123,7 @@ jobs:
       - name: Install Python package
         run: pip install -e .
 
-      - uses: pnpm/action-setup@v4
-
-      - uses: actions/setup-node@v4
-        with:
-          node-version: '22'
-          cache: 'pnpm'
-          cache-dependency-path: extension/pnpm-lock.yaml
-
-      - name: Enable Corepack
-        run: corepack enable
+      - uses: ./.github/actions/setup-pnpm
 
       - name: Install extension dependencies
         working-directory: extension
@@ -464,16 +455,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - uses: pnpm/action-setup@v4
-
-      - uses: actions/setup-node@v4
-        with:
-          node-version: "22"
-          cache: 'pnpm'
-          cache-dependency-path: extension/pnpm-lock.yaml
-
-      - name: Enable Corepack
-        run: corepack enable
+      - uses: ./.github/actions/setup-pnpm
 
       - name: Install tfx-cli
         run: npm install -g tfx-cli
@@ -542,16 +524,7 @@ jobs:
           python -m pip install --upgrade pip
           pip install -e .[dev]
 
-      - uses: pnpm/action-setup@v4
-
-      - uses: actions/setup-node@v4
-        with:
-          node-version: '22'
-          cache: 'pnpm'
-          cache-dependency-path: extension/pnpm-lock.yaml
-
-      - name: Enable Corepack
-        run: corepack enable
+      - uses: ./.github/actions/setup-pnpm
 
       - name: Install dependencies
         working-directory: extension
@@ -660,15 +633,9 @@ jobs:
           python -m pip install --upgrade pip
           pip install -e .[dev]
 
-      - uses: pnpm/action-setup@v4
-
-      - uses: actions/setup-node@v4
+      - uses: ./.github/actions/setup-pnpm
         with:
-          node-version: '22'
-          # NO cache: intentionally omitted to verify fresh install works
-
-      - name: Enable Corepack
-        run: corepack enable
+          cache: 'false'  # Intentionally disabled to verify fresh install works
 
       - name: Fresh install (no cache)
         working-directory: extension

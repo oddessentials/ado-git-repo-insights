@@ -82,17 +82,7 @@ jobs:
         with:
           ref: v${{ needs.release.outputs.new_release_version }}  # Checkout release TAG
 
-      - uses: pnpm/action-setup@v4
-
-      - name: Set up Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: '22'
-          cache: 'pnpm'
-          cache-dependency-path: extension/pnpm-lock.yaml
-
-      - name: Enable Corepack
-        run: corepack enable
+      - uses: ./.github/actions/setup-pnpm
 
       - name: Install tfx-cli
         run: npm install -g tfx-cli
