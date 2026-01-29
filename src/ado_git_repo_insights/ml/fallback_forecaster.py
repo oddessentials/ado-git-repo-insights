@@ -220,7 +220,8 @@ def clip_outliers(
     lower_bound = mean - std_threshold * std
     upper_bound = mean + std_threshold * std
 
-    return np.clip(values, lower_bound, upper_bound)
+    result: np.ndarray = np.clip(values, lower_bound, upper_bound)
+    return result
 
 
 class FallbackForecaster:
@@ -446,7 +447,7 @@ class FallbackForecaster:
 
         # Check for constant series before regression
         # Uses np.ptp (peak-to-peak range) - returns 0 for constant series
-        finite_values = y_values[finite_mask]
+        finite_values: np.ndarray = np.asarray(y_values[finite_mask])
         if detect_constant_series(finite_values):
             # Return constant forecast with zero confidence band
             constant_value = round(float(finite_values[0]), 2)
@@ -455,31 +456,33 @@ class FallbackForecaster:
             ), REASON_CONSTANT_SERIES
 
         # Apply safe outlier clipping with status tracking
+        # Ensure y_values is a plain ndarray for safe_clip_outliers
         reason_code: str | None = None
-        y_values, clip_reason, was_clipped = safe_clip_outliers(y_values)
+        y_values_arr: np.ndarray = np.asarray(y_values)
+        y_values_arr, clip_reason, was_clipped = safe_clip_outliers(y_values_arr)
         if clip_reason == REASON_STATS_UNDEFINED:
             # Log but continue - we'll try regression anyway
             logger.info(f"Stats undefined for {metric} outlier clipping, skipping clip")
             reason_code = REASON_STATS_UNDEFINED
 
         # Filter to finite values after clipping
-        valid_mask = np.isfinite(y_values)
-        y_values = y_values[valid_mask]
+        valid_mask = np.isfinite(y_values_arr)
+        y_final: np.ndarray = np.asarray(y_values_arr[valid_mask])
 
-        if len(y_values) < MIN_WEEKS_REQUIRED:
+        if len(y_final) < MIN_WEEKS_REQUIRED:
             logger.warning(
                 f"Insufficient data for {metric} forecast after filtering "
-                f"(need >= {MIN_WEEKS_REQUIRED} weeks, have {len(y_values)})"
+                f"(need >= {MIN_WEEKS_REQUIRED} weeks, have {len(y_final)})"
             )
             return None, REASON_TOO_FEW_WEEKS
 
         # Perform linear regression
-        x_values = np.arange(len(y_values))
-        coeffs = np.polyfit(x_values, y_values, 1)  # slope, intercept
+        x_values = np.arange(len(y_final))
+        coeffs = np.polyfit(x_values, y_final, 1)  # slope, intercept
 
         # Calculate residual standard error for confidence bands
         predicted_historical = np.polyval(coeffs, x_values)
-        residuals = y_values - predicted_historical
+        residuals = y_final - predicted_historical
         residual_se = float(np.std(residuals, ddof=1)) if len(residuals) > 1 else 0.0
 
         # Widen confidence bands for low_confidence data
@@ -498,7 +501,7 @@ class FallbackForecaster:
         any_floor_applied = False
 
         for i in range(horizon):
-            future_x = len(y_values) + i
+            future_x = len(y_final) + i
             predicted = float(np.polyval(coeffs, future_x))
             margin = confidence_multiplier * residual_se
 
