@@ -1,3 +1,16 @@
+# [5.11.0](https://github.com/oddessentials/ado-git-repo-insights/compare/v5.10.0...v5.11.0) (2026-01-29)
+
+
+### Bug Fixes
+
+* add undefined check for manifest_schema_version ([b6d52e3](https://github.com/oddessentials/ado-git-repo-insights/commit/b6d52e3608ec044666a4242c994e8abef252801e))
+
+
+### Features
+
+* **schema:** add runtime schema validation with DatasetLoader integration ([756828f](https://github.com/oddessentials/ado-git-repo-insights/commit/756828fff9ab2cf945248e0ab16f44272bc18c7e))
+* **test:** add test harnesses and tiered coverage thresholds ([843f07e](https://github.com/oddessentials/ado-git-repo-insights/commit/843f07ed8a38fc0de5c637ea0e7dea4b5faebbfa))
+
 # [5.10.0](https://github.com/oddessentials/ado-git-repo-insights/compare/v5.9.0...v5.10.0) (2026-01-28)
 
 
