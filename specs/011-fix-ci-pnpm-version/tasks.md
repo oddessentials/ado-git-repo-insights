@@ -174,3 +174,20 @@ This fix is intentionally minimal:
 - US2 requires no implementation because jest-junit is already configured
 - The fix is reversible with a single-line revert if needed
 - Low blast radius: configuration-only, no runtime behavior changes
+
+## Additional Fix: Pre-existing Test Infrastructure Issue
+
+During implementation, discovered a pre-existing issue where `tests/setup.ts` imported
+`jest` from `@jest/globals` which caused TypeScript module resolution failures.
+
+**Root cause**: `import { jest } from "@jest/globals"` in `extension/tests/setup.ts:7`
+**Fix**: Removed the import since `@types/jest` provides the global `jest` object
+**Impact**: Without this fix, 0 tests would collect (all 54 test suites fail to start)
+
+Commits:
+1. `bd03eee` - fix(ci): add packageManager to root package.json (original issue)
+2. `09c3cac` - fix(test): remove @jest/globals import (pre-existing issue)
+
+Local test verification:
+- Python: 312 tests passed, 75.65% coverage
+- TypeScript: 1092 tests passed (1086 in CI mode)
