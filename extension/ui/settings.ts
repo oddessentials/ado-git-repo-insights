@@ -573,7 +573,7 @@ async function discoverPipelines(): Promise<
                 });
               } catch (e) {
                 // Skip pipelines we can't access
-                console.debug(`Skipping pipeline ${def.name}:`, e);
+                console.debug("Skipping pipeline %s:", def.name, e);
               }
             }
             resolve(matches);

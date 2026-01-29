@@ -38,16 +38,33 @@ from __future__ import annotations
 
 import logging
 from pathlib import Path
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Protocol
 
 if TYPE_CHECKING:
     from ..persistence.database import DatabaseManager
+
+
+class Forecaster(Protocol):
+    """Protocol for forecaster implementations.
+
+    Both ProphetForecaster and FallbackForecaster implement this interface.
+    """
+
+    def generate(self) -> bool:
+        """Generate forecasts and write to output file.
+
+        Returns:
+            True if forecasts were successfully generated and written.
+        """
+        ...
+
 
 logger = logging.getLogger(__name__)
 
 # Lazy imports only - no heavy module imports at package level
 # to avoid breaking base installs without [ml] extras
 __all__ = [
+    "Forecaster",
     "ProphetForecaster",
     "FallbackForecaster",
     "LLMInsightsGenerator",
@@ -63,7 +80,9 @@ def is_prophet_available() -> bool:
         True if Prophet can be imported, False otherwise.
     """
     try:
-        from prophet import Prophet  # noqa: F401
+        from prophet import (
+            Prophet,  # noqa: F401 -- REASON: import used for ML dependency check
+        )
 
         return True
     except ImportError:
@@ -74,7 +93,7 @@ def get_forecaster(
     db: DatabaseManager,
     output_dir: Path,
     prefer_prophet: bool = True,
-) -> object:
+) -> Forecaster:
     """Factory function to get the best available forecaster.
 
     Auto-detects Prophet availability and returns the appropriate forecaster.

@@ -963,7 +963,7 @@ class PredictionGenerator:
                 # Deterministic seed per metric+period
                 seed_str = f"{self.seed_base}:{metric}:{period_start.isoformat()}"
                 seed = int(hashlib.sha256(seed_str.encode()).hexdigest()[:8], 16)
-                rng = random.Random(seed)  # noqa: S311 - intentional for deterministic stubs
+                rng = random.Random(seed)  # noqa: S311 -- REASON: intentional for deterministic stubs
 
                 # Generate synthetic values based on metric type
                 if metric == "pr_throughput":
@@ -1074,7 +1074,7 @@ class InsightsGenerator:
         # Deterministic selection of insights based on seed
         seed_str = f"{self.seed_base}:insights"
         seed = int(hashlib.sha256(seed_str.encode()).hexdigest()[:8], 16)
-        rng = random.Random(seed)  # noqa: S311 - intentional for deterministic stubs
+        rng = random.Random(seed)  # noqa: S311 -- REASON: intentional for deterministic stubs
 
         # Generate 2-3 insights from templates
         num_insights = rng.randint(2, 3)

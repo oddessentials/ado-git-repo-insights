@@ -195,7 +195,7 @@ describe("Local Mode Integration", () => {
     });
 
     it("isLocalMode returns false for non-boolean truthy values", () => {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- REASON: Test intentionally sets non-boolean to verify type checking behavior
       (window as any).LOCAL_DASHBOARD_MODE = "true"; // string, not boolean
 
       const isLocal =

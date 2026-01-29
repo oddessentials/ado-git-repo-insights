@@ -164,9 +164,7 @@ var PRInsightsArtifactClient = (() => {
         (a) => a.name === artifactName
       );
       if (!artifact) {
-        console.log(
-          `[getArtifactMetadata] Artifact '${artifactName}' not found in build ${buildId}`
-        );
+        console.log("[getArtifactMetadata] Artifact '%s' not found in build %d", artifactName, buildId);
         return null;
       }
       return artifact;
@@ -283,9 +281,10 @@ var PRInsightsArtifactClient = (() => {
           this.artifactName,
           "dataset-manifest.json"
         );
-        if (this.manifest) {
-          this.validateManifest(this.manifest);
+        if (!this.manifest) {
+          throw new Error("Manifest file is empty or invalid");
         }
+        this.validateManifest(this.manifest);
         return this.manifest;
       } catch (error) {
         throw new Error(
@@ -323,6 +322,9 @@ var PRInsightsArtifactClient = (() => {
         this.artifactName,
         "aggregates/dimensions.json"
       );
+      if (!this.dimensions) {
+        throw new Error("Dimensions file is empty or invalid");
+      }
       return this.dimensions;
     }
     async getWeeklyRollups(startDate, endDate) {
@@ -330,8 +332,9 @@ var PRInsightsArtifactClient = (() => {
       const neededWeeks = this.getWeeksInRange(startDate, endDate);
       const results = [];
       for (const weekStr of neededWeeks) {
-        if (this.rollupCache.has(weekStr)) {
-          results.push(this.rollupCache.get(weekStr));
+        const cachedRollup = this.rollupCache.get(weekStr);
+        if (cachedRollup) {
+          results.push(cachedRollup);
           continue;
         }
         const indexEntry = this.manifest?.aggregate_index?.weekly_rollups?.find(
@@ -347,7 +350,7 @@ var PRInsightsArtifactClient = (() => {
           this.rollupCache.set(weekStr, rollup);
           results.push(rollup);
         } catch (e) {
-          console.warn(`Failed to load rollup for ${weekStr}:`, e);
+          console.warn("Failed to load rollup for %s:", weekStr, e);
         }
       }
       return results;
@@ -359,8 +362,9 @@ var PRInsightsArtifactClient = (() => {
       const results = [];
       for (let year = startYear; year <= endYear; year++) {
         const yearStr = String(year);
-        if (this.distributionCache.has(yearStr)) {
-          results.push(this.distributionCache.get(yearStr));
+        const cachedDistribution = this.distributionCache.get(yearStr);
+        if (cachedDistribution) {
+          results.push(cachedDistribution);
           continue;
         }
         const indexEntry = this.manifest?.aggregate_index?.distributions?.find(
@@ -376,7 +380,7 @@ var PRInsightsArtifactClient = (() => {
           this.distributionCache.set(yearStr, dist);
           results.push(dist);
         } catch (e) {
-          console.warn(`Failed to load distribution for ${yearStr}:`, e);
+          console.warn("Failed to load distribution for %s:", yearStr, e);
         }
       }
       return results;

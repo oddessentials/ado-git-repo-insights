@@ -167,7 +167,7 @@ def get_git_sha() -> str | None:
 
     # Fallback to git command
     try:
-        result = subprocess.run(  # noqa: S603, S607
+        result = subprocess.run(  # noqa: S603, S607 -- SECURITY: hardcoded git command with no user input
             ["git", "rev-parse", "--short", "HEAD"],
             capture_output=True,
             text=True,

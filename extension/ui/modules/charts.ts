@@ -93,13 +93,15 @@ export function renderSparkline(
     .map((p, i) => `${i === 0 ? "M" : "L"} ${p.x.toFixed(1)} ${p.y.toFixed(1)}`)
     .join(" ");
 
+  // Points array is guaranteed non-empty (values.length >= 2 checked above)
+  const firstPoint = points[0];
+  const lastPoint = points[points.length - 1];
+  if (!firstPoint || !lastPoint) return; // TypeScript guard - never reached at runtime
+
   // Create area path (closed)
   const areaD =
     pathD +
-    ` L ${points[points.length - 1]!.x.toFixed(1)} ${height - padding} L ${points[0]!.x.toFixed(1)} ${height - padding} Z`;
-
-  // Last point for dot
-  const lastPoint = points[points.length - 1]!;
+    ` L ${lastPoint.x.toFixed(1)} ${height - padding} L ${firstPoint.x.toFixed(1)} ${height - padding} Z`;
 
   // SECURITY: All SVG content is computed from numeric values
   renderTrustedHtml(

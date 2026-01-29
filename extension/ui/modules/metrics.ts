@@ -135,13 +135,15 @@ export function applyFiltersToRollups(
       rollup.by_repository &&
       typeof rollup.by_repository === "object"
     ) {
+      // eslint-disable-next-line @typescript-eslint/no-non-null-assertion -- REASON: by_repository verified non-null in enclosing if condition (line 135)
+      const byRepository = rollup.by_repository!;
       const selectedRepos = filters.repos
         .map((repoId) => {
           // eslint-disable-next-line security/detect-object-injection -- SECURITY: repoId comes from validated filter state
-          const repoData = rollup.by_repository![repoId];
+          const repoData = byRepository[repoId];
           if (repoData) return repoData;
 
-          return Object.entries(rollup.by_repository!).find(
+          return Object.entries(byRepository).find(
             ([name]) => name === repoId,
           )?.[1];
         })
@@ -178,9 +180,11 @@ export function applyFiltersToRollups(
       rollup.by_team &&
       typeof rollup.by_team === "object"
     ) {
+      // eslint-disable-next-line @typescript-eslint/no-non-null-assertion -- REASON: by_team verified non-null in enclosing if condition (line 178)
+      const byTeam = rollup.by_team!;
       const selectedTeams = filters.teams
         // eslint-disable-next-line security/detect-object-injection -- SECURITY: teamId comes from validated filter state
-        .map((teamId) => rollup.by_team![teamId])
+        .map((teamId) => byTeam[teamId])
         .filter((t): t is number => t !== undefined);
 
       if (selectedTeams.length === 0) {

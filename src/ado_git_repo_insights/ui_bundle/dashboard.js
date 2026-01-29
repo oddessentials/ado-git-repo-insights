@@ -1662,7 +1662,7 @@ var PRInsightsDashboard = (() => {
         try {
           const response = await fetch(manifestUrl, { method: "HEAD" });
           if (response.ok) {
-            console.log(`[DatasetLoader] Found manifest at: ${manifestUrl}`);
+            console.log("[DatasetLoader] Found manifest at: %s", manifestUrl);
             this.effectiveBaseUrl = candidateBase;
             return candidateBase;
           }
@@ -2377,9 +2377,7 @@ var PRInsightsDashboard = (() => {
         (a) => a.name === artifactName
       );
       if (!artifact) {
-        console.log(
-          `[getArtifactMetadata] Artifact '${artifactName}' not found in build ${buildId}`
-        );
+        console.log("[getArtifactMetadata] Artifact '%s' not found in build %d", artifactName, buildId);
         return null;
       }
       return artifact;
@@ -2496,9 +2494,10 @@ var PRInsightsDashboard = (() => {
           this.artifactName,
           "dataset-manifest.json"
         );
-        if (this.manifest) {
-          this.validateManifest(this.manifest);
+        if (!this.manifest) {
+          throw new Error("Manifest file is empty or invalid");
         }
+        this.validateManifest(this.manifest);
         return this.manifest;
       } catch (error) {
         throw new Error(
@@ -2536,6 +2535,9 @@ var PRInsightsDashboard = (() => {
         this.artifactName,
         "aggregates/dimensions.json"
       );
+      if (!this.dimensions) {
+        throw new Error("Dimensions file is empty or invalid");
+      }
       return this.dimensions;
     }
     async getWeeklyRollups(startDate, endDate) {
@@ -2543,8 +2545,9 @@ var PRInsightsDashboard = (() => {
       const neededWeeks = this.getWeeksInRange(startDate, endDate);
       const results = [];
       for (const weekStr of neededWeeks) {
-        if (this.rollupCache.has(weekStr)) {
-          results.push(this.rollupCache.get(weekStr));
+        const cachedRollup = this.rollupCache.get(weekStr);
+        if (cachedRollup) {
+          results.push(cachedRollup);
           continue;
         }
         const indexEntry = this.manifest?.aggregate_index?.weekly_rollups?.find(
@@ -2560,7 +2563,7 @@ var PRInsightsDashboard = (() => {
           this.rollupCache.set(weekStr, rollup);
           results.push(rollup);
         } catch (e) {
-          console.warn(`Failed to load rollup for ${weekStr}:`, e);
+          console.warn("Failed to load rollup for %s:", weekStr, e);
         }
       }
       return results;
@@ -2572,8 +2575,9 @@ var PRInsightsDashboard = (() => {
       const results = [];
       for (let year = startYear; year <= endYear; year++) {
         const yearStr = String(year);
-        if (this.distributionCache.has(yearStr)) {
-          results.push(this.distributionCache.get(yearStr));
+        const cachedDistribution = this.distributionCache.get(yearStr);
+        if (cachedDistribution) {
+          results.push(cachedDistribution);
           continue;
         }
         const indexEntry = this.manifest?.aggregate_index?.distributions?.find(
@@ -2589,7 +2593,7 @@ var PRInsightsDashboard = (() => {
           this.distributionCache.set(yearStr, dist);
           results.push(dist);
         } catch (e) {
-          console.warn(`Failed to load distribution for ${yearStr}:`, e);
+          console.warn("Failed to load distribution for %s:", yearStr, e);
         }
       }
       return results;
@@ -2821,10 +2825,11 @@ var PRInsightsDashboard = (() => {
     }
     return rollups.map((rollup) => {
       if (filters.repos.length && rollup.by_repository && typeof rollup.by_repository === "object") {
+        const byRepository = rollup.by_repository;
         const selectedRepos = filters.repos.map((repoId) => {
-          const repoData = rollup.by_repository[repoId];
+          const repoData = byRepository[repoId];
           if (repoData) return repoData;
-          return Object.entries(rollup.by_repository).find(
+          return Object.entries(byRepository).find(
             ([name]) => name === repoId
           )?.[1];
         }).filter((r) => r !== void 0);
@@ -2847,7 +2852,8 @@ var PRInsightsDashboard = (() => {
         };
       }
       if (filters.teams.length && rollup.by_team && typeof rollup.by_team === "object") {
-        const selectedTeams = filters.teams.map((teamId) => rollup.by_team[teamId]).filter((t) => t !== void 0);
+        const byTeam = rollup.by_team;
+        const selectedTeams = filters.teams.map((teamId) => byTeam[teamId]).filter((t) => t !== void 0);
         if (selectedTeams.length === 0) {
           return {
             ...rollup,
@@ -3956,8 +3962,10 @@ var PRInsightsDashboard = (() => {
       return { x, y };
     });
     const pathD = points.map((p, i) => `${i === 0 ? "M" : "L"} ${p.x.toFixed(1)} ${p.y.toFixed(1)}`).join(" ");
-    const areaD = pathD + ` L ${points[points.length - 1].x.toFixed(1)} ${height - padding} L ${points[0].x.toFixed(1)} ${height - padding} Z`;
+    const firstPoint = points[0];
     const lastPoint = points[points.length - 1];
+    if (!firstPoint || !lastPoint) return;
+    const areaD = pathD + ` L ${lastPoint.x.toFixed(1)} ${height - padding} L ${firstPoint.x.toFixed(1)} ${height - padding} Z`;
     renderTrustedHtml(
       element,
       `
@@ -4435,6 +4443,7 @@ var PRInsightsDashboard = (() => {
   var SETTINGS_KEY_PROJECT = "pr-insights-source-project";
   var SETTINGS_KEY_PIPELINE = "pr-insights-pipeline-id";
   var elements = {};
+  var elementLists = {};
   function getElement(id) {
     const el = elements[id];
     if (el instanceof HTMLElement) {
@@ -4512,7 +4521,8 @@ var PRInsightsDashboard = (() => {
           const isAdoDomain = urlHost.endsWith("dev.azure.com") || urlHost.endsWith(".visualstudio.com") || urlHost.endsWith(".azure.com");
           if (!isAdoDomain) {
             console.warn(
-              `SECURITY: ?dataset= URL "${urlHost}" is not an Azure DevOps domain. This parameter is intended for development only.`
+              "SECURITY: ?dataset= URL %s is not an Azure DevOps domain. This parameter is intended for development only.",
+              urlHost
             );
           }
         } catch (_e) {
@@ -4600,7 +4610,9 @@ var PRInsightsDashboard = (() => {
     const sourceConfig = await getSourceConfig();
     const targetProjectId = sourceConfig.projectId || currentProjectId;
     console.log(
-      `Source project: ${targetProjectId}${sourceConfig.projectId ? " (from settings)" : " (current context)"}`
+      "Source project: %s%s",
+      targetProjectId,
+      sourceConfig.projectId ? " (from settings)" : " (current context)"
     );
     artifactClient = new ArtifactClient(targetProjectId);
     await artifactClient.initialize();
@@ -4611,9 +4623,7 @@ var PRInsightsDashboard = (() => {
       );
     }
     if (sourceConfig.pipelineId) {
-      console.log(
-        `Using pipeline definition ID from settings: ${sourceConfig.pipelineId}`
-      );
+      console.log("Using pipeline definition ID from settings: %d", sourceConfig.pipelineId);
       try {
         return await resolveFromPipelineId(
           sourceConfig.pipelineId,
@@ -4845,7 +4855,7 @@ var PRInsightsDashboard = (() => {
     ids.forEach((id) => {
       elements[id] = document.getElementById(id);
     });
-    elements.tabs = document.querySelectorAll(".tab");
+    elementLists.tabs = document.querySelectorAll(".tab");
   }
   function initializePhase5Features() {
     console.log("Phase 5 ML features initialized - tabs visible by default");
@@ -4853,9 +4863,10 @@ var PRInsightsDashboard = (() => {
   function setupEventListeners() {
     elements["date-range"]?.addEventListener("change", handleDateRangeChange);
     document.getElementById("apply-dates")?.addEventListener("click", applyCustomDates);
-    elements.tabs?.forEach((tab) => {
-      tab.addEventListener("click", () => {
-        const tabId = tab.dataset["tab"];
+    elementLists.tabs?.forEach((tab) => {
+      const htmlTab = tab;
+      htmlTab.addEventListener("click", () => {
+        const tabId = htmlTab.dataset["tab"];
         if (tabId) switchTab(tabId);
       });
     });
@@ -4906,11 +4917,13 @@ var PRInsightsDashboard = (() => {
       const startDate = new Date(endDate);
       startDate.setDate(startDate.getDate() - defaultDays);
       currentDateRange = { start: startDate, end: endDate };
-      if (elements["start-date"]) {
-        elements["start-date"].value = startDate.toISOString().split("T")[0];
+      const startDateEl = elements["start-date"];
+      const endDateEl = elements["end-date"];
+      if (startDateEl) {
+        startDateEl.value = startDate.toISOString().split("T")[0] ?? "";
       }
-      if (elements["end-date"]) {
-        elements["end-date"].value = endDate.toISOString().split("T")[0];
+      if (endDateEl) {
+        endDateEl.value = endDate.toISOString().split("T")[0] ?? "";
       }
     }
   }
@@ -5074,8 +5087,9 @@ var PRInsightsDashboard = (() => {
     void refreshMetrics();
   }
   function switchTab(tabId) {
-    elements.tabs?.forEach((tab) => {
-      tab.classList.toggle("active", tab.dataset["tab"] === tabId);
+    elementLists.tabs?.forEach((tab) => {
+      const htmlTab = tab;
+      htmlTab.classList.toggle("active", htmlTab.dataset["tab"] === tabId);
     });
     document.querySelectorAll(".tab-content").forEach((content) => {
       content.classList.toggle("active", content.id === `tab-${tabId}`);
@@ -5395,18 +5409,20 @@ var PRInsightsDashboard = (() => {
   function updateUrlState() {
     const params = new URLSearchParams(window.location.search);
     const newParams = new URLSearchParams();
-    if (params.get("dataset")) newParams.set("dataset", params.get("dataset"));
-    if (params.get("pipelineId"))
-      newParams.set("pipelineId", params.get("pipelineId"));
+    const datasetParam = params.get("dataset");
+    if (datasetParam) newParams.set("dataset", datasetParam);
+    const pipelineIdParam = params.get("pipelineId");
+    if (pipelineIdParam) newParams.set("pipelineId", pipelineIdParam);
     if (currentDateRange.start) {
-      newParams.set("start", currentDateRange.start.toISOString().split("T")[0]);
+      newParams.set("start", currentDateRange.start.toISOString().substring(0, 10));
     }
     if (currentDateRange.end) {
-      newParams.set("end", currentDateRange.end.toISOString().split("T")[0]);
+      newParams.set("end", currentDateRange.end.toISOString().substring(0, 10));
     }
     const activeTab = document.querySelector(".tab.active");
-    if (activeTab && activeTab.dataset["tab"] !== "metrics") {
-      newParams.set("tab", activeTab.dataset["tab"]);
+    const tabValue = activeTab?.dataset["tab"];
+    if (tabValue && tabValue !== "metrics") {
+      newParams.set("tab", tabValue);
     }
     if (currentFilters.repos.length > 0) {
       newParams.set("repos", currentFilters.repos.join(","));
@@ -5434,8 +5450,10 @@ var PRInsightsDashboard = (() => {
         dateRangeEl.value = "custom";
         elements["custom-dates"]?.classList.remove("hidden");
       }
-      if (elements["start-date"]) elements["start-date"].value = startParam;
-      if (elements["end-date"]) elements["end-date"].value = endParam;
+      const startEl = elements["start-date"];
+      const endEl = elements["end-date"];
+      if (startEl) startEl.value = startParam;
+      if (endEl) endEl.value = endParam;
     }
     const tabParam = params.get("tab");
     if (tabParam) {

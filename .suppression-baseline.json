@@ -1,0 +1,52 @@
+{
+  "version": 1,
+  "generated_at": "2026-01-29T20:45:20Z",
+  "total": 46,
+  "by_scope": {
+    "python-backend": 9,
+    "typescript-extension": 36,
+    "typescript-tests": 1
+  },
+  "by_type": {
+    "eslint-disable-block": 1,
+    "eslint-disable-line": 0,
+    "eslint-disable-next-line": 36,
+    "noqa": 9,
+    "ts-expect-error": 0,
+    "ts-ignore": 0,
+    "type-ignore": 0
+  },
+  "by_file": {
+    "extension/tests/local-mode-integration.test.ts": 1,
+    "extension/ui/artifact-client.ts": 3,
+    "extension/ui/dashboard.ts": 2,
+    "extension/ui/dataset-loader.ts": 2,
+    "extension/ui/error-codes.ts": 1,
+    "extension/ui/modules/charts/cycle-time.ts": 1,
+    "extension/ui/modules/charts/predictions.ts": 4,
+    "extension/ui/modules/dom.ts": 5,
+    "extension/ui/modules/metrics.ts": 4,
+    "extension/ui/modules/ml.ts": 1,
+    "extension/ui/modules/shared/format.ts": 2,
+    "extension/ui/modules/shared/security.ts": 1,
+    "extension/ui/schemas/utils.ts": 1,
+    "extension/ui/types.ts": 9,
+    "src/ado_git_repo_insights/cli.py": 2,
+    "src/ado_git_repo_insights/ml/__init__.py": 1,
+    "src/ado_git_repo_insights/persistence/database.py": 2,
+    "src/ado_git_repo_insights/transform/aggregators.py": 2,
+    "src/ado_git_repo_insights/transform/csv_generator.py": 1,
+    "src/ado_git_repo_insights/utils/run_summary.py": 1
+  },
+  "by_rule": {
+    "@typescript-eslint/no-explicit-any": 10,
+    "@typescript-eslint/no-non-null-assertion": 2,
+    "F401": 3,
+    "S311": 2,
+    "S603": 1,
+    "S607": 1,
+    "S608": 1,
+    "UP006": 2,
+    "security/detect-object-injection": 24
+  }
+}

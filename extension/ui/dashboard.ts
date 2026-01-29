@@ -88,10 +88,11 @@ let currentBuildId: number | null = null; // Store build ID for raw data downloa
 const SETTINGS_KEY_PROJECT = "pr-insights-source-project";
 const SETTINGS_KEY_PIPELINE = "pr-insights-pipeline-id";
 
-// DOM element cache
-// DOM element cache - stores both HTMLElements and NodeLists
-// eslint-disable-next-line @typescript-eslint/no-explicit-any -- Single documented exception: DOM cache allows flexible storage; use getElement<T>() for typed access
-const elements: Record<string, any> = {};
+// DOM element cache - stores single HTMLElements only
+const elements: Record<string, HTMLElement | null> = {};
+
+// DOM element list cache - stores NodeLists for multi-element queries
+const elementLists: Record<string, NodeListOf<Element>> = {};
 
 /**
  * Typed DOM element accessor.
@@ -224,8 +225,8 @@ function parseQueryParams(): QueryParamResult | PrInsightsError {
           urlHost.endsWith(".azure.com");
         if (!isAdoDomain) {
           console.warn(
-            `SECURITY: ?dataset= URL "${urlHost}" is not an Azure DevOps domain. ` +
-              `This parameter is intended for development only.`,
+            "SECURITY: ?dataset= URL %s is not an Azure DevOps domain. This parameter is intended for development only.",
+            urlHost,
           );
         }
       } catch (_e) {
@@ -361,7 +362,9 @@ async function resolveConfiguration(): Promise<{
   const targetProjectId = sourceConfig.projectId || currentProjectId;
 
   console.log(
-    `Source project: ${targetProjectId}${sourceConfig.projectId ? " (from settings)" : " (current context)"}`,
+    "Source project: %s%s",
+    targetProjectId,
+    sourceConfig.projectId ? " (from settings)" : " (current context)",
   );
 
   // Initialize artifact client with target project
@@ -379,9 +382,7 @@ async function resolveConfiguration(): Promise<{
 
   // Check settings for pipeline ID
   if (sourceConfig.pipelineId) {
-    console.log(
-      `Using pipeline definition ID from settings: ${sourceConfig.pipelineId}`,
-    );
+    console.log("Using pipeline definition ID from settings: %d", sourceConfig.pipelineId);
     try {
       return await resolveFromPipelineId(
         sourceConfig.pipelineId,
@@ -682,7 +683,7 @@ function cacheElements(): void {
     elements[id] = document.getElementById(id);
   });
 
-  elements.tabs = document.querySelectorAll(".tab");
+  elementLists.tabs = document.querySelectorAll(".tab");
 }
 
 /**
@@ -705,9 +706,10 @@ function setupEventListeners(): void {
     .getElementById("apply-dates")
     ?.addEventListener("click", applyCustomDates);
 
-  elements.tabs?.forEach((tab: HTMLElement) => {
-    tab.addEventListener("click", () => {
-      const tabId = tab.dataset["tab"];
+  elementLists.tabs?.forEach((tab) => {
+    const htmlTab = tab as HTMLElement;
+    htmlTab.addEventListener("click", () => {
+      const tabId = htmlTab.dataset["tab"];
       if (tabId) switchTab(tabId);
     });
   });
@@ -802,11 +804,13 @@ function setInitialDateRange(): void {
 
     currentDateRange = { start: startDate, end: endDate };
 
-    if (elements["start-date"]) {
-      elements["start-date"].value = startDate.toISOString().split("T")[0];
+    const startDateEl = elements["start-date"] as HTMLInputElement | null;
+    const endDateEl = elements["end-date"] as HTMLInputElement | null;
+    if (startDateEl) {
+      startDateEl.value = startDate.toISOString().split("T")[0] ?? "";
     }
-    if (elements["end-date"]) {
-      elements["end-date"].value = endDate.toISOString().split("T")[0];
+    if (endDateEl) {
+      endDateEl.value = endDate.toISOString().split("T")[0] ?? "";
     }
   }
 }
@@ -1085,8 +1089,9 @@ function applyCustomDates(): void {
 }
 
 function switchTab(tabId: string): void {
-  elements.tabs?.forEach((tab: HTMLElement) => {
-    tab.classList.toggle("active", tab.dataset["tab"] === tabId);
+  elementLists.tabs?.forEach((tab) => {
+    const htmlTab = tab as HTMLElement;
+    htmlTab.classList.toggle("active", htmlTab.dataset["tab"] === tabId);
   });
 
   document.querySelectorAll(".tab-content").forEach((content) => {
@@ -1580,22 +1585,24 @@ function updateUrlState(): void {
   const newParams = new URLSearchParams();
 
   // Preserve config params
-  if (params.get("dataset")) newParams.set("dataset", params.get("dataset")!);
-  if (params.get("pipelineId"))
-    newParams.set("pipelineId", params.get("pipelineId")!);
+  const datasetParam = params.get("dataset");
+  if (datasetParam) newParams.set("dataset", datasetParam);
+  const pipelineIdParam = params.get("pipelineId");
+  if (pipelineIdParam) newParams.set("pipelineId", pipelineIdParam);
 
-  // Add date range
+  // Add date range (toISOString format: YYYY-MM-DDTHH:mm:ss.sssZ)
   if (currentDateRange.start) {
-    newParams.set("start", currentDateRange.start.toISOString().split("T")[0]!);
+    newParams.set("start", currentDateRange.start.toISOString().substring(0, 10));
   }
   if (currentDateRange.end) {
-    newParams.set("end", currentDateRange.end.toISOString().split("T")[0]!);
+    newParams.set("end", currentDateRange.end.toISOString().substring(0, 10));
   }
 
   // Add active tab
   const activeTab = document.querySelector(".tab.active") as HTMLElement | null;
-  if (activeTab && activeTab.dataset["tab"] !== "metrics") {
-    newParams.set("tab", activeTab.dataset["tab"]!);
+  const tabValue = activeTab?.dataset["tab"];
+  if (tabValue && tabValue !== "metrics") {
+    newParams.set("tab", tabValue);
   }
 
   // Add filters
@@ -1630,8 +1637,10 @@ function restoreStateFromUrl(): void {
       dateRangeEl.value = "custom";
       elements["custom-dates"]?.classList.remove("hidden");
     }
-    if (elements["start-date"]) elements["start-date"].value = startParam;
-    if (elements["end-date"]) elements["end-date"].value = endParam;
+    const startEl = elements["start-date"] as HTMLInputElement | null;
+    const endEl = elements["end-date"] as HTMLInputElement | null;
+    if (startEl) startEl.value = startParam;
+    if (endEl) endEl.value = endParam;
   }
 
   const tabParam = params.get("tab");

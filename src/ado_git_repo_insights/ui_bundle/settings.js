@@ -483,7 +483,7 @@ var PRInsightsSettings = (() => {
                   buildId: latestBuild.id
                 });
               } catch (e) {
-                console.debug(`Skipping pipeline ${def.name}:`, e);
+                console.debug("Skipping pipeline %s:", def.name, e);
               }
             }
             resolve(matches);

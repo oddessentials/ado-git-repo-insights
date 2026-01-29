@@ -80,7 +80,7 @@ class CSVGenerator:
         # Query the table
         column_list = ", ".join(columns)
         df = pd.read_sql_query(
-            f"SELECT {column_list} FROM {table_name}",  # noqa: S608
+            f"SELECT {column_list} FROM {table_name}",  # noqa: S608 -- SECURITY: table_name and columns are hardcoded constants, not user input
             self.db.connection,
         )
 

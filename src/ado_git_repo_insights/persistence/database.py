@@ -97,7 +97,8 @@ class DatabaseManager:
     def _initialize_schema(self) -> None:
         """Create all tables and indexes."""
         try:
-            self._connection.executescript(SCHEMA_SQL)  # type: ignore[union-attr]
+            # Use property accessor which validates connection is active
+            self.connection.executescript(SCHEMA_SQL)
             logger.info("Database schema initialized")
         except sqlite3.Error as e:
             raise DatabaseError(f"Failed to initialize schema: {e}") from e
@@ -151,7 +152,7 @@ class DatabaseManager:
         finally:
             cursor.close()
 
-    def execute(self, sql: str, parameters: tuple[Any, ...] = ()) -> Cursor:  # noqa: UP006
+    def execute(self, sql: str, parameters: tuple[Any, ...] = ()) -> Cursor:  # noqa: UP006 -- REASON: tuple[Any, ...] matches sqlite3 API signature
         """Execute a single SQL statement.
 
         Args:
@@ -166,7 +167,7 @@ class DatabaseManager:
     def executemany(
         self,
         sql: str,
-        parameters: list[tuple[Any, ...]],  # noqa: UP006
+        parameters: list[tuple[Any, ...]],  # noqa: UP006 -- REASON: list[tuple[Any, ...]] matches sqlite3 API signature
     ) -> Cursor:
         """Execute a SQL statement with multiple parameter sets.
 

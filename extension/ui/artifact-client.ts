@@ -148,9 +148,7 @@ export class ArtifactClient {
     );
 
     if (!artifact) {
-      console.log(
-        `[getArtifactMetadata] Artifact '${artifactName}' not found in build ${buildId}`,
-      );
+      console.log("[getArtifactMetadata] Artifact '%s' not found in build %d", artifactName, buildId);
       return null;
     }
 
@@ -325,10 +323,11 @@ export class AuthenticatedDatasetLoader implements IDatasetLoader {
         this.artifactName,
         "dataset-manifest.json",
       )) as ManifestSchema;
-      if (this.manifest) {
-        this.validateManifest(this.manifest);
+      if (!this.manifest) {
+        throw new Error("Manifest file is empty or invalid");
       }
-      return this.manifest!;
+      this.validateManifest(this.manifest);
+      return this.manifest;
     } catch (error: unknown) {
       throw new Error(
         `Failed to load dataset manifest: ${getErrorMessage(error)}`,
@@ -377,7 +376,10 @@ export class AuthenticatedDatasetLoader implements IDatasetLoader {
       this.artifactName,
       "aggregates/dimensions.json",
     )) as DimensionsData;
-    return this.dimensions!;
+    if (!this.dimensions) {
+      throw new Error("Dimensions file is empty or invalid");
+    }
+    return this.dimensions;
   }
 
   async getWeeklyRollups(startDate: Date, endDate: Date): Promise<Rollup[]> {
@@ -387,8 +389,9 @@ export class AuthenticatedDatasetLoader implements IDatasetLoader {
     const results: Rollup[] = [];
 
     for (const weekStr of neededWeeks) {
-      if (this.rollupCache.has(weekStr)) {
-        results.push(this.rollupCache.get(weekStr)!);
+      const cachedRollup = this.rollupCache.get(weekStr);
+      if (cachedRollup) {
+        results.push(cachedRollup);
         continue;
       }
 
@@ -407,7 +410,7 @@ export class AuthenticatedDatasetLoader implements IDatasetLoader {
         this.rollupCache.set(weekStr, rollup);
         results.push(rollup);
       } catch (e) {
-        console.warn(`Failed to load rollup for ${weekStr}:`, e);
+        console.warn("Failed to load rollup for %s:", weekStr, e);
       }
     }
 
@@ -426,8 +429,9 @@ export class AuthenticatedDatasetLoader implements IDatasetLoader {
 
     for (let year = startYear; year <= endYear; year++) {
       const yearStr = String(year);
-      if (this.distributionCache.has(yearStr)) {
-        results.push(this.distributionCache.get(yearStr)!);
+      const cachedDistribution = this.distributionCache.get(yearStr);
+      if (cachedDistribution) {
+        results.push(cachedDistribution);
         continue;
       }
 
@@ -446,7 +450,7 @@ export class AuthenticatedDatasetLoader implements IDatasetLoader {
         this.distributionCache.set(yearStr, dist);
         results.push(dist);
       } catch (e) {
-        console.warn(`Failed to load distribution for ${yearStr}:`, e);
+        console.warn("Failed to load distribution for %s:", yearStr, e);
       }
     }
 
