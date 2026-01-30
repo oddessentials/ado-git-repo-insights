@@ -1,3 +1,17 @@
+# [5.15.0](https://github.com/oddessentials/ado-git-repo-insights/compare/v5.14.0...v5.15.0) (2026-01-30)
+
+
+### Bug Fixes
+
+* **ci:** correct script verification and pnpm messaging ([4a443bd](https://github.com/oddessentials/ado-git-repo-insights/commit/4a443bd6927c47bfdcc7b365ba21ddb3d1946255))
+* **ci:** extract URL verification to separate script ([8d7a87a](https://github.com/oddessentials/ado-git-repo-insights/commit/8d7a87ab21b1dca18e8cd3e1dc1c64e564109449))
+* **ci:** harden badge-publish error handling ([953bdb0](https://github.com/oddessentials/ado-git-repo-insights/commit/953bdb09a59afc18500530c8465699f1c9da21cc))
+
+
+### Features
+
+* **ci:** add dynamic CI badges with Shields.io ([cca002b](https://github.com/oddessentials/ado-git-repo-insights/commit/cca002b45f72068babe3ce2abbec4818532c4dad))
+
 # [5.14.0](https://github.com/oddessentials/ado-git-repo-insights/compare/v5.13.0...v5.14.0) (2026-01-30)
 
 
