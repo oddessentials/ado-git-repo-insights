@@ -1,3 +1,10 @@
+## [5.15.1](https://github.com/oddessentials/ado-git-repo-insights/compare/v5.15.0...v5.15.1) (2026-01-30)
+
+
+### Bug Fixes
+
+* **ci:** enable coverage in test:ci for badge artifacts ([e58d483](https://github.com/oddessentials/ado-git-repo-insights/commit/e58d4834d87bd21cd609f6a4874599304430ea1e))
+
 # [5.15.0](https://github.com/oddessentials/ado-git-repo-insights/compare/v5.14.0...v5.15.0) (2026-01-30)
 
 
