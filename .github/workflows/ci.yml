@@ -18,6 +18,17 @@ on:
       - 'LICENSE'
       - '.gitignore'
 
+# Canonical artifact names for badge-publish job
+# IMPORTANT: These names must match exactly between upload and download steps
+# Update both ARTIFACT_* env vars AND the corresponding upload steps when changing
+env:
+  # Python artifacts (uploaded from test job, ubuntu-latest/3.11 matrix leg only)
+  ARTIFACT_PYTHON_COVERAGE: coverage-ubuntu-latest-3.11
+  ARTIFACT_PYTHON_TESTS: test-results-ubuntu-latest-3.11
+  # TypeScript artifacts (uploaded from extension-tests job)
+  ARTIFACT_TS_COVERAGE: extension-coverage
+  ARTIFACT_TS_TESTS: extension-test-results
+
 jobs:
   # Guard: Validate CI configuration guards (packageManager, composite action usage)
   ci-guards:
@@ -191,7 +202,7 @@ jobs:
             echo "::error::ESM import/export syntax found in ui_bundle JS (must be IIFE bundled):"
             echo "$ESM_MATCHES" | head -10
             echo "..."
-            echo "Fix: Run 'npm run build:ui' to generate IIFE-bundled JS"
+            echo "Fix: Run 'pnpm run build:ui' to generate IIFE-bundled JS"
             exit 1
           fi
           echo "[OK] No ESM syntax in ui_bundle JS"
@@ -398,6 +409,24 @@ jobs:
           files: ./coverage.xml
           flags: python
           fail_ci_if_error: false
+
+      # Upload artifacts for badge-publish job (ubuntu-latest, Python 3.11 only)
+      # Artifact names defined in workflow-level env vars for single source of truth
+      - name: Upload Python coverage artifact
+        uses: actions/upload-artifact@v4
+        if: matrix.python-version == '3.11' && matrix.os == 'ubuntu-latest'
+        with:
+          name: ${{ env.ARTIFACT_PYTHON_COVERAGE }}
+          path: coverage.xml
+          retention-days: 1
+
+      - name: Upload Python test results artifact
+        uses: actions/upload-artifact@v4
+        if: matrix.python-version == '3.11' && matrix.os == 'ubuntu-latest'
+        with:
+          name: ${{ env.ARTIFACT_PYTHON_TESTS }}
+          path: test-results.xml
+          retention-days: 1
 
 
   # Python Type Safety Gate (FR-001, FR-002)
@@ -679,6 +708,24 @@ jobs:
           flags: typescript
           fail_ci_if_error: false
 
+      # Upload artifacts for badge-publish job
+      # Artifact names defined in workflow-level env vars for single source of truth
+      - name: Upload TypeScript coverage artifact
+        uses: actions/upload-artifact@v4
+        if: success()
+        with:
+          name: ${{ env.ARTIFACT_TS_COVERAGE }}
+          path: extension/coverage/lcov.info
+          retention-days: 1
+
+      - name: Upload TypeScript test results artifact
+        uses: actions/upload-artifact@v4
+        if: success()
+        with:
+          name: ${{ env.ARTIFACT_TS_TESTS }}
+          path: extension/test-results.xml
+          retention-days: 1
+
   # Phase 4: Performance baseline integrity guard
   baseline-integrity:
     runs-on: ubuntu-latest
@@ -727,3 +774,153 @@ jobs:
             exit 1
           fi
           echo "[OK] Lockfile is deterministic"
+
+  # Badge Publish: Generate and publish badge JSON to dedicated badges branch
+  # Runs only on push to main, after test jobs succeed
+  # FR-013, FR-014: Main-only, no PR publishes
+  # FR-024-FR-027: Publishes to dedicated badges branch only
+  badge-publish:
+    runs-on: ubuntu-latest
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    needs: [test, extension-tests]
+    permissions:
+      contents: write  # Required to push to badges branch
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # Full history for branch operations
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install Python dependencies
+        run: pip install -e ".[dev]"
+
+      - name: Verify CI script dependencies
+        run: |
+          python -c "import defusedxml; print('[OK] defusedxml available')"
+          python .github/scripts/generate-badge-json.py --help > /dev/null
+          echo "[OK] generate-badge-json.py dependencies verified"
+
+      # Download artifacts - fail loudly if missing (no continue-on-error)
+      # Job depends on [test, extension-tests] so artifacts must exist
+      # Artifact names reference workflow-level env vars (single source of truth)
+      - name: Download Python coverage
+        uses: actions/download-artifact@v4
+        with:
+          name: ${{ env.ARTIFACT_PYTHON_COVERAGE }}
+          path: ./artifacts/python
+
+      - name: Download Python test results
+        uses: actions/download-artifact@v4
+        with:
+          name: ${{ env.ARTIFACT_PYTHON_TESTS }}
+          path: ./artifacts/python
+
+      - name: Download TypeScript coverage
+        uses: actions/download-artifact@v4
+        with:
+          name: ${{ env.ARTIFACT_TS_COVERAGE }}
+          path: ./artifacts/typescript
+
+      - name: Download TypeScript test results
+        uses: actions/download-artifact@v4
+        with:
+          name: ${{ env.ARTIFACT_TS_TESTS }}
+          path: ./artifacts/typescript
+
+      - name: Verify artifacts
+        run: |
+          echo "Verifying downloaded artifacts..."
+          ls -la ./artifacts/python/
+          ls -la ./artifacts/typescript/
+          echo "[OK] All required artifacts present"
+
+      # Generate badge JSON (first run)
+      # --artifacts-dir enforces realpath bounds checking (prevents path traversal)
+      - name: Generate badge JSON
+        run: |
+          python .github/scripts/generate-badge-json.py \
+            --artifacts-dir ./artifacts \
+            --python-coverage ./artifacts/python/coverage.xml \
+            --python-tests ./artifacts/python/test-results.xml \
+            --ts-coverage ./artifacts/typescript/lcov.info \
+            --ts-tests ./artifacts/typescript/test-results.xml \
+            --output /tmp/status.json
+
+          echo "Generated badge JSON:"
+          cat /tmp/status.json
+
+      # FR-018: Determinism check - generate twice and diff
+      - name: Verify determinism
+        run: |
+          python .github/scripts/generate-badge-json.py \
+            --artifacts-dir ./artifacts \
+            --python-coverage ./artifacts/python/coverage.xml \
+            --python-tests ./artifacts/python/test-results.xml \
+            --ts-coverage ./artifacts/typescript/lcov.info \
+            --ts-tests ./artifacts/typescript/test-results.xml \
+            --output /tmp/status-verify.json
+
+          if ! diff -q /tmp/status.json /tmp/status-verify.json; then
+            echo "::error::Determinism check failed - JSON output differs between runs"
+            diff /tmp/status.json /tmp/status-verify.json
+            exit 1
+          fi
+          echo "[OK] Determinism verified - identical output on re-run"
+
+      # FR-019: Validate JSON schema
+      - name: Validate JSON schema
+        run: |
+          pip install jsonschema==4.23.0
+          python -c "
+          import json
+          import jsonschema
+
+          with open('/tmp/status.json') as f:
+              data = json.load(f)
+          with open('.github/scripts/badge-schema.json') as f:
+              schema = json.load(f)
+
+          jsonschema.validate(data, schema)
+          print('[OK] JSON schema validation passed')
+          "
+
+      # Publish to badges branch
+      - name: Publish to badges branch
+        run: |
+          set -euo pipefail
+
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+          # Fetch badges branch or create orphan if doesn't exist
+          if git fetch origin badges:badges 2>/dev/null; then
+            echo "Checking out existing badges branch"
+            git checkout badges
+          else
+            echo "Creating new orphan badges branch"
+            git checkout --orphan badges
+            git rm -rf . 2>/dev/null || true
+          fi
+
+          # Copy status.json to branch root
+          cp /tmp/status.json status.json
+
+          # Commit and push
+          git add status.json
+          if git diff --staged --quiet; then
+            echo "No changes to commit - badge data unchanged"
+          else
+            git commit -m "chore: update badge data [skip ci]"
+            git push origin badges
+            echo "[OK] Badge data published to badges branch"
+          fi
+
+      # FR-010: Verify published JSON is accessible
+      - name: Verify badge URL accessibility
+        env:
+          BADGE_URL: https://raw.githubusercontent.com/${{ github.repository }}/badges/status.json
+        run: python .github/scripts/verify-badge-url.py

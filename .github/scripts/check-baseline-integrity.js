@@ -78,7 +78,7 @@ try {
 
     // Fail - direct edit detected
     console.error('[CI] ❌ BLOCKED: Direct edit to perf-baselines.json detected');
-    console.error('[CI] Baselines must be updated via: npm run perf:update-baseline');
+    console.error('[CI] Baselines must be updated via: pnpm run perf:update-baseline');
     console.error('[CI] Or use commit message: chore(perf): update baselines [baseline-update]');
     process.exit(1);
 

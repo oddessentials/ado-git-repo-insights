@@ -1,0 +1,84 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Badge Status",
+  "description": "CI-generated badge data for Shields.io dynamic badges",
+  "type": "object",
+  "properties": {
+    "python": {
+      "type": "object",
+      "properties": {
+        "coverage": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 100,
+          "description": "Line coverage percentage (1 decimal)"
+        },
+        "tests": {
+          "type": "object",
+          "properties": {
+            "display": {
+              "type": "string",
+              "pattern": "^\\d+ passed(, \\d+ skipped)?$",
+              "description": "Pre-formatted display string for badge"
+            },
+            "passed": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "skipped": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "total": {
+              "type": "integer",
+              "minimum": 0
+            }
+          },
+          "required": ["display", "passed", "skipped", "total"],
+          "additionalProperties": false
+        }
+      },
+      "required": ["coverage", "tests"],
+      "additionalProperties": false
+    },
+    "typescript": {
+      "type": "object",
+      "properties": {
+        "coverage": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 100,
+          "description": "Line coverage percentage (1 decimal)"
+        },
+        "tests": {
+          "type": "object",
+          "properties": {
+            "display": {
+              "type": "string",
+              "pattern": "^\\d+ passed(, \\d+ skipped)?$",
+              "description": "Pre-formatted display string for badge"
+            },
+            "passed": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "skipped": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "total": {
+              "type": "integer",
+              "minimum": 0
+            }
+          },
+          "required": ["display", "passed", "skipped", "total"],
+          "additionalProperties": false
+        }
+      },
+      "required": ["coverage", "tests"],
+      "additionalProperties": false
+    }
+  },
+  "required": ["python", "typescript"],
+  "additionalProperties": false
+}

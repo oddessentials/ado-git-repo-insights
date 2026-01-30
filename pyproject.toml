@@ -41,6 +41,7 @@ dev = [
     "pandas-stubs>=2.0.0,<3.0.0; python_version < '3.11'",
     "pandas-stubs>=2.0.0; python_version >= '3.11'",
     "jsonschema>=4.0",
+    "defusedxml==0.7.1",  # Safe XML parsing for CI scripts
 ]
 ml = [
     "prophet>=1.1.0",

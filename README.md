@@ -5,10 +5,15 @@
 [![AI Review](https://github.com/oddessentials/ado-git-repo-insights/actions/workflows/ai-review.yml/badge.svg)](https://github.com/oddessentials/odd-ai-reviewers/actions/workflows/ai-review.yml)
 ![CI](https://github.com/oddessentials/ado-git-repo-insights/actions/workflows/ci.yml/badge.svg)
 [![Release](https://github.com/oddessentials/ado-git-repo-insights/actions/workflows/release.yml/badge.svg)](https://github.com/oddessentials/ado-git-repo-insights/actions/workflows/release.yml)
-[![Python Coverage](https://codecov.io/gh/oddessentials/ado-git-repo-insights/graph/badge.svg?flag=python)](https://codecov.io/gh/oddessentials/ado-git-repo-insights?flags[0]=python)
-[![TypeScript Coverage](https://codecov.io/gh/oddessentials/ado-git-repo-insights/graph/badge.svg?flag=typescript)](https://codecov.io/gh/oddessentials/ado-git-repo-insights?flags[0]=typescript)
-![Python Tests](https://img.shields.io/badge/python_tests-passing-brightgreen)
-![Extension Tests](https://img.shields.io/badge/extension_tests-passing-brightgreen)
+![Python Coverage](https://img.shields.io/badge/dynamic/json?url=https%3A%2F%2Fraw.githubusercontent.com%2Foddessentials%2Fado-git-repo-insights%2Fbadges%2Fstatus.json&query=%24.python.coverage&label=Python%20Coverage&suffix=%25&color=brightgreen)
+![TypeScript Coverage](https://img.shields.io/badge/dynamic/json?url=https%3A%2F%2Fraw.githubusercontent.com%2Foddessentials%2Fado-git-repo-insights%2Fbadges%2Fstatus.json&query=%24.typescript.coverage&label=TypeScript%20Coverage&suffix=%25&color=brightgreen)
+![Python Tests](https://img.shields.io/badge/dynamic/json?url=https%3A%2F%2Fraw.githubusercontent.com%2Foddessentials%2Fado-git-repo-insights%2Fbadges%2Fstatus.json&query=%24.python.tests.display&label=Python%20Tests&color=blue)
+![TypeScript Tests](https://img.shields.io/badge/dynamic/json?url=https%3A%2F%2Fraw.githubusercontent.com%2Foddessentials%2Fado-git-repo-insights%2Fbadges%2Fstatus.json&query=%24.typescript.tests.display&label=TypeScript%20Tests&color=blue)
+
+<!-- Package -->
+
+[![PyPI version](https://img.shields.io/pypi/v/ado-git-repo-insights)](https://pypi.org/project/ado-git-repo-insights/)
+[![PyPI downloads](https://img.shields.io/pypi/dm/ado-git-repo-insights)](https://pypi.org/project/ado-git-repo-insights/)
 
 <!-- Technology Stack -->
 
