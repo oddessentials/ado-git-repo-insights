@@ -202,7 +202,7 @@ jobs:
             echo "::error::ESM import/export syntax found in ui_bundle JS (must be IIFE bundled):"
             echo "$ESM_MATCHES" | head -10
             echo "..."
-            echo "Fix: Run 'npm run build:ui' to generate IIFE-bundled JS"
+            echo "Fix: Run 'pnpm run build:ui' to generate IIFE-bundled JS"
             exit 1
           fi
           echo "[OK] No ESM syntax in ui_bundle JS"
@@ -799,8 +799,10 @@ jobs:
         run: pip install -e ".[dev]"
 
       - name: Verify CI script dependencies
-        run: python -c "import defusedxml; from generate_badge_json import main"
-        working-directory: .github/scripts
+        run: |
+          python -c "import defusedxml; print('[OK] defusedxml available')"
+          python .github/scripts/generate-badge-json.py --help > /dev/null
+          echo "[OK] generate-badge-json.py dependencies verified"
 
       # Download artifacts - fail loudly if missing (no continue-on-error)
       # Job depends on [test, extension-tests] so artifacts must exist
