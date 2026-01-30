@@ -10,9 +10,10 @@
 ### Session 2026-01-29
 
 - Q: When should badge publish run? → A: Only on `push` to `main` after all test/coverage jobs succeed; MUST NOT run on PRs
-- Q: What is the canonical URL for badge JSON? → A: `https://<org>.github.io/<repo>/badges/status.json` (exact URL referenced in README)
+- Q: What is the canonical URL for badge JSON? → A: Raw GitHub URL from dedicated `badges` branch (NOT GitHub Pages)
 - Q: How is determinism enforced? → A: CI generates JSON twice, diff must be empty; validates JSON schema + key order
 - Q: What are the exact extraction rules? → A: Line coverage (coverage.xml `line-rate`, lcov `LF/LH`); JUnit totals (tests/failures/errors/skipped); failed tests fail CI before badge generation
+- Q: Where to publish badge data? → A: Dedicated `badges` branch only; MUST NOT touch `/docs`, `gh-pages`, or `main` branch content
 
 ## User Scenarios & Testing *(mandatory)*
 
@@ -58,8 +59,8 @@ After any successful CI run on main branch, badges update automatically without 
 
 **Acceptance Scenarios**:
 
-1. **Given** a PR is merged to main, **When** CI completes, **Then** badge JSON is published automatically
-2. **Given** badge JSON is published, **When** user refreshes README, **Then** Shields.io fetches latest values
+1. **Given** a PR is merged to main, **When** CI completes, **Then** badge JSON is published automatically to `badges` branch
+2. **Given** badge JSON is published, **When** user refreshes README, **Then** Shields.io fetches latest values from raw GitHub URL
 3. **Given** no secrets or manual tokens are required, **When** CI runs, **Then** publishing succeeds using only GITHUB_TOKEN
 
 ---
@@ -75,7 +76,7 @@ If badge data cannot be generated or published, CI fails explicitly rather than 
 **Acceptance Scenarios**:
 
 1. **Given** test result XML is missing, **When** badge generation runs, **Then** CI fails with clear error
-2. **Given** badge JSON is published, **When** verification check runs, **Then** it confirms the JSON URL is accessible
+2. **Given** badge JSON is published, **When** verification check runs, **Then** it confirms the raw GitHub URL is accessible
 3. **Given** JSON publish fails, **When** CI checks, **Then** CI fails rather than continuing silently
 
 ---
@@ -84,10 +85,9 @@ If badge data cannot be generated or published, CI fails explicitly rather than 
 
 - What happens when coverage reports are missing? CI fails with clear error message
 - What happens when test counts are zero? Badges display "0 passed" (not an error)
-- What happens when GitHub Pages is not enabled? CI fails with actionable error message
 - How does the system handle concurrent CI runs? Last successful run wins (eventual consistency)
 - What happens if Shields.io is temporarily unavailable? Badges show "unavailable" but CI still succeeds (badge fetch is client-side)
-- What happens on PR builds? Badge publish is skipped entirely (no gh-pages writes from PRs)
+- What happens on PR builds? Badge publish is skipped entirely (no writes to `badges` branch from PRs)
 
 ## Requirements *(mandatory)*
 
@@ -95,7 +95,7 @@ If badge data cannot be generated or published, CI fails explicitly rather than 
 
 #### Badge Generation & Content
 
-- **FR-001**: CI MUST generate a deterministic JSON file (`badges/status.json`) containing coverage and test metrics after each successful run on main
+- **FR-001**: CI MUST generate a deterministic JSON file (`status.json`) containing coverage and test metrics after each successful run on main
 - **FR-002**: JSON file MUST contain `python.coverage`, `python.tests.passed`, `python.tests.skipped`, `python.tests.total` fields
 - **FR-003**: JSON file MUST contain `typescript.coverage`, `typescript.tests.passed`, `typescript.tests.skipped`, `typescript.tests.total` fields
 - **FR-004**: JSON output MUST be deterministic: fixed rounding (1 decimal), stable key ordering, no timestamps
@@ -103,18 +103,25 @@ If badge data cannot be generated or published, CI fails explicitly rather than 
 #### Trigger Constraints
 
 - **FR-013**: Badge publish job MUST run only on `push` to `main` after all required test/coverage jobs succeed
-- **FR-014**: Badge publish job MUST NOT run on pull requests (prevents gh-pages churn and race conditions)
+- **FR-014**: Badge publish job MUST NOT run on pull requests (prevents branch churn and race conditions)
 - **FR-015**: Failed tests MUST fail CI before badge generation runs (badges never reflect failing builds)
 
 #### URL Contract
 
-- **FR-016**: Published JSON URL MUST be `https://<org>.github.io/<repo>/badges/status.json` (or repo Pages equivalent)
-- **FR-017**: README badge URLs MUST reference this exact canonical URL (no guessing or alternative paths)
-- **FR-005**: CI MUST publish `badges/status.json` to GitHub Pages (`gh-pages` branch) using only GITHUB_TOKEN (no additional secrets)
+- **FR-016**: Published JSON URL MUST be `https://raw.githubusercontent.com/<org>/<repo>/badges/status.json`
+- **FR-017**: README badge URLs MUST reference this exact canonical raw GitHub URL (no GitHub Pages URLs)
+- **FR-005**: CI MUST publish `status.json` to a dedicated `badges` branch using only GITHUB_TOKEN (no additional secrets)
+
+#### Branch Isolation
+
+- **FR-024**: Badge publish MUST NOT modify the `main` branch
+- **FR-025**: Badge publish MUST NOT modify the `gh-pages` branch
+- **FR-026**: Badge publish MUST NOT modify `/docs` directory in any branch
+- **FR-027**: Badge data MUST be stored in a dedicated `badges` branch only
 
 #### Determinism Verification
 
-- **FR-018**: CI MUST run a determinism check: generate `badges/status.json` twice in the same run and `diff` MUST be empty
+- **FR-018**: CI MUST run a determinism check: generate `status.json` twice in the same run and `diff` MUST be empty
 - **FR-019**: CI MUST validate JSON schema and key order after generation
 
 #### Extraction Rules
@@ -134,12 +141,12 @@ If badge data cannot be generated or published, CI fails explicitly rather than 
 #### Error Handling
 
 - **FR-008**: CI MUST fail if badge JSON cannot be generated (missing test results, parse errors)
-- **FR-009**: CI MUST fail if badge JSON cannot be published to GitHub Pages
-- **FR-010**: CI MUST verify the published JSON URL is accessible after publish (curl check with printed URL)
+- **FR-009**: CI MUST fail if badge JSON cannot be published to `badges` branch
+- **FR-010**: CI MUST verify the published JSON URL is accessible after publish (curl check with printed URL, fail loud on error)
 
 ### Key Entities
 
-- **Badge JSON**: Single source of truth containing all metrics, published to a stable public URL
+- **Badge JSON**: Single source of truth containing all metrics, published to raw GitHub URL on `badges` branch
 - **Coverage Metrics**: Line coverage percentage values extracted from coverage reports (1 decimal precision)
 - **Test Metrics**: Integer counts (passed, skipped, total) extracted from JUnit XML totals
 
@@ -153,12 +160,13 @@ If badge data cannot be generated or published, CI fails explicitly rather than 
 - **SC-004**: CI fails explicitly (non-zero exit) if badge generation or publishing fails
 - **SC-005**: Badge JSON URL returns HTTP 200 and valid JSON after every successful publish
 - **SC-006**: Determinism check passes on every CI run (two generations produce identical output)
-- **SC-007**: No badge updates occur from PR builds (gh-pages remains unchanged during PR CI)
+- **SC-007**: No badge updates occur from PR builds (`badges` branch remains unchanged during PR CI)
+- **SC-008**: GitHub Pages (`gh-pages` and `/docs`) remain untouched by badge workflow
 
 ## Assumptions
 
-- GitHub Pages is enabled for the repository (or will be enabled as part of implementation)
-- The `gh-pages` branch can be used for badge data (does not conflict with existing Pages content)
+- The `badges` branch can be created and used for badge data (orphan branch)
+- Raw GitHub URLs are publicly accessible for public repositories
 - JUnit XML format is stable and matches current CI output
 - Coverage report formats (coverage.xml, lcov.info) are stable
 - Shields.io dynamic JSON badge endpoint is reliable and publicly accessible

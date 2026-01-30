@@ -18,7 +18,7 @@
 - CI workflow: `.github/workflows/ci.yml`
 - Scripts: `.github/scripts/`
 - README: `README.md`
-- Published: `gh-pages:badges/status.json`
+- Published: `badges` branch: `status.json` (raw GitHub URL)
 
 ---
 
@@ -60,7 +60,7 @@
 - [ ] T010 [US1] Add step to download `coverage.xml` artifact from test job in `.github/workflows/ci.yml`
 - [ ] T011 [US1] Add step to download `extension/coverage/lcov.info` artifact from extension-tests job in `.github/workflows/ci.yml`
 - [ ] T012 [US1] Add step to run generate-badge-json.py with coverage files in `.github/workflows/ci.yml`
-- [ ] T013 [US1] Replace Codecov coverage badges with Shields.io dynamic JSON badges in `README.md`
+- [ ] T013 [US1] Replace Codecov coverage badges with Shields.io dynamic JSON badges using raw GitHub URL in `README.md`
 
 **Checkpoint**: Coverage badges display accurate percentages from CI-generated JSON
 
@@ -77,7 +77,7 @@
 - [ ] T014 [US2] Add step to download `test-results.xml` artifact from test job in `.github/workflows/ci.yml`
 - [ ] T015 [US2] Add step to download `extension/test-results.xml` artifact from extension-tests job in `.github/workflows/ci.yml`
 - [ ] T016 [US2] Update generate-badge-json.py call to include test result paths in `.github/workflows/ci.yml`
-- [ ] T017 [US2] Replace static test badges with Shields.io dynamic JSON badges in `README.md`
+- [ ] T017 [US2] Replace static test badges with Shields.io dynamic JSON badges using raw GitHub URL in `README.md`
 
 **Checkpoint**: Test count badges display accurate passed/skipped counts
 
@@ -85,18 +85,18 @@
 
 ## Phase 5: User Story 3 - Automated Badge Updates (Priority: P1)
 
-**Goal**: Publish badge JSON to GitHub Pages automatically on every main branch push
+**Goal**: Publish badge JSON to dedicated `badges` branch automatically on every main branch push
 
-**Independent Test**: Push to main, verify `badges/status.json` is updated on gh-pages branch
+**Independent Test**: Push to main, verify `status.json` is updated on `badges` branch
 
 ### Implementation for User Story 3
 
-- [ ] T018 [US3] Add peaceiris/actions-gh-pages@v4 step to publish badges/ directory in `.github/workflows/ci.yml`
-- [ ] T019 [US3] Configure gh-pages action with `github_token`, `publish_dir: ./badges`, `destination_dir: badges`, `keep_files: true`
+- [ ] T018 [US3] Add step to publish status.json to `badges` branch using git push in `.github/workflows/ci.yml`
+- [ ] T019 [US3] Configure git user as github-actions[bot] and handle orphan branch creation if `badges` branch doesn't exist
 - [ ] T020 [US3] Add determinism check: generate JSON twice, diff, fail if different in `.github/workflows/ci.yml`
 - [ ] T021 [US3] Add JSON schema validation step using badge-schema.json in `.github/workflows/ci.yml`
 
-**Checkpoint**: Badge JSON publishes to GitHub Pages automatically, determinism verified
+**Checkpoint**: Badge JSON publishes to `badges` branch automatically, determinism verified
 
 ---
 
@@ -110,8 +110,8 @@
 
 - [ ] T022 [US4] Add error handling to generate-badge-json.py for missing input files (exit 1 with clear message)
 - [ ] T023 [US4] Add error handling for malformed XML/LCOV in generate-badge-json.py
-- [ ] T024 [US4] Add post-publish curl verification step in `.github/workflows/ci.yml` to check badge URL accessibility
-- [ ] T025 [US4] Add retry loop (12 attempts, 5s each) for Pages propagation in curl verification step
+- [ ] T024 [US4] Add post-publish curl verification step in `.github/workflows/ci.yml` to check raw GitHub URL accessibility
+- [ ] T025 [US4] Add retry loop (12 attempts, 5s each) for raw content propagation in curl verification step
 
 **Checkpoint**: CI fails with actionable errors on any badge-related failure
 
@@ -121,7 +121,7 @@
 
 **Purpose**: Documentation and cleanup
 
-- [ ] T026 Update quickstart.md in `specs/015-dynamic-badges/quickstart.md` with actual GitHub Pages URL
+- [ ] T026 Update quickstart.md in `specs/015-dynamic-badges/quickstart.md` with actual raw GitHub URL
 - [ ] T027 Remove old Codecov configuration from `codecov.yml` (optional - can keep for PR comments)
 - [ ] T028 Commit and push to trigger first badge publish
 
@@ -195,6 +195,8 @@ Task: "Implement parse_junit_xml() in .github/scripts/generate-badge-json.py"
 
 - All parsing logic in single Python script for simplicity
 - CI job runs only on main branch push (not PRs)
-- GitHub Pages must be enabled in repo settings (one-time manual step)
+- Uses `badges` branch (NOT `gh-pages`) - keeps Pages free for `/docs`
+- Raw GitHub URL: `https://raw.githubusercontent.com/oddessentials/ado-git-repo-insights/badges/status.json`
 - Shields.io caches badges for ~5 minutes - be patient when testing
 - Determinism check prevents future regressions from timestamps/ordering changes
+- MUST NOT touch `/docs`, `gh-pages`, or `main` branch content

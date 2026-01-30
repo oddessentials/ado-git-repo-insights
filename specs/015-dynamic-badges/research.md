@@ -3,50 +3,68 @@
 **Feature**: 015-dynamic-badges
 **Date**: 2026-01-29
 
-## 1. GitHub Pages Deployment from CI
+## 1. Publishing to Dedicated Branch from CI
 
 ### Decision
-Use `peaceiris/actions-gh-pages@v4` to publish to `gh-pages` branch using GITHUB_TOKEN.
+Use `stefanzweifel/git-auto-commit-action` or direct git push to publish to `badges` branch using GITHUB_TOKEN.
 
 ### Rationale
-- Official GitHub-recommended action for Pages deployment
-- Works with GITHUB_TOKEN (no PAT required)
-- Handles orphan branch creation automatically
-- Supports partial updates (only changed files)
+- GitHub Pages is reserved for `/docs` (future dashboard demo)
+- Raw GitHub URLs work for public repos without Pages
+- Dedicated branch keeps badge data isolated from code
+- GITHUB_TOKEN can push to any branch in the repo
 
 ### Alternatives Considered
 | Alternative | Rejected Because |
 |-------------|------------------|
-| Manual git push to gh-pages | Requires complex branch switching, force push handling |
-| GitHub Pages Deploy API | Requires additional permissions, more complex |
-| JamesIves/github-pages-deploy-action | Less maintained than peaceiris |
+| GitHub Pages (`gh-pages`) | Reserved for future dashboard demo |
+| Publish to `/docs` | Would mix badge data with documentation |
+| Publish to `main` branch | Would pollute commit history |
+| Use separate repo | Overcomplicated, breaks monorepo pattern |
 
 ### Implementation Pattern
 ```yaml
-- name: Deploy to GitHub Pages
-  uses: peaceiris/actions-gh-pages@v4
-  with:
-    github_token: ${{ secrets.GITHUB_TOKEN }}
-    publish_dir: ./badges
-    destination_dir: badges
-    keep_files: true
+- name: Publish to badges branch
+  run: |
+    git config user.name "github-actions[bot]"
+    git config user.email "github-actions[bot]@users.noreply.github.com"
+
+    # Fetch badges branch or create orphan if doesn't exist
+    git fetch origin badges:badges 2>/dev/null || git checkout --orphan badges
+    git checkout badges
+
+    # Replace status.json
+    cp /tmp/status.json status.json
+    git add status.json
+    git commit -m "chore: update badge data [skip ci]" || echo "No changes to commit"
+    git push origin badges
 ```
 
 ---
 
-## 2. Shields.io Dynamic JSON Badge Format
+## 2. Shields.io Dynamic JSON Badge Format (Raw GitHub URL)
 
 ### Decision
-Use Shields.io dynamic JSON badge endpoint with explicit labels.
+Use Shields.io dynamic JSON badge endpoint with raw GitHub URL.
 
 ### URL Pattern
 ```
 https://img.shields.io/badge/dynamic/json
-  ?url=<encoded-json-url>
+  ?url=<encoded-raw-github-url>
   &query=<jsonpath>
   &label=<badge-label>
   &suffix=<optional-suffix>
   &color=<color>
+```
+
+### Raw GitHub URL Format
+```
+https://raw.githubusercontent.com/<org>/<repo>/<branch>/<file>
+```
+
+For this project:
+```
+https://raw.githubusercontent.com/oddessentials/ado-git-repo-insights/badges/status.json
 ```
 
 ### Badge Specifications
@@ -57,11 +75,6 @@ https://img.shields.io/badge/dynamic/json
 | TypeScript Coverage | `$.typescript.coverage` | `TypeScript Coverage` | `%` | Same thresholds |
 | Python Tests | `$.python.tests.display` | `Python Tests` | (none) | `blue` |
 | TypeScript Tests | `$.typescript.tests.display` | `TypeScript Tests` | (none) | `blue` |
-
-### Example URLs
-```markdown
-![Python Coverage](https://img.shields.io/badge/dynamic/json?url=https%3A%2F%2Foddessentials.github.io%2Fado-git-repo-insights%2Fbadges%2Fstatus.json&query=%24.python.coverage&label=Python%20Coverage&suffix=%25&color=brightgreen)
-```
 
 ---
 
@@ -197,12 +210,12 @@ Generate JSON twice in same CI run, diff output, fail if non-empty.
 
 ### Implementation Pattern
 ```bash
-python .github/scripts/generate-badge-json.py > badges/status.json
+python .github/scripts/generate-badge-json.py > /tmp/status.json
 python .github/scripts/generate-badge-json.py > /tmp/status-verify.json
 
-if ! diff -q badges/status.json /tmp/status-verify.json; then
+if ! diff -q /tmp/status.json /tmp/status-verify.json; then
   echo "::error::Determinism check failed - JSON output differs between runs"
-  diff badges/status.json /tmp/status-verify.json
+  diff /tmp/status.json /tmp/status-verify.json
   exit 1
 fi
 ```
@@ -227,8 +240,8 @@ badge-publish:
     # Download artifacts from test jobs
     # Generate badge JSON
     # Verify determinism
-    # Publish to gh-pages
-    # Curl verify
+    # Publish to badges branch
+    # Curl verify raw GitHub URL
 ```
 
 ---
@@ -239,8 +252,8 @@ All research questions resolved. No NEEDS CLARIFICATION markers remain.
 
 | Topic | Decision |
 |-------|----------|
-| Pages deployment | `peaceiris/actions-gh-pages@v4` with GITHUB_TOKEN |
-| Badge format | Shields.io dynamic JSON with explicit labels |
+| Publish destination | Dedicated `badges` branch (NOT `gh-pages` or `/docs`) |
+| Badge URL source | Raw GitHub URL (`raw.githubusercontent.com`) |
 | Python coverage | Parse `coverage.xml` `line-rate` attribute |
 | TypeScript coverage | Parse `lcov.info` LF/LH values |
 | Test counts | Parse JUnit XML totals, compute passed |

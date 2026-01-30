@@ -5,18 +5,18 @@
 
 ## Summary
 
-Replace broken Codecov badges with 4 deterministic Shields.io dynamic JSON badges (Python Coverage, TypeScript Coverage, Python Tests, TypeScript Tests). CI generates `badges/status.json` from existing test/coverage reports and publishes to GitHub Pages on main branch pushes only.
+Replace broken Codecov badges with 4 deterministic Shields.io dynamic JSON badges (Python Coverage, TypeScript Coverage, Python Tests, TypeScript Tests). CI generates `status.json` from existing test/coverage reports and publishes to a dedicated `badges` branch (raw GitHub URL, NOT GitHub Pages).
 
 ## Technical Context
 
 **Language/Version**: Bash (CI scripts), Python 3.11 (JSON generation script)
-**Primary Dependencies**: GitHub Actions, GitHub Pages, Shields.io dynamic JSON badges
-**Storage**: GitHub Pages (`gh-pages` branch) - single JSON file
+**Primary Dependencies**: GitHub Actions, Shields.io dynamic JSON badges
+**Storage**: Dedicated `badges` branch - single JSON file (raw GitHub URL)
 **Testing**: Determinism check (generate twice, diff), curl verification, schema validation
 **Target Platform**: GitHub Actions (ubuntu-latest)
 **Project Type**: CI/CD enhancement (no source code changes)
 **Performance Goals**: Badge publish completes within 60 seconds of test jobs
-**Constraints**: GITHUB_TOKEN only (no PAT), main-branch only (no PR publishes)
+**Constraints**: GITHUB_TOKEN only (no PAT), main-branch only (no PR publishes), MUST NOT touch `/docs`, `gh-pages`, or `main`
 **Scale/Scope**: 1 JSON file, 4 badges, ~1KB payload
 
 ## Constitution Check
@@ -58,12 +58,12 @@ specs/015-dynamic-badges/
 └── actions/
     └── setup-pnpm/      # Existing (reuse for extension tests)
 
-# GitHub Pages (gh-pages branch - created by workflow)
-badges/
-└── status.json          # Published badge data
+# Dedicated badges branch (orphan branch - created by workflow)
+# Root of badges branch:
+status.json              # Published badge data
 ```
 
-**Structure Decision**: Minimal footprint - one Python script in `.github/scripts/`, one new CI job, one JSON file on `gh-pages` branch.
+**Structure Decision**: Minimal footprint - one Python script in `.github/scripts/`, one new CI job, one JSON file on dedicated `badges` branch (not `gh-pages`).
 
 ## Complexity Tracking
 
@@ -75,8 +75,8 @@ No violations. Single-purpose CI job with no architectural complexity.
 
 ### Research Tasks
 
-1. **GitHub Pages deployment from CI** - How to publish to `gh-pages` branch using only GITHUB_TOKEN
-2. **Shields.io dynamic JSON badge format** - Exact URL pattern and query syntax
+1. **Publishing to dedicated branch from CI** - How to push to `badges` branch using only GITHUB_TOKEN
+2. **Shields.io dynamic JSON badge format** - Exact URL pattern with raw GitHub URL
 3. **Coverage XML parsing** - Extract `line-rate` from Cobertura XML
 4. **LCOV parsing** - Extract LF/LH from lcov.info
 5. **JUnit XML parsing** - Extract tests/failures/errors/skipped totals
