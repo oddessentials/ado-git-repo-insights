@@ -399,6 +399,23 @@ jobs:
           flags: python
           fail_ci_if_error: false
 
+      # Upload artifacts for badge-publish job (ubuntu-latest, Python 3.11 only)
+      - name: Upload Python coverage artifact
+        uses: actions/upload-artifact@v4
+        if: matrix.python-version == '3.11' && matrix.os == 'ubuntu-latest'
+        with:
+          name: coverage-ubuntu-latest-3.11
+          path: coverage.xml
+          retention-days: 1
+
+      - name: Upload Python test results artifact
+        uses: actions/upload-artifact@v4
+        if: matrix.python-version == '3.11' && matrix.os == 'ubuntu-latest'
+        with:
+          name: test-results-ubuntu-latest-3.11
+          path: test-results.xml
+          retention-days: 1
+
 
   # Python Type Safety Gate (FR-001, FR-002)
   # Immutable invariant: mypy MUST pass on all Python source files
@@ -679,6 +696,23 @@ jobs:
           flags: typescript
           fail_ci_if_error: false
 
+      # Upload artifacts for badge-publish job
+      - name: Upload TypeScript coverage artifact
+        uses: actions/upload-artifact@v4
+        if: success()
+        with:
+          name: extension-coverage
+          path: extension/coverage/lcov.info
+          retention-days: 1
+
+      - name: Upload TypeScript test results artifact
+        uses: actions/upload-artifact@v4
+        if: success()
+        with:
+          name: extension-test-results
+          path: extension/test-results.xml
+          retention-days: 1
+
   # Phase 4: Performance baseline integrity guard
   baseline-integrity:
     runs-on: ubuntu-latest
@@ -727,3 +761,192 @@ jobs:
             exit 1
           fi
           echo "[OK] Lockfile is deterministic"
+
+  # Badge Publish: Generate and publish badge JSON to dedicated badges branch
+  # Runs only on push to main, after test jobs succeed
+  # FR-013, FR-014: Main-only, no PR publishes
+  # FR-024-FR-027: Publishes to dedicated badges branch only
+  badge-publish:
+    runs-on: ubuntu-latest
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    needs: [test, extension-tests]
+    permissions:
+      contents: write  # Required to push to badges branch
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # Full history for branch operations
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      # Download Python coverage artifact from test job (ubuntu-latest, python 3.11)
+      - name: Download Python coverage
+        uses: actions/download-artifact@v4
+        with:
+          name: coverage-ubuntu-latest-3.11
+          path: ./artifacts/python
+        continue-on-error: true
+
+      # Download Python test results artifact
+      - name: Download Python test results
+        uses: actions/download-artifact@v4
+        with:
+          name: test-results-ubuntu-latest-3.11
+          path: ./artifacts/python
+        continue-on-error: true
+
+      # Download TypeScript coverage artifact from extension-tests job
+      - name: Download TypeScript coverage
+        uses: actions/download-artifact@v4
+        with:
+          name: extension-coverage
+          path: ./artifacts/typescript
+        continue-on-error: true
+
+      # Download TypeScript test results artifact
+      - name: Download TypeScript test results
+        uses: actions/download-artifact@v4
+        with:
+          name: extension-test-results
+          path: ./artifacts/typescript
+        continue-on-error: true
+
+      # Verify required artifacts exist
+      - name: Verify artifacts
+        run: |
+          set -euo pipefail
+          echo "Checking for required artifacts..."
+
+          MISSING=()
+
+          # Check Python artifacts
+          if [ ! -f "./artifacts/python/coverage.xml" ]; then
+            MISSING+=("Python coverage.xml")
+          fi
+          if [ ! -f "./artifacts/python/test-results.xml" ]; then
+            MISSING+=("Python test-results.xml")
+          fi
+
+          # Check TypeScript artifacts
+          if [ ! -f "./artifacts/typescript/lcov.info" ]; then
+            MISSING+=("TypeScript lcov.info")
+          fi
+          if [ ! -f "./artifacts/typescript/test-results.xml" ]; then
+            MISSING+=("TypeScript test-results.xml")
+          fi
+
+          if [ ${#MISSING[@]} -gt 0 ]; then
+            echo "::error::Missing required artifacts:"
+            for item in "${MISSING[@]}"; do
+              echo "  - $item"
+            done
+            echo ""
+            echo "Badge publish requires test jobs to upload coverage and test result artifacts."
+            echo "Ensure the test and extension-tests jobs upload the required artifacts."
+            exit 1
+          fi
+
+          echo "[OK] All required artifacts found"
+          ls -la ./artifacts/python/
+          ls -la ./artifacts/typescript/
+
+      # Generate badge JSON (first run)
+      - name: Generate badge JSON
+        run: |
+          python .github/scripts/generate-badge-json.py \
+            --python-coverage ./artifacts/python/coverage.xml \
+            --python-tests ./artifacts/python/test-results.xml \
+            --ts-coverage ./artifacts/typescript/lcov.info \
+            --ts-tests ./artifacts/typescript/test-results.xml \
+            --output /tmp/status.json
+
+          echo "Generated badge JSON:"
+          cat /tmp/status.json
+
+      # FR-018: Determinism check - generate twice and diff
+      - name: Verify determinism
+        run: |
+          python .github/scripts/generate-badge-json.py \
+            --python-coverage ./artifacts/python/coverage.xml \
+            --python-tests ./artifacts/python/test-results.xml \
+            --ts-coverage ./artifacts/typescript/lcov.info \
+            --ts-tests ./artifacts/typescript/test-results.xml \
+            --output /tmp/status-verify.json
+
+          if ! diff -q /tmp/status.json /tmp/status-verify.json; then
+            echo "::error::Determinism check failed - JSON output differs between runs"
+            diff /tmp/status.json /tmp/status-verify.json
+            exit 1
+          fi
+          echo "[OK] Determinism verified - identical output on re-run"
+
+      # FR-019: Validate JSON schema
+      - name: Validate JSON schema
+        run: |
+          pip install jsonschema
+          python -c "
+          import json
+          import jsonschema
+
+          with open('/tmp/status.json') as f:
+              data = json.load(f)
+          with open('.github/scripts/badge-schema.json') as f:
+              schema = json.load(f)
+
+          jsonschema.validate(data, schema)
+          print('[OK] JSON schema validation passed')
+          "
+
+      # Publish to badges branch
+      - name: Publish to badges branch
+        run: |
+          set -euo pipefail
+
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+          # Fetch badges branch or create orphan if doesn't exist
+          if git fetch origin badges:badges 2>/dev/null; then
+            echo "Checking out existing badges branch"
+            git checkout badges
+          else
+            echo "Creating new orphan badges branch"
+            git checkout --orphan badges
+            git rm -rf . 2>/dev/null || true
+          fi
+
+          # Copy status.json to branch root
+          cp /tmp/status.json status.json
+
+          # Commit and push
+          git add status.json
+          if git diff --staged --quiet; then
+            echo "No changes to commit - badge data unchanged"
+          else
+            git commit -m "chore: update badge data [skip ci]"
+            git push origin badges
+            echo "[OK] Badge data published to badges branch"
+          fi
+
+      # FR-010: Verify published JSON is accessible
+      - name: Verify badge URL accessibility
+        run: |
+          BADGE_URL="https://raw.githubusercontent.com/${{ github.repository }}/badges/status.json"
+          echo "Verifying badge JSON at: $BADGE_URL"
+
+          # Wait for GitHub raw content propagation (up to 60s)
+          for i in {1..12}; do
+            if curl -sf "$BADGE_URL" | jq -e '.python.coverage' > /dev/null 2>&1; then
+              echo "[OK] Badge JSON accessible and valid"
+              curl -s "$BADGE_URL" | jq .
+              exit 0
+            fi
+            echo "Waiting for raw content propagation... ($i/12)"
+            sleep 5
+          done
+
+          echo "::error::Badge JSON not accessible after 60s at $BADGE_URL"
+          exit 1

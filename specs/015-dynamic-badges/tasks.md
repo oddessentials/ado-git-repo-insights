@@ -26,8 +26,8 @@
 
 **Purpose**: Create the badge generation script and JSON schema
 
-- [ ] T001 [P] Create badge JSON generation script at `.github/scripts/generate-badge-json.py`
-- [ ] T002 [P] Create JSON schema file at `.github/scripts/badge-schema.json` for validation
+- [x] T001 [P] Create badge JSON generation script at `.github/scripts/generate-badge-json.py`
+- [x] T002 [P] Create JSON schema file at `.github/scripts/badge-schema.json` for validation
 
 ---
 
@@ -37,11 +37,11 @@
 
 **⚠️ CRITICAL**: No user story work can begin until this phase is complete
 
-- [ ] T003 Implement `parse_coverage_xml()` function in `.github/scripts/generate-badge-json.py` to extract line-rate from coverage.xml
-- [ ] T004 Implement `parse_lcov()` function in `.github/scripts/generate-badge-json.py` to extract LF/LH from lcov.info
-- [ ] T005 Implement `parse_junit_xml()` function in `.github/scripts/generate-badge-json.py` to extract tests/failures/errors/skipped
-- [ ] T006 Implement `generate_status_json()` function in `.github/scripts/generate-badge-json.py` with deterministic output (sort_keys=True, round to 1 decimal)
-- [ ] T007 Add CLI entry point to `.github/scripts/generate-badge-json.py` that accepts coverage.xml, lcov.info, test-results.xml paths
+- [x] T003 Implement `parse_coverage_xml()` function in `.github/scripts/generate-badge-json.py` to extract line-rate from coverage.xml
+- [x] T004 Implement `parse_lcov()` function in `.github/scripts/generate-badge-json.py` to extract LF/LH from lcov.info
+- [x] T005 Implement `parse_junit_xml()` function in `.github/scripts/generate-badge-json.py` to extract tests/failures/errors/skipped
+- [x] T006 Implement `generate_status_json()` function in `.github/scripts/generate-badge-json.py` with deterministic output (sort_keys=True, round to 1 decimal)
+- [x] T007 Add CLI entry point to `.github/scripts/generate-badge-json.py` that accepts coverage.xml, lcov.info, test-results.xml paths
 
 **Checkpoint**: Script can parse all report types and output valid JSON
 
@@ -55,12 +55,12 @@
 
 ### Implementation for User Story 1
 
-- [ ] T008 [US1] Add `badge-publish` job to `.github/workflows/ci.yml` with `if: github.event_name == 'push' && github.ref == 'refs/heads/main'`
-- [ ] T009 [US1] Add `needs: [test, extension-tests]` to badge-publish job in `.github/workflows/ci.yml`
-- [ ] T010 [US1] Add step to download `coverage.xml` artifact from test job in `.github/workflows/ci.yml`
-- [ ] T011 [US1] Add step to download `extension/coverage/lcov.info` artifact from extension-tests job in `.github/workflows/ci.yml`
-- [ ] T012 [US1] Add step to run generate-badge-json.py with coverage files in `.github/workflows/ci.yml`
-- [ ] T013 [US1] Replace Codecov coverage badges with Shields.io dynamic JSON badges using raw GitHub URL in `README.md`
+- [x] T008 [US1] Add `badge-publish` job to `.github/workflows/ci.yml` with `if: github.event_name == 'push' && github.ref == 'refs/heads/main'`
+- [x] T009 [US1] Add `needs: [test, extension-tests]` to badge-publish job in `.github/workflows/ci.yml`
+- [x] T010 [US1] Add step to download `coverage.xml` artifact from test job in `.github/workflows/ci.yml`
+- [x] T011 [US1] Add step to download `extension/coverage/lcov.info` artifact from extension-tests job in `.github/workflows/ci.yml`
+- [x] T012 [US1] Add step to run generate-badge-json.py with coverage files in `.github/workflows/ci.yml`
+- [x] T013 [US1] Replace Codecov coverage badges with Shields.io dynamic JSON badges using raw GitHub URL in `README.md`
 
 **Checkpoint**: Coverage badges display accurate percentages from CI-generated JSON
 
@@ -74,10 +74,10 @@
 
 ### Implementation for User Story 2
 
-- [ ] T014 [US2] Add step to download `test-results.xml` artifact from test job in `.github/workflows/ci.yml`
-- [ ] T015 [US2] Add step to download `extension/test-results.xml` artifact from extension-tests job in `.github/workflows/ci.yml`
-- [ ] T016 [US2] Update generate-badge-json.py call to include test result paths in `.github/workflows/ci.yml`
-- [ ] T017 [US2] Replace static test badges with Shields.io dynamic JSON badges using raw GitHub URL in `README.md`
+- [x] T014 [US2] Add step to download `test-results.xml` artifact from test job in `.github/workflows/ci.yml`
+- [x] T015 [US2] Add step to download `extension/test-results.xml` artifact from extension-tests job in `.github/workflows/ci.yml`
+- [x] T016 [US2] Update generate-badge-json.py call to include test result paths in `.github/workflows/ci.yml`
+- [x] T017 [US2] Replace static test badges with Shields.io dynamic JSON badges using raw GitHub URL in `README.md`
 
 **Checkpoint**: Test count badges display accurate passed/skipped counts
 
@@ -91,10 +91,10 @@
 
 ### Implementation for User Story 3
 
-- [ ] T018 [US3] Add step to publish status.json to `badges` branch using git push in `.github/workflows/ci.yml`
-- [ ] T019 [US3] Configure git user as github-actions[bot] and handle orphan branch creation if `badges` branch doesn't exist
-- [ ] T020 [US3] Add determinism check: generate JSON twice, diff, fail if different in `.github/workflows/ci.yml`
-- [ ] T021 [US3] Add JSON schema validation step using badge-schema.json in `.github/workflows/ci.yml`
+- [x] T018 [US3] Add step to publish status.json to `badges` branch using git push in `.github/workflows/ci.yml`
+- [x] T019 [US3] Configure git user as github-actions[bot] and handle orphan branch creation if `badges` branch doesn't exist
+- [x] T020 [US3] Add determinism check: generate JSON twice, diff, fail if different in `.github/workflows/ci.yml`
+- [x] T021 [US3] Add JSON schema validation step using badge-schema.json in `.github/workflows/ci.yml`
 
 **Checkpoint**: Badge JSON publishes to `badges` branch automatically, determinism verified
 
@@ -108,10 +108,10 @@
 
 ### Implementation for User Story 4
 
-- [ ] T022 [US4] Add error handling to generate-badge-json.py for missing input files (exit 1 with clear message)
-- [ ] T023 [US4] Add error handling for malformed XML/LCOV in generate-badge-json.py
-- [ ] T024 [US4] Add post-publish curl verification step in `.github/workflows/ci.yml` to check raw GitHub URL accessibility
-- [ ] T025 [US4] Add retry loop (12 attempts, 5s each) for raw content propagation in curl verification step
+- [x] T022 [US4] Add error handling to generate-badge-json.py for missing input files (exit 1 with clear message)
+- [x] T023 [US4] Add error handling for malformed XML/LCOV in generate-badge-json.py
+- [x] T024 [US4] Add post-publish curl verification step in `.github/workflows/ci.yml` to check raw GitHub URL accessibility
+- [x] T025 [US4] Add retry loop (12 attempts, 5s each) for raw content propagation in curl verification step
 
 **Checkpoint**: CI fails with actionable errors on any badge-related failure
 
@@ -121,9 +121,9 @@
 
 **Purpose**: Documentation and cleanup
 
-- [ ] T026 Update quickstart.md in `specs/015-dynamic-badges/quickstart.md` with actual raw GitHub URL
+- [x] T026 Update quickstart.md in `specs/015-dynamic-badges/quickstart.md` with actual raw GitHub URL
 - [ ] T027 Remove old Codecov configuration from `codecov.yml` (optional - can keep for PR comments)
-- [ ] T028 Commit and push to trigger first badge publish
+- [x] T028 Commit and push to trigger first badge publish
 
 ---
 
