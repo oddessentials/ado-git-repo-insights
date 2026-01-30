@@ -19,6 +19,7 @@ import requests
 from requests.exceptions import HTTPError, RequestException
 
 from ..config import APIConfig
+from .pagination import add_continuation_token
 
 logger = logging.getLogger(__name__)
 
@@ -242,7 +243,7 @@ class ADOClient:
         Returns:
             Fully constructed URL.
         """
-        url = (
+        base_url = (
             f"{self.base_url}/{project}/_apis/git/pullrequests"
             f"?searchCriteria.status=completed"
             f"&searchCriteria.queryTimeRangeType=closed"
@@ -252,10 +253,7 @@ class ADOClient:
             f"&api-version={self.config.version}"
         )
 
-        if token:
-            url += f"&continuationToken={token}"
-
-        return url
+        return add_continuation_token(base_url, token)
 
     def test_connection(self, project: str) -> bool:
         """Test connectivity to ADO API.
@@ -297,7 +295,7 @@ class ADOClient:
         Raises:
             ExtractionError: If team fetch fails (allows graceful degradation).
         """
-        url = (
+        base_url = (
             f"{self.base_url}/_apis/projects/{project}/teams"
             f"?api-version={self.config.version}"
         )
@@ -306,9 +304,7 @@ class ADOClient:
         continuation_token: str | None = None
 
         while True:
-            page_url = url
-            if continuation_token:
-                page_url += f"&continuationToken={continuation_token}"
+            page_url = add_continuation_token(base_url, continuation_token)
 
             try:
                 response = requests.get(page_url, headers=self.headers, timeout=30)
@@ -347,7 +343,7 @@ class ADOClient:
         Raises:
             ExtractionError: If member fetch fails.
         """
-        url = (
+        base_url = (
             f"{self.base_url}/_apis/projects/{project}/teams/{team_id}/members"
             f"?api-version={self.config.version}"
         )
@@ -356,9 +352,7 @@ class ADOClient:
         continuation_token: str | None = None
 
         while True:
-            page_url = url
-            if continuation_token:
-                page_url += f"&continuationToken={continuation_token}"
+            page_url = add_continuation_token(base_url, continuation_token)
 
             try:
                 response = requests.get(page_url, headers=self.headers, timeout=30)
@@ -405,7 +399,7 @@ class ADOClient:
         Raises:
             ExtractionError: If thread fetch fails.
         """
-        url = (
+        base_url = (
             f"{self.base_url}/{project}/_apis/git/repositories/{repository_id}"
             f"/pullRequests/{pull_request_id}/threads"
             f"?api-version={self.config.version}"
@@ -415,9 +409,7 @@ class ADOClient:
         continuation_token: str | None = None
 
         while True:
-            page_url = url
-            if continuation_token:
-                page_url += f"&continuationToken={continuation_token}"
+            page_url = add_continuation_token(base_url, continuation_token)
 
             try:
                 response = requests.get(page_url, headers=self.headers, timeout=30)

@@ -20,6 +20,7 @@ from ado_git_repo_insights.cli import (
     _normalize_artifact_layout,
     _validate_staged_artifacts,
 )
+from ado_git_repo_insights.utils.safe_extract import ZipSlipError
 
 # =============================================================================
 # Fixtures
@@ -440,3 +441,34 @@ class TestStageToValidationFlow:
 
         # Must be empty - no fallback to aggregates/
         assert len(roots) == 0, "Legacy fallback to aggregates/ must not exist"
+
+
+# =============================================================================
+# Security Tests - Zip Slip Protection
+# =============================================================================
+
+
+class TestZipSlipProtection:
+    """Tests for Zip Slip protection in artifact extraction."""
+
+    def test_zipslip_error_attributes(self) -> None:
+        """ZipSlipError provides entry_name and reason for actionable messages."""
+        error = ZipSlipError("../../evil.txt", "Path traversal sequence detected")
+
+        assert error.entry_name == "../../evil.txt"
+        assert error.reason == "Path traversal sequence detected"
+        assert "Zip Slip attack detected" in str(error)
+
+    def test_zipslip_error_with_symlink(self) -> None:
+        """ZipSlipError correctly reports symlink detection."""
+        error = ZipSlipError("evil_link", "Symlink entry detected: evil_link")
+
+        assert error.entry_name == "evil_link"
+        assert "symlink" in error.reason.lower()
+
+    def test_zipslip_error_with_absolute_path(self) -> None:
+        """ZipSlipError correctly reports absolute path violation."""
+        error = ZipSlipError("/etc/passwd", "Absolute path not allowed: /etc/passwd")
+
+        assert error.entry_name == "/etc/passwd"
+        assert "absolute" in error.reason.lower()

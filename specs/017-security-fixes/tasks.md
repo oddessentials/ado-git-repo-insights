@@ -25,11 +25,11 @@
 
 **Purpose**: Create new module files and test fixtures
 
-- [ ] T001 Create utils directory if not exists at src/ado_git_repo_insights/utils/__init__.py
-- [ ] T002 [P] Create empty safe_extract module at src/ado_git_repo_insights/utils/safe_extract.py
-- [ ] T003 [P] Create empty pagination module at src/ado_git_repo_insights/extractor/pagination.py
-- [ ] T004 [P] Create test file at tests/unit/test_safe_extract.py
-- [ ] T005 [P] Create test file at tests/unit/test_pagination_helper.py
+- [x] T001 Create utils directory if not exists at src/ado_git_repo_insights/utils/__init__.py
+- [x] T002 [P] Create empty safe_extract module at src/ado_git_repo_insights/utils/safe_extract.py
+- [x] T003 [P] Create empty pagination module at src/ado_git_repo_insights/extractor/pagination.py
+- [x] T004 [P] Create test file at tests/unit/test_safe_extract.py
+- [x] T005 [P] Create test file at tests/unit/test_pagination_helper.py
 
 ---
 
@@ -39,10 +39,10 @@
 
 **CRITICAL**: No user story work can begin until this phase is complete
 
-- [ ] T006 Define ZipSlipError exception class in src/ado_git_repo_insights/utils/safe_extract.py
-- [ ] T007 Define ExtractionError exception class in src/ado_git_repo_insights/utils/safe_extract.py
-- [ ] T008 [P] Define PaginationError exception class in src/ado_git_repo_insights/extractor/pagination.py
-- [ ] T009 [P] Export exceptions from src/ado_git_repo_insights/utils/__init__.py
+- [x] T006 Define ZipSlipError exception class in src/ado_git_repo_insights/utils/safe_extract.py
+- [x] T007 Define ExtractionError exception class in src/ado_git_repo_insights/utils/safe_extract.py
+- [x] T008 [P] Define PaginationError exception class in src/ado_git_repo_insights/extractor/pagination.py
+- [x] T009 [P] Export exceptions from src/ado_git_repo_insights/utils/__init__.py
 
 **Checkpoint**: Foundation ready - user story implementation can now begin
 
@@ -58,29 +58,29 @@
 
 > **NOTE: Write tests FIRST, ensure they FAIL before implementation**
 
-- [ ] T010 [P] [US1] Test is_symlink_entry() detects Unix symlinks in tests/unit/test_safe_extract.py
-- [ ] T011 [P] [US1] Test is_symlink_entry() returns False for Windows/ambiguous ZIPs in tests/unit/test_safe_extract.py
-- [ ] T012 [P] [US1] Test validate_entry_path() rejects absolute paths in tests/unit/test_safe_extract.py
-- [ ] T013 [P] [US1] Test validate_entry_path() rejects path traversal sequences in tests/unit/test_safe_extract.py
-- [ ] T014 [P] [US1] Test validate_entry_path() rejects paths escaping output directory in tests/unit/test_safe_extract.py
-- [ ] T015 [P] [US1] Test validate_entry_path() accepts valid relative paths in tests/unit/test_safe_extract.py
-- [ ] T016 [P] [US1] Test safe_extract_zip() extracts valid ZIP successfully in tests/unit/test_safe_extract.py
-- [ ] T017 [P] [US1] Test safe_extract_zip() rejects ZIP with symlink entry in tests/unit/test_safe_extract.py
-- [ ] T018 [P] [US1] Test safe_extract_zip() rejects ZIP with traversal path in tests/unit/test_safe_extract.py
-- [ ] T019 [P] [US1] Test safe_extract_zip() restores backup on swap failure in tests/unit/test_safe_extract.py
-- [ ] T020 [P] [US1] Create malicious_symlink.zip fixture in tests/fixtures/malicious_symlink.zip
-- [ ] T021 [P] [US1] Create malicious_traversal.zip fixture in tests/fixtures/malicious_traversal.zip
+- [x] T010 [P] [US1] Test is_symlink_entry() detects Unix symlinks in tests/unit/test_safe_extract.py
+- [x] T011 [P] [US1] Test is_symlink_entry() returns False for Windows/ambiguous ZIPs in tests/unit/test_safe_extract.py
+- [x] T012 [P] [US1] Test validate_entry_path() rejects absolute paths in tests/unit/test_safe_extract.py
+- [x] T013 [P] [US1] Test validate_entry_path() rejects path traversal sequences in tests/unit/test_safe_extract.py
+- [x] T014 [P] [US1] Test validate_entry_path() rejects paths escaping output directory in tests/unit/test_safe_extract.py
+- [x] T015 [P] [US1] Test validate_entry_path() accepts valid relative paths in tests/unit/test_safe_extract.py
+- [x] T016 [P] [US1] Test safe_extract_zip() extracts valid ZIP successfully in tests/unit/test_safe_extract.py
+- [x] T017 [P] [US1] Test safe_extract_zip() rejects ZIP with symlink entry in tests/unit/test_safe_extract.py
+- [x] T018 [P] [US1] Test safe_extract_zip() rejects ZIP with traversal path in tests/unit/test_safe_extract.py
+- [x] T019 [P] [US1] Test safe_extract_zip() restores backup on swap failure in tests/unit/test_safe_extract.py
+- [x] T020 [P] [US1] Create malicious_symlink.zip fixture in tests/fixtures/malicious_symlink.zip (tests create them dynamically)
+- [x] T021 [P] [US1] Create malicious_traversal.zip fixture in tests/fixtures/malicious_traversal.zip (tests create them dynamically)
 
 ### Implementation for User Story 1
 
-- [ ] T022 [US1] Implement is_symlink_entry(zip_info) function in src/ado_git_repo_insights/utils/safe_extract.py
-- [ ] T023 [US1] Implement validate_entry_path(entry_name, out_dir) function in src/ado_git_repo_insights/utils/safe_extract.py
-- [ ] T024 [US1] Implement _create_temp_dir(out_dir) helper in src/ado_git_repo_insights/utils/safe_extract.py
-- [ ] T025 [US1] Implement _backup_and_swap(temp_dir, out_dir) helper in src/ado_git_repo_insights/utils/safe_extract.py
-- [ ] T026 [US1] Implement safe_extract_zip(zip_path, out_dir) main function in src/ado_git_repo_insights/utils/safe_extract.py
-- [ ] T027 [US1] Replace extractall() call with safe_extract_zip() in src/ado_git_repo_insights/cli.py cmd_stage_artifacts()
-- [ ] T028 [US1] Add error handling for ZipSlipError in src/ado_git_repo_insights/cli.py with actionable message
-- [ ] T029 [US1] Verify all tests pass: pytest tests/unit/test_safe_extract.py -v
+- [x] T022 [US1] Implement is_symlink_entry(zip_info) function in src/ado_git_repo_insights/utils/safe_extract.py
+- [x] T023 [US1] Implement validate_entry_path(entry_name, out_dir) function in src/ado_git_repo_insights/utils/safe_extract.py
+- [x] T024 [US1] Implement _create_temp_dir(out_dir) helper in src/ado_git_repo_insights/utils/safe_extract.py
+- [x] T025 [US1] Implement _backup_and_swap(temp_dir, out_dir) helper in src/ado_git_repo_insights/utils/safe_extract.py
+- [x] T026 [US1] Implement safe_extract_zip(zip_path, out_dir) main function in src/ado_git_repo_insights/utils/safe_extract.py
+- [x] T027 [US1] Replace extractall() call with safe_extract_zip() in src/ado_git_repo_insights/cli.py cmd_stage_artifacts()
+- [x] T028 [US1] Add error handling for ZipSlipError in src/ado_git_repo_insights/cli.py with actionable message
+- [x] T029 [US1] Verify all tests pass: pytest tests/unit/test_safe_extract.py -v
 
 **Checkpoint**: User Story 1 complete - ZIP extraction is now secure and independently testable
 
@@ -96,27 +96,27 @@
 
 > **NOTE: Write tests FIRST, ensure they FAIL before implementation**
 
-- [ ] T030 [P] [US2] Test add_continuation_token() with None token returns URL unchanged in tests/unit/test_pagination_helper.py
-- [ ] T031 [P] [US2] Test add_continuation_token() with empty string returns URL unchanged in tests/unit/test_pagination_helper.py
-- [ ] T032 [P] [US2] Test add_continuation_token() encodes spaces as + in tests/unit/test_pagination_helper.py
-- [ ] T033 [P] [US2] Test add_continuation_token() encodes & = + special chars in tests/unit/test_pagination_helper.py
-- [ ] T034 [P] [US2] Test add_continuation_token() with &foo=bar stays single param in tests/unit/test_pagination_helper.py
-- [ ] T035 [P] [US2] Test add_continuation_token() appends ? for URL without params in tests/unit/test_pagination_helper.py
-- [ ] T036 [P] [US2] Test add_continuation_token() appends & for URL with existing params in tests/unit/test_pagination_helper.py
-- [ ] T037 [P] [US2] Test extract_continuation_token() from header in tests/unit/test_pagination_helper.py
-- [ ] T038 [P] [US2] Test extract_continuation_token() from JSON body in tests/unit/test_pagination_helper.py
-- [ ] T039 [P] [US2] Test extract_continuation_token() returns None when absent in tests/unit/test_pagination_helper.py
+- [x] T030 [P] [US2] Test add_continuation_token() with None token returns URL unchanged in tests/unit/test_pagination_helper.py
+- [x] T031 [P] [US2] Test add_continuation_token() with empty string returns URL unchanged in tests/unit/test_pagination_helper.py
+- [x] T032 [P] [US2] Test add_continuation_token() encodes spaces as + in tests/unit/test_pagination_helper.py
+- [x] T033 [P] [US2] Test add_continuation_token() encodes & = + special chars in tests/unit/test_pagination_helper.py
+- [x] T034 [P] [US2] Test add_continuation_token() with &foo=bar stays single param in tests/unit/test_pagination_helper.py
+- [x] T035 [P] [US2] Test add_continuation_token() appends ? for URL without params in tests/unit/test_pagination_helper.py
+- [x] T036 [P] [US2] Test add_continuation_token() appends & for URL with existing params in tests/unit/test_pagination_helper.py
+- [x] T037 [P] [US2] Test extract_continuation_token() from header in tests/unit/test_pagination_helper.py
+- [x] T038 [P] [US2] Test extract_continuation_token() from JSON body in tests/unit/test_pagination_helper.py
+- [x] T039 [P] [US2] Test extract_continuation_token() returns None when absent in tests/unit/test_pagination_helper.py
 
 ### Implementation for User Story 2
 
-- [ ] T040 [US2] Implement add_continuation_token(url, token) function in src/ado_git_repo_insights/extractor/pagination.py
-- [ ] T041 [US2] Implement extract_continuation_token(response) function in src/ado_git_repo_insights/extractor/pagination.py
-- [ ] T042 [US2] Refactor Pull Requests pagination in src/ado_git_repo_insights/extractor/ado_client.py to use add_continuation_token()
-- [ ] T043 [US2] Refactor Teams pagination in src/ado_git_repo_insights/extractor/ado_client.py to use add_continuation_token()
-- [ ] T044 [US2] Refactor Team Members pagination in src/ado_git_repo_insights/extractor/ado_client.py to use add_continuation_token()
-- [ ] T045 [US2] Refactor PR Threads pagination in src/ado_git_repo_insights/extractor/ado_client.py to use add_continuation_token()
-- [ ] T046 [US2] Add regression test for special char token in tests/unit/test_ado_client_pagination.py
-- [ ] T047 [US2] Verify all tests pass: pytest tests/unit/test_pagination_helper.py tests/unit/test_ado_client_pagination.py -v
+- [x] T040 [US2] Implement add_continuation_token(url, token) function in src/ado_git_repo_insights/extractor/pagination.py
+- [x] T041 [US2] Implement extract_continuation_token(response) function in src/ado_git_repo_insights/extractor/pagination.py
+- [x] T042 [US2] Refactor Pull Requests pagination in src/ado_git_repo_insights/extractor/ado_client.py to use add_continuation_token()
+- [x] T043 [US2] Refactor Teams pagination in src/ado_git_repo_insights/extractor/ado_client.py to use add_continuation_token()
+- [x] T044 [US2] Refactor Team Members pagination in src/ado_git_repo_insights/extractor/ado_client.py to use add_continuation_token()
+- [x] T045 [US2] Refactor PR Threads pagination in src/ado_git_repo_insights/extractor/ado_client.py to use add_continuation_token()
+- [x] T046 [US2] Add regression test for special char token in tests/unit/test_ado_client_pagination.py (covered in test_pagination_helper.py)
+- [x] T047 [US2] Verify all tests pass: pytest tests/unit/test_pagination_helper.py tests/unit/test_ado_client_pagination.py -v
 
 **Checkpoint**: User Story 2 complete - Pagination is now reliable and independently testable
 
