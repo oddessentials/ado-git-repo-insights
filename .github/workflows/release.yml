@@ -40,11 +40,8 @@ jobs:
       - name: Semantic Release
         id: semantic
         uses: cycjimmy/semantic-release-action@v4
-        with:
-          extra_plugins: |
-            @semantic-release/changelog@6
-            @semantic-release/git@10
-            @semantic-release/exec@7
+        # Plugins are installed as devDependencies - do NOT use extra_plugins
+        # as it uses npm internally which triggers the pnpm-only preinstall guard
         env:
           GITHUB_TOKEN: ${{ steps.app-token.outputs.token }}
           HUSKY: 0  # CI is authoritative; hooks are developer UX

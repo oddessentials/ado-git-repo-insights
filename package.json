@@ -15,7 +15,7 @@
   },
   "version": "5.13.0",
   "scripts": {
-    "preinstall": "node -e \"if(process.env.npm_config_user_agent && process.env.npm_config_user_agent.includes('npm/')) { console.error('Error: Use pnpm, not npm'); process.exit(1); }\"",
+    "preinstall": "node -e \"if(process.env.npm_config_user_agent && process.env.npm_config_user_agent.startsWith('npm/')) { console.error('Error: Use pnpm, not npm'); process.exit(1); }\"",
     "prepare": "husky",
     "release:preflight": "node scripts/stamp-extension-version.cjs 0.0.0 --dry-run",
     "standards:ts": "repo-standards typescript-js",
