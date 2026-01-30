@@ -377,6 +377,7 @@ jobs:
             --glob '!**/pagination.py' \
             --glob '!**/test_pagination*.py' \
             --glob '!**/test_ado_client_pagination.py' \
+            --glob '!**/test_stage_artifacts.py' \
             --glob '!tests/fixtures/**' \
             --glob '!specs/**' \
             --glob '!**/*.md' \
