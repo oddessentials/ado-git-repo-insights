@@ -893,6 +893,11 @@ jobs:
         run: |
           set -euo pipefail
 
+          # Preserve verification script before branch switch (script unavailable on badges branch)
+          mkdir -p .ci-tmp
+          cp .github/scripts/verify-badge-url.py .ci-tmp/verify-badge-url.py
+          test -f .ci-tmp/verify-badge-url.py || { echo "::error::Failed to preserve verification script"; exit 1; }
+
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
 
@@ -915,6 +920,8 @@ jobs:
             echo "No changes to commit - badge data unchanged"
           else
             git commit -m "chore: update badge data [skip ci]"
+            # Hard guard: verify we're on badges branch before pushing
+            test "$(git rev-parse --abbrev-ref HEAD)" = "badges" || { echo "::error::Not on badges branch"; exit 1; }
             git push origin badges
             echo "[OK] Badge data published to badges branch"
           fi
@@ -923,4 +930,6 @@ jobs:
       - name: Verify badge URL accessibility
         env:
           BADGE_URL: https://raw.githubusercontent.com/${{ github.repository }}/badges/status.json
-        run: python .github/scripts/verify-badge-url.py
+        run: |
+          ls -la .ci-tmp/
+          python .ci-tmp/verify-badge-url.py
