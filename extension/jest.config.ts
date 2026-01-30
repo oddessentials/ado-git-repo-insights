@@ -30,14 +30,15 @@ const config: Config = {
   // ============================================================================
   coverageThreshold: {
     // Tier 1: Global baseline - allows modules without DOM mocking
-    // Current: ~50% stmts, ~45% branches, ~48% funcs, ~51% lines
-    // Thresholds set 2% below current to prevent regression
-    // Note: Global coverage differs from "All files" due to Jest calculation
+    // Thresholds computed using formula: floor(actual - 2.0)
+    // See: COVERAGE_RATCHET.md for ratchet formula and canonical environment
+    // Updated: 2026-01-30 - using conservative values pending CI canonical baseline
+    // Note: Local coverage varies; CI canonical leg (ubuntu-latest + Node 22) is authoritative
     global: {
-      statements: 48,
-      branches: 43,
-      functions: 46,
-      lines: 49,
+      statements: 55, // floor(57.25 - 2.0) = 55
+      branches: 49, // floor(51.92 - 2.0) = 49
+      functions: 51, // floor(53.63 - 2.0) = 51
+      lines: 56, // floor(58.86 - 2.0) = 56
     },
 
     // Tier 2: Schema validators - core validation logic
