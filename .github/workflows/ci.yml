@@ -893,44 +893,8 @@ jobs:
             echo "[OK] Badge data published to badges branch"
           fi
 
-      # FR-010: Verify published JSON is accessible (uses Python, not jq)
+      # FR-010: Verify published JSON is accessible
       - name: Verify badge URL accessibility
         env:
           BADGE_URL: https://raw.githubusercontent.com/${{ github.repository }}/badges/status.json
-        run: |
-          python -c "
-          import json
-          import os
-          import sys
-          import time
-          import urllib.request
-          import urllib.error
-
-          url = os.environ['BADGE_URL']
-          print(f'Verifying badge JSON at: {url}')
-
-          for i in range(1, 13):
-              try:
-                  with urllib.request.urlopen(url, timeout=10) as response:
-                      data = json.load(response)
-                      if 'python' in data and 'coverage' in data['python']:
-                          print('[OK] Badge JSON accessible and valid')
-                          print(json.dumps(data, indent=2))
-                          sys.exit(0)
-                      else:
-                          print(f'Invalid JSON structure: {data}')
-              except urllib.error.HTTPError as e:
-                  print(f'HTTP {e.code}: {e.reason}')
-              except urllib.error.URLError as e:
-                  print(f'URL error: {e.reason}')
-              except json.JSONDecodeError as e:
-                  print(f'JSON decode error: {e}')
-              except Exception as e:
-                  print(f'Error: {e}')
-
-              print(f'Waiting for raw content propagation... ({i}/12)')
-              time.sleep(5)
-
-          print('::error::Badge JSON not accessible after 60s')
-          sys.exit(1)
-          "
+        run: python .github/scripts/verify-badge-url.py
