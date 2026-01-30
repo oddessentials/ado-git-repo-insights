@@ -10,6 +10,11 @@
 ![Python Tests](https://img.shields.io/badge/python_tests-passing-brightgreen)
 ![Extension Tests](https://img.shields.io/badge/extension_tests-passing-brightgreen)
 
+<!-- Package -->
+
+[![PyPI version](https://img.shields.io/pypi/v/ado-git-repo-insights)](https://pypi.org/project/ado-git-repo-insights/)
+[![PyPI downloads](https://img.shields.io/pypi/dm/ado-git-repo-insights)](https://pypi.org/project/ado-git-repo-insights/)
+
 <!-- Technology Stack -->
 
 ![Python](https://img.shields.io/badge/python-3.10%20%7C%203.11%20%7C%203.12-blue)
