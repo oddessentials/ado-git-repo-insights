@@ -37,8 +37,8 @@ jobs:
       - name: Check for npm lockfile
         run: |
           set -euo pipefail
-          # Find all package-lock.json files, excluding node_modules
-          # Explicit error handling: if find fails, we fail the job
+          # Find all package-lock.json files, excluding only node_modules
+          # Zero exclusions policy: entire workspace must use pnpm
           if ! FOUND=$(find . -name "package-lock.json" -not -path "./node_modules/*" 2>&1); then
             echo "::error::find command failed: $FOUND"
             exit 1
@@ -75,40 +75,7 @@ jobs:
       - uses: actions/checkout@v4
 
       - name: Check for npm install/ci commands
-        run: |
-          set -euo pipefail
-
-          # Define search locations
-          SEARCH_PATHS=".github/workflows/ package.json scripts/"
-
-          # Allowlist patterns:
-          # - tfx-cli global install (npm install -g tfx-cli)
-          # - This guard job itself (npm-command-guard references)
-          # - Error message strings (::error:: lines that quote npm commands)
-          echo "Scanning for npm ci/install commands in: $SEARCH_PATHS"
-
-          MATCHES=""
-          for path in $SEARCH_PATHS; do
-            if [ -e "$path" ]; then
-              FOUND=$(git grep -n "npm ci\|npm install" "$path" 2>/dev/null \
-                | grep -v "npm install -g tfx-cli" \
-                | grep -v "npm-command-guard" \
-                | grep -v "::error::" \
-                || true)
-              if [ -n "$FOUND" ]; then
-                MATCHES="$MATCHES$FOUND\n"
-              fi
-            fi
-          done
-
-          if [ -n "$MATCHES" ]; then
-            echo "::error::Found npm ci/install commands (not allowlisted):"
-            echo -e "$MATCHES"
-            echo "::error::This repository uses pnpm exclusively. Replace with pnpm install --frozen-lockfile."
-            exit 1
-          fi
-
-          echo "[OK] No npm ci/install commands found (except allowlisted tfx-cli)"
+        run: bash .github/scripts/check-npm-commands.sh
 
   # Guard: Detect CRLF in files that run in Unix CI
   line-ending-guard:
