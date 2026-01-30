@@ -1,3 +1,17 @@
+# [5.14.0](https://github.com/oddessentials/ado-git-repo-insights/compare/v5.13.0...v5.14.0) (2026-01-30)
+
+
+### Bug Fixes
+
+* **ci:** complete pnpm migration with zero exclusions ([ec53312](https://github.com/oddessentials/ado-git-repo-insights/commit/ec53312accc3c6b93ef09c5442c743ef496eb4fa))
+* **ci:** correct pnpm detection in preinstall guard ([1286ff9](https://github.com/oddessentials/ado-git-repo-insights/commit/1286ff96b25b6140b9f63e2db6cfc9803e9eebd6))
+* **ci:** harden CI guards with explicit error handling ([794f957](https://github.com/oddessentials/ado-git-repo-insights/commit/794f9578bbd2e3c6bf30deceda1e9cb4915e9207))
+
+
+### Features
+
+* **root:** migrate from npm to pnpm with defense-in-depth blocking ([435b7e8](https://github.com/oddessentials/ado-git-repo-insights/commit/435b7e846fe206eb722db53cc112fef1cff785f5))
+
 # [5.13.0](https://github.com/oddessentials/ado-git-repo-insights/compare/v5.12.0...v5.13.0) (2026-01-29)
 
 
