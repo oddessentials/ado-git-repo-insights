@@ -1,3 +1,10 @@
+## [5.15.2](https://github.com/oddessentials/ado-git-repo-insights/compare/v5.15.1...v5.15.2) (2026-01-30)
+
+
+### Bug Fixes
+
+* **ci:** preserve verify script before badges branch switch ([2324cdd](https://github.com/oddessentials/ado-git-repo-insights/commit/2324cdd065402f472ce9d309ed67aa1168f489fa))
+
 ## [5.15.1](https://github.com/oddessentials/ado-git-repo-insights/compare/v5.15.0...v5.15.1) (2026-01-30)
 
 
