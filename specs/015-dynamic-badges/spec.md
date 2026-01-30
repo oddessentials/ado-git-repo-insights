@@ -5,6 +5,15 @@
 **Status**: Draft
 **Input**: User description: "Publish deterministic JSON badge source of truth from CI and render 4 distinct Shields dynamic badges for Python/TypeScript coverage and test counts"
 
+## Clarifications
+
+### Session 2026-01-29
+
+- Q: When should badge publish run? → A: Only on `push` to `main` after all test/coverage jobs succeed; MUST NOT run on PRs
+- Q: What is the canonical URL for badge JSON? → A: `https://<org>.github.io/<repo>/badges/status.json` (exact URL referenced in README)
+- Q: How is determinism enforced? → A: CI generates JSON twice, diff must be empty; validates JSON schema + key order
+- Q: What are the exact extraction rules? → A: Line coverage (coverage.xml `line-rate`, lcov `LF/LH`); JUnit totals (tests/failures/errors/skipped); failed tests fail CI before badge generation
+
 ## User Scenarios & Testing *(mandatory)*
 
 ### User Story 1 - View Accurate Coverage Metrics (Priority: P1)
@@ -78,29 +87,61 @@ If badge data cannot be generated or published, CI fails explicitly rather than 
 - What happens when GitHub Pages is not enabled? CI fails with actionable error message
 - How does the system handle concurrent CI runs? Last successful run wins (eventual consistency)
 - What happens if Shields.io is temporarily unavailable? Badges show "unavailable" but CI still succeeds (badge fetch is client-side)
+- What happens on PR builds? Badge publish is skipped entirely (no gh-pages writes from PRs)
 
 ## Requirements *(mandatory)*
 
 ### Functional Requirements
 
+#### Badge Generation & Content
+
 - **FR-001**: CI MUST generate a deterministic JSON file (`badges/status.json`) containing coverage and test metrics after each successful run on main
 - **FR-002**: JSON file MUST contain `python.coverage`, `python.tests.passed`, `python.tests.skipped`, `python.tests.total` fields
 - **FR-003**: JSON file MUST contain `typescript.coverage`, `typescript.tests.passed`, `typescript.tests.skipped`, `typescript.tests.total` fields
 - **FR-004**: JSON output MUST be deterministic: fixed rounding (1 decimal), stable key ordering, no timestamps
+
+#### Trigger Constraints
+
+- **FR-013**: Badge publish job MUST run only on `push` to `main` after all required test/coverage jobs succeed
+- **FR-014**: Badge publish job MUST NOT run on pull requests (prevents gh-pages churn and race conditions)
+- **FR-015**: Failed tests MUST fail CI before badge generation runs (badges never reflect failing builds)
+
+#### URL Contract
+
+- **FR-016**: Published JSON URL MUST be `https://<org>.github.io/<repo>/badges/status.json` (or repo Pages equivalent)
+- **FR-017**: README badge URLs MUST reference this exact canonical URL (no guessing or alternative paths)
 - **FR-005**: CI MUST publish `badges/status.json` to GitHub Pages (`gh-pages` branch) using only GITHUB_TOKEN (no additional secrets)
+
+#### Determinism Verification
+
+- **FR-018**: CI MUST run a determinism check: generate `badges/status.json` twice in the same run and `diff` MUST be empty
+- **FR-019**: CI MUST validate JSON schema and key order after generation
+
+#### Extraction Rules
+
+- **FR-020**: Coverage source of truth is line coverage for both languages
+- **FR-021**: Python coverage MUST be extracted from `coverage.xml` using the `line-rate` attribute
+- **FR-022**: TypeScript coverage MUST be extracted from `lcov.info` using LF (lines found) and LH (lines hit) values
+- **FR-011**: Coverage values MUST be extracted from existing coverage reports (`coverage.xml` for Python, `lcov.info` for TypeScript)
+- **FR-023**: Test counts MUST be extracted from JUnit XML totals: `tests`, `failures`, `errors`, `skipped` attributes
+- **FR-012**: Test counts MUST be extracted from existing JUnit XML files (`test-results.xml` for Python, `extension/test-results.xml` for TypeScript)
+
+#### Badge Display
+
 - **FR-006**: README MUST display 4 Shields.io dynamic JSON badges: Python Coverage, TypeScript Coverage, Python Tests, TypeScript Tests
 - **FR-007**: Each badge MUST have a distinct, explicit label (e.g., "Python Coverage", not generic "codecov")
+
+#### Error Handling
+
 - **FR-008**: CI MUST fail if badge JSON cannot be generated (missing test results, parse errors)
 - **FR-009**: CI MUST fail if badge JSON cannot be published to GitHub Pages
-- **FR-010**: CI MUST verify the published JSON URL is accessible after publish (curl check)
-- **FR-011**: Coverage values MUST be extracted from existing coverage reports (`coverage.xml` for Python, `lcov.info` for TypeScript)
-- **FR-012**: Test counts MUST be extracted from existing JUnit XML files (`test-results.xml` for Python, `extension/test-results.xml` for TypeScript)
+- **FR-010**: CI MUST verify the published JSON URL is accessible after publish (curl check with printed URL)
 
 ### Key Entities
 
 - **Badge JSON**: Single source of truth containing all metrics, published to a stable public URL
-- **Coverage Metrics**: Percentage values extracted from coverage reports (1 decimal precision)
-- **Test Metrics**: Integer counts (passed, skipped, total) extracted from JUnit XML
+- **Coverage Metrics**: Line coverage percentage values extracted from coverage reports (1 decimal precision)
+- **Test Metrics**: Integer counts (passed, skipped, total) extracted from JUnit XML totals
 
 ## Success Criteria *(mandatory)*
 
@@ -111,6 +152,8 @@ If badge data cannot be generated or published, CI fails explicitly rather than 
 - **SC-003**: Zero manual steps required after initial setup - badges update automatically on every main branch CI run
 - **SC-004**: CI fails explicitly (non-zero exit) if badge generation or publishing fails
 - **SC-005**: Badge JSON URL returns HTTP 200 and valid JSON after every successful publish
+- **SC-006**: Determinism check passes on every CI run (two generations produce identical output)
+- **SC-007**: No badge updates occur from PR builds (gh-pages remains unchanged during PR CI)
 
 ## Assumptions
 
