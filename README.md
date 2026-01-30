@@ -5,29 +5,30 @@
 [![AI Review](https://github.com/oddessentials/ado-git-repo-insights/actions/workflows/ai-review.yml/badge.svg)](https://github.com/oddessentials/odd-ai-reviewers/actions/workflows/ai-review.yml)
 ![CI](https://github.com/oddessentials/ado-git-repo-insights/actions/workflows/ci.yml/badge.svg)
 [![Release](https://github.com/oddessentials/ado-git-repo-insights/actions/workflows/release.yml/badge.svg)](https://github.com/oddessentials/ado-git-repo-insights/actions/workflows/release.yml)
-![Python Coverage](https://img.shields.io/badge/dynamic/json?url=https%3A%2F%2Fraw.githubusercontent.com%2Foddessentials%2Fado-git-repo-insights%2Fbadges%2Fstatus.json&query=%24.python.coverage&label=Python%20Coverage&suffix=%25&color=brightgreen)
-![TypeScript Coverage](https://img.shields.io/badge/dynamic/json?url=https%3A%2F%2Fraw.githubusercontent.com%2Foddessentials%2Fado-git-repo-insights%2Fbadges%2Fstatus.json&query=%24.typescript.coverage&label=TypeScript%20Coverage&suffix=%25&color=brightgreen)
-![Python Tests](https://img.shields.io/badge/dynamic/json?url=https%3A%2F%2Fraw.githubusercontent.com%2Foddessentials%2Fado-git-repo-insights%2Fbadges%2Fstatus.json&query=%24.python.tests.display&label=Python%20Tests&color=blue)
-![TypeScript Tests](https://img.shields.io/badge/dynamic/json?url=https%3A%2F%2Fraw.githubusercontent.com%2Foddessentials%2Fado-git-repo-insights%2Fbadges%2Fstatus.json&query=%24.typescript.tests.display&label=TypeScript%20Tests&color=blue)
 
 <!-- Package -->
 
-[![PyPI version](https://img.shields.io/pypi/v/ado-git-repo-insights)](https://pypi.org/project/ado-git-repo-insights/)
-[![PyPI downloads](https://img.shields.io/pypi/dm/ado-git-repo-insights)](https://pypi.org/project/ado-git-repo-insights/)
+[![PyPI version](https://img.shields.io/pypi/v/ado-git-repo-insights?logo=pypi)](https://pypi.org/project/ado-git-repo-insights/)
+![Python](https://img.shields.io/badge/python-3.10%20%7C%203.11%20%7C%203.12-blue)
+![Python Coverage](https://img.shields.io/badge/dynamic/json?url=https%3A%2F%2Fraw.githubusercontent.com%2Foddessentials%2Fado-git-repo-insights%2Fbadges%2Fstatus.json&query=%24.python.coverage&label=Python%20Coverage&suffix=%25&color=brightgreen)
+![Python Tests](https://img.shields.io/badge/dynamic/json?url=https%3A%2F%2Fraw.githubusercontent.com%2Foddessentials%2Fado-git-repo-insights%2Fbadges%2Fstatus.json&query=%24.python.tests.display&label=Python%20Tests&color=blue)
 
 <!-- Technology Stack -->
 
-![Python](https://img.shields.io/badge/python-3.10%20%7C%203.11%20%7C%203.12-blue)
+![TypeScript](https://img.shields.io/badge/TypeScript-5.x-blue?logo=typescript)
+![TypeScript Coverage](https://img.shields.io/badge/dynamic/json?url=https%3A%2F%2Fraw.githubusercontent.com%2Foddessentials%2Fado-git-repo-insights%2Fbadges%2Fstatus.json&query=%24.typescript.coverage&label=TypeScript%20Coverage&suffix=%25&color=brightgreen)
+![TypeScript Tests](https://img.shields.io/badge/dynamic/json?url=https%3A%2F%2Fraw.githubusercontent.com%2Foddessentials%2Fado-git-repo-insights%2Fbadges%2Fstatus.json&query=%24.typescript.tests.display&label=TypeScript%20Tests&color=blue)
+
 ![pnpm](https://img.shields.io/badge/pnpm-%3E%3D9-F69220?logo=pnpm&logoColor=white)
 ![Node.js](https://img.shields.io/badge/node.js-22-green)
-![TypeScript](https://img.shields.io/badge/TypeScript-5.x-blue?logo=typescript)
-![Platform](https://img.shields.io/badge/platform-linux%20%7C%20windows%20%7C%20macos-lightgrey)
-![License](https://img.shields.io/badge/license-MIT-green)
 
 [![Code Style: Prettier](https://img.shields.io/badge/code_style-prettier-ff69b4.svg)](https://prettier.io/)
 [![Conventional Commits](https://img.shields.io/badge/Conventional%20Commits-1.0.0-yellow.svg)](https://conventionalcommits.org)
 [![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](https://github.com/oddessentials/ado-git-repo-insights/pulls)
 [![Last Commit](https://img.shields.io/github/last-commit/oddessentials/odd-ai-reviewers)](https://github.com/oddessentials/ado-git-repo-insights/commits/main)
+
+![License](https://img.shields.io/badge/license-MIT-green)
+![Platform](https://img.shields.io/badge/platform-linux%20%7C%20windows%20%7C%20macos-lightgrey)
 
 > [!NOTE]
 > **Python Compatibility:** Python 3.10 uses pandas 2.x; Python 3.11+ uses pandas 3.x.

@@ -127,6 +127,45 @@ npm test -- --coverage --collectCoverageFrom="ui/dataset-loader.ts"
 npm test -- --coverage --collectCoverageFrom="ui/schemas/**/*.ts"
 ```
 
+## Ratchet Formula
+
+The deterministic formula for computing coverage thresholds:
+
+```
+threshold = floor(actual_coverage - 2.0)
+```
+
+**Example:** If actual coverage is 75.65%, threshold = floor(73.65) = **73%**
+
+### Rules
+
+1. **Always use floor() rounding** - never ceil or round; this provides a safety margin
+2. **Both Python and TypeScript use the same formula** - consistency across languages
+3. **Thresholds are always integers** - Jest and pytest require whole numbers
+4. **2% buffer absorbs minor fluctuations** - small refactoring won't break CI
+
+### Why This Formula
+
+- Jest thresholds must be integers; floor() ensures we never set threshold higher than intended
+- 2% buffer absorbs minor refactoring fluctuations without requiring threshold changes
+- Deterministic calculation eliminates human judgment errors
+
+## Canonical Environment
+
+Coverage numbers MUST come from CI's canonical leg to ensure consistency:
+
+| Language   | OS            | Runtime     | Notes                        |
+| ---------- | ------------- | ----------- | ---------------------------- |
+| Python     | ubuntu-latest | Python 3.11 | Badge artifact source        |
+| TypeScript | ubuntu-latest | Node 22     | Extension-tests job          |
+
+### Why Canonical Environment Matters
+
+- Local coverage may vary slightly due to platform differences (Windows vs Linux, etc.)
+- Different Node/Python versions can produce different coverage due to code paths
+- Always use CI values when computing new thresholds
+- Do NOT change the canonical matrix without updating threshold baselines
+
 ## History
 
 | Date       | Phase | Global Statements | Notes                     |

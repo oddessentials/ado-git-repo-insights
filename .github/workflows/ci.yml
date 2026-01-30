@@ -285,7 +285,78 @@ jobs:
           ./scripts/check-version-unchanged.sh "origin/${BASE_REF}"
         shell: bash
 
+  # Guard: Block coverage threshold changes without explicit marker
+  # Prevents accidental lowering of coverage standards
+  # See: extension/COVERAGE_RATCHET.md for threshold update policy
+  threshold-change-guard:
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Check for threshold changes
+        env:
+          # SECURITY: GitHub context values must be passed via env to prevent command injection
+          BASE_REF: ${{ github.base_ref }}
+        run: |
+          set -euo pipefail
+
+          echo "Checking for coverage threshold changes..."
+
+          # Detect changes to threshold configuration files
+          CHANGED=$(git diff "origin/${BASE_REF}...HEAD" --name-only | \
+            grep -E "(extension/jest\.config\.ts|pyproject\.toml)" || true)
+
+          if [ -z "$CHANGED" ]; then
+            echo "[OK] No threshold configuration files changed"
+            exit 0
+          fi
+
+          echo "Threshold config files changed: $CHANGED"
+
+          # Check for threshold-specific changes in Jest config
+          JEST_THRESHOLD=$(git diff "origin/${BASE_REF}...HEAD" -- extension/jest.config.ts | \
+            grep -E "^\+.*statements:|^\+.*branches:|^\+.*functions:|^\+.*lines:" || true)
+
+          # Check for threshold-specific changes in pyproject.toml
+          PY_THRESHOLD=$(git diff "origin/${BASE_REF}...HEAD" -- pyproject.toml | \
+            grep -E "^\+.*fail_under" || true)
+
+          if [ -z "$JEST_THRESHOLD" ] && [ -z "$PY_THRESHOLD" ]; then
+            echo "[OK] Config files changed but no threshold values modified"
+            exit 0
+          fi
+
+          echo "Threshold values changed:"
+          [ -n "$JEST_THRESHOLD" ] && echo "  Jest: $JEST_THRESHOLD"
+          [ -n "$PY_THRESHOLD" ] && echo "  Python: $PY_THRESHOLD"
+
+          # Require explicit [threshold-update] marker in any commit message
+          MARKER_FOUND=$(git log --oneline "origin/${BASE_REF}...HEAD" | \
+            grep -F "[threshold-update]" || true)
+
+          if [ -z "$MARKER_FOUND" ]; then
+            echo ""
+            echo "::error::Coverage threshold changed without [threshold-update] marker"
+            echo "::error::Add [threshold-update] to a commit message if this change is intentional"
+            echo ""
+            echo "See: extension/COVERAGE_RATCHET.md for threshold update policy"
+            echo "Formula: threshold = floor(actual_coverage - 2.0)"
+            exit 1
+          fi
+
+          echo "[OK] Threshold change approved via [threshold-update] marker"
+          echo "Marker found in: $MARKER_FOUND"
+        shell: bash
+
   test:
+    # ============================================================================
+    # CANONICAL LEG: Coverage thresholds are based on ubuntu-latest + Python 3.11
+    # Do NOT change this matrix without updating threshold baseline in pyproject.toml
+    # See: extension/COVERAGE_RATCHET.md for ratchet formula and canonical environment
+    # ============================================================================
     strategy:
       fail-fast: false
       matrix:
@@ -617,6 +688,11 @@ jobs:
 
   # Phase 3.5: Extension UI unit tests
   # Note: Some extension tests (synthetic-fixtures, performance) call Python scripts
+  # ============================================================================
+  # CANONICAL LEG: Coverage thresholds are based on ubuntu-latest + Node 22
+  # Do NOT change this environment without updating threshold baseline in jest.config.ts
+  # See: extension/COVERAGE_RATCHET.md for ratchet formula and canonical environment
+  # ============================================================================
   extension-tests:
     runs-on: ubuntu-latest
     steps:

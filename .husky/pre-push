@@ -78,14 +78,14 @@ if find . -name "*.sh" -type f -not -path "./node_modules/*" -not -path "./.venv
     FOUND_CRLF=true
 fi
 
-# Check .github/scripts (NUL-delimited)
-if find .github/scripts/ -type f -print0 2>/dev/null | xargs -0 grep -l -- $'\r' 2>/dev/null; then
+# Check .github/scripts (NUL-delimited, excludes __pycache__)
+if find .github/scripts/ -type f -not -path "*/__pycache__/*" -print0 2>/dev/null | xargs -0 grep -l -- $'\r' 2>/dev/null; then
     echo "[pre-push] ❌ CRLF detected in .github/scripts/"
     FOUND_CRLF=true
 fi
 
-# Check scripts directory (NUL-delimited)
-if find scripts/ -type f -print0 2>/dev/null | xargs -0 grep -l -- $'\r' 2>/dev/null; then
+# Check scripts directory (NUL-delimited, excludes __pycache__)
+if find scripts/ -type f -not -path "*/__pycache__/*" -print0 2>/dev/null | xargs -0 grep -l -- $'\r' 2>/dev/null; then
     echo "[pre-push] ❌ CRLF detected in scripts/"
     FOUND_CRLF=true
 fi
