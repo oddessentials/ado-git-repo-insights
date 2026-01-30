@@ -19,7 +19,7 @@ import requests
 from requests.exceptions import HTTPError, RequestException
 
 from ..config import APIConfig
-from .pagination import add_continuation_token
+from .pagination import add_continuation_token, extract_continuation_token
 
 logger = logging.getLogger(__name__)
 
@@ -205,7 +205,7 @@ class ADOClient:
                 response = requests.get(url, headers=self.headers, timeout=30)
                 response.raise_for_status()
 
-                next_token = response.headers.get("x-ms-continuationtoken")
+                next_token = extract_continuation_token(response)
                 data = response.json()
                 return data.get("value", []), next_token
 
@@ -310,7 +310,7 @@ class ADOClient:
                 response = requests.get(page_url, headers=self.headers, timeout=30)
                 response.raise_for_status()
 
-                continuation_token = response.headers.get("x-ms-continuationtoken")
+                continuation_token = extract_continuation_token(response)
                 data = response.json()
                 teams = data.get("value", [])
                 all_teams.extend(teams)
@@ -358,7 +358,7 @@ class ADOClient:
                 response = requests.get(page_url, headers=self.headers, timeout=30)
                 response.raise_for_status()
 
-                continuation_token = response.headers.get("x-ms-continuationtoken")
+                continuation_token = extract_continuation_token(response)
                 data = response.json()
                 members = data.get("value", [])
                 all_members.extend(members)
@@ -423,7 +423,7 @@ class ADOClient:
 
                 response.raise_for_status()
 
-                continuation_token = response.headers.get("x-ms-continuationtoken")
+                continuation_token = extract_continuation_token(response)
                 data = response.json()
                 threads = data.get("value", [])
                 all_threads.extend(threads)
