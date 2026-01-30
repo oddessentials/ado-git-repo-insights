@@ -395,7 +395,6 @@ jobs:
         uses: codecov/codecov-action@v5
         if: matrix.python-version == '3.11' && matrix.os == 'ubuntu-latest'
         with:
-          token: ${{ secrets.CODECOV_TOKEN }}
           files: ./coverage.xml
           flags: python
           fail_ci_if_error: false
@@ -676,7 +675,6 @@ jobs:
         uses: codecov/codecov-action@v5
         if: success()
         with:
-          token: ${{ secrets.CODECOV_TOKEN }}
           files: ./extension/coverage/lcov.info
           flags: typescript
           fail_ci_if_error: false
