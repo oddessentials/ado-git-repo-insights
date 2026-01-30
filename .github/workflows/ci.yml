@@ -351,6 +351,55 @@ jobs:
           echo "Marker found in: $MARKER_FOUND"
         shell: bash
 
+  # Guard: Enforce centralized pagination token handling (SC-009)
+  # Prevents direct continuationToken string concatenation (Zip Slip vector)
+  # See: specs/017-security-fixes/spec.md for security requirements
+  pagination-token-guard:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Check for direct continuationToken usage
+        run: |
+          set -euo pipefail
+
+          echo "Checking for direct continuationToken usage outside pagination helper..."
+
+          # Find continuationToken string concatenation outside allowed paths
+          # Allowed paths:
+          #   - pagination.py (the centralized helper)
+          #   - test files for pagination
+          #   - fixture files
+          #   - spec/research documentation
+          #
+          # Pattern: looks for f-string or + concatenation with continuationToken
+          VIOLATIONS=$(rg -l 'continuationToken' \
+            --glob '!**/pagination.py' \
+            --glob '!**/test_pagination*.py' \
+            --glob '!**/test_ado_client_pagination.py' \
+            --glob '!tests/fixtures/**' \
+            --glob '!specs/**' \
+            --glob '!**/*.md' \
+            src/ tests/ 2>/dev/null || true)
+
+          if [ -n "$VIOLATIONS" ]; then
+            echo ""
+            echo "::error::Direct continuationToken usage found outside pagination helper"
+            echo ""
+            echo "Files with violations:"
+            echo "$VIOLATIONS" | while read -r file; do
+              echo "  - $file"
+              rg -n 'continuationToken' "$file" | head -3 | sed 's/^/      /'
+            done
+            echo ""
+            echo "Fix: Use add_continuation_token() from pagination.py instead of direct string manipulation"
+            echo "See: src/ado_git_repo_insights/extractor/pagination.py"
+            exit 1
+          fi
+
+          echo "[OK] No direct continuationToken usage found outside allowed paths"
+        shell: bash
+
   test:
     # ============================================================================
     # CANONICAL LEG: Coverage thresholds are based on ubuntu-latest + Python 3.11
