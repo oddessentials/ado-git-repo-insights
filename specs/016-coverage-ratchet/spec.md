@@ -2,7 +2,7 @@
 
 **Feature Branch**: `016-coverage-ratchet`
 **Created**: 2026-01-30
-**Status**: Draft
+**Status**: Implemented
 **Input**: User description: "Establish a rigorous, deterministic coverage threshold ratcheting system with explicit math rules, single source of truth for actual coverage, canonical CI environment designation, and guards against accidental threshold changes."
 
 ## User Scenarios & Testing *(mandatory)*
