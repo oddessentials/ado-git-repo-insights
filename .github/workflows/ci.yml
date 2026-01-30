@@ -28,7 +28,7 @@ jobs:
       - name: Validate CI Guards
         run: bash .github/scripts/validate-ci-guards.sh
 
-  # Guard: Enforce pnpm-only policy (no package-lock.json)
+  # Guard: Enforce pnpm-only policy (no package-lock.json anywhere in workspace)
   pnpm-lockfile-guard:
     runs-on: ubuntu-latest
     steps:
@@ -36,12 +36,20 @@ jobs:
 
       - name: Check for npm lockfile
         run: |
-          if [ -f "extension/package-lock.json" ]; then
-            echo "::error::package-lock.json found in extension/"
+          set -euo pipefail
+          # Find all package-lock.json files, excluding only node_modules
+          # Zero exclusions policy: entire workspace must use pnpm
+          if ! FOUND=$(find . -name "package-lock.json" -not -path "./node_modules/*" 2>&1); then
+            echo "::error::find command failed: $FOUND"
+            exit 1
+          fi
+          if [ -n "$FOUND" ]; then
+            echo "::error::package-lock.json found:"
+            echo "$FOUND"
             echo "::error::This repository uses pnpm exclusively. Remove package-lock.json and use pnpm install."
             exit 1
           fi
-          echo "[OK] No package-lock.json found - pnpm policy enforced"
+          echo "[OK] No package-lock.json found anywhere - pnpm policy enforced"
 
   # Security: Scan for leaked secrets
   secret-scan:
@@ -59,6 +67,15 @@ jobs:
           args: --config=.gitleaks.toml
         # Warn-only mode: don't block PRs, just report
         continue-on-error: true
+
+  # Guard: Enforce pnpm-only policy (no npm ci/install in workflows, scripts, or package.json)
+  npm-command-guard:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Check for npm install/ci commands
+        run: bash .github/scripts/check-npm-commands.sh
 
   # Guard: Detect CRLF in files that run in Unix CI
   line-ending-guard:
