@@ -1,3 +1,17 @@
+# [5.16.0](https://github.com/oddessentials/ado-git-repo-insights/compare/v5.15.2...v5.16.0) (2026-01-30)
+
+
+### Bug Fixes
+
+* **hooks:** exclude __pycache__ from CRLF guard in pre-push ([5ac8460](https://github.com/oddessentials/ado-git-repo-insights/commit/5ac84602c19d4e2c81af56fb87f4f6111f193487))
+
+
+### Features
+
+* **ci:** add get-coverage-actuals.py script ([5286a4b](https://github.com/oddessentials/ado-git-repo-insights/commit/5286a4b381ac420cada984b65b3a96b6fafd0370))
+* **ci:** add threshold-change-guard and canonical leg comments ([29c6353](https://github.com/oddessentials/ado-git-repo-insights/commit/29c63530f2d170883d0732e89747151b07642f8a))
+* **coverage:** update thresholds using ratchet formula [threshold-update] ([67914d9](https://github.com/oddessentials/ado-git-repo-insights/commit/67914d9c3b6e0f95e317b987902d135278192cbc))
+
 ## [5.15.2](https://github.com/oddessentials/ado-git-repo-insights/compare/v5.15.1...v5.15.2) (2026-01-30)
 
 
