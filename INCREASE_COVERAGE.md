@@ -22,6 +22,53 @@ Current state:
 
 ---
 
+## Current State Audit (2026-01-30)
+
+### What Exists
+
+| Item | Status | Notes |
+|------|--------|-------|
+| `extension/COVERAGE_RATCHET.md` | EXISTS | But lacks formula and canonical env spec |
+| `.github/scripts/get-coverage-actuals.py` | MISSING | Need to create |
+| `threshold-change-guard` CI job | MISSING | Not in `.github/workflows/ci.yml` |
+| Canonical environment comment in CI | MISSING | No `CANONICAL LEG` comment exists |
+
+### Current Threshold Values (from config files)
+
+**Python** (`pyproject.toml` line 119):
+```toml
+fail_under = 70
+```
+
+**TypeScript** (`extension/jest.config.ts` lines 36-41):
+```typescript
+global: {
+  statements: 48,
+  branches: 43,
+  functions: 46,
+  lines: 49,
+}
+```
+
+### Existing COVERAGE_RATCHET.md Content to Preserve
+
+The existing file has useful content that should be merged, not replaced:
+- Tiered threshold strategy (global baseline vs critical paths)
+- Per-file thresholds for schemas, dataset-loader, error modules
+- Phase roadmap toward 70% target
+- Exclusions rationale (barrel files, type declarations, DOM-heavy entry points)
+
+**Action**: Add the formula and canonical env sections to the existing file rather than rewriting it.
+
+### Related Scripts in `.github/scripts/`
+
+These exist and may be useful references:
+- `generate-badge-json.py` - Parses coverage artifacts for badges
+- `validate-test-results.py` - Validates test result XML
+- `verify-badge-url.py` - Verifies badge URLs are accessible
+
+---
+
 ## Changes
 
 ### 1. Define Ratchet Math Rule
@@ -184,13 +231,13 @@ global: {
 
 ## Files to Modify
 
-| File                                      | Change                                                  |
-| ----------------------------------------- | ------------------------------------------------------- |
-| `extension/COVERAGE_RATCHET.md`           | Add ratchet formula, canonical env                      |
-| `.github/workflows/ci.yml`                | Add `threshold-change-guard` job, canonical leg comment |
-| `.github/scripts/get-coverage-actuals.py` | NEW: Script to compute recommended thresholds           |
-| `pyproject.toml`                          | Update `fail_under` (after guards in place)             |
-| `extension/jest.config.ts`                | Update `coverageThreshold` (after guards in place)      |
+| File                                      | Change                                                  | Line Reference |
+| ----------------------------------------- | ------------------------------------------------------- | -------------- |
+| `extension/COVERAGE_RATCHET.md`           | ADD sections for ratchet formula + canonical env        | Append after line 100 |
+| `.github/workflows/ci.yml`                | ADD `threshold-change-guard` job + canonical leg comment | New job at end |
+| `.github/scripts/get-coverage-actuals.py` | CREATE: Script to compute recommended thresholds        | New file |
+| `pyproject.toml`                          | UPDATE `fail_under` (after guards in place)             | Line 119 |
+| `extension/jest.config.ts`                | UPDATE `coverageThreshold.global` (after guards in place) | Lines 36-41 |
 
 ---
 
@@ -221,3 +268,37 @@ global: {
 3. **Script verification**: Run `get-coverage-actuals.py` → outputs correct JSON
 4. **Threshold verification**: After update, `pytest --cov` and `jest --coverage` both pass
 5. **Pre-push verification**: Local `git push` enforces new thresholds
+
+---
+
+## Implementation Notes
+
+### Phase 1: COVERAGE_RATCHET.md Update
+
+Add two new sections to the existing file (do NOT replace existing content):
+
+1. **"## Ratchet Formula"** section with the `floor(actual - 2.0)` rule
+2. **"## Canonical Environment"** section specifying CI leg
+
+Insert after the "## Verification Commands" section (around line 100).
+
+### Phase 2: get-coverage-actuals.py Script
+
+Reference `.github/scripts/generate-badge-json.py` for coverage XML parsing patterns. That script already:
+- Parses `coverage.xml` for Python coverage
+- Parses Jest lcov output for TypeScript coverage
+- Handles file path resolution
+
+The new script should:
+1. Reuse parsing logic from `generate-badge-json.py`
+2. Read current thresholds from config files
+3. Compute recommended thresholds using the formula
+4. Output JSON comparison
+
+### Phase 4: Get Fresh Coverage Numbers
+
+Before updating thresholds, run CI to get current actual coverage from the canonical leg:
+- Check GitHub Actions run artifacts
+- Or run locally: `cd extension && pnpm test -- --coverage` and `pytest --cov`
+
+The numbers in section 5 (59/53/55/60 for TS, 73 for Python) may be stale.
