@@ -782,76 +782,38 @@ jobs:
         with:
           python-version: '3.11'
 
-      # Download Python coverage artifact from test job (ubuntu-latest, python 3.11)
+      # Download artifacts - fail loudly if missing (no continue-on-error)
+      # Job depends on [test, extension-tests] so artifacts must exist
       - name: Download Python coverage
         uses: actions/download-artifact@v4
         with:
           name: coverage-ubuntu-latest-3.11
           path: ./artifacts/python
-        continue-on-error: true
 
-      # Download Python test results artifact
       - name: Download Python test results
         uses: actions/download-artifact@v4
         with:
           name: test-results-ubuntu-latest-3.11
           path: ./artifacts/python
-        continue-on-error: true
 
-      # Download TypeScript coverage artifact from extension-tests job
       - name: Download TypeScript coverage
         uses: actions/download-artifact@v4
         with:
           name: extension-coverage
           path: ./artifacts/typescript
-        continue-on-error: true
 
-      # Download TypeScript test results artifact
       - name: Download TypeScript test results
         uses: actions/download-artifact@v4
         with:
           name: extension-test-results
           path: ./artifacts/typescript
-        continue-on-error: true
 
-      # Verify required artifacts exist
       - name: Verify artifacts
         run: |
-          set -euo pipefail
-          echo "Checking for required artifacts..."
-
-          MISSING=()
-
-          # Check Python artifacts
-          if [ ! -f "./artifacts/python/coverage.xml" ]; then
-            MISSING+=("Python coverage.xml")
-          fi
-          if [ ! -f "./artifacts/python/test-results.xml" ]; then
-            MISSING+=("Python test-results.xml")
-          fi
-
-          # Check TypeScript artifacts
-          if [ ! -f "./artifacts/typescript/lcov.info" ]; then
-            MISSING+=("TypeScript lcov.info")
-          fi
-          if [ ! -f "./artifacts/typescript/test-results.xml" ]; then
-            MISSING+=("TypeScript test-results.xml")
-          fi
-
-          if [ ${#MISSING[@]} -gt 0 ]; then
-            echo "::error::Missing required artifacts:"
-            for item in "${MISSING[@]}"; do
-              echo "  - $item"
-            done
-            echo ""
-            echo "Badge publish requires test jobs to upload coverage and test result artifacts."
-            echo "Ensure the test and extension-tests jobs upload the required artifacts."
-            exit 1
-          fi
-
-          echo "[OK] All required artifacts found"
+          echo "Verifying downloaded artifacts..."
           ls -la ./artifacts/python/
           ls -la ./artifacts/typescript/
+          echo "[OK] All required artifacts present"
 
       # Generate badge JSON (first run)
       - name: Generate badge JSON
@@ -886,7 +848,7 @@ jobs:
       # FR-019: Validate JSON schema
       - name: Validate JSON schema
         run: |
-          pip install jsonschema
+          pip install jsonschema==4.23.0
           python -c "
           import json
           import jsonschema
@@ -931,22 +893,44 @@ jobs:
             echo "[OK] Badge data published to badges branch"
           fi
 
-      # FR-010: Verify published JSON is accessible
+      # FR-010: Verify published JSON is accessible (uses Python, not jq)
       - name: Verify badge URL accessibility
+        env:
+          BADGE_URL: https://raw.githubusercontent.com/${{ github.repository }}/badges/status.json
         run: |
-          BADGE_URL="https://raw.githubusercontent.com/${{ github.repository }}/badges/status.json"
-          echo "Verifying badge JSON at: $BADGE_URL"
+          python -c "
+          import json
+          import os
+          import sys
+          import time
+          import urllib.request
+          import urllib.error
 
-          # Wait for GitHub raw content propagation (up to 60s)
-          for i in {1..12}; do
-            if curl -sf "$BADGE_URL" | jq -e '.python.coverage' > /dev/null 2>&1; then
-              echo "[OK] Badge JSON accessible and valid"
-              curl -s "$BADGE_URL" | jq .
-              exit 0
-            fi
-            echo "Waiting for raw content propagation... ($i/12)"
-            sleep 5
-          done
+          url = os.environ['BADGE_URL']
+          print(f'Verifying badge JSON at: {url}')
 
-          echo "::error::Badge JSON not accessible after 60s at $BADGE_URL"
-          exit 1
+          for i in range(1, 13):
+              try:
+                  with urllib.request.urlopen(url, timeout=10) as response:
+                      data = json.load(response)
+                      if 'python' in data and 'coverage' in data['python']:
+                          print('[OK] Badge JSON accessible and valid')
+                          print(json.dumps(data, indent=2))
+                          sys.exit(0)
+                      else:
+                          print(f'Invalid JSON structure: {data}')
+              except urllib.error.HTTPError as e:
+                  print(f'HTTP {e.code}: {e.reason}')
+              except urllib.error.URLError as e:
+                  print(f'URL error: {e.reason}')
+              except json.JSONDecodeError as e:
+                  print(f'JSON decode error: {e}')
+              except Exception as e:
+                  print(f'Error: {e}')
+
+              print(f'Waiting for raw content propagation... ({i}/12)')
+              time.sleep(5)
+
+          print('::error::Badge JSON not accessible after 60s')
+          sys.exit(1)
+          "

@@ -104,7 +104,7 @@ def parse_lcov(path: str) -> float:
     return coverage_pct
 
 
-def parse_junit_xml(path: str) -> dict:
+def parse_junit_xml(path: str) -> dict[str, str | int]:
     """Extract test counts from JUnit XML file.
 
     Args:
@@ -171,9 +171,9 @@ def parse_junit_xml(path: str) -> dict:
 
 def generate_status_json(
     python_coverage: float,
-    python_tests: dict,
+    python_tests: dict[str, str | int],
     ts_coverage: float,
-    ts_tests: dict,
+    ts_tests: dict[str, str | int],
 ) -> str:
     """Generate deterministic status JSON.
 
