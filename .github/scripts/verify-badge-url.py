@@ -11,39 +11,88 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import sys
 import time
 import urllib.error
 import urllib.request
 from urllib.parse import urlparse
 
+# Timeout configuration (seconds)
+# Note: urllib.request.urlopen uses a single timeout for the entire operation
+# (connect + read). For finer control, consider using requests library.
+URL_TIMEOUT_SECONDS = 10
+
+# Allowed URL pattern: raw GitHub content for badges branch
+# Format: https://raw.githubusercontent.com/{owner}/{repo}/badges/status.json
+ALLOWED_HOST = "raw.githubusercontent.com"
+ALLOWED_PATH_PATTERN = re.compile(
+    r"^/[a-zA-Z0-9_.-]+/[a-zA-Z0-9_.-]+/badges/status\.json$"
+)
+
 
 def validate_url(url: str) -> bool:
-    """Validate URL is HTTPS to raw.githubusercontent.com.
+    """Validate URL against strict allowlist for badge JSON.
+
+    Security checks:
+    1. HTTPS scheme only (no HTTP, file://, etc.)
+    2. Host must be exactly raw.githubusercontent.com
+    3. Path must match /{owner}/{repo}/badges/status.json
+    4. No query strings allowed (prevents cache bypass attacks)
+    5. No URL fragments allowed
 
     Args:
         url: URL to validate
 
     Returns:
-        True if URL is safe to open, False otherwise
+        True if URL passes all security checks, False otherwise
     """
     try:
         parsed = urlparse(url)
-        # Only allow HTTPS scheme
+
+        # Check 1: HTTPS only
         if parsed.scheme != "https":
             print(
                 f"::error::URL scheme must be https, got: {parsed.scheme}",
                 file=sys.stderr,
             )
             return False
-        # Only allow raw.githubusercontent.com host
-        if parsed.netloc != "raw.githubusercontent.com":
+
+        # Check 2: Exact host match
+        if parsed.netloc != ALLOWED_HOST:
             print(
-                f"::error::URL host must be raw.githubusercontent.com, got: {parsed.netloc}",
+                f"::error::URL host must be {ALLOWED_HOST}, got: {parsed.netloc}",
                 file=sys.stderr,
             )
             return False
+
+        # Check 3: Path pattern validation
+        if not ALLOWED_PATH_PATTERN.match(parsed.path):
+            print(
+                f"::error::URL path must match /{{owner}}/{{repo}}/badges/status.json, "
+                f"got: {parsed.path}",
+                file=sys.stderr,
+            )
+            return False
+
+        # Check 4: No query strings
+        if parsed.query:
+            print(
+                f"::error::URL must not contain query string, got: ?{parsed.query}",
+                file=sys.stderr,
+            )
+            return False
+
+        # Check 5: No fragments
+        if parsed.fragment:
+            print(
+                f"::error::URL must not contain fragment, got: #{parsed.fragment}",
+                file=sys.stderr,
+            )
+            return False
+
         return True
+
     except Exception as e:
         print(f"::error::Failed to parse URL: {e}", file=sys.stderr)
         return False
@@ -61,11 +110,12 @@ def main() -> int:
         return 1
 
     print(f"Verifying badge JSON at: {url}")
+    print(f"Timeout: {URL_TIMEOUT_SECONDS}s per attempt")
 
     for i in range(1, 13):
         try:
-            # Safe: URL validated above to be https://raw.githubusercontent.com only
-            with urllib.request.urlopen(url, timeout=10) as response:  # noqa: S310
+            # Safe: URL validated above with strict allowlist
+            with urllib.request.urlopen(url, timeout=URL_TIMEOUT_SECONDS) as response:  # noqa: S310
                 data = json.load(response)
                 if "python" in data and "coverage" in data["python"]:
                     print("[OK] Badge JSON accessible and valid")
@@ -79,6 +129,8 @@ def main() -> int:
             print(f"URL error: {e.reason}")
         except json.JSONDecodeError as e:
             print(f"JSON decode error: {e}")
+        except TimeoutError:
+            print(f"Request timed out after {URL_TIMEOUT_SECONDS}s")
         except Exception as e:
             print(f"Error: {e}")
 

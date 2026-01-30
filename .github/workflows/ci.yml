@@ -18,6 +18,17 @@ on:
       - 'LICENSE'
       - '.gitignore'
 
+# Canonical artifact names for badge-publish job
+# IMPORTANT: These names must match exactly between upload and download steps
+# Update both ARTIFACT_* env vars AND the corresponding upload steps when changing
+env:
+  # Python artifacts (uploaded from test job, ubuntu-latest/3.11 matrix leg only)
+  ARTIFACT_PYTHON_COVERAGE: coverage-ubuntu-latest-3.11
+  ARTIFACT_PYTHON_TESTS: test-results-ubuntu-latest-3.11
+  # TypeScript artifacts (uploaded from extension-tests job)
+  ARTIFACT_TS_COVERAGE: extension-coverage
+  ARTIFACT_TS_TESTS: extension-test-results
+
 jobs:
   # Guard: Validate CI configuration guards (packageManager, composite action usage)
   ci-guards:
@@ -400,11 +411,12 @@ jobs:
           fail_ci_if_error: false
 
       # Upload artifacts for badge-publish job (ubuntu-latest, Python 3.11 only)
+      # Artifact names defined in workflow-level env vars for single source of truth
       - name: Upload Python coverage artifact
         uses: actions/upload-artifact@v4
         if: matrix.python-version == '3.11' && matrix.os == 'ubuntu-latest'
         with:
-          name: coverage-ubuntu-latest-3.11
+          name: ${{ env.ARTIFACT_PYTHON_COVERAGE }}
           path: coverage.xml
           retention-days: 1
 
@@ -412,7 +424,7 @@ jobs:
         uses: actions/upload-artifact@v4
         if: matrix.python-version == '3.11' && matrix.os == 'ubuntu-latest'
         with:
-          name: test-results-ubuntu-latest-3.11
+          name: ${{ env.ARTIFACT_PYTHON_TESTS }}
           path: test-results.xml
           retention-days: 1
 
@@ -697,11 +709,12 @@ jobs:
           fail_ci_if_error: false
 
       # Upload artifacts for badge-publish job
+      # Artifact names defined in workflow-level env vars for single source of truth
       - name: Upload TypeScript coverage artifact
         uses: actions/upload-artifact@v4
         if: success()
         with:
-          name: extension-coverage
+          name: ${{ env.ARTIFACT_TS_COVERAGE }}
           path: extension/coverage/lcov.info
           retention-days: 1
 
@@ -709,7 +722,7 @@ jobs:
         uses: actions/upload-artifact@v4
         if: success()
         with:
-          name: extension-test-results
+          name: ${{ env.ARTIFACT_TS_TESTS }}
           path: extension/test-results.xml
           retention-days: 1
 
@@ -782,30 +795,38 @@ jobs:
         with:
           python-version: '3.11'
 
+      - name: Install Python dependencies
+        run: pip install -e ".[dev]"
+
+      - name: Verify CI script dependencies
+        run: python -c "import defusedxml; from generate_badge_json import main"
+        working-directory: .github/scripts
+
       # Download artifacts - fail loudly if missing (no continue-on-error)
       # Job depends on [test, extension-tests] so artifacts must exist
+      # Artifact names reference workflow-level env vars (single source of truth)
       - name: Download Python coverage
         uses: actions/download-artifact@v4
         with:
-          name: coverage-ubuntu-latest-3.11
+          name: ${{ env.ARTIFACT_PYTHON_COVERAGE }}
           path: ./artifacts/python
 
       - name: Download Python test results
         uses: actions/download-artifact@v4
         with:
-          name: test-results-ubuntu-latest-3.11
+          name: ${{ env.ARTIFACT_PYTHON_TESTS }}
           path: ./artifacts/python
 
       - name: Download TypeScript coverage
         uses: actions/download-artifact@v4
         with:
-          name: extension-coverage
+          name: ${{ env.ARTIFACT_TS_COVERAGE }}
           path: ./artifacts/typescript
 
       - name: Download TypeScript test results
         uses: actions/download-artifact@v4
         with:
-          name: extension-test-results
+          name: ${{ env.ARTIFACT_TS_TESTS }}
           path: ./artifacts/typescript
 
       - name: Verify artifacts
@@ -816,9 +837,11 @@ jobs:
           echo "[OK] All required artifacts present"
 
       # Generate badge JSON (first run)
+      # --artifacts-dir enforces realpath bounds checking (prevents path traversal)
       - name: Generate badge JSON
         run: |
           python .github/scripts/generate-badge-json.py \
+            --artifacts-dir ./artifacts \
             --python-coverage ./artifacts/python/coverage.xml \
             --python-tests ./artifacts/python/test-results.xml \
             --ts-coverage ./artifacts/typescript/lcov.info \
@@ -832,6 +855,7 @@ jobs:
       - name: Verify determinism
         run: |
           python .github/scripts/generate-badge-json.py \
+            --artifacts-dir ./artifacts \
             --python-coverage ./artifacts/python/coverage.xml \
             --python-tests ./artifacts/python/test-results.xml \
             --ts-coverage ./artifacts/typescript/lcov.info \

@@ -9,11 +9,15 @@ Exit codes:
     0: All checks passed
     1: Validation failed (test count, failures, etc.)
     2: Script error (missing file, parse error)
+
+Dependencies:
+    pip install -e ".[dev]"
 """
 
 import sys
-import xml.etree.ElementTree as ET  # noqa: S405
 from pathlib import Path
+
+import defusedxml.ElementTree as ET  # noqa: N817
 
 
 def parse_junit_xml(xml_path: str) -> dict:
@@ -24,11 +28,10 @@ def parse_junit_xml(xml_path: str) -> dict:
     - jest-junit: <testsuites tests="N" ...><testsuite ...>
     - single testsuite: <testsuite tests="N" ...>
 
-    Note: We use the standard library XML parser here because we're parsing
-    our own CI-generated test results, not untrusted external data.
+    Uses defusedxml for safe XML parsing (prevents XXE and related attacks).
     """
     try:
-        tree = ET.parse(xml_path)  # noqa: S314
+        tree = ET.parse(xml_path)
         root = tree.getroot()
 
         # Handle different JUnit XML structures

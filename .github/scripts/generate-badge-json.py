@@ -11,6 +11,9 @@ Usage:
         --ts-coverage extension/coverage/lcov.info \
         --ts-tests extension/test-results.xml \
         --output status.json
+
+Dependencies:
+    pip install -e ".[dev]"
 """
 
 from __future__ import annotations
@@ -18,8 +21,91 @@ from __future__ import annotations
 import argparse
 import json
 import sys
-import xml.etree.ElementTree as ET
 from pathlib import Path
+
+import defusedxml.ElementTree as ET  # noqa: N817
+
+# Disallowed path prefixes (absolute paths that should never be accessed)
+# These are sensitive system directories that artifact paths should never resolve to
+# Note: /home is allowed because GitHub Actions runners use /home/runner/work/...
+DISALLOWED_PREFIXES = (
+    "/etc",
+    "/root",
+    "/var/log",
+    "/var/run",
+    "/usr",
+    "/bin",
+    "/sbin",
+    "/proc",
+    "/sys",
+    "/dev",
+)
+
+
+def validate_path_bounds(
+    path: str,
+    base_dir: str | None = None,
+    label: str = "file",
+) -> Path:
+    """Validate a file path is within expected bounds.
+
+    Security checks:
+    1. Resolve symlinks and normalize path (realpath)
+    2. If base_dir specified, ensure path is within that directory
+    3. Reject paths in sensitive system directories
+    4. Ensure path is a regular file (not directory, device, etc.)
+
+    Args:
+        path: Path to validate
+        base_dir: Optional base directory - path must be within this directory
+        label: Human-readable label for error messages
+
+    Returns:
+        Resolved Path object
+
+    Raises:
+        ValueError: If path fails security validation
+        FileNotFoundError: If path doesn't exist
+    """
+    # Resolve to absolute path, following symlinks
+    try:
+        resolved = Path(path).resolve(strict=True)
+    except FileNotFoundError as e:
+        raise FileNotFoundError(f"{label} not found: {path}") from e
+    except OSError as e:
+        raise ValueError(f"{label} path resolution failed: {path} ({e})") from e
+
+    resolved_str = str(resolved)
+
+    # Check against disallowed prefixes (Unix-style paths)
+    # On Windows, these won't match, which is fine - the base_dir check is primary
+    for prefix in DISALLOWED_PREFIXES:
+        if resolved_str.startswith(prefix + "/") or resolved_str == prefix:
+            raise ValueError(
+                f"{label} path resolves to disallowed location: {resolved_str}"
+            )
+
+    # Validate against base directory if specified
+    if base_dir is not None:
+        try:
+            base_resolved = Path(base_dir).resolve(strict=True)
+        except (FileNotFoundError, OSError) as e:
+            raise ValueError(f"Base directory invalid: {base_dir} ({e})") from e
+
+        # Check that resolved path is within base directory
+        try:
+            resolved.relative_to(base_resolved)
+        except ValueError as e:
+            raise ValueError(
+                f"{label} path escapes base directory: {resolved_str} "
+                f"(expected within {base_resolved})"
+            ) from e
+
+    # Ensure it's a regular file
+    if not resolved.is_file():
+        raise ValueError(f"{label} is not a regular file: {resolved_str}")
+
+    return resolved
 
 
 def parse_coverage_xml(path: str) -> float:
@@ -40,8 +126,7 @@ def parse_coverage_xml(path: str) -> float:
         raise FileNotFoundError(f"Coverage file not found: {path}")
 
     try:
-        # S314: Safe - parsing CI-generated coverage.xml, not untrusted data
-        tree = ET.parse(coverage_path)  # noqa: S314
+        tree = ET.parse(coverage_path)
         root = tree.getroot()
     except ET.ParseError as e:
         raise ValueError(f"Malformed XML in {path}: {e}") from e
@@ -122,8 +207,7 @@ def parse_junit_xml(path: str) -> dict[str, str | int]:
         raise FileNotFoundError(f"JUnit XML file not found: {path}")
 
     try:
-        # S314: Safe - parsing CI-generated JUnit XML, not untrusted data
-        tree = ET.parse(junit_path)  # noqa: S314
+        tree = ET.parse(junit_path)
         root = tree.getroot()
     except ET.ParseError as e:
         raise ValueError(f"Malformed XML in {path}: {e}") from e
@@ -232,15 +316,42 @@ def main() -> int:
         default="-",
         help="Output file path (default: stdout)",
     )
+    parser.add_argument(
+        "--artifacts-dir",
+        help="Base directory for input artifacts (paths must be within this directory)",
+    )
 
     args = parser.parse_args()
 
     try:
-        # Parse all inputs
-        python_coverage = parse_coverage_xml(args.python_coverage)
-        python_tests = parse_junit_xml(args.python_tests)
-        ts_coverage = parse_lcov(args.ts_coverage)
-        ts_tests = parse_junit_xml(args.ts_tests)
+        # Validate all input paths with realpath bounds checking
+        # This prevents path traversal attacks via symlinks or ../ sequences
+        python_cov_path = validate_path_bounds(
+            args.python_coverage,
+            base_dir=args.artifacts_dir,
+            label="Python coverage",
+        )
+        python_test_path = validate_path_bounds(
+            args.python_tests,
+            base_dir=args.artifacts_dir,
+            label="Python tests",
+        )
+        ts_cov_path = validate_path_bounds(
+            args.ts_coverage,
+            base_dir=args.artifacts_dir,
+            label="TypeScript coverage",
+        )
+        ts_test_path = validate_path_bounds(
+            args.ts_tests,
+            base_dir=args.artifacts_dir,
+            label="TypeScript tests",
+        )
+
+        # Parse all inputs (using validated paths)
+        python_coverage = parse_coverage_xml(str(python_cov_path))
+        python_tests = parse_junit_xml(str(python_test_path))
+        ts_coverage = parse_lcov(str(ts_cov_path))
+        ts_tests = parse_junit_xml(str(ts_test_path))
 
         # Generate JSON
         json_output = generate_status_json(
