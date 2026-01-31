@@ -392,16 +392,23 @@ class TestParseRetryAfter:
     def test_http_date_format(self) -> None:
         """Parse HTTP-date format (RFC 7231)."""
         from datetime import datetime, timedelta, timezone
+        from unittest.mock import patch
 
         from ado_git_repo_insights.extractor.ado_client import parse_retry_after
 
-        # Create a date 30 seconds in the future
-        future = datetime.now(timezone.utc) + timedelta(seconds=30)
+        # Use a fixed "now" time for deterministic testing
+        fixed_now = datetime(2026, 1, 15, 12, 0, 0, tzinfo=timezone.utc)
+        future = fixed_now + timedelta(seconds=30)
         http_date = future.strftime("%a, %d %b %Y %H:%M:%S GMT")
 
-        result = parse_retry_after(http_date)
-        # Should be approximately 30 seconds (allow some tolerance)
-        assert 25 <= result <= 35
+        with patch(
+            "ado_git_repo_insights.extractor.ado_client.datetime"
+        ) as mock_datetime:
+            mock_datetime.now.return_value = fixed_now
+            result = parse_retry_after(http_date)
+
+        # Should be exactly 30 seconds
+        assert result == 30
 
     def test_http_date_in_past_returns_minimum(self) -> None:
         """HTTP-date in the past returns at least 1 second."""

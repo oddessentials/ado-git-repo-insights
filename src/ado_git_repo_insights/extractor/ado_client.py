@@ -12,7 +12,7 @@ import logging
 import time
 from collections.abc import Iterator
 from dataclasses import dataclass
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta, timezone
 from email.utils import parsedate_to_datetime
 from typing import Any
 
@@ -49,8 +49,8 @@ def parse_retry_after(header_value: str | None, default: int = 60) -> int:
     # Try HTTP-date format (RFC 7231)
     try:
         retry_dt = parsedate_to_datetime(header_value)
-        from datetime import datetime, timezone
-
+        if retry_dt is None:
+            raise ValueError("parsedate_to_datetime returned None")
         now = datetime.now(timezone.utc)
         delta = (retry_dt - now).total_seconds()
         # Return at least 1 second, even if date is in the past
