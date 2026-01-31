@@ -1344,9 +1344,9 @@
     "default_date_range_days": 90
   },
   "features": {
-    "ai_insights": false,
+    "ai_insights": true,
     "comments": false,
-    "predictions": false,
+    "predictions": true,
     "teams": false
   },
   "generated_at": "2026-01-30T12:00:00Z",
