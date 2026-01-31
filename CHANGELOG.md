@@ -1,3 +1,18 @@
+# [5.17.0](https://github.com/oddessentials/ado-git-repo-insights/compare/v5.16.0...v5.17.0) (2026-01-31)
+
+
+### Bug Fixes
+
+* **ci:** exclude test_stage_artifacts from pagination guard ([8ffa151](https://github.com/oddessentials/ado-git-repo-insights/commit/8ffa1518d496597861d7127694993205f984877b))
+* **pagination:** integrate extract_continuation_token in ado_client ([0f30d55](https://github.com/oddessentials/ado-git-repo-insights/commit/0f30d551c3c8d9ab87ca1ff74decfa5c95fd84d8))
+* **security:** add Windows drive letter detection and improve CI guard ([e643ad4](https://github.com/oddessentials/ado-git-repo-insights/commit/e643ad42f1fd7f2f9eaa123cc48b4d91acc57694))
+
+
+### Features
+
+* **ci:** add pagination token guard and security regression tests ([7088e20](https://github.com/oddessentials/ado-git-repo-insights/commit/7088e20962eccf9b9a8f46426d23a4788cbb6301))
+* **security:** implement Zip Slip protection and pagination token encoding ([a90c466](https://github.com/oddessentials/ado-git-repo-insights/commit/a90c466cea4f354a3730465736a34e60617a0ff4))
+
 # [5.16.0](https://github.com/oddessentials/ado-git-repo-insights/compare/v5.15.2...v5.16.0) (2026-01-30)
 
 
