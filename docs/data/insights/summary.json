@@ -4,7 +4,11 @@
   "insights": [
     {
       "affected_entities": [
-        "repo:monitoring-stack"
+        {
+          "id": "monitoring-stack",
+          "name": "monitoring-stack",
+          "type": "repository"
+        }
       ],
       "category": "bottleneck",
       "description": "The monitoring-stack repository showed high cycle time variability in 2021-W33. The P90 cycle time (156.2 hours) was 337.8x higher than P50 (0.5 hours). This suggests some PRs were getting stuck in review or blocked by dependencies.",
@@ -17,7 +21,11 @@
     },
     {
       "affected_entities": [
-        "repo:auth-service"
+        {
+          "id": "auth-service",
+          "name": "auth-service",
+          "type": "repository"
+        }
       ],
       "category": "bottleneck",
       "description": "The auth-service repository showed high cycle time variability in 2023-W08. The P90 cycle time (658.3 hours) was 152.5x higher than P50 (4.3 hours). This suggests some PRs were getting stuck in review or blocked by dependencies.",
@@ -30,7 +38,11 @@
     },
     {
       "affected_entities": [
-        "repo:dashboard-api"
+        {
+          "id": "dashboard-api",
+          "name": "dashboard-api",
+          "type": "repository"
+        }
       ],
       "category": "bottleneck",
       "description": "The dashboard-api repository has critically slow PR completion times. The P90 cycle time is 40.1 days, exceeding the 5-day threshold. Consider reviewing code review practices or breaking up large PRs.",
@@ -43,7 +55,11 @@
     },
     {
       "affected_entities": [
-        "org:all"
+        {
+          "id": "all",
+          "name": "All Teams",
+          "type": "team"
+        }
       ],
       "category": "trend",
       "description": "PR throughput increased by 23.0% during 2023-W08 to 2023-W11. Average weekly PRs went from 31.8 to 39.0. This surge could indicate a major release push or increased team capacity.",
@@ -59,7 +75,11 @@
     },
     {
       "affected_entities": [
-        "org:all"
+        {
+          "id": "all",
+          "name": "All Teams",
+          "type": "team"
+        }
       ],
       "category": "trend",
       "description": "PR cycle time decreased by 43.0% during 2023-W50 to 2024-W01. Median cycle time dropped from 10.7 hours to 6.1 hours. This improvement suggests review processes became more efficient during this period.",
@@ -75,7 +95,11 @@
     },
     {
       "affected_entities": [
-        "org:all"
+        {
+          "id": "all",
+          "name": "All Teams",
+          "type": "team"
+        }
       ],
       "category": "anomaly",
       "description": "Week 2022-W05 had 37 PRs, which is 4.1 standard deviations above the 8-week rolling average of 31.3. This spike could indicate a major release, hackathon, or concentrated feature work.",
@@ -88,7 +112,11 @@
     },
     {
       "affected_entities": [
-        "org:all"
+        {
+          "id": "all",
+          "name": "All Teams",
+          "type": "team"
+        }
       ],
       "category": "anomaly",
       "description": "Week 2021-W47 had only 30 PRs, which is 4.3 standard deviations below the 8-week rolling average of 36.5. This dip could indicate team absences, blockers, or focus on non-PR work.",

@@ -150,6 +150,15 @@ class WeeklyRollup:
 
 
 @dataclass
+class AffectedEntity:
+    """Affected entity (team, repository, or user)."""
+
+    type: str  # "repository", "team", or "user"
+    id: str
+    name: str
+
+
+@dataclass
 class Insight:
     """Generated insight."""
 
@@ -158,7 +167,7 @@ class Insight:
     severity: str
     title: str
     description: str
-    affected_entities: list[str]
+    affected_entities: list[AffectedEntity]
     evidence_refs: list[str] = field(default_factory=list)
 
 
@@ -245,7 +254,9 @@ def detect_bottleneck_001(rollups: list[WeeklyRollup]) -> list[Insight]:
                     f"{round_float(ratio, 1)}x higher than P50 ({round_float(repo.cycle_time_p50 / 60, 1)} hours). "
                     f"This suggests some PRs were getting stuck in review or blocked by dependencies."
                 ),
-                affected_entities=[f"repo:{repo_name}"],
+                affected_entities=[
+                    AffectedEntity(type="repository", id=repo_name, name=repo_name)
+                ],
                 evidence_refs=[f"rollup:{rollup.week}"],
             )
         )
@@ -276,7 +287,9 @@ def detect_bottleneck_002(rollups: list[WeeklyRollup]) -> list[Insight]:
                         f"The P90 cycle time is {round_float(days, 1)} days, exceeding the 5-day threshold. "
                         f"Consider reviewing code review practices or breaking up large PRs."
                     ),
-                    affected_entities=[f"repo:{repo.name}"],
+                    affected_entities=[
+                        AffectedEntity(type="repository", id=repo.name, name=repo.name)
+                    ],
                     evidence_refs=[f"rollup:{latest.week}"],
                 )
             )
@@ -324,7 +337,9 @@ def detect_trend_001(rollups: list[WeeklyRollup]) -> list[Insight]:
                     f"Average weekly PRs went from {round_float(earlier_avg, 1)} to {round_float(recent_avg, 1)}. "
                     f"This surge could indicate a major release push or increased team capacity."
                 ),
-                affected_entities=["org:all"],
+                affected_entities=[
+                    AffectedEntity(type="team", id="all", name="All Teams")
+                ],
                 evidence_refs=[f"rollup:{r.week}" for r in recent],
             )
         )
@@ -372,7 +387,9 @@ def detect_trend_002(rollups: list[WeeklyRollup]) -> list[Insight]:
                     f"Median cycle time dropped from {round_float(earlier_avg / 60, 1)} hours to {round_float(recent_avg / 60, 1)} hours. "
                     f"This improvement suggests review processes became more efficient during this period."
                 ),
-                affected_entities=["org:all"],
+                affected_entities=[
+                    AffectedEntity(type="team", id="all", name="All Teams")
+                ],
                 evidence_refs=[f"rollup:{r.week}" for r in recent],
             )
         )
@@ -420,7 +437,9 @@ def detect_trend_003(rollups: list[WeeklyRollup]) -> list[Insight]:
                     f"Average weekly PRs dropped from {round_float(earlier_avg, 1)} to {round_float(recent_avg, 1)}. "
                     f"This decline may indicate team capacity issues, blockers, or seasonal slowdown."
                 ),
-                affected_entities=["org:all"],
+                affected_entities=[
+                    AffectedEntity(type="team", id="all", name="All Teams")
+                ],
                 evidence_refs=[f"rollup:{r.week}" for r in recent],
             )
         )
@@ -470,7 +489,9 @@ def detect_anomaly_001(rollups: list[WeeklyRollup]) -> list[Insight]:
                     f"standard deviations above the {ANOMALY_ROLLING_WEEKS}-week rolling average of {round_float(mean, 1)}. "
                     f"This spike could indicate a major release, hackathon, or concentrated feature work."
                 ),
-                affected_entities=["org:all"],
+                affected_entities=[
+                    AffectedEntity(type="team", id="all", name="All Teams")
+                ],
                 evidence_refs=[f"rollup:{current.week}"],
             )
         )
@@ -520,7 +541,9 @@ def detect_anomaly_002(rollups: list[WeeklyRollup]) -> list[Insight]:
                     f"standard deviations below the {ANOMALY_ROLLING_WEEKS}-week rolling average of {round_float(mean, 1)}. "
                     f"This dip could indicate team absences, blockers, or focus on non-PR work."
                 ),
-                affected_entities=["org:all"],
+                affected_entities=[
+                    AffectedEntity(type="team", id="all", name="All Teams")
+                ],
                 evidence_refs=[f"rollup:{current.week}"],
             )
         )
@@ -570,7 +593,9 @@ def detect_anomaly_003(rollups: list[WeeklyRollup]) -> list[Insight]:
                     f"The {repo_name} repository has had no merged PRs in the last {ANOMALY_INACTIVE_WEEKS} weeks. "
                     f"This could indicate the repository is inactive, blocked, or all work is happening on long-lived branches."
                 ),
-                affected_entities=[f"repo:{repo_name}"],
+                affected_entities=[
+                    AffectedEntity(type="repository", id=repo_name, name=repo_name)
+                ],
                 evidence_refs=[f"rollup:{r.week}" for r in recent],
             )
         )
@@ -669,7 +694,10 @@ def main() -> int:
                 "severity": i.severity,
                 "title": i.title,
                 "description": i.description,
-                "affected_entities": i.affected_entities,
+                "affected_entities": [
+                    {"type": e.type, "id": e.id, "name": e.name}
+                    for e in i.affected_entities
+                ],
                 "evidence_refs": i.evidence_refs,
             }
             for i in all_insights

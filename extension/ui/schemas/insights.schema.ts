@@ -95,6 +95,7 @@ export interface Insights {
 const KNOWN_ROOT_FIELDS = new Set([
   "schema_version",
   "generated_at",
+  "generated_by",
   "is_stub",
   "insights",
 ]);
@@ -108,6 +109,7 @@ const KNOWN_INSIGHT_FIELDS = new Set([
   "data",
   "affected_entities",
   "recommendation",
+  "evidence_refs",
 ]);
 
 const KNOWN_INSIGHT_DATA_FIELDS = new Set([

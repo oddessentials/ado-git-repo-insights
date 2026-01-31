@@ -747,7 +747,9 @@ var PRInsightsDashboard = (() => {
     "cycle_time_p50",
     "cycle_time_p90",
     "review_time_p50",
-    "review_time_p90"
+    "review_time_p90",
+    "authors_count",
+    "reviewers_count"
   ]);
   function validateBreakdownEntry(data, path, strict) {
     const errors = [];
