@@ -36,17 +36,23 @@ def parse_retry_after(
     """Parse Retry-After header value (seconds or HTTP-date).
 
     RFC 7231 allows Retry-After to be:
-    - An integer number of seconds: "120"
+    - An integer number of seconds: "120" (must be non-negative)
     - An HTTP-date: "Wed, 21 Oct 2026 07:28:00 GMT"
 
     Args:
         header_value: Raw header value, or None if missing.
         default: Default seconds if header is missing or unparseable.
-        max_seconds: Optional upper bound on returned value.
+        max_seconds: Optional upper bound on returned value (must be non-negative).
 
     Returns:
         Number of seconds to wait, capped by max_seconds if specified.
+
+    Raises:
+        ValueError: If max_seconds is negative.
     """
+    if max_seconds is not None and max_seconds < 0:
+        raise ValueError("max_seconds must be non-negative")
+
     if not header_value:
         result = default
     else:
@@ -62,7 +68,11 @@ def _parse_retry_after_value(header_value: str, default: int) -> int:
     """Parse the actual Retry-After value (internal helper)."""
     # Try integer seconds first (most common)
     try:
-        return int(header_value)
+        seconds = int(header_value)
+        # RFC 7231: Retry-After must be non-negative
+        if seconds >= 0:
+            return seconds
+        # Negative value is invalid per RFC - fall through to warning
     except ValueError:
         pass
 
@@ -82,9 +92,10 @@ def _parse_retry_after_value(header_value: str, default: int) -> int:
         pass
 
     # Unparseable - use default
-    logger.warning(
-        f"Could not parse Retry-After header: {header_value!r}, using default"
-    )
+    # Sanitize header value in log to prevent information disclosure
+    # and avoid log injection (truncate to 100 chars, escape control chars)
+    safe_value = header_value[:100].encode("unicode_escape").decode("ascii")
+    logger.warning(f"Could not parse Retry-After header: {safe_value!r}, using default")
     return default
 
 

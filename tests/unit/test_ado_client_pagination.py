@@ -482,18 +482,17 @@ class TestParseRetryAfter:
         assert parse_retry_after(None, default=60, max_seconds=30) == 30
 
     def test_negative_integer_treated_as_invalid(self) -> None:
-        """Negative integer returns the parsed negative value (edge case).
+        """Negative integer is invalid per RFC 7231 and returns default.
 
-        Note: Negative Retry-After is technically invalid per RFC 7231,
-        but we don't reject it - callers should use max_seconds=0 or
-        validate separately if needed.
+        RFC 7231 specifies Retry-After as a non-negative integer or HTTP-date.
+        Negative values are rejected and the default is returned.
         """
         from ado_git_repo_insights.extractor.ado_client import parse_retry_after
 
-        # int("-5") succeeds, so we get -5 back
-        assert parse_retry_after("-5") == -5
-        # But with max_seconds, it's capped
-        assert parse_retry_after("-5", max_seconds=0) == -5  # min not applied here
+        # Negative values are invalid per RFC 7231, returns default
+        assert parse_retry_after("-5") == 60  # default
+        assert parse_retry_after("-5", default=30) == 30
+        assert parse_retry_after("-1") == 60
 
     def test_large_integer_value(self) -> None:
         """Large integer values are parsed correctly and can be capped."""
@@ -501,6 +500,38 @@ class TestParseRetryAfter:
 
         assert parse_retry_after("86400") == 86400  # 1 day
         assert parse_retry_after("86400", max_seconds=3600) == 3600  # Capped to 1 hour
+
+    def test_max_seconds_negative_raises_error(self) -> None:
+        """Negative max_seconds raises ValueError."""
+        from ado_git_repo_insights.extractor.ado_client import parse_retry_after
+
+        with pytest.raises(ValueError, match="max_seconds must be non-negative"):
+            parse_retry_after("60", max_seconds=-1)
+
+    def test_max_seconds_zero_is_valid(self) -> None:
+        """max_seconds=0 is valid and caps all values to 0."""
+        from ado_git_repo_insights.extractor.ado_client import parse_retry_after
+
+        assert parse_retry_after("60", max_seconds=0) == 0
+        assert parse_retry_after(None, max_seconds=0) == 0
+
+    def test_log_sanitization_truncates_long_values(self) -> None:
+        """Invalid header values are truncated in log messages."""
+        from ado_git_repo_insights.extractor.ado_client import parse_retry_after
+
+        # Very long invalid value - should not crash and should return default
+        long_value = "x" * 1000
+        result = parse_retry_after(long_value)
+        assert result == 60  # default
+
+    def test_log_sanitization_escapes_control_chars(self) -> None:
+        """Control characters in header are escaped in log messages."""
+        from ado_git_repo_insights.extractor.ado_client import parse_retry_after
+
+        # Value with control characters - should not crash
+        value_with_controls = "invalid\x00\x1f\nvalue"
+        result = parse_retry_after(value_with_controls)
+        assert result == 60  # default
 
 
 class TestTeamMethodsErrorHandling:
