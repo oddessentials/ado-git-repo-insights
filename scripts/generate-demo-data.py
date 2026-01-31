@@ -201,7 +201,7 @@ class WeeklyRollup:
     authors_count: int
     reviewers_count: int
     by_repository: dict[str, dict[str, Any]]
-    by_team: None = None
+    # Note: by_team is omitted when teams feature is disabled (not null)
 
 
 @dataclass
@@ -782,7 +782,7 @@ def main() -> int:
             "authors_count": rollup.authors_count,
             "reviewers_count": rollup.reviewers_count,
             "by_repository": rollup.by_repository,
-            "by_team": rollup.by_team,
+            # by_team is omitted when teams feature is disabled (schema expects object, not null)
         }
         write_json(rollups_dir / f"{rollup.week}.json", rollup_data)
     print(f"  Written: {len(rollups)} files to {rollups_dir}")
