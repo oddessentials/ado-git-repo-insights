@@ -74,6 +74,16 @@ def absolute_path_zip(tmp_path: Path) -> Path:
     return zip_path
 
 
+@pytest.fixture
+def windows_drive_zip(tmp_path: Path) -> Path:
+    """Create a malicious ZIP with Windows drive letter path entry."""
+    zip_path = tmp_path / "windows_drive.zip"
+    with zipfile.ZipFile(zip_path, "w") as zf:
+        zf.writestr("safe.txt", "Safe content")
+        zf.writestr("C:\\Windows\\System32\\evil.dll", "Malicious content")
+    return zip_path
+
+
 def _create_symlink_zip(tmp_path: Path) -> Path:
     """Create a ZIP with a symlink entry using Unix mode bits."""
     zip_path = tmp_path / "symlink.zip"
@@ -206,6 +216,32 @@ class TestValidateEntryPath:
         assert is_valid is True
         assert error == ""
 
+    def test_rejects_windows_drive_letter_c(self, temp_dir: Path) -> None:
+        """Test that Windows C: drive paths are rejected."""
+        is_valid, error = validate_entry_path(
+            "C:\\Windows\\System32\\evil.dll", temp_dir
+        )
+        assert is_valid is False
+        assert "Absolute path not allowed" in error
+
+    def test_rejects_windows_drive_letter_d(self, temp_dir: Path) -> None:
+        """Test that Windows D: drive paths are rejected."""
+        is_valid, error = validate_entry_path("D:/data/sensitive.txt", temp_dir)
+        assert is_valid is False
+        assert "Absolute path not allowed" in error
+
+    def test_rejects_windows_drive_letter_lowercase(self, temp_dir: Path) -> None:
+        """Test that lowercase Windows drive letters are rejected."""
+        is_valid, error = validate_entry_path("c:/users/evil.exe", temp_dir)
+        assert is_valid is False
+        assert "Absolute path not allowed" in error
+
+    def test_rejects_windows_drive_letter_no_slash(self, temp_dir: Path) -> None:
+        """Test that Windows drive letter without slash is rejected."""
+        is_valid, error = validate_entry_path("E:autorun.inf", temp_dir)
+        assert is_valid is False
+        assert "Absolute path not allowed" in error
+
 
 # ============================================================================
 # safe_extract_zip() Tests
@@ -263,6 +299,21 @@ class TestSafeExtractZip:
             safe_extract_zip(absolute_path_zip, out_dir)
 
         assert "/etc/passwd" in exc_info.value.entry_name
+        # Verify no files were written
+        assert not out_dir.exists() or not any(out_dir.iterdir())
+
+    def test_rejects_zip_with_windows_drive_path(
+        self, windows_drive_zip: Path, temp_dir: Path
+    ) -> None:
+        """Test that ZIPs with Windows drive letter paths are rejected."""
+        out_dir = temp_dir / "extracted"
+
+        with pytest.raises(ZipSlipError) as exc_info:
+            safe_extract_zip(windows_drive_zip, out_dir)
+
+        # ZIP may normalize to forward slashes, check for either C:\ or C:/
+        assert exc_info.value.entry_name.startswith("C:")
+        assert "Absolute path not allowed" in exc_info.value.reason
         # Verify no files were written
         assert not out_dir.exists() or not any(out_dir.iterdir())
 

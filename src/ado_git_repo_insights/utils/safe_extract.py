@@ -7,6 +7,7 @@ a temp-directory-then-swap approach for atomic operations.
 
 from __future__ import annotations
 
+import re
 import shutil
 import time
 import zipfile
@@ -16,6 +17,9 @@ from uuid import uuid4
 
 if TYPE_CHECKING:
     pass
+
+# Pattern to match Windows drive letters (e.g., C:, D:\, E:/)
+_WINDOWS_DRIVE_PATTERN = re.compile(r"^[A-Za-z]:[/\\]?")
 
 __all__ = [
     "ZipSlipError",
@@ -77,12 +81,16 @@ def validate_entry_path(entry_name: str, out_dir: Path) -> tuple[bool, str]:
         Tuple of (is_valid, error_message). If valid, error_message is empty.
 
     Validation checks (in order):
-        1. Reject absolute paths (starts with / or \\)
+        1. Reject absolute paths (starts with / or \\ or Windows drive letter)
         2. Reject path traversal sequences (contains ..)
         3. Reject if resolved path escapes out_dir
     """
-    # Check for absolute paths
+    # Check for absolute paths (Unix and Windows)
     if entry_name.startswith("/") or entry_name.startswith("\\"):
+        return False, f"Absolute path not allowed: {entry_name}"
+
+    # Check for Windows drive letter paths (e.g., C:\, D:/)
+    if _WINDOWS_DRIVE_PATTERN.match(entry_name):
         return False, f"Absolute path not allowed: {entry_name}"
 
     # Check for path traversal sequences (defense in depth)

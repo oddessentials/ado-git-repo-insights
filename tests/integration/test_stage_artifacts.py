@@ -73,6 +73,17 @@ def malicious_absolute_path_zip(tmp_path: Path) -> Path:
 
 
 @pytest.fixture
+def malicious_windows_drive_zip(tmp_path: Path) -> Path:
+    """Create a ZIP with Windows drive letter path attack."""
+    zip_path = tmp_path / "malicious_windows.zip"
+    with zipfile.ZipFile(zip_path, "w") as zf:
+        zf.writestr("safe_file.txt", "This is safe content")
+        # Windows drive letter path entry
+        zf.writestr("C:\\Windows\\System32\\evil.dll", "Malicious DLL content")
+    return zip_path
+
+
+@pytest.fixture
 def valid_zip(tmp_path: Path) -> Path:
     """Create a valid, safe ZIP file."""
     zip_path = tmp_path / "valid.zip"
@@ -167,6 +178,27 @@ class TestZipSlipProtection:
 
         # CRITICAL: Verify /etc/shadow was not modified (if we had permissions)
         # In practice, this would fail anyway, but the test verifies intent
+        assert not out_dir.exists() or not any(out_dir.iterdir())
+
+    def test_windows_drive_path_blocked_before_extraction(
+        self, malicious_windows_drive_zip: Path, tmp_path: Path
+    ) -> None:
+        r"""SC-007: Windows drive letter path does NOT end up on disk.
+
+        Verifies that Windows-style absolute paths (C:\, D:\, etc.) are
+        detected and blocked before any extraction occurs.
+        """
+        out_dir = tmp_path / "output"
+
+        with pytest.raises(ZipSlipError) as exc_info:
+            safe_extract_zip(malicious_windows_drive_zip, out_dir)
+
+        # Verify error identifies the Windows drive path
+        # ZIP may normalize to forward slashes, check for C: prefix
+        assert exc_info.value.entry_name.startswith("C:")
+        assert "Absolute path not allowed" in exc_info.value.reason
+
+        # CRITICAL: Verify no files were written
         assert not out_dir.exists() or not any(out_dir.iterdir())
 
     def test_valid_zip_extracts_successfully(

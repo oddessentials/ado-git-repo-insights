@@ -352,8 +352,9 @@ jobs:
         shell: bash
 
   # Guard: Enforce centralized pagination token handling (SC-009)
-  # Prevents direct continuationToken string concatenation (Zip Slip vector)
+  # Prevents direct continuationToken string concatenation (parameter injection vector)
   # See: specs/017-security-fixes/spec.md for security requirements
+  # Allowlist: .pagination-allowlist (edit to add new exceptions)
   pagination-token-guard:
     runs-on: ubuntu-latest
     steps:
@@ -364,24 +365,27 @@ jobs:
           set -euo pipefail
 
           echo "Checking for direct continuationToken usage outside pagination helper..."
+          echo "Allowlist: .pagination-allowlist"
+          echo ""
 
-          # Find continuationToken string concatenation outside allowed paths
-          # Allowed paths:
-          #   - pagination.py (the centralized helper)
-          #   - test files for pagination
-          #   - fixture files
-          #   - spec/research documentation
-          #
-          # Pattern: looks for f-string or + concatenation with continuationToken
-          VIOLATIONS=$(rg -l 'continuationToken' \
-            --glob '!**/pagination.py' \
-            --glob '!**/test_pagination*.py' \
-            --glob '!**/test_ado_client_pagination.py' \
-            --glob '!**/test_stage_artifacts.py' \
-            --glob '!tests/fixtures/**' \
-            --glob '!specs/**' \
-            --glob '!**/*.md' \
-            src/ tests/ 2>/dev/null || true)
+          # Build glob exclusions from allowlist file
+          GLOB_ARGS=""
+          if [ -f ".pagination-allowlist" ]; then
+            while IFS= read -r line || [ -n "$line" ]; do
+              # Skip empty lines and comments
+              [[ -z "$line" || "$line" =~ ^[[:space:]]*# ]] && continue
+              # Trim whitespace
+              pattern=$(echo "$line" | xargs)
+              [ -n "$pattern" ] && GLOB_ARGS="$GLOB_ARGS --glob '!$pattern'"
+            done < ".pagination-allowlist"
+          else
+            echo "::warning::Allowlist file .pagination-allowlist not found, using defaults"
+            GLOB_ARGS="--glob '!**/pagination.py' --glob '!**/test_pagination*.py' --glob '!specs/**' --glob '!**/*.md'"
+          fi
+
+          # Find continuationToken outside allowed paths
+          # Note: eval is safe here as GLOB_ARGS is built from repo-controlled allowlist file
+          VIOLATIONS=$(eval "rg -l 'continuationToken' $GLOB_ARGS src/ tests/ 2>/dev/null" || true)
 
           if [ -n "$VIOLATIONS" ]; then
             echo ""
@@ -395,6 +399,7 @@ jobs:
             echo ""
             echo "Fix: Use add_continuation_token() from pagination.py instead of direct string manipulation"
             echo "See: src/ado_git_repo_insights/extractor/pagination.py"
+            echo "To allowlist a file, add it to .pagination-allowlist"
             exit 1
           fi
 

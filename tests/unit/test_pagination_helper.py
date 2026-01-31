@@ -12,6 +12,8 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 from unittest.mock import MagicMock
 
+import pytest
+
 from ado_git_repo_insights.extractor.pagination import (
     PaginationError,
     add_continuation_token,
@@ -197,6 +199,26 @@ class TestExtractContinuationToken:
         token = extract_continuation_token(response)
 
         assert token is None
+
+    def test_json_decode_error_logs_debug_message(
+        self, caplog: pytest.LogCaptureFixture
+    ) -> None:
+        """JSON decode errors are logged at debug level for troubleshooting."""
+        import json
+        import logging
+
+        response = MagicMock()
+        response.headers = {}
+        response.json.side_effect = json.JSONDecodeError("Unexpected char", "doc", 5)
+
+        with caplog.at_level(
+            logging.DEBUG, logger="ado_git_repo_insights.extractor.pagination"
+        ):
+            token = extract_continuation_token(response)
+
+        assert token is None
+        assert "Could not parse JSON for token extraction" in caplog.text
+        assert "Unexpected char" in caplog.text
 
     def test_preserves_special_chars_in_token(self) -> None:
         """Special characters in token are preserved (not decoded)."""

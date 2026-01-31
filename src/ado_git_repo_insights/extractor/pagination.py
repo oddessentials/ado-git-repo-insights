@@ -8,11 +8,14 @@ PR threads).
 from __future__ import annotations
 
 import json
+import logging
 from typing import TYPE_CHECKING
 from urllib.parse import quote_plus, urlparse
 
 if TYPE_CHECKING:
     import requests
+
+logger = logging.getLogger(__name__)
 
 __all__ = [
     "PaginationError",
@@ -85,8 +88,8 @@ def extract_continuation_token(response: requests.Response) -> str | None:
         body_token: str = body.get("continuationToken", "")
         if body_token:
             return body_token
-    except (json.JSONDecodeError, ValueError):
+    except (json.JSONDecodeError, ValueError) as e:
         # Response may not be JSON, or may be malformed
-        pass
+        logger.debug("Could not parse JSON for token extraction: %s", e)
 
     return None
