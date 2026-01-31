@@ -13,6 +13,7 @@ import time
 from collections.abc import Iterator
 from dataclasses import dataclass
 from datetime import date, timedelta
+from email.utils import parsedate_to_datetime
 from typing import Any
 
 import requests
@@ -20,6 +21,49 @@ from requests.exceptions import HTTPError, RequestException
 
 from ..config import APIConfig
 from .pagination import add_continuation_token, extract_continuation_token
+
+
+def parse_retry_after(header_value: str | None, default: int = 60) -> int:
+    """Parse Retry-After header value (seconds or HTTP-date).
+
+    RFC 7231 allows Retry-After to be:
+    - An integer number of seconds: "120"
+    - An HTTP-date: "Wed, 21 Oct 2026 07:28:00 GMT"
+
+    Args:
+        header_value: Raw header value, or None if missing.
+        default: Default seconds if header is missing or unparseable.
+
+    Returns:
+        Number of seconds to wait.
+    """
+    if not header_value:
+        return default
+
+    # Try integer seconds first (most common)
+    try:
+        return int(header_value)
+    except ValueError:
+        pass
+
+    # Try HTTP-date format (RFC 7231)
+    try:
+        retry_dt = parsedate_to_datetime(header_value)
+        from datetime import datetime, timezone
+
+        now = datetime.now(timezone.utc)
+        delta = (retry_dt - now).total_seconds()
+        # Return at least 1 second, even if date is in the past
+        return max(1, int(delta))
+    except (ValueError, TypeError):
+        pass
+
+    # Unparseable - use default
+    logger.warning(
+        f"Could not parse Retry-After header: {header_value!r}, using default"
+    )
+    return default
+
 
 logger = logging.getLogger(__name__)
 
@@ -318,7 +362,7 @@ class ADOClient:
                 if not continuation_token:
                     break
 
-            except (RequestException, HTTPError) as e:
+            except (RequestException, HTTPError, json.JSONDecodeError) as e:
                 raise ExtractionError(
                     f"Failed to fetch teams for {project}: {e}"
                 ) from e
@@ -366,7 +410,7 @@ class ADOClient:
                 if not continuation_token:
                     break
 
-            except (RequestException, HTTPError) as e:
+            except (RequestException, HTTPError, json.JSONDecodeError) as e:
                 raise ExtractionError(
                     f"Failed to fetch members for team {team_id}: {e}"
                 ) from e
@@ -416,9 +460,10 @@ class ADOClient:
 
                 # Handle rate limiting (429) with bounded backoff
                 if response.status_code == 429:
-                    retry_after = int(response.headers.get("Retry-After", 60))
+                    retry_after = parse_retry_after(response.headers.get("Retry-After"))
+                    retry_after = min(retry_after, 120)  # Cap at 2 minutes
                     logger.warning(f"Rate limited, waiting {retry_after}s")
-                    time.sleep(min(retry_after, 120))  # Cap at 2 minutes
+                    time.sleep(retry_after)
                     continue
 
                 response.raise_for_status()
@@ -431,7 +476,7 @@ class ADOClient:
                 if not continuation_token:
                     break
 
-            except (RequestException, HTTPError) as e:
+            except (RequestException, HTTPError, json.JSONDecodeError) as e:
                 raise ExtractionError(
                     f"Failed to fetch threads for PR {pull_request_id}: {e}"
                 ) from e

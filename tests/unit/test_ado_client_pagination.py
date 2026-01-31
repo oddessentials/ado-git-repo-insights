@@ -376,3 +376,206 @@ class TestSpecialCharacterTokens:
 
         # + should be %2B, space should be +
         assert "continuationToken=a%2Bb+c" in second_call_url
+
+
+class TestParseRetryAfter:
+    """Tests for Retry-After header parsing (RFC 7231 compliance)."""
+
+    def test_integer_seconds(self) -> None:
+        """Parse integer seconds format."""
+        from ado_git_repo_insights.extractor.ado_client import parse_retry_after
+
+        assert parse_retry_after("60") == 60
+        assert parse_retry_after("120") == 120
+        assert parse_retry_after("0") == 0
+
+    def test_http_date_format(self) -> None:
+        """Parse HTTP-date format (RFC 7231)."""
+        from datetime import datetime, timedelta, timezone
+
+        from ado_git_repo_insights.extractor.ado_client import parse_retry_after
+
+        # Create a date 30 seconds in the future
+        future = datetime.now(timezone.utc) + timedelta(seconds=30)
+        http_date = future.strftime("%a, %d %b %Y %H:%M:%S GMT")
+
+        result = parse_retry_after(http_date)
+        # Should be approximately 30 seconds (allow some tolerance)
+        assert 25 <= result <= 35
+
+    def test_http_date_in_past_returns_minimum(self) -> None:
+        """HTTP-date in the past returns at least 1 second."""
+        from ado_git_repo_insights.extractor.ado_client import parse_retry_after
+
+        # Date clearly in the past
+        past_date = "Wed, 21 Oct 2020 07:28:00 GMT"
+        result = parse_retry_after(past_date)
+        assert result == 1  # Minimum is 1 second
+
+    def test_none_returns_default(self) -> None:
+        """None header value returns default."""
+        from ado_git_repo_insights.extractor.ado_client import parse_retry_after
+
+        assert parse_retry_after(None) == 60
+        assert parse_retry_after(None, default=30) == 30
+
+    def test_invalid_value_returns_default(self) -> None:
+        """Unparseable value returns default."""
+        from ado_git_repo_insights.extractor.ado_client import parse_retry_after
+
+        assert parse_retry_after("invalid") == 60
+        assert parse_retry_after("not-a-date-or-number", default=45) == 45
+
+    def test_empty_string_returns_default(self) -> None:
+        """Empty string returns default."""
+        from ado_git_repo_insights.extractor.ado_client import parse_retry_after
+
+        assert parse_retry_after("") == 60
+
+
+class TestTeamMethodsErrorHandling:
+    """Tests for error handling in team-related methods."""
+
+    @patch("ado_git_repo_insights.extractor.ado_client.requests.get")
+    def test_get_teams_handles_json_decode_error(
+        self, mock_get: MagicMock, client: ADOClient
+    ) -> None:
+        """get_teams raises ExtractionError on invalid JSON.
+
+        Regression test: JSONDecodeError was not caught, causing crashes.
+        """
+        import json
+
+        invalid_response = MagicMock()
+        invalid_response.status_code = 200
+        invalid_response.headers = {}
+        invalid_response.raise_for_status = MagicMock()
+        invalid_response.json.side_effect = json.JSONDecodeError(
+            "Expecting value", "<!DOCTYPE html>", 0
+        )
+
+        mock_get.return_value = invalid_response
+
+        with pytest.raises(ExtractionError) as exc_info:
+            client.get_teams("TestProject")
+
+        assert "Failed to fetch teams" in str(exc_info.value)
+
+    @patch("ado_git_repo_insights.extractor.ado_client.requests.get")
+    def test_get_team_members_handles_json_decode_error(
+        self, mock_get: MagicMock, client: ADOClient
+    ) -> None:
+        """get_team_members raises ExtractionError on invalid JSON."""
+        import json
+
+        invalid_response = MagicMock()
+        invalid_response.status_code = 200
+        invalid_response.headers = {}
+        invalid_response.raise_for_status = MagicMock()
+        invalid_response.json.side_effect = json.JSONDecodeError(
+            "Expecting value", "<html>", 0
+        )
+
+        mock_get.return_value = invalid_response
+
+        with pytest.raises(ExtractionError) as exc_info:
+            client.get_team_members("TestProject", "team-123")
+
+        assert "Failed to fetch members" in str(exc_info.value)
+
+    @patch("ado_git_repo_insights.extractor.ado_client.requests.get")
+    def test_get_pr_threads_handles_json_decode_error(
+        self, mock_get: MagicMock, client: ADOClient
+    ) -> None:
+        """get_pr_threads raises ExtractionError on invalid JSON."""
+        import json
+
+        invalid_response = MagicMock()
+        invalid_response.status_code = 200
+        invalid_response.headers = {}
+        invalid_response.raise_for_status = MagicMock()
+        invalid_response.json.side_effect = json.JSONDecodeError(
+            "Expecting value", "Error", 0
+        )
+
+        mock_get.return_value = invalid_response
+
+        with pytest.raises(ExtractionError) as exc_info:
+            client.get_pr_threads("TestProject", "repo-456", 789)
+
+        assert "Failed to fetch threads" in str(exc_info.value)
+
+
+class TestRateLimitingWithRetryAfter:
+    """Tests for rate limiting with various Retry-After formats."""
+
+    @patch("ado_git_repo_insights.extractor.ado_client.time.sleep")
+    @patch("ado_git_repo_insights.extractor.ado_client.requests.get")
+    def test_rate_limit_with_integer_retry_after(
+        self, mock_get: MagicMock, mock_sleep: MagicMock, client: ADOClient
+    ) -> None:
+        """429 with integer Retry-After is respected."""
+        # First call: 429 with Retry-After
+        rate_limited = MagicMock()
+        rate_limited.status_code = 429
+        rate_limited.headers = {"Retry-After": "30"}
+
+        # Second call: success
+        success_response = MagicMock()
+        success_response.status_code = 200
+        success_response.headers = {}
+        success_response.raise_for_status = MagicMock()
+        success_response.json.return_value = {"value": []}
+
+        mock_get.side_effect = [rate_limited, success_response]
+
+        client.get_pr_threads("TestProject", "repo-123", 456)
+
+        # Should have slept for 30 seconds (the Retry-After value)
+        mock_sleep.assert_any_call(30)
+
+    @patch("ado_git_repo_insights.extractor.ado_client.time.sleep")
+    @patch("ado_git_repo_insights.extractor.ado_client.requests.get")
+    def test_rate_limit_caps_at_120_seconds(
+        self, mock_get: MagicMock, mock_sleep: MagicMock, client: ADOClient
+    ) -> None:
+        """429 with large Retry-After is capped at 120 seconds."""
+        rate_limited = MagicMock()
+        rate_limited.status_code = 429
+        rate_limited.headers = {"Retry-After": "300"}  # 5 minutes
+
+        success_response = MagicMock()
+        success_response.status_code = 200
+        success_response.headers = {}
+        success_response.raise_for_status = MagicMock()
+        success_response.json.return_value = {"value": []}
+
+        mock_get.side_effect = [rate_limited, success_response]
+
+        client.get_pr_threads("TestProject", "repo-123", 456)
+
+        # Should be capped at 120 seconds
+        mock_sleep.assert_any_call(120)
+
+    @patch("ado_git_repo_insights.extractor.ado_client.time.sleep")
+    @patch("ado_git_repo_insights.extractor.ado_client.requests.get")
+    def test_rate_limit_with_invalid_retry_after_uses_default(
+        self, mock_get: MagicMock, mock_sleep: MagicMock, client: ADOClient
+    ) -> None:
+        """429 with invalid Retry-After uses default (60 seconds)."""
+        rate_limited = MagicMock()
+        rate_limited.status_code = 429
+        rate_limited.headers = {"Retry-After": "invalid-value"}
+
+        success_response = MagicMock()
+        success_response.status_code = 200
+        success_response.headers = {}
+        success_response.raise_for_status = MagicMock()
+        success_response.json.return_value = {"value": []}
+
+        mock_get.side_effect = [rate_limited, success_response]
+
+        client.get_pr_threads("TestProject", "repo-123", 456)
+
+        # Should use default of 60 seconds
+        mock_sleep.assert_any_call(60)
