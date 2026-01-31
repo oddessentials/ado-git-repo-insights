@@ -1,0 +1,291 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <base href="./">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PR Insights Dashboard</title>
+    <link rel="stylesheet" href="styles.css">
+    <!-- Azure DevOps Extension SDK (bundled locally to avoid CDN version drift) -->
+    <script src="VSS.SDK.min.js"></script>
+</head>
+<body>
+    <!-- Synthetic Data Disclaimer Banner -->
+    <style>
+      .demo-banner {
+        background: linear-gradient(135deg, #2563eb 0%, #7c3aed 100%);
+        color: white;
+        padding: 8px 16px;
+        text-align: center;
+        font-size: 14px;
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+        position: relative;
+        z-index: 1000;
+      }
+      .demo-banner a {
+        color: #93c5fd;
+        text-decoration: underline;
+      }
+      .demo-banner a:hover {
+        color: white;
+      }
+      .demo-banner-icon {
+        margin-right: 8px;
+      }
+    </style>
+    <div class="demo-banner">
+      <span class="demo-banner-icon">&#128202;</span>
+      <strong>Demo Mode:</strong> This dashboard displays fully synthetic data for illustration purposes only.
+      Data is deterministically generated and does not represent any real organization.
+      <a href="https://github.com/oddessentials/ado-git-repo-insights" target="_blank">Learn more</a>
+    </div>
+    <div id="app">
+        <!-- Header -->
+        <header class="dashboard-header">
+            <h1>PR Insights</h1>
+            <div id="dataset-info" class="dataset-info">
+                <span id="run-info">Loading...</span>
+            </div>
+        </header>
+
+        <!-- Setup Required Panel -->
+        <div id="setup-required" class="setup-panel hidden">
+            <div class="setup-icon">📊</div>
+            <h2>Setup Required</h2>
+            <p id="setup-message">No PR Insights pipeline found in this project.</p>
+            <div class="search-scope-hint">
+                <span class="scope-icon">🔍</span>
+                <span>Searching in project: <strong id="current-project-name">...</strong></span>
+            </div>
+            <div class="setup-instructions">
+                <h3>Quick Setup</h3>
+                <ol id="setup-steps">
+                    <li>Create a pipeline from <code>pr-insights-pipeline.yml</code></li>
+                    <li>Ensure it publishes an "aggregates" artifact</li>
+                    <li>Run it at least once successfully</li>
+                    <li>Return here to view your dashboard</li>
+                </ol>
+                <p class="hint">To use a pipeline from another project, add <code>?pipelineId=&lt;id&gt;</code> to the URL.</p>
+                <p><a id="docs-link" href="https://github.com/oddessentials/ado-git-repo-insights#setup" target="_blank">📖 Full Documentation</a></p>
+            </div>
+            <button id="setup-retry-btn" class="btn">Check Again</button>
+        </div>
+
+        <!-- Multiple Pipelines Panel -->
+        <div id="multiple-pipelines" class="setup-panel hidden">
+            <div class="setup-icon">🔀</div>
+            <h2>Multiple Pipelines Found</h2>
+            <p id="multiple-message">Found multiple pipelines with aggregates. Please select one:</p>
+            <div id="pipeline-list" class="pipeline-list">
+                <!-- Populated dynamically -->
+            </div>
+            <p class="hint">Or configure a default in Project Settings → PR Insights Settings</p>
+        </div>
+
+        <!-- Permission Denied Panel -->
+        <div id="permission-denied" class="setup-panel hidden">
+            <div class="setup-icon">🔒</div>
+            <h2>Permission Denied</h2>
+            <p id="permission-message">You don't have permission to access pipeline artifacts.</p>
+            <div class="setup-instructions">
+                <h3>To resolve:</h3>
+                <ol>
+                    <li>Request "Build (Read)" permission from your project administrator</li>
+                    <li>Ensure you have access to view pipeline artifacts</li>
+                    <li>If using a service account, verify its permissions</li>
+                </ol>
+            </div>
+            <button id="permission-retry-btn" class="btn">Try Again</button>
+        </div>
+
+        <!-- Generic Error State -->
+        <div id="error-state" class="error-state hidden">
+            <div class="error-icon">⚠️</div>
+            <h2 id="error-title">Error</h2>
+            <p id="error-message"></p>
+            <button id="retry-btn" class="btn">Retry</button>
+        </div>
+
+        <!-- Loading State -->
+        <div id="loading-state" class="loading-state">
+            <div class="spinner"></div>
+            <p>Loading dataset...</p>
+        </div>
+
+        <!-- Main Content -->
+        <main id="main-content" class="main-content hidden">
+            <!-- Filter Bar -->
+            <div class="filter-bar">
+                <div class="filter-group">
+                    <label for="date-range">Date Range</label>
+                    <select id="date-range">
+                        <option value="30">Last 30 days</option>
+                        <option value="90" selected>Last 90 days</option>
+                        <option value="180">Last 180 days</option>
+                        <option value="365">Last year</option>
+                        <option value="custom">Custom</option>
+                    </select>
+                </div>
+                <div id="custom-dates" class="filter-group hidden">
+                    <input type="date" id="start-date">
+                    <span>to</span>
+                    <input type="date" id="end-date">
+                    <button id="apply-dates" class="btn btn-small">Apply</button>
+                </div>
+                <div class="filter-separator"></div>
+                <div class="filter-group" id="repo-filter-group">
+                    <label for="repo-filter">Repository</label>
+                    <select id="repo-filter" multiple>
+                        <option value="" selected>All</option>
+                    </select>
+                </div>
+                <div class="filter-group" id="team-filter-group">
+                    <label for="team-filter">Team</label>
+                    <select id="team-filter" multiple>
+                        <option value="" selected>All</option>
+                    </select>
+                </div>
+                <button id="clear-filters" class="btn btn-small btn-secondary hidden">Clear Filters</button>
+                <div class="filter-actions">
+                    <button id="compare-toggle" class="btn btn-small btn-secondary" title="Compare with previous period">
+                        <span class="compare-icon">&#8644;</span> Compare
+                    </button>
+                    <div class="export-dropdown">
+                        <button id="export-btn" class="btn btn-small btn-secondary" title="Export data">
+                            <span class="export-icon">&#8681;</span> Export
+                        </button>
+                        <div id="export-menu" class="export-menu hidden">
+                            <button id="export-csv" class="export-option">Export Summary (CSV)</button>
+                            <button id="export-link" class="export-option">Copy shareable link</button>
+                            <div class="export-separator"></div>
+                            <button id="export-raw-zip" class="export-option">Download Raw Data (ZIP)</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <!-- Active Filters Display -->
+            <div id="active-filters" class="active-filters hidden">
+                <span class="active-filters-label">Filtering by:</span>
+                <div id="filter-chips" class="filter-chips"></div>
+            </div>
+
+            <!-- Comparison Mode Banner -->
+            <div id="comparison-banner" class="comparison-banner hidden">
+                <div class="comparison-periods">
+                    <div class="comparison-period current">
+                        <span class="period-label">Current Period</span>
+                        <span id="current-period-dates" class="period-dates">-</span>
+                    </div>
+                    <span class="comparison-vs">vs</span>
+                    <div class="comparison-period previous">
+                        <span class="period-label">Previous Period</span>
+                        <span id="previous-period-dates" class="period-dates">-</span>
+                    </div>
+                </div>
+                <button id="exit-compare" class="btn btn-small">Exit Comparison</button>
+            </div>
+
+            <!-- Tabs -->
+            <nav class="tabs">
+                <button class="tab active" data-tab="metrics">Metrics</button>
+                <button class="tab phase5-tab" data-tab="predictions">Predictions</button>
+                <button class="tab phase5-tab" data-tab="ai-insights">AI Insights</button>
+            </nav>
+
+            <!-- Tab Content -->
+            <section id="tab-metrics" class="tab-content active">
+                <div class="metrics-grid">
+                    <!-- Summary Cards -->
+                    <div class="summary-cards">
+                        <div class="card">
+                            <h3>Total PRs</h3>
+                            <div class="metric-row">
+                                <div id="total-prs" class="metric-value">-</div>
+                                <div id="total-prs-sparkline" class="sparkline"></div>
+                            </div>
+                            <div id="total-prs-delta" class="metric-delta"></div>
+                        </div>
+                        <div class="card">
+                            <h3>Cycle Time (P50)</h3>
+                            <div class="metric-row">
+                                <div id="cycle-p50" class="metric-value">-</div>
+                                <div id="cycle-p50-sparkline" class="sparkline"></div>
+                            </div>
+                            <div id="cycle-p50-delta" class="metric-delta"></div>
+                        </div>
+                        <div class="card">
+                            <h3>Cycle Time (P90)</h3>
+                            <div class="metric-row">
+                                <div id="cycle-p90" class="metric-value">-</div>
+                                <div id="cycle-p90-sparkline" class="sparkline"></div>
+                            </div>
+                            <div id="cycle-p90-delta" class="metric-delta"></div>
+                        </div>
+                        <div class="card">
+                            <h3>Contributors</h3>
+                            <div class="metric-row">
+                                <div id="authors-count" class="metric-value">-</div>
+                                <div id="authors-sparkline" class="sparkline"></div>
+                            </div>
+                            <div id="authors-delta" class="metric-delta"></div>
+                        </div>
+                        <div class="card">
+                            <h3>Reviewers</h3>
+                            <div class="metric-row">
+                                <div id="reviewers-count" class="metric-value">-</div>
+                                <div id="reviewers-sparkline" class="sparkline"></div>
+                            </div>
+                            <div id="reviewers-delta" class="metric-delta"></div>
+                        </div>
+                    </div>
+
+                    <!-- Charts Row 1 -->
+                    <div class="charts-row">
+                        <div class="chart-container">
+                            <h3>PR Throughput Over Time</h3>
+                            <div id="throughput-chart" class="chart"></div>
+                        </div>
+
+                        <div class="chart-container">
+                            <h3>Cycle Time Trend</h3>
+                            <div id="cycle-time-trend" class="chart"></div>
+                        </div>
+                    </div>
+
+                    <!-- Charts Row 2 -->
+                    <div class="charts-row">
+                        <div class="chart-container">
+                            <h3>Reviewer Activity</h3>
+                            <div id="reviewer-activity" class="chart"></div>
+                        </div>
+
+                        <div class="chart-container">
+                            <h3>Cycle Time Distribution</h3>
+                            <div id="cycle-distribution" class="chart"></div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <section id="tab-predictions" class="tab-content hidden phase5-content">
+                <!-- State-specific content rendered by renderPredictionsForState() -->
+            </section>
+
+            <section id="tab-ai-insights" class="tab-content hidden phase5-content">
+                <!-- State-specific content rendered by renderInsightsForState() -->
+            </section>
+        </main>
+    </div>
+
+    <!-- Load modules in dependency order -->
+    <script src="error-types.js"></script>
+    <script src="artifact-client.js"></script>
+    <script src="dataset-loader.js"></script>
+        <!-- Demo Mode Configuration -->
+    <script>
+      window.LOCAL_DASHBOARD_MODE = true;
+      window.DATASET_PATH = "./data";
+    </script>
+    <script src="dashboard.js"></script>
+</body>
+</html>

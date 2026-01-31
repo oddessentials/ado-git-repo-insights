@@ -1,0 +1,383 @@
+{
+  "date_range": {
+    "max": "2025-12-28",
+    "min": "2021-01-04"
+  },
+  "projects": [
+    {
+      "organization_name": "acme-corp",
+      "project_name": "platform-services"
+    },
+    {
+      "organization_name": "acme-corp",
+      "project_name": "mobile-apps"
+    },
+    {
+      "organization_name": "acme-corp",
+      "project_name": "data-pipeline"
+    },
+    {
+      "organization_name": "contoso-dev",
+      "project_name": "web-frontend"
+    },
+    {
+      "organization_name": "contoso-dev",
+      "project_name": "api-gateway"
+    },
+    {
+      "organization_name": "fabrikam-eng",
+      "project_name": "analytics-engine"
+    },
+    {
+      "organization_name": "fabrikam-eng",
+      "project_name": "ml-platform"
+    },
+    {
+      "organization_name": "fabrikam-eng",
+      "project_name": "devops-tools"
+    }
+  ],
+  "repositories": [
+    {
+      "organization_name": "acme-corp",
+      "project_name": "platform-services",
+      "repository_id": "d8167d04-3536-53b3-9acd-438984f44445",
+      "repository_name": "user-service"
+    },
+    {
+      "organization_name": "acme-corp",
+      "project_name": "platform-services",
+      "repository_id": "7731852b-07f9-5523-889c-9c1cc02661b6",
+      "repository_name": "auth-service"
+    },
+    {
+      "organization_name": "acme-corp",
+      "project_name": "platform-services",
+      "repository_id": "78ce1967-474d-5dec-a642-238085131cc2",
+      "repository_name": "notification-service"
+    },
+    {
+      "organization_name": "acme-corp",
+      "project_name": "mobile-apps",
+      "repository_id": "17e15883-5fba-5295-ab83-514ecb34e89c",
+      "repository_name": "ios-app"
+    },
+    {
+      "organization_name": "acme-corp",
+      "project_name": "mobile-apps",
+      "repository_id": "32528f44-210b-555c-beaa-e9e507afe7a1",
+      "repository_name": "android-app"
+    },
+    {
+      "organization_name": "acme-corp",
+      "project_name": "mobile-apps",
+      "repository_id": "05546c3f-27b4-52ee-b45b-808fb20cb3e2",
+      "repository_name": "shared-core"
+    },
+    {
+      "organization_name": "acme-corp",
+      "project_name": "data-pipeline",
+      "repository_id": "4f3d4a44-7faf-5ea0-8bc5-3ba1352c3e92",
+      "repository_name": "etl-jobs"
+    },
+    {
+      "organization_name": "acme-corp",
+      "project_name": "data-pipeline",
+      "repository_id": "58cb68bb-e496-5628-bc3c-fd1b217a6ce2",
+      "repository_name": "data-warehouse"
+    },
+    {
+      "organization_name": "acme-corp",
+      "project_name": "data-pipeline",
+      "repository_id": "ef854f56-f5fa-56d3-a1e2-7462c89f9d4e",
+      "repository_name": "stream-processor"
+    },
+    {
+      "organization_name": "contoso-dev",
+      "project_name": "web-frontend",
+      "repository_id": "ea5a0306-cd2a-5812-b714-93f788f0a8fa",
+      "repository_name": "react-shell"
+    },
+    {
+      "organization_name": "contoso-dev",
+      "project_name": "web-frontend",
+      "repository_id": "6e8b564b-3915-592a-9c0c-f39a803583da",
+      "repository_name": "design-system"
+    },
+    {
+      "organization_name": "contoso-dev",
+      "project_name": "web-frontend",
+      "repository_id": "4f5b718e-6717-5b21-8847-f9516e19865d",
+      "repository_name": "forms-lib"
+    },
+    {
+      "organization_name": "contoso-dev",
+      "project_name": "api-gateway",
+      "repository_id": "ae8d1613-b951-5a42-9dc1-c7783e0dd23f",
+      "repository_name": "gateway-core"
+    },
+    {
+      "organization_name": "contoso-dev",
+      "project_name": "api-gateway",
+      "repository_id": "7e32844d-b9f5-5d39-86d4-eeecc39e2d22",
+      "repository_name": "rate-limiter"
+    },
+    {
+      "organization_name": "fabrikam-eng",
+      "project_name": "analytics-engine",
+      "repository_id": "9121a1a6-46ae-5c48-bd05-6d08768ad1aa",
+      "repository_name": "metrics-collector"
+    },
+    {
+      "organization_name": "fabrikam-eng",
+      "project_name": "analytics-engine",
+      "repository_id": "abe19bfa-8922-591c-acc3-2a6e389aabd6",
+      "repository_name": "dashboard-api"
+    },
+    {
+      "organization_name": "fabrikam-eng",
+      "project_name": "analytics-engine",
+      "repository_id": "aa5eee67-c889-51b4-ac01-bedab38ea910",
+      "repository_name": "report-generator"
+    },
+    {
+      "organization_name": "fabrikam-eng",
+      "project_name": "ml-platform",
+      "repository_id": "b99293e2-ecf4-5e18-b518-4512920d953e",
+      "repository_name": "model-training"
+    },
+    {
+      "organization_name": "fabrikam-eng",
+      "project_name": "ml-platform",
+      "repository_id": "e7425a0b-76df-58d6-a221-e4cc710c4232",
+      "repository_name": "inference-service"
+    },
+    {
+      "organization_name": "fabrikam-eng",
+      "project_name": "ml-platform",
+      "repository_id": "e0281391-59a7-5ca4-af13-acba1fa2d21f",
+      "repository_name": "feature-store"
+    },
+    {
+      "organization_name": "fabrikam-eng",
+      "project_name": "devops-tools",
+      "repository_id": "2691f4ee-8976-5879-a409-3e87462687a9",
+      "repository_name": "ci-scripts"
+    },
+    {
+      "organization_name": "fabrikam-eng",
+      "project_name": "devops-tools",
+      "repository_id": "d0e460c6-be27-538f-a319-cbcc4062ac91",
+      "repository_name": "terraform-modules"
+    },
+    {
+      "organization_name": "fabrikam-eng",
+      "project_name": "devops-tools",
+      "repository_id": "e29d5ae9-f952-5cd9-be74-30b37964fe8f",
+      "repository_name": "monitoring-stack"
+    }
+  ],
+  "teams": [],
+  "users": [
+    {
+      "display_name": "Alice Johnson",
+      "user_id": "46341819-09c7-5f56-af79-05d9be8b22af"
+    },
+    {
+      "display_name": "Bob Smith",
+      "user_id": "ddf6ed30-10a3-52dd-bd55-d449080f6236"
+    },
+    {
+      "display_name": "Carol Williams",
+      "user_id": "c0ac9531-dcdd-583c-9fc8-47ebabf3ed09"
+    },
+    {
+      "display_name": "David Brown",
+      "user_id": "b8cf4518-6155-5e37-8015-0f124df835b7"
+    },
+    {
+      "display_name": "Emma Jones",
+      "user_id": "e322039d-fc2c-534a-87c0-bfe083245c25"
+    },
+    {
+      "display_name": "Frank Garcia",
+      "user_id": "427c71d1-69d8-5039-99f9-dd90a5fd1970"
+    },
+    {
+      "display_name": "Grace Miller",
+      "user_id": "6d860ff1-35df-5807-88ba-13b43e6804f8"
+    },
+    {
+      "display_name": "Henry Davis",
+      "user_id": "e3db4288-89e6-52b3-b6d2-0822ab28fa1e"
+    },
+    {
+      "display_name": "Iris Rodriguez",
+      "user_id": "b3799cff-9263-5baa-a99c-1299aaecbbac"
+    },
+    {
+      "display_name": "Jack Martinez",
+      "user_id": "2ac3a01c-f129-55a6-bec4-c4bcf5f03434"
+    },
+    {
+      "display_name": "Karen Hernandez",
+      "user_id": "b60d5f31-e705-5181-9263-e6244e82e63a"
+    },
+    {
+      "display_name": "Leo Lopez",
+      "user_id": "63f620ed-deef-54b2-89ba-ba2cc1edc767"
+    },
+    {
+      "display_name": "Maria Gonzalez",
+      "user_id": "7d9ce36d-7e91-5dc7-8959-4156dcf0300a"
+    },
+    {
+      "display_name": "Nathan Wilson",
+      "user_id": "e188a35b-6e9c-51c9-b6b3-9ed24e882e04"
+    },
+    {
+      "display_name": "Olivia Anderson",
+      "user_id": "e2fa829c-a5f0-5edf-9635-11de364e5091"
+    },
+    {
+      "display_name": "Peter Thomas",
+      "user_id": "49e6174c-1f02-5626-887e-68f52f470820"
+    },
+    {
+      "display_name": "Quinn Taylor",
+      "user_id": "06883dcb-9ca0-5c8a-8c21-60c14617c186"
+    },
+    {
+      "display_name": "Rachel Moore",
+      "user_id": "70d0c1db-abc3-54ae-94ad-44ffb9f54fbd"
+    },
+    {
+      "display_name": "Samuel Jackson",
+      "user_id": "8959bea7-da41-5a11-a273-559ea0a08d6b"
+    },
+    {
+      "display_name": "Tina Martin",
+      "user_id": "6fd0372f-3fe4-5448-8563-fda0f37655c4"
+    },
+    {
+      "display_name": "Ursula Lee",
+      "user_id": "72c97faf-a911-5a65-b5ff-e09d7e79a401"
+    },
+    {
+      "display_name": "Victor Perez",
+      "user_id": "f28d1479-82a5-53aa-a18b-01018b91e853"
+    },
+    {
+      "display_name": "Wendy Thompson",
+      "user_id": "1d473faa-60bd-58a6-ac0e-61924eb55c05"
+    },
+    {
+      "display_name": "Xavier White",
+      "user_id": "96e3c2e7-2930-5630-8b68-8b2ce2c38401"
+    },
+    {
+      "display_name": "Yolanda Harris",
+      "user_id": "69647d45-5764-562b-870d-fefc8d52f0b0"
+    },
+    {
+      "display_name": "Zachary Sanchez",
+      "user_id": "ad929cd3-c9d6-5389-a89d-090ac52b0be4"
+    },
+    {
+      "display_name": "Abigail Clark",
+      "user_id": "91d6bd74-1655-5da1-a81a-f01a9b10940c"
+    },
+    {
+      "display_name": "Benjamin Ramirez",
+      "user_id": "4943fde1-75f5-50e6-bf69-1d0d699c3a3f"
+    },
+    {
+      "display_name": "Charlotte Lewis",
+      "user_id": "2441aef8-b79e-5619-b5b2-f8ded123f242"
+    },
+    {
+      "display_name": "Daniel Robinson",
+      "user_id": "b7dcd2c7-4b99-5716-bae9-382bd7edcf5d"
+    },
+    {
+      "display_name": "Elizabeth Walker",
+      "user_id": "2a857bb0-416a-59fb-90d2-96e04dbd315a"
+    },
+    {
+      "display_name": "Frederick Young",
+      "user_id": "16af0ab0-bc96-5c89-8c54-f61d83e52edb"
+    },
+    {
+      "display_name": "Georgia Allen",
+      "user_id": "5bc5dd1c-4fe8-52a6-aa0f-3787fec9c439"
+    },
+    {
+      "display_name": "Harold King",
+      "user_id": "3bea5fdb-9cdf-5a20-a226-d708b2c8658c"
+    },
+    {
+      "display_name": "Isabella Wright",
+      "user_id": "c6564adf-871f-57e3-aaf3-b5d1cff626d6"
+    },
+    {
+      "display_name": "James Scott",
+      "user_id": "bdbbf4b1-48d7-518b-8d7d-c4d4e38f4c60"
+    },
+    {
+      "display_name": "Katherine Torres",
+      "user_id": "7f3bde44-e4fb-516c-b27f-1ec8a9f26e0e"
+    },
+    {
+      "display_name": "Lawrence Nguyen",
+      "user_id": "a2bcc6dc-41a3-50d2-86cf-8dcb98701597"
+    },
+    {
+      "display_name": "Margaret Hill",
+      "user_id": "c53ce446-ec8d-58cc-8228-c8f9bf1160ea"
+    },
+    {
+      "display_name": "Nicholas Flores",
+      "user_id": "dd0ba4b2-33ed-5404-b2c5-faf77638fff7"
+    },
+    {
+      "display_name": "Patricia Green",
+      "user_id": "0f38399c-ad81-56dc-9ce4-fe030fc9faaa"
+    },
+    {
+      "display_name": "Quentin Adams",
+      "user_id": "e341b7ad-48d7-5437-bb16-39b0d4b19edb"
+    },
+    {
+      "display_name": "Rebecca Nelson",
+      "user_id": "4cd0f40b-988f-5891-bf70-83c0602f825c"
+    },
+    {
+      "display_name": "Stephen Baker",
+      "user_id": "9bd4f888-d8b2-5262-a02a-a2e2d531a21b"
+    },
+    {
+      "display_name": "Theresa Hall",
+      "user_id": "8bab0141-0009-52a4-8fc7-ebadebc2324c"
+    },
+    {
+      "display_name": "Ulysses Rivera",
+      "user_id": "014a9fa9-8f37-52f6-9b3f-ec7bee8f15bf"
+    },
+    {
+      "display_name": "Victoria Campbell",
+      "user_id": "9ae8ced7-9454-55a1-861c-baddd6d5da5c"
+    },
+    {
+      "display_name": "William Mitchell",
+      "user_id": "6716da88-ffd6-5315-b85a-c78c12c18598"
+    },
+    {
+      "display_name": "Ximena Carter",
+      "user_id": "36bb2354-4b1a-5e95-b14e-4115415c814b"
+    },
+    {
+      "display_name": "Yvonne Roberts",
+      "user_id": "cdebe11a-f901-50b3-9798-c0d98404b7ab"
+    }
+  ]
+}

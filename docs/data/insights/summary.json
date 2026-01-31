@@ -1,0 +1,133 @@
+{
+  "generated_at": "2026-01-30T12:00:00Z",
+  "generated_by": "generate-demo-insights.py",
+  "insights": [
+    {
+      "affected_entities": [
+        {
+          "id": "monitoring-stack",
+          "name": "monitoring-stack",
+          "type": "repository"
+        }
+      ],
+      "category": "bottleneck",
+      "description": "The monitoring-stack repository showed high cycle time variability in 2021-W33. The P90 cycle time (156.2 hours) was 337.8x higher than P50 (0.5 hours). This suggests some PRs were getting stuck in review or blocked by dependencies.",
+      "evidence_refs": [
+        "rollup:2021-W33"
+      ],
+      "id": "bottleneck-001-monitoring-stack",
+      "severity": "warning",
+      "title": "High cycle time variability in monitoring-stack"
+    },
+    {
+      "affected_entities": [
+        {
+          "id": "auth-service",
+          "name": "auth-service",
+          "type": "repository"
+        }
+      ],
+      "category": "bottleneck",
+      "description": "The auth-service repository showed high cycle time variability in 2023-W08. The P90 cycle time (658.3 hours) was 152.5x higher than P50 (4.3 hours). This suggests some PRs were getting stuck in review or blocked by dependencies.",
+      "evidence_refs": [
+        "rollup:2023-W08"
+      ],
+      "id": "bottleneck-001-auth-service",
+      "severity": "warning",
+      "title": "High cycle time variability in auth-service"
+    },
+    {
+      "affected_entities": [
+        {
+          "id": "dashboard-api",
+          "name": "dashboard-api",
+          "type": "repository"
+        }
+      ],
+      "category": "bottleneck",
+      "description": "The dashboard-api repository has critically slow PR completion times. The P90 cycle time is 40.1 days, exceeding the 5-day threshold. Consider reviewing code review practices or breaking up large PRs.",
+      "evidence_refs": [
+        "rollup:2025-W52"
+      ],
+      "id": "bottleneck-002-dashboard-api",
+      "severity": "critical",
+      "title": "Critical slowdown in dashboard-api"
+    },
+    {
+      "affected_entities": [
+        {
+          "id": "all",
+          "name": "All Teams",
+          "type": "team"
+        }
+      ],
+      "category": "trend",
+      "description": "PR throughput increased by 23.0% during 2023-W08 to 2023-W11. Average weekly PRs went from 31.8 to 39.0. This surge could indicate a major release push or increased team capacity.",
+      "evidence_refs": [
+        "rollup:2023-W08",
+        "rollup:2023-W09",
+        "rollup:2023-W10",
+        "rollup:2023-W11"
+      ],
+      "id": "trend-001",
+      "severity": "info",
+      "title": "PR throughput surge detected"
+    },
+    {
+      "affected_entities": [
+        {
+          "id": "all",
+          "name": "All Teams",
+          "type": "team"
+        }
+      ],
+      "category": "trend",
+      "description": "PR cycle time decreased by 43.0% during 2023-W50 to 2024-W01. Median cycle time dropped from 10.7 hours to 6.1 hours. This improvement suggests review processes became more efficient during this period.",
+      "evidence_refs": [
+        "rollup:2023-W50",
+        "rollup:2023-W51",
+        "rollup:2023-W52",
+        "rollup:2024-W01"
+      ],
+      "id": "trend-002",
+      "severity": "info",
+      "title": "Cycle time improvement detected"
+    },
+    {
+      "affected_entities": [
+        {
+          "id": "all",
+          "name": "All Teams",
+          "type": "team"
+        }
+      ],
+      "category": "anomaly",
+      "description": "Week 2022-W05 had 37 PRs, which is 4.1 standard deviations above the 8-week rolling average of 31.3. This spike could indicate a major release, hackathon, or concentrated feature work.",
+      "evidence_refs": [
+        "rollup:2022-W05"
+      ],
+      "id": "anomaly-001",
+      "severity": "info",
+      "title": "High PR activity spike detected"
+    },
+    {
+      "affected_entities": [
+        {
+          "id": "all",
+          "name": "All Teams",
+          "type": "team"
+        }
+      ],
+      "category": "anomaly",
+      "description": "Week 2021-W47 had only 30 PRs, which is 4.3 standard deviations below the 8-week rolling average of 36.5. This dip could indicate team absences, blockers, or focus on non-PR work.",
+      "evidence_refs": [
+        "rollup:2021-W47"
+      ],
+      "id": "anomaly-002",
+      "severity": "warning",
+      "title": "Low PR activity detected"
+    }
+  ],
+  "is_stub": false,
+  "schema_version": 1
+}

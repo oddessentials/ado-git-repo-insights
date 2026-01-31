@@ -40,6 +40,8 @@ export interface BreakdownEntry {
   cycle_time_p90?: number;
   review_time_p50?: number;
   review_time_p90?: number;
+  authors_count?: number;
+  reviewers_count?: number;
 }
 
 /**
@@ -85,6 +87,8 @@ const KNOWN_BREAKDOWN_FIELDS = new Set([
   "cycle_time_p90",
   "review_time_p50",
   "review_time_p90",
+  "authors_count",
+  "reviewers_count",
 ]);
 
 // ============================================================================

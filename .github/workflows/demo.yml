@@ -1,0 +1,232 @@
+# GitHub Actions workflow for demo dashboard validation
+# T057-T063: CI Workflow for GitHub Pages Demo
+#
+# This workflow validates the demo dashboard:
+# - Regenerates all data and verifies byte-identical output
+# - Checks docs/ directory size (< 50 MB)
+# - Serves docs/ from subpath and verifies zero 404s
+#
+# Triggered on PRs touching demo-related files.
+# No override/skip flags - this check is mandatory (per SC-009).
+
+name: Demo Dashboard Validation
+
+on:
+  pull_request:
+    paths:
+      - 'scripts/generate-demo-*.py'
+      - 'extension/ui/**'
+      - 'docs/**'
+      - '.github/workflows/demo.yml'
+  push:
+    branches:
+      - main
+    paths:
+      - 'scripts/generate-demo-*.py'
+      - 'extension/ui/**'
+      - 'docs/**'
+
+# Prevent concurrent runs on same PR
+concurrency:
+  group: demo-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  # T058: Regenerate all demo data
+  regenerate:
+    name: Regenerate Demo Data
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Run generate-demo-data.py
+        run: python scripts/generate-demo-data.py
+
+      - name: Run generate-demo-predictions.py
+        run: python scripts/generate-demo-predictions.py
+
+      - name: Run generate-demo-insights.py
+        run: python scripts/generate-demo-insights.py
+
+      - name: Upload regenerated data
+        uses: actions/upload-artifact@v4
+        with:
+          name: regenerated-data
+          path: docs/data/
+          retention-days: 1
+
+  # T059: Diff check - fail if regeneration changed files
+  diff-check:
+    name: Verify Byte-Identical Output
+    runs-on: ubuntu-latest
+    needs: regenerate
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Download regenerated data
+        uses: actions/download-artifact@v4
+        with:
+          name: regenerated-data
+          path: docs/data/
+
+      - name: Check for differences
+        run: |
+          if ! git diff --exit-code docs/; then
+            echo "ERROR: Regeneration produced different output!"
+            echo "This means the committed files don't match what the generators produce."
+            echo ""
+            echo "To fix:"
+            echo "1. Run: python scripts/generate-demo-data.py"
+            echo "2. Run: python scripts/generate-demo-predictions.py"
+            echo "3. Run: python scripts/generate-demo-insights.py"
+            echo "4. Commit the updated files"
+            exit 1
+          fi
+          echo "All files match - regeneration is byte-identical"
+
+  # T060: Size check - verify docs/ < 50 MB
+  size-check:
+    name: Check Directory Size
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Check docs/ size
+        run: |
+          SIZE=$(du -sb docs/ | cut -f1)
+          SIZE_MB=$((SIZE / 1024 / 1024))
+          echo "docs/ directory size: ${SIZE_MB} MB (${SIZE} bytes)"
+
+          MAX_SIZE_MB=50
+          MAX_SIZE=$((MAX_SIZE_MB * 1024 * 1024))
+
+          if [ "$SIZE" -gt "$MAX_SIZE" ]; then
+            echo "ERROR: docs/ exceeds ${MAX_SIZE_MB} MB size cap!"
+            echo "Current size: ${SIZE_MB} MB"
+            exit 1
+          fi
+
+          echo "Size check passed: ${SIZE_MB} MB < ${MAX_SIZE_MB} MB"
+
+  # T061: Base-path serve test - verify zero 404s
+  base-path-serve:
+    name: Verify Asset Accessibility
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Start HTTP server
+        run: |
+          cd docs
+          python -m http.server 8080 &
+          sleep 2
+          echo "Server started on port 8080"
+
+      - name: Test index.html
+        run: |
+          STATUS=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:8080/)
+          if [ "$STATUS" != "200" ]; then
+            echo "ERROR: index.html returned $STATUS"
+            exit 1
+          fi
+          echo "index.html: OK (200)"
+
+      - name: Test JavaScript assets
+        run: |
+          for asset in dashboard.js dataset-loader.js artifact-client.js error-types.js styles.css VSS.SDK.min.js; do
+            if [ -f "docs/$asset" ]; then
+              STATUS=$(curl -s -o /dev/null -w "%{http_code}" "http://localhost:8080/$asset")
+              if [ "$STATUS" != "200" ]; then
+                echo "ERROR: $asset returned $STATUS"
+                exit 1
+              fi
+              echo "$asset: OK (200)"
+            fi
+          done
+
+      - name: Test data manifest
+        run: |
+          STATUS=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:8080/data/dataset-manifest.json)
+          if [ "$STATUS" != "200" ]; then
+            echo "ERROR: dataset-manifest.json returned $STATUS"
+            exit 1
+          fi
+          echo "dataset-manifest.json: OK (200)"
+
+      - name: Test sample weekly rollups
+        run: |
+          for week in 2021-W01 2023-W26 2025-W52; do
+            STATUS=$(curl -s -o /dev/null -w "%{http_code}" "http://localhost:8080/data/aggregates/weekly_rollups/${week}.json")
+            if [ "$STATUS" != "200" ]; then
+              echo "ERROR: ${week}.json returned $STATUS"
+              exit 1
+            fi
+            echo "${week}.json: OK (200)"
+          done
+
+      - name: Test distributions
+        run: |
+          for year in 2021 2022 2023 2024 2025; do
+            STATUS=$(curl -s -o /dev/null -w "%{http_code}" "http://localhost:8080/data/aggregates/distributions/${year}.json")
+            if [ "$STATUS" != "200" ]; then
+              echo "ERROR: ${year}.json returned $STATUS"
+              exit 1
+            fi
+            echo "${year}.json: OK (200)"
+          done
+
+      - name: Test predictions
+        run: |
+          STATUS=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:8080/data/predictions/trends.json)
+          if [ "$STATUS" != "200" ]; then
+            echo "ERROR: predictions/trends.json returned $STATUS"
+            exit 1
+          fi
+          echo "predictions/trends.json: OK (200)"
+
+      - name: Test insights
+        run: |
+          STATUS=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:8080/data/insights/summary.json)
+          if [ "$STATUS" != "200" ]; then
+            echo "ERROR: insights/summary.json returned $STATUS"
+            exit 1
+          fi
+          echo "insights/summary.json: OK (200)"
+
+  # Run pytest for demo tests
+  pytest:
+    name: Run Demo Tests
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install test dependencies
+        run: pip install pytest pytest-cov
+
+      - name: Run demo tests
+        run: python -m pytest tests/demo/ -v --no-cov
