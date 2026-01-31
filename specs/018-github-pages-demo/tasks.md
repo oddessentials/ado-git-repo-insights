@@ -86,7 +86,7 @@
 
 - [x] T025 [US2] Enhance seasonal variation in scripts/generate-demo-data.py: ±20% amplitude, December trough, Q1/Q3 peaks
 - [x] T026 [US2] Add ±10% random weekly noise to PR counts (deterministic with seed=42)
-- [x] T027 [US2] Verify pr_count ranges from ~32 to ~48 across weeks (not flat)
+- [x] T027 [US2] Verify pr_count ranges from ~28 to ~51 across weeks (not flat)
 - [x] T028 [US2] Verify cycle_time_p50 and cycle_time_p90 show realistic percentile spread
 - [x] T029 [US2] Regenerate all weekly rollups with enhanced seasonal model
 - [x] T030 [US2] Verify distribution buckets show realistic proportions (15% 0-1h, 25% 1-4h, 30% 4-24h, 15% 1-3d, 10% 3-7d, 5% 7d+)

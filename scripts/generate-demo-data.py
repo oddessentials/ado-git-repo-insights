@@ -263,7 +263,7 @@ REPOSITORY_MAPPING = {
 def generate_repositories(
     projects: list[SyntheticProject],
 ) -> list[SyntheticRepository]:
-    """Generate 20 synthetic repositories with UUID v5 IDs."""
+    """Generate 23 synthetic repositories with UUID v5 IDs."""
     repos = []
     for project in projects:
         repo_names = REPOSITORY_MAPPING.get(project.project_name, [])
