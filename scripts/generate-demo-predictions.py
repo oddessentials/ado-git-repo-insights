@@ -141,33 +141,41 @@ def load_weekly_rollups() -> list[WeeklyMetrics]:
 # =============================================================================
 
 
-def calculate_linear_trend(values: list[float]) -> tuple[float, float]:
+def calculate_linear_trend(values: list[float]) -> tuple[Decimal, Decimal]:
     """
     Calculate linear trend (slope and intercept) using least squares.
+
+    Uses Decimal arithmetic for cross-platform reproducibility.
 
     Returns (slope, intercept) where:
         predicted_value = slope * week_index + intercept
     """
     n = len(values)
     if n == 0:
-        return 0.0, 0.0
+        return Decimal("0"), Decimal("0")
     if n == 1:
-        return 0.0, values[0]
+        return Decimal("0"), Decimal(str(values[0]))
 
-    # Simple least squares
-    x_mean = (n - 1) / 2  # Mean of 0, 1, 2, ..., n-1
-    y_mean = sum(values) / n
+    # Convert to Decimal for deterministic arithmetic
+    d_values = [Decimal(str(v)) for v in values]
+    d_n = Decimal(n)
 
-    numerator = sum((i - x_mean) * (y - y_mean) for i, y in enumerate(values))
-    denominator = sum((i - x_mean) ** 2 for i in range(n))
+    # Simple least squares using Decimal
+    d_x_mean = Decimal(n - 1) / Decimal("2")  # Mean of 0, 1, 2, ..., n-1
+    d_y_mean = sum(d_values) / d_n
 
-    if denominator == 0:
-        return 0.0, y_mean
+    d_numerator = sum(
+        (Decimal(i) - d_x_mean) * (y - d_y_mean) for i, y in enumerate(d_values)
+    )
+    d_denominator = sum((Decimal(i) - d_x_mean) ** 2 for i in range(n))
 
-    slope = numerator / denominator
-    intercept = y_mean - slope * x_mean
+    if d_denominator == 0:
+        return Decimal("0"), d_y_mean
 
-    return slope, intercept
+    d_slope = d_numerator / d_denominator
+    d_intercept = d_y_mean - d_slope * d_x_mean
+
+    return d_slope, d_intercept
 
 
 def generate_forecast(
@@ -179,6 +187,8 @@ def generate_forecast(
 ) -> list[dict[str, Any]]:
     """
     Generate forecast values with widening confidence intervals.
+
+    Uses Decimal arithmetic throughout to ensure cross-platform reproducibility.
 
     Args:
         historical_values: Last N weeks of values for trend calculation
@@ -193,28 +203,36 @@ def generate_forecast(
     slope, intercept = calculate_linear_trend(historical_values)
     n = len(historical_values)
 
+    # Convert to Decimal for deterministic arithmetic
+    d_slope = Decimal(str(slope))
+    d_intercept = Decimal(str(intercept))
+    d_base_confidence = Decimal(str(base_confidence))
+    d_widening = Decimal(str(widening_per_week))
+
     forecasts = []
     for week_offset in range(1, horizon_weeks + 1):
         # Calculate the Monday of this forecast week
         period_start = last_date + timedelta(weeks=week_offset)
 
-        # Project the trend forward
-        predicted = slope * (n - 1 + week_offset) + intercept
+        # Project the trend forward using Decimal arithmetic
+        d_week_index = Decimal(n - 1 + week_offset)
+        d_predicted = d_slope * d_week_index + d_intercept
 
         # Ensure non-negative values
-        predicted = max(0.0, predicted)
+        d_predicted = max(Decimal("0"), d_predicted)
 
-        # Calculate widening confidence interval (T036)
-        confidence = base_confidence + (week_offset * widening_per_week)
-        lower_bound = max(0.0, predicted * (1 - confidence))
-        upper_bound = predicted * (1 + confidence)
+        # Calculate widening confidence interval (T036) using Decimal
+        d_confidence = d_base_confidence + (Decimal(week_offset) * d_widening)
+        d_lower_bound = max(Decimal("0"), d_predicted * (Decimal("1") - d_confidence))
+        d_upper_bound = d_predicted * (Decimal("1") + d_confidence)
 
+        # Round all values to 3 decimals for canonical output
         forecasts.append(
             {
                 "period_start": period_start,
-                "predicted": predicted,
-                "lower_bound": lower_bound,
-                "upper_bound": upper_bound,
+                "predicted": round_float(float(d_predicted)),
+                "lower_bound": round_float(float(d_lower_bound)),
+                "upper_bound": round_float(float(d_upper_bound)),
             }
         )
 
