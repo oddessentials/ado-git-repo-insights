@@ -23,7 +23,16 @@ from ..config import APIConfig
 from .pagination import add_continuation_token, extract_continuation_token
 
 
-def parse_retry_after(header_value: str | None, default: int = 60) -> int:
+def _get_current_time() -> datetime:
+    """Get current UTC time. Extracted for testability."""
+    return datetime.now(timezone.utc)
+
+
+def parse_retry_after(
+    header_value: str | None,
+    default: int = 60,
+    max_seconds: int | None = None,
+) -> int:
     """Parse Retry-After header value (seconds or HTTP-date).
 
     RFC 7231 allows Retry-After to be:
@@ -33,25 +42,39 @@ def parse_retry_after(header_value: str | None, default: int = 60) -> int:
     Args:
         header_value: Raw header value, or None if missing.
         default: Default seconds if header is missing or unparseable.
+        max_seconds: Optional upper bound on returned value.
 
     Returns:
-        Number of seconds to wait.
+        Number of seconds to wait, capped by max_seconds if specified.
     """
     if not header_value:
-        return default
+        result = default
+    else:
+        result = _parse_retry_after_value(header_value, default)
 
+    if max_seconds is not None:
+        result = min(result, max_seconds)
+
+    return result
+
+
+def _parse_retry_after_value(header_value: str, default: int) -> int:
+    """Parse the actual Retry-After value (internal helper)."""
     # Try integer seconds first (most common)
     try:
         return int(header_value)
     except ValueError:
         pass
 
-    # Try HTTP-date format (RFC 7231)
+    # Try HTTP-date format (RFC 7231 Section 7.1.3)
+    # Note: HTTP-dates are always in GMT (equivalent to UTC) per RFC 7231,
+    # so no timezone conversion is needed - parsedate_to_datetime returns
+    # a timezone-aware datetime in the original timezone (GMT).
     try:
         retry_dt = parsedate_to_datetime(header_value)
         if retry_dt is None:
             raise ValueError("parsedate_to_datetime returned None")
-        now = datetime.now(timezone.utc)
+        now = _get_current_time()
         delta = (retry_dt - now).total_seconds()
         # Return at least 1 second, even if date is in the past
         return max(1, int(delta))
@@ -460,8 +483,10 @@ class ADOClient:
 
                 # Handle rate limiting (429) with bounded backoff
                 if response.status_code == 429:
-                    retry_after = parse_retry_after(response.headers.get("Retry-After"))
-                    retry_after = min(retry_after, 120)  # Cap at 2 minutes
+                    retry_after = parse_retry_after(
+                        response.headers.get("Retry-After"),
+                        max_seconds=120,  # Cap at 2 minutes
+                    )
                     logger.warning(f"Rate limited, waiting {retry_after}s")
                     time.sleep(retry_after)
                     continue

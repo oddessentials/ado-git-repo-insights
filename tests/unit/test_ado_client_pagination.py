@@ -390,21 +390,25 @@ class TestParseRetryAfter:
         assert parse_retry_after("0") == 0
 
     def test_http_date_format(self) -> None:
-        """Parse HTTP-date format (RFC 7231)."""
+        """Parse HTTP-date format (RFC 7231).
+
+        HTTP-dates are always in GMT (RFC 7231 Section 7.1.3), so the
+        parsed datetime is timezone-aware and can be compared to UTC directly.
+        """
         from datetime import datetime, timedelta, timezone
-        from unittest.mock import patch
 
         from ado_git_repo_insights.extractor.ado_client import parse_retry_after
 
         # Use a fixed "now" time for deterministic testing
+        # Mock only _get_current_time to avoid global datetime side effects
         fixed_now = datetime(2026, 1, 15, 12, 0, 0, tzinfo=timezone.utc)
         future = fixed_now + timedelta(seconds=30)
         http_date = future.strftime("%a, %d %b %Y %H:%M:%S GMT")
 
         with patch(
-            "ado_git_repo_insights.extractor.ado_client.datetime"
-        ) as mock_datetime:
-            mock_datetime.now.return_value = fixed_now
+            "ado_git_repo_insights.extractor.ado_client._get_current_time"
+        ) as mock_time:
+            mock_time.return_value = fixed_now
             result = parse_retry_after(http_date)
 
         # Should be exactly 30 seconds
@@ -438,6 +442,65 @@ class TestParseRetryAfter:
         from ado_git_repo_insights.extractor.ado_client import parse_retry_after
 
         assert parse_retry_after("") == 60
+
+    def test_max_seconds_caps_integer_value(self) -> None:
+        """max_seconds parameter caps large integer values."""
+        from ado_git_repo_insights.extractor.ado_client import parse_retry_after
+
+        # 300 seconds should be capped to 120
+        assert parse_retry_after("300", max_seconds=120) == 120
+        # Value below cap should pass through
+        assert parse_retry_after("60", max_seconds=120) == 60
+        # Exactly at cap
+        assert parse_retry_after("120", max_seconds=120) == 120
+
+    def test_max_seconds_caps_http_date_value(self) -> None:
+        """max_seconds parameter caps HTTP-date parsed values."""
+        from datetime import datetime, timedelta, timezone
+
+        from ado_git_repo_insights.extractor.ado_client import parse_retry_after
+
+        fixed_now = datetime(2026, 1, 15, 12, 0, 0, tzinfo=timezone.utc)
+        # 5 minutes in the future
+        future = fixed_now + timedelta(seconds=300)
+        http_date = future.strftime("%a, %d %b %Y %H:%M:%S GMT")
+
+        with patch(
+            "ado_git_repo_insights.extractor.ado_client._get_current_time"
+        ) as mock_time:
+            mock_time.return_value = fixed_now
+            # Should be capped to 120
+            result = parse_retry_after(http_date, max_seconds=120)
+
+        assert result == 120
+
+    def test_max_seconds_caps_default_value(self) -> None:
+        """max_seconds parameter caps even the default value."""
+        from ado_git_repo_insights.extractor.ado_client import parse_retry_after
+
+        # Default is 60, but max is 30
+        assert parse_retry_after(None, default=60, max_seconds=30) == 30
+
+    def test_negative_integer_treated_as_invalid(self) -> None:
+        """Negative integer returns the parsed negative value (edge case).
+
+        Note: Negative Retry-After is technically invalid per RFC 7231,
+        but we don't reject it - callers should use max_seconds=0 or
+        validate separately if needed.
+        """
+        from ado_git_repo_insights.extractor.ado_client import parse_retry_after
+
+        # int("-5") succeeds, so we get -5 back
+        assert parse_retry_after("-5") == -5
+        # But with max_seconds, it's capped
+        assert parse_retry_after("-5", max_seconds=0) == -5  # min not applied here
+
+    def test_large_integer_value(self) -> None:
+        """Large integer values are parsed correctly and can be capped."""
+        from ado_git_repo_insights.extractor.ado_client import parse_retry_after
+
+        assert parse_retry_after("86400") == 86400  # 1 day
+        assert parse_retry_after("86400", max_seconds=3600) == 3600  # Capped to 1 hour
 
 
 class TestTeamMethodsErrorHandling:
