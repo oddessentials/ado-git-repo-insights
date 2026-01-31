@@ -1,0 +1,1361 @@
+{
+  "aggregate_index": {
+    "distributions": [
+      {
+        "path": "aggregates/distributions/2021.json",
+        "total_prs": 2085,
+        "year": "2021"
+      },
+      {
+        "path": "aggregates/distributions/2022.json",
+        "total_prs": 2056,
+        "year": "2022"
+      },
+      {
+        "path": "aggregates/distributions/2023.json",
+        "total_prs": 2090,
+        "year": "2023"
+      },
+      {
+        "path": "aggregates/distributions/2024.json",
+        "total_prs": 2057,
+        "year": "2024"
+      },
+      {
+        "path": "aggregates/distributions/2025.json",
+        "total_prs": 2061,
+        "year": "2025"
+      }
+    ],
+    "weekly_rollups": [
+      {
+        "path": "aggregates/weekly_rollups/2021-W01.json",
+        "pr_count": 33,
+        "week": "2021-W01"
+      },
+      {
+        "path": "aggregates/weekly_rollups/2021-W02.json",
+        "pr_count": 28,
+        "week": "2021-W02"
+      },
+      {
+        "path": "aggregates/weekly_rollups/2021-W03.json",
+        "pr_count": 33,
+        "week": "2021-W03"
+      },
+      {
+        "path": "aggregates/weekly_rollups/2021-W04.json",
+        "pr_count": 32,
+        "week": "2021-W04"
+      },
+      {
+        "path": "aggregates/weekly_rollups/2021-W05.json",
+        "pr_count": 34,
+        "week": "2021-W05"
+      },
+      {
+        "path": "aggregates/weekly_rollups/2021-W06.json",
+        "pr_count": 37,
+        "week": "2021-W06"
+      },
+      {
+        "path": "aggregates/weekly_rollups/2021-W07.json",
+        "pr_count": 38,
+        "week": "2021-W07"
+      },
+      {
+        "path": "aggregates/weekly_rollups/2021-W08.json",
+        "pr_count": 36,
+        "week": "2021-W08"
+      },
+      {
+        "path": "aggregates/weekly_rollups/2021-W09.json",
+        "pr_count": 35,
+        "week": "2021-W09"
+      },
+      {
+        "path": "aggregates/weekly_rollups/2021-W10.json",
+        "pr_count": 38,
+        "week": "2021-W10"
+      },
+      {
+        "path": "aggregates/weekly_rollups/2021-W11.json",
+        "pr_count": 37,
+        "week": "2021-W11"
+      },
+      {
+        "path": "aggregates/weekly_rollups/2021-W12.json",
+        "pr_count": 42,
+        "week": "2021-W12"
+      },
+      {
+        "path": "aggregates/weekly_rollups/2021-W13.json",
+        "pr_count": 43,
+        "week": "2021-W13"
+      },
+      {
+        "path": "aggregates/weekly_rollups/2021-W14.json",
+        "pr_count": 44,
+        "week": "2021-W14"
+      },
+      {
+        "path": "aggregates/weekly_rollups/2021-W15.json",
+        "pr_count": 43,
+        "week": "2021-W15"
+      },
+      {
+        "path": "aggregates/weekly_rollups/2021-W16.json",
+        "pr_count": 44,
+        "week": "2021-W16"
+      },
+      {
+        "path": "aggregates/weekly_rollups/2021-W17.json",
+        "pr_count": 41,
+        "week": "2021-W17"
+      },
+      {
+        "path": "aggregates/weekly_rollups/2021-W18.json",
+        "pr_count": 40,
+        "week": "2021-W18"
+      },
+      {
+        "path": "aggregates/weekly_rollups/2021-W19.json",
+        "pr_count": 49,
+        "week": "2021-W19"
+      },
+      {
+        "path": "aggregates/weekly_rollups/2021-W20.json",
+        "pr_count": 49,
+        "week": "2021-W20"
+      },
+      {
+        "path": "aggregates/weekly_rollups/2021-W21.json",
+        "pr_count": 44,
+        "week": "2021-W21"
+      },
+      {
+        "path": "aggregates/weekly_rollups/2021-W22.json",
+        "pr_count": 45,
+        "week": "2021-W22"
+      },
+      {
+        "path": "aggregates/weekly_rollups/2021-W23.json",
+        "pr_count": 49,
+        "week": "2021-W23"
+      },
+      {
+        "path": "aggregates/weekly_rollups/2021-W24.json",
+        "pr_count": 49,
+        "week": "2021-W24"
+      },
+      {
+        "path": "aggregates/weekly_rollups/2021-W25.json",
+        "pr_count": 44,
+        "week": "2021-W25"
+      },
+      {
+        "path": "aggregates/weekly_rollups/2021-W26.json",
+        "pr_count": 51,
+        "week": "2021-W26"
+      },
+      {
+        "path": "aggregates/weekly_rollups/2021-W27.json",
+        "pr_count": 51,
+        "week": "2021-W27"
+      },
+      {
+        "path": "aggregates/weekly_rollups/2021-W28.json",
+        "pr_count": 51,
+        "week": "2021-W28"
+      },
+      {
+        "path": "aggregates/weekly_rollups/2021-W29.json",
+        "pr_count": 48,
+        "week": "2021-W29"
+      },
+      {
+        "path": "aggregates/weekly_rollups/2021-W30.json",
+        "pr_count": 49,
+        "week": "2021-W30"
+      },
+      {
+        "path": "aggregates/weekly_rollups/2021-W31.json",
+        "pr_count": 45,
+        "week": "2021-W31"
+      },
+      {
+        "path": "aggregates/weekly_rollups/2021-W32.json",
+        "pr_count": 49,
+        "week": "2021-W32"
+      },
+      {
+        "path": "aggregates/weekly_rollups/2021-W33.json",
+        "pr_count": 42,
+        "week": "2021-W33"
+      },
+      {
+        "path": "aggregates/weekly_rollups/2021-W34.json",
+        "pr_count": 47,
+        "week": "2021-W34"
+      },
+      {
+        "path": "aggregates/weekly_rollups/2021-W35.json",
+        "pr_count": 43,
+        "week": "2021-W35"
+      },
+      {
+        "path": "aggregates/weekly_rollups/2021-W36.json",
+        "pr_count": 41,
+        "week": "2021-W36"
+      },
+      {
+        "path": "aggregates/weekly_rollups/2021-W37.json",
+        "pr_count": 39,
+        "week": "2021-W37"
+      },
+      {
+        "path": "aggregates/weekly_rollups/2021-W38.json",
+        "pr_count": 42,
+        "week": "2021-W38"
+      },
+      {
+        "path": "aggregates/weekly_rollups/2021-W39.json",
+        "pr_count": 38,
+        "week": "2021-W39"
+      },
+      {
+        "path": "aggregates/weekly_rollups/2021-W40.json",
+        "pr_count": 38,
+        "week": "2021-W40"
+      },
+      {
+        "path": "aggregates/weekly_rollups/2021-W41.json",
+        "pr_count": 38,
+        "week": "2021-W41"
+      },
+      {
+        "path": "aggregates/weekly_rollups/2021-W42.json",
+        "pr_count": 35,
+        "week": "2021-W42"
+      },
+      {
+        "path": "aggregates/weekly_rollups/2021-W43.json",
+        "pr_count": 34,
+        "week": "2021-W43"
+      },
+      {
+        "path": "aggregates/weekly_rollups/2021-W44.json",
+        "pr_count": 37,
+        "week": "2021-W44"
+      },
+      {
+        "path": "aggregates/weekly_rollups/2021-W45.json",
+        "pr_count": 35,
+        "week": "2021-W45"
+      },
+      {
+        "path": "aggregates/weekly_rollups/2021-W46.json",
+        "pr_count": 37,
+        "week": "2021-W46"
+      },
+      {
+        "path": "aggregates/weekly_rollups/2021-W47.json",
+        "pr_count": 30,
+        "week": "2021-W47"
+      },
+      {
+        "path": "aggregates/weekly_rollups/2021-W48.json",
+        "pr_count": 34,
+        "week": "2021-W48"
+      },
+      {
+        "path": "aggregates/weekly_rollups/2021-W49.json",
+        "pr_count": 30,
+        "week": "2021-W49"
+      },
+      {
+        "path": "aggregates/weekly_rollups/2021-W50.json",
+        "pr_count": 29,
+        "week": "2021-W50"
+      },
+      {
+        "path": "aggregates/weekly_rollups/2021-W51.json",
+        "pr_count": 33,
+        "week": "2021-W51"
+      },
+      {
+        "path": "aggregates/weekly_rollups/2021-W52.json",
+        "pr_count": 32,
+        "week": "2021-W52"
+      },
+      {
+        "path": "aggregates/weekly_rollups/2022-W01.json",
+        "pr_count": 32,
+        "week": "2022-W01"
+      },
+      {
+        "path": "aggregates/weekly_rollups/2022-W02.json",
+        "pr_count": 30,
+        "week": "2022-W02"
+      },
+      {
+        "path": "aggregates/weekly_rollups/2022-W03.json",
+        "pr_count": 33,
+        "week": "2022-W03"
+      },
+      {
+        "path": "aggregates/weekly_rollups/2022-W04.json",
+        "pr_count": 31,
+        "week": "2022-W04"
+      },
+      {
+        "path": "aggregates/weekly_rollups/2022-W05.json",
+        "pr_count": 37,
+        "week": "2022-W05"
+      },
+      {
+        "path": "aggregates/weekly_rollups/2022-W06.json",
+        "pr_count": 34,
+        "week": "2022-W06"
+      },
+      {
+        "path": "aggregates/weekly_rollups/2022-W07.json",
+        "pr_count": 32,
+        "week": "2022-W07"
+      },
+      {
+        "path": "aggregates/weekly_rollups/2022-W08.json",
+        "pr_count": 33,
+        "week": "2022-W08"
+      },
+      {
+        "path": "aggregates/weekly_rollups/2022-W09.json",
+        "pr_count": 32,
+        "week": "2022-W09"
+      },
+      {
+        "path": "aggregates/weekly_rollups/2022-W10.json",
+        "pr_count": 33,
+        "week": "2022-W10"
+      },
+      {
+        "path": "aggregates/weekly_rollups/2022-W11.json",
+        "pr_count": 35,
+        "week": "2022-W11"
+      },
+      {
+        "path": "aggregates/weekly_rollups/2022-W12.json",
+        "pr_count": 39,
+        "week": "2022-W12"
+      },
+      {
+        "path": "aggregates/weekly_rollups/2022-W13.json",
+        "pr_count": 36,
+        "week": "2022-W13"
+      },
+      {
+        "path": "aggregates/weekly_rollups/2022-W14.json",
+        "pr_count": 39,
+        "week": "2022-W14"
+      },
+      {
+        "path": "aggregates/weekly_rollups/2022-W15.json",
+        "pr_count": 44,
+        "week": "2022-W15"
+      },
+      {
+        "path": "aggregates/weekly_rollups/2022-W16.json",
+        "pr_count": 41,
+        "week": "2022-W16"
+      },
+      {
+        "path": "aggregates/weekly_rollups/2022-W17.json",
+        "pr_count": 46,
+        "week": "2022-W17"
+      },
+      {
+        "path": "aggregates/weekly_rollups/2022-W18.json",
+        "pr_count": 41,
+        "week": "2022-W18"
+      },
+      {
+        "path": "aggregates/weekly_rollups/2022-W19.json",
+        "pr_count": 46,
+        "week": "2022-W19"
+      },
+      {
+        "path": "aggregates/weekly_rollups/2022-W20.json",
+        "pr_count": 46,
+        "week": "2022-W20"
+      },
+      {
+        "path": "aggregates/weekly_rollups/2022-W21.json",
+        "pr_count": 45,
+        "week": "2022-W21"
+      },
+      {
+        "path": "aggregates/weekly_rollups/2022-W22.json",
+        "pr_count": 45,
+        "week": "2022-W22"
+      },
+      {
+        "path": "aggregates/weekly_rollups/2022-W23.json",
+        "pr_count": 44,
+        "week": "2022-W23"
+      },
+      {
+        "path": "aggregates/weekly_rollups/2022-W24.json",
+        "pr_count": 50,
+        "week": "2022-W24"
+      },
+      {
+        "path": "aggregates/weekly_rollups/2022-W25.json",
+        "pr_count": 46,
+        "week": "2022-W25"
+      },
+      {
+        "path": "aggregates/weekly_rollups/2022-W26.json",
+        "pr_count": 49,
+        "week": "2022-W26"
+      },
+      {
+        "path": "aggregates/weekly_rollups/2022-W27.json",
+        "pr_count": 46,
+        "week": "2022-W27"
+      },
+      {
+        "path": "aggregates/weekly_rollups/2022-W28.json",
+        "pr_count": 45,
+        "week": "2022-W28"
+      },
+      {
+        "path": "aggregates/weekly_rollups/2022-W29.json",
+        "pr_count": 50,
+        "week": "2022-W29"
+      },
+      {
+        "path": "aggregates/weekly_rollups/2022-W30.json",
+        "pr_count": 48,
+        "week": "2022-W30"
+      },
+      {
+        "path": "aggregates/weekly_rollups/2022-W31.json",
+        "pr_count": 42,
+        "week": "2022-W31"
+      },
+      {
+        "path": "aggregates/weekly_rollups/2022-W32.json",
+        "pr_count": 44,
+        "week": "2022-W32"
+      },
+      {
+        "path": "aggregates/weekly_rollups/2022-W33.json",
+        "pr_count": 45,
+        "week": "2022-W33"
+      },
+      {
+        "path": "aggregates/weekly_rollups/2022-W34.json",
+        "pr_count": 47,
+        "week": "2022-W34"
+      },
+      {
+        "path": "aggregates/weekly_rollups/2022-W35.json",
+        "pr_count": 46,
+        "week": "2022-W35"
+      },
+      {
+        "path": "aggregates/weekly_rollups/2022-W36.json",
+        "pr_count": 45,
+        "week": "2022-W36"
+      },
+      {
+        "path": "aggregates/weekly_rollups/2022-W37.json",
+        "pr_count": 43,
+        "week": "2022-W37"
+      },
+      {
+        "path": "aggregates/weekly_rollups/2022-W38.json",
+        "pr_count": 40,
+        "week": "2022-W38"
+      },
+      {
+        "path": "aggregates/weekly_rollups/2022-W39.json",
+        "pr_count": 42,
+        "week": "2022-W39"
+      },
+      {
+        "path": "aggregates/weekly_rollups/2022-W40.json",
+        "pr_count": 39,
+        "week": "2022-W40"
+      },
+      {
+        "path": "aggregates/weekly_rollups/2022-W41.json",
+        "pr_count": 41,
+        "week": "2022-W41"
+      },
+      {
+        "path": "aggregates/weekly_rollups/2022-W42.json",
+        "pr_count": 38,
+        "week": "2022-W42"
+      },
+      {
+        "path": "aggregates/weekly_rollups/2022-W43.json",
+        "pr_count": 36,
+        "week": "2022-W43"
+      },
+      {
+        "path": "aggregates/weekly_rollups/2022-W44.json",
+        "pr_count": 35,
+        "week": "2022-W44"
+      },
+      {
+        "path": "aggregates/weekly_rollups/2022-W45.json",
+        "pr_count": 34,
+        "week": "2022-W45"
+      },
+      {
+        "path": "aggregates/weekly_rollups/2022-W46.json",
+        "pr_count": 32,
+        "week": "2022-W46"
+      },
+      {
+        "path": "aggregates/weekly_rollups/2022-W47.json",
+        "pr_count": 32,
+        "week": "2022-W47"
+      },
+      {
+        "path": "aggregates/weekly_rollups/2022-W48.json",
+        "pr_count": 33,
+        "week": "2022-W48"
+      },
+      {
+        "path": "aggregates/weekly_rollups/2022-W49.json",
+        "pr_count": 32,
+        "week": "2022-W49"
+      },
+      {
+        "path": "aggregates/weekly_rollups/2022-W50.json",
+        "pr_count": 34,
+        "week": "2022-W50"
+      },
+      {
+        "path": "aggregates/weekly_rollups/2022-W51.json",
+        "pr_count": 35,
+        "week": "2022-W51"
+      },
+      {
+        "path": "aggregates/weekly_rollups/2022-W52.json",
+        "pr_count": 33,
+        "week": "2022-W52"
+      },
+      {
+        "path": "aggregates/weekly_rollups/2023-W01.json",
+        "pr_count": 30,
+        "week": "2023-W01"
+      },
+      {
+        "path": "aggregates/weekly_rollups/2023-W02.json",
+        "pr_count": 34,
+        "week": "2023-W02"
+      },
+      {
+        "path": "aggregates/weekly_rollups/2023-W03.json",
+        "pr_count": 35,
+        "week": "2023-W03"
+      },
+      {
+        "path": "aggregates/weekly_rollups/2023-W04.json",
+        "pr_count": 31,
+        "week": "2023-W04"
+      },
+      {
+        "path": "aggregates/weekly_rollups/2023-W05.json",
+        "pr_count": 34,
+        "week": "2023-W05"
+      },
+      {
+        "path": "aggregates/weekly_rollups/2023-W06.json",
+        "pr_count": 31,
+        "week": "2023-W06"
+      },
+      {
+        "path": "aggregates/weekly_rollups/2023-W07.json",
+        "pr_count": 31,
+        "week": "2023-W07"
+      },
+      {
+        "path": "aggregates/weekly_rollups/2023-W08.json",
+        "pr_count": 39,
+        "week": "2023-W08"
+      },
+      {
+        "path": "aggregates/weekly_rollups/2023-W09.json",
+        "pr_count": 37,
+        "week": "2023-W09"
+      },
+      {
+        "path": "aggregates/weekly_rollups/2023-W10.json",
+        "pr_count": 40,
+        "week": "2023-W10"
+      },
+      {
+        "path": "aggregates/weekly_rollups/2023-W11.json",
+        "pr_count": 40,
+        "week": "2023-W11"
+      },
+      {
+        "path": "aggregates/weekly_rollups/2023-W12.json",
+        "pr_count": 36,
+        "week": "2023-W12"
+      },
+      {
+        "path": "aggregates/weekly_rollups/2023-W13.json",
+        "pr_count": 40,
+        "week": "2023-W13"
+      },
+      {
+        "path": "aggregates/weekly_rollups/2023-W14.json",
+        "pr_count": 36,
+        "week": "2023-W14"
+      },
+      {
+        "path": "aggregates/weekly_rollups/2023-W15.json",
+        "pr_count": 42,
+        "week": "2023-W15"
+      },
+      {
+        "path": "aggregates/weekly_rollups/2023-W16.json",
+        "pr_count": 42,
+        "week": "2023-W16"
+      },
+      {
+        "path": "aggregates/weekly_rollups/2023-W17.json",
+        "pr_count": 44,
+        "week": "2023-W17"
+      },
+      {
+        "path": "aggregates/weekly_rollups/2023-W18.json",
+        "pr_count": 46,
+        "week": "2023-W18"
+      },
+      {
+        "path": "aggregates/weekly_rollups/2023-W19.json",
+        "pr_count": 48,
+        "week": "2023-W19"
+      },
+      {
+        "path": "aggregates/weekly_rollups/2023-W20.json",
+        "pr_count": 45,
+        "week": "2023-W20"
+      },
+      {
+        "path": "aggregates/weekly_rollups/2023-W21.json",
+        "pr_count": 47,
+        "week": "2023-W21"
+      },
+      {
+        "path": "aggregates/weekly_rollups/2023-W22.json",
+        "pr_count": 50,
+        "week": "2023-W22"
+      },
+      {
+        "path": "aggregates/weekly_rollups/2023-W23.json",
+        "pr_count": 47,
+        "week": "2023-W23"
+      },
+      {
+        "path": "aggregates/weekly_rollups/2023-W24.json",
+        "pr_count": 44,
+        "week": "2023-W24"
+      },
+      {
+        "path": "aggregates/weekly_rollups/2023-W25.json",
+        "pr_count": 44,
+        "week": "2023-W25"
+      },
+      {
+        "path": "aggregates/weekly_rollups/2023-W26.json",
+        "pr_count": 50,
+        "week": "2023-W26"
+      },
+      {
+        "path": "aggregates/weekly_rollups/2023-W27.json",
+        "pr_count": 47,
+        "week": "2023-W27"
+      },
+      {
+        "path": "aggregates/weekly_rollups/2023-W28.json",
+        "pr_count": 45,
+        "week": "2023-W28"
+      },
+      {
+        "path": "aggregates/weekly_rollups/2023-W29.json",
+        "pr_count": 48,
+        "week": "2023-W29"
+      },
+      {
+        "path": "aggregates/weekly_rollups/2023-W30.json",
+        "pr_count": 48,
+        "week": "2023-W30"
+      },
+      {
+        "path": "aggregates/weekly_rollups/2023-W31.json",
+        "pr_count": 48,
+        "week": "2023-W31"
+      },
+      {
+        "path": "aggregates/weekly_rollups/2023-W32.json",
+        "pr_count": 48,
+        "week": "2023-W32"
+      },
+      {
+        "path": "aggregates/weekly_rollups/2023-W33.json",
+        "pr_count": 43,
+        "week": "2023-W33"
+      },
+      {
+        "path": "aggregates/weekly_rollups/2023-W34.json",
+        "pr_count": 40,
+        "week": "2023-W34"
+      },
+      {
+        "path": "aggregates/weekly_rollups/2023-W35.json",
+        "pr_count": 46,
+        "week": "2023-W35"
+      },
+      {
+        "path": "aggregates/weekly_rollups/2023-W36.json",
+        "pr_count": 44,
+        "week": "2023-W36"
+      },
+      {
+        "path": "aggregates/weekly_rollups/2023-W37.json",
+        "pr_count": 43,
+        "week": "2023-W37"
+      },
+      {
+        "path": "aggregates/weekly_rollups/2023-W38.json",
+        "pr_count": 42,
+        "week": "2023-W38"
+      },
+      {
+        "path": "aggregates/weekly_rollups/2023-W39.json",
+        "pr_count": 43,
+        "week": "2023-W39"
+      },
+      {
+        "path": "aggregates/weekly_rollups/2023-W40.json",
+        "pr_count": 42,
+        "week": "2023-W40"
+      },
+      {
+        "path": "aggregates/weekly_rollups/2023-W41.json",
+        "pr_count": 37,
+        "week": "2023-W41"
+      },
+      {
+        "path": "aggregates/weekly_rollups/2023-W42.json",
+        "pr_count": 37,
+        "week": "2023-W42"
+      },
+      {
+        "path": "aggregates/weekly_rollups/2023-W43.json",
+        "pr_count": 34,
+        "week": "2023-W43"
+      },
+      {
+        "path": "aggregates/weekly_rollups/2023-W44.json",
+        "pr_count": 38,
+        "week": "2023-W44"
+      },
+      {
+        "path": "aggregates/weekly_rollups/2023-W45.json",
+        "pr_count": 36,
+        "week": "2023-W45"
+      },
+      {
+        "path": "aggregates/weekly_rollups/2023-W46.json",
+        "pr_count": 36,
+        "week": "2023-W46"
+      },
+      {
+        "path": "aggregates/weekly_rollups/2023-W47.json",
+        "pr_count": 36,
+        "week": "2023-W47"
+      },
+      {
+        "path": "aggregates/weekly_rollups/2023-W48.json",
+        "pr_count": 32,
+        "week": "2023-W48"
+      },
+      {
+        "path": "aggregates/weekly_rollups/2023-W49.json",
+        "pr_count": 36,
+        "week": "2023-W49"
+      },
+      {
+        "path": "aggregates/weekly_rollups/2023-W50.json",
+        "pr_count": 31,
+        "week": "2023-W50"
+      },
+      {
+        "path": "aggregates/weekly_rollups/2023-W51.json",
+        "pr_count": 32,
+        "week": "2023-W51"
+      },
+      {
+        "path": "aggregates/weekly_rollups/2023-W52.json",
+        "pr_count": 35,
+        "week": "2023-W52"
+      },
+      {
+        "path": "aggregates/weekly_rollups/2024-W01.json",
+        "pr_count": 28,
+        "week": "2024-W01"
+      },
+      {
+        "path": "aggregates/weekly_rollups/2024-W02.json",
+        "pr_count": 32,
+        "week": "2024-W02"
+      },
+      {
+        "path": "aggregates/weekly_rollups/2024-W03.json",
+        "pr_count": 35,
+        "week": "2024-W03"
+      },
+      {
+        "path": "aggregates/weekly_rollups/2024-W04.json",
+        "pr_count": 34,
+        "week": "2024-W04"
+      },
+      {
+        "path": "aggregates/weekly_rollups/2024-W05.json",
+        "pr_count": 35,
+        "week": "2024-W05"
+      },
+      {
+        "path": "aggregates/weekly_rollups/2024-W06.json",
+        "pr_count": 33,
+        "week": "2024-W06"
+      },
+      {
+        "path": "aggregates/weekly_rollups/2024-W07.json",
+        "pr_count": 34,
+        "week": "2024-W07"
+      },
+      {
+        "path": "aggregates/weekly_rollups/2024-W08.json",
+        "pr_count": 36,
+        "week": "2024-W08"
+      },
+      {
+        "path": "aggregates/weekly_rollups/2024-W09.json",
+        "pr_count": 36,
+        "week": "2024-W09"
+      },
+      {
+        "path": "aggregates/weekly_rollups/2024-W10.json",
+        "pr_count": 37,
+        "week": "2024-W10"
+      },
+      {
+        "path": "aggregates/weekly_rollups/2024-W11.json",
+        "pr_count": 38,
+        "week": "2024-W11"
+      },
+      {
+        "path": "aggregates/weekly_rollups/2024-W12.json",
+        "pr_count": 37,
+        "week": "2024-W12"
+      },
+      {
+        "path": "aggregates/weekly_rollups/2024-W13.json",
+        "pr_count": 41,
+        "week": "2024-W13"
+      },
+      {
+        "path": "aggregates/weekly_rollups/2024-W14.json",
+        "pr_count": 42,
+        "week": "2024-W14"
+      },
+      {
+        "path": "aggregates/weekly_rollups/2024-W15.json",
+        "pr_count": 37,
+        "week": "2024-W15"
+      },
+      {
+        "path": "aggregates/weekly_rollups/2024-W16.json",
+        "pr_count": 41,
+        "week": "2024-W16"
+      },
+      {
+        "path": "aggregates/weekly_rollups/2024-W17.json",
+        "pr_count": 42,
+        "week": "2024-W17"
+      },
+      {
+        "path": "aggregates/weekly_rollups/2024-W18.json",
+        "pr_count": 47,
+        "week": "2024-W18"
+      },
+      {
+        "path": "aggregates/weekly_rollups/2024-W19.json",
+        "pr_count": 48,
+        "week": "2024-W19"
+      },
+      {
+        "path": "aggregates/weekly_rollups/2024-W20.json",
+        "pr_count": 44,
+        "week": "2024-W20"
+      },
+      {
+        "path": "aggregates/weekly_rollups/2024-W21.json",
+        "pr_count": 49,
+        "week": "2024-W21"
+      },
+      {
+        "path": "aggregates/weekly_rollups/2024-W22.json",
+        "pr_count": 49,
+        "week": "2024-W22"
+      },
+      {
+        "path": "aggregates/weekly_rollups/2024-W23.json",
+        "pr_count": 48,
+        "week": "2024-W23"
+      },
+      {
+        "path": "aggregates/weekly_rollups/2024-W24.json",
+        "pr_count": 49,
+        "week": "2024-W24"
+      },
+      {
+        "path": "aggregates/weekly_rollups/2024-W25.json",
+        "pr_count": 47,
+        "week": "2024-W25"
+      },
+      {
+        "path": "aggregates/weekly_rollups/2024-W26.json",
+        "pr_count": 49,
+        "week": "2024-W26"
+      },
+      {
+        "path": "aggregates/weekly_rollups/2024-W27.json",
+        "pr_count": 45,
+        "week": "2024-W27"
+      },
+      {
+        "path": "aggregates/weekly_rollups/2024-W28.json",
+        "pr_count": 43,
+        "week": "2024-W28"
+      },
+      {
+        "path": "aggregates/weekly_rollups/2024-W29.json",
+        "pr_count": 46,
+        "week": "2024-W29"
+      },
+      {
+        "path": "aggregates/weekly_rollups/2024-W30.json",
+        "pr_count": 49,
+        "week": "2024-W30"
+      },
+      {
+        "path": "aggregates/weekly_rollups/2024-W31.json",
+        "pr_count": 43,
+        "week": "2024-W31"
+      },
+      {
+        "path": "aggregates/weekly_rollups/2024-W32.json",
+        "pr_count": 49,
+        "week": "2024-W32"
+      },
+      {
+        "path": "aggregates/weekly_rollups/2024-W33.json",
+        "pr_count": 45,
+        "week": "2024-W33"
+      },
+      {
+        "path": "aggregates/weekly_rollups/2024-W34.json",
+        "pr_count": 41,
+        "week": "2024-W34"
+      },
+      {
+        "path": "aggregates/weekly_rollups/2024-W35.json",
+        "pr_count": 45,
+        "week": "2024-W35"
+      },
+      {
+        "path": "aggregates/weekly_rollups/2024-W36.json",
+        "pr_count": 44,
+        "week": "2024-W36"
+      },
+      {
+        "path": "aggregates/weekly_rollups/2024-W37.json",
+        "pr_count": 40,
+        "week": "2024-W37"
+      },
+      {
+        "path": "aggregates/weekly_rollups/2024-W38.json",
+        "pr_count": 40,
+        "week": "2024-W38"
+      },
+      {
+        "path": "aggregates/weekly_rollups/2024-W39.json",
+        "pr_count": 36,
+        "week": "2024-W39"
+      },
+      {
+        "path": "aggregates/weekly_rollups/2024-W40.json",
+        "pr_count": 39,
+        "week": "2024-W40"
+      },
+      {
+        "path": "aggregates/weekly_rollups/2024-W41.json",
+        "pr_count": 38,
+        "week": "2024-W41"
+      },
+      {
+        "path": "aggregates/weekly_rollups/2024-W42.json",
+        "pr_count": 35,
+        "week": "2024-W42"
+      },
+      {
+        "path": "aggregates/weekly_rollups/2024-W43.json",
+        "pr_count": 34,
+        "week": "2024-W43"
+      },
+      {
+        "path": "aggregates/weekly_rollups/2024-W44.json",
+        "pr_count": 33,
+        "week": "2024-W44"
+      },
+      {
+        "path": "aggregates/weekly_rollups/2024-W45.json",
+        "pr_count": 33,
+        "week": "2024-W45"
+      },
+      {
+        "path": "aggregates/weekly_rollups/2024-W46.json",
+        "pr_count": 36,
+        "week": "2024-W46"
+      },
+      {
+        "path": "aggregates/weekly_rollups/2024-W47.json",
+        "pr_count": 33,
+        "week": "2024-W47"
+      },
+      {
+        "path": "aggregates/weekly_rollups/2024-W48.json",
+        "pr_count": 31,
+        "week": "2024-W48"
+      },
+      {
+        "path": "aggregates/weekly_rollups/2024-W49.json",
+        "pr_count": 34,
+        "week": "2024-W49"
+      },
+      {
+        "path": "aggregates/weekly_rollups/2024-W50.json",
+        "pr_count": 34,
+        "week": "2024-W50"
+      },
+      {
+        "path": "aggregates/weekly_rollups/2024-W51.json",
+        "pr_count": 35,
+        "week": "2024-W51"
+      },
+      {
+        "path": "aggregates/weekly_rollups/2024-W52.json",
+        "pr_count": 28,
+        "week": "2024-W52"
+      },
+      {
+        "path": "aggregates/weekly_rollups/2025-W01.json",
+        "pr_count": 30,
+        "week": "2025-W01"
+      },
+      {
+        "path": "aggregates/weekly_rollups/2025-W02.json",
+        "pr_count": 31,
+        "week": "2025-W02"
+      },
+      {
+        "path": "aggregates/weekly_rollups/2025-W03.json",
+        "pr_count": 35,
+        "week": "2025-W03"
+      },
+      {
+        "path": "aggregates/weekly_rollups/2025-W04.json",
+        "pr_count": 29,
+        "week": "2025-W04"
+      },
+      {
+        "path": "aggregates/weekly_rollups/2025-W05.json",
+        "pr_count": 35,
+        "week": "2025-W05"
+      },
+      {
+        "path": "aggregates/weekly_rollups/2025-W06.json",
+        "pr_count": 30,
+        "week": "2025-W06"
+      },
+      {
+        "path": "aggregates/weekly_rollups/2025-W07.json",
+        "pr_count": 37,
+        "week": "2025-W07"
+      },
+      {
+        "path": "aggregates/weekly_rollups/2025-W08.json",
+        "pr_count": 32,
+        "week": "2025-W08"
+      },
+      {
+        "path": "aggregates/weekly_rollups/2025-W09.json",
+        "pr_count": 40,
+        "week": "2025-W09"
+      },
+      {
+        "path": "aggregates/weekly_rollups/2025-W10.json",
+        "pr_count": 34,
+        "week": "2025-W10"
+      },
+      {
+        "path": "aggregates/weekly_rollups/2025-W11.json",
+        "pr_count": 40,
+        "week": "2025-W11"
+      },
+      {
+        "path": "aggregates/weekly_rollups/2025-W12.json",
+        "pr_count": 41,
+        "week": "2025-W12"
+      },
+      {
+        "path": "aggregates/weekly_rollups/2025-W13.json",
+        "pr_count": 37,
+        "week": "2025-W13"
+      },
+      {
+        "path": "aggregates/weekly_rollups/2025-W14.json",
+        "pr_count": 40,
+        "week": "2025-W14"
+      },
+      {
+        "path": "aggregates/weekly_rollups/2025-W15.json",
+        "pr_count": 40,
+        "week": "2025-W15"
+      },
+      {
+        "path": "aggregates/weekly_rollups/2025-W16.json",
+        "pr_count": 42,
+        "week": "2025-W16"
+      },
+      {
+        "path": "aggregates/weekly_rollups/2025-W17.json",
+        "pr_count": 45,
+        "week": "2025-W17"
+      },
+      {
+        "path": "aggregates/weekly_rollups/2025-W18.json",
+        "pr_count": 42,
+        "week": "2025-W18"
+      },
+      {
+        "path": "aggregates/weekly_rollups/2025-W19.json",
+        "pr_count": 46,
+        "week": "2025-W19"
+      },
+      {
+        "path": "aggregates/weekly_rollups/2025-W20.json",
+        "pr_count": 49,
+        "week": "2025-W20"
+      },
+      {
+        "path": "aggregates/weekly_rollups/2025-W21.json",
+        "pr_count": 44,
+        "week": "2025-W21"
+      },
+      {
+        "path": "aggregates/weekly_rollups/2025-W22.json",
+        "pr_count": 43,
+        "week": "2025-W22"
+      },
+      {
+        "path": "aggregates/weekly_rollups/2025-W23.json",
+        "pr_count": 48,
+        "week": "2025-W23"
+      },
+      {
+        "path": "aggregates/weekly_rollups/2025-W24.json",
+        "pr_count": 48,
+        "week": "2025-W24"
+      },
+      {
+        "path": "aggregates/weekly_rollups/2025-W25.json",
+        "pr_count": 48,
+        "week": "2025-W25"
+      },
+      {
+        "path": "aggregates/weekly_rollups/2025-W26.json",
+        "pr_count": 44,
+        "week": "2025-W26"
+      },
+      {
+        "path": "aggregates/weekly_rollups/2025-W27.json",
+        "pr_count": 46,
+        "week": "2025-W27"
+      },
+      {
+        "path": "aggregates/weekly_rollups/2025-W28.json",
+        "pr_count": 48,
+        "week": "2025-W28"
+      },
+      {
+        "path": "aggregates/weekly_rollups/2025-W29.json",
+        "pr_count": 45,
+        "week": "2025-W29"
+      },
+      {
+        "path": "aggregates/weekly_rollups/2025-W30.json",
+        "pr_count": 49,
+        "week": "2025-W30"
+      },
+      {
+        "path": "aggregates/weekly_rollups/2025-W31.json",
+        "pr_count": 46,
+        "week": "2025-W31"
+      },
+      {
+        "path": "aggregates/weekly_rollups/2025-W32.json",
+        "pr_count": 44,
+        "week": "2025-W32"
+      },
+      {
+        "path": "aggregates/weekly_rollups/2025-W33.json",
+        "pr_count": 47,
+        "week": "2025-W33"
+      },
+      {
+        "path": "aggregates/weekly_rollups/2025-W34.json",
+        "pr_count": 46,
+        "week": "2025-W34"
+      },
+      {
+        "path": "aggregates/weekly_rollups/2025-W35.json",
+        "pr_count": 42,
+        "week": "2025-W35"
+      },
+      {
+        "path": "aggregates/weekly_rollups/2025-W36.json",
+        "pr_count": 41,
+        "week": "2025-W36"
+      },
+      {
+        "path": "aggregates/weekly_rollups/2025-W37.json",
+        "pr_count": 45,
+        "week": "2025-W37"
+      },
+      {
+        "path": "aggregates/weekly_rollups/2025-W38.json",
+        "pr_count": 42,
+        "week": "2025-W38"
+      },
+      {
+        "path": "aggregates/weekly_rollups/2025-W39.json",
+        "pr_count": 41,
+        "week": "2025-W39"
+      },
+      {
+        "path": "aggregates/weekly_rollups/2025-W40.json",
+        "pr_count": 35,
+        "week": "2025-W40"
+      },
+      {
+        "path": "aggregates/weekly_rollups/2025-W41.json",
+        "pr_count": 38,
+        "week": "2025-W41"
+      },
+      {
+        "path": "aggregates/weekly_rollups/2025-W42.json",
+        "pr_count": 40,
+        "week": "2025-W42"
+      },
+      {
+        "path": "aggregates/weekly_rollups/2025-W43.json",
+        "pr_count": 35,
+        "week": "2025-W43"
+      },
+      {
+        "path": "aggregates/weekly_rollups/2025-W44.json",
+        "pr_count": 37,
+        "week": "2025-W44"
+      },
+      {
+        "path": "aggregates/weekly_rollups/2025-W45.json",
+        "pr_count": 37,
+        "week": "2025-W45"
+      },
+      {
+        "path": "aggregates/weekly_rollups/2025-W46.json",
+        "pr_count": 36,
+        "week": "2025-W46"
+      },
+      {
+        "path": "aggregates/weekly_rollups/2025-W47.json",
+        "pr_count": 31,
+        "week": "2025-W47"
+      },
+      {
+        "path": "aggregates/weekly_rollups/2025-W48.json",
+        "pr_count": 31,
+        "week": "2025-W48"
+      },
+      {
+        "path": "aggregates/weekly_rollups/2025-W49.json",
+        "pr_count": 34,
+        "week": "2025-W49"
+      },
+      {
+        "path": "aggregates/weekly_rollups/2025-W50.json",
+        "pr_count": 32,
+        "week": "2025-W50"
+      },
+      {
+        "path": "aggregates/weekly_rollups/2025-W51.json",
+        "pr_count": 32,
+        "week": "2025-W51"
+      },
+      {
+        "path": "aggregates/weekly_rollups/2025-W52.json",
+        "pr_count": 31,
+        "week": "2025-W52"
+      }
+    ]
+  },
+  "aggregates_schema_version": 1,
+  "coverage": {
+    "comments": "disabled",
+    "date_range": {
+      "max": "2025-12-28",
+      "min": "2021-01-04"
+    },
+    "total_prs": 10349
+  },
+  "dataset_schema_version": 1,
+  "defaults": {
+    "default_date_range_days": 90
+  },
+  "features": {
+    "ai_insights": true,
+    "comments": false,
+    "predictions": true,
+    "teams": false
+  },
+  "generated_at": "2026-01-30T12:00:00Z",
+  "insights_schema_version": 1,
+  "limits": {
+    "max_distribution_files": 5,
+    "max_weekly_files": 260
+  },
+  "manifest_schema_version": 1,
+  "predictions_schema_version": 1,
+  "run_id": "demo-static"
+}

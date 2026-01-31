@@ -25,10 +25,10 @@
 
 **Purpose**: Project initialization, directory structure, tooling configuration
 
-- [ ] T001 Create docs/ directory structure: docs/, docs/data/, docs/data/aggregates/, docs/data/aggregates/weekly_rollups/, docs/data/aggregates/distributions/, docs/data/predictions/, docs/data/insights/
-- [ ] T002 Create tests/demo/ directory for demo-specific tests
-- [ ] T003 [P] Pin Python version to 3.11 in .github/workflows/demo.yml
-- [ ] T004 [P] Verify Node 22 and pnpm 9.15.0 are pinned in extension/package.json
+- [x] T001 Create docs/ directory structure: docs/, docs/data/, docs/data/aggregates/, docs/data/aggregates/weekly_rollups/, docs/data/aggregates/distributions/, docs/data/predictions/, docs/data/insights/
+- [x] T002 Create tests/demo/ directory for demo-specific tests
+- [x] T003 [P] Pin Python version to 3.11 in .github/workflows/demo.yml
+- [x] T004 [P] Verify Node 22 and pnpm 9.15.0 are pinned in extension/package.json
 
 ---
 
@@ -38,14 +38,14 @@
 
 **⚠️ CRITICAL**: No user story work can begin until this phase is complete
 
-- [ ] T005 Create scripts/generate-demo-data.py with canonical JSON utility functions (sorted keys, 3-decimal floats, UTC timestamps, LF newlines)
-- [ ] T006 [P] Implement deterministic random initialization with seed=42 in scripts/generate-demo-data.py
-- [ ] T007 [P] Implement UUID v5 generation helper with DNS namespace in scripts/generate-demo-data.py
-- [ ] T008 Implement SyntheticOrganization generator (3 orgs) in scripts/generate-demo-data.py
-- [ ] T009 Implement SyntheticProject generator (8 projects across orgs) in scripts/generate-demo-data.py
-- [ ] T010 Implement SyntheticRepository generator (20 repos with UUID v5 IDs) in scripts/generate-demo-data.py
-- [ ] T011 Implement SyntheticUser generator (50 users with realistic names) in scripts/generate-demo-data.py
-- [ ] T012 Generate docs/data/aggregates/dimensions.json with all entities (orgs, projects, repos, users)
+- [x] T005 Create scripts/generate-demo-data.py with canonical JSON utility functions (sorted keys, 3-decimal floats, UTC timestamps, LF newlines)
+- [x] T006 [P] Implement deterministic random initialization with seed=42 in scripts/generate-demo-data.py
+- [x] T007 [P] Implement UUID v5 generation helper with DNS namespace in scripts/generate-demo-data.py
+- [x] T008 Implement SyntheticOrganization generator (3 orgs) in scripts/generate-demo-data.py
+- [x] T009 Implement SyntheticProject generator (8 projects across orgs) in scripts/generate-demo-data.py
+- [x] T010 Implement SyntheticRepository generator (20 repos with UUID v5 IDs) in scripts/generate-demo-data.py
+- [x] T011 Implement SyntheticUser generator (50 users with realistic names) in scripts/generate-demo-data.py
+- [x] T012 Generate docs/data/aggregates/dimensions.json with all entities (orgs, projects, repos, users)
 
 **Checkpoint**: Foundation ready - entities and utilities in place for user story implementation
 
@@ -59,18 +59,18 @@
 
 ### Implementation for User Story 1
 
-- [ ] T013 [US1] Implement WeeklyRollup generator with seasonal variation model (260 weeks, 2021-W01 to 2025-W52) in scripts/generate-demo-data.py
-- [ ] T014 [US1] Implement log-normal cycle time distribution (μ=6.0, σ=1.5) for weekly metrics in scripts/generate-demo-data.py
-- [ ] T015 [US1] Generate 260 weekly rollup files in docs/data/aggregates/weekly_rollups/YYYY-Www.json
-- [ ] T016 [US1] Implement YearlyDistribution generator (5 years with bucket counts) in scripts/generate-demo-data.py
-- [ ] T017 [US1] Generate 5 distribution files in docs/data/aggregates/distributions/YYYY.json
-- [ ] T018 [US1] Generate docs/data/dataset-manifest.json with all aggregate indexes
-- [ ] T019 [P] [US1] Create scripts/build-demo.sh to run pnpm build in extension/ and copy dist/ui/* to docs/
-- [ ] T020 [US1] Modify scripts/build-demo.sh to inject LOCAL_DASHBOARD_MODE and DATASET_PATH globals into docs/index.html
-- [ ] T021 [US1] Add <base href="./"> to docs/index.html for relative path resolution
-- [ ] T022 [US1] Add synthetic data disclaimer banner HTML/CSS to docs/index.html (visible, non-intrusive, states data is synthetic)
-- [ ] T023 [US1] Verify docs/index.html loads dashboard.js, dataset-loader.js, styles.css, VSS.SDK.min.js
-- [ ] T024 [US1] Run scripts/build-demo.sh and verify dashboard renders locally with python -m http.server 8080
+- [x] T013 [US1] Implement WeeklyRollup generator with seasonal variation model (260 weeks, 2021-W01 to 2025-W52) in scripts/generate-demo-data.py
+- [x] T014 [US1] Implement log-normal cycle time distribution (μ=6.0, σ=1.5) for weekly metrics in scripts/generate-demo-data.py
+- [x] T015 [US1] Generate 260 weekly rollup files in docs/data/aggregates/weekly_rollups/YYYY-Www.json
+- [x] T016 [US1] Implement YearlyDistribution generator (5 years with bucket counts) in scripts/generate-demo-data.py
+- [x] T017 [US1] Generate 5 distribution files in docs/data/aggregates/distributions/YYYY.json
+- [x] T018 [US1] Generate docs/data/dataset-manifest.json with all aggregate indexes
+- [x] T019 [P] [US1] Create scripts/build-demo.sh to run pnpm build in extension/ and copy dist/ui/* to docs/
+- [x] T020 [US1] Modify scripts/build-demo.sh to inject LOCAL_DASHBOARD_MODE and DATASET_PATH globals into docs/index.html
+- [x] T021 [US1] Add <base href="./"> to docs/index.html for relative path resolution
+- [x] T022 [US1] Add synthetic data disclaimer banner HTML/CSS to docs/index.html (visible, non-intrusive, states data is synthetic)
+- [x] T023 [US1] Verify docs/index.html loads dashboard.js, dataset-loader.js, styles.css, VSS.SDK.min.js
+- [x] T024 [US1] Run scripts/build-demo.sh and verify dashboard renders locally with python -m http.server 8080
 
 **Checkpoint**: User Story 1 complete - dashboard renders with 5 years of data, filters work, banner visible
 
@@ -84,12 +84,12 @@
 
 ### Implementation for User Story 2
 
-- [ ] T025 [US2] Enhance seasonal variation in scripts/generate-demo-data.py: ±20% amplitude, December trough, Q1/Q3 peaks
-- [ ] T026 [US2] Add ±10% random weekly noise to PR counts (deterministic with seed=42)
-- [ ] T027 [US2] Verify pr_count ranges from ~32 to ~48 across weeks (not flat)
-- [ ] T028 [US2] Verify cycle_time_p50 and cycle_time_p90 show realistic percentile spread
-- [ ] T029 [US2] Regenerate all weekly rollups with enhanced seasonal model
-- [ ] T030 [US2] Verify distribution buckets show realistic proportions (15% 0-1h, 25% 1-4h, 30% 4-24h, 15% 1-3d, 10% 3-7d, 5% 7d+)
+- [x] T025 [US2] Enhance seasonal variation in scripts/generate-demo-data.py: ±20% amplitude, December trough, Q1/Q3 peaks
+- [x] T026 [US2] Add ±10% random weekly noise to PR counts (deterministic with seed=42)
+- [x] T027 [US2] Verify pr_count ranges from ~32 to ~48 across weeks (not flat)
+- [x] T028 [US2] Verify cycle_time_p50 and cycle_time_p90 show realistic percentile spread
+- [x] T029 [US2] Regenerate all weekly rollups with enhanced seasonal model
+- [x] T030 [US2] Verify distribution buckets show realistic proportions (15% 0-1h, 25% 1-4h, 30% 4-24h, 15% 1-3d, 10% 3-7d, 5% 7d+)
 
 **Checkpoint**: User Story 2 complete - data appears realistic with seasonal patterns and variation
 
