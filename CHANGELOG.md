@@ -1,3 +1,11 @@
+## [5.18.1](https://github.com/oddessentials/ado-git-repo-insights/compare/v5.18.0...v5.18.1) (2026-01-31)
+
+
+### Bug Fixes
+
+* **ado-client:** harden parse_retry_after per RFC 7231 ([f72341f](https://github.com/oddessentials/ado-git-repo-insights/commit/f72341f9aa38ba5fb4d46766e35a98e11e79fa93))
+* **ado-client:** improve error handling and security hardening ([2da31cf](https://github.com/oddessentials/ado-git-repo-insights/commit/2da31cf60d3e5aab89c6f0f82613be6918e768ee))
+
 # [5.18.0](https://github.com/oddessentials/ado-git-repo-insights/compare/v5.17.0...v5.18.0) (2026-01-31)
 
 
