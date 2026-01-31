@@ -20,9 +20,13 @@ This guide explains how to build, test, and deploy the GitHub Pages demo dashboa
 ```bash
 # Generate all demo data (deterministic, seed=42)
 python scripts/generate-demo-data.py
+python scripts/generate-demo-predictions.py
+python scripts/generate-demo-insights.py
 
-# Verify byte-identical output
-python scripts/generate-demo-data.py
+# Verify byte-identical output (run all three again)
+python scripts/generate-demo-data.py && \
+python scripts/generate-demo-predictions.py && \
+python scripts/generate-demo-insights.py && \
 git diff --exit-code docs/data/
 ```
 
@@ -49,15 +53,12 @@ open http://localhost:8080
 ### Validate
 
 ```bash
-# Run all demo tests
-pytest tests/demo/
+# Run all demo tests (schema validation, entity counts, regeneration)
+pytest tests/demo/ -v --no-cov
 
-# Check size cap
+# Check size cap (should be < 50 MB)
 du -sh docs/
-# Should be < 50 MB
-
-# Validate JSON schemas
-python -c "from tests.demo.test_synthetic_data import validate_all_schemas; validate_all_schemas()"
+# Current: ~1.6 MB
 ```
 
 ## Directory Structure
@@ -95,15 +96,23 @@ The `.github/workflows/demo.yml` workflow runs on every PR that touches:
 
 ### Jobs
 
-1. **regenerate**: Runs `generate-demo-data.py`, fails if git diff non-empty
-2. **validate**: Checks JSON schemas, size cap, coverage
-3. **serve-test**: Serves docs/ from subpath, verifies zero 404s
+1. **regenerate**: Runs all three generators (data, predictions, insights)
+2. **diff-check**: Verifies git diff is empty after regeneration (non-bypassable)
+3. **size-check**: Verifies docs/ directory < 50 MB
+4. **base-path-serve**: Serves docs/, curls all assets, verifies 200 status
+5. **pytest**: Runs tests/demo/ test suite
 
 ### Local CI Simulation
 
 ```bash
-# Simulate the full CI check
-./scripts/validate-demo.sh
+# Run the full regeneration and verification
+python scripts/generate-demo-data.py && \
+python scripts/generate-demo-predictions.py && \
+python scripts/generate-demo-insights.py && \
+git diff --exit-code docs/data/
+
+# Run tests
+pytest tests/demo/ -v --no-cov
 ```
 
 ## Troubleshooting

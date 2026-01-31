@@ -103,15 +103,15 @@
 
 ### Implementation for User Story 3
 
-- [ ] T031 [P] [US3] Create scripts/generate-demo-predictions.py for deterministic forecast generation
-- [ ] T032 [US3] Implement linear trend continuation from last 8 weeks of data in scripts/generate-demo-predictions.py
-- [ ] T033 [US3] Generate pr_throughput forecast (12 weeks, count unit) with ±15% confidence interval
-- [ ] T034 [US3] Generate cycle_time_minutes forecast (12 weeks, minutes unit) with ±15% confidence interval
-- [ ] T035 [US3] Generate review_time_minutes forecast (12 weeks, minutes unit) with ±15% confidence interval
-- [ ] T036 [US3] Widen confidence interval by 1% per week for forecast uncertainty
-- [ ] T037 [US3] Generate docs/data/predictions/trends.json with all 3 metric forecasts
-- [ ] T038 [US3] Update docs/data/dataset-manifest.json to set features.predictions=true
-- [ ] T039 [US3] Verify Predictions tab renders in dashboard with forecast charts
+- [x] T031 [P] [US3] Create scripts/generate-demo-predictions.py for deterministic forecast generation
+- [x] T032 [US3] Implement linear trend continuation from last 8 weeks of data in scripts/generate-demo-predictions.py
+- [x] T033 [US3] Generate pr_throughput forecast (12 weeks, count unit) with ±15% confidence interval
+- [x] T034 [US3] Generate cycle_time_minutes forecast (12 weeks, minutes unit) with ±15% confidence interval
+- [x] T035 [US3] Generate review_time_minutes forecast (12 weeks, minutes unit) with ±15% confidence interval
+- [x] T036 [US3] Widen confidence interval by 1% per week for forecast uncertainty
+- [x] T037 [US3] Generate docs/data/predictions/trends.json with all 3 metric forecasts
+- [x] T038 [US3] Update docs/data/dataset-manifest.json to set features.predictions=true
+- [x] T039 [US3] Verify Predictions tab renders in dashboard with forecast charts
 
 **Checkpoint**: User Story 3 complete - Predictions tab shows 12-week forecasts with confidence bands
 
@@ -125,18 +125,18 @@
 
 ### Implementation for User Story 4
 
-- [ ] T040 [P] [US4] Create scripts/generate-demo-insights.py for rule-based insight generation
-- [ ] T041 [US4] Implement bottleneck-001 template: P90 > 3x P50 in any repo (warning severity)
-- [ ] T042 [US4] Implement bottleneck-002 template: P90 > 5 days in any repo (critical severity)
-- [ ] T043 [US4] Implement trend-001 template: Throughput up 20%+ over 4 weeks (info severity)
-- [ ] T044 [US4] Implement trend-002 template: Cycle time down 15%+ over 4 weeks (info severity)
-- [ ] T045 [US4] Implement trend-003 template: Throughput down 20%+ over 4 weeks (warning severity)
-- [ ] T046 [US4] Implement anomaly-001 template: PR count 2σ above rolling avg (info severity)
-- [ ] T047 [US4] Implement anomaly-002 template: PR count 2σ below rolling avg (warning severity)
-- [ ] T048 [US4] Implement anomaly-003 template: No PRs in 2+ weeks (critical severity)
-- [ ] T049 [US4] Generate docs/data/insights/summary.json with 5+ diverse insights
-- [ ] T050 [US4] Update docs/data/dataset-manifest.json to set features.ai_insights=true
-- [ ] T051 [US4] Verify AI Insights tab renders in dashboard with insight cards
+- [x] T040 [P] [US4] Create scripts/generate-demo-insights.py for rule-based insight generation
+- [x] T041 [US4] Implement bottleneck-001 template: P90 > 3x P50 in any repo (warning severity)
+- [x] T042 [US4] Implement bottleneck-002 template: P90 > 5 days in any repo (critical severity)
+- [x] T043 [US4] Implement trend-001 template: Throughput up 20%+ over 4 weeks (info severity)
+- [x] T044 [US4] Implement trend-002 template: Cycle time down 15%+ over 4 weeks (info severity)
+- [x] T045 [US4] Implement trend-003 template: Throughput down 20%+ over 4 weeks (warning severity)
+- [x] T046 [US4] Implement anomaly-001 template: PR count 2σ above rolling avg (info severity)
+- [x] T047 [US4] Implement anomaly-002 template: PR count 2σ below rolling avg (warning severity)
+- [x] T048 [US4] Implement anomaly-003 template: No PRs in 2+ weeks (critical severity)
+- [x] T049 [US4] Generate docs/data/insights/summary.json with 5+ diverse insights
+- [x] T050 [US4] Update docs/data/dataset-manifest.json to set features.ai_insights=true
+- [x] T051 [US4] Verify AI Insights tab renders in dashboard with insight cards
 
 **Checkpoint**: User Story 4 complete - AI Insights tab shows rule-based insights with categories and severity
 
@@ -148,21 +148,21 @@
 
 ### Tests
 
-- [ ] T052 [P] Create tests/demo/test_synthetic_data.py with schema validation for all JSON files
-- [ ] T053 [P] Add date range coverage test: verify 260 weeks from 2021-W01 to 2025-W52 in tests/demo/test_synthetic_data.py
-- [ ] T054 [P] Add entity count verification: 3 orgs, 8 projects, 20 repos, 50 users in tests/demo/test_synthetic_data.py
-- [ ] T055 [P] Create tests/demo/test_regeneration.py to generate twice and assert byte-identical output
-- [ ] T056 [P] Create tests/demo/test_base_path.py to serve docs/ on local HTTP server and verify zero 404s
+- [x] T052 [P] Create tests/demo/test_synthetic_data.py with schema validation for all JSON files
+- [x] T053 [P] Add date range coverage test: verify 260 weeks from 2021-W01 to 2025-W52 in tests/demo/test_synthetic_data.py
+- [x] T054 [P] Add entity count verification: 3 orgs, 8 projects, 20 repos, 50 users in tests/demo/test_synthetic_data.py
+- [x] T055 [P] Create tests/demo/test_regeneration.py to generate twice and assert byte-identical output
+- [x] T056 [P] Create tests/demo/test_base_path.py to serve docs/ on local HTTP server and verify zero 404s
 
 ### CI Workflow
 
-- [ ] T057 Create .github/workflows/demo.yml with Python 3.11 and Node 22 setup
-- [ ] T058 Add job 1: regenerate - runs generate-demo-data.py, generate-demo-predictions.py, generate-demo-insights.py
-- [ ] T059 Add job 2: diff-check - runs git diff --exit-code docs/ and fails if any changes
-- [ ] T060 Add job 3: size-check - verifies docs/ directory size < 50 MB
-- [ ] T061 Add job 4: base-path-serve - serves docs/ from subpath and curls all assets
-- [ ] T062 Configure trigger: PRs touching scripts/generate-*, extension/ui/*, docs/**
-- [ ] T063 Verify CI workflow has no override/skip flags (non-bypassable per SC-009)
+- [x] T057 Create .github/workflows/demo.yml with Python 3.11 and Node 22 setup
+- [x] T058 Add job 1: regenerate - runs generate-demo-data.py, generate-demo-predictions.py, generate-demo-insights.py
+- [x] T059 Add job 2: diff-check - runs git diff --exit-code docs/ and fails if any changes
+- [x] T060 Add job 3: size-check - verifies docs/ directory size < 50 MB
+- [x] T061 Add job 4: base-path-serve - serves docs/ from subpath and curls all assets
+- [x] T062 Configure trigger: PRs touching scripts/generate-*, extension/ui/*, docs/**
+- [x] T063 Verify CI workflow has no override/skip flags (non-bypassable per SC-009)
 
 **Checkpoint**: CI workflow validates regeneration, size cap, and base-path correctness
 
@@ -172,15 +172,15 @@
 
 **Purpose**: Final validation, documentation, and cleanup
 
-- [ ] T064 Run python scripts/generate-demo-data.py && git diff --exit-code docs/data/ to verify byte-identical regeneration
-- [ ] T065 Run pytest tests/demo/ to verify all tests pass
-- [ ] T066 Verify docs/ directory size < 50 MB with du -sh docs/
-- [ ] T067 Test dashboard locally: python -m http.server 8080 --directory docs/ and verify all features
-- [ ] T068 [P] Update specs/018-github-pages-demo/quickstart.md with final commands and validation steps
-- [ ] T069 [P] Document demo data versioning policy in docs/DEMO-DATA-VERSIONING.md per FR-019 (backward-compatible changes only, explicit versioning for breaking changes)
-- [ ] T070 Measure page load time with curl timing: curl -w "%{time_total}" -o /dev/null -s http://localhost:8080/ and verify < 3 seconds per SC-001
-- [ ] T071 Verify synthetic data banner is visible and states data is illustrative only
-- [ ] T072 Final validation: all acceptance scenarios from spec.md pass
+- [x] T064 Run python scripts/generate-demo-data.py && git diff --exit-code docs/data/ to verify byte-identical regeneration
+- [x] T065 Run pytest tests/demo/ to verify all tests pass
+- [x] T066 Verify docs/ directory size < 50 MB with du -sh docs/ (current: ~1.6 MB)
+- [x] T067 Test dashboard locally: python -m http.server 8080 --directory docs/ and verify all features
+- [x] T068 [P] Update specs/018-github-pages-demo/quickstart.md with final commands and validation steps
+- [x] T069 [P] Document demo data versioning policy in docs/DEMO-DATA-VERSIONING.md per FR-019 (backward-compatible changes only, explicit versioning for breaking changes)
+- [x] T070 Measure page load time with curl timing: curl -w "%{time_total}" -o /dev/null -s http://localhost:8080/ and verify < 3 seconds per SC-001
+- [x] T071 Verify synthetic data banner is visible and states data is illustrative only
+- [x] T072 Final validation: all acceptance scenarios from spec.md pass
 
 ---
 
