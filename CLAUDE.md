@@ -18,6 +18,8 @@ Auto-generated from all feature plans. Last updated: 2026-01-27
 - YAML (GitHub Actions), JSON (package.json, .npmrc), Bash (scripts) + pnpm@9.15.0 (declared in packageManager field), semantic-release@25.0.0 (014-root-pnpm-migration)
 - Bash (CI scripts), Python 3.11 (JSON generation script) + GitHub Actions, GitHub Pages, Shields.io dynamic JSON badges (015-dynamic-badges)
 - GitHub Pages (`gh-pages` branch) - single JSON file (015-dynamic-badges)
+- Python 3.10+ + `zipfile` (stdlib), `urllib.parse` (stdlib), `requests>=2.28.0` (017-security-fixes)
+- SQLite (artifacts staged to local filesystem) (017-security-fixes)
 
 -\ Python\ 3\.10\+\ \(backend\),\ TypeScript\ \(frontend/extension\)\ \+\ numpy,\ pandas\ \(Python\);\ esbuild\ \(TypeScript\ bundling\)\ \(006-forecaster-edge-hardening\)
 
@@ -37,9 +39,9 @@ cd\ src;\ pytest;\ ruff\ check\ \.
 Python\ 3\.10\+\ \(backend\),\ TypeScript\ \(frontend/extension\):\ Follow\ standard\ conventions
 
 ## Recent Changes
+- 017-security-fixes: Added Python 3.10+ + `zipfile` (stdlib), `urllib.parse` (stdlib), `requests>=2.28.0`
 - 015-dynamic-badges: Added Bash (CI scripts), Python 3.11 (JSON generation script) + GitHub Actions, GitHub Pages, Shields.io dynamic JSON badges
 - 014-root-pnpm-migration: Added YAML (GitHub Actions), JSON (package.json, .npmrc), Bash (scripts) + pnpm@9.15.0 (declared in packageManager field), semantic-release@25.0.0
-- 013-ci-quality-hardening: Added Python 3.10+ (backend), TypeScript 5.7.3 (extension) + mypy (Python), typescript-eslint 8.53.1 (TypeScript), eslint 9.18.0, pre-commit
 
 -\ 006-forecaster-edge-hardening:\ Added\ Python\ 3\.10\+\ \(backend\),\ TypeScript\ \(frontend/extension\)\ \+\ numpy,\ pandas\ \(Python\);\ esbuild\ \(TypeScript\ bundling\)
 

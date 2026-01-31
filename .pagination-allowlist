@@ -1,0 +1,28 @@
+# Pagination Token Allowlist (SC-009)
+#
+# Files listed here are allowed to contain 'continuationToken' references.
+# This prevents direct token string concatenation outside the centralized helper.
+#
+# Format: One glob pattern per line, comments start with #
+# The CI guard reads this file to generate --glob exclusions for ripgrep.
+#
+# Allowed categories:
+#   - The centralized pagination helper module
+#   - Test files that verify pagination behavior
+#   - Test fixtures containing mock API responses
+#   - Specification and documentation files
+
+# Centralized helper (the ONLY production code that should handle tokens)
+**/pagination.py
+
+# Test files for pagination functionality
+**/test_pagination*.py
+**/test_ado_client_pagination.py
+**/test_stage_artifacts.py
+
+# Test fixtures (mock API responses)
+tests/fixtures/**
+
+# Specifications and documentation
+specs/**
+**/*.md

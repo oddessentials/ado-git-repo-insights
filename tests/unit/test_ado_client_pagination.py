@@ -295,3 +295,84 @@ class TestRetryAndBackoff:
 
         assert "Max retries" in str(exc_info.value)
         assert client.stats.retries_used == 2  # max_retries from config
+
+
+class TestSpecialCharacterTokens:
+    """Security regression tests for continuation tokens with special characters (T046)."""
+
+    @patch("ado_git_repo_insights.extractor.ado_client.requests.get")
+    def test_token_with_ampersand_encoded(
+        self, mock_get: MagicMock, client: ADOClient
+    ) -> None:
+        """Token with & character is URL-encoded, not interpreted as param separator.
+
+        Regression test (SC-008): Ensures tokens like 'foo&admin=true' don't
+        cause parameter injection vulnerabilities.
+        """
+        # Page 1 returns a token with special characters
+        malicious_token = "page2&admin=true&delete=all"  # noqa: S105
+        page1_response = make_mock_response([{"pullRequestId": 1}], malicious_token)
+        page2_response = make_mock_response([{"pullRequestId": 2}], None)
+        mock_get.side_effect = [page1_response, page2_response]
+
+        list(
+            client.get_pull_requests("TestProject", date(2024, 1, 1), date(2024, 1, 1))
+        )
+
+        # Verify second call has properly encoded token
+        calls = mock_get.call_args_list
+        second_call_url = calls[1][0][0]
+
+        # The & should be encoded as %26, not treated as param separator
+        assert (
+            "continuationToken=page2%26admin%3Dtrue%26delete%3Dall" in second_call_url
+        )
+        # Should NOT have these as separate parameters
+        assert "&admin=" not in second_call_url
+        assert "&delete=" not in second_call_url
+
+    @patch("ado_git_repo_insights.extractor.ado_client.requests.get")
+    def test_token_with_equals_encoded(
+        self, mock_get: MagicMock, client: ADOClient
+    ) -> None:
+        """Token with = character is URL-encoded.
+
+        Ensures tokens containing = don't corrupt query string parsing.
+        """
+        token_with_equals = "key=value=extra"  # noqa: S105
+        page1_response = make_mock_response([{"pullRequestId": 1}], token_with_equals)
+        page2_response = make_mock_response([{"pullRequestId": 2}], None)
+        mock_get.side_effect = [page1_response, page2_response]
+
+        list(
+            client.get_pull_requests("TestProject", date(2024, 1, 1), date(2024, 1, 1))
+        )
+
+        calls = mock_get.call_args_list
+        second_call_url = calls[1][0][0]
+
+        # = should be encoded as %3D
+        assert "continuationToken=key%3Dvalue%3Dextra" in second_call_url
+
+    @patch("ado_git_repo_insights.extractor.ado_client.requests.get")
+    def test_token_with_plus_and_space_encoded(
+        self, mock_get: MagicMock, client: ADOClient
+    ) -> None:
+        """Token with + and space characters is properly encoded.
+
+        In URL encoding, spaces become + and literal + becomes %2B.
+        """
+        token_with_special = "a+b c"  # noqa: S105 - continuation token, not password
+        page1_response = make_mock_response([{"pullRequestId": 1}], token_with_special)
+        page2_response = make_mock_response([{"pullRequestId": 2}], None)
+        mock_get.side_effect = [page1_response, page2_response]
+
+        list(
+            client.get_pull_requests("TestProject", date(2024, 1, 1), date(2024, 1, 1))
+        )
+
+        calls = mock_get.call_args_list
+        second_call_url = calls[1][0][0]
+
+        # + should be %2B, space should be +
+        assert "continuationToken=a%2Bb+c" in second_call_url

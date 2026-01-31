@@ -32,6 +32,7 @@ from .utils.run_summary import (
     get_git_sha,
     get_tool_version,
 )
+from .utils.safe_extract import ZipSlipError, safe_extract_zip
 from .utils.shell_detection import detect_shell
 
 if TYPE_CHECKING:
@@ -1146,7 +1147,6 @@ def cmd_stage_artifacts(args: Namespace) -> int:
     """
     import base64
     import json
-    import zipfile
     from datetime import datetime, timezone
 
     import requests
@@ -1261,8 +1261,20 @@ def cmd_stage_artifacts(args: Namespace) -> int:
 
         logger.info("Extracting artifact...")
         try:
-            with zipfile.ZipFile(zip_path, "r") as zf:
-                zf.extractall(out_dir)
+            safe_extract_zip(zip_path, out_dir)
+        except ZipSlipError as e:
+            logger.error(f"Security: Malicious ZIP detected - {e.reason}")
+            logger.error(
+                f"Artifact '{args.artifact}' from build {build_id} contains unsafe entry: "
+                f"'{e.entry_name}'. This may indicate a compromised pipeline or supply chain attack. "
+                "Report this incident to your security team."
+            )
+            # Clean up ZIP file on security failure
+            try:
+                zip_path.unlink(missing_ok=True)
+            except OSError:
+                pass
+            return 1
         finally:
             # Always clean up ZIP, even on extraction failure
             try:

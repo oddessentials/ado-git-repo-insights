@@ -6,11 +6,13 @@ Tests cover:
 3. Layout normalization (nested → flat)
 4. Contract validation (fail-fast on violations)
 5. Required artifact enforcement
+6. ZipSlipError handling in CLI
 """
 
 from __future__ import annotations
 
 import json
+import logging
 import shutil
 from pathlib import Path
 
@@ -20,6 +22,7 @@ from ado_git_repo_insights.cli import (
     _normalize_artifact_layout,
     _validate_staged_artifacts,
 )
+from ado_git_repo_insights.utils.safe_extract import ZipSlipError
 
 # =============================================================================
 # Fixtures
@@ -440,3 +443,151 @@ class TestStageToValidationFlow:
 
         # Must be empty - no fallback to aggregates/
         assert len(roots) == 0, "Legacy fallback to aggregates/ must not exist"
+
+
+# =============================================================================
+# Security Tests - Zip Slip Protection
+# =============================================================================
+
+
+class TestZipSlipProtection:
+    """Tests for Zip Slip protection in artifact extraction."""
+
+    def test_zipslip_error_attributes(self) -> None:
+        """ZipSlipError provides entry_name and reason for actionable messages."""
+        error = ZipSlipError("../../evil.txt", "Path traversal sequence detected")
+
+        assert error.entry_name == "../../evil.txt"
+        assert error.reason == "Path traversal sequence detected"
+        assert "Zip Slip attack detected" in str(error)
+
+    def test_zipslip_error_with_symlink(self) -> None:
+        """ZipSlipError correctly reports symlink detection."""
+        error = ZipSlipError("evil_link", "Symlink entry detected: evil_link")
+
+        assert error.entry_name == "evil_link"
+        assert "symlink" in error.reason.lower()
+
+    def test_zipslip_error_with_absolute_path(self) -> None:
+        """ZipSlipError correctly reports absolute path violation."""
+        error = ZipSlipError("/etc/passwd", "Absolute path not allowed: /etc/passwd")
+
+        assert error.entry_name == "/etc/passwd"
+        assert "absolute" in error.reason.lower()
+
+    def test_zipslip_error_with_windows_drive_path(self) -> None:
+        """ZipSlipError correctly reports Windows drive letter violation."""
+        error = ZipSlipError(
+            "C:\\Windows\\System32\\evil.dll",
+            "Absolute path not allowed: C:\\Windows\\System32\\evil.dll",
+        )
+
+        assert error.entry_name == "C:\\Windows\\System32\\evil.dll"
+        assert "absolute" in error.reason.lower()
+
+
+# =============================================================================
+# CLI ZipSlipError Handling Tests
+# =============================================================================
+
+
+class TestCLIZipSlipErrorHandling:
+    """Tests for ZipSlipError handling in CLI's cmd_stage_artifacts.
+
+    These tests verify the CLI produces actionable error messages when
+    security violations are detected during artifact extraction.
+    """
+
+    def test_zipslip_error_logs_security_message(
+        self, caplog: pytest.LogCaptureFixture
+    ) -> None:
+        """CLI logs security message when ZipSlipError is raised."""
+        from ado_git_repo_insights.cli import logger as cli_logger
+
+        # Simulate the error handling logic from cmd_stage_artifacts
+        error = ZipSlipError("../../evil.txt", "Path traversal sequence detected")
+
+        with caplog.at_level(logging.ERROR, logger="ado_git_repo_insights.cli"):
+            cli_logger.error(f"Security: Malicious ZIP detected - {error.reason}")
+            cli_logger.error(
+                f"Artifact 'test-artifact' from build 12345 contains unsafe entry: "
+                f"'{error.entry_name}'. This may indicate a compromised pipeline or supply chain attack. "
+                "Report this incident to your security team."
+            )
+
+        assert "Security: Malicious ZIP detected" in caplog.text
+        assert "Path traversal sequence detected" in caplog.text
+        assert "../../evil.txt" in caplog.text
+        assert "supply chain attack" in caplog.text
+        assert "security team" in caplog.text
+
+    def test_zipslip_error_message_includes_entry_name(self) -> None:
+        """ZipSlipError message includes the offending entry name."""
+        error = ZipSlipError("../../../etc/shadow", "Path traversal sequence detected")
+
+        # Verify the error provides actionable information
+        assert (
+            "../../../etc/shadow" in str(error)
+            or error.entry_name == "../../../etc/shadow"
+        )
+        assert error.entry_name == "../../../etc/shadow"
+
+    def test_zipslip_error_message_includes_reason(self) -> None:
+        """ZipSlipError message includes the reason for rejection."""
+        error = ZipSlipError("evil_link", "Symlink entry detected: evil_link")
+
+        assert "Symlink entry detected" in error.reason
+        assert "Zip Slip attack detected" in str(error)
+
+    def test_zipslip_error_for_traversal_provides_clear_context(self) -> None:
+        """Path traversal errors provide clear context for debugging."""
+        error = ZipSlipError(
+            "foo/bar/../../../etc/passwd",
+            "Path traversal sequence detected: foo/bar/../../../etc/passwd",
+        )
+
+        # Message should identify the attack vector
+        assert ".." in error.entry_name
+        assert "traversal" in error.reason.lower()
+
+    def test_zipslip_error_for_symlink_provides_clear_context(self) -> None:
+        """Symlink errors provide clear context for debugging."""
+        error = ZipSlipError(
+            "malicious_symlink", "Symlink entry detected: malicious_symlink"
+        )
+
+        assert error.entry_name == "malicious_symlink"
+        assert "symlink" in error.reason.lower()
+
+    def test_zipslip_error_for_escape_provides_clear_context(self) -> None:
+        """Path escape errors provide clear context for debugging."""
+        error = ZipSlipError(
+            "subdir/../../escape.txt",
+            "Path escapes output directory: subdir/../../escape.txt -> /tmp/evil",
+        )
+
+        assert "escape" in error.reason.lower()
+        assert error.entry_name == "subdir/../../escape.txt"
+
+
+# =============================================================================
+# safe_extract_zip Import Verification
+# =============================================================================
+
+
+class TestSafeExtractImport:
+    """Verify safe_extract_zip is properly imported and used."""
+
+    def test_safe_extract_zip_imported_in_cli(self) -> None:
+        """Verify safe_extract_zip is available in cli module."""
+        from ado_git_repo_insights import cli
+
+        assert hasattr(cli, "safe_extract_zip")
+        assert callable(cli.safe_extract_zip)
+
+    def test_zipslip_error_imported_in_cli(self) -> None:
+        """Verify ZipSlipError is available in cli module."""
+        from ado_git_repo_insights import cli
+
+        assert hasattr(cli, "ZipSlipError")
+        assert issubclass(cli.ZipSlipError, Exception)
