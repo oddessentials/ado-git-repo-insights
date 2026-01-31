@@ -12,7 +12,8 @@ import logging
 import time
 from collections.abc import Iterator
 from dataclasses import dataclass
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta, timezone
+from email.utils import parsedate_to_datetime
 from typing import Any
 
 import requests
@@ -20,6 +21,83 @@ from requests.exceptions import HTTPError, RequestException
 
 from ..config import APIConfig
 from .pagination import add_continuation_token, extract_continuation_token
+
+
+def _get_current_time() -> datetime:
+    """Get current UTC time. Extracted for testability."""
+    return datetime.now(timezone.utc)
+
+
+def parse_retry_after(
+    header_value: str | None,
+    default: int = 60,
+    max_seconds: int | None = None,
+) -> int:
+    """Parse Retry-After header value (seconds or HTTP-date).
+
+    RFC 7231 allows Retry-After to be:
+    - An integer number of seconds: "120" (must be non-negative)
+    - An HTTP-date: "Wed, 21 Oct 2026 07:28:00 GMT"
+
+    Args:
+        header_value: Raw header value, or None if missing.
+        default: Default seconds if header is missing or unparseable.
+        max_seconds: Optional upper bound on returned value (must be non-negative).
+
+    Returns:
+        Number of seconds to wait, capped by max_seconds if specified.
+
+    Raises:
+        ValueError: If max_seconds is negative.
+    """
+    if max_seconds is not None and max_seconds < 0:
+        raise ValueError("max_seconds must be non-negative")
+
+    if not header_value:
+        result = default
+    else:
+        result = _parse_retry_after_value(header_value, default)
+
+    if max_seconds is not None:
+        result = min(result, max_seconds)
+
+    return result
+
+
+def _parse_retry_after_value(header_value: str, default: int) -> int:
+    """Parse the actual Retry-After value (internal helper)."""
+    # Try integer seconds first (most common)
+    try:
+        seconds = int(header_value)
+        # RFC 7231: Retry-After must be non-negative
+        if seconds >= 0:
+            return seconds
+        # Negative value is invalid per RFC - fall through to warning
+    except ValueError:
+        pass
+
+    # Try HTTP-date format (RFC 7231 Section 7.1.3)
+    # Note: HTTP-dates are always in GMT (equivalent to UTC) per RFC 7231,
+    # so no timezone conversion is needed - parsedate_to_datetime returns
+    # a timezone-aware datetime in the original timezone (GMT).
+    try:
+        retry_dt = parsedate_to_datetime(header_value)
+        if retry_dt is None:
+            raise ValueError("parsedate_to_datetime returned None")
+        now = _get_current_time()
+        delta = (retry_dt - now).total_seconds()
+        # Return at least 1 second, even if date is in the past
+        return max(1, int(delta))
+    except (ValueError, TypeError):
+        pass
+
+    # Unparseable - use default
+    # Sanitize header value in log to prevent information disclosure
+    # and avoid log injection (truncate to 100 chars, escape control chars)
+    safe_value = header_value[:100].encode("unicode_escape").decode("ascii")
+    logger.warning(f"Could not parse Retry-After header: {safe_value!r}, using default")
+    return default
+
 
 logger = logging.getLogger(__name__)
 
@@ -318,7 +396,7 @@ class ADOClient:
                 if not continuation_token:
                     break
 
-            except (RequestException, HTTPError) as e:
+            except (RequestException, HTTPError, json.JSONDecodeError) as e:
                 raise ExtractionError(
                     f"Failed to fetch teams for {project}: {e}"
                 ) from e
@@ -366,7 +444,7 @@ class ADOClient:
                 if not continuation_token:
                     break
 
-            except (RequestException, HTTPError) as e:
+            except (RequestException, HTTPError, json.JSONDecodeError) as e:
                 raise ExtractionError(
                     f"Failed to fetch members for team {team_id}: {e}"
                 ) from e
@@ -416,9 +494,12 @@ class ADOClient:
 
                 # Handle rate limiting (429) with bounded backoff
                 if response.status_code == 429:
-                    retry_after = int(response.headers.get("Retry-After", 60))
+                    retry_after = parse_retry_after(
+                        response.headers.get("Retry-After"),
+                        max_seconds=120,  # Cap at 2 minutes
+                    )
                     logger.warning(f"Rate limited, waiting {retry_after}s")
-                    time.sleep(min(retry_after, 120))  # Cap at 2 minutes
+                    time.sleep(retry_after)
                     continue
 
                 response.raise_for_status()
@@ -431,7 +512,7 @@ class ADOClient:
                 if not continuation_token:
                     break
 
-            except (RequestException, HTTPError) as e:
+            except (RequestException, HTTPError, json.JSONDecodeError) as e:
                 raise ExtractionError(
                     f"Failed to fetch threads for PR {pull_request_id}: {e}"
                 ) from e

@@ -693,7 +693,8 @@ jobs:
       - uses: ./.github/actions/setup-pnpm
 
       - name: Install tfx-cli
-        run: npm install -g tfx-cli
+        # Pin version to prevent supply chain attacks
+        run: npm install -g tfx-cli@0.17.0
 
       - name: Install Extension Dependencies
         working-directory: extension
