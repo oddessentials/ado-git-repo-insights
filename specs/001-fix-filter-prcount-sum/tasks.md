@@ -41,6 +41,7 @@
 - [ ] T004 Update team filter type guard in `extension/ui/modules/metrics.ts` line ~188 from `.filter((t): t is number => t !== undefined)` to `.filter((entry): entry is BreakdownEntry => entry !== undefined && typeof entry?.pr_count === 'number')`
 - [ ] T005 Update team filter reduce operation in `extension/ui/modules/metrics.ts` line ~202 to use `toFiniteNumber(entry.pr_count)` instead of summing the entry directly
 - [ ] T006 Import `BreakdownEntry` type from `../schemas/rollup.schema` in `extension/ui/modules/metrics.ts` (if not already imported)
+- [ ] T006b [P] Verify `Rollup` type in `extension/ui/dataset-loader.ts` defines `by_repository` and `by_team` as `Record<string, BreakdownEntry>` (or `BreakdownEntry | undefined`). If typed as `Record<string, number>`, update to `Record<string, BreakdownEntry>`. This satisfies FR-006 type-level enforcement.
 - [ ] T007 Verify TypeScript compilation passes with `pnpm run build:check` in `extension/` directory
 
 **Checkpoint**: Core fix applied - TypeScript compiles without errors
@@ -93,6 +94,8 @@
 - [ ] T013 [P] [US3] Add test case for missing `pr_count` property in `extension/tests/modules/metrics.test.ts`: fixture `{ "repo-a": {} }` should result in 0
 - [ ] T014 [P] [US3] Add test case for `pr_count: null` in `extension/tests/modules/metrics.test.ts`: fixture `{ "repo-a": { pr_count: null } }` should result in 0
 - [ ] T015 [P] [US3] Add test case for `pr_count: NaN` in `extension/tests/modules/metrics.test.ts`: fixture `{ "repo-a": { pr_count: NaN } }` should result in 0
+- [ ] T015b [P] [US3] Add test case for string `pr_count: "50"` in `extension/tests/modules/metrics.test.ts`: fixture `{ "repo-a": { pr_count: "50" } }` should coerce to 50 (not 0, not string concatenation)
+- [ ] T015c [P] [US3] Add test case for `pr_count: Infinity` in `extension/tests/modules/metrics.test.ts`: fixture `{ "repo-a": { pr_count: Infinity } }` should result in 0
 - [ ] T016 [US3] Run all edge case tests: `pnpm test:unit -- --testPathPattern=metrics.test` in `extension/` directory
 
 **Checkpoint**: User Story 3 complete - malformed data is handled gracefully
@@ -110,8 +113,10 @@
 - [ ] T017 [US4] Rebuild UI bundle: `pnpm run build:ui` in `extension/` directory
 - [ ] T018 [US4] Verify demo bundle changed: `git diff docs/dashboard.js | head -20` should show changes
 - [ ] T019 [US4] Run full test suite to ensure no regressions: `pnpm test:ci` in `extension/` directory
+- [ ] T019b [US4] Manual smoke test: Open `docs/index.html` in browser, select a repository filter, verify Total PRs shows numeric value (not `[object Object]`)
+- [ ] T019c [US4] Manual smoke test: Select a team filter, verify Total PRs shows numeric value (not `[object Object]`)
 
-**Checkpoint**: User Story 4 complete - demo bundle is updated
+**Checkpoint**: User Story 4 complete - demo bundle is updated and manually verified
 
 ---
 
@@ -148,14 +153,14 @@
 ### Within Foundational Phase
 
 - T001 must be first (helper function needed by T002-T005)
-- T002-T006 can run in parallel after T001
+- T002-T006, T006b can run in parallel after T001
 - T007 must be last (verify compilation)
 
 ### Parallel Opportunities
 
-- **Phase 2**: T002, T003, T004, T005, T006 can run in parallel after T001
+- **Phase 2**: T002, T003, T004, T005, T006, T006b can run in parallel after T001
 - **Phase 3-5**: US1, US2, US3 can be worked in parallel (different test cases)
-- **Phase 5**: T013, T014, T015 can run in parallel (different test fixtures)
+- **Phase 5**: T013, T014, T015, T015b, T015c can run in parallel (different test fixtures)
 
 ---
 
@@ -171,6 +176,7 @@ Task: T003 - Update repository filter reduce
 Task: T004 - Update team filter type guard
 Task: T005 - Update team filter reduce
 Task: T006 - Import BreakdownEntry type
+Task: T006b - Verify Rollup type enforcement (FR-006)
 
 # Finally: Verify
 Task: T007 - Verify TypeScript compilation
@@ -185,6 +191,8 @@ Task: T007 - Verify TypeScript compilation
 Task: T013 - Test missing pr_count
 Task: T014 - Test null pr_count
 Task: T015 - Test NaN pr_count
+Task: T015b - Test string coercion ("50" → 50)
+Task: T015c - Test Infinity pr_count
 ```
 
 ---
@@ -193,16 +201,16 @@ Task: T015 - Test NaN pr_count
 
 ### MVP First (Core Fix + US1)
 
-1. Complete Phase 2: Foundational (T001-T007)
+1. Complete Phase 2: Foundational (T001-T007, including T006b)
 2. Complete Phase 3: User Story 1 (T008-T009)
 3. **STOP and VALIDATE**: Run tests, verify repository filter works
 4. Can ship as quick fix if urgent
 
 ### Full Fix (Recommended)
 
-1. Complete Phase 2: Foundational (T001-T007)
-2. Complete Phase 3-5 in parallel: US1, US2, US3 (T008-T016)
-3. Complete Phase 6: US4 - Rebuild bundle (T017-T019)
+1. Complete Phase 2: Foundational (T001-T007, including T006b)
+2. Complete Phase 3-5 in parallel: US1, US2, US3 (T008-T016, including T015b, T015c)
+3. Complete Phase 6: US4 - Rebuild bundle + manual smoke tests (T017-T019c)
 4. Complete Phase 7: Polish (T020-T023)
 5. Commit as single fix
 
@@ -210,7 +218,7 @@ Task: T015 - Test NaN pr_count
 
 This is intended to be a one-commit fix:
 
-1. Complete all phases T001-T023
+1. Complete all phases (28 tasks total)
 2. Commit with message per quickstart.md
 3. Create PR
 
@@ -224,4 +232,5 @@ This is intended to be a one-commit fix:
 - The fix is shared: T001-T006 fix both repository (US1) and team (US2) filtering
 - Edge case tests (US3) validate the `toFiniteNumber()` helper
 - Demo rebuild (US4) is a build artifact, not code change
-- Total: 23 tasks across 7 phases
+- Manual smoke tests (T019b, T019c) satisfy FR-011/SC-007 without automation overhead
+- Total: 28 tasks across 7 phases
