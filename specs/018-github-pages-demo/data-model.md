@@ -100,7 +100,8 @@ Aggregated PR metrics for one ISO week.
 | authors_count | integer | ≥ 0 | 12 |
 | reviewers_count | integer | ≥ 0 | 18 |
 | by_repository | object | Map of repo metrics | {...} |
-| by_team | object | null (teams disabled) | null |
+
+**Note**: `by_team` field is **omitted** when teams feature is disabled (not set to null). The rollup schema expects an object type for `by_team`, so omitting the field entirely is the correct approach when teams are not available.
 
 **Generation Rule**: 260 weeks (2021-W01 through 2025-W52)
 - pr_count: Base 40 ± seasonal adjustment (±20%) ± random noise (±10%)

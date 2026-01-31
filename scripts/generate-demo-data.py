@@ -698,8 +698,10 @@ def generate_manifest(
         "features": {
             "teams": False,
             "comments": False,
-            "predictions": True,
-            "ai_insights": True,
+            # predictions and ai_insights are set to False until Phase 5-6 implementation
+            # These will be enabled by generate-demo-predictions.py and generate-demo-insights.py
+            "predictions": False,
+            "ai_insights": False,
         },
         "coverage": {
             "total_prs": total_prs,
