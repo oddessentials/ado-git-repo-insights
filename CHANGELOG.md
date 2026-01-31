@@ -1,3 +1,20 @@
+# [5.18.0](https://github.com/oddessentials/ado-git-repo-insights/compare/v5.17.0...v5.18.0) (2026-01-31)
+
+
+### Bug Fixes
+
+* **demo:** correct spec contradictions before Phase 5 ([3a81fe2](https://github.com/oddessentials/ado-git-repo-insights/commit/3a81fe29d3dfde4980366f0c4790cddcb0be6a53))
+* **demo:** remove null by_team field from weekly rollups ([bb31438](https://github.com/oddessentials/ado-git-repo-insights/commit/bb31438e3b1983a41aa22da2bfb3443d8408d864))
+* **demo:** resolve CI regressions in predictions and pytest ([67591c1](https://github.com/oddessentials/ado-git-repo-insights/commit/67591c11f81ac09166f66a3bc35491b6d2066736))
+* **schema:** resolve demo regression with AffectedEntity format and breakdown fields ([6de77ff](https://github.com/oddessentials/ado-git-repo-insights/commit/6de77ff84ea9d824c9115520c9b6d904ca43198e))
+
+
+### Features
+
+* **demo:** add CI workflow and validation tests (Phase 7) ([40bbc0e](https://github.com/oddessentials/ado-git-repo-insights/commit/40bbc0e78062a550d2c0630eb3b63fad1b8acaa2))
+* **demo:** implement GitHub Pages demo dashboard (Phases 1-4) ([e34c67b](https://github.com/oddessentials/ado-git-repo-insights/commit/e34c67b7a5cce9688ab01231fd3487549cbd05d8))
+* **demo:** implement Predictions and AI Insights tabs (Phases 5-6) ([4038a47](https://github.com/oddessentials/ado-git-repo-insights/commit/4038a473db4126c56c5f95769721ed814aa050bd))
+
 # [5.17.0](https://github.com/oddessentials/ado-git-repo-insights/compare/v5.16.0...v5.17.0) (2026-01-31)
 
 
