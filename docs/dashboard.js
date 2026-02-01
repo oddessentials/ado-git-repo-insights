@@ -2773,6 +2773,10 @@ var PRInsightsDashboard = (() => {
   }
 
   // ui/modules/metrics.ts
+  function toFiniteNumber(value) {
+    const n = Number(value);
+    return Number.isFinite(n) ? n : 0;
+  }
   function calculateMetrics(rollups) {
     if (!rollups || !rollups.length) {
       return {
@@ -2834,7 +2838,9 @@ var PRInsightsDashboard = (() => {
           return Object.entries(byRepository).find(
             ([name]) => name === repoId
           )?.[1];
-        }).filter((r) => r !== void 0);
+        }).filter(
+          (entry) => entry !== void 0 && typeof entry?.pr_count === "number"
+        );
         if (selectedRepos.length === 0) {
           return {
             ...rollup,
@@ -2845,7 +2851,10 @@ var PRInsightsDashboard = (() => {
             reviewers_count: 0
           };
         }
-        const totalPrCount = selectedRepos.reduce((sum, count) => sum + count, 0);
+        const totalPrCount = selectedRepos.reduce(
+          (sum, entry) => sum + toFiniteNumber(entry.pr_count),
+          0
+        );
         return {
           ...rollup,
           pr_count: totalPrCount
@@ -2855,7 +2864,9 @@ var PRInsightsDashboard = (() => {
       }
       if (filters.teams.length && rollup.by_team && typeof rollup.by_team === "object") {
         const byTeam = rollup.by_team;
-        const selectedTeams = filters.teams.map((teamId) => byTeam[teamId]).filter((t) => t !== void 0);
+        const selectedTeams = filters.teams.map((teamId) => byTeam[teamId]).filter(
+          (entry) => entry !== void 0 && typeof entry?.pr_count === "number"
+        );
         if (selectedTeams.length === 0) {
           return {
             ...rollup,
@@ -2866,7 +2877,10 @@ var PRInsightsDashboard = (() => {
             reviewers_count: 0
           };
         }
-        const totalPrCount = selectedTeams.reduce((sum, count) => sum + count, 0);
+        const totalPrCount = selectedTeams.reduce(
+          (sum, entry) => sum + toFiniteNumber(entry.pr_count),
+          0
+        );
         return {
           ...rollup,
           pr_count: totalPrCount
