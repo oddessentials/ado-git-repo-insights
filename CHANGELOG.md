@@ -1,3 +1,10 @@
+## [5.18.2](https://github.com/oddessentials/ado-git-repo-insights/compare/v5.18.1...v5.18.2) (2026-02-01)
+
+
+### Bug Fixes
+
+* **dashboard:** extract pr_count from BreakdownEntry in filter aggregation ([da0e114](https://github.com/oddessentials/ado-git-repo-insights/commit/da0e11442724db1f907e1df254c1a97060b2a292))
+
 ## [5.18.1](https://github.com/oddessentials/ado-git-repo-insights/compare/v5.18.0...v5.18.1) (2026-01-31)
 
 

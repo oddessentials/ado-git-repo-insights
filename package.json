@@ -13,7 +13,7 @@
     "husky": "^9.1.7",
     "semantic-release": "^25.0.0"
   },
-  "version": "5.18.1",
+  "version": "5.18.2",
   "scripts": {
     "preinstall": "node -e \"if(process.env.npm_config_user_agent && process.env.npm_config_user_agent.startsWith('npm/')) { console.error('Error: Use pnpm, not npm'); process.exit(1); }\"",
     "prepare": "husky",
