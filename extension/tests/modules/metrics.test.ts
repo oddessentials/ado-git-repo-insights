@@ -143,12 +143,12 @@ describe("metrics module", () => {
       authors_count: 10,
       reviewers_count: 5,
       by_repository: {
-        "repo-a": 30,
-        "repo-b": 70,
+        "repo-a": { pr_count: 30 },
+        "repo-b": { pr_count: 70 },
       },
       by_team: {
-        "team-x": 40,
-        "team-y": 60,
+        "team-x": { pr_count: 40 },
+        "team-y": { pr_count: 60 },
       },
     } as Rollup;
 
@@ -248,5 +248,189 @@ describe("metrics module", () => {
       expect(result[3]).toBe(25); // (10+20+30+40)/4
       expect(result[4]).toBe(35); // (20+30+40+50)/4
     });
+  });
+});
+
+/**
+ * Regression tests for applyFiltersToRollups object concatenation bug.
+ *
+ * Historical bug: by_repository and by_team values are BreakdownEntry objects
+ * (e.g., { pr_count: 30 }), not primitive numbers. When the code incorrectly
+ * treated them as numbers and summed them, JavaScript coerced the objects to
+ * strings, resulting in "0[object Object][object Object]..." instead of a
+ * numeric sum.
+ *
+ * These tests ensure the fix continues to work and prevent regression.
+ */
+describe("applyFiltersToRollups regression: object concatenation bug", () => {
+  it("returns finite number, not [object Object] string, when filtering by repository", () => {
+    const rollup = {
+      week: "2026-W01",
+      pr_count: 100,
+      by_repository: {
+        "repo-a": { pr_count: 30 },
+      },
+    } as unknown as Rollup;
+
+    const result = applyFiltersToRollups([rollup], {
+      repos: ["repo-a"],
+      teams: [],
+    });
+
+    expect(typeof result[0].pr_count).toBe("number");
+    expect(Number.isFinite(result[0].pr_count)).toBe(true);
+    expect(String(result[0].pr_count)).not.toContain("[object");
+    expect(String(result[0].pr_count)).not.toContain("Object");
+  });
+
+  it("returns finite number, not [object Object] string, when filtering by team", () => {
+    const rollup = {
+      week: "2026-W01",
+      pr_count: 100,
+      by_team: {
+        "team-x": { pr_count: 40 },
+      },
+    } as unknown as Rollup;
+
+    const result = applyFiltersToRollups([rollup], {
+      repos: [],
+      teams: ["team-x"],
+    });
+
+    expect(typeof result[0].pr_count).toBe("number");
+    expect(Number.isFinite(result[0].pr_count)).toBe(true);
+    expect(String(result[0].pr_count)).not.toContain("[object");
+    expect(String(result[0].pr_count)).not.toContain("Object");
+  });
+
+  it("handles missing pr_count property gracefully (T013)", () => {
+    const rollup = {
+      week: "2026-W01",
+      pr_count: 100,
+      by_repository: {
+        "repo-a": {},
+      },
+    } as unknown as Rollup;
+
+    const result = applyFiltersToRollups([rollup], {
+      repos: ["repo-a"],
+      teams: [],
+    });
+
+    // Entry without pr_count should be filtered out, resulting in 0
+    expect(result[0].pr_count).toBe(0);
+  });
+
+  it("handles null pr_count gracefully (T014)", () => {
+    const rollup = {
+      week: "2026-W01",
+      pr_count: 100,
+      by_repository: {
+        "repo-a": { pr_count: null },
+      },
+    } as unknown as Rollup;
+
+    const result = applyFiltersToRollups([rollup], {
+      repos: ["repo-a"],
+      teams: [],
+    });
+
+    // Entry with null pr_count should be filtered out, resulting in 0
+    expect(result[0].pr_count).toBe(0);
+  });
+
+  it("handles NaN pr_count gracefully (T015)", () => {
+    const rollup = {
+      week: "2026-W01",
+      pr_count: 100,
+      by_repository: {
+        "repo-a": { pr_count: NaN },
+      },
+    } as unknown as Rollup;
+
+    const result = applyFiltersToRollups([rollup], {
+      repos: ["repo-a"],
+      teams: [],
+    });
+
+    // NaN is typeof 'number', so it passes the type guard but toFiniteNumber returns 0
+    expect(typeof result[0].pr_count).toBe("number");
+    expect(Number.isFinite(result[0].pr_count)).toBe(true);
+    expect(result[0].pr_count).toBe(0);
+  });
+
+  it("filters out string pr_count values via type guard (T015b)", () => {
+    const rollup = {
+      week: "2026-W01",
+      pr_count: 100,
+      by_repository: {
+        "repo-a": { pr_count: "50" },
+      },
+    } as unknown as Rollup;
+
+    const result = applyFiltersToRollups([rollup], {
+      repos: ["repo-a"],
+      teams: [],
+    });
+
+    // String "50" is filtered out by type guard (typeof "50" !== 'number')
+    // Result is 0 since no valid entries remain after filtering
+    expect(result[0].pr_count).toBe(0);
+  });
+
+  it("handles Infinity pr_count gracefully (T015c)", () => {
+    const rollup = {
+      week: "2026-W01",
+      pr_count: 100,
+      by_repository: {
+        "repo-a": { pr_count: Infinity },
+      },
+    } as unknown as Rollup;
+
+    const result = applyFiltersToRollups([rollup], {
+      repos: ["repo-a"],
+      teams: [],
+    });
+
+    // Infinity is typeof 'number', so it passes the type guard but toFiniteNumber returns 0
+    expect(typeof result[0].pr_count).toBe("number");
+    expect(Number.isFinite(result[0].pr_count)).toBe(true);
+    expect(result[0].pr_count).toBe(0);
+  });
+
+  it("sums multiple repositories correctly", () => {
+    const rollup = {
+      week: "2026-W01",
+      pr_count: 100,
+      by_repository: {
+        "repo-a": { pr_count: 30 },
+        "repo-b": { pr_count: 70 },
+      },
+    } as unknown as Rollup;
+
+    const result = applyFiltersToRollups([rollup], {
+      repos: ["repo-a", "repo-b"],
+      teams: [],
+    });
+
+    expect(result[0].pr_count).toBe(100);
+  });
+
+  it("sums multiple teams correctly", () => {
+    const rollup = {
+      week: "2026-W01",
+      pr_count: 100,
+      by_team: {
+        "team-x": { pr_count: 40 },
+        "team-y": { pr_count: 60 },
+      },
+    } as unknown as Rollup;
+
+    const result = applyFiltersToRollups([rollup], {
+      repos: [],
+      teams: ["team-x", "team-y"],
+    });
+
+    expect(result[0].pr_count).toBe(100);
   });
 });

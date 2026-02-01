@@ -6,7 +6,20 @@
  */
 
 import type { Rollup } from "../dataset-loader";
+import type { BreakdownEntry } from "../schemas/rollup.schema";
 import { median } from "./shared/format";
+
+/**
+ * Safely convert any value to a finite number.
+ * Returns 0 for undefined, null, NaN, Infinity, or non-numeric values.
+ *
+ * @param value - Any value to convert
+ * @returns A finite number, or 0 if conversion fails
+ */
+function toFiniteNumber(value: unknown): number {
+  const n = Number(value);
+  return Number.isFinite(n) ? n : 0;
+}
 
 /**
  * Calculated metrics result.
@@ -147,7 +160,10 @@ export function applyFiltersToRollups(
             ([name]) => name === repoId,
           )?.[1];
         })
-        .filter((r): r is number => r !== undefined);
+        .filter(
+          (entry): entry is BreakdownEntry =>
+            entry !== undefined && typeof entry?.pr_count === "number",
+        );
 
       if (selectedRepos.length === 0) {
         return {
@@ -160,8 +176,11 @@ export function applyFiltersToRollups(
         };
       }
 
-      // Aggregate metrics - by_repository values are PR counts per repo
-      const totalPrCount = selectedRepos.reduce((sum, count) => sum + count, 0);
+      // Aggregate metrics - by_repository values are BreakdownEntry objects
+      const totalPrCount = selectedRepos.reduce(
+        (sum, entry) => sum + toFiniteNumber(entry.pr_count),
+        0,
+      );
 
       // When filtering by repo, we only have PR count per repo.
       // Other metrics (cycle time, authors, reviewers) cannot be filtered
@@ -185,7 +204,10 @@ export function applyFiltersToRollups(
       const selectedTeams = filters.teams
         // eslint-disable-next-line security/detect-object-injection -- SECURITY: teamId comes from validated filter state
         .map((teamId) => byTeam[teamId])
-        .filter((t): t is number => t !== undefined);
+        .filter(
+          (entry): entry is BreakdownEntry =>
+            entry !== undefined && typeof entry?.pr_count === "number",
+        );
 
       if (selectedTeams.length === 0) {
         return {
@@ -198,8 +220,11 @@ export function applyFiltersToRollups(
         };
       }
 
-      // Aggregate metrics - by_team values are PR counts per team
-      const totalPrCount = selectedTeams.reduce((sum, count) => sum + count, 0);
+      // Aggregate metrics - by_team values are BreakdownEntry objects
+      const totalPrCount = selectedTeams.reduce(
+        (sum, entry) => sum + toFiniteNumber(entry.pr_count),
+        0,
+      );
 
       // When filtering by team, we only have PR count per team.
       // Other metrics are preserved from the unfiltered rollup.
