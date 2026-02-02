@@ -64,25 +64,25 @@
 
 ### Dependencies
 
-- [ ] T031 [US2] Add Playwright as pinned devDependency in `extension/package.json` with exact version (e.g., `"@playwright/test": "1.40.0"`) (FR-026)
-- [ ] T032 [US2] Add `"test:smoke": "playwright test"` script to `extension/package.json` (FR-005)
+- [x] T031 [US2] Add Playwright as pinned devDependency in `extension/package.json` with exact version (e.g., `"@playwright/test": "1.40.0"`) (FR-026)
+- [x] T032 [US2] Add `"test:smoke": "playwright test"` script to `extension/package.json` (FR-005)
 
 ### Configuration
 
-- [ ] T033 [US2] Create `extension/playwright.config.ts` with: `testDir: './tests/smoke'`, `testMatch: '**/*.smoke.ts'`, `webServer` config serving `../docs` on port 3000, `screenshot: 'on'`, `outputDir: 'test-artifacts/smoke'` (FR-021, FR-007)
-- [ ] T034 [P] [US2] Add `extension/test-artifacts/` to `.gitignore` (local artifacts, CI uploads)
+- [x] T033 [US2] Create `extension/playwright.config.ts` with: `testDir: './tests/smoke'`, `testMatch: '**/*.smoke.ts'`, `webServer` config serving `../docs` on port 3000, `screenshot: 'on'`, `outputDir: 'test-artifacts/smoke'` (FR-021, FR-007)
+- [x] T034 [P] [US2] Add `extension/test-artifacts/` to `.gitignore` (local artifacts, CI uploads)
 
 ### DOM Selectors
 
-- [ ] T035 [US2] Add `data-testid="total-prs"` attribute to Total PRs display element in `docs/index.html` (FR-033)
-- [ ] T036 [P] [US2] Add `data-testid="filter-repository"` attribute to repository filter control in `docs/index.html` (FR-034)
-- [ ] T037 [P] [US2] Add `data-testid="filter-team"` attribute to team filter control in `docs/index.html` (FR-034)
+- [x] T035 [US2] Add `data-testid="total-prs"` attribute to Total PRs display element in `docs/index.html` (FR-033)
+- [x] T036 [P] [US2] Add `data-testid="filter-repository"` attribute to repository filter control in `docs/index.html` (FR-034)
+- [x] T037 [P] [US2] Add `data-testid="filter-team"` attribute to team filter control in `docs/index.html` (FR-034)
 
 ### Smoke Test Implementation
 
-- [ ] T038 [US2] Create `extension/tests/smoke/filter-display.smoke.ts` with `test.beforeAll()` that validates `docs/data/rollup.json` exists and matches minimum schema (FR-035)
-- [ ] T039 [US2] Add smoke test case in `extension/tests/smoke/filter-display.smoke.ts`: select repository filter via `page.getByTestId('filter-repository')`, capture screenshot, verify `page.getByTestId('total-prs')` text is finite number (FR-009, FR-022)
-- [ ] T040 [P] [US2] Add smoke test case in `extension/tests/smoke/filter-display.smoke.ts`: select team filter via `page.getByTestId('filter-team')`, capture screenshot, verify Total PRs is finite number (FR-009, FR-022)
+- [x] T038 [US2] Create `extension/tests/smoke/filter-display.smoke.ts` with `test.beforeAll()` that validates `docs/data/dataset-manifest.json` exists and matches minimum schema (FR-035)
+- [x] T039 [US2] Add smoke test case in `extension/tests/smoke/filter-display.smoke.ts`: select repository filter via `page.getByTestId('filter-repository')`, capture screenshot, verify `page.getByTestId('total-prs')` text is finite number (FR-009, FR-022)
+- [x] T040 [P] [US2] Add smoke test case in `extension/tests/smoke/filter-display.smoke.ts`: select team filter via `page.getByTestId('filter-team')`, capture screenshot, verify Total PRs is finite number (FR-009, FR-022)
 
 **Checkpoint**: Gate 4 passes - `pnpm run test:smoke` exits 0, screenshot artifact in `extension/test-artifacts/smoke/`
 
