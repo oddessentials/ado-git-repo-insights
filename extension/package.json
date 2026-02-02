@@ -24,7 +24,7 @@
     "test:watch": "jest --watch --testPathIgnorePatterns=python-integration",
     "test:coverage": "jest --coverage --testPathIgnorePatterns=python-integration",
     "pretest:ci": "pnpm run build:ui",
-    "test:ci": "jest --ci --coverage --reporters=default --reporters=jest-junit --testPathIgnorePatterns=vsix-artifact-inspection",
+    "test:ci": "pnpm run build:check && pnpm run test:types && jest --ci --coverage --reporters=default --reporters=jest-junit --testPathIgnorePatterns=vsix-artifact-inspection && pnpm run test:smoke",
     "test:vsix": "jest --ci --testPathPatterns vsix-artifact-inspection",
     "perf:update-baseline": "npx ts-node scripts/update-perf-baseline.ts",
     "copy-sdk": "node scripts/copy-vss-sdk.mjs",

@@ -128,12 +128,12 @@
 ### Documentation
 
 - [ ] T048 [US4] Create `extension/TOOLING.md` documenting: Node version (22), pnpm version (9.15.0), Playwright version (pinned), TypeScript version (5.7.3), and canonical CI commands for all 5 gates (FR-027)
-- [ ] T049 [P] [US4] Add CI artifact upload step in `.github/workflows/` for smoke test screenshots using `actions/upload-artifact` with path `extension/test-artifacts/smoke/` (FR-023)
+- [x] T049 [P] [US4] Add CI artifact upload step in `.github/workflows/` for smoke test screenshots using `actions/upload-artifact` with path `extension/test-artifacts/smoke/` (FR-023)
 
 ### CI Integration
 
-- [ ] T050 [US4] Update `pnpm test:ci` script in `extension/package.json` to run gates in order: `build:check`, `test:types`, `test:unit` (includes traceability), `test:smoke`
-- [ ] T051 [US4] Verify full CI suite passes: `pnpm test:ci` in `extension/` directory exits 0 with all gates green
+- [x] T050 [US4] Update `pnpm test:ci` script in `extension/package.json` to run gates in order: `build:check`, `test:types`, `test:unit` (includes traceability), `test:smoke`
+- [x] T051 [US4] Verify full CI suite passes: `pnpm test:ci` in `extension/` directory exits 0 with all gates green
 
 **Checkpoint**: Gate 5 passes - `pnpm test:ci` runs all gates in sequence, all pass
 

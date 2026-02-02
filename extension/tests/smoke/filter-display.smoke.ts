@@ -144,8 +144,11 @@ test.describe("Filter Display Smoke Tests", () => {
       if (secondOption) {
         await repoFilter.selectOption(secondOption);
 
-        // Wait for the dashboard to update
-        await page.waitForTimeout(500);
+        // Wait for the dashboard to update (network requests to complete)
+        await page.waitForLoadState("networkidle");
+
+        // Wait for Total PRs to show a valid number (not loading placeholder)
+        await expect(totalPrsElement).not.toHaveText("-");
 
         // Capture screenshot after filter selection
         await page.screenshot({
@@ -233,8 +236,11 @@ test.describe("Filter Display Smoke Tests", () => {
       if (secondOption) {
         await teamFilter.selectOption(secondOption);
 
-        // Wait for the dashboard to update
-        await page.waitForTimeout(500);
+        // Wait for the dashboard to update (network requests to complete)
+        await page.waitForLoadState("networkidle");
+
+        // Wait for Total PRs to show a valid number (not loading placeholder)
+        await expect(totalPrsElement).not.toHaveText("-");
 
         // Capture screenshot after filter selection
         await page.screenshot({
