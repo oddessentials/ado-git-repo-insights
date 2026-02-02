@@ -74,10 +74,10 @@ A developer needs guaranteed coverage of ALL documented edge cases with explicit
 **Acceptance Scenarios** (each maps to named test ID):
 
 1. **[EC-001]** **Given** edge case `pr_count: NaN`, **When** the dedicated test runs, **Then** it asserts result equals 0 AND asserts no exception was thrown
-2. **[EC-002]** **Given** edge case `pr_count: "50"` (string), **When** the dedicated test runs, **Then** it asserts result equals 50 (numeric) AND asserts no string concatenation occurred
+2. **[EC-002]** **Given** edge case `pr_count: "50"` (string), **When** the dedicated test runs, **Then** it asserts result equals 0 (filtered by type guard) AND asserts no string coercion occurred (defense-in-depth: type guard rejects non-conformant types before toFiniteNumber processes values)
 3. **[EC-003]** **Given** edge case `pr_count: Infinity`, **When** the dedicated test runs, **Then** it asserts result equals 0 AND asserts no exception was thrown
 4. **[EC-004]** **Given** edge case `pr_count: -Infinity`, **When** the dedicated test runs, **Then** it asserts result equals 0 AND asserts no exception was thrown
-5. **[EC-005]** **Given** edge case with mixed valid/invalid dataset `[{pr_count: 10}, {pr_count: NaN}, {pr_count: "20"}, {pr_count: Infinity}]`, **When** the dedicated test runs, **Then** it asserts result equals 30 AND asserts each entry was processed independently
+5. **[EC-005]** **Given** edge case with mixed valid/invalid dataset `[{pr_count: 10}, {pr_count: NaN}, {pr_count: "20"}, {pr_count: Infinity}]`, **When** the dedicated test runs, **Then** it asserts result equals 10 (only valid finite number contributes; strings filtered by type guard, non-finite → 0) AND asserts each entry was processed independently
 
 ---
 

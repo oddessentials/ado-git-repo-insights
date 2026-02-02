@@ -1,0 +1,116 @@
+/**
+ * Minimal styles for broken-docs fixture.
+ * Only includes essential styles needed for error state testing.
+ */
+
+:root {
+    --primary: #0078d4;
+    --error: #d13438;
+    --bg-primary: #ffffff;
+    --bg-secondary: #f3f2f1;
+    --text-primary: #323130;
+    --text-secondary: #605e5c;
+    --border: #e1dfdd;
+    --radius: 4px;
+    --radius-lg: 8px;
+    --shadow-sm: 0 1.6px 3.6px rgba(0, 0, 0, 0.1);
+    --shadow-md: 0 6.4px 14.4px rgba(0, 0, 0, 0.13);
+}
+
+* {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+}
+
+body {
+    font-family: 'Segoe UI', -apple-system, BlinkMacSystemFont, sans-serif;
+    font-size: 14px;
+    line-height: 1.5;
+    color: var(--text-primary);
+    background: var(--bg-secondary);
+}
+
+.hidden {
+    display: none !important;
+}
+
+.loading-state,
+.error-state {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    min-height: 400px;
+    text-align: center;
+    padding: 40px;
+}
+
+.spinner {
+    width: 40px;
+    height: 40px;
+    border: 3px solid var(--border);
+    border-top-color: var(--primary);
+    border-radius: 50%;
+    animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+    to { transform: rotate(360deg); }
+}
+
+.error-state .error-icon {
+    font-size: 48px;
+    margin-bottom: 16px;
+}
+
+.error-state h2 {
+    margin-bottom: 8px;
+    color: var(--error);
+}
+
+.setup-panel {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    min-height: 400px;
+    text-align: center;
+    padding: 40px;
+    max-width: 600px;
+    margin: 40px auto;
+    background: var(--bg-primary);
+    border-radius: var(--radius-lg);
+    box-shadow: var(--shadow-md);
+}
+
+.setup-panel .setup-icon {
+    font-size: 64px;
+    margin-bottom: 24px;
+}
+
+.setup-panel h2 {
+    font-size: 24px;
+    font-weight: 600;
+    color: var(--text-primary);
+    margin-bottom: 12px;
+}
+
+.setup-panel p {
+    color: var(--text-secondary);
+    margin-bottom: 8px;
+}
+
+.btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 8px 16px;
+    font-size: 14px;
+    font-weight: 600;
+    border-radius: var(--radius);
+    border: none;
+    cursor: pointer;
+    background: var(--primary);
+    color: white;
+}
