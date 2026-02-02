@@ -2379,7 +2379,11 @@ var PRInsightsDashboard = (() => {
         (a) => a.name === artifactName
       );
       if (!artifact) {
-        console.log("[getArtifactMetadata] Artifact '%s' not found in build %d", artifactName, buildId);
+        console.log(
+          "[getArtifactMetadata] Artifact '%s' not found in build %d",
+          artifactName,
+          buildId
+        );
         return null;
       }
       return artifact;
@@ -4639,7 +4643,10 @@ var PRInsightsDashboard = (() => {
       );
     }
     if (sourceConfig.pipelineId) {
-      console.log("Using pipeline definition ID from settings: %d", sourceConfig.pipelineId);
+      console.log(
+        "Using pipeline definition ID from settings: %d",
+        sourceConfig.pipelineId
+      );
       try {
         return await resolveFromPipelineId(
           sourceConfig.pipelineId,
@@ -5430,7 +5437,10 @@ var PRInsightsDashboard = (() => {
     const pipelineIdParam = params.get("pipelineId");
     if (pipelineIdParam) newParams.set("pipelineId", pipelineIdParam);
     if (currentDateRange.start) {
-      newParams.set("start", currentDateRange.start.toISOString().substring(0, 10));
+      newParams.set(
+        "start",
+        currentDateRange.start.toISOString().substring(0, 10)
+      );
     }
     if (currentDateRange.end) {
       newParams.set("end", currentDateRange.end.toISOString().substring(0, 10));

@@ -382,7 +382,10 @@ async function resolveConfiguration(): Promise<{
 
   // Check settings for pipeline ID
   if (sourceConfig.pipelineId) {
-    console.log("Using pipeline definition ID from settings: %d", sourceConfig.pipelineId);
+    console.log(
+      "Using pipeline definition ID from settings: %d",
+      sourceConfig.pipelineId,
+    );
     try {
       return await resolveFromPipelineId(
         sourceConfig.pipelineId,
@@ -1592,7 +1595,10 @@ function updateUrlState(): void {
 
   // Add date range (toISOString format: YYYY-MM-DDTHH:mm:ss.sssZ)
   if (currentDateRange.start) {
-    newParams.set("start", currentDateRange.start.toISOString().substring(0, 10));
+    newParams.set(
+      "start",
+      currentDateRange.start.toISOString().substring(0, 10),
+    );
   }
   if (currentDateRange.end) {
     newParams.set("end", currentDateRange.end.toISOString().substring(0, 10));

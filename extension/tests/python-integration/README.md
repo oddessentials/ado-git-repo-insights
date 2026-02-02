@@ -36,10 +36,10 @@ The `extension-tests` CI job installs Python automatically and runs `pnpm test:c
 
 ## Tests in This Directory
 
-| Test | Purpose |
-|------|---------|
+| Test                         | Purpose                                              |
+| ---------------------------- | ---------------------------------------------------- |
 | `synthetic-fixtures.test.ts` | Validates DatasetLoader can parse generated fixtures |
-| `performance.test.ts` | Performance baseline tests with generated datasets |
+| `performance.test.ts`        | Performance baseline tests with generated datasets   |
 
 ## Adding New Python-Dependent Tests
 

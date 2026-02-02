@@ -154,10 +154,10 @@ threshold = floor(actual_coverage - 2.0)
 
 Coverage numbers MUST come from CI's canonical leg to ensure consistency:
 
-| Language   | OS            | Runtime     | Notes                        |
-| ---------- | ------------- | ----------- | ---------------------------- |
-| Python     | ubuntu-latest | Python 3.11 | Badge artifact source        |
-| TypeScript | ubuntu-latest | Node 22     | Extension-tests job          |
+| Language   | OS            | Runtime     | Notes                 |
+| ---------- | ------------- | ----------- | --------------------- |
+| Python     | ubuntu-latest | Python 3.11 | Badge artifact source |
+| TypeScript | ubuntu-latest | Node 22     | Extension-tests job   |
 
 ### Why Canonical Environment Matters
 
