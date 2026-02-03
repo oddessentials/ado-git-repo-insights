@@ -39,7 +39,7 @@ As a development team member, I need confidence that the dashboard renders corre
 
 As a development team member, I need confidence that the artifact client handles all API response scenarios correctly, so that network issues and server errors don't cause silent failures or data corruption.
 
-**Why this priority**: The artifact client (currently at 15% coverage) is the gateway for all data. Failures here cascade to the entire dashboard. Testing API interactions prevents data integrity issues.
+**Why this priority**: The artifact client is the gateway for all data. Failures here cascade to the entire dashboard. Testing API interactions prevents data integrity issues. *(Initial coverage was ~15%; now at 65% after Phase 4 implementation.)*
 
 **Independent Test**: Can be fully tested by mocking fetch responses (success, 401, 403, 404, 500, network error, timeout) and verifying the client returns appropriate typed results or error states.
 
@@ -133,3 +133,40 @@ The following edge cases are acknowledged but not explicitly tested. Mitigation 
 - **Performance testing**: Load and stress testing are separate concerns
 - **Visual regression testing**: Screenshot-based testing is not included in this scope
 - **Core chart error isolation**: Refactoring core metrics/charts to match ML tab error boundary pattern is a future enhancement; tests validate existing isolation only
+
+## Implementation Status
+
+*Last updated: 2026-02-03*
+
+### Completed
+
+| Phase | User Story | Tasks | Test Files |
+|-------|------------|-------|------------|
+| 1-2 | Setup & Foundational | T001-T011 | Fixtures, harness extensions |
+| 3 | US1: Dashboard Rendering | T012-T028 | `ml-state-rendering.test.ts` (18 tests), `settings-contract.test.ts` (24 tests) |
+| 4 | US2: API Client Resilience | T029-T037 | `http-responses.test.ts` (20 tests) |
+
+### Current Coverage
+
+| File | Coverage | Target | Status |
+|------|----------|--------|--------|
+| `ml.ts` | 78% | 75% | ✅ Exceeds |
+| `artifact-client.ts` | 65% | 40% | ✅ Exceeds |
+| `security.ts` | 100% | 95% | ✅ Exceeds |
+| Global | 65% | 55% | ✅ Exceeds |
+
+### Pending
+
+| Phase | User Story | Tasks | Description |
+|-------|------------|-------|-------------|
+| 5 | US3: Coverage Regression | T038-T042 | Add per-file thresholds to jest.config.ts |
+| 6 | Polish | T043-T049 | XSS prevention tests, final validation |
+
+### Architecture Decision: IIFE Bundle Exclusion
+
+Dashboard.ts and settings.ts are bundled as IIFE for browser execution and show 0% in Jest coverage reports. Critical functionality is validated via:
+
+1. **ML State Rendering** (`ml-state-rendering.test.ts`): Tests `renderPredictionsForState`/`renderInsightsForState` through the ml.ts module
+2. **Settings Contract** (`settings-contract.test.ts`): Tests `getSourceConfig`/`resolveConfiguration` via contract simulation
+
+This approach provides behavioral validation without requiring module refactoring.
