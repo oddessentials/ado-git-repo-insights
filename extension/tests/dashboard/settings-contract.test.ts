@@ -20,6 +20,7 @@ import {
   mockInvalidDashboardSettings,
   mockDashboardSettingsError,
   getMockExtensionDataService,
+  type VssSdkMocks,
 } from "../harness/vss-sdk-mock";
 
 // Constants matching dashboard.ts
@@ -40,8 +41,7 @@ async function getSourceConfigContract(): Promise<{
   };
 
   try {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- REASON: VSS SDK mock is dynamically injected on global
-    const VSS = (global as any).VSS;
+    const VSS = (global as unknown as { VSS: VssSdkMocks }).VSS;
     const dataService = await VSS.getService(VSS.ServiceIds.ExtensionData);
 
     // Get source project ID
@@ -82,12 +82,9 @@ async function getSourceConfigContract(): Promise<{
 interface ResolveConfigOptions {
   queryPipelineId?: number;
   savedPipelineId?: number | null;
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- REASON: jest.fn() mock type compatibility
-  resolveFromPipelineIdFn: any;
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- REASON: jest.fn() mock type compatibility
-  discoverAndResolveFn: any;
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- REASON: jest.fn() mock type compatibility
-  clearStalePipelineSettingFn: any;
+  resolveFromPipelineIdFn: jest.Mock<Promise<{ buildId: number }>, [number]>;
+  discoverAndResolveFn: jest.Mock<Promise<{ buildId: number }>, []>;
+  clearStalePipelineSettingFn: jest.Mock<Promise<void>, []>;
 }
 
 function createResolveConfiguration(options: ResolveConfigOptions) {
@@ -129,6 +126,30 @@ describe("Settings Contract Tests", () => {
   afterEach(() => {
     teardownVssMocks();
     jest.restoreAllMocks();
+  });
+
+  // =========================================================================
+  // VssSdkMocks Shape Verification
+  // =========================================================================
+  // Ensures the VssSdkMocks type accurately describes what setupVssMocks()
+  // attaches to global.VSS. If this fails, the cast is lying.
+
+  describe("VssSdkMocks shape verification", () => {
+    it("has all required VSS SDK functions", () => {
+      const VSS = (global as unknown as { VSS: VssSdkMocks }).VSS;
+
+      // Core SDK functions used by dashboard.ts
+      expect(typeof VSS.init).toBe("function");
+      expect(typeof VSS.ready).toBe("function");
+      expect(typeof VSS.notifyLoadSucceeded).toBe("function");
+      expect(typeof VSS.getWebContext).toBe("function");
+      expect(typeof VSS.getService).toBe("function");
+      expect(typeof VSS.require).toBe("function");
+
+      // ServiceIds object
+      expect(VSS.ServiceIds).toBeDefined();
+      expect(typeof VSS.ServiceIds.ExtensionData).toBe("string");
+    });
   });
 
   // =========================================================================
