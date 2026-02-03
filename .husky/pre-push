@@ -192,8 +192,9 @@ echo "[pre-push] ✅ ESLint check passed"
 echo ""
 echo "[pre-push] Running extension tests with coverage..."
 # Coverage threshold is enforced via jest.config.ts coverageThreshold
-# Uses test:ci base + --coverage for threshold enforcement with CI reporters
-npm run test:ci -- --coverage
+# test:ci already includes --coverage flag for Jest; don't pass additional args
+# since they would be forwarded to test:smoke (Playwright) which doesn't support them
+npm run test:ci
 if [ $? -ne 0 ]; then
     echo ""
     echo "[pre-push] ❌ Push blocked: Extension tests or coverage threshold failed"

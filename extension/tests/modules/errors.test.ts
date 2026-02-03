@@ -74,7 +74,9 @@ describe("errors module", () => {
         document.getElementById("setup-required")?.classList.contains("hidden"),
       ).toBe(true);
       expect(
-        document.getElementById("multiple-pipelines")?.classList.contains("hidden"),
+        document
+          .getElementById("multiple-pipelines")
+          ?.classList.contains("hidden"),
       ).toBe(true);
       expect(
         document.getElementById("error-state")?.classList.contains("hidden"),
@@ -141,7 +143,9 @@ describe("errors module", () => {
 
       showSetupRequired(error);
 
-      const docsLink = document.getElementById("docs-link") as HTMLAnchorElement;
+      const docsLink = document.getElementById(
+        "docs-link",
+      ) as HTMLAnchorElement;
       expect(docsLink?.href).toContain("github.com");
     });
 
@@ -307,7 +311,7 @@ describe("errors module", () => {
     it("handles unknown PrInsightsError types with generic error", () => {
       // Create an error with a different type
       const error = new PrInsightsError(
-        "UNKNOWN_TYPE" as typeof ErrorTypes[keyof typeof ErrorTypes],
+        "UNKNOWN_TYPE" as (typeof ErrorTypes)[keyof typeof ErrorTypes],
         "Unknown Error",
         "This is an unknown error type",
       );

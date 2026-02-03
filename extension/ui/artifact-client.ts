@@ -148,7 +148,11 @@ export class ArtifactClient {
     );
 
     if (!artifact) {
-      console.log("[getArtifactMetadata] Artifact '%s' not found in build %d", artifactName, buildId);
+      console.log(
+        "[getArtifactMetadata] Artifact '%s' not found in build %d",
+        artifactName,
+        buildId,
+      );
       return null;
     }
 
