@@ -773,7 +773,7 @@ jobs:
 
       - name: Install Playwright Browsers
         working-directory: extension
-        run: npx playwright install chromium --with-deps
+        run: pnpm exec playwright install chromium --with-deps
 
       - name: TypeScript Type Check
         working-directory: extension

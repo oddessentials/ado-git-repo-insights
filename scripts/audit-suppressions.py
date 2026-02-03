@@ -15,6 +15,7 @@ Usage:
 from __future__ import annotations
 
 import argparse
+import fnmatch
 import json
 import os
 import re
@@ -145,6 +146,13 @@ EXCLUDED_DIRS = {
     ".git",
 }
 
+# Excluded file patterns (fnmatch-style)
+# Type-test files use @ts-expect-error as compile-time assertions, not to hide issues
+# They are verified separately by TypeScript (TS2578 error if assertion fails)
+EXCLUDED_FILE_PATTERNS = {
+    "*.type-test.ts",
+}
+
 # Security limits to prevent ReDoS and resource exhaustion
 MAX_FILE_SIZE_BYTES = 10 * 1024 * 1024  # 10 MB
 MAX_LINE_LENGTH = 10000  # chars
@@ -173,7 +181,14 @@ def normalize_path(path: Path, repo_root: Path) -> str:
 def is_excluded(path: Path) -> bool:
     """Check if path should be excluded from scanning."""
     parts = path.parts
-    return any(excluded in parts for excluded in EXCLUDED_DIRS)
+    # Check excluded directories
+    if any(excluded in parts for excluded in EXCLUDED_DIRS):
+        return True
+    # Check excluded file patterns
+    filename = path.name
+    if any(fnmatch.fnmatch(filename, pattern) for pattern in EXCLUDED_FILE_PATTERNS):
+        return True
+    return False
 
 
 def extract_rules(line: str, suppression_type: str) -> list[str]:
