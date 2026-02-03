@@ -480,3 +480,114 @@ export function setInputValue(id: string, value: string): void {
   element.value = value;
   element.dispatchEvent(new Event("change", { bubbles: true }));
 }
+
+// ============================================================================
+// Error Assertion Context (Triple Assertion Pattern)
+// ============================================================================
+
+/**
+ * Context for triple assertion pattern in ML state rendering tests.
+ *
+ * Provides:
+ * 1. console.error spy
+ * 2. assertNoErrors() - verifies no console.error calls
+ * 3. assertFallbackRendered() - verifies fallback DOM is rendered
+ */
+export interface ErrorAssertionContext {
+  /** Jest spy on console.error */
+  consoleErrorSpy: jest.Spied<typeof console.error>;
+
+  /**
+   * Assert that no console.error calls were made.
+   * Call this after rendering to verify no runtime errors.
+   */
+  assertNoErrors(): void;
+
+  /**
+   * Assert that a fallback element was rendered in the container.
+   *
+   * @param containerId - ID of the container element
+   * @param fallbackClass - CSS class of the fallback element
+   */
+  assertFallbackRendered(containerId: string, fallbackClass: string): void;
+
+  /**
+   * Assert that an element with specific class exists in the container.
+   *
+   * @param containerId - ID of the container element
+   * @param className - CSS class to check for
+   */
+  assertHasClass(containerId: string, className: string): void;
+
+  /**
+   * Assert that container contains specific text.
+   *
+   * @param containerId - ID of the container element
+   * @param text - Text to check for (partial match)
+   */
+  assertContainsText(containerId: string, text: string): void;
+
+  /**
+   * Clean up the spy. Call this in afterEach or at test end.
+   */
+  restore(): void;
+}
+
+/**
+ * Create an error assertion context for triple assertion pattern tests.
+ *
+ * Usage:
+ * ```typescript
+ * const ctx = createErrorAssertionContext();
+ *
+ * // 1. No throws
+ * expect(() => {
+ *   renderFunction(args);
+ * }).not.toThrow();
+ *
+ * // 2. No console.error
+ * ctx.assertNoErrors();
+ *
+ * // 3. Correct DOM output
+ * ctx.assertFallbackRendered('container', 'expected-class');
+ *
+ * ctx.restore();
+ * ```
+ *
+ * @returns Error assertion context with spy and assertion helpers
+ */
+export function createErrorAssertionContext(): ErrorAssertionContext {
+  const spy = jest.spyOn(console, "error").mockImplementation(() => {});
+
+  return {
+    consoleErrorSpy: spy,
+
+    assertNoErrors() {
+      expect(spy).not.toHaveBeenCalled();
+    },
+
+    assertFallbackRendered(containerId: string, fallbackClass: string) {
+      const container = document.getElementById(containerId);
+      expect(container).not.toBeNull();
+      const fallback = container?.querySelector(`.${fallbackClass}`);
+      expect(fallback).not.toBeNull();
+    },
+
+    assertHasClass(containerId: string, className: string) {
+      const container = document.getElementById(containerId);
+      expect(container).not.toBeNull();
+      const element = container?.querySelector(`.${className}`);
+      expect(element).not.toBeNull();
+    },
+
+    assertContainsText(containerId: string, text: string) {
+      const container = document.getElementById(containerId);
+      expect(container).not.toBeNull();
+      expect(container?.textContent).toContain(text);
+    },
+
+    restore() {
+      spy.mockRestore();
+    },
+  };
+}

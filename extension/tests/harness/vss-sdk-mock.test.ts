@@ -28,6 +28,11 @@ import {
   getVssMocks,
   setMockReadyAsync,
   trackMockInitOptions,
+  configureExtensionDataService,
+  mockValidDashboardSettings,
+  mockMissingDashboardSettings,
+  mockInvalidDashboardSettings,
+  mockDashboardSettingsError,
   type VssSdkMocks,
 } from "./vss-sdk-mock";
 
@@ -633,6 +638,132 @@ describe("VSS SDK Mock", () => {
       mocks.init({ second: true });
 
       expect(getLastOptions()).toEqual({ second: true });
+    });
+  });
+
+  describe("configureExtensionDataService", () => {
+    beforeEach(() => {
+      setupVssMocks();
+    });
+
+    it("configures values to return from getValue", async () => {
+      configureExtensionDataService({
+        values: {
+          "pr-insights-source-project": "my-project",
+          "pr-insights-pipeline-id": 42,
+        },
+      });
+
+      const service = getMockExtensionDataService();
+      expect(await service.getValue("pr-insights-source-project")).toBe(
+        "my-project",
+      );
+      expect(await service.getValue("pr-insights-pipeline-id")).toBe(42);
+    });
+
+    it("configures missing keys to return undefined", async () => {
+      configureExtensionDataService({
+        missingKeys: ["pr-insights-source-project"],
+      });
+
+      const service = getMockExtensionDataService();
+      expect(await service.getValue("pr-insights-source-project")).toBeUndefined();
+    });
+
+    it("configures error keys to reject with error", async () => {
+      configureExtensionDataService({
+        errorKeys: {
+          "pr-insights-source-project": new Error("Service unavailable"),
+        },
+      });
+
+      const service = getMockExtensionDataService();
+      await expect(
+        service.getValue("pr-insights-source-project"),
+      ).rejects.toThrow("Service unavailable");
+    });
+
+    it("returns null for unconfigured keys", async () => {
+      configureExtensionDataService({
+        values: { "other-key": "other-value" },
+      });
+
+      const service = getMockExtensionDataService();
+      expect(await service.getValue("unconfigured-key")).toBeNull();
+    });
+  });
+
+  describe("mockValidDashboardSettings", () => {
+    beforeEach(() => {
+      setupVssMocks();
+    });
+
+    it("sets up valid dashboard settings", async () => {
+      mockValidDashboardSettings();
+
+      const service = getMockExtensionDataService();
+      expect(await service.getValue("pr-insights-source-project")).toBe(
+        "test-project",
+      );
+      expect(await service.getValue("pr-insights-pipeline-id")).toBe(123);
+      expect(await service.getValue("pr-insights-artifact-name")).toBe(
+        "pr-insights-data",
+      );
+    });
+  });
+
+  describe("mockMissingDashboardSettings", () => {
+    beforeEach(() => {
+      setupVssMocks();
+    });
+
+    it("sets up missing dashboard settings", async () => {
+      mockMissingDashboardSettings();
+
+      const service = getMockExtensionDataService();
+      expect(
+        await service.getValue("pr-insights-source-project"),
+      ).toBeUndefined();
+      expect(await service.getValue("pr-insights-pipeline-id")).toBeUndefined();
+      expect(await service.getValue("pr-insights-artifact-name")).toBeUndefined();
+    });
+  });
+
+  describe("mockInvalidDashboardSettings", () => {
+    beforeEach(() => {
+      setupVssMocks();
+    });
+
+    it("sets up invalid dashboard settings", async () => {
+      mockInvalidDashboardSettings();
+
+      const service = getMockExtensionDataService();
+      expect(await service.getValue("pr-insights-source-project")).toBe("");
+      expect(await service.getValue("pr-insights-pipeline-id")).toBe(-1);
+    });
+  });
+
+  describe("mockDashboardSettingsError", () => {
+    beforeEach(() => {
+      setupVssMocks();
+    });
+
+    it("sets up dashboard settings to throw errors", async () => {
+      mockDashboardSettingsError();
+
+      const service = getMockExtensionDataService();
+      await expect(
+        service.getValue("pr-insights-source-project"),
+      ).rejects.toThrow("ExtensionData service unavailable");
+    });
+
+    it("supports custom error message", async () => {
+      mockDashboardSettingsError("Custom error message");
+
+      const service = getMockExtensionDataService();
+      await expect(
+        service.getValue("pr-insights-source-project"),
+      ).rejects.toThrow("Custom error message");
     });
   });
 });

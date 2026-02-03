@@ -435,3 +435,157 @@ export function trackMockInitOptions(): () => unknown {
 
   return () => lastOptions;
 }
+
+// ============================================================================
+// Settings Mock Configuration Helpers
+// ============================================================================
+
+/**
+ * Configuration for mocking extension data service settings.
+ *
+ * Key mapping for dashboard settings:
+ * - 'pr-insights-source-project' -> projectId
+ * - 'pr-insights-pipeline-id' -> pipelineId
+ * - 'pr-insights-artifact-name' -> artifactName
+ */
+export interface SettingsScenario {
+  /** Setting key-value pairs to return from getValue */
+  values?: Record<string, unknown>;
+
+  /** Keys that should return undefined (missing settings) */
+  missingKeys?: string[];
+
+  /** Keys that should reject with an error */
+  errorKeys?: Record<string, Error>;
+}
+
+/**
+ * Configure mock extension data service with a specific settings scenario.
+ *
+ * This helper provides a convenient way to mock the ExtensionDataService
+ * for testing `getSourceConfig()` and `resolveConfiguration()`.
+ *
+ * Usage:
+ * ```typescript
+ * // Valid settings
+ * configureExtensionDataService({
+ *   values: {
+ *     'pr-insights-source-project': 'my-project',
+ *     'pr-insights-pipeline-id': 42
+ *   }
+ * });
+ *
+ * // Missing settings (returns undefined for these keys)
+ * configureExtensionDataService({
+ *   missingKeys: ['pr-insights-source-project', 'pr-insights-pipeline-id']
+ * });
+ *
+ * // Error scenario
+ * configureExtensionDataService({
+ *   errorKeys: {
+ *     'pr-insights-source-project': new Error('Service unavailable')
+ *   }
+ * });
+ * ```
+ *
+ * @param scenario - The settings scenario to configure
+ */
+export function configureExtensionDataService(scenario: SettingsScenario): void {
+  const { values = {}, missingKeys = [], errorKeys = {} } = scenario;
+
+  // Clear existing settings
+  clearMockSettings();
+
+  // Set up the values
+  for (const [key, value] of Object.entries(values)) {
+    setMockSettingValue(key, value);
+  }
+
+  // Get the service and configure custom behavior
+  const service = getMockExtensionDataService();
+
+  // Override getValue to handle all scenarios
+  service.getValue.mockImplementation((key: string) => {
+    // Check for error scenario first
+    if (errorKeys[key]) {
+      return Promise.reject(errorKeys[key]);
+    }
+
+    // Check for explicitly missing keys
+    if (missingKeys.includes(key)) {
+      return Promise.resolve(undefined);
+    }
+
+    // Return the configured value or undefined if not set
+    const value = mockSettingsStorage.get(key);
+    return Promise.resolve(value ?? null);
+  });
+}
+
+/**
+ * Preset: Mock extension data service with valid dashboard settings.
+ *
+ * Sets up commonly used valid settings for dashboard tests:
+ * - projectId: 'test-project'
+ * - pipelineId: 123
+ * - artifactName: 'pr-insights-data'
+ */
+export function mockValidDashboardSettings(): void {
+  configureExtensionDataService({
+    values: {
+      "pr-insights-source-project": "test-project",
+      "pr-insights-pipeline-id": 123,
+      "pr-insights-artifact-name": "pr-insights-data",
+    },
+  });
+}
+
+/**
+ * Preset: Mock extension data service with missing settings (null returns).
+ *
+ * Simulates the scenario where no settings have been configured.
+ */
+export function mockMissingDashboardSettings(): void {
+  configureExtensionDataService({
+    missingKeys: [
+      "pr-insights-source-project",
+      "pr-insights-pipeline-id",
+      "pr-insights-artifact-name",
+    ],
+  });
+}
+
+/**
+ * Preset: Mock extension data service with invalid settings.
+ *
+ * Sets up invalid values that should trigger validation failures:
+ * - projectId: '' (empty string)
+ * - pipelineId: -1 (invalid)
+ */
+export function mockInvalidDashboardSettings(): void {
+  configureExtensionDataService({
+    values: {
+      "pr-insights-source-project": "",
+      "pr-insights-pipeline-id": -1,
+    },
+  });
+}
+
+/**
+ * Preset: Mock extension data service to throw errors.
+ *
+ * Simulates service unavailability or permission errors.
+ *
+ * @param errorMessage - Custom error message (default: 'ExtensionData service unavailable')
+ */
+export function mockDashboardSettingsError(
+  errorMessage = "ExtensionData service unavailable",
+): void {
+  configureExtensionDataService({
+    errorKeys: {
+      "pr-insights-source-project": new Error(errorMessage),
+      "pr-insights-pipeline-id": new Error(errorMessage),
+      "pr-insights-artifact-name": new Error(errorMessage),
+    },
+  });
+}
