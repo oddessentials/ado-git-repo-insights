@@ -1,3 +1,10 @@
+## [5.20.1](https://github.com/oddessentials/ado-git-repo-insights/compare/v5.20.0...v5.20.1) (2026-02-03)
+
+
+### Bug Fixes
+
+* **023:** remove any suppressions and document threshold additions [threshold-update] ([73eeb88](https://github.com/oddessentials/ado-git-repo-insights/commit/73eeb8844951d779d047b784174d2649660c9a1d))
+
 # [5.20.0](https://github.com/oddessentials/ado-git-repo-insights/compare/v5.19.0...v5.20.0) (2026-02-03)
 
 
