@@ -16,6 +16,15 @@ coverage:
         target: auto
         threshold: 5%  # Be lenient on new code
 
+# Ignore patterns for files tested by integration tests instead of unit tests
+# Entry point files are validated by Playwright smoke tests (test:smoke)
+ignore:
+  - "extension/ui/dashboard.ts"      # Entry point, tested by smoke tests
+  - "extension/ui/artifact-client.ts" # Entry point, tested by smoke tests
+  - "extension/ui/dataset-loader.ts"  # Entry point, tested by smoke tests
+  - "extension/ui/settings.ts"        # Entry point, tested by smoke tests
+  - "scripts/**"                      # Scripts tested by subprocess, not importable
+
 # Flag configuration for language-specific coverage
 # Enables separate badges: ?flag=python and ?flag=typescript
 flags:
