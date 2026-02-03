@@ -1,3 +1,23 @@
+# [5.19.0](https://github.com/oddessentials/ado-git-repo-insights/compare/v5.18.2...v5.19.0) (2026-02-03)
+
+
+### Bug Fixes
+
+* **ci:** exclude entry point files from Codecov patch coverage ([41e1e9a](https://github.com/oddessentials/ado-git-repo-insights/commit/41e1e9a6137f10c0b3bf804a1d446d89d98dee71))
+* **ci:** update Playwright to 1.50.0 and add glob dependency ([bcbae1e](https://github.com/oddessentials/ado-git-repo-insights/commit/bcbae1e5be71947694e86512cc6b94d741248aa3))
+* **ci:** use pnpm exec for Playwright and exclude type-tests from suppression audit ([aa60ee7](https://github.com/oddessentials/ado-git-repo-insights/commit/aa60ee707ac1b3bffb42afbd4139603da56ed12a))
+
+
+### Features
+
+* **ci:** integrate smoke tests into CI pipeline (T049-T051) ([8dbe430](https://github.com/oddessentials/ado-git-repo-insights/commit/8dbe4304e8a5c8dfcf26be2c8d772a4a84121dd6))
+* **testing:** add audit-suppressions test coverage and auto-install Playwright ([2a03c2e](https://github.com/oddessentials/ado-git-repo-insights/commit/2a03c2e12e125d796fc3d9149166bd84971609e9))
+* **testing:** add edge case tests and traceability enforcement (US3 T041-T047, US4 T048) ([6d93513](https://github.com/oddessentials/ado-git-repo-insights/commit/6d9351344448169a634566a756a17eb59680229b))
+* **testing:** add Playwright smoke test infrastructure (US2 T031-T040) ([56c0257](https://github.com/oddessentials/ado-git-repo-insights/commit/56c02578d447536ba91c0dc9b10a4d2fcfa2fc9c))
+* **testing:** add type test infrastructure for compile-time regression detection ([ba50ddb](https://github.com/oddessentials/ado-git-repo-insights/commit/ba50ddbd3af8467e5da3388712b0242bca13b791))
+* **testing:** address spec-task coverage gaps with enterprise-grade rigor ([b041724](https://github.com/oddessentials/ado-git-repo-insights/commit/b04172446489e56e0818f6e378706649d55cde48))
+* **testing:** implement deterministic smoke test infrastructure ([23621cf](https://github.com/oddessentials/ado-git-repo-insights/commit/23621cff8cbd579db419ca09ee7c4285e6fdc897))
+
 ## [5.18.2](https://github.com/oddessentials/ado-git-repo-insights/compare/v5.18.1...v5.18.2) (2026-02-01)
 
 
