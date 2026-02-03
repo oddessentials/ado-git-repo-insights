@@ -30,7 +30,7 @@
     "test:vsix": "jest --ci --testPathPatterns vsix-artifact-inspection",
     "perf:update-baseline": "npx ts-node scripts/update-perf-baseline.ts",
     "copy-sdk": "node scripts/copy-vss-sdk.mjs",
-    "postinstall": "node scripts/copy-vss-sdk.mjs",
+    "postinstall": "node scripts/copy-vss-sdk.mjs && pnpm exec playwright install chromium",
     "stage:tasks": "node scripts/stage-task-deps.mjs",
     "clean:tasks": "node scripts/clean-task-deps.mjs",
     "package:vsix": "pnpm run build && pnpm run stage:tasks && pnpm exec tfx-cli extension create --manifest-globs vss-extension.json",
