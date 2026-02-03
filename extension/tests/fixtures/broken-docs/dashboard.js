@@ -3,7 +3,7 @@
  * Minimal dashboard stub for broken-docs fixture.
  * This triggers error state when manifest JSON is malformed.
  */
-(async function() {
+(async function () {
   const loadingState = document.getElementById("loading-state");
   const setupRequired = document.getElementById("setup-required");
   const errorState = document.getElementById("error-state");
@@ -45,17 +45,27 @@
     // If we get here, manifest loaded successfully (shouldn't happen in broken fixture)
     if (loadingState) loadingState.classList.add("hidden");
     if (mainContent) mainContent.classList.remove("hidden");
-
   } catch (error) {
     console.error("Dashboard initialization failed:", error);
 
     // Check if it's a JSON parse error (malformed manifest)
     if (error instanceof SyntaxError || error.message.includes("JSON")) {
-      showError("Invalid Dataset", "Failed to parse dataset manifest: Invalid JSON format.");
-    } else if (error.message.includes("404") || error.message.includes("not found")) {
-      showSetupRequired("Dataset manifest not found. Please check your data directory.");
+      showError(
+        "Invalid Dataset",
+        "Failed to parse dataset manifest: Invalid JSON format.",
+      );
+    } else if (
+      error.message.includes("404") ||
+      error.message.includes("not found")
+    ) {
+      showSetupRequired(
+        "Dataset manifest not found. Please check your data directory.",
+      );
     } else {
-      showError("Error Loading Dashboard", error.message || "An unexpected error occurred.");
+      showError(
+        "Error Loading Dashboard",
+        error.message || "An unexpected error occurred.",
+      );
     }
   }
 })();

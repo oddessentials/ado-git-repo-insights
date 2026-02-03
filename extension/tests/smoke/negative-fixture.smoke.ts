@@ -11,6 +11,7 @@
  * Fixture: ./tests/fixtures/broken-docs with malformed dataset-manifest.json
  */
 import { test, expect } from "@playwright/test";
+import { SMOKE_TIMEOUT_MS } from "./constants";
 
 test.describe("Negative Smoke Tests - Error State Gate", () => {
   /**
@@ -21,18 +22,28 @@ test.describe("Negative Smoke Tests - Error State Gate", () => {
    * 2. Error is caught and error state UI is displayed
    * 3. No "[object Object]" is shown (proper error message rendering)
    */
-  test("shows error state for malformed manifest", async ({ page }, testInfo) => {
+  test("shows error state for malformed manifest", async ({
+    page,
+  }, testInfo) => {
     await page.goto("/");
 
-    // Wait for page to process (error or success state)
-    await page.waitForLoadState("networkidle");
-
-    // Additional wait for dashboard JS to execute and render error state
-    await page.waitForTimeout(1000);
-
     // Gate assertion: Error state MUST be visible
+    // Wait for either error panel to be visible (condition-based, not time-based)
     const errorSetup = page.getByTestId("error-setup-required");
     const errorGeneric = page.getByTestId("error-generic");
+
+    // Wait for either error panel to become visible
+    // Poll until one is visible rather than using .or() which has strict mode issues
+    await expect
+      .poll(
+        async () => {
+          const setupVis = await errorSetup.isVisible().catch(() => false);
+          const genericVis = await errorGeneric.isVisible().catch(() => false);
+          return setupVis || genericVis;
+        },
+        { timeout: SMOKE_TIMEOUT_MS },
+      )
+      .toBe(true);
 
     // At least one error panel must be visible
     const setupVisible = await errorSetup.isVisible().catch(() => false);
@@ -72,13 +83,22 @@ test.describe("Negative Smoke Tests - Error State Gate", () => {
   test("error message is human-readable", async ({ page }, testInfo) => {
     await page.goto("/");
 
-    // Wait for error state to render
-    await page.waitForLoadState("networkidle");
-    await page.waitForTimeout(1000);
-
     // Find the error message element
     const errorGeneric = page.getByTestId("error-generic");
     const errorSetup = page.getByTestId("error-setup-required");
+
+    // Wait for either error panel to become visible
+    // Poll until one is visible rather than using .or() which has strict mode issues
+    await expect
+      .poll(
+        async () => {
+          const setupVis = await errorSetup.isVisible().catch(() => false);
+          const genericVis = await errorGeneric.isVisible().catch(() => false);
+          return setupVis || genericVis;
+        },
+        { timeout: SMOKE_TIMEOUT_MS },
+      )
+      .toBe(true);
 
     // Screenshot for debugging
     await page.screenshot({

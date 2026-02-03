@@ -1,23 +1,24 @@
 {
   "version": 1,
-  "generated_at": "2026-01-29T20:45:20Z",
-  "total": 46,
+  "generated_at": "2026-02-03T01:54:39Z",
+  "total": 51,
   "by_scope": {
     "python-backend": 9,
     "typescript-extension": 36,
-    "typescript-tests": 1
+    "typescript-tests": 6
   },
   "by_type": {
     "eslint-disable-block": 1,
     "eslint-disable-line": 0,
     "eslint-disable-next-line": 36,
     "noqa": 9,
-    "ts-expect-error": 0,
+    "ts-expect-error": 5,
     "ts-ignore": 0,
     "type-ignore": 0
   },
   "by_file": {
     "extension/tests/local-mode-integration.test.ts": 1,
+    "extension/tests/types/rollup.type-test.ts": 5,
     "extension/ui/artifact-client.ts": 3,
     "extension/ui/dashboard.ts": 2,
     "extension/ui/dataset-loader.ts": 2,

@@ -223,25 +223,34 @@ describe("metrics edge cases: pr_count handling", () => {
  *
  * Validates that edge case tests produce deterministic results when run
  * in a batch, with no state leakage between test cases.
+ *
+ * Note: Uses native structuredClone() which correctly preserves NaN, Infinity,
+ * and -Infinity values. Node.js 22+ provides structuredClone globally.
+ * Fallback implementation provided for jsdom test environment compatibility.
  */
 describe("FR-025: Batch execution - state isolation", () => {
   /**
-   * Deep clone function that preserves NaN, Infinity, and -Infinity values.
-   * JSON.stringify/parse doesn't handle these special numeric values.
+   * Deep clone implementation that preserves NaN, Infinity, and -Infinity.
+   * Uses native structuredClone when available, falls back to manual implementation
+   * for jsdom test environment compatibility.
    */
-  function deepClone<T>(obj: T): T {
+  const safeClone = <T>(obj: T): T => {
+    if (typeof structuredClone === "function") {
+      return structuredClone(obj);
+    }
+    // Fallback for environments without structuredClone (e.g., jsdom)
     if (obj === null || typeof obj !== "object") {
       return obj;
     }
     if (Array.isArray(obj)) {
-      return obj.map(deepClone) as T;
+      return obj.map(safeClone) as T;
     }
     const result: Record<string, unknown> = {};
     for (const key of Object.keys(obj)) {
-      result[key] = deepClone((obj as Record<string, unknown>)[key]);
+      result[key] = safeClone((obj as Record<string, unknown>)[key]);
     }
     return result as T;
-  }
+  };
 
   const TEST_CASES = [
     { id: "EC-001", input: { r1: { pr_count: NaN } }, expected: 0 },
@@ -262,8 +271,9 @@ describe("FR-025: Batch execution - state isolation", () => {
 
   it("EC-001..EC-005 produce deterministic results in sequential batch", () => {
     // Run 1: Collect results
+    // Using safeClone() which correctly handles NaN, Infinity, -Infinity
     const run1Results = TEST_CASES.map((tc) => {
-      const inputCopy = deepClone(tc.input);
+      const inputCopy = safeClone(tc.input);
       const rollup = createRollupWithBreakdown(inputCopy);
       const filtered = applyFiltersToRollups([rollup], {
         repos: Object.keys(tc.input),
@@ -274,7 +284,7 @@ describe("FR-025: Batch execution - state isolation", () => {
 
     // Run 2: Same process, same order
     const run2Results = TEST_CASES.map((tc) => {
-      const rollup = createRollupWithBreakdown(deepClone(tc.input));
+      const rollup = createRollupWithBreakdown(safeClone(tc.input));
       const filtered = applyFiltersToRollups([rollup], {
         repos: Object.keys(tc.input),
         teams: [],
@@ -305,9 +315,9 @@ describe("FR-025: Batch execution - state isolation", () => {
         const afterVal = (inputAfter as Record<string, { pr_count: unknown }>)[
           key
         ].pr_count;
-        const origVal = (originalInput as Record<string, { pr_count: unknown }>)[
-          key
-        ].pr_count;
+        const origVal = (
+          originalInput as Record<string, { pr_count: unknown }>
+        )[key].pr_count;
 
         if (typeof origVal === "number" && Number.isNaN(origVal)) {
           expect(Number.isNaN(afterVal)).toBe(true);

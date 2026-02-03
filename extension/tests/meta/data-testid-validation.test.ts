@@ -74,7 +74,9 @@ describe("data-testid DOM Validation", () => {
     const ids = matches.map((m) => m[1]);
 
     // Convention: lowercase kebab-case (e.g., "filter-repository", "error-generic")
-    const invalidIds = ids.filter((id) => !/^[a-z][a-z0-9]*(-[a-z0-9]+)*$/.test(id));
+    const invalidIds = ids.filter(
+      (id) => !/^[a-z][a-z0-9]*(-[a-z0-9]+)*$/.test(id),
+    );
 
     if (invalidIds.length > 0) {
       throw new Error(

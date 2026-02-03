@@ -12,6 +12,7 @@
 import { test, expect } from "@playwright/test";
 import * as fs from "fs";
 import * as path from "path";
+import { SMOKE_TIMEOUT_MS } from "./constants";
 
 /**
  * Minimum fixture schema contract (FR-006):
@@ -107,13 +108,15 @@ test.describe("Filter Display Smoke Tests", () => {
    * T039: Repository filter smoke test (FR-009, FR-022)
    * Validates that selecting a repository filter updates the Total PRs display.
    */
-  test("repository filter shows numeric Total PRs", async ({ page }) => {
+  test("repository filter shows numeric Total PRs", async ({
+    page,
+  }, testInfo) => {
     // Navigate to the demo dashboard
     await page.goto("/");
 
     // Wait for the dashboard to load (main content visible, loading state hidden)
     await page.waitForSelector("#main-content:not(.hidden)", {
-      timeout: 15000,
+      timeout: SMOKE_TIMEOUT_MS,
     });
 
     // Verify the Total PRs element exists and shows a number
@@ -142,17 +145,24 @@ test.describe("Filter Display Smoke Tests", () => {
     if (options.length > 1) {
       const secondOption = await options[1].getAttribute("value");
       if (secondOption) {
+        // Capture prior text for change detection
+        const priorText = await totalPrsElement.textContent();
+
         await repoFilter.selectOption(secondOption);
 
-        // Wait for the dashboard to update (network requests to complete)
-        await page.waitForLoadState("networkidle");
+        // Wait for Total PRs to change from prior value (condition-based, not network-based)
+        await expect(totalPrsElement).not.toHaveText(priorText ?? "", {
+          timeout: SMOKE_TIMEOUT_MS,
+        });
 
-        // Wait for Total PRs to show a valid number (not loading placeholder)
-        await expect(totalPrsElement).not.toHaveText("-");
+        // Wait for Total PRs to match digit pattern (settled state)
+        await expect(totalPrsElement).toHaveText(/^\d+$/, {
+          timeout: SMOKE_TIMEOUT_MS,
+        });
 
         // Capture screenshot after filter selection
         await page.screenshot({
-          path: "test-artifacts/smoke/repository-filter.png",
+          path: testInfo.outputPath("repository-filter.png"),
         });
 
         // Verify Total PRs is still a finite number after filtering
@@ -177,13 +187,13 @@ test.describe("Filter Display Smoke Tests", () => {
    * in the dataset-manifest.json (features.teams: false). In that case,
    * this test validates the feature flag behavior and skips filter interaction.
    */
-  test("team filter shows numeric Total PRs", async ({ page }) => {
+  test("team filter shows numeric Total PRs", async ({ page }, testInfo) => {
     // Navigate to the demo dashboard
     await page.goto("/");
 
     // Wait for the dashboard to load
     await page.waitForSelector("#main-content:not(.hidden)", {
-      timeout: 15000,
+      timeout: SMOKE_TIMEOUT_MS,
     });
 
     // Verify the Total PRs element exists and shows a number
@@ -214,7 +224,7 @@ test.describe("Filter Display Smoke Tests", () => {
       // Team filter is hidden due to feature flag - this is expected behavior
       // Capture screenshot showing the dashboard without team filter
       await page.screenshot({
-        path: "test-artifacts/smoke/team-filter-disabled.png",
+        path: testInfo.outputPath("team-filter-disabled.png"),
       });
 
       // Verify the Total PRs is still valid (test passes - feature flag working correctly)
@@ -234,17 +244,24 @@ test.describe("Filter Display Smoke Tests", () => {
     if (options.length > 1) {
       const secondOption = await options[1].getAttribute("value");
       if (secondOption) {
+        // Capture prior text for change detection
+        const priorText = await totalPrsElement.textContent();
+
         await teamFilter.selectOption(secondOption);
 
-        // Wait for the dashboard to update (network requests to complete)
-        await page.waitForLoadState("networkidle");
+        // Wait for Total PRs to change from prior value (condition-based, not network-based)
+        await expect(totalPrsElement).not.toHaveText(priorText ?? "", {
+          timeout: SMOKE_TIMEOUT_MS,
+        });
 
-        // Wait for Total PRs to show a valid number (not loading placeholder)
-        await expect(totalPrsElement).not.toHaveText("-");
+        // Wait for Total PRs to match digit pattern (settled state)
+        await expect(totalPrsElement).toHaveText(/^\d+$/, {
+          timeout: SMOKE_TIMEOUT_MS,
+        });
 
         // Capture screenshot after filter selection
         await page.screenshot({
-          path: "test-artifacts/smoke/team-filter.png",
+          path: testInfo.outputPath("team-filter.png"),
         });
 
         // Verify Total PRs is still a finite number after filtering
@@ -261,7 +278,7 @@ test.describe("Filter Display Smoke Tests", () => {
     } else {
       // If no team options beyond "All", just verify the current state
       await page.screenshot({
-        path: "test-artifacts/smoke/team-filter-default.png",
+        path: testInfo.outputPath("team-filter-default.png"),
       });
     }
   });

@@ -1,4 +1,6 @@
 /**
+ * COMPILE-TIME ONLY: This file must never be imported by runtime code paths.
+ *
  * Type Tests for Rollup Schema
  *
  * This file contains compile-time type tests to verify that:
