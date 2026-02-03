@@ -309,16 +309,24 @@ class TestCmdGenerateAggregates:
             stub_mode=False,
         )
 
-        result = cmd_generate_aggregates(args)
+        with patch("ado_git_repo_insights.cli.logger") as mock_logger:
+            result = cmd_generate_aggregates(args)
 
         assert result == 1
+        assert mock_logger.error.called
+        error_msg = mock_logger.error.call_args[0][0]
+        assert "OPENAI_API_KEY is required" in error_msg
 
+    @patch("ado_git_repo_insights.cli.DatabaseManager")
+    @patch("ado_git_repo_insights.cli.AggregateGenerator")
     def test_insights_dry_run_without_api_key_proceeds(
         self,
+        mock_agg_generator: MagicMock,
+        mock_db_manager: MagicMock,
         tmp_path: Path,
         monkeypatch: pytest.MonkeyPatch,
     ) -> None:
-        """--enable-insights --insights-dry-run without API key should NOT fail early."""
+        """--enable-insights --insights-dry-run should proceed without API key."""
         from ado_git_repo_insights.cli import cmd_generate_aggregates
 
         # Ensure no API key
@@ -327,6 +335,18 @@ class TestCmdGenerateAggregates:
         # Create a dummy database file
         db_path = tmp_path / "test.sqlite"
         db_path.touch()
+
+        mock_db = MagicMock()
+        mock_db_manager.return_value = mock_db
+
+        mock_generator = MagicMock()
+        mock_manifest = MagicMock()
+        mock_manifest.aggregate_index.weekly_rollups = []
+        mock_manifest.aggregate_index.distributions = []
+        mock_manifest.features = {"predictions": False, "ai_insights": True}
+        mock_manifest.warnings = []
+        mock_generator.generate_all.return_value = mock_manifest
+        mock_agg_generator.return_value = mock_generator
 
         args = Namespace(
             database=db_path,
@@ -342,17 +362,15 @@ class TestCmdGenerateAggregates:
             stub_mode=False,
         )
 
-        # Will fail later (openai import), but not on API key check
-        # We just verify it doesn't fail with the API key error
-        with patch("ado_git_repo_insights.cli.logger") as mock_logger:
-            result = cmd_generate_aggregates(args)
+        with patch.dict("sys.modules", {"openai": MagicMock()}):
+            with patch("ado_git_repo_insights.cli.logger") as mock_logger:
+                result = cmd_generate_aggregates(args)
 
-        # Should fail for openai import, not API key
-        assert result == 1
-        # Check that error is about openai SDK, not API key
-        if mock_logger.error.called:
-            error_msg = mock_logger.error.call_args[0][0]
-            assert "OPENAI_API_KEY" not in error_msg or "dry-run" in error_msg.lower()
+        assert result == 0
+        assert not any(
+            "OPENAI_API_KEY is required" in call.args[0]
+            for call in mock_logger.error.call_args_list
+        )
 
     @patch("ado_git_repo_insights.cli.DatabaseManager")
     def test_database_error_returns_1(
@@ -590,41 +608,10 @@ class TestValidateServeFlags:
         assert result == 1
 
     def test_missing_serve_attr_defaults_false(self) -> None:
-        """Missing serve attribute should default to False (backward compat)."""
+        """Missing required attributes should fail fast."""
         from ado_git_repo_insights.cli import _validate_serve_flags
 
-        # No serve attribute at all
-        args = Namespace(
-            open=False,
-            port=8080,
-        )
+        args = Namespace(open=False, port=8080)
 
-        result = _validate_serve_flags(args)
-
-        assert result is None  # Should be valid (serve=False, open=False, port=8080)
-
-    def test_missing_open_attr_defaults_false(self) -> None:
-        """Missing open attribute should default to False."""
-        from ado_git_repo_insights.cli import _validate_serve_flags
-
-        args = Namespace(
-            serve=True,
-            port=8080,
-        )
-
-        result = _validate_serve_flags(args)
-
-        assert result is None
-
-    def test_missing_port_attr_defaults_8080(self) -> None:
-        """Missing port attribute should default to 8080."""
-        from ado_git_repo_insights.cli import _validate_serve_flags
-
-        args = Namespace(
-            serve=True,
-            open=True,
-        )
-
-        result = _validate_serve_flags(args)
-
-        assert result is None
+        with pytest.raises(ValueError, match="Missing required argument"):
+            _validate_serve_flags(args)

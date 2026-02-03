@@ -112,8 +112,12 @@ describe("setup-guides", () => {
       if (existingLive) existingLive.remove();
     });
 
-    afterEach(() => {
+    afterAll(() => {
       jest.useRealTimers();
+    });
+
+    afterEach(() => {
+      jest.clearAllTimers();
       container.remove();
       const liveRegion = document.getElementById("copy-status-live");
       if (liveRegion) liveRegion.remove();
@@ -165,9 +169,6 @@ describe("setup-guides", () => {
     });
 
     it("shows Copied! text on success", async () => {
-      // Use real timers for this async test
-      jest.useRealTimers();
-
       container.innerHTML = `
         <button class="copy-yaml-btn" data-yaml="test: yaml">
           <span class="copy-text">Copy</span>
@@ -179,14 +180,11 @@ describe("setup-guides", () => {
       const button = container.querySelector(".copy-yaml-btn") as HTMLButtonElement;
       button.click();
 
-      // Wait for async clipboard operation (next tick)
-      await new Promise((resolve) => setTimeout(resolve, 10));
+      await Promise.resolve();
+      await Promise.resolve();
 
       const copyText = button.querySelector(".copy-text");
       expect(copyText?.textContent).toBe("Copied!");
-
-      // Restore fake timers for other tests
-      jest.useFakeTimers();
     });
 
     it("disables button during copy operation", async () => {
@@ -202,14 +200,12 @@ describe("setup-guides", () => {
       button.click();
 
       await Promise.resolve();
+      await Promise.resolve();
 
       expect(button.disabled).toBe(true);
     });
 
     it("resets button text after timeout", async () => {
-      // Use real timers for async part, then switch to fake for timeout
-      jest.useRealTimers();
-
       container.innerHTML = `
         <button class="copy-yaml-btn" data-yaml="test: yaml">
           <span class="copy-text">Copy</span>
@@ -221,21 +217,14 @@ describe("setup-guides", () => {
       const button = container.querySelector(".copy-yaml-btn") as HTMLButtonElement;
       button.click();
 
-      // Wait for async clipboard operation (next tick)
-      await new Promise((resolve) => setTimeout(resolve, 10));
+      await Promise.resolve();
+      await Promise.resolve();
 
-      // Text should be "Copied!" immediately after success
-      expect(button.querySelector(".copy-text")?.textContent).toBe("Copied!");
-
-      // Wait for the 2000ms reset timeout (using real timers)
-      await new Promise((resolve) => setTimeout(resolve, 2100));
+      jest.runAllTimers();
 
       expect(button.querySelector(".copy-text")?.textContent).toBe("Copy");
       expect(button.disabled).toBe(false);
-
-      // Restore fake timers
-      jest.useFakeTimers();
-    }, 10000); // Increase test timeout
+    });
 
     it("shows Failed text on clipboard error", async () => {
       mockClipboard.writeText.mockRejectedValue(new Error("Clipboard access denied"));
@@ -292,6 +281,15 @@ describe("setup-guides", () => {
       // Should only have one live region
       const liveRegions = document.querySelectorAll("#copy-status-live");
       expect(liveRegions.length).toBe(1);
+    });
+
+    it("enforces fake timers for the suite", () => {
+      const callback = jest.fn();
+      setTimeout(callback, 50);
+
+      expect(callback).not.toHaveBeenCalled();
+      jest.advanceTimersByTime(50);
+      expect(callback).toHaveBeenCalledTimes(1);
     });
   });
 

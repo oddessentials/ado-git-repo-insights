@@ -23,6 +23,7 @@ from .transform.aggregators import (
 from .transform.csv_generator import CSVGenerationError, CSVGenerator
 from .utils.install_detection import detect_installation_method
 from .utils.logging_config import LoggingConfig, setup_logging
+from .utils.path_security import ensure_safe_filename, safe_join
 from .utils.path_utils import format_path_guidance, get_scripts_directory, is_on_path
 from .utils.run_summary import (
     RunCounts,
@@ -619,7 +620,7 @@ def cmd_extract(args: Namespace) -> int:
                     per_project_status=per_project_status,
                     first_fatal_error=first_fatal_error,
                 )
-                run_summary.write(args.artifacts_dir / "run_summary.json")
+                run_summary.write(safe_join(args.artifacts_dir, "run_summary.json"))
                 run_summary.print_final_line()
                 run_summary.emit_ado_commands()
                 return 1
@@ -668,7 +669,7 @@ def cmd_extract(args: Namespace) -> int:
                 per_project_status=per_project_status,
                 first_fatal_error=None,
             )
-            run_summary.write(args.artifacts_dir / "run_summary.json")
+            run_summary.write(safe_join(args.artifacts_dir, "run_summary.json"))
             run_summary.print_final_line()
             run_summary.emit_ado_commands()
             return 0
@@ -682,7 +683,7 @@ def cmd_extract(args: Namespace) -> int:
         minimal_summary = create_minimal_summary(
             f"Configuration error: {e}", args.artifacts_dir
         )
-        minimal_summary.write(args.artifacts_dir / "run_summary.json")
+        minimal_summary.write(safe_join(args.artifacts_dir, "run_summary.json"))
         return 1
     except DatabaseError as e:
         logger.error(f"Database error: {e}")
@@ -690,7 +691,7 @@ def cmd_extract(args: Namespace) -> int:
         minimal_summary = create_minimal_summary(
             f"Database error: {e}", args.artifacts_dir
         )
-        minimal_summary.write(args.artifacts_dir / "run_summary.json")
+        minimal_summary.write(safe_join(args.artifacts_dir, "run_summary.json"))
         return 1
     except ExtractionError as e:
         logger.error(f"Extraction error: {e}")
@@ -698,7 +699,7 @@ def cmd_extract(args: Namespace) -> int:
         minimal_summary = create_minimal_summary(
             f"Extraction error: {e}", args.artifacts_dir
         )
-        minimal_summary.write(args.artifacts_dir / "run_summary.json")
+        minimal_summary.write(safe_join(args.artifacts_dir, "run_summary.json"))
         return 1
 
 
@@ -837,9 +838,14 @@ def _validate_serve_flags(args: Namespace) -> int | None:
     Returns:
         1 if validation fails (exit code), None if valid
     """
-    serve = getattr(args, "serve", False)
-    open_browser = getattr(args, "open", False)
-    port = getattr(args, "port", 8080)
+    # Fail fast on missing args: avoids masking config issues in tests/CI.
+    missing = [name for name in ("serve", "open", "port") if not hasattr(args, name)]
+    if missing:
+        raise ValueError(f"Missing required argument(s): {', '.join(missing)}")
+
+    serve = args.serve
+    open_browser = args.open
+    port = args.port
 
     if not serve and (open_browser or port != 8080):
         invalid_flags = []
@@ -1254,7 +1260,8 @@ def cmd_stage_artifacts(args: Namespace) -> int:
         out_dir.mkdir(parents=True, exist_ok=True)
 
         # Save and extract ZIP
-        zip_path = out_dir / f"{args.artifact}.zip"
+        artifact_basename = ensure_safe_filename(args.artifact)
+        zip_path = safe_join(out_dir, f"{artifact_basename}.zip")
         with zip_path.open("wb") as f:
             for chunk in resp.iter_content(chunk_size=8192):
                 f.write(chunk)
@@ -1310,7 +1317,7 @@ def cmd_stage_artifacts(args: Namespace) -> int:
             "manifest_schema_version": schema_version,
             "contract_version": 1,  # Current staging contract version
         }
-        staged_path = out_dir / "STAGED.json"
+        staged_path = safe_join(out_dir, "STAGED.json")
         with staged_path.open("w", encoding="utf-8") as f:
             json.dump(staged_info, f, indent=2)
 
@@ -1653,7 +1660,7 @@ def main() -> int:
     artifacts_dir = getattr(args, "artifacts_dir", Path("run_artifacts"))
     artifacts_dir.mkdir(parents=True, exist_ok=True)
 
-    summary_path = artifacts_dir / "run_summary.json"
+    summary_path = safe_join(artifacts_dir, "run_summary.json")
 
     try:
         if args.command == "extract":

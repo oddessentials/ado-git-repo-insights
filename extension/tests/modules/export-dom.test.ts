@@ -10,21 +10,41 @@ describe("export DOM functions", () => {
   describe("triggerDownload", () => {
     let originalCreateObjectURL: typeof URL.createObjectURL;
     let originalRevokeObjectURL: typeof URL.revokeObjectURL;
-    let createObjectURLMock: jest.Mock;
-    let revokeObjectURLMock: jest.Mock;
+    let createObjectURLSpy: jest.SpyInstance;
+    let revokeObjectURLSpy: jest.SpyInstance;
+    let hadCreateObjectURL: boolean;
+    let hadRevokeObjectURL: boolean;
     let appendChildSpy: jest.SpyInstance;
     let removeChildSpy: jest.SpyInstance;
 
     beforeEach(() => {
+      hadCreateObjectURL = typeof URL.createObjectURL === "function";
+      hadRevokeObjectURL = typeof URL.revokeObjectURL === "function";
+
+      if (!hadCreateObjectURL) {
+        Object.defineProperty(URL, "createObjectURL", {
+          value: () => "",
+          writable: true,
+          configurable: true,
+        });
+      }
+      if (!hadRevokeObjectURL) {
+        Object.defineProperty(URL, "revokeObjectURL", {
+          value: () => undefined,
+          writable: true,
+          configurable: true,
+        });
+      }
+
       // Store originals
       originalCreateObjectURL = URL.createObjectURL;
       originalRevokeObjectURL = URL.revokeObjectURL;
 
-      // Mock URL methods directly
-      createObjectURLMock = jest.fn().mockReturnValue("blob:mock-url");
-      revokeObjectURLMock = jest.fn();
-      URL.createObjectURL = createObjectURLMock;
-      URL.revokeObjectURL = revokeObjectURLMock;
+      // Mock URL methods with scoped spies
+      createObjectURLSpy = jest
+        .spyOn(URL, "createObjectURL")
+        .mockReturnValue("blob:mock-url");
+      revokeObjectURLSpy = jest.spyOn(URL, "revokeObjectURL").mockImplementation();
 
       // Spy on document.body methods
       appendChildSpy = jest.spyOn(document.body, "appendChild");
@@ -32,18 +52,27 @@ describe("export DOM functions", () => {
     });
 
     afterEach(() => {
-      // Restore originals
-      URL.createObjectURL = originalCreateObjectURL;
-      URL.revokeObjectURL = originalRevokeObjectURL;
+      createObjectURLSpy.mockRestore();
+      revokeObjectURLSpy.mockRestore();
       jest.restoreAllMocks();
+      if (hadCreateObjectURL) {
+        expect(URL.createObjectURL).toBe(originalCreateObjectURL);
+      } else {
+        delete (URL as any).createObjectURL;
+      }
+      if (hadRevokeObjectURL) {
+        expect(URL.revokeObjectURL).toBe(originalRevokeObjectURL);
+      } else {
+        delete (URL as any).revokeObjectURL;
+      }
     });
 
     it("creates a Blob from string content", () => {
       const content = "test,content,csv";
       triggerDownload(content, "test.csv");
 
-      expect(createObjectURLMock).toHaveBeenCalledTimes(1);
-      const blobArg = createObjectURLMock.mock.calls[0][0];
+      expect(createObjectURLSpy).toHaveBeenCalledTimes(1);
+      const blobArg = createObjectURLSpy.mock.calls[0][0];
       expect(blobArg).toBeInstanceOf(Blob);
     });
 
@@ -51,8 +80,8 @@ describe("export DOM functions", () => {
       const blob = new Blob(["test content"], { type: "application/zip" });
       triggerDownload(blob, "test.zip");
 
-      expect(createObjectURLMock).toHaveBeenCalledTimes(1);
-      const blobArg = createObjectURLMock.mock.calls[0][0];
+      expect(createObjectURLSpy).toHaveBeenCalledTimes(1);
+      const blobArg = createObjectURLSpy.mock.calls[0][0];
       expect(blobArg).toBe(blob);
     });
 
@@ -84,24 +113,24 @@ describe("export DOM functions", () => {
       triggerDownload("content", "test.csv");
 
       expect(removeChildSpy).toHaveBeenCalledTimes(1);
-      expect(revokeObjectURLMock).toHaveBeenCalledTimes(1);
-      expect(revokeObjectURLMock).toHaveBeenCalledWith("blob:mock-url");
+      expect(revokeObjectURLSpy).toHaveBeenCalledTimes(1);
+      expect(revokeObjectURLSpy).toHaveBeenCalledWith("blob:mock-url");
     });
 
     it("uses custom MIME type for string content", () => {
       const content = '{"test": "json"}';
       triggerDownload(content, "test.json", "application/json");
 
-      expect(createObjectURLMock).toHaveBeenCalledTimes(1);
-      const blobArg = createObjectURLMock.mock.calls[0][0] as Blob;
+      expect(createObjectURLSpy).toHaveBeenCalledTimes(1);
+      const blobArg = createObjectURLSpy.mock.calls[0][0] as Blob;
       expect(blobArg.type).toBe("application/json");
     });
 
     it("uses default CSV MIME type when not specified", () => {
       triggerDownload("csv,content", "test.csv");
 
-      expect(createObjectURLMock).toHaveBeenCalledTimes(1);
-      const blobArg = createObjectURLMock.mock.calls[0][0] as Blob;
+      expect(createObjectURLSpy).toHaveBeenCalledTimes(1);
+      const blobArg = createObjectURLSpy.mock.calls[0][0] as Blob;
       expect(blobArg.type).toBe("text/csv;charset=utf-8;");
     });
   });
@@ -114,7 +143,7 @@ describe("export DOM functions", () => {
     });
 
     afterEach(() => {
-      jest.useRealTimers();
+      jest.clearAllTimers();
       document.body.innerHTML = "";
     });
 

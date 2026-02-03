@@ -20,7 +20,27 @@ fi
 # ALWAYS run global fixers (end-of-file, trailing-whitespace) on staged files
 # This prevents the pre-push --all-files from modifying unstaged files
 echo "[pre-commit] Running formatting checks on staged files..."
-$PRE_COMMIT run --hook-stage pre-commit || exit 1
+$PRE_COMMIT run --hook-stage pre-commit
+PRE_COMMIT_STATUS=$?
+
+# If auto-fixers modified files, stage them and re-run once for verification.
+if [ $PRE_COMMIT_STATUS -ne 0 ]; then
+    if ! git diff --quiet; then
+        echo ""
+        echo "[pre-commit] 🔧 Auto-fixes applied - staging changes..."
+        git diff --name-only | sed 's/^/  - /'
+        git diff --name-only -z | xargs -0 git add --
+        $PRE_COMMIT run --hook-stage pre-commit
+        PRE_COMMIT_STATUS=$?
+    fi
+fi
+
+if [ $PRE_COMMIT_STATUS -ne 0 ]; then
+    echo ""
+    echo "[pre-commit] ❌ Formatting checks failed"
+    exit 1
+fi
+
 echo "[pre-commit] ✅ Formatting checks passed"
 
 # =============================================================================

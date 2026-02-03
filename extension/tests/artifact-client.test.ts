@@ -24,6 +24,7 @@ declare const VSS: {
 describe("ArtifactClient", () => {
   let mockFetch: jest.Mock;
   let originalVSS: typeof VSS | undefined;
+  let originalVSSWasUndefined: boolean;
 
   beforeEach(() => {
     // Setup mock fetch
@@ -32,6 +33,7 @@ describe("ArtifactClient", () => {
 
     // Setup mock VSS SDK
     originalVSS = (global as any).VSS;
+    originalVSSWasUndefined = typeof originalVSS === "undefined";
     (global as any).VSS = {
       getWebContext: () => ({
         collection: { uri: "https://dev.azure.com/testorg/" },
@@ -43,7 +45,11 @@ describe("ArtifactClient", () => {
 
   afterEach(() => {
     jest.restoreAllMocks();
-    (global as any).VSS = originalVSS;
+    if (originalVSSWasUndefined) {
+      delete (global as any).VSS;
+    } else {
+      (global as any).VSS = originalVSS;
+    }
   });
 
   describe("initialization", () => {
@@ -90,14 +96,16 @@ describe("ArtifactClient", () => {
 
     it("only initializes once (idempotent)", async () => {
       const client = new ArtifactClient("test-project");
+      const accessTokenSpy = jest.spyOn(
+        (global as any).VSS,
+        "getAccessToken",
+      );
 
       await client.initialize();
       await client.initialize();
       await client.initialize();
 
-      // VSS.getAccessToken should only be called once
-      // (can't easily verify this without spy, but initialize returns early)
-      expect(true).toBe(true); // No throw means success
+      expect(accessTokenSpy).toHaveBeenCalledTimes(1);
     });
   });
 
@@ -385,6 +393,17 @@ describe("ArtifactClient", () => {
       const loader = client.createDatasetLoader(123, "aggregates");
 
       expect(loader).toBeInstanceOf(AuthenticatedDatasetLoader);
+    });
+  });
+
+  describe("VSS isolation", () => {
+    it("does not allow VSS state to leak between tests", () => {
+      (global as any).VSS.leakyKey = "leak";
+      expect((global as any).VSS.leakyKey).toBe("leak");
+    });
+
+    it("restores VSS to a clean state", () => {
+      expect((global as any).VSS.leakyKey).toBeUndefined();
     });
   });
 });

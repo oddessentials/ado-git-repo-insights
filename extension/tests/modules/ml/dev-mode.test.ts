@@ -9,9 +9,6 @@
  * Production URL testing is done in smoke tests with custom JSDOM instances.
  */
 
-import { JSDOM } from "jsdom";
-import * as path from "path";
-import * as fs from "fs";
 
 // Import functions for testing in default jsdom environment
 import {
@@ -55,33 +52,6 @@ describe("dev-mode (default jsdom - localhost)", () => {
 });
 
 describe("dev-mode (custom URL environments via JSDOM)", () => {
-  /**
-   * Helper to run dev-mode functions in a custom URL environment.
-   * Uses JSDOM with a specific URL to simulate different environments.
-   */
-  function runInEnvironment(
-    url: string,
-    testFn: (win: JSDOM["window"]) => void,
-  ): void {
-    const dom = new JSDOM("<!DOCTYPE html><html><body></body></html>", {
-      url,
-      runScripts: "dangerously",
-    });
-
-    // Load the dev-mode module code into the JSDOM context
-    const distUiPath = path.join(__dirname, "..", "..", "..", "dist", "ui");
-    const bundlePath = path.join(distUiPath, "dashboard.js");
-
-    // Only proceed if the bundle exists
-    if (fs.existsSync(bundlePath)) {
-      const bundleCode = fs.readFileSync(bundlePath, "utf-8");
-      dom.window.eval(bundleCode);
-    }
-
-    testFn(dom.window);
-    dom.window.close();
-  }
-
   /**
    * Helper to check production patterns directly.
    * Uses inline logic matching dev-mode.ts implementation.
@@ -183,59 +153,5 @@ describe("dev-mode (custom URL environments via JSDOM)", () => {
     });
   });
 
-  describe("JSDOM environment tests (if bundle exists)", () => {
-    const distUiPath = path.join(__dirname, "..", "..", "..", "dist", "ui");
-    const bundleExists = fs.existsSync(path.join(distUiPath, "dashboard.js"));
-
-    // These tests require the built bundle
-    (bundleExists ? it : it.skip)(
-      "production URL returns correct values",
-      () => {
-        runInEnvironment(
-          "https://dev.azure.com/testorg/testproject/_apps/hub/test",
-          (win) => {
-            // The hostname should be dev.azure.com
-            expect(win.location.hostname).toBe("dev.azure.com");
-          },
-        );
-      },
-    );
-
-    (bundleExists ? it : it.skip)("localhost URL returns correct values", () => {
-      runInEnvironment("http://localhost:8080/dashboard", (win) => {
-        expect(win.location.hostname).toBe("localhost");
-      });
-    });
-
-    (bundleExists ? it : it.skip)(
-      "file:// protocol returns empty hostname",
-      () => {
-        runInEnvironment("file:///C:/dashboard/index.html", (win) => {
-          expect(win.location.protocol).toBe("file:");
-          // Note: JSDOM may handle file:// differently
-        });
-      },
-    );
-  });
-});
-
-describe("dev-mode (SSR compatibility)", () => {
-  // Note: SSR tests (window undefined) cannot be run in jsdom environment
-  // because jsdom always defines window. The SSR safety code is tested
-  // indirectly through the logic verification tests above.
-
-  describe("SSR safety checks (logic verification)", () => {
-    it("module handles undefined window gracefully", () => {
-      // Verify the code pattern - functions check typeof window === "undefined"
-      // This is tested by verifying the source code pattern exists
-      // The actual SSR behavior would require a separate Node.js test environment
-      expect(true).toBe(true); // Pattern verification placeholder
-    });
-
-    it("window.location null check prevents errors", () => {
-      // The module also checks !window.location before accessing properties
-      // This dual check ensures safety in both SSR and unusual browser states
-      expect(true).toBe(true); // Pattern verification placeholder
-    });
-  });
+  // JSDOM environment tests are in dev-mode.dom.test.ts (node env)
 });

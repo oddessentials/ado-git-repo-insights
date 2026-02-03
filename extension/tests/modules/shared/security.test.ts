@@ -174,4 +174,45 @@ describe("security utilities", () => {
       expect(sanitizeUrl("Java\nScript:alert(1)")).toBe("#");
     });
   });
+
+  describe("XSS boundaries", () => {
+    it("escapes event-handler payloads at the DOM boundary", () => {
+      const payload = '<img src=x onerror="alert(1)">';
+      const html = safeHtml`<div>${payload}</div>`;
+      const container = document.createElement("div");
+      container.innerHTML = html;
+
+      expect(container.querySelector("img")).toBeNull();
+      expect(container.textContent).toContain(payload);
+    });
+
+    it("sanitizes javascript: URLs at the DOM boundary", () => {
+      const html = safeHtml`<a href="${sanitizeUrl("javascript:alert(1)")}">link</a>`;
+      const container = document.createElement("div");
+      container.innerHTML = html;
+
+      const link = container.querySelector("a");
+      expect(link?.getAttribute("href")).toBe("#");
+    });
+
+    it("escapes SVG payloads at the DOM boundary", () => {
+      const payload = '<svg onload="alert(1)"></svg>';
+      const html = safeHtml`<div>${payload}</div>`;
+      const container = document.createElement("div");
+      container.innerHTML = html;
+
+      expect(container.querySelector("svg")).toBeNull();
+      expect(container.textContent).toContain(payload);
+    });
+
+    it("escapes inline HTML injection at the DOM boundary", () => {
+      const payload = "<div><span>inject</span></div>";
+      const html = safeHtml`<p>${payload}</p>`;
+      const container = document.createElement("div");
+      container.innerHTML = html;
+
+      expect(container.querySelector("span")).toBeNull();
+      expect(container.textContent).toContain(payload);
+    });
+  });
 });

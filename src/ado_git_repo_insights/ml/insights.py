@@ -20,6 +20,8 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
+from ..utils.path_security import safe_join
+
 if TYPE_CHECKING:
     from ..persistence.database import DatabaseManager
 
@@ -124,7 +126,7 @@ class LLMInsightsGenerator:
         """
         start_time = time.perf_counter()
 
-        insights_dir = self.output_dir / "insights"
+        insights_dir = safe_join(self.output_dir, "insights")
         insights_dir.mkdir(parents=True, exist_ok=True)
 
         # Build prompt (returns prompt string and canonical data for cache key)
@@ -139,7 +141,7 @@ class LLMInsightsGenerator:
                 "prompt": prompt,
                 "generated_at": datetime.now(timezone.utc).isoformat(),
             }
-            prompt_path = insights_dir / "prompt.json"
+            prompt_path = safe_join(insights_dir, "prompt.json")
             with prompt_path.open("w", encoding="utf-8") as f:
                 json.dump(prompt_artifact, f, indent=2)
             logger.info(
@@ -149,13 +151,13 @@ class LLMInsightsGenerator:
             return False  # Don't write summary.json in dry-run
 
         # Check cache
-        cache_path = insights_dir / "cache.json"
+        cache_path = safe_join(insights_dir, "cache.json")
         cache_key = self._get_cache_key(prompt_data)
 
         cached_insights = self._check_cache(cache_path, cache_key)
         if cached_insights:
             # Cache hit - write summary.json from cache
-            summary_path = insights_dir / "summary.json"
+            summary_path = safe_join(insights_dir, "summary.json")
             with summary_path.open("w", encoding="utf-8") as f:
                 json.dump(cached_insights, f, indent=2, sort_keys=True)
             logger.info("Cache hit - wrote insights from cache")
@@ -173,7 +175,7 @@ class LLMInsightsGenerator:
             return False
 
         # Write summary.json
-        summary_path = insights_dir / "summary.json"
+        summary_path = safe_join(insights_dir, "summary.json")
         with summary_path.open("w", encoding="utf-8") as f:
             json.dump(insights_data, f, indent=2, sort_keys=True)
 
