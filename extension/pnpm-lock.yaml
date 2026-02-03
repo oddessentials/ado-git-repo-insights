@@ -16,8 +16,11 @@ importers:
         specifier: ^30.0.0
         version: 30.2.0
       '@playwright/test':
-        specifier: 1.40.0
-        version: 1.40.0
+        specifier: 1.50.0
+        version: 1.50.0
+      '@types/glob':
+        specifier: ^8.1.0
+        version: 8.1.0
       '@types/jest':
         specifier: ^30.0.0
         version: 30.0.0
@@ -45,6 +48,9 @@ importers:
       eslint-plugin-security:
         specifier: ^3.0.0
         version: 3.0.1
+      glob:
+        specifier: ^10.4.0
+        version: 10.5.0
       jest:
         specifier: ^30.0.0
         version: 30.2.0(@types/node@25.1.0)(ts-node@10.9.2(@types/node@25.1.0)(typescript@5.9.3))
@@ -628,10 +634,9 @@ packages:
     resolution: {integrity: sha512-QNqXyfVS2wm9hweSYD2O7F0G06uurj9kZ96TRQE5Y9hU7+tgdZwIkbAKc5Ocy1HxEY2kuDQa6cQ1WRs/O5LFKA==}
     engines: {node: ^12.20.0 || ^14.18.0 || >=16.0.0}
 
-  '@playwright/test@1.40.0':
-    resolution: {integrity: sha512-PdW+kn4eV99iP5gxWNSDQCbhMaDVej+RXL5xr6t04nbKLCBwYtA046t7ofoczHOm8u6c+45hpDKQVZqtqwkeQg==}
-    engines: {node: '>=16'}
-    deprecated: Please update to the latest version of Playwright to test up-to-date browsers.
+  '@playwright/test@1.50.0':
+    resolution: {integrity: sha512-ZGNXbt+d65EGjBORQHuYKj+XhCewlwpnSd/EDuLPZGSiEWmgOJB5RmMCCYGy5aMfTs9wx61RivfDKi8H/hcMvw==}
+    engines: {node: '>=18'}
     hasBin: true
 
   '@sinclair/typebox@0.34.48':
@@ -673,6 +678,9 @@ packages:
   '@types/estree@1.0.8':
     resolution: {integrity: sha512-dWHzHa2WqEXI/O1E9OjrocMTKJl2mSrEolh1Iomrv6U+JuNwaHXsXx9bLu5gG7BUWFIN0skIQJQ/L1rIex4X6w==}
 
+  '@types/glob@8.1.0':
+    resolution: {integrity: sha512-IO+MJPVhoqz+28h1qLAcBEH2+xHMK6MTyHJc7MTnnYb6wsoLR29POVGJ7LycmVXIqyy/4/2ShP5sUwTXuOwb/w==}
+
   '@types/istanbul-lib-coverage@2.0.6':
     resolution: {integrity: sha512-2QF/t/auWm0lsy8XtKVPG19v3sSOQlJe/YHZgfjb/KBBHOGSV+J2q/S671rcq9uTBrLAXmZpqJiaQbMT+zNU1w==}
 
@@ -699,6 +707,9 @@ packages:
 
   '@types/knockout@3.4.77':
     resolution: {integrity: sha512-RpujDayUysbJlpygCxDnMSOp7DeUIROcoIW0Xf85YkqoZ/DE5R2R4TcFhbgLaGTM5bi4QLTVSG/DUUc0wL4KmQ==}
+
+  '@types/minimatch@5.1.2':
+    resolution: {integrity: sha512-K0VQKziLUWkVKiRVrx4a40iPaxTUefQmjtkQofBkYRcoaaL/8rhwDWww9qWbrgicNOgnpIsMxyNIUM4+n6dUIA==}
 
   '@types/mousetrap@1.5.34':
     resolution: {integrity: sha512-a2yhRIADupQfOFM75v7GfcQQLUxU705+i/xcZ3N/3PK3Xdo31SUfuCUByWPGOHB1e38m7MxTx/D8FPVsJXZKJw==}
@@ -1977,14 +1988,14 @@ packages:
     resolution: {integrity: sha512-HRDzbaKjC+AOWVXxAU/x54COGeIv9eb+6CkDSQoNTt4XyWoIJvuPsXizxu/Fr23EiekbtZwmh1IcIG/l/a10GQ==}
     engines: {node: '>=8'}
 
-  playwright-core@1.40.0:
-    resolution: {integrity: sha512-fvKewVJpGeca8t0ipM56jkVSU6Eo0RmFvQ/MaCQNDYm+sdvKkMBBWTE1FdeMqIdumRaXXjZChWHvIzCGM/tA/Q==}
-    engines: {node: '>=16'}
+  playwright-core@1.50.0:
+    resolution: {integrity: sha512-CXkSSlr4JaZs2tZHI40DsZUN/NIwgaUPsyLuOAaIZp2CyF2sN5MM5NJsyB188lFSSozFxQ5fPT4qM+f0tH/6wQ==}
+    engines: {node: '>=18'}
     hasBin: true
 
-  playwright@1.40.0:
-    resolution: {integrity: sha512-gyHAgQjiDf1m34Xpwzaqb76KgfzYrhK7iih+2IzcOCoZWr/8ZqmdBw+t0RU85ZmfJMgtgAiNtBQ/KS2325INXw==}
-    engines: {node: '>=16'}
+  playwright@1.50.0:
+    resolution: {integrity: sha512-+GinGfGTrd2IfX1TA4N2gNmeIksSb+IAe589ZH+FlmpV3MYTx6+buChGIuDLQwrGNCw2lWibqV50fU510N7S+w==}
+    engines: {node: '>=18'}
     hasBin: true
 
   prelude-ls@1.2.1:
@@ -3086,9 +3097,9 @@ snapshots:
 
   '@pkgr/core@0.2.9': {}
 
-  '@playwright/test@1.40.0':
+  '@playwright/test@1.50.0':
     dependencies:
-      playwright: 1.40.0
+      playwright: 1.50.0
 
   '@sinclair/typebox@0.34.48': {}
 
@@ -3136,6 +3147,11 @@ snapshots:
 
   '@types/estree@1.0.8': {}
 
+  '@types/glob@8.1.0':
+    dependencies:
+      '@types/minimatch': 5.1.2
+      '@types/node': 25.1.0
+
   '@types/istanbul-lib-coverage@2.0.6': {}
 
   '@types/istanbul-lib-report@3.0.3':
@@ -3168,6 +3184,8 @@ snapshots:
   '@types/json-schema@7.0.15': {}
 
   '@types/knockout@3.4.77': {}
+
+  '@types/minimatch@5.1.2': {}
 
   '@types/mousetrap@1.5.34': {}
 
@@ -4620,11 +4638,11 @@ snapshots:
     dependencies:
       find-up: 4.1.0
 
-  playwright-core@1.40.0: {}
+  playwright-core@1.50.0: {}
 
-  playwright@1.40.0:
+  playwright@1.50.0:
     dependencies:
-      playwright-core: 1.40.0
+      playwright-core: 1.50.0
     optionalDependencies:
       fsevents: 2.3.2
 
