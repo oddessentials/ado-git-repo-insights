@@ -9,9 +9,10 @@ repos:
     rev: v0.14.14
     hooks:
       - id: ruff
-        # Check only, no auto-fix. Fixes are explicit developer actions.
+        # Auto-fix on commit for a smoother DX; re-run hook will verify clean.
+        args: [--fix]
       - id: ruff-format
-        # Check only, formatting is explicit via `ruff format`
+        # Auto-format on commit for a smoother DX.
 
   - repo: https://github.com/pre-commit/pre-commit-hooks
     rev: v4.5.0
