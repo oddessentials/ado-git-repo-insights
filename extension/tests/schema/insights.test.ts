@@ -12,7 +12,7 @@ import { validateInsights } from "../../ui/schemas/insights.schema";
 import type { ValidationResult } from "../../ui/schemas/types";
 
 // Load the actual fixture for valid data tests
-import validInsights from "../fixtures/insights-valid.json";
+import validInsights from "../fixtures/insights-ready.json";
 
 describe("Insights Schema Validator", () => {
   describe("valid data", () => {

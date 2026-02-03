@@ -145,7 +145,7 @@ describe('ML Tab States', () => {
 ### Mocking ExtensionDataService
 
 ```typescript
-import { setupVssMocks, mockExtensionDataService } from '../harness/vss-sdk-mock';
+import { setupVssMocks, configureExtensionDataService } from '../harness/vss-sdk-mock';
 
 describe('Settings Integration', () => {
   beforeEach(() => {
@@ -153,9 +153,11 @@ describe('Settings Integration', () => {
   });
 
   it('handles valid settings', async () => {
-    mockExtensionDataService({
-      'pr-insights-source-project': 'my-project',
-      'pr-insights-pipeline-id': 42
+    configureExtensionDataService({
+      values: {
+        'pr-insights-source-project': 'my-project',
+        'pr-insights-pipeline-id': 42
+      }
     });
 
     const config = await getSourceConfig();
@@ -163,7 +165,9 @@ describe('Settings Integration', () => {
   });
 
   it('handles missing settings', async () => {
-    mockExtensionDataService({});
+    configureExtensionDataService({
+      missingKeys: ['pr-insights-source-project', 'pr-insights-pipeline-id']
+    });
 
     const config = await getSourceConfig();
     expect(config.projectId).toBeNull();

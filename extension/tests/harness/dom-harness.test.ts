@@ -30,6 +30,7 @@ import {
   loadAllFixtures,
   createMockResponse,
   createMockErrorResponse,
+  createErrorAssertionContext,
 } from "./dom-harness";
 
 describe("DOM Harness", () => {
@@ -477,6 +478,155 @@ describe("DOM Harness", () => {
       const response = createMockErrorResponse(500, "Internal Server Error");
 
       await expect(response.json()).rejects.toThrow("HTTP 500");
+    });
+  });
+
+  describe("createErrorAssertionContext", () => {
+    afterEach(() => {
+      document.body.innerHTML = "";
+    });
+
+    it("creates context with console.error spy", () => {
+      const ctx = createErrorAssertionContext();
+
+      expect(ctx.consoleErrorSpy).toBeDefined();
+      expect(typeof ctx.consoleErrorSpy.mockClear).toBe("function");
+
+      ctx.restore();
+    });
+
+    it("assertNoErrors passes when no console.error calls", () => {
+      const ctx = createErrorAssertionContext();
+
+      // No console.error calls - should pass
+      expect(() => ctx.assertNoErrors()).not.toThrow();
+
+      ctx.restore();
+    });
+
+    it("assertNoErrors fails when console.error was called", () => {
+      const ctx = createErrorAssertionContext();
+
+      // Trigger a console.error
+      console.error("Test error");
+
+      expect(() => ctx.assertNoErrors()).toThrow();
+
+      ctx.restore();
+    });
+
+    it("assertFallbackRendered passes when fallback element exists", () => {
+      document.body.innerHTML = `
+        <div id="container">
+          <div class="fallback-class">Fallback content</div>
+        </div>
+      `;
+      const ctx = createErrorAssertionContext();
+
+      expect(() =>
+        ctx.assertFallbackRendered("container", "fallback-class"),
+      ).not.toThrow();
+
+      ctx.restore();
+    });
+
+    it("assertFallbackRendered fails when container does not exist", () => {
+      document.body.innerHTML = "";
+      const ctx = createErrorAssertionContext();
+
+      expect(() =>
+        ctx.assertFallbackRendered("nonexistent", "fallback-class"),
+      ).toThrow();
+
+      ctx.restore();
+    });
+
+    it("assertFallbackRendered fails when fallback element does not exist", () => {
+      document.body.innerHTML = '<div id="container"></div>';
+      const ctx = createErrorAssertionContext();
+
+      expect(() =>
+        ctx.assertFallbackRendered("container", "fallback-class"),
+      ).toThrow();
+
+      ctx.restore();
+    });
+
+    it("assertHasClass passes when element with class exists", () => {
+      document.body.innerHTML = `
+        <div id="container">
+          <div class="target-class">Content</div>
+        </div>
+      `;
+      const ctx = createErrorAssertionContext();
+
+      expect(() => ctx.assertHasClass("container", "target-class")).not.toThrow();
+
+      ctx.restore();
+    });
+
+    it("assertHasClass fails when element with class does not exist", () => {
+      document.body.innerHTML = '<div id="container"></div>';
+      const ctx = createErrorAssertionContext();
+
+      expect(() => ctx.assertHasClass("container", "missing-class")).toThrow();
+
+      ctx.restore();
+    });
+
+    it("assertContainsText passes when container has text", () => {
+      document.body.innerHTML =
+        '<div id="container">Some text content here</div>';
+      const ctx = createErrorAssertionContext();
+
+      expect(() => ctx.assertContainsText("container", "text content")).not.toThrow();
+
+      ctx.restore();
+    });
+
+    it("assertContainsText fails when container does not have text", () => {
+      document.body.innerHTML = '<div id="container">Different content</div>';
+      const ctx = createErrorAssertionContext();
+
+      expect(() => ctx.assertContainsText("container", "missing text")).toThrow();
+
+      ctx.restore();
+    });
+
+    it("restore cleans up the spy", () => {
+      const ctx = createErrorAssertionContext();
+      const spy = ctx.consoleErrorSpy;
+
+      ctx.restore();
+
+      // After restore, the spy should be restored (mockRestore called)
+      // We can verify by checking that console.error behaves normally
+      expect(spy.mock.calls.length).toBe(0);
+    });
+
+    it("supports triple assertion pattern workflow", () => {
+      // Setup DOM
+      document.body.innerHTML = `
+        <div id="ml-container">
+          <div class="predictions-content">Predictions loaded</div>
+        </div>
+      `;
+
+      const ctx = createErrorAssertionContext();
+
+      // Assertion 1: No throws (simulated render function)
+      const renderFunction = () => {
+        // Simulated render - does nothing bad
+      };
+      expect(() => renderFunction()).not.toThrow();
+
+      // Assertion 2: No console.error
+      ctx.assertNoErrors();
+
+      // Assertion 3: Correct DOM output
+      ctx.assertHasClass("ml-container", "predictions-content");
+
+      ctx.restore();
     });
   });
 });

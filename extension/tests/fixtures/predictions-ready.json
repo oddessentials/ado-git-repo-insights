@@ -1,0 +1,24 @@
+{
+  "schema_version": "1.0.0",
+  "generated_at": "2026-02-03T12:00:00Z",
+  "model_info": {
+    "name": "trend-forecaster",
+    "version": "1.0.0"
+  },
+  "predictions": [
+    {
+      "metric": "pr_throughput",
+      "period": "2026-W06",
+      "predicted_value": 45,
+      "confidence_lower": 38,
+      "confidence_upper": 52
+    },
+    {
+      "metric": "cycle_time",
+      "period": "2026-W06",
+      "predicted_value": 2.3,
+      "confidence_lower": 1.8,
+      "confidence_upper": 2.8
+    }
+  ]
+}

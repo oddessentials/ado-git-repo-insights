@@ -26,13 +26,13 @@
 
 **Purpose**: Extend existing test harnesses and create required fixtures
 
-- [ ] T001 Create `extension/tests/dashboard/` directory for dashboard-specific tests
-- [ ] T002 [P] Create `predictions-ready.json` fixture in `extension/tests/fixtures/` per data-model.md schema
-- [ ] T003 [P] Create `predictions-no-data.json` fixture in `extension/tests/fixtures/` per data-model.md schema
-- [ ] T004 [P] Rename `insights-valid.json` to `insights-ready.json` in `extension/tests/fixtures/`
-- [ ] T005 [P] Create `insights-no-data.json` fixture in `extension/tests/fixtures/` per data-model.md schema
-- [ ] T006 Add `createErrorAssertionContext()` helper to `extension/tests/harness/dom-harness.ts` for triple assertion pattern
-- [ ] T007 Add `mockExtensionDataService()` helper to `extension/tests/harness/vss-sdk-mock.ts` for settings mocking
+- [X] T001 Create `extension/tests/dashboard/` directory for dashboard-specific tests
+- [X] T002 [P] Create `predictions-ready.json` fixture in `extension/tests/fixtures/` per data-model.md schema
+- [X] T003 [P] Create `predictions-no-data.json` fixture in `extension/tests/fixtures/` per data-model.md schema
+- [X] T004 [P] Rename `insights-valid.json` to `insights-ready.json` in `extension/tests/fixtures/`
+- [X] T005 [P] Create `insights-no-data.json` fixture in `extension/tests/fixtures/` per data-model.md schema
+- [X] T006 Add `createErrorAssertionContext()` helper to `extension/tests/harness/dom-harness.ts` for triple assertion pattern
+- [X] T007 Add `configureExtensionDataService()` helper to `extension/tests/harness/vss-sdk-mock.ts` for settings mocking
 
 ---
 
@@ -42,9 +42,9 @@
 
 **⚠️ CRITICAL**: No user story work can begin until this phase is complete
 
-- [ ] T008 Verify all 8 fixture files exist and conform to schemas in data-model.md
-- [ ] T009 Verify `createErrorAssertionContext()` works with jest.spyOn and DOM assertions
-- [ ] T010 Verify `mockExtensionDataService()` properly mocks VSS.getService calls
+- [X] T008 Verify all 8 fixture files exist and conform to schemas in data-model.md
+- [X] T009 Verify `createErrorAssertionContext()` works with jest.spyOn and DOM assertions
+- [X] T010 Verify `mockExtensionDataService()` properly mocks VSS.getService calls
 
 **Checkpoint**: Harness extensions verified - user story implementation can now begin in parallel
 
@@ -58,7 +58,7 @@
 
 ### Implementation for User Story 1
 
-- [ ] T011 [US1] Create `extension/tests/dashboard/ml-state-rendering.test.ts` with test structure for 5 states × 2 artifact types
+- [X] T011 [US1] Create `extension/tests/dashboard/ml-state-rendering.test.ts` with test structure for 5 states × 2 artifact types
 - [ ] T012 [P] [US1] Add tests for `renderPredictionsForState` with `ready` state in `ml-state-rendering.test.ts`
 - [ ] T013 [P] [US1] Add tests for `renderPredictionsForState` with `no-data` state in `ml-state-rendering.test.ts`
 - [ ] T014 [P] [US1] Add tests for `renderPredictionsForState` with `invalid-artifact` state in `ml-state-rendering.test.ts`
