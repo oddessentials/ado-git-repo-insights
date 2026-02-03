@@ -1,3 +1,10 @@
+# [5.20.0](https://github.com/oddessentials/ado-git-repo-insights/compare/v5.19.0...v5.20.0) (2026-02-03)
+
+
+### Features
+
+* comprehensive coverage initiative ([f886963](https://github.com/oddessentials/ado-git-repo-insights/commit/f8869633719ed8d3007cc501badfa48c66fa55db))
+
 # [5.19.0](https://github.com/oddessentials/ado-git-repo-insights/compare/v5.18.2...v5.19.0) (2026-02-03)
 
 
