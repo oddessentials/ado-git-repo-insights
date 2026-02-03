@@ -2,14 +2,14 @@
 
 This document outlines the incremental strategy for raising test coverage thresholds over time.
 
-## Current State (Phase 5 Complete)
+## Current State (Phase 5.2 Complete)
 
 **Global Coverage:**
 
-- Statements: ~50% (threshold: 48%)
-- Branches: ~45% (threshold: 43%)
-- Functions: ~48% (threshold: 46%)
-- Lines: ~51% (threshold: 49%)
+- Statements: ~65% (threshold: 55%)
+- Branches: ~60% (threshold: 49%)
+- Functions: ~62% (threshold: 51%)
+- Lines: ~67% (threshold: 56%)
 
 **Target (Phase 6):** 70% global coverage
 
@@ -32,45 +32,37 @@ Critical modules have higher thresholds enforced:
 | `ui/schemas/types.ts`         | 100%    | 98%       | Maintain |
 | `ui/schemas/errors.ts`        | 100%    | 98%       | Maintain |
 | `ui/schemas/rollup.schema.ts` | 93%     | 90%       | 95%      |
-| `ui/dataset-loader.ts`        | 82%     | 80%       | 90%      |
+| `ui/dataset-loader.ts`        | 83%     | 80%       | 90%      |
 | `ui/error-codes.ts`           | 100%    | 98%       | Maintain |
 | `ui/error-types.ts`           | 100%    | 98%       | Maintain |
+| `ui/modules/ml.ts`            | 78%     | 75%       | 80%      |
+| `ui/artifact-client.ts`       | 65%     | 40%       | 70%      |
+| `ui/modules/shared/security.ts` | 100%  | 95%       | Maintain |
 
 ### Tier 3: Future Critical Paths (Not Yet Enforced)
 
 These modules should be added to coverage thresholds as tests are added:
 
-| Module                     | Current | Next Threshold               |
-| -------------------------- | ------- | ---------------------------- |
-| `ui/artifact-client.ts`    | 15%     | 40% (after mock integration) |
-| `ui/modules/errors.ts`     | 0%      | 60% (after DOM harness)      |
-| `ui/modules/comparison.ts` | 0%      | 60% (after DOM harness)      |
+| Module                     | Current | Next Threshold          |
+| -------------------------- | ------- | ----------------------- |
+| `ui/modules/errors.ts`     | 100%    | 98% (when stabilized)   |
+| `ui/modules/comparison.ts` | 100%    | 98% (when stabilized)   |
 
 ## Ratchet Schedule
 
-### Phase 5.1 (Current)
+### Phase 5.1 (Complete)
 
 - [x] Set global baseline thresholds
 - [x] Enforce tier 2 thresholds for schemas and loaders
 - [x] Create test harnesses (dom-harness, vss-sdk-mock)
 
-### Phase 5.2 (Next Sprint)
+### Phase 5.2 (Complete)
 
-Increase thresholds by 3-5% as tests are added:
-
-```javascript
-global: {
-  statements: 51,  // +3%
-  branches: 46,    // +3%
-  functions: 49,   // +3%
-  lines: 52,       // +3%
-}
-```
-
-Add coverage enforcement for:
-
-- `ui/artifact-client.ts`: 40% minimum
-- `ui/modules/dom.ts`: 93% minimum (already at 95%)
+- [x] Increased global thresholds to 55/49/51/56
+- [x] Added Critical Path thresholds (feature 023-dashboard-coverage):
+  - `ui/modules/ml.ts`: 75% minimum
+  - `ui/artifact-client.ts`: 40% minimum
+  - `ui/modules/shared/security.ts`: 95% minimum
 
 ### Phase 5.3
 
@@ -168,9 +160,11 @@ Coverage numbers MUST come from CI's canonical leg to ensure consistency:
 
 ## History
 
-| Date       | Phase | Global Statements | Notes                     |
-| ---------- | ----- | ----------------- | ------------------------- |
-| 2026-01-28 | 5.1   | 48%               | Initial tiered thresholds |
+| Date       | Phase | Global Statements | Notes                                                  |
+| ---------- | ----- | ----------------- | ------------------------------------------------------ |
+| 2026-01-28 | 5.1   | 48%               | Initial tiered thresholds                              |
+| 2026-01-30 | 5.1   | 55%               | Updated global thresholds after test improvements      |
+| 2026-02-03 | 5.2   | 55%               | Added Critical Path thresholds (ml.ts, artifact-client.ts, security.ts) |
 
 ---
 

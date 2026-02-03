@@ -3,7 +3,7 @@
 **Feature Branch**: `023-dashboard-coverage`
 **Created**: 2026-02-03
 **Updated**: 2026-02-03
-**Status**: In Progress (Phase 3-4 complete, Phase 5-6 pending)
+**Status**: In Progress (Phase 3-5 complete, Phase 6 pending)
 **Input**: User description: "There are several typescript files that have very little test coverage related to their size and complexity. Dashboard is one of them, yet is one of our most critical features. Investigate how we can safely improve this coverage and prevent future regression of the enterprise critical features without blowing up scope."
 
 ## Clarifications
@@ -145,21 +145,21 @@ The following edge cases are acknowledged but not explicitly tested. Mitigation 
 | 1-2 | Setup & Foundational | T001-T011 | Fixtures, harness extensions |
 | 3 | US1: Dashboard Rendering | T012-T028 | `ml-state-rendering.test.ts` (18 tests), `settings-contract.test.ts` (24 tests) |
 | 4 | US2: API Client Resilience | T029-T037 | `http-responses.test.ts` (20 tests) |
+| 5 | US3: Coverage Regression | T038-T042 | jest.config.ts thresholds, COVERAGE_RATCHET.md update |
 
 ### Current Coverage
 
-| File | Coverage | Target | Status |
-|------|----------|--------|--------|
-| `ml.ts` | 78% | 75% | ✅ Exceeds |
-| `artifact-client.ts` | 65% | 40% | ✅ Exceeds |
-| `security.ts` | 100% | 95% | ✅ Exceeds |
-| Global | 65% | 55% | ✅ Exceeds |
+| File | Coverage | Target | Status | Threshold Enforced |
+|------|----------|--------|--------|-------------------|
+| `ml.ts` | 78% | 75% | ✅ Exceeds | ✅ Yes |
+| `artifact-client.ts` | 65% | 40% | ✅ Exceeds | ✅ Yes |
+| `security.ts` | 100% | 95% | ✅ Exceeds | ✅ Yes |
+| Global | 65% | 55% | ✅ Exceeds | ✅ Yes |
 
 ### Pending
 
 | Phase | User Story | Tasks | Description |
 |-------|------------|-------|-------------|
-| 5 | US3: Coverage Regression | T038-T042 | Add per-file thresholds to jest.config.ts |
 | 6 | Polish | T043-T049 | XSS prevention tests, final validation |
 
 ### Architecture Decision: IIFE Bundle Exclusion

@@ -111,11 +111,11 @@
 
 ### Implementation for User Story 3
 
-- [ ] T038 [US3] Add `ui/modules/ml.ts` threshold (75%) to `extension/jest.config.ts` coverageThreshold section (IIFE bundles excluded)
-- [ ] T039 [P] [US3] Add `ui/artifact-client.ts` threshold (40%) to `extension/jest.config.ts` coverageThreshold section
-- [ ] T040 [P] [US3] Add `ui/modules/shared/security.ts` threshold (95%) to `extension/jest.config.ts` coverageThreshold section
-- [ ] T041 [US3] Update `extension/COVERAGE_RATCHET.md` history table with new threshold values and date
-- [ ] T042 [US3] Verify CI fails when coverage drops below thresholds by temporarily lowering a threshold
+- [X] T038 [US3] Add `ui/modules/ml.ts` threshold (75%) to `extension/jest.config.ts` coverageThreshold section (IIFE bundles excluded)
+- [X] T039 [P] [US3] Add `ui/artifact-client.ts` threshold (40%) to `extension/jest.config.ts` coverageThreshold section
+- [X] T040 [P] [US3] Add `ui/modules/shared/security.ts` threshold (95%) to `extension/jest.config.ts` coverageThreshold section
+- [X] T041 [US3] Update `extension/COVERAGE_RATCHET.md` history table with new threshold values and date
+- [X] T042 [US3] Verify CI fails when coverage drops below thresholds by temporarily lowering a threshold
 
 **Checkpoint**: User Story 3 complete - coverage thresholds enforce regression prevention
 

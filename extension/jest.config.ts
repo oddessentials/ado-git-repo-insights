@@ -85,6 +85,39 @@ const config: Config = {
       functions: 98,
       lines: 98,
     },
+
+    // Tier 2: Critical Path - ML rendering module
+    // Current: 78% stmts, 58% branches, 58% funcs, 80% lines
+    // Threshold: floor(actual - 2.0) for lines/stmts, contract minimum for branches/funcs
+    // See: specs/023-dashboard-coverage/contracts/coverage-thresholds.md
+    "ui/modules/ml.ts": {
+      statements: 75,
+      branches: 55,
+      functions: 55,
+      lines: 75,
+    },
+
+    // Tier 2: Critical Path - API client module
+    // Current: 65% stmts, 59% branches, 70% funcs, 66% lines
+    // Threshold: Contract minimum of 40% (lower baseline while tests mature)
+    // See: specs/023-dashboard-coverage/contracts/coverage-thresholds.md
+    "ui/artifact-client.ts": {
+      statements: 40,
+      branches: 35,
+      functions: 40,
+      lines: 40,
+    },
+
+    // Tier 2: Critical Path - XSS prevention module
+    // Current: 100% all metrics
+    // Threshold: High bar (95%+) for security-critical code
+    // See: specs/023-dashboard-coverage/contracts/coverage-thresholds.md
+    "ui/modules/shared/security.ts": {
+      statements: 95,
+      branches: 90,
+      functions: 100,
+      lines: 95,
+    },
   },
   // Mock fetch globally
   setupFilesAfterEnv: ["<rootDir>/tests/setup.ts"],
