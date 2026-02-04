@@ -6,7 +6,7 @@ import time
 from dataclasses import dataclass
 from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, cast
 
 import pandas as pd
 
@@ -173,7 +173,8 @@ class ProphetForecaster:
         # Rename for Prophet (ds = date, y = value)
         weekly["ds"] = pd.to_datetime(weekly["week_start"])
 
-        return weekly
+        # TODO: Remove cast when pandas-stubs are normalized across CI/local
+        return cast(pd.DataFrame, weekly)
 
     def _forecast_metric(
         self,

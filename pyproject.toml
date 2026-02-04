@@ -91,6 +91,10 @@ strict = true
 warn_return_any = true
 warn_unused_configs = true
 ignore_missing_imports = false
+# Disable redundant-cast warnings: pandas-stubs versions differ between CI
+# (Ubuntu) and local (Windows), causing cast(pd.DataFrame, ...) to be required
+# in CI but flagged as redundant locally. See forecaster.py:176, fallback_forecaster.py:403.
+warn_redundant_casts = false
 exclude = [
     "^build/",
     "^dist/",
