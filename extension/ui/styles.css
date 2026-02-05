@@ -680,6 +680,12 @@ body {
     stroke-linejoin: round;
 }
 
+.truncation-indicator {
+    font-size: 11px;
+    color: var(--text-tertiary);
+    margin-bottom: 4px;
+}
+
 .chart-legend {
     display: flex;
     justify-content: flex-end;
