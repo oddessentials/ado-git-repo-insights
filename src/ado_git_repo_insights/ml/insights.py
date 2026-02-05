@@ -1,12 +1,22 @@
-"""OpenAI-based insights generator for Phase 5.
+"""LLM-based insights generator for Phase 5.
 
 Produces insights/summary.json with contract-compliant insights:
 - schema_version: 1
 - is_stub: false
-- generated_by: "openai-v1.0"
+- generated_by: "{provider}-v1.0"
 - Categories: bottleneck, trend, anomaly
 - Severities: info, warning, critical
 - Single API call for up to 3 insights
+
+Supported providers:
+- OpenAI (default): Set OPENAI_API_KEY
+- Azure OpenAI: Set AZURE_OPENAI_API_KEY + AZURE_OPENAI_ENDPOINT + AZURE_OPENAI_DEPLOYMENT
+- Anthropic: Set ANTHROPIC_API_KEY
+
+Provider is auto-detected based on environment variables with the following priority:
+1. Azure OpenAI (if AZURE_OPENAI_ENDPOINT is set)
+2. Anthropic (if ANTHROPIC_API_KEY is set)
+3. OpenAI (default, requires OPENAI_API_KEY)
 """
 
 from __future__ import annotations
@@ -16,7 +26,10 @@ import json
 import logging
 import os
 import time
+from abc import ABC, abstractmethod
+from dataclasses import dataclass
 from datetime import datetime, timezone
+from enum import Enum
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
@@ -29,17 +42,296 @@ logger = logging.getLogger(__name__)
 
 # Schema version (locked)
 INSIGHTS_SCHEMA_VERSION = 1
-GENERATOR_ID = "openai-v1.0"
+
+
+class LLMProvider(Enum):
+    """Supported LLM providers for insights generation."""
+
+    OPENAI = "openai"
+    AZURE_OPENAI = "azure-openai"
+    ANTHROPIC = "anthropic"
+
+
+@dataclass
+class ProviderConfig:
+    """Configuration for an LLM provider.
+
+    This dataclass encapsulates all provider-specific configuration,
+    enabling clean separation between provider detection and usage.
+    """
+
+    provider: LLMProvider
+    api_key: str
+    model: str
+    # Azure OpenAI specific
+    endpoint: str | None = None
+    deployment: str | None = None
+    api_version: str | None = None
+
+    def get_generator_id(self) -> str:
+        """Get the generator ID for this provider configuration."""
+        return f"{self.provider.value}-v1.0"
+
+
+def detect_provider() -> ProviderConfig:
+    """Auto-detect the LLM provider based on environment variables.
+
+    Detection priority:
+    1. Azure OpenAI - if AZURE_OPENAI_ENDPOINT is set (requires full Azure config)
+    2. Anthropic - if ANTHROPIC_API_KEY is set
+    3. OpenAI - default, requires OPENAI_API_KEY
+
+    Returns:
+        ProviderConfig with detected provider and configuration.
+
+    Raises:
+        ValueError: If no valid provider configuration is found.
+    """
+    # Check Azure OpenAI first (most specific configuration)
+    azure_endpoint = os.environ.get("AZURE_OPENAI_ENDPOINT")
+    if azure_endpoint:
+        azure_key = os.environ.get("AZURE_OPENAI_API_KEY") or os.environ.get(
+            "OPENAI_API_KEY"
+        )
+        if not azure_key:
+            raise ValueError(
+                "Azure OpenAI endpoint specified but no API key found. "
+                "Set AZURE_OPENAI_API_KEY or OPENAI_API_KEY."
+            )
+
+        deployment = os.environ.get("AZURE_OPENAI_DEPLOYMENT")
+        if not deployment:
+            raise ValueError(
+                "Azure OpenAI endpoint specified but AZURE_OPENAI_DEPLOYMENT not set. "
+                "This is required to identify the model deployment."
+            )
+
+        api_version = os.environ.get("AZURE_OPENAI_API_VERSION", "2024-02-01")
+
+        logger.info(
+            f"Detected Azure OpenAI provider: endpoint={azure_endpoint}, "
+            f"deployment={deployment}, api_version={api_version}"
+        )
+
+        return ProviderConfig(
+            provider=LLMProvider.AZURE_OPENAI,
+            api_key=azure_key,
+            model=deployment,  # Azure uses deployment name as model
+            endpoint=azure_endpoint,
+            deployment=deployment,
+            api_version=api_version,
+        )
+
+    # Check Anthropic
+    anthropic_key = os.environ.get("ANTHROPIC_API_KEY")
+    if anthropic_key:
+        model = os.environ.get("ANTHROPIC_MODEL", "claude-sonnet-4-20250514")
+        logger.info(f"Detected Anthropic provider: model={model}")
+        return ProviderConfig(
+            provider=LLMProvider.ANTHROPIC,
+            api_key=anthropic_key,
+            model=model,
+        )
+
+    # Default to OpenAI
+    openai_key = os.environ.get("OPENAI_API_KEY")
+    if openai_key:
+        model = os.environ.get("OPENAI_MODEL", DEFAULT_MODEL)
+        logger.info(f"Detected OpenAI provider: model={model}")
+        return ProviderConfig(
+            provider=LLMProvider.OPENAI,
+            api_key=openai_key,
+            model=model,
+        )
+
+    raise ValueError(
+        "No LLM provider configured. Set one of:\n"
+        "  - OPENAI_API_KEY (for OpenAI)\n"
+        "  - ANTHROPIC_API_KEY (for Anthropic)\n"
+        "  - AZURE_OPENAI_ENDPOINT + AZURE_OPENAI_API_KEY + AZURE_OPENAI_DEPLOYMENT "
+        "(for Azure OpenAI)"
+    )
+
+
+class BaseLLMClient(ABC):
+    """Abstract base class for LLM clients.
+
+    This provides a consistent interface for calling different LLM providers,
+    enabling clean separation of provider-specific implementation details.
+    """
+
+    def __init__(self, config: ProviderConfig, max_tokens: int = 1000) -> None:
+        """Initialize the LLM client.
+
+        Args:
+            config: Provider configuration.
+            max_tokens: Maximum tokens for the response.
+        """
+        self.config = config
+        self.max_tokens = max_tokens
+
+    @abstractmethod
+    def generate(self, system_prompt: str, user_prompt: str) -> str | None:
+        """Generate a response from the LLM.
+
+        Args:
+            system_prompt: The system prompt setting context.
+            user_prompt: The user prompt with the request.
+
+        Returns:
+            The generated response text, or None if the call failed.
+        """
+        pass
+
+
+class OpenAIClient(BaseLLMClient):
+    """OpenAI API client implementation."""
+
+    def generate(self, system_prompt: str, user_prompt: str) -> str | None:
+        """Generate a response using the OpenAI API."""
+        import openai
+
+        client = openai.OpenAI(api_key=self.config.api_key)
+
+        try:
+            response = client.chat.completions.create(
+                model=self.config.model,
+                messages=[
+                    {"role": "system", "content": system_prompt},
+                    {"role": "user", "content": user_prompt},
+                ],
+                max_tokens=self.max_tokens,
+                temperature=0.7,
+            )
+
+            if not response.choices:
+                logger.warning("OpenAI returned no choices")
+                return None
+
+            content = response.choices[0].message.content
+            if not content:
+                logger.warning("OpenAI returned empty content")
+                return None
+
+            # Cast to str to satisfy mypy (SDK returns Any without stubs)
+            return str(content)
+
+        except Exception as e:
+            logger.warning(f"OpenAI API error: {type(e).__name__}: {e}")
+            return None
+
+
+class AzureOpenAIClient(BaseLLMClient):
+    """Azure OpenAI API client implementation."""
+
+    def generate(self, system_prompt: str, user_prompt: str) -> str | None:
+        """Generate a response using the Azure OpenAI API."""
+        import openai
+
+        client = openai.AzureOpenAI(
+            api_key=self.config.api_key,
+            api_version=self.config.api_version,
+            azure_endpoint=self.config.endpoint,
+        )
+
+        try:
+            response = client.chat.completions.create(
+                model=self.config.deployment,  # Azure uses deployment name
+                messages=[
+                    {"role": "system", "content": system_prompt},
+                    {"role": "user", "content": user_prompt},
+                ],
+                max_tokens=self.max_tokens,
+                temperature=0.7,
+            )
+
+            if not response.choices:
+                logger.warning("Azure OpenAI returned no choices")
+                return None
+
+            content = response.choices[0].message.content
+            if not content:
+                logger.warning("Azure OpenAI returned empty content")
+                return None
+
+            # Cast to str to satisfy mypy (SDK returns Any without stubs)
+            return str(content)
+
+        except Exception as e:
+            logger.warning(f"Azure OpenAI API error: {type(e).__name__}: {e}")
+            return None
+
+
+class AnthropicClient(BaseLLMClient):
+    """Anthropic API client implementation."""
+
+    def generate(self, system_prompt: str, user_prompt: str) -> str | None:
+        """Generate a response using the Anthropic API."""
+        import anthropic
+
+        client = anthropic.Anthropic(api_key=self.config.api_key)
+
+        try:
+            response = client.messages.create(
+                model=self.config.model,
+                max_tokens=self.max_tokens,
+                system=system_prompt,
+                messages=[{"role": "user", "content": user_prompt}],
+            )
+
+            if not response.content:
+                logger.warning("Anthropic returned no content")
+                return None
+
+            # Anthropic returns a list of content blocks
+            text_blocks = [
+                block.text for block in response.content if hasattr(block, "text")
+            ]
+            if not text_blocks:
+                logger.warning("Anthropic returned no text content")
+                return None
+
+            # Cast to str to satisfy mypy (SDK returns Any without stubs)
+            return str(text_blocks[0])
+
+        except Exception as e:
+            logger.warning(f"Anthropic API error: {type(e).__name__}: {e}")
+            return None
+
+
+def create_llm_client(config: ProviderConfig, max_tokens: int = 1000) -> BaseLLMClient:
+    """Factory function to create the appropriate LLM client.
+
+    Args:
+        config: Provider configuration from detect_provider().
+        max_tokens: Maximum tokens for responses.
+
+    Returns:
+        Configured LLM client instance.
+
+    Raises:
+        ValueError: If the provider is not supported.
+    """
+    if config.provider == LLMProvider.OPENAI:
+        return OpenAIClient(config, max_tokens)
+    elif config.provider == LLMProvider.AZURE_OPENAI:
+        return AzureOpenAIClient(config, max_tokens)
+    elif config.provider == LLMProvider.ANTHROPIC:
+        return AnthropicClient(config, max_tokens)
+    else:
+        raise ValueError(f"Unsupported provider: {config.provider}")
 
 # Cache invalidation control:
 # Bumping PROMPT_VERSION intentionally invalidates all cached insights.
 # This ensures users get fresh insights after prompt improvements or bug fixes.
-# Current: "phase5-v3" (bumped for v2 schema with data/recommendation fields)
-PROMPT_VERSION = "phase5-v3"
+# Current: "phase5-v4" (bumped for multi-provider support)
+PROMPT_VERSION = "phase5-v4"
 
-# Default model (can be overridden with OPENAI_MODEL env var)
-# PHASE5.md locked decision: gpt-5-nano
-DEFAULT_MODEL = "gpt-5-nano"
+# Default models per provider (can be overridden with environment variables)
+# PHASE5.md locked decision for OpenAI: gpt-5-nano
+DEFAULT_MODEL = "gpt-5-nano"  # OpenAI default
+DEFAULT_ANTHROPIC_MODEL = "claude-sonnet-4-20250514"  # Anthropic default
+DEFAULT_AZURE_API_VERSION = "2024-02-01"  # Azure OpenAI API version
 
 # Severity ordering for deterministic sorting (T033)
 # Order: critical (highest) > warning > info (lowest)
@@ -83,10 +375,11 @@ def sort_insights(insights: list[dict[str, Any]]) -> list[dict[str, Any]]:
 
 
 class LLMInsightsGenerator:
-    """Generate OpenAI-based insights from PR metrics.
+    """Generate LLM-based insights from PR metrics.
 
+    Supports multiple providers: OpenAI, Azure OpenAI, and Anthropic.
     Single API call requesting JSON with up to 3 insights (one per category).
-    Supports dry-run mode and 24h caching.
+    Supports dry-run mode and 12h caching.
     """
 
     def __init__(
@@ -102,7 +395,7 @@ class LLMInsightsGenerator:
         Args:
             db: Database manager with PR data.
             output_dir: Directory for output files.
-            max_tokens: Maximum tokens for OpenAI response.
+            max_tokens: Maximum tokens for LLM response.
             cache_ttl_hours: Cache TTL in hours.
             dry_run: If True, write prompt artifact without calling API.
         """
@@ -111,7 +404,45 @@ class LLMInsightsGenerator:
         self.max_tokens = max_tokens
         self.cache_ttl_hours = cache_ttl_hours
         self.dry_run = dry_run
-        self.model = os.environ.get("OPENAI_MODEL", DEFAULT_MODEL)
+
+        # Provider detection is deferred until generate() to allow dry-run
+        # without requiring API credentials
+        self._provider_config: ProviderConfig | None = None
+        self._llm_client: BaseLLMClient | None = None
+
+    @property
+    def provider_config(self) -> ProviderConfig:
+        """Lazy-load provider configuration.
+
+        Returns:
+            Detected provider configuration.
+
+        Raises:
+            ValueError: If no valid provider is configured.
+        """
+        if self._provider_config is None:
+            self._provider_config = detect_provider()
+        return self._provider_config
+
+    @property
+    def model(self) -> str:
+        """Get the model name for the configured provider."""
+        return self.provider_config.model
+
+    @property
+    def generator_id(self) -> str:
+        """Get the generator ID for the configured provider."""
+        return self.provider_config.get_generator_id()
+
+    def _get_llm_client(self) -> BaseLLMClient:
+        """Get or create the LLM client.
+
+        Returns:
+            Configured LLM client for the detected provider.
+        """
+        if self._llm_client is None:
+            self._llm_client = create_llm_client(self.provider_config, self.max_tokens)
+        return self._llm_client
 
     def generate(self) -> bool:
         """Generate insights and write to summary.json.
@@ -134,9 +465,14 @@ class LLMInsightsGenerator:
 
         if self.dry_run:
             # Dry-run: write prompt artifact and exit
-            # NO API call, NO client creation
+            # NO API call, NO client creation, NO provider detection required
+            # Use placeholder values for model since provider may not be configured
+            model_name = os.environ.get(
+                "OPENAI_MODEL",
+                os.environ.get("ANTHROPIC_MODEL", DEFAULT_MODEL),
+            )
             prompt_artifact = {
-                "model": self.model,
+                "model": model_name,
                 "max_tokens": self.max_tokens,
                 "prompt": prompt,
                 "generated_at": datetime.now(timezone.utc).isoformat(),
@@ -149,6 +485,17 @@ class LLMInsightsGenerator:
                 "No API call made, no costs incurred."
             )
             return False  # Don't write summary.json in dry-run
+
+        # Detect provider and log configuration
+        try:
+            config = self.provider_config
+            logger.info(
+                f"Using LLM provider: {config.provider.value} "
+                f"(model: {config.model})"
+            )
+        except ValueError as e:
+            logger.error(f"Provider configuration error: {e}")
+            return False
 
         # Check cache
         cache_path = safe_join(insights_dir, "cache.json")
@@ -163,15 +510,15 @@ class LLMInsightsGenerator:
             logger.info("Cache hit - wrote insights from cache")
             return True
 
-        # Call OpenAI API
+        # Call LLM API
         try:
-            insights_data = self._call_openai(prompt)
+            insights_data = self._call_llm(prompt)
         except Exception as e:
-            logger.warning(f"OpenAI API call failed: {type(e).__name__}: {e}")
+            logger.warning(f"LLM API call failed: {type(e).__name__}: {e}")
             return False
 
         if not insights_data:
-            logger.warning("OpenAI returned no insights")
+            logger.warning("LLM returned no insights")
             return False
 
         # Write summary.json
@@ -184,7 +531,8 @@ class LLMInsightsGenerator:
 
         elapsed = time.perf_counter() - start_time
         logger.info(
-            f"OpenAI insights generation completed in {elapsed:.2f}s "
+            f"{self.provider_config.provider.value} insights generation "
+            f"completed in {elapsed:.2f}s "
             f"({len(insights_data.get('insights', []))} insights)"
         )
         return True
@@ -431,8 +779,8 @@ Respond ONLY with valid JSON matching this format."""
         with cache_path.open("w", encoding="utf-8") as f:
             json.dump(cache_data, f, indent=2)
 
-    def _call_openai(self, prompt: str) -> dict[str, Any] | None:
-        """Call OpenAI API and parse response.
+    def _call_llm(self, prompt: str) -> dict[str, Any] | None:
+        """Call the configured LLM API and parse response.
 
         Args:
             prompt: The prompt string.
@@ -440,44 +788,20 @@ Respond ONLY with valid JSON matching this format."""
         Returns:
             Insights data dict or None if failed.
         """
-        import openai
-
-        api_key = os.environ.get("OPENAI_API_KEY")
-        if not api_key:
-            raise ValueError("OPENAI_API_KEY not set")
-
-        # OpenAI SDK v1.0+ client-based API
-        client = openai.OpenAI(api_key=api_key)
+        system_prompt = "You are a DevOps metrics analyst. Respond only with valid JSON."
 
         try:
-            response = client.chat.completions.create(
-                model=self.model,
-                messages=[
-                    {
-                        "role": "system",
-                        "content": "You are a DevOps metrics analyst. Respond only with valid JSON.",
-                    },
-                    {"role": "user", "content": prompt},
-                ],
-                max_tokens=self.max_tokens,
-                temperature=0.7,
-            )
+            client = self._get_llm_client()
+            content = client.generate(system_prompt, prompt)
 
-            # Extract response text
-            if not response.choices:
-                logger.warning("OpenAI returned no choices")
-                return None
-
-            content = response.choices[0].message.content
             if not content:
-                logger.warning("OpenAI returned empty content")
                 return None
 
             # Parse JSON
             try:
                 insights_json = json.loads(content)
             except json.JSONDecodeError as e:
-                logger.warning(f"Failed to parse OpenAI response as JSON: {e}")
+                logger.warning(f"Failed to parse LLM response as JSON: {e}")
                 return None
 
             # Get DB freshness markers for deterministic ID generation
@@ -505,7 +829,7 @@ Respond ONLY with valid JSON matching this format."""
             )
 
         except Exception as e:
-            logger.warning(f"OpenAI API error: {type(e).__name__}: {e}")
+            logger.warning(f"LLM API error: {type(e).__name__}: {e}")
             return None
 
     def _validate_and_fix_insights(
@@ -570,6 +894,6 @@ Respond ONLY with valid JSON matching this format."""
             "schema_version": INSIGHTS_SCHEMA_VERSION,
             "generated_at": datetime.now(timezone.utc).isoformat(),
             "is_stub": False,
-            "generated_by": GENERATOR_ID,
+            "generated_by": self.generator_id,
             "insights": sorted_insights,
         }

@@ -200,7 +200,7 @@ def create_parser() -> argparse.ArgumentParser:  # pragma: no cover
         "--enable-insights",
         action="store_true",
         default=False,
-        help="Enable OpenAI-based insights (requires openai package and OPENAI_API_KEY)",
+        help="Enable LLM-based insights (supports OpenAI, Azure OpenAI, Anthropic)",
     )
     agg_parser.add_argument(
         "--insights-max-tokens",
@@ -262,7 +262,7 @@ def create_parser() -> argparse.ArgumentParser:  # pragma: no cover
         "--enable-insights",
         action="store_true",
         default=False,
-        help="Enable OpenAI-based insights",
+        help="Enable LLM-based insights (supports OpenAI, Azure OpenAI, Anthropic)",
     )
     # Unified dashboard serve flags (Flight 260127A)
     build_parser.add_argument(
@@ -756,18 +756,50 @@ def cmd_generate_aggregates(args: Namespace) -> int:
     enable_insights = getattr(args, "enable_insights", False)
     insights_dry_run = getattr(args, "insights_dry_run", False)
     if enable_insights:
-        # Check for OPENAI_API_KEY only if NOT in dry-run mode
-        # Dry-run doesn't call API so shouldn't require a key
+        # Check for any valid LLM provider configuration only if NOT in dry-run mode
+        # Dry-run doesn't call API so shouldn't require credentials
         import os
 
-        if not insights_dry_run and not os.environ.get("OPENAI_API_KEY"):
-            logger.error(
-                "OPENAI_API_KEY is required for --enable-insights. "
-                "Set the environment variable, or use --insights-dry-run for prompt iteration."
-            )
-            return 1
+        if not insights_dry_run:
+            # Check for any supported provider
+            has_openai = bool(os.environ.get("OPENAI_API_KEY"))
+            has_azure_openai = bool(os.environ.get("AZURE_OPENAI_ENDPOINT"))
+            has_anthropic = bool(os.environ.get("ANTHROPIC_API_KEY"))
 
-        # Check for openai package (needed even for dry-run to build prompt)
+            if not (has_openai or has_azure_openai or has_anthropic):
+                logger.error(
+                    "No LLM provider configured for --enable-insights.\n"
+                    "Set one of the following:\n"
+                    "  - OPENAI_API_KEY (for OpenAI)\n"
+                    "  - ANTHROPIC_API_KEY (for Anthropic)\n"
+                    "  - AZURE_OPENAI_ENDPOINT + AZURE_OPENAI_API_KEY + "
+                    "AZURE_OPENAI_DEPLOYMENT (for Azure OpenAI)\n"
+                    "Or use --insights-dry-run for prompt iteration without API calls."
+                )
+                return 1
+
+            # Validate Azure OpenAI has all required configuration
+            if has_azure_openai:
+                azure_key = os.environ.get(
+                    "AZURE_OPENAI_API_KEY"
+                ) or os.environ.get("OPENAI_API_KEY")
+                azure_deployment = os.environ.get("AZURE_OPENAI_DEPLOYMENT")
+                missing = []
+                if not azure_key:
+                    missing.append(
+                        "AZURE_OPENAI_API_KEY (or OPENAI_API_KEY)"
+                    )
+                if not azure_deployment:
+                    missing.append("AZURE_OPENAI_DEPLOYMENT")
+                if missing:
+                    logger.error(
+                        f"Azure OpenAI endpoint specified but missing: "
+                        f"{', '.join(missing)}"
+                    )
+                    return 1
+
+        # Check for LLM SDK packages (needed even for dry-run to build prompt)
+        # We check for openai by default, but also check for anthropic if configured
         try:
             import openai  # noqa: F401 -- REASON: import used for ML dependency check
         except ImportError:
@@ -775,6 +807,17 @@ def cmd_generate_aggregates(args: Namespace) -> int:
                 "OpenAI SDK not installed. Install ML extras: pip install -e '.[ml]'"
             )
             return 1
+
+        # Check anthropic package if Anthropic provider is configured
+        if os.environ.get("ANTHROPIC_API_KEY") and not insights_dry_run:
+            try:
+                import anthropic  # noqa: F401 -- REASON: import for Anthropic check
+            except ImportError:
+                logger.error(
+                    "Anthropic SDK not installed but ANTHROPIC_API_KEY is set.\n"
+                    "Install: pip install anthropic>=0.18.0"
+                )
+                return 1
 
     try:
         db = DatabaseManager(args.database)
@@ -894,12 +937,39 @@ def cmd_build_aggregates(args: Namespace) -> int:
     if enable_insights:
         import os
 
-        if not os.environ.get("OPENAI_API_KEY"):
+        # Check for any supported provider
+        has_openai = bool(os.environ.get("OPENAI_API_KEY"))
+        has_azure_openai = bool(os.environ.get("AZURE_OPENAI_ENDPOINT"))
+        has_anthropic = bool(os.environ.get("ANTHROPIC_API_KEY"))
+
+        if not (has_openai or has_azure_openai or has_anthropic):
             logger.error(
-                "OPENAI_API_KEY is required for --enable-insights. "
-                "Set the environment variable, or use --insights-dry-run for prompt iteration."
+                "No LLM provider configured for --enable-insights.\n"
+                "Set one of the following:\n"
+                "  - OPENAI_API_KEY (for OpenAI)\n"
+                "  - ANTHROPIC_API_KEY (for Anthropic)\n"
+                "  - AZURE_OPENAI_ENDPOINT + AZURE_OPENAI_API_KEY + "
+                "AZURE_OPENAI_DEPLOYMENT (for Azure OpenAI)"
             )
             return 1
+
+        # Validate Azure OpenAI has all required configuration
+        if has_azure_openai:
+            azure_key = os.environ.get("AZURE_OPENAI_API_KEY") or os.environ.get(
+                "OPENAI_API_KEY"
+            )
+            azure_deployment = os.environ.get("AZURE_OPENAI_DEPLOYMENT")
+            missing = []
+            if not azure_key:
+                missing.append("AZURE_OPENAI_API_KEY (or OPENAI_API_KEY)")
+            if not azure_deployment:
+                missing.append("AZURE_OPENAI_DEPLOYMENT")
+            if missing:
+                logger.error(
+                    f"Azure OpenAI endpoint specified but missing: "
+                    f"{', '.join(missing)}"
+                )
+                return 1
 
         try:
             import openai  # noqa: F401 -- REASON: import used for ML dependency check
@@ -908,6 +978,17 @@ def cmd_build_aggregates(args: Namespace) -> int:
                 "OpenAI SDK not installed. Install ML extras: pip install -e '.[ml]'"
             )
             return 1
+
+        # Check anthropic package if Anthropic provider is configured
+        if has_anthropic:
+            try:
+                import anthropic  # noqa: F401 -- REASON: import for Anthropic check
+            except ImportError:
+                logger.error(
+                    "Anthropic SDK not installed but ANTHROPIC_API_KEY is set.\n"
+                    "Install: pip install anthropic>=0.18.0"
+                )
+                return 1
 
     # Clean up stale aggregates from previous runs to prevent data mixing
     aggregates_dir = (args.out / "aggregates").resolve()

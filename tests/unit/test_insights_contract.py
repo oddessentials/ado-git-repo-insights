@@ -144,7 +144,6 @@ class TestInsightsContract:
     ) -> None:
         """Insights JSON has exact contract-compliant values."""
         from ado_git_repo_insights.ml.insights import (
-            GENERATOR_ID,
             INSIGHTS_SCHEMA_VERSION,
             LLMInsightsGenerator,
         )
@@ -164,7 +163,8 @@ class TestInsightsContract:
         assert data["schema_version"] == INSIGHTS_SCHEMA_VERSION
         assert data["schema_version"] == 1  # Locked value
         assert data["is_stub"] is False  # Real ML, not stub
-        assert data["generated_by"] == GENERATOR_ID
+        # Generator ID is dynamic based on provider (OpenAI in this test)
+        assert data["generated_by"] == "openai-v1.0"
 
         # Timestamp format
         datetime.fromisoformat(data["generated_at"])  # Should not raise

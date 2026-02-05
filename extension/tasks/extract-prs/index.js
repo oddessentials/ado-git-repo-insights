@@ -162,7 +162,17 @@ async function run() {
     const aggregatesDirInput =
       tl.getInput("aggregatesDir", false) || "aggregates";
     // Phase 5: ML features (enablePredictions/enableInsights already read above for install)
+    // LLM provider configuration
+    const llmProvider = tl.getInput("llmProvider", false) || "openai";
     const openaiApiKey = tl.getInput("openaiApiKey", false);
+    // Azure OpenAI configuration
+    const azureOpenaiEndpoint = tl.getInput("azureOpenaiEndpoint", false);
+    const azureOpenaiApiKey = tl.getInput("azureOpenaiApiKey", false);
+    const azureOpenaiDeployment = tl.getInput("azureOpenaiDeployment", false);
+    const azureOpenaiApiVersion =
+      tl.getInput("azureOpenaiApiVersion", false) || "2024-02-01";
+    // Anthropic configuration
+    const anthropicApiKey = tl.getInput("anthropicApiKey", false);
     // CRITICAL: Input name must match task.json contract ('database', not 'databasePath')
     const databaseInput =
       tl.getInput("database", false) || "ado-insights.sqlite";
@@ -238,22 +248,70 @@ async function run() {
       console.log(`Generate Aggregates: true`);
       console.log(`Aggregates Dir: ${aggregatesDir}`);
       if (enablePredictions) console.log(`ML Predictions: enabled`);
-      if (enableInsights) console.log(`AI Insights: enabled`);
-      if (enableInsights && openaiApiKey)
-        console.log(`OpenAI API Key: ********`);
+      if (enableInsights) {
+        console.log(`AI Insights: enabled`);
+        console.log(`LLM Provider: ${llmProvider}`);
+        if (llmProvider === "openai" && openaiApiKey) {
+          console.log(`OpenAI API Key: ********`);
+        } else if (llmProvider === "azure-openai") {
+          if (azureOpenaiEndpoint)
+            console.log(`Azure OpenAI Endpoint: ${azureOpenaiEndpoint}`);
+          if (azureOpenaiApiKey) console.log(`Azure OpenAI API Key: ********`);
+          if (azureOpenaiDeployment)
+            console.log(`Azure OpenAI Deployment: ${azureOpenaiDeployment}`);
+          console.log(`Azure OpenAI API Version: ${azureOpenaiApiVersion}`);
+        } else if (llmProvider === "anthropic" && anthropicApiKey) {
+          console.log(`Anthropic API Key: ********`);
+        }
+      }
     }
     console.log("=".repeat(50));
 
-    // Phase 5: Validate insights configuration
-    if (enableInsights && !openaiApiKey) {
-      tl.setResult(
-        tl.TaskResult.Failed,
-        `AI Insights enabled but OpenAI API Key not provided.\n\n` +
-          `Resolution:\n` +
-          `1. Create a variable group with OPENAI_API_KEY secret\n` +
-          `2. Set openaiApiKey input to $(OPENAI_API_KEY)`,
-      );
-      return;
+    // Phase 5: Validate insights configuration based on selected provider
+    if (enableInsights) {
+      if (llmProvider === "openai" && !openaiApiKey) {
+        tl.setResult(
+          tl.TaskResult.Failed,
+          `AI Insights enabled with OpenAI provider but API Key not provided.\n\n` +
+            `Resolution:\n` +
+            `1. Create a variable group with OPENAI_API_KEY secret\n` +
+            `2. Set openaiApiKey input to $(OPENAI_API_KEY)`,
+        );
+        return;
+      }
+
+      if (llmProvider === "azure-openai") {
+        const missingAzure = [];
+        if (!azureOpenaiEndpoint) missingAzure.push("azureOpenaiEndpoint");
+        if (!azureOpenaiApiKey) missingAzure.push("azureOpenaiApiKey");
+        if (!azureOpenaiDeployment) missingAzure.push("azureOpenaiDeployment");
+
+        if (missingAzure.length > 0) {
+          tl.setResult(
+            tl.TaskResult.Failed,
+            `AI Insights enabled with Azure OpenAI provider but missing configuration.\n\n` +
+              `Missing inputs: ${missingAzure.join(", ")}\n\n` +
+              `Resolution:\n` +
+              `1. Create a variable group with Azure OpenAI secrets\n` +
+              `2. Set the following inputs:\n` +
+              `   - azureOpenaiEndpoint: $(AZURE_OPENAI_ENDPOINT)\n` +
+              `   - azureOpenaiApiKey: $(AZURE_OPENAI_API_KEY)\n` +
+              `   - azureOpenaiDeployment: your-deployment-name`,
+          );
+          return;
+        }
+      }
+
+      if (llmProvider === "anthropic" && !anthropicApiKey) {
+        tl.setResult(
+          tl.TaskResult.Failed,
+          `AI Insights enabled with Anthropic provider but API Key not provided.\n\n` +
+            `Resolution:\n` +
+            `1. Create a variable group with ANTHROPIC_API_KEY secret\n` +
+            `2. Set anthropicApiKey input to $(ANTHROPIC_API_KEY)`,
+        );
+        return;
+      }
     }
 
     // Validate date formats if provided (fail fast on invalid input)
@@ -360,9 +418,23 @@ async function run() {
 
       console.log(`\n[3/${totalSteps}] Generating aggregates...`);
 
-      // Phase 5: Set OPENAI_API_KEY environment variable for insights
-      const aggEnv =
-        enableInsights && openaiApiKey ? { OPENAI_API_KEY: openaiApiKey } : {};
+      // Phase 5: Set LLM provider environment variables for insights
+      const aggEnv = {};
+      if (enableInsights) {
+        if (llmProvider === "openai" && openaiApiKey) {
+          aggEnv.OPENAI_API_KEY = openaiApiKey;
+        } else if (llmProvider === "azure-openai") {
+          if (azureOpenaiEndpoint)
+            aggEnv.AZURE_OPENAI_ENDPOINT = azureOpenaiEndpoint;
+          if (azureOpenaiApiKey)
+            aggEnv.AZURE_OPENAI_API_KEY = azureOpenaiApiKey;
+          if (azureOpenaiDeployment)
+            aggEnv.AZURE_OPENAI_DEPLOYMENT = azureOpenaiDeployment;
+          aggEnv.AZURE_OPENAI_API_VERSION = azureOpenaiApiVersion;
+        } else if (llmProvider === "anthropic" && anthropicApiKey) {
+          aggEnv.ANTHROPIC_API_KEY = anthropicApiKey;
+        }
+      }
 
       const aggResult = await runPython(pythonCmd, aggArgs, aggEnv);
       if (!aggResult) return;

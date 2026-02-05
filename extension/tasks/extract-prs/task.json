@@ -102,16 +102,71 @@
             "label": "Generate AI Insights",
             "required": false,
             "defaultValue": "false",
-            "helpMarkDown": "Generate AI-powered insights using OpenAI. Requires generateAggregates and openaiApiKey. Adds ~5-15s to pipeline runtime.",
+            "helpMarkDown": "Generate AI-powered insights. Supports OpenAI, Azure OpenAI, and Anthropic. Requires generateAggregates. Adds ~5-15s to pipeline runtime.",
             "visibleRule": "generateAggregates = true"
+        },
+        {
+            "name": "llmProvider",
+            "type": "pickList",
+            "label": "LLM Provider",
+            "required": false,
+            "defaultValue": "openai",
+            "options": {
+                "openai": "OpenAI",
+                "azure-openai": "Azure OpenAI",
+                "anthropic": "Anthropic"
+            },
+            "helpMarkDown": "Select the LLM provider for AI Insights generation.",
+            "visibleRule": "enableInsights = true"
         },
         {
             "name": "openaiApiKey",
             "type": "string",
             "label": "OpenAI API Key",
             "required": false,
-            "helpMarkDown": "OpenAI API key for AI Insights generation. Use $(OPENAI_API_KEY) from a variable group. Required when enableInsights is true.",
-            "visibleRule": "enableInsights = true"
+            "helpMarkDown": "OpenAI API key for AI Insights. Use $(OPENAI_API_KEY) from a variable group.",
+            "visibleRule": "enableInsights = true && llmProvider = openai"
+        },
+        {
+            "name": "azureOpenaiEndpoint",
+            "type": "string",
+            "label": "Azure OpenAI Endpoint",
+            "required": false,
+            "helpMarkDown": "Azure OpenAI endpoint URL (e.g., https://myresource.openai.azure.com). Use $(AZURE_OPENAI_ENDPOINT) from a variable group.",
+            "visibleRule": "enableInsights = true && llmProvider = azure-openai"
+        },
+        {
+            "name": "azureOpenaiApiKey",
+            "type": "string",
+            "label": "Azure OpenAI API Key",
+            "required": false,
+            "helpMarkDown": "Azure OpenAI API key. Use $(AZURE_OPENAI_API_KEY) from a variable group.",
+            "visibleRule": "enableInsights = true && llmProvider = azure-openai"
+        },
+        {
+            "name": "azureOpenaiDeployment",
+            "type": "string",
+            "label": "Azure OpenAI Deployment",
+            "required": false,
+            "helpMarkDown": "Azure OpenAI deployment name (the name you gave your model deployment).",
+            "visibleRule": "enableInsights = true && llmProvider = azure-openai"
+        },
+        {
+            "name": "azureOpenaiApiVersion",
+            "type": "string",
+            "label": "Azure OpenAI API Version",
+            "required": false,
+            "defaultValue": "2024-02-01",
+            "helpMarkDown": "Azure OpenAI API version (default: 2024-02-01).",
+            "visibleRule": "enableInsights = true && llmProvider = azure-openai"
+        },
+        {
+            "name": "anthropicApiKey",
+            "type": "string",
+            "label": "Anthropic API Key",
+            "required": false,
+            "helpMarkDown": "Anthropic API key for AI Insights. Use $(ANTHROPIC_API_KEY) from a variable group.",
+            "visibleRule": "enableInsights = true && llmProvider = anthropic"
         }
     ],
     "execution": {

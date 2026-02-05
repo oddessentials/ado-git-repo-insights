@@ -285,11 +285,13 @@ class TestCmdGenerateAggregates:
         tmp_path: Path,
         monkeypatch: pytest.MonkeyPatch,
     ) -> None:
-        """--enable-insights without OPENAI_API_KEY should return exit code 1."""
+        """--enable-insights without any LLM provider should return exit code 1."""
         from ado_git_repo_insights.cli import cmd_generate_aggregates
 
-        # Ensure no API key
+        # Ensure no LLM provider credentials are set
         monkeypatch.delenv("OPENAI_API_KEY", raising=False)
+        monkeypatch.delenv("AZURE_OPENAI_ENDPOINT", raising=False)
+        monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
 
         # Create a dummy database file
         db_path = tmp_path / "test.sqlite"
@@ -302,7 +304,7 @@ class TestCmdGenerateAggregates:
             enable_ml_stubs=False,
             seed_base="",
             enable_predictions=False,
-            enable_insights=True,  # Enabled without API key
+            enable_insights=True,  # Enabled without any provider
             insights_max_tokens=1000,
             insights_cache_ttl_hours=24,
             insights_dry_run=False,  # Not dry run
@@ -315,7 +317,7 @@ class TestCmdGenerateAggregates:
         assert result == 1
         assert mock_logger.error.called
         error_msg = mock_logger.error.call_args[0][0]
-        assert "OPENAI_API_KEY is required" in error_msg
+        assert "No LLM provider configured" in error_msg
 
     @patch("ado_git_repo_insights.cli.DatabaseManager")
     @patch("ado_git_repo_insights.cli.AggregateGenerator")
@@ -326,11 +328,13 @@ class TestCmdGenerateAggregates:
         tmp_path: Path,
         monkeypatch: pytest.MonkeyPatch,
     ) -> None:
-        """--enable-insights --insights-dry-run should proceed without API key."""
+        """--enable-insights --insights-dry-run should proceed without any provider."""
         from ado_git_repo_insights.cli import cmd_generate_aggregates
 
-        # Ensure no API key
+        # Ensure no LLM provider credentials are set
         monkeypatch.delenv("OPENAI_API_KEY", raising=False)
+        monkeypatch.delenv("AZURE_OPENAI_ENDPOINT", raising=False)
+        monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
 
         # Create a dummy database file
         db_path = tmp_path / "test.sqlite"
@@ -368,7 +372,7 @@ class TestCmdGenerateAggregates:
 
         assert result == 0
         assert not any(
-            "OPENAI_API_KEY is required" in call.args[0]
+            "No LLM provider configured" in call.args[0]
             for call in mock_logger.error.call_args_list
         )
 

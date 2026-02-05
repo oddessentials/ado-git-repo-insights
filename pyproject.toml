@@ -46,6 +46,7 @@ dev = [
 ml = [
     "prophet>=1.1.0",
     "openai>=1.0.0",
+    "anthropic>=0.18.0",
 ]
 
 [project.scripts]
@@ -107,6 +108,7 @@ module = [
     "azure.storage.blob",
     "prophet",
     "openai",
+    "anthropic",
 ]
 ignore_missing_imports = true
 

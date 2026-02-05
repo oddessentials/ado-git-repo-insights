@@ -283,7 +283,7 @@ class TestCacheLogic:
             patch.dict("os.environ", {"OPENAI_API_KEY": "test-key"}),
             patch.object(
                 generator,
-                "_call_openai",
+                "_call_llm",
                 return_value={
                     "schema_version": 1,
                     "generated_at": datetime.now(timezone.utc).isoformat(),

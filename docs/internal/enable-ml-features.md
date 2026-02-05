@@ -53,7 +53,11 @@ pip install prophet>=1.1.0
 
 The system automatically detects Prophet and uses it when available, falling back to linear forecasting otherwise.
 
-### For AI Insights (OpenAI)
+### For AI Insights (LLM Providers)
+
+AI Insights supports three LLM providers. Choose the one that best fits your organization's requirements:
+
+#### Option 1: OpenAI (Default)
 
 1. Create an OpenAI account at https://platform.openai.com
 2. Generate an API key
@@ -63,9 +67,35 @@ The system automatically detects Prophet and uses it when available, falling bac
    - Add variable: `OPENAI_API_KEY` = `sk-...` (mark as secret)
    - Link the variable group to your pipeline
 
+#### Option 2: Azure OpenAI (Enterprise)
+
+Recommended for organizations with data residency requirements or existing Azure investments.
+
+1. Create an Azure OpenAI resource in the Azure Portal
+2. Deploy a model (e.g., `gpt-4o`, `gpt-4o-mini`)
+3. Note your endpoint URL and deployment name
+4. Store the configuration as secrets in Azure DevOps:
+   - Go to Pipelines > Library > Variable Groups
+   - Create a new variable group (e.g., "Azure OpenAI Secrets")
+   - Add variables (mark as secret):
+     - `AZURE_OPENAI_ENDPOINT` = `https://your-resource.openai.azure.com`
+     - `AZURE_OPENAI_API_KEY` = your Azure OpenAI key
+     - `AZURE_OPENAI_DEPLOYMENT` = your deployment name
+   - Link the variable group to your pipeline
+
+#### Option 3: Anthropic
+
+1. Create an Anthropic account at https://console.anthropic.com
+2. Generate an API key
+3. Store the key as a secret in Azure DevOps:
+   - Go to Pipelines > Library > Variable Groups
+   - Create a new variable group (e.g., "Anthropic Secrets")
+   - Add variable: `ANTHROPIC_API_KEY` = `sk-ant-...` (mark as secret)
+   - Link the variable group to your pipeline
+
 ## Pipeline Configuration
 
-### Basic Configuration
+### Basic Configuration (OpenAI)
 
 Add the new inputs to your pipeline YAML:
 
@@ -81,10 +111,48 @@ Add the new inputs to your pipeline YAML:
     # Enable ML features
     enablePredictions: true
     enableInsights: true
+    llmProvider: openai
     openaiApiKey: $(OPENAI_API_KEY)
 ```
 
-### Full Example
+### Azure OpenAI Configuration
+
+```yaml
+- task: ExtractPullRequests@2
+  inputs:
+    organization: $(System.CollectionUri)
+    projects: |
+      ProjectA
+      ProjectB
+    pat: $(PAT)
+    generateAggregates: true
+    enablePredictions: true
+    enableInsights: true
+    llmProvider: azure-openai
+    azureOpenaiEndpoint: $(AZURE_OPENAI_ENDPOINT)
+    azureOpenaiApiKey: $(AZURE_OPENAI_API_KEY)
+    azureOpenaiDeployment: $(AZURE_OPENAI_DEPLOYMENT)
+    azureOpenaiApiVersion: '2024-02-01'  # Optional, defaults to 2024-02-01
+```
+
+### Anthropic Configuration
+
+```yaml
+- task: ExtractPullRequests@2
+  inputs:
+    organization: $(System.CollectionUri)
+    projects: |
+      ProjectA
+      ProjectB
+    pat: $(PAT)
+    generateAggregates: true
+    enablePredictions: true
+    enableInsights: true
+    llmProvider: anthropic
+    anthropicApiKey: $(ANTHROPIC_API_KEY)
+```
+
+### Full Example (Azure OpenAI)
 
 ```yaml
 trigger:
@@ -98,7 +166,7 @@ schedules:
     always: true
 
 variables:
-  - group: OpenAI Secrets  # Contains OPENAI_API_KEY
+  - group: Azure OpenAI Secrets  # Contains AZURE_OPENAI_* variables
 
 stages:
   - stage: Extract
@@ -121,7 +189,10 @@ stages:
               generateAggregates: true
               enablePredictions: true
               enableInsights: true
-              openaiApiKey: $(OPENAI_API_KEY)
+              llmProvider: azure-openai
+              azureOpenaiEndpoint: $(AZURE_OPENAI_ENDPOINT)
+              azureOpenaiApiKey: $(AZURE_OPENAI_API_KEY)
+              azureOpenaiDeployment: $(AZURE_OPENAI_DEPLOYMENT)
 
           - task: PublishPipelineArtifact@1
             inputs:
@@ -133,9 +204,15 @@ stages:
 
 | Input | Type | Default | Description |
 |-------|------|---------|-------------|
-| `enablePredictions` | boolean | `false` | Generate ML predictions using Prophet |
-| `enableInsights` | boolean | `false` | Generate AI insights using OpenAI |
-| `openaiApiKey` | string | - | OpenAI API key (required if `enableInsights` is true) |
+| `enablePredictions` | boolean | `false` | Generate ML predictions using Prophet/Linear forecaster |
+| `enableInsights` | boolean | `false` | Generate AI insights using configured LLM provider |
+| `llmProvider` | string | `openai` | LLM provider: `openai`, `azure-openai`, or `anthropic` |
+| `openaiApiKey` | string | - | OpenAI API key (required if `llmProvider` is `openai`) |
+| `azureOpenaiEndpoint` | string | - | Azure OpenAI endpoint URL (required if `llmProvider` is `azure-openai`) |
+| `azureOpenaiApiKey` | string | - | Azure OpenAI API key (required if `llmProvider` is `azure-openai`) |
+| `azureOpenaiDeployment` | string | - | Azure OpenAI deployment name (required if `llmProvider` is `azure-openai`) |
+| `azureOpenaiApiVersion` | string | `2024-02-01` | Azure OpenAI API version |
+| `anthropicApiKey` | string | - | Anthropic API key (required if `llmProvider` is `anthropic`) |
 
 ## Output Files
 
@@ -205,7 +282,7 @@ Contains AI-generated insights with actionable recommendations (v2 schema):
   "schema_version": 1,
   "generated_at": "2026-01-18T12:00:00Z",
   "is_stub": false,
-  "generated_by": "openai-v1.0",
+  "generated_by": "openai-v1.0",  // or "azure-openai-v1.0" or "anthropic-v1.0"
   "insights": [
     {
       "id": "bottleneck-abc123",
@@ -284,9 +361,13 @@ pip install "ado-git-repo-insights[ml]"
 pip install prophet>=1.1.0
 ```
 
-### "AI Insights enabled but OpenAI API Key not provided"
+### "AI Insights enabled but API Key not provided"
 
-Ensure `openaiApiKey` input is set and the variable group is linked to your pipeline.
+Ensure the appropriate API key input is set for your selected provider and the variable group is linked to your pipeline:
+
+- **OpenAI**: Set `openaiApiKey` input
+- **Azure OpenAI**: Set `azureOpenaiEndpoint`, `azureOpenaiApiKey`, and `azureOpenaiDeployment`
+- **Anthropic**: Set `anthropicApiKey` input
 
 ### Prophet installation fails
 
@@ -294,12 +375,14 @@ Prophet requires additional build tools. See [Prophet Installation](https://face
 
 The linear fallback forecaster provides good results without Prophet - consider using it if Prophet installation is problematic.
 
-### OpenAI rate limits
+### LLM API rate limits
 
 The insights generator caches results for 12 hours to minimize API calls. If you hit rate limits:
 1. Wait for the rate limit window to reset
-2. Consider using a higher-tier OpenAI plan
+2. Consider using a higher-tier plan with your provider
 3. Delete `insights/cache.json` to force regeneration
+
+For Azure OpenAI, you can also increase the TPM (tokens per minute) quota in the Azure Portal.
 
 ### "Low Confidence" data quality warning
 
@@ -320,6 +403,17 @@ This indicates 4-7 weeks of data. Forecasts are generated but may be less accura
 
 ### OpenAI (AI Insights)
 - **Cost**: ~$0.001-0.01 per run (depends on PR count)
+- **Runtime**: +5-15 seconds per pipeline run
+- **Caching**: Results cached for 12 hours (same data = no API call)
+
+### Azure OpenAI (AI Insights)
+- **Cost**: Varies by model and region (~$0.001-0.02 per run)
+- **Runtime**: +5-15 seconds per pipeline run
+- **Caching**: Results cached for 12 hours (same data = no API call)
+- **Benefits**: Data residency control, enterprise compliance
+
+### Anthropic (AI Insights)
+- **Cost**: ~$0.003-0.015 per run (depends on PR count)
 - **Runtime**: +5-15 seconds per pipeline run
 - **Caching**: Results cached for 12 hours (same data = no API call)
 
@@ -344,7 +438,18 @@ For local development and testing, synthetic preview data is available:
 ## Security
 
 - **PAT**: Never logged, passed securely to Python process
-- **OpenAI API Key**: Passed via environment variable, never logged
-- **Data**: PR metadata is sent to OpenAI for analysis (titles, cycle times, counts)
+- **API Keys**: All provider API keys are passed via environment variables, never logged
+- **Data**: PR metadata is sent to the configured LLM provider for analysis (titles, cycle times, counts)
 
-If your organization has data residency requirements, consider using Azure OpenAI Service instead.
+### Data Residency Considerations
+
+| Provider | Data Location | Recommendation |
+|----------|--------------|----------------|
+| **OpenAI** | US data centers | Suitable for most organizations |
+| **Azure OpenAI** | Your chosen Azure region | **Recommended** for data residency requirements |
+| **Anthropic** | US data centers | Suitable for most organizations |
+
+For organizations with strict data residency requirements, Azure OpenAI allows you to:
+- Choose the Azure region where your data is processed
+- Leverage existing Azure compliance certifications
+- Use private endpoints for network isolation
