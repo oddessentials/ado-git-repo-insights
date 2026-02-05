@@ -212,6 +212,8 @@ describe("Scalability Invariants", () => {
 });
 
 describe("Scalability Test Data Requirements", () => {
+  const extensionRoot = path.join(__dirname, "..");
+
   /**
    * These constants define the minimum requirements for scalability testing.
    * Any test dataset claiming to be a "scalability test" must meet these thresholds.
