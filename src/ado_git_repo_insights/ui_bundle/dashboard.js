@@ -4116,16 +4116,19 @@ var PRInsightsDashboard = (() => {
   }
 
   // ui/modules/charts/throughput.ts
+  var MAX_THROUGHPUT_POINTS = 104;
   function renderThroughputChart(container, rollups) {
     if (!container) return;
     if (!rollups || !rollups.length) {
       renderNoData(container, "No data for selected range");
       return;
     }
-    const prCounts = rollups.map((r) => r.pr_count || 0);
+    const truncated = rollups.length > MAX_THROUGHPUT_POINTS;
+    const displayRollups = truncated ? rollups.slice(-MAX_THROUGHPUT_POINTS) : rollups;
+    const prCounts = displayRollups.map((r) => r.pr_count || 0);
     const maxCount = Math.max(...prCounts);
     const movingAvg = calculateMovingAverage(prCounts, 4);
-    const barsHtml = rollups.map((r) => {
+    const barsHtml = displayRollups.map((r) => {
       const height = maxCount > 0 ? (r.pr_count || 0) / maxCount * 100 : 0;
       const weekLabel = r.week.split("-W")[1] || "";
       return `
@@ -4135,7 +4138,8 @@ var PRInsightsDashboard = (() => {
             </div>
         `;
     }).join("");
-    const trendLineHtml = renderTrendLine(rollups, movingAvg, maxCount);
+    const trendLineHtml = renderTrendLine(displayRollups, movingAvg, maxCount);
+    const truncationHtml = truncated ? `<div class="truncation-indicator">Showing last 2 years (${MAX_THROUGHPUT_POINTS} weeks)</div>` : "";
     const legendHtml = `
         <div class="chart-legend">
             <div class="legend-item">
@@ -4151,6 +4155,7 @@ var PRInsightsDashboard = (() => {
     renderTrustedHtml(
       container,
       `
+        ${truncationHtml}
         <div class="chart-with-trend">
             <div class="bar-chart">${barsHtml}</div>
             ${trendLineHtml}

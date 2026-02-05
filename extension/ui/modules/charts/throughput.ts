@@ -11,6 +11,9 @@ import type { Rollup } from "../../dataset-loader";
 import { calculateMovingAverage } from "../metrics";
 import { escapeHtml, renderNoData, renderTrustedHtml } from "../shared/render";
 
+/** Maximum data points rendered in the throughput chart (2 years of weekly data). */
+export const MAX_THROUGHPUT_POINTS = 104;
+
 /**
  * Render throughput chart with trend line overlay.
  *
@@ -31,12 +34,18 @@ export function renderThroughputChart(
     return;
   }
 
-  const prCounts = rollups.map((r) => r.pr_count || 0);
+  // Truncate to most recent data points if over the cap
+  const truncated = rollups.length > MAX_THROUGHPUT_POINTS;
+  const displayRollups = truncated
+    ? rollups.slice(-MAX_THROUGHPUT_POINTS)
+    : rollups;
+
+  const prCounts = displayRollups.map((r) => r.pr_count || 0);
   const maxCount = Math.max(...prCounts);
   const movingAvg = calculateMovingAverage(prCounts, 4);
 
   // Render bar chart
-  const barsHtml = rollups
+  const barsHtml = displayRollups
     .map((r) => {
       const height = maxCount > 0 ? ((r.pr_count || 0) / maxCount) * 100 : 0;
       const weekLabel = r.week.split("-W")[1] || "";
@@ -51,7 +60,12 @@ export function renderThroughputChart(
     .join("");
 
   // Render trend line SVG overlay
-  const trendLineHtml = renderTrendLine(rollups, movingAvg, maxCount);
+  const trendLineHtml = renderTrendLine(displayRollups, movingAvg, maxCount);
+
+  // Truncation indicator
+  const truncationHtml = truncated
+    ? `<div class="truncation-indicator">Showing last 2 years (${MAX_THROUGHPUT_POINTS} weeks)</div>`
+    : "";
 
   // Legend
   const legendHtml = `
@@ -71,6 +85,7 @@ export function renderThroughputChart(
   renderTrustedHtml(
     container,
     `
+        ${truncationHtml}
         <div class="chart-with-trend">
             <div class="bar-chart">${barsHtml}</div>
             ${trendLineHtml}
