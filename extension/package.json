@@ -22,6 +22,7 @@
     "pretest": "pnpm run build:ui",
     "test": "pnpm run test:unit",
     "test:unit": "jest --testPathIgnorePatterns=python-integration --testPathIgnorePatterns=vsix-artifact-inspection",
+    "test:scalability": "jest --testPathPatterns=scalability",
     "test:all": "jest --testPathIgnorePatterns=vsix-artifact-inspection",
     "test:watch": "jest --watch --testPathIgnorePatterns=python-integration",
     "test:coverage": "jest --coverage --testPathIgnorePatterns=python-integration",

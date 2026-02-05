@@ -97,76 +97,42 @@ describe("Scalability Invariants", () => {
     );
 
     test("Generator supports --users argument", () => {
-      if (!fs.existsSync(generatorPath)) {
-        console.warn("SCALABILITY: generate-synthetic-dataset.py not found");
-        // TODO: Enable once generator is enhanced
-        return;
-      }
+      expect(fs.existsSync(generatorPath)).toBe(true);
 
       const content = fs.readFileSync(generatorPath, "utf-8");
       const hasUsersArg =
         /--users/.test(content) || /add_argument.*users/.test(content);
 
-      // TODO: Change to expect(hasUsersArg).toBe(true) once implementation is required
-      if (!hasUsersArg) {
-        console.warn(
-          "SCALABILITY: Generator missing --users argument (QG-26 not satisfied)",
-        );
-      }
+      expect(hasUsersArg).toBe(true);
     });
 
     test("Generator supports --include-comments flag", () => {
-      if (!fs.existsSync(generatorPath)) {
-        return;
-      }
+      expect(fs.existsSync(generatorPath)).toBe(true);
 
       const content = fs.readFileSync(generatorPath, "utf-8");
       const hasCommentsFlag =
         /--include-comments/.test(content) ||
         /add_argument.*include.?comments/.test(content);
 
-      // TODO: Change to expect(hasCommentsFlag).toBe(true) once implementation is required
-      if (!hasCommentsFlag) {
-        console.warn(
-          "SCALABILITY: Generator missing --include-comments flag (QG-27 not satisfied)",
-        );
-      }
+      expect(hasCommentsFlag).toBe(true);
     });
 
     test("Generator does not cap users at 30", () => {
-      if (!fs.existsSync(generatorPath)) {
-        return;
-      }
+      expect(fs.existsSync(generatorPath)).toBe(true);
 
       const content = fs.readFileSync(generatorPath, "utf-8");
-
-      // Check for the old cap pattern: min(30, ...)
       const hasOldUserCap = /num_users\s*=\s*min\s*\(\s*30/.test(content);
 
-      if (hasOldUserCap) {
-        console.warn(
-          "SCALABILITY: Generator still has 30-user cap - must support 200+ (QG-26 not satisfied)",
-        );
-      }
-      // TODO: Change to expect(hasOldUserCap).toBe(false) once implementation is required
+      expect(hasOldUserCap).toBe(false);
     });
 
     test("Generator does not cap weeks at 52", () => {
-      if (!fs.existsSync(generatorPath)) {
-        return;
-      }
+      expect(fs.existsSync(generatorPath)).toBe(true);
 
       const content = fs.readFileSync(generatorPath, "utf-8");
-
-      // Check for the old cap pattern: min(52, ...)
       const hasOldWeekCap = /weeks\s*=\s*min\s*\(\s*52/.test(content);
 
-      if (hasOldWeekCap) {
-        console.warn(
-          "SCALABILITY: Generator still has 52-week cap - must support 156+ (QG-25 not satisfied)",
-        );
-      }
-      // TODO: Change to expect(hasOldWeekCap).toBe(false) once implementation is required
+      expect(hasOldWeekCap).toBe(false);
     });
   });
 
@@ -202,11 +168,7 @@ describe("Scalability Invariants", () => {
         }
       }
 
-      // Currently informational - charts may legitimately not need limiting
-      if (violations.length > 0) {
-        console.warn("SCALABILITY: Charts without data limiting:");
-        violations.forEach((v) => console.warn(`  ${v}`));
-      }
+      expect(violations).toEqual([]);
     });
   });
 });
