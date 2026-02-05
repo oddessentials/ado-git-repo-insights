@@ -1,3 +1,11 @@
+## [5.20.2](https://github.com/oddessentials/ado-git-repo-insights/compare/v5.20.1...v5.20.2) (2026-02-05)
+
+
+### Bug Fixes
+
+* **ci:** resolve mypy [no-any-return] errors in ML forecasters ([509b862](https://github.com/oddessentials/ado-git-repo-insights/commit/509b86251a748246e29b5a72106a6af711fa826d))
+* **code-review:** remediate verified findings from CRITICAL_NEXT_STEPS.md ([5e33dac](https://github.com/oddessentials/ado-git-repo-insights/commit/5e33dac3baa2a5235adc1a76c623aa33282aea75))
+
 ## [5.20.1](https://github.com/oddessentials/ado-git-repo-insights/compare/v5.20.0...v5.20.1) (2026-02-03)
 
 
