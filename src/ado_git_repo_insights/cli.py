@@ -441,7 +441,7 @@ def _extract_comments(
     # Limit by max_prs to avoid rate limiting
     cursor = db.execute(
         """
-        SELECT pull_request_uid, pull_request_id, repository_id
+        SELECT pull_request_uid, pull_request_id, repository_id, project_name
         FROM pull_requests
         WHERE status = 'completed'
         ORDER BY closed_date DESC
@@ -458,6 +458,7 @@ def _extract_comments(
         pr_uid = pr_row["pull_request_uid"]
         pr_id = pr_row["pull_request_id"]
         repo_id = pr_row["repository_id"]
+        project_name = pr_row["project_name"]
 
         # §6: Incremental sync - check last_updated
         last_updated = repo.get_thread_last_updated(pr_uid)
@@ -465,7 +466,7 @@ def _extract_comments(
         try:
             # Fetch threads from API
             threads = client.get_pr_threads(
-                project=config.projects[0],  # TODO: get project from PR
+                project=project_name,
                 repository_id=repo_id,
                 pull_request_id=pr_id,
             )

@@ -22,7 +22,7 @@ import time
 from dataclasses import dataclass
 from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, cast
 
 import numpy as np
 import pandas as pd
@@ -400,7 +400,10 @@ class FallbackForecaster:
             axis=1,
         )
 
-        return weekly.sort_values("week_start").reset_index(drop=True)
+        # TODO: Remove cast when pandas-stubs are normalized across CI/local
+        return cast(
+            pd.DataFrame, weekly.sort_values("week_start").reset_index(drop=True)
+        )
 
     def _forecast_metric(
         self,
