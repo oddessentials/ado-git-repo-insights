@@ -229,6 +229,63 @@ def generate_distributions(
     return index
 
 
+def generate_comments(
+    pr_count: int, seed: int, users: list[dict[str, str]], output_dir: Path
+) -> dict[str, Any]:
+    """Generate comment threads and comments for PRs.
+
+    Returns comment statistics for the manifest coverage section.
+    """
+    rng = random.Random(seed + 2000)  # noqa: S311
+
+    comments_dir = output_dir / "aggregates" / "comments"
+    comments_dir.mkdir(parents=True, exist_ok=True)
+
+    total_threads = 0
+    total_comments = 0
+
+    for pr_id in range(1, pr_count + 1):
+        num_threads = rng.randint(2, 5)
+        threads = []
+
+        for thread_idx in range(num_threads):
+            num_comments = rng.randint(1, 4)
+            thread_comments = []
+
+            for comment_idx in range(num_comments):
+                author = rng.choice(users)
+                thread_comments.append(
+                    {
+                        "comment_id": f"comment-{pr_id}-{thread_idx}-{comment_idx}",
+                        "author": author["display_name"],
+                        "author_id": author["user_id"],
+                        "content_length": rng.randint(10, 500),
+                    }
+                )
+
+            threads.append(
+                {
+                    "thread_id": f"thread-{pr_id}-{thread_idx}",
+                    "status": rng.choice(["active", "fixed", "closed", "byDesign"]),
+                    "comments": thread_comments,
+                }
+            )
+
+            total_comments += num_comments
+
+        total_threads += num_threads
+
+        # Write per-PR comment file
+        pr_file = comments_dir / f"pr-{pr_id}.json"
+        write_json(pr_file, {"pr_id": pr_id, "threads": threads})
+
+    return {
+        "total_threads": total_threads,
+        "total_comments": total_comments,
+        "prs_with_comments": pr_count,
+    }
+
+
 def write_json(path: Path, data: dict[str, Any]) -> None:
     """Write JSON with deterministic formatting (matches aggregators.py)."""
     with path.open("w", encoding="utf-8") as f:
@@ -268,6 +325,16 @@ def generate_dataset(
     dist_index = generate_distributions(pr_count, weeks, seed, output_dir)
     print(f"[OK] Generated {len(dist_index)} distribution files")
 
+    # Generate comments if requested
+    comment_stats: dict[str, Any] = {"status": "disabled"}
+    if include_comments:
+        comment_stats = generate_comments(pr_count, seed, dimensions.users, output_dir)
+        comment_stats["status"] = "enabled"
+        print(
+            f"[OK] Generated comments: {comment_stats['total_threads']} threads, "
+            f"{comment_stats['total_comments']} comments"
+        )
+
     # Generate manifest
     manifest = DatasetManifest(
         generated_at=datetime.now(timezone.utc).isoformat(),
@@ -288,7 +355,7 @@ def generate_dataset(
             "total_prs": pr_count,
             "date_range": dimensions.date_range,
             "teams_count": len(dimensions.teams),
-            "comments": {"status": "enabled" if include_comments else "disabled"},
+            "comments": comment_stats,
             "row_counts": {
                 "pull_requests": pr_count,
                 "reviewers": 0,
