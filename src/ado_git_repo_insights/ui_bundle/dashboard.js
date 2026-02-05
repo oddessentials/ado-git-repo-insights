@@ -4188,6 +4188,7 @@ var PRInsightsDashboard = (() => {
   }
 
   // ui/modules/charts/cycle-time.ts
+  var MAX_CYCLE_TIME_POINTS = 104;
   function renderCycleDistribution(container, distributions) {
     if (!container) return;
     if (!distributions || !distributions.length) {
@@ -4232,8 +4233,10 @@ var PRInsightsDashboard = (() => {
       renderNoData(container, "Not enough data for trend");
       return;
     }
-    const p50Data = rollups.map((r) => ({ week: r.week, value: r.cycle_time_p50 })).filter((d) => d.value !== null);
-    const p90Data = rollups.map((r) => ({ week: r.week, value: r.cycle_time_p90 })).filter((d) => d.value !== null);
+    const truncated = rollups.length > MAX_CYCLE_TIME_POINTS;
+    const displayRollups = truncated ? rollups.slice(-MAX_CYCLE_TIME_POINTS) : rollups;
+    const p50Data = displayRollups.map((r) => ({ week: r.week, value: r.cycle_time_p50 })).filter((d) => d.value !== null);
+    const p90Data = displayRollups.map((r) => ({ week: r.week, value: r.cycle_time_p90 })).filter((d) => d.value !== null);
     if (p50Data.length < 2 && p90Data.length < 2) {
       renderNoData(container, "No cycle time data available");
       return;
@@ -4252,8 +4255,8 @@ var PRInsightsDashboard = (() => {
     const chartHeight = height - padding.top - padding.bottom;
     const generatePath = (data) => {
       const points = data.map((d) => {
-        const dataIndex = rollups.findIndex((r) => r.week === d.week);
-        const x = padding.left + dataIndex / (rollups.length - 1) * chartWidth;
+        const dataIndex = displayRollups.findIndex((r) => r.week === d.week);
+        const x = padding.left + dataIndex / (displayRollups.length - 1) * chartWidth;
         const y = padding.top + chartHeight - (d.value - minVal) / range * chartHeight;
         return { x, y, week: d.week, value: d.value };
       });
@@ -4300,9 +4303,10 @@ var PRInsightsDashboard = (() => {
             </div>
         </div>
     `;
+    const truncationHtml = truncated ? `<div class="truncation-indicator">Showing last 2 years (${MAX_CYCLE_TIME_POINTS} weeks)</div>` : "";
     renderTrustedHtml(
       container,
-      `<div class="line-chart">${svgContent}</div>${legendHtml}`
+      `${truncationHtml}<div class="line-chart">${svgContent}</div>${legendHtml}`
     );
     addChartTooltips(container, (dot) => {
       const week = dot.dataset["week"] || "";

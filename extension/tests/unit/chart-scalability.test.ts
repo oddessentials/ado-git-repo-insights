@@ -8,6 +8,7 @@
  */
 
 import { renderThroughputChart, MAX_THROUGHPUT_POINTS } from "../../ui/modules/charts/throughput";
+import { renderCycleTimeTrend, MAX_CYCLE_TIME_POINTS } from "../../ui/modules/charts/cycle-time";
 import type { Rollup } from "../../ui/dataset-loader";
 
 /** Create N synthetic rollups for testing. */
@@ -87,5 +88,74 @@ describe("Throughput Chart Scalability", () => {
 
   it("MAX_THROUGHPUT_POINTS is exported and equals 104", () => {
     expect(MAX_THROUGHPUT_POINTS).toBe(104);
+  });
+});
+
+describe("Cycle Time Chart Scalability", () => {
+  let container: HTMLElement;
+
+  beforeEach(() => {
+    container = document.createElement("div");
+    document.body.appendChild(container);
+  });
+
+  afterEach(() => {
+    document.body.removeChild(container);
+  });
+
+  it("T028: renders 156 weeks in < 1000ms", () => {
+    const rollups = createRollups(156);
+    const start = performance.now();
+    renderCycleTimeTrend(container, rollups);
+    const elapsed = performance.now() - start;
+
+    expect(elapsed).toBeLessThan(1000);
+    expect(container.innerHTML).not.toBe("");
+  });
+
+  it("T030: caps DOM dot elements at MAX_CYCLE_TIME_POINTS per metric", () => {
+    const rollups = createRollups(156);
+    renderCycleTimeTrend(container, rollups);
+
+    const p50Dots = container.querySelectorAll('[data-metric="P50"]');
+    const p90Dots = container.querySelectorAll('[data-metric="P90"]');
+    expect(p50Dots.length).toBeLessThanOrEqual(MAX_CYCLE_TIME_POINTS);
+    expect(p90Dots.length).toBeLessThanOrEqual(MAX_CYCLE_TIME_POINTS);
+    expect(p50Dots.length).toBe(MAX_CYCLE_TIME_POINTS);
+    expect(p90Dots.length).toBe(MAX_CYCLE_TIME_POINTS);
+  });
+
+  it("T032: shows truncation indicator when data exceeds cap", () => {
+    const rollups = createRollups(156);
+    renderCycleTimeTrend(container, rollups);
+
+    const indicator = container.querySelector(".truncation-indicator");
+    expect(indicator).not.toBeNull();
+    expect(indicator!.textContent).toContain("Showing last 2 years");
+    expect(indicator!.textContent).toContain("104 weeks");
+  });
+
+  it("T033: no truncation indicator for exactly 104 weeks", () => {
+    const rollups = createRollups(104);
+    renderCycleTimeTrend(container, rollups);
+
+    const indicator = container.querySelector(".truncation-indicator");
+    expect(indicator).toBeNull();
+
+    const p50Dots = container.querySelectorAll('[data-metric="P50"]');
+    expect(p50Dots.length).toBe(104);
+  });
+
+  it("renders all data without truncation when under cap", () => {
+    const rollups = createRollups(52);
+    renderCycleTimeTrend(container, rollups);
+
+    const p50Dots = container.querySelectorAll('[data-metric="P50"]');
+    expect(p50Dots.length).toBe(52);
+    expect(container.querySelector(".truncation-indicator")).toBeNull();
+  });
+
+  it("MAX_CYCLE_TIME_POINTS is exported and equals 104", () => {
+    expect(MAX_CYCLE_TIME_POINTS).toBe(104);
   });
 });

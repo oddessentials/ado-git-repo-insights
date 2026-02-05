@@ -13,6 +13,9 @@ import { addChartTooltips } from "../charts";
 import { formatDuration } from "../shared/format";
 import { escapeHtml, renderNoData, renderTrustedHtml } from "../shared/render";
 
+/** Maximum data points rendered in the cycle time trend chart (2 years of weekly data). */
+export const MAX_CYCLE_TIME_POINTS = 104;
+
 /**
  * Render cycle time distribution as horizontal bar chart.
  *
@@ -91,10 +94,16 @@ export function renderCycleTimeTrend(
     return;
   }
 
-  const p50Data = rollups
+  // Truncate to most recent data points if over the cap
+  const truncated = rollups.length > MAX_CYCLE_TIME_POINTS;
+  const displayRollups = truncated
+    ? rollups.slice(-MAX_CYCLE_TIME_POINTS)
+    : rollups;
+
+  const p50Data = displayRollups
     .map((r) => ({ week: r.week, value: r.cycle_time_p50 }))
     .filter((d): d is { week: string; value: number } => d.value !== null);
-  const p90Data = rollups
+  const p90Data = displayRollups
     .map((r) => ({ week: r.week, value: r.cycle_time_p90 }))
     .filter((d): d is { week: string; value: number } => d.value !== null);
 
@@ -120,8 +129,8 @@ export function renderCycleTimeTrend(
   // Generate paths
   const generatePath = (data: { week: string; value: number }[]) => {
     const points = data.map((d) => {
-      const dataIndex = rollups.findIndex((r) => r.week === d.week);
-      const x = padding.left + (dataIndex / (rollups.length - 1)) * chartWidth;
+      const dataIndex = displayRollups.findIndex((r) => r.week === d.week);
+      const x = padding.left + (dataIndex / (displayRollups.length - 1)) * chartWidth;
       const y =
         padding.top + chartHeight - ((d.value - minVal) / range) * chartHeight;
       return { x, y, week: d.week, value: d.value };
@@ -187,10 +196,15 @@ export function renderCycleTimeTrend(
         </div>
     `;
 
+  // Truncation indicator
+  const truncationHtml = truncated
+    ? `<div class="truncation-indicator">Showing last 2 years (${MAX_CYCLE_TIME_POINTS} weeks)</div>`
+    : "";
+
   // SECURITY: Content is SVG from computed coordinates + escapeHtml'd week values
   renderTrustedHtml(
     container,
-    `<div class="line-chart">${svgContent}</div>${legendHtml}`,
+    `${truncationHtml}<div class="line-chart">${svgContent}</div>${legendHtml}`,
   );
 
   // Add tooltip interactions
