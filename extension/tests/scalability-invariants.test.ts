@@ -23,15 +23,7 @@ describe("Scalability Invariants", () => {
   describe("Chart Data Caps", () => {
     test("Throughput chart has MAX_THROUGHPUT_POINTS defined", () => {
       const filePath = path.join(chartsDir, "throughput.ts");
-
-      if (!fs.existsSync(filePath)) {
-        // File doesn't exist yet - this is a placeholder for when the cap is implemented
-        console.warn(
-          "SCALABILITY: throughput.ts not found - ensure MAX_THROUGHPUT_POINTS is added",
-        );
-        // TODO: Change to expect(true).toBe(false) once implementation is required
-        return;
-      }
+      expect(fs.existsSync(filePath)).toBe(true);
 
       const content = fs.readFileSync(filePath, "utf-8");
       const hasMaxPoints =
@@ -43,13 +35,7 @@ describe("Scalability Invariants", () => {
 
     test("Cycle time chart has MAX_CYCLE_TIME_POINTS defined", () => {
       const filePath = path.join(chartsDir, "cycle-time.ts");
-
-      if (!fs.existsSync(filePath)) {
-        console.warn(
-          "SCALABILITY: cycle-time.ts not found - ensure MAX_CYCLE_TIME_POINTS is added",
-        );
-        return;
-      }
+      expect(fs.existsSync(filePath)).toBe(true);
 
       const content = fs.readFileSync(filePath, "utf-8");
       const hasMaxPoints =
@@ -61,11 +47,7 @@ describe("Scalability Invariants", () => {
 
     test("Predictions chart has MAX_CHART_POINTS defined", () => {
       const filePath = path.join(chartsDir, "predictions.ts");
-
-      if (!fs.existsSync(filePath)) {
-        console.warn("SCALABILITY: predictions.ts not found");
-        return;
-      }
+      expect(fs.existsSync(filePath)).toBe(true);
 
       const content = fs.readFileSync(filePath, "utf-8");
       const hasMaxPoints = /MAX_CHART_POINTS\s*=\s*\d+/.test(content);
@@ -75,11 +57,7 @@ describe("Scalability Invariants", () => {
 
     test("ML module has MAX_SPARKLINE_POINTS defined", () => {
       const filePath = path.join(extensionRoot, "ui", "modules", "ml.ts");
-
-      if (!fs.existsSync(filePath)) {
-        console.warn("SCALABILITY: ml.ts not found");
-        return;
-      }
+      expect(fs.existsSync(filePath)).toBe(true);
 
       const content = fs.readFileSync(filePath, "utf-8");
       const hasMaxPoints = /MAX_SPARKLINE_POINTS\s*=\s*\d+/.test(content);
@@ -200,11 +178,7 @@ describe("Scalability Test Data Requirements", () => {
       "TODO",
       "DASHBOARD_SCALABILITY.md",
     );
-
-    if (!fs.existsSync(todoPath)) {
-      console.warn("SCALABILITY: TODO/DASHBOARD_SCALABILITY.md not found");
-      return;
-    }
+    expect(fs.existsSync(todoPath)).toBe(true);
 
     const content = fs.readFileSync(todoPath, "utf-8");
 

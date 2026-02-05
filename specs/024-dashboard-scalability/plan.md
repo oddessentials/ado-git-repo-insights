@@ -31,20 +31,20 @@ Enable the dashboard to handle enterprise-scale data (156+ weeks, 200+ reviewers
 
 | Gate | Requirement | Status | Evidence |
 |------|-------------|--------|----------|
-| QG-25 | Synthetic data supports 156+ weeks | **TO IMPLEMENT** | `tests/unit/test_synthetic_dataset.py` |
-| QG-26 | Synthetic data supports 200+ reviewers | **TO IMPLEMENT** | `tests/unit/test_synthetic_dataset.py` |
-| QG-27 | Synthetic data includes comment generation | **TO IMPLEMENT** | `tests/unit/test_synthetic_dataset.py` |
-| QG-28 | Dashboard renders 156 weeks in < 1000ms | **TO IMPLEMENT** | `extension/tests/unit/chart-scalability.test.ts` |
-| QG-29 | Chart data caps enforced (MAX_*_POINTS) | **TO IMPLEMENT** | `extension/tests/scalability-invariants.test.ts` |
+| QG-25 | Synthetic data supports 156+ weeks | **PASS** | `tests/unit/test_synthetic_dataset.py::test_156_weeks` (775/775 pass) |
+| QG-26 | Synthetic data supports 200+ reviewers | **PASS** | `tests/unit/test_synthetic_dataset.py::test_200_users` (775/775 pass) |
+| QG-27 | Synthetic data includes comment generation | **PASS** | `tests/unit/test_synthetic_dataset.py::test_include_comments` (775/775 pass) |
+| QG-28 | Dashboard renders 156 weeks in < 1000ms | **PASS** | `chart-scalability.test.ts` T027, T028 (31/31 scalability pass) |
+| QG-29 | Chart data caps enforced (MAX_*_POINTS) | **PASS** | `scalability-invariants.test.ts` (11/11 pass, all strict assertions) |
 
 ### Applicable Verification Requirements
 
 | Checkpoint | Scenario | Status |
 |------------|----------|--------|
-| VR-20 | Scalability dataset generation | **TO IMPLEMENT** |
-| VR-21 | Dashboard load test (156 weeks) | **TO IMPLEMENT** |
-| VR-22 | Dashboard load test (200 reviewers) | **TO IMPLEMENT** |
-| VR-23 | Dashboard load test (comments enabled) | **TO IMPLEMENT** |
+| VR-20 | Scalability dataset generation | **PASS** — Generator tests verify 156 weeks, 200 users, comments |
+| VR-21 | Dashboard load test (156 weeks) | **PASS** — T027, T028 render < 1000ms; T029, T030 cap DOM elements |
+| VR-22 | Dashboard load test (200 reviewers) | **PASS** — T043, T044, T045 verify 200-user rendering |
+| VR-23 | Dashboard load test (comments enabled) | **PASS** — T048-T051 verify charts + feature flag with comments |
 
 ### Non-Applicable Principles
 
