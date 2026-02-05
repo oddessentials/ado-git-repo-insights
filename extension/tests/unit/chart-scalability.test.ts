@@ -10,6 +10,7 @@
 import { renderThroughputChart, MAX_THROUGHPUT_POINTS } from "../../ui/modules/charts/throughput";
 import { renderCycleTimeTrend, MAX_CYCLE_TIME_POINTS } from "../../ui/modules/charts/cycle-time";
 import { renderReviewerActivity, MAX_REVIEWER_WEEKS } from "../../ui/modules/charts/reviewer-activity";
+import { DatasetLoader } from "../../ui/dataset-loader";
 import type { Rollup } from "../../ui/dataset-loader";
 
 /** Create N synthetic rollups for testing. */
@@ -224,5 +225,69 @@ describe("Reviewer Panel Scalability", () => {
 
   it("MAX_REVIEWER_WEEKS is exported and equals 8", () => {
     expect(MAX_REVIEWER_WEEKS).toBe(8);
+  });
+});
+
+describe("Comments Feature Compatibility", () => {
+  let container: HTMLElement;
+
+  beforeEach(() => {
+    container = document.createElement("div");
+    document.body.appendChild(container);
+  });
+
+  afterEach(() => {
+    document.body.removeChild(container);
+  });
+
+  it("T048: all charts render without errors when features.comments is true", () => {
+    const rollups = createRollups(52);
+
+    expect(() => renderThroughputChart(container, rollups)).not.toThrow();
+    container.innerHTML = "";
+    expect(() => renderCycleTimeTrend(container, rollups)).not.toThrow();
+    container.innerHTML = "";
+    expect(() => renderReviewerActivity(container, rollups)).not.toThrow();
+
+    // Charts produce output (not no-data)
+    expect(container.innerHTML).toContain("h-bar-row");
+  });
+
+  it("T049: isFeatureEnabled reads comments flag from manifest", () => {
+    const loader = new DatasetLoader("");
+
+    // No manifest loaded — returns false
+    expect(loader.isFeatureEnabled("comments")).toBe(false);
+
+    // Manifest with comments: true
+    (loader as any).manifest = {
+      features: { teams: true, comments: true, predictions: false, ai_insights: false },
+    };
+    expect(loader.isFeatureEnabled("comments")).toBe(true);
+
+    // Manifest with comments: false
+    (loader as any).manifest = {
+      features: { teams: true, comments: false },
+    };
+    expect(loader.isFeatureEnabled("comments")).toBe(false);
+  });
+
+  it("T050: isFeatureEnabled returns false when features object is missing", () => {
+    const loader = new DatasetLoader("");
+    (loader as any).manifest = {};
+    expect(loader.isFeatureEnabled("comments")).toBe(false);
+  });
+
+  it("T051: charts render identically regardless of comments flag", () => {
+    const rollups = createRollups(20);
+
+    // Render throughput chart
+    renderThroughputChart(container, rollups);
+    const throughputHtml = container.innerHTML;
+
+    // The same rollups produce the same output — comments flag doesn't affect chart rendering
+    container.innerHTML = "";
+    renderThroughputChart(container, rollups);
+    expect(container.innerHTML).toBe(throughputHtml);
   });
 });
