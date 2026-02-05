@@ -29,7 +29,9 @@ from ado_git_repo_insights.transform.aggregators import (  # noqa: E402  # type:
 )
 
 
-def generate_dimensions(pr_count: int, seed: int) -> Dimensions:
+def generate_dimensions(
+    pr_count: int, seed: int, num_users: int | None = None, weeks: int | None = None
+) -> Dimensions:
     """Generate synthetic filter dimensions."""
     rng = random.Random(seed)  # noqa: S311
 
@@ -46,8 +48,9 @@ def generate_dimensions(pr_count: int, seed: int) -> Dimensions:
             }
         )
 
-    # Generate users (10-30 users)
-    num_users = min(30, max(10, pr_count // 10))
+    # Generate users
+    if num_users is None:
+        num_users = min(200, max(10, pr_count // 10))
     users = []
     for i in range(num_users):
         users.append({"user_id": f"user-{i + 1}", "display_name": f"User {i + 1}"})
@@ -79,7 +82,8 @@ def generate_dimensions(pr_count: int, seed: int) -> Dimensions:
 
     # Date range (end = today, start = weeks ago)
     end_date = date.today()
-    weeks = min(52, max(4, pr_count // 20))
+    if weeks is None:
+        weeks = min(156, max(4, pr_count // 20))
     start_date = end_date - timedelta(weeks=weeks)
 
     return Dimensions(
@@ -231,7 +235,14 @@ def write_json(path: Path, data: dict[str, Any]) -> None:
         json.dump(data, f, indent=2, sort_keys=True)
 
 
-def generate_dataset(pr_count: int, weeks: int, seed: int, output_dir: Path) -> None:
+def generate_dataset(
+    pr_count: int,
+    weeks: int,
+    seed: int,
+    output_dir: Path,
+    num_users: int | None = None,
+    include_comments: bool = False,
+) -> None:
     """Generate complete synthetic dataset."""
     output_dir.mkdir(parents=True, exist_ok=True)
 
@@ -243,7 +254,7 @@ def generate_dataset(pr_count: int, weeks: int, seed: int, output_dir: Path) -> 
     print(f"Seed: {seed}")
 
     # Generate dimensions
-    dimensions = generate_dimensions(pr_count, seed)
+    dimensions = generate_dimensions(pr_count, seed, num_users=num_users, weeks=weeks)
     dim_path = output_dir / "aggregates" / "dimensions.json"
     dim_path.parent.mkdir(parents=True, exist_ok=True)
     write_json(dim_path, asdict(dimensions))
@@ -269,7 +280,7 @@ def generate_dataset(pr_count: int, weeks: int, seed: int, output_dir: Path) -> 
         limits={"max_date_range_days_soft": 730},
         features={
             "teams": True,
-            "comments": False,
+            "comments": include_comments,
             "predictions": False,
             "ai_insights": False,
         },
@@ -277,7 +288,7 @@ def generate_dataset(pr_count: int, weeks: int, seed: int, output_dir: Path) -> 
             "total_prs": pr_count,
             "date_range": dimensions.date_range,
             "teams_count": len(dimensions.teams),
-            "comments": {"status": "disabled"},
+            "comments": {"status": "enabled" if include_comments else "disabled"},
             "row_counts": {
                 "pull_requests": pr_count,
                 "reviewers": 0,
@@ -326,7 +337,19 @@ def main() -> None:
         "--weeks",
         type=int,
         default=None,
-        help="Number of weeks to span (default: auto-calculated from pr-count)",
+        help="Number of weeks to span, 1-520 (default: auto-calculated from pr-count)",
+    )
+    parser.add_argument(
+        "--users",
+        type=int,
+        default=None,
+        help="Number of users to generate, 1-500 (default: auto-calculated from pr-count)",
+    )
+    parser.add_argument(
+        "--include-comments",
+        action="store_true",
+        default=False,
+        help="Enable comment data generation",
     )
     parser.add_argument(
         "--seed", type=int, default=42, help="Random seed for deterministic generation"
@@ -335,12 +358,25 @@ def main() -> None:
 
     args = parser.parse_args()
 
+    # Validate bounds
+    if args.weeks is not None and not (1 <= args.weeks <= 520):
+        parser.error(f"--weeks must be between 1 and 520, got {args.weeks}")
+    if args.users is not None and not (1 <= args.users <= 500):
+        parser.error(f"--users must be between 1 and 500, got {args.users}")
+
     # Auto-calculate weeks if not specified
     weeks = args.weeks
     if weeks is None:
-        weeks = min(52, max(4, args.pr_count // 20))
+        weeks = min(156, max(4, args.pr_count // 20))
 
-    generate_dataset(args.pr_count, weeks, args.seed, args.output)
+    generate_dataset(
+        args.pr_count,
+        weeks,
+        args.seed,
+        args.output,
+        num_users=args.users,
+        include_comments=args.include_comments,
+    )
 
 
 if __name__ == "__main__":

@@ -347,3 +347,35 @@ def test_weeks_zero_validation_error():
     assert result.returncode != 0, "--weeks 0 must be rejected"
     combined_output = result.stderr + result.stdout
     assert "0" in combined_output or "weeks" in combined_output.lower()
+
+
+def test_200_users_produces_200_dimension_entries():
+    """T014: 200 users must produce exactly 200 entries in dimensions.json."""
+    output_dir = run_generator(pr_count=1000, weeks=4, seed=42, users=200)
+
+    dim_path = output_dir / "aggregates" / "dimensions.json"
+    with dim_path.open() as f:
+        dimensions = json.load(f)
+
+    assert len(dimensions["users"]) == 200
+
+    # Verify uniqueness
+    user_ids = [u["user_id"] for u in dimensions["users"]]
+    assert len(set(user_ids)) == 200
+
+
+def test_156_weeks_produces_156_rollup_files():
+    """T015: 156 weeks must produce exactly 156 rollup files."""
+    output_dir = run_generator(pr_count=1000, weeks=156, seed=42)
+
+    manifest_path = output_dir / "dataset-manifest.json"
+    with manifest_path.open() as f:
+        manifest = json.load(f)
+
+    rollups = manifest["aggregate_index"]["weekly_rollups"]
+    assert len(rollups) == 156
+
+    # Verify each rollup file exists
+    for entry in rollups:
+        rollup_path = output_dir / entry["path"]
+        assert rollup_path.exists(), f"Rollup file missing: {entry['path']}"
