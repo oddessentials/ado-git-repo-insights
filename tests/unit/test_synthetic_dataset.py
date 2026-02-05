@@ -4,41 +4,96 @@ Contract validation: Producer tests ensure generated output matches schema.
 """
 
 import json
+import subprocess
 import tempfile
 from pathlib import Path
 
 import pytest
 
 
-def run_generator(pr_count: int, weeks: int | None, seed: int) -> Path:
-    """Run generator and return output directory."""
-    import subprocess
+def _build_generator_args(
+    pr_count: int,
+    seed: int,
+    output: str,
+    weeks: int | None = None,
+    users: int | None = None,
+    include_comments: bool = False,
+) -> list[str]:
+    """Build CLI argument list for the generator script."""
+    script = (
+        Path(__file__).parent.parent.parent
+        / "scripts"
+        / "generate-synthetic-dataset.py"
+    )
+    args = [
+        "python",
+        str(script),
+        "--pr-count",
+        str(pr_count),
+        "--seed",
+        str(seed),
+        "--output",
+        output,
+    ]
+    if weeks is not None:
+        args.extend(["--weeks", str(weeks)])
+    if users is not None:
+        args.extend(["--users", str(users)])
+    if include_comments:
+        args.append("--include-comments")
+    return args
 
+
+def run_generator_raw(
+    pr_count: int,
+    seed: int,
+    weeks: int | None = None,
+    users: int | None = None,
+    include_comments: bool = False,
+) -> tuple[subprocess.CompletedProcess[str], Path]:
+    """Run generator and return (result, output_dir) without asserting success."""
+    import shutil
+
+    output_dir = (
+        Path(tempfile.gettempdir()) / f"synthetic-raw-{pr_count}-{seed}-{users}-{weeks}"
+    )
+
+    if output_dir.exists():
+        shutil.rmtree(output_dir)
+
+    args = _build_generator_args(
+        pr_count=pr_count,
+        seed=seed,
+        output=str(output_dir),
+        weeks=weeks,
+        users=users,
+        include_comments=include_comments,
+    )
+    result = subprocess.run(  # noqa: S603
+        args, capture_output=True, text=True, check=False
+    )
+    return result, output_dir
+
+
+def run_generator(
+    pr_count: int,
+    weeks: int | None = None,
+    seed: int = 42,
+    users: int | None = None,
+    include_comments: bool = False,
+) -> Path:
+    """Run generator and return output directory."""
     with tempfile.TemporaryDirectory() as tmpdir:
         output_dir = Path(tmpdir) / "synthetic"
 
-        # Run generator script
-        script = (
-            Path(__file__).parent.parent.parent
-            / "scripts"
-            / "generate-synthetic-dataset.py"
+        args = _build_generator_args(
+            pr_count=pr_count,
+            seed=seed,
+            output=str(output_dir),
+            weeks=weeks,
+            users=users,
+            include_comments=include_comments,
         )
-
-        # Build command args
-        args = [
-            "python",
-            str(script),
-            "--pr-count",
-            str(pr_count),
-            "--seed",
-            str(seed),
-            "--output",
-            str(output_dir),
-        ]
-
-        # Add weeks only if specified
-        if weeks is not None:
-            args.extend(["--weeks", str(weeks)])
 
         result = subprocess.run(  # noqa: S603
             args, capture_output=True, text=True, check=False
@@ -227,3 +282,68 @@ def test_scaling_datasets(pr_count):
     assert manifest["coverage"]["total_prs"] == pr_count
     assert len(manifest["aggregate_index"]["weekly_rollups"]) > 0
     assert len(manifest["aggregate_index"]["distributions"]) > 0
+
+
+# ---------------------------------------------------------------------------
+# Scalability tests (T009–T013): --users, --weeks range, --include-comments
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize("user_count", [1, 50, 200, 500])
+def test_users_argument_accepts_valid_range(user_count):
+    """T009: --users must accept values from 1 to 500."""
+    output_dir = run_generator(pr_count=1000, weeks=4, seed=42, users=user_count)
+
+    manifest_path = output_dir / "dataset-manifest.json"
+    with manifest_path.open() as f:
+        manifest = json.load(f)
+
+    dim_path = output_dir / "aggregates" / "dimensions.json"
+    with dim_path.open() as f:
+        dimensions = json.load(f)
+
+    assert len(dimensions["users"]) == user_count
+    assert manifest["coverage"]["row_counts"]["users"] == user_count
+
+
+@pytest.mark.parametrize("week_count", [1, 52, 156, 520])
+def test_weeks_argument_accepts_valid_range(week_count):
+    """T010: --weeks must accept values from 1 to 520."""
+    output_dir = run_generator(pr_count=1000, weeks=week_count, seed=42)
+
+    manifest_path = output_dir / "dataset-manifest.json"
+    with manifest_path.open() as f:
+        manifest = json.load(f)
+
+    rollups = manifest["aggregate_index"]["weekly_rollups"]
+    assert len(rollups) == week_count
+
+
+def test_include_comments_sets_feature_flag():
+    """T011: --include-comments must set features.comments to true in manifest."""
+    output_dir = run_generator(pr_count=100, weeks=4, seed=42, include_comments=True)
+
+    manifest_path = output_dir / "dataset-manifest.json"
+    with manifest_path.open() as f:
+        manifest = json.load(f)
+
+    assert manifest["features"]["comments"] is True
+
+
+def test_users_zero_validation_error():
+    """T012: --users 0 must fail with a clear validation error."""
+    result, _ = run_generator_raw(pr_count=100, seed=42, users=0)
+
+    assert result.returncode != 0, "--users 0 must be rejected"
+    # Error message should mention the invalid value
+    combined_output = result.stderr + result.stdout
+    assert "0" in combined_output or "users" in combined_output.lower()
+
+
+def test_weeks_zero_validation_error():
+    """T013: --weeks 0 must fail with a clear validation error."""
+    result, _ = run_generator_raw(pr_count=100, seed=42, weeks=0)
+
+    assert result.returncode != 0, "--weeks 0 must be rejected"
+    combined_output = result.stderr + result.stdout
+    assert "0" in combined_output or "weeks" in combined_output.lower()
