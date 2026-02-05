@@ -4326,13 +4326,14 @@ var PRInsightsDashboard = (() => {
   }
 
   // ui/modules/charts/reviewer-activity.ts
+  var MAX_REVIEWER_WEEKS = 8;
   function renderReviewerActivity(container, rollups) {
     if (!container) return;
     if (!rollups || !rollups.length) {
       renderNoData(container, "No reviewer data available");
       return;
     }
-    const recentRollups = rollups.slice(-8);
+    const recentRollups = rollups.slice(-MAX_REVIEWER_WEEKS);
     const maxReviewers = Math.max(
       ...recentRollups.map((r) => r.reviewers_count || 0)
     );

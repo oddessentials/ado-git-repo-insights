@@ -9,17 +9,18 @@
 
 import { renderThroughputChart, MAX_THROUGHPUT_POINTS } from "../../ui/modules/charts/throughput";
 import { renderCycleTimeTrend, MAX_CYCLE_TIME_POINTS } from "../../ui/modules/charts/cycle-time";
+import { renderReviewerActivity, MAX_REVIEWER_WEEKS } from "../../ui/modules/charts/reviewer-activity";
 import type { Rollup } from "../../ui/dataset-loader";
 
 /** Create N synthetic rollups for testing. */
-function createRollups(count: number): Rollup[] {
+function createRollups(count: number, reviewersCount = 3): Rollup[] {
   return Array.from({ length: count }, (_, i) => ({
     week: `2024-W${((i % 52) + 1).toString().padStart(2, "0")}`,
     pr_count: 10 + (i % 20),
     cycle_time_p50: 60 + (i % 30),
     cycle_time_p90: 120 + (i % 50),
     authors_count: 5,
-    reviewers_count: 3,
+    reviewers_count: reviewersCount,
     by_repository: null,
     by_team: null,
   }));
@@ -157,5 +158,71 @@ describe("Cycle Time Chart Scalability", () => {
 
   it("MAX_CYCLE_TIME_POINTS is exported and equals 104", () => {
     expect(MAX_CYCLE_TIME_POINTS).toBe(104);
+  });
+});
+
+describe("Reviewer Panel Scalability", () => {
+  let container: HTMLElement;
+
+  beforeEach(() => {
+    container = document.createElement("div");
+    document.body.appendChild(container);
+  });
+
+  afterEach(() => {
+    document.body.removeChild(container);
+  });
+
+  it("T043: renders correctly with 200 reviewers per week", () => {
+    const rollups = createRollups(12, 200);
+    renderReviewerActivity(container, rollups);
+
+    const rows = container.querySelectorAll(".h-bar-row");
+    expect(rows.length).toBe(MAX_REVIEWER_WEEKS);
+
+    // Verify 200 is displayed in the value cells
+    const values = container.querySelectorAll(".h-bar-value");
+    expect(values.length).toBe(MAX_REVIEWER_WEEKS);
+    values.forEach((v) => {
+      expect(v.textContent).toBe("200");
+    });
+  });
+
+  it("T044: 50 vs 200 reviewers renders in comparable time", () => {
+    const rollups50 = createRollups(156, 50);
+    const start50 = performance.now();
+    renderReviewerActivity(container, rollups50);
+    const elapsed50 = performance.now() - start50;
+
+    container.innerHTML = "";
+
+    const rollups200 = createRollups(156, 200);
+    const start200 = performance.now();
+    renderReviewerActivity(container, rollups200);
+    const elapsed200 = performance.now() - start200;
+
+    // Both should be well under 1000ms
+    expect(elapsed50).toBeLessThan(1000);
+    expect(elapsed200).toBeLessThan(1000);
+
+    // DOM output is bounded to 8 rows regardless of input size
+    const rows = container.querySelectorAll(".h-bar-row");
+    expect(rows.length).toBe(MAX_REVIEWER_WEEKS);
+  });
+
+  it("T045: panel caps at MAX_REVIEWER_WEEKS rows for 200-user dataset", () => {
+    const rollups = createRollups(156, 200);
+    renderReviewerActivity(container, rollups);
+
+    const rows = container.querySelectorAll(".h-bar-row");
+    expect(rows.length).toBeLessThanOrEqual(MAX_REVIEWER_WEEKS);
+    expect(rows.length).toBe(MAX_REVIEWER_WEEKS);
+
+    // Verify bar widths are set (100% for max)
+    expect(container.innerHTML).toContain("width: 100%");
+  });
+
+  it("MAX_REVIEWER_WEEKS is exported and equals 8", () => {
+    expect(MAX_REVIEWER_WEEKS).toBe(8);
   });
 });
