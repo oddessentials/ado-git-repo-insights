@@ -120,11 +120,21 @@ export function renderCycleTimeTrend(
   const minVal = Math.min(...allValues);
   const range = maxVal - minVal || 1;
 
-  const width = 100;
+  // Scale viewBox width to the number of data points so the SVG's aspect
+  // ratio naturally matches a wide dashboard panel.  Each point gets ~6
+  // units of horizontal space; minimum 500 keeps small datasets legible.
   const height = 180;
   const padding = { top: 10, right: 10, bottom: 25, left: 40 };
+  const width = Math.max(
+    500,
+    padding.left + padding.right + displayRollups.length * 6,
+  );
   const chartWidth = width - padding.left - padding.right;
   const chartHeight = height - padding.top - padding.bottom;
+
+  // Dot radius scales inversely with density: bigger when few points,
+  // smaller when many, so they remain visible and clickable.
+  const dotRadius = Math.max(1.5, Math.min(4, 200 / displayRollups.length));
 
   // Generate paths
   const generatePath = (data: { week: string; value: number }[]) => {
@@ -150,7 +160,7 @@ export function renderCycleTimeTrend(
   const yLabels = [minVal, (minVal + maxVal) / 2, maxVal];
 
   const svgContent = `
-        <svg viewBox="0 0 ${width} ${height}" preserveAspectRatio="xMidYMid meet">
+        <svg viewBox="0 0 ${width} ${height}" preserveAspectRatio="xMinYMid meet">
             <!-- Grid lines -->
             ${yLabels
               .map((_, i) => {
@@ -178,8 +188,8 @@ export function renderCycleTimeTrend(
             ${p50Path ? `<path class="line-chart-p50" d="${p50Path.pathD}" vector-effect="non-scaling-stroke"/>` : ""}
 
             <!-- Dots -->
-            ${p90Path ? p90Path.points.map((p) => `<circle class="line-chart-dot" cx="${p.x}" cy="${p.y}" r="3" fill="var(--warning)" data-week="${escapeHtml(p.week)}" data-value="${p.value}" data-metric="P90"/>`).join("") : ""}
-            ${p50Path ? p50Path.points.map((p) => `<circle class="line-chart-dot" cx="${p.x}" cy="${p.y}" r="3" fill="var(--primary)" data-week="${escapeHtml(p.week)}" data-value="${p.value}" data-metric="P50"/>`).join("") : ""}
+            ${p90Path ? p90Path.points.map((p) => `<circle class="line-chart-dot" cx="${p.x}" cy="${p.y}" r="${dotRadius}" fill="var(--warning)" data-week="${escapeHtml(p.week)}" data-value="${p.value}" data-metric="P90"/>`).join("") : ""}
+            ${p50Path ? p50Path.points.map((p) => `<circle class="line-chart-dot" cx="${p.x}" cy="${p.y}" r="${dotRadius}" fill="var(--primary)" data-week="${escapeHtml(p.week)}" data-value="${p.value}" data-metric="P50"/>`).join("") : ""}
         </svg>
     `;
 

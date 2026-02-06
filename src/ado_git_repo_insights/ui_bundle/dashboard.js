@@ -4271,11 +4271,15 @@ var PRInsightsDashboard = (() => {
     const maxVal = Math.max(...allValues);
     const minVal = Math.min(...allValues);
     const range = maxVal - minVal || 1;
-    const width = 100;
     const height = 180;
     const padding = { top: 10, right: 10, bottom: 25, left: 40 };
+    const width = Math.max(
+      500,
+      padding.left + padding.right + displayRollups.length * 6
+    );
     const chartWidth = width - padding.left - padding.right;
     const chartHeight = height - padding.top - padding.bottom;
+    const dotRadius = Math.max(1.5, Math.min(4, 200 / displayRollups.length));
     const generatePath = (data) => {
       const points = data.map((d) => {
         const dataIndex = displayRollups.findIndex((r) => r.week === d.week);
@@ -4292,7 +4296,7 @@ var PRInsightsDashboard = (() => {
     const p90Path = p90Data.length >= 2 ? generatePath(p90Data) : null;
     const yLabels = [minVal, (minVal + maxVal) / 2, maxVal];
     const svgContent = `
-        <svg viewBox="0 0 ${width} ${height}" preserveAspectRatio="xMidYMid meet">
+        <svg viewBox="0 0 ${width} ${height}" preserveAspectRatio="xMinYMid meet">
             <!-- Grid lines -->
             ${yLabels.map((_, i) => {
       const y = padding.top + chartHeight - i / (yLabels.length - 1) * chartHeight;
@@ -4310,8 +4314,8 @@ var PRInsightsDashboard = (() => {
             ${p50Path ? `<path class="line-chart-p50" d="${p50Path.pathD}" vector-effect="non-scaling-stroke"/>` : ""}
 
             <!-- Dots -->
-            ${p90Path ? p90Path.points.map((p) => `<circle class="line-chart-dot" cx="${p.x}" cy="${p.y}" r="3" fill="var(--warning)" data-week="${escapeHtml(p.week)}" data-value="${p.value}" data-metric="P90"/>`).join("") : ""}
-            ${p50Path ? p50Path.points.map((p) => `<circle class="line-chart-dot" cx="${p.x}" cy="${p.y}" r="3" fill="var(--primary)" data-week="${escapeHtml(p.week)}" data-value="${p.value}" data-metric="P50"/>`).join("") : ""}
+            ${p90Path ? p90Path.points.map((p) => `<circle class="line-chart-dot" cx="${p.x}" cy="${p.y}" r="${dotRadius}" fill="var(--warning)" data-week="${escapeHtml(p.week)}" data-value="${p.value}" data-metric="P90"/>`).join("") : ""}
+            ${p50Path ? p50Path.points.map((p) => `<circle class="line-chart-dot" cx="${p.x}" cy="${p.y}" r="${dotRadius}" fill="var(--primary)" data-week="${escapeHtml(p.week)}" data-value="${p.value}" data-metric="P50"/>`).join("") : ""}
         </svg>
     `;
     const legendHtml = `
