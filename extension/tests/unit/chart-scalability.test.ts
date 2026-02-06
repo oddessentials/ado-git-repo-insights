@@ -228,6 +228,95 @@ describe("Reviewer Panel Scalability", () => {
   });
 });
 
+/**
+ * Coverage gap tests for chart edge cases.
+ *
+ * Targets uncovered branches identified by Codecov patch coverage:
+ * - cycle-time.ts:156-157 (p50Path/p90Path null when < 2 data points)
+ * - throughput.ts:121-125 (maxCount = 0 in renderTrendLine)
+ */
+describe("Cycle Time Chart: sparse data branches", () => {
+  let container: HTMLElement;
+
+  beforeEach(() => {
+    container = document.createElement("div");
+    document.body.appendChild(container);
+  });
+
+  afterEach(() => {
+    document.body.removeChild(container);
+  });
+
+  it("renders without p50 path when only 1 non-null p50 value", () => {
+    const rollups: Rollup[] = [
+      { week: "2026-W01", pr_count: 10, cycle_time_p50: null, cycle_time_p90: 100, authors_count: 2, reviewers_count: 1, by_repository: null, by_team: null } as unknown as Rollup,
+      { week: "2026-W02", pr_count: 12, cycle_time_p50: null, cycle_time_p90: 110, authors_count: 3, reviewers_count: 2, by_repository: null, by_team: null } as unknown as Rollup,
+      { week: "2026-W03", pr_count: 8, cycle_time_p50: 60, cycle_time_p90: 120, authors_count: 2, reviewers_count: 1, by_repository: null, by_team: null } as unknown as Rollup,
+    ];
+    renderCycleTimeTrend(container, rollups);
+
+    // Only 1 non-null p50 → p50Path is null → no P50 dots rendered
+    const p50Dots = container.querySelectorAll('[data-metric="P50"]');
+    expect(p50Dots.length).toBe(0);
+
+    // P90 has 3 points → path rendered
+    const p90Dots = container.querySelectorAll('[data-metric="P90"]');
+    expect(p90Dots.length).toBe(3);
+  });
+
+  it("renders without p90 path when only 1 non-null p90 value", () => {
+    const rollups: Rollup[] = [
+      { week: "2026-W01", pr_count: 10, cycle_time_p50: 50, cycle_time_p90: null, authors_count: 2, reviewers_count: 1, by_repository: null, by_team: null } as unknown as Rollup,
+      { week: "2026-W02", pr_count: 12, cycle_time_p50: 55, cycle_time_p90: null, authors_count: 3, reviewers_count: 2, by_repository: null, by_team: null } as unknown as Rollup,
+      { week: "2026-W03", pr_count: 8, cycle_time_p50: 60, cycle_time_p90: 120, authors_count: 2, reviewers_count: 1, by_repository: null, by_team: null } as unknown as Rollup,
+    ];
+    renderCycleTimeTrend(container, rollups);
+
+    // P50 has 3 points → path rendered
+    const p50Dots = container.querySelectorAll('[data-metric="P50"]');
+    expect(p50Dots.length).toBe(3);
+
+    // Only 1 non-null p90 → p90Path is null → no P90 dots rendered
+    const p90Dots = container.querySelectorAll('[data-metric="P90"]');
+    expect(p90Dots.length).toBe(0);
+  });
+});
+
+describe("Throughput Chart: zero count branch", () => {
+  let container: HTMLElement;
+
+  beforeEach(() => {
+    container = document.createElement("div");
+    document.body.appendChild(container);
+  });
+
+  afterEach(() => {
+    document.body.removeChild(container);
+  });
+
+  it("renders trend line correctly when all pr_counts are zero", () => {
+    const rollups: Rollup[] = Array.from({ length: 8 }, (_, i) => ({
+      week: `2026-W${(i + 1).toString().padStart(2, "0")}`,
+      pr_count: 0,
+      cycle_time_p50: 60,
+      cycle_time_p90: 120,
+      authors_count: 0,
+      reviewers_count: 0,
+      by_repository: null,
+      by_team: null,
+    })) as Rollup[];
+
+    renderThroughputChart(container, rollups);
+
+    // Chart still renders bars (all 0-height)
+    const bars = container.querySelectorAll(".bar-container");
+    expect(bars.length).toBe(8);
+
+    // Trend line still renders (all at midpoint when maxCount = 0)
+    expect(container.innerHTML).toContain("trend-line");
+  });
+});
+
 describe("Comments Feature Compatibility", () => {
   let container: HTMLElement;
 
