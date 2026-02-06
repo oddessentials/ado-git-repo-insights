@@ -128,172 +128,219 @@ export function getPreviousPeriod(
 }
 
 /**
+ * Aggregated metrics from a set of breakdown entries.
+ */
+interface AggregatedSlice {
+  pr_count: number;
+  cycle_time_p50: number | null;
+  cycle_time_p90: number | null;
+  authors_count: number;
+  reviewers_count: number;
+}
+
+/**
+ * Aggregate metrics from a list of BreakdownEntry objects.
+ * Returns summed counts and PR-weighted average cycle times.
+ */
+function aggregateEntries(entries: BreakdownEntry[]): AggregatedSlice {
+  const totalPrCount = entries.reduce(
+    (sum, entry) => sum + toFiniteNumber(entry.pr_count),
+    0,
+  );
+  const totalAuthors = entries.reduce(
+    (sum, entry) => sum + toFiniteNumber(entry.authors_count),
+    0,
+  );
+  const totalReviewers = entries.reduce(
+    (sum, entry) => sum + toFiniteNumber(entry.reviewers_count),
+    0,
+  );
+
+  const hasCycleTime = entries.some((e) => e.cycle_time_p50 !== undefined);
+
+  let cycleP50: number | null = null;
+  let cycleP90: number | null = null;
+  if (hasCycleTime && totalPrCount > 0) {
+    const weightedP50 = entries.reduce(
+      (sum, entry) =>
+        sum +
+        toFiniteNumber(entry.cycle_time_p50) *
+          toFiniteNumber(entry.pr_count),
+      0,
+    );
+    const weightedP90 = entries.reduce(
+      (sum, entry) =>
+        sum +
+        toFiniteNumber(entry.cycle_time_p90) *
+          toFiniteNumber(entry.pr_count),
+      0,
+    );
+    cycleP50 = weightedP50 / totalPrCount;
+    cycleP90 = weightedP90 / totalPrCount;
+  }
+
+  return {
+    pr_count: totalPrCount,
+    cycle_time_p50: cycleP50,
+    cycle_time_p90: cycleP90,
+    authors_count: totalAuthors,
+    reviewers_count: totalReviewers,
+  };
+}
+
+/**
+ * Resolve selected breakdown entries from a breakdown map.
+ * Looks up each key directly, then falls back to name-based search.
+ */
+function resolveBreakdownEntries(
+  breakdown: Record<string, BreakdownEntry>,
+  keys: string[],
+): BreakdownEntry[] {
+  return keys
+    .map((key) => {
+      // eslint-disable-next-line security/detect-object-injection -- SECURITY: key comes from validated filter state
+      const direct = breakdown[key];
+      if (direct) return direct;
+      return Object.entries(breakdown).find(([name]) => name === key)?.[1];
+    })
+    .filter(
+      (entry): entry is BreakdownEntry =>
+        entry !== undefined && typeof entry?.pr_count === "number",
+    );
+}
+
+const ZEROED_ROLLUP_FIELDS = {
+  pr_count: 0,
+  cycle_time_p50: null,
+  cycle_time_p90: null,
+  authors_count: 0,
+  reviewers_count: 0,
+} as const;
+
+/**
+ * Build a filtered rollup from an aggregated slice.
+ * Falls back to the original rollup values when the slice has no cycle time
+ * data (backward compatibility with legacy by_repository that only has pr_count).
+ */
+function buildFilteredRollup(
+  rollup: Rollup,
+  slice: AggregatedSlice,
+): Rollup {
+  return {
+    ...rollup,
+    pr_count: slice.pr_count,
+    ...(slice.cycle_time_p50 !== null
+      ? {
+          cycle_time_p50: slice.cycle_time_p50,
+          cycle_time_p90: slice.cycle_time_p90,
+        }
+      : {}),
+    ...(slice.authors_count > 0
+      ? { authors_count: slice.authors_count }
+      : {}),
+    ...(slice.reviewers_count > 0
+      ? { reviewers_count: slice.reviewers_count }
+      : {}),
+  } as Rollup;
+}
+
+/**
  * Apply dimension filters to rollups data.
- * Uses by_repository slices when available for accurate filtering.
+ * Uses by_repository and by_team slices when available for accurate filtering.
+ * When both filters are active, applies proportional intersection — each
+ * dimension's share is computed independently, then combined as a fraction
+ * of the rollup total (independence assumption).
  * Pure function - no side effects.
  */
 export function applyFiltersToRollups(
   rollups: Rollup[],
   filters: DimensionFilters,
 ): Rollup[] {
-  // No filters active - return original data
   if (!filters.repos.length && !filters.teams.length) {
     return rollups;
   }
 
   return rollups.map((rollup) => {
-    // If we have by_repository slices and repo filter is active, use them
-    if (
-      filters.repos.length &&
+    const hasRepoFilter =
+      filters.repos.length > 0 &&
       rollup.by_repository &&
-      typeof rollup.by_repository === "object"
-    ) {
-      // eslint-disable-next-line @typescript-eslint/no-non-null-assertion -- REASON: by_repository verified non-null in enclosing if condition (line 135)
-      const byRepository = rollup.by_repository!;
-      const selectedRepos = filters.repos
-        .map((repoId) => {
-          // eslint-disable-next-line security/detect-object-injection -- SECURITY: repoId comes from validated filter state
-          const repoData = byRepository[repoId];
-          if (repoData) return repoData;
+      typeof rollup.by_repository === "object";
+    const hasTeamFilter =
+      filters.teams.length > 0 &&
+      rollup.by_team &&
+      typeof rollup.by_team === "object";
 
-          return Object.entries(byRepository).find(
-            ([name]) => name === repoId,
-          )?.[1];
-        })
-        .filter(
-          (entry): entry is BreakdownEntry =>
-            entry !== undefined && typeof entry?.pr_count === "number",
-        );
-
-      if (selectedRepos.length === 0) {
-        return {
-          ...rollup,
-          pr_count: 0,
-          cycle_time_p50: null,
-          cycle_time_p90: null,
-          authors_count: 0,
-          reviewers_count: 0,
-        };
+    let repoSlice: AggregatedSlice | null = null;
+    if (hasRepoFilter) {
+      const entries = resolveBreakdownEntries(
+        rollup.by_repository!,
+        filters.repos,
+      );
+      if (entries.length === 0) {
+        return { ...rollup, ...ZEROED_ROLLUP_FIELDS };
       }
-
-      // Aggregate all available metrics from by_repository breakdown entries
-      const totalPrCount = selectedRepos.reduce(
-        (sum, entry) => sum + toFiniteNumber(entry.pr_count),
-        0,
-      );
-      const totalAuthors = selectedRepos.reduce(
-        (sum, entry) => sum + toFiniteNumber(entry.authors_count),
-        0,
-      );
-      const totalReviewers = selectedRepos.reduce(
-        (sum, entry) => sum + toFiniteNumber(entry.reviewers_count),
-        0,
-      );
-
-      // Cycle time: weighted average by PR count (best available approximation)
-      const weightedP50 = selectedRepos.reduce(
-        (sum, entry) =>
-          sum +
-          toFiniteNumber(entry.cycle_time_p50) *
-            toFiniteNumber(entry.pr_count),
-        0,
-      );
-      const weightedP90 = selectedRepos.reduce(
-        (sum, entry) =>
-          sum +
-          toFiniteNumber(entry.cycle_time_p90) *
-            toFiniteNumber(entry.pr_count),
-        0,
-      );
-      const hasPerRepoCycleTime = selectedRepos.some(
-        (e) => e.cycle_time_p50 !== undefined,
-      );
-
-      return {
-        ...rollup,
-        pr_count: totalPrCount,
-        ...(hasPerRepoCycleTime && totalPrCount > 0
-          ? {
-              cycle_time_p50: weightedP50 / totalPrCount,
-              cycle_time_p90: weightedP90 / totalPrCount,
-            }
-          : {}),
-        ...(totalAuthors > 0 ? { authors_count: totalAuthors } : {}),
-        ...(totalReviewers > 0 ? { reviewers_count: totalReviewers } : {}),
-      } as Rollup;
+      repoSlice = aggregateEntries(entries);
     }
 
-    // If we have by_team slices and team filter is active, use them
-    if (
-      filters.teams.length &&
-      rollup.by_team &&
-      typeof rollup.by_team === "object"
-    ) {
-      // eslint-disable-next-line @typescript-eslint/no-non-null-assertion -- REASON: by_team verified non-null in enclosing if condition (line 178)
-      const byTeam = rollup.by_team!;
-      const selectedTeams = filters.teams
-        // eslint-disable-next-line security/detect-object-injection -- SECURITY: teamId comes from validated filter state
-        .map((teamId) => byTeam[teamId])
-        .filter(
-          (entry): entry is BreakdownEntry =>
-            entry !== undefined && typeof entry?.pr_count === "number",
-        );
-
-      if (selectedTeams.length === 0) {
-        return {
-          ...rollup,
-          pr_count: 0,
-          cycle_time_p50: null,
-          cycle_time_p90: null,
-          authors_count: 0,
-          reviewers_count: 0,
-        };
+    let teamSlice: AggregatedSlice | null = null;
+    if (hasTeamFilter) {
+      const entries = resolveBreakdownEntries(
+        rollup.by_team!,
+        filters.teams,
+      );
+      if (entries.length === 0) {
+        return { ...rollup, ...ZEROED_ROLLUP_FIELDS };
       }
+      teamSlice = aggregateEntries(entries);
+    }
 
-      // Aggregate all available metrics from by_team breakdown entries
-      const totalPrCount = selectedTeams.reduce(
-        (sum, entry) => sum + toFiniteNumber(entry.pr_count),
-        0,
+    // Single filter active — use its slice directly
+    if (repoSlice && !teamSlice) {
+      return buildFilteredRollup(rollup, repoSlice);
+    }
+    if (teamSlice && !repoSlice) {
+      return buildFilteredRollup(rollup, teamSlice);
+    }
+
+    // Both filters active — proportional intersection.
+    // Each slice represents a marginal share of the rollup total.
+    // The intersection is estimated as: total * (repoShare * teamShare).
+    if (repoSlice && teamSlice) {
+      const total = rollup.pr_count || 1;
+      const repoShare = repoSlice.pr_count / total;
+      const teamShare = teamSlice.pr_count / total;
+      const combinedRatio = repoShare * teamShare;
+
+      const combinedPrCount = Math.round(rollup.pr_count * combinedRatio);
+      const combinedAuthors = Math.round(
+        (rollup.authors_count || 0) * combinedRatio,
       );
-      const totalAuthors = selectedTeams.reduce(
-        (sum, entry) => sum + toFiniteNumber(entry.authors_count),
-        0,
-      );
-      const totalReviewers = selectedTeams.reduce(
-        (sum, entry) => sum + toFiniteNumber(entry.reviewers_count),
-        0,
+      const combinedReviewers = Math.round(
+        (rollup.reviewers_count || 0) * combinedRatio,
       );
 
-      // Cycle time: weighted average by PR count (best available approximation)
-      const weightedP50 = selectedTeams.reduce(
-        (sum, entry) =>
-          sum +
-          toFiniteNumber(entry.cycle_time_p50) *
-            toFiniteNumber(entry.pr_count),
-        0,
+      // Cycle time: average the two slice estimates (both are valid
+      // weighted averages for their dimension, no basis to prefer one)
+      const p50s = [repoSlice.cycle_time_p50, teamSlice.cycle_time_p50].filter(
+        (v): v is number => v !== null,
       );
-      const weightedP90 = selectedTeams.reduce(
-        (sum, entry) =>
-          sum +
-          toFiniteNumber(entry.cycle_time_p90) *
-            toFiniteNumber(entry.pr_count),
-        0,
-      );
-      const hasPerTeamCycleTime = selectedTeams.some(
-        (e) => e.cycle_time_p50 !== undefined,
+      const p90s = [repoSlice.cycle_time_p90, teamSlice.cycle_time_p90].filter(
+        (v): v is number => v !== null,
       );
 
       return {
         ...rollup,
-        pr_count: totalPrCount,
-        ...(hasPerTeamCycleTime && totalPrCount > 0
+        pr_count: combinedPrCount,
+        ...(p50s.length > 0
           ? {
-              cycle_time_p50: weightedP50 / totalPrCount,
-              cycle_time_p90: weightedP90 / totalPrCount,
+              cycle_time_p50: p50s.reduce((a, b) => a + b, 0) / p50s.length,
+              cycle_time_p90: p90s.reduce((a, b) => a + b, 0) / p90s.length,
             }
           : {}),
-        ...(totalAuthors > 0 ? { authors_count: totalAuthors } : {}),
-        ...(totalReviewers > 0 ? { reviewers_count: totalReviewers } : {}),
+        ...(combinedAuthors > 0 ? { authors_count: combinedAuthors } : {}),
+        ...(combinedReviewers > 0
+          ? { reviewers_count: combinedReviewers }
+          : {}),
       } as Rollup;
     }
 

@@ -263,6 +263,32 @@ describe("metrics module", () => {
 
       expect(result[0].pr_count).toBe(0);
     });
+
+    it("applies both repo and team filters with proportional intersection", () => {
+      const result = applyFiltersToRollups([baseRollup], {
+        repos: ["repo-a"],
+        teams: ["team-x"],
+      });
+
+      // repo-a = 30/100 = 30%, team-x = 40/100 = 40%
+      // Combined: 100 * 0.3 * 0.4 = 12
+      expect(result[0].pr_count).toBe(12);
+      // authors: round(10 * 0.12) = 1, reviewers: round(5 * 0.12) = 1
+      expect(result[0].authors_count).toBe(1);
+      expect(result[0].reviewers_count).toBe(1);
+      // Cycle time: average of repo-a (50) and team-x (55) = 52.5
+      expect(result[0].cycle_time_p50).toBeCloseTo(52.5);
+      expect(result[0].cycle_time_p90).toBeCloseTo(105);
+    });
+
+    it("returns zeros when both filters active and one matches nothing", () => {
+      const result = applyFiltersToRollups([baseRollup], {
+        repos: ["unknown-repo"],
+        teams: ["team-x"],
+      });
+
+      expect(result[0].pr_count).toBe(0);
+    });
   });
 
   describe("extractSparklineData", () => {

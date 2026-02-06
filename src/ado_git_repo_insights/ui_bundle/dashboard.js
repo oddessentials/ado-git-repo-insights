@@ -2829,113 +2829,132 @@ var PRInsightsDashboard = (() => {
     );
     return { start: prevStart, end: prevEnd };
   }
+  function aggregateEntries(entries) {
+    const totalPrCount = entries.reduce(
+      (sum, entry) => sum + toFiniteNumber(entry.pr_count),
+      0
+    );
+    const totalAuthors = entries.reduce(
+      (sum, entry) => sum + toFiniteNumber(entry.authors_count),
+      0
+    );
+    const totalReviewers = entries.reduce(
+      (sum, entry) => sum + toFiniteNumber(entry.reviewers_count),
+      0
+    );
+    const hasCycleTime = entries.some((e) => e.cycle_time_p50 !== void 0);
+    let cycleP50 = null;
+    let cycleP90 = null;
+    if (hasCycleTime && totalPrCount > 0) {
+      const weightedP50 = entries.reduce(
+        (sum, entry) => sum + toFiniteNumber(entry.cycle_time_p50) * toFiniteNumber(entry.pr_count),
+        0
+      );
+      const weightedP90 = entries.reduce(
+        (sum, entry) => sum + toFiniteNumber(entry.cycle_time_p90) * toFiniteNumber(entry.pr_count),
+        0
+      );
+      cycleP50 = weightedP50 / totalPrCount;
+      cycleP90 = weightedP90 / totalPrCount;
+    }
+    return {
+      pr_count: totalPrCount,
+      cycle_time_p50: cycleP50,
+      cycle_time_p90: cycleP90,
+      authors_count: totalAuthors,
+      reviewers_count: totalReviewers
+    };
+  }
+  function resolveBreakdownEntries(breakdown, keys) {
+    return keys.map((key) => {
+      const direct = breakdown[key];
+      if (direct) return direct;
+      return Object.entries(breakdown).find(([name]) => name === key)?.[1];
+    }).filter(
+      (entry) => entry !== void 0 && typeof entry?.pr_count === "number"
+    );
+  }
+  var ZEROED_ROLLUP_FIELDS = {
+    pr_count: 0,
+    cycle_time_p50: null,
+    cycle_time_p90: null,
+    authors_count: 0,
+    reviewers_count: 0
+  };
+  function buildFilteredRollup(rollup, slice) {
+    return {
+      ...rollup,
+      pr_count: slice.pr_count,
+      ...slice.cycle_time_p50 !== null ? {
+        cycle_time_p50: slice.cycle_time_p50,
+        cycle_time_p90: slice.cycle_time_p90
+      } : {},
+      ...slice.authors_count > 0 ? { authors_count: slice.authors_count } : {},
+      ...slice.reviewers_count > 0 ? { reviewers_count: slice.reviewers_count } : {}
+    };
+  }
   function applyFiltersToRollups(rollups, filters) {
     if (!filters.repos.length && !filters.teams.length) {
       return rollups;
     }
     return rollups.map((rollup) => {
-      if (filters.repos.length && rollup.by_repository && typeof rollup.by_repository === "object") {
-        const byRepository = rollup.by_repository;
-        const selectedRepos = filters.repos.map((repoId) => {
-          const repoData = byRepository[repoId];
-          if (repoData) return repoData;
-          return Object.entries(byRepository).find(
-            ([name]) => name === repoId
-          )?.[1];
-        }).filter(
-          (entry) => entry !== void 0 && typeof entry?.pr_count === "number"
+      const hasRepoFilter = filters.repos.length > 0 && rollup.by_repository && typeof rollup.by_repository === "object";
+      const hasTeamFilter = filters.teams.length > 0 && rollup.by_team && typeof rollup.by_team === "object";
+      let repoSlice = null;
+      if (hasRepoFilter) {
+        const entries = resolveBreakdownEntries(
+          rollup.by_repository,
+          filters.repos
         );
-        if (selectedRepos.length === 0) {
-          return {
-            ...rollup,
-            pr_count: 0,
-            cycle_time_p50: null,
-            cycle_time_p90: null,
-            authors_count: 0,
-            reviewers_count: 0
-          };
+        if (entries.length === 0) {
+          return { ...rollup, ...ZEROED_ROLLUP_FIELDS };
         }
-        const totalPrCount = selectedRepos.reduce(
-          (sum, entry) => sum + toFiniteNumber(entry.pr_count),
-          0
-        );
-        const totalAuthors = selectedRepos.reduce(
-          (sum, entry) => sum + toFiniteNumber(entry.authors_count),
-          0
-        );
-        const totalReviewers = selectedRepos.reduce(
-          (sum, entry) => sum + toFiniteNumber(entry.reviewers_count),
-          0
-        );
-        const weightedP50 = selectedRepos.reduce(
-          (sum, entry) => sum + toFiniteNumber(entry.cycle_time_p50) * toFiniteNumber(entry.pr_count),
-          0
-        );
-        const weightedP90 = selectedRepos.reduce(
-          (sum, entry) => sum + toFiniteNumber(entry.cycle_time_p90) * toFiniteNumber(entry.pr_count),
-          0
-        );
-        const hasPerRepoCycleTime = selectedRepos.some(
-          (e) => e.cycle_time_p50 !== void 0
-        );
-        return {
-          ...rollup,
-          pr_count: totalPrCount,
-          ...hasPerRepoCycleTime && totalPrCount > 0 ? {
-            cycle_time_p50: weightedP50 / totalPrCount,
-            cycle_time_p90: weightedP90 / totalPrCount
-          } : {},
-          ...totalAuthors > 0 ? { authors_count: totalAuthors } : {},
-          ...totalReviewers > 0 ? { reviewers_count: totalReviewers } : {}
-        };
+        repoSlice = aggregateEntries(entries);
       }
-      if (filters.teams.length && rollup.by_team && typeof rollup.by_team === "object") {
-        const byTeam = rollup.by_team;
-        const selectedTeams = filters.teams.map((teamId) => byTeam[teamId]).filter(
-          (entry) => entry !== void 0 && typeof entry?.pr_count === "number"
+      let teamSlice = null;
+      if (hasTeamFilter) {
+        const entries = resolveBreakdownEntries(
+          rollup.by_team,
+          filters.teams
         );
-        if (selectedTeams.length === 0) {
-          return {
-            ...rollup,
-            pr_count: 0,
-            cycle_time_p50: null,
-            cycle_time_p90: null,
-            authors_count: 0,
-            reviewers_count: 0
-          };
+        if (entries.length === 0) {
+          return { ...rollup, ...ZEROED_ROLLUP_FIELDS };
         }
-        const totalPrCount = selectedTeams.reduce(
-          (sum, entry) => sum + toFiniteNumber(entry.pr_count),
-          0
+        teamSlice = aggregateEntries(entries);
+      }
+      if (repoSlice && !teamSlice) {
+        return buildFilteredRollup(rollup, repoSlice);
+      }
+      if (teamSlice && !repoSlice) {
+        return buildFilteredRollup(rollup, teamSlice);
+      }
+      if (repoSlice && teamSlice) {
+        const total = rollup.pr_count || 1;
+        const repoShare = repoSlice.pr_count / total;
+        const teamShare = teamSlice.pr_count / total;
+        const combinedRatio = repoShare * teamShare;
+        const combinedPrCount = Math.round(rollup.pr_count * combinedRatio);
+        const combinedAuthors = Math.round(
+          (rollup.authors_count || 0) * combinedRatio
         );
-        const totalAuthors = selectedTeams.reduce(
-          (sum, entry) => sum + toFiniteNumber(entry.authors_count),
-          0
+        const combinedReviewers = Math.round(
+          (rollup.reviewers_count || 0) * combinedRatio
         );
-        const totalReviewers = selectedTeams.reduce(
-          (sum, entry) => sum + toFiniteNumber(entry.reviewers_count),
-          0
+        const p50s = [repoSlice.cycle_time_p50, teamSlice.cycle_time_p50].filter(
+          (v) => v !== null
         );
-        const weightedP50 = selectedTeams.reduce(
-          (sum, entry) => sum + toFiniteNumber(entry.cycle_time_p50) * toFiniteNumber(entry.pr_count),
-          0
-        );
-        const weightedP90 = selectedTeams.reduce(
-          (sum, entry) => sum + toFiniteNumber(entry.cycle_time_p90) * toFiniteNumber(entry.pr_count),
-          0
-        );
-        const hasPerTeamCycleTime = selectedTeams.some(
-          (e) => e.cycle_time_p50 !== void 0
+        const p90s = [repoSlice.cycle_time_p90, teamSlice.cycle_time_p90].filter(
+          (v) => v !== null
         );
         return {
           ...rollup,
-          pr_count: totalPrCount,
-          ...hasPerTeamCycleTime && totalPrCount > 0 ? {
-            cycle_time_p50: weightedP50 / totalPrCount,
-            cycle_time_p90: weightedP90 / totalPrCount
+          pr_count: combinedPrCount,
+          ...p50s.length > 0 ? {
+            cycle_time_p50: p50s.reduce((a, b) => a + b, 0) / p50s.length,
+            cycle_time_p90: p90s.reduce((a, b) => a + b, 0) / p90s.length
           } : {},
-          ...totalAuthors > 0 ? { authors_count: totalAuthors } : {},
-          ...totalReviewers > 0 ? { reviewers_count: totalReviewers } : {}
+          ...combinedAuthors > 0 ? { authors_count: combinedAuthors } : {},
+          ...combinedReviewers > 0 ? { reviewers_count: combinedReviewers } : {}
         };
       }
       return rollup;
