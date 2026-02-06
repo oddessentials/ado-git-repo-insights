@@ -74,10 +74,11 @@ python scripts/generate-synthetic-dataset.py \
 
 | Scenario | Indicator shown | Assertion | Result |
 |----------|----------------|-----------|--------|
-| 156 weeks throughput | Yes, "Showing last 2 years (104 weeks)" | T031 | PASS |
-| 156 weeks cycle time | Yes, "Showing last 2 years (104 weeks)" | T032 | PASS |
-| 104 weeks (at cap) | No indicator | T033 | PASS |
-| 52 weeks (under cap) | No indicator | T033 | PASS |
+| 156 weeks throughput | Yes, "Showing last 104 weeks" | T031 | PASS |
+| 156 weeks cycle time | Yes, "Showing last 104 weeks" | T032 | PASS |
+| 104 weeks (at cap, throughput) | No indicator | T033a | PASS |
+| 104 weeks (at cap, cycle-time) | No indicator | T033b | PASS |
+| 52 weeks (under cap) | No indicator | (inline) | PASS |
 
 ### Comments Feature Compatibility
 

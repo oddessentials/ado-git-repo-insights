@@ -198,7 +198,7 @@ export function renderCycleTimeTrend(
 
   // Truncation indicator
   const truncationHtml = truncated
-    ? `<div class="truncation-indicator">Showing last 2 years (${MAX_CYCLE_TIME_POINTS} weeks)</div>`
+    ? `<div class="truncation-indicator">Showing last ${MAX_CYCLE_TIME_POINTS} weeks</div>`
     : "";
 
   // SECURITY: Content is SVG from computed coordinates + escapeHtml'd week values

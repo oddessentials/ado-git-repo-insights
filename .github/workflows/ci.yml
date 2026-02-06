@@ -899,7 +899,7 @@ jobs:
         uses: actions/cache@v4
         with:
           path: /tmp/scalability-test-data
-          key: scalability-data-seed42-weeks156-users200-v1
+          key: scalability-data-pr10000-w156-u200-comments-seed42-${{ hashFiles('scripts/generate-synthetic-dataset.py', 'src/ado_git_repo_insights/transform/aggregators.py', 'schemas/dataset-manifest.schema.json') }}
 
       - name: Generate scalability test data
         run: |

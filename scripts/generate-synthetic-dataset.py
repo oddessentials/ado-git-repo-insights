@@ -95,8 +95,15 @@ def generate_dimensions(
     )
 
 
+def _reviewer_count(rng: random.Random, num_users: int) -> int:
+    """Return a random reviewer count bounded by num_users."""
+    low = min(max(3, num_users // 10), num_users)
+    high = max(low, min(num_users, max(10, num_users // 2)))
+    return rng.randint(low, high)
+
+
 def generate_weekly_rollups(
-    pr_count: int, weeks: int, seed: int, output_dir: Path
+    pr_count: int, weeks: int, seed: int, output_dir: Path, num_users: int = 30
 ) -> list[dict[str, Any]]:
     """Generate weekly rollup files."""
     rng = random.Random(seed)  # noqa: S311
@@ -131,7 +138,7 @@ def generate_weekly_rollups(
             cycle_time_p50=rng.uniform(120, 480),  # 2-8 hours
             cycle_time_p90=rng.uniform(480, 1440),  # 8-24 hours
             authors_count=rng.randint(5, 15),
-            reviewers_count=rng.randint(3, 10),
+            reviewers_count=_reviewer_count(rng, num_users),
         )
 
         # Write file
@@ -230,9 +237,16 @@ def generate_distributions(
 
 
 def generate_comments(
-    pr_count: int, seed: int, users: list[dict[str, str]], output_dir: Path
+    pr_count: int,
+    seed: int,
+    users: list[dict[str, str]],
+    output_dir: Path,
+    batch_size: int = 100,
 ) -> dict[str, Any]:
-    """Generate comment threads and comments for PRs.
+    """Generate comment threads and comments for PRs in batched files.
+
+    Instead of one file per PR, writes batched JSON files
+    (``comments-batch-0001.json``, etc.) for better filesystem performance.
 
     Returns comment statistics for the manifest coverage section.
     """
@@ -243,6 +257,8 @@ def generate_comments(
 
     total_threads = 0
     total_comments = 0
+    batch: list[dict[str, Any]] = []
+    batch_num = 0
 
     for pr_id in range(1, pr_count + 1):
         num_threads = rng.randint(2, 5)
@@ -274,15 +290,28 @@ def generate_comments(
             total_comments += num_comments
 
         total_threads += num_threads
+        batch.append({"pr_id": pr_id, "threads": threads})
 
-        # Write per-PR comment file
-        pr_file = comments_dir / f"pr-{pr_id}.json"
-        write_json(pr_file, {"pr_id": pr_id, "threads": threads})
+        # Flush batch when full
+        if len(batch) >= batch_size:
+            batch_num += 1
+            batch_file = comments_dir / f"comments-batch-{batch_num:04d}.json"
+            write_json(batch_file, {"prs": batch})
+            batch = []
+
+    # Flush remaining
+    if batch:
+        batch_num += 1
+        batch_file = comments_dir / f"comments-batch-{batch_num:04d}.json"
+        write_json(batch_file, {"prs": batch})
 
     return {
         "total_threads": total_threads,
         "total_comments": total_comments,
         "prs_with_comments": pr_count,
+        "batch_count": batch_num,
+        "batch_size": batch_size,
+        "batch_pattern": "aggregates/comments/comments-batch-*.json",
     }
 
 
@@ -318,7 +347,9 @@ def generate_dataset(
     print("[OK] Generated dimensions.json")
 
     # Generate weekly rollups
-    weekly_index = generate_weekly_rollups(pr_count, weeks, seed, output_dir)
+    weekly_index = generate_weekly_rollups(
+        pr_count, weeks, seed, output_dir, num_users=len(dimensions.users)
+    )
     print(f"[OK] Generated {len(weekly_index)} weekly rollup files")
 
     # Generate distributions

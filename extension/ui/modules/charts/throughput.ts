@@ -64,7 +64,7 @@ export function renderThroughputChart(
 
   // Truncation indicator
   const truncationHtml = truncated
-    ? `<div class="truncation-indicator">Showing last 2 years (${MAX_THROUGHPUT_POINTS} weeks)</div>`
+    ? `<div class="truncation-indicator">Showing last ${MAX_THROUGHPUT_POINTS} weeks</div>`
     : "";
 
   // Legend

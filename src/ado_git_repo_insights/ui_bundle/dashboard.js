@@ -4139,7 +4139,7 @@ var PRInsightsDashboard = (() => {
         `;
     }).join("");
     const trendLineHtml = renderTrendLine(displayRollups, movingAvg, maxCount);
-    const truncationHtml = truncated ? `<div class="truncation-indicator">Showing last 2 years (${MAX_THROUGHPUT_POINTS} weeks)</div>` : "";
+    const truncationHtml = truncated ? `<div class="truncation-indicator">Showing last ${MAX_THROUGHPUT_POINTS} weeks</div>` : "";
     const legendHtml = `
         <div class="chart-legend">
             <div class="legend-item">
@@ -4303,7 +4303,7 @@ var PRInsightsDashboard = (() => {
             </div>
         </div>
     `;
-    const truncationHtml = truncated ? `<div class="truncation-indicator">Showing last 2 years (${MAX_CYCLE_TIME_POINTS} weeks)</div>` : "";
+    const truncationHtml = truncated ? `<div class="truncation-indicator">Showing last ${MAX_CYCLE_TIME_POINTS} weeks</div>` : "";
     renderTrustedHtml(
       container,
       `${truncationHtml}<div class="line-chart">${svgContent}</div>${legendHtml}`

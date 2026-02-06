@@ -64,11 +64,10 @@ describe("Throughput Chart Scalability", () => {
 
     const indicator = container.querySelector(".truncation-indicator");
     expect(indicator).not.toBeNull();
-    expect(indicator!.textContent).toContain("Showing last 2 years");
-    expect(indicator!.textContent).toContain("104 weeks");
+    expect(indicator!.textContent).toContain("Showing last 104 weeks");
   });
 
-  it("T033: no truncation indicator for exactly 104 weeks", () => {
+  it("T033a: no truncation indicator for exactly 104 weeks (throughput)", () => {
     const rollups = createRollups(104);
     renderThroughputChart(container, rollups);
 
@@ -133,11 +132,10 @@ describe("Cycle Time Chart Scalability", () => {
 
     const indicator = container.querySelector(".truncation-indicator");
     expect(indicator).not.toBeNull();
-    expect(indicator!.textContent).toContain("Showing last 2 years");
-    expect(indicator!.textContent).toContain("104 weeks");
+    expect(indicator!.textContent).toContain("Showing last 104 weeks");
   });
 
-  it("T033: no truncation indicator for exactly 104 weeks", () => {
+  it("T033b: no truncation indicator for exactly 104 weeks (cycle-time)", () => {
     const rollups = createRollups(104);
     renderCycleTimeTrend(container, rollups);
 

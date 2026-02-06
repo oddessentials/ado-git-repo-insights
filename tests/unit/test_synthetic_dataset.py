@@ -106,7 +106,10 @@ def run_generator(
         # (Can't use context manager's tmpdir as it gets deleted)
         import shutil
 
-        persist_dir = Path(tempfile.gettempdir()) / f"synthetic-test-{pr_count}-{seed}"
+        persist_dir = Path(tempfile.gettempdir()) / (
+            f"synthetic-test-{pr_count}-{seed}"
+            f"-w{weeks}-u{users}-c{int(include_comments)}"
+        )
         if persist_dir.exists():
             shutil.rmtree(persist_dir)
         shutil.copytree(output_dir, persist_dir)
@@ -332,21 +335,31 @@ def test_include_comments_sets_feature_flag():
 
 def test_users_zero_validation_error():
     """T012: --users 0 must fail with a clear validation error."""
-    result, _ = run_generator_raw(pr_count=100, seed=42, users=0)
+    result, output_dir = run_generator_raw(pr_count=100, seed=42, users=0)
+    try:
+        assert result.returncode != 0, "--users 0 must be rejected"
+        # Error message should mention the invalid value
+        combined_output = result.stderr + result.stdout
+        assert "0" in combined_output or "users" in combined_output.lower()
+    finally:
+        import shutil
 
-    assert result.returncode != 0, "--users 0 must be rejected"
-    # Error message should mention the invalid value
-    combined_output = result.stderr + result.stdout
-    assert "0" in combined_output or "users" in combined_output.lower()
+        if output_dir.exists():
+            shutil.rmtree(output_dir)
 
 
 def test_weeks_zero_validation_error():
     """T013: --weeks 0 must fail with a clear validation error."""
-    result, _ = run_generator_raw(pr_count=100, seed=42, weeks=0)
+    result, output_dir = run_generator_raw(pr_count=100, seed=42, weeks=0)
+    try:
+        assert result.returncode != 0, "--weeks 0 must be rejected"
+        combined_output = result.stderr + result.stdout
+        assert "0" in combined_output or "weeks" in combined_output.lower()
+    finally:
+        import shutil
 
-    assert result.returncode != 0, "--weeks 0 must be rejected"
-    combined_output = result.stderr + result.stdout
-    assert "0" in combined_output or "weeks" in combined_output.lower()
+        if output_dir.exists():
+            shutil.rmtree(output_dir)
 
 
 def test_200_users_produces_200_dimension_entries():

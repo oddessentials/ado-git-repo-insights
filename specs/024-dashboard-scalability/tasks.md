@@ -104,7 +104,7 @@ python scripts/generate-synthetic-dataset.py --pr-count 10000 --weeks 156 --user
 - [ ] T030 [P] [US2] Add DOM element count test for cycle time chart (≤ 104 elements) in `extension/tests/unit/chart-scalability.test.ts`
 - [ ] T031 [US2] Add truncation indicator visibility test for throughput chart in `extension/tests/unit/chart-scalability.test.ts`
 - [ ] T032 [US2] Add truncation indicator visibility test for cycle time chart in `extension/tests/unit/chart-scalability.test.ts`
-- [ ] T033 [US2] Add test verifying no truncation indicator for exactly 104 weeks in `extension/tests/unit/chart-scalability.test.ts`
+- [ ] T033 [US2] Add test verifying no truncation indicator for exactly 104 weeks (T033a=throughput, T033b=cycle-time) in `extension/tests/unit/chart-scalability.test.ts`
 
 ### Implementation for User Story 2
 
@@ -118,7 +118,7 @@ python scripts/generate-synthetic-dataset.py --pr-count 10000 --weeks 156 --user
 - [ ] T041 [US2] Update existing chart tests to accommodate new truncation behavior in `extension/tests/modules/charts/throughput.test.ts`
 - [ ] T042 [US2] Update existing chart tests to accommodate new truncation behavior in `extension/tests/modules/charts/cycle-time.test.ts`
 
-**Checkpoint**: Charts render 156-week datasets with truncation indicators showing "Showing last 2 years (104 weeks)"
+**Checkpoint**: Charts render 156-week datasets with truncation indicators showing "Showing last 104 weeks"
 
 ---
 
@@ -325,6 +325,6 @@ With 2+ developers after US1 completes:
 - User Story 1 is the critical path - all other stories depend on it
 - Tests use `performance.now()` for timing, not external tools
 - DOM element assertions use standard `querySelectorAll`
-- Truncation indicator text: "Showing last 2 years (104 weeks)"
+- Truncation indicator text: "Showing last 104 weeks"
 - Commit after each logical task group
 - Run `pnpm test:scalability` to verify all performance thresholds
