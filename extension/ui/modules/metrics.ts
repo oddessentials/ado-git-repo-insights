@@ -340,7 +340,10 @@ export function applyFiltersToRollups(
         ...(p50s.length > 0
           ? {
               cycle_time_p50: p50s.reduce((a, b) => a + b, 0) / p50s.length,
-              cycle_time_p90: p90s.reduce((a, b) => a + b, 0) / p90s.length,
+              cycle_time_p90:
+                p90s.length > 0
+                  ? p90s.reduce((a, b) => a + b, 0) / p90s.length
+                  : null,
             }
           : {}),
         ...(combinedAuthors > 0 ? { authors_count: combinedAuthors } : {}),
