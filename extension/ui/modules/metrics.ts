@@ -261,19 +261,23 @@ export function applyFiltersToRollups(
   }
 
   return rollups.map((rollup) => {
-    const hasRepoFilter =
+    const repoBreakdown =
       filters.repos.length > 0 &&
       rollup.by_repository &&
-      typeof rollup.by_repository === "object";
-    const hasTeamFilter =
+      typeof rollup.by_repository === "object"
+        ? rollup.by_repository
+        : null;
+    const teamBreakdown =
       filters.teams.length > 0 &&
       rollup.by_team &&
-      typeof rollup.by_team === "object";
+      typeof rollup.by_team === "object"
+        ? rollup.by_team
+        : null;
 
     let repoSlice: AggregatedSlice | null = null;
-    if (hasRepoFilter) {
+    if (repoBreakdown) {
       const entries = resolveBreakdownEntries(
-        rollup.by_repository!,
+        repoBreakdown,
         filters.repos,
       );
       if (entries.length === 0) {
@@ -283,9 +287,9 @@ export function applyFiltersToRollups(
     }
 
     let teamSlice: AggregatedSlice | null = null;
-    if (hasTeamFilter) {
+    if (teamBreakdown) {
       const entries = resolveBreakdownEntries(
-        rollup.by_team!,
+        teamBreakdown,
         filters.teams,
       );
       if (entries.length === 0) {
