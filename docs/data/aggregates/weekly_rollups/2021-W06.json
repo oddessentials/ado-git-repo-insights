@@ -2,10 +2,18 @@
   "authors_count": 8,
   "by_team": {
     "Team Alpha": {
-      "pr_count": 8
+      "authors_count": 1,
+      "cycle_time_p50": 136.99819475597846,
+      "cycle_time_p90": 1020.0362436155558,
+      "pr_count": 6,
+      "reviewers_count": 11
     },
     "Team Beta": {
-      "pr_count": 35
+      "authors_count": 7,
+      "cycle_time_p50": 183.16017432331137,
+      "cycle_time_p90": 1363.740715923323,
+      "pr_count": 37,
+      "reviewers_count": 66
     }
   },
   "cycle_time_p50": 160.07918453964493,

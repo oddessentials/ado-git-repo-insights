@@ -220,19 +220,50 @@ export function applyFiltersToRollups(
         };
       }
 
-      // Aggregate metrics - by_team values are BreakdownEntry objects
+      // Aggregate all available metrics from by_team breakdown entries
       const totalPrCount = selectedTeams.reduce(
         (sum, entry) => sum + toFiniteNumber(entry.pr_count),
         0,
       );
+      const totalAuthors = selectedTeams.reduce(
+        (sum, entry) => sum + toFiniteNumber(entry.authors_count),
+        0,
+      );
+      const totalReviewers = selectedTeams.reduce(
+        (sum, entry) => sum + toFiniteNumber(entry.reviewers_count),
+        0,
+      );
 
-      // When filtering by team, we only have PR count per team.
-      // Other metrics are preserved from the unfiltered rollup.
+      // Cycle time: weighted average by PR count (best available approximation)
+      const weightedP50 = selectedTeams.reduce(
+        (sum, entry) =>
+          sum +
+          toFiniteNumber(entry.cycle_time_p50) *
+            toFiniteNumber(entry.pr_count),
+        0,
+      );
+      const weightedP90 = selectedTeams.reduce(
+        (sum, entry) =>
+          sum +
+          toFiniteNumber(entry.cycle_time_p90) *
+            toFiniteNumber(entry.pr_count),
+        0,
+      );
+      const hasPerTeamCycleTime = selectedTeams.some(
+        (e) => e.cycle_time_p50 !== undefined,
+      );
+
       return {
         ...rollup,
         pr_count: totalPrCount,
-        // NOTE: cycle_time/authors/reviewers preserved from unfiltered rollup
-        // as we don't have per-team breakdown for these metrics
+        ...(hasPerTeamCycleTime && totalPrCount > 0
+          ? {
+              cycle_time_p50: weightedP50 / totalPrCount,
+              cycle_time_p90: weightedP90 / totalPrCount,
+            }
+          : {}),
+        ...(totalAuthors > 0 ? { authors_count: totalAuthors } : {}),
+        ...(totalReviewers > 0 ? { reviewers_count: totalReviewers } : {}),
       } as Rollup;
     }
 

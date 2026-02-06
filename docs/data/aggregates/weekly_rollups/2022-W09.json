@@ -1,18 +1,26 @@
 {
-  "authors_count": 15,
+  "authors_count": 9,
   "by_team": {
     "Team Alpha": {
-      "pr_count": 8
+      "authors_count": 4,
+      "cycle_time_p50": 192.40833803356756,
+      "cycle_time_p90": 1083.8735188233277,
+      "pr_count": 19,
+      "reviewers_count": 73
     },
     "Team Beta": {
-      "pr_count": 25
+      "authors_count": 5,
+      "cycle_time_p50": 194.18172684219851,
+      "cycle_time_p90": 1093.8633622360253,
+      "pr_count": 19,
+      "reviewers_count": 76
     }
   },
-  "cycle_time_p50": 360.4307533365301,
-  "cycle_time_p90": 1012.4181911900907,
+  "cycle_time_p50": 193.29503243788304,
+  "cycle_time_p90": 1088.8684405296765,
   "end_date": "2022-03-06",
-  "pr_count": 33,
-  "reviewers_count": 46,
+  "pr_count": 38,
+  "reviewers_count": 149,
   "start_date": "2022-02-28",
   "week": "2022-W09"
 }

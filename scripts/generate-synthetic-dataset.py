@@ -150,11 +150,30 @@ def generate_weekly_rollups(
         # Add by_team breakdown so the team filter dropdown works.
         # Keys must be team_name (not team_id) to match the dashboard
         # contract — see dashboard.ts line 1119.
-        team_alpha_prs = rng.randint(0, week_pr_count)
+        # All metrics are split deterministically so every chart reacts
+        # to the team filter, not just PR Throughput.
+        alpha_ratio = rng.random()
+        team_alpha_prs = round(week_pr_count * alpha_ratio)
         team_beta_prs = week_pr_count - team_alpha_prs
+        team_alpha_authors = max(1, round(rollup.authors_count * alpha_ratio))
+        team_beta_authors = max(1, rollup.authors_count - team_alpha_authors)
+        team_alpha_reviewers = max(1, round(rollup.reviewers_count * alpha_ratio))
+        team_beta_reviewers = max(1, rollup.reviewers_count - team_alpha_reviewers)
         rollup_dict["by_team"] = {
-            "Team Alpha": {"pr_count": team_alpha_prs},
-            "Team Beta": {"pr_count": team_beta_prs},
+            "Team Alpha": {
+                "pr_count": team_alpha_prs,
+                "cycle_time_p50": rollup.cycle_time_p50 * (0.8 + alpha_ratio * 0.4),
+                "cycle_time_p90": rollup.cycle_time_p90 * (0.8 + alpha_ratio * 0.4),
+                "authors_count": team_alpha_authors,
+                "reviewers_count": team_alpha_reviewers,
+            },
+            "Team Beta": {
+                "pr_count": team_beta_prs,
+                "cycle_time_p50": rollup.cycle_time_p50 * (1.2 - alpha_ratio * 0.4),
+                "cycle_time_p90": rollup.cycle_time_p90 * (1.2 - alpha_ratio * 0.4),
+                "authors_count": team_beta_authors,
+                "reviewers_count": team_beta_reviewers,
+            },
         }
 
         # Write file
