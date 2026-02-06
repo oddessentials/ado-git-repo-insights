@@ -392,3 +392,131 @@ def test_156_weeks_produces_156_rollup_files():
     for entry in rollups:
         rollup_path = output_dir / entry["path"]
         assert rollup_path.exists(), f"Rollup file missing: {entry['path']}"
+
+
+# ---------------------------------------------------------------------------
+# Comment data structure validation
+# ---------------------------------------------------------------------------
+
+
+def test_comment_data_structure():
+    """Comment data must contain valid threads and comments per the contract.
+
+    Validates:
+    - Batch files exist under aggregates/comments/
+    - Each PR has 2-5 threads
+    - Each thread has 1-4 comments
+    - Comment and thread IDs follow naming conventions
+    - Manifest coverage includes comment statistics
+    """
+    output_dir = run_generator(
+        pr_count=100, weeks=4, seed=42, users=10, include_comments=True
+    )
+
+    # Verify comment batch files exist
+    comments_dir = output_dir / "aggregates" / "comments"
+    assert comments_dir.exists(), "comments directory must exist"
+
+    batch_files = sorted(comments_dir.glob("comments-batch-*.json"))
+    assert len(batch_files) > 0, "At least one comment batch file must exist"
+
+    total_prs = 0
+    total_threads = 0
+    total_comments = 0
+
+    for batch_file in batch_files:
+        with batch_file.open() as f:
+            batch_data = json.load(f)
+
+        assert "prs" in batch_data, "Batch file must contain 'prs' key"
+
+        for pr in batch_data["prs"]:
+            total_prs += 1
+            assert "pr_id" in pr, "Each PR must have a pr_id"
+            assert "threads" in pr, "Each PR must have threads"
+
+            threads = pr["threads"]
+            assert 2 <= len(threads) <= 5, (
+                f"PR {pr['pr_id']} has {len(threads)} threads, expected 2-5"
+            )
+
+            for thread in threads:
+                total_threads += 1
+                assert "thread_id" in thread
+                assert "status" in thread
+                assert thread["status"] in ("active", "fixed", "closed", "byDesign")
+                assert "comments" in thread
+
+                comments = thread["comments"]
+                assert 1 <= len(comments) <= 4, (
+                    f"Thread {thread['thread_id']} has {len(comments)} comments, "
+                    "expected 1-4"
+                )
+
+                for comment in comments:
+                    total_comments += 1
+                    assert "comment_id" in comment
+                    assert "author" in comment
+                    assert "author_id" in comment
+                    assert "content_length" in comment
+                    assert isinstance(comment["content_length"], int)
+                    assert 10 <= comment["content_length"] <= 500
+
+    assert total_prs == 100, f"Expected 100 PRs with comments, got {total_prs}"
+
+    # Verify manifest coverage includes comment stats
+    manifest_path = output_dir / "dataset-manifest.json"
+    with manifest_path.open() as f:
+        manifest = json.load(f)
+
+    coverage = manifest["coverage"]
+    assert "comments" in coverage, "Manifest coverage must include comments section"
+    stats = coverage["comments"]
+    assert stats["total_threads"] == total_threads
+    assert stats["total_comments"] == total_comments
+    assert stats["prs_with_comments"] == 100
+
+
+# ---------------------------------------------------------------------------
+# Combined-parameter generator test
+# ---------------------------------------------------------------------------
+
+
+def test_combined_parameters_weeks_users_comments():
+    """All three scalability flags must work together correctly.
+
+    Exercises: --weeks 156 --users 200 --include-comments simultaneously.
+    """
+    output_dir = run_generator(
+        pr_count=1000, weeks=156, seed=42, users=200, include_comments=True
+    )
+
+    manifest_path = output_dir / "dataset-manifest.json"
+    with manifest_path.open() as f:
+        manifest = json.load(f)
+
+    # Verify weeks
+    rollups = manifest["aggregate_index"]["weekly_rollups"]
+    assert len(rollups) == 156, f"Expected 156 rollups, got {len(rollups)}"
+
+    # Verify users
+    dim_path = output_dir / "aggregates" / "dimensions.json"
+    with dim_path.open() as f:
+        dimensions = json.load(f)
+    assert len(dimensions["users"]) == 200, (
+        f"Expected 200 users, got {len(dimensions['users'])}"
+    )
+
+    # Verify comments enabled
+    assert manifest["features"]["comments"] is True
+    comments_dir = output_dir / "aggregates" / "comments"
+    assert comments_dir.exists(), "Comments directory must exist"
+    batch_files = list(comments_dir.glob("comments-batch-*.json"))
+    assert len(batch_files) > 0, "Comment batch files must exist"
+
+    # Verify coverage stats are consistent
+    coverage = manifest["coverage"]
+    assert coverage["total_prs"] == 1000
+    assert coverage["row_counts"]["users"] == 200
+    assert "comments" in coverage
+    assert coverage["comments"]["prs_with_comments"] == 1000

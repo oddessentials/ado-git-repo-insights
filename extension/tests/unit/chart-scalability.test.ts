@@ -7,6 +7,8 @@
  * Constitution Gates: QG-28, QG-29
  */
 
+import * as fs from "fs";
+import * as path from "path";
 import { renderThroughputChart, MAX_THROUGHPUT_POINTS } from "../../ui/modules/charts/throughput";
 import { renderCycleTimeTrend, MAX_CYCLE_TIME_POINTS } from "../../ui/modules/charts/cycle-time";
 import { renderReviewerActivity, MAX_REVIEWER_WEEKS } from "../../ui/modules/charts/reviewer-activity";
@@ -288,4 +290,87 @@ describe("Comments Feature Compatibility", () => {
     renderThroughputChart(container, rollups);
     expect(container.innerHTML).toBe(throughputHtml);
   });
+});
+
+describe("Integration: Real Generated Data", () => {
+  const docsDataDir = path.resolve(__dirname, "../../../docs/data");
+  const manifestPath = path.join(docsDataDir, "dataset-manifest.json");
+
+  // Skip if docs/data hasn't been generated
+  const dataExists = fs.existsSync(manifestPath);
+
+  let manifest: Record<string, unknown>;
+  let rollups: Rollup[];
+  let container: HTMLElement;
+
+  beforeAll(() => {
+    if (!dataExists) return;
+
+    manifest = JSON.parse(fs.readFileSync(manifestPath, "utf-8"));
+    const index = (manifest as any).aggregate_index.weekly_rollups as Array<{
+      week: string;
+      path: string;
+    }>;
+
+    // Load all rollup files from disk
+    rollups = index.map((entry) => {
+      const filePath = path.join(docsDataDir, entry.path);
+      return JSON.parse(fs.readFileSync(filePath, "utf-8")) as Rollup;
+    });
+  });
+
+  beforeEach(() => {
+    container = document.createElement("div");
+    document.body.appendChild(container);
+  });
+
+  afterEach(() => {
+    document.body.removeChild(container);
+  });
+
+  (dataExists ? it : it.skip)(
+    "manifest has 200 users and 260 weeks",
+    () => {
+      const coverage = (manifest as any).coverage;
+      expect(coverage.row_counts.users).toBe(200);
+      expect((manifest as any).aggregate_index.weekly_rollups.length).toBe(260);
+      expect((manifest as any).features.comments).toBe(true);
+    },
+  );
+
+  (dataExists ? it : it.skip)(
+    "throughput chart renders real 260-week data without errors",
+    () => {
+      expect(() => renderThroughputChart(container, rollups)).not.toThrow();
+
+      const bars = container.querySelectorAll(".bar-container");
+      expect(bars.length).toBe(MAX_THROUGHPUT_POINTS);
+
+      const indicator = container.querySelector(".truncation-indicator");
+      expect(indicator).not.toBeNull();
+    },
+  );
+
+  (dataExists ? it : it.skip)(
+    "cycle-time chart renders real 260-week data without errors",
+    () => {
+      expect(() => renderCycleTimeTrend(container, rollups)).not.toThrow();
+
+      const p50Dots = container.querySelectorAll('[data-metric="P50"]');
+      expect(p50Dots.length).toBe(MAX_CYCLE_TIME_POINTS);
+
+      const indicator = container.querySelector(".truncation-indicator");
+      expect(indicator).not.toBeNull();
+    },
+  );
+
+  (dataExists ? it : it.skip)(
+    "reviewer panel renders real data with high reviewer counts",
+    () => {
+      expect(() => renderReviewerActivity(container, rollups)).not.toThrow();
+
+      const rows = container.querySelectorAll(".h-bar-row");
+      expect(rows.length).toBe(MAX_REVIEWER_WEEKS);
+    },
+  );
 });

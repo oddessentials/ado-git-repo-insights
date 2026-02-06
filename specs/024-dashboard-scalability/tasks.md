@@ -27,10 +27,10 @@
 
 **Purpose**: Ensure environment is ready and existing tests pass
 
-- [ ] T001 Verify Python 3.11+ is available and generator runs with existing parameters in `scripts/generate-synthetic-dataset.py`
-- [ ] T002 [P] Verify Node 22+ and pnpm 9.15+ are available for extension development
-- [ ] T003 [P] Run existing test suite to establish baseline (`pytest tests/unit && cd extension && pnpm test`)
-- [ ] T004 [P] Create `extension/tests/unit/` directory if it does not exist
+- [x] T001 Verify Python 3.11+ is available and generator runs with existing parameters in `scripts/generate-synthetic-dataset.py`
+- [x] T002 [P] Verify Node 22+ and pnpm 9.15+ are available for extension development
+- [x] T003 [P] Run existing test suite to establish baseline (`pytest tests/unit && cd extension && pnpm test`)
+- [x] T004 [P] Create `extension/tests/unit/` directory if it does not exist
 
 **Checkpoint**: Environment ready, baseline tests passing
 
@@ -42,10 +42,10 @@
 
 **⚠️ CRITICAL**: User Story 1 (Generator) must complete before User Stories 2-4 can be tested
 
-- [ ] T005 Read and understand existing generator structure in `scripts/generate-synthetic-dataset.py`
-- [ ] T006 [P] Read and understand existing chart implementation in `extension/ui/modules/charts/throughput.ts`
-- [ ] T007 [P] Read and understand existing chart implementation in `extension/ui/modules/charts/cycle-time.ts`
-- [ ] T008 [P] Review existing `extension/tests/scalability-invariants.test.ts` for current assertions
+- [x] T005 Read and understand existing generator structure in `scripts/generate-synthetic-dataset.py`
+- [x] T006 [P] Read and understand existing chart implementation in `extension/ui/modules/charts/throughput.ts`
+- [x] T007 [P] Read and understand existing chart implementation in `extension/ui/modules/charts/cycle-time.ts`
+- [x] T008 [P] Review existing `extension/tests/scalability-invariants.test.ts` for current assertions
 
 **Checkpoint**: Codebase understood, ready for implementation
 
@@ -59,27 +59,27 @@
 
 ### Tests for User Story 1
 
-- [ ] T009 [P] [US1] Add test for --users argument accepting 1-500 in `tests/unit/test_synthetic_dataset.py`
-- [ ] T010 [P] [US1] Add test for --weeks argument accepting 1-520 in `tests/unit/test_synthetic_dataset.py`
-- [ ] T011 [P] [US1] Add test for --include-comments flag setting `features.comments: true` in `tests/unit/test_synthetic_dataset.py`
-- [ ] T012 [P] [US1] Add test for --users 0 validation error in `tests/unit/test_synthetic_dataset.py`
-- [ ] T013 [P] [US1] Add test for --weeks 0 validation error in `tests/unit/test_synthetic_dataset.py`
-- [ ] T014 [US1] Add test verifying 200 users produces 200 entries in dimensions.json in `tests/unit/test_synthetic_dataset.py`
-- [ ] T015 [US1] Add test verifying 156 weeks produces 156 rollup files in `tests/unit/test_synthetic_dataset.py`
+- [x] T009 [P] [US1] Add test for --users argument accepting 1-500 in `tests/unit/test_synthetic_dataset.py`
+- [x] T010 [P] [US1] Add test for --weeks argument accepting 1-520 in `tests/unit/test_synthetic_dataset.py`
+- [x] T011 [P] [US1] Add test for --include-comments flag setting `features.comments: true` in `tests/unit/test_synthetic_dataset.py`
+- [x] T012 [P] [US1] Add test for --users 0 validation error in `tests/unit/test_synthetic_dataset.py`
+- [x] T013 [P] [US1] Add test for --weeks 0 validation error in `tests/unit/test_synthetic_dataset.py`
+- [x] T014 [US1] Add test verifying 200 users produces 200 entries in dimensions.json in `tests/unit/test_synthetic_dataset.py`
+- [x] T015 [US1] Add test verifying 156 weeks produces 156 rollup files in `tests/unit/test_synthetic_dataset.py`
 
 ### Implementation for User Story 1
 
-- [ ] T016 [US1] Add `--users` CLI argument to argparse in `scripts/generate-synthetic-dataset.py` (accept 1-500, default None)
-- [ ] T017 [US1] Add `--weeks` CLI argument to existing argparse in `scripts/generate-synthetic-dataset.py` (no cap removal needed, already has --weeks)
-- [ ] T018 [US1] Remove 30-user cap at line 50 in `scripts/generate-synthetic-dataset.py`, use `args.users if args.users else min(200, max(10, pr_count // 10))`
-- [ ] T019 [US1] Remove 52-week cap at line 82 in `scripts/generate-synthetic-dataset.py`, use `min(156, max(4, pr_count // 20))` as new default
-- [ ] T020 [US1] Add `--include-comments` boolean flag to argparse in `scripts/generate-synthetic-dataset.py`
-- [ ] T021 [US1] Implement `generate_threads()` function for comment data generation in `scripts/generate-synthetic-dataset.py` (2-5 threads per PR)
-- [ ] T022 [US1] Implement `generate_comments()` function for comment data generation in `scripts/generate-synthetic-dataset.py` (1-4 comments per thread)
-- [ ] T023 [US1] Update manifest generation to set `features.comments: true` when --include-comments in `scripts/generate-synthetic-dataset.py`
-- [ ] T024 [US1] Add comment statistics to coverage section in manifest in `scripts/generate-synthetic-dataset.py`
-- [ ] T025 [US1] Add input validation for --users and --weeks bounds with clear error messages in `scripts/generate-synthetic-dataset.py`
-- [ ] T026 [US1] Run full generator test suite to verify all tests pass: `pytest tests/unit/test_synthetic_dataset.py -v`
+- [x] T016 [US1] Add `--users` CLI argument to argparse in `scripts/generate-synthetic-dataset.py` (accept 1-500, default None)
+- [x] T017 [US1] Add `--weeks` CLI argument to existing argparse in `scripts/generate-synthetic-dataset.py` (no cap removal needed, already has --weeks)
+- [x] T018 [US1] Remove 30-user cap at line 50 in `scripts/generate-synthetic-dataset.py`, use `args.users if args.users else min(200, max(10, pr_count // 10))`
+- [x] T019 [US1] Remove 52-week cap at line 82 in `scripts/generate-synthetic-dataset.py`, use `min(156, max(4, pr_count // 20))` as new default
+- [x] T020 [US1] Add `--include-comments` boolean flag to argparse in `scripts/generate-synthetic-dataset.py`
+- [x] T021 [US1] Implement `generate_threads()` function for comment data generation in `scripts/generate-synthetic-dataset.py` (2-5 threads per PR)
+- [x] T022 [US1] Implement `generate_comments()` function for comment data generation in `scripts/generate-synthetic-dataset.py` (1-4 comments per thread)
+- [x] T023 [US1] Update manifest generation to set `features.comments: true` when --include-comments in `scripts/generate-synthetic-dataset.py`
+- [x] T024 [US1] Add comment statistics to coverage section in manifest in `scripts/generate-synthetic-dataset.py`
+- [x] T025 [US1] Add input validation for --users and --weeks bounds with clear error messages in `scripts/generate-synthetic-dataset.py`
+- [x] T026 [US1] Run full generator test suite to verify all tests pass: `pytest tests/unit/test_synthetic_dataset.py -v`
 
 **Checkpoint**: Generator can produce 156-week, 200-user, comments-enabled datasets. Run:
 ```bash
@@ -98,25 +98,25 @@ python scripts/generate-synthetic-dataset.py --pr-count 10000 --weeks 156 --user
 
 ### Tests for User Story 2
 
-- [ ] T027 [P] [US2] Add render time test for throughput chart with 156 weeks (< 1000ms) in `extension/tests/unit/chart-scalability.test.ts`
-- [ ] T028 [P] [US2] Add render time test for cycle time chart with 156 weeks (< 1000ms) in `extension/tests/unit/chart-scalability.test.ts`
-- [ ] T029 [P] [US2] Add DOM element count test for throughput chart (≤ 104 elements) in `extension/tests/unit/chart-scalability.test.ts`
-- [ ] T030 [P] [US2] Add DOM element count test for cycle time chart (≤ 104 elements) in `extension/tests/unit/chart-scalability.test.ts`
-- [ ] T031 [US2] Add truncation indicator visibility test for throughput chart in `extension/tests/unit/chart-scalability.test.ts`
-- [ ] T032 [US2] Add truncation indicator visibility test for cycle time chart in `extension/tests/unit/chart-scalability.test.ts`
-- [ ] T033 [US2] Add test verifying no truncation indicator for exactly 104 weeks (T033a=throughput, T033b=cycle-time) in `extension/tests/unit/chart-scalability.test.ts`
+- [x] T027 [P] [US2] Add render time test for throughput chart with 156 weeks (< 1000ms) in `extension/tests/unit/chart-scalability.test.ts`
+- [x] T028 [P] [US2] Add render time test for cycle time chart with 156 weeks (< 1000ms) in `extension/tests/unit/chart-scalability.test.ts`
+- [x] T029 [P] [US2] Add DOM element count test for throughput chart (≤ 104 elements) in `extension/tests/unit/chart-scalability.test.ts`
+- [x] T030 [P] [US2] Add DOM element count test for cycle time chart (≤ 104 elements) in `extension/tests/unit/chart-scalability.test.ts`
+- [x] T031 [US2] Add truncation indicator visibility test for throughput chart in `extension/tests/unit/chart-scalability.test.ts`
+- [x] T032 [US2] Add truncation indicator visibility test for cycle time chart in `extension/tests/unit/chart-scalability.test.ts`
+- [x] T033 [US2] Add test verifying no truncation indicator for exactly 104 weeks (T033a=throughput, T033b=cycle-time) in `extension/tests/unit/chart-scalability.test.ts`
 
 ### Implementation for User Story 2
 
-- [ ] T034 [US2] Add `MAX_THROUGHPUT_POINTS = 104` constant to `extension/ui/modules/charts/throughput.ts`
-- [ ] T035 [US2] Implement data truncation logic using `.slice(-MAX_THROUGHPUT_POINTS)` in `extension/ui/modules/charts/throughput.ts`
-- [ ] T036 [US2] Add truncation indicator div with class `.truncation-indicator` to throughput chart in `extension/ui/modules/charts/throughput.ts`
-- [ ] T037 [US2] Add `MAX_CYCLE_TIME_POINTS = 104` constant to `extension/ui/modules/charts/cycle-time.ts`
-- [ ] T038 [US2] Implement data truncation logic using `.slice(-MAX_CYCLE_TIME_POINTS)` in `extension/ui/modules/charts/cycle-time.ts`
-- [ ] T039 [US2] Add truncation indicator div with class `.truncation-indicator` to cycle time chart in `extension/ui/modules/charts/cycle-time.ts`
-- [ ] T040 [US2] Add CSS styling for `.truncation-indicator` (light gray, smaller font) in appropriate stylesheet
-- [ ] T041 [US2] Update existing chart tests to accommodate new truncation behavior in `extension/tests/modules/charts/throughput.test.ts`
-- [ ] T042 [US2] Update existing chart tests to accommodate new truncation behavior in `extension/tests/modules/charts/cycle-time.test.ts`
+- [x] T034 [US2] Add `MAX_THROUGHPUT_POINTS = 104` constant to `extension/ui/modules/charts/throughput.ts`
+- [x] T035 [US2] Implement data truncation logic using `.slice(-MAX_THROUGHPUT_POINTS)` in `extension/ui/modules/charts/throughput.ts`
+- [x] T036 [US2] Add truncation indicator div with class `.truncation-indicator` to throughput chart in `extension/ui/modules/charts/throughput.ts`
+- [x] T037 [US2] Add `MAX_CYCLE_TIME_POINTS = 104` constant to `extension/ui/modules/charts/cycle-time.ts`
+- [x] T038 [US2] Implement data truncation logic using `.slice(-MAX_CYCLE_TIME_POINTS)` in `extension/ui/modules/charts/cycle-time.ts`
+- [x] T039 [US2] Add truncation indicator div with class `.truncation-indicator` to cycle time chart in `extension/ui/modules/charts/cycle-time.ts`
+- [x] T040 [US2] Add CSS styling for `.truncation-indicator` (light gray, smaller font) in appropriate stylesheet
+- [x] T041 [US2] Update existing chart tests to accommodate new truncation behavior in `extension/tests/modules/charts/throughput.test.ts`
+- [x] T042 [US2] Update existing chart tests to accommodate new truncation behavior in `extension/tests/modules/charts/cycle-time.test.ts`
 
 **Checkpoint**: Charts render 156-week datasets with truncation indicators showing "Showing last 104 weeks"
 
@@ -132,14 +132,14 @@ python scripts/generate-synthetic-dataset.py --pr-count 10000 --weeks 156 --user
 
 ### Tests for User Story 3
 
-- [ ] T043 [P] [US3] Add test for Reviewer Activity panel rendering with 200 users in `extension/tests/unit/chart-scalability.test.ts`
-- [ ] T044 [US3] Add performance comparison test (50 vs 200 users) to verify acceptable degradation in `extension/tests/unit/chart-scalability.test.ts`
+- [x] T043 [P] [US3] Add test for Reviewer Activity panel rendering with 200 users in `extension/tests/unit/chart-scalability.test.ts`
+- [x] T044 [US3] Add performance comparison test (50 vs 200 users) to verify acceptable degradation in `extension/tests/unit/chart-scalability.test.ts`
 
 ### Implementation for User Story 3
 
-- [ ] T045 [US3] Verify Reviewer Activity panel in `extension/ui/modules/charts/reviewer-activity.ts` handles 200 users without layout overflow
-- [ ] T046 [US3] Add any necessary CSS adjustments for large reviewer counts in Reviewer Activity panel styling
-- [ ] T047 [US3] Document reviewer count limits (if any) in code comments in `extension/ui/modules/charts/reviewer-activity.ts`
+- [x] T045 [US3] Verify Reviewer Activity panel in `extension/ui/modules/charts/reviewer-activity.ts` handles 200 users without layout overflow
+- [x] T046 [US3] Add any necessary CSS adjustments for large reviewer counts in Reviewer Activity panel styling
+- [x] T047 [US3] Document reviewer count limits (if any) in code comments in `extension/ui/modules/charts/reviewer-activity.ts`
 
 **Checkpoint**: Dashboard loads with 200 reviewers, Reviewer Activity panel displays correctly
 
@@ -155,14 +155,14 @@ python scripts/generate-synthetic-dataset.py --pr-count 10000 --weeks 156 --user
 
 ### Tests for User Story 4
 
-- [ ] T048 [P] [US4] Add test for dashboard initialization with `features.comments: true` in `extension/tests/unit/chart-scalability.test.ts`
-- [ ] T049 [US4] Add test verifying comment feature flag is correctly read from manifest in `extension/tests/unit/chart-scalability.test.ts`
+- [x] T048 [P] [US4] Add test for dashboard initialization with `features.comments: true` in `extension/tests/unit/chart-scalability.test.ts`
+- [x] T049 [US4] Add test verifying comment feature flag is correctly read from manifest in `extension/tests/unit/chart-scalability.test.ts`
 
 ### Implementation for User Story 4
 
-- [ ] T050 [US4] Verify dashboard loader handles `features.comments: true` without errors in `extension/ui/dataset-loader.ts`
-- [ ] T051 [US4] Verify no UI components break when comments feature is enabled in manifest
-- [ ] T052 [US4] Add defensive checks for comment-related data paths if needed
+- [x] T050 [US4] Verify dashboard loader handles `features.comments: true` without errors in `extension/ui/dataset-loader.ts`
+- [x] T051 [US4] Verify no UI components break when comments feature is enabled in manifest
+- [x] T052 [US4] Add defensive checks for comment-related data paths if needed
 
 **Checkpoint**: Dashboard loads successfully with comments-enabled dataset
 
@@ -178,16 +178,16 @@ python scripts/generate-synthetic-dataset.py --pr-count 10000 --weeks 156 --user
 
 ### Tests for User Story 5
 
-- [ ] T053 [P] [US5] Add npm script `test:scalability` to `extension/package.json` with pattern `jest --testPathPattern=scalability`
-- [ ] T054 [US5] Verify scalability tests can be run locally with `pnpm test:scalability` in extension directory
+- [x] T053 [P] [US5] Add npm script `test:scalability` to `extension/package.json` with pattern `jest --testPathPattern=scalability`
+- [x] T054 [US5] Verify scalability tests can be run locally with `pnpm test:scalability` in extension directory
 
 ### Implementation for User Story 5
 
-- [ ] T055 [US5] Update `extension/tests/scalability-invariants.test.ts` to change `console.warn` to strict `expect().toBe()` assertions
-- [ ] T056 [US5] Add scalability test job to `.github/workflows/test.yml` with Python setup, data generation, and test execution
-- [ ] T057 [US5] Add cache configuration for generated scalability test data in `.github/workflows/test.yml`
-- [ ] T058 [US5] Verify CI workflow runs scalability tests successfully by triggering a test run
-- [ ] T059 [US5] Add documentation comment in workflow explaining scalability test purpose
+- [x] T055 [US5] Update `extension/tests/scalability-invariants.test.ts` to change `console.warn` to strict `expect().toBe()` assertions
+- [x] T056 [US5] Add scalability test job to `.github/workflows/ci.yml` with Python setup, data generation, and test execution
+- [x] T057 [US5] Add cache configuration for generated scalability test data in `.github/workflows/ci.yml`
+- [x] T058 [US5] Verify CI workflow runs scalability tests successfully by triggering a test run
+- [x] T059 [US5] Add documentation comment in workflow explaining scalability test purpose
 
 **Checkpoint**: CI pipeline generates scalability data and runs tests automatically
 
@@ -197,13 +197,13 @@ python scripts/generate-synthetic-dataset.py --pr-count 10000 --weeks 156 --user
 
 **Purpose**: Final validation, documentation, and cleanup
 
-- [ ] T060 [P] Run full test suite to verify no regressions: `pytest tests/ && cd extension && pnpm test`
-- [ ] T061 [P] Run scalability test suite to verify all performance thresholds: `cd extension && pnpm test:scalability`
-- [ ] T062 Verify quickstart.md commands work end-to-end in `specs/024-dashboard-scalability/quickstart.md`
-- [ ] T063 [P] Update `TODO/DASHBOARD_SCALABILITY.md` to mark completed tasks
-- [ ] T064 [P] Verify constitution gates QG-25 through QG-29 are satisfied
-- [ ] T065 [P] Verify verification requirements VR-20 through VR-23 pass
-- [ ] T066 Final code review and cleanup of any TODO comments
+- [x] T060 [P] Run full test suite to verify no regressions: `pytest tests/ && cd extension && pnpm test`
+- [x] T061 [P] Run scalability test suite to verify all performance thresholds: `cd extension && pnpm test:scalability`
+- [x] T062 Verify quickstart.md commands work end-to-end in `specs/024-dashboard-scalability/quickstart.md`
+- [x] T063 [P] Update `TODO/DASHBOARD_SCALABILITY.md` to mark completed tasks
+- [x] T064 [P] Verify constitution gates QG-25 through QG-29 are satisfied
+- [x] T065 [P] Verify verification requirements VR-20 through VR-23 pass
+- [x] T066 Final code review and cleanup of any TODO comments
 
 ---
 
