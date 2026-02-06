@@ -165,6 +165,36 @@ if [ -n "$UI_BUILD_TRIGGERS" ]; then
         exit 1
     fi
 
+    # -------------------------------------------------------------------------
+    # Sync: Copy specific files from extension/dist/ui/ to docs/
+    # -------------------------------------------------------------------------
+    # docs/index.html is demo-specific and explicitly excluded.
+    # Only sync JS/CSS bundles that must match the built output.
+    echo "[pre-commit] 🔄 Syncing docs/ assets..."
+    DOCS_FILES="dashboard.js dataset-loader.js artifact-client.js error-types.js error-codes.js styles.css VSS.SDK.min.js"
+    DOCS_CHANGED=false
+
+    for file in $DOCS_FILES; do
+        SRC="extension/dist/ui/$file"
+        DEST="docs/$file"
+        if [ -f "$SRC" ] && [ -f "$DEST" ]; then
+            SRC_HASH=$(cat "$SRC" | tr -d '\r' | sha256sum | cut -d' ' -f1)
+            DEST_HASH=$(cat "$DEST" | tr -d '\r' | sha256sum | cut -d' ' -f1)
+            if [ "$SRC_HASH" != "$DEST_HASH" ]; then
+                cp "$SRC" "$DEST"
+                git add "$DEST"
+                echo "  [synced] $file"
+                DOCS_CHANGED=true
+            fi
+        fi
+    done
+
+    if [ "$DOCS_CHANGED" = true ]; then
+        echo "[pre-commit] ✅ docs/ assets synced and staged"
+    else
+        echo "[pre-commit] ✅ docs/ assets already in sync"
+    fi
+
     echo "[pre-commit] ✅ UI built and synced successfully"
     echo ""
 fi

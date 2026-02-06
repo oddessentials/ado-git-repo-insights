@@ -1,5 +1,77 @@
 {
   "authors_count": 8,
+  "by_repository": {
+    "Repository-1": {
+      "authors_count": 1,
+      "cycle_time_p50": 127.17771143725058,
+      "cycle_time_p90": 946.9166749032296,
+      "pr_count": 1,
+      "reviewers_count": 2
+    },
+    "Repository-10": {
+      "authors_count": 0,
+      "cycle_time_p50": 313.5195430441458,
+      "cycle_time_p90": 2334.34679600302,
+      "pr_count": 7,
+      "reviewers_count": 12
+    },
+    "Repository-2": {
+      "authors_count": 1,
+      "cycle_time_p50": 321.00576158733145,
+      "cycle_time_p90": 2390.0863205659375,
+      "pr_count": 8,
+      "reviewers_count": 14
+    },
+    "Repository-3": {
+      "authors_count": 1,
+      "cycle_time_p50": 261.6881807742823,
+      "cycle_time_p90": 1948.4302650195234,
+      "pr_count": 6,
+      "reviewers_count": 10
+    },
+    "Repository-4": {
+      "authors_count": 1,
+      "cycle_time_p50": 275.39400408047675,
+      "cycle_time_p90": 2050.478591611061,
+      "pr_count": 6,
+      "reviewers_count": 11
+    },
+    "Repository-5": {
+      "authors_count": 1,
+      "cycle_time_p50": 105.70065956880204,
+      "cycle_time_p90": 787.0067479815635,
+      "pr_count": 0,
+      "reviewers_count": 1
+    },
+    "Repository-6": {
+      "authors_count": 1,
+      "cycle_time_p50": 124.5049633741129,
+      "cycle_time_p90": 927.0164134486184,
+      "pr_count": 1,
+      "reviewers_count": 2
+    },
+    "Repository-7": {
+      "authors_count": 1,
+      "cycle_time_p50": 166.71210763425987,
+      "cycle_time_p90": 1241.2746922642332,
+      "pr_count": 2,
+      "reviewers_count": 4
+    },
+    "Repository-8": {
+      "authors_count": 1,
+      "cycle_time_p50": 278.89478772373553,
+      "cycle_time_p90": 2076.5440897991284,
+      "pr_count": 6,
+      "reviewers_count": 11
+    },
+    "Repository-9": {
+      "authors_count": 1,
+      "cycle_time_p50": 266.5108643306318,
+      "cycle_time_p90": 1984.3381251758385,
+      "pr_count": 6,
+      "reviewers_count": 10
+    }
+  },
   "by_team": {
     "Team Alpha": {
       "authors_count": 1,

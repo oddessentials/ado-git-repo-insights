@@ -1,26 +1,98 @@
 {
-  "authors_count": 12,
-  "by_team": {
-    "Team Alpha": {
-      "authors_count": 8,
-      "cycle_time_p50": 236.80800989915872,
-      "cycle_time_p90": 1206.9807590761004,
-      "pr_count": 23,
-      "reviewers_count": 103
+  "authors_count": 6,
+  "by_repository": {
+    "Repository-1": {
+      "authors_count": 1,
+      "cycle_time_p50": 193.25215929254784,
+      "cycle_time_p90": 987.9693892341157,
+      "pr_count": 1,
+      "reviewers_count": 1
     },
-    "Team Beta": {
-      "authors_count": 4,
-      "cycle_time_p50": 207.1294485587648,
-      "cycle_time_p90": 1055.712850063355,
-      "pr_count": 11,
-      "reviewers_count": 51
+    "Repository-10": {
+      "authors_count": 0,
+      "cycle_time_p50": 183.72008916441771,
+      "cycle_time_p90": 939.2382726603066,
+      "pr_count": 1,
+      "reviewers_count": 1
+    },
+    "Repository-2": {
+      "authors_count": 1,
+      "cycle_time_p50": 390.70634592596144,
+      "cycle_time_p90": 1997.4209414655184,
+      "pr_count": 6,
+      "reviewers_count": 4
+    },
+    "Repository-3": {
+      "authors_count": 1,
+      "cycle_time_p50": 267.08978719527624,
+      "cycle_time_p90": 1365.4519302241122,
+      "pr_count": 3,
+      "reviewers_count": 2
+    },
+    "Repository-4": {
+      "authors_count": 1,
+      "cycle_time_p50": 486.68854570151746,
+      "cycle_time_p90": 2488.1139077782614,
+      "pr_count": 8,
+      "reviewers_count": 6
+    },
+    "Repository-5": {
+      "authors_count": 1,
+      "cycle_time_p50": 510.1909653645192,
+      "cycle_time_p90": 2608.2661031533694,
+      "pr_count": 9,
+      "reviewers_count": 6
+    },
+    "Repository-6": {
+      "authors_count": 1,
+      "cycle_time_p50": 243.66890660274314,
+      "cycle_time_p90": 1245.71658972889,
+      "pr_count": 2,
+      "reviewers_count": 2
+    },
+    "Repository-7": {
+      "authors_count": 1,
+      "cycle_time_p50": 424.0300824850189,
+      "cycle_time_p90": 2167.7829792081943,
+      "pr_count": 7,
+      "reviewers_count": 5
+    },
+    "Repository-8": {
+      "authors_count": 1,
+      "cycle_time_p50": 284.15007952018726,
+      "cycle_time_p90": 1452.6698254864484,
+      "pr_count": 3,
+      "reviewers_count": 2
+    },
+    "Repository-9": {
+      "authors_count": 1,
+      "cycle_time_p50": 272.5468578401427,
+      "cycle_time_p90": 1393.3502925076327,
+      "pr_count": 3,
+      "reviewers_count": 2
     }
   },
-  "cycle_time_p50": 221.96872922896176,
-  "cycle_time_p90": 1131.3468045697277,
+  "by_team": {
+    "Team Alpha": {
+      "authors_count": 1,
+      "cycle_time_p50": 186.9594617456179,
+      "cycle_time_p90": 955.7990239723023,
+      "pr_count": 0,
+      "reviewers_count": 1
+    },
+    "Team Beta": {
+      "authors_count": 5,
+      "cycle_time_p50": 278.1896552675724,
+      "cycle_time_p90": 1422.198151948676,
+      "pr_count": 43,
+      "reviewers_count": 30
+    }
+  },
+  "cycle_time_p50": 232.57455850659514,
+  "cycle_time_p90": 1188.9985879604892,
   "end_date": "2025-06-15",
-  "pr_count": 34,
-  "reviewers_count": 154,
+  "pr_count": 43,
+  "reviewers_count": 31,
   "start_date": "2025-06-09",
   "week": "2025-W24"
 }

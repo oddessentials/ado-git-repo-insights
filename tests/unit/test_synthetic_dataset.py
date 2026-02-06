@@ -190,6 +190,35 @@ def test_weekly_rollup_schema():
     assert rollup_data["week"].count("-W") == 1
 
 
+def test_by_repository_non_negative_across_all_weeks():
+    """by_repository breakdown values must be >= 0 in every rollup.
+
+    Regression: round()-based proportional splitting could overshoot the
+    total, leaving a negative remainder for the last repository.
+    Uses 10 repos x 52 weeks to exercise many weight combinations.
+    """
+    output_dir = run_generator(pr_count=1000, weeks=52, seed=42)
+
+    rollup_dir = output_dir / "aggregates" / "weekly_rollups"
+    rollup_files = sorted(rollup_dir.glob("*.json"))
+    assert len(rollup_files) == 52
+
+    for rollup_path in rollup_files:
+        with rollup_path.open() as f:
+            rollup = json.load(f)
+
+        assert "by_repository" in rollup, f"{rollup_path.name}: by_repository missing"
+
+        for repo_name, entry in rollup["by_repository"].items():
+            for field in ("pr_count", "authors_count", "reviewers_count"):
+                assert field in entry, (
+                    f"{rollup_path.name} -> {repo_name}: {field} missing"
+                )
+                assert entry[field] >= 0, (
+                    f"{rollup_path.name} -> {repo_name}.{field} = {entry[field]}"
+                )
+
+
 def test_distribution_schema():
     """Generated distributions must match YearlyDistribution schema."""
     output_dir = run_generator(pr_count=100, weeks=4, seed=42)

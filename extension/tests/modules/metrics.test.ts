@@ -143,12 +143,36 @@ describe("metrics module", () => {
       authors_count: 10,
       reviewers_count: 5,
       by_repository: {
-        "repo-a": { pr_count: 30 },
-        "repo-b": { pr_count: 70 },
+        "repo-a": {
+          pr_count: 30,
+          cycle_time_p50: 50,
+          cycle_time_p90: 100,
+          authors_count: 4,
+          reviewers_count: 2,
+        },
+        "repo-b": {
+          pr_count: 70,
+          cycle_time_p50: 65,
+          cycle_time_p90: 130,
+          authors_count: 6,
+          reviewers_count: 3,
+        },
       },
       by_team: {
-        "team-x": { pr_count: 40 },
-        "team-y": { pr_count: 60 },
+        "team-x": {
+          pr_count: 40,
+          cycle_time_p50: 55,
+          cycle_time_p90: 110,
+          authors_count: 4,
+          reviewers_count: 2,
+        },
+        "team-y": {
+          pr_count: 60,
+          cycle_time_p50: 63,
+          cycle_time_p90: 127,
+          authors_count: 6,
+          reviewers_count: 3,
+        },
       },
     } as Rollup;
 
@@ -160,13 +184,66 @@ describe("metrics module", () => {
       expect(result).toEqual([baseRollup]);
     });
 
-    it("filters by repository", () => {
+    it("filters by repository - pr_count", () => {
       const result = applyFiltersToRollups([baseRollup], {
         repos: ["repo-a"],
         teams: [],
       });
 
       expect(result[0].pr_count).toBe(30);
+    });
+
+    it("filters by repository - single repo cycle time", () => {
+      const result = applyFiltersToRollups([baseRollup], {
+        repos: ["repo-a"],
+        teams: [],
+      });
+
+      expect(result[0].cycle_time_p50).toBe(50);
+      expect(result[0].cycle_time_p90).toBe(100);
+      expect(result[0].authors_count).toBe(4);
+      expect(result[0].reviewers_count).toBe(2);
+    });
+
+    it("filters by repository - multi-repo weighted average cycle time", () => {
+      const result = applyFiltersToRollups([baseRollup], {
+        repos: ["repo-a", "repo-b"],
+        teams: [],
+      });
+
+      // Weighted avg: (50*30 + 65*70) / (30+70) = (1500+4550)/100 = 60.5
+      expect(result[0].pr_count).toBe(100);
+      expect(result[0].cycle_time_p50).toBeCloseTo(60.5);
+      // Weighted avg: (100*30 + 130*70) / 100 = (3000+9100)/100 = 121
+      expect(result[0].cycle_time_p90).toBeCloseTo(121);
+      expect(result[0].authors_count).toBe(10);
+      expect(result[0].reviewers_count).toBe(5);
+    });
+
+    it("filters by repository - legacy data with pr_count only", () => {
+      const legacyRollup = {
+        week: "2026-W01",
+        pr_count: 100,
+        cycle_time_p50: 60,
+        cycle_time_p90: 120,
+        authors_count: 10,
+        reviewers_count: 5,
+        by_repository: {
+          "repo-a": { pr_count: 30 },
+          "repo-b": { pr_count: 70 },
+        },
+      } as unknown as Rollup;
+
+      const result = applyFiltersToRollups([legacyRollup], {
+        repos: ["repo-a"],
+        teams: [],
+      });
+
+      // Legacy: only pr_count available, cycle time preserved from rollup
+      expect(result[0].pr_count).toBe(30);
+      // No per-repo cycle time -> hasPerRepoCycleTime is false -> original values preserved
+      expect(result[0].cycle_time_p50).toBe(60);
+      expect(result[0].cycle_time_p90).toBe(120);
     });
 
     it("filters by team", () => {
@@ -403,8 +480,8 @@ describe("applyFiltersToRollups regression: object concatenation bug", () => {
       week: "2026-W01",
       pr_count: 100,
       by_repository: {
-        "repo-a": { pr_count: 30 },
-        "repo-b": { pr_count: 70 },
+        "repo-a": { pr_count: 30, authors_count: 4, reviewers_count: 2 },
+        "repo-b": { pr_count: 70, authors_count: 6, reviewers_count: 3 },
       },
     } as unknown as Rollup;
 
@@ -414,6 +491,8 @@ describe("applyFiltersToRollups regression: object concatenation bug", () => {
     });
 
     expect(result[0].pr_count).toBe(100);
+    expect(result[0].authors_count).toBe(10);
+    expect(result[0].reviewers_count).toBe(5);
   });
 
   it("sums multiple teams correctly", () => {

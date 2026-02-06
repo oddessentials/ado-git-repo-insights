@@ -219,6 +219,37 @@ jobs:
           echo "[OK] UI bundle is in sync"
         shell: bash
 
+      - name: Check docs/ Asset Synchronization
+        run: |
+          echo "Verifying docs/ JS/CSS assets match extension/dist/ui..."
+          DOCS_FILES="dashboard.js dataset-loader.js artifact-client.js error-types.js error-codes.js styles.css VSS.SDK.min.js"
+          DRIFT_FOUND=false
+
+          for file in $DOCS_FILES; do
+            SRC="extension/dist/ui/$file"
+            DEST="docs/$file"
+            if [ -f "$SRC" ] && [ -f "$DEST" ]; then
+              SRC_HASH=$(cat "$SRC" | tr -d '\r' | sha256sum | cut -d' ' -f1)
+              DEST_HASH=$(cat "$DEST" | tr -d '\r' | sha256sum | cut -d' ' -f1)
+              if [ "$SRC_HASH" != "$DEST_HASH" ]; then
+                echo "::error::docs/$file is out of sync with extension/dist/ui/$file"
+                DRIFT_FOUND=true
+              fi
+            elif [ -f "$SRC" ] && [ ! -f "$DEST" ]; then
+              echo "::error::docs/$file missing (expected from extension/dist/ui/$file)"
+              DRIFT_FOUND=true
+            fi
+          done
+
+          if [ "$DRIFT_FOUND" = true ]; then
+            echo ""
+            echo "::error::docs/ assets are out of sync with extension/dist/ui/"
+            echo "Fix: Run 'cd extension && pnpm run build:ui' then copy files, or commit with pre-commit hook enabled"
+            exit 1
+          fi
+          echo "[OK] docs/ assets are in sync"
+        shell: bash
+
   # Guard: Block task Major changes without explicit marker
   task-major-guard:
     runs-on: ubuntu-latest

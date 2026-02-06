@@ -107,7 +107,12 @@ def _reviewer_count(rng: random.Random, num_users: int) -> int:
 
 
 def generate_weekly_rollups(
-    pr_count: int, weeks: int, seed: int, output_dir: Path, num_users: int = 30
+    pr_count: int,
+    weeks: int,
+    seed: int,
+    output_dir: Path,
+    num_users: int = 30,
+    repositories: list[dict[str, str]] | None = None,
 ) -> list[dict[str, Any]]:
     """Generate weekly rollup files."""
     rng = random.Random(seed)  # noqa: S311
@@ -175,6 +180,49 @@ def generate_weekly_rollups(
                 "reviewers_count": team_beta_reviewers,
             },
         }
+
+        # Add by_repository breakdown so the repo filter dropdown works.
+        # Keys must be repository_name (not repository_id) to match the
+        # dashboard contract — see dashboard.ts filter population.
+        if repositories:
+            repo_names = [r["repository_name"] for r in repositories]
+            # Random weights per repo, normalized to sum=1
+            raw_weights = [rng.random() for _ in repo_names]
+            weight_sum = sum(raw_weights)
+            weights = [w / weight_sum for w in raw_weights]
+
+            by_repo: dict[str, dict[str, Any]] = {}
+            remaining_prs = week_pr_count
+            remaining_authors = rollup.authors_count
+            remaining_reviewers = rollup.reviewers_count
+
+            for i, name in enumerate(repo_names):
+                is_last = i == len(repo_names) - 1
+                if is_last:
+                    # Remainder gets clamped to 0 — round() on earlier
+                    # repos can overshoot the total.
+                    repo_prs = max(0, remaining_prs)
+                    repo_authors = max(0, remaining_authors)
+                    repo_reviewers = max(0, remaining_reviewers)
+                else:
+                    repo_prs = round(week_pr_count * weights[i])
+                    repo_authors = max(1, round(rollup.authors_count * weights[i]))
+                    repo_reviewers = max(1, round(rollup.reviewers_count * weights[i]))
+                    remaining_prs -= repo_prs
+                    remaining_authors -= repo_authors
+                    remaining_reviewers -= repo_reviewers
+
+                # Vary cycle times by weight for realistic spread
+                factor = 0.6 + weights[i] * len(repo_names) * 0.8
+                by_repo[name] = {
+                    "pr_count": repo_prs,
+                    "cycle_time_p50": rollup.cycle_time_p50 * factor,
+                    "cycle_time_p90": rollup.cycle_time_p90 * factor,
+                    "authors_count": repo_authors,
+                    "reviewers_count": repo_reviewers,
+                }
+
+            rollup_dict["by_repository"] = by_repo
 
         # Write file
         rollup_dir = output_dir / "aggregates" / "weekly_rollups"
@@ -383,7 +431,12 @@ def generate_dataset(
 
     # Generate weekly rollups
     weekly_index = generate_weekly_rollups(
-        pr_count, weeks, seed, output_dir, num_users=len(dimensions.users)
+        pr_count,
+        weeks,
+        seed,
+        output_dir,
+        num_users=len(dimensions.users),
+        repositories=dimensions.repositories,
     )
     print(f"[OK] Generated {len(weekly_index)} weekly rollup files")
 
