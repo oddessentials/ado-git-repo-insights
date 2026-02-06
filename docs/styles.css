@@ -623,12 +623,36 @@ body {
     min-height: 200px;
 }
 
+/*
+ * OVERFLOW CONTAINMENT — PR Throughput bar chart
+ *
+ * Problem: When a large date range is selected the throughput chart renders
+ * up to MAX_THROUGHPUT_POINTS (104) flex children.  Without containment the
+ * flex row overflows the .chart-container panel and bleeds across the page.
+ *
+ * Current fix: overflow-x: auto gives horizontal scroll when bars exceed
+ * the container width.  min-width on .bar-container keeps bars legible.
+ *
+ * TODO (024-dashboard-scalability): Discuss longer-term options:
+ *   a) Aggregate / bucket bars so fewer DOM elements are rendered
+ *   b) Virtualise the bar chart (only render visible bars)
+ *   c) Switch to <canvas> / SVG for large datasets
+ *   d) Keep the scroll approach but add a zoom/pan control
+ *
+ * See also: MAX_THROUGHPUT_POINTS in throughput.ts
+ */
 .bar-chart {
     display: flex;
     align-items: flex-end;
     gap: 4px;
     height: 200px;
     padding: 0 8px;
+    overflow-x: auto;
+}
+
+.bar-chart .bar-container {
+    /* Prevent bars from shrinking to invisible at high bar counts */
+    min-width: 8px;
 }
 
 .bar-container {
@@ -678,6 +702,19 @@ body {
     stroke-width: 2;
     stroke-linecap: round;
     stroke-linejoin: round;
+}
+
+.chart-subtitle {
+    font-size: 12px;
+    color: var(--text-secondary);
+    margin: 0 0 8px 0;
+    font-weight: 400;
+}
+
+.truncation-indicator {
+    font-size: 11px;
+    color: var(--text-tertiary);
+    margin-bottom: 4px;
 }
 
 .chart-legend {
@@ -798,11 +835,12 @@ body {
 }
 
 .h-bar-value {
-    width: 40px;
+    min-width: 40px;
     font-size: 12px;
     color: var(--text-secondary);
     text-align: right;
     flex-shrink: 0;
+    font-variant-numeric: tabular-nums;
 }
 
 /* Chart Tooltip */

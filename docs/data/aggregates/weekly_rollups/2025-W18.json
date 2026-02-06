@@ -1,10 +1,18 @@
 {
-  "authors_count": 8,
-  "cycle_time_p50": 237.61888525704376,
-  "cycle_time_p90": 878.8829696820263,
+  "authors_count": 13,
+  "by_team": {
+    "Team Alpha": {
+      "pr_count": 9
+    },
+    "Team Beta": {
+      "pr_count": 33
+    }
+  },
+  "cycle_time_p50": 232.48160367155543,
+  "cycle_time_p90": 579.4565432876481,
   "end_date": "2025-05-04",
-  "pr_count": 37,
-  "reviewers_count": 36,
+  "pr_count": 42,
+  "reviewers_count": 74,
   "start_date": "2025-04-28",
   "week": "2025-W18"
 }

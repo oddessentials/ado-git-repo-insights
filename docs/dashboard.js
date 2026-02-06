@@ -2379,7 +2379,11 @@ var PRInsightsDashboard = (() => {
         (a) => a.name === artifactName
       );
       if (!artifact) {
-        console.log("[getArtifactMetadata] Artifact '%s' not found in build %d", artifactName, buildId);
+        console.log(
+          "[getArtifactMetadata] Artifact '%s' not found in build %d",
+          artifactName,
+          buildId
+        );
         return null;
       }
       return artifact;
@@ -4112,16 +4116,19 @@ var PRInsightsDashboard = (() => {
   }
 
   // ui/modules/charts/throughput.ts
+  var MAX_THROUGHPUT_POINTS = 104;
   function renderThroughputChart(container, rollups) {
     if (!container) return;
     if (!rollups || !rollups.length) {
       renderNoData(container, "No data for selected range");
       return;
     }
-    const prCounts = rollups.map((r) => r.pr_count || 0);
+    const truncated = rollups.length > MAX_THROUGHPUT_POINTS;
+    const displayRollups = truncated ? rollups.slice(-MAX_THROUGHPUT_POINTS) : rollups;
+    const prCounts = displayRollups.map((r) => r.pr_count || 0);
     const maxCount = Math.max(...prCounts);
     const movingAvg = calculateMovingAverage(prCounts, 4);
-    const barsHtml = rollups.map((r) => {
+    const barsHtml = displayRollups.map((r) => {
       const height = maxCount > 0 ? (r.pr_count || 0) / maxCount * 100 : 0;
       const weekLabel = r.week.split("-W")[1] || "";
       return `
@@ -4131,7 +4138,8 @@ var PRInsightsDashboard = (() => {
             </div>
         `;
     }).join("");
-    const trendLineHtml = renderTrendLine(rollups, movingAvg, maxCount);
+    const trendLineHtml = renderTrendLine(displayRollups, movingAvg, maxCount);
+    const truncationHtml = truncated ? `<div class="truncation-indicator">Showing last ${MAX_THROUGHPUT_POINTS} weeks</div>` : "";
     const legendHtml = `
         <div class="chart-legend">
             <div class="legend-item">
@@ -4147,6 +4155,7 @@ var PRInsightsDashboard = (() => {
     renderTrustedHtml(
       container,
       `
+        ${truncationHtml}
         <div class="chart-with-trend">
             <div class="bar-chart">${barsHtml}</div>
             ${trendLineHtml}
@@ -4179,6 +4188,7 @@ var PRInsightsDashboard = (() => {
   }
 
   // ui/modules/charts/cycle-time.ts
+  var MAX_CYCLE_TIME_POINTS = 104;
   function renderCycleDistribution(container, distributions) {
     if (!container) return;
     if (!distributions || !distributions.length) {
@@ -4223,8 +4233,10 @@ var PRInsightsDashboard = (() => {
       renderNoData(container, "Not enough data for trend");
       return;
     }
-    const p50Data = rollups.map((r) => ({ week: r.week, value: r.cycle_time_p50 })).filter((d) => d.value !== null);
-    const p90Data = rollups.map((r) => ({ week: r.week, value: r.cycle_time_p90 })).filter((d) => d.value !== null);
+    const truncated = rollups.length > MAX_CYCLE_TIME_POINTS;
+    const displayRollups = truncated ? rollups.slice(-MAX_CYCLE_TIME_POINTS) : rollups;
+    const p50Data = displayRollups.map((r) => ({ week: r.week, value: r.cycle_time_p50 })).filter((d) => d.value !== null);
+    const p90Data = displayRollups.map((r) => ({ week: r.week, value: r.cycle_time_p90 })).filter((d) => d.value !== null);
     if (p50Data.length < 2 && p90Data.length < 2) {
       renderNoData(container, "No cycle time data available");
       return;
@@ -4243,8 +4255,8 @@ var PRInsightsDashboard = (() => {
     const chartHeight = height - padding.top - padding.bottom;
     const generatePath = (data) => {
       const points = data.map((d) => {
-        const dataIndex = rollups.findIndex((r) => r.week === d.week);
-        const x = padding.left + dataIndex / (rollups.length - 1) * chartWidth;
+        const dataIndex = displayRollups.findIndex((r) => r.week === d.week);
+        const x = padding.left + dataIndex / (displayRollups.length - 1) * chartWidth;
         const y = padding.top + chartHeight - (d.value - minVal) / range * chartHeight;
         return { x, y, week: d.week, value: d.value };
       });
@@ -4291,9 +4303,10 @@ var PRInsightsDashboard = (() => {
             </div>
         </div>
     `;
+    const truncationHtml = truncated ? `<div class="truncation-indicator">Showing last ${MAX_CYCLE_TIME_POINTS} weeks</div>` : "";
     renderTrustedHtml(
       container,
-      `<div class="line-chart">${svgContent}</div>${legendHtml}`
+      `${truncationHtml}<div class="line-chart">${svgContent}</div>${legendHtml}`
     );
     addChartTooltips(container, (dot) => {
       const week = dot.dataset["week"] || "";
@@ -4313,13 +4326,14 @@ var PRInsightsDashboard = (() => {
   }
 
   // ui/modules/charts/reviewer-activity.ts
+  var MAX_REVIEWER_WEEKS = 8;
   function renderReviewerActivity(container, rollups) {
     if (!container) return;
     if (!rollups || !rollups.length) {
       renderNoData(container, "No reviewer data available");
       return;
     }
-    const recentRollups = rollups.slice(-8);
+    const recentRollups = rollups.slice(-MAX_REVIEWER_WEEKS);
     const maxReviewers = Math.max(
       ...recentRollups.map((r) => r.reviewers_count || 0)
     );
@@ -4341,9 +4355,10 @@ var PRInsightsDashboard = (() => {
             </div>
         `;
     }).join("");
+    const subtitle = `<p class="chart-subtitle">Active reviewers per week (last ${recentRollups.length} weeks)</p>`;
     renderTrustedHtml(
       container,
-      `<div class="horizontal-bar-chart">${barsHtml}</div>`
+      `${subtitle}<div class="horizontal-bar-chart">${barsHtml}</div>`
     );
   }
 
@@ -4639,7 +4654,10 @@ var PRInsightsDashboard = (() => {
       );
     }
     if (sourceConfig.pipelineId) {
-      console.log("Using pipeline definition ID from settings: %d", sourceConfig.pipelineId);
+      console.log(
+        "Using pipeline definition ID from settings: %d",
+        sourceConfig.pipelineId
+      );
       try {
         return await resolveFromPipelineId(
           sourceConfig.pipelineId,
@@ -5430,7 +5448,10 @@ var PRInsightsDashboard = (() => {
     const pipelineIdParam = params.get("pipelineId");
     if (pipelineIdParam) newParams.set("pipelineId", pipelineIdParam);
     if (currentDateRange.start) {
-      newParams.set("start", currentDateRange.start.toISOString().substring(0, 10));
+      newParams.set(
+        "start",
+        currentDateRange.start.toISOString().substring(0, 10)
+      );
     }
     if (currentDateRange.end) {
       newParams.set("end", currentDateRange.end.toISOString().substring(0, 10));

@@ -96,9 +96,13 @@ def generate_dimensions(
 
 
 def _reviewer_count(rng: random.Random, num_users: int) -> int:
-    """Return a random reviewer count bounded by num_users."""
+    """Return a random reviewer count bounded by num_users.
+
+    For enterprise datasets (num_users=200), values should span up to
+    num_users so the dashboard exercises large reviewer counts.
+    """
     low = min(max(3, num_users // 10), num_users)
-    high = max(low, min(num_users, max(10, num_users // 2)))
+    high = max(low, num_users)
     return rng.randint(low, high)
 
 
@@ -141,12 +145,24 @@ def generate_weekly_rollups(
             reviewers_count=_reviewer_count(rng, num_users),
         )
 
+        rollup_dict = asdict(rollup)
+
+        # Add by_team breakdown so the team filter dropdown works.
+        # Keys must be team_name (not team_id) to match the dashboard
+        # contract — see dashboard.ts line 1119.
+        team_alpha_prs = rng.randint(0, week_pr_count)
+        team_beta_prs = week_pr_count - team_alpha_prs
+        rollup_dict["by_team"] = {
+            "Team Alpha": {"pr_count": team_alpha_prs},
+            "Team Beta": {"pr_count": team_beta_prs},
+        }
+
         # Write file
         rollup_dir = output_dir / "aggregates" / "weekly_rollups"
         rollup_dir.mkdir(parents=True, exist_ok=True)
 
         file_path = rollup_dir / f"{week_str}.json"
-        write_json(file_path, asdict(rollup))
+        write_json(file_path, rollup_dict)
 
         # Add to index
         index.append(

@@ -4355,9 +4355,10 @@ var PRInsightsDashboard = (() => {
             </div>
         `;
     }).join("");
+    const subtitle = `<p class="chart-subtitle">Active reviewers per week (last ${recentRollups.length} weeks)</p>`;
     renderTrustedHtml(
       container,
-      `<div class="horizontal-bar-chart">${barsHtml}</div>`
+      `${subtitle}<div class="horizontal-bar-chart">${barsHtml}</div>`
     );
   }
 

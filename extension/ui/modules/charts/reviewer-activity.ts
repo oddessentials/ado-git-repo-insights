@@ -65,9 +65,13 @@ export function renderReviewerActivity(
     })
     .join("");
 
+  // Add a subtitle so users understand the panel shows weekly aggregate
+  // counts, not individual reviewer identities.
+  const subtitle = `<p class="chart-subtitle">Active reviewers per week (last ${recentRollups.length} weeks)</p>`;
+
   // SECURITY: barsHtml uses escapeHtml for week values, count is numeric
   renderTrustedHtml(
     container,
-    `<div class="horizontal-bar-chart">${barsHtml}</div>`,
+    `${subtitle}<div class="horizontal-bar-chart">${barsHtml}</div>`,
   );
 }

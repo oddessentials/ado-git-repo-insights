@@ -1,10 +1,18 @@
 {
-  "authors_count": 15,
-  "cycle_time_p50": 215.62122451128738,
-  "cycle_time_p90": 605.6431508423582,
+  "authors_count": 10,
+  "by_team": {
+    "Team Alpha": {
+      "pr_count": 16
+    },
+    "Team Beta": {
+      "pr_count": 23
+    }
+  },
+  "cycle_time_p50": 418.56531217399896,
+  "cycle_time_p90": 522.323291327088,
   "end_date": "2022-04-03",
-  "pr_count": 36,
-  "reviewers_count": 58,
+  "pr_count": 39,
+  "reviewers_count": 53,
   "start_date": "2022-03-28",
   "week": "2022-W13"
 }
