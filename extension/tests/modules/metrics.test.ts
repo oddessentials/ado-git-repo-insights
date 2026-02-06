@@ -671,6 +671,40 @@ describe("applyFiltersToRollups coverage: uncovered paths", () => {
     expect(result[0].reviewers_count).toBe(1);
   });
 
+  it("clamps teamShare to 1 when overlapping team members inflate team slice", () => {
+    // Simulate overlapping teams: team-x and team-y each have 60 PRs
+    // due to shared author, but rollup total is only 100
+    const rollup = {
+      week: "2026-W01",
+      pr_count: 100,
+      cycle_time_p50: 60,
+      cycle_time_p90: 120,
+      authors_count: 10,
+      reviewers_count: 5,
+      by_repository: {
+        "repo-a": { pr_count: 50, cycle_time_p50: 55, cycle_time_p90: 110, authors_count: 5, reviewers_count: 3 },
+      },
+      by_team: {
+        "team-x": { pr_count: 60, cycle_time_p50: 58, cycle_time_p90: 115, authors_count: 6, reviewers_count: 3 },
+        "team-y": { pr_count: 60, cycle_time_p50: 62, cycle_time_p90: 125, authors_count: 6, reviewers_count: 3 },
+      },
+    } as unknown as Rollup;
+
+    const result = applyFiltersToRollups([rollup], {
+      repos: ["repo-a"],
+      teams: ["team-x", "team-y"],
+    });
+
+    // Without clamping: teamShare = 120/100 = 1.2, combinedRatio = 0.5 * 1.2 = 0.6
+    //   → combinedPrCount = round(100 * 0.6) = 60 (exceeds repo's 50!)
+    // With clamping:    teamShare = min(1, 1.2) = 1.0, combinedRatio = 0.5 * 1.0 = 0.5
+    //   → combinedPrCount = round(100 * 0.5) = 50 (correct: repo-a has 50)
+    expect(result[0].pr_count).toBeLessThanOrEqual(100);
+    expect(result[0].pr_count).toBe(50);
+    expect(result[0].authors_count).toBeLessThanOrEqual(10);
+    expect(result[0].reviewers_count).toBeLessThanOrEqual(5);
+  });
+
   it("combined filter where proportional ratio rounds authors and reviewers to zero", () => {
     const rollup = {
       week: "2026-W01",

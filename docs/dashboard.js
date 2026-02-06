@@ -2930,8 +2930,8 @@ var PRInsightsDashboard = (() => {
       }
       if (repoSlice && teamSlice) {
         const total = rollup.pr_count || 1;
-        const repoShare = repoSlice.pr_count / total;
-        const teamShare = teamSlice.pr_count / total;
+        const repoShare = Math.min(1, repoSlice.pr_count / total);
+        const teamShare = Math.min(1, teamSlice.pr_count / total);
         const combinedRatio = repoShare * teamShare;
         const combinedPrCount = Math.round(rollup.pr_count * combinedRatio);
         const combinedAuthors = Math.round(

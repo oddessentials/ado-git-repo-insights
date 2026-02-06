@@ -41,6 +41,7 @@ Cycle times are averaged across all active dimension estimates.
 | None (uniform distribution) | Accurate | ~0% |
 | Moderate | Varies | +/-10-30% |
 | Strong negative (team avoids certain repos) | Overestimate | Up to +40% |
+| Multi-team overlap | Clamped at 100% | teamShare capped to 1.0 before combining (v0.x.x) |
 
 ## Solution: Cross-Dimensional Breakdowns
 

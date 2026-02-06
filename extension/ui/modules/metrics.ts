@@ -308,11 +308,13 @@ export function applyFiltersToRollups(
 
     // Both filters active — proportional intersection.
     // Each slice represents a marginal share of the rollup total.
+    // Team slices may exceed the total when multi-team members cause overlap,
+    // so shares are clamped to [0, 1] before combining.
     // The intersection is estimated as: total * (repoShare * teamShare).
     if (repoSlice && teamSlice) {
       const total = rollup.pr_count || 1;
-      const repoShare = repoSlice.pr_count / total;
-      const teamShare = teamSlice.pr_count / total;
+      const repoShare = Math.min(1, repoSlice.pr_count / total);
+      const teamShare = Math.min(1, teamSlice.pr_count / total);
       const combinedRatio = repoShare * teamShare;
 
       const combinedPrCount = Math.round(rollup.pr_count * combinedRatio);
