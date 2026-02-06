@@ -2842,20 +2842,37 @@ var PRInsightsDashboard = (() => {
       (sum, entry) => sum + toFiniteNumber(entry.reviewers_count),
       0
     );
-    const hasCycleTime = entries.some((e) => e.cycle_time_p50 !== void 0);
+    const p50Entries = entries.filter(
+      (e) => typeof e.cycle_time_p50 === "number" && Number.isFinite(e.cycle_time_p50)
+    );
+    const p90Entries = entries.filter(
+      (e) => typeof e.cycle_time_p90 === "number" && Number.isFinite(e.cycle_time_p90)
+    );
     let cycleP50 = null;
     let cycleP90 = null;
-    if (hasCycleTime && totalPrCount > 0) {
-      const weightedP50 = entries.reduce(
-        (sum, entry) => sum + toFiniteNumber(entry.cycle_time_p50) * toFiniteNumber(entry.pr_count),
+    if (p50Entries.length > 0) {
+      const p50PrCount = p50Entries.reduce(
+        (sum, e) => sum + toFiniteNumber(e.pr_count),
         0
       );
-      const weightedP90 = entries.reduce(
-        (sum, entry) => sum + toFiniteNumber(entry.cycle_time_p90) * toFiniteNumber(entry.pr_count),
+      if (p50PrCount > 0) {
+        cycleP50 = p50Entries.reduce(
+          (sum, e) => sum + toFiniteNumber(e.cycle_time_p50) * toFiniteNumber(e.pr_count),
+          0
+        ) / p50PrCount;
+      }
+    }
+    if (p90Entries.length > 0) {
+      const p90PrCount = p90Entries.reduce(
+        (sum, e) => sum + toFiniteNumber(e.pr_count),
         0
       );
-      cycleP50 = weightedP50 / totalPrCount;
-      cycleP90 = weightedP90 / totalPrCount;
+      if (p90PrCount > 0) {
+        cycleP90 = p90Entries.reduce(
+          (sum, e) => sum + toFiniteNumber(e.cycle_time_p90) * toFiniteNumber(e.pr_count),
+          0
+        ) / p90PrCount;
+      }
     }
     return {
       pr_count: totalPrCount,

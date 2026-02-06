@@ -672,12 +672,10 @@ describe("applyFiltersToRollups coverage: uncovered paths", () => {
   });
 
   it("combined filter returns null cycle_time_p90 when p90s array is empty", () => {
-    // aggregateEntries converts null cycle times to 0 via toFiniteNumber,
-    // so this edge case requires slices built outside aggregateEntries.
-    // We test the guard directly: when p50s is non-empty but p90s is empty
-    // after filtering, cycle_time_p90 should be null (not NaN from 0/0).
-    // In practice, aggregateEntries always produces numeric p90 when p50
-    // exists, so this is a defensive guard for future refactoring.
+    // aggregateEntries now correctly excludes null cycle times from the
+    // weighted average, so entries with null p90 produce null (not 0).
+    // The downstream p90s.filter(v => v !== null) guard produces an empty
+    // array, and the p90s.length > 0 check prevents NaN from 0/0.
     const rollup = {
       week: "2026-W01",
       pr_count: 100,
@@ -700,9 +698,9 @@ describe("applyFiltersToRollups coverage: uncovered paths", () => {
 
     // p50s has values from both slices → averaged
     expect(result[0].cycle_time_p50).toBeCloseTo((55 + 58) / 2);
-    // aggregateEntries treats null p90 as 0 via toFiniteNumber, so
-    // p90s is non-empty and averages to 0 — not NaN
-    expect(result[0].cycle_time_p90).toBe(0);
+    // null p90 entries are excluded → aggregateEntries returns null p90
+    // → p90s filter produces empty array → guard returns null
+    expect(result[0].cycle_time_p90).toBeNull();
   });
 
   it("clamps teamShare to 1 when overlapping team members inflate team slice", () => {
@@ -737,6 +735,63 @@ describe("applyFiltersToRollups coverage: uncovered paths", () => {
     expect(result[0].pr_count).toBe(50);
     expect(result[0].authors_count).toBeLessThanOrEqual(10);
     expect(result[0].reviewers_count).toBeLessThanOrEqual(5);
+  });
+
+  it("mixed cycle-time: entries without cycle data do not dilute weighted average", () => {
+    // service-a has cycle-time, service-b does not.
+    // The weighted average should use only service-a's PR count as denominator.
+    const rollup = {
+      week: "2026-W01",
+      pr_count: 100,
+      cycle_time_p50: 80,
+      cycle_time_p90: 160,
+      authors_count: 10,
+      reviewers_count: 5,
+      by_repository: {
+        "service-a": { pr_count: 50, cycle_time_p50: 120, cycle_time_p90: 200, authors_count: 5, reviewers_count: 3 },
+        "service-b": { pr_count: 50, authors_count: 5, reviewers_count: 2 },
+      },
+    } as unknown as Rollup;
+
+    const result = applyFiltersToRollups([rollup], {
+      repos: ["service-a", "service-b"],
+      teams: [],
+    });
+
+    // Only service-a has cycle-time data, so the average should equal service-a's values
+    // (not diluted by service-b's 50 PRs)
+    expect(result[0].cycle_time_p50).toBe(120);
+    expect(result[0].cycle_time_p90).toBe(200);
+    expect(result[0].pr_count).toBe(100);
+  });
+
+  it("all-null cycle-time entries return null (not 0)", () => {
+    // When breakdown entries have null cycle times, aggregateEntries returns
+    // null (not 0). buildFilteredRollup then falls back to the rollup-level
+    // values via ...rollup spread (backward compat). To verify aggregateEntries
+    // produces null, set rollup-level cycle times to null too.
+    const rollup = {
+      week: "2026-W01",
+      pr_count: 100,
+      cycle_time_p50: null,
+      cycle_time_p90: null,
+      authors_count: 10,
+      reviewers_count: 5,
+      by_repository: {
+        "repo-a": { pr_count: 60, cycle_time_p50: null, cycle_time_p90: null, authors_count: 6, reviewers_count: 3 },
+        "repo-b": { pr_count: 40, cycle_time_p50: null, cycle_time_p90: null, authors_count: 4, reviewers_count: 2 },
+      },
+    } as unknown as Rollup;
+
+    const result = applyFiltersToRollups([rollup], {
+      repos: ["repo-a", "repo-b"],
+      teams: [],
+    });
+
+    // Both entries have null cycle times → aggregateEntries returns null →
+    // buildFilteredRollup falls back to rollup's null → result is null
+    expect(result[0].cycle_time_p50).toBeNull();
+    expect(result[0].cycle_time_p90).toBeNull();
   });
 
   it("combined filter where proportional ratio rounds authors and reviewers to zero", () => {
