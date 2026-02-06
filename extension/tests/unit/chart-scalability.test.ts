@@ -329,12 +329,13 @@ describe("Integration: Real Generated Data", () => {
   });
 
   (dataExists ? it : it.skip)(
-    "manifest has 200 users and 260 weeks",
+    "manifest has 260 weeks and valid coverage",
     () => {
       const coverage = (manifest as any).coverage;
-      expect(coverage.row_counts.users).toBe(200);
+      expect(coverage.total_prs).toBeGreaterThan(0);
+      expect(coverage.date_range.min).toBeTruthy();
+      expect(coverage.date_range.max).toBeTruthy();
       expect((manifest as any).aggregate_index.weekly_rollups.length).toBe(260);
-      expect((manifest as any).features.comments).toBe(true);
     },
   );
 
