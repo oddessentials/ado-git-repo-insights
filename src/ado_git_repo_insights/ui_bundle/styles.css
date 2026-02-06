@@ -501,6 +501,18 @@ body {
     gap: 16px;
 }
 
+/* Combined filter approximation indicator */
+.summary-cards[data-combined-filter="true"]::after {
+    content: "Values are estimated when both repo and team filters are active";
+    display: block;
+    grid-column: 1 / -1;
+    text-align: center;
+    font-size: 11px;
+    color: var(--text-tertiary);
+    font-style: italic;
+    padding: 4px 0 0;
+}
+
 .card {
     background: var(--bg-primary);
     border-radius: var(--radius-lg);

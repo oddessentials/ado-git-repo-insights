@@ -39,9 +39,10 @@ Team filtering is fully implemented and functional when team data is available.
 4. UI shows team multi-select when teams are available
 5. `applyFiltersToRollups()` aggregates metrics from selected teams
 
-### Minor Gap
-- Per-team cycle times use global values (acceptable - PRs aren't team-exclusive)
-- Comment at `metrics.ts:229-235`: "cycle_time/authors/reviewers preserved from unfiltered rollup"
+### Accuracy Note
+- Production `by_team` slices include per-team cycle times computed from actual team-attributed PRs (`aggregators.py:680-685`)
+- The frontend `buildFilteredRollup()` falls back to unfiltered values only when a breakdown entry has `null` cycle time (legacy data compatibility)
+- Authors in multiple teams: PRs appear in all teams' slices (intentional — see `aggregators.py:632-637`)
 
 ---
 
@@ -218,6 +219,38 @@ With 100+ reviewers, the filter dropdown could become unwieldy. Consider:
 - Search/autocomplete instead of multi-select
 - "Top 20 most active" default view
 - Grouping by team
+
+---
+
+## Filter Accuracy Characteristics
+
+| Filter Combination | Accuracy | Method |
+|-------------------|----------|--------|
+| Single repo | Exact | Backend `_generate_repo_slice` groups by `repository_name` — natural partition, no overlap |
+| Single team | Exact | Backend `_generate_team_slice` filters PRs by author team membership — individual attribution |
+| Multiple repos | Exact | Frontend sums breakdown entries from selected repos |
+| Multiple teams | Exact* | Frontend sums breakdown entries — *note: authors in multiple teams cause overlap |
+| Repo + Team combined | Approximate | Proportional intersection: `total × (repoShare × teamShare)` — independence assumption |
+
+### Combined Filter Limitations
+
+When both repo AND team filters are active, the dashboard estimates the intersection using
+proportional independence. This can over- or under-estimate when teams are repo-specialized:
+
+- If Team Alpha works exclusively on Repo-Backend, the estimate will be lower than reality
+- If teams spread evenly across repos, the estimate is accurate
+- Cycle times are averaged across the two dimension estimates (no basis to prefer one)
+
+Solving this requires cross-dimensional data (`by_team_and_repo`) — see `TODO/CROSS-DIMENSIONAL-ACCURACY.md`.
+
+### Synthetic vs Production Data
+
+| Aspect | Production | Synthetic Generator |
+|--------|-----------|-------------------|
+| Team attribution | Individual PR → author → team membership | Proportional random split |
+| Multi-team overlap | Yes (intentional) | No (sums = total) |
+| Cycle times | Quantile of actual team PRs | Varied by weight factor |
+| Repo attribution | groupby `repository_name` (exact) | Proportional random split |
 
 ---
 

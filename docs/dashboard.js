@@ -5056,6 +5056,11 @@ var PRInsightsDashboard = (() => {
       console.debug("Previous period data not available:", e);
     }
     cachedRollups = rollups;
+    const summarySection = document.querySelector(".summary-cards");
+    if (summarySection) {
+      const isCombinedFilter = currentFilters.repos.length > 0 && currentFilters.teams.length > 0;
+      summarySection.setAttribute("data-combined-filter", isCombinedFilter ? "true" : "false");
+    }
     renderSummaryCards2(rollups, prevRollups);
     renderThroughputChart2(rollups);
     renderCycleTimeTrend2(rollups);
