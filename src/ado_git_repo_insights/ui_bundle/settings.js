@@ -837,6 +837,10 @@ var PRInsightsSettings = (() => {
       }
       const artifactClient = new ArtifactClient(projectId);
       await artifactClient.initialize();
+      if (!Number.isInteger(lastValidation.buildId) || lastValidation.buildId <= 0) {
+        showToast("Invalid build ID", "error");
+        return;
+      }
       const artifact = await artifactClient.getArtifactMetadata(
         lastValidation.buildId,
         "csv-output"
@@ -851,6 +855,10 @@ var PRInsightsSettings = (() => {
       const downloadUrl = artifact.resource?.downloadUrl;
       if (!downloadUrl) {
         showToast("Download URL not available", "error");
+        return;
+      }
+      if (!downloadUrl.startsWith("https://")) {
+        showToast("Invalid download URL", "error");
         return;
       }
       let zipUrl = downloadUrl;
@@ -876,7 +884,7 @@ var PRInsightsSettings = (() => {
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
-      URL.revokeObjectURL(url);
+      setTimeout(() => URL.revokeObjectURL(url), 1e4);
       showToast("Download started", "success");
     } catch (err) {
       console.error("Failed to download raw data:", err);

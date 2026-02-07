@@ -43,9 +43,11 @@ async function downloadRawDataContract(
   outcome:
     | "no-validation"
     | "no-build-id"
+    | "invalid-build-id"
     | "no-project"
     | "no-artifact"
     | "no-download-url"
+    | "invalid-url"
     | "permission-denied"
     | "fetch-error"
     | "error"
@@ -59,6 +61,15 @@ async function downloadRawDataContract(
     return {
       outcome: lastValidation?.valid ? "no-build-id" : "no-validation",
       toastMessage: "No valid pipeline configured. Save settings first.",
+      toastType: "error",
+    };
+  }
+
+  // Step 1b: Validate buildId is a positive integer
+  if (!Number.isInteger(lastValidation.buildId) || lastValidation.buildId <= 0) {
+    return {
+      outcome: "invalid-build-id",
+      toastMessage: "Invalid build ID",
       toastType: "error",
     };
   }
@@ -99,6 +110,14 @@ async function downloadRawDataContract(
       return {
         outcome: "no-download-url",
         toastMessage: "Download URL not available",
+        toastType: "error",
+      };
+    }
+
+    if (!downloadUrl.startsWith("https://")) {
+      return {
+        outcome: "invalid-url",
+        toastMessage: "Invalid download URL",
         toastType: "error",
       };
     }
@@ -417,6 +436,58 @@ describe("Settings Download: downloadRawData contract", () => {
 
     expect(result.outcome).toBe("no-download-url");
     expect(result.toastMessage).toContain("Download URL not available");
+  });
+
+  // ---------------------------------------------------------------
+  // Build ID validation
+  // ---------------------------------------------------------------
+
+  it("rejects negative buildId", async () => {
+    const result = await downloadRawDataContract(
+      { valid: true, buildId: -1 },
+      defaultDeps(),
+    );
+
+    expect(result.outcome).toBe("invalid-build-id");
+    expect(result.toastMessage).toBe("Invalid build ID");
+    expect(result.toastType).toBe("error");
+  });
+
+  it("rejects non-integer buildId", async () => {
+    const result = await downloadRawDataContract(
+      { valid: true, buildId: 1.5 },
+      defaultDeps(),
+    );
+
+    expect(result.outcome).toBe("invalid-build-id");
+    expect(result.toastMessage).toBe("Invalid build ID");
+    expect(result.toastType).toBe("error");
+  });
+
+  // ---------------------------------------------------------------
+  // HTTPS URL validation
+  // ---------------------------------------------------------------
+
+  it("rejects non-HTTPS download URL", async () => {
+    const deps = defaultDeps({
+      getArtifactMetadata: jest.fn(() =>
+        Promise.resolve({
+          name: "csv-output",
+          resource: {
+            downloadUrl: "http://dev.azure.com/org/proj/_apis/build/artifact",
+          },
+        }),
+      ),
+    });
+
+    const result = await downloadRawDataContract(
+      { valid: true, buildId: 100 },
+      deps,
+    );
+
+    expect(result.outcome).toBe("invalid-url");
+    expect(result.toastMessage).toBe("Invalid download URL");
+    expect(result.toastType).toBe("error");
   });
 
   // ---------------------------------------------------------------

@@ -457,6 +457,12 @@ async function downloadRawData(): Promise<void> {
     const artifactClient = new ArtifactClient(projectId);
     await artifactClient.initialize();
 
+    // Validate buildId is a positive integer
+    if (!Number.isInteger(lastValidation.buildId) || lastValidation.buildId <= 0) {
+      showToast("Invalid build ID", "error");
+      return;
+    }
+
     // Get artifact metadata
     const artifact = await artifactClient.getArtifactMetadata(
       lastValidation.buildId,
@@ -473,6 +479,11 @@ async function downloadRawData(): Promise<void> {
     const downloadUrl = artifact.resource?.downloadUrl;
     if (!downloadUrl) {
       showToast("Download URL not available", "error");
+      return;
+    }
+
+    if (!downloadUrl.startsWith("https://")) {
+      showToast("Invalid download URL", "error");
       return;
     }
 
@@ -504,10 +515,10 @@ async function downloadRawData(): Promise<void> {
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
-    URL.revokeObjectURL(url);
+    setTimeout(() => URL.revokeObjectURL(url), 10_000);
 
     showToast("Download started", "success");
-  } catch (err) {
+  } catch (err: unknown) {
     console.error("Failed to download raw data:", err);
     showToast("Failed to download raw data", "error");
   } finally {
