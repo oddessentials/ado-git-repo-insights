@@ -1,3 +1,10 @@
+## [5.23.1](https://github.com/oddessentials/ado-git-repo-insights/compare/v5.23.0...v5.23.1) (2026-02-07)
+
+
+### Bug Fixes
+
+* add managed-features target so feature flags appear in Preview Features dropdown ([8a68308](https://github.com/oddessentials/ado-git-repo-insights/commit/8a68308395b14201b9580c9a3bd17efb126b8404))
+
 # [5.23.0](https://github.com/oddessentials/ado-git-repo-insights/compare/v5.22.2...v5.23.0) (2026-02-07)
 
 
