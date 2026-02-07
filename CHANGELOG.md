@@ -1,3 +1,11 @@
+## [5.22.1](https://github.com/oddessentials/ado-git-repo-insights/compare/v5.22.0...v5.22.1) (2026-02-07)
+
+
+### Bug Fixes
+
+* discover pipelines against effective project in auto-discovery mode ([a2d2d0b](https://github.com/oddessentials/ado-git-repo-insights/commit/a2d2d0b45a1f08f7e7032129cc785c3db281f8d6))
+* enable download button in auto-discovery mode ([22935e1](https://github.com/oddessentials/ado-git-repo-insights/commit/22935e18d03e6d6e58c97034a72009579af26d4c))
+
 # [5.22.0](https://github.com/oddessentials/ado-git-repo-insights/compare/v5.21.0...v5.22.0) (2026-02-07)
 
 
