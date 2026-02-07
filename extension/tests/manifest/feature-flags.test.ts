@@ -60,6 +60,16 @@ describe("Manifest Contract: Feature Flags", () => {
   });
 
   // ---------------------------------------------------------------------------
+  // (1b) All feature flags target ms.vss-web.managed-features
+  // ---------------------------------------------------------------------------
+  it("all feature flags target ms.vss-web.managed-features", () => {
+    for (const flag of featureFlags) {
+      expect(flag.targets).toBeDefined();
+      expect(flag.targets).toContain("ms.vss-web.managed-features");
+    }
+  });
+
+  // ---------------------------------------------------------------------------
   // (2) FR-010: All feature flag IDs start with gri.
   // ---------------------------------------------------------------------------
   it("all feature flag IDs start with gri. prefix", () => {

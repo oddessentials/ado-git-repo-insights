@@ -6,6 +6,7 @@
     {
       "id": "gri.dashboard-hub",
       "type": "ms.vss-web.feature",
+      "targets": ["ms.vss-web.managed-features"],
       "description": "Controls visibility of the PR Insights dashboard hub in the Repos navigation",
       "properties": {
         "name": "[GRI] PR Insights Dashboard",
