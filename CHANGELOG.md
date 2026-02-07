@@ -1,3 +1,10 @@
+## [5.22.2](https://github.com/oddessentials/ado-git-repo-insights/compare/v5.22.1...v5.22.2) (2026-02-07)
+
+
+### Bug Fixes
+
+* use undefined instead of null for optional VSS REST client params ([0640ee7](https://github.com/oddessentials/ado-git-repo-insights/commit/0640ee7f03dccf813d225e6e6c23b5b543d82fc6))
+
 ## [5.22.1](https://github.com/oddessentials/ado-git-repo-insights/compare/v5.22.0...v5.22.1) (2026-02-07)
 
 
