@@ -1,3 +1,18 @@
+# [5.22.0](https://github.com/oddessentials/ado-git-repo-insights/compare/v5.21.0...v5.22.0) (2026-02-07)
+
+
+### Bug Fixes
+
+* clear stale validation before async pipeline re-validate ([7599b51](https://github.com/oddessentials/ado-git-repo-insights/commit/7599b51c58286b525ddee19652856f084ebbb30b))
+* harden download URL validation and improve code quality ([60b197e](https://github.com/oddessentials/ado-git-repo-insights/commit/60b197e824f04e873251d38c79489cd20a1389a3))
+* harden downloadRawData with input validation and deferred revoke ([d45a144](https://github.com/oddessentials/ado-git-repo-insights/commit/d45a144060032be293246c6c63ffd5b3ed3c7e81))
+* point settings page docs link to extension user guide ([404e242](https://github.com/oddessentials/ado-git-repo-insights/commit/404e24273cdad2e121344697067448140e32aeb4))
+
+
+### Features
+
+* add Download Raw Data button to settings page ([dae2d0d](https://github.com/oddessentials/ado-git-repo-insights/commit/dae2d0d095de979b953a599625961a6c798933af))
+
 # [5.21.0](https://github.com/oddessentials/ado-git-repo-insights/compare/v5.20.2...v5.21.0) (2026-02-07)
 
 
