@@ -708,6 +708,130 @@ describe("Settings Download: button state management", () => {
 });
 
 // ============================================================================
+// Auto-discovery mode: updateStatus() download enablement contract
+// ============================================================================
+
+/**
+ * Simulates the auto-discovery branch of updateStatus() from settings.ts.
+ * When no saved pipeline ID exists, discoverPipelines() is called to find
+ * a valid pipeline. If found, lastValidation is set to enable the download
+ * button (mirroring the dashboard's discoverAndResolve() behavior).
+ */
+function updateStatusAutoDiscoveryContract(discovered: Array<{ id: number; name: string; buildId: number }>): {
+  lastValidation: { valid: boolean; buildId: number } | null;
+  statusHint: string;
+} {
+  const match = discovered[0];
+  if (match) {
+    return {
+      lastValidation: { valid: true, buildId: match.buildId },
+      statusHint: `Found pipeline "${match.name}" (Build #${match.buildId}). Download available.`,
+    };
+  } else {
+    return {
+      lastValidation: null,
+      statusHint: "The dashboard will automatically find pipelines with an \"aggregates\" artifact.",
+    };
+  }
+}
+
+describe("Settings Download: auto-discovery download enablement", () => {
+  beforeEach(() => {
+    document.body.innerHTML = `
+      <button id="download-raw-btn" class="btn btn-secondary" disabled>
+        Download Raw Data (ZIP)
+      </button>
+      <span id="download-status"></span>
+    `;
+  });
+
+  afterEach(() => {
+    document.body.innerHTML = "";
+  });
+
+  it("enables download button when discovery finds a pipeline", () => {
+    const discovered = [
+      { id: 10, name: "PR-Insights-Pipeline", buildId: 555 },
+    ];
+
+    const result = updateStatusAutoDiscoveryContract(discovered);
+
+    // lastValidation should be set with the first match's buildId
+    expect(result.lastValidation).toEqual({ valid: true, buildId: 555 });
+    expect(result.statusHint).toContain("PR-Insights-Pipeline");
+    expect(result.statusHint).toContain("Build #555");
+    expect(result.statusHint).toContain("Download available");
+
+    // Simulate button state update (mirrors settings.ts lines 413-418)
+    const btn = document.getElementById("download-raw-btn") as HTMLButtonElement;
+    btn.disabled = !result.lastValidation?.valid || !result.lastValidation?.buildId;
+
+    expect(btn.disabled).toBe(false);
+  });
+
+  it("keeps download button disabled when discovery finds no pipelines", () => {
+    const discovered: Array<{ id: number; name: string; buildId: number }> = [];
+
+    const result = updateStatusAutoDiscoveryContract(discovered);
+
+    expect(result.lastValidation).toBeNull();
+    expect(result.statusHint).toContain("automatically find pipelines");
+
+    // Simulate button state update
+    const btn = document.getElementById("download-raw-btn") as HTMLButtonElement;
+    btn.disabled = !result.lastValidation?.valid || !result.lastValidation?.buildId;
+
+    expect(btn.disabled).toBe(true);
+  });
+
+  it("uses the first discovered pipeline when multiple matches exist", () => {
+    const discovered = [
+      { id: 10, name: "First-Pipeline", buildId: 100 },
+      { id: 20, name: "Second-Pipeline", buildId: 200 },
+      { id: 30, name: "Third-Pipeline", buildId: 300 },
+    ];
+
+    const result = updateStatusAutoDiscoveryContract(discovered);
+
+    expect(result.lastValidation).toEqual({ valid: true, buildId: 100 });
+    expect(result.statusHint).toContain("First-Pipeline");
+    expect(result.statusHint).not.toContain("Second-Pipeline");
+  });
+
+  it("discovered buildId flows through to downloadRawData contract", async () => {
+    // Verify the full chain: discovery → lastValidation → download uses correct buildId
+    const discovered = [{ id: 42, name: "My-Pipeline", buildId: 777 }];
+    const { lastValidation } = updateStatusAutoDiscoveryContract(discovered);
+
+    // Feed lastValidation into the download contract
+    const deps = {
+      dataService: getMockExtensionDataService(),
+      webContext: { project: { id: "proj-123" } },
+      artifactClient: {
+        initialize: jest.fn(() => Promise.resolve()),
+        getArtifactMetadata: jest.fn(() =>
+          Promise.resolve({
+            name: "csv-output",
+            resource: {
+              downloadUrl:
+                "https://dev.azure.com/org/proj/_apis/build/builds/777/artifacts?artifactName=csv-output",
+            },
+          }),
+        ),
+        authenticatedFetch: jest.fn(() =>
+          Promise.resolve({ ok: true, status: 200, statusText: "OK" }),
+        ),
+      },
+    };
+
+    const result = await downloadRawDataContract(lastValidation, deps);
+
+    expect(result.outcome).toBe("success");
+    expect(deps.artifactClient.getArtifactMetadata).toHaveBeenCalledWith(777, "csv-output");
+  });
+});
+
+// ============================================================================
 // ZIP URL construction
 // ============================================================================
 
