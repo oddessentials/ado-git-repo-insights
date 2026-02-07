@@ -132,8 +132,14 @@ class TestSchemaValidation:
             for field in required:
                 assert field in rollup, f"Missing {field} in {filename}"
 
-            # by_team should NOT be present (omitted when teams disabled)
-            assert "by_team" not in rollup, f"by_team should be omitted in {filename}"
+            # by_team should be present (teams enabled in demo data)
+            assert "by_team" in rollup, f"Missing by_team in {filename}"
+            assert isinstance(rollup["by_team"], dict), (
+                f"by_team not a dict in {filename}"
+            )
+            assert len(rollup["by_team"]) == 4, (
+                f"Expected 4 teams in by_team in {filename}"
+            )
 
     def test_distribution_schema(self) -> None:
         """Distribution files have required fields."""
