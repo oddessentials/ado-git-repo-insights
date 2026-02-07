@@ -1,3 +1,12 @@
+# [5.23.0](https://github.com/oddessentials/ado-git-repo-insights/compare/v5.22.2...v5.23.0) (2026-02-07)
+
+
+### Features
+
+* add [GRI] dashboard feature flag with manifest contract tests ([d247a44](https://github.com/oddessentials/ado-git-repo-insights/commit/d247a44959e35e969f5467861d8868fc78d62850))
+* add getDefinitions() and getBuilds() to ArtifactClient ([c7c71f3](https://github.com/oddessentials/ado-git-repo-insights/commit/c7c71f3673f8a6ff068bf846430e4aed043411be))
+* replace legacy discovery in settings with ArtifactClient direct REST ([028f99a](https://github.com/oddessentials/ado-git-repo-insights/commit/028f99aeba833c44a8314ec15baca06d426c4547))
+
 ## [5.22.2](https://github.com/oddessentials/ado-git-repo-insights/compare/v5.22.1...v5.22.2) (2026-02-07)
 
 
