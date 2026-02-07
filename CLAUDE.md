@@ -30,6 +30,8 @@ Auto-generated from all feature plans. Last updated: 2026-01-27
 - N/A (in-memory test fixtures only) (023-dashboard-coverage)
 - Python 3.11 (generator), TypeScript 5.7.3 (dashboard/tests) + Python stdlib (generator), Jest 30.0.0 (tests), esbuild 0.27.0 (bundling) (024-dashboard-scalability)
 - JSON files (weekly rollups, dimensions, manifest) (024-dashboard-scalability)
+- TypeScript 5.7.3 + vss-web-extension-sdk 5.141.0, esbuild 0.27.0 (IIFE bundling) (025-settings-download)
+- N/A (reads from ADO extension data service for saved settings, fetches from ADO Build API for artifacts) (025-settings-download)
 
 -\ Python\ 3\.10\+\ \(backend\),\ TypeScript\ \(frontend/extension\)\ \+\ numpy,\ pandas\ \(Python\);\ esbuild\ \(TypeScript\ bundling\)\ \(006-forecaster-edge-hardening\)
 
@@ -49,9 +51,9 @@ cd\ src;\ pytest;\ ruff\ check\ \.
 Python\ 3\.10\+\ \(backend\),\ TypeScript\ \(frontend/extension\):\ Follow\ standard\ conventions
 
 ## Recent Changes
+- 025-settings-download: Added TypeScript 5.7.3 + vss-web-extension-sdk 5.141.0, esbuild 0.27.0 (IIFE bundling)
 - 024-dashboard-scalability: Added Python 3.11 (generator), TypeScript 5.7.3 (dashboard/tests) + Python stdlib (generator), Jest 30.0.0 (tests), esbuild 0.27.0 (bundling)
 - 023-dashboard-coverage: Added TypeScript 5.7.3 + Jest 30.0.0, ts-jest 29.2.5, jsdom (test environment)
-- 021-spec-task-coverage-gaps: Added TypeScript 5.7.3 (extension) + Jest 30.0.0, Playwright (pinned), esbuild 0.27.0
 
 -\ 006-forecaster-edge-hardening:\ Added\ Python\ 3\.10\+\ \(backend\),\ TypeScript\ \(frontend/extension\)\ \+\ numpy,\ pandas\ \(Python\);\ esbuild\ \(TypeScript\ bundling\)
 

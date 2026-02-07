@@ -793,9 +793,16 @@ var PRInsightsSettings = (() => {
           html += `</p><p class="status-warning">\u26A0\uFE0F No project ID available for validation</p>`;
         }
       } else {
-        lastValidation = null;
         html += `<p><strong>Mode:</strong> Auto-discovery</p>`;
-        html += `<p class="status-hint">The dashboard will automatically find pipelines with an "aggregates" artifact.</p>`;
+        const discovered = await discoverPipelines();
+        const match = discovered[0];
+        if (match) {
+          lastValidation = { valid: true, buildId: match.buildId };
+          html += `<p class="status-hint">Found pipeline "${escapeHtml(match.name)}" (Build #${match.buildId}). Download available.</p>`;
+        } else {
+          lastValidation = null;
+          html += `<p class="status-hint">The dashboard will automatically find pipelines with an "aggregates" artifact.</p>`;
+        }
       }
       const downloadBtn = document.getElementById(
         "download-raw-btn"
