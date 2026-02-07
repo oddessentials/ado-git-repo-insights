@@ -397,8 +397,9 @@ async function updateStatus(): Promise<void> {
       }
     } else {
       // Auto-discovery mode: find a valid pipeline for download (mirrors dashboard)
+      // Discover against the effective project so the buildId matches downloadRawData() scope
       html += `<p><strong>Mode:</strong> Auto-discovery</p>`;
-      const discovered = await discoverPipelines();
+      const discovered = await discoverPipelines(savedProjectId || currentProjectId);
       const match = discovered[0];
       if (match) {
         lastValidation = { valid: true, buildId: match.buildId };
@@ -686,16 +687,16 @@ async function validatePipeline(
 /**
  * Discover pipelines with aggregates artifact in the current project.
  */
-async function discoverPipelines(): Promise<
-  Array<{ id: number; name: string; buildId: number }>
-> {
+async function discoverPipelines(
+  targetProjectId?: string,
+): Promise<Array<{ id: number; name: string; buildId: number }>> {
   return new Promise((resolve) => {
     VSS.require(["TFS/Build/RestClient"], (...modules: unknown[]) => {
       const BuildRestClient = modules[0] as { getClient: () => VSSBuildClient };
       try {
         const client = BuildRestClient.getClient();
         const webContext = VSS.getWebContext();
-        const projectId = webContext.project?.id;
+        const projectId = targetProjectId || webContext.project?.id;
         if (!projectId) {
           resolve([]);
           return;

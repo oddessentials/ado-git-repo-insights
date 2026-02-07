@@ -794,7 +794,7 @@ var PRInsightsSettings = (() => {
         }
       } else {
         html += `<p><strong>Mode:</strong> Auto-discovery</p>`;
-        const discovered = await discoverPipelines();
+        const discovered = await discoverPipelines(savedProjectId || currentProjectId);
         const match = discovered[0];
         if (match) {
           lastValidation = { valid: true, buildId: match.buildId };
@@ -1015,14 +1015,14 @@ var PRInsightsSettings = (() => {
       });
     });
   }
-  async function discoverPipelines() {
+  async function discoverPipelines(targetProjectId) {
     return new Promise((resolve) => {
       VSS.require(["TFS/Build/RestClient"], (...modules) => {
         const BuildRestClient = modules[0];
         try {
           const client = BuildRestClient.getClient();
           const webContext = VSS.getWebContext();
-          const projectId = webContext.project?.id;
+          const projectId = targetProjectId || webContext.project?.id;
           if (!projectId) {
             resolve([]);
             return;
