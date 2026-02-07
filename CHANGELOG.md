@@ -1,3 +1,35 @@
+# [5.21.0](https://github.com/oddessentials/ado-git-repo-insights/compare/v5.20.2...v5.21.0) (2026-02-07)
+
+
+### Bug Fixes
+
+* add missing CSS for .truncation-indicator (T040) ([3f16efc](https://github.com/oddessentials/ado-git-repo-insights/commit/3f16efc7be982179bd01274ad71d68705c7b6852))
+* address 4 dashboard issues — reviewer cap, team filter, overflow, panel clarity ([34ae5c2](https://github.com/oddessentials/ado-git-repo-insights/commit/34ae5c2e0859c7c548bbced0e40cdbcc685c1e4f))
+* address 8 code review items for dashboard scalability ([d61e4e8](https://github.com/oddessentials/ado-git-repo-insights/commit/d61e4e8f66989ab9e16c069cd5b62c010a3ae738))
+* apply both repo and team filters together via proportional intersection ([8b8816f](https://github.com/oddessentials/ado-git-repo-insights/commit/8b8816f1342de8d6b28ebf5f4806f931b6b5b927))
+* clamp team share to [0,1] to prevent overflow from multi-team overlap ([3551cf9](https://github.com/oddessentials/ado-git-repo-insights/commit/3551cf9f859a102c78bf626c7d732bb12ffb06df))
+* exclude null/missing cycle-time entries from weighted average denominator ([aaefeda](https://github.com/oddessentials/ado-git-repo-insights/commit/aaefedaca9937fc5847896a6504b97bd21c7e0cd))
+* guard against NaN when p90s is empty in combined filter cycle time ([48ad378](https://github.com/oddessentials/ado-git-repo-insights/commit/48ad37858aa138eb3f92559eff6fed16367754ed))
+* regenerate demo data with 200 users/260 weeks and close test coverage gaps ([7d2b83b](https://github.com/oddessentials/ado-git-repo-insights/commit/7d2b83bb2e2609e13a3d4ebd0f638d283e1f91e4))
+* regenerate docs/data from canonical demo generator (260 weeks) ([fbf0cee](https://github.com/oddessentials/ado-git-repo-insights/commit/fbf0cee9697e94d1dab64e5c36154fcb5a0feeb2))
+* replace non-null assertions with type-narrowing variables in metrics.ts ([0e0f8de](https://github.com/oddessentials/ado-git-repo-insights/commit/0e0f8de5c2f06c333b971b9da3751e62f0034a47))
+* resolve extensionRoot scoping bug and create unit test directory ([ba49ee3](https://github.com/oddessentials/ado-git-repo-insights/commit/ba49ee371c2dd7c73b09cb41269bfc9d2dedcdf3))
+* scale Cycle Time Trend SVG viewBox width to data point count ([dc3924a](https://github.com/oddessentials/ado-git-repo-insights/commit/dc3924a84f373bd7e30b0578041d2c288f326034))
+* update tests and regenerate predictions/insights for team data ([34ed24b](https://github.com/oddessentials/ado-git-repo-insights/commit/34ed24b6705464a7cb802163ec2cba3d8fdf2265))
+
+
+### Features
+
+* add --users, --include-comments args and remove generator caps ([181e31f](https://github.com/oddessentials/ado-git-repo-insights/commit/181e31fa5b393e32c1a97300c77099a49e570804))
+* add by_repository to generator, full repo filter aggregation, and docs/ sync automation ([a23ddc7](https://github.com/oddessentials/ado-git-repo-insights/commit/a23ddc7a293e421934ff8fb5e8d792a8d7c344c8))
+* add CI scalability test job and harden invariant assertions ([b2ec479](https://github.com/oddessentials/ado-git-repo-insights/commit/b2ec47914a2c299dfa660c12ffe7b38bbc2249f3))
+* add comment generation to synthetic data generator ([6bfa240](https://github.com/oddessentials/ado-git-repo-insights/commit/6bfa240f19965a178362ed0aeeba5fc3fc473730))
+* add cycle-time chart data cap with truncation indicator ([5fcb031](https://github.com/oddessentials/ado-git-repo-insights/commit/5fcb031d591a1f6432d659b1cb19eb44edb50b13))
+* add deterministic team data to demo generator ([2aa23cb](https://github.com/oddessentials/ado-git-repo-insights/commit/2aa23cb1a5b50f2ca15a5a44bf6246c5d02552c9))
+* add full per-team metric breakdowns so all charts react to team filter ([9a6cf55](https://github.com/oddessentials/ado-git-repo-insights/commit/9a6cf5558c69bf0133edc5e0aac819bad833fbc2))
+* add reviewer panel scalability support for 200+ users ([2667228](https://github.com/oddessentials/ado-git-repo-insights/commit/26672288e5cc73dc5fd6c13b1ee94431b50139a2))
+* add throughput chart data cap with truncation indicator ([0c1a396](https://github.com/oddessentials/ado-git-repo-insights/commit/0c1a396d757b2e85637886d6a6657bcebf42df6d))
+
 ## [5.20.2](https://github.com/oddessentials/ado-git-repo-insights/compare/v5.20.1...v5.20.2) (2026-02-05)
 
 
