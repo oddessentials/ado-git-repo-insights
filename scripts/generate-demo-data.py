@@ -189,6 +189,17 @@ class SyntheticUser:
 
 
 @dataclass
+class SyntheticTeam:
+    """Represents a team within a project."""
+
+    team_id: uuid.UUID
+    team_name: str
+    organization_name: str
+    project_name: str
+    member_count: int
+
+
+@dataclass
 class WeeklyRollup:
     """Aggregated PR metrics for one ISO week."""
 
@@ -201,7 +212,7 @@ class WeeklyRollup:
     authors_count: int
     reviewers_count: int
     by_repository: dict[str, dict[str, Any]]
-    # Note: by_team is omitted when teams feature is disabled (not null)
+    by_team: dict[str, dict[str, Any]]
 
 
 @dataclass
@@ -282,6 +293,36 @@ def generate_repositories(
                 )
             )
     return repos
+
+
+# Team Generator
+TEAM_MAPPING = {
+    "platform-services": "Platform Team",
+    "web-frontend": "Frontend Team",
+    "data-pipeline": "Data Team",
+    "ml-platform": "ML Team",
+}
+
+
+def generate_teams(projects: list[SyntheticProject]) -> list[SyntheticTeam]:
+    """Generate 4 synthetic teams mapped to specific projects."""
+    teams = []
+    for project in projects:
+        team_name = TEAM_MAPPING.get(project.project_name)
+        if team_name is None:
+            continue
+        team_id = generate_uuid(f"team/{project.organization_name}/{team_name}")
+        member_count = RNG.randint(5, 15)
+        teams.append(
+            SyntheticTeam(
+                team_id=team_id,
+                team_name=team_name,
+                organization_name=project.organization_name,
+                project_name=project.project_name,
+                member_count=member_count,
+            )
+        )
+    return teams
 
 
 # T011: User Generator
@@ -415,6 +456,7 @@ def generate_dimensions(
     projects: list[SyntheticProject],
     repositories: list[SyntheticRepository],
     users: list[SyntheticUser],
+    teams: list[SyntheticTeam],
 ) -> dict[str, Any]:
     """Generate dimensions.json with all entities."""
     # Calculate date range from weekly rollups (2021-W01 to 2025-W52)
@@ -442,7 +484,16 @@ def generate_dimensions(
             }
             for r in repositories
         ],
-        "teams": [],  # Teams disabled per data model
+        "teams": [
+            {
+                "team_id": t.team_id,
+                "team_name": t.team_name,
+                "organization_name": t.organization_name,
+                "project_name": t.project_name,
+                "member_count": t.member_count,
+            }
+            for t in teams
+        ],
         "users": [
             {
                 "user_id": u.user_id,
@@ -503,6 +554,7 @@ def calculate_percentile(values: list[float], percentile: float) -> float:
 
 def generate_weekly_rollups(
     repositories: list[SyntheticRepository],
+    teams: list[SyntheticTeam],
 ) -> list[WeeklyRollup]:
     """Generate 260 weekly rollups with seasonal variation."""
     rollups = []
@@ -559,6 +611,33 @@ def generate_weekly_rollups(
                         "reviewers_count": max(1, int(repo_pr_count * 0.45)),
                     }
 
+            # Distribute PRs across teams
+            by_team: dict[str, dict[str, Any]] = {}
+            raw_weights = [RNG.random() for _ in teams]
+            weight_sum = sum(raw_weights)
+            normalized_weights = [w / weight_sum for w in raw_weights]
+
+            team_remaining_prs = pr_count
+            for i, team in enumerate(teams):
+                if i == len(teams) - 1:
+                    team_pr_count = team_remaining_prs
+                else:
+                    team_pr_count = int(pr_count * normalized_weights[i])
+                    team_remaining_prs -= team_pr_count
+
+                team_pr_count = max(1, team_pr_count)
+                team_cycle_times = generate_cycle_times(team_pr_count)
+                team_p50 = calculate_percentile(team_cycle_times, 50)
+                team_p90 = calculate_percentile(team_cycle_times, 90)
+
+                by_team[team.team_name] = {
+                    "pr_count": team_pr_count,
+                    "cycle_time_p50": team_p50,
+                    "cycle_time_p90": team_p90,
+                    "authors_count": max(1, int(team_pr_count * 0.3)),
+                    "reviewers_count": max(1, int(team_pr_count * 0.45)),
+                }
+
             rollups.append(
                 WeeklyRollup(
                     week=week_str,
@@ -570,6 +649,7 @@ def generate_weekly_rollups(
                     authors_count=authors_count,
                     reviewers_count=reviewers_count,
                     by_repository=by_repository,
+                    by_team=by_team,
                 )
             )
 
@@ -696,7 +776,7 @@ def generate_manifest(
             "max_distribution_files": 5,
         },
         "features": {
-            "teams": False,
+            "teams": True,
             "comments": False,
             # predictions and ai_insights are set to False until Phase 5-6 implementation
             # These will be enabled by generate-demo-predictions.py and generate-demo-insights.py
@@ -705,6 +785,7 @@ def generate_manifest(
         },
         "coverage": {
             "total_prs": total_prs,
+            "teams_count": 4,
             "date_range": {
                 "min": min_date,
                 "max": max_date,
@@ -760,16 +841,21 @@ def main() -> int:
     users = generate_users()
     print(f"  Users: {len(users)}")
 
+    teams = generate_teams(projects)
+    print(f"  Teams: {len(teams)}")
+
     # Generate dimensions
     print("\n[2/6] Generating dimensions.json...")
-    dimensions = generate_dimensions(organizations, projects, repositories, users)
+    dimensions = generate_dimensions(
+        organizations, projects, repositories, users, teams
+    )
     dimensions_path = OUTPUT_DIR / "aggregates" / "dimensions.json"
     write_json(dimensions_path, dimensions)
     print(f"  Written: {dimensions_path}")
 
     # Generate weekly rollups
     print("\n[3/6] Generating weekly rollups...")
-    rollups = generate_weekly_rollups(repositories)
+    rollups = generate_weekly_rollups(repositories, teams)
     print(f"  Generated {len(rollups)} weekly rollups")
 
     rollups_dir = OUTPUT_DIR / "aggregates" / "weekly_rollups"
@@ -784,7 +870,7 @@ def main() -> int:
             "authors_count": rollup.authors_count,
             "reviewers_count": rollup.reviewers_count,
             "by_repository": rollup.by_repository,
-            # by_team is omitted when teams feature is disabled (schema expects object, not null)
+            "by_team": rollup.by_team,
         }
         write_json(rollups_dir / f"{rollup.week}.json", rollup_data)
     print(f"  Written: {len(rollups)} files to {rollups_dir}")

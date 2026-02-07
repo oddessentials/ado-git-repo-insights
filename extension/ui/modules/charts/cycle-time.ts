@@ -13,6 +13,9 @@ import { addChartTooltips } from "../charts";
 import { formatDuration } from "../shared/format";
 import { escapeHtml, renderNoData, renderTrustedHtml } from "../shared/render";
 
+/** Maximum data points rendered in the cycle time trend chart (2 years of weekly data). */
+export const MAX_CYCLE_TIME_POINTS = 104;
+
 /**
  * Render cycle time distribution as horizontal bar chart.
  *
@@ -91,10 +94,16 @@ export function renderCycleTimeTrend(
     return;
   }
 
-  const p50Data = rollups
+  // Truncate to most recent data points if over the cap
+  const truncated = rollups.length > MAX_CYCLE_TIME_POINTS;
+  const displayRollups = truncated
+    ? rollups.slice(-MAX_CYCLE_TIME_POINTS)
+    : rollups;
+
+  const p50Data = displayRollups
     .map((r) => ({ week: r.week, value: r.cycle_time_p50 }))
     .filter((d): d is { week: string; value: number } => d.value !== null);
-  const p90Data = rollups
+  const p90Data = displayRollups
     .map((r) => ({ week: r.week, value: r.cycle_time_p90 }))
     .filter((d): d is { week: string; value: number } => d.value !== null);
 
@@ -111,17 +120,27 @@ export function renderCycleTimeTrend(
   const minVal = Math.min(...allValues);
   const range = maxVal - minVal || 1;
 
-  const width = 100;
+  // Scale viewBox width to the number of data points so the SVG's aspect
+  // ratio naturally matches a wide dashboard panel.  Each point gets ~6
+  // units of horizontal space; minimum 500 keeps small datasets legible.
   const height = 180;
   const padding = { top: 10, right: 10, bottom: 25, left: 40 };
+  const width = Math.max(
+    500,
+    padding.left + padding.right + displayRollups.length * 6,
+  );
   const chartWidth = width - padding.left - padding.right;
   const chartHeight = height - padding.top - padding.bottom;
+
+  // Dot radius scales inversely with density: bigger when few points,
+  // smaller when many, so they remain visible and clickable.
+  const dotRadius = Math.max(1.5, Math.min(4, 200 / displayRollups.length));
 
   // Generate paths
   const generatePath = (data: { week: string; value: number }[]) => {
     const points = data.map((d) => {
-      const dataIndex = rollups.findIndex((r) => r.week === d.week);
-      const x = padding.left + (dataIndex / (rollups.length - 1)) * chartWidth;
+      const dataIndex = displayRollups.findIndex((r) => r.week === d.week);
+      const x = padding.left + (dataIndex / (displayRollups.length - 1)) * chartWidth;
       const y =
         padding.top + chartHeight - ((d.value - minVal) / range) * chartHeight;
       return { x, y, week: d.week, value: d.value };
@@ -141,7 +160,7 @@ export function renderCycleTimeTrend(
   const yLabels = [minVal, (minVal + maxVal) / 2, maxVal];
 
   const svgContent = `
-        <svg viewBox="0 0 ${width} ${height}" preserveAspectRatio="xMidYMid meet">
+        <svg viewBox="0 0 ${width} ${height}" preserveAspectRatio="xMinYMid meet">
             <!-- Grid lines -->
             ${yLabels
               .map((_, i) => {
@@ -169,8 +188,8 @@ export function renderCycleTimeTrend(
             ${p50Path ? `<path class="line-chart-p50" d="${p50Path.pathD}" vector-effect="non-scaling-stroke"/>` : ""}
 
             <!-- Dots -->
-            ${p90Path ? p90Path.points.map((p) => `<circle class="line-chart-dot" cx="${p.x}" cy="${p.y}" r="3" fill="var(--warning)" data-week="${escapeHtml(p.week)}" data-value="${p.value}" data-metric="P90"/>`).join("") : ""}
-            ${p50Path ? p50Path.points.map((p) => `<circle class="line-chart-dot" cx="${p.x}" cy="${p.y}" r="3" fill="var(--primary)" data-week="${escapeHtml(p.week)}" data-value="${p.value}" data-metric="P50"/>`).join("") : ""}
+            ${p90Path ? p90Path.points.map((p) => `<circle class="line-chart-dot" cx="${p.x}" cy="${p.y}" r="${dotRadius}" fill="var(--warning)" data-week="${escapeHtml(p.week)}" data-value="${p.value}" data-metric="P90"/>`).join("") : ""}
+            ${p50Path ? p50Path.points.map((p) => `<circle class="line-chart-dot" cx="${p.x}" cy="${p.y}" r="${dotRadius}" fill="var(--primary)" data-week="${escapeHtml(p.week)}" data-value="${p.value}" data-metric="P50"/>`).join("") : ""}
         </svg>
     `;
 
@@ -187,10 +206,15 @@ export function renderCycleTimeTrend(
         </div>
     `;
 
+  // Truncation indicator
+  const truncationHtml = truncated
+    ? `<div class="truncation-indicator">Showing last ${MAX_CYCLE_TIME_POINTS} weeks</div>`
+    : "";
+
   // SECURITY: Content is SVG from computed coordinates + escapeHtml'd week values
   renderTrustedHtml(
     container,
-    `<div class="line-chart">${svgContent}</div>${legendHtml}`,
+    `${truncationHtml}<div class="line-chart">${svgContent}</div>${legendHtml}`,
   );
 
   // Add tooltip interactions

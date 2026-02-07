@@ -177,7 +177,36 @@
       "repository_name": "monitoring-stack"
     }
   ],
-  "teams": [],
+  "teams": [
+    {
+      "member_count": 15,
+      "organization_name": "acme-corp",
+      "project_name": "platform-services",
+      "team_id": "1aee1060-5a62-5d9c-a84a-38081d25a2e3",
+      "team_name": "Platform Team"
+    },
+    {
+      "member_count": 6,
+      "organization_name": "acme-corp",
+      "project_name": "data-pipeline",
+      "team_id": "9f8385ac-f62b-593b-a820-96a9ed8121c5",
+      "team_name": "Data Team"
+    },
+    {
+      "member_count": 5,
+      "organization_name": "contoso-dev",
+      "project_name": "web-frontend",
+      "team_id": "9948e7ef-020b-551b-abde-6dd6f4eb8b34",
+      "team_name": "Frontend Team"
+    },
+    {
+      "member_count": 9,
+      "organization_name": "fabrikam-eng",
+      "project_name": "ml-platform",
+      "team_id": "bd04a4ef-7e7f-5255-b2a9-35e7ed1cb35f",
+      "team_name": "ML Team"
+    }
+  ],
   "users": [
     {
       "display_name": "Alice Johnson",

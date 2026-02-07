@@ -143,12 +143,36 @@ describe("metrics module", () => {
       authors_count: 10,
       reviewers_count: 5,
       by_repository: {
-        "repo-a": { pr_count: 30 },
-        "repo-b": { pr_count: 70 },
+        "repo-a": {
+          pr_count: 30,
+          cycle_time_p50: 50,
+          cycle_time_p90: 100,
+          authors_count: 4,
+          reviewers_count: 2,
+        },
+        "repo-b": {
+          pr_count: 70,
+          cycle_time_p50: 65,
+          cycle_time_p90: 130,
+          authors_count: 6,
+          reviewers_count: 3,
+        },
       },
       by_team: {
-        "team-x": { pr_count: 40 },
-        "team-y": { pr_count: 60 },
+        "team-x": {
+          pr_count: 40,
+          cycle_time_p50: 55,
+          cycle_time_p90: 110,
+          authors_count: 4,
+          reviewers_count: 2,
+        },
+        "team-y": {
+          pr_count: 60,
+          cycle_time_p50: 63,
+          cycle_time_p90: 127,
+          authors_count: 6,
+          reviewers_count: 3,
+        },
       },
     } as Rollup;
 
@@ -160,13 +184,66 @@ describe("metrics module", () => {
       expect(result).toEqual([baseRollup]);
     });
 
-    it("filters by repository", () => {
+    it("filters by repository - pr_count", () => {
       const result = applyFiltersToRollups([baseRollup], {
         repos: ["repo-a"],
         teams: [],
       });
 
       expect(result[0].pr_count).toBe(30);
+    });
+
+    it("filters by repository - single repo cycle time", () => {
+      const result = applyFiltersToRollups([baseRollup], {
+        repos: ["repo-a"],
+        teams: [],
+      });
+
+      expect(result[0].cycle_time_p50).toBe(50);
+      expect(result[0].cycle_time_p90).toBe(100);
+      expect(result[0].authors_count).toBe(4);
+      expect(result[0].reviewers_count).toBe(2);
+    });
+
+    it("filters by repository - multi-repo weighted average cycle time", () => {
+      const result = applyFiltersToRollups([baseRollup], {
+        repos: ["repo-a", "repo-b"],
+        teams: [],
+      });
+
+      // Weighted avg: (50*30 + 65*70) / (30+70) = (1500+4550)/100 = 60.5
+      expect(result[0].pr_count).toBe(100);
+      expect(result[0].cycle_time_p50).toBeCloseTo(60.5);
+      // Weighted avg: (100*30 + 130*70) / 100 = (3000+9100)/100 = 121
+      expect(result[0].cycle_time_p90).toBeCloseTo(121);
+      expect(result[0].authors_count).toBe(10);
+      expect(result[0].reviewers_count).toBe(5);
+    });
+
+    it("filters by repository - legacy data with pr_count only", () => {
+      const legacyRollup = {
+        week: "2026-W01",
+        pr_count: 100,
+        cycle_time_p50: 60,
+        cycle_time_p90: 120,
+        authors_count: 10,
+        reviewers_count: 5,
+        by_repository: {
+          "repo-a": { pr_count: 30 },
+          "repo-b": { pr_count: 70 },
+        },
+      } as unknown as Rollup;
+
+      const result = applyFiltersToRollups([legacyRollup], {
+        repos: ["repo-a"],
+        teams: [],
+      });
+
+      // Legacy: only pr_count available, cycle time preserved from rollup
+      expect(result[0].pr_count).toBe(30);
+      // No per-repo cycle time -> hasPerRepoCycleTime is false -> original values preserved
+      expect(result[0].cycle_time_p50).toBe(60);
+      expect(result[0].cycle_time_p90).toBe(120);
     });
 
     it("filters by team", () => {
@@ -182,6 +259,32 @@ describe("metrics module", () => {
       const result = applyFiltersToRollups([baseRollup], {
         repos: ["unknown-repo"],
         teams: [],
+      });
+
+      expect(result[0].pr_count).toBe(0);
+    });
+
+    it("applies both repo and team filters with proportional intersection", () => {
+      const result = applyFiltersToRollups([baseRollup], {
+        repos: ["repo-a"],
+        teams: ["team-x"],
+      });
+
+      // repo-a = 30/100 = 30%, team-x = 40/100 = 40%
+      // Combined: 100 * 0.3 * 0.4 = 12
+      expect(result[0].pr_count).toBe(12);
+      // authors: round(10 * 0.12) = 1, reviewers: round(5 * 0.12) = 1
+      expect(result[0].authors_count).toBe(1);
+      expect(result[0].reviewers_count).toBe(1);
+      // Cycle time: average of repo-a (50) and team-x (55) = 52.5
+      expect(result[0].cycle_time_p50).toBeCloseTo(52.5);
+      expect(result[0].cycle_time_p90).toBeCloseTo(105);
+    });
+
+    it("returns zeros when both filters active and one matches nothing", () => {
+      const result = applyFiltersToRollups([baseRollup], {
+        repos: ["unknown-repo"],
+        teams: ["team-x"],
       });
 
       expect(result[0].pr_count).toBe(0);
@@ -403,8 +506,8 @@ describe("applyFiltersToRollups regression: object concatenation bug", () => {
       week: "2026-W01",
       pr_count: 100,
       by_repository: {
-        "repo-a": { pr_count: 30 },
-        "repo-b": { pr_count: 70 },
+        "repo-a": { pr_count: 30, authors_count: 4, reviewers_count: 2 },
+        "repo-b": { pr_count: 70, authors_count: 6, reviewers_count: 3 },
       },
     } as unknown as Rollup;
 
@@ -414,6 +517,8 @@ describe("applyFiltersToRollups regression: object concatenation bug", () => {
     });
 
     expect(result[0].pr_count).toBe(100);
+    expect(result[0].authors_count).toBe(10);
+    expect(result[0].reviewers_count).toBe(5);
   });
 
   it("sums multiple teams correctly", () => {
@@ -432,5 +537,288 @@ describe("applyFiltersToRollups regression: object concatenation bug", () => {
     });
 
     expect(result[0].pr_count).toBe(100);
+  });
+});
+
+/**
+ * Coverage gap tests for applyFiltersToRollups edge cases.
+ *
+ * Targets uncovered lines/branches identified by Codecov patch coverage:
+ * - metrics.ts:296 (team filter zeroed rollup when no entries match)
+ * - metrics.ts:351 (passthrough when rollup lacks breakdown objects)
+ * - Combined filter partial branches (zero counts, missing cycle times)
+ */
+describe("applyFiltersToRollups coverage: uncovered paths", () => {
+  it("returns zeroed rollup when team filter matches no entries", () => {
+    const rollup = {
+      week: "2026-W01",
+      pr_count: 100,
+      cycle_time_p50: 60,
+      cycle_time_p90: 120,
+      authors_count: 10,
+      reviewers_count: 5,
+      by_team: {
+        "team-x": { pr_count: 40, cycle_time_p50: 55, cycle_time_p90: 110, authors_count: 4, reviewers_count: 2 },
+      },
+    } as unknown as Rollup;
+
+    const result = applyFiltersToRollups([rollup], {
+      repos: [],
+      teams: ["unknown-team"],
+    });
+
+    expect(result[0].pr_count).toBe(0);
+    expect(result[0].cycle_time_p50).toBeNull();
+    expect(result[0].cycle_time_p90).toBeNull();
+    expect(result[0].authors_count).toBe(0);
+    expect(result[0].reviewers_count).toBe(0);
+  });
+
+  it("passes through rollup when filters active but breakdown objects missing", () => {
+    const rollup = {
+      week: "2026-W01",
+      pr_count: 50,
+      cycle_time_p50: 30,
+      cycle_time_p90: 70,
+      authors_count: 3,
+      reviewers_count: 2,
+      by_repository: null,
+      by_team: null,
+    } as unknown as Rollup;
+
+    const result = applyFiltersToRollups([rollup], {
+      repos: ["repo-a"],
+      teams: ["team-x"],
+    });
+
+    // No breakdown data available — rollup passes through unchanged
+    expect(result[0].pr_count).toBe(50);
+    expect(result[0].cycle_time_p50).toBe(30);
+  });
+
+  it("combined filter handles rollup with pr_count = 0", () => {
+    const rollup = {
+      week: "2026-W01",
+      pr_count: 0,
+      cycle_time_p50: null,
+      cycle_time_p90: null,
+      authors_count: 0,
+      reviewers_count: 0,
+      by_repository: {
+        "repo-a": { pr_count: 0, authors_count: 0, reviewers_count: 0 },
+      },
+      by_team: {
+        "team-x": { pr_count: 0, authors_count: 0, reviewers_count: 0 },
+      },
+    } as unknown as Rollup;
+
+    const result = applyFiltersToRollups([rollup], {
+      repos: ["repo-a"],
+      teams: ["team-x"],
+    });
+
+    expect(result[0].pr_count).toBe(0);
+  });
+
+  it("combined filter handles missing authors and reviewers counts", () => {
+    const rollup = {
+      week: "2026-W01",
+      pr_count: 100,
+      by_repository: {
+        "repo-a": { pr_count: 50 },
+      },
+      by_team: {
+        "team-x": { pr_count: 40 },
+      },
+    } as unknown as Rollup;
+
+    const result = applyFiltersToRollups([rollup], {
+      repos: ["repo-a"],
+      teams: ["team-x"],
+    });
+
+    // Proportional intersection: 50/100 * 40/100 = 0.2 → 100 * 0.2 = 20
+    expect(result[0].pr_count).toBe(20);
+    // No cycle times in breakdown entries → no cycle time in result
+    expect(result[0].cycle_time_p50).toBeUndefined();
+  });
+
+  it("combined filter with no cycle time data in either slice", () => {
+    const rollup = {
+      week: "2026-W01",
+      pr_count: 100,
+      authors_count: 10,
+      reviewers_count: 5,
+      by_repository: {
+        "repo-a": { pr_count: 30, authors_count: 3, reviewers_count: 1 },
+      },
+      by_team: {
+        "team-x": { pr_count: 40, authors_count: 4, reviewers_count: 2 },
+      },
+    } as unknown as Rollup;
+
+    const result = applyFiltersToRollups([rollup], {
+      repos: ["repo-a"],
+      teams: ["team-x"],
+    });
+
+    // 30/100 * 40/100 = 0.12 → pr_count = round(100 * 0.12) = 12
+    expect(result[0].pr_count).toBe(12);
+    // No cycle_time in breakdown entries → p50s empty → no cycle time spread
+    expect(result[0]).not.toHaveProperty("cycle_time_p50");
+    // authors: round(10 * 0.12) = 1, reviewers: round(5 * 0.12) = 1
+    expect(result[0].authors_count).toBe(1);
+    expect(result[0].reviewers_count).toBe(1);
+  });
+
+  it("combined filter returns null cycle_time_p90 when p90s array is empty", () => {
+    // aggregateEntries now correctly excludes null cycle times from the
+    // weighted average, so entries with null p90 produce null (not 0).
+    // The downstream p90s.filter(v => v !== null) guard produces an empty
+    // array, and the p90s.length > 0 check prevents NaN from 0/0.
+    const rollup = {
+      week: "2026-W01",
+      pr_count: 100,
+      cycle_time_p50: 60,
+      cycle_time_p90: 120,
+      authors_count: 10,
+      reviewers_count: 5,
+      by_repository: {
+        "repo-a": { pr_count: 50, cycle_time_p50: 55, cycle_time_p90: null, authors_count: 5, reviewers_count: 3 },
+      },
+      by_team: {
+        "team-x": { pr_count: 40, cycle_time_p50: 58, cycle_time_p90: null, authors_count: 4, reviewers_count: 2 },
+      },
+    } as unknown as Rollup;
+
+    const result = applyFiltersToRollups([rollup], {
+      repos: ["repo-a"],
+      teams: ["team-x"],
+    });
+
+    // p50s has values from both slices → averaged
+    expect(result[0].cycle_time_p50).toBeCloseTo((55 + 58) / 2);
+    // null p90 entries are excluded → aggregateEntries returns null p90
+    // → p90s filter produces empty array → guard returns null
+    expect(result[0].cycle_time_p90).toBeNull();
+  });
+
+  it("clamps teamShare to 1 when overlapping team members inflate team slice", () => {
+    // Simulate overlapping teams: team-x and team-y each have 60 PRs
+    // due to shared author, but rollup total is only 100
+    const rollup = {
+      week: "2026-W01",
+      pr_count: 100,
+      cycle_time_p50: 60,
+      cycle_time_p90: 120,
+      authors_count: 10,
+      reviewers_count: 5,
+      by_repository: {
+        "repo-a": { pr_count: 50, cycle_time_p50: 55, cycle_time_p90: 110, authors_count: 5, reviewers_count: 3 },
+      },
+      by_team: {
+        "team-x": { pr_count: 60, cycle_time_p50: 58, cycle_time_p90: 115, authors_count: 6, reviewers_count: 3 },
+        "team-y": { pr_count: 60, cycle_time_p50: 62, cycle_time_p90: 125, authors_count: 6, reviewers_count: 3 },
+      },
+    } as unknown as Rollup;
+
+    const result = applyFiltersToRollups([rollup], {
+      repos: ["repo-a"],
+      teams: ["team-x", "team-y"],
+    });
+
+    // Without clamping: teamShare = 120/100 = 1.2, combinedRatio = 0.5 * 1.2 = 0.6
+    //   → combinedPrCount = round(100 * 0.6) = 60 (exceeds repo's 50!)
+    // With clamping:    teamShare = min(1, 1.2) = 1.0, combinedRatio = 0.5 * 1.0 = 0.5
+    //   → combinedPrCount = round(100 * 0.5) = 50 (correct: repo-a has 50)
+    expect(result[0].pr_count).toBeLessThanOrEqual(100);
+    expect(result[0].pr_count).toBe(50);
+    expect(result[0].authors_count).toBeLessThanOrEqual(10);
+    expect(result[0].reviewers_count).toBeLessThanOrEqual(5);
+  });
+
+  it("mixed cycle-time: entries without cycle data do not dilute weighted average", () => {
+    // service-a has cycle-time, service-b does not.
+    // The weighted average should use only service-a's PR count as denominator.
+    const rollup = {
+      week: "2026-W01",
+      pr_count: 100,
+      cycle_time_p50: 80,
+      cycle_time_p90: 160,
+      authors_count: 10,
+      reviewers_count: 5,
+      by_repository: {
+        "service-a": { pr_count: 50, cycle_time_p50: 120, cycle_time_p90: 200, authors_count: 5, reviewers_count: 3 },
+        "service-b": { pr_count: 50, authors_count: 5, reviewers_count: 2 },
+      },
+    } as unknown as Rollup;
+
+    const result = applyFiltersToRollups([rollup], {
+      repos: ["service-a", "service-b"],
+      teams: [],
+    });
+
+    // Only service-a has cycle-time data, so the average should equal service-a's values
+    // (not diluted by service-b's 50 PRs)
+    expect(result[0].cycle_time_p50).toBe(120);
+    expect(result[0].cycle_time_p90).toBe(200);
+    expect(result[0].pr_count).toBe(100);
+  });
+
+  it("all-null cycle-time entries return null (not 0)", () => {
+    // When breakdown entries have null cycle times, aggregateEntries returns
+    // null (not 0). buildFilteredRollup then falls back to the rollup-level
+    // values via ...rollup spread (backward compat). To verify aggregateEntries
+    // produces null, set rollup-level cycle times to null too.
+    const rollup = {
+      week: "2026-W01",
+      pr_count: 100,
+      cycle_time_p50: null,
+      cycle_time_p90: null,
+      authors_count: 10,
+      reviewers_count: 5,
+      by_repository: {
+        "repo-a": { pr_count: 60, cycle_time_p50: null, cycle_time_p90: null, authors_count: 6, reviewers_count: 3 },
+        "repo-b": { pr_count: 40, cycle_time_p50: null, cycle_time_p90: null, authors_count: 4, reviewers_count: 2 },
+      },
+    } as unknown as Rollup;
+
+    const result = applyFiltersToRollups([rollup], {
+      repos: ["repo-a", "repo-b"],
+      teams: [],
+    });
+
+    // Both entries have null cycle times → aggregateEntries returns null →
+    // buildFilteredRollup falls back to rollup's null → result is null
+    expect(result[0].cycle_time_p50).toBeNull();
+    expect(result[0].cycle_time_p90).toBeNull();
+  });
+
+  it("combined filter where proportional ratio rounds authors and reviewers to zero", () => {
+    const rollup = {
+      week: "2026-W01",
+      pr_count: 1000,
+      authors_count: 2,
+      reviewers_count: 1,
+      by_repository: {
+        "repo-a": { pr_count: 10, authors_count: 1, reviewers_count: 1 },
+      },
+      by_team: {
+        "team-x": { pr_count: 10, authors_count: 1, reviewers_count: 1 },
+      },
+    } as unknown as Rollup;
+
+    const result = applyFiltersToRollups([rollup], {
+      repos: ["repo-a"],
+      teams: ["team-x"],
+    });
+
+    // 10/1000 * 10/1000 = 0.0001
+    // authors: round(2 * 0.0001) = 0, reviewers: round(1 * 0.0001) = 0
+    expect(result[0].pr_count).toBe(0);
+    // When combinedAuthors/combinedReviewers round to 0, the conditional spread
+    // is {}, so the original rollup values are preserved from ...rollup
+    expect(result[0].authors_count).toBe(2);
+    expect(result[0].reviewers_count).toBe(1);
   });
 });

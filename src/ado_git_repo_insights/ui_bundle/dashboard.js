@@ -2829,67 +2829,149 @@ var PRInsightsDashboard = (() => {
     );
     return { start: prevStart, end: prevEnd };
   }
+  function aggregateEntries(entries) {
+    const totalPrCount = entries.reduce(
+      (sum, entry) => sum + toFiniteNumber(entry.pr_count),
+      0
+    );
+    const totalAuthors = entries.reduce(
+      (sum, entry) => sum + toFiniteNumber(entry.authors_count),
+      0
+    );
+    const totalReviewers = entries.reduce(
+      (sum, entry) => sum + toFiniteNumber(entry.reviewers_count),
+      0
+    );
+    const p50Entries = entries.filter(
+      (e) => typeof e.cycle_time_p50 === "number" && Number.isFinite(e.cycle_time_p50)
+    );
+    const p90Entries = entries.filter(
+      (e) => typeof e.cycle_time_p90 === "number" && Number.isFinite(e.cycle_time_p90)
+    );
+    let cycleP50 = null;
+    let cycleP90 = null;
+    if (p50Entries.length > 0) {
+      const p50PrCount = p50Entries.reduce(
+        (sum, e) => sum + toFiniteNumber(e.pr_count),
+        0
+      );
+      if (p50PrCount > 0) {
+        cycleP50 = p50Entries.reduce(
+          (sum, e) => sum + toFiniteNumber(e.cycle_time_p50) * toFiniteNumber(e.pr_count),
+          0
+        ) / p50PrCount;
+      }
+    }
+    if (p90Entries.length > 0) {
+      const p90PrCount = p90Entries.reduce(
+        (sum, e) => sum + toFiniteNumber(e.pr_count),
+        0
+      );
+      if (p90PrCount > 0) {
+        cycleP90 = p90Entries.reduce(
+          (sum, e) => sum + toFiniteNumber(e.cycle_time_p90) * toFiniteNumber(e.pr_count),
+          0
+        ) / p90PrCount;
+      }
+    }
+    return {
+      pr_count: totalPrCount,
+      cycle_time_p50: cycleP50,
+      cycle_time_p90: cycleP90,
+      authors_count: totalAuthors,
+      reviewers_count: totalReviewers
+    };
+  }
+  function resolveBreakdownEntries(breakdown, keys) {
+    return keys.map((key) => {
+      const direct = breakdown[key];
+      if (direct) return direct;
+      return Object.entries(breakdown).find(([name]) => name === key)?.[1];
+    }).filter(
+      (entry) => entry !== void 0 && typeof entry?.pr_count === "number"
+    );
+  }
+  var ZEROED_ROLLUP_FIELDS = {
+    pr_count: 0,
+    cycle_time_p50: null,
+    cycle_time_p90: null,
+    authors_count: 0,
+    reviewers_count: 0
+  };
+  function buildFilteredRollup(rollup, slice) {
+    return {
+      ...rollup,
+      pr_count: slice.pr_count,
+      ...slice.cycle_time_p50 !== null ? {
+        cycle_time_p50: slice.cycle_time_p50,
+        cycle_time_p90: slice.cycle_time_p90
+      } : {},
+      ...slice.authors_count > 0 ? { authors_count: slice.authors_count } : {},
+      ...slice.reviewers_count > 0 ? { reviewers_count: slice.reviewers_count } : {}
+    };
+  }
   function applyFiltersToRollups(rollups, filters) {
     if (!filters.repos.length && !filters.teams.length) {
       return rollups;
     }
     return rollups.map((rollup) => {
-      if (filters.repos.length && rollup.by_repository && typeof rollup.by_repository === "object") {
-        const byRepository = rollup.by_repository;
-        const selectedRepos = filters.repos.map((repoId) => {
-          const repoData = byRepository[repoId];
-          if (repoData) return repoData;
-          return Object.entries(byRepository).find(
-            ([name]) => name === repoId
-          )?.[1];
-        }).filter(
-          (entry) => entry !== void 0 && typeof entry?.pr_count === "number"
+      const repoBreakdown = filters.repos.length > 0 && rollup.by_repository && typeof rollup.by_repository === "object" ? rollup.by_repository : null;
+      const teamBreakdown = filters.teams.length > 0 && rollup.by_team && typeof rollup.by_team === "object" ? rollup.by_team : null;
+      let repoSlice = null;
+      if (repoBreakdown) {
+        const entries = resolveBreakdownEntries(
+          repoBreakdown,
+          filters.repos
         );
-        if (selectedRepos.length === 0) {
-          return {
-            ...rollup,
-            pr_count: 0,
-            cycle_time_p50: null,
-            cycle_time_p90: null,
-            authors_count: 0,
-            reviewers_count: 0
-          };
+        if (entries.length === 0) {
+          return { ...rollup, ...ZEROED_ROLLUP_FIELDS };
         }
-        const totalPrCount = selectedRepos.reduce(
-          (sum, entry) => sum + toFiniteNumber(entry.pr_count),
-          0
-        );
-        return {
-          ...rollup,
-          pr_count: totalPrCount
-          // NOTE: cycle_time/authors/reviewers preserved from unfiltered rollup
-          // as we don't have per-repo breakdown for these metrics
-        };
+        repoSlice = aggregateEntries(entries);
       }
-      if (filters.teams.length && rollup.by_team && typeof rollup.by_team === "object") {
-        const byTeam = rollup.by_team;
-        const selectedTeams = filters.teams.map((teamId) => byTeam[teamId]).filter(
-          (entry) => entry !== void 0 && typeof entry?.pr_count === "number"
+      let teamSlice = null;
+      if (teamBreakdown) {
+        const entries = resolveBreakdownEntries(
+          teamBreakdown,
+          filters.teams
         );
-        if (selectedTeams.length === 0) {
-          return {
-            ...rollup,
-            pr_count: 0,
-            cycle_time_p50: null,
-            cycle_time_p90: null,
-            authors_count: 0,
-            reviewers_count: 0
-          };
+        if (entries.length === 0) {
+          return { ...rollup, ...ZEROED_ROLLUP_FIELDS };
         }
-        const totalPrCount = selectedTeams.reduce(
-          (sum, entry) => sum + toFiniteNumber(entry.pr_count),
-          0
+        teamSlice = aggregateEntries(entries);
+      }
+      if (repoSlice && !teamSlice) {
+        return buildFilteredRollup(rollup, repoSlice);
+      }
+      if (teamSlice && !repoSlice) {
+        return buildFilteredRollup(rollup, teamSlice);
+      }
+      if (repoSlice && teamSlice) {
+        const total = rollup.pr_count || 1;
+        const repoShare = Math.min(1, repoSlice.pr_count / total);
+        const teamShare = Math.min(1, teamSlice.pr_count / total);
+        const combinedRatio = repoShare * teamShare;
+        const combinedPrCount = Math.round(rollup.pr_count * combinedRatio);
+        const combinedAuthors = Math.round(
+          (rollup.authors_count || 0) * combinedRatio
+        );
+        const combinedReviewers = Math.round(
+          (rollup.reviewers_count || 0) * combinedRatio
+        );
+        const p50s = [repoSlice.cycle_time_p50, teamSlice.cycle_time_p50].filter(
+          (v) => v !== null
+        );
+        const p90s = [repoSlice.cycle_time_p90, teamSlice.cycle_time_p90].filter(
+          (v) => v !== null
         );
         return {
           ...rollup,
-          pr_count: totalPrCount
-          // NOTE: cycle_time/authors/reviewers preserved from unfiltered rollup
-          // as we don't have per-team breakdown for these metrics
+          pr_count: combinedPrCount,
+          ...p50s.length > 0 ? {
+            cycle_time_p50: p50s.reduce((a, b) => a + b, 0) / p50s.length,
+            cycle_time_p90: p90s.length > 0 ? p90s.reduce((a, b) => a + b, 0) / p90s.length : null
+          } : {},
+          ...combinedAuthors > 0 ? { authors_count: combinedAuthors } : {},
+          ...combinedReviewers > 0 ? { reviewers_count: combinedReviewers } : {}
         };
       }
       return rollup;
@@ -4116,16 +4198,19 @@ var PRInsightsDashboard = (() => {
   }
 
   // ui/modules/charts/throughput.ts
+  var MAX_THROUGHPUT_POINTS = 104;
   function renderThroughputChart(container, rollups) {
     if (!container) return;
     if (!rollups || !rollups.length) {
       renderNoData(container, "No data for selected range");
       return;
     }
-    const prCounts = rollups.map((r) => r.pr_count || 0);
+    const truncated = rollups.length > MAX_THROUGHPUT_POINTS;
+    const displayRollups = truncated ? rollups.slice(-MAX_THROUGHPUT_POINTS) : rollups;
+    const prCounts = displayRollups.map((r) => r.pr_count || 0);
     const maxCount = Math.max(...prCounts);
     const movingAvg = calculateMovingAverage(prCounts, 4);
-    const barsHtml = rollups.map((r) => {
+    const barsHtml = displayRollups.map((r) => {
       const height = maxCount > 0 ? (r.pr_count || 0) / maxCount * 100 : 0;
       const weekLabel = r.week.split("-W")[1] || "";
       return `
@@ -4135,7 +4220,8 @@ var PRInsightsDashboard = (() => {
             </div>
         `;
     }).join("");
-    const trendLineHtml = renderTrendLine(rollups, movingAvg, maxCount);
+    const trendLineHtml = renderTrendLine(displayRollups, movingAvg, maxCount);
+    const truncationHtml = truncated ? `<div class="truncation-indicator">Showing last ${MAX_THROUGHPUT_POINTS} weeks</div>` : "";
     const legendHtml = `
         <div class="chart-legend">
             <div class="legend-item">
@@ -4151,6 +4237,7 @@ var PRInsightsDashboard = (() => {
     renderTrustedHtml(
       container,
       `
+        ${truncationHtml}
         <div class="chart-with-trend">
             <div class="bar-chart">${barsHtml}</div>
             ${trendLineHtml}
@@ -4183,6 +4270,7 @@ var PRInsightsDashboard = (() => {
   }
 
   // ui/modules/charts/cycle-time.ts
+  var MAX_CYCLE_TIME_POINTS = 104;
   function renderCycleDistribution(container, distributions) {
     if (!container) return;
     if (!distributions || !distributions.length) {
@@ -4227,8 +4315,10 @@ var PRInsightsDashboard = (() => {
       renderNoData(container, "Not enough data for trend");
       return;
     }
-    const p50Data = rollups.map((r) => ({ week: r.week, value: r.cycle_time_p50 })).filter((d) => d.value !== null);
-    const p90Data = rollups.map((r) => ({ week: r.week, value: r.cycle_time_p90 })).filter((d) => d.value !== null);
+    const truncated = rollups.length > MAX_CYCLE_TIME_POINTS;
+    const displayRollups = truncated ? rollups.slice(-MAX_CYCLE_TIME_POINTS) : rollups;
+    const p50Data = displayRollups.map((r) => ({ week: r.week, value: r.cycle_time_p50 })).filter((d) => d.value !== null);
+    const p90Data = displayRollups.map((r) => ({ week: r.week, value: r.cycle_time_p90 })).filter((d) => d.value !== null);
     if (p50Data.length < 2 && p90Data.length < 2) {
       renderNoData(container, "No cycle time data available");
       return;
@@ -4240,15 +4330,19 @@ var PRInsightsDashboard = (() => {
     const maxVal = Math.max(...allValues);
     const minVal = Math.min(...allValues);
     const range = maxVal - minVal || 1;
-    const width = 100;
     const height = 180;
     const padding = { top: 10, right: 10, bottom: 25, left: 40 };
+    const width = Math.max(
+      500,
+      padding.left + padding.right + displayRollups.length * 6
+    );
     const chartWidth = width - padding.left - padding.right;
     const chartHeight = height - padding.top - padding.bottom;
+    const dotRadius = Math.max(1.5, Math.min(4, 200 / displayRollups.length));
     const generatePath = (data) => {
       const points = data.map((d) => {
-        const dataIndex = rollups.findIndex((r) => r.week === d.week);
-        const x = padding.left + dataIndex / (rollups.length - 1) * chartWidth;
+        const dataIndex = displayRollups.findIndex((r) => r.week === d.week);
+        const x = padding.left + dataIndex / (displayRollups.length - 1) * chartWidth;
         const y = padding.top + chartHeight - (d.value - minVal) / range * chartHeight;
         return { x, y, week: d.week, value: d.value };
       });
@@ -4261,7 +4355,7 @@ var PRInsightsDashboard = (() => {
     const p90Path = p90Data.length >= 2 ? generatePath(p90Data) : null;
     const yLabels = [minVal, (minVal + maxVal) / 2, maxVal];
     const svgContent = `
-        <svg viewBox="0 0 ${width} ${height}" preserveAspectRatio="xMidYMid meet">
+        <svg viewBox="0 0 ${width} ${height}" preserveAspectRatio="xMinYMid meet">
             <!-- Grid lines -->
             ${yLabels.map((_, i) => {
       const y = padding.top + chartHeight - i / (yLabels.length - 1) * chartHeight;
@@ -4279,8 +4373,8 @@ var PRInsightsDashboard = (() => {
             ${p50Path ? `<path class="line-chart-p50" d="${p50Path.pathD}" vector-effect="non-scaling-stroke"/>` : ""}
 
             <!-- Dots -->
-            ${p90Path ? p90Path.points.map((p) => `<circle class="line-chart-dot" cx="${p.x}" cy="${p.y}" r="3" fill="var(--warning)" data-week="${escapeHtml(p.week)}" data-value="${p.value}" data-metric="P90"/>`).join("") : ""}
-            ${p50Path ? p50Path.points.map((p) => `<circle class="line-chart-dot" cx="${p.x}" cy="${p.y}" r="3" fill="var(--primary)" data-week="${escapeHtml(p.week)}" data-value="${p.value}" data-metric="P50"/>`).join("") : ""}
+            ${p90Path ? p90Path.points.map((p) => `<circle class="line-chart-dot" cx="${p.x}" cy="${p.y}" r="${dotRadius}" fill="var(--warning)" data-week="${escapeHtml(p.week)}" data-value="${p.value}" data-metric="P90"/>`).join("") : ""}
+            ${p50Path ? p50Path.points.map((p) => `<circle class="line-chart-dot" cx="${p.x}" cy="${p.y}" r="${dotRadius}" fill="var(--primary)" data-week="${escapeHtml(p.week)}" data-value="${p.value}" data-metric="P50"/>`).join("") : ""}
         </svg>
     `;
     const legendHtml = `
@@ -4295,9 +4389,10 @@ var PRInsightsDashboard = (() => {
             </div>
         </div>
     `;
+    const truncationHtml = truncated ? `<div class="truncation-indicator">Showing last ${MAX_CYCLE_TIME_POINTS} weeks</div>` : "";
     renderTrustedHtml(
       container,
-      `<div class="line-chart">${svgContent}</div>${legendHtml}`
+      `${truncationHtml}<div class="line-chart">${svgContent}</div>${legendHtml}`
     );
     addChartTooltips(container, (dot) => {
       const week = dot.dataset["week"] || "";
@@ -4317,13 +4412,14 @@ var PRInsightsDashboard = (() => {
   }
 
   // ui/modules/charts/reviewer-activity.ts
+  var MAX_REVIEWER_WEEKS = 8;
   function renderReviewerActivity(container, rollups) {
     if (!container) return;
     if (!rollups || !rollups.length) {
       renderNoData(container, "No reviewer data available");
       return;
     }
-    const recentRollups = rollups.slice(-8);
+    const recentRollups = rollups.slice(-MAX_REVIEWER_WEEKS);
     const maxReviewers = Math.max(
       ...recentRollups.map((r) => r.reviewers_count || 0)
     );
@@ -4345,9 +4441,10 @@ var PRInsightsDashboard = (() => {
             </div>
         `;
     }).join("");
+    const subtitle = `<p class="chart-subtitle">Active reviewers per week (last ${recentRollups.length} weeks)</p>`;
     renderTrustedHtml(
       container,
-      `<div class="horizontal-bar-chart">${barsHtml}</div>`
+      `${subtitle}<div class="horizontal-bar-chart">${barsHtml}</div>`
     );
   }
 
@@ -4976,6 +5073,11 @@ var PRInsightsDashboard = (() => {
       console.debug("Previous period data not available:", e);
     }
     cachedRollups = rollups;
+    const summarySection = document.querySelector(".summary-cards");
+    if (summarySection) {
+      const isCombinedFilter = currentFilters.repos.length > 0 && currentFilters.teams.length > 0;
+      summarySection.setAttribute("data-combined-filter", isCombinedFilter ? "true" : "false");
+    }
     renderSummaryCards2(rollups, prevRollups);
     renderThroughputChart2(rollups);
     renderCycleTimeTrend2(rollups);

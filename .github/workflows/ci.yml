@@ -219,6 +219,37 @@ jobs:
           echo "[OK] UI bundle is in sync"
         shell: bash
 
+      - name: Check docs/ Asset Synchronization
+        run: |
+          echo "Verifying docs/ JS/CSS assets match extension/dist/ui..."
+          DOCS_FILES="dashboard.js dataset-loader.js artifact-client.js error-types.js error-codes.js styles.css VSS.SDK.min.js"
+          DRIFT_FOUND=false
+
+          for file in $DOCS_FILES; do
+            SRC="extension/dist/ui/$file"
+            DEST="docs/$file"
+            if [ -f "$SRC" ] && [ -f "$DEST" ]; then
+              SRC_HASH=$(cat "$SRC" | tr -d '\r' | sha256sum | cut -d' ' -f1)
+              DEST_HASH=$(cat "$DEST" | tr -d '\r' | sha256sum | cut -d' ' -f1)
+              if [ "$SRC_HASH" != "$DEST_HASH" ]; then
+                echo "::error::docs/$file is out of sync with extension/dist/ui/$file"
+                DRIFT_FOUND=true
+              fi
+            elif [ -f "$SRC" ] && [ ! -f "$DEST" ]; then
+              echo "::error::docs/$file missing (expected from extension/dist/ui/$file)"
+              DRIFT_FOUND=true
+            fi
+          done
+
+          if [ "$DRIFT_FOUND" = true ]; then
+            echo ""
+            echo "::error::docs/ assets are out of sync with extension/dist/ui/"
+            echo "Fix: Run 'cd extension && pnpm run build:ui' then copy files, or commit with pre-commit hook enabled"
+            exit 1
+          fi
+          echo "[OK] docs/ assets are in sync"
+        shell: bash
+
   # Guard: Block task Major changes without explicit marker
   task-major-guard:
     runs-on: ubuntu-latest
@@ -870,6 +901,56 @@ jobs:
           path: extension/test-artifacts/smoke/
           retention-days: 7
           if-no-files-found: ignore
+
+  # Scalability Tests (024-dashboard-scalability)
+  # Generates enterprise-scale synthetic data (156 weeks, 200 users, comments)
+  # and runs chart scalability + invariant tests to prevent performance regressions.
+  # Constitution Gates: QG-25 through QG-29
+  scalability-tests:
+    runs-on: ubuntu-latest
+    needs: extension-tests
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install Python package
+        run: pip install -e .
+
+      - uses: ./.github/actions/setup-pnpm
+
+      - name: Install extension dependencies
+        working-directory: extension
+        run: pnpm install --frozen-lockfile
+
+      # Cache generated scalability test data (deterministic via --seed 42)
+      - name: Cache scalability test data
+        uses: actions/cache@v4
+        with:
+          path: /tmp/scalability-test-data
+          key: scalability-data-pr10000-w156-u200-comments-seed42-${{ hashFiles('scripts/generate-synthetic-dataset.py', 'src/ado_git_repo_insights/transform/aggregators.py', 'schemas/dataset-manifest.schema.json') }}
+
+      - name: Generate scalability test data
+        run: |
+          if [ -d "/tmp/scalability-test-data/aggregates" ]; then
+            echo "[OK] Scalability test data restored from cache"
+          else
+            python scripts/generate-synthetic-dataset.py \
+              --pr-count 10000 \
+              --weeks 156 \
+              --users 200 \
+              --include-comments \
+              --seed 42 \
+              --output /tmp/scalability-test-data
+            echo "[OK] Generated scalability test data"
+          fi
+          ls -la /tmp/scalability-test-data/
+
+      - name: Run scalability tests
+        working-directory: extension
+        run: pnpm run test:scalability --no-coverage
 
   # Phase 4: Performance baseline integrity guard
   baseline-integrity:

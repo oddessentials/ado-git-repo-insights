@@ -28,6 +28,8 @@ Auto-generated from all feature plans. Last updated: 2026-01-27
 - N/A (in-memory data processing, static JSON fixtures) (021-spec-task-coverage-gaps)
 - TypeScript 5.7.3 + Jest 30.0.0, ts-jest 29.2.5, jsdom (test environment) (023-dashboard-coverage)
 - N/A (in-memory test fixtures only) (023-dashboard-coverage)
+- Python 3.11 (generator), TypeScript 5.7.3 (dashboard/tests) + Python stdlib (generator), Jest 30.0.0 (tests), esbuild 0.27.0 (bundling) (024-dashboard-scalability)
+- JSON files (weekly rollups, dimensions, manifest) (024-dashboard-scalability)
 
 -\ Python\ 3\.10\+\ \(backend\),\ TypeScript\ \(frontend/extension\)\ \+\ numpy,\ pandas\ \(Python\);\ esbuild\ \(TypeScript\ bundling\)\ \(006-forecaster-edge-hardening\)
 
@@ -47,9 +49,9 @@ cd\ src;\ pytest;\ ruff\ check\ \.
 Python\ 3\.10\+\ \(backend\),\ TypeScript\ \(frontend/extension\):\ Follow\ standard\ conventions
 
 ## Recent Changes
+- 024-dashboard-scalability: Added Python 3.11 (generator), TypeScript 5.7.3 (dashboard/tests) + Python stdlib (generator), Jest 30.0.0 (tests), esbuild 0.27.0 (bundling)
 - 023-dashboard-coverage: Added TypeScript 5.7.3 + Jest 30.0.0, ts-jest 29.2.5, jsdom (test environment)
 - 021-spec-task-coverage-gaps: Added TypeScript 5.7.3 (extension) + Jest 30.0.0, Playwright (pinned), esbuild 0.27.0
-- 001-fix-filter-prcount-sum: Added TypeScript 5.7.3 + esbuild 0.27.0 (bundler), Jest 30.0.0 (testing), vss-web-extension-sdk 5.141.0
 
 -\ 006-forecaster-edge-hardening:\ Added\ Python\ 3\.10\+\ \(backend\),\ TypeScript\ \(frontend/extension\)\ \+\ numpy,\ pandas\ \(Python\);\ esbuild\ \(TypeScript\ bundling\)
 

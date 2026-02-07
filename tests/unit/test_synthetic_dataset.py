@@ -4,41 +4,96 @@ Contract validation: Producer tests ensure generated output matches schema.
 """
 
 import json
+import subprocess
 import tempfile
 from pathlib import Path
 
 import pytest
 
 
-def run_generator(pr_count: int, weeks: int | None, seed: int) -> Path:
-    """Run generator and return output directory."""
-    import subprocess
+def _build_generator_args(
+    pr_count: int,
+    seed: int,
+    output: str,
+    weeks: int | None = None,
+    users: int | None = None,
+    include_comments: bool = False,
+) -> list[str]:
+    """Build CLI argument list for the generator script."""
+    script = (
+        Path(__file__).parent.parent.parent
+        / "scripts"
+        / "generate-synthetic-dataset.py"
+    )
+    args = [
+        "python",
+        str(script),
+        "--pr-count",
+        str(pr_count),
+        "--seed",
+        str(seed),
+        "--output",
+        output,
+    ]
+    if weeks is not None:
+        args.extend(["--weeks", str(weeks)])
+    if users is not None:
+        args.extend(["--users", str(users)])
+    if include_comments:
+        args.append("--include-comments")
+    return args
 
+
+def run_generator_raw(
+    pr_count: int,
+    seed: int,
+    weeks: int | None = None,
+    users: int | None = None,
+    include_comments: bool = False,
+) -> tuple[subprocess.CompletedProcess[str], Path]:
+    """Run generator and return (result, output_dir) without asserting success."""
+    import shutil
+
+    output_dir = (
+        Path(tempfile.gettempdir()) / f"synthetic-raw-{pr_count}-{seed}-{users}-{weeks}"
+    )
+
+    if output_dir.exists():
+        shutil.rmtree(output_dir)
+
+    args = _build_generator_args(
+        pr_count=pr_count,
+        seed=seed,
+        output=str(output_dir),
+        weeks=weeks,
+        users=users,
+        include_comments=include_comments,
+    )
+    result = subprocess.run(  # noqa: S603
+        args, capture_output=True, text=True, check=False
+    )
+    return result, output_dir
+
+
+def run_generator(
+    pr_count: int,
+    weeks: int | None = None,
+    seed: int = 42,
+    users: int | None = None,
+    include_comments: bool = False,
+) -> Path:
+    """Run generator and return output directory."""
     with tempfile.TemporaryDirectory() as tmpdir:
         output_dir = Path(tmpdir) / "synthetic"
 
-        # Run generator script
-        script = (
-            Path(__file__).parent.parent.parent
-            / "scripts"
-            / "generate-synthetic-dataset.py"
+        args = _build_generator_args(
+            pr_count=pr_count,
+            seed=seed,
+            output=str(output_dir),
+            weeks=weeks,
+            users=users,
+            include_comments=include_comments,
         )
-
-        # Build command args
-        args = [
-            "python",
-            str(script),
-            "--pr-count",
-            str(pr_count),
-            "--seed",
-            str(seed),
-            "--output",
-            str(output_dir),
-        ]
-
-        # Add weeks only if specified
-        if weeks is not None:
-            args.extend(["--weeks", str(weeks)])
 
         result = subprocess.run(  # noqa: S603
             args, capture_output=True, text=True, check=False
@@ -51,7 +106,10 @@ def run_generator(pr_count: int, weeks: int | None, seed: int) -> Path:
         # (Can't use context manager's tmpdir as it gets deleted)
         import shutil
 
-        persist_dir = Path(tempfile.gettempdir()) / f"synthetic-test-{pr_count}-{seed}"
+        persist_dir = Path(tempfile.gettempdir()) / (
+            f"synthetic-test-{pr_count}-{seed}"
+            f"-w{weeks}-u{users}-c{int(include_comments)}"
+        )
         if persist_dir.exists():
             shutil.rmtree(persist_dir)
         shutil.copytree(output_dir, persist_dir)
@@ -130,6 +188,35 @@ def test_weekly_rollup_schema():
 
     # Validate ISO week format
     assert rollup_data["week"].count("-W") == 1
+
+
+def test_by_repository_non_negative_across_all_weeks():
+    """by_repository breakdown values must be >= 0 in every rollup.
+
+    Regression: round()-based proportional splitting could overshoot the
+    total, leaving a negative remainder for the last repository.
+    Uses 10 repos x 52 weeks to exercise many weight combinations.
+    """
+    output_dir = run_generator(pr_count=1000, weeks=52, seed=42)
+
+    rollup_dir = output_dir / "aggregates" / "weekly_rollups"
+    rollup_files = sorted(rollup_dir.glob("*.json"))
+    assert len(rollup_files) == 52
+
+    for rollup_path in rollup_files:
+        with rollup_path.open() as f:
+            rollup = json.load(f)
+
+        assert "by_repository" in rollup, f"{rollup_path.name}: by_repository missing"
+
+        for repo_name, entry in rollup["by_repository"].items():
+            for field in ("pr_count", "authors_count", "reviewers_count"):
+                assert field in entry, (
+                    f"{rollup_path.name} -> {repo_name}: {field} missing"
+                )
+                assert entry[field] >= 0, (
+                    f"{rollup_path.name} -> {repo_name}.{field} = {entry[field]}"
+                )
 
 
 def test_distribution_schema():
@@ -227,3 +314,238 @@ def test_scaling_datasets(pr_count):
     assert manifest["coverage"]["total_prs"] == pr_count
     assert len(manifest["aggregate_index"]["weekly_rollups"]) > 0
     assert len(manifest["aggregate_index"]["distributions"]) > 0
+
+
+# ---------------------------------------------------------------------------
+# Scalability tests (T009–T013): --users, --weeks range, --include-comments
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize("user_count", [1, 50, 200, 500])
+def test_users_argument_accepts_valid_range(user_count):
+    """T009: --users must accept values from 1 to 500."""
+    output_dir = run_generator(pr_count=1000, weeks=4, seed=42, users=user_count)
+
+    manifest_path = output_dir / "dataset-manifest.json"
+    with manifest_path.open() as f:
+        manifest = json.load(f)
+
+    dim_path = output_dir / "aggregates" / "dimensions.json"
+    with dim_path.open() as f:
+        dimensions = json.load(f)
+
+    assert len(dimensions["users"]) == user_count
+    assert manifest["coverage"]["row_counts"]["users"] == user_count
+
+
+@pytest.mark.parametrize("week_count", [1, 52, 156, 520])
+def test_weeks_argument_accepts_valid_range(week_count):
+    """T010: --weeks must accept values from 1 to 520."""
+    output_dir = run_generator(pr_count=1000, weeks=week_count, seed=42)
+
+    manifest_path = output_dir / "dataset-manifest.json"
+    with manifest_path.open() as f:
+        manifest = json.load(f)
+
+    rollups = manifest["aggregate_index"]["weekly_rollups"]
+    assert len(rollups) == week_count
+
+
+def test_include_comments_sets_feature_flag():
+    """T011: --include-comments must set features.comments to true in manifest."""
+    output_dir = run_generator(pr_count=100, weeks=4, seed=42, include_comments=True)
+
+    manifest_path = output_dir / "dataset-manifest.json"
+    with manifest_path.open() as f:
+        manifest = json.load(f)
+
+    assert manifest["features"]["comments"] is True
+
+
+def test_users_zero_validation_error():
+    """T012: --users 0 must fail with a clear validation error."""
+    result, output_dir = run_generator_raw(pr_count=100, seed=42, users=0)
+    try:
+        assert result.returncode != 0, "--users 0 must be rejected"
+        # Error message should mention the invalid value
+        combined_output = result.stderr + result.stdout
+        assert "0" in combined_output or "users" in combined_output.lower()
+    finally:
+        import shutil
+
+        if output_dir.exists():
+            shutil.rmtree(output_dir)
+
+
+def test_weeks_zero_validation_error():
+    """T013: --weeks 0 must fail with a clear validation error."""
+    result, output_dir = run_generator_raw(pr_count=100, seed=42, weeks=0)
+    try:
+        assert result.returncode != 0, "--weeks 0 must be rejected"
+        combined_output = result.stderr + result.stdout
+        assert "0" in combined_output or "weeks" in combined_output.lower()
+    finally:
+        import shutil
+
+        if output_dir.exists():
+            shutil.rmtree(output_dir)
+
+
+def test_200_users_produces_200_dimension_entries():
+    """T014: 200 users must produce exactly 200 entries in dimensions.json."""
+    output_dir = run_generator(pr_count=1000, weeks=4, seed=42, users=200)
+
+    dim_path = output_dir / "aggregates" / "dimensions.json"
+    with dim_path.open() as f:
+        dimensions = json.load(f)
+
+    assert len(dimensions["users"]) == 200
+
+    # Verify uniqueness
+    user_ids = [u["user_id"] for u in dimensions["users"]]
+    assert len(set(user_ids)) == 200
+
+
+def test_156_weeks_produces_156_rollup_files():
+    """T015: 156 weeks must produce exactly 156 rollup files."""
+    output_dir = run_generator(pr_count=1000, weeks=156, seed=42)
+
+    manifest_path = output_dir / "dataset-manifest.json"
+    with manifest_path.open() as f:
+        manifest = json.load(f)
+
+    rollups = manifest["aggregate_index"]["weekly_rollups"]
+    assert len(rollups) == 156
+
+    # Verify each rollup file exists
+    for entry in rollups:
+        rollup_path = output_dir / entry["path"]
+        assert rollup_path.exists(), f"Rollup file missing: {entry['path']}"
+
+
+# ---------------------------------------------------------------------------
+# Comment data structure validation
+# ---------------------------------------------------------------------------
+
+
+def test_comment_data_structure():
+    """Comment data must contain valid threads and comments per the contract.
+
+    Validates:
+    - Batch files exist under aggregates/comments/
+    - Each PR has 2-5 threads
+    - Each thread has 1-4 comments
+    - Comment and thread IDs follow naming conventions
+    - Manifest coverage includes comment statistics
+    """
+    output_dir = run_generator(
+        pr_count=100, weeks=4, seed=42, users=10, include_comments=True
+    )
+
+    # Verify comment batch files exist
+    comments_dir = output_dir / "aggregates" / "comments"
+    assert comments_dir.exists(), "comments directory must exist"
+
+    batch_files = sorted(comments_dir.glob("comments-batch-*.json"))
+    assert len(batch_files) > 0, "At least one comment batch file must exist"
+
+    total_prs = 0
+    total_threads = 0
+    total_comments = 0
+
+    for batch_file in batch_files:
+        with batch_file.open() as f:
+            batch_data = json.load(f)
+
+        assert "prs" in batch_data, "Batch file must contain 'prs' key"
+
+        for pr in batch_data["prs"]:
+            total_prs += 1
+            assert "pr_id" in pr, "Each PR must have a pr_id"
+            assert "threads" in pr, "Each PR must have threads"
+
+            threads = pr["threads"]
+            assert 2 <= len(threads) <= 5, (
+                f"PR {pr['pr_id']} has {len(threads)} threads, expected 2-5"
+            )
+
+            for thread in threads:
+                total_threads += 1
+                assert "thread_id" in thread
+                assert "status" in thread
+                assert thread["status"] in ("active", "fixed", "closed", "byDesign")
+                assert "comments" in thread
+
+                comments = thread["comments"]
+                assert 1 <= len(comments) <= 4, (
+                    f"Thread {thread['thread_id']} has {len(comments)} comments, "
+                    "expected 1-4"
+                )
+
+                for comment in comments:
+                    total_comments += 1
+                    assert "comment_id" in comment
+                    assert "author" in comment
+                    assert "author_id" in comment
+                    assert "content_length" in comment
+                    assert isinstance(comment["content_length"], int)
+                    assert 10 <= comment["content_length"] <= 500
+
+    assert total_prs == 100, f"Expected 100 PRs with comments, got {total_prs}"
+
+    # Verify manifest coverage includes comment stats
+    manifest_path = output_dir / "dataset-manifest.json"
+    with manifest_path.open() as f:
+        manifest = json.load(f)
+
+    coverage = manifest["coverage"]
+    assert "comments" in coverage, "Manifest coverage must include comments section"
+    stats = coverage["comments"]
+    assert stats["total_threads"] == total_threads
+    assert stats["total_comments"] == total_comments
+    assert stats["prs_with_comments"] == 100
+
+
+# ---------------------------------------------------------------------------
+# Combined-parameter generator test
+# ---------------------------------------------------------------------------
+
+
+def test_combined_parameters_weeks_users_comments():
+    """All three scalability flags must work together correctly.
+
+    Exercises: --weeks 156 --users 200 --include-comments simultaneously.
+    """
+    output_dir = run_generator(
+        pr_count=1000, weeks=156, seed=42, users=200, include_comments=True
+    )
+
+    manifest_path = output_dir / "dataset-manifest.json"
+    with manifest_path.open() as f:
+        manifest = json.load(f)
+
+    # Verify weeks
+    rollups = manifest["aggregate_index"]["weekly_rollups"]
+    assert len(rollups) == 156, f"Expected 156 rollups, got {len(rollups)}"
+
+    # Verify users
+    dim_path = output_dir / "aggregates" / "dimensions.json"
+    with dim_path.open() as f:
+        dimensions = json.load(f)
+    assert len(dimensions["users"]) == 200, (
+        f"Expected 200 users, got {len(dimensions['users'])}"
+    )
+
+    # Verify comments enabled
+    assert manifest["features"]["comments"] is True
+    comments_dir = output_dir / "aggregates" / "comments"
+    assert comments_dir.exists(), "Comments directory must exist"
+    batch_files = list(comments_dir.glob("comments-batch-*.json"))
+    assert len(batch_files) > 0, "Comment batch files must exist"
+
+    # Verify coverage stats are consistent
+    coverage = manifest["coverage"]
+    assert coverage["total_prs"] == 1000
+    assert coverage["row_counts"]["users"] == 200
+    assert "comments" in coverage
+    assert coverage["comments"]["prs_with_comments"] == 1000

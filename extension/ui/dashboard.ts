@@ -859,6 +859,13 @@ async function refreshMetrics(): Promise<void> {
   // Cache filtered rollups for export
   cachedRollups = rollups;
 
+  // Show/hide combined filter approximation indicator
+  const summarySection = document.querySelector(".summary-cards");
+  if (summarySection) {
+    const isCombinedFilter = currentFilters.repos.length > 0 && currentFilters.teams.length > 0;
+    summarySection.setAttribute("data-combined-filter", isCombinedFilter ? "true" : "false");
+  }
+
   renderSummaryCards(rollups, prevRollups);
   renderThroughputChart(rollups);
   renderCycleTimeTrend(rollups);

@@ -2,25 +2,36 @@
   =============================================================================
   SYNC IMPACT REPORT
   =============================================================================
-  Version Change: N/A → 1.0.0 (initial constitution from existing governance)
+  Version Change: 1.0.0 → 1.1.0 (scalability governance addition)
 
-  Modified Principles: N/A (initial creation)
+  Modified Principles: None (Core Principles unchanged)
 
   Added Sections:
-  - 25 Immutable Principles (from agents/INVARIANTS.md)
-  - Quality Gates (from agents/definition-of-done.md)
-  - Verification Requirements (from agents/victory-gates.md)
-  - Governance rules and amendment procedures
+  - Scalability Gates (QG-25 through QG-29)
+  - Scalability Verification (VR-20 through VR-23)
 
-  Removed Sections: N/A (initial creation)
+  Rationale:
+  Dashboard must handle enterprise-scale data. Non-negotiable requirements:
+  - 156+ weeks (3 years) of historical data
+  - 200+ reviewers
+  - Comment extraction enabled
+  These requirements are codified as Quality Gates and Verification Requirements
+  to ensure all future work maintains scalability.
+
+  Evidence Files:
+  - extension/tests/scalability-invariants.test.ts (new)
+  - TODO/DASHBOARD_SCALABILITY.md (requirements document)
 
   Templates Updated:
-  - .specify/templates/plan-template.md: ✅ Compatible (Constitution Check section exists)
-  - .specify/templates/spec-template.md: ✅ Compatible (requirements structure aligns)
-  - .specify/templates/tasks-template.md: ✅ Compatible (phase structure supports invariants)
+  - .specify/templates/plan-template.md: ✅ Compatible
+  - .specify/templates/spec-template.md: ✅ Compatible
+  - .specify/templates/tasks-template.md: ✅ Compatible
 
   Follow-up TODOs:
-  - None
+  - Implement generator enhancements (--users, --weeks, --include-comments)
+  - Add MAX_THROUGHPUT_POINTS to throughput.ts
+  - Add MAX_CYCLE_TIME_POINTS to cycle-time.ts
+  - Enable strict assertions in scalability-invariants.test.ts
   =============================================================================
 -->
 
@@ -239,6 +250,16 @@ Definition of Done and map to CI/CD checkpoints.
 | QG-23 | Runbook complete | `docs/operations/runbook.md` |
 | QG-24 | Configuration reference complete | `config.example.yaml` |
 
+### Scalability Gates
+
+| Gate | Requirement | Evidence |
+|------|-------------|----------|
+| QG-25 | Synthetic data supports 156+ weeks | `tests/unit/test_synthetic_dataset.py` |
+| QG-26 | Synthetic data supports 200+ reviewers | `tests/unit/test_synthetic_dataset.py` |
+| QG-27 | Synthetic data includes comment generation | `tests/unit/test_synthetic_dataset.py` |
+| QG-28 | Dashboard renders 156 weeks in < 1000ms | `extension/tests/unit/chart-scalability.test.ts` |
+| QG-29 | Chart data caps enforced (MAX_*_POINTS) | `extension/tests/scalability-invariants.test.ts` |
+
 ## Verification Requirements
 
 A phase is not complete until every verification step passes without manual intervention.
@@ -293,6 +314,15 @@ These requirements derive from Victory Gates and define the final "are we done?"
 | VR-18 | CI green | All checks passing on `main` |
 | VR-19 | Versioned release | Tag pushed, packages built, artifacts published |
 
+### Scalability Verification
+
+| Checkpoint | Scenario | Pass Criteria |
+|------------|----------|---------------|
+| VR-20 | Scalability dataset generation | `generate-synthetic-dataset.py --weeks 156 --users 200 --include-comments` succeeds |
+| VR-21 | Dashboard load test (156 weeks) | All charts render without browser freeze, < 1000ms |
+| VR-22 | Dashboard load test (200 reviewers) | Reviewer Activity panel displays correctly |
+| VR-23 | Dashboard load test (comments enabled) | Dashboard loads with `features.comments: true` |
+
 ## Governance
 
 ### Amendment Procedure
@@ -324,4 +354,4 @@ These decisions are final and may not be revisited without MAJOR version change:
 - **Historical migration**: No MongoDB migration (fresh extraction from configured start date)
 - **Output compatibility**: 100% PowerBI CSV parity is mandatory
 
-**Version**: 1.0.0 | **Ratified**: 2026-01-26 | **Last Amended**: 2026-01-26
+**Version**: 1.1.0 | **Ratified**: 2026-01-26 | **Last Amended**: 2026-02-05
