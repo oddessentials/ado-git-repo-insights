@@ -1,173 +1,203 @@
 {
-  "authors_count": 14,
+  "authors_count": 13,
   "by_repository": {
     "android-app": {
       "authors_count": 1,
-      "cycle_time_p50": 1793.904,
-      "cycle_time_p90": 2298.0,
-      "pr_count": 2,
+      "cycle_time_p50": 486.768,
+      "cycle_time_p90": 774.556,
+      "pr_count": 3,
       "reviewers_count": 1
     },
     "auth-service": {
-      "authors_count": 3,
-      "cycle_time_p50": 1403.397,
-      "cycle_time_p90": 2504.996,
-      "pr_count": 11,
-      "reviewers_count": 4
+      "authors_count": 1,
+      "cycle_time_p50": 1493.482,
+      "cycle_time_p90": 2993.393,
+      "pr_count": 4,
+      "reviewers_count": 1
     },
     "ci-scripts": {
       "authors_count": 1,
-      "cycle_time_p50": 1263.995,
-      "cycle_time_p90": 1263.995,
+      "cycle_time_p50": 134.666,
+      "cycle_time_p90": 134.666,
       "pr_count": 1,
       "reviewers_count": 1
     },
     "dashboard-api": {
       "authors_count": 1,
-      "cycle_time_p50": 5097.088,
-      "cycle_time_p90": 5097.088,
+      "cycle_time_p50": 3489.501,
+      "cycle_time_p90": 3489.501,
       "pr_count": 1,
       "reviewers_count": 1
     },
     "data-warehouse": {
       "authors_count": 1,
-      "cycle_time_p50": 238.294,
-      "cycle_time_p90": 358.911,
+      "cycle_time_p50": 6740.919,
+      "cycle_time_p90": 11491.242,
       "pr_count": 2,
       "reviewers_count": 1
     },
     "design-system": {
       "authors_count": 1,
-      "cycle_time_p50": 1953.058,
-      "cycle_time_p90": 1953.058,
+      "cycle_time_p50": 4244.808,
+      "cycle_time_p90": 4244.808,
       "pr_count": 1,
       "reviewers_count": 1
     },
     "etl-jobs": {
       "authors_count": 1,
-      "cycle_time_p50": 196.959,
-      "cycle_time_p90": 204.293,
-      "pr_count": 2,
+      "cycle_time_p50": 1195.159,
+      "cycle_time_p90": 1195.159,
+      "pr_count": 1,
       "reviewers_count": 1
     },
     "feature-store": {
       "authors_count": 1,
-      "cycle_time_p50": 1728.576,
-      "cycle_time_p90": 1728.576,
+      "cycle_time_p50": 172.454,
+      "cycle_time_p90": 172.454,
       "pr_count": 1,
       "reviewers_count": 1
     },
     "forms-lib": {
       "authors_count": 1,
-      "cycle_time_p50": 1331.054,
-      "cycle_time_p90": 2156.678,
-      "pr_count": 2,
+      "cycle_time_p50": 180.055,
+      "cycle_time_p90": 180.055,
+      "pr_count": 1,
       "reviewers_count": 1
     },
     "gateway-core": {
       "authors_count": 1,
-      "cycle_time_p50": 1251.424,
-      "cycle_time_p90": 1251.424,
+      "cycle_time_p50": 144.352,
+      "cycle_time_p90": 144.352,
       "pr_count": 1,
       "reviewers_count": 1
     },
     "inference-service": {
       "authors_count": 1,
-      "cycle_time_p50": 12.44,
-      "cycle_time_p90": 12.44,
+      "cycle_time_p50": 246.168,
+      "cycle_time_p90": 246.168,
       "pr_count": 1,
       "reviewers_count": 1
     },
     "ios-app": {
       "authors_count": 1,
-      "cycle_time_p50": 609.742,
-      "cycle_time_p90": 881.046,
-      "pr_count": 3,
+      "cycle_time_p50": 3851.486,
+      "cycle_time_p90": 3851.486,
+      "pr_count": 1,
       "reviewers_count": 1
     },
     "metrics-collector": {
       "authors_count": 1,
-      "cycle_time_p50": 80.772,
-      "cycle_time_p90": 80.772,
+      "cycle_time_p50": 1940.472,
+      "cycle_time_p90": 1940.472,
       "pr_count": 1,
       "reviewers_count": 1
     },
     "model-training": {
       "authors_count": 1,
-      "cycle_time_p50": 580.873,
-      "cycle_time_p90": 580.873,
+      "cycle_time_p50": 331.231,
+      "cycle_time_p90": 331.231,
       "pr_count": 1,
       "reviewers_count": 1
     },
     "monitoring-stack": {
       "authors_count": 1,
-      "cycle_time_p50": 1150.156,
-      "cycle_time_p90": 24876.17,
+      "cycle_time_p50": 318.443,
+      "cycle_time_p90": 1161.933,
       "pr_count": 3,
       "reviewers_count": 1
     },
     "notification-service": {
       "authors_count": 1,
-      "cycle_time_p50": 316.737,
-      "cycle_time_p90": 2889.147,
-      "pr_count": 5,
-      "reviewers_count": 2
+      "cycle_time_p50": 200.052,
+      "cycle_time_p90": 599.275,
+      "pr_count": 4,
+      "reviewers_count": 1
     },
     "rate-limiter": {
       "authors_count": 1,
-      "cycle_time_p50": 970.606,
-      "cycle_time_p90": 970.606,
+      "cycle_time_p50": 6051.612,
+      "cycle_time_p90": 6051.612,
       "pr_count": 1,
       "reviewers_count": 1
     },
     "react-shell": {
       "authors_count": 1,
-      "cycle_time_p50": 7913.611,
-      "cycle_time_p90": 13075.569,
-      "pr_count": 2,
+      "cycle_time_p50": 246.704,
+      "cycle_time_p90": 246.704,
+      "pr_count": 1,
       "reviewers_count": 1
     },
     "report-generator": {
       "authors_count": 1,
-      "cycle_time_p50": 96.966,
-      "cycle_time_p90": 96.966,
+      "cycle_time_p50": 1958.228,
+      "cycle_time_p90": 1958.228,
       "pr_count": 1,
       "reviewers_count": 1
     },
     "shared-core": {
       "authors_count": 1,
-      "cycle_time_p50": 182.16,
-      "cycle_time_p90": 182.16,
+      "cycle_time_p50": 168.988,
+      "cycle_time_p90": 168.988,
       "pr_count": 1,
       "reviewers_count": 1
     },
     "stream-processor": {
       "authors_count": 1,
-      "cycle_time_p50": 216.078,
-      "cycle_time_p90": 216.078,
-      "pr_count": 1,
+      "cycle_time_p50": 2226.542,
+      "cycle_time_p90": 2774.958,
+      "pr_count": 2,
       "reviewers_count": 1
     },
     "terraform-modules": {
       "authors_count": 1,
-      "cycle_time_p50": 377.921,
-      "cycle_time_p90": 377.921,
+      "cycle_time_p50": 342.647,
+      "cycle_time_p90": 342.647,
       "pr_count": 1,
       "reviewers_count": 1
     },
     "user-service": {
+      "authors_count": 3,
+      "cycle_time_p50": 405.371,
+      "cycle_time_p90": 2336.29,
+      "pr_count": 10,
+      "reviewers_count": 4
+    }
+  },
+  "by_team": {
+    "Data Team": {
+      "authors_count": 4,
+      "cycle_time_p50": 960.582,
+      "cycle_time_p90": 2482.17,
+      "pr_count": 16,
+      "reviewers_count": 7
+    },
+    "Frontend Team": {
+      "authors_count": 3,
+      "cycle_time_p50": 240.539,
+      "cycle_time_p90": 722.275,
+      "pr_count": 11,
+      "reviewers_count": 4
+    },
+    "ML Team": {
+      "authors_count": 3,
+      "cycle_time_p50": 290.672,
+      "cycle_time_p90": 2497.452,
+      "pr_count": 13,
+      "reviewers_count": 5
+    },
+    "Platform Team": {
       "authors_count": 1,
-      "cycle_time_p50": 737.501,
-      "cycle_time_p90": 1423.758,
-      "pr_count": 3,
+      "cycle_time_p50": 300.584,
+      "cycle_time_p90": 3629.547,
+      "pr_count": 4,
       "reviewers_count": 1
     }
   },
-  "cycle_time_p50": 346.133,
-  "cycle_time_p90": 1139.303,
+  "cycle_time_p50": 401.143,
+  "cycle_time_p90": 3736.927,
   "end_date": "2025-06-08",
-  "pr_count": 48,
-  "reviewers_count": 21,
+  "pr_count": 44,
+  "reviewers_count": 19,
   "start_date": "2025-06-02",
   "week": "2025-W23"
 }
