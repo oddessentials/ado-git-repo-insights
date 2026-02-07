@@ -32,14 +32,32 @@ import {
   createOption,
 } from "./modules/shared/render";
 
+// Import ArtifactClient for authenticated artifact download
+import { ArtifactClient } from "./artifact-client";
+
+// Import toast for user feedback
+import { showToast } from "./modules/export";
+
 // Settings keys (must match dashboard.js)
 const SETTINGS_KEY_PROJECT = "pr-insights-source-project";
 const SETTINGS_KEY_PIPELINE = "pr-insights-pipeline-id";
+
+// Download constants
+const ARTIFACT_NAME_CSV = "csv-output";
+const BLOB_CLEANUP_TIMEOUT_MS = 10_000;
+
+/** Allowed ADO hostname suffixes for download URL validation (mirrors dashboard.ts) */
+const ADO_DOMAIN_SUFFIXES = [
+  "dev.azure.com",
+  ".visualstudio.com",
+  ".azure.com",
+];
 
 // State
 let dataService: IExtensionDataService | null = null;
 let projectDropdownAvailable = false;
 let projectList: VSSProject[] = [];
+let lastValidation: { valid: boolean; buildId?: number } | null = null;
 
 // initializeAdoSdk is now imported from "./modules/sdk"
 
@@ -340,6 +358,15 @@ async function updateStatus(): Promise<void> {
     if (savedPipelineId) {
       html += `<p><strong>Pipeline Definition ID:</strong> ${savedPipelineId}`;
 
+      // Clear stale validation and disable button before async re-validate
+      lastValidation = null;
+      const downloadBtn = document.getElementById(
+        "download-raw-btn",
+      ) as HTMLButtonElement | null;
+      if (downloadBtn) {
+        downloadBtn.disabled = true;
+      }
+
       // Validate the saved pipeline
       const targetProjectId = savedProjectId || currentProjectId;
       if (targetProjectId) {
@@ -347,6 +374,12 @@ async function updateStatus(): Promise<void> {
           savedPipelineId,
           targetProjectId,
         );
+
+        // Cache validation result for download function
+        lastValidation = {
+          valid: validation.valid,
+          buildId: validation.buildId,
+        };
 
         if (validation.valid) {
           html += ` <span class="status-valid">✓ Valid</span>`;
@@ -359,11 +392,21 @@ async function updateStatus(): Promise<void> {
           html += `<p class="status-hint">The dashboard will automatically clear this setting and re-discover pipelines. Consider clearing manually to configure a different pipeline.</p>`;
         }
       } else {
+        lastValidation = null;
         html += `</p><p class="status-warning">⚠️ No project ID available for validation</p>`;
       }
     } else {
+      lastValidation = null;
       html += `<p><strong>Mode:</strong> Auto-discovery</p>`;
       html += `<p class="status-hint">The dashboard will automatically find pipelines with an "aggregates" artifact.</p>`;
+    }
+
+    // Enable/disable download button based on validation
+    const downloadBtn = document.getElementById(
+      "download-raw-btn",
+    ) as HTMLButtonElement | null;
+    if (downloadBtn) {
+      downloadBtn.disabled = !lastValidation?.valid || !lastValidation?.buildId;
     }
 
     // Dropdown availability
@@ -389,6 +432,132 @@ async function updateStatus(): Promise<void> {
 function getProjectNameById(projectId: string): string {
   const project = projectList.find((p) => p.id === projectId);
   return project?.name || projectId;
+}
+
+/**
+ * Download raw CSV data as a ZIP file from the configured pipeline.
+ * Mirrors the dashboard's downloadRawDataZip() flow.
+ */
+async function downloadRawData(): Promise<void> {
+  if (!lastValidation?.valid || !lastValidation?.buildId) {
+    showToast("No valid pipeline configured. Save settings first.", "error");
+    return;
+  }
+
+  const downloadBtn = document.getElementById(
+    "download-raw-btn",
+  ) as HTMLButtonElement | null;
+  const originalText = downloadBtn?.textContent || "";
+
+  try {
+    // Disable button and show progress
+    if (downloadBtn) {
+      downloadBtn.disabled = true;
+      downloadBtn.textContent = "Downloading...";
+    }
+    showToast("Preparing download...", "success");
+
+    // Read saved project ID
+    if (!dataService) {
+      showToast("Settings service not available", "error");
+      return;
+    }
+    const savedProjectId = await dataService.getValue<string>(
+      SETTINGS_KEY_PROJECT,
+      { scopeType: "User" },
+    );
+    const webContext = VSS.getWebContext();
+    const projectId = savedProjectId || webContext?.project?.id;
+    if (!projectId) {
+      showToast("No project ID available", "error");
+      return;
+    }
+
+    // Validate buildId is a positive integer (fail fast before network calls)
+    if (!Number.isInteger(lastValidation.buildId) || lastValidation.buildId <= 0) {
+      showToast("Invalid build ID", "error");
+      return;
+    }
+
+    // Create and initialize ArtifactClient
+    const artifactClient = new ArtifactClient(projectId);
+    await artifactClient.initialize();
+
+    // Get artifact metadata
+    const artifact = await artifactClient.getArtifactMetadata(
+      lastValidation.buildId,
+      ARTIFACT_NAME_CSV,
+    );
+    if (!artifact) {
+      showToast(
+        "Raw CSV artifact not found in this pipeline run",
+        "error",
+      );
+      return;
+    }
+
+    const downloadUrl = artifact.resource?.downloadUrl;
+    if (!downloadUrl) {
+      showToast("Download URL not available", "error");
+      return;
+    }
+
+    try {
+      const parsed = new URL(downloadUrl);
+      const isAdoDomain = ADO_DOMAIN_SUFFIXES.some((suffix) =>
+        parsed.hostname.endsWith(suffix),
+      );
+      if (parsed.protocol !== "https:" || !isAdoDomain) {
+        showToast("Invalid download URL", "error");
+        return;
+      }
+    } catch {
+      showToast("Invalid download URL", "error");
+      return;
+    }
+
+    // Append format=zip using URL API for safe query parameter handling
+    const zipUrlObj = new URL(downloadUrl);
+    if (!zipUrlObj.searchParams.has("format")) {
+      zipUrlObj.searchParams.set("format", "zip");
+    }
+    const zipUrl = zipUrlObj.toString();
+
+    // Authenticated fetch
+    const response = await artifactClient.authenticatedFetch(zipUrl);
+    if (!response.ok) {
+      if (response.status === 403 || response.status === 401) {
+        showToast("Permission denied to download artifacts", "error");
+      } else {
+        showToast(`Download failed: ${response.statusText}`, "error");
+      }
+      return;
+    }
+
+    // Trigger browser download
+    const blob = await response.blob();
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    const dateStr = new Date().toISOString().split("T")[0];
+    link.download = `pr-insights-raw-data-${dateStr}.zip`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    setTimeout(() => URL.revokeObjectURL(url), BLOB_CLEANUP_TIMEOUT_MS);
+
+    showToast("Download started", "success");
+  } catch (err: unknown) {
+    console.error("Failed to download raw data:", getErrorMessage(err));
+    showToast("Failed to download raw data", "error");
+  } finally {
+    // Restore button state
+    if (downloadBtn) {
+      downloadBtn.textContent = originalText;
+      downloadBtn.disabled =
+        !lastValidation?.valid || !lastValidation?.buildId;
+    }
+  }
 }
 
 /**
@@ -688,6 +857,9 @@ function setupEventListeners(): void {
   document
     .getElementById("discover-btn")
     ?.addEventListener("click", () => void runDiscovery());
+  document
+    .getElementById("download-raw-btn")
+    ?.addEventListener("click", () => void downloadRawData());
 
   // Enter key saves
   document
