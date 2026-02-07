@@ -347,6 +347,246 @@ describe("ArtifactClient", () => {
     });
   });
 
+  describe("getDefinitions", () => {
+    it("returns list of definitions for project", async () => {
+      const client = new ArtifactClient("test-project");
+      await client.initialize();
+
+      const definitions = [
+        { id: 1, name: "pipeline-a" },
+        { id: 2, name: "pipeline-b" },
+      ];
+
+      mockFetch.mockResolvedValue({
+        ok: true,
+        status: 200,
+        json: () => Promise.resolve({ value: definitions }),
+      });
+
+      const result = await client.getDefinitions();
+
+      expect(result).toEqual(definitions);
+    });
+
+    it("returns empty array when no definitions", async () => {
+      const client = new ArtifactClient("test-project");
+      await client.initialize();
+
+      mockFetch.mockResolvedValue({
+        ok: true,
+        status: 200,
+        json: () => Promise.resolve({}),
+      });
+
+      const result = await client.getDefinitions();
+
+      expect(result).toEqual([]);
+    });
+
+    it("builds correct API URL with default params", async () => {
+      const client = new ArtifactClient("test-project");
+      await client.initialize();
+
+      mockFetch.mockResolvedValue({
+        ok: true,
+        status: 200,
+        json: () => Promise.resolve({ value: [] }),
+      });
+
+      await client.getDefinitions();
+
+      const url = mockFetch.mock.calls[0][0];
+      expect(url).toContain("test-project/_apis/build/definitions");
+      expect(url).toContain("api-version=7.1");
+      expect(url).toContain("$top=50");
+      expect(url).toContain("queryOrder=2");
+    });
+
+    it("uses custom top and queryOrder params", async () => {
+      const client = new ArtifactClient("test-project");
+      await client.initialize();
+
+      mockFetch.mockResolvedValue({
+        ok: true,
+        status: 200,
+        json: () => Promise.resolve({ value: [] }),
+      });
+
+      await client.getDefinitions(10, 1);
+
+      const url = mockFetch.mock.calls[0][0];
+      expect(url).toContain("$top=10");
+      expect(url).toContain("queryOrder=1");
+    });
+
+    it("throws on permission denied (401)", async () => {
+      const client = new ArtifactClient("test-project");
+      await client.initialize();
+
+      mockFetch.mockResolvedValue({
+        ok: false,
+        status: 401,
+        statusText: "Unauthorized",
+      });
+
+      await expect(client.getDefinitions()).rejects.toThrow("permission");
+    });
+
+    it("throws on permission denied (403)", async () => {
+      const client = new ArtifactClient("test-project");
+      await client.initialize();
+
+      mockFetch.mockResolvedValue({
+        ok: false,
+        status: 403,
+        statusText: "Forbidden",
+      });
+
+      await expect(client.getDefinitions()).rejects.toThrow("permission");
+    });
+
+    it("throws generic error on server error", async () => {
+      const client = new ArtifactClient("test-project");
+      await client.initialize();
+
+      mockFetch.mockResolvedValue({
+        ok: false,
+        status: 500,
+        statusText: "Internal Server Error",
+      });
+
+      await expect(client.getDefinitions()).rejects.toThrow(
+        "Failed to list definitions: 500",
+      );
+    });
+
+    it("throws if not initialized", async () => {
+      const client = new ArtifactClient("test-project");
+
+      await expect(client.getDefinitions()).rejects.toThrow("not initialized");
+    });
+  });
+
+  describe("getBuilds", () => {
+    it("returns builds for a definition", async () => {
+      const client = new ArtifactClient("test-project");
+      await client.initialize();
+
+      const builds = [
+        { id: 100, definition: { id: 1, name: "pipeline-a" }, status: 2, result: 6 },
+      ];
+
+      mockFetch.mockResolvedValue({
+        ok: true,
+        status: 200,
+        json: () => Promise.resolve({ value: builds }),
+      });
+
+      const result = await client.getBuilds(1);
+
+      expect(result).toEqual(builds);
+    });
+
+    it("returns empty array when no builds", async () => {
+      const client = new ArtifactClient("test-project");
+      await client.initialize();
+
+      mockFetch.mockResolvedValue({
+        ok: true,
+        status: 200,
+        json: () => Promise.resolve({}),
+      });
+
+      const result = await client.getBuilds(1);
+
+      expect(result).toEqual([]);
+    });
+
+    it("builds correct API URL with definition filter", async () => {
+      const client = new ArtifactClient("test-project");
+      await client.initialize();
+
+      mockFetch.mockResolvedValue({
+        ok: true,
+        status: 200,
+        json: () => Promise.resolve({ value: [] }),
+      });
+
+      await client.getBuilds(42);
+
+      const url = mockFetch.mock.calls[0][0];
+      expect(url).toContain("test-project/_apis/build/builds");
+      expect(url).toContain("api-version=7.1");
+      expect(url).toContain("definitions=42");
+      expect(url).toContain("statusFilter=2");
+      expect(url).toContain("resultFilter=6");
+      expect(url).toContain("$top=1");
+    });
+
+    it("uses custom top param", async () => {
+      const client = new ArtifactClient("test-project");
+      await client.initialize();
+
+      mockFetch.mockResolvedValue({
+        ok: true,
+        status: 200,
+        json: () => Promise.resolve({ value: [] }),
+      });
+
+      await client.getBuilds(42, 5);
+
+      const url = mockFetch.mock.calls[0][0];
+      expect(url).toContain("$top=5");
+    });
+
+    it("throws on permission denied (401)", async () => {
+      const client = new ArtifactClient("test-project");
+      await client.initialize();
+
+      mockFetch.mockResolvedValue({
+        ok: false,
+        status: 401,
+        statusText: "Unauthorized",
+      });
+
+      await expect(client.getBuilds(1)).rejects.toThrow("permission");
+    });
+
+    it("throws on permission denied (403)", async () => {
+      const client = new ArtifactClient("test-project");
+      await client.initialize();
+
+      mockFetch.mockResolvedValue({
+        ok: false,
+        status: 403,
+        statusText: "Forbidden",
+      });
+
+      await expect(client.getBuilds(1)).rejects.toThrow("permission");
+    });
+
+    it("throws generic error on server error", async () => {
+      const client = new ArtifactClient("test-project");
+      await client.initialize();
+
+      mockFetch.mockResolvedValue({
+        ok: false,
+        status: 500,
+        statusText: "Internal Server Error",
+      });
+
+      await expect(client.getBuilds(1)).rejects.toThrow(
+        "Failed to list builds: 500",
+      );
+    });
+
+    it("throws if not initialized", async () => {
+      const client = new ArtifactClient("test-project");
+
+      await expect(client.getBuilds(1)).rejects.toThrow("not initialized");
+    });
+  });
+
   describe("authenticatedFetch", () => {
     it("includes auth header", async () => {
       const client = new ArtifactClient("test-project");
@@ -869,5 +1109,44 @@ describe("MockArtifactClient", () => {
   it("is initialized by default", () => {
     const client = new MockArtifactClient({});
     expect(client.initialized).toBe(true);
+  });
+
+  it("getDefinitions returns mock definitions", async () => {
+    const definitions = [
+      { id: 1, name: "pipeline-a" },
+      { id: 2, name: "pipeline-b" },
+    ];
+    const client = new MockArtifactClient({ definitions });
+
+    const result = await client.getDefinitions();
+
+    expect(result).toEqual(definitions);
+  });
+
+  it("getDefinitions returns empty array when no mock data", async () => {
+    const client = new MockArtifactClient({});
+
+    const result = await client.getDefinitions();
+
+    expect(result).toEqual([]);
+  });
+
+  it("getBuilds returns mock builds for definition", async () => {
+    const builds = [
+      { id: 100, definition: { id: 1, name: "pipeline-a" }, status: 2, result: 6 },
+    ];
+    const client = new MockArtifactClient({ "builds/1": builds });
+
+    const result = await client.getBuilds(1);
+
+    expect(result).toEqual(builds);
+  });
+
+  it("getBuilds returns empty array when no mock data for definition", async () => {
+    const client = new MockArtifactClient({});
+
+    const result = await client.getBuilds(999);
+
+    expect(result).toEqual([]);
   });
 });

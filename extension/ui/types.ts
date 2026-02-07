@@ -77,6 +77,33 @@ export interface VSSBuildArtifact {
   };
 }
 
+// =============================================================================
+// Build REST API Response Types (direct REST via ArtifactClient)
+// These are minimal types for the fields we actually consume from the
+// ADO Build REST API. Intentionally separate from the legacy VSSBuild*
+// types above, which are tied to the VSSBuildClient interface.
+// =============================================================================
+
+/**
+ * Pipeline definition reference from GET _apis/build/definitions.
+ * Minimal shape — only the fields consumed by discovery.
+ */
+export interface BuildDefinitionReference {
+  id: number;
+  name: string;
+}
+
+/**
+ * Build reference from GET _apis/build/builds.
+ * Minimal shape — only the fields consumed by discovery.
+ */
+export interface Build {
+  id: number;
+  definition: { id: number; name: string };
+  status: number;
+  result: number;
+}
+
 /**
  * VSS Build REST Client interface.
  * Provides typed methods for Build SDK interactions.
