@@ -19,6 +19,7 @@ import {
   type VSSBuildDefinition,
   type VSSBuildArtifact,
   type VSSBuildClient,
+  type BuildDefinitionReference,
 } from "./types";
 
 // Import SDK initialization from shared module
@@ -37,6 +38,16 @@ import { ArtifactClient } from "./artifact-client";
 
 // Import toast for user feedback
 import { showToast } from "./modules/export";
+
+/**
+ * Structured result from pipeline discovery.
+ * Supports partial-failure reporting (FR-007) and error/retry UI (FR-005).
+ */
+interface DiscoveryResult {
+  pipelines: Array<{ id: number; name: string; buildId: number }>;
+  skippedCount: number;
+  error?: string;
+}
 
 // Settings keys (must match dashboard.js)
 const SETTINGS_KEY_PROJECT = "pr-insights-source-project";
@@ -399,14 +410,23 @@ async function updateStatus(): Promise<void> {
       // Auto-discovery mode: find a valid pipeline for download (mirrors dashboard)
       // Discover against the effective project so the buildId matches downloadRawData() scope
       html += `<p><strong>Mode:</strong> Auto-discovery</p>`;
-      const discovered = await discoverPipelines(savedProjectId || currentProjectId);
-      const match = discovered[0];
-      if (match) {
-        lastValidation = { valid: true, buildId: match.buildId };
-        html += `<p class="status-hint">Found pipeline "${escapeHtml(match.name)}" (Build #${match.buildId}). Download available.</p>`;
-      } else {
+      const result = await discoverPipelines(savedProjectId || currentProjectId);
+      if (result.error) {
         lastValidation = null;
-        html += `<p class="status-hint">The dashboard will automatically find pipelines with an "aggregates" artifact.</p>`;
+        html += `<p class="status-warning">⚠️ Discovery failed: ${escapeHtml(result.error)}</p>`;
+        html += `<p class="status-hint"><a href="#" id="retry-discovery-link">Retry</a></p>`;
+      } else {
+        const match = result.pipelines[0];
+        if (match) {
+          lastValidation = { valid: true, buildId: match.buildId };
+          html += `<p class="status-hint">Found pipeline "${escapeHtml(match.name)}" (Build #${match.buildId}). Download available.</p>`;
+        } else {
+          lastValidation = null;
+          html += `<p class="status-hint">The dashboard will automatically find pipelines with an "aggregates" artifact.</p>`;
+        }
+        if (result.skippedCount > 0) {
+          html += `<p class="status-warning">⚠️ Found ${result.pipelines.length} pipeline(s); ${result.skippedCount} could not be checked.</p>`;
+        }
       }
     }
 
@@ -427,6 +447,15 @@ async function updateStatus(): Promise<void> {
 
     // SECURITY: html uses escapeHtml for all dynamic values
     renderTrustedHtml(statusDisplay, html);
+
+    // Bind retry handler if discovery failed (FR-006)
+    const retryLink = document.getElementById("retry-discovery-link");
+    if (retryLink) {
+      retryLink.addEventListener("click", (e) => {
+        e.preventDefault();
+        void updateStatus();
+      });
+    }
   } catch (error: unknown) {
     renderTrustedHtml(
       statusDisplay,
@@ -685,87 +714,73 @@ async function validatePipeline(
 }
 
 /**
- * Discover pipelines with aggregates artifact in the current project.
+ * Discover pipelines with aggregates artifact in the target project.
+ * Uses ArtifactClient direct REST calls (replaces legacy VSS.require SDK).
+ *
+ * Creates a separate ArtifactClient instance scoped to targetProjectId
+ * to support cross-project discovery from the settings page.
  */
 async function discoverPipelines(
   targetProjectId?: string,
-): Promise<Array<{ id: number; name: string; buildId: number }>> {
-  return new Promise((resolve) => {
-    VSS.require(["TFS/Build/RestClient"], (...modules: unknown[]) => {
-      const BuildRestClient = modules[0] as { getClient: () => VSSBuildClient };
-      try {
-        const client = BuildRestClient.getClient();
-        const webContext = VSS.getWebContext();
-        const projectId = targetProjectId || webContext.project?.id;
-        if (!projectId) {
-          resolve([]);
-          return;
-        }
-        const matches: Array<{ id: number; name: string; buildId: number }> =
-          [];
+): Promise<DiscoveryResult> {
+  const webContext = VSS.getWebContext();
+  const projectId = targetProjectId || webContext.project?.id;
+  if (!projectId) {
+    return { pipelines: [], skippedCount: 0, error: "No project ID available" };
+  }
 
-        // Get pipeline definitions (limit for performance)
-        client
-          .getDefinitions(projectId, undefined, undefined, undefined, 2, 50)
-          .then(async (definitions: VSSBuildDefinition[]) => {
-            for (const def of definitions) {
-              // Get latest successful/partially-succeeded build
-              try {
-                const builds = await client.getBuilds(
-                  projectId,
-                  [def.id],
-                  undefined,
-                  undefined,
-                  undefined,
-                  undefined,
-                  undefined,
-                  undefined,
-                  2,
-                  6,
-                  undefined,
-                  undefined,
-                  1,
-                );
+  // Create a dedicated ArtifactClient for the target project
+  const client = new ArtifactClient(projectId);
+  try {
+    await client.initialize();
+  } catch (e: unknown) {
+    return {
+      pipelines: [],
+      skippedCount: 0,
+      error: `Failed to initialize: ${getErrorMessage(e)}`,
+    };
+  }
 
-                if (!builds || builds.length === 0) continue;
+  let skippedCount = 0;
+  const pipelines: Array<{ id: number; name: string; buildId: number }> = [];
 
-                const latestBuild = builds[0];
-                if (!latestBuild) continue;
+  let definitions: BuildDefinitionReference[];
+  try {
+    definitions = await client.getDefinitions();
+  } catch (e: unknown) {
+    return {
+      pipelines: [],
+      skippedCount: 0,
+      error: `Failed to list pipelines: ${getErrorMessage(e)}`,
+    };
+  }
 
-                // Check for aggregates artifact
-                const artifacts = await client.getArtifacts(
-                  projectId,
-                  latestBuild.id,
-                );
-                if (
-                  !artifacts.some(
-                    (a: VSSBuildArtifact) => a.name === "aggregates",
-                  )
-                )
-                  continue;
+  for (const def of definitions) {
+    try {
+      const builds = await client.getBuilds(def.id);
+      if (!builds || builds.length === 0) continue;
 
-                matches.push({
-                  id: def.id,
-                  name: def.name,
-                  buildId: latestBuild.id,
-                });
-              } catch (e) {
-                // Skip pipelines we can't access
-                console.debug("Skipping pipeline %s:", def.name, e);
-              }
-            }
-            resolve(matches);
-          })
-          .catch((e: unknown) => {
-            console.error("Discovery: definitions fetch failed:", e);
-            resolve([]);
-          });
-      } catch (e) {
-        console.error("Discovery error:", e);
-        resolve([]);
-      }
-    });
-  });
+      const latestBuild = builds[0];
+      if (!latestBuild) continue;
+
+      // Check for aggregates artifact
+      const artifacts = await client.getArtifacts(latestBuild.id);
+      if (!artifacts.some((a: VSSBuildArtifact) => a.name === "aggregates"))
+        continue;
+
+      pipelines.push({
+        id: def.id,
+        name: def.name,
+        buildId: latestBuild.id,
+      });
+    } catch (e: unknown) {
+      // Partial failure: skip this pipeline but count the failure (FR-007)
+      skippedCount++;
+      console.debug("Skipping pipeline %s:", def.name, e);
+    }
+  }
+
+  return { pipelines, skippedCount };
 }
 
 /**
@@ -783,9 +798,24 @@ async function runDiscovery(): Promise<void> {
   );
 
   try {
-    const matches = await discoverPipelines();
+    const result = await discoverPipelines();
 
-    if (matches.length === 0) {
+    if (result.error) {
+      let errorHtml = `<p class="status-warning">⚠️ Discovery failed: ${escapeHtml(result.error)}</p>`;
+      errorHtml += `<p class="status-hint"><a href="#" id="retry-run-discovery-link">Retry</a></p>`;
+      renderTrustedHtml(statusDisplay, errorHtml);
+      const retryLink = document.getElementById("retry-run-discovery-link");
+      if (retryLink) {
+        retryLink.addEventListener("click", (e) => {
+          e.preventDefault();
+          void runDiscovery();
+        });
+      }
+      showStatus("Discovery failed: " + result.error, "error");
+      return;
+    }
+
+    if (result.pipelines.length === 0) {
       renderTrustedHtml(
         statusDisplay,
         `
@@ -797,8 +827,12 @@ async function runDiscovery(): Promise<void> {
       return;
     }
 
-    let html = `<p><strong>Found ${matches.length} pipeline(s):</strong></p><ul class="discovered-pipelines">`;
-    for (const match of matches) {
+    let html = `<p><strong>Found ${result.pipelines.length} pipeline(s):</strong></p>`;
+    if (result.skippedCount > 0) {
+      html += `<p class="status-warning">⚠️ ${result.skippedCount} pipeline(s) could not be checked.</p>`;
+    }
+    html += `<ul class="discovered-pipelines">`;
+    for (const match of result.pipelines) {
       html += `<li>
                 <strong>${escapeHtml(match.name)}</strong> (ID: ${match.id})
                 <button class="btn btn-small" id="select-pipeline-${match.id}">Use This</button>
@@ -812,7 +846,7 @@ async function runDiscovery(): Promise<void> {
     renderTrustedHtml(statusDisplay, html);
 
     // Add event listeners for discovered pipelines
-    for (const match of matches) {
+    for (const match of result.pipelines) {
       document
         .getElementById(`select-pipeline-${match.id}`)
         ?.addEventListener("click", () => {
@@ -827,7 +861,7 @@ async function runDiscovery(): Promise<void> {
         });
     }
 
-    showStatus(`Found ${matches.length} pipeline(s)`, "success");
+    showStatus(`Found ${result.pipelines.length} pipeline(s)`, "success");
   } catch (error: unknown) {
     renderTrustedHtml(statusDisplay, originalContent);
     showStatus("Discovery failed: " + getErrorMessage(error), "error");

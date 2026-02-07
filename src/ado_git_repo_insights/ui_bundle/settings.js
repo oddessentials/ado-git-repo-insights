@@ -840,14 +840,23 @@ var PRInsightsSettings = (() => {
         }
       } else {
         html += `<p><strong>Mode:</strong> Auto-discovery</p>`;
-        const discovered = await discoverPipelines(savedProjectId || currentProjectId);
-        const match = discovered[0];
-        if (match) {
-          lastValidation = { valid: true, buildId: match.buildId };
-          html += `<p class="status-hint">Found pipeline "${escapeHtml(match.name)}" (Build #${match.buildId}). Download available.</p>`;
-        } else {
+        const result = await discoverPipelines(savedProjectId || currentProjectId);
+        if (result.error) {
           lastValidation = null;
-          html += `<p class="status-hint">The dashboard will automatically find pipelines with an "aggregates" artifact.</p>`;
+          html += `<p class="status-warning">\u26A0\uFE0F Discovery failed: ${escapeHtml(result.error)}</p>`;
+          html += `<p class="status-hint"><a href="#" id="retry-discovery-link">Retry</a></p>`;
+        } else {
+          const match = result.pipelines[0];
+          if (match) {
+            lastValidation = { valid: true, buildId: match.buildId };
+            html += `<p class="status-hint">Found pipeline "${escapeHtml(match.name)}" (Build #${match.buildId}). Download available.</p>`;
+          } else {
+            lastValidation = null;
+            html += `<p class="status-hint">The dashboard will automatically find pipelines with an "aggregates" artifact.</p>`;
+          }
+          if (result.skippedCount > 0) {
+            html += `<p class="status-warning">\u26A0\uFE0F Found ${result.pipelines.length} pipeline(s); ${result.skippedCount} could not be checked.</p>`;
+          }
         }
       }
       const downloadBtn = document.getElementById(
@@ -862,6 +871,13 @@ var PRInsightsSettings = (() => {
         html += `<p class="status-hint">Project dropdown not available - using text input</p>`;
       }
       renderTrustedHtml(statusDisplay, html);
+      const retryLink = document.getElementById("retry-discovery-link");
+      if (retryLink) {
+        retryLink.addEventListener("click", (e) => {
+          e.preventDefault();
+          void updateStatus();
+        });
+      }
     } catch (error) {
       renderTrustedHtml(
         statusDisplay,
@@ -1062,67 +1078,53 @@ var PRInsightsSettings = (() => {
     });
   }
   async function discoverPipelines(targetProjectId) {
-    return new Promise((resolve) => {
-      VSS.require(["TFS/Build/RestClient"], (...modules) => {
-        const BuildRestClient = modules[0];
-        try {
-          const client = BuildRestClient.getClient();
-          const webContext = VSS.getWebContext();
-          const projectId = targetProjectId || webContext.project?.id;
-          if (!projectId) {
-            resolve([]);
-            return;
-          }
-          const matches = [];
-          client.getDefinitions(projectId, void 0, void 0, void 0, 2, 50).then(async (definitions) => {
-            for (const def of definitions) {
-              try {
-                const builds = await client.getBuilds(
-                  projectId,
-                  [def.id],
-                  void 0,
-                  void 0,
-                  void 0,
-                  void 0,
-                  void 0,
-                  void 0,
-                  2,
-                  6,
-                  void 0,
-                  void 0,
-                  1
-                );
-                if (!builds || builds.length === 0) continue;
-                const latestBuild = builds[0];
-                if (!latestBuild) continue;
-                const artifacts = await client.getArtifacts(
-                  projectId,
-                  latestBuild.id
-                );
-                if (!artifacts.some(
-                  (a) => a.name === "aggregates"
-                ))
-                  continue;
-                matches.push({
-                  id: def.id,
-                  name: def.name,
-                  buildId: latestBuild.id
-                });
-              } catch (e) {
-                console.debug("Skipping pipeline %s:", def.name, e);
-              }
-            }
-            resolve(matches);
-          }).catch((e) => {
-            console.error("Discovery: definitions fetch failed:", e);
-            resolve([]);
-          });
-        } catch (e) {
-          console.error("Discovery error:", e);
-          resolve([]);
-        }
-      });
-    });
+    const webContext = VSS.getWebContext();
+    const projectId = targetProjectId || webContext.project?.id;
+    if (!projectId) {
+      return { pipelines: [], skippedCount: 0, error: "No project ID available" };
+    }
+    const client = new ArtifactClient(projectId);
+    try {
+      await client.initialize();
+    } catch (e) {
+      return {
+        pipelines: [],
+        skippedCount: 0,
+        error: `Failed to initialize: ${getErrorMessage(e)}`
+      };
+    }
+    let skippedCount = 0;
+    const pipelines = [];
+    let definitions;
+    try {
+      definitions = await client.getDefinitions();
+    } catch (e) {
+      return {
+        pipelines: [],
+        skippedCount: 0,
+        error: `Failed to list pipelines: ${getErrorMessage(e)}`
+      };
+    }
+    for (const def of definitions) {
+      try {
+        const builds = await client.getBuilds(def.id);
+        if (!builds || builds.length === 0) continue;
+        const latestBuild = builds[0];
+        if (!latestBuild) continue;
+        const artifacts = await client.getArtifacts(latestBuild.id);
+        if (!artifacts.some((a) => a.name === "aggregates"))
+          continue;
+        pipelines.push({
+          id: def.id,
+          name: def.name,
+          buildId: latestBuild.id
+        });
+      } catch (e) {
+        skippedCount++;
+        console.debug("Skipping pipeline %s:", def.name, e);
+      }
+    }
+    return { pipelines, skippedCount };
   }
   async function runDiscovery() {
     const statusDisplay = document.getElementById("status-display");
@@ -1133,8 +1135,22 @@ var PRInsightsSettings = (() => {
       "<p>\u{1F50D} Discovering pipelines with aggregates artifact...</p>"
     );
     try {
-      const matches = await discoverPipelines();
-      if (matches.length === 0) {
+      const result = await discoverPipelines();
+      if (result.error) {
+        let errorHtml = `<p class="status-warning">\u26A0\uFE0F Discovery failed: ${escapeHtml(result.error)}</p>`;
+        errorHtml += `<p class="status-hint"><a href="#" id="retry-run-discovery-link">Retry</a></p>`;
+        renderTrustedHtml(statusDisplay, errorHtml);
+        const retryLink = document.getElementById("retry-run-discovery-link");
+        if (retryLink) {
+          retryLink.addEventListener("click", (e) => {
+            e.preventDefault();
+            void runDiscovery();
+          });
+        }
+        showStatus("Discovery failed: " + result.error, "error");
+        return;
+      }
+      if (result.pipelines.length === 0) {
         renderTrustedHtml(
           statusDisplay,
           `
@@ -1145,8 +1161,12 @@ var PRInsightsSettings = (() => {
         showStatus("No pipelines found with aggregates artifact", "warning");
         return;
       }
-      let html = `<p><strong>Found ${matches.length} pipeline(s):</strong></p><ul class="discovered-pipelines">`;
-      for (const match of matches) {
+      let html = `<p><strong>Found ${result.pipelines.length} pipeline(s):</strong></p>`;
+      if (result.skippedCount > 0) {
+        html += `<p class="status-warning">\u26A0\uFE0F ${result.skippedCount} pipeline(s) could not be checked.</p>`;
+      }
+      html += `<ul class="discovered-pipelines">`;
+      for (const match of result.pipelines) {
         html += `<li>
                 <strong>${escapeHtml(match.name)}</strong> (ID: ${match.id})
                 <button class="btn btn-small" id="select-pipeline-${match.id}">Use This</button>
@@ -1155,7 +1175,7 @@ var PRInsightsSettings = (() => {
       html += "</ul>";
       html += '<p class="status-hint">Click "Use This" to configure, or clear settings for auto-discovery.</p>';
       renderTrustedHtml(statusDisplay, html);
-      for (const match of matches) {
+      for (const match of result.pipelines) {
         document.getElementById(`select-pipeline-${match.id}`)?.addEventListener("click", () => {
           const pipelineInput = document.getElementById(
             "pipeline-id"
@@ -1167,7 +1187,7 @@ var PRInsightsSettings = (() => {
           );
         });
       }
-      showStatus(`Found ${matches.length} pipeline(s)`, "success");
+      showStatus(`Found ${result.pipelines.length} pipeline(s)`, "success");
     } catch (error) {
       renderTrustedHtml(statusDisplay, originalContent);
       showStatus("Discovery failed: " + getErrorMessage(error), "error");
