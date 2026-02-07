@@ -706,7 +706,7 @@ async function discoverPipelines(
 
         // Get pipeline definitions (limit for performance)
         client
-          .getDefinitions(projectId, null, null, null, 2, 50)
+          .getDefinitions(projectId, undefined, undefined, undefined, 2, 50)
           .then(async (definitions: VSSBuildDefinition[]) => {
             for (const def of definitions) {
               // Get latest successful/partially-succeeded build
@@ -714,16 +714,16 @@ async function discoverPipelines(
                 const builds = await client.getBuilds(
                   projectId,
                   [def.id],
-                  null,
-                  null,
-                  null,
-                  null,
-                  null,
-                  null,
+                  undefined,
+                  undefined,
+                  undefined,
+                  undefined,
+                  undefined,
+                  undefined,
                   2,
                   6,
-                  null,
-                  null,
+                  undefined,
+                  undefined,
                   1,
                 );
 
