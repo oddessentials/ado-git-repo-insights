@@ -1028,22 +1028,22 @@ var PRInsightsSettings = (() => {
             return;
           }
           const matches = [];
-          client.getDefinitions(projectId, null, null, null, 2, 50).then(async (definitions) => {
+          client.getDefinitions(projectId, void 0, void 0, void 0, 2, 50).then(async (definitions) => {
             for (const def of definitions) {
               try {
                 const builds = await client.getBuilds(
                   projectId,
                   [def.id],
-                  null,
-                  null,
-                  null,
-                  null,
-                  null,
-                  null,
+                  void 0,
+                  void 0,
+                  void 0,
+                  void 0,
+                  void 0,
+                  void 0,
                   2,
                   6,
-                  null,
-                  null,
+                  void 0,
+                  void 0,
                   1
                 );
                 if (!builds || builds.length === 0) continue;
