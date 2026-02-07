@@ -358,6 +358,15 @@ async function updateStatus(): Promise<void> {
     if (savedPipelineId) {
       html += `<p><strong>Pipeline Definition ID:</strong> ${savedPipelineId}`;
 
+      // Clear stale validation and disable button before async re-validate
+      lastValidation = null;
+      const downloadBtn = document.getElementById(
+        "download-raw-btn",
+      ) as HTMLButtonElement | null;
+      if (downloadBtn) {
+        downloadBtn.disabled = true;
+      }
+
       // Validate the saved pipeline
       const targetProjectId = savedProjectId || currentProjectId;
       if (targetProjectId) {

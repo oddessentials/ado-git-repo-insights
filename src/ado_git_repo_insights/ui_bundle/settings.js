@@ -761,6 +761,13 @@ var PRInsightsSettings = (() => {
       }
       if (savedPipelineId) {
         html += `<p><strong>Pipeline Definition ID:</strong> ${savedPipelineId}`;
+        lastValidation = null;
+        const downloadBtn2 = document.getElementById(
+          "download-raw-btn"
+        );
+        if (downloadBtn2) {
+          downloadBtn2.disabled = true;
+        }
         const targetProjectId = savedProjectId || currentProjectId;
         if (targetProjectId) {
           const validation = await validatePipeline(
