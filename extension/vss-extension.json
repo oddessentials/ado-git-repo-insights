@@ -47,10 +47,33 @@
             }
         },
         {
+            "id": "gri.dashboard-hub",
+            "type": "ms.vss-web.feature",
+            "description": "Controls visibility of the PR Insights dashboard hub",
+            "properties": {
+                "name": "[GRI] PR Insights Dashboard",
+                "defaultState": false,
+                "userConfigurable": false,
+                "hostConfigurable": true,
+                "hostScopes": [
+                    "project",
+                    null
+                ]
+            }
+        },
+        {
             "id": "pr-insights-hub",
             "type": "ms.vss-web.hub",
             "targets": [
                 "ms.vss-code-web.code-hub-group"
+            ],
+            "constraints": [
+                {
+                    "name": "Feature",
+                    "properties": {
+                        "featureId": "OddEssentials.ado-git-repo-insights.gri.dashboard-hub"
+                    }
+                }
             ],
             "properties": {
                 "name": "PR Insights",
