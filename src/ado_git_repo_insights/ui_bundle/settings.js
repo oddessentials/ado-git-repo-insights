@@ -538,6 +538,13 @@ var PRInsightsSettings = (() => {
   // ui/settings.ts
   var SETTINGS_KEY_PROJECT = "pr-insights-source-project";
   var SETTINGS_KEY_PIPELINE = "pr-insights-pipeline-id";
+  var ARTIFACT_NAME_CSV = "csv-output";
+  var BLOB_CLEANUP_TIMEOUT_MS = 1e4;
+  var ADO_DOMAIN_SUFFIXES = [
+    "dev.azure.com",
+    ".visualstudio.com",
+    ".azure.com"
+  ];
   var dataService = null;
   var projectDropdownAvailable = false;
   var projectList = [];
@@ -835,15 +842,15 @@ var PRInsightsSettings = (() => {
         showToast("No project ID available", "error");
         return;
       }
-      const artifactClient = new ArtifactClient(projectId);
-      await artifactClient.initialize();
       if (!Number.isInteger(lastValidation.buildId) || lastValidation.buildId <= 0) {
         showToast("Invalid build ID", "error");
         return;
       }
+      const artifactClient = new ArtifactClient(projectId);
+      await artifactClient.initialize();
       const artifact = await artifactClient.getArtifactMetadata(
         lastValidation.buildId,
-        "csv-output"
+        ARTIFACT_NAME_CSV
       );
       if (!artifact) {
         showToast(
@@ -857,15 +864,24 @@ var PRInsightsSettings = (() => {
         showToast("Download URL not available", "error");
         return;
       }
-      if (!downloadUrl.startsWith("https://")) {
+      try {
+        const parsed = new URL(downloadUrl);
+        const isAdoDomain = ADO_DOMAIN_SUFFIXES.some(
+          (suffix) => parsed.hostname.endsWith(suffix)
+        );
+        if (parsed.protocol !== "https:" || !isAdoDomain) {
+          showToast("Invalid download URL", "error");
+          return;
+        }
+      } catch {
         showToast("Invalid download URL", "error");
         return;
       }
-      let zipUrl = downloadUrl;
-      if (!zipUrl.includes("format=zip")) {
-        const separator = zipUrl.includes("?") ? "&" : "?";
-        zipUrl = `${zipUrl}${separator}format=zip`;
+      const zipUrlObj = new URL(downloadUrl);
+      if (!zipUrlObj.searchParams.has("format")) {
+        zipUrlObj.searchParams.set("format", "zip");
       }
+      const zipUrl = zipUrlObj.toString();
       const response = await artifactClient.authenticatedFetch(zipUrl);
       if (!response.ok) {
         if (response.status === 403 || response.status === 401) {
@@ -884,10 +900,10 @@ var PRInsightsSettings = (() => {
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
-      setTimeout(() => URL.revokeObjectURL(url), 1e4);
+      setTimeout(() => URL.revokeObjectURL(url), BLOB_CLEANUP_TIMEOUT_MS);
       showToast("Download started", "success");
     } catch (err) {
-      console.error("Failed to download raw data:", err);
+      console.error("Failed to download raw data:", getErrorMessage(err));
       showToast("Failed to download raw data", "error");
     } finally {
       if (downloadBtn) {

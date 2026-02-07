@@ -42,6 +42,17 @@ import { showToast } from "./modules/export";
 const SETTINGS_KEY_PROJECT = "pr-insights-source-project";
 const SETTINGS_KEY_PIPELINE = "pr-insights-pipeline-id";
 
+// Download constants
+const ARTIFACT_NAME_CSV = "csv-output";
+const BLOB_CLEANUP_TIMEOUT_MS = 10_000;
+
+/** Allowed ADO hostname suffixes for download URL validation (mirrors dashboard.ts) */
+const ADO_DOMAIN_SUFFIXES = [
+  "dev.azure.com",
+  ".visualstudio.com",
+  ".azure.com",
+];
+
 // State
 let dataService: IExtensionDataService | null = null;
 let projectDropdownAvailable = false;
@@ -453,20 +464,20 @@ async function downloadRawData(): Promise<void> {
       return;
     }
 
-    // Create and initialize ArtifactClient
-    const artifactClient = new ArtifactClient(projectId);
-    await artifactClient.initialize();
-
-    // Validate buildId is a positive integer
+    // Validate buildId is a positive integer (fail fast before network calls)
     if (!Number.isInteger(lastValidation.buildId) || lastValidation.buildId <= 0) {
       showToast("Invalid build ID", "error");
       return;
     }
 
+    // Create and initialize ArtifactClient
+    const artifactClient = new ArtifactClient(projectId);
+    await artifactClient.initialize();
+
     // Get artifact metadata
     const artifact = await artifactClient.getArtifactMetadata(
       lastValidation.buildId,
-      "csv-output",
+      ARTIFACT_NAME_CSV,
     );
     if (!artifact) {
       showToast(
@@ -482,17 +493,26 @@ async function downloadRawData(): Promise<void> {
       return;
     }
 
-    if (!downloadUrl.startsWith("https://")) {
+    try {
+      const parsed = new URL(downloadUrl);
+      const isAdoDomain = ADO_DOMAIN_SUFFIXES.some((suffix) =>
+        parsed.hostname.endsWith(suffix),
+      );
+      if (parsed.protocol !== "https:" || !isAdoDomain) {
+        showToast("Invalid download URL", "error");
+        return;
+      }
+    } catch {
       showToast("Invalid download URL", "error");
       return;
     }
 
-    // Append format=zip
-    let zipUrl = downloadUrl;
-    if (!zipUrl.includes("format=zip")) {
-      const separator = zipUrl.includes("?") ? "&" : "?";
-      zipUrl = `${zipUrl}${separator}format=zip`;
+    // Append format=zip using URL API for safe query parameter handling
+    const zipUrlObj = new URL(downloadUrl);
+    if (!zipUrlObj.searchParams.has("format")) {
+      zipUrlObj.searchParams.set("format", "zip");
     }
+    const zipUrl = zipUrlObj.toString();
 
     // Authenticated fetch
     const response = await artifactClient.authenticatedFetch(zipUrl);
@@ -515,11 +535,11 @@ async function downloadRawData(): Promise<void> {
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
-    setTimeout(() => URL.revokeObjectURL(url), 10_000);
+    setTimeout(() => URL.revokeObjectURL(url), BLOB_CLEANUP_TIMEOUT_MS);
 
     showToast("Download started", "success");
   } catch (err: unknown) {
-    console.error("Failed to download raw data:", err);
+    console.error("Failed to download raw data:", getErrorMessage(err));
     showToast("Failed to download raw data", "error");
   } finally {
     // Restore button state

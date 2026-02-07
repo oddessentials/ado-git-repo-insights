@@ -114,7 +114,25 @@ async function downloadRawDataContract(
       };
     }
 
-    if (!downloadUrl.startsWith("https://")) {
+    // Validate URL is HTTPS and points to an ADO domain
+    const ADO_DOMAIN_SUFFIXES = [
+      "dev.azure.com",
+      ".visualstudio.com",
+      ".azure.com",
+    ];
+    try {
+      const parsed = new URL(downloadUrl);
+      const isAdoDomain = ADO_DOMAIN_SUFFIXES.some((suffix) =>
+        parsed.hostname.endsWith(suffix),
+      );
+      if (parsed.protocol !== "https:" || !isAdoDomain) {
+        return {
+          outcome: "invalid-url",
+          toastMessage: "Invalid download URL",
+          toastType: "error",
+        };
+      }
+    } catch {
       return {
         outcome: "invalid-url",
         toastMessage: "Invalid download URL",
@@ -122,12 +140,12 @@ async function downloadRawDataContract(
       };
     }
 
-    // Step 5: Build zip URL
-    let zipUrl = downloadUrl;
-    if (!zipUrl.includes("format=zip")) {
-      const separator = zipUrl.includes("?") ? "&" : "?";
-      zipUrl = `${zipUrl}${separator}format=zip`;
+    // Step 5: Build zip URL using URL API
+    const zipUrlObj = new URL(downloadUrl);
+    if (!zipUrlObj.searchParams.has("format")) {
+      zipUrlObj.searchParams.set("format", "zip");
     }
+    const zipUrl = zipUrlObj.toString();
 
     // Step 6: Authenticated fetch
     const response = (await deps.artifactClient.authenticatedFetch(zipUrl)) as {
@@ -465,7 +483,7 @@ describe("Settings Download: downloadRawData contract", () => {
   });
 
   // ---------------------------------------------------------------
-  // HTTPS URL validation
+  // URL validation (HTTPS + ADO domain)
   // ---------------------------------------------------------------
 
   it("rejects non-HTTPS download URL", async () => {
@@ -475,6 +493,28 @@ describe("Settings Download: downloadRawData contract", () => {
           name: "csv-output",
           resource: {
             downloadUrl: "http://dev.azure.com/org/proj/_apis/build/artifact",
+          },
+        }),
+      ),
+    });
+
+    const result = await downloadRawDataContract(
+      { valid: true, buildId: 100 },
+      deps,
+    );
+
+    expect(result.outcome).toBe("invalid-url");
+    expect(result.toastMessage).toBe("Invalid download URL");
+    expect(result.toastType).toBe("error");
+  });
+
+  it("rejects non-ADO domain download URL", async () => {
+    const deps = defaultDeps({
+      getArtifactMetadata: jest.fn(() =>
+        Promise.resolve({
+          name: "csv-output",
+          resource: {
+            downloadUrl: "https://evil.com/redirect?url=http://internal",
           },
         }),
       ),
@@ -673,12 +713,11 @@ describe("Settings Download: button state management", () => {
 
 describe("Settings Download: ZIP URL construction", () => {
   function buildZipUrl(downloadUrl: string): string {
-    let zipUrl = downloadUrl;
-    if (!zipUrl.includes("format=zip")) {
-      const separator = zipUrl.includes("?") ? "&" : "?";
-      zipUrl = `${zipUrl}${separator}format=zip`;
+    const zipUrlObj = new URL(downloadUrl);
+    if (!zipUrlObj.searchParams.has("format")) {
+      zipUrlObj.searchParams.set("format", "zip");
     }
-    return zipUrl;
+    return zipUrlObj.toString();
   }
 
   it("appends ?format=zip to bare URL", () => {
