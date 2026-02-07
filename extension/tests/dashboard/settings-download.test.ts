@@ -708,6 +708,169 @@ describe("Settings Download: button state management", () => {
 });
 
 // ============================================================================
+// Auto-discovery mode: updateStatus() download enablement contract
+// ============================================================================
+
+/**
+ * Simulates the auto-discovery branch of updateStatus() from settings.ts.
+ * When no saved pipeline ID exists, discoverPipelines() is called against
+ * the effective project (savedProjectId || currentProjectId) to find a valid
+ * pipeline. If found, lastValidation is set to enable the download button.
+ *
+ * The discoverFn receives the resolved project ID so tests can verify
+ * discovery runs against the correct project scope.
+ */
+function updateStatusAutoDiscoveryContract(
+  savedProjectId: string | null,
+  currentProjectId: string | null,
+  discoverFn: (projectId: string | null) => Array<{ id: number; name: string; buildId: number }>,
+): {
+  lastValidation: { valid: boolean; buildId: number } | null;
+  statusHint: string;
+  discoveredAgainstProject: string | null;
+} {
+  const effectiveProjectId = savedProjectId || currentProjectId;
+  const discovered = discoverFn(effectiveProjectId);
+  const match = discovered[0];
+  if (match) {
+    return {
+      lastValidation: { valid: true, buildId: match.buildId },
+      statusHint: `Found pipeline "${match.name}" (Build #${match.buildId}). Download available.`,
+      discoveredAgainstProject: effectiveProjectId,
+    };
+  } else {
+    return {
+      lastValidation: null,
+      statusHint: "The dashboard will automatically find pipelines with an \"aggregates\" artifact.",
+      discoveredAgainstProject: effectiveProjectId,
+    };
+  }
+}
+
+/** Helper: creates a discoverFn that returns the given matches regardless of project. */
+function staticDiscovery(matches: Array<{ id: number; name: string; buildId: number }>) {
+  return (_projectId: string | null) => matches;
+}
+
+describe("Settings Download: auto-discovery download enablement", () => {
+  beforeEach(() => {
+    document.body.innerHTML = `
+      <button id="download-raw-btn" class="btn btn-secondary" disabled>
+        Download Raw Data (ZIP)
+      </button>
+      <span id="download-status"></span>
+    `;
+  });
+
+  afterEach(() => {
+    document.body.innerHTML = "";
+  });
+
+  it("enables download button when discovery finds a pipeline", () => {
+    const matches = [
+      { id: 10, name: "PR-Insights-Pipeline", buildId: 555 },
+    ];
+
+    const result = updateStatusAutoDiscoveryContract(null, "current-proj", staticDiscovery(matches));
+
+    // lastValidation should be set with the first match's buildId
+    expect(result.lastValidation).toEqual({ valid: true, buildId: 555 });
+    expect(result.statusHint).toContain("PR-Insights-Pipeline");
+    expect(result.statusHint).toContain("Build #555");
+    expect(result.statusHint).toContain("Download available");
+
+    // Simulate button state update (mirrors settings.ts lines 413-418)
+    const btn = document.getElementById("download-raw-btn") as HTMLButtonElement;
+    btn.disabled = !result.lastValidation?.valid || !result.lastValidation?.buildId;
+
+    expect(btn.disabled).toBe(false);
+  });
+
+  it("keeps download button disabled when discovery finds no pipelines", () => {
+    const result = updateStatusAutoDiscoveryContract(null, "current-proj", staticDiscovery([]));
+
+    expect(result.lastValidation).toBeNull();
+    expect(result.statusHint).toContain("automatically find pipelines");
+
+    // Simulate button state update
+    const btn = document.getElementById("download-raw-btn") as HTMLButtonElement;
+    btn.disabled = !result.lastValidation?.valid || !result.lastValidation?.buildId;
+
+    expect(btn.disabled).toBe(true);
+  });
+
+  it("uses the first discovered pipeline when multiple matches exist", () => {
+    const matches = [
+      { id: 10, name: "First-Pipeline", buildId: 100 },
+      { id: 20, name: "Second-Pipeline", buildId: 200 },
+      { id: 30, name: "Third-Pipeline", buildId: 300 },
+    ];
+
+    const result = updateStatusAutoDiscoveryContract(null, "current-proj", staticDiscovery(matches));
+
+    expect(result.lastValidation).toEqual({ valid: true, buildId: 100 });
+    expect(result.statusHint).toContain("First-Pipeline");
+    expect(result.statusHint).not.toContain("Second-Pipeline");
+  });
+
+  it("discovers against saved project when source project differs from current", () => {
+    const discoverFn = jest.fn(staticDiscovery([
+      { id: 5, name: "Cross-Project-Pipeline", buildId: 999 },
+    ]));
+
+    const result = updateStatusAutoDiscoveryContract("saved-proj-abc", "current-proj", discoverFn);
+
+    // Discovery must target the saved project, not the current one
+    expect(discoverFn).toHaveBeenCalledWith("saved-proj-abc");
+    expect(result.discoveredAgainstProject).toBe("saved-proj-abc");
+    expect(result.lastValidation).toEqual({ valid: true, buildId: 999 });
+  });
+
+  it("falls back to current project when no saved project exists", () => {
+    const discoverFn = jest.fn(staticDiscovery([
+      { id: 7, name: "Local-Pipeline", buildId: 123 },
+    ]));
+
+    const result = updateStatusAutoDiscoveryContract(null, "current-proj", discoverFn);
+
+    expect(discoverFn).toHaveBeenCalledWith("current-proj");
+    expect(result.discoveredAgainstProject).toBe("current-proj");
+  });
+
+  it("discovered buildId flows through to downloadRawData contract", async () => {
+    // Verify the full chain: discovery → lastValidation → download uses correct buildId
+    const matches = [{ id: 42, name: "My-Pipeline", buildId: 777 }];
+    const { lastValidation } = updateStatusAutoDiscoveryContract(null, "proj-123", staticDiscovery(matches));
+
+    // Feed lastValidation into the download contract
+    const deps = {
+      dataService: getMockExtensionDataService(),
+      webContext: { project: { id: "proj-123" } },
+      artifactClient: {
+        initialize: jest.fn(() => Promise.resolve()),
+        getArtifactMetadata: jest.fn(() =>
+          Promise.resolve({
+            name: "csv-output",
+            resource: {
+              downloadUrl:
+                "https://dev.azure.com/org/proj/_apis/build/builds/777/artifacts?artifactName=csv-output",
+            },
+          }),
+        ),
+        authenticatedFetch: jest.fn(() =>
+          Promise.resolve({ ok: true, status: 200, statusText: "OK" }),
+        ),
+      },
+    };
+
+    const result = await downloadRawDataContract(lastValidation, deps);
+
+    expect(result.outcome).toBe("success");
+    expect(deps.artifactClient.getArtifactMetadata).toHaveBeenCalledWith(777, "csv-output");
+  });
+});
+
+// ============================================================================
 // ZIP URL construction
 // ============================================================================
 
