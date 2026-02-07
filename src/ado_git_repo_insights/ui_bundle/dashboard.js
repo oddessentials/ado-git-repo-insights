@@ -4574,14 +4574,6 @@ var PRInsightsDashboard = (() => {
       });
     });
   }
-  async function getBuildClient() {
-    return new Promise((resolve) => {
-      VSS.require(["TFS/Build/RestClient"], (...args) => {
-        const BuildRestClient = args[0];
-        resolve(BuildRestClient.getClient());
-      });
-    });
-  }
   function isLocalMode() {
     return typeof window !== "undefined" && window.LOCAL_DASHBOARD_MODE === true;
   }
@@ -4805,60 +4797,18 @@ var PRInsightsDashboard = (() => {
     }
     return await discoverAndResolve(targetProjectId);
   }
-  async function resolveFromPipelineId(pipelineId, projectId) {
-    const buildClient = await getBuildClient();
-    const builds = await buildClient.getBuilds(
-      projectId,
-      [pipelineId],
-      void 0,
-      void 0,
-      void 0,
-      void 0,
-      void 0,
-      void 0,
-      // reasonFilter
-      2,
-      // statusFilter: Completed
-      6,
-      // resultFilter: Succeeded (2) | PartiallySucceeded (4)
-      void 0,
-      void 0,
-      1
-      // top
-    );
+  async function resolveFromPipelineId(pipelineId, _projectId) {
+    if (!artifactClient) throw new Error("ArtifactClient not initialized");
+    const builds = await artifactClient.getBuilds(pipelineId);
     if (!builds || builds.length === 0) {
-      const definitions = await buildClient.getDefinitions(
-        projectId,
-        void 0,
-        void 0,
-        void 0,
-        2,
-        void 0,
-        void 0,
-        void 0,
-        [pipelineId]
-      );
-      const name = definitions?.[0]?.name || `ID ${pipelineId}`;
-      throw createNoSuccessfulBuildsError(name);
+      throw createNoSuccessfulBuildsError(`ID ${pipelineId}`);
     }
     const latestBuild = builds[0];
     if (!latestBuild) throw new Error("Failed to retrieve latest build");
-    if (!artifactClient) throw new Error("ArtifactClient not initialized");
     const artifacts = await artifactClient.getArtifacts(latestBuild.id);
     const hasAggregates = artifacts.some((a) => a.name === "aggregates");
     if (!hasAggregates) {
-      const definitions = await buildClient.getDefinitions(
-        projectId,
-        void 0,
-        void 0,
-        void 0,
-        2,
-        void 0,
-        void 0,
-        void 0,
-        [pipelineId]
-      );
-      const name = definitions?.[0]?.name || `ID ${pipelineId}`;
+      const name = latestBuild.definition?.name || `ID ${pipelineId}`;
       throw createArtifactsMissingError(name, latestBuild.id);
     }
     return { buildId: latestBuild.id, artifactName: "aggregates" };
@@ -4872,38 +4822,16 @@ var PRInsightsDashboard = (() => {
     if (!firstMatch) throw createSetupRequiredError();
     return { buildId: firstMatch.buildId, artifactName: "aggregates" };
   }
-  async function discoverInsightsPipelines(projectId) {
-    const buildClient = await getBuildClient();
+  async function discoverInsightsPipelines(_projectId) {
+    if (!artifactClient) throw new Error("ArtifactClient not initialized");
     const matches = [];
-    const definitions = await buildClient.getDefinitions(
-      projectId,
-      void 0,
-      void 0,
-      void 0,
-      2,
-      50
-    );
+    const definitions = await artifactClient.getDefinitions();
     for (const def of definitions) {
-      const builds = await buildClient.getBuilds(
-        projectId,
-        [def.id],
-        void 0,
-        void 0,
-        void 0,
-        void 0,
-        void 0,
-        void 0,
-        2,
-        6,
-        void 0,
-        void 0,
-        1
-      );
-      if (!builds || builds.length === 0) continue;
-      const latestBuild = builds[0];
-      if (!latestBuild) continue;
       try {
-        if (!artifactClient) throw new Error("ArtifactClient not initialized");
+        const builds = await artifactClient.getBuilds(def.id);
+        if (!builds || builds.length === 0) continue;
+        const latestBuild = builds[0];
+        if (!latestBuild) continue;
         const artifacts = await artifactClient.getArtifacts(latestBuild.id);
         if (!artifacts.some((a) => a.name === "aggregates")) continue;
         matches.push({

@@ -15,10 +15,7 @@
 import {
   getErrorMessage,
   type VSSProject,
-  type VSSBuild,
-  type VSSBuildDefinition,
   type VSSBuildArtifact,
-  type VSSBuildClient,
   type BuildDefinitionReference,
 } from "./types";
 
@@ -600,6 +597,7 @@ async function downloadRawData(): Promise<void> {
 
 /**
  * Validate if a pipeline exists and has successful builds with aggregates artifact.
+ * Uses ArtifactClient direct REST calls.
  * Returns validation result with details.
  */
 async function validatePipeline(
@@ -611,106 +609,36 @@ async function validatePipeline(
   buildId?: number;
   error?: string;
 }> {
-  return new Promise((resolve) => {
-    VSS.require(["TFS/Build/RestClient"], (...modules: unknown[]) => {
-      const BuildRestClient = modules[0] as { getClient: () => VSSBuildClient };
-      try {
-        const client = BuildRestClient.getClient();
+  const client = new ArtifactClient(projectId);
+  try {
+    await client.initialize();
+  } catch (e: unknown) {
+    return { valid: false, error: `Validation error: ${getErrorMessage(e)}` };
+  }
 
-        // Check if pipeline definition exists
-        client
-          .getDefinitions(
-            projectId,
-            null,
-            null,
-            null,
-            2, // queryOrder: definitionNameAscending
-            null,
-            null,
-            null,
-            [pipelineId],
-          )
-          .then((definitions: VSSBuildDefinition[]) => {
-            if (!definitions || definitions.length === 0) {
-              resolve({
-                valid: false,
-                error: "Pipeline definition not found (may have been deleted)",
-              });
-              return;
-            }
+  try {
+    const builds = await client.getBuilds(pipelineId);
+    if (!builds || builds.length === 0) {
+      return {
+        valid: false,
+        error: "No successful builds found (pipeline may not exist or has no completed runs)",
+      };
+    }
 
-            const firstDef = definitions[0];
-            if (!firstDef) {
-              resolve({ valid: false, error: "Definition unexpectedly empty" });
-              return;
-            }
-            const pipelineName = firstDef.name;
+    const firstBuild = builds[0];
+    if (!firstBuild) {
+      return { valid: false, error: "Build unexpectedly empty" };
+    }
 
-            // Check for successful/partially-succeeded builds
-            // resultFilter: 6 = Succeeded(2) | PartiallySucceeded(4)
-            client
-              .getBuilds(
-                projectId,
-                [pipelineId],
-                null,
-                null,
-                null,
-                null,
-                null,
-                null,
-                2,
-                6,
-                null,
-                null,
-                1,
-              )
-              .then((builds: VSSBuild[]) => {
-                if (!builds || builds.length === 0) {
-                  resolve({
-                    valid: false,
-                    name: pipelineName,
-                    error: "No successful builds found",
-                  });
-                  return;
-                }
-
-                const firstBuild = builds[0];
-                if (!firstBuild) {
-                  resolve({
-                    valid: false,
-                    name: pipelineName,
-                    error: "Build unexpectedly empty",
-                  });
-                  return;
-                }
-
-                resolve({
-                  valid: true,
-                  name: pipelineName,
-                  buildId: firstBuild.id,
-                });
-              })
-              .catch((e: unknown) => {
-                resolve({
-                  valid: false,
-                  error: `Build check failed: ${getErrorMessage(e)}`,
-                });
-              });
-          })
-          .catch((e: unknown) => {
-            resolve({
-              valid: false,
-              error: `Definition fetch failed: ${getErrorMessage(e)}`,
-            });
-          });
-      } catch (e: unknown) {
-        resolve({
-          valid: false,
-          error: `Validation error: ${getErrorMessage(e)}`,
-        });
-      }
-    });
-  });
+    const pipelineName = firstBuild.definition?.name || `ID ${pipelineId}`;
+    return {
+      valid: true,
+      name: pipelineName,
+      buildId: firstBuild.id,
+    };
+  } catch (e: unknown) {
+    return { valid: false, error: `Build check failed: ${getErrorMessage(e)}` };
+  }
 }
 
 /**

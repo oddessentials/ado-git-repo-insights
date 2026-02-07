@@ -98,21 +98,6 @@ export async function initializeAdoSdk(
 }
 
 /**
- * Get Build REST client from SDK.
- * Wraps VSS.require for typed access to the Build API.
- *
- * @returns Promise resolving to Build REST client
- */
-export async function getBuildClient(): Promise<IBuildRestClient> {
-  return new Promise((resolve) => {
-    VSS.require(["TFS/Build/RestClient"], (...args: unknown[]) => {
-      const BuildRestClient = args[0] as { getClient(): IBuildRestClient };
-      resolve(BuildRestClient.getClient());
-    });
-  });
-}
-
-/**
  * Get Extension Data Service from SDK.
  * Provides typed access to extension settings storage.
  *

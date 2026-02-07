@@ -989,93 +989,33 @@ var PRInsightsSettings = (() => {
     }
   }
   async function validatePipeline(pipelineId, projectId) {
-    return new Promise((resolve) => {
-      VSS.require(["TFS/Build/RestClient"], (...modules) => {
-        const BuildRestClient = modules[0];
-        try {
-          const client = BuildRestClient.getClient();
-          client.getDefinitions(
-            projectId,
-            null,
-            null,
-            null,
-            2,
-            // queryOrder: definitionNameAscending
-            null,
-            null,
-            null,
-            [pipelineId]
-          ).then((definitions) => {
-            if (!definitions || definitions.length === 0) {
-              resolve({
-                valid: false,
-                error: "Pipeline definition not found (may have been deleted)"
-              });
-              return;
-            }
-            const firstDef = definitions[0];
-            if (!firstDef) {
-              resolve({ valid: false, error: "Definition unexpectedly empty" });
-              return;
-            }
-            const pipelineName = firstDef.name;
-            client.getBuilds(
-              projectId,
-              [pipelineId],
-              null,
-              null,
-              null,
-              null,
-              null,
-              null,
-              2,
-              6,
-              null,
-              null,
-              1
-            ).then((builds) => {
-              if (!builds || builds.length === 0) {
-                resolve({
-                  valid: false,
-                  name: pipelineName,
-                  error: "No successful builds found"
-                });
-                return;
-              }
-              const firstBuild = builds[0];
-              if (!firstBuild) {
-                resolve({
-                  valid: false,
-                  name: pipelineName,
-                  error: "Build unexpectedly empty"
-                });
-                return;
-              }
-              resolve({
-                valid: true,
-                name: pipelineName,
-                buildId: firstBuild.id
-              });
-            }).catch((e) => {
-              resolve({
-                valid: false,
-                error: `Build check failed: ${getErrorMessage(e)}`
-              });
-            });
-          }).catch((e) => {
-            resolve({
-              valid: false,
-              error: `Definition fetch failed: ${getErrorMessage(e)}`
-            });
-          });
-        } catch (e) {
-          resolve({
-            valid: false,
-            error: `Validation error: ${getErrorMessage(e)}`
-          });
-        }
-      });
-    });
+    const client = new ArtifactClient(projectId);
+    try {
+      await client.initialize();
+    } catch (e) {
+      return { valid: false, error: `Validation error: ${getErrorMessage(e)}` };
+    }
+    try {
+      const builds = await client.getBuilds(pipelineId);
+      if (!builds || builds.length === 0) {
+        return {
+          valid: false,
+          error: "No successful builds found (pipeline may not exist or has no completed runs)"
+        };
+      }
+      const firstBuild = builds[0];
+      if (!firstBuild) {
+        return { valid: false, error: "Build unexpectedly empty" };
+      }
+      const pipelineName = firstBuild.definition?.name || `ID ${pipelineId}`;
+      return {
+        valid: true,
+        name: pipelineName,
+        buildId: firstBuild.id
+      };
+    } catch (e) {
+      return { valid: false, error: `Build check failed: ${getErrorMessage(e)}` };
+    }
   }
   async function discoverPipelines(targetProjectId) {
     const webContext = VSS.getWebContext();
