@@ -49,24 +49,6 @@ export interface VSSProject {
   visibility?: number;
 }
 
-export interface VSSBuildDefinition {
-  id: number;
-  name: string;
-  path?: string;
-  revision?: number;
-  type?: number;
-}
-
-export interface VSSBuild {
-  id: number;
-  buildNumber: string;
-  result: number;
-  status: number;
-  startTime?: string;
-  finishTime?: string;
-  definition?: VSSBuildDefinition;
-}
-
 export interface VSSBuildArtifact {
   id?: number;
   name: string;
@@ -77,38 +59,29 @@ export interface VSSBuildArtifact {
   };
 }
 
+// =============================================================================
+// Build REST API Response Types (direct REST via ArtifactClient)
+// These are the typed shapes for fields consumed from the ADO Build REST API.
+// =============================================================================
+
 /**
- * VSS Build REST Client interface.
- * Provides typed methods for Build SDK interactions.
+ * Pipeline definition reference from GET _apis/build/definitions.
+ * Minimal shape — only the fields consumed by discovery.
  */
-export interface VSSBuildClient {
-  getDefinitions(
-    project: string,
-    name?: string | null,
-    repositoryId?: string | null,
-    repositoryType?: string | null,
-    queryOrder?: number | null,
-    top?: number | null,
-    continuationToken?: string | null,
-    minMetricsTime?: Date | null,
-    definitionIds?: number[] | null,
-  ): Promise<VSSBuildDefinition[]>;
-  getBuilds(
-    project: string,
-    definitions?: number[] | null,
-    queues?: number[] | null,
-    buildNumber?: string | null,
-    minTime?: Date | null,
-    maxTime?: Date | null,
-    requestedFor?: string | null,
-    reasonFilter?: number | null,
-    statusFilter?: number | null,
-    resultFilter?: number | null,
-    tagFilters?: string[] | null,
-    properties?: string[] | null,
-    top?: number | null,
-  ): Promise<VSSBuild[]>;
-  getArtifacts(project: string, buildId: number): Promise<VSSBuildArtifact[]>;
+export interface BuildDefinitionReference {
+  id: number;
+  name: string;
+}
+
+/**
+ * Build reference from GET _apis/build/builds.
+ * Minimal shape — only the fields consumed by discovery.
+ */
+export interface Build {
+  id: number;
+  definition: { id: number; name: string };
+  status: number;
+  result: number;
 }
 
 // =============================================================================

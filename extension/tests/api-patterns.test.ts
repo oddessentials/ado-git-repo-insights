@@ -5,118 +5,87 @@
  * Azure DevOps API errors like "Continuation token timestamp without
  * query order is ambiguous".
  *
- * CRITICAL: Azure DevOps Build API requires queryOrder parameter on ALL
- * getDefinitions calls, not just bulk fetches.
+ * CRITICAL: All Build API access now goes through ArtifactClient, which
+ * encapsulates queryOrder=2 in its getDefinitions() URL construction.
+ * These tests verify that the legacy positional-parameter pattern is
+ * fully eliminated and ArtifactClient is used exclusively.
  */
 
 import * as fs from "fs";
 import * as path from "path";
 
 describe("Build API Call Patterns", () => {
-  describe("getDefinitions queryOrder requirement", () => {
+  describe("ArtifactClient encapsulation", () => {
     /**
-     * Azure DevOps Build API getDefinitions signature:
-     * 1. project (string) - required
-     * 2. name (string) - optional
-     * 3. repositoryId (string) - optional
-     * 4. repositoryType (string) - optional
-     * 5. queryOrder (DefinitionQueryOrder) - REQUIRED to avoid pagination errors
-     * 6. top (number) - optional
-     * 7. continuationToken (string) - optional
-     * 8. minMetricsTime (Date) - optional
-     * 9. definitionIds (number[]) - optional
+     * ArtifactClient.getDefinitions() encapsulates queryOrder=2 in the URL:
+     *   GET {collectionUri}{projectId}/_apis/build/definitions?api-version=7.1&$top={top}&queryOrder={queryOrder}
      *
-     * Valid queryOrder values:
-     * - 1 = definitionNameDescending
-     * - 2 = definitionNameAscending
-     * - 3 = lastModifiedDescending
-     * - 4 = lastModifiedAscending
+     * No call site needs to pass queryOrder manually — it's guaranteed by
+     * the ArtifactClient implementation and tested in artifact-client.test.ts.
      */
 
-    it("should verify ALL getDefinitions calls in dashboard.ts have queryOrder at position 5", () => {
+    it("should verify dashboard.ts uses artifactClient.getDefinitions() (no positional params)", () => {
       const dashboardPath = path.join(__dirname, "../ui/dashboard.ts");
       const dashboardCode = fs.readFileSync(dashboardPath, "utf8");
 
       // Normalize code to handle multi-line calls
       const normalizedCode = dashboardCode.replace(/\s+/g, " ");
 
-      // Find all getDefinitions calls
-      const getDefinitionsCalls = normalizedCode.match(
-        /getDefinitions\([^)]+\)/g,
+      // Should have getDefinitions() calls via artifactClient
+      const artifactClientCalls = normalizedCode.match(
+        /artifactClient\.getDefinitions\(\)/g,
       );
-      expect(getDefinitionsCalls).not.toBeNull();
-      expect(getDefinitionsCalls?.length).toBeGreaterThan(0);
+      expect(artifactClientCalls).not.toBeNull();
+      expect(artifactClientCalls?.length).toBeGreaterThan(0);
 
-      if (getDefinitionsCalls) {
-        for (const call of getDefinitionsCalls) {
-          const argsMatch = call.match(/getDefinitions\(([^)]+)\)/);
-          if (argsMatch) {
-            const args = argsMatch[1]!.split(",").map((a) => a.trim());
-
-            // Position 5 (index 4) should be queryOrder = 2
-            expect(args.length).toBeGreaterThanOrEqual(5);
-            expect(args[4]).toBe("2");
-          }
-        }
-      }
+      // Should NOT have legacy positional-parameter getDefinitions calls
+      // (legacy pattern: getDefinitions(projectId, undefined, undefined, undefined, 2, 50))
+      const legacyPattern = normalizedCode.match(
+        /getDefinitions\(\s*projectId/g,
+      );
+      expect(legacyPattern).toBeNull();
     });
 
-    it("should verify ALL getDefinitions calls in settings.ts have queryOrder at position 5", () => {
+    it("should verify settings.ts uses client.getDefinitions() via ArtifactClient", () => {
       const settingsPath = path.join(__dirname, "../ui/settings.ts");
       const settingsCode = fs.readFileSync(settingsPath, "utf8");
 
-      // Find all getDefinitions calls (handle multi-line)
+      // Normalize code to handle multi-line calls
       const normalizedCode = settingsCode.replace(/\s+/g, " ");
-      const getDefinitionsCalls = normalizedCode.match(
-        /getDefinitions\([^)]+\)/g,
+
+      // Should have getDefinitions() calls via ArtifactClient (no positional project param)
+      const clientCalls = normalizedCode.match(
+        /client\.getDefinitions\(\)/g,
       );
+      expect(clientCalls).not.toBeNull();
+      expect(clientCalls?.length).toBeGreaterThan(0);
 
-      if (getDefinitionsCalls) {
-        for (const call of getDefinitionsCalls) {
-          const argsMatch = call.match(/getDefinitions\(([^)]+)\)/);
-          if (argsMatch) {
-            const args = argsMatch[1]!.split(",").map((a) => a.trim());
-
-            // Position 5 (index 4) should be queryOrder = 2
-            expect(args.length).toBeGreaterThanOrEqual(5);
-            expect(args[4]).toBe("2");
-          }
-        }
-      }
+      // Should NOT have legacy positional-parameter pattern
+      const legacyPattern = normalizedCode.match(
+        /getDefinitions\(\s*projectId/g,
+      );
+      expect(legacyPattern).toBeNull();
     });
 
-    it("should have at least 3 getDefinitions calls in dashboard.ts with correct pattern", () => {
+    it("should verify no legacy getBuildClient calls remain in dashboard.ts or settings.ts", () => {
       const dashboardPath = path.join(__dirname, "../ui/dashboard.ts");
+      const settingsPath = path.join(__dirname, "../ui/settings.ts");
       const dashboardCode = fs.readFileSync(dashboardPath, "utf8");
+      const settingsCode = fs.readFileSync(settingsPath, "utf8");
 
-      const getDefinitionsCalls = dashboardCode.match(/getDefinitions\s*\(/g);
-      expect(getDefinitionsCalls).not.toBeNull();
-
-      // We expect 3 calls: 2 in resolveFromPipelineId, 1 in discoverInsightsPipelines
-      expect(getDefinitionsCalls?.length).toBe(3);
+      expect(dashboardCode).not.toContain("getBuildClient");
+      expect(settingsCode).not.toContain("getBuildClient");
     });
 
-    it("should document the API parameter signature for reference", () => {
-      const parameterSignature = {
-        1: { name: "project", type: "string", required: true },
-        2: { name: "name", type: "string", required: false },
-        3: { name: "repositoryId", type: "string", required: false },
-        4: { name: "repositoryType", type: "string", required: false },
-        5: {
-          name: "queryOrder",
-          type: "DefinitionQueryOrder",
-          required: "ALWAYS (to avoid pagination errors)",
-        },
-        6: { name: "top", type: "number", required: false },
-        7: { name: "continuationToken", type: "string", required: false },
-        8: { name: "minMetricsTime", type: "Date", required: false },
-        9: { name: "definitionIds", type: "number[]", required: false },
+    it("should document the queryOrder guarantee in ArtifactClient", () => {
+      // ArtifactClient.getDefinitions(top=50, queryOrder=2) ensures
+      // queryOrder is always included in the REST URL
+      const artifactClientDefaults = {
+        top: 50,
+        queryOrder: 2, // definitionNameAscending — prevents pagination errors
       };
 
-      expect(parameterSignature[5].name).toBe("queryOrder");
-      expect(parameterSignature[5].required).toBe(
-        "ALWAYS (to avoid pagination errors)",
-      );
+      expect(artifactClientDefaults.queryOrder).toBe(2);
     });
   });
 
@@ -134,7 +103,7 @@ describe("Build API Call Patterns", () => {
     });
 
     it("should use definitionNameAscending (2) as the standard queryOrder value", () => {
-      // This is the value we use in all getDefinitions calls
+      // This is the value ArtifactClient uses in its URL construction
       const standardQueryOrder = 2;
       expect(standardQueryOrder).toBe(
         DefinitionQueryOrder.definitionNameAscending,

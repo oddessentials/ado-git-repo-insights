@@ -712,10 +712,21 @@ describe("Settings Download: button state management", () => {
 // ============================================================================
 
 /**
+ * Structured discovery result matching settings.ts DiscoveryResult type.
+ * Supports partial-failure reporting (FR-007) and error/retry (FR-005).
+ */
+interface DiscoveryResult {
+  pipelines: Array<{ id: number; name: string; buildId: number }>;
+  skippedCount: number;
+  error?: string;
+}
+
+/**
  * Simulates the auto-discovery branch of updateStatus() from settings.ts.
- * When no saved pipeline ID exists, discoverPipelines() is called against
- * the effective project (savedProjectId || currentProjectId) to find a valid
- * pipeline. If found, lastValidation is set to enable the download button.
+ * When no saved pipeline ID exists, discoverPipelines() is called via
+ * ArtifactClient direct REST against the effective project
+ * (savedProjectId || currentProjectId) to find a valid pipeline.
+ * If found, lastValidation is set to enable the download button.
  *
  * The discoverFn receives the resolved project ID so tests can verify
  * discovery runs against the correct project scope.
@@ -723,33 +734,55 @@ describe("Settings Download: button state management", () => {
 function updateStatusAutoDiscoveryContract(
   savedProjectId: string | null,
   currentProjectId: string | null,
-  discoverFn: (projectId: string | null) => Array<{ id: number; name: string; buildId: number }>,
+  discoverFn: (projectId: string | null) => DiscoveryResult,
 ): {
   lastValidation: { valid: boolean; buildId: number } | null;
   statusHint: string;
+  statusWarning?: string;
   discoveredAgainstProject: string | null;
 } {
   const effectiveProjectId = savedProjectId || currentProjectId;
-  const discovered = discoverFn(effectiveProjectId);
-  const match = discovered[0];
+  const result = discoverFn(effectiveProjectId);
+
+  if (result.error) {
+    return {
+      lastValidation: null,
+      statusHint: "Retry",
+      statusWarning: `Discovery failed: ${result.error}`,
+      discoveredAgainstProject: effectiveProjectId,
+    };
+  }
+
+  const match = result.pipelines[0];
+  let statusWarning: string | undefined;
+  if (result.skippedCount > 0) {
+    statusWarning = `Found ${result.pipelines.length} pipeline(s); ${result.skippedCount} could not be checked.`;
+  }
+
   if (match) {
     return {
       lastValidation: { valid: true, buildId: match.buildId },
       statusHint: `Found pipeline "${match.name}" (Build #${match.buildId}). Download available.`,
+      statusWarning,
       discoveredAgainstProject: effectiveProjectId,
     };
   } else {
     return {
       lastValidation: null,
       statusHint: "The dashboard will automatically find pipelines with an \"aggregates\" artifact.",
+      statusWarning,
       discoveredAgainstProject: effectiveProjectId,
     };
   }
 }
 
-/** Helper: creates a discoverFn that returns the given matches regardless of project. */
-function staticDiscovery(matches: Array<{ id: number; name: string; buildId: number }>) {
-  return (_projectId: string | null) => matches;
+/** Helper: creates a discoverFn that returns the given DiscoveryResult regardless of project. */
+function staticDiscovery(
+  pipelines: Array<{ id: number; name: string; buildId: number }>,
+  skippedCount: number = 0,
+  error?: string,
+) {
+  return (_projectId: string | null): DiscoveryResult => ({ pipelines, skippedCount, error });
 }
 
 describe("Settings Download: auto-discovery download enablement", () => {
@@ -867,6 +900,72 @@ describe("Settings Download: auto-discovery download enablement", () => {
 
     expect(result.outcome).toBe("success");
     expect(deps.artifactClient.getArtifactMetadata).toHaveBeenCalledWith(777, "csv-output");
+  });
+
+  // ---------------------------------------------------------------
+  // Partial-failure reporting (FR-007)
+  // ---------------------------------------------------------------
+
+  it("includes skipped count warning when some pipelines could not be checked", () => {
+    const pipelines = [
+      { id: 10, name: "Good-Pipeline", buildId: 100 },
+    ];
+
+    const result = updateStatusAutoDiscoveryContract(
+      null, "current-proj", staticDiscovery(pipelines, 3),
+    );
+
+    // Pipeline still found, download enabled
+    expect(result.lastValidation).toEqual({ valid: true, buildId: 100 });
+    // Warning about skipped pipelines
+    expect(result.statusWarning).toContain("3 could not be checked");
+    expect(result.statusWarning).toContain("1 pipeline(s)");
+  });
+
+  it("reports skipped count even when no pipelines found", () => {
+    const result = updateStatusAutoDiscoveryContract(
+      null, "current-proj", staticDiscovery([], 5),
+    );
+
+    expect(result.lastValidation).toBeNull();
+    expect(result.statusWarning).toContain("5 could not be checked");
+  });
+
+  it("omits warning when skippedCount is zero", () => {
+    const result = updateStatusAutoDiscoveryContract(
+      null, "current-proj", staticDiscovery([{ id: 1, name: "P", buildId: 1 }], 0),
+    );
+
+    expect(result.statusWarning).toBeUndefined();
+  });
+
+  // ---------------------------------------------------------------
+  // Discovery error handling (FR-005, FR-006)
+  // ---------------------------------------------------------------
+
+  it("disables download button when discovery returns an error", () => {
+    const result = updateStatusAutoDiscoveryContract(
+      null, "current-proj", staticDiscovery([], 0, "Failed to initialize: Auth token unavailable"),
+    );
+
+    expect(result.lastValidation).toBeNull();
+    expect(result.statusWarning).toContain("Discovery failed");
+    expect(result.statusWarning).toContain("Auth token unavailable");
+    expect(result.statusHint).toContain("Retry");
+
+    // Simulate button state update
+    const btn = document.getElementById("download-raw-btn") as HTMLButtonElement;
+    btn.disabled = !result.lastValidation?.valid || !result.lastValidation?.buildId;
+    expect(btn.disabled).toBe(true);
+  });
+
+  it("returns error message from failed pipeline listing", () => {
+    const result = updateStatusAutoDiscoveryContract(
+      null, "current-proj", staticDiscovery([], 0, "Failed to list pipelines: 403 Forbidden"),
+    );
+
+    expect(result.lastValidation).toBeNull();
+    expect(result.statusWarning).toContain("403 Forbidden");
   });
 });
 

@@ -281,6 +281,46 @@ var PRInsightsSettings = (() => {
       return data.value || [];
     }
     /**
+     * Get pipeline definitions for the project.
+     *
+     * @param top - Maximum number of definitions to return (default: 50)
+     * @param queryOrder - Sort order (2 = lastModifiedDescending)
+     * @returns Array of pipeline definition references
+     */
+    async getDefinitions(top = 50, queryOrder = 2) {
+      this._ensureInitialized();
+      const url = `${this.collectionUri}${this.projectId}/_apis/build/definitions?api-version=7.1&$top=${top}&queryOrder=${queryOrder}`;
+      const response = await this._authenticatedFetch(url);
+      if (response.status === 401 || response.status === 403) {
+        throw createPermissionDeniedError("list build definitions");
+      }
+      if (!response.ok) {
+        throw new Error(`Failed to list definitions: ${response.status}`);
+      }
+      const data = await response.json();
+      return data.value || [];
+    }
+    /**
+     * Get builds for a specific pipeline definition.
+     *
+     * @param definitionId - Pipeline definition ID to filter by
+     * @param top - Maximum number of builds to return (default: 1)
+     * @returns Array of builds (filtered to completed + succeeded)
+     */
+    async getBuilds(definitionId, top = 1) {
+      this._ensureInitialized();
+      const url = `${this.collectionUri}${this.projectId}/_apis/build/builds?api-version=7.1&definitions=${definitionId}&statusFilter=2&resultFilter=6&$top=${top}`;
+      const response = await this._authenticatedFetch(url);
+      if (response.status === 401 || response.status === 403) {
+        throw createPermissionDeniedError("list builds");
+      }
+      if (!response.ok) {
+        throw new Error(`Failed to list builds: ${response.status}`);
+      }
+      const data = await response.json();
+      return data.value || [];
+    }
+    /**
      * Create a DatasetLoader that uses this client for authenticated requests.
      */
     createDatasetLoader(buildId, artifactName) {
@@ -520,6 +560,12 @@ var PRInsightsSettings = (() => {
     }
     async getArtifacts(buildId) {
       return this.mockData[`${buildId}/artifacts`] ?? [];
+    }
+    async getDefinitions() {
+      return this.mockData["definitions"] ?? [];
+    }
+    async getBuilds(definitionId) {
+      return this.mockData[`builds/${definitionId}`] ?? [];
     }
     createDatasetLoader(buildId, artifactName) {
       return new AuthenticatedDatasetLoader(
@@ -794,14 +840,23 @@ var PRInsightsSettings = (() => {
         }
       } else {
         html += `<p><strong>Mode:</strong> Auto-discovery</p>`;
-        const discovered = await discoverPipelines(savedProjectId || currentProjectId);
-        const match = discovered[0];
-        if (match) {
-          lastValidation = { valid: true, buildId: match.buildId };
-          html += `<p class="status-hint">Found pipeline "${escapeHtml(match.name)}" (Build #${match.buildId}). Download available.</p>`;
-        } else {
+        const result = await discoverPipelines(savedProjectId || currentProjectId);
+        if (result.error) {
           lastValidation = null;
-          html += `<p class="status-hint">The dashboard will automatically find pipelines with an "aggregates" artifact.</p>`;
+          html += `<p class="status-warning">\u26A0\uFE0F Discovery failed: ${escapeHtml(result.error)}</p>`;
+          html += `<p class="status-hint"><a href="#" id="retry-discovery-link">Retry</a></p>`;
+        } else {
+          const match = result.pipelines[0];
+          if (match) {
+            lastValidation = { valid: true, buildId: match.buildId };
+            html += `<p class="status-hint">Found pipeline "${escapeHtml(match.name)}" (Build #${match.buildId}). Download available.</p>`;
+          } else {
+            lastValidation = null;
+            html += `<p class="status-hint">The dashboard will automatically find pipelines with an "aggregates" artifact.</p>`;
+          }
+          if (result.skippedCount > 0) {
+            html += `<p class="status-warning">\u26A0\uFE0F Found ${result.pipelines.length} pipeline(s); ${result.skippedCount} could not be checked.</p>`;
+          }
         }
       }
       const downloadBtn = document.getElementById(
@@ -816,6 +871,13 @@ var PRInsightsSettings = (() => {
         html += `<p class="status-hint">Project dropdown not available - using text input</p>`;
       }
       renderTrustedHtml(statusDisplay, html);
+      const retryLink = document.getElementById("retry-discovery-link");
+      if (retryLink) {
+        retryLink.addEventListener("click", (e) => {
+          e.preventDefault();
+          void updateStatus();
+        });
+      }
     } catch (error) {
       renderTrustedHtml(
         statusDisplay,
@@ -927,156 +989,82 @@ var PRInsightsSettings = (() => {
     }
   }
   async function validatePipeline(pipelineId, projectId) {
-    return new Promise((resolve) => {
-      VSS.require(["TFS/Build/RestClient"], (...modules) => {
-        const BuildRestClient = modules[0];
-        try {
-          const client = BuildRestClient.getClient();
-          client.getDefinitions(
-            projectId,
-            null,
-            null,
-            null,
-            2,
-            // queryOrder: definitionNameAscending
-            null,
-            null,
-            null,
-            [pipelineId]
-          ).then((definitions) => {
-            if (!definitions || definitions.length === 0) {
-              resolve({
-                valid: false,
-                error: "Pipeline definition not found (may have been deleted)"
-              });
-              return;
-            }
-            const firstDef = definitions[0];
-            if (!firstDef) {
-              resolve({ valid: false, error: "Definition unexpectedly empty" });
-              return;
-            }
-            const pipelineName = firstDef.name;
-            client.getBuilds(
-              projectId,
-              [pipelineId],
-              null,
-              null,
-              null,
-              null,
-              null,
-              null,
-              2,
-              6,
-              null,
-              null,
-              1
-            ).then((builds) => {
-              if (!builds || builds.length === 0) {
-                resolve({
-                  valid: false,
-                  name: pipelineName,
-                  error: "No successful builds found"
-                });
-                return;
-              }
-              const firstBuild = builds[0];
-              if (!firstBuild) {
-                resolve({
-                  valid: false,
-                  name: pipelineName,
-                  error: "Build unexpectedly empty"
-                });
-                return;
-              }
-              resolve({
-                valid: true,
-                name: pipelineName,
-                buildId: firstBuild.id
-              });
-            }).catch((e) => {
-              resolve({
-                valid: false,
-                error: `Build check failed: ${getErrorMessage(e)}`
-              });
-            });
-          }).catch((e) => {
-            resolve({
-              valid: false,
-              error: `Definition fetch failed: ${getErrorMessage(e)}`
-            });
-          });
-        } catch (e) {
-          resolve({
-            valid: false,
-            error: `Validation error: ${getErrorMessage(e)}`
-          });
-        }
-      });
-    });
+    const client = new ArtifactClient(projectId);
+    try {
+      await client.initialize();
+    } catch (e) {
+      return { valid: false, error: `Validation error: ${getErrorMessage(e)}` };
+    }
+    try {
+      const builds = await client.getBuilds(pipelineId);
+      if (!builds || builds.length === 0) {
+        return {
+          valid: false,
+          error: "No successful builds found (pipeline may not exist or has no completed runs)"
+        };
+      }
+      const firstBuild = builds[0];
+      if (!firstBuild) {
+        return { valid: false, error: "Build unexpectedly empty" };
+      }
+      const pipelineName = firstBuild.definition?.name || `ID ${pipelineId}`;
+      return {
+        valid: true,
+        name: pipelineName,
+        buildId: firstBuild.id
+      };
+    } catch (e) {
+      return { valid: false, error: `Build check failed: ${getErrorMessage(e)}` };
+    }
   }
   async function discoverPipelines(targetProjectId) {
-    return new Promise((resolve) => {
-      VSS.require(["TFS/Build/RestClient"], (...modules) => {
-        const BuildRestClient = modules[0];
-        try {
-          const client = BuildRestClient.getClient();
-          const webContext = VSS.getWebContext();
-          const projectId = targetProjectId || webContext.project?.id;
-          if (!projectId) {
-            resolve([]);
-            return;
-          }
-          const matches = [];
-          client.getDefinitions(projectId, void 0, void 0, void 0, 2, 50).then(async (definitions) => {
-            for (const def of definitions) {
-              try {
-                const builds = await client.getBuilds(
-                  projectId,
-                  [def.id],
-                  void 0,
-                  void 0,
-                  void 0,
-                  void 0,
-                  void 0,
-                  void 0,
-                  2,
-                  6,
-                  void 0,
-                  void 0,
-                  1
-                );
-                if (!builds || builds.length === 0) continue;
-                const latestBuild = builds[0];
-                if (!latestBuild) continue;
-                const artifacts = await client.getArtifacts(
-                  projectId,
-                  latestBuild.id
-                );
-                if (!artifacts.some(
-                  (a) => a.name === "aggregates"
-                ))
-                  continue;
-                matches.push({
-                  id: def.id,
-                  name: def.name,
-                  buildId: latestBuild.id
-                });
-              } catch (e) {
-                console.debug("Skipping pipeline %s:", def.name, e);
-              }
-            }
-            resolve(matches);
-          }).catch((e) => {
-            console.error("Discovery: definitions fetch failed:", e);
-            resolve([]);
-          });
-        } catch (e) {
-          console.error("Discovery error:", e);
-          resolve([]);
-        }
-      });
-    });
+    const webContext = VSS.getWebContext();
+    const projectId = targetProjectId || webContext.project?.id;
+    if (!projectId) {
+      return { pipelines: [], skippedCount: 0, error: "No project ID available" };
+    }
+    const client = new ArtifactClient(projectId);
+    try {
+      await client.initialize();
+    } catch (e) {
+      return {
+        pipelines: [],
+        skippedCount: 0,
+        error: `Failed to initialize: ${getErrorMessage(e)}`
+      };
+    }
+    let skippedCount = 0;
+    const pipelines = [];
+    let definitions;
+    try {
+      definitions = await client.getDefinitions();
+    } catch (e) {
+      return {
+        pipelines: [],
+        skippedCount: 0,
+        error: `Failed to list pipelines: ${getErrorMessage(e)}`
+      };
+    }
+    for (const def of definitions) {
+      try {
+        const builds = await client.getBuilds(def.id);
+        if (!builds || builds.length === 0) continue;
+        const latestBuild = builds[0];
+        if (!latestBuild) continue;
+        const artifacts = await client.getArtifacts(latestBuild.id);
+        if (!artifacts.some((a) => a.name === "aggregates"))
+          continue;
+        pipelines.push({
+          id: def.id,
+          name: def.name,
+          buildId: latestBuild.id
+        });
+      } catch (e) {
+        skippedCount++;
+        console.debug("Skipping pipeline %s:", def.name, e);
+      }
+    }
+    return { pipelines, skippedCount };
   }
   async function runDiscovery() {
     const statusDisplay = document.getElementById("status-display");
@@ -1087,8 +1075,22 @@ var PRInsightsSettings = (() => {
       "<p>\u{1F50D} Discovering pipelines with aggregates artifact...</p>"
     );
     try {
-      const matches = await discoverPipelines();
-      if (matches.length === 0) {
+      const result = await discoverPipelines();
+      if (result.error) {
+        let errorHtml = `<p class="status-warning">\u26A0\uFE0F Discovery failed: ${escapeHtml(result.error)}</p>`;
+        errorHtml += `<p class="status-hint"><a href="#" id="retry-run-discovery-link">Retry</a></p>`;
+        renderTrustedHtml(statusDisplay, errorHtml);
+        const retryLink = document.getElementById("retry-run-discovery-link");
+        if (retryLink) {
+          retryLink.addEventListener("click", (e) => {
+            e.preventDefault();
+            void runDiscovery();
+          });
+        }
+        showStatus("Discovery failed: " + result.error, "error");
+        return;
+      }
+      if (result.pipelines.length === 0) {
         renderTrustedHtml(
           statusDisplay,
           `
@@ -1099,8 +1101,12 @@ var PRInsightsSettings = (() => {
         showStatus("No pipelines found with aggregates artifact", "warning");
         return;
       }
-      let html = `<p><strong>Found ${matches.length} pipeline(s):</strong></p><ul class="discovered-pipelines">`;
-      for (const match of matches) {
+      let html = `<p><strong>Found ${result.pipelines.length} pipeline(s):</strong></p>`;
+      if (result.skippedCount > 0) {
+        html += `<p class="status-warning">\u26A0\uFE0F ${result.skippedCount} pipeline(s) could not be checked.</p>`;
+      }
+      html += `<ul class="discovered-pipelines">`;
+      for (const match of result.pipelines) {
         html += `<li>
                 <strong>${escapeHtml(match.name)}</strong> (ID: ${match.id})
                 <button class="btn btn-small" id="select-pipeline-${match.id}">Use This</button>
@@ -1109,7 +1115,7 @@ var PRInsightsSettings = (() => {
       html += "</ul>";
       html += '<p class="status-hint">Click "Use This" to configure, or clear settings for auto-discovery.</p>';
       renderTrustedHtml(statusDisplay, html);
-      for (const match of matches) {
+      for (const match of result.pipelines) {
         document.getElementById(`select-pipeline-${match.id}`)?.addEventListener("click", () => {
           const pipelineInput = document.getElementById(
             "pipeline-id"
@@ -1121,7 +1127,7 @@ var PRInsightsSettings = (() => {
           );
         });
       }
-      showStatus(`Found ${matches.length} pipeline(s)`, "success");
+      showStatus(`Found ${result.pipelines.length} pipeline(s)`, "success");
     } catch (error) {
       renderTrustedHtml(statusDisplay, originalContent);
       showStatus("Discovery failed: " + getErrorMessage(error), "error");

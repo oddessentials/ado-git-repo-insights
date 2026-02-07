@@ -19,6 +19,8 @@ import {
   type PredictionsData,
   type InsightsData,
   type VSSBuildArtifact,
+  type BuildDefinitionReference,
+  type Build,
 } from "./types";
 
 /**
@@ -230,6 +232,67 @@ export class ArtifactClient {
 
     if (!response.ok) {
       throw new Error(`Failed to list artifacts: ${response.status}`);
+    }
+
+    const data = await response.json();
+    return data.value || [];
+  }
+
+  /**
+   * Get pipeline definitions for the project.
+   *
+   * @param top - Maximum number of definitions to return (default: 50)
+   * @param queryOrder - Sort order (2 = lastModifiedDescending)
+   * @returns Array of pipeline definition references
+   */
+  async getDefinitions(
+    top: number = 50,
+    queryOrder: number = 2,
+  ): Promise<BuildDefinitionReference[]> {
+    this._ensureInitialized();
+
+    const url =
+      `${this.collectionUri}${this.projectId}/_apis/build/definitions` +
+      `?api-version=7.1&$top=${top}&queryOrder=${queryOrder}`;
+    const response = await this._authenticatedFetch(url);
+
+    if (response.status === 401 || response.status === 403) {
+      throw createPermissionDeniedError("list build definitions");
+    }
+
+    if (!response.ok) {
+      throw new Error(`Failed to list definitions: ${response.status}`);
+    }
+
+    const data = await response.json();
+    return data.value || [];
+  }
+
+  /**
+   * Get builds for a specific pipeline definition.
+   *
+   * @param definitionId - Pipeline definition ID to filter by
+   * @param top - Maximum number of builds to return (default: 1)
+   * @returns Array of builds (filtered to completed + succeeded)
+   */
+  async getBuilds(
+    definitionId: number,
+    top: number = 1,
+  ): Promise<Build[]> {
+    this._ensureInitialized();
+
+    const url =
+      `${this.collectionUri}${this.projectId}/_apis/build/builds` +
+      `?api-version=7.1&definitions=${definitionId}` +
+      `&statusFilter=2&resultFilter=6&$top=${top}`;
+    const response = await this._authenticatedFetch(url);
+
+    if (response.status === 401 || response.status === 403) {
+      throw createPermissionDeniedError("list builds");
+    }
+
+    if (!response.ok) {
+      throw new Error(`Failed to list builds: ${response.status}`);
     }
 
     const data = await response.json();
@@ -572,6 +635,14 @@ export class MockArtifactClient {
 
   async getArtifacts(buildId: number): Promise<VSSBuildArtifact[]> {
     return (this.mockData[`${buildId}/artifacts`] ?? []) as VSSBuildArtifact[];
+  }
+
+  async getDefinitions(): Promise<BuildDefinitionReference[]> {
+    return (this.mockData["definitions"] ?? []) as BuildDefinitionReference[];
+  }
+
+  async getBuilds(definitionId: number): Promise<Build[]> {
+    return (this.mockData[`builds/${definitionId}`] ?? []) as Build[];
   }
 
   createDatasetLoader(

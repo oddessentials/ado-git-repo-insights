@@ -57,7 +57,6 @@ import {
   type ArtifactLoadResult,
   // SDK module functions
   initializeAdoSdk,
-  getBuildClient,
   isLocalMode,
   getLocalDatasetPath,
   // Error handling functions (dispatch handled internally)
@@ -184,7 +183,7 @@ if (DEBUG_ENABLED && typeof window !== "undefined") {
 
 // ============================================================================
 // SDK Initialization - IMPORTED FROM ./modules/sdk
-// initializeAdoSdk, getBuildClient, isLocalMode, getLocalDatasetPath
+// initializeAdoSdk, isLocalMode, getLocalDatasetPath
 // are now imported from "./modules"
 // ============================================================================
 
@@ -406,68 +405,30 @@ async function resolveConfiguration(): Promise<{
 
 /**
  * Resolve artifact info from a specific pipeline ID.
+ * Uses ArtifactClient direct REST calls.
  */
 async function resolveFromPipelineId(
   pipelineId: number,
-  projectId: string,
+  _projectId: string,
 ): Promise<{ buildId: number; artifactName: string }> {
-  // Get Build REST client
-  const buildClient = await getBuildClient();
+  if (!artifactClient) throw new Error("ArtifactClient not initialized");
 
-  // Get latest successful build
-  const builds = await buildClient.getBuilds(
-    projectId,
-    [pipelineId],
-    undefined,
-    undefined,
-    undefined,
-    undefined,
-    undefined,
-    undefined, // reasonFilter
-    2, // statusFilter: Completed
-    6, // resultFilter: Succeeded (2) | PartiallySucceeded (4)
-    undefined,
-    undefined,
-    1, // top
-  );
+  // Get latest successful build for this pipeline
+  const builds = await artifactClient.getBuilds(pipelineId);
 
   if (!builds || builds.length === 0) {
-    const definitions = await buildClient.getDefinitions(
-      projectId,
-      undefined,
-      undefined,
-      undefined,
-      2,
-      undefined,
-      undefined,
-      undefined,
-      [pipelineId],
-    );
-    const name = definitions?.[0]?.name || `ID ${pipelineId}`;
-    throw createNoSuccessfulBuildsError(name);
+    throw createNoSuccessfulBuildsError(`ID ${pipelineId}`);
   }
 
   const latestBuild = builds[0];
   if (!latestBuild) throw new Error("Failed to retrieve latest build");
 
   // Check for aggregates artifact
-  if (!artifactClient) throw new Error("ArtifactClient not initialized");
   const artifacts = await artifactClient.getArtifacts(latestBuild.id);
   const hasAggregates = artifacts.some((a) => a.name === "aggregates");
 
   if (!hasAggregates) {
-    const definitions = await buildClient.getDefinitions(
-      projectId,
-      undefined,
-      undefined,
-      undefined,
-      2,
-      undefined,
-      undefined,
-      undefined,
-      [pipelineId],
-    );
-    const name = definitions?.[0]?.name || `ID ${pipelineId}`;
+    const name = latestBuild.definition?.name || `ID ${pipelineId}`;
     throw createArtifactsMissingError(name, latestBuild.id);
   }
 
@@ -494,46 +455,24 @@ async function discoverAndResolve(
 
 /**
  * Discover pipelines with aggregates artifact.
+ * Uses ArtifactClient direct REST calls.
  */
 async function discoverInsightsPipelines(
-  projectId: string,
+  _projectId: string,
 ): Promise<Array<{ id: number; name: string; buildId: number }>> {
-  const buildClient = await getBuildClient();
+  if (!artifactClient) throw new Error("ArtifactClient not initialized");
   const matches: Array<{ id: number; name: string; buildId: number }> = [];
 
-  const definitions = await buildClient.getDefinitions(
-    projectId,
-    undefined,
-    undefined,
-    undefined,
-    2,
-    50,
-  );
+  const definitions = await artifactClient.getDefinitions();
 
   for (const def of definitions) {
-    const builds = await buildClient.getBuilds(
-      projectId,
-      [def.id],
-      undefined,
-      undefined,
-      undefined,
-      undefined,
-      undefined,
-      undefined,
-      2,
-      6,
-      undefined,
-      undefined,
-      1,
-    );
-
-    if (!builds || builds.length === 0) continue;
-
-    const latestBuild = builds[0];
-    if (!latestBuild) continue;
-
     try {
-      if (!artifactClient) throw new Error("ArtifactClient not initialized");
+      const builds = await artifactClient.getBuilds(def.id);
+      if (!builds || builds.length === 0) continue;
+
+      const latestBuild = builds[0];
+      if (!latestBuild) continue;
+
       const artifacts = await artifactClient.getArtifacts(latestBuild.id);
       if (!artifacts.some((a) => a.name === "aggregates")) continue;
 
@@ -550,7 +489,7 @@ async function discoverInsightsPipelines(
   return matches;
 }
 
-// getBuildClient is now imported from "./modules/sdk"
+// All Build API access now goes through ArtifactClient direct REST
 
 /**
  * Initialize the dashboard.

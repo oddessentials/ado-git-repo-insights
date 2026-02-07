@@ -2447,6 +2447,46 @@ var PRInsightsDashboard = (() => {
       return data.value || [];
     }
     /**
+     * Get pipeline definitions for the project.
+     *
+     * @param top - Maximum number of definitions to return (default: 50)
+     * @param queryOrder - Sort order (2 = lastModifiedDescending)
+     * @returns Array of pipeline definition references
+     */
+    async getDefinitions(top = 50, queryOrder = 2) {
+      this._ensureInitialized();
+      const url = `${this.collectionUri}${this.projectId}/_apis/build/definitions?api-version=7.1&$top=${top}&queryOrder=${queryOrder}`;
+      const response = await this._authenticatedFetch(url);
+      if (response.status === 401 || response.status === 403) {
+        throw createPermissionDeniedError("list build definitions");
+      }
+      if (!response.ok) {
+        throw new Error(`Failed to list definitions: ${response.status}`);
+      }
+      const data = await response.json();
+      return data.value || [];
+    }
+    /**
+     * Get builds for a specific pipeline definition.
+     *
+     * @param definitionId - Pipeline definition ID to filter by
+     * @param top - Maximum number of builds to return (default: 1)
+     * @returns Array of builds (filtered to completed + succeeded)
+     */
+    async getBuilds(definitionId, top = 1) {
+      this._ensureInitialized();
+      const url = `${this.collectionUri}${this.projectId}/_apis/build/builds?api-version=7.1&definitions=${definitionId}&statusFilter=2&resultFilter=6&$top=${top}`;
+      const response = await this._authenticatedFetch(url);
+      if (response.status === 401 || response.status === 403) {
+        throw createPermissionDeniedError("list builds");
+      }
+      if (!response.ok) {
+        throw new Error(`Failed to list builds: ${response.status}`);
+      }
+      const data = await response.json();
+      return data.value || [];
+    }
+    /**
      * Create a DatasetLoader that uses this client for authenticated requests.
      */
     createDatasetLoader(buildId, artifactName) {
@@ -2686,6 +2726,12 @@ var PRInsightsDashboard = (() => {
     }
     async getArtifacts(buildId) {
       return this.mockData[`${buildId}/artifacts`] ?? [];
+    }
+    async getDefinitions() {
+      return this.mockData["definitions"] ?? [];
+    }
+    async getBuilds(definitionId) {
+      return this.mockData[`builds/${definitionId}`] ?? [];
     }
     createDatasetLoader(buildId, artifactName) {
       return new AuthenticatedDatasetLoader(
@@ -4528,14 +4574,6 @@ var PRInsightsDashboard = (() => {
       });
     });
   }
-  async function getBuildClient() {
-    return new Promise((resolve) => {
-      VSS.require(["TFS/Build/RestClient"], (...args) => {
-        const BuildRestClient = args[0];
-        resolve(BuildRestClient.getClient());
-      });
-    });
-  }
   function isLocalMode() {
     return typeof window !== "undefined" && window.LOCAL_DASHBOARD_MODE === true;
   }
@@ -4759,60 +4797,18 @@ var PRInsightsDashboard = (() => {
     }
     return await discoverAndResolve(targetProjectId);
   }
-  async function resolveFromPipelineId(pipelineId, projectId) {
-    const buildClient = await getBuildClient();
-    const builds = await buildClient.getBuilds(
-      projectId,
-      [pipelineId],
-      void 0,
-      void 0,
-      void 0,
-      void 0,
-      void 0,
-      void 0,
-      // reasonFilter
-      2,
-      // statusFilter: Completed
-      6,
-      // resultFilter: Succeeded (2) | PartiallySucceeded (4)
-      void 0,
-      void 0,
-      1
-      // top
-    );
+  async function resolveFromPipelineId(pipelineId, _projectId) {
+    if (!artifactClient) throw new Error("ArtifactClient not initialized");
+    const builds = await artifactClient.getBuilds(pipelineId);
     if (!builds || builds.length === 0) {
-      const definitions = await buildClient.getDefinitions(
-        projectId,
-        void 0,
-        void 0,
-        void 0,
-        2,
-        void 0,
-        void 0,
-        void 0,
-        [pipelineId]
-      );
-      const name = definitions?.[0]?.name || `ID ${pipelineId}`;
-      throw createNoSuccessfulBuildsError(name);
+      throw createNoSuccessfulBuildsError(`ID ${pipelineId}`);
     }
     const latestBuild = builds[0];
     if (!latestBuild) throw new Error("Failed to retrieve latest build");
-    if (!artifactClient) throw new Error("ArtifactClient not initialized");
     const artifacts = await artifactClient.getArtifacts(latestBuild.id);
     const hasAggregates = artifacts.some((a) => a.name === "aggregates");
     if (!hasAggregates) {
-      const definitions = await buildClient.getDefinitions(
-        projectId,
-        void 0,
-        void 0,
-        void 0,
-        2,
-        void 0,
-        void 0,
-        void 0,
-        [pipelineId]
-      );
-      const name = definitions?.[0]?.name || `ID ${pipelineId}`;
+      const name = latestBuild.definition?.name || `ID ${pipelineId}`;
       throw createArtifactsMissingError(name, latestBuild.id);
     }
     return { buildId: latestBuild.id, artifactName: "aggregates" };
@@ -4826,38 +4822,16 @@ var PRInsightsDashboard = (() => {
     if (!firstMatch) throw createSetupRequiredError();
     return { buildId: firstMatch.buildId, artifactName: "aggregates" };
   }
-  async function discoverInsightsPipelines(projectId) {
-    const buildClient = await getBuildClient();
+  async function discoverInsightsPipelines(_projectId) {
+    if (!artifactClient) throw new Error("ArtifactClient not initialized");
     const matches = [];
-    const definitions = await buildClient.getDefinitions(
-      projectId,
-      void 0,
-      void 0,
-      void 0,
-      2,
-      50
-    );
+    const definitions = await artifactClient.getDefinitions();
     for (const def of definitions) {
-      const builds = await buildClient.getBuilds(
-        projectId,
-        [def.id],
-        void 0,
-        void 0,
-        void 0,
-        void 0,
-        void 0,
-        void 0,
-        2,
-        6,
-        void 0,
-        void 0,
-        1
-      );
-      if (!builds || builds.length === 0) continue;
-      const latestBuild = builds[0];
-      if (!latestBuild) continue;
       try {
-        if (!artifactClient) throw new Error("ArtifactClient not initialized");
+        const builds = await artifactClient.getBuilds(def.id);
+        if (!builds || builds.length === 0) continue;
+        const latestBuild = builds[0];
+        if (!latestBuild) continue;
         const artifacts = await artifactClient.getArtifacts(latestBuild.id);
         if (!artifacts.some((a) => a.name === "aggregates")) continue;
         matches.push({

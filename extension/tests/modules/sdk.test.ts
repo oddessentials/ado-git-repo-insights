@@ -5,7 +5,7 @@
  * - Local mode detection (isLocalMode, getLocalDatasetPath)
  * - SDK state management (isSdkInitialized, resetSdkState)
  * - SDK initialization timeout, callback behavior, and idempotency
- * - Build client retrieval (getBuildClient)
+ * - Build client retrieval (removed — now via ArtifactClient)
  * - Extension data service access (getExtensionDataService)
  * - Web context access (getWebContext)
  */
@@ -17,7 +17,6 @@ import {
   resetSdkState,
   initializeAdoSdk,
   getWebContext,
-  getBuildClient,
   getExtensionDataService,
 } from "../../ui/modules/sdk";
 
@@ -234,37 +233,6 @@ describe("SDK Module", () => {
       const context = getWebContext();
       expect(context).toEqual(mockWebContext);
       expect(mockVSS.getWebContext).toHaveBeenCalled();
-    });
-  });
-
-  describe("getBuildClient", () => {
-    it("resolves with Build REST client via VSS.require", async () => {
-      const mockBuildClient = {
-        getBuilds: jest.fn(),
-        getDefinitions: jest.fn(),
-      };
-      const mockBuildRestClient = {
-        getClient: jest.fn(() => mockBuildClient),
-      };
-
-      // Setup VSS.require mock
-      const mockVSS = {
-        require: jest.fn(
-          (modules: string[], callback: (...args: unknown[]) => void) => {
-            expect(modules).toEqual(["TFS/Build/RestClient"]);
-            callback(mockBuildRestClient);
-          },
-        ),
-      };
-      (global as unknown as { VSS: typeof mockVSS }).VSS = mockVSS;
-
-      const client = await getBuildClient();
-
-      expect(client).toBe(mockBuildClient);
-      expect(mockBuildRestClient.getClient).toHaveBeenCalled();
-
-      // Cleanup
-      delete (global as unknown as { VSS?: typeof mockVSS }).VSS;
     });
   });
 
