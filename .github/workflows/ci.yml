@@ -927,7 +927,7 @@ jobs:
 
       # Cache generated scalability test data (deterministic via --seed 42)
       - name: Cache scalability test data
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: /tmp/scalability-test-data
           key: scalability-data-pr10000-w156-u200-comments-seed42-${{ hashFiles('scripts/generate-synthetic-dataset.py', 'src/ado_git_repo_insights/transform/aggregators.py', 'schemas/dataset-manifest.schema.json') }}
