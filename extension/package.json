@@ -39,7 +39,7 @@
     "hooks:prepush": "cd .. && bash .husky/pre-push"
   },
   "devDependencies": {
-    "@playwright/test": "1.50.0",
+    "@playwright/test": "1.58.2",
     "@jest/globals": "^30.0.0",
     "@types/glob": "^8.1.0",
     "@types/jest": "^30.0.0",
