@@ -273,23 +273,36 @@ describe("VSIX Packaging Contract (Tier A)", () => {
       expect(height).toBe(128);
     });
 
-    it("screenshot files are not placeholders (branch-aware)", () => {
+    it("screenshot files are production-quality assets (branch-aware)", () => {
       const githubRef = process.env.GITHUB_REF || "";
       const isProtectedBranch = /refs\/heads\/(main|release)/.test(githubRef);
+      const MIN_SCREENSHOT_WIDTH = 800;
+      const MIN_SCREENSHOT_HEIGHT = 400;
 
       for (const screenshot of manifest.screenshots) {
         const filePath = path.join(extensionDir, screenshot.path);
-        const stat = fs.statSync(filePath);
-        const isPlaceholder = stat.size <= 50 * 1024;
+        const buffer = Buffer.from(fs.readFileSync(filePath));
+
+        // Must be a valid PNG (magic bytes: 89 50 4E 47)
+        const isPng =
+          buffer[0] === 0x89 &&
+          buffer[1] === 0x50 &&
+          buffer[2] === 0x4e &&
+          buffer[3] === 0x47;
+
+        // Read dimensions from PNG IHDR chunk (bytes 16-23, big-endian uint32)
+        const width = buffer.length >= 24 ? buffer.readUInt32BE(16) : 0;
+        const height = buffer.length >= 24 ? buffer.readUInt32BE(20) : 0;
 
         if (isProtectedBranch) {
-          // Hard fail on main/release branches
-          expect(stat.size).toBeGreaterThan(50 * 1024);
-        } else if (isPlaceholder) {
-          // Warn on feature branches
+          expect(isPng).toBe(true);
+          expect(width).toBeGreaterThanOrEqual(MIN_SCREENSHOT_WIDTH);
+          expect(height).toBeGreaterThanOrEqual(MIN_SCREENSHOT_HEIGHT);
+        } else if (!isPng || width < MIN_SCREENSHOT_WIDTH || height < MIN_SCREENSHOT_HEIGHT) {
           console.warn(
-            `WARNING: ${screenshot.path} appears to be a placeholder (${stat.size} bytes). ` +
-            `Must be replaced with a real screenshot (>50KB) before merging to main.`
+            `WARNING: ${screenshot.path} may be a placeholder ` +
+              `(${width}x${height}, png=${isPng}). ` +
+              `Must be a real screenshot (>=${MIN_SCREENSHOT_WIDTH}x${MIN_SCREENSHOT_HEIGHT} PNG) before merging to main.`,
           );
         }
       }

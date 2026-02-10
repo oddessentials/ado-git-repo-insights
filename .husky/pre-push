@@ -112,6 +112,51 @@ fi
 echo "[pre-push] ✅ CRLF guard passed"
 
 # =============================================================================
+# Marketplace Asset Validation (icon + screenshots must be valid PNGs)
+# =============================================================================
+echo ""
+echo "[pre-push] Running marketplace asset validation..."
+ASSET_ERRORS=false
+
+# Validate icon: must be PNG with 128x128 dimensions
+ICON_PATH="extension/images/icon.png"
+if [ -f "$ICON_PATH" ]; then
+    MAGIC=$(xxd -p -l 4 "$ICON_PATH")
+    if [ "$MAGIC" != "89504e47" ]; then
+        echo "[pre-push] ❌ $ICON_PATH is not a valid PNG (magic bytes: $MAGIC)"
+        ASSET_ERRORS=true
+    fi
+else
+    echo "[pre-push] ❌ $ICON_PATH not found"
+    ASSET_ERRORS=true
+fi
+
+# Validate screenshots: must exist and be valid PNGs
+for SCREENSHOT in $(node -e "
+  const m = JSON.parse(require('fs').readFileSync('extension/vss-extension.json','utf8'));
+  (m.screenshots||[]).forEach(s => console.log('extension/' + s.path));
+"); do
+    if [ ! -f "$SCREENSHOT" ]; then
+        echo "[pre-push] ❌ Screenshot missing: $SCREENSHOT"
+        ASSET_ERRORS=true
+    else
+        MAGIC=$(xxd -p -l 4 "$SCREENSHOT")
+        if [ "$MAGIC" != "89504e47" ]; then
+            echo "[pre-push] ❌ $SCREENSHOT is not a valid PNG (magic bytes: $MAGIC)"
+            ASSET_ERRORS=true
+        fi
+    fi
+done
+
+if [ "$ASSET_ERRORS" = true ]; then
+    echo ""
+    echo "[pre-push] ❌ Push blocked: Marketplace assets invalid"
+    echo "[pre-push] All screenshots must be valid PNG files"
+    exit 1
+fi
+echo "[pre-push] ✅ Marketplace asset validation passed"
+
+# =============================================================================
 # Python Type Check (mypy) - Immutable Invariant per FR-016
 # =============================================================================
 echo ""
