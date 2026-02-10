@@ -1,4 +1,4 @@
-NOTES ABOUT BELOW:
+CRITICAL NOTES ABOUT BELOW PLAN THAT MUST BE CONSIDERED BEFORE PROCEEDING:
 
 1. Placeholder screenshots are a trust-killer. We are accepting this risk by not committing these changes. They will be manually replaced when the work is done, but will serve to help with dimensions, descriptions, and captions (which must all be prod accurate).
 
