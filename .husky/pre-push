@@ -121,7 +121,7 @@ ASSET_ERRORS=false
 # Validate icon: must be PNG with 128x128 dimensions
 ICON_PATH="extension/images/icon.png"
 if [ -f "$ICON_PATH" ]; then
-    MAGIC=$(xxd -p -l 4 "$ICON_PATH")
+    MAGIC=$(node -p "require('fs').readFileSync('$ICON_PATH').subarray(0,4).toString('hex')")
     if [ "$MAGIC" != "89504e47" ]; then
         echo "[pre-push] ❌ $ICON_PATH is not a valid PNG (magic bytes: $MAGIC)"
         ASSET_ERRORS=true
@@ -140,7 +140,7 @@ for SCREENSHOT in $(node -e "
         echo "[pre-push] ❌ Screenshot missing: $SCREENSHOT"
         ASSET_ERRORS=true
     else
-        MAGIC=$(xxd -p -l 4 "$SCREENSHOT")
+        MAGIC=$(node -p "require('fs').readFileSync('$SCREENSHOT').subarray(0,4).toString('hex')")
         if [ "$MAGIC" != "89504e47" ]; then
             echo "[pre-push] ❌ $SCREENSHOT is not a valid PNG (magic bytes: $MAGIC)"
             ASSET_ERRORS=true
