@@ -9,10 +9,33 @@
             "id": "Microsoft.VisualStudio.Services"
         }
     ],
-    "description": "Extract Azure DevOps Pull Request metrics and generate PowerBI-compatible CSVs.",
+    "description": "Pull request analytics for Azure DevOps — built-in dashboard with cycle time, throughput, and reviewer metrics. Optional ML predictions and AI insights via pipeline add-on.",
     "categories": [
-        "Azure Pipelines"
+        "Azure Pipelines",
+        "Azure Repos"
     ],
+    "galleryFlags": [
+        "Public",
+        "Preview"
+    ],
+    "tags": [
+        "Pull Requests",
+        "PR Metrics",
+        "Cycle Time",
+        "Code Review",
+        "Engineering Metrics",
+        "DORA Metrics",
+        "Dashboard",
+        "Analytics",
+        "PowerBI",
+        "Throughput",
+        "AI Insights",
+        "Forecasting"
+    ],
+    "galleryBanner": {
+        "color": "#0078d4",
+        "theme": "dark"
+    },
     "scopes": [
         "vso.build",
         "vso.project",
@@ -98,6 +121,56 @@
             }
         }
     ],
+    "screenshots": [
+        {
+            "path": "screenshots/dashboard-overview.png"
+        },
+        {
+            "path": "screenshots/filtering-comparison.png"
+        },
+        {
+            "path": "screenshots/pipeline-task.png"
+        },
+        {
+            "path": "screenshots/settings-page.png"
+        }
+    ],
+    "links": {
+        "home": {
+            "uri": "https://oddessentials.github.io/ado-git-repo-insights/"
+        },
+        "repository": {
+            "uri": "https://github.com/oddessentials/ado-git-repo-insights"
+        },
+        "issues": {
+            "uri": "https://github.com/oddessentials/ado-git-repo-insights/issues"
+        },
+        "support": {
+            "uri": "https://github.com/oddessentials/ado-git-repo-insights/issues"
+        },
+        "license": {
+            "uri": "https://github.com/oddessentials/ado-git-repo-insights/blob/main/LICENSE"
+        },
+        "getstarted": {
+            "uri": "https://github.com/oddessentials/ado-git-repo-insights/blob/main/docs/user-guide/extension.md"
+        }
+    },
+    "badges": [
+        {
+            "href": "https://github.com/oddessentials/ado-git-repo-insights/releases",
+            "uri": "https://img.shields.io/github/v/release/oddessentials/ado-git-repo-insights?label=version",
+            "description": "Latest release version"
+        },
+        {
+            "href": "https://github.com/oddessentials/ado-git-repo-insights/blob/main/LICENSE",
+            "uri": "https://img.shields.io/github/license/oddessentials/ado-git-repo-insights",
+            "description": "MIT License"
+        }
+    ],
+    "CustomerQnASupport": {
+        "enableqna": true,
+        "url": "https://github.com/oddessentials/ado-git-repo-insights/issues"
+    },
     "repository": {
         "type": "git",
         "uri": "https://github.com/oddessentials/ado-git-repo-insights.git"

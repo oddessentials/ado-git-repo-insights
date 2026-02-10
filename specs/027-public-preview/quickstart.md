@@ -128,4 +128,12 @@ node -e "JSON.parse(require('fs').readFileSync('extension/vss-extension.json','u
 - [ ] Review overview.md: no emoji, feature flag documented, ML/AI labeled "optional", Node 20+, live demo linked
 - [ ] After publish: manually verify listing at https://marketplace.visualstudio.com/items?itemName=OddEssentials.ado-git-repo-insights
 
+## Rollback Procedure
+
+If the public launch needs to be reverted:
+
+1. **Hide from search**: Remove `"Public"` from `galleryFlags` in `extension/vss-extension.json` (keep `"Preview"`) and publish a new version. The extension will no longer appear in marketplace search.
+2. **Existing installs continue working**: Organizations that already installed the extension will retain full functionality. Removal from search does not uninstall from existing organizations.
+3. **Reviews are permanent**: Marketplace reviews and ratings cannot be deleted once submitted. Plan for this before going public.
+
 ## Estimated Total: ~1.5 hours (excluding icon/screenshot asset creation)

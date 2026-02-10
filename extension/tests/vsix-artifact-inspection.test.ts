@@ -151,5 +151,20 @@ describe("VSIX Artifact Inspection (Tier B)", () => {
         }
       }
     });
+
+    it("VSIX contains icon file", () => {
+      expect(vsixContents.some((f) => f === "images/icon.png")).toBe(true);
+    });
+
+    it("VSIX contains overview.md", () => {
+      expect(vsixContents.some((f) => f === "overview.md")).toBe(true);
+    });
+
+    it("VSIX contains all screenshot files", () => {
+      const screenshots = manifest.screenshots || [];
+      for (const screenshot of screenshots) {
+        expect(vsixContents).toContain(screenshot.path);
+      }
+    });
   });
 });
