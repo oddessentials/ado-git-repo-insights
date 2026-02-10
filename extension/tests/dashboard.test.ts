@@ -723,7 +723,7 @@ describe("Sprint 1: Trend Deltas & Metrics", () => {
   const createGetPreviousPeriod = () => {
     return function getPreviousPeriod(start: Date, end: Date) {
       const durationMs = end.getTime() - start.getTime();
-      const prevEnd = new Date(start.getTime() - 1);
+      const prevEnd = new Date(start.getTime() - 86_400_000);
       const prevStart = new Date(prevEnd.getTime() - durationMs);
       return { start: prevStart, end: prevEnd };
     };
@@ -909,8 +909,8 @@ describe("Sprint 1: Trend Deltas & Metrics", () => {
 
       const prev = getPreviousPeriod(start, end);
 
-      // Previous end should be 1ms before start
-      expect(prev.end.getTime()).toBe(start.getTime() - 1);
+      // Previous end should be 1 day before start
+      expect(prev.end.getTime()).toBe(start.getTime() - 86_400_000);
     });
 
     it("handles year boundaries", () => {

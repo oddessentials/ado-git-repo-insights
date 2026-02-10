@@ -822,3 +822,150 @@ describe("applyFiltersToRollups coverage: uncovered paths", () => {
     expect(result[0].reviewers_count).toBe(1);
   });
 });
+
+describe("Compare mode with filters", () => {
+  const currentRollup = {
+    week: "2026-W03",
+    pr_count: 100,
+    cycle_time_p50: 60,
+    cycle_time_p90: 120,
+    authors_count: 10,
+    reviewers_count: 5,
+    by_repository: {
+      "repo-a": {
+        pr_count: 30,
+        cycle_time_p50: 50,
+        cycle_time_p90: 100,
+        authors_count: 4,
+        reviewers_count: 2,
+      },
+      "repo-b": {
+        pr_count: 70,
+        cycle_time_p50: 65,
+        cycle_time_p90: 130,
+        authors_count: 6,
+        reviewers_count: 3,
+      },
+    },
+    by_team: {
+      "team-x": {
+        pr_count: 40,
+        cycle_time_p50: 55,
+        cycle_time_p90: 110,
+        authors_count: 4,
+        reviewers_count: 2,
+      },
+      "team-y": {
+        pr_count: 60,
+        cycle_time_p50: 63,
+        cycle_time_p90: 127,
+        authors_count: 6,
+        reviewers_count: 3,
+      },
+    },
+  } as Rollup;
+
+  const previousRollup = {
+    week: "2026-W02",
+    pr_count: 80,
+    cycle_time_p50: 55,
+    cycle_time_p90: 110,
+    authors_count: 8,
+    reviewers_count: 4,
+    by_repository: {
+      "repo-a": {
+        pr_count: 50,
+        cycle_time_p50: 45,
+        cycle_time_p90: 90,
+        authors_count: 5,
+        reviewers_count: 3,
+      },
+      "repo-b": {
+        pr_count: 30,
+        cycle_time_p50: 70,
+        cycle_time_p90: 140,
+        authors_count: 3,
+        reviewers_count: 1,
+      },
+    },
+    by_team: {
+      "team-x": {
+        pr_count: 60,
+        cycle_time_p50: 50,
+        cycle_time_p90: 100,
+        authors_count: 6,
+        reviewers_count: 3,
+      },
+      "team-y": {
+        pr_count: 20,
+        cycle_time_p50: 70,
+        cycle_time_p90: 140,
+        authors_count: 2,
+        reviewers_count: 1,
+      },
+    },
+  } as Rollup;
+
+  it("same filter applied to both periods produces consistent proportional results", () => {
+    const filter = { repos: ["repo-a"], teams: [] };
+    const currentFiltered = applyFiltersToRollups([currentRollup], filter);
+    const previousFiltered = applyFiltersToRollups([previousRollup], filter);
+
+    // Current: repo-a has 30 of 100 PRs
+    expect(currentFiltered[0].pr_count).toBe(30);
+    // Previous: repo-a has 50 of 80 PRs
+    expect(previousFiltered[0].pr_count).toBe(50);
+
+    // Cycle times should come from repo-a directly
+    expect(currentFiltered[0].cycle_time_p50).toBe(50);
+    expect(previousFiltered[0].cycle_time_p50).toBe(45);
+  });
+
+  it("filter zeroes out one period when repo missing from previous", () => {
+    const prevWithoutRepoC = {
+      ...previousRollup,
+      by_repository: {
+        "repo-a": previousRollup.by_repository!["repo-a"],
+      },
+    } as Rollup;
+
+    const filter = { repos: ["repo-b"], teams: [] };
+    const currentFiltered = applyFiltersToRollups([currentRollup], filter);
+    const previousFiltered = applyFiltersToRollups([prevWithoutRepoC], filter);
+
+    // Current: repo-b exists, should get its PRs
+    expect(currentFiltered[0].pr_count).toBe(70);
+    // Previous: repo-b doesn't exist, should get 0
+    expect(previousFiltered[0].pr_count).toBe(0);
+  });
+
+  it("combined repo+team filter in both periods applies proportional intersection", () => {
+    const filter = { repos: ["repo-a"], teams: ["team-x"] };
+    const currentFiltered = applyFiltersToRollups([currentRollup], filter);
+    const previousFiltered = applyFiltersToRollups([previousRollup], filter);
+
+    // Current: repo-a share = 30/100 = 0.3, team-x share = 40/100 = 0.4
+    // Combined pr_count = round(100 * 0.3 * 0.4) = round(12) = 12
+    expect(currentFiltered[0].pr_count).toBe(12);
+
+    // Previous: repo-a share = 50/80 = 0.625, team-x share = 60/80 = 0.75
+    // Combined pr_count = round(80 * 0.625 * 0.75) = round(37.5) = 38
+    expect(previousFiltered[0].pr_count).toBe(38);
+  });
+
+  it("getPreviousPeriod with non-midnight boundary returns end exactly 1 day before start", () => {
+    const start = new Date("2026-01-15T14:30:00Z");
+    const end = new Date("2026-01-22T14:30:00Z");
+
+    const result = getPreviousPeriod(start, end);
+
+    // Previous period end should be exactly 1 day (86,400,000ms) before start
+    expect(result.end.getTime()).toBe(start.getTime() - 86_400_000);
+    // The end should be Jan 14 at 14:30 UTC
+    expect(result.end.toISOString()).toBe("2026-01-14T14:30:00.000Z");
+    // Duration should be preserved
+    const originalDuration = end.getTime() - start.getTime();
+    const prevDuration = result.end.getTime() - result.start.getTime();
+    expect(prevDuration).toBe(originalDuration);
+  });
+});

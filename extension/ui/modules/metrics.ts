@@ -120,7 +120,7 @@ export function getPreviousPeriod(
   const rangeDays = Math.ceil(
     (end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24),
   );
-  const prevEnd = new Date(start.getTime() - 1); // Day before start
+  const prevEnd = new Date(start.getTime() - 86_400_000); // Day before start
   const prevStart = new Date(
     prevEnd.getTime() - rangeDays * 24 * 60 * 60 * 1000,
   );

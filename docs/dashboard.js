@@ -2869,7 +2869,7 @@ var PRInsightsDashboard = (() => {
     const rangeDays = Math.ceil(
       (end.getTime() - start.getTime()) / (1e3 * 60 * 60 * 24)
     );
-    const prevEnd = new Date(start.getTime() - 1);
+    const prevEnd = new Date(start.getTime() - 864e5);
     const prevStart = new Date(
       prevEnd.getTime() - rangeDays * 24 * 60 * 60 * 1e3
     );
@@ -5405,6 +5405,11 @@ var PRInsightsDashboard = (() => {
     const prevEnd = formatDate(prevPeriod.end);
     if (elements["previous-period-dates"]) {
       elements["previous-period-dates"].textContent = `${prevStart} - ${prevEnd}`;
+    }
+    const banner = elements["comparison-banner"];
+    if (banner) {
+      const hasFilters = currentFilters.repos.length > 0 || currentFilters.teams.length > 0;
+      banner.setAttribute("data-filtered", hasFilters ? "true" : "false");
     }
   }
   function toggleExportMenu(e) {
