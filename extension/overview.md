@@ -14,8 +14,8 @@ Previously available via private share to select organizations; now in public pr
 
 ### Optional Add-Ons (requires additional pipeline configuration)
 
-- **ML Predictions** — Time-to-merge forecasting using Prophet models. Requires setting `enablePredictions: true` in the pipeline task and installing Python Prophet dependencies.
-- **AI-Powered Insights** — Natural language summaries of PR trends and anomalies. Requires providing an OpenAI API key via pipeline variable.
+- **ML Predictions** — Time-to-merge forecasting using Prophet models. Requires setting `enablePredictions: true` in the pipeline task and installing Python Prophet dependencies. See the ML Predictions screenshot in the gallery above.
+- **AI-Powered Insights** — Natural language summaries of PR trends and anomalies. Requires providing an OpenAI API key via pipeline variable. See the AI Insights screenshot in the gallery above.
 
 ## Dashboard
 
