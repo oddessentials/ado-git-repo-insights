@@ -189,4 +189,123 @@ describe("VSIX Packaging Contract (Tier A)", () => {
       expect(content).not.toContain("settings.ts");
     });
   });
+
+  describe("Marketplace Readiness", () => {
+    it("galleryFlags contains Public and Preview", () => {
+      expect(manifest.galleryFlags).toBeDefined();
+      expect(manifest.galleryFlags).toContain("Public");
+      expect(manifest.galleryFlags).toContain("Preview");
+    });
+
+    it("tags array has at least 8 entries", () => {
+      expect(manifest.tags).toBeDefined();
+      expect(Array.isArray(manifest.tags)).toBe(true);
+      expect(manifest.tags.length).toBeGreaterThanOrEqual(8);
+    });
+
+    it("galleryBanner has valid hex color and theme", () => {
+      expect(manifest.galleryBanner).toBeDefined();
+      expect(manifest.galleryBanner.color).toMatch(/^#[0-9a-fA-F]{6}$/);
+      expect(["dark", "light"]).toContain(manifest.galleryBanner.theme);
+    });
+
+    it("all 6 link types exist", () => {
+      const requiredLinks = ["home", "repository", "issues", "support", "license", "getstarted"];
+      expect(manifest.links).toBeDefined();
+      for (const linkType of requiredLinks) {
+        expect(manifest.links[linkType]).toBeDefined();
+        expect(manifest.links[linkType].uri).toBeDefined();
+      }
+    });
+
+    it("CustomerQnASupport is enabled with URL", () => {
+      expect(manifest.CustomerQnASupport).toBeDefined();
+      expect(manifest.CustomerQnASupport.enableqna).toBe(true);
+      expect(manifest.CustomerQnASupport.url).toBeDefined();
+    });
+
+    it("badges array has at least 2 entries", () => {
+      expect(manifest.badges).toBeDefined();
+      expect(Array.isArray(manifest.badges)).toBe(true);
+      expect(manifest.badges.length).toBeGreaterThanOrEqual(2);
+    });
+
+    it("description is under 200 characters", () => {
+      expect(manifest.description).toBeDefined();
+      expect(manifest.description.length).toBeLessThanOrEqual(200);
+    });
+
+    it("description contains optional/configurable/add-on qualifier for ML/AI", () => {
+      expect(manifest.description).toMatch(/optional|configurable|add-on/i);
+    });
+
+    it("at least 3 screenshots defined", () => {
+      expect(manifest.screenshots).toBeDefined();
+      expect(Array.isArray(manifest.screenshots)).toBe(true);
+      expect(manifest.screenshots.length).toBeGreaterThanOrEqual(3);
+    });
+
+    it("all screenshot files exist on disk", () => {
+      for (const screenshot of manifest.screenshots) {
+        const filePath = path.join(extensionDir, screenshot.path);
+        expect(fs.existsSync(filePath)).toBe(true);
+      }
+    });
+
+    it("icon file exists and has PNG magic bytes", () => {
+      const iconPath = path.join(extensionDir, "images", "icon.png");
+      expect(fs.existsSync(iconPath)).toBe(true);
+      const buffer = Buffer.from(fs.readFileSync(iconPath));
+      // PNG magic bytes: 89 50 4E 47
+      expect(buffer[0]).toBe(0x89);
+      expect(buffer[1]).toBe(0x50);
+      expect(buffer[2]).toBe(0x4e);
+      expect(buffer[3]).toBe(0x47);
+    });
+
+    it("icon file has 128x128 dimensions", () => {
+      const iconPath = path.join(extensionDir, "images", "icon.png");
+      const buffer = Buffer.from(fs.readFileSync(iconPath));
+      // PNG IHDR chunk: width at bytes 16-19, height at bytes 20-23 (big-endian uint32)
+      const width = buffer.readUInt32BE(16);
+      const height = buffer.readUInt32BE(20);
+      expect(width).toBe(128);
+      expect(height).toBe(128);
+    });
+
+    it("screenshot files are production-quality assets (branch-aware)", () => {
+      const githubRef = process.env.GITHUB_REF || "";
+      const isProtectedBranch = /refs\/heads\/(main|release)/.test(githubRef);
+      const MIN_SCREENSHOT_WIDTH = 800;
+      const MIN_SCREENSHOT_HEIGHT = 400;
+
+      for (const screenshot of manifest.screenshots) {
+        const filePath = path.join(extensionDir, screenshot.path);
+        const buffer = Buffer.from(fs.readFileSync(filePath));
+
+        // Must be a valid PNG (magic bytes: 89 50 4E 47)
+        const isPng =
+          buffer[0] === 0x89 &&
+          buffer[1] === 0x50 &&
+          buffer[2] === 0x4e &&
+          buffer[3] === 0x47;
+
+        // Read dimensions from PNG IHDR chunk (bytes 16-23, big-endian uint32)
+        const width = buffer.length >= 24 ? buffer.readUInt32BE(16) : 0;
+        const height = buffer.length >= 24 ? buffer.readUInt32BE(20) : 0;
+
+        if (isProtectedBranch) {
+          expect(isPng).toBe(true);
+          expect(width).toBeGreaterThanOrEqual(MIN_SCREENSHOT_WIDTH);
+          expect(height).toBeGreaterThanOrEqual(MIN_SCREENSHOT_HEIGHT);
+        } else if (!isPng || width < MIN_SCREENSHOT_WIDTH || height < MIN_SCREENSHOT_HEIGHT) {
+          console.warn(
+            `WARNING: ${screenshot.path} may be a placeholder ` +
+              `(${width}x${height}, png=${isPng}). ` +
+              `Must be a real screenshot (>=${MIN_SCREENSHOT_WIDTH}x${MIN_SCREENSHOT_HEIGHT} PNG) before merging to main.`,
+          );
+        }
+      }
+    });
+  });
 });

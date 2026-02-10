@@ -1,131 +1,89 @@
 # Git Repo Insights
 
-Extract Azure DevOps Pull Request metrics and visualize team performance with the built-in **PR Insights Dashboard**.
+Pull request analytics for Azure DevOps — built-in dashboard with cycle time, throughput, and reviewer metrics.
 
-## ✨ Features
+Previously available via private share to select organizations; now in public preview.
 
-- **PR Insights Dashboard** — View metrics directly in your Azure DevOps project
-- **Incremental Extraction** — Daily runs fetch only new PRs, minimizing API calls
-- **Periodic Backfill** — Weekly mode re-extracts recent data to catch late changes
-- **PowerBI Compatible** — CSV schemas match exactly for seamless dashboard integration
-- **SQLite Persistence** — Artifact-based state management with pipeline integration
+## What You Get
 
----
+### Core (works immediately after install)
 
-## 🚀 Quick Start
+- **PR Insights Dashboard** — Interactive dashboard embedded directly in your Azure DevOps project with cycle time trends, throughput charts, reviewer activity heatmaps, and distribution analysis
+- **PR Insights Settings** — Project-level settings page for administrators to configure dashboard behavior, accessible from Project Settings
+- **Automated PR Extraction** — Pipeline task extracts pull request data incrementally, minimizing API calls with smart date windowing and backfill convergence
 
-### 1. Install the Extension
+### Optional Add-Ons (requires additional pipeline configuration)
 
-Click **Get it free** above to install in your Azure DevOps organization.
+- **ML Predictions** — Time-to-merge forecasting using Prophet models. Requires setting `enablePredictions: true` in the pipeline task and installing Python Prophet dependencies.
+- **AI-Powered Insights** — Natural language summaries of PR trends and anomalies. Requires providing an OpenAI API key via pipeline variable.
 
-### 2. Create a PAT
+## Dashboard
 
-Create a Personal Access Token with **Code (Read)** scope:
+The PR Insights Dashboard displays:
 
-- Azure DevOps → Profile → Personal access tokens → + New Token
-- Scope: Code → Read
+- **Total PRs** — Count of pull requests in the selected time window
+- **Cycle Time P50 / P90** — Median and 90th percentile time from PR creation to completion
+- **Active Contributors** — Unique PR authors in the period
+- **Active Reviewers** — Unique reviewers who voted on PRs
+- **Weekly Throughput** — PRs completed per week over time
+- **Cycle Time Trend** — P50/P90 cycle time plotted weekly
+- **Reviewer Activity** — Breakdown of review votes by team member
+- **Distribution Buckets** — PRs grouped by cycle time ranges (< 1 day, 1-3 days, 3-7 days, > 7 days)
 
-### 3. Store PAT Securely
+## Live Demo
 
-Store your PAT in a Variable Group:
+Explore a working dashboard with sample data:
 
-- Pipelines → Library → + Variable group
-- Name: `ado-insights-secrets`
-- Add variable: `PAT_SECRET` (mark as secret)
+[View Live Demo](https://oddessentials.github.io/ado-git-repo-insights/)
 
-### 4. Add the Task to Your Pipeline
+> **Important**: After installing, a project administrator must enable the dashboard via **Project Settings > Preview Features > [GRI] PR Insights Dashboard**. The dashboard is not visible until this feature flag is turned on.
 
-```yaml
-trigger: none
+## Getting Started
 
-pool:
-    vmImage: "ubuntu-latest"
+1. **Install** — Click "Get it free" to install Git Repo Insights in your Azure DevOps organization.
+2. **Enable the Dashboard** — A project or organization administrator must go to **Project Settings > Preview Features** and turn on **[GRI] PR Insights Dashboard**.
+3. **Create a PAT** — Generate a Personal Access Token with **Code (Read)** scope in Azure DevOps.
+4. **Store the PAT** — Add the PAT to a pipeline Variable Group named `ado-insights-secrets` as a secret variable `PAT_SECRET`.
+5. **Add the Pipeline Task** — Add `ExtractPullRequests@2` to a pipeline definition (see Pipeline Task Reference below).
+6. **View the Dashboard** — After a successful pipeline run, navigate to your project's Repos menu and select **PR Insights**.
 
-variables:
-    - group: ado-insights-secrets
+## Pipeline Task Reference
 
-steps:
-    - pwsh: |
-          New-Item -ItemType Directory -Force -Path "$(Pipeline.Workspace)/data" | Out-Null
-          New-Item -ItemType Directory -Force -Path "$(Pipeline.Workspace)/aggregates" | Out-Null
-      displayName: "Create Directories"
+| Input | Required | Description |
+|-------|----------|-------------|
+| `organization` | Yes | Azure DevOps organization name |
+| `projects` | Yes | Project names (one per line or comma-separated) |
+| `pat` | Yes | PAT with Code (Read) scope |
+| `database` | No | SQLite database path (default: `$(Pipeline.Workspace)/data/ado-insights.sqlite`) |
+| `outputDir` | No | CSV output directory |
+| `startDate` | No | Override start date (YYYY-MM-DD) |
+| `endDate` | No | Override end date (YYYY-MM-DD) |
+| `backfillDays` | No | Days to backfill for convergence |
+| `generateAggregates` | No | Generate dashboard data (default: `true`) |
+| `aggregatesDir` | No | Aggregates output directory |
 
-    - task: UseNode@1
-      inputs:
-          version: "20.x"
+## CSV Output Schema
 
-    - task: ExtractPullRequests@2
-      inputs:
-          organization: "YOUR_ORG"
-          projects: |
-              Project1
-              Project2
-          pat: "$(PAT_SECRET)"
-          database: "$(Pipeline.Workspace)/data/ado-insights.sqlite"
-          aggregatesDir: "$(Pipeline.Workspace)/aggregates"
-
-    - publish: $(Pipeline.Workspace)/data
-      artifact: ado-insights-db
-      condition: succeeded()
-
-    - publish: $(Pipeline.Workspace)/aggregates
-      artifact: aggregates
-      condition: succeeded()
-```
-
-### 5. View the Dashboard
-
-After a successful run, navigate to your project and find **PR Insights** in the Repos menu.
-
----
-
-## 📋 Task Inputs
-
-| Input                | Required | Description                                                                      |
-| -------------------- | -------- | -------------------------------------------------------------------------------- |
-| `organization`       | Yes      | Azure DevOps organization name                                                   |
-| `projects`           | Yes      | Project names (one per line or comma-separated)                                  |
-| `pat`                | Yes      | PAT with Code (Read) scope                                                       |
-| `database`           | No       | SQLite database path (default: `$(Pipeline.Workspace)/data/ado-insights.sqlite`) |
-| `outputDir`          | No       | CSV output directory                                                             |
-| `startDate`          | No       | Override start date (YYYY-MM-DD)                                                 |
-| `endDate`            | No       | Override end date (YYYY-MM-DD)                                                   |
-| `backfillDays`       | No       | Days to backfill for convergence                                                 |
-| `generateAggregates` | No       | Generate dashboard data (default: `true`)                                        |
-| `aggregatesDir`      | No       | Aggregates output directory                                                      |
-
----
-
-## 📊 CSV Outputs
-
-| File                | Description                          |
-| ------------------- | ------------------------------------ |
-| `organizations.csv` | Organization records                 |
-| `projects.csv`      | Project records                      |
-| `repositories.csv`  | Repository records                   |
+| File | Description |
+|------|-------------|
+| `organizations.csv` | Organization records |
+| `projects.csv` | Project records |
+| `repositories.csv` | Repository records |
 | `pull_requests.csv` | Pull request details with cycle time |
-| `users.csv`         | User records                         |
-| `reviewers.csv`     | PR reviewer votes                    |
+| `users.csv` | User records |
+| `reviewers.csv` | PR reviewer votes |
 
----
+## Requirements
 
-## 📖 Requirements
+- **Azure DevOps Services** (cloud) or **Azure DevOps Server 2020+** (on-premises)
+- **Node.js 20+** on the build agent (use `UseNode@1` with `version: "20.x"`)
+- **PAT** with **Code (Read)** scope
+- Git Repo Insights is open source ([MIT License](https://github.com/oddessentials/ado-git-repo-insights/blob/main/LICENSE)) with full source code on GitHub.
 
-- **Hosted Agent**: `ubuntu-latest`, `windows-latest`, or self-hosted with Node.js 16+
-- **PAT Scope**: Code (Read)
+## Documentation
 
----
+[Full documentation on GitHub](https://github.com/oddessentials/ado-git-repo-insights)
 
-## 📚 Documentation
+## Support
 
-For detailed setup instructions, pipeline templates, and troubleshooting:
-
-📖 [Full Documentation on GitHub](https://github.com/oddessentials/ado-git-repo-insights)
-
----
-
-## 🆘 Support
-
-For issues and feature requests, visit the [GitHub repository](https://github.com/oddessentials/ado-git-repo-insights).
-
-**Publisher**: OddEssentials
+For issues and feature requests: [GitHub Issues](https://github.com/oddessentials/ado-git-repo-insights/issues)

@@ -171,20 +171,14 @@ describe("Scalability Test Data Requirements", () => {
     expect(SCALABILITY_REQUIREMENTS.COMMENTS_REQUIRED).toBe(true);
   });
 
-  test("TODO file documents scalability requirements", () => {
-    const todoPath = path.join(
-      extensionRoot,
-      "..",
-      "TODO",
-      "DASHBOARD_SCALABILITY.md",
-    );
-    expect(fs.existsSync(todoPath)).toBe(true);
-
-    const content = fs.readFileSync(todoPath, "utf-8");
-
-    // Verify the document mentions the key requirements
-    expect(content).toContain("156");
-    expect(content).toContain("200");
-    expect(content).toContain("comment");
+  test("scalability requirements are enforced by invariant tests above", () => {
+    // DASHBOARD_SCALABILITY.md was removed after feature completion (commit a7ac63b).
+    // The scalability contract is now enforced by the invariant tests in this file:
+    //   - Chart Data Caps: MAX_THROUGHPUT_POINTS, MAX_CYCLE_TIME_POINTS, MAX_CHART_POINTS, MAX_SPARKLINE_POINTS
+    //   - Generator Capabilities: --users (≥200), --weeks (uncapped), --include-comments
+    //   - Data Point Limits: slice()-based enforcement in all chart modules
+    expect(SCALABILITY_REQUIREMENTS.MIN_WEEKS).toBe(156);
+    expect(SCALABILITY_REQUIREMENTS.MIN_REVIEWERS).toBe(200);
+    expect(SCALABILITY_REQUIREMENTS.COMMENTS_REQUIRED).toBe(true);
   });
 });

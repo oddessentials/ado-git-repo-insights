@@ -1377,6 +1377,13 @@ function updateComparisonBanner(): void {
   if (elements["previous-period-dates"]) {
     elements["previous-period-dates"].textContent = `${prevStart} - ${prevEnd}`;
   }
+
+  const banner = elements["comparison-banner"];
+  if (banner) {
+    const hasFilters =
+      currentFilters.repos.length > 0 || currentFilters.teams.length > 0;
+    banner.setAttribute("data-filtered", hasFilters ? "true" : "false");
+  }
 }
 
 // ============================================================================
