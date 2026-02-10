@@ -1,3 +1,19 @@
+# [5.24.0](https://github.com/oddessentials/ado-git-repo-insights/compare/v5.23.1...v5.24.0) (2026-02-10)
+
+
+### Bug Fixes
+
+* compare mode off-by-one bug, add filter context banner, and integration tests ([7263538](https://github.com/oddessentials/ado-git-repo-insights/commit/7263538e442a95f22e695d79264179642404e249))
+* replace screenshot size heuristic with PNG dimension validation ([04640f3](https://github.com/oddessentials/ado-git-repo-insights/commit/04640f3fea1754e8d525dbff61c96477a074726d))
+* replace xxd with node for PNG magic bytes check in pre-push hook ([d7befc0](https://github.com/oddessentials/ado-git-repo-insights/commit/d7befc0aa74335704980e1e918d79481b92000a2))
+* simplify marketplace description wording ([ac31aba](https://github.com/oddessentials/ado-git-repo-insights/commit/ac31aba39b1866ce0b227fcbd55a8bd04740fa5d))
+* **test:** remove stale TODO file assertion from scalability invariants ([a1cb47b](https://github.com/oddessentials/ado-git-repo-insights/commit/a1cb47b40a5f7b77ea9e348b4cd5cfd6d1ad62fd))
+
+
+### Features
+
+* marketplace readiness for public preview ([eaab618](https://github.com/oddessentials/ado-git-repo-insights/commit/eaab618bc51a38ab20c62a3c9f3c58c97d4a7cca))
+
 ## [5.23.1](https://github.com/oddessentials/ado-git-repo-insights/compare/v5.23.0...v5.23.1) (2026-02-07)
 
 
