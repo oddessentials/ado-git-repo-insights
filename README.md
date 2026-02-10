@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="extension/images/icon.png" alt="Git Repo Insights" width="128" height="128">
+</p>
+
 # ADO Git Repo Insights
 
 <!-- CI & Quality -->
@@ -53,7 +57,7 @@ Extract Azure DevOps Pull Request metrics to SQLite and generate PowerBI-compati
 
 The ADO Extension provides a self-contained pipeline task with a built-in **PR Insights Dashboard** directly in your Azure DevOps project.
 
-[![Install from Marketplace](https://img.shields.io/badge/Install-Azure%20DevOps%20Marketplace-blue?logo=azure-devops)](https://marketplace.visualstudio.com/items?itemName=OddEssentials.ado-git-repo-insights)
+<img src="extension/images/icon.png" alt="Git Repo Insights" width="42" height="42" align="left" style="margin-right: 8px;"> [![Install from Marketplace](https://img.shields.io/badge/Install-Azure%20DevOps%20Marketplace-blue?logo=azure-devops)](https://marketplace.visualstudio.com/items?itemName=OddEssentials.ado-git-repo-insights)
 
 **What you get:**
 
