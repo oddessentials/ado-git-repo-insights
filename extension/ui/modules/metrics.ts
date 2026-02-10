@@ -117,13 +117,12 @@ export function getPreviousPeriod(
   start: Date,
   end: Date,
 ): { start: Date; end: Date } {
+  const MS_PER_DAY = 1000 * 60 * 60 * 24;
   const rangeDays = Math.ceil(
-    (end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24),
+    (end.getTime() - start.getTime()) / MS_PER_DAY,
   );
-  const prevEnd = new Date(start.getTime() - 86_400_000); // Day before start
-  const prevStart = new Date(
-    prevEnd.getTime() - rangeDays * 24 * 60 * 60 * 1000,
-  );
+  const prevEnd = new Date(start.getTime() - MS_PER_DAY); // Day before start
+  const prevStart = new Date(prevEnd.getTime() - rangeDays * MS_PER_DAY);
   return { start: prevStart, end: prevEnd };
 }
 
