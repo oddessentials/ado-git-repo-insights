@@ -1,3 +1,10 @@
+# [5.25.0](https://github.com/oddessentials/ado-git-repo-insights/compare/v5.24.0...v5.25.0) (2026-02-11)
+
+
+### Features
+
+* add ML predictions and AI insights screenshots to marketplace listing ([ca7fcdb](https://github.com/oddessentials/ado-git-repo-insights/commit/ca7fcdb6404aed7add75272c0f08c92ca70f6c39))
+
 # [5.24.0](https://github.com/oddessentials/ado-git-repo-insights/compare/v5.23.1...v5.24.0) (2026-02-10)
 
 
