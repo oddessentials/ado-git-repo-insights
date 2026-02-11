@@ -90,6 +90,8 @@ steps:
       artifact: aggregates
 ```
 
+![ExtractPullRequests pipeline task configuration in Azure DevOps](extension/screenshots/pipeline-task.png)
+
 ---
 
 ## 🐍 Python CLI
@@ -215,7 +217,7 @@ ado-insights dashboard --dataset ./dataset --open
 
 The system uses **incremental extraction** by default (daily) with optional **backfill mode** to catch late changes (reviewer votes, status updates).
 
-![PR Insights Dashboard](docs/dashboard-default.png)
+![PR Insights Dashboard showing cycle time trends, throughput charts, and reviewer activity](extension/screenshots/dashboard-overview.png)
 
 ---
 
@@ -240,6 +242,8 @@ Features:
 - Throughput predictions for capacity planning
 - Confidence intervals for forecast accuracy
 
+![ML Predictions panel showing cycle time forecasts and confidence intervals](extension/screenshots/ml-predictions.png)
+
 ### AI Insights (OpenAI-Powered)
 
 Enable AI-powered analysis of your PR patterns. Requires an OpenAI API key.
@@ -261,6 +265,8 @@ Features:
 - Automated bottleneck identification
 - Reviewer workload recommendations
 - Process improvement suggestions
+
+![AI Insights panel with automated bottleneck analysis and recommendations](extension/screenshots/ai-insights.png)
 
 **Cost:** Approximately $0.001-0.01 per pipeline run (uses GPT-4o-mini).
 
