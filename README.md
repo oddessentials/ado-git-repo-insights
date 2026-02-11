@@ -1,4 +1,4 @@
-<p align="center">
+<p align="left">
   <img src="extension/images/icon.png" alt="Git Repo Insights" width="128" height="128">
 </p>
 
