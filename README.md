@@ -244,7 +244,7 @@ Features:
 
 ![ML Predictions panel showing cycle time forecasts and confidence intervals](extension/screenshots/ml-predictions.png)
 
-### AI Insights (OpenAI-Powered)
+### AI Insights (Optional)
 
 Enable AI-powered analysis of your PR patterns. Requires an OpenAI API key.
 
