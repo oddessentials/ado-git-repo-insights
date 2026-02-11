@@ -12,10 +12,16 @@ Previously available via private share to select organizations; now in public pr
 - **PR Insights Settings** — Project-level settings page for administrators to configure dashboard behavior, accessible from Project Settings
 - **Automated PR Extraction** — Pipeline task extracts pull request data incrementally, minimizing API calls with smart date windowing and backfill convergence
 
+![PR Insights Dashboard showing cycle time trends, throughput charts, and reviewer activity](screenshots/dashboard-overview.png)
+
 ### Optional Add-Ons (requires additional pipeline configuration)
 
-- **ML Predictions** — Time-to-merge forecasting using Prophet models. Requires setting `enablePredictions: true` in the pipeline task and installing Python Prophet dependencies. See the ML Predictions screenshot in the gallery above.
-- **AI-Powered Insights** — Natural language summaries of PR trends and anomalies. Requires providing an OpenAI API key via pipeline variable. See the AI Insights screenshot in the gallery above.
+- **ML Predictions** — Time-to-merge forecasting using Prophet models. Requires setting `enablePredictions: true` in the pipeline task and installing Python Prophet dependencies.
+- **AI-Powered Insights** — Natural language summaries of PR trends and anomalies. Requires providing an OpenAI API key via pipeline variable.
+
+![ML Predictions panel showing cycle time forecasts and confidence intervals](screenshots/ml-predictions.png)
+
+![AI Insights panel with automated bottleneck analysis and recommendations](screenshots/ai-insights.png)
 
 ## Dashboard
 
@@ -30,6 +36,8 @@ The PR Insights Dashboard displays:
 - **Reviewer Activity** — Breakdown of review votes by team member
 - **Distribution Buckets** — PRs grouped by cycle time ranges (< 1 day, 1-3 days, 3-7 days, > 7 days)
 
+![Dashboard with compare mode active, showing filtered PR metrics](screenshots/filtering-comparison.png)
+
 ## Live Demo
 
 Explore a working dashboard with sample data:
@@ -37,6 +45,8 @@ Explore a working dashboard with sample data:
 [View Live Demo](https://oddessentials.github.io/ado-git-repo-insights/)
 
 > **Important**: After installing, a project administrator must enable the dashboard via **Project Settings > Preview Features > [GRI] PR Insights Dashboard**. The dashboard is not visible until this feature flag is turned on.
+
+![PR Insights settings page in Azure DevOps Project Settings](screenshots/settings-page.png)
 
 ## Getting Started
 
@@ -46,6 +56,8 @@ Explore a working dashboard with sample data:
 4. **Store the PAT** — Add the PAT to a pipeline Variable Group named `ado-insights-secrets` as a secret variable `PAT_SECRET`.
 5. **Add the Pipeline Task** — Add `ExtractPullRequests@2` to a pipeline definition (see Pipeline Task Reference below).
 6. **View the Dashboard** — After a successful pipeline run, navigate to your project's Repos menu and select **PR Insights**.
+
+![ExtractPullRequests pipeline task configuration in Azure DevOps](screenshots/pipeline-task.png)
 
 ## Pipeline Task Reference
 
