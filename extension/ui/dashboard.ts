@@ -1292,27 +1292,32 @@ function clearAllFilters(): void {
 }
 
 /**
+ * Find an <option> element by value inside a <select>, using CSS.escape
+ * to safely handle special characters in the value attribute.
+ */
+function findOptionByValue(
+  select: HTMLSelectElement | null,
+  value: string,
+): HTMLOptionElement | null {
+  return select?.querySelector(
+    `option[value="${CSS.escape(value)}"]`,
+  ) as HTMLOptionElement | null;
+}
+
+/**
  * Remove a specific filter.
  */
 function removeFilter(type: string, value: string): void {
   if (type === "repo") {
     currentFilters.repos = currentFilters.repos.filter((v) => v !== value);
     const repoFilter = elements["repo-filter"] as HTMLSelectElement | null;
-    if (repoFilter) {
-      const option = repoFilter.querySelector(
-        `option[value="${CSS.escape(value)}"]`,
-      ) as HTMLOptionElement | null;
-      if (option) option.selected = false;
-    }
+    const option = findOptionByValue(repoFilter, value);
+    if (option) option.selected = false;
   } else if (type === "team") {
     currentFilters.teams = currentFilters.teams.filter((v) => v !== value);
     const teamFilter = elements["team-filter"] as HTMLSelectElement | null;
-    if (teamFilter) {
-      const option = teamFilter.querySelector(
-        `option[value="${CSS.escape(value)}"]`,
-      ) as HTMLOptionElement | null;
-      if (option) option.selected = false;
-    }
+    const option = findOptionByValue(teamFilter, value);
+    if (option) option.selected = false;
   }
 
   updateFilterUI();
@@ -1380,17 +1385,11 @@ function renderFilterChips(): void {
 function getFilterLabel(type: string, value: string): string {
   if (type === "repo") {
     const repoFilter = elements["repo-filter"] as HTMLSelectElement | null;
-    const option = repoFilter?.querySelector(
-      `option[value="${CSS.escape(value)}"]`,
-    );
-    return option?.textContent || value;
+    return findOptionByValue(repoFilter, value)?.textContent || value;
   }
   if (type === "team") {
     const teamFilter = elements["team-filter"] as HTMLSelectElement | null;
-    const option = teamFilter?.querySelector(
-      `option[value="${CSS.escape(value)}"]`,
-    );
-    return option?.textContent || value;
+    return findOptionByValue(teamFilter, value)?.textContent || value;
   }
   return value;
 }
@@ -1423,9 +1422,7 @@ function restoreFiltersFromUrl(): void {
     const repoFilter = elements["repo-filter"] as HTMLSelectElement | null;
     if (repoFilter) {
       currentFilters.repos.forEach((value) => {
-        const option = repoFilter.querySelector(
-          `option[value="${CSS.escape(value)}"]`,
-        ) as HTMLOptionElement | null;
+        const option = findOptionByValue(repoFilter, value);
         if (option) option.selected = true;
       });
     }
@@ -1436,9 +1433,7 @@ function restoreFiltersFromUrl(): void {
     const teamFilter = elements["team-filter"] as HTMLSelectElement | null;
     if (teamFilter) {
       currentFilters.teams.forEach((value) => {
-        const option = teamFilter.querySelector(
-          `option[value="${CSS.escape(value)}"]`,
-        ) as HTMLOptionElement | null;
+        const option = findOptionByValue(teamFilter, value);
         if (option) option.selected = true;
       });
     }

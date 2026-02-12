@@ -5403,25 +5403,22 @@ var PRInsightsDashboard = (() => {
     updateUrlState();
     void refreshMetrics();
   }
+  function findOptionByValue(select, value) {
+    return select?.querySelector(
+      `option[value="${CSS.escape(value)}"]`
+    );
+  }
   function removeFilter(type, value) {
     if (type === "repo") {
       currentFilters.repos = currentFilters.repos.filter((v) => v !== value);
       const repoFilter = elements["repo-filter"];
-      if (repoFilter) {
-        const option = repoFilter.querySelector(
-          `option[value="${CSS.escape(value)}"]`
-        );
-        if (option) option.selected = false;
-      }
+      const option = findOptionByValue(repoFilter, value);
+      if (option) option.selected = false;
     } else if (type === "team") {
       currentFilters.teams = currentFilters.teams.filter((v) => v !== value);
       const teamFilter = elements["team-filter"];
-      if (teamFilter) {
-        const option = teamFilter.querySelector(
-          `option[value="${CSS.escape(value)}"]`
-        );
-        if (option) option.selected = false;
-      }
+      const option = findOptionByValue(teamFilter, value);
+      if (option) option.selected = false;
     }
     updateFilterUI();
     updateUrlState();
@@ -5466,17 +5463,11 @@ var PRInsightsDashboard = (() => {
   function getFilterLabel(type, value) {
     if (type === "repo") {
       const repoFilter = elements["repo-filter"];
-      const option = repoFilter?.querySelector(
-        `option[value="${CSS.escape(value)}"]`
-      );
-      return option?.textContent || value;
+      return findOptionByValue(repoFilter, value)?.textContent || value;
     }
     if (type === "team") {
       const teamFilter = elements["team-filter"];
-      const option = teamFilter?.querySelector(
-        `option[value="${CSS.escape(value)}"]`
-      );
-      return option?.textContent || value;
+      return findOptionByValue(teamFilter, value)?.textContent || value;
     }
     return value;
   }
@@ -5498,9 +5489,7 @@ var PRInsightsDashboard = (() => {
       const repoFilter = elements["repo-filter"];
       if (repoFilter) {
         currentFilters.repos.forEach((value) => {
-          const option = repoFilter.querySelector(
-            `option[value="${CSS.escape(value)}"]`
-          );
+          const option = findOptionByValue(repoFilter, value);
           if (option) option.selected = true;
         });
       }
@@ -5510,9 +5499,7 @@ var PRInsightsDashboard = (() => {
       const teamFilter = elements["team-filter"];
       if (teamFilter) {
         currentFilters.teams.forEach((value) => {
-          const option = teamFilter.querySelector(
-            `option[value="${CSS.escape(value)}"]`
-          );
+          const option = findOptionByValue(teamFilter, value);
           if (option) option.selected = true;
         });
       }

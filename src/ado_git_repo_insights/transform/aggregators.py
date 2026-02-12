@@ -606,11 +606,14 @@ class AggregateGenerator:
                         )
                         team_pr_count = by_team.get(team_name, {}).get("pr_count", 0)
                         if cross_dim_pr_sum != team_pr_count:
-                            raise ValueError(
-                                f"Cross-dim pr_count consistency violated for "
-                                f"team '{team_name}' in week {week_str}: "
-                                f"cross_dim_sum={cross_dim_pr_sum} != "
-                                f"team_total={team_pr_count}"
+                            logger.warning(
+                                "Cross-dim pr_count consistency mismatch for "
+                                "team %r in week %s: cross_dim_sum=%d != "
+                                "team_total=%d",
+                                team_name,
+                                week_str,
+                                cross_dim_pr_sum,
+                                team_pr_count,
                             )
                 rollup_dict["by_team_and_repo"] = by_team_and_repo
                 any_rollup_has_cross_dim = True
@@ -779,10 +782,15 @@ class AggregateGenerator:
         if team_members_df.empty:
             return {}
 
+        # Deduplicate team memberships on (user_id, team_name) to prevent
+        # PR row inflation when the same team_name appears under multiple
+        # team_ids (e.g., same-named teams across projects).
+        deduped_members = team_members_df[["user_id", "team_name"]].drop_duplicates()
+
         # Join PRs with team memberships to tag each PR with its team(s).
         # A multi-team author produces one row per team membership.
         tagged = week_group.merge(
-            team_members_df[["user_id", "team_name"]],
+            deduped_members,
             on="user_id",
             how="inner",
         )

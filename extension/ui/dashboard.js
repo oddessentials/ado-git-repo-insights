@@ -1,5 +1,5 @@
 "use strict";
-var PRInsightsDashboard = (() => {
+(() => {
   // ui/types.ts
   var ML_SCHEMA_VERSION_RANGE = [1, 1];
   function isErrorWithMessage(error) {
@@ -5717,5 +5717,3 @@ var PRInsightsDashboard = (() => {
     void init();
   }
 })();
-// Global exports for browser runtime
-if (typeof window !== 'undefined') { Object.assign(window, PRInsightsDashboard || {}); }
