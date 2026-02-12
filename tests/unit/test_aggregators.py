@@ -2397,3 +2397,145 @@ class TestFileSizeValidation:
             f"SC-004 WARNING: max cross-dim overhead is {max_increase_pct:.1f}%, "
             f"which is significant. Verify this is acceptable for the org profile."
         )
+
+
+class TestMinSampleSizeNonNanGuard:
+    """Tests for FR-019 MIN_SAMPLE_SIZE counting non-NaN cycle times.
+
+    Validates that the _CROSS_DIM_MIN_SAMPLE guard counts actual non-NaN
+    cycle_time_minutes values, not total rows. A cross-dim intersection
+    with 6 total PRs but only 2 non-NaN cycle times should produce null
+    cycle_time percentiles.
+    """
+
+    @pytest.fixture
+    def db_with_sparse_cycle_times(
+        self, tmp_path: Path
+    ) -> tuple[DatabaseManager, Path]:
+        """Create DB where a cross-dim intersection has many rows but few cycle times.
+
+        Team Alpha has user1-user3. Backend-Repo has PRs from user1 (6 PRs).
+        Only 2 of those PRs have non-null cycle_time_minutes.
+        Total rows for (Team Alpha, Backend-Repo) = 6, non-NaN cycle times = 2.
+        MIN_SAMPLE_SIZE = 5, so cycle_time should be null.
+        """
+        db_path = tmp_path / "test_min_sample.sqlite"
+        db = DatabaseManager(db_path)
+        db.connect()
+
+        db.execute(
+            "INSERT INTO organizations (organization_name) VALUES (?)", ("org1",)
+        )
+        db.execute(
+            "INSERT INTO projects (organization_name, project_name) VALUES (?, ?)",
+            ("org1", "proj1"),
+        )
+        db.execute(
+            "INSERT INTO repositories (repository_id, repository_name, project_name, organization_name) VALUES (?, ?, ?, ?)",
+            ("repo-be", "Backend-Repo", "proj1", "org1"),
+        )
+
+        for i in range(1, 4):
+            db.execute(
+                "INSERT INTO users (user_id, display_name, email) VALUES (?, ?, ?)",
+                (f"user{i}", f"User {i}", f"user{i}@example.com"),
+            )
+
+        db.execute(
+            "INSERT INTO teams (team_id, team_name, project_name, organization_name, last_updated) VALUES (?, ?, ?, ?, ?)",
+            ("team-alpha", "Team Alpha", "proj1", "org1", "2026-01-01T00:00:00Z"),
+        )
+        for uid in ["user1", "user2", "user3"]:
+            db.execute(
+                "INSERT INTO team_members (team_id, user_id) VALUES (?, ?)",
+                ("team-alpha", uid),
+            )
+
+        # 6 PRs from user1 in Backend-Repo, only 2 with cycle_time
+        prs = [
+            ("be-1", 1, "org1", "proj1", "repo-be", "user1", "PR1", "completed", None, "2026-01-05", "2026-01-07", 120.0),
+            ("be-2", 2, "org1", "proj1", "repo-be", "user1", "PR2", "completed", None, "2026-01-05", "2026-01-08", 180.0),
+            ("be-3", 3, "org1", "proj1", "repo-be", "user1", "PR3", "completed", None, "2026-01-06", "2026-01-09", None),
+            ("be-4", 4, "org1", "proj1", "repo-be", "user1", "PR4", "completed", None, "2026-01-06", "2026-01-10", None),
+            ("be-5", 5, "org1", "proj1", "repo-be", "user1", "PR5", "completed", None, "2026-01-07", "2026-01-10", None),
+            ("be-6", 6, "org1", "proj1", "repo-be", "user1", "PR6", "completed", None, "2026-01-07", "2026-01-11", None),
+        ]
+        for pr in prs:
+            db.execute(
+                """INSERT INTO pull_requests (
+                    pull_request_uid, pull_request_id, organization_name, project_name,
+                    repository_id, user_id, title, status, description,
+                    creation_date, closed_date, cycle_time_minutes
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                pr,
+            )
+
+        db.connection.commit()
+        yield db, db_path
+        db.close()
+
+    def test_cross_dim_nulls_cycle_time_when_fewer_than_5_non_nan(
+        self,
+        db_with_sparse_cycle_times: tuple[DatabaseManager, Path],
+        tmp_path: Path,
+    ) -> None:
+        """Cross-dim intersection with <5 non-NaN cycle times should have null percentiles."""
+        db, _ = db_with_sparse_cycle_times
+        output_dir = tmp_path / "output"
+
+        generator = AggregateGenerator(db, output_dir)
+        generator.generate_all()
+
+        week_file = output_dir / "aggregates" / "weekly_rollups" / "2026-W02.json"
+        with week_file.open() as f:
+            week_data = json.load(f)
+
+        # Should have by_team_and_repo
+        assert "by_team_and_repo" in week_data
+        alpha_be = week_data["by_team_and_repo"]["Team Alpha"]["Backend-Repo"]
+
+        # 6 total PRs, but only 2 have cycle_time → below MIN_SAMPLE_SIZE=5
+        assert alpha_be["pr_count"] == 6
+        assert alpha_be["cycle_time_p50"] is None
+        assert alpha_be["cycle_time_p90"] is None
+
+
+class TestJsonNanSafety:
+    """Tests for JSON output safety (no NaN/Infinity values).
+
+    Validates that _write_json uses allow_nan=False and the NumpySafeEncoder
+    to produce valid JSON that conforms to the JSON specification.
+    """
+
+    def test_output_json_is_valid_json(
+        self, sample_db: tuple[DatabaseManager, Path], tmp_path: Path
+    ) -> None:
+        """All generated JSON files should be parseable as valid JSON."""
+        db, _ = sample_db
+        output_dir = tmp_path / "output"
+
+        generator = AggregateGenerator(db, output_dir)
+        generator.generate_all()
+
+        # Verify all JSON files in the output are valid
+        for json_file in output_dir.rglob("*.json"):
+            with json_file.open() as f:
+                content = f.read()
+            # json.loads with strict mode rejects NaN/Infinity
+            data = json.loads(content)
+            assert data is not None, f"Failed to parse {json_file}"
+
+    def test_output_json_contains_no_nan_strings(
+        self, sample_db: tuple[DatabaseManager, Path], tmp_path: Path
+    ) -> None:
+        """No JSON file should contain NaN or Infinity as literal values."""
+        db, _ = sample_db
+        output_dir = tmp_path / "output"
+
+        generator = AggregateGenerator(db, output_dir)
+        generator.generate_all()
+
+        for json_file in output_dir.rglob("*.json"):
+            content = json_file.read_text()
+            assert "NaN" not in content, f"NaN found in {json_file}"
+            assert "Infinity" not in content, f"Infinity found in {json_file}"

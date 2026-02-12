@@ -244,18 +244,14 @@ function buildFilteredRollup(
   return {
     ...rollup,
     pr_count: slice.pr_count,
-    ...(slice.cycle_time_p50 !== null
-      ? {
-          cycle_time_p50: slice.cycle_time_p50,
-          cycle_time_p90: slice.cycle_time_p90,
-        }
-      : {}),
-    ...(slice.authors_count > 0
-      ? { authors_count: slice.authors_count }
-      : {}),
-    ...(slice.reviewers_count > 0
-      ? { reviewers_count: slice.reviewers_count }
-      : {}),
+    // Always override cycle times: use slice values when available,
+    // otherwise null to prevent global values leaking through.
+    cycle_time_p50: slice.cycle_time_p50,
+    cycle_time_p90: slice.cycle_time_p90,
+    // Always override counts to prevent global values leaking through
+    // when the slice legitimately has 0 authors/reviewers.
+    authors_count: slice.authors_count,
+    reviewers_count: slice.reviewers_count,
   } as Rollup;
 }
 
@@ -357,8 +353,8 @@ export function applyFiltersToRollups(
     // The intersection is estimated as: total * (repoShare * teamShare).
     if (repoSlice && teamSlice) {
       const total = rollup.pr_count || 1;
-      const repoShare = Math.min(1, repoSlice.pr_count / total);
-      const teamShare = Math.min(1, teamSlice.pr_count / total);
+      const repoShare = Math.max(0, Math.min(1, repoSlice.pr_count / total));
+      const teamShare = Math.max(0, Math.min(1, teamSlice.pr_count / total));
       const combinedRatio = repoShare * teamShare;
 
       const combinedPrCount = Math.round(rollup.pr_count * combinedRatio);
@@ -388,19 +384,20 @@ export function applyFiltersToRollups(
       return {
         ...rollup,
         pr_count: combinedPrCount,
-        ...(p50s.length > 0
-          ? {
-              cycle_time_p50: p50s.reduce((a, b) => a + b, 0) / p50s.length,
-              cycle_time_p90:
-                p90s.length > 0
-                  ? p90s.reduce((a, b) => a + b, 0) / p90s.length
-                  : null,
-            }
-          : {}),
-        ...(combinedAuthors > 0 ? { authors_count: combinedAuthors } : {}),
-        ...(combinedReviewers > 0
-          ? { reviewers_count: combinedReviewers }
-          : {}),
+        // Always override cycle times: use averaged slice estimates when
+        // available, otherwise null to prevent global values leaking through.
+        cycle_time_p50:
+          p50s.length > 0
+            ? p50s.reduce((a, b) => a + b, 0) / p50s.length
+            : null,
+        cycle_time_p90:
+          p90s.length > 0
+            ? p90s.reduce((a, b) => a + b, 0) / p90s.length
+            : null,
+        // Always override counts to prevent global values leaking through
+        // when the proportional estimate rounds to 0.
+        authors_count: combinedAuthors,
+        reviewers_count: combinedReviewers,
       } as Rollup;
     }
 

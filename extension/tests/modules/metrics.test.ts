@@ -239,11 +239,11 @@ describe("metrics module", () => {
         teams: [],
       });
 
-      // Legacy: only pr_count available, cycle time preserved from rollup
+      // Legacy: only pr_count available, cycle time nulled to prevent
+      // global values leaking through for a filtered subset
       expect(result[0].pr_count).toBe(30);
-      // No per-repo cycle time -> hasPerRepoCycleTime is false -> original values preserved
-      expect(result[0].cycle_time_p50).toBe(60);
-      expect(result[0].cycle_time_p90).toBe(120);
+      expect(result[0].cycle_time_p50).toBeNull();
+      expect(result[0].cycle_time_p90).toBeNull();
     });
 
     it("filters by team", () => {
@@ -639,8 +639,8 @@ describe("applyFiltersToRollups coverage: uncovered paths", () => {
 
     // Proportional intersection: 50/100 * 40/100 = 0.2 → 100 * 0.2 = 20
     expect(result[0].pr_count).toBe(20);
-    // No cycle times in breakdown entries → no cycle time in result
-    expect(result[0].cycle_time_p50).toBeUndefined();
+    // No cycle times in breakdown entries → null (not global leak-through)
+    expect(result[0].cycle_time_p50).toBeNull();
   });
 
   it("combined filter with no cycle time data in either slice", () => {
@@ -664,8 +664,10 @@ describe("applyFiltersToRollups coverage: uncovered paths", () => {
 
     // 30/100 * 40/100 = 0.12 → pr_count = round(100 * 0.12) = 12
     expect(result[0].pr_count).toBe(12);
-    // No cycle_time in breakdown entries → p50s empty → no cycle time spread
-    expect(result[0]).not.toHaveProperty("cycle_time_p50");
+    // No cycle_time in breakdown entries → p50s empty → null
+    // (explicit null prevents global values leaking through)
+    expect(result[0].cycle_time_p50).toBeNull();
+    expect(result[0].cycle_time_p90).toBeNull();
     // authors: round(10 * 0.12) = 1, reviewers: round(5 * 0.12) = 1
     expect(result[0].authors_count).toBe(1);
     expect(result[0].reviewers_count).toBe(1);
@@ -1456,5 +1458,167 @@ describe("zero-leakage regression", () => {
     expect(result[0].reviewers_count).toBe(0);
     expect(result[0].cycle_time_p50).toBeNull();
     expect(result[0].cycle_time_p90).toBeNull();
+  });
+});
+
+/**
+ * Global value leakage prevention tests.
+ *
+ * Validates that buildFilteredRollup and the proportional path never leak
+ * global rollup values (authors_count, reviewers_count, cycle_time) through
+ * the ...rollup spread when the filtered slice produces zero or null for
+ * those fields but has non-zero pr_count.
+ *
+ * Bug: When slice.authors_count === 0 but slice.pr_count > 0, the previous
+ * code used a conditional spread `...(slice.authors_count > 0 ? ... : {})`
+ * which left the global value from `...rollup` intact. The fix always
+ * overrides these fields explicitly.
+ */
+describe("global value leakage prevention", () => {
+  it("buildFilteredRollup does not leak global authors_count when slice has 0 authors", () => {
+    const rollup = {
+      week: "2026-W01",
+      pr_count: 100,
+      cycle_time_p50: 60,
+      cycle_time_p90: 120,
+      authors_count: 15,
+      reviewers_count: 8,
+      by_repository: {
+        "auto-repo": {
+          pr_count: 5,
+          cycle_time_p50: 40,
+          cycle_time_p90: 80,
+          authors_count: 0,
+          reviewers_count: 0,
+        },
+      },
+    } as unknown as Rollup;
+
+    const result = applyFiltersToRollups([rollup], {
+      repos: ["auto-repo"],
+      teams: [],
+    });
+
+    // pr_count is 5, but authors/reviewers are 0 — must NOT show global 15/8
+    expect(result[0].pr_count).toBe(5);
+    expect(result[0].authors_count).toBe(0);
+    expect(result[0].reviewers_count).toBe(0);
+  });
+
+  it("buildFilteredRollup does not leak global cycle_time when slice has no cycle data", () => {
+    const rollup = {
+      week: "2026-W01",
+      pr_count: 100,
+      cycle_time_p50: 60,
+      cycle_time_p90: 120,
+      authors_count: 15,
+      reviewers_count: 8,
+      by_repository: {
+        "no-ct-repo": {
+          pr_count: 10,
+          authors_count: 3,
+          reviewers_count: 2,
+          // No cycle_time fields
+        },
+      },
+    } as unknown as Rollup;
+
+    const result = applyFiltersToRollups([rollup], {
+      repos: ["no-ct-repo"],
+      teams: [],
+    });
+
+    // pr_count is 10, but cycle times should be null — must NOT show global 60/120
+    expect(result[0].pr_count).toBe(10);
+    expect(result[0].cycle_time_p50).toBeNull();
+    expect(result[0].cycle_time_p90).toBeNull();
+  });
+
+  it("proportional path does not leak global authors/reviewers when proportional rounds to 0", () => {
+    const rollup = {
+      week: "2026-W01",
+      pr_count: 200,
+      cycle_time_p50: 80,
+      cycle_time_p90: 160,
+      authors_count: 20,
+      reviewers_count: 10,
+      by_repository: {
+        "repo-a": { pr_count: 20, cycle_time_p50: 50, cycle_time_p90: 100, authors_count: 2, reviewers_count: 1 },
+      },
+      by_team: {
+        "team-x": { pr_count: 20, cycle_time_p50: 55, cycle_time_p90: 110, authors_count: 2, reviewers_count: 1 },
+      },
+    } as unknown as Rollup;
+
+    const result = applyFiltersToRollups([rollup], {
+      repos: ["repo-a"],
+      teams: ["team-x"],
+    });
+
+    // repoShare=20/200=0.1, teamShare=20/200=0.1, ratio=0.01
+    // combinedPrCount=round(200*0.01)=2
+    // combinedAuthors=round(20*0.01)=0, combinedReviewers=round(10*0.01)=0
+    expect(result[0].pr_count).toBe(2);
+    // Must NOT leak global 20/10 through
+    expect(result[0].authors_count).toBe(0);
+    expect(result[0].reviewers_count).toBe(0);
+  });
+
+  it("proportional path does not leak global cycle_time when slices have no cycle data", () => {
+    const rollup = {
+      week: "2026-W01",
+      pr_count: 100,
+      cycle_time_p50: 80,
+      cycle_time_p90: 160,
+      authors_count: 10,
+      reviewers_count: 5,
+      by_repository: {
+        "repo-a": { pr_count: 30, authors_count: 3, reviewers_count: 1 },
+      },
+      by_team: {
+        "team-x": { pr_count: 40, authors_count: 4, reviewers_count: 2 },
+      },
+    } as unknown as Rollup;
+
+    const result = applyFiltersToRollups([rollup], {
+      repos: ["repo-a"],
+      teams: ["team-x"],
+    });
+
+    // combinedPrCount=round(100*0.3*0.4)=12
+    expect(result[0].pr_count).toBe(12);
+    // No cycle time in either slice → null, not global 80/160
+    expect(result[0].cycle_time_p50).toBeNull();
+    expect(result[0].cycle_time_p90).toBeNull();
+  });
+
+  it("repoShare and teamShare are clamped to [0, 1] range", () => {
+    // Simulate overlapping teams where sum exceeds total
+    const rollup = {
+      week: "2026-W01",
+      pr_count: 100,
+      cycle_time_p50: 60,
+      cycle_time_p90: 120,
+      authors_count: 10,
+      reviewers_count: 5,
+      by_repository: {
+        "repo-a": { pr_count: 50, cycle_time_p50: 55, cycle_time_p90: 110, authors_count: 5, reviewers_count: 3 },
+      },
+      by_team: {
+        // team-x has 120 PRs due to multi-team overlap (exceeds total 100)
+        "team-x": { pr_count: 120, cycle_time_p50: 58, cycle_time_p90: 115, authors_count: 8, reviewers_count: 4 },
+      },
+    } as unknown as Rollup;
+
+    const result = applyFiltersToRollups([rollup], {
+      repos: ["repo-a"],
+      teams: ["team-x"],
+    });
+
+    // teamShare = min(1, 120/100) = 1.0 (clamped), repoShare = 50/100 = 0.5
+    // combinedPrCount = round(100 * 0.5 * 1.0) = 50
+    expect(result[0].pr_count).toBe(50);
+    // Must not exceed repo total
+    expect(result[0].pr_count).toBeLessThanOrEqual(100);
   });
 });

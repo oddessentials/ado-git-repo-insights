@@ -1300,7 +1300,7 @@ function removeFilter(type: string, value: string): void {
     const repoFilter = elements["repo-filter"] as HTMLSelectElement | null;
     if (repoFilter) {
       const option = repoFilter.querySelector(
-        `option[value="${value}"]`,
+        `option[value="${CSS.escape(value)}"]`,
       ) as HTMLOptionElement | null;
       if (option) option.selected = false;
     }
@@ -1309,7 +1309,7 @@ function removeFilter(type: string, value: string): void {
     const teamFilter = elements["team-filter"] as HTMLSelectElement | null;
     if (teamFilter) {
       const option = teamFilter.querySelector(
-        `option[value="${value}"]`,
+        `option[value="${CSS.escape(value)}"]`,
       ) as HTMLOptionElement | null;
       if (option) option.selected = false;
     }
@@ -1380,12 +1380,16 @@ function renderFilterChips(): void {
 function getFilterLabel(type: string, value: string): string {
   if (type === "repo") {
     const repoFilter = elements["repo-filter"] as HTMLSelectElement | null;
-    const option = repoFilter?.querySelector(`option[value="${value}"]`);
+    const option = repoFilter?.querySelector(
+      `option[value="${CSS.escape(value)}"]`,
+    );
     return option?.textContent || value;
   }
   if (type === "team") {
     const teamFilter = elements["team-filter"] as HTMLSelectElement | null;
-    const option = teamFilter?.querySelector(`option[value="${value}"]`);
+    const option = teamFilter?.querySelector(
+      `option[value="${CSS.escape(value)}"]`,
+    );
     return option?.textContent || value;
   }
   return value;
@@ -1420,7 +1424,7 @@ function restoreFiltersFromUrl(): void {
     if (repoFilter) {
       currentFilters.repos.forEach((value) => {
         const option = repoFilter.querySelector(
-          `option[value="${value}"]`,
+          `option[value="${CSS.escape(value)}"]`,
         ) as HTMLOptionElement | null;
         if (option) option.selected = true;
       });
@@ -1433,7 +1437,7 @@ function restoreFiltersFromUrl(): void {
     if (teamFilter) {
       currentFilters.teams.forEach((value) => {
         const option = teamFilter.querySelector(
-          `option[value="${value}"]`,
+          `option[value="${CSS.escape(value)}"]`,
         ) as HTMLOptionElement | null;
         if (option) option.selected = true;
       });
