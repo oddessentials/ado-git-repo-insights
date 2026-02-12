@@ -92,6 +92,7 @@ csv_output/
 # Azure DevOps extension
 *.vsix
 node_modules/
+package-lock.json
 
 # OS files
 .DS_Store
