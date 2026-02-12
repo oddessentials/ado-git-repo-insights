@@ -778,7 +778,7 @@ class AggregateGenerator:
         for (team_name, repo_name), grp in tagged.groupby(
             ["team_name", "repository_name"]
         ):
-            if pd.isna(team_name) or pd.isna(repo_name):
+            if pd.isna(team_name) or pd.isna(repo_name):  # type: ignore[call-overload] -- REASON: multi-column groupby yields Hashable keys; pd.isna stubs lack overload for Hashable
                 continue
 
             pr_count = len(grp)
