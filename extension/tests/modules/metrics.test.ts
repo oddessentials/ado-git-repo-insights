@@ -1484,6 +1484,42 @@ describe("zero-leakage regression", () => {
     expect(result[0].cycle_time_p90).toBeNull();
   });
 
+  // PR#158: truncated cross-dim map with partial hit must fall through to proportional,
+  // not return biased exact result from the incomplete intersection data.
+  it("truncated cross-dim map with partial hit falls through to proportional", () => {
+    const rollup = {
+      week: "2026-W01",
+      pr_count: 100,
+      cycle_time_p50: 60,
+      cycle_time_p90: 120,
+      authors_count: 10,
+      reviewers_count: 5,
+      by_repository: {
+        "repo-a": { pr_count: 30, cycle_time_p50: 50, cycle_time_p90: 100, authors_count: 4, reviewers_count: 2 },
+        "repo-b": { pr_count: 40, cycle_time_p50: 55, cycle_time_p90: 110, authors_count: 5, reviewers_count: 3 },
+      },
+      by_team: {
+        "team-x": { pr_count: 50, cycle_time_p50: 58, cycle_time_p90: 115, authors_count: 6, reviewers_count: 4 },
+      },
+      by_team_and_repo: {
+        _truncated: true,
+        // Only team-x/repo-a survived; team-x/repo-b was dropped due to truncation
+        "team-x": {
+          "repo-a": { pr_count: 15, cycle_time_p50: 50, cycle_time_p90: 100, authors_count: 3, reviewers_count: 2 },
+        },
+      },
+    } as unknown as Rollup;
+
+    const result = applyFiltersToRollups([rollup], {
+      repos: ["repo-a", "repo-b"],
+      teams: ["team-x"],
+    });
+
+    // With the bug, this would return pr_count=15 (only team-x/repo-a exact).
+    // Fixed: falls through to proportional = 100 * (70/100) * (50/100) = 35.
+    expect(result[0].pr_count).toBe(35);
+  });
+
   // Existing behavior preserved: non-truncated map with lookup miss returns zero.
   it("non-truncated cross-dim map returns zero on complete lookup miss", () => {
     const rollup = {

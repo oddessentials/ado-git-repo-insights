@@ -29,6 +29,22 @@ from ado_git_repo_insights.transform.aggregators import (  # noqa: E402  # type:
 )
 
 
+def _largest_remainder_allocate(total: int, weights: list[float]) -> list[int]:
+    """Distribute *total* across buckets proportional to *weights*.
+
+    Uses the largest-remainder method so ``sum(result) == total`` exactly
+    and every element is >= 0.
+    """
+    raw = [total * w for w in weights]
+    floors = [int(r // 1) for r in raw]
+    remainder = total - sum(floors)
+    fracs = [(raw[k] - floors[k], k) for k in range(len(weights))]
+    fracs.sort(key=lambda x: x[0], reverse=True)
+    for idx in range(remainder):
+        floors[fracs[idx][1]] += 1
+    return floors
+
+
 def generate_dimensions(
     pr_count: int, seed: int, num_users: int | None = None, weeks: int | None = None
 ) -> Dimensions:
@@ -229,23 +245,19 @@ def generate_weekly_rollups(
                 if t_prs == 0:
                     continue
                 team_repo_entries: dict[str, Any] = {}
-                remaining_prs = t_prs
-                remaining_authors = t_authors
-                remaining_reviewers = t_reviewers
+
+                alloc_prs = _largest_remainder_allocate(t_prs, repo_weights)
+                alloc_authors = _largest_remainder_allocate(t_authors, repo_weights)
+                alloc_reviewers = _largest_remainder_allocate(t_reviewers, repo_weights)
 
                 for j, rname in enumerate(repo_names):
-                    is_last = j == num_repos - 1
-                    if is_last:
-                        r_prs = max(0, remaining_prs)
-                        r_authors = max(0, remaining_authors)
-                        r_reviewers = max(0, remaining_reviewers)
-                    else:
-                        r_prs = round(t_prs * repo_weights[j])
-                        r_authors = max(1, round(t_authors * repo_weights[j]))
-                        r_reviewers = max(1, round(t_reviewers * repo_weights[j]))
-                        remaining_prs -= r_prs
-                        remaining_authors -= r_authors
-                        remaining_reviewers -= r_reviewers
+                    r_prs = alloc_prs[j]
+                    r_authors = (
+                        max(1, alloc_authors[j]) if r_prs > 0 else alloc_authors[j]
+                    )
+                    r_reviewers = (
+                        max(1, alloc_reviewers[j]) if r_prs > 0 else alloc_reviewers[j]
+                    )
 
                     if r_prs <= 0:
                         continue
@@ -286,25 +298,26 @@ def generate_weekly_rollups(
             weights = [w / weight_sum for w in raw_weights]
 
             by_repo: dict[str, dict[str, Any]] = {}
-            remaining_prs = week_pr_count
-            remaining_authors = rollup.authors_count
-            remaining_reviewers = rollup.reviewers_count
+            alloc_repo_prs = _largest_remainder_allocate(week_pr_count, weights)
+            alloc_repo_authors = _largest_remainder_allocate(
+                rollup.authors_count, weights
+            )
+            alloc_repo_reviewers = _largest_remainder_allocate(
+                rollup.reviewers_count, weights
+            )
 
             for i, name in enumerate(repo_names):
-                is_last = i == len(repo_names) - 1
-                if is_last:
-                    # Remainder gets clamped to 0 — round() on earlier
-                    # repos can overshoot the total.
-                    repo_prs = max(0, remaining_prs)
-                    repo_authors = max(0, remaining_authors)
-                    repo_reviewers = max(0, remaining_reviewers)
-                else:
-                    repo_prs = round(week_pr_count * weights[i])
-                    repo_authors = max(1, round(rollup.authors_count * weights[i]))
-                    repo_reviewers = max(1, round(rollup.reviewers_count * weights[i]))
-                    remaining_prs -= repo_prs
-                    remaining_authors -= repo_authors
-                    remaining_reviewers -= repo_reviewers
+                repo_prs = alloc_repo_prs[i]
+                repo_authors = (
+                    max(1, alloc_repo_authors[i])
+                    if repo_prs > 0
+                    else alloc_repo_authors[i]
+                )
+                repo_reviewers = (
+                    max(1, alloc_repo_reviewers[i])
+                    if repo_prs > 0
+                    else alloc_repo_reviewers[i]
+                )
 
                 # Vary cycle times by weight for realistic spread
                 factor = 0.6 + weights[i] * len(repo_names) * 0.8

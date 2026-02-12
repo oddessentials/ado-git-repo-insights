@@ -3046,12 +3046,15 @@ var PRInsightsDashboard = (() => {
             if (entry) crossDimEntries.push(entry);
           }
         }
-        if (crossDimEntries.length > 0) {
-          const exactSlice = aggregateEntries(crossDimEntries);
-          return buildFilteredRollup(rollup, exactSlice);
-        }
+        const expectedCount = filters.teams.length * filters.repos.length;
         const isTruncated = rollup.by_team_and_repo["_truncated"] === true;
-        if (!isTruncated) {
+        if (crossDimEntries.length > 0) {
+          if (isTruncated && crossDimEntries.length < expectedCount) {
+          } else {
+            const exactSlice = aggregateEntries(crossDimEntries);
+            return buildFilteredRollup(rollup, exactSlice);
+          }
+        } else if (!isTruncated) {
           return { ...rollup, ...ZEROED_ROLLUP_FIELDS };
         }
       }

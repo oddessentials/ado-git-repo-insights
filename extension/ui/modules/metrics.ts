@@ -329,19 +329,24 @@ export function applyFiltersToRollups(
           if (entry) crossDimEntries.push(entry);
         }
       }
-      if (crossDimEntries.length > 0) {
-        const exactSlice = aggregateEntries(crossDimEntries);
-        return buildFilteredRollup(rollup, exactSlice);
-      }
-      // All lookups missed: if the map was truncated, entries may have been
-      // dropped rather than absent. Fall through to proportional estimation.
+      const expectedCount = filters.teams.length * filters.repos.length;
       const isTruncated =
         (rollup.by_team_and_repo as Record<string, unknown>)["_truncated"] ===
         true;
-      if (!isTruncated) {
+      if (crossDimEntries.length > 0) {
+        // When the map is truncated and some intersections are missing,
+        // the partial result undercounts — fall through to proportional.
+        if (isTruncated && crossDimEntries.length < expectedCount) {
+          // Truncated partial hit — fall through to proportional below
+        } else {
+          const exactSlice = aggregateEntries(crossDimEntries);
+          return buildFilteredRollup(rollup, exactSlice);
+        }
+      } else if (!isTruncated) {
+        // All lookups missed on a non-truncated map — genuinely zero.
         return { ...rollup, ...ZEROED_ROLLUP_FIELDS } as Rollup;
       }
-      // Truncated map — fall through to proportional below
+      // Truncated map (full miss or partial hit) — fall through to proportional below
     }
 
     // Both filters active — proportional intersection (fallback for v1 rollups).
