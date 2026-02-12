@@ -60,6 +60,7 @@ export interface WeeklyRollup {
   reviewers_count?: number;
   by_repository?: Record<string, BreakdownEntry>;
   by_team?: Record<string, BreakdownEntry>;
+  by_team_and_repo?: Record<string, Record<string, BreakdownEntry>>;
 }
 
 // ============================================================================
@@ -79,6 +80,7 @@ const KNOWN_ROOT_FIELDS = new Set([
   "reviewers_count",
   "by_repository",
   "by_team",
+  "by_team_and_repo",
 ]);
 
 const KNOWN_BREAKDOWN_FIELDS = new Set([
@@ -166,6 +168,49 @@ function validateBreakdown(
     const result = validateBreakdownEntry(value, buildPath(path, key), strict);
     errors.push(...result.errors);
     warnings.push(...result.warnings);
+  }
+
+  return { errors, warnings };
+}
+
+/**
+ * Validate a nested breakdown (e.g., by_team_and_repo: team -> repo -> entry).
+ * Outer keys map to inner breakdown objects (dict of dict of BreakdownEntry).
+ */
+function validateNestedBreakdown(
+  data: unknown,
+  path: string,
+  strict: boolean,
+): { errors: ValidationError[]; warnings: ValidationWarning[] } {
+  const errors: ValidationError[] = [];
+  const warnings: ValidationWarning[] = [];
+
+  if (!isObject(data)) {
+    errors.push(createError(path, "object", getTypeName(data)));
+    return { errors, warnings };
+  }
+
+  // Each key is an outer dimension (e.g., team name), value is a breakdown (repo -> entry).
+  // Keys starting with "_" are metadata (e.g., _truncated) and must be skipped.
+  for (const [outerKey, innerValue] of Object.entries(data)) {
+    if (outerKey.startsWith("_")) continue;
+    const innerPath = buildPath(path, outerKey);
+    if (!isObject(innerValue)) {
+      errors.push(createError(innerPath, "object", getTypeName(innerValue)));
+      continue;
+    }
+    // Each key in the inner object is a second dimension (e.g., repo name)
+    for (const [innerKey, entryValue] of Object.entries(
+      innerValue as Record<string, unknown>,
+    )) {
+      const entryResult = validateBreakdownEntry(
+        entryValue,
+        buildPath(innerPath, innerKey),
+        strict,
+      );
+      errors.push(...entryResult.errors);
+      warnings.push(...entryResult.warnings);
+    }
   }
 
   return { errors, warnings };
@@ -268,6 +313,19 @@ export function validateRollup(
     warnings.push(...result.warnings);
   }
 
+  if (
+    Object.prototype.hasOwnProperty.call(data, "by_team_and_repo") &&
+    data.by_team_and_repo !== undefined
+  ) {
+    const result = validateNestedBreakdown(
+      data.by_team_and_repo,
+      "by_team_and_repo",
+      strict,
+    );
+    errors.push(...result.errors);
+    warnings.push(...result.warnings);
+  }
+
   // Check for unknown fields at root
   const unknown = findUnknownFields(data, KNOWN_ROOT_FIELDS, "", strict);
   errors.push(...unknown.errors);
@@ -332,6 +390,15 @@ export function normalizeRollup(data: unknown): WeeklyRollup {
     by_team:
       (obj.by_team as Record<string, BreakdownEntry>) ??
       ROLLUP_FIELD_DEFAULTS.by_team,
+    // Pass through cross-dimensional breakdown if present (v2 schema)
+    ...(obj.by_team_and_repo !== undefined
+      ? {
+          by_team_and_repo: obj.by_team_and_repo as Record<
+            string,
+            Record<string, BreakdownEntry>
+          >,
+        }
+      : {}),
   };
 }
 

@@ -130,7 +130,7 @@ def test_manifest_schema_validation():
     # Validate schema versions
     assert manifest_data["manifest_schema_version"] == 1
     assert manifest_data["dataset_schema_version"] == 1
-    assert manifest_data["aggregates_schema_version"] == 1
+    assert manifest_data["aggregates_schema_version"] == 2
 
     # Validate required fields
     assert "generated_at" in manifest_data
@@ -549,3 +549,151 @@ def test_combined_parameters_weeks_users_comments():
     assert coverage["row_counts"]["users"] == 200
     assert "comments" in coverage
     assert coverage["comments"]["prs_with_comments"] == 1000
+
+
+# ---------------------------------------------------------------------------
+# Cross-dimensional data validation (T010)
+# ---------------------------------------------------------------------------
+
+
+def test_by_team_and_repo_present_in_rollups():
+    """T010: Cross-dimensional breakdown must be present in generated rollups."""
+    output_dir = run_generator(pr_count=100, weeks=4, seed=42)
+    manifest_path = output_dir / "dataset-manifest.json"
+    with manifest_path.open() as f:
+        manifest = json.load(f)
+
+    rollups_with_cross_dim = 0
+    for entry in manifest["aggregate_index"]["weekly_rollups"]:
+        rollup_path = output_dir / entry["path"]
+        with rollup_path.open() as f:
+            rollup = json.load(f)
+        if "by_team_and_repo" in rollup:
+            rollups_with_cross_dim += 1
+
+    assert rollups_with_cross_dim > 0, (
+        "At least one rollup must contain by_team_and_repo cross-dimensional data"
+    )
+
+
+def test_by_team_and_repo_pr_count_consistency():
+    """T010: pr_count consistency invariant: sum(cross-dim) == team total."""
+    output_dir = run_generator(pr_count=100, weeks=4, seed=42)
+    manifest_path = output_dir / "dataset-manifest.json"
+    with manifest_path.open() as f:
+        manifest = json.load(f)
+
+    for entry in manifest["aggregate_index"]["weekly_rollups"]:
+        rollup_path = output_dir / entry["path"]
+        with rollup_path.open() as f:
+            rollup = json.load(f)
+
+        if "by_team_and_repo" not in rollup or "by_team" not in rollup:
+            continue
+
+        by_team = rollup["by_team"]
+        by_team_and_repo = rollup["by_team_and_repo"]
+
+        for team_name, repo_entries in by_team_and_repo.items():
+            if team_name.startswith("_"):
+                continue  # skip metadata like _truncated
+            cross_dim_sum = sum(e["pr_count"] for e in repo_entries.values())
+            team_total = by_team[team_name]["pr_count"]
+            assert cross_dim_sum == team_total, (
+                f"Week {rollup['week']}: team '{team_name}' cross-dim pr_count sum "
+                f"({cross_dim_sum}) != team total ({team_total})"
+            )
+
+
+def test_by_team_and_repo_correlated_distributions():
+    """T010: Correlated distributions produce non-trivial proportional estimation error.
+
+    The synthetic data must expose proportional estimation failures by using
+    correlated (not independent) team-repo distributions. At least one team-repo
+    pair must have a proportional estimate that differs from exact by >20%.
+    """
+    output_dir = run_generator(pr_count=1000, weeks=8, seed=42)
+    manifest_path = output_dir / "dataset-manifest.json"
+    with manifest_path.open() as f:
+        manifest = json.load(f)
+
+    max_error_pct = 0.0
+
+    for entry in manifest["aggregate_index"]["weekly_rollups"]:
+        rollup_path = output_dir / entry["path"]
+        with rollup_path.open() as f:
+            rollup = json.load(f)
+
+        if not all(
+            k in rollup for k in ("by_team_and_repo", "by_team", "by_repository")
+        ):
+            continue
+        if rollup["pr_count"] == 0:
+            continue
+
+        by_team = rollup["by_team"]
+        by_repo = rollup["by_repository"]
+        by_team_and_repo = rollup["by_team_and_repo"]
+        total = rollup["pr_count"]
+
+        for team_name, repo_entries in by_team_and_repo.items():
+            if team_name.startswith("_"):
+                continue
+            team_pr = by_team.get(team_name, {}).get("pr_count", 0)
+            if team_pr == 0 or total == 0:
+                continue
+            team_share = team_pr / total
+
+            for repo_name, entry in repo_entries.items():
+                exact = entry["pr_count"]
+                repo_pr = by_repo.get(repo_name, {}).get("pr_count", 0)
+                if repo_pr == 0 or exact == 0:
+                    continue
+                repo_share = repo_pr / total
+
+                # Proportional estimate
+                estimated = total * team_share * repo_share
+                error_pct = abs(exact - estimated) / exact * 100
+                max_error_pct = max(max_error_pct, error_pct)
+
+    assert max_error_pct > 20, (
+        f"Correlated distributions must produce >20% proportional estimation error "
+        f"for at least one team-repo pair, but max error was only {max_error_pct:.1f}%"
+    )
+
+
+def test_by_team_and_repo_null_cycle_times_small_sample():
+    """T010: Intersections with fewer than 5 PRs must have null cycle times."""
+    output_dir = run_generator(pr_count=100, weeks=4, seed=42)
+    manifest_path = output_dir / "dataset-manifest.json"
+    with manifest_path.open() as f:
+        manifest = json.load(f)
+
+    found_small_sample = False
+    for entry in manifest["aggregate_index"]["weekly_rollups"]:
+        rollup_path = output_dir / entry["path"]
+        with rollup_path.open() as f:
+            rollup = json.load(f)
+
+        if "by_team_and_repo" not in rollup:
+            continue
+
+        for team_entries in rollup["by_team_and_repo"].values():
+            if isinstance(team_entries, bool):
+                continue  # skip _truncated flag
+            for entry_data in team_entries.values():
+                if entry_data["pr_count"] < 5:
+                    found_small_sample = True
+                    assert entry_data["cycle_time_p50"] is None, (
+                        f"cycle_time_p50 must be null for intersections with "
+                        f"<5 PRs, got {entry_data['cycle_time_p50']}"
+                    )
+                    assert entry_data["cycle_time_p90"] is None, (
+                        f"cycle_time_p90 must be null for intersections with "
+                        f"<5 PRs, got {entry_data['cycle_time_p90']}"
+                    )
+
+    assert found_small_sample, (
+        "Test must find at least one intersection with <5 PRs to validate "
+        "the minimum sample size threshold"
+    )

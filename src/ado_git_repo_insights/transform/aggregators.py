@@ -31,7 +31,7 @@ logger = logging.getLogger(__name__)
 # Schema versions (Phase 3 locked)
 MANIFEST_SCHEMA_VERSION = 1
 DATASET_SCHEMA_VERSION = 1
-AGGREGATES_SCHEMA_VERSION = 1
+AGGREGATES_SCHEMA_VERSION = 2
 
 # Phase 3.5 schema versions
 PREDICTIONS_SCHEMA_VERSION = 1
@@ -159,6 +159,7 @@ class AggregateGenerator:
         self.insights_cache_ttl_hours = insights_cache_ttl_hours
         self.insights_dry_run = insights_dry_run
         self.stub_mode = stub_mode
+        self._any_rollup_has_cross_dim: bool = False
 
     def generate_all(self) -> DatasetManifest:
         """Generate all aggregate files and manifest.
@@ -282,6 +283,7 @@ class AggregateGenerator:
                 limits={"max_date_range_days_soft": 730},
                 features={
                     "teams": len(dimensions.teams) > 0,  # Phase 3.3: dynamic
+                    "cross_dimensional": self._any_rollup_has_cross_dim,
                     "comments": self._has_comments(),  # Phase 3.4: dynamic
                     "predictions": predictions_generated,  # Phase 3.5/5: file-gated
                     "ai_insights": insights_generated,  # Phase 3.5/5: file-gated
@@ -520,6 +522,8 @@ class AggregateGenerator:
         df["iso_week"] = df["closed_dt"].dt.isocalendar().week
 
         index: list[dict[str, Any]] = []
+        any_rollup_has_cross_dim = False
+        # Track cross-dim availability for features flag (set on self after loop)
 
         # Group by ISO year-week
         for (iso_year, iso_week), group in df.groupby(["iso_year", "iso_week"]):
@@ -542,6 +546,9 @@ class AggregateGenerator:
             # Generate dimension slices for filtering support
             by_repository = self._generate_repo_slice(group, week_reviewers)
             by_team = self._generate_team_slice(group, week_reviewers, team_members_df)
+            by_team_and_repo = self._generate_team_repo_slice(
+                group, week_reviewers, team_members_df
+            )
 
             rollup = WeeklyRollup(
                 week=week_str,
@@ -564,6 +571,28 @@ class AggregateGenerator:
                 rollup_dict["by_repository"] = by_repository
             if by_team:
                 rollup_dict["by_team"] = by_team
+            if by_team_and_repo:
+                # Consistency assertion (pr_count only): for each team,
+                # sum of cross-dim pr_counts must equal team total.
+                # Relaxed when truncation has occurred (_truncated flag).
+                is_truncated = by_team_and_repo.get("_truncated", False)
+                if not is_truncated and by_team:
+                    for team_name, repo_entries in by_team_and_repo.items():
+                        if team_name.startswith("_"):
+                            continue  # skip metadata keys like _truncated
+                        cross_dim_pr_sum = sum(
+                            entry["pr_count"] for entry in repo_entries.values()
+                        )
+                        team_pr_count = by_team.get(team_name, {}).get("pr_count", 0)
+                        if cross_dim_pr_sum != team_pr_count:
+                            raise ValueError(
+                                f"Cross-dim pr_count consistency violated for "
+                                f"team '{team_name}' in week {week_str}: "
+                                f"cross_dim_sum={cross_dim_pr_sum} != "
+                                f"team_total={team_pr_count}"
+                            )
+                rollup_dict["by_team_and_repo"] = by_team_and_repo
+                any_rollup_has_cross_dim = True
 
             # Write file
             file_path = (
@@ -581,6 +610,9 @@ class AggregateGenerator:
                     "size_bytes": file_path.stat().st_size,
                 }
             )
+
+        # Store cross-dim availability for features flag in generate_all()
+        self._any_rollup_has_cross_dim = any_rollup_has_cross_dim
 
         return index
 
@@ -688,6 +720,121 @@ class AggregateGenerator:
             }
 
         return by_team
+
+    # Maximum cross-dimensional entries per week before truncation (FR-017)
+    _CROSS_DIM_MAX_ENTRIES = 5000
+    # Minimum sample size for cycle time percentiles (FR-019)
+    _CROSS_DIM_MIN_SAMPLE = 5
+
+    def _generate_team_repo_slice(
+        self,
+        week_group: pd.DataFrame,
+        week_reviewers: pd.DataFrame,
+        team_members_df: pd.DataFrame,
+    ) -> dict[str, Any]:
+        """Generate per-team-per-repository metrics slice for a week.
+
+        Joins week PRs against team_members_df to tag each PR with its team
+        membership(s), then groups by (team_name, repository_name) in a single
+        pass. This is O(PRs * avg_teams_per_author + unique_pairs) rather than
+        O(teams * repos), matching the groupby pattern in _generate_repo_slice().
+
+        Authors in multiple teams will have their PRs counted in each team's
+        slice — consistent with _generate_team_slice() semantics.
+
+        Args:
+            week_group: DataFrame of PRs for the week (must have user_id,
+                repository_name, pull_request_uid, cycle_time_minutes columns).
+            week_reviewers: DataFrame of reviewers for PRs in this week
+                (must have pull_request_uid, reviewer_id columns).
+            team_members_df: DataFrame with team_name and user_id columns.
+
+        Returns:
+            Sparse nested dict {team_name: {repo_name: {metrics...}}}.
+            Empty dict if no team data or no intersections found.
+            Includes '_truncated': True at top level if entries exceed the
+            5,000 entry cap and were truncated.
+        """
+        if team_members_df.empty:
+            return {}
+
+        # Join PRs with team memberships to tag each PR with its team(s).
+        # A multi-team author produces one row per team membership.
+        tagged = week_group.merge(
+            team_members_df[["user_id", "team_name"]],
+            on="user_id",
+            how="inner",
+        )
+
+        if tagged.empty:
+            return {}
+
+        by_team_and_repo: dict[str, Any] = {}
+        entry_count = 0
+
+        # Collect all entries with their pr_count for potential truncation
+        all_entries: list[tuple[str, str, dict[str, Any]]] = []
+
+        for (team_name, repo_name), grp in tagged.groupby(
+            ["team_name", "repository_name"]
+        ):
+            if pd.isna(team_name) or pd.isna(repo_name):
+                continue
+
+            pr_count = len(grp)
+            if pr_count == 0:
+                continue
+
+            # Compute cycle time percentiles with minimum sample size guard
+            has_cycle_times = not grp["cycle_time_minutes"].isna().all()
+            if has_cycle_times and pr_count >= self._CROSS_DIM_MIN_SAMPLE:
+                cycle_time_p50 = grp["cycle_time_minutes"].quantile(0.5)
+                cycle_time_p90 = grp["cycle_time_minutes"].quantile(0.9)
+            else:
+                cycle_time_p50 = None
+                cycle_time_p90 = None
+
+            # Count unique reviewers for PRs in this intersection
+            grp_pr_uids = set(grp["pull_request_uid"].tolist())
+            grp_reviewers = week_reviewers[
+                week_reviewers["pull_request_uid"].isin(grp_pr_uids)
+            ]
+
+            entry = {
+                "pr_count": pr_count,
+                "cycle_time_p50": cycle_time_p50,
+                "cycle_time_p90": cycle_time_p90,
+                "authors_count": grp["user_id"].nunique(),
+                "reviewers_count": grp_reviewers["reviewer_id"].nunique(),
+            }
+
+            all_entries.append((str(team_name), str(repo_name), entry))
+            entry_count += 1
+
+        # Truncation: if entries exceed cap, keep highest-pr_count entries
+        truncated = False
+        if entry_count > self._CROSS_DIM_MAX_ENTRIES:
+            all_entries.sort(key=lambda e: e[2]["pr_count"], reverse=True)
+            all_entries = all_entries[: self._CROSS_DIM_MAX_ENTRIES]
+            truncated = True
+            logger.warning(
+                "Cross-dimensional entries truncated from %d to %d for week",
+                entry_count,
+                self._CROSS_DIM_MAX_ENTRIES,
+            )
+
+        # Build nested dict from (possibly truncated) entries
+        for team_name, repo_name, entry in all_entries:
+            if team_name not in by_team_and_repo:
+                by_team_and_repo[team_name] = {}
+            by_team_and_repo[team_name][repo_name] = entry
+
+        if truncated:
+            # NOTE: Mixed-type key — bool value alongside dict values.
+            # Consumers must skip "_"-prefixed keys when iterating entries.
+            by_team_and_repo["_truncated"] = True
+
+        return by_team_and_repo
 
     def _generate_distributions(self) -> list[dict[str, Any]]:
         """Generate yearly distribution files."""

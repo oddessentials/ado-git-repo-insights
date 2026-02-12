@@ -72,7 +72,7 @@ function validateSchema(
 // Supported schema versions (from dataset-contract.md)
 const SUPPORTED_MANIFEST_VERSION = 1;
 const SUPPORTED_DATASET_VERSION = 1;
-const SUPPORTED_AGGREGATES_VERSION = 1;
+const SUPPORTED_AGGREGATES_VERSION = 2;
 
 /**
  * Candidate paths to search for dataset-manifest.json.
@@ -105,6 +105,7 @@ export interface Rollup {
   reviewers_count: number;
   by_repository: Record<string, BreakdownEntry> | null;
   by_team: Record<string, BreakdownEntry> | null;
+  by_team_and_repo?: Record<string, Record<string, BreakdownEntry>>;
   [key: string]: unknown; // Allow for extra fields preserved during normalization
 }
 
@@ -168,6 +169,15 @@ export function normalizeRollup(rollup: unknown): Rollup {
       r.by_team !== undefined
         ? (r.by_team as Record<string, BreakdownEntry> | null)
         : null,
+    // Cross-dimensional breakdown (v2 schema) — pass through if present
+    ...(r.by_team_and_repo !== undefined
+      ? {
+          by_team_and_repo: r.by_team_and_repo as Record<
+            string,
+            Record<string, BreakdownEntry>
+          >,
+        }
+      : {}),
   };
 }
 

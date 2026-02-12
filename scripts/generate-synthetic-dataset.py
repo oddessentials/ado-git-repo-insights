@@ -181,6 +181,100 @@ def generate_weekly_rollups(
             },
         }
 
+        # Add by_team_and_repo cross-dimensional breakdown.
+        # Uses correlated team-repo distributions so that Team Alpha is
+        # heavily weighted toward earlier repos (Backend) and Team Beta
+        # toward later repos (Frontend). This ensures proportional
+        # estimation produces meaningful error (>20%) for at least one
+        # team-repo pair, validating the cross-dim feature.
+        if repositories:
+            repo_names = [r["repository_name"] for r in repositories]
+            num_repos = len(repo_names)
+
+            # Correlated weight profiles: Alpha skews toward early repos
+            # (Backend-like), Beta skews toward late repos (Frontend-like).
+            # This creates non-independent distributions that expose
+            # proportional estimation failures.
+            alpha_repo_raw = [
+                max(0.01, (num_repos - i) / num_repos) for i in range(num_repos)
+            ]
+            beta_repo_raw = [max(0.01, (i + 1) / num_repos) for i in range(num_repos)]
+            alpha_repo_sum = sum(alpha_repo_raw)
+            beta_repo_sum = sum(beta_repo_raw)
+            alpha_repo_weights = [w / alpha_repo_sum for w in alpha_repo_raw]
+            beta_repo_weights = [w / beta_repo_sum for w in beta_repo_raw]
+
+            team_repo_profiles: dict[str, tuple[int, int, int, list[float]]] = {
+                "Team Alpha": (
+                    team_alpha_prs,
+                    team_alpha_authors,
+                    team_alpha_reviewers,
+                    alpha_repo_weights,
+                ),
+                "Team Beta": (
+                    team_beta_prs,
+                    team_beta_authors,
+                    team_beta_reviewers,
+                    beta_repo_weights,
+                ),
+            }
+
+            by_team_and_repo: dict[str, dict[str, Any]] = {}
+            for team_name, (
+                t_prs,
+                t_authors,
+                t_reviewers,
+                repo_weights,
+            ) in team_repo_profiles.items():
+                if t_prs == 0:
+                    continue
+                team_repo_entries: dict[str, Any] = {}
+                remaining_prs = t_prs
+                remaining_authors = t_authors
+                remaining_reviewers = t_reviewers
+
+                for j, rname in enumerate(repo_names):
+                    is_last = j == num_repos - 1
+                    if is_last:
+                        r_prs = max(0, remaining_prs)
+                        r_authors = max(0, remaining_authors)
+                        r_reviewers = max(0, remaining_reviewers)
+                    else:
+                        r_prs = round(t_prs * repo_weights[j])
+                        r_authors = max(1, round(t_authors * repo_weights[j]))
+                        r_reviewers = max(1, round(t_reviewers * repo_weights[j]))
+                        remaining_prs -= r_prs
+                        remaining_authors -= r_authors
+                        remaining_reviewers -= r_reviewers
+
+                    if r_prs <= 0:
+                        continue
+
+                    # Cycle time variation per intersection:
+                    # null when fewer than 5 PRs (FR-019 minimum sample size)
+                    if r_prs < 5:
+                        ct_p50 = None
+                        ct_p90 = None
+                    else:
+                        team_entry = rollup_dict["by_team"][team_name]
+                        ct_factor = 0.7 + repo_weights[j] * num_repos * 0.6
+                        ct_p50 = team_entry["cycle_time_p50"] * ct_factor
+                        ct_p90 = team_entry["cycle_time_p90"] * ct_factor
+
+                    team_repo_entries[rname] = {
+                        "pr_count": r_prs,
+                        "cycle_time_p50": ct_p50,
+                        "cycle_time_p90": ct_p90,
+                        "authors_count": r_authors,
+                        "reviewers_count": r_reviewers,
+                    }
+
+                if team_repo_entries:
+                    by_team_and_repo[team_name] = team_repo_entries
+
+            if by_team_and_repo:
+                rollup_dict["by_team_and_repo"] = by_team_and_repo
+
         # Add by_repository breakdown so the repo filter dropdown works.
         # Keys must be repository_name (not repository_id) to match the
         # dashboard contract — see dashboard.ts filter population.
@@ -466,6 +560,7 @@ def generate_dataset(
         limits={"max_date_range_days_soft": 730},
         features={
             "teams": True,
+            "cross_dimensional": True,
             "comments": include_comments,
             "predictions": False,
             "ai_insights": False,

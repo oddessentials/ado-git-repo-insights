@@ -134,6 +134,36 @@ the full cross-dimensional accuracy plan.
 
 ---
 
+## Deferred: Cross-Dimensional Author-Repo Accuracy (from Feature 029)
+
+> Carried over from `specs/029-cross-dimensional-accuracy/tasks.md` Phase 5 (US3).
+> These tasks are blocked on Author Contributor Filters being implemented first.
+
+Once `by_author` slices exist, the cross-dimensional accuracy feature can be extended
+to author-repository intersections — exact metrics when both an author and repo filter
+are selected, instead of proportional estimates.
+
+### Tasks to Implement (after Author Filters land)
+
+- [ ] T020 [US3] Implement `_generate_author_repo_slice()` in `src/ado_git_repo_insights/transform/aggregators.py`
+  - Follow the same groupby pattern as `_generate_team_repo_slice()` (added in feature 029)
+  - Group PRs by `(user_id, repository_name)` instead of `(team_name, repository_name)`
+  - Apply same min sample size (FR-019: null cycle times for <5 PRs) and truncation (>5k entries)
+  - Output: `by_author_and_repo: { author_display_name: { repo_name: BreakdownEntry } }`
+
+- [ ] T021 [US3] Add `by_author_and_repo` to frontend types and filter resolution
+  - `extension/ui/schemas/rollup.schema.ts`: Add to `WeeklyRollup` interface, `KNOWN_ROOT_FIELDS`, and validate via `validateNestedBreakdown()`
+  - `extension/ui/modules/metrics.ts`: Add exact lookup branch in `applyFiltersToRollups()` for `authors + repos` filter combo (mirror the `teams + repos` cross-dim block at lines 319-339)
+  - `extension/ui/dataset-loader.ts`: Add to `Rollup` interface and `normalizeRollup()` pass-through
+
+### Verification
+
+- Same consistency invariant: `sum(by_author_and_repo[A][*].pr_count) == by_author[A].pr_count`
+- Same proportional fallback when `by_author_and_repo` is absent
+- Same accuracy indicator behavior (exact vs estimated)
+
+---
+
 ## Key Files Reference
 
 ### Backend

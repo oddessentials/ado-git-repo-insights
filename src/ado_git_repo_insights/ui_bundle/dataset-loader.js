@@ -321,7 +321,8 @@ var PRInsightsDatasetLoader = (() => {
     "teams",
     "comments",
     "predictions",
-    "ai_insights"
+    "ai_insights",
+    "cross_dimensional"
   ]);
   var KNOWN_LIMITS_FIELDS = /* @__PURE__ */ new Set([
     "max_weekly_files",
@@ -767,7 +768,8 @@ var PRInsightsDatasetLoader = (() => {
     "authors_count",
     "reviewers_count",
     "by_repository",
-    "by_team"
+    "by_team",
+    "by_team_and_repo"
   ]);
   var KNOWN_BREAKDOWN_FIELDS = /* @__PURE__ */ new Set([
     "pr_count",
@@ -823,6 +825,34 @@ var PRInsightsDatasetLoader = (() => {
       const result = validateBreakdownEntry(value, buildPath(path, key), strict);
       errors.push(...result.errors);
       warnings.push(...result.warnings);
+    }
+    return { errors, warnings };
+  }
+  function validateNestedBreakdown(data, path, strict) {
+    const errors = [];
+    const warnings = [];
+    if (!isObject(data)) {
+      errors.push(createError(path, "object", getTypeName(data)));
+      return { errors, warnings };
+    }
+    for (const [outerKey, innerValue] of Object.entries(data)) {
+      if (outerKey.startsWith("_")) continue;
+      const innerPath = buildPath(path, outerKey);
+      if (!isObject(innerValue)) {
+        errors.push(createError(innerPath, "object", getTypeName(innerValue)));
+        continue;
+      }
+      for (const [innerKey, entryValue] of Object.entries(
+        innerValue
+      )) {
+        const entryResult = validateBreakdownEntry(
+          entryValue,
+          buildPath(innerPath, innerKey),
+          strict
+        );
+        errors.push(...entryResult.errors);
+        warnings.push(...entryResult.warnings);
+      }
     }
     return { errors, warnings };
   }
@@ -884,6 +914,15 @@ var PRInsightsDatasetLoader = (() => {
     }
     if ("by_team" in data && data.by_team !== void 0) {
       const result = validateBreakdown(data.by_team, "by_team", strict);
+      errors.push(...result.errors);
+      warnings.push(...result.warnings);
+    }
+    if (Object.prototype.hasOwnProperty.call(data, "by_team_and_repo") && data.by_team_and_repo !== void 0) {
+      const result = validateNestedBreakdown(
+        data.by_team_and_repo,
+        "by_team_and_repo",
+        strict
+      );
       errors.push(...result.errors);
       warnings.push(...result.warnings);
     }
@@ -1490,7 +1529,7 @@ var PRInsightsDatasetLoader = (() => {
   }
   var SUPPORTED_MANIFEST_VERSION = 1;
   var SUPPORTED_DATASET_VERSION = 1;
-  var SUPPORTED_AGGREGATES_VERSION = 1;
+  var SUPPORTED_AGGREGATES_VERSION = 2;
   var DATASET_CANDIDATE_PATHS = [
     "",
     // Root of provided base URL (preferred)
@@ -1525,7 +1564,11 @@ var PRInsightsDatasetLoader = (() => {
       reviewers_count: r.reviewers_count ?? ROLLUP_FIELD_DEFAULTS.reviewers_count,
       // by_repository and by_team are optional features - preserve null if missing
       by_repository: r.by_repository !== void 0 ? r.by_repository : null,
-      by_team: r.by_team !== void 0 ? r.by_team : null
+      by_team: r.by_team !== void 0 ? r.by_team : null,
+      // Cross-dimensional breakdown (v2 schema) — pass through if present
+      ...r.by_team_and_repo !== void 0 ? {
+        by_team_and_repo: r.by_team_and_repo
+      } : {}
     };
   }
   function normalizeRollups(rollups) {

@@ -805,6 +805,14 @@ async function refreshMetrics(): Promise<void> {
     summarySection.setAttribute("data-combined-filter", isCombinedFilter ? "true" : "false");
   }
 
+  // T012: Accuracy indicator — when both team and repo filters active,
+  // check if any visible rollup lacks by_team_and_repo (pre-migration data).
+  updateAccuracyIndicator(rawRollups, currentFilters);
+
+  // T012a: Multi-team overlap indicator — when multiple teams selected
+  // and cross-dim PR sum exceeds repository total.
+  updateOverlapIndicator(rawRollups, currentFilters);
+
   renderSummaryCards(rollups, prevRollups);
   renderThroughputChart(rollups);
   renderCycleTimeTrend(rollups);
@@ -814,6 +822,127 @@ async function refreshMetrics(): Promise<void> {
   // Update comparison banner if in comparison mode
   if (comparisonMode) {
     updateComparisonBanner();
+  }
+}
+
+/**
+ * Update accuracy indicator for mixed exact/estimated data.
+ * Shows a muted info icon with tooltip when both team and repo filters are active
+ * and some rollups in the visible range lack by_team_and_repo data (pre-migration).
+ *
+ * @param rawRollups - Unfiltered rollups for the current date range
+ * @param filters - Current dimension filter state
+ */
+function updateAccuracyIndicator(
+  rawRollups: Rollup[],
+  filters: { repos: string[]; teams: string[] },
+): void {
+  const indicatorId = "cross-dim-accuracy-indicator";
+  const existing = document.getElementById(indicatorId);
+
+  const isCombinedFilter = filters.repos.length > 0 && filters.teams.length > 0;
+
+  if (!isCombinedFilter) {
+    if (existing) existing.remove();
+    return;
+  }
+
+  const hasMixedAccuracy = rawRollups.some(
+    (r) => r.by_team_and_repo === undefined || r.by_team_and_repo === null,
+  );
+
+  if (!hasMixedAccuracy) {
+    if (existing) existing.remove();
+    return;
+  }
+
+  // Show or update the indicator
+  const summarySection = document.querySelector(".summary-cards");
+  if (!summarySection) return;
+
+  if (!existing) {
+    const indicator = document.createElement("span");
+    indicator.id = indicatorId;
+    indicator.className = "accuracy-indicator muted";
+    indicator.title = "Some weeks use approximate data (pre-migration)";
+    indicator.setAttribute("aria-label", "Some weeks use approximate data (pre-migration)");
+    indicator.textContent = "\u24D8"; // circled info symbol
+    summarySection.prepend(indicator);
+  }
+}
+
+/**
+ * Update multi-team overlap indicator (FR-016).
+ * When multiple teams are selected and cross-dim aggregation produces a PR count
+ * sum exceeding the repository total, show a tooltip/footnote explaining
+ * intentional overlap from multi-team membership.
+ *
+ * @param rawRollups - Unfiltered rollups for the current date range
+ * @param filters - Current dimension filter state
+ */
+function updateOverlapIndicator(
+  rawRollups: Rollup[],
+  filters: { repos: string[]; teams: string[] },
+): void {
+  const indicatorId = "cross-dim-overlap-indicator";
+  const existing = document.getElementById(indicatorId);
+
+  const hasMultipleTeams = filters.teams.length > 1;
+  const hasRepoFilter = filters.repos.length > 0;
+
+  if (!hasMultipleTeams || !hasRepoFilter) {
+    if (existing) existing.remove();
+    return;
+  }
+
+  // Check if any rollup has cross-dim data where the team sum exceeds repo total
+  let hasOverlap = false;
+  for (const rollup of rawRollups) {
+    if (!rollup.by_team_and_repo || !rollup.by_repository) continue;
+
+    for (const repo of filters.repos) {
+      // eslint-disable-next-line security/detect-object-injection -- SECURITY: repo comes from validated filter state
+      const repoEntry = rollup.by_repository[repo];
+      if (!repoEntry) continue;
+
+      let crossDimSum = 0;
+      for (const team of filters.teams) {
+        // eslint-disable-next-line security/detect-object-injection -- SECURITY: team comes from validated filter state
+        const teamRepos = rollup.by_team_and_repo[team];
+        if (!teamRepos) continue;
+        // eslint-disable-next-line security/detect-object-injection -- SECURITY: repo comes from validated filter state
+        const entry = teamRepos[repo];
+        if (entry) crossDimSum += entry.pr_count;
+      }
+
+      if (crossDimSum > repoEntry.pr_count) {
+        hasOverlap = true;
+        break;
+      }
+    }
+    if (hasOverlap) break;
+  }
+
+  if (!hasOverlap) {
+    if (existing) existing.remove();
+    return;
+  }
+
+  // Show or update the overlap indicator
+  const summarySection = document.querySelector(".summary-cards");
+  if (!summarySection) return;
+
+  if (!existing) {
+    const indicator = document.createElement("span");
+    indicator.id = indicatorId;
+    indicator.className = "overlap-indicator muted";
+    indicator.title = "Multi-team membership causes intentional overlap in team-level counts";
+    indicator.setAttribute(
+      "aria-label",
+      "Multi-team membership causes intentional overlap in team-level counts",
+    );
+    indicator.textContent = "\u24D8"; // circled info symbol
+    summarySection.appendChild(indicator);
   }
 }
 

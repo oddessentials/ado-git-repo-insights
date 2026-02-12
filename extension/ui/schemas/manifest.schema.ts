@@ -93,6 +93,7 @@ export interface Features {
   comments?: boolean;
   predictions?: boolean;
   ai_insights?: boolean;
+  cross_dimensional?: boolean;
 }
 
 /**
@@ -179,6 +180,7 @@ const KNOWN_FEATURES_FIELDS = new Set([
   "comments",
   "predictions",
   "ai_insights",
+  "cross_dimensional",
 ]);
 const KNOWN_LIMITS_FIELDS = new Set([
   "max_weekly_files",

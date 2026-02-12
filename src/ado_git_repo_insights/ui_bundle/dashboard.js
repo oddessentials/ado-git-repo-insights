@@ -294,7 +294,8 @@ var PRInsightsDashboard = (() => {
     "teams",
     "comments",
     "predictions",
-    "ai_insights"
+    "ai_insights",
+    "cross_dimensional"
   ]);
   var KNOWN_LIMITS_FIELDS = /* @__PURE__ */ new Set([
     "max_weekly_files",
@@ -740,7 +741,8 @@ var PRInsightsDashboard = (() => {
     "authors_count",
     "reviewers_count",
     "by_repository",
-    "by_team"
+    "by_team",
+    "by_team_and_repo"
   ]);
   var KNOWN_BREAKDOWN_FIELDS = /* @__PURE__ */ new Set([
     "pr_count",
@@ -796,6 +798,34 @@ var PRInsightsDashboard = (() => {
       const result = validateBreakdownEntry(value, buildPath(path, key), strict);
       errors.push(...result.errors);
       warnings.push(...result.warnings);
+    }
+    return { errors, warnings };
+  }
+  function validateNestedBreakdown(data, path, strict) {
+    const errors = [];
+    const warnings = [];
+    if (!isObject(data)) {
+      errors.push(createError(path, "object", getTypeName(data)));
+      return { errors, warnings };
+    }
+    for (const [outerKey, innerValue] of Object.entries(data)) {
+      if (outerKey.startsWith("_")) continue;
+      const innerPath = buildPath(path, outerKey);
+      if (!isObject(innerValue)) {
+        errors.push(createError(innerPath, "object", getTypeName(innerValue)));
+        continue;
+      }
+      for (const [innerKey, entryValue] of Object.entries(
+        innerValue
+      )) {
+        const entryResult = validateBreakdownEntry(
+          entryValue,
+          buildPath(innerPath, innerKey),
+          strict
+        );
+        errors.push(...entryResult.errors);
+        warnings.push(...entryResult.warnings);
+      }
     }
     return { errors, warnings };
   }
@@ -857,6 +887,15 @@ var PRInsightsDashboard = (() => {
     }
     if ("by_team" in data && data.by_team !== void 0) {
       const result = validateBreakdown(data.by_team, "by_team", strict);
+      errors.push(...result.errors);
+      warnings.push(...result.warnings);
+    }
+    if (Object.prototype.hasOwnProperty.call(data, "by_team_and_repo") && data.by_team_and_repo !== void 0) {
+      const result = validateNestedBreakdown(
+        data.by_team_and_repo,
+        "by_team_and_repo",
+        strict
+      );
       errors.push(...result.errors);
       warnings.push(...result.warnings);
     }
@@ -1463,7 +1502,7 @@ var PRInsightsDashboard = (() => {
   }
   var SUPPORTED_MANIFEST_VERSION = 1;
   var SUPPORTED_DATASET_VERSION = 1;
-  var SUPPORTED_AGGREGATES_VERSION = 1;
+  var SUPPORTED_AGGREGATES_VERSION = 2;
   var DATASET_CANDIDATE_PATHS = [
     "",
     // Root of provided base URL (preferred)
@@ -1497,7 +1536,11 @@ var PRInsightsDashboard = (() => {
       reviewers_count: r.reviewers_count ?? ROLLUP_FIELD_DEFAULTS.reviewers_count,
       // by_repository and by_team are optional features - preserve null if missing
       by_repository: r.by_repository !== void 0 ? r.by_repository : null,
-      by_team: r.by_team !== void 0 ? r.by_team : null
+      by_team: r.by_team !== void 0 ? r.by_team : null,
+      // Cross-dimensional breakdown (v2 schema) — pass through if present
+      ...r.by_team_and_repo !== void 0 ? {
+        by_team_and_repo: r.by_team_and_repo
+      } : {}
     };
   }
   function normalizeRollups(rollups) {
@@ -2989,6 +3032,22 @@ var PRInsightsDashboard = (() => {
       }
       if (teamSlice && !repoSlice) {
         return buildFilteredRollup(rollup, teamSlice);
+      }
+      if (repoSlice && teamSlice && rollup.by_team_and_repo) {
+        const crossDimEntries = [];
+        for (const team of filters.teams) {
+          const teamRepos = rollup.by_team_and_repo[team];
+          if (!teamRepos) continue;
+          for (const repo of filters.repos) {
+            const entry = teamRepos[repo];
+            if (entry) crossDimEntries.push(entry);
+          }
+        }
+        if (crossDimEntries.length > 0) {
+          const exactSlice = aggregateEntries(crossDimEntries);
+          return buildFilteredRollup(rollup, exactSlice);
+        }
+        return { ...rollup, ...ZEROED_ROLLUP_FIELDS };
       }
       if (repoSlice && teamSlice) {
         const total = rollup.pr_count || 1;
@@ -5051,6 +5110,8 @@ var PRInsightsDashboard = (() => {
       const isCombinedFilter = currentFilters.repos.length > 0 && currentFilters.teams.length > 0;
       summarySection.setAttribute("data-combined-filter", isCombinedFilter ? "true" : "false");
     }
+    updateAccuracyIndicator(rawRollups, currentFilters);
+    updateOverlapIndicator(rawRollups, currentFilters);
     renderSummaryCards2(rollups, prevRollups);
     renderThroughputChart2(rollups);
     renderCycleTimeTrend2(rollups);
@@ -5058,6 +5119,81 @@ var PRInsightsDashboard = (() => {
     renderCycleDistribution2(distributions);
     if (comparisonMode) {
       updateComparisonBanner();
+    }
+  }
+  function updateAccuracyIndicator(rawRollups, filters) {
+    const indicatorId = "cross-dim-accuracy-indicator";
+    const existing = document.getElementById(indicatorId);
+    const isCombinedFilter = filters.repos.length > 0 && filters.teams.length > 0;
+    if (!isCombinedFilter) {
+      if (existing) existing.remove();
+      return;
+    }
+    const hasMixedAccuracy = rawRollups.some(
+      (r) => r.by_team_and_repo === void 0 || r.by_team_and_repo === null
+    );
+    if (!hasMixedAccuracy) {
+      if (existing) existing.remove();
+      return;
+    }
+    const summarySection = document.querySelector(".summary-cards");
+    if (!summarySection) return;
+    if (!existing) {
+      const indicator = document.createElement("span");
+      indicator.id = indicatorId;
+      indicator.className = "accuracy-indicator muted";
+      indicator.title = "Some weeks use approximate data (pre-migration)";
+      indicator.setAttribute("aria-label", "Some weeks use approximate data (pre-migration)");
+      indicator.textContent = "\u24D8";
+      summarySection.prepend(indicator);
+    }
+  }
+  function updateOverlapIndicator(rawRollups, filters) {
+    const indicatorId = "cross-dim-overlap-indicator";
+    const existing = document.getElementById(indicatorId);
+    const hasMultipleTeams = filters.teams.length > 1;
+    const hasRepoFilter = filters.repos.length > 0;
+    if (!hasMultipleTeams || !hasRepoFilter) {
+      if (existing) existing.remove();
+      return;
+    }
+    let hasOverlap = false;
+    for (const rollup of rawRollups) {
+      if (!rollup.by_team_and_repo || !rollup.by_repository) continue;
+      for (const repo of filters.repos) {
+        const repoEntry = rollup.by_repository[repo];
+        if (!repoEntry) continue;
+        let crossDimSum = 0;
+        for (const team of filters.teams) {
+          const teamRepos = rollup.by_team_and_repo[team];
+          if (!teamRepos) continue;
+          const entry = teamRepos[repo];
+          if (entry) crossDimSum += entry.pr_count;
+        }
+        if (crossDimSum > repoEntry.pr_count) {
+          hasOverlap = true;
+          break;
+        }
+      }
+      if (hasOverlap) break;
+    }
+    if (!hasOverlap) {
+      if (existing) existing.remove();
+      return;
+    }
+    const summarySection = document.querySelector(".summary-cards");
+    if (!summarySection) return;
+    if (!existing) {
+      const indicator = document.createElement("span");
+      indicator.id = indicatorId;
+      indicator.className = "overlap-indicator muted";
+      indicator.title = "Multi-team membership causes intentional overlap in team-level counts";
+      indicator.setAttribute(
+        "aria-label",
+        "Multi-team membership causes intentional overlap in team-level counts"
+      );
+      indicator.textContent = "\u24D8";
+      summarySection.appendChild(indicator);
     }
   }
   function renderSummaryCards2(rollups, prevRollups = []) {

@@ -257,9 +257,9 @@ function buildFilteredRollup(
 /**
  * Apply dimension filters to rollups data.
  * Uses by_repository and by_team slices when available for accurate filtering.
- * When both filters are active, applies proportional intersection — each
- * dimension's share is computed independently, then combined as a fraction
- * of the rollup total (independence assumption).
+ * When both filters are active, prefers exact cross-dimensional lookup from
+ * by_team_and_repo (v2 schema). Falls back to proportional intersection
+ * estimation for rollups without cross-dimensional data.
  * Pure function - no side effects.
  */
 export function applyFiltersToRollups(
@@ -316,7 +316,29 @@ export function applyFiltersToRollups(
       return buildFilteredRollup(rollup, teamSlice);
     }
 
-    // Both filters active — proportional intersection.
+    // Both filters active — cross-dimensional exact lookup (priority over proportional).
+    // Uses pre-computed team-repo intersection data when available (v2 schema).
+    if (repoSlice && teamSlice && rollup.by_team_and_repo) {
+      const crossDimEntries: BreakdownEntry[] = [];
+      for (const team of filters.teams) {
+        // eslint-disable-next-line security/detect-object-injection -- SECURITY: team comes from validated filter state
+        const teamRepos = rollup.by_team_and_repo[team];
+        if (!teamRepos) continue;
+        for (const repo of filters.repos) {
+          // eslint-disable-next-line security/detect-object-injection -- SECURITY: repo comes from validated filter state
+          const entry = teamRepos[repo];
+          if (entry) crossDimEntries.push(entry);
+        }
+      }
+      if (crossDimEntries.length > 0) {
+        const exactSlice = aggregateEntries(crossDimEntries);
+        return buildFilteredRollup(rollup, exactSlice);
+      }
+      // All lookups missed — zero PRs for this intersection
+      return { ...rollup, ...ZEROED_ROLLUP_FIELDS } as Rollup;
+    }
+
+    // Both filters active — proportional intersection (fallback for v1 rollups).
     // Each slice represents a marginal share of the rollup total.
     // Team slices may exceed the total when multi-team members cause overlap,
     // so shares are clamped to [0, 1] before combining.
