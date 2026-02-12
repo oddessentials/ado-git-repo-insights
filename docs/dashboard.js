@@ -2987,6 +2987,9 @@ var PRInsightsDashboard = (() => {
     reviewers_count: 0
   };
   function buildFilteredRollup(rollup, slice) {
+    if (slice.pr_count === 0) {
+      return { ...rollup, ...ZEROED_ROLLUP_FIELDS };
+    }
     return {
       ...rollup,
       pr_count: slice.pr_count,
@@ -3047,7 +3050,10 @@ var PRInsightsDashboard = (() => {
           const exactSlice = aggregateEntries(crossDimEntries);
           return buildFilteredRollup(rollup, exactSlice);
         }
-        return { ...rollup, ...ZEROED_ROLLUP_FIELDS };
+        const isTruncated = rollup.by_team_and_repo["_truncated"] === true;
+        if (!isTruncated) {
+          return { ...rollup, ...ZEROED_ROLLUP_FIELDS };
+        }
       }
       if (repoSlice && teamSlice) {
         const total = rollup.pr_count || 1;
@@ -3055,6 +3061,9 @@ var PRInsightsDashboard = (() => {
         const teamShare = Math.min(1, teamSlice.pr_count / total);
         const combinedRatio = repoShare * teamShare;
         const combinedPrCount = Math.round(rollup.pr_count * combinedRatio);
+        if (combinedPrCount === 0) {
+          return { ...rollup, ...ZEROED_ROLLUP_FIELDS };
+        }
         const combinedAuthors = Math.round(
           (rollup.authors_count || 0) * combinedRatio
         );

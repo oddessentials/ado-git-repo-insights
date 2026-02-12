@@ -52,10 +52,10 @@ export interface WeeklyRollup {
   start_date?: string;
   end_date?: string;
   pr_count: number;
-  cycle_time_p50?: number;
-  cycle_time_p90?: number;
-  review_time_p50?: number;
-  review_time_p90?: number;
+  cycle_time_p50?: number | null;
+  cycle_time_p90?: number | null;
+  review_time_p50?: number | null;
+  review_time_p90?: number | null;
   authors_count?: number;
   reviewers_count?: number;
   by_repository?: Record<string, BreakdownEntry>;
@@ -342,10 +342,10 @@ export function validateRollup(
  * Default values for rollup fields.
  */
 const ROLLUP_FIELD_DEFAULTS = {
-  cycle_time_p50: 0,
-  cycle_time_p90: 0,
-  review_time_p50: 0,
-  review_time_p90: 0,
+  cycle_time_p50: null as number | null,
+  cycle_time_p90: null as number | null,
+  review_time_p50: null as number | null,
+  review_time_p90: null as number | null,
   authors_count: 0,
   reviewers_count: 0,
   by_repository: {},

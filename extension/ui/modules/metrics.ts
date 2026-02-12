@@ -236,6 +236,11 @@ function buildFilteredRollup(
   rollup: Rollup,
   slice: AggregatedSlice,
 ): Rollup {
+  // Zero-leakage guard: when the slice has no PRs, zero all metric fields
+  // so global authors_count/reviewers_count/cycle_time don't leak through.
+  if (slice.pr_count === 0) {
+    return { ...rollup, ...ZEROED_ROLLUP_FIELDS } as Rollup;
+  }
   return {
     ...rollup,
     pr_count: slice.pr_count,
@@ -334,8 +339,15 @@ export function applyFiltersToRollups(
         const exactSlice = aggregateEntries(crossDimEntries);
         return buildFilteredRollup(rollup, exactSlice);
       }
-      // All lookups missed — zero PRs for this intersection
-      return { ...rollup, ...ZEROED_ROLLUP_FIELDS } as Rollup;
+      // All lookups missed: if the map was truncated, entries may have been
+      // dropped rather than absent. Fall through to proportional estimation.
+      const isTruncated =
+        (rollup.by_team_and_repo as Record<string, unknown>)["_truncated"] ===
+        true;
+      if (!isTruncated) {
+        return { ...rollup, ...ZEROED_ROLLUP_FIELDS } as Rollup;
+      }
+      // Truncated map — fall through to proportional below
     }
 
     // Both filters active — proportional intersection (fallback for v1 rollups).
@@ -350,6 +362,13 @@ export function applyFiltersToRollups(
       const combinedRatio = repoShare * teamShare;
 
       const combinedPrCount = Math.round(rollup.pr_count * combinedRatio);
+
+      // Zero-leakage guard: when proportional estimation rounds to 0 PRs,
+      // zero all metric fields so global values don't leak through.
+      if (combinedPrCount === 0) {
+        return { ...rollup, ...ZEROED_ROLLUP_FIELDS } as Rollup;
+      }
+
       const combinedAuthors = Math.round(
         (rollup.authors_count || 0) * combinedRatio,
       );
