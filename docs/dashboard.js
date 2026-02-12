@@ -2993,12 +2993,12 @@ var PRInsightsDashboard = (() => {
     return {
       ...rollup,
       pr_count: slice.pr_count,
-      ...slice.cycle_time_p50 !== null ? {
-        cycle_time_p50: slice.cycle_time_p50,
-        cycle_time_p90: slice.cycle_time_p90
-      } : {},
-      ...slice.authors_count > 0 ? { authors_count: slice.authors_count } : {},
-      ...slice.reviewers_count > 0 ? { reviewers_count: slice.reviewers_count } : {}
+      // Always override to prevent global values leaking through the
+      // ...rollup spread when the slice legitimately has null/0 values.
+      cycle_time_p50: slice.cycle_time_p50,
+      cycle_time_p90: slice.cycle_time_p90,
+      authors_count: slice.authors_count,
+      reviewers_count: slice.reviewers_count
     };
   }
   function applyFiltersToRollups(rollups, filters) {
@@ -3079,12 +3079,12 @@ var PRInsightsDashboard = (() => {
         return {
           ...rollup,
           pr_count: combinedPrCount,
-          ...p50s.length > 0 ? {
-            cycle_time_p50: p50s.reduce((a, b) => a + b, 0) / p50s.length,
-            cycle_time_p90: p90s.length > 0 ? p90s.reduce((a, b) => a + b, 0) / p90s.length : null
-          } : {},
-          ...combinedAuthors > 0 ? { authors_count: combinedAuthors } : {},
-          ...combinedReviewers > 0 ? { reviewers_count: combinedReviewers } : {}
+          // Always override to prevent global values leaking through the
+          // ...rollup spread when proportional estimates are null/0.
+          cycle_time_p50: p50s.length > 0 ? p50s.reduce((a, b) => a + b, 0) / p50s.length : null,
+          cycle_time_p90: p90s.length > 0 ? p90s.reduce((a, b) => a + b, 0) / p90s.length : null,
+          authors_count: combinedAuthors,
+          reviewers_count: combinedReviewers
         };
       }
       return rollup;
@@ -5406,7 +5406,7 @@ var PRInsightsDashboard = (() => {
       const repoFilter = elements["repo-filter"];
       if (repoFilter) {
         const option = repoFilter.querySelector(
-          `option[value="${value}"]`
+          `option[value="${CSS.escape(value)}"]`
         );
         if (option) option.selected = false;
       }
@@ -5415,7 +5415,7 @@ var PRInsightsDashboard = (() => {
       const teamFilter = elements["team-filter"];
       if (teamFilter) {
         const option = teamFilter.querySelector(
-          `option[value="${value}"]`
+          `option[value="${CSS.escape(value)}"]`
         );
         if (option) option.selected = false;
       }
@@ -5463,12 +5463,16 @@ var PRInsightsDashboard = (() => {
   function getFilterLabel(type, value) {
     if (type === "repo") {
       const repoFilter = elements["repo-filter"];
-      const option = repoFilter?.querySelector(`option[value="${value}"]`);
+      const option = repoFilter?.querySelector(
+        `option[value="${CSS.escape(value)}"]`
+      );
       return option?.textContent || value;
     }
     if (type === "team") {
       const teamFilter = elements["team-filter"];
-      const option = teamFilter?.querySelector(`option[value="${value}"]`);
+      const option = teamFilter?.querySelector(
+        `option[value="${CSS.escape(value)}"]`
+      );
       return option?.textContent || value;
     }
     return value;
@@ -5492,7 +5496,7 @@ var PRInsightsDashboard = (() => {
       if (repoFilter) {
         currentFilters.repos.forEach((value) => {
           const option = repoFilter.querySelector(
-            `option[value="${value}"]`
+            `option[value="${CSS.escape(value)}"]`
           );
           if (option) option.selected = true;
         });
@@ -5504,7 +5508,7 @@ var PRInsightsDashboard = (() => {
       if (teamFilter) {
         currentFilters.teams.forEach((value) => {
           const option = teamFilter.querySelector(
-            `option[value="${value}"]`
+            `option[value="${CSS.escape(value)}"]`
           );
           if (option) option.selected = true;
         });

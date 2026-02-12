@@ -244,18 +244,12 @@ function buildFilteredRollup(
   return {
     ...rollup,
     pr_count: slice.pr_count,
-    ...(slice.cycle_time_p50 !== null
-      ? {
-          cycle_time_p50: slice.cycle_time_p50,
-          cycle_time_p90: slice.cycle_time_p90,
-        }
-      : {}),
-    ...(slice.authors_count > 0
-      ? { authors_count: slice.authors_count }
-      : {}),
-    ...(slice.reviewers_count > 0
-      ? { reviewers_count: slice.reviewers_count }
-      : {}),
+    // Always override to prevent global values leaking through the
+    // ...rollup spread when the slice legitimately has null/0 values.
+    cycle_time_p50: slice.cycle_time_p50,
+    cycle_time_p90: slice.cycle_time_p90,
+    authors_count: slice.authors_count,
+    reviewers_count: slice.reviewers_count,
   } as Rollup;
 }
 
@@ -388,19 +382,18 @@ export function applyFiltersToRollups(
       return {
         ...rollup,
         pr_count: combinedPrCount,
-        ...(p50s.length > 0
-          ? {
-              cycle_time_p50: p50s.reduce((a, b) => a + b, 0) / p50s.length,
-              cycle_time_p90:
-                p90s.length > 0
-                  ? p90s.reduce((a, b) => a + b, 0) / p90s.length
-                  : null,
-            }
-          : {}),
-        ...(combinedAuthors > 0 ? { authors_count: combinedAuthors } : {}),
-        ...(combinedReviewers > 0
-          ? { reviewers_count: combinedReviewers }
-          : {}),
+        // Always override to prevent global values leaking through the
+        // ...rollup spread when proportional estimates are null/0.
+        cycle_time_p50:
+          p50s.length > 0
+            ? p50s.reduce((a, b) => a + b, 0) / p50s.length
+            : null,
+        cycle_time_p90:
+          p90s.length > 0
+            ? p90s.reduce((a, b) => a + b, 0) / p90s.length
+            : null,
+        authors_count: combinedAuthors,
+        reviewers_count: combinedReviewers,
       } as Rollup;
     }
 

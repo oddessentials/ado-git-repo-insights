@@ -239,11 +239,11 @@ describe("metrics module", () => {
         teams: [],
       });
 
-      // Legacy: only pr_count available, cycle time preserved from rollup
+      // Legacy: only pr_count available, cycle time nulled to prevent
+      // global values leaking through for a filtered subset
       expect(result[0].pr_count).toBe(30);
-      // No per-repo cycle time -> hasPerRepoCycleTime is false -> original values preserved
-      expect(result[0].cycle_time_p50).toBe(60);
-      expect(result[0].cycle_time_p90).toBe(120);
+      expect(result[0].cycle_time_p50).toBeNull();
+      expect(result[0].cycle_time_p90).toBeNull();
     });
 
     it("filters by team", () => {
@@ -639,8 +639,8 @@ describe("applyFiltersToRollups coverage: uncovered paths", () => {
 
     // Proportional intersection: 50/100 * 40/100 = 0.2 → 100 * 0.2 = 20
     expect(result[0].pr_count).toBe(20);
-    // No cycle times in breakdown entries → no cycle time in result
-    expect(result[0].cycle_time_p50).toBeUndefined();
+    // No cycle times in breakdown entries → null (not global leak-through)
+    expect(result[0].cycle_time_p50).toBeNull();
   });
 
   it("combined filter with no cycle time data in either slice", () => {
@@ -664,8 +664,9 @@ describe("applyFiltersToRollups coverage: uncovered paths", () => {
 
     // 30/100 * 40/100 = 0.12 → pr_count = round(100 * 0.12) = 12
     expect(result[0].pr_count).toBe(12);
-    // No cycle_time in breakdown entries → p50s empty → no cycle time spread
-    expect(result[0]).not.toHaveProperty("cycle_time_p50");
+    // No cycle_time in breakdown entries → null (not global leak-through)
+    expect(result[0].cycle_time_p50).toBeNull();
+    expect(result[0].cycle_time_p90).toBeNull();
     // authors: round(10 * 0.12) = 1, reviewers: round(5 * 0.12) = 1
     expect(result[0].authors_count).toBe(1);
     expect(result[0].reviewers_count).toBe(1);
@@ -1420,6 +1421,67 @@ describe("zero-leakage regression", () => {
     expect(result[0].pr_count).toBe(24);
     // Confirms proportional path was used (not zeroed)
     expect(result[0].pr_count).toBeGreaterThan(0);
+  });
+
+  // PR#158 adoption: non-zero pr_count but zero authors must not leak global values
+  it("buildFilteredRollup does not leak global authors when slice has 0 authors", () => {
+    const rollup = {
+      week: "2026-W01",
+      pr_count: 100,
+      cycle_time_p50: 60,
+      cycle_time_p90: 120,
+      authors_count: 15,
+      reviewers_count: 8,
+      by_repository: {
+        "auto-repo": {
+          pr_count: 5,
+          cycle_time_p50: 40,
+          cycle_time_p90: 80,
+          authors_count: 0,
+          reviewers_count: 0,
+        },
+      },
+    } as unknown as Rollup;
+
+    const result = applyFiltersToRollups([rollup], {
+      repos: ["auto-repo"],
+      teams: [],
+    });
+
+    // pr_count is 5, but authors/reviewers are 0 — must NOT show global 15/8
+    expect(result[0].pr_count).toBe(5);
+    expect(result[0].authors_count).toBe(0);
+    expect(result[0].reviewers_count).toBe(0);
+  });
+
+  // PR#158 adoption: non-zero pr_count but no cycle_time data must not leak global values
+  it("buildFilteredRollup does not leak global cycle_time when slice has no cycle data", () => {
+    const rollup = {
+      week: "2026-W01",
+      pr_count: 100,
+      cycle_time_p50: 60,
+      cycle_time_p90: 120,
+      authors_count: 15,
+      reviewers_count: 8,
+      by_repository: {
+        "no-ct-repo": {
+          pr_count: 10,
+          authors_count: 3,
+          reviewers_count: 2,
+          // No cycle_time fields
+        },
+      },
+    } as unknown as Rollup;
+
+    const result = applyFiltersToRollups([rollup], {
+      repos: ["no-ct-repo"],
+      teams: [],
+    });
+
+    // pr_count is 10, but cycle times should be null — must NOT show global 60/120
+    expect(result[0].pr_count).toBe(10);
+    expect(result[0].cycle_time_p50).toBeNull();
+    expect(result[0].cycle_time_p90).toBeNull();
   });
 
   // Existing behavior preserved: non-truncated map with lookup miss returns zero.

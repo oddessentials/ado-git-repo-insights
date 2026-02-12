@@ -113,7 +113,7 @@ describe("Synthetic Fixture Consumer Validation", () => {
 
     expect(manifest.manifest_schema_version).toBe(1);
     expect(manifest.dataset_schema_version).toBe(1);
-    expect(manifest.aggregates_schema_version).toBe(1);
+    expect(manifest.aggregates_schema_version).toBe(2);
   });
 
   test("generated rollups load successfully", async () => {

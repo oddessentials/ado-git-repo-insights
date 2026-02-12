@@ -21,12 +21,33 @@ from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
+import numpy as np
 import pandas as pd
 
 if TYPE_CHECKING:
     from ..persistence.database import DatabaseManager
 
 logger = logging.getLogger(__name__)
+
+
+class _NumpySafeEncoder(json.JSONEncoder):
+    """JSON encoder that converts numpy types to native Python types.
+
+    Pandas quantile/nunique return numpy.float64/numpy.int64 which are
+    technically JSON-serializable (subclasses of float/int) but can carry
+    NaN/Inf values that violate the JSON spec. This encoder converts them
+    to native Python types so allow_nan=False can reject invalid values.
+    """
+
+    def default(self, o: Any) -> Any:  # noqa: ANN401 -- REASON: JSONEncoder.default signature requires Any return
+        if isinstance(o, np.integer):
+            return int(o)
+        if isinstance(o, np.floating):
+            return float(o)
+        if isinstance(o, np.ndarray):
+            return o.tolist()
+        return super().default(o)
+
 
 # Schema versions (Phase 3 locked)
 MANIFEST_SCHEMA_VERSION = 1
@@ -786,9 +807,11 @@ class AggregateGenerator:
             if pr_count == 0:
                 continue
 
-            # Compute cycle time percentiles with minimum sample size guard
-            has_cycle_times = not grp["cycle_time_minutes"].isna().all()
-            if has_cycle_times and pr_count >= self._CROSS_DIM_MIN_SAMPLE:
+            # Compute cycle time percentiles with minimum sample size guard.
+            # Count non-NaN cycle times (not total rows) so the guard reflects
+            # the actual number of data points feeding the percentile.
+            cycle_time_valid_count = int(grp["cycle_time_minutes"].notna().sum())
+            if cycle_time_valid_count >= self._CROSS_DIM_MIN_SAMPLE:
                 cycle_time_p50 = grp["cycle_time_minutes"].quantile(0.5)
                 cycle_time_p90 = grp["cycle_time_minutes"].quantile(0.9)
             else:
@@ -1043,9 +1066,20 @@ class AggregateGenerator:
         }
 
     def _write_json(self, path: Path, data: dict[str, Any]) -> None:
-        """Write JSON file with deterministic formatting."""
+        """Write JSON file with deterministic formatting.
+
+        Uses allow_nan=False to reject NaN/Infinity values that would
+        produce invalid JSON (not part of the JSON spec per RFC 7159).
+        """
         with path.open("w", encoding="utf-8") as f:
-            json.dump(data, f, indent=2, sort_keys=True)
+            json.dump(
+                data,
+                f,
+                indent=2,
+                sort_keys=True,
+                allow_nan=False,
+                cls=_NumpySafeEncoder,
+            )
 
 
 class StubGenerationError(Exception):
