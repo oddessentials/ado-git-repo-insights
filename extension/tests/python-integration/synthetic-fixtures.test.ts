@@ -7,7 +7,7 @@
 import { DatasetLoader } from "../../ui/dataset-loader";
 import * as fs from "fs";
 import * as path from "path";
-import { execSync } from "child_process";
+import { execFileSync } from "child_process";
 import { resolveInside } from "../../tasks/_shared/safe-path";
 
 describe("Synthetic Fixture Consumer Validation", () => {
@@ -78,9 +78,11 @@ describe("Synthetic Fixture Consumer Validation", () => {
     );
 
     try {
-      // SECURITY: Use args array pattern with validated inputs
-      execSync(
-        `python "${scriptPath}" --pr-count ${String(prCount)} --seed ${String(seed)} --output "${outputDir}"`,
+      // SECURITY: Use execFileSync with args array to prevent command injection.
+      // Inputs are already validated above (isSafeInteger guards).
+      execFileSync(
+        "python",
+        [scriptPath, "--pr-count", String(prCount), "--seed", String(seed), "--output", outputDir],
         { stdio: "pipe" },
       );
     } catch (error: any) {
