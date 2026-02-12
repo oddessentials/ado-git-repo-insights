@@ -487,4 +487,46 @@ describe("Rollup Schema Validator", () => {
       });
     });
   });
+
+  describe("normalizeRollup cycle_time defaults (T020)", () => {
+    it("defaults missing cycle_time_p50/p90 to null (not 0)", () => {
+      const input = {
+        week: "2026-W02",
+        pr_count: 10,
+      };
+      const normalized = normalizeRollup(input);
+
+      // Missing cycle times must default to null to avoid diluting
+      // weighted averages in aggregateEntries (0 would count as valid data)
+      expect(normalized.cycle_time_p50).toBeNull();
+      expect(normalized.cycle_time_p90).toBeNull();
+    });
+
+    it("preserves explicit cycle_time values when present", () => {
+      const input = {
+        week: "2026-W02",
+        pr_count: 10,
+        cycle_time_p50: 120.5,
+        cycle_time_p90: 360.0,
+      };
+      const normalized = normalizeRollup(input);
+
+      expect(normalized.cycle_time_p50).toBe(120.5);
+      expect(normalized.cycle_time_p90).toBe(360.0);
+    });
+
+    it("defaults null cycle_time to null (not 0)", () => {
+      const input = {
+        week: "2026-W02",
+        pr_count: 10,
+        cycle_time_p50: null,
+        cycle_time_p90: null,
+      };
+      const normalized = normalizeRollup(input);
+
+      // Explicit null in data should normalize to null
+      expect(normalized.cycle_time_p50).toBeNull();
+      expect(normalized.cycle_time_p90).toBeNull();
+    });
+  });
 });

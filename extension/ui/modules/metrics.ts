@@ -231,11 +231,21 @@ const ZEROED_ROLLUP_FIELDS = {
  * Build a filtered rollup from an aggregated slice.
  * Falls back to the original rollup values when the slice has no cycle time
  * data (backward compatibility with legacy by_repository that only has pr_count).
+ *
+ * When the slice yields 0 PRs, all dependent metrics (authors, reviewers,
+ * cycle times) are zeroed to prevent the global rollup values from leaking
+ * through the ...rollup spread — which would show misleading non-zero
+ * authors/reviewers for an empty intersection.
  */
 function buildFilteredRollup(
   rollup: Rollup,
   slice: AggregatedSlice,
 ): Rollup {
+  // Zero PRs → zero everything to avoid leaking global rollup values
+  if (slice.pr_count === 0) {
+    return { ...rollup, ...ZEROED_ROLLUP_FIELDS } as Rollup;
+  }
+
   return {
     ...rollup,
     pr_count: slice.pr_count,
@@ -350,6 +360,13 @@ export function applyFiltersToRollups(
       const combinedRatio = repoShare * teamShare;
 
       const combinedPrCount = Math.round(rollup.pr_count * combinedRatio);
+
+      // Zero PRs → zero everything to prevent global rollup values from
+      // leaking through the ...rollup spread (same guard as buildFilteredRollup).
+      if (combinedPrCount === 0) {
+        return { ...rollup, ...ZEROED_ROLLUP_FIELDS } as Rollup;
+      }
+
       const combinedAuthors = Math.round(
         (rollup.authors_count || 0) * combinedRatio,
       );

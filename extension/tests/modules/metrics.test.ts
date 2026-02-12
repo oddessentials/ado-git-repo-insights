@@ -794,7 +794,7 @@ describe("applyFiltersToRollups coverage: uncovered paths", () => {
     expect(result[0].cycle_time_p90).toBeNull();
   });
 
-  it("combined filter where proportional ratio rounds authors and reviewers to zero", () => {
+  it("combined filter where proportional ratio rounds to zero zeroes all metrics", () => {
     const rollup = {
       week: "2026-W01",
       pr_count: 1000,
@@ -814,12 +814,14 @@ describe("applyFiltersToRollups coverage: uncovered paths", () => {
     });
 
     // 10/1000 * 10/1000 = 0.0001
-    // authors: round(2 * 0.0001) = 0, reviewers: round(1 * 0.0001) = 0
+    // combinedPrCount = round(1000 * 0.0001) = 0
+    // When pr_count rounds to 0, all metrics are zeroed to prevent
+    // misleading global values from leaking through (e.g., "0 PRs by 2 authors")
     expect(result[0].pr_count).toBe(0);
-    // When combinedAuthors/combinedReviewers round to 0, the conditional spread
-    // is {}, so the original rollup values are preserved from ...rollup
-    expect(result[0].authors_count).toBe(2);
-    expect(result[0].reviewers_count).toBe(1);
+    expect(result[0].authors_count).toBe(0);
+    expect(result[0].reviewers_count).toBe(0);
+    expect(result[0].cycle_time_p50).toBeNull();
+    expect(result[0].cycle_time_p90).toBeNull();
   });
 });
 
@@ -1306,5 +1308,114 @@ describe("mixed-week blend (T019)", () => {
 
     // The two values differ, confirming different resolution paths
     expect(results[0].pr_count).not.toBe(results[1].pr_count);
+  });
+});
+
+/**
+ * T020: Zero-leakage guard tests.
+ *
+ * Validates that when a filter intersection yields 0 PRs, all dependent
+ * metrics (authors_count, reviewers_count, cycle times) are zeroed instead
+ * of leaking through from the global rollup via the ...rollup spread.
+ */
+describe("zero-leakage guard (T020)", () => {
+  const rollupWithGlobalCounts = {
+    week: "2026-W01",
+    pr_count: 200,
+    cycle_time_p50: 80,
+    cycle_time_p90: 160,
+    authors_count: 15,
+    reviewers_count: 8,
+    by_repository: {
+      "repo-a": { pr_count: 50, cycle_time_p50: 70, cycle_time_p90: 140, authors_count: 5, reviewers_count: 3 },
+    },
+    by_team: {
+      "team-x": { pr_count: 30, cycle_time_p50: 60, cycle_time_p90: 120, authors_count: 4, reviewers_count: 2 },
+    },
+  } as Rollup;
+
+  it("single repo filter with NaN pr_count zeroes all metrics", () => {
+    const rollup = {
+      ...rollupWithGlobalCounts,
+      by_repository: {
+        "repo-a": { pr_count: NaN, authors_count: 3, reviewers_count: 2 },
+      },
+    } as unknown as Rollup;
+
+    const result = applyFiltersToRollups([rollup], {
+      repos: ["repo-a"],
+      teams: [],
+    });
+
+    // NaN → toFiniteNumber → 0 → buildFilteredRollup zeroes everything
+    expect(result[0].pr_count).toBe(0);
+    expect(result[0].authors_count).toBe(0);
+    expect(result[0].reviewers_count).toBe(0);
+    expect(result[0].cycle_time_p50).toBeNull();
+    expect(result[0].cycle_time_p90).toBeNull();
+  });
+
+  it("cross-dim exact lookup miss zeroes all metrics (not global leakage)", () => {
+    const rollup = {
+      ...rollupWithGlobalCounts,
+      by_team_and_repo: {
+        "team-x": {
+          // repo-a NOT present in team-x cross-dim
+          "repo-b": { pr_count: 30, authors_count: 4, reviewers_count: 2 },
+        },
+      },
+    } as Rollup;
+
+    const result = applyFiltersToRollups([rollup], {
+      repos: ["repo-a"],
+      teams: ["team-x"],
+    });
+
+    // No cross-dim match → zeroed, NOT the global 200/15/8
+    expect(result[0].pr_count).toBe(0);
+    expect(result[0].authors_count).toBe(0);
+    expect(result[0].reviewers_count).toBe(0);
+    expect(result[0].cycle_time_p50).toBeNull();
+    expect(result[0].cycle_time_p90).toBeNull();
+  });
+
+  it("proportional path with tiny intersection zeroes all metrics", () => {
+    // No by_team_and_repo → falls back to proportional
+    const result = applyFiltersToRollups([rollupWithGlobalCounts], {
+      repos: ["repo-a"],
+      teams: ["team-x"],
+    });
+
+    // repoShare = 50/200 = 0.25, teamShare = 30/200 = 0.15
+    // combinedPrCount = round(200 * 0.25 * 0.15) = round(7.5) = 8
+    // This is > 0, so non-zero result is expected
+    expect(result[0].pr_count).toBe(8);
+    expect(result[0].authors_count).toBeGreaterThan(0);
+  });
+
+  it("proportional path zeroes everything when ratio is negligible", () => {
+    const largeRollup = {
+      ...rollupWithGlobalCounts,
+      pr_count: 10000,
+      by_repository: {
+        "repo-a": { pr_count: 1, authors_count: 1, reviewers_count: 1 },
+      },
+      by_team: {
+        "team-x": { pr_count: 1, authors_count: 1, reviewers_count: 1 },
+      },
+    } as unknown as Rollup;
+
+    const result = applyFiltersToRollups([largeRollup], {
+      repos: ["repo-a"],
+      teams: ["team-x"],
+    });
+
+    // repoShare = 1/10000, teamShare = 1/10000
+    // combinedPrCount = round(10000 * 0.0001 * 0.0001) = round(0.0001) = 0
+    expect(result[0].pr_count).toBe(0);
+    expect(result[0].authors_count).toBe(0);
+    expect(result[0].reviewers_count).toBe(0);
+    expect(result[0].cycle_time_p50).toBeNull();
+    expect(result[0].cycle_time_p90).toBeNull();
   });
 });

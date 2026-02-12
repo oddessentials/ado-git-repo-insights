@@ -342,10 +342,10 @@ export function validateRollup(
  * Default values for rollup fields.
  */
 const ROLLUP_FIELD_DEFAULTS = {
-  cycle_time_p50: 0,
-  cycle_time_p90: 0,
-  review_time_p50: 0,
-  review_time_p90: 0,
+  cycle_time_p50: null as number | null,
+  cycle_time_p90: null as number | null,
+  review_time_p50: null as number | null,
+  review_time_p90: null as number | null,
   authors_count: 0,
   reviewers_count: 0,
   by_repository: {},
