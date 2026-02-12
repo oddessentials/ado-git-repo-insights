@@ -486,5 +486,86 @@ describe("Rollup Schema Validator", () => {
         },
       });
     });
+
+    it("normalizes null cycle_time to null (not 0)", () => {
+      const input = {
+        week: "2026-W02",
+        start_date: "2026-01-06",
+        end_date: "2026-01-12",
+        pr_count: 5,
+        cycle_time_p50: null,
+        cycle_time_p90: null,
+      };
+
+      const normalized = normalizeRollup(input);
+
+      expect(normalized.cycle_time_p50).toBeNull();
+      expect(normalized.cycle_time_p90).toBeNull();
+    });
+
+    it("normalizes missing cycle_time to null default", () => {
+      const input = {
+        week: "2026-W02",
+        start_date: "2026-01-06",
+        end_date: "2026-01-12",
+        pr_count: 5,
+      };
+
+      const normalized = normalizeRollup(input);
+
+      expect(normalized.cycle_time_p50).toBeNull();
+      expect(normalized.cycle_time_p90).toBeNull();
+    });
+
+    it("omits by_team_and_repo when undefined in input", () => {
+      const input = {
+        week: "2026-W02",
+        start_date: "2026-01-06",
+        end_date: "2026-01-12",
+        pr_count: 5,
+      };
+
+      const normalized = normalizeRollup(input);
+
+      expect(normalized).not.toHaveProperty("by_team_and_repo");
+    });
+  });
+
+  describe("validateNestedBreakdown via validateRollup", () => {
+    it("skips _truncated metadata key without validation errors", () => {
+      const input = {
+        week: "2026-W02",
+        start_date: "2026-01-06",
+        end_date: "2026-01-12",
+        pr_count: 10,
+        by_team_and_repo: {
+          _truncated: true,
+          "TeamA": {
+            "Repo1": { pr_count: 5 },
+          },
+        },
+      };
+
+      const result: ValidationResult = validateRollup(input, false);
+
+      expect(result.errors).toHaveLength(0);
+    });
+
+    it("reports error for non-object inner value in nested breakdown", () => {
+      const input = {
+        week: "2026-W02",
+        start_date: "2026-01-06",
+        end_date: "2026-01-12",
+        pr_count: 10,
+        by_team_and_repo: {
+          "TeamA": "not-an-object",
+        },
+      };
+
+      const result: ValidationResult = validateRollup(input, false);
+
+      expect(result.errors.length).toBeGreaterThan(0);
+      expect(result.errors.some((e) => e.field.includes("TeamA"))).toBe(true);
+    });
   });
 });

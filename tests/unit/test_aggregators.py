@@ -18,10 +18,13 @@ import pytest
 if TYPE_CHECKING:
     pass
 
+import numpy as np
+
 from ado_git_repo_insights.persistence.database import DatabaseManager
 from ado_git_repo_insights.transform.aggregators import (
     AGGREGATES_SCHEMA_VERSION,
     AggregateGenerator,
+    _NumpySafeEncoder,
 )
 
 
@@ -2199,8 +2202,8 @@ class TestPerformanceGate:
         manifest = generator.generate_all()
         elapsed = time.monotonic() - start_time
 
-        # HARD GATE: fail the build if exceeded
-        assert elapsed < self._PERF_THRESHOLD_SECONDS, (
+        # HARD GATE: fail the build if exceeded (inclusive — exactly at threshold is OK)
+        assert elapsed <= self._PERF_THRESHOLD_SECONDS, (
             f"SC-007 PERFORMANCE GATE FAILED: pipeline took {elapsed:.2f}s, "
             f"which exceeds the {self._PERF_THRESHOLD_SECONDS}s threshold. "
             f"Generated {len(manifest.aggregate_index.weekly_rollups)} weekly "
@@ -2605,3 +2608,220 @@ class TestJsonNanSafety:
             content = json_file.read_text()
             assert "NaN" not in content, f"NaN found in {json_file}"
             assert "Infinity" not in content, f"Infinity found in {json_file}"
+
+
+class TestNumpySafeEncoder:
+    """Direct tests for _NumpySafeEncoder type conversions."""
+
+    def test_encodes_numpy_integer(self) -> None:
+        result = json.dumps({"val": np.int64(42)}, cls=_NumpySafeEncoder)
+        assert json.loads(result) == {"val": 42}
+
+    def test_encodes_numpy_floating(self) -> None:
+        result = json.dumps({"val": np.float64(3.14)}, cls=_NumpySafeEncoder)
+        parsed = json.loads(result)
+        assert abs(parsed["val"] - 3.14) < 1e-10
+
+    def test_encodes_numpy_ndarray(self) -> None:
+        result = json.dumps({"val": np.array([1, 2, 3])}, cls=_NumpySafeEncoder)
+        assert json.loads(result) == {"val": [1, 2, 3]}
+
+    def test_rejects_nan_with_allow_nan_false(self) -> None:
+        with pytest.raises(ValueError, match="Out of range float values"):
+            json.dumps(
+                {"val": np.float64("nan")},
+                cls=_NumpySafeEncoder,
+                allow_nan=False,
+            )
+
+    def test_fallback_to_parent_for_unknown_types(self) -> None:
+        with pytest.raises(TypeError):
+            json.dumps({"val": object()}, cls=_NumpySafeEncoder)
+
+
+class TestConsistencyWarningLogging:
+    """Verify cross-dim consistency mismatch logs a warning instead of raising."""
+
+    @pytest.fixture
+    def db_with_inconsistent_cross_dim(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> tuple[DatabaseManager, Path]:
+        """Create a DB that will produce a consistency mismatch.
+
+        We monkeypatch _generate_team_repo_slice to return an intentionally
+        wrong pr_count, triggering the warning path.
+        """
+        db_path = tmp_path / "inconsistent.sqlite"
+        db = DatabaseManager(db_path)
+        db.connect()
+
+        db.execute(
+            "INSERT INTO organizations (organization_name) VALUES (?)", ("org1",)
+        )
+        db.execute(
+            "INSERT INTO projects (organization_name, project_name) VALUES (?, ?)",
+            ("org1", "proj1"),
+        )
+        db.execute(
+            "INSERT INTO repositories (repository_id, repository_name, "
+            "project_name, organization_name) VALUES (?, ?, ?, ?)",
+            ("repo1", "Repo", "proj1", "org1"),
+        )
+        db.execute(
+            "INSERT INTO users (user_id, display_name, email) VALUES (?, ?, ?)",
+            ("user1", "User 1", "user1@test.com"),
+        )
+        db.execute(
+            "INSERT INTO teams (team_id, team_name, project_name, "
+            "organization_name, last_updated) VALUES (?, ?, ?, ?, ?)",
+            ("team1", "TeamA", "proj1", "org1", "2026-01-01T00:00:00Z"),
+        )
+        db.execute(
+            "INSERT INTO team_members (team_id, user_id) VALUES (?, ?)",
+            ("team1", "user1"),
+        )
+        db.execute(
+            """INSERT INTO pull_requests (
+                pull_request_uid, pull_request_id, organization_name,
+                project_name, repository_id, user_id, title, status,
+                description, creation_date, closed_date, cycle_time_minutes
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+            (
+                "pr-1",
+                1,
+                "org1",
+                "proj1",
+                "repo1",
+                "user1",
+                "PR 1",
+                "completed",
+                None,
+                "2026-01-05",
+                "2026-01-06",
+                60.0,
+            ),
+        )
+        db.connection.commit()
+
+        # Monkeypatch _generate_team_repo_slice to return a wrong pr_count
+        original = AggregateGenerator._generate_team_repo_slice
+
+        def patched(self_gen, *args, **kwargs):  # noqa: ANN001,ANN002,ANN003 -- REASON: test monkeypatch wrapper
+            result = original(self_gen, *args, **kwargs)
+            # Inflate the cross-dim pr_count to force a mismatch
+            for team in list(result):
+                if team.startswith("_"):
+                    continue
+                for repo in result[team]:
+                    result[team][repo]["pr_count"] += 999
+            return result
+
+        monkeypatch.setattr(AggregateGenerator, "_generate_team_repo_slice", patched)
+        return db, db_path
+
+    def test_consistency_mismatch_logs_warning(
+        self,
+        db_with_inconsistent_cross_dim: tuple[DatabaseManager, Path],
+        tmp_path: Path,
+        caplog: pytest.LogCaptureFixture,
+    ) -> None:
+        """Mismatch must log a warning, not raise ValueError."""
+        db, _ = db_with_inconsistent_cross_dim
+        output_dir = tmp_path / "output"
+
+        import logging
+
+        with caplog.at_level(logging.WARNING):
+            generator = AggregateGenerator(db, output_dir)
+            generator.generate_all()  # Must NOT raise
+
+        assert any(
+            "consistency mismatch" in record.message.lower()
+            for record in caplog.records
+        ), "Expected a warning about consistency mismatch"
+
+
+class TestTeamMembershipDedup:
+    """Verify duplicate (user_id, team_name) pairs don't inflate PR counts."""
+
+    def test_duplicate_team_memberships_collapsed(self, tmp_path: Path) -> None:
+        """Same team_name under two team_ids must not double-count PRs."""
+        db_path = tmp_path / "dedup.sqlite"
+        db = DatabaseManager(db_path)
+        db.connect()
+
+        db.execute(
+            "INSERT INTO organizations (organization_name) VALUES (?)", ("org1",)
+        )
+        db.execute(
+            "INSERT INTO projects (organization_name, project_name) VALUES (?, ?)",
+            ("org1", "proj1"),
+        )
+        db.execute(
+            "INSERT INTO repositories (repository_id, repository_name, "
+            "project_name, organization_name) VALUES (?, ?, ?, ?)",
+            ("repo1", "Repo", "proj1", "org1"),
+        )
+        db.execute(
+            "INSERT INTO users (user_id, display_name, email) VALUES (?, ?, ?)",
+            ("user1", "User 1", "user1@test.com"),
+        )
+        # Two team entries with the SAME team_name but different team_ids
+        db.execute(
+            "INSERT INTO teams (team_id, team_name, project_name, "
+            "organization_name, last_updated) VALUES (?, ?, ?, ?, ?)",
+            ("team-a1", "SharedName", "proj1", "org1", "2026-01-01T00:00:00Z"),
+        )
+        db.execute(
+            "INSERT INTO teams (team_id, team_name, project_name, "
+            "organization_name, last_updated) VALUES (?, ?, ?, ?, ?)",
+            ("team-a2", "SharedName", "proj1", "org1", "2026-01-01T00:00:00Z"),
+        )
+        # User is a member of both (same team_name, different IDs)
+        db.execute(
+            "INSERT INTO team_members (team_id, user_id) VALUES (?, ?)",
+            ("team-a1", "user1"),
+        )
+        db.execute(
+            "INSERT INTO team_members (team_id, user_id) VALUES (?, ?)",
+            ("team-a2", "user1"),
+        )
+        # One PR from user1
+        db.execute(
+            """INSERT INTO pull_requests (
+                pull_request_uid, pull_request_id, organization_name,
+                project_name, repository_id, user_id, title, status,
+                description, creation_date, closed_date, cycle_time_minutes
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+            (
+                "pr-1",
+                1,
+                "org1",
+                "proj1",
+                "repo1",
+                "user1",
+                "PR 1",
+                "completed",
+                None,
+                "2026-01-05",
+                "2026-01-06",
+                60.0,
+            ),
+        )
+        db.connection.commit()
+
+        output_dir = tmp_path / "output"
+        AggregateGenerator(db, output_dir).generate_all()
+
+        week_file = output_dir / "aggregates" / "weekly_rollups" / "2026-W02.json"
+        with week_file.open() as f:
+            data = json.load(f)
+
+        cross_dim = data.get("by_team_and_repo", {})
+        # SharedName should appear exactly once and count the PR only once
+        assert "SharedName" in cross_dim
+        assert cross_dim["SharedName"]["Repo"]["pr_count"] == 1, (
+            "Dedup failed: PR counted more than once due to duplicate team memberships"
+        )
+
+        db.close()
