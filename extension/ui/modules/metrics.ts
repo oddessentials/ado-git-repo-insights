@@ -338,6 +338,11 @@ export function applyFiltersToRollups(
         // the partial result undercounts — fall through to proportional.
         if (isTruncated && crossDimEntries.length < expectedCount) {
           // Truncated partial hit — fall through to proportional below
+          console.warn(
+            `Cross-dim data truncated for week ${rollup.week}: ` +
+              `found ${crossDimEntries.length}/${expectedCount} entries, ` +
+              `using proportional estimation`,
+          );
         } else {
           const exactSlice = aggregateEntries(crossDimEntries);
           return buildFilteredRollup(rollup, exactSlice);

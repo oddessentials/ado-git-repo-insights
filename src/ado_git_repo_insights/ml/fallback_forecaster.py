@@ -329,7 +329,19 @@ class FallbackForecaster:
             # All metrics failed - still write file with empty forecasts
             logger.warning("All metric forecasts failed - writing empty forecasts")
             self._status = STATUS_INSUFFICIENT_DATA
-            self._reason_code = REASON_ALL_NAN
+            # Use the most common individual metric reason code if available
+            if metric_reason_codes:
+                from collections import Counter
+
+                reason_counts = Counter(metric_reason_codes)
+                most_common_reason, most_common_count = reason_counts.most_common(1)[0]
+                # If all reasons are the same, use that; if mixed, keep REASON_ALL_NAN
+                if most_common_count == len(metric_reason_codes):
+                    self._reason_code = most_common_reason
+                else:
+                    self._reason_code = REASON_ALL_NAN
+            else:
+                self._reason_code = REASON_ALL_NAN
             return self._write_predictions(
                 forecasts=[],
                 data_quality=self._data_quality.status,
@@ -482,6 +494,9 @@ class FallbackForecaster:
         # Perform linear regression
         x_values = np.arange(len(y_final))
         coeffs = np.polyfit(x_values, y_final, 1)  # slope, intercept
+        if not np.all(np.isfinite(coeffs)):
+            # Fall back to flat forecast using last known value
+            coeffs = np.array([0.0, float(y_final[-1])])
 
         # Calculate residual standard error for confidence bands
         predicted_historical = np.polyval(coeffs, x_values)

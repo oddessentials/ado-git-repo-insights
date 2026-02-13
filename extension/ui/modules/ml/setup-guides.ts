@@ -7,6 +7,12 @@
 
 import { escapeHtml, appendTrustedHtml } from "../shared/render";
 
+/** Module-level store for YAML content — avoids information disclosure via DOM. */
+const yamlStore = new Map<string, string>();
+
+/** Tracks containers with delegated click handlers to prevent duplicate listeners. */
+const delegatedContainers = new WeakSet<HTMLElement>();
+
 /**
  * YAML snippet for enabling predictions in ADO pipeline.
  */
@@ -49,8 +55,9 @@ async function copyToClipboard(text: string): Promise<void> {
  * @returns HTML string for the copy button
  */
 function createCopyButton(yaml: string, buttonId: string): string {
+  yamlStore.set(buttonId, yaml);
   return `
-    <button class="copy-yaml-btn" id="${buttonId}" data-yaml="${escapeHtml(yaml)}"
+    <button class="copy-yaml-btn" id="${buttonId}"
             type="button" aria-label="Copy YAML snippet to clipboard">
       <span class="copy-icon" aria-hidden="true">📋</span>
       <span class="copy-text">Copy</span>
@@ -65,8 +72,9 @@ function createCopyButton(yaml: string, buttonId: string): string {
  * @param container - Container element with copy buttons
  */
 export function attachCopyHandlers(container: HTMLElement): void {
-  const buttons =
-    container.querySelectorAll<HTMLButtonElement>(".copy-yaml-btn");
+  // C2 fix: event delegation — single listener per container, attached once
+  if (delegatedContainers.has(container)) return;
+  delegatedContainers.add(container);
 
   // Create or get ARIA live region for announcements
   let liveRegion = document.getElementById("copy-status-live");
@@ -79,50 +87,53 @@ export function attachCopyHandlers(container: HTMLElement): void {
     document.body.appendChild(liveRegion);
   }
 
-  buttons.forEach((button) => {
-    button.addEventListener("click", async () => {
-      const yaml = button.dataset.yaml;
-      if (!yaml) return;
+  container.addEventListener("click", async (e: Event) => {
+    const button = (e.target as HTMLElement).closest<HTMLButtonElement>(
+      ".copy-yaml-btn",
+    );
+    if (!button) return;
 
-      // Disable button during copy
-      button.disabled = true;
-      const copyText = button.querySelector(".copy-text");
-      const originalText = copyText?.textContent || "Copy";
+    const yaml = yamlStore.get(button.id) ?? button.dataset.yaml;
+    if (!yaml) return;
 
-      try {
-        await copyToClipboard(yaml);
+    // Disable button during copy
+    button.disabled = true;
+    const copyText = button.querySelector(".copy-text");
+    const originalText = copyText?.textContent || "Copy";
 
-        // Show success feedback
-        if (copyText) copyText.textContent = "Copied!";
-        button.classList.add("copied");
-        button.setAttribute("aria-label", "YAML snippet copied to clipboard");
+    try {
+      await copyToClipboard(yaml);
 
-        // Announce to screen readers
-        if (liveRegion)
-          liveRegion.textContent = "YAML snippet copied to clipboard";
+      // Show success feedback
+      if (copyText) copyText.textContent = "Copied!";
+      button.classList.add("copied");
+      button.setAttribute("aria-label", "YAML snippet copied to clipboard");
 
-        // Reset after delay
-        setTimeout(() => {
-          if (copyText) copyText.textContent = originalText;
-          button.classList.remove("copied");
-          button.disabled = false;
-          button.setAttribute("aria-label", "Copy YAML snippet to clipboard");
-        }, 2000);
-      } catch {
-        // Show error feedback
-        if (copyText) copyText.textContent = "Failed";
-        button.setAttribute("aria-label", "Failed to copy YAML snippet");
+      // Announce to screen readers
+      if (liveRegion)
+        liveRegion.textContent = "YAML snippet copied to clipboard";
 
-        // Announce error to screen readers
-        if (liveRegion) liveRegion.textContent = "Failed to copy YAML snippet";
+      // Reset after delay
+      setTimeout(() => {
+        if (copyText) copyText.textContent = originalText;
+        button.classList.remove("copied");
+        button.disabled = false;
+        button.setAttribute("aria-label", "Copy YAML snippet to clipboard");
+      }, 2000);
+    } catch {
+      // Show error feedback
+      if (copyText) copyText.textContent = "Failed";
+      button.setAttribute("aria-label", "Failed to copy YAML snippet");
 
-        setTimeout(() => {
-          if (copyText) copyText.textContent = originalText;
-          button.disabled = false;
-          button.setAttribute("aria-label", "Copy YAML snippet to clipboard");
-        }, 2000);
-      }
-    });
+      // Announce error to screen readers
+      if (liveRegion) liveRegion.textContent = "Failed to copy YAML snippet";
+
+      setTimeout(() => {
+        if (copyText) copyText.textContent = originalText;
+        button.disabled = false;
+        button.setAttribute("aria-label", "Copy YAML snippet to clipboard");
+      }, 2000);
+    }
   });
 }
 

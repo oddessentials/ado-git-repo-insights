@@ -105,7 +105,16 @@ describe("Synthetic Fixture Consumer Validation", () => {
     const loader = new DatasetLoader(baseUrl);
 
     // Should not throw
-    await expect(loader.loadManifest()).resolves.toBeDefined();
+    const manifest = await loader.loadManifest();
+    expect(manifest).toBeDefined();
+    expect((manifest as any).manifest_schema_version).toBe(1);
+    expect((manifest as any).aggregates_schema_version).toBe(2);
+    expect(
+      (manifest as any).aggregate_index.weekly_rollups,
+    ).toBeInstanceOf(Array);
+    expect(
+      (manifest as any).aggregate_index.weekly_rollups.length,
+    ).toBeGreaterThan(0);
   });
 
   test("generated manifest has correct schema versions", async () => {
@@ -255,11 +264,13 @@ describe("Synthetic Fixture Consumer Validation", () => {
       const manifestPath = path.join(outputDir, "dataset-manifest.json");
       const manifest = JSON.parse(fs.readFileSync(manifestPath, "utf-8"));
 
+      let validWeeks = 0;
       for (const entry of manifest.aggregate_index.weekly_rollups) {
         const rollupPath = path.join(outputDir, entry.path);
         const rollupData = JSON.parse(fs.readFileSync(rollupPath, "utf-8"));
 
         if (!rollupData.by_team_and_repo || !rollupData.by_team) continue;
+        validWeeks++;
 
         for (const [teamName, repoEntries] of Object.entries(
           rollupData.by_team_and_repo,
@@ -274,6 +285,44 @@ describe("Synthetic Fixture Consumer Validation", () => {
           expect(crossDimSum).toBe(teamTotal);
         }
       }
+      // T1: Ensure at least one week had cross-dim data to validate
+      expect(validWeeks).toBeGreaterThan(0);
+    });
+
+    it("filter with non-existent team/repo returns zero pr_count", async () => {
+      const outputDir = generateFixture(100, 42);
+      const manifestPath = path.join(outputDir, "dataset-manifest.json");
+      const manifest = JSON.parse(fs.readFileSync(manifestPath, "utf-8"));
+
+      // Find a rollup with cross-dim data
+      let targetRollup: any = null;
+      for (const entry of manifest.aggregate_index.weekly_rollups) {
+        const rollupPath = path.join(outputDir, entry.path);
+        const rollupData = JSON.parse(fs.readFileSync(rollupPath, "utf-8"));
+        if (rollupData.by_team_and_repo && rollupData.by_team) {
+          targetRollup = rollupData;
+          break;
+        }
+      }
+      expect(targetRollup).not.toBeNull();
+
+      const { applyFiltersToRollups } = await import(
+        "../../ui/modules/metrics"
+      );
+
+      // Non-existent team
+      const filteredTeam = applyFiltersToRollups([targetRollup], {
+        teams: ["NonExistentTeam_XYZ"],
+        repos: [],
+      });
+      expect(filteredTeam[0].pr_count).toBe(0);
+
+      // Non-existent repo
+      const filteredRepo = applyFiltersToRollups([targetRollup], {
+        teams: [],
+        repos: ["NonExistentRepo_XYZ"],
+      });
+      expect(filteredRepo[0].pr_count).toBe(0);
     });
   });
 });

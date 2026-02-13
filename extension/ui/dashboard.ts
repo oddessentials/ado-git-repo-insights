@@ -82,6 +82,7 @@ let currentFilters: { repos: string[]; teams: string[] } = {
 let comparisonMode = false;
 let cachedRollups: Rollup[] = []; // Cache for export
 let currentBuildId: number | null = null; // Store build ID for raw data download
+let chipsDelegatedElement: HTMLElement | null = null; // Track delegated element
 
 // Settings keys for extension data storage (must match settings.js)
 const SETTINGS_KEY_PROJECT = "pr-insights-source-project";
@@ -1369,14 +1370,19 @@ function renderFilterChips(): void {
   // SECURITY: Filter chips use escapeHtml for all values
   renderTrustedHtml(chipsEl, chips.join(""));
 
-  chipsEl.querySelectorAll(".filter-chip-remove").forEach((btnNode) => {
-    const btn = btnNode as HTMLElement;
-    btn.addEventListener("click", () => {
+  // C1 fix: event delegation — re-attach if container element changes
+  if (chipsDelegatedElement !== chipsEl) {
+    chipsDelegatedElement = chipsEl;
+    chipsEl.addEventListener("click", (e: Event) => {
+      const btn = (e.target as HTMLElement).closest(
+        ".filter-chip-remove",
+      ) as HTMLElement | null;
+      if (!btn) return;
       const type = btn.dataset["type"];
       const val = btn.dataset["value"];
       if (type && val) removeFilter(type, val);
     });
-  });
+  }
 }
 
 /**
@@ -1385,11 +1391,11 @@ function renderFilterChips(): void {
 function getFilterLabel(type: string, value: string): string {
   if (type === "repo") {
     const repoFilter = elements["repo-filter"] as HTMLSelectElement | null;
-    return findOptionByValue(repoFilter, value)?.textContent || value;
+    return findOptionByValue(repoFilter, value)?.textContent ?? value;
   }
   if (type === "team") {
     const teamFilter = elements["team-filter"] as HTMLSelectElement | null;
-    return findOptionByValue(teamFilter, value)?.textContent || value;
+    return findOptionByValue(teamFilter, value)?.textContent ?? value;
   }
   return value;
 }
@@ -1421,6 +1427,16 @@ function restoreFiltersFromUrl(): void {
     currentFilters.repos = reposParam.split(",").filter((v) => v);
     const repoFilter = elements["repo-filter"] as HTMLSelectElement | null;
     if (repoFilter) {
+      const valid = currentFilters.repos.filter(
+        (v) => findOptionByValue(repoFilter, v) !== null,
+      );
+      if (valid.length < currentFilters.repos.length) {
+        console.warn(
+          "Ignoring invalid repo filters from URL:",
+          currentFilters.repos.filter((v) => !valid.includes(v)),
+        );
+      }
+      currentFilters.repos = valid;
       currentFilters.repos.forEach((value) => {
         const option = findOptionByValue(repoFilter, value);
         if (option) option.selected = true;
@@ -1432,6 +1448,16 @@ function restoreFiltersFromUrl(): void {
     currentFilters.teams = teamsParam.split(",").filter((v) => v);
     const teamFilter = elements["team-filter"] as HTMLSelectElement | null;
     if (teamFilter) {
+      const valid = currentFilters.teams.filter(
+        (v) => findOptionByValue(teamFilter, v) !== null,
+      );
+      if (valid.length < currentFilters.teams.length) {
+        console.warn(
+          "Ignoring invalid team filters from URL:",
+          currentFilters.teams.filter((v) => !valid.includes(v)),
+        );
+      }
+      currentFilters.teams = valid;
       currentFilters.teams.forEach((value) => {
         const option = findOptionByValue(teamFilter, value);
         if (option) option.selected = true;

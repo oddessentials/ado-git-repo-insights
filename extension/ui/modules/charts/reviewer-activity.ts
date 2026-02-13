@@ -51,7 +51,8 @@ export function renderReviewerActivity(
     .map((r) => {
       const count = r.reviewers_count || 0;
       const pct = (count / maxReviewers) * 100;
-      const weekLabel = r.week.split("-W")[1] || "";
+      const wParts = r.week.split("-W");
+      const weekLabel = (wParts.length === 2 ? wParts[1] : r.week) ?? r.week;
       // SECURITY: Escape data-controlled values to prevent XSS
       return `
             <div class="h-bar-row" title="${escapeHtml(r.week)}: ${count} reviewers">

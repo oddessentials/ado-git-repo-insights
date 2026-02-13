@@ -3050,6 +3050,9 @@ var PRInsightsDashboard = (() => {
         const isTruncated = rollup.by_team_and_repo["_truncated"] === true;
         if (crossDimEntries.length > 0) {
           if (isTruncated && crossDimEntries.length < expectedCount) {
+            console.warn(
+              `Cross-dim data truncated for week ${rollup.week}: found ${crossDimEntries.length}/${expectedCount} entries, using proportional estimation`
+            );
           } else {
             const exactSlice = aggregateEntries(crossDimEntries);
             return buildFilteredRollup(rollup, exactSlice);
@@ -3488,6 +3491,8 @@ var PRInsightsDashboard = (() => {
   }
 
   // ui/modules/ml/setup-guides.ts
+  var yamlStore = /* @__PURE__ */ new Map();
+  var delegatedContainers = /* @__PURE__ */ new WeakSet();
   var PREDICTIONS_YAML = `build-aggregates:
   run-predictions: true`;
   var INSIGHTS_YAML = `build-aggregates:
@@ -3508,8 +3513,9 @@ var PRInsightsDashboard = (() => {
     }
   }
   function createCopyButton(yaml, buttonId) {
+    yamlStore.set(buttonId, yaml);
     return `
-    <button class="copy-yaml-btn" id="${buttonId}" data-yaml="${escapeHtml(yaml)}"
+    <button class="copy-yaml-btn" id="${buttonId}"
             type="button" aria-label="Copy YAML snippet to clipboard">
       <span class="copy-icon" aria-hidden="true">\u{1F4CB}</span>
       <span class="copy-text">Copy</span>
@@ -3517,7 +3523,8 @@ var PRInsightsDashboard = (() => {
   `;
   }
   function attachCopyHandlers(container) {
-    const buttons = container.querySelectorAll(".copy-yaml-btn");
+    if (delegatedContainers.has(container)) return;
+    delegatedContainers.add(container);
     let liveRegion = document.getElementById("copy-status-live");
     if (!liveRegion) {
       liveRegion = document.createElement("div");
@@ -3527,37 +3534,39 @@ var PRInsightsDashboard = (() => {
       liveRegion.className = "visually-hidden";
       document.body.appendChild(liveRegion);
     }
-    buttons.forEach((button) => {
-      button.addEventListener("click", async () => {
-        const yaml = button.dataset.yaml;
-        if (!yaml) return;
-        button.disabled = true;
-        const copyText = button.querySelector(".copy-text");
-        const originalText = copyText?.textContent || "Copy";
-        try {
-          await copyToClipboard(yaml);
-          if (copyText) copyText.textContent = "Copied!";
-          button.classList.add("copied");
-          button.setAttribute("aria-label", "YAML snippet copied to clipboard");
-          if (liveRegion)
-            liveRegion.textContent = "YAML snippet copied to clipboard";
-          setTimeout(() => {
-            if (copyText) copyText.textContent = originalText;
-            button.classList.remove("copied");
-            button.disabled = false;
-            button.setAttribute("aria-label", "Copy YAML snippet to clipboard");
-          }, 2e3);
-        } catch {
-          if (copyText) copyText.textContent = "Failed";
-          button.setAttribute("aria-label", "Failed to copy YAML snippet");
-          if (liveRegion) liveRegion.textContent = "Failed to copy YAML snippet";
-          setTimeout(() => {
-            if (copyText) copyText.textContent = originalText;
-            button.disabled = false;
-            button.setAttribute("aria-label", "Copy YAML snippet to clipboard");
-          }, 2e3);
-        }
-      });
+    container.addEventListener("click", async (e) => {
+      const button = e.target.closest(
+        ".copy-yaml-btn"
+      );
+      if (!button) return;
+      const yaml = yamlStore.get(button.id) ?? button.dataset.yaml;
+      if (!yaml) return;
+      button.disabled = true;
+      const copyText = button.querySelector(".copy-text");
+      const originalText = copyText?.textContent || "Copy";
+      try {
+        await copyToClipboard(yaml);
+        if (copyText) copyText.textContent = "Copied!";
+        button.classList.add("copied");
+        button.setAttribute("aria-label", "YAML snippet copied to clipboard");
+        if (liveRegion)
+          liveRegion.textContent = "YAML snippet copied to clipboard";
+        setTimeout(() => {
+          if (copyText) copyText.textContent = originalText;
+          button.classList.remove("copied");
+          button.disabled = false;
+          button.setAttribute("aria-label", "Copy YAML snippet to clipboard");
+        }, 2e3);
+      } catch {
+        if (copyText) copyText.textContent = "Failed";
+        button.setAttribute("aria-label", "Failed to copy YAML snippet");
+        if (liveRegion) liveRegion.textContent = "Failed to copy YAML snippet";
+        setTimeout(() => {
+          if (copyText) copyText.textContent = originalText;
+          button.disabled = false;
+          button.setAttribute("aria-label", "Copy YAML snippet to clipboard");
+        }, 2e3);
+      }
     });
   }
   function renderPredictionsSetupGuide() {
@@ -4328,7 +4337,8 @@ var PRInsightsDashboard = (() => {
     const movingAvg = calculateMovingAverage(prCounts, 4);
     const barsHtml = displayRollups.map((r) => {
       const height = maxCount > 0 ? (r.pr_count || 0) / maxCount * 100 : 0;
-      const weekLabel = r.week.split("-W")[1] || "";
+      const wParts = r.week.split("-W");
+      const weekLabel = (wParts.length === 2 ? wParts[1] : r.week) ?? r.week;
       return `
             <div class="bar-container" title="${escapeHtml(r.week)}: ${r.pr_count || 0} PRs">
                 <div class="bar" style="height: ${height}%"></div>
@@ -4456,12 +4466,16 @@ var PRInsightsDashboard = (() => {
     const chartHeight = height - padding.top - padding.bottom;
     const dotRadius = Math.max(1.5, Math.min(4, 200 / displayRollups.length));
     const generatePath = (data) => {
+      if (displayRollups.length < 2) return { pathD: "", points: [] };
       const points = data.map((d) => {
         const dataIndex = displayRollups.findIndex((r) => r.week === d.week);
+        if (dataIndex === -1) return null;
         const x = padding.left + dataIndex / (displayRollups.length - 1) * chartWidth;
         const y = padding.top + chartHeight - (d.value - minVal) / range * chartHeight;
         return { x, y, week: d.week, value: d.value };
-      });
+      }).filter(
+        (p) => p !== null
+      );
       const pathD = points.map(
         (p, i) => `${i === 0 ? "M" : "L"} ${p.x.toFixed(1)} ${p.y.toFixed(1)}`
       ).join(" ");
@@ -4489,8 +4503,8 @@ var PRInsightsDashboard = (() => {
             ${p50Path ? `<path class="line-chart-p50" d="${p50Path.pathD}" vector-effect="non-scaling-stroke"/>` : ""}
 
             <!-- Dots -->
-            ${p90Path ? p90Path.points.map((p) => `<circle class="line-chart-dot" cx="${p.x}" cy="${p.y}" r="${dotRadius}" fill="var(--warning)" data-week="${escapeHtml(p.week)}" data-value="${p.value}" data-metric="P90"/>`).join("") : ""}
-            ${p50Path ? p50Path.points.map((p) => `<circle class="line-chart-dot" cx="${p.x}" cy="${p.y}" r="${dotRadius}" fill="var(--primary)" data-week="${escapeHtml(p.week)}" data-value="${p.value}" data-metric="P50"/>`).join("") : ""}
+            ${p90Path ? p90Path.points.map((p) => `<circle class="line-chart-dot" cx="${p.x}" cy="${p.y}" r="${dotRadius}" fill="var(--warning)" data-week="${escapeHtml(p.week)}" data-value="${escapeHtml(String(p.value))}" data-metric="P90"/>`).join("") : ""}
+            ${p50Path ? p50Path.points.map((p) => `<circle class="line-chart-dot" cx="${p.x}" cy="${p.y}" r="${dotRadius}" fill="var(--primary)" data-week="${escapeHtml(p.week)}" data-value="${escapeHtml(String(p.value))}" data-metric="P50"/>`).join("") : ""}
         </svg>
     `;
     const legendHtml = `
@@ -4546,7 +4560,8 @@ var PRInsightsDashboard = (() => {
     const barsHtml = recentRollups.map((r) => {
       const count = r.reviewers_count || 0;
       const pct = count / maxReviewers * 100;
-      const weekLabel = r.week.split("-W")[1] || "";
+      const wParts = r.week.split("-W");
+      const weekLabel = (wParts.length === 2 ? wParts[1] : r.week) ?? r.week;
       return `
             <div class="h-bar-row" title="${escapeHtml(r.week)}: ${count} reviewers">
                 <span class="h-bar-label">W${escapeHtml(weekLabel)}</span>
@@ -4665,6 +4680,7 @@ var PRInsightsDashboard = (() => {
   var comparisonMode = false;
   var cachedRollups = [];
   var currentBuildId = null;
+  var chipsDelegatedElement = null;
   var SETTINGS_KEY_PROJECT = "pr-insights-source-project";
   var SETTINGS_KEY_PIPELINE = "pr-insights-pipeline-id";
   var elements = {};
@@ -5451,23 +5467,27 @@ var PRInsightsDashboard = (() => {
       chips.push(createFilterChip("team", value, label));
     });
     renderTrustedHtml(chipsEl, chips.join(""));
-    chipsEl.querySelectorAll(".filter-chip-remove").forEach((btnNode) => {
-      const btn = btnNode;
-      btn.addEventListener("click", () => {
+    if (chipsDelegatedElement !== chipsEl) {
+      chipsDelegatedElement = chipsEl;
+      chipsEl.addEventListener("click", (e) => {
+        const btn = e.target.closest(
+          ".filter-chip-remove"
+        );
+        if (!btn) return;
         const type = btn.dataset["type"];
         const val = btn.dataset["value"];
         if (type && val) removeFilter(type, val);
       });
-    });
+    }
   }
   function getFilterLabel(type, value) {
     if (type === "repo") {
       const repoFilter = elements["repo-filter"];
-      return findOptionByValue(repoFilter, value)?.textContent || value;
+      return findOptionByValue(repoFilter, value)?.textContent ?? value;
     }
     if (type === "team") {
       const teamFilter = elements["team-filter"];
-      return findOptionByValue(teamFilter, value)?.textContent || value;
+      return findOptionByValue(teamFilter, value)?.textContent ?? value;
     }
     return value;
   }
@@ -5488,6 +5508,16 @@ var PRInsightsDashboard = (() => {
       currentFilters.repos = reposParam.split(",").filter((v) => v);
       const repoFilter = elements["repo-filter"];
       if (repoFilter) {
+        const valid = currentFilters.repos.filter(
+          (v) => findOptionByValue(repoFilter, v) !== null
+        );
+        if (valid.length < currentFilters.repos.length) {
+          console.warn(
+            "Ignoring invalid repo filters from URL:",
+            currentFilters.repos.filter((v) => !valid.includes(v))
+          );
+        }
+        currentFilters.repos = valid;
         currentFilters.repos.forEach((value) => {
           const option = findOptionByValue(repoFilter, value);
           if (option) option.selected = true;
@@ -5498,6 +5528,16 @@ var PRInsightsDashboard = (() => {
       currentFilters.teams = teamsParam.split(",").filter((v) => v);
       const teamFilter = elements["team-filter"];
       if (teamFilter) {
+        const valid = currentFilters.teams.filter(
+          (v) => findOptionByValue(teamFilter, v) !== null
+        );
+        if (valid.length < currentFilters.teams.length) {
+          console.warn(
+            "Ignoring invalid team filters from URL:",
+            currentFilters.teams.filter((v) => !valid.includes(v))
+          );
+        }
+        currentFilters.teams = valid;
         currentFilters.teams.forEach((value) => {
           const option = findOptionByValue(teamFilter, value);
           if (option) option.selected = true;

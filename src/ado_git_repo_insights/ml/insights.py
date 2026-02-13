@@ -275,8 +275,16 @@ Respond ONLY with valid JSON matching this format."""
             """
         )
         row = cursor.fetchone()
-        date_range_start = row["min_date"][:10] if row["min_date"] else "N/A"
-        date_range_end = row["max_date"][:10] if row["max_date"] else "N/A"
+        date_range_start = (
+            row["min_date"].split("T")[0]
+            if row["min_date"] and len(row["min_date"]) >= 10
+            else "N/A"
+        )
+        date_range_end = (
+            row["max_date"].split("T")[0]
+            if row["max_date"] and len(row["max_date"]) >= 10
+            else "N/A"
+        )
 
         # Average cycle time
         cursor = self.db.execute(
@@ -397,6 +405,8 @@ Respond ONLY with valid JSON matching this format."""
 
             # Validate TTL
             cached_at = datetime.fromisoformat(cache_data["cached_at"])
+            if cached_at.tzinfo is None:
+                cached_at = cached_at.replace(tzinfo=timezone.utc)
             age_hours = (datetime.now(timezone.utc) - cached_at).total_seconds() / 3600
             if age_hours > self.cache_ttl_hours:
                 logger.debug(

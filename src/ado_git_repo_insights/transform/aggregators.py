@@ -577,10 +577,10 @@ class AggregateGenerator:
                 end_date=end_date.isoformat(),
                 pr_count=len(group),
                 cycle_time_p50=group["cycle_time_minutes"].quantile(0.5)
-                if not group["cycle_time_minutes"].isna().all()
+                if group["cycle_time_minutes"].notna().sum() >= self._ROLLUP_MIN_SAMPLE
                 else None,
                 cycle_time_p90=group["cycle_time_minutes"].quantile(0.9)
-                if not group["cycle_time_minutes"].isna().all()
+                if group["cycle_time_minutes"].notna().sum() >= self._ROLLUP_MIN_SAMPLE
                 else None,
                 authors_count=group["user_id"].nunique(),
                 reviewers_count=reviewers_count,
@@ -666,10 +666,12 @@ class AggregateGenerator:
             by_repository[str(repo_name)] = {
                 "pr_count": len(repo_group),
                 "cycle_time_p50": repo_group["cycle_time_minutes"].quantile(0.5)
-                if not repo_group["cycle_time_minutes"].isna().all()
+                if repo_group["cycle_time_minutes"].notna().sum()
+                >= self._ROLLUP_MIN_SAMPLE
                 else None,
                 "cycle_time_p90": repo_group["cycle_time_minutes"].quantile(0.9)
-                if not repo_group["cycle_time_minutes"].isna().all()
+                if repo_group["cycle_time_minutes"].notna().sum()
+                >= self._ROLLUP_MIN_SAMPLE
                 else None,
                 "authors_count": repo_group["user_id"].nunique(),
                 "reviewers_count": repo_reviewers["reviewer_id"].nunique(),
@@ -734,10 +736,12 @@ class AggregateGenerator:
             by_team[str(team_name)] = {
                 "pr_count": len(team_prs),
                 "cycle_time_p50": team_prs["cycle_time_minutes"].quantile(0.5)
-                if not team_prs["cycle_time_minutes"].isna().all()
+                if team_prs["cycle_time_minutes"].notna().sum()
+                >= self._ROLLUP_MIN_SAMPLE
                 else None,
                 "cycle_time_p90": team_prs["cycle_time_minutes"].quantile(0.9)
-                if not team_prs["cycle_time_minutes"].isna().all()
+                if team_prs["cycle_time_minutes"].notna().sum()
+                >= self._ROLLUP_MIN_SAMPLE
                 else None,
                 "authors_count": team_prs["user_id"].nunique(),
                 "reviewers_count": team_reviewers["reviewer_id"].nunique(),
@@ -747,8 +751,10 @@ class AggregateGenerator:
 
     # Maximum cross-dimensional entries per week before truncation (FR-017)
     _CROSS_DIM_MAX_ENTRIES = 5000
-    # Minimum sample size for cycle time percentiles (FR-019)
+    # Minimum sample size for cycle time percentiles in cross-dim slices (FR-019)
     _CROSS_DIM_MIN_SAMPLE = 5
+    # Minimum sample size for cycle time percentiles in rollup/dimension slices
+    _ROLLUP_MIN_SAMPLE = 2
 
     def _generate_team_repo_slice(
         self,
@@ -786,6 +792,7 @@ class AggregateGenerator:
         # PR row inflation when the same team_name appears under multiple
         # team_ids (e.g., same-named teams across projects).
         deduped_members = team_members_df[["user_id", "team_name"]].drop_duplicates()
+        deduped_members = deduped_members.dropna(subset=["user_id", "team_name"])
 
         # Join PRs with team memberships to tag each PR with its team(s).
         # A multi-team author produces one row per team membership.
@@ -843,17 +850,49 @@ class AggregateGenerator:
             all_entries.append((str(team_name), str(repo_name), entry))
             entry_count += 1
 
-        # Truncation: if entries exceed cap, keep highest-pr_count entries
+        # Truncation: if entries exceed cap, keep whole teams by total pr_count
         truncated = False
         if entry_count > self._CROSS_DIM_MAX_ENTRIES:
-            all_entries.sort(key=lambda e: e[2]["pr_count"], reverse=True)
-            all_entries = all_entries[: self._CROSS_DIM_MAX_ENTRIES]
-            truncated = True
-            logger.warning(
-                "Cross-dimensional entries truncated from %d to %d for week",
-                entry_count,
-                self._CROSS_DIM_MAX_ENTRIES,
+            # Group entries by team and compute total pr_count per team
+            team_pr_totals: dict[str, int] = {}
+            team_entries: dict[str, list[tuple[str, str, dict[str, Any]]]] = {}
+            for team_name, repo_name, entry in all_entries:
+                team_pr_totals[team_name] = (
+                    team_pr_totals.get(team_name, 0) + entry["pr_count"]
+                )
+                team_entries.setdefault(team_name, []).append(
+                    (team_name, repo_name, entry)
+                )
+
+            # Sort teams descending by total pr_count
+            sorted_teams = sorted(
+                team_pr_totals.keys(),
+                key=lambda t: team_pr_totals[t],
+                reverse=True,
             )
+
+            # Keep whole teams until adding the next would exceed the limit.
+            # Always include at least the first (largest) team so the result
+            # is never empty when there is data.
+            kept_entries: list[tuple[str, str, dict[str, Any]]] = []
+            for team in sorted_teams:
+                team_size = len(team_entries[team])
+                if (
+                    kept_entries
+                    and len(kept_entries) + team_size > self._CROSS_DIM_MAX_ENTRIES
+                ):
+                    truncated = True
+                    break
+                kept_entries.extend(team_entries[team])
+
+            if truncated:
+                all_entries = kept_entries
+                logger.warning(
+                    "Cross-dimensional entries truncated from %d to %d for week "
+                    "(whole-team granularity)",
+                    entry_count,
+                    len(all_entries),
+                )
 
         # Build nested dict from (possibly truncated) entries
         for team_name, repo_name, entry in all_entries:

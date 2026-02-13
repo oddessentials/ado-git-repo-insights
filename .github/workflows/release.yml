@@ -102,7 +102,7 @@ jobs:
       - uses: ./.github/actions/setup-pnpm
 
       - name: Install tfx-cli
-        run: npm install -g tfx-cli
+        run: npm install -g tfx-cli@0.17.0
 
       - name: Validate Version Consistency
         run: |
@@ -222,7 +222,7 @@ jobs:
           path: extension/
 
       - name: Install tfx-cli
-        run: npm install -g tfx-cli
+        run: npm install -g tfx-cli@0.17.0
 
       - name: Publish to VS Marketplace
         run: |
