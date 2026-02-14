@@ -2954,6 +2954,101 @@ class TestUnicodeTeamRepoNames:
         db.close()
 
 
+class TestCrossDimTruncationCap:
+    """Verify cross-dim truncation respects the hard cap even for a single team."""
+
+    def test_single_team_exceeding_cap_is_sliced_and_marked_truncated(
+        self, tmp_path: Path
+    ) -> None:
+        """When one team spans more repos than _CROSS_DIM_MAX_ENTRIES,
+        the output must be capped and _truncated must be True."""
+        db = DatabaseManager(tmp_path / "cap.sqlite")
+        db.connect()
+
+        db.execute(
+            "INSERT INTO organizations (organization_name) VALUES (?)", ("org1",)
+        )
+        db.execute(
+            "INSERT INTO projects (organization_name, project_name) VALUES (?, ?)",
+            ("org1", "proj1"),
+        )
+        db.execute(
+            "INSERT INTO teams (team_id, team_name, project_name, "
+            "organization_name, last_updated) VALUES (?, ?, ?, ?, ?)",
+            ("t1", "BigTeam", "proj1", "org1", "2026-01-01T00:00:00Z"),
+        )
+        db.execute(
+            "INSERT INTO users (user_id, display_name, email) VALUES (?, ?, ?)",
+            ("u1", "User", "u@e.com"),
+        )
+        db.execute(
+            "INSERT INTO team_members (team_id, user_id) VALUES (?, ?)",
+            ("t1", "u1"),
+        )
+
+        # Create 8 repos (we'll patch the cap to 5 so one team of 8 exceeds it)
+        num_repos = 8
+        for i in range(num_repos):
+            db.execute(
+                "INSERT INTO repositories (repository_id, repository_name, "
+                "project_name, organization_name) VALUES (?, ?, ?, ?)",
+                (f"r{i}", f"Repo-{i}", "proj1", "org1"),
+            )
+            db.execute(
+                """INSERT INTO pull_requests (
+                    pull_request_uid, pull_request_id, organization_name,
+                    project_name, repository_id, user_id, title, status,
+                    description, creation_date, closed_date, cycle_time_minutes
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                (
+                    f"pr-{i}",
+                    i,
+                    "org1",
+                    "proj1",
+                    f"r{i}",
+                    "u1",
+                    f"PR {i}",
+                    "completed",
+                    None,
+                    "2026-01-06",
+                    "2026-01-07",
+                    60.0,
+                ),
+            )
+        db.connection.commit()
+
+        output_dir = tmp_path / "out"
+        gen = AggregateGenerator(db, output_dir)
+
+        # Patch the cap to a small number so the single team exceeds it
+        gen._CROSS_DIM_MAX_ENTRIES = 5
+
+        gen.generate_all()
+
+        week_file = output_dir / "aggregates" / "weekly_rollups" / "2026-W02.json"
+        with week_file.open() as f:
+            data = json.load(f)
+
+        cross_dim = data.get("by_team_and_repo", {})
+
+        # _truncated must be set
+        assert cross_dim.get("_truncated") is True, (
+            "_truncated marker missing when single team exceeds cap"
+        )
+
+        # Count actual entries (excluding metadata keys)
+        entry_count = sum(
+            len(repos)
+            for key, repos in cross_dim.items()
+            if not key.startswith("_") and isinstance(repos, dict)
+        )
+        assert entry_count <= 5, f"Cross-dim entries ({entry_count}) exceed cap (5)"
+        # At least some data must be present
+        assert entry_count > 0, "Cross-dim should not be empty"
+
+        db.close()
+
+
 class TestCycleTimeBoundaryCondition:
     """T5: Exactly 4 PRs → null p50/p90, exactly 5 PRs → non-null."""
 

@@ -856,13 +856,11 @@ class AggregateGenerator:
             # Group entries by team and compute total pr_count per team
             team_pr_totals: dict[str, int] = {}
             team_entries: dict[str, list[tuple[str, str, dict[str, Any]]]] = {}
-            for team_name, repo_name, entry in all_entries:
-                team_pr_totals[team_name] = (
-                    team_pr_totals.get(team_name, 0) + entry["pr_count"]
+            for t_name, r_name, ent in all_entries:
+                team_pr_totals[t_name] = team_pr_totals.get(t_name, 0) + int(
+                    ent["pr_count"]
                 )
-                team_entries.setdefault(team_name, []).append(
-                    (team_name, repo_name, entry)
-                )
+                team_entries.setdefault(t_name, []).append((t_name, r_name, ent))
 
             # Sort teams descending by total pr_count
             sorted_teams = sorted(
@@ -872,15 +870,17 @@ class AggregateGenerator:
             )
 
             # Keep whole teams until adding the next would exceed the limit.
-            # Always include at least the first (largest) team so the result
-            # is never empty when there is data.
+            # When the first team alone exceeds the cap, include entries
+            # from that team up to the cap and mark as truncated.
             kept_entries: list[tuple[str, str, dict[str, Any]]] = []
             for team in sorted_teams:
                 team_size = len(team_entries[team])
-                if (
-                    kept_entries
-                    and len(kept_entries) + team_size > self._CROSS_DIM_MAX_ENTRIES
-                ):
+                if len(kept_entries) + team_size > self._CROSS_DIM_MAX_ENTRIES:
+                    if not kept_entries:
+                        # First team exceeds cap — slice its entries to the
+                        # limit so we never return an empty result but still
+                        # respect the hard cap.
+                        kept_entries = team_entries[team][: self._CROSS_DIM_MAX_ENTRIES]
                     truncated = True
                     break
                 kept_entries.extend(team_entries[team])
