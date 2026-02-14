@@ -1024,46 +1024,60 @@ class TestReasonCodeDeduction:
         assert forecaster.reason_code == REASON_ALL_NAN
         assert forecaster.status == STATUS_INSUFFICIENT_DATA
 
-    def test_uniform_reason_codes_uses_common_reason(
+    def test_all_metrics_fail_same_reason_uses_that_reason(
         self, forecaster: FallbackForecaster, mock_db: MagicMock
     ) -> None:
-        """When all metrics fail with same reason, that reason code is used.
+        """When all metrics fail with the same reason, that reason code is used.
 
-        The metric_reason_codes list is populated inside the generate() loop
-        only when forecast_data is truthy. This test patches generate() to
-        directly exercise the Counter deduction logic (lines 333-341).
+        Exercises generate() lines 333-340: Counter finds uniform reasons.
         """
-        from collections import Counter
+        from ado_git_repo_insights.ml.fallback_forecaster import (
+            REASON_TOO_FEW_WEEKS,
+            STATUS_INSUFFICIENT_DATA,
+        )
 
-        from ado_git_repo_insights.ml.fallback_forecaster import REASON_TOO_FEW_WEEKS
+        df = self._make_df()
 
-        # Directly test the deduction logic extracted from generate():
-        # When all reasons are the same, the most common reason is used.
-        metric_reason_codes = [REASON_TOO_FEW_WEEKS, REASON_TOO_FEW_WEEKS]
-        reason_counts = Counter(metric_reason_codes)
-        most_common_reason, most_common_count = reason_counts.most_common(1)[0]
-        assert most_common_count == len(metric_reason_codes)
-        assert most_common_reason == REASON_TOO_FEW_WEEKS
+        with (
+            patch.object(pd, "read_sql_query", return_value=df),
+            patch.object(
+                forecaster,
+                "_forecast_metric",
+                return_value=(None, REASON_TOO_FEW_WEEKS),
+            ),
+        ):
+            forecaster.generate()
 
-    def test_mixed_reason_codes_falls_back_to_all_nan(
+        assert forecaster.reason_code == REASON_TOO_FEW_WEEKS
+        assert forecaster.status == STATUS_INSUFFICIENT_DATA
+
+    def test_all_metrics_fail_mixed_reasons_uses_all_nan(
         self, forecaster: FallbackForecaster, mock_db: MagicMock
     ) -> None:
-        """When metrics return different reasons, the fallback is all_nan.
+        """When metrics fail with different reasons, fallback is all_nan.
 
-        Directly tests the Counter deduction logic (lines 338-342).
+        Exercises generate() lines 339-342: Counter finds mixed reasons.
         """
-        from collections import Counter
-
         from ado_git_repo_insights.ml.fallback_forecaster import (
             REASON_ALL_NAN,
             REASON_TOO_FEW_WEEKS,
+            STATUS_INSUFFICIENT_DATA,
         )
 
-        metric_reason_codes = [REASON_TOO_FEW_WEEKS, REASON_ALL_NAN]
-        reason_counts = Counter(metric_reason_codes)
-        most_common_reason, most_common_count = reason_counts.most_common(1)[0]
-        # Counts differ, so mixed → should fall back to REASON_ALL_NAN
-        assert most_common_count != len(metric_reason_codes)
+        df = self._make_df()
+
+        with (
+            patch.object(pd, "read_sql_query", return_value=df),
+            patch.object(
+                forecaster,
+                "_forecast_metric",
+                side_effect=[(None, REASON_TOO_FEW_WEEKS), (None, REASON_ALL_NAN)],
+            ),
+        ):
+            forecaster.generate()
+
+        assert forecaster.reason_code == REASON_ALL_NAN
+        assert forecaster.status == STATUS_INSUFFICIENT_DATA
 
     def test_polyfit_non_finite_falls_back_to_flat(
         self, forecaster: FallbackForecaster, mock_db: MagicMock

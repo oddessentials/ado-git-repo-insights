@@ -4360,7 +4360,7 @@ var PRInsightsDashboard = (() => {
     const barsHtml = displayRollups.map((r) => {
       const height = maxCount > 0 ? (r.pr_count || 0) / maxCount * 100 : 0;
       const wParts = r.week.split("-W");
-      const weekLabel = (wParts.length === 2 ? wParts[1] : r.week) ?? r.week;
+      const weekLabel = wParts[1] ?? r.week;
       return `
             <div class="bar-container" title="${escapeHtml(r.week)}: ${r.pr_count || 0} PRs">
                 <div class="bar" style="height: ${height}%"></div>
@@ -4583,7 +4583,7 @@ var PRInsightsDashboard = (() => {
       const count = r.reviewers_count || 0;
       const pct = count / maxReviewers * 100;
       const wParts = r.week.split("-W");
-      const weekLabel = (wParts.length === 2 ? wParts[1] : r.week) ?? r.week;
+      const weekLabel = wParts[1] ?? r.week;
       return `
             <div class="h-bar-row" title="${escapeHtml(r.week)}: ${count} reviewers">
                 <span class="h-bar-label">W${escapeHtml(weekLabel)}</span>

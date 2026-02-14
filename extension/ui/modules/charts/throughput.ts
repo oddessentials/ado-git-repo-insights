@@ -49,7 +49,7 @@ export function renderThroughputChart(
     .map((r) => {
       const height = maxCount > 0 ? ((r.pr_count || 0) / maxCount) * 100 : 0;
       const wParts = r.week.split("-W");
-      const weekLabel = (wParts.length === 2 ? wParts[1] : r.week) ?? r.week;
+      const weekLabel = wParts[1] ?? r.week;
       // SECURITY: Escape data-controlled values to prevent XSS
       return `
             <div class="bar-container" title="${escapeHtml(r.week)}: ${r.pr_count || 0} PRs">

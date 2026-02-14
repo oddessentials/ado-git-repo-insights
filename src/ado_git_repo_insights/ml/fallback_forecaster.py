@@ -319,8 +319,8 @@ class FallbackForecaster:
                 forecast_data, metric_reason = self._forecast_metric(df, metric, unit)
                 if forecast_data:
                     forecasts.append(forecast_data)
-                    if metric_reason:
-                        metric_reason_codes.append(metric_reason)
+                if metric_reason:
+                    metric_reason_codes.append(metric_reason)
             except Exception as e:
                 logger.warning(f"Failed to forecast {metric}: {type(e).__name__}: {e}")
                 # Continue with other metrics

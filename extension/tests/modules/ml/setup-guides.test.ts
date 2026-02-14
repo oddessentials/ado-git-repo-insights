@@ -283,6 +283,45 @@ describe("setup-guides", () => {
       expect(liveRegions.length).toBe(1);
     });
 
+    it("uses execCommand fallback when clipboard API unavailable", async () => {
+      // Remove clipboard API to trigger fallback
+      Object.defineProperty(navigator, "clipboard", {
+        value: undefined,
+        writable: true,
+        configurable: true,
+      });
+
+      // JSDOM does not implement execCommand — define it so we can spy on it
+      document.execCommand = jest.fn().mockReturnValue(true);
+      const execCommandSpy = document.execCommand as jest.Mock;
+
+      container.innerHTML = `
+        <button class="copy-yaml-btn" data-yaml="fallback: yaml">
+          <span class="copy-text">Copy</span>
+        </button>
+      `;
+
+      attachCopyHandlers(container);
+
+      const button = container.querySelector(".copy-yaml-btn") as HTMLButtonElement;
+      button.click();
+
+      await Promise.resolve();
+      await Promise.resolve();
+
+      expect(execCommandSpy).toHaveBeenCalledWith("copy");
+
+      const copyText = button.querySelector(".copy-text");
+      expect(copyText?.textContent).toBe("Copied!");
+
+      // Restore clipboard for other tests
+      Object.defineProperty(navigator, "clipboard", {
+        value: mockClipboard,
+        writable: true,
+        configurable: true,
+      });
+    });
+
     it("enforces fake timers for the suite", () => {
       const callback = jest.fn();
       setTimeout(callback, 50);
