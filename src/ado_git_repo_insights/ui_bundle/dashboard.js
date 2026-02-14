@@ -3037,27 +3037,49 @@ var PRInsightsDashboard = (() => {
         return buildFilteredRollup(rollup, teamSlice);
       }
       if (repoSlice && teamSlice && rollup.by_team_and_repo) {
-        const crossDimEntries = [];
+        let cdPr = 0, cdAuthors = 0, cdReviewers = 0;
+        let cdP50WSum = 0, cdP50WPr = 0, cdP90WSum = 0, cdP90WPr = 0;
+        let cdFound = 0;
         for (const team of filters.teams) {
           const teamRepos = rollup.by_team_and_repo[team];
           if (!teamRepos) continue;
           for (const repo of filters.repos) {
-            const entry = teamRepos[repo];
-            if (entry) crossDimEntries.push(entry);
+            const e = teamRepos[repo];
+            if (!e) continue;
+            cdFound++;
+            const pr = toFiniteNumber(e.pr_count);
+            cdPr += pr;
+            cdAuthors += toFiniteNumber(e.authors_count);
+            cdReviewers += toFiniteNumber(e.reviewers_count);
+            const p50 = e.cycle_time_p50;
+            if (typeof p50 === "number" && Number.isFinite(p50)) {
+              cdP50WSum += p50 * pr;
+              cdP50WPr += pr;
+            }
+            const p90 = e.cycle_time_p90;
+            if (typeof p90 === "number" && Number.isFinite(p90)) {
+              cdP90WSum += p90 * pr;
+              cdP90WPr += pr;
+            }
           }
         }
-        const expectedCount = filters.teams.length * filters.repos.length;
-        const isTruncated = rollup.by_team_and_repo["_truncated"] === true;
-        if (crossDimEntries.length > 0) {
-          if (isTruncated && crossDimEntries.length < expectedCount) {
+        if (cdFound > 0) {
+          const isTruncated = rollup.by_team_and_repo["_truncated"] === true;
+          const expectedCount = filters.teams.length * filters.repos.length;
+          if (isTruncated && cdFound < expectedCount) {
             console.warn(
-              `Cross-dim data truncated for week ${rollup.week}: found ${crossDimEntries.length}/${expectedCount} entries, using proportional estimation`
+              `Cross-dim data truncated for week ${rollup.week}: found ${cdFound}/${expectedCount} entries, using proportional estimation`
             );
           } else {
-            const exactSlice = aggregateEntries(crossDimEntries);
-            return buildFilteredRollup(rollup, exactSlice);
+            return buildFilteredRollup(rollup, {
+              pr_count: cdPr,
+              cycle_time_p50: cdP50WPr > 0 ? cdP50WSum / cdP50WPr : null,
+              cycle_time_p90: cdP90WPr > 0 ? cdP90WSum / cdP90WPr : null,
+              authors_count: cdAuthors,
+              reviewers_count: cdReviewers
+            });
           }
-        } else if (!isTruncated) {
+        } else if (rollup.by_team_and_repo["_truncated"] !== true) {
           return { ...rollup, ...ZEROED_ROLLUP_FIELDS };
         }
       }

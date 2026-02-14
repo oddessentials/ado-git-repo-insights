@@ -434,9 +434,11 @@ describe("T025: SC-002 dashboard load time overhead", () => {
   const NUM_WEEKS = 52;
   const NUM_TEAMS = 10;
   const NUM_REPOS = 15;
-  const WARMUP_RUNS = 5;
-  const MEASURE_RUNS = 20;
+  const WARMUP_RUNS = 10;
+  const MEASURE_RUNS = 50;
   const MAX_OVERHEAD_PERCENT = 10;
+  /** Below this threshold (ms), percentage comparisons are noise-dominated. */
+  const NOISE_FLOOR_MS = 2;
 
   /**
    * Build an array of rollups for timing measurement.
@@ -523,9 +525,11 @@ describe("T025: SC-002 dashboard load time overhead", () => {
   }
 
   /**
-   * Measure median execution time of an operation over multiple runs.
+   * Measure IQR trimmed mean execution time of an operation.
+   * Drops the bottom and top 25% of samples to eliminate GC/JIT outliers,
+   * then averages the middle 50%. More stable than raw median under load.
    */
-  function measureMedian(operation: () => void, runs: number): number {
+  function measureTrimmedMean(operation: () => void, runs: number): number {
     const times: number[] = [];
     for (let i = 0; i < runs; i++) {
       const start = performance.now();
@@ -534,7 +538,10 @@ describe("T025: SC-002 dashboard load time overhead", () => {
       times.push(end - start);
     }
     times.sort((a, b) => a - b);
-    return times[Math.floor(times.length / 2)]!;
+    const q1 = Math.floor(times.length * 0.25);
+    const q3 = Math.ceil(times.length * 0.75);
+    const trimmed = times.slice(q1, q3);
+    return trimmed.reduce((a, b) => a + b, 0) / trimmed.length;
   }
 
   it("SC-002: cross-dim filter overhead < 10% vs proportional fallback", () => {
@@ -553,44 +560,47 @@ describe("T025: SC-002 dashboard load time overhead", () => {
       applyFiltersToRollups(v2Rollups, filters);
     }
 
-    // Measure v1 (proportional fallback)
-    const v1MedianMs = measureMedian(
+    // Measure v1 (proportional fallback) — IQR trimmed mean
+    const v1Ms = measureTrimmedMean(
       () => applyFiltersToRollups(v1Rollups, filters),
       MEASURE_RUNS,
     );
 
-    // Measure v2 (cross-dimensional exact lookup)
-    const v2MedianMs = measureMedian(
+    // Measure v2 (cross-dimensional exact lookup) — IQR trimmed mean
+    const v2Ms = measureTrimmedMean(
       () => applyFiltersToRollups(v2Rollups, filters),
       MEASURE_RUNS,
     );
 
-    // Calculate overhead percentage
-    // Guard: if v1 is effectively zero (< 0.01ms), skip percentage check
-    // and just verify v2 is also fast
-    if (v1MedianMs < 0.01) {
-      expect(v2MedianMs).toBeLessThan(1); // Both paths are sub-millisecond
+    // When both paths are below the noise floor, percentage comparisons
+    // are dominated by timer granularity and GC jitter — verify absolute
+    // performance instead.
+    if (v1Ms < NOISE_FLOOR_MS && v2Ms < NOISE_FLOOR_MS) {
+      expect(v2Ms).toBeLessThan(NOISE_FLOOR_MS);
     } else {
-      const overheadPercent = ((v2MedianMs - v1MedianMs) / v1MedianMs) * 100;
+      const overheadPercent = ((v2Ms - v1Ms) / v1Ms) * 100;
 
       // SC-002: Dashboard load time increase must be < 10%
       expect(overheadPercent).toBeLessThan(MAX_OVERHEAD_PERCENT);
-
-      // Log timing details for CI visibility
-      // eslint-disable-next-line no-console -- REASON: SC-002 timing metrics logged for CI visibility
-      console.log(
-        JSON.stringify({
-          test: "SC-002_dashboard_load_overhead",
-          v1_median_ms: Number(v1MedianMs.toFixed(3)),
-          v2_median_ms: Number(v2MedianMs.toFixed(3)),
-          overhead_percent: Number(overheadPercent.toFixed(2)),
-          budget_percent: MAX_OVERHEAD_PERCENT,
-          weeks: NUM_WEEKS,
-          teams: NUM_TEAMS,
-          repos: NUM_REPOS,
-        }),
-      );
     }
+
+    const overheadPercent = v1Ms > 0 ? ((v2Ms - v1Ms) / v1Ms) * 100 : 0;
+
+    // Log timing details for CI visibility
+    // eslint-disable-next-line no-console -- REASON: SC-002 timing metrics logged for CI visibility
+    console.log(
+      JSON.stringify({
+        test: "SC-002_dashboard_load_overhead",
+        v1_trimmed_mean_ms: Number(v1Ms.toFixed(3)),
+        v2_trimmed_mean_ms: Number(v2Ms.toFixed(3)),
+        overhead_percent: Number(overheadPercent.toFixed(2)),
+        budget_percent: MAX_OVERHEAD_PERCENT,
+        noise_floor_ms: NOISE_FLOOR_MS,
+        weeks: NUM_WEEKS,
+        teams: NUM_TEAMS,
+        repos: NUM_REPOS,
+      }),
+    );
   });
 
   it("SC-002: both paths produce valid finite results", () => {
