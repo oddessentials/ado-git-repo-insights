@@ -415,4 +415,85 @@ describe("setup-guides", () => {
       expect(html).not.toContain("data-yaml=\"<script>");
     });
   });
+
+  describe("yamlStore and event delegation", () => {
+    let container: HTMLElement;
+    let mockClipboard: { writeText: jest.Mock };
+
+    beforeEach(() => {
+      jest.useFakeTimers();
+      container = document.createElement("div");
+      document.body.appendChild(container);
+      mockClipboard = { writeText: jest.fn().mockResolvedValue(undefined) };
+      Object.defineProperty(navigator, "clipboard", {
+        value: mockClipboard, writable: true, configurable: true,
+      });
+      const existingLive = document.getElementById("copy-status-live");
+      if (existingLive) existingLive.remove();
+    });
+
+    afterEach(() => {
+      jest.clearAllTimers();
+      container.remove();
+      const liveRegion = document.getElementById("copy-status-live");
+      if (liveRegion) liveRegion.remove();
+    });
+
+    afterAll(() => {
+      jest.useRealTimers();
+    });
+
+    it("retrieves YAML from yamlStore for rendered buttons", async () => {
+      // renderPredictionsSetupGuide registers YAML in yamlStore via createCopyButton
+      const html = renderPredictionsSetupGuide();
+      container.innerHTML = html;
+      attachCopyHandlers(container);
+
+      const button = container.querySelector("#copy-predictions-yaml") as HTMLButtonElement;
+      button.click();
+
+      await Promise.resolve();
+      await Promise.resolve();
+
+      expect(mockClipboard.writeText).toHaveBeenCalledWith(getPredictionsYaml());
+    });
+
+    it("no duplicate handlers via WeakSet", async () => {
+      container.innerHTML = `
+        <button class="copy-yaml-btn" data-yaml="test: yaml">
+          <span class="copy-text">Copy</span>
+        </button>
+      `;
+
+      attachCopyHandlers(container);
+      attachCopyHandlers(container); // second call should be no-op
+
+      const button = container.querySelector(".copy-yaml-btn") as HTMLButtonElement;
+      button.click();
+
+      await Promise.resolve();
+      await Promise.resolve();
+
+      expect(mockClipboard.writeText).toHaveBeenCalledTimes(1);
+    });
+
+    it("delegates click from child element", async () => {
+      container.innerHTML = `
+        <button class="copy-yaml-btn" data-yaml="delegated: yaml">
+          <span class="copy-text">Copy</span>
+        </button>
+      `;
+
+      attachCopyHandlers(container);
+
+      // Click the inner span, not the button itself
+      const innerSpan = container.querySelector(".copy-text") as HTMLElement;
+      innerSpan.click();
+
+      await Promise.resolve();
+      await Promise.resolve();
+
+      expect(mockClipboard.writeText).toHaveBeenCalledWith("delegated: yaml");
+    });
+  });
 });

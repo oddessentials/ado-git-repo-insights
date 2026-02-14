@@ -10,6 +10,7 @@ from ado_git_repo_insights.config import (
     Config,
     ConfigurationError,
     DateRangeConfig,
+    load_config,
 )
 
 
@@ -133,3 +134,43 @@ class TestDateRangeConfigDefaults:
         date_range = DateRangeConfig()
         assert date_range.start is None
         assert date_range.end is None
+
+
+class TestLoadConfigDateValidation:
+    """Tests for date validation in load_config."""
+
+    def test_invalid_start_date_raises(self) -> None:
+        """Invalid start_date format raises ConfigurationError."""
+        with pytest.raises(ConfigurationError, match="Invalid start_date format"):
+            load_config(
+                organization="x",
+                projects="p",
+                pat="t",
+                database=Path("test.sqlite"),
+                start_date="not-a-date",
+            )
+
+    def test_invalid_end_date_raises(self) -> None:
+        """Invalid end_date format raises ConfigurationError."""
+        with pytest.raises(ConfigurationError, match="Invalid end_date format"):
+            load_config(
+                organization="x",
+                projects="p",
+                pat="t",
+                database=Path("test.sqlite"),
+                end_date="31-01-2024",
+            )
+
+    def test_start_after_end_raises(self) -> None:
+        """start_date after end_date raises ConfigurationError."""
+        with pytest.raises(
+            ConfigurationError, match="start_date .* must be <= end_date"
+        ):
+            load_config(
+                organization="x",
+                projects="p",
+                pat="t",
+                database=Path("test.sqlite"),
+                start_date="2024-06-01",
+                end_date="2024-01-01",
+            )
