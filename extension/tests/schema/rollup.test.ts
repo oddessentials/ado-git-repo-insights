@@ -330,9 +330,9 @@ describe("Rollup Schema Validator", () => {
       };
       const result = validateRollup(malformed, false);
       expect(result.valid).toBe(false);
-      expect(
-        result.errors.some((e) => e.field.includes("pr_count")),
-      ).toBe(true);
+      expect(result.errors.some((e) => e.field.includes("pr_count"))).toBe(
+        true,
+      );
     });
 
     it("should produce warnings for unknown fields in nested breakdown (permissive mode)", () => {
@@ -352,9 +352,7 @@ describe("Rollup Schema Validator", () => {
       expect(result.valid).toBe(true);
       expect(result.warnings.length).toBeGreaterThan(0);
       expect(
-        result.warnings.some((w) =>
-          w.field.includes("unknown_nested_field"),
-        ),
+        result.warnings.some((w) => w.field.includes("unknown_nested_field")),
       ).toBe(true);
     });
 
@@ -373,9 +371,7 @@ describe("Rollup Schema Validator", () => {
       const result = validateRollup(withUnknown, true);
       expect(result.valid).toBe(false);
       expect(
-        result.errors.some((e) =>
-          e.field.includes("unknown_strict_field"),
-        ),
+        result.errors.some((e) => e.field.includes("unknown_strict_field")),
       ).toBe(true);
     });
 
@@ -394,7 +390,6 @@ describe("Rollup Schema Validator", () => {
   });
 
   describe("normalizeRollup preserves by_team_and_repo (T015 gated test)", () => {
-
     it("GATED: normalizeRollup must preserve by_team_and_repo field in output", () => {
       const input = {
         week: "2026-W02",
@@ -531,6 +526,57 @@ describe("Rollup Schema Validator", () => {
     });
   });
 
+  describe("nullable cycle-time fields", () => {
+    it("should pass validation when root-level cycle-time fields are null", () => {
+      const rollup = {
+        week: "2026-W02",
+        start_date: "2026-01-06",
+        end_date: "2026-01-12",
+        pr_count: 3,
+        cycle_time_p50: null,
+        cycle_time_p90: null,
+      };
+      const result = validateRollup(rollup, false);
+      expect(result.valid).toBe(true);
+      expect(result.errors).toHaveLength(0);
+    });
+
+    it("should pass validation when breakdown entry cycle-time fields are null", () => {
+      const rollup = {
+        week: "2026-W02",
+        start_date: "2026-01-06",
+        end_date: "2026-01-12",
+        pr_count: 5,
+        by_repository: {
+          "small-repo": {
+            pr_count: 1,
+            cycle_time_p50: null,
+            cycle_time_p90: null,
+          },
+        },
+      };
+      const result = validateRollup(rollup, false);
+      expect(result.valid).toBe(true);
+      expect(result.errors).toHaveLength(0);
+    });
+
+    it("should pass validation with mixed null and numeric cycle-time in same rollup", () => {
+      const rollup = {
+        week: "2026-W02",
+        start_date: "2026-01-06",
+        end_date: "2026-01-12",
+        pr_count: 10,
+        cycle_time_p50: null,
+        cycle_time_p90: 720.0,
+        review_time_p50: 60.0,
+        review_time_p90: null,
+      };
+      const result = validateRollup(rollup, false);
+      expect(result.valid).toBe(true);
+      expect(result.errors).toHaveLength(0);
+    });
+  });
+
   describe("validateNestedBreakdown via validateRollup", () => {
     it("skips _truncated metadata key without validation errors", () => {
       const input = {
@@ -540,8 +586,8 @@ describe("Rollup Schema Validator", () => {
         pr_count: 10,
         by_team_and_repo: {
           _truncated: true,
-          "TeamA": {
-            "Repo1": { pr_count: 5 },
+          TeamA: {
+            Repo1: { pr_count: 5 },
           },
         },
       };
@@ -558,7 +604,7 @@ describe("Rollup Schema Validator", () => {
         end_date: "2026-01-12",
         pr_count: 10,
         by_team_and_repo: {
-          "TeamA": "not-an-object",
+          TeamA: "not-an-object",
         },
       };
 

@@ -803,7 +803,7 @@ var PRInsightsDatasetLoader = (() => {
     for (const field of numericFields) {
       if (Object.prototype.hasOwnProperty.call(data, field)) {
         const fieldValue = Object.getOwnPropertyDescriptor(data, field)?.value;
-        if (fieldValue !== void 0) {
+        if (fieldValue != null) {
           const err = validateNumber(fieldValue, buildPath(path, field));
           if (err) errors.push(err);
         }
@@ -897,7 +897,7 @@ var PRInsightsDatasetLoader = (() => {
     for (const field of numericFields) {
       if (Object.prototype.hasOwnProperty.call(data, field)) {
         const fieldValue = Object.getOwnPropertyDescriptor(data, field)?.value;
-        if (fieldValue !== void 0) {
+        if (fieldValue != null) {
           const err = validateNumber(fieldValue, field);
           if (err) errors.push(err);
         }

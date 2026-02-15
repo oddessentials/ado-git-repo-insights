@@ -36,10 +36,10 @@ import {
  */
 export interface BreakdownEntry {
   pr_count: number;
-  cycle_time_p50?: number;
-  cycle_time_p90?: number;
-  review_time_p50?: number;
-  review_time_p90?: number;
+  cycle_time_p50?: number | null;
+  cycle_time_p90?: number | null;
+  review_time_p50?: number | null;
+  review_time_p90?: number | null;
   authors_count?: number;
   reviewers_count?: number;
 }
@@ -133,7 +133,7 @@ function validateBreakdownEntry(
   for (const field of numericFields) {
     if (Object.prototype.hasOwnProperty.call(data, field)) {
       const fieldValue = Object.getOwnPropertyDescriptor(data, field)?.value;
-      if (fieldValue !== undefined) {
+      if (fieldValue != null) {
         const err = validateNumber(fieldValue, buildPath(path, field));
         if (err) errors.push(err);
       }
@@ -286,7 +286,7 @@ export function validateRollup(
   for (const field of numericFields) {
     if (Object.prototype.hasOwnProperty.call(data, field)) {
       const fieldValue = Object.getOwnPropertyDescriptor(data, field)?.value;
-      if (fieldValue !== undefined) {
+      if (fieldValue != null) {
         const err = validateNumber(fieldValue, field);
         if (err) errors.push(err);
       }
