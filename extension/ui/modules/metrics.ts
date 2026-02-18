@@ -223,6 +223,8 @@ const ZEROED_ROLLUP_FIELDS = {
   pr_count: 0,
   cycle_time_p50: null,
   cycle_time_p90: null,
+  review_time_p50: null,
+  review_time_p90: null,
   authors_count: 0,
   reviewers_count: 0,
 } as const;
@@ -448,11 +450,11 @@ export function extractSparklineData(rollups: Rollup[]): {
   reviewers: number[];
 } {
   return {
-    prCounts: rollups.map((r) => r.pr_count || 0),
-    p50s: rollups.map((r) => r.cycle_time_p50 || 0),
-    p90s: rollups.map((r) => r.cycle_time_p90 || 0),
-    authors: rollups.map((r) => r.authors_count || 0),
-    reviewers: rollups.map((r) => r.reviewers_count || 0),
+    prCounts: rollups.map((r) => r.pr_count ?? 0),
+    p50s: rollups.map((r) => r.cycle_time_p50 ?? 0),
+    p90s: rollups.map((r) => r.cycle_time_p90 ?? 0),
+    authors: rollups.map((r) => r.authors_count ?? 0),
+    reviewers: rollups.map((r) => r.reviewers_count ?? 0),
   };
 }
 
