@@ -514,9 +514,10 @@ body {
     gap: 16px;
 }
 
-/* Combined filter approximation indicator */
-.summary-cards[data-combined-filter="true"]::after {
-    content: "Values are estimated when both repo and team filters are active";
+/* Footnote indicators below summary cards */
+.summary-cards[data-accuracy="approximate"]::after,
+.summary-cards[data-accuracy="mixed"]::after,
+.summary-cards[data-overlap="true"]::after {
     display: block;
     grid-column: 1 / -1;
     text-align: center;
@@ -524,6 +525,32 @@ body {
     color: var(--text-tertiary);
     font-style: italic;
     padding: 4px 0 0;
+    white-space: pre-line;
+}
+
+/* Combined filter active, all data estimated */
+.summary-cards[data-accuracy="approximate"]::after {
+    content: "Some weeks in this range show estimated values because detailed team-by-repo data was not yet being collected.";
+}
+
+/* Combined filter active, some weeks lack cross-dimensional data */
+.summary-cards[data-accuracy="mixed"]::after {
+    content: "Some weeks in this range show estimated values because detailed team-by-repo data was not yet being collected.";
+}
+
+/* Overlap detected (multiple teams share members) */
+.summary-cards[data-overlap="true"]::after {
+    content: "PR counts per team may add up to more than the total. This is expected when contributors belong to more than one selected team.";
+}
+
+/* Both mixed accuracy AND overlap active — separate lines */
+.summary-cards[data-accuracy="mixed"][data-overlap="true"]::after {
+    content: "Some weeks in this range show estimated values because detailed team-by-repo data was not yet being collected.\APR counts per team may add up to more than the total. This is expected when contributors belong to more than one selected team.";
+}
+
+/* Approximate accuracy AND overlap — separate lines */
+.summary-cards[data-accuracy="approximate"][data-overlap="true"]::after {
+    content: "Some weeks in this range show estimated values because detailed team-by-repo data was not yet being collected.\APR counts per team may add up to more than the total. This is expected when contributors belong to more than one selected team.";
 }
 
 .card {

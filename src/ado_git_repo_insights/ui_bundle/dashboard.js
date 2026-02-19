@@ -5157,11 +5157,6 @@ var PRInsightsDashboard = (() => {
       console.debug("Previous period data not available:", e);
     }
     cachedRollups = rollups;
-    const summarySection = document.querySelector(".summary-cards");
-    if (summarySection) {
-      const isCombinedFilter = currentFilters.repos.length > 0 && currentFilters.teams.length > 0;
-      summarySection.setAttribute("data-combined-filter", isCombinedFilter ? "true" : "false");
-    }
     updateAccuracyIndicator(rawRollups, currentFilters);
     updateOverlapIndicator(rawRollups, currentFilters);
     renderSummaryCards2(rollups, prevRollups);
@@ -5174,39 +5169,35 @@ var PRInsightsDashboard = (() => {
     }
   }
   function updateAccuracyIndicator(rawRollups, filters) {
-    const indicatorId = "cross-dim-accuracy-indicator";
-    const existing = document.getElementById(indicatorId);
-    const isCombinedFilter = filters.repos.length > 0 && filters.teams.length > 0;
-    if (!isCombinedFilter) {
-      if (existing) existing.remove();
-      return;
-    }
-    const hasMixedAccuracy = rawRollups.some(
-      (r) => r.by_team_and_repo === void 0 || r.by_team_and_repo === null
-    );
-    if (!hasMixedAccuracy) {
-      if (existing) existing.remove();
-      return;
-    }
     const summarySection = document.querySelector(".summary-cards");
     if (!summarySection) return;
-    if (!existing) {
-      const indicator = document.createElement("span");
-      indicator.id = indicatorId;
-      indicator.className = "accuracy-indicator muted";
-      indicator.title = "Some weeks use approximate data (pre-migration)";
-      indicator.setAttribute("aria-label", "Some weeks use approximate data (pre-migration)");
-      indicator.textContent = "\u24D8";
-      summarySection.prepend(indicator);
+    const isCombinedFilter = filters.repos.length > 0 && filters.teams.length > 0;
+    if (!isCombinedFilter) {
+      summarySection.removeAttribute("data-accuracy");
+      return;
+    }
+    const hasEstimatedWeeks = rawRollups.some(
+      (r) => r.by_team_and_repo === void 0 || r.by_team_and_repo === null
+    );
+    if (hasEstimatedWeeks) {
+      const allEstimated = rawRollups.every(
+        (r) => r.by_team_and_repo === void 0 || r.by_team_and_repo === null
+      );
+      summarySection.setAttribute(
+        "data-accuracy",
+        allEstimated ? "approximate" : "mixed"
+      );
+    } else {
+      summarySection.removeAttribute("data-accuracy");
     }
   }
   function updateOverlapIndicator(rawRollups, filters) {
-    const indicatorId = "cross-dim-overlap-indicator";
-    const existing = document.getElementById(indicatorId);
+    const summarySection = document.querySelector(".summary-cards");
+    if (!summarySection) return;
     const hasMultipleTeams = filters.teams.length > 1;
     const hasRepoFilter = filters.repos.length > 0;
     if (!hasMultipleTeams || !hasRepoFilter) {
-      if (existing) existing.remove();
+      summarySection.removeAttribute("data-overlap");
       return;
     }
     let hasOverlap = false;
@@ -5229,23 +5220,10 @@ var PRInsightsDashboard = (() => {
       }
       if (hasOverlap) break;
     }
-    if (!hasOverlap) {
-      if (existing) existing.remove();
-      return;
-    }
-    const summarySection = document.querySelector(".summary-cards");
-    if (!summarySection) return;
-    if (!existing) {
-      const indicator = document.createElement("span");
-      indicator.id = indicatorId;
-      indicator.className = "overlap-indicator muted";
-      indicator.title = "Multi-team membership causes intentional overlap in team-level counts";
-      indicator.setAttribute(
-        "aria-label",
-        "Multi-team membership causes intentional overlap in team-level counts"
-      );
-      indicator.textContent = "\u24D8";
-      summarySection.appendChild(indicator);
+    if (hasOverlap) {
+      summarySection.setAttribute("data-overlap", "true");
+    } else {
+      summarySection.removeAttribute("data-overlap");
     }
   }
   function renderSummaryCards2(rollups, prevRollups = []) {

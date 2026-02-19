@@ -799,13 +799,6 @@ async function refreshMetrics(): Promise<void> {
   // Cache filtered rollups for export
   cachedRollups = rollups;
 
-  // Show/hide combined filter approximation indicator
-  const summarySection = document.querySelector(".summary-cards");
-  if (summarySection) {
-    const isCombinedFilter = currentFilters.repos.length > 0 && currentFilters.teams.length > 0;
-    summarySection.setAttribute("data-combined-filter", isCombinedFilter ? "true" : "false");
-  }
-
   // T012: Accuracy indicator — when both team and repo filters active,
   // check if any visible rollup lacks by_team_and_repo (pre-migration data).
   updateAccuracyIndicator(rawRollups, currentFilters);
@@ -828,8 +821,9 @@ async function refreshMetrics(): Promise<void> {
 
 /**
  * Update accuracy indicator for mixed exact/estimated data.
- * Shows a muted info icon with tooltip when both team and repo filters are active
- * and some rollups in the visible range lack by_team_and_repo data (pre-migration).
+ * Sets a data-accuracy attribute on .summary-cards when both team and repo
+ * filters are active and some rollups lack by_team_and_repo data.
+ * CSS ::after rules render the appropriate footnote.
  *
  * @param rawRollups - Unfiltered rollups for the current date range
  * @param filters - Current dimension filter state
@@ -838,45 +832,42 @@ function updateAccuracyIndicator(
   rawRollups: Rollup[],
   filters: { repos: string[]; teams: string[] },
 ): void {
-  const indicatorId = "cross-dim-accuracy-indicator";
-  const existing = document.getElementById(indicatorId);
+  const summarySection = document.querySelector(".summary-cards");
+  if (!summarySection) return;
 
   const isCombinedFilter = filters.repos.length > 0 && filters.teams.length > 0;
 
   if (!isCombinedFilter) {
-    if (existing) existing.remove();
+    summarySection.removeAttribute("data-accuracy");
     return;
   }
 
-  const hasMixedAccuracy = rawRollups.some(
+  // Check if any rollup in the visible range lacks cross-dim data,
+  // meaning proportional estimation is used for those weeks.
+  const hasEstimatedWeeks = rawRollups.some(
     (r) => r.by_team_and_repo === undefined || r.by_team_and_repo === null,
   );
 
-  if (!hasMixedAccuracy) {
-    if (existing) existing.remove();
-    return;
-  }
-
-  // Show or update the indicator
-  const summarySection = document.querySelector(".summary-cards");
-  if (!summarySection) return;
-
-  if (!existing) {
-    const indicator = document.createElement("span");
-    indicator.id = indicatorId;
-    indicator.className = "accuracy-indicator muted";
-    indicator.title = "Some weeks use approximate data (pre-migration)";
-    indicator.setAttribute("aria-label", "Some weeks use approximate data (pre-migration)");
-    indicator.textContent = "\u24D8"; // circled info symbol
-    summarySection.prepend(indicator);
+  if (hasEstimatedWeeks) {
+    // Some weeks use proportional estimation — flag for the user.
+    const allEstimated = rawRollups.every(
+      (r) => r.by_team_and_repo === undefined || r.by_team_and_repo === null,
+    );
+    summarySection.setAttribute(
+      "data-accuracy",
+      allEstimated ? "approximate" : "mixed",
+    );
+  } else {
+    // All weeks have exact cross-dim data — no indicator needed.
+    summarySection.removeAttribute("data-accuracy");
   }
 }
 
 /**
  * Update multi-team overlap indicator (FR-016).
- * When multiple teams are selected and cross-dim aggregation produces a PR count
- * sum exceeding the repository total, show a tooltip/footnote explaining
- * intentional overlap from multi-team membership.
+ * Sets data-overlap="true" on .summary-cards when multiple teams are selected
+ * and cross-dim PR count sum exceeds the repository total (multi-team membership).
+ * CSS ::after rules render the footnote.
  *
  * @param rawRollups - Unfiltered rollups for the current date range
  * @param filters - Current dimension filter state
@@ -885,14 +876,14 @@ function updateOverlapIndicator(
   rawRollups: Rollup[],
   filters: { repos: string[]; teams: string[] },
 ): void {
-  const indicatorId = "cross-dim-overlap-indicator";
-  const existing = document.getElementById(indicatorId);
+  const summarySection = document.querySelector(".summary-cards");
+  if (!summarySection) return;
 
   const hasMultipleTeams = filters.teams.length > 1;
   const hasRepoFilter = filters.repos.length > 0;
 
   if (!hasMultipleTeams || !hasRepoFilter) {
-    if (existing) existing.remove();
+    summarySection.removeAttribute("data-overlap");
     return;
   }
 
@@ -924,26 +915,10 @@ function updateOverlapIndicator(
     if (hasOverlap) break;
   }
 
-  if (!hasOverlap) {
-    if (existing) existing.remove();
-    return;
-  }
-
-  // Show or update the overlap indicator
-  const summarySection = document.querySelector(".summary-cards");
-  if (!summarySection) return;
-
-  if (!existing) {
-    const indicator = document.createElement("span");
-    indicator.id = indicatorId;
-    indicator.className = "overlap-indicator muted";
-    indicator.title = "Multi-team membership causes intentional overlap in team-level counts";
-    indicator.setAttribute(
-      "aria-label",
-      "Multi-team membership causes intentional overlap in team-level counts",
-    );
-    indicator.textContent = "\u24D8"; // circled info symbol
-    summarySection.appendChild(indicator);
+  if (hasOverlap) {
+    summarySection.setAttribute("data-overlap", "true");
+  } else {
+    summarySection.removeAttribute("data-overlap");
   }
 }
 
