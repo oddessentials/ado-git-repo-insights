@@ -822,7 +822,8 @@ async function refreshMetrics(): Promise<void> {
 /**
  * Update accuracy indicator for mixed exact/estimated data.
  * Sets a data-accuracy attribute on .summary-cards when both team and repo
- * filters are active and some rollups lack by_team_and_repo data.
+ * filters are active and some rollups lack by_team_and_repo data or have
+ * truncated cross-dim maps (_truncated flag from hard-cap enforcement).
  * CSS ::after rules render the appropriate footnote.
  *
  * @param rawRollups - Unfiltered rollups for the current date range
@@ -842,17 +843,17 @@ function updateAccuracyIndicator(
     return;
   }
 
-  // Check if any rollup in the visible range lacks cross-dim data,
-  // meaning proportional estimation is used for those weeks.
-  const hasEstimatedWeeks = rawRollups.some(
-    (r) => r.by_team_and_repo === undefined || r.by_team_and_repo === null,
-  );
+  // Check if any rollup in the visible range lacks cross-dim data or has
+  // truncated cross-dim data, meaning proportional estimation is used.
+  const isEstimated = (r: Rollup): boolean =>
+    r.by_team_and_repo == null ||
+    (r.by_team_and_repo as Record<string, unknown>)["_truncated"] === true;
+
+  const hasEstimatedWeeks = rawRollups.some(isEstimated);
 
   if (hasEstimatedWeeks) {
     // Some weeks use proportional estimation — flag for the user.
-    const allEstimated = rawRollups.every(
-      (r) => r.by_team_and_repo === undefined || r.by_team_and_repo === null,
-    );
+    const allEstimated = rawRollups.every(isEstimated);
     summarySection.setAttribute(
       "data-accuracy",
       allEstimated ? "approximate" : "mixed",
@@ -887,10 +888,16 @@ function updateOverlapIndicator(
     return;
   }
 
-  // Check if any rollup has cross-dim data where the team sum exceeds repo total
+  // Check if any rollup has cross-dim data where the team sum exceeds repo total.
+  // Skip truncated maps — incomplete entries could give false results.
   let hasOverlap = false;
   for (const rollup of rawRollups) {
     if (!rollup.by_team_and_repo || !rollup.by_repository) continue;
+    if (
+      (rollup.by_team_and_repo as Record<string, unknown>)["_truncated"] ===
+      true
+    )
+      continue;
 
     for (const repo of filters.repos) {
       // eslint-disable-next-line security/detect-object-injection -- SECURITY: repo comes from validated filter state

@@ -5176,13 +5176,10 @@ var PRInsightsDashboard = (() => {
       summarySection.removeAttribute("data-accuracy");
       return;
     }
-    const hasEstimatedWeeks = rawRollups.some(
-      (r) => r.by_team_and_repo === void 0 || r.by_team_and_repo === null
-    );
+    const isEstimated = (r) => r.by_team_and_repo == null || r.by_team_and_repo["_truncated"] === true;
+    const hasEstimatedWeeks = rawRollups.some(isEstimated);
     if (hasEstimatedWeeks) {
-      const allEstimated = rawRollups.every(
-        (r) => r.by_team_and_repo === void 0 || r.by_team_and_repo === null
-      );
+      const allEstimated = rawRollups.every(isEstimated);
       summarySection.setAttribute(
         "data-accuracy",
         allEstimated ? "approximate" : "mixed"
@@ -5203,6 +5200,8 @@ var PRInsightsDashboard = (() => {
     let hasOverlap = false;
     for (const rollup of rawRollups) {
       if (!rollup.by_team_and_repo || !rollup.by_repository) continue;
+      if (rollup.by_team_and_repo["_truncated"] === true)
+        continue;
       for (const repo of filters.repos) {
         const repoEntry = rollup.by_repository[repo];
         if (!repoEntry) continue;
