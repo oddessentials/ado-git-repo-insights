@@ -276,12 +276,12 @@ Respond ONLY with valid JSON matching this format."""
         )
         row = cursor.fetchone()
         date_range_start = (
-            row["min_date"].split("T")[0]
+            row["min_date"][:10]
             if row["min_date"] and len(row["min_date"]) >= 10
             else "N/A"
         )
         date_range_end = (
-            row["max_date"].split("T")[0]
+            row["max_date"][:10]
             if row["max_date"] and len(row["max_date"]) >= 10
             else "N/A"
         )

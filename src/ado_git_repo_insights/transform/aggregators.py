@@ -194,6 +194,9 @@ class AggregateGenerator:
         """
         import warnings as py_warnings
 
+        # Reset per-run state to prevent leakage across reuse
+        self._any_rollup_has_cross_dim = False
+
         # Create output directories
         self.output_dir.mkdir(parents=True, exist_ok=True)
         (self.output_dir / "aggregates").mkdir(exist_ok=True)
