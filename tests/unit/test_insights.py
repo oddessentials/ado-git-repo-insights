@@ -100,6 +100,37 @@ class TestGetPrStatsDateParsing:
         assert stats["date_range_start"] == "2024-01-15"
         assert stats["date_range_end"] == "2024-06-20"
 
+    def test_sqlite_space_separated_dates_parsed(self, tmp_path: Path) -> None:
+        """SQLite-style 'YYYY-MM-DD HH:MM:SS' dates are truncated correctly.
+
+        Regression test: split('T')[0] fails for space-separated timestamps
+        because there is no 'T' to split on, returning the full datetime string.
+        The [:10] slice handles both ISO 8601 and SQLite formats correctly.
+        """
+        gen = self._make_generator(tmp_path)
+        self._setup_db_mock(
+            gen,
+            min_date="2024-03-15 14:30:00",
+            max_date="2024-09-22 09:15:45",
+        )
+
+        stats = gen._get_pr_stats()
+        assert stats["date_range_start"] == "2024-03-15"
+        assert stats["date_range_end"] == "2024-09-22"
+
+    def test_date_only_strings_parsed(self, tmp_path: Path) -> None:
+        """Plain 'YYYY-MM-DD' strings (no time component) are returned as-is."""
+        gen = self._make_generator(tmp_path)
+        self._setup_db_mock(
+            gen,
+            min_date="2024-05-01",
+            max_date="2024-12-31",
+        )
+
+        stats = gen._get_pr_stats()
+        assert stats["date_range_start"] == "2024-05-01"
+        assert stats["date_range_end"] == "2024-12-31"
+
 
 class TestCheckCacheNaiveDatetime:
     """Tests for _check_cache handling of naive datetime strings."""

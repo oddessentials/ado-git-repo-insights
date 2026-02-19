@@ -3223,3 +3223,59 @@ class TestNaNInputHandling:
             assert "Infinity" not in raw, f"Infinity found in {week_file.name}"
 
         db.close()
+
+
+class TestCrossDimFlagResetOnReuse:
+    """Regression: _any_rollup_has_cross_dim must reset between generate_all() calls.
+
+    If the flag is not reset, a prior run with cross-dim data can leak
+    manifest.features.cross_dimensional=true into a subsequent empty run.
+    """
+
+    def test_cross_dim_flag_resets_on_reuse(
+        self,
+        sample_db: tuple[DatabaseManager, Path],
+        tmp_path: Path,
+    ) -> None:
+        """Second generate_all() on same instance must not inherit stale flag."""
+        db, _ = sample_db
+
+        # Insert team members so the first run produces cross-dim data
+        db.execute(
+            "INSERT INTO teams (team_id, team_name, project_name, organization_name, last_updated) VALUES (?, ?, ?, ?, ?)",
+            ("team1", "Alpha", "proj1", "org1", "2026-01-01T00:00:00Z"),
+        )
+        db.execute(
+            "INSERT INTO team_members (team_id, user_id) VALUES (?, ?)",
+            ("team1", "user1"),
+        )
+        db.execute(
+            "INSERT INTO team_members (team_id, user_id) VALUES (?, ?)",
+            ("team1", "user2"),
+        )
+        db.connection.commit()
+
+        output_dir1 = tmp_path / "run1"
+        generator = AggregateGenerator(db, output_dir1)
+        manifest1 = generator.generate_all()
+
+        # Run 1 should have cross_dimensional=True (has team data + PRs)
+        assert manifest1.features["cross_dimensional"] is True
+
+        # Now create an empty DB and reuse the same generator instance
+        empty_db_path = tmp_path / "empty.sqlite"
+        empty_db = DatabaseManager(empty_db_path)
+        empty_db.connect()
+
+        # Point the generator at the empty DB and a new output dir
+        generator.db = empty_db
+        generator.output_dir = tmp_path / "run2"
+
+        manifest2 = generator.generate_all()
+
+        # Run 2 should have cross_dimensional=False (empty DB, no PRs)
+        assert manifest2.features["cross_dimensional"] is False, (
+            "Stale cross_dimensional flag leaked from run 1 into empty run 2"
+        )
+
+        empty_db.close()
