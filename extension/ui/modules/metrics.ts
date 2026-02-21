@@ -223,6 +223,8 @@ const ZEROED_ROLLUP_FIELDS = {
   pr_count: 0,
   cycle_time_p50: null,
   cycle_time_p90: null,
+  review_time_p50: null,
+  review_time_p90: null,
   authors_count: 0,
   reviewers_count: 0,
 } as const;
@@ -236,30 +238,29 @@ function buildFilteredRollup(
   rollup: Rollup,
   slice: AggregatedSlice,
 ): Rollup {
+  // Zero-leakage guard: when the slice has no PRs, zero all metric fields
+  // so global authors_count/reviewers_count/cycle_time don't leak through.
+  if (slice.pr_count === 0) {
+    return { ...rollup, ...ZEROED_ROLLUP_FIELDS } as Rollup;
+  }
   return {
     ...rollup,
     pr_count: slice.pr_count,
-    ...(slice.cycle_time_p50 !== null
-      ? {
-          cycle_time_p50: slice.cycle_time_p50,
-          cycle_time_p90: slice.cycle_time_p90,
-        }
-      : {}),
-    ...(slice.authors_count > 0
-      ? { authors_count: slice.authors_count }
-      : {}),
-    ...(slice.reviewers_count > 0
-      ? { reviewers_count: slice.reviewers_count }
-      : {}),
+    // Always override to prevent global values leaking through the
+    // ...rollup spread when the slice legitimately has null/0 values.
+    cycle_time_p50: slice.cycle_time_p50,
+    cycle_time_p90: slice.cycle_time_p90,
+    authors_count: slice.authors_count,
+    reviewers_count: slice.reviewers_count,
   } as Rollup;
 }
 
 /**
  * Apply dimension filters to rollups data.
  * Uses by_repository and by_team slices when available for accurate filtering.
- * When both filters are active, applies proportional intersection — each
- * dimension's share is computed independently, then combined as a fraction
- * of the rollup total (independence assumption).
+ * When both filters are active, prefers exact cross-dimensional lookup from
+ * by_team_and_repo (v2 schema). Falls back to proportional intersection
+ * estimation for rollups without cross-dimensional data.
  * Pure function - no side effects.
  */
 export function applyFiltersToRollups(
@@ -316,7 +317,71 @@ export function applyFiltersToRollups(
       return buildFilteredRollup(rollup, teamSlice);
     }
 
-    // Both filters active — proportional intersection.
+    // Both filters active — cross-dimensional exact lookup (priority over proportional).
+    // Uses pre-computed team-repo intersection data when available (v2 schema).
+    // Single-pass inline aggregation avoids intermediate array + multiple reduce passes.
+    if (repoSlice && teamSlice && rollup.by_team_and_repo) {
+      let cdPr = 0, cdAuthors = 0, cdReviewers = 0;
+      let cdP50WSum = 0, cdP50WPr = 0, cdP90WSum = 0, cdP90WPr = 0;
+      let cdFound = 0;
+
+      for (const team of filters.teams) {
+        // eslint-disable-next-line security/detect-object-injection -- SECURITY: team comes from validated filter state
+        const teamRepos = rollup.by_team_and_repo[team];
+        if (!teamRepos) continue;
+        for (const repo of filters.repos) {
+          // eslint-disable-next-line security/detect-object-injection -- SECURITY: repo comes from validated filter state
+          const e = teamRepos[repo];
+          if (!e) continue;
+          cdFound++;
+          const pr = toFiniteNumber(e.pr_count);
+          cdPr += pr;
+          cdAuthors += toFiniteNumber(e.authors_count);
+          cdReviewers += toFiniteNumber(e.reviewers_count);
+          const p50 = e.cycle_time_p50;
+          if (typeof p50 === "number" && Number.isFinite(p50)) {
+            cdP50WSum += p50 * pr; cdP50WPr += pr;
+          }
+          const p90 = e.cycle_time_p90;
+          if (typeof p90 === "number" && Number.isFinite(p90)) {
+            cdP90WSum += p90 * pr; cdP90WPr += pr;
+          }
+        }
+      }
+
+      if (cdFound > 0) {
+        // Defer _truncated check to after the loop — only needed when entries exist.
+        const isTruncated =
+          (rollup.by_team_and_repo as Record<string, unknown>)["_truncated"] ===
+          true;
+        const expectedCount = filters.teams.length * filters.repos.length;
+        if (isTruncated && cdFound < expectedCount) {
+          // Truncated partial hit — fall through to proportional below
+          console.warn(
+            `Cross-dim data truncated for week ${rollup.week}: ` +
+              `found ${cdFound}/${expectedCount} entries, ` +
+              `using proportional estimation`,
+          );
+        } else {
+          return buildFilteredRollup(rollup, {
+            pr_count: cdPr,
+            cycle_time_p50: cdP50WPr > 0 ? cdP50WSum / cdP50WPr : null,
+            cycle_time_p90: cdP90WPr > 0 ? cdP90WSum / cdP90WPr : null,
+            authors_count: cdAuthors,
+            reviewers_count: cdReviewers,
+          });
+        }
+      } else if (
+        (rollup.by_team_and_repo as Record<string, unknown>)["_truncated"] !==
+        true
+      ) {
+        // All lookups missed on a non-truncated map — genuinely zero.
+        return { ...rollup, ...ZEROED_ROLLUP_FIELDS } as Rollup;
+      }
+      // Truncated map (full miss or partial hit) — fall through to proportional below
+    }
+
+    // Both filters active — proportional intersection (fallback for v1 rollups).
     // Each slice represents a marginal share of the rollup total.
     // Team slices may exceed the total when multi-team members cause overlap,
     // so shares are clamped to [0, 1] before combining.
@@ -328,6 +393,13 @@ export function applyFiltersToRollups(
       const combinedRatio = repoShare * teamShare;
 
       const combinedPrCount = Math.round(rollup.pr_count * combinedRatio);
+
+      // Zero-leakage guard: when proportional estimation rounds to 0 PRs,
+      // zero all metric fields so global values don't leak through.
+      if (combinedPrCount === 0) {
+        return { ...rollup, ...ZEROED_ROLLUP_FIELDS } as Rollup;
+      }
+
       const combinedAuthors = Math.round(
         (rollup.authors_count || 0) * combinedRatio,
       );
@@ -347,19 +419,18 @@ export function applyFiltersToRollups(
       return {
         ...rollup,
         pr_count: combinedPrCount,
-        ...(p50s.length > 0
-          ? {
-              cycle_time_p50: p50s.reduce((a, b) => a + b, 0) / p50s.length,
-              cycle_time_p90:
-                p90s.length > 0
-                  ? p90s.reduce((a, b) => a + b, 0) / p90s.length
-                  : null,
-            }
-          : {}),
-        ...(combinedAuthors > 0 ? { authors_count: combinedAuthors } : {}),
-        ...(combinedReviewers > 0
-          ? { reviewers_count: combinedReviewers }
-          : {}),
+        // Always override to prevent global values leaking through the
+        // ...rollup spread when proportional estimates are null/0.
+        cycle_time_p50:
+          p50s.length > 0
+            ? p50s.reduce((a, b) => a + b, 0) / p50s.length
+            : null,
+        cycle_time_p90:
+          p90s.length > 0
+            ? p90s.reduce((a, b) => a + b, 0) / p90s.length
+            : null,
+        authors_count: combinedAuthors,
+        reviewers_count: combinedReviewers,
       } as Rollup;
     }
 
@@ -379,11 +450,11 @@ export function extractSparklineData(rollups: Rollup[]): {
   reviewers: number[];
 } {
   return {
-    prCounts: rollups.map((r) => r.pr_count || 0),
-    p50s: rollups.map((r) => r.cycle_time_p50 || 0),
-    p90s: rollups.map((r) => r.cycle_time_p90 || 0),
-    authors: rollups.map((r) => r.authors_count || 0),
-    reviewers: rollups.map((r) => r.reviewers_count || 0),
+    prCounts: rollups.map((r) => r.pr_count ?? 0),
+    p50s: rollups.map((r) => r.cycle_time_p50 ?? 0),
+    p90s: rollups.map((r) => r.cycle_time_p90 ?? 0),
+    authors: rollups.map((r) => r.authors_count ?? 0),
+    reviewers: rollups.map((r) => r.reviewers_count ?? 0),
   };
 }
 

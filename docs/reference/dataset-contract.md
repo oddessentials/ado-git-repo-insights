@@ -41,7 +41,7 @@ All consumers MUST validate schema versions before rendering:
 |-------|---------|---------------|
 | `manifest_schema_version` | 1 | Reject if > supported |
 | `dataset_schema_version` | 1 | Reject if > supported |
-| `aggregates_schema_version` | 1 | Reject if > supported |
+| `aggregates_schema_version` | 2 | Reject if > supported |
 | `predictions_schema_version` | 1 | Reject if > supported (Phase 3.5) |
 | `insights_schema_version` | 1 | Reject if > supported (Phase 3.5) |
 
@@ -51,7 +51,7 @@ All consumers MUST validate schema versions before rendering:
 {
   "manifest_schema_version": 1,
   "dataset_schema_version": 1,
-  "aggregates_schema_version": 1,
+  "aggregates_schema_version": 2,
   "generated_at": "ISO-8601 timestamp",
   "run_id": "string",
   "warnings": [],
@@ -65,12 +65,14 @@ All consumers MUST validate schema versions before rendering:
   },
   "defaults": { "default_date_range_days": 90 },
   "limits": { "max_date_range_days_soft": 730 },
-  "features": { "teams": bool, "comments": bool, "predictions": bool, "ai_insights": bool },
+  "features": { "teams": bool, "cross_dimensional": bool, "comments": bool, "predictions": bool, "ai_insights": bool },
   "coverage": { "total_prs": number, "date_range": { "min": "YYYY-MM-DD", "max": "YYYY-MM-DD" } }
 }
 ```
 
-## Weekly Rollup Schema (v1)
+## Weekly Rollup Schema (v2)
+
+> **Schema version bump (v1 -> v2):** The `aggregates_schema_version` was bumped from 1 to 2 to signal to downstream consumers that the optional `by_team_and_repo` cross-dimensional breakdown field may be present. Consumers that cache schema assumptions should invalidate stale assumptions when encountering v2 datasets.
 
 ```json
 {
@@ -81,9 +83,75 @@ All consumers MUST validate schema versions before rendering:
   "cycle_time_p50": number | null,
   "cycle_time_p90": number | null,
   "authors_count": number,
-  "reviewers_count": number
+  "reviewers_count": number,
+
+  "by_repository": {
+    "<repository_name>": {
+      "pr_count": number,
+      "cycle_time_p50": number | null,
+      "cycle_time_p90": number | null,
+      "authors_count": number,
+      "reviewers_count": number
+    }
+  },
+
+  "by_team": {
+    "<team_name>": {
+      "pr_count": number,
+      "cycle_time_p50": number | null,
+      "cycle_time_p90": number | null,
+      "authors_count": number,
+      "reviewers_count": number
+    }
+  },
+
+  "by_team_and_repo": {
+    "<team_name>": {
+      "<repository_name>": {
+        "pr_count": number,
+        "cycle_time_p50": number | null,
+        "cycle_time_p90": number | null,
+        "authors_count": number,
+        "reviewers_count": number
+      }
+    }
+  }
 }
 ```
+
+### v2 Field Reference
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `by_team_and_repo` | object | Optional | Nested team -> repo -> metrics cross-dimensional breakdown |
+
+### `by_team_and_repo` Rules
+
+1. **Optional** -- absence triggers proportional fallback in the frontend
+2. **Sparse** -- only non-empty intersections are stored (team-repo pairs with >= 1 PR)
+3. **Keys** -- outer keys are `team_name`, inner keys are `repository_name`
+4. **Consistency invariant (pr_count only):** `sum(by_team_and_repo[T][*].pr_count) == by_team[T].pr_count`. This does NOT hold for `authors_count` or `reviewers_count` (distinct-count metrics are not additive; `sum >= team total` is expected)
+5. **Limits** -- maximum 5,000 entries per week; max 500KB per rollup JSON file
+6. **Truncation** -- when entries exceed 5,000, least-significant entries (by pr_count) are removed and `_truncated: true` is set at the top level of `by_team_and_repo`. The consistency invariant is relaxed for affected teams
+7. **Multi-team overlap** -- when aggregating across multiple teams, PR counts may exceed `by_repository[R].pr_count` due to multi-team membership. This is intentional per-team attribution
+8. **Minimum sample size** -- cycle time P50/P90 are set to `null` for intersections with fewer than 5 PRs to avoid statistically misleading percentiles
+
+### `features.cross_dimensional` Manifest Flag
+
+The manifest `features` object includes a `cross_dimensional` boolean:
+
+- `true` -- at least one weekly rollup in the dataset contains `by_team_and_repo` data
+- `false` -- no cross-dimensional data is available (legacy dataset, or teams exist but have no members)
+
+This flag is set from actual pipeline output (not from input conditions) to avoid false positives.
+
+### Consumer Compatibility Matrix
+
+| Consumer | v1 Rollup (no `by_team_and_repo`) | v2 Rollup (with `by_team_and_repo`) |
+|----------|-----------------------------------|-------------------------------------|
+| v1 Frontend (no cross-dim support) | Full support | Ignores new fields; permissive validator warns on unknown fields |
+| v2 Frontend (cross-dim support) | Proportional fallback for team+repo filters | Exact cross-dimensional data used |
+| PowerBI (CSV only) | Unaffected | Unaffected (cross-dim is JSON-only) |
 
 ## Distribution Schema (v1)
 

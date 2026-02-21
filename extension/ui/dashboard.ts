@@ -82,6 +82,7 @@ let currentFilters: { repos: string[]; teams: string[] } = {
 let comparisonMode = false;
 let cachedRollups: Rollup[] = []; // Cache for export
 let currentBuildId: number | null = null; // Store build ID for raw data download
+let chipsDelegatedElement: HTMLElement | null = null; // Track delegated element
 
 // Settings keys for extension data storage (must match settings.js)
 const SETTINGS_KEY_PROJECT = "pr-insights-source-project";
@@ -798,12 +799,13 @@ async function refreshMetrics(): Promise<void> {
   // Cache filtered rollups for export
   cachedRollups = rollups;
 
-  // Show/hide combined filter approximation indicator
-  const summarySection = document.querySelector(".summary-cards");
-  if (summarySection) {
-    const isCombinedFilter = currentFilters.repos.length > 0 && currentFilters.teams.length > 0;
-    summarySection.setAttribute("data-combined-filter", isCombinedFilter ? "true" : "false");
-  }
+  // T012: Accuracy indicator — when both team and repo filters active,
+  // check if any visible rollup lacks by_team_and_repo (pre-migration data).
+  updateAccuracyIndicator(rawRollups, currentFilters);
+
+  // T012a: Multi-team overlap indicator — when multiple teams selected
+  // and cross-dim PR sum exceeds repository total.
+  updateOverlapIndicator(rawRollups, currentFilters);
 
   renderSummaryCards(rollups, prevRollups);
   renderThroughputChart(rollups);
@@ -814,6 +816,116 @@ async function refreshMetrics(): Promise<void> {
   // Update comparison banner if in comparison mode
   if (comparisonMode) {
     updateComparisonBanner();
+  }
+}
+
+/**
+ * Update accuracy indicator for mixed exact/estimated data.
+ * Sets a data-accuracy attribute on .summary-cards when both team and repo
+ * filters are active and some rollups lack by_team_and_repo data or have
+ * truncated cross-dim maps (_truncated flag from hard-cap enforcement).
+ * CSS ::after rules render the appropriate footnote.
+ *
+ * @param rawRollups - Unfiltered rollups for the current date range
+ * @param filters - Current dimension filter state
+ */
+function updateAccuracyIndicator(
+  rawRollups: Rollup[],
+  filters: { repos: string[]; teams: string[] },
+): void {
+  const summarySection = document.querySelector(".summary-cards");
+  if (!summarySection) return;
+
+  const isCombinedFilter = filters.repos.length > 0 && filters.teams.length > 0;
+
+  if (!isCombinedFilter) {
+    summarySection.removeAttribute("data-accuracy");
+    return;
+  }
+
+  // Check if any rollup in the visible range lacks cross-dim data or has
+  // truncated cross-dim data, meaning proportional estimation is used.
+  const isEstimated = (r: Rollup): boolean =>
+    r.by_team_and_repo == null ||
+    (r.by_team_and_repo as Record<string, unknown>)["_truncated"] === true;
+
+  const hasEstimatedWeeks = rawRollups.some(isEstimated);
+
+  if (hasEstimatedWeeks) {
+    // Some weeks use proportional estimation — flag for the user.
+    const allEstimated = rawRollups.every(isEstimated);
+    summarySection.setAttribute(
+      "data-accuracy",
+      allEstimated ? "approximate" : "mixed",
+    );
+  } else {
+    // All weeks have exact cross-dim data — no indicator needed.
+    summarySection.removeAttribute("data-accuracy");
+  }
+}
+
+/**
+ * Update multi-team overlap indicator (FR-016).
+ * Sets data-overlap="true" on .summary-cards when multiple teams are selected
+ * and cross-dim PR count sum exceeds the repository total (multi-team membership).
+ * CSS ::after rules render the footnote.
+ *
+ * @param rawRollups - Unfiltered rollups for the current date range
+ * @param filters - Current dimension filter state
+ */
+function updateOverlapIndicator(
+  rawRollups: Rollup[],
+  filters: { repos: string[]; teams: string[] },
+): void {
+  const summarySection = document.querySelector(".summary-cards");
+  if (!summarySection) return;
+
+  const hasMultipleTeams = filters.teams.length > 1;
+  const hasRepoFilter = filters.repos.length > 0;
+
+  if (!hasMultipleTeams || !hasRepoFilter) {
+    summarySection.removeAttribute("data-overlap");
+    return;
+  }
+
+  // Check if any rollup has cross-dim data where the team sum exceeds repo total.
+  // Skip truncated maps — incomplete entries could give false results.
+  let hasOverlap = false;
+  for (const rollup of rawRollups) {
+    if (!rollup.by_team_and_repo || !rollup.by_repository) continue;
+    if (
+      (rollup.by_team_and_repo as Record<string, unknown>)["_truncated"] ===
+      true
+    )
+      continue;
+
+    for (const repo of filters.repos) {
+      // eslint-disable-next-line security/detect-object-injection -- SECURITY: repo comes from validated filter state
+      const repoEntry = rollup.by_repository[repo];
+      if (!repoEntry) continue;
+
+      let crossDimSum = 0;
+      for (const team of filters.teams) {
+        // eslint-disable-next-line security/detect-object-injection -- SECURITY: team comes from validated filter state
+        const teamRepos = rollup.by_team_and_repo[team];
+        if (!teamRepos) continue;
+        // eslint-disable-next-line security/detect-object-injection -- SECURITY: repo comes from validated filter state
+        const entry = teamRepos[repo];
+        if (entry) crossDimSum += entry.pr_count;
+      }
+
+      if (crossDimSum > repoEntry.pr_count) {
+        hasOverlap = true;
+        break;
+      }
+    }
+    if (hasOverlap) break;
+  }
+
+  if (hasOverlap) {
+    summarySection.setAttribute("data-overlap", "true");
+  } else {
+    summarySection.removeAttribute("data-overlap");
   }
 }
 
@@ -1163,27 +1275,32 @@ function clearAllFilters(): void {
 }
 
 /**
+ * Find an <option> element by value inside a <select>, using CSS.escape
+ * to safely handle special characters in the value attribute.
+ */
+function findOptionByValue(
+  select: HTMLSelectElement | null,
+  value: string,
+): HTMLOptionElement | null {
+  return select?.querySelector(
+    `option[value="${CSS.escape(value)}"]`,
+  ) as HTMLOptionElement | null;
+}
+
+/**
  * Remove a specific filter.
  */
 function removeFilter(type: string, value: string): void {
   if (type === "repo") {
     currentFilters.repos = currentFilters.repos.filter((v) => v !== value);
     const repoFilter = elements["repo-filter"] as HTMLSelectElement | null;
-    if (repoFilter) {
-      const option = repoFilter.querySelector(
-        `option[value="${value}"]`,
-      ) as HTMLOptionElement | null;
-      if (option) option.selected = false;
-    }
+    const option = findOptionByValue(repoFilter, value);
+    if (option) option.selected = false;
   } else if (type === "team") {
     currentFilters.teams = currentFilters.teams.filter((v) => v !== value);
     const teamFilter = elements["team-filter"] as HTMLSelectElement | null;
-    if (teamFilter) {
-      const option = teamFilter.querySelector(
-        `option[value="${value}"]`,
-      ) as HTMLOptionElement | null;
-      if (option) option.selected = false;
-    }
+    const option = findOptionByValue(teamFilter, value);
+    if (option) option.selected = false;
   }
 
   updateFilterUI();
@@ -1235,14 +1352,19 @@ function renderFilterChips(): void {
   // SECURITY: Filter chips use escapeHtml for all values
   renderTrustedHtml(chipsEl, chips.join(""));
 
-  chipsEl.querySelectorAll(".filter-chip-remove").forEach((btnNode) => {
-    const btn = btnNode as HTMLElement;
-    btn.addEventListener("click", () => {
+  // C1 fix: event delegation — re-attach if container element changes
+  if (chipsDelegatedElement !== chipsEl) {
+    chipsDelegatedElement = chipsEl;
+    chipsEl.addEventListener("click", (e: Event) => {
+      const btn = (e.target as HTMLElement).closest(
+        ".filter-chip-remove",
+      ) as HTMLElement | null;
+      if (!btn) return;
       const type = btn.dataset["type"];
       const val = btn.dataset["value"];
       if (type && val) removeFilter(type, val);
     });
-  });
+  }
 }
 
 /**
@@ -1251,13 +1373,11 @@ function renderFilterChips(): void {
 function getFilterLabel(type: string, value: string): string {
   if (type === "repo") {
     const repoFilter = elements["repo-filter"] as HTMLSelectElement | null;
-    const option = repoFilter?.querySelector(`option[value="${value}"]`);
-    return option?.textContent || value;
+    return findOptionByValue(repoFilter, value)?.textContent ?? value;
   }
   if (type === "team") {
     const teamFilter = elements["team-filter"] as HTMLSelectElement | null;
-    const option = teamFilter?.querySelector(`option[value="${value}"]`);
-    return option?.textContent || value;
+    return findOptionByValue(teamFilter, value)?.textContent ?? value;
   }
   return value;
 }
@@ -1289,10 +1409,18 @@ function restoreFiltersFromUrl(): void {
     currentFilters.repos = reposParam.split(",").filter((v) => v);
     const repoFilter = elements["repo-filter"] as HTMLSelectElement | null;
     if (repoFilter) {
+      const valid = currentFilters.repos.filter(
+        (v) => findOptionByValue(repoFilter, v) !== null,
+      );
+      if (valid.length < currentFilters.repos.length) {
+        console.warn(
+          "Ignoring invalid repo filters from URL:",
+          currentFilters.repos.filter((v) => !valid.includes(v)),
+        );
+      }
+      currentFilters.repos = valid;
       currentFilters.repos.forEach((value) => {
-        const option = repoFilter.querySelector(
-          `option[value="${value}"]`,
-        ) as HTMLOptionElement | null;
+        const option = findOptionByValue(repoFilter, value);
         if (option) option.selected = true;
       });
     }
@@ -1302,10 +1430,18 @@ function restoreFiltersFromUrl(): void {
     currentFilters.teams = teamsParam.split(",").filter((v) => v);
     const teamFilter = elements["team-filter"] as HTMLSelectElement | null;
     if (teamFilter) {
+      const valid = currentFilters.teams.filter(
+        (v) => findOptionByValue(teamFilter, v) !== null,
+      );
+      if (valid.length < currentFilters.teams.length) {
+        console.warn(
+          "Ignoring invalid team filters from URL:",
+          currentFilters.teams.filter((v) => !valid.includes(v)),
+        );
+      }
+      currentFilters.teams = valid;
       currentFilters.teams.forEach((value) => {
-        const option = teamFilter.querySelector(
-          `option[value="${value}"]`,
-        ) as HTMLOptionElement | null;
+        const option = findOptionByValue(teamFilter, value);
         if (option) option.selected = true;
       });
     }
