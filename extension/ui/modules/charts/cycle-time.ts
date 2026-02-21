@@ -138,13 +138,24 @@ export function renderCycleTimeTrend(
 
   // Generate paths
   const generatePath = (data: { week: string; value: number }[]) => {
-    const points = data.map((d) => {
-      const dataIndex = displayRollups.findIndex((r) => r.week === d.week);
-      const x = padding.left + (dataIndex / (displayRollups.length - 1)) * chartWidth;
-      const y =
-        padding.top + chartHeight - ((d.value - minVal) / range) * chartHeight;
-      return { x, y, week: d.week, value: d.value };
-    });
+    if (displayRollups.length < 2) return { pathD: "", points: [] };
+    const points = data
+      .map((d) => {
+        const dataIndex = displayRollups.findIndex((r) => r.week === d.week);
+        if (dataIndex === -1) return null;
+        const x =
+          padding.left +
+          (dataIndex / (displayRollups.length - 1)) * chartWidth;
+        const y =
+          padding.top +
+          chartHeight -
+          ((d.value - minVal) / range) * chartHeight;
+        return { x, y, week: d.week, value: d.value };
+      })
+      .filter(
+        (p): p is { x: number; y: number; week: string; value: number } =>
+          p !== null,
+      );
     const pathD = points
       .map(
         (p, i) => `${i === 0 ? "M" : "L"} ${p.x.toFixed(1)} ${p.y.toFixed(1)}`,
@@ -188,8 +199,8 @@ export function renderCycleTimeTrend(
             ${p50Path ? `<path class="line-chart-p50" d="${p50Path.pathD}" vector-effect="non-scaling-stroke"/>` : ""}
 
             <!-- Dots -->
-            ${p90Path ? p90Path.points.map((p) => `<circle class="line-chart-dot" cx="${p.x}" cy="${p.y}" r="${dotRadius}" fill="var(--warning)" data-week="${escapeHtml(p.week)}" data-value="${p.value}" data-metric="P90"/>`).join("") : ""}
-            ${p50Path ? p50Path.points.map((p) => `<circle class="line-chart-dot" cx="${p.x}" cy="${p.y}" r="${dotRadius}" fill="var(--primary)" data-week="${escapeHtml(p.week)}" data-value="${p.value}" data-metric="P50"/>`).join("") : ""}
+            ${p90Path ? p90Path.points.map((p) => `<circle class="line-chart-dot" cx="${p.x}" cy="${p.y}" r="${dotRadius}" fill="var(--warning)" data-week="${escapeHtml(p.week)}" data-value="${escapeHtml(String(p.value))}" data-metric="P90"/>`).join("") : ""}
+            ${p50Path ? p50Path.points.map((p) => `<circle class="line-chart-dot" cx="${p.x}" cy="${p.y}" r="${dotRadius}" fill="var(--primary)" data-week="${escapeHtml(p.week)}" data-value="${escapeHtml(String(p.value))}" data-metric="P50"/>`).join("") : ""}
         </svg>
     `;
 

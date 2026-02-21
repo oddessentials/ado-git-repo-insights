@@ -164,15 +164,30 @@ def load_config(
 
     # Build date range config
     date_range = DateRangeConfig()
-    if start_date:
-        date_range.start = date.fromisoformat(start_date)
-    elif config_data.get("date_range", {}).get("start"):
-        date_range.start = date.fromisoformat(config_data["date_range"]["start"])
+    try:
+        if start_date:
+            date_range.start = date.fromisoformat(start_date)
+        elif config_data.get("date_range", {}).get("start"):
+            date_range.start = date.fromisoformat(config_data["date_range"]["start"])
+    except ValueError as e:
+        raise ConfigurationError(
+            f"Invalid start_date format (expected YYYY-MM-DD): {e}"
+        ) from e
 
-    if end_date:
-        date_range.end = date.fromisoformat(end_date)
-    elif config_data.get("date_range", {}).get("end"):
-        date_range.end = date.fromisoformat(config_data["date_range"]["end"])
+    try:
+        if end_date:
+            date_range.end = date.fromisoformat(end_date)
+        elif config_data.get("date_range", {}).get("end"):
+            date_range.end = date.fromisoformat(config_data["date_range"]["end"])
+    except ValueError as e:
+        raise ConfigurationError(
+            f"Invalid end_date format (expected YYYY-MM-DD): {e}"
+        ) from e
+
+    if date_range.start and date_range.end and date_range.start > date_range.end:
+        raise ConfigurationError(
+            f"start_date ({date_range.start}) must be <= end_date ({date_range.end})"
+        )
 
     # Build main config
     return Config(
