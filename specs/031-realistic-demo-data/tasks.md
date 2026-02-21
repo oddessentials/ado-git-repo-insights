@@ -18,7 +18,7 @@
 **Purpose**: Add utility functions and update constants needed by all user stories
 
 - [ ] T001 Add locked RNG functions `_box_muller_normal(rng)` and `_log_normal(rng, mu, sigma)` using Box-Muller transform (research.md Decision 1), replace all `RNG.lognormvariate()` calls, and remove the `lognormal()` wrapper in scripts/generate-demo-data.py
-- [ ] T002 Add `_largest_remainder_allocate(total, weights)` utility function (port from scripts/generate-synthetic-dataset.py lines 32-45) in scripts/generate-demo-data.py
+- [ ] T002 Add `_largest_remainder_allocate(total, weights)` utility function (port from scripts/generate-synthetic-dataset.py lines 32-45) in scripts/generate-demo-data.py. Add guards: (a) if `weights` is empty, return `[]`; (b) if all weights are zero, distribute round-robin (`total` split evenly with remainder to first buckets); (c) assert `total >= 0`. Weights are assumed pre-normalized by callers — add a docstring stating this contract.
 - [ ] T003 Update org shape constants: fix `NUM_REPOS=23` (currently 20), add `NUM_TEAMS=4`, `NUM_WEEKS=260`, `GROWTH_RATE_PER_YEAR=0.12`, `HOLIDAY_SUPPRESSION_FACTOR=0.35` as named constants co-located with existing config block (Contract 5, FR-017) in scripts/generate-demo-data.py
 
 ---
@@ -47,10 +47,10 @@
 ### Implementation for User Story 1
 
 - [ ] T008 [US1] Rewrite the repo PR distribution in `generate_weekly_rollups()` to use `_largest_remainder_allocate()` with `REPO_WEIGHTS` instead of sequential `RNG.randint()` allocation, producing a `repo_pr_allocation` dict (repo_name → pr_count) in scripts/generate-demo-data.py
-- [ ] T009 [US1] Rewrite the team PR distribution in `generate_weekly_rollups()` to use `_largest_remainder_allocate()` with RNG-generated normalized weights, and for each team generate `by_team_and_repo[team]` entries by distributing team PRs across repos using affinity-weighted allocation (65% to `TEAM_PRIMARY_REPOS`, 35% to remaining repos weighted by `REPO_WEIGHTS`) via `_largest_remainder_allocate()` in scripts/generate-demo-data.py
+- [ ] T009 [US1] First, add `by_team_and_repo: dict[str, dict[str, Any]] | None = None` field to the `WeeklyRollup` dataclass (lines 203-215). Then rewrite the team PR distribution in `generate_weekly_rollups()` to use `_largest_remainder_allocate()` with RNG-generated normalized weights, and for each team generate `by_team_and_repo[team]` entries by distributing team PRs across repos using affinity-weighted allocation (65% to `TEAM_PRIMARY_REPOS`, 35% to remaining repos weighted by `REPO_WEIGHTS`) via `_largest_remainder_allocate()`. Store the result in `rollup.by_team_and_repo`. Omit teams with 0 PRs and repos with 0 PRs for a team (sparse representation per spec edge cases) in scripts/generate-demo-data.py
 - [ ] T010 [US1] Enforce Contract 3 cycle time threshold at all 4 levels (rollup, repo, team, team-repo): if `pr_count < 5` set both `cycle_time_p50` and `cycle_time_p90` to `None`; remove any existing `max(1, ...)` special-case logic in scripts/generate-demo-data.py
 - [ ] T011 [US1] Enforce FR-016 author/reviewer count caps: at team level cap to `team.member_count`, at team-repo level cap to the parent team-level counts; use sub-linear scaling `max(1, min(cap, int(pr_count ** 0.6)))` for author/reviewer generation in scripts/generate-demo-data.py
-- [ ] T012 [US1] Update rollup JSON output serialization (lines 924-935) to include `"by_team_and_repo": rollup.by_team_and_repo` in the dict written to file; add `by_team_and_repo` field to the `WeeklyRollup` dataclass or output dict in scripts/generate-demo-data.py
+- [ ] T012 [US1] Update rollup JSON output serialization (lines 924-935) to include `"by_team_and_repo": rollup.by_team_and_repo` in the dict written to file (the dataclass field was added in T009) in scripts/generate-demo-data.py
 - [ ] T013 [US1] Update `generate_manifest()` to set `"aggregates_schema_version": AGGREGATES_SCHEMA_VERSION` (imported value = 2) and add `"cross_dimensional": True` to `features` dict in scripts/generate-demo-data.py
 
 ### Tests for User Story 1
@@ -71,7 +71,7 @@
 
 - [ ] T015 [US2] Apply `GROWTH_RATE_PER_YEAR` linear growth factor to `BASE_PR_COUNT` per year: `effective_base = BASE_PR_COUNT * (1.0 + GROWTH_RATE_PER_YEAR * (year - START_YEAR))` before seasonal adjustment in `generate_weekly_rollups()` in scripts/generate-demo-data.py
 - [ ] T016 [US2] Apply `HOLIDAY_SUPPRESSION_FACTOR` multiplier for week 52: override the seasonal adjustment to `* HOLIDAY_SUPPRESSION_FACTOR` when `week == 52` in `generate_weekly_rollups()` in scripts/generate-demo-data.py
-- [ ] T017 [US2] Add idle repo-week logic: after `_largest_remainder_allocate()` for repo PRs, for repos with weight below a threshold (e.g., 0.15), randomly zero out their allocation with probability proportional to `(1 - weight)`, then redistribute zeroed PRs to the highest-weight repo to maintain total PR count in scripts/generate-demo-data.py
+- [ ] T017 [US2] Add idle repo-week logic with constant `IDLE_WEIGHT_THRESHOLD = 0.04`: after `_largest_remainder_allocate()` for repo PRs, for each repo with `REPO_WEIGHTS[repo] < IDLE_WEIGHT_THRESHOLD`, zero out its allocation if `RNG.random() > REPO_WEIGHTS[repo] / IDLE_WEIGHT_THRESHOLD` (probability of idling increases as weight decreases). Redistribute all zeroed PRs to the repo with the highest weight to maintain `sum(repo_prs) == total_prs`. Add `IDLE_WEIGHT_THRESHOLD` as a named constant co-located with other repo weight constants (Contract 5) in scripts/generate-demo-data.py
 - [ ] T018 [US2] Apply `REPO_CYCLE_TIME_CATEGORY` mu_factor per repo when generating `cycle_times`: use `_log_normal(RNG, CYCLE_TIME_MU * mu_factor, CYCLE_TIME_SIGMA)` instead of the global mu for each repo's cycle time samples in scripts/generate-demo-data.py
 
 ### Tests for User Story 2
@@ -79,6 +79,16 @@
 - [ ] T019 [P] [US2] Write `tests/demo/test_realism_invariants.py` with tests: (a) top 3 repos >= 40% of total PRs across all weeks (SC-002), (b) final year PRs >= 1.3x first year PRs (SC-003), (c) week 52 PR count <= 60% of year average for every year (SC-008), (d) >= 20% of possible repo-weeks have 0 PRs (SC-004), (e) >= 60% of each team's PRs land in its TEAM_PRIMARY_REPOS (SC-009), (f) utility repo median cycle time <= 0.5x data/ML repo median cycle time (FR-008)
 
 **Checkpoint**: Data looks like a real engineering org — not synthetic toy data
+
+---
+
+## Phase 4b: Baseline Regeneration (REQUIRED before tests can pass)
+
+**Purpose**: After all generator changes (T001–T018), the committed demo data files are stale (generated with the old `lognormvariate` RNG and missing `by_team_and_repo`). Tests in `test_regeneration.py` compare against committed files and will fail until data is regenerated. This phase establishes the new baseline.
+
+- [ ] T019b Regenerate all demo data by running all three generators in order: `python scripts/generate-demo-data.py && python scripts/generate-demo-predictions.py && python scripts/generate-demo-insights.py` from repository root, then `git add docs/data/ && git commit` the regenerated files to establish the new baseline in docs/data/
+
+**Checkpoint**: Committed demo data matches generator output — `test_regeneration.py` passes again
 
 ---
 
@@ -131,15 +141,16 @@
 - **Foundational (Phase 2)**: Depends on Setup completion — BLOCKS all user stories
 - **US1 (Phase 3)**: Depends on Foundational — produces `by_team_and_repo` in generator
 - **US2 (Phase 4)**: Depends on US1 — refines distributions in the same functions US1 rewrites
-- **US3 (Phase 5)**: Depends on Foundational only — can run in parallel with US1/US2 (different file)
-- **US4 (Phase 6)**: Depends on Foundational only — can run in parallel with US1/US2 (different files)
-- **Polish (Phase 7)**: Depends on ALL user stories being complete
+- **Baseline Regen (Phase 4b)**: Depends on US1+US2 — regenerates and commits all demo data so tests pass
+- **US3 (Phase 5)**: Depends on Phase 4b — schema guard loads regenerated rollups to verify fields
+- **US4 (Phase 6)**: Depends on Foundational only — can run in parallel with US1/US2 (different files). Orchestrator (T021) can be written early; I/O changes (T022/T023) are independent.
+- **Polish (Phase 7)**: Depends on ALL user stories + Phase 4b being complete
 
 ### User Story Dependencies
 
 - **US1 (P1)**: Depends on Phase 2 — Core cross-dimensional generation
 - **US2 (P2)**: Depends on US1 — Builds realistic distributions on top of US1's allocation framework
-- **US3 (P3)**: Depends on Phase 2 only — Independent test file, can start after Phase 2
+- **US3 (P3)**: Depends on Phase 4b — Schema guard loads regenerated data, must run after baseline commit
 - **US4 (P4)**: Depends on Phase 2 only — Independent files (orchestrator, I/O changes)
 
 ### Within Each User Story
@@ -187,9 +198,10 @@ These three tasks modify different files and can all run in parallel.
 ### Maximum Parallelism (3 agents after Phase 2)
 
 ```text
-Agent 1: T008 → T009 → T010 → T011 → T012 → T013 → T015 → T016 → T017 → T018 (generator rewrite)
-Agent 2: T014, T019, T020 (all tests)
-Agent 3: T021, T022, T023 (pipeline)
+Agent 1: T008 → T009 → T010 → T011 → T012 → T013 → T015 → T016 → T017 → T018 → T019b (generator rewrite + regen)
+Agent 2: T014, T019 (test files — will fail until T019b completes, then pass)
+Agent 3: T021, T022, T023 (pipeline — independent files)
+After T019b: T020 (schema guard — needs regenerated data)
 ```
 
 ---
@@ -220,8 +232,19 @@ Agent 3: T021, T022, T023 (pipeline)
 - [P] tasks = different files, no dependencies on incomplete tasks
 - [Story] label maps task to specific user story for traceability
 - T001–T018 all modify `scripts/generate-demo-data.py` — must execute sequentially
-- T014, T019, T020 are test files that can be written any time after Phase 2
+- T014, T019 are test files that can be written early but will FAIL until T019b regenerates data
+- T020 (schema guard) must run AFTER T019b since it loads regenerated rollup files
 - T021–T023 modify different files and can run in parallel
 - The spec explicitly requests tests (each user story has "Independent Test" criteria)
 - Existing tests (`test_regeneration.py`, `test_synthetic_data.py`) must continue to pass
-- All 260 weekly rollup JSON files will be regenerated — expect a large diff
+- All 260+ weekly rollup JSON files plus predictions and insights will be regenerated — expect a large diff
+- `demo.yml` uses Python 3.11 which is compatible (Box-Muller uses only `random()` which is stable across Python versions)
+
+### Review Findings Applied (2026-02-21)
+
+Reviewed by 3 agents (plan-reviewer, task-reviewer, devils-advocate). Fixes applied:
+1. **BLOCKER**: Added T019b (Phase 4b) — intermediate regeneration + commit after generator rewrite. Without this, `test_regeneration.py` fails during development because committed files use old lognormvariate output.
+2. **BLOCKER**: Merged `WeeklyRollup` dataclass field addition into T009 (was buried in T012). T009 now explicitly adds `by_team_and_repo` field to dataclass before generating data.
+3. **MEDIUM**: Added edge case guards to T002 (`_largest_remainder_allocate`): empty weights, all-zero weights, non-negative total.
+4. **MEDIUM**: T017 now has concrete constant `IDLE_WEIGHT_THRESHOLD = 0.04` and explicit probability formula instead of vague "e.g., 0.15".
+5. **Cleared**: RNG cross-contamination (not a risk — predictions/insights don't use random), binary I/O change (byte-identical output), manifest `cross_dimensional` field (already in TS schema), git diff timeout (pytest hook is manual-only).
