@@ -512,19 +512,27 @@ body {
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
     gap: 16px;
+    position: relative;
 }
 
-/* Footnote indicators below summary cards */
+/* Reserve space below the grid when a footnote is active */
+.summary-cards[data-accuracy],
+.summary-cards[data-overlap="true"] {
+    padding-bottom: 24px;
+}
+
+/* Footnote indicators below summary cards — positioned outside grid flow */
 .summary-cards[data-accuracy="approximate"]::after,
 .summary-cards[data-accuracy="mixed"]::after,
 .summary-cards[data-overlap="true"]::after {
-    display: block;
-    grid-column: 1 / -1;
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    right: 0;
     text-align: center;
     font-size: 11px;
     color: var(--text-tertiary);
     font-style: italic;
-    padding: 4px 0 0;
     white-space: pre-line;
 }
 
