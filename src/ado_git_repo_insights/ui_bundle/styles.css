@@ -538,27 +538,27 @@ body {
 
 /* Combined filter active, all data estimated */
 .summary-cards[data-accuracy="approximate"]::after {
-    content: "Some weeks in this range show estimated values because detailed team-by-repo data was not yet being collected.";
+    content: "Filtered totals for some weeks in this range are approximate.";
 }
 
 /* Combined filter active, some weeks lack cross-dimensional data */
 .summary-cards[data-accuracy="mixed"]::after {
-    content: "Some weeks in this range show estimated values because detailed team-by-repo data was not yet being collected.";
+    content: "Filtered totals for some weeks in this range are approximate.";
 }
 
 /* Overlap detected (multiple teams share members) */
 .summary-cards[data-overlap="true"]::after {
-    content: "PR counts per team may add up to more than the total. This is expected when contributors belong to more than one selected team.";
+    content: "PR counts per team may exceed the total when contributors belong to more than one selected team.";
 }
 
 /* Both mixed accuracy AND overlap active — separate lines */
 .summary-cards[data-accuracy="mixed"][data-overlap="true"]::after {
-    content: "Some weeks in this range show estimated values because detailed team-by-repo data was not yet being collected.\APR counts per team may add up to more than the total. This is expected when contributors belong to more than one selected team.";
+    content: "Filtered totals for some weeks in this range are approximate.\APR counts per team may exceed the total when contributors belong to more than one selected team.";
 }
 
 /* Approximate accuracy AND overlap — separate lines */
 .summary-cards[data-accuracy="approximate"][data-overlap="true"]::after {
-    content: "Some weeks in this range show estimated values because detailed team-by-repo data was not yet being collected.\APR counts per team may add up to more than the total. This is expected when contributors belong to more than one selected team.";
+    content: "Filtered totals for some weeks in this range are approximate.\APR counts per team may exceed the total when contributors belong to more than one selected team.";
 }
 
 .card {
