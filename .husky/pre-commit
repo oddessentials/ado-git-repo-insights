@@ -69,6 +69,21 @@ if [ -f "$SDK_SRC" ] && [ -f "$SDK_DEST" ]; then
     fi
 fi
 
+# ── Compiled artifact guard ───────────────────────────────────────────────────
+echo "[pre-commit] Checking for compiled artifacts in extension/ui/..."
+COMPILED_JS=$(git diff --cached --name-only --diff-filter=d | grep -E '^extension/ui/.*\.js$' | grep -v 'VSS.SDK.min.js' || true)
+if [ -n "$COMPILED_JS" ]; then
+    echo ""
+    echo "[pre-commit] ❌ Compiled JS file(s) detected in extension/ui/:"
+    echo "$COMPILED_JS"
+    echo ""
+    echo "Compiled output belongs in extension/dist/ui/, not extension/ui/."
+    echo "If this is a legitimate hand-written JS file, add it to the allowlist in .husky/pre-commit."
+    exit 1
+fi
+echo "[pre-commit] ✅ No compiled artifacts found"
+echo ""
+
 # =============================================================================
 # UI Bundle Build & Sync
 # =============================================================================

@@ -603,12 +603,36 @@ def generate_weekly_rollups(
                     repo_p50 = calculate_percentile(repo_cycle_times, 50)
                     repo_p90 = calculate_percentile(repo_cycle_times, 90)
 
+                    # Distribution-based reviewer count
+                    if repo_pr_count == 1:
+                        repo_reviewers = 1
+                    else:
+                        low = max(2, repo_pr_count // 3 + 1)
+                        high = max(
+                            low,
+                            min(
+                                repo_pr_count,
+                                reviewers_count,
+                                repo_pr_count * 2 // 3 + 1,
+                            ),
+                        )
+                        repo_reviewers = RNG.randint(low, high)
+
+                    # Distribution-based author count
+                    repo_authors = max(
+                        1,
+                        min(
+                            repo_pr_count,
+                            RNG.randint(1, max(1, repo_pr_count * 2 // 3)),
+                        ),
+                    )
+
                     by_repository[repo.repository_name] = {
                         "pr_count": repo_pr_count,
                         "cycle_time_p50": repo_p50,
                         "cycle_time_p90": repo_p90,
-                        "authors_count": max(1, int(repo_pr_count * 0.3)),
-                        "reviewers_count": max(1, int(repo_pr_count * 0.45)),
+                        "authors_count": repo_authors,
+                        "reviewers_count": repo_reviewers,
                     }
 
             # Distribute PRs across teams
@@ -630,13 +654,50 @@ def generate_weekly_rollups(
                 team_p50 = calculate_percentile(team_cycle_times, 50)
                 team_p90 = calculate_percentile(team_cycle_times, 90)
 
+                # Distribution-based reviewer count for team
+                if team_pr_count == 1:
+                    team_reviewers = 1
+                else:
+                    low = max(2, team_pr_count // 3 + 1)
+                    high = max(
+                        low,
+                        min(
+                            team_pr_count,
+                            reviewers_count,
+                            team_pr_count * 2 // 3 + 1,
+                        ),
+                    )
+                    team_reviewers = RNG.randint(low, high)
+
+                # Distribution-based author count for team
+                team_authors = max(
+                    1,
+                    min(
+                        team_pr_count,
+                        RNG.randint(1, max(1, team_pr_count * 2 // 3)),
+                    ),
+                )
+
                 by_team[team.team_name] = {
                     "pr_count": team_pr_count,
                     "cycle_time_p50": team_p50,
                     "cycle_time_p90": team_p90,
-                    "authors_count": max(1, int(team_pr_count * 0.3)),
-                    "reviewers_count": max(1, int(team_pr_count * 0.45)),
+                    "authors_count": team_authors,
+                    "reviewers_count": team_reviewers,
                 }
+
+            # Post-generation invariant clamping: no breakdown entry may
+            # exceed the parent rollup's reviewers_count or authors_count.
+            for entry in by_repository.values():
+                entry["reviewers_count"] = min(
+                    entry["reviewers_count"], reviewers_count
+                )
+                entry["authors_count"] = min(entry["authors_count"], authors_count)
+            for entry in by_team.values():
+                entry["reviewers_count"] = min(
+                    entry["reviewers_count"], reviewers_count
+                )
+                entry["authors_count"] = min(entry["authors_count"], authors_count)
 
             rollups.append(
                 WeeklyRollup(
