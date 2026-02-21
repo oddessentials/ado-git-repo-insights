@@ -1,8 +1,10 @@
 """Tests for run_summary module."""
 
 import json
+import subprocess
 import tempfile
 from pathlib import Path
+from unittest.mock import patch
 
 from ado_git_repo_insights.utils.run_summary import (
     RunCounts,
@@ -234,3 +236,34 @@ class TestRunSummaryOutput:
         summary.emit_ado_commands()
         captured = capsys.readouterr()
         assert "##vso[task.logissue type=warning]Warning 1" in captured.out
+
+
+class TestGetGitShaErrorHandling:
+    """Tests for get_git_sha error handling when VERSION file is absent."""
+
+    @patch(
+        "ado_git_repo_insights.utils.run_summary.subprocess.run",
+        side_effect=FileNotFoundError,
+    )
+    @patch("ado_git_repo_insights.utils.run_summary.Path.exists", return_value=False)
+    def test_file_not_found_returns_none(self, mock_exists, mock_run) -> None:
+        """Returns None when git executable is not found."""
+        assert get_git_sha() is None
+
+    @patch(
+        "ado_git_repo_insights.utils.run_summary.subprocess.run",
+        side_effect=subprocess.TimeoutExpired(cmd="git", timeout=5),
+    )
+    @patch("ado_git_repo_insights.utils.run_summary.Path.exists", return_value=False)
+    def test_timeout_returns_none(self, mock_exists, mock_run) -> None:
+        """Returns None when git command times out."""
+        assert get_git_sha() is None
+
+    @patch(
+        "ado_git_repo_insights.utils.run_summary.subprocess.run",
+        side_effect=PermissionError("access denied"),
+    )
+    @patch("ado_git_repo_insights.utils.run_summary.Path.exists", return_value=False)
+    def test_generic_error_returns_none(self, mock_exists, mock_run) -> None:
+        """Returns None on generic errors (e.g., PermissionError)."""
+        assert get_git_sha() is None

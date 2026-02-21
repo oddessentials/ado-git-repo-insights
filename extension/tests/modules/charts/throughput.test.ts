@@ -137,5 +137,31 @@ describe("throughput module", () => {
       // First rollup has pr_count of 10
       expect(container.innerHTML).toContain('title="2025-W01: 10 PRs"');
     });
+
+    it("renders standard week format label from W-suffix", () => {
+      const rollups: Rollup[] = [{
+        week: "2025-W03",
+        pr_count: 10, cycle_time_p50: 60, cycle_time_p90: 120,
+        authors_count: 5, reviewers_count: 3,
+        by_repository: null, by_team: null,
+      }];
+
+      renderThroughputChart(container, rollups);
+
+      expect(container.innerHTML).toContain("03");
+    });
+
+    it("uses full string for non-standard week format", () => {
+      const rollups: Rollup[] = [{
+        week: "custom_format",
+        pr_count: 10, cycle_time_p50: 60, cycle_time_p90: 120,
+        authors_count: 5, reviewers_count: 3,
+        by_repository: null, by_team: null,
+      }];
+
+      renderThroughputChart(container, rollups);
+
+      expect(container.innerHTML).toContain("custom_format");
+    });
   });
 });

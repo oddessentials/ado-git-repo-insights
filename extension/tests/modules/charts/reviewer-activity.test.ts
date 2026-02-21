@@ -147,5 +147,31 @@ describe("reviewer-activity module", () => {
         renderReviewerActivity(null, createRollups(4));
       }).not.toThrow();
     });
+
+    it("renders standard week format label from W-suffix", () => {
+      const rollups: Rollup[] = [{
+        week: "2025-W03",
+        pr_count: 10, cycle_time_p50: 60, cycle_time_p90: 120,
+        authors_count: 5, reviewers_count: 8,
+        by_repository: null, by_team: null,
+      }];
+
+      renderReviewerActivity(container, rollups);
+
+      expect(container.innerHTML).toContain("W03");
+    });
+
+    it("uses full string for non-standard week format", () => {
+      const rollups: Rollup[] = [{
+        week: "custom_format",
+        pr_count: 10, cycle_time_p50: 60, cycle_time_p90: 120,
+        authors_count: 5, reviewers_count: 8,
+        by_repository: null, by_team: null,
+      }];
+
+      renderReviewerActivity(container, rollups);
+
+      expect(container.innerHTML).toContain("Wcustom_format");
+    });
   });
 });
