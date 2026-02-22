@@ -119,7 +119,7 @@ def write_json_file(path: Path, data: Any) -> None:
     """Write data to JSON file with canonical formatting."""
     path.parent.mkdir(parents=True, exist_ok=True)
     content = canonical_json(data)
-    path.write_text(content, encoding="utf-8", newline="\n")
+    path.write_bytes(content.encode("utf-8"))
 
 
 # =============================================================================
@@ -190,8 +190,8 @@ def load_weekly_rollups() -> list[WeeklyRollup]:
                 RepoMetrics(
                     name=repo_name,
                     pr_count=repo_data["pr_count"],
-                    cycle_time_p50=repo_data["cycle_time_p50"],
-                    cycle_time_p90=repo_data["cycle_time_p90"],
+                    cycle_time_p50=repo_data["cycle_time_p50"] or 0.0,
+                    cycle_time_p90=repo_data["cycle_time_p90"] or 0.0,
                 )
             )
 
@@ -200,8 +200,8 @@ def load_weekly_rollups() -> list[WeeklyRollup]:
                 week=data["week"],
                 start_date=date.fromisoformat(data["start_date"]),
                 pr_count=data["pr_count"],
-                cycle_time_p50=data["cycle_time_p50"],
-                cycle_time_p90=data["cycle_time_p90"],
+                cycle_time_p50=data["cycle_time_p50"] or 0.0,
+                cycle_time_p90=data["cycle_time_p90"] or 0.0,
                 repos=repos,
             )
         )

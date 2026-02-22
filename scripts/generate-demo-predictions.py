@@ -34,6 +34,7 @@ FORECAST_HORIZON_WEEKS = 12
 TREND_LOOKBACK_WEEKS = 8
 BASE_CONFIDENCE_INTERVAL = 0.15  # ±15%
 CONFIDENCE_WIDENING_PER_WEEK = 0.01  # +1% per week
+REVIEW_TIME_FRACTION = 0.4  # Review time is ~40% of total cycle time
 
 # Paths
 DATA_DIR = Path(__file__).parent.parent / "docs" / "data"
@@ -98,7 +99,7 @@ def write_json_file(path: Path, data: Any) -> None:
     """Write data to JSON file with canonical formatting."""
     path.parent.mkdir(parents=True, exist_ok=True)
     content = canonical_json(data)
-    path.write_text(content, encoding="utf-8", newline="\n")
+    path.write_bytes(content.encode("utf-8"))
 
 
 # =============================================================================
@@ -129,7 +130,7 @@ def load_weekly_rollups() -> list[WeeklyMetrics]:
                 week=data["week"],
                 start_date=date.fromisoformat(data["start_date"]),
                 pr_count=data["pr_count"],
-                cycle_time_p50=data["cycle_time_p50"],
+                cycle_time_p50=data["cycle_time_p50"] or 0.0,
             )
         )
 
@@ -216,15 +217,18 @@ def generate_forecast(
 
         # Project the trend forward using Decimal arithmetic
         d_week_index = Decimal(n - 1 + week_offset)
-        d_predicted = d_slope * d_week_index + d_intercept
+        d_raw_predicted = d_slope * d_week_index + d_intercept
 
-        # Ensure non-negative values
-        d_predicted = max(Decimal("0"), d_predicted)
+        # Ensure non-negative predicted values
+        d_predicted = max(Decimal("0"), d_raw_predicted)
 
-        # Calculate widening confidence interval (T036) using Decimal
+        # Calculate widening confidence interval (T036) using Decimal.
+        # Use |raw| for half-width so intervals don't collapse to [0,0,0]
+        # when the trend crosses zero (predicted clamped to 0 but raw < 0).
         d_confidence = d_base_confidence + (Decimal(week_offset) * d_widening)
-        d_lower_bound = max(Decimal("0"), d_predicted * (Decimal("1") - d_confidence))
-        d_upper_bound = d_predicted * (Decimal("1") + d_confidence)
+        d_half_width = abs(d_raw_predicted) * d_confidence
+        d_lower_bound = max(Decimal("0"), d_predicted - d_half_width)
+        d_upper_bound = d_predicted + d_half_width
 
         # Round all values to 3 decimals for canonical output
         forecasts.append(
@@ -287,8 +291,7 @@ def generate_review_time_forecast(rollups: list[WeeklyMetrics]) -> dict[str, Any
     """
     # Get last 8 weeks of cycle time P50 and derive review time
     recent = rollups[-TREND_LOOKBACK_WEEKS:]
-    # Review time is typically ~40% of total cycle time
-    historical_values = [r.cycle_time_p50 * 0.4 for r in recent]
+    historical_values = [r.cycle_time_p50 * REVIEW_TIME_FRACTION for r in recent]
     last_date = recent[-1].start_date
 
     return {

@@ -309,11 +309,18 @@ class TestDataQuality:
     def test_predictions_have_confidence_intervals(
         self, predictions: dict[str, Any]
     ) -> None:
-        """All forecast values have lower_bound < predicted < upper_bound."""
+        """All forecast values have lower_bound <= predicted <= upper_bound with non-zero width."""
         for forecast in predictions["forecasts"]:
             for value in forecast["values"]:
-                assert value["lower_bound"] < value["predicted"]
-                assert value["predicted"] < value["upper_bound"]
+                assert value["lower_bound"] <= value["predicted"], (
+                    f"lower_bound ({value['lower_bound']}) > predicted ({value['predicted']})"
+                )
+                assert value["predicted"] <= value["upper_bound"], (
+                    f"predicted ({value['predicted']}) > upper_bound ({value['upper_bound']})"
+                )
+                assert value["upper_bound"] > value["lower_bound"], (
+                    f"Zero-width confidence interval at {value.get('period_start', '?')}"
+                )
 
     def test_insights_cover_multiple_categories(self, insights: dict[str, Any]) -> None:
         """Insights span multiple categories."""

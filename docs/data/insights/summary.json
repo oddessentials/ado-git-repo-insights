@@ -5,36 +5,36 @@
     {
       "affected_entities": [
         {
-          "id": "monitoring-stack",
-          "name": "monitoring-stack",
+          "id": "etl-jobs",
+          "name": "etl-jobs",
           "type": "repository"
         }
       ],
       "category": "bottleneck",
-      "description": "The monitoring-stack repository showed high cycle time variability in 2022-W24. The P90 cycle time (131.3 hours) was 192.8x higher than P50 (0.7 hours). This suggests some PRs were getting stuck in review or blocked by dependencies.",
+      "description": "The etl-jobs repository showed high cycle time variability in 2023-W30. The P90 cycle time (3226.8 hours) was 269.1x higher than P50 (12.0 hours). This suggests some PRs were getting stuck in review or blocked by dependencies.",
       "evidence_refs": [
-        "rollup:2022-W24"
+        "rollup:2023-W30"
       ],
-      "id": "bottleneck-001-monitoring-stack",
+      "id": "bottleneck-001-etl-jobs",
       "severity": "warning",
-      "title": "High cycle time variability in monitoring-stack"
+      "title": "High cycle time variability in etl-jobs"
     },
     {
       "affected_entities": [
         {
-          "id": "data-warehouse",
-          "name": "data-warehouse",
+          "id": "model-training",
+          "name": "model-training",
           "type": "repository"
         }
       ],
       "category": "bottleneck",
-      "description": "The data-warehouse repository showed high cycle time variability in 2022-W26. The P90 cycle time (186.9 hours) was 192.2x higher than P50 (1.0 hours). This suggests some PRs were getting stuck in review or blocked by dependencies.",
+      "description": "The model-training repository showed high cycle time variability in 2022-W40. The P90 cycle time (3788.3 hours) was 219.3x higher than P50 (17.3 hours). This suggests some PRs were getting stuck in review or blocked by dependencies.",
       "evidence_refs": [
-        "rollup:2022-W26"
+        "rollup:2022-W40"
       ],
-      "id": "bottleneck-001-data-warehouse",
+      "id": "bottleneck-001-model-training",
       "severity": "warning",
-      "title": "High cycle time variability in data-warehouse"
+      "title": "High cycle time variability in model-training"
     },
     {
       "affected_entities": [
@@ -45,12 +45,12 @@
         }
       ],
       "category": "trend",
-      "description": "PR throughput increased by 25.0% during 2022-W08 to 2022-W11. Average weekly PRs went from 31.0 to 38.8. This surge could indicate a major release push or increased team capacity.",
+      "description": "PR throughput increased by 35.0% during 2025-W04 to 2025-W07. Average weekly PRs went from 76.0 to 102.5. This surge could indicate a major release push or increased team capacity.",
       "evidence_refs": [
-        "rollup:2022-W08",
-        "rollup:2022-W09",
-        "rollup:2022-W10",
-        "rollup:2022-W11"
+        "rollup:2025-W04",
+        "rollup:2025-W05",
+        "rollup:2025-W06",
+        "rollup:2025-W07"
       ],
       "id": "trend-001",
       "severity": "info",
@@ -65,12 +65,12 @@
         }
       ],
       "category": "trend",
-      "description": "PR cycle time decreased by 44.0% during 2021-W08 to 2021-W11. Median cycle time dropped from 9.8 hours to 5.4 hours. This improvement suggests review processes became more efficient during this period.",
+      "description": "PR cycle time decreased by 34.0% during 2025-W45 to 2025-W48. Median cycle time dropped from 8.9 hours to 5.9 hours. This improvement suggests review processes became more efficient during this period.",
       "evidence_refs": [
-        "rollup:2021-W08",
-        "rollup:2021-W09",
-        "rollup:2021-W10",
-        "rollup:2021-W11"
+        "rollup:2025-W45",
+        "rollup:2025-W46",
+        "rollup:2025-W47",
+        "rollup:2025-W48"
       ],
       "id": "trend-002",
       "severity": "info",
@@ -85,9 +85,9 @@
         }
       ],
       "category": "anomaly",
-      "description": "Week 2021-W11 had 41 PRs, which is 6.5 standard deviations above the 8-week rolling average of 34.8. This spike could indicate a major release, hackathon, or concentrated feature work.",
+      "description": "Week 2022-W24 had 108 PRs, which is 3.5 standard deviations above the 8-week rolling average of 99.1. This spike could indicate a major release, hackathon, or concentrated feature work.",
       "evidence_refs": [
-        "rollup:2021-W11"
+        "rollup:2022-W24"
       ],
       "id": "anomaly-001",
       "severity": "info",
@@ -102,13 +102,67 @@
         }
       ],
       "category": "anomaly",
-      "description": "Week 2023-W35 had only 40 PRs, which is 3.8 standard deviations below the 8-week rolling average of 46.6. This dip could indicate team absences, blockers, or focus on non-PR work.",
+      "description": "Week 2024-W52 had only 38 PRs, which is 9.7 standard deviations below the 8-week rolling average of 90.8. This dip could indicate team absences, blockers, or focus on non-PR work.",
       "evidence_refs": [
-        "rollup:2023-W35"
+        "rollup:2024-W52"
       ],
       "id": "anomaly-002",
       "severity": "warning",
       "title": "Low PR activity detected"
+    },
+    {
+      "affected_entities": [
+        {
+          "id": "ci-scripts",
+          "name": "ci-scripts",
+          "type": "repository"
+        }
+      ],
+      "category": "anomaly",
+      "description": "The ci-scripts repository has had no merged PRs in the last 2 weeks. This could indicate the repository is inactive, blocked, or all work is happening on long-lived branches.",
+      "evidence_refs": [
+        "rollup:2025-W51",
+        "rollup:2025-W52"
+      ],
+      "id": "anomaly-003-ci-scripts",
+      "severity": "critical",
+      "title": "No recent activity in ci-scripts"
+    },
+    {
+      "affected_entities": [
+        {
+          "id": "design-system",
+          "name": "design-system",
+          "type": "repository"
+        }
+      ],
+      "category": "anomaly",
+      "description": "The design-system repository has had no merged PRs in the last 2 weeks. This could indicate the repository is inactive, blocked, or all work is happening on long-lived branches.",
+      "evidence_refs": [
+        "rollup:2025-W51",
+        "rollup:2025-W52"
+      ],
+      "id": "anomaly-003-design-system",
+      "severity": "critical",
+      "title": "No recent activity in design-system"
+    },
+    {
+      "affected_entities": [
+        {
+          "id": "feature-store",
+          "name": "feature-store",
+          "type": "repository"
+        }
+      ],
+      "category": "anomaly",
+      "description": "The feature-store repository has had no merged PRs in the last 2 weeks. This could indicate the repository is inactive, blocked, or all work is happening on long-lived branches.",
+      "evidence_refs": [
+        "rollup:2025-W51",
+        "rollup:2025-W52"
+      ],
+      "id": "anomaly-003-feature-store",
+      "severity": "critical",
+      "title": "No recent activity in feature-store"
     }
   ],
   "is_stub": false,
