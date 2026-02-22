@@ -1034,10 +1034,8 @@ def generate_manifest(
         "features": {
             "teams": True,
             "comments": False,
-            # predictions and ai_insights are set to False until Phase 5-6 implementation
-            # These will be enabled by generate-demo-predictions.py and generate-demo-insights.py
-            "predictions": False,
-            "ai_insights": False,
+            "predictions": (OUTPUT_DIR / "predictions" / "trends.json").exists(),
+            "ai_insights": (OUTPUT_DIR / "insights" / "summary.json").exists(),
             "cross_dimensional": True,
         },
         "coverage": {
