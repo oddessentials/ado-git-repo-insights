@@ -444,15 +444,15 @@ export function applyFiltersToRollups(
  */
 export function extractSparklineData(rollups: Rollup[]): {
   prCounts: number[];
-  p50s: number[];
-  p90s: number[];
+  p50s: (number | null)[];
+  p90s: (number | null)[];
   authors: number[];
   reviewers: number[];
 } {
   return {
     prCounts: rollups.map((r) => r.pr_count ?? 0),
-    p50s: rollups.map((r) => r.cycle_time_p50 ?? 0),
-    p90s: rollups.map((r) => r.cycle_time_p90 ?? 0),
+    p50s: rollups.map((r) => r.cycle_time_p50 ?? null),
+    p90s: rollups.map((r) => r.cycle_time_p90 ?? null),
     authors: rollups.map((r) => r.authors_count ?? 0),
     reviewers: rollups.map((r) => r.reviewers_count ?? 0),
   };

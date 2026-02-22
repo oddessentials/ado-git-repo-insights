@@ -142,8 +142,8 @@ function renderMetricValues(
  */
 interface SparklineData {
   prCounts: number[];
-  p50s: number[];
-  p90s: number[];
+  p50s: (number | null)[];
+  p90s: (number | null)[];
   authors: number[];
   reviewers: number[];
 }

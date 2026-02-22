@@ -59,19 +59,26 @@ export function renderDelta(
 /**
  * Render a sparkline SVG from data points.
  * @param element - Target element (or null for no-op)
- * @param values - Array of numeric values (requires >= 2 points)
+ * @param values - Array of numeric values (requires >= 2 non-null points)
  */
 export function renderSparkline(
   element: HTMLElement | null,
-  values: number[],
+  values: (number | null)[],
 ): void {
-  if (!element || !values || values.length < 2) {
+  if (!element || !values) {
     if (element) clearElement(element);
     return;
   }
 
-  // Take last 8 values for sparkline
-  const data = values.slice(-8);
+  // Filter out null values (e.g. weeks with insufficient data for cycle times)
+  // then take the last 8 non-null values for the sparkline
+  const nonNull = values.filter((v): v is number => v !== null);
+  if (nonNull.length < 2) {
+    clearElement(element);
+    return;
+  }
+
+  const data = nonNull.slice(-8);
   const width = 60;
   const height = 24;
   const padding = 2;

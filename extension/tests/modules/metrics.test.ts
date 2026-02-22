@@ -321,13 +321,14 @@ describe("metrics module", () => {
       expect(result.reviewers).toEqual([3, 4]);
     });
 
-    it("handles null values as zero", () => {
+    it("preserves null cycle times instead of coercing to zero", () => {
       const rollups = [{ week: "W1" } as Rollup];
 
       const result = extractSparklineData(rollups);
 
       expect(result.prCounts).toEqual([0]);
-      expect(result.p50s).toEqual([0]);
+      expect(result.p50s).toEqual([null]);
+      expect(result.p90s).toEqual([null]);
     });
   });
 

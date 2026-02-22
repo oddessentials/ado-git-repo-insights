@@ -3123,8 +3123,8 @@ var PRInsightsDashboard = (() => {
   function extractSparklineData(rollups) {
     return {
       prCounts: rollups.map((r) => r.pr_count ?? 0),
-      p50s: rollups.map((r) => r.cycle_time_p50 ?? 0),
-      p90s: rollups.map((r) => r.cycle_time_p90 ?? 0),
+      p50s: rollups.map((r) => r.cycle_time_p50 ?? null),
+      p90s: rollups.map((r) => r.cycle_time_p90 ?? null),
       authors: rollups.map((r) => r.authors_count ?? 0),
       reviewers: rollups.map((r) => r.reviewers_count ?? 0)
     };
@@ -4196,11 +4196,16 @@ var PRInsightsDashboard = (() => {
     );
   }
   function renderSparkline(element, values) {
-    if (!element || !values || values.length < 2) {
+    if (!element || !values) {
       if (element) clearElement(element);
       return;
     }
-    const data = values.slice(-8);
+    const nonNull = values.filter((v) => v !== null);
+    if (nonNull.length < 2) {
+      clearElement(element);
+      return;
+    }
+    const data = nonNull.slice(-8);
     const width = 60;
     const height = 24;
     const padding = 2;

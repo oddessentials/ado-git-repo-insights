@@ -198,6 +198,31 @@ describe("summary-cards module", () => {
       );
     });
 
+    it("handles all-null cycle times gracefully (cross-dimensional low traffic)", () => {
+      const containers = createContainers();
+      const rollups = Array.from({ length: 8 }, (_, i) => ({
+        week: `2025-W${(i + 1).toString().padStart(2, "0")}`,
+        pr_count: 2, // Below threshold → null cycle times
+        cycle_time_p50: null as number | null,
+        cycle_time_p90: null as number | null,
+        authors_count: 1,
+        reviewers_count: 1,
+        by_repository: null,
+        by_team: null,
+      }));
+
+      renderSummaryCards({ rollups, containers });
+
+      // Summary card should show "-" not "0"
+      expect(containers.cycleP50!.textContent).toBe("-");
+      expect(containers.cycleP90!.textContent).toBe("-");
+      // Sparklines should be empty (no misleading zero line)
+      expect(containers.cycleP50Sparkline!.innerHTML).toBe("");
+      expect(containers.cycleP90Sparkline!.innerHTML).toBe("");
+      // PR sparkline should still render
+      expect(containers.totalPrsSparkline!.innerHTML).toContain("<svg");
+    });
+
     it("shows inverse delta for cycle times (lower is better)", () => {
       const containers = createContainers();
       const rollups = createRollups(4);
