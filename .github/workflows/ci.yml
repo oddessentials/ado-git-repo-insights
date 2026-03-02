@@ -1034,25 +1034,25 @@ jobs:
       # Job depends on [test, extension-tests] so artifacts must exist
       # Artifact names reference workflow-level env vars (single source of truth)
       - name: Download Python coverage
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           name: ${{ env.ARTIFACT_PYTHON_COVERAGE }}
           path: ./artifacts/python
 
       - name: Download Python test results
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           name: ${{ env.ARTIFACT_PYTHON_TESTS }}
           path: ./artifacts/python
 
       - name: Download TypeScript coverage
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           name: ${{ env.ARTIFACT_TS_COVERAGE }}
           path: ./artifacts/typescript
 
       - name: Download TypeScript test results
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           name: ${{ env.ARTIFACT_TS_TESTS }}
           path: ./artifacts/typescript
