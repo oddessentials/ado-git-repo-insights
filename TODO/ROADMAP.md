@@ -8,10 +8,10 @@
 | # | Feature | TODO File | Size | Est. Days | Status | Hard Blockers |
 |---|---------|-----------|------|-----------|--------|---------------|
 | 1 | Author & Contributor Filters | AUTHOR_CONTRIBUTOR_FILTERS.md | M | 5-7 | Ready | None |
-| 2 | Reviewer Filters | TEAM_REVIEWER_FILTERS.md (reviewer section) | L | 7-9 | Ready (partial) | B-04, B-05, B-06 |
+| 2 | Reviewer Filters | TEAM_REVIEWER_FILTERS.md (reviewer section) | L | 7-9 | Ready (decisioned in `specs/032-roadmap-blocker-resolution/`) | B-04, B-05, B-06 |
 | 3 | Author x Repo Cross-Dim (T020/T021) | AUTHOR_CONTRIBUTOR_FILTERS.md (deferred section) | S | 2-3 | Blocked on #1 | Author slices must exist |
-| 4 | Comments Pipeline Completion | COMMENTS.md | M-L | 6-10 | Ready | None for Phases 1-2 |
-| 5 | GitHub Platform Support | GITHUB.md | XL | 12-18 | Blocked on all above | B-01, B-02, B-03 |
+| 4 | Comments Pipeline Completion | COMMENTS.md | M-L | 6-10 | Ready (decisioned in `specs/032-roadmap-blocker-resolution/`) | None for Phases 1-2 |
+| 5 | GitHub Platform Support | GITHUB.md | XL | 12-18 | Explicitly deferred until #1-#4 complete (`specs/032-roadmap-blocker-resolution/`) | B-01, B-02, B-03 |
 
 **Total estimated effort: 32-47 days (single engineer) | 24-30 days (two engineers)**
 
@@ -67,9 +67,9 @@
 Engineer A                            Engineer B
 -------------------------------------+--------------------------------------
 Week 1-2:  #1 Author Filters (5-7d)  | Week 1-2:  #4 Comments Pipeline (6-10d)
-Week 2-3:  #3 Author x Repo (2-3d)   | Week 2-3:  [available]
-Week 3-5:  #2 Reviewer Filters (7-9d) | Week 3-5:  #5 GitHub 5.1 (2-3d)
-Week 5-8:  #5 GitHub 5.2-5.3 (4-6d)  | Week 5-8:  #5 GitHub 5.4-5.5 (4-6d)
+Week 2-3:  #3 Author x Repo (2-3d)   | Week 2-3:  #2 Reviewer Filters prep / comments polish
+Week 3-5:  #2 Reviewer Filters (7-9d) | Week 3-5:  #2 Reviewer frontend/tests or #4 follow-through
+Week 5-8:  #5 GitHub 5.1-5.3 (4-6d)  | Week 5-8:  #5 GitHub 5.4-5.5 (4-6d)
 -------------------------------------+--------------------------------------
 Total: ~24-30 days
 ```
@@ -102,9 +102,9 @@ Total:                                      32-47 days
 
 | ID | Feature | Blocker | Resolution |
 |----|---------|---------|------------|
-| B-04 | Reviewer Filters | "Avg Time to Review" requires `reviewed_at` timestamp -- column missing from `reviewers` table | Schema migration + re-extraction plan. Consider deferring this metric to Phase 2. |
-| B-05 | Reviewer Filters | "Approval Rate" has no formula definition | Product decision: `count(vote==10) / count(all_reviews)` per reviewer? per week? |
-| B-06 | Reviewer Filters | `BreakdownEntry` type incompatible with reviewer metrics (cycle_time N/A, new `reviews_count` field) | Type design: extend BreakdownEntry with optional fields or create ReviewerBreakdownEntry |
+| B-04 | Reviewer Filters | "Avg Time to Review" requires `reviewed_at` timestamp -- column missing from `reviewers` table | Resolved: defer review latency to Reviewer Phase 2 until schema/storage add `reviewed_at` (`specs/032-roadmap-blocker-resolution/`) |
+| B-05 | Reviewer Filters | "Approval Rate" has no formula definition | Resolved: `approved_prs / reviewed_prs` using final stored reviewer outcome per PR (`specs/032-roadmap-blocker-resolution/`) |
+| B-06 | Reviewer Filters | `BreakdownEntry` type incompatible with reviewer metrics (cycle_time N/A, new `reviews_count` field) | Resolved: introduce dedicated `ReviewerBreakdownEntry` (`specs/032-roadmap-blocker-resolution/`) |
 
 ### MEDIUM (prevents test writing for specific scenarios)
 
@@ -114,10 +114,10 @@ Total:                                      32-47 days
 | B-08 | Author Filters | Scalability UX for 200+ authors (search/autocomplete vs multi-select) | UX design decision |
 | B-09 | Reviewer Filters | Reviewer + Repo combined filter semantics undefined | Product decision |
 | B-10 | Reviewer Filters | Multi-reviewer overlap not explicitly addressed (PR appears in all reviewer slices) | Document as intentional (same as team overlap) |
-| B-11 | Comments | Dashboard visualization has no spec (metrics, layout, chart types) | Wireframe / metric list needed |
+| B-11 | Comments | Dashboard visualization has no spec (metrics, layout, chart types) | Resolved: metrics-first comments dashboard contract defined in `specs/032-roadmap-blocker-resolution/` |
 | B-12 | Comments | Phase 3 (sentiment, engagement) is research, not implementation -- should be a separate TODO | Reclassify or remove |
 | B-13 | GitHub | Vote mapping (CHANGES_REQUESTED -> -5 vs -10) is a product decision | User validation |
-| B-14 | GitHub | GraphQL vs REST extraction strategy not finalized | Architecture decision |
+| B-14 | GitHub | GraphQL vs REST extraction strategy not finalized | Resolved for v1: REST-first, GraphQL deferred; implementation still last (`specs/032-roadmap-blocker-resolution/`) |
 
 ---
 
@@ -160,10 +160,10 @@ Total:                                      32-47 days
 - New `reviews_count` metric not in existing `BreakdownEntry` type
 
 **QA flags:**
-- B-04: "Avg Time to Review" requires schema migration -- consider deferring to Phase 2
-- B-05: Approval rate formula undefined
-- B-06: BreakdownEntry type needs design decision
-- Reviewer metric shape differs fundamentally from author/team metrics
+- B-04 resolved: review latency deferred to Reviewer Phase 2 until `reviewed_at` exists
+- B-05 resolved: approval rate = `approved_prs / reviewed_prs` using final stored reviewer outcome per PR
+- B-06 resolved: use dedicated `ReviewerBreakdownEntry`
+- Reviewer metric shape differs fundamentally from author/team metrics and should remain a separate contract
 
 ---
 
@@ -191,7 +191,7 @@ Total:                                      32-47 days
 **Phase 3 (sentiment, engagement scoring) should be deferred to a separate TODO -- these are research tasks, not implementation.**
 
 **QA flags:**
-- Dashboard visualization has no spec (B-11) -- needs wireframe before Phase 2
+- B-11 resolved: comments Phase 1 is metrics-first (summary cards, trend, repo breakdown, coverage/capped state)
 - Forward-compatibility risk: ADO thread resolution status model may need redesign for GitHub
 
 ---

@@ -1,6 +1,7 @@
 # PR Comment Collection Feature - Implementation Status
 
 > Last reviewed: 2026-02-05
+> Comment dashboard blocker decision (B-11) is resolved in `specs/032-roadmap-blocker-resolution/`.
 
 ## Current State: Experimental / Backend-Complete
 
@@ -61,7 +62,7 @@ The PR comment extraction feature has a **complete backend implementation** but 
 - **Location:** `extension/ui/`
 - **Issue:** No UI components consume comment data
 - **Impact:** Extracted data provides no user-facing value
-- **Fix:** Implement comment metrics panel in dashboard
+- **Fix:** Implement a metrics-first comment panel in dashboard (summary cards, weekly trend, repository breakdown, coverage/capped status)
 
 ### 4. Documentation
 - **Location:** `docs/reference/cli-reference.md`

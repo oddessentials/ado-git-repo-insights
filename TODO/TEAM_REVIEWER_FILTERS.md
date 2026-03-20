@@ -1,6 +1,7 @@
 # Team & Reviewer Filter Implementation Status
 
 > Last reviewed: 2026-02-05
+> Reviewer blocker decisions (B-04, B-05, B-06) are resolved in `specs/032-roadmap-blocker-resolution/`.
 
 ## Summary
 
@@ -212,6 +213,11 @@ if (filters.reviewers.length > 0 && rollup.by_reviewer) {
 | Avg Time to Review | ⚠️ Medium | Requires review timestamp data |
 | Cycle Time | ❌ N/A | PR-level metric, not reviewer-level |
 | Approval Rate | ⚠️ Medium | Requires vote breakdown |
+
+Phase 1 decisions:
+- Use a dedicated `ReviewerBreakdownEntry`
+- Define `approval_rate = approved_prs / reviewed_prs` using the final stored reviewer outcome per PR
+- Defer review-latency metrics until a persisted `reviewed_at` field exists
 
 ### Scalability Concern
 

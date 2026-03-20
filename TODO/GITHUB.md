@@ -1,6 +1,7 @@
 # GitHub Platform Support
 
 > Last reviewed: 2026-02-11 (revised with external verification and devil's advocate review)
+> Sequencing and extraction-strategy blocker decision (B-14) is resolved in `specs/032-roadmap-blocker-resolution/`: GitHub remains last, REST-first for v1, GraphQL deferred unless a concrete REST gap appears.
 
 ## Executive Summary
 
