@@ -118,7 +118,7 @@ Object.entries(timings).forEach(([key, value]) => {
 
 // Update metadata
 baselines.updated = new Date().toISOString();
-baselines.updatedBy = process.env.USER || process.env.USERNAME || "manual";
+baselines.updatedBy = "baseline-update";
 
 // Write updated baselines
 fs.writeFileSync(baselinesPath, JSON.stringify(baselines, null, 2) + "\n");

@@ -18,15 +18,12 @@ Requirements:
 
 from __future__ import annotations
 
-import json
 import math
 import random
 import sys
-import time
 import uuid
 from dataclasses import dataclass
-from datetime import date, datetime, timedelta, timezone
-from decimal import ROUND_HALF_UP, Decimal
+from datetime import date, timedelta
 from pathlib import Path
 from typing import Any
 
@@ -36,6 +33,11 @@ if str(_src_path) not in sys.path:
     sys.path.insert(0, str(_src_path))
 
 from ado_git_repo_insights.transform.aggregators import AGGREGATES_SCHEMA_VERSION  # noqa: E402, I001
+from demo_generation_common import (  # noqa: E402
+    FIXED_GENERATED_AT,
+    discover_demo_feature_flags,
+    write_json_file,
+)
 
 # =============================================================================
 # Configuration Constants
@@ -159,76 +161,6 @@ AUTHOR_RATIO = 0.3  # Root-level: ~30% of weekly PR count
 REVIEWER_RATIO = 0.45  # Root-level: ~45% of weekly PR count
 SUBLINEAR_EXPONENT = 0.6  # Sub-linear scaling for repo/team/team-repo counts
 TEAM_AFFINITY_PRIMARY_SHARE = 0.65  # 65% of team PRs go to primary repos
-
-
-# =============================================================================
-# Canonical JSON Utilities (T005)
-# =============================================================================
-
-
-def round_float(value: float, decimals: int = 3) -> float:
-    """Round float to specified decimal places using HALF_UP rounding."""
-    d = Decimal(str(value)).quantize(Decimal(10) ** -decimals, rounding=ROUND_HALF_UP)
-    return float(d)
-
-
-def canonical_json(data: Any, indent: int = 2) -> str:
-    """
-    Generate canonical JSON with:
-    - Sorted keys
-    - 3-decimal floats
-    - LF newlines only
-    - Trailing newline
-    """
-
-    def default_serializer(obj: Any) -> Any:
-        if isinstance(obj, datetime):
-            return obj.strftime("%Y-%m-%dT%H:%M:%SZ")
-        if isinstance(obj, date):
-            return obj.isoformat()
-        if isinstance(obj, uuid.UUID):
-            return str(obj)
-        raise TypeError(f"Object of type {type(obj).__name__} is not JSON serializable")
-
-    # Pre-process floats to 3 decimal places
-    def process_floats(obj: Any) -> Any:
-        if isinstance(obj, float):
-            return round_float(obj)
-        if isinstance(obj, dict):
-            return {k: process_floats(v) for k, v in obj.items()}
-        if isinstance(obj, list):
-            return [process_floats(item) for item in obj]
-        return obj
-
-    processed = process_floats(data)
-    json_str = json.dumps(
-        processed,
-        indent=indent,
-        sort_keys=True,
-        default=default_serializer,
-        ensure_ascii=False,
-    )
-    # Ensure LF newlines and trailing newline
-    return json_str.replace("\r\n", "\n") + "\n"
-
-
-def write_json(path: Path, data: Any, *, _max_retries: int = 3) -> None:
-    """Write data to JSON file with canonical formatting.
-
-    Retries on transient OS errors (e.g. Windows file locking from antivirus).
-    """
-    path.parent.mkdir(parents=True, exist_ok=True)
-    content = canonical_json(data)
-    encoded = content.encode("utf-8")
-    for attempt in range(_max_retries):
-        try:
-            path.write_bytes(encoded)
-            return
-        except OSError:
-            if attempt < _max_retries - 1:
-                time.sleep(0.1 * (attempt + 1))
-            else:
-                raise
 
 
 # =============================================================================
@@ -1013,16 +945,13 @@ def generate_manifest(
     max_date = rollups[-1].end_date if rollups else date(END_YEAR, 12, 31)
     total_prs = sum(r.pr_count for r in rollups)
 
-    # Use fixed timestamp for determinism
-    generated_at = datetime(2026, 1, 30, 12, 0, 0, tzinfo=timezone.utc)
-
     return {
         "manifest_schema_version": 1,
         "dataset_schema_version": 1,
         "aggregates_schema_version": AGGREGATES_SCHEMA_VERSION,
         "predictions_schema_version": 1,
         "insights_schema_version": 1,
-        "generated_at": generated_at,
+        "generated_at": FIXED_GENERATED_AT,
         "run_id": "demo-static",
         "defaults": {
             "default_date_range_days": 90,
@@ -1034,9 +963,7 @@ def generate_manifest(
         "features": {
             "teams": True,
             "comments": False,
-            "predictions": (OUTPUT_DIR / "predictions" / "trends.json").exists(),
-            "ai_insights": (OUTPUT_DIR / "insights" / "summary.json").exists(),
-            "cross_dimensional": True,
+            **discover_demo_feature_flags(OUTPUT_DIR),
         },
         "coverage": {
             "total_prs": total_prs,
@@ -1105,7 +1032,7 @@ def main() -> int:
         organizations, projects, repositories, users, teams
     )
     dimensions_path = OUTPUT_DIR / "aggregates" / "dimensions.json"
-    write_json(dimensions_path, dimensions)
+    write_json_file(dimensions_path, dimensions, max_retries=3)
     print(f"  Written: {dimensions_path}")
 
     # Generate weekly rollups
@@ -1128,7 +1055,11 @@ def main() -> int:
             "by_team": rollup.by_team,
             "by_team_and_repo": rollup.by_team_and_repo,
         }
-        write_json(rollups_dir / f"{rollup.week}.json", rollup_data)
+        write_json_file(
+            rollups_dir / f"{rollup.week}.json",
+            rollup_data,
+            max_retries=3,
+        )
     print(f"  Written: {len(rollups)} files to {rollups_dir}")
 
     # Generate distributions
@@ -1146,14 +1077,18 @@ def main() -> int:
             "cycle_time_buckets": dist.cycle_time_buckets,
             "prs_by_month": dist.prs_by_month,
         }
-        write_json(distributions_dir / f"{dist.year}.json", dist_data)
+        write_json_file(
+            distributions_dir / f"{dist.year}.json",
+            dist_data,
+            max_retries=3,
+        )
     print(f"  Written: {len(distributions)} files to {distributions_dir}")
 
     # Generate manifest
     print("\n[5/6] Generating dataset-manifest.json...")
     manifest = generate_manifest(rollups, distributions)
     manifest_path = OUTPUT_DIR / "dataset-manifest.json"
-    write_json(manifest_path, manifest)
+    write_json_file(manifest_path, manifest, max_retries=3)
     print(f"  Written: {manifest_path}")
 
     # Summary

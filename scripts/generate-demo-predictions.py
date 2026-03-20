@@ -20,10 +20,12 @@ from __future__ import annotations
 import json
 import sys
 from dataclasses import dataclass
-from datetime import date, datetime, timedelta, timezone
-from decimal import ROUND_HALF_UP, Decimal
+from datetime import date, timedelta
+from decimal import Decimal
 from pathlib import Path
 from typing import Any
+
+from demo_generation_common import FIXED_GENERATED_AT, round_float, write_json_file
 
 # =============================================================================
 # Configuration Constants
@@ -41,67 +43,8 @@ DATA_DIR = Path(__file__).parent.parent / "docs" / "data"
 ROLLUPS_DIR = DATA_DIR / "aggregates" / "weekly_rollups"
 PREDICTIONS_DIR = DATA_DIR / "predictions"
 OUTPUT_FILE = PREDICTIONS_DIR / "trends.json"
-MANIFEST_FILE = DATA_DIR / "dataset-manifest.json"
-
 # Schema version
 PREDICTIONS_SCHEMA_VERSION = 1
-
-
-# =============================================================================
-# Canonical JSON Utilities (matching generate-demo-data.py)
-# =============================================================================
-
-
-def round_float(value: float, decimals: int = 3) -> float:
-    """Round float to specified decimal places using HALF_UP rounding."""
-    d = Decimal(str(value)).quantize(Decimal(10) ** -decimals, rounding=ROUND_HALF_UP)
-    return float(d)
-
-
-def canonical_json(data: Any, indent: int = 2) -> str:
-    """
-    Generate canonical JSON with:
-    - Sorted keys
-    - 3-decimal floats
-    - LF newlines only
-    - Trailing newline
-    """
-
-    def default_serializer(obj: Any) -> Any:
-        if isinstance(obj, datetime):
-            return obj.strftime("%Y-%m-%dT%H:%M:%SZ")
-        if isinstance(obj, date):
-            return obj.isoformat()
-        raise TypeError(f"Object of type {type(obj).__name__} is not JSON serializable")
-
-    # Pre-process floats to 3 decimal places
-    def process_floats(obj: Any) -> Any:
-        if isinstance(obj, float):
-            return round_float(obj)
-        if isinstance(obj, dict):
-            return {k: process_floats(v) for k, v in obj.items()}
-        if isinstance(obj, list):
-            return [process_floats(item) for item in obj]
-        return obj
-
-    processed = process_floats(data)
-    json_str = json.dumps(
-        processed, sort_keys=True, indent=indent, default=default_serializer
-    )
-    # Ensure LF line endings and trailing newline
-    json_str = json_str.replace("\r\n", "\n")
-    if not json_str.endswith("\n"):
-        json_str += "\n"
-    return json_str
-
-
-def write_json_file(path: Path, data: Any) -> None:
-    """Write data to JSON file with canonical formatting."""
-    path.parent.mkdir(parents=True, exist_ok=True)
-    content = canonical_json(data)
-    path.write_bytes(content.encode("utf-8"))
-
-
 # =============================================================================
 # Data Loading
 # =============================================================================
@@ -305,22 +248,6 @@ def generate_review_time_forecast(rollups: list[WeeklyMetrics]) -> dict[str, Any
 
 
 # =============================================================================
-# Manifest Update (T038)
-# =============================================================================
-
-
-def update_manifest_predictions_flag() -> None:
-    """Update dataset-manifest.json to set features.predictions=true."""
-    with open(MANIFEST_FILE, encoding="utf-8") as f:
-        manifest = json.load(f)
-
-    manifest["features"]["predictions"] = True
-
-    write_json_file(MANIFEST_FILE, manifest)
-    print(f"  Updated: {MANIFEST_FILE}")
-
-
-# =============================================================================
 # Main Generation
 # =============================================================================
 
@@ -357,10 +284,10 @@ def main() -> int:
         print(f"    - {f['metric']}: {f['horizon_weeks']} weeks")
 
     # Build predictions document (T037)
-    print("\n[3/4] Writing predictions/trends.json...")
+    print("\n[3/3] Writing predictions/trends.json...")
     predictions = {
         "schema_version": PREDICTIONS_SCHEMA_VERSION,
-        "generated_at": datetime(2026, 1, 30, 12, 0, 0, tzinfo=timezone.utc),
+        "generated_at": FIXED_GENERATED_AT,
         "generated_by": "generate-demo-predictions.py",
         "is_stub": False,
         "forecasts": forecasts,
@@ -368,10 +295,6 @@ def main() -> int:
 
     write_json_file(OUTPUT_FILE, predictions)
     print(f"  Written: {OUTPUT_FILE}")
-
-    # Update manifest (T038)
-    print("\n[4/4] Updating dataset-manifest.json...")
-    update_manifest_predictions_flag()
 
     print("\nPredictions generation complete!")
     return 0

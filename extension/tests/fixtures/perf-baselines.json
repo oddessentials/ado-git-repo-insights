@@ -1,7 +1,7 @@
 {
   "version": 1,
   "updated": "2026-01-15T13:54:29.812Z",
-  "updatedBy": "petep",
+  "updatedBy": "baseline-update",
   "note": "Baseline metrics for regression detection. Only update via npm run perf:update-baseline from main branch.",
   "metrics": {
     "1000pr_fixture_gen_ms": 335,

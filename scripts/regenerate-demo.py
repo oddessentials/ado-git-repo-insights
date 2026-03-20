@@ -16,7 +16,11 @@ import subprocess
 import sys
 from pathlib import Path
 
+from demo_generation_common import refresh_demo_manifest_features
+
 _scripts_dir = Path(__file__).parent
+_data_dir = _scripts_dir.parent / "docs" / "data"
+_manifest_path = _data_dir / "dataset-manifest.json"
 
 
 def main() -> int:
@@ -39,6 +43,9 @@ def main() -> int:
         if result.returncode != 0:
             print(f"\nFAILED: {script_name} exited with code {result.returncode}")
             return result.returncode
+
+    refresh_demo_manifest_features(_manifest_path, _data_dir)
+    print("\nRefreshed dataset-manifest.json feature flags.")
 
     print(f"\n{'=' * 60}")
     print("All generators completed successfully.")

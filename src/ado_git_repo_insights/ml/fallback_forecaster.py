@@ -25,6 +25,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any, cast
 
 import numpy as np
+import numpy.typing as npt
 import pandas as pd
 
 from .date_utils import align_to_monday
@@ -33,6 +34,8 @@ if TYPE_CHECKING:
     from ..persistence.database import DatabaseManager
 
 logger = logging.getLogger(__name__)
+
+FloatArray = npt.NDArray[np.float64]
 
 # Schema version (locked, matches ProphetForecaster)
 PREDICTIONS_SCHEMA_VERSION = 1
@@ -116,7 +119,7 @@ def assess_data_quality(weeks_available: int) -> DataQualityAssessment:
         )
 
 
-def detect_constant_series(values: np.ndarray) -> bool:
+def detect_constant_series(values: FloatArray) -> bool:
     """Detect if all values in the series are identical (zero variance).
 
     Uses np.ptp (peak-to-peak range) which is numerically stable and
@@ -139,10 +142,10 @@ def detect_constant_series(values: np.ndarray) -> bool:
 
 
 def safe_clip_outliers(
-    values: np.ndarray,
+    values: FloatArray,
     std_threshold: float = OUTLIER_STD_THRESHOLD,
     min_n: int = MIN_WEEKS_REQUIRED,
-) -> tuple[np.ndarray, str | None, bool]:
+) -> tuple[FloatArray, str | None, bool]:
     """Clip outliers with safety checks for edge cases.
 
     Filters to finite values first, requires N≥min_n for stats computation,
@@ -194,8 +197,8 @@ def safe_clip_outliers(
 
 
 def clip_outliers(
-    values: np.ndarray, std_threshold: float = OUTLIER_STD_THRESHOLD
-) -> np.ndarray:
+    values: FloatArray, std_threshold: float = OUTLIER_STD_THRESHOLD
+) -> FloatArray:
     """Clip outliers beyond N standard deviations from mean.
 
     Legacy wrapper for backward compatibility. Use safe_clip_outliers
@@ -220,7 +223,7 @@ def clip_outliers(
     lower_bound = mean - std_threshold * std
     upper_bound = mean + std_threshold * std
 
-    result: np.ndarray = np.clip(values, lower_bound, upper_bound)
+    result: FloatArray = np.clip(values, lower_bound, upper_bound)
     return result
 
 
@@ -462,7 +465,7 @@ class FallbackForecaster:
 
         # Check for constant series before regression
         # Uses np.ptp (peak-to-peak range) - returns 0 for constant series
-        finite_values: np.ndarray = np.asarray(y_values[finite_mask])
+        finite_values: FloatArray = np.asarray(y_values[finite_mask])
         if detect_constant_series(finite_values):
             # Return constant forecast with zero confidence band
             constant_value = round(float(finite_values[0]), 2)
@@ -473,7 +476,7 @@ class FallbackForecaster:
         # Apply safe outlier clipping with status tracking
         # Ensure y_values is a plain ndarray for safe_clip_outliers
         reason_code: str | None = None
-        y_values_arr: np.ndarray = np.asarray(y_values)
+        y_values_arr: FloatArray = np.asarray(y_values)
         y_values_arr, clip_reason, was_clipped = safe_clip_outliers(y_values_arr)
         if clip_reason == REASON_STATS_UNDEFINED:
             # Log but continue - we'll try regression anyway
@@ -482,7 +485,7 @@ class FallbackForecaster:
 
         # Filter to finite values after clipping
         valid_mask = np.isfinite(y_values_arr)
-        y_final: np.ndarray = np.asarray(y_values_arr[valid_mask])
+        y_final: FloatArray = np.asarray(y_values_arr[valid_mask])
 
         if len(y_final) < MIN_WEEKS_REQUIRED:
             logger.warning(

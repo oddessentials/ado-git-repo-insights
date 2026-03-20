@@ -326,7 +326,7 @@ def is_on_path(directory: Path) -> bool:
 export PATH="$PATH:/home/user/.local/bin"
 
 # For PowerShell
-$env:PATH = "$env:PATH;C:\Users\user\AppData\Roaming\Python\Python312\Scripts"
+$env:PATH = "$env:PATH;$(Join-Path $env:APPDATA 'Python\\Python312\\Scripts')"
 ```
 
 **No header, no footer, just the command.**

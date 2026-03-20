@@ -31,10 +31,10 @@ import json
 import math
 import sys
 from dataclasses import dataclass, field
-from datetime import date, datetime, timezone
-from decimal import ROUND_HALF_UP, Decimal
+from datetime import date
 from pathlib import Path
-from typing import Any
+
+from demo_generation_common import FIXED_GENERATED_AT, round_float, write_json_file
 
 # =============================================================================
 # Configuration Constants
@@ -61,67 +61,8 @@ DATA_DIR = Path(__file__).parent.parent / "docs" / "data"
 ROLLUPS_DIR = DATA_DIR / "aggregates" / "weekly_rollups"
 INSIGHTS_DIR = DATA_DIR / "insights"
 OUTPUT_FILE = INSIGHTS_DIR / "summary.json"
-MANIFEST_FILE = DATA_DIR / "dataset-manifest.json"
-
 # Schema version
 INSIGHTS_SCHEMA_VERSION = 1
-
-
-# =============================================================================
-# Canonical JSON Utilities (matching generate-demo-data.py)
-# =============================================================================
-
-
-def round_float(value: float, decimals: int = 3) -> float:
-    """Round float to specified decimal places using HALF_UP rounding."""
-    d = Decimal(str(value)).quantize(Decimal(10) ** -decimals, rounding=ROUND_HALF_UP)
-    return float(d)
-
-
-def canonical_json(data: Any, indent: int = 2) -> str:
-    """
-    Generate canonical JSON with:
-    - Sorted keys
-    - 3-decimal floats
-    - LF newlines only
-    - Trailing newline
-    """
-
-    def default_serializer(obj: Any) -> Any:
-        if isinstance(obj, datetime):
-            return obj.strftime("%Y-%m-%dT%H:%M:%SZ")
-        if isinstance(obj, date):
-            return obj.isoformat()
-        raise TypeError(f"Object of type {type(obj).__name__} is not JSON serializable")
-
-    # Pre-process floats to 3 decimal places
-    def process_floats(obj: Any) -> Any:
-        if isinstance(obj, float):
-            return round_float(obj)
-        if isinstance(obj, dict):
-            return {k: process_floats(v) for k, v in obj.items()}
-        if isinstance(obj, list):
-            return [process_floats(item) for item in obj]
-        return obj
-
-    processed = process_floats(data)
-    json_str = json.dumps(
-        processed, sort_keys=True, indent=indent, default=default_serializer
-    )
-    # Ensure LF line endings and trailing newline
-    json_str = json_str.replace("\r\n", "\n")
-    if not json_str.endswith("\n"):
-        json_str += "\n"
-    return json_str
-
-
-def write_json_file(path: Path, data: Any) -> None:
-    """Write data to JSON file with canonical formatting."""
-    path.parent.mkdir(parents=True, exist_ok=True)
-    content = canonical_json(data)
-    path.write_bytes(content.encode("utf-8"))
-
-
 # =============================================================================
 # Data Structures
 # =============================================================================
@@ -604,22 +545,6 @@ def detect_anomaly_003(rollups: list[WeeklyRollup]) -> list[Insight]:
 
 
 # =============================================================================
-# Manifest Update (T050)
-# =============================================================================
-
-
-def update_manifest_insights_flag() -> None:
-    """Update dataset-manifest.json to set features.ai_insights=true."""
-    with open(MANIFEST_FILE, encoding="utf-8") as f:
-        manifest = json.load(f)
-
-    manifest["features"]["ai_insights"] = True
-
-    write_json_file(MANIFEST_FILE, manifest)
-    print(f"  Updated: {MANIFEST_FILE}")
-
-
-# =============================================================================
 # Main Generation
 # =============================================================================
 
@@ -681,10 +606,10 @@ def main() -> int:
         print(f"  WARNING: Only {len(all_insights)} insights generated (target: 5+)")
 
     # Build insights document
-    print("\n[3/4] Writing insights/summary.json...")
+    print("\n[3/3] Writing insights/summary.json...")
     insights_data = {
         "schema_version": INSIGHTS_SCHEMA_VERSION,
-        "generated_at": datetime(2026, 1, 30, 12, 0, 0, tzinfo=timezone.utc),
+        "generated_at": FIXED_GENERATED_AT,
         "generated_by": "generate-demo-insights.py",
         "is_stub": False,
         "insights": [
@@ -706,10 +631,6 @@ def main() -> int:
 
     write_json_file(OUTPUT_FILE, insights_data)
     print(f"  Written: {OUTPUT_FILE}")
-
-    # Update manifest (T050)
-    print("\n[4/4] Updating dataset-manifest.json...")
-    update_manifest_insights_flag()
 
     print("\nInsights generation complete!")
 

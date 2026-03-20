@@ -8,6 +8,7 @@ This ensures deterministic generation with seed=42.
 from __future__ import annotations
 
 import hashlib
+import json
 import subprocess
 import sys
 from pathlib import Path
@@ -74,6 +75,13 @@ class TestDeterministicRegeneration:
 
         # Capture new hashes
         new_hashes = compute_directory_hashes(DOCS_DATA)
+
+        manifest = json.loads(
+            (DOCS_DATA / "dataset-manifest.json").read_text(encoding="utf-8")
+        )
+        assert manifest["features"]["predictions"] is True
+        assert manifest["features"]["ai_insights"] is True
+        assert manifest["features"]["cross_dimensional"] is True
 
         # Compare all files
         assert original_hashes == new_hashes, (
