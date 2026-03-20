@@ -2039,14 +2039,26 @@ class TestTeamRepoSlicing:
         )
         assert total_entries <= 5, f"Truncated entries ({total_entries}) must be <= 5"
 
-        # 3. Lowest-pr_count entries should be removed; highest retained.
+        # 3. Lowest-pr_count entries should be removed entry-by-entry.
         # The top-5 entries by pr_count are: (Team-0, Repo-0)=5,
         # (Team-0, Repo-1)=4, (Team-0, Repo-2)=3, (Team-0, Repo-3)=2,
-        # and one of the 1-PR entries.
-        # Verify Team-0/Repo-0 (highest) is retained.
+        # and exactly one 1-PR entry chosen by deterministic tie-break.
         assert "Team-0" in cross_dim, "Highest-PR team must be retained"
         assert cross_dim["Team-0"]["Repo-0"]["pr_count"] == 5, (
             "Highest pr_count entry (5) must be retained after truncation"
+        )
+        assert sorted(cross_dim["Team-0"].keys()) == [
+            "Repo-0",
+            "Repo-1",
+            "Repo-2",
+            "Repo-3",
+        ]
+        assert cross_dim["Team-1"]["Repo-0"]["pr_count"] == 1, (
+            "Truncation must keep the highest remaining individual intersection, "
+            "not discard an entire team wholesale"
+        )
+        assert "Team-2" not in cross_dim, (
+            "Lowest-priority tied intersections should fall off after the cap is hit"
         )
 
         # 4. Consistency invariant is relaxed: we do NOT assert that

@@ -35,7 +35,12 @@ from dataclasses import dataclass, field
 from datetime import date
 from pathlib import Path
 
-from demo_generation_common import FIXED_GENERATED_AT, round_float, write_json_file
+from demo_generation_common import (
+    FIXED_GENERATED_AT,
+    refresh_demo_manifest_features,
+    round_float,
+    write_json_file,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -64,6 +69,7 @@ DATA_DIR = Path(__file__).parent.parent / "docs" / "data"
 ROLLUPS_DIR = DATA_DIR / "aggregates" / "weekly_rollups"
 INSIGHTS_DIR = DATA_DIR / "insights"
 OUTPUT_FILE = INSIGHTS_DIR / "summary.json"
+MANIFEST_FILE = DATA_DIR / "dataset-manifest.json"
 # Schema version
 INSIGHTS_SCHEMA_VERSION = 1
 # =============================================================================
@@ -662,6 +668,9 @@ def main() -> int:
 
     write_json_file(OUTPUT_FILE, insights_data)
     print(f"  Written: {OUTPUT_FILE}")
+
+    print("  Refreshing dataset-manifest feature flags...")
+    refresh_demo_manifest_features(MANIFEST_FILE, DATA_DIR)
 
     print("\nInsights generation complete!")
 

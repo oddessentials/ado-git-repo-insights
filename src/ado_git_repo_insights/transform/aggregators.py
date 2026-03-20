@@ -852,49 +852,26 @@ class AggregateGenerator:
             all_entries.append((str(team_name), str(repo_name), entry))
             entry_count += 1
 
-        # Truncation: if entries exceed cap, keep whole teams by total pr_count
+        # Truncation: if entries exceed cap, keep the most significant
+        # intersections by descending pr_count rather than whole teams.
         truncated = False
         if entry_count > self._CROSS_DIM_MAX_ENTRIES:
-            # Group entries by team and compute total pr_count per team
-            team_pr_totals: dict[str, int] = {}
-            team_entries: dict[str, list[tuple[str, str, dict[str, Any]]]] = {}
-            for t_name, r_name, ent in all_entries:
-                team_pr_totals[t_name] = team_pr_totals.get(t_name, 0) + int(
-                    ent["pr_count"]
-                )
-                team_entries.setdefault(t_name, []).append((t_name, r_name, ent))
-
-            # Sort teams descending by total pr_count
-            sorted_teams = sorted(
-                team_pr_totals.keys(),
-                key=lambda t: team_pr_totals[t],
-                reverse=True,
+            all_entries = sorted(
+                all_entries,
+                key=lambda item: (
+                    -int(item[2]["pr_count"]),
+                    item[0],
+                    item[1],
+                ),
             )
-
-            # Keep whole teams until adding the next would exceed the limit.
-            # When the first team alone exceeds the cap, include entries
-            # from that team up to the cap and mark as truncated.
-            kept_entries: list[tuple[str, str, dict[str, Any]]] = []
-            for team in sorted_teams:
-                team_size = len(team_entries[team])
-                if len(kept_entries) + team_size > self._CROSS_DIM_MAX_ENTRIES:
-                    if not kept_entries:
-                        # First team exceeds cap — slice its entries to the
-                        # limit so we never return an empty result but still
-                        # respect the hard cap.
-                        kept_entries = team_entries[team][: self._CROSS_DIM_MAX_ENTRIES]
-                    truncated = True
-                    break
-                kept_entries.extend(team_entries[team])
-
-            if truncated:
-                all_entries = kept_entries
-                logger.warning(
-                    "Cross-dimensional entries truncated from %d to %d for week "
-                    "(whole-team granularity)",
-                    entry_count,
-                    len(all_entries),
-                )
+            all_entries = all_entries[: self._CROSS_DIM_MAX_ENTRIES]
+            truncated = True
+            logger.warning(
+                "Cross-dimensional entries truncated from %d to %d for week "
+                "(least-significant intersections removed)",
+                entry_count,
+                len(all_entries),
+            )
 
         # Build nested dict from (possibly truncated) entries
         for team_name, repo_name, entry in all_entries:

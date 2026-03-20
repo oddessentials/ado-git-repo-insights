@@ -67,6 +67,7 @@ HOLIDAY_SUPPRESSION_FACTOR = 0.35
 BASE_PR_COUNT = 80
 PR_COUNT_SEASONAL_AMPLITUDE = 0.2  # ±20%
 PR_COUNT_NOISE_AMPLITUDE = 0.1  # ±10%
+REPO_WEIGHT_EXPONENT = 1.35
 
 # Cycle time distribution parameters (log-normal)
 CYCLE_TIME_MU = 6.0  # log-minutes
@@ -600,6 +601,11 @@ def generate_cycle_times(count: int, mu_factor: float = 1.0) -> list[float]:
     ]
 
 
+def adjusted_repo_weight(repo_name: str) -> float:
+    """Apply a stronger power-law bias when allocating demo PRs to repos."""
+    return REPO_WEIGHTS.get(repo_name, 0.1) ** REPO_WEIGHT_EXPONENT
+
+
 def calculate_percentile(values: list[float], percentile: float) -> float:
     """Calculate percentile from sorted list of values."""
     if not values:
@@ -650,57 +656,28 @@ def generate_weekly_rollups(
             authors_count = max(1, int(pr_count * AUTHOR_RATIO))
             reviewers_count = max(1, int(pr_count * REVIEWER_RATIO))
 
-            # Distribute PRs across repositories using power-law weights
             repo_names = [r.repository_name for r in repositories]
-            repo_weights_list = [REPO_WEIGHTS.get(name, 0.1) for name in repo_names]
-            repo_pr_allocation = largest_remainder_allocate(pr_count, repo_weights_list)
-
-            # T017: Idle repo-weeks — zero out low-weight repos
-            for idx, name in enumerate(repo_names):
-                w = REPO_WEIGHTS.get(name, 0.1)
-                if w < IDLE_WEIGHT_THRESHOLD and repo_pr_allocation[idx] > 0:
-                    if RNG.random() > w / IDLE_WEIGHT_THRESHOLD:
-                        repo_pr_allocation[idx] = 0
-
-            # Redistribute zeroed PRs to highest-weight repo
-            zeroed = pr_count - sum(repo_pr_allocation)
-            if zeroed > 0:
-                max_idx = repo_weights_list.index(max(repo_weights_list))
-                repo_pr_allocation[max_idx] += zeroed
-
-            by_repository: dict[str, dict[str, Any]] = {}
-            for i, repo in enumerate(repositories):
-                repo_pr_count = repo_pr_allocation[i]
-                if repo_pr_count <= 0:
-                    continue
-                mu_factor = REPO_CYCLE_TIME_CATEGORY.get(repo.repository_name, 1.0)
-                repo_cycle_times = generate_cycle_times(repo_pr_count, mu_factor)
-                repo_p50 = calculate_percentile(repo_cycle_times, 50)
-                repo_p90 = calculate_percentile(repo_cycle_times, 90)
-                repo_authors = max(
-                    1, min(repo_pr_count, int(repo_pr_count**SUBLINEAR_EXPONENT))
-                )
-                repo_reviewers = max(
-                    1, min(repo_pr_count, int(repo_pr_count**SUBLINEAR_EXPONENT) + 1)
-                )
-                by_repository[repo.repository_name] = {
-                    "pr_count": repo_pr_count,
-                    "cycle_time_p50": repo_p50,
-                    "cycle_time_p90": repo_p90,
-                    "authors_count": repo_authors,
-                    "reviewers_count": repo_reviewers,
-                }
-
             # Distribute PRs across teams using random weights
             by_team: dict[str, dict[str, Any]] = {}
-            by_team_and_repo: dict[str, dict[str, Any]] = {}
             raw_team_weights = [RNG.random() for _ in teams]
-            team_pr_allocation = largest_remainder_allocate(pr_count, raw_team_weights)
+            if pr_count >= len(teams):
+                residual_allocation = largest_remainder_allocate(
+                    pr_count - len(teams),
+                    raw_team_weights,
+                )
+                team_pr_allocation = [value + 1 for value in residual_allocation]
+            else:
+                team_pr_allocation = largest_remainder_allocate(
+                    pr_count,
+                    raw_team_weights,
+                )
+            team_pr_counts: dict[str, int] = {}
 
             for i, team in enumerate(teams):
                 team_pr_count = team_pr_allocation[i]
                 if team_pr_count <= 0:
                     continue
+                team_pr_counts[team.team_name] = team_pr_count
 
                 team_cycle_times = generate_cycle_times(team_pr_count)
                 team_p50 = calculate_percentile(team_cycle_times, 50)
@@ -721,55 +698,75 @@ def generate_weekly_rollups(
                     "reviewers_count": team_reviewers,
                 }
 
-                # Generate by_team_and_repo using affinity-weighted allocation
+            # Generate exact team-repo intersections first, then derive
+            # by_repository from those intersections so parent totals are
+            # internally consistent with exact combined-filter cells.
+            by_team_and_repo: dict[str, dict[str, Any]] = {}
+            repo_pr_counts = dict.fromkeys(repo_names, 0)
+            for team in teams:
+                team_pr_count = team_pr_counts.get(team.team_name, 0)
+                if team_pr_count <= 0:
+                    continue
+
                 primary_repos = TEAM_PRIMARY_REPOS.get(team.team_name, [])
-                primary_pr_count = int(team_pr_count * TEAM_AFFINITY_PRIMARY_SHARE)
-                other_pr_count = team_pr_count - primary_pr_count
-
-                # Allocate primary repo PRs
-                primary_weights = [REPO_WEIGHTS.get(r, 0.1) for r in primary_repos]
-                primary_alloc = (
-                    largest_remainder_allocate(primary_pr_count, primary_weights)
-                    if primary_repos
-                    else []
-                )
-
-                # Allocate other repo PRs across all repos weighted by REPO_WEIGHTS
-                other_repos = [r for r in repo_names if r not in primary_repos]
-                other_weights = [REPO_WEIGHTS.get(r, 0.1) for r in other_repos]
-                other_alloc = (
-                    largest_remainder_allocate(other_pr_count, other_weights)
-                    if other_repos
-                    else []
-                )
-
-                # Build team-repo entries
                 team_repo_entries: dict[str, dict[str, Any]] = {}
-                for j, rname in enumerate(primary_repos):
-                    r_prs = primary_alloc[j] if j < len(primary_alloc) else 0
+                team_authors = int(by_team[team.team_name]["authors_count"])
+                team_reviewers = int(by_team[team.team_name]["reviewers_count"])
+                primary_weight_sum = sum(
+                    adjusted_repo_weight(repo_name) for repo_name in primary_repos
+                )
+                other_repos = [
+                    repo_name
+                    for repo_name in repo_names
+                    if repo_name not in primary_repos
+                ]
+                other_weight_sum = sum(
+                    adjusted_repo_weight(repo_name) for repo_name in other_repos
+                )
+                row_weights: list[float] = []
+                for repo_name in repo_names:
+                    base_weight = adjusted_repo_weight(repo_name)
+                    if repo_name in primary_repos and primary_weight_sum > 0:
+                        row_weights.append(
+                            TEAM_AFFINITY_PRIMARY_SHARE
+                            * (base_weight / primary_weight_sum)
+                        )
+                    elif repo_name not in primary_repos and other_weight_sum > 0:
+                        row_weights.append(
+                            (1.0 - TEAM_AFFINITY_PRIMARY_SHARE)
+                            * (base_weight / other_weight_sum)
+                        )
+                    else:
+                        row_weights.append(base_weight)
+
+                team_repo_allocations = largest_remainder_allocate(
+                    team_pr_count,
+                    row_weights,
+                )
+
+                # T017: Idle repo-weeks — zero out low-weight non-primary repos
+                for idx, repo_name in enumerate(repo_names):
+                    base_weight = REPO_WEIGHTS.get(repo_name, 0.1)
+                    if (
+                        repo_name not in primary_repos
+                        and base_weight < IDLE_WEIGHT_THRESHOLD
+                        and team_repo_allocations[idx] > 0
+                        and RNG.random() > base_weight / IDLE_WEIGHT_THRESHOLD
+                    ):
+                        team_repo_allocations[idx] = 0
+
+                zeroed = team_pr_count - sum(team_repo_allocations)
+                if zeroed > 0:
+                    max_idx = max(
+                        range(len(repo_names)),
+                        key=lambda idx: (row_weights[idx], -idx),
+                    )
+                    team_repo_allocations[max_idx] += zeroed
+
+                for rname, r_prs in zip(repo_names, team_repo_allocations, strict=True):
                     if r_prs <= 0:
                         continue
-                    r_authors = max(
-                        1, min(team_authors, int(r_prs**SUBLINEAR_EXPONENT))
-                    )
-                    r_reviewers = max(
-                        1, min(team_reviewers, int(r_prs**SUBLINEAR_EXPONENT) + 1)
-                    )
-                    r_mu_factor = REPO_CYCLE_TIME_CATEGORY.get(rname, 1.0)
-                    r_cts = generate_cycle_times(r_prs, r_mu_factor)
-                    r_p50 = calculate_percentile(r_cts, 50)
-                    r_p90 = calculate_percentile(r_cts, 90)
-                    team_repo_entries[rname] = {
-                        "pr_count": r_prs,
-                        "cycle_time_p50": r_p50,
-                        "cycle_time_p90": r_p90,
-                        "authors_count": r_authors,
-                        "reviewers_count": r_reviewers,
-                    }
-                for j, rname in enumerate(other_repos):
-                    r_prs = other_alloc[j] if j < len(other_alloc) else 0
-                    if r_prs <= 0:
-                        continue
+                    repo_pr_counts[rname] += r_prs
                     r_authors = max(
                         1, min(team_authors, int(r_prs**SUBLINEAR_EXPONENT))
                     )
@@ -790,6 +787,29 @@ def generate_weekly_rollups(
 
                 if team_repo_entries:
                     by_team_and_repo[team.team_name] = team_repo_entries
+
+            by_repository: dict[str, dict[str, Any]] = {}
+            for repo_name in repo_names:
+                repo_pr_count = repo_pr_counts[repo_name]
+                if repo_pr_count <= 0:
+                    continue
+                mu_factor = REPO_CYCLE_TIME_CATEGORY.get(repo_name, 1.0)
+                repo_cycle_times = generate_cycle_times(repo_pr_count, mu_factor)
+                repo_p50 = calculate_percentile(repo_cycle_times, 50)
+                repo_p90 = calculate_percentile(repo_cycle_times, 90)
+                repo_authors = max(
+                    1, min(repo_pr_count, int(repo_pr_count**SUBLINEAR_EXPONENT))
+                )
+                repo_reviewers = max(
+                    1, min(repo_pr_count, int(repo_pr_count**SUBLINEAR_EXPONENT) + 1)
+                )
+                by_repository[repo_name] = {
+                    "pr_count": repo_pr_count,
+                    "cycle_time_p50": repo_p50,
+                    "cycle_time_p90": repo_p90,
+                    "authors_count": repo_authors,
+                    "reviewers_count": repo_reviewers,
+                }
 
             # T010: Contract 3 cycle time threshold — null if pr_count < 5
             if pr_count < 5:

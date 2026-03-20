@@ -25,7 +25,12 @@ from decimal import Decimal
 from pathlib import Path
 from typing import Any
 
-from demo_generation_common import FIXED_GENERATED_AT, round_float, write_json_file
+from demo_generation_common import (
+    FIXED_GENERATED_AT,
+    refresh_demo_manifest_features,
+    round_float,
+    write_json_file,
+)
 
 # =============================================================================
 # Configuration Constants
@@ -43,6 +48,7 @@ DATA_DIR = Path(__file__).parent.parent / "docs" / "data"
 ROLLUPS_DIR = DATA_DIR / "aggregates" / "weekly_rollups"
 PREDICTIONS_DIR = DATA_DIR / "predictions"
 OUTPUT_FILE = PREDICTIONS_DIR / "trends.json"
+MANIFEST_FILE = DATA_DIR / "dataset-manifest.json"
 # Schema version
 PREDICTIONS_SCHEMA_VERSION = 1
 # =============================================================================
@@ -295,6 +301,9 @@ def main() -> int:
 
     write_json_file(OUTPUT_FILE, predictions)
     print(f"  Written: {OUTPUT_FILE}")
+
+    print("  Refreshing dataset-manifest feature flags...")
+    refresh_demo_manifest_features(MANIFEST_FILE, DATA_DIR)
 
     print("\nPredictions generation complete!")
     return 0

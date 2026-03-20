@@ -87,6 +87,27 @@ class TestCrossDimSumEquality:
             errors[:10]
         )
 
+    def test_repo_totals_match_sum_of_intersections(self, all_rollups):
+        """Demo data must reconcile repo totals with exact team-repo intersections."""
+        errors = []
+        for fname, data in all_rollups:
+            by_repo = data.get("by_repository", {})
+            btar = data.get("by_team_and_repo", {})
+            for repo_name, repo_entry in by_repo.items():
+                repo_sum = 0
+                for team_name, repo_entries in btar.items():
+                    if team_name.startswith("_"):
+                        continue
+                    repo_sum += repo_entries.get(repo_name, {}).get("pr_count", 0)
+                if repo_sum != repo_entry["pr_count"]:
+                    errors.append(
+                        f"{fname}: repo '{repo_name}' sum={repo_sum} != by_repository={repo_entry['pr_count']}"
+                    )
+
+        assert not errors, f"{len(errors)} repo consistency violations:\n" + "\n".join(
+            errors[:10]
+        )
+
 
 class TestCrossDimCompleteness:
     """Contract 4: Every team with pr_count >= 1 must exist in by_team_and_repo."""
