@@ -151,6 +151,42 @@ Tests run across:
 - 3 operating systems (Ubuntu, Windows, macOS)
 - 3 Python versions (3.10, 3.11, 3.12)
 
+### Local CI Parity
+
+The default pre-push hook is a strong workstation gate, but it is not a full
+replacement for the CI matrix. Before high-risk pushes, run the repo parity
+runner:
+
+```bash
+python scripts/run_ci_parity.py
+```
+
+What it verifies:
+- CI-critical Python scripts under the supported interpreter matrix
+- drift checks such as tool-version parity and suppression auditing
+- version-specific import/runtime issues in CI-invoked Python entrypoints
+
+For stronger confidence on machines with healthy local interpreter installs:
+
+```bash
+python scripts/run_ci_parity.py --mode full
+```
+
+Requirements:
+- Local Python 3.10, 3.11, and 3.12 must be installed, or the script will fail
+- `compatibility` mode runs directly on those interpreters and is the minimum
+  pre-push cross-version gate
+- `full` mode additionally creates per-version virtual environments and runs
+  targeted smoke tests
+- Docker Desktop can be used for future Linux parity expansion, but the script
+  currently only checks whether Docker is reachable
+- If interpreter discovery differs on your machine, set environment overrides
+  such as `CI_PARITY_PYTHON_3_10`, `CI_PARITY_PYTHON_3_11`, and
+  `CI_PARITY_PYTHON_3_12`
+
+For the current machine, treat a missing interpreter as a blocker rather than a
+warning if you need CI-grade confidence before pushing.
+
 ### CI Checks
 
 All PRs must pass:
