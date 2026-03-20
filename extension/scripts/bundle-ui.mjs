@@ -22,7 +22,6 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const require = createRequire(import.meta.url);
 const uiDir = path.resolve(__dirname, '../ui');
 const outDir = path.resolve(__dirname, '../dist/ui');
-const esbuildCliPath = require.resolve('esbuild/bin/esbuild');
 const sleepBuffer = new Int32Array(new SharedArrayBuffer(4));
 
 // Safety guard: verify outDir is the expected path before any destructive operations
@@ -44,6 +43,27 @@ const entryPoints = [
 
 // External modules that are loaded via script tags (not bundled)
 const externals = [];
+
+function resolveEsbuildBinaryPath() {
+    const platformPackages = {
+        'win32:x64': '@esbuild/win32-x64/esbuild.exe',
+        'win32:arm64': '@esbuild/win32-arm64/esbuild.exe',
+        'win32:ia32': '@esbuild/win32-ia32/esbuild.exe',
+        'linux:x64': '@esbuild/linux-x64/bin/esbuild',
+        'linux:arm64': '@esbuild/linux-arm64/bin/esbuild',
+        'darwin:x64': '@esbuild/darwin-x64/bin/esbuild',
+        'darwin:arm64': '@esbuild/darwin-arm64/bin/esbuild',
+    };
+    const key = `${process.platform}:${process.arch}`;
+    const modulePath = platformPackages[key];
+
+    if (!modulePath) {
+        console.error(`::error::Unsupported platform for esbuild CLI fallback: ${key}`);
+        process.exit(1);
+    }
+
+    return require.resolve(modulePath);
+}
 
 function removeWithRetries(targetPath) {
     const deadline = Date.now() + 5000;
@@ -92,8 +112,8 @@ async function build() {
         const outputPath = path.join(outDir, entry.output);
 
         try {
+            const esbuildBinaryPath = resolveEsbuildBinaryPath();
             const cliArgs = [
-                esbuildCliPath,
                 inputPath,
                 '--bundle',
                 '--format=iife',
@@ -105,7 +125,7 @@ async function build() {
                 ...externals.map((external) => `--external:${external}`),
             ];
 
-            execFileSync(process.execPath, cliArgs, {
+            execFileSync(esbuildBinaryPath, cliArgs, {
                 cwd: __dirname,
                 stdio: 'inherit',
             });
