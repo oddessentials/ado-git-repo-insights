@@ -11,8 +11,6 @@ import re
 import sys
 from pathlib import Path
 
-import tomllib
-
 REPO_ROOT = Path(__file__).resolve().parent.parent
 PRE_COMMIT_CONFIG = REPO_ROOT / ".pre-commit-config.yaml"
 PYPROJECT = REPO_ROOT / "pyproject.toml"
@@ -36,13 +34,9 @@ def _extract_pre_commit_rev(repo_fragment: str) -> str:
 
 
 def _extract_dev_dependency(package_name: str) -> str:
-    with PYPROJECT.open("rb") as handle:
-        data = tomllib.load(handle)
-
-    dev_dependencies = data["project"]["optional-dependencies"]["dev"]
-    pattern = re.compile(rf"^{re.escape(package_name)}==([0-9][^\"',; ]*)$")
-    for dependency in dev_dependencies:
-        match = pattern.match(dependency)
+    pattern = re.compile(rf'^\s*["\']{re.escape(package_name)}==([0-9][^"\',; ]*)["\']')
+    for line in _read_text(PYPROJECT).splitlines():
+        match = pattern.match(line)
         if match:
             return match.group(1)
     raise RuntimeError(f"Could not find pinned dev dependency for {package_name!r}")
