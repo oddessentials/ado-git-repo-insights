@@ -36,6 +36,7 @@ from ado_git_repo_insights.transform.aggregators import AGGREGATES_SCHEMA_VERSIO
 from demo_generation_common import (  # noqa: E402
     FIXED_GENERATED_AT,
     discover_demo_feature_flags,
+    largest_remainder_allocate,
     write_json_file,
 )
 
@@ -193,31 +194,6 @@ def _box_muller_normal(rng: random.Random) -> float:
 def _log_normal(rng: random.Random, mu: float, sigma: float) -> float:
     """Generate log-normal variate using locked Box-Muller implementation."""
     return math.exp(mu + sigma * _box_muller_normal(rng))
-
-
-def _largest_remainder_allocate(total: int, weights: list[float]) -> list[int]:
-    """Distribute *total* across buckets proportional to *weights*.
-    Uses the largest-remainder method so sum(result) == total exactly.
-    Callers pre-normalize weights. Empty/all-zero weights are handled.
-    """
-    assert total >= 0, f"total must be non-negative, got {total}"
-    if not weights:
-        return []
-    weight_sum = sum(weights)
-    if weight_sum == 0:
-        # Round-robin: distribute evenly, remainder to first buckets
-        base = total // len(weights)
-        remainder = total % len(weights)
-        return [base + (1 if i < remainder else 0) for i in range(len(weights))]
-    normalized = [w / weight_sum for w in weights]
-    raw = [total * w for w in normalized]
-    floors = [int(r // 1) for r in raw]
-    remainder = total - sum(floors)
-    fracs = [(raw[k] - floors[k], k) for k in range(len(weights))]
-    fracs.sort(key=lambda x: x[0], reverse=True)
-    for idx in range(remainder):
-        floors[fracs[idx][1]] += 1
-    return floors
 
 
 # =============================================================================
@@ -677,9 +653,7 @@ def generate_weekly_rollups(
             # Distribute PRs across repositories using power-law weights
             repo_names = [r.repository_name for r in repositories]
             repo_weights_list = [REPO_WEIGHTS.get(name, 0.1) for name in repo_names]
-            repo_pr_allocation = _largest_remainder_allocate(
-                pr_count, repo_weights_list
-            )
+            repo_pr_allocation = largest_remainder_allocate(pr_count, repo_weights_list)
 
             # T017: Idle repo-weeks — zero out low-weight repos
             for idx, name in enumerate(repo_names):
@@ -721,7 +695,7 @@ def generate_weekly_rollups(
             by_team: dict[str, dict[str, Any]] = {}
             by_team_and_repo: dict[str, dict[str, Any]] = {}
             raw_team_weights = [RNG.random() for _ in teams]
-            team_pr_allocation = _largest_remainder_allocate(pr_count, raw_team_weights)
+            team_pr_allocation = largest_remainder_allocate(pr_count, raw_team_weights)
 
             for i, team in enumerate(teams):
                 team_pr_count = team_pr_allocation[i]
@@ -755,7 +729,7 @@ def generate_weekly_rollups(
                 # Allocate primary repo PRs
                 primary_weights = [REPO_WEIGHTS.get(r, 0.1) for r in primary_repos]
                 primary_alloc = (
-                    _largest_remainder_allocate(primary_pr_count, primary_weights)
+                    largest_remainder_allocate(primary_pr_count, primary_weights)
                     if primary_repos
                     else []
                 )
@@ -764,7 +738,7 @@ def generate_weekly_rollups(
                 other_repos = [r for r in repo_names if r not in primary_repos]
                 other_weights = [REPO_WEIGHTS.get(r, 0.1) for r in other_repos]
                 other_alloc = (
-                    _largest_remainder_allocate(other_pr_count, other_weights)
+                    largest_remainder_allocate(other_pr_count, other_weights)
                     if other_repos
                     else []
                 )

@@ -20,6 +20,8 @@ _src_path = Path(__file__).parent.parent / "src"
 if str(_src_path) not in sys.path:
     sys.path.insert(0, str(_src_path))
 
+from demo_generation_common import largest_remainder_allocate  # noqa: E402
+
 from ado_git_repo_insights.transform.aggregators import (  # noqa: E402  # type: ignore[import-not-found]
     AggregateIndex,
     DatasetManifest,
@@ -27,22 +29,6 @@ from ado_git_repo_insights.transform.aggregators import (  # noqa: E402  # type:
     WeeklyRollup,
     YearlyDistribution,
 )
-
-
-def _largest_remainder_allocate(total: int, weights: list[float]) -> list[int]:
-    """Distribute *total* across buckets proportional to *weights*.
-
-    Uses the largest-remainder method so ``sum(result) == total`` exactly
-    and every element is >= 0.
-    """
-    raw = [total * w for w in weights]
-    floors = [int(r // 1) for r in raw]
-    remainder = total - sum(floors)
-    fracs = [(raw[k] - floors[k], k) for k in range(len(weights))]
-    fracs.sort(key=lambda x: x[0], reverse=True)
-    for idx in range(remainder):
-        floors[fracs[idx][1]] += 1
-    return floors
 
 
 def generate_dimensions(
@@ -246,9 +232,9 @@ def generate_weekly_rollups(
                     continue
                 team_repo_entries: dict[str, Any] = {}
 
-                alloc_prs = _largest_remainder_allocate(t_prs, repo_weights)
-                alloc_authors = _largest_remainder_allocate(t_authors, repo_weights)
-                alloc_reviewers = _largest_remainder_allocate(t_reviewers, repo_weights)
+                alloc_prs = largest_remainder_allocate(t_prs, repo_weights)
+                alloc_authors = largest_remainder_allocate(t_authors, repo_weights)
+                alloc_reviewers = largest_remainder_allocate(t_reviewers, repo_weights)
 
                 for j, rname in enumerate(repo_names):
                     r_prs = alloc_prs[j]
@@ -298,11 +284,11 @@ def generate_weekly_rollups(
             weights = [w / weight_sum for w in raw_weights]
 
             by_repo: dict[str, dict[str, Any]] = {}
-            alloc_repo_prs = _largest_remainder_allocate(week_pr_count, weights)
-            alloc_repo_authors = _largest_remainder_allocate(
+            alloc_repo_prs = largest_remainder_allocate(week_pr_count, weights)
+            alloc_repo_authors = largest_remainder_allocate(
                 rollup.authors_count, weights
             )
-            alloc_repo_reviewers = _largest_remainder_allocate(
+            alloc_repo_reviewers = largest_remainder_allocate(
                 rollup.reviewers_count, weights
             )
 

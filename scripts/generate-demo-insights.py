@@ -28,6 +28,7 @@ Requirements:
 from __future__ import annotations
 
 import json
+import logging
 import math
 import sys
 from dataclasses import dataclass, field
@@ -35,6 +36,8 @@ from datetime import date
 from pathlib import Path
 
 from demo_generation_common import FIXED_GENERATED_AT, round_float, write_json_file
+
+logger = logging.getLogger(__name__)
 
 # =============================================================================
 # Configuration Constants
@@ -76,6 +79,18 @@ class RepoMetrics:
     pr_count: int
     cycle_time_p50: float
     cycle_time_p90: float
+
+
+def _coerce_cycle_time(metric_name: str, value: float | None, *, context: str) -> float:
+    """Convert nullable cycle-time metrics to floats for deterministic rules."""
+    if value is None:
+        logger.debug(
+            "%s missing for %s; coercing to 0.0 for insight generation",
+            metric_name,
+            context,
+        )
+        return 0.0
+    return value
 
 
 @dataclass
@@ -131,8 +146,16 @@ def load_weekly_rollups() -> list[WeeklyRollup]:
                 RepoMetrics(
                     name=repo_name,
                     pr_count=repo_data["pr_count"],
-                    cycle_time_p50=repo_data["cycle_time_p50"] or 0.0,
-                    cycle_time_p90=repo_data["cycle_time_p90"] or 0.0,
+                    cycle_time_p50=_coerce_cycle_time(
+                        "cycle_time_p50",
+                        repo_data["cycle_time_p50"],
+                        context=f"{data['week']} repo {repo_name}",
+                    ),
+                    cycle_time_p90=_coerce_cycle_time(
+                        "cycle_time_p90",
+                        repo_data["cycle_time_p90"],
+                        context=f"{data['week']} repo {repo_name}",
+                    ),
                 )
             )
 
@@ -141,8 +164,16 @@ def load_weekly_rollups() -> list[WeeklyRollup]:
                 week=data["week"],
                 start_date=date.fromisoformat(data["start_date"]),
                 pr_count=data["pr_count"],
-                cycle_time_p50=data["cycle_time_p50"] or 0.0,
-                cycle_time_p90=data["cycle_time_p90"] or 0.0,
+                cycle_time_p50=_coerce_cycle_time(
+                    "cycle_time_p50",
+                    data["cycle_time_p50"],
+                    context=f"{data['week']} rollup",
+                ),
+                cycle_time_p90=_coerce_cycle_time(
+                    "cycle_time_p90",
+                    data["cycle_time_p90"],
+                    context=f"{data['week']} rollup",
+                ),
                 repos=repos,
             )
         )

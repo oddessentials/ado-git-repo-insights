@@ -22,6 +22,33 @@ def round_float(value: float, decimals: int = 3) -> float:
     return float(quantized)
 
 
+def largest_remainder_allocate(total: int, weights: list[float]) -> list[int]:
+    """Allocate an integer total proportionally across weighted buckets."""
+    if total < 0:
+        raise ValueError(f"total must be non-negative, got {total}")
+    if not weights:
+        return []
+
+    weight_sum = sum(weights)
+    if weight_sum == 0:
+        base = total // len(weights)
+        remainder = total % len(weights)
+        return [base + (1 if i < remainder else 0) for i in range(len(weights))]
+
+    normalized = [weight / weight_sum for weight in weights]
+    raw = [total * weight for weight in normalized]
+    floors = [int(value // 1) for value in raw]
+    remainder = total - sum(floors)
+    ranked_remainders = sorted(
+        ((raw[index] - floors[index], index) for index in range(len(weights))),
+        key=lambda item: item[0],
+        reverse=True,
+    )
+    for idx in range(remainder):
+        floors[ranked_remainders[idx][1]] += 1
+    return floors
+
+
 def _process_floats(obj: Any) -> Any:
     if isinstance(obj, float):
         return round_float(obj)

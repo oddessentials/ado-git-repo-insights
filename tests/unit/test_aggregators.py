@@ -802,7 +802,7 @@ class TestReviewerAggregation:
         main_repo = week_data["by_repository"]["Main Repo"]
         assert "cycle_time_p50" in main_repo
         assert "cycle_time_p90" in main_repo
-        assert main_repo["cycle_time_p50"] is not None
+        assert main_repo["cycle_time_p50"] == 150.0
 
 
 class TestTeamAggregation:

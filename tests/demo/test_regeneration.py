@@ -40,6 +40,19 @@ def compute_directory_hashes(directory: Path) -> dict[str, str]:
     return hashes
 
 
+def run_regeneration() -> None:
+    """Run the authoritative demo regeneration orchestrator."""
+    result = subprocess.run(  # noqa: S603 - Trusted script path
+        [sys.executable, str(REGENERATE_SCRIPT)],
+        capture_output=True,
+        text=True,
+        cwd=REPO_ROOT,
+    )
+    assert result.returncode == 0, (
+        f"regenerate-demo.py failed: {result.stderr or result.stdout}"
+    )
+
+
 class TestDeterministicRegeneration:
     """T055: Verify byte-identical regeneration."""
 
@@ -63,18 +76,9 @@ class TestDeterministicRegeneration:
             f"Missing regeneration orchestrator: {REGENERATE_SCRIPT}"
         )
 
-        result = subprocess.run(  # noqa: S603 - Trusted script path
-            [sys.executable, str(REGENERATE_SCRIPT)],
-            capture_output=True,
-            text=True,
-            cwd=REPO_ROOT,
-        )
-        assert result.returncode == 0, (
-            f"regenerate-demo.py failed: {result.stderr or result.stdout}"
-        )
+        run_regeneration()
 
-        # Capture new hashes
-        new_hashes = compute_directory_hashes(DOCS_DATA)
+        first_regeneration_hashes = compute_directory_hashes(DOCS_DATA)
 
         manifest = json.loads(
             (DOCS_DATA / "dataset-manifest.json").read_text(encoding="utf-8")
@@ -83,9 +87,15 @@ class TestDeterministicRegeneration:
         assert manifest["features"]["ai_insights"] is True
         assert manifest["features"]["cross_dimensional"] is True
 
-        # Compare all files
-        assert original_hashes == new_hashes, (
-            "Regeneration produced different output! "
+        run_regeneration()
+        second_regeneration_hashes = compute_directory_hashes(DOCS_DATA)
+
+        assert original_hashes == first_regeneration_hashes, (
+            "First regeneration produced different output! "
+            "Check that seed is fixed and JSON serialization is canonical."
+        )
+        assert first_regeneration_hashes == second_regeneration_hashes, (
+            "Independent regenerations produced different output! "
             "Check that seed is fixed and JSON serialization is canonical."
         )
 

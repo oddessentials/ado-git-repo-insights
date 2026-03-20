@@ -181,8 +181,8 @@ def get_git_sha() -> str | None:
     except subprocess.TimeoutExpired:
         # git command timed out (e.g., network drive or large repo)
         return None
-    except Exception:
-        # Other errors (non-zero exit code, permission issues, etc.)
+    except (subprocess.CalledProcessError, OSError):
+        # Other git invocation errors (non-zero exit code, permission issues, etc.)
         return None
 
 
