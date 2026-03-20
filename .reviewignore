@@ -1,2 +1,48 @@
-specs/*
-node_modules
+# Machine-generated files
+
+CHANGELOG.md
+pnpm-lock.yaml
+
+# Agent/tooling configuration
+
+.claude/
+.specify/features/
+.specify/templates/
+.specify/scripts/
+CLAUDE.md
+
+# Build artifacts
+
+dist/
+node_modules/
+coverage/
+
+# Test fixtures (data, not logic)
+
+router/tests/fixtures/benchmark/\*.snapshot.json
+router/tests/fixtures/redos-corpus/
+
+# Specs (contract docs, not source)
+
+specs/
+
+# IDE and OS artifacts
+
+.idea/
+.vscode/
+.DS_Store
+Thumbs.db
+
+# Secrets and credentials (defense-in-depth — primary boundary is .gitignore)
+
+.env
+.env._
+!.env.example
+secrets.json
+credentials.json
+_.key
+\*.pem
+
+# Demo
+
+docs/data/
