@@ -22,6 +22,7 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const require = createRequire(import.meta.url);
 const uiDir = path.resolve(__dirname, '../ui');
 const outDir = path.resolve(__dirname, '../dist/ui');
+const esbuildEntrypointPath = require.resolve('esbuild/bin/esbuild');
 const sleepBuffer = new Int32Array(new SharedArrayBuffer(4));
 
 // Safety guard: verify outDir is the expected path before any destructive operations
@@ -44,25 +45,16 @@ const entryPoints = [
 // External modules that are loaded via script tags (not bundled)
 const externals = [];
 
-function resolveEsbuildBinaryPath() {
-    const platformPackages = {
-        'win32:x64': '@esbuild/win32-x64/esbuild.exe',
-        'win32:arm64': '@esbuild/win32-arm64/esbuild.exe',
-        'win32:ia32': '@esbuild/win32-ia32/esbuild.exe',
-        'linux:x64': '@esbuild/linux-x64/bin/esbuild',
-        'linux:arm64': '@esbuild/linux-arm64/bin/esbuild',
-        'darwin:x64': '@esbuild/darwin-x64/bin/esbuild',
-        'darwin:arm64': '@esbuild/darwin-arm64/bin/esbuild',
-    };
-    const key = `${process.platform}:${process.arch}`;
-    const modulePath = platformPackages[key];
+function getEsbuildCommandAndArgs(cliArgs) {
+    const header = fs.readFileSync(esbuildEntrypointPath).subarray(0, 4);
+    const isElf = header[0] === 0x7f && header[1] === 0x45 && header[2] === 0x4c && header[3] === 0x46;
+    const isExe = header[0] === 0x4d && header[1] === 0x5a;
 
-    if (!modulePath) {
-        console.error(`::error::Unsupported platform for esbuild CLI fallback: ${key}`);
-        process.exit(1);
+    if (isElf || isExe) {
+        return { command: esbuildEntrypointPath, args: cliArgs };
     }
 
-    return require.resolve(modulePath);
+    return { command: process.execPath, args: [esbuildEntrypointPath, ...cliArgs] };
 }
 
 function removeWithRetries(targetPath) {
@@ -112,7 +104,6 @@ async function build() {
         const outputPath = path.join(outDir, entry.output);
 
         try {
-            const esbuildBinaryPath = resolveEsbuildBinaryPath();
             const cliArgs = [
                 inputPath,
                 '--bundle',
@@ -124,8 +115,9 @@ async function build() {
                 `--footer:js=// Global exports for browser runtime\\nif (typeof window !== 'undefined') { Object.assign(window, ${entry.globalName} || {}); }`,
                 ...externals.map((external) => `--external:${external}`),
             ];
+            const { command, args } = getEsbuildCommandAndArgs(cliArgs);
 
-            execFileSync(esbuildBinaryPath, cliArgs, {
+            execFileSync(command, args, {
                 cwd: __dirname,
                 stdio: 'inherit',
             });
