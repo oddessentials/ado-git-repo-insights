@@ -42,6 +42,11 @@ class DatabaseManager:
         self._connection: Connection | None = None
 
     @property
+    def is_in_memory(self) -> bool:
+        """Whether this manager targets SQLite's in-memory database."""
+        return str(self.db_path) == ":memory:"
+
+    @property
     def connection(self) -> Connection:
         """Get the active database connection.
 
@@ -58,14 +63,15 @@ class DatabaseManager:
         Creates the database file and parent directories if they don't exist.
         Initializes the schema on first connection.
         """
-        # Ensure parent directory exists
-        self.db_path.parent.mkdir(parents=True, exist_ok=True)
+        is_new_db = self.is_in_memory or not self.db_path.exists()
 
-        is_new_db = not self.db_path.exists()
+        if not self.is_in_memory:
+            # Ensure parent directory exists for on-disk databases.
+            self.db_path.parent.mkdir(parents=True, exist_ok=True)
 
         try:
             self._connection = sqlite3.connect(
-                str(self.db_path),
+                ":memory:" if self.is_in_memory else str(self.db_path),
                 isolation_level=None,  # Autocommit; we'll manage transactions explicitly
             )
             self._connection.row_factory = sqlite3.Row

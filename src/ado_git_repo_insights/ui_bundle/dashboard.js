@@ -1,6 +1,6 @@
 "use strict";
 var PRInsightsDashboard = (() => {
-  // ui/types.ts
+  // ../ui/types.ts
   var ML_SCHEMA_VERSION_RANGE = [1, 1];
   function isErrorWithMessage(error) {
     return typeof error === "object" && error !== null && "message" in error && typeof error.message === "string";
@@ -14,7 +14,7 @@ var PRInsightsDashboard = (() => {
     return typeof loader2 === "object" && loader2 !== null && typeof loader2.loadPredictions === "function" && typeof loader2.loadInsights === "function";
   }
 
-  // ui/schemas/types.ts
+  // ../ui/schemas/types.ts
   function validResult(warnings = []) {
     return { valid: true, errors: [], warnings };
   }
@@ -36,7 +36,7 @@ var PRInsightsDashboard = (() => {
     };
   }
 
-  // ui/schemas/errors.ts
+  // ../ui/schemas/errors.ts
   var SchemaValidationError = class _SchemaValidationError extends Error {
     constructor(errors, artifactType) {
       const errorSummary = errors.slice(0, 3).map((e) => `${e.field}: ${e.message}`).join("; ");
@@ -65,7 +65,7 @@ var PRInsightsDashboard = (() => {
     }
   };
 
-  // ui/schemas/utils.ts
+  // ../ui/schemas/utils.ts
   function isObject(value) {
     return typeof value === "object" && value !== null && !Array.isArray(value);
   }
@@ -242,7 +242,7 @@ var PRInsightsDashboard = (() => {
     return { errors, warnings };
   }
 
-  // ui/schemas/manifest.schema.ts
+  // ../ui/schemas/manifest.schema.ts
   var KNOWN_ROOT_FIELDS = /* @__PURE__ */ new Set([
     "manifest_schema_version",
     "dataset_schema_version",
@@ -294,7 +294,8 @@ var PRInsightsDashboard = (() => {
     "teams",
     "comments",
     "predictions",
-    "ai_insights"
+    "ai_insights",
+    "cross_dimensional"
   ]);
   var KNOWN_LIMITS_FIELDS = /* @__PURE__ */ new Set([
     "max_weekly_files",
@@ -727,7 +728,7 @@ var PRInsightsDashboard = (() => {
     return validResult(warnings);
   }
 
-  // ui/schemas/rollup.schema.ts
+  // ../ui/schemas/rollup.schema.ts
   var KNOWN_ROOT_FIELDS2 = /* @__PURE__ */ new Set([
     "week",
     "start_date",
@@ -740,7 +741,8 @@ var PRInsightsDashboard = (() => {
     "authors_count",
     "reviewers_count",
     "by_repository",
-    "by_team"
+    "by_team",
+    "by_team_and_repo"
   ]);
   var KNOWN_BREAKDOWN_FIELDS = /* @__PURE__ */ new Set([
     "pr_count",
@@ -774,7 +776,7 @@ var PRInsightsDashboard = (() => {
     for (const field of numericFields) {
       if (Object.prototype.hasOwnProperty.call(data, field)) {
         const fieldValue = Object.getOwnPropertyDescriptor(data, field)?.value;
-        if (fieldValue !== void 0) {
+        if (fieldValue != null) {
           const err = validateNumber(fieldValue, buildPath(path, field));
           if (err) errors.push(err);
         }
@@ -796,6 +798,34 @@ var PRInsightsDashboard = (() => {
       const result = validateBreakdownEntry(value, buildPath(path, key), strict);
       errors.push(...result.errors);
       warnings.push(...result.warnings);
+    }
+    return { errors, warnings };
+  }
+  function validateNestedBreakdown(data, path, strict) {
+    const errors = [];
+    const warnings = [];
+    if (!isObject(data)) {
+      errors.push(createError(path, "object", getTypeName(data)));
+      return { errors, warnings };
+    }
+    for (const [outerKey, innerValue] of Object.entries(data)) {
+      if (outerKey.startsWith("_")) continue;
+      const innerPath = buildPath(path, outerKey);
+      if (!isObject(innerValue)) {
+        errors.push(createError(innerPath, "object", getTypeName(innerValue)));
+        continue;
+      }
+      for (const [innerKey, entryValue] of Object.entries(
+        innerValue
+      )) {
+        const entryResult = validateBreakdownEntry(
+          entryValue,
+          buildPath(innerPath, innerKey),
+          strict
+        );
+        errors.push(...entryResult.errors);
+        warnings.push(...entryResult.warnings);
+      }
     }
     return { errors, warnings };
   }
@@ -840,7 +870,7 @@ var PRInsightsDashboard = (() => {
     for (const field of numericFields) {
       if (Object.prototype.hasOwnProperty.call(data, field)) {
         const fieldValue = Object.getOwnPropertyDescriptor(data, field)?.value;
-        if (fieldValue !== void 0) {
+        if (fieldValue != null) {
           const err = validateNumber(fieldValue, field);
           if (err) errors.push(err);
         }
@@ -860,6 +890,15 @@ var PRInsightsDashboard = (() => {
       errors.push(...result.errors);
       warnings.push(...result.warnings);
     }
+    if (Object.prototype.hasOwnProperty.call(data, "by_team_and_repo") && data.by_team_and_repo !== void 0) {
+      const result = validateNestedBreakdown(
+        data.by_team_and_repo,
+        "by_team_and_repo",
+        strict
+      );
+      errors.push(...result.errors);
+      warnings.push(...result.warnings);
+    }
     const unknown = findUnknownFields(data, KNOWN_ROOT_FIELDS2, "", strict);
     errors.push(...unknown.errors);
     warnings.push(...unknown.warnings);
@@ -869,7 +908,7 @@ var PRInsightsDashboard = (() => {
     return validResult(warnings);
   }
 
-  // ui/schemas/dimensions.schema.ts
+  // ../ui/schemas/dimensions.schema.ts
   var KNOWN_ROOT_FIELDS3 = /* @__PURE__ */ new Set([
     "repositories",
     "users",
@@ -1259,7 +1298,7 @@ var PRInsightsDashboard = (() => {
     return validResult(warnings);
   }
 
-  // ui/schemas/predictions.schema.ts
+  // ../ui/schemas/predictions.schema.ts
   var KNOWN_ROOT_FIELDS4 = /* @__PURE__ */ new Set([
     "schema_version",
     "generated_at",
@@ -1447,7 +1486,7 @@ var PRInsightsDashboard = (() => {
     return validResult(warnings);
   }
 
-  // ui/dataset-loader.ts
+  // ../ui/dataset-loader.ts
   function validateSchema(data, validator, artifactType, strict, context) {
     const result = validator(data, strict);
     if (!result.valid) {
@@ -1463,7 +1502,7 @@ var PRInsightsDashboard = (() => {
   }
   var SUPPORTED_MANIFEST_VERSION = 1;
   var SUPPORTED_DATASET_VERSION = 1;
-  var SUPPORTED_AGGREGATES_VERSION = 1;
+  var SUPPORTED_AGGREGATES_VERSION = 2;
   var DATASET_CANDIDATE_PATHS = [
     "",
     // Root of provided base URL (preferred)
@@ -1497,7 +1536,11 @@ var PRInsightsDashboard = (() => {
       reviewers_count: r.reviewers_count ?? ROLLUP_FIELD_DEFAULTS.reviewers_count,
       // by_repository and by_team are optional features - preserve null if missing
       by_repository: r.by_repository !== void 0 ? r.by_repository : null,
-      by_team: r.by_team !== void 0 ? r.by_team : null
+      by_team: r.by_team !== void 0 ? r.by_team : null,
+      // Cross-dimensional breakdown (v2 schema) — pass through if present
+      ...r.by_team_and_repo !== void 0 ? {
+        by_team_and_repo: r.by_team_and_repo
+      } : {}
     };
   }
   function normalizeRollups(rollups) {
@@ -2187,7 +2230,7 @@ var PRInsightsDashboard = (() => {
     window.ROLLUP_FIELD_DEFAULTS = ROLLUP_FIELD_DEFAULTS;
   }
 
-  // ui/error-types.ts
+  // ../ui/error-types.ts
   var ErrorTypes = {
     SETUP_REQUIRED: "setup_required",
     MULTIPLE_PIPELINES: "multiple_pipelines",
@@ -2288,7 +2331,7 @@ var PRInsightsDashboard = (() => {
     window.PrInsightsError = PrInsightsError;
   }
 
-  // ui/artifact-client.ts
+  // ../ui/artifact-client.ts
   var ArtifactClient = class {
     /**
      * Create a new ArtifactClient.
@@ -2554,7 +2597,7 @@ var PRInsightsDashboard = (() => {
     validateManifest(manifest) {
       const SUPPORTED_MANIFEST_VERSION2 = 1;
       const SUPPORTED_DATASET_VERSION2 = 1;
-      const SUPPORTED_AGGREGATES_VERSION2 = 1;
+      const SUPPORTED_AGGREGATES_VERSION2 = 2;
       if (!manifest.manifest_schema_version) {
         throw new Error("Invalid manifest: missing schema version");
       }
@@ -2747,7 +2790,7 @@ var PRInsightsDashboard = (() => {
     window.MockArtifactClient = MockArtifactClient;
   }
 
-  // ui/modules/shared/format.ts
+  // ../ui/modules/shared/format.ts
   function formatDuration(minutes) {
     if (minutes < 60) {
       return `${Math.round(minutes)}m`;
@@ -2772,12 +2815,12 @@ var PRInsightsDashboard = (() => {
     );
   }
 
-  // ui/modules/shared/security.ts
+  // ../ui/modules/shared/security.ts
   function escapeHtml(text) {
     return text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#039;");
   }
 
-  // ui/modules/shared/render.ts
+  // ../ui/modules/shared/render.ts
   function clearElement(el) {
     if (!el) return;
     while (el.firstChild) {
@@ -2822,7 +2865,7 @@ var PRInsightsDashboard = (() => {
     return option;
   }
 
-  // ui/modules/metrics.ts
+  // ../ui/modules/metrics.ts
   function toFiniteNumber(value) {
     const n = Number(value);
     return Number.isFinite(n) ? n : 0;
@@ -2940,19 +2983,24 @@ var PRInsightsDashboard = (() => {
     pr_count: 0,
     cycle_time_p50: null,
     cycle_time_p90: null,
+    review_time_p50: null,
+    review_time_p90: null,
     authors_count: 0,
     reviewers_count: 0
   };
   function buildFilteredRollup(rollup, slice) {
+    if (slice.pr_count === 0) {
+      return { ...rollup, ...ZEROED_ROLLUP_FIELDS };
+    }
     return {
       ...rollup,
       pr_count: slice.pr_count,
-      ...slice.cycle_time_p50 !== null ? {
-        cycle_time_p50: slice.cycle_time_p50,
-        cycle_time_p90: slice.cycle_time_p90
-      } : {},
-      ...slice.authors_count > 0 ? { authors_count: slice.authors_count } : {},
-      ...slice.reviewers_count > 0 ? { reviewers_count: slice.reviewers_count } : {}
+      // Always override to prevent global values leaking through the
+      // ...rollup spread when the slice legitimately has null/0 values.
+      cycle_time_p50: slice.cycle_time_p50,
+      cycle_time_p90: slice.cycle_time_p90,
+      authors_count: slice.authors_count,
+      reviewers_count: slice.reviewers_count
     };
   }
   function applyFiltersToRollups(rollups, filters) {
@@ -2990,12 +3038,62 @@ var PRInsightsDashboard = (() => {
       if (teamSlice && !repoSlice) {
         return buildFilteredRollup(rollup, teamSlice);
       }
+      if (repoSlice && teamSlice && rollup.by_team_and_repo) {
+        let cdPr = 0, cdAuthors = 0, cdReviewers = 0;
+        let cdP50WSum = 0, cdP50WPr = 0, cdP90WSum = 0, cdP90WPr = 0;
+        let cdFound = 0;
+        for (const team of filters.teams) {
+          const teamRepos = rollup.by_team_and_repo[team];
+          if (!teamRepos) continue;
+          for (const repo of filters.repos) {
+            const e = teamRepos[repo];
+            if (!e) continue;
+            cdFound++;
+            const pr = toFiniteNumber(e.pr_count);
+            cdPr += pr;
+            cdAuthors += toFiniteNumber(e.authors_count);
+            cdReviewers += toFiniteNumber(e.reviewers_count);
+            const p50 = e.cycle_time_p50;
+            if (typeof p50 === "number" && Number.isFinite(p50)) {
+              cdP50WSum += p50 * pr;
+              cdP50WPr += pr;
+            }
+            const p90 = e.cycle_time_p90;
+            if (typeof p90 === "number" && Number.isFinite(p90)) {
+              cdP90WSum += p90 * pr;
+              cdP90WPr += pr;
+            }
+          }
+        }
+        if (cdFound > 0) {
+          const isTruncated = rollup.by_team_and_repo["_truncated"] === true;
+          const expectedCount = filters.teams.length * filters.repos.length;
+          if (isTruncated && cdFound < expectedCount) {
+            console.warn(
+              `Cross-dim data truncated for week ${rollup.week}: found ${cdFound}/${expectedCount} entries, using proportional estimation`
+            );
+          } else {
+            return buildFilteredRollup(rollup, {
+              pr_count: cdPr,
+              cycle_time_p50: cdP50WPr > 0 ? cdP50WSum / cdP50WPr : null,
+              cycle_time_p90: cdP90WPr > 0 ? cdP90WSum / cdP90WPr : null,
+              authors_count: cdAuthors,
+              reviewers_count: cdReviewers
+            });
+          }
+        } else if (rollup.by_team_and_repo["_truncated"] !== true) {
+          return { ...rollup, ...ZEROED_ROLLUP_FIELDS };
+        }
+      }
       if (repoSlice && teamSlice) {
         const total = rollup.pr_count || 1;
         const repoShare = Math.min(1, repoSlice.pr_count / total);
         const teamShare = Math.min(1, teamSlice.pr_count / total);
         const combinedRatio = repoShare * teamShare;
         const combinedPrCount = Math.round(rollup.pr_count * combinedRatio);
+        if (combinedPrCount === 0) {
+          return { ...rollup, ...ZEROED_ROLLUP_FIELDS };
+        }
         const combinedAuthors = Math.round(
           (rollup.authors_count || 0) * combinedRatio
         );
@@ -3011,12 +3109,12 @@ var PRInsightsDashboard = (() => {
         return {
           ...rollup,
           pr_count: combinedPrCount,
-          ...p50s.length > 0 ? {
-            cycle_time_p50: p50s.reduce((a, b) => a + b, 0) / p50s.length,
-            cycle_time_p90: p90s.length > 0 ? p90s.reduce((a, b) => a + b, 0) / p90s.length : null
-          } : {},
-          ...combinedAuthors > 0 ? { authors_count: combinedAuthors } : {},
-          ...combinedReviewers > 0 ? { reviewers_count: combinedReviewers } : {}
+          // Always override to prevent global values leaking through the
+          // ...rollup spread when proportional estimates are null/0.
+          cycle_time_p50: p50s.length > 0 ? p50s.reduce((a, b) => a + b, 0) / p50s.length : null,
+          cycle_time_p90: p90s.length > 0 ? p90s.reduce((a, b) => a + b, 0) / p90s.length : null,
+          authors_count: combinedAuthors,
+          reviewers_count: combinedReviewers
         };
       }
       return rollup;
@@ -3024,11 +3122,11 @@ var PRInsightsDashboard = (() => {
   }
   function extractSparklineData(rollups) {
     return {
-      prCounts: rollups.map((r) => r.pr_count || 0),
-      p50s: rollups.map((r) => r.cycle_time_p50 || 0),
-      p90s: rollups.map((r) => r.cycle_time_p90 || 0),
-      authors: rollups.map((r) => r.authors_count || 0),
-      reviewers: rollups.map((r) => r.reviewers_count || 0)
+      prCounts: rollups.map((r) => r.pr_count ?? 0),
+      p50s: rollups.map((r) => r.cycle_time_p50 ?? null),
+      p90s: rollups.map((r) => r.cycle_time_p90 ?? null),
+      authors: rollups.map((r) => r.authors_count ?? 0),
+      reviewers: rollups.map((r) => r.reviewers_count ?? 0)
     };
   }
   function calculateMovingAverage(values, window2 = 4) {
@@ -3040,7 +3138,7 @@ var PRInsightsDashboard = (() => {
     });
   }
 
-  // ui/modules/errors.ts
+  // ../ui/modules/errors.ts
   var PANEL_IDS = [
     "setup-required",
     "multiple-pipelines",
@@ -3161,7 +3259,7 @@ var PRInsightsDashboard = (() => {
     panel.classList.remove("hidden");
   }
 
-  // ui/modules/charts/predictions.ts
+  // ../ui/modules/charts/predictions.ts
   var MAX_CHART_POINTS = 200;
   var FORECASTER_LABELS = {
     linear: "Linear Forecast",
@@ -3416,7 +3514,9 @@ var PRInsightsDashboard = (() => {
     container.appendChild(content);
   }
 
-  // ui/modules/ml/setup-guides.ts
+  // ../ui/modules/ml/setup-guides.ts
+  var yamlStore = /* @__PURE__ */ new Map();
+  var delegatedContainers = /* @__PURE__ */ new WeakSet();
   var PREDICTIONS_YAML = `build-aggregates:
   run-predictions: true`;
   var INSIGHTS_YAML = `build-aggregates:
@@ -3437,8 +3537,9 @@ var PRInsightsDashboard = (() => {
     }
   }
   function createCopyButton(yaml, buttonId) {
+    yamlStore.set(buttonId, yaml);
     return `
-    <button class="copy-yaml-btn" id="${buttonId}" data-yaml="${escapeHtml(yaml)}"
+    <button class="copy-yaml-btn" id="${buttonId}"
             type="button" aria-label="Copy YAML snippet to clipboard">
       <span class="copy-icon" aria-hidden="true">\u{1F4CB}</span>
       <span class="copy-text">Copy</span>
@@ -3446,7 +3547,8 @@ var PRInsightsDashboard = (() => {
   `;
   }
   function attachCopyHandlers(container) {
-    const buttons = container.querySelectorAll(".copy-yaml-btn");
+    if (delegatedContainers.has(container)) return;
+    delegatedContainers.add(container);
     let liveRegion = document.getElementById("copy-status-live");
     if (!liveRegion) {
       liveRegion = document.createElement("div");
@@ -3456,37 +3558,39 @@ var PRInsightsDashboard = (() => {
       liveRegion.className = "visually-hidden";
       document.body.appendChild(liveRegion);
     }
-    buttons.forEach((button) => {
-      button.addEventListener("click", async () => {
-        const yaml = button.dataset.yaml;
-        if (!yaml) return;
-        button.disabled = true;
-        const copyText = button.querySelector(".copy-text");
-        const originalText = copyText?.textContent || "Copy";
-        try {
-          await copyToClipboard(yaml);
-          if (copyText) copyText.textContent = "Copied!";
-          button.classList.add("copied");
-          button.setAttribute("aria-label", "YAML snippet copied to clipboard");
-          if (liveRegion)
-            liveRegion.textContent = "YAML snippet copied to clipboard";
-          setTimeout(() => {
-            if (copyText) copyText.textContent = originalText;
-            button.classList.remove("copied");
-            button.disabled = false;
-            button.setAttribute("aria-label", "Copy YAML snippet to clipboard");
-          }, 2e3);
-        } catch {
-          if (copyText) copyText.textContent = "Failed";
-          button.setAttribute("aria-label", "Failed to copy YAML snippet");
-          if (liveRegion) liveRegion.textContent = "Failed to copy YAML snippet";
-          setTimeout(() => {
-            if (copyText) copyText.textContent = originalText;
-            button.disabled = false;
-            button.setAttribute("aria-label", "Copy YAML snippet to clipboard");
-          }, 2e3);
-        }
-      });
+    container.addEventListener("click", async (e) => {
+      const button = e.target.closest(
+        ".copy-yaml-btn"
+      );
+      if (!button) return;
+      const yaml = yamlStore.get(button.id) ?? button.dataset.yaml;
+      if (!yaml) return;
+      button.disabled = true;
+      const copyText = button.querySelector(".copy-text");
+      const originalText = copyText?.textContent || "Copy";
+      try {
+        await copyToClipboard(yaml);
+        if (copyText) copyText.textContent = "Copied!";
+        button.classList.add("copied");
+        button.setAttribute("aria-label", "YAML snippet copied to clipboard");
+        if (liveRegion)
+          liveRegion.textContent = "YAML snippet copied to clipboard";
+        setTimeout(() => {
+          if (copyText) copyText.textContent = originalText;
+          button.classList.remove("copied");
+          button.disabled = false;
+          button.setAttribute("aria-label", "Copy YAML snippet to clipboard");
+        }, 2e3);
+      } catch {
+        if (copyText) copyText.textContent = "Failed";
+        button.setAttribute("aria-label", "Failed to copy YAML snippet");
+        if (liveRegion) liveRegion.textContent = "Failed to copy YAML snippet";
+        setTimeout(() => {
+          if (copyText) copyText.textContent = originalText;
+          button.disabled = false;
+          button.setAttribute("aria-label", "Copy YAML snippet to clipboard");
+        }, 2e3);
+      }
     });
   }
   function renderPredictionsSetupGuide() {
@@ -3601,7 +3705,7 @@ var PRInsightsDashboard = (() => {
     attachCopyHandlers(content);
   }
 
-  // ui/modules/ml/state-machine.ts
+  // ../ui/modules/ml/state-machine.ts
   function isSchemaVersionSupported(version) {
     if (typeof version !== "number") return false;
     const [min, max] = ML_SCHEMA_VERSION_RANGE;
@@ -3700,7 +3804,7 @@ var PRInsightsDashboard = (() => {
     };
   }
 
-  // ui/modules/ml.ts
+  // ../ui/modules/ml.ts
   function isPredictionsRenderData(data) {
     return typeof data === "object" && data !== null && "forecasts" in data && Array.isArray(data.forecasts);
   }
@@ -4061,7 +4165,7 @@ var PRInsightsDashboard = (() => {
     }
   }
 
-  // ui/modules/charts.ts
+  // ../ui/modules/charts.ts
   function renderDelta(element, percentChange, inverse = false) {
     if (!element) return;
     if (percentChange === null) {
@@ -4092,11 +4196,16 @@ var PRInsightsDashboard = (() => {
     );
   }
   function renderSparkline(element, values) {
-    if (!element || !values || values.length < 2) {
+    if (!element || !values) {
       if (element) clearElement(element);
       return;
     }
-    const data = values.slice(-8);
+    const nonNull = values.filter((v) => v !== null);
+    if (nonNull.length < 2) {
+      clearElement(element);
+      return;
+    }
+    const data = nonNull.slice(-8);
     const width = 60;
     const height = 24;
     const padding = 2;
@@ -4149,7 +4258,7 @@ var PRInsightsDashboard = (() => {
     });
   }
 
-  // ui/modules/charts/summary-cards.ts
+  // ../ui/modules/charts/summary-cards.ts
   function renderSummaryCards(options) {
     const { rollups, prevRollups = [], containers, metricsCollector: metricsCollector2 } = options;
     if (metricsCollector2) metricsCollector2.mark("render-summary-cards-start");
@@ -4242,7 +4351,7 @@ var PRInsightsDashboard = (() => {
     });
   }
 
-  // ui/modules/charts/throughput.ts
+  // ../ui/modules/charts/throughput.ts
   var MAX_THROUGHPUT_POINTS = 104;
   function renderThroughputChart(container, rollups) {
     if (!container) return;
@@ -4257,7 +4366,8 @@ var PRInsightsDashboard = (() => {
     const movingAvg = calculateMovingAverage(prCounts, 4);
     const barsHtml = displayRollups.map((r) => {
       const height = maxCount > 0 ? (r.pr_count || 0) / maxCount * 100 : 0;
-      const weekLabel = r.week.split("-W")[1] || "";
+      const wParts = r.week.split("-W");
+      const weekLabel = wParts[1] ?? r.week;
       return `
             <div class="bar-container" title="${escapeHtml(r.week)}: ${r.pr_count || 0} PRs">
                 <div class="bar" style="height: ${height}%"></div>
@@ -4314,7 +4424,7 @@ var PRInsightsDashboard = (() => {
     `;
   }
 
-  // ui/modules/charts/cycle-time.ts
+  // ../ui/modules/charts/cycle-time.ts
   var MAX_CYCLE_TIME_POINTS = 104;
   function renderCycleDistribution(container, distributions) {
     if (!container) return;
@@ -4385,12 +4495,16 @@ var PRInsightsDashboard = (() => {
     const chartHeight = height - padding.top - padding.bottom;
     const dotRadius = Math.max(1.5, Math.min(4, 200 / displayRollups.length));
     const generatePath = (data) => {
+      if (displayRollups.length < 2) return { pathD: "", points: [] };
       const points = data.map((d) => {
         const dataIndex = displayRollups.findIndex((r) => r.week === d.week);
+        if (dataIndex === -1) return null;
         const x = padding.left + dataIndex / (displayRollups.length - 1) * chartWidth;
         const y = padding.top + chartHeight - (d.value - minVal) / range * chartHeight;
         return { x, y, week: d.week, value: d.value };
-      });
+      }).filter(
+        (p) => p !== null
+      );
       const pathD = points.map(
         (p, i) => `${i === 0 ? "M" : "L"} ${p.x.toFixed(1)} ${p.y.toFixed(1)}`
       ).join(" ");
@@ -4418,8 +4532,8 @@ var PRInsightsDashboard = (() => {
             ${p50Path ? `<path class="line-chart-p50" d="${p50Path.pathD}" vector-effect="non-scaling-stroke"/>` : ""}
 
             <!-- Dots -->
-            ${p90Path ? p90Path.points.map((p) => `<circle class="line-chart-dot" cx="${p.x}" cy="${p.y}" r="${dotRadius}" fill="var(--warning)" data-week="${escapeHtml(p.week)}" data-value="${p.value}" data-metric="P90"/>`).join("") : ""}
-            ${p50Path ? p50Path.points.map((p) => `<circle class="line-chart-dot" cx="${p.x}" cy="${p.y}" r="${dotRadius}" fill="var(--primary)" data-week="${escapeHtml(p.week)}" data-value="${p.value}" data-metric="P50"/>`).join("") : ""}
+            ${p90Path ? p90Path.points.map((p) => `<circle class="line-chart-dot" cx="${p.x}" cy="${p.y}" r="${dotRadius}" fill="var(--warning)" data-week="${escapeHtml(p.week)}" data-value="${escapeHtml(String(p.value))}" data-metric="P90"/>`).join("") : ""}
+            ${p50Path ? p50Path.points.map((p) => `<circle class="line-chart-dot" cx="${p.x}" cy="${p.y}" r="${dotRadius}" fill="var(--primary)" data-week="${escapeHtml(p.week)}" data-value="${escapeHtml(String(p.value))}" data-metric="P50"/>`).join("") : ""}
         </svg>
     `;
     const legendHtml = `
@@ -4456,7 +4570,7 @@ var PRInsightsDashboard = (() => {
     });
   }
 
-  // ui/modules/charts/reviewer-activity.ts
+  // ../ui/modules/charts/reviewer-activity.ts
   var MAX_REVIEWER_WEEKS = 8;
   function renderReviewerActivity(container, rollups) {
     if (!container) return;
@@ -4475,7 +4589,8 @@ var PRInsightsDashboard = (() => {
     const barsHtml = recentRollups.map((r) => {
       const count = r.reviewers_count || 0;
       const pct = count / maxReviewers * 100;
-      const weekLabel = r.week.split("-W")[1] || "";
+      const wParts = r.week.split("-W");
+      const weekLabel = wParts[1] ?? r.week;
       return `
             <div class="h-bar-row" title="${escapeHtml(r.week)}: ${count} reviewers">
                 <span class="h-bar-label">W${escapeHtml(weekLabel)}</span>
@@ -4493,7 +4608,7 @@ var PRInsightsDashboard = (() => {
     );
   }
 
-  // ui/modules/export.ts
+  // ../ui/modules/export.ts
   var CSV_HEADERS = [
     "Week",
     "Start Date",
@@ -4546,7 +4661,7 @@ var PRInsightsDashboard = (() => {
     }, durationMs);
   }
 
-  // ui/modules/sdk.ts
+  // ../ui/modules/sdk.ts
   var sdkInitialized = false;
   async function initializeAdoSdk(options = {}) {
     if (sdkInitialized) {
@@ -4580,7 +4695,7 @@ var PRInsightsDashboard = (() => {
     return typeof window !== "undefined" && window.DATASET_PATH || "./dataset";
   }
 
-  // ui/dashboard.ts
+  // ../ui/dashboard.ts
   var loader = null;
   var artifactClient = null;
   var currentDateRange = {
@@ -4594,10 +4709,15 @@ var PRInsightsDashboard = (() => {
   var comparisonMode = false;
   var cachedRollups = [];
   var currentBuildId = null;
+  var chipsDelegatedElement = null;
   var SETTINGS_KEY_PROJECT = "pr-insights-source-project";
   var SETTINGS_KEY_PIPELINE = "pr-insights-pipeline-id";
   var elements = {};
   var elementLists = {};
+  function getOwnRecordValue(record, key) {
+    const descriptor = Object.getOwnPropertyDescriptor(record, key);
+    return descriptor?.value;
+  }
   function getElement(id) {
     const el = elements[id];
     if (el instanceof HTMLElement) {
@@ -5046,11 +5166,8 @@ var PRInsightsDashboard = (() => {
       console.debug("Previous period data not available:", e);
     }
     cachedRollups = rollups;
-    const summarySection = document.querySelector(".summary-cards");
-    if (summarySection) {
-      const isCombinedFilter = currentFilters.repos.length > 0 && currentFilters.teams.length > 0;
-      summarySection.setAttribute("data-combined-filter", isCombinedFilter ? "true" : "false");
-    }
+    updateAccuracyIndicator(rawRollups, currentFilters);
+    updateOverlapIndicator(rawRollups, currentFilters);
     renderSummaryCards2(rollups, prevRollups);
     renderThroughputChart2(rollups);
     renderCycleTimeTrend2(rollups);
@@ -5058,6 +5175,63 @@ var PRInsightsDashboard = (() => {
     renderCycleDistribution2(distributions);
     if (comparisonMode) {
       updateComparisonBanner();
+    }
+  }
+  function updateAccuracyIndicator(rawRollups, filters) {
+    const summarySection = document.querySelector(".summary-cards");
+    if (!summarySection) return;
+    const isCombinedFilter = filters.repos.length > 0 && filters.teams.length > 0;
+    if (!isCombinedFilter) {
+      summarySection.removeAttribute("data-accuracy");
+      return;
+    }
+    const isEstimated = (r) => r.by_team_and_repo == null || r.by_team_and_repo["_truncated"] === true;
+    const hasEstimatedWeeks = rawRollups.some(isEstimated);
+    if (hasEstimatedWeeks) {
+      const allEstimated = rawRollups.every(isEstimated);
+      summarySection.setAttribute(
+        "data-accuracy",
+        allEstimated ? "approximate" : "mixed"
+      );
+    } else {
+      summarySection.removeAttribute("data-accuracy");
+    }
+  }
+  function updateOverlapIndicator(rawRollups, filters) {
+    const summarySection = document.querySelector(".summary-cards");
+    if (!summarySection) return;
+    const hasMultipleTeams = filters.teams.length > 1;
+    const hasRepoFilter = filters.repos.length > 0;
+    if (!hasMultipleTeams || !hasRepoFilter) {
+      summarySection.removeAttribute("data-overlap");
+      return;
+    }
+    let hasOverlap = false;
+    for (const rollup of rawRollups) {
+      if (!rollup.by_team_and_repo || !rollup.by_repository) continue;
+      if (rollup.by_team_and_repo["_truncated"] === true)
+        continue;
+      for (const repo of filters.repos) {
+        const repoEntry = getOwnRecordValue(rollup.by_repository, repo);
+        if (!repoEntry) continue;
+        let crossDimSum = 0;
+        for (const team of filters.teams) {
+          const teamRepos = getOwnRecordValue(rollup.by_team_and_repo, team);
+          if (!teamRepos) continue;
+          const entry = getOwnRecordValue(teamRepos, repo);
+          if (entry) crossDimSum += entry.pr_count;
+        }
+        if (crossDimSum > repoEntry.pr_count) {
+          hasOverlap = true;
+          break;
+        }
+      }
+      if (hasOverlap) break;
+    }
+    if (hasOverlap) {
+      summarySection.setAttribute("data-overlap", "true");
+    } else {
+      summarySection.removeAttribute("data-overlap");
     }
   }
   function renderSummaryCards2(rollups, prevRollups = []) {
@@ -5255,25 +5429,22 @@ var PRInsightsDashboard = (() => {
     updateUrlState();
     void refreshMetrics();
   }
+  function findOptionByValue(select, value) {
+    return select?.querySelector(
+      `option[value="${CSS.escape(value)}"]`
+    );
+  }
   function removeFilter(type, value) {
     if (type === "repo") {
       currentFilters.repos = currentFilters.repos.filter((v) => v !== value);
       const repoFilter = elements["repo-filter"];
-      if (repoFilter) {
-        const option = repoFilter.querySelector(
-          `option[value="${value}"]`
-        );
-        if (option) option.selected = false;
-      }
+      const option = findOptionByValue(repoFilter, value);
+      if (option) option.selected = false;
     } else if (type === "team") {
       currentFilters.teams = currentFilters.teams.filter((v) => v !== value);
       const teamFilter = elements["team-filter"];
-      if (teamFilter) {
-        const option = teamFilter.querySelector(
-          `option[value="${value}"]`
-        );
-        if (option) option.selected = false;
-      }
+      const option = findOptionByValue(teamFilter, value);
+      if (option) option.selected = false;
     }
     updateFilterUI();
     updateUrlState();
@@ -5306,25 +5477,27 @@ var PRInsightsDashboard = (() => {
       chips.push(createFilterChip("team", value, label));
     });
     renderTrustedHtml(chipsEl, chips.join(""));
-    chipsEl.querySelectorAll(".filter-chip-remove").forEach((btnNode) => {
-      const btn = btnNode;
-      btn.addEventListener("click", () => {
+    if (chipsDelegatedElement !== chipsEl) {
+      chipsDelegatedElement = chipsEl;
+      chipsEl.addEventListener("click", (e) => {
+        const btn = e.target.closest(
+          ".filter-chip-remove"
+        );
+        if (!btn) return;
         const type = btn.dataset["type"];
         const val = btn.dataset["value"];
         if (type && val) removeFilter(type, val);
       });
-    });
+    }
   }
   function getFilterLabel(type, value) {
     if (type === "repo") {
       const repoFilter = elements["repo-filter"];
-      const option = repoFilter?.querySelector(`option[value="${value}"]`);
-      return option?.textContent || value;
+      return findOptionByValue(repoFilter, value)?.textContent ?? value;
     }
     if (type === "team") {
       const teamFilter = elements["team-filter"];
-      const option = teamFilter?.querySelector(`option[value="${value}"]`);
-      return option?.textContent || value;
+      return findOptionByValue(teamFilter, value)?.textContent ?? value;
     }
     return value;
   }
@@ -5345,10 +5518,18 @@ var PRInsightsDashboard = (() => {
       currentFilters.repos = reposParam.split(",").filter((v) => v);
       const repoFilter = elements["repo-filter"];
       if (repoFilter) {
-        currentFilters.repos.forEach((value) => {
-          const option = repoFilter.querySelector(
-            `option[value="${value}"]`
+        const valid = currentFilters.repos.filter(
+          (v) => findOptionByValue(repoFilter, v) !== null
+        );
+        if (valid.length < currentFilters.repos.length) {
+          console.warn(
+            "Ignoring invalid repo filters from URL:",
+            currentFilters.repos.filter((v) => !valid.includes(v))
           );
+        }
+        currentFilters.repos = valid;
+        currentFilters.repos.forEach((value) => {
+          const option = findOptionByValue(repoFilter, value);
           if (option) option.selected = true;
         });
       }
@@ -5357,10 +5538,18 @@ var PRInsightsDashboard = (() => {
       currentFilters.teams = teamsParam.split(",").filter((v) => v);
       const teamFilter = elements["team-filter"];
       if (teamFilter) {
-        currentFilters.teams.forEach((value) => {
-          const option = teamFilter.querySelector(
-            `option[value="${value}"]`
+        const valid = currentFilters.teams.filter(
+          (v) => findOptionByValue(teamFilter, v) !== null
+        );
+        if (valid.length < currentFilters.teams.length) {
+          console.warn(
+            "Ignoring invalid team filters from URL:",
+            currentFilters.teams.filter((v) => !valid.includes(v))
           );
+        }
+        currentFilters.teams = valid;
+        currentFilters.teams.forEach((value) => {
+          const option = findOptionByValue(teamFilter, value);
           if (option) option.selected = true;
         });
       }
@@ -5578,5 +5767,4 @@ var PRInsightsDashboard = (() => {
     void init();
   }
 })();
-// Global exports for browser runtime
-if (typeof window !== 'undefined') { Object.assign(window, PRInsightsDashboard || {}); }
+// Global exports for browser runtime\nif (typeof window !== 'undefined') { Object.assign(window, PRInsightsDashboard || {}); }

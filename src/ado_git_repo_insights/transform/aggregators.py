@@ -21,21 +21,41 @@ from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
+import numpy as np
 import pandas as pd
+
+from .schema_versions import (
+    AGGREGATES_SCHEMA_VERSION,
+    DATASET_SCHEMA_VERSION,
+    INSIGHTS_SCHEMA_VERSION,
+    MANIFEST_SCHEMA_VERSION,
+    PREDICTIONS_SCHEMA_VERSION,
+)
 
 if TYPE_CHECKING:
     from ..persistence.database import DatabaseManager
 
 logger = logging.getLogger(__name__)
 
-# Schema versions (Phase 3 locked)
-MANIFEST_SCHEMA_VERSION = 1
-DATASET_SCHEMA_VERSION = 1
-AGGREGATES_SCHEMA_VERSION = 1
 
-# Phase 3.5 schema versions
-PREDICTIONS_SCHEMA_VERSION = 1
-INSIGHTS_SCHEMA_VERSION = 1
+class _NumpySafeEncoder(json.JSONEncoder):
+    """JSON encoder that converts numpy types to native Python types.
+
+    Pandas quantile/nunique return numpy.float64/numpy.int64 which are
+    technically JSON-serializable (subclasses of float/int) but can carry
+    NaN/Inf values that violate the JSON spec. This encoder converts them
+    to native Python types so allow_nan=False can reject invalid values.
+    """
+
+    def default(self, o: object) -> object:
+        if isinstance(o, np.integer):
+            return int(o)
+        if isinstance(o, np.floating):
+            return float(o)
+        if isinstance(o, np.ndarray):
+            return o.tolist()
+        return super().default(o)
+
 
 # Stub generator identifier
 STUB_GENERATOR_ID = "phase3.5-stub-v1"
@@ -159,6 +179,7 @@ class AggregateGenerator:
         self.insights_cache_ttl_hours = insights_cache_ttl_hours
         self.insights_dry_run = insights_dry_run
         self.stub_mode = stub_mode
+        self._any_rollup_has_cross_dim: bool = False
 
     def generate_all(self) -> DatasetManifest:
         """Generate all aggregate files and manifest.
@@ -171,6 +192,9 @@ class AggregateGenerator:
             StubGenerationError: If stubs requested without ALLOW_ML_STUBS env var.
         """
         import warnings as py_warnings
+
+        # Reset per-run state to prevent leakage across reuse
+        self._any_rollup_has_cross_dim = False
 
         # Create output directories
         self.output_dir.mkdir(parents=True, exist_ok=True)
@@ -282,6 +306,7 @@ class AggregateGenerator:
                 limits={"max_date_range_days_soft": 730},
                 features={
                     "teams": len(dimensions.teams) > 0,  # Phase 3.3: dynamic
+                    "cross_dimensional": self._any_rollup_has_cross_dim,
                     "comments": self._has_comments(),  # Phase 3.4: dynamic
                     "predictions": predictions_generated,  # Phase 3.5/5: file-gated
                     "ai_insights": insights_generated,  # Phase 3.5/5: file-gated
@@ -520,6 +545,8 @@ class AggregateGenerator:
         df["iso_week"] = df["closed_dt"].dt.isocalendar().week
 
         index: list[dict[str, Any]] = []
+        any_rollup_has_cross_dim = False
+        # Track cross-dim availability for features flag (set on self after loop)
 
         # Group by ISO year-week
         for (iso_year, iso_week), group in df.groupby(["iso_year", "iso_week"]):
@@ -542,6 +569,9 @@ class AggregateGenerator:
             # Generate dimension slices for filtering support
             by_repository = self._generate_repo_slice(group, week_reviewers)
             by_team = self._generate_team_slice(group, week_reviewers, team_members_df)
+            by_team_and_repo = self._generate_team_repo_slice(
+                group, week_reviewers, team_members_df
+            )
 
             rollup = WeeklyRollup(
                 week=week_str,
@@ -549,10 +579,10 @@ class AggregateGenerator:
                 end_date=end_date.isoformat(),
                 pr_count=len(group),
                 cycle_time_p50=group["cycle_time_minutes"].quantile(0.5)
-                if not group["cycle_time_minutes"].isna().all()
+                if group["cycle_time_minutes"].notna().sum() >= self._ROLLUP_MIN_SAMPLE
                 else None,
                 cycle_time_p90=group["cycle_time_minutes"].quantile(0.9)
-                if not group["cycle_time_minutes"].isna().all()
+                if group["cycle_time_minutes"].notna().sum() >= self._ROLLUP_MIN_SAMPLE
                 else None,
                 authors_count=group["user_id"].nunique(),
                 reviewers_count=reviewers_count,
@@ -564,6 +594,31 @@ class AggregateGenerator:
                 rollup_dict["by_repository"] = by_repository
             if by_team:
                 rollup_dict["by_team"] = by_team
+            if by_team_and_repo:
+                # Consistency assertion (pr_count only): for each team,
+                # sum of cross-dim pr_counts must equal team total.
+                # Relaxed when truncation has occurred (_truncated flag).
+                is_truncated = by_team_and_repo.get("_truncated", False)
+                if not is_truncated and by_team:
+                    for team_name, repo_entries in by_team_and_repo.items():
+                        if team_name.startswith("_"):
+                            continue  # skip metadata keys like _truncated
+                        cross_dim_pr_sum = sum(
+                            entry["pr_count"] for entry in repo_entries.values()
+                        )
+                        team_pr_count = by_team.get(team_name, {}).get("pr_count", 0)
+                        if cross_dim_pr_sum != team_pr_count:
+                            logger.warning(
+                                "Cross-dim pr_count consistency mismatch for "
+                                "team %r in week %s: cross_dim_sum=%d != "
+                                "team_total=%d",
+                                team_name,
+                                week_str,
+                                cross_dim_pr_sum,
+                                team_pr_count,
+                            )
+                rollup_dict["by_team_and_repo"] = by_team_and_repo
+                any_rollup_has_cross_dim = True
 
             # Write file
             file_path = (
@@ -581,6 +636,9 @@ class AggregateGenerator:
                     "size_bytes": file_path.stat().st_size,
                 }
             )
+
+        # Store cross-dim availability for features flag in generate_all()
+        self._any_rollup_has_cross_dim = any_rollup_has_cross_dim
 
         return index
 
@@ -610,10 +668,12 @@ class AggregateGenerator:
             by_repository[str(repo_name)] = {
                 "pr_count": len(repo_group),
                 "cycle_time_p50": repo_group["cycle_time_minutes"].quantile(0.5)
-                if not repo_group["cycle_time_minutes"].isna().all()
+                if repo_group["cycle_time_minutes"].notna().sum()
+                >= self._ROLLUP_MIN_SAMPLE
                 else None,
                 "cycle_time_p90": repo_group["cycle_time_minutes"].quantile(0.9)
-                if not repo_group["cycle_time_minutes"].isna().all()
+                if repo_group["cycle_time_minutes"].notna().sum()
+                >= self._ROLLUP_MIN_SAMPLE
                 else None,
                 "authors_count": repo_group["user_id"].nunique(),
                 "reviewers_count": repo_reviewers["reviewer_id"].nunique(),
@@ -678,16 +738,153 @@ class AggregateGenerator:
             by_team[str(team_name)] = {
                 "pr_count": len(team_prs),
                 "cycle_time_p50": team_prs["cycle_time_minutes"].quantile(0.5)
-                if not team_prs["cycle_time_minutes"].isna().all()
+                if team_prs["cycle_time_minutes"].notna().sum()
+                >= self._ROLLUP_MIN_SAMPLE
                 else None,
                 "cycle_time_p90": team_prs["cycle_time_minutes"].quantile(0.9)
-                if not team_prs["cycle_time_minutes"].isna().all()
+                if team_prs["cycle_time_minutes"].notna().sum()
+                >= self._ROLLUP_MIN_SAMPLE
                 else None,
                 "authors_count": team_prs["user_id"].nunique(),
                 "reviewers_count": team_reviewers["reviewer_id"].nunique(),
             }
 
         return by_team
+
+    # Maximum cross-dimensional entries per week before truncation (FR-017)
+    _CROSS_DIM_MAX_ENTRIES = 5000
+    # Minimum sample size for cycle time percentiles in cross-dim slices (FR-019)
+    _CROSS_DIM_MIN_SAMPLE = 5
+    # Minimum sample size for cycle time percentiles in rollup/dimension slices
+    _ROLLUP_MIN_SAMPLE = 2
+
+    def _generate_team_repo_slice(
+        self,
+        week_group: pd.DataFrame,
+        week_reviewers: pd.DataFrame,
+        team_members_df: pd.DataFrame,
+    ) -> dict[str, Any]:
+        """Generate per-team-per-repository metrics slice for a week.
+
+        Joins week PRs against team_members_df to tag each PR with its team
+        membership(s), then groups by (team_name, repository_name) in a single
+        pass. This is O(PRs * avg_teams_per_author + unique_pairs) rather than
+        O(teams * repos), matching the groupby pattern in _generate_repo_slice().
+
+        Authors in multiple teams will have their PRs counted in each team's
+        slice — consistent with _generate_team_slice() semantics.
+
+        Args:
+            week_group: DataFrame of PRs for the week (must have user_id,
+                repository_name, pull_request_uid, cycle_time_minutes columns).
+            week_reviewers: DataFrame of reviewers for PRs in this week
+                (must have pull_request_uid, reviewer_id columns).
+            team_members_df: DataFrame with team_name and user_id columns.
+
+        Returns:
+            Sparse nested dict {team_name: {repo_name: {metrics...}}}.
+            Empty dict if no team data or no intersections found.
+            Includes '_truncated': True at top level if entries exceed the
+            5,000 entry cap and were truncated.
+        """
+        if team_members_df.empty:
+            return {}
+
+        # Deduplicate team memberships on (user_id, team_name) to prevent
+        # PR row inflation when the same team_name appears under multiple
+        # team_ids (e.g., same-named teams across projects).
+        deduped_members = team_members_df[["user_id", "team_name"]].drop_duplicates()
+        deduped_members = deduped_members.dropna(subset=["user_id", "team_name"])
+
+        # Join PRs with team memberships to tag each PR with its team(s).
+        # A multi-team author produces one row per team membership.
+        tagged = week_group.merge(
+            deduped_members,
+            on="user_id",
+            how="inner",
+        )
+
+        if tagged.empty:
+            return {}
+
+        by_team_and_repo: dict[str, Any] = {}
+        entry_count = 0
+
+        # Collect all entries with their pr_count for potential truncation
+        all_entries: list[tuple[str, str, dict[str, Any]]] = []
+
+        for (team_name, repo_name), grp in tagged.groupby(
+            ["team_name", "repository_name"]
+        ):
+            # Multi-column groupby yields Hashable keys; narrow to str to skip NaN
+            if not isinstance(team_name, str) or not isinstance(repo_name, str):
+                continue
+
+            pr_count = len(grp)
+            if pr_count == 0:
+                continue
+
+            # Compute cycle time percentiles with minimum sample size guard.
+            # Count non-NaN cycle times (not total rows) so the guard reflects
+            # the actual number of data points feeding the percentile.
+            cycle_time_valid_count = int(grp["cycle_time_minutes"].notna().sum())
+            if cycle_time_valid_count >= self._CROSS_DIM_MIN_SAMPLE:
+                cycle_time_p50 = grp["cycle_time_minutes"].quantile(0.5)
+                cycle_time_p90 = grp["cycle_time_minutes"].quantile(0.9)
+            else:
+                cycle_time_p50 = None
+                cycle_time_p90 = None
+
+            # Count unique reviewers for PRs in this intersection
+            grp_pr_uids = set(grp["pull_request_uid"].tolist())
+            grp_reviewers = week_reviewers[
+                week_reviewers["pull_request_uid"].isin(grp_pr_uids)
+            ]
+
+            entry = {
+                "pr_count": pr_count,
+                "cycle_time_p50": cycle_time_p50,
+                "cycle_time_p90": cycle_time_p90,
+                "authors_count": grp["user_id"].nunique(),
+                "reviewers_count": grp_reviewers["reviewer_id"].nunique(),
+            }
+
+            all_entries.append((str(team_name), str(repo_name), entry))
+            entry_count += 1
+
+        # Truncation: if entries exceed cap, keep the most significant
+        # intersections by descending pr_count rather than whole teams.
+        truncated = False
+        if entry_count > self._CROSS_DIM_MAX_ENTRIES:
+            all_entries = sorted(
+                all_entries,
+                key=lambda item: (
+                    -int(item[2]["pr_count"]),
+                    item[0],
+                    item[1],
+                ),
+            )
+            all_entries = all_entries[: self._CROSS_DIM_MAX_ENTRIES]
+            truncated = True
+            logger.warning(
+                "Cross-dimensional entries truncated from %d to %d for week "
+                "(least-significant intersections removed)",
+                entry_count,
+                len(all_entries),
+            )
+
+        # Build nested dict from (possibly truncated) entries
+        for team_name, repo_name, entry in all_entries:
+            if team_name not in by_team_and_repo:
+                by_team_and_repo[team_name] = {}
+            by_team_and_repo[team_name][repo_name] = entry
+
+        if truncated:
+            # NOTE: Mixed-type key — bool value alongside dict values.
+            # Consumers must skip "_"-prefixed keys when iterating entries.
+            by_team_and_repo["_truncated"] = True
+
+        return by_team_and_repo
 
     def _generate_distributions(self) -> list[dict[str, Any]]:
         """Generate yearly distribution files."""
@@ -895,9 +1092,20 @@ class AggregateGenerator:
         }
 
     def _write_json(self, path: Path, data: dict[str, Any]) -> None:
-        """Write JSON file with deterministic formatting."""
+        """Write JSON file with deterministic formatting.
+
+        Uses allow_nan=False to reject NaN/Infinity values that would
+        produce invalid JSON (not part of the JSON spec per RFC 7159).
+        """
         with path.open("w", encoding="utf-8") as f:
-            json.dump(data, f, indent=2, sort_keys=True)
+            json.dump(
+                data,
+                f,
+                indent=2,
+                sort_keys=True,
+                allow_nan=False,
+                cls=_NumpySafeEncoder,
+            )
 
 
 class StubGenerationError(Exception):

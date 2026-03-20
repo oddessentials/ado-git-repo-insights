@@ -283,6 +283,45 @@ describe("setup-guides", () => {
       expect(liveRegions.length).toBe(1);
     });
 
+    it("uses execCommand fallback when clipboard API unavailable", async () => {
+      // Remove clipboard API to trigger fallback
+      Object.defineProperty(navigator, "clipboard", {
+        value: undefined,
+        writable: true,
+        configurable: true,
+      });
+
+      // JSDOM does not implement execCommand — define it so we can spy on it
+      document.execCommand = jest.fn().mockReturnValue(true);
+      const execCommandSpy = document.execCommand as jest.Mock;
+
+      container.innerHTML = `
+        <button class="copy-yaml-btn" data-yaml="fallback: yaml">
+          <span class="copy-text">Copy</span>
+        </button>
+      `;
+
+      attachCopyHandlers(container);
+
+      const button = container.querySelector(".copy-yaml-btn") as HTMLButtonElement;
+      button.click();
+
+      await Promise.resolve();
+      await Promise.resolve();
+
+      expect(execCommandSpy).toHaveBeenCalledWith("copy");
+
+      const copyText = button.querySelector(".copy-text");
+      expect(copyText?.textContent).toBe("Copied!");
+
+      // Restore clipboard for other tests
+      Object.defineProperty(navigator, "clipboard", {
+        value: mockClipboard,
+        writable: true,
+        configurable: true,
+      });
+    });
+
     it("enforces fake timers for the suite", () => {
       const callback = jest.fn();
       setTimeout(callback, 50);
@@ -413,6 +452,87 @@ describe("setup-guides", () => {
       const html = renderInsightsSetupGuide();
       // The YAML content should be HTML-escaped in data-yaml attribute
       expect(html).not.toContain("data-yaml=\"<script>");
+    });
+  });
+
+  describe("yamlStore and event delegation", () => {
+    let container: HTMLElement;
+    let mockClipboard: { writeText: jest.Mock };
+
+    beforeEach(() => {
+      jest.useFakeTimers();
+      container = document.createElement("div");
+      document.body.appendChild(container);
+      mockClipboard = { writeText: jest.fn().mockResolvedValue(undefined) };
+      Object.defineProperty(navigator, "clipboard", {
+        value: mockClipboard, writable: true, configurable: true,
+      });
+      const existingLive = document.getElementById("copy-status-live");
+      if (existingLive) existingLive.remove();
+    });
+
+    afterEach(() => {
+      jest.clearAllTimers();
+      container.remove();
+      const liveRegion = document.getElementById("copy-status-live");
+      if (liveRegion) liveRegion.remove();
+    });
+
+    afterAll(() => {
+      jest.useRealTimers();
+    });
+
+    it("retrieves YAML from yamlStore for rendered buttons", async () => {
+      // renderPredictionsSetupGuide registers YAML in yamlStore via createCopyButton
+      const html = renderPredictionsSetupGuide();
+      container.innerHTML = html;
+      attachCopyHandlers(container);
+
+      const button = container.querySelector("#copy-predictions-yaml") as HTMLButtonElement;
+      button.click();
+
+      await Promise.resolve();
+      await Promise.resolve();
+
+      expect(mockClipboard.writeText).toHaveBeenCalledWith(getPredictionsYaml());
+    });
+
+    it("no duplicate handlers via WeakSet", async () => {
+      container.innerHTML = `
+        <button class="copy-yaml-btn" data-yaml="test: yaml">
+          <span class="copy-text">Copy</span>
+        </button>
+      `;
+
+      attachCopyHandlers(container);
+      attachCopyHandlers(container); // second call should be no-op
+
+      const button = container.querySelector(".copy-yaml-btn") as HTMLButtonElement;
+      button.click();
+
+      await Promise.resolve();
+      await Promise.resolve();
+
+      expect(mockClipboard.writeText).toHaveBeenCalledTimes(1);
+    });
+
+    it("delegates click from child element", async () => {
+      container.innerHTML = `
+        <button class="copy-yaml-btn" data-yaml="delegated: yaml">
+          <span class="copy-text">Copy</span>
+        </button>
+      `;
+
+      attachCopyHandlers(container);
+
+      // Click the inner span, not the button itself
+      const innerSpan = container.querySelector(".copy-text") as HTMLElement;
+      innerSpan.click();
+
+      await Promise.resolve();
+      await Promise.resolve();
+
+      expect(mockClipboard.writeText).toHaveBeenCalledWith("delegated: yaml");
     });
   });
 });

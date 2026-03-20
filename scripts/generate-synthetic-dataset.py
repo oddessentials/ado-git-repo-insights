@@ -20,6 +20,8 @@ _src_path = Path(__file__).parent.parent / "src"
 if str(_src_path) not in sys.path:
     sys.path.insert(0, str(_src_path))
 
+from demo_generation_common import largest_remainder_allocate  # noqa: E402
+
 from ado_git_repo_insights.transform.aggregators import (  # noqa: E402  # type: ignore[import-not-found]
     AggregateIndex,
     DatasetManifest,
@@ -181,6 +183,96 @@ def generate_weekly_rollups(
             },
         }
 
+        # Add by_team_and_repo cross-dimensional breakdown.
+        # Uses correlated team-repo distributions so that Team Alpha is
+        # heavily weighted toward earlier repos (Backend) and Team Beta
+        # toward later repos (Frontend). This ensures proportional
+        # estimation produces meaningful error (>20%) for at least one
+        # team-repo pair, validating the cross-dim feature.
+        if repositories:
+            repo_names = [r["repository_name"] for r in repositories]
+            num_repos = len(repo_names)
+
+            # Correlated weight profiles: Alpha skews toward early repos
+            # (Backend-like), Beta skews toward late repos (Frontend-like).
+            # This creates non-independent distributions that expose
+            # proportional estimation failures.
+            alpha_repo_raw = [
+                max(0.01, (num_repos - i) / num_repos) for i in range(num_repos)
+            ]
+            beta_repo_raw = [max(0.01, (i + 1) / num_repos) for i in range(num_repos)]
+            alpha_repo_sum = sum(alpha_repo_raw)
+            beta_repo_sum = sum(beta_repo_raw)
+            alpha_repo_weights = [w / alpha_repo_sum for w in alpha_repo_raw]
+            beta_repo_weights = [w / beta_repo_sum for w in beta_repo_raw]
+
+            team_repo_profiles: dict[str, tuple[int, int, int, list[float]]] = {
+                "Team Alpha": (
+                    team_alpha_prs,
+                    team_alpha_authors,
+                    team_alpha_reviewers,
+                    alpha_repo_weights,
+                ),
+                "Team Beta": (
+                    team_beta_prs,
+                    team_beta_authors,
+                    team_beta_reviewers,
+                    beta_repo_weights,
+                ),
+            }
+
+            by_team_and_repo: dict[str, dict[str, Any]] = {}
+            for team_name, (
+                t_prs,
+                t_authors,
+                t_reviewers,
+                repo_weights,
+            ) in team_repo_profiles.items():
+                if t_prs == 0:
+                    continue
+                team_repo_entries: dict[str, Any] = {}
+
+                alloc_prs = largest_remainder_allocate(t_prs, repo_weights)
+                alloc_authors = largest_remainder_allocate(t_authors, repo_weights)
+                alloc_reviewers = largest_remainder_allocate(t_reviewers, repo_weights)
+
+                for j, rname in enumerate(repo_names):
+                    r_prs = alloc_prs[j]
+                    r_authors = (
+                        max(1, alloc_authors[j]) if r_prs > 0 else alloc_authors[j]
+                    )
+                    r_reviewers = (
+                        max(1, alloc_reviewers[j]) if r_prs > 0 else alloc_reviewers[j]
+                    )
+
+                    if r_prs <= 0:
+                        continue
+
+                    # Cycle time variation per intersection:
+                    # null when fewer than 5 PRs (FR-019 minimum sample size)
+                    if r_prs < 5:
+                        ct_p50 = None
+                        ct_p90 = None
+                    else:
+                        team_entry = rollup_dict["by_team"][team_name]
+                        ct_factor = 0.7 + repo_weights[j] * num_repos * 0.6
+                        ct_p50 = team_entry["cycle_time_p50"] * ct_factor
+                        ct_p90 = team_entry["cycle_time_p90"] * ct_factor
+
+                    team_repo_entries[rname] = {
+                        "pr_count": r_prs,
+                        "cycle_time_p50": ct_p50,
+                        "cycle_time_p90": ct_p90,
+                        "authors_count": r_authors,
+                        "reviewers_count": r_reviewers,
+                    }
+
+                if team_repo_entries:
+                    by_team_and_repo[team_name] = team_repo_entries
+
+            if by_team_and_repo:
+                rollup_dict["by_team_and_repo"] = by_team_and_repo
+
         # Add by_repository breakdown so the repo filter dropdown works.
         # Keys must be repository_name (not repository_id) to match the
         # dashboard contract — see dashboard.ts filter population.
@@ -192,25 +284,26 @@ def generate_weekly_rollups(
             weights = [w / weight_sum for w in raw_weights]
 
             by_repo: dict[str, dict[str, Any]] = {}
-            remaining_prs = week_pr_count
-            remaining_authors = rollup.authors_count
-            remaining_reviewers = rollup.reviewers_count
+            alloc_repo_prs = largest_remainder_allocate(week_pr_count, weights)
+            alloc_repo_authors = largest_remainder_allocate(
+                rollup.authors_count, weights
+            )
+            alloc_repo_reviewers = largest_remainder_allocate(
+                rollup.reviewers_count, weights
+            )
 
             for i, name in enumerate(repo_names):
-                is_last = i == len(repo_names) - 1
-                if is_last:
-                    # Remainder gets clamped to 0 — round() on earlier
-                    # repos can overshoot the total.
-                    repo_prs = max(0, remaining_prs)
-                    repo_authors = max(0, remaining_authors)
-                    repo_reviewers = max(0, remaining_reviewers)
-                else:
-                    repo_prs = round(week_pr_count * weights[i])
-                    repo_authors = max(1, round(rollup.authors_count * weights[i]))
-                    repo_reviewers = max(1, round(rollup.reviewers_count * weights[i]))
-                    remaining_prs -= repo_prs
-                    remaining_authors -= repo_authors
-                    remaining_reviewers -= repo_reviewers
+                repo_prs = alloc_repo_prs[i]
+                repo_authors = (
+                    max(1, alloc_repo_authors[i])
+                    if repo_prs > 0
+                    else alloc_repo_authors[i]
+                )
+                repo_reviewers = (
+                    max(1, alloc_repo_reviewers[i])
+                    if repo_prs > 0
+                    else alloc_repo_reviewers[i]
+                )
 
                 # Vary cycle times by weight for realistic spread
                 factor = 0.6 + weights[i] * len(repo_names) * 0.8
@@ -466,6 +559,7 @@ def generate_dataset(
         limits={"max_date_range_days_soft": 730},
         features={
             "teams": True,
+            "cross_dimensional": True,
             "comments": include_comments,
             "predictions": False,
             "ai_insights": False,

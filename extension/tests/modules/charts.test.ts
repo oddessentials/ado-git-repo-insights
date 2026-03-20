@@ -92,5 +92,21 @@ describe("charts module", () => {
       renderSparkline(container, []);
       expect(container.innerHTML).toBe("");
     });
+
+    it("filters out null values and renders non-null points", () => {
+      renderSparkline(container, [null, 10, null, 20, null, 30, null, 40]);
+      expect(container.innerHTML).toContain("<svg");
+      expect(container.innerHTML).toContain("sparkline-line");
+    });
+
+    it("clears element when all values are null", () => {
+      renderSparkline(container, [null, null, null, null]);
+      expect(container.innerHTML).toBe("");
+    });
+
+    it("clears element when fewer than 2 non-null values", () => {
+      renderSparkline(container, [null, 42, null, null]);
+      expect(container.innerHTML).toBe("");
+    });
   });
 });

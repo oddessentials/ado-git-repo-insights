@@ -36,6 +36,12 @@ pytest
 
 # Extension
 cd extension && npm test
+
+# High-confidence CI parity for supported Python versions
+python scripts/run_ci_parity.py
+
+# Deeper parity with isolated per-version environments
+python scripts/run_ci_parity.py --mode full
 ```
 
 **Detailed testing:** [Testing Guide](docs/development/testing.md)

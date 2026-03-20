@@ -111,6 +111,7 @@ test_artifacts
 # Playwright smoke test artifacts (local, uploaded in CI)
 extension/test-artifacts/
 extension/playwright-report/
+extension/test-output.txt
 run_artifacts/*
 # Compiled scripts
 scripts/dist/

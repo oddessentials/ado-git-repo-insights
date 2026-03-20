@@ -1,10 +1,11 @@
 #!/usr/bin/env bash
-# Pre-push hook: Run all checks before pushing to prevent CI failures
-# Enterprise-grade: Mirrors CI checks exactly to catch failures locally
+# Pre-push hook: Run workstation checks before pushing to prevent common CI failures
+# This is a strong local gate, but it is NOT a full CI matrix replacement.
 #
 # Order: baseline integrity → pre-commit --all-files → CRLF guard → Python tests → TS checks
 #
-# This hook ensures NO code reaches CI that would fail. If it passes here, CI passes.
+# For high-confidence multi-version verification, also run:
+#   python scripts/run_ci_parity.py
 #
 # Requires bash for pipefail support (available via Git Bash on Windows)
 

@@ -20,10 +20,17 @@ from __future__ import annotations
 import json
 import sys
 from dataclasses import dataclass
-from datetime import date, datetime, timedelta, timezone
-from decimal import ROUND_HALF_UP, Decimal
+from datetime import date, timedelta
+from decimal import Decimal
 from pathlib import Path
 from typing import Any
+
+from demo_generation_common import (
+    FIXED_GENERATED_AT,
+    refresh_demo_manifest_features,
+    round_float,
+    write_json_file,
+)
 
 # =============================================================================
 # Configuration Constants
@@ -34,6 +41,7 @@ FORECAST_HORIZON_WEEKS = 12
 TREND_LOOKBACK_WEEKS = 8
 BASE_CONFIDENCE_INTERVAL = 0.15  # ±15%
 CONFIDENCE_WIDENING_PER_WEEK = 0.01  # +1% per week
+REVIEW_TIME_FRACTION = 0.4  # Review time is ~40% of total cycle time
 
 # Paths
 DATA_DIR = Path(__file__).parent.parent / "docs" / "data"
@@ -41,66 +49,8 @@ ROLLUPS_DIR = DATA_DIR / "aggregates" / "weekly_rollups"
 PREDICTIONS_DIR = DATA_DIR / "predictions"
 OUTPUT_FILE = PREDICTIONS_DIR / "trends.json"
 MANIFEST_FILE = DATA_DIR / "dataset-manifest.json"
-
 # Schema version
 PREDICTIONS_SCHEMA_VERSION = 1
-
-
-# =============================================================================
-# Canonical JSON Utilities (matching generate-demo-data.py)
-# =============================================================================
-
-
-def round_float(value: float, decimals: int = 3) -> float:
-    """Round float to specified decimal places using HALF_UP rounding."""
-    d = Decimal(str(value)).quantize(Decimal(10) ** -decimals, rounding=ROUND_HALF_UP)
-    return float(d)
-
-
-def canonical_json(data: Any, indent: int = 2) -> str:
-    """
-    Generate canonical JSON with:
-    - Sorted keys
-    - 3-decimal floats
-    - LF newlines only
-    - Trailing newline
-    """
-
-    def default_serializer(obj: Any) -> Any:
-        if isinstance(obj, datetime):
-            return obj.strftime("%Y-%m-%dT%H:%M:%SZ")
-        if isinstance(obj, date):
-            return obj.isoformat()
-        raise TypeError(f"Object of type {type(obj).__name__} is not JSON serializable")
-
-    # Pre-process floats to 3 decimal places
-    def process_floats(obj: Any) -> Any:
-        if isinstance(obj, float):
-            return round_float(obj)
-        if isinstance(obj, dict):
-            return {k: process_floats(v) for k, v in obj.items()}
-        if isinstance(obj, list):
-            return [process_floats(item) for item in obj]
-        return obj
-
-    processed = process_floats(data)
-    json_str = json.dumps(
-        processed, sort_keys=True, indent=indent, default=default_serializer
-    )
-    # Ensure LF line endings and trailing newline
-    json_str = json_str.replace("\r\n", "\n")
-    if not json_str.endswith("\n"):
-        json_str += "\n"
-    return json_str
-
-
-def write_json_file(path: Path, data: Any) -> None:
-    """Write data to JSON file with canonical formatting."""
-    path.parent.mkdir(parents=True, exist_ok=True)
-    content = canonical_json(data)
-    path.write_text(content, encoding="utf-8", newline="\n")
-
-
 # =============================================================================
 # Data Loading
 # =============================================================================
@@ -129,7 +79,7 @@ def load_weekly_rollups() -> list[WeeklyMetrics]:
                 week=data["week"],
                 start_date=date.fromisoformat(data["start_date"]),
                 pr_count=data["pr_count"],
-                cycle_time_p50=data["cycle_time_p50"],
+                cycle_time_p50=data["cycle_time_p50"] or 0.0,
             )
         )
 
@@ -216,15 +166,18 @@ def generate_forecast(
 
         # Project the trend forward using Decimal arithmetic
         d_week_index = Decimal(n - 1 + week_offset)
-        d_predicted = d_slope * d_week_index + d_intercept
+        d_raw_predicted = d_slope * d_week_index + d_intercept
 
-        # Ensure non-negative values
-        d_predicted = max(Decimal("0"), d_predicted)
+        # Ensure non-negative predicted values
+        d_predicted = max(Decimal("0"), d_raw_predicted)
 
-        # Calculate widening confidence interval (T036) using Decimal
+        # Calculate widening confidence interval (T036) using Decimal.
+        # Use |raw| for half-width so intervals don't collapse to [0,0,0]
+        # when the trend crosses zero (predicted clamped to 0 but raw < 0).
         d_confidence = d_base_confidence + (Decimal(week_offset) * d_widening)
-        d_lower_bound = max(Decimal("0"), d_predicted * (Decimal("1") - d_confidence))
-        d_upper_bound = d_predicted * (Decimal("1") + d_confidence)
+        d_half_width = abs(d_raw_predicted) * d_confidence
+        d_lower_bound = max(Decimal("0"), d_predicted - d_half_width)
+        d_upper_bound = d_predicted + d_half_width
 
         # Round all values to 3 decimals for canonical output
         forecasts.append(
@@ -287,8 +240,7 @@ def generate_review_time_forecast(rollups: list[WeeklyMetrics]) -> dict[str, Any
     """
     # Get last 8 weeks of cycle time P50 and derive review time
     recent = rollups[-TREND_LOOKBACK_WEEKS:]
-    # Review time is typically ~40% of total cycle time
-    historical_values = [r.cycle_time_p50 * 0.4 for r in recent]
+    historical_values = [r.cycle_time_p50 * REVIEW_TIME_FRACTION for r in recent]
     last_date = recent[-1].start_date
 
     return {
@@ -299,22 +251,6 @@ def generate_review_time_forecast(rollups: list[WeeklyMetrics]) -> dict[str, Any
             historical_values, last_date, FORECAST_HORIZON_WEEKS
         ),
     }
-
-
-# =============================================================================
-# Manifest Update (T038)
-# =============================================================================
-
-
-def update_manifest_predictions_flag() -> None:
-    """Update dataset-manifest.json to set features.predictions=true."""
-    with open(MANIFEST_FILE, encoding="utf-8") as f:
-        manifest = json.load(f)
-
-    manifest["features"]["predictions"] = True
-
-    write_json_file(MANIFEST_FILE, manifest)
-    print(f"  Updated: {MANIFEST_FILE}")
 
 
 # =============================================================================
@@ -354,10 +290,10 @@ def main() -> int:
         print(f"    - {f['metric']}: {f['horizon_weeks']} weeks")
 
     # Build predictions document (T037)
-    print("\n[3/4] Writing predictions/trends.json...")
+    print("\n[3/3] Writing predictions/trends.json...")
     predictions = {
         "schema_version": PREDICTIONS_SCHEMA_VERSION,
-        "generated_at": datetime(2026, 1, 30, 12, 0, 0, tzinfo=timezone.utc),
+        "generated_at": FIXED_GENERATED_AT,
         "generated_by": "generate-demo-predictions.py",
         "is_stub": False,
         "forecasts": forecasts,
@@ -366,9 +302,8 @@ def main() -> int:
     write_json_file(OUTPUT_FILE, predictions)
     print(f"  Written: {OUTPUT_FILE}")
 
-    # Update manifest (T038)
-    print("\n[4/4] Updating dataset-manifest.json...")
-    update_manifest_predictions_flag()
+    print("  Refreshing dataset-manifest feature flags...")
+    refresh_demo_manifest_features(MANIFEST_FILE, DATA_DIR)
 
     print("\nPredictions generation complete!")
     return 0

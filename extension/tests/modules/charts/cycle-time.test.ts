@@ -199,5 +199,33 @@ describe("cycle-time module", () => {
 
       expect(container.innerHTML).toContain('data-week="2025-W01"');
     });
+
+    it("shows no-data and no SVG for empty rollups array", () => {
+      renderCycleTimeTrend(container, []);
+
+      expect(container.innerHTML).toContain("no-data");
+      expect(container.innerHTML).not.toContain("<svg");
+    });
+
+    it("renders data-value attributes on dot elements", () => {
+      const rollups = Array.from({ length: 4 }, (_, i) => ({
+        week: `2025-W${(i + 1).toString().padStart(2, "0")}`,
+        pr_count: 10 + i * 5,
+        cycle_time_p50: 60 + i * 10,
+        cycle_time_p90: 120 + i * 20,
+        authors_count: 5 + i,
+        reviewers_count: 3 + i,
+        by_repository: null,
+        by_team: null,
+      }));
+
+      renderCycleTimeTrend(container, rollups);
+
+      const dots = container.querySelectorAll(".line-chart-dot");
+      expect(dots.length).toBeGreaterThan(0);
+      dots.forEach((dot) => {
+        expect(dot.getAttribute("data-value")).not.toBeNull();
+      });
+    });
   });
 });

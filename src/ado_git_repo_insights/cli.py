@@ -434,6 +434,7 @@ def _extract_comments(
         "threads": 0,
         "comments": 0,
         "prs_processed": 0,
+        "prs_comment_failures": 0,
         "capped": False,
     }
 
@@ -531,7 +532,14 @@ def _extract_comments(
             stats["prs_processed"] = int(stats["prs_processed"]) + 1
 
         except ExtractionError as e:
-            logger.warning(f"Failed to extract comments for PR {pr_uid}: {e}")
+            from .utils.run_summary import normalize_error_message
+
+            logger.warning(
+                "Failed to extract comments for PR %s: %s",
+                pr_uid,
+                normalize_error_message(str(e)),
+            )
+            stats["prs_comment_failures"] = int(stats["prs_comment_failures"]) + 1
             # Continue with other PRs - don't fail entire run
 
     db.connection.commit()
@@ -598,7 +606,8 @@ def cmd_extract(args: Namespace) -> int:
                 if not project_result.success and first_fatal_error is None:
                     first_fatal_error = (
                         project_result.error
-                        or f"Extraction failed for project: {project_result.project}"
+                        if project_result.error is not None
+                        else f"Extraction failed for project: {project_result.project}"
                     )
 
             # Fail-fast: any project failure = exit 1

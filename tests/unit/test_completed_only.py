@@ -7,6 +7,8 @@ Covers §1 from IMPLEMENTATION_DETAILS.md:
 
 from __future__ import annotations
 
+from pathlib import Path
+
 from ado_git_repo_insights.persistence.database import DatabaseManager
 from ado_git_repo_insights.transform.aggregators import AggregateGenerator
 
@@ -19,8 +21,7 @@ class TestCompletedOnlyFiltering:
 
         §1 Required Test: abandoned PRs are excluded even when closedDate exists.
         """
-        db_path = tmp_path / "test.sqlite"
-        db = DatabaseManager(db_path)
+        db = DatabaseManager(Path(":memory:"))
         db.connect()
 
         # Insert supporting entities
@@ -132,8 +133,7 @@ class TestCompletedOnlyFiltering:
 
     def test_completed_status_is_case_sensitive(self, tmp_path) -> None:
         """Verify that status matching is exact (lowercase 'completed')."""
-        db_path = tmp_path / "test.sqlite"
-        db = DatabaseManager(db_path)
+        db = DatabaseManager(Path(":memory:"))
         db.connect()
 
         db.execute(

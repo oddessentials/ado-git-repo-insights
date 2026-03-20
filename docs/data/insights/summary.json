@@ -5,36 +5,53 @@
     {
       "affected_entities": [
         {
-          "id": "notification-service",
-          "name": "notification-service",
+          "id": "inference-service",
+          "name": "inference-service",
           "type": "repository"
         }
       ],
       "category": "bottleneck",
-      "description": "The notification-service repository showed high cycle time variability in 2021-W16. The P90 cycle time (112.1 hours) was 132.1x higher than P50 (0.8 hours). This suggests some PRs were getting stuck in review or blocked by dependencies.",
+      "description": "The inference-service repository showed high cycle time variability in 2023-W46. The P90 cycle time (1307.4 hours) was 120.0x higher than P50 (10.9 hours). This suggests some PRs were getting stuck in review or blocked by dependencies.",
       "evidence_refs": [
-        "rollup:2021-W16"
+        "rollup:2023-W46"
       ],
-      "id": "bottleneck-001-notification-service",
+      "id": "bottleneck-001-inference-service",
       "severity": "warning",
-      "title": "High cycle time variability in notification-service"
+      "title": "High cycle time variability in inference-service"
     },
     {
       "affected_entities": [
         {
-          "id": "design-system",
-          "name": "design-system",
+          "id": "model-training",
+          "name": "model-training",
           "type": "repository"
         }
       ],
       "category": "bottleneck",
-      "description": "The design-system repository showed high cycle time variability in 2021-W14. The P90 cycle time (217.2 hours) was 115.3x higher than P50 (1.9 hours). This suggests some PRs were getting stuck in review or blocked by dependencies.",
+      "description": "The model-training repository showed high cycle time variability in 2022-W51. The P90 cycle time (1500.6 hours) was 84.3x higher than P50 (17.8 hours). This suggests some PRs were getting stuck in review or blocked by dependencies.",
       "evidence_refs": [
-        "rollup:2021-W14"
+        "rollup:2022-W51"
       ],
-      "id": "bottleneck-001-design-system",
+      "id": "bottleneck-001-model-training",
       "severity": "warning",
-      "title": "High cycle time variability in design-system"
+      "title": "High cycle time variability in model-training"
+    },
+    {
+      "affected_entities": [
+        {
+          "id": "model-training",
+          "name": "model-training",
+          "type": "repository"
+        }
+      ],
+      "category": "bottleneck",
+      "description": "The model-training repository has critically slow PR completion times. The P90 cycle time is 8.9 days, exceeding the 5-day threshold. Consider reviewing code review practices or breaking up large PRs.",
+      "evidence_refs": [
+        "rollup:2025-W52"
+      ],
+      "id": "bottleneck-002-model-training",
+      "severity": "critical",
+      "title": "Critical slowdown in model-training"
     },
     {
       "affected_entities": [
@@ -45,12 +62,12 @@
         }
       ],
       "category": "trend",
-      "description": "PR throughput increased by 22.0% during 2022-W13 to 2022-W16. Average weekly PRs went from 34.8 to 42.3. This surge could indicate a major release push or increased team capacity.",
+      "description": "PR throughput increased by 29.0% during 2024-W02 to 2024-W05. Average weekly PRs went from 66.8 to 86.3. This surge could indicate a major release push or increased team capacity.",
       "evidence_refs": [
-        "rollup:2022-W13",
-        "rollup:2022-W14",
-        "rollup:2022-W15",
-        "rollup:2022-W16"
+        "rollup:2024-W02",
+        "rollup:2024-W03",
+        "rollup:2024-W04",
+        "rollup:2024-W05"
       ],
       "id": "trend-001",
       "severity": "info",
@@ -65,12 +82,12 @@
         }
       ],
       "category": "trend",
-      "description": "PR cycle time decreased by 50.0% during 2023-W12 to 2023-W15. Median cycle time dropped from 11.5 hours to 5.8 hours. This improvement suggests review processes became more efficient during this period.",
+      "description": "PR cycle time decreased by 29.0% during 2022-W13 to 2022-W16. Median cycle time dropped from 9.0 hours to 6.4 hours. This improvement suggests review processes became more efficient during this period.",
       "evidence_refs": [
-        "rollup:2023-W12",
-        "rollup:2023-W13",
-        "rollup:2023-W14",
-        "rollup:2023-W15"
+        "rollup:2022-W13",
+        "rollup:2022-W14",
+        "rollup:2022-W15",
+        "rollup:2022-W16"
       ],
       "id": "trend-002",
       "severity": "info",
@@ -84,10 +101,30 @@
           "type": "team"
         }
       ],
-      "category": "anomaly",
-      "description": "Week 2025-W24 had 49 PRs, which is 3.5 standard deviations above the 8-week rolling average of 43.8. This spike could indicate a major release, hackathon, or concentrated feature work.",
+      "category": "trend",
+      "description": "PR throughput decreased by 21.0% during 2024-W41 to 2024-W44. Average weekly PRs dropped from 115.8 to 91.3. This decline may indicate team capacity issues, blockers, or seasonal slowdown.",
       "evidence_refs": [
-        "rollup:2025-W24"
+        "rollup:2024-W41",
+        "rollup:2024-W42",
+        "rollup:2024-W43",
+        "rollup:2024-W44"
+      ],
+      "id": "trend-003",
+      "severity": "warning",
+      "title": "PR throughput decline detected"
+    },
+    {
+      "affected_entities": [
+        {
+          "id": "all",
+          "name": "All Teams",
+          "type": "team"
+        }
+      ],
+      "category": "anomaly",
+      "description": "Week 2022-W21 had 109 PRs, which is 4.0 standard deviations above the 8-week rolling average of 95.4. This spike could indicate a major release, hackathon, or concentrated feature work.",
+      "evidence_refs": [
+        "rollup:2022-W21"
       ],
       "id": "anomaly-001",
       "severity": "info",
@@ -102,9 +139,9 @@
         }
       ],
       "category": "anomaly",
-      "description": "Week 2023-W41 had only 35 PRs, which is 5.7 standard deviations below the 8-week rolling average of 41.3. This dip could indicate team absences, blockers, or focus on non-PR work.",
+      "description": "Week 2024-W52 had only 38 PRs, which is 13.0 standard deviations below the 8-week rolling average of 89.3. This dip could indicate team absences, blockers, or focus on non-PR work.",
       "evidence_refs": [
-        "rollup:2023-W41"
+        "rollup:2024-W52"
       ],
       "id": "anomaly-002",
       "severity": "warning",

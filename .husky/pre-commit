@@ -69,6 +69,21 @@ if [ -f "$SDK_SRC" ] && [ -f "$SDK_DEST" ]; then
     fi
 fi
 
+# ── Compiled artifact guard ───────────────────────────────────────────────────
+echo "[pre-commit] Checking for compiled artifacts in extension/ui/..."
+COMPILED_JS=$(git diff --cached --name-only --diff-filter=d | grep -E '^extension/ui/.*\.js$' | grep -v 'VSS.SDK.min.js' || true)
+if [ -n "$COMPILED_JS" ]; then
+    echo ""
+    echo "[pre-commit] ❌ Compiled JS file(s) detected in extension/ui/:"
+    echo "$COMPILED_JS"
+    echo ""
+    echo "Compiled output belongs in extension/dist/ui/, not extension/ui/."
+    echo "If this is a legitimate hand-written JS file, add it to the allowlist in .husky/pre-commit."
+    exit 1
+fi
+echo "[pre-commit] ✅ No compiled artifacts found"
+echo ""
+
 # =============================================================================
 # UI Bundle Build & Sync
 # =============================================================================
@@ -79,11 +94,11 @@ fi
 #   - extension/ui/*.ts          (TypeScript source)
 #   - extension/scripts/bundle-ui.mjs (build script)
 #   - extension/package.json     (dependencies)
-#   - extension/package-lock.json (lockfile)
+#   - extension/pnpm-lock.yaml   (lockfile)
 #   - extension/tsconfig*.json   (TypeScript config)
 # =============================================================================
 
-UI_BUILD_TRIGGERS=$(git diff --cached --name-only | grep -E '^extension/(ui/.*\.ts$|scripts/bundle-ui\.mjs$|package\.json$|package-lock\.json$|tsconfig.*\.json$)' || true)
+UI_BUILD_TRIGGERS=$(git diff --cached --name-only | grep -E '^extension/(ui/.*\.ts$|scripts/bundle-ui\.mjs$|package\.json$|pnpm-lock\.yaml$|tsconfig.*\.json$)' || true)
 
 if [ -n "$UI_BUILD_TRIGGERS" ]; then
     echo ""
@@ -92,13 +107,13 @@ if [ -n "$UI_BUILD_TRIGGERS" ]; then
     echo ""
 
     # -------------------------------------------------------------------------
-    # Guard: Require node_modules to exist (don't run npm install in hooks)
+    # Guard: Require node_modules to exist (don't run package install in hooks)
     # -------------------------------------------------------------------------
     if [ ! -d "extension/node_modules" ]; then
         echo "[pre-commit] ❌ extension/node_modules not found!"
         echo ""
         echo "  UI files are staged but dependencies are missing."
-        echo "  Run: cd extension && npm ci"
+        echo "  Run: cd extension && pnpm install"
         echo ""
         exit 1
     fi
@@ -124,7 +139,7 @@ if [ -n "$UI_BUILD_TRIGGERS" ]; then
     # Build: Compile TypeScript to extension/dist/ui/
     # -------------------------------------------------------------------------
     echo "[pre-commit] 📦 Building UI bundles..."
-    if ! (cd extension && npm run build:ui); then
+    if ! (cd extension && pnpm run build:ui); then
         echo ""
         echo "[pre-commit] ❌ UI build failed!"
         echo "  Fix the build errors above and try again."

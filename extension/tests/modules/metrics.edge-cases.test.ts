@@ -328,3 +328,301 @@ describe("FR-025: Batch execution - state isolation", () => {
     }
   });
 });
+
+/**
+ * T014: Multi-team overlap and cross-dimensional edge case tests.
+ *
+ * Tests that cross-dim aggregation correctly handles multi-team
+ * membership, all-teams+all-repos identity, single exact lookups,
+ * and aggregated authors_count upper bounds.
+ */
+describe("cross-dimensional multi-team overlap (T014)", () => {
+  // Fixture: rollup with overlapping team members.
+  // team-x and team-y share an author who contributes to repo-a.
+  // team-x/repo-a: 20 PRs, team-y/repo-a: 15 PRs, but by_repository["repo-a"] = 30
+  // (because the shared author's 5 PRs are counted in both teams).
+  const overlapRollup = {
+    week: "2026-W01",
+    pr_count: 100,
+    cycle_time_p50: 60,
+    cycle_time_p90: 120,
+    authors_count: 10,
+    reviewers_count: 5,
+    by_repository: {
+      "repo-a": { pr_count: 30, cycle_time_p50: 50, cycle_time_p90: 100, authors_count: 4, reviewers_count: 2 },
+      "repo-b": { pr_count: 70, cycle_time_p50: 65, cycle_time_p90: 130, authors_count: 6, reviewers_count: 3 },
+    },
+    by_team: {
+      "team-x": { pr_count: 45, cycle_time_p50: 55, cycle_time_p90: 110, authors_count: 5, reviewers_count: 3 },
+      "team-y": { pr_count: 55, cycle_time_p50: 63, cycle_time_p90: 127, authors_count: 6, reviewers_count: 3 },
+    },
+    by_team_and_repo: {
+      "team-x": {
+        "repo-a": { pr_count: 20, cycle_time_p50: 48, cycle_time_p90: 95, authors_count: 3, reviewers_count: 2 },
+        "repo-b": { pr_count: 25, cycle_time_p50: 62, cycle_time_p90: 124, authors_count: 3, reviewers_count: 2 },
+      },
+      "team-y": {
+        "repo-a": { pr_count: 15, cycle_time_p50: 53, cycle_time_p90: 106, authors_count: 3, reviewers_count: 1 },
+        "repo-b": { pr_count: 40, cycle_time_p50: 67, cycle_time_p90: 134, authors_count: 5, reviewers_count: 3 },
+      },
+    },
+  } as Rollup;
+
+  it("sum across teams can exceed repo total due to multi-team overlap", () => {
+    const result = applyFiltersToRollups([overlapRollup], {
+      repos: ["repo-a"],
+      teams: ["team-x", "team-y"],
+    });
+
+    // Cross-dim: team-x/repo-a(20) + team-y/repo-a(15) = 35
+    // This EXCEEDS by_repository["repo-a"].pr_count (30) — intentional per FR-016
+    expect(result[0].pr_count).toBe(35);
+    expect(result[0].pr_count).toBeGreaterThan(
+      overlapRollup.by_repository!["repo-a"].pr_count,
+    );
+  });
+
+  it("all-teams + all-repos equals global total (cross-dim identity)", () => {
+    const result = applyFiltersToRollups([overlapRollup], {
+      repos: ["repo-a", "repo-b"],
+      teams: ["team-x", "team-y"],
+    });
+
+    // All 4 entries: 20 + 25 + 15 + 40 = 100 = global pr_count
+    expect(result[0].pr_count).toBe(100);
+  });
+
+  it("single team + single repo returns exact lookup value", () => {
+    const result = applyFiltersToRollups([overlapRollup], {
+      repos: ["repo-b"],
+      teams: ["team-y"],
+    });
+
+    // Exact: by_team_and_repo["team-y"]["repo-b"]
+    expect(result[0].pr_count).toBe(40);
+    expect(result[0].cycle_time_p50).toBe(67);
+  });
+
+  it("aggregated authors_count is upper bound (sum >= team total)", () => {
+    const result = applyFiltersToRollups([overlapRollup], {
+      repos: ["repo-a", "repo-b"],
+      teams: ["team-x"],
+    });
+
+    // Cross-dim authors: team-x/repo-a(3) + team-x/repo-b(3) = 6
+    // Team total: team-x.authors_count = 5
+    // Sum >= team total because same author in two repos is counted twice
+    expect(result[0].authors_count).toBeGreaterThanOrEqual(
+      overlapRollup.by_team!["team-x"].authors_count!,
+    );
+  });
+});
+
+/**
+ * T025: SC-002 Dashboard load time validation.
+ *
+ * Validates that applyFiltersToRollups with cross-dimensional data
+ * (by_team_and_repo) does not increase processing time by more than 10%
+ * compared to the proportional fallback path (v1 rollups without
+ * by_team_and_repo).
+ *
+ * Approach: Generate realistic rollup arrays (52 weeks), run
+ * applyFiltersToRollups with both+repo+team filters, compare median
+ * timings across multiple iterations to absorb JIT variance.
+ */
+describe("T025: SC-002 dashboard load time overhead", () => {
+  const NUM_WEEKS = 52;
+  const NUM_TEAMS = 10;
+  const NUM_REPOS = 15;
+  const WARMUP_RUNS = 10;
+  const MEASURE_RUNS = 50;
+  const MAX_OVERHEAD_PERCENT = 10;
+  /** Below this threshold (ms), percentage comparisons are noise-dominated. */
+  const NOISE_FLOOR_MS = 2;
+
+  /**
+   * Build an array of rollups for timing measurement.
+   * @param includeCrossDim - Whether to include by_team_and_repo
+   */
+  function buildRollups(includeCrossDim: boolean): Rollup[] {
+    const rollups: Rollup[] = [];
+
+    for (let w = 1; w <= NUM_WEEKS; w++) {
+      const weekStr = `2025-W${String(w).padStart(2, "0")}`;
+      const byRepo: Record<string, Record<string, number>> = {};
+      const byTeam: Record<string, Record<string, number>> = {};
+      const byTeamAndRepo: Record<
+        string,
+        Record<string, Record<string, number>>
+      > = {};
+
+      let totalPr = 0;
+
+      // Build by_repository
+      for (let r = 0; r < NUM_REPOS; r++) {
+        const prCount = 10 + (w * r) % 20;
+        totalPr += prCount;
+        byRepo[`repo-${r}`] = {
+          pr_count: prCount,
+          cycle_time_p50: 30 + (r * 7) % 60,
+          cycle_time_p90: 60 + (r * 13) % 120,
+          authors_count: 2 + (r % 5),
+          reviewers_count: 1 + (r % 3),
+        };
+      }
+
+      // Build by_team
+      for (let t = 0; t < NUM_TEAMS; t++) {
+        const teamPr = Math.floor(totalPr / NUM_TEAMS) + (t % 3);
+        byTeam[`team-${t}`] = {
+          pr_count: teamPr,
+          cycle_time_p50: 35 + (t * 11) % 50,
+          cycle_time_p90: 70 + (t * 17) % 100,
+          authors_count: 2 + (t % 4),
+          reviewers_count: 1 + (t % 3),
+        };
+      }
+
+      // Build by_team_and_repo (cross-dimensional)
+      if (includeCrossDim) {
+        for (let t = 0; t < NUM_TEAMS; t++) {
+          const teamKey = `team-${t}`;
+          byTeamAndRepo[teamKey] = {};
+          // Each team contributes to ~3 repos (sparse)
+          for (let r = t % NUM_REPOS; r < NUM_REPOS; r += Math.max(1, Math.floor(NUM_REPOS / 3))) {
+            const repoKey = `repo-${r}`;
+            const prCount = 2 + ((w + t + r) % 8);
+            byTeamAndRepo[teamKey][repoKey] = {
+              pr_count: prCount,
+              cycle_time_p50: 30 + ((t + r) * 7) % 60,
+              cycle_time_p90: 60 + ((t + r) * 13) % 120,
+              authors_count: 1 + ((t + r) % 3),
+              reviewers_count: 1 + ((t + r) % 2),
+            };
+          }
+        }
+      }
+
+      const rollup: Record<string, unknown> = {
+        week: weekStr,
+        pr_count: totalPr,
+        cycle_time_p50: 50,
+        cycle_time_p90: 100,
+        authors_count: 20,
+        reviewers_count: 10,
+        by_repository: byRepo,
+        by_team: byTeam,
+      };
+
+      if (includeCrossDim) {
+        rollup["by_team_and_repo"] = byTeamAndRepo;
+      }
+
+      rollups.push(rollup as unknown as Rollup);
+    }
+
+    return rollups;
+  }
+
+  /**
+   * Measure IQR trimmed mean execution time of an operation.
+   * Drops the bottom and top 25% of samples to eliminate GC/JIT outliers,
+   * then averages the middle 50%. More stable than raw median under load.
+   */
+  function measureTrimmedMean(operation: () => void, runs: number): number {
+    const times: number[] = [];
+    for (let i = 0; i < runs; i++) {
+      const start = performance.now();
+      operation();
+      const end = performance.now();
+      times.push(end - start);
+    }
+    times.sort((a, b) => a - b);
+    const q1 = Math.floor(times.length * 0.25);
+    const q3 = Math.ceil(times.length * 0.75);
+    const trimmed = times.slice(q1, q3);
+    return trimmed.reduce((a, b) => a + b, 0) / trimmed.length;
+  }
+
+  it("SC-002: cross-dim filter overhead < 10% vs proportional fallback", () => {
+    const v1Rollups = buildRollups(false);
+    const v2Rollups = buildRollups(true);
+
+    // Select a subset of teams and repos for the filter
+    const filters = {
+      repos: ["repo-0", "repo-3", "repo-7"],
+      teams: ["team-1", "team-4", "team-8"],
+    };
+
+    // Warmup: ensure JIT compilation for both paths
+    for (let i = 0; i < WARMUP_RUNS; i++) {
+      applyFiltersToRollups(v1Rollups, filters);
+      applyFiltersToRollups(v2Rollups, filters);
+    }
+
+    // Measure v1 (proportional fallback) — IQR trimmed mean
+    const v1Ms = measureTrimmedMean(
+      () => applyFiltersToRollups(v1Rollups, filters),
+      MEASURE_RUNS,
+    );
+
+    // Measure v2 (cross-dimensional exact lookup) — IQR trimmed mean
+    const v2Ms = measureTrimmedMean(
+      () => applyFiltersToRollups(v2Rollups, filters),
+      MEASURE_RUNS,
+    );
+
+    // When both paths are below the noise floor, percentage comparisons
+    // are dominated by timer granularity and GC jitter — verify absolute
+    // performance instead.
+    if (v1Ms < NOISE_FLOOR_MS && v2Ms < NOISE_FLOOR_MS) {
+      expect(v2Ms).toBeLessThan(NOISE_FLOOR_MS);
+    } else {
+      const overheadPercent = ((v2Ms - v1Ms) / v1Ms) * 100;
+
+      // SC-002: Dashboard load time increase must be < 10%
+      expect(overheadPercent).toBeLessThan(MAX_OVERHEAD_PERCENT);
+    }
+
+    const overheadPercent = v1Ms > 0 ? ((v2Ms - v1Ms) / v1Ms) * 100 : 0;
+
+    process.stdout.write(
+      `${JSON.stringify({
+        test: "SC-002_dashboard_load_overhead",
+        v1_trimmed_mean_ms: Number(v1Ms.toFixed(3)),
+        v2_trimmed_mean_ms: Number(v2Ms.toFixed(3)),
+        overhead_percent: Number(overheadPercent.toFixed(2)),
+        budget_percent: MAX_OVERHEAD_PERCENT,
+        noise_floor_ms: NOISE_FLOOR_MS,
+        weeks: NUM_WEEKS,
+        teams: NUM_TEAMS,
+        repos: NUM_REPOS,
+      })}\n`,
+    );
+  });
+
+  it("SC-002: both paths produce valid finite results", () => {
+    const v1Rollups = buildRollups(false);
+    const v2Rollups = buildRollups(true);
+
+    const filters = {
+      repos: ["repo-0", "repo-3"],
+      teams: ["team-1", "team-4"],
+    };
+
+    const v1Result = applyFiltersToRollups(v1Rollups, filters);
+    const v2Result = applyFiltersToRollups(v2Rollups, filters);
+
+    // Both should return the same number of rollups
+    expect(v1Result.length).toBe(NUM_WEEKS);
+    expect(v2Result.length).toBe(NUM_WEEKS);
+
+    // All values should be finite numbers
+    for (let i = 0; i < NUM_WEEKS; i++) {
+      expect(Number.isFinite(v1Result[i].pr_count)).toBe(true);
+      expect(Number.isFinite(v2Result[i].pr_count)).toBe(true);
+      expect(v1Result[i].pr_count).toBeGreaterThanOrEqual(0);
+      expect(v2Result[i].pr_count).toBeGreaterThanOrEqual(0);
+    }
+  });
+});

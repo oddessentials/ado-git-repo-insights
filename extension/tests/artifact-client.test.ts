@@ -672,7 +672,7 @@ describe("AuthenticatedDatasetLoader", () => {
       const manifest: ManifestSchema = {
         manifest_schema_version: 1,
         dataset_schema_version: 1,
-        aggregates_schema_version: 1,
+        aggregates_schema_version: 2,
         aggregate_index: {
           weekly_rollups: [],
           distributions: [],
@@ -810,7 +810,7 @@ describe("AuthenticatedDatasetLoader", () => {
       const validManifest: ManifestSchema = {
         manifest_schema_version: 1,
         dataset_schema_version: 1,
-        aggregates_schema_version: 1,
+        aggregates_schema_version: 2,
       };
 
       expect(() => loader.validateManifest(validManifest)).not.toThrow();

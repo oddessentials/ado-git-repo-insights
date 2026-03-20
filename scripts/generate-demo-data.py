@@ -18,16 +18,27 @@ Requirements:
 
 from __future__ import annotations
 
-import json
 import math
 import random
 import sys
 import uuid
 from dataclasses import dataclass
-from datetime import date, datetime, timedelta, timezone
-from decimal import ROUND_HALF_UP, Decimal
+from datetime import date, timedelta
 from pathlib import Path
 from typing import Any
+
+# Add src to path for schema version import
+_src_path = Path(__file__).resolve().parent.parent / "src"
+if str(_src_path) not in sys.path:
+    sys.path.insert(0, str(_src_path))
+
+from ado_git_repo_insights.transform.schema_versions import AGGREGATES_SCHEMA_VERSION  # noqa: E402, I001
+from demo_generation_common import (  # noqa: E402
+    FIXED_GENERATED_AT,
+    discover_demo_feature_flags,
+    largest_remainder_allocate,
+    write_json_file,
+)
 
 # =============================================================================
 # Configuration Constants
@@ -45,13 +56,18 @@ END_WEEK = 52
 # Entity counts (per data-model.md)
 NUM_ORGS = 3
 NUM_PROJECTS = 8
-NUM_REPOS = 20
+NUM_REPOS = 23
 NUM_USERS = 50
+NUM_TEAMS = 4
+NUM_WEEKS = 260
+GROWTH_RATE_PER_YEAR = 0.12
+HOLIDAY_SUPPRESSION_FACTOR = 0.35
 
-# Weekly PR metrics baseline
-BASE_PR_COUNT = 40
+# Weekly PR metrics baseline — 80 PRs/week for a 50-person org with 23 repos
+BASE_PR_COUNT = 80
 PR_COUNT_SEASONAL_AMPLITUDE = 0.2  # ±20%
 PR_COUNT_NOISE_AMPLITUDE = 0.1  # ±10%
+REPO_WEIGHT_EXPONENT = 1.35
 
 # Cycle time distribution parameters (log-normal)
 CYCLE_TIME_MU = 6.0  # log-minutes
@@ -60,64 +76,93 @@ CYCLE_TIME_SIGMA = 1.5
 # Output directory
 OUTPUT_DIR = Path(__file__).parent.parent / "docs" / "data"
 
+# Power-law repository weights (Contract 5, FR-004)
+# Top 3 repos get >= 40% share after idle zeroing redistributes PRs to top repos.
+# Base weights before idle zeroing — actual PR share is higher for top repos
+# because zeroed PRs get redistributed to the highest-weight repo.
+REPO_WEIGHTS: dict[str, float] = {
+    # High-traffic
+    "user-service": 1.0,
+    "react-shell": 0.9,
+    "ios-app": 0.85,
+    # Medium-traffic
+    "auth-service": 0.5,
+    "gateway-core": 0.45,
+    "android-app": 0.4,
+    "etl-jobs": 0.4,
+    "model-training": 0.35,
+    "dashboard-api": 0.35,
+    "notification-service": 0.3,
+    "design-system": 0.3,
+    # Low-traffic
+    "data-warehouse": 0.2,
+    "stream-processor": 0.15,
+    "feature-store": 0.15,
+    "inference-service": 0.12,
+    "report-generator": 0.12,
+    "metrics-collector": 0.1,
+    "shared-core": 0.1,
+    # Utility/idle — low but enough to occasionally get >= 5 PRs
+    "rate-limiter": 0.08,
+    "ci-scripts": 0.07,
+    "terraform-modules": 0.06,
+    "monitoring-stack": 0.06,
+    "forms-lib": 0.05,
+}
 
-# =============================================================================
-# Canonical JSON Utilities (T005)
-# =============================================================================
+# Team-repo affinity matrix (Contract 5, FR-007)
+# 65% of team PRs go to primary repos, 35% to others
+TEAM_PRIMARY_REPOS: dict[str, list[str]] = {
+    "Platform Team": ["user-service", "auth-service", "notification-service"],
+    "Frontend Team": ["react-shell", "design-system", "ios-app"],
+    "Data Team": ["etl-jobs", "data-warehouse", "stream-processor"],
+    "ML Team": ["model-training", "inference-service", "feature-store"],
+}
 
+# Cycle time category multipliers (FR-008)
+# Applied to CYCLE_TIME_MU per repo
+REPO_CYCLE_TIME_CATEGORY: dict[str, float] = {
+    # Utility/DevOps (mu_factor=0.5 — fastest)
+    "ci-scripts": 0.5,
+    "terraform-modules": 0.5,
+    "monitoring-stack": 0.5,
+    "rate-limiter": 0.5,
+    # Frontend (mu_factor=0.8)
+    "react-shell": 0.8,
+    "design-system": 0.8,
+    "ios-app": 0.8,
+    "android-app": 0.8,
+    "forms-lib": 0.8,
+    # Backend (mu_factor=1.0)
+    "user-service": 1.0,
+    "auth-service": 1.0,
+    "gateway-core": 1.0,
+    "notification-service": 1.0,
+    "dashboard-api": 1.0,
+    # Data/ML (mu_factor=1.3 — slowest)
+    "etl-jobs": 1.3,
+    "data-warehouse": 1.3,
+    "stream-processor": 1.3,
+    "model-training": 1.3,
+    "inference-service": 1.3,
+    "feature-store": 1.3,
+    "metrics-collector": 1.3,
+    "report-generator": 1.3,
+    # Remaining repos default to 1.0
+    "shared-core": 1.0,
+}
 
-def round_float(value: float, decimals: int = 3) -> float:
-    """Round float to specified decimal places using HALF_UP rounding."""
-    d = Decimal(str(value)).quantize(Decimal(10) ** -decimals, rounding=ROUND_HALF_UP)
-    return float(d)
+# Idle repo-week threshold (Contract 5, FR-009)
+# Repos with weight below this have a probability of being zeroed out each week.
+# Higher threshold = more repos eligible for idle zeroing = more idle repo-weeks.
+# With threshold 0.35, repos up to weight 0.35 are eligible (13 of 23 repos).
+IDLE_WEIGHT_THRESHOLD = 0.35
 
-
-def canonical_json(data: Any, indent: int = 2) -> str:
-    """
-    Generate canonical JSON with:
-    - Sorted keys
-    - 3-decimal floats
-    - LF newlines only
-    - Trailing newline
-    """
-
-    def default_serializer(obj: Any) -> Any:
-        if isinstance(obj, datetime):
-            return obj.strftime("%Y-%m-%dT%H:%M:%SZ")
-        if isinstance(obj, date):
-            return obj.isoformat()
-        if isinstance(obj, uuid.UUID):
-            return str(obj)
-        raise TypeError(f"Object of type {type(obj).__name__} is not JSON serializable")
-
-    # Pre-process floats to 3 decimal places
-    def process_floats(obj: Any) -> Any:
-        if isinstance(obj, float):
-            return round_float(obj)
-        if isinstance(obj, dict):
-            return {k: process_floats(v) for k, v in obj.items()}
-        if isinstance(obj, list):
-            return [process_floats(item) for item in obj]
-        return obj
-
-    processed = process_floats(data)
-    json_str = json.dumps(
-        processed,
-        indent=indent,
-        sort_keys=True,
-        default=default_serializer,
-        ensure_ascii=False,
-    )
-    # Ensure LF newlines and trailing newline
-    return json_str.replace("\r\n", "\n") + "\n"
-
-
-def write_json(path: Path, data: Any) -> None:
-    """Write data to JSON file with canonical formatting."""
-    path.parent.mkdir(parents=True, exist_ok=True)
-    content = canonical_json(data)
-    # Write in binary mode to prevent Windows CRLF conversion
-    path.write_bytes(content.encode("utf-8"))
+# Author/reviewer scaling (Contract 5, FR-016)
+AUTHOR_RATIO = 0.3  # Root-level: ~30% of weekly PR count
+REVIEWER_RATIO = 0.45  # Root-level: ~45% of weekly PR count
+SUBLINEAR_EXPONENT = 0.6  # Sub-linear scaling for repo/team/team-repo counts
+TEAM_AFFINITY_PRIMARY_SHARE = 0.65  # 65% of team PRs go to primary repos
 
 
 # =============================================================================
@@ -135,9 +180,21 @@ def init_random(seed: int = SEED) -> random.Random:
 RNG = init_random(SEED)
 
 
-def lognormal(mu: float, sigma: float) -> float:
-    """Generate log-normal random value."""
-    return RNG.lognormvariate(mu, sigma)
+def _box_muller_normal(rng: random.Random) -> float:
+    """Generate standard normal variate using Box-Muller transform.
+    Uses only rng.random() and stable math operations.
+    Contractually deterministic (Contract 2).
+    """
+    u1 = rng.random()
+    u2 = rng.random()
+    while u1 == 0.0:
+        u1 = rng.random()
+    return math.sqrt(-2.0 * math.log(u1)) * math.cos(2.0 * math.pi * u2)
+
+
+def _log_normal(rng: random.Random, mu: float, sigma: float) -> float:
+    """Generate log-normal variate using locked Box-Muller implementation."""
+    return math.exp(mu + sigma * _box_muller_normal(rng))
 
 
 # =============================================================================
@@ -207,12 +264,13 @@ class WeeklyRollup:
     start_date: date
     end_date: date
     pr_count: int
-    cycle_time_p50: float
-    cycle_time_p90: float
+    cycle_time_p50: float | None
+    cycle_time_p90: float | None
     authors_count: int
     reviewers_count: int
     by_repository: dict[str, dict[str, Any]]
     by_team: dict[str, dict[str, Any]]
+    by_team_and_repo: dict[str, dict[str, Any]] | None = None
 
 
 @dataclass
@@ -312,7 +370,7 @@ def generate_teams(projects: list[SyntheticProject]) -> list[SyntheticTeam]:
         if team_name is None:
             continue
         team_id = generate_uuid(f"team/{project.organization_name}/{team_name}")
-        member_count = RNG.randint(5, 15)
+        member_count = 5 + int(RNG.random() * 11)
         teams.append(
             SyntheticTeam(
                 team_id=team_id,
@@ -535,9 +593,17 @@ def get_seasonal_adjustment(week_of_year: int) -> float:
     )
 
 
-def generate_cycle_times(count: int) -> list[float]:
+def generate_cycle_times(count: int, mu_factor: float = 1.0) -> list[float]:
     """Generate cycle times following log-normal distribution."""
-    return [lognormal(CYCLE_TIME_MU, CYCLE_TIME_SIGMA) for _ in range(count)]
+    return [
+        _log_normal(RNG, CYCLE_TIME_MU * mu_factor, CYCLE_TIME_SIGMA)
+        for _ in range(count)
+    ]
+
+
+def adjusted_repo_weight(repo_name: str) -> float:
+    """Apply a stronger power-law bias when allocating demo PRs to repos."""
+    return REPO_WEIGHTS.get(repo_name, 0.1) ** REPO_WEIGHT_EXPONENT
 
 
 def calculate_percentile(values: list[float], percentile: float) -> float:
@@ -572,71 +638,196 @@ def generate_weekly_rollups(
             seasonal_adj = get_seasonal_adjustment(week)
             noise = (RNG.random() * 2 - 1) * PR_COUNT_NOISE_AMPLITUDE
             adjustment = 1 + seasonal_adj + noise
-            pr_count = max(1, int(BASE_PR_COUNT * adjustment))
+
+            # T016: Holiday suppression for week 52
+            if week == 52:
+                adjustment = HOLIDAY_SUPPRESSION_FACTOR
+
+            # T015: YoY growth factor
+            growth_factor = 1.0 + GROWTH_RATE_PER_YEAR * (year - START_YEAR)
+            pr_count = max(1, int(BASE_PR_COUNT * growth_factor * adjustment))
 
             # Generate cycle times for this week
             cycle_times = generate_cycle_times(pr_count)
             p50 = calculate_percentile(cycle_times, 50)
             p90 = calculate_percentile(cycle_times, 90)
 
-            # Authors: ~30% of PR count
-            authors_count = max(1, int(pr_count * 0.3))
-            # Reviewers: ~45% of PR count
-            reviewers_count = max(1, int(pr_count * 0.45))
+            # Authors and reviewers at root level
+            authors_count = max(1, int(pr_count * AUTHOR_RATIO))
+            reviewers_count = max(1, int(pr_count * REVIEWER_RATIO))
 
-            # Distribute PRs across repositories
-            by_repository: dict[str, dict[str, Any]] = {}
-            remaining_prs = pr_count
-            repo_list = list(repositories)
-
-            for i, repo in enumerate(repo_list):
-                if i == len(repo_list) - 1:
-                    repo_pr_count = remaining_prs
-                else:
-                    # Random distribution with minimum 1 per repo (if PRs available)
-                    max_for_repo = max(1, remaining_prs - (len(repo_list) - i - 1))
-                    repo_pr_count = RNG.randint(1, max(1, max_for_repo // 2))
-                    remaining_prs -= repo_pr_count
-
-                if repo_pr_count > 0:
-                    repo_cycle_times = generate_cycle_times(repo_pr_count)
-                    repo_p50 = calculate_percentile(repo_cycle_times, 50)
-                    repo_p90 = calculate_percentile(repo_cycle_times, 90)
-
-                    by_repository[repo.repository_name] = {
-                        "pr_count": repo_pr_count,
-                        "cycle_time_p50": repo_p50,
-                        "cycle_time_p90": repo_p90,
-                        "authors_count": max(1, int(repo_pr_count * 0.3)),
-                        "reviewers_count": max(1, int(repo_pr_count * 0.45)),
-                    }
-
-            # Distribute PRs across teams
+            repo_names = [r.repository_name for r in repositories]
+            # Distribute PRs across teams using random weights
             by_team: dict[str, dict[str, Any]] = {}
-            raw_weights = [RNG.random() for _ in teams]
-            weight_sum = sum(raw_weights)
-            normalized_weights = [w / weight_sum for w in raw_weights]
+            raw_team_weights = [RNG.random() for _ in teams]
+            if pr_count >= len(teams):
+                residual_allocation = largest_remainder_allocate(
+                    pr_count - len(teams),
+                    raw_team_weights,
+                )
+                team_pr_allocation = [value + 1 for value in residual_allocation]
+            else:
+                team_pr_allocation = largest_remainder_allocate(
+                    pr_count,
+                    raw_team_weights,
+                )
+            team_pr_counts: dict[str, int] = {}
 
-            team_remaining_prs = pr_count
             for i, team in enumerate(teams):
-                if i == len(teams) - 1:
-                    team_pr_count = team_remaining_prs
-                else:
-                    team_pr_count = int(pr_count * normalized_weights[i])
-                    team_remaining_prs -= team_pr_count
+                team_pr_count = team_pr_allocation[i]
+                if team_pr_count <= 0:
+                    continue
+                team_pr_counts[team.team_name] = team_pr_count
 
-                team_pr_count = max(1, team_pr_count)
                 team_cycle_times = generate_cycle_times(team_pr_count)
                 team_p50 = calculate_percentile(team_cycle_times, 50)
                 team_p90 = calculate_percentile(team_cycle_times, 90)
+                team_authors = max(
+                    1, min(team.member_count, int(team_pr_count**SUBLINEAR_EXPONENT))
+                )
+                team_reviewers = max(
+                    1,
+                    min(team.member_count, int(team_pr_count**SUBLINEAR_EXPONENT) + 1),
+                )
 
                 by_team[team.team_name] = {
                     "pr_count": team_pr_count,
                     "cycle_time_p50": team_p50,
                     "cycle_time_p90": team_p90,
-                    "authors_count": max(1, int(team_pr_count * 0.3)),
-                    "reviewers_count": max(1, int(team_pr_count * 0.45)),
+                    "authors_count": team_authors,
+                    "reviewers_count": team_reviewers,
                 }
+
+            # Generate exact team-repo intersections first, then derive
+            # by_repository from those intersections so parent totals are
+            # internally consistent with exact combined-filter cells.
+            by_team_and_repo: dict[str, dict[str, Any]] = {}
+            repo_pr_counts = dict.fromkeys(repo_names, 0)
+            for team in teams:
+                team_pr_count = team_pr_counts.get(team.team_name, 0)
+                if team_pr_count <= 0:
+                    continue
+
+                primary_repos = TEAM_PRIMARY_REPOS.get(team.team_name, [])
+                team_repo_entries: dict[str, dict[str, Any]] = {}
+                team_authors = int(by_team[team.team_name]["authors_count"])
+                team_reviewers = int(by_team[team.team_name]["reviewers_count"])
+                primary_weight_sum = sum(
+                    adjusted_repo_weight(repo_name) for repo_name in primary_repos
+                )
+                other_repos = [
+                    repo_name
+                    for repo_name in repo_names
+                    if repo_name not in primary_repos
+                ]
+                other_weight_sum = sum(
+                    adjusted_repo_weight(repo_name) for repo_name in other_repos
+                )
+                row_weights: list[float] = []
+                for repo_name in repo_names:
+                    base_weight = adjusted_repo_weight(repo_name)
+                    if repo_name in primary_repos and primary_weight_sum > 0:
+                        row_weights.append(
+                            TEAM_AFFINITY_PRIMARY_SHARE
+                            * (base_weight / primary_weight_sum)
+                        )
+                    elif repo_name not in primary_repos and other_weight_sum > 0:
+                        row_weights.append(
+                            (1.0 - TEAM_AFFINITY_PRIMARY_SHARE)
+                            * (base_weight / other_weight_sum)
+                        )
+                    else:
+                        row_weights.append(base_weight)
+
+                team_repo_allocations = largest_remainder_allocate(
+                    team_pr_count,
+                    row_weights,
+                )
+
+                # T017: Idle repo-weeks — zero out low-weight non-primary repos
+                for idx, repo_name in enumerate(repo_names):
+                    base_weight = REPO_WEIGHTS.get(repo_name, 0.1)
+                    if (
+                        repo_name not in primary_repos
+                        and base_weight < IDLE_WEIGHT_THRESHOLD
+                        and team_repo_allocations[idx] > 0
+                        and RNG.random() > base_weight / IDLE_WEIGHT_THRESHOLD
+                    ):
+                        team_repo_allocations[idx] = 0
+
+                zeroed = team_pr_count - sum(team_repo_allocations)
+                if zeroed > 0:
+                    max_idx = max(
+                        range(len(repo_names)),
+                        key=lambda idx: (row_weights[idx], -idx),
+                    )
+                    team_repo_allocations[max_idx] += zeroed
+
+                for rname, r_prs in zip(repo_names, team_repo_allocations, strict=True):
+                    if r_prs <= 0:
+                        continue
+                    repo_pr_counts[rname] += r_prs
+                    r_authors = max(
+                        1, min(team_authors, int(r_prs**SUBLINEAR_EXPONENT))
+                    )
+                    r_reviewers = max(
+                        1, min(team_reviewers, int(r_prs**SUBLINEAR_EXPONENT) + 1)
+                    )
+                    r_mu_factor = REPO_CYCLE_TIME_CATEGORY.get(rname, 1.0)
+                    r_cts = generate_cycle_times(r_prs, r_mu_factor)
+                    r_p50 = calculate_percentile(r_cts, 50)
+                    r_p90 = calculate_percentile(r_cts, 90)
+                    team_repo_entries[rname] = {
+                        "pr_count": r_prs,
+                        "cycle_time_p50": r_p50,
+                        "cycle_time_p90": r_p90,
+                        "authors_count": r_authors,
+                        "reviewers_count": r_reviewers,
+                    }
+
+                if team_repo_entries:
+                    by_team_and_repo[team.team_name] = team_repo_entries
+
+            by_repository: dict[str, dict[str, Any]] = {}
+            for repo_name in repo_names:
+                repo_pr_count = repo_pr_counts[repo_name]
+                if repo_pr_count <= 0:
+                    continue
+                mu_factor = REPO_CYCLE_TIME_CATEGORY.get(repo_name, 1.0)
+                repo_cycle_times = generate_cycle_times(repo_pr_count, mu_factor)
+                repo_p50 = calculate_percentile(repo_cycle_times, 50)
+                repo_p90 = calculate_percentile(repo_cycle_times, 90)
+                repo_authors = max(
+                    1, min(repo_pr_count, int(repo_pr_count**SUBLINEAR_EXPONENT))
+                )
+                repo_reviewers = max(
+                    1, min(repo_pr_count, int(repo_pr_count**SUBLINEAR_EXPONENT) + 1)
+                )
+                by_repository[repo_name] = {
+                    "pr_count": repo_pr_count,
+                    "cycle_time_p50": repo_p50,
+                    "cycle_time_p90": repo_p90,
+                    "authors_count": repo_authors,
+                    "reviewers_count": repo_reviewers,
+                }
+
+            # T010: Contract 3 cycle time threshold — null if pr_count < 5
+            if pr_count < 5:
+                p50 = None
+                p90 = None
+            for entry in by_repository.values():
+                if entry["pr_count"] < 5:
+                    entry["cycle_time_p50"] = None
+                    entry["cycle_time_p90"] = None
+            for entry in by_team.values():
+                if entry["pr_count"] < 5:
+                    entry["cycle_time_p50"] = None
+                    entry["cycle_time_p90"] = None
+            for team_entries in by_team_and_repo.values():
+                for entry in team_entries.values():
+                    if entry["pr_count"] < 5:
+                        entry["cycle_time_p50"] = None
+                        entry["cycle_time_p90"] = None
 
             rollups.append(
                 WeeklyRollup(
@@ -650,6 +841,7 @@ def generate_weekly_rollups(
                     reviewers_count=reviewers_count,
                     by_repository=by_repository,
                     by_team=by_team,
+                    by_team_and_repo=by_team_and_repo if by_team_and_repo else None,
                 )
             )
 
@@ -669,16 +861,6 @@ BUCKET_THRESHOLDS = [
     ("3-7d", 4320, 10080),
     ("7d+", 10080, float("inf")),
 ]
-
-# Expected proportions (from data-model.md)
-BUCKET_PROPORTIONS = {
-    "0-1h": 0.15,
-    "1-4h": 0.25,
-    "4-24h": 0.30,
-    "1-3d": 0.15,
-    "3-7d": 0.10,
-    "7d+": 0.05,
-}
 
 
 def categorize_cycle_time(minutes: float) -> str:
@@ -757,16 +939,13 @@ def generate_manifest(
     max_date = rollups[-1].end_date if rollups else date(END_YEAR, 12, 31)
     total_prs = sum(r.pr_count for r in rollups)
 
-    # Use fixed timestamp for determinism
-    generated_at = datetime(2026, 1, 30, 12, 0, 0, tzinfo=timezone.utc)
-
     return {
         "manifest_schema_version": 1,
         "dataset_schema_version": 1,
-        "aggregates_schema_version": 1,
+        "aggregates_schema_version": AGGREGATES_SCHEMA_VERSION,
         "predictions_schema_version": 1,
         "insights_schema_version": 1,
-        "generated_at": generated_at,
+        "generated_at": FIXED_GENERATED_AT,
         "run_id": "demo-static",
         "defaults": {
             "default_date_range_days": 90,
@@ -778,10 +957,7 @@ def generate_manifest(
         "features": {
             "teams": True,
             "comments": False,
-            # predictions and ai_insights are set to False until Phase 5-6 implementation
-            # These will be enabled by generate-demo-predictions.py and generate-demo-insights.py
-            "predictions": False,
-            "ai_insights": False,
+            **discover_demo_feature_flags(OUTPUT_DIR),
         },
         "coverage": {
             "total_prs": total_prs,
@@ -850,7 +1026,7 @@ def main() -> int:
         organizations, projects, repositories, users, teams
     )
     dimensions_path = OUTPUT_DIR / "aggregates" / "dimensions.json"
-    write_json(dimensions_path, dimensions)
+    write_json_file(dimensions_path, dimensions, max_retries=3)
     print(f"  Written: {dimensions_path}")
 
     # Generate weekly rollups
@@ -871,8 +1047,13 @@ def main() -> int:
             "reviewers_count": rollup.reviewers_count,
             "by_repository": rollup.by_repository,
             "by_team": rollup.by_team,
+            "by_team_and_repo": rollup.by_team_and_repo,
         }
-        write_json(rollups_dir / f"{rollup.week}.json", rollup_data)
+        write_json_file(
+            rollups_dir / f"{rollup.week}.json",
+            rollup_data,
+            max_retries=3,
+        )
     print(f"  Written: {len(rollups)} files to {rollups_dir}")
 
     # Generate distributions
@@ -890,14 +1071,18 @@ def main() -> int:
             "cycle_time_buckets": dist.cycle_time_buckets,
             "prs_by_month": dist.prs_by_month,
         }
-        write_json(distributions_dir / f"{dist.year}.json", dist_data)
+        write_json_file(
+            distributions_dir / f"{dist.year}.json",
+            dist_data,
+            max_retries=3,
+        )
     print(f"  Written: {len(distributions)} files to {distributions_dir}")
 
     # Generate manifest
     print("\n[5/6] Generating dataset-manifest.json...")
     manifest = generate_manifest(rollups, distributions)
     manifest_path = OUTPUT_DIR / "dataset-manifest.json"
-    write_json(manifest_path, manifest)
+    write_json_file(manifest_path, manifest, max_retries=3)
     print(f"  Written: {manifest_path}")
 
     # Summary

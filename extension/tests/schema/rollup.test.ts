@@ -7,7 +7,10 @@
  * @module tests/schema/rollup.test.ts
  */
 
-import { validateRollup } from "../../ui/schemas/rollup.schema";
+import {
+  validateRollup,
+  normalizeRollup,
+} from "../../ui/schemas/rollup.schema";
 import type { ValidationResult } from "../../ui/schemas/types";
 
 // Load the actual fixture for valid data tests
@@ -209,6 +212,406 @@ describe("Rollup Schema Validator", () => {
     it("should fail for null input", () => {
       const result = validateRollup(null, false);
       expect(result.valid).toBe(false);
+    });
+  });
+
+  describe("v2 rollup with by_team_and_repo (T015)", () => {
+    const v2Rollup = {
+      week: "2026-W02",
+      start_date: "2026-01-06",
+      end_date: "2026-01-12",
+      pr_count: 30,
+      cycle_time_p50: 240.5,
+      cycle_time_p90: 720.0,
+      authors_count: 8,
+      reviewers_count: 12,
+      by_repository: {
+        "main-repo": { pr_count: 22, cycle_time_p50: 200.0 },
+        "secondary-repo": { pr_count: 8, cycle_time_p50: 360.0 },
+      },
+      by_team: {
+        "Backend Team": { pr_count: 18, cycle_time_p50: 180.0 },
+        "Frontend Team": { pr_count: 12, cycle_time_p50: 300.0 },
+      },
+      by_team_and_repo: {
+        "Backend Team": {
+          "main-repo": {
+            pr_count: 15,
+            cycle_time_p50: 170.0,
+            cycle_time_p90: 400.0,
+            authors_count: 3,
+            reviewers_count: 5,
+          },
+          "secondary-repo": {
+            pr_count: 3,
+            // cycle_time_p50/p90 omitted: < 5 PRs, min sample size (FR-019)
+            authors_count: 2,
+            reviewers_count: 2,
+          },
+        },
+        "Frontend Team": {
+          "main-repo": {
+            pr_count: 7,
+            cycle_time_p50: 280.0,
+            cycle_time_p90: 600.0,
+            authors_count: 4,
+            reviewers_count: 6,
+          },
+          "secondary-repo": {
+            pr_count: 5,
+            cycle_time_p50: 320.0,
+            cycle_time_p90: 500.0,
+            authors_count: 3,
+            reviewers_count: 4,
+          },
+        },
+      },
+    };
+
+    it("should validate v2 rollup with by_team_and_repo successfully", () => {
+      const result = validateRollup(v2Rollup, false);
+      expect(result.valid).toBe(true);
+      expect(result.errors).toHaveLength(0);
+    });
+
+    it("should validate v2 rollup with empty by_team_and_repo", () => {
+      const rollupWithEmpty = { ...v2Rollup, by_team_and_repo: {} };
+      const result = validateRollup(rollupWithEmpty, false);
+      expect(result.valid).toBe(true);
+      expect(result.errors).toHaveLength(0);
+    });
+
+    it("should catch malformed outer value in by_team_and_repo (not an object)", () => {
+      const malformed = {
+        ...v2Rollup,
+        by_team_and_repo: {
+          "Backend Team": "not-an-object",
+        },
+      };
+      const result = validateRollup(malformed, false);
+      expect(result.valid).toBe(false);
+      expect(
+        result.errors.some(
+          (e) =>
+            e.field.includes("by_team_and_repo") &&
+            e.field.includes("Backend Team"),
+        ),
+      ).toBe(true);
+    });
+
+    it("should catch malformed inner entry in by_team_and_repo (not an object)", () => {
+      const malformed = {
+        ...v2Rollup,
+        by_team_and_repo: {
+          "Backend Team": {
+            "main-repo": "not-an-object",
+          },
+        },
+      };
+      const result = validateRollup(malformed, false);
+      expect(result.valid).toBe(false);
+      expect(
+        result.errors.some(
+          (e) =>
+            e.field.includes("by_team_and_repo") &&
+            e.field.includes("main-repo"),
+        ),
+      ).toBe(true);
+    });
+
+    it("should catch invalid pr_count type in nested breakdown entry", () => {
+      const malformed = {
+        ...v2Rollup,
+        by_team_and_repo: {
+          "Backend Team": {
+            "main-repo": { pr_count: "fifteen" },
+          },
+        },
+      };
+      const result = validateRollup(malformed, false);
+      expect(result.valid).toBe(false);
+      expect(result.errors.some((e) => e.field.includes("pr_count"))).toBe(
+        true,
+      );
+    });
+
+    it("should produce warnings for unknown fields in nested breakdown (permissive mode)", () => {
+      const withUnknown = {
+        ...v2Rollup,
+        by_team_and_repo: {
+          "Backend Team": {
+            "main-repo": {
+              pr_count: 15,
+              cycle_time_p50: 170.0,
+              unknown_nested_field: "should warn",
+            },
+          },
+        },
+      };
+      const result = validateRollup(withUnknown, false);
+      expect(result.valid).toBe(true);
+      expect(result.warnings.length).toBeGreaterThan(0);
+      expect(
+        result.warnings.some((w) => w.field.includes("unknown_nested_field")),
+      ).toBe(true);
+    });
+
+    it("should FAIL in strict mode for unknown fields in nested breakdown", () => {
+      const withUnknown = {
+        ...v2Rollup,
+        by_team_and_repo: {
+          "Backend Team": {
+            "main-repo": {
+              pr_count: 15,
+              unknown_strict_field: true,
+            },
+          },
+        },
+      };
+      const result = validateRollup(withUnknown, true);
+      expect(result.valid).toBe(false);
+      expect(
+        result.errors.some((e) => e.field.includes("unknown_strict_field")),
+      ).toBe(true);
+    });
+
+    it("should validate v2 rollup with _truncated metadata key (F1 regression)", () => {
+      const truncatedRollup = {
+        ...v2Rollup,
+        by_team_and_repo: {
+          ...v2Rollup.by_team_and_repo,
+          _truncated: true,
+        },
+      };
+      const result = validateRollup(truncatedRollup, false);
+      expect(result.valid).toBe(true);
+      expect(result.errors).toHaveLength(0);
+    });
+  });
+
+  describe("normalizeRollup preserves by_team_and_repo (T015 gated test)", () => {
+    it("GATED: normalizeRollup must preserve by_team_and_repo field in output", () => {
+      const input = {
+        week: "2026-W02",
+        start_date: "2026-01-06",
+        end_date: "2026-01-12",
+        pr_count: 30,
+        by_team_and_repo: {
+          "Backend Team": {
+            "main-repo": {
+              pr_count: 15,
+              cycle_time_p50: 170.0,
+              cycle_time_p90: 400.0,
+              authors_count: 3,
+              reviewers_count: 5,
+            },
+          },
+          "Frontend Team": {
+            "secondary-repo": {
+              pr_count: 5,
+              cycle_time_p50: 320.0,
+              cycle_time_p90: 500.0,
+              authors_count: 3,
+              reviewers_count: 4,
+            },
+          },
+        },
+      };
+
+      const normalized = normalizeRollup(input);
+
+      expect(normalized.by_team_and_repo).toBeDefined();
+      expect(normalized.by_team_and_repo).not.toBeUndefined();
+      expect(normalized.by_team_and_repo!["Backend Team"]).toBeDefined();
+      expect(
+        normalized.by_team_and_repo!["Backend Team"]["main-repo"].pr_count,
+      ).toBe(15);
+      expect(
+        normalized.by_team_and_repo!["Frontend Team"]["secondary-repo"]
+          .pr_count,
+      ).toBe(5);
+    });
+
+    it("normalizeRollup must not include by_team_and_repo when absent from input", () => {
+      const input = {
+        week: "2026-W02",
+        start_date: "2026-01-06",
+        end_date: "2026-01-12",
+        pr_count: 10,
+      };
+
+      const normalized = normalizeRollup(input);
+
+      expect(normalized.by_team_and_repo).toBeUndefined();
+      expect("by_team_and_repo" in normalized).toBe(false);
+    });
+
+    it("normalizeRollup preserves all standard fields alongside by_team_and_repo", () => {
+      const input = {
+        week: "2026-W02",
+        start_date: "2026-01-06",
+        end_date: "2026-01-12",
+        pr_count: 30,
+        cycle_time_p50: 240.5,
+        authors_count: 8,
+        by_repository: { "main-repo": { pr_count: 22 } },
+        by_team: { "Backend Team": { pr_count: 18 } },
+        by_team_and_repo: {
+          "Backend Team": {
+            "main-repo": { pr_count: 15 },
+          },
+        },
+      };
+
+      const normalized = normalizeRollup(input);
+
+      expect(normalized.week).toBe("2026-W02");
+      expect(normalized.pr_count).toBe(30);
+      expect(normalized.cycle_time_p50).toBe(240.5);
+      expect(normalized.authors_count).toBe(8);
+      expect(normalized.by_repository).toEqual({
+        "main-repo": { pr_count: 22 },
+      });
+      expect(normalized.by_team).toEqual({
+        "Backend Team": { pr_count: 18 },
+      });
+      expect(normalized.by_team_and_repo).toEqual({
+        "Backend Team": {
+          "main-repo": { pr_count: 15 },
+        },
+      });
+    });
+
+    it("normalizes null cycle_time to null (not 0)", () => {
+      const input = {
+        week: "2026-W02",
+        start_date: "2026-01-06",
+        end_date: "2026-01-12",
+        pr_count: 5,
+        cycle_time_p50: null,
+        cycle_time_p90: null,
+      };
+
+      const normalized = normalizeRollup(input);
+
+      expect(normalized.cycle_time_p50).toBeNull();
+      expect(normalized.cycle_time_p90).toBeNull();
+    });
+
+    it("normalizes missing cycle_time to null default", () => {
+      const input = {
+        week: "2026-W02",
+        start_date: "2026-01-06",
+        end_date: "2026-01-12",
+        pr_count: 5,
+      };
+
+      const normalized = normalizeRollup(input);
+
+      expect(normalized.cycle_time_p50).toBeNull();
+      expect(normalized.cycle_time_p90).toBeNull();
+    });
+
+    it("omits by_team_and_repo when undefined in input", () => {
+      const input = {
+        week: "2026-W02",
+        start_date: "2026-01-06",
+        end_date: "2026-01-12",
+        pr_count: 5,
+      };
+
+      const normalized = normalizeRollup(input);
+
+      expect(normalized).not.toHaveProperty("by_team_and_repo");
+    });
+  });
+
+  describe("nullable cycle-time fields", () => {
+    it("should pass validation when root-level cycle-time fields are null", () => {
+      const rollup = {
+        week: "2026-W02",
+        start_date: "2026-01-06",
+        end_date: "2026-01-12",
+        pr_count: 3,
+        cycle_time_p50: null,
+        cycle_time_p90: null,
+      };
+      const result = validateRollup(rollup, false);
+      expect(result.valid).toBe(true);
+      expect(result.errors).toHaveLength(0);
+    });
+
+    it("should pass validation when breakdown entry cycle-time fields are null", () => {
+      const rollup = {
+        week: "2026-W02",
+        start_date: "2026-01-06",
+        end_date: "2026-01-12",
+        pr_count: 5,
+        by_repository: {
+          "small-repo": {
+            pr_count: 1,
+            cycle_time_p50: null,
+            cycle_time_p90: null,
+          },
+        },
+      };
+      const result = validateRollup(rollup, false);
+      expect(result.valid).toBe(true);
+      expect(result.errors).toHaveLength(0);
+    });
+
+    it("should pass validation with mixed null and numeric cycle-time in same rollup", () => {
+      const rollup = {
+        week: "2026-W02",
+        start_date: "2026-01-06",
+        end_date: "2026-01-12",
+        pr_count: 10,
+        cycle_time_p50: null,
+        cycle_time_p90: 720.0,
+        review_time_p50: 60.0,
+        review_time_p90: null,
+      };
+      const result = validateRollup(rollup, false);
+      expect(result.valid).toBe(true);
+      expect(result.errors).toHaveLength(0);
+    });
+  });
+
+  describe("validateNestedBreakdown via validateRollup", () => {
+    it("skips _truncated metadata key without validation errors", () => {
+      const input = {
+        week: "2026-W02",
+        start_date: "2026-01-06",
+        end_date: "2026-01-12",
+        pr_count: 10,
+        by_team_and_repo: {
+          _truncated: true,
+          TeamA: {
+            Repo1: { pr_count: 5 },
+          },
+        },
+      };
+
+      const result: ValidationResult = validateRollup(input, false);
+
+      expect(result.errors).toHaveLength(0);
+    });
+
+    it("reports error for non-object inner value in nested breakdown", () => {
+      const input = {
+        week: "2026-W02",
+        start_date: "2026-01-06",
+        end_date: "2026-01-12",
+        pr_count: 10,
+        by_team_and_repo: {
+          TeamA: "not-an-object",
+        },
+      };
+
+      const result: ValidationResult = validateRollup(input, false);
+
+      expect(result.errors.length).toBeGreaterThan(0);
+      expect(result.errors.some((e) => e.field.includes("TeamA"))).toBe(true);
     });
   });
 });

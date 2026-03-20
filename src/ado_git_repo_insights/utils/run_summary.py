@@ -175,7 +175,14 @@ def get_git_sha() -> str | None:
             timeout=5,
         )
         return result.stdout.strip()
-    except Exception:
+    except FileNotFoundError:
+        # git executable not found on PATH
+        return None
+    except subprocess.TimeoutExpired:
+        # git command timed out (e.g., network drive or large repo)
+        return None
+    except (subprocess.CalledProcessError, OSError):
+        # Other git invocation errors (non-zero exit code, permission issues, etc.)
         return None
 
 

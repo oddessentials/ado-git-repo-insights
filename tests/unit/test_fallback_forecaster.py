@@ -950,3 +950,164 @@ class TestMetricsConfiguration:
 
         metric_names = [m[0] for m in METRICS]
         assert "cycle_time_minutes" in metric_names
+
+
+class TestReasonCodeDeduction:
+    """Tests for reason code deduction when all metric forecasts fail."""
+
+    @pytest.fixture
+    def mock_db(self) -> MagicMock:
+        """Create mock database manager."""
+        db = MagicMock()
+        db.connection = MagicMock()
+        return db
+
+    @pytest.fixture
+    def forecaster(self, mock_db: MagicMock, tmp_path: Path) -> FallbackForecaster:
+        """Create forecaster with mocked database."""
+        return FallbackForecaster(mock_db, tmp_path)
+
+    def _make_df(self, weeks: int = 8) -> pd.DataFrame:
+        """Create a minimal valid DataFrame with enough weeks."""
+        from datetime import date, timedelta
+
+        base = date(2026, 1, 6)
+        dates = [(base + timedelta(weeks=i)).isoformat() for i in range(weeks)]
+        cycle_times = [100.0 + i * 10 for i in range(weeks)]
+        return pd.DataFrame({"closed_date": dates, "cycle_time_minutes": cycle_times})
+
+    def test_all_metrics_return_none_sets_all_nan(
+        self, forecaster: FallbackForecaster, mock_db: MagicMock
+    ) -> None:
+        """When all _forecast_metric calls return None, reason_code is all_nan."""
+        from ado_git_repo_insights.ml.fallback_forecaster import (
+            REASON_ALL_NAN,
+            STATUS_INSUFFICIENT_DATA,
+        )
+
+        df = self._make_df()
+
+        with (
+            patch.object(pd, "read_sql_query", return_value=df),
+            patch.object(
+                forecaster,
+                "_forecast_metric",
+                return_value=(None, None),
+            ),
+        ):
+            forecaster.generate()
+
+        assert forecaster.reason_code == REASON_ALL_NAN
+        assert forecaster.status == STATUS_INSUFFICIENT_DATA
+
+    def test_all_metrics_raise_exception_sets_all_nan(
+        self, forecaster: FallbackForecaster, mock_db: MagicMock
+    ) -> None:
+        """When all _forecast_metric calls raise, reason_code is all_nan."""
+        from ado_git_repo_insights.ml.fallback_forecaster import (
+            REASON_ALL_NAN,
+            STATUS_INSUFFICIENT_DATA,
+        )
+
+        df = self._make_df()
+
+        with (
+            patch.object(pd, "read_sql_query", return_value=df),
+            patch.object(
+                forecaster,
+                "_forecast_metric",
+                side_effect=ValueError("test error"),
+            ),
+        ):
+            forecaster.generate()
+
+        assert forecaster.reason_code == REASON_ALL_NAN
+        assert forecaster.status == STATUS_INSUFFICIENT_DATA
+
+    def test_all_metrics_fail_same_reason_uses_that_reason(
+        self, forecaster: FallbackForecaster, mock_db: MagicMock
+    ) -> None:
+        """When all metrics fail with the same reason, that reason code is used.
+
+        Exercises generate() lines 333-340: Counter finds uniform reasons.
+        """
+        from ado_git_repo_insights.ml.fallback_forecaster import (
+            REASON_TOO_FEW_WEEKS,
+            STATUS_INSUFFICIENT_DATA,
+        )
+
+        df = self._make_df()
+
+        with (
+            patch.object(pd, "read_sql_query", return_value=df),
+            patch.object(
+                forecaster,
+                "_forecast_metric",
+                return_value=(None, REASON_TOO_FEW_WEEKS),
+            ),
+        ):
+            forecaster.generate()
+
+        assert forecaster.reason_code == REASON_TOO_FEW_WEEKS
+        assert forecaster.status == STATUS_INSUFFICIENT_DATA
+
+    def test_all_metrics_fail_mixed_reasons_uses_all_nan(
+        self, forecaster: FallbackForecaster, mock_db: MagicMock
+    ) -> None:
+        """When metrics fail with different reasons, fallback is all_nan.
+
+        Exercises generate() lines 339-342: Counter finds mixed reasons.
+        """
+        from ado_git_repo_insights.ml.fallback_forecaster import (
+            REASON_ALL_NAN,
+            REASON_TOO_FEW_WEEKS,
+            STATUS_INSUFFICIENT_DATA,
+        )
+
+        df = self._make_df()
+
+        with (
+            patch.object(pd, "read_sql_query", return_value=df),
+            patch.object(
+                forecaster,
+                "_forecast_metric",
+                side_effect=[(None, REASON_TOO_FEW_WEEKS), (None, REASON_ALL_NAN)],
+            ),
+        ):
+            forecaster.generate()
+
+        assert forecaster.reason_code == REASON_ALL_NAN
+        assert forecaster.status == STATUS_INSUFFICIENT_DATA
+
+    def test_polyfit_non_finite_falls_back_to_flat(
+        self, forecaster: FallbackForecaster, mock_db: MagicMock
+    ) -> None:
+        """When polyfit returns non-finite coeffs, falls back to flat forecast."""
+        df = self._make_df()
+
+        def mock_polyfit(x, y, deg):  # noqa: ANN001
+            return np.array([np.inf, np.nan])
+
+        with (
+            patch.object(pd, "read_sql_query", return_value=df),
+            patch.object(np, "polyfit", side_effect=mock_polyfit),
+        ):
+            result = forecaster.generate()
+
+        assert result is True
+
+        output_file = forecaster.output_dir / "predictions" / "trends.json"
+        assert output_file.exists()
+
+        import json
+
+        with output_file.open() as f:
+            data = json.load(f)
+
+        # Forecast should still succeed with flat fallback
+        assert len(data["forecasts"]) > 0
+        for forecast in data["forecasts"]:
+            for v in forecast["values"]:
+                assert np.isfinite(v["predicted"])
+                assert np.isfinite(v["lower_bound"])
+                assert np.isfinite(v["upper_bound"])

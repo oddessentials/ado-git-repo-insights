@@ -71,10 +71,10 @@ function positiveTest_byTeamPrCount(rollup: WeeklyRollup): number {
 function positiveTest_breakdownEntryShape(entry: BreakdownEntry): void {
   // All these field accesses MUST compile
   const _prCount: number = entry.pr_count;
-  const _cycleP50: number | undefined = entry.cycle_time_p50;
-  const _cycleP90: number | undefined = entry.cycle_time_p90;
-  const _reviewP50: number | undefined = entry.review_time_p50;
-  const _reviewP90: number | undefined = entry.review_time_p90;
+  const _cycleP50: number | null | undefined = entry.cycle_time_p50;
+  const _cycleP90: number | null | undefined = entry.cycle_time_p90;
+  const _reviewP50: number | null | undefined = entry.review_time_p50;
+  const _reviewP90: number | null | undefined = entry.review_time_p90;
   const _authors: number | undefined = entry.authors_count;
   const _reviewers: number | undefined = entry.reviewers_count;
 
