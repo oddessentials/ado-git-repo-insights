@@ -18,7 +18,7 @@ var PRInsightsErrorTypes = (() => {
   };
   var __toCommonJS = (mod) => __copyProps(__defProp({}, "__esModule", { value: true }), mod);
 
-  // ui/error-types.ts
+  // ../ui/error-types.ts
   var error_types_exports = {};
   __export(error_types_exports, {
     ErrorTypes: () => ErrorTypes,
@@ -142,5 +142,4 @@ var PRInsightsErrorTypes = (() => {
   }
   return __toCommonJS(error_types_exports);
 })();
-// Global exports for browser runtime
-if (typeof window !== 'undefined') { Object.assign(window, PRInsightsErrorTypes || {}); }
+// Global exports for browser runtime\nif (typeof window !== 'undefined') { Object.assign(window, PRInsightsErrorTypes || {}); }

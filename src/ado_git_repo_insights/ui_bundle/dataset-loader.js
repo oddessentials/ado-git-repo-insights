@@ -18,7 +18,7 @@ var PRInsightsDatasetLoader = (() => {
   };
   var __toCommonJS = (mod) => __copyProps(__defProp({}, "__esModule", { value: true }), mod);
 
-  // ui/dataset-loader.ts
+  // ../ui/dataset-loader.ts
   var dataset_loader_exports = {};
   __export(dataset_loader_exports, {
     DATASET_CANDIDATE_PATHS: () => DATASET_CANDIDATE_PATHS,
@@ -31,7 +31,7 @@ var PRInsightsDatasetLoader = (() => {
     normalizeRollups: () => normalizeRollups
   });
 
-  // ui/types.ts
+  // ../ui/types.ts
   function isErrorWithMessage(error) {
     return typeof error === "object" && error !== null && "message" in error && typeof error.message === "string";
   }
@@ -41,7 +41,7 @@ var PRInsightsDatasetLoader = (() => {
     return "Unknown error";
   }
 
-  // ui/schemas/types.ts
+  // ../ui/schemas/types.ts
   function validResult(warnings = []) {
     return { valid: true, errors: [], warnings };
   }
@@ -63,7 +63,7 @@ var PRInsightsDatasetLoader = (() => {
     };
   }
 
-  // ui/schemas/errors.ts
+  // ../ui/schemas/errors.ts
   var SchemaValidationError = class _SchemaValidationError extends Error {
     constructor(errors, artifactType) {
       const errorSummary = errors.slice(0, 3).map((e) => `${e.field}: ${e.message}`).join("; ");
@@ -92,7 +92,7 @@ var PRInsightsDatasetLoader = (() => {
     }
   };
 
-  // ui/schemas/utils.ts
+  // ../ui/schemas/utils.ts
   function isObject(value) {
     return typeof value === "object" && value !== null && !Array.isArray(value);
   }
@@ -269,7 +269,7 @@ var PRInsightsDatasetLoader = (() => {
     return { errors, warnings };
   }
 
-  // ui/schemas/manifest.schema.ts
+  // ../ui/schemas/manifest.schema.ts
   var KNOWN_ROOT_FIELDS = /* @__PURE__ */ new Set([
     "manifest_schema_version",
     "dataset_schema_version",
@@ -755,7 +755,7 @@ var PRInsightsDatasetLoader = (() => {
     return validResult(warnings);
   }
 
-  // ui/schemas/rollup.schema.ts
+  // ../ui/schemas/rollup.schema.ts
   var KNOWN_ROOT_FIELDS2 = /* @__PURE__ */ new Set([
     "week",
     "start_date",
@@ -935,7 +935,7 @@ var PRInsightsDatasetLoader = (() => {
     return validResult(warnings);
   }
 
-  // ui/schemas/dimensions.schema.ts
+  // ../ui/schemas/dimensions.schema.ts
   var KNOWN_ROOT_FIELDS3 = /* @__PURE__ */ new Set([
     "repositories",
     "users",
@@ -1325,7 +1325,7 @@ var PRInsightsDatasetLoader = (() => {
     return validResult(warnings);
   }
 
-  // ui/schemas/predictions.schema.ts
+  // ../ui/schemas/predictions.schema.ts
   var KNOWN_ROOT_FIELDS4 = /* @__PURE__ */ new Set([
     "schema_version",
     "generated_at",
@@ -1513,7 +1513,7 @@ var PRInsightsDatasetLoader = (() => {
     return validResult(warnings);
   }
 
-  // ui/dataset-loader.ts
+  // ../ui/dataset-loader.ts
   function validateSchema(data, validator, artifactType, strict, context) {
     const result = validator(data, strict);
     if (!result.valid) {
@@ -2259,5 +2259,4 @@ var PRInsightsDatasetLoader = (() => {
   }
   return __toCommonJS(dataset_loader_exports);
 })();
-// Global exports for browser runtime
-if (typeof window !== 'undefined') { Object.assign(window, PRInsightsDatasetLoader || {}); }
+// Global exports for browser runtime\nif (typeof window !== 'undefined') { Object.assign(window, PRInsightsDatasetLoader || {}); }

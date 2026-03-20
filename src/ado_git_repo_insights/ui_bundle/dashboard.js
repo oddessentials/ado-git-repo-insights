@@ -1,6 +1,6 @@
 "use strict";
 var PRInsightsDashboard = (() => {
-  // ui/types.ts
+  // ../ui/types.ts
   var ML_SCHEMA_VERSION_RANGE = [1, 1];
   function isErrorWithMessage(error) {
     return typeof error === "object" && error !== null && "message" in error && typeof error.message === "string";
@@ -14,7 +14,7 @@ var PRInsightsDashboard = (() => {
     return typeof loader2 === "object" && loader2 !== null && typeof loader2.loadPredictions === "function" && typeof loader2.loadInsights === "function";
   }
 
-  // ui/schemas/types.ts
+  // ../ui/schemas/types.ts
   function validResult(warnings = []) {
     return { valid: true, errors: [], warnings };
   }
@@ -36,7 +36,7 @@ var PRInsightsDashboard = (() => {
     };
   }
 
-  // ui/schemas/errors.ts
+  // ../ui/schemas/errors.ts
   var SchemaValidationError = class _SchemaValidationError extends Error {
     constructor(errors, artifactType) {
       const errorSummary = errors.slice(0, 3).map((e) => `${e.field}: ${e.message}`).join("; ");
@@ -65,7 +65,7 @@ var PRInsightsDashboard = (() => {
     }
   };
 
-  // ui/schemas/utils.ts
+  // ../ui/schemas/utils.ts
   function isObject(value) {
     return typeof value === "object" && value !== null && !Array.isArray(value);
   }
@@ -242,7 +242,7 @@ var PRInsightsDashboard = (() => {
     return { errors, warnings };
   }
 
-  // ui/schemas/manifest.schema.ts
+  // ../ui/schemas/manifest.schema.ts
   var KNOWN_ROOT_FIELDS = /* @__PURE__ */ new Set([
     "manifest_schema_version",
     "dataset_schema_version",
@@ -728,7 +728,7 @@ var PRInsightsDashboard = (() => {
     return validResult(warnings);
   }
 
-  // ui/schemas/rollup.schema.ts
+  // ../ui/schemas/rollup.schema.ts
   var KNOWN_ROOT_FIELDS2 = /* @__PURE__ */ new Set([
     "week",
     "start_date",
@@ -908,7 +908,7 @@ var PRInsightsDashboard = (() => {
     return validResult(warnings);
   }
 
-  // ui/schemas/dimensions.schema.ts
+  // ../ui/schemas/dimensions.schema.ts
   var KNOWN_ROOT_FIELDS3 = /* @__PURE__ */ new Set([
     "repositories",
     "users",
@@ -1298,7 +1298,7 @@ var PRInsightsDashboard = (() => {
     return validResult(warnings);
   }
 
-  // ui/schemas/predictions.schema.ts
+  // ../ui/schemas/predictions.schema.ts
   var KNOWN_ROOT_FIELDS4 = /* @__PURE__ */ new Set([
     "schema_version",
     "generated_at",
@@ -1486,7 +1486,7 @@ var PRInsightsDashboard = (() => {
     return validResult(warnings);
   }
 
-  // ui/dataset-loader.ts
+  // ../ui/dataset-loader.ts
   function validateSchema(data, validator, artifactType, strict, context) {
     const result = validator(data, strict);
     if (!result.valid) {
@@ -2230,7 +2230,7 @@ var PRInsightsDashboard = (() => {
     window.ROLLUP_FIELD_DEFAULTS = ROLLUP_FIELD_DEFAULTS;
   }
 
-  // ui/error-types.ts
+  // ../ui/error-types.ts
   var ErrorTypes = {
     SETUP_REQUIRED: "setup_required",
     MULTIPLE_PIPELINES: "multiple_pipelines",
@@ -2331,7 +2331,7 @@ var PRInsightsDashboard = (() => {
     window.PrInsightsError = PrInsightsError;
   }
 
-  // ui/artifact-client.ts
+  // ../ui/artifact-client.ts
   var ArtifactClient = class {
     /**
      * Create a new ArtifactClient.
@@ -2597,7 +2597,7 @@ var PRInsightsDashboard = (() => {
     validateManifest(manifest) {
       const SUPPORTED_MANIFEST_VERSION2 = 1;
       const SUPPORTED_DATASET_VERSION2 = 1;
-      const SUPPORTED_AGGREGATES_VERSION2 = 1;
+      const SUPPORTED_AGGREGATES_VERSION2 = 2;
       if (!manifest.manifest_schema_version) {
         throw new Error("Invalid manifest: missing schema version");
       }
@@ -2790,7 +2790,7 @@ var PRInsightsDashboard = (() => {
     window.MockArtifactClient = MockArtifactClient;
   }
 
-  // ui/modules/shared/format.ts
+  // ../ui/modules/shared/format.ts
   function formatDuration(minutes) {
     if (minutes < 60) {
       return `${Math.round(minutes)}m`;
@@ -2815,12 +2815,12 @@ var PRInsightsDashboard = (() => {
     );
   }
 
-  // ui/modules/shared/security.ts
+  // ../ui/modules/shared/security.ts
   function escapeHtml(text) {
     return text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#039;");
   }
 
-  // ui/modules/shared/render.ts
+  // ../ui/modules/shared/render.ts
   function clearElement(el) {
     if (!el) return;
     while (el.firstChild) {
@@ -2865,7 +2865,7 @@ var PRInsightsDashboard = (() => {
     return option;
   }
 
-  // ui/modules/metrics.ts
+  // ../ui/modules/metrics.ts
   function toFiniteNumber(value) {
     const n = Number(value);
     return Number.isFinite(n) ? n : 0;
@@ -3138,7 +3138,7 @@ var PRInsightsDashboard = (() => {
     });
   }
 
-  // ui/modules/errors.ts
+  // ../ui/modules/errors.ts
   var PANEL_IDS = [
     "setup-required",
     "multiple-pipelines",
@@ -3259,7 +3259,7 @@ var PRInsightsDashboard = (() => {
     panel.classList.remove("hidden");
   }
 
-  // ui/modules/charts/predictions.ts
+  // ../ui/modules/charts/predictions.ts
   var MAX_CHART_POINTS = 200;
   var FORECASTER_LABELS = {
     linear: "Linear Forecast",
@@ -3514,7 +3514,7 @@ var PRInsightsDashboard = (() => {
     container.appendChild(content);
   }
 
-  // ui/modules/ml/setup-guides.ts
+  // ../ui/modules/ml/setup-guides.ts
   var yamlStore = /* @__PURE__ */ new Map();
   var delegatedContainers = /* @__PURE__ */ new WeakSet();
   var PREDICTIONS_YAML = `build-aggregates:
@@ -3705,7 +3705,7 @@ var PRInsightsDashboard = (() => {
     attachCopyHandlers(content);
   }
 
-  // ui/modules/ml/state-machine.ts
+  // ../ui/modules/ml/state-machine.ts
   function isSchemaVersionSupported(version) {
     if (typeof version !== "number") return false;
     const [min, max] = ML_SCHEMA_VERSION_RANGE;
@@ -3804,7 +3804,7 @@ var PRInsightsDashboard = (() => {
     };
   }
 
-  // ui/modules/ml.ts
+  // ../ui/modules/ml.ts
   function isPredictionsRenderData(data) {
     return typeof data === "object" && data !== null && "forecasts" in data && Array.isArray(data.forecasts);
   }
@@ -4165,7 +4165,7 @@ var PRInsightsDashboard = (() => {
     }
   }
 
-  // ui/modules/charts.ts
+  // ../ui/modules/charts.ts
   function renderDelta(element, percentChange, inverse = false) {
     if (!element) return;
     if (percentChange === null) {
@@ -4258,7 +4258,7 @@ var PRInsightsDashboard = (() => {
     });
   }
 
-  // ui/modules/charts/summary-cards.ts
+  // ../ui/modules/charts/summary-cards.ts
   function renderSummaryCards(options) {
     const { rollups, prevRollups = [], containers, metricsCollector: metricsCollector2 } = options;
     if (metricsCollector2) metricsCollector2.mark("render-summary-cards-start");
@@ -4351,7 +4351,7 @@ var PRInsightsDashboard = (() => {
     });
   }
 
-  // ui/modules/charts/throughput.ts
+  // ../ui/modules/charts/throughput.ts
   var MAX_THROUGHPUT_POINTS = 104;
   function renderThroughputChart(container, rollups) {
     if (!container) return;
@@ -4424,7 +4424,7 @@ var PRInsightsDashboard = (() => {
     `;
   }
 
-  // ui/modules/charts/cycle-time.ts
+  // ../ui/modules/charts/cycle-time.ts
   var MAX_CYCLE_TIME_POINTS = 104;
   function renderCycleDistribution(container, distributions) {
     if (!container) return;
@@ -4570,7 +4570,7 @@ var PRInsightsDashboard = (() => {
     });
   }
 
-  // ui/modules/charts/reviewer-activity.ts
+  // ../ui/modules/charts/reviewer-activity.ts
   var MAX_REVIEWER_WEEKS = 8;
   function renderReviewerActivity(container, rollups) {
     if (!container) return;
@@ -4608,7 +4608,7 @@ var PRInsightsDashboard = (() => {
     );
   }
 
-  // ui/modules/export.ts
+  // ../ui/modules/export.ts
   var CSV_HEADERS = [
     "Week",
     "Start Date",
@@ -4661,7 +4661,7 @@ var PRInsightsDashboard = (() => {
     }, durationMs);
   }
 
-  // ui/modules/sdk.ts
+  // ../ui/modules/sdk.ts
   var sdkInitialized = false;
   async function initializeAdoSdk(options = {}) {
     if (sdkInitialized) {
@@ -4695,7 +4695,7 @@ var PRInsightsDashboard = (() => {
     return typeof window !== "undefined" && window.DATASET_PATH || "./dataset";
   }
 
-  // ui/dashboard.ts
+  // ../ui/dashboard.ts
   var loader = null;
   var artifactClient = null;
   var currentDateRange = {
@@ -4714,6 +4714,10 @@ var PRInsightsDashboard = (() => {
   var SETTINGS_KEY_PIPELINE = "pr-insights-pipeline-id";
   var elements = {};
   var elementLists = {};
+  function getOwnRecordValue(record, key) {
+    const descriptor = Object.getOwnPropertyDescriptor(record, key);
+    return descriptor?.value;
+  }
   function getElement(id) {
     const el = elements[id];
     if (el instanceof HTMLElement) {
@@ -5208,13 +5212,13 @@ var PRInsightsDashboard = (() => {
       if (rollup.by_team_and_repo["_truncated"] === true)
         continue;
       for (const repo of filters.repos) {
-        const repoEntry = rollup.by_repository[repo];
+        const repoEntry = getOwnRecordValue(rollup.by_repository, repo);
         if (!repoEntry) continue;
         let crossDimSum = 0;
         for (const team of filters.teams) {
-          const teamRepos = rollup.by_team_and_repo[team];
+          const teamRepos = getOwnRecordValue(rollup.by_team_and_repo, team);
           if (!teamRepos) continue;
-          const entry = teamRepos[repo];
+          const entry = getOwnRecordValue(teamRepos, repo);
           if (entry) crossDimSum += entry.pr_count;
         }
         if (crossDimSum > repoEntry.pr_count) {
@@ -5763,5 +5767,4 @@ var PRInsightsDashboard = (() => {
     void init();
   }
 })();
-// Global exports for browser runtime
-if (typeof window !== 'undefined') { Object.assign(window, PRInsightsDashboard || {}); }
+// Global exports for browser runtime\nif (typeof window !== 'undefined') { Object.assign(window, PRInsightsDashboard || {}); }

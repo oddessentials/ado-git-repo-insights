@@ -586,10 +586,8 @@ describe("T025: SC-002 dashboard load time overhead", () => {
 
     const overheadPercent = v1Ms > 0 ? ((v2Ms - v1Ms) / v1Ms) * 100 : 0;
 
-    // Log timing details for CI visibility
-    // eslint-disable-next-line no-console -- REASON: SC-002 timing metrics logged for CI visibility
-    console.log(
-      JSON.stringify({
+    process.stdout.write(
+      `${JSON.stringify({
         test: "SC-002_dashboard_load_overhead",
         v1_trimmed_mean_ms: Number(v1Ms.toFixed(3)),
         v2_trimmed_mean_ms: Number(v2Ms.toFixed(3)),
@@ -599,7 +597,7 @@ describe("T025: SC-002 dashboard load time overhead", () => {
         weeks: NUM_WEEKS,
         teams: NUM_TEAMS,
         repos: NUM_REPOS,
-      }),
+      })}\n`,
     );
   });
 

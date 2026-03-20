@@ -47,7 +47,7 @@ class _NumpySafeEncoder(json.JSONEncoder):
     to native Python types so allow_nan=False can reject invalid values.
     """
 
-    def default(self, o: Any) -> Any:  # noqa: ANN401 -- REASON: JSONEncoder.default signature requires Any return
+    def default(self, o: object) -> object:
         if isinstance(o, np.integer):
             return int(o)
         if isinstance(o, np.floating):

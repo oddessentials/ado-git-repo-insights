@@ -405,7 +405,7 @@ export class AuthenticatedDatasetLoader implements IDatasetLoader {
   validateManifest(manifest: ManifestSchema): void {
     const SUPPORTED_MANIFEST_VERSION = 1;
     const SUPPORTED_DATASET_VERSION = 1;
-    const SUPPORTED_AGGREGATES_VERSION = 1;
+    const SUPPORTED_AGGREGATES_VERSION = 2;
 
     if (!manifest.manifest_schema_version) {
       throw new Error("Invalid manifest: missing schema version");

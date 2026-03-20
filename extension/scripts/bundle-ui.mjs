@@ -12,14 +12,18 @@
  * - Expose globals for HTML script tag consumption
  */
 
-import * as esbuild from 'esbuild';
+import { execFileSync } from 'child_process';
 import * as fs from 'fs';
 import * as path from 'path';
+import { createRequire } from 'module';
 import { fileURLToPath } from 'url';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
+const require = createRequire(import.meta.url);
 const uiDir = path.resolve(__dirname, '../ui');
 const outDir = path.resolve(__dirname, '../dist/ui');
+const esbuildCliPath = require.resolve('esbuild/bin/esbuild');
+const sleepBuffer = new Int32Array(new SharedArrayBuffer(4));
 
 // Safety guard: verify outDir is the expected path before any destructive operations
 const EXPECTED_SUFFIX = path.join('dist', 'ui');
@@ -27,16 +31,6 @@ if (!outDir.endsWith(EXPECTED_SUFFIX)) {
     console.error(`::error::Safety guard failed: outDir must end with '${EXPECTED_SUFFIX}', got: ${outDir}`);
     process.exit(1);
 }
-
-// Clean dist/ui directory before building (prevents stale file accumulation)
-// Uses force + retries for Windows reliability with transient file locks
-if (fs.existsSync(outDir)) {
-    fs.rmSync(outDir, { recursive: true, force: true, maxRetries: 3, retryDelay: 100 });
-    console.log('🧹 Cleaned dist/ui/ directory\n');
-}
-
-// Ensure output directory exists
-fs.mkdirSync(outDir, { recursive: true });
 
 // Entry points for UI bundles
 const entryPoints = [
@@ -51,7 +45,40 @@ const entryPoints = [
 // External modules that are loaded via script tags (not bundled)
 const externals = [];
 
+function removeWithRetries(targetPath) {
+    const deadline = Date.now() + 5000;
+
+    while (true) {
+        try {
+            fs.rmSync(targetPath, {
+                recursive: true,
+                force: true,
+                maxRetries: 3,
+                retryDelay: 100,
+            });
+            return;
+        } catch (err) {
+            if (
+                (err?.code !== 'EPERM' && err?.code !== 'EBUSY') ||
+                Date.now() >= deadline
+            ) {
+                throw err;
+            }
+
+            Atomics.wait(sleepBuffer, 0, 0, 200);
+        }
+    }
+}
+
 async function build() {
+    // Clean dist/ui contents before building without removing the root directory.
+    // On Windows the root can be transiently locked even when child entries are removable.
+    fs.mkdirSync(outDir, { recursive: true });
+    for (const entry of fs.readdirSync(outDir)) {
+        removeWithRetries(path.join(outDir, entry));
+    }
+    console.log('🧹 Cleaned dist/ui/ directory\n');
+
     console.log('📦 Building UI bundles with esbuild...\n');
 
     for (const entry of entryPoints) {
@@ -65,27 +92,26 @@ async function build() {
         const outputPath = path.join(outDir, entry.output);
 
         try {
-            const result = await esbuild.build({
-                entryPoints: [inputPath],
-                outfile: outputPath,
-                bundle: true,
-                format: 'iife',
-                globalName: entry.globalName,
-                target: 'es2020',
-                sourcemap: false,  // No source maps for production bundle
-                minify: false,     // Keep readable for debugging
-                external: externals,
-                logLevel: 'warning',
-                // Ensure all exports are accessible on the global
-                footer: {
-                    js: `// Global exports for browser runtime\nif (typeof window !== 'undefined') { Object.assign(window, ${entry.globalName} || {}); }`,
-                },
+            const cliArgs = [
+                esbuildCliPath,
+                inputPath,
+                '--bundle',
+                '--format=iife',
+                `--global-name=${entry.globalName}`,
+                '--target=es2020',
+                '--log-level=warning',
+                `--outfile=${outputPath}`,
+                `--footer:js=// Global exports for browser runtime\\nif (typeof window !== 'undefined') { Object.assign(window, ${entry.globalName} || {}); }`,
+                ...externals.map((external) => `--external:${external}`),
+            ];
+
+            execFileSync(process.execPath, cliArgs, {
+                cwd: __dirname,
+                stdio: 'inherit',
             });
 
-            if (result.errors.length === 0) {
-                const stats = fs.statSync(outputPath);
-                console.log(`✓ ${entry.output} (${(stats.size / 1024).toFixed(1)} KB)`);
-            }
+            const stats = fs.statSync(outputPath);
+            console.log(`✓ ${entry.output} (${(stats.size / 1024).toFixed(1)} KB)`);
         } catch (err) {
             console.error(`✗ Failed to build ${entry.input}:`, err.message);
             process.exit(1);

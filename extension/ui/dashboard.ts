@@ -94,6 +94,11 @@ const elements: Record<string, HTMLElement | null> = {};
 // DOM element list cache - stores NodeLists for multi-element queries
 const elementLists: Record<string, NodeListOf<Element>> = {};
 
+function getOwnRecordValue<T>(record: Record<string, T>, key: string): T | undefined {
+  const descriptor = Object.getOwnPropertyDescriptor(record, key);
+  return descriptor?.value as T | undefined;
+}
+
 /**
  * Typed DOM element accessor.
  * Provides type-safe access to cached DOM elements.
@@ -900,17 +905,14 @@ function updateOverlapIndicator(
       continue;
 
     for (const repo of filters.repos) {
-      // eslint-disable-next-line security/detect-object-injection -- SECURITY: repo comes from validated filter state
-      const repoEntry = rollup.by_repository[repo];
+      const repoEntry = getOwnRecordValue(rollup.by_repository, repo);
       if (!repoEntry) continue;
 
       let crossDimSum = 0;
       for (const team of filters.teams) {
-        // eslint-disable-next-line security/detect-object-injection -- SECURITY: team comes from validated filter state
-        const teamRepos = rollup.by_team_and_repo[team];
+        const teamRepos = getOwnRecordValue(rollup.by_team_and_repo, team);
         if (!teamRepos) continue;
-        // eslint-disable-next-line security/detect-object-injection -- SECURITY: repo comes from validated filter state
-        const entry = teamRepos[repo];
+        const entry = getOwnRecordValue(teamRepos, repo);
         if (entry) crossDimSum += entry.pr_count;
       }
 

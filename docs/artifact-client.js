@@ -18,7 +18,7 @@ var PRInsightsArtifactClient = (() => {
   };
   var __toCommonJS = (mod) => __copyProps(__defProp({}, "__esModule", { value: true }), mod);
 
-  // ui/artifact-client.ts
+  // ../ui/artifact-client.ts
   var artifact_client_exports = {};
   __export(artifact_client_exports, {
     ArtifactClient: () => ArtifactClient,
@@ -26,7 +26,7 @@ var PRInsightsArtifactClient = (() => {
     MockArtifactClient: () => MockArtifactClient
   });
 
-  // ui/error-types.ts
+  // ../ui/error-types.ts
   var ErrorTypes = {
     SETUP_REQUIRED: "setup_required",
     MULTIPLE_PIPELINES: "multiple_pipelines",
@@ -63,7 +63,7 @@ var PRInsightsArtifactClient = (() => {
     window.PrInsightsError = PrInsightsError;
   }
 
-  // ui/types.ts
+  // ../ui/types.ts
   function isErrorWithMessage(error) {
     return typeof error === "object" && error !== null && "message" in error && typeof error.message === "string";
   }
@@ -73,7 +73,7 @@ var PRInsightsArtifactClient = (() => {
     return "Unknown error";
   }
 
-  // ui/artifact-client.ts
+  // ../ui/artifact-client.ts
   var ArtifactClient = class {
     /**
      * Create a new ArtifactClient.
@@ -339,7 +339,7 @@ var PRInsightsArtifactClient = (() => {
     validateManifest(manifest) {
       const SUPPORTED_MANIFEST_VERSION = 1;
       const SUPPORTED_DATASET_VERSION = 1;
-      const SUPPORTED_AGGREGATES_VERSION = 1;
+      const SUPPORTED_AGGREGATES_VERSION = 2;
       if (!manifest.manifest_schema_version) {
         throw new Error("Invalid manifest: missing schema version");
       }
@@ -533,5 +533,4 @@ var PRInsightsArtifactClient = (() => {
   }
   return __toCommonJS(artifact_client_exports);
 })();
-// Global exports for browser runtime
-if (typeof window !== 'undefined') { Object.assign(window, PRInsightsArtifactClient || {}); }
+// Global exports for browser runtime\nif (typeof window !== 'undefined') { Object.assign(window, PRInsightsArtifactClient || {}); }

@@ -1,6 +1,6 @@
 "use strict";
 var PRInsightsSettings = (() => {
-  // ui/types.ts
+  // ../ui/types.ts
   function isErrorWithMessage(error) {
     return typeof error === "object" && error !== null && "message" in error && typeof error.message === "string";
   }
@@ -10,12 +10,12 @@ var PRInsightsSettings = (() => {
     return "Unknown error";
   }
 
-  // ui/modules/shared/security.ts
+  // ../ui/modules/shared/security.ts
   function escapeHtml(text) {
     return text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#039;");
   }
 
-  // ui/modules/shared/render.ts
+  // ../ui/modules/shared/render.ts
   function clearElement(el) {
     if (!el) return;
     while (el.firstChild) {
@@ -46,7 +46,7 @@ var PRInsightsSettings = (() => {
     return option;
   }
 
-  // ui/error-types.ts
+  // ../ui/error-types.ts
   var ErrorTypes = {
     SETUP_REQUIRED: "setup_required",
     MULTIPLE_PIPELINES: "multiple_pipelines",
@@ -83,7 +83,7 @@ var PRInsightsSettings = (() => {
     window.PrInsightsError = PrInsightsError;
   }
 
-  // ui/modules/export.ts
+  // ../ui/modules/export.ts
   function showToast(message, type = "success", durationMs = 3e3) {
     const toast = document.createElement("div");
     toast.className = `toast ${type}`;
@@ -94,7 +94,7 @@ var PRInsightsSettings = (() => {
     }, durationMs);
   }
 
-  // ui/modules/sdk.ts
+  // ../ui/modules/sdk.ts
   var sdkInitialized = false;
   async function initializeAdoSdk(options = {}) {
     if (sdkInitialized) {
@@ -122,7 +122,7 @@ var PRInsightsSettings = (() => {
     });
   }
 
-  // ui/artifact-client.ts
+  // ../ui/artifact-client.ts
   var ArtifactClient = class {
     /**
      * Create a new ArtifactClient.
@@ -388,7 +388,7 @@ var PRInsightsSettings = (() => {
     validateManifest(manifest) {
       const SUPPORTED_MANIFEST_VERSION = 1;
       const SUPPORTED_DATASET_VERSION = 1;
-      const SUPPORTED_AGGREGATES_VERSION = 1;
+      const SUPPORTED_AGGREGATES_VERSION = 2;
       if (!manifest.manifest_schema_version) {
         throw new Error("Invalid manifest: missing schema version");
       }
@@ -581,7 +581,7 @@ var PRInsightsSettings = (() => {
     window.MockArtifactClient = MockArtifactClient;
   }
 
-  // ui/settings.ts
+  // ../ui/settings.ts
   var SETTINGS_KEY_PROJECT = "pr-insights-source-project";
   var SETTINGS_KEY_PIPELINE = "pr-insights-pipeline-id";
   var ARTIFACT_NAME_CSV = "csv-output";
@@ -1172,5 +1172,4 @@ var PRInsightsSettings = (() => {
     showStatus(`Pipeline ${pipelineId} selected - click Save to confirm`, "info");
   };
 })();
-// Global exports for browser runtime
-if (typeof window !== 'undefined') { Object.assign(window, PRInsightsSettings || {}); }
+// Global exports for browser runtime\nif (typeof window !== 'undefined') { Object.assign(window, PRInsightsSettings || {}); }
