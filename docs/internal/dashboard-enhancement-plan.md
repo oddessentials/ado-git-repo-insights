@@ -70,7 +70,7 @@ Add delta indicators showing change from previous period:
 - Neutral threshold: ±2% to avoid noise
 
 **Files to modify**:
-- `extension/ui/dashboard.js`: Add `calculateTrendDelta()` function
+- `extension/ui/modules/comparison.ts`: Add `calculateTrendDelta()` support
 - `extension/ui/styles.css`: Add `.metric-delta`, `.delta-positive`, `.delta-negative` classes
 
 #### A.2 - Add Reviewers Card (5th Summary Card)
@@ -109,7 +109,7 @@ Add small inline trend visualizations to each summary card:
 - Optional: Add hover tooltip with value
 
 **Files to modify**:
-- `extension/ui/dashboard.js`: Add `renderSparkline()` function
+- `extension/ui/modules/charts/summary-cards.ts`: Add sparkline rendering support
 - `extension/ui/styles.css`: Add `.sparkline-container` styles
 
 ---
@@ -139,8 +139,9 @@ Add a horizontal filter bar below the date range selector:
 
 **Files to modify**:
 - `extension/ui/index.html`: Add filter bar HTML structure
-- `extension/ui/dashboard.js`: Add filter state management, `applyFilters()`
-- `extension/ui/dataset-loader.js`: Add dimension loading
+- `extension/ui/modules/filters.ts`: Add filter state management
+- `extension/ui/modules/metrics.ts`: Extend `applyFiltersToRollups()`
+- `extension/ui/dataset-loader.ts`: Add dimension loading
 - `extension/ui/styles.css`: Add `.filter-bar`, `.filter-dropdown` styles
 
 #### B.2 - Backend Filter Support

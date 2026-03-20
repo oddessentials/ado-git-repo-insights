@@ -18,6 +18,7 @@ import pytest
 REPO_ROOT = Path(__file__).parent.parent.parent
 DOCS_DATA = REPO_ROOT / "docs" / "data"
 SCRIPTS_DIR = REPO_ROOT / "scripts"
+REGENERATE_SCRIPT = SCRIPTS_DIR / "regenerate-demo.py"
 
 
 def compute_file_hash(path: Path) -> str:
@@ -57,25 +58,19 @@ class TestDeterministicRegeneration:
         # Capture current hashes (before regeneration)
         original_hashes = compute_directory_hashes(DOCS_DATA)
 
-        # Run all generators in sequence (order matters)
-        generators = [
-            "generate-demo-data.py",
-            "generate-demo-predictions.py",
-            "generate-demo-insights.py",
-        ]
+        assert REGENERATE_SCRIPT.exists(), (
+            f"Missing regeneration orchestrator: {REGENERATE_SCRIPT}"
+        )
 
-        for generator in generators:
-            script_path = SCRIPTS_DIR / generator
-            if not script_path.exists():
-                continue
-
-            result = subprocess.run(  # noqa: S603 - Trusted script path
-                [sys.executable, str(script_path)],
-                capture_output=True,
-                text=True,
-                cwd=REPO_ROOT,
-            )
-            assert result.returncode == 0, f"{generator} failed: {result.stderr}"
+        result = subprocess.run(  # noqa: S603 - Trusted script path
+            [sys.executable, str(REGENERATE_SCRIPT)],
+            capture_output=True,
+            text=True,
+            cwd=REPO_ROOT,
+        )
+        assert result.returncode == 0, (
+            f"regenerate-demo.py failed: {result.stderr or result.stdout}"
+        )
 
         # Capture new hashes
         new_hashes = compute_directory_hashes(DOCS_DATA)

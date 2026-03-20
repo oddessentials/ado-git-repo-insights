@@ -25,7 +25,7 @@ The pre-commit hook runs sync automatically when UI files are staged:
 
 ```bash
 # Just commit normally — sync runs if UI files changed
-git add extension/ui/something.js
+git add extension/ui/modules/metrics.ts
 git commit -m "Update dashboard"
 # → sync_ui_bundle.py runs automatically
 ```
@@ -51,7 +51,7 @@ powershell -ExecutionPolicy Bypass -File scripts\check-ui-bundle-sync.ps1  # Win
 
 ```bash
 # Example workflow
-vim extension/ui/dashboard.js
+vim extension/ui/modules/metrics.ts
 python scripts/sync_ui_bundle.py
 git add extension/ui/ src/ado_git_repo_insights/ui_bundle/
 git commit -m "Update dashboard UI"
