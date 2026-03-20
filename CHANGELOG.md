@@ -1,3 +1,27 @@
+# [5.26.0](https://github.com/oddessentials/ado-git-repo-insights/compare/v5.25.0...v5.26.0) (2026-03-20)
+
+
+### Bug Fixes
+
+* auto-detect predictions/insights files in manifest feature flags ([1fafc6a](https://github.com/oddessentials/ado-git-repo-insights/commit/1fafc6a6f4e0cb5d2f0c7514fb3f7da85115dc51))
+* demo data realism and compiled artifact guard ([e9e7ce3](https://github.com/oddessentials/ado-git-repo-insights/commit/e9e7ce38c49923da1c0a679db1c50192b7e8a365))
+* **demo:** decouple schema version import from numpy deps ([004edf9](https://github.com/oddessentials/ado-git-repo-insights/commit/004edf9aead65b9e3aa345324af6cf1ad8a71a73))
+* handle null cycle times in dashboard sparklines and summary cards ([bfbc205](https://github.com/oddessentials/ado-git-repo-insights/commit/bfbc2050aea1af9ade0cb4eeb48ec9f8d27e8ce8))
+* make esbuild launcher cross-platform ([bc7f65b](https://github.com/oddessentials/ado-git-repo-insights/commit/bc7f65b2a7aecdd468ec631e2cdab3520d229d9c))
+* reconcile demo cross-dim allocations ([b03ca8d](https://github.com/oddessentials/ado-git-repo-insights/commit/b03ca8dfe023d333a7c9bf4cf4b1a6215da3f8c6))
+* support python 3.10 in tool parity guard ([8d89a1d](https://github.com/oddessentials/ado-git-repo-insights/commit/8d89a1d2247fd9e080ea7ddc66e5ea43687b0318))
+* unblock local and artifact demo validation ([2ab1880](https://github.com/oddessentials/ado-git-repo-insights/commit/2ab18805218da38d3a153276ef46ff51f5be78f2))
+* use platform esbuild binary in bundle script ([33b473a](https://github.com/oddessentials/ado-git-repo-insights/commit/33b473a3c7a7ba2f1180ff99bda51f9b6e17a980))
+* **ux:** prevent accuracy footnote from shifting summary card layout ([c6c85b3](https://github.com/oddessentials/ado-git-repo-insights/commit/c6c85b3341cb3159f14bbe1d45a1174c7f1bffe1))
+* **ux:** rewrite accuracy and overlap footnotes for clarity ([c3e8390](https://github.com/oddessentials/ado-git-repo-insights/commit/c3e8390dfb3f831d8bd37359a57a67d585630781))
+* zero-leakage guards, rollup hardening, and cross-dim optimization ([63074db](https://github.com/oddessentials/ado-git-repo-insights/commit/63074db21e035a260a1f12b5acc039272a5d65b1))
+
+
+### Features
+
+* **029:** cross-dimensional filter accuracy with exact team-repo breakdowns ([1843a0b](https://github.com/oddessentials/ado-git-repo-insights/commit/1843a0bbb10f777fc3aaa5bd514ecdbe377e4e92))
+* realistic demo data with cross-dimensional breakdowns and quality hardening ([c6916fc](https://github.com/oddessentials/ado-git-repo-insights/commit/c6916fc16e54c38437e78480153e155128b73263))
+
 # [5.25.0](https://github.com/oddessentials/ado-git-repo-insights/compare/v5.24.0...v5.25.0) (2026-02-11)
 
 
