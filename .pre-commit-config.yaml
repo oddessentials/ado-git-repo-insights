@@ -6,7 +6,7 @@
 
 repos:
   - repo: https://github.com/astral-sh/ruff-pre-commit
-    rev: v0.15.0
+    rev: v0.15.6
     hooks:
       - id: ruff
         # Auto-fix on commit for a smoother DX; re-run hook will verify clean.
@@ -43,6 +43,13 @@ repos:
       - id: suppression-format
         name: Suppression Format Validation (FR-017)
         entry: python scripts/audit-suppressions.py --check-justifications
+        language: system
+        pass_filenames: false
+        always_run: true
+
+      - id: tool-version-parity
+        name: Tool Version Parity
+        entry: python scripts/check_tool_versions.py
         language: system
         pass_filenames: false
         always_run: true
