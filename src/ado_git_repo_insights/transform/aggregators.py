@@ -24,6 +24,14 @@ from typing import TYPE_CHECKING, Any
 import numpy as np
 import pandas as pd
 
+from .schema_versions import (
+    AGGREGATES_SCHEMA_VERSION,
+    DATASET_SCHEMA_VERSION,
+    INSIGHTS_SCHEMA_VERSION,
+    MANIFEST_SCHEMA_VERSION,
+    PREDICTIONS_SCHEMA_VERSION,
+)
+
 if TYPE_CHECKING:
     from ..persistence.database import DatabaseManager
 
@@ -48,15 +56,6 @@ class _NumpySafeEncoder(json.JSONEncoder):
             return o.tolist()
         return super().default(o)
 
-
-# Schema versions (Phase 3 locked)
-MANIFEST_SCHEMA_VERSION = 1
-DATASET_SCHEMA_VERSION = 1
-AGGREGATES_SCHEMA_VERSION = 2
-
-# Phase 3.5 schema versions
-PREDICTIONS_SCHEMA_VERSION = 1
-INSIGHTS_SCHEMA_VERSION = 1
 
 # Stub generator identifier
 STUB_GENERATOR_ID = "phase3.5-stub-v1"

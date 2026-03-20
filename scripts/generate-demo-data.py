@@ -32,7 +32,7 @@ _src_path = Path(__file__).resolve().parent.parent / "src"
 if str(_src_path) not in sys.path:
     sys.path.insert(0, str(_src_path))
 
-from ado_git_repo_insights.transform.aggregators import AGGREGATES_SCHEMA_VERSION  # noqa: E402, I001
+from ado_git_repo_insights.transform.schema_versions import AGGREGATES_SCHEMA_VERSION  # noqa: E402, I001
 from demo_generation_common import (  # noqa: E402
     FIXED_GENERATED_AT,
     discover_demo_feature_flags,
