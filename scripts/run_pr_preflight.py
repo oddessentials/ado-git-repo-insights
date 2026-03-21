@@ -183,6 +183,8 @@ def run_subprocess(
     cwd: Path,
     env: dict[str, str] | None = None,
 ) -> CommandResult:
+    # SECURITY: command lists are composed only from repo-owned CommandSpec entries
+    # plus locally resolved tool paths; shell=False is preserved throughout.
     completed = subprocess.run(  # noqa: S603 - commands are repo-controlled
         command,
         cwd=cwd,

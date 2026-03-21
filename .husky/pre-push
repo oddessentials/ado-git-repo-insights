@@ -193,7 +193,8 @@ fi
 if [ $? -ne 0 ]; then
     echo ""
     echo "[pre-push] ❌ Push blocked: PR preflight failed"
-    echo "[pre-push] Run 'scripts/run_pr_preflight.py --self-check' to verify the local runner"
+    echo "[pre-push] Run 'scripts/run_pr_preflight.py --self-check' to diagnose local runner/toolchain issues"
+    echo "[pre-push] Run 'scripts/run_pr_preflight.py --verbose' for full step output"
     exit 1
 fi
 
