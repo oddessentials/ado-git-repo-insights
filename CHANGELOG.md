@@ -1,3 +1,10 @@
+## [5.27.1](https://github.com/oddessentials/ado-git-repo-insights/compare/v5.27.0...v5.27.1) (2026-03-21)
+
+
+### Bug Fixes
+
+* validate hook bootstrap interpreter ([9b4bb9c](https://github.com/oddessentials/ado-git-repo-insights/commit/9b4bb9c412d5caeaffa1377bd1a64e804e0014af))
+
 # [5.27.0](https://github.com/oddessentials/ado-git-repo-insights/compare/v5.26.0...v5.27.0) (2026-03-21)
 
 
