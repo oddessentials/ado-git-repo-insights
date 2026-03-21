@@ -255,6 +255,58 @@ describe("metrics module", () => {
       expect(result[0].pr_count).toBe(40);
     });
 
+    it("filters by reviewer using reviewer activity slices", () => {
+      const reviewerRollup = {
+        ...baseRollup,
+        by_reviewer: {
+          "reviewer-1": {
+            reviewed_prs: 8,
+            reviews_count: 10,
+            approval_rate: 0.75,
+            authors_count: 5,
+            repositories_count: 2,
+          },
+        },
+      } as Rollup;
+
+      const result = applyFiltersToRollups([reviewerRollup], {
+        repos: [],
+        teams: [],
+        reviewers: ["reviewer-1"],
+      });
+
+      expect(result[0].pr_count).toBe(8);
+      expect(result[0].cycle_time_p50).toBeNull();
+      expect(result[0].cycle_time_p90).toBeNull();
+      expect(result[0].authors_count).toBe(5);
+      expect(result[0].reviewers_count).toBe(10);
+    });
+
+    it("prefers reviewer-only filtering when reviewer is combined with repo/team", () => {
+      const reviewerRollup = {
+        ...baseRollup,
+        by_reviewer: {
+          "reviewer-1": {
+            reviewed_prs: 6,
+            reviews_count: 7,
+            approval_rate: 0.5,
+            authors_count: 4,
+            repositories_count: 2,
+          },
+        },
+      } as Rollup;
+
+      const result = applyFiltersToRollups([reviewerRollup], {
+        repos: ["repo-a"],
+        teams: ["team-x"],
+        reviewers: ["reviewer-1"],
+      });
+
+      expect(result[0].pr_count).toBe(6);
+      expect(result[0].authors_count).toBe(4);
+      expect(result[0].reviewers_count).toBe(7);
+    });
+
     it("returns zero counts for unknown repo filter", () => {
       const result = applyFiltersToRollups([baseRollup], {
         repos: ["unknown-repo"],

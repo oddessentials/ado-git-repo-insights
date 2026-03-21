@@ -46,6 +46,9 @@ describe("Dimensions Schema Validator", () => {
           },
         ],
         users: [{ user_id: "user-1", display_name: "Alice Developer" }],
+        reviewers: [
+          { reviewer_id: "reviewer-1", reviewer_name: "Rita Reviewer" },
+        ],
         projects: [
           { organization_name: "test-org", project_name: "test-project" },
         ],
@@ -57,6 +60,20 @@ describe("Dimensions Schema Validator", () => {
       };
       const result = validateDimensions(productionFormat, true);
       expect(result.valid).toBe(true);
+    });
+
+    it("should fail when reviewer item is missing reviewer_name", () => {
+      const invalid = {
+        repositories: [],
+        users: [],
+        reviewers: [{ reviewer_id: "reviewer-1" }],
+        projects: [],
+      };
+      const result = validateDimensions(invalid, true);
+      expect(result.valid).toBe(false);
+      expect(result.errors.some((e) => e.field.includes("reviewer_name"))).toBe(
+        true,
+      );
     });
   });
 

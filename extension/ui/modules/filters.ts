@@ -13,20 +13,25 @@ import { escapeHtml } from "./shared";
 export interface FilterState {
   repos: string[];
   teams: string[];
+  reviewers: string[];
 }
 
 /**
  * Create an empty filter state.
  */
 export function createEmptyFilterState(): FilterState {
-  return { repos: [], teams: [] };
+  return { repos: [], teams: [], reviewers: [] };
 }
 
 /**
  * Check if filter state has any active filters.
  */
 export function hasActiveFilters(state: FilterState): boolean {
-  return state.repos.length > 0 || state.teams.length > 0;
+  return (
+    state.repos.length > 0 ||
+    state.teams.length > 0 ||
+    state.reviewers.length > 0
+  );
 }
 
 /**
@@ -37,10 +42,14 @@ export function hasActiveFilters(state: FilterState): boolean {
 export function parseFiltersFromUrl(params: URLSearchParams): FilterState {
   const reposParam = params.get("repos");
   const teamsParam = params.get("teams");
+  const reviewersParam = params.get("reviewers");
 
   return {
     repos: reposParam ? reposParam.split(",").filter((v) => v.trim()) : [],
     teams: teamsParam ? teamsParam.split(",").filter((v) => v.trim()) : [],
+    reviewers: reviewersParam
+      ? reviewersParam.split(",").filter((v) => v.trim())
+      : [],
   };
 }
 
@@ -64,6 +73,12 @@ export function serializeFiltersToUrl(
   } else {
     params.delete("teams");
   }
+
+  if (state.reviewers.length > 0) {
+    params.set("reviewers", state.reviewers.join(","));
+  } else {
+    params.delete("reviewers");
+  }
 }
 
 /**
@@ -74,11 +89,12 @@ export function serializeFiltersToUrl(
  * @returns HTML string for the chip
  */
 export function createFilterChipHtml(
-  type: "repo" | "team",
+  type: "repo" | "team" | "reviewer",
   value: string,
   label: string,
 ): string {
-  const prefix = type === "repo" ? "repo" : "team";
+  const prefix =
+    type === "repo" ? "repo" : type === "team" ? "team" : "reviewer";
   const escapedLabel = escapeHtml(label);
   const escapedValue = escapeHtml(value);
 
@@ -98,7 +114,7 @@ export function createFilterChipHtml(
  */
 export function renderFilterChipsHtml(
   state: FilterState,
-  labelFn: (type: "repo" | "team", value: string) => string,
+  labelFn: (type: "repo" | "team" | "reviewer", value: string) => string,
 ): string {
   const chips: string[] = [];
 
@@ -108,6 +124,12 @@ export function renderFilterChipsHtml(
 
   state.teams.forEach((value) => {
     chips.push(createFilterChipHtml("team", value, labelFn("team", value)));
+  });
+
+  state.reviewers.forEach((value) => {
+    chips.push(
+      createFilterChipHtml("reviewer", value, labelFn("reviewer", value)),
+    );
   });
 
   return chips.join("");

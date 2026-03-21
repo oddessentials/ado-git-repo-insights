@@ -115,6 +115,12 @@
                         <option value="" selected>All</option>
                     </select>
                 </div>
+                <div class="filter-group" id="reviewer-filter-group">
+                    <label for="reviewer-filter">Reviewer</label>
+                    <select id="reviewer-filter" multiple>
+                        <option value="" selected>All</option>
+                    </select>
+                </div>
                 <button id="clear-filters" class="btn btn-small btn-secondary hidden">Clear Filters</button>
                 <div class="filter-actions">
                     <button id="compare-toggle" class="btn btn-small btn-secondary" title="Compare with previous period">
@@ -168,7 +174,7 @@
                     <!-- Summary Cards -->
                     <div class="summary-cards">
                         <div class="card">
-                            <h3>Total PRs</h3>
+                            <h3 id="total-prs-label">Total PRs</h3>
                             <div class="metric-row">
                                 <div id="total-prs" class="metric-value">-</div>
                                 <div id="total-prs-sparkline" class="sparkline"></div>
@@ -192,7 +198,7 @@
                             <div id="cycle-p90-delta" class="metric-delta"></div>
                         </div>
                         <div class="card">
-                            <h3>Contributors</h3>
+                            <h3 id="authors-count-label">Contributors</h3>
                             <div class="metric-row">
                                 <div id="authors-count" class="metric-value">-</div>
                                 <div id="authors-sparkline" class="sparkline"></div>
@@ -200,7 +206,7 @@
                             <div id="authors-delta" class="metric-delta"></div>
                         </div>
                         <div class="card">
-                            <h3>Reviewers</h3>
+                            <h3 id="reviewers-count-label">Reviewers</h3>
                             <div class="metric-row">
                                 <div id="reviewers-count" class="metric-value">-</div>
                                 <div id="reviewers-sparkline" class="sparkline"></div>
@@ -225,7 +231,7 @@
                     <!-- Charts Row 2 -->
                     <div class="charts-row">
                         <div class="chart-container">
-                            <h3>Reviewer Activity</h3>
+                            <h3 id="reviewer-activity-label">Reviewer Activity</h3>
                             <div id="reviewer-activity" class="chart"></div>
                         </div>
 

@@ -7,19 +7,53 @@
  * TODO(phase4-gap): Add full DatasetLoader mocked fetch tests when Jest environment stabilizes
  */
 
-import { execSync } from "child_process";
 import * as fs from "fs";
+import * as os from "os";
 import * as path from "path";
+import {
+  assertPythonSubprocessSupport,
+  probePythonSubprocessSupport,
+  runPythonScript,
+} from "./python-subprocess";
 
-describe("Performance Baseline Tests (Simplified)", () => {
-  const perfFixturesDir = path.join(
+const performanceTempRoot = fs.mkdtempSync(
+  path.join(
+    process.env["GRI_EXTENSION_TEST_TMPDIR"] ?? os.tmpdir(),
+    "gri-extension-perf-",
+  ),
+);
+const performanceFixturesDir = path.join(performanceTempRoot, "perf-fixtures");
+const performanceSummaryPath = path.join(
+  performanceTempRoot,
+  "perf-summary.json",
+);
+const pythonSubprocessSupport = probePythonSubprocessSupport();
+const performanceTest = pythonSubprocessSupport.supported ? test : test.skip;
+
+function runSyntheticDatasetGenerator(outputDir: string, prCount: number) {
+  const scriptPath = path.join(
     __dirname,
     "..",
     "..",
     "..",
-    "tmp",
-    "perf-fixtures",
+    "scripts",
+    "generate-synthetic-dataset.py",
   );
+
+  runPythonScript(scriptPath, [
+    "--pr-count",
+    String(prCount),
+    "--seed",
+    "42",
+    "--output",
+    outputDir,
+  ]);
+}
+
+describe("Performance Baseline Tests (Simplified)", () => {
+  beforeAll(() => {
+    assertPythonSubprocessSupport("Performance Baseline Tests");
+  });
 
   /**
    * Measure operation timing
@@ -46,16 +80,8 @@ describe("Performance Baseline Tests (Simplified)", () => {
     return endMem - startMem;
   }
 
-  test("1k PR fixture generation completes within budget", () => {
-    const outputDir = path.join(perfFixturesDir, "1000pr");
-    const scriptPath = path.join(
-      __dirname,
-      "..",
-      "..",
-      "..",
-      "scripts",
-      "generate-synthetic-dataset.py",
-    );
+  performanceTest("1k PR fixture generation completes within budget", () => {
+    const outputDir = path.join(performanceFixturesDir, "1000pr");
 
     // Clean previous run
     if (fs.existsSync(outputDir)) {
@@ -64,10 +90,7 @@ describe("Performance Baseline Tests (Simplified)", () => {
 
     // Baseline: 5s, Budget: 10s (2x tolerance)
     const duration = measureTiming(() => {
-      execSync(
-        `python "${scriptPath}" --pr-count 1000 --seed 42 --output "${outputDir}"`,
-        { stdio: "pipe" },
-      );
+      runSyntheticDatasetGenerator(outputDir, 1000);
     });
 
     expect(duration).toBeLessThan(10000);
@@ -85,28 +108,16 @@ describe("Performance Baseline Tests (Simplified)", () => {
     );
   });
 
-  test("manifest parsing completes within budget", () => {
+  performanceTest("manifest parsing completes within budget", () => {
     const manifestPath = path.join(
-      perfFixturesDir,
+      performanceFixturesDir,
       "1000pr",
       "dataset-manifest.json",
     );
 
     if (!fs.existsSync(manifestPath)) {
-      // Generate if not exists
-      const scriptPath = path.join(
-        __dirname,
-        "..",
-        "..",
-        "..",
-        "scripts",
-        "generate-synthetic-dataset.py",
-      );
-      const outputDir = path.join(perfFixturesDir, "1000pr");
-      execSync(
-        `python "${scriptPath}" --pr-count 1000 --seed 42 --output "${outputDir}"`,
-        { stdio: "pipe" },
-      );
+      const outputDir = path.join(performanceFixturesDir, "1000pr");
+      runSyntheticDatasetGenerator(outputDir, 1000);
     }
 
     // Baseline: 10ms, Budget: 50ms (generous for file I/O)
@@ -131,23 +142,12 @@ describe("Performance Baseline Tests (Simplified)", () => {
     );
   });
 
-  test("bulk JSON parsing (all rollups) completes within budget", () => {
-    const fixtureDir = path.join(perfFixturesDir, "1000pr");
+  performanceTest("bulk JSON parsing (all rollups) completes within budget", () => {
+    const fixtureDir = path.join(performanceFixturesDir, "1000pr");
     const manifestPath = path.join(fixtureDir, "dataset-manifest.json");
 
     if (!fs.existsSync(manifestPath)) {
-      const scriptPath = path.join(
-        __dirname,
-        "..",
-        "..",
-        "..",
-        "scripts",
-        "generate-synthetic-dataset.py",
-      );
-      execSync(
-        `python "${scriptPath}" --pr-count 1000 --seed 42 --output "${fixtureDir}"`,
-        { stdio: "pipe" },
-      );
+      runSyntheticDatasetGenerator(fixtureDir, 1000);
     }
 
     const manifest = JSON.parse(fs.readFileSync(manifestPath, "utf-8"));
@@ -177,23 +177,12 @@ describe("Performance Baseline Tests (Simplified)", () => {
     );
   });
 
-  test("memory footprint for 1k dataset remains within ceiling", () => {
-    const fixtureDir = path.join(perfFixturesDir, "1000pr");
+  performanceTest("memory footprint for 1k dataset remains within ceiling", () => {
+    const fixtureDir = path.join(performanceFixturesDir, "1000pr");
     const manifestPath = path.join(fixtureDir, "dataset-manifest.json");
 
     if (!fs.existsSync(manifestPath)) {
-      const scriptPath = path.join(
-        __dirname,
-        "..",
-        "..",
-        "..",
-        "scripts",
-        "generate-synthetic-dataset.py",
-      );
-      execSync(
-        `python "${scriptPath}" --pr-count 1000 --seed 42 --output "${fixtureDir}"`,
-        { stdio: "pipe" },
-      );
+      runSyntheticDatasetGenerator(fixtureDir, 1000);
     }
 
     // Budget: 20MB delta (conservative for file I/O + parsing)
@@ -237,14 +226,6 @@ describe("Performance Baseline Tests (Simplified)", () => {
 
   afterAll(() => {
     // Write summary for CI artifacts
-    const summaryPath = path.join(
-      __dirname,
-      "..",
-      "..",
-      "..",
-      "tmp",
-      "perf-summary.json",
-    );
     const summary = {
       timestamp: new Date().toISOString(),
       fixture_size: "1000 PRs",
@@ -253,8 +234,8 @@ describe("Performance Baseline Tests (Simplified)", () => {
       gap: "TODO: Add DatasetLoader mocked fetch tests (phase4-gap)",
     };
 
-    fs.mkdirSync(path.dirname(summaryPath), { recursive: true });
-    fs.writeFileSync(summaryPath, JSON.stringify(summary, null, 2));
+    fs.mkdirSync(path.dirname(performanceSummaryPath), { recursive: true });
+    fs.writeFileSync(performanceSummaryPath, JSON.stringify(summary, null, 2));
   });
 });
 
@@ -267,14 +248,6 @@ describe("Performance Baseline Tests (Simplified)", () => {
 describe.each([1000, 5000, 10000])(
   "Scaling Performance at %d PRs",
   (prCount) => {
-    const perfFixturesDir = path.join(
-      __dirname,
-      "..",
-      "..",
-      "..",
-      "tmp",
-      "perf-fixtures",
-    );
     const baselinesPath = path.join(
       __dirname,
       "..",
@@ -289,6 +262,8 @@ describe.each([1000, 5000, 10000])(
     let baselines: any = {};
 
     beforeAll(() => {
+      assertPythonSubprocessSupport(`Scaling Performance at ${prCount} PRs`);
+
       // Load committed baselines
       if (fs.existsSync(baselinesPath)) {
         baselines = JSON.parse(fs.readFileSync(baselinesPath, "utf-8"));
@@ -352,16 +327,8 @@ describe.each([1000, 5000, 10000])(
       }
     }
 
-    test(`${prCount} PR fixture generation within budget`, () => {
-      const fixtureDir = path.join(perfFixturesDir, `${prCount}pr`);
-      const scriptPath = path.join(
-        __dirname,
-        "..",
-        "..",
-        "..",
-        "scripts",
-        "generate-synthetic-dataset.py",
-      );
+    performanceTest(`${prCount} PR fixture generation within budget`, () => {
+      const fixtureDir = path.join(performanceFixturesDir, `${prCount}pr`);
 
       // Clean previous run
       if (fs.existsSync(fixtureDir)) {
@@ -369,10 +336,7 @@ describe.each([1000, 5000, 10000])(
       }
 
       const duration = measureWithWarmup(() => {
-        execSync(
-          `python "${scriptPath}" --pr-count ${prCount} --seed 42 --output "${fixtureDir}"`,
-          { stdio: "pipe" },
-        );
+        runSyntheticDatasetGenerator(fixtureDir, prCount);
       });
 
       // Budget scales linearly with PR count
@@ -394,24 +358,13 @@ describe.each([1000, 5000, 10000])(
       );
     }, 60000); // 60s timeout for large fixtures
 
-    test(`${prCount} PR manifest parse within budget`, () => {
-      const fixtureDir = path.join(perfFixturesDir, `${prCount}pr`);
+    performanceTest(`${prCount} PR manifest parse within budget`, () => {
+      const fixtureDir = path.join(performanceFixturesDir, `${prCount}pr`);
       const manifestPath = path.join(fixtureDir, "dataset-manifest.json");
 
       // Generate if not exists
       if (!fs.existsSync(manifestPath)) {
-        const scriptPath = path.join(
-          __dirname,
-          "..",
-          "..",
-          "..",
-          "scripts",
-          "generate-synthetic-dataset.py",
-        );
-        execSync(
-          `python "${scriptPath}" --pr-count ${prCount} --seed 42 --output "${fixtureDir}"`,
-          { stdio: "pipe" },
-        );
+        runSyntheticDatasetGenerator(fixtureDir, prCount);
       }
 
       const duration = measureWithWarmup(() => {
@@ -429,23 +382,12 @@ describe.each([1000, 5000, 10000])(
       checkRegression(`${prCount}pr-manifest-parse`, duration, baseline);
     });
 
-    test(`${prCount} PR bulk JSON parse scales sub-linearly`, () => {
-      const fixtureDir = path.join(perfFixturesDir, `${prCount}pr`);
+    performanceTest(`${prCount} PR bulk JSON parse scales sub-linearly`, () => {
+      const fixtureDir = path.join(performanceFixturesDir, `${prCount}pr`);
       const manifestPath = path.join(fixtureDir, "dataset-manifest.json");
 
       if (!fs.existsSync(manifestPath)) {
-        const scriptPath = path.join(
-          __dirname,
-          "..",
-          "..",
-          "..",
-          "scripts",
-          "generate-synthetic-dataset.py",
-        );
-        execSync(
-          `python "${scriptPath}" --pr-count ${prCount} --seed 42 --output "${fixtureDir}"`,
-          { stdio: "pipe" },
-        );
+        runSyntheticDatasetGenerator(fixtureDir, prCount);
       }
 
       const manifest = JSON.parse(fs.readFileSync(manifestPath, "utf-8"));

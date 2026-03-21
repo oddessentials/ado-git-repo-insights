@@ -1,7 +1,7 @@
 /**
  * Dimensions Schema Validator
  *
- * Validates dimensions.json files containing lookup data for repositories, users, projects, and teams.
+ * Validates dimensions.json files containing lookup data for repositories, users, projects, reviewers, and teams.
  * Uses STRICT mode by default - unknown fields cause errors.
  *
  * Supports both production format (snake_case fields) and legacy format (camelCase fields).
@@ -96,6 +96,14 @@ export interface TeamEntry {
 }
 
 /**
+ * Reviewer dimension entry.
+ */
+export interface ReviewerEntry {
+  reviewer_id: string;
+  reviewer_name: string;
+}
+
+/**
  * Date range structure.
  */
 export interface DateRange {
@@ -109,6 +117,7 @@ export interface DateRange {
 export interface Dimensions {
   repositories: (RepositoryEntry | LegacyRepositoryEntry)[];
   users: (UserEntry | LegacyUserEntry)[];
+  reviewers?: ReviewerEntry[];
   projects: (ProjectEntry | LegacyProjectEntry)[];
   teams?: TeamEntry[];
   date_range?: DateRange;
@@ -121,6 +130,7 @@ export interface Dimensions {
 const KNOWN_ROOT_FIELDS = new Set([
   "repositories",
   "users",
+  "reviewers",
   "projects",
   "teams",
   "date_range",
@@ -145,6 +155,11 @@ const KNOWN_USER_FIELDS = new Set([
   "id",
   "displayName",
   "uniqueName",
+]);
+
+const KNOWN_REVIEWER_FIELDS = new Set([
+  "reviewer_id",
+  "reviewer_name",
 ]);
 
 const KNOWN_PROJECT_FIELDS = new Set([
@@ -439,6 +454,51 @@ function validateProjectEntry(
 }
 
 /**
+ * Validate a reviewer entry.
+ */
+function validateReviewerEntry(
+  data: unknown,
+  path: string,
+  strict: boolean,
+): { errors: ValidationError[]; warnings: ValidationWarning[] } {
+  const errors: ValidationError[] = [];
+  const warnings: ValidationWarning[] = [];
+
+  if (!isObject(data)) {
+    errors.push(createError(path, "object", getTypeName(data)));
+    return { errors, warnings };
+  }
+
+  const idReq = validateRequired(data, "reviewer_id", path);
+  if (idReq) {
+    errors.push(idReq);
+  } else {
+    const idErr = validateString(
+      data.reviewer_id,
+      buildPath(path, "reviewer_id"),
+    );
+    if (idErr) errors.push(idErr);
+  }
+
+  const nameReq = validateRequired(data, "reviewer_name", path);
+  if (nameReq) {
+    errors.push(nameReq);
+  } else {
+    const nameErr = validateString(
+      data.reviewer_name,
+      buildPath(path, "reviewer_name"),
+    );
+    if (nameErr) errors.push(nameErr);
+  }
+
+  const unknown = findUnknownFields(data, KNOWN_REVIEWER_FIELDS, path, strict);
+  errors.push(...unknown.errors);
+  warnings.push(...unknown.warnings);
+
+  return { errors, warnings };
+}
+
+/**
  * Validate a team entry.
  */
 function validateTeamEntry(
@@ -593,6 +653,24 @@ export function validateDimensions(
     });
   }
 
+  // Optional: reviewers
+  if ("reviewers" in data && data.reviewers !== undefined) {
+    const arrErr = validateArray(data.reviewers, "reviewers");
+    if (arrErr) {
+      errors.push(arrErr);
+    } else if (isArray(data.reviewers)) {
+      data.reviewers.forEach((item, i) => {
+        const result = validateReviewerEntry(
+          item,
+          buildPath("reviewers", i),
+          strict,
+        );
+        errors.push(...result.errors);
+        warnings.push(...result.warnings);
+      });
+    }
+  }
+
   // Validate project entries
   if ("projects" in data && isArray(data.projects)) {
     data.projects.forEach((item, i) => {
@@ -654,6 +732,7 @@ export function normalizeDimensions(data: unknown): Dimensions {
       | LegacyRepositoryEntry
     )[],
     users: obj.users as (UserEntry | LegacyUserEntry)[],
+    reviewers: (obj.reviewers as ReviewerEntry[]) ?? [],
     projects: obj.projects as (ProjectEntry | LegacyProjectEntry)[],
     teams: (obj.teams as TeamEntry[]) ?? [],
     date_range: obj.date_range as DateRange | undefined,

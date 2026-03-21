@@ -45,6 +45,17 @@ export interface BreakdownEntry {
 }
 
 /**
+ * Reviewer-specific breakdown entry.
+ */
+export interface ReviewerBreakdownEntry {
+  reviewed_prs: number;
+  reviews_count: number;
+  approval_rate?: number | null;
+  authors_count?: number;
+  repositories_count?: number;
+}
+
+/**
  * Weekly rollup structure.
  */
 export interface WeeklyRollup {
@@ -60,6 +71,7 @@ export interface WeeklyRollup {
   reviewers_count?: number;
   by_repository?: Record<string, BreakdownEntry>;
   by_team?: Record<string, BreakdownEntry>;
+  by_reviewer?: Record<string, ReviewerBreakdownEntry>;
   by_team_and_repo?: Record<string, Record<string, BreakdownEntry>>;
 }
 
@@ -80,6 +92,7 @@ const KNOWN_ROOT_FIELDS = new Set([
   "reviewers_count",
   "by_repository",
   "by_team",
+  "by_reviewer",
   "by_team_and_repo",
 ]);
 
@@ -91,6 +104,14 @@ const KNOWN_BREAKDOWN_FIELDS = new Set([
   "review_time_p90",
   "authors_count",
   "reviewers_count",
+]);
+
+const KNOWN_REVIEWER_BREAKDOWN_FIELDS = new Set([
+  "reviewed_prs",
+  "reviews_count",
+  "approval_rate",
+  "authors_count",
+  "repositories_count",
 ]);
 
 // ============================================================================
@@ -166,6 +187,108 @@ function validateBreakdown(
   // Each key is a repository/team name, value is a breakdown entry
   for (const [key, value] of Object.entries(data)) {
     const result = validateBreakdownEntry(value, buildPath(path, key), strict);
+    errors.push(...result.errors);
+    warnings.push(...result.warnings);
+  }
+
+  return { errors, warnings };
+}
+
+/**
+ * Validate a reviewer breakdown entry (by_reviewer item).
+ */
+function validateReviewerBreakdownEntry(
+  data: unknown,
+  path: string,
+  strict: boolean,
+): { errors: ValidationError[]; warnings: ValidationWarning[] } {
+  const errors: ValidationError[] = [];
+  const warnings: ValidationWarning[] = [];
+
+  if (!isObject(data)) {
+    errors.push(createError(path, "object", getTypeName(data)));
+    return { errors, warnings };
+  }
+
+  if ("reviewed_prs" in data) {
+    const err = validateNonNegativeNumber(
+      data.reviewed_prs,
+      buildPath(path, "reviewed_prs"),
+    );
+    if (err) errors.push(err);
+  }
+
+  if ("reviews_count" in data) {
+    const err = validateNonNegativeNumber(
+      data.reviews_count,
+      buildPath(path, "reviews_count"),
+    );
+    if (err) errors.push(err);
+  }
+
+  if (Object.prototype.hasOwnProperty.call(data, "approval_rate")) {
+    const fieldValue = Object.getOwnPropertyDescriptor(data, "approval_rate")?.value;
+    if (fieldValue != null) {
+      const err = validateNumber(fieldValue, buildPath(path, "approval_rate"));
+      if (err) {
+        errors.push(err);
+      } else if (typeof fieldValue === "number" && (fieldValue < 0 || fieldValue > 1)) {
+        errors.push(
+          createError(
+            buildPath(path, "approval_rate"),
+            "number between 0 and 1",
+            `${fieldValue}`,
+          ),
+        );
+      }
+    }
+  }
+
+  const numericFields = ["authors_count", "repositories_count"];
+  for (const field of numericFields) {
+    if (Object.prototype.hasOwnProperty.call(data, field)) {
+      const fieldValue = Object.getOwnPropertyDescriptor(data, field)?.value;
+      if (fieldValue != null) {
+        const err = validateNonNegativeNumber(fieldValue, buildPath(path, field));
+        if (err) errors.push(err);
+      }
+    }
+  }
+
+  const unknown = findUnknownFields(
+    data,
+    KNOWN_REVIEWER_BREAKDOWN_FIELDS,
+    path,
+    strict,
+  );
+  errors.push(...unknown.errors);
+  warnings.push(...unknown.warnings);
+
+  return { errors, warnings };
+}
+
+/**
+ * Validate a reviewer breakdown object (by_reviewer).
+ */
+function validateReviewerBreakdown(
+  data: unknown,
+  path: string,
+  strict: boolean,
+): { errors: ValidationError[]; warnings: ValidationWarning[] } {
+  const errors: ValidationError[] = [];
+  const warnings: ValidationWarning[] = [];
+
+  if (!isObject(data)) {
+    errors.push(createError(path, "object", getTypeName(data)));
+    return { errors, warnings };
+  }
+
+  for (const [key, value] of Object.entries(data)) {
+    const result = validateReviewerBreakdownEntry(
+      value,
+      buildPath(path, key),
+      strict,
+    );
     errors.push(...result.errors);
     warnings.push(...result.warnings);
   }
@@ -313,6 +436,16 @@ export function validateRollup(
     warnings.push(...result.warnings);
   }
 
+  if ("by_reviewer" in data && data.by_reviewer !== undefined) {
+    const result = validateReviewerBreakdown(
+      data.by_reviewer,
+      "by_reviewer",
+      strict,
+    );
+    errors.push(...result.errors);
+    warnings.push(...result.warnings);
+  }
+
   if (
     Object.prototype.hasOwnProperty.call(data, "by_team_and_repo") &&
     data.by_team_and_repo !== undefined
@@ -350,6 +483,7 @@ const ROLLUP_FIELD_DEFAULTS = {
   reviewers_count: 0,
   by_repository: {},
   by_team: {},
+  by_reviewer: {},
 };
 
 /**
@@ -390,6 +524,9 @@ export function normalizeRollup(data: unknown): WeeklyRollup {
     by_team:
       (obj.by_team as Record<string, BreakdownEntry>) ??
       ROLLUP_FIELD_DEFAULTS.by_team,
+    by_reviewer:
+      (obj.by_reviewer as Record<string, ReviewerBreakdownEntry>) ??
+      ROLLUP_FIELD_DEFAULTS.by_reviewer,
     // Pass through cross-dimensional breakdown if present (v2 schema)
     ...(obj.by_team_and_repo !== undefined
       ? {

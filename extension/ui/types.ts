@@ -236,6 +236,10 @@ export interface DimensionsData {
     project_name?: string;
     member_count?: number;
   }>;
+  reviewers?: Array<{
+    reviewer_id: string;
+    reviewer_name: string;
+  }>;
   authors?: Array<{
     author_id: string;
     author_name: string;

@@ -84,6 +84,15 @@ All consumers MUST validate schema versions before rendering:
   "cycle_time_p90": number | null,
   "authors_count": number,
   "reviewers_count": number,
+  "by_reviewer": {
+    "<reviewer_id>": {
+      "reviewed_prs": number,
+      "reviews_count": number,
+      "approval_rate": number | null,
+      "authors_count": number,
+      "repositories_count": number
+    }
+  },
 
   "by_repository": {
     "<repository_name>": {
@@ -123,6 +132,7 @@ All consumers MUST validate schema versions before rendering:
 
 | Field | Type | Required | Description |
 |-------|------|----------|-------------|
+| `by_reviewer` | object | Optional | Reviewer activity breakdown keyed by stable `reviewer_id` |
 | `by_team_and_repo` | object | Optional | Nested team -> repo -> metrics cross-dimensional breakdown |
 
 ### `by_team_and_repo` Rules

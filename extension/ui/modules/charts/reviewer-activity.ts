@@ -24,15 +24,28 @@ export const MAX_REVIEWER_WEEKS = 8;
  *
  * @param container - Target container element (or null for no-op)
  * @param rollups - Array of weekly rollup data
+ * @param options - Optional rendering mode
  */
 export function renderReviewerActivity(
   container: HTMLElement | null,
   rollups: Rollup[],
+  options: { reviewerFilterActive?: boolean } = {},
 ): void {
   if (!container) return;
 
+  const { reviewerFilterActive = false } = options;
+  const noun = reviewerFilterActive ? "reviews" : "reviewers";
+  const subtitle = reviewerFilterActive
+    ? `Review activity per week (last ${Math.min(rollups.length, MAX_REVIEWER_WEEKS)} weeks)`
+    : `Active reviewers per week (last ${Math.min(rollups.length, MAX_REVIEWER_WEEKS)} weeks)`;
+
   if (!rollups || !rollups.length) {
-    renderNoData(container, "No reviewer data available");
+    renderNoData(
+      container,
+      reviewerFilterActive
+        ? "No review activity available"
+        : "No reviewer data available",
+    );
     return;
   }
 
@@ -43,7 +56,12 @@ export function renderReviewerActivity(
   );
 
   if (maxReviewers === 0) {
-    renderNoData(container, "No reviewer data available");
+    renderNoData(
+      container,
+      reviewerFilterActive
+        ? "No review activity available"
+        : "No reviewer data available",
+    );
     return;
   }
 
@@ -55,7 +73,7 @@ export function renderReviewerActivity(
       const weekLabel = wParts[1] ?? r.week;
       // SECURITY: Escape data-controlled values to prevent XSS
       return `
-            <div class="h-bar-row" title="${escapeHtml(r.week)}: ${count} reviewers">
+            <div class="h-bar-row" title="${escapeHtml(r.week)}: ${count} ${noun}">
                 <span class="h-bar-label">W${escapeHtml(weekLabel)}</span>
                 <div class="h-bar-container">
                     <div class="h-bar" style="width: ${pct}%"></div>
@@ -66,13 +84,9 @@ export function renderReviewerActivity(
     })
     .join("");
 
-  // Add a subtitle so users understand the panel shows weekly aggregate
-  // counts, not individual reviewer identities.
-  const subtitle = `<p class="chart-subtitle">Active reviewers per week (last ${recentRollups.length} weeks)</p>`;
-
   // SECURITY: barsHtml uses escapeHtml for week values, count is numeric
   renderTrustedHtml(
     container,
-    `${subtitle}<div class="horizontal-bar-chart">${barsHtml}</div>`,
+    `<p class="chart-subtitle">${escapeHtml(subtitle)}</p><div class="horizontal-bar-chart">${barsHtml}</div>`,
   );
 }

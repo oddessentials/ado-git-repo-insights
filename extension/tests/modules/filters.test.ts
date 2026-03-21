@@ -18,27 +18,41 @@ describe("filters module", () => {
   describe("createEmptyFilterState", () => {
     it("returns empty arrays", () => {
       const state = createEmptyFilterState();
-      expect(state).toEqual({ repos: [], teams: [] });
+      expect(state).toEqual({ repos: [], teams: [], reviewers: [] });
     });
   });
 
   describe("hasActiveFilters", () => {
     it("returns false for empty state", () => {
-      expect(hasActiveFilters({ repos: [], teams: [] })).toBe(false);
+      expect(hasActiveFilters({ repos: [], teams: [], reviewers: [] })).toBe(false);
     });
 
     it("returns true when repos has values", () => {
-      expect(hasActiveFilters({ repos: ["repo-a"], teams: [] })).toBe(true);
+      expect(
+        hasActiveFilters({ repos: ["repo-a"], teams: [], reviewers: [] }),
+      ).toBe(true);
     });
 
     it("returns true when teams has values", () => {
-      expect(hasActiveFilters({ repos: [], teams: ["team-x"] })).toBe(true);
+      expect(
+        hasActiveFilters({ repos: [], teams: ["team-x"], reviewers: [] }),
+      ).toBe(true);
+    });
+
+    it("returns true when reviewers has values", () => {
+      expect(
+        hasActiveFilters({ repos: [], teams: [], reviewers: ["reviewer-1"] }),
+      ).toBe(true);
     });
 
     it("returns true when both have values", () => {
-      expect(hasActiveFilters({ repos: ["repo-a"], teams: ["team-x"] })).toBe(
-        true,
-      );
+      expect(
+        hasActiveFilters({
+          repos: ["repo-a"],
+          teams: ["team-x"],
+          reviewers: [],
+        }),
+      ).toBe(true);
     });
   });
 
@@ -46,7 +60,7 @@ describe("filters module", () => {
     it("returns empty state for no params", () => {
       const params = new URLSearchParams("");
       const result = parseFiltersFromUrl(params);
-      expect(result).toEqual({ repos: [], teams: [] });
+      expect(result).toEqual({ repos: [], teams: [], reviewers: [] });
     });
 
     it("parses repos param", () => {
@@ -66,6 +80,12 @@ describe("filters module", () => {
       const result = parseFiltersFromUrl(params);
       expect(result.repos).toEqual(["repo-a", "repo-b"]);
     });
+
+    it("parses reviewers param", () => {
+      const params = new URLSearchParams("reviewers=user-1,user-2");
+      const result = parseFiltersFromUrl(params);
+      expect(result.reviewers).toEqual(["user-1", "user-2"]);
+    });
   });
 
   describe("serializeFiltersToUrl", () => {
@@ -74,22 +94,25 @@ describe("filters module", () => {
       const state: FilterState = {
         repos: ["repo-a", "repo-b"],
         teams: ["team-x"],
+        reviewers: ["reviewer-1"],
       };
 
       serializeFiltersToUrl(state, params);
 
       expect(params.get("repos")).toBe("repo-a,repo-b");
       expect(params.get("teams")).toBe("team-x");
+      expect(params.get("reviewers")).toBe("reviewer-1");
     });
 
     it("deletes empty params", () => {
       const params = new URLSearchParams("repos=old&teams=old");
-      const state: FilterState = { repos: [], teams: [] };
+      const state: FilterState = { repos: [], teams: [], reviewers: [] };
 
       serializeFiltersToUrl(state, params);
 
       expect(params.has("repos")).toBe(false);
       expect(params.has("teams")).toBe(false);
+      expect(params.has("reviewers")).toBe(false);
     });
   });
 
@@ -110,6 +133,13 @@ describe("filters module", () => {
       expect(html).toContain('data-type="team"');
     });
 
+    it("creates reviewer chip", () => {
+      const html = createFilterChipHtml("reviewer", "user-1", "User One");
+
+      expect(html).toContain("reviewer: User One");
+      expect(html).toContain('data-type="reviewer"');
+    });
+
     it("escapes HTML in label", () => {
       const html = createFilterChipHtml(
         "repo",
@@ -124,19 +154,31 @@ describe("filters module", () => {
 
   describe("renderFilterChipsHtml", () => {
     it("returns empty string for empty state", () => {
-      const result = renderFilterChipsHtml({ repos: [], teams: [] }, () => "");
+      const result = renderFilterChipsHtml(
+        { repos: [], teams: [], reviewers: [] },
+        () => "",
+      );
       expect(result).toBe("");
     });
 
     it("renders chips for all filters", () => {
-      const state: FilterState = { repos: ["repo-a"], teams: ["team-x"] };
-      const labelFn = (type: "repo" | "team", value: string) =>
-        type === "repo" ? `Repo: ${value}` : `Team: ${value}`;
+      const state: FilterState = {
+        repos: ["repo-a"],
+        teams: ["team-x"],
+        reviewers: ["user-1"],
+      };
+      const labelFn = (type: "repo" | "team" | "reviewer", value: string) =>
+        type === "repo"
+          ? `Repo: ${value}`
+          : type === "team"
+            ? `Team: ${value}`
+            : `Reviewer: ${value}`;
 
       const result = renderFilterChipsHtml(state, labelFn);
 
       expect(result).toContain("repo-a");
       expect(result).toContain("team-x");
+      expect(result).toContain("user-1");
     });
   });
 });

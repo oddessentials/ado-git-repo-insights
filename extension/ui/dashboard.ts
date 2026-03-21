@@ -75,9 +75,10 @@ let currentDateRange: { start: Date | null; end: Date | null } = {
   start: null,
   end: null,
 };
-let currentFilters: { repos: string[]; teams: string[] } = {
+let currentFilters: { repos: string[]; teams: string[]; reviewers: string[] } = {
   repos: [],
   teams: [],
+  reviewers: [],
 };
 let comparisonMode = false;
 let cachedRollups: Rollup[] = []; // Cache for export
@@ -602,8 +603,10 @@ function cacheElements(): void {
     "reviewers-delta",
     "repo-filter",
     "team-filter",
+    "reviewer-filter",
     "repo-filter-group",
     "team-filter-group",
+    "reviewer-filter-group",
     "clear-filters",
     "active-filters",
     "filter-chips",
@@ -624,6 +627,10 @@ function cacheElements(): void {
     "export-csv",
     "export-link",
     "export-raw-zip",
+    "total-prs-label",
+    "authors-count-label",
+    "reviewers-count-label",
+    "reviewer-activity-label",
   ];
 
   ids.forEach((id) => {
@@ -672,6 +679,7 @@ function setupEventListeners(): void {
 
   elements["repo-filter"]?.addEventListener("change", handleFilterChange);
   elements["team-filter"]?.addEventListener("change", handleFilterChange);
+  elements["reviewer-filter"]?.addEventListener("change", handleFilterChange);
   elements["clear-filters"]?.addEventListener("click", clearAllFilters);
 
   elements["compare-toggle"]?.addEventListener("click", toggleComparisonMode);
@@ -1005,7 +1013,11 @@ function renderCycleTimeTrend(rollups: Rollup[]): void {
  * Thin wrapper that delegates to extracted module.
  */
 function renderReviewerActivity(rollups: Rollup[]): void {
-  renderReviewerActivityModule(elements["reviewer-activity"] ?? null, rollups);
+  renderReviewerActivityModule(
+    elements["reviewer-activity"] ?? null,
+    rollups,
+    { reviewerFilterActive: currentFilters.reviewers.length > 0 },
+  );
 }
 
 // addChartTooltips is now imported from "./modules/charts"
@@ -1222,16 +1234,89 @@ function populateFilterDropdowns(dimensions: DimensionsData | null): void {
     elements["team-filter-group"]?.classList.add("hidden");
   }
 
+  // Populate reviewer filter
+  const reviewerFilter = getElement<HTMLSelectElement>("reviewer-filter");
+  if (
+    reviewerFilter &&
+    dimensions.reviewers &&
+    dimensions.reviewers.length > 0
+  ) {
+    clearElement(reviewerFilter);
+    reviewerFilter.appendChild(createOption("", "All"));
+    dimensions.reviewers.forEach((reviewer) => {
+      const option = document.createElement("option");
+      option.value = reviewer.reviewer_id;
+      option.textContent = reviewer.reviewer_name;
+      reviewerFilter.appendChild(option);
+    });
+    elements["reviewer-filter-group"]?.classList.remove("hidden");
+  } else {
+    elements["reviewer-filter-group"]?.classList.add("hidden");
+  }
+
   // Restore filter state from URL
   restoreFiltersFromUrl();
+}
+
+function clearSelectToAll(select: HTMLSelectElement | null): void {
+  if (!select) return;
+  Array.from(select.options).forEach((o) => {
+    o.selected = o.value === "";
+  });
+}
+
+function clearSelectValues(select: HTMLSelectElement | null): void {
+  if (!select) return;
+  Array.from(select.options).forEach((o) => {
+    o.selected = false;
+  });
+}
+
+function applyReviewerFilterCompatibility(
+  sourceId: string | null,
+  repoValues: string[],
+  teamValues: string[],
+  reviewerValues: string[],
+): { repos: string[]; teams: string[]; reviewers: string[] } {
+  if (reviewerValues.length === 0 || (repoValues.length === 0 && teamValues.length === 0)) {
+    return { repos: repoValues, teams: teamValues, reviewers: reviewerValues };
+  }
+
+  const repoFilter = elements["repo-filter"] as HTMLSelectElement | null;
+  const teamFilter = elements["team-filter"] as HTMLSelectElement | null;
+  const reviewerFilter = elements["reviewer-filter"] as HTMLSelectElement | null;
+
+  if (sourceId === "reviewer-filter") {
+    clearSelectToAll(repoFilter);
+    clearSelectToAll(teamFilter);
+    return { repos: [], teams: [], reviewers: reviewerValues };
+  }
+
+  if (sourceId === "repo-filter" || sourceId === "team-filter") {
+    clearSelectToAll(reviewerFilter);
+    return { repos: repoValues, teams: teamValues, reviewers: [] };
+  }
+
+  console.warn(
+    "Reviewer filters cannot be combined with repository/team filters in the current schema; keeping reviewer filters only",
+  );
+  clearSelectToAll(repoFilter);
+  clearSelectToAll(teamFilter);
+  clearSelectValues(reviewerFilter);
+  reviewerValues.forEach((value) => {
+    const option = findOptionByValue(reviewerFilter, value);
+    if (option) option.selected = true;
+  });
+  return { repos: [], teams: [], reviewers: reviewerValues };
 }
 
 /**
  * Handle filter dropdown change.
  */
-function handleFilterChange(): void {
+function handleFilterChange(event: Event): void {
   const repoFilter = elements["repo-filter"] as HTMLSelectElement | null;
   const teamFilter = elements["team-filter"] as HTMLSelectElement | null;
+  const reviewerFilter = elements["reviewer-filter"] as HTMLSelectElement | null;
 
   const repoValues = repoFilter
     ? Array.from(repoFilter.selectedOptions)
@@ -1243,8 +1328,20 @@ function handleFilterChange(): void {
         .map((o) => o.value)
         .filter((v) => v)
     : [];
+  const reviewerValues = reviewerFilter
+    ? Array.from(reviewerFilter.selectedOptions)
+        .map((o) => o.value)
+        .filter((v) => v)
+    : [];
 
-  currentFilters = { repos: repoValues, teams: teamValues };
+  const sourceId =
+    event.currentTarget instanceof HTMLElement ? event.currentTarget.id : null;
+  currentFilters = applyReviewerFilterCompatibility(
+    sourceId,
+    repoValues,
+    teamValues,
+    reviewerValues,
+  );
 
   updateFilterUI();
   updateUrlState();
@@ -1255,21 +1352,15 @@ function handleFilterChange(): void {
  * Clear all filters.
  */
 function clearAllFilters(): void {
-  currentFilters = { repos: [], teams: [] };
+  currentFilters = { repos: [], teams: [], reviewers: [] };
 
   const repoFilter = elements["repo-filter"] as HTMLSelectElement | null;
   const teamFilter = elements["team-filter"] as HTMLSelectElement | null;
+  const reviewerFilter = elements["reviewer-filter"] as HTMLSelectElement | null;
 
-  if (repoFilter) {
-    Array.from(repoFilter.options).forEach(
-      (o) => (o.selected = o.value === ""),
-    );
-  }
-  if (teamFilter) {
-    Array.from(teamFilter.options).forEach(
-      (o) => (o.selected = o.value === ""),
-    );
-  }
+  clearSelectToAll(repoFilter);
+  clearSelectToAll(teamFilter);
+  clearSelectToAll(reviewerFilter);
 
   updateFilterUI();
   updateUrlState();
@@ -1303,6 +1394,11 @@ function removeFilter(type: string, value: string): void {
     const teamFilter = elements["team-filter"] as HTMLSelectElement | null;
     const option = findOptionByValue(teamFilter, value);
     if (option) option.selected = false;
+  } else if (type === "reviewer") {
+    currentFilters.reviewers = currentFilters.reviewers.filter((v) => v !== value);
+    const reviewerFilter = elements["reviewer-filter"] as HTMLSelectElement | null;
+    const option = findOptionByValue(reviewerFilter, value);
+    if (option) option.selected = false;
   }
 
   updateFilterUI();
@@ -1315,7 +1411,9 @@ function removeFilter(type: string, value: string): void {
  */
 function updateFilterUI(): void {
   const hasFilters =
-    currentFilters.repos.length > 0 || currentFilters.teams.length > 0;
+    currentFilters.repos.length > 0 ||
+    currentFilters.teams.length > 0 ||
+    currentFilters.reviewers.length > 0;
 
   if (elements["clear-filters"]) {
     elements["clear-filters"].classList.toggle("hidden", !hasFilters);
@@ -1330,6 +1428,8 @@ function updateFilterUI(): void {
       clearElement(elements["filter-chips"]);
     }
   }
+
+  updateMetricLabels();
 }
 
 /**
@@ -1349,6 +1449,11 @@ function renderFilterChips(): void {
   currentFilters.teams.forEach((value) => {
     const label = getFilterLabel("team", value);
     chips.push(createFilterChip("team", value, label));
+  });
+
+  currentFilters.reviewers.forEach((value) => {
+    const label = getFilterLabel("reviewer", value);
+    chips.push(createFilterChip("reviewer", value, label));
   });
 
   // SECURITY: Filter chips use escapeHtml for all values
@@ -1381,6 +1486,10 @@ function getFilterLabel(type: string, value: string): string {
     const teamFilter = elements["team-filter"] as HTMLSelectElement | null;
     return findOptionByValue(teamFilter, value)?.textContent ?? value;
   }
+  if (type === "reviewer") {
+    const reviewerFilter = elements["reviewer-filter"] as HTMLSelectElement | null;
+    return findOptionByValue(reviewerFilter, value)?.textContent ?? value;
+  }
   return value;
 }
 
@@ -1388,7 +1497,8 @@ function getFilterLabel(type: string, value: string): string {
  * Create HTML for a filter chip.
  */
 function createFilterChip(type: string, value: string, label: string): string {
-  const prefix = type === "repo" ? "repo" : "team";
+  const prefix =
+    type === "repo" ? "repo" : type === "team" ? "team" : "reviewer";
   // SECURITY: Escape user-controlled values to prevent XSS
   return `
         <span class="filter-chip">
@@ -1396,6 +1506,31 @@ function createFilterChip(type: string, value: string, label: string): string {
             <span class="filter-chip-remove" data-type="${escapeHtml(type)}" data-value="${escapeHtml(value)}">&times;</span>
         </span>
     `;
+}
+
+function updateMetricLabels(): void {
+  const reviewerMode = currentFilters.reviewers.length > 0;
+
+  if (elements["total-prs-label"]) {
+    elements["total-prs-label"].textContent = reviewerMode
+      ? "Reviewed PRs"
+      : "Total PRs";
+  }
+  if (elements["authors-count-label"]) {
+    elements["authors-count-label"].textContent = reviewerMode
+      ? "Reviewed Authors"
+      : "Contributors";
+  }
+  if (elements["reviewers-count-label"]) {
+    elements["reviewers-count-label"].textContent = reviewerMode
+      ? "Reviews"
+      : "Reviewers";
+  }
+  if (elements["reviewer-activity-label"]) {
+    elements["reviewer-activity-label"].textContent = reviewerMode
+      ? "Review Activity"
+      : "Reviewer Activity";
+  }
 }
 
 /**
@@ -1406,6 +1541,7 @@ function restoreFiltersFromUrl(): void {
 
   const reposParam = params.get("repos");
   const teamsParam = params.get("teams");
+  const reviewersParam = params.get("reviewers");
 
   if (reposParam) {
     currentFilters.repos = reposParam.split(",").filter((v) => v);
@@ -1448,6 +1584,34 @@ function restoreFiltersFromUrl(): void {
       });
     }
   }
+
+  if (reviewersParam) {
+    currentFilters.reviewers = reviewersParam.split(",").filter((v) => v);
+    const reviewerFilter = elements["reviewer-filter"] as HTMLSelectElement | null;
+    if (reviewerFilter) {
+      const valid = currentFilters.reviewers.filter(
+        (v) => findOptionByValue(reviewerFilter, v) !== null,
+      );
+      if (valid.length < currentFilters.reviewers.length) {
+        console.warn(
+          "Ignoring invalid reviewer filters from URL:",
+          currentFilters.reviewers.filter((v) => !valid.includes(v)),
+        );
+      }
+      currentFilters.reviewers = valid;
+      currentFilters.reviewers.forEach((value) => {
+        const option = findOptionByValue(reviewerFilter, value);
+        if (option) option.selected = true;
+      });
+    }
+  }
+
+  currentFilters = applyReviewerFilterCompatibility(
+    null,
+    currentFilters.repos,
+    currentFilters.teams,
+    currentFilters.reviewers,
+  );
 
   updateFilterUI();
 }
@@ -1519,7 +1683,9 @@ function updateComparisonBanner(): void {
   const banner = elements["comparison-banner"];
   if (banner) {
     const hasFilters =
-      currentFilters.repos.length > 0 || currentFilters.teams.length > 0;
+      currentFilters.repos.length > 0 ||
+      currentFilters.teams.length > 0 ||
+      currentFilters.reviewers.length > 0;
     banner.setAttribute("data-filtered", hasFilters ? "true" : "false");
   }
 }
@@ -1708,6 +1874,9 @@ function updateUrlState(): void {
   }
   if (currentFilters.teams.length > 0) {
     newParams.set("teams", currentFilters.teams.join(","));
+  }
+  if (currentFilters.reviewers.length > 0) {
+    newParams.set("reviewers", currentFilters.reviewers.join(","));
   }
 
   // Add comparison mode

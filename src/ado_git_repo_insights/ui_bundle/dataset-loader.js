@@ -769,6 +769,7 @@ var PRInsightsDatasetLoader = (() => {
     "reviewers_count",
     "by_repository",
     "by_team",
+    "by_reviewer",
     "by_team_and_repo"
   ]);
   var KNOWN_BREAKDOWN_FIELDS = /* @__PURE__ */ new Set([
@@ -779,6 +780,13 @@ var PRInsightsDatasetLoader = (() => {
     "review_time_p90",
     "authors_count",
     "reviewers_count"
+  ]);
+  var KNOWN_REVIEWER_BREAKDOWN_FIELDS = /* @__PURE__ */ new Set([
+    "reviewed_prs",
+    "reviews_count",
+    "approval_rate",
+    "authors_count",
+    "repositories_count"
   ]);
   function validateBreakdownEntry(data, path, strict) {
     const errors = [];
@@ -823,6 +831,82 @@ var PRInsightsDatasetLoader = (() => {
     }
     for (const [key, value] of Object.entries(data)) {
       const result = validateBreakdownEntry(value, buildPath(path, key), strict);
+      errors.push(...result.errors);
+      warnings.push(...result.warnings);
+    }
+    return { errors, warnings };
+  }
+  function validateReviewerBreakdownEntry(data, path, strict) {
+    const errors = [];
+    const warnings = [];
+    if (!isObject(data)) {
+      errors.push(createError(path, "object", getTypeName(data)));
+      return { errors, warnings };
+    }
+    if ("reviewed_prs" in data) {
+      const err = validateNonNegativeNumber(
+        data.reviewed_prs,
+        buildPath(path, "reviewed_prs")
+      );
+      if (err) errors.push(err);
+    }
+    if ("reviews_count" in data) {
+      const err = validateNonNegativeNumber(
+        data.reviews_count,
+        buildPath(path, "reviews_count")
+      );
+      if (err) errors.push(err);
+    }
+    if (Object.prototype.hasOwnProperty.call(data, "approval_rate")) {
+      const fieldValue = Object.getOwnPropertyDescriptor(data, "approval_rate")?.value;
+      if (fieldValue != null) {
+        const err = validateNumber(fieldValue, buildPath(path, "approval_rate"));
+        if (err) {
+          errors.push(err);
+        } else if (typeof fieldValue === "number" && (fieldValue < 0 || fieldValue > 1)) {
+          errors.push(
+            createError(
+              buildPath(path, "approval_rate"),
+              "number between 0 and 1",
+              `${fieldValue}`
+            )
+          );
+        }
+      }
+    }
+    const numericFields = ["authors_count", "repositories_count"];
+    for (const field of numericFields) {
+      if (Object.prototype.hasOwnProperty.call(data, field)) {
+        const fieldValue = Object.getOwnPropertyDescriptor(data, field)?.value;
+        if (fieldValue != null) {
+          const err = validateNonNegativeNumber(fieldValue, buildPath(path, field));
+          if (err) errors.push(err);
+        }
+      }
+    }
+    const unknown = findUnknownFields(
+      data,
+      KNOWN_REVIEWER_BREAKDOWN_FIELDS,
+      path,
+      strict
+    );
+    errors.push(...unknown.errors);
+    warnings.push(...unknown.warnings);
+    return { errors, warnings };
+  }
+  function validateReviewerBreakdown(data, path, strict) {
+    const errors = [];
+    const warnings = [];
+    if (!isObject(data)) {
+      errors.push(createError(path, "object", getTypeName(data)));
+      return { errors, warnings };
+    }
+    for (const [key, value] of Object.entries(data)) {
+      const result = validateReviewerBreakdownEntry(
+        value,
+        buildPath(path, key),
+        strict
+      );
       errors.push(...result.errors);
       warnings.push(...result.warnings);
     }
@@ -917,6 +1001,15 @@ var PRInsightsDatasetLoader = (() => {
       errors.push(...result.errors);
       warnings.push(...result.warnings);
     }
+    if ("by_reviewer" in data && data.by_reviewer !== void 0) {
+      const result = validateReviewerBreakdown(
+        data.by_reviewer,
+        "by_reviewer",
+        strict
+      );
+      errors.push(...result.errors);
+      warnings.push(...result.warnings);
+    }
     if (Object.prototype.hasOwnProperty.call(data, "by_team_and_repo") && data.by_team_and_repo !== void 0) {
       const result = validateNestedBreakdown(
         data.by_team_and_repo,
@@ -939,6 +1032,7 @@ var PRInsightsDatasetLoader = (() => {
   var KNOWN_ROOT_FIELDS3 = /* @__PURE__ */ new Set([
     "repositories",
     "users",
+    "reviewers",
     "projects",
     "teams",
     "date_range"
@@ -960,6 +1054,10 @@ var PRInsightsDatasetLoader = (() => {
     "id",
     "displayName",
     "uniqueName"
+  ]);
+  var KNOWN_REVIEWER_FIELDS = /* @__PURE__ */ new Set([
+    "reviewer_id",
+    "reviewer_name"
   ]);
   var KNOWN_PROJECT_FIELDS = /* @__PURE__ */ new Set([
     "organization_name",
@@ -1185,6 +1283,38 @@ var PRInsightsDatasetLoader = (() => {
     warnings.push(...unknown.warnings);
     return { errors, warnings };
   }
+  function validateReviewerEntry(data, path, strict) {
+    const errors = [];
+    const warnings = [];
+    if (!isObject(data)) {
+      errors.push(createError(path, "object", getTypeName(data)));
+      return { errors, warnings };
+    }
+    const idReq = validateRequired(data, "reviewer_id", path);
+    if (idReq) {
+      errors.push(idReq);
+    } else {
+      const idErr = validateString(
+        data.reviewer_id,
+        buildPath(path, "reviewer_id")
+      );
+      if (idErr) errors.push(idErr);
+    }
+    const nameReq = validateRequired(data, "reviewer_name", path);
+    if (nameReq) {
+      errors.push(nameReq);
+    } else {
+      const nameErr = validateString(
+        data.reviewer_name,
+        buildPath(path, "reviewer_name")
+      );
+      if (nameErr) errors.push(nameErr);
+    }
+    const unknown = findUnknownFields(data, KNOWN_REVIEWER_FIELDS, path, strict);
+    errors.push(...unknown.errors);
+    warnings.push(...unknown.warnings);
+    return { errors, warnings };
+  }
   function validateTeamEntry(data, path, strict) {
     const errors = [];
     const warnings = [];
@@ -1287,6 +1417,22 @@ var PRInsightsDatasetLoader = (() => {
         errors.push(...result.errors);
         warnings.push(...result.warnings);
       });
+    }
+    if ("reviewers" in data && data.reviewers !== void 0) {
+      const arrErr = validateArray(data.reviewers, "reviewers");
+      if (arrErr) {
+        errors.push(arrErr);
+      } else if (isArray(data.reviewers)) {
+        data.reviewers.forEach((item, i) => {
+          const result = validateReviewerEntry(
+            item,
+            buildPath("reviewers", i),
+            strict
+          );
+          errors.push(...result.errors);
+          warnings.push(...result.warnings);
+        });
+      }
     }
     if ("projects" in data && isArray(data.projects)) {
       data.projects.forEach((item, i) => {
@@ -1545,7 +1691,9 @@ var PRInsightsDatasetLoader = (() => {
     reviewers_count: 0,
     by_repository: null,
     // null indicates feature not available
-    by_team: null
+    by_team: null,
+    // null indicates feature not available
+    by_reviewer: null
     // null indicates feature not available
   };
   function normalizeRollup2(rollup) {
@@ -1565,6 +1713,7 @@ var PRInsightsDatasetLoader = (() => {
       // by_repository and by_team are optional features - preserve null if missing
       by_repository: r.by_repository !== void 0 ? r.by_repository : null,
       by_team: r.by_team !== void 0 ? r.by_team : null,
+      by_reviewer: r.by_reviewer !== void 0 ? r.by_reviewer : null,
       // Cross-dimensional breakdown (v2 schema) — pass through if present
       ...r.by_team_and_repo !== void 0 ? {
         by_team_and_repo: r.by_team_and_repo
