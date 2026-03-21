@@ -117,8 +117,50 @@ class TestCapabilityAndParityReports:
         assert report["parity_passed"] is True
         assert report["docs"]["local_dashboard_mode"] is True
         assert report["docs"]["dataset_path_role"] == "relative-dataset-root"
+        assert report["docs"]["shell_parity"] is True
+        assert report["docs"]["controls"]["reviewer_filter_present"] is True
+        assert report["docs"]["controls"]["author_filter_present"] is True
+        assert report["docs"]["controls"]["comments_coverage_banner_present"] is True
         assert report["cli"]["dataset_path_role"] == "relative-dataset-root"
         assert report["normalized"]["local_dashboard_mode"] is True
+
+    def test_docs_shell_includes_new_filter_surface(self) -> None:
+        run_demo_build()
+        docs_html = (REPO_ROOT / "docs" / "index.html").read_text(encoding="utf-8")
+
+        assert 'id="reviewer-filter-group"' in docs_html
+        assert 'id="author-filter-group"' in docs_html
+        assert 'id="reviewer-filter-notice"' in docs_html
+        assert 'id="comments-coverage-banner"' in docs_html
+        assert 'data-testid="filter-author"' in docs_html
+
+    def test_demo_dimensions_include_author_and_reviewer_lookups(self) -> None:
+        run_demo_build()
+        dimensions = json.loads(
+            (REPO_ROOT / "docs" / "data" / "aggregates" / "dimensions.json").read_text(
+                encoding="utf-8"
+            )
+        )
+
+        assert len(dimensions.get("authors", [])) >= 50
+        assert len(dimensions.get("reviewers", [])) >= 50
+
+    def test_demo_rollups_include_reviewer_breakdowns(self) -> None:
+        run_demo_build()
+        sample_rollup = json.loads(
+            (
+                REPO_ROOT
+                / "docs"
+                / "data"
+                / "aggregates"
+                / "weekly_rollups"
+                / "2025-W52.json"
+            ).read_text(encoding="utf-8")
+        )
+
+        assert len(sample_rollup.get("by_author", {})) > 0
+        assert len(sample_rollup.get("by_author_and_repo", {})) > 0
+        assert len(sample_rollup.get("by_reviewer", {})) > 0
 
     def test_manifest_declares_all_published_files(self) -> None:
         run_demo_build()

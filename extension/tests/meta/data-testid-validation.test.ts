@@ -21,6 +21,9 @@ describe("data-testid DOM Validation", () => {
     "total-prs",
     "filter-repository",
     "filter-team",
+    "filter-reviewer",
+    "filter-author",
+    "comments-coverage-banner",
     "error-setup-required",
     "error-generic",
   ];
@@ -101,6 +104,15 @@ describe("data-testid DOM Validation", () => {
 
     // Check filter-team is on a select element
     expect(html).toMatch(/<select[^>]*data-testid="filter-team"/);
+
+    // Check filter-reviewer is on a select element
+    expect(html).toMatch(/<select[^>]*data-testid="filter-reviewer"/);
+
+    // Check filter-author is on a searchable input element
+    expect(html).toMatch(/<input[^>]*data-testid="filter-author"/);
+
+    // Check comments coverage banner is on a displayable element
+    expect(html).toMatch(/<div[^>]*data-testid="comments-coverage-banner"/);
 
     // Check total-prs is on a displayable element
     expect(html).toMatch(/<div[^>]*data-testid="total-prs"/);

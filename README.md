@@ -336,13 +336,13 @@ ruff check .
 
 ### Demo Parity Build
 
-The public demo and CLI synthetic demo are governed by one canonical dataset build:
+The public demo and CLI synthetic demo are governed by one canonical demo publish flow:
 
 ```bash
-python scripts/build-demo-dataset.py
+./scripts/build-demo.sh
 ```
 
-This regenerates `artifacts/demo-enterprise/` and promotes the published mirror under `docs/data/`.
+This rebuilds the extension UI shell, republishes the GitHub Pages demo surface, regenerates `artifacts/demo-enterprise/`, and promotes the published mirror under `docs/data/`.
 
 ---
 

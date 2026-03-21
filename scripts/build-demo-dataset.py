@@ -12,6 +12,7 @@ from pathlib import Path
 from typing import Any
 
 from demo_generation_common import load_json_file, write_json_file
+from demo_shell import render_demo_html_from_path
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 ARTIFACT_ROOT = REPO_ROOT / "artifacts" / "demo-enterprise"
@@ -20,6 +21,7 @@ ARTIFACT_REPORT_DIR = ARTIFACT_ROOT / "report"
 ARTIFACT_METADATA_DIR = ARTIFACT_ROOT / "metadata"
 DOCS_DATA_DIR = REPO_ROOT / "docs" / "data"
 DOCS_INDEX = REPO_ROOT / "docs" / "index.html"
+EXTENSION_INDEX = REPO_ROOT / "extension" / "ui" / "index.html"
 
 DEMO_PROFILE_NAME = "enterprise-demo"
 DEMO_PROFILE_VERSION = "2.0.0"
@@ -165,9 +167,11 @@ def build_capability_matrix(data_dir: Path) -> dict[str, Any]:
             {
                 "id": "author-filtering",
                 "status": bool(first_rollup.get("by_author"))
+                and len(dimensions.get("authors", [])) >= 50
                 and manifest.get("capabilities", {}).get("author_filters") is True,
                 "evidence": {
                     "authors_in_sample_week": len(first_rollup.get("by_author", {})),
+                    "author_dimension_count": len(dimensions.get("authors", [])),
                 },
             },
             {
@@ -178,6 +182,17 @@ def build_capability_matrix(data_dir: Path) -> dict[str, Any]:
                     "authors_with_repo_entries": len(
                         first_rollup.get("by_author_and_repo", {})
                     ),
+                },
+            },
+            {
+                "id": "reviewer-filtering",
+                "status": bool(first_rollup.get("by_reviewer"))
+                and len(dimensions.get("reviewers", [])) >= 50,
+                "evidence": {
+                    "reviewers_in_sample_week": len(
+                        first_rollup.get("by_reviewer", {})
+                    ),
+                    "reviewer_dimension_count": len(dimensions.get("reviewers", [])),
                 },
             },
             {
@@ -239,13 +254,33 @@ def build_capability_matrix(data_dir: Path) -> dict[str, Any]:
 def build_startup_parity_report() -> dict[str, Any]:
     """Generate normalized startup parity expectations for docs and CLI surfaces."""
     docs_html = DOCS_INDEX.read_text(encoding="utf-8")
+    expected_docs_html = render_demo_html_from_path(EXTENSION_INDEX)
+    docs_controls = {
+        "repo_filter_present": 'id="repo-filter-group"' in docs_html,
+        "team_filter_present": 'id="team-filter-group"' in docs_html,
+        "reviewer_filter_present": 'id="reviewer-filter-group"' in docs_html,
+        "reviewer_notice_present": 'id="reviewer-filter-notice"' in docs_html,
+        "author_filter_present": 'id="author-filter-group"' in docs_html,
+        "author_notice_present": 'id="author-filter-notice"' in docs_html,
+        "comments_coverage_banner_present": 'id="comments-coverage-banner"'
+        in docs_html,
+    }
+    shell_parity = docs_html == expected_docs_html
+    parity_passed = (
+        shell_parity
+        and all(docs_controls.values())
+        and "window.LOCAL_DASHBOARD_MODE = true;" in docs_html
+    )
     return {
-        "parity_passed": True,
+        "parity_passed": parity_passed,
         "docs": {
             "local_dashboard_mode": "window.LOCAL_DASHBOARD_MODE = true;" in docs_html,
             "dataset_path": "./data",
             "dataset_path_role": "relative-dataset-root",
+            "shell_parity": shell_parity,
+            "controls": docs_controls,
             "source": "docs/index.html",
+            "expected_source": "extension/ui/index.html + demo_shell.render_demo_html",
         },
         "cli": {
             "local_dashboard_mode": True,
@@ -262,8 +297,8 @@ def build_startup_parity_report() -> dict[str, Any]:
     }
 
 
-def write_reports(data_dir: Path) -> None:
-    """Write machine-readable artifact reports."""
+def write_reports(data_dir: Path) -> dict[str, Any]:
+    """Write machine-readable artifact reports and return startup parity."""
     capability_matrix = build_capability_matrix(data_dir)
     startup_parity = build_startup_parity_report()
     generation_summary = {
@@ -299,6 +334,7 @@ def write_reports(data_dir: Path) -> None:
         encoding="utf-8",
         newline="\n",
     )
+    return startup_parity
 
 
 def promote_data(source_dir: Path, destination_dir: Path) -> None:
@@ -347,12 +383,21 @@ def main(argv: list[str] | None = None) -> int:
         run_generator(script_name, ARTIFACT_DATA_DIR)
 
     validate_manifest_addressability(ARTIFACT_DATA_DIR)
-    write_reports(ARTIFACT_DATA_DIR)
+    startup_parity = write_reports(ARTIFACT_DATA_DIR)
 
     if not args.no_promote:
         promote_dir = args.promote_dir.resolve()
         print(f"[demo-build] promoting {ARTIFACT_DATA_DIR} -> {promote_dir}")
         promote_data(ARTIFACT_DATA_DIR, promote_dir)
+        if (
+            promote_dir == DOCS_DATA_DIR.resolve()
+            and not startup_parity["parity_passed"]
+        ):
+            raise RuntimeError(
+                "Published docs shell is out of parity with extension/ui/index.html. "
+                "Run `pnpm --dir extension run build:ui` and "
+                "`python scripts/publish-demo-surface.py` before promoting docs/data."
+            )
 
     print("[demo-build] complete")
     return 0

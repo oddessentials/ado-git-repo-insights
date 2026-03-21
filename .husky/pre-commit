@@ -181,33 +181,21 @@ if [ -n "$UI_BUILD_TRIGGERS" ]; then
     fi
 
     # -------------------------------------------------------------------------
-    # Sync: Copy specific files from extension/dist/ui/ to docs/
+    # Sync: Publish the docs demo shell and built assets from dist/ui
     # -------------------------------------------------------------------------
-    # docs/index.html is demo-specific and explicitly excluded.
-    # Only sync JS/CSS bundles that must match the built output.
-    echo "[pre-commit] 🔄 Syncing docs/ assets..."
-    DOCS_FILES="dashboard.js dataset-loader.js artifact-client.js error-types.js error-codes.js styles.css VSS.SDK.min.js"
-    DOCS_CHANGED=false
+    echo "[pre-commit] 🔄 Publishing docs demo surface..."
+    if ! python scripts/publish-demo-surface.py --sync-broken-fixture; then
+        echo ""
+        echo "[pre-commit] ❌ docs demo surface publish failed!"
+        exit 1
+    fi
 
-    for file in $DOCS_FILES; do
-        SRC="extension/dist/ui/$file"
-        DEST="docs/$file"
-        if [ -f "$SRC" ] && [ -f "$DEST" ]; then
-            SRC_HASH=$(cat "$SRC" | tr -d '\r' | sha256sum | cut -d' ' -f1)
-            DEST_HASH=$(cat "$DEST" | tr -d '\r' | sha256sum | cut -d' ' -f1)
-            if [ "$SRC_HASH" != "$DEST_HASH" ]; then
-                cp "$SRC" "$DEST"
-                git add "$DEST"
-                echo "  [synced] $file"
-                DOCS_CHANGED=true
-            fi
-        fi
-    done
-
-    if [ "$DOCS_CHANGED" = true ]; then
-        echo "[pre-commit] ✅ docs/ assets synced and staged"
+    DOCS_PUBLISH_PATHS="docs/index.html docs/dashboard.js docs/dataset-loader.js docs/artifact-client.js docs/error-types.js docs/error-codes.js docs/styles.css docs/VSS.SDK.min.js extension/tests/fixtures/broken-docs/index.html extension/tests/fixtures/broken-docs/dashboard.js extension/tests/fixtures/broken-docs/dataset-loader.js extension/tests/fixtures/broken-docs/artifact-client.js extension/tests/fixtures/broken-docs/error-types.js extension/tests/fixtures/broken-docs/error-codes.js extension/tests/fixtures/broken-docs/styles.css extension/tests/fixtures/broken-docs/VSS.SDK.min.js"
+    if [ -n "$(git status --short --untracked-files=all -- $DOCS_PUBLISH_PATHS)" ]; then
+        echo "[pre-commit] 📝 Staging published docs demo surface..."
+        git add $DOCS_PUBLISH_PATHS
     else
-        echo "[pre-commit] ✅ docs/ assets already in sync"
+        echo "[pre-commit] ✅ docs demo surface already in sync"
     fi
 
     echo "[pre-commit] ✅ UI built and synced successfully"

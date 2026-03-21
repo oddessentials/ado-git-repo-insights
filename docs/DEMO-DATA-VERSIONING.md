@@ -15,13 +15,27 @@ The published GitHub Pages dataset at `docs/data/` is a promoted mirror of:
 
 `artifacts/demo-enterprise/data/`
 
-The only supported refresh path is:
+The published GitHub Pages shell at `docs/index.html` is a generated mirror of:
+
+`extension/ui/index.html` transformed by `scripts/demo_shell.py`
+
+The published JS/CSS assets under `docs/` are copied from:
+
+`extension/dist/ui/`
+
+The only supported full refresh path is:
+
+```bash
+./scripts/build-demo.sh
+```
+
+The data-only refresh path is:
 
 ```bash
 python scripts/build-demo-dataset.py
 ```
 
-`docs/data/` is generated-only and MUST NOT be hand-edited.
+`docs/data/` and `docs/index.html` are generated-only and MUST NOT be hand-edited.
 
 ## Canonical Artifact Boundary
 
@@ -36,11 +50,13 @@ artifacts/demo-enterprise/
 
 Promotion rules:
 
-1. Generate into `artifacts/demo-enterprise/`
-2. Validate capability and startup parity reports
-3. Promote `artifacts/demo-enterprise/data/` into `docs/data/`
-4. Remove stale files and directories from `docs/data/`
-5. Fail if the promoted mirror differs from the canonical source
+1. Build `extension/dist/ui/`
+2. Publish `docs/index.html` and static assets from the built UI surface
+3. Generate into `artifacts/demo-enterprise/`
+4. Validate capability and startup parity reports
+5. Promote `artifacts/demo-enterprise/data/` into `docs/data/`
+6. Remove stale files and directories from `docs/data/`
+7. Fail if the published shell or promoted mirror differs from the canonical source
 
 ## Version Sources Of Truth
 
@@ -137,10 +153,10 @@ When changing demo generation:
 
 1. Update the generator and, if needed, the manifest schema/types
 2. Decide whether the enterprise demo profile version must bump
-3. Run `python scripts/build-demo-dataset.py`
+3. Run `./scripts/build-demo.sh`
 4. Review `artifacts/demo-enterprise/report/capability-matrix.json`
 5. Review `artifacts/demo-enterprise/report/startup-parity.json`
-6. Verify `docs/data/` matches the promoted canonical artifact
+6. Verify `docs/index.html` and `docs/data/` match the canonical publish flow
 7. Update this document if version semantics or publication rules changed
 
 ## Version History
@@ -148,6 +164,7 @@ When changing demo generation:
 ### Version 2.0 (2026-03-21)
 
 - locked canonical artifact root to `artifacts/demo-enterprise/`
+- made `docs/index.html` a generated mirror of the extension UI shell
 - made `docs/data/` a promoted mirror instead of a hand-maintained fixture
 - required manifest-addressable publication for all demo files
 - formalized demo profile version bump rules

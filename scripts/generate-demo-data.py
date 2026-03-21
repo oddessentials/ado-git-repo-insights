@@ -277,6 +277,7 @@ class WeeklyRollup:
     by_team: dict[str, dict[str, Any]]
     by_author: dict[str, dict[str, Any]]
     by_author_and_repo: dict[str, dict[str, Any]]
+    by_reviewer: dict[str, dict[str, Any]] | None = None
     by_team_and_repo: dict[str, dict[str, Any]] | None = None
 
 
@@ -663,6 +664,62 @@ def _collapse_author_slices(
     return by_author
 
 
+def _generate_reviewer_breakdown(
+    *,
+    week_key: str,
+    users: list[SyntheticUser],
+    pr_count: int,
+    authors_count: int,
+    repo_count: int,
+) -> dict[str, dict[str, Any]]:
+    """Generate deterministic reviewer slices for one week."""
+    if pr_count <= 0 or not users:
+        return {}
+
+    reviewer_count = max(1, min(len(users), int(pr_count * REVIEWER_RATIO)))
+    week_offset = sum(ord(ch) for ch in week_key) % len(users)
+    selected_reviewers = [
+        users[(week_offset + offset * 3) % len(users)]
+        for offset in range(reviewer_count)
+    ]
+
+    review_allocations = largest_remainder_allocate(
+        pr_count,
+        [1.0 + ((idx % 5) * 0.12) for idx in range(reviewer_count)],
+    )
+
+    by_reviewer: dict[str, dict[str, Any]] = {}
+    for idx, (reviewer, reviewed_prs) in enumerate(
+        zip(selected_reviewers, review_allocations, strict=True)
+    ):
+        if reviewed_prs <= 0:
+            continue
+
+        reviews_count = reviewed_prs + ((idx + len(week_key)) % 4)
+        approval_rate = round(
+            min(0.95, max(0.55, 0.62 + ((idx % 7) * 0.04))),
+            3,
+        )
+        reviewer_authors = max(
+            1,
+            min(authors_count, int(reviewed_prs**SUBLINEAR_EXPONENT) + 1),
+        )
+        repositories_count = max(
+            1,
+            min(repo_count, int(reviewed_prs**SUBLINEAR_EXPONENT)),
+        )
+
+        by_reviewer[str(reviewer.user_id)] = {
+            "reviewed_prs": reviewed_prs,
+            "reviews_count": reviews_count,
+            "approval_rate": approval_rate,
+            "authors_count": reviewer_authors,
+            "repositories_count": repositories_count,
+        }
+
+    return by_reviewer
+
+
 # =============================================================================
 # Dimensions Generator (T012)
 # =============================================================================
@@ -715,6 +772,20 @@ def generate_dimensions(
             {
                 "user_id": u.user_id,
                 "display_name": u.display_name,
+            }
+            for u in users
+        ],
+        "authors": [
+            {
+                "author_id": str(u.user_id),
+                "author_name": u.display_name,
+            }
+            for u in users
+        ],
+        "reviewers": [
+            {
+                "reviewer_id": str(u.user_id),
+                "reviewer_name": u.display_name,
             }
             for u in users
         ],
@@ -1005,6 +1076,13 @@ def generate_weekly_rollups(
                         entry["cycle_time_p90"] = None
 
             by_author = _collapse_author_slices(author_slices)
+            by_reviewer = _generate_reviewer_breakdown(
+                week_key=week_str,
+                users=users,
+                pr_count=pr_count,
+                authors_count=authors_count,
+                repo_count=len(by_repository),
+            )
 
             rollups.append(
                 WeeklyRollup(
@@ -1020,6 +1098,7 @@ def generate_weekly_rollups(
                     by_team=by_team,
                     by_author=by_author,
                     by_author_and_repo=by_author_and_repo,
+                    by_reviewer=by_reviewer,
                     by_team_and_repo=by_team_and_repo if by_team_and_repo else None,
                 )
             )
@@ -1334,6 +1413,7 @@ def main(argv: list[str] | None = None) -> int:
             "by_team": rollup.by_team,
             "by_author": rollup.by_author,
             "by_author_and_repo": rollup.by_author_and_repo,
+            "by_reviewer": rollup.by_reviewer,
             "by_team_and_repo": rollup.by_team_and_repo,
         }
         write_json_file(
