@@ -89,6 +89,11 @@ CREATE TABLE IF NOT EXISTS reviewers (
     user_id TEXT NOT NULL,
     vote INTEGER NOT NULL,
     repository_id TEXT NOT NULL,
+    -- Phase 2 reviewer latency design note:
+    -- add reviewed_at TEXT (ISO 8601) only when extraction can persist a stable
+    -- final review event timestamp and backfill existing datasets. Reviewer
+    -- Phase 1 intentionally excludes latency metrics until that migration is
+    -- designed, extracted, and versioned end-to-end.
     FOREIGN KEY (pull_request_uid) REFERENCES pull_requests(pull_request_uid),
     FOREIGN KEY (user_id) REFERENCES users(user_id),
     UNIQUE(pull_request_uid, user_id)  -- One vote per reviewer per PR
