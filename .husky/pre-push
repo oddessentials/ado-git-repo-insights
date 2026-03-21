@@ -163,11 +163,38 @@ echo "[pre-push] ✅ Marketplace asset validation passed"
 # =============================================================================
 echo ""
 echo "[pre-push] Running PR preflight..."
-python scripts/run_pr_preflight.py
+
+PREFLIGHT_PYTHON=""
+PREFLIGHT_PYTHON_ARG=""
+
+if command -v py >/dev/null 2>&1 && py -3.10 -c "import sys" >/dev/null 2>&1; then
+    PREFLIGHT_PYTHON="py"
+    PREFLIGHT_PYTHON_ARG="-3.10"
+elif command -v python3.10 >/dev/null 2>&1; then
+    PREFLIGHT_PYTHON="python3.10"
+elif command -v python >/dev/null 2>&1; then
+    PY_MINOR=$(python -c "import sys; print(f'{sys.version_info.major}.{sys.version_info.minor}')" 2>/dev/null || true)
+    if [ "$PY_MINOR" = "3.10" ]; then
+        PREFLIGHT_PYTHON="python"
+    fi
+fi
+
+if [ -z "$PREFLIGHT_PYTHON" ]; then
+    echo ""
+    echo "[pre-push] ❌ Could not find Python 3.10 for PR preflight"
+    echo "[pre-push] Install Python 3.10 or set PR_PREFLIGHT_PYTHON before pushing"
+    exit 1
+fi
+
+if [ -n "$PREFLIGHT_PYTHON_ARG" ]; then
+    "$PREFLIGHT_PYTHON" "$PREFLIGHT_PYTHON_ARG" scripts/run_pr_preflight.py
+else
+    "$PREFLIGHT_PYTHON" scripts/run_pr_preflight.py
+fi
 if [ $? -ne 0 ]; then
     echo ""
     echo "[pre-push] ❌ Push blocked: PR preflight failed"
-    echo "[pre-push] Run 'python scripts/run_pr_preflight.py' to reproduce"
+    echo "[pre-push] Run 'scripts/run_pr_preflight.py --self-check' or rerun the preflight with Python 3.10 to reproduce"
     exit 1
 fi
 
