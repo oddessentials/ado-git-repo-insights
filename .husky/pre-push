@@ -2,7 +2,8 @@
 # Pre-push hook: Run workstation checks before pushing to prevent common CI failures
 # This is a strong local gate, but it is NOT a full CI matrix replacement.
 #
-# Order: baseline integrity → pre-commit --all-files → CRLF guard → Python tests → TS checks
+# Order: baseline integrity → pre-commit --all-files → CRLF guard → asset validation
+#        → repo-owned PR preflight
 #
 # For high-confidence multi-version verification, also run:
 #   python scripts/run_ci_parity.py
@@ -158,92 +159,15 @@ fi
 echo "[pre-push] ✅ Marketplace asset validation passed"
 
 # =============================================================================
-# Python Type Check (mypy) - Immutable Invariant per FR-016
+# PR Preflight (repo-owned gate for mypy, demo validation, Python, and extension)
 # =============================================================================
 echo ""
-echo "[pre-push] Running mypy type check..."
-echo "[pre-push] Command: python -m mypy src/"
-
-# Detect mypy installation
-if command -v mypy >/dev/null 2>&1; then
-    MYPY="mypy"
-elif python -m mypy --version >/dev/null 2>&1; then
-    MYPY="python -m mypy"
-else
-    echo ""
-    echo "[pre-push] ❌ mypy not found!"
-    echo "[pre-push] Install with: pip install mypy"
-    exit 1
-fi
-
-$MYPY src/
+echo "[pre-push] Running PR preflight..."
+python scripts/run_pr_preflight.py
 if [ $? -ne 0 ]; then
     echo ""
-    echo "[pre-push] ❌ Push blocked: mypy type check failed"
-    echo "[pre-push] Run 'mypy src/' to see full output"
-    echo "[pre-push] Fix type errors or add justified type: ignore comments"
-    exit 1
-fi
-echo "[pre-push] ✅ mypy type check passed"
-
-# =============================================================================
-# Python Tests (with coverage threshold enforcement)
-# =============================================================================
-echo ""
-echo "[pre-push] Running Python tests with coverage..."
-# Coverage threshold (fail_under = 70) is enforced via pyproject.toml
-# This ensures local/CI parity for coverage requirements
-python -m pytest tests/ -q
-if [ $? -ne 0 ]; then
-    echo ""
-    echo "[pre-push] ❌ Push blocked: Python tests or coverage threshold failed"
-    exit 1
-fi
-echo "[pre-push] ✅ Python tests passed"
-
-# =============================================================================
-# TypeScript Type Check (fresh, no cache - catches declaration conflicts)
-# =============================================================================
-echo ""
-echo "[pre-push] Running TypeScript type check (fresh)..."
-cd extension
-
-# Clear tsc incremental cache for fresh check (catches declaration merging issues)
-rm -f tsconfig.tsbuildinfo 2>/dev/null
-
-npx tsc --noEmit
-if [ $? -ne 0 ]; then
-    echo ""
-    echo "[pre-push] ❌ Push blocked: TypeScript type check failed"
-    exit 1
-fi
-echo "[pre-push] ✅ TypeScript type check passed"
-
-# =============================================================================
-# ESLint Check (mirrors CI extension-tests job)
-# =============================================================================
-echo ""
-echo "[pre-push] Running ESLint..."
-npm run lint
-if [ $? -ne 0 ]; then
-    echo ""
-    echo "[pre-push] ❌ Push blocked: ESLint check failed"
-    exit 1
-fi
-echo "[pre-push] ✅ ESLint check passed"
-
-# =============================================================================
-# TypeScript Tests (with coverage threshold enforcement)
-# =============================================================================
-echo ""
-echo "[pre-push] Running extension tests with coverage..."
-# Coverage threshold is enforced via jest.config.ts coverageThreshold
-# test:ci already includes --coverage flag for Jest; don't pass additional args
-# since they would be forwarded to test:smoke (Playwright) which doesn't support them
-npm run test:ci
-if [ $? -ne 0 ]; then
-    echo ""
-    echo "[pre-push] ❌ Push blocked: Extension tests or coverage threshold failed"
+    echo "[pre-push] ❌ Push blocked: PR preflight failed"
+    echo "[pre-push] Run 'python scripts/run_pr_preflight.py' to reproduce"
     exit 1
 fi
 

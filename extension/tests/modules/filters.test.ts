@@ -84,7 +84,7 @@ describe("filters module", () => {
     it("parses reviewers param", () => {
       const params = new URLSearchParams("reviewers=user-1,user-2");
       const result = parseFiltersFromUrl(params);
-      expect(result.reviewers).toEqual(["user-1", "user-2"]);
+      expect(result.reviewers).toEqual(["user-1"]);
     });
   });
 

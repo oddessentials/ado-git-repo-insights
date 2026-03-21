@@ -1,5 +1,10 @@
 import { defineConfig, devices } from "@playwright/test";
 
+const smokeOutputDir =
+  process.env["PLAYWRIGHT_OUTPUT_DIR"] ?? "test-artifacts/smoke";
+const smokeReportDir =
+  process.env["PLAYWRIGHT_REPORT_DIR"] ?? "playwright-report";
+
 /**
  * Playwright configuration for smoke tests.
  *
@@ -21,7 +26,7 @@ export default defineConfig({
   retries: 0,
   workers: 1,
 
-  reporter: [["html", { outputFolder: "playwright-report" }], ["list"]],
+  reporter: [["html", { outputFolder: smokeReportDir }], ["list"]],
 
   use: {
     baseURL: "http://localhost:3000",
@@ -30,7 +35,7 @@ export default defineConfig({
     headless: true,
   },
 
-  outputDir: "test-artifacts/smoke",
+  outputDir: smokeOutputDir,
 
   projects: [
     {
@@ -38,7 +43,7 @@ export default defineConfig({
       use: { ...devices["Desktop Chrome"] },
       testMatch: "**/*.smoke.ts",
       testIgnore: "**/negative-*.smoke.ts",
-      outputDir: "test-artifacts/smoke/chromium",
+      outputDir: `${smokeOutputDir}/chromium`,
     },
     {
       name: "chromium-negative",
@@ -47,7 +52,7 @@ export default defineConfig({
         baseURL: "http://localhost:3001",
       },
       testMatch: "**/negative-*.smoke.ts",
-      outputDir: "test-artifacts/smoke/chromium-negative",
+      outputDir: `${smokeOutputDir}/chromium-negative`,
     },
   ],
 

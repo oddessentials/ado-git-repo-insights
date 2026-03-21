@@ -809,19 +809,30 @@ class AggregateGenerator:
             if pd.isna(reviewer_id):
                 continue
 
-            reviewed_prs = int(reviewer_group["pull_request_uid"].nunique())
+            # Phase 1 reviewer activity only counts stored review outcomes.
+            # Requested-but-pending reviewer rows use vote=0 and must not
+            # contribute to reviewed PRs or approval rate.
+            outcome_group = reviewer_group[
+                reviewer_group["vote"].notna() & (reviewer_group["vote"] != 0)
+            ]
+
+            reviewed_prs = int(outcome_group["pull_request_uid"].nunique())
             if reviewed_prs == 0:
                 continue
 
-            approved_prs = int((reviewer_group["vote"] == 10).sum())
+            approved_prs = int(
+                outcome_group.loc[
+                    outcome_group["vote"] == 10, "pull_request_uid"
+                ].nunique()
+            )
 
             by_reviewer[str(reviewer_id)] = {
                 "reviewed_prs": reviewed_prs,
-                "reviews_count": int(len(reviewer_group)),
+                "reviews_count": int(len(outcome_group)),
                 "approval_rate": approved_prs / reviewed_prs,
-                "authors_count": int(reviewer_group["user_id"].nunique()),
+                "authors_count": int(outcome_group["user_id"].nunique()),
                 "repositories_count": int(
-                    reviewer_group["repository_name"].dropna().nunique()
+                    outcome_group["repository_name"].dropna().nunique()
                 ),
             }
 

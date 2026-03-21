@@ -10,10 +10,9 @@
 | 1 | Author & Contributor Filters | AUTHOR_CONTRIBUTOR_FILTERS.md | M | 5-7 | Ready | None |
 | 2 | Author x Repo Cross-Dim (T020/T021) | AUTHOR_CONTRIBUTOR_FILTERS.md (deferred section) | S | 2-3 | Blocked on #1 | Author slices must exist |
 | 3 | Comments Pipeline Completion | COMMENTS.md | M-L | 6-10 | Ready (decisioned in `specs/032-roadmap-blocker-resolution/`) | None for Phases 1-2 |
-| 4 | Reviewer Phase 2 / Combined Semantics Follow-Through | TEAM_REVIEWER_FILTERS.md | S-M | 2-4 | Partially ready | B-09, B-10 |
-| 5 | GitHub Platform Support | GITHUB.md | XL | 12-18 | Explicitly deferred until #1-#4 complete (`specs/032-roadmap-blocker-resolution/`) | B-01, B-02, B-03 |
+| 4 | Reviewer Phase 2 / Combined Semantics Follow-Through | TEAM_REVIEWER_FILTERS.md | S-M | 2-4 | Partially ready | B-09 |
 
-**Total estimated effort: 27-41 days (single engineer) | 20-27 days (two engineers)**
+**Total estimated effort: 15-24 days (single engineer) | 11-17 days (two engineers)**
 
 ---
 
@@ -44,16 +43,9 @@
   |  2-4 days                |     |                          |
   |  Blocked on decisions     |     |                          |
   +------------+-------------+     +--------------------------+
-               |
-               v
-  +-----------------------------------------------------+
-  |              #5 GitHub Platform Support               |
-  |              12-18 days                              |
-  |              BLOCKED ON: all of the above            |
-  +-----------------------------------------------------+
 ```
 
-**Critical path: 25-35 working days** (Author Filters -> Author x Repo -> Comments -> Reviewer follow-through -> GitHub)
+**Critical path: 15-24 working days** (Author Filters -> Author x Repo -> Comments -> Reviewer follow-through)
 
 ---
 
@@ -67,9 +59,8 @@ Engineer A                            Engineer B
 Week 1-2:  #1 Author Filters (5-7d)  | Week 1-2:  #3 Comments Pipeline (6-10d)
 Week 2-3:  #2 Author x Repo (2-3d)   | Week 2-3:  #3 Comments follow-through
 Week 3-4:  #4 Reviewer follow-through | Week 3-4:  parallel polish / integration
-Week 5-8:  #5 GitHub 5.1-5.3 (4-6d)  | Week 5-8:  #5 GitHub 5.4-5.5 (4-6d)
 -------------------------------------+--------------------------------------
-Total: ~20-27 days
+Total: ~11-17 days
 ```
 
 ### Single Engineer
@@ -79,22 +70,13 @@ Week 1-2:   #1 Author Filters              [5-7 days]
 Week 2-3:   #2 Author x Repo Cross-Dim     [2-3 days]
 Week 3-5:   #3 Comments Pipeline           [6-10 days]
 Week 5-6:   #4 Reviewer Follow-Through     [2-4 days]
-Week 6-10:  #5 GitHub Platform             [12-18 days]
                                             ----------
-Total:                                      27-41 days
+Total:                                      15-24 days
 ```
 
 ---
 
 ## Blocker Register
-
-### CRITICAL (prevents implementation from starting)
-
-| ID | Feature | Blocker | Resolution |
-|----|---------|---------|------------|
-| B-01 | GitHub | All prior TODOs must complete first (~18-25 days) | Complete dependency chain |
-| B-02 | GitHub | Invariant 15 (org/project scoping) needs formal amendment -- GitHub has no "project" concept | Architecture design document |
-| B-03 | GitHub | Search API 1,000-result cap chunking algorithm not designed | Algorithm specification |
 
 ### HIGH (prevents specific tasks within a feature)
 
@@ -111,11 +93,8 @@ Total:                                      27-41 days
 | B-07 | Author Filters | Author + Team combined filter semantics undefined (intersection or union?) | Product decision before frontend tests |
 | B-08 | Author Filters | Scalability UX for 200+ authors (search/autocomplete vs multi-select) | UX design decision |
 | B-09 | Reviewer Filters | Reviewer + Repo combined filter semantics undefined | Open follow-through task after Reviewer Phase 1 |
-| B-10 | Reviewer Filters | Multi-reviewer overlap not explicitly addressed (PR appears in all reviewer slices) | Document as intentional follow-through |
 | B-11 | Comments | Dashboard visualization has no spec (metrics, layout, chart types) | Resolved: metrics-first comments dashboard contract defined in `specs/032-roadmap-blocker-resolution/` |
 | B-12 | Comments | Phase 3 (sentiment, engagement) is research, not implementation -- should be a separate TODO | Reclassify or remove |
-| B-13 | GitHub | Vote mapping (CHANGES_REQUESTED -> -5 vs -10) is a product decision | User validation |
-| B-14 | GitHub | GraphQL vs REST extraction strategy not finalized | Resolved for v1: REST-first, GraphQL deferred; implementation still last (`specs/032-roadmap-blocker-resolution/`) |
 
 ---
 
@@ -156,7 +135,7 @@ Total:                                      27-41 days
 
 ### #3 Comments Pipeline Completion (Priority: MEDIUM)
 
-**Why fourth:** Backend is fully complete (DB schema, API client, extraction, CLI) but delivers zero user value -- no CSV export, no dashboard visualization. Must validate ADO threading model end-to-end before GitHub's 3-endpoint comment model.
+**Why third:** Backend is fully complete (DB schema, API client, extraction, CLI) but delivers zero user value -- no CSV export, no dashboard visualization.
 
 **Phases:**
 1. Data pipeline: CSV export + JSON aggregations + coverage tracking (1-2 days)
@@ -167,7 +146,6 @@ Total:                                      27-41 days
 
 **QA flags:**
 - B-11 resolved: comments Phase 1 is metrics-first (summary cards, trend, repo breakdown, coverage/capped state)
-- Forward-compatibility risk: ADO thread resolution status model may need redesign for GitHub
 
 ---
 
@@ -178,43 +156,10 @@ Total:                                      27-41 days
 Remaining items:
 1. decide reviewer + repo combined semantics
 2. decide reviewer + team combined semantics
-3. document multi-reviewer overlap explicitly
-4. optionally design reviewer dropdown scalability improvements
-5. defer review-latency work until `reviewed_at` is a real persisted field
+3. optionally design reviewer dropdown scalability improvements
+4. defer review-latency work until `reviewed_at` is a real persisted field
 
 This is intentionally smaller than the original reviewer implementation tranche.
-
----
-
-### #5 GitHub Platform Support (Priority: LOWEST -- do last)
-
-**Why last:**
-1. Every feature added after GitHub ships requires dual-platform testing (doubles ongoing cost)
-2. Provider abstraction protocol benefits from knowing all filter dimensions first
-3. Vote normalization should be validated with ADO data before GitHub's different model
-4. Comment threading model should be proven end-to-end before GitHub's 3-endpoint model
-5. Schema stability should be achieved before introducing a second data source
-
-**Phases:**
-1. Provider abstraction: `GitPlatformClient` protocol + NormalizedPR dataclasses (2-3 days)
-2. GitHub client: REST/GraphQL + pagination + auth + rate limiting + Search API chunking (3-4 days)
-3. Config and CLI: `--source ado|github` flag, factory pattern (1-2 days)
-4. Testing: ~120-180 new Python tests, ~30-50 TypeScript tests (3-4 days)
-5. Documentation: README, config examples, migration guide (1-2 days)
-
-**Key risks:**
-- Search API 1,000-result cap (HIGH) -- forces time-window subdivision
-- Issue ID vs PR number identity confusion (HIGH) -- corrupts UPSERT convergence if wrong ID used
-- Invariant 15: GitHub has no "project" concept (HIGH) -- requires formal invariant amendment
-- Dual-platform maintenance burden (MEDIUM-HIGH) -- every future change needs both-platform testing
-
-**ADO vendor lock-in is isolated to 6 files** (confirmed by codebase audit):
-- `ado_client.py`, `pr_extractor.py`, `pagination.py`, `config.py`, `cli.py`, `repository.py`
-
-**Vendor-agnostic components** (no changes needed):
-- `aggregators.py` (pure SQL on generic schema)
-- `csv_generator.py` (downstream of DB)
-- All dashboard TypeScript (works on JSON structures, no platform awareness)
 
 ---
 
@@ -223,7 +168,6 @@ This is intentionally smaller than the original reviewer implementation tranche.
 | File | Reason | Date |
 |------|--------|------|
 | CROSS-DIMENSIONAL-ACCURACY.md | All 5 phases implemented, tested, and shipped in Feature 029. Team x repo cross-dimensional breakdowns complete. Author x repo (US3) properly deferred to AUTHOR_CONTRIBUTOR_FILTERS.md tasks T020/T021. | 2026-02-11 |
-| GITHUB_MARKET_RESEARCH.md | All corrections incorporated into GITHUB.md (rate limits, native capabilities, competitive landscape, PAT permissions, comment threading, Search API cap, pricing). Served as verification artifact. | 2026-02-11 |
 
 ---
 

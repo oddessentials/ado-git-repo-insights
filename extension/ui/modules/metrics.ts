@@ -340,7 +340,8 @@ export function applyFiltersToRollups(
   rollups: Rollup[],
   filters: DimensionFilters,
 ): Rollup[] {
-  const reviewerFilters = filters.reviewers ?? [];
+  const firstReviewer = filters.reviewers?.[0];
+  const reviewerFilters = firstReviewer ? [firstReviewer] : [];
 
   if (
     !filters.repos.length &&

@@ -43,13 +43,15 @@ export function parseFiltersFromUrl(params: URLSearchParams): FilterState {
   const reposParam = params.get("repos");
   const teamsParam = params.get("teams");
   const reviewersParam = params.get("reviewers");
+  const reviewerValues = reviewersParam
+    ? reviewersParam.split(",").filter((v) => v.trim())
+    : [];
+  const firstReviewer = reviewerValues[0];
 
   return {
     repos: reposParam ? reposParam.split(",").filter((v) => v.trim()) : [],
     teams: teamsParam ? teamsParam.split(",").filter((v) => v.trim()) : [],
-    reviewers: reviewersParam
-      ? reviewersParam.split(",").filter((v) => v.trim())
-      : [],
+    reviewers: firstReviewer ? [firstReviewer] : [],
   };
 }
 
@@ -75,7 +77,12 @@ export function serializeFiltersToUrl(
   }
 
   if (state.reviewers.length > 0) {
-    params.set("reviewers", state.reviewers.join(","));
+    const firstReviewer = state.reviewers[0];
+    if (firstReviewer) {
+      params.set("reviewers", firstReviewer);
+    } else {
+      params.delete("reviewers");
+    }
   } else {
     params.delete("reviewers");
   }

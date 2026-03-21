@@ -5,7 +5,7 @@
 
 ## Summary
 
-This planning branch resolves blocker decisions for reviewer filters, comments completion, and future GitHub support. The output is a set of explicit contracts, phased rollout guidance, and task decomposition that unblocks implementation work while keeping GitHub support deferred until the end of the roadmap.
+This planning branch resolves blocker decisions for reviewer filters and comments completion. The output is a set of explicit contracts, phased rollout guidance, and task decomposition that unblocks implementation work without reopening those design questions later.
 
 ## Technical Context
 
@@ -15,8 +15,8 @@ This planning branch resolves blocker decisions for reviewer filters, comments c
 **Testing**: Design-review level verification against current code and roadmap references
 **Target Platform**: Repository documentation only on this branch
 **Project Type**: Architecture/product planning
-**Constraints**: Reviewer and comments decisions must be implementation-ready; GitHub must remain explicitly last
-**Scale/Scope**: B-04, B-05, B-06, B-11 resolved now; B-14 resolved architecturally but sequenced for later implementation
+**Constraints**: Reviewer and comments decisions must be implementation-ready
+**Scale/Scope**: B-04, B-05, B-06, and B-11 resolved now
 
 ## Constitution Check
 
@@ -59,13 +59,6 @@ Resolve B-11 by defining a narrow metrics-first dashboard slice:
 - explicit capped/coverage signaling,
 - CSV and JSON output added before dashboard UI work.
 
-### Phase 3: GitHub Architecture Baseline
-
-Resolve B-14 only as an architecture starting point:
-- GitHub remains last in roadmap order,
-- REST-first provider design for v1,
-- GraphQL deferred until a concrete REST limitation appears.
-
 ## File Impacts For Future Implementation
 
 Reviewer follow-up implementation will likely touch:
@@ -85,13 +78,10 @@ Comments follow-up implementation will likely touch:
 - `extension/ui/schemas/rollup.schema.ts`
 - `extension/ui/dashboard.ts`
 
-GitHub follow-up implementation remains future work and is intentionally deferred.
-
 ## Verification Approach
 
 1. Validate blocker decisions against current schema and TODO docs.
-2. Ensure task sequencing keeps GitHub last.
-3. Update roadmap references so future implementation does not reopen the same questions.
+2. Update roadmap references so future implementation does not reopen the same questions.
 
 ## Complexity Tracking
 

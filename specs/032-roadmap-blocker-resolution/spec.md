@@ -3,11 +3,11 @@
 **Feature Branch**: `032-roadmap-blocker-resolution`
 **Created**: 2026-03-20
 **Status**: Draft
-**Input**: User request to resolve as much of roadmap blockers B-04, B-05, B-06, B-11, and B-14 as possible while explicitly deferring GitHub platform support until last.
+**Input**: User request to resolve as much of roadmap blockers B-04, B-05, B-06, and B-11 as possible.
 
 ## Summary
 
-Resolve the open product and architecture blockers that currently prevent clean implementation of reviewer filtering, comment analytics, and future GitHub support. This spec makes reviewer filters and comments implementation-ready now, and it explicitly defers GitHub platform work until after the ADO-first backlog is complete.
+Resolve the open product and architecture blockers that currently prevent clean implementation of reviewer filtering and comment analytics. This spec makes reviewer filters and comments implementation-ready now.
 
 ## Governing Decisions
 
@@ -78,20 +78,6 @@ Explicitly out of scope for Phase 1:
 - sentiment analysis
 - engagement scoring
 
-### Decision 5: GitHub Platform Support Is Sequenced Last
-
-GitHub platform support remains the final roadmap item and is not part of the initial implementation tranche for this branch. The only GitHub work in scope here is resolving the architecture decision so later implementation starts from a stable baseline.
-
-The architecture decision is:
-- **REST-first provider implementation for v1**
-- **GraphQL deferred for targeted optimizations only after REST coverage proves insufficient**
-
-Rationale:
-- REST aligns better with current extractor patterns and fixture strategy,
-- it keeps failure modes and pagination logic more observable,
-- it minimizes initial abstraction risk,
-- and it allows GitHub support to remain sequenced after reviewer and comments completion.
-
 ## User Stories & Acceptance
 
 ### User Story 1 - Reviewer Filters Become Implementation-Ready
@@ -119,17 +105,6 @@ A developer can complete the comments pipeline without inventing the dashboard s
 2. **Given** comment extraction was limited by CLI caps, **when** the dashboard loads, **then** it shows a capped/partial-data indicator.
 3. **Given** users want raw thread browsing or sentiment analysis, **when** comments Phase 1 ships, **then** those requests remain explicitly out of scope.
 
-### User Story 3 - GitHub Support Starts From a Stable Architecture Baseline
-
-A future implementation team can begin GitHub support without re-litigating priority order or extraction strategy.
-
-**Independent Test**: The roadmap and blocker documents both show GitHub as last, and the architecture choice is explicit: REST-first, GraphQL deferred.
-
-**Acceptance Scenarios**:
-
-1. **Given** roadmap planning, **when** feature order is reviewed, **then** GitHub remains after author filters, reviewer filters, and comments completion.
-2. **Given** GitHub extractor design begins later, **when** the transport choice is reviewed, **then** REST is the v1 default and GraphQL is opt-in future optimization.
-
 ## Requirements
 
 ### Functional Requirements
@@ -139,8 +114,6 @@ A future implementation team can begin GitHub support without re-litigating prio
 - **FR-003**: Reviewer slices MUST use a dedicated `ReviewerBreakdownEntry` contract rather than generic `BreakdownEntry`.
 - **FR-004**: Comment pipeline completion MUST define a minimum dashboard contract consisting of summary metrics, weekly trend, repository breakdown, and capped/coverage transparency.
 - **FR-005**: Comment browsing, sentiment analysis, and engagement scoring MUST remain out of scope for Comments Phase 1.
-- **FR-006**: GitHub platform support MUST remain sequenced after reviewer and comments work.
-- **FR-007**: GitHub v1 extraction architecture MUST be documented as REST-first, with GraphQL deferred unless a concrete REST gap justifies it.
 
 ### Key Entities
 
@@ -148,18 +121,14 @@ A future implementation team can begin GitHub support without re-litigating prio
 - **Review Latency Phase 2**: Deferred reviewer capability unlocked only after schema/storage changes introduce `reviewed_at`.
 - **Comment Metrics Aggregate**: JSON output describing weekly and breakdown-level comment activity and coverage state.
 - **Coverage/Capped Indicator**: Manifest or aggregate metadata flag indicating comment extraction may be partial because CLI caps or rate limits were hit.
-- **GitHub v1 Extraction Strategy**: REST-first provider implementation scheduled only after ADO-first backlog completion.
 
 ## Success Criteria
 
 - **SC-001**: Reviewer Phase 1 scope is implementable without unresolved questions about approval rate, review latency, or breakdown type.
 - **SC-002**: Comments Phase 1 has a concrete dashboard scope that can be implemented without additional metric-definition work.
-- **SC-003**: Roadmap documents explicitly place GitHub support last and record REST-first as the starting architecture.
 
 ## Out of Scope
 
 - Implementing reviewer filters on this branch
 - Performing schema migrations or re-extraction for `reviewed_at`
 - Implementing comment aggregates or dashboard UI on this branch
-- Implementing GitHub support on this branch
-- Creating or updating GitHub issues automatically

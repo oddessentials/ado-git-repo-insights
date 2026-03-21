@@ -26,16 +26,6 @@
 
 - [ ] T014 Implement deferred author x repo cross-dimensional work once author filters are complete, reusing the `by_team_and_repo` pattern with exact intersection semantics.
 
-## Phase 4: GitHub Platform Support (Last)
-
-- [ ] T015 Create `GitPlatformClient` extraction abstraction and normalized transport objects.
-- [ ] T016 Implement GitHub REST-first client with pagination, auth, and normalization.
-- [ ] T017 Add GitHub config/CLI integration.
-- [ ] T018 Add GitHub-specific tests for search cap handling, identity stability, auth, and comments collection.
-- [ ] T019 Revisit GraphQL only if a concrete REST limitation remains after the REST-first implementation is working.
-
 ## Sequencing Rules
 
 - Reviewer and comments phases may run in parallel if staffing allows.
-- GitHub tasks MUST NOT start until reviewer and comments phases are complete or explicitly waived.
-- GraphQL investigation MUST NOT happen before the REST-first GitHub client exists and has identified a concrete gap.

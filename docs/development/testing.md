@@ -187,6 +187,36 @@ Requirements:
 For the current machine, treat a missing interpreter as a blocker rather than a
 warning if you need CI-grade confidence before pushing.
 
+### Local PR Preflight
+
+Before any push that is expected to keep an open PR green, run the repo-owned
+preflight:
+
+```bash
+python scripts/run_pr_preflight.py
+```
+
+What it verifies:
+- `mypy src/`
+- `tests/demo/` with `--no-cov` so demo dashboard validation is exercised
+- full Python suite with coverage
+- extension `build:check`
+- extension lint
+- extension `test:ci`
+
+Why this exists:
+- it uses stable temp/cache/coverage paths under the OS temp directory
+- it avoids the Windows repo-root lock problems that can make ad hoc pytest runs
+  noisy or misleading
+- it makes demo validation a required local gate instead of a remembered extra step
+- it resolves Python 3.10 explicitly, so the gate runs on a supported baseline
+  interpreter even if your shell default points elsewhere
+
+Recommended workflow:
+1. `python scripts/run_pr_preflight.py`
+2. `python scripts/run_ci_parity.py`
+3. push only after both pass for the change you made
+
 ### CI Checks
 
 All PRs must pass:

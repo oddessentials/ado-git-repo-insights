@@ -1265,11 +1265,20 @@ function clearSelectToAll(select: HTMLSelectElement | null): void {
   });
 }
 
-function clearSelectValues(select: HTMLSelectElement | null): void {
-  if (!select) return;
-  Array.from(select.options).forEach((o) => {
-    o.selected = false;
-  });
+function normalizeReviewerSelection(
+  reviewerValues: string[],
+  source: "ui" | "url",
+): string[] {
+  if (reviewerValues.length <= 1) {
+    return reviewerValues;
+  }
+
+  const ignored = reviewerValues.slice(1);
+  console.warn(
+    `Reviewer Phase 1 supports a single exact reviewer filter; ignoring additional ${source} values:`,
+    ignored,
+  );
+  return reviewerValues[0] ? [reviewerValues[0]] : [];
 }
 
 function applyReviewerFilterCompatibility(
@@ -1278,8 +1287,17 @@ function applyReviewerFilterCompatibility(
   teamValues: string[],
   reviewerValues: string[],
 ): { repos: string[]; teams: string[]; reviewers: string[] } {
-  if (reviewerValues.length === 0 || (repoValues.length === 0 && teamValues.length === 0)) {
-    return { repos: repoValues, teams: teamValues, reviewers: reviewerValues };
+  const normalizedReviewers = normalizeReviewerSelection(reviewerValues, "ui");
+
+  if (
+    normalizedReviewers.length === 0 ||
+    (repoValues.length === 0 && teamValues.length === 0)
+  ) {
+    return {
+      repos: repoValues,
+      teams: teamValues,
+      reviewers: normalizedReviewers,
+    };
   }
 
   const repoFilter = elements["repo-filter"] as HTMLSelectElement | null;
@@ -1289,7 +1307,7 @@ function applyReviewerFilterCompatibility(
   if (sourceId === "reviewer-filter") {
     clearSelectToAll(repoFilter);
     clearSelectToAll(teamFilter);
-    return { repos: [], teams: [], reviewers: reviewerValues };
+    return { repos: [], teams: [], reviewers: normalizedReviewers };
   }
 
   if (sourceId === "repo-filter" || sourceId === "team-filter") {
@@ -1302,12 +1320,10 @@ function applyReviewerFilterCompatibility(
   );
   clearSelectToAll(repoFilter);
   clearSelectToAll(teamFilter);
-  clearSelectValues(reviewerFilter);
-  reviewerValues.forEach((value) => {
-    const option = findOptionByValue(reviewerFilter, value);
-    if (option) option.selected = true;
-  });
-  return { repos: [], teams: [], reviewers: reviewerValues };
+  if (reviewerFilter) {
+    reviewerFilter.value = normalizedReviewers[0] ?? "";
+  }
+  return { repos: [], teams: [], reviewers: normalizedReviewers };
 }
 
 /**
@@ -1329,9 +1345,7 @@ function handleFilterChange(event: Event): void {
         .filter((v) => v)
     : [];
   const reviewerValues = reviewerFilter
-    ? Array.from(reviewerFilter.selectedOptions)
-        .map((o) => o.value)
-        .filter((v) => v)
+    ? [reviewerFilter.value].filter((v) => v)
     : [];
 
   const sourceId =
@@ -1586,7 +1600,10 @@ function restoreFiltersFromUrl(): void {
   }
 
   if (reviewersParam) {
-    currentFilters.reviewers = reviewersParam.split(",").filter((v) => v);
+    currentFilters.reviewers = normalizeReviewerSelection(
+      reviewersParam.split(",").filter((v) => v),
+      "url",
+    );
     const reviewerFilter = elements["reviewer-filter"] as HTMLSelectElement | null;
     if (reviewerFilter) {
       const valid = currentFilters.reviewers.filter(
@@ -1599,10 +1616,7 @@ function restoreFiltersFromUrl(): void {
         );
       }
       currentFilters.reviewers = valid;
-      currentFilters.reviewers.forEach((value) => {
-        const option = findOptionByValue(reviewerFilter, value);
-        if (option) option.selected = true;
-      });
+      reviewerFilter.value = currentFilters.reviewers[0] ?? "";
     }
   }
 

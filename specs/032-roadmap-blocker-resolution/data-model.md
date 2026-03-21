@@ -70,11 +70,3 @@ CommentCoverage
 ├── capped: bool
 └── reason: str | null
 ```
-
-## GitHub v1 Architecture Baseline
-
-No runtime data model changes are required on this branch. The planning contract is:
-- provider abstraction at extraction layer,
-- normalized persisted schema downstream,
-- REST-first source adapter,
-- GitHub implementation deferred until after reviewer/comments work.

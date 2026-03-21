@@ -1351,6 +1351,7 @@ class TestReviewerSlicing:
             ("repo1-2", "reviewer1", 10, "repo1"),
             ("repo2-3", "reviewer1", -5, "repo2"),
             ("repo1-1", "reviewer2", 5, "repo1"),
+            ("repo1-2", "reviewer3", 0, "repo1"),
             ("repo2-3", "reviewer3", 10, "repo2"),
         ]
         for reviewer in reviewers:
@@ -1413,6 +1414,13 @@ class TestReviewerSlicing:
         assert reviewer_two["approval_rate"] == 0.0
         assert reviewer_two["authors_count"] == 1
         assert reviewer_two["repositories_count"] == 1
+
+        reviewer_three = week_data["by_reviewer"]["reviewer3"]
+        assert reviewer_three["reviewed_prs"] == 1
+        assert reviewer_three["reviews_count"] == 1
+        assert reviewer_three["approval_rate"] == 1.0
+        assert reviewer_three["authors_count"] == 1
+        assert reviewer_three["repositories_count"] == 1
 
     def test_no_reviewer_data_omits_by_reviewer(self, tmp_path: Path) -> None:
         db_path = tmp_path / "no_reviewers.sqlite"

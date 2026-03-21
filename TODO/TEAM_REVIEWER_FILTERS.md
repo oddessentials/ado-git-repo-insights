@@ -77,8 +77,10 @@ Approval-rate semantics are fixed:
 ### Current UX Behavior
 
 - Reviewer filtering works as a standalone dimension.
+- Reviewer Phase 1 supports a single exact reviewer selection, not reviewer unions.
 - If a reviewer filter is combined with repo or team filters, the dashboard currently sanitizes to reviewer-only behavior rather than inventing unsupported combined semantics.
 - Reviewer mode updates the metric labels to reflect review activity rather than authored PR delivery.
+- Requested-but-pending reviewer rows (`vote == 0`) are excluded from `reviewed_prs` and approval-rate denominators.
 
 ### Remaining Reviewer Gaps
 
