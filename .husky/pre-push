@@ -167,15 +167,22 @@ echo "[pre-push] Running PR preflight..."
 BOOTSTRAP_PYTHON=""
 BOOTSTRAP_PYTHON_ARG=""
 
-if [ -n "${PR_PREFLIGHT_PYTHON:-}" ] && { [ -x "$PR_PREFLIGHT_PYTHON" ] || command -v "$PR_PREFLIGHT_PYTHON" >/dev/null 2>&1; }; then
+can_run_python() {
+    if [ $# -eq 0 ]; then
+        return 1
+    fi
+    "$@" -c "import sys" >/dev/null 2>&1
+}
+
+if [ -n "${PR_PREFLIGHT_PYTHON:-}" ] && { [ -x "$PR_PREFLIGHT_PYTHON" ] || command -v "$PR_PREFLIGHT_PYTHON" >/dev/null 2>&1; } && can_run_python "$PR_PREFLIGHT_PYTHON"; then
     BOOTSTRAP_PYTHON="$PR_PREFLIGHT_PYTHON"
-elif command -v python3 >/dev/null 2>&1; then
-    BOOTSTRAP_PYTHON="python3"
-elif command -v python >/dev/null 2>&1; then
-    BOOTSTRAP_PYTHON="python"
 elif command -v py >/dev/null 2>&1 && py -3 -c "import sys" >/dev/null 2>&1; then
     BOOTSTRAP_PYTHON="py"
     BOOTSTRAP_PYTHON_ARG="-3"
+elif command -v python3 >/dev/null 2>&1 && can_run_python python3; then
+    BOOTSTRAP_PYTHON="python3"
+elif command -v python >/dev/null 2>&1 && can_run_python python; then
+    BOOTSTRAP_PYTHON="python"
 fi
 
 if [ -z "$BOOTSTRAP_PYTHON" ]; then
