@@ -68,9 +68,12 @@ venv.bak/
 *.swo
 *~
 
+# Codex
+.codex
+
 # Claude Code
 CLAUDE.md
-.claude/settings.local.json
+.claude
 
 # mypy
 .mypy_cache/

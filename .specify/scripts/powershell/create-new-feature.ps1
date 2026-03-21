@@ -4,9 +4,10 @@
 param(
     [switch]$Json,
     [string]$ShortName,
+    [Parameter()]
     [int]$Number = 0,
     [switch]$Help,
-    [Parameter(ValueFromRemainingArguments = $true)]
+    [Parameter(Position = 0, ValueFromRemainingArguments = $true)]
     [string[]]$FeatureDescription
 )
 $ErrorActionPreference = 'Stop'
@@ -34,6 +35,12 @@ if (-not $FeatureDescription -or $FeatureDescription.Count -eq 0) {
 }
 
 $featureDesc = ($FeatureDescription -join ' ').Trim()
+
+# Validate description is not empty after trimming (e.g., user passed only whitespace)
+if ([string]::IsNullOrWhiteSpace($featureDesc)) {
+    Write-Error "Error: Feature description cannot be empty or contain only whitespace"
+    exit 1
+}
 
 # Resolve repository root. Prefer git information when available, but fall back
 # to searching for repository markers so the workflow still functions in repositories that
@@ -74,56 +81,12 @@ function Get-HighestNumberFromSpecs {
     return $highest
 }
 
-function Get-ShortHash {
-    <#
-    .SYNOPSIS
-    Generate a 6-character hash from a string for collision resolution.
-    #>
-    param([string]$InputString)
-    $sha256 = $null
-    try {
-        $sha256 = [System.Security.Cryptography.SHA256]::Create()
-        $bytes = [System.Text.Encoding]::UTF8.GetBytes($InputString)
-        $hash = $sha256.ComputeHash($bytes)
-        return ([System.BitConverter]::ToString($hash) -replace '-','').Substring(0,6).ToLower()
-    } finally {
-        if ($sha256) { $sha256.Dispose() }
-    }
-}
-
-function Test-BranchExists {
-    <#
-    .SYNOPSIS
-    Check if a branch name exists locally or on any remote.
-    Optimized: checks local branches first (faster) before remote queries.
-    #>
-    param([string]$BranchName)
-
-    # Check local branches first (faster - no remote query needed)
-    $localMatch = git branch --list $BranchName 2>$null
-    if ($localMatch) { return $true }
-
-    # Check remote branches only if local not found (slower query)
-    $remoteMatch = git branch -r --list "*/$BranchName" 2>$null
-    if ($remoteMatch) { return $true }
-
-    return $false
-}
-
 function Get-HighestNumberFromBranches {
     param()
 
     $highest = 0
     try {
-        # Capture git errors for logging instead of suppressing completely
-        $gitError = $null
-        $branches = git branch -a 2>&1 | ForEach-Object {
-            if ($_ -is [System.Management.Automation.ErrorRecord]) {
-                $gitError = $_
-            } else {
-                $_
-            }
-        }
+        $branches = git branch -a 2>$null
         if ($LASTEXITCODE -eq 0) {
             foreach ($branch in $branches) {
                 # Clean branch name: remove leading markers and remote prefixes
@@ -135,8 +98,6 @@ function Get-HighestNumberFromBranches {
                     if ($num -gt $highest) { $highest = $num }
                 }
             }
-        } elseif ($gitError) {
-            Write-Verbose "Git branch listing failed: $gitError"
         }
     } catch {
         # If git command fails, return 0
@@ -151,25 +112,10 @@ function Get-NextBranchNumber {
     )
 
     # Fetch all remotes to get latest branch info (suppress errors if no remotes)
-    $fetchFailed = $false
     try {
         git fetch --all --prune 2>$null | Out-Null
-        if ($LASTEXITCODE -ne 0) {
-            Write-Warning "[specify] Git fetch failed. Remote branches may not be current."
-            $fetchFailed = $true
-        }
     } catch {
-        Write-Warning "[specify] Git fetch failed. Remote branches may not be current."
-        $fetchFailed = $true
-    }
-
-    # Validate git is still functional after failed fetch
-    if ($fetchFailed) {
-        $null = git rev-parse --is-inside-work-tree 2>$null
-        if ($LASTEXITCODE -ne 0) {
-            Write-Warning "[specify] Git repository appears to be in invalid state. Using local spec directory only."
-            return (Get-HighestNumberFromSpecs -SpecsDir $SpecsDir) + 1
-        }
+        # Ignore fetch errors
     }
 
     # Get highest number from ALL branches (not just matching short name)
@@ -195,6 +141,9 @@ if (-not $fallbackRoot) {
     Write-Error "Error: Could not determine repository root. Please run this script from within the repository."
     exit 1
 }
+
+# Load common functions (includes Resolve-Template)
+. "$PSScriptRoot/common.ps1"
 
 try {
     $repoRoot = git rev-parse --show-toplevel 2>$null
@@ -302,20 +251,27 @@ if ($branchName.Length -gt $maxBranchLength) {
     Write-Warning "[specify] Truncated to: $branchName ($($branchName.Length) bytes)"
 }
 
-# FR-004/005/006: Check for branch name collision (local and remote)
-if ($hasGit -and (Test-BranchExists -BranchName $branchName)) {
-    $hashSuffix = Get-ShortHash -InputString "$featureNum-$branchSuffix"
-    $originalCollision = $branchName
-    $branchName = "$branchName-$hashSuffix"
-    Write-Warning "[specify] Branch name '$originalCollision' already exists"
-    Write-Warning "[specify] Resolved collision with hash suffix: $branchName"
-}
-
 if ($hasGit) {
+    $branchCreated = $false
     try {
-        git checkout -b $branchName | Out-Null
+        git checkout -q -b $branchName 2>$null | Out-Null
+        if ($LASTEXITCODE -eq 0) {
+            $branchCreated = $true
+        }
     } catch {
-        Write-Warning "Failed to create git branch: $branchName"
+        # Exception during git command
+    }
+
+    if (-not $branchCreated) {
+        # Check if branch already exists
+        $existingBranch = git branch --list $branchName 2>$null
+        if ($existingBranch) {
+            Write-Error "Error: Branch '$branchName' already exists. Please use a different feature name or specify a different number with -Number."
+            exit 1
+        } else {
+            Write-Error "Error: Failed to create git branch '$branchName'. Please check your git configuration and try again."
+            exit 1
+        }
     }
 } else {
     Write-Warning "[specify] Warning: Git repository not detected; skipped branch creation for $branchName"
@@ -324,9 +280,9 @@ if ($hasGit) {
 $featureDir = Join-Path $specsDir $branchName
 New-Item -ItemType Directory -Path $featureDir -Force | Out-Null
 
-$template = Join-Path $repoRoot '.specify/templates/spec-template.md'
+$template = Resolve-Template -TemplateName 'spec-template' -RepoRoot $repoRoot
 $specFile = Join-Path $featureDir 'spec.md'
-if (Test-Path $template) {
+if ($template -and (Test-Path $template)) {
     Copy-Item $template $specFile -Force
 } else {
     New-Item -ItemType File -Path $specFile | Out-Null
