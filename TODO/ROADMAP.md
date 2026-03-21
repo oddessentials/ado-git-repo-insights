@@ -8,12 +8,12 @@
 | # | Feature | TODO File | Size | Est. Days | Status | Hard Blockers |
 |---|---------|-----------|------|-----------|--------|---------------|
 | 1 | Author & Contributor Filters | AUTHOR_CONTRIBUTOR_FILTERS.md | M | 5-7 | Ready | None |
-| 2 | Reviewer Filters | TEAM_REVIEWER_FILTERS.md (reviewer section) | L | 7-9 | Ready (decisioned in `specs/032-roadmap-blocker-resolution/`) | B-04, B-05, B-06 |
-| 3 | Author x Repo Cross-Dim (T020/T021) | AUTHOR_CONTRIBUTOR_FILTERS.md (deferred section) | S | 2-3 | Blocked on #1 | Author slices must exist |
-| 4 | Comments Pipeline Completion | COMMENTS.md | M-L | 6-10 | Ready (decisioned in `specs/032-roadmap-blocker-resolution/`) | None for Phases 1-2 |
+| 2 | Author x Repo Cross-Dim (T020/T021) | AUTHOR_CONTRIBUTOR_FILTERS.md (deferred section) | S | 2-3 | Blocked on #1 | Author slices must exist |
+| 3 | Comments Pipeline Completion | COMMENTS.md | M-L | 6-10 | Ready (decisioned in `specs/032-roadmap-blocker-resolution/`) | None for Phases 1-2 |
+| 4 | Reviewer Phase 2 / Combined Semantics Follow-Through | TEAM_REVIEWER_FILTERS.md | S-M | 2-4 | Partially ready | B-09, B-10 |
 | 5 | GitHub Platform Support | GITHUB.md | XL | 12-18 | Explicitly deferred until #1-#4 complete (`specs/032-roadmap-blocker-resolution/`) | B-01, B-02, B-03 |
 
-**Total estimated effort: 32-47 days (single engineer) | 24-30 days (two engineers)**
+**Total estimated effort: 27-41 days (single engineer) | 20-27 days (two engineers)**
 
 ---
 
@@ -21,33 +21,31 @@
 
 ```
   +--------------------------+     +--------------------------+
-  |  #1 Author Filters       |     |  #2 Reviewer Filters     |
-  |  5-7 days                |     |  7-9 days                |
-  |  Blockers: none          |     |  Blockers: B-04,B-05,B-06|
+  |  #1 Author Filters       |     |  #3 Comments Pipeline    |
+  |  5-7 days                |     |  6-10 days               |
+  |  Blockers: none          |     |  Blockers: none          |
   |  CAN RUN IN PARALLEL <---+-----+---> CAN RUN IN PARALLEL  |
   +------------+-------------+     +------------+-------------+
                |                                |
-               | unlocks                        | validates vote model
+               | unlocks                        | validates threading model
                v                                |
   +--------------------------+                  |
-  |  #3 Author x Repo        |                  |
+  |  #2 Author x Repo        |                  |
   |  Cross-Dim (T020/T021)   |                  |
   |  2-3 days                |                  |
   |  Blocked on: #1 Phase 1  |                  |
   +------------+-------------+                  |
                |                                |
                |         +---------------------+
-               |         |
-               |         |     +--------------------------+
-               |         |     |  #4 Comments Pipeline     |
-               |         |     |  6-10 days                |
-               |         |     |  Blockers: none (Ph 1-2)  |
-               |         |     |  CAN RUN IN PARALLEL      |
-               |         |     |  with #1 and #2           |
-               |         |     +------------+-------------+
-               |         |                  |
-               |         |                  | validates threading model
-               v         v                  v
+               |                               |
+               v                               v
+  +--------------------------+     +--------------------------+
+  |  #4 Reviewer Follow-Through |  |                          |
+  |  2-4 days                |     |                          |
+  |  Blocked on decisions     |     |                          |
+  +------------+-------------+     +--------------------------+
+               |
+               v
   +-----------------------------------------------------+
   |              #5 GitHub Platform Support               |
   |              12-18 days                              |
@@ -55,7 +53,7 @@
   +-----------------------------------------------------+
 ```
 
-**Critical path: 27-39 working days** (Author Filters -> Reviewer Filters -> Comments -> GitHub)
+**Critical path: 25-35 working days** (Author Filters -> Author x Repo -> Comments -> Reviewer follow-through -> GitHub)
 
 ---
 
@@ -66,24 +64,24 @@
 ```
 Engineer A                            Engineer B
 -------------------------------------+--------------------------------------
-Week 1-2:  #1 Author Filters (5-7d)  | Week 1-2:  #4 Comments Pipeline (6-10d)
-Week 2-3:  #3 Author x Repo (2-3d)   | Week 2-3:  #2 Reviewer Filters prep / comments polish
-Week 3-5:  #2 Reviewer Filters (7-9d) | Week 3-5:  #2 Reviewer frontend/tests or #4 follow-through
+Week 1-2:  #1 Author Filters (5-7d)  | Week 1-2:  #3 Comments Pipeline (6-10d)
+Week 2-3:  #2 Author x Repo (2-3d)   | Week 2-3:  #3 Comments follow-through
+Week 3-4:  #4 Reviewer follow-through | Week 3-4:  parallel polish / integration
 Week 5-8:  #5 GitHub 5.1-5.3 (4-6d)  | Week 5-8:  #5 GitHub 5.4-5.5 (4-6d)
 -------------------------------------+--------------------------------------
-Total: ~24-30 days
+Total: ~20-27 days
 ```
 
 ### Single Engineer
 
 ```
 Week 1-2:   #1 Author Filters              [5-7 days]
-Week 2-3:   #3 Author x Repo Cross-Dim     [2-3 days]
-Week 3-5:   #2 Reviewer Filters            [7-9 days]
-Week 5-6:   #4 Comments Pipeline           [3-5 days]
+Week 2-3:   #2 Author x Repo Cross-Dim     [2-3 days]
+Week 3-5:   #3 Comments Pipeline           [6-10 days]
+Week 5-6:   #4 Reviewer Follow-Through     [2-4 days]
 Week 6-10:  #5 GitHub Platform             [12-18 days]
                                             ----------
-Total:                                      32-47 days
+Total:                                      27-41 days
 ```
 
 ---
@@ -102,9 +100,9 @@ Total:                                      32-47 days
 
 | ID | Feature | Blocker | Resolution |
 |----|---------|---------|------------|
-| B-04 | Reviewer Filters | "Avg Time to Review" requires `reviewed_at` timestamp -- column missing from `reviewers` table | Resolved: defer review latency to Reviewer Phase 2 until schema/storage add `reviewed_at` (`specs/032-roadmap-blocker-resolution/`) |
-| B-05 | Reviewer Filters | "Approval Rate" has no formula definition | Resolved: `approved_prs / reviewed_prs` using final stored reviewer outcome per PR (`specs/032-roadmap-blocker-resolution/`) |
-| B-06 | Reviewer Filters | `BreakdownEntry` type incompatible with reviewer metrics (cycle_time N/A, new `reviews_count` field) | Resolved: introduce dedicated `ReviewerBreakdownEntry` (`specs/032-roadmap-blocker-resolution/`) |
+| B-04 | Reviewer Filters | "Avg Time to Review" requires `reviewed_at` timestamp -- column missing from `reviewers` table | Resolved in Phase 1: defer review latency to Reviewer Phase 2 until schema/storage add `reviewed_at` (`specs/032-roadmap-blocker-resolution/`) |
+| B-05 | Reviewer Filters | "Approval Rate" has no formula definition | Resolved in Phase 1: `approved_prs / reviewed_prs` using final stored reviewer outcome per PR (`specs/032-roadmap-blocker-resolution/`) |
+| B-06 | Reviewer Filters | `BreakdownEntry` type incompatible with reviewer metrics (cycle_time N/A, new `reviews_count` field) | Resolved in Phase 1: introduce dedicated `ReviewerBreakdownEntry` (`specs/032-roadmap-blocker-resolution/`) |
 
 ### MEDIUM (prevents test writing for specific scenarios)
 
@@ -112,8 +110,8 @@ Total:                                      32-47 days
 |----|---------|---------|------------|
 | B-07 | Author Filters | Author + Team combined filter semantics undefined (intersection or union?) | Product decision before frontend tests |
 | B-08 | Author Filters | Scalability UX for 200+ authors (search/autocomplete vs multi-select) | UX design decision |
-| B-09 | Reviewer Filters | Reviewer + Repo combined filter semantics undefined | Product decision |
-| B-10 | Reviewer Filters | Multi-reviewer overlap not explicitly addressed (PR appears in all reviewer slices) | Document as intentional (same as team overlap) |
+| B-09 | Reviewer Filters | Reviewer + Repo combined filter semantics undefined | Open follow-through task after Reviewer Phase 1 |
+| B-10 | Reviewer Filters | Multi-reviewer overlap not explicitly addressed (PR appears in all reviewer slices) | Document as intentional follow-through |
 | B-11 | Comments | Dashboard visualization has no spec (metrics, layout, chart types) | Resolved: metrics-first comments dashboard contract defined in `specs/032-roadmap-blocker-resolution/` |
 | B-12 | Comments | Phase 3 (sentiment, engagement) is research, not implementation -- should be a separate TODO | Reclassify or remove |
 | B-13 | GitHub | Vote mapping (CHANGES_REQUESTED -> -5 vs -10) is a product decision | User validation |
@@ -144,30 +142,7 @@ Total:                                      32-47 days
 
 ---
 
-### #2 Reviewer Filters (Priority: HIGH)
-
-**Why second:** Same structural pattern as author filters but with more complexity (vote semantics, new dimension extraction needed). Validates ADO vote normalization model before GitHub adds a different vote model.
-
-**Phases:**
-1. Backend: reviewer dimension extraction + `_generate_reviewer_slice()` + tests (3-4 days)
-2. Frontend: schema + filter state + UI + filter logic (2-3 days)
-3. Integration & testing (2 days)
-
-**Key differences from author/team filters:**
-- No `reviewers` list in `dimensions.json` yet -- needs new extraction query
-- Metrics differ: "PRs reviewed" not "PRs authored"; cycle_time is N/A
-- Vote breakdown adds complexity (ADO scale -10 to +10)
-- New `reviews_count` metric not in existing `BreakdownEntry` type
-
-**QA flags:**
-- B-04 resolved: review latency deferred to Reviewer Phase 2 until `reviewed_at` exists
-- B-05 resolved: approval rate = `approved_prs / reviewed_prs` using final stored reviewer outcome per PR
-- B-06 resolved: use dedicated `ReviewerBreakdownEntry`
-- Reviewer metric shape differs fundamentally from author/team metrics and should remain a separate contract
-
----
-
-### #3 Author x Repo Cross-Dimensional (T020/T021)
+### #2 Author x Repo Cross-Dimensional (T020/T021)
 
 **Why third (after #1):** Blocked on author slices existing. Pattern is 100% established from Feature 029's `_generate_team_repo_slice()`. Only 2 tasks, well-scoped, 2-3 days.
 
@@ -179,7 +154,7 @@ Total:                                      32-47 days
 
 ---
 
-### #4 Comments Pipeline Completion (Priority: MEDIUM)
+### #3 Comments Pipeline Completion (Priority: MEDIUM)
 
 **Why fourth:** Backend is fully complete (DB schema, API client, extraction, CLI) but delivers zero user value -- no CSV export, no dashboard visualization. Must validate ADO threading model end-to-end before GitHub's 3-endpoint comment model.
 
@@ -193,6 +168,21 @@ Total:                                      32-47 days
 **QA flags:**
 - B-11 resolved: comments Phase 1 is metrics-first (summary cards, trend, repo breakdown, coverage/capped state)
 - Forward-compatibility risk: ADO thread resolution status model may need redesign for GitHub
+
+---
+
+### #4 Reviewer Phase 2 / Combined Semantics Follow-Through (Priority: LOW)
+
+**Why fourth:** Reviewer Phase 1 is already implemented. What remains is cleanup and product follow-through, not foundational feature work.
+
+Remaining items:
+1. decide reviewer + repo combined semantics
+2. decide reviewer + team combined semantics
+3. document multi-reviewer overlap explicitly
+4. optionally design reviewer dropdown scalability improvements
+5. defer review-latency work until `reviewed_at` is a real persisted field
+
+This is intentionally smaller than the original reviewer implementation tranche.
 
 ---
 
@@ -244,26 +234,26 @@ Total:                                      32-47 days
 | File | Features |
 |------|----------|
 | `src/.../transform/aggregators.py` | #1, #2, #3, #4 |
-| `src/.../persistence/models.py` | #2 (reviewer schema), #4 (CSV schemas) |
-| `src/.../transform/csv_generator.py` | #4 |
+| `src/.../persistence/models.py` | #3 (CSV schemas), #4 (`reviewed_at` Phase 2 note) |
+| `src/.../transform/csv_generator.py` | #3 |
 | `src/.../extractor/ado_client.py` | #5 (refactor to protocol) |
 | `src/.../cli.py` | #4 (docs), #5 (--source flag) |
 | `scripts/generate-synthetic-dataset.py` | #1, #3 |
-| `tests/unit/test_aggregators.py` | #1, #2, #3 |
+| `tests/unit/test_aggregators.py` | #1, #2, #4 |
 
 ### Frontend (TypeScript) -- touched by multiple features
 
 | File | Features |
 |------|----------|
-| `extension/ui/modules/metrics.ts` | #1, #2, #3 |
-| `extension/ui/modules/filters.ts` | #1, #2 |
-| `extension/ui/schemas/rollup.schema.ts` | #1, #2, #3 |
-| `extension/ui/dataset-loader.ts` | #1, #2, #3 |
-| `extension/ui/index.html` | #1, #2, #4 |
+| `extension/ui/modules/metrics.ts` | #1, #2, #4 |
+| `extension/ui/modules/filters.ts` | #1, #4 |
+| `extension/ui/schemas/rollup.schema.ts` | #1, #2, #4 |
+| `extension/ui/dataset-loader.ts` | #1, #2, #4 |
+| `extension/ui/index.html` | #1, #3, #4 |
 
 ### Merge Conflict Risk
 
-Features #1 (Author) and #2 (Reviewer) modify the same files (`aggregators.py`, `metrics.ts`, `rollup.schema.ts`, `filters.ts`). If parallelized, coordinate carefully or run sequentially.
+Features #1 (Author) and #4 (Reviewer follow-through) still touch overlapping files (`aggregators.py`, `metrics.ts`, `rollup.schema.ts`, `filters.ts`). Coordinate if parallelized.
 
 ---
 
@@ -271,13 +261,13 @@ Features #1 (Author) and #2 (Reviewer) modify the same files (`aggregators.py`, 
 
 | Pattern | Source | Reusable By |
 |---------|--------|-------------|
-| `_generate_*_slice()` groupby testing | `test_aggregators.py:TestTeamSlicing` | #1, #2 |
+| `_generate_*_slice()` groupby testing | `test_aggregators.py:TestTeamSlicing` | #1, #4 |
 | Cross-dim consistency invariant | `test_aggregators.py:TestTeamRepoSlicing:1724` | #3 |
 | Truncation + min sample size guards | `test_aggregators.py:1826-1929` | #3 |
-| Performance gate (30s budget) | `test_aggregators.py:2181` | #1, #2, #5 |
+| Performance gate (30s budget) | `test_aggregators.py:2181` | #1, #4, #5 |
 | API client mocking | `test_comments_extraction.py` | #5 |
 | CSV schema contract | `test_csv_contract.py` | #4 |
-| FilterState URL serialization | `filters.test.ts:71-80` | #1, #2 |
+| FilterState URL serialization | `filters.test.ts:71-80` | #1, #4 |
 | Cross-dim exact lookup tests | `metrics.test.ts:982-1294` | #3 |
 | Legacy backward compatibility | `extension/tests/fixtures/legacy-datasets/` | All |
 | Cross-stack round-trip | `synthetic-fixtures.test.ts` | #3, #5 |
