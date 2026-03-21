@@ -142,6 +142,21 @@ describe("reviewer-activity module", () => {
       expect(container.innerHTML).toContain("No reviewer data available");
     });
 
+    it("uses reviewer-activity copy when reviewer filter is active", () => {
+      renderReviewerActivity(container, createRollups(2), {
+        reviewerFilterActive: true,
+      });
+
+      expect(container.innerHTML).toContain("Review activity per week");
+      expect(container.innerHTML).toContain('title="2025-W01: 3 reviews"');
+    });
+
+    it("shows reviewer-activity no-data message when reviewer filter is active", () => {
+      renderReviewerActivity(container, [], { reviewerFilterActive: true });
+
+      expect(container.innerHTML).toContain("No review activity available");
+    });
+
     it("handles null container gracefully", () => {
       expect(() => {
         renderReviewerActivity(null, createRollups(4));

@@ -86,6 +86,12 @@ describe("filters module", () => {
       const result = parseFiltersFromUrl(params);
       expect(result.reviewers).toEqual(["user-1"]);
     });
+
+    it("ignores blank reviewer values and keeps the first non-empty reviewer", () => {
+      const params = new URLSearchParams("reviewers=, ,user-2,user-3");
+      const result = parseFiltersFromUrl(params);
+      expect(result.reviewers).toEqual(["user-2"]);
+    });
   });
 
   describe("serializeFiltersToUrl", () => {
@@ -112,6 +118,15 @@ describe("filters module", () => {
 
       expect(params.has("repos")).toBe(false);
       expect(params.has("teams")).toBe(false);
+      expect(params.has("reviewers")).toBe(false);
+    });
+
+    it("deletes reviewers param when first reviewer value is blank", () => {
+      const params = new URLSearchParams("reviewers=old-reviewer");
+      const state: FilterState = { repos: [], teams: [], reviewers: [""] };
+
+      serializeFiltersToUrl(state, params);
+
       expect(params.has("reviewers")).toBe(false);
     });
   });

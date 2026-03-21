@@ -119,6 +119,19 @@ COMMANDS: tuple[CommandSpec, ...] = (
         cwd=EXTENSION_ROOT,
     ),
     CommandSpec(
+        "Local patch coverage parity",
+        (
+            "__PYTHON__",
+            "scripts/check_patch_coverage.py",
+            "--base-ref",
+            "origin/main",
+            "--python-coverage",
+            "coverage.xml",
+            "--ts-coverage",
+            "extension/coverage/lcov.info",
+        ),
+    ),
+    CommandSpec(
         "Extension smoke tests",
         (PNPM_SENTINEL, "run", "test:smoke"),
         cwd=EXTENSION_ROOT,

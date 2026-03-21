@@ -1283,6 +1283,7 @@ class TestReviewerSlicing:
             ("reviewer1", "Reviewer One", "reviewer1@test.com"),
             ("reviewer2", "Reviewer Two", "reviewer2@test.com"),
             ("reviewer3", "Reviewer Three", "reviewer3@test.com"),
+            ("reviewer4", "Reviewer Four", "reviewer4@test.com"),
         ]
         for user in users:
             db.execute(
@@ -1421,6 +1422,28 @@ class TestReviewerSlicing:
         assert reviewer_three["approval_rate"] == 1.0
         assert reviewer_three["authors_count"] == 1
         assert reviewer_three["repositories_count"] == 1
+
+        assert "reviewer4" not in week_data["by_reviewer"]
+
+    def test_pending_only_reviewer_rows_are_excluded_from_activity(
+        self, db_with_reviewers: tuple[DatabaseManager, Path], tmp_path: Path
+    ) -> None:
+        db, _ = db_with_reviewers
+        db.execute(
+            "INSERT INTO reviewers (pull_request_uid, user_id, vote, repository_id) VALUES (?, ?, ?, ?)",
+            ("repo1-1", "reviewer4", 0, "repo1"),
+        )
+        db.connection.commit()
+
+        output_dir = tmp_path / "output"
+        generator = AggregateGenerator(db, output_dir)
+        generator.generate_all()
+
+        week_file = output_dir / "aggregates" / "weekly_rollups" / "2026-W02.json"
+        with week_file.open() as f:
+            week_data = json.load(f)
+
+        assert "reviewer4" not in week_data["by_reviewer"]
 
     def test_no_reviewer_data_omits_by_reviewer(self, tmp_path: Path) -> None:
         db_path = tmp_path / "no_reviewers.sqlite"

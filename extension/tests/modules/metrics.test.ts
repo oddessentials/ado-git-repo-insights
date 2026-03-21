@@ -339,6 +339,72 @@ describe("metrics module", () => {
       expect(result[0].reviewers_count).toBe(7);
     });
 
+    it("returns zero values when reviewer filter is active but by_reviewer is missing", () => {
+      const result = applyFiltersToRollups([baseRollup], {
+        repos: [],
+        teams: [],
+        reviewers: ["reviewer-1"],
+      });
+
+      expect(result[0].pr_count).toBe(0);
+      expect(result[0].authors_count).toBe(0);
+      expect(result[0].reviewers_count).toBe(0);
+      expect(result[0].cycle_time_p50).toBeNull();
+      expect(result[0].cycle_time_p90).toBeNull();
+    });
+
+    it("returns zero values when the selected reviewer is not found", () => {
+      const reviewerRollup = {
+        ...baseRollup,
+        by_reviewer: {
+          "reviewer-2": {
+            reviewed_prs: 3,
+            reviews_count: 4,
+            approval_rate: 0.5,
+            authors_count: 2,
+            repositories_count: 1,
+          },
+        },
+      } as Rollup;
+
+      const result = applyFiltersToRollups([reviewerRollup], {
+        repos: [],
+        teams: [],
+        reviewers: ["reviewer-1"],
+      });
+
+      expect(result[0].pr_count).toBe(0);
+      expect(result[0].authors_count).toBe(0);
+      expect(result[0].reviewers_count).toBe(0);
+    });
+
+    it("ignores reviewer entries with null approval_rate when computing reviewer-only metrics", () => {
+      const reviewerRollup = {
+        ...baseRollup,
+        by_reviewer: {
+          "reviewer-1": {
+            reviewed_prs: 4,
+            reviews_count: 6,
+            approval_rate: null,
+            authors_count: 3,
+            repositories_count: 2,
+          },
+        },
+      } as Rollup;
+
+      const result = applyFiltersToRollups([reviewerRollup], {
+        repos: [],
+        teams: [],
+        reviewers: ["reviewer-1"],
+      });
+
+      expect(result[0].pr_count).toBe(4);
+      expect(result[0].reviewers_count).toBe(6);
+      expect(result[0].authors_count).toBe(3);
+      expect(result[0].cycle_time_p50).toBeNull();
+      expect(result[0].cycle_time_p90).toBeNull();
+    });
+
     it("returns zero counts for unknown repo filter", () => {
       const result = applyFiltersToRollups([baseRollup], {
         repos: ["unknown-repo"],
