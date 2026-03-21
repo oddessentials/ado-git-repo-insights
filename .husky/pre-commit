@@ -17,6 +17,25 @@ else
     exit 1
 fi
 
+if [ "$OS" = "Windows_NT" ]; then
+    if command -v pwsh >/dev/null 2>&1; then
+        POWERSHELL_BIN="pwsh"
+    elif command -v powershell >/dev/null 2>&1; then
+        POWERSHELL_BIN="powershell"
+    else
+        echo ""
+        echo "[pre-commit] ❌ PowerShell not found for ACL health check"
+        exit 1
+    fi
+
+    echo "[pre-commit] Checking ACL health on repo metadata..."
+    if ! "$POWERSHELL_BIN" -NoProfile -ExecutionPolicy Bypass -File "scripts/check-git-acl-health.ps1"; then
+        echo ""
+        echo "[pre-commit] ❌ ACL health check failed"
+        exit 1
+    fi
+fi
+
 # ALWAYS run global fixers (end-of-file, trailing-whitespace) on staged files
 # This prevents the pre-push --all-files from modifying unstaged files
 echo "[pre-commit] Running formatting checks on staged files..."
