@@ -164,37 +164,36 @@ echo "[pre-push] ✅ Marketplace asset validation passed"
 echo ""
 echo "[pre-push] Running PR preflight..."
 
-PREFLIGHT_PYTHON=""
-PREFLIGHT_PYTHON_ARG=""
+BOOTSTRAP_PYTHON=""
+BOOTSTRAP_PYTHON_ARG=""
 
-if command -v py >/dev/null 2>&1 && py -3.10 -c "import sys" >/dev/null 2>&1; then
-    PREFLIGHT_PYTHON="py"
-    PREFLIGHT_PYTHON_ARG="-3.10"
-elif command -v python3.10 >/dev/null 2>&1; then
-    PREFLIGHT_PYTHON="python3.10"
+if [ -n "${PR_PREFLIGHT_PYTHON:-}" ] && { [ -x "$PR_PREFLIGHT_PYTHON" ] || command -v "$PR_PREFLIGHT_PYTHON" >/dev/null 2>&1; }; then
+    BOOTSTRAP_PYTHON="$PR_PREFLIGHT_PYTHON"
+elif command -v python3 >/dev/null 2>&1; then
+    BOOTSTRAP_PYTHON="python3"
 elif command -v python >/dev/null 2>&1; then
-    PY_MINOR=$(python -c "import sys; print(f'{sys.version_info.major}.{sys.version_info.minor}')" 2>/dev/null || true)
-    if [ "$PY_MINOR" = "3.10" ]; then
-        PREFLIGHT_PYTHON="python"
-    fi
+    BOOTSTRAP_PYTHON="python"
+elif command -v py >/dev/null 2>&1 && py -3 -c "import sys" >/dev/null 2>&1; then
+    BOOTSTRAP_PYTHON="py"
+    BOOTSTRAP_PYTHON_ARG="-3"
 fi
 
-if [ -z "$PREFLIGHT_PYTHON" ]; then
+if [ -z "$BOOTSTRAP_PYTHON" ]; then
     echo ""
-    echo "[pre-push] ❌ Could not find Python 3.10 for PR preflight"
-    echo "[pre-push] Install Python 3.10 or set PR_PREFLIGHT_PYTHON before pushing"
+    echo "[pre-push] ❌ Could not find a Python interpreter to start PR preflight"
+    echo "[pre-push] Install Python or set PR_PREFLIGHT_PYTHON to a launcher path"
     exit 1
 fi
 
-if [ -n "$PREFLIGHT_PYTHON_ARG" ]; then
-    "$PREFLIGHT_PYTHON" "$PREFLIGHT_PYTHON_ARG" scripts/run_pr_preflight.py
+if [ -n "$BOOTSTRAP_PYTHON_ARG" ]; then
+    "$BOOTSTRAP_PYTHON" "$BOOTSTRAP_PYTHON_ARG" scripts/run_pr_preflight.py
 else
-    "$PREFLIGHT_PYTHON" scripts/run_pr_preflight.py
+    "$BOOTSTRAP_PYTHON" scripts/run_pr_preflight.py
 fi
 if [ $? -ne 0 ]; then
     echo ""
     echo "[pre-push] ❌ Push blocked: PR preflight failed"
-    echo "[pre-push] Run 'scripts/run_pr_preflight.py --self-check' or rerun the preflight with Python 3.10 to reproduce"
+    echo "[pre-push] Run 'scripts/run_pr_preflight.py --self-check' to verify the local runner"
     exit 1
 fi
 
