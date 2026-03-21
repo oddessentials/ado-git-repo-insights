@@ -13,6 +13,7 @@ to avoid Windows-specific lock and cleanup failures in the repo root.
 
 from __future__ import annotations
 
+import argparse
 import os
 import shutil
 import subprocess
@@ -34,6 +35,23 @@ class CommandSpec:
     command: tuple[str, ...]
     cwd: Path = REPO_ROOT
     extra_env: dict[str, str] | None = None
+
+
+@dataclass(frozen=True)
+class CommandResult:
+    command: tuple[str, ...]
+    returncode: int
+    stdout: str
+    stderr: str
+
+
+def safe_print(text: str = "") -> None:
+    try:
+        print(text)
+    except UnicodeEncodeError:
+        encoding = sys.stdout.encoding or "utf-8"
+        sanitized = text.encode(encoding, errors="replace").decode(encoding)
+        print(sanitized)
 
 
 def cache_dir(name: str) -> Path:
@@ -159,6 +177,55 @@ def probe_python_version(executable: str) -> str | None:
     return probe.stdout.strip()
 
 
+def run_subprocess(
+    command: list[str],
+    *,
+    cwd: Path,
+    env: dict[str, str] | None = None,
+) -> CommandResult:
+    # SECURITY: command lists are composed only from repo-owned CommandSpec entries
+    # plus locally resolved tool paths; shell=False is preserved throughout.
+    completed = subprocess.run(  # noqa: S603 - commands are repo-controlled
+        command,
+        cwd=cwd,
+        env=env,
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        errors="replace",
+        stdin=subprocess.DEVNULL,
+        check=False,
+    )
+    return CommandResult(
+        command=tuple(command),
+        returncode=completed.returncode,
+        stdout=completed.stdout,
+        stderr=completed.stderr,
+    )
+
+
+def render_command(command: tuple[str, ...] | list[str]) -> str:
+    return " ".join(command)
+
+
+def emit_output(prefix: str, text: str) -> None:
+    if not text.strip():
+        return
+    safe_print(f"{prefix}:")
+    safe_print(text.rstrip())
+
+
+def require_success(result: CommandResult, *, step_name: str) -> None:
+    if result.returncode == 0:
+        return
+    safe_print(f"\n[ERROR] {step_name} failed")
+    safe_print(f"Command: {render_command(result.command)}")
+    safe_print(f"Exit code: {result.returncode}")
+    emit_output("stdout", result.stdout)
+    emit_output("stderr", result.stderr)
+    raise SystemExit(result.returncode)
+
+
 def resolve_baseline_python() -> str:
     current_version = f"{sys.version_info.major}.{sys.version_info.minor}"
     if current_version == BASELINE_PYTHON:
@@ -240,8 +307,36 @@ def ensure_node_child_processes_work() -> None:
     )
 
 
+def check_runner_self(
+    python_executable: str,
+    pnpm_executable: str,
+    *,
+    verbose: bool,
+) -> None:
+    checks = (
+        (
+            "Baseline Python subprocess",
+            [python_executable, "-c", "print('python-ok')"],
+        ),
+        (
+            "pnpm availability",
+            [pnpm_executable, "--version"],
+        ),
+    )
+
+    for name, command in checks:
+        result = run_subprocess(command, cwd=REPO_ROOT)
+        require_success(result, step_name=name)
+        if verbose:
+            emit_output("stdout", result.stdout)
+
+
 def run_command(
-    spec: CommandSpec, python_executable: str, pnpm_executable: str
+    spec: CommandSpec,
+    python_executable: str,
+    pnpm_executable: str,
+    *,
+    verbose: bool,
 ) -> None:
     env = os.environ.copy()
     if spec.extra_env:
@@ -255,14 +350,15 @@ def run_command(
         for part in spec.command
     ]
 
-    print(f"\n==> {spec.name}")
-    print(f"$ {' '.join(command)}")
-    subprocess.run(  # noqa: S603 - commands are repo-controlled
-        command,
-        cwd=spec.cwd,
-        env=env,
-        check=True,
-    )
+    safe_print(f"\n==> {spec.name}")
+    if verbose:
+        safe_print(f"$ {render_command(command)}")
+        safe_print(f"cwd: {spec.cwd}")
+    result = run_subprocess(command, cwd=spec.cwd, env=env)
+    require_success(result, step_name=spec.name)
+    if verbose:
+        emit_output("stdout", result.stdout)
+        emit_output("stderr", result.stderr)
 
 
 def ensure_tooling() -> None:
@@ -283,22 +379,54 @@ def ensure_paths() -> None:
         path.mkdir(parents=True, exist_ok=True)
 
 
-def main() -> int:
-    python_executable = resolve_baseline_python()
+def parse_args() -> argparse.Namespace:
+    parser = argparse.ArgumentParser(
+        description="Run the authoritative local PR preflight.",
+    )
+    parser.add_argument(
+        "--verbose",
+        action="store_true",
+        help="Print command lines and successful subprocess output.",
+    )
+    parser.add_argument(
+        "--self-check",
+        action="store_true",
+        help="Only validate runner prerequisites and subprocess plumbing.",
+    )
+    return parser.parse_args()
 
-    print("Running local PR preflight")
-    print(f"Repository: {REPO_ROOT}")
-    print(f"Baseline Python: {python_executable}")
-    print(f"Stable temp root: {PREFLIGHT_ROOT}")
+
+def main() -> int:
+    args = parse_args()
+    python_executable = resolve_baseline_python()
+    python_version = probe_python_version(python_executable) or BASELINE_PYTHON
+
+    safe_print("Running local PR preflight")
+    safe_print(f"Baseline Python: {python_version}")
+    safe_print("Stable temp/cache paths: enabled")
+    if args.verbose:
+        safe_print(f"Repository root: {REPO_ROOT}")
+        safe_print(f"Resolved Python: {python_executable}")
+        safe_print(f"Stable temp root: {PREFLIGHT_ROOT}")
 
     ensure_tooling()
     ensure_paths()
     pnpm_executable = resolve_pnpm()
+    check_runner_self(python_executable, pnpm_executable, verbose=args.verbose)
+
+    if args.self_check:
+        safe_print("\n[OK] PR preflight self-check passed")
+        return 0
 
     for spec in COMMANDS:
-        run_command(spec, python_executable, pnpm_executable)
+        run_command(
+            spec,
+            python_executable,
+            pnpm_executable,
+            verbose=args.verbose,
+        )
 
-    print("\n[OK] Local PR preflight passed")
+    safe_print("\n[OK] Local PR preflight passed")
     return 0
 
 

@@ -9,6 +9,7 @@ before push without depending on Codecov's remote analysis.
 from __future__ import annotations
 
 import argparse
+import fnmatch
 import re
 import shutil
 import subprocess
@@ -17,6 +18,7 @@ from collections import defaultdict
 from dataclasses import dataclass
 from pathlib import Path
 
+import yaml
 from defusedxml.ElementTree import parse as parse_xml
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
@@ -83,6 +85,18 @@ def parse_changed_lines(base_ref: str) -> dict[str, set[int]]:
             current_new_line += 1
 
     return dict(changed)
+
+
+def load_ignored_patterns(path: Path) -> list[str]:
+    if not path.exists():
+        return []
+    data = yaml.safe_load(path.read_text(encoding="utf-8")) or {}
+    ignore = data.get("ignore", [])
+    return [str(pattern).replace("\\", "/") for pattern in ignore if pattern]
+
+
+def is_ignored(path: str, patterns: list[str]) -> bool:
+    return any(fnmatch.fnmatch(path, pattern) for pattern in patterns)
 
 
 def parse_python_coverage(path: Path) -> dict[str, dict[int, int]]:
@@ -171,11 +185,27 @@ def main() -> int:
         default=80.0,
         help="Minimum local patch coverage percentage (default: 80.0)",
     )
+    parser.add_argument(
+        "--codecov-config",
+        type=Path,
+        default=REPO_ROOT / "codecov.yml",
+        help="Path to codecov.yml ignore patterns (default: codecov.yml)",
+    )
     args = parser.parse_args()
 
     changed_lines = parse_changed_lines(args.base_ref)
     if not changed_lines:
         print("[OK] No src/ or extension/ui/ changes found for patch coverage.")
+        return 0
+
+    ignore_patterns = load_ignored_patterns(args.codecov_config)
+    changed_lines = {
+        path: lines
+        for path, lines in changed_lines.items()
+        if not is_ignored(path, ignore_patterns)
+    }
+    if not changed_lines:
+        print("[OK] Changed files are excluded by codecov ignore patterns.")
         return 0
 
     python_cov = (

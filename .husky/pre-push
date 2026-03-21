@@ -163,11 +163,45 @@ echo "[pre-push] ✅ Marketplace asset validation passed"
 # =============================================================================
 echo ""
 echo "[pre-push] Running PR preflight..."
-python scripts/run_pr_preflight.py
+
+BOOTSTRAP_PYTHON=""
+BOOTSTRAP_PYTHON_ARG=""
+
+can_run_python() {
+    if [ $# -eq 0 ]; then
+        return 1
+    fi
+    "$@" -c "import sys" >/dev/null 2>&1
+}
+
+if [ -n "${PR_PREFLIGHT_PYTHON:-}" ] && { [ -x "$PR_PREFLIGHT_PYTHON" ] || command -v "$PR_PREFLIGHT_PYTHON" >/dev/null 2>&1; } && can_run_python "$PR_PREFLIGHT_PYTHON"; then
+    BOOTSTRAP_PYTHON="$PR_PREFLIGHT_PYTHON"
+elif command -v py >/dev/null 2>&1 && py -3 -c "import sys" >/dev/null 2>&1; then
+    BOOTSTRAP_PYTHON="py"
+    BOOTSTRAP_PYTHON_ARG="-3"
+elif command -v python3 >/dev/null 2>&1 && can_run_python python3; then
+    BOOTSTRAP_PYTHON="python3"
+elif command -v python >/dev/null 2>&1 && can_run_python python; then
+    BOOTSTRAP_PYTHON="python"
+fi
+
+if [ -z "$BOOTSTRAP_PYTHON" ]; then
+    echo ""
+    echo "[pre-push] ❌ Could not find a Python interpreter to start PR preflight"
+    echo "[pre-push] Install Python or set PR_PREFLIGHT_PYTHON to a launcher path"
+    exit 1
+fi
+
+if [ -n "$BOOTSTRAP_PYTHON_ARG" ]; then
+    "$BOOTSTRAP_PYTHON" "$BOOTSTRAP_PYTHON_ARG" scripts/run_pr_preflight.py
+else
+    "$BOOTSTRAP_PYTHON" scripts/run_pr_preflight.py
+fi
 if [ $? -ne 0 ]; then
     echo ""
     echo "[pre-push] ❌ Push blocked: PR preflight failed"
-    echo "[pre-push] Run 'python scripts/run_pr_preflight.py' to reproduce"
+    echo "[pre-push] Run 'scripts/run_pr_preflight.py --self-check' to diagnose local runner/toolchain issues"
+    echo "[pre-push] Run 'scripts/run_pr_preflight.py --verbose' for full step output"
     exit 1
 fi
 
