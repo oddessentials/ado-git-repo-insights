@@ -128,6 +128,18 @@ export interface Defaults {
   default_date_range_days?: number;
 }
 
+export interface DemoProfile {
+  name: string;
+  version: string;
+  seed?: number;
+  canonical_output_root?: string;
+}
+
+export interface PublishedFiles {
+  direct?: string[];
+  globs?: string[];
+}
+
 /**
  * Dataset manifest structure.
  */
@@ -141,6 +153,8 @@ export interface DatasetManifest {
   run_id: string;
   defaults?: Defaults;
   limits?: Limits;
+  demo_profile?: DemoProfile;
+  published_files?: PublishedFiles;
   features?: Features;
   capabilities?: Capabilities;
   coverage?: Coverage;
@@ -162,6 +176,8 @@ const KNOWN_ROOT_FIELDS = new Set([
   "run_id",
   "defaults",
   "limits",
+  "demo_profile",
+  "published_files",
   "features",
   "capabilities",
   "coverage",
@@ -222,6 +238,13 @@ const KNOWN_LIMITS_FIELDS = new Set([
   "max_date_range_days_soft", // Production field
 ]);
 const KNOWN_DEFAULTS_FIELDS = new Set(["default_date_range_days"]);
+const KNOWN_DEMO_PROFILE_FIELDS = new Set([
+  "name",
+  "version",
+  "seed",
+  "canonical_output_root",
+]);
+const KNOWN_PUBLISHED_FILES_FIELDS = new Set(["direct", "globs"]);
 
 // ============================================================================
 // Validation Functions
@@ -809,6 +832,116 @@ function validateDefaults(
   return { errors, warnings };
 }
 
+/**
+ * Validate demo_profile section.
+ */
+function validateDemoProfile(
+  data: unknown,
+  path: string,
+  strict: boolean,
+): { errors: ValidationError[]; warnings: ValidationWarning[] } {
+  const errors: ValidationError[] = [];
+  const warnings: ValidationWarning[] = [];
+
+  if (!isObject(data)) {
+    errors.push(createError(path, "object", getTypeName(data)));
+    return { errors, warnings };
+  }
+
+  const nameReq = validateRequired(data, "name", path);
+  if (nameReq) errors.push(nameReq);
+  else {
+    const err = validateString(data.name, buildPath(path, "name"));
+    if (err) errors.push(err);
+  }
+
+  const versionReq = validateRequired(data, "version", path);
+  if (versionReq) errors.push(versionReq);
+  else {
+    const err = validateString(data.version, buildPath(path, "version"));
+    if (err) errors.push(err);
+  }
+
+  if ("seed" in data && data.seed !== undefined) {
+    const err = validateNonNegativeNumber(data.seed, buildPath(path, "seed"));
+    if (err) errors.push(err);
+  }
+
+  if ("canonical_output_root" in data && data.canonical_output_root !== undefined) {
+    const err = validateString(
+      data.canonical_output_root,
+      buildPath(path, "canonical_output_root"),
+    );
+    if (err) errors.push(err);
+  }
+
+  const unknown = findUnknownFields(data, KNOWN_DEMO_PROFILE_FIELDS, path, strict);
+  errors.push(...unknown.errors);
+  warnings.push(...unknown.warnings);
+
+  return { errors, warnings };
+}
+
+/**
+ * Validate published_files section.
+ */
+function validatePublishedFiles(
+  data: unknown,
+  path: string,
+  strict: boolean,
+): { errors: ValidationError[]; warnings: ValidationWarning[] } {
+  const errors: ValidationError[] = [];
+  const warnings: ValidationWarning[] = [];
+
+  if (!isObject(data)) {
+    errors.push(createError(path, "object", getTypeName(data)));
+    return { errors, warnings };
+  }
+
+  if ("direct" in data && data.direct !== undefined) {
+    const err = validateArray(data.direct, buildPath(path, "direct"));
+    if (err) {
+      errors.push(err);
+    } else {
+      const directEntries = data.direct as unknown[];
+      for (const [index, item] of directEntries.entries()) {
+        const itemError = validateString(
+          item,
+          buildPath(buildPath(path, "direct"), String(index)),
+        );
+        if (itemError) errors.push(itemError);
+      }
+    }
+  }
+
+  if ("globs" in data && data.globs !== undefined) {
+    const err = validateArray(data.globs, buildPath(path, "globs"));
+    if (err) {
+      errors.push(err);
+    } else {
+      const globEntries = data.globs as unknown[];
+      for (const [index, item] of globEntries.entries()) {
+        const itemError = validateString(
+          item,
+          buildPath(buildPath(path, "globs"), String(index)),
+        );
+        if (itemError) errors.push(itemError);
+      }
+    }
+  }
+
+  const unknown = findUnknownFields(
+    data,
+    KNOWN_PUBLISHED_FILES_FIELDS,
+    path,
+    strict,
+  );
+  errors.push(...unknown.errors);
+  warnings.push(...unknown.warnings);
+
+  return { errors, warnings };
+}
+
 // ============================================================================
 // Main Validator
 // ============================================================================
@@ -936,6 +1069,22 @@ export function validateManifest(
     warnings.push(...result.warnings);
   }
 
+  if ("demo_profile" in data && data.demo_profile !== undefined) {
+    const result = validateDemoProfile(data.demo_profile, "demo_profile", strict);
+    errors.push(...result.errors);
+    warnings.push(...result.warnings);
+  }
+
+  if ("published_files" in data && data.published_files !== undefined) {
+    const result = validatePublishedFiles(
+      data.published_files,
+      "published_files",
+      strict,
+    );
+    errors.push(...result.errors);
+    warnings.push(...result.warnings);
+  }
+
   if ("features" in data && data.features !== undefined) {
     const result = validateFeatures(data.features, "features", strict);
     errors.push(...result.errors);
@@ -997,6 +1146,8 @@ export function normalizeManifest(data: unknown): DatasetManifest {
       max_weekly_files: 52,
       max_distribution_files: 5,
     },
+    demo_profile: obj.demo_profile as DemoProfile | undefined,
+    published_files: obj.published_files as PublishedFiles | undefined,
     features: (obj.features as Features) ?? {},
     capabilities: (obj.capabilities as Capabilities) ?? {},
     coverage: obj.coverage as Coverage | undefined,

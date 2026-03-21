@@ -135,6 +135,16 @@ export interface ManifestSchema {
     predictions?: { path: string };
     ai_insights?: { path: string };
   };
+  demo_profile?: {
+    name?: string;
+    version?: string;
+    seed?: number;
+    canonical_output_root?: string;
+  };
+  published_files?: {
+    direct?: string[];
+    globs?: string[];
+  };
   features?: Record<string, boolean>;
   capabilities?: {
     author_filters?: boolean;

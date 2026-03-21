@@ -31,6 +31,25 @@ The dataset MUST follow this structure, with `dataset-manifest.json` at the arti
 - The deprecated `aggregates/aggregates` path is **no longer supported**
 - All `aggregate_index[*].path` values resolve relative to the manifest location
 
+## Demo Publication Boundary
+
+The enterprise demo dataset has one canonical build output root:
+
+`artifacts/demo-enterprise/data/`
+
+`docs/data/` is a promoted mirror of that canonical output for GitHub Pages.
+It is generated-only and MUST NOT be hand-edited.
+
+Every published file in the enterprise demo dataset MUST be manifest-addressable
+through one of these mechanisms:
+
+1. `aggregate_index[*].path`
+2. `published_files.direct`
+3. `published_files.globs` for bounded additive collections
+
+The enterprise demo currently uses `published_files.globs` for auxiliary
+comments batches under `aggregates/comments/comments-batch-*.json`.
+
 ## Output Boundary
 
 There are exactly two output classes:
@@ -116,6 +135,21 @@ only used when the explicit capability field is absent.
   },
   "defaults": { "default_date_range_days": 90 },
   "limits": { "max_date_range_days_soft": 730 },
+  "demo_profile": {
+    "name": "enterprise-demo",
+    "version": "2.0.0",
+    "seed": 42,
+    "canonical_output_root": "artifacts/demo-enterprise"
+  },
+  "published_files": {
+    "direct": [
+      "dataset-manifest.json",
+      "aggregates/dimensions.json",
+      "predictions/trends.json",
+      "insights/summary.json"
+    ],
+    "globs": ["aggregates/comments/comments-batch-*.json"]
+  },
   "features": { "teams": bool, "cross_dimensional": bool, "comments": bool, "predictions": bool, "ai_insights": bool },
   "capabilities": {
     "author_filters": bool,
@@ -146,6 +180,14 @@ only used when the explicit capability field is absent.
 3. `status = "partial"` when comment data exists but extraction was capped
 4. `capped = true` means the dataset intentionally contains bounded comments coverage
 5. Frontend/operator surfaces may display comments coverage, but comments remain auxiliary and non-contract for PowerBI CSV consumers
+
+### Enterprise Demo Metadata Rules
+
+1. `demo_profile.name` identifies the canonical synthetic profile
+2. `demo_profile.version` MUST be bumped when demo behavior changes per [DEMO-DATA-VERSIONING.md](E:/projects/ado-git-repo-insights/docs/DEMO-DATA-VERSIONING.md)
+3. `demo_profile.canonical_output_root` identifies the canonical build root
+4. `published_files.direct` MUST list every non-pattern-based published file outside indexed collections
+5. `published_files.globs` MAY be used only for bounded additive collections with deterministic naming
 
 ## Weekly Rollup Schema (v2)
 

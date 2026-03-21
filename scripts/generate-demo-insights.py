@@ -27,7 +27,7 @@ Requirements:
 
 from __future__ import annotations
 
-import json
+import argparse
 import logging
 import math
 import sys
@@ -37,6 +37,7 @@ from pathlib import Path
 
 from demo_generation_common import (
     FIXED_GENERATED_AT,
+    load_json_file,
     refresh_demo_manifest_features,
     round_float,
     write_json_file,
@@ -64,12 +65,7 @@ ANOMALY_SIGMA = 2.0  # 2 standard deviations
 ANOMALY_ROLLING_WEEKS = 8  # Rolling window for average
 ANOMALY_INACTIVE_WEEKS = 2  # Weeks with no PRs
 
-# Paths
-DATA_DIR = Path(__file__).parent.parent / "docs" / "data"
-ROLLUPS_DIR = DATA_DIR / "aggregates" / "weekly_rollups"
-INSIGHTS_DIR = DATA_DIR / "insights"
-OUTPUT_FILE = INSIGHTS_DIR / "summary.json"
-MANIFEST_FILE = DATA_DIR / "dataset-manifest.json"
+DEFAULT_DATA_DIR = Path(__file__).parent.parent / "docs" / "data"
 # Schema version
 INSIGHTS_SCHEMA_VERSION = 1
 # =============================================================================
@@ -138,13 +134,12 @@ class Insight:
 # =============================================================================
 
 
-def load_weekly_rollups() -> list[WeeklyRollup]:
+def load_weekly_rollups(rollups_dir: Path) -> list[WeeklyRollup]:
     """Load all weekly rollups with full repo breakdown."""
     rollups = []
 
-    for rollup_file in sorted(ROLLUPS_DIR.glob("*.json")):
-        with open(rollup_file, encoding="utf-8") as f:
-            data = json.load(f)
+    for rollup_file in sorted(rollups_dir.glob("*.json")):
+        data = load_json_file(rollup_file)
 
         repos = []
         for repo_name, repo_data in data.get("by_repository", {}).items():
@@ -586,20 +581,39 @@ def detect_anomaly_003(rollups: list[WeeklyRollup]) -> list[Insight]:
 # =============================================================================
 
 
-def main() -> int:
+def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
+    """Parse CLI arguments."""
+    parser = argparse.ArgumentParser(description="Generate deterministic demo insights")
+    parser.add_argument(
+        "--output-root",
+        type=Path,
+        default=DEFAULT_DATA_DIR,
+        help="Root demo dataset directory containing aggregates/",
+    )
+    return parser.parse_args(argv)
+
+
+def main(argv: list[str] | None = None) -> int:
     """Generate insights data."""
+    args = parse_args(argv)
+    data_dir = args.output_root.resolve()
+    rollups_dir = data_dir / "aggregates" / "weekly_rollups"
+    insights_dir = data_dir / "insights"
+    output_file = insights_dir / "summary.json"
+    manifest_file = data_dir / "dataset-manifest.json"
+
     print("Generating demo insights...")
-    print(f"Output: {INSIGHTS_DIR}")
+    print(f"Output: {insights_dir}")
 
     # Verify rollups exist
-    if not ROLLUPS_DIR.exists():
-        print(f"ERROR: Weekly rollups not found at {ROLLUPS_DIR}")
+    if not rollups_dir.exists():
+        print(f"ERROR: Weekly rollups not found at {rollups_dir}")
         print("Please run generate-demo-data.py first.")
         return 1
 
     # Load rollups
     print("\n[1/4] Loading weekly rollups...")
-    rollups = load_weekly_rollups()
+    rollups = load_weekly_rollups(rollups_dir)
     print(f"  Loaded {len(rollups)} weekly rollups")
 
     # Generate insights (T041-T048)
@@ -666,11 +680,11 @@ def main() -> int:
         ],
     }
 
-    write_json_file(OUTPUT_FILE, insights_data)
-    print(f"  Written: {OUTPUT_FILE}")
+    write_json_file(output_file, insights_data)
+    print(f"  Written: {output_file}")
 
     print("  Refreshing dataset-manifest feature flags...")
-    refresh_demo_manifest_features(MANIFEST_FILE, DATA_DIR)
+    refresh_demo_manifest_features(manifest_file, data_dir)
 
     print("\nInsights generation complete!")
 

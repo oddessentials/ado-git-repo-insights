@@ -253,6 +253,8 @@ var PRInsightsDashboard = (() => {
     "run_id",
     "defaults",
     "limits",
+    "demo_profile",
+    "published_files",
     "features",
     "capabilities",
     "coverage",
@@ -320,6 +322,13 @@ var PRInsightsDashboard = (() => {
     // Production field
   ]);
   var KNOWN_DEFAULTS_FIELDS = /* @__PURE__ */ new Set(["default_date_range_days"]);
+  var KNOWN_DEMO_PROFILE_FIELDS = /* @__PURE__ */ new Set([
+    "name",
+    "version",
+    "seed",
+    "canonical_output_root"
+  ]);
+  var KNOWN_PUBLISHED_FILES_FIELDS = /* @__PURE__ */ new Set(["direct", "globs"]);
   function validateWeeklyRollupEntry(data, path, strict) {
     const errors = [];
     const warnings = [];
@@ -737,6 +746,88 @@ var PRInsightsDashboard = (() => {
     warnings.push(...unknown.warnings);
     return { errors, warnings };
   }
+  function validateDemoProfile(data, path, strict) {
+    const errors = [];
+    const warnings = [];
+    if (!isObject(data)) {
+      errors.push(createError(path, "object", getTypeName(data)));
+      return { errors, warnings };
+    }
+    const nameReq = validateRequired(data, "name", path);
+    if (nameReq) errors.push(nameReq);
+    else {
+      const err = validateString(data.name, buildPath(path, "name"));
+      if (err) errors.push(err);
+    }
+    const versionReq = validateRequired(data, "version", path);
+    if (versionReq) errors.push(versionReq);
+    else {
+      const err = validateString(data.version, buildPath(path, "version"));
+      if (err) errors.push(err);
+    }
+    if ("seed" in data && data.seed !== void 0) {
+      const err = validateNonNegativeNumber(data.seed, buildPath(path, "seed"));
+      if (err) errors.push(err);
+    }
+    if ("canonical_output_root" in data && data.canonical_output_root !== void 0) {
+      const err = validateString(
+        data.canonical_output_root,
+        buildPath(path, "canonical_output_root")
+      );
+      if (err) errors.push(err);
+    }
+    const unknown = findUnknownFields(data, KNOWN_DEMO_PROFILE_FIELDS, path, strict);
+    errors.push(...unknown.errors);
+    warnings.push(...unknown.warnings);
+    return { errors, warnings };
+  }
+  function validatePublishedFiles(data, path, strict) {
+    const errors = [];
+    const warnings = [];
+    if (!isObject(data)) {
+      errors.push(createError(path, "object", getTypeName(data)));
+      return { errors, warnings };
+    }
+    if ("direct" in data && data.direct !== void 0) {
+      const err = validateArray(data.direct, buildPath(path, "direct"));
+      if (err) {
+        errors.push(err);
+      } else {
+        const directEntries = data.direct;
+        for (const [index, item] of directEntries.entries()) {
+          const itemError = validateString(
+            item,
+            buildPath(buildPath(path, "direct"), String(index))
+          );
+          if (itemError) errors.push(itemError);
+        }
+      }
+    }
+    if ("globs" in data && data.globs !== void 0) {
+      const err = validateArray(data.globs, buildPath(path, "globs"));
+      if (err) {
+        errors.push(err);
+      } else {
+        const globEntries = data.globs;
+        for (const [index, item] of globEntries.entries()) {
+          const itemError = validateString(
+            item,
+            buildPath(buildPath(path, "globs"), String(index))
+          );
+          if (itemError) errors.push(itemError);
+        }
+      }
+    }
+    const unknown = findUnknownFields(
+      data,
+      KNOWN_PUBLISHED_FILES_FIELDS,
+      path,
+      strict
+    );
+    errors.push(...unknown.errors);
+    warnings.push(...unknown.warnings);
+    return { errors, warnings };
+  }
   function validateManifest(data, strict) {
     const errors = [];
     const warnings = [];
@@ -822,6 +913,20 @@ var PRInsightsDashboard = (() => {
     }
     if ("limits" in data && data.limits !== void 0) {
       const result = validateLimits(data.limits, "limits", strict);
+      errors.push(...result.errors);
+      warnings.push(...result.warnings);
+    }
+    if ("demo_profile" in data && data.demo_profile !== void 0) {
+      const result = validateDemoProfile(data.demo_profile, "demo_profile", strict);
+      errors.push(...result.errors);
+      warnings.push(...result.warnings);
+    }
+    if ("published_files" in data && data.published_files !== void 0) {
+      const result = validatePublishedFiles(
+        data.published_files,
+        "published_files",
+        strict
+      );
       errors.push(...result.errors);
       warnings.push(...result.warnings);
     }

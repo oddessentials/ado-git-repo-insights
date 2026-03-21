@@ -181,6 +181,7 @@ ado-insights dashboard --dataset ./dataset --open
 | [Contributing Guide](CONTRIBUTING.md)                | How to contribute to this project      |
 | [Development Setup](docs/development/setup.md)       | Setting up the development environment |
 | [Testing Guide](docs/development/testing.md)         | Running and writing tests              |
+| [Demo Data Versioning](docs/DEMO-DATA-VERSIONING.md) | Canonical demo build and parity policy |
 | [UI Bundle Sync](docs/development/ui-bundle-sync.md) | Dashboard UI synchronization process   |
 | [Changelog](CHANGELOG.md)                            | Version history and release notes      |
 
@@ -332,6 +333,16 @@ pytest
 # Run linting
 ruff check .
 ```
+
+### Demo Parity Build
+
+The public demo and CLI synthetic demo are governed by one canonical dataset build:
+
+```bash
+python scripts/build-demo-dataset.py
+```
+
+This regenerates `artifacts/demo-enterprise/` and promotes the published mirror under `docs/data/`.
 
 ---
 

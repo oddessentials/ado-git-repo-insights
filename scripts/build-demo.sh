@@ -6,8 +6,8 @@
 # 1. Builds the extension UI bundles (pnpm build:ui)
 # 2. Copies built assets to docs/
 # 3. Injects LOCAL_DASHBOARD_MODE and DATASET_PATH configuration
-# 4. Adds <base href="./"> for relative path resolution
-# 5. Adds synthetic data disclaimer banner
+# 4. Regenerates the canonical enterprise demo dataset and promotes it to docs/data
+# 5. Verifies the published demo surface
 #
 # Usage:
 #     ./scripts/build-demo.sh
@@ -31,7 +31,7 @@ echo "Repository root: ${REPO_ROOT}"
 echo ""
 
 # Step 1: Build extension UI
-echo "[1/4] Building extension UI bundles..."
+echo "[1/5] Building extension UI bundles..."
 cd "${EXTENSION_DIR}"
 
 # Ensure dependencies are installed
@@ -47,7 +47,7 @@ echo "  Build complete."
 echo ""
 
 # Step 2: Copy built assets to docs/
-echo "[2/4] Copying built assets to docs/..."
+echo "[2/5] Copying built assets to docs/..."
 
 # List of files to copy from extension/dist/ui/
 UI_FILES=(
@@ -87,15 +87,21 @@ done
 echo ""
 
 # Step 3: Inject local mode configuration into index.html
-echo "[3/4] Injecting local mode configuration..."
+echo "[3/5] Injecting local mode configuration..."
 
 # Use separate Python script for cross-platform compatibility
 python "${SCRIPT_DIR}/inject-demo-config.py" "${DOCS_DIR}/index.html"
 
 echo ""
 
-# Step 4: Verify output
-echo "[4/4] Verifying output..."
+# Step 4: Build canonical enterprise demo data and promote to docs/data
+echo "[4/5] Building canonical enterprise demo dataset..."
+python "${SCRIPT_DIR}/build-demo-dataset.py"
+
+echo ""
+
+# Step 5: Verify output
+echo "[5/5] Verifying output..."
 
 # Check required files exist
 REQUIRED_FILES=(

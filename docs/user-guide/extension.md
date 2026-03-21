@@ -10,6 +10,21 @@ This guide walks you through installing and using the **Git Repo Insights** exte
 - **PowerBI-compatible CSVs** — Export data for custom reporting
 - **SQLite Database** — Persistent storage of PR history via pipeline artifacts
 - **Incremental Updates** — Efficient daily extraction with optional backfill
+- **Parity with the CLI dashboard** — The extension and CLI consume the same dashboard bundle contract
+
+## Demo Parity Reference
+
+The published GitHub Pages demo is not a separate product surface. It is built
+from the same dashboard bundle contract used by the extension and is backed by
+the canonical enterprise synthetic dataset generated via:
+
+```bash
+python scripts/build-demo-dataset.py
+```
+
+That dataset is promoted into `docs/data/` for publishing and is intended to
+exercise the same supported dashboard capabilities users should expect in an
+enterprise environment.
 
 ---
 

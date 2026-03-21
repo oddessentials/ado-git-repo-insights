@@ -202,15 +202,16 @@ ado-insights dashboard --dataset ./run_artifacts --open
 Generate synthetic data for UI testing:
 
 ```bash
-# Generate test data
-python scripts/generate-synthetic-dataset.py \
-  --pr-count 100 \
-  --output ./run_artifacts \
-  --seed 42
+# Generate the canonical enterprise demo dataset
+python scripts/build-demo-dataset.py
 
-# Start the dashboard server
-ado-insights dashboard --dataset ./run_artifacts --open
+# Start the dashboard server against the canonical artifact
+ado-insights dashboard --dataset ./artifacts/demo-enterprise/data --open
 ```
+
+`docs/data/` is the published GitHub Pages mirror of the same canonical dataset.
+Use [DEMO-DATA-VERSIONING.md](E:/projects/ado-git-repo-insights/docs/DEMO-DATA-VERSIONING.md)
+for the generation and promotion policy.
 
 Dashboard options:
 - `--port 8080` — HTTP server port (default: 8080)
