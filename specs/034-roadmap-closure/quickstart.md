@@ -96,6 +96,8 @@ pnpm run test:unit -- --testPathPatterns="schema|metrics|dashboard|dataset-loade
 - Write auxiliary comments CSVs only to `csv-output/auxiliary/comments/`.
 - Use explicit capability/version detection in the loader boundary.
 - Loader precedence is manifest capability flags first, schema-version support second, safe defaults last.
+- Author filter UX is searchable single-select only.
+- Author+team constrained mode resolves metrics as author-only with explicit UI signaling.
 - Reviewer combination behavior must be `exact`, `constrained`, or `disallowed-with-ux-signal`; never proportional.
 - Deterministic truncation and explicit coverage state are mandatory when data is partial or bounded.
 

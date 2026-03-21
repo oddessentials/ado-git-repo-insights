@@ -127,7 +127,9 @@ Author + team filter combinations are locked to `constrained` mode.
 
 - Author-only and team-only behavior remain supported.
 - When both author and team are selected, the dashboard must not compute synthetic combined metrics.
-- The UI must surface the constrained behavior explicitly and resolve metrics using the dominant selected supported dimension rather than an estimated intersection.
+- Author is the dominant applied dimension for metric resolution.
+- The selected team value may remain visible in UI state, but it must not change the computed metrics while the constrained notice is active.
+- The UI must surface the constrained behavior explicitly rather than implying an exact or estimated intersection.
 
 ### DD-02: Reviewer Combination Modes
 
@@ -187,6 +189,14 @@ Required filenames:
 - `pr_threads.csv`
 - `pr_comments.csv`
 
+### DD-07: Author Filter UX Mode
+
+Author filtering is locked to searchable single-select UX for this roadmap program.
+
+- Multi-select authors are out of scope.
+- Paging or top-N-only author selection is out of scope unless required for rendering support of the searchable single-select control.
+- Tests and docs must reflect single-author active filtering.
+
 ## Phase 1: Design Strategy
 
 ### Slice A: Author Filters
@@ -196,6 +206,7 @@ Required filenames:
 - Add dashboard filter state, UI, and metrics behavior without mutating existing repository/team/reviewer flows.
 - Keep display-name handling strictly label-based with fallback behavior for missing or renamed users.
 - Enforce locked `constrained` author+team behavior from DD-01.
+- Implement searchable single-select author UX from DD-07.
 
 ### Slice B: Exact Author x Repository
 

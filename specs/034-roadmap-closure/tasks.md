@@ -43,7 +43,7 @@
 
 ## Phase 3: User Story 1 - Filter by PR Author (Priority: P1) 🎯 MVP
 
-**Goal**: Deliver end-to-end author filtering with canonical `user_id` identity, loader-backed capability detection, and constrained author+team semantics.
+**Goal**: Deliver end-to-end author filtering with canonical `user_id` identity, loader-backed capability detection, searchable single-select UX, and constrained author+team semantics.
 
 **Independent Test**: Generate rollups with `by_author`, load them into the extension, select a single author, and verify metrics match the authored PR subset while legacy datasets still load safely.
 
@@ -51,19 +51,19 @@
 
 - [ ] T011 [P] [US1] Add backend author slice and identity stability tests in `E:\projects\ado-git-repo-insights\tests\unit\test_aggregators.py`
 - [ ] T012 [P] [US1] Add author rollup schema validation tests in `E:\projects\ado-git-repo-insights\extension\tests\schema\rollup.test.ts`
-- [ ] T013 [P] [US1] Add author filter state and constrained author+team metrics tests in `E:\projects\ado-git-repo-insights\extension\tests\modules\metrics.test.ts`
-- [ ] T014 [P] [US1] Add author filter UI visibility and interaction tests in `E:\projects\ado-git-repo-insights\extension\tests\dashboard.test.ts`
+- [ ] T013 [P] [US1] Add author filter state, searchable single-select UX, and constrained author+team metrics tests in `E:\projects\ado-git-repo-insights\extension\tests\modules\metrics.test.ts`
+- [ ] T014 [P] [US1] Add author filter UI visibility, searchable single-select interaction, and constrained-state notice tests in `E:\projects\ado-git-repo-insights\extension\tests\dashboard.test.ts`
 
 ### Implementation for User Story 1
 
 - [ ] T015 [US1] Implement canonical `by_author` weekly rollup generation in `E:\projects\ado-git-repo-insights\src\ado_git_repo_insights\transform\aggregators.py`
 - [ ] T016 [US1] Extend dimensions generation with stable author labeling rules in `E:\projects\ado-git-repo-insights\src\ado_git_repo_insights\transform\aggregators.py`
 - [ ] T017 [US1] Add `by_author` support and capability-aware normalization in `E:\projects\ado-git-repo-insights\extension\ui\schemas\rollup.schema.ts`
-- [ ] T018 [US1] Add author filter state serialization and constrained author+team behavior in `E:\projects\ado-git-repo-insights\extension\ui\modules\filters.ts`
+- [ ] T018 [US1] Add author filter state serialization and author-dominant constrained author+team behavior in `E:\projects\ado-git-repo-insights\extension\ui\modules\filters.ts`
 - [ ] T019 [US1] Add author-aware metrics resolution in `E:\projects\ado-git-repo-insights\extension\ui\modules\metrics.ts`
-- [ ] T020 [US1] Add author filter UI controls and dashboard wiring in `E:\projects\ado-git-repo-insights\extension\ui\index.html`
-- [ ] T021 [US1] Populate author filter options and dashboard interactions in `E:\projects\ado-git-repo-insights\extension\ui\dashboard.ts`
-- [ ] T022 [US1] Document author filter behavior and constrained author+team semantics in `E:\projects\ado-git-repo-insights\docs\user-guide\extension.md`
+- [ ] T020 [US1] Add searchable single-select author filter UI controls and constrained-state messaging in `E:\projects\ado-git-repo-insights\extension\ui\index.html`
+- [ ] T021 [US1] Populate searchable author filter options and dashboard interactions in `E:\projects\ado-git-repo-insights\extension\ui\dashboard.ts`
+- [ ] T022 [US1] Document searchable single-select author filter behavior and author-dominant constrained author+team semantics in `E:\projects\ado-git-repo-insights\docs\user-guide\extension.md`
 
 **Checkpoint**: User Story 1 is independently functional and testable.
 
@@ -134,7 +134,7 @@
 
 - [ ] T046 [P] [US4] Add reviewer constrained/disallowed combination tests in `E:\projects\ado-git-repo-insights\extension\tests\modules\metrics.test.ts`
 - [ ] T047 [P] [US4] Add reviewer combination UX tests in `E:\projects\ado-git-repo-insights\extension\tests\dashboard.test.ts`
-- [ ] T048 [P] [US4] Add roadmap closure evidence artifact validation test in `E:\projects\ado-git-repo-insights\tests\integration\test_golden_outputs.py`
+- [ ] T048 [P] [US4] Add roadmap closure evidence artifact validation test in `E:\projects\ado-git-repo-insights\tests\integration\test_roadmap_closure_evidence.py`
 
 ### Implementation for User Story 4
 
@@ -162,6 +162,7 @@
 - [ ] T061 [P] Run full extension build/type/unit verification for roadmap closure in `E:\projects\ado-git-repo-insights\specs\034-roadmap-closure\quickstart.md`
 - [ ] T062 Reconcile AGENTS/spec docs if implementation changed planned technology boundaries in `E:\projects\ado-git-repo-insights\AGENTS.md`
 - [ ] T063 Perform final documentation pass on dataset and extension guidance in `E:\projects\ado-git-repo-insights\docs\reference\dataset-contract.md`
+- [ ] T064 [P] Run explicit PowerBI import/regression-confidence verification for unchanged core contract CSVs in `E:\projects\ado-git-repo-insights\specs\034-roadmap-closure\evidence\005-roadmap-finalization-evidence.md`
 
 ---
 

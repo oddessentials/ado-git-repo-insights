@@ -31,10 +31,17 @@ The following decisions are locked by this specification and are not deferred to
 - Existing PowerBI-facing CSVs remain the core contract surface. Author and comments work MUST NOT mutate column names, column order, or required headers in existing core CSVs.
 - New comment CSVs, if emitted, are auxiliary exports rather than part of the existing PowerBI compatibility boundary unless a future separately-versioned contract change explicitly promotes them.
 - Author identity is keyed by immutable Azure DevOps `user_id` from persisted PR data. Display names are labels only.
+- Author filter UX for this roadmap program is a searchable single-select control. Multi-select author filtering is out of scope.
+- Author + team combinations use `constrained` mode with author as the dominant applied dimension. If both are selected, metrics resolve as author-only and the UI must signal that team filtering is not being combined.
 - New cross-dimensional slices must remain additive and bounded. No unbounded cartesian expansion is allowed.
+- Author x repository truncation uses this exact retained-entry order: `pr_count DESC`, then `author_id ASC`, then `repository_name ASC`.
 - Reviewer combined-filter behavior must use one of three explicit modes only: `exact`, `constrained`, or `disallowed-with-ux-signal`. Proportional fallback is forbidden for reviewer combinations in this roadmap program.
+- Reviewer + repository is locked to `constrained`. Reviewer + team is locked to `disallowed-with-ux-signal`.
 - Legacy dataset compatibility must be handled through explicit capability/version detection at the loader boundary, not through ad hoc downstream conditional logic.
+- Loader capability detection uses manifest capability flags first, schema-version support second, and safe defaults only when both are absent.
+- Auxiliary comments CSVs must be emitted only under `csv-output/auxiliary/comments/` as `pr_threads.csv` and `pr_comments.csv`.
 - Roadmap closure evidence must be produced in a repeatable artifact format that can be reviewed and re-run.
+- Checked-in roadmap closure evidence must live under `specs/034-roadmap-closure/evidence/` using the filename pattern `NNN-<roadmap-item>-evidence.md`.
 
 ## User Scenarios & Testing *(mandatory)*
 
@@ -117,7 +124,7 @@ A maintainer can point to a final evidence-backed roadmap state where reviewer c
 - **FR-001**: The roadmap closure program MUST treat current repository state as authoritative and MUST NOT re-spec already shipped reviewer Phase 1 or team x repository work as unfinished implementation.
 - **FR-002**: The program MUST deliver author filtering as a full-stack feature across aggregation, schema, dataset loading, dashboard state, UI controls, and tests.
 - **FR-003**: Author filtering MUST use immutable Azure DevOps `user_id` as the canonical author identity key for aggregation and cross-dimensional joins.
-- **FR-004**: The program MUST define a product decision for author combined semantics before implementation tests are finalized. At minimum this includes author + team behavior and author dropdown scalability behavior.
+- **FR-004**: The program MUST implement locked author filter semantics: searchable single-select author UX and `constrained` author + team behavior where author remains the applied dimension and the UI signals the constraint explicitly.
 - **FR-005**: The program MUST deliver exact author x repository support via additive nested slices and MUST preserve backward-compatible fallback behavior for datasets where those slices are absent.
 - **FR-006**: The sum of all repository entries within `by_author_and_repo[author]` MUST equal the same author’s `by_author.pr_count` for the same rollup.
 - **FR-007**: The comments program MUST complete the feature across SQLite-derived auxiliary CSV export, aggregate JSON output, extension rendering, and CLI/reference documentation without mutating the existing core contract CSVs.
@@ -125,7 +132,7 @@ A maintainer can point to a final evidence-backed roadmap state where reviewer c
 - **FR-009**: Comment aggregate output MUST include summary metrics, weekly trend data, repository-level breakdowns, and an explicit coverage state with capped-awareness.
 - **FR-010**: The comments dashboard MUST present a metrics-first experience and MUST NOT require raw thread browsing, full-text comment search, sentiment analysis, or engagement scoring for roadmap closure.
 - **FR-011**: The program MUST define how capped comment extraction is recorded during extraction and propagated through manifests and dashboard presentation.
-- **FR-012**: Reviewer follow-through MUST resolve the product contract for reviewer + repository and reviewer + team behavior using only these allowed modes: `exact`, `constrained`, or `disallowed-with-ux-signal`.
+- **FR-012**: Reviewer follow-through MUST implement the locked reviewer combination contract: reviewer + repository is `constrained`, reviewer + team is `disallowed-with-ux-signal`, and no reviewer combination may use proportional fallback.
 - **FR-013**: Reviewer follow-through MUST preserve the existing Phase 1 reviewer contract: dedicated `ReviewerBreakdownEntry`, approval-rate semantics based on final stored vote, and exclusion of review-latency metrics until persisted `reviewed_at` exists.
 - **FR-014**: Roadmap closure MUST include updates to `TODO/ROADMAP.md` and any subordinate TODO files so they match actual shipped state and remaining post-roadmap research.
 - **FR-015**: The closure package MUST include an evidence pack in a required repeatable format: checklist status, exact verification commands, pass/fail outcomes, and file references for code, tests, and docs touched by each roadmap item.
@@ -134,6 +141,7 @@ A maintainer can point to a final evidence-backed roadmap state where reviewer c
 - **FR-018**: New additive dimensions and cross-dimensional slices MUST define and enforce bounded cardinality limits for generation, persistence, and frontend loading.
 - **FR-019**: The extension loader MUST use explicit manifest capability flags or schema-version checks to detect availability of author, author x repository, reviewer, and comments surfaces.
 - **FR-020**: New author and comments aggregations MUST be idempotent and convergent. Recomputing from the same SQLite state MUST yield identical outputs, and backfill runs MUST converge to the same final aggregates as incremental runs over equivalent final data.
+- **FR-021**: Roadmap closure MUST include explicit PowerBI regression confidence for unchanged core contract CSVs, including evidence for import safety or equivalent non-regression proof aligned with constitution verification expectations.
 
 ### Contract Boundary Requirements
 
@@ -162,14 +170,14 @@ A maintainer can point to a final evidence-backed roadmap state where reviewer c
 
 ### Research Requirements
 
-- **RR-001**: Before author UI implementation, the team MUST decide author + team semantics. The decision MUST specify whether the combination is exact, estimated, sanitized to one dominant dimension, or unsupported.
-- **RR-002**: Before author UI implementation, the team MUST decide the supported UX for large author lists, including whether search, single-select, multi-select, paging, or “top N” defaults are required.
-- **RR-003**: Before reviewer follow-through completion, the team MUST decide reviewer + repository and reviewer + team semantics and record why the chosen behavior is consistent with reviewer Phase 1’s activity-oriented metric model.
+- **RR-001**: Closed by this spec: author + team semantics are `constrained`, with author as the dominant applied dimension and explicit UI signaling.
+- **RR-002**: Closed by this spec: author filtering uses searchable single-select UX for this roadmap program.
+- **RR-003**: Closed by this spec: reviewer + repository is `constrained` and reviewer + team is `disallowed-with-ux-signal`.
 - **RR-004**: Closed by this spec: comment CSV export is auxiliary, not part of the current PowerBI contract surface. Implementation must follow that decision.
 - **RR-005**: Before comments coverage is declared complete, the team MUST design how the extraction path records capped/partial state so aggregate generation does not guess completeness from row counts alone.
 - **RR-006**: Before roadmap closure is declared, the team MUST classify post-roadmap work explicitly, including review latency Phase 2 and comments advanced analytics, so roadmap completion is not blocked by research-only follow-ons.
 - **RR-007**: Before implementation of bounded cross-dimensional slices, the team MUST record the deterministic truncation and capability-signaling policy for high-cardinality author x repository data.
-- **RR-008**: Before reviewer follow-through implementation, the team MUST choose one allowed mode per unsupported or supported reviewer combination and prohibit proportional fallbacks.
+- **RR-008**: Closed by this spec: reviewer combination mode selection is fixed and proportional fallbacks are prohibited.
 
 ### Test And Verification Requirements
 
@@ -186,6 +194,7 @@ A maintainer can point to a final evidence-backed roadmap state where reviewer c
 - **TR-011**: Identity tests MUST cover renamed users, missing labels, and stable aggregation by canonical `user_id`.
 - **TR-012**: Loader tests MUST cover capability/version detection for legacy datasets and additive feature availability without brittle downstream branching.
 - **TR-013**: Aggregation tests MUST prove idempotent recomputation and backfill convergence for new author and comments-derived outputs.
+- **TR-014**: Verification must include explicit PowerBI regression-confidence evidence for unchanged core contract CSVs.
 
 ### Documentation Requirements
 
