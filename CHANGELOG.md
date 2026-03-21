@@ -1,3 +1,15 @@
+# [5.27.0](https://github.com/oddessentials/ado-git-repo-insights/compare/v5.26.0...v5.27.0) (2026-03-21)
+
+
+### Bug Fixes
+
+* harden reviewer filters and local preflight ([b6f4747](https://github.com/oddessentials/ado-git-repo-insights/commit/b6f4747a8b933e233d6f1193281d9f430d1e1c01))
+
+
+### Features
+
+* add reviewer filter and breakdown support ([738e30e](https://github.com/oddessentials/ado-git-repo-insights/commit/738e30ea35b39b2813d5ea39e797b1f292b76c6c))
+
 # [5.26.0](https://github.com/oddessentials/ado-git-repo-insights/compare/v5.25.0...v5.26.0) (2026-03-20)
 
 
