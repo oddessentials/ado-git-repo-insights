@@ -7,7 +7,7 @@ import logging
 import shutil
 import sys
 import time
-from datetime import date
+from datetime import date, datetime, timezone
 from pathlib import Path
 from typing import TYPE_CHECKING
 
@@ -542,6 +542,14 @@ def _extract_comments(
             stats["prs_comment_failures"] = int(stats["prs_comment_failures"]) + 1
             # Continue with other PRs - don't fail entire run
 
+    db.connection.commit()
+    repo.update_comments_extraction_metadata(
+        last_run_timestamp=datetime.now(timezone.utc).isoformat(),
+        prs_processed=int(stats["prs_processed"]),
+        threads_fetched=int(stats["threads"]),
+        comments_fetched=int(stats["comments"]),
+        capped=bool(stats["capped"]),
+    )
     db.connection.commit()
     return stats
 

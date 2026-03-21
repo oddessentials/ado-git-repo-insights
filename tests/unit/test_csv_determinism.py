@@ -27,6 +27,14 @@ def hash_file(path: Path) -> str:
     return sha256.hexdigest()
 
 
+def hash_core_csvs(output_dir: Path) -> dict[str, str]:
+    """Hash only the six contract CSVs at the output root."""
+    return {
+        f"{table_name}.csv": hash_file(output_dir / f"{table_name}.csv")
+        for table_name in CSV_SCHEMAS
+    }
+
+
 @pytest.fixture
 def db_with_varied_data() -> tuple[DatabaseManager, Path, Path]:
     """Create a database with varied data to test determinism."""
@@ -131,17 +139,13 @@ class TestDeterministicOutput:
         generator2.generate_all()
 
         # Compare hashes
-        for table_name in CSV_SCHEMAS:
-            path1 = output_dir1 / f"{table_name}.csv"
-            path2 = output_dir2 / f"{table_name}.csv"
+        hashes1 = hash_core_csvs(output_dir1)
+        hashes2 = hash_core_csvs(output_dir2)
 
-            hash1 = hash_file(path1)
-            hash2 = hash_file(path2)
-
+        for file_name, hash1 in hashes1.items():
+            hash2 = hashes2[file_name]
             assert hash1 == hash2, (
-                f"{table_name}.csv not deterministic:\n"
-                f"  Run 1: {hash1}\n"
-                f"  Run 2: {hash2}"
+                f"{file_name} not deterministic:\n  Run 1: {hash1}\n  Run 2: {hash2}"
             )
 
     def test_byte_for_byte_equality(
@@ -164,6 +168,68 @@ class TestDeterministicOutput:
             content2 = path2.read_bytes()
 
             assert content1 == content2, f"{table_name}.csv differs between runs"
+
+    def test_core_csv_hashing_ignores_auxiliary_subtree(
+        self, db_with_varied_data: tuple[DatabaseManager, Path, Path]
+    ) -> None:
+        """Determinism guards compare only the protected root contract CSVs."""
+        db, output_dir1, output_dir2 = db_with_varied_data
+
+        generator1 = CSVGenerator(db, output_dir1)
+        generator1.generate_all()
+        generator2 = CSVGenerator(db, output_dir2)
+        generator2.generate_all()
+
+        auxiliary_dir = output_dir2 / "auxiliary" / "comments"
+        auxiliary_dir.mkdir(parents=True)
+        (auxiliary_dir / "pr_comments.csv").write_text(
+            "comment_id,body\n1,example\n",
+            encoding="utf-8",
+        )
+
+        assert hash_core_csvs(output_dir1) == hash_core_csvs(output_dir2)
+
+    def test_auxiliary_comments_csvs_are_deterministic(
+        self, db_with_varied_data: tuple[DatabaseManager, Path, Path]
+    ) -> None:
+        """Auxiliary comments CSVs are stable across repeated generation."""
+        db, output_dir1, output_dir2 = db_with_varied_data
+        repo = PRRepository(db)
+
+        repo.upsert_thread(
+            thread_id="thread-1",
+            pull_request_uid="repo-aaa-100",
+            status="active",
+            thread_context='{"filePath":"/src/main.py"}',
+            last_updated="2024-01-01T13:00:00Z",
+            created_at="2024-01-01T12:30:00Z",
+            is_deleted=False,
+        )
+        repo.upsert_comment(
+            comment_id="comment-1",
+            thread_id="thread-1",
+            pull_request_uid="repo-aaa-100",
+            author_id="user-2",
+            content="nit: rename variable",
+            comment_type="text",
+            created_at="2024-01-01T12:35:00Z",
+            last_updated="2024-01-01T13:00:00Z",
+            is_deleted=False,
+        )
+        db.connection.commit()
+
+        generator1 = CSVGenerator(db, output_dir1)
+        generator1.generate_all()
+
+        generator2 = CSVGenerator(db, output_dir2)
+        generator2.generate_all()
+
+        assert hash_file(
+            output_dir1 / "auxiliary" / "comments" / "pr_threads.csv"
+        ) == hash_file(output_dir2 / "auxiliary" / "comments" / "pr_threads.csv")
+        assert hash_file(
+            output_dir1 / "auxiliary" / "comments" / "pr_comments.csv"
+        ) == hash_file(output_dir2 / "auxiliary" / "comments" / "pr_comments.csv")
 
 
 class TestDeterministicRowOrdering:

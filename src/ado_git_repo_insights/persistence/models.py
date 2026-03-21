@@ -20,6 +20,15 @@ CREATE TABLE IF NOT EXISTS extraction_metadata (
     UNIQUE(organization_name, project_name)
 );
 
+CREATE TABLE IF NOT EXISTS comments_extraction_metadata (
+    id INTEGER PRIMARY KEY CHECK (id = 1),
+    last_run_timestamp TEXT NOT NULL,
+    prs_processed INTEGER NOT NULL DEFAULT 0,
+    threads_fetched INTEGER NOT NULL DEFAULT 0,
+    comments_fetched INTEGER NOT NULL DEFAULT 0,
+    capped INTEGER NOT NULL DEFAULT 0
+);
+
 -- Core entity tables (matching CSV output contract - Invariants 1-4)
 
 -- organizations.csv: organization_name

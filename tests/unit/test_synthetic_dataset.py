@@ -363,6 +363,18 @@ def test_include_comments_sets_feature_flag():
     assert manifest["features"]["comments"] is True
 
 
+def test_manifest_sets_author_repo_exact_capability():
+    """Synthetic datasets advertise exact author+repository support."""
+    output_dir = run_generator(pr_count=100, weeks=4, seed=42, users=10)
+
+    manifest_path = output_dir / "dataset-manifest.json"
+    with manifest_path.open() as f:
+        manifest = json.load(f)
+
+    assert manifest["capabilities"]["author_filters"] is True
+    assert manifest["capabilities"]["author_repo_exact"] is True
+
+
 def test_users_zero_validation_error():
     """T012: --users 0 must fail with a clear validation error."""
     result, output_dir = run_generator_raw(pr_count=100, seed=42, users=0)

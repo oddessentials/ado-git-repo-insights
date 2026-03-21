@@ -21,6 +21,7 @@ if TYPE_CHECKING:
 import numpy as np
 
 from ado_git_repo_insights.persistence.database import DatabaseManager
+from ado_git_repo_insights.persistence.repository import PRRepository
 from ado_git_repo_insights.transform.aggregators import (
     AGGREGATES_SCHEMA_VERSION,
     AggregateGenerator,
@@ -247,8 +248,130 @@ class TestAggregateGenerator:
 
         assert len(dims["repositories"]) == 2
         assert len(dims["users"]) == 3
+        assert len(dims["authors"]) == 3
         assert len(dims["projects"]) == 1
         assert "date_range" in dims
+
+    def test_generates_by_author_slice(
+        self, sample_db: tuple[DatabaseManager, Path], tmp_path: Path
+    ) -> None:
+        """Weekly rollups include canonical by_author breakdowns."""
+        db, _ = sample_db
+        output_dir = tmp_path / "output"
+
+        generator = AggregateGenerator(db, output_dir)
+        generator.generate_all()
+
+        week1 = output_dir / "aggregates" / "weekly_rollups" / "2026-W02.json"
+        with week1.open() as f:
+            week1_data = json.load(f)
+
+        assert "by_author" in week1_data
+        assert week1_data["by_author"]["user1"]["pr_count"] == 1
+        assert week1_data["by_author"]["user1"]["authors_count"] == 1
+        assert week1_data["by_author"]["user2"]["pr_count"] == 1
+
+    def test_generates_by_author_and_repo_slice(
+        self, sample_db: tuple[DatabaseManager, Path], tmp_path: Path
+    ) -> None:
+        """Weekly rollups include exact author x repository breakdowns."""
+        db, _ = sample_db
+        output_dir = tmp_path / "output"
+
+        generator = AggregateGenerator(db, output_dir)
+        generator.generate_all()
+
+        week1 = output_dir / "aggregates" / "weekly_rollups" / "2026-W02.json"
+        with week1.open() as f:
+            week1_data = json.load(f)
+
+        assert "by_author_and_repo" in week1_data
+        assert (
+            week1_data["by_author_and_repo"]["user1"]["Repository 1"]["pr_count"] == 1
+        )
+        assert (
+            week1_data["by_author_and_repo"]["user1"]["Repository 1"]["authors_count"]
+            == 1
+        )
+
+    def test_author_repo_truncation_is_deterministic(
+        self,
+        sample_db: tuple[DatabaseManager, Path],
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        """Author x repo truncation keeps highest-pr-count entries deterministically."""
+        db, _ = sample_db
+        monkeypatch.setattr(AggregateGenerator, "_CROSS_DIM_MAX_ENTRIES", 2)
+
+        db.execute(
+            """
+            INSERT INTO repositories (repository_id, repository_name, project_name, organization_name)
+            VALUES (?, ?, ?, ?)
+            """,
+            ("repo3", "Repository 3", "proj1", "org1"),
+        )
+        db.execute(
+            """
+            INSERT INTO pull_requests (
+                pull_request_uid, pull_request_id, organization_name, project_name,
+                repository_id, user_id, title, status, description,
+                creation_date, closed_date, cycle_time_minutes
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            (
+                "repo3-1",
+                10,
+                "org1",
+                "proj1",
+                "repo3",
+                "user1",
+                "PR 10",
+                "completed",
+                None,
+                "2026-01-05T08:00:00Z",
+                "2026-01-08T10:00:00Z",
+                2400.0,
+            ),
+        )
+        db.execute(
+            """
+            INSERT INTO pull_requests (
+                pull_request_uid, pull_request_id, organization_name, project_name,
+                repository_id, user_id, title, status, description,
+                creation_date, closed_date, cycle_time_minutes
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            (
+                "repo3-2",
+                11,
+                "org1",
+                "proj1",
+                "repo3",
+                "user1",
+                "PR 11",
+                "completed",
+                None,
+                "2026-01-05T09:00:00Z",
+                "2026-01-09T10:00:00Z",
+                2500.0,
+            ),
+        )
+        db.connection.commit()
+
+        output_dir = tmp_path / "output"
+        generator = AggregateGenerator(db, output_dir)
+        generator.generate_all()
+
+        week1 = output_dir / "aggregates" / "weekly_rollups" / "2026-W02.json"
+        with week1.open() as f:
+            week1_data = json.load(f)
+
+        author_repo = week1_data["by_author_and_repo"]
+        assert author_repo["_truncated"] is True
+        assert "Repository 3" in author_repo["user1"]
+        assert "Repository 1" in author_repo["user1"]
+        assert "user2" not in author_repo
 
     def test_empty_database(self, tmp_path: Path) -> None:
         """Test handling of empty database."""
@@ -282,6 +405,81 @@ class TestAggregateGenerator:
         assert manifest.features["comments"] is False
         assert manifest.features["predictions"] is False  # Phase 3.5
         assert manifest.features["ai_insights"] is False  # Phase 3.5
+        assert manifest.capabilities["author_filters"] is True
+
+    def test_manifest_sets_comments_metrics_and_full_coverage_from_metadata(
+        self, sample_db: tuple[DatabaseManager, Path], tmp_path: Path
+    ) -> None:
+        """Comments capability and full coverage derive from persisted metadata."""
+        db, _ = sample_db
+        output_dir = tmp_path / "output"
+        repo = PRRepository(db)
+
+        repo.upsert_thread(
+            thread_id="thread-1",
+            pull_request_uid="repo1-1",
+            status="active",
+            thread_context=None,
+            last_updated="2026-01-06T15:00:00Z",
+            created_at="2026-01-06T14:30:00Z",
+        )
+        repo.upsert_comment(
+            comment_id="comment-1",
+            thread_id="thread-1",
+            pull_request_uid="repo1-1",
+            author_id="user2",
+            content="Looks good",
+            comment_type="text",
+            created_at="2026-01-06T14:40:00Z",
+            last_updated="2026-01-06T15:00:00Z",
+        )
+        repo.update_comments_extraction_metadata(
+            last_run_timestamp="2026-01-07T00:00:00Z",
+            prs_processed=1,
+            threads_fetched=1,
+            comments_fetched=1,
+            capped=False,
+        )
+        db.connection.commit()
+
+        generator = AggregateGenerator(db, output_dir)
+        manifest = generator.generate_all()
+
+        assert manifest.capabilities["comments_metrics"] is True
+        assert manifest.coverage["comments"]["status"] == "full"
+        assert manifest.coverage["comments"]["capped"] is False
+
+    def test_manifest_sets_partial_comments_coverage_when_capped(
+        self, sample_db: tuple[DatabaseManager, Path], tmp_path: Path
+    ) -> None:
+        """Comments coverage becomes partial when extraction was capped."""
+        db, _ = sample_db
+        output_dir = tmp_path / "output"
+        repo = PRRepository(db)
+
+        repo.upsert_thread(
+            thread_id="thread-1",
+            pull_request_uid="repo1-1",
+            status="active",
+            thread_context=None,
+            last_updated="2026-01-06T15:00:00Z",
+            created_at="2026-01-06T14:30:00Z",
+        )
+        repo.update_comments_extraction_metadata(
+            last_run_timestamp="2026-01-07T00:00:00Z",
+            prs_processed=1,
+            threads_fetched=1,
+            comments_fetched=0,
+            capped=True,
+        )
+        db.connection.commit()
+
+        generator = AggregateGenerator(db, output_dir)
+        manifest = generator.generate_all()
+
+        assert manifest.capabilities["comments_metrics"] is True
+        assert manifest.coverage["comments"]["status"] == "partial"
+        assert manifest.coverage["comments"]["capped"] is True
 
     def test_aggregate_index_includes_file_sizes(
         self, sample_db: tuple[DatabaseManager, Path], tmp_path: Path

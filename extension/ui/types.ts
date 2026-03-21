@@ -107,16 +107,27 @@ export interface ManifestSchema {
   aggregates_schema_version?: number;
   version?: string | number;
   generated_at?: string;
+  run_id?: string;
   coverage?: {
     first_week?: string;
     last_week?: string;
     total_weeks?: number;
+    total_prs?: number;
     date_range?: {
       start?: string;
       end?: string;
       min?: string;
       max?: string;
     };
+    comments?:
+      | string
+      | {
+          status?: "disabled" | "full" | "partial";
+          threads_fetched?: number;
+          comments_fetched?: number;
+          prs_with_threads?: number;
+          capped?: boolean;
+        };
   };
   aggregate_index?: {
     weekly_rollups?: Array<{ week: string; path: string }>;
@@ -125,6 +136,14 @@ export interface ManifestSchema {
     ai_insights?: { path: string };
   };
   features?: Record<string, boolean>;
+  capabilities?: {
+    author_filters?: boolean;
+    author_repo_exact?: boolean;
+    comments_metrics?: boolean;
+    reviewer_repository_mode?: "exact" | "constrained" | "disallowed";
+    reviewer_team_mode?: "exact" | "constrained" | "disallowed";
+    cross_dimensional_available?: boolean;
+  };
   defaults?: {
     default_date_range_days?: number;
   };
@@ -289,6 +308,25 @@ export interface CoverageInfo {
     min?: string;
     max?: string;
   };
+  comments?:
+    | string
+    | {
+        status?: "disabled" | "full" | "partial";
+        threads_fetched?: number;
+        comments_fetched?: number;
+        prs_with_threads?: number;
+        capped?: boolean;
+      };
+}
+
+export interface DatasetCapabilityState {
+  authorFiltersAvailable: boolean;
+  authorRepoExactAvailable: boolean;
+  commentsMetricsAvailable: boolean;
+  commentsCoverageStatus: "disabled" | "full" | "partial";
+  reviewerRepositoryMode: "exact" | "constrained" | "disallowed";
+  reviewerTeamMode: "exact" | "constrained" | "disallowed";
+  crossDimensionalAvailable: boolean;
 }
 
 /**

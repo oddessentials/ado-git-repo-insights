@@ -36,6 +36,32 @@ describe("Manifest Schema Validator", () => {
       const result = validateManifest(minimal, true);
       expect(result.valid).toBe(true);
     });
+
+    it("should accept comments coverage objects with capped metadata", () => {
+      const withComments = {
+        ...validManifest,
+        coverage: {
+          ...validManifest.coverage,
+          comments: {
+            status: "partial",
+            threads_fetched: 8,
+            comments_fetched: 15,
+            prs_with_threads: 4,
+            capped: true,
+          },
+        },
+        capabilities: {
+          author_filters: true,
+          author_repo_exact: true,
+          comments_metrics: true,
+          reviewer_repository_mode: "constrained",
+          reviewer_team_mode: "disallowed",
+          cross_dimensional_available: true,
+        },
+      };
+      const result = validateManifest(withComments, true);
+      expect(result.valid).toBe(true);
+    });
   });
 
   describe("missing required fields", () => {
@@ -96,6 +122,20 @@ describe("Manifest Schema Validator", () => {
 
     it("should fail when run_id is not a string", () => {
       const invalid = { ...validManifest, run_id: 12345 };
+      const result = validateManifest(invalid, true);
+      expect(result.valid).toBe(false);
+    });
+
+    it("should fail when comments coverage status is invalid", () => {
+      const invalid = {
+        ...validManifest,
+        coverage: {
+          ...validManifest.coverage,
+          comments: {
+            status: "unknown",
+          },
+        },
+      };
       const result = validateManifest(invalid, true);
       expect(result.valid).toBe(false);
     });

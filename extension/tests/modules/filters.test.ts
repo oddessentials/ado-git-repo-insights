@@ -18,30 +18,38 @@ describe("filters module", () => {
   describe("createEmptyFilterState", () => {
     it("returns empty arrays", () => {
       const state = createEmptyFilterState();
-      expect(state).toEqual({ repos: [], teams: [], reviewers: [] });
+      expect(state).toEqual({ repos: [], teams: [], reviewers: [], authors: [] });
     });
   });
 
   describe("hasActiveFilters", () => {
     it("returns false for empty state", () => {
-      expect(hasActiveFilters({ repos: [], teams: [], reviewers: [] })).toBe(false);
+      expect(
+        hasActiveFilters({ repos: [], teams: [], reviewers: [], authors: [] }),
+      ).toBe(false);
     });
 
     it("returns true when repos has values", () => {
       expect(
-        hasActiveFilters({ repos: ["repo-a"], teams: [], reviewers: [] }),
+        hasActiveFilters({ repos: ["repo-a"], teams: [], reviewers: [], authors: [] }),
       ).toBe(true);
     });
 
     it("returns true when teams has values", () => {
       expect(
-        hasActiveFilters({ repos: [], teams: ["team-x"], reviewers: [] }),
+        hasActiveFilters({ repos: [], teams: ["team-x"], reviewers: [], authors: [] }),
       ).toBe(true);
     });
 
     it("returns true when reviewers has values", () => {
       expect(
-        hasActiveFilters({ repos: [], teams: [], reviewers: ["reviewer-1"] }),
+        hasActiveFilters({ repos: [], teams: [], reviewers: ["reviewer-1"], authors: [] }),
+      ).toBe(true);
+    });
+
+    it("returns true when authors has values", () => {
+      expect(
+        hasActiveFilters({ repos: [], teams: [], reviewers: [], authors: ["author-1"] }),
       ).toBe(true);
     });
 
@@ -51,6 +59,7 @@ describe("filters module", () => {
           repos: ["repo-a"],
           teams: ["team-x"],
           reviewers: [],
+          authors: [],
         }),
       ).toBe(true);
     });
@@ -60,7 +69,7 @@ describe("filters module", () => {
     it("returns empty state for no params", () => {
       const params = new URLSearchParams("");
       const result = parseFiltersFromUrl(params);
-      expect(result).toEqual({ repos: [], teams: [], reviewers: [] });
+      expect(result).toEqual({ repos: [], teams: [], reviewers: [], authors: [] });
     });
 
     it("parses repos param", () => {
@@ -92,6 +101,12 @@ describe("filters module", () => {
       const result = parseFiltersFromUrl(params);
       expect(result.reviewers).toEqual(["user-2"]);
     });
+
+    it("parses canonical author filter from URL", () => {
+      const params = new URLSearchParams("author=user-1");
+      const result = parseFiltersFromUrl(params);
+      expect(result.authors).toEqual(["user-1"]);
+    });
   });
 
   describe("serializeFiltersToUrl", () => {
@@ -101,6 +116,7 @@ describe("filters module", () => {
         repos: ["repo-a", "repo-b"],
         teams: ["team-x"],
         reviewers: ["reviewer-1"],
+        authors: ["author-1"],
       };
 
       serializeFiltersToUrl(state, params);
@@ -108,26 +124,37 @@ describe("filters module", () => {
       expect(params.get("repos")).toBe("repo-a,repo-b");
       expect(params.get("teams")).toBe("team-x");
       expect(params.get("reviewers")).toBe("reviewer-1");
+      expect(params.get("author")).toBe("author-1");
     });
 
     it("deletes empty params", () => {
       const params = new URLSearchParams("repos=old&teams=old");
-      const state: FilterState = { repos: [], teams: [], reviewers: [] };
+      const state: FilterState = { repos: [], teams: [], reviewers: [], authors: [] };
 
       serializeFiltersToUrl(state, params);
 
       expect(params.has("repos")).toBe(false);
       expect(params.has("teams")).toBe(false);
       expect(params.has("reviewers")).toBe(false);
+      expect(params.has("author")).toBe(false);
     });
 
     it("deletes reviewers param when first reviewer value is blank", () => {
       const params = new URLSearchParams("reviewers=old-reviewer");
-      const state: FilterState = { repos: [], teams: [], reviewers: [""] };
+      const state: FilterState = { repos: [], teams: [], reviewers: [""], authors: [] };
 
       serializeFiltersToUrl(state, params);
 
       expect(params.has("reviewers")).toBe(false);
+    });
+
+    it("deletes author param when first author value is blank", () => {
+      const params = new URLSearchParams("author=old-author");
+      const state: FilterState = { repos: [], teams: [], reviewers: [], authors: [""] };
+
+      serializeFiltersToUrl(state, params);
+
+      expect(params.has("author")).toBe(false);
     });
   });
 
@@ -155,6 +182,13 @@ describe("filters module", () => {
       expect(html).toContain('data-type="reviewer"');
     });
 
+    it("creates author chip", () => {
+      const html = createFilterChipHtml("author", "user-1", "User One");
+
+      expect(html).toContain("author: User One");
+      expect(html).toContain('data-type="author"');
+    });
+
     it("escapes HTML in label", () => {
       const html = createFilterChipHtml(
         "repo",
@@ -170,7 +204,7 @@ describe("filters module", () => {
   describe("renderFilterChipsHtml", () => {
     it("returns empty string for empty state", () => {
       const result = renderFilterChipsHtml(
-        { repos: [], teams: [], reviewers: [] },
+        { repos: [], teams: [], reviewers: [], authors: [] },
         () => "",
       );
       expect(result).toBe("");
@@ -181,19 +215,26 @@ describe("filters module", () => {
         repos: ["repo-a"],
         teams: ["team-x"],
         reviewers: ["user-1"],
+        authors: ["author-1"],
       };
-      const labelFn = (type: "repo" | "team" | "reviewer", value: string) =>
+      const labelFn = (
+        type: "repo" | "team" | "reviewer" | "author",
+        value: string,
+      ) =>
         type === "repo"
           ? `Repo: ${value}`
           : type === "team"
             ? `Team: ${value}`
-            : `Reviewer: ${value}`;
+            : type === "reviewer"
+              ? `Reviewer: ${value}`
+              : `Author: ${value}`;
 
       const result = renderFilterChipsHtml(state, labelFn);
 
       expect(result).toContain("repo-a");
       expect(result).toContain("team-x");
       expect(result).toContain("user-1");
+      expect(result).toContain("author-1");
     });
   });
 });

@@ -660,3 +660,61 @@ class PRRepository:
             cursor = self.db.execute("SELECT COUNT(*) FROM pr_comments")
         row = cursor.fetchone()
         return int(row[0]) if row else 0
+
+    def update_comments_extraction_metadata(
+        self,
+        *,
+        last_run_timestamp: str,
+        prs_processed: int,
+        threads_fetched: int,
+        comments_fetched: int,
+        capped: bool,
+    ) -> None:
+        """Persist the latest comments extraction status for aggregate coverage."""
+        self.db.execute(
+            """
+            INSERT INTO comments_extraction_metadata (
+                id, last_run_timestamp, prs_processed, threads_fetched,
+                comments_fetched, capped
+            ) VALUES (1, ?, ?, ?, ?, ?)
+            ON CONFLICT(id) DO UPDATE SET
+                last_run_timestamp = excluded.last_run_timestamp,
+                prs_processed = excluded.prs_processed,
+                threads_fetched = excluded.threads_fetched,
+                comments_fetched = excluded.comments_fetched,
+                capped = excluded.capped
+            """,
+            (
+                last_run_timestamp,
+                prs_processed,
+                threads_fetched,
+                comments_fetched,
+                1 if capped else 0,
+            ),
+        )
+
+    def get_comments_extraction_metadata(self) -> dict[str, int | str | bool] | None:
+        """Return the latest comments extraction status if available."""
+        try:
+            cursor = self.db.execute(
+                """
+                SELECT last_run_timestamp, prs_processed, threads_fetched,
+                       comments_fetched, capped
+                FROM comments_extraction_metadata
+                WHERE id = 1
+                """
+            )
+            row = cursor.fetchone()
+        except Exception:
+            return None
+
+        if not row:
+            return None
+
+        return {
+            "last_run_timestamp": row["last_run_timestamp"],
+            "prs_processed": int(row["prs_processed"]),
+            "threads_fetched": int(row["threads_fetched"]),
+            "comments_fetched": int(row["comments_fetched"]),
+            "capped": bool(row["capped"]),
+        }

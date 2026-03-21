@@ -82,7 +82,24 @@ export interface DateRange {
 export interface Coverage {
   total_prs: number;
   date_range: DateRange;
-  comments?: string;
+  comments?: string | CommentsCoverage;
+}
+
+export interface CommentsCoverage {
+  status: "disabled" | "full" | "partial";
+  threads_fetched?: number;
+  comments_fetched?: number;
+  prs_with_threads?: number;
+  capped?: boolean;
+}
+
+export interface Capabilities {
+  author_filters?: boolean;
+  author_repo_exact?: boolean;
+  comments_metrics?: boolean;
+  reviewer_repository_mode?: "exact" | "constrained" | "disallowed";
+  reviewer_team_mode?: "exact" | "constrained" | "disallowed";
+  cross_dimensional_available?: boolean;
 }
 
 /**
@@ -125,6 +142,7 @@ export interface DatasetManifest {
   defaults?: Defaults;
   limits?: Limits;
   features?: Features;
+  capabilities?: Capabilities;
   coverage?: Coverage;
   aggregate_index: AggregateIndex;
   warnings?: string[];
@@ -145,6 +163,7 @@ const KNOWN_ROOT_FIELDS = new Set([
   "defaults",
   "limits",
   "features",
+  "capabilities",
   "coverage",
   "aggregate_index",
   "warnings",
@@ -175,12 +194,27 @@ const KNOWN_COVERAGE_FIELDS = new Set([
   "teams_count", // Production field
 ]);
 const KNOWN_DATE_RANGE_FIELDS = new Set(["min", "max"]);
+const KNOWN_COMMENTS_COVERAGE_FIELDS = new Set([
+  "status",
+  "threads_fetched",
+  "comments_fetched",
+  "prs_with_threads",
+  "capped",
+]);
 const KNOWN_FEATURES_FIELDS = new Set([
   "teams",
   "comments",
   "predictions",
   "ai_insights",
   "cross_dimensional",
+]);
+const KNOWN_CAPABILITIES_FIELDS = new Set([
+  "author_filters",
+  "author_repo_exact",
+  "comments_metrics",
+  "reviewer_repository_mode",
+  "reviewer_team_mode",
+  "cross_dimensional_available",
 ]);
 const KNOWN_LIMITS_FIELDS = new Set([
   "max_weekly_files",
@@ -489,6 +523,73 @@ function validateCoverage(
           `Expected string or object at '${buildPath(path, "comments")}'`,
         ),
       );
+    } else if (isObject(commentsValue)) {
+      const commentsPath = buildPath(path, "comments");
+      const statusReq = validateRequired(commentsValue, "status", commentsPath);
+      if (statusReq) {
+        errors.push(statusReq);
+      } else {
+        const statusPath = buildPath(commentsPath, "status");
+        const statusErr = validateString(commentsValue.status, statusPath);
+        if (statusErr) {
+          errors.push(statusErr);
+        } else if (
+          typeof commentsValue.status === "string" &&
+          !new Set(["disabled", "full", "partial"]).has(commentsValue.status)
+        ) {
+          errors.push(
+            createError(
+              statusPath,
+              "disabled | full | partial",
+              commentsValue.status,
+            ),
+          );
+        }
+      }
+
+      const numericFields = [
+        "threads_fetched",
+        "comments_fetched",
+        "prs_with_threads",
+      ];
+      for (const field of numericFields) {
+        if (
+          Object.prototype.hasOwnProperty.call(commentsValue, field) &&
+          Object.getOwnPropertyDescriptor(commentsValue, field)?.value !==
+            undefined
+        ) {
+          const fieldValue = Object.getOwnPropertyDescriptor(
+            commentsValue,
+            field,
+          )?.value;
+          const err = validateNonNegativeNumber(
+            fieldValue,
+            buildPath(commentsPath, field),
+          );
+          if (err) errors.push(err);
+        }
+      }
+
+      if (
+        Object.prototype.hasOwnProperty.call(commentsValue, "capped") &&
+        Object.getOwnPropertyDescriptor(commentsValue, "capped")?.value !==
+          undefined
+      ) {
+        const cappedErr = validateBoolean(
+          Object.getOwnPropertyDescriptor(commentsValue, "capped")?.value,
+          buildPath(commentsPath, "capped"),
+        );
+        if (cappedErr) errors.push(cappedErr);
+      }
+
+      const unknownComments = findUnknownFields(
+        commentsValue,
+        KNOWN_COMMENTS_COVERAGE_FIELDS,
+        commentsPath,
+        strict,
+      );
+      errors.push(...unknownComments.errors);
+      warnings.push(...unknownComments.warnings);
     }
   }
 
@@ -550,6 +651,70 @@ function validateFeatures(
   }
 
   const unknown = findUnknownFields(data, KNOWN_FEATURES_FIELDS, path, strict);
+  errors.push(...unknown.errors);
+  warnings.push(...unknown.warnings);
+
+  return { errors, warnings };
+}
+
+function validateCapabilities(
+  data: unknown,
+  path: string,
+  strict: boolean,
+): { errors: ValidationError[]; warnings: ValidationWarning[] } {
+  const errors: ValidationError[] = [];
+  const warnings: ValidationWarning[] = [];
+
+  if (!isObject(data)) {
+    errors.push(createError(path, "object", getTypeName(data)));
+    return { errors, warnings };
+  }
+
+  const booleanFields = [
+    "author_filters",
+    "author_repo_exact",
+    "comments_metrics",
+    "cross_dimensional_available",
+  ];
+  for (const field of booleanFields) {
+    if (Object.prototype.hasOwnProperty.call(data, field)) {
+      const fieldValue = Object.getOwnPropertyDescriptor(data, field)?.value;
+      if (fieldValue !== undefined) {
+        const err = validateBoolean(fieldValue, buildPath(path, field));
+        if (err) errors.push(err);
+      }
+    }
+  }
+
+  const modeFields = ["reviewer_repository_mode", "reviewer_team_mode"];
+  const validModes = new Set(["exact", "constrained", "disallowed"]);
+  for (const field of modeFields) {
+    if (Object.prototype.hasOwnProperty.call(data, field)) {
+      const fieldValue = Object.getOwnPropertyDescriptor(data, field)?.value;
+      const err = validateString(fieldValue, buildPath(path, field));
+      if (err) {
+        errors.push(err);
+      } else if (
+        typeof fieldValue === "string" &&
+        !validModes.has(fieldValue)
+      ) {
+        errors.push(
+          createError(
+            buildPath(path, field),
+            "exact | constrained | disallowed",
+            fieldValue,
+          ),
+        );
+      }
+    }
+  }
+
+  const unknown = findUnknownFields(
+    data,
+    KNOWN_CAPABILITIES_FIELDS,
+    path,
+    strict,
+  );
   errors.push(...unknown.errors);
   warnings.push(...unknown.warnings);
 
@@ -777,6 +942,16 @@ export function validateManifest(
     warnings.push(...result.warnings);
   }
 
+  if ("capabilities" in data && data.capabilities !== undefined) {
+    const result = validateCapabilities(
+      data.capabilities,
+      "capabilities",
+      strict,
+    );
+    errors.push(...result.errors);
+    warnings.push(...result.warnings);
+  }
+
   if ("coverage" in data && data.coverage !== undefined) {
     const result = validateCoverage(data.coverage, "coverage", strict);
     errors.push(...result.errors);
@@ -823,6 +998,7 @@ export function normalizeManifest(data: unknown): DatasetManifest {
       max_distribution_files: 5,
     },
     features: (obj.features as Features) ?? {},
+    capabilities: (obj.capabilities as Capabilities) ?? {},
     coverage: obj.coverage as Coverage | undefined,
     aggregate_index: obj.aggregate_index as AggregateIndex,
     warnings: (obj.warnings as string[]) ?? [],

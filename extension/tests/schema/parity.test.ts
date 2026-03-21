@@ -65,6 +65,46 @@ const extensionPredictions = isPlaceholder(extensionPredictionsRaw)
   : extensionPredictionsRaw;
 
 describe("Schema Parity Tests", () => {
+  describe("Capability Contract", () => {
+    it("manifest with roadmap additive capabilities passes strict validation", () => {
+      const manifestWithCapabilities = {
+        ...localManifest,
+        capabilities: {
+          author_filters: true,
+          author_repo_exact: false,
+          comments_metrics: true,
+          reviewer_repository_mode: "constrained",
+          reviewer_team_mode: "disallowed",
+          cross_dimensional_available: false,
+        },
+      };
+
+      const result = validateManifest(manifestWithCapabilities, true);
+      expect(result.valid).toBe(true);
+      expect(result.errors).toHaveLength(0);
+    });
+
+    it("normalizes capabilities without dropping additive metadata", () => {
+      const manifestWithCapabilities = {
+        ...localManifest,
+        capabilities: {
+          author_filters: true,
+          author_repo_exact: true,
+          comments_metrics: false,
+          reviewer_repository_mode: "constrained",
+          reviewer_team_mode: "disallowed",
+          cross_dimensional_available: true,
+        },
+      };
+
+      const normalized = normalizeManifest(manifestWithCapabilities);
+
+      expect(normalized.capabilities).toEqual(
+        manifestWithCapabilities.capabilities,
+      );
+    });
+  });
+
   describe("Local Fixtures Validation", () => {
     it("local manifest passes validation", () => {
       const result = validateManifest(localManifest, true);

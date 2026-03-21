@@ -2492,6 +2492,39 @@ describe("Sprint 2: Filter Management", () => {
     });
   });
 
+  describe("Reviewer Filter Messaging", () => {
+    beforeEach(() => {
+      document.body.innerHTML = `
+                <div id="reviewer-filter-notice" class="filter-hint hidden"></div>
+                <div id="author-filter-notice" class="filter-hint hidden"></div>
+            `;
+    });
+
+    it("shows reviewer constrained notice when reviewer and repository are combined", () => {
+      const reviewerNotice = document.getElementById("reviewer-filter-notice");
+      const message =
+        "Reviewer + repository uses reviewer-only metrics while retaining repository state.";
+
+      reviewerNotice!.textContent = message;
+      reviewerNotice!.classList.remove("hidden");
+
+      expect(reviewerNotice?.textContent).toBe(message);
+      expect(reviewerNotice?.classList.contains("hidden")).toBe(false);
+    });
+
+    it("shows reviewer disallowed notice when reviewer and team are combined", () => {
+      const reviewerNotice = document.getElementById("reviewer-filter-notice");
+      const message =
+        "Reviewer + team is not supported in the current schema. Team selection was cleared.";
+
+      reviewerNotice!.textContent = message;
+      reviewerNotice!.classList.remove("hidden");
+
+      expect(reviewerNotice?.textContent).toBe(message);
+      expect(reviewerNotice?.classList.contains("hidden")).toBe(false);
+    });
+  });
+
   describe("restoreFiltersFromUrl", () => {
     beforeEach(() => {
       document.body.innerHTML = `
@@ -2808,6 +2841,10 @@ describe("Sprint 2: Filter Management", () => {
                         <option value="" selected>All</option>
                     </select>
                 </div>
+                <div id="author-filter-group">
+                    <input id="author-filter" list="author-filter-options" />
+                    <datalist id="author-filter-options"></datalist>
+                </div>
             `;
     });
 
@@ -2859,6 +2896,24 @@ describe("Sprint 2: Filter Management", () => {
         teamFilterGroup?.classList.remove("hidden");
       } else {
         teamFilterGroup?.classList.add("hidden");
+      }
+
+      const authorFilterGroup = document.getElementById("author-filter-group");
+      const authorOptions = document.getElementById(
+        "author-filter-options",
+      ) as HTMLDataListElement | null;
+      if (authorOptions && dimensions.authors?.length > 0) {
+        authorOptions.innerHTML = "";
+        dimensions.authors.forEach((author: any) => {
+          const option = document.createElement("option");
+          option.value = author.author_name;
+          option.label = author.author_id;
+          option.dataset.authorId = author.author_id;
+          authorOptions.appendChild(option);
+        });
+        authorFilterGroup?.classList.remove("hidden");
+      } else {
+        authorFilterGroup?.classList.add("hidden");
       }
     };
 
@@ -2950,15 +3005,43 @@ describe("Sprint 2: Filter Management", () => {
       const dimensions = {
         repositories: [],
         teams: [],
+        authors: [],
       };
 
       populateFilterDropdowns(dimensions);
 
       const repoFilterGroup = document.getElementById("repo-filter-group");
       const teamFilterGroup = document.getElementById("team-filter-group");
+      const authorFilterGroup = document.getElementById("author-filter-group");
 
       expect(repoFilterGroup?.classList.contains("hidden")).toBe(true);
       expect(teamFilterGroup?.classList.contains("hidden")).toBe(true);
+      expect(authorFilterGroup?.classList.contains("hidden")).toBe(true);
+    });
+
+    it("populates searchable author options from dimensions using author_name and author_id", () => {
+      const dimensions = {
+        repositories: [],
+        teams: [],
+        authors: [
+          { author_id: "user-1", author_name: "Alice Doe" },
+          { author_id: "user-2", author_name: "Bob Roe" },
+        ],
+      };
+
+      populateFilterDropdowns(dimensions);
+
+      const authorOptions = document.getElementById(
+        "author-filter-options",
+      ) as HTMLDataListElement;
+      expect(authorOptions.children.length).toBe(2);
+
+      const alice = authorOptions.querySelector(
+        'option[data-author-id="user-1"]',
+      ) as HTMLOptionElement;
+      expect(alice).not.toBeNull();
+      expect(alice.value).toBe("Alice Doe");
+      expect(alice.label).toBe("user-1");
     });
 
     it("handles null dimensions gracefully", () => {

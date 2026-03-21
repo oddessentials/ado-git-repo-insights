@@ -277,6 +277,41 @@ class TestExtractComments:
         assert stats["threads"] == 1
         assert stats["comments"] == 2
 
+    def test_persists_comments_extraction_metadata(
+        self, db: DatabaseManager, mock_client: MagicMock, mock_config: MagicMock
+    ) -> None:
+        """Extraction stores comments coverage metadata for aggregate generation."""
+        mock_client.get_pr_threads.return_value = [
+            {
+                "id": 1,
+                "status": "active",
+                "lastUpdatedDate": "2026-01-14T10:00:00Z",
+                "comments": [],
+            }
+        ]
+
+        _extract_comments(
+            client=mock_client,
+            db=db,
+            config=mock_config,
+            max_prs=1,
+            max_threads_per_pr=0,
+        )
+
+        row = db.execute(
+            """
+            SELECT prs_processed, threads_fetched, comments_fetched, capped
+            FROM comments_extraction_metadata
+            WHERE id = 1
+            """
+        ).fetchone()
+
+        assert row is not None
+        assert int(row["prs_processed"]) == 1
+        assert int(row["threads_fetched"]) == 1
+        assert int(row["comments_fetched"]) == 0
+        assert int(row["capped"]) == 1
+
     def test_continues_on_pr_error(
         self, db: DatabaseManager, mock_client: MagicMock, mock_config: MagicMock
     ) -> None:

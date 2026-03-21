@@ -31,6 +31,46 @@ The dataset MUST follow this structure, with `dataset-manifest.json` at the arti
 - The deprecated `aggregates/aggregates` path is **no longer supported**
 - All `aggregate_index[*].path` values resolve relative to the manifest location
 
+## Output Boundary
+
+There are exactly two output classes:
+
+1. `core-contract-csvs`
+2. `auxiliary-additive-outputs`
+
+### Core Contract CSVs
+
+These files are the PowerBI contract and MUST remain unchanged in filename,
+column set, and column order:
+
+- `organizations.csv`
+- `projects.csv`
+- `repositories.csv`
+- `pull_requests.csv`
+- `users.csv`
+- `reviewers.csv`
+
+### Auxiliary Additive Outputs
+
+These surfaces are explicitly outside the core CSV contract:
+
+- additive manifest capability metadata
+- additive weekly rollup fields such as `by_author` and `by_author_and_repo`
+- comments aggregate JSON
+- auxiliary comments CSVs
+
+Auxiliary comments CSVs MUST live only under:
+
+`csv-output/auxiliary/comments/`
+
+Required filenames:
+
+- `pr_threads.csv`
+- `pr_comments.csv`
+
+Comments coverage is additive manifest metadata and MUST NOT change any core
+PowerBI CSV file shape, ordering, or root-level filenames.
+
 
 
 ## Schema Versions
@@ -44,6 +84,17 @@ All consumers MUST validate schema versions before rendering:
 | `aggregates_schema_version` | 2 | Reject if > supported |
 | `predictions_schema_version` | 1 | Reject if > supported (Phase 3.5) |
 | `insights_schema_version` | 1 | Reject if > supported (Phase 3.5) |
+
+## Capability Metadata Precedence
+
+Loader normalization MUST use this precedence:
+
+1. manifest capability flags
+2. schema-version support
+3. safe defaults
+
+If a manifest capability field exists, it wins. Schema-version inference is
+only used when the explicit capability field is absent.
 
 ## Manifest Schema (v1)
 
@@ -66,9 +117,35 @@ All consumers MUST validate schema versions before rendering:
   "defaults": { "default_date_range_days": 90 },
   "limits": { "max_date_range_days_soft": 730 },
   "features": { "teams": bool, "cross_dimensional": bool, "comments": bool, "predictions": bool, "ai_insights": bool },
-  "coverage": { "total_prs": number, "date_range": { "min": "YYYY-MM-DD", "max": "YYYY-MM-DD" } }
+  "capabilities": {
+    "author_filters": bool,
+    "author_repo_exact": bool,
+    "comments_metrics": bool,
+    "reviewer_repository_mode": "constrained" | "exact" | "disallowed",
+    "reviewer_team_mode": "constrained" | "exact" | "disallowed",
+    "cross_dimensional_available": bool
+  },
+  "coverage": {
+    "total_prs": number,
+    "date_range": { "min": "YYYY-MM-DD", "max": "YYYY-MM-DD" },
+    "comments": {
+      "status": "disabled" | "full" | "partial",
+      "threads_fetched": number,
+      "comments_fetched": number,
+      "prs_with_threads": number,
+      "capped": bool
+    }
+  }
 }
 ```
+
+### Comments Coverage Rules
+
+1. `status = "disabled"` when no comment threads were extracted
+2. `status = "full"` when comment data exists and extraction was not capped
+3. `status = "partial"` when comment data exists but extraction was capped
+4. `capped = true` means the dataset intentionally contains bounded comments coverage
+5. Frontend/operator surfaces may display comments coverage, but comments remain auxiliary and non-contract for PowerBI CSV consumers
 
 ## Weekly Rollup Schema (v2)
 

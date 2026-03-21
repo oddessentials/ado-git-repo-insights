@@ -228,6 +228,15 @@ If you have multiple pipelines publishing aggregates, configure a default:
 3. Extension settings — User-scoped saved preference
 4. Auto-discovery — Find pipelines with 'aggregates' artifact
 
+### Filter Behavior Notes
+
+- **Author filter** is a searchable single-select control keyed by stable author identity.
+- **Author + team** is constrained: the dashboard keeps the team selection visible but computes author-only metrics.
+- **Author + repository** uses exact metrics when the dataset exposes `by_author_and_repo`; otherwise legacy datasets fall back safely.
+- **Reviewer + repository** is constrained and uses reviewer-only metrics while retaining repository state.
+- **Reviewer + team** is disallowed and the dashboard clears the team selection with explicit UI messaging.
+- **Comments coverage** is shown as `full` or `partial`; `partial` means extraction was capped and comments remain an auxiliary analytics surface rather than part of the PowerBI CSV contract.
+
 ---
 
 ## Setting Up a Schedule
