@@ -10,7 +10,7 @@
 [![Release](https://github.com/oddessentials/ado-git-repo-insights/actions/workflows/release.yml/badge.svg)](https://github.com/oddessentials/ado-git-repo-insights/actions/workflows/release.yml)
 [![AI Review](https://github.com/oddessentials/ado-git-repo-insights/actions/workflows/ai-review.yml/badge.svg)](https://github.com/oddessentials/odd-ai-reviewers/actions/workflows/ai-review.yml)
 ![Maintained](https://img.shields.io/badge/maintained-yes-brightgreen)
-[![Last Commit](https://img.shields.io/github/last-commit/oddessentials/odd-ai-reviewers)](https://github.com/oddessentials/ado-git-repo-insights/commits/main)
+[![Last Commit](https://img.shields.io/github/last-commit/oddessentials/ado-git-repo-insights/main)](https://github.com/oddessentials/ado-git-repo-insights/commits/main)
 
 <!-- Python -->
 

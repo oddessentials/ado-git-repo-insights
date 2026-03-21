@@ -37,12 +37,18 @@ pytest
 # Extension
 cd extension && npm test
 
+# Authoritative local PR gate
+python scripts/run_pr_preflight.py
+
 # High-confidence CI parity for supported Python versions
 python scripts/run_ci_parity.py
 
 # Deeper parity with isolated per-version environments
 python scripts/run_ci_parity.py --mode full
 ```
+
+`run_pr_preflight.py` resolves Python 3.10 explicitly, so it stays on a
+supported baseline interpreter even if your shell default points elsewhere.
 
 **Detailed testing:** [Testing Guide](docs/development/testing.md)
 

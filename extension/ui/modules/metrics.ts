@@ -6,7 +6,10 @@
  */
 
 import type { Rollup } from "../dataset-loader";
-import type { BreakdownEntry } from "../schemas/rollup.schema";
+import type {
+  BreakdownEntry,
+  ReviewerBreakdownEntry,
+} from "../schemas/rollup.schema";
 import { median } from "./shared/format";
 
 /**
@@ -38,6 +41,7 @@ export interface CalculatedMetrics {
 export interface DimensionFilters {
   repos: string[];
   teams: string[];
+  reviewers?: string[];
 }
 
 /**
@@ -137,6 +141,14 @@ interface AggregatedSlice {
   reviewers_count: number;
 }
 
+interface AggregatedReviewerSlice {
+  reviewed_prs: number;
+  reviews_count: number;
+  approval_rate: number | null;
+  authors_count: number;
+  repositories_count: number;
+}
+
 /**
  * Aggregate metrics from a list of BreakdownEntry objects.
  * Returns summed counts and PR-weighted average cycle times.
@@ -219,6 +231,67 @@ function resolveBreakdownEntries(
     );
 }
 
+function resolveReviewerEntries(
+  breakdown: Record<string, ReviewerBreakdownEntry>,
+  keys: string[],
+): ReviewerBreakdownEntry[] {
+  return keys
+    .map((key) => {
+      // eslint-disable-next-line security/detect-object-injection -- SECURITY: key comes from validated filter state
+      const direct = breakdown[key];
+      if (direct) return direct;
+      return Object.entries(breakdown).find(([name]) => name === key)?.[1];
+    })
+    .filter(
+      (entry): entry is ReviewerBreakdownEntry =>
+        entry !== undefined && typeof entry?.reviewed_prs === "number",
+    );
+}
+
+function aggregateReviewerEntries(
+  entries: ReviewerBreakdownEntry[],
+): AggregatedReviewerSlice {
+  const reviewedPrs = entries.reduce(
+    (sum, entry) => sum + toFiniteNumber(entry.reviewed_prs),
+    0,
+  );
+  const reviewsCount = entries.reduce(
+    (sum, entry) => sum + toFiniteNumber(entry.reviews_count),
+    0,
+  );
+  const authorsCount = entries.reduce(
+    (sum, entry) => sum + toFiniteNumber(entry.authors_count),
+    0,
+  );
+  const repositoriesCount = entries.reduce(
+    (sum, entry) => sum + toFiniteNumber(entry.repositories_count),
+    0,
+  );
+
+  const approvalEntries = entries.filter(
+    (e) => typeof e.approval_rate === "number" && Number.isFinite(e.approval_rate),
+  );
+  const approvalDenominator = approvalEntries.reduce(
+    (sum, entry) => sum + toFiniteNumber(entry.reviewed_prs),
+    0,
+  );
+  const approvalWeightedSum = approvalEntries.reduce(
+    (sum, entry) =>
+      sum +
+      toFiniteNumber(entry.approval_rate) * toFiniteNumber(entry.reviewed_prs),
+    0,
+  );
+
+  return {
+    reviewed_prs: reviewedPrs,
+    reviews_count: reviewsCount,
+    approval_rate:
+      approvalDenominator > 0 ? approvalWeightedSum / approvalDenominator : null,
+    authors_count: authorsCount,
+    repositories_count: repositoriesCount,
+  };
+}
+
 const ZEROED_ROLLUP_FIELDS = {
   pr_count: 0,
   cycle_time_p50: null,
@@ -267,7 +340,14 @@ export function applyFiltersToRollups(
   rollups: Rollup[],
   filters: DimensionFilters,
 ): Rollup[] {
-  if (!filters.repos.length && !filters.teams.length) {
+  const firstReviewer = filters.reviewers?.[0];
+  const reviewerFilters = firstReviewer ? [firstReviewer] : [];
+
+  if (
+    !filters.repos.length &&
+    !filters.teams.length &&
+    !reviewerFilters.length
+  ) {
     return rollups;
   }
 
@@ -284,6 +364,16 @@ export function applyFiltersToRollups(
       typeof rollup.by_team === "object"
         ? rollup.by_team
         : null;
+    const reviewerBreakdown =
+      reviewerFilters.length > 0 &&
+      rollup.by_reviewer &&
+      typeof rollup.by_reviewer === "object"
+        ? rollup.by_reviewer
+        : null;
+
+    if (reviewerFilters.length > 0 && !reviewerBreakdown) {
+      return { ...rollup, ...ZEROED_ROLLUP_FIELDS };
+    }
 
     let repoSlice: AggregatedSlice | null = null;
     if (repoBreakdown) {
@@ -307,6 +397,35 @@ export function applyFiltersToRollups(
         return { ...rollup, ...ZEROED_ROLLUP_FIELDS };
       }
       teamSlice = aggregateEntries(entries);
+    }
+
+    let reviewerSlice: AggregatedReviewerSlice | null = null;
+    if (reviewerBreakdown) {
+      const entries = resolveReviewerEntries(
+        reviewerBreakdown,
+        reviewerFilters,
+      );
+      if (entries.length === 0) {
+        return { ...rollup, ...ZEROED_ROLLUP_FIELDS };
+      }
+      reviewerSlice = aggregateReviewerEntries(entries);
+    }
+
+    if (reviewerSlice) {
+      if (repoSlice || teamSlice) {
+        console.warn(
+          "Combined reviewer filtering with repository/team filters is not supported; using reviewer-only filtering",
+        );
+      }
+
+      return buildFilteredRollup(rollup, {
+        pr_count: reviewerSlice.reviewed_prs,
+        cycle_time_p50: null,
+        cycle_time_p90: null,
+        authors_count: reviewerSlice.authors_count,
+        // Reuse reviewers_count for review-activity UI surfaces.
+        reviewers_count: reviewerSlice.reviews_count,
+      });
     }
 
     // Single filter active — use its slice directly

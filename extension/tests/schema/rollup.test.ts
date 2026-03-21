@@ -199,6 +199,138 @@ describe("Rollup Schema Validator", () => {
       const result = validateRollup(valid, false);
       expect(result.valid).toBe(true);
     });
+
+    it("should fail when by_repository is not an object", () => {
+      const invalid = {
+        ...validRollup,
+        by_repository: "not-an-object",
+      };
+      const result = validateRollup(invalid, false);
+      expect(result.valid).toBe(false);
+      expect(result.errors.some((e) => e.field === "by_repository")).toBe(true);
+    });
+
+    it("should pass when by_reviewer has valid structure", () => {
+      const valid = {
+        ...validRollup,
+        by_reviewer: {
+          reviewer1: {
+            reviewed_prs: 12,
+            reviews_count: 14,
+            approval_rate: 0.75,
+            authors_count: 6,
+            repositories_count: 3,
+          },
+        },
+      };
+      const result = validateRollup(valid, false);
+      expect(result.valid).toBe(true);
+    });
+
+    it("should fail when by_reviewer approval_rate is outside [0, 1]", () => {
+      const invalid = {
+        ...validRollup,
+        by_reviewer: {
+          reviewer1: {
+            reviewed_prs: 12,
+            reviews_count: 14,
+            approval_rate: 1.5,
+          },
+        },
+      };
+      const result = validateRollup(invalid, false);
+      expect(result.valid).toBe(false);
+      expect(result.errors.some((e) => e.field.includes("approval_rate"))).toBe(
+        true,
+      );
+    });
+
+    it("should pass when by_reviewer approval_rate is null", () => {
+      const valid = {
+        ...validRollup,
+        by_reviewer: {
+          reviewer1: {
+            reviewed_prs: 12,
+            reviews_count: 14,
+            approval_rate: null,
+            authors_count: 6,
+            repositories_count: 3,
+          },
+        },
+      };
+      const result = validateRollup(valid, false);
+      expect(result.valid).toBe(true);
+    });
+
+    it("should fail when by_reviewer is not an object", () => {
+      const invalid = {
+        ...validRollup,
+        by_reviewer: "not-an-object",
+      };
+      const result = validateRollup(invalid, false);
+      expect(result.valid).toBe(false);
+      expect(result.errors.some((e) => e.field === "by_reviewer")).toBe(true);
+    });
+
+    it("should fail when by_reviewer entry is not an object", () => {
+      const invalid = {
+        ...validRollup,
+        by_reviewer: {
+          reviewer1: "not-an-object",
+        },
+      };
+      const result = validateRollup(invalid, false);
+      expect(result.valid).toBe(false);
+      expect(
+        result.errors.some((e) => e.field.includes("by_reviewer.reviewer1")),
+      ).toBe(true);
+    });
+
+    it("should fail when by_reviewer approval_rate is not numeric", () => {
+      const invalid = {
+        ...validRollup,
+        by_reviewer: {
+          reviewer1: {
+            reviewed_prs: 12,
+            reviews_count: 14,
+            approval_rate: "high",
+          },
+        },
+      };
+      const result = validateRollup(invalid, false);
+      expect(result.valid).toBe(false);
+      expect(result.errors.some((e) => e.field.includes("approval_rate"))).toBe(
+        true,
+      );
+    });
+
+    it("should fail when by_reviewer counts are negative", () => {
+      const invalid = {
+        ...validRollup,
+        by_reviewer: {
+          reviewer1: {
+            reviewed_prs: -1,
+            reviews_count: -2,
+            authors_count: -3,
+            repositories_count: -4,
+          },
+        },
+      };
+      const result = validateRollup(invalid, false);
+      expect(result.valid).toBe(false);
+      expect(result.errors.some((e) => e.field.includes("reviewed_prs"))).toBe(
+        true,
+      );
+      expect(result.errors.some((e) => e.field.includes("reviews_count"))).toBe(
+        true,
+      );
+      expect(result.errors.some((e) => e.field.includes("authors_count"))).toBe(
+        true,
+      );
+      expect(
+        result.errors.some((e) => e.field.includes("repositories_count")),
+      ).toBe(true);
+    });
   });
 
   describe("empty JSON handling", () => {
@@ -279,6 +411,18 @@ describe("Rollup Schema Validator", () => {
       const result = validateRollup(rollupWithEmpty, false);
       expect(result.valid).toBe(true);
       expect(result.errors).toHaveLength(0);
+    });
+
+    it("should fail when by_team_and_repo is not an object", () => {
+      const malformed = {
+        ...v2Rollup,
+        by_team_and_repo: "not-an-object",
+      };
+      const result = validateRollup(malformed, false);
+      expect(result.valid).toBe(false);
+      expect(result.errors.some((e) => e.field === "by_team_and_repo")).toBe(
+        true,
+      );
     });
 
     it("should catch malformed outer value in by_team_and_repo (not an object)", () => {
@@ -478,6 +622,32 @@ describe("Rollup Schema Validator", () => {
       expect(normalized.by_team_and_repo).toEqual({
         "Backend Team": {
           "main-repo": { pr_count: 15 },
+        },
+      });
+    });
+
+    it("normalizeRollup preserves by_reviewer when present", () => {
+      const input = {
+        week: "2026-W02",
+        start_date: "2026-01-06",
+        end_date: "2026-01-12",
+        pr_count: 10,
+        by_reviewer: {
+          reviewer1: {
+            reviewed_prs: 4,
+            reviews_count: 5,
+            approval_rate: 0.5,
+          },
+        },
+      };
+
+      const normalized = normalizeRollup(input);
+
+      expect(normalized.by_reviewer).toEqual({
+        reviewer1: {
+          reviewed_prs: 4,
+          reviews_count: 5,
+          approval_rate: 0.5,
         },
       });
     });

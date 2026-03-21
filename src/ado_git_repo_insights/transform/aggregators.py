@@ -3,7 +3,7 @@
 Generates JSON aggregates from SQLite for scale-safe UI rendering:
 - weekly_rollups/YYYY-Www.json - Weekly PR metrics
 - distributions/YYYY.json - Yearly distribution data
-- dimensions.json - Filter dimensions (repos, users, teams)
+- dimensions.json - Filter dimensions (repos, users, reviewers, teams)
 - dataset-manifest.json - Discovery metadata with schema versions
 - predictions/trends.json - Trend forecasts (Phase 3.5)
 - insights/summary.json - AI insights (Phase 3.5)
@@ -97,6 +97,7 @@ class Dimensions:
 
     repositories: list[dict[str, Any]] = field(default_factory=list)
     users: list[dict[str, Any]] = field(default_factory=list)
+    reviewers: list[dict[str, Any]] = field(default_factory=list)
     projects: list[dict[str, Any]] = field(default_factory=list)
     teams: list[dict[str, Any]] = field(default_factory=list)  # Phase 3.3
     date_range: dict[str, str] = field(default_factory=dict)
@@ -415,6 +416,19 @@ class AggregateGenerator:
             self.db.connection,
         )
 
+        # Reviewers (distinct reviewers only)
+        reviewers_df = pd.read_sql_query(
+            """
+            SELECT DISTINCT
+                rv.user_id as reviewer_id,
+                u.display_name as reviewer_name
+            FROM reviewers rv
+            INNER JOIN users u ON rv.user_id = u.user_id
+            ORDER BY u.display_name
+            """,
+            self.db.connection,
+        )
+
         # Projects
         projects_df = pd.read_sql_query(
             """
@@ -470,6 +484,10 @@ class AggregateGenerator:
             {str(k): v for k, v in r.items()}
             for r in users_df.to_dict(orient="records")
         ]
+        reviewers_records: list[dict[str, Any]] = [
+            {str(k): v for k, v in r.items()}
+            for r in reviewers_df.to_dict(orient="records")
+        ]
         projects_records: list[dict[str, Any]] = [
             {str(k): v for k, v in r.items()}
             for r in projects_df.to_dict(orient="records")
@@ -485,6 +503,7 @@ class AggregateGenerator:
         return Dimensions(
             repositories=repos_records,
             users=users_records,
+            reviewers=reviewers_records,
             projects=projects_records,
             teams=teams_records,
             date_range=date_range,
@@ -518,7 +537,8 @@ class AggregateGenerator:
             """
             SELECT
                 rv.pull_request_uid,
-                rv.user_id as reviewer_id
+                rv.user_id as reviewer_id,
+                rv.vote
             FROM reviewers rv
             """,
             self.db.connection,
@@ -569,6 +589,7 @@ class AggregateGenerator:
             # Generate dimension slices for filtering support
             by_repository = self._generate_repo_slice(group, week_reviewers)
             by_team = self._generate_team_slice(group, week_reviewers, team_members_df)
+            by_reviewer = self._generate_reviewer_slice(group, week_reviewers)
             by_team_and_repo = self._generate_team_repo_slice(
                 group, week_reviewers, team_members_df
             )
@@ -594,6 +615,8 @@ class AggregateGenerator:
                 rollup_dict["by_repository"] = by_repository
             if by_team:
                 rollup_dict["by_team"] = by_team
+            if by_reviewer:
+                rollup_dict["by_reviewer"] = by_reviewer
             if by_team_and_repo:
                 # Consistency assertion (pr_count only): for each team,
                 # sum of cross-dim pr_counts must equal team total.
@@ -750,6 +773,70 @@ class AggregateGenerator:
             }
 
         return by_team
+
+    def _generate_reviewer_slice(
+        self,
+        week_group: pd.DataFrame,
+        week_reviewers: pd.DataFrame,
+    ) -> dict[str, Any]:
+        """Generate per-reviewer activity metrics for a week.
+
+        Reviewer slices are keyed by stable reviewer_id rather than display
+        name. This avoids ambiguity when multiple users share a display name
+        and lets the UI use dimensions metadata for labels.
+
+        Phase 1 reviewer metrics intentionally exclude cycle-time and
+        review-latency fields. Those require a richer persisted review event
+        model than the current reviewers table provides.
+        """
+        if week_reviewers.empty:
+            return {}
+
+        reviewer_prs = week_reviewers.merge(
+            week_group[
+                ["pull_request_uid", "user_id", "repository_name"]
+            ].drop_duplicates(subset=["pull_request_uid"]),
+            on="pull_request_uid",
+            how="inner",
+        )
+
+        if reviewer_prs.empty:
+            return {}
+
+        by_reviewer: dict[str, Any] = {}
+
+        for reviewer_id, reviewer_group in reviewer_prs.groupby("reviewer_id"):
+            if pd.isna(reviewer_id):
+                continue
+
+            # Phase 1 reviewer activity only counts stored review outcomes.
+            # Requested-but-pending reviewer rows use vote=0 and must not
+            # contribute to reviewed PRs or approval rate.
+            outcome_group = reviewer_group[
+                reviewer_group["vote"].notna() & (reviewer_group["vote"] != 0)
+            ]
+
+            reviewed_prs = int(outcome_group["pull_request_uid"].nunique())
+            if reviewed_prs == 0:
+                continue
+
+            approved_prs = int(
+                outcome_group.loc[
+                    outcome_group["vote"] == 10, "pull_request_uid"
+                ].nunique()
+            )
+
+            by_reviewer[str(reviewer_id)] = {
+                "reviewed_prs": reviewed_prs,
+                "reviews_count": int(len(outcome_group)),
+                "approval_rate": approved_prs / reviewed_prs,
+                "authors_count": int(outcome_group["user_id"].nunique()),
+                "repositories_count": int(
+                    outcome_group["repository_name"].dropna().nunique()
+                ),
+            }
+
+        return by_reviewer
 
     # Maximum cross-dimensional entries per week before truncation (FR-017)
     _CROSS_DIM_MAX_ENTRIES = 5000

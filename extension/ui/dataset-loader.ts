@@ -24,7 +24,10 @@ import {
   type ValidationResult,
   type ArtifactType,
 } from "./schemas";
-import type { BreakdownEntry } from "./schemas/rollup.schema";
+import type {
+  BreakdownEntry,
+  ReviewerBreakdownEntry,
+} from "./schemas/rollup.schema";
 
 // ============================================================================
 // Validation Helpers
@@ -105,6 +108,7 @@ export interface Rollup {
   reviewers_count: number;
   by_repository: Record<string, BreakdownEntry> | null;
   by_team: Record<string, BreakdownEntry> | null;
+  by_reviewer?: Record<string, ReviewerBreakdownEntry> | null;
   by_team_and_repo?: Record<string, Record<string, BreakdownEntry>>;
   [key: string]: unknown; // Allow for extra fields preserved during normalization
 }
@@ -124,6 +128,7 @@ export const ROLLUP_FIELD_DEFAULTS: {
   reviewers_count: number;
   by_repository: Record<string, BreakdownEntry> | null;
   by_team: Record<string, BreakdownEntry> | null;
+  by_reviewer: Record<string, ReviewerBreakdownEntry> | null;
 } = {
   pr_count: 0,
   cycle_time_p50: null,
@@ -132,6 +137,7 @@ export const ROLLUP_FIELD_DEFAULTS: {
   reviewers_count: 0,
   by_repository: null, // null indicates feature not available
   by_team: null, // null indicates feature not available
+  by_reviewer: null, // null indicates feature not available
 };
 
 /**
@@ -168,6 +174,10 @@ export function normalizeRollup(rollup: unknown): Rollup {
     by_team:
       r.by_team !== undefined
         ? (r.by_team as Record<string, BreakdownEntry> | null)
+        : null,
+    by_reviewer:
+      r.by_reviewer !== undefined
+        ? (r.by_reviewer as Record<string, ReviewerBreakdownEntry> | null)
         : null,
     // Cross-dimensional breakdown (v2 schema) — pass through if present
     ...(r.by_team_and_repo !== undefined

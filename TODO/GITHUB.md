@@ -1,84 +1,14 @@
 # GitHub Platform Support
 
-> Last reviewed: 2026-02-11 (revised with external verification and devil's advocate review)
+This branch intentionally defers GitHub platform work.
 
-## Executive Summary
+The active roadmap on `032-roadmap-blocker-resolution` is ADO-first:
+- author filters
+- author x repo
+- comments completion
+- reviewer follow-through
 
-Adding GitHub as a second data source is **architecturally feasible with moderate risk**.
-Stages 3-4 of the pipeline (aggregate, dashboard) are vendor-agnostic (validated by
-internal audit, 2026-02-11). ADO coupling is isolated to 6 files in the extraction and
-persistence layers. Market analysis confirms a **strong enterprise opportunity** -- GitHub
-lacks dedicated PR turnaround and cycle-time analytics (a 4-year community-requested gap),
-and no free/open-source competitor matches this tool's specific bundle of local storage,
-PowerBI export, extension/dashboard parity, and embedded ML/AI predictions.
-
-| Aspect | Assessment |
-|--------|-----------|
-| **Architecture Risk** | Moderate -- provider pattern at extraction layer; Search API 1,000-result cap requires chunking strategy |
-| **Invariant Impact** | 25 invariants preserved without schema changes; Invariant 15 may need formal amendment for GitHub's flat hierarchy |
-| **Dashboard Parity** | Automatic -- Stages 3-4 are vendor-agnostic |
-| **Market Opportunity** | Strong -- GitHub lacks dedicated PR cycle-time analytics despite community demand since 2022 |
-| **Competitive Position** | Unique bundle -- no OSS tool combines SQLite-local + PowerBI export + ML/AI + extension/dashboard parity |
-| **Estimated Effort** | 12-18 days (after prerequisite TODO items complete) |
-| **Recommended Priority** | 5th of 5 -- after all current TODO items |
-
----
-
-## Priority Roadmap (Architect Recommendation)
-
-GitHub support should be implemented **last** among the current TODO items.
-Adding a new data source amplifies every existing bug; stabilize the core first.
-
-```
-Priority 1: CROSS-DIMENSIONAL-ACCURACY     [3-4 days backend, 2 days frontend]
-Priority 2: AUTHOR_CONTRIBUTOR_FILTERS      [2-3 days backend, 2-3 days frontend]
-Priority 3: TEAM_REVIEWER_FILTERS (reviewer)[3-4 days backend, 2-3 days frontend]
-Priority 4: COMMENTS (complete pipeline)    [3-5 days]
-Priority 5: GITHUB SUPPORT (this document)  [12-18 days]
-```
-
-### Reasoning
-
-1. **Cross-Dimensional Accuracy first** -- fixes the most impactful dashboard accuracy
-   problem. Purely additive, no schema changes, backward compatible. Creates the nested
-   breakdown pattern (`by_team_and_repo`) that GitHub data also benefits from.
-
-2. **Author Filters second** -- follows the established team filter pattern (95% done).
-   Data already exists in SQLite. Enables cross-dimensional pairs once Phase 1 is done.
-
-3. **Reviewer Filters third** -- same pattern as author filters. Validates the reviewer
-   vote normalization with ADO data first, before GitHub adds a second vote model.
-
-4. **Comments fourth** -- backend is complete but pipeline is incomplete. Complete the
-   ADO comment pipeline end-to-end to validate the threading model before attempting
-   GitHub comments (which use a fundamentally different threading structure).
-
-5. **GitHub last** -- by this point all filter dimensions and cross-dimensional accuracy
-   are stable, the normalization layer can be designed with full knowledge of what the
-   aggregation layer needs, and any schema issues found during Phases 1-4 are resolved
-   before introducing a second data source. Most importantly: every subsequent change
-   would require testing against both ADO and GitHub data, doubling the testing surface.
-
-### Alternative Considered: Early Abstraction
-
-An alternative approach would extract Phase 5.1 (Provider Abstraction) as a standalone
-refactor before Priority 2. This would decouple the extraction layer early, making
-author/reviewer filter implementations automatically portable and reducing the "big bang"
-risk of introducing abstraction + new client simultaneously. This was rejected because:
-- The abstraction design benefits from knowing the full set of filter dimensions first
-- Premature abstraction risks over-engineering the protocol before all use cases are known
-- The current concrete `ADOClient` dependency is well-tested and stable
-
-However, if competitive pressure increases (e.g., Apache DevLake gains significant GitHub
-PR analytics adoption), this alternative could be reconsidered to enable an earlier MVP.
-
-### Market Timing Risk
-
-The 5th-priority placement is a deliberate trade-off. OSS competitors like Apache DevLake
-and GrimoireLab already provide some GitHub PR analytics. If the tool waits ~18-25 working
-days (Priorities 1-4 + overhead) before starting GitHub work, competitors may extend their
-lead. The mitigation is that this tool's specific bundle (SQLite-local + PowerBI + ML/AI +
-extension parity) remains differentiated regardless of when GitHub support ships.
+If GitHub support is revisited later, it should start from a fresh planning branch and a new spec rather than carrying stale assumptions from this roadmap-cleanup branch.
 
 ---
 

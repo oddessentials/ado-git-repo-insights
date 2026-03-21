@@ -8,7 +8,10 @@
  * @module tests/schema/dimensions.test.ts
  */
 
-import { validateDimensions } from "../../ui/schemas/dimensions.schema";
+import {
+  normalizeDimensions,
+  validateDimensions,
+} from "../../ui/schemas/dimensions.schema";
 import type { ValidationResult } from "../../ui/schemas/types";
 
 // Load the actual fixture for valid data tests (production format)
@@ -46,6 +49,9 @@ describe("Dimensions Schema Validator", () => {
           },
         ],
         users: [{ user_id: "user-1", display_name: "Alice Developer" }],
+        reviewers: [
+          { reviewer_id: "reviewer-1", reviewer_name: "Rita Reviewer" },
+        ],
         projects: [
           { organization_name: "test-org", project_name: "test-project" },
         ],
@@ -57,6 +63,78 @@ describe("Dimensions Schema Validator", () => {
       };
       const result = validateDimensions(productionFormat, true);
       expect(result.valid).toBe(true);
+    });
+
+    it("should fail when reviewer item is missing reviewer_name", () => {
+      const invalid = {
+        repositories: [],
+        users: [],
+        reviewers: [{ reviewer_id: "reviewer-1" }],
+        projects: [],
+      };
+      const result = validateDimensions(invalid, true);
+      expect(result.valid).toBe(false);
+      expect(result.errors.some((e) => e.field.includes("reviewer_name"))).toBe(
+        true,
+      );
+    });
+
+    it("should fail when reviewer item is missing reviewer_id", () => {
+      const invalid = {
+        repositories: [],
+        users: [],
+        reviewers: [{ reviewer_name: "Rita Reviewer" }],
+        projects: [],
+      };
+      const result = validateDimensions(invalid, true);
+      expect(result.valid).toBe(false);
+      expect(result.errors.some((e) => e.field.includes("reviewer_id"))).toBe(
+        true,
+      );
+    });
+
+    it("should fail when reviewers is not an array", () => {
+      const invalid = {
+        repositories: [],
+        users: [],
+        reviewers: { reviewer_id: "reviewer-1", reviewer_name: "Rita Reviewer" },
+        projects: [],
+      };
+      const result = validateDimensions(invalid, true);
+      expect(result.valid).toBe(false);
+      expect(result.errors.some((e) => e.field === "reviewers")).toBe(true);
+    });
+
+    it("should fail when reviewer item contains unknown fields in strict mode", () => {
+      const invalid = {
+        repositories: [],
+        users: [],
+        reviewers: [
+          {
+            reviewer_id: "reviewer-1",
+            reviewer_name: "Rita Reviewer",
+            extra_field: true,
+          },
+        ],
+        projects: [],
+      };
+      const result = validateDimensions(invalid, true);
+      expect(result.valid).toBe(false);
+      expect(result.errors.some((e) => e.field.includes("extra_field"))).toBe(
+        true,
+      );
+    });
+
+    it("should fail when reviewer item is not an object", () => {
+      const invalid = {
+        repositories: [],
+        users: [],
+        reviewers: ["reviewer-1"],
+        projects: [],
+      };
+      const result = validateDimensions(invalid, true);
+      expect(result.valid).toBe(false);
+      expect(result.errors.some((e) => e.field === "reviewers[0]")).toBe(true);
     });
   });
 
@@ -187,6 +265,19 @@ describe("Dimensions Schema Validator", () => {
       expect(result.valid).toBe(false);
       expect(result.errors.some((e) => e.field.includes("name"))).toBe(true);
     });
+
+    it("should fail when repository item is an empty object", () => {
+      const invalid = {
+        repositories: [{}],
+        users: [],
+        projects: [],
+      };
+      const result = validateDimensions(invalid, true);
+      expect(result.valid).toBe(false);
+      expect(result.errors.some((e) => e.field === "repositories[0]")).toBe(
+        true,
+      );
+    });
   });
 
   describe("array item validation - users (production format)", () => {
@@ -252,6 +343,17 @@ describe("Dimensions Schema Validator", () => {
         true,
       );
     });
+
+    it("should fail when user item is an empty object", () => {
+      const invalid = {
+        repositories: [],
+        users: [{}],
+        projects: [],
+      };
+      const result = validateDimensions(invalid, true);
+      expect(result.valid).toBe(false);
+      expect(result.errors.some((e) => e.field === "users[0]")).toBe(true);
+    });
   });
 
   describe("array item validation - projects (production format)", () => {
@@ -304,6 +406,17 @@ describe("Dimensions Schema Validator", () => {
       expect(result.valid).toBe(false);
       expect(result.errors.some((e) => e.field.includes("name"))).toBe(true);
     });
+
+    it("should fail when project item is an empty object", () => {
+      const invalid = {
+        repositories: [],
+        users: [],
+        projects: [{}],
+      };
+      const result = validateDimensions(invalid, true);
+      expect(result.valid).toBe(false);
+      expect(result.errors.some((e) => e.field === "projects[0]")).toBe(true);
+    });
   });
 
   describe("array item validation - teams (optional)", () => {
@@ -337,6 +450,30 @@ describe("Dimensions Schema Validator", () => {
       };
       const result = validateDimensions(withTeam, true);
       expect(result.valid).toBe(true);
+    });
+
+    it("should fail when teams is not an array", () => {
+      const invalid = {
+        repositories: [],
+        users: [],
+        projects: [],
+        teams: { id: "team-1" },
+      };
+      const result = validateDimensions(invalid, true);
+      expect(result.valid).toBe(false);
+      expect(result.errors.some((e) => e.field === "teams")).toBe(true);
+    });
+
+    it("should fail when team entry is not an object", () => {
+      const invalid = {
+        repositories: [],
+        users: [],
+        projects: [],
+        teams: ["team-1"],
+      };
+      const result = validateDimensions(invalid, true);
+      expect(result.valid).toBe(false);
+      expect(result.errors.some((e) => e.field === "teams[0]")).toBe(true);
     });
   });
 
@@ -378,6 +515,18 @@ describe("Dimensions Schema Validator", () => {
       };
       const result = validateDimensions(invalid, true);
       expect(result.valid).toBe(false);
+    });
+
+    it("should fail when date_range is not an object", () => {
+      const invalid = {
+        repositories: [],
+        users: [],
+        projects: [],
+        date_range: "2025-01-01",
+      };
+      const result = validateDimensions(invalid, true);
+      expect(result.valid).toBe(false);
+      expect(result.errors.some((e) => e.field === "date_range")).toBe(true);
     });
   });
 
@@ -477,6 +626,20 @@ describe("Dimensions Schema Validator", () => {
       expect(result.valid).toBe(false);
       // Should have errors for both invalid items
       expect(result.errors.length).toBeGreaterThanOrEqual(2);
+    });
+  });
+
+  describe("normalization", () => {
+    it("defaults optional reviewer and team arrays when absent", () => {
+      const normalized = normalizeDimensions({
+        repositories: [],
+        users: [],
+        projects: [],
+      });
+
+      expect(normalized.reviewers).toEqual([]);
+      expect(normalized.teams).toEqual([]);
+      expect(normalized.date_range).toBeUndefined();
     });
   });
 });

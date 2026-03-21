@@ -58,7 +58,8 @@ function getEsbuildCommandAndArgs(cliArgs) {
 }
 
 function removeWithRetries(targetPath) {
-    const deadline = Date.now() + 5000;
+    const deadline = Date.now() + 30000;
+    let delayMs = 200;
 
     while (true) {
         try {
@@ -77,19 +78,37 @@ function removeWithRetries(targetPath) {
                 throw err;
             }
 
-            Atomics.wait(sleepBuffer, 0, 0, 200);
+            Atomics.wait(sleepBuffer, 0, 0, delayMs);
+            delayMs = Math.min(delayMs * 2, 2000);
         }
     }
 }
 
 async function build() {
-    // Clean dist/ui contents before building without removing the root directory.
-    // On Windows the root can be transiently locked even when child entries are removable.
     fs.mkdirSync(outDir, { recursive: true });
+    const expectedOutputs = new Set([
+        ...entryPoints.map((entry) => entry.output),
+        'index.html',
+        'settings.html',
+        'styles.css',
+        'VSS.SDK.min.js',
+    ]);
+
+    // Best-effort prune unexpected leftovers. Do not delete expected outputs first:
+    // on Windows, generated files may be transiently locked by local tooling even
+    // though overwriting them works fine.
     for (const entry of fs.readdirSync(outDir)) {
-        removeWithRetries(path.join(outDir, entry));
+        if (expectedOutputs.has(entry)) {
+            continue;
+        }
+
+        try {
+            removeWithRetries(path.join(outDir, entry));
+        } catch (err) {
+            console.warn(`⚠ Could not remove stale dist/ui entry '${entry}': ${err.message}`);
+        }
     }
-    console.log('🧹 Cleaned dist/ui/ directory\n');
+    console.log('🧹 Prepared dist/ui/ directory\n');
 
     console.log('📦 Building UI bundles with esbuild...\n');
 

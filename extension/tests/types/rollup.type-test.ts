@@ -24,6 +24,7 @@
 
 import type {
   BreakdownEntry,
+  ReviewerBreakdownEntry,
   WeeklyRollup,
 } from "../../ui/schemas/rollup.schema";
 
@@ -88,6 +89,23 @@ function positiveTest_breakdownEntryShape(entry: BreakdownEntry): void {
   void _reviewers;
 }
 
+/**
+ * Positive Test 4: ReviewerBreakdownEntry exposes reviewer activity fields.
+ */
+function positiveTest_reviewerBreakdownShape(entry: ReviewerBreakdownEntry): void {
+  const _reviewedPrs: number = entry.reviewed_prs;
+  const _reviewsCount: number = entry.reviews_count;
+  const _approvalRate: number | null | undefined = entry.approval_rate;
+  const _authors: number | undefined = entry.authors_count;
+  const _repositories: number | undefined = entry.repositories_count;
+
+  void _reviewedPrs;
+  void _reviewsCount;
+  void _approvalRate;
+  void _authors;
+  void _repositories;
+}
+
 // ============================================================================
 // Negative Tests - These MUST produce type errors (caught by @ts-expect-error)
 // ============================================================================
@@ -145,6 +163,17 @@ function negativeTest_noArbitraryProperties(entry: BreakdownEntry): void {
   void _value;
 }
 
+/**
+ * Negative Test 5: ReviewerBreakdownEntry does not expose cycle_time fields.
+ */
+function negativeTest_reviewerBreakdownNoCycleTime(
+  entry: ReviewerBreakdownEntry,
+): void {
+  // @ts-expect-error -- REASON: reviewer breakdowns intentionally exclude cycle-time fields
+  const _value = entry.cycle_time_p50;
+  void _value;
+}
+
 // ============================================================================
 // Export to prevent "file is not a module" error
 // ============================================================================
@@ -153,8 +182,10 @@ export {
   positiveTest_byRepositoryPrCount,
   positiveTest_byTeamPrCount,
   positiveTest_breakdownEntryShape,
+  positiveTest_reviewerBreakdownShape,
   negativeTest_breakdownEntryIsNotNumber,
   negativeTest_byRepositoryNotNumber,
   negativeTest_byTeamNotNumber,
   negativeTest_noArbitraryProperties,
+  negativeTest_reviewerBreakdownNoCycleTime,
 };

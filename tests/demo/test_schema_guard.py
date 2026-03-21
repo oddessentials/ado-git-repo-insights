@@ -37,6 +37,7 @@ DATASET_LOADER_FILE = (
 
 # Fields that exist in the schema but are not generated (deprecated/forward-compat)
 DEPRECATED_FIELDS = {"review_time_p50", "review_time_p90"}
+OPTIONAL_ROOT_FIELDS = {"by_reviewer"}
 
 
 def _extract_ts_set_fields(ts_source: str, set_name: str) -> set[str]:
@@ -72,7 +73,7 @@ class TestRootFieldCompleteness:
 
     def test_root_fields_present(self, schema_source, sample_rollup):
         known_root = _extract_ts_set_fields(schema_source, "KNOWN_ROOT_FIELDS")
-        expected = known_root - DEPRECATED_FIELDS
+        expected = known_root - DEPRECATED_FIELDS - OPTIONAL_ROOT_FIELDS
         actual = set(sample_rollup.keys())
 
         missing = expected - actual

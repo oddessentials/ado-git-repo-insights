@@ -1250,6 +1250,263 @@ class TestTeamAggregation:
         assert "Empty Team" not in week_data["by_team"]
 
 
+class TestReviewerSlicing:
+    """Tests for reviewer dimensions and reviewer activity slices."""
+
+    @pytest.fixture
+    def db_with_reviewers(self, tmp_path: Path) -> tuple[DatabaseManager, Path]:
+        db_path = tmp_path / "reviewers.sqlite"
+        db = DatabaseManager(db_path)
+        db.connect()
+
+        db.execute(
+            "INSERT INTO organizations (organization_name) VALUES (?)",
+            ("org1",),
+        )
+        db.execute(
+            "INSERT INTO projects (organization_name, project_name) VALUES (?, ?)",
+            ("org1", "proj1"),
+        )
+        db.execute(
+            "INSERT INTO repositories (repository_id, repository_name, project_name, organization_name) VALUES (?, ?, ?, ?)",
+            ("repo1", "Repo One", "proj1", "org1"),
+        )
+        db.execute(
+            "INSERT INTO repositories (repository_id, repository_name, project_name, organization_name) VALUES (?, ?, ?, ?)",
+            ("repo2", "Repo Two", "proj1", "org1"),
+        )
+
+        users = [
+            ("author1", "Author One", "author1@test.com"),
+            ("author2", "Author Two", "author2@test.com"),
+            ("author3", "Author Three", "author3@test.com"),
+            ("reviewer1", "Reviewer One", "reviewer1@test.com"),
+            ("reviewer2", "Reviewer Two", "reviewer2@test.com"),
+            ("reviewer3", "Reviewer Three", "reviewer3@test.com"),
+            ("reviewer4", "Reviewer Four", "reviewer4@test.com"),
+        ]
+        for user in users:
+            db.execute(
+                "INSERT INTO users (user_id, display_name, email) VALUES (?, ?, ?)",
+                user,
+            )
+
+        prs = [
+            (
+                "repo1-1",
+                1,
+                "org1",
+                "proj1",
+                "repo1",
+                "author1",
+                "PR 1",
+                "completed",
+                None,
+                "2026-01-05",
+                "2026-01-07",
+                120.0,
+            ),
+            (
+                "repo1-2",
+                2,
+                "org1",
+                "proj1",
+                "repo1",
+                "author2",
+                "PR 2",
+                "completed",
+                None,
+                "2026-01-05",
+                "2026-01-08",
+                180.0,
+            ),
+            (
+                "repo2-3",
+                3,
+                "org1",
+                "proj1",
+                "repo2",
+                "author3",
+                "PR 3",
+                "completed",
+                None,
+                "2026-01-06",
+                "2026-01-09",
+                240.0,
+            ),
+        ]
+        for pr in prs:
+            db.execute(
+                """
+                INSERT INTO pull_requests (
+                    pull_request_uid, pull_request_id, organization_name, project_name,
+                    repository_id, user_id, title, status, description,
+                    creation_date, closed_date, cycle_time_minutes
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                pr,
+            )
+
+        reviewers = [
+            ("repo1-1", "reviewer1", 10, "repo1"),
+            ("repo1-2", "reviewer1", 10, "repo1"),
+            ("repo2-3", "reviewer1", -5, "repo2"),
+            ("repo1-1", "reviewer2", 5, "repo1"),
+            ("repo1-2", "reviewer3", 0, "repo1"),
+            ("repo2-3", "reviewer3", 10, "repo2"),
+        ]
+        for reviewer in reviewers:
+            db.execute(
+                "INSERT INTO reviewers (pull_request_uid, user_id, vote, repository_id) VALUES (?, ?, ?, ?)",
+                reviewer,
+            )
+
+        db.connection.commit()
+        yield db, db_path
+        db.close()
+
+    def test_generates_reviewer_dimension(
+        self, db_with_reviewers: tuple[DatabaseManager, Path], tmp_path: Path
+    ) -> None:
+        db, _ = db_with_reviewers
+        output_dir = tmp_path / "output"
+
+        generator = AggregateGenerator(db, output_dir)
+        generator.generate_all()
+
+        dims_file = output_dir / "aggregates" / "dimensions.json"
+        with dims_file.open() as f:
+            dims = json.load(f)
+
+        assert "reviewers" in dims
+        assert dims["reviewers"] == [
+            {"reviewer_id": "reviewer1", "reviewer_name": "Reviewer One"},
+            {"reviewer_id": "reviewer3", "reviewer_name": "Reviewer Three"},
+            {"reviewer_id": "reviewer2", "reviewer_name": "Reviewer Two"},
+        ]
+
+    def test_generates_by_reviewer_slices(
+        self, db_with_reviewers: tuple[DatabaseManager, Path], tmp_path: Path
+    ) -> None:
+        db, _ = db_with_reviewers
+        output_dir = tmp_path / "output"
+
+        generator = AggregateGenerator(db, output_dir)
+        generator.generate_all()
+
+        week_file = output_dir / "aggregates" / "weekly_rollups" / "2026-W02.json"
+        with week_file.open() as f:
+            week_data = json.load(f)
+
+        assert "by_reviewer" in week_data
+
+        reviewer_one = week_data["by_reviewer"]["reviewer1"]
+        assert reviewer_one["reviewed_prs"] == 3
+        assert reviewer_one["reviews_count"] == 3
+        assert reviewer_one["approval_rate"] == pytest.approx(2 / 3)
+        assert reviewer_one["authors_count"] == 3
+        assert reviewer_one["repositories_count"] == 2
+        assert "cycle_time_p50" not in reviewer_one
+        assert "cycle_time_p90" not in reviewer_one
+
+        reviewer_two = week_data["by_reviewer"]["reviewer2"]
+        assert reviewer_two["reviewed_prs"] == 1
+        assert reviewer_two["reviews_count"] == 1
+        assert reviewer_two["approval_rate"] == 0.0
+        assert reviewer_two["authors_count"] == 1
+        assert reviewer_two["repositories_count"] == 1
+
+        reviewer_three = week_data["by_reviewer"]["reviewer3"]
+        assert reviewer_three["reviewed_prs"] == 1
+        assert reviewer_three["reviews_count"] == 1
+        assert reviewer_three["approval_rate"] == 1.0
+        assert reviewer_three["authors_count"] == 1
+        assert reviewer_three["repositories_count"] == 1
+
+        assert "reviewer4" not in week_data["by_reviewer"]
+
+    def test_pending_only_reviewer_rows_are_excluded_from_activity(
+        self, db_with_reviewers: tuple[DatabaseManager, Path], tmp_path: Path
+    ) -> None:
+        db, _ = db_with_reviewers
+        db.execute(
+            "INSERT INTO reviewers (pull_request_uid, user_id, vote, repository_id) VALUES (?, ?, ?, ?)",
+            ("repo1-1", "reviewer4", 0, "repo1"),
+        )
+        db.connection.commit()
+
+        output_dir = tmp_path / "output"
+        generator = AggregateGenerator(db, output_dir)
+        generator.generate_all()
+
+        week_file = output_dir / "aggregates" / "weekly_rollups" / "2026-W02.json"
+        with week_file.open() as f:
+            week_data = json.load(f)
+
+        assert "reviewer4" not in week_data["by_reviewer"]
+
+    def test_no_reviewer_data_omits_by_reviewer(self, tmp_path: Path) -> None:
+        db_path = tmp_path / "no_reviewers.sqlite"
+        db = DatabaseManager(db_path)
+        db.connect()
+
+        db.execute(
+            "INSERT INTO organizations (organization_name) VALUES (?)", ("org1",)
+        )
+        db.execute(
+            "INSERT INTO projects (organization_name, project_name) VALUES (?, ?)",
+            ("org1", "proj1"),
+        )
+        db.execute(
+            "INSERT INTO repositories (repository_id, repository_name, project_name, organization_name) VALUES (?, ?, ?, ?)",
+            ("repo1", "Repo", "proj1", "org1"),
+        )
+        db.execute(
+            "INSERT INTO users (user_id, display_name, email) VALUES (?, ?, ?)",
+            ("author1", "Author 1", "author1@test.com"),
+        )
+        db.execute(
+            """
+            INSERT INTO pull_requests (
+                pull_request_uid, pull_request_id, organization_name, project_name,
+                repository_id, user_id, title, status, description,
+                creation_date, closed_date, cycle_time_minutes
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            (
+                "repo1-1",
+                1,
+                "org1",
+                "proj1",
+                "repo1",
+                "author1",
+                "PR 1",
+                "completed",
+                None,
+                "2026-01-03",
+                "2026-01-06",
+                100.0,
+            ),
+        )
+        db.connection.commit()
+
+        output_dir = tmp_path / "output"
+        generator = AggregateGenerator(db, output_dir)
+        generator.generate_all()
+
+        dims_file = output_dir / "aggregates" / "dimensions.json"
+        with dims_file.open() as f:
+            dims = json.load(f)
+        assert dims["reviewers"] == []
+
+        week_file = output_dir / "aggregates" / "weekly_rollups" / "2026-W02.json"
+        with week_file.open() as f:
+            week_data = json.load(f)
+        assert "by_reviewer" not in week_data
+
+        db.close()
+
+
 class TestTeamRepoSlicing:
     """Tests for cross-dimensional team-repo intersection slicing (T006).
 

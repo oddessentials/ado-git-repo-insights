@@ -83,6 +83,7 @@ describe("Version Adapter Integration", () => {
       expect(rollup.cycle_time_p90).toBe(null);
       expect(rollup.by_repository).toBe(null);
       expect(rollup.by_team).toBe(null);
+      expect(rollup.by_reviewer).toBe(null);
     });
 
     it("normalizes v1.1 rollup (with cycle times)", async () => {
@@ -108,6 +109,7 @@ describe("Version Adapter Integration", () => {
       expect(rollup.reviewers_count).toBe(0);
       expect(rollup.by_repository).toBe(null);
       expect(rollup.by_team).toBe(null);
+      expect(rollup.by_reviewer).toBe(null);
     });
 
     it("normalizes v1.2 rollup (with contributors)", async () => {
@@ -133,6 +135,7 @@ describe("Version Adapter Integration", () => {
       // Slices still normalized to null
       expect(rollup.by_repository).toBe(null);
       expect(rollup.by_team).toBe(null);
+      expect(rollup.by_reviewer).toBe(null);
     });
 
     it("preserves current schema without data loss", async () => {
@@ -191,7 +194,7 @@ describe("Version Adapter Integration", () => {
       const rollup = rollups[0];
 
       // All fields preserved exactly
-      expect(rollup).toEqual(currentRollup);
+      expect(rollup).toEqual({ ...currentRollup, by_reviewer: null });
     });
   });
 
