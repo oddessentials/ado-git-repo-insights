@@ -2,25 +2,24 @@
   =============================================================================
   SYNC IMPACT REPORT
   =============================================================================
-  Version Change: 1.0.0 → 1.1.0 (scalability governance addition)
+  Version Change: 1.1.0 → 1.2.0 (demo parity governance addition)
 
   Modified Principles: None (Core Principles unchanged)
 
   Added Sections:
-  - Scalability Gates (QG-25 through QG-29)
-  - Scalability Verification (VR-20 through VR-23)
+  - Demo Parity Gates (QG-30 through QG-34)
+  - Demo Parity Verification (VR-24 through VR-27)
 
   Rationale:
-  Dashboard must handle enterprise-scale data. Non-negotiable requirements:
-  - 156+ weeks (3 years) of historical data
-  - 200+ reviewers
-  - Comment extraction enabled
-  These requirements are codified as Quality Gates and Verification Requirements
-  to ensure all future work maintains scalability.
+  The public demo is a governed product surface. Non-negotiable requirements:
+  - CLI and extension dashboards stay in parity
+  - GitHub Pages demo and CLI synthetic demo share one canonical dataset
+  - docs/data remains a promoted mirror, not a hand-maintained fixture
+  - enterprise demo capability coverage is validated automatically
 
   Evidence Files:
-  - extension/tests/scalability-invariants.test.ts (new)
-  - TODO/DASHBOARD_SCALABILITY.md (requirements document)
+  - tests/demo/test_demo_parity_pipeline.py
+  - docs/DEMO-DATA-VERSIONING.md
 
   Templates Updated:
   - .specify/templates/plan-template.md: ✅ Compatible
@@ -28,10 +27,8 @@
   - .specify/templates/tasks-template.md: ✅ Compatible
 
   Follow-up TODOs:
-  - Implement generator enhancements (--users, --weeks, --include-comments)
-  - Add MAX_THROUGHPUT_POINTS to throughput.ts
-  - Add MAX_CYCLE_TIME_POINTS to cycle-time.ts
-  - Enable strict assertions in scalability-invariants.test.ts
+  - Keep capability matrix aligned with supported dashboard features
+  - Keep startup-state parity checks aligned with hosting behavior
   =============================================================================
 -->
 
@@ -260,6 +257,16 @@ Definition of Done and map to CI/CD checkpoints.
 | QG-28 | Dashboard renders 156 weeks in < 1000ms | `extension/tests/unit/chart-scalability.test.ts` |
 | QG-29 | Chart data caps enforced (MAX_*_POINTS) | `extension/tests/scalability-invariants.test.ts` |
 
+### Demo Parity Gates
+
+| Gate | Requirement | Evidence |
+|------|-------------|----------|
+| QG-30 | CLI and extension dashboards use one shared UI bundle contract | `extension/tests/modules/mode-parity.test.ts` |
+| QG-31 | Canonical enterprise demo dataset builds under `artifacts/demo-enterprise/` | `tests/demo/test_demo_parity_pipeline.py` |
+| QG-32 | `docs/data/` is a clean promoted mirror with no stale files or directories | `tests/demo/test_demo_parity_pipeline.py` |
+| QG-33 | Enterprise demo capability matrix passes for all supported dashboard features | `tests/demo/test_demo_parity_pipeline.py` |
+| QG-34 | Normalized startup-state parity passes for docs and CLI demo surfaces | `tests/demo/test_demo_parity_pipeline.py` |
+
 ## Verification Requirements
 
 A phase is not complete until every verification step passes without manual intervention.
@@ -318,10 +325,19 @@ These requirements derive from Victory Gates and define the final "are we done?"
 
 | Checkpoint | Scenario | Pass Criteria |
 |------------|----------|---------------|
-| VR-20 | Scalability dataset generation | `generate-synthetic-dataset.py --weeks 156 --users 200 --include-comments` succeeds |
+| VR-20 | Scalability dataset generation | `python scripts/build-demo-dataset.py --no-promote` succeeds |
 | VR-21 | Dashboard load test (156 weeks) | All charts render without browser freeze, < 1000ms |
 | VR-22 | Dashboard load test (200 reviewers) | Reviewer Activity panel displays correctly |
 | VR-23 | Dashboard load test (comments enabled) | Dashboard loads with `features.comments: true` |
+
+### Demo Parity Verification
+
+| Checkpoint | Scenario | Pass Criteria |
+|------------|----------|---------------|
+| VR-24 | Canonical demo build | `python scripts/build-demo-dataset.py` succeeds |
+| VR-25 | Capability coverage | `artifacts/demo-enterprise/report/capability-matrix.json` reports `all_passed = true` |
+| VR-26 | Startup-state parity | `artifacts/demo-enterprise/report/startup-parity.json` reports `parity_passed = true` |
+| VR-27 | Published demo parity | `docs/data/` is byte-identical to promoted canonical output and remains generated-only |
 
 ## Governance
 
@@ -354,4 +370,4 @@ These decisions are final and may not be revisited without MAJOR version change:
 - **Historical migration**: No MongoDB migration (fresh extraction from configured start date)
 - **Output compatibility**: 100% PowerBI CSV parity is mandatory
 
-**Version**: 1.1.0 | **Ratified**: 2026-01-26 | **Last Amended**: 2026-02-05
+**Version**: 1.2.0 | **Ratified**: 2026-01-26 | **Last Amended**: 2026-03-21

@@ -7,7 +7,7 @@ This script produces byte-identical output on every run using:
 - UUID v5 with DNS namespace for all entity IDs
 - Canonical JSON formatting (sorted keys, 3-decimal floats, UTC timestamps, LF newlines)
 
-Output: docs/data/ directory with all demo data files
+Output: dataset root containing all demo data files
 
 Usage:
     python scripts/generate-demo-data.py
@@ -18,6 +18,7 @@ Requirements:
 
 from __future__ import annotations
 
+import argparse
 import math
 import random
 import sys
@@ -53,11 +54,11 @@ END_YEAR = 2025
 START_WEEK = 1
 END_WEEK = 52
 
-# Entity counts (per data-model.md)
+# Entity counts (enterprise demo profile)
 NUM_ORGS = 3
 NUM_PROJECTS = 8
 NUM_REPOS = 23
-NUM_USERS = 50
+NUM_USERS = 200
 NUM_TEAMS = 4
 NUM_WEEKS = 260
 GROWTH_RATE_PER_YEAR = 0.12
@@ -73,8 +74,12 @@ REPO_WEIGHT_EXPONENT = 1.35
 CYCLE_TIME_MU = 6.0  # log-minutes
 CYCLE_TIME_SIGMA = 1.5
 
-# Output directory
-OUTPUT_DIR = Path(__file__).parent.parent / "docs" / "data"
+DEFAULT_OUTPUT_DIR = Path(__file__).parent.parent / "docs" / "data"
+DEMO_PROFILE_NAME = "enterprise-demo"
+DEMO_PROFILE_VERSION = "2.0.0"
+DEMO_COMMENT_BATCH_COUNT = 100
+DEMO_COMMENT_PRS_PER_BATCH = 3
+DEMO_COMMENT_COMMENTS_PER_PR = 2
 
 # Power-law repository weights (Contract 5, FR-004)
 # Top 3 repos get >= 40% share after idle zeroing redistributes PRs to top repos.
@@ -270,6 +275,9 @@ class WeeklyRollup:
     reviewers_count: int
     by_repository: dict[str, dict[str, Any]]
     by_team: dict[str, dict[str, Any]]
+    by_author: dict[str, dict[str, Any]]
+    by_author_and_repo: dict[str, dict[str, Any]]
+    by_reviewer: dict[str, dict[str, Any]] | None = None
     by_team_and_repo: dict[str, dict[str, Any]] | None = None
 
 
@@ -370,7 +378,7 @@ def generate_teams(projects: list[SyntheticProject]) -> list[SyntheticTeam]:
         if team_name is None:
             continue
         team_id = generate_uuid(f"team/{project.organization_name}/{team_name}")
-        member_count = 5 + int(RNG.random() * 11)
+        member_count = 28 + int(RNG.random() * 34)
         teams.append(
             SyntheticTeam(
                 team_id=team_id,
@@ -492,16 +500,224 @@ LAST_NAMES = [
 
 
 def generate_users() -> list[SyntheticUser]:
-    """Generate 50 synthetic users with realistic names."""
+    """Generate enterprise-scale synthetic users with realistic names."""
     users = []
     for i in range(NUM_USERS):
         first_name = FIRST_NAMES[i % len(FIRST_NAMES)]
-        last_name = LAST_NAMES[i % len(LAST_NAMES)]
-        display_name = f"{first_name} {last_name}"
+        last_name = LAST_NAMES[(i * 7) % len(LAST_NAMES)]
+        suffix = f" {i + 1}" if i >= len(FIRST_NAMES) else ""
+        display_name = f"{first_name} {last_name}{suffix}"
         # UUID generated as: uuid5(DNS_NAMESPACE, f"user/{display_name}")
         user_id = generate_uuid(f"user/{display_name}")
         users.append(SyntheticUser(user_id=user_id, display_name=display_name))
     return users
+
+
+def _stable_index(key: str, modulo: int) -> int:
+    """Return a deterministic non-negative index for the given key."""
+    if modulo <= 0:
+        return 0
+    return generate_uuid(key).int % modulo
+
+
+def build_team_author_pools(
+    users: list[SyntheticUser], teams: list[SyntheticTeam]
+) -> dict[str, list[SyntheticUser]]:
+    """Assign deterministic author pools to teams with slight overlap."""
+    if not teams:
+        return {}
+
+    base_size = max(24, len(users) // len(teams))
+    overlap = max(6, len(users) // 25)
+    pools: dict[str, list[SyntheticUser]] = {}
+
+    for index, team in enumerate(teams):
+        start = index * base_size
+        pool: list[SyntheticUser] = []
+        for offset in range(base_size + overlap):
+            user = users[(start + offset) % len(users)]
+            if user not in pool:
+                pool.append(user)
+        pools[team.team_name] = pool
+
+    return pools
+
+
+def _allocate_author_repo_entries(
+    *,
+    week_key: str,
+    team_name: str,
+    repo_name: str,
+    repo_entry: dict[str, Any],
+    team_entry: dict[str, Any],
+    team_pool: list[SyntheticUser],
+    author_slices: dict[str, list[dict[str, Any]]],
+    by_author_and_repo: dict[str, dict[str, dict[str, Any]]],
+) -> None:
+    """Allocate team-repo activity across deterministic author slices."""
+    repo_prs = int(repo_entry["pr_count"])
+    if repo_prs <= 0 or not team_pool:
+        return
+
+    team_authors = max(1, int(team_entry["authors_count"]))
+    target_authors = max(
+        1,
+        min(
+            len(team_pool),
+            team_authors,
+            repo_prs,
+            max(1, int(round(repo_prs**0.72))),
+        ),
+    )
+    start_idx = _stable_index(f"{week_key}/{team_name}/{repo_name}", len(team_pool))
+    selected_authors = [
+        team_pool[(start_idx + offset) % len(team_pool)]
+        for offset in range(target_authors)
+    ]
+    raw_weights = [
+        1
+        + (
+            _stable_index(
+                f"{week_key}/{team_name}/{repo_name}/{author.user_id}",
+                9,
+            )
+            / 10.0
+        )
+        for author in selected_authors
+    ]
+    pr_allocations = largest_remainder_allocate(repo_prs, raw_weights)
+
+    for author, author_prs in zip(selected_authors, pr_allocations, strict=True):
+        if author_prs <= 0:
+            continue
+        factor = 0.92 + (
+            _stable_index(
+                f"{week_key}/{repo_name}/{author.user_id}/cycle",
+                17,
+            )
+            / 100.0
+        )
+        author_entry = {
+            "pr_count": author_prs,
+            "cycle_time_p50": None,
+            "cycle_time_p90": None,
+            "authors_count": 1,
+            "reviewers_count": max(
+                1,
+                min(
+                    int(repo_entry["reviewers_count"]),
+                    int(author_prs**SUBLINEAR_EXPONENT) + 1,
+                ),
+            ),
+        }
+        if author_prs >= 5:
+            author_entry["cycle_time_p50"] = (
+                float(repo_entry["cycle_time_p50"]) * factor
+            )
+            author_entry["cycle_time_p90"] = (
+                float(repo_entry["cycle_time_p90"]) * factor
+            )
+
+        author_id = str(author.user_id)
+        author_slices.setdefault(author_id, []).append(author_entry)
+        by_author_and_repo.setdefault(author_id, {})[repo_name] = author_entry
+
+
+def _collapse_author_slices(
+    author_slices: dict[str, list[dict[str, Any]]],
+) -> dict[str, dict[str, Any]]:
+    """Aggregate exact author+repo entries into by_author slices."""
+    by_author: dict[str, dict[str, Any]] = {}
+    for author_id, entries in author_slices.items():
+        pr_count = sum(int(entry["pr_count"]) for entry in entries)
+        if pr_count <= 0:
+            continue
+        weighted_p50_total = 0.0
+        weighted_p90_total = 0.0
+        weighted_prs = 0
+        reviewers_count = 1
+        for entry in entries:
+            reviewers_count = max(reviewers_count, int(entry["reviewers_count"]))
+            if (
+                entry["cycle_time_p50"] is not None
+                and entry["cycle_time_p90"] is not None
+            ):
+                weighted_prs += int(entry["pr_count"])
+                weighted_p50_total += float(entry["cycle_time_p50"]) * int(
+                    entry["pr_count"]
+                )
+                weighted_p90_total += float(entry["cycle_time_p90"]) * int(
+                    entry["pr_count"]
+                )
+
+        by_author[author_id] = {
+            "pr_count": pr_count,
+            "cycle_time_p50": (
+                weighted_p50_total / weighted_prs if weighted_prs >= 5 else None
+            ),
+            "cycle_time_p90": (
+                weighted_p90_total / weighted_prs if weighted_prs >= 5 else None
+            ),
+            "authors_count": 1,
+            "reviewers_count": reviewers_count,
+        }
+    return by_author
+
+
+def _generate_reviewer_breakdown(
+    *,
+    week_key: str,
+    users: list[SyntheticUser],
+    pr_count: int,
+    authors_count: int,
+    repo_count: int,
+) -> dict[str, dict[str, Any]]:
+    """Generate deterministic reviewer slices for one week."""
+    if pr_count <= 0 or not users:
+        return {}
+
+    reviewer_count = max(1, min(len(users), int(pr_count * REVIEWER_RATIO)))
+    week_offset = sum(ord(ch) for ch in week_key) % len(users)
+    selected_reviewers = [
+        users[(week_offset + offset * 3) % len(users)]
+        for offset in range(reviewer_count)
+    ]
+
+    review_allocations = largest_remainder_allocate(
+        pr_count,
+        [1.0 + ((idx % 5) * 0.12) for idx in range(reviewer_count)],
+    )
+
+    by_reviewer: dict[str, dict[str, Any]] = {}
+    for idx, (reviewer, reviewed_prs) in enumerate(
+        zip(selected_reviewers, review_allocations, strict=True)
+    ):
+        if reviewed_prs <= 0:
+            continue
+
+        reviews_count = reviewed_prs + ((idx + len(week_key)) % 4)
+        approval_rate = round(
+            min(0.95, max(0.55, 0.62 + ((idx % 7) * 0.04))),
+            3,
+        )
+        reviewer_authors = max(
+            1,
+            min(authors_count, int(reviewed_prs**SUBLINEAR_EXPONENT) + 1),
+        )
+        repositories_count = max(
+            1,
+            min(repo_count, int(reviewed_prs**SUBLINEAR_EXPONENT)),
+        )
+
+        by_reviewer[str(reviewer.user_id)] = {
+            "reviewed_prs": reviewed_prs,
+            "reviews_count": reviews_count,
+            "approval_rate": approval_rate,
+            "authors_count": reviewer_authors,
+            "repositories_count": repositories_count,
+        }
+
+    return by_reviewer
 
 
 # =============================================================================
@@ -556,6 +772,20 @@ def generate_dimensions(
             {
                 "user_id": u.user_id,
                 "display_name": u.display_name,
+            }
+            for u in users
+        ],
+        "authors": [
+            {
+                "author_id": str(u.user_id),
+                "author_name": u.display_name,
+            }
+            for u in users
+        ],
+        "reviewers": [
+            {
+                "reviewer_id": str(u.user_id),
+                "reviewer_name": u.display_name,
             }
             for u in users
         ],
@@ -621,9 +851,11 @@ def calculate_percentile(values: list[float], percentile: float) -> float:
 def generate_weekly_rollups(
     repositories: list[SyntheticRepository],
     teams: list[SyntheticTeam],
+    users: list[SyntheticUser],
 ) -> list[WeeklyRollup]:
     """Generate 260 weekly rollups with seasonal variation."""
     rollups = []
+    team_author_pools = build_team_author_pools(users, teams)
 
     for year in range(START_YEAR, END_YEAR + 1):
         # Handle partial years at start/end
@@ -702,6 +934,8 @@ def generate_weekly_rollups(
             # by_repository from those intersections so parent totals are
             # internally consistent with exact combined-filter cells.
             by_team_and_repo: dict[str, dict[str, Any]] = {}
+            by_author_and_repo: dict[str, dict[str, Any]] = {}
+            author_slices: dict[str, list[dict[str, Any]]] = {}
             repo_pr_counts = dict.fromkeys(repo_names, 0)
             for team in teams:
                 team_pr_count = team_pr_counts.get(team.team_name, 0)
@@ -787,6 +1021,18 @@ def generate_weekly_rollups(
 
                 if team_repo_entries:
                     by_team_and_repo[team.team_name] = team_repo_entries
+                    team_pool = team_author_pools.get(team.team_name, users)
+                    for repo_name, repo_entry in team_repo_entries.items():
+                        _allocate_author_repo_entries(
+                            week_key=week_str,
+                            team_name=team.team_name,
+                            repo_name=repo_name,
+                            repo_entry=repo_entry,
+                            team_entry=by_team[team.team_name],
+                            team_pool=team_pool,
+                            author_slices=author_slices,
+                            by_author_and_repo=by_author_and_repo,
+                        )
 
             by_repository: dict[str, dict[str, Any]] = {}
             for repo_name in repo_names:
@@ -829,6 +1075,15 @@ def generate_weekly_rollups(
                         entry["cycle_time_p50"] = None
                         entry["cycle_time_p90"] = None
 
+            by_author = _collapse_author_slices(author_slices)
+            by_reviewer = _generate_reviewer_breakdown(
+                week_key=week_str,
+                users=users,
+                pr_count=pr_count,
+                authors_count=authors_count,
+                repo_count=len(by_repository),
+            )
+
             rollups.append(
                 WeeklyRollup(
                     week=week_str,
@@ -841,6 +1096,9 @@ def generate_weekly_rollups(
                     reviewers_count=reviewers_count,
                     by_repository=by_repository,
                     by_team=by_team,
+                    by_author=by_author,
+                    by_author_and_repo=by_author_and_repo,
+                    by_reviewer=by_reviewer,
                     by_team_and_repo=by_team_and_repo if by_team_and_repo else None,
                 )
             )
@@ -924,6 +1182,64 @@ def generate_distributions(rollups: list[WeeklyRollup]) -> list[YearlyDistributi
     return distributions
 
 
+def generate_comment_batches(
+    output_dir: Path,
+    users: list[SyntheticUser],
+) -> dict[str, int | str | bool]:
+    """Generate deterministic auxiliary comment batch files for demo coverage."""
+    comments_dir = output_dir / "aggregates" / "comments"
+    total_prs = 0
+    total_threads = 0
+    total_comments = 0
+
+    for batch_num in range(1, DEMO_COMMENT_BATCH_COUNT + 1):
+        prs: list[dict[str, Any]] = []
+        for pr_offset in range(DEMO_COMMENT_PRS_PER_BATCH):
+            pr_id = (batch_num - 1) * DEMO_COMMENT_PRS_PER_BATCH + pr_offset + 1
+            thread_id = f"thread-{pr_id}-1"
+            comments = []
+            for comment_idx in range(DEMO_COMMENT_COMMENTS_PER_PR):
+                author = users[(pr_id + comment_idx) % len(users)]
+                comments.append(
+                    {
+                        "comment_id": f"comment-{pr_id}-{comment_idx + 1}",
+                        "author": author.display_name,
+                        "author_id": author.user_id,
+                        "content_length": 64 + ((pr_id + comment_idx) % 48),
+                    }
+                )
+                total_comments += 1
+
+            prs.append(
+                {
+                    "pr_id": pr_id,
+                    "threads": [
+                        {
+                            "thread_id": thread_id,
+                            "status": "active" if pr_id % 4 else "fixed",
+                            "comments": comments,
+                        }
+                    ],
+                }
+            )
+            total_prs += 1
+            total_threads += 1
+
+        write_json_file(
+            comments_dir / f"comments-batch-{batch_num:04d}.json",
+            {"prs": prs},
+            max_retries=3,
+        )
+
+    return {
+        "status": "partial",
+        "capped": True,
+        "threads_fetched": total_threads,
+        "comments_fetched": total_comments,
+        "prs_with_threads": total_prs,
+    }
+
+
 # =============================================================================
 # Dataset Manifest Generator (T018)
 # =============================================================================
@@ -932,12 +1248,18 @@ def generate_distributions(rollups: list[WeeklyRollup]) -> list[YearlyDistributi
 def generate_manifest(
     rollups: list[WeeklyRollup],
     distributions: list[YearlyDistribution],
+    output_dir: Path,
+    comments_coverage: dict[str, Any],
 ) -> dict[str, Any]:
     """Generate dataset-manifest.json."""
     # Calculate date range
     min_date = rollups[0].start_date if rollups else date(START_YEAR, 1, 1)
     max_date = rollups[-1].end_date if rollups else date(END_YEAR, 12, 31)
     total_prs = sum(r.pr_count for r in rollups)
+
+    published_globs = [
+        "aggregates/comments/comments-batch-*.json",
+    ]
 
     return {
         "manifest_schema_version": 1,
@@ -947,6 +1269,12 @@ def generate_manifest(
         "insights_schema_version": 1,
         "generated_at": FIXED_GENERATED_AT,
         "run_id": "demo-static",
+        "demo_profile": {
+            "name": DEMO_PROFILE_NAME,
+            "version": DEMO_PROFILE_VERSION,
+            "seed": SEED,
+            "canonical_output_root": "artifacts/demo-enterprise",
+        },
         "defaults": {
             "default_date_range_days": 90,
         },
@@ -956,8 +1284,16 @@ def generate_manifest(
         },
         "features": {
             "teams": True,
-            "comments": False,
-            **discover_demo_feature_flags(OUTPUT_DIR),
+            "comments": True,
+            **discover_demo_feature_flags(output_dir),
+        },
+        "capabilities": {
+            "author_filters": True,
+            "author_repo_exact": True,
+            "comments_metrics": True,
+            "reviewer_repository_mode": "constrained",
+            "reviewer_team_mode": "disallowed",
+            "cross_dimensional_available": True,
         },
         "coverage": {
             "total_prs": total_prs,
@@ -966,7 +1302,12 @@ def generate_manifest(
                 "min": min_date,
                 "max": max_date,
             },
-            "comments": "disabled",
+            "row_counts": {
+                "users": NUM_USERS,
+                "repositories": NUM_REPOS,
+                "pull_requests": total_prs,
+            },
+            "comments": comments_coverage,
         },
         "aggregate_index": {
             "weekly_rollups": [
@@ -986,6 +1327,15 @@ def generate_manifest(
                 for d in distributions
             ],
         },
+        "published_files": {
+            "direct": [
+                "dataset-manifest.json",
+                "aggregates/dimensions.json",
+                "predictions/trends.json",
+                "insights/summary.json",
+            ],
+            "globs": published_globs,
+        },
     }
 
 
@@ -994,10 +1344,24 @@ def generate_manifest(
 # =============================================================================
 
 
-def main() -> int:
+def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
+    """Parse CLI arguments."""
+    parser = argparse.ArgumentParser(description="Generate deterministic demo data")
+    parser.add_argument(
+        "--output-root",
+        type=Path,
+        default=DEFAULT_OUTPUT_DIR,
+        help="Output directory root for generated demo dataset",
+    )
+    return parser.parse_args(argv)
+
+
+def main(argv: list[str] | None = None) -> int:
     """Generate all demo data files."""
+    args = parse_args(argv)
+    output_dir = args.output_root.resolve()
     print("Generating demo data with seed=42...")
-    print(f"Output directory: {OUTPUT_DIR}")
+    print(f"Output directory: {output_dir}")
 
     # Reset random state for consistent generation
     global RNG
@@ -1025,16 +1389,16 @@ def main() -> int:
     dimensions = generate_dimensions(
         organizations, projects, repositories, users, teams
     )
-    dimensions_path = OUTPUT_DIR / "aggregates" / "dimensions.json"
+    dimensions_path = output_dir / "aggregates" / "dimensions.json"
     write_json_file(dimensions_path, dimensions, max_retries=3)
     print(f"  Written: {dimensions_path}")
 
     # Generate weekly rollups
     print("\n[3/6] Generating weekly rollups...")
-    rollups = generate_weekly_rollups(repositories, teams)
+    rollups = generate_weekly_rollups(repositories, teams, users)
     print(f"  Generated {len(rollups)} weekly rollups")
 
-    rollups_dir = OUTPUT_DIR / "aggregates" / "weekly_rollups"
+    rollups_dir = output_dir / "aggregates" / "weekly_rollups"
     for rollup in rollups:
         rollup_data = {
             "week": rollup.week,
@@ -1047,6 +1411,9 @@ def main() -> int:
             "reviewers_count": rollup.reviewers_count,
             "by_repository": rollup.by_repository,
             "by_team": rollup.by_team,
+            "by_author": rollup.by_author,
+            "by_author_and_repo": rollup.by_author_and_repo,
+            "by_reviewer": rollup.by_reviewer,
             "by_team_and_repo": rollup.by_team_and_repo,
         }
         write_json_file(
@@ -1061,7 +1428,7 @@ def main() -> int:
     distributions = generate_distributions(rollups)
     print(f"  Generated {len(distributions)} distributions")
 
-    distributions_dir = OUTPUT_DIR / "aggregates" / "distributions"
+    distributions_dir = output_dir / "aggregates" / "distributions"
     for dist in distributions:
         dist_data = {
             "year": dist.year,
@@ -1078,10 +1445,19 @@ def main() -> int:
         )
     print(f"  Written: {len(distributions)} files to {distributions_dir}")
 
+    # Generate auxiliary comments
+    print("\n[5/6] Generating auxiliary comments...")
+    comments_coverage = generate_comment_batches(output_dir, users)
+    print(
+        "  Written: "
+        f"{DEMO_COMMENT_BATCH_COUNT} files to "
+        f"{output_dir / 'aggregates' / 'comments'}"
+    )
+
     # Generate manifest
-    print("\n[5/6] Generating dataset-manifest.json...")
-    manifest = generate_manifest(rollups, distributions)
-    manifest_path = OUTPUT_DIR / "dataset-manifest.json"
+    print("\n[6/6] Generating dataset-manifest.json...")
+    manifest = generate_manifest(rollups, distributions, output_dir, comments_coverage)
+    manifest_path = output_dir / "dataset-manifest.json"
     write_json_file(manifest_path, manifest, max_retries=3)
     print(f"  Written: {manifest_path}")
 

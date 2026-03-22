@@ -42,6 +42,9 @@ If using `--organization`, also required:
 | `--start-date DATE` | Auto-detected | Start date (YYYY-MM-DD) |
 | `--end-date DATE` | Yesterday | End date (YYYY-MM-DD) |
 | `--backfill-days N` | None | Re-extract last N days |
+| `--include-comments` | `false` | Extract PR discussion threads and comments into SQLite for auxiliary analytics outputs |
+| `--comments-max-prs-per-run N` | `100` | Cap how many PRs are scanned for comments in one extraction run |
+| `--comments-max-threads-per-pr N` | `50` | Cap how many discussion threads are fetched per PR |
 | `--log-format FORMAT` | `text` | `text` or `jsonl` |
 | `--artifacts-dir DIR` | `./run_artifacts` | Output directory for logs/summary |
 
@@ -80,6 +83,18 @@ ado-insights extract \
   --database ./ado-insights.sqlite \
   --start-date 2024-01-01 \
   --end-date 2024-12-31
+```
+
+**Comments-enabled extraction with explicit caps:**
+```bash
+ado-insights extract \
+  --organization MyOrg \
+  --projects "Project1" \
+  --pat $ADO_PAT \
+  --database ./ado-insights.sqlite \
+  --include-comments \
+  --comments-max-prs-per-run 100 \
+  --comments-max-threads-per-pr 50
 ```
 
 **Include today:**
@@ -127,6 +142,15 @@ ado-insights generate-csv \
 | `pull_requests.csv` | PR details with cycle time |
 | `users.csv` | User records |
 | `reviewers.csv` | PR reviewer votes |
+
+Auxiliary comment CSVs, when comments have been extracted, are written only under:
+
+`csv-output/auxiliary/comments/`
+
+- `pr_threads.csv`
+- `pr_comments.csv`
+
+These files are additive and are not part of the core PowerBI CSV contract.
 
 ---
 

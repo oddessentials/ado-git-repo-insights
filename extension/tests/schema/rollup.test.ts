@@ -200,6 +200,43 @@ describe("Rollup Schema Validator", () => {
       expect(result.valid).toBe(true);
     });
 
+    it("should pass when by_author has valid structure", () => {
+      const valid = {
+        ...validRollup,
+        by_author: {
+          "user-1": {
+            pr_count: 12,
+            cycle_time_p50: 180,
+            cycle_time_p90: 420,
+            authors_count: 1,
+            reviewers_count: 4,
+          },
+        },
+      };
+      const result = validateRollup(valid, false);
+      expect(result.valid).toBe(true);
+    });
+
+    it("should pass when by_author_and_repo has valid nested structure", () => {
+      const valid = {
+        ...validRollup,
+        by_author_and_repo: {
+          "user-1": {
+            "repo-a": {
+              pr_count: 7,
+              cycle_time_p50: 160,
+              cycle_time_p90: 390,
+              authors_count: 1,
+              reviewers_count: 3,
+            },
+          },
+          _truncated: true,
+        },
+      };
+      const result = validateRollup(valid, false);
+      expect(result.valid).toBe(true);
+    });
+
     it("should fail when by_repository is not an object", () => {
       const invalid = {
         ...validRollup,
@@ -650,6 +687,36 @@ describe("Rollup Schema Validator", () => {
           approval_rate: 0.5,
         },
       });
+    });
+
+    it("normalizeRollup preserves by_author and by_author_and_repo when present", () => {
+      const input = {
+        week: "2026-W02",
+        start_date: "2026-01-06",
+        end_date: "2026-01-12",
+        pr_count: 10,
+        by_author: {
+          "user-1": {
+            pr_count: 6,
+            authors_count: 1,
+            reviewers_count: 3,
+          },
+        },
+        by_author_and_repo: {
+          "user-1": {
+            "repo-a": {
+              pr_count: 4,
+              authors_count: 1,
+              reviewers_count: 2,
+            },
+          },
+        },
+      };
+
+      const normalized = normalizeRollup(input);
+
+      expect(normalized.by_author).toEqual(input.by_author);
+      expect(normalized.by_author_and_repo).toEqual(input.by_author_and_repo);
     });
 
     it("normalizes null cycle_time to null (not 0)", () => {

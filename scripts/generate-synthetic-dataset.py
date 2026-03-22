@@ -541,7 +541,11 @@ def generate_dataset(
     comment_stats: dict[str, Any] = {"status": "disabled"}
     if include_comments:
         comment_stats = generate_comments(pr_count, seed, dimensions.users, output_dir)
-        comment_stats["status"] = "enabled"
+        comment_stats["status"] = "full"
+        comment_stats["capped"] = False
+        comment_stats["threads_fetched"] = comment_stats["total_threads"]
+        comment_stats["comments_fetched"] = comment_stats["total_comments"]
+        comment_stats["prs_with_threads"] = comment_stats["prs_with_comments"]
         print(
             f"[OK] Generated comments: {comment_stats['total_threads']} threads, "
             f"{comment_stats['total_comments']} comments"
@@ -563,6 +567,14 @@ def generate_dataset(
             "comments": include_comments,
             "predictions": False,
             "ai_insights": False,
+        },
+        capabilities={
+            "author_filters": True,
+            "author_repo_exact": True,
+            "comments_metrics": include_comments,
+            "reviewer_repository_mode": "constrained",
+            "reviewer_team_mode": "disallowed",
+            "cross_dimensional_available": True,
         },
         coverage={
             "total_prs": pr_count,

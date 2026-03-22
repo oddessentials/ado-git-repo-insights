@@ -75,11 +75,14 @@ let currentDateRange: { start: Date | null; end: Date | null } = {
   start: null,
   end: null,
 };
-let currentFilters: { repos: string[]; teams: string[]; reviewers: string[] } = {
+let currentDimensions: DimensionsData | null = null;
+let currentFilters: { repos: string[]; teams: string[]; reviewers: string[]; authors: string[] } = {
   repos: [],
   teams: [],
   reviewers: [],
+  authors: [],
 };
+let reviewerFilterNoticeMessage: string | null = null;
 let comparisonMode = false;
 let cachedRollups: Rollup[] = []; // Cache for export
 let currentBuildId: number | null = null; // Store build ID for raw data download
@@ -586,6 +589,7 @@ function cacheElements(): void {
     "run-info",
     "date-range",
     "custom-dates",
+    "comments-coverage-banner",
     "start-date",
     "end-date",
     "retry-btn",
@@ -604,9 +608,14 @@ function cacheElements(): void {
     "repo-filter",
     "team-filter",
     "reviewer-filter",
+    "reviewer-filter-notice",
+    "author-filter",
+    "author-filter-options",
     "repo-filter-group",
     "team-filter-group",
     "reviewer-filter-group",
+    "author-filter-group",
+    "author-filter-notice",
     "clear-filters",
     "active-filters",
     "filter-chips",
@@ -680,6 +689,7 @@ function setupEventListeners(): void {
   elements["repo-filter"]?.addEventListener("change", handleFilterChange);
   elements["team-filter"]?.addEventListener("change", handleFilterChange);
   elements["reviewer-filter"]?.addEventListener("change", handleFilterChange);
+  elements["author-filter"]?.addEventListener("change", handleFilterChange);
   elements["clear-filters"]?.addEventListener("click", clearAllFilters);
 
   elements["compare-toggle"]?.addEventListener("click", toggleComparisonMode);
@@ -716,6 +726,7 @@ async function loadDataset(): Promise<void> {
 
     // Load dimensions
     const dimensions = await loader.loadDimensions();
+    currentDimensions = dimensions;
 
     // Populate filter dropdowns from dimensions
     populateFilterDropdowns(dimensions);
@@ -844,23 +855,33 @@ async function refreshMetrics(): Promise<void> {
  */
 function updateAccuracyIndicator(
   rawRollups: Rollup[],
-  filters: { repos: string[]; teams: string[] },
+  filters: { repos: string[]; teams: string[]; authors: string[] },
 ): void {
   const summarySection = document.querySelector(".summary-cards");
   if (!summarySection) return;
 
-  const isCombinedFilter = filters.repos.length > 0 && filters.teams.length > 0;
+  const isTeamRepoFilter = filters.repos.length > 0 && filters.teams.length > 0;
+  const isAuthorRepoFilter =
+    filters.repos.length > 0 && filters.authors.length > 0;
 
-  if (!isCombinedFilter) {
+  if (!isTeamRepoFilter && !isAuthorRepoFilter) {
     summarySection.removeAttribute("data-accuracy");
     return;
   }
 
-  // Check if any rollup in the visible range lacks cross-dim data or has
-  // truncated cross-dim data, meaning proportional estimation is used.
-  const isEstimated = (r: Rollup): boolean =>
-    r.by_team_and_repo == null ||
-    (r.by_team_and_repo as Record<string, unknown>)["_truncated"] === true;
+  const isEstimated = (r: Rollup): boolean => {
+    if (isTeamRepoFilter) {
+      return (
+        r.by_team_and_repo == null ||
+        (r.by_team_and_repo as Record<string, unknown>)["_truncated"] === true
+      );
+    }
+
+    return (
+      r.by_author_and_repo == null ||
+      (r.by_author_and_repo as Record<string, unknown>)["_truncated"] === true
+    );
+  };
 
   const hasEstimatedWeeks = rawRollups.some(isEstimated);
 
@@ -1254,6 +1275,27 @@ function populateFilterDropdowns(dimensions: DimensionsData | null): void {
     elements["reviewer-filter-group"]?.classList.add("hidden");
   }
 
+  const authorFilter = getElement<HTMLInputElement>("author-filter");
+  const authorFilterOptions = getElement<HTMLDataListElement>("author-filter-options");
+  if (
+    authorFilter &&
+    authorFilterOptions &&
+    dimensions.authors &&
+    dimensions.authors.length > 0
+  ) {
+    clearElement(authorFilterOptions);
+    dimensions.authors.forEach((author) => {
+      const option = document.createElement("option");
+      option.value = author.author_name;
+      option.label = author.author_id;
+      option.dataset["authorId"] = author.author_id;
+      authorFilterOptions.appendChild(option);
+    });
+    elements["author-filter-group"]?.classList.remove("hidden");
+  } else {
+    elements["author-filter-group"]?.classList.add("hidden");
+  }
+
   // Restore filter state from URL
   restoreFiltersFromUrl();
 }
@@ -1281,6 +1323,66 @@ function normalizeReviewerSelection(
   return reviewerValues[0] ? [reviewerValues[0]] : [];
 }
 
+function normalizeAuthorSelection(
+  authorValues: string[],
+  dimensions: DimensionsData | null,
+): string[] {
+  const firstValue = authorValues[0];
+  if (!firstValue) {
+    return [];
+  }
+
+  const matchedAuthor = dimensions?.authors?.find(
+    (author) =>
+      author.author_id === firstValue || author.author_name === firstValue,
+  );
+
+  if (!matchedAuthor) {
+    console.warn("Ignoring invalid author filter value:", firstValue);
+    return [];
+  }
+
+  return [matchedAuthor.author_id];
+}
+
+function clearAuthorInput(): void {
+  const authorFilter = elements["author-filter"] as HTMLInputElement | null;
+  if (authorFilter) {
+    authorFilter.value = "";
+  }
+}
+
+function applyAuthorFilterCompatibility(
+  sourceId: string | null,
+  filters: { repos: string[]; teams: string[]; reviewers: string[]; authors: string[] },
+): { repos: string[]; teams: string[]; reviewers: string[]; authors: string[] } {
+  if (filters.authors.length === 0) {
+    return filters;
+  }
+
+  const reviewerFilter = elements["reviewer-filter"] as HTMLSelectElement | null;
+
+  if (filters.reviewers.length > 0) {
+    if (sourceId === "author-filter") {
+      clearSelectToAll(reviewerFilter);
+      return { ...filters, reviewers: [] };
+    }
+
+    if (sourceId === "reviewer-filter") {
+      clearAuthorInput();
+      return { ...filters, authors: [] };
+    }
+
+    console.warn(
+      "Author filters cannot be combined with reviewer filters in the current schema; keeping reviewer filters only",
+    );
+    clearAuthorInput();
+    return { ...filters, authors: [] };
+  }
+
+  return filters;
+}
+
 function applyReviewerFilterCompatibility(
   sourceId: string | null,
   repoValues: string[],
@@ -1288,6 +1390,12 @@ function applyReviewerFilterCompatibility(
   reviewerValues: string[],
 ): { repos: string[]; teams: string[]; reviewers: string[] } {
   const normalizedReviewers = normalizeReviewerSelection(reviewerValues, "ui");
+  const reviewerRepoNotice =
+    "Reviewer + repository uses reviewer-only metrics while retaining repository state.";
+  const reviewerTeamNotice =
+    "Reviewer + team is not supported in the current schema. Team selection was cleared.";
+
+  reviewerFilterNoticeMessage = null;
 
   if (
     normalizedReviewers.length === 0 ||
@@ -1300,30 +1408,22 @@ function applyReviewerFilterCompatibility(
     };
   }
 
-  const repoFilter = elements["repo-filter"] as HTMLSelectElement | null;
   const teamFilter = elements["team-filter"] as HTMLSelectElement | null;
-  const reviewerFilter = elements["reviewer-filter"] as HTMLSelectElement | null;
 
-  if (sourceId === "reviewer-filter") {
-    clearSelectToAll(repoFilter);
+  if (teamValues.length > 0) {
+    reviewerFilterNoticeMessage = reviewerTeamNotice;
     clearSelectToAll(teamFilter);
-    return { repos: [], teams: [], reviewers: normalizedReviewers };
+    return { repos: repoValues, teams: [], reviewers: normalizedReviewers };
   }
 
-  if (sourceId === "repo-filter" || sourceId === "team-filter") {
-    clearSelectToAll(reviewerFilter);
-    return { repos: repoValues, teams: teamValues, reviewers: [] };
+  if (repoValues.length > 0) {
+    reviewerFilterNoticeMessage = reviewerRepoNotice;
+    if (sourceId !== "reviewer-filter") {
+      console.warn(reviewerRepoNotice);
+    }
   }
 
-  console.warn(
-    "Reviewer filters cannot be combined with repository/team filters in the current schema; keeping reviewer filters only",
-  );
-  clearSelectToAll(repoFilter);
-  clearSelectToAll(teamFilter);
-  if (reviewerFilter) {
-    reviewerFilter.value = normalizedReviewers[0] ?? "";
-  }
-  return { repos: [], teams: [], reviewers: normalizedReviewers };
+  return { repos: repoValues, teams: [], reviewers: normalizedReviewers };
 }
 
 /**
@@ -1333,6 +1433,7 @@ function handleFilterChange(event: Event): void {
   const repoFilter = elements["repo-filter"] as HTMLSelectElement | null;
   const teamFilter = elements["team-filter"] as HTMLSelectElement | null;
   const reviewerFilter = elements["reviewer-filter"] as HTMLSelectElement | null;
+  const authorFilter = elements["author-filter"] as HTMLInputElement | null;
 
   const repoValues = repoFilter
     ? Array.from(repoFilter.selectedOptions)
@@ -1347,15 +1448,21 @@ function handleFilterChange(event: Event): void {
   const reviewerValues = reviewerFilter
     ? [reviewerFilter.value].filter((v) => v)
     : [];
+  const authorValues = authorFilter ? [authorFilter.value].filter((v) => v) : [];
 
   const sourceId =
     event.currentTarget instanceof HTMLElement ? event.currentTarget.id : null;
-  currentFilters = applyReviewerFilterCompatibility(
+  const reviewerCompatibleFilters = applyReviewerFilterCompatibility(
     sourceId,
     repoValues,
     teamValues,
     reviewerValues,
   );
+  const normalizedFilters = {
+    ...reviewerCompatibleFilters,
+    authors: normalizeAuthorSelection(authorValues, currentDimensions),
+  };
+  currentFilters = applyAuthorFilterCompatibility(sourceId, normalizedFilters);
 
   updateFilterUI();
   updateUrlState();
@@ -1366,15 +1473,20 @@ function handleFilterChange(event: Event): void {
  * Clear all filters.
  */
 function clearAllFilters(): void {
-  currentFilters = { repos: [], teams: [], reviewers: [] };
+  currentFilters = { repos: [], teams: [], reviewers: [], authors: [] };
+  reviewerFilterNoticeMessage = null;
 
   const repoFilter = elements["repo-filter"] as HTMLSelectElement | null;
   const teamFilter = elements["team-filter"] as HTMLSelectElement | null;
   const reviewerFilter = elements["reviewer-filter"] as HTMLSelectElement | null;
+  const authorFilter = elements["author-filter"] as HTMLInputElement | null;
 
   clearSelectToAll(repoFilter);
   clearSelectToAll(teamFilter);
   clearSelectToAll(reviewerFilter);
+  if (authorFilter) {
+    authorFilter.value = "";
+  }
 
   updateFilterUI();
   updateUrlState();
@@ -1413,6 +1525,10 @@ function removeFilter(type: string, value: string): void {
     const reviewerFilter = elements["reviewer-filter"] as HTMLSelectElement | null;
     const option = findOptionByValue(reviewerFilter, value);
     if (option) option.selected = false;
+  } else if (type === "author") {
+    currentFilters.authors = currentFilters.authors.filter((v) => v !== value);
+    const authorFilter = elements["author-filter"] as HTMLInputElement | null;
+    if (authorFilter) authorFilter.value = "";
   }
 
   updateFilterUI();
@@ -1427,7 +1543,8 @@ function updateFilterUI(): void {
   const hasFilters =
     currentFilters.repos.length > 0 ||
     currentFilters.teams.length > 0 ||
-    currentFilters.reviewers.length > 0;
+    currentFilters.reviewers.length > 0 ||
+    currentFilters.authors.length > 0;
 
   if (elements["clear-filters"]) {
     elements["clear-filters"].classList.toggle("hidden", !hasFilters);
@@ -1470,6 +1587,11 @@ function renderFilterChips(): void {
     chips.push(createFilterChip("reviewer", value, label));
   });
 
+  currentFilters.authors.forEach((value) => {
+    const label = getFilterLabel("author", value);
+    chips.push(createFilterChip("author", value, label));
+  });
+
   // SECURITY: Filter chips use escapeHtml for all values
   renderTrustedHtml(chipsEl, chips.join(""));
 
@@ -1504,6 +1626,13 @@ function getFilterLabel(type: string, value: string): string {
     const reviewerFilter = elements["reviewer-filter"] as HTMLSelectElement | null;
     return findOptionByValue(reviewerFilter, value)?.textContent ?? value;
   }
+  if (type === "author") {
+    const authorFilterOptions = elements["author-filter-options"] as HTMLDataListElement | null;
+    const option = authorFilterOptions?.querySelector(
+      `option[data-author-id="${CSS.escape(value)}"]`,
+    ) as HTMLOptionElement | null;
+    return option?.value ?? value;
+  }
   return value;
 }
 
@@ -1512,7 +1641,7 @@ function getFilterLabel(type: string, value: string): string {
  */
 function createFilterChip(type: string, value: string, label: string): string {
   const prefix =
-    type === "repo" ? "repo" : type === "team" ? "team" : "reviewer";
+    type === "repo" ? "repo" : type === "team" ? "team" : type === "reviewer" ? "reviewer" : "author";
   // SECURITY: Escape user-controlled values to prevent XSS
   return `
         <span class="filter-chip">
@@ -1524,6 +1653,19 @@ function createFilterChip(type: string, value: string, label: string): string {
 
 function updateMetricLabels(): void {
   const reviewerMode = currentFilters.reviewers.length > 0;
+  const authorTeamConstrained =
+    currentFilters.authors.length > 0 && currentFilters.teams.length > 0;
+  elements["author-filter-notice"]?.classList.toggle("hidden", !authorTeamConstrained);
+  const reviewerNotice = elements["reviewer-filter-notice"];
+  if (reviewerNotice) {
+    if (reviewerFilterNoticeMessage) {
+      reviewerNotice.textContent = reviewerFilterNoticeMessage;
+      reviewerNotice.classList.remove("hidden");
+    } else {
+      reviewerNotice.textContent = "";
+      reviewerNotice.classList.add("hidden");
+    }
+  }
 
   if (elements["total-prs-label"]) {
     elements["total-prs-label"].textContent = reviewerMode
@@ -1620,16 +1762,71 @@ function restoreFiltersFromUrl(): void {
     }
   }
 
-  currentFilters = applyReviewerFilterCompatibility(
-    null,
-    currentFilters.repos,
-    currentFilters.teams,
-    currentFilters.reviewers,
-  );
+  const authorParam = params.get("author");
+  if (authorParam) {
+    currentFilters.authors = normalizeAuthorSelection(
+      [authorParam],
+      currentDimensions,
+    );
+    const authorFilter = elements["author-filter"] as HTMLInputElement | null;
+    if (authorFilter) {
+      if (currentFilters.authors.length > 0) {
+        const label = getFilterLabel("author", currentFilters.authors[0] ?? "");
+        authorFilter.value = label;
+      } else {
+        authorFilter.value = "";
+      }
+    }
+  }
+
+  currentFilters = applyAuthorFilterCompatibility(null, {
+    ...applyReviewerFilterCompatibility(
+      null,
+      currentFilters.repos,
+      currentFilters.teams,
+      currentFilters.reviewers,
+    ),
+    authors: currentFilters.authors,
+  });
+
+  if (currentFilters.authors.length === 0 && authorParam) {
+    console.warn("Ignoring invalid author filter from URL:", authorParam);
+  }
 
   updateFilterUI();
 }
 
+function restoreStateFromUrl(): void {
+  const params = new URLSearchParams(window.location.search);
+
+  const startParam = params.get("start");
+  const endParam = params.get("end");
+  if (startParam && endParam) {
+    currentDateRange = { start: new Date(startParam), end: new Date(endParam) };
+    const dateRangeEl = elements["date-range"] as HTMLSelectElement | null;
+    if (dateRangeEl) {
+      dateRangeEl.value = "custom";
+      elements["custom-dates"]?.classList.remove("hidden");
+    }
+    const startEl = elements["start-date"] as HTMLInputElement | null;
+    const endEl = elements["end-date"] as HTMLInputElement | null;
+    if (startEl) startEl.value = startParam;
+    if (endEl) endEl.value = endParam;
+  }
+
+  const tabParam = params.get("tab");
+  if (tabParam) {
+    setTimeout(() => switchTab(tabParam), 0);
+  }
+
+  // Restore comparison mode
+  const compareParam = params.get("compare");
+  if (compareParam === "1") {
+    comparisonMode = true;
+    elements["compare-toggle"]?.classList.add("active");
+    elements["comparison-banner"]?.classList.remove("hidden");
+  }
+}
 // ============================================================================
 // Comparison Mode
 // ============================================================================
@@ -1699,7 +1896,8 @@ function updateComparisonBanner(): void {
     const hasFilters =
       currentFilters.repos.length > 0 ||
       currentFilters.teams.length > 0 ||
-      currentFilters.reviewers.length > 0;
+      currentFilters.reviewers.length > 0 ||
+      currentFilters.authors.length > 0;
     banner.setAttribute("data-filtered", hasFilters ? "true" : "false");
   }
 }
@@ -1845,11 +2043,41 @@ function updateDatasetInfo(manifest: ManifestSchema | null): void {
     ? new Date(manifest.generated_at).toLocaleString()
     : "Unknown";
   const runId = (manifest as { run_id?: string })?.run_id || "";
+  const capabilityState = loader?.getCapabilityState?.() ?? null;
+  const commentsCoverage = manifest?.coverage?.comments;
+  const commentsBanner = elements["comments-coverage-banner"];
+  let commentsSummary: string | null = null;
+
+  if (capabilityState?.commentsMetricsAvailable) {
+    if (capabilityState.commentsCoverageStatus === "partial") {
+      commentsSummary = "Comments coverage: partial";
+      if (
+        typeof commentsCoverage === "object" &&
+        commentsCoverage !== null &&
+        commentsCoverage.capped === true
+      ) {
+        commentsSummary += " (capped during extraction)";
+      }
+    } else if (capabilityState.commentsCoverageStatus === "full") {
+      commentsSummary = "Comments coverage: full";
+    }
+  }
 
   const runInfo = elements["run-info"];
   if (runInfo) {
     runInfo.textContent = `Generated: ${generatedAt}`;
     if (runId) runInfo.textContent += ` | Run: ${runId.slice(0, 8)}`;
+    if (commentsSummary) runInfo.textContent += ` | ${commentsSummary}`;
+  }
+
+  if (commentsBanner) {
+    if (commentsSummary) {
+      commentsBanner.textContent = commentsSummary;
+      commentsBanner.classList.remove("hidden");
+    } else {
+      commentsBanner.textContent = "";
+      commentsBanner.classList.add("hidden");
+    }
   }
 }
 
@@ -1892,6 +2120,9 @@ function updateUrlState(): void {
   if (currentFilters.reviewers.length > 0) {
     newParams.set("reviewers", currentFilters.reviewers.join(","));
   }
+  if (currentFilters.authors.length > 0) {
+    newParams.set("author", currentFilters.authors[0] ?? "");
+  }
 
   // Add comparison mode
   if (comparisonMode) {
@@ -1903,38 +2134,6 @@ function updateUrlState(): void {
     "",
     `${window.location.pathname}?${newParams.toString()}`,
   );
-}
-
-function restoreStateFromUrl(): void {
-  const params = new URLSearchParams(window.location.search);
-
-  const startParam = params.get("start");
-  const endParam = params.get("end");
-  if (startParam && endParam) {
-    currentDateRange = { start: new Date(startParam), end: new Date(endParam) };
-    const dateRangeEl = elements["date-range"] as HTMLSelectElement | null;
-    if (dateRangeEl) {
-      dateRangeEl.value = "custom";
-      elements["custom-dates"]?.classList.remove("hidden");
-    }
-    const startEl = elements["start-date"] as HTMLInputElement | null;
-    const endEl = elements["end-date"] as HTMLInputElement | null;
-    if (startEl) startEl.value = startParam;
-    if (endEl) endEl.value = endParam;
-  }
-
-  const tabParam = params.get("tab");
-  if (tabParam) {
-    setTimeout(() => switchTab(tabParam), 0);
-  }
-
-  // Restore comparison mode
-  const compareParam = params.get("compare");
-  if (compareParam === "1") {
-    comparisonMode = true;
-    elements["compare-toggle"]?.classList.add("active");
-    elements["comparison-banner"]?.classList.remove("hidden");
-  }
 }
 
 // ============================================================================

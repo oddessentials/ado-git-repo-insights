@@ -17,7 +17,7 @@ Requirements:
 
 from __future__ import annotations
 
-import json
+import argparse
 import sys
 from dataclasses import dataclass
 from datetime import date, timedelta
@@ -27,6 +27,7 @@ from typing import Any
 
 from demo_generation_common import (
     FIXED_GENERATED_AT,
+    load_json_file,
     refresh_demo_manifest_features,
     round_float,
     write_json_file,
@@ -43,12 +44,7 @@ BASE_CONFIDENCE_INTERVAL = 0.15  # ±15%
 CONFIDENCE_WIDENING_PER_WEEK = 0.01  # +1% per week
 REVIEW_TIME_FRACTION = 0.4  # Review time is ~40% of total cycle time
 
-# Paths
-DATA_DIR = Path(__file__).parent.parent / "docs" / "data"
-ROLLUPS_DIR = DATA_DIR / "aggregates" / "weekly_rollups"
-PREDICTIONS_DIR = DATA_DIR / "predictions"
-OUTPUT_FILE = PREDICTIONS_DIR / "trends.json"
-MANIFEST_FILE = DATA_DIR / "dataset-manifest.json"
+DEFAULT_DATA_DIR = Path(__file__).parent.parent / "docs" / "data"
 # Schema version
 PREDICTIONS_SCHEMA_VERSION = 1
 # =============================================================================
@@ -66,13 +62,12 @@ class WeeklyMetrics:
     cycle_time_p50: float
 
 
-def load_weekly_rollups() -> list[WeeklyMetrics]:
+def load_weekly_rollups(rollups_dir: Path) -> list[WeeklyMetrics]:
     """Load all weekly rollups and extract relevant metrics."""
     rollups = []
 
-    for rollup_file in sorted(ROLLUPS_DIR.glob("*.json")):
-        with open(rollup_file, encoding="utf-8") as f:
-            data = json.load(f)
+    for rollup_file in sorted(rollups_dir.glob("*.json")):
+        data = load_json_file(rollup_file)
 
         rollups.append(
             WeeklyMetrics(
@@ -258,20 +253,41 @@ def generate_review_time_forecast(rollups: list[WeeklyMetrics]) -> dict[str, Any
 # =============================================================================
 
 
-def main() -> int:
+def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
+    """Parse CLI arguments."""
+    parser = argparse.ArgumentParser(
+        description="Generate deterministic demo predictions"
+    )
+    parser.add_argument(
+        "--output-root",
+        type=Path,
+        default=DEFAULT_DATA_DIR,
+        help="Root demo dataset directory containing aggregates/",
+    )
+    return parser.parse_args(argv)
+
+
+def main(argv: list[str] | None = None) -> int:
     """Generate predictions data."""
+    args = parse_args(argv)
+    data_dir = args.output_root.resolve()
+    rollups_dir = data_dir / "aggregates" / "weekly_rollups"
+    predictions_dir = data_dir / "predictions"
+    output_file = predictions_dir / "trends.json"
+    manifest_file = data_dir / "dataset-manifest.json"
+
     print("Generating demo predictions...")
-    print(f"Output: {PREDICTIONS_DIR}")
+    print(f"Output: {predictions_dir}")
 
     # Verify rollups exist
-    if not ROLLUPS_DIR.exists():
-        print(f"ERROR: Weekly rollups not found at {ROLLUPS_DIR}")
+    if not rollups_dir.exists():
+        print(f"ERROR: Weekly rollups not found at {rollups_dir}")
         print("Please run generate-demo-data.py first.")
         return 1
 
     # Load rollups
     print("\n[1/4] Loading weekly rollups...")
-    rollups = load_weekly_rollups()
+    rollups = load_weekly_rollups(rollups_dir)
     print(f"  Loaded {len(rollups)} weekly rollups")
 
     if len(rollups) < TREND_LOOKBACK_WEEKS:
@@ -299,11 +315,11 @@ def main() -> int:
         "forecasts": forecasts,
     }
 
-    write_json_file(OUTPUT_FILE, predictions)
-    print(f"  Written: {OUTPUT_FILE}")
+    write_json_file(output_file, predictions)
+    print(f"  Written: {output_file}")
 
     print("  Refreshing dataset-manifest feature flags...")
-    refresh_demo_manifest_features(MANIFEST_FILE, DATA_DIR)
+    refresh_demo_manifest_features(manifest_file, data_dir)
 
     print("\nPredictions generation complete!")
     return 0

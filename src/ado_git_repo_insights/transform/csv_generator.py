@@ -65,6 +65,8 @@ class CSVGenerator:
                     f"Failed to generate {table_name}.csv: {e}"
                 ) from e
 
+        self._generate_auxiliary_comments_csvs()
+
         return results
 
     def _generate_table(self, table_name: str, columns: list[str]) -> int:
@@ -130,3 +132,69 @@ class CSVGenerator:
 
         logger.info("All CSV schemas validated successfully")
         return True
+
+    def _generate_auxiliary_comments_csvs(self) -> None:
+        """Generate additive comments CSVs outside the PowerBI contract root."""
+        comments_tables = {
+            "pr_threads": {
+                "columns": [
+                    "thread_id",
+                    "pull_request_uid",
+                    "status",
+                    "thread_context",
+                    "last_updated",
+                    "created_at",
+                    "is_deleted",
+                ],
+                "sort_keys": ["pull_request_uid", "thread_id"],
+            },
+            "pr_comments": {
+                "columns": [
+                    "comment_id",
+                    "thread_id",
+                    "pull_request_uid",
+                    "author_id",
+                    "content",
+                    "comment_type",
+                    "created_at",
+                    "last_updated",
+                    "is_deleted",
+                ],
+                "sort_keys": ["pull_request_uid", "thread_id", "comment_id"],
+            },
+        }
+
+        auxiliary_dir = self.output_dir / "auxiliary" / "comments"
+        wrote_any = False
+
+        for table_name, config in comments_tables.items():
+            try:
+                df = pd.read_sql_query(
+                    f"SELECT {', '.join(config['columns'])} FROM {table_name}",  # noqa: S608 -- SECURITY: table/columns are hardcoded constants
+                    self.db.connection,
+                )
+            except Exception as exc:
+                logger.debug(
+                    "Skipping auxiliary comments export for missing table %s: %s",
+                    table_name,
+                    exc,
+                )
+                continue
+
+            if df.empty:
+                continue
+
+            auxiliary_dir.mkdir(parents=True, exist_ok=True)
+            wrote_any = True
+            df = df[config["columns"]]
+            df = df.sort_values(by=config["sort_keys"], ascending=True)
+            df.to_csv(
+                auxiliary_dir / f"{table_name}.csv",
+                index=False,
+                encoding="utf-8",
+                lineterminator="\n",
+                date_format="%Y-%m-%dT%H:%M:%S",
+            )
+
+        if wrote_any:
+            logger.info("Generated auxiliary comments CSVs")

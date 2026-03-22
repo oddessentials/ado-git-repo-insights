@@ -180,8 +180,272 @@ describe("metrics module", () => {
       const result = applyFiltersToRollups([baseRollup], {
         repos: [],
         teams: [],
+        authors: [],
       });
       expect(result).toEqual([baseRollup]);
+    });
+
+    it("filters by author using canonical author id", () => {
+      const authorRollup = {
+        ...baseRollup,
+        by_author: {
+          "author-1": {
+            pr_count: 25,
+            cycle_time_p50: 45,
+            cycle_time_p90: 90,
+            authors_count: 1,
+            reviewers_count: 3,
+          },
+        },
+      } as Rollup;
+
+      const result = applyFiltersToRollups([authorRollup], {
+        repos: [],
+        teams: [],
+        authors: ["author-1"],
+      });
+
+      expect(result[0].pr_count).toBe(25);
+      expect(result[0].cycle_time_p50).toBe(45);
+      expect(result[0].authors_count).toBe(1);
+      expect(result[0].reviewers_count).toBe(3);
+    });
+
+    it("uses author-only metrics when author and team are both selected", () => {
+      const authorRollup = {
+        ...baseRollup,
+        by_author: {
+          "author-1": {
+            pr_count: 25,
+            cycle_time_p50: 45,
+            cycle_time_p90: 90,
+            authors_count: 1,
+            reviewers_count: 3,
+          },
+        },
+      } as Rollup;
+
+      const result = applyFiltersToRollups([authorRollup], {
+        repos: [],
+        teams: ["team-x"],
+        authors: ["author-1"],
+      });
+
+      expect(result[0].pr_count).toBe(25);
+      expect(result[0].cycle_time_p50).toBe(45);
+      expect(result[0].authors_count).toBe(1);
+    });
+
+    it("uses exact author+repo breakdown when available", () => {
+      const authorRepoRollup = {
+        ...baseRollup,
+        by_author: {
+          "author-1": {
+            pr_count: 25,
+            cycle_time_p50: 45,
+            cycle_time_p90: 90,
+            authors_count: 1,
+            reviewers_count: 3,
+          },
+        },
+        by_author_and_repo: {
+          "author-1": {
+            "repo-a": {
+              pr_count: 9,
+              cycle_time_p50: 42,
+              cycle_time_p90: 88,
+              authors_count: 1,
+              reviewers_count: 2,
+            },
+          },
+        },
+      } as Rollup;
+
+      const result = applyFiltersToRollups([authorRepoRollup], {
+        repos: ["repo-a"],
+        teams: [],
+        authors: ["author-1"],
+      });
+
+      expect(result[0].pr_count).toBe(9);
+      expect(result[0].cycle_time_p50).toBe(42);
+      expect(result[0].cycle_time_p90).toBe(88);
+      expect(result[0].authors_count).toBe(1);
+      expect(result[0].reviewers_count).toBe(2);
+    });
+
+    it("falls back to proportional author+repo estimation when exact data is unavailable", () => {
+      const authorRepoRollup = {
+        ...baseRollup,
+        by_author: {
+          "author-1": {
+            pr_count: 25,
+            cycle_time_p50: 45,
+            cycle_time_p90: 90,
+            authors_count: 1,
+            reviewers_count: 3,
+          },
+        },
+      } as Rollup;
+
+      const result = applyFiltersToRollups([authorRepoRollup], {
+        repos: ["repo-a"],
+        teams: [],
+        authors: ["author-1"],
+      });
+
+      expect(result[0].pr_count).toBe(8);
+      expect(result[0].cycle_time_p50).toBeCloseTo(47.5);
+      expect(result[0].cycle_time_p90).toBeCloseTo(95);
+      expect(result[0].authors_count).toBe(1);
+      expect(result[0].reviewers_count).toBe(0);
+    });
+
+    it("returns zero values when author filter is active but by_author is missing", () => {
+      const result = applyFiltersToRollups([baseRollup], {
+        repos: [],
+        teams: [],
+        authors: ["author-1"],
+      });
+
+      expect(result[0].pr_count).toBe(0);
+      expect(result[0].authors_count).toBe(0);
+      expect(result[0].reviewers_count).toBe(0);
+      expect(result[0].cycle_time_p50).toBeNull();
+      expect(result[0].cycle_time_p90).toBeNull();
+    });
+
+    it("returns zero values when the selected author is not found", () => {
+      const authorRollup = {
+        ...baseRollup,
+        by_author: {
+          "author-2": {
+            pr_count: 7,
+            cycle_time_p50: 41,
+            cycle_time_p90: 85,
+            authors_count: 1,
+            reviewers_count: 2,
+          },
+        },
+      } as Rollup;
+
+      const result = applyFiltersToRollups([authorRollup], {
+        repos: [],
+        teams: [],
+        authors: ["author-1"],
+      });
+
+      expect(result[0].pr_count).toBe(0);
+      expect(result[0].authors_count).toBe(0);
+      expect(result[0].reviewers_count).toBe(0);
+    });
+
+    it("returns zero values when exact author+repo data is non-truncated and lookup misses", () => {
+      const authorRepoRollup = {
+        ...baseRollup,
+        by_author: {
+          "author-1": {
+            pr_count: 25,
+            cycle_time_p50: 45,
+            cycle_time_p90: 90,
+            authors_count: 1,
+            reviewers_count: 3,
+          },
+        },
+        by_author_and_repo: {
+          "author-1": {
+            "repo-b": {
+              pr_count: 9,
+              cycle_time_p50: 42,
+              cycle_time_p90: 88,
+              authors_count: 1,
+              reviewers_count: 2,
+            },
+          },
+        },
+      } as Rollup;
+
+      const result = applyFiltersToRollups([authorRepoRollup], {
+        repos: ["repo-a"],
+        teams: [],
+        authors: ["author-1"],
+      });
+
+      expect(result[0].pr_count).toBe(0);
+      expect(result[0].authors_count).toBe(0);
+      expect(result[0].reviewers_count).toBe(0);
+    });
+
+    it("falls back to proportional author+repo estimation when truncated exact data is incomplete", () => {
+      const warnSpy = jest.spyOn(console, "warn").mockImplementation(() => {});
+      const authorRepoRollup = {
+        ...baseRollup,
+        by_author: {
+          "author-1": {
+            pr_count: 25,
+            cycle_time_p50: 45,
+            cycle_time_p90: 90,
+            authors_count: 1,
+            reviewers_count: 3,
+          },
+        },
+        by_author_and_repo: {
+          _truncated: true,
+          "author-1": {
+            "repo-a": {
+              pr_count: 9,
+              cycle_time_p50: 42,
+              cycle_time_p90: 88,
+              authors_count: 1,
+              reviewers_count: 2,
+            },
+          },
+        },
+      } as unknown as Rollup;
+
+      const result = applyFiltersToRollups([authorRepoRollup], {
+        repos: ["repo-a", "repo-b"],
+        teams: ["team-x"],
+        authors: ["author-1"],
+      });
+
+      expect(result[0].pr_count).toBe(25);
+      expect(result[0].cycle_time_p50).toBeCloseTo(52.75);
+      expect(warnSpy).toHaveBeenCalledWith(
+        expect.stringContaining("Author x repo data truncated"),
+      );
+      warnSpy.mockRestore();
+    });
+
+    it("uses only the first author when multiple author values are present", () => {
+      const authorRollup = {
+        ...baseRollup,
+        by_author: {
+          "author-1": {
+            pr_count: 25,
+            cycle_time_p50: 45,
+            cycle_time_p90: 90,
+            authors_count: 1,
+            reviewers_count: 3,
+          },
+          "author-2": {
+            pr_count: 99,
+            cycle_time_p50: 70,
+            cycle_time_p90: 140,
+            authors_count: 1,
+            reviewers_count: 10,
+          },
+        },
+      } as Rollup;
+
+      const result = applyFiltersToRollups([authorRollup], {
+        repos: [],
+        teams: [],
+        authors: ["author-1", "author-2"],
+      });
+
+      expect(result[0].pr_count).toBe(25);
+      expect(result[0].cycle_time_p50).toBe(45);
     });
 
     it("filters by repository - pr_count", () => {
@@ -282,7 +546,7 @@ describe("metrics module", () => {
       expect(result[0].reviewers_count).toBe(10);
     });
 
-    it("prefers reviewer-only filtering when reviewer is combined with repo/team", () => {
+    it("uses reviewer-only metrics when reviewer and repository are both selected", () => {
       const reviewerRollup = {
         ...baseRollup,
         by_reviewer: {
@@ -298,6 +562,31 @@ describe("metrics module", () => {
 
       const result = applyFiltersToRollups([reviewerRollup], {
         repos: ["repo-a"],
+        teams: [],
+        reviewers: ["reviewer-1"],
+      });
+
+      expect(result[0].pr_count).toBe(6);
+      expect(result[0].authors_count).toBe(4);
+      expect(result[0].reviewers_count).toBe(7);
+    });
+
+    it("uses reviewer-only metrics when reviewer and team are both selected", () => {
+      const reviewerRollup = {
+        ...baseRollup,
+        by_reviewer: {
+          "reviewer-1": {
+            reviewed_prs: 6,
+            reviews_count: 7,
+            approval_rate: 0.5,
+            authors_count: 4,
+            repositories_count: 2,
+          },
+        },
+      } as Rollup;
+
+      const result = applyFiltersToRollups([reviewerRollup], {
+        repos: [],
         teams: ["team-x"],
         reviewers: ["reviewer-1"],
       });

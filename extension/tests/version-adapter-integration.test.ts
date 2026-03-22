@@ -194,7 +194,81 @@ describe("Version Adapter Integration", () => {
       const rollup = rollups[0];
 
       // All fields preserved exactly
-      expect(rollup).toEqual({ ...currentRollup, by_reviewer: null });
+      expect(rollup).toEqual({
+        ...currentRollup,
+        by_author: null,
+        by_author_and_repo: undefined,
+        by_reviewer: null,
+      });
+    });
+  });
+
+  describe("Capability precedence", () => {
+    it("prefers manifest capability flags over schema-version inference", async () => {
+      (global as any).fetch.mockImplementation(async (url: string) => {
+        if (url.includes("manifest")) {
+          return {
+            ok: true,
+            status: 200,
+            json: async () => ({
+              manifest_schema_version: 1,
+              dataset_schema_version: 1,
+              aggregates_schema_version: 2,
+              generated_at: "2026-01-14T12:00:00Z",
+              run_id: "test-run-123",
+              capabilities: {
+                author_filters: false,
+                author_repo_exact: false,
+                comments_metrics: true,
+                reviewer_repository_mode: "constrained",
+                reviewer_team_mode: "disallowed",
+                cross_dimensional_available: false,
+              },
+              coverage: {
+                total_prs: 1,
+                date_range: { min: "2026-01-01", max: "2026-01-07" },
+                comments: {
+                  status: "partial",
+                  threads_fetched: 4,
+                  comments_fetched: 12,
+                  prs_with_threads: 1,
+                  capped: true,
+                },
+              },
+              aggregate_index: { weekly_rollups: [], distributions: [] },
+            }),
+          };
+        }
+        return { ok: false, status: 404, statusText: "Not Found" };
+      });
+
+      const loader = new DatasetLoader(fixtureDir);
+      await loader.loadManifest();
+
+      expect(loader.getCapabilityState()).toEqual({
+        authorFiltersAvailable: false,
+        authorRepoExactAvailable: false,
+        commentsMetricsAvailable: true,
+        commentsCoverageStatus: "partial",
+        reviewerRepositoryMode: "constrained",
+        reviewerTeamMode: "disallowed",
+        crossDimensionalAvailable: false,
+      });
+    });
+
+    it("falls back to safe defaults when manifest capabilities are absent", async () => {
+      const loader = new DatasetLoader(fixtureDir);
+      await loader.loadManifest();
+
+      expect(loader.getCapabilityState()).toEqual({
+        authorFiltersAvailable: false,
+        authorRepoExactAvailable: false,
+        commentsMetricsAvailable: false,
+        commentsCoverageStatus: "disabled",
+        reviewerRepositoryMode: "constrained",
+        reviewerTeamMode: "disallowed",
+        crossDimensionalAvailable: false,
+      });
     });
   });
 

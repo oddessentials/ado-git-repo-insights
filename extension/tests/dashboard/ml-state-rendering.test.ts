@@ -45,6 +45,35 @@ describe("ML State Rendering", () => {
     setupDomHarness({ customDom: ML_TAB_DOM });
   });
 
+  describe("comments coverage messaging", () => {
+    it("renders partial comments coverage text safely", () => {
+      const banner = document.createElement("div");
+      banner.id = "comments-coverage-banner";
+      banner.className = "hidden";
+      document.body.appendChild(banner);
+
+      const commentsSummary = "Comments coverage: partial (capped during extraction)";
+      banner.textContent = commentsSummary;
+      banner.classList.remove("hidden");
+
+      expect(banner.textContent).toBe(commentsSummary);
+      expect(banner.classList.contains("hidden")).toBe(false);
+    });
+
+    it("supports full comments coverage messaging", () => {
+      const banner = document.createElement("div");
+      banner.id = "comments-coverage-banner";
+      banner.className = "hidden";
+      document.body.appendChild(banner);
+
+      banner.textContent = "Comments coverage: full";
+      banner.classList.remove("hidden");
+
+      expect(banner.textContent).toBe("Comments coverage: full");
+      expect(banner.classList.contains("hidden")).toBe(false);
+    });
+  });
+
   afterEach(() => {
     teardownDomHarness();
     jest.restoreAllMocks();

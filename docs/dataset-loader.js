@@ -280,7 +280,10 @@ var PRInsightsDatasetLoader = (() => {
     "run_id",
     "defaults",
     "limits",
+    "demo_profile",
+    "published_files",
     "features",
+    "capabilities",
     "coverage",
     "aggregate_index",
     "warnings",
@@ -317,12 +320,27 @@ var PRInsightsDatasetLoader = (() => {
     // Production field
   ]);
   var KNOWN_DATE_RANGE_FIELDS = /* @__PURE__ */ new Set(["min", "max"]);
+  var KNOWN_COMMENTS_COVERAGE_FIELDS = /* @__PURE__ */ new Set([
+    "status",
+    "threads_fetched",
+    "comments_fetched",
+    "prs_with_threads",
+    "capped"
+  ]);
   var KNOWN_FEATURES_FIELDS = /* @__PURE__ */ new Set([
     "teams",
     "comments",
     "predictions",
     "ai_insights",
     "cross_dimensional"
+  ]);
+  var KNOWN_CAPABILITIES_FIELDS = /* @__PURE__ */ new Set([
+    "author_filters",
+    "author_repo_exact",
+    "comments_metrics",
+    "reviewer_repository_mode",
+    "reviewer_team_mode",
+    "cross_dimensional_available"
   ]);
   var KNOWN_LIMITS_FIELDS = /* @__PURE__ */ new Set([
     "max_weekly_files",
@@ -331,6 +349,13 @@ var PRInsightsDatasetLoader = (() => {
     // Production field
   ]);
   var KNOWN_DEFAULTS_FIELDS = /* @__PURE__ */ new Set(["default_date_range_days"]);
+  var KNOWN_DEMO_PROFILE_FIELDS = /* @__PURE__ */ new Set([
+    "name",
+    "version",
+    "seed",
+    "canonical_output_root"
+  ]);
+  var KNOWN_PUBLISHED_FILES_FIELDS = /* @__PURE__ */ new Set(["direct", "globs"]);
   function validateWeeklyRollupEntry(data, path, strict) {
     const errors = [];
     const warnings = [];
@@ -545,6 +570,59 @@ var PRInsightsDatasetLoader = (() => {
             `Expected string or object at '${buildPath(path, "comments")}'`
           )
         );
+      } else if (isObject(commentsValue)) {
+        const commentsPath = buildPath(path, "comments");
+        const statusReq = validateRequired(commentsValue, "status", commentsPath);
+        if (statusReq) {
+          errors.push(statusReq);
+        } else {
+          const statusPath = buildPath(commentsPath, "status");
+          const statusErr = validateString(commentsValue.status, statusPath);
+          if (statusErr) {
+            errors.push(statusErr);
+          } else if (typeof commentsValue.status === "string" && !(/* @__PURE__ */ new Set(["disabled", "full", "partial"])).has(commentsValue.status)) {
+            errors.push(
+              createError(
+                statusPath,
+                "disabled | full | partial",
+                commentsValue.status
+              )
+            );
+          }
+        }
+        const numericFields = [
+          "threads_fetched",
+          "comments_fetched",
+          "prs_with_threads"
+        ];
+        for (const field of numericFields) {
+          if (Object.prototype.hasOwnProperty.call(commentsValue, field) && Object.getOwnPropertyDescriptor(commentsValue, field)?.value !== void 0) {
+            const fieldValue = Object.getOwnPropertyDescriptor(
+              commentsValue,
+              field
+            )?.value;
+            const err = validateNonNegativeNumber(
+              fieldValue,
+              buildPath(commentsPath, field)
+            );
+            if (err) errors.push(err);
+          }
+        }
+        if (Object.prototype.hasOwnProperty.call(commentsValue, "capped") && Object.getOwnPropertyDescriptor(commentsValue, "capped")?.value !== void 0) {
+          const cappedErr = validateBoolean(
+            Object.getOwnPropertyDescriptor(commentsValue, "capped")?.value,
+            buildPath(commentsPath, "capped")
+          );
+          if (cappedErr) errors.push(cappedErr);
+        }
+        const unknownComments = findUnknownFields(
+          commentsValue,
+          KNOWN_COMMENTS_COVERAGE_FIELDS,
+          commentsPath,
+          strict
+        );
+        errors.push(...unknownComments.errors);
+        warnings.push(...unknownComments.warnings);
       }
     }
     if ("row_counts" in data && data.row_counts !== void 0) {
@@ -588,6 +666,57 @@ var PRInsightsDatasetLoader = (() => {
       }
     }
     const unknown = findUnknownFields(data, KNOWN_FEATURES_FIELDS, path, strict);
+    errors.push(...unknown.errors);
+    warnings.push(...unknown.warnings);
+    return { errors, warnings };
+  }
+  function validateCapabilities(data, path, strict) {
+    const errors = [];
+    const warnings = [];
+    if (!isObject(data)) {
+      errors.push(createError(path, "object", getTypeName(data)));
+      return { errors, warnings };
+    }
+    const booleanFields = [
+      "author_filters",
+      "author_repo_exact",
+      "comments_metrics",
+      "cross_dimensional_available"
+    ];
+    for (const field of booleanFields) {
+      if (Object.prototype.hasOwnProperty.call(data, field)) {
+        const fieldValue = Object.getOwnPropertyDescriptor(data, field)?.value;
+        if (fieldValue !== void 0) {
+          const err = validateBoolean(fieldValue, buildPath(path, field));
+          if (err) errors.push(err);
+        }
+      }
+    }
+    const modeFields = ["reviewer_repository_mode", "reviewer_team_mode"];
+    const validModes = /* @__PURE__ */ new Set(["exact", "constrained", "disallowed"]);
+    for (const field of modeFields) {
+      if (Object.prototype.hasOwnProperty.call(data, field)) {
+        const fieldValue = Object.getOwnPropertyDescriptor(data, field)?.value;
+        const err = validateString(fieldValue, buildPath(path, field));
+        if (err) {
+          errors.push(err);
+        } else if (typeof fieldValue === "string" && !validModes.has(fieldValue)) {
+          errors.push(
+            createError(
+              buildPath(path, field),
+              "exact | constrained | disallowed",
+              fieldValue
+            )
+          );
+        }
+      }
+    }
+    const unknown = findUnknownFields(
+      data,
+      KNOWN_CAPABILITIES_FIELDS,
+      path,
+      strict
+    );
     errors.push(...unknown.errors);
     warnings.push(...unknown.warnings);
     return { errors, warnings };
@@ -640,6 +769,88 @@ var PRInsightsDatasetLoader = (() => {
       if (err) errors.push(err);
     }
     const unknown = findUnknownFields(data, KNOWN_DEFAULTS_FIELDS, path, strict);
+    errors.push(...unknown.errors);
+    warnings.push(...unknown.warnings);
+    return { errors, warnings };
+  }
+  function validateDemoProfile(data, path, strict) {
+    const errors = [];
+    const warnings = [];
+    if (!isObject(data)) {
+      errors.push(createError(path, "object", getTypeName(data)));
+      return { errors, warnings };
+    }
+    const nameReq = validateRequired(data, "name", path);
+    if (nameReq) errors.push(nameReq);
+    else {
+      const err = validateString(data.name, buildPath(path, "name"));
+      if (err) errors.push(err);
+    }
+    const versionReq = validateRequired(data, "version", path);
+    if (versionReq) errors.push(versionReq);
+    else {
+      const err = validateString(data.version, buildPath(path, "version"));
+      if (err) errors.push(err);
+    }
+    if ("seed" in data && data.seed !== void 0) {
+      const err = validateNonNegativeNumber(data.seed, buildPath(path, "seed"));
+      if (err) errors.push(err);
+    }
+    if ("canonical_output_root" in data && data.canonical_output_root !== void 0) {
+      const err = validateString(
+        data.canonical_output_root,
+        buildPath(path, "canonical_output_root")
+      );
+      if (err) errors.push(err);
+    }
+    const unknown = findUnknownFields(data, KNOWN_DEMO_PROFILE_FIELDS, path, strict);
+    errors.push(...unknown.errors);
+    warnings.push(...unknown.warnings);
+    return { errors, warnings };
+  }
+  function validatePublishedFiles(data, path, strict) {
+    const errors = [];
+    const warnings = [];
+    if (!isObject(data)) {
+      errors.push(createError(path, "object", getTypeName(data)));
+      return { errors, warnings };
+    }
+    if ("direct" in data && data.direct !== void 0) {
+      const err = validateArray(data.direct, buildPath(path, "direct"));
+      if (err) {
+        errors.push(err);
+      } else {
+        const directEntries = data.direct;
+        for (const [index, item] of directEntries.entries()) {
+          const itemError = validateString(
+            item,
+            buildPath(buildPath(path, "direct"), String(index))
+          );
+          if (itemError) errors.push(itemError);
+        }
+      }
+    }
+    if ("globs" in data && data.globs !== void 0) {
+      const err = validateArray(data.globs, buildPath(path, "globs"));
+      if (err) {
+        errors.push(err);
+      } else {
+        const globEntries = data.globs;
+        for (const [index, item] of globEntries.entries()) {
+          const itemError = validateString(
+            item,
+            buildPath(buildPath(path, "globs"), String(index))
+          );
+          if (itemError) errors.push(itemError);
+        }
+      }
+    }
+    const unknown = findUnknownFields(
+      data,
+      KNOWN_PUBLISHED_FILES_FIELDS,
+      path,
+      strict
+    );
     errors.push(...unknown.errors);
     warnings.push(...unknown.warnings);
     return { errors, warnings };
@@ -732,8 +943,31 @@ var PRInsightsDatasetLoader = (() => {
       errors.push(...result.errors);
       warnings.push(...result.warnings);
     }
+    if ("demo_profile" in data && data.demo_profile !== void 0) {
+      const result = validateDemoProfile(data.demo_profile, "demo_profile", strict);
+      errors.push(...result.errors);
+      warnings.push(...result.warnings);
+    }
+    if ("published_files" in data && data.published_files !== void 0) {
+      const result = validatePublishedFiles(
+        data.published_files,
+        "published_files",
+        strict
+      );
+      errors.push(...result.errors);
+      warnings.push(...result.warnings);
+    }
     if ("features" in data && data.features !== void 0) {
       const result = validateFeatures(data.features, "features", strict);
+      errors.push(...result.errors);
+      warnings.push(...result.warnings);
+    }
+    if ("capabilities" in data && data.capabilities !== void 0) {
+      const result = validateCapabilities(
+        data.capabilities,
+        "capabilities",
+        strict
+      );
       errors.push(...result.errors);
       warnings.push(...result.warnings);
     }
@@ -768,6 +1002,8 @@ var PRInsightsDatasetLoader = (() => {
     "authors_count",
     "reviewers_count",
     "by_repository",
+    "by_author",
+    "by_author_and_repo",
     "by_team",
     "by_reviewer",
     "by_team_and_repo"
@@ -996,6 +1232,11 @@ var PRInsightsDatasetLoader = (() => {
       errors.push(...result.errors);
       warnings.push(...result.warnings);
     }
+    if (Object.prototype.hasOwnProperty.call(data, "by_author") && data.by_author !== void 0) {
+      const result = validateBreakdown(data.by_author, "by_author", strict);
+      errors.push(...result.errors);
+      warnings.push(...result.warnings);
+    }
     if ("by_team" in data && data.by_team !== void 0) {
       const result = validateBreakdown(data.by_team, "by_team", strict);
       errors.push(...result.errors);
@@ -1005,6 +1246,15 @@ var PRInsightsDatasetLoader = (() => {
       const result = validateReviewerBreakdown(
         data.by_reviewer,
         "by_reviewer",
+        strict
+      );
+      errors.push(...result.errors);
+      warnings.push(...result.warnings);
+    }
+    if (Object.prototype.hasOwnProperty.call(data, "by_author_and_repo") && data.by_author_and_repo !== void 0) {
+      const result = validateNestedBreakdown(
+        data.by_author_and_repo,
+        "by_author_and_repo",
         strict
       );
       errors.push(...result.errors);
@@ -1032,6 +1282,7 @@ var PRInsightsDatasetLoader = (() => {
   var KNOWN_ROOT_FIELDS3 = /* @__PURE__ */ new Set([
     "repositories",
     "users",
+    "authors",
     "reviewers",
     "projects",
     "teams",
@@ -1059,6 +1310,7 @@ var PRInsightsDatasetLoader = (() => {
     "reviewer_id",
     "reviewer_name"
   ]);
+  var KNOWN_AUTHOR_FIELDS = /* @__PURE__ */ new Set(["author_id", "author_name"]);
   var KNOWN_PROJECT_FIELDS = /* @__PURE__ */ new Set([
     "organization_name",
     "project_name",
@@ -1315,6 +1567,35 @@ var PRInsightsDatasetLoader = (() => {
     warnings.push(...unknown.warnings);
     return { errors, warnings };
   }
+  function validateAuthorEntry(data, path, strict) {
+    const errors = [];
+    const warnings = [];
+    if (!isObject(data)) {
+      errors.push(createError(path, "object", getTypeName(data)));
+      return { errors, warnings };
+    }
+    const idReq = validateRequired(data, "author_id", path);
+    if (idReq) {
+      errors.push(idReq);
+    } else {
+      const idErr = validateString(data.author_id, buildPath(path, "author_id"));
+      if (idErr) errors.push(idErr);
+    }
+    const nameReq = validateRequired(data, "author_name", path);
+    if (nameReq) {
+      errors.push(nameReq);
+    } else {
+      const nameErr = validateString(
+        data.author_name,
+        buildPath(path, "author_name")
+      );
+      if (nameErr) errors.push(nameErr);
+    }
+    const unknown = findUnknownFields(data, KNOWN_AUTHOR_FIELDS, path, strict);
+    errors.push(...unknown.errors);
+    warnings.push(...unknown.warnings);
+    return { errors, warnings };
+  }
   function validateTeamEntry(data, path, strict) {
     const errors = [];
     const warnings = [];
@@ -1429,6 +1710,18 @@ var PRInsightsDatasetLoader = (() => {
             buildPath("reviewers", i),
             strict
           );
+          errors.push(...result.errors);
+          warnings.push(...result.warnings);
+        });
+      }
+    }
+    if ("authors" in data && data.authors !== void 0) {
+      const arrErr = validateArray(data.authors, "authors");
+      if (arrErr) {
+        errors.push(arrErr);
+      } else if (isArray(data.authors)) {
+        data.authors.forEach((item, i) => {
+          const result = validateAuthorEntry(item, buildPath("authors", i), strict);
           errors.push(...result.errors);
           warnings.push(...result.warnings);
         });
@@ -1676,6 +1969,15 @@ var PRInsightsDatasetLoader = (() => {
   var SUPPORTED_MANIFEST_VERSION = 1;
   var SUPPORTED_DATASET_VERSION = 1;
   var SUPPORTED_AGGREGATES_VERSION = 2;
+  var DEFAULT_CAPABILITY_STATE = {
+    authorFiltersAvailable: false,
+    authorRepoExactAvailable: false,
+    commentsMetricsAvailable: false,
+    commentsCoverageStatus: "disabled",
+    reviewerRepositoryMode: "constrained",
+    reviewerTeamMode: "disallowed",
+    crossDimensionalAvailable: false
+  };
   var DATASET_CANDIDATE_PATHS = [
     "",
     // Root of provided base URL (preferred)
@@ -1691,6 +1993,7 @@ var PRInsightsDatasetLoader = (() => {
     reviewers_count: 0,
     by_repository: null,
     // null indicates feature not available
+    by_author: null,
     by_team: null,
     // null indicates feature not available
     by_reviewer: null
@@ -1712,6 +2015,10 @@ var PRInsightsDatasetLoader = (() => {
       reviewers_count: r.reviewers_count ?? ROLLUP_FIELD_DEFAULTS.reviewers_count,
       // by_repository and by_team are optional features - preserve null if missing
       by_repository: r.by_repository !== void 0 ? r.by_repository : null,
+      by_author: r.by_author !== void 0 ? r.by_author : null,
+      ...r.by_author_and_repo !== void 0 ? {
+        by_author_and_repo: r.by_author_and_repo
+      } : {},
       by_team: r.by_team !== void 0 ? r.by_team : null,
       by_reviewer: r.by_reviewer !== void 0 ? r.by_reviewer : null,
       // Cross-dimensional breakdown (v2 schema) — pass through if present
@@ -1863,6 +2170,7 @@ var PRInsightsDatasetLoader = (() => {
       // Resolved after probing
       this.manifest = null;
       this.dimensions = null;
+      this.capabilityState = null;
       this.rollupCache = /* @__PURE__ */ new Map();
       // week -> data
       this.distributionCache = /* @__PURE__ */ new Map();
@@ -1923,7 +2231,23 @@ var PRInsightsDatasetLoader = (() => {
       const manifest = await response.json();
       this.validateManifestSchema(manifest);
       this.manifest = manifest;
+      this.capabilityState = this.normalizeCapabilityState(manifest);
       return manifest;
+    }
+    normalizeCapabilityState(manifest) {
+      const capabilities = manifest.capabilities ?? {};
+      const features = manifest.features ?? {};
+      const commentsCoverage = manifest.coverage?.comments;
+      const commentsCoverageStatus = typeof commentsCoverage === "object" && commentsCoverage !== null && "status" in commentsCoverage && (commentsCoverage.status === "full" || commentsCoverage.status === "partial" || commentsCoverage.status === "disabled") ? commentsCoverage.status : typeof commentsCoverage === "string" && (commentsCoverage === "full" || commentsCoverage === "partial" || commentsCoverage === "disabled") ? commentsCoverage : DEFAULT_CAPABILITY_STATE.commentsCoverageStatus;
+      return {
+        authorFiltersAvailable: capabilities.author_filters ?? (manifest.aggregates_schema_version ?? 0) >= 3,
+        authorRepoExactAvailable: capabilities.author_repo_exact ?? (manifest.aggregates_schema_version ?? 0) >= 3,
+        commentsMetricsAvailable: capabilities.comments_metrics ?? features.comments === true,
+        commentsCoverageStatus,
+        reviewerRepositoryMode: capabilities.reviewer_repository_mode ?? DEFAULT_CAPABILITY_STATE.reviewerRepositoryMode,
+        reviewerTeamMode: capabilities.reviewer_team_mode ?? DEFAULT_CAPABILITY_STATE.reviewerTeamMode,
+        crossDimensionalAvailable: capabilities.cross_dimensional_available ?? features.cross_dimensional === true
+      };
     }
     /**
      * Validate manifest schema using schema validator.
@@ -2188,6 +2512,9 @@ var PRInsightsDatasetLoader = (() => {
     isFeatureEnabled(feature) {
       if (!this.manifest) return false;
       return this.manifest.features?.[feature] === true;
+    }
+    getCapabilityState() {
+      return this.capabilityState ?? DEFAULT_CAPABILITY_STATE;
     }
     /**
      * Get dataset coverage info.

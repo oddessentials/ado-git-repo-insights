@@ -4,10 +4,9 @@
 #
 # This script:
 # 1. Builds the extension UI bundles (pnpm build:ui)
-# 2. Copies built assets to docs/
-# 3. Injects LOCAL_DASHBOARD_MODE and DATASET_PATH configuration
-# 4. Adds <base href="./"> for relative path resolution
-# 5. Adds synthetic data disclaimer banner
+# 2. Publishes the docs demo shell and built assets from a canonical source
+# 4. Regenerates the canonical enterprise demo dataset and promotes it to docs/data
+# 5. Verifies the published demo surface
 #
 # Usage:
 #     ./scripts/build-demo.sh
@@ -31,7 +30,7 @@ echo "Repository root: ${REPO_ROOT}"
 echo ""
 
 # Step 1: Build extension UI
-echo "[1/4] Building extension UI bundles..."
+echo "[1/5] Building extension UI bundles..."
 cd "${EXTENSION_DIR}"
 
 # Ensure dependencies are installed
@@ -46,56 +45,20 @@ pnpm run build:ui
 echo "  Build complete."
 echo ""
 
-# Step 2: Copy built assets to docs/
-echo "[2/4] Copying built assets to docs/..."
-
-# List of files to copy from extension/dist/ui/
-UI_FILES=(
-    "dashboard.js"
-    "dataset-loader.js"
-    "artifact-client.js"
-    "error-types.js"
-    "error-codes.js"
-    "styles.css"
-    "VSS.SDK.min.js"
-)
-
-# Also copy from ui/ source (HTML template and SDK)
-SRC_FILES=(
-    "index.html"
-)
-
-# Copy built JS/CSS files
-for file in "${UI_FILES[@]}"; do
-    if [ -f "${EXTENSION_DIR}/dist/ui/${file}" ]; then
-        cp "${EXTENSION_DIR}/dist/ui/${file}" "${DOCS_DIR}/"
-        echo "  Copied: dist/ui/${file}"
-    elif [ -f "${EXTENSION_DIR}/ui/${file}" ]; then
-        cp "${EXTENSION_DIR}/ui/${file}" "${DOCS_DIR}/"
-        echo "  Copied: ui/${file}"
-    else
-        echo "  Warning: ${file} not found"
-    fi
-done
-
-# Copy source HTML
-for file in "${SRC_FILES[@]}"; do
-    cp "${EXTENSION_DIR}/ui/${file}" "${DOCS_DIR}/"
-    echo "  Copied: ui/${file}"
-done
+# Step 2: Publish docs surface from built extension assets
+echo "[2/5] Publishing demo shell and assets..."
+python "${SCRIPT_DIR}/publish-demo-surface.py" --source "${EXTENSION_DIR}/dist/ui" --docs-dir "${DOCS_DIR}"
 
 echo ""
 
-# Step 3: Inject local mode configuration into index.html
-echo "[3/4] Injecting local mode configuration..."
-
-# Use separate Python script for cross-platform compatibility
-python "${SCRIPT_DIR}/inject-demo-config.py" "${DOCS_DIR}/index.html"
+# Step 3: Build canonical enterprise demo data and promote to docs/data
+echo "[3/5] Building canonical enterprise demo dataset..."
+python "${SCRIPT_DIR}/build-demo-dataset.py"
 
 echo ""
 
 # Step 4: Verify output
-echo "[4/4] Verifying output..."
+echo "[4/5] Verifying output..."
 
 # Check required files exist
 REQUIRED_FILES=(
@@ -138,6 +101,8 @@ if [ $MISSING -gt 0 ]; then
     echo "ERROR: ${MISSING} required files are missing!"
     exit 1
 fi
+
+echo "[5/5] Demo surface published successfully."
 
 echo "=== Build Complete ==="
 echo ""

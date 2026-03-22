@@ -19,7 +19,7 @@ import random
 from dataclasses import asdict, dataclass, field
 from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, cast
 
 import numpy as np
 import pandas as pd
@@ -28,6 +28,7 @@ from .schema_versions import (
     AGGREGATES_SCHEMA_VERSION,
     DATASET_SCHEMA_VERSION,
     INSIGHTS_SCHEMA_VERSION,
+    MANIFEST_CAPABILITY_KEYS,
     MANIFEST_SCHEMA_VERSION,
     PREDICTIONS_SCHEMA_VERSION,
 )
@@ -97,6 +98,7 @@ class Dimensions:
 
     repositories: list[dict[str, Any]] = field(default_factory=list)
     users: list[dict[str, Any]] = field(default_factory=list)
+    authors: list[dict[str, Any]] = field(default_factory=list)
     reviewers: list[dict[str, Any]] = field(default_factory=list)
     projects: list[dict[str, Any]] = field(default_factory=list)
     teams: list[dict[str, Any]] = field(default_factory=list)  # Phase 3.3
@@ -127,6 +129,7 @@ class DatasetManifest:
     defaults: dict[str, Any] = field(default_factory=dict)
     limits: dict[str, Any] = field(default_factory=dict)
     features: dict[str, bool] = field(default_factory=dict)
+    capabilities: dict[str, Any] = field(default_factory=dict)
     coverage: dict[str, Any] = field(default_factory=dict)
 
 
@@ -312,6 +315,7 @@ class AggregateGenerator:
                     "predictions": predictions_generated,  # Phase 3.5/5: file-gated
                     "ai_insights": insights_generated,  # Phase 3.5/5: file-gated
                 },
+                capabilities=self._get_capabilities(),
                 coverage={
                     "total_prs": self._get_pr_count(),
                     "date_range": dimensions.date_range,
@@ -415,6 +419,7 @@ class AggregateGenerator:
             """,
             self.db.connection,
         )
+        authors_df = users_df.copy()
 
         # Reviewers (distinct reviewers only)
         reviewers_df = pd.read_sql_query(
@@ -484,6 +489,13 @@ class AggregateGenerator:
             {str(k): v for k, v in r.items()}
             for r in users_df.to_dict(orient="records")
         ]
+        author_records: list[dict[str, Any]] = [
+            {
+                "author_id": str(r["user_id"]),
+                "author_name": r["display_name"],
+            }
+            for r in authors_df.to_dict(orient="records")
+        ]
         reviewers_records: list[dict[str, Any]] = [
             {str(k): v for k, v in r.items()}
             for r in reviewers_df.to_dict(orient="records")
@@ -503,6 +515,7 @@ class AggregateGenerator:
         return Dimensions(
             repositories=repos_records,
             users=users_records,
+            authors=author_records,
             reviewers=reviewers_records,
             projects=projects_records,
             teams=teams_records,
@@ -588,6 +601,8 @@ class AggregateGenerator:
 
             # Generate dimension slices for filtering support
             by_repository = self._generate_repo_slice(group, week_reviewers)
+            by_author = self._generate_author_slice(group, week_reviewers)
+            by_author_and_repo = self._generate_author_repo_slice(group, week_reviewers)
             by_team = self._generate_team_slice(group, week_reviewers, team_members_df)
             by_reviewer = self._generate_reviewer_slice(group, week_reviewers)
             by_team_and_repo = self._generate_team_repo_slice(
@@ -613,6 +628,31 @@ class AggregateGenerator:
             rollup_dict = asdict(rollup)
             if by_repository:
                 rollup_dict["by_repository"] = by_repository
+            if by_author:
+                rollup_dict["by_author"] = by_author
+            if by_author_and_repo:
+                is_truncated = by_author_and_repo.get("_truncated", False)
+                if not is_truncated and by_author:
+                    for author_id, repo_entries in by_author_and_repo.items():
+                        if author_id.startswith("_"):
+                            continue
+                        cross_dim_pr_sum = sum(
+                            entry["pr_count"] for entry in repo_entries.values()
+                        )
+                        author_pr_count = by_author.get(author_id, {}).get(
+                            "pr_count", 0
+                        )
+                        if cross_dim_pr_sum != author_pr_count:
+                            logger.warning(
+                                "Author x repo pr_count consistency mismatch for "
+                                "author %r in week %s: cross_dim_sum=%d != "
+                                "author_total=%d",
+                                author_id,
+                                week_str,
+                                cross_dim_pr_sum,
+                                author_pr_count,
+                            )
+                rollup_dict["by_author_and_repo"] = by_author_and_repo
             if by_team:
                 rollup_dict["by_team"] = by_team
             if by_reviewer:
@@ -665,6 +705,135 @@ class AggregateGenerator:
 
         return index
 
+    def _generate_author_slice(
+        self, week_group: pd.DataFrame, week_reviewers: pd.DataFrame
+    ) -> dict[str, Any]:
+        """Generate per-author metrics slice for a week keyed by canonical user_id."""
+        author_metrics = week_group.groupby("user_id").agg(
+            pr_count=("pull_request_uid", "size"),
+            cycle_time_valid_count=("cycle_time_minutes", "count"),
+            cycle_time_p50=("cycle_time_minutes", lambda s: s.quantile(0.5)),
+            cycle_time_p90=("cycle_time_minutes", lambda s: s.quantile(0.9)),
+        )
+        author_reviewer_counts = (
+            week_group[["user_id", "pull_request_uid"]]
+            .drop_duplicates()
+            .merge(
+                week_reviewers[["pull_request_uid", "reviewer_id"]],
+                on="pull_request_uid",
+                how="left",
+            )
+            .groupby("user_id")["reviewer_id"]
+            .nunique()
+        )
+        author_metrics["reviewers_count"] = author_reviewer_counts.reindex(
+            author_metrics.index,
+            fill_value=0,
+        )
+
+        by_author: dict[str, Any] = {}
+        for author_id, row in author_metrics.iterrows():
+            if not isinstance(author_id, str):
+                continue
+
+            cycle_time_valid_count = int(row["cycle_time_valid_count"])
+            by_author[str(author_id)] = {
+                "pr_count": int(row["pr_count"]),
+                "cycle_time_p50": row["cycle_time_p50"]
+                if cycle_time_valid_count >= self._ROLLUP_MIN_SAMPLE
+                and not pd.isna(row["cycle_time_p50"])
+                else None,
+                "cycle_time_p90": row["cycle_time_p90"]
+                if cycle_time_valid_count >= self._ROLLUP_MIN_SAMPLE
+                and not pd.isna(row["cycle_time_p90"])
+                else None,
+                "authors_count": 1,
+                "reviewers_count": int(row["reviewers_count"]),
+            }
+
+        return by_author
+
+    def _generate_author_repo_slice(
+        self, week_group: pd.DataFrame, week_reviewers: pd.DataFrame
+    ) -> dict[str, Any]:
+        """Generate per-author-per-repository metrics slice for a week."""
+        by_author_and_repo: dict[str, Any] = {}
+        grouped_metrics = week_group.groupby(["user_id", "repository_name"]).agg(
+            pr_count=("pull_request_uid", "size"),
+            cycle_time_valid_count=("cycle_time_minutes", "count"),
+            cycle_time_p50=("cycle_time_minutes", lambda s: s.quantile(0.5)),
+            cycle_time_p90=("cycle_time_minutes", lambda s: s.quantile(0.9)),
+        )
+        reviewer_counts = (
+            week_group[["user_id", "repository_name", "pull_request_uid"]]
+            .drop_duplicates()
+            .merge(
+                week_reviewers[["pull_request_uid", "reviewer_id"]],
+                on="pull_request_uid",
+                how="left",
+            )
+            .groupby(["user_id", "repository_name"])["reviewer_id"]
+            .nunique()
+        )
+        grouped_metrics["reviewers_count"] = reviewer_counts.reindex(
+            grouped_metrics.index,
+            fill_value=0,
+        )
+
+        all_entries: list[tuple[str, str, dict[str, Any]]] = []
+        for key, row in grouped_metrics.iterrows():
+            author_id, repo_name = cast(tuple[str, str], key)
+            if not isinstance(author_id, str) or not isinstance(repo_name, str):
+                continue
+
+            cycle_time_valid_count = int(row["cycle_time_valid_count"])
+            all_entries.append(
+                (
+                    author_id,
+                    repo_name,
+                    {
+                        "pr_count": int(row["pr_count"]),
+                        "cycle_time_p50": row["cycle_time_p50"]
+                        if cycle_time_valid_count >= self._ROLLUP_MIN_SAMPLE
+                        and not pd.isna(row["cycle_time_p50"])
+                        else None,
+                        "cycle_time_p90": row["cycle_time_p90"]
+                        if cycle_time_valid_count >= self._ROLLUP_MIN_SAMPLE
+                        and not pd.isna(row["cycle_time_p90"])
+                        else None,
+                        "authors_count": 1,
+                        "reviewers_count": int(row["reviewers_count"]),
+                    },
+                )
+            )
+
+        truncated = False
+        if len(all_entries) > self._CROSS_DIM_MAX_ENTRIES:
+            all_entries = sorted(
+                all_entries,
+                key=lambda item: (
+                    -int(item[2]["pr_count"]),
+                    item[0],
+                    item[1],
+                ),
+            )[: self._CROSS_DIM_MAX_ENTRIES]
+            truncated = True
+            logger.warning(
+                "Author x repository entries truncated to %d for week "
+                "(least-significant intersections removed)",
+                len(all_entries),
+            )
+
+        for author_id, repo_name, entry in all_entries:
+            if author_id not in by_author_and_repo:
+                by_author_and_repo[author_id] = {}
+            by_author_and_repo[author_id][repo_name] = entry
+
+        if truncated:
+            by_author_and_repo["_truncated"] = True
+
+        return by_author_and_repo
+
     def _generate_repo_slice(
         self, week_group: pd.DataFrame, week_reviewers: pd.DataFrame
     ) -> dict[str, Any]:
@@ -677,29 +846,47 @@ class AggregateGenerator:
         Returns:
             Dict mapping repository_name to metrics
         """
-        by_repository: dict[str, Any] = {}
+        grouped_metrics = week_group.groupby("repository_name").agg(
+            pr_count=("pull_request_uid", "size"),
+            cycle_time_valid_count=("cycle_time_minutes", "count"),
+            cycle_time_p50=("cycle_time_minutes", lambda s: s.quantile(0.5)),
+            cycle_time_p90=("cycle_time_minutes", lambda s: s.quantile(0.9)),
+            authors_count=("user_id", "nunique"),
+        )
+        reviewer_counts = (
+            week_group[["repository_name", "pull_request_uid"]]
+            .drop_duplicates()
+            .merge(
+                week_reviewers[["pull_request_uid", "reviewer_id"]],
+                on="pull_request_uid",
+                how="left",
+            )
+            .groupby("repository_name")["reviewer_id"]
+            .nunique()
+        )
+        grouped_metrics["reviewers_count"] = reviewer_counts.reindex(
+            grouped_metrics.index,
+            fill_value=0,
+        )
 
-        for repo_name, repo_group in week_group.groupby("repository_name"):
-            if pd.isna(repo_name):
+        by_repository: dict[str, Any] = {}
+        for repo_name, row in grouped_metrics.iterrows():
+            if not isinstance(repo_name, str):
                 continue
 
-            repo_pr_uids = set(repo_group["pull_request_uid"].tolist())
-            repo_reviewers = week_reviewers[
-                week_reviewers["pull_request_uid"].isin(repo_pr_uids)
-            ]
-
+            cycle_time_valid_count = int(row["cycle_time_valid_count"])
             by_repository[str(repo_name)] = {
-                "pr_count": len(repo_group),
-                "cycle_time_p50": repo_group["cycle_time_minutes"].quantile(0.5)
-                if repo_group["cycle_time_minutes"].notna().sum()
-                >= self._ROLLUP_MIN_SAMPLE
+                "pr_count": int(row["pr_count"]),
+                "cycle_time_p50": row["cycle_time_p50"]
+                if cycle_time_valid_count >= self._ROLLUP_MIN_SAMPLE
+                and not pd.isna(row["cycle_time_p50"])
                 else None,
-                "cycle_time_p90": repo_group["cycle_time_minutes"].quantile(0.9)
-                if repo_group["cycle_time_minutes"].notna().sum()
-                >= self._ROLLUP_MIN_SAMPLE
+                "cycle_time_p90": row["cycle_time_p90"]
+                if cycle_time_valid_count >= self._ROLLUP_MIN_SAMPLE
+                and not pd.isna(row["cycle_time_p90"])
                 else None,
-                "authors_count": repo_group["user_id"].nunique(),
-                "reviewers_count": repo_reviewers["reviewer_id"].nunique(),
+                "authors_count": int(row["authors_count"]),
+                "reviewers_count": int(row["reviewers_count"]),
             }
 
         return by_repository
@@ -730,46 +917,53 @@ class AggregateGenerator:
         if team_members_df.empty:
             return {}
 
-        by_team: dict[str, Any] = {}
+        deduped_members = team_members_df[["user_id", "team_name"]].drop_duplicates()
+        deduped_members = deduped_members.dropna(subset=["user_id", "team_name"])
+        tagged = week_group.merge(deduped_members, on="user_id", how="inner")
+        if tagged.empty:
+            return {}
 
-        # Get unique team names
-        team_names = team_members_df["team_name"].unique()
-
-        for team_name in team_names:
-            if pd.isna(team_name):
-                continue
-
-            # Get team members
-            team_member_ids = set(
-                team_members_df[team_members_df["team_name"] == team_name][
-                    "user_id"
-                ].tolist()
+        grouped_metrics = tagged.groupby("team_name").agg(
+            pr_count=("pull_request_uid", "size"),
+            cycle_time_valid_count=("cycle_time_minutes", "count"),
+            cycle_time_p50=("cycle_time_minutes", lambda s: s.quantile(0.5)),
+            cycle_time_p90=("cycle_time_minutes", lambda s: s.quantile(0.9)),
+            authors_count=("user_id", "nunique"),
+        )
+        reviewer_counts = (
+            tagged[["team_name", "pull_request_uid"]]
+            .drop_duplicates()
+            .merge(
+                week_reviewers[["pull_request_uid", "reviewer_id"]],
+                on="pull_request_uid",
+                how="left",
             )
+            .groupby("team_name")["reviewer_id"]
+            .nunique()
+        )
+        grouped_metrics["reviewers_count"] = reviewer_counts.reindex(
+            grouped_metrics.index,
+            fill_value=0,
+        )
 
-            # Filter PRs to those authored by team members
-            team_prs = week_group[week_group["user_id"].isin(team_member_ids)]
-
-            if team_prs.empty:
+        by_team: dict[str, Any] = {}
+        for team_name, row in grouped_metrics.iterrows():
+            if not isinstance(team_name, str):
                 continue
 
-            # Get reviewers for team PRs
-            team_pr_uids = set(team_prs["pull_request_uid"].tolist())
-            team_reviewers = week_reviewers[
-                week_reviewers["pull_request_uid"].isin(team_pr_uids)
-            ]
-
+            cycle_time_valid_count = int(row["cycle_time_valid_count"])
             by_team[str(team_name)] = {
-                "pr_count": len(team_prs),
-                "cycle_time_p50": team_prs["cycle_time_minutes"].quantile(0.5)
-                if team_prs["cycle_time_minutes"].notna().sum()
-                >= self._ROLLUP_MIN_SAMPLE
+                "pr_count": int(row["pr_count"]),
+                "cycle_time_p50": row["cycle_time_p50"]
+                if cycle_time_valid_count >= self._ROLLUP_MIN_SAMPLE
+                and not pd.isna(row["cycle_time_p50"])
                 else None,
-                "cycle_time_p90": team_prs["cycle_time_minutes"].quantile(0.9)
-                if team_prs["cycle_time_minutes"].notna().sum()
-                >= self._ROLLUP_MIN_SAMPLE
+                "cycle_time_p90": row["cycle_time_p90"]
+                if cycle_time_valid_count >= self._ROLLUP_MIN_SAMPLE
+                and not pd.isna(row["cycle_time_p90"])
                 else None,
-                "authors_count": team_prs["user_id"].nunique(),
-                "reviewers_count": team_reviewers["reviewer_id"].nunique(),
+                "authors_count": int(row["authors_count"]),
+                "reviewers_count": int(row["reviewers_count"]),
             }
 
         return by_team
@@ -895,49 +1089,71 @@ class AggregateGenerator:
             return {}
 
         by_team_and_repo: dict[str, Any] = {}
-        entry_count = 0
+        # Compute team-repo metrics in one pass rather than filtering reviewers
+        # per intersection. This keeps the enterprise stress path bounded by a
+        # few groupby/merge operations per week instead of N repeated isin scans.
+        grouped_metrics = tagged.groupby(["team_name", "repository_name"]).agg(
+            pr_count=("pull_request_uid", "size"),
+            cycle_time_valid_count=("cycle_time_minutes", "count"),
+            cycle_time_p50=("cycle_time_minutes", lambda s: s.quantile(0.5)),
+            cycle_time_p90=("cycle_time_minutes", lambda s: s.quantile(0.9)),
+            authors_count=("user_id", "nunique"),
+        )
+
+        tagged_pr_pairs = tagged[
+            ["team_name", "repository_name", "pull_request_uid"]
+        ].drop_duplicates()
+        reviewers_by_intersection = (
+            tagged_pr_pairs.merge(
+                week_reviewers[["pull_request_uid", "reviewer_id"]],
+                on="pull_request_uid",
+                how="left",
+            )
+            .groupby(["team_name", "repository_name"])["reviewer_id"]
+            .nunique()
+        )
+        grouped_metrics["reviewers_count"] = reviewers_by_intersection.reindex(
+            grouped_metrics.index,
+            fill_value=0,
+        )
 
         # Collect all entries with their pr_count for potential truncation
         all_entries: list[tuple[str, str, dict[str, Any]]] = []
 
-        for (team_name, repo_name), grp in tagged.groupby(
-            ["team_name", "repository_name"]
-        ):
-            # Multi-column groupby yields Hashable keys; narrow to str to skip NaN
+        for key, row in grouped_metrics.iterrows():
+            team_name, repo_name = cast(tuple[str, str], key)
             if not isinstance(team_name, str) or not isinstance(repo_name, str):
                 continue
 
-            pr_count = len(grp)
-            if pr_count == 0:
-                continue
+            cycle_time_valid_count = int(row["cycle_time_valid_count"])
+            cycle_time_p50 = (
+                None
+                if cycle_time_valid_count < self._CROSS_DIM_MIN_SAMPLE
+                or pd.isna(row["cycle_time_p50"])
+                else row["cycle_time_p50"]
+            )
+            cycle_time_p90 = (
+                None
+                if cycle_time_valid_count < self._CROSS_DIM_MIN_SAMPLE
+                or pd.isna(row["cycle_time_p90"])
+                else row["cycle_time_p90"]
+            )
 
-            # Compute cycle time percentiles with minimum sample size guard.
-            # Count non-NaN cycle times (not total rows) so the guard reflects
-            # the actual number of data points feeding the percentile.
-            cycle_time_valid_count = int(grp["cycle_time_minutes"].notna().sum())
-            if cycle_time_valid_count >= self._CROSS_DIM_MIN_SAMPLE:
-                cycle_time_p50 = grp["cycle_time_minutes"].quantile(0.5)
-                cycle_time_p90 = grp["cycle_time_minutes"].quantile(0.9)
-            else:
-                cycle_time_p50 = None
-                cycle_time_p90 = None
+            all_entries.append(
+                (
+                    team_name,
+                    repo_name,
+                    {
+                        "pr_count": int(row["pr_count"]),
+                        "cycle_time_p50": cycle_time_p50,
+                        "cycle_time_p90": cycle_time_p90,
+                        "authors_count": int(row["authors_count"]),
+                        "reviewers_count": int(row["reviewers_count"]),
+                    },
+                )
+            )
 
-            # Count unique reviewers for PRs in this intersection
-            grp_pr_uids = set(grp["pull_request_uid"].tolist())
-            grp_reviewers = week_reviewers[
-                week_reviewers["pull_request_uid"].isin(grp_pr_uids)
-            ]
-
-            entry = {
-                "pr_count": pr_count,
-                "cycle_time_p50": cycle_time_p50,
-                "cycle_time_p90": cycle_time_p90,
-                "authors_count": grp["user_id"].nunique(),
-                "reviewers_count": grp_reviewers["reviewer_id"].nunique(),
-            }
-
-            all_entries.append((str(team_name), str(repo_name), entry))
-            entry_count += 1
+        entry_count = len(all_entries)
 
         # Truncation: if entries exceed cap, keep the most significant
         # intersections by descending pr_count rather than whole teams.
@@ -1058,6 +1274,24 @@ class AggregateGenerator:
             # Legacy DB may not have pr_threads table
             return False
 
+    def _get_capabilities(self) -> dict[str, Any]:
+        """Get additive capability metadata for loader normalization."""
+        capabilities: dict[str, Any] = {
+            "author_filters": True,
+            "author_repo_exact": True,
+            "comments_metrics": self._has_comments(),
+            "reviewer_repository_mode": "constrained",
+            "reviewer_team_mode": "disallowed",
+            "cross_dimensional_available": self._any_rollup_has_cross_dim,
+        }
+
+        # Guard against accidental drift in emitted capability fields.
+        return {
+            key: capabilities[key]
+            for key in MANIFEST_CAPABILITY_KEYS
+            if key in capabilities
+        }
+
     def _get_comments_coverage(self) -> dict[str, Any]:
         """Get comments coverage statistics.
 
@@ -1081,25 +1315,38 @@ class AggregateGenerator:
             prs_with_threads = (
                 int(prs_with_threads_row["cnt"]) if prs_with_threads_row else 0
             )
+            metadata_cursor = self.db.execute(
+                """
+                SELECT prs_processed, capped
+                FROM comments_extraction_metadata
+                WHERE id = 1
+                """
+            )
+            metadata_row = metadata_cursor.fetchone()
         except Exception:
             # Legacy DB may not have comments tables
             thread_count = 0
             comment_count = 0
             prs_with_threads = 0
+            metadata_row = None
 
         if thread_count == 0:
             status = "disabled"
         else:
-            # For now, assume full coverage if any comments exist
-            # A more complex implementation would track capped state
-            status = "full"
+            status = (
+                "partial"
+                if metadata_row is not None and bool(metadata_row["capped"])
+                else "full"
+            )
 
         return {
             "status": status,
             "threads_fetched": thread_count,
             "comments_fetched": comment_count,
             "prs_with_threads": prs_with_threads,
-            "capped": False,  # Set by extraction when limits hit
+            "capped": bool(metadata_row["capped"])
+            if metadata_row is not None
+            else False,
         }
 
     def _get_row_counts(self) -> dict[str, int]:

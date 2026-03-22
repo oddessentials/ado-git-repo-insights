@@ -19,7 +19,7 @@
         </header>
 
         <!-- Setup Required Panel -->
-        <div id="setup-required" class="setup-panel hidden">
+        <div id="setup-required" class="setup-panel hidden" data-testid="error-setup-required">
             <div class="setup-icon">📊</div>
             <h2>Setup Required</h2>
             <p id="setup-message">No PR Insights pipeline found in this project.</p>
@@ -69,7 +69,7 @@
         </div>
 
         <!-- Generic Error State -->
-        <div id="error-state" class="error-state hidden">
+        <div id="error-state" class="error-state hidden" data-testid="error-generic">
             <div class="error-icon">⚠️</div>
             <h2 id="error-title">Error</h2>
             <p id="error-message"></p>
@@ -102,24 +102,32 @@
                     <input type="date" id="end-date">
                     <button id="apply-dates" class="btn btn-small">Apply</button>
                 </div>
+                <div id="comments-coverage-banner" class="filter-hint hidden" data-testid="comments-coverage-banner"></div>
                 <div class="filter-separator"></div>
                 <div class="filter-group" id="repo-filter-group">
                     <label for="repo-filter">Repository</label>
-                    <select id="repo-filter" multiple>
+                    <select id="repo-filter" multiple data-testid="filter-repository">
                         <option value="" selected>All</option>
                     </select>
                 </div>
                 <div class="filter-group" id="team-filter-group">
                     <label for="team-filter">Team</label>
-                    <select id="team-filter" multiple>
+                    <select id="team-filter" multiple data-testid="filter-team">
                         <option value="" selected>All</option>
                     </select>
                 </div>
                 <div class="filter-group" id="reviewer-filter-group">
                     <label for="reviewer-filter">Reviewer</label>
-                    <select id="reviewer-filter">
+                    <select id="reviewer-filter" data-testid="filter-reviewer">
                         <option value="" selected>All</option>
                     </select>
+                    <div id="reviewer-filter-notice" class="filter-hint hidden"></div>
+                </div>
+                <div class="filter-group hidden" id="author-filter-group">
+                    <label for="author-filter">Author</label>
+                    <input id="author-filter" list="author-filter-options" type="search" placeholder="Search authors" data-testid="filter-author">
+                    <datalist id="author-filter-options"></datalist>
+                    <div id="author-filter-notice" class="filter-hint hidden">Author + team uses author-only metrics while retaining team state.</div>
                 </div>
                 <button id="clear-filters" class="btn btn-small btn-secondary hidden">Clear Filters</button>
                 <div class="filter-actions">
@@ -176,7 +184,7 @@
                         <div class="card">
                             <h3 id="total-prs-label">Total PRs</h3>
                             <div class="metric-row">
-                                <div id="total-prs" class="metric-value">-</div>
+                                <div id="total-prs" class="metric-value" data-testid="total-prs">-</div>
                                 <div id="total-prs-sparkline" class="sparkline"></div>
                             </div>
                             <div id="total-prs-delta" class="metric-delta"></div>

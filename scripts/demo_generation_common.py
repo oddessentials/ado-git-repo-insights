@@ -97,9 +97,17 @@ def write_json_file(path: Path, data: Any, *, max_retries: int = 1) -> None:
                 raise
 
 
-def load_json_file(path: Path) -> dict[str, Any]:
-    """Load JSON from disk."""
-    return json.loads(path.read_text(encoding="utf-8"))
+def load_json_file(path: Path, *, max_retries: int = 3) -> dict[str, Any]:
+    """Load JSON from disk with retries for transient filesystem races."""
+    for attempt in range(max_retries):
+        try:
+            return json.loads(path.read_text(encoding="utf-8"))
+        except (json.JSONDecodeError, OSError):
+            if attempt < max_retries - 1:
+                time.sleep(0.1 * (attempt + 1))
+            else:
+                raise
+    raise AssertionError("unreachable")
 
 
 def discover_demo_feature_flags(data_dir: Path) -> dict[str, bool]:

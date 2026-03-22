@@ -65,6 +65,63 @@ describe("Dimensions Schema Validator", () => {
       expect(result.valid).toBe(true);
     });
 
+    it("should pass with valid author entries", () => {
+      const withAuthors = {
+        repositories: [],
+        users: [],
+        authors: [{ author_id: "author-1", author_name: "Alice Author" }],
+        projects: [],
+      };
+      const result = validateDimensions(withAuthors, true);
+      expect(result.valid).toBe(true);
+    });
+
+    it("should fail when author item is missing author_name", () => {
+      const invalid = {
+        repositories: [],
+        users: [],
+        authors: [{ author_id: "author-1" }],
+        projects: [],
+      };
+      const result = validateDimensions(invalid, true);
+      expect(result.valid).toBe(false);
+      expect(result.errors.some((e) => e.field.includes("author_name"))).toBe(
+        true,
+      );
+    });
+
+    it("should fail when author item is not an object", () => {
+      const invalid = {
+        repositories: [],
+        users: [],
+        authors: ["author-1"],
+        projects: [],
+      };
+      const result = validateDimensions(invalid, true);
+      expect(result.valid).toBe(false);
+      expect(result.errors.some((e) => e.field === "authors[0]")).toBe(true);
+    });
+
+    it("should fail when author item contains unknown fields in strict mode", () => {
+      const invalid = {
+        repositories: [],
+        users: [],
+        authors: [
+          {
+            author_id: "author-1",
+            author_name: "Alice Author",
+            extra_field: true,
+          },
+        ],
+        projects: [],
+      };
+      const result = validateDimensions(invalid, true);
+      expect(result.valid).toBe(false);
+      expect(result.errors.some((e) => e.field.includes("extra_field"))).toBe(
+        true,
+      );
+    });
+
     it("should fail when reviewer item is missing reviewer_name", () => {
       const invalid = {
         repositories: [],
@@ -638,6 +695,7 @@ describe("Dimensions Schema Validator", () => {
       });
 
       expect(normalized.reviewers).toEqual([]);
+      expect(normalized.authors).toEqual([]);
       expect(normalized.teams).toEqual([]);
       expect(normalized.date_range).toBeUndefined();
     });

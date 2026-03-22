@@ -103,6 +103,11 @@ export interface ReviewerEntry {
   reviewer_name: string;
 }
 
+export interface AuthorEntry {
+  author_id: string;
+  author_name: string;
+}
+
 /**
  * Date range structure.
  */
@@ -117,6 +122,7 @@ export interface DateRange {
 export interface Dimensions {
   repositories: (RepositoryEntry | LegacyRepositoryEntry)[];
   users: (UserEntry | LegacyUserEntry)[];
+  authors?: AuthorEntry[];
   reviewers?: ReviewerEntry[];
   projects: (ProjectEntry | LegacyProjectEntry)[];
   teams?: TeamEntry[];
@@ -130,6 +136,7 @@ export interface Dimensions {
 const KNOWN_ROOT_FIELDS = new Set([
   "repositories",
   "users",
+  "authors",
   "reviewers",
   "projects",
   "teams",
@@ -161,6 +168,7 @@ const KNOWN_REVIEWER_FIELDS = new Set([
   "reviewer_id",
   "reviewer_name",
 ]);
+const KNOWN_AUTHOR_FIELDS = new Set(["author_id", "author_name"]);
 
 const KNOWN_PROJECT_FIELDS = new Set([
   "organization_name",
@@ -498,6 +506,45 @@ function validateReviewerEntry(
   return { errors, warnings };
 }
 
+function validateAuthorEntry(
+  data: unknown,
+  path: string,
+  strict: boolean,
+): { errors: ValidationError[]; warnings: ValidationWarning[] } {
+  const errors: ValidationError[] = [];
+  const warnings: ValidationWarning[] = [];
+
+  if (!isObject(data)) {
+    errors.push(createError(path, "object", getTypeName(data)));
+    return { errors, warnings };
+  }
+
+  const idReq = validateRequired(data, "author_id", path);
+  if (idReq) {
+    errors.push(idReq);
+  } else {
+    const idErr = validateString(data.author_id, buildPath(path, "author_id"));
+    if (idErr) errors.push(idErr);
+  }
+
+  const nameReq = validateRequired(data, "author_name", path);
+  if (nameReq) {
+    errors.push(nameReq);
+  } else {
+    const nameErr = validateString(
+      data.author_name,
+      buildPath(path, "author_name"),
+    );
+    if (nameErr) errors.push(nameErr);
+  }
+
+  const unknown = findUnknownFields(data, KNOWN_AUTHOR_FIELDS, path, strict);
+  errors.push(...unknown.errors);
+  warnings.push(...unknown.warnings);
+
+  return { errors, warnings };
+}
+
 /**
  * Validate a team entry.
  */
@@ -671,6 +718,19 @@ export function validateDimensions(
     }
   }
 
+  if ("authors" in data && data.authors !== undefined) {
+    const arrErr = validateArray(data.authors, "authors");
+    if (arrErr) {
+      errors.push(arrErr);
+    } else if (isArray(data.authors)) {
+      data.authors.forEach((item, i) => {
+        const result = validateAuthorEntry(item, buildPath("authors", i), strict);
+        errors.push(...result.errors);
+        warnings.push(...result.warnings);
+      });
+    }
+  }
+
   // Validate project entries
   if ("projects" in data && isArray(data.projects)) {
     data.projects.forEach((item, i) => {
@@ -732,6 +792,7 @@ export function normalizeDimensions(data: unknown): Dimensions {
       | LegacyRepositoryEntry
     )[],
     users: obj.users as (UserEntry | LegacyUserEntry)[],
+    authors: (obj.authors as AuthorEntry[]) ?? [],
     reviewers: (obj.reviewers as ReviewerEntry[]) ?? [],
     projects: obj.projects as (ProjectEntry | LegacyProjectEntry)[],
     teams: (obj.teams as TeamEntry[]) ?? [],

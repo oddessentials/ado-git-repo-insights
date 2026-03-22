@@ -1,108 +1,207 @@
 # Demo Data Versioning Policy
 
-**Version**: 1.0
-**Last Updated**: 2026-01-31
+**Version**: 2.0
+**Last Updated**: 2026-03-21
 
 ## Overview
 
-This document defines the versioning policy for the demo dashboard's synthetic data, ensuring backward compatibility for users who may have bookmarked or referenced specific demo URLs.
+The public demo is a governed product surface, not a hand-maintained fixture.
 
-## Versioning Principles
+There is one canonical enterprise demo artifact root:
 
-### 1. Backward-Compatible Changes Only
+`artifacts/demo-enterprise/`
 
-All changes to the demo data structure MUST be backward-compatible. This means:
+The published GitHub Pages dataset at `docs/data/` is a promoted mirror of:
 
-- **New fields may be added** to JSON objects at any level
-- **Existing fields must not be removed** without explicit versioning
-- **Field types must not change** (e.g., number to string)
-- **Enum values may be added** but not removed
-- **Array ordering may change** only if consumers don't depend on order
+`artifacts/demo-enterprise/data/`
 
-### 2. Schema Version Tracking
+The published GitHub Pages shell at `docs/index.html` is a generated mirror of:
 
-Each data file type has an explicit schema version in `dataset-manifest.json`:
+`extension/ui/index.html` transformed by `scripts/demo_shell.py`
+
+The published JS/CSS assets under `docs/` are copied from:
+
+`extension/dist/ui/`
+
+The only supported full refresh path is:
+
+```bash
+./scripts/build-demo.sh
+```
+
+The data-only refresh path is:
+
+```bash
+python scripts/build-demo-dataset.py
+```
+
+`docs/data/` and `docs/index.html` are generated-only and MUST NOT be hand-edited.
+
+## Local Manual Preview
+
+For local manual testing of the published synthetic demo dashboard in PowerShell:
+
+```powershell
+cd extension
+pnpm install
+pnpm run build:ui
+
+cd ..
+python scripts/publish-demo-surface.py --source extension/dist/ui --docs-dir docs
+python scripts/build-demo-dataset.py
+
+cd docs
+python -m http.server 8080
+```
+
+Open `http://localhost:8080`.
+
+For repeat runs after dependencies are already installed:
+
+```powershell
+cd extension
+pnpm run build:ui
+
+cd ..
+python scripts/publish-demo-surface.py --source extension/dist/ui --docs-dir docs
+python scripts/build-demo-dataset.py
+
+cd docs
+python -m http.server 8080
+```
+
+## Canonical Artifact Boundary
+
+The canonical output layout is:
+
+```text
+artifacts/demo-enterprise/
+├── data/
+├── metadata/
+└── report/
+```
+
+Promotion rules:
+
+1. Build `extension/dist/ui/`
+2. Publish `docs/index.html` and static assets from the built UI surface
+3. Generate into `artifacts/demo-enterprise/`
+4. Validate capability and startup parity reports
+5. Promote `artifacts/demo-enterprise/data/` into `docs/data/`
+6. Remove stale files and directories from `docs/data/`
+7. Fail if the published shell or promoted mirror differs from the canonical source
+
+## Version Sources Of Truth
+
+The enterprise demo profile version MUST be consistent in all of these locations:
+
+1. `scripts/generate-demo-data.py`
+2. `dataset-manifest.json` under `demo_profile.version`
+3. `artifacts/demo-enterprise/metadata/demo-profile.json`
+4. this document
+
+## Version Semantics
+
+The enterprise demo profile is versioned independently from schema versions.
+
+### Patch
+
+Use a PATCH bump for deterministic refreshes that do not change expected user-visible walkthrough behavior.
+
+Examples:
+
+- regenerated data with identical feature coverage
+- internal implementation cleanup with identical emitted bytes
+- report wording cleanup outside the dataset surface
+
+### Minor
+
+Use a MINOR bump for backward-compatible demo expansions.
+
+Examples:
+
+- additive capability coverage
+- richer but compatible enterprise scenarios
+- increased scale with unchanged behavior contracts
+- new manifest metadata that existing consumers safely ignore
+
+### Major
+
+Use a MAJOR bump for any demo behavior change that affects expected walkthrough results or publication semantics.
+
+Examples:
+
+- changing canonical output or promotion paths
+- changing startup defaults
+- removing capability coverage
+- changing user-visible reviewer, author, comments, or truncation behavior
+- changing schema semantics or breaking field compatibility
+
+## Schema Version Rules
+
+Schema versioning in `dataset-manifest.json` remains the compatibility boundary for consumers:
 
 ```json
 {
   "manifest_schema_version": 1,
   "dataset_schema_version": 1,
-  "aggregates_schema_version": 1,
+  "aggregates_schema_version": 2,
   "predictions_schema_version": 1,
   "insights_schema_version": 1
 }
 ```
 
-### 3. When to Bump Versions
+Rules:
 
-| Change Type | Action |
-|------------|--------|
-| Add optional field | No version bump needed |
-| Add new insight category | No version bump needed |
-| Remove field | Bump major version, document migration |
-| Change field type | Bump major version, document migration |
-| Change date format | Bump major version, document migration |
+- add optional fields: no schema bump required
+- remove fields: schema bump required
+- change field types: schema bump required
+- change enum semantics: schema bump required
+- change canonical demo behavior without schema break: demo profile version bump still required
 
-## Breaking Change Procedure
+## Published File Contract
 
-If a breaking change is absolutely necessary:
+Every published demo file MUST be manifest-addressable through one of:
 
-1. **Document the change** in this file under "Breaking Changes History"
-2. **Bump the schema version** in the manifest
-3. **Update the dashboard** to handle both old and new formats
-4. **Announce the change** in the release notes
-5. **Provide migration guidance** for any affected workflows
+1. `aggregate_index[*].path`
+2. `published_files.direct`
+3. `published_files.globs`
 
-## File Stability Guarantees
-
-### Stable (No Breaking Changes)
-
-These files have stable structures that won't change:
-
-- `dataset-manifest.json` - Core manifest structure
-- `aggregates/weekly_rollups/*.json` - Weekly metric rollups
-- `aggregates/distributions/*.json` - Yearly distributions
-
-### Semi-Stable (Additive Changes Only)
-
-These files may gain new fields but won't lose existing ones:
-
-- `predictions/trends.json` - Forecast data (may add new metrics)
-- `insights/summary.json` - Insights data (may add new categories)
-
-### Evolving (May Change)
-
-These files are considered internal and may change:
-
-- `aggregates/dimensions.json` - Entity listings (structure may evolve)
+This prevents stale or undocumented files from surviving promotion.
 
 ## Determinism Guarantee
 
-All demo data is deterministically generated with `seed=42`. This means:
+The enterprise demo profile is deterministic:
 
-- Running the generators produces **byte-identical output**
-- PR counts, cycle times, and all metrics are reproducible
-- Any change to output constitutes a schema change
+- fixed seed: `42`
+- fixed profile name: `enterprise-demo`
+- fixed canonical output root: `artifacts/demo-enterprise/`
+- repeated regeneration must produce byte-identical canonical artifacts
 
-## Breaking Changes History
+Any user-visible difference requires an intentional version decision and checked-in review.
+
+## Maintainer Workflow
+
+When changing demo generation:
+
+1. Update the generator and, if needed, the manifest schema/types
+2. Decide whether the enterprise demo profile version must bump
+3. Run `./scripts/build-demo.sh`
+4. Review `artifacts/demo-enterprise/report/capability-matrix.json`
+5. Review `artifacts/demo-enterprise/report/startup-parity.json`
+6. Verify `docs/index.html` and `docs/data/` match the canonical publish flow
+7. Update this document if version semantics or publication rules changed
+
+## Version History
+
+### Version 2.0 (2026-03-21)
+
+- locked canonical artifact root to `artifacts/demo-enterprise/`
+- made `docs/index.html` a generated mirror of the extension UI shell
+- made `docs/data/` a promoted mirror instead of a hand-maintained fixture
+- required manifest-addressable publication for all demo files
+- formalized demo profile version bump rules
 
 ### Version 1.0 (2026-01-31)
 
-- Initial release
-- No breaking changes from prior versions (this is the baseline)
-
----
-
-## For Maintainers
-
-When modifying demo data generators:
-
-1. **Preserve field names** - Use the same JSON keys
-2. **Preserve field types** - Don't change number to string, etc.
-3. **Test regeneration** - Run `git diff --exit-code docs/data/` after generation
-4. **Update this document** if adding new fields
-
-## Contact
-
-For questions about demo data versioning, open an issue at:
-https://github.com/oddessentials/ado-git-repo-insights/issues
+- initial demo data versioning baseline

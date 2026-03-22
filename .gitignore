@@ -46,6 +46,7 @@ test-results.xml
 *.py,cover
 .hypothesis/
 .pytest_cache/
+.pytest-tmp-run/
 coverage/
 
 # Translations
@@ -118,6 +119,7 @@ extension/test-output.txt
 run_artifacts/*
 # Compiled scripts
 scripts/dist/
+artifacts/demo-enterprise/
 
 # VSIX packaging output artifacts
 extension/[0-9]*

@@ -70,6 +70,8 @@ export interface WeeklyRollup {
   authors_count?: number;
   reviewers_count?: number;
   by_repository?: Record<string, BreakdownEntry>;
+  by_author?: Record<string, BreakdownEntry>;
+  by_author_and_repo?: Record<string, Record<string, BreakdownEntry>>;
   by_team?: Record<string, BreakdownEntry>;
   by_reviewer?: Record<string, ReviewerBreakdownEntry>;
   by_team_and_repo?: Record<string, Record<string, BreakdownEntry>>;
@@ -91,6 +93,8 @@ const KNOWN_ROOT_FIELDS = new Set([
   "authors_count",
   "reviewers_count",
   "by_repository",
+  "by_author",
+  "by_author_and_repo",
   "by_team",
   "by_reviewer",
   "by_team_and_repo",
@@ -430,6 +434,15 @@ export function validateRollup(
     warnings.push(...result.warnings);
   }
 
+  if (
+    Object.prototype.hasOwnProperty.call(data, "by_author") &&
+    data.by_author !== undefined
+  ) {
+    const result = validateBreakdown(data.by_author, "by_author", strict);
+    errors.push(...result.errors);
+    warnings.push(...result.warnings);
+  }
+
   if ("by_team" in data && data.by_team !== undefined) {
     const result = validateBreakdown(data.by_team, "by_team", strict);
     errors.push(...result.errors);
@@ -440,6 +453,19 @@ export function validateRollup(
     const result = validateReviewerBreakdown(
       data.by_reviewer,
       "by_reviewer",
+      strict,
+    );
+    errors.push(...result.errors);
+    warnings.push(...result.warnings);
+  }
+
+  if (
+    Object.prototype.hasOwnProperty.call(data, "by_author_and_repo") &&
+    data.by_author_and_repo !== undefined
+  ) {
+    const result = validateNestedBreakdown(
+      data.by_author_and_repo,
+      "by_author_and_repo",
       strict,
     );
     errors.push(...result.errors);
@@ -482,6 +508,7 @@ const ROLLUP_FIELD_DEFAULTS = {
   authors_count: 0,
   reviewers_count: 0,
   by_repository: {},
+  by_author: {},
   by_team: {},
   by_reviewer: {},
 };
@@ -521,6 +548,17 @@ export function normalizeRollup(data: unknown): WeeklyRollup {
     by_repository:
       (obj.by_repository as Record<string, BreakdownEntry>) ??
       ROLLUP_FIELD_DEFAULTS.by_repository,
+    by_author:
+      (obj.by_author as Record<string, BreakdownEntry>) ??
+      ROLLUP_FIELD_DEFAULTS.by_author,
+    ...(obj.by_author_and_repo !== undefined
+      ? {
+          by_author_and_repo: obj.by_author_and_repo as Record<
+            string,
+            Record<string, BreakdownEntry>
+          >,
+        }
+      : {}),
     by_team:
       (obj.by_team as Record<string, BreakdownEntry>) ??
       ROLLUP_FIELD_DEFAULTS.by_team,

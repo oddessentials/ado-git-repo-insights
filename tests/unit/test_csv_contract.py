@@ -147,6 +147,61 @@ class TestSchemaContract:
 
         assert generator.validate_schemas()
 
+    def test_generate_all_writes_only_core_contract_csvs(
+        self, db_with_data: tuple[DatabaseManager, Path]
+    ) -> None:
+        """Core CSV generation does not create additive files in the contract root."""
+        db, output_dir = db_with_data
+        generator = CSVGenerator(db, output_dir)
+
+        generator.generate_all()
+
+        root_csvs = sorted(path.name for path in output_dir.glob("*.csv"))
+        expected_csvs = sorted(f"{table_name}.csv" for table_name in CSV_SCHEMAS)
+
+        assert root_csvs == expected_csvs
+        assert not (output_dir / "auxiliary").exists()
+
+    def test_generate_all_writes_auxiliary_comments_csvs_outside_contract_root(
+        self, db_with_data: tuple[DatabaseManager, Path]
+    ) -> None:
+        """Comments CSVs are additive and live only under auxiliary/comments/."""
+        db, output_dir = db_with_data
+        repo = PRRepository(db)
+
+        repo.upsert_thread(
+            thread_id="thread-1",
+            pull_request_uid="repo-1-100",
+            status="active",
+            thread_context='{"filePath":"/src/app.py"}',
+            last_updated="2024-01-15T12:30:00Z",
+            created_at="2024-01-15T12:10:00Z",
+            is_deleted=False,
+        )
+        repo.upsert_comment(
+            comment_id="comment-1",
+            thread_id="thread-1",
+            pull_request_uid="repo-1-100",
+            author_id="user-2",
+            content="Looks good",
+            comment_type="text",
+            created_at="2024-01-15T12:15:00Z",
+            last_updated="2024-01-15T12:30:00Z",
+            is_deleted=False,
+        )
+        db.connection.commit()
+
+        generator = CSVGenerator(db, output_dir)
+        generator.generate_all()
+
+        root_csvs = sorted(path.name for path in output_dir.glob("*.csv"))
+        expected_csvs = sorted(f"{table_name}.csv" for table_name in CSV_SCHEMAS)
+        auxiliary_dir = output_dir / "auxiliary" / "comments"
+
+        assert root_csvs == expected_csvs
+        assert (auxiliary_dir / "pr_threads.csv").exists()
+        assert (auxiliary_dir / "pr_comments.csv").exists()
+
 
 class TestColumnOrder:
     """Test exact column ordering (DoD 1.1, Invariant 1)."""

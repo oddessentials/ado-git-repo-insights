@@ -170,6 +170,16 @@ class TestAuditSuppressionsCLI:
             or "baseline" in result.stdout.lower()
         )
 
+    def test_diff_allows_pending_approval_for_local_preflight(self) -> None:
+        """Local preflight mode should not fail solely on missing PR approval."""
+        result = subprocess.run(  # noqa: S603 - trusted test code
+            [sys.executable, str(AUDIT_SCRIPT), "--diff", "--allow-pending-approval"],
+            capture_output=True,
+            text=True,
+            cwd=Path(__file__).parent.parent.parent,
+        )
+        assert result.returncode == 0, result.stdout + result.stderr
+
     def test_validate_command_works(self) -> None:
         """The --validate command should run without errors."""
         result = subprocess.run(  # noqa: S603 - trusted test code

@@ -253,7 +253,10 @@ var PRInsightsDashboard = (() => {
     "run_id",
     "defaults",
     "limits",
+    "demo_profile",
+    "published_files",
     "features",
+    "capabilities",
     "coverage",
     "aggregate_index",
     "warnings",
@@ -290,12 +293,27 @@ var PRInsightsDashboard = (() => {
     // Production field
   ]);
   var KNOWN_DATE_RANGE_FIELDS = /* @__PURE__ */ new Set(["min", "max"]);
+  var KNOWN_COMMENTS_COVERAGE_FIELDS = /* @__PURE__ */ new Set([
+    "status",
+    "threads_fetched",
+    "comments_fetched",
+    "prs_with_threads",
+    "capped"
+  ]);
   var KNOWN_FEATURES_FIELDS = /* @__PURE__ */ new Set([
     "teams",
     "comments",
     "predictions",
     "ai_insights",
     "cross_dimensional"
+  ]);
+  var KNOWN_CAPABILITIES_FIELDS = /* @__PURE__ */ new Set([
+    "author_filters",
+    "author_repo_exact",
+    "comments_metrics",
+    "reviewer_repository_mode",
+    "reviewer_team_mode",
+    "cross_dimensional_available"
   ]);
   var KNOWN_LIMITS_FIELDS = /* @__PURE__ */ new Set([
     "max_weekly_files",
@@ -304,6 +322,13 @@ var PRInsightsDashboard = (() => {
     // Production field
   ]);
   var KNOWN_DEFAULTS_FIELDS = /* @__PURE__ */ new Set(["default_date_range_days"]);
+  var KNOWN_DEMO_PROFILE_FIELDS = /* @__PURE__ */ new Set([
+    "name",
+    "version",
+    "seed",
+    "canonical_output_root"
+  ]);
+  var KNOWN_PUBLISHED_FILES_FIELDS = /* @__PURE__ */ new Set(["direct", "globs"]);
   function validateWeeklyRollupEntry(data, path, strict) {
     const errors = [];
     const warnings = [];
@@ -518,6 +543,59 @@ var PRInsightsDashboard = (() => {
             `Expected string or object at '${buildPath(path, "comments")}'`
           )
         );
+      } else if (isObject(commentsValue)) {
+        const commentsPath = buildPath(path, "comments");
+        const statusReq = validateRequired(commentsValue, "status", commentsPath);
+        if (statusReq) {
+          errors.push(statusReq);
+        } else {
+          const statusPath = buildPath(commentsPath, "status");
+          const statusErr = validateString(commentsValue.status, statusPath);
+          if (statusErr) {
+            errors.push(statusErr);
+          } else if (typeof commentsValue.status === "string" && !(/* @__PURE__ */ new Set(["disabled", "full", "partial"])).has(commentsValue.status)) {
+            errors.push(
+              createError(
+                statusPath,
+                "disabled | full | partial",
+                commentsValue.status
+              )
+            );
+          }
+        }
+        const numericFields = [
+          "threads_fetched",
+          "comments_fetched",
+          "prs_with_threads"
+        ];
+        for (const field of numericFields) {
+          if (Object.prototype.hasOwnProperty.call(commentsValue, field) && Object.getOwnPropertyDescriptor(commentsValue, field)?.value !== void 0) {
+            const fieldValue = Object.getOwnPropertyDescriptor(
+              commentsValue,
+              field
+            )?.value;
+            const err = validateNonNegativeNumber(
+              fieldValue,
+              buildPath(commentsPath, field)
+            );
+            if (err) errors.push(err);
+          }
+        }
+        if (Object.prototype.hasOwnProperty.call(commentsValue, "capped") && Object.getOwnPropertyDescriptor(commentsValue, "capped")?.value !== void 0) {
+          const cappedErr = validateBoolean(
+            Object.getOwnPropertyDescriptor(commentsValue, "capped")?.value,
+            buildPath(commentsPath, "capped")
+          );
+          if (cappedErr) errors.push(cappedErr);
+        }
+        const unknownComments = findUnknownFields(
+          commentsValue,
+          KNOWN_COMMENTS_COVERAGE_FIELDS,
+          commentsPath,
+          strict
+        );
+        errors.push(...unknownComments.errors);
+        warnings.push(...unknownComments.warnings);
       }
     }
     if ("row_counts" in data && data.row_counts !== void 0) {
@@ -561,6 +639,57 @@ var PRInsightsDashboard = (() => {
       }
     }
     const unknown = findUnknownFields(data, KNOWN_FEATURES_FIELDS, path, strict);
+    errors.push(...unknown.errors);
+    warnings.push(...unknown.warnings);
+    return { errors, warnings };
+  }
+  function validateCapabilities(data, path, strict) {
+    const errors = [];
+    const warnings = [];
+    if (!isObject(data)) {
+      errors.push(createError(path, "object", getTypeName(data)));
+      return { errors, warnings };
+    }
+    const booleanFields = [
+      "author_filters",
+      "author_repo_exact",
+      "comments_metrics",
+      "cross_dimensional_available"
+    ];
+    for (const field of booleanFields) {
+      if (Object.prototype.hasOwnProperty.call(data, field)) {
+        const fieldValue = Object.getOwnPropertyDescriptor(data, field)?.value;
+        if (fieldValue !== void 0) {
+          const err = validateBoolean(fieldValue, buildPath(path, field));
+          if (err) errors.push(err);
+        }
+      }
+    }
+    const modeFields = ["reviewer_repository_mode", "reviewer_team_mode"];
+    const validModes = /* @__PURE__ */ new Set(["exact", "constrained", "disallowed"]);
+    for (const field of modeFields) {
+      if (Object.prototype.hasOwnProperty.call(data, field)) {
+        const fieldValue = Object.getOwnPropertyDescriptor(data, field)?.value;
+        const err = validateString(fieldValue, buildPath(path, field));
+        if (err) {
+          errors.push(err);
+        } else if (typeof fieldValue === "string" && !validModes.has(fieldValue)) {
+          errors.push(
+            createError(
+              buildPath(path, field),
+              "exact | constrained | disallowed",
+              fieldValue
+            )
+          );
+        }
+      }
+    }
+    const unknown = findUnknownFields(
+      data,
+      KNOWN_CAPABILITIES_FIELDS,
+      path,
+      strict
+    );
     errors.push(...unknown.errors);
     warnings.push(...unknown.warnings);
     return { errors, warnings };
@@ -613,6 +742,88 @@ var PRInsightsDashboard = (() => {
       if (err) errors.push(err);
     }
     const unknown = findUnknownFields(data, KNOWN_DEFAULTS_FIELDS, path, strict);
+    errors.push(...unknown.errors);
+    warnings.push(...unknown.warnings);
+    return { errors, warnings };
+  }
+  function validateDemoProfile(data, path, strict) {
+    const errors = [];
+    const warnings = [];
+    if (!isObject(data)) {
+      errors.push(createError(path, "object", getTypeName(data)));
+      return { errors, warnings };
+    }
+    const nameReq = validateRequired(data, "name", path);
+    if (nameReq) errors.push(nameReq);
+    else {
+      const err = validateString(data.name, buildPath(path, "name"));
+      if (err) errors.push(err);
+    }
+    const versionReq = validateRequired(data, "version", path);
+    if (versionReq) errors.push(versionReq);
+    else {
+      const err = validateString(data.version, buildPath(path, "version"));
+      if (err) errors.push(err);
+    }
+    if ("seed" in data && data.seed !== void 0) {
+      const err = validateNonNegativeNumber(data.seed, buildPath(path, "seed"));
+      if (err) errors.push(err);
+    }
+    if ("canonical_output_root" in data && data.canonical_output_root !== void 0) {
+      const err = validateString(
+        data.canonical_output_root,
+        buildPath(path, "canonical_output_root")
+      );
+      if (err) errors.push(err);
+    }
+    const unknown = findUnknownFields(data, KNOWN_DEMO_PROFILE_FIELDS, path, strict);
+    errors.push(...unknown.errors);
+    warnings.push(...unknown.warnings);
+    return { errors, warnings };
+  }
+  function validatePublishedFiles(data, path, strict) {
+    const errors = [];
+    const warnings = [];
+    if (!isObject(data)) {
+      errors.push(createError(path, "object", getTypeName(data)));
+      return { errors, warnings };
+    }
+    if ("direct" in data && data.direct !== void 0) {
+      const err = validateArray(data.direct, buildPath(path, "direct"));
+      if (err) {
+        errors.push(err);
+      } else {
+        const directEntries = data.direct;
+        for (const [index, item] of directEntries.entries()) {
+          const itemError = validateString(
+            item,
+            buildPath(buildPath(path, "direct"), String(index))
+          );
+          if (itemError) errors.push(itemError);
+        }
+      }
+    }
+    if ("globs" in data && data.globs !== void 0) {
+      const err = validateArray(data.globs, buildPath(path, "globs"));
+      if (err) {
+        errors.push(err);
+      } else {
+        const globEntries = data.globs;
+        for (const [index, item] of globEntries.entries()) {
+          const itemError = validateString(
+            item,
+            buildPath(buildPath(path, "globs"), String(index))
+          );
+          if (itemError) errors.push(itemError);
+        }
+      }
+    }
+    const unknown = findUnknownFields(
+      data,
+      KNOWN_PUBLISHED_FILES_FIELDS,
+      path,
+      strict
+    );
     errors.push(...unknown.errors);
     warnings.push(...unknown.warnings);
     return { errors, warnings };
@@ -705,8 +916,31 @@ var PRInsightsDashboard = (() => {
       errors.push(...result.errors);
       warnings.push(...result.warnings);
     }
+    if ("demo_profile" in data && data.demo_profile !== void 0) {
+      const result = validateDemoProfile(data.demo_profile, "demo_profile", strict);
+      errors.push(...result.errors);
+      warnings.push(...result.warnings);
+    }
+    if ("published_files" in data && data.published_files !== void 0) {
+      const result = validatePublishedFiles(
+        data.published_files,
+        "published_files",
+        strict
+      );
+      errors.push(...result.errors);
+      warnings.push(...result.warnings);
+    }
     if ("features" in data && data.features !== void 0) {
       const result = validateFeatures(data.features, "features", strict);
+      errors.push(...result.errors);
+      warnings.push(...result.warnings);
+    }
+    if ("capabilities" in data && data.capabilities !== void 0) {
+      const result = validateCapabilities(
+        data.capabilities,
+        "capabilities",
+        strict
+      );
       errors.push(...result.errors);
       warnings.push(...result.warnings);
     }
@@ -741,6 +975,8 @@ var PRInsightsDashboard = (() => {
     "authors_count",
     "reviewers_count",
     "by_repository",
+    "by_author",
+    "by_author_and_repo",
     "by_team",
     "by_reviewer",
     "by_team_and_repo"
@@ -969,6 +1205,11 @@ var PRInsightsDashboard = (() => {
       errors.push(...result.errors);
       warnings.push(...result.warnings);
     }
+    if (Object.prototype.hasOwnProperty.call(data, "by_author") && data.by_author !== void 0) {
+      const result = validateBreakdown(data.by_author, "by_author", strict);
+      errors.push(...result.errors);
+      warnings.push(...result.warnings);
+    }
     if ("by_team" in data && data.by_team !== void 0) {
       const result = validateBreakdown(data.by_team, "by_team", strict);
       errors.push(...result.errors);
@@ -978,6 +1219,15 @@ var PRInsightsDashboard = (() => {
       const result = validateReviewerBreakdown(
         data.by_reviewer,
         "by_reviewer",
+        strict
+      );
+      errors.push(...result.errors);
+      warnings.push(...result.warnings);
+    }
+    if (Object.prototype.hasOwnProperty.call(data, "by_author_and_repo") && data.by_author_and_repo !== void 0) {
+      const result = validateNestedBreakdown(
+        data.by_author_and_repo,
+        "by_author_and_repo",
         strict
       );
       errors.push(...result.errors);
@@ -1005,6 +1255,7 @@ var PRInsightsDashboard = (() => {
   var KNOWN_ROOT_FIELDS3 = /* @__PURE__ */ new Set([
     "repositories",
     "users",
+    "authors",
     "reviewers",
     "projects",
     "teams",
@@ -1032,6 +1283,7 @@ var PRInsightsDashboard = (() => {
     "reviewer_id",
     "reviewer_name"
   ]);
+  var KNOWN_AUTHOR_FIELDS = /* @__PURE__ */ new Set(["author_id", "author_name"]);
   var KNOWN_PROJECT_FIELDS = /* @__PURE__ */ new Set([
     "organization_name",
     "project_name",
@@ -1288,6 +1540,35 @@ var PRInsightsDashboard = (() => {
     warnings.push(...unknown.warnings);
     return { errors, warnings };
   }
+  function validateAuthorEntry(data, path, strict) {
+    const errors = [];
+    const warnings = [];
+    if (!isObject(data)) {
+      errors.push(createError(path, "object", getTypeName(data)));
+      return { errors, warnings };
+    }
+    const idReq = validateRequired(data, "author_id", path);
+    if (idReq) {
+      errors.push(idReq);
+    } else {
+      const idErr = validateString(data.author_id, buildPath(path, "author_id"));
+      if (idErr) errors.push(idErr);
+    }
+    const nameReq = validateRequired(data, "author_name", path);
+    if (nameReq) {
+      errors.push(nameReq);
+    } else {
+      const nameErr = validateString(
+        data.author_name,
+        buildPath(path, "author_name")
+      );
+      if (nameErr) errors.push(nameErr);
+    }
+    const unknown = findUnknownFields(data, KNOWN_AUTHOR_FIELDS, path, strict);
+    errors.push(...unknown.errors);
+    warnings.push(...unknown.warnings);
+    return { errors, warnings };
+  }
   function validateTeamEntry(data, path, strict) {
     const errors = [];
     const warnings = [];
@@ -1402,6 +1683,18 @@ var PRInsightsDashboard = (() => {
             buildPath("reviewers", i),
             strict
           );
+          errors.push(...result.errors);
+          warnings.push(...result.warnings);
+        });
+      }
+    }
+    if ("authors" in data && data.authors !== void 0) {
+      const arrErr = validateArray(data.authors, "authors");
+      if (arrErr) {
+        errors.push(arrErr);
+      } else if (isArray(data.authors)) {
+        data.authors.forEach((item, i) => {
+          const result = validateAuthorEntry(item, buildPath("authors", i), strict);
           errors.push(...result.errors);
           warnings.push(...result.warnings);
         });
@@ -1649,6 +1942,15 @@ var PRInsightsDashboard = (() => {
   var SUPPORTED_MANIFEST_VERSION = 1;
   var SUPPORTED_DATASET_VERSION = 1;
   var SUPPORTED_AGGREGATES_VERSION = 2;
+  var DEFAULT_CAPABILITY_STATE = {
+    authorFiltersAvailable: false,
+    authorRepoExactAvailable: false,
+    commentsMetricsAvailable: false,
+    commentsCoverageStatus: "disabled",
+    reviewerRepositoryMode: "constrained",
+    reviewerTeamMode: "disallowed",
+    crossDimensionalAvailable: false
+  };
   var DATASET_CANDIDATE_PATHS = [
     "",
     // Root of provided base URL (preferred)
@@ -1663,6 +1965,7 @@ var PRInsightsDashboard = (() => {
     reviewers_count: 0,
     by_repository: null,
     // null indicates feature not available
+    by_author: null,
     by_team: null,
     // null indicates feature not available
     by_reviewer: null
@@ -1684,6 +1987,10 @@ var PRInsightsDashboard = (() => {
       reviewers_count: r.reviewers_count ?? ROLLUP_FIELD_DEFAULTS.reviewers_count,
       // by_repository and by_team are optional features - preserve null if missing
       by_repository: r.by_repository !== void 0 ? r.by_repository : null,
+      by_author: r.by_author !== void 0 ? r.by_author : null,
+      ...r.by_author_and_repo !== void 0 ? {
+        by_author_and_repo: r.by_author_and_repo
+      } : {},
       by_team: r.by_team !== void 0 ? r.by_team : null,
       by_reviewer: r.by_reviewer !== void 0 ? r.by_reviewer : null,
       // Cross-dimensional breakdown (v2 schema) — pass through if present
@@ -1835,6 +2142,7 @@ var PRInsightsDashboard = (() => {
       // Resolved after probing
       this.manifest = null;
       this.dimensions = null;
+      this.capabilityState = null;
       this.rollupCache = /* @__PURE__ */ new Map();
       // week -> data
       this.distributionCache = /* @__PURE__ */ new Map();
@@ -1895,7 +2203,23 @@ var PRInsightsDashboard = (() => {
       const manifest = await response.json();
       this.validateManifestSchema(manifest);
       this.manifest = manifest;
+      this.capabilityState = this.normalizeCapabilityState(manifest);
       return manifest;
+    }
+    normalizeCapabilityState(manifest) {
+      const capabilities = manifest.capabilities ?? {};
+      const features = manifest.features ?? {};
+      const commentsCoverage = manifest.coverage?.comments;
+      const commentsCoverageStatus = typeof commentsCoverage === "object" && commentsCoverage !== null && "status" in commentsCoverage && (commentsCoverage.status === "full" || commentsCoverage.status === "partial" || commentsCoverage.status === "disabled") ? commentsCoverage.status : typeof commentsCoverage === "string" && (commentsCoverage === "full" || commentsCoverage === "partial" || commentsCoverage === "disabled") ? commentsCoverage : DEFAULT_CAPABILITY_STATE.commentsCoverageStatus;
+      return {
+        authorFiltersAvailable: capabilities.author_filters ?? (manifest.aggregates_schema_version ?? 0) >= 3,
+        authorRepoExactAvailable: capabilities.author_repo_exact ?? (manifest.aggregates_schema_version ?? 0) >= 3,
+        commentsMetricsAvailable: capabilities.comments_metrics ?? features.comments === true,
+        commentsCoverageStatus,
+        reviewerRepositoryMode: capabilities.reviewer_repository_mode ?? DEFAULT_CAPABILITY_STATE.reviewerRepositoryMode,
+        reviewerTeamMode: capabilities.reviewer_team_mode ?? DEFAULT_CAPABILITY_STATE.reviewerTeamMode,
+        crossDimensionalAvailable: capabilities.cross_dimensional_available ?? features.cross_dimensional === true
+      };
     }
     /**
      * Validate manifest schema using schema validator.
@@ -2160,6 +2484,9 @@ var PRInsightsDashboard = (() => {
     isFeatureEnabled(feature) {
       if (!this.manifest) return false;
       return this.manifest.features?.[feature] === true;
+    }
+    getCapabilityState() {
+      return this.capabilityState ?? DEFAULT_CAPABILITY_STATE;
     }
     /**
      * Get dataset coverage info.
@@ -3198,16 +3525,22 @@ var PRInsightsDashboard = (() => {
     };
   }
   function applyFiltersToRollups(rollups, filters) {
+    const firstAuthor = filters.authors?.[0];
+    const authorFilters = firstAuthor ? [firstAuthor] : [];
     const firstReviewer = filters.reviewers?.[0];
     const reviewerFilters = firstReviewer ? [firstReviewer] : [];
-    if (!filters.repos.length && !filters.teams.length && !reviewerFilters.length) {
+    if (!filters.repos.length && !filters.teams.length && !reviewerFilters.length && !authorFilters.length) {
       return rollups;
     }
     return rollups.map((rollup) => {
       const repoBreakdown = filters.repos.length > 0 && rollup.by_repository && typeof rollup.by_repository === "object" ? rollup.by_repository : null;
       const teamBreakdown = filters.teams.length > 0 && rollup.by_team && typeof rollup.by_team === "object" ? rollup.by_team : null;
+      const authorBreakdown = authorFilters.length > 0 && rollup.by_author && typeof rollup.by_author === "object" ? rollup.by_author : null;
       const reviewerBreakdown = reviewerFilters.length > 0 && rollup.by_reviewer && typeof rollup.by_reviewer === "object" ? rollup.by_reviewer : null;
       if (reviewerFilters.length > 0 && !reviewerBreakdown) {
+        return { ...rollup, ...ZEROED_ROLLUP_FIELDS };
+      }
+      if (authorFilters.length > 0 && !authorBreakdown) {
         return { ...rollup, ...ZEROED_ROLLUP_FIELDS };
       }
       let repoSlice = null;
@@ -3231,6 +3564,14 @@ var PRInsightsDashboard = (() => {
           return { ...rollup, ...ZEROED_ROLLUP_FIELDS };
         }
         teamSlice = aggregateEntries(entries);
+      }
+      let authorSlice = null;
+      if (authorBreakdown) {
+        const entries = resolveBreakdownEntries(authorBreakdown, authorFilters);
+        if (entries.length === 0) {
+          return { ...rollup, ...ZEROED_ROLLUP_FIELDS };
+        }
+        authorSlice = aggregateEntries(entries);
       }
       let reviewerSlice = null;
       if (reviewerBreakdown) {
@@ -3258,11 +3599,100 @@ var PRInsightsDashboard = (() => {
           reviewers_count: reviewerSlice.reviews_count
         });
       }
-      if (repoSlice && !teamSlice) {
-        return buildFilteredRollup(rollup, repoSlice);
+      if (authorSlice && repoSlice && rollup.by_author_and_repo) {
+        let cdPr = 0, cdAuthors = 0, cdReviewers = 0;
+        let cdP50WSum = 0, cdP50WPr = 0, cdP90WSum = 0, cdP90WPr = 0;
+        let cdFound = 0;
+        for (const authorId of authorFilters) {
+          const authorRepos = rollup.by_author_and_repo[authorId];
+          if (!authorRepos) continue;
+          for (const repo of filters.repos) {
+            const e = authorRepos[repo];
+            if (!e) continue;
+            cdFound++;
+            const pr = toFiniteNumber(e.pr_count);
+            cdPr += pr;
+            cdAuthors += toFiniteNumber(e.authors_count);
+            cdReviewers += toFiniteNumber(e.reviewers_count);
+            const p50 = e.cycle_time_p50;
+            if (typeof p50 === "number" && Number.isFinite(p50)) {
+              cdP50WSum += p50 * pr;
+              cdP50WPr += pr;
+            }
+            const p90 = e.cycle_time_p90;
+            if (typeof p90 === "number" && Number.isFinite(p90)) {
+              cdP90WSum += p90 * pr;
+              cdP90WPr += pr;
+            }
+          }
+        }
+        if (cdFound > 0) {
+          const isTruncated = rollup.by_author_and_repo["_truncated"] === true;
+          const expectedCount = authorFilters.length * filters.repos.length;
+          if (isTruncated && cdFound < expectedCount) {
+            console.warn(
+              `Author x repo data truncated for week ${rollup.week}: found ${cdFound}/${expectedCount} entries, using proportional estimation`
+            );
+          } else {
+            if (teamSlice) {
+              console.warn(
+                "Combined author and team filtering is constrained; using author+repository metrics while retaining team UI state"
+              );
+            }
+            return buildFilteredRollup(rollup, {
+              pr_count: cdPr,
+              cycle_time_p50: cdP50WPr > 0 ? cdP50WSum / cdP50WPr : null,
+              cycle_time_p90: cdP90WPr > 0 ? cdP90WSum / cdP90WPr : null,
+              authors_count: cdAuthors,
+              reviewers_count: cdReviewers
+            });
+          }
+        } else if (rollup.by_author_and_repo["_truncated"] !== true) {
+          return { ...rollup, ...ZEROED_ROLLUP_FIELDS };
+        }
       }
-      if (teamSlice && !repoSlice) {
-        return buildFilteredRollup(rollup, teamSlice);
+      if (authorSlice && repoSlice) {
+        const total = rollup.pr_count || 1;
+        const authorShare = Math.min(1, authorSlice.pr_count / total);
+        const repoShare = Math.min(1, repoSlice.pr_count / total);
+        const combinedRatio = authorShare * repoShare;
+        const combinedPrCount = Math.round(rollup.pr_count * combinedRatio);
+        if (combinedPrCount === 0) {
+          return { ...rollup, ...ZEROED_ROLLUP_FIELDS };
+        }
+        const combinedAuthors = Math.round(
+          (rollup.authors_count || 0) * combinedRatio
+        );
+        const combinedReviewers = Math.round(
+          (rollup.reviewers_count || 0) * combinedRatio
+        );
+        const p50s = [authorSlice.cycle_time_p50, repoSlice.cycle_time_p50].filter(
+          (v) => v !== null
+        );
+        const p90s = [authorSlice.cycle_time_p90, repoSlice.cycle_time_p90].filter(
+          (v) => v !== null
+        );
+        if (teamSlice) {
+          console.warn(
+            "Combined author and team filtering is constrained; using author+repository metrics while retaining team UI state"
+          );
+        }
+        return {
+          ...rollup,
+          pr_count: combinedPrCount,
+          cycle_time_p50: p50s.length > 0 ? p50s.reduce((a, b) => a + b, 0) / p50s.length : null,
+          cycle_time_p90: p90s.length > 0 ? p90s.reduce((a, b) => a + b, 0) / p90s.length : null,
+          authors_count: combinedAuthors,
+          reviewers_count: combinedReviewers
+        };
+      }
+      if (authorSlice) {
+        if (teamSlice) {
+          console.warn(
+            "Combined author and team filtering is constrained; using author-only metrics while retaining team UI state"
+          );
+        }
+        return buildFilteredRollup(rollup, authorSlice);
       }
       if (repoSlice && teamSlice && rollup.by_team_and_repo) {
         let cdPr = 0, cdAuthors = 0, cdReviewers = 0;
@@ -3342,6 +3772,12 @@ var PRInsightsDashboard = (() => {
           authors_count: combinedAuthors,
           reviewers_count: combinedReviewers
         };
+      }
+      if (repoSlice && !teamSlice) {
+        return buildFilteredRollup(rollup, repoSlice);
+      }
+      if (teamSlice && !repoSlice) {
+        return buildFilteredRollup(rollup, teamSlice);
       }
       return rollup;
     });
@@ -4936,11 +5372,14 @@ var PRInsightsDashboard = (() => {
     start: null,
     end: null
   };
+  var currentDimensions = null;
   var currentFilters = {
     repos: [],
     teams: [],
-    reviewers: []
+    reviewers: [],
+    authors: []
   };
+  var reviewerFilterNoticeMessage = null;
   var comparisonMode = false;
   var cachedRollups = [];
   var currentBuildId = null;
@@ -5260,6 +5699,7 @@ var PRInsightsDashboard = (() => {
       "run-info",
       "date-range",
       "custom-dates",
+      "comments-coverage-banner",
       "start-date",
       "end-date",
       "retry-btn",
@@ -5278,9 +5718,14 @@ var PRInsightsDashboard = (() => {
       "repo-filter",
       "team-filter",
       "reviewer-filter",
+      "reviewer-filter-notice",
+      "author-filter",
+      "author-filter-options",
       "repo-filter-group",
       "team-filter-group",
       "reviewer-filter-group",
+      "author-filter-group",
+      "author-filter-notice",
       "clear-filters",
       "active-filters",
       "filter-chips",
@@ -5330,6 +5775,7 @@ var PRInsightsDashboard = (() => {
     elements["repo-filter"]?.addEventListener("change", handleFilterChange);
     elements["team-filter"]?.addEventListener("change", handleFilterChange);
     elements["reviewer-filter"]?.addEventListener("change", handleFilterChange);
+    elements["author-filter"]?.addEventListener("change", handleFilterChange);
     elements["clear-filters"]?.addEventListener("click", clearAllFilters);
     elements["compare-toggle"]?.addEventListener("click", toggleComparisonMode);
     elements["exit-compare"]?.addEventListener("click", exitComparisonMode);
@@ -5350,6 +5796,7 @@ var PRInsightsDashboard = (() => {
       if (!loader) throw new Error("Loader not initialized");
       const manifest = await loader.loadManifest();
       const dimensions = await loader.loadDimensions();
+      currentDimensions = dimensions;
       populateFilterDropdowns(dimensions);
       updateDatasetInfo(manifest);
       restoreStateFromUrl();
@@ -5422,12 +5869,18 @@ var PRInsightsDashboard = (() => {
   function updateAccuracyIndicator(rawRollups, filters) {
     const summarySection = document.querySelector(".summary-cards");
     if (!summarySection) return;
-    const isCombinedFilter = filters.repos.length > 0 && filters.teams.length > 0;
-    if (!isCombinedFilter) {
+    const isTeamRepoFilter = filters.repos.length > 0 && filters.teams.length > 0;
+    const isAuthorRepoFilter = filters.repos.length > 0 && filters.authors.length > 0;
+    if (!isTeamRepoFilter && !isAuthorRepoFilter) {
       summarySection.removeAttribute("data-accuracy");
       return;
     }
-    const isEstimated = (r) => r.by_team_and_repo == null || r.by_team_and_repo["_truncated"] === true;
+    const isEstimated = (r) => {
+      if (isTeamRepoFilter) {
+        return r.by_team_and_repo == null || r.by_team_and_repo["_truncated"] === true;
+      }
+      return r.by_author_and_repo == null || r.by_author_and_repo["_truncated"] === true;
+    };
     const hasEstimatedWeeks = rawRollups.some(isEstimated);
     if (hasEstimatedWeeks) {
       const allEstimated = rawRollups.every(isEstimated);
@@ -5659,6 +6112,21 @@ var PRInsightsDashboard = (() => {
     } else {
       elements["reviewer-filter-group"]?.classList.add("hidden");
     }
+    const authorFilter = getElement("author-filter");
+    const authorFilterOptions = getElement("author-filter-options");
+    if (authorFilter && authorFilterOptions && dimensions.authors && dimensions.authors.length > 0) {
+      clearElement(authorFilterOptions);
+      dimensions.authors.forEach((author) => {
+        const option = document.createElement("option");
+        option.value = author.author_name;
+        option.label = author.author_id;
+        option.dataset["authorId"] = author.author_id;
+        authorFilterOptions.appendChild(option);
+      });
+      elements["author-filter-group"]?.classList.remove("hidden");
+    } else {
+      elements["author-filter-group"]?.classList.add("hidden");
+    }
     restoreFiltersFromUrl();
   }
   function clearSelectToAll(select) {
@@ -5678,8 +6146,53 @@ var PRInsightsDashboard = (() => {
     );
     return reviewerValues[0] ? [reviewerValues[0]] : [];
   }
+  function normalizeAuthorSelection(authorValues, dimensions) {
+    const firstValue = authorValues[0];
+    if (!firstValue) {
+      return [];
+    }
+    const matchedAuthor = dimensions?.authors?.find(
+      (author) => author.author_id === firstValue || author.author_name === firstValue
+    );
+    if (!matchedAuthor) {
+      console.warn("Ignoring invalid author filter value:", firstValue);
+      return [];
+    }
+    return [matchedAuthor.author_id];
+  }
+  function clearAuthorInput() {
+    const authorFilter = elements["author-filter"];
+    if (authorFilter) {
+      authorFilter.value = "";
+    }
+  }
+  function applyAuthorFilterCompatibility(sourceId, filters) {
+    if (filters.authors.length === 0) {
+      return filters;
+    }
+    const reviewerFilter = elements["reviewer-filter"];
+    if (filters.reviewers.length > 0) {
+      if (sourceId === "author-filter") {
+        clearSelectToAll(reviewerFilter);
+        return { ...filters, reviewers: [] };
+      }
+      if (sourceId === "reviewer-filter") {
+        clearAuthorInput();
+        return { ...filters, authors: [] };
+      }
+      console.warn(
+        "Author filters cannot be combined with reviewer filters in the current schema; keeping reviewer filters only"
+      );
+      clearAuthorInput();
+      return { ...filters, authors: [] };
+    }
+    return filters;
+  }
   function applyReviewerFilterCompatibility(sourceId, repoValues, teamValues, reviewerValues) {
     const normalizedReviewers = normalizeReviewerSelection(reviewerValues, "ui");
+    const reviewerRepoNotice = "Reviewer + repository uses reviewer-only metrics while retaining repository state.";
+    const reviewerTeamNotice = "Reviewer + team is not supported in the current schema. Team selection was cleared.";
+    reviewerFilterNoticeMessage = null;
     if (normalizedReviewers.length === 0 || repoValues.length === 0 && teamValues.length === 0) {
       return {
         repos: repoValues,
@@ -5687,54 +6200,58 @@ var PRInsightsDashboard = (() => {
         reviewers: normalizedReviewers
       };
     }
-    const repoFilter = elements["repo-filter"];
     const teamFilter = elements["team-filter"];
-    const reviewerFilter = elements["reviewer-filter"];
-    if (sourceId === "reviewer-filter") {
-      clearSelectToAll(repoFilter);
+    if (teamValues.length > 0) {
+      reviewerFilterNoticeMessage = reviewerTeamNotice;
       clearSelectToAll(teamFilter);
-      return { repos: [], teams: [], reviewers: normalizedReviewers };
+      return { repos: repoValues, teams: [], reviewers: normalizedReviewers };
     }
-    if (sourceId === "repo-filter" || sourceId === "team-filter") {
-      clearSelectToAll(reviewerFilter);
-      return { repos: repoValues, teams: teamValues, reviewers: [] };
+    if (repoValues.length > 0) {
+      reviewerFilterNoticeMessage = reviewerRepoNotice;
+      if (sourceId !== "reviewer-filter") {
+        console.warn(reviewerRepoNotice);
+      }
     }
-    console.warn(
-      "Reviewer filters cannot be combined with repository/team filters in the current schema; keeping reviewer filters only"
-    );
-    clearSelectToAll(repoFilter);
-    clearSelectToAll(teamFilter);
-    if (reviewerFilter) {
-      reviewerFilter.value = normalizedReviewers[0] ?? "";
-    }
-    return { repos: [], teams: [], reviewers: normalizedReviewers };
+    return { repos: repoValues, teams: [], reviewers: normalizedReviewers };
   }
   function handleFilterChange(event) {
     const repoFilter = elements["repo-filter"];
     const teamFilter = elements["team-filter"];
     const reviewerFilter = elements["reviewer-filter"];
+    const authorFilter = elements["author-filter"];
     const repoValues = repoFilter ? Array.from(repoFilter.selectedOptions).map((o) => o.value).filter((v) => v) : [];
     const teamValues = teamFilter ? Array.from(teamFilter.selectedOptions).map((o) => o.value).filter((v) => v) : [];
     const reviewerValues = reviewerFilter ? [reviewerFilter.value].filter((v) => v) : [];
+    const authorValues = authorFilter ? [authorFilter.value].filter((v) => v) : [];
     const sourceId = event.currentTarget instanceof HTMLElement ? event.currentTarget.id : null;
-    currentFilters = applyReviewerFilterCompatibility(
+    const reviewerCompatibleFilters = applyReviewerFilterCompatibility(
       sourceId,
       repoValues,
       teamValues,
       reviewerValues
     );
+    const normalizedFilters = {
+      ...reviewerCompatibleFilters,
+      authors: normalizeAuthorSelection(authorValues, currentDimensions)
+    };
+    currentFilters = applyAuthorFilterCompatibility(sourceId, normalizedFilters);
     updateFilterUI();
     updateUrlState();
     void refreshMetrics();
   }
   function clearAllFilters() {
-    currentFilters = { repos: [], teams: [], reviewers: [] };
+    currentFilters = { repos: [], teams: [], reviewers: [], authors: [] };
+    reviewerFilterNoticeMessage = null;
     const repoFilter = elements["repo-filter"];
     const teamFilter = elements["team-filter"];
     const reviewerFilter = elements["reviewer-filter"];
+    const authorFilter = elements["author-filter"];
     clearSelectToAll(repoFilter);
     clearSelectToAll(teamFilter);
     clearSelectToAll(reviewerFilter);
+    if (authorFilter) {
+      authorFilter.value = "";
+    }
     updateFilterUI();
     updateUrlState();
     void refreshMetrics();
@@ -5760,13 +6277,17 @@ var PRInsightsDashboard = (() => {
       const reviewerFilter = elements["reviewer-filter"];
       const option = findOptionByValue(reviewerFilter, value);
       if (option) option.selected = false;
+    } else if (type === "author") {
+      currentFilters.authors = currentFilters.authors.filter((v) => v !== value);
+      const authorFilter = elements["author-filter"];
+      if (authorFilter) authorFilter.value = "";
     }
     updateFilterUI();
     updateUrlState();
     void refreshMetrics();
   }
   function updateFilterUI() {
-    const hasFilters = currentFilters.repos.length > 0 || currentFilters.teams.length > 0 || currentFilters.reviewers.length > 0;
+    const hasFilters = currentFilters.repos.length > 0 || currentFilters.teams.length > 0 || currentFilters.reviewers.length > 0 || currentFilters.authors.length > 0;
     if (elements["clear-filters"]) {
       elements["clear-filters"].classList.toggle("hidden", !hasFilters);
     }
@@ -5796,6 +6317,10 @@ var PRInsightsDashboard = (() => {
       const label = getFilterLabel("reviewer", value);
       chips.push(createFilterChip("reviewer", value, label));
     });
+    currentFilters.authors.forEach((value) => {
+      const label = getFilterLabel("author", value);
+      chips.push(createFilterChip("author", value, label));
+    });
     renderTrustedHtml(chipsEl, chips.join(""));
     if (chipsDelegatedElement !== chipsEl) {
       chipsDelegatedElement = chipsEl;
@@ -5823,10 +6348,17 @@ var PRInsightsDashboard = (() => {
       const reviewerFilter = elements["reviewer-filter"];
       return findOptionByValue(reviewerFilter, value)?.textContent ?? value;
     }
+    if (type === "author") {
+      const authorFilterOptions = elements["author-filter-options"];
+      const option = authorFilterOptions?.querySelector(
+        `option[data-author-id="${CSS.escape(value)}"]`
+      );
+      return option?.value ?? value;
+    }
     return value;
   }
   function createFilterChip(type, value, label) {
-    const prefix = type === "repo" ? "repo" : type === "team" ? "team" : "reviewer";
+    const prefix = type === "repo" ? "repo" : type === "team" ? "team" : type === "reviewer" ? "reviewer" : "author";
     return `
         <span class="filter-chip">
             <span class="filter-chip-label">${prefix}: ${escapeHtml(label)}</span>
@@ -5836,6 +6368,18 @@ var PRInsightsDashboard = (() => {
   }
   function updateMetricLabels() {
     const reviewerMode = currentFilters.reviewers.length > 0;
+    const authorTeamConstrained = currentFilters.authors.length > 0 && currentFilters.teams.length > 0;
+    elements["author-filter-notice"]?.classList.toggle("hidden", !authorTeamConstrained);
+    const reviewerNotice = elements["reviewer-filter-notice"];
+    if (reviewerNotice) {
+      if (reviewerFilterNoticeMessage) {
+        reviewerNotice.textContent = reviewerFilterNoticeMessage;
+        reviewerNotice.classList.remove("hidden");
+      } else {
+        reviewerNotice.textContent = "";
+        reviewerNotice.classList.add("hidden");
+      }
+    }
     if (elements["total-prs-label"]) {
       elements["total-prs-label"].textContent = reviewerMode ? "Reviewed PRs" : "Total PRs";
     }
@@ -5914,13 +6458,62 @@ var PRInsightsDashboard = (() => {
         reviewerFilter.value = currentFilters.reviewers[0] ?? "";
       }
     }
-    currentFilters = applyReviewerFilterCompatibility(
-      null,
-      currentFilters.repos,
-      currentFilters.teams,
-      currentFilters.reviewers
-    );
+    const authorParam = params.get("author");
+    if (authorParam) {
+      currentFilters.authors = normalizeAuthorSelection(
+        [authorParam],
+        currentDimensions
+      );
+      const authorFilter = elements["author-filter"];
+      if (authorFilter) {
+        if (currentFilters.authors.length > 0) {
+          const label = getFilterLabel("author", currentFilters.authors[0] ?? "");
+          authorFilter.value = label;
+        } else {
+          authorFilter.value = "";
+        }
+      }
+    }
+    currentFilters = applyAuthorFilterCompatibility(null, {
+      ...applyReviewerFilterCompatibility(
+        null,
+        currentFilters.repos,
+        currentFilters.teams,
+        currentFilters.reviewers
+      ),
+      authors: currentFilters.authors
+    });
+    if (currentFilters.authors.length === 0 && authorParam) {
+      console.warn("Ignoring invalid author filter from URL:", authorParam);
+    }
     updateFilterUI();
+  }
+  function restoreStateFromUrl() {
+    const params = new URLSearchParams(window.location.search);
+    const startParam = params.get("start");
+    const endParam = params.get("end");
+    if (startParam && endParam) {
+      currentDateRange = { start: new Date(startParam), end: new Date(endParam) };
+      const dateRangeEl = elements["date-range"];
+      if (dateRangeEl) {
+        dateRangeEl.value = "custom";
+        elements["custom-dates"]?.classList.remove("hidden");
+      }
+      const startEl = elements["start-date"];
+      const endEl = elements["end-date"];
+      if (startEl) startEl.value = startParam;
+      if (endEl) endEl.value = endParam;
+    }
+    const tabParam = params.get("tab");
+    if (tabParam) {
+      setTimeout(() => switchTab(tabParam), 0);
+    }
+    const compareParam = params.get("compare");
+    if (compareParam === "1") {
+      comparisonMode = true;
+      elements["compare-toggle"]?.classList.add("active");
+      elements["comparison-banner"]?.classList.remove("hidden");
+    }
   }
   function toggleComparisonMode() {
     comparisonMode = !comparisonMode;
@@ -5962,7 +6555,7 @@ var PRInsightsDashboard = (() => {
     }
     const banner = elements["comparison-banner"];
     if (banner) {
-      const hasFilters = currentFilters.repos.length > 0 || currentFilters.teams.length > 0 || currentFilters.reviewers.length > 0;
+      const hasFilters = currentFilters.repos.length > 0 || currentFilters.teams.length > 0 || currentFilters.reviewers.length > 0 || currentFilters.authors.length > 0;
       banner.setAttribute("data-filtered", hasFilters ? "true" : "false");
     }
   }
@@ -6058,10 +6651,34 @@ var PRInsightsDashboard = (() => {
   function updateDatasetInfo(manifest) {
     const generatedAt = manifest?.generated_at ? new Date(manifest.generated_at).toLocaleString() : "Unknown";
     const runId = manifest?.run_id || "";
+    const capabilityState = loader?.getCapabilityState?.() ?? null;
+    const commentsCoverage = manifest?.coverage?.comments;
+    const commentsBanner = elements["comments-coverage-banner"];
+    let commentsSummary = null;
+    if (capabilityState?.commentsMetricsAvailable) {
+      if (capabilityState.commentsCoverageStatus === "partial") {
+        commentsSummary = "Comments coverage: partial";
+        if (typeof commentsCoverage === "object" && commentsCoverage !== null && commentsCoverage.capped === true) {
+          commentsSummary += " (capped during extraction)";
+        }
+      } else if (capabilityState.commentsCoverageStatus === "full") {
+        commentsSummary = "Comments coverage: full";
+      }
+    }
     const runInfo = elements["run-info"];
     if (runInfo) {
       runInfo.textContent = `Generated: ${generatedAt}`;
       if (runId) runInfo.textContent += ` | Run: ${runId.slice(0, 8)}`;
+      if (commentsSummary) runInfo.textContent += ` | ${commentsSummary}`;
+    }
+    if (commentsBanner) {
+      if (commentsSummary) {
+        commentsBanner.textContent = commentsSummary;
+        commentsBanner.classList.remove("hidden");
+      } else {
+        commentsBanner.textContent = "";
+        commentsBanner.classList.add("hidden");
+      }
     }
   }
   function updateUrlState() {
@@ -6094,6 +6711,9 @@ var PRInsightsDashboard = (() => {
     if (currentFilters.reviewers.length > 0) {
       newParams.set("reviewers", currentFilters.reviewers.join(","));
     }
+    if (currentFilters.authors.length > 0) {
+      newParams.set("author", currentFilters.authors[0] ?? "");
+    }
     if (comparisonMode) {
       newParams.set("compare", "1");
     }
@@ -6102,33 +6722,6 @@ var PRInsightsDashboard = (() => {
       "",
       `${window.location.pathname}?${newParams.toString()}`
     );
-  }
-  function restoreStateFromUrl() {
-    const params = new URLSearchParams(window.location.search);
-    const startParam = params.get("start");
-    const endParam = params.get("end");
-    if (startParam && endParam) {
-      currentDateRange = { start: new Date(startParam), end: new Date(endParam) };
-      const dateRangeEl = elements["date-range"];
-      if (dateRangeEl) {
-        dateRangeEl.value = "custom";
-        elements["custom-dates"]?.classList.remove("hidden");
-      }
-      const startEl = elements["start-date"];
-      const endEl = elements["end-date"];
-      if (startEl) startEl.value = startParam;
-      if (endEl) endEl.value = endParam;
-    }
-    const tabParam = params.get("tab");
-    if (tabParam) {
-      setTimeout(() => switchTab(tabParam), 0);
-    }
-    const compareParam = params.get("compare");
-    if (compareParam === "1") {
-      comparisonMode = true;
-      elements["compare-toggle"]?.classList.add("active");
-      elements["comparison-banner"]?.classList.remove("hidden");
-    }
   }
   if (document.readyState === "loading") {
     document.addEventListener("DOMContentLoaded", () => void init());

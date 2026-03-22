@@ -7,7 +7,10 @@
  * @module tests/schema/manifest.test.ts
  */
 
-import { validateManifest } from "../../ui/schemas/manifest.schema";
+import {
+  normalizeManifest,
+  validateManifest,
+} from "../../ui/schemas/manifest.schema";
 import type { ValidationResult } from "../../ui/schemas/types";
 
 // Load the actual fixture for valid data tests
@@ -34,6 +37,50 @@ describe("Manifest Schema Validator", () => {
         },
       };
       const result = validateManifest(minimal, true);
+      expect(result.valid).toBe(true);
+    });
+
+    it("should accept comments coverage objects with capped metadata", () => {
+      const withComments = {
+        ...validManifest,
+        coverage: {
+          ...validManifest.coverage,
+          comments: {
+            status: "partial",
+            threads_fetched: 8,
+            comments_fetched: 15,
+            prs_with_threads: 4,
+            capped: true,
+          },
+        },
+        capabilities: {
+          author_filters: true,
+          author_repo_exact: true,
+          comments_metrics: true,
+          reviewer_repository_mode: "constrained",
+          reviewer_team_mode: "disallowed",
+          cross_dimensional_available: true,
+        },
+      };
+      const result = validateManifest(withComments, true);
+      expect(result.valid).toBe(true);
+    });
+
+    it("should accept demo profile and published files metadata", () => {
+      const withMetadata = {
+        ...validManifest,
+        demo_profile: {
+          name: "enterprise-demo",
+          version: "2.0.0",
+          seed: 42,
+          canonical_output_root: "artifacts/demo-enterprise",
+        },
+        published_files: {
+          direct: ["dataset-manifest.json"],
+          globs: ["aggregates/comments/comments-batch-*.json"],
+        },
+      };
+      const result = validateManifest(withMetadata, true);
       expect(result.valid).toBe(true);
     });
   });
@@ -98,6 +145,136 @@ describe("Manifest Schema Validator", () => {
       const invalid = { ...validManifest, run_id: 12345 };
       const result = validateManifest(invalid, true);
       expect(result.valid).toBe(false);
+    });
+
+    it("should fail when comments coverage status is invalid", () => {
+      const invalid = {
+        ...validManifest,
+        coverage: {
+          ...validManifest.coverage,
+          comments: {
+            status: "unknown",
+          },
+        },
+      };
+      const result = validateManifest(invalid, true);
+      expect(result.valid).toBe(false);
+    });
+
+    it("should fail when comments coverage numeric metadata is invalid", () => {
+      const invalid = {
+        ...validManifest,
+        coverage: {
+          ...validManifest.coverage,
+          comments: {
+            status: "partial",
+            threads_fetched: -1,
+            comments_fetched: "bad",
+            prs_with_threads: -3,
+            capped: "true",
+            extra_field: true,
+          },
+        },
+      };
+      const result = validateManifest(invalid, true);
+      expect(result.valid).toBe(false);
+      expect(
+        result.errors.some((e) => e.field.includes("threads_fetched")),
+      ).toBe(true);
+      expect(
+        result.errors.some((e) => e.field.includes("comments_fetched")),
+      ).toBe(true);
+      expect(result.errors.some((e) => e.field.includes("capped"))).toBe(true);
+      expect(result.errors.some((e) => e.field.includes("extra_field"))).toBe(
+        true,
+      );
+    });
+
+    it("should fail when capabilities values are invalid", () => {
+      const invalid = {
+        ...validManifest,
+        capabilities: {
+          author_filters: "yes",
+          author_repo_exact: true,
+          comments_metrics: true,
+          reviewer_repository_mode: "approximate",
+          reviewer_team_mode: 5,
+          cross_dimensional_available: "sometimes",
+          extra_field: true,
+        },
+      };
+      const result = validateManifest(invalid, true);
+      expect(result.valid).toBe(false);
+      expect(
+        result.errors.some((e) => e.field.includes("author_filters")),
+      ).toBe(true);
+      expect(
+        result.errors.some((e) => e.field.includes("reviewer_repository_mode")),
+      ).toBe(true);
+      expect(
+        result.errors.some((e) => e.field.includes("reviewer_team_mode")),
+      ).toBe(true);
+      expect(
+        result.errors.some((e) =>
+          e.field.includes("cross_dimensional_available"),
+        ),
+      ).toBe(true);
+      expect(result.errors.some((e) => e.field.includes("extra_field"))).toBe(
+        true,
+      );
+    });
+
+    it("should fail when demo_profile values are invalid", () => {
+      const invalid = {
+        ...validManifest,
+        demo_profile: {
+          version: 2,
+          seed: -1,
+          canonical_output_root: 5,
+          extra_field: true,
+        },
+      };
+      const result = validateManifest(invalid, true);
+      expect(result.valid).toBe(false);
+      expect(result.errors.some((e) => e.field.includes("demo_profile.name"))).toBe(
+        true,
+      );
+      expect(
+        result.errors.some((e) => e.field.includes("demo_profile.version")),
+      ).toBe(true);
+      expect(result.errors.some((e) => e.field.includes("demo_profile.seed"))).toBe(
+        true,
+      );
+      expect(
+        result.errors.some((e) =>
+          e.field.includes("demo_profile.canonical_output_root"),
+        ),
+      ).toBe(true);
+      expect(result.errors.some((e) => e.field.includes("extra_field"))).toBe(
+        true,
+      );
+    });
+
+    it("should fail when published_files arrays contain non-string entries", () => {
+      const invalid = {
+        ...validManifest,
+        published_files: {
+          direct: ["dataset-manifest.json", 7],
+          globs: "aggregates/*.json",
+          extra_field: true,
+        },
+      };
+      const result = validateManifest(invalid, true);
+      expect(result.valid).toBe(false);
+      expect(
+        result.errors.some((e) => e.field.includes("published_files.direct")),
+      ).toBe(true);
+      expect(
+        result.errors.some((e) => e.field.includes("published_files.globs")),
+      ).toBe(true);
+      expect(result.errors.some((e) => e.field.includes("extra_field"))).toBe(
+        true,
+      );
     });
   });
 
@@ -245,6 +422,26 @@ describe("Manifest Schema Validator", () => {
     it("should fail for non-object input", () => {
       const result = validateManifest("not an object", true);
       expect(result.valid).toBe(false);
+    });
+  });
+
+  describe("normalization", () => {
+    it("normalizes capabilities metadata to an object default", () => {
+      const normalized = normalizeManifest({
+        manifest_schema_version: 1,
+        dataset_schema_version: 1,
+        aggregates_schema_version: 1,
+        generated_at: "2026-01-14T12:00:00Z",
+        run_id: "test-123",
+        aggregate_index: {
+          weekly_rollups: [],
+          distributions: [],
+        },
+      });
+
+      expect(normalized.capabilities).toEqual({});
+      expect(normalized.demo_profile).toBeUndefined();
+      expect(normalized.published_files).toBeUndefined();
     });
   });
 });

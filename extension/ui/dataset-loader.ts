@@ -11,6 +11,7 @@ import {
   type DimensionsData,
   type DistributionData,
   type CoverageInfo,
+  type DatasetCapabilityState,
   type PredictionsData,
   type InsightsData,
   type ManifestSchema,
@@ -77,6 +78,16 @@ const SUPPORTED_MANIFEST_VERSION = 1;
 const SUPPORTED_DATASET_VERSION = 1;
 const SUPPORTED_AGGREGATES_VERSION = 2;
 
+const DEFAULT_CAPABILITY_STATE: DatasetCapabilityState = {
+  authorFiltersAvailable: false,
+  authorRepoExactAvailable: false,
+  commentsMetricsAvailable: false,
+  commentsCoverageStatus: "disabled",
+  reviewerRepositoryMode: "constrained",
+  reviewerTeamMode: "disallowed",
+  crossDimensionalAvailable: false,
+};
+
 /**
  * Candidate paths to search for dataset-manifest.json.
  * CRITICAL: Only flat layout supported (manifest at root OR in aggregates/).
@@ -107,6 +118,8 @@ export interface Rollup {
   authors_count: number;
   reviewers_count: number;
   by_repository: Record<string, BreakdownEntry> | null;
+  by_author?: Record<string, BreakdownEntry> | null;
+  by_author_and_repo?: Record<string, Record<string, BreakdownEntry>>;
   by_team: Record<string, BreakdownEntry> | null;
   by_reviewer?: Record<string, ReviewerBreakdownEntry> | null;
   by_team_and_repo?: Record<string, Record<string, BreakdownEntry>>;
@@ -127,6 +140,7 @@ export const ROLLUP_FIELD_DEFAULTS: {
   authors_count: number;
   reviewers_count: number;
   by_repository: Record<string, BreakdownEntry> | null;
+  by_author: Record<string, BreakdownEntry> | null;
   by_team: Record<string, BreakdownEntry> | null;
   by_reviewer: Record<string, ReviewerBreakdownEntry> | null;
 } = {
@@ -136,6 +150,7 @@ export const ROLLUP_FIELD_DEFAULTS: {
   authors_count: 0,
   reviewers_count: 0,
   by_repository: null, // null indicates feature not available
+  by_author: null,
   by_team: null, // null indicates feature not available
   by_reviewer: null, // null indicates feature not available
 };
@@ -171,6 +186,18 @@ export function normalizeRollup(rollup: unknown): Rollup {
       r.by_repository !== undefined
         ? (r.by_repository as Record<string, BreakdownEntry> | null)
         : null,
+    by_author:
+      r.by_author !== undefined
+        ? (r.by_author as Record<string, BreakdownEntry> | null)
+        : null,
+    ...(r.by_author_and_repo !== undefined
+      ? {
+          by_author_and_repo: r.by_author_and_repo as Record<
+            string,
+            Record<string, BreakdownEntry>
+          >,
+        }
+      : {}),
     by_team:
       r.by_team !== undefined
         ? (r.by_team as Record<string, BreakdownEntry> | null)
@@ -419,6 +446,7 @@ export interface IDatasetLoader {
   getDistributions(startDate: Date, endDate: Date): Promise<DistributionData[]>;
   getCoverage(): CoverageInfo | null;
   getDefaultRangeDays(): number;
+  getCapabilityState?(): DatasetCapabilityState;
   loadPredictions?(): Promise<PredictionsData>;
   loadInsights?(): Promise<InsightsData>;
 }
@@ -431,6 +459,7 @@ export class DatasetLoader implements IDatasetLoader {
   protected effectiveBaseUrl: string | null = null; // Resolved after probing
   protected manifest: ManifestSchema | null = null;
   protected dimensions: DimensionsData | null = null;
+  protected capabilityState: DatasetCapabilityState | null = null;
   protected rollupCache = new Map<string, Rollup>(); // week -> data
   protected distributionCache = new Map<string, DistributionData>(); // year -> data
 
@@ -509,7 +538,51 @@ export class DatasetLoader implements IDatasetLoader {
     const manifest = await response.json();
     this.validateManifestSchema(manifest);
     this.manifest = manifest;
+    this.capabilityState = this.normalizeCapabilityState(manifest);
     return manifest;
+  }
+
+  protected normalizeCapabilityState(
+    manifest: ManifestSchema,
+  ): DatasetCapabilityState {
+    const capabilities = manifest.capabilities ?? {};
+    const features = manifest.features ?? {};
+    const commentsCoverage = manifest.coverage?.comments;
+    const commentsCoverageStatus =
+      typeof commentsCoverage === "object" &&
+      commentsCoverage !== null &&
+      "status" in commentsCoverage &&
+      (commentsCoverage.status === "full" ||
+        commentsCoverage.status === "partial" ||
+        commentsCoverage.status === "disabled")
+        ? commentsCoverage.status
+        : typeof commentsCoverage === "string" &&
+            (commentsCoverage === "full" ||
+              commentsCoverage === "partial" ||
+              commentsCoverage === "disabled")
+          ? commentsCoverage
+          : DEFAULT_CAPABILITY_STATE.commentsCoverageStatus;
+
+    return {
+      authorFiltersAvailable:
+        capabilities.author_filters ??
+        (manifest.aggregates_schema_version ?? 0) >= 3,
+      authorRepoExactAvailable:
+        capabilities.author_repo_exact ??
+        (manifest.aggregates_schema_version ?? 0) >= 3,
+      commentsMetricsAvailable:
+        capabilities.comments_metrics ?? features.comments === true,
+      commentsCoverageStatus,
+      reviewerRepositoryMode:
+        capabilities.reviewer_repository_mode ??
+        DEFAULT_CAPABILITY_STATE.reviewerRepositoryMode,
+      reviewerTeamMode:
+        capabilities.reviewer_team_mode ??
+        DEFAULT_CAPABILITY_STATE.reviewerTeamMode,
+      crossDimensionalAvailable:
+        capabilities.cross_dimensional_available ??
+        features.cross_dimensional === true,
+    };
   }
 
   /**
@@ -902,6 +975,10 @@ export class DatasetLoader implements IDatasetLoader {
     if (!this.manifest) return false;
     // eslint-disable-next-line security/detect-object-injection -- SECURITY: feature is string parameter for checking known feature flags
     return this.manifest.features?.[feature] === true;
+  }
+
+  getCapabilityState(): DatasetCapabilityState {
+    return this.capabilityState ?? DEFAULT_CAPABILITY_STATE;
   }
 
   /**
