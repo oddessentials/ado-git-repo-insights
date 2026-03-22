@@ -481,6 +481,25 @@ class TestAggregateGenerator:
         assert manifest.coverage["comments"]["status"] == "partial"
         assert manifest.coverage["comments"]["capped"] is True
 
+    def test_manifest_capabilities_are_emitted_from_guarded_keyset(
+        self, sample_db: tuple[DatabaseManager, Path], tmp_path: Path
+    ) -> None:
+        """Capabilities stay limited to the manifest capability contract."""
+        db, _ = sample_db
+        output_dir = tmp_path / "output"
+
+        generator = AggregateGenerator(db, output_dir)
+        capabilities = generator._get_capabilities()
+
+        assert capabilities == {
+            "author_filters": True,
+            "author_repo_exact": True,
+            "comments_metrics": False,
+            "reviewer_repository_mode": "constrained",
+            "reviewer_team_mode": "disallowed",
+            "cross_dimensional_available": False,
+        }
+
     def test_aggregate_index_includes_file_sizes(
         self, sample_db: tuple[DatabaseManager, Path], tmp_path: Path
     ) -> None:
