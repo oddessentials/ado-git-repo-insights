@@ -476,7 +476,7 @@ def compute_diff(
     }
 
 
-def format_failure_message(diff: SuppressionDiff) -> str:
+def format_diff_message(diff: SuppressionDiff, *, level: str = "FAIL") -> str:
     """
     Format CI failure message per FR-011.
 
@@ -487,7 +487,7 @@ def format_failure_message(diff: SuppressionDiff) -> str:
     delta = diff["delta"]
 
     lines = [
-        f"[FAIL] Suppression count increased: {baseline_total} -> {current_total} (+{delta})",
+        f"[{level}] Suppression count increased: {baseline_total} -> {current_total} (+{delta})",
         "",
         "Changed files:",
     ]
@@ -646,7 +646,12 @@ def find_unjustified_suppressions(
     return unjustified
 
 
-def cmd_diff(repo_root: Path, baseline_path: Path) -> int:
+def cmd_diff(
+    repo_root: Path,
+    baseline_path: Path,
+    *,
+    allow_pending_approval: bool = False,
+) -> int:
     """Compare current scan to baseline and fail if delta > 0 without approval."""
     if not baseline_path.exists():
         print(f"Error: Baseline file not found: {baseline_path}", file=sys.stderr)
@@ -709,7 +714,14 @@ def cmd_diff(repo_root: Path, baseline_path: Path) -> int:
 
     # Fail with detailed message
     print()
-    print(format_failure_message(diff))
+    print(format_diff_message(diff))
+    if allow_pending_approval:
+        print()
+        print(
+            "[WARN] Pending PR approval allowed for local preflight. "
+            "CI will still require the PR description marker."
+        )
+        return 0
     return 1
 
 
@@ -788,6 +800,14 @@ def main() -> int:
         action="store_true",
         help="Only check Python files (src/ scope)",
     )
+    parser.add_argument(
+        "--allow-pending-approval",
+        action="store_true",
+        help=(
+            "Allow --diff to pass locally when the only blocker is a missing "
+            "PR approval marker for suppression increases."
+        ),
+    )
 
     args = parser.parse_args()
 
@@ -805,7 +825,11 @@ def main() -> int:
     elif args.validate:
         return cmd_validate(baseline_path)
     elif args.diff:
-        return cmd_diff(repo_root, baseline_path)
+        return cmd_diff(
+            repo_root,
+            baseline_path,
+            allow_pending_approval=args.allow_pending_approval,
+        )
     elif args.check_justifications:
         return cmd_check_justifications(repo_root, args.python_only)
     else:

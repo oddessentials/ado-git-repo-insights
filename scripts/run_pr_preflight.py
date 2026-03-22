@@ -6,6 +6,8 @@ This command is the authoritative local gate before pushing:
 - demo dashboard validation tests
 - full Python test suite with coverage
 - extension build/type/lint/test checks
+- repo-owned generated-artifact parity checks
+- suppression policy preview against the main-branch baseline
 
 It uses machine-neutral temp/cache/coverage paths under the OS temp directory
 to avoid Windows-specific lock and cleanup failures in the repo root.
@@ -74,7 +76,20 @@ def smoke_report_dir() -> Path:
     return PREFLIGHT_ROOT / "playwright" / "report"
 
 
-def build_commands() -> tuple[CommandSpec, ...]:
+def main_branch_suppression_baseline() -> Path | None:
+    baseline_path = PREFLIGHT_ROOT / "baseline" / "main-suppression-baseline.json"
+    baseline_path.parent.mkdir(parents=True, exist_ok=True)
+    result = run_subprocess(
+        ["git", "show", "origin/main:.suppression-baseline.json"],
+        cwd=REPO_ROOT,
+    )
+    if result.returncode != 0 or not result.stdout.strip():
+        return None
+    baseline_path.write_text(result.stdout, encoding="utf-8", newline="\n")
+    return baseline_path
+
+
+def build_commands(suppression_baseline: Path | None) -> tuple[CommandSpec, ...]:
     ui_bundle_check = (
         (
             "powershell",
@@ -86,6 +101,14 @@ def build_commands() -> tuple[CommandSpec, ...]:
         if sys.platform == "win32"
         else ("bash", "scripts/check-ui-bundle-sync.sh")
     )
+    suppression_audit_command = [
+        "__PYTHON__",
+        "scripts/audit-suppressions.py",
+        "--diff",
+        "--allow-pending-approval",
+    ]
+    if suppression_baseline is not None:
+        suppression_audit_command.extend(("--baseline", str(suppression_baseline)))
 
     return (
         CommandSpec("Python type check", ("__PYTHON__", "-m", "mypy", "src/")),
@@ -140,8 +163,8 @@ def build_commands() -> tuple[CommandSpec, ...]:
             ui_bundle_check,
         ),
         CommandSpec(
-            "Suppression audit parity",
-            ("__PYTHON__", "scripts/audit-suppressions.py", "--diff"),
+            "Suppression audit preview",
+            tuple(suppression_audit_command),
         ),
         CommandSpec(
             "Extension type tests",
@@ -186,9 +209,6 @@ def build_commands() -> tuple[CommandSpec, ...]:
             },
         ),
     )
-
-
-COMMANDS = build_commands()
 
 
 def probe_python_version(executable: str) -> str | None:
@@ -452,7 +472,8 @@ def main() -> int:
         safe_print("\n[OK] PR preflight self-check passed")
         return 0
 
-    for spec in COMMANDS:
+    commands = build_commands(main_branch_suppression_baseline())
+    for spec in commands:
         run_command(
             spec,
             python_executable,
