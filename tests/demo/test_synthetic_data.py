@@ -4,7 +4,7 @@ T052-T054: Schema validation and data coverage tests for demo synthetic data.
 Tests verify:
 - All JSON files pass schema validation
 - Date range covers 260 weeks (2021-W01 to 2025-W52)
-- Entity counts match spec (3 orgs, 8 projects, 20+ repos, 50 users)
+- Entity counts match spec (3 orgs, 8 projects, 20+ repos, 200 users)
 """
 
 from __future__ import annotations
@@ -267,9 +267,9 @@ class TestEntityCounts:
         assert len(repos) >= 20, f"Expected >=20 repos, got {len(repos)}"
 
     def test_user_count(self, dimensions: dict[str, Any]) -> None:
-        """Exactly 50 users exist."""
+        """Exactly 200 users exist."""
         users = dimensions["users"]
-        assert len(users) == 50, f"Expected 50 users, got {len(users)}"
+        assert len(users) == 200, f"Expected 200 users, got {len(users)}"
 
     def test_organization_names(self, dimensions: dict[str, Any]) -> None:
         """Organizations have expected names (derived from projects)."""
