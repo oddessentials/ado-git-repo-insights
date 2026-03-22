@@ -80,11 +80,16 @@ export function appendText(parent: HTMLElement, text: string): Text {
 export function renderNoData(
   container: HTMLElement | null,
   message: string,
+  hint?: string,
 ): void {
   if (!container) return;
   clearElement(container);
   const p = createElement("p", { class: "no-data" }, message);
   container.appendChild(p);
+  if (hint) {
+    const hintEl = createElement("p", { class: "no-data-hint" }, hint);
+    container.appendChild(hintEl);
+  }
 }
 
 /**

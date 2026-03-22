@@ -197,6 +197,10 @@ function renderInsightSparkline(
         ? "downward trend"
         : "stable trend";
 
+  const truncatedBadge = values.length > MAX_SPARKLINE_POINTS
+    ? `<span class="truncation-badge" title="Showing last ${MAX_SPARKLINE_POINTS} of ${values.length} data points">*</span>`
+    : "";
+
   return `
     <svg class="sparkline" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}"
          role="img" aria-label="Sparkline showing ${trendDescription} over ${limitedValues.length} data points">
@@ -208,7 +212,7 @@ function renderInsightSparkline(
         stroke-linecap="round"
         stroke-linejoin="round"
       />
-    </svg>
+    </svg>${truncatedBadge}
   `;
 }
 

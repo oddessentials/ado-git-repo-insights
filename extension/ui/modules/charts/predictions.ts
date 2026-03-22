@@ -500,8 +500,21 @@ export function renderPredictionsWithCharts(
     const historicalData = rollups
       ? extractHistoricalData(rollups, forecast.metric)
       : undefined;
+    const wasTruncated = historicalData?.length === MAX_CHART_POINTS;
     const chartHtml = renderForecastChart(forecast, historicalData);
     appendTrustedHtml(content, chartHtml);
+
+    // Add truncation badge if historical data was capped
+    if (wasTruncated) {
+      const badge = document.createElement("span");
+      badge.className = "truncation-badge";
+      badge.title = `Showing last ${MAX_CHART_POINTS} data points`;
+      badge.textContent = "Partial history";
+      const lastHeader = content.querySelector(
+        ".forecast-chart:last-child .chart-header",
+      );
+      if (lastHeader) lastHeader.appendChild(badge);
+    }
   });
 
   // Show informational message about review time unavailability (T016)

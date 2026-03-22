@@ -10,9 +10,13 @@
 import type { Rollup } from "../../dataset-loader";
 import { calculateMovingAverage } from "../metrics";
 import { escapeHtml, renderNoData, renderTrustedHtml } from "../shared/render";
+import { addChartTooltips } from "../charts";
 
 /** Maximum data points rendered in the throughput chart (2 years of weekly data). */
 export const MAX_THROUGHPUT_POINTS = 104;
+
+/** Maximum visible week labels before thinning kicks in. */
+export const MAX_VISIBLE_LABELS = 16;
 
 /**
  * Render throughput chart with trend line overlay.
@@ -30,7 +34,7 @@ export function renderThroughputChart(
   if (!container) return;
 
   if (!rollups || !rollups.length) {
-    renderNoData(container, "No data for selected range");
+    renderNoData(container, "No data for selected range", "Try widening the date range or adjusting repository/team filters.");
     return;
   }
 
@@ -45,16 +49,18 @@ export function renderThroughputChart(
   const movingAvg = calculateMovingAverage(prCounts, 4);
 
   // Render bar chart
+  const labelStep = Math.ceil(displayRollups.length / MAX_VISIBLE_LABELS);
   const barsHtml = displayRollups
-    .map((r) => {
+    .map((r, index) => {
       const height = maxCount > 0 ? ((r.pr_count || 0) / maxCount) * 100 : 0;
       const wParts = r.week.split("-W");
       const weekLabel = wParts[1] ?? r.week;
+      const showLabel = index % labelStep === 0;
       // SECURITY: Escape data-controlled values to prevent XSS
       return `
-            <div class="bar-container" title="${escapeHtml(r.week)}: ${r.pr_count || 0} PRs">
+            <div class="bar-container" data-tooltip="true" data-week="${escapeHtml(r.week)}" data-count="${r.pr_count || 0}">
                 <div class="bar" style="height: ${height}%"></div>
-                <div class="bar-label">${escapeHtml(weekLabel)}</div>
+                <div class="bar-label">${showLabel ? escapeHtml(weekLabel) : ""}</div>
             </div>
         `;
     })
@@ -94,6 +100,17 @@ export function renderThroughputChart(
         ${legendHtml}
     `,
   );
+
+  // Add tap/click tooltip support for throughput bars
+  addChartTooltips(container, (bar: HTMLElement) => {
+    const week = bar.dataset.week ?? "";
+    const count = bar.dataset.count ?? "0";
+    return `<div class="chart-tooltip-title">${escapeHtml(week)}</div>
+            <div class="chart-tooltip-row">
+              <span class="chart-tooltip-label">PRs</span>
+              <span>${escapeHtml(count)}</span>
+            </div>`;
+  });
 }
 
 /**

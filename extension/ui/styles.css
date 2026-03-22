@@ -117,6 +117,23 @@ body {
     display: none !important;
 }
 
+/* Filter Hint Banners — data-quality signals for coverage, constraints, cross-dimensional limits */
+.filter-hint {
+    padding: 8px 12px;
+    background: var(--bg-secondary);
+    border-left: 3px solid var(--primary);
+    border-radius: var(--radius);
+    font-size: 13px;
+    color: var(--text-secondary);
+    margin-top: 4px;
+    line-height: 1.4;
+}
+
+.filter-hint-warning {
+    border-left-color: var(--warning);
+    background: #fff8e1;
+}
+
 /* WCAG 2.1 AA: Screen reader only text */
 .visually-hidden {
     position: absolute !important;
@@ -165,8 +182,18 @@ body {
     background: var(--primary-dark);
 }
 
+.btn:active {
+    filter: brightness(0.9);
+}
+
+.btn:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+    pointer-events: none;
+}
+
 .btn-small {
-    padding: 4px 12px;
+    padding: 8px 12px;
     font-size: 12px;
 }
 
@@ -198,11 +225,16 @@ body {
 
 .filter-group select,
 .filter-group input[type="date"] {
-    padding: 6px 12px;
+    padding: 8px 12px;
     border: 1px solid var(--border);
     border-radius: var(--radius);
     font-size: 14px;
     background: white;
+}
+
+.filter-group select:hover,
+.filter-group input:hover {
+    border-color: var(--border-strong);
 }
 
 .filter-group select:focus,
@@ -210,6 +242,30 @@ body {
     outline: none;
     border-color: var(--primary);
     box-shadow: 0 0 0 2px var(--primary-light);
+}
+
+/* Author filter search input — normalized across browsers */
+input[type="search"] {
+    -webkit-appearance: none;
+    appearance: none;
+    padding: 8px 12px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    font-size: 14px;
+    font-family: var(--font-family);
+    color: var(--text-primary);
+    background: var(--bg-primary);
+}
+
+input[type="search"]::placeholder {
+    color: var(--text-tertiary);
+}
+
+input[type="search"]::-webkit-search-cancel-button {
+    -webkit-appearance: none;
+    height: 14px;
+    width: 14px;
+    cursor: pointer;
 }
 
 /* Dimension Filter Dropdowns */
@@ -274,6 +330,12 @@ body {
     opacity: 0.7;
     font-size: 14px;
     line-height: 1;
+    min-width: 44px;
+    min-height: 44px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    margin: -10px -8px -10px 0;
 }
 
 .filter-chip-remove:hover {
@@ -318,7 +380,7 @@ body {
 .export-option {
     display: block;
     width: 100%;
-    padding: 10px 16px;
+    padding: 12px 16px;
     text-align: left;
     border: none;
     background: none;
@@ -481,8 +543,15 @@ body {
     border-bottom-color: var(--primary);
 }
 
+.tab.disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+    pointer-events: none;
+    color: var(--text-tertiary);
+}
+
 .tab-content {
-    animation: fadeIn 0.2s ease;
+    animation: fadeIn 0.25s ease;
 }
 
 @keyframes fadeIn {
@@ -735,6 +804,12 @@ body {
     font-size: 10px;
     color: var(--text-tertiary);
     margin-top: 8px;
+    min-height: 14px;
+}
+
+.bar-label:empty {
+    margin-top: 4px;
+    min-height: 0;
 }
 
 /* Trend Line Overlay */
@@ -772,9 +847,10 @@ body {
 }
 
 .truncation-indicator {
-    font-size: 11px;
-    color: var(--text-tertiary);
-    margin-bottom: 4px;
+    font-size: 12px;
+    font-weight: 500;
+    color: var(--text-secondary);
+    margin-bottom: 8px;
 }
 
 .chart-legend {
@@ -1960,6 +2036,16 @@ body {
     background: var(--border);
 }
 
+.btn-secondary:active {
+    filter: brightness(0.9);
+}
+
+.btn-secondary:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+    pointer-events: none;
+}
+
 .btn-primary {
     background: var(--primary);
     color: white;
@@ -2080,6 +2166,57 @@ body {
     text-decoration: underline;
 }
 
+/* Truncation badge for predictions and sparklines */
+.truncation-badge {
+    font-size: 11px;
+    color: var(--text-secondary);
+    background: var(--bg-tertiary);
+    padding: 2px 6px;
+    border-radius: var(--radius);
+    margin-left: 8px;
+    vertical-align: middle;
+}
+
+.no-data-hint {
+    font-size: 12px;
+    color: var(--text-tertiary);
+    margin-top: 8px;
+    font-style: normal;
+}
+
+/* Scroll affordance — gradient fade on right edge when content overflows */
+.bar-chart {
+    position: relative;
+}
+
+.chart-with-trend {
+    position: relative;
+}
+
+.chart-with-trend::after {
+    content: "";
+    position: absolute;
+    top: 0;
+    right: 0;
+    width: 40px;
+    height: 200px;
+    background: linear-gradient(to right, transparent, var(--bg-primary));
+    pointer-events: none;
+    opacity: 0;
+    transition: opacity 0.2s ease;
+}
+
+.chart-with-trend:hover::after {
+    opacity: 0.7;
+}
+
+/* Touch devices: show scroll affordance by default since hover is unavailable */
+@media (hover: none) {
+    .chart-with-trend::after {
+        opacity: 0.4;
+    }
+}
+
 /* Responsive */
 @media (max-width: 768px) {
     .dashboard-header {
@@ -2108,6 +2245,119 @@ body {
 
     .settings-actions {
         flex-wrap: wrap;
+    }
+
+    .comparison-banner {
+        flex-direction: column;
+        gap: 12px;
+    }
+
+    .comparison-vs {
+        font-size: 14px;
+    }
+}
+
+@media (max-width: 480px) {
+    .summary-cards {
+        grid-template-columns: 1fr;
+    }
+
+    .charts-row {
+        grid-template-columns: 1fr;
+    }
+
+    .dashboard-header h1 {
+        font-size: 16px;
+    }
+
+    .metric-value {
+        font-size: 24px;
+    }
+
+    .loading-state,
+    .error-state {
+        min-height: 250px;
+        padding: 24px;
+    }
+
+    .error-state .error-icon {
+        font-size: 32px;
+    }
+
+    .filter-bar {
+        gap: 12px;
+    }
+
+    .main-content {
+        padding: 16px;
+    }
+
+    .toast {
+        bottom: max(12px, env(safe-area-inset-bottom));
+        right: max(12px, env(safe-area-inset-right));
+        left: max(12px, env(safe-area-inset-left));
+        max-width: calc(100vw - 24px);
+    }
+
+    .export-menu {
+        min-width: 140px;
+        right: auto;
+        left: 0;
+    }
+
+    .comparison-period .period-dates {
+        font-size: 12px;
+    }
+}
+
+@media print {
+    .filter-bar {
+        display: none;
+    }
+
+    .btn {
+        display: none;
+    }
+
+    .toast {
+        display: none;
+    }
+
+    .export-menu {
+        display: none;
+    }
+
+    .tabs {
+        display: none;
+    }
+
+    .filter-chip-remove {
+        display: none;
+    }
+
+    .active-filters {
+        display: flex !important;
+    }
+
+    .active-filters .active-filters-label {
+        display: inline;
+    }
+
+    body {
+        background: white;
+    }
+
+    * {
+        box-shadow: none !important;
+    }
+
+    .chart-container {
+        page-break-inside: avoid;
+        width: 100%;
+    }
+
+    .chart-with-trend::after {
+        display: none;
     }
 }
 

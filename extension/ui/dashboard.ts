@@ -1187,7 +1187,9 @@ function applyCustomDates(): void {
 function switchTab(tabId: string): void {
   elementLists.tabs?.forEach((tab) => {
     const htmlTab = tab as HTMLElement;
-    htmlTab.classList.toggle("active", htmlTab.dataset["tab"] === tabId);
+    const isActive = htmlTab.dataset["tab"] === tabId;
+    htmlTab.classList.toggle("active", isActive);
+    htmlTab.setAttribute("aria-selected", isActive ? "true" : "false");
   });
 
   document.querySelectorAll(".tab-content").forEach((content) => {
@@ -1661,9 +1663,11 @@ function updateMetricLabels(): void {
     if (reviewerFilterNoticeMessage) {
       reviewerNotice.textContent = reviewerFilterNoticeMessage;
       reviewerNotice.classList.remove("hidden");
+      reviewerNotice.classList.add("filter-hint-warning");
     } else {
       reviewerNotice.textContent = "";
       reviewerNotice.classList.add("hidden");
+      reviewerNotice.classList.remove("filter-hint-warning");
     }
   }
 

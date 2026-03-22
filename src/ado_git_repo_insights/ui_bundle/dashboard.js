@@ -3315,11 +3315,15 @@ var PRInsightsDashboard = (() => {
     }
     return el;
   }
-  function renderNoData(container, message) {
+  function renderNoData(container, message, hint) {
     if (!container) return;
     clearElement(container);
     const p = createElement("p", { class: "no-data" }, message);
     container.appendChild(p);
+    if (hint) {
+      const hintEl = createElement("p", { class: "no-data-hint" }, hint);
+      container.appendChild(hintEl);
+    }
   }
   function renderTrustedHtml(container, trustedHtml) {
     if (!container) return;
@@ -4162,8 +4166,19 @@ var PRInsightsDashboard = (() => {
     }
     predictions.forecasts.forEach((forecast) => {
       const historicalData = rollups ? extractHistoricalData(rollups, forecast.metric) : void 0;
+      const wasTruncated = historicalData?.length === MAX_CHART_POINTS;
       const chartHtml = renderForecastChart(forecast, historicalData);
       appendTrustedHtml(content, chartHtml);
+      if (wasTruncated) {
+        const badge = document.createElement("span");
+        badge.className = "truncation-badge";
+        badge.title = `Showing last ${MAX_CHART_POINTS} data points`;
+        badge.textContent = "Partial history";
+        const lastHeader = content.querySelector(
+          ".forecast-chart:last-child .chart-header"
+        );
+        if (lastHeader) lastHeader.appendChild(badge);
+      }
     });
     const hasReviewTime = predictions.forecasts.some(
       (f) => f.metric === "review_time_minutes"
@@ -4543,6 +4558,7 @@ var PRInsightsDashboard = (() => {
     const firstVal = limitedValues[0] ?? 0;
     const lastVal = limitedValues[limitedValues.length - 1] ?? 0;
     const trendDescription = lastVal > firstVal ? "upward trend" : lastVal < firstVal ? "downward trend" : "stable trend";
+    const truncatedBadge = values.length > MAX_SPARKLINE_POINTS ? `<span class="truncation-badge" title="Showing last ${MAX_SPARKLINE_POINTS} of ${values.length} data points">*</span>` : "";
     return `
     <svg class="sparkline" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}"
          role="img" aria-label="Sparkline showing ${trendDescription} over ${limitedValues.length} data points">
@@ -4554,7 +4570,7 @@ var PRInsightsDashboard = (() => {
         stroke-linecap="round"
         stroke-linejoin="round"
       />
-    </svg>
+    </svg>${truncatedBadge}
   `;
   }
   function renderInsightDataSection(data) {
@@ -4834,6 +4850,7 @@ var PRInsightsDashboard = (() => {
   }
 
   // ../ui/modules/charts.ts
+  var SCROLL_CANCEL_THRESHOLD = 10;
   function renderDelta(element, percentChange, inverse = false) {
     if (!element) return;
     if (percentChange === null) {
@@ -4901,29 +4918,63 @@ var PRInsightsDashboard = (() => {
     `
     );
   }
+  var tooltipIdCounter = 0;
+  var tooltipDismissController = null;
+  function dismissActiveTooltip() {
+    const existing = document.querySelector(".chart-tooltip");
+    if (existing) existing.remove();
+  }
   function addChartTooltips(container, contentFn) {
     const dots = container.querySelectorAll("[data-tooltip]");
+    if (tooltipDismissController) {
+      tooltipDismissController.abort();
+    }
+    tooltipDismissController = new AbortController();
+    function showTooltip(dot) {
+      dismissActiveTooltip();
+      const content = contentFn(dot);
+      const tooltip = document.createElement("div");
+      tooltip.className = "chart-tooltip";
+      renderTrustedHtml(tooltip, content);
+      tooltip.style.position = "absolute";
+      const rect = dot.getBoundingClientRect();
+      tooltip.style.left = `${rect.left + rect.width / 2}px`;
+      tooltip.style.top = `${rect.top - 8}px`;
+      tooltip.style.transform = "translateX(-50%) translateY(-100%)";
+      tooltip.id = `tooltip-${++tooltipIdCounter}`;
+      document.body.appendChild(tooltip);
+    }
     dots.forEach((dot) => {
-      dot.addEventListener("mouseenter", () => {
-        const content = contentFn(dot);
-        const tooltip = document.createElement("div");
-        tooltip.className = "chart-tooltip";
-        renderTrustedHtml(tooltip, content);
-        tooltip.style.position = "absolute";
-        const rect = dot.getBoundingClientRect();
-        tooltip.style.left = `${rect.left + rect.width / 2}px`;
-        tooltip.style.top = `${rect.top - 8}px`;
-        tooltip.style.transform = "translateX(-50%) translateY(-100%)";
-        document.body.appendChild(tooltip);
-        dot.dataset.tooltipId = tooltip.id = `tooltip-${Date.now()}`;
+      const el = dot;
+      let pointerOrigin = null;
+      el.addEventListener("mouseenter", () => showTooltip(el));
+      el.addEventListener("mouseleave", () => dismissActiveTooltip());
+      el.addEventListener("pointerdown", (e) => {
+        pointerOrigin = { x: e.clientX, y: e.clientY };
       });
-      dot.addEventListener("mouseleave", () => {
-        const tooltipId = dot.dataset.tooltipId;
-        if (tooltipId) {
-          document.getElementById(tooltipId)?.remove();
+      el.addEventListener("pointerup", (e) => {
+        if (!pointerOrigin) return;
+        const dx = e.clientX - pointerOrigin.x;
+        const dy = e.clientY - pointerOrigin.y;
+        const distance = Math.sqrt(dx * dx + dy * dy);
+        pointerOrigin = null;
+        if (distance < SCROLL_CANCEL_THRESHOLD) {
+          e.preventDefault();
+          showTooltip(el);
         }
       });
     });
+    document.addEventListener(
+      "click",
+      (e) => {
+        if (!document.querySelector(".chart-tooltip")) return;
+        const target = e.target;
+        if (!target.closest("[data-tooltip]") && !target.closest(".chart-tooltip")) {
+          dismissActiveTooltip();
+        }
+      },
+      { signal: tooltipDismissController.signal }
+    );
   }
 
   // ../ui/modules/charts/summary-cards.ts
@@ -5021,10 +5072,11 @@ var PRInsightsDashboard = (() => {
 
   // ../ui/modules/charts/throughput.ts
   var MAX_THROUGHPUT_POINTS = 104;
+  var MAX_VISIBLE_LABELS = 16;
   function renderThroughputChart(container, rollups) {
     if (!container) return;
     if (!rollups || !rollups.length) {
-      renderNoData(container, "No data for selected range");
+      renderNoData(container, "No data for selected range", "Try widening the date range or adjusting repository/team filters.");
       return;
     }
     const truncated = rollups.length > MAX_THROUGHPUT_POINTS;
@@ -5032,14 +5084,16 @@ var PRInsightsDashboard = (() => {
     const prCounts = displayRollups.map((r) => r.pr_count || 0);
     const maxCount = Math.max(...prCounts);
     const movingAvg = calculateMovingAverage(prCounts, 4);
-    const barsHtml = displayRollups.map((r) => {
+    const labelStep = Math.ceil(displayRollups.length / MAX_VISIBLE_LABELS);
+    const barsHtml = displayRollups.map((r, index) => {
       const height = maxCount > 0 ? (r.pr_count || 0) / maxCount * 100 : 0;
       const wParts = r.week.split("-W");
       const weekLabel = wParts[1] ?? r.week;
+      const showLabel = index % labelStep === 0;
       return `
-            <div class="bar-container" title="${escapeHtml(r.week)}: ${r.pr_count || 0} PRs">
+            <div class="bar-container" data-tooltip="true" data-week="${escapeHtml(r.week)}" data-count="${r.pr_count || 0}">
                 <div class="bar" style="height: ${height}%"></div>
-                <div class="bar-label">${escapeHtml(weekLabel)}</div>
+                <div class="bar-label">${showLabel ? escapeHtml(weekLabel) : ""}</div>
             </div>
         `;
     }).join("");
@@ -5068,6 +5122,15 @@ var PRInsightsDashboard = (() => {
         ${legendHtml}
     `
     );
+    addChartTooltips(container, (bar) => {
+      const week = bar.dataset.week ?? "";
+      const count = bar.dataset.count ?? "0";
+      return `<div class="chart-tooltip-title">${escapeHtml(week)}</div>
+            <div class="chart-tooltip-row">
+              <span class="chart-tooltip-label">PRs</span>
+              <span>${escapeHtml(count)}</span>
+            </div>`;
+    });
   }
   function renderTrendLine(rollups, movingAvg, maxCount) {
     if (rollups.length < 4) return "";
@@ -5097,7 +5160,7 @@ var PRInsightsDashboard = (() => {
   function renderCycleDistribution(container, distributions) {
     if (!container) return;
     if (!distributions || !distributions.length) {
-      renderNoData(container, "No data for selected range");
+      renderNoData(container, "No data for selected range", "Try widening the date range or adjusting repository/team filters.");
       return;
     }
     const buckets = {
@@ -5115,7 +5178,7 @@ var PRInsightsDashboard = (() => {
     });
     const total = Object.values(buckets).reduce((a, b) => a + b, 0);
     if (total === 0) {
-      renderNoData(container, "No cycle time data");
+      renderNoData(container, "No cycle time data", "Try widening the date range or adjusting repository/team filters.");
       return;
     }
     const html = Object.entries(buckets).map(([label, count]) => {
@@ -5135,7 +5198,7 @@ var PRInsightsDashboard = (() => {
   function renderCycleTimeTrend(container, rollups) {
     if (!container) return;
     if (!rollups || rollups.length < 2) {
-      renderNoData(container, "Not enough data for trend");
+      renderNoData(container, "Not enough data for trend", "At least 2 weeks of data are needed to show trends.");
       return;
     }
     const truncated = rollups.length > MAX_CYCLE_TIME_POINTS;
@@ -5143,7 +5206,7 @@ var PRInsightsDashboard = (() => {
     const p50Data = displayRollups.map((r) => ({ week: r.week, value: r.cycle_time_p50 })).filter((d) => d.value !== null);
     const p90Data = displayRollups.map((r) => ({ week: r.week, value: r.cycle_time_p90 })).filter((d) => d.value !== null);
     if (p50Data.length < 2 && p90Data.length < 2) {
-      renderNoData(container, "No cycle time data available");
+      renderNoData(container, "No cycle time data available", "Try widening the date range or adjusting repository/team filters.");
       return;
     }
     const allValues = [
@@ -5248,7 +5311,8 @@ var PRInsightsDashboard = (() => {
     if (!rollups || !rollups.length) {
       renderNoData(
         container,
-        reviewerFilterActive ? "No review activity available" : "No reviewer data available"
+        reviewerFilterActive ? "No review activity available" : "No reviewer data available",
+        "Reviewer data requires the extraction pipeline to capture reviewer details."
       );
       return;
     }
@@ -5259,7 +5323,8 @@ var PRInsightsDashboard = (() => {
     if (maxReviewers === 0) {
       renderNoData(
         container,
-        reviewerFilterActive ? "No review activity available" : "No reviewer data available"
+        reviewerFilterActive ? "No review activity available" : "No reviewer data available",
+        "Reviewer data requires the extraction pipeline to capture reviewer details."
       );
       return;
     }
@@ -6066,7 +6131,9 @@ var PRInsightsDashboard = (() => {
   function switchTab(tabId) {
     elementLists.tabs?.forEach((tab) => {
       const htmlTab = tab;
-      htmlTab.classList.toggle("active", htmlTab.dataset["tab"] === tabId);
+      const isActive = htmlTab.dataset["tab"] === tabId;
+      htmlTab.classList.toggle("active", isActive);
+      htmlTab.setAttribute("aria-selected", isActive ? "true" : "false");
     });
     document.querySelectorAll(".tab-content").forEach((content) => {
       content.classList.toggle("active", content.id === `tab-${tabId}`);
@@ -6381,9 +6448,11 @@ var PRInsightsDashboard = (() => {
       if (reviewerFilterNoticeMessage) {
         reviewerNotice.textContent = reviewerFilterNoticeMessage;
         reviewerNotice.classList.remove("hidden");
+        reviewerNotice.classList.add("filter-hint-warning");
       } else {
         reviewerNotice.textContent = "";
         reviewerNotice.classList.add("hidden");
+        reviewerNotice.classList.remove("filter-hint-warning");
       }
     }
     if (elements["total-prs-label"]) {

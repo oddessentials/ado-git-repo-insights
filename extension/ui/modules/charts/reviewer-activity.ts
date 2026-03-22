@@ -45,6 +45,7 @@ export function renderReviewerActivity(
       reviewerFilterActive
         ? "No review activity available"
         : "No reviewer data available",
+      "Reviewer data requires the extraction pipeline to capture reviewer details.",
     );
     return;
   }
@@ -61,6 +62,7 @@ export function renderReviewerActivity(
       reviewerFilterActive
         ? "No review activity available"
         : "No reviewer data available",
+      "Reviewer data requires the extraction pipeline to capture reviewer details.",
     );
     return;
   }

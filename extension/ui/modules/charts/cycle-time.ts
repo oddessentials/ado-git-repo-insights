@@ -31,7 +31,7 @@ export function renderCycleDistribution(
   if (!container) return;
 
   if (!distributions || !distributions.length) {
-    renderNoData(container, "No data for selected range");
+    renderNoData(container, "No data for selected range", "Try widening the date range or adjusting repository/team filters.");
     return;
   }
 
@@ -52,7 +52,7 @@ export function renderCycleDistribution(
 
   const total = Object.values(buckets).reduce((a, b) => a + b, 0);
   if (total === 0) {
-    renderNoData(container, "No cycle time data");
+    renderNoData(container, "No cycle time data", "Try widening the date range or adjusting repository/team filters.");
     return;
   }
 
@@ -90,7 +90,7 @@ export function renderCycleTimeTrend(
   if (!container) return;
 
   if (!rollups || rollups.length < 2) {
-    renderNoData(container, "Not enough data for trend");
+    renderNoData(container, "Not enough data for trend", "At least 2 weeks of data are needed to show trends.");
     return;
   }
 
@@ -108,7 +108,7 @@ export function renderCycleTimeTrend(
     .filter((d): d is { week: string; value: number } => d.value !== null);
 
   if (p50Data.length < 2 && p90Data.length < 2) {
-    renderNoData(container, "No cycle time data available");
+    renderNoData(container, "No cycle time data available", "Try widening the date range or adjusting repository/team filters.");
     return;
   }
 

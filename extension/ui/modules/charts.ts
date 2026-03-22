@@ -10,6 +10,9 @@
 
 import { clearElement, renderTrustedHtml } from "./shared/render";
 
+/** Pixel movement threshold to cancel a tap-to-tooltip gesture (scroll detection). */
+export const SCROLL_CANCEL_THRESHOLD = 10;
+
 /**
  * Render a delta indicator element.
  * @param element - Target element (or null for no-op)
@@ -123,8 +126,27 @@ export function renderSparkline(
   );
 }
 
+/** Monotonic counter for unique tooltip IDs (avoids Date.now() collisions). */
+let tooltipIdCounter = 0;
+
+/** AbortController for the document-level tooltip dismiss listener. */
+let tooltipDismissController: AbortController | null = null;
+
+/**
+ * Dismiss any active chart tooltip and clean up the document listener.
+ */
+function dismissActiveTooltip(): void {
+  const existing = document.querySelector(".chart-tooltip");
+  if (existing) existing.remove();
+}
+
 /**
  * Add tooltip interactions to a chart container.
+ * Supports both hover (mouse) and tap/click (touch) with scroll-cancellation.
+ *
+ * Safe to call repeatedly on re-renders: the previous document-level dismiss
+ * listener is aborted before attaching a new one, preventing accumulation.
+ *
  * @param container - Chart container element
  * @param contentFn - Function to generate tooltip content from data element
  */
@@ -134,30 +156,67 @@ export function addChartTooltips(
 ): void {
   const dots = container.querySelectorAll("[data-tooltip]");
 
+  // Abort any previous document-level dismiss listener to prevent accumulation
+  if (tooltipDismissController) {
+    tooltipDismissController.abort();
+  }
+  tooltipDismissController = new AbortController();
+
+  function showTooltip(dot: HTMLElement): void {
+    dismissActiveTooltip();
+    const content = contentFn(dot);
+    const tooltip = document.createElement("div");
+    tooltip.className = "chart-tooltip";
+    renderTrustedHtml(tooltip, content);
+    tooltip.style.position = "absolute";
+
+    const rect = dot.getBoundingClientRect();
+    tooltip.style.left = `${rect.left + rect.width / 2}px`;
+    tooltip.style.top = `${rect.top - 8}px`;
+    tooltip.style.transform = "translateX(-50%) translateY(-100%)";
+
+    tooltip.id = `tooltip-${++tooltipIdCounter}`;
+    document.body.appendChild(tooltip);
+  }
+
   dots.forEach((dot) => {
-    dot.addEventListener("mouseenter", () => {
-      const content = contentFn(dot as HTMLElement);
-      const tooltip = document.createElement("div");
-      tooltip.className = "chart-tooltip";
-      // SECURITY: contentFn callers must use escapeHtml for user data
-      renderTrustedHtml(tooltip, content);
-      tooltip.style.position = "absolute";
+    const el = dot as HTMLElement;
+    let pointerOrigin: { x: number; y: number } | null = null;
 
-      const rect = (dot as HTMLElement).getBoundingClientRect();
-      tooltip.style.left = `${rect.left + rect.width / 2}px`;
-      tooltip.style.top = `${rect.top - 8}px`;
-      tooltip.style.transform = "translateX(-50%) translateY(-100%)";
+    // Hover support (mouse)
+    el.addEventListener("mouseenter", () => showTooltip(el));
+    el.addEventListener("mouseleave", () => dismissActiveTooltip());
 
-      document.body.appendChild(tooltip);
-      (dot as HTMLElement).dataset.tooltipId =
-        tooltip.id = `tooltip-${Date.now()}`;
+    // Tap/click support with scroll-cancellation
+    el.addEventListener("pointerdown", (e: PointerEvent) => {
+      pointerOrigin = { x: e.clientX, y: e.clientY };
     });
 
-    dot.addEventListener("mouseleave", () => {
-      const tooltipId = (dot as HTMLElement).dataset.tooltipId;
-      if (tooltipId) {
-        document.getElementById(tooltipId)?.remove();
+    el.addEventListener("pointerup", (e: PointerEvent) => {
+      if (!pointerOrigin) return;
+      const dx = e.clientX - pointerOrigin.x;
+      const dy = e.clientY - pointerOrigin.y;
+      const distance = Math.sqrt(dx * dx + dy * dy);
+      pointerOrigin = null;
+
+      if (distance < SCROLL_CANCEL_THRESHOLD) {
+        // Prevent the synthesized click from immediately dismissing
+        e.preventDefault();
+        showTooltip(el);
       }
     });
   });
+
+  // Dismiss tooltip when clicking outside (with AbortController for cleanup)
+  document.addEventListener(
+    "click",
+    (e: MouseEvent) => {
+      if (!document.querySelector(".chart-tooltip")) return;
+      const target = e.target as HTMLElement;
+      if (!target.closest("[data-tooltip]") && !target.closest(".chart-tooltip")) {
+        dismissActiveTooltip();
+      }
+    },
+    { signal: tooltipDismissController.signal },
+  );
 }

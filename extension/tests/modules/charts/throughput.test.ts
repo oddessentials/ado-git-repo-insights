@@ -9,7 +9,7 @@
  * - No-data message for empty rollups
  */
 
-import { renderThroughputChart } from "../../../ui/modules/charts/throughput";
+import { renderThroughputChart, MAX_VISIBLE_LABELS } from "../../../ui/modules/charts/throughput";
 import type { Rollup } from "../../../ui/dataset-loader";
 
 describe("throughput module", () => {
@@ -130,12 +130,14 @@ describe("throughput module", () => {
       expect(container.innerHTML).toContain("height: 50%");
     });
 
-    it("includes PR count in title attribute", () => {
+    it("includes PR count in data attributes", () => {
       const rollups = createRollups(2);
       renderThroughputChart(container, rollups);
 
-      // First rollup has pr_count of 10
-      expect(container.innerHTML).toContain('title="2025-W01: 10 PRs"');
+      // First rollup has pr_count of 10 — uses data-week and data-count instead of title
+      const bar = container.querySelector('.bar-container[data-week="2025-W01"]');
+      expect(bar).not.toBeNull();
+      expect(bar?.getAttribute("data-count")).toBe("10");
     });
 
     it("renders standard week format label from W-suffix", () => {
@@ -163,5 +165,62 @@ describe("throughput module", () => {
 
       expect(container.innerHTML).toContain("custom_format");
     });
+  });
+});
+
+describe("Label thinning", () => {
+  let container: HTMLDivElement;
+
+  beforeEach(() => {
+    container = document.createElement("div");
+  });
+
+  function makeRollups(count: number): Rollup[] {
+    return Array.from({ length: count }, (_, i) => ({
+      week: `2025-W${String(i + 1).padStart(2, "0")}`,
+      pr_count: 10 + i,
+      cycle_time_p50: 60,
+      cycle_time_p90: 120,
+      authors_count: 5,
+      reviewers_count: 3,
+    })) as Rollup[];
+  }
+
+  it("shows all labels when bar count <= MAX_VISIBLE_LABELS", () => {
+    renderThroughputChart(container, makeRollups(16));
+    const labels = container.querySelectorAll(".bar-label");
+    expect(labels.length).toBe(16);
+    const nonEmpty = Array.from(labels).filter((l) => l.textContent !== "");
+    expect(nonEmpty.length).toBe(16);
+  });
+
+  it("thins labels when bar count > MAX_VISIBLE_LABELS (17 bars, step=2)", () => {
+    renderThroughputChart(container, makeRollups(17));
+    const labels = container.querySelectorAll(".bar-label");
+    expect(labels.length).toBe(17);
+    const nonEmpty = Array.from(labels).filter((l) => l.textContent !== "");
+    // Math.ceil(17/16) = 2, so labels at 0,2,4,...,16 = 9 labels
+    expect(nonEmpty.length).toBe(9);
+  });
+
+  it("thins labels for 104 bars (step=7, 15 labels)", () => {
+    renderThroughputChart(container, makeRollups(104));
+    const labels = container.querySelectorAll(".bar-label");
+    expect(labels.length).toBe(104);
+    const nonEmpty = Array.from(labels).filter((l) => l.textContent !== "");
+    // Math.ceil(104/16) = 7, labels at 0,7,14,...,98 = 15 labels
+    expect(nonEmpty.length).toBe(15);
+  });
+
+  it("always renders .bar-label element for every bar (preserves flex spacing)", () => {
+    renderThroughputChart(container, makeRollups(50));
+    const labels = container.querySelectorAll(".bar-label");
+    expect(labels.length).toBe(50);
+  });
+
+  it("first label (index 0) is always visible", () => {
+    renderThroughputChart(container, makeRollups(104));
+    const labels = container.querySelectorAll(".bar-label");
+    expect(labels[0].textContent).not.toBe("");
   });
 });
