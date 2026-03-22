@@ -19,7 +19,7 @@ import random
 from dataclasses import asdict, dataclass, field
 from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, cast
 
 import numpy as np
 import pandas as pd
@@ -1038,49 +1038,71 @@ class AggregateGenerator:
             return {}
 
         by_team_and_repo: dict[str, Any] = {}
-        entry_count = 0
+        # Compute team-repo metrics in one pass rather than filtering reviewers
+        # per intersection. This keeps the enterprise stress path bounded by a
+        # few groupby/merge operations per week instead of N repeated isin scans.
+        grouped_metrics = tagged.groupby(["team_name", "repository_name"]).agg(
+            pr_count=("pull_request_uid", "size"),
+            cycle_time_valid_count=("cycle_time_minutes", "count"),
+            cycle_time_p50=("cycle_time_minutes", lambda s: s.quantile(0.5)),
+            cycle_time_p90=("cycle_time_minutes", lambda s: s.quantile(0.9)),
+            authors_count=("user_id", "nunique"),
+        )
+
+        tagged_pr_pairs = tagged[
+            ["team_name", "repository_name", "pull_request_uid"]
+        ].drop_duplicates()
+        reviewers_by_intersection = (
+            tagged_pr_pairs.merge(
+                week_reviewers[["pull_request_uid", "reviewer_id"]],
+                on="pull_request_uid",
+                how="left",
+            )
+            .groupby(["team_name", "repository_name"])["reviewer_id"]
+            .nunique()
+        )
+        grouped_metrics["reviewers_count"] = reviewers_by_intersection.reindex(
+            grouped_metrics.index,
+            fill_value=0,
+        )
 
         # Collect all entries with their pr_count for potential truncation
         all_entries: list[tuple[str, str, dict[str, Any]]] = []
 
-        for (team_name, repo_name), grp in tagged.groupby(
-            ["team_name", "repository_name"]
-        ):
-            # Multi-column groupby yields Hashable keys; narrow to str to skip NaN
+        for key, row in grouped_metrics.iterrows():
+            team_name, repo_name = cast(tuple[str, str], key)
             if not isinstance(team_name, str) or not isinstance(repo_name, str):
                 continue
 
-            pr_count = len(grp)
-            if pr_count == 0:
-                continue
+            cycle_time_valid_count = int(row["cycle_time_valid_count"])
+            cycle_time_p50 = (
+                None
+                if cycle_time_valid_count < self._CROSS_DIM_MIN_SAMPLE
+                or pd.isna(row["cycle_time_p50"])
+                else row["cycle_time_p50"]
+            )
+            cycle_time_p90 = (
+                None
+                if cycle_time_valid_count < self._CROSS_DIM_MIN_SAMPLE
+                or pd.isna(row["cycle_time_p90"])
+                else row["cycle_time_p90"]
+            )
 
-            # Compute cycle time percentiles with minimum sample size guard.
-            # Count non-NaN cycle times (not total rows) so the guard reflects
-            # the actual number of data points feeding the percentile.
-            cycle_time_valid_count = int(grp["cycle_time_minutes"].notna().sum())
-            if cycle_time_valid_count >= self._CROSS_DIM_MIN_SAMPLE:
-                cycle_time_p50 = grp["cycle_time_minutes"].quantile(0.5)
-                cycle_time_p90 = grp["cycle_time_minutes"].quantile(0.9)
-            else:
-                cycle_time_p50 = None
-                cycle_time_p90 = None
+            all_entries.append(
+                (
+                    team_name,
+                    repo_name,
+                    {
+                        "pr_count": int(row["pr_count"]),
+                        "cycle_time_p50": cycle_time_p50,
+                        "cycle_time_p90": cycle_time_p90,
+                        "authors_count": int(row["authors_count"]),
+                        "reviewers_count": int(row["reviewers_count"]),
+                    },
+                )
+            )
 
-            # Count unique reviewers for PRs in this intersection
-            grp_pr_uids = set(grp["pull_request_uid"].tolist())
-            grp_reviewers = week_reviewers[
-                week_reviewers["pull_request_uid"].isin(grp_pr_uids)
-            ]
-
-            entry = {
-                "pr_count": pr_count,
-                "cycle_time_p50": cycle_time_p50,
-                "cycle_time_p90": cycle_time_p90,
-                "authors_count": grp["user_id"].nunique(),
-                "reviewers_count": grp_reviewers["reviewer_id"].nunique(),
-            }
-
-            all_entries.append((str(team_name), str(repo_name), entry))
-            entry_count += 1
+        entry_count = len(all_entries)
 
         # Truncation: if entries exceed cap, keep the most significant
         # intersections by descending pr_count rather than whole teams.
