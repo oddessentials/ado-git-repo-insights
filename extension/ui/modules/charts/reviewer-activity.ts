@@ -14,6 +14,12 @@ import { escapeHtml, renderNoData, renderTrustedHtml } from "../shared/render";
 /** Maximum weeks displayed in the reviewer activity panel. */
 export const MAX_REVIEWER_WEEKS = 8;
 
+function getReviewerNoDataHint(reviewerFilterActive: boolean): string {
+  return reviewerFilterActive
+    ? "Try widening the date range or adjusting reviewer filters."
+    : "Reviewer data requires the extraction pipeline to capture reviewer details.";
+}
+
 /**
  * Render reviewer activity chart (horizontal bar chart).
  *
@@ -45,7 +51,7 @@ export function renderReviewerActivity(
       reviewerFilterActive
         ? "No review activity available"
         : "No reviewer data available",
-      "Reviewer data requires the extraction pipeline to capture reviewer details.",
+      getReviewerNoDataHint(reviewerFilterActive),
     );
     return;
   }
@@ -62,7 +68,7 @@ export function renderReviewerActivity(
       reviewerFilterActive
         ? "No review activity available"
         : "No reviewer data available",
-      "Reviewer data requires the extraction pipeline to capture reviewer details.",
+      getReviewerNoDataHint(reviewerFilterActive),
     );
     return;
   }

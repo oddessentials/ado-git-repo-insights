@@ -200,7 +200,9 @@ export function addChartTooltips(
       pointerOrigin = null;
 
       if (distance < SCROLL_CANCEL_THRESHOLD) {
-        // Prevent the synthesized click from immediately dismissing
+        // Prevent the synthesized click from immediately dismissing the
+        // tooltip. This also suppresses native click handlers on the same
+        // element after a tap, so avoid relying on click for tooltip dots.
         e.preventDefault();
         showTooltip(el);
       }

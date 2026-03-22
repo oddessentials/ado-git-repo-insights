@@ -4110,24 +4110,29 @@ var PRInsightsDashboard = (() => {
     const isoString = targetDate.toISOString().split("T")[0];
     return isoString || isoWeek;
   }
-  function extractHistoricalData(rollups, metric) {
-    if (!rollups || rollups.length === 0) return [];
+  function extractHistoricalDataResult(rollups, metric) {
+    if (!rollups || rollups.length === 0) {
+      return { data: [], wasTruncated: false };
+    }
     const metricFieldMap = {
       pr_throughput: "pr_count",
       cycle_time_minutes: "cycle_time_p50"
     };
     const field = metricFieldMap[metric];
-    if (!field) return [];
+    if (!field) {
+      return { data: [], wasTruncated: false };
+    }
     const data = rollups.filter((r) => r[field] !== null && r[field] !== void 0).map((r) => ({
       // Convert ISO week format to date if needed
       week: r.week.includes("-W") ? isoWeekToDate(r.week) : r.week,
       // eslint-disable-next-line security/detect-object-injection -- SECURITY: field is from local const metricFieldMap, typed as keyof RollupForChart
       value: Number(r[field])
     })).sort((a, b) => a.week.localeCompare(b.week));
-    if (data.length > MAX_CHART_POINTS) {
-      return data.slice(-MAX_CHART_POINTS);
-    }
-    return data;
+    const wasTruncated = data.length > MAX_CHART_POINTS;
+    return {
+      data: wasTruncated ? data.slice(-MAX_CHART_POINTS) : data,
+      wasTruncated
+    };
   }
   function renderPredictionsWithCharts(container, predictions, rollups) {
     if (!container) return;
@@ -4165,8 +4170,9 @@ var PRInsightsDashboard = (() => {
       return;
     }
     predictions.forecasts.forEach((forecast) => {
-      const historicalData = rollups ? extractHistoricalData(rollups, forecast.metric) : void 0;
-      const wasTruncated = historicalData?.length === MAX_CHART_POINTS;
+      const historicalResult = rollups ? extractHistoricalDataResult(rollups, forecast.metric) : void 0;
+      const historicalData = historicalResult?.data;
+      const wasTruncated = historicalResult?.wasTruncated === true;
       const chartHtml = renderForecastChart(forecast, historicalData);
       appendTrustedHtml(content, chartHtml);
       if (wasTruncated) {
@@ -5303,6 +5309,9 @@ var PRInsightsDashboard = (() => {
 
   // ../ui/modules/charts/reviewer-activity.ts
   var MAX_REVIEWER_WEEKS = 8;
+  function getReviewerNoDataHint(reviewerFilterActive) {
+    return reviewerFilterActive ? "Try widening the date range or adjusting reviewer filters." : "Reviewer data requires the extraction pipeline to capture reviewer details.";
+  }
   function renderReviewerActivity(container, rollups, options = {}) {
     if (!container) return;
     const { reviewerFilterActive = false } = options;
@@ -5312,7 +5321,7 @@ var PRInsightsDashboard = (() => {
       renderNoData(
         container,
         reviewerFilterActive ? "No review activity available" : "No reviewer data available",
-        "Reviewer data requires the extraction pipeline to capture reviewer details."
+        getReviewerNoDataHint(reviewerFilterActive)
       );
       return;
     }
@@ -5324,7 +5333,7 @@ var PRInsightsDashboard = (() => {
       renderNoData(
         container,
         reviewerFilterActive ? "No review activity available" : "No reviewer data available",
-        "Reviewer data requires the extraction pipeline to capture reviewer details."
+        getReviewerNoDataHint(reviewerFilterActive)
       );
       return;
     }

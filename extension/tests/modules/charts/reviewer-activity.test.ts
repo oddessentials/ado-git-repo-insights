@@ -155,6 +155,50 @@ describe("reviewer-activity module", () => {
       renderReviewerActivity(container, [], { reviewerFilterActive: true });
 
       expect(container.innerHTML).toContain("No review activity available");
+      expect(container.innerHTML).toContain(
+        "Try widening the date range or adjusting reviewer filters.",
+      );
+      expect(container.innerHTML).not.toContain(
+        "Reviewer data requires the extraction pipeline to capture reviewer details.",
+      );
+    });
+
+    it("suppresses pipeline hint for zero-count rollups when reviewer filter is active", () => {
+      const rollups = createRollups(3).map((r) => ({
+        ...r,
+        reviewers_count: 0,
+      }));
+
+      renderReviewerActivity(container, rollups, { reviewerFilterActive: true });
+
+      expect(container.innerHTML).toContain("No review activity available");
+      expect(container.innerHTML).toContain(
+        "Try widening the date range or adjusting reviewer filters.",
+      );
+      expect(container.innerHTML).not.toContain(
+        "Reviewer data requires the extraction pipeline to capture reviewer details.",
+      );
+    });
+
+    it("keeps pipeline hint for unfiltered empty reviewer data", () => {
+      renderReviewerActivity(container, []);
+
+      expect(container.innerHTML).toContain(
+        "Reviewer data requires the extraction pipeline to capture reviewer details.",
+      );
+    });
+
+    it("keeps pipeline hint for unfiltered zero-count reviewer data", () => {
+      const rollups = createRollups(2).map((r) => ({
+        ...r,
+        reviewers_count: 0,
+      }));
+
+      renderReviewerActivity(container, rollups);
+
+      expect(container.innerHTML).toContain(
+        "Reviewer data requires the extraction pipeline to capture reviewer details.",
+      );
     });
 
     it("handles null container gracefully", () => {

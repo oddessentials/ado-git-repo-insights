@@ -144,6 +144,64 @@ describe("renderPredictions", () => {
     expect(chartId).not.toContain("<");
     expect(chartId).not.toContain(">");
   });
+
+  it("does not show partial-history badge when historical data naturally has 200 points", () => {
+    const predictions: PredictionsRenderData = {
+      forecasts: [
+        {
+          metric: "pr_throughput",
+          unit: "count",
+          values: [
+            {
+              period_start: "2024-W01",
+              predicted: 10,
+              lower_bound: 8,
+              upper_bound: 12,
+            },
+          ],
+        },
+      ],
+    };
+    const rollups = Array.from({ length: 200 }, (_, i) => ({
+      week: `2024-W${String((i % 52) + 1).padStart(2, "0")}`,
+      pr_count: i + 1,
+      cycle_time_p50: 60,
+    }));
+
+    renderPredictions(container, predictions, rollups);
+
+    expect(container.textContent).not.toContain("Partial history");
+    expect(container.querySelector(".truncation-badge")).toBeNull();
+  });
+
+  it("shows partial-history badge when historical data exceeds 200 points", () => {
+    const predictions: PredictionsRenderData = {
+      forecasts: [
+        {
+          metric: "pr_throughput",
+          unit: "count",
+          values: [
+            {
+              period_start: "2024-W01",
+              predicted: 10,
+              lower_bound: 8,
+              upper_bound: 12,
+            },
+          ],
+        },
+      ],
+    };
+    const rollups = Array.from({ length: 201 }, (_, i) => ({
+      week: `2024-W${String((i % 52) + 1).padStart(2, "0")}`,
+      pr_count: i + 1,
+      cycle_time_p50: 60,
+    }));
+
+    renderPredictions(container, predictions, rollups);
+
+    expect(container.textContent).toContain("Partial history");
+    expect(container.querySelector(".truncation-badge")).not.toBeNull();
+  });
 });
 
 describe("renderAIInsights", () => {
