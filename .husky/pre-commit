@@ -111,13 +111,16 @@ echo ""
 #
 # Trigger patterns (any of these staged triggers a rebuild):
 #   - extension/ui/*.ts          (TypeScript source)
-#   - extension/scripts/bundle-ui.mjs (build script)
+#   - extension/ui/*.html        (UI markup source)
+#   - extension/ui/*.css         (UI stylesheet source)
+#   - extension/ui/VSS.SDK.min.js (bundled SDK asset)
+#   - extension/scripts/bundle-ui.mjs / copy-vss-sdk.mjs (build scripts)
 #   - extension/package.json     (dependencies)
 #   - extension/pnpm-lock.yaml   (lockfile)
 #   - extension/tsconfig*.json   (TypeScript config)
 # =============================================================================
 
-UI_BUILD_TRIGGERS=$(git diff --cached --name-only | grep -E '^extension/(ui/.*\.ts$|scripts/bundle-ui\.mjs$|package\.json$|pnpm-lock\.yaml$|tsconfig.*\.json$)' || true)
+UI_BUILD_TRIGGERS=$(git diff --cached --name-only | grep -E '^extension/(ui/.*\.(ts|html|css)$|ui/VSS\.SDK\.min\.js$|scripts/(bundle-ui|copy-vss-sdk)\.mjs$|package\.json$|pnpm-lock\.yaml$|tsconfig.*\.json$)' || true)
 
 if [ -n "$UI_BUILD_TRIGGERS" ]; then
     echo ""
