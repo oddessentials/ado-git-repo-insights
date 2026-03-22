@@ -709,30 +709,46 @@ class AggregateGenerator:
         self, week_group: pd.DataFrame, week_reviewers: pd.DataFrame
     ) -> dict[str, Any]:
         """Generate per-author metrics slice for a week keyed by canonical user_id."""
-        by_author: dict[str, Any] = {}
+        author_metrics = week_group.groupby("user_id").agg(
+            pr_count=("pull_request_uid", "size"),
+            cycle_time_valid_count=("cycle_time_minutes", "count"),
+            cycle_time_p50=("cycle_time_minutes", lambda s: s.quantile(0.5)),
+            cycle_time_p90=("cycle_time_minutes", lambda s: s.quantile(0.9)),
+        )
+        author_reviewer_counts = (
+            week_group[["user_id", "pull_request_uid"]]
+            .drop_duplicates()
+            .merge(
+                week_reviewers[["pull_request_uid", "reviewer_id"]],
+                on="pull_request_uid",
+                how="left",
+            )
+            .groupby("user_id")["reviewer_id"]
+            .nunique()
+        )
+        author_metrics["reviewers_count"] = author_reviewer_counts.reindex(
+            author_metrics.index,
+            fill_value=0,
+        )
 
-        for author_id, author_group in week_group.groupby("user_id"):
-            if pd.isna(author_id):
+        by_author: dict[str, Any] = {}
+        for author_id, row in author_metrics.iterrows():
+            if not isinstance(author_id, str):
                 continue
 
-            author_pr_uids = set(author_group["pull_request_uid"].tolist())
-            author_reviewers = week_reviewers[
-                week_reviewers["pull_request_uid"].isin(author_pr_uids)
-            ]
-
-            cycle_time_valid_count = int(
-                author_group["cycle_time_minutes"].notna().sum()
-            )
+            cycle_time_valid_count = int(row["cycle_time_valid_count"])
             by_author[str(author_id)] = {
-                "pr_count": len(author_group),
-                "cycle_time_p50": author_group["cycle_time_minutes"].quantile(0.5)
+                "pr_count": int(row["pr_count"]),
+                "cycle_time_p50": row["cycle_time_p50"]
                 if cycle_time_valid_count >= self._ROLLUP_MIN_SAMPLE
+                and not pd.isna(row["cycle_time_p50"])
                 else None,
-                "cycle_time_p90": author_group["cycle_time_minutes"].quantile(0.9)
+                "cycle_time_p90": row["cycle_time_p90"]
                 if cycle_time_valid_count >= self._ROLLUP_MIN_SAMPLE
+                and not pd.isna(row["cycle_time_p90"])
                 else None,
                 "authors_count": 1,
-                "reviewers_count": int(author_reviewers["reviewer_id"].nunique()),
+                "reviewers_count": int(row["reviewers_count"]),
             }
 
         return by_author
@@ -742,41 +758,51 @@ class AggregateGenerator:
     ) -> dict[str, Any]:
         """Generate per-author-per-repository metrics slice for a week."""
         by_author_and_repo: dict[str, Any] = {}
-        all_entries: list[tuple[str, str, dict[str, Any]]] = []
+        grouped_metrics = week_group.groupby(["user_id", "repository_name"]).agg(
+            pr_count=("pull_request_uid", "size"),
+            cycle_time_valid_count=("cycle_time_minutes", "count"),
+            cycle_time_p50=("cycle_time_minutes", lambda s: s.quantile(0.5)),
+            cycle_time_p90=("cycle_time_minutes", lambda s: s.quantile(0.9)),
+        )
+        reviewer_counts = (
+            week_group[["user_id", "repository_name", "pull_request_uid"]]
+            .drop_duplicates()
+            .merge(
+                week_reviewers[["pull_request_uid", "reviewer_id"]],
+                on="pull_request_uid",
+                how="left",
+            )
+            .groupby(["user_id", "repository_name"])["reviewer_id"]
+            .nunique()
+        )
+        grouped_metrics["reviewers_count"] = reviewer_counts.reindex(
+            grouped_metrics.index,
+            fill_value=0,
+        )
 
-        for (author_id, repo_name), grp in week_group.groupby(
-            ["user_id", "repository_name"]
-        ):
+        all_entries: list[tuple[str, str, dict[str, Any]]] = []
+        for key, row in grouped_metrics.iterrows():
+            author_id, repo_name = cast(tuple[str, str], key)
             if not isinstance(author_id, str) or not isinstance(repo_name, str):
                 continue
 
-            pr_count = len(grp)
-            if pr_count == 0:
-                continue
-
-            cycle_time_valid_count = int(grp["cycle_time_minutes"].notna().sum())
-            if cycle_time_valid_count >= self._ROLLUP_MIN_SAMPLE:
-                cycle_time_p50 = grp["cycle_time_minutes"].quantile(0.5)
-                cycle_time_p90 = grp["cycle_time_minutes"].quantile(0.9)
-            else:
-                cycle_time_p50 = None
-                cycle_time_p90 = None
-
-            grp_pr_uids = set(grp["pull_request_uid"].tolist())
-            grp_reviewers = week_reviewers[
-                week_reviewers["pull_request_uid"].isin(grp_pr_uids)
-            ]
-
+            cycle_time_valid_count = int(row["cycle_time_valid_count"])
             all_entries.append(
                 (
                     author_id,
                     repo_name,
                     {
-                        "pr_count": pr_count,
-                        "cycle_time_p50": cycle_time_p50,
-                        "cycle_time_p90": cycle_time_p90,
+                        "pr_count": int(row["pr_count"]),
+                        "cycle_time_p50": row["cycle_time_p50"]
+                        if cycle_time_valid_count >= self._ROLLUP_MIN_SAMPLE
+                        and not pd.isna(row["cycle_time_p50"])
+                        else None,
+                        "cycle_time_p90": row["cycle_time_p90"]
+                        if cycle_time_valid_count >= self._ROLLUP_MIN_SAMPLE
+                        and not pd.isna(row["cycle_time_p90"])
+                        else None,
                         "authors_count": 1,
-                        "reviewers_count": grp_reviewers["reviewer_id"].nunique(),
+                        "reviewers_count": int(row["reviewers_count"]),
                     },
                 )
             )
@@ -820,29 +846,47 @@ class AggregateGenerator:
         Returns:
             Dict mapping repository_name to metrics
         """
-        by_repository: dict[str, Any] = {}
+        grouped_metrics = week_group.groupby("repository_name").agg(
+            pr_count=("pull_request_uid", "size"),
+            cycle_time_valid_count=("cycle_time_minutes", "count"),
+            cycle_time_p50=("cycle_time_minutes", lambda s: s.quantile(0.5)),
+            cycle_time_p90=("cycle_time_minutes", lambda s: s.quantile(0.9)),
+            authors_count=("user_id", "nunique"),
+        )
+        reviewer_counts = (
+            week_group[["repository_name", "pull_request_uid"]]
+            .drop_duplicates()
+            .merge(
+                week_reviewers[["pull_request_uid", "reviewer_id"]],
+                on="pull_request_uid",
+                how="left",
+            )
+            .groupby("repository_name")["reviewer_id"]
+            .nunique()
+        )
+        grouped_metrics["reviewers_count"] = reviewer_counts.reindex(
+            grouped_metrics.index,
+            fill_value=0,
+        )
 
-        for repo_name, repo_group in week_group.groupby("repository_name"):
-            if pd.isna(repo_name):
+        by_repository: dict[str, Any] = {}
+        for repo_name, row in grouped_metrics.iterrows():
+            if not isinstance(repo_name, str):
                 continue
 
-            repo_pr_uids = set(repo_group["pull_request_uid"].tolist())
-            repo_reviewers = week_reviewers[
-                week_reviewers["pull_request_uid"].isin(repo_pr_uids)
-            ]
-
+            cycle_time_valid_count = int(row["cycle_time_valid_count"])
             by_repository[str(repo_name)] = {
-                "pr_count": len(repo_group),
-                "cycle_time_p50": repo_group["cycle_time_minutes"].quantile(0.5)
-                if repo_group["cycle_time_minutes"].notna().sum()
-                >= self._ROLLUP_MIN_SAMPLE
+                "pr_count": int(row["pr_count"]),
+                "cycle_time_p50": row["cycle_time_p50"]
+                if cycle_time_valid_count >= self._ROLLUP_MIN_SAMPLE
+                and not pd.isna(row["cycle_time_p50"])
                 else None,
-                "cycle_time_p90": repo_group["cycle_time_minutes"].quantile(0.9)
-                if repo_group["cycle_time_minutes"].notna().sum()
-                >= self._ROLLUP_MIN_SAMPLE
+                "cycle_time_p90": row["cycle_time_p90"]
+                if cycle_time_valid_count >= self._ROLLUP_MIN_SAMPLE
+                and not pd.isna(row["cycle_time_p90"])
                 else None,
-                "authors_count": repo_group["user_id"].nunique(),
-                "reviewers_count": repo_reviewers["reviewer_id"].nunique(),
+                "authors_count": int(row["authors_count"]),
+                "reviewers_count": int(row["reviewers_count"]),
             }
 
         return by_repository
@@ -873,46 +917,53 @@ class AggregateGenerator:
         if team_members_df.empty:
             return {}
 
-        by_team: dict[str, Any] = {}
+        deduped_members = team_members_df[["user_id", "team_name"]].drop_duplicates()
+        deduped_members = deduped_members.dropna(subset=["user_id", "team_name"])
+        tagged = week_group.merge(deduped_members, on="user_id", how="inner")
+        if tagged.empty:
+            return {}
 
-        # Get unique team names
-        team_names = team_members_df["team_name"].unique()
-
-        for team_name in team_names:
-            if pd.isna(team_name):
-                continue
-
-            # Get team members
-            team_member_ids = set(
-                team_members_df[team_members_df["team_name"] == team_name][
-                    "user_id"
-                ].tolist()
+        grouped_metrics = tagged.groupby("team_name").agg(
+            pr_count=("pull_request_uid", "size"),
+            cycle_time_valid_count=("cycle_time_minutes", "count"),
+            cycle_time_p50=("cycle_time_minutes", lambda s: s.quantile(0.5)),
+            cycle_time_p90=("cycle_time_minutes", lambda s: s.quantile(0.9)),
+            authors_count=("user_id", "nunique"),
+        )
+        reviewer_counts = (
+            tagged[["team_name", "pull_request_uid"]]
+            .drop_duplicates()
+            .merge(
+                week_reviewers[["pull_request_uid", "reviewer_id"]],
+                on="pull_request_uid",
+                how="left",
             )
+            .groupby("team_name")["reviewer_id"]
+            .nunique()
+        )
+        grouped_metrics["reviewers_count"] = reviewer_counts.reindex(
+            grouped_metrics.index,
+            fill_value=0,
+        )
 
-            # Filter PRs to those authored by team members
-            team_prs = week_group[week_group["user_id"].isin(team_member_ids)]
-
-            if team_prs.empty:
+        by_team: dict[str, Any] = {}
+        for team_name, row in grouped_metrics.iterrows():
+            if not isinstance(team_name, str):
                 continue
 
-            # Get reviewers for team PRs
-            team_pr_uids = set(team_prs["pull_request_uid"].tolist())
-            team_reviewers = week_reviewers[
-                week_reviewers["pull_request_uid"].isin(team_pr_uids)
-            ]
-
+            cycle_time_valid_count = int(row["cycle_time_valid_count"])
             by_team[str(team_name)] = {
-                "pr_count": len(team_prs),
-                "cycle_time_p50": team_prs["cycle_time_minutes"].quantile(0.5)
-                if team_prs["cycle_time_minutes"].notna().sum()
-                >= self._ROLLUP_MIN_SAMPLE
+                "pr_count": int(row["pr_count"]),
+                "cycle_time_p50": row["cycle_time_p50"]
+                if cycle_time_valid_count >= self._ROLLUP_MIN_SAMPLE
+                and not pd.isna(row["cycle_time_p50"])
                 else None,
-                "cycle_time_p90": team_prs["cycle_time_minutes"].quantile(0.9)
-                if team_prs["cycle_time_minutes"].notna().sum()
-                >= self._ROLLUP_MIN_SAMPLE
+                "cycle_time_p90": row["cycle_time_p90"]
+                if cycle_time_valid_count >= self._ROLLUP_MIN_SAMPLE
+                and not pd.isna(row["cycle_time_p90"])
                 else None,
-                "authors_count": team_prs["user_id"].nunique(),
-                "reviewers_count": team_reviewers["reviewer_id"].nunique(),
+                "authors_count": int(row["authors_count"]),
+                "reviewers_count": int(row["reviewers_count"]),
             }
 
         return by_team
