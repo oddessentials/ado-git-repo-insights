@@ -74,91 +74,121 @@ def smoke_report_dir() -> Path:
     return PREFLIGHT_ROOT / "playwright" / "report"
 
 
-COMMANDS: tuple[CommandSpec, ...] = (
-    CommandSpec("Python type check", ("__PYTHON__", "-m", "mypy", "src/")),
-    CommandSpec(
-        "Demo dashboard validation",
+def build_commands() -> tuple[CommandSpec, ...]:
+    ui_bundle_check = (
         (
-            "__PYTHON__",
-            "-m",
-            "pytest",
-            "tests/demo/",
-            "-v",
-            "--no-cov",
-            "-o",
-            f"cache_dir={cache_dir('demo')}",
-            "--basetemp",
-            str(base_temp("demo")),
+            "powershell",
+            "-ExecutionPolicy",
+            "Bypass",
+            "-File",
+            "scripts/check-ui-bundle-sync.ps1",
+        )
+        if sys.platform == "win32"
+        else ("bash", "scripts/check-ui-bundle-sync.sh")
+    )
+
+    return (
+        CommandSpec("Python type check", ("__PYTHON__", "-m", "mypy", "src/")),
+        CommandSpec(
+            "Demo dashboard validation",
+            (
+                "__PYTHON__",
+                "-m",
+                "pytest",
+                "tests/demo/",
+                "-v",
+                "--no-cov",
+                "-o",
+                f"cache_dir={cache_dir('demo')}",
+                "--basetemp",
+                str(base_temp("demo")),
+            ),
         ),
-    ),
-    CommandSpec(
-        "Full Python test suite with coverage",
-        (
-            "__PYTHON__",
-            "-m",
-            "pytest",
-            "tests/",
-            "-q",
-            "-ra",
-            "-o",
-            f"cache_dir={cache_dir('python')}",
-            "--basetemp",
-            str(base_temp("python")),
+        CommandSpec(
+            "Full Python test suite with coverage",
+            (
+                "__PYTHON__",
+                "-m",
+                "pytest",
+                "tests/",
+                "-q",
+                "-ra",
+                "-o",
+                f"cache_dir={cache_dir('python')}",
+                "--basetemp",
+                str(base_temp("python")),
+            ),
+            extra_env={"COVERAGE_FILE": str(coverage_file("python"))},
         ),
-        extra_env={"COVERAGE_FILE": str(coverage_file("python"))},
-    ),
-    CommandSpec(
-        "Extension build check",
-        (PNPM_SENTINEL, "run", "build:check"),
-        cwd=EXTENSION_ROOT,
-    ),
-    CommandSpec("Extension lint", (PNPM_SENTINEL, "run", "lint"), cwd=EXTENSION_ROOT),
-    CommandSpec(
-        "Extension UI bundle", (PNPM_SENTINEL, "run", "build:ui"), cwd=EXTENSION_ROOT
-    ),
-    CommandSpec(
-        "Extension type tests",
-        (PNPM_SENTINEL, "run", "test:types"),
-        cwd=EXTENSION_ROOT,
-    ),
-    CommandSpec(
-        "Extension Jest CI",
-        (
-            PNPM_SENTINEL,
-            "exec",
-            "jest",
-            "--ci",
-            "--runInBand",
-            "--coverage",
-            "--reporters=default",
-            "--reporters=jest-junit",
-            "--testPathIgnorePatterns=vsix-artifact-inspection",
+        CommandSpec(
+            "Extension build check",
+            (PNPM_SENTINEL, "run", "build:check"),
+            cwd=EXTENSION_ROOT,
         ),
-        cwd=EXTENSION_ROOT,
-    ),
-    CommandSpec(
-        "Local patch coverage parity",
-        (
-            "__PYTHON__",
-            "scripts/check_patch_coverage.py",
-            "--base-ref",
-            "origin/main",
-            "--python-coverage",
-            "coverage.xml",
-            "--ts-coverage",
-            "extension/coverage/lcov.info",
+        CommandSpec(
+            "Extension lint",
+            (PNPM_SENTINEL, "run", "lint"),
+            cwd=EXTENSION_ROOT,
         ),
-    ),
-    CommandSpec(
-        "Extension smoke tests",
-        (PNPM_SENTINEL, "run", "test:smoke"),
-        cwd=EXTENSION_ROOT,
-        extra_env={
-            "PLAYWRIGHT_OUTPUT_DIR": str(smoke_output_dir()),
-            "PLAYWRIGHT_REPORT_DIR": str(smoke_report_dir()),
-        },
-    ),
-)
+        CommandSpec(
+            "Extension UI bundle",
+            (PNPM_SENTINEL, "run", "build:ui"),
+            cwd=EXTENSION_ROOT,
+        ),
+        CommandSpec(
+            "UI bundle sync parity",
+            ui_bundle_check,
+        ),
+        CommandSpec(
+            "Suppression audit parity",
+            ("__PYTHON__", "scripts/audit-suppressions.py", "--diff"),
+        ),
+        CommandSpec(
+            "Extension type tests",
+            (PNPM_SENTINEL, "run", "test:types"),
+            cwd=EXTENSION_ROOT,
+        ),
+        CommandSpec(
+            "Extension Jest CI",
+            (
+                PNPM_SENTINEL,
+                "exec",
+                "jest",
+                "--ci",
+                "--runInBand",
+                "--coverage",
+                "--reporters=default",
+                "--reporters=jest-junit",
+                "--testPathIgnorePatterns=vsix-artifact-inspection",
+            ),
+            cwd=EXTENSION_ROOT,
+        ),
+        CommandSpec(
+            "Local patch coverage parity",
+            (
+                "__PYTHON__",
+                "scripts/check_patch_coverage.py",
+                "--base-ref",
+                "origin/main",
+                "--python-coverage",
+                "coverage.xml",
+                "--ts-coverage",
+                "extension/coverage/lcov.info",
+            ),
+        ),
+        CommandSpec(
+            "Extension smoke tests",
+            (PNPM_SENTINEL, "run", "test:smoke"),
+            cwd=EXTENSION_ROOT,
+            extra_env={
+                "PLAYWRIGHT_OUTPUT_DIR": str(smoke_output_dir()),
+                "PLAYWRIGHT_REPORT_DIR": str(smoke_report_dir()),
+            },
+        ),
+    )
+
+
+COMMANDS = build_commands()
 
 
 def probe_python_version(executable: str) -> str | None:
@@ -412,7 +442,11 @@ def main() -> int:
     ensure_tooling()
     ensure_paths()
     pnpm_executable = resolve_pnpm()
-    check_runner_self(python_executable, pnpm_executable, verbose=args.verbose)
+    check_runner_self(
+        python_executable,
+        pnpm_executable,
+        verbose=args.verbose,
+    )
 
     if args.self_check:
         safe_print("\n[OK] PR preflight self-check passed")
