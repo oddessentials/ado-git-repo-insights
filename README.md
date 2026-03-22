@@ -344,6 +344,39 @@ The public demo and CLI synthetic demo are governed by one canonical demo publis
 
 This rebuilds the extension UI shell, republishes the GitHub Pages demo surface, regenerates `artifacts/demo-enterprise/`, and promotes the published mirror under `docs/data/`.
 
+### Manual Demo Preview
+
+For local manual testing of the synthetic demo dashboard in PowerShell:
+
+```powershell
+cd extension
+pnpm install
+pnpm run build:ui
+
+cd ..
+python scripts/publish-demo-surface.py --source extension/dist/ui --docs-dir docs
+python scripts/build-demo-dataset.py
+
+cd docs
+python -m http.server 8080
+```
+
+Open `http://localhost:8080`.
+
+For repeat runs after dependencies are already installed:
+
+```powershell
+cd extension
+pnpm run build:ui
+
+cd ..
+python scripts/publish-demo-surface.py --source extension/dist/ui --docs-dir docs
+python scripts/build-demo-dataset.py
+
+cd docs
+python -m http.server 8080
+```
+
 ---
 
 ## 🔒 Security

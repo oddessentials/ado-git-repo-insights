@@ -37,6 +37,39 @@ python scripts/build-demo-dataset.py
 
 `docs/data/` and `docs/index.html` are generated-only and MUST NOT be hand-edited.
 
+## Local Manual Preview
+
+For local manual testing of the published synthetic demo dashboard in PowerShell:
+
+```powershell
+cd extension
+pnpm install
+pnpm run build:ui
+
+cd ..
+python scripts/publish-demo-surface.py --source extension/dist/ui --docs-dir docs
+python scripts/build-demo-dataset.py
+
+cd docs
+python -m http.server 8080
+```
+
+Open `http://localhost:8080`.
+
+For repeat runs after dependencies are already installed:
+
+```powershell
+cd extension
+pnpm run build:ui
+
+cd ..
+python scripts/publish-demo-surface.py --source extension/dist/ui --docs-dir docs
+python scripts/build-demo-dataset.py
+
+cd docs
+python -m http.server 8080
+```
+
 ## Canonical Artifact Boundary
 
 The canonical output layout is:
