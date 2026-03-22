@@ -156,6 +156,22 @@ describe("addChartTooltips click/tap support", () => {
     chart2.remove();
   });
 
+  it("dismisses the active tooltip when the same chart is re-rendered", () => {
+    addChartTooltips(container, (el) => `<div>${el.dataset.week}</div>`);
+
+    const dot = container.querySelector("[data-tooltip]") as HTMLElement;
+    dot.dispatchEvent(new MouseEvent("mouseenter", { bubbles: true }));
+
+    expect(document.querySelector(".chart-tooltip")?.innerHTML).toContain("2025-W01");
+
+    container.innerHTML = `
+      <div data-tooltip="true" data-week="2025-W03" data-count="30">Bar 3</div>
+    `;
+    addChartTooltips(container, (el) => `<div>${el.dataset.week}</div>`);
+
+    expect(document.querySelector(".chart-tooltip")).toBeNull();
+  });
+
   it("does not show tooltip when scroll gesture detected (>10px movement)", () => {
     addChartTooltips(container, (el) => {
       return `<div>${el.dataset.week}</div>`;

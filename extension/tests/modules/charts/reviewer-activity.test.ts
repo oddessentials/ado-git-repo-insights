@@ -188,7 +188,7 @@ describe("reviewer-activity module", () => {
       );
     });
 
-    it("keeps pipeline hint for unfiltered zero-count reviewer data", () => {
+    it("shows neutral hint for unfiltered zero-count reviewer data", () => {
       const rollups = createRollups(2).map((r) => ({
         ...r,
         reviewers_count: 0,
@@ -197,6 +197,9 @@ describe("reviewer-activity module", () => {
       renderReviewerActivity(container, rollups);
 
       expect(container.innerHTML).toContain(
+        "No reviewers were active in the selected period.",
+      );
+      expect(container.innerHTML).not.toContain(
         "Reviewer data requires the extraction pipeline to capture reviewer details.",
       );
     });

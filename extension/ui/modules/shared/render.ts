@@ -17,6 +17,7 @@
 export const NO_DATA_HINTS = {
   WIDEN_FILTERS: "Try widening the date range or adjusting repository/team filters.",
   TREND_MINIMUM: "At least 2 weeks of data are needed to show trends.",
+  REVIEWER_NO_ACTIVITY: "No reviewers were active in the selected period.",
   REVIEWER_PIPELINE: "Reviewer data requires the extraction pipeline to capture reviewer details.",
 } as const;
 

@@ -161,6 +161,7 @@ export function addChartTooltips(
 
   // Abort only this container's previous listeners (not other charts')
   containerControllers.get(container)?.abort();
+  dismissActiveTooltip();
   const controller = new AbortController();
   containerControllers.set(container, controller);
   const { signal } = controller;

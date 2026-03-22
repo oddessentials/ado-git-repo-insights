@@ -3300,6 +3300,7 @@ var PRInsightsDashboard = (() => {
   var NO_DATA_HINTS = {
     WIDEN_FILTERS: "Try widening the date range or adjusting repository/team filters.",
     TREND_MINIMUM: "At least 2 weeks of data are needed to show trends.",
+    REVIEWER_NO_ACTIVITY: "No reviewers were active in the selected period.",
     REVIEWER_PIPELINE: "Reviewer data requires the extraction pipeline to capture reviewer details."
   };
   function clearElement(el) {
@@ -4938,6 +4939,7 @@ var PRInsightsDashboard = (() => {
   function addChartTooltips(container, contentFn) {
     const dots = container.querySelectorAll("[data-tooltip]");
     containerControllers.get(container)?.abort();
+    dismissActiveTooltip();
     const controller = new AbortController();
     containerControllers.set(container, controller);
     const { signal } = controller;
@@ -5312,8 +5314,8 @@ var PRInsightsDashboard = (() => {
 
   // ../ui/modules/charts/reviewer-activity.ts
   var MAX_REVIEWER_WEEKS = 8;
-  function getReviewerNoDataHint(reviewerFilterActive) {
-    return reviewerFilterActive ? "Try widening the date range or adjusting reviewer filters." : NO_DATA_HINTS.REVIEWER_PIPELINE;
+  function getReviewerNoDataHint(reviewerFilterActive, hasRollups) {
+    return reviewerFilterActive ? "Try widening the date range or adjusting reviewer filters." : hasRollups ? NO_DATA_HINTS.REVIEWER_NO_ACTIVITY : NO_DATA_HINTS.REVIEWER_PIPELINE;
   }
   function renderReviewerActivity(container, rollups, options = {}) {
     if (!container) return;
@@ -5324,7 +5326,7 @@ var PRInsightsDashboard = (() => {
       renderNoData(
         container,
         reviewerFilterActive ? "No review activity available" : "No reviewer data available",
-        getReviewerNoDataHint(reviewerFilterActive)
+        getReviewerNoDataHint(reviewerFilterActive, false)
       );
       return;
     }
@@ -5336,7 +5338,7 @@ var PRInsightsDashboard = (() => {
       renderNoData(
         container,
         reviewerFilterActive ? "No review activity available" : "No reviewer data available",
-        getReviewerNoDataHint(reviewerFilterActive)
+        getReviewerNoDataHint(reviewerFilterActive, true)
       );
       return;
     }

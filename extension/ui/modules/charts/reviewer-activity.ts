@@ -14,10 +14,15 @@ import { escapeHtml, NO_DATA_HINTS, renderNoData, renderTrustedHtml } from "../s
 /** Maximum weeks displayed in the reviewer activity panel. */
 export const MAX_REVIEWER_WEEKS = 8;
 
-function getReviewerNoDataHint(reviewerFilterActive: boolean): string {
+function getReviewerNoDataHint(
+  reviewerFilterActive: boolean,
+  hasRollups: boolean,
+): string {
   return reviewerFilterActive
     ? "Try widening the date range or adjusting reviewer filters."
-    : NO_DATA_HINTS.REVIEWER_PIPELINE;
+    : hasRollups
+      ? NO_DATA_HINTS.REVIEWER_NO_ACTIVITY
+      : NO_DATA_HINTS.REVIEWER_PIPELINE;
 }
 
 /**
@@ -51,7 +56,7 @@ export function renderReviewerActivity(
       reviewerFilterActive
         ? "No review activity available"
         : "No reviewer data available",
-      getReviewerNoDataHint(reviewerFilterActive),
+      getReviewerNoDataHint(reviewerFilterActive, false),
     );
     return;
   }
@@ -68,7 +73,7 @@ export function renderReviewerActivity(
       reviewerFilterActive
         ? "No review activity available"
         : "No reviewer data available",
-      getReviewerNoDataHint(reviewerFilterActive),
+      getReviewerNoDataHint(reviewerFilterActive, true),
     );
     return;
   }
