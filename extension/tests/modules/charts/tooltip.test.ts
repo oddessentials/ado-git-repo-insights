@@ -91,6 +91,71 @@ describe("addChartTooltips click/tap support", () => {
     expect(tooltips[0].innerHTML).toContain("2025-W02");
   });
 
+  it("preserves tooltip interactivity on first chart after second chart is rendered", () => {
+    // Regression test: rendering a second chart must NOT kill the first chart's listeners.
+    // The dashboard renders throughput then cycle-time sequentially.
+    const chart1 = document.createElement("div");
+    chart1.innerHTML = `<div data-tooltip="true" data-week="chart1-W01">C1</div>`;
+    document.body.appendChild(chart1);
+
+    const chart2 = document.createElement("div");
+    chart2.innerHTML = `<div data-tooltip="true" data-week="chart2-W01">C2</div>`;
+    document.body.appendChild(chart2);
+
+    // Attach tooltips to both charts sequentially (as dashboard does)
+    addChartTooltips(chart1, (el) => `<div>${el.dataset.week}</div>`);
+    addChartTooltips(chart2, (el) => `<div>${el.dataset.week}</div>`);
+
+    // Hover on the FIRST chart — its listeners must still be active
+    const dot1 = chart1.querySelector("[data-tooltip]") as HTMLElement;
+    dot1.dispatchEvent(new MouseEvent("mouseenter", { bubbles: true }));
+
+    const tooltip = document.querySelector(".chart-tooltip");
+    expect(tooltip).not.toBeNull();
+    expect(tooltip?.innerHTML).toContain("chart1-W01");
+
+    // Clean up
+    chart1.remove();
+    chart2.remove();
+  });
+
+  it("re-rendering same chart replaces its listeners without affecting others", () => {
+    const chart1 = document.createElement("div");
+    chart1.innerHTML = `<div data-tooltip="true" data-week="old-W01">Old</div>`;
+    document.body.appendChild(chart1);
+
+    const chart2 = document.createElement("div");
+    chart2.innerHTML = `<div data-tooltip="true" data-week="chart2-W01">C2</div>`;
+    document.body.appendChild(chart2);
+
+    addChartTooltips(chart1, (el) => `<div>${el.dataset.week}</div>`);
+    addChartTooltips(chart2, (el) => `<div>${el.dataset.week}</div>`);
+
+    // Re-render chart1 with new content (simulates filter change)
+    chart1.innerHTML = `<div data-tooltip="true" data-week="new-W01">New</div>`;
+    addChartTooltips(chart1, (el) => `<div>${el.dataset.week}</div>`);
+
+    // Chart2 listeners must still work
+    const dot2 = chart2.querySelector("[data-tooltip]") as HTMLElement;
+    dot2.dispatchEvent(new MouseEvent("mouseenter", { bubbles: true }));
+
+    const tooltip = document.querySelector(".chart-tooltip");
+    expect(tooltip).not.toBeNull();
+    expect(tooltip?.innerHTML).toContain("chart2-W01");
+
+    // Chart1's new content must also work
+    dot2.dispatchEvent(new MouseEvent("mouseleave", { bubbles: true }));
+    const dot1New = chart1.querySelector("[data-tooltip]") as HTMLElement;
+    dot1New.dispatchEvent(new MouseEvent("mouseenter", { bubbles: true }));
+
+    const tooltip2 = document.querySelector(".chart-tooltip");
+    expect(tooltip2).not.toBeNull();
+    expect(tooltip2?.innerHTML).toContain("new-W01");
+
+    chart1.remove();
+    chart2.remove();
+  });
+
   it("does not show tooltip when scroll gesture detected (>10px movement)", () => {
     addChartTooltips(container, (el) => {
       return `<div>${el.dataset.week}</div>`;

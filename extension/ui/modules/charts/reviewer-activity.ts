@@ -9,7 +9,7 @@
  */
 
 import type { Rollup } from "../../dataset-loader";
-import { escapeHtml, renderNoData, renderTrustedHtml } from "../shared/render";
+import { escapeHtml, NO_DATA_HINTS, renderNoData, renderTrustedHtml } from "../shared/render";
 
 /** Maximum weeks displayed in the reviewer activity panel. */
 export const MAX_REVIEWER_WEEKS = 8;
@@ -17,7 +17,7 @@ export const MAX_REVIEWER_WEEKS = 8;
 function getReviewerNoDataHint(reviewerFilterActive: boolean): string {
   return reviewerFilterActive
     ? "Try widening the date range or adjusting reviewer filters."
-    : "Reviewer data requires the extraction pipeline to capture reviewer details.";
+    : NO_DATA_HINTS.REVIEWER_PIPELINE;
 }
 
 /**

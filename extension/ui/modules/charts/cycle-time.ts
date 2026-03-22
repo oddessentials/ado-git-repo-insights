@@ -11,7 +11,7 @@ import type { Rollup } from "../../dataset-loader";
 import type { DistributionData } from "../../types";
 import { addChartTooltips } from "../charts";
 import { formatDuration } from "../shared/format";
-import { escapeHtml, renderNoData, renderTrustedHtml } from "../shared/render";
+import { escapeHtml, NO_DATA_HINTS, renderNoData, renderTrustedHtml } from "../shared/render";
 
 /** Maximum data points rendered in the cycle time trend chart (2 years of weekly data). */
 export const MAX_CYCLE_TIME_POINTS = 104;
@@ -31,7 +31,7 @@ export function renderCycleDistribution(
   if (!container) return;
 
   if (!distributions || !distributions.length) {
-    renderNoData(container, "No data for selected range", "Try widening the date range or adjusting repository/team filters.");
+    renderNoData(container, "No data for selected range", NO_DATA_HINTS.WIDEN_FILTERS);
     return;
   }
 
@@ -52,7 +52,7 @@ export function renderCycleDistribution(
 
   const total = Object.values(buckets).reduce((a, b) => a + b, 0);
   if (total === 0) {
-    renderNoData(container, "No cycle time data", "Try widening the date range or adjusting repository/team filters.");
+    renderNoData(container, "No cycle time data", NO_DATA_HINTS.WIDEN_FILTERS);
     return;
   }
 
@@ -90,7 +90,7 @@ export function renderCycleTimeTrend(
   if (!container) return;
 
   if (!rollups || rollups.length < 2) {
-    renderNoData(container, "Not enough data for trend", "At least 2 weeks of data are needed to show trends.");
+    renderNoData(container, "Not enough data for trend", NO_DATA_HINTS.TREND_MINIMUM);
     return;
   }
 
@@ -108,7 +108,7 @@ export function renderCycleTimeTrend(
     .filter((d): d is { week: string; value: number } => d.value !== null);
 
   if (p50Data.length < 2 && p90Data.length < 2) {
-    renderNoData(container, "No cycle time data available", "Try widening the date range or adjusting repository/team filters.");
+    renderNoData(container, "No cycle time data available", NO_DATA_HINTS.WIDEN_FILTERS);
     return;
   }
 

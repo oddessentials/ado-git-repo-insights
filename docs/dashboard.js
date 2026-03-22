@@ -3297,6 +3297,11 @@ var PRInsightsDashboard = (() => {
   }
 
   // ../ui/modules/shared/render.ts
+  var NO_DATA_HINTS = {
+    WIDEN_FILTERS: "Try widening the date range or adjusting repository/team filters.",
+    TREND_MINIMUM: "At least 2 weeks of data are needed to show trends.",
+    REVIEWER_PIPELINE: "Reviewer data requires the extraction pipeline to capture reviewer details."
+  };
   function clearElement(el) {
     if (!el) return;
     while (el.firstChild) {
@@ -4924,18 +4929,18 @@ var PRInsightsDashboard = (() => {
     `
     );
   }
-  var tooltipIdCounter = 0;
-  var tooltipDismissController = null;
+  var containerControllers = /* @__PURE__ */ new WeakMap();
+  var dismissListenerActive = false;
   function dismissActiveTooltip() {
     const existing = document.querySelector(".chart-tooltip");
     if (existing) existing.remove();
   }
   function addChartTooltips(container, contentFn) {
     const dots = container.querySelectorAll("[data-tooltip]");
-    if (tooltipDismissController) {
-      tooltipDismissController.abort();
-    }
-    tooltipDismissController = new AbortController();
+    containerControllers.get(container)?.abort();
+    const controller = new AbortController();
+    containerControllers.set(container, controller);
+    const { signal } = controller;
     function showTooltip(dot) {
       dismissActiveTooltip();
       const content = contentFn(dot);
@@ -4947,17 +4952,16 @@ var PRInsightsDashboard = (() => {
       tooltip.style.left = `${rect.left + rect.width / 2}px`;
       tooltip.style.top = `${rect.top - 8}px`;
       tooltip.style.transform = "translateX(-50%) translateY(-100%)";
-      tooltip.id = `tooltip-${++tooltipIdCounter}`;
       document.body.appendChild(tooltip);
     }
     dots.forEach((dot) => {
       const el = dot;
       let pointerOrigin = null;
-      el.addEventListener("mouseenter", () => showTooltip(el));
-      el.addEventListener("mouseleave", () => dismissActiveTooltip());
+      el.addEventListener("mouseenter", () => showTooltip(el), { signal });
+      el.addEventListener("mouseleave", () => dismissActiveTooltip(), { signal });
       el.addEventListener("pointerdown", (e) => {
         pointerOrigin = { x: e.clientX, y: e.clientY };
-      });
+      }, { signal });
       el.addEventListener("pointerup", (e) => {
         if (!pointerOrigin) return;
         const dx = e.clientX - pointerOrigin.x;
@@ -4968,19 +4972,18 @@ var PRInsightsDashboard = (() => {
           e.preventDefault();
           showTooltip(el);
         }
-      });
+      }, { signal });
     });
-    document.addEventListener(
-      "click",
-      (e) => {
+    if (!dismissListenerActive) {
+      dismissListenerActive = true;
+      document.addEventListener("click", (e) => {
         if (!document.querySelector(".chart-tooltip")) return;
         const target = e.target;
         if (!target.closest("[data-tooltip]") && !target.closest(".chart-tooltip")) {
           dismissActiveTooltip();
         }
-      },
-      { signal: tooltipDismissController.signal }
-    );
+      });
+    }
   }
 
   // ../ui/modules/charts/summary-cards.ts
@@ -5082,7 +5085,7 @@ var PRInsightsDashboard = (() => {
   function renderThroughputChart(container, rollups) {
     if (!container) return;
     if (!rollups || !rollups.length) {
-      renderNoData(container, "No data for selected range", "Try widening the date range or adjusting repository/team filters.");
+      renderNoData(container, "No data for selected range", NO_DATA_HINTS.WIDEN_FILTERS);
       return;
     }
     const truncated = rollups.length > MAX_THROUGHPUT_POINTS;
@@ -5166,7 +5169,7 @@ var PRInsightsDashboard = (() => {
   function renderCycleDistribution(container, distributions) {
     if (!container) return;
     if (!distributions || !distributions.length) {
-      renderNoData(container, "No data for selected range", "Try widening the date range or adjusting repository/team filters.");
+      renderNoData(container, "No data for selected range", NO_DATA_HINTS.WIDEN_FILTERS);
       return;
     }
     const buckets = {
@@ -5184,7 +5187,7 @@ var PRInsightsDashboard = (() => {
     });
     const total = Object.values(buckets).reduce((a, b) => a + b, 0);
     if (total === 0) {
-      renderNoData(container, "No cycle time data", "Try widening the date range or adjusting repository/team filters.");
+      renderNoData(container, "No cycle time data", NO_DATA_HINTS.WIDEN_FILTERS);
       return;
     }
     const html = Object.entries(buckets).map(([label, count]) => {
@@ -5204,7 +5207,7 @@ var PRInsightsDashboard = (() => {
   function renderCycleTimeTrend(container, rollups) {
     if (!container) return;
     if (!rollups || rollups.length < 2) {
-      renderNoData(container, "Not enough data for trend", "At least 2 weeks of data are needed to show trends.");
+      renderNoData(container, "Not enough data for trend", NO_DATA_HINTS.TREND_MINIMUM);
       return;
     }
     const truncated = rollups.length > MAX_CYCLE_TIME_POINTS;
@@ -5212,7 +5215,7 @@ var PRInsightsDashboard = (() => {
     const p50Data = displayRollups.map((r) => ({ week: r.week, value: r.cycle_time_p50 })).filter((d) => d.value !== null);
     const p90Data = displayRollups.map((r) => ({ week: r.week, value: r.cycle_time_p90 })).filter((d) => d.value !== null);
     if (p50Data.length < 2 && p90Data.length < 2) {
-      renderNoData(container, "No cycle time data available", "Try widening the date range or adjusting repository/team filters.");
+      renderNoData(container, "No cycle time data available", NO_DATA_HINTS.WIDEN_FILTERS);
       return;
     }
     const allValues = [
@@ -5310,7 +5313,7 @@ var PRInsightsDashboard = (() => {
   // ../ui/modules/charts/reviewer-activity.ts
   var MAX_REVIEWER_WEEKS = 8;
   function getReviewerNoDataHint(reviewerFilterActive) {
-    return reviewerFilterActive ? "Try widening the date range or adjusting reviewer filters." : "Reviewer data requires the extraction pipeline to capture reviewer details.";
+    return reviewerFilterActive ? "Try widening the date range or adjusting reviewer filters." : NO_DATA_HINTS.REVIEWER_PIPELINE;
   }
   function renderReviewerActivity(container, rollups, options = {}) {
     if (!container) return;
