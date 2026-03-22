@@ -147,6 +147,17 @@ class CSVGenerator:
                     "is_deleted",
                 ],
                 "sort_keys": ["pull_request_uid", "thread_id"],
+                "query": """
+                    SELECT
+                        thread_id,
+                        pull_request_uid,
+                        status,
+                        thread_context,
+                        last_updated,
+                        created_at,
+                        is_deleted
+                    FROM pr_threads
+                """,
             },
             "pr_comments": {
                 "columns": [
@@ -161,6 +172,19 @@ class CSVGenerator:
                     "is_deleted",
                 ],
                 "sort_keys": ["pull_request_uid", "thread_id", "comment_id"],
+                "query": """
+                    SELECT
+                        comment_id,
+                        thread_id,
+                        pull_request_uid,
+                        author_id,
+                        content,
+                        comment_type,
+                        created_at,
+                        last_updated,
+                        is_deleted
+                    FROM pr_comments
+                """,
             },
         }
 
@@ -170,7 +194,7 @@ class CSVGenerator:
         for table_name, config in comments_tables.items():
             try:
                 df = pd.read_sql_query(
-                    f"SELECT {', '.join(config['columns'])} FROM {table_name}",  # noqa: S608 -- SECURITY: table/columns are hardcoded constants
+                    config["query"],
                     self.db.connection,
                 )
             except Exception as exc:

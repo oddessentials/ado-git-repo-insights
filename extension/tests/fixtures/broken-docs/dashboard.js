@@ -3346,6 +3346,12 @@ var PRInsightsDashboard = (() => {
     const n = Number(value);
     return Number.isFinite(n) ? n : 0;
   }
+  function getOwnPropertyValue(obj, key) {
+    if (!Object.prototype.hasOwnProperty.call(obj, key)) {
+      return void 0;
+    }
+    return Object.getOwnPropertyDescriptor(obj, key)?.value;
+  }
   function calculateMetrics(rollups) {
     if (!rollups || !rollups.length) {
       return {
@@ -3448,7 +3454,7 @@ var PRInsightsDashboard = (() => {
   }
   function resolveBreakdownEntries(breakdown, keys) {
     return keys.map((key) => {
-      const direct = breakdown[key];
+      const direct = getOwnPropertyValue(breakdown, key);
       if (direct) return direct;
       return Object.entries(breakdown).find(([name]) => name === key)?.[1];
     }).filter(
@@ -3457,7 +3463,7 @@ var PRInsightsDashboard = (() => {
   }
   function resolveReviewerEntries(breakdown, keys) {
     return keys.map((key) => {
-      const direct = breakdown[key];
+      const direct = getOwnPropertyValue(breakdown, key);
       if (direct) return direct;
       return Object.entries(breakdown).find(([name]) => name === key)?.[1];
     }).filter(
@@ -3604,10 +3610,10 @@ var PRInsightsDashboard = (() => {
         let cdP50WSum = 0, cdP50WPr = 0, cdP90WSum = 0, cdP90WPr = 0;
         let cdFound = 0;
         for (const authorId of authorFilters) {
-          const authorRepos = rollup.by_author_and_repo[authorId];
+          const authorRepos = getOwnPropertyValue(rollup.by_author_and_repo, authorId);
           if (!authorRepos) continue;
           for (const repo of filters.repos) {
-            const e = authorRepos[repo];
+            const e = getOwnPropertyValue(authorRepos, repo);
             if (!e) continue;
             cdFound++;
             const pr = toFiniteNumber(e.pr_count);
@@ -3699,10 +3705,10 @@ var PRInsightsDashboard = (() => {
         let cdP50WSum = 0, cdP50WPr = 0, cdP90WSum = 0, cdP90WPr = 0;
         let cdFound = 0;
         for (const team of filters.teams) {
-          const teamRepos = rollup.by_team_and_repo[team];
+          const teamRepos = getOwnPropertyValue(rollup.by_team_and_repo, team);
           if (!teamRepos) continue;
           for (const repo of filters.repos) {
-            const e = teamRepos[repo];
+            const e = getOwnPropertyValue(teamRepos, repo);
             if (!e) continue;
             cdFound++;
             const pr = toFiniteNumber(e.pr_count);
