@@ -7,7 +7,7 @@ This command is the authoritative local gate before pushing:
 - full Python test suite with coverage
 - extension build/type/lint/test checks
 - repo-owned generated-artifact parity checks
-- suppression policy preview against the main-branch baseline
+- suppression policy gate against the main-branch baseline
 
 It uses machine-neutral temp/cache/coverage paths under the OS temp directory
 to avoid Windows-specific lock and cleanup failures in the repo root.
@@ -37,6 +37,7 @@ class CommandSpec:
     command: tuple[str, ...]
     cwd: Path = REPO_ROOT
     extra_env: dict[str, str] | None = None
+    show_output_on_success: bool = False
 
 
 @dataclass(frozen=True)
@@ -101,16 +102,25 @@ def build_commands(suppression_baseline: Path | None) -> tuple[CommandSpec, ...]
         if sys.platform == "win32"
         else ("bash", "scripts/check-ui-bundle-sync.sh")
     )
-    suppression_audit_command = [
+    local_suppression_gate = ["__PYTHON__", "scripts/audit-suppressions.py", "--diff"]
+    suppression_preview_command = [
         "__PYTHON__",
         "scripts/audit-suppressions.py",
         "--diff",
         "--allow-pending-approval",
     ]
     if suppression_baseline is not None:
-        suppression_audit_command.extend(("--baseline", str(suppression_baseline)))
+        suppression_preview_command.extend(("--baseline", str(suppression_baseline)))
 
-    return (
+    suppression_env = {
+        # Local preflight must not inherit ambient CI metadata and accidentally
+        # drift between shell sessions or hosted runners.
+        "GITHUB_EVENT_NAME": "",
+        "GITHUB_REF": "",
+        "GITHUB_EVENT_PATH": "",
+    }
+
+    commands = [
         CommandSpec("Python type check", ("__PYTHON__", "-m", "mypy", "src/")),
         CommandSpec(
             "Demo dashboard validation",
@@ -163,8 +173,9 @@ def build_commands(suppression_baseline: Path | None) -> tuple[CommandSpec, ...]
             ui_bundle_check,
         ),
         CommandSpec(
-            "Suppression audit preview",
-            tuple(suppression_audit_command),
+            "Suppression baseline sync gate",
+            tuple(local_suppression_gate),
+            extra_env=suppression_env,
         ),
         CommandSpec(
             "Extension type tests",
@@ -208,7 +219,20 @@ def build_commands(suppression_baseline: Path | None) -> tuple[CommandSpec, ...]
                 "PLAYWRIGHT_REPORT_DIR": str(smoke_report_dir()),
             },
         ),
-    )
+    ]
+
+    if suppression_baseline is not None:
+        commands.insert(
+            8,
+            CommandSpec(
+                "Suppression main-baseline preview",
+                tuple(suppression_preview_command),
+                extra_env=suppression_env,
+                show_output_on_success=True,
+            ),
+        )
+
+    return tuple(commands)
 
 
 def probe_python_version(executable: str) -> str | None:
@@ -406,7 +430,7 @@ def run_command(
         safe_print(f"cwd: {spec.cwd}")
     result = run_subprocess(command, cwd=spec.cwd, env=env)
     require_success(result, step_name=spec.name)
-    if verbose:
+    if verbose or spec.show_output_on_success:
         emit_output("stdout", result.stdout)
         emit_output("stderr", result.stderr)
 

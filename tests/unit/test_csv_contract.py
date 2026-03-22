@@ -19,6 +19,28 @@ from ado_git_repo_insights.persistence.models import CSV_SCHEMAS
 from ado_git_repo_insights.persistence.repository import PRRepository
 from ado_git_repo_insights.transform.csv_generator import CSVGenerator
 
+EXPECTED_AUXILIARY_THREAD_COLUMNS = [
+    "thread_id",
+    "pull_request_uid",
+    "status",
+    "thread_context",
+    "last_updated",
+    "created_at",
+    "is_deleted",
+]
+
+EXPECTED_AUXILIARY_COMMENT_COLUMNS = [
+    "comment_id",
+    "thread_id",
+    "pull_request_uid",
+    "author_id",
+    "content",
+    "comment_type",
+    "created_at",
+    "last_updated",
+    "is_deleted",
+]
+
 
 @pytest.fixture
 def db_with_data() -> tuple[DatabaseManager, Path]:
@@ -233,6 +255,67 @@ class TestColumnOrder:
 
         assert list(df.columns) == expected_order
 
+    def test_auxiliary_pr_threads_column_order_exact(
+        self, db_with_data: tuple[DatabaseManager, Path]
+    ) -> None:
+        """Auxiliary pr_threads.csv columns are in exact export order."""
+        db, output_dir = db_with_data
+        repo = PRRepository(db)
+
+        repo.upsert_thread(
+            thread_id="thread-1",
+            pull_request_uid="repo-1-100",
+            status="active",
+            thread_context='{"filePath":"/src/app.py"}',
+            last_updated="2024-01-15T12:30:00Z",
+            created_at="2024-01-15T12:10:00Z",
+            is_deleted=False,
+        )
+        db.connection.commit()
+
+        generator = CSVGenerator(db, output_dir)
+        generator.generate_all()
+
+        df = pd.read_csv(output_dir / "auxiliary" / "comments" / "pr_threads.csv")
+
+        assert list(df.columns) == EXPECTED_AUXILIARY_THREAD_COLUMNS
+
+    def test_auxiliary_pr_comments_column_order_exact(
+        self, db_with_data: tuple[DatabaseManager, Path]
+    ) -> None:
+        """Auxiliary pr_comments.csv columns are in exact export order."""
+        db, output_dir = db_with_data
+        repo = PRRepository(db)
+
+        repo.upsert_thread(
+            thread_id="thread-1",
+            pull_request_uid="repo-1-100",
+            status="active",
+            thread_context='{"filePath":"/src/app.py"}',
+            last_updated="2024-01-15T12:30:00Z",
+            created_at="2024-01-15T12:10:00Z",
+            is_deleted=False,
+        )
+        repo.upsert_comment(
+            comment_id="comment-1",
+            thread_id="thread-1",
+            pull_request_uid="repo-1-100",
+            author_id="user-2",
+            content="Looks good",
+            comment_type="text",
+            created_at="2024-01-15T12:15:00Z",
+            last_updated="2024-01-15T12:30:00Z",
+            is_deleted=False,
+        )
+        db.connection.commit()
+
+        generator = CSVGenerator(db, output_dir)
+        generator.generate_all()
+
+        df = pd.read_csv(output_dir / "auxiliary" / "comments" / "pr_comments.csv")
+
+        assert list(df.columns) == EXPECTED_AUXILIARY_COMMENT_COLUMNS
+
     def test_no_extra_columns(self, db_with_data: tuple[DatabaseManager, Path]) -> None:
         """No extra columns in any CSV."""
         db, output_dir = db_with_data
@@ -258,3 +341,43 @@ class TestColumnOrder:
             actual_columns = list(df.columns)
             missing = set(expected_columns) - set(actual_columns)
             assert not missing, f"Missing columns in {table_name}: {missing}"
+
+
+class TestAuxiliaryCommentsSchemaParity:
+    """Validate auxiliary comments exports against the live SQLite schema."""
+
+    @staticmethod
+    def _table_columns(db: DatabaseManager, table_name: str) -> list[str]:
+        cursor = db.execute(f"PRAGMA table_info({table_name})")
+        rows = cursor.fetchall()
+        return [str(row["name"]) for row in rows]
+
+    def test_auxiliary_pr_threads_columns_exist_in_sqlite_schema(
+        self, db_with_data: tuple[DatabaseManager, Path]
+    ) -> None:
+        """Auxiliary pr_threads export columns must exist in the live schema."""
+        db, _ = db_with_data
+        table_columns = self._table_columns(db, "pr_threads")
+
+        assert table_columns, "Expected pr_threads table to exist in schema"
+        missing = [
+            column
+            for column in EXPECTED_AUXILIARY_THREAD_COLUMNS
+            if column not in table_columns
+        ]
+        assert not missing, f"Missing pr_threads export columns in schema: {missing}"
+
+    def test_auxiliary_pr_comments_columns_exist_in_sqlite_schema(
+        self, db_with_data: tuple[DatabaseManager, Path]
+    ) -> None:
+        """Auxiliary pr_comments export columns must exist in the live schema."""
+        db, _ = db_with_data
+        table_columns = self._table_columns(db, "pr_comments")
+
+        assert table_columns, "Expected pr_comments table to exist in schema"
+        missing = [
+            column
+            for column in EXPECTED_AUXILIARY_COMMENT_COLUMNS
+            if column not in table_columns
+        ]
+        assert not missing, f"Missing pr_comments export columns in schema: {missing}"

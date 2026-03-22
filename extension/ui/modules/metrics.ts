@@ -24,6 +24,13 @@ function toFiniteNumber(value: unknown): number {
   return Number.isFinite(n) ? n : 0;
 }
 
+function getOwnPropertyValue<T>(obj: Record<string, T>, key: string): T | undefined {
+  if (!Object.prototype.hasOwnProperty.call(obj, key)) {
+    return undefined;
+  }
+  return Object.getOwnPropertyDescriptor(obj, key)?.value as T | undefined;
+}
+
 /**
  * Calculated metrics result.
  */
@@ -221,8 +228,7 @@ function resolveBreakdownEntries(
 ): BreakdownEntry[] {
   return keys
     .map((key) => {
-      // eslint-disable-next-line security/detect-object-injection -- SECURITY: key comes from validated filter state
-      const direct = breakdown[key];
+      const direct = getOwnPropertyValue(breakdown, key);
       if (direct) return direct;
       return Object.entries(breakdown).find(([name]) => name === key)?.[1];
     })
@@ -238,8 +244,7 @@ function resolveReviewerEntries(
 ): ReviewerBreakdownEntry[] {
   return keys
     .map((key) => {
-      // eslint-disable-next-line security/detect-object-injection -- SECURITY: key comes from validated filter state
-      const direct = breakdown[key];
+      const direct = getOwnPropertyValue(breakdown, key);
       if (direct) return direct;
       return Object.entries(breakdown).find(([name]) => name === key)?.[1];
     })
@@ -456,12 +461,10 @@ export function applyFiltersToRollups(
       let cdFound = 0;
 
       for (const authorId of authorFilters) {
-        // eslint-disable-next-line security/detect-object-injection -- SECURITY: author id comes from validated filter state
-        const authorRepos = rollup.by_author_and_repo[authorId];
+        const authorRepos = getOwnPropertyValue(rollup.by_author_and_repo, authorId);
         if (!authorRepos) continue;
         for (const repo of filters.repos) {
-          // eslint-disable-next-line security/detect-object-injection -- SECURITY: repo comes from validated filter state
-          const e = authorRepos[repo];
+          const e = getOwnPropertyValue(authorRepos, repo);
           if (!e) continue;
           cdFound++;
           const pr = toFiniteNumber(e.pr_count);
@@ -578,12 +581,10 @@ export function applyFiltersToRollups(
       let cdFound = 0;
 
       for (const team of filters.teams) {
-        // eslint-disable-next-line security/detect-object-injection -- SECURITY: team comes from validated filter state
-        const teamRepos = rollup.by_team_and_repo[team];
+        const teamRepos = getOwnPropertyValue(rollup.by_team_and_repo, team);
         if (!teamRepos) continue;
         for (const repo of filters.repos) {
-          // eslint-disable-next-line security/detect-object-injection -- SECURITY: repo comes from validated filter state
-          const e = teamRepos[repo];
+          const e = getOwnPropertyValue(teamRepos, repo);
           if (!e) continue;
           cdFound++;
           const pr = toFiniteNumber(e.pr_count);

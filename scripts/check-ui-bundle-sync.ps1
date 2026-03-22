@@ -123,14 +123,16 @@ if ($DiffFound) {
     exit 1
 }
 
-# Check for uncommitted changes in bundle
-$gitStatus = git -C $RepoRoot status --porcelain -- $BundleDir 2>$null
-if ($gitStatus) {
-    Write-Host "UI bundle sync generated uncommitted changes."
+# Match CI and pre-commit behavior: fail only if sync still leaves working-tree drift.
+# Staged bundle updates are expected while preparing a commit and should not make
+# local preflight impossible to pass.
+$bundleWorktreeDiff = git -C $RepoRoot diff --name-only -- $BundleDir 2>$null
+if ($bundleWorktreeDiff) {
+    Write-Host "UI bundle sync generated unstaged changes."
     Write-Host ""
-    git -C $RepoRoot status --short -- $BundleDir
+    git -C $RepoRoot diff --stat -- $BundleDir
     Write-Host ""
-    Write-Host "Commit the synchronized UI bundle before merging."
+    Write-Host "Stage or commit the synchronized UI bundle before merging."
     exit 1
 }
 

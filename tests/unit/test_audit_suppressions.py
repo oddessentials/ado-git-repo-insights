@@ -8,6 +8,8 @@ Tests the suppression audit functionality including:
 from __future__ import annotations
 
 import fnmatch
+import json
+import os
 import subprocess
 import sys
 from pathlib import Path
@@ -125,6 +127,15 @@ class TestExcludedFilePatterns:
 class TestAuditSuppressionsCLI:
     """Integration tests for the audit-suppressions.py CLI."""
 
+    @staticmethod
+    def _local_env() -> dict[str, str]:
+        """Build a local-style environment for subprocess execution."""
+        env = os.environ.copy()
+        env.pop("GITHUB_EVENT_NAME", None)
+        env.pop("GITHUB_REF", None)
+        env.pop("GITHUB_EVENT_PATH", None)
+        return env
+
     def test_script_runs_without_error(self) -> None:
         """The audit script should run without errors."""
         result = subprocess.run(  # noqa: S603 - trusted test code
@@ -177,8 +188,61 @@ class TestAuditSuppressionsCLI:
             capture_output=True,
             text=True,
             cwd=Path(__file__).parent.parent.parent,
+            env=self._local_env(),
         )
         assert result.returncode == 0, result.stdout + result.stderr
+
+    def test_diff_pending_approval_does_not_bypass_direct_push_policy(
+        self, tmp_path: Path
+    ) -> None:
+        """Direct-push protection must still win under CI-style main env."""
+        baseline_path = tmp_path / "baseline.json"
+        baseline_path.write_text(
+            json.dumps(
+                {
+                    "version": 1,
+                    "generated_at": "2026-03-22T00:00:00Z",
+                    "total": 0,
+                    "by_scope": {
+                        "python-backend": 0,
+                        "typescript-extension": 0,
+                        "typescript-tests": 0,
+                    },
+                    "by_type": {
+                        "eslint-disable-block": 0,
+                        "eslint-disable-line": 0,
+                        "eslint-disable-next-line": 0,
+                        "noqa": 0,
+                        "ts-expect-error": 0,
+                        "ts-ignore": 0,
+                        "type-ignore": 0,
+                    },
+                    "by_file": {},
+                    "by_rule": {},
+                },
+                indent=2,
+            ),
+            encoding="utf-8",
+        )
+        env = self._local_env()
+        env["GITHUB_EVENT_NAME"] = "push"
+        env["GITHUB_REF"] = "refs/heads/main"
+        result = subprocess.run(  # noqa: S603 - trusted test code
+            [
+                sys.executable,
+                str(AUDIT_SCRIPT),
+                "--diff",
+                "--allow-pending-approval",
+                "--baseline",
+                str(baseline_path),
+            ],
+            capture_output=True,
+            text=True,
+            cwd=Path(__file__).parent.parent.parent,
+            env=env,
+        )
+        assert result.returncode == 1
+        assert "Direct push to main" in result.stdout
 
     def test_validate_command_works(self) -> None:
         """The --validate command should run without errors."""
