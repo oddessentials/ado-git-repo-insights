@@ -64,7 +64,7 @@ test_files:
   - tests/unit/test_aggregators.py
   - extension/tests/modules/metrics.test.ts
 docs_files:
-  - TODO/ROADMAP.md
+  - docs/roadmap/closure-status.md
 commands:
   - pytest tests/unit/test_aggregators.py -k author
   - cd extension && pnpm run test:unit -- --testPathPatterns=metrics

@@ -15,8 +15,8 @@
 
 ## docs_files
 
-- `TODO/TEAM_REVIEWER_FILTERS.md`
-- `TODO/ROADMAP.md`
+- `docs/roadmap/team-reviewer-filters.md`
+- `docs/roadmap/closure-status.md`
 
 ## commands
 

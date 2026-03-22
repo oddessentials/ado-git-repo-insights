@@ -42,10 +42,10 @@ This program closes the remaining roadmap by shipping:
 
 | File | Change |
 |------|--------|
-| `TODO/ROADMAP.md` | Mark roadmap complete with evidence references |
-| `TODO/AUTHOR_CONTRIBUTOR_FILTERS.md` | Move from open TODO to shipped/deferred state |
-| `TODO/COMMENTS.md` | Move from backend-complete note to fully closed roadmap item |
-| `TODO/TEAM_REVIEWER_FILTERS.md` | Record reviewer combination decision and post-roadmap latency deferment |
+| `docs/roadmap/closure-status.md` | Mark roadmap complete with evidence references |
+| `docs/roadmap/author-contributor-filters.md` | Move from open TODO to shipped/deferred state |
+| `docs/roadmap/comments.md` | Move from backend-complete note to fully closed roadmap item |
+| `docs/roadmap/team-reviewer-filters.md` | Record reviewer combination decision and post-roadmap latency deferment |
 | `docs/reference/cli-reference.md` | Document comment flags and auxiliary output status |
 | `docs/reference/dataset-contract.md` | Document additive author/comments/capability surfaces without changing core CSV contract |
 

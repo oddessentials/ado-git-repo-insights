@@ -5,10 +5,10 @@
 
 ## implementation_files
 
-- `TODO/ROADMAP.md`
-- `TODO/AUTHOR_CONTRIBUTOR_FILTERS.md`
-- `TODO/COMMENTS.md`
-- `TODO/TEAM_REVIEWER_FILTERS.md`
+- `docs/roadmap/closure-status.md`
+- `docs/roadmap/author-contributor-filters.md`
+- `docs/roadmap/comments.md`
+- `docs/roadmap/team-reviewer-filters.md`
 
 ## test_files
 

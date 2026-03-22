@@ -19,7 +19,7 @@
 
 ## docs_files
 
-- `TODO/AUTHOR_CONTRIBUTOR_FILTERS.md`
+- `docs/roadmap/author-contributor-filters.md`
 - `docs/reference/dataset-contract.md`
 
 ## commands

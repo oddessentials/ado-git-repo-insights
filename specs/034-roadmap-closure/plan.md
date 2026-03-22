@@ -227,7 +227,7 @@ Author filtering is locked to searchable single-select UX for this roadmap progr
 
 - Record and implement one allowed mode per reviewer combination.
 - Keep review latency deferred until persisted `reviewed_at` exists and is backfilled.
-- Publish closure evidence and update `TODO/ROADMAP.md` plus subordinate TODOs to reflect actual shipped state and post-roadmap deferrals.
+- Publish closure evidence and update `docs/roadmap/closure-status.md` plus subordinate roadmap docs to reflect actual shipped state and post-roadmap deferrals.
 - Apply locked reviewer modes from DD-02 and store evidence files under DD-05.
 
 ## File Impacts For Future Implementation
@@ -259,10 +259,10 @@ Author filtering is locked to searchable single-select UX for this roadmap progr
 
 ### Documentation And Governance
 
-- `TODO/ROADMAP.md`
-- `TODO/AUTHOR_CONTRIBUTOR_FILTERS.md`
-- `TODO/COMMENTS.md`
-- `TODO/TEAM_REVIEWER_FILTERS.md`
+- `docs/roadmap/closure-status.md`
+- `docs/roadmap/author-contributor-filters.md`
+- `docs/roadmap/comments.md`
+- `docs/roadmap/team-reviewer-filters.md`
 - `docs/reference/dataset-contract.md`
 - `docs/reference/cli-reference.md`
 - `docs/user-guide/extension.md`

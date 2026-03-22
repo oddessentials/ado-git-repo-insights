@@ -26,7 +26,7 @@
 
 ## docs_files
 
-- `TODO/COMMENTS.md`
+- `docs/roadmap/comments.md`
 - `docs/reference/cli-reference.md`
 - `docs/reference/dataset-contract.md`
 
