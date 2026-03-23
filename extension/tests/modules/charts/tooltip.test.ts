@@ -172,6 +172,42 @@ describe("addChartTooltips click/tap support", () => {
     expect(document.querySelector(".chart-tooltip")).toBeNull();
   });
 
+  it("ignores pointerup without preceding pointerdown", () => {
+    addChartTooltips(container, (el) => `<div>${el.dataset.week}</div>`);
+
+    const dot = container.querySelector("[data-tooltip]") as HTMLElement;
+    dot.dispatchEvent(new PointerEvent("pointerup", { clientX: 100, clientY: 100, bubbles: true }));
+
+    expect(document.querySelector(".chart-tooltip")).toBeNull();
+  });
+
+  it("does not dismiss tooltip when clicking on the tooltip itself", () => {
+    addChartTooltips(container, (el) => `<div>${el.dataset.week}</div>`);
+
+    const dot = container.querySelector("[data-tooltip]") as HTMLElement;
+    dot.dispatchEvent(new PointerEvent("pointerdown", { clientX: 100, clientY: 100, bubbles: true }));
+    dot.dispatchEvent(new PointerEvent("pointerup", { clientX: 100, clientY: 100, bubbles: true }));
+
+    const tooltip = document.querySelector(".chart-tooltip") as HTMLElement;
+    expect(tooltip).not.toBeNull();
+
+    tooltip.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+
+    expect(document.querySelector(".chart-tooltip")).not.toBeNull();
+  });
+
+  it("does not dismiss tooltip when clicking on a data-tooltip element", () => {
+    addChartTooltips(container, (el) => `<div>${el.dataset.week}</div>`);
+
+    const dot = container.querySelector("[data-tooltip]") as HTMLElement;
+    dot.dispatchEvent(new MouseEvent("mouseenter", { bubbles: true }));
+    expect(document.querySelector(".chart-tooltip")).not.toBeNull();
+
+    dot.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+
+    expect(document.querySelector(".chart-tooltip")).not.toBeNull();
+  });
+
   it("does not show tooltip when scroll gesture detected (>10px movement)", () => {
     addChartTooltips(container, (el) => {
       return `<div>${el.dataset.week}</div>`;

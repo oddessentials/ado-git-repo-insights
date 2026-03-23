@@ -5,6 +5,7 @@
  * and other UX polish rendering behaviors.
  */
 import { renderThroughputChart } from "../../ui/modules/charts/throughput";
+import { renderNoData } from "../../ui/modules/shared/render";
 import type { Rollup } from "../../ui/dataset-loader";
 
 function makeRollups(count: number): Rollup[] {
@@ -66,6 +67,17 @@ describe("Empty state messages include contextual hints", () => {
     const hint = container.querySelector(".no-data-hint");
     expect(hint).not.toBeNull();
     expect(hint?.textContent).toContain("Try widening");
+  });
+});
+
+describe("renderNoData hint parameter", () => {
+  it("does not create hint element when hint is omitted", () => {
+    const container = document.createElement("div");
+    renderNoData(container, "No data available");
+
+    expect(container.querySelector(".no-data")).not.toBeNull();
+    expect(container.querySelector(".no-data")?.textContent).toBe("No data available");
+    expect(container.querySelector(".no-data-hint")).toBeNull();
   });
 });
 

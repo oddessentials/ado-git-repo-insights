@@ -210,4 +210,18 @@ describe("Label thinning", () => {
     const labels = container.querySelectorAll(".bar-label");
     expect(labels[0].textContent).not.toBe("");
   });
+
+  it("shows tooltip with week and PR count on bar hover", () => {
+    renderThroughputChart(container, makeTestRollups(4));
+
+    const bar = container.querySelector("[data-tooltip]") as HTMLElement;
+    bar.dispatchEvent(new MouseEvent("mouseenter", { bubbles: true }));
+
+    const tooltip = document.querySelector(".chart-tooltip");
+    expect(tooltip).not.toBeNull();
+    expect(tooltip?.textContent).toContain("2025-W01");
+    expect(tooltip?.textContent).toContain("10");
+
+    bar.dispatchEvent(new MouseEvent("mouseleave", { bubbles: true }));
+  });
 });

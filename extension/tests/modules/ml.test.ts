@@ -19,6 +19,7 @@ import {
   initializePhase5Features,
   createInitialMlState,
 } from "../../ui/modules/ml";
+import { extractHistoricalData } from "../../ui/modules/charts/predictions";
 import {
   createSeededRandom,
   generateSyntheticPredictions,
@@ -204,6 +205,28 @@ describe("renderPredictions", () => {
   });
 });
 
+describe("extractHistoricalData", () => {
+  it("returns empty array for empty rollups", () => {
+    expect(extractHistoricalData([], "pr_throughput")).toEqual([]);
+  });
+
+  it("returns empty array for unknown metric", () => {
+    const rollups = [{ week: "2024-W01", pr_count: 10, cycle_time_p50: 60 }];
+    expect(extractHistoricalData(rollups, "unknown_metric")).toEqual([]);
+  });
+
+  it("returns data points for pr_throughput metric", () => {
+    const rollups = [
+      { week: "2024-W01", pr_count: 5, cycle_time_p50: 60 },
+      { week: "2024-W02", pr_count: 10, cycle_time_p50: 70 },
+    ];
+    const result = extractHistoricalData(rollups, "pr_throughput");
+    expect(result).toHaveLength(2);
+    expect(result[0].value).toBe(5);
+    expect(result[1].value).toBe(10);
+  });
+});
+
 describe("renderAIInsights", () => {
   let container: HTMLElement;
 
@@ -281,6 +304,31 @@ describe("renderAIInsights", () => {
 
     expect(container.innerHTML).not.toContain("<script>");
     expect(container.innerHTML).toContain("&lt;script&gt;");
+  });
+
+  it("shows sparkline truncation badge when data exceeds 200 points", () => {
+    const insights: InsightsRenderData = {
+      insights: [
+        {
+          severity: "warning",
+          category: "Performance",
+          title: "Big sparkline",
+          description: "Has many data points",
+          data: {
+            metric: "pr_throughput",
+            current_value: 42,
+            trend_direction: "up" as const,
+            sparkline: Array.from({ length: 201 }, (_, i) => i + 1),
+          },
+        },
+      ],
+    };
+
+    renderAIInsights(container, insights);
+
+    const badge = container.querySelector(".truncation-badge");
+    expect(badge).not.toBeNull();
+    expect(badge?.getAttribute("title")).toContain("200");
   });
 });
 
