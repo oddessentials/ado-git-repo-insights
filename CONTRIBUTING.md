@@ -16,12 +16,8 @@ python -m venv .venv
 source .venv/bin/activate  # or .venv\Scripts\activate on Windows
 pip install -e .[dev]
 
-# Pre-commit hooks
-pip install pre-commit
-pre-commit install
-
 # Extension (if working on ADO extension)
-cd extension && npm ci && cd ..
+cd extension && pnpm install && cd ..
 ```
 
 **Detailed setup:** [Development Setup Guide](docs/development/setup.md)
@@ -35,7 +31,7 @@ cd extension && npm ci && cd ..
 pytest
 
 # Extension
-cd extension && npm test
+cd extension && pnpm test
 
 # Authoritative local PR gate
 python scripts/run_pr_preflight.py
@@ -111,17 +107,35 @@ Changes to the Azure DevOps task Major version require special approval. Include
 
 ---
 
-## UI Bundle Synchronization
+## Generated UI And Demo Artifacts
 
 The dashboard UI exists in two locations that must stay synchronized:
 - `extension/ui/` — Source of truth
 - `src/ado_git_repo_insights/ui_bundle/` — Copy for pip package
 
-**Always edit `extension/ui/`** and run sync before committing:
+Additional published/demo mirrors are also managed:
+- `docs/` — published demo shell and built UI assets
+- `extension/tests/fixtures/broken-docs/` — broken-docs fixture shell/assets
+
+**Always edit `extension/ui/`** and use the managed artifact sync before committing:
 
 ```bash
-python scripts/sync_ui_bundle.py
+python scripts/manage_generated_artifacts.py sync --scope ui
 git add extension/ui/ src/ado_git_repo_insights/ui_bundle/
+```
+
+If your change affects the published demo or you want the full generated surface
+refreshed explicitly:
+
+```bash
+python scripts/manage_generated_artifacts.py sync --scope all
+```
+
+To run the repo-owned hooks directly:
+
+```bash
+python scripts/run_repo_hook.py pre-commit
+python scripts/run_repo_hook.py pre-push
 ```
 
 **Details:** [UI Bundle Sync Guide](docs/development/ui-bundle-sync.md)

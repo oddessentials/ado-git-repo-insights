@@ -91,17 +91,6 @@ def main_branch_suppression_baseline() -> Path | None:
 
 
 def build_commands(suppression_baseline: Path | None) -> tuple[CommandSpec, ...]:
-    ui_bundle_check = (
-        (
-            "powershell",
-            "-ExecutionPolicy",
-            "Bypass",
-            "-File",
-            "scripts/check-ui-bundle-sync.ps1",
-        )
-        if sys.platform == "win32"
-        else ("bash", "scripts/check-ui-bundle-sync.sh")
-    )
     local_suppression_gate = ["__PYTHON__", "scripts/audit-suppressions.py", "--diff"]
     suppression_preview_command = [
         "__PYTHON__",
@@ -169,8 +158,14 @@ def build_commands(suppression_baseline: Path | None) -> tuple[CommandSpec, ...]
             cwd=EXTENSION_ROOT,
         ),
         CommandSpec(
-            "UI bundle sync parity",
-            ui_bundle_check,
+            "Generated artifact parity",
+            (
+                "__PYTHON__",
+                "scripts/manage_generated_artifacts.py",
+                "verify",
+                "--scope",
+                "all",
+            ),
         ),
         CommandSpec(
             "Suppression baseline sync gate",

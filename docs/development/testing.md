@@ -53,7 +53,7 @@ pytest -x
 
 ```bash
 cd extension
-npm test
+pnpm test
 ```
 
 ---
@@ -202,7 +202,11 @@ What it verifies:
 - full Python suite with coverage
 - extension `build:check`
 - extension lint
-- extension `test:ci`
+- extension UI build
+- managed generated artifact parity
+- extension type tests
+- extension Jest CI
+- extension smoke tests
 
 Why this exists:
 - it uses stable temp/cache/coverage paths under the OS temp directory
@@ -213,9 +217,10 @@ Why this exists:
   interpreter even if your shell default points elsewhere
 
 Recommended workflow:
-1. `python scripts/run_pr_preflight.py`
-2. `python scripts/run_ci_parity.py`
-3. push only after both pass for the change you made
+1. `python scripts/run_repo_hook.py pre-commit`
+2. `python scripts/run_repo_hook.py pre-push`
+3. `python scripts/run_ci_parity.py` for higher-confidence matrix parity when needed
+4. push only after the relevant gates pass for the change you made
 
 ### CI Checks
 

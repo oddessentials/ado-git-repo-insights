@@ -35,6 +35,13 @@ The data-only refresh path is:
 python scripts/build-demo-dataset.py
 ```
 
+The supported manual generated-surface sync commands are:
+
+```bash
+python scripts/manage_generated_artifacts.py sync --scope ui
+python scripts/manage_generated_artifacts.py sync --scope all
+```
+
 `docs/data/` and `docs/index.html` are generated-only and MUST NOT be hand-edited.
 
 ## Local Manual Preview
