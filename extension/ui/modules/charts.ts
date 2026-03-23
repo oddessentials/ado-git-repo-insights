@@ -132,8 +132,14 @@ export function renderSparkline(
  */
 const containerControllers = new WeakMap<HTMLElement, AbortController>();
 
-/** Whether the shared document-level dismiss listener is attached. */
-let dismissListenerActive = false;
+/** Containers that currently own active tooltip listeners. */
+const activeTooltipContainers = new WeakSet<HTMLElement>();
+
+/** Shared document-level dismiss listener controller. */
+let dismissListenerController: AbortController | null = null;
+
+/** Count of containers with active tooltip listeners. */
+let activeTooltipContainerCount = 0;
 
 /**
  * Dismiss any active chart tooltip.
@@ -141,6 +147,49 @@ let dismissListenerActive = false;
 function dismissActiveTooltip(): void {
   const existing = document.querySelector(".chart-tooltip");
   if (existing) existing.remove();
+}
+
+function ensureDismissListener(): void {
+  if (dismissListenerController) return;
+  dismissListenerController = new AbortController();
+  const { signal } = dismissListenerController;
+  document.addEventListener(
+    "click",
+    (e: MouseEvent) => {
+      if (!document.querySelector(".chart-tooltip")) return;
+      const target = e.target as HTMLElement;
+      if (
+        !target.closest("[data-tooltip]") &&
+        !target.closest(".chart-tooltip")
+      ) {
+        dismissActiveTooltip();
+      }
+    },
+    { signal },
+  );
+}
+
+function releaseDismissListenerIfUnused(): void {
+  if (activeTooltipContainerCount > 0) return;
+  dismissListenerController?.abort();
+  dismissListenerController = null;
+}
+
+/**
+ * Remove tooltip listeners associated with a specific chart container.
+ * Safe to call even if the container has no active tooltip listeners.
+ *
+ * @param container - Chart container to clean up
+ */
+export function clearChartTooltips(container: HTMLElement | null): void {
+  if (!container) return;
+  containerControllers.get(container)?.abort();
+  containerControllers.delete(container);
+  if (activeTooltipContainers.delete(container)) {
+    activeTooltipContainerCount = Math.max(0, activeTooltipContainerCount - 1);
+  }
+  dismissActiveTooltip();
+  releaseDismissListenerIfUnused();
 }
 
 /**
@@ -157,13 +206,13 @@ export function addChartTooltips(
   container: HTMLElement,
   contentFn: (dot: HTMLElement) => string,
 ): void {
+  clearChartTooltips(container);
   const dots = container.querySelectorAll("[data-tooltip]");
-
-  // Abort only this container's previous listeners (not other charts')
-  containerControllers.get(container)?.abort();
-  dismissActiveTooltip();
   const controller = new AbortController();
   containerControllers.set(container, controller);
+  activeTooltipContainers.add(container);
+  activeTooltipContainerCount += 1;
+  ensureDismissListener();
   const { signal } = controller;
 
   function showTooltip(dot: HTMLElement): void {
@@ -219,19 +268,4 @@ export function addChartTooltips(
       { signal },
     );
   });
-
-  // Attach the shared document-level dismiss listener once (idempotent)
-  if (!dismissListenerActive) {
-    dismissListenerActive = true;
-    document.addEventListener("click", (e: MouseEvent) => {
-      if (!document.querySelector(".chart-tooltip")) return;
-      const target = e.target as HTMLElement;
-      if (
-        !target.closest("[data-tooltip]") &&
-        !target.closest(".chart-tooltip")
-      ) {
-        dismissActiveTooltip();
-      }
-    });
-  }
 }

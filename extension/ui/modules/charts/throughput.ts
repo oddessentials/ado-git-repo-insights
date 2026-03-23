@@ -15,7 +15,7 @@ import {
   renderNoData,
   renderTrustedHtml,
 } from "../shared/render";
-import { addChartTooltips } from "../charts";
+import { addChartTooltips, clearChartTooltips } from "../charts";
 
 /** Maximum data points rendered in the throughput chart (2 years of weekly data). */
 export const MAX_THROUGHPUT_POINTS = 104;
@@ -37,6 +37,7 @@ export function renderThroughputChart(
   rollups: Rollup[],
 ): void {
   if (!container) return;
+  clearChartTooltips(container);
 
   if (!rollups || !rollups.length) {
     renderNoData(
@@ -102,7 +103,7 @@ export function renderThroughputChart(
     container,
     `
         ${truncationHtml}
-        <div class="chart-with-trend">
+        <div class="chart-with-trend" style="--chart-surface: var(--bg-primary);">
             <div class="bar-chart">${barsHtml}</div>
             ${trendLineHtml}
         </div>

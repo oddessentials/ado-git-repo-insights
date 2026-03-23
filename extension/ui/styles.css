@@ -9,6 +9,7 @@
     --primary-light: #deecf9;
     --success: #107c10;
     --warning: #ffb900;
+    --warning-bg: #fff8e1;
     --error: #d13438;
 
     --bg-primary: #ffffff;
@@ -22,13 +23,15 @@
     --border: #e1dfdd;
     --border-strong: #c8c6c4;
 
-    --shadow-sm: 0 1.6px 3.6px rgba(0, 0, 0, 0.1), 0 0.3px 0.9px rgba(0, 0, 0, 0.05);
-    --shadow-md: 0 6.4px 14.4px rgba(0, 0, 0, 0.13), 0 1.2px 3.6px rgba(0, 0, 0, 0.11);
+    --shadow-sm:
+        0 1.6px 3.6px rgba(0, 0, 0, 0.1), 0 0.3px 0.9px rgba(0, 0, 0, 0.05);
+    --shadow-md:
+        0 6.4px 14.4px rgba(0, 0, 0, 0.13), 0 1.2px 3.6px rgba(0, 0, 0, 0.11);
 
     --radius: 4px;
     --radius-lg: 8px;
 
-    --font-family: 'Segoe UI', -apple-system, BlinkMacSystemFont, sans-serif;
+    --font-family: "Segoe UI", -apple-system, BlinkMacSystemFont, sans-serif;
 }
 
 * {
@@ -131,7 +134,7 @@ body {
 
 .filter-hint-warning {
     border-left-color: var(--warning);
-    background: #fff8e1;
+    background: var(--warning-bg);
 }
 
 /* WCAG 2.1 AA: Screen reader only text */
@@ -788,7 +791,11 @@ input[type="search"]::placeholder {
 .bar {
     width: 100%;
     max-width: 40px;
-    background: linear-gradient(180deg, var(--primary) 0%, var(--primary-dark) 100%);
+    background: linear-gradient(
+        180deg,
+        var(--primary) 0%,
+        var(--primary-dark) 100%
+    );
     border-radius: var(--radius) var(--radius) 0 0;
     transition: height 0.3s ease;
 }
@@ -864,7 +871,11 @@ input[type="search"]::placeholder {
 .legend-bar {
     width: 12px;
     height: 12px;
-    background: linear-gradient(180deg, var(--primary) 0%, var(--primary-dark) 100%);
+    background: linear-gradient(
+        180deg,
+        var(--primary) 0%,
+        var(--primary-dark) 100%
+    );
     border-radius: 2px;
 }
 
@@ -1047,7 +1058,11 @@ input[type="search"]::placeholder {
 
 .dist-bar {
     height: 100%;
-    background: linear-gradient(90deg, var(--primary) 0%, var(--primary-dark) 100%);
+    background: linear-gradient(
+        90deg,
+        var(--primary) 0%,
+        var(--primary-dark) 100%
+    );
     border-radius: var(--radius);
     transition: width 0.3s ease;
 }
@@ -1118,7 +1133,11 @@ input[type="search"]::placeholder {
 
 /* Coming Soon state for Phase 5 features */
 .feature-unavailable.coming-soon {
-    background: linear-gradient(135deg, var(--bg-primary) 0%, var(--bg-secondary) 100%);
+    background: linear-gradient(
+        135deg,
+        var(--bg-primary) 0%,
+        var(--bg-secondary) 100%
+    );
     border: 1px dashed var(--border);
 }
 
@@ -1721,7 +1740,7 @@ input[type="search"]::placeholder {
 }
 
 .yaml-snippet code {
-    font-family: 'Consolas', 'Monaco', monospace;
+    font-family: "Consolas", "Monaco", monospace;
     font-size: 13px;
     color: #d4d4d4;
     line-height: 1.5;
@@ -1872,7 +1891,7 @@ input[type="search"]::placeholder {
     background: var(--bg-tertiary);
     padding: 2px 6px;
     border-radius: 3px;
-    font-family: 'Consolas', 'Monaco', monospace;
+    font-family: "Consolas", "Monaco", monospace;
     font-size: 12px;
 }
 
@@ -1914,7 +1933,7 @@ input[type="search"]::placeholder {
 .pipeline-option .pipeline-id {
     font-size: 12px;
     color: var(--text-tertiary);
-    font-family: 'Consolas', 'Monaco', monospace;
+    font-family: "Consolas", "Monaco", monospace;
 }
 
 /* Settings Page */
@@ -2008,7 +2027,7 @@ input[type="search"]::placeholder {
     background: var(--bg-tertiary);
     padding: 2px 6px;
     border-radius: 3px;
-    font-family: 'Consolas', 'Monaco', monospace;
+    font-family: "Consolas", "Monaco", monospace;
 }
 
 /* Settings Actions */
@@ -2146,7 +2165,7 @@ input[type="search"]::placeholder {
     background: var(--bg-tertiary);
     padding: 2px 6px;
     border-radius: 3px;
-    font-family: 'Consolas', 'Monaco', monospace;
+    font-family: "Consolas", "Monaco", monospace;
 }
 
 .settings-footer a {
@@ -2184,6 +2203,7 @@ input[type="search"]::placeholder {
 
 .chart-with-trend {
     position: relative;
+    --chart-surface: var(--bg-primary);
 }
 
 .chart-with-trend::after {
@@ -2193,7 +2213,7 @@ input[type="search"]::placeholder {
     right: 0;
     width: 40px;
     height: 200px;
-    background: linear-gradient(to right, transparent, var(--bg-primary));
+    background: linear-gradient(to right, transparent, var(--chart-surface));
     pointer-events: none;
     opacity: 0;
     transition: opacity 0.2s ease;
@@ -2586,7 +2606,7 @@ input[type="search"]::placeholder {
 
 .forecast-table .number {
     text-align: right;
-    font-family: 'SF Mono', 'Consolas', monospace;
+    font-family: "SF Mono", "Consolas", monospace;
 }
 
 .forecast-table .range {

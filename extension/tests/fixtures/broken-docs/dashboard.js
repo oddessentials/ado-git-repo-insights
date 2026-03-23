@@ -3368,15 +3368,26 @@ var PRInsightsDashboard = (() => {
   }
 
   // ../ui/modules/metrics.ts
+  var HAS_WINDOW = typeof window !== "undefined";
+  var IS_PRODUCTION = typeof process !== "undefined" && false;
+  var SHOULD_WARN_ON_COERCION = !IS_PRODUCTION && HAS_WINDOW && window.__DASHBOARD_DEBUG__ === true;
+  var hasWarnedOnMetricCoercion = false;
   function toFiniteNumber(value) {
     const n = Number(value);
-    return Number.isFinite(n) ? n : 0;
+    if (Number.isFinite(n)) {
+      return n;
+    }
+    if (SHOULD_WARN_ON_COERCION && !hasWarnedOnMetricCoercion) {
+      hasWarnedOnMetricCoercion = true;
+      console.warn(
+        "metrics.ts coerced a non-finite metric value to 0; verify upstream rollup data if this is unexpected.",
+        value
+      );
+    }
+    return 0;
   }
   function getOwnPropertyValue(obj, key) {
-    if (!Object.prototype.hasOwnProperty.call(obj, key)) {
-      return void 0;
-    }
-    return Object.getOwnPropertyDescriptor(obj, key)?.value;
+    return Object.prototype.hasOwnProperty.call(obj, key) ? obj[key] : void 0;
   }
   function calculateMetrics(rollups) {
     if (!rollups || !rollups.length) {
@@ -4944,17 +4955,52 @@ var PRInsightsDashboard = (() => {
     );
   }
   var containerControllers = /* @__PURE__ */ new WeakMap();
-  var dismissListenerActive = false;
+  var activeTooltipContainers = /* @__PURE__ */ new WeakSet();
+  var dismissListenerController = null;
+  var activeTooltipContainerCount = 0;
   function dismissActiveTooltip() {
     const existing = document.querySelector(".chart-tooltip");
     if (existing) existing.remove();
   }
-  function addChartTooltips(container, contentFn) {
-    const dots = container.querySelectorAll("[data-tooltip]");
+  function ensureDismissListener() {
+    if (dismissListenerController) return;
+    dismissListenerController = new AbortController();
+    const { signal } = dismissListenerController;
+    document.addEventListener(
+      "click",
+      (e) => {
+        if (!document.querySelector(".chart-tooltip")) return;
+        const target = e.target;
+        if (!target.closest("[data-tooltip]") && !target.closest(".chart-tooltip")) {
+          dismissActiveTooltip();
+        }
+      },
+      { signal }
+    );
+  }
+  function releaseDismissListenerIfUnused() {
+    if (activeTooltipContainerCount > 0) return;
+    dismissListenerController?.abort();
+    dismissListenerController = null;
+  }
+  function clearChartTooltips(container) {
+    if (!container) return;
     containerControllers.get(container)?.abort();
+    containerControllers.delete(container);
+    if (activeTooltipContainers.delete(container)) {
+      activeTooltipContainerCount = Math.max(0, activeTooltipContainerCount - 1);
+    }
     dismissActiveTooltip();
+    releaseDismissListenerIfUnused();
+  }
+  function addChartTooltips(container, contentFn) {
+    clearChartTooltips(container);
+    const dots = container.querySelectorAll("[data-tooltip]");
     const controller = new AbortController();
     containerControllers.set(container, controller);
+    activeTooltipContainers.add(container);
+    activeTooltipContainerCount += 1;
+    ensureDismissListener();
     const { signal } = controller;
     function showTooltip(dot) {
       dismissActiveTooltip();
@@ -4997,16 +5043,6 @@ var PRInsightsDashboard = (() => {
         { signal }
       );
     });
-    if (!dismissListenerActive) {
-      dismissListenerActive = true;
-      document.addEventListener("click", (e) => {
-        if (!document.querySelector(".chart-tooltip")) return;
-        const target = e.target;
-        if (!target.closest("[data-tooltip]") && !target.closest(".chart-tooltip")) {
-          dismissActiveTooltip();
-        }
-      });
-    }
   }
 
   // ../ui/modules/charts/summary-cards.ts
@@ -5107,6 +5143,7 @@ var PRInsightsDashboard = (() => {
   var MAX_VISIBLE_LABELS = 16;
   function renderThroughputChart(container, rollups) {
     if (!container) return;
+    clearChartTooltips(container);
     if (!rollups || !rollups.length) {
       renderNoData(
         container,
@@ -5151,7 +5188,7 @@ var PRInsightsDashboard = (() => {
       container,
       `
         ${truncationHtml}
-        <div class="chart-with-trend">
+        <div class="chart-with-trend" style="--chart-surface: var(--bg-primary);">
             <div class="bar-chart">${barsHtml}</div>
             ${trendLineHtml}
         </div>
@@ -5237,6 +5274,7 @@ var PRInsightsDashboard = (() => {
   }
   function renderCycleTimeTrend(container, rollups) {
     if (!container) return;
+    clearChartTooltips(container);
     if (!rollups || rollups.length < 2) {
       renderNoData(
         container,
@@ -5521,8 +5559,8 @@ var PRInsightsDashboard = (() => {
     }
     return null;
   }
-  var IS_PRODUCTION = typeof window !== "undefined" && window.process?.env?.NODE_ENV === "production";
-  var DEBUG_ENABLED = !IS_PRODUCTION && (typeof window !== "undefined" && window.__DASHBOARD_DEBUG__ || typeof window !== "undefined" && new URLSearchParams(window.location.search).has("debug"));
+  var IS_PRODUCTION2 = typeof window !== "undefined" && window.process?.env?.NODE_ENV === "production";
+  var DEBUG_ENABLED = !IS_PRODUCTION2 && (typeof window !== "undefined" && window.__DASHBOARD_DEBUG__ || typeof window !== "undefined" && new URLSearchParams(window.location.search).has("debug"));
   var metricsCollector = DEBUG_ENABLED ? {
     marks: /* @__PURE__ */ new Map(),
     measures: [],

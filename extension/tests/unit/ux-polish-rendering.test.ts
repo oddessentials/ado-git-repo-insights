@@ -41,17 +41,13 @@ describe("Truncation indicator prominence", () => {
 });
 
 describe("Filter hint classes", () => {
-  it(".filter-hint elements receive correct CSS class", () => {
-    const el = document.createElement("div");
-    el.className = "filter-hint";
-    expect(el.classList.contains("filter-hint")).toBe(true);
-  });
+  it("renderNoData creates a contextual hint element", () => {
+    const container = document.createElement("div");
+    renderNoData(container, "No data available", "Try widening filters.");
 
-  it(".filter-hint-warning adds warning severity", () => {
-    const el = document.createElement("div");
-    el.className = "filter-hint filter-hint-warning";
-    expect(el.classList.contains("filter-hint")).toBe(true);
-    expect(el.classList.contains("filter-hint-warning")).toBe(true);
+    const hint = container.querySelector(".no-data-hint");
+    expect(hint).not.toBeNull();
+    expect(hint?.textContent).toBe("Try widening filters.");
   });
 });
 
@@ -84,7 +80,7 @@ describe("renderNoData hint parameter", () => {
 });
 
 describe("Button and tab disabled states", () => {
-  it("button with disabled attribute matches .btn:disabled concept", () => {
+  it("button disabled state is reflected through the native disabled property", () => {
     const btn = document.createElement("button");
     btn.className = "btn";
     btn.disabled = true;
@@ -92,10 +88,11 @@ describe("Button and tab disabled states", () => {
     expect(btn.classList.contains("btn")).toBe(true);
   });
 
-  it("tab.disabled class can be applied", () => {
-    const tab = document.createElement("button");
-    tab.className = "tab disabled";
-    expect(tab.classList.contains("tab")).toBe(true);
-    expect(tab.classList.contains("disabled")).toBe(true);
+  it("throughput renderer leaves no empty-state hint when data is present", () => {
+    const container = document.createElement("div");
+    renderThroughputChart(container, makeRollups(8));
+
+    expect(container.querySelector(".no-data-hint")).toBeNull();
+    expect(container.querySelector(".bar-chart")).not.toBeNull();
   });
 });

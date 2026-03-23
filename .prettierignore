@@ -21,5 +21,8 @@ extension/test-artifacts/
 extension/tests/fixtures/broken-docs/data/dataset-manifest.json
 
 # Generated broken-docs fixture outputs
+extension/tests/fixtures/broken-docs/artifact-client.js
 extension/tests/fixtures/broken-docs/dashboard.js
 extension/tests/fixtures/broken-docs/dataset-loader.js
+extension/tests/fixtures/broken-docs/error-codes.js
+extension/tests/fixtures/broken-docs/error-types.js

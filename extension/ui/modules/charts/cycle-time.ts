@@ -9,7 +9,7 @@
 
 import type { Rollup } from "../../dataset-loader";
 import type { DistributionData } from "../../types";
-import { addChartTooltips } from "../charts";
+import { addChartTooltips, clearChartTooltips } from "../charts";
 import { formatDuration } from "../shared/format";
 import {
   escapeHtml,
@@ -97,6 +97,7 @@ export function renderCycleTimeTrend(
   rollups: Rollup[],
 ): void {
   if (!container) return;
+  clearChartTooltips(container);
 
   if (!rollups || rollups.length < 2) {
     renderNoData(

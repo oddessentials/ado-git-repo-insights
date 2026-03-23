@@ -25,6 +25,31 @@ function expectMediaBlockContains(mediaQuery: string, content: string): void {
   expect(css).toMatch(mediaRegex);
 }
 
+function extractBlock(source: string, anchor: string): string {
+  const start = source.indexOf(anchor);
+  if (start === -1) return "";
+  const braceStart = source.indexOf("{", start);
+  if (braceStart === -1) return "";
+  let depth = 0;
+  for (let i = braceStart; i < source.length; i++) {
+    if (source[i] === "{") depth += 1;
+    if (source[i] === "}") depth -= 1;
+    if (depth === 0) {
+      return source.slice(start, i + 1);
+    }
+  }
+  return "";
+}
+
+function expectRuleContains(
+  source: string,
+  selector: string,
+  declaration: string,
+): void {
+  const rule = extractBlock(source, selector);
+  expect(rule).toContain(declaration);
+}
+
 describe("CSS Contract: Stylesheet is non-empty", () => {
   it("styles.css exists and has content", () => {
     expect(css.length).toBeGreaterThan(0);
@@ -123,35 +148,38 @@ describe("CSS Contract: 480px mobile breakpoint", () => {
 });
 
 describe("CSS Contract: Print stylesheet", () => {
-  // Extract the @media print block for targeted assertions
-  const printBlock = css.match(/@media\s+print\s*\{[\s\S]*?\n\}/)?.[0] ?? "";
+  const printBlock = extractBlock(css, "@media print");
 
   it("defines @media print block", () => {
     expect(printBlock.length).toBeGreaterThan(0);
   });
 
   it("hides .filter-bar in print", () => {
-    expect(printBlock).toContain(".filter-bar");
+    expectRuleContains(printBlock, ".filter-bar", "display: none");
   });
 
   it("hides .btn in print", () => {
-    expect(printBlock).toContain(".btn");
+    expectRuleContains(printBlock, ".btn", "display: none");
   });
 
   it("hides .toast in print", () => {
-    expect(printBlock).toContain(".toast");
+    expectRuleContains(printBlock, ".toast", "display: none");
   });
 
   it("hides .tabs in print", () => {
-    expect(printBlock).toContain(".tabs");
+    expectRuleContains(printBlock, ".tabs", "display: none");
   });
 
   it("preserves .active-filters in print", () => {
-    expect(printBlock).toContain(".active-filters");
+    expectRuleContains(printBlock, ".active-filters", "display: flex");
   });
 
   it("includes page-break-inside on .chart-container", () => {
-    expect(printBlock).toContain(".chart-container");
+    expectRuleContains(
+      printBlock,
+      ".chart-container",
+      "page-break-inside: avoid",
+    );
   });
 });
 

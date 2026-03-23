@@ -4,7 +4,11 @@
  * Tests that addChartTooltips() supports click-based tooltips
  * with dismiss and scroll-cancellation behavior.
  */
-import { addChartTooltips } from "../../../ui/modules/charts";
+import {
+  addChartTooltips,
+  clearChartTooltips,
+  SCROLL_CANCEL_THRESHOLD,
+} from "../../../ui/modules/charts";
 
 // Polyfill PointerEvent for JSDOM (not available by default)
 if (typeof globalThis.PointerEvent === "undefined") {
@@ -300,6 +304,85 @@ describe("addChartTooltips click/tap support", () => {
         bubbles: true,
       }),
     );
+
+    expect(document.querySelector(".chart-tooltip")).toBeNull();
+  });
+
+  it("shows tooltip when movement stays below the scroll threshold", () => {
+    addChartTooltips(container, (el) => `<div>${el.dataset.week}</div>`);
+
+    const dot = container.querySelector("[data-tooltip]") as HTMLElement;
+    dot.dispatchEvent(
+      new PointerEvent("pointerdown", {
+        clientX: 100,
+        clientY: 100,
+        bubbles: true,
+      }),
+    );
+    dot.dispatchEvent(
+      new PointerEvent("pointerup", {
+        clientX: 100,
+        clientY: 100 + SCROLL_CANCEL_THRESHOLD - 1,
+        bubbles: true,
+      }),
+    );
+
+    expect(document.querySelector(".chart-tooltip")).not.toBeNull();
+  });
+
+  it("does not show tooltip when movement reaches the scroll threshold", () => {
+    addChartTooltips(container, (el) => `<div>${el.dataset.week}</div>`);
+
+    const dot = container.querySelector("[data-tooltip]") as HTMLElement;
+    dot.dispatchEvent(
+      new PointerEvent("pointerdown", {
+        clientX: 100,
+        clientY: 100,
+        bubbles: true,
+      }),
+    );
+    dot.dispatchEvent(
+      new PointerEvent("pointerup", {
+        clientX: 100,
+        clientY: 100 + SCROLL_CANCEL_THRESHOLD,
+        bubbles: true,
+      }),
+    );
+
+    expect(document.querySelector(".chart-tooltip")).toBeNull();
+  });
+
+  it("does not show tooltip when diagonal movement exceeds the threshold", () => {
+    addChartTooltips(container, (el) => `<div>${el.dataset.week}</div>`);
+
+    const dot = container.querySelector("[data-tooltip]") as HTMLElement;
+    dot.dispatchEvent(
+      new PointerEvent("pointerdown", {
+        clientX: 100,
+        clientY: 100,
+        bubbles: true,
+      }),
+    );
+    dot.dispatchEvent(
+      new PointerEvent("pointerup", {
+        clientX: 108,
+        clientY: 108,
+        bubbles: true,
+      }),
+    );
+
+    expect(document.querySelector(".chart-tooltip")).toBeNull();
+  });
+
+  it("removes the shared dismiss listener when all chart tooltips are cleared", () => {
+    addChartTooltips(container, (el) => `<div>${el.dataset.week}</div>`);
+
+    const dot = container.querySelector("[data-tooltip]") as HTMLElement;
+    dot.dispatchEvent(new MouseEvent("mouseenter", { bubbles: true }));
+    expect(document.querySelector(".chart-tooltip")).not.toBeNull();
+
+    clearChartTooltips(container);
+    document.body.dispatchEvent(new MouseEvent("click", { bubbles: true }));
 
     expect(document.querySelector(".chart-tooltip")).toBeNull();
   });

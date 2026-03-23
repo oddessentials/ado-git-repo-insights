@@ -12,6 +12,13 @@ import type {
 } from "../schemas/rollup.schema";
 import { median } from "./shared/format";
 
+const HAS_WINDOW = typeof window !== "undefined";
+const IS_PRODUCTION =
+  typeof process !== "undefined" && process.env.NODE_ENV === "production";
+const SHOULD_WARN_ON_COERCION =
+  !IS_PRODUCTION && HAS_WINDOW && window.__DASHBOARD_DEBUG__ === true;
+let hasWarnedOnMetricCoercion = false;
+
 /**
  * Safely convert any value to a finite number.
  * Returns 0 for undefined, null, NaN, Infinity, or non-numeric values.
@@ -21,17 +28,25 @@ import { median } from "./shared/format";
  */
 function toFiniteNumber(value: unknown): number {
   const n = Number(value);
-  return Number.isFinite(n) ? n : 0;
+  if (Number.isFinite(n)) {
+    return n;
+  }
+  if (SHOULD_WARN_ON_COERCION && !hasWarnedOnMetricCoercion) {
+    hasWarnedOnMetricCoercion = true;
+    console.warn(
+      "metrics.ts coerced a non-finite metric value to 0; verify upstream rollup data if this is unexpected.",
+      value,
+    );
+  }
+  return 0;
 }
 
 function getOwnPropertyValue<T>(
   obj: Record<string, T>,
   key: string,
 ): T | undefined {
-  if (!Object.prototype.hasOwnProperty.call(obj, key)) {
-    return undefined;
-  }
-  return Object.getOwnPropertyDescriptor(obj, key)?.value as T | undefined;
+  // eslint-disable-next-line security/detect-object-injection -- SECURITY: key is guarded by hasOwnProperty on a typed record
+  return Object.prototype.hasOwnProperty.call(obj, key) ? obj[key] : undefined;
 }
 
 /**
