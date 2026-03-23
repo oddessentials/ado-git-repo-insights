@@ -9,7 +9,10 @@
  * - No-data message for empty rollups
  */
 
-import { renderThroughputChart, MAX_VISIBLE_LABELS } from "../../../ui/modules/charts/throughput";
+import {
+  renderThroughputChart,
+  MAX_VISIBLE_LABELS,
+} from "../../../ui/modules/charts/throughput";
 import type { Rollup } from "../../../ui/dataset-loader";
 
 /** Shared test fixture: create N rollups with predictable values. */
@@ -133,18 +136,26 @@ describe("throughput module", () => {
       renderThroughputChart(container, rollups);
 
       // First rollup has pr_count of 10 — uses data-week and data-count instead of title
-      const bar = container.querySelector('.bar-container[data-week="2025-W01"]');
+      const bar = container.querySelector(
+        '.bar-container[data-week="2025-W01"]',
+      );
       expect(bar).not.toBeNull();
       expect(bar?.getAttribute("data-count")).toBe("10");
     });
 
     it("renders standard week format label from W-suffix", () => {
-      const rollups: Rollup[] = [{
-        week: "2025-W03",
-        pr_count: 10, cycle_time_p50: 60, cycle_time_p90: 120,
-        authors_count: 5, reviewers_count: 3,
-        by_repository: null, by_team: null,
-      }];
+      const rollups: Rollup[] = [
+        {
+          week: "2025-W03",
+          pr_count: 10,
+          cycle_time_p50: 60,
+          cycle_time_p90: 120,
+          authors_count: 5,
+          reviewers_count: 3,
+          by_repository: null,
+          by_team: null,
+        },
+      ];
 
       renderThroughputChart(container, rollups);
 
@@ -152,12 +163,18 @@ describe("throughput module", () => {
     });
 
     it("uses full string for non-standard week format", () => {
-      const rollups: Rollup[] = [{
-        week: "custom_format",
-        pr_count: 10, cycle_time_p50: 60, cycle_time_p90: 120,
-        authors_count: 5, reviewers_count: 3,
-        by_repository: null, by_team: null,
-      }];
+      const rollups: Rollup[] = [
+        {
+          week: "custom_format",
+          pr_count: 10,
+          cycle_time_p50: 60,
+          cycle_time_p90: 120,
+          authors_count: 5,
+          reviewers_count: 3,
+          by_repository: null,
+          by_team: null,
+        },
+      ];
 
       renderThroughputChart(container, rollups);
 

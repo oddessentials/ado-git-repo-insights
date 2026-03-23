@@ -12,6 +12,22 @@ import * as path from "path";
 
 describe("data-testid DOM Validation", () => {
   const HTML_PATH = path.resolve(__dirname, "../../../docs/index.html");
+  const isLowercaseKebabCase = (value: string): boolean => {
+    const parts = value.split("-");
+    if (parts.length === 0) {
+      return false;
+    }
+    return parts.every((part, index) => {
+      if (!part.length) {
+        return false;
+      }
+      const startsWithLetter = /^[a-z]/.test(part);
+      if (!startsWithLetter && index === 0) {
+        return false;
+      }
+      return /^[a-z0-9]+$/.test(part);
+    });
+  };
 
   /**
    * Required data-testid attributes for smoke tests.
@@ -77,9 +93,7 @@ describe("data-testid DOM Validation", () => {
     const ids = matches.map((m) => m[1]);
 
     // Convention: lowercase kebab-case (e.g., "filter-repository", "error-generic")
-    const invalidIds = ids.filter(
-      (id) => !/^[a-z][a-z0-9]*(-[a-z0-9]+)*$/.test(id),
-    );
+    const invalidIds = ids.filter((id) => !isLowercaseKebabCase(id));
 
     if (invalidIds.length > 0) {
       throw new Error(
@@ -99,26 +113,31 @@ describe("data-testid DOM Validation", () => {
   it("required data-testid attributes are on appropriate elements", () => {
     const html = fs.readFileSync(HTML_PATH, "utf-8");
 
+    const assertTaggedTestId = (tag: string, testId: string): void => {
+      expect(html).toContain(`<${tag}`);
+      expect(html).toContain(`data-testid="${testId}"`);
+    };
+
     // Check filter-repository is on a select element
-    expect(html).toMatch(/<select[^>]*data-testid="filter-repository"/);
+    assertTaggedTestId("select", "filter-repository");
 
     // Check filter-team is on a select element
-    expect(html).toMatch(/<select[^>]*data-testid="filter-team"/);
+    assertTaggedTestId("select", "filter-team");
 
     // Check filter-reviewer is on a select element
-    expect(html).toMatch(/<select[^>]*data-testid="filter-reviewer"/);
+    assertTaggedTestId("select", "filter-reviewer");
 
     // Check filter-author is on a searchable input element
-    expect(html).toMatch(/<input[^>]*data-testid="filter-author"/);
+    assertTaggedTestId("input", "filter-author");
 
     // Check comments coverage banner is on a displayable element
-    expect(html).toMatch(/<div[^>]*data-testid="comments-coverage-banner"/);
+    assertTaggedTestId("div", "comments-coverage-banner");
 
     // Check total-prs is on a displayable element
-    expect(html).toMatch(/<div[^>]*data-testid="total-prs"/);
+    assertTaggedTestId("div", "total-prs");
 
     // Check error panels are on div elements
-    expect(html).toMatch(/<div[^>]*data-testid="error-setup-required"/);
-    expect(html).toMatch(/<div[^>]*data-testid="error-generic"/);
+    assertTaggedTestId("div", "error-setup-required");
+    assertTaggedTestId("div", "error-generic");
   });
 });

@@ -9,9 +9,18 @@
 
 import * as fs from "fs";
 import * as path from "path";
-import { renderThroughputChart, MAX_THROUGHPUT_POINTS } from "../../ui/modules/charts/throughput";
-import { renderCycleTimeTrend, MAX_CYCLE_TIME_POINTS } from "../../ui/modules/charts/cycle-time";
-import { renderReviewerActivity, MAX_REVIEWER_WEEKS } from "../../ui/modules/charts/reviewer-activity";
+import {
+  renderThroughputChart,
+  MAX_THROUGHPUT_POINTS,
+} from "../../ui/modules/charts/throughput";
+import {
+  renderCycleTimeTrend,
+  MAX_CYCLE_TIME_POINTS,
+} from "../../ui/modules/charts/cycle-time";
+import {
+  renderReviewerActivity,
+  MAX_REVIEWER_WEEKS,
+} from "../../ui/modules/charts/reviewer-activity";
 import { DatasetLoader } from "../../ui/dataset-loader";
 import type { Rollup } from "../../ui/dataset-loader";
 
@@ -249,9 +258,36 @@ describe("Cycle Time Chart: sparse data branches", () => {
 
   it("renders without p50 path when only 1 non-null p50 value", () => {
     const rollups: Rollup[] = [
-      { week: "2026-W01", pr_count: 10, cycle_time_p50: null, cycle_time_p90: 100, authors_count: 2, reviewers_count: 1, by_repository: null, by_team: null } as unknown as Rollup,
-      { week: "2026-W02", pr_count: 12, cycle_time_p50: null, cycle_time_p90: 110, authors_count: 3, reviewers_count: 2, by_repository: null, by_team: null } as unknown as Rollup,
-      { week: "2026-W03", pr_count: 8, cycle_time_p50: 60, cycle_time_p90: 120, authors_count: 2, reviewers_count: 1, by_repository: null, by_team: null } as unknown as Rollup,
+      {
+        week: "2026-W01",
+        pr_count: 10,
+        cycle_time_p50: null,
+        cycle_time_p90: 100,
+        authors_count: 2,
+        reviewers_count: 1,
+        by_repository: null,
+        by_team: null,
+      } as unknown as Rollup,
+      {
+        week: "2026-W02",
+        pr_count: 12,
+        cycle_time_p50: null,
+        cycle_time_p90: 110,
+        authors_count: 3,
+        reviewers_count: 2,
+        by_repository: null,
+        by_team: null,
+      } as unknown as Rollup,
+      {
+        week: "2026-W03",
+        pr_count: 8,
+        cycle_time_p50: 60,
+        cycle_time_p90: 120,
+        authors_count: 2,
+        reviewers_count: 1,
+        by_repository: null,
+        by_team: null,
+      } as unknown as Rollup,
     ];
     renderCycleTimeTrend(container, rollups);
 
@@ -266,9 +302,36 @@ describe("Cycle Time Chart: sparse data branches", () => {
 
   it("renders without p90 path when only 1 non-null p90 value", () => {
     const rollups: Rollup[] = [
-      { week: "2026-W01", pr_count: 10, cycle_time_p50: 50, cycle_time_p90: null, authors_count: 2, reviewers_count: 1, by_repository: null, by_team: null } as unknown as Rollup,
-      { week: "2026-W02", pr_count: 12, cycle_time_p50: 55, cycle_time_p90: null, authors_count: 3, reviewers_count: 2, by_repository: null, by_team: null } as unknown as Rollup,
-      { week: "2026-W03", pr_count: 8, cycle_time_p50: 60, cycle_time_p90: 120, authors_count: 2, reviewers_count: 1, by_repository: null, by_team: null } as unknown as Rollup,
+      {
+        week: "2026-W01",
+        pr_count: 10,
+        cycle_time_p50: 50,
+        cycle_time_p90: null,
+        authors_count: 2,
+        reviewers_count: 1,
+        by_repository: null,
+        by_team: null,
+      } as unknown as Rollup,
+      {
+        week: "2026-W02",
+        pr_count: 12,
+        cycle_time_p50: 55,
+        cycle_time_p90: null,
+        authors_count: 3,
+        reviewers_count: 2,
+        by_repository: null,
+        by_team: null,
+      } as unknown as Rollup,
+      {
+        week: "2026-W03",
+        pr_count: 8,
+        cycle_time_p50: 60,
+        cycle_time_p90: 120,
+        authors_count: 2,
+        reviewers_count: 1,
+        by_repository: null,
+        by_team: null,
+      } as unknown as Rollup,
     ];
     renderCycleTimeTrend(container, rollups);
 
@@ -350,7 +413,12 @@ describe("Comments Feature Compatibility", () => {
 
     // Manifest with comments: true
     (loader as any).manifest = {
-      features: { teams: true, comments: true, predictions: false, ai_insights: false },
+      features: {
+        teams: true,
+        comments: true,
+        predictions: false,
+        ai_insights: false,
+      },
     };
     expect(loader.isFeatureEnabled("comments")).toBe(true);
 

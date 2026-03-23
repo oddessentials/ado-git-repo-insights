@@ -560,7 +560,9 @@ describe("DOM Harness", () => {
       `;
       const ctx = createErrorAssertionContext();
 
-      expect(() => ctx.assertHasClass("container", "target-class")).not.toThrow();
+      expect(() =>
+        ctx.assertHasClass("container", "target-class"),
+      ).not.toThrow();
 
       ctx.restore();
     });
@@ -579,7 +581,9 @@ describe("DOM Harness", () => {
         '<div id="container">Some text content here</div>';
       const ctx = createErrorAssertionContext();
 
-      expect(() => ctx.assertContainsText("container", "text content")).not.toThrow();
+      expect(() =>
+        ctx.assertContainsText("container", "text content"),
+      ).not.toThrow();
 
       ctx.restore();
     });
@@ -588,7 +592,9 @@ describe("DOM Harness", () => {
       document.body.innerHTML = '<div id="container">Different content</div>';
       const ctx = createErrorAssertionContext();
 
-      expect(() => ctx.assertContainsText("container", "missing text")).toThrow();
+      expect(() =>
+        ctx.assertContainsText("container", "missing text"),
+      ).toThrow();
 
       ctx.restore();
     });

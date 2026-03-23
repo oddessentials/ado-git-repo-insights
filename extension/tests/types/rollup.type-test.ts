@@ -92,7 +92,9 @@ function positiveTest_breakdownEntryShape(entry: BreakdownEntry): void {
 /**
  * Positive Test 4: ReviewerBreakdownEntry exposes reviewer activity fields.
  */
-function positiveTest_reviewerBreakdownShape(entry: ReviewerBreakdownEntry): void {
+function positiveTest_reviewerBreakdownShape(
+  entry: ReviewerBreakdownEntry,
+): void {
   const _reviewedPrs: number = entry.reviewed_prs;
   const _reviewsCount: number = entry.reviews_count;
   const _approvalRate: number | null | undefined = entry.approval_rate;

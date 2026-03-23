@@ -9,7 +9,12 @@
  */
 
 import type { Rollup } from "../../dataset-loader";
-import { escapeHtml, NO_DATA_HINTS, renderNoData, renderTrustedHtml } from "../shared/render";
+import {
+  escapeHtml,
+  NO_DATA_HINTS,
+  renderNoData,
+  renderTrustedHtml,
+} from "../shared/render";
 
 /** Maximum weeks displayed in the reviewer activity panel. */
 export const MAX_REVIEWER_WEEKS = 8;
@@ -21,8 +26,8 @@ function getReviewerNoDataHint(
   return reviewerFilterActive
     ? "Try widening the date range or adjusting reviewer filters."
     : hasRollups
-      ? NO_DATA_HINTS.REVIEWER_NO_ACTIVITY
-      : NO_DATA_HINTS.REVIEWER_PIPELINE;
+      ? NO_DATA_HINTS.REVIEWER_PIPELINE
+      : NO_DATA_HINTS.WIDEN_FILTERS;
 }
 
 /**

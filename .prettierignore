@@ -15,3 +15,11 @@ package-lock.json
 
 # Generated files
 *.vsix
+extension/test-artifacts/
+
+# Intentionally malformed fixture for negative tests
+extension/tests/fixtures/broken-docs/data/dataset-manifest.json
+
+# Generated broken-docs fixture outputs
+extension/tests/fixtures/broken-docs/dashboard.js
+extension/tests/fixtures/broken-docs/dataset-loader.js

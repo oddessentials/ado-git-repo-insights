@@ -72,7 +72,7 @@ describe("CSS Contract: Foundational rules exist", () => {
     expect(css).toMatch(/\.filter-group\s+input:hover/);
   });
 
-  it("defines input[type=\"search\"] normalization", () => {
+  it('defines input[type="search"] normalization', () => {
     expect(css).toMatch(/input\[type="search"\]/);
   });
 

@@ -24,7 +24,10 @@ function toFiniteNumber(value: unknown): number {
   return Number.isFinite(n) ? n : 0;
 }
 
-function getOwnPropertyValue<T>(obj: Record<string, T>, key: string): T | undefined {
+function getOwnPropertyValue<T>(
+  obj: Record<string, T>,
+  key: string,
+): T | undefined {
   if (!Object.prototype.hasOwnProperty.call(obj, key)) {
     return undefined;
   }
@@ -130,9 +133,7 @@ export function getPreviousPeriod(
   end: Date,
 ): { start: Date; end: Date } {
   const MS_PER_DAY = 1000 * 60 * 60 * 24;
-  const rangeDays = Math.ceil(
-    (end.getTime() - start.getTime()) / MS_PER_DAY,
-  );
+  const rangeDays = Math.ceil((end.getTime() - start.getTime()) / MS_PER_DAY);
   const prevEnd = new Date(start.getTime() - MS_PER_DAY); // Day before start
   const prevStart = new Date(prevEnd.getTime() - rangeDays * MS_PER_DAY);
   return { start: prevStart, end: prevEnd };
@@ -178,10 +179,12 @@ function aggregateEntries(entries: BreakdownEntry[]): AggregatedSlice {
   // Only entries with a finite numeric p50 participate in the p50 average;
   // entries missing cycle-time data do not dilute the weighted result.
   const p50Entries = entries.filter(
-    (e) => typeof e.cycle_time_p50 === "number" && Number.isFinite(e.cycle_time_p50),
+    (e) =>
+      typeof e.cycle_time_p50 === "number" && Number.isFinite(e.cycle_time_p50),
   );
   const p90Entries = entries.filter(
-    (e) => typeof e.cycle_time_p90 === "number" && Number.isFinite(e.cycle_time_p90),
+    (e) =>
+      typeof e.cycle_time_p90 === "number" && Number.isFinite(e.cycle_time_p90),
   );
 
   let cycleP50: number | null = null;
@@ -189,23 +192,31 @@ function aggregateEntries(entries: BreakdownEntry[]): AggregatedSlice {
 
   if (p50Entries.length > 0) {
     const p50PrCount = p50Entries.reduce(
-      (sum, e) => sum + toFiniteNumber(e.pr_count), 0,
+      (sum, e) => sum + toFiniteNumber(e.pr_count),
+      0,
     );
     if (p50PrCount > 0) {
-      cycleP50 = p50Entries.reduce(
-        (sum, e) => sum + toFiniteNumber(e.cycle_time_p50) * toFiniteNumber(e.pr_count), 0,
-      ) / p50PrCount;
+      cycleP50 =
+        p50Entries.reduce(
+          (sum, e) =>
+            sum + toFiniteNumber(e.cycle_time_p50) * toFiniteNumber(e.pr_count),
+          0,
+        ) / p50PrCount;
     }
   }
 
   if (p90Entries.length > 0) {
     const p90PrCount = p90Entries.reduce(
-      (sum, e) => sum + toFiniteNumber(e.pr_count), 0,
+      (sum, e) => sum + toFiniteNumber(e.pr_count),
+      0,
     );
     if (p90PrCount > 0) {
-      cycleP90 = p90Entries.reduce(
-        (sum, e) => sum + toFiniteNumber(e.cycle_time_p90) * toFiniteNumber(e.pr_count), 0,
-      ) / p90PrCount;
+      cycleP90 =
+        p90Entries.reduce(
+          (sum, e) =>
+            sum + toFiniteNumber(e.cycle_time_p90) * toFiniteNumber(e.pr_count),
+          0,
+        ) / p90PrCount;
     }
   }
 
@@ -275,7 +286,8 @@ function aggregateReviewerEntries(
   );
 
   const approvalEntries = entries.filter(
-    (e) => typeof e.approval_rate === "number" && Number.isFinite(e.approval_rate),
+    (e) =>
+      typeof e.approval_rate === "number" && Number.isFinite(e.approval_rate),
   );
   const approvalDenominator = approvalEntries.reduce(
     (sum, entry) => sum + toFiniteNumber(entry.reviewed_prs),
@@ -292,7 +304,9 @@ function aggregateReviewerEntries(
     reviewed_prs: reviewedPrs,
     reviews_count: reviewsCount,
     approval_rate:
-      approvalDenominator > 0 ? approvalWeightedSum / approvalDenominator : null,
+      approvalDenominator > 0
+        ? approvalWeightedSum / approvalDenominator
+        : null,
     authors_count: authorsCount,
     repositories_count: repositoriesCount,
   };
@@ -313,10 +327,7 @@ const ZEROED_ROLLUP_FIELDS = {
  * Falls back to the original rollup values when the slice has no cycle time
  * data (backward compatibility with legacy by_repository that only has pr_count).
  */
-function buildFilteredRollup(
-  rollup: Rollup,
-  slice: AggregatedSlice,
-): Rollup {
+function buildFilteredRollup(rollup: Rollup, slice: AggregatedSlice): Rollup {
   // Zero-leakage guard: when the slice has no PRs, zero all metric fields
   // so global authors_count/reviewers_count/cycle_time don't leak through.
   if (slice.pr_count === 0) {
@@ -395,10 +406,7 @@ export function applyFiltersToRollups(
 
     let repoSlice: AggregatedSlice | null = null;
     if (repoBreakdown) {
-      const entries = resolveBreakdownEntries(
-        repoBreakdown,
-        filters.repos,
-      );
+      const entries = resolveBreakdownEntries(repoBreakdown, filters.repos);
       if (entries.length === 0) {
         return { ...rollup, ...ZEROED_ROLLUP_FIELDS };
       }
@@ -407,10 +415,7 @@ export function applyFiltersToRollups(
 
     let teamSlice: AggregatedSlice | null = null;
     if (teamBreakdown) {
-      const entries = resolveBreakdownEntries(
-        teamBreakdown,
-        filters.teams,
-      );
+      const entries = resolveBreakdownEntries(teamBreakdown, filters.teams);
       if (entries.length === 0) {
         return { ...rollup, ...ZEROED_ROLLUP_FIELDS };
       }
@@ -456,12 +461,20 @@ export function applyFiltersToRollups(
     }
 
     if (authorSlice && repoSlice && rollup.by_author_and_repo) {
-      let cdPr = 0, cdAuthors = 0, cdReviewers = 0;
-      let cdP50WSum = 0, cdP50WPr = 0, cdP90WSum = 0, cdP90WPr = 0;
+      let cdPr = 0,
+        cdAuthors = 0,
+        cdReviewers = 0;
+      let cdP50WSum = 0,
+        cdP50WPr = 0,
+        cdP90WSum = 0,
+        cdP90WPr = 0;
       let cdFound = 0;
 
       for (const authorId of authorFilters) {
-        const authorRepos = getOwnPropertyValue(rollup.by_author_and_repo, authorId);
+        const authorRepos = getOwnPropertyValue(
+          rollup.by_author_and_repo,
+          authorId,
+        );
         if (!authorRepos) continue;
         for (const repo of filters.repos) {
           const e = getOwnPropertyValue(authorRepos, repo);
@@ -486,8 +499,9 @@ export function applyFiltersToRollups(
 
       if (cdFound > 0) {
         const isTruncated =
-          (rollup.by_author_and_repo as Record<string, unknown>)["_truncated"] ===
-          true;
+          (rollup.by_author_and_repo as Record<string, unknown>)[
+            "_truncated"
+          ] === true;
         const expectedCount = authorFilters.length * filters.repos.length;
         if (isTruncated && cdFound < expectedCount) {
           console.warn(
@@ -534,12 +548,14 @@ export function applyFiltersToRollups(
       const combinedReviewers = Math.round(
         (rollup.reviewers_count || 0) * combinedRatio,
       );
-      const p50s = [authorSlice.cycle_time_p50, repoSlice.cycle_time_p50].filter(
-        (v): v is number => v !== null,
-      );
-      const p90s = [authorSlice.cycle_time_p90, repoSlice.cycle_time_p90].filter(
-        (v): v is number => v !== null,
-      );
+      const p50s = [
+        authorSlice.cycle_time_p50,
+        repoSlice.cycle_time_p50,
+      ].filter((v): v is number => v !== null);
+      const p90s = [
+        authorSlice.cycle_time_p90,
+        repoSlice.cycle_time_p90,
+      ].filter((v): v is number => v !== null);
 
       if (teamSlice) {
         console.warn(
@@ -576,8 +592,13 @@ export function applyFiltersToRollups(
     // Uses pre-computed team-repo intersection data when available (v2 schema).
     // Single-pass inline aggregation avoids intermediate array + multiple reduce passes.
     if (repoSlice && teamSlice && rollup.by_team_and_repo) {
-      let cdPr = 0, cdAuthors = 0, cdReviewers = 0;
-      let cdP50WSum = 0, cdP50WPr = 0, cdP90WSum = 0, cdP90WPr = 0;
+      let cdPr = 0,
+        cdAuthors = 0,
+        cdReviewers = 0;
+      let cdP50WSum = 0,
+        cdP50WPr = 0,
+        cdP90WSum = 0,
+        cdP90WPr = 0;
       let cdFound = 0;
 
       for (const team of filters.teams) {
@@ -593,11 +614,13 @@ export function applyFiltersToRollups(
           cdReviewers += toFiniteNumber(e.reviewers_count);
           const p50 = e.cycle_time_p50;
           if (typeof p50 === "number" && Number.isFinite(p50)) {
-            cdP50WSum += p50 * pr; cdP50WPr += pr;
+            cdP50WSum += p50 * pr;
+            cdP50WPr += pr;
           }
           const p90 = e.cycle_time_p90;
           if (typeof p90 === "number" && Number.isFinite(p90)) {
-            cdP90WSum += p90 * pr; cdP90WPr += pr;
+            cdP90WSum += p90 * pr;
+            cdP90WPr += pr;
           }
         }
       }

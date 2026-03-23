@@ -231,12 +231,18 @@ function validateReviewerBreakdownEntry(
   }
 
   if (Object.prototype.hasOwnProperty.call(data, "approval_rate")) {
-    const fieldValue = Object.getOwnPropertyDescriptor(data, "approval_rate")?.value;
+    const fieldValue = Object.getOwnPropertyDescriptor(
+      data,
+      "approval_rate",
+    )?.value;
     if (fieldValue != null) {
       const err = validateNumber(fieldValue, buildPath(path, "approval_rate"));
       if (err) {
         errors.push(err);
-      } else if (typeof fieldValue === "number" && (fieldValue < 0 || fieldValue > 1)) {
+      } else if (
+        typeof fieldValue === "number" &&
+        (fieldValue < 0 || fieldValue > 1)
+      ) {
         errors.push(
           createError(
             buildPath(path, "approval_rate"),
@@ -253,7 +259,10 @@ function validateReviewerBreakdownEntry(
     if (Object.prototype.hasOwnProperty.call(data, field)) {
       const fieldValue = Object.getOwnPropertyDescriptor(data, field)?.value;
       if (fieldValue != null) {
-        const err = validateNonNegativeNumber(fieldValue, buildPath(path, field));
+        const err = validateNonNegativeNumber(
+          fieldValue,
+          buildPath(path, field),
+        );
         if (err) errors.push(err);
       }
     }

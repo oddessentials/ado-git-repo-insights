@@ -132,7 +132,9 @@ describe("setup-guides", () => {
 
       attachCopyHandlers(container);
 
-      const button = container.querySelector(".copy-yaml-btn") as HTMLButtonElement;
+      const button = container.querySelector(
+        ".copy-yaml-btn",
+      ) as HTMLButtonElement;
       expect(button).not.toBeNull();
     });
 
@@ -160,7 +162,9 @@ describe("setup-guides", () => {
 
       attachCopyHandlers(container);
 
-      const button = container.querySelector(".copy-yaml-btn") as HTMLButtonElement;
+      const button = container.querySelector(
+        ".copy-yaml-btn",
+      ) as HTMLButtonElement;
       button.click();
 
       await Promise.resolve(); // Allow async clipboard operation
@@ -177,7 +181,9 @@ describe("setup-guides", () => {
 
       attachCopyHandlers(container);
 
-      const button = container.querySelector(".copy-yaml-btn") as HTMLButtonElement;
+      const button = container.querySelector(
+        ".copy-yaml-btn",
+      ) as HTMLButtonElement;
       button.click();
 
       await Promise.resolve();
@@ -196,7 +202,9 @@ describe("setup-guides", () => {
 
       attachCopyHandlers(container);
 
-      const button = container.querySelector(".copy-yaml-btn") as HTMLButtonElement;
+      const button = container.querySelector(
+        ".copy-yaml-btn",
+      ) as HTMLButtonElement;
       button.click();
 
       await Promise.resolve();
@@ -214,7 +222,9 @@ describe("setup-guides", () => {
 
       attachCopyHandlers(container);
 
-      const button = container.querySelector(".copy-yaml-btn") as HTMLButtonElement;
+      const button = container.querySelector(
+        ".copy-yaml-btn",
+      ) as HTMLButtonElement;
       button.click();
 
       await Promise.resolve();
@@ -227,7 +237,9 @@ describe("setup-guides", () => {
     });
 
     it("shows Failed text on clipboard error", async () => {
-      mockClipboard.writeText.mockRejectedValue(new Error("Clipboard access denied"));
+      mockClipboard.writeText.mockRejectedValue(
+        new Error("Clipboard access denied"),
+      );
 
       container.innerHTML = `
         <button class="copy-yaml-btn" data-yaml="test: yaml">
@@ -237,7 +249,9 @@ describe("setup-guides", () => {
 
       attachCopyHandlers(container);
 
-      const button = container.querySelector(".copy-yaml-btn") as HTMLButtonElement;
+      const button = container.querySelector(
+        ".copy-yaml-btn",
+      ) as HTMLButtonElement;
       button.click();
 
       await Promise.resolve();
@@ -256,7 +270,9 @@ describe("setup-guides", () => {
 
       attachCopyHandlers(container);
 
-      const button = container.querySelector(".copy-yaml-btn") as HTMLButtonElement;
+      const button = container.querySelector(
+        ".copy-yaml-btn",
+      ) as HTMLButtonElement;
       button.click();
 
       await Promise.resolve();
@@ -303,7 +319,9 @@ describe("setup-guides", () => {
 
       attachCopyHandlers(container);
 
-      const button = container.querySelector(".copy-yaml-btn") as HTMLButtonElement;
+      const button = container.querySelector(
+        ".copy-yaml-btn",
+      ) as HTMLButtonElement;
       button.click();
 
       await Promise.resolve();
@@ -367,7 +385,8 @@ describe("setup-guides", () => {
     });
 
     it("hides existing unavailable message", () => {
-      container.innerHTML = '<div class="feature-unavailable">Old message</div>';
+      container.innerHTML =
+        '<div class="feature-unavailable">Old message</div>';
 
       renderPredictionsEmptyWithGuide(container);
 
@@ -417,7 +436,8 @@ describe("setup-guides", () => {
     });
 
     it("hides existing unavailable message", () => {
-      container.innerHTML = '<div class="feature-unavailable">Old message</div>';
+      container.innerHTML =
+        '<div class="feature-unavailable">Old message</div>';
 
       renderInsightsEmptyWithGuide(container);
 
@@ -445,13 +465,13 @@ describe("setup-guides", () => {
     it("escapes HTML in predictions YAML button data attribute", () => {
       const html = renderPredictionsSetupGuide();
       // The YAML content should be HTML-escaped in data-yaml attribute
-      expect(html).not.toContain("data-yaml=\"<script>");
+      expect(html).not.toContain('data-yaml="<script>');
     });
 
     it("escapes HTML in insights YAML button data attribute", () => {
       const html = renderInsightsSetupGuide();
       // The YAML content should be HTML-escaped in data-yaml attribute
-      expect(html).not.toContain("data-yaml=\"<script>");
+      expect(html).not.toContain('data-yaml="<script>');
     });
   });
 
@@ -465,7 +485,9 @@ describe("setup-guides", () => {
       document.body.appendChild(container);
       mockClipboard = { writeText: jest.fn().mockResolvedValue(undefined) };
       Object.defineProperty(navigator, "clipboard", {
-        value: mockClipboard, writable: true, configurable: true,
+        value: mockClipboard,
+        writable: true,
+        configurable: true,
       });
       const existingLive = document.getElementById("copy-status-live");
       if (existingLive) existingLive.remove();
@@ -488,13 +510,17 @@ describe("setup-guides", () => {
       container.innerHTML = html;
       attachCopyHandlers(container);
 
-      const button = container.querySelector("#copy-predictions-yaml") as HTMLButtonElement;
+      const button = container.querySelector(
+        "#copy-predictions-yaml",
+      ) as HTMLButtonElement;
       button.click();
 
       await Promise.resolve();
       await Promise.resolve();
 
-      expect(mockClipboard.writeText).toHaveBeenCalledWith(getPredictionsYaml());
+      expect(mockClipboard.writeText).toHaveBeenCalledWith(
+        getPredictionsYaml(),
+      );
     });
 
     it("no duplicate handlers via WeakSet", async () => {
@@ -507,7 +533,9 @@ describe("setup-guides", () => {
       attachCopyHandlers(container);
       attachCopyHandlers(container); // second call should be no-op
 
-      const button = container.querySelector(".copy-yaml-btn") as HTMLButtonElement;
+      const button = container.querySelector(
+        ".copy-yaml-btn",
+      ) as HTMLButtonElement;
       button.click();
 
       await Promise.resolve();

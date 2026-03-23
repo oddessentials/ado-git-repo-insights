@@ -76,7 +76,12 @@ let currentDateRange: { start: Date | null; end: Date | null } = {
   end: null,
 };
 let currentDimensions: DimensionsData | null = null;
-let currentFilters: { repos: string[]; teams: string[]; reviewers: string[]; authors: string[] } = {
+let currentFilters: {
+  repos: string[];
+  teams: string[];
+  reviewers: string[];
+  authors: string[];
+} = {
   repos: [],
   teams: [],
   reviewers: [],
@@ -98,7 +103,10 @@ const elements: Record<string, HTMLElement | null> = {};
 // DOM element list cache - stores NodeLists for multi-element queries
 const elementLists: Record<string, NodeListOf<Element>> = {};
 
-function getOwnRecordValue<T>(record: Record<string, T>, key: string): T | undefined {
+function getOwnRecordValue<T>(
+  record: Record<string, T>,
+  key: string,
+): T | undefined {
   const descriptor = Object.getOwnPropertyDescriptor(record, key);
   return descriptor?.value as T | undefined;
 }
@@ -1034,11 +1042,9 @@ function renderCycleTimeTrend(rollups: Rollup[]): void {
  * Thin wrapper that delegates to extracted module.
  */
 function renderReviewerActivity(rollups: Rollup[]): void {
-  renderReviewerActivityModule(
-    elements["reviewer-activity"] ?? null,
-    rollups,
-    { reviewerFilterActive: currentFilters.reviewers.length > 0 },
-  );
+  renderReviewerActivityModule(elements["reviewer-activity"] ?? null, rollups, {
+    reviewerFilterActive: currentFilters.reviewers.length > 0,
+  });
 }
 
 // addChartTooltips is now imported from "./modules/charts"
@@ -1278,7 +1284,9 @@ function populateFilterDropdowns(dimensions: DimensionsData | null): void {
   }
 
   const authorFilter = getElement<HTMLInputElement>("author-filter");
-  const authorFilterOptions = getElement<HTMLDataListElement>("author-filter-options");
+  const authorFilterOptions = getElement<HTMLDataListElement>(
+    "author-filter-options",
+  );
   if (
     authorFilter &&
     authorFilterOptions &&
@@ -1356,13 +1364,25 @@ function clearAuthorInput(): void {
 
 function applyAuthorFilterCompatibility(
   sourceId: string | null,
-  filters: { repos: string[]; teams: string[]; reviewers: string[]; authors: string[] },
-): { repos: string[]; teams: string[]; reviewers: string[]; authors: string[] } {
+  filters: {
+    repos: string[];
+    teams: string[];
+    reviewers: string[];
+    authors: string[];
+  },
+): {
+  repos: string[];
+  teams: string[];
+  reviewers: string[];
+  authors: string[];
+} {
   if (filters.authors.length === 0) {
     return filters;
   }
 
-  const reviewerFilter = elements["reviewer-filter"] as HTMLSelectElement | null;
+  const reviewerFilter = elements[
+    "reviewer-filter"
+  ] as HTMLSelectElement | null;
 
   if (filters.reviewers.length > 0) {
     if (sourceId === "author-filter") {
@@ -1434,7 +1454,9 @@ function applyReviewerFilterCompatibility(
 function handleFilterChange(event: Event): void {
   const repoFilter = elements["repo-filter"] as HTMLSelectElement | null;
   const teamFilter = elements["team-filter"] as HTMLSelectElement | null;
-  const reviewerFilter = elements["reviewer-filter"] as HTMLSelectElement | null;
+  const reviewerFilter = elements[
+    "reviewer-filter"
+  ] as HTMLSelectElement | null;
   const authorFilter = elements["author-filter"] as HTMLInputElement | null;
 
   const repoValues = repoFilter
@@ -1450,7 +1472,9 @@ function handleFilterChange(event: Event): void {
   const reviewerValues = reviewerFilter
     ? [reviewerFilter.value].filter((v) => v)
     : [];
-  const authorValues = authorFilter ? [authorFilter.value].filter((v) => v) : [];
+  const authorValues = authorFilter
+    ? [authorFilter.value].filter((v) => v)
+    : [];
 
   const sourceId =
     event.currentTarget instanceof HTMLElement ? event.currentTarget.id : null;
@@ -1480,7 +1504,9 @@ function clearAllFilters(): void {
 
   const repoFilter = elements["repo-filter"] as HTMLSelectElement | null;
   const teamFilter = elements["team-filter"] as HTMLSelectElement | null;
-  const reviewerFilter = elements["reviewer-filter"] as HTMLSelectElement | null;
+  const reviewerFilter = elements[
+    "reviewer-filter"
+  ] as HTMLSelectElement | null;
   const authorFilter = elements["author-filter"] as HTMLInputElement | null;
 
   clearSelectToAll(repoFilter);
@@ -1523,8 +1549,12 @@ function removeFilter(type: string, value: string): void {
     const option = findOptionByValue(teamFilter, value);
     if (option) option.selected = false;
   } else if (type === "reviewer") {
-    currentFilters.reviewers = currentFilters.reviewers.filter((v) => v !== value);
-    const reviewerFilter = elements["reviewer-filter"] as HTMLSelectElement | null;
+    currentFilters.reviewers = currentFilters.reviewers.filter(
+      (v) => v !== value,
+    );
+    const reviewerFilter = elements[
+      "reviewer-filter"
+    ] as HTMLSelectElement | null;
     const option = findOptionByValue(reviewerFilter, value);
     if (option) option.selected = false;
   } else if (type === "author") {
@@ -1625,11 +1655,15 @@ function getFilterLabel(type: string, value: string): string {
     return findOptionByValue(teamFilter, value)?.textContent ?? value;
   }
   if (type === "reviewer") {
-    const reviewerFilter = elements["reviewer-filter"] as HTMLSelectElement | null;
+    const reviewerFilter = elements[
+      "reviewer-filter"
+    ] as HTMLSelectElement | null;
     return findOptionByValue(reviewerFilter, value)?.textContent ?? value;
   }
   if (type === "author") {
-    const authorFilterOptions = elements["author-filter-options"] as HTMLDataListElement | null;
+    const authorFilterOptions = elements[
+      "author-filter-options"
+    ] as HTMLDataListElement | null;
     const option = authorFilterOptions?.querySelector(
       `option[data-author-id="${CSS.escape(value)}"]`,
     ) as HTMLOptionElement | null;
@@ -1643,7 +1677,13 @@ function getFilterLabel(type: string, value: string): string {
  */
 function createFilterChip(type: string, value: string, label: string): string {
   const prefix =
-    type === "repo" ? "repo" : type === "team" ? "team" : type === "reviewer" ? "reviewer" : "author";
+    type === "repo"
+      ? "repo"
+      : type === "team"
+        ? "team"
+        : type === "reviewer"
+          ? "reviewer"
+          : "author";
   // SECURITY: Escape user-controlled values to prevent XSS
   return `
         <span class="filter-chip">
@@ -1657,7 +1697,10 @@ function updateMetricLabels(): void {
   const reviewerMode = currentFilters.reviewers.length > 0;
   const authorTeamConstrained =
     currentFilters.authors.length > 0 && currentFilters.teams.length > 0;
-  elements["author-filter-notice"]?.classList.toggle("hidden", !authorTeamConstrained);
+  elements["author-filter-notice"]?.classList.toggle(
+    "hidden",
+    !authorTeamConstrained,
+  );
   const reviewerNotice = elements["reviewer-filter-notice"];
   if (reviewerNotice) {
     if (reviewerFilterNoticeMessage) {
@@ -1750,7 +1793,9 @@ function restoreFiltersFromUrl(): void {
       reviewersParam.split(",").filter((v) => v),
       "url",
     );
-    const reviewerFilter = elements["reviewer-filter"] as HTMLSelectElement | null;
+    const reviewerFilter = elements[
+      "reviewer-filter"
+    ] as HTMLSelectElement | null;
     if (reviewerFilter) {
       const valid = currentFilters.reviewers.filter(
         (v) => findOptionByValue(reviewerFilter, v) !== null,

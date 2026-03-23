@@ -54,9 +54,7 @@ describe("Build API Call Patterns", () => {
       const normalizedCode = settingsCode.replace(/\s+/g, " ");
 
       // Should have getDefinitions() calls via ArtifactClient (no positional project param)
-      const clientCalls = normalizedCode.match(
-        /client\.getDefinitions\(\)/g,
-      );
+      const clientCalls = normalizedCode.match(/client\.getDefinitions\(\)/g);
       expect(clientCalls).not.toBeNull();
       expect(clientCalls?.length).toBeGreaterThan(0);
 

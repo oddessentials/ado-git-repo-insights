@@ -275,10 +275,7 @@ export class ArtifactClient {
    * @param top - Maximum number of builds to return (default: 1)
    * @returns Array of builds (filtered to completed + succeeded)
    */
-  async getBuilds(
-    definitionId: number,
-    top: number = 1,
-  ): Promise<Build[]> {
+  async getBuilds(definitionId: number, top: number = 1): Promise<Build[]> {
     this._ensureInitialized();
 
     const url =

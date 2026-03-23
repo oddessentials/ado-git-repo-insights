@@ -52,7 +52,8 @@ describe("ML State Rendering", () => {
       banner.className = "hidden";
       document.body.appendChild(banner);
 
-      const commentsSummary = "Comments coverage: partial (capped during extraction)";
+      const commentsSummary =
+        "Comments coverage: partial (capped during extraction)";
       banner.textContent = commentsSummary;
       banner.classList.remove("hidden");
 

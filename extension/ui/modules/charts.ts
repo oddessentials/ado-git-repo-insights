@@ -191,25 +191,33 @@ export function addChartTooltips(
     el.addEventListener("mouseleave", () => dismissActiveTooltip(), { signal });
 
     // Tap/click support with scroll-cancellation
-    el.addEventListener("pointerdown", (e: PointerEvent) => {
-      pointerOrigin = { x: e.clientX, y: e.clientY };
-    }, { signal });
+    el.addEventListener(
+      "pointerdown",
+      (e: PointerEvent) => {
+        pointerOrigin = { x: e.clientX, y: e.clientY };
+      },
+      { signal },
+    );
 
-    el.addEventListener("pointerup", (e: PointerEvent) => {
-      if (!pointerOrigin) return;
-      const dx = e.clientX - pointerOrigin.x;
-      const dy = e.clientY - pointerOrigin.y;
-      const distance = Math.sqrt(dx * dx + dy * dy);
-      pointerOrigin = null;
+    el.addEventListener(
+      "pointerup",
+      (e: PointerEvent) => {
+        if (!pointerOrigin) return;
+        const dx = e.clientX - pointerOrigin.x;
+        const dy = e.clientY - pointerOrigin.y;
+        const distance = Math.sqrt(dx * dx + dy * dy);
+        pointerOrigin = null;
 
-      if (distance < SCROLL_CANCEL_THRESHOLD) {
-        // Prevent the synthesized click from immediately dismissing the
-        // tooltip. This also suppresses native click handlers on the same
-        // element after a tap, so avoid relying on click for tooltip dots.
-        e.preventDefault();
-        showTooltip(el);
-      }
-    }, { signal });
+        if (distance < SCROLL_CANCEL_THRESHOLD) {
+          // Prevent the synthesized click from immediately dismissing the
+          // tooltip. This also suppresses native click handlers on the same
+          // element after a tap, so avoid relying on click for tooltip dots.
+          e.preventDefault();
+          showTooltip(el);
+        }
+      },
+      { signal },
+    );
   });
 
   // Attach the shared document-level dismiss listener once (idempotent)
@@ -218,7 +226,10 @@ export function addChartTooltips(
     document.addEventListener("click", (e: MouseEvent) => {
       if (!document.querySelector(".chart-tooltip")) return;
       const target = e.target as HTMLElement;
-      if (!target.closest("[data-tooltip]") && !target.closest(".chart-tooltip")) {
+      if (
+        !target.closest("[data-tooltip]") &&
+        !target.closest(".chart-tooltip")
+      ) {
         dismissActiveTooltip();
       }
     });

@@ -9,7 +9,6 @@
  * Production URL testing is done in smoke tests with custom JSDOM instances.
  */
 
-
 // Import functions for testing in default jsdom environment
 import {
   isProductionEnvironment,
@@ -60,7 +59,9 @@ describe("dev-mode (custom URL environments via JSDOM)", () => {
     const PRODUCTION_PATTERNS = ["dev.azure.com", "visualstudio.com"];
     const lowerHostname = hostname.toLowerCase();
     if (!lowerHostname) return false;
-    return PRODUCTION_PATTERNS.some((pattern) => lowerHostname.includes(pattern));
+    return PRODUCTION_PATTERNS.some((pattern) =>
+      lowerHostname.includes(pattern),
+    );
   }
 
   /**

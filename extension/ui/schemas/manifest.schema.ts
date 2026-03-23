@@ -867,7 +867,10 @@ function validateDemoProfile(
     if (err) errors.push(err);
   }
 
-  if ("canonical_output_root" in data && data.canonical_output_root !== undefined) {
+  if (
+    "canonical_output_root" in data &&
+    data.canonical_output_root !== undefined
+  ) {
     const err = validateString(
       data.canonical_output_root,
       buildPath(path, "canonical_output_root"),
@@ -875,7 +878,12 @@ function validateDemoProfile(
     if (err) errors.push(err);
   }
 
-  const unknown = findUnknownFields(data, KNOWN_DEMO_PROFILE_FIELDS, path, strict);
+  const unknown = findUnknownFields(
+    data,
+    KNOWN_DEMO_PROFILE_FIELDS,
+    path,
+    strict,
+  );
   errors.push(...unknown.errors);
   warnings.push(...unknown.warnings);
 
@@ -1070,7 +1078,11 @@ export function validateManifest(
   }
 
   if ("demo_profile" in data && data.demo_profile !== undefined) {
-    const result = validateDemoProfile(data.demo_profile, "demo_profile", strict);
+    const result = validateDemoProfile(
+      data.demo_profile,
+      "demo_profile",
+      strict,
+    );
     errors.push(...result.errors);
     warnings.push(...result.warnings);
   }

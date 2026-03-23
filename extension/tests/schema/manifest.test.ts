@@ -236,15 +236,15 @@ describe("Manifest Schema Validator", () => {
       };
       const result = validateManifest(invalid, true);
       expect(result.valid).toBe(false);
-      expect(result.errors.some((e) => e.field.includes("demo_profile.name"))).toBe(
-        true,
-      );
+      expect(
+        result.errors.some((e) => e.field.includes("demo_profile.name")),
+      ).toBe(true);
       expect(
         result.errors.some((e) => e.field.includes("demo_profile.version")),
       ).toBe(true);
-      expect(result.errors.some((e) => e.field.includes("demo_profile.seed"))).toBe(
-        true,
-      );
+      expect(
+        result.errors.some((e) => e.field.includes("demo_profile.seed")),
+      ).toBe(true);
       expect(
         result.errors.some((e) =>
           e.field.includes("demo_profile.canonical_output_root"),

@@ -62,9 +62,9 @@ describe("ArtifactClient", () => {
       const client = new ArtifactClient("test-project");
 
       // Calling a method before initialization should throw
-      await expect(
-        client.getArtifacts(123),
-      ).rejects.toThrow("ArtifactClient not initialized");
+      await expect(client.getArtifacts(123)).rejects.toThrow(
+        "ArtifactClient not initialized",
+      );
     });
 
     it("sets auth token and collection URI on initialize()", async () => {
@@ -75,7 +75,8 @@ describe("ArtifactClient", () => {
     });
 
     it("handles string token format", async () => {
-      (global as any).VSS.getAccessToken = () => Promise.resolve("string-token");
+      (global as any).VSS.getAccessToken = () =>
+        Promise.resolve("string-token");
 
       const client = new ArtifactClient("test-project");
       await client.initialize();
@@ -96,10 +97,7 @@ describe("ArtifactClient", () => {
 
     it("only initializes once (idempotent)", async () => {
       const client = new ArtifactClient("test-project");
-      const accessTokenSpy = jest.spyOn(
-        (global as any).VSS,
-        "getAccessToken",
-      );
+      const accessTokenSpy = jest.spyOn((global as any).VSS, "getAccessToken");
 
       await client.initialize();
       await client.initialize();
@@ -206,7 +204,11 @@ describe("ArtifactClient", () => {
         json: () => Promise.resolve(testData),
       });
 
-      const result = await client.getArtifactFile(123, "aggregates", "manifest.json");
+      const result = await client.getArtifactFile(
+        123,
+        "aggregates",
+        "manifest.json",
+      );
 
       expect(result).toEqual(testData);
     });
@@ -238,7 +240,11 @@ describe("ArtifactClient", () => {
         status: 200,
       });
 
-      const result = await client.hasArtifactFile(123, "aggregates", "manifest.json");
+      const result = await client.hasArtifactFile(
+        123,
+        "aggregates",
+        "manifest.json",
+      );
 
       expect(result).toBe(true);
     });
@@ -252,7 +258,11 @@ describe("ArtifactClient", () => {
         status: 404,
       });
 
-      const result = await client.hasArtifactFile(123, "aggregates", "missing.json");
+      const result = await client.hasArtifactFile(
+        123,
+        "aggregates",
+        "missing.json",
+      );
 
       expect(result).toBe(false);
     });
@@ -263,7 +273,11 @@ describe("ArtifactClient", () => {
 
       mockFetch.mockRejectedValue(new Error("Network error"));
 
-      const result = await client.hasArtifactFile(123, "aggregates", "manifest.json");
+      const result = await client.hasArtifactFile(
+        123,
+        "aggregates",
+        "manifest.json",
+      );
 
       expect(result).toBe(false);
     });
@@ -286,7 +300,10 @@ describe("ArtifactClient", () => {
       await client.initialize();
 
       const artifacts: VSSBuildArtifact[] = [
-        { name: "aggregates", resource: { downloadUrl: "https://test/download" } },
+        {
+          name: "aggregates",
+          resource: { downloadUrl: "https://test/download" },
+        },
         { name: "logs", resource: { downloadUrl: "https://test/logs" } },
       ];
 
@@ -473,7 +490,12 @@ describe("ArtifactClient", () => {
       await client.initialize();
 
       const builds = [
-        { id: 100, definition: { id: 1, name: "pipeline-a" }, status: 2, result: 6 },
+        {
+          id: 100,
+          definition: { id: 1, name: "pipeline-a" },
+          status: 2,
+          result: 6,
+        },
       ];
 
       mockFetch.mockResolvedValue({
@@ -836,7 +858,10 @@ describe("AuthenticatedDatasetLoader", () => {
         manifest_schema_version: 1,
         aggregate_index: {
           weekly_rollups: [
-            { week: "2026-W01", path: "aggregates/weekly_rollups/2026-W01.json" },
+            {
+              week: "2026-W01",
+              path: "aggregates/weekly_rollups/2026-W01.json",
+            },
           ],
         },
       };
@@ -859,11 +884,17 @@ describe("AuthenticatedDatasetLoader", () => {
       await loader.loadManifest();
 
       // First call
-      await loader.getWeeklyRollups(new Date("2026-01-01"), new Date("2026-01-07"));
+      await loader.getWeeklyRollups(
+        new Date("2026-01-01"),
+        new Date("2026-01-07"),
+      );
       const callCountAfterFirst = getArtifactSpy.mock.calls.length;
 
       // Second call should use cache
-      await loader.getWeeklyRollups(new Date("2026-01-01"), new Date("2026-01-07"));
+      await loader.getWeeklyRollups(
+        new Date("2026-01-01"),
+        new Date("2026-01-07"),
+      );
 
       // Should not have made additional API calls for the same week
       expect(getArtifactSpy.mock.calls.length).toBe(callCountAfterFirst);
@@ -1089,8 +1120,16 @@ describe("MockArtifactClient", () => {
     };
     const client = new MockArtifactClient(mockData);
 
-    const result1 = await client.getArtifactFile(123, "aggregates", "test.json");
-    const result2 = await client.getArtifactFile(123, "aggregates", "test.json");
+    const result1 = await client.getArtifactFile(
+      123,
+      "aggregates",
+      "test.json",
+    );
+    const result2 = await client.getArtifactFile(
+      123,
+      "aggregates",
+      "test.json",
+    );
 
     expect(result1).toEqual(result2);
     expect(result1).not.toBe(result2); // Different object references
@@ -1102,8 +1141,12 @@ describe("MockArtifactClient", () => {
     };
     const client = new MockArtifactClient(mockData);
 
-    expect(await client.hasArtifactFile(123, "aggregates", "exists.json")).toBe(true);
-    expect(await client.hasArtifactFile(123, "aggregates", "missing.json")).toBe(false);
+    expect(await client.hasArtifactFile(123, "aggregates", "exists.json")).toBe(
+      true,
+    );
+    expect(
+      await client.hasArtifactFile(123, "aggregates", "missing.json"),
+    ).toBe(false);
   });
 
   it("is initialized by default", () => {
@@ -1133,7 +1176,12 @@ describe("MockArtifactClient", () => {
 
   it("getBuilds returns mock builds for definition", async () => {
     const builds = [
-      { id: 100, definition: { id: 1, name: "pipeline-a" }, status: 2, result: 6 },
+      {
+        id: 100,
+        definition: { id: 1, name: "pipeline-a" },
+        status: 2,
+        result: 6,
+      },
     ];
     const client = new MockArtifactClient({ "builds/1": builds });
 

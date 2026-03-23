@@ -169,7 +169,9 @@ describe("reviewer-activity module", () => {
         reviewers_count: 0,
       }));
 
-      renderReviewerActivity(container, rollups, { reviewerFilterActive: true });
+      renderReviewerActivity(container, rollups, {
+        reviewerFilterActive: true,
+      });
 
       expect(container.innerHTML).toContain("No review activity available");
       expect(container.innerHTML).toContain(
@@ -184,11 +186,14 @@ describe("reviewer-activity module", () => {
       renderReviewerActivity(container, []);
 
       expect(container.innerHTML).toContain(
+        "Try widening the date range or adjusting repository/team filters.",
+      );
+      expect(container.innerHTML).not.toContain(
         "Reviewer data requires the extraction pipeline to capture reviewer details.",
       );
     });
 
-    it("shows neutral hint for unfiltered zero-count reviewer data", () => {
+    it("shows pipeline hint for unfiltered zero-count reviewer data", () => {
       const rollups = createRollups(2).map((r) => ({
         ...r,
         reviewers_count: 0,
@@ -197,10 +202,10 @@ describe("reviewer-activity module", () => {
       renderReviewerActivity(container, rollups);
 
       expect(container.innerHTML).toContain(
-        "No reviewers were active in the selected period.",
+        "Reviewer data requires the extraction pipeline to capture reviewer details.",
       );
       expect(container.innerHTML).not.toContain(
-        "Reviewer data requires the extraction pipeline to capture reviewer details.",
+        "Try widening the date range or adjusting repository/team filters.",
       );
     });
 
@@ -211,12 +216,18 @@ describe("reviewer-activity module", () => {
     });
 
     it("renders standard week format label from W-suffix", () => {
-      const rollups: Rollup[] = [{
-        week: "2025-W03",
-        pr_count: 10, cycle_time_p50: 60, cycle_time_p90: 120,
-        authors_count: 5, reviewers_count: 8,
-        by_repository: null, by_team: null,
-      }];
+      const rollups: Rollup[] = [
+        {
+          week: "2025-W03",
+          pr_count: 10,
+          cycle_time_p50: 60,
+          cycle_time_p90: 120,
+          authors_count: 5,
+          reviewers_count: 8,
+          by_repository: null,
+          by_team: null,
+        },
+      ];
 
       renderReviewerActivity(container, rollups);
 
@@ -224,12 +235,18 @@ describe("reviewer-activity module", () => {
     });
 
     it("uses full string for non-standard week format", () => {
-      const rollups: Rollup[] = [{
-        week: "custom_format",
-        pr_count: 10, cycle_time_p50: 60, cycle_time_p90: 120,
-        authors_count: 5, reviewers_count: 8,
-        by_repository: null, by_team: null,
-      }];
+      const rollups: Rollup[] = [
+        {
+          week: "custom_format",
+          pr_count: 10,
+          cycle_time_p50: 60,
+          cycle_time_p90: 120,
+          authors_count: 5,
+          reviewers_count: 8,
+          by_repository: null,
+          by_team: null,
+        },
+      ];
 
       renderReviewerActivity(container, rollups);
 

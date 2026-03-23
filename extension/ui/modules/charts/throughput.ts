@@ -9,7 +9,12 @@
 
 import type { Rollup } from "../../dataset-loader";
 import { calculateMovingAverage } from "../metrics";
-import { escapeHtml, NO_DATA_HINTS, renderNoData, renderTrustedHtml } from "../shared/render";
+import {
+  escapeHtml,
+  NO_DATA_HINTS,
+  renderNoData,
+  renderTrustedHtml,
+} from "../shared/render";
 import { addChartTooltips } from "../charts";
 
 /** Maximum data points rendered in the throughput chart (2 years of weekly data). */
@@ -34,7 +39,11 @@ export function renderThroughputChart(
   if (!container) return;
 
   if (!rollups || !rollups.length) {
-    renderNoData(container, "No data for selected range", NO_DATA_HINTS.WIDEN_FILTERS);
+    renderNoData(
+      container,
+      "No data for selected range",
+      NO_DATA_HINTS.WIDEN_FILTERS,
+    );
     return;
   }
 

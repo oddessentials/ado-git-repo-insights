@@ -76,7 +76,9 @@ describe("renderNoData hint parameter", () => {
     renderNoData(container, "No data available");
 
     expect(container.querySelector(".no-data")).not.toBeNull();
-    expect(container.querySelector(".no-data")?.textContent).toBe("No data available");
+    expect(container.querySelector(".no-data")?.textContent).toBe(
+      "No data available",
+    );
     expect(container.querySelector(".no-data-hint")).toBeNull();
   });
 });

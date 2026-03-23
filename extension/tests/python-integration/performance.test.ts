@@ -142,87 +142,93 @@ describe("Performance Baseline Tests (Simplified)", () => {
     );
   });
 
-  performanceTest("bulk JSON parsing (all rollups) completes within budget", () => {
-    const fixtureDir = path.join(performanceFixturesDir, "1000pr");
-    const manifestPath = path.join(fixtureDir, "dataset-manifest.json");
+  performanceTest(
+    "bulk JSON parsing (all rollups) completes within budget",
+    () => {
+      const fixtureDir = path.join(performanceFixturesDir, "1000pr");
+      const manifestPath = path.join(fixtureDir, "dataset-manifest.json");
 
-    if (!fs.existsSync(manifestPath)) {
-      runSyntheticDatasetGenerator(fixtureDir, 1000);
-    }
-
-    const manifest = JSON.parse(fs.readFileSync(manifestPath, "utf-8"));
-
-    // Baseline: 100ms, Budget: 500ms (2x tolerance + file I/O)
-    const duration = measureTiming(() => {
-      for (const entry of manifest.aggregate_index.weekly_rollups) {
-        const rollupPath = path.join(fixtureDir, entry.path);
-        const rollupData = JSON.parse(fs.readFileSync(rollupPath, "utf-8"));
-
-        // Simulate processing
-        expect(rollupData.week).toBeDefined();
-        expect(rollupData.pr_count).toBeGreaterThan(0);
+      if (!fs.existsSync(manifestPath)) {
+        runSyntheticDatasetGenerator(fixtureDir, 1000);
       }
-    });
 
-    expect(duration).toBeLessThan(500);
-
-    console.log(
-      JSON.stringify({
-        test: "bulk_json_parse",
-        duration_ms: duration,
-        budget_ms: 500,
-        baseline_ms: 100,
-        files_parsed: manifest.aggregate_index.weekly_rollups.length,
-      }),
-    );
-  });
-
-  performanceTest("memory footprint for 1k dataset remains within ceiling", () => {
-    const fixtureDir = path.join(performanceFixturesDir, "1000pr");
-    const manifestPath = path.join(fixtureDir, "dataset-manifest.json");
-
-    if (!fs.existsSync(manifestPath)) {
-      runSyntheticDatasetGenerator(fixtureDir, 1000);
-    }
-
-    // Budget: 20MB delta (conservative for file I/O + parsing)
-    const memoryDelta = measureMemoryDelta(() => {
       const manifest = JSON.parse(fs.readFileSync(manifestPath, "utf-8"));
-      const dimensions = JSON.parse(
-        fs.readFileSync(
-          path.join(fixtureDir, "aggregates", "dimensions.json"),
-          "utf-8",
-        ),
-      );
 
-      // Load some rollups
-      const rollups = [];
-      for (
-        let i = 0;
-        i < 5 && i < manifest.aggregate_index.weekly_rollups.length;
-        i++
-      ) {
-        const entry = manifest.aggregate_index.weekly_rollups[i];
-        const rollupPath = path.join(fixtureDir, entry.path);
-        rollups.push(JSON.parse(fs.readFileSync(rollupPath, "utf-8")));
+      // Baseline: 100ms, Budget: 500ms (2x tolerance + file I/O)
+      const duration = measureTiming(() => {
+        for (const entry of manifest.aggregate_index.weekly_rollups) {
+          const rollupPath = path.join(fixtureDir, entry.path);
+          const rollupData = JSON.parse(fs.readFileSync(rollupPath, "utf-8"));
+
+          // Simulate processing
+          expect(rollupData.week).toBeDefined();
+          expect(rollupData.pr_count).toBeGreaterThan(0);
+        }
+      });
+
+      expect(duration).toBeLessThan(500);
+
+      console.log(
+        JSON.stringify({
+          test: "bulk_json_parse",
+          duration_ms: duration,
+          budget_ms: 500,
+          baseline_ms: 100,
+          files_parsed: manifest.aggregate_index.weekly_rollups.length,
+        }),
+      );
+    },
+  );
+
+  performanceTest(
+    "memory footprint for 1k dataset remains within ceiling",
+    () => {
+      const fixtureDir = path.join(performanceFixturesDir, "1000pr");
+      const manifestPath = path.join(fixtureDir, "dataset-manifest.json");
+
+      if (!fs.existsSync(manifestPath)) {
+        runSyntheticDatasetGenerator(fixtureDir, 1000);
       }
 
-      // Keep references
-      return { manifest, dimensions, rollups };
-    });
+      // Budget: 20MB delta (conservative for file I/O + parsing)
+      const memoryDelta = measureMemoryDelta(() => {
+        const manifest = JSON.parse(fs.readFileSync(manifestPath, "utf-8"));
+        const dimensions = JSON.parse(
+          fs.readFileSync(
+            path.join(fixtureDir, "aggregates", "dimensions.json"),
+            "utf-8",
+          ),
+        );
 
-    const memoryDeltaMB = memoryDelta / (1024 * 1024);
-    expect(memoryDeltaMB).toBeLessThan(20);
+        // Load some rollups
+        const rollups = [];
+        for (
+          let i = 0;
+          i < 5 && i < manifest.aggregate_index.weekly_rollups.length;
+          i++
+        ) {
+          const entry = manifest.aggregate_index.weekly_rollups[i];
+          const rollupPath = path.join(fixtureDir, entry.path);
+          rollups.push(JSON.parse(fs.readFileSync(rollupPath, "utf-8")));
+        }
 
-    console.log(
-      JSON.stringify({
-        test: "memory_footprint",
-        memory_delta_mb: memoryDeltaMB,
-        budget_mb: 20,
-        baseline_mb: 10,
-      }),
-    );
-  });
+        // Keep references
+        return { manifest, dimensions, rollups };
+      });
+
+      const memoryDeltaMB = memoryDelta / (1024 * 1024);
+      expect(memoryDeltaMB).toBeLessThan(20);
+
+      console.log(
+        JSON.stringify({
+          test: "memory_footprint",
+          memory_delta_mb: memoryDeltaMB,
+          budget_mb: 20,
+          baseline_mb: 10,
+        }),
+      );
+    },
+  );
 
   afterAll(() => {
     // Write summary for CI artifacts
@@ -327,36 +333,40 @@ describe.each([1000, 5000, 10000])(
       }
     }
 
-    performanceTest(`${prCount} PR fixture generation within budget`, () => {
-      const fixtureDir = path.join(performanceFixturesDir, `${prCount}pr`);
+    performanceTest(
+      `${prCount} PR fixture generation within budget`,
+      () => {
+        const fixtureDir = path.join(performanceFixturesDir, `${prCount}pr`);
 
-      // Clean previous run
-      if (fs.existsSync(fixtureDir)) {
-        fs.rmSync(fixtureDir, { recursive: true, force: true });
-      }
+        // Clean previous run
+        if (fs.existsSync(fixtureDir)) {
+          fs.rmSync(fixtureDir, { recursive: true, force: true });
+        }
 
-      const duration = measureWithWarmup(() => {
-        runSyntheticDatasetGenerator(fixtureDir, prCount);
-      });
+        const duration = measureWithWarmup(() => {
+          runSyntheticDatasetGenerator(fixtureDir, prCount);
+        });
 
-      // Budget scales linearly with PR count
-      const budget = 5000 * (prCount / 1000) * 2; // 2x tolerance
-      expect(duration).toBeLessThan(budget);
+        // Budget scales linearly with PR count
+        const budget = 5000 * (prCount / 1000) * 2; // 2x tolerance
+        expect(duration).toBeLessThan(budget);
 
-      // Check regression
-      const baselineKey = `${prCount}pr_fixture_gen_ms`;
-      const baseline = baselines.metrics?.[baselineKey];
-      checkRegression(`${prCount}pr-fixture-gen`, duration, baseline);
+        // Check regression
+        const baselineKey = `${prCount}pr_fixture_gen_ms`;
+        const baseline = baselines.metrics?.[baselineKey];
+        checkRegression(`${prCount}pr-fixture-gen`, duration, baseline);
 
-      console.log(
-        JSON.stringify({
-          test: `fixture_generation_${prCount}pr`,
-          duration_ms: duration,
-          budget_ms: budget,
-          baseline_ms: baseline || "N/A",
-        }),
-      );
-    }, 60000); // 60s timeout for large fixtures
+        console.log(
+          JSON.stringify({
+            test: `fixture_generation_${prCount}pr`,
+            duration_ms: duration,
+            budget_ms: budget,
+            baseline_ms: baseline || "N/A",
+          }),
+        );
+      },
+      60000,
+    ); // 60s timeout for large fixtures
 
     performanceTest(`${prCount} PR manifest parse within budget`, () => {
       const fixtureDir = path.join(performanceFixturesDir, `${prCount}pr`);

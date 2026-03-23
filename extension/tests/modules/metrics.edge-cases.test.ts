@@ -349,21 +349,69 @@ describe("cross-dimensional multi-team overlap (T014)", () => {
     authors_count: 10,
     reviewers_count: 5,
     by_repository: {
-      "repo-a": { pr_count: 30, cycle_time_p50: 50, cycle_time_p90: 100, authors_count: 4, reviewers_count: 2 },
-      "repo-b": { pr_count: 70, cycle_time_p50: 65, cycle_time_p90: 130, authors_count: 6, reviewers_count: 3 },
+      "repo-a": {
+        pr_count: 30,
+        cycle_time_p50: 50,
+        cycle_time_p90: 100,
+        authors_count: 4,
+        reviewers_count: 2,
+      },
+      "repo-b": {
+        pr_count: 70,
+        cycle_time_p50: 65,
+        cycle_time_p90: 130,
+        authors_count: 6,
+        reviewers_count: 3,
+      },
     },
     by_team: {
-      "team-x": { pr_count: 45, cycle_time_p50: 55, cycle_time_p90: 110, authors_count: 5, reviewers_count: 3 },
-      "team-y": { pr_count: 55, cycle_time_p50: 63, cycle_time_p90: 127, authors_count: 6, reviewers_count: 3 },
+      "team-x": {
+        pr_count: 45,
+        cycle_time_p50: 55,
+        cycle_time_p90: 110,
+        authors_count: 5,
+        reviewers_count: 3,
+      },
+      "team-y": {
+        pr_count: 55,
+        cycle_time_p50: 63,
+        cycle_time_p90: 127,
+        authors_count: 6,
+        reviewers_count: 3,
+      },
     },
     by_team_and_repo: {
       "team-x": {
-        "repo-a": { pr_count: 20, cycle_time_p50: 48, cycle_time_p90: 95, authors_count: 3, reviewers_count: 2 },
-        "repo-b": { pr_count: 25, cycle_time_p50: 62, cycle_time_p90: 124, authors_count: 3, reviewers_count: 2 },
+        "repo-a": {
+          pr_count: 20,
+          cycle_time_p50: 48,
+          cycle_time_p90: 95,
+          authors_count: 3,
+          reviewers_count: 2,
+        },
+        "repo-b": {
+          pr_count: 25,
+          cycle_time_p50: 62,
+          cycle_time_p90: 124,
+          authors_count: 3,
+          reviewers_count: 2,
+        },
       },
       "team-y": {
-        "repo-a": { pr_count: 15, cycle_time_p50: 53, cycle_time_p90: 106, authors_count: 3, reviewers_count: 1 },
-        "repo-b": { pr_count: 40, cycle_time_p50: 67, cycle_time_p90: 134, authors_count: 5, reviewers_count: 3 },
+        "repo-a": {
+          pr_count: 15,
+          cycle_time_p50: 53,
+          cycle_time_p90: 106,
+          authors_count: 3,
+          reviewers_count: 1,
+        },
+        "repo-b": {
+          pr_count: 40,
+          cycle_time_p50: 67,
+          cycle_time_p90: 134,
+          authors_count: 5,
+          reviewers_count: 3,
+        },
       },
     },
   } as Rollup;
@@ -460,12 +508,12 @@ describe("T025: SC-002 dashboard load time overhead", () => {
 
       // Build by_repository
       for (let r = 0; r < NUM_REPOS; r++) {
-        const prCount = 10 + (w * r) % 20;
+        const prCount = 10 + ((w * r) % 20);
         totalPr += prCount;
         byRepo[`repo-${r}`] = {
           pr_count: prCount,
-          cycle_time_p50: 30 + (r * 7) % 60,
-          cycle_time_p90: 60 + (r * 13) % 120,
+          cycle_time_p50: 30 + ((r * 7) % 60),
+          cycle_time_p90: 60 + ((r * 13) % 120),
           authors_count: 2 + (r % 5),
           reviewers_count: 1 + (r % 3),
         };
@@ -476,8 +524,8 @@ describe("T025: SC-002 dashboard load time overhead", () => {
         const teamPr = Math.floor(totalPr / NUM_TEAMS) + (t % 3);
         byTeam[`team-${t}`] = {
           pr_count: teamPr,
-          cycle_time_p50: 35 + (t * 11) % 50,
-          cycle_time_p90: 70 + (t * 17) % 100,
+          cycle_time_p50: 35 + ((t * 11) % 50),
+          cycle_time_p90: 70 + ((t * 17) % 100),
           authors_count: 2 + (t % 4),
           reviewers_count: 1 + (t % 3),
         };
@@ -489,13 +537,17 @@ describe("T025: SC-002 dashboard load time overhead", () => {
           const teamKey = `team-${t}`;
           byTeamAndRepo[teamKey] = {};
           // Each team contributes to ~3 repos (sparse)
-          for (let r = t % NUM_REPOS; r < NUM_REPOS; r += Math.max(1, Math.floor(NUM_REPOS / 3))) {
+          for (
+            let r = t % NUM_REPOS;
+            r < NUM_REPOS;
+            r += Math.max(1, Math.floor(NUM_REPOS / 3))
+          ) {
             const repoKey = `repo-${r}`;
             const prCount = 2 + ((w + t + r) % 8);
             byTeamAndRepo[teamKey][repoKey] = {
               pr_count: prCount,
-              cycle_time_p50: 30 + ((t + r) * 7) % 60,
-              cycle_time_p90: 60 + ((t + r) * 13) % 120,
+              cycle_time_p50: 30 + (((t + r) * 7) % 60),
+              cycle_time_p90: 60 + (((t + r) * 13) % 120),
               authors_count: 1 + ((t + r) % 3),
               reviewers_count: 1 + ((t + r) % 2),
             };

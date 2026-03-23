@@ -667,7 +667,9 @@ describe("VSS SDK Mock", () => {
       });
 
       const service = getMockExtensionDataService();
-      expect(await service.getValue("pr-insights-source-project")).toBeUndefined();
+      expect(
+        await service.getValue("pr-insights-source-project"),
+      ).toBeUndefined();
     });
 
     it("configures error keys to reject with error", async () => {
@@ -725,7 +727,9 @@ describe("VSS SDK Mock", () => {
         await service.getValue("pr-insights-source-project"),
       ).toBeUndefined();
       expect(await service.getValue("pr-insights-pipeline-id")).toBeUndefined();
-      expect(await service.getValue("pr-insights-artifact-name")).toBeUndefined();
+      expect(
+        await service.getValue("pr-insights-artifact-name"),
+      ).toBeUndefined();
     });
   });
 

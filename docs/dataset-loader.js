@@ -803,7 +803,12 @@ var PRInsightsDatasetLoader = (() => {
       );
       if (err) errors.push(err);
     }
-    const unknown = findUnknownFields(data, KNOWN_DEMO_PROFILE_FIELDS, path, strict);
+    const unknown = findUnknownFields(
+      data,
+      KNOWN_DEMO_PROFILE_FIELDS,
+      path,
+      strict
+    );
     errors.push(...unknown.errors);
     warnings.push(...unknown.warnings);
     return { errors, warnings };
@@ -944,7 +949,11 @@ var PRInsightsDatasetLoader = (() => {
       warnings.push(...result.warnings);
     }
     if ("demo_profile" in data && data.demo_profile !== void 0) {
-      const result = validateDemoProfile(data.demo_profile, "demo_profile", strict);
+      const result = validateDemoProfile(
+        data.demo_profile,
+        "demo_profile",
+        strict
+      );
       errors.push(...result.errors);
       warnings.push(...result.warnings);
     }
@@ -1094,7 +1103,10 @@ var PRInsightsDatasetLoader = (() => {
       if (err) errors.push(err);
     }
     if (Object.prototype.hasOwnProperty.call(data, "approval_rate")) {
-      const fieldValue = Object.getOwnPropertyDescriptor(data, "approval_rate")?.value;
+      const fieldValue = Object.getOwnPropertyDescriptor(
+        data,
+        "approval_rate"
+      )?.value;
       if (fieldValue != null) {
         const err = validateNumber(fieldValue, buildPath(path, "approval_rate"));
         if (err) {
@@ -1115,7 +1127,10 @@ var PRInsightsDatasetLoader = (() => {
       if (Object.prototype.hasOwnProperty.call(data, field)) {
         const fieldValue = Object.getOwnPropertyDescriptor(data, field)?.value;
         if (fieldValue != null) {
-          const err = validateNonNegativeNumber(fieldValue, buildPath(path, field));
+          const err = validateNonNegativeNumber(
+            fieldValue,
+            buildPath(path, field)
+          );
           if (err) errors.push(err);
         }
       }
@@ -1306,10 +1321,7 @@ var PRInsightsDatasetLoader = (() => {
     "displayName",
     "uniqueName"
   ]);
-  var KNOWN_REVIEWER_FIELDS = /* @__PURE__ */ new Set([
-    "reviewer_id",
-    "reviewer_name"
-  ]);
+  var KNOWN_REVIEWER_FIELDS = /* @__PURE__ */ new Set(["reviewer_id", "reviewer_name"]);
   var KNOWN_AUTHOR_FIELDS = /* @__PURE__ */ new Set(["author_id", "author_name"]);
   var KNOWN_PROJECT_FIELDS = /* @__PURE__ */ new Set([
     "organization_name",
@@ -1721,7 +1733,11 @@ var PRInsightsDatasetLoader = (() => {
         errors.push(arrErr);
       } else if (isArray(data.authors)) {
         data.authors.forEach((item, i) => {
-          const result = validateAuthorEntry(item, buildPath("authors", i), strict);
+          const result = validateAuthorEntry(
+            item,
+            buildPath("authors", i),
+            strict
+          );
           errors.push(...result.errors);
           warnings.push(...result.warnings);
         });

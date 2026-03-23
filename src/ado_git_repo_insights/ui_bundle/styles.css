@@ -261,13 +261,6 @@ input[type="search"]::placeholder {
     color: var(--text-tertiary);
 }
 
-input[type="search"]::-webkit-search-cancel-button {
-    -webkit-appearance: none;
-    height: 14px;
-    width: 14px;
-    cursor: pointer;
-}
-
 /* Dimension Filter Dropdowns */
 .filter-separator {
     width: 1px;
