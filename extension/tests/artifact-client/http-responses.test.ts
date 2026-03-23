@@ -53,7 +53,11 @@ describe("ArtifactClient HTTP Response Handling", () => {
         json: () => Promise.resolve(testData),
       });
 
-      const result = await client.getArtifactFile(123, "aggregates", "manifest.json");
+      const result = await client.getArtifactFile(
+        123,
+        "aggregates",
+        "manifest.json",
+      );
 
       expect(result).toEqual(testData);
     });
@@ -186,7 +190,11 @@ describe("ArtifactClient HTTP Response Handling", () => {
         statusText: "Not Found",
       });
 
-      const exists = await client.hasArtifactFile(123, "aggregates", "missing.json");
+      const exists = await client.hasArtifactFile(
+        123,
+        "aggregates",
+        "missing.json",
+      );
 
       expect(exists).toBe(false);
     });
@@ -255,7 +263,8 @@ describe("ArtifactClient HTTP Response Handling", () => {
       mockFetch.mockResolvedValue({
         ok: true,
         status: 200,
-        json: () => Promise.reject(new SyntaxError("Unexpected end of JSON input")),
+        json: () =>
+          Promise.reject(new SyntaxError("Unexpected end of JSON input")),
       });
 
       await expect(

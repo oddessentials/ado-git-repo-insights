@@ -27,26 +27,26 @@ The global threshold applies to all code. It's intentionally lower to accommodat
 
 Critical modules have higher thresholds enforced:
 
-| Module                        | Current | Threshold | Target   |
-| ----------------------------- | ------- | --------- | -------- |
-| `ui/schemas/types.ts`         | 100%    | 98%       | Maintain |
-| `ui/schemas/errors.ts`        | 100%    | 98%       | Maintain |
-| `ui/schemas/rollup.schema.ts` | 93%     | 90%       | 95%      |
-| `ui/dataset-loader.ts`        | 83%     | 80%       | 90%      |
-| `ui/error-codes.ts`           | 100%    | 98%       | Maintain |
-| `ui/error-types.ts`           | 100%    | 98%       | Maintain |
-| `ui/modules/ml.ts`            | 78%     | 75%       | 80%      |
-| `ui/artifact-client.ts`       | 65%     | 40%       | 70%      |
-| `ui/modules/shared/security.ts` | 100%  | 95%       | Maintain |
+| Module                          | Current | Threshold | Target   |
+| ------------------------------- | ------- | --------- | -------- |
+| `ui/schemas/types.ts`           | 100%    | 98%       | Maintain |
+| `ui/schemas/errors.ts`          | 100%    | 98%       | Maintain |
+| `ui/schemas/rollup.schema.ts`   | 93%     | 90%       | 95%      |
+| `ui/dataset-loader.ts`          | 83%     | 80%       | 90%      |
+| `ui/error-codes.ts`             | 100%    | 98%       | Maintain |
+| `ui/error-types.ts`             | 100%    | 98%       | Maintain |
+| `ui/modules/ml.ts`              | 78%     | 75%       | 80%      |
+| `ui/artifact-client.ts`         | 65%     | 40%       | 70%      |
+| `ui/modules/shared/security.ts` | 100%    | 95%       | Maintain |
 
 ### Tier 3: Future Critical Paths (Not Yet Enforced)
 
 These modules should be added to coverage thresholds as tests are added:
 
-| Module                     | Current | Next Threshold          |
-| -------------------------- | ------- | ----------------------- |
-| `ui/modules/errors.ts`     | 100%    | 98% (when stabilized)   |
-| `ui/modules/comparison.ts` | 100%    | 98% (when stabilized)   |
+| Module                     | Current | Next Threshold        |
+| -------------------------- | ------- | --------------------- |
+| `ui/modules/errors.ts`     | 100%    | 98% (when stabilized) |
+| `ui/modules/comparison.ts` | 100%    | 98% (when stabilized) |
 
 ## Ratchet Schedule
 
@@ -60,9 +60,9 @@ These modules should be added to coverage thresholds as tests are added:
 
 - [x] Increased global thresholds to 55/49/51/56
 - [x] Added Critical Path thresholds (feature 023-dashboard-coverage):
-  - `ui/modules/ml.ts`: 75% minimum
-  - `ui/artifact-client.ts`: 40% minimum
-  - `ui/modules/shared/security.ts`: 95% minimum
+    - `ui/modules/ml.ts`: 75% minimum
+    - `ui/artifact-client.ts`: 40% minimum
+    - `ui/modules/shared/security.ts`: 95% minimum
 
 ### Phase 5.3
 
@@ -160,10 +160,10 @@ Coverage numbers MUST come from CI's canonical leg to ensure consistency:
 
 ## History
 
-| Date       | Phase | Global Statements | Notes                                                  |
-| ---------- | ----- | ----------------- | ------------------------------------------------------ |
-| 2026-01-28 | 5.1   | 48%               | Initial tiered thresholds                              |
-| 2026-01-30 | 5.1   | 55%               | Updated global thresholds after test improvements      |
+| Date       | Phase | Global Statements | Notes                                                                   |
+| ---------- | ----- | ----------------- | ----------------------------------------------------------------------- |
+| 2026-01-28 | 5.1   | 48%               | Initial tiered thresholds                                               |
+| 2026-01-30 | 5.1   | 55%               | Updated global thresholds after test improvements                       |
 | 2026-02-03 | 5.2   | 55%               | Added Critical Path thresholds (ml.ts, artifact-client.ts, security.ts) |
 
 ---

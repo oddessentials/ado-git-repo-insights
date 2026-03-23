@@ -111,9 +111,7 @@ describe("Manifest Contract: Feature Flags", () => {
   // (4) FR-013: pr-insights-settings has NO feature flag constraint
   // ---------------------------------------------------------------------------
   it("pr-insights-settings has no feature flag constraint", () => {
-    const settings = contributions.find(
-      (c) => c.id === "pr-insights-settings",
-    );
+    const settings = contributions.find((c) => c.id === "pr-insights-settings");
     expect(settings).toBeDefined();
     expect(settings!.constraints).toBeUndefined();
   });

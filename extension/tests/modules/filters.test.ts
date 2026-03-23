@@ -18,7 +18,12 @@ describe("filters module", () => {
   describe("createEmptyFilterState", () => {
     it("returns empty arrays", () => {
       const state = createEmptyFilterState();
-      expect(state).toEqual({ repos: [], teams: [], reviewers: [], authors: [] });
+      expect(state).toEqual({
+        repos: [],
+        teams: [],
+        reviewers: [],
+        authors: [],
+      });
     });
   });
 
@@ -31,25 +36,45 @@ describe("filters module", () => {
 
     it("returns true when repos has values", () => {
       expect(
-        hasActiveFilters({ repos: ["repo-a"], teams: [], reviewers: [], authors: [] }),
+        hasActiveFilters({
+          repos: ["repo-a"],
+          teams: [],
+          reviewers: [],
+          authors: [],
+        }),
       ).toBe(true);
     });
 
     it("returns true when teams has values", () => {
       expect(
-        hasActiveFilters({ repos: [], teams: ["team-x"], reviewers: [], authors: [] }),
+        hasActiveFilters({
+          repos: [],
+          teams: ["team-x"],
+          reviewers: [],
+          authors: [],
+        }),
       ).toBe(true);
     });
 
     it("returns true when reviewers has values", () => {
       expect(
-        hasActiveFilters({ repos: [], teams: [], reviewers: ["reviewer-1"], authors: [] }),
+        hasActiveFilters({
+          repos: [],
+          teams: [],
+          reviewers: ["reviewer-1"],
+          authors: [],
+        }),
       ).toBe(true);
     });
 
     it("returns true when authors has values", () => {
       expect(
-        hasActiveFilters({ repos: [], teams: [], reviewers: [], authors: ["author-1"] }),
+        hasActiveFilters({
+          repos: [],
+          teams: [],
+          reviewers: [],
+          authors: ["author-1"],
+        }),
       ).toBe(true);
     });
 
@@ -69,7 +94,12 @@ describe("filters module", () => {
     it("returns empty state for no params", () => {
       const params = new URLSearchParams("");
       const result = parseFiltersFromUrl(params);
-      expect(result).toEqual({ repos: [], teams: [], reviewers: [], authors: [] });
+      expect(result).toEqual({
+        repos: [],
+        teams: [],
+        reviewers: [],
+        authors: [],
+      });
     });
 
     it("parses repos param", () => {
@@ -129,7 +159,12 @@ describe("filters module", () => {
 
     it("deletes empty params", () => {
       const params = new URLSearchParams("repos=old&teams=old");
-      const state: FilterState = { repos: [], teams: [], reviewers: [], authors: [] };
+      const state: FilterState = {
+        repos: [],
+        teams: [],
+        reviewers: [],
+        authors: [],
+      };
 
       serializeFiltersToUrl(state, params);
 
@@ -141,7 +176,12 @@ describe("filters module", () => {
 
     it("deletes reviewers param when first reviewer value is blank", () => {
       const params = new URLSearchParams("reviewers=old-reviewer");
-      const state: FilterState = { repos: [], teams: [], reviewers: [""], authors: [] };
+      const state: FilterState = {
+        repos: [],
+        teams: [],
+        reviewers: [""],
+        authors: [],
+      };
 
       serializeFiltersToUrl(state, params);
 
@@ -150,7 +190,12 @@ describe("filters module", () => {
 
     it("deletes author param when first author value is blank", () => {
       const params = new URLSearchParams("author=old-author");
-      const state: FilterState = { repos: [], teams: [], reviewers: [], authors: [""] };
+      const state: FilterState = {
+        repos: [],
+        teams: [],
+        reviewers: [],
+        authors: [""],
+      };
 
       serializeFiltersToUrl(state, params);
 

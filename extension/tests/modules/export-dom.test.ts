@@ -44,7 +44,9 @@ describe("export DOM functions", () => {
       createObjectURLSpy = jest
         .spyOn(URL, "createObjectURL")
         .mockReturnValue("blob:mock-url");
-      revokeObjectURLSpy = jest.spyOn(URL, "revokeObjectURL").mockImplementation();
+      revokeObjectURLSpy = jest
+        .spyOn(URL, "revokeObjectURL")
+        .mockImplementation();
 
       // Spy on document.body methods
       appendChildSpy = jest.spyOn(document.body, "appendChild");
@@ -96,13 +98,15 @@ describe("export DOM functions", () => {
     it("triggers click on the link element", () => {
       const clickSpy = jest.fn();
       const originalCreateElement = document.createElement.bind(document);
-      jest.spyOn(document, "createElement").mockImplementation((tagName: string) => {
-        const element = originalCreateElement(tagName);
-        if (tagName === "a") {
-          element.click = clickSpy;
-        }
-        return element;
-      });
+      jest
+        .spyOn(document, "createElement")
+        .mockImplementation((tagName: string) => {
+          const element = originalCreateElement(tagName);
+          if (tagName === "a") {
+            element.click = clickSpy;
+          }
+          return element;
+        });
 
       triggerDownload("content", "test.csv");
 

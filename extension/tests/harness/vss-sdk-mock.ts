@@ -490,7 +490,9 @@ export interface SettingsScenario {
  *
  * @param scenario - The settings scenario to configure
  */
-export function configureExtensionDataService(scenario: SettingsScenario): void {
+export function configureExtensionDataService(
+  scenario: SettingsScenario,
+): void {
   const { values = {}, missingKeys = [], errorKeys = {} } = scenario;
 
   // Clear existing settings

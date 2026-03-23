@@ -344,6 +344,13 @@ The public demo and CLI synthetic demo are governed by one canonical demo publis
 
 This rebuilds the extension UI shell, republishes the GitHub Pages demo surface, regenerates `artifacts/demo-enterprise/`, and promotes the published mirror under `docs/data/`.
 
+For manual generated-asset sync outside the full demo build, use:
+
+```bash
+python scripts/manage_generated_artifacts.py sync --scope ui
+python scripts/manage_generated_artifacts.py sync --scope all
+```
+
 ### Manual Demo Preview
 
 For local manual testing of the synthetic demo dashboard in PowerShell:

@@ -9,9 +9,14 @@
 
 import type { Rollup } from "../../dataset-loader";
 import type { DistributionData } from "../../types";
-import { addChartTooltips } from "../charts";
+import { addChartTooltips, clearChartTooltips } from "../charts";
 import { formatDuration } from "../shared/format";
-import { escapeHtml, renderNoData, renderTrustedHtml } from "../shared/render";
+import {
+  escapeHtml,
+  NO_DATA_HINTS,
+  renderNoData,
+  renderTrustedHtml,
+} from "../shared/render";
 
 /** Maximum data points rendered in the cycle time trend chart (2 years of weekly data). */
 export const MAX_CYCLE_TIME_POINTS = 104;
@@ -31,7 +36,11 @@ export function renderCycleDistribution(
   if (!container) return;
 
   if (!distributions || !distributions.length) {
-    renderNoData(container, "No data for selected range");
+    renderNoData(
+      container,
+      "No data for selected range",
+      NO_DATA_HINTS.WIDEN_FILTERS,
+    );
     return;
   }
 
@@ -52,7 +61,7 @@ export function renderCycleDistribution(
 
   const total = Object.values(buckets).reduce((a, b) => a + b, 0);
   if (total === 0) {
-    renderNoData(container, "No cycle time data");
+    renderNoData(container, "No cycle time data", NO_DATA_HINTS.WIDEN_FILTERS);
     return;
   }
 
@@ -88,9 +97,14 @@ export function renderCycleTimeTrend(
   rollups: Rollup[],
 ): void {
   if (!container) return;
+  clearChartTooltips(container);
 
   if (!rollups || rollups.length < 2) {
-    renderNoData(container, "Not enough data for trend");
+    renderNoData(
+      container,
+      "Not enough data for trend",
+      NO_DATA_HINTS.TREND_MINIMUM,
+    );
     return;
   }
 
@@ -108,7 +122,11 @@ export function renderCycleTimeTrend(
     .filter((d): d is { week: string; value: number } => d.value !== null);
 
   if (p50Data.length < 2 && p90Data.length < 2) {
-    renderNoData(container, "No cycle time data available");
+    renderNoData(
+      container,
+      "No cycle time data available",
+      NO_DATA_HINTS.WIDEN_FILTERS,
+    );
     return;
   }
 
@@ -144,8 +162,7 @@ export function renderCycleTimeTrend(
         const dataIndex = displayRollups.findIndex((r) => r.week === d.week);
         if (dataIndex === -1) return null;
         const x =
-          padding.left +
-          (dataIndex / (displayRollups.length - 1)) * chartWidth;
+          padding.left + (dataIndex / (displayRollups.length - 1)) * chartWidth;
         const y =
           padding.top +
           chartHeight -

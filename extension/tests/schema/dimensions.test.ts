@@ -154,7 +154,10 @@ describe("Dimensions Schema Validator", () => {
       const invalid = {
         repositories: [],
         users: [],
-        reviewers: { reviewer_id: "reviewer-1", reviewer_name: "Rita Reviewer" },
+        reviewers: {
+          reviewer_id: "reviewer-1",
+          reviewer_name: "Rita Reviewer",
+        },
         projects: [],
       };
       const result = validateDimensions(invalid, true);

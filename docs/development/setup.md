@@ -29,12 +29,8 @@ source .venv/bin/activate  # Linux/macOS
 # Install Python dependencies (including dev tools)
 pip install -e .[dev]
 
-# Install pre-commit hooks
-pip install pre-commit
-pre-commit install
-
 # Install Node.js dependencies (for extension development)
-cd extension && npm ci && cd ..
+cd extension && pnpm install && cd ..
 ```
 
 ---
@@ -99,13 +95,13 @@ pytest -v
 
 ```bash
 cd extension
-npm ci
+pnpm install
 ```
 
 ### Running Tests
 
 ```bash
-npm test
+pnpm test
 ```
 
 ### Building the VSIX
@@ -125,19 +121,36 @@ Upload the VSIX to a test Azure DevOps organization:
 
 ---
 
-## Pre-commit Hooks
+## Repo Hooks
 
-Pre-commit hooks run automatically on `git commit`:
+Repo-owned hooks run automatically on `git commit` and `git push` through
+Husky wrapper files under `.husky/`.
+The authoritative implementation lives in:
+
+- `scripts/run_repo_hook.py`
+- `scripts/manage_generated_artifacts.py`
+
+You do not need to run `pre-commit install` manually for normal repo usage.
+`pre-commit` is still required because the repo hooks delegate Python lint/format
+checks to it.
+
+The commit/push workflow currently includes:
 
 | Hook | Purpose |
 |------|---------|
-| `ruff` | Python linting and formatting |
-| `sync_ui_bundle` | UI file synchronization (when UI files staged) |
+| `pre-commit` | Python formatting/lint checks, ACL health on Windows, VSS SDK drift sync, compiled artifact guard, managed UI/demo artifact sync when UI files are staged |
+| `pre-push` | baseline integrity, `pre-commit --all-files`, CRLF guard, marketplace asset validation, and local PR preflight |
 
 ### Manual Run
 
 ```bash
-pre-commit run --all-files
+python scripts/run_repo_hook.py pre-commit
+python scripts/run_repo_hook.py pre-push
+
+# Or via the extension package scripts
+cd extension
+pnpm run hooks:precommit
+pnpm run hooks:prepush
 ```
 
 ### Skip Hooks (Not Recommended)

@@ -21,24 +21,29 @@ The dashboard UI files must be kept synchronized between two locations.
 
 ### Automatic (Pre-commit Hook)
 
-The pre-commit hook runs sync automatically when UI files are staged:
+The repo-owned pre-commit hook runs sync automatically when UI files are staged.
+The hook is launched by Husky, but the source of truth is the Python
+orchestrator in [`scripts/run_repo_hook.py`](../../scripts/run_repo_hook.py).
 
 ```bash
 # Just commit normally — sync runs if UI files changed
 git add extension/ui/modules/metrics.ts
 git commit -m "Update dashboard"
-# → sync_ui_bundle.py runs automatically
+# → managed generated artifact sync runs automatically
 ```
 
 ### Manual Sync
 
 ```bash
-# Cross-platform Python script
-python scripts/sync_ui_bundle.py
+# Sync VSS SDK + build UI + refresh ui_bundle
+python scripts/manage_generated_artifacts.py sync --scope ui
 
-# Check sync status
-./scripts/check-ui-bundle-sync.sh        # Linux/macOS
-powershell -ExecutionPolicy Bypass -File scripts\check-ui-bundle-sync.ps1  # Windows
+# Sync the full managed surface, including docs/ and broken-docs fixture outputs
+python scripts/manage_generated_artifacts.py sync --scope all
+
+# Verify parity without staging changes
+python scripts/manage_generated_artifacts.py verify --scope ui
+python scripts/manage_generated_artifacts.py verify --scope all
 ```
 
 ---
@@ -46,13 +51,13 @@ powershell -ExecutionPolicy Bypass -File scripts\check-ui-bundle-sync.ps1  # Win
 ## Workflow
 
 1. **Edit files in `extension/ui/`** — This is the source of truth
-2. **Run sync** — Either via pre-commit hook or manually
+2. **Run sync** — Either via the repo-owned pre-commit hook or manually
 3. **Commit both locations** — Always commit together
 
 ```bash
 # Example workflow
 vim extension/ui/modules/metrics.ts
-python scripts/sync_ui_bundle.py
+python scripts/manage_generated_artifacts.py sync --scope ui
 git add extension/ui/ src/ado_git_repo_insights/ui_bundle/
 git commit -m "Update dashboard UI"
 ```
@@ -70,7 +75,7 @@ The `ui-bundle-sync` CI job verifies synchronization on every PR.
 
 **To fix:**
 ```bash
-python scripts/sync_ui_bundle.py
+python scripts/manage_generated_artifacts.py sync --scope ui
 git add extension/ui/ src/ado_git_repo_insights/ui_bundle/
 git commit --amend  # or new commit
 ```
@@ -94,7 +99,7 @@ The following patterns are ignored during sync:
 ### "UI bundle out of sync" CI failure
 
 ```bash
-python scripts/sync_ui_bundle.py
+python scripts/manage_generated_artifacts.py sync --scope ui
 git add -A
 git commit --amend
 git push --force-with-lease
@@ -111,8 +116,16 @@ git push --force-with-lease
 Ensure you're in the repository root:
 ```bash
 cd /path/to/ado-git-repo-insights
-python scripts/sync_ui_bundle.py
+python scripts/manage_generated_artifacts.py sync --scope ui
 ```
+
+### Which command should I use?
+
+| Goal | Command |
+|------|---------|
+| Refresh only the pip package UI copy | `python scripts/manage_generated_artifacts.py sync --scope ui` |
+| Refresh UI bundle plus published demo shell/assets | `python scripts/manage_generated_artifacts.py sync --scope all` |
+| Verify parity without staging | `python scripts/manage_generated_artifacts.py verify --scope ui` or `--scope all` |
 
 ---
 

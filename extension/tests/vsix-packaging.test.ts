@@ -210,7 +210,14 @@ describe("VSIX Packaging Contract (Tier A)", () => {
     });
 
     it("all 6 link types exist", () => {
-      const requiredLinks = ["home", "repository", "issues", "support", "license", "getstarted"];
+      const requiredLinks = [
+        "home",
+        "repository",
+        "issues",
+        "support",
+        "license",
+        "getstarted",
+      ];
       expect(manifest.links).toBeDefined();
       for (const linkType of requiredLinks) {
         expect(manifest.links[linkType]).toBeDefined();
@@ -298,7 +305,11 @@ describe("VSIX Packaging Contract (Tier A)", () => {
           expect(isPng).toBe(true);
           expect(width).toBeGreaterThanOrEqual(MIN_SCREENSHOT_WIDTH);
           expect(height).toBeGreaterThanOrEqual(MIN_SCREENSHOT_HEIGHT);
-        } else if (!isPng || width < MIN_SCREENSHOT_WIDTH || height < MIN_SCREENSHOT_HEIGHT) {
+        } else if (
+          !isPng ||
+          width < MIN_SCREENSHOT_WIDTH ||
+          height < MIN_SCREENSHOT_HEIGHT
+        ) {
           console.warn(
             `WARNING: ${screenshot.path} may be a placeholder ` +
               `(${width}x${height}, png=${isPng}). ` +

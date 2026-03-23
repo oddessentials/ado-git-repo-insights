@@ -27,6 +27,11 @@ export interface HistoricalDataPoint {
   value: number;
 }
 
+interface HistoricalDataResult {
+  data: HistoricalDataPoint[];
+  wasTruncated: boolean;
+}
+
 /**
  * Rollup data structure (subset of fields needed for historical data).
  */
@@ -361,7 +366,16 @@ export function extractHistoricalData(
   rollups: RollupForChart[],
   metric: string,
 ): HistoricalDataPoint[] {
-  if (!rollups || rollups.length === 0) return [];
+  return extractHistoricalDataResult(rollups, metric).data;
+}
+
+function extractHistoricalDataResult(
+  rollups: RollupForChart[],
+  metric: string,
+): HistoricalDataResult {
+  if (!rollups || rollups.length === 0) {
+    return { data: [], wasTruncated: false };
+  }
 
   // Map metric names to rollup fields
   // Note: review_time_minutes removed - it used cycle_time as misleading proxy
@@ -372,7 +386,9 @@ export function extractHistoricalData(
 
   // eslint-disable-next-line security/detect-object-injection -- SECURITY: metric is string key, metricFieldMap is local const
   const field = metricFieldMap[metric];
-  if (!field) return [];
+  if (!field) {
+    return { data: [], wasTruncated: false };
+  }
 
   const data = rollups
     // eslint-disable-next-line security/detect-object-injection -- SECURITY: field is from local const metricFieldMap, typed as keyof RollupForChart
@@ -386,11 +402,12 @@ export function extractHistoricalData(
     .sort((a, b) => a.week.localeCompare(b.week));
 
   // Limit data points to prevent memory pressure - take last N (most recent)
-  if (data.length > MAX_CHART_POINTS) {
-    return data.slice(-MAX_CHART_POINTS);
-  }
+  const wasTruncated = data.length > MAX_CHART_POINTS;
 
-  return data;
+  return {
+    data: wasTruncated ? data.slice(-MAX_CHART_POINTS) : data,
+    wasTruncated,
+  };
 }
 
 /**
@@ -497,11 +514,25 @@ export function renderPredictionsWithCharts(
   // Render each forecast as a chart with historical data
   predictions.forecasts.forEach((forecast: Forecast) => {
     // Extract historical data for this metric from rollups
-    const historicalData = rollups
-      ? extractHistoricalData(rollups, forecast.metric)
+    const historicalResult = rollups
+      ? extractHistoricalDataResult(rollups, forecast.metric)
       : undefined;
+    const historicalData = historicalResult?.data;
+    const wasTruncated = historicalResult?.wasTruncated === true;
     const chartHtml = renderForecastChart(forecast, historicalData);
     appendTrustedHtml(content, chartHtml);
+
+    // Add truncation badge if historical data was capped
+    if (wasTruncated) {
+      const badge = document.createElement("span");
+      badge.className = "truncation-badge";
+      badge.title = `Showing last ${MAX_CHART_POINTS} data points`;
+      badge.textContent = "Partial history";
+      const lastHeader = content.querySelector(
+        ".forecast-chart:last-child .chart-header",
+      );
+      if (lastHeader) lastHeader.appendChild(badge);
+    }
   });
 
   // Show informational message about review time unavailability (T016)

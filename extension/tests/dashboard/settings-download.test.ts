@@ -66,7 +66,10 @@ async function downloadRawDataContract(
   }
 
   // Step 1b: Validate buildId is a positive integer
-  if (!Number.isInteger(lastValidation.buildId) || lastValidation.buildId <= 0) {
+  if (
+    !Number.isInteger(lastValidation.buildId) ||
+    lastValidation.buildId <= 0
+  ) {
     return {
       outcome: "invalid-build-id",
       toastMessage: "Invalid build ID",
@@ -206,11 +209,13 @@ describe("Settings Download: downloadRawData contract", () => {
     teardownVssMocks();
   });
 
-  function createMockArtifactClient(overrides: Partial<{
-    initialize: jest.Mock;
-    getArtifactMetadata: jest.Mock;
-    authenticatedFetch: jest.Mock;
-  }> = {}) {
+  function createMockArtifactClient(
+    overrides: Partial<{
+      initialize: jest.Mock;
+      getArtifactMetadata: jest.Mock;
+      authenticatedFetch: jest.Mock;
+    }> = {},
+  ) {
     return {
       initialize: overrides.initialize ?? jest.fn(() => Promise.resolve()),
       getArtifactMetadata:
@@ -336,8 +341,7 @@ describe("Settings Download: downloadRawData contract", () => {
         Promise.resolve({
           name: "csv-output",
           resource: {
-            downloadUrl:
-              "https://dev.azure.com/org/artifact?format=zip",
+            downloadUrl: "https://dev.azure.com/org/artifact?format=zip",
           },
         }),
       ),
@@ -346,9 +350,7 @@ describe("Settings Download: downloadRawData contract", () => {
 
     const fetchedUrl =
       deps.artifactClient.authenticatedFetch.mock.calls[0]?.[0];
-    expect(fetchedUrl).toBe(
-      "https://dev.azure.com/org/artifact?format=zip",
-    );
+    expect(fetchedUrl).toBe("https://dev.azure.com/org/artifact?format=zip");
   });
 
   // ---------------------------------------------------------------
@@ -769,7 +771,8 @@ function updateStatusAutoDiscoveryContract(
   } else {
     return {
       lastValidation: null,
-      statusHint: "The dashboard will automatically find pipelines with an \"aggregates\" artifact.",
+      statusHint:
+        'The dashboard will automatically find pipelines with an "aggregates" artifact.',
       statusWarning,
       discoveredAgainstProject: effectiveProjectId,
     };
@@ -782,7 +785,11 @@ function staticDiscovery(
   skippedCount: number = 0,
   error?: string,
 ) {
-  return (_projectId: string | null): DiscoveryResult => ({ pipelines, skippedCount, error });
+  return (_projectId: string | null): DiscoveryResult => ({
+    pipelines,
+    skippedCount,
+    error,
+  });
 }
 
 describe("Settings Download: auto-discovery download enablement", () => {
@@ -800,11 +807,13 @@ describe("Settings Download: auto-discovery download enablement", () => {
   });
 
   it("enables download button when discovery finds a pipeline", () => {
-    const matches = [
-      { id: 10, name: "PR-Insights-Pipeline", buildId: 555 },
-    ];
+    const matches = [{ id: 10, name: "PR-Insights-Pipeline", buildId: 555 }];
 
-    const result = updateStatusAutoDiscoveryContract(null, "current-proj", staticDiscovery(matches));
+    const result = updateStatusAutoDiscoveryContract(
+      null,
+      "current-proj",
+      staticDiscovery(matches),
+    );
 
     // lastValidation should be set with the first match's buildId
     expect(result.lastValidation).toEqual({ valid: true, buildId: 555 });
@@ -813,21 +822,31 @@ describe("Settings Download: auto-discovery download enablement", () => {
     expect(result.statusHint).toContain("Download available");
 
     // Simulate button state update (mirrors settings.ts lines 413-418)
-    const btn = document.getElementById("download-raw-btn") as HTMLButtonElement;
-    btn.disabled = !result.lastValidation?.valid || !result.lastValidation?.buildId;
+    const btn = document.getElementById(
+      "download-raw-btn",
+    ) as HTMLButtonElement;
+    btn.disabled =
+      !result.lastValidation?.valid || !result.lastValidation?.buildId;
 
     expect(btn.disabled).toBe(false);
   });
 
   it("keeps download button disabled when discovery finds no pipelines", () => {
-    const result = updateStatusAutoDiscoveryContract(null, "current-proj", staticDiscovery([]));
+    const result = updateStatusAutoDiscoveryContract(
+      null,
+      "current-proj",
+      staticDiscovery([]),
+    );
 
     expect(result.lastValidation).toBeNull();
     expect(result.statusHint).toContain("automatically find pipelines");
 
     // Simulate button state update
-    const btn = document.getElementById("download-raw-btn") as HTMLButtonElement;
-    btn.disabled = !result.lastValidation?.valid || !result.lastValidation?.buildId;
+    const btn = document.getElementById(
+      "download-raw-btn",
+    ) as HTMLButtonElement;
+    btn.disabled =
+      !result.lastValidation?.valid || !result.lastValidation?.buildId;
 
     expect(btn.disabled).toBe(true);
   });
@@ -839,7 +858,11 @@ describe("Settings Download: auto-discovery download enablement", () => {
       { id: 30, name: "Third-Pipeline", buildId: 300 },
     ];
 
-    const result = updateStatusAutoDiscoveryContract(null, "current-proj", staticDiscovery(matches));
+    const result = updateStatusAutoDiscoveryContract(
+      null,
+      "current-proj",
+      staticDiscovery(matches),
+    );
 
     expect(result.lastValidation).toEqual({ valid: true, buildId: 100 });
     expect(result.statusHint).toContain("First-Pipeline");
@@ -847,11 +870,17 @@ describe("Settings Download: auto-discovery download enablement", () => {
   });
 
   it("discovers against saved project when source project differs from current", () => {
-    const discoverFn = jest.fn(staticDiscovery([
-      { id: 5, name: "Cross-Project-Pipeline", buildId: 999 },
-    ]));
+    const discoverFn = jest.fn(
+      staticDiscovery([
+        { id: 5, name: "Cross-Project-Pipeline", buildId: 999 },
+      ]),
+    );
 
-    const result = updateStatusAutoDiscoveryContract("saved-proj-abc", "current-proj", discoverFn);
+    const result = updateStatusAutoDiscoveryContract(
+      "saved-proj-abc",
+      "current-proj",
+      discoverFn,
+    );
 
     // Discovery must target the saved project, not the current one
     expect(discoverFn).toHaveBeenCalledWith("saved-proj-abc");
@@ -860,11 +889,15 @@ describe("Settings Download: auto-discovery download enablement", () => {
   });
 
   it("falls back to current project when no saved project exists", () => {
-    const discoverFn = jest.fn(staticDiscovery([
-      { id: 7, name: "Local-Pipeline", buildId: 123 },
-    ]));
+    const discoverFn = jest.fn(
+      staticDiscovery([{ id: 7, name: "Local-Pipeline", buildId: 123 }]),
+    );
 
-    const result = updateStatusAutoDiscoveryContract(null, "current-proj", discoverFn);
+    const result = updateStatusAutoDiscoveryContract(
+      null,
+      "current-proj",
+      discoverFn,
+    );
 
     expect(discoverFn).toHaveBeenCalledWith("current-proj");
     expect(result.discoveredAgainstProject).toBe("current-proj");
@@ -873,7 +906,11 @@ describe("Settings Download: auto-discovery download enablement", () => {
   it("discovered buildId flows through to downloadRawData contract", async () => {
     // Verify the full chain: discovery → lastValidation → download uses correct buildId
     const matches = [{ id: 42, name: "My-Pipeline", buildId: 777 }];
-    const { lastValidation } = updateStatusAutoDiscoveryContract(null, "proj-123", staticDiscovery(matches));
+    const { lastValidation } = updateStatusAutoDiscoveryContract(
+      null,
+      "proj-123",
+      staticDiscovery(matches),
+    );
 
     // Feed lastValidation into the download contract
     const deps = {
@@ -899,7 +936,10 @@ describe("Settings Download: auto-discovery download enablement", () => {
     const result = await downloadRawDataContract(lastValidation, deps);
 
     expect(result.outcome).toBe("success");
-    expect(deps.artifactClient.getArtifactMetadata).toHaveBeenCalledWith(777, "csv-output");
+    expect(deps.artifactClient.getArtifactMetadata).toHaveBeenCalledWith(
+      777,
+      "csv-output",
+    );
   });
 
   // ---------------------------------------------------------------
@@ -907,12 +947,12 @@ describe("Settings Download: auto-discovery download enablement", () => {
   // ---------------------------------------------------------------
 
   it("includes skipped count warning when some pipelines could not be checked", () => {
-    const pipelines = [
-      { id: 10, name: "Good-Pipeline", buildId: 100 },
-    ];
+    const pipelines = [{ id: 10, name: "Good-Pipeline", buildId: 100 }];
 
     const result = updateStatusAutoDiscoveryContract(
-      null, "current-proj", staticDiscovery(pipelines, 3),
+      null,
+      "current-proj",
+      staticDiscovery(pipelines, 3),
     );
 
     // Pipeline still found, download enabled
@@ -924,7 +964,9 @@ describe("Settings Download: auto-discovery download enablement", () => {
 
   it("reports skipped count even when no pipelines found", () => {
     const result = updateStatusAutoDiscoveryContract(
-      null, "current-proj", staticDiscovery([], 5),
+      null,
+      "current-proj",
+      staticDiscovery([], 5),
     );
 
     expect(result.lastValidation).toBeNull();
@@ -933,7 +975,9 @@ describe("Settings Download: auto-discovery download enablement", () => {
 
   it("omits warning when skippedCount is zero", () => {
     const result = updateStatusAutoDiscoveryContract(
-      null, "current-proj", staticDiscovery([{ id: 1, name: "P", buildId: 1 }], 0),
+      null,
+      "current-proj",
+      staticDiscovery([{ id: 1, name: "P", buildId: 1 }], 0),
     );
 
     expect(result.statusWarning).toBeUndefined();
@@ -945,7 +989,9 @@ describe("Settings Download: auto-discovery download enablement", () => {
 
   it("disables download button when discovery returns an error", () => {
     const result = updateStatusAutoDiscoveryContract(
-      null, "current-proj", staticDiscovery([], 0, "Failed to initialize: Auth token unavailable"),
+      null,
+      "current-proj",
+      staticDiscovery([], 0, "Failed to initialize: Auth token unavailable"),
     );
 
     expect(result.lastValidation).toBeNull();
@@ -954,14 +1000,19 @@ describe("Settings Download: auto-discovery download enablement", () => {
     expect(result.statusHint).toContain("Retry");
 
     // Simulate button state update
-    const btn = document.getElementById("download-raw-btn") as HTMLButtonElement;
-    btn.disabled = !result.lastValidation?.valid || !result.lastValidation?.buildId;
+    const btn = document.getElementById(
+      "download-raw-btn",
+    ) as HTMLButtonElement;
+    btn.disabled =
+      !result.lastValidation?.valid || !result.lastValidation?.buildId;
     expect(btn.disabled).toBe(true);
   });
 
   it("returns error message from failed pipeline listing", () => {
     const result = updateStatusAutoDiscoveryContract(
-      null, "current-proj", staticDiscovery([], 0, "Failed to list pipelines: 403 Forbidden"),
+      null,
+      "current-proj",
+      staticDiscovery([], 0, "Failed to list pipelines: 403 Forbidden"),
     );
 
     expect(result.lastValidation).toBeNull();
@@ -1001,9 +1052,9 @@ describe("Settings Download: ZIP URL construction", () => {
   });
 
   it("handles URL with format=zip in the middle of params", () => {
-    expect(
-      buildZipUrl("https://example.com/artifact?format=zip&other=1"),
-    ).toBe("https://example.com/artifact?format=zip&other=1");
+    expect(buildZipUrl("https://example.com/artifact?format=zip&other=1")).toBe(
+      "https://example.com/artifact?format=zip&other=1",
+    );
   });
 });
 

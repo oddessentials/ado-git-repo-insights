@@ -170,14 +170,14 @@
             </div>
 
             <!-- Tabs -->
-            <nav class="tabs">
-                <button class="tab active" data-tab="metrics">Metrics</button>
-                <button class="tab phase5-tab" data-tab="predictions">Predictions</button>
-                <button class="tab phase5-tab" data-tab="ai-insights">AI Insights</button>
+            <nav class="tabs" role="tablist">
+                <button id="tab-btn-metrics" class="tab active" data-tab="metrics" role="tab" aria-selected="true" aria-controls="tab-metrics">Metrics</button>
+                <button id="tab-btn-predictions" class="tab phase5-tab" data-tab="predictions" role="tab" aria-selected="false" aria-controls="tab-predictions">Predictions</button>
+                <button id="tab-btn-ai-insights" class="tab phase5-tab" data-tab="ai-insights" role="tab" aria-selected="false" aria-controls="tab-ai-insights">AI Insights</button>
             </nav>
 
             <!-- Tab Content -->
-            <section id="tab-metrics" class="tab-content active">
+            <section id="tab-metrics" class="tab-content active" role="tabpanel" aria-labelledby="tab-btn-metrics">
                 <div class="metrics-grid">
                     <!-- Summary Cards -->
                     <div class="summary-cards">
@@ -251,11 +251,11 @@
                 </div>
             </section>
 
-            <section id="tab-predictions" class="tab-content hidden phase5-content">
+            <section id="tab-predictions" class="tab-content hidden phase5-content" role="tabpanel" aria-labelledby="tab-btn-predictions">
                 <!-- State-specific content rendered by renderPredictionsForState() -->
             </section>
 
-            <section id="tab-ai-insights" class="tab-content hidden phase5-content">
+            <section id="tab-ai-insights" class="tab-content hidden phase5-content" role="tabpanel" aria-labelledby="tab-btn-ai-insights">
                 <!-- State-specific content rendered by renderInsightsForState() -->
             </section>
         </main>

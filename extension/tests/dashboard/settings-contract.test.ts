@@ -45,10 +45,9 @@ async function getSourceConfigContract(): Promise<{
     const dataService = await VSS.getService(VSS.ServiceIds.ExtensionData);
 
     // Get source project ID
-    const savedProjectId = await dataService.getValue(
-      SETTINGS_KEY_PROJECT,
-      { scopeType: "User" },
-    );
+    const savedProjectId = await dataService.getValue(SETTINGS_KEY_PROJECT, {
+      scopeType: "User",
+    });
     if (
       savedProjectId &&
       typeof savedProjectId === "string" &&
@@ -58,10 +57,9 @@ async function getSourceConfigContract(): Promise<{
     }
 
     // Get pipeline definition ID
-    const savedPipelineId = await dataService.getValue(
-      SETTINGS_KEY_PIPELINE,
-      { scopeType: "User" },
-    );
+    const savedPipelineId = await dataService.getValue(SETTINGS_KEY_PIPELINE, {
+      scopeType: "User",
+    });
     if (
       savedPipelineId &&
       typeof savedPipelineId === "number" &&
@@ -329,8 +327,12 @@ describe("Settings Contract Tests", () => {
   describe("resolveConfiguration()", () => {
     describe("valid config precedence (T026)", () => {
       it("uses query param pipelineId over saved settings", async () => {
-        const resolveFromPipelineId = jest.fn().mockResolvedValue({ buildId: 100 });
-        const discoverAndResolve = jest.fn().mockResolvedValue({ buildId: 200 });
+        const resolveFromPipelineId = jest
+          .fn()
+          .mockResolvedValue({ buildId: 100 });
+        const discoverAndResolve = jest
+          .fn()
+          .mockResolvedValue({ buildId: 200 });
         const clearStalePipelineSetting = jest.fn();
 
         const resolve = createResolveConfiguration({
@@ -349,8 +351,12 @@ describe("Settings Contract Tests", () => {
       });
 
       it("uses saved pipelineId when query param is absent", async () => {
-        const resolveFromPipelineId = jest.fn().mockResolvedValue({ buildId: 500 });
-        const discoverAndResolve = jest.fn().mockResolvedValue({ buildId: 600 });
+        const resolveFromPipelineId = jest
+          .fn()
+          .mockResolvedValue({ buildId: 500 });
+        const discoverAndResolve = jest
+          .fn()
+          .mockResolvedValue({ buildId: 600 });
         const clearStalePipelineSetting = jest.fn();
 
         const resolve = createResolveConfiguration({
@@ -369,7 +375,9 @@ describe("Settings Contract Tests", () => {
 
       it("uses discovery when both query and saved are absent", async () => {
         const resolveFromPipelineId = jest.fn();
-        const discoverAndResolve = jest.fn().mockResolvedValue({ buildId: 999 });
+        const discoverAndResolve = jest
+          .fn()
+          .mockResolvedValue({ buildId: 999 });
         const clearStalePipelineSetting = jest.fn();
 
         const resolve = createResolveConfiguration({
@@ -389,8 +397,12 @@ describe("Settings Contract Tests", () => {
 
     describe("fallback scenarios (T027)", () => {
       it("falls back to discovery when saved pipelineId is invalid", async () => {
-        const resolveFromPipelineId = jest.fn().mockRejectedValue(new Error("Pipeline not found"));
-        const discoverAndResolve = jest.fn().mockResolvedValue({ buildId: 777 });
+        const resolveFromPipelineId = jest
+          .fn()
+          .mockRejectedValue(new Error("Pipeline not found"));
+        const discoverAndResolve = jest
+          .fn()
+          .mockResolvedValue({ buildId: 777 });
         const clearStalePipelineSetting = jest.fn();
 
         const resolve = createResolveConfiguration({
@@ -408,8 +420,12 @@ describe("Settings Contract Tests", () => {
       });
 
       it("does NOT fall back when query param pipelineId is invalid", async () => {
-        const resolveFromPipelineId = jest.fn().mockRejectedValue(new Error("Not found"));
-        const discoverAndResolve = jest.fn().mockResolvedValue({ buildId: 888 });
+        const resolveFromPipelineId = jest
+          .fn()
+          .mockRejectedValue(new Error("Not found"));
+        const discoverAndResolve = jest
+          .fn()
+          .mockResolvedValue({ buildId: 888 });
         const clearStalePipelineSetting = jest.fn();
 
         const resolve = createResolveConfiguration({
@@ -429,7 +445,9 @@ describe("Settings Contract Tests", () => {
 
         const resolve = createResolveConfiguration({
           savedPipelineId: 123,
-          resolveFromPipelineIdFn: jest.fn().mockRejectedValue(new Error("Deleted")),
+          resolveFromPipelineIdFn: jest
+            .fn()
+            .mockRejectedValue(new Error("Deleted")),
           discoverAndResolveFn: jest.fn().mockResolvedValue({ buildId: 1 }),
           clearStalePipelineSettingFn: clearStalePipelineSetting,
         });
@@ -458,7 +476,9 @@ describe("Settings Contract Tests", () => {
         const resolve = createResolveConfiguration({
           savedPipelineId: null,
           resolveFromPipelineIdFn: jest.fn(),
-          discoverAndResolveFn: jest.fn().mockRejectedValue(new Error("No pipelines")),
+          discoverAndResolveFn: jest
+            .fn()
+            .mockRejectedValue(new Error("No pipelines")),
           clearStalePipelineSettingFn: jest.fn(),
         });
 
@@ -478,14 +498,12 @@ describe("Settings Contract Tests", () => {
 
       await getSourceConfigContract();
 
-      expect(service.getValue).toHaveBeenCalledWith(
-        SETTINGS_KEY_PROJECT,
-        { scopeType: "User" },
-      );
-      expect(service.getValue).toHaveBeenCalledWith(
-        SETTINGS_KEY_PIPELINE,
-        { scopeType: "User" },
-      );
+      expect(service.getValue).toHaveBeenCalledWith(SETTINGS_KEY_PROJECT, {
+        scopeType: "User",
+      });
+      expect(service.getValue).toHaveBeenCalledWith(SETTINGS_KEY_PIPELINE, {
+        scopeType: "User",
+      });
     });
 
     it("handles partial service failures gracefully", async () => {

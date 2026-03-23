@@ -61,29 +61,29 @@ Explore a working dashboard with sample data:
 
 ## Pipeline Task Reference
 
-| Input | Required | Description |
-|-------|----------|-------------|
-| `organization` | Yes | Azure DevOps organization name |
-| `projects` | Yes | Project names (one per line or comma-separated) |
-| `pat` | Yes | PAT with Code (Read) scope |
-| `database` | No | SQLite database path (default: `$(Pipeline.Workspace)/data/ado-insights.sqlite`) |
-| `outputDir` | No | CSV output directory |
-| `startDate` | No | Override start date (YYYY-MM-DD) |
-| `endDate` | No | Override end date (YYYY-MM-DD) |
-| `backfillDays` | No | Days to backfill for convergence |
-| `generateAggregates` | No | Generate dashboard data (default: `true`) |
-| `aggregatesDir` | No | Aggregates output directory |
+| Input                | Required | Description                                                                      |
+| -------------------- | -------- | -------------------------------------------------------------------------------- |
+| `organization`       | Yes      | Azure DevOps organization name                                                   |
+| `projects`           | Yes      | Project names (one per line or comma-separated)                                  |
+| `pat`                | Yes      | PAT with Code (Read) scope                                                       |
+| `database`           | No       | SQLite database path (default: `$(Pipeline.Workspace)/data/ado-insights.sqlite`) |
+| `outputDir`          | No       | CSV output directory                                                             |
+| `startDate`          | No       | Override start date (YYYY-MM-DD)                                                 |
+| `endDate`            | No       | Override end date (YYYY-MM-DD)                                                   |
+| `backfillDays`       | No       | Days to backfill for convergence                                                 |
+| `generateAggregates` | No       | Generate dashboard data (default: `true`)                                        |
+| `aggregatesDir`      | No       | Aggregates output directory                                                      |
 
 ## CSV Output Schema
 
-| File | Description |
-|------|-------------|
-| `organizations.csv` | Organization records |
-| `projects.csv` | Project records |
-| `repositories.csv` | Repository records |
+| File                | Description                          |
+| ------------------- | ------------------------------------ |
+| `organizations.csv` | Organization records                 |
+| `projects.csv`      | Project records                      |
+| `repositories.csv`  | Repository records                   |
 | `pull_requests.csv` | Pull request details with cycle time |
-| `users.csv` | User records |
-| `reviewers.csv` | PR reviewer votes |
+| `users.csv`         | User records                         |
+| `reviewers.csv`     | PR reviewer votes                    |
 
 ## Requirements
 

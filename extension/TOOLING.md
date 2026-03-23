@@ -154,12 +154,12 @@ The meta-test in `tests/meta/ec-traceability.test.ts` enforces that all EC-001 t
 
 Meta-tests in `tests/meta/` enforce code quality contracts that prevent flaky tests:
 
-| Meta-Test | Contract | Purpose |
-|-----------|----------|---------|
-| `smoke-determinism-guard.test.ts` | WPC-001, WPC-002, TC-002, AC-001, CQ-001 | Scans smoke tests for forbidden patterns |
-| `playwright-version-guard.test.ts` | DC-001 | Enforces exact Playwright version pinning |
-| `no-runtime-type-imports.test.ts` | CQ-003 | Prevents ui/ from importing tests/types/ |
-| `type-test-header-guard.test.ts` | CQ-002 | Enforces COMPILE-TIME ONLY header |
+| Meta-Test                          | Contract                                 | Purpose                                   |
+| ---------------------------------- | ---------------------------------------- | ----------------------------------------- |
+| `smoke-determinism-guard.test.ts`  | WPC-001, WPC-002, TC-002, AC-001, CQ-001 | Scans smoke tests for forbidden patterns  |
+| `playwright-version-guard.test.ts` | DC-001                                   | Enforces exact Playwright version pinning |
+| `no-runtime-type-imports.test.ts`  | CQ-003                                   | Prevents ui/ from importing tests/types/  |
+| `type-test-header-guard.test.ts`   | CQ-002                                   | Enforces COMPILE-TIME ONLY header         |
 
 ### Contracts Enforced
 

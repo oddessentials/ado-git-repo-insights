@@ -46,6 +46,11 @@ var PRInsightsSettings = (() => {
     return option;
   }
 
+  // ../ui/modules/metrics.ts
+  var HAS_WINDOW = typeof window !== "undefined";
+  var IS_PRODUCTION = typeof process !== "undefined" && false;
+  var SHOULD_WARN_ON_COERCION = !IS_PRODUCTION && HAS_WINDOW && window.__DASHBOARD_DEBUG__ === true;
+
   // ../ui/error-types.ts
   var ErrorTypes = {
     SETUP_REQUIRED: "setup_required",
@@ -840,7 +845,9 @@ var PRInsightsSettings = (() => {
         }
       } else {
         html += `<p><strong>Mode:</strong> Auto-discovery</p>`;
-        const result = await discoverPipelines(savedProjectId || currentProjectId);
+        const result = await discoverPipelines(
+          savedProjectId || currentProjectId
+        );
         if (result.error) {
           lastValidation = null;
           html += `<p class="status-warning">\u26A0\uFE0F Discovery failed: ${escapeHtml(result.error)}</p>`;
@@ -929,10 +936,7 @@ var PRInsightsSettings = (() => {
         ARTIFACT_NAME_CSV
       );
       if (!artifact) {
-        showToast(
-          "Raw CSV artifact not found in this pipeline run",
-          "error"
-        );
+        showToast("Raw CSV artifact not found in this pipeline run", "error");
         return;
       }
       const downloadUrl = artifact.resource?.downloadUrl;

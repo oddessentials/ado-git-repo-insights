@@ -164,10 +164,7 @@ const KNOWN_USER_FIELDS = new Set([
   "uniqueName",
 ]);
 
-const KNOWN_REVIEWER_FIELDS = new Set([
-  "reviewer_id",
-  "reviewer_name",
-]);
+const KNOWN_REVIEWER_FIELDS = new Set(["reviewer_id", "reviewer_name"]);
 const KNOWN_AUTHOR_FIELDS = new Set(["author_id", "author_name"]);
 
 const KNOWN_PROJECT_FIELDS = new Set([
@@ -724,7 +721,11 @@ export function validateDimensions(
       errors.push(arrErr);
     } else if (isArray(data.authors)) {
       data.authors.forEach((item, i) => {
-        const result = validateAuthorEntry(item, buildPath("authors", i), strict);
+        const result = validateAuthorEntry(
+          item,
+          buildPath("authors", i),
+          strict,
+        );
         errors.push(...result.errors);
         warnings.push(...result.warnings);
       });

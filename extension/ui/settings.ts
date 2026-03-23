@@ -407,7 +407,9 @@ async function updateStatus(): Promise<void> {
       // Auto-discovery mode: find a valid pipeline for download (mirrors dashboard)
       // Discover against the effective project so the buildId matches downloadRawData() scope
       html += `<p><strong>Mode:</strong> Auto-discovery</p>`;
-      const result = await discoverPipelines(savedProjectId || currentProjectId);
+      const result = await discoverPipelines(
+        savedProjectId || currentProjectId,
+      );
       if (result.error) {
         lastValidation = null;
         html += `<p class="status-warning">⚠️ Discovery failed: ${escapeHtml(result.error)}</p>`;
@@ -509,7 +511,10 @@ async function downloadRawData(): Promise<void> {
     }
 
     // Validate buildId is a positive integer (fail fast before network calls)
-    if (!Number.isInteger(lastValidation.buildId) || lastValidation.buildId <= 0) {
+    if (
+      !Number.isInteger(lastValidation.buildId) ||
+      lastValidation.buildId <= 0
+    ) {
       showToast("Invalid build ID", "error");
       return;
     }
@@ -524,10 +529,7 @@ async function downloadRawData(): Promise<void> {
       ARTIFACT_NAME_CSV,
     );
     if (!artifact) {
-      showToast(
-        "Raw CSV artifact not found in this pipeline run",
-        "error",
-      );
+      showToast("Raw CSV artifact not found in this pipeline run", "error");
       return;
     }
 
@@ -589,8 +591,7 @@ async function downloadRawData(): Promise<void> {
     // Restore button state
     if (downloadBtn) {
       downloadBtn.textContent = originalText;
-      downloadBtn.disabled =
-        !lastValidation?.valid || !lastValidation?.buildId;
+      downloadBtn.disabled = !lastValidation?.valid || !lastValidation?.buildId;
     }
   }
 }
@@ -621,7 +622,8 @@ async function validatePipeline(
     if (!builds || builds.length === 0) {
       return {
         valid: false,
-        error: "No successful builds found (pipeline may not exist or has no completed runs)",
+        error:
+          "No successful builds found (pipeline may not exist or has no completed runs)",
       };
     }
 

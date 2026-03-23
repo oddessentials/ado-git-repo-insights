@@ -998,7 +998,13 @@ describe("applyFiltersToRollups coverage: uncovered paths", () => {
       authors_count: 10,
       reviewers_count: 5,
       by_team: {
-        "team-x": { pr_count: 40, cycle_time_p50: 55, cycle_time_p90: 110, authors_count: 4, reviewers_count: 2 },
+        "team-x": {
+          pr_count: 40,
+          cycle_time_p50: 55,
+          cycle_time_p90: 110,
+          authors_count: 4,
+          reviewers_count: 2,
+        },
       },
     } as unknown as Rollup;
 
@@ -1125,10 +1131,22 @@ describe("applyFiltersToRollups coverage: uncovered paths", () => {
       authors_count: 10,
       reviewers_count: 5,
       by_repository: {
-        "repo-a": { pr_count: 50, cycle_time_p50: 55, cycle_time_p90: null, authors_count: 5, reviewers_count: 3 },
+        "repo-a": {
+          pr_count: 50,
+          cycle_time_p50: 55,
+          cycle_time_p90: null,
+          authors_count: 5,
+          reviewers_count: 3,
+        },
       },
       by_team: {
-        "team-x": { pr_count: 40, cycle_time_p50: 58, cycle_time_p90: null, authors_count: 4, reviewers_count: 2 },
+        "team-x": {
+          pr_count: 40,
+          cycle_time_p50: 58,
+          cycle_time_p90: null,
+          authors_count: 4,
+          reviewers_count: 2,
+        },
       },
     } as unknown as Rollup;
 
@@ -1155,11 +1173,29 @@ describe("applyFiltersToRollups coverage: uncovered paths", () => {
       authors_count: 10,
       reviewers_count: 5,
       by_repository: {
-        "repo-a": { pr_count: 50, cycle_time_p50: 55, cycle_time_p90: 110, authors_count: 5, reviewers_count: 3 },
+        "repo-a": {
+          pr_count: 50,
+          cycle_time_p50: 55,
+          cycle_time_p90: 110,
+          authors_count: 5,
+          reviewers_count: 3,
+        },
       },
       by_team: {
-        "team-x": { pr_count: 60, cycle_time_p50: 58, cycle_time_p90: 115, authors_count: 6, reviewers_count: 3 },
-        "team-y": { pr_count: 60, cycle_time_p50: 62, cycle_time_p90: 125, authors_count: 6, reviewers_count: 3 },
+        "team-x": {
+          pr_count: 60,
+          cycle_time_p50: 58,
+          cycle_time_p90: 115,
+          authors_count: 6,
+          reviewers_count: 3,
+        },
+        "team-y": {
+          pr_count: 60,
+          cycle_time_p50: 62,
+          cycle_time_p90: 125,
+          authors_count: 6,
+          reviewers_count: 3,
+        },
       },
     } as unknown as Rollup;
 
@@ -1189,7 +1225,13 @@ describe("applyFiltersToRollups coverage: uncovered paths", () => {
       authors_count: 10,
       reviewers_count: 5,
       by_repository: {
-        "service-a": { pr_count: 50, cycle_time_p50: 120, cycle_time_p90: 200, authors_count: 5, reviewers_count: 3 },
+        "service-a": {
+          pr_count: 50,
+          cycle_time_p50: 120,
+          cycle_time_p90: 200,
+          authors_count: 5,
+          reviewers_count: 3,
+        },
         "service-b": { pr_count: 50, authors_count: 5, reviewers_count: 2 },
       },
     } as unknown as Rollup;
@@ -1219,8 +1261,20 @@ describe("applyFiltersToRollups coverage: uncovered paths", () => {
       authors_count: 10,
       reviewers_count: 5,
       by_repository: {
-        "repo-a": { pr_count: 60, cycle_time_p50: null, cycle_time_p90: null, authors_count: 6, reviewers_count: 3 },
-        "repo-b": { pr_count: 40, cycle_time_p50: null, cycle_time_p90: null, authors_count: 4, reviewers_count: 2 },
+        "repo-a": {
+          pr_count: 60,
+          cycle_time_p50: null,
+          cycle_time_p90: null,
+          authors_count: 6,
+          reviewers_count: 3,
+        },
+        "repo-b": {
+          pr_count: 40,
+          cycle_time_p50: null,
+          cycle_time_p90: null,
+          authors_count: 4,
+          reviewers_count: 2,
+        },
       },
     } as unknown as Rollup;
 
@@ -1430,21 +1484,69 @@ describe("cross-dimensional exact lookup (T013)", () => {
     authors_count: 10,
     reviewers_count: 5,
     by_repository: {
-      "repo-a": { pr_count: 30, cycle_time_p50: 50, cycle_time_p90: 100, authors_count: 4, reviewers_count: 2 },
-      "repo-b": { pr_count: 70, cycle_time_p50: 65, cycle_time_p90: 130, authors_count: 6, reviewers_count: 3 },
+      "repo-a": {
+        pr_count: 30,
+        cycle_time_p50: 50,
+        cycle_time_p90: 100,
+        authors_count: 4,
+        reviewers_count: 2,
+      },
+      "repo-b": {
+        pr_count: 70,
+        cycle_time_p50: 65,
+        cycle_time_p90: 130,
+        authors_count: 6,
+        reviewers_count: 3,
+      },
     },
     by_team: {
-      "team-x": { pr_count: 40, cycle_time_p50: 55, cycle_time_p90: 110, authors_count: 4, reviewers_count: 2 },
-      "team-y": { pr_count: 60, cycle_time_p50: 63, cycle_time_p90: 127, authors_count: 6, reviewers_count: 3 },
+      "team-x": {
+        pr_count: 40,
+        cycle_time_p50: 55,
+        cycle_time_p90: 110,
+        authors_count: 4,
+        reviewers_count: 2,
+      },
+      "team-y": {
+        pr_count: 60,
+        cycle_time_p50: 63,
+        cycle_time_p90: 127,
+        authors_count: 6,
+        reviewers_count: 3,
+      },
     },
     by_team_and_repo: {
       "team-x": {
-        "repo-a": { pr_count: 20, cycle_time_p50: 45, cycle_time_p90: 95, authors_count: 3, reviewers_count: 2 },
-        "repo-b": { pr_count: 20, cycle_time_p50: 65, cycle_time_p90: 125, authors_count: 3, reviewers_count: 2 },
+        "repo-a": {
+          pr_count: 20,
+          cycle_time_p50: 45,
+          cycle_time_p90: 95,
+          authors_count: 3,
+          reviewers_count: 2,
+        },
+        "repo-b": {
+          pr_count: 20,
+          cycle_time_p50: 65,
+          cycle_time_p90: 125,
+          authors_count: 3,
+          reviewers_count: 2,
+        },
       },
       "team-y": {
-        "repo-a": { pr_count: 10, cycle_time_p50: 55, cycle_time_p90: 105, authors_count: 2, reviewers_count: 1 },
-        "repo-b": { pr_count: 50, cycle_time_p50: 65, cycle_time_p90: 130, authors_count: 5, reviewers_count: 3 },
+        "repo-a": {
+          pr_count: 10,
+          cycle_time_p50: 55,
+          cycle_time_p90: 105,
+          authors_count: 2,
+          reviewers_count: 1,
+        },
+        "repo-b": {
+          pr_count: 50,
+          cycle_time_p50: 65,
+          cycle_time_p90: 130,
+          authors_count: 5,
+          reviewers_count: 3,
+        },
       },
     },
   } as Rollup;
@@ -1472,13 +1574,25 @@ describe("cross-dimensional exact lookup (T013)", () => {
       ...crossDimRollup,
       by_team: {
         ...crossDimRollup.by_team,
-        "team-z": { pr_count: 10, cycle_time_p50: 50, cycle_time_p90: 100, authors_count: 2, reviewers_count: 1 },
+        "team-z": {
+          pr_count: 10,
+          cycle_time_p50: 50,
+          cycle_time_p90: 100,
+          authors_count: 2,
+          reviewers_count: 1,
+        },
       },
       by_team_and_repo: {
         ...crossDimRollup.by_team_and_repo,
         // team-z has no repo-a entry in cross-dim data
         "team-z": {
-          "repo-b": { pr_count: 10, cycle_time_p50: 65, cycle_time_p90: 130, authors_count: 2, reviewers_count: 1 },
+          "repo-b": {
+            pr_count: 10,
+            cycle_time_p50: 65,
+            cycle_time_p90: 130,
+            authors_count: 2,
+            reviewers_count: 1,
+          },
         },
       },
     } as Rollup;
@@ -1525,12 +1639,36 @@ describe("cross-dimensional exact lookup (T013)", () => {
       authors_count: 10,
       reviewers_count: 5,
       by_repository: {
-        "repo-a": { pr_count: 30, cycle_time_p50: 50, cycle_time_p90: 100, authors_count: 4, reviewers_count: 2 },
-        "repo-b": { pr_count: 70, cycle_time_p50: 65, cycle_time_p90: 130, authors_count: 6, reviewers_count: 3 },
+        "repo-a": {
+          pr_count: 30,
+          cycle_time_p50: 50,
+          cycle_time_p90: 100,
+          authors_count: 4,
+          reviewers_count: 2,
+        },
+        "repo-b": {
+          pr_count: 70,
+          cycle_time_p50: 65,
+          cycle_time_p90: 130,
+          authors_count: 6,
+          reviewers_count: 3,
+        },
       },
       by_team: {
-        "team-x": { pr_count: 40, cycle_time_p50: 55, cycle_time_p90: 110, authors_count: 4, reviewers_count: 2 },
-        "team-y": { pr_count: 60, cycle_time_p50: 63, cycle_time_p90: 127, authors_count: 6, reviewers_count: 3 },
+        "team-x": {
+          pr_count: 40,
+          cycle_time_p50: 55,
+          cycle_time_p90: 110,
+          authors_count: 4,
+          reviewers_count: 2,
+        },
+        "team-y": {
+          pr_count: 60,
+          cycle_time_p50: 63,
+          cycle_time_p90: 127,
+          authors_count: 6,
+          reviewers_count: 3,
+        },
       },
       // No by_team_and_repo field
     } as Rollup;
@@ -1567,12 +1705,36 @@ describe("legacy rollup fallback (T018)", () => {
       authors_count: 10,
       reviewers_count: 5,
       by_repository: {
-        "repo-a": { pr_count: 30, cycle_time_p50: 50, cycle_time_p90: 100, authors_count: 4, reviewers_count: 2 },
-        "repo-b": { pr_count: 70, cycle_time_p50: 65, cycle_time_p90: 130, authors_count: 6, reviewers_count: 3 },
+        "repo-a": {
+          pr_count: 30,
+          cycle_time_p50: 50,
+          cycle_time_p90: 100,
+          authors_count: 4,
+          reviewers_count: 2,
+        },
+        "repo-b": {
+          pr_count: 70,
+          cycle_time_p50: 65,
+          cycle_time_p90: 130,
+          authors_count: 6,
+          reviewers_count: 3,
+        },
       },
       by_team: {
-        "team-x": { pr_count: 40, cycle_time_p50: 55, cycle_time_p90: 110, authors_count: 4, reviewers_count: 2 },
-        "team-y": { pr_count: 60, cycle_time_p50: 63, cycle_time_p90: 127, authors_count: 6, reviewers_count: 3 },
+        "team-x": {
+          pr_count: 40,
+          cycle_time_p50: 55,
+          cycle_time_p90: 110,
+          authors_count: 4,
+          reviewers_count: 2,
+        },
+        "team-y": {
+          pr_count: 60,
+          cycle_time_p50: 63,
+          cycle_time_p90: 127,
+          authors_count: 6,
+          reviewers_count: 3,
+        },
       },
       // No by_team_and_repo field
     } as Rollup;
@@ -1607,12 +1769,36 @@ describe("legacy rollup fallback (T018)", () => {
       authors_count: 15,
       reviewers_count: 8,
       by_repository: {
-        "service-api": { pr_count: 120, cycle_time_p50: 70, cycle_time_p90: 140, authors_count: 9, reviewers_count: 5 },
-        "service-web": { pr_count: 80, cycle_time_p50: 95, cycle_time_p90: 190, authors_count: 6, reviewers_count: 3 },
+        "service-api": {
+          pr_count: 120,
+          cycle_time_p50: 70,
+          cycle_time_p90: 140,
+          authors_count: 9,
+          reviewers_count: 5,
+        },
+        "service-web": {
+          pr_count: 80,
+          cycle_time_p50: 95,
+          cycle_time_p90: 190,
+          authors_count: 6,
+          reviewers_count: 3,
+        },
       },
       by_team: {
-        "backend": { pr_count: 130, cycle_time_p50: 75, cycle_time_p90: 150, authors_count: 10, reviewers_count: 6 },
-        "frontend": { pr_count: 70, cycle_time_p50: 90, cycle_time_p90: 180, authors_count: 5, reviewers_count: 2 },
+        backend: {
+          pr_count: 130,
+          cycle_time_p50: 75,
+          cycle_time_p90: 150,
+          authors_count: 10,
+          reviewers_count: 6,
+        },
+        frontend: {
+          pr_count: 70,
+          cycle_time_p50: 90,
+          cycle_time_p90: 180,
+          authors_count: 5,
+          reviewers_count: 2,
+        },
       },
     } as Rollup;
 
@@ -1658,21 +1844,69 @@ describe("mixed-week blend (T019)", () => {
       authors_count: 10,
       reviewers_count: 5,
       by_repository: {
-        "repo-a": { pr_count: 30, cycle_time_p50: 50, cycle_time_p90: 100, authors_count: 4, reviewers_count: 2 },
-        "repo-b": { pr_count: 70, cycle_time_p50: 65, cycle_time_p90: 130, authors_count: 6, reviewers_count: 3 },
+        "repo-a": {
+          pr_count: 30,
+          cycle_time_p50: 50,
+          cycle_time_p90: 100,
+          authors_count: 4,
+          reviewers_count: 2,
+        },
+        "repo-b": {
+          pr_count: 70,
+          cycle_time_p50: 65,
+          cycle_time_p90: 130,
+          authors_count: 6,
+          reviewers_count: 3,
+        },
       },
       by_team: {
-        "team-x": { pr_count: 40, cycle_time_p50: 55, cycle_time_p90: 110, authors_count: 4, reviewers_count: 2 },
-        "team-y": { pr_count: 60, cycle_time_p50: 63, cycle_time_p90: 127, authors_count: 6, reviewers_count: 3 },
+        "team-x": {
+          pr_count: 40,
+          cycle_time_p50: 55,
+          cycle_time_p90: 110,
+          authors_count: 4,
+          reviewers_count: 2,
+        },
+        "team-y": {
+          pr_count: 60,
+          cycle_time_p50: 63,
+          cycle_time_p90: 127,
+          authors_count: 6,
+          reviewers_count: 3,
+        },
       },
       by_team_and_repo: {
         "team-x": {
-          "repo-a": { pr_count: 20, cycle_time_p50: 45, cycle_time_p90: 95, authors_count: 3, reviewers_count: 2 },
-          "repo-b": { pr_count: 20, cycle_time_p50: 65, cycle_time_p90: 125, authors_count: 3, reviewers_count: 2 },
+          "repo-a": {
+            pr_count: 20,
+            cycle_time_p50: 45,
+            cycle_time_p90: 95,
+            authors_count: 3,
+            reviewers_count: 2,
+          },
+          "repo-b": {
+            pr_count: 20,
+            cycle_time_p50: 65,
+            cycle_time_p90: 125,
+            authors_count: 3,
+            reviewers_count: 2,
+          },
         },
         "team-y": {
-          "repo-a": { pr_count: 10, cycle_time_p50: 55, cycle_time_p90: 105, authors_count: 2, reviewers_count: 1 },
-          "repo-b": { pr_count: 50, cycle_time_p50: 65, cycle_time_p90: 130, authors_count: 5, reviewers_count: 3 },
+          "repo-a": {
+            pr_count: 10,
+            cycle_time_p50: 55,
+            cycle_time_p90: 105,
+            authors_count: 2,
+            reviewers_count: 1,
+          },
+          "repo-b": {
+            pr_count: 50,
+            cycle_time_p50: 65,
+            cycle_time_p90: 130,
+            authors_count: 5,
+            reviewers_count: 3,
+          },
         },
       },
     } as Rollup;
@@ -1686,12 +1920,36 @@ describe("mixed-week blend (T019)", () => {
       authors_count: 8,
       reviewers_count: 4,
       by_repository: {
-        "repo-a": { pr_count: 40, cycle_time_p50: 48, cycle_time_p90: 96, authors_count: 4, reviewers_count: 2 },
-        "repo-b": { pr_count: 40, cycle_time_p50: 62, cycle_time_p90: 124, authors_count: 4, reviewers_count: 2 },
+        "repo-a": {
+          pr_count: 40,
+          cycle_time_p50: 48,
+          cycle_time_p90: 96,
+          authors_count: 4,
+          reviewers_count: 2,
+        },
+        "repo-b": {
+          pr_count: 40,
+          cycle_time_p50: 62,
+          cycle_time_p90: 124,
+          authors_count: 4,
+          reviewers_count: 2,
+        },
       },
       by_team: {
-        "team-x": { pr_count: 48, cycle_time_p50: 52, cycle_time_p90: 104, authors_count: 5, reviewers_count: 2 },
-        "team-y": { pr_count: 32, cycle_time_p50: 60, cycle_time_p90: 120, authors_count: 3, reviewers_count: 2 },
+        "team-x": {
+          pr_count: 48,
+          cycle_time_p50: 52,
+          cycle_time_p90: 104,
+          authors_count: 5,
+          reviewers_count: 2,
+        },
+        "team-y": {
+          pr_count: 32,
+          cycle_time_p50: 60,
+          cycle_time_p90: 120,
+          authors_count: 3,
+          reviewers_count: 2,
+        },
       },
     } as Rollup;
 
@@ -1801,10 +2059,22 @@ describe("zero-leakage regression", () => {
       authors_count: 20,
       reviewers_count: 10,
       by_repository: {
-        "repo-niche": { pr_count: 5, cycle_time_p50: 100, cycle_time_p90: 200, authors_count: 1, reviewers_count: 1 },
+        "repo-niche": {
+          pr_count: 5,
+          cycle_time_p50: 100,
+          cycle_time_p90: 200,
+          authors_count: 1,
+          reviewers_count: 1,
+        },
       },
       by_team: {
-        "team-tiny": { pr_count: 5, cycle_time_p50: 150, cycle_time_p90: 300, authors_count: 1, reviewers_count: 1 },
+        "team-tiny": {
+          pr_count: 5,
+          cycle_time_p50: 150,
+          cycle_time_p90: 300,
+          authors_count: 1,
+          reviewers_count: 1,
+        },
       },
       // No by_team_and_repo — forces proportional path
     } as unknown as Rollup;
@@ -1835,16 +2105,34 @@ describe("zero-leakage regression", () => {
       authors_count: 10,
       reviewers_count: 5,
       by_repository: {
-        "repo-a": { pr_count: 40, cycle_time_p50: 50, cycle_time_p90: 100, authors_count: 4, reviewers_count: 2 },
+        "repo-a": {
+          pr_count: 40,
+          cycle_time_p50: 50,
+          cycle_time_p90: 100,
+          authors_count: 4,
+          reviewers_count: 2,
+        },
       },
       by_team: {
-        "team-x": { pr_count: 60, cycle_time_p50: 55, cycle_time_p90: 110, authors_count: 6, reviewers_count: 3 },
+        "team-x": {
+          pr_count: 60,
+          cycle_time_p50: 55,
+          cycle_time_p90: 110,
+          authors_count: 6,
+          reviewers_count: 3,
+        },
       },
       by_team_and_repo: {
         // Map was truncated — team-x/repo-a entry was dropped
         _truncated: true,
         "team-y": {
-          "repo-a": { pr_count: 10, cycle_time_p50: 55, cycle_time_p90: 105, authors_count: 2, reviewers_count: 1 },
+          "repo-a": {
+            pr_count: 10,
+            cycle_time_p50: 55,
+            cycle_time_p90: 105,
+            authors_count: 2,
+            reviewers_count: 1,
+          },
         },
       },
     } as unknown as Rollup;
@@ -1935,17 +2223,41 @@ describe("zero-leakage regression", () => {
       authors_count: 10,
       reviewers_count: 5,
       by_repository: {
-        "repo-a": { pr_count: 30, cycle_time_p50: 50, cycle_time_p90: 100, authors_count: 4, reviewers_count: 2 },
-        "repo-b": { pr_count: 40, cycle_time_p50: 55, cycle_time_p90: 110, authors_count: 5, reviewers_count: 3 },
+        "repo-a": {
+          pr_count: 30,
+          cycle_time_p50: 50,
+          cycle_time_p90: 100,
+          authors_count: 4,
+          reviewers_count: 2,
+        },
+        "repo-b": {
+          pr_count: 40,
+          cycle_time_p50: 55,
+          cycle_time_p90: 110,
+          authors_count: 5,
+          reviewers_count: 3,
+        },
       },
       by_team: {
-        "team-x": { pr_count: 50, cycle_time_p50: 58, cycle_time_p90: 115, authors_count: 6, reviewers_count: 4 },
+        "team-x": {
+          pr_count: 50,
+          cycle_time_p50: 58,
+          cycle_time_p90: 115,
+          authors_count: 6,
+          reviewers_count: 4,
+        },
       },
       by_team_and_repo: {
         _truncated: true,
         // Only team-x/repo-a survived; team-x/repo-b was dropped due to truncation
         "team-x": {
-          "repo-a": { pr_count: 15, cycle_time_p50: 50, cycle_time_p90: 100, authors_count: 3, reviewers_count: 2 },
+          "repo-a": {
+            pr_count: 15,
+            cycle_time_p50: 50,
+            cycle_time_p90: 100,
+            authors_count: 3,
+            reviewers_count: 2,
+          },
         },
       },
     } as unknown as Rollup;
@@ -1970,15 +2282,33 @@ describe("zero-leakage regression", () => {
       authors_count: 10,
       reviewers_count: 5,
       by_repository: {
-        "repo-a": { pr_count: 40, cycle_time_p50: 50, cycle_time_p90: 100, authors_count: 4, reviewers_count: 2 },
+        "repo-a": {
+          pr_count: 40,
+          cycle_time_p50: 50,
+          cycle_time_p90: 100,
+          authors_count: 4,
+          reviewers_count: 2,
+        },
       },
       by_team: {
-        "team-z": { pr_count: 20, cycle_time_p50: 55, cycle_time_p90: 110, authors_count: 3, reviewers_count: 2 },
+        "team-z": {
+          pr_count: 20,
+          cycle_time_p50: 55,
+          cycle_time_p90: 110,
+          authors_count: 3,
+          reviewers_count: 2,
+        },
       },
       by_team_and_repo: {
         // Non-truncated: team-z has no repo-a entry — genuinely zero PRs
         "team-z": {
-          "repo-b": { pr_count: 20, cycle_time_p50: 55, cycle_time_p90: 110, authors_count: 3, reviewers_count: 2 },
+          "repo-b": {
+            pr_count: 20,
+            cycle_time_p50: 55,
+            cycle_time_p90: 110,
+            authors_count: 3,
+            reviewers_count: 2,
+          },
         },
       },
     } as unknown as Rollup;

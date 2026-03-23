@@ -9,10 +9,26 @@
  */
 
 import type { Rollup } from "../../dataset-loader";
-import { escapeHtml, renderNoData, renderTrustedHtml } from "../shared/render";
+import {
+  escapeHtml,
+  NO_DATA_HINTS,
+  renderNoData,
+  renderTrustedHtml,
+} from "../shared/render";
 
 /** Maximum weeks displayed in the reviewer activity panel. */
 export const MAX_REVIEWER_WEEKS = 8;
+
+function getReviewerNoDataHint(
+  reviewerFilterActive: boolean,
+  hasRollups: boolean,
+): string {
+  return reviewerFilterActive
+    ? "Try widening the date range or adjusting reviewer filters."
+    : hasRollups
+      ? NO_DATA_HINTS.REVIEWER_PIPELINE
+      : NO_DATA_HINTS.WIDEN_FILTERS;
+}
 
 /**
  * Render reviewer activity chart (horizontal bar chart).
@@ -45,6 +61,7 @@ export function renderReviewerActivity(
       reviewerFilterActive
         ? "No review activity available"
         : "No reviewer data available",
+      getReviewerNoDataHint(reviewerFilterActive, false),
     );
     return;
   }
@@ -61,6 +78,7 @@ export function renderReviewerActivity(
       reviewerFilterActive
         ? "No review activity available"
         : "No reviewer data available",
+      getReviewerNoDataHint(reviewerFilterActive, true),
     );
     return;
   }
