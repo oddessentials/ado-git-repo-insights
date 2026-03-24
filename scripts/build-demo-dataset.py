@@ -354,21 +354,24 @@ def validate_reviewer_fixture_contract(data_dir: Path) -> dict[str, Any]:
     fixture_week = str(filter_examples[0]["week"])
     _, fixture_by_reviewer = _resolve_fixture_week_rollup(weekly_rollups, fixture_week)
 
-    eligible_reviewers = _collect_eligible_reviewer_ids(
-        fixture_by_reviewer,
-        minimum_reviewed_prs=thresholds["minimum_reviewed_prs"],
-        minimum_review_actions=thresholds["minimum_review_actions"],
+    eligible_reviewer_ids = set(
+        _collect_eligible_reviewer_ids(
+            fixture_by_reviewer,
+            minimum_reviewed_prs=thresholds["minimum_reviewed_prs"],
+            minimum_review_actions=thresholds["minimum_review_actions"],
+        )
     )
     multi_repo_reviewers = [
         reviewer_id
         for reviewer_id, entry in fixture_by_reviewer.items()
-        if reviewer_id in eligible_reviewers and entry.get("repositories_count", 0) >= 2
+        if reviewer_id in eligible_reviewer_ids
+        and entry.get("repositories_count", 0) >= 2
     ]
 
-    if len(eligible_reviewers) < thresholds["minimum_active_reviewers"]:
+    if len(eligible_reviewer_ids) < thresholds["minimum_active_reviewers"]:
         raise RuntimeError(
             "Reviewer fixture contract failed: not enough active reviewers in "
-            f"fixture week {fixture_week} ({len(eligible_reviewers)} < "
+            f"fixture week {fixture_week} ({len(eligible_reviewer_ids)} < "
             f"{thresholds['minimum_active_reviewers']})"
         )
     if len(multi_repo_reviewers) < thresholds["minimum_multi_repo_reviewers"]:
@@ -397,7 +400,7 @@ def validate_reviewer_fixture_contract(data_dir: Path) -> dict[str, Any]:
 
     return {
         "fixture_week": fixture_week,
-        "active_reviewers": len(eligible_reviewers),
+        "active_reviewers": len(eligible_reviewer_ids),
         "multi_repo_reviewers": len(multi_repo_reviewers),
         "reviewer_filter_examples": len(filter_examples),
         "minimum_active_reviewers": thresholds["minimum_active_reviewers"],
