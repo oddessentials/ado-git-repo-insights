@@ -877,27 +877,19 @@ class TestDemoDataRealism:
     def test_inv007_determinism(self):
         """INV-007: Running the generator twice with same seed produces byte-identical output.
 
-        On non-baseline Python (!=3.10): validates committed rollups are
-        structurally consistent rather than re-running the generator (which
-        refuses to write to committed paths on non-baseline interpreters).
+        Uses a scratch directory so the generator never mutates docs/data/.
         """
         import hashlib
-
-        if sys.version_info[:2] != (3, 10):
-            # Validate committed data consistency instead of regenerating
-            checksums = {}
-            for path in sorted(DEMO_ROLLUPS_DIR.glob("*.json")):
-                checksums[path.name] = hashlib.sha256(path.read_bytes()).hexdigest()
-            assert len(checksums) > 0, "No demo rollup files found"
-            return
 
         generator_script = str(
             Path(__file__).parent.parent.parent / "scripts" / "generate-demo-data.py"
         )
+        scratch_dir = _make_scratch_dir("inv007-determinism")
+        rollups_dir = scratch_dir / "aggregates" / "weekly_rollups"
 
-        # Run generator twice to the same output dir and capture checksums after each
+        # Run generator twice to the same scratch dir and compare checksums
         result1 = subprocess.run(  # noqa: S603
-            [sys.executable, generator_script],
+            [sys.executable, generator_script, "--output-root", str(scratch_dir)],
             capture_output=True,
             text=True,
             check=False,
@@ -905,12 +897,12 @@ class TestDemoDataRealism:
         assert result1.returncode == 0, f"Generator run 1 failed: {result1.stderr}"
 
         checksums_a = {}
-        for path in sorted(DEMO_ROLLUPS_DIR.glob("*.json")):
+        for path in sorted(rollups_dir.glob("*.json")):
             checksums_a[path.name] = hashlib.sha256(path.read_bytes()).hexdigest()
-        assert len(checksums_a) > 0, "No demo rollup files found after run 1"
+        assert len(checksums_a) > 0, "No rollup files found after run 1"
 
         result2 = subprocess.run(  # noqa: S603
-            [sys.executable, generator_script],
+            [sys.executable, generator_script, "--output-root", str(scratch_dir)],
             capture_output=True,
             text=True,
             check=False,
@@ -918,7 +910,7 @@ class TestDemoDataRealism:
         assert result2.returncode == 0, f"Generator run 2 failed: {result2.stderr}"
 
         checksums_b = {}
-        for path in sorted(DEMO_ROLLUPS_DIR.glob("*.json")):
+        for path in sorted(rollups_dir.glob("*.json")):
             checksums_b[path.name] = hashlib.sha256(path.read_bytes()).hexdigest()
 
         assert checksums_a == checksums_b, (
