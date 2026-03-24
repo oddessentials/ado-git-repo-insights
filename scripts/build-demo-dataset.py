@@ -5,9 +5,11 @@ from __future__ import annotations
 
 import argparse
 import fnmatch
+import os
 import shutil
 import subprocess
 import sys
+import time
 from pathlib import Path
 from typing import Any
 
@@ -112,8 +114,28 @@ def run_repo_command(command: list[str], *, cwd: Path = REPO_ROOT) -> None:
 
 def _remove_tree(path: Path) -> None:
     """Remove a directory tree if present."""
-    if path.exists():
-        shutil.rmtree(path, ignore_errors=False)
+    if not path.exists():
+        return
+
+    attempts = 3 if os.name == "nt" else 1
+    last_error: BaseException | None = None
+    for attempt in range(1, attempts + 1):
+        try:
+            shutil.rmtree(path, ignore_errors=False)
+            return
+        except FileNotFoundError:
+            return
+        except OSError as exc:
+            last_error = exc
+            if os.name != "nt" or attempt == attempts:
+                break
+            time.sleep(0.1 * attempt)
+
+    raise RuntimeError(
+        f"Failed to clean canonical artifact directory `{path}` after {attempts} "
+        "attempts. This may indicate a leaked file handle or another process "
+        "holding the directory open."
+    ) from last_error
 
 
 def reset_canonical_artifact_root() -> None:
@@ -748,6 +770,18 @@ def write_reports(data_dir: Path, *, generation_mode: str) -> dict[str, Any]:
     return startup_parity
 
 
+def restamp_demo_profile_provenance(
+    profile_path: Path, *, generation_mode: str
+) -> None:
+    """Force demo-profile.json provenance to match the active build mode."""
+    profile = load_json_file(profile_path)
+    profile["generation_provenance"] = build_generation_provenance(
+        generator_script=CANONICAL_COMMITTED_DEMO_SCRIPT,
+        generation_mode=generation_mode,
+    )
+    write_json_file(profile_path, profile)
+
+
 def promote_data(source_dir: Path, destination_dir: Path) -> None:
     """Replace docs/data atomically from the canonical artifact root."""
     destination_dir.mkdir(parents=True, exist_ok=True)
@@ -805,6 +839,10 @@ def main(argv: list[str] | None = None) -> int:
 
     validate_manifest_addressability(ARTIFACT_DATA_DIR)
     startup_parity = write_reports(ARTIFACT_DATA_DIR, generation_mode=active_mode)
+    restamp_demo_profile_provenance(
+        ARTIFACT_METADATA_DIR / "demo-profile.json",
+        generation_mode=active_mode,
+    )
     validate_canonical_provenance(
         ARTIFACT_DATA_DIR,
         ARTIFACT_METADATA_DIR / "demo-profile.json",
