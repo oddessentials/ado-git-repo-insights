@@ -90,6 +90,10 @@ def make_scratch_path(prefix: str) -> Path:
 
 def run_demo_build(*, promote_dir: Path | None = None, promote: bool = False) -> None:
     """Run the canonical enterprise demo build."""
+    if promote and not _IS_BASELINE_PYTHON:
+        raise AssertionError(
+            "run_demo_build() cannot combine off-baseline validate-only mode with promotion"
+        )
     args = [sys.executable, str(BUILD_SCRIPT)]
     if not _IS_BASELINE_PYTHON:
         args.append("--validate-only")
@@ -149,6 +153,13 @@ class TestCanonicalArtifactRoot:
         assert (ARTIFACT_METADATA / "demo-profile.json").exists()
 
     def test_docs_promotion_matches_canonical_bytes(self) -> None:
+        # Promotion exercises the canonical publishing path and is only valid on
+        # the approved baseline interpreter. Off-baseline jobs validate the
+        # non-promoting artifact boundary instead.
+        if not _IS_BASELINE_PYTHON:
+            pytest.skip(
+                "promotion parity is validated only on the baseline interpreter"
+            )
         promoted_dir = make_scratch_dir("published-demo")
         run_demo_build(promote=True, promote_dir=promoted_dir)
 
