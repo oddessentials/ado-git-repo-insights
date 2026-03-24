@@ -8,7 +8,16 @@ from pathlib import Path
 import yaml
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
-SKIP_PARTS = {"node_modules", ".venv", ".git", "__pycache__"}
+SKIP_PARTS = {
+    "node_modules",
+    ".venv",
+    ".git",
+    "__pycache__",
+    "run_artifacts",
+    "tmp_test_work",
+    "tmp_pytest",
+    ".pytest_cache",
+}
 
 
 def iter_yaml_files(root: Path) -> list[Path]:
