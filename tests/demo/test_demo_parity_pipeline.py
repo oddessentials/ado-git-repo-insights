@@ -39,6 +39,9 @@ CANONICAL_COMMITTED_DEMO_SCRIPT = (
     _DEMO_GENERATION_COMMON.CANONICAL_COMMITTED_DEMO_SCRIPT
 )
 COMMITTED_DEMO_BASELINE_PYTHON = _DEMO_GENERATION_COMMON.COMMITTED_DEMO_BASELINE_PYTHON
+COMMITTED_DEMO_BASELINE_PYTHON_VERSION = (
+    _DEMO_GENERATION_COMMON.COMMITTED_DEMO_BASELINE_PYTHON_VERSION
+)
 COMMITTED_DEMO_BASELINE_PYTHON_MAJOR_MINOR = (
     _DEMO_GENERATION_COMMON.COMMITTED_DEMO_BASELINE_PYTHON_MAJOR_MINOR
 )
@@ -120,6 +123,17 @@ def run_demo_validate_only() -> None:
     )
     assert result.returncode == 0, (
         f"build-demo-dataset.py --validate-only failed: {result.stderr or result.stdout}"
+    )
+
+
+def run_demo_validate_only_with_promote() -> subprocess.CompletedProcess[str]:
+    """Run validate-only mode without --no-promote to assert it is rejected."""
+    return subprocess.run(  # noqa: S603
+        [sys.executable, str(BUILD_SCRIPT), "--validate-only"],
+        cwd=REPO_ROOT,
+        capture_output=True,
+        text=True,
+        check=False,
     )
 
 
@@ -228,6 +242,14 @@ class TestCanonicalArtifactRoot:
         assert not (ARTIFACT_DATA / "stale.json").exists()
         assert not (ARTIFACT_REPORT / "stale.json").exists()
         assert not (ARTIFACT_METADATA / "stale.json").exists()
+
+    def test_validate_only_rejects_promotion(self) -> None:
+        result = run_demo_validate_only_with_promote()
+        assert result.returncode != 0
+        assert (
+            "--validate-only cannot be used with promotion; rerun with --no-promote"
+            in (result.stderr or result.stdout)
+        )
 
 
 class TestCapabilityAndParityReports:
@@ -340,7 +362,7 @@ class TestCapabilityAndParityReports:
         )
 
         assert manifest["generation_provenance"] == {
-            "python_version": "3.10.x",
+            "python_version": COMMITTED_DEMO_BASELINE_PYTHON_VERSION,
             "python_major_minor": COMMITTED_DEMO_BASELINE_PYTHON_MAJOR_MINOR,
             "generator_script": CANONICAL_COMMITTED_DEMO_SCRIPT,
             "generation_mode": CANONICAL_COMMITTED_DEMO_MODE,
@@ -358,7 +380,7 @@ class TestCapabilityAndParityReports:
             else VALIDATED_COMMITTED_DEMO_MODE
         )
         assert profile["generation_provenance"] == {
-            "python_version": "3.10.x",
+            "python_version": COMMITTED_DEMO_BASELINE_PYTHON_VERSION,
             "python_major_minor": COMMITTED_DEMO_BASELINE_PYTHON_MAJOR_MINOR,
             "generator_script": CANONICAL_COMMITTED_DEMO_SCRIPT,
             "generation_mode": expected_mode,

@@ -785,6 +785,10 @@ def promote_data(source_dir: Path, destination_dir: Path) -> None:
 def main(argv: list[str] | None = None) -> int:
     """Build and optionally promote the enterprise demo dataset."""
     args = parse_args(argv)
+    if args.validate_only and not args.no_promote:
+        raise RuntimeError(
+            "--validate-only cannot be used with promotion; rerun with --no-promote"
+        )
     reset_canonical_artifact_root()
 
     if args.validate_only:
