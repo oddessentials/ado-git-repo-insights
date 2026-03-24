@@ -21,7 +21,6 @@ REPO_ROOT = Path(__file__).parent.parent.parent
 DOCS_DATA = REPO_ROOT / "docs" / "data"
 ARTIFACT_ROOT = REPO_ROOT / "artifacts" / "demo-enterprise"
 SCRIPTS_DIR = REPO_ROOT / "scripts"
-REGENERATE_SCRIPT = SCRIPTS_DIR / "regenerate-demo.py"
 BUILD_SCRIPT = SCRIPTS_DIR / "build-demo-dataset.py"
 MANIFEST_PATH = DOCS_DATA / "dataset-manifest.json"
 
@@ -78,21 +77,14 @@ def compute_all_file_hashes(directory: Path) -> dict[str, str]:
     return hashes
 
 
-def run_regeneration() -> None:
-    """Run the authoritative demo regeneration orchestrator."""
-    result = subprocess.run(  # noqa: S603 - Trusted script path
-        [sys.executable, str(REGENERATE_SCRIPT)],
-        capture_output=True,
-        text=True,
-        cwd=REPO_ROOT,
-    )
-    assert result.returncode == 0, (
-        f"regenerate-demo.py failed: {result.stderr or result.stdout}"
-    )
+def run_non_promoting_canonical_data_build() -> None:
+    """Run the canonical committed-demo data pipeline up to artifacts only.
 
-
-def run_canonical_demo_build() -> None:
-    """Run the canonical enterprise demo builder without docs promotion."""
+    This test helper intentionally stops at the non-promoting artifact boundary
+    under artifacts/demo-enterprise. Full docs-surface publication is validated
+    separately by the dedicated demo workflow, so Python matrix jobs do not
+    depend on Node/pnpm availability.
+    """
     args = [sys.executable, str(BUILD_SCRIPT), "--no-promote"]
     if not _IS_BASELINE_PYTHON:
         args.append("--validate-only")
@@ -103,7 +95,7 @@ def run_canonical_demo_build() -> None:
         cwd=REPO_ROOT,
     )
     assert result.returncode == 0, (
-        f"build-demo-dataset.py failed: {result.stderr or result.stdout}"
+        f"non-promoting build-demo-dataset.py failed: {result.stderr or result.stdout}"
     )
 
 
@@ -134,7 +126,7 @@ class TestDeterministicRegeneration:
 
         if not _IS_BASELINE_PYTHON:
             # Validate committed data integrity via validate-only build
-            run_canonical_demo_build()
+            run_non_promoting_canonical_data_build()
             manifest = json.loads(MANIFEST_PATH.read_text(encoding="utf-8"))
             assert manifest["generation_provenance"]["generation_mode"] == (
                 CANONICAL_COMMITTED_DEMO_MODE
@@ -142,14 +134,10 @@ class TestDeterministicRegeneration:
             assert len(compute_directory_hashes(DOCS_DATA)) > 0
             return
 
-        # Capture current hashes (before regeneration)
+        # Capture current hashes before rebuilding the canonical data artifacts.
         original_hashes = compute_directory_hashes(DOCS_DATA)
 
-        assert REGENERATE_SCRIPT.exists(), (
-            f"Missing regeneration orchestrator: {REGENERATE_SCRIPT}"
-        )
-
-        run_regeneration()
+        run_non_promoting_canonical_data_build()
 
         first_regeneration_hashes = compute_directory_hashes(DOCS_DATA)
 
@@ -160,7 +148,7 @@ class TestDeterministicRegeneration:
         assert manifest["features"]["ai_insights"] is True
         assert manifest["features"]["cross_dimensional"] is True
 
-        run_regeneration()
+        run_non_promoting_canonical_data_build()
         second_regeneration_hashes = compute_directory_hashes(DOCS_DATA)
 
         assert original_hashes == first_regeneration_hashes, (
@@ -178,11 +166,11 @@ class TestDeterministicRegeneration:
         On baseline Python: verifies full generation determinism.
         On non-baseline: verifies validate-only mode is deterministic.
         """
-        run_canonical_demo_build()
+        run_non_promoting_canonical_data_build()
         first_hashes = compute_all_file_hashes(ARTIFACT_ROOT)
         assert first_hashes, "Canonical artifact root must contain generated files"
 
-        run_canonical_demo_build()
+        run_non_promoting_canonical_data_build()
         second_hashes = compute_all_file_hashes(ARTIFACT_ROOT)
 
         assert first_hashes == second_hashes, (
@@ -195,7 +183,7 @@ class TestDeterministicRegeneration:
         On non-baseline: verifies committed manifest provenance directly.
         """
         if _IS_BASELINE_PYTHON:
-            run_regeneration()
+            run_non_promoting_canonical_data_build()
 
         manifest = json.loads(MANIFEST_PATH.read_text(encoding="utf-8"))
 
