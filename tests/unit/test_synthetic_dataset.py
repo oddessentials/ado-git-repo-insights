@@ -3,8 +3,10 @@
 Contract validation: Producer tests ensure generated output matches schema.
 """
 
+import atexit
 import json
 import re
+import shutil
 import subprocess
 import sys
 from itertools import count
@@ -14,6 +16,14 @@ import pytest
 
 TEST_TMP_ROOT = Path(__file__).resolve().parents[2] / "tmp_test_work"
 _RUN_COUNTER = count()
+
+
+def _cleanup_test_tmp_root() -> None:
+    """Best-effort cleanup for repo-local scratch directories created by tests."""
+    shutil.rmtree(TEST_TMP_ROOT, ignore_errors=True)
+
+
+atexit.register(_cleanup_test_tmp_root)
 
 
 def _make_scratch_dir(prefix: str) -> Path:

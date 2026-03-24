@@ -111,6 +111,7 @@ secrets.yml
 debug_extraction.py
 test_artifacts
 **/tmp/
+tmp_test_work/
 
 # Playwright smoke test artifacts (local, uploaded in CI)
 extension/test-artifacts/

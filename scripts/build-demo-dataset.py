@@ -173,10 +173,10 @@ def _load_rollup_index(
     }
 
 
-def validate_reviewer_fixture_contract(data_dir: Path) -> dict[str, Any]:
-    """Validate canonical reviewer fixtures and return evidence for reporting."""
-    manifest = load_json_file(data_dir / "dataset-manifest.json")
-    dimensions = load_json_file(data_dir / "aggregates" / "dimensions.json")
+def _load_reviewer_fixture_metadata(
+    manifest: dict[str, Any],
+) -> dict[str, Any]:
+    """Load reviewer fixtures and validate the required top-level metadata."""
     reviewer_fixtures = manifest.get("reviewer_fixtures")
     if not isinstance(reviewer_fixtures, dict):
         raise RuntimeError(
@@ -189,28 +189,47 @@ def validate_reviewer_fixture_contract(data_dir: Path) -> dict[str, Any]:
             "Missing reviewer fixture metadata fields in dataset-manifest.json: "
             f"{missing_keys}"
         )
+    return reviewer_fixtures
 
-    reviewer_lookup = {
-        entry["reviewer_id"]: entry["reviewer_name"]
-        for entry in dimensions.get("reviewers", [])
+
+def _collect_reviewer_fixture_thresholds(
+    reviewer_fixtures: dict[str, Any],
+) -> dict[str, int]:
+    """Normalize integer thresholds for reviewer fixture validation."""
+    return {
+        "minimum_active_reviewers": int(reviewer_fixtures["minimum_active_reviewers"]),
+        "minimum_reviewed_prs": int(
+            reviewer_fixtures["minimum_reviewed_prs_per_reviewer"]
+        ),
+        "minimum_review_actions": int(
+            reviewer_fixtures["minimum_review_actions_per_reviewer"]
+        ),
+        "minimum_multi_repo_reviewers": int(
+            reviewer_fixtures["minimum_multi_repo_reviewers"]
+        ),
     }
-    team_names = {entry["team_name"] for entry in dimensions.get("teams", [])}
-    weekly_rollups = _load_rollup_index(data_dir, manifest)
 
-    minimum_active_reviewers = int(reviewer_fixtures["minimum_active_reviewers"])
-    minimum_reviewed_prs = int(reviewer_fixtures["minimum_reviewed_prs_per_reviewer"])
-    minimum_review_actions = int(
-        reviewer_fixtures["minimum_review_actions_per_reviewer"]
-    )
-    minimum_multi_repo_reviewers = int(
-        reviewer_fixtures["minimum_multi_repo_reviewers"]
-    )
 
-    filter_examples = reviewer_fixtures["reviewer_filter_examples"]
-    if not isinstance(filter_examples, list) or not filter_examples:
-        raise RuntimeError("reviewer_filter_examples must contain at least one fixture")
+def _collect_eligible_reviewer_ids(
+    fixture_by_reviewer: dict[str, dict[str, Any]],
+    *,
+    minimum_reviewed_prs: int,
+    minimum_review_actions: int,
+) -> list[str]:
+    """Return reviewer ids that satisfy the declared reviewer activity floor."""
+    return [
+        reviewer_id
+        for reviewer_id, entry in fixture_by_reviewer.items()
+        if entry.get("reviewed_prs", 0) >= minimum_reviewed_prs
+        and entry.get("reviews_count", 0) >= minimum_review_actions
+    ]
 
-    fixture_week = str(filter_examples[0]["week"])
+
+def _resolve_fixture_week_rollup(
+    weekly_rollups: dict[str, dict[str, Any]],
+    fixture_week: str,
+) -> tuple[dict[str, Any], dict[str, dict[str, Any]]]:
+    """Resolve the canonical fixture rollup and its reviewer slices."""
     fixture_rollup = weekly_rollups.get(fixture_week)
     if fixture_rollup is None:
         raise RuntimeError(
@@ -222,34 +241,18 @@ def validate_reviewer_fixture_contract(data_dir: Path) -> dict[str, Any]:
         raise RuntimeError(
             f"Reviewer fixture week '{fixture_week}' is missing by_reviewer data"
         )
+    return fixture_rollup, fixture_by_reviewer
 
-    eligible_reviewers = [
-        reviewer_id
-        for reviewer_id, entry in fixture_by_reviewer.items()
-        if entry.get("reviewed_prs", 0) >= minimum_reviewed_prs
-        and entry.get("reviews_count", 0) >= minimum_review_actions
-    ]
-    multi_repo_reviewers = [
-        reviewer_id
-        for reviewer_id, entry in fixture_by_reviewer.items()
-        if entry.get("reviewed_prs", 0) >= minimum_reviewed_prs
-        and entry.get("reviews_count", 0) >= minimum_review_actions
-        and entry.get("repositories_count", 0) >= 2
-    ]
 
-    if len(eligible_reviewers) < minimum_active_reviewers:
-        raise RuntimeError(
-            "Reviewer fixture contract failed: not enough active reviewers in "
-            f"fixture week {fixture_week} ({len(eligible_reviewers)} < "
-            f"{minimum_active_reviewers})"
-        )
-    if len(multi_repo_reviewers) < minimum_multi_repo_reviewers:
-        raise RuntimeError(
-            "Reviewer fixture contract failed: not enough multi-repository reviewers "
-            f"in fixture week {fixture_week} ({len(multi_repo_reviewers)} < "
-            f"{minimum_multi_repo_reviewers})"
-        )
-
+def _validate_reviewer_filter_examples(
+    *,
+    filter_examples: list[dict[str, Any]],
+    weekly_rollups: dict[str, dict[str, Any]],
+    reviewer_lookup: dict[str, str],
+    minimum_reviewed_prs: int,
+    minimum_review_actions: int,
+) -> None:
+    """Validate manifest-backed reviewer filter examples against rollup data."""
     for example in filter_examples:
         reviewer_id = str(example["reviewer_id"])
         example_week = str(example["week"])
@@ -279,7 +282,13 @@ def validate_reviewer_fixture_contract(data_dir: Path) -> dict[str, Any]:
                 "minimum review-action threshold"
             )
 
-    constrained = reviewer_fixtures["reviewer_constrained_example"]
+
+def _validate_constrained_reviewer_example(
+    *,
+    constrained: dict[str, Any],
+    weekly_rollups: dict[str, dict[str, Any]],
+) -> None:
+    """Validate the canonical reviewer+repository constrained example."""
     constrained_rollup = weekly_rollups.get(str(constrained["week"]))
     if constrained_rollup is None:
         raise RuntimeError("reviewer_constrained_example references an unknown week")
@@ -298,7 +307,14 @@ def validate_reviewer_fixture_contract(data_dir: Path) -> dict[str, Any]:
             "specified rollup"
         )
 
-    disallowed = reviewer_fixtures["reviewer_team_disallowed_example"]
+
+def _validate_disallowed_reviewer_team_example(
+    *,
+    disallowed: dict[str, Any],
+    weekly_rollups: dict[str, dict[str, Any]],
+    team_names: set[str],
+) -> None:
+    """Validate the canonical disallowed reviewer+team example."""
     disallowed_rollup = weekly_rollups.get(str(disallowed["week"]))
     if disallowed_rollup is None:
         raise RuntimeError(
@@ -316,14 +332,95 @@ def validate_reviewer_fixture_contract(data_dir: Path) -> dict[str, Any]:
             "reviewer_team_disallowed_example references an unknown team name"
         )
 
+
+def validate_reviewer_fixture_contract(data_dir: Path) -> dict[str, Any]:
+    """Validate canonical reviewer fixtures and return evidence for reporting."""
+    manifest = load_json_file(data_dir / "dataset-manifest.json")
+    dimensions = load_json_file(data_dir / "aggregates" / "dimensions.json")
+    reviewer_fixtures = _load_reviewer_fixture_metadata(manifest)
+
+    reviewer_lookup = {
+        entry["reviewer_id"]: entry["reviewer_name"]
+        for entry in dimensions.get("reviewers", [])
+    }
+    team_names = {entry["team_name"] for entry in dimensions.get("teams", [])}
+    weekly_rollups = _load_rollup_index(data_dir, manifest)
+    thresholds = _collect_reviewer_fixture_thresholds(reviewer_fixtures)
+
+    filter_examples = reviewer_fixtures["reviewer_filter_examples"]
+    if not isinstance(filter_examples, list) or not filter_examples:
+        raise RuntimeError("reviewer_filter_examples must contain at least one fixture")
+
+    fixture_week = str(filter_examples[0]["week"])
+    _, fixture_by_reviewer = _resolve_fixture_week_rollup(weekly_rollups, fixture_week)
+
+    eligible_reviewers = _collect_eligible_reviewer_ids(
+        fixture_by_reviewer,
+        minimum_reviewed_prs=thresholds["minimum_reviewed_prs"],
+        minimum_review_actions=thresholds["minimum_review_actions"],
+    )
+    multi_repo_reviewers = [
+        reviewer_id
+        for reviewer_id, entry in fixture_by_reviewer.items()
+        if reviewer_id in eligible_reviewers and entry.get("repositories_count", 0) >= 2
+    ]
+
+    if len(eligible_reviewers) < thresholds["minimum_active_reviewers"]:
+        raise RuntimeError(
+            "Reviewer fixture contract failed: not enough active reviewers in "
+            f"fixture week {fixture_week} ({len(eligible_reviewers)} < "
+            f"{thresholds['minimum_active_reviewers']})"
+        )
+    if len(multi_repo_reviewers) < thresholds["minimum_multi_repo_reviewers"]:
+        raise RuntimeError(
+            "Reviewer fixture contract failed: not enough multi-repository reviewers "
+            f"in fixture week {fixture_week} ({len(multi_repo_reviewers)} < "
+            f"{thresholds['minimum_multi_repo_reviewers']})"
+        )
+
+    _validate_reviewer_filter_examples(
+        filter_examples=filter_examples,
+        weekly_rollups=weekly_rollups,
+        reviewer_lookup=reviewer_lookup,
+        minimum_reviewed_prs=thresholds["minimum_reviewed_prs"],
+        minimum_review_actions=thresholds["minimum_review_actions"],
+    )
+    _validate_constrained_reviewer_example(
+        constrained=reviewer_fixtures["reviewer_constrained_example"],
+        weekly_rollups=weekly_rollups,
+    )
+    _validate_disallowed_reviewer_team_example(
+        disallowed=reviewer_fixtures["reviewer_team_disallowed_example"],
+        weekly_rollups=weekly_rollups,
+        team_names=team_names,
+    )
+
     return {
         "fixture_week": fixture_week,
         "active_reviewers": len(eligible_reviewers),
         "multi_repo_reviewers": len(multi_repo_reviewers),
         "reviewer_filter_examples": len(filter_examples),
-        "minimum_active_reviewers": minimum_active_reviewers,
-        "minimum_multi_repo_reviewers": minimum_multi_repo_reviewers,
+        "minimum_active_reviewers": thresholds["minimum_active_reviewers"],
+        "minimum_multi_repo_reviewers": thresholds["minimum_multi_repo_reviewers"],
     }
+
+
+def _remove_promoted_file(path: Path) -> None:
+    """Remove a promoted file with a read-only-safe fallback for Windows."""
+    try:
+        path.unlink()
+    except PermissionError:
+        path.chmod(0o666)
+        path.unlink()
+
+
+def _remove_promoted_dir(path: Path) -> None:
+    """Remove an empty promoted directory with a writable fallback."""
+    try:
+        path.rmdir()
+    except PermissionError:
+        path.chmod(0o777)
+        path.rmdir()
 
 
 def build_capability_matrix(data_dir: Path) -> dict[str, Any]:
@@ -550,7 +647,7 @@ def promote_data(source_dir: Path, destination_dir: Path) -> None:
     stale_files = sorted(destination_files - source_files)
     for rel_path in stale_files:
         target = destination_dir / rel_path
-        target.unlink()
+        _remove_promoted_file(target)
 
     source_dirs = set(list_relative_dirs(source_dir))
     destination_dirs = sorted(
@@ -561,7 +658,7 @@ def promote_data(source_dir: Path, destination_dir: Path) -> None:
     for rel_path in reversed(destination_dirs):
         target = destination_dir / rel_path
         if target.exists():
-            target.rmdir()
+            _remove_promoted_dir(target)
 
     source_files_sorted = sorted(source_files)
     destination_files_sorted = list_relative_files(destination_dir)

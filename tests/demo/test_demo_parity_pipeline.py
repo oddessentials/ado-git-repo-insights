@@ -1,7 +1,6 @@
 """Tests for the canonical enterprise demo build and promotion pipeline."""
 
-from __future__ import annotations
-
+import atexit
 import importlib.util
 import json
 import re
@@ -21,6 +20,14 @@ ARTIFACT_REPORT = ARTIFACT_ROOT / "report"
 ARTIFACT_METADATA = ARTIFACT_ROOT / "metadata"
 TEST_TMP_ROOT = REPO_ROOT / "tmp_test_work"
 _SCRATCH_COUNTER = count()
+
+
+def _cleanup_test_tmp_root() -> None:
+    """Best-effort cleanup for repo-local scratch directories created by tests."""
+    shutil.rmtree(TEST_TMP_ROOT, ignore_errors=True)
+
+
+atexit.register(_cleanup_test_tmp_root)
 
 
 def load_build_module():
@@ -108,7 +115,7 @@ class TestCanonicalArtifactRoot:
                 promoted_dir / rel_path
             ).read_bytes()
 
-    def test_promotion_detects_stale_files(self) -> None:
+    def test_promotion_cleans_stale_files(self) -> None:
         run_demo_build()
         build_module = load_build_module()
         promoted_dir = make_scratch_dir("published-demo-stale")
@@ -123,17 +130,38 @@ class TestCanonicalArtifactRoot:
         )
         assert stale_path.exists()
 
-        source_files = set(build_module.list_relative_files(ARTIFACT_DATA))
-        destination_files = set(build_module.list_relative_files(promoted_dir))
-        source_dirs = set(build_module.list_relative_dirs(ARTIFACT_DATA))
-        destination_dirs = set(build_module.list_relative_dirs(promoted_dir))
+        removed_files: set[str] = set()
+        removed_dirs: set[str] = set()
+        original_list_relative_files = build_module.list_relative_files
+        original_list_relative_dirs = build_module.list_relative_dirs
 
-        stale_files = destination_files - source_files
-        stale_dirs = destination_dirs - source_dirs
+        def remove_file(path: Path) -> None:
+            removed_files.add(str(path.relative_to(promoted_dir)).replace("\\", "/"))
 
-        assert "stale-demo-file.json" in stale_files
-        assert "stale-dir" in stale_dirs
-        assert "stale-dir/nested" in stale_dirs
+        def remove_dir(path: Path) -> None:
+            removed_dirs.add(str(path.relative_to(promoted_dir)).replace("\\", "/"))
+
+        def list_relative_files(root: Path) -> list[str]:
+            paths = original_list_relative_files(root)
+            if root == promoted_dir:
+                return [path for path in paths if path not in removed_files]
+            return paths
+
+        def list_relative_dirs(root: Path) -> list[str]:
+            paths = original_list_relative_dirs(root)
+            if root == promoted_dir:
+                return [path for path in paths if path not in removed_dirs]
+            return paths
+
+        build_module._remove_promoted_file = remove_file
+        build_module._remove_promoted_dir = remove_dir
+        build_module.list_relative_files = list_relative_files
+        build_module.list_relative_dirs = list_relative_dirs
+        build_module.promote_data(ARTIFACT_DATA, promoted_dir)
+
+        assert "stale-demo-file.json" in removed_files
+        assert "stale-dir/nested" in removed_dirs
+        assert "stale-dir" in removed_dirs
 
 
 class TestCapabilityAndParityReports:
