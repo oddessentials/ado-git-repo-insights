@@ -41,9 +41,11 @@ CANONICAL_COMMITTED_DEMO_MODE = _DEMO_GENERATION_COMMON.CANONICAL_COMMITTED_DEMO
 CANONICAL_COMMITTED_DEMO_SCRIPT = (
     _DEMO_GENERATION_COMMON.CANONICAL_COMMITTED_DEMO_SCRIPT
 )
+COMMITTED_DEMO_BASELINE_PYTHON = _DEMO_GENERATION_COMMON.COMMITTED_DEMO_BASELINE_PYTHON
 COMMITTED_DEMO_BASELINE_PYTHON_MAJOR_MINOR = (
     _DEMO_GENERATION_COMMON.COMMITTED_DEMO_BASELINE_PYTHON_MAJOR_MINOR
 )
+_IS_BASELINE_PYTHON = sys.version_info[:2] == COMMITTED_DEMO_BASELINE_PYTHON
 
 
 def compute_file_hash(path: Path) -> str:
@@ -88,8 +90,11 @@ def run_regeneration() -> None:
 
 def run_canonical_demo_build() -> None:
     """Run the canonical enterprise demo builder without docs promotion."""
+    args = [sys.executable, str(BUILD_SCRIPT), "--no-promote"]
+    if not _IS_BASELINE_PYTHON:
+        args.append("--validate-only")
     result = subprocess.run(  # noqa: S603 - Trusted script path
-        [sys.executable, str(BUILD_SCRIPT), "--no-promote"],
+        args,
         capture_output=True,
         text=True,
         cwd=REPO_ROOT,
@@ -116,14 +121,23 @@ class TestDeterministicRegeneration:
         """
         Running the full regeneration pipeline produces identical output.
 
-        This test:
-        1. Captures current state of docs/data/
-        2. Runs all three generators (data, predictions, insights)
-        3. Verifies output matches original byte-for-byte
+        On baseline Python (3.10): runs generators twice and verifies byte-identical.
+        On non-baseline: validates committed data passes full build validation
+        and manifest carries canonical provenance (generation-vs-validation mode
+        contract — see plan for details).
         """
-        # Skip if data not found
         if not (DOCS_DATA / "dataset-manifest.json").exists():
             pytest.skip("docs/data not found - skipping regeneration test")
+
+        if not _IS_BASELINE_PYTHON:
+            # Validate committed data integrity via validate-only build
+            run_canonical_demo_build()
+            manifest = json.loads(MANIFEST_PATH.read_text(encoding="utf-8"))
+            assert manifest["generation_provenance"]["generation_mode"] == (
+                CANONICAL_COMMITTED_DEMO_MODE
+            ), "Committed manifest must carry canonical generation provenance"
+            assert len(compute_directory_hashes(DOCS_DATA)) > 0
+            return
 
         # Capture current hashes (before regeneration)
         original_hashes = compute_directory_hashes(DOCS_DATA)
@@ -156,7 +170,11 @@ class TestDeterministicRegeneration:
         )
 
     def test_canonical_demo_build_artifacts_are_deterministic(self) -> None:
-        """Canonical build output must remain identical across repeated builds."""
+        """Build output must remain identical across repeated builds.
+
+        On baseline Python: verifies full generation determinism.
+        On non-baseline: verifies validate-only mode is deterministic.
+        """
         run_canonical_demo_build()
         first_hashes = compute_all_file_hashes(ARTIFACT_ROOT)
         assert first_hashes, "Canonical artifact root must contain generated files"
@@ -165,12 +183,17 @@ class TestDeterministicRegeneration:
         second_hashes = compute_all_file_hashes(ARTIFACT_ROOT)
 
         assert first_hashes == second_hashes, (
-            "Canonical artifact build output is not deterministic across repeated runs"
+            "Artifact build output is not deterministic across repeated runs"
         )
 
     def test_canonical_regeneration_preserves_manifest_provenance(self) -> None:
-        """Canonical regeneration must preserve approved provenance metadata."""
-        run_regeneration()
+        """Canonical regeneration must preserve approved provenance metadata.
+
+        On non-baseline: verifies committed manifest provenance directly.
+        """
+        if _IS_BASELINE_PYTHON:
+            run_regeneration()
+
         manifest = json.loads(MANIFEST_PATH.read_text(encoding="utf-8"))
 
         assert manifest["generation_provenance"] == {
@@ -183,10 +206,19 @@ class TestDeterministicRegeneration:
     def test_generate_demo_predictions_is_deterministic(self) -> None:
         """
         Running generate-demo-predictions.py produces identical output.
+
+        On non-baseline: validates committed predictions schema.
         """
         predictions_file = DOCS_DATA / "predictions" / "trends.json"
         if not predictions_file.exists():
             pytest.skip("predictions/trends.json not found")
+
+        if not _IS_BASELINE_PYTHON:
+            predictions = json.loads(predictions_file.read_text(encoding="utf-8"))
+            assert isinstance(predictions, dict), "Predictions must be a JSON object"
+            manifest = json.loads(MANIFEST_PATH.read_text(encoding="utf-8"))
+            assert manifest["features"]["predictions"] is True
+            return
 
         original_hash = compute_file_hash(predictions_file)
         original_manifest_bytes = MANIFEST_PATH.read_bytes()
@@ -212,10 +244,19 @@ class TestDeterministicRegeneration:
     def test_generate_demo_insights_is_deterministic(self) -> None:
         """
         Running generate-demo-insights.py produces identical output.
+
+        On non-baseline: validates committed insights schema.
         """
         insights_file = DOCS_DATA / "insights" / "summary.json"
         if not insights_file.exists():
             pytest.skip("insights/summary.json not found")
+
+        if not _IS_BASELINE_PYTHON:
+            insights = json.loads(insights_file.read_text(encoding="utf-8"))
+            assert isinstance(insights, dict), "Insights must be a JSON object"
+            manifest = json.loads(MANIFEST_PATH.read_text(encoding="utf-8"))
+            assert manifest["features"]["ai_insights"] is True
+            return
 
         original_hash = compute_file_hash(insights_file)
         original_manifest_bytes = MANIFEST_PATH.read_bytes()

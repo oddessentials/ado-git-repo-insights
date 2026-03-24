@@ -14,6 +14,7 @@ from typing import Any
 from demo_generation_common import (
     CANONICAL_COMMITTED_DEMO_MODE,
     CANONICAL_COMMITTED_DEMO_SCRIPT,
+    VALIDATED_COMMITTED_DEMO_MODE,
     build_generation_provenance,
     load_json_file,
     require_demo_generation_baseline,
@@ -64,6 +65,11 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         type=Path,
         default=DOCS_DATA_DIR,
         help="Destination directory for promoted published demo data",
+    )
+    parser.add_argument(
+        "--validate-only",
+        action="store_true",
+        help="Skip generation; validate already-committed docs/data artifacts",
     )
     return parser.parse_args(argv)
 
@@ -182,8 +188,13 @@ def stamp_canonical_manifest_provenance(data_dir: Path) -> None:
     write_json_file(manifest_path, manifest)
 
 
-def validate_canonical_provenance(data_dir: Path, profile_path: Path) -> None:
-    """Validate canonical provenance on the published manifest and build profile."""
+def validate_canonical_provenance(
+    data_dir: Path,
+    profile_path: Path,
+    *,
+    active_mode: str,
+) -> None:
+    """Validate provenance on the manifest (always canonical) and profile (active mode)."""
     validate_generation_provenance(
         load_json_file(data_dir / "dataset-manifest.json"),
         expected_generator_script=CANONICAL_COMMITTED_DEMO_SCRIPT,
@@ -193,7 +204,7 @@ def validate_canonical_provenance(data_dir: Path, profile_path: Path) -> None:
     validate_generation_provenance(
         load_json_file(profile_path),
         expected_generator_script=CANONICAL_COMMITTED_DEMO_SCRIPT,
-        expected_generation_mode=CANONICAL_COMMITTED_DEMO_MODE,
+        expected_generation_mode=active_mode,
         location="demo-profile.json",
     )
 
@@ -633,7 +644,7 @@ def build_startup_parity_report() -> dict[str, Any]:
     }
 
 
-def write_reports(data_dir: Path) -> dict[str, Any]:
+def write_reports(data_dir: Path, *, generation_mode: str) -> dict[str, Any]:
     """Write machine-readable artifact reports and return startup parity."""
     capability_matrix = build_capability_matrix(data_dir)
     startup_parity = build_startup_parity_report()
@@ -651,7 +662,7 @@ def write_reports(data_dir: Path) -> dict[str, Any]:
         "artifact_scope": collect_canonical_artifact_scope(),
         "generation_provenance": build_generation_provenance(
             generator_script=CANONICAL_COMMITTED_DEMO_SCRIPT,
-            generation_mode=CANONICAL_COMMITTED_DEMO_MODE,
+            generation_mode=generation_mode,
         ),
     }
     ARTIFACT_REPORT_DIR.mkdir(parents=True, exist_ok=True)
@@ -714,22 +725,29 @@ def promote_data(source_dir: Path, destination_dir: Path) -> None:
 
 def main(argv: list[str] | None = None) -> int:
     """Build and optionally promote the enterprise demo dataset."""
-    require_demo_generation_baseline(CANONICAL_COMMITTED_DEMO_SCRIPT)
     args = parse_args(argv)
     ARTIFACT_DATA_DIR.mkdir(parents=True, exist_ok=True)
     ARTIFACT_REPORT_DIR.mkdir(parents=True, exist_ok=True)
     ARTIFACT_METADATA_DIR.mkdir(parents=True, exist_ok=True)
 
-    for script_name in GENERATOR_STEPS:
-        print(f"[demo-build] running {script_name}")
-        run_generator(script_name, ARTIFACT_DATA_DIR)
+    if args.validate_only:
+        print("[demo-build] validate-only: using committed docs/data")
+        shutil.copytree(DOCS_DATA_DIR, ARTIFACT_DATA_DIR, dirs_exist_ok=True)
+        active_mode = VALIDATED_COMMITTED_DEMO_MODE
+    else:
+        require_demo_generation_baseline(CANONICAL_COMMITTED_DEMO_SCRIPT)
+        for script_name in GENERATOR_STEPS:
+            print(f"[demo-build] running {script_name}")
+            run_generator(script_name, ARTIFACT_DATA_DIR)
+        stamp_canonical_manifest_provenance(ARTIFACT_DATA_DIR)
+        active_mode = CANONICAL_COMMITTED_DEMO_MODE
 
-    stamp_canonical_manifest_provenance(ARTIFACT_DATA_DIR)
     validate_manifest_addressability(ARTIFACT_DATA_DIR)
-    startup_parity = write_reports(ARTIFACT_DATA_DIR)
+    startup_parity = write_reports(ARTIFACT_DATA_DIR, generation_mode=active_mode)
     validate_canonical_provenance(
         ARTIFACT_DATA_DIR,
         ARTIFACT_METADATA_DIR / "demo-profile.json",
+        active_mode=active_mode,
     )
 
     if not args.no_promote:

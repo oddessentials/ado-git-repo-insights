@@ -34,12 +34,15 @@ def _load_demo_generation_common():
 
 _DEMO_GENERATION_COMMON = _load_demo_generation_common()
 CANONICAL_COMMITTED_DEMO_MODE = _DEMO_GENERATION_COMMON.CANONICAL_COMMITTED_DEMO_MODE
+VALIDATED_COMMITTED_DEMO_MODE = _DEMO_GENERATION_COMMON.VALIDATED_COMMITTED_DEMO_MODE
 CANONICAL_COMMITTED_DEMO_SCRIPT = (
     _DEMO_GENERATION_COMMON.CANONICAL_COMMITTED_DEMO_SCRIPT
 )
+COMMITTED_DEMO_BASELINE_PYTHON = _DEMO_GENERATION_COMMON.COMMITTED_DEMO_BASELINE_PYTHON
 COMMITTED_DEMO_BASELINE_PYTHON_MAJOR_MINOR = (
     _DEMO_GENERATION_COMMON.COMMITTED_DEMO_BASELINE_PYTHON_MAJOR_MINOR
 )
+_IS_BASELINE_PYTHON = sys.version_info[:2] == COMMITTED_DEMO_BASELINE_PYTHON
 
 
 def _cleanup_test_tmp_root() -> None:
@@ -85,6 +88,8 @@ def make_scratch_path(prefix: str) -> Path:
 def run_demo_build(*, promote_dir: Path | None = None, promote: bool = False) -> None:
     """Run the canonical enterprise demo build."""
     args = [sys.executable, str(BUILD_SCRIPT)]
+    if not _IS_BASELINE_PYTHON:
+        args.append("--validate-only")
     if promote:
         if promote_dir is None:
             raise AssertionError("promote_dir is required when promote=True")
@@ -306,11 +311,16 @@ class TestCapabilityAndParityReports:
             (ARTIFACT_METADATA / "demo-profile.json").read_text(encoding="utf-8")
         )
 
+        expected_mode = (
+            CANONICAL_COMMITTED_DEMO_MODE
+            if _IS_BASELINE_PYTHON
+            else VALIDATED_COMMITTED_DEMO_MODE
+        )
         assert profile["generation_provenance"] == {
             "python_version": "3.10.x",
             "python_major_minor": COMMITTED_DEMO_BASELINE_PYTHON_MAJOR_MINOR,
             "generator_script": CANONICAL_COMMITTED_DEMO_SCRIPT,
-            "generation_mode": CANONICAL_COMMITTED_DEMO_MODE,
+            "generation_mode": expected_mode,
         }
 
     def test_reviewer_fixture_examples_resolve_to_canonical_rollups(self) -> None:

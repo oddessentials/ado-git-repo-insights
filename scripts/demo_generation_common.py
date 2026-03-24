@@ -17,6 +17,7 @@ COMMITTED_DEMO_BASELINE_PYTHON_VERSION = "3.10.x"
 COMMITTED_DEMO_BASELINE_PYTHON_MAJOR_MINOR = "3.10"
 CANONICAL_COMMITTED_DEMO_SCRIPT = "scripts/build-demo-dataset.py"
 CANONICAL_COMMITTED_DEMO_MODE = "canonical-committed-demo"
+VALIDATED_COMMITTED_DEMO_MODE = "validated-from-committed-artifacts"
 GENERATION_PROVENANCE_KEYS = {
     "python_version",
     "python_major_minor",
