@@ -71,3 +71,11 @@ repos:
         pass_filenames: false
         always_run: true
         stages: [pre-commit, pre-push]
+
+      - id: yaml-validate
+        name: YAML Validation
+        entry: python scripts/validate_yaml_files.py
+        language: system
+        pass_filenames: false
+        always_run: true
+        stages: [pre-push]
