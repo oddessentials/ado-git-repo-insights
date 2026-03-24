@@ -53,9 +53,47 @@ const validManifest = {
     max_weekly_files: 52,
     max_distribution_files: 5,
   },
+  generation_provenance: {
+    python_version: "3.10.x",
+    python_major_minor: "3.10",
+    generator_script: "scripts/build-demo-dataset.py",
+    generation_mode: "canonical-committed-demo",
+  },
   features: {
     predictions: true,
     ai_insights: false,
+  },
+  reviewer_fixtures: {
+    minimum_active_reviewers: 5,
+    minimum_reviewed_prs_per_reviewer: 3,
+    minimum_review_actions_per_reviewer: 3,
+    minimum_multi_repo_reviewers: 1,
+    reviewer_filter_examples: [
+      {
+        reviewer_id: "reviewer-1",
+        reviewer_name: "Alice Reviewer",
+        week: "2026-W03",
+        reviewed_prs: 4,
+        reviews_count: 5,
+        repositories_count: 2,
+      },
+    ],
+    reviewer_constrained_example: {
+      reviewer_id: "reviewer-1",
+      reviewer_name: "Alice Reviewer",
+      week: "2026-W03",
+      mode: "constrained",
+      reason: "reviewer_repository_mode=constrained",
+      repository_name: "main-repo",
+    },
+    reviewer_team_disallowed_example: {
+      reviewer_id: "reviewer-1",
+      reviewer_name: "Alice Reviewer",
+      week: "2026-W03",
+      mode: "disallowed",
+      reason: "reviewer_team_mode=disallowed",
+      team_name: "Platform Team",
+    },
   },
   coverage: {
     total_prs: 100,
@@ -159,6 +197,19 @@ describe("DatasetLoader Validation Integration", () => {
 
       expect(result).toBeDefined();
       expect(result.manifest_schema_version).toBe(1);
+    });
+
+    it("should accept reviewer fixtures and generation provenance", async () => {
+      global.fetch = createMockFetch(
+        validManifest,
+      ) as unknown as typeof global.fetch;
+
+      const result = await loader.loadManifest();
+
+      expect(result.generation_provenance?.generator_script).toBe(
+        "scripts/build-demo-dataset.py",
+      );
+      expect(result.reviewer_fixtures?.reviewer_filter_examples).toHaveLength(1);
     });
 
     it("should throw SchemaValidationError when manifest_schema_version is missing", async () => {

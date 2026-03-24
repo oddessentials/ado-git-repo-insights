@@ -1377,6 +1377,12 @@
     "teams": true
   },
   "generated_at": "2026-01-30T12:00:00Z",
+  "generation_provenance": {
+    "generation_mode": "canonical-committed-demo",
+    "generator_script": "scripts/build-demo-dataset.py",
+    "python_major_minor": "3.10",
+    "python_version": "3.10.x"
+  },
   "insights_schema_version": 1,
   "limits": {
     "max_distribution_files": 5,

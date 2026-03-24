@@ -8,6 +8,7 @@ This ensures deterministic generation with seed=42.
 from __future__ import annotations
 
 import hashlib
+import importlib.util
 import json
 import subprocess
 import sys
@@ -23,6 +24,26 @@ SCRIPTS_DIR = REPO_ROOT / "scripts"
 REGENERATE_SCRIPT = SCRIPTS_DIR / "regenerate-demo.py"
 BUILD_SCRIPT = SCRIPTS_DIR / "build-demo-dataset.py"
 MANIFEST_PATH = DOCS_DATA / "dataset-manifest.json"
+
+
+def _load_demo_generation_common():
+    script_path = SCRIPTS_DIR / "demo_generation_common.py"
+    spec = importlib.util.spec_from_file_location("demo_generation_common", script_path)
+    if spec is None or spec.loader is None:
+        raise AssertionError(f"Unable to load shared demo module: {script_path}")
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+_DEMO_GENERATION_COMMON = _load_demo_generation_common()
+CANONICAL_COMMITTED_DEMO_MODE = _DEMO_GENERATION_COMMON.CANONICAL_COMMITTED_DEMO_MODE
+CANONICAL_COMMITTED_DEMO_SCRIPT = (
+    _DEMO_GENERATION_COMMON.CANONICAL_COMMITTED_DEMO_SCRIPT
+)
+COMMITTED_DEMO_BASELINE_PYTHON_MAJOR_MINOR = (
+    _DEMO_GENERATION_COMMON.COMMITTED_DEMO_BASELINE_PYTHON_MAJOR_MINOR
+)
 
 
 def compute_file_hash(path: Path) -> str:
@@ -146,6 +167,18 @@ class TestDeterministicRegeneration:
         assert first_hashes == second_hashes, (
             "Canonical artifact build output is not deterministic across repeated runs"
         )
+
+    def test_canonical_regeneration_preserves_manifest_provenance(self) -> None:
+        """Canonical regeneration must preserve approved provenance metadata."""
+        run_regeneration()
+        manifest = json.loads(MANIFEST_PATH.read_text(encoding="utf-8"))
+
+        assert manifest["generation_provenance"] == {
+            "python_version": "3.10.x",
+            "python_major_minor": COMMITTED_DEMO_BASELINE_PYTHON_MAJOR_MINOR,
+            "generator_script": CANONICAL_COMMITTED_DEMO_SCRIPT,
+            "generation_mode": CANONICAL_COMMITTED_DEMO_MODE,
+        }
 
     def test_generate_demo_predictions_is_deterministic(self) -> None:
         """

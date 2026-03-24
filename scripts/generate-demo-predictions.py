@@ -12,7 +12,7 @@ Usage:
 
 Requirements:
     - Must run AFTER generate-demo-data.py (needs weekly rollups)
-    - Python 3.11+ (pinned for cross-platform reproducibility)
+    - Python 3.10.x baseline (machine-enforced for committed demo artifacts)
 """
 
 from __future__ import annotations
@@ -29,6 +29,7 @@ from demo_generation_common import (
     FIXED_GENERATED_AT,
     load_json_file,
     refresh_demo_manifest_features,
+    require_demo_generation_baseline_for_output,
     round_float,
     write_json_file,
 )
@@ -45,6 +46,7 @@ CONFIDENCE_WIDENING_PER_WEEK = 0.01  # +1% per week
 REVIEW_TIME_FRACTION = 0.4  # Review time is ~40% of total cycle time
 
 DEFAULT_DATA_DIR = Path(__file__).parent.parent / "docs" / "data"
+GENERATOR_SCRIPT = "scripts/generate-demo-predictions.py"
 # Schema version
 PREDICTIONS_SCHEMA_VERSION = 1
 # =============================================================================
@@ -110,9 +112,13 @@ def calculate_linear_trend(values: list[float]) -> tuple[Decimal, Decimal]:
     d_y_mean = sum(d_values) / d_n
 
     d_numerator = sum(
-        (Decimal(i) - d_x_mean) * (y - d_y_mean) for i, y in enumerate(d_values)
+        ((Decimal(i) - d_x_mean) * (y - d_y_mean) for i, y in enumerate(d_values)),
+        Decimal("0"),
     )
-    d_denominator = sum((Decimal(i) - d_x_mean) ** 2 for i in range(n))
+    d_denominator = sum(
+        ((Decimal(i) - d_x_mean) ** 2 for i in range(n)),
+        Decimal("0"),
+    )
 
     if d_denominator == 0:
         return Decimal("0"), d_y_mean
@@ -271,6 +277,7 @@ def main(argv: list[str] | None = None) -> int:
     """Generate predictions data."""
     args = parse_args(argv)
     data_dir = args.output_root.resolve()
+    require_demo_generation_baseline_for_output(GENERATOR_SCRIPT, data_dir)
     rollups_dir = data_dir / "aggregates" / "weekly_rollups"
     predictions_dir = data_dir / "predictions"
     output_file = predictions_dir / "trends.json"

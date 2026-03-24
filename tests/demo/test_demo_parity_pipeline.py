@@ -22,6 +22,26 @@ TEST_TMP_ROOT = REPO_ROOT / "tmp_test_work"
 _SCRATCH_COUNTER = count()
 
 
+def _load_demo_generation_common():
+    script_path = REPO_ROOT / "scripts" / "demo_generation_common.py"
+    spec = importlib.util.spec_from_file_location("demo_generation_common", script_path)
+    if spec is None or spec.loader is None:
+        raise AssertionError(f"Unable to load shared demo module: {script_path}")
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+_DEMO_GENERATION_COMMON = _load_demo_generation_common()
+CANONICAL_COMMITTED_DEMO_MODE = _DEMO_GENERATION_COMMON.CANONICAL_COMMITTED_DEMO_MODE
+CANONICAL_COMMITTED_DEMO_SCRIPT = (
+    _DEMO_GENERATION_COMMON.CANONICAL_COMMITTED_DEMO_SCRIPT
+)
+COMMITTED_DEMO_BASELINE_PYTHON_MAJOR_MINOR = (
+    _DEMO_GENERATION_COMMON.COMMITTED_DEMO_BASELINE_PYTHON_MAJOR_MINOR
+)
+
+
 def _cleanup_test_tmp_root() -> None:
     """Best-effort cleanup for repo-local scratch directories created by tests."""
     shutil.rmtree(TEST_TMP_ROOT, ignore_errors=True)
@@ -266,6 +286,32 @@ class TestCapabilityAndParityReports:
         assert len(fixtures["reviewer_filter_examples"]) >= 1
         assert fixtures["reviewer_constrained_example"]["mode"] == "constrained"
         assert fixtures["reviewer_team_disallowed_example"]["mode"] == "disallowed"
+
+    def test_manifest_declares_canonical_generation_provenance(self) -> None:
+        run_demo_build()
+        manifest = json.loads(
+            (ARTIFACT_DATA / "dataset-manifest.json").read_text(encoding="utf-8")
+        )
+
+        assert manifest["generation_provenance"] == {
+            "python_version": "3.10.x",
+            "python_major_minor": COMMITTED_DEMO_BASELINE_PYTHON_MAJOR_MINOR,
+            "generator_script": CANONICAL_COMMITTED_DEMO_SCRIPT,
+            "generation_mode": CANONICAL_COMMITTED_DEMO_MODE,
+        }
+
+    def test_demo_profile_declares_canonical_generation_provenance(self) -> None:
+        run_demo_build()
+        profile = json.loads(
+            (ARTIFACT_METADATA / "demo-profile.json").read_text(encoding="utf-8")
+        )
+
+        assert profile["generation_provenance"] == {
+            "python_version": "3.10.x",
+            "python_major_minor": COMMITTED_DEMO_BASELINE_PYTHON_MAJOR_MINOR,
+            "generator_script": CANONICAL_COMMITTED_DEMO_SCRIPT,
+            "generation_mode": CANONICAL_COMMITTED_DEMO_MODE,
+        }
 
     def test_reviewer_fixture_examples_resolve_to_canonical_rollups(self) -> None:
         run_demo_build()

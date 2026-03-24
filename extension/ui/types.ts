@@ -141,6 +141,12 @@ export interface ManifestSchema {
     seed?: number;
     canonical_output_root?: string;
   };
+  generation_provenance?: {
+    python_version?: string;
+    python_major_minor?: string;
+    generator_script?: string;
+    generation_mode?: string;
+  };
   published_files?: {
     direct?: string[];
     globs?: string[];
@@ -153,6 +159,36 @@ export interface ManifestSchema {
     reviewer_repository_mode?: "exact" | "constrained" | "disallowed";
     reviewer_team_mode?: "exact" | "constrained" | "disallowed";
     cross_dimensional_available?: boolean;
+  };
+  reviewer_fixtures?: {
+    minimum_active_reviewers?: number;
+    minimum_reviewed_prs_per_reviewer?: number;
+    minimum_review_actions_per_reviewer?: number;
+    minimum_multi_repo_reviewers?: number;
+    reviewer_filter_examples?: Array<{
+      reviewer_id?: string;
+      reviewer_name?: string;
+      week?: string;
+      reviewed_prs?: number;
+      reviews_count?: number;
+      repositories_count?: number;
+    }>;
+    reviewer_constrained_example?: {
+      reviewer_id?: string;
+      reviewer_name?: string;
+      week?: string;
+      mode?: "constrained" | "disallowed";
+      reason?: string;
+      repository_name?: string;
+    };
+    reviewer_team_disallowed_example?: {
+      reviewer_id?: string;
+      reviewer_name?: string;
+      week?: string;
+      mode?: "constrained" | "disallowed";
+      reason?: string;
+      team_name?: string;
+    };
   };
   defaults?: {
     default_date_range_days?: number;

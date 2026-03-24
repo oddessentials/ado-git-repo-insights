@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import sys
 import time
 import uuid
 from datetime import date, datetime, timezone
@@ -11,6 +12,103 @@ from pathlib import Path
 from typing import Any, cast
 
 FIXED_GENERATED_AT = datetime(2026, 1, 30, 12, 0, 0, tzinfo=timezone.utc)
+COMMITTED_DEMO_BASELINE_PYTHON = (3, 10)
+COMMITTED_DEMO_BASELINE_PYTHON_VERSION = "3.10.x"
+COMMITTED_DEMO_BASELINE_PYTHON_MAJOR_MINOR = "3.10"
+CANONICAL_COMMITTED_DEMO_SCRIPT = "scripts/build-demo-dataset.py"
+CANONICAL_COMMITTED_DEMO_MODE = "canonical-committed-demo"
+GENERATION_PROVENANCE_KEYS = {
+    "python_version",
+    "python_major_minor",
+    "generator_script",
+    "generation_mode",
+}
+_REPO_ROOT = Path(__file__).resolve().parent.parent
+COMMITTED_DEMO_OUTPUT_ROOTS = {
+    _REPO_ROOT / "docs" / "data",
+    _REPO_ROOT / "artifacts" / "demo-enterprise" / "data",
+}
+
+
+def _normalize_repo_relative_path(path: str | Path) -> str:
+    """Normalize a path to a stable repo-relative forward-slash form."""
+    path_obj = Path(path)
+    if not path_obj.is_absolute():
+        return str(path_obj).replace("\\", "/")
+    return str(path_obj.relative_to(_REPO_ROOT)).replace("\\", "/")
+
+
+def require_demo_generation_baseline(script_path: str | Path) -> None:
+    """Fail fast if committed-demo generation is not running on baseline Python."""
+    current_major_minor = (sys.version_info.major, sys.version_info.minor)
+    if current_major_minor != COMMITTED_DEMO_BASELINE_PYTHON:
+        normalized_script = _normalize_repo_relative_path(script_path)
+        required = COMMITTED_DEMO_BASELINE_PYTHON_MAJOR_MINOR
+        current = f"{sys.version_info.major}.{sys.version_info.minor}"
+        raise RuntimeError(
+            "Committed demo artifacts must be generated with Python "
+            f"{required}.x. Refusing to run {normalized_script} under Python "
+            f"{current}. Use the canonical committed-demo path on the approved "
+            "baseline interpreter."
+        )
+
+
+def require_demo_generation_baseline_for_output(
+    script_path: str | Path,
+    output_root: str | Path,
+) -> None:
+    """Require baseline Python when writing to committed demo artifact roots."""
+    resolved_output = Path(output_root).resolve()
+    if resolved_output in COMMITTED_DEMO_OUTPUT_ROOTS:
+        require_demo_generation_baseline(script_path)
+
+
+def build_generation_provenance(
+    *,
+    generator_script: str | Path,
+    generation_mode: str,
+) -> dict[str, str]:
+    """Build stable, comparison-safe generation provenance metadata."""
+    return {
+        "python_version": COMMITTED_DEMO_BASELINE_PYTHON_VERSION,
+        "python_major_minor": COMMITTED_DEMO_BASELINE_PYTHON_MAJOR_MINOR,
+        "generator_script": _normalize_repo_relative_path(generator_script),
+        "generation_mode": generation_mode,
+    }
+
+
+def validate_generation_provenance(
+    metadata: dict[str, Any],
+    *,
+    expected_generator_script: str | Path,
+    expected_generation_mode: str,
+    location: str,
+) -> None:
+    """Validate stable generation provenance metadata against expected values."""
+    provenance = metadata.get("generation_provenance")
+    if not isinstance(provenance, dict):
+        raise RuntimeError(f"{location} is missing generation_provenance metadata")
+
+    missing = sorted(GENERATION_PROVENANCE_KEYS - set(provenance))
+    if missing:
+        raise RuntimeError(
+            f"{location} generation_provenance is missing required fields: {missing}"
+        )
+
+    expected = build_generation_provenance(
+        generator_script=expected_generator_script,
+        generation_mode=expected_generation_mode,
+    )
+    mismatches = {
+        key: {"expected": expected[key], "actual": provenance.get(key)}
+        for key in sorted(expected)
+        if provenance.get(key) != expected[key]
+    }
+    if mismatches:
+        raise RuntimeError(
+            f"{location} generation_provenance does not match the approved "
+            f"committed-demo contract: {mismatches}"
+        )
 
 
 def round_float(value: float, decimals: int = 3) -> float:

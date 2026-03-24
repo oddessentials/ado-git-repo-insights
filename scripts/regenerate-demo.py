@@ -12,11 +12,17 @@ import subprocess
 import sys
 from pathlib import Path
 
+from demo_generation_common import (
+    CANONICAL_COMMITTED_DEMO_SCRIPT,
+    require_demo_generation_baseline,
+)
+
 _scripts_dir = Path(__file__).parent
 
 
 def main() -> int:
     """Delegate to the canonical demo build pipeline."""
+    require_demo_generation_baseline(CANONICAL_COMMITTED_DEMO_SCRIPT)
     result = subprocess.run(  # noqa: S603
         [sys.executable, str(_scripts_dir / "build-demo-dataset.py")],
         check=False,

@@ -13,7 +13,7 @@ Usage:
     python scripts/generate-demo-data.py
 
 Requirements:
-    Python 3.11+ (pinned for cross-platform reproducibility)
+    Python 3.10.x baseline (machine-enforced for committed demo artifacts)
 """
 
 from __future__ import annotations
@@ -36,8 +36,10 @@ if str(_src_path) not in sys.path:
 from ado_git_repo_insights.transform.schema_versions import AGGREGATES_SCHEMA_VERSION  # type: ignore[import-untyped]  # noqa: E402, I001
 from demo_generation_common import (  # noqa: E402
     FIXED_GENERATED_AT,
+    build_generation_provenance,
     discover_demo_feature_flags,
     largest_remainder_allocate,
+    require_demo_generation_baseline_for_output,
     write_json_file,
 )
 
@@ -77,6 +79,8 @@ CYCLE_TIME_SIGMA = 1.5
 DEFAULT_OUTPUT_DIR = Path(__file__).parent.parent / "docs" / "data"
 DEMO_PROFILE_NAME = "enterprise-demo"
 DEMO_PROFILE_VERSION = "2.0.0"
+GENERATOR_SCRIPT = "scripts/generate-demo-data.py"
+GENERATION_MODE = "helper-demo-data"
 DEMO_COMMENT_BATCH_COUNT = 100
 DEMO_COMMENT_PRS_PER_BATCH = 3
 DEMO_COMMENT_COMMENTS_PER_PR = 2
@@ -1420,6 +1424,10 @@ def generate_manifest(
             "seed": SEED,
             "canonical_output_root": "artifacts/demo-enterprise",
         },
+        "generation_provenance": build_generation_provenance(
+            generator_script=GENERATOR_SCRIPT,
+            generation_mode=GENERATION_MODE,
+        ),
         "defaults": {
             "default_date_range_days": 90,
         },
@@ -1506,6 +1514,7 @@ def main(argv: list[str] | None = None) -> int:
     """Generate all demo data files."""
     args = parse_args(argv)
     output_dir = args.output_root.resolve()
+    require_demo_generation_baseline_for_output(GENERATOR_SCRIPT, output_dir)
     print("Generating demo data with seed=42...")
     print(f"Output directory: {output_dir}")
 

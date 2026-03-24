@@ -11,7 +11,15 @@ import sys
 from pathlib import Path
 from typing import Any
 
-from demo_generation_common import load_json_file, write_json_file
+from demo_generation_common import (
+    CANONICAL_COMMITTED_DEMO_MODE,
+    CANONICAL_COMMITTED_DEMO_SCRIPT,
+    build_generation_provenance,
+    load_json_file,
+    require_demo_generation_baseline,
+    validate_generation_provenance,
+    write_json_file,
+)
 from demo_shell import render_demo_html_from_path
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
@@ -161,6 +169,33 @@ def validate_manifest_addressability(data_dir: Path) -> None:
             "Published demo files exist outside manifest-addressable coverage.\n"
             f"unmatched={unmatched}"
         )
+
+
+def stamp_canonical_manifest_provenance(data_dir: Path) -> None:
+    """Stamp the manifest with the canonical committed-demo provenance contract."""
+    manifest_path = data_dir / "dataset-manifest.json"
+    manifest = load_json_file(manifest_path)
+    manifest["generation_provenance"] = build_generation_provenance(
+        generator_script=CANONICAL_COMMITTED_DEMO_SCRIPT,
+        generation_mode=CANONICAL_COMMITTED_DEMO_MODE,
+    )
+    write_json_file(manifest_path, manifest)
+
+
+def validate_canonical_provenance(data_dir: Path, profile_path: Path) -> None:
+    """Validate canonical provenance on the published manifest and build profile."""
+    validate_generation_provenance(
+        load_json_file(data_dir / "dataset-manifest.json"),
+        expected_generator_script=CANONICAL_COMMITTED_DEMO_SCRIPT,
+        expected_generation_mode=CANONICAL_COMMITTED_DEMO_MODE,
+        location="dataset-manifest.json",
+    )
+    validate_generation_provenance(
+        load_json_file(profile_path),
+        expected_generator_script=CANONICAL_COMMITTED_DEMO_SCRIPT,
+        expected_generation_mode=CANONICAL_COMMITTED_DEMO_MODE,
+        location="demo-profile.json",
+    )
 
 
 def _load_rollup_index(
@@ -614,6 +649,10 @@ def write_reports(data_dir: Path) -> dict[str, Any]:
         "generated_directories": list_relative_dirs(data_dir),
         "promoted_target": str(DOCS_DATA_DIR.relative_to(REPO_ROOT)).replace("\\", "/"),
         "artifact_scope": collect_canonical_artifact_scope(),
+        "generation_provenance": build_generation_provenance(
+            generator_script=CANONICAL_COMMITTED_DEMO_SCRIPT,
+            generation_mode=CANONICAL_COMMITTED_DEMO_MODE,
+        ),
     }
     ARTIFACT_REPORT_DIR.mkdir(parents=True, exist_ok=True)
     ARTIFACT_METADATA_DIR.mkdir(parents=True, exist_ok=True)
@@ -675,6 +714,7 @@ def promote_data(source_dir: Path, destination_dir: Path) -> None:
 
 def main(argv: list[str] | None = None) -> int:
     """Build and optionally promote the enterprise demo dataset."""
+    require_demo_generation_baseline(CANONICAL_COMMITTED_DEMO_SCRIPT)
     args = parse_args(argv)
     ARTIFACT_DATA_DIR.mkdir(parents=True, exist_ok=True)
     ARTIFACT_REPORT_DIR.mkdir(parents=True, exist_ok=True)
@@ -684,8 +724,13 @@ def main(argv: list[str] | None = None) -> int:
         print(f"[demo-build] running {script_name}")
         run_generator(script_name, ARTIFACT_DATA_DIR)
 
+    stamp_canonical_manifest_provenance(ARTIFACT_DATA_DIR)
     validate_manifest_addressability(ARTIFACT_DATA_DIR)
     startup_parity = write_reports(ARTIFACT_DATA_DIR)
+    validate_canonical_provenance(
+        ARTIFACT_DATA_DIR,
+        ARTIFACT_METADATA_DIR / "demo-profile.json",
+    )
 
     if not args.no_promote:
         promote_dir = args.promote_dir.resolve()
