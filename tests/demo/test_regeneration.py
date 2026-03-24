@@ -18,8 +18,10 @@ import pytest
 # Paths relative to repository root
 REPO_ROOT = Path(__file__).parent.parent.parent
 DOCS_DATA = REPO_ROOT / "docs" / "data"
+ARTIFACT_ROOT = REPO_ROOT / "artifacts" / "demo-enterprise"
 SCRIPTS_DIR = REPO_ROOT / "scripts"
 REGENERATE_SCRIPT = SCRIPTS_DIR / "regenerate-demo.py"
+BUILD_SCRIPT = SCRIPTS_DIR / "build-demo-dataset.py"
 MANIFEST_PATH = DOCS_DATA / "dataset-manifest.json"
 
 
@@ -41,6 +43,15 @@ def compute_directory_hashes(directory: Path) -> dict[str, str]:
     return hashes
 
 
+def compute_all_file_hashes(directory: Path) -> dict[str, str]:
+    """Compute hashes for all files in a directory tree."""
+    hashes = {}
+    for file_path in sorted(path for path in directory.rglob("*") if path.is_file()):
+        rel_path = file_path.relative_to(directory)
+        hashes[str(rel_path).replace("\\", "/")] = compute_file_hash(file_path)
+    return hashes
+
+
 def run_regeneration() -> None:
     """Run the authoritative demo regeneration orchestrator."""
     result = subprocess.run(  # noqa: S603 - Trusted script path
@@ -51,6 +62,19 @@ def run_regeneration() -> None:
     )
     assert result.returncode == 0, (
         f"regenerate-demo.py failed: {result.stderr or result.stdout}"
+    )
+
+
+def run_canonical_demo_build() -> None:
+    """Run the canonical enterprise demo builder without docs promotion."""
+    result = subprocess.run(  # noqa: S603 - Trusted script path
+        [sys.executable, str(BUILD_SCRIPT), "--no-promote"],
+        capture_output=True,
+        text=True,
+        cwd=REPO_ROOT,
+    )
+    assert result.returncode == 0, (
+        f"build-demo-dataset.py failed: {result.stderr or result.stdout}"
     )
 
 
@@ -108,6 +132,19 @@ class TestDeterministicRegeneration:
         assert first_regeneration_hashes == second_regeneration_hashes, (
             "Independent regenerations produced different output! "
             "Check that seed is fixed and JSON serialization is canonical."
+        )
+
+    def test_canonical_demo_build_artifacts_are_deterministic(self) -> None:
+        """Canonical build output must remain identical across repeated builds."""
+        run_canonical_demo_build()
+        first_hashes = compute_all_file_hashes(ARTIFACT_ROOT)
+        assert first_hashes, "Canonical artifact root must contain generated files"
+
+        run_canonical_demo_build()
+        second_hashes = compute_all_file_hashes(ARTIFACT_ROOT)
+
+        assert first_hashes == second_hashes, (
+            "Canonical artifact build output is not deterministic across repeated runs"
         )
 
     def test_generate_demo_predictions_is_deterministic(self) -> None:

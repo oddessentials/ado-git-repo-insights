@@ -49,3 +49,8 @@ python scripts/build-demo-dataset.py
 5. Build validation fails with a clear reason if reviewer fixture metadata or reviewer breakdowns are removed.
 6. Promotion to `docs/data` remains byte-identical to the canonical artifact output.
 7. Known optional ML coverage and extension artifact parity concerns remain documented as out of scope unless they block reviewer demo coverage.
+
+## Out of Scope
+
+- Optional ML coverage gaps remain acceptable unless they block reviewer demo coverage.
+- Skipped extension artifact parity checks remain acceptable unless they block reviewer demo coverage.

@@ -30,6 +30,15 @@ GENERATOR_STEPS = [
     "generate-demo-predictions.py",
     "generate-demo-insights.py",
 ]
+REQUIRED_REVIEWER_FIXTURE_KEYS = {
+    "minimum_active_reviewers",
+    "minimum_reviewed_prs_per_reviewer",
+    "minimum_review_actions_per_reviewer",
+    "minimum_multi_repo_reviewers",
+    "reviewer_filter_examples",
+    "reviewer_constrained_example",
+    "reviewer_team_disallowed_example",
+}
 
 
 def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
@@ -86,6 +95,23 @@ def list_relative_dirs(root: Path) -> list[str]:
     )
 
 
+def collect_canonical_artifact_scope(
+    root: Path = ARTIFACT_ROOT,
+) -> dict[str, list[str]]:
+    """Collect the canonical file inventory used for deterministic demo verification."""
+    return {
+        "data_files": list_relative_files(root / "data")
+        if (root / "data").exists()
+        else [],
+        "report_files": list_relative_files(root / "report")
+        if (root / "report").exists()
+        else [],
+        "metadata_files": list_relative_files(root / "metadata")
+        if (root / "metadata").exists()
+        else [],
+    }
+
+
 def collect_nonindexed_direct_files(manifest: dict[str, Any]) -> set[str]:
     """Collect published files that must be declared outside aggregate_index."""
     direct_paths: set[str] = {"dataset-manifest.json", "aggregates/dimensions.json"}
@@ -137,14 +163,178 @@ def validate_manifest_addressability(data_dir: Path) -> None:
         )
 
 
+def _load_rollup_index(
+    data_dir: Path, manifest: dict[str, Any]
+) -> dict[str, dict[str, Any]]:
+    """Load all indexed weekly rollups keyed by week."""
+    return {
+        entry["week"]: load_json_file(data_dir / entry["path"])
+        for entry in manifest["aggregate_index"]["weekly_rollups"]
+    }
+
+
+def validate_reviewer_fixture_contract(data_dir: Path) -> dict[str, Any]:
+    """Validate canonical reviewer fixtures and return evidence for reporting."""
+    manifest = load_json_file(data_dir / "dataset-manifest.json")
+    dimensions = load_json_file(data_dir / "aggregates" / "dimensions.json")
+    reviewer_fixtures = manifest.get("reviewer_fixtures")
+    if not isinstance(reviewer_fixtures, dict):
+        raise RuntimeError(
+            "Missing reviewer_fixtures metadata in dataset-manifest.json"
+        )
+
+    missing_keys = sorted(REQUIRED_REVIEWER_FIXTURE_KEYS - set(reviewer_fixtures))
+    if missing_keys:
+        raise RuntimeError(
+            "Missing reviewer fixture metadata fields in dataset-manifest.json: "
+            f"{missing_keys}"
+        )
+
+    reviewer_lookup = {
+        entry["reviewer_id"]: entry["reviewer_name"]
+        for entry in dimensions.get("reviewers", [])
+    }
+    team_names = {entry["team_name"] for entry in dimensions.get("teams", [])}
+    weekly_rollups = _load_rollup_index(data_dir, manifest)
+
+    minimum_active_reviewers = int(reviewer_fixtures["minimum_active_reviewers"])
+    minimum_reviewed_prs = int(reviewer_fixtures["minimum_reviewed_prs_per_reviewer"])
+    minimum_review_actions = int(
+        reviewer_fixtures["minimum_review_actions_per_reviewer"]
+    )
+    minimum_multi_repo_reviewers = int(
+        reviewer_fixtures["minimum_multi_repo_reviewers"]
+    )
+
+    filter_examples = reviewer_fixtures["reviewer_filter_examples"]
+    if not isinstance(filter_examples, list) or not filter_examples:
+        raise RuntimeError("reviewer_filter_examples must contain at least one fixture")
+
+    fixture_week = str(filter_examples[0]["week"])
+    fixture_rollup = weekly_rollups.get(fixture_week)
+    if fixture_rollup is None:
+        raise RuntimeError(
+            f"Reviewer fixture week '{fixture_week}' was not found in weekly rollups"
+        )
+
+    fixture_by_reviewer = fixture_rollup.get("by_reviewer") or {}
+    if not fixture_by_reviewer:
+        raise RuntimeError(
+            f"Reviewer fixture week '{fixture_week}' is missing by_reviewer data"
+        )
+
+    eligible_reviewers = [
+        reviewer_id
+        for reviewer_id, entry in fixture_by_reviewer.items()
+        if entry.get("reviewed_prs", 0) >= minimum_reviewed_prs
+        and entry.get("reviews_count", 0) >= minimum_review_actions
+    ]
+    multi_repo_reviewers = [
+        reviewer_id
+        for reviewer_id, entry in fixture_by_reviewer.items()
+        if entry.get("reviewed_prs", 0) >= minimum_reviewed_prs
+        and entry.get("reviews_count", 0) >= minimum_review_actions
+        and entry.get("repositories_count", 0) >= 2
+    ]
+
+    if len(eligible_reviewers) < minimum_active_reviewers:
+        raise RuntimeError(
+            "Reviewer fixture contract failed: not enough active reviewers in "
+            f"fixture week {fixture_week} ({len(eligible_reviewers)} < "
+            f"{minimum_active_reviewers})"
+        )
+    if len(multi_repo_reviewers) < minimum_multi_repo_reviewers:
+        raise RuntimeError(
+            "Reviewer fixture contract failed: not enough multi-repository reviewers "
+            f"in fixture week {fixture_week} ({len(multi_repo_reviewers)} < "
+            f"{minimum_multi_repo_reviewers})"
+        )
+
+    for example in filter_examples:
+        reviewer_id = str(example["reviewer_id"])
+        example_week = str(example["week"])
+        example_rollup = weekly_rollups.get(example_week)
+        if example_rollup is None:
+            raise RuntimeError(
+                f"Reviewer filter fixture references unknown week '{example_week}'"
+            )
+        reviewer_entry = (example_rollup.get("by_reviewer") or {}).get(reviewer_id)
+        if reviewer_entry is None:
+            raise RuntimeError(
+                f"Reviewer filter fixture references reviewer '{reviewer_id}' "
+                f"missing from week '{example_week}'"
+            )
+        if reviewer_lookup.get(reviewer_id) != example["reviewer_name"]:
+            raise RuntimeError(
+                f"Reviewer filter fixture name mismatch for reviewer '{reviewer_id}'"
+            )
+        if reviewer_entry["reviewed_prs"] < minimum_reviewed_prs:
+            raise RuntimeError(
+                f"Reviewer filter fixture reviewer '{reviewer_id}' does not meet "
+                "minimum reviewed PR threshold"
+            )
+        if reviewer_entry["reviews_count"] < minimum_review_actions:
+            raise RuntimeError(
+                f"Reviewer filter fixture reviewer '{reviewer_id}' does not meet "
+                "minimum review-action threshold"
+            )
+
+    constrained = reviewer_fixtures["reviewer_constrained_example"]
+    constrained_rollup = weekly_rollups.get(str(constrained["week"]))
+    if constrained_rollup is None:
+        raise RuntimeError("reviewer_constrained_example references an unknown week")
+    if str(constrained["reviewer_id"]) not in (
+        constrained_rollup.get("by_reviewer") or {}
+    ):
+        raise RuntimeError(
+            "reviewer_constrained_example references a reviewer absent from the "
+            "specified rollup"
+        )
+    if constrained["repository_name"] not in (
+        constrained_rollup.get("by_repository") or {}
+    ):
+        raise RuntimeError(
+            "reviewer_constrained_example references a repository absent from the "
+            "specified rollup"
+        )
+
+    disallowed = reviewer_fixtures["reviewer_team_disallowed_example"]
+    disallowed_rollup = weekly_rollups.get(str(disallowed["week"]))
+    if disallowed_rollup is None:
+        raise RuntimeError(
+            "reviewer_team_disallowed_example references an unknown week"
+        )
+    if str(disallowed["reviewer_id"]) not in (
+        disallowed_rollup.get("by_reviewer") or {}
+    ):
+        raise RuntimeError(
+            "reviewer_team_disallowed_example references a reviewer absent from the "
+            "specified rollup"
+        )
+    if str(disallowed["team_name"]) not in team_names:
+        raise RuntimeError(
+            "reviewer_team_disallowed_example references an unknown team name"
+        )
+
+    return {
+        "fixture_week": fixture_week,
+        "active_reviewers": len(eligible_reviewers),
+        "multi_repo_reviewers": len(multi_repo_reviewers),
+        "reviewer_filter_examples": len(filter_examples),
+        "minimum_active_reviewers": minimum_active_reviewers,
+        "minimum_multi_repo_reviewers": minimum_multi_repo_reviewers,
+    }
+
+
 def build_capability_matrix(data_dir: Path) -> dict[str, Any]:
     """Generate a machine-readable capability coverage report."""
     manifest = load_json_file(data_dir / "dataset-manifest.json")
     dimensions = load_json_file(data_dir / "aggregates" / "dimensions.json")
+    reviewer_contract = validate_reviewer_fixture_contract(data_dir)
     first_rollup = load_json_file(
         data_dir / manifest["aggregate_index"]["weekly_rollups"][0]["path"]
     )
-    capability_matrix = {
+    capability_matrix: dict[str, Any] = {
         "profile": {
             "name": DEMO_PROFILE_NAME,
             "version": DEMO_PROFILE_VERSION,
@@ -187,12 +377,16 @@ def build_capability_matrix(data_dir: Path) -> dict[str, Any]:
             {
                 "id": "reviewer-filtering",
                 "status": bool(first_rollup.get("by_reviewer"))
-                and len(dimensions.get("reviewers", [])) >= 50,
+                and len(dimensions.get("reviewers", [])) >= 50
+                and reviewer_contract["active_reviewers"]
+                >= reviewer_contract["minimum_active_reviewers"],
                 "evidence": {
                     "reviewers_in_sample_week": len(
                         first_rollup.get("by_reviewer", {})
                     ),
                     "reviewer_dimension_count": len(dimensions.get("reviewers", [])),
+                    "fixture_week": reviewer_contract["fixture_week"],
+                    "fixture_active_reviewers": reviewer_contract["active_reviewers"],
                 },
             },
             {
@@ -206,21 +400,28 @@ def build_capability_matrix(data_dir: Path) -> dict[str, Any]:
                 "status": manifest.get("capabilities", {}).get(
                     "reviewer_repository_mode"
                 )
-                == "constrained",
+                == "constrained"
+                and reviewer_contract["reviewer_filter_examples"] >= 1,
                 "evidence": {
                     "reviewer_repository_mode": manifest.get("capabilities", {}).get(
                         "reviewer_repository_mode"
-                    )
+                    ),
+                    "fixture_week": reviewer_contract["fixture_week"],
                 },
             },
             {
                 "id": "reviewer-team-disallowed",
                 "status": manifest.get("capabilities", {}).get("reviewer_team_mode")
-                == "disallowed",
+                == "disallowed"
+                and reviewer_contract["multi_repo_reviewers"]
+                >= reviewer_contract["minimum_multi_repo_reviewers"],
                 "evidence": {
                     "reviewer_team_mode": manifest.get("capabilities", {}).get(
                         "reviewer_team_mode"
-                    )
+                    ),
+                    "fixture_multi_repo_reviewers": reviewer_contract[
+                        "multi_repo_reviewers"
+                    ],
                 },
             },
             {
@@ -255,7 +456,7 @@ def build_startup_parity_report() -> dict[str, Any]:
     """Generate normalized startup parity expectations for docs and CLI surfaces."""
     docs_html = DOCS_INDEX.read_text(encoding="utf-8")
     expected_docs_html = render_demo_html_from_path(EXTENSION_INDEX)
-    docs_controls = {
+    docs_controls: dict[str, bool] = {
         "repo_filter_present": 'id="repo-filter-group"' in docs_html,
         "team_filter_present": 'id="team-filter-group"' in docs_html,
         "reviewer_filter_present": 'id="reviewer-filter-group"' in docs_html,
@@ -266,7 +467,7 @@ def build_startup_parity_report() -> dict[str, Any]:
         in docs_html,
     }
     shell_parity = docs_html == expected_docs_html
-    parity_passed = (
+    parity_passed: bool = (
         shell_parity
         and all(docs_controls.values())
         and "window.LOCAL_DASHBOARD_MODE = true;" in docs_html
@@ -312,6 +513,7 @@ def write_reports(data_dir: Path) -> dict[str, Any]:
         "generated_files": list_relative_files(data_dir),
         "generated_directories": list_relative_dirs(data_dir),
         "promoted_target": str(DOCS_DATA_DIR.relative_to(REPO_ROOT)).replace("\\", "/"),
+        "artifact_scope": collect_canonical_artifact_scope(),
     }
     ARTIFACT_REPORT_DIR.mkdir(parents=True, exist_ok=True)
     ARTIFACT_METADATA_DIR.mkdir(parents=True, exist_ok=True)

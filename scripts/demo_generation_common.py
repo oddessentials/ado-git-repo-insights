@@ -8,7 +8,7 @@ import uuid
 from datetime import date, datetime, timezone
 from decimal import ROUND_HALF_UP, Decimal
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 
 FIXED_GENERATED_AT = datetime(2026, 1, 30, 12, 0, 0, tzinfo=timezone.utc)
 
@@ -101,7 +101,7 @@ def load_json_file(path: Path, *, max_retries: int = 3) -> dict[str, Any]:
     """Load JSON from disk with retries for transient filesystem races."""
     for attempt in range(max_retries):
         try:
-            return json.loads(path.read_text(encoding="utf-8"))
+            return cast(dict[str, Any], json.loads(path.read_text(encoding="utf-8")))
         except (json.JSONDecodeError, OSError):
             if attempt < max_retries - 1:
                 time.sleep(0.1 * (attempt + 1))

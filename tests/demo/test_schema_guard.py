@@ -158,3 +158,22 @@ class TestManifestSchemaVersion:
         assert features.get("cross_dimensional") is True, (
             f"Manifest features.cross_dimensional should be True, got {features.get('cross_dimensional')}"
         )
+
+    def test_reviewer_fixture_metadata_present(self):
+        manifest = json.loads(MANIFEST_FILE.read_text(encoding="utf-8"))
+        fixtures = manifest.get("reviewer_fixtures")
+
+        assert isinstance(fixtures, dict), "Manifest must include reviewer_fixtures"
+        required_fields = {
+            "minimum_active_reviewers",
+            "minimum_reviewed_prs_per_reviewer",
+            "minimum_review_actions_per_reviewer",
+            "minimum_multi_repo_reviewers",
+            "reviewer_filter_examples",
+            "reviewer_constrained_example",
+            "reviewer_team_disallowed_example",
+        }
+        missing = required_fields - set(fixtures)
+        assert not missing, (
+            f"reviewer_fixtures missing required fields: {sorted(missing)}"
+        )

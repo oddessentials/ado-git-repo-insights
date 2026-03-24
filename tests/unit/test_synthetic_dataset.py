@@ -4,12 +4,26 @@ Contract validation: Producer tests ensure generated output matches schema.
 """
 
 import json
+import re
 import subprocess
 import sys
-import tempfile
+from itertools import count
 from pathlib import Path
 
 import pytest
+
+TEST_TMP_ROOT = Path(__file__).resolve().parents[2] / "tmp_test_work"
+_RUN_COUNTER = count()
+
+
+def _make_scratch_dir(prefix: str) -> Path:
+    """Create a repo-local scratch directory for subprocess-backed tests."""
+    TEST_TMP_ROOT.mkdir(parents=True, exist_ok=True)
+    scratch_dir = TEST_TMP_ROOT / f"{prefix}-{next(_RUN_COUNTER):04d}"
+    while scratch_dir.exists():
+        scratch_dir = TEST_TMP_ROOT / f"{prefix}-{next(_RUN_COUNTER):04d}"
+    scratch_dir.mkdir(parents=True, exist_ok=False)
+    return scratch_dir
 
 
 def _build_generator_args(
@@ -53,14 +67,7 @@ def run_generator_raw(
     include_comments: bool = False,
 ) -> tuple[subprocess.CompletedProcess[str], Path]:
     """Run generator and return (result, output_dir) without asserting success."""
-    import shutil
-
-    output_dir = (
-        Path(tempfile.gettempdir()) / f"synthetic-raw-{pr_count}-{seed}-{users}-{weeks}"
-    )
-
-    if output_dir.exists():
-        shutil.rmtree(output_dir)
+    output_dir = _make_scratch_dir("synthetic-raw")
 
     args = _build_generator_args(
         pr_count=pr_count,
@@ -84,38 +91,25 @@ def run_generator(
     include_comments: bool = False,
 ) -> Path:
     """Run generator and return output directory."""
-    with tempfile.TemporaryDirectory() as tmpdir:
-        output_dir = Path(tmpdir) / "synthetic"
+    output_dir = _make_scratch_dir("synthetic-test")
 
-        args = _build_generator_args(
-            pr_count=pr_count,
-            seed=seed,
-            output=str(output_dir),
-            weeks=weeks,
-            users=users,
-            include_comments=include_comments,
-        )
+    args = _build_generator_args(
+        pr_count=pr_count,
+        seed=seed,
+        output=str(output_dir),
+        weeks=weeks,
+        users=users,
+        include_comments=include_comments,
+    )
 
-        result = subprocess.run(  # noqa: S603
-            args, capture_output=True, text=True, check=False
-        )
+    result = subprocess.run(  # noqa: S603
+        args, capture_output=True, text=True, check=False
+    )
 
-        if result.returncode != 0:
-            pytest.fail(f"Generator failed: {result.stderr}")
+    if result.returncode != 0:
+        pytest.fail(f"Generator failed: {result.stderr}")
 
-        # Copy to temp directory that persists for test
-        # (Can't use context manager's tmpdir as it gets deleted)
-        import shutil
-
-        persist_dir = Path(tempfile.gettempdir()) / (
-            f"synthetic-test-{pr_count}-{seed}"
-            f"-w{weeks}-u{users}-c{int(include_comments)}"
-        )
-        if persist_dir.exists():
-            shutil.rmtree(persist_dir)
-        shutil.copytree(output_dir, persist_dir)
-
-        return persist_dir
+    return output_dir
 
 
 def test_manifest_schema_validation():
@@ -387,7 +381,7 @@ def test_users_zero_validation_error():
         import shutil
 
         if output_dir.exists():
-            shutil.rmtree(output_dir)
+            shutil.rmtree(output_dir, ignore_errors=True)
 
 
 def test_weeks_zero_validation_error():
@@ -401,7 +395,7 @@ def test_weeks_zero_validation_error():
         import shutil
 
         if output_dir.exists():
-            shutil.rmtree(output_dir)
+            shutil.rmtree(output_dir, ignore_errors=True)
 
 
 def test_200_users_produces_200_dimension_entries():
@@ -723,6 +717,16 @@ DEMO_ROLLUPS_DIR = (
     / "aggregates"
     / "weekly_rollups"
 )
+DEMO_DIMENSIONS_PATH = (
+    Path(__file__).parent.parent.parent
+    / "docs"
+    / "data"
+    / "aggregates"
+    / "dimensions.json"
+)
+DEMO_MANIFEST_PATH = (
+    Path(__file__).parent.parent.parent / "docs" / "data" / "dataset-manifest.json"
+)
 
 
 def _load_all_demo_rollups() -> list[dict]:
@@ -738,6 +742,50 @@ def _load_all_demo_rollups() -> list[dict]:
 
 class TestDemoDataRealism:
     """Realism invariants for the demo data generator output."""
+
+    def test_user_display_names_are_unique_and_number_free(self):
+        """Demo-facing synthetic user names must be unique and free of numeric suffixes."""
+        with DEMO_DIMENSIONS_PATH.open() as f:
+            dimensions = json.load(f)
+
+        display_names = [entry["display_name"] for entry in dimensions["users"]]
+        assert len(display_names) == len(set(display_names)), (
+            "Synthetic display names must be unique"
+        )
+        assert all(not re.search(r"\d", name) for name in display_names), (
+            "Synthetic display names must not contain digits"
+        )
+
+    def test_reviewer_fixture_thresholds_match_generated_rollup(self):
+        """Reviewer fixture week must satisfy the manifest's threshold contract."""
+        with DEMO_MANIFEST_PATH.open() as f:
+            manifest = json.load(f)
+
+        fixtures = manifest["reviewer_fixtures"]
+        fixture_week = fixtures["reviewer_filter_examples"][0]["week"]
+        rollup_path = DEMO_ROLLUPS_DIR / f"{fixture_week}.json"
+        with rollup_path.open() as f:
+            rollup = json.load(f)
+
+        by_reviewer = rollup["by_reviewer"]
+        eligible_reviewers = [
+            reviewer_id
+            for reviewer_id, entry in by_reviewer.items()
+            if entry["reviewed_prs"] >= fixtures["minimum_reviewed_prs_per_reviewer"]
+            and entry["reviews_count"]
+            >= fixtures["minimum_review_actions_per_reviewer"]
+        ]
+        multi_repo_reviewers = [
+            reviewer_id
+            for reviewer_id, entry in by_reviewer.items()
+            if entry["reviewed_prs"] >= fixtures["minimum_reviewed_prs_per_reviewer"]
+            and entry["reviews_count"]
+            >= fixtures["minimum_review_actions_per_reviewer"]
+            and entry["repositories_count"] >= 2
+        ]
+
+        assert len(eligible_reviewers) >= fixtures["minimum_active_reviewers"]
+        assert len(multi_repo_reviewers) >= fixtures["minimum_multi_repo_reviewers"]
 
     def test_inv001_parent_child_bounding(self):
         """INV-001: Every breakdown entry's counts must not exceed the rollup totals."""

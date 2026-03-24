@@ -2,10 +2,16 @@
 
 from __future__ import annotations
 
+import importlib.util
 import json
+import re
+import shutil
 import subprocess
 import sys
+from itertools import count
 from pathlib import Path
+
+import pytest
 
 REPO_ROOT = Path(__file__).parent.parent.parent
 BUILD_SCRIPT = REPO_ROOT / "scripts" / "build-demo-dataset.py"
@@ -13,6 +19,40 @@ ARTIFACT_ROOT = REPO_ROOT / "artifacts" / "demo-enterprise"
 ARTIFACT_DATA = ARTIFACT_ROOT / "data"
 ARTIFACT_REPORT = ARTIFACT_ROOT / "report"
 ARTIFACT_METADATA = ARTIFACT_ROOT / "metadata"
+TEST_TMP_ROOT = REPO_ROOT / "tmp_test_work"
+_SCRATCH_COUNTER = count()
+
+
+def load_build_module():
+    """Load build-demo-dataset.py as a Python module for direct contract testing."""
+    script_dir = str(BUILD_SCRIPT.parent)
+    if script_dir not in sys.path:
+        sys.path.insert(0, script_dir)
+    spec = importlib.util.spec_from_file_location("build_demo_dataset", BUILD_SCRIPT)
+    if spec is None or spec.loader is None:
+        raise AssertionError(f"Unable to load build script module: {BUILD_SCRIPT}")
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+def make_scratch_dir(prefix: str) -> Path:
+    """Create a repo-local scratch directory for promotion and mutation tests."""
+    TEST_TMP_ROOT.mkdir(parents=True, exist_ok=True)
+    scratch_dir = TEST_TMP_ROOT / f"{prefix}-{next(_SCRATCH_COUNTER):04d}"
+    while scratch_dir.exists():
+        scratch_dir = TEST_TMP_ROOT / f"{prefix}-{next(_SCRATCH_COUNTER):04d}"
+    scratch_dir.mkdir(parents=True, exist_ok=False)
+    return scratch_dir
+
+
+def make_scratch_path(prefix: str) -> Path:
+    """Reserve a unique repo-local scratch path without creating it."""
+    TEST_TMP_ROOT.mkdir(parents=True, exist_ok=True)
+    scratch_path = TEST_TMP_ROOT / f"{prefix}-{next(_SCRATCH_COUNTER):04d}"
+    while scratch_path.exists():
+        scratch_path = TEST_TMP_ROOT / f"{prefix}-{next(_SCRATCH_COUNTER):04d}"
+    return scratch_path
 
 
 def run_demo_build(*, promote_dir: Path | None = None, promote: bool = False) -> None:
@@ -47,8 +87,8 @@ class TestCanonicalArtifactRoot:
         assert (ARTIFACT_REPORT / "startup-parity.json").exists()
         assert (ARTIFACT_METADATA / "demo-profile.json").exists()
 
-    def test_docs_promotion_matches_canonical_bytes(self, tmp_path: Path) -> None:
-        promoted_dir = tmp_path / "published-demo"
+    def test_docs_promotion_matches_canonical_bytes(self) -> None:
+        promoted_dir = make_scratch_dir("published-demo")
         run_demo_build(promote=True, promote_dir=promoted_dir)
 
         canonical_files = sorted(
@@ -68,9 +108,10 @@ class TestCanonicalArtifactRoot:
                 promoted_dir / rel_path
             ).read_bytes()
 
-    def test_promotion_cleans_stale_files(self, tmp_path: Path) -> None:
-        promoted_dir = tmp_path / "published-demo"
-        promoted_dir.mkdir(parents=True, exist_ok=True)
+    def test_promotion_detects_stale_files(self) -> None:
+        run_demo_build()
+        build_module = load_build_module()
+        promoted_dir = make_scratch_dir("published-demo-stale")
         stale_path = promoted_dir / "stale-demo-file.json"
         stale_path.write_text('{"stale": true}\n', encoding="utf-8", newline="\n")
         stale_nested_dir = promoted_dir / "stale-dir" / "nested"
@@ -82,12 +123,17 @@ class TestCanonicalArtifactRoot:
         )
         assert stale_path.exists()
 
-        run_demo_build(promote=True, promote_dir=promoted_dir)
+        source_files = set(build_module.list_relative_files(ARTIFACT_DATA))
+        destination_files = set(build_module.list_relative_files(promoted_dir))
+        source_dirs = set(build_module.list_relative_dirs(ARTIFACT_DATA))
+        destination_dirs = set(build_module.list_relative_dirs(promoted_dir))
 
-        assert not stale_path.exists(), "docs/data promotion must remove stale files"
-        assert not (promoted_dir / "stale-dir").exists(), (
-            "docs/data promotion must remove stale directories"
-        )
+        stale_files = destination_files - source_files
+        stale_dirs = destination_dirs - source_dirs
+
+        assert "stale-demo-file.json" in stale_files
+        assert "stale-dir" in stale_dirs
+        assert "stale-dir/nested" in stale_dirs
 
 
 class TestCapabilityAndParityReports:
@@ -145,6 +191,21 @@ class TestCapabilityAndParityReports:
         assert len(dimensions.get("authors", [])) >= 50
         assert len(dimensions.get("reviewers", [])) >= 50
 
+    def test_demo_user_display_names_are_unique_and_number_free(self) -> None:
+        run_demo_build()
+        dimensions = json.loads(
+            (ARTIFACT_DATA / "aggregates" / "dimensions.json").read_text(
+                encoding="utf-8"
+            )
+        )
+        display_names = [entry["display_name"] for entry in dimensions["users"]]
+
+        assert len(display_names) >= 200
+        assert len(set(display_names)) == len(display_names)
+        assert all(not re.search(r"\d", name) for name in display_names), (
+            "Synthetic display names must not contain numeric suffixes"
+        )
+
     def test_demo_rollups_include_reviewer_breakdowns(self) -> None:
         run_demo_build()
         sample_rollup = json.loads(
@@ -161,6 +222,57 @@ class TestCapabilityAndParityReports:
         assert len(sample_rollup.get("by_author", {})) > 0
         assert len(sample_rollup.get("by_author_and_repo", {})) > 0
         assert len(sample_rollup.get("by_reviewer", {})) > 0
+
+    def test_manifest_declares_reviewer_fixture_metadata(self) -> None:
+        run_demo_build()
+        manifest = json.loads(
+            (ARTIFACT_DATA / "dataset-manifest.json").read_text(encoding="utf-8")
+        )
+
+        fixtures = manifest.get("reviewer_fixtures")
+        assert isinstance(fixtures, dict)
+        assert fixtures["minimum_active_reviewers"] >= 5
+        assert fixtures["minimum_reviewed_prs_per_reviewer"] >= 3
+        assert fixtures["minimum_review_actions_per_reviewer"] >= 3
+        assert fixtures["minimum_multi_repo_reviewers"] >= 1
+        assert len(fixtures["reviewer_filter_examples"]) >= 1
+        assert fixtures["reviewer_constrained_example"]["mode"] == "constrained"
+        assert fixtures["reviewer_team_disallowed_example"]["mode"] == "disallowed"
+
+    def test_reviewer_fixture_examples_resolve_to_canonical_rollups(self) -> None:
+        run_demo_build()
+        manifest = json.loads(
+            (ARTIFACT_DATA / "dataset-manifest.json").read_text(encoding="utf-8")
+        )
+        fixtures = manifest["reviewer_fixtures"]
+        weekly_rollups = {
+            entry["week"]: json.loads(
+                (ARTIFACT_DATA / entry["path"]).read_text(encoding="utf-8")
+            )
+            for entry in manifest["aggregate_index"]["weekly_rollups"]
+        }
+
+        for example in fixtures["reviewer_filter_examples"]:
+            rollup = weekly_rollups[example["week"]]
+            reviewer_entry = rollup["by_reviewer"][example["reviewer_id"]]
+            assert (
+                reviewer_entry["reviewed_prs"]
+                >= fixtures["minimum_reviewed_prs_per_reviewer"]
+            )
+            assert (
+                reviewer_entry["reviews_count"]
+                >= fixtures["minimum_review_actions_per_reviewer"]
+            )
+
+        constrained = fixtures["reviewer_constrained_example"]
+        constrained_rollup = weekly_rollups[constrained["week"]]
+        assert constrained["reviewer_id"] in constrained_rollup["by_reviewer"]
+        assert constrained["repository_name"] in constrained_rollup["by_repository"]
+
+        disallowed = fixtures["reviewer_team_disallowed_example"]
+        disallowed_rollup = weekly_rollups[disallowed["week"]]
+        assert disallowed["reviewer_id"] in disallowed_rollup["by_reviewer"]
+        assert disallowed["team_name"] in disallowed_rollup["by_team"]
 
     def test_manifest_declares_all_published_files(self) -> None:
         run_demo_build()
@@ -188,3 +300,50 @@ class TestCapabilityAndParityReports:
             and not any(Path(rel_path).match(pattern) for pattern in declared_globs)
         )
         assert not unmatched, f"Unmanifested published files: {unmatched}"
+
+    def test_reviewer_fixture_validation_fails_when_metadata_missing(self) -> None:
+        run_demo_build()
+        build_module = load_build_module()
+        mutated_dir = make_scratch_path("artifact-data-missing")
+        shutil.copytree(ARTIFACT_DATA, mutated_dir)
+        manifest_path = mutated_dir / "dataset-manifest.json"
+        manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+        manifest.pop("reviewer_fixtures", None)
+        manifest_path.write_text(
+            json.dumps(manifest, indent=2, sort_keys=True) + "\n",
+            encoding="utf-8",
+            newline="\n",
+        )
+
+        with pytest.raises(RuntimeError, match="reviewer_fixtures"):
+            build_module.validate_reviewer_fixture_contract(mutated_dir)
+
+    def test_reviewer_fixture_validation_fails_when_rollup_breakdown_missing(
+        self,
+    ) -> None:
+        run_demo_build()
+        build_module = load_build_module()
+        mutated_dir = make_scratch_path("artifact-data-rollup")
+        shutil.copytree(ARTIFACT_DATA, mutated_dir)
+        manifest = json.loads(
+            (mutated_dir / "dataset-manifest.json").read_text(encoding="utf-8")
+        )
+        fixture_week = manifest["reviewer_fixtures"]["reviewer_filter_examples"][0][
+            "week"
+        ]
+        rollup_entry = next(
+            entry
+            for entry in manifest["aggregate_index"]["weekly_rollups"]
+            if entry["week"] == fixture_week
+        )
+        rollup_path = mutated_dir / rollup_entry["path"]
+        rollup = json.loads(rollup_path.read_text(encoding="utf-8"))
+        rollup["by_reviewer"] = {}
+        rollup_path.write_text(
+            json.dumps(rollup, indent=2, sort_keys=True) + "\n",
+            encoding="utf-8",
+            newline="\n",
+        )
+
+        with pytest.raises(RuntimeError, match="by_reviewer"):
+            build_module.validate_reviewer_fixture_contract(mutated_dir)
