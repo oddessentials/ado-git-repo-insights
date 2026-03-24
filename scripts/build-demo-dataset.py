@@ -29,8 +29,11 @@ ARTIFACT_DATA_DIR = ARTIFACT_ROOT / "data"
 ARTIFACT_REPORT_DIR = ARTIFACT_ROOT / "report"
 ARTIFACT_METADATA_DIR = ARTIFACT_ROOT / "metadata"
 DOCS_DATA_DIR = REPO_ROOT / "docs" / "data"
+DOCS_DIR = REPO_ROOT / "docs"
 DOCS_INDEX = REPO_ROOT / "docs" / "index.html"
 EXTENSION_INDEX = REPO_ROOT / "extension" / "ui" / "index.html"
+PUBLISH_SURFACE_SCRIPT = REPO_ROOT / "scripts" / "publish-demo-surface.py"
+EXTENSION_ROOT = REPO_ROOT / "extension"
 
 DEMO_PROFILE_NAME = "enterprise-demo"
 DEMO_PROFILE_VERSION = "2.0.0"
@@ -89,6 +92,62 @@ def run_generator(script_name: str, output_root: Path) -> None:
             f"{script_name} failed with exit code {result.returncode}\n"
             f"STDOUT:\n{result.stdout}\nSTDERR:\n{result.stderr}"
         )
+
+
+def run_repo_command(command: list[str], *, cwd: Path = REPO_ROOT) -> None:
+    """Run a repo-managed command and raise a detailed error on failure."""
+    result = subprocess.run(  # noqa: S603
+        command,
+        cwd=cwd,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    if result.returncode != 0:
+        raise RuntimeError(
+            f"Command failed with exit code {result.returncode}: {' '.join(command)}\n"
+            f"STDOUT:\n{result.stdout}\nSTDERR:\n{result.stderr}"
+        )
+
+
+def _remove_tree(path: Path) -> None:
+    """Remove a directory tree if present."""
+    if path.exists():
+        shutil.rmtree(path, ignore_errors=False)
+
+
+def reset_canonical_artifact_root() -> None:
+    """Ensure the canonical artifact root starts clean for each build mode."""
+    _remove_tree(ARTIFACT_DATA_DIR)
+    _remove_tree(ARTIFACT_REPORT_DIR)
+    _remove_tree(ARTIFACT_METADATA_DIR)
+    ARTIFACT_DATA_DIR.mkdir(parents=True, exist_ok=True)
+    ARTIFACT_REPORT_DIR.mkdir(parents=True, exist_ok=True)
+    ARTIFACT_METADATA_DIR.mkdir(parents=True, exist_ok=True)
+
+
+def _resolve_pnpm() -> str:
+    """Resolve pnpm from PATH for canonical demo surface publication."""
+    for candidate in ("pnpm.cmd", "pnpm"):
+        resolved = shutil.which(candidate)
+        if resolved:
+            return resolved
+    raise RuntimeError(
+        "pnpm is required to build the canonical demo surface but was not found on PATH"
+    )
+
+
+def ensure_canonical_demo_surface() -> None:
+    """Build and publish the full docs demo surface from the canonical script."""
+    pnpm = _resolve_pnpm()
+    run_repo_command([pnpm, "run", "build:ui"], cwd=EXTENSION_ROOT)
+    run_repo_command(
+        [
+            sys.executable,
+            str(PUBLISH_SURFACE_SCRIPT),
+            "--sync-broken-fixture",
+        ]
+    )
 
 
 def list_relative_files(root: Path) -> list[str]:
@@ -726,9 +785,7 @@ def promote_data(source_dir: Path, destination_dir: Path) -> None:
 def main(argv: list[str] | None = None) -> int:
     """Build and optionally promote the enterprise demo dataset."""
     args = parse_args(argv)
-    ARTIFACT_DATA_DIR.mkdir(parents=True, exist_ok=True)
-    ARTIFACT_REPORT_DIR.mkdir(parents=True, exist_ok=True)
-    ARTIFACT_METADATA_DIR.mkdir(parents=True, exist_ok=True)
+    reset_canonical_artifact_root()
 
     if args.validate_only:
         print("[demo-build] validate-only: using committed docs/data")
@@ -752,6 +809,9 @@ def main(argv: list[str] | None = None) -> int:
 
     if not args.no_promote:
         promote_dir = args.promote_dir.resolve()
+        if promote_dir == DOCS_DATA_DIR.resolve():
+            print("[demo-build] refreshing canonical docs surface")
+            ensure_canonical_demo_surface()
         print(f"[demo-build] promoting {ARTIFACT_DATA_DIR} -> {promote_dir}")
         promote_data(ARTIFACT_DATA_DIR, promote_dir)
         if (

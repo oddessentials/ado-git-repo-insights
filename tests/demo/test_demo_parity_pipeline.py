@@ -108,6 +108,21 @@ def run_demo_build(*, promote_dir: Path | None = None, promote: bool = False) ->
     )
 
 
+def run_demo_validate_only() -> None:
+    """Run validate-only mode explicitly against committed docs/data."""
+    args = [sys.executable, str(BUILD_SCRIPT), "--validate-only", "--no-promote"]
+    result = subprocess.run(  # noqa: S603
+        args,
+        cwd=REPO_ROOT,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    assert result.returncode == 0, (
+        f"build-demo-dataset.py --validate-only failed: {result.stderr or result.stdout}"
+    )
+
+
 class TestCanonicalArtifactRoot:
     """Canonical build output is generated under artifacts/demo-enterprise."""
 
@@ -187,6 +202,32 @@ class TestCanonicalArtifactRoot:
         assert "stale-demo-file.json" in removed_files
         assert "stale-dir/nested" in removed_dirs
         assert "stale-dir" in removed_dirs
+
+    def test_validate_only_cleans_stale_canonical_artifacts(self) -> None:
+        ARTIFACT_DATA.mkdir(parents=True, exist_ok=True)
+        ARTIFACT_REPORT.mkdir(parents=True, exist_ok=True)
+        ARTIFACT_METADATA.mkdir(parents=True, exist_ok=True)
+        (ARTIFACT_DATA / "stale.json").write_text(
+            '{"stale": true}\n',
+            encoding="utf-8",
+            newline="\n",
+        )
+        (ARTIFACT_REPORT / "stale.json").write_text(
+            '{"stale": true}\n',
+            encoding="utf-8",
+            newline="\n",
+        )
+        (ARTIFACT_METADATA / "stale.json").write_text(
+            '{"stale": true}\n',
+            encoding="utf-8",
+            newline="\n",
+        )
+
+        run_demo_validate_only()
+
+        assert not (ARTIFACT_DATA / "stale.json").exists()
+        assert not (ARTIFACT_REPORT / "stale.json").exists()
+        assert not (ARTIFACT_METADATA / "stale.json").exists()
 
 
 class TestCapabilityAndParityReports:

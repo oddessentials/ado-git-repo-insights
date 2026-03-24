@@ -104,6 +104,26 @@ def validate_workflow_contract() -> None:
             f"{helper_invocations}"
         )
 
+    upload_steps = [
+        step
+        for step in steps
+        if isinstance(step, dict)
+        and str(step.get("uses", "")).startswith("actions/upload-artifact@")
+    ]
+    docs_upload = next(
+        (
+            step
+            for step in upload_steps
+            if isinstance(step.get("with"), dict)
+            and str(step["with"].get("path")) == "docs/"
+        ),
+        None,
+    )
+    if docs_upload is None:
+        raise RuntimeError(
+            "Canonical demo workflow job must upload the full docs/ surface for drift checks"
+        )
+
     all_run_steps = [
         step
         for workflow_job in jobs.values()
@@ -128,6 +148,28 @@ def validate_workflow_contract() -> None:
         raise RuntimeError(
             "Diff remediation text must direct contributors to the canonical "
             f"producer `{CANONICAL_COMMITTED_DEMO_SCRIPT}`"
+        )
+
+    download_steps = [
+        step
+        for workflow_job in jobs.values()
+        if isinstance(workflow_job, dict)
+        for step in workflow_job.get("steps", [])
+        if isinstance(step, dict)
+        and str(step.get("uses", "")).startswith("actions/download-artifact@")
+    ]
+    docs_download = next(
+        (
+            step
+            for step in download_steps
+            if isinstance(step.get("with"), dict)
+            and str(step["with"].get("path")) == "docs/"
+        ),
+        None,
+    )
+    if docs_download is None:
+        raise RuntimeError(
+            "Canonical demo workflow must download the full docs/ surface before diff validation"
         )
 
 

@@ -59,6 +59,16 @@ jobs:
           python -m pip install --upgrade pip
           pip install -e .[dev]
 
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - uses: ./.github/actions/setup-pnpm
+
+      - name: Install extension dependencies
+        working-directory: extension
+        run: pnpm install --frozen-lockfile
+
       - name: Validate committed-demo generation contract
         run: python scripts/validate_demo_generation_contract.py
 
@@ -69,7 +79,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: regenerated-data
-          path: docs/data/
+          path: docs/
           retention-days: 1
 
   # T059: Diff check - fail if regeneration changed files
@@ -86,7 +96,7 @@ jobs:
         uses: actions/download-artifact@v4
         with:
           name: regenerated-data
-          path: docs/data/
+          path: docs/
 
       - name: Check for differences
         run: |
