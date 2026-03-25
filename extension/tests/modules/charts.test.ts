@@ -48,10 +48,14 @@ describe("charts module", () => {
       expect(container.className).toContain("delta-neutral");
     });
 
-    it("handles inverse mode (lower is better)", () => {
+    it("handles inverse mode for positive change (increase is bad)", () => {
       renderDelta(container, 25, true);
-      // Positive change but inverse = bad
       expect(container.className).toContain("delta-negative-inverse");
+    });
+
+    it("handles inverse mode for negative change (decrease is good)", () => {
+      renderDelta(container, -15, true);
+      expect(container.className).toContain("delta-positive-inverse");
     });
 
     it("handles null element gracefully", () => {
