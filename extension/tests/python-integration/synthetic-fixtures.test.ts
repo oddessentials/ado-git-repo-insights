@@ -10,6 +10,7 @@ import { resolveInside } from "../../tasks/_shared/safe-path";
 import {
   ensureDir,
   pathExists,
+  readDir,
   readJsonFile,
   readTextFile,
 } from "../helpers/fs-test-utils";
@@ -40,7 +41,11 @@ type FixtureRollup = {
   week: string;
   pr_count: number;
   cycle_time_p50: number | null;
-  by_team?: Record<string, RollupEntry>;
+  cycle_time_p90: number | null;
+  authors_count: number;
+  reviewers_count: number;
+  by_repository: Record<string, RollupEntry> | null;
+  by_team?: Record<string, RollupEntry> | null;
   by_team_and_repo?: Record<string, Record<string, RollupEntry>>;
 };
 
@@ -150,6 +155,37 @@ describe("Synthetic Fixture Consumer Validation", () => {
 
     return outputDir;
   }
+
+  syntheticFixtureTest(
+    "every generated fixture rollup contains all required Rollup-compatible fields",
+    () => {
+      // Prove the FixtureRollup type contract against actual data, not generator source.
+      // If the Python generator ever drops a field, this fails with a clear message —
+      // not a cryptic TS2739 deep in a filter function.
+      const requiredFields = [
+        "week",
+        "pr_count",
+        "cycle_time_p50",
+        "cycle_time_p90",
+        "authors_count",
+        "reviewers_count",
+        "by_repository",
+      ];
+      const outputDir = generateFixture(100, 42);
+      const manifestPath = path.join(outputDir, "dataset-manifest.json");
+      const manifest = readJsonFile<FixtureManifest>(manifestPath);
+      const rollupEntries = manifest.aggregate_index.weekly_rollups;
+      expect(rollupEntries.length).toBeGreaterThan(0);
+
+      for (const entry of rollupEntries) {
+        const rollupPath = path.join(outputDir, entry.path);
+        const rollup = readJsonFile<Record<string, unknown>>(rollupPath);
+        for (const field of requiredFields) {
+          expect(rollup).toHaveProperty(field);
+        }
+      }
+    },
+  );
 
   syntheticFixtureTest(
     "1000 PR fixture passes loadManifest validation",

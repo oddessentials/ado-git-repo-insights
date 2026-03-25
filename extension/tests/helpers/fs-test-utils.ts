@@ -1,3 +1,4 @@
+/* eslint-disable security/detect-non-literal-fs-filename -- SECURITY: test-only fs helpers centralizing all repo-local file access */
 import * as fs from "fs";
 
 /**
@@ -5,34 +6,28 @@ import * as fs from "fs";
  * These wrappers keep repo-local test file access explicit and reviewed.
  */
 export function pathExists(filePath: string): boolean {
-  // eslint-disable-next-line security/detect-non-literal-fs-filename -- SECURITY: test helper centralizes repo-local file existence checks
   return fs.existsSync(filePath);
 }
 
 export function ensureDir(filePath: string): void {
   if (!pathExists(filePath)) {
-    // eslint-disable-next-line security/detect-non-literal-fs-filename -- SECURITY: test helper centralizes repo-local directory creation
     fs.mkdirSync(filePath, { recursive: true });
   }
 }
 
 export function readTextFile(filePath: string): string {
-  // eslint-disable-next-line security/detect-non-literal-fs-filename -- SECURITY: test helper centralizes repo-local file reads
   return fs.readFileSync(filePath, "utf-8");
 }
 
 export function readBufferFile(filePath: string): Buffer {
-  // eslint-disable-next-line security/detect-non-literal-fs-filename -- SECURITY: test helper centralizes repo-local binary file reads
   return fs.readFileSync(filePath);
 }
 
 export function readDir(filePath: string): string[] {
-  // eslint-disable-next-line security/detect-non-literal-fs-filename -- SECURITY: test helper centralizes repo-local directory listing
   return fs.readdirSync(filePath);
 }
 
 export function readDirEntries(filePath: string): fs.Dirent[] {
-  // eslint-disable-next-line security/detect-non-literal-fs-filename -- SECURITY: test helper centralizes repo-local directory listing with metadata
   return fs.readdirSync(filePath, { withFileTypes: true });
 }
 
@@ -41,7 +36,6 @@ export function removeDir(filePath: string): void {
 }
 
 export function writeTextFile(filePath: string, content: string): void {
-  // eslint-disable-next-line security/detect-non-literal-fs-filename -- SECURITY: test helper writes only test-managed files
   fs.writeFileSync(filePath, content);
 }
 
@@ -50,7 +44,6 @@ export function readJsonFile<T>(filePath: string): T {
 }
 
 export function makeTempDir(prefix: string): string {
-  // eslint-disable-next-line security/detect-non-literal-fs-filename -- SECURITY: test helper creates temp dirs with OS-managed unique suffixes
   return fs.mkdtempSync(prefix);
 }
 
