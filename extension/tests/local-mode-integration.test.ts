@@ -5,9 +5,14 @@
  * Per guardrails: assert user-visible behavior only, fully isolate globals.
  */
 
+import { jest } from "@jest/globals";
+
 // Make this file a module (required for global augmentation in types.ts)
 // Window interface is declared in ../ui/types.ts
 export {};
+
+type MockedFetch = jest.MockedFunction<typeof fetch>;
+const globalScope = global as typeof globalThis & { fetch: MockedFetch };
 
 describe("Local Mode Integration", () => {
   beforeEach(() => {
@@ -15,7 +20,7 @@ describe("Local Mode Integration", () => {
     document.body.innerHTML = "";
     delete window.LOCAL_DASHBOARD_MODE;
     delete window.DATASET_PATH;
-    (global as any).fetch.mockReset();
+    globalScope.fetch.mockReset();
   });
 
   afterEach(() => {
@@ -50,11 +55,11 @@ describe("Local Mode Integration", () => {
             </div>
         `;
 
-    // Mock fetch responses
-    (global as any).fetch.mockImplementation(async (url: string) => {
+    // Mock fetch responses — cast partial objects as Response (standard Jest pattern)
+    globalScope.fetch.mockImplementation(async (url: string) => {
       if (url.includes("dataset-manifest.json")) {
         if (!manifestExists) {
-          return { ok: false, status: 404, statusText: "Not Found" };
+          return { ok: false, status: 404, statusText: "Not Found" } as Response;
         }
         return {
           ok: true,
@@ -71,7 +76,7 @@ describe("Local Mode Integration", () => {
             defaults: { default_date_range_days: 90 },
             aggregate_index: { weekly_rollups: [], distributions: [] },
           }),
-        };
+        } as Response;
       }
       if (url.includes("dimensions.json")) {
         return {
@@ -84,9 +89,9 @@ describe("Local Mode Integration", () => {
             teams: [],
             date_range: { min: "2025-01-01", max: "2025-12-31" },
           }),
-        };
+        } as Response;
       }
-      return { ok: false, status: 404, statusText: "Not Found" };
+      return { ok: false, status: 404, statusText: "Not Found" } as Response;
     });
   }
 
@@ -195,8 +200,9 @@ describe("Local Mode Integration", () => {
     });
 
     it("isLocalMode returns false for non-boolean truthy values", () => {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- REASON: Test intentionally sets non-boolean to verify type checking behavior
-      (window as any).LOCAL_DASHBOARD_MODE = "true"; // string, not boolean
+      // Use Object.assign to prevent TypeScript control-flow narrowing — the
+      // test intentionally sets a string where boolean is expected at runtime
+      Object.assign(window, { LOCAL_DASHBOARD_MODE: "true" }); // string, not boolean
 
       const isLocal =
         typeof window !== "undefined" && window.LOCAL_DASHBOARD_MODE === true;

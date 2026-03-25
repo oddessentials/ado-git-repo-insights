@@ -11,21 +11,46 @@
  * NOTE: Tier B tests (actual VSIX inspection) are in vsix-artifact-inspection.test.ts
  * and only run in jobs that package a VSIX.
  */
-import * as fs from "fs";
 import * as path from "path";
+import {
+  pathExists,
+  readBufferFile,
+  readDir,
+  readJsonFile,
+  readTextFile,
+} from "./helpers/fs-test-utils";
+
+type Contribution = {
+  id: string;
+  type: string;
+  properties?: { uri?: string };
+};
+
+type VsixManifest = {
+  files?: Array<{ addressable?: boolean; path: string }>;
+  contributions?: Contribution[];
+  galleryFlags?: string[];
+  tags?: string[];
+  galleryBanner?: { color: string; theme: string };
+  links?: Record<string, { uri: string }>;
+  CustomerQnASupport?: { enableqna: boolean; url: string };
+  badges?: unknown[];
+  description?: string;
+  screenshots?: Array<{ path: string }>;
+};
 
 describe("VSIX Packaging Contract (Tier A)", () => {
   const extensionDir = path.join(__dirname, "..");
   const manifestPath = path.join(extensionDir, "vss-extension.json");
-  let manifest: any;
+  let manifest: VsixManifest;
 
   beforeAll(() => {
-    manifest = JSON.parse(fs.readFileSync(manifestPath, "utf-8"));
+    manifest = readJsonFile<VsixManifest>(manifestPath);
   });
 
   describe("Addressable Files Configuration", () => {
     it("must package dist/ui (compiled), not ui (source)", () => {
-      const addressableEntry = manifest.files?.find((f: any) => f.addressable);
+      const addressableEntry = manifest.files?.find((file) => file.addressable);
       expect(addressableEntry).toBeDefined();
       expect(addressableEntry.path).toBe("dist/ui");
       expect(addressableEntry.path).not.toBe("ui");
@@ -33,7 +58,7 @@ describe("VSIX Packaging Contract (Tier A)", () => {
 
     it("dist/ui directory must exist at test time", () => {
       const distUiPath = path.join(extensionDir, "dist", "ui");
-      expect(fs.existsSync(distUiPath)).toBe(true);
+      expect(pathExists(distUiPath)).toBe(true);
     });
   });
 
@@ -53,7 +78,7 @@ describe("VSIX Packaging Contract (Tier A)", () => {
 
           // Referenced file must exist
           const filePath = path.join(extensionDir, uri);
-          expect(fs.existsSync(filePath)).toBe(true);
+          expect(pathExists(filePath)).toBe(true);
         }
       }
     });
@@ -61,7 +86,7 @@ describe("VSIX Packaging Contract (Tier A)", () => {
     it("all hub contributions must reference dist/ui/", () => {
       const hubs =
         manifest.contributions?.filter(
-          (c: any) => c.type === "ms.vss-web.hub",
+          (contribution) => contribution.type === "ms.vss-web.hub",
         ) || [];
 
       expect(hubs.length).toBeGreaterThan(0);
@@ -73,7 +98,7 @@ describe("VSIX Packaging Contract (Tier A)", () => {
 
         // Verify referenced file exists
         const filePath = path.join(extensionDir, uri);
-        expect(fs.existsSync(filePath)).toBe(true);
+        expect(pathExists(filePath)).toBe(true);
       }
     });
 
@@ -105,14 +130,14 @@ describe("VSIX Packaging Contract (Tier A)", () => {
 
     it.each(requiredFiles)("must contain %s", (filename) => {
       const filePath = path.join(extensionDir, "dist", "ui", filename);
-      expect(fs.existsSync(filePath)).toBe(true);
+      expect(pathExists(filePath)).toBe(true);
     });
   });
 
   describe("No TypeScript Source in dist/ui", () => {
     it("must NOT contain any source .ts files (excluding .d.ts declarations)", () => {
       const distUiPath = path.join(extensionDir, "dist", "ui");
-      const files = fs.readdirSync(distUiPath);
+      const files = readDir(distUiPath);
       // Source TS files end with .ts but NOT .d.ts
       // .d.ts declaration files are harmless and can be shipped
       const sourceTsFiles = files.filter(
@@ -136,7 +161,7 @@ describe("VSIX Packaging Contract (Tier A)", () => {
       "%s must be IIFE format (no import/export)",
       (filename) => {
         const filePath = path.join(extensionDir, "dist", "ui", filename);
-        const content = fs.readFileSync(filePath, "utf-8");
+        const content = readTextFile(filePath);
 
         // CRITICAL: Check for ESM tokens that would break in ADO script tags
         // If these fail, it means tsc overwrote esbuild output
@@ -156,7 +181,7 @@ describe("VSIX Packaging Contract (Tier A)", () => {
       "%s must expose expected global",
       (filename) => {
         const filePath = path.join(extensionDir, "dist", "ui", filename);
-        const content = fs.readFileSync(filePath, "utf-8");
+        const content = readTextFile(filePath);
 
         // Check for global exposure footer added by esbuild
         expect(content).toContain("Object.assign(window,");
@@ -167,7 +192,7 @@ describe("VSIX Packaging Contract (Tier A)", () => {
   describe("HTML References Correct JS Files", () => {
     it("index.html must reference .js files (not .ts)", () => {
       const htmlPath = path.join(extensionDir, "dist", "ui", "index.html");
-      const content = fs.readFileSync(htmlPath, "utf-8");
+      const content = readTextFile(htmlPath);
 
       // Must reference .js files
       expect(content).toContain("dashboard.js");
@@ -180,7 +205,7 @@ describe("VSIX Packaging Contract (Tier A)", () => {
 
     it("settings.html must reference .js files (not .ts)", () => {
       const htmlPath = path.join(extensionDir, "dist", "ui", "settings.html");
-      const content = fs.readFileSync(htmlPath, "utf-8");
+      const content = readTextFile(htmlPath);
 
       // Must reference .js files
       expect(content).toContain("settings.js");
@@ -220,8 +245,11 @@ describe("VSIX Packaging Contract (Tier A)", () => {
       ];
       expect(manifest.links).toBeDefined();
       for (const linkType of requiredLinks) {
-        expect(manifest.links[linkType]).toBeDefined();
-        expect(manifest.links[linkType].uri).toBeDefined();
+        const linkEntry = Object.entries(manifest.links ?? {}).find(
+          ([candidateLinkType]) => candidateLinkType === linkType,
+        )?.[1];
+        expect(linkEntry).toBeDefined();
+        expect(linkEntry?.uri).toBeDefined();
       }
     });
 
@@ -255,14 +283,14 @@ describe("VSIX Packaging Contract (Tier A)", () => {
     it("all screenshot files exist on disk", () => {
       for (const screenshot of manifest.screenshots) {
         const filePath = path.join(extensionDir, screenshot.path);
-        expect(fs.existsSync(filePath)).toBe(true);
+        expect(pathExists(filePath)).toBe(true);
       }
     });
 
     it("icon file exists and has PNG magic bytes", () => {
       const iconPath = path.join(extensionDir, "images", "icon.png");
-      expect(fs.existsSync(iconPath)).toBe(true);
-      const buffer = Buffer.from(fs.readFileSync(iconPath));
+      expect(pathExists(iconPath)).toBe(true);
+      const buffer = readBufferFile(iconPath);
       // PNG magic bytes: 89 50 4E 47
       expect(buffer[0]).toBe(0x89);
       expect(buffer[1]).toBe(0x50);
@@ -272,7 +300,7 @@ describe("VSIX Packaging Contract (Tier A)", () => {
 
     it("icon file has 128x128 dimensions", () => {
       const iconPath = path.join(extensionDir, "images", "icon.png");
-      const buffer = Buffer.from(fs.readFileSync(iconPath));
+      const buffer = readBufferFile(iconPath);
       // PNG IHDR chunk: width at bytes 16-19, height at bytes 20-23 (big-endian uint32)
       const width = buffer.readUInt32BE(16);
       const height = buffer.readUInt32BE(20);
@@ -288,7 +316,7 @@ describe("VSIX Packaging Contract (Tier A)", () => {
 
       for (const screenshot of manifest.screenshots) {
         const filePath = path.join(extensionDir, screenshot.path);
-        const buffer = Buffer.from(fs.readFileSync(filePath));
+        const buffer = readBufferFile(filePath);
 
         // Must be a valid PNG (magic bytes: 89 50 4E 47)
         const isPng =

@@ -5,14 +5,59 @@
  */
 
 import { DatasetLoader } from "../../ui/dataset-loader";
-import * as fs from "fs";
 import * as path from "path";
 import { resolveInside } from "../../tasks/_shared/safe-path";
+import {
+  ensureDir,
+  pathExists,
+  readDir,
+  readJsonFile,
+  readTextFile,
+} from "../helpers/fs-test-utils";
 import {
   assertPythonSubprocessSupport,
   probePythonSubprocessSupport,
   runPythonScript,
 } from "./python-subprocess";
+
+type FixtureAggregateIndex = {
+  weekly_rollups: Array<{ path: string }>;
+};
+
+type FixtureManifest = {
+  manifest_schema_version: number;
+  dataset_schema_version: number;
+  aggregates_schema_version: number;
+  aggregate_index: FixtureAggregateIndex;
+  coverage: { total_prs: number };
+  generated_at?: string;
+};
+
+type RollupEntry = {
+  pr_count: number;
+};
+
+type FixtureRollup = {
+  week: string;
+  pr_count: number;
+  cycle_time_p50: number | null;
+  cycle_time_p90: number | null;
+  authors_count: number;
+  reviewers_count: number;
+  by_repository: Record<string, RollupEntry> | null;
+  by_team: Record<string, RollupEntry> | null;
+  by_team_and_repo?: Record<string, Record<string, RollupEntry>>;
+};
+
+class TestDatasetLoader extends DatasetLoader {
+  public getManifestForTest(): unknown {
+    return this.manifest;
+  }
+}
+
+const testGlobal = global as typeof globalThis & {
+  fetch: { mockImplementation: (impl: (url: string) => Promise<Response>) => void };
+};
 
 const pythonSubprocessSupport = probePythonSubprocessSupport();
 const syntheticFixtureTest = pythonSubprocessSupport.supported
@@ -33,25 +78,25 @@ describe("Synthetic Fixture Consumer Validation", () => {
 
   beforeEach(() => {
     // Configure fetch mock to read file:// URLs from disk
-    (global as any).fetch.mockImplementation(async (url: string) => {
+    testGlobal.fetch.mockImplementation(async (url: string) => {
       if (url.startsWith("file://")) {
         const filePath = url.replace("file://", "");
         try {
-          const content = fs.readFileSync(filePath, "utf-8");
+          const content = readTextFile(filePath);
           return {
             ok: true,
             status: 200,
             json: async () => JSON.parse(content),
-          };
-        } catch (err: any) {
-          if (err.code === "ENOENT") {
-            return { ok: false, status: 404, statusText: "Not Found" };
+          } as Response;
+        } catch (error) {
+          if ((error as NodeJS.ErrnoException).code === "ENOENT") {
+            return { ok: false, status: 404, statusText: "Not Found" } as Response;
           }
-          throw err;
+          throw error;
         }
       }
       // Non-file URLs return 404 by default
-      return { ok: false, status: 404, statusText: "Not Found" };
+      return { ok: false, status: 404, statusText: "Not Found" } as Response;
     });
   });
 
@@ -76,7 +121,7 @@ describe("Synthetic Fixture Consumer Validation", () => {
     const outputDir = resolveInside(fixtureDir, `${prCount}pr-seed${seed}`);
 
     // Skip if already generated
-    if (fs.existsSync(resolveInside(outputDir, "dataset-manifest.json"))) {
+    if (pathExists(resolveInside(outputDir, "dataset-manifest.json"))) {
       return outputDir;
     }
 
@@ -100,18 +145,47 @@ describe("Synthetic Fixture Consumer Validation", () => {
         "--output",
         outputDir,
       ]);
-    } catch (error: any) {
-      throw new Error(`Failed to generate fixture: ${error.message}`);
+    } catch (error) {
+      const wrappedError = new Error(
+        `Failed to generate fixture: ${error instanceof Error ? error.message : String(error)}`,
+      );
+      (wrappedError as Error & { cause?: unknown }).cause = error;
+      throw wrappedError;
     }
 
     return outputDir;
   }
 
-  function ensureDir(dir: string): void {
-    if (!fs.existsSync(dir)) {
-      fs.mkdirSync(dir, { recursive: true });
-    }
-  }
+  syntheticFixtureTest(
+    "every generated fixture rollup contains all required Rollup-compatible fields",
+    () => {
+      // Prove the FixtureRollup type contract against actual data, not generator source.
+      // If the Python generator ever drops a field, this fails with a clear message —
+      // not a cryptic TS2739 deep in a filter function.
+      const requiredFields = [
+        "week",
+        "pr_count",
+        "cycle_time_p50",
+        "cycle_time_p90",
+        "authors_count",
+        "reviewers_count",
+        "by_repository",
+      ];
+      const outputDir = generateFixture(100, 42);
+      const manifestPath = path.join(outputDir, "dataset-manifest.json");
+      const manifest = readJsonFile<FixtureManifest>(manifestPath);
+      const rollupEntries = manifest.aggregate_index.weekly_rollups;
+      expect(rollupEntries.length).toBeGreaterThan(0);
+
+      for (const entry of rollupEntries) {
+        const rollupPath = path.join(outputDir, entry.path);
+        const rollup = readJsonFile<Record<string, unknown>>(rollupPath);
+        for (const field of requiredFields) {
+          expect(rollup).toHaveProperty(field);
+        }
+      }
+    },
+  );
 
   syntheticFixtureTest(
     "1000 PR fixture passes loadManifest validation",
@@ -119,19 +193,15 @@ describe("Synthetic Fixture Consumer Validation", () => {
       const fixturePath = generateFixture(1000, 42);
       const baseUrl = `file://${fixturePath}`;
 
-      const loader = new DatasetLoader(baseUrl);
+      const loader = new TestDatasetLoader(baseUrl);
 
       // Should not throw
       const manifest = await loader.loadManifest();
       expect(manifest).toBeDefined();
-      expect((manifest as any).manifest_schema_version).toBe(1);
-      expect((manifest as any).aggregates_schema_version).toBe(2);
-      expect((manifest as any).aggregate_index.weekly_rollups).toBeInstanceOf(
-        Array,
-      );
-      expect(
-        (manifest as any).aggregate_index.weekly_rollups.length,
-      ).toBeGreaterThan(0);
+      expect(manifest.manifest_schema_version).toBe(1);
+      expect(manifest.aggregates_schema_version).toBe(2);
+      expect(manifest.aggregate_index.weekly_rollups).toBeInstanceOf(Array);
+      expect(manifest.aggregate_index.weekly_rollups.length).toBeGreaterThan(0);
     },
   );
 
@@ -140,7 +210,7 @@ describe("Synthetic Fixture Consumer Validation", () => {
     async () => {
       const fixturePath = generateFixture(1000, 42);
       const manifestPath = path.join(fixturePath, "dataset-manifest.json");
-      const manifest = JSON.parse(fs.readFileSync(manifestPath, "utf-8"));
+      const manifest = readJsonFile<FixtureManifest>(manifestPath);
 
       expect(manifest.manifest_schema_version).toBe(1);
       expect(manifest.dataset_schema_version).toBe(1);
@@ -152,19 +222,19 @@ describe("Synthetic Fixture Consumer Validation", () => {
     const fixturePath = generateFixture(1000, 42);
     const baseUrl = `file://${fixturePath}`;
 
-    const loader = new DatasetLoader(baseUrl);
+    const loader = new TestDatasetLoader(baseUrl);
     await loader.loadManifest();
 
     // Get first rollup entry
-    const manifest = (loader as any).manifest;
+    const manifest = loader.getManifestForTest() as FixtureManifest;
     expect(manifest.aggregate_index.weekly_rollups.length).toBeGreaterThan(0);
 
     const rollupEntry = manifest.aggregate_index.weekly_rollups[0];
     const rollupPath = path.join(fixturePath, rollupEntry.path);
 
-    expect(fs.existsSync(rollupPath)).toBe(true);
+    expect(pathExists(rollupPath)).toBe(true);
 
-    const rollupData = JSON.parse(fs.readFileSync(rollupPath, "utf-8"));
+    const rollupData = readJsonFile<FixtureRollup>(rollupPath);
 
     // Validate structure
     expect(rollupData).toHaveProperty("week");
@@ -194,9 +264,9 @@ describe("Synthetic Fixture Consumer Validation", () => {
     const fixturePath = generateFixture(5000, 42);
     const manifestPath = path.join(fixturePath, "dataset-manifest.json");
 
-    expect(fs.existsSync(manifestPath)).toBe(true);
+    expect(pathExists(manifestPath)).toBe(true);
 
-    const manifest = JSON.parse(fs.readFileSync(manifestPath, "utf-8"));
+    const manifest = readJsonFile<FixtureManifest>(manifestPath);
     expect(manifest.coverage.total_prs).toBe(5000);
   });
 
@@ -204,9 +274,9 @@ describe("Synthetic Fixture Consumer Validation", () => {
     const fixturePath = generateFixture(10000, 42);
     const manifestPath = path.join(fixturePath, "dataset-manifest.json");
 
-    expect(fs.existsSync(manifestPath)).toBe(true);
+    expect(pathExists(manifestPath)).toBe(true);
 
-    const manifest = JSON.parse(fs.readFileSync(manifestPath, "utf-8"));
+    const manifest = readJsonFile<FixtureManifest>(manifestPath);
     expect(manifest.coverage.total_prs).toBe(10000);
   });
 
@@ -216,11 +286,11 @@ describe("Synthetic Fixture Consumer Validation", () => {
       const fixture1 = generateFixture(1000, 999);
       const fixture2 = generateFixture(1000, 999);
 
-      const manifest1 = JSON.parse(
-        fs.readFileSync(path.join(fixture1, "dataset-manifest.json"), "utf-8"),
+      const manifest1 = readJsonFile<FixtureManifest>(
+        path.join(fixture1, "dataset-manifest.json"),
       );
-      const manifest2 = JSON.parse(
-        fs.readFileSync(path.join(fixture2, "dataset-manifest.json"), "utf-8"),
+      const manifest2 = readJsonFile<FixtureManifest>(
+        path.join(fixture2, "dataset-manifest.json"),
       );
 
       // Exclude generated_at timestamp
@@ -240,13 +310,13 @@ describe("Synthetic Fixture Consumer Validation", () => {
 
         // Load manifest
         const manifestPath = path.join(outputDir, "dataset-manifest.json");
-        const manifest = JSON.parse(fs.readFileSync(manifestPath, "utf-8"));
+        const manifest = readJsonFile<FixtureManifest>(manifestPath);
 
         // Find a rollup that has by_team_and_repo
-        let targetRollup: any = null;
+        let targetRollup: FixtureRollup | null = null;
         for (const entry of manifest.aggregate_index.weekly_rollups) {
           const rollupPath = path.join(outputDir, entry.path);
-          const rollupData = JSON.parse(fs.readFileSync(rollupPath, "utf-8"));
+          const rollupData = readJsonFile<FixtureRollup>(rollupPath);
           if (rollupData.by_team_and_repo) {
             targetRollup = rollupData;
             break;
@@ -263,12 +333,15 @@ describe("Synthetic Fixture Consumer Validation", () => {
         expect(teamNames.length).toBeGreaterThan(0);
 
         const firstTeam = teamNames[0];
-        const teamRepos = targetRollup.by_team_and_repo[firstTeam];
-        const repoNames = Object.keys(teamRepos);
-        expect(repoNames.length).toBeGreaterThan(0);
+        const teamRepoEntries = Object.entries(targetRollup.by_team_and_repo)
+          .filter(([teamName]) => teamName === firstTeam);
+        expect(teamRepoEntries.length).toBe(1);
 
-        const firstRepo = repoNames[0];
-        const expectedEntry = teamRepos[firstRepo];
+        const [, teamRepos] = teamRepoEntries[0];
+        const repoEntries = Object.entries(teamRepos);
+        expect(repoEntries.length).toBeGreaterThan(0);
+
+        const [firstRepo, expectedEntry] = repoEntries[0];
         const expectedPrCount = expectedEntry.pr_count;
 
         // Now run through TypeScript's applyFiltersToRollups
@@ -290,12 +363,12 @@ describe("Synthetic Fixture Consumer Validation", () => {
       () => {
         const outputDir = generateFixture(100, 42);
         const manifestPath = path.join(outputDir, "dataset-manifest.json");
-        const manifest = JSON.parse(fs.readFileSync(manifestPath, "utf-8"));
+        const manifest = readJsonFile<FixtureManifest>(manifestPath);
 
         let validWeeks = 0;
         for (const entry of manifest.aggregate_index.weekly_rollups) {
           const rollupPath = path.join(outputDir, entry.path);
-          const rollupData = JSON.parse(fs.readFileSync(rollupPath, "utf-8"));
+          const rollupData = readJsonFile<FixtureRollup>(rollupPath);
 
           if (!rollupData.by_team_and_repo || !rollupData.by_team) continue;
           validWeeks++;
@@ -306,9 +379,12 @@ describe("Synthetic Fixture Consumer Validation", () => {
             if (teamName.startsWith("_")) continue;
 
             const crossDimSum = Object.values(
-              repoEntries as Record<string, any>,
-            ).reduce((sum: number, e: any) => sum + (e.pr_count || 0), 0);
-            const teamTotal = rollupData.by_team[teamName]?.pr_count;
+              repoEntries,
+            ).reduce((sum, entry) => sum + (entry.pr_count || 0), 0);
+            const teamEntry = Object.entries(rollupData.by_team).find(
+              ([candidateTeamName]) => candidateTeamName === teamName,
+            );
+            const teamTotal = teamEntry?.[1].pr_count;
 
             expect(crossDimSum).toBe(teamTotal);
           }
@@ -323,13 +399,13 @@ describe("Synthetic Fixture Consumer Validation", () => {
       async () => {
         const outputDir = generateFixture(100, 42);
         const manifestPath = path.join(outputDir, "dataset-manifest.json");
-        const manifest = JSON.parse(fs.readFileSync(manifestPath, "utf-8"));
+        const manifest = readJsonFile<FixtureManifest>(manifestPath);
 
         // Find a rollup with cross-dim data
-        let targetRollup: any = null;
+        let targetRollup: FixtureRollup | null = null;
         for (const entry of manifest.aggregate_index.weekly_rollups) {
           const rollupPath = path.join(outputDir, entry.path);
-          const rollupData = JSON.parse(fs.readFileSync(rollupPath, "utf-8"));
+          const rollupData = readJsonFile<FixtureRollup>(rollupPath);
           if (rollupData.by_team_and_repo && rollupData.by_team) {
             targetRollup = rollupData;
             break;

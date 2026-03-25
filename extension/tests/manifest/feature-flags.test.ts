@@ -9,8 +9,8 @@
  * These tests read the manifest at build time to enforce structural invariants.
  */
 
-import * as fs from "fs";
 import * as path from "path";
+import { readJsonFile } from "../helpers/fs-test-utils";
 
 interface Contribution {
   id: string;
@@ -31,7 +31,7 @@ interface Manifest {
 }
 
 const manifestPath = path.join(__dirname, "../../vss-extension.json");
-const manifest: Manifest = JSON.parse(fs.readFileSync(manifestPath, "utf8"));
+const manifest = readJsonFile<Manifest>(manifestPath);
 const contributions = manifest.contributions;
 
 // Extract feature flag contributions

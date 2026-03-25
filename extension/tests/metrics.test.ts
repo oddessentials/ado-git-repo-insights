@@ -11,33 +11,57 @@
 describe("Metrics Collector (Phase 4)", () => {
   // Performance API polyfill is provided by tests/setup.ts
 
-  let originalWindow: any;
-  let originalProcess: any;
+  type DebugWindow = Window & {
+    __DASHBOARD_DEBUG__?: boolean;
+    location?: { search?: string };
+  };
+  type MockPerformance = Performance & {
+    marks: Map<string, number>;
+    mark: (name: string) => void;
+    measure: (name: string, startMark: string, endMark: string) => void;
+    getEntriesByName: (name: string, type: string) => PerformanceEntry[];
+    clearMarks: () => void;
+    clearMeasures: () => void;
+  };
+  type TestGlobals = {
+    window?: DebugWindow;
+    process?: NodeJS.Process | { env: { NODE_ENV?: string } };
+    performance: MockPerformance;
+  };
+  type MetricMeasure = {
+    name: string;
+    duration: number;
+    timestamp: number;
+  };
+
+  const testGlobals = global as unknown as TestGlobals;
+  let originalWindow: DebugWindow | undefined;
+  let originalProcess: TestGlobals["process"];
 
   beforeEach(() => {
-    originalWindow = (global as any).window;
-    originalProcess = (global as any).process;
+    originalWindow = testGlobals.window;
+    originalProcess = testGlobals.process;
     // Clear window/process globals for production/debug flag tests
-    delete (global as any).window;
-    delete (global as any).process;
+    delete testGlobals.window;
+    delete testGlobals.process;
   });
 
   afterEach(() => {
-    (global as any).window = originalWindow;
-    (global as any).process = originalProcess;
+    testGlobals.window = originalWindow as DebugWindow | undefined;
+    testGlobals.process = originalProcess;
   });
 
   it("Production mode ignores __DASHBOARD_DEBUG__", () => {
     // Set production environment
-    (global as any).process = { env: { NODE_ENV: "production" } };
-    (global as any).window = { __DASHBOARD_DEBUG__: true };
+    testGlobals.process = { env: { NODE_ENV: "production" } } as unknown as NodeJS.Process;
+    testGlobals.window = { __DASHBOARD_DEBUG__: true } as DebugWindow;
 
     // Re-evaluate the metrics collector logic
     const IS_PRODUCTION =
       typeof process !== "undefined" && process.env.NODE_ENV === "production";
     const DEBUG_ENABLED =
       !IS_PRODUCTION &&
-      ((typeof window !== "undefined" && (window as any).__DASHBOARD_DEBUG__) ||
+      ((typeof window !== "undefined" && window.__DASHBOARD_DEBUG__) ||
         (typeof window !== "undefined" &&
           new URLSearchParams(window.location?.search || "").has("debug")));
 
@@ -46,16 +70,16 @@ describe("Metrics Collector (Phase 4)", () => {
   });
 
   it("Production mode ignores ?debug param", () => {
-    (global as any).process = { env: { NODE_ENV: "production" } };
-    (global as any).window = {
+    testGlobals.process = { env: { NODE_ENV: "production" } } as unknown as NodeJS.Process;
+    testGlobals.window = {
       location: { search: "?debug" },
-    };
+    } as DebugWindow;
 
     const IS_PRODUCTION =
       typeof process !== "undefined" && process.env.NODE_ENV === "production";
     const DEBUG_ENABLED =
       !IS_PRODUCTION &&
-      ((typeof window !== "undefined" && (window as any).__DASHBOARD_DEBUG__) ||
+      ((typeof window !== "undefined" && window.__DASHBOARD_DEBUG__) ||
         (typeof window !== "undefined" &&
           new URLSearchParams(window.location?.search || "").has("debug")));
 
@@ -64,30 +88,30 @@ describe("Metrics Collector (Phase 4)", () => {
 
   it("Debug mode enables metrics with __DASHBOARD_DEBUG__", () => {
     // In JSDOM v26+, we need to use the existing window object rather than replacing it
-    const originalDashboardDebug = (window as any).__DASHBOARD_DEBUG__;
+    const originalDashboardDebug = window.__DASHBOARD_DEBUG__;
 
     // Set development environment on process
-    (global as any).process = { env: { NODE_ENV: "development" } };
-    (window as any).__DASHBOARD_DEBUG__ = true;
+    testGlobals.process = { env: { NODE_ENV: "development" } } as unknown as NodeJS.Process;
+    window.__DASHBOARD_DEBUG__ = true;
 
     const IS_PRODUCTION =
       typeof process !== "undefined" && process.env.NODE_ENV === "production";
     const DEBUG_ENABLED =
       !IS_PRODUCTION &&
-      ((typeof window !== "undefined" && (window as any).__DASHBOARD_DEBUG__) ||
+      ((typeof window !== "undefined" && window.__DASHBOARD_DEBUG__) ||
         (typeof window !== "undefined" &&
           new URLSearchParams(window.location?.search || "").has("debug")));
 
     expect(DEBUG_ENABLED).toBe(true);
 
     // Cleanup
-    (window as any).__DASHBOARD_DEBUG__ = originalDashboardDebug;
+    window.__DASHBOARD_DEBUG__ = originalDashboardDebug;
   });
 
   it("Debug mode enables metrics with ?debug param", () => {
     // For testing URL query params, we need to use history API or jsdom's URL setup
     // Since we can't easily change window.location.search, we test the URLSearchParams logic directly
-    (global as any).process = { env: { NODE_ENV: "development" } };
+    testGlobals.process = { env: { NODE_ENV: "development" } } as unknown as NodeJS.Process;
 
     const IS_PRODUCTION =
       typeof process !== "undefined" && process.env.NODE_ENV === "production";
@@ -110,29 +134,29 @@ describe("Metrics Collector (Phase 4)", () => {
     const collector = {
       marks: new Map<string, number>(),
       mark(name: string) {
-        (global as any).performance.mark(name);
-        this.marks.set(name, (global as any).performance.now());
+        testGlobals.performance.mark(name);
+        this.marks.set(name, testGlobals.performance.now());
       },
     };
 
     collector.mark("test-mark");
 
     expect(collector.marks.has("test-mark")).toBe(true);
-    expect((global as any).performance.marks.has("test-mark")).toBe(true);
+    expect(testGlobals.performance.marks.has("test-mark")).toBe(true);
   });
 
   it("Metrics collector measure() creates performance measure", () => {
     // Test collector behavior with our polyfill (no guards needed in test env)
-    const collector = {
-      marks: new Map<string, number>(),
-      measures: [] as any[],
+      const collector = {
+        marks: new Map<string, number>(),
+      measures: [] as MetricMeasure[],
       mark(name: string) {
-        (global as any).performance.mark(name);
-        this.marks.set(name, (global as any).performance.now());
+        testGlobals.performance.mark(name);
+        this.marks.set(name, testGlobals.performance.now());
       },
       measure(name: string, startMark: string, endMark: string) {
-        (global as any).performance.measure(name, startMark, endMark);
-        const entries = (global as any).performance.getEntriesByName(
+        testGlobals.performance.measure(name, startMark, endMark);
+        const entries = testGlobals.performance.getEntriesByName(
           name,
           "measure",
         );
@@ -157,18 +181,18 @@ describe("Metrics Collector (Phase 4)", () => {
 
   it("Metrics collector reset() clears all metrics", () => {
     // Test collector behavior with our polyfill (no guards needed in test env)
-    const collector = {
-      marks: new Map<string, number>(),
-      measures: [] as any[],
+      const collector = {
+        marks: new Map<string, number>(),
+      measures: [] as MetricMeasure[],
       mark(name: string) {
-        (global as any).performance.mark(name);
-        this.marks.set(name, (global as any).performance.now());
+        testGlobals.performance.mark(name);
+        this.marks.set(name, testGlobals.performance.now());
       },
       reset() {
         this.marks.clear();
         this.measures = [];
-        (global as any).performance.clearMarks();
-        (global as any).performance.clearMeasures();
+        testGlobals.performance.clearMarks();
+        testGlobals.performance.clearMeasures();
       },
     };
 

@@ -36,19 +36,12 @@ export function renderDelta(
   const isPositive = percentChange > 0;
   const absChange = Math.abs(percentChange);
 
-  let cssClass = "metric-delta ";
-  let arrow = "";
-
-  if (isNeutral) {
-    cssClass += "delta-neutral";
-    arrow = "~";
-  } else if (isPositive) {
-    cssClass += inverse ? "delta-negative-inverse" : "delta-positive";
-    arrow = "&#9650;"; // Up arrow
-  } else {
-    cssClass += inverse ? "delta-positive-inverse" : "delta-negative";
-    arrow = "&#9660;"; // Down arrow
-  }
+  const cssClass = isNeutral
+    ? "metric-delta delta-neutral"
+    : isPositive
+      ? `metric-delta ${inverse ? "delta-negative-inverse" : "delta-positive"}`
+      : `metric-delta ${inverse ? "delta-positive-inverse" : "delta-negative"}`;
+  const arrow = isNeutral ? "~" : isPositive ? "&#9650;" : "&#9660;";
 
   const sign = isPositive ? "+" : "";
   element.className = cssClass;

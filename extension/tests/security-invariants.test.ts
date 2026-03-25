@@ -7,9 +7,12 @@
  * SECURITY: These tests should NEVER be disabled or bypassed.
  */
 
-import * as fs from "fs";
 import * as path from "path";
-import { execSync } from "child_process";
+import {
+  pathExists,
+  readDirEntries,
+  readTextFile,
+} from "./helpers/fs-test-utils";
 
 describe("Security Invariants", () => {
   const extensionRoot = path.join(__dirname, "..", "..");
@@ -21,7 +24,7 @@ describe("Security Invariants", () => {
     const results: string[] = [];
 
     try {
-      const entries = fs.readdirSync(dir, { withFileTypes: true });
+      const entries = readDirEntries(dir);
       for (const entry of entries) {
         const fullPath = path.join(dir, entry.name);
 
@@ -47,14 +50,6 @@ describe("Security Invariants", () => {
     return results;
   }
 
-  /**
-   * Check if a file contains a pattern.
-   */
-  function fileContainsPattern(filePath: string, pattern: RegExp): boolean {
-    const content = fs.readFileSync(filePath, "utf-8");
-    return pattern.test(content);
-  }
-
   test("No shell: true in extension source code", () => {
     // SECURITY: shell: true enables command injection attacks
     const files = findFiles(
@@ -68,7 +63,7 @@ describe("Security Invariants", () => {
       // Skip test files for this check (tests may document the anti-pattern)
       if (file.includes(".test.")) continue;
 
-      const content = fs.readFileSync(file, "utf-8");
+      const content = readTextFile(file);
 
       // Check for explicit shell: true
       if (/shell:\s*true/.test(content)) {
@@ -119,11 +114,10 @@ describe("Security Invariants", () => {
       // Skip test files
       if (file.includes(".test.")) continue;
 
-      const content = fs.readFileSync(file, "utf-8");
+      const content = readTextFile(file);
       const lines = content.split("\n");
 
-      for (let i = 0; i < lines.length; i++) {
-        const line = lines[i];
+      lines.forEach((line, index) => {
 
         // Check for innerHTML with template literals
         if (/\.innerHTML\s*\+?=\s*`/.test(line) && /\$\{[^}]+\}/.test(line)) {
@@ -152,12 +146,12 @@ describe("Security Invariants", () => {
 
               // This is a potential violation
               violations.push(
-                `${file}:${i + 1}: innerHTML with ${varName} - must use escapeHtml() or safeHtml()`,
+                `${file}:${index + 1}: innerHTML with ${varName} - must use escapeHtml() or safeHtml()`,
               );
             }
           }
         }
-      }
+      });
     }
 
     // ENFORCEMENT: Test must fail if violations found
@@ -178,9 +172,9 @@ describe("Security Invariants", () => {
       "safe-process.ts",
     );
 
-    expect(fs.existsSync(safeProcessPath)).toBe(true);
+    expect(pathExists(safeProcessPath)).toBe(true);
 
-    const content = fs.readFileSync(safeProcessPath, "utf-8");
+    const content = readTextFile(safeProcessPath);
     expect(content).toContain("PYTHON_ALLOWLIST");
     expect(content).toContain("shell: false");
   });
@@ -195,9 +189,9 @@ describe("Security Invariants", () => {
       "safe-path.ts",
     );
 
-    expect(fs.existsSync(safePathPath)).toBe(true);
+    expect(pathExists(safePathPath)).toBe(true);
 
-    const content = fs.readFileSync(safePathPath, "utf-8");
+    const content = readTextFile(safePathPath);
     expect(content).toContain("resolveInside");
     expect(content).toContain("Path traversal");
   });
@@ -213,9 +207,9 @@ describe("Security Invariants", () => {
       "render.ts",
     );
 
-    expect(fs.existsSync(renderPath)).toBe(true);
+    expect(pathExists(renderPath)).toBe(true);
 
-    const content = fs.readFileSync(renderPath, "utf-8");
+    const content = readTextFile(renderPath);
     expect(content).toContain("clearElement");
     expect(content).toContain("renderTrustedHtml");
     expect(content).toContain("renderNoData");
@@ -236,17 +230,16 @@ describe("Security Invariants", () => {
     for (const file of uiFiles) {
       if (file.includes(".test.")) continue;
 
-      const content = fs.readFileSync(file, "utf-8");
+      const content = readTextFile(file);
       const lines = content.split("\n");
 
-      for (let i = 0; i < lines.length; i++) {
-        const line = lines[i];
+      lines.forEach((line, index) => {
         if (/\.outerHTML\s*=/.test(line)) {
           violations.push(
-            `${file}:${i + 1}: outerHTML assignment is forbidden`,
+            `${file}:${index + 1}: outerHTML assignment is forbidden`,
           );
         }
-      }
+      });
     }
 
     expect(violations).toEqual([]);
@@ -264,15 +257,16 @@ describe("Security Invariants", () => {
     for (const file of uiFiles) {
       if (file.includes(".test.")) continue;
 
-      const content = fs.readFileSync(file, "utf-8");
+      const content = readTextFile(file);
       const lines = content.split("\n");
 
-      for (let i = 0; i < lines.length; i++) {
-        const line = lines[i];
+      lines.forEach((line, index) => {
         if (/document\.write(ln)?\s*\(/.test(line)) {
-          violations.push(`${file}:${i + 1}: document.write is forbidden`);
+          violations.push(
+            `${file}:${index + 1}: document.write is forbidden`,
+          );
         }
-      }
+      });
     }
 
     expect(violations).toEqual([]);

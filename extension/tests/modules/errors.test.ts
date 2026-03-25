@@ -15,9 +15,10 @@ import {
   showLoading,
   showContent,
 } from "../../ui/modules/errors";
+import type {
+  ErrorTypes} from "../../ui/error-types";
 import {
   PrInsightsError,
-  ErrorTypes,
   createSetupRequiredError,
   createMultiplePipelinesError,
   createPermissionDeniedError,

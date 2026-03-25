@@ -11,8 +11,8 @@
  * fully eliminated and ArtifactClient is used exclusively.
  */
 
-import * as fs from "fs";
 import * as path from "path";
+import { readTextFile } from "./helpers/fs-test-utils";
 
 describe("Build API Call Patterns", () => {
   describe("ArtifactClient encapsulation", () => {
@@ -26,7 +26,7 @@ describe("Build API Call Patterns", () => {
 
     it("should verify dashboard.ts uses artifactClient.getDefinitions() (no positional params)", () => {
       const dashboardPath = path.join(__dirname, "../ui/dashboard.ts");
-      const dashboardCode = fs.readFileSync(dashboardPath, "utf8");
+      const dashboardCode = readTextFile(dashboardPath);
 
       // Normalize code to handle multi-line calls
       const normalizedCode = dashboardCode.replace(/\s+/g, " ");
@@ -48,7 +48,7 @@ describe("Build API Call Patterns", () => {
 
     it("should verify settings.ts uses client.getDefinitions() via ArtifactClient", () => {
       const settingsPath = path.join(__dirname, "../ui/settings.ts");
-      const settingsCode = fs.readFileSync(settingsPath, "utf8");
+      const settingsCode = readTextFile(settingsPath);
 
       // Normalize code to handle multi-line calls
       const normalizedCode = settingsCode.replace(/\s+/g, " ");
@@ -68,8 +68,8 @@ describe("Build API Call Patterns", () => {
     it("should verify no legacy getBuildClient calls remain in dashboard.ts or settings.ts", () => {
       const dashboardPath = path.join(__dirname, "../ui/dashboard.ts");
       const settingsPath = path.join(__dirname, "../ui/settings.ts");
-      const dashboardCode = fs.readFileSync(dashboardPath, "utf8");
-      const settingsCode = fs.readFileSync(settingsPath, "utf8");
+      const dashboardCode = readTextFile(dashboardPath);
+      const settingsCode = readTextFile(settingsPath);
 
       expect(dashboardCode).not.toContain("getBuildClient");
       expect(settingsCode).not.toContain("getBuildClient");

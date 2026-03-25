@@ -90,14 +90,18 @@ def main_branch_suppression_baseline() -> Path | None:
     return baseline_path
 
 
-def build_commands(suppression_baseline: Path | None) -> tuple[CommandSpec, ...]:
+def build_commands(
+    suppression_baseline: Path | None, *, strict: bool = False
+) -> tuple[CommandSpec, ...]:
     local_suppression_gate = ["__PYTHON__", "scripts/audit-suppressions.py", "--diff"]
     suppression_preview_command = [
         "__PYTHON__",
         "scripts/audit-suppressions.py",
         "--diff",
-        "--allow-pending-approval",
     ]
+    if not strict:
+        # In non-strict mode, warn but don't block on suppression increases
+        suppression_preview_command.append("--allow-pending-approval")
     if suppression_baseline is not None:
         suppression_preview_command.extend(("--baseline", str(suppression_baseline)))
 
@@ -190,6 +194,11 @@ def build_commands(suppression_baseline: Path | None) -> tuple[CommandSpec, ...]
                 "--reporters=jest-junit",
                 "--testPathIgnorePatterns=vsix-artifact-inspection",
             ),
+            cwd=EXTENSION_ROOT,
+        ),
+        CommandSpec(
+            "Extension VSIX artifact inspection",
+            (PNPM_SENTINEL, "run", "test:vsix"),
             cwd=EXTENSION_ROOT,
         ),
         CommandSpec(
@@ -462,6 +471,12 @@ def parse_args() -> argparse.Namespace:
         action="store_true",
         help="Only validate runner prerequisites and subprocess plumbing.",
     )
+    parser.add_argument(
+        "--strict",
+        action="store_true",
+        help="Run in strict CI-parity mode: suppression increases block the push "
+        "(no --allow-pending-approval). Automatically enabled for refactor/* branches.",
+    )
     return parser.parse_args()
 
 
@@ -491,7 +506,9 @@ def main() -> int:
         safe_print("\n[OK] PR preflight self-check passed")
         return 0
 
-    commands = build_commands(main_branch_suppression_baseline())
+    if args.strict:
+        safe_print("[strict] CI-parity mode: suppression increases will block")
+    commands = build_commands(main_branch_suppression_baseline(), strict=args.strict)
     for spec in commands:
         run_command(
             spec,

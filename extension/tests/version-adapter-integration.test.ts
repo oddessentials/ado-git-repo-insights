@@ -6,19 +6,48 @@
  */
 
 import { DatasetLoader } from "../ui/dataset-loader";
-import * as fs from "fs";
 import * as path from "path";
+import { readTextFile } from "./helpers/fs-test-utils";
+
+type DatasetFetchContext =
+  Parameters<DatasetLoader["getWeeklyRollupsWithProgress"]>[2];
+type MockFetch = jest.MockedFunction<typeof fetch>;
+type ErrnoException = Error & { code?: string };
+type TestManifest = {
+  manifest_schema_version: number;
+  dataset_schema_version: number;
+  aggregates_schema_version: number;
+  generated_at: string;
+  run_id: string;
+  coverage: { total_prs: number; date_range: { min: string; max: string } };
+  features?: Record<string, unknown>;
+  capabilities?: Record<string, unknown>;
+  aggregate_index: {
+    weekly_rollups: Array<{ week: string; path: string }>;
+    distributions: unknown[];
+  };
+};
+
+function createJsonResponse(body: unknown, status = 200): Response {
+  return {
+    ok: status >= 200 && status < 300,
+    status,
+    statusText: status === 200 ? "OK" : "Error",
+    json: async () => body,
+  } as Response;
+}
 
 describe("Version Adapter Integration", () => {
   const fixtureDir = path.join(__dirname, "fixtures", "legacy-datasets");
+  const globalScope = global as typeof globalThis & { fetch: MockFetch };
 
   beforeEach(() => {
     jest.resetModules();
-    (global as any).fetch.mockReset();
+    globalScope.fetch.mockReset();
 
     // Configure fetch mock to read fixture files from disk
     // DatasetLoader calls: fetch(baseUrl + '/' + relativePath)
-    (global as any).fetch.mockImplementation(async (url: string) => {
+    globalScope.fetch.mockImplementation(async (url: string) => {
       // URL format: fixtureDir/dataset-manifest.json or fixtureDir/v1.0-rollup.json
       // We need to extract the filename from the URL
       let filePath: string;
@@ -40,15 +69,12 @@ describe("Version Adapter Integration", () => {
       }
 
       try {
-        const content = fs.readFileSync(filePath, "utf-8");
-        return {
-          ok: true,
-          status: 200,
-          json: async () => JSON.parse(content),
-        };
-      } catch (err: any) {
+        const content = readTextFile(filePath);
+        return createJsonResponse(JSON.parse(content));
+      } catch (error: unknown) {
+        const err = error as ErrnoException;
         if (err.code === "ENOENT") {
-          return { ok: false, status: 404, statusText: "Not Found" };
+          return { ok: false, status: 404, statusText: "Not Found" } as Response;
         }
         throw err;
       }
@@ -152,34 +178,27 @@ describe("Version Adapter Integration", () => {
       };
 
       // Override manifest to include current rollup
-      (global as any).fetch.mockImplementation(async (url: string) => {
+      globalScope.fetch.mockImplementation(async (url: string) => {
         if (url.includes("manifest")) {
-          return {
-            ok: true,
-            status: 200,
-            json: async () => ({
-              manifest_schema_version: 1,
-              dataset_schema_version: 1,
-              aggregates_schema_version: 1,
-              generated_at: "2026-01-14T12:00:00Z",
-              run_id: "test-run-123",
-              coverage: {
-                total_prs: 50,
-                date_range: { min: "2026-01-01", max: "2026-01-07" },
-              },
-              features: {},
-              aggregate_index: {
-                weekly_rollups: [{ week: "2026-W01", path: "current.json" }],
-                distributions: [],
-              },
-            }),
+          const manifest: TestManifest = {
+            manifest_schema_version: 1,
+            dataset_schema_version: 1,
+            aggregates_schema_version: 1,
+            generated_at: "2026-01-14T12:00:00Z",
+            run_id: "test-run-123",
+            coverage: {
+              total_prs: 50,
+              date_range: { min: "2026-01-01", max: "2026-01-07" },
+            },
+            features: {},
+            aggregate_index: {
+              weekly_rollups: [{ week: "2026-W01", path: "current.json" }],
+              distributions: [],
+            },
           };
+          return createJsonResponse(manifest);
         }
-        return {
-          ok: true,
-          status: 200,
-          json: async () => currentRollup,
-        };
+        return createJsonResponse(currentRollup);
       });
 
       const loader = new DatasetLoader(fixtureDir);
@@ -205,41 +224,43 @@ describe("Version Adapter Integration", () => {
 
   describe("Capability precedence", () => {
     it("prefers manifest capability flags over schema-version inference", async () => {
-      (global as any).fetch.mockImplementation(async (url: string) => {
+      globalScope.fetch.mockImplementation(async (url: string) => {
         if (url.includes("manifest")) {
-          return {
-            ok: true,
-            status: 200,
-            json: async () => ({
-              manifest_schema_version: 1,
-              dataset_schema_version: 1,
-              aggregates_schema_version: 2,
-              generated_at: "2026-01-14T12:00:00Z",
-              run_id: "test-run-123",
-              capabilities: {
-                author_filters: false,
-                author_repo_exact: false,
-                comments_metrics: true,
-                reviewer_repository_mode: "constrained",
-                reviewer_team_mode: "disallowed",
-                cross_dimensional_available: false,
-              },
-              coverage: {
-                total_prs: 1,
-                date_range: { min: "2026-01-01", max: "2026-01-07" },
-                comments: {
-                  status: "partial",
-                  threads_fetched: 4,
-                  comments_fetched: 12,
-                  prs_with_threads: 1,
-                  capped: true,
-                },
-              },
-              aggregate_index: { weekly_rollups: [], distributions: [] },
-            }),
+          const manifest: TestManifest = {
+            manifest_schema_version: 1,
+            dataset_schema_version: 1,
+            aggregates_schema_version: 2,
+            generated_at: "2026-01-14T12:00:00Z",
+            run_id: "test-run-123",
+            capabilities: {
+              author_filters: false,
+              author_repo_exact: false,
+              comments_metrics: true,
+              reviewer_repository_mode: "constrained",
+              reviewer_team_mode: "disallowed",
+              cross_dimensional_available: false,
+            },
+            coverage: {
+              total_prs: 1,
+              date_range: { min: "2026-01-01", max: "2026-01-07" },
+            },
+            aggregate_index: { weekly_rollups: [], distributions: [] },
           };
+          return createJsonResponse({
+            ...manifest,
+            coverage: {
+              ...manifest.coverage,
+              comments: {
+                status: "partial",
+                threads_fetched: 4,
+                comments_fetched: 12,
+                prs_with_threads: 1,
+                capped: true,
+              },
+            },
+          });
         }
-        return { ok: false, status: 404, statusText: "Not Found" };
+        return { ok: false, status: 404, statusText: "Not Found" } as Response;
       });
 
       const loader = new DatasetLoader(fixtureDir);
@@ -280,7 +301,11 @@ describe("Version Adapter Integration", () => {
       const result = await loader.getWeeklyRollupsWithProgress(
         new Date("2024-01-01"),
         new Date("2024-01-07"),
-        { week: "2024-W01", org: "test", project: "test", repo: "test" } as any,
+        {
+          org: "test",
+          project: "test",
+          repo: "test",
+        } satisfies DatasetFetchContext,
       );
 
       expect(result.data.length).toBe(1);
@@ -295,35 +320,28 @@ describe("Version Adapter Integration", () => {
   describe("Graceful degradation", () => {
     it("throws SchemaValidationError for malformed rollup data", async () => {
       // Mock a completely malformed rollup - now with schema validation, this throws
-      (global as any).fetch.mockImplementation(async (url: string) => {
+      globalScope.fetch.mockImplementation(async (url: string) => {
         if (url.includes("manifest")) {
-          return {
-            ok: true,
-            status: 200,
-            json: async () => ({
-              manifest_schema_version: 1,
-              dataset_schema_version: 1,
-              aggregates_schema_version: 1,
-              generated_at: "2024-01-14T12:00:00Z",
-              run_id: "test-run-123",
-              coverage: {
-                total_prs: 1,
-                date_range: { min: "2024-01-01", max: "2024-01-07" },
-              },
-              features: {},
-              aggregate_index: {
-                weekly_rollups: [{ week: "2024-W01", path: "malformed.json" }],
-                distributions: [],
-              },
-            }),
+          const manifest: TestManifest = {
+            manifest_schema_version: 1,
+            dataset_schema_version: 1,
+            aggregates_schema_version: 1,
+            generated_at: "2024-01-14T12:00:00Z",
+            run_id: "test-run-123",
+            coverage: {
+              total_prs: 1,
+              date_range: { min: "2024-01-01", max: "2024-01-07" },
+            },
+            features: {},
+            aggregate_index: {
+              weekly_rollups: [{ week: "2024-W01", path: "malformed.json" }],
+              distributions: [],
+            },
           };
+          return createJsonResponse(manifest);
         }
         // Return malformed data - missing required fields
-        return {
-          ok: true,
-          status: 200,
-          json: async () => ({ invalid: true }),
-        };
+        return createJsonResponse({ invalid: true });
       });
 
       const loader = new DatasetLoader(fixtureDir);

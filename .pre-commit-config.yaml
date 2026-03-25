@@ -6,7 +6,7 @@
 
 repos:
   - repo: https://github.com/astral-sh/ruff-pre-commit
-    rev: v0.15.6
+    rev: v0.15.7
     hooks:
       - id: ruff
         # Auto-fix on commit for a smoother DX; re-run hook will verify clean.

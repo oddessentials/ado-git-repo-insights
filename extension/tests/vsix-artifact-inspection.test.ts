@@ -69,9 +69,13 @@ describe("VSIX Artifact Inspection (Tier B)", () => {
           { encoding: "utf-8", cwd: extensionDir },
         );
         vsixContents = output.split(/\r?\n/).filter((l) => l.trim());
-      } catch (e) {
+      } catch (error) {
         if (vsixRequired) {
-          throw new Error(`Failed to read VSIX contents on Windows: ${e}`);
+          const wrappedError = new Error(
+            `Failed to read VSIX contents on Windows: ${error}`,
+          );
+          (wrappedError as Error & { cause?: unknown }).cause = error;
+          throw wrappedError;
         }
       }
     } else {
@@ -88,9 +92,13 @@ describe("VSIX Artifact Inspection (Tier B)", () => {
         vsixContents = output
           .split(/\r?\n/)
           .filter((l) => l && !l.includes("---"));
-      } catch (e) {
+      } catch (error) {
         if (vsixRequired) {
-          throw new Error(`Failed to read VSIX contents on Unix: ${e}`);
+          const wrappedError = new Error(
+            `Failed to read VSIX contents on Unix: ${error}`,
+          );
+          (wrappedError as Error & { cause?: unknown }).cause = error;
+          throw wrappedError;
         }
       }
     }

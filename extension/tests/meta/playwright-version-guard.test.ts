@@ -11,8 +11,13 @@
  * @see specs/022-deterministic-smoke-tests/contracts/test-contracts.md
  */
 
-import * as fs from "fs";
 import * as path from "path";
+import { readJsonFile } from "../helpers/fs-test-utils";
+
+interface PackageJsonDeps {
+  dependencies?: Record<string, string>;
+  devDependencies?: Record<string, string>;
+}
 
 describe("Playwright Version Guard", () => {
   /**
@@ -23,7 +28,7 @@ describe("Playwright Version Guard", () => {
    */
   it("DC-001: Playwright version is exactly pinned", () => {
     const packageJsonPath = path.resolve(__dirname, "../../package.json");
-    const packageJson = JSON.parse(fs.readFileSync(packageJsonPath, "utf-8"));
+    const packageJson = readJsonFile<PackageJsonDeps>(packageJsonPath);
 
     const playwrightVersion =
       packageJson.devDependencies?.["@playwright/test"] ||
@@ -54,7 +59,7 @@ describe("Playwright Version Guard", () => {
    */
   it("serve package version is pinned", () => {
     const packageJsonPath = path.resolve(__dirname, "../../package.json");
-    const packageJson = JSON.parse(fs.readFileSync(packageJsonPath, "utf-8"));
+    const packageJson = readJsonFile<PackageJsonDeps>(packageJsonPath);
 
     const serveVersion =
       packageJson.devDependencies?.["serve"] ||

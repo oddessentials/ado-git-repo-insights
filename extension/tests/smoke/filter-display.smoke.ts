@@ -56,8 +56,10 @@ test.describe("Filter Display Smoke Tests", () => {
     let manifest: ManifestFixture;
     try {
       manifest = JSON.parse(content);
-    } catch (e) {
-      throw new Error(`Invalid JSON in fixture: ${e}`);
+    } catch (error) {
+      const wrappedError = new Error(`Invalid JSON in fixture: ${error}`);
+      (wrappedError as Error & { cause?: unknown }).cause = error;
+      throw wrappedError;
     }
 
     // Validate required fields

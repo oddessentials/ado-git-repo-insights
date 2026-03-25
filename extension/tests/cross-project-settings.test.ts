@@ -5,8 +5,12 @@
  * implemented in dashboard.ts and settings.ts.
  */
 
-import * as fs from "fs";
 import * as path from "path";
+import { readJsonFile, readTextFile } from "./helpers/fs-test-utils";
+
+interface ExtensionManifest {
+  scopes: string[];
+}
 
 describe("Cross-Project Settings", () => {
   describe("dashboard.ts configuration", () => {
@@ -14,7 +18,7 @@ describe("Cross-Project Settings", () => {
 
     beforeAll(() => {
       const dashboardPath = path.join(__dirname, "../ui/dashboard.ts");
-      dashboardCode = fs.readFileSync(dashboardPath, "utf8");
+      dashboardCode = readTextFile(dashboardPath);
     });
 
     it("should have SETTINGS_KEY_PROJECT constant", () => {
@@ -68,7 +72,7 @@ describe("Cross-Project Settings", () => {
 
     beforeAll(() => {
       const settingsPath = path.join(__dirname, "../ui/settings.ts");
-      settingsCode = fs.readFileSync(settingsPath, "utf8");
+      settingsCode = readTextFile(settingsPath);
     });
 
     it("should have SETTINGS_KEY_PROJECT constant matching dashboard", () => {
@@ -113,8 +117,8 @@ describe("Cross-Project Settings", () => {
       const dashboardPath = path.join(__dirname, "../ui/dashboard.ts");
       const settingsPath = path.join(__dirname, "../ui/settings.ts");
 
-      const dashboardCode = fs.readFileSync(dashboardPath, "utf8");
-      const settingsCode = fs.readFileSync(settingsPath, "utf8");
+      const dashboardCode = readTextFile(dashboardPath);
+      const settingsCode = readTextFile(settingsPath);
 
       // Extract settings keys from both files (double quotes from Prettier)
       const dashboardProjectKey = dashboardCode.match(
@@ -141,11 +145,11 @@ describe("Cross-Project Settings", () => {
   });
 
   describe("vss-extension.json manifest", () => {
-    let manifest: any;
+    let manifest: ExtensionManifest;
 
     beforeAll(() => {
       const manifestPath = path.join(__dirname, "../vss-extension.json");
-      manifest = JSON.parse(fs.readFileSync(manifestPath, "utf8"));
+      manifest = readJsonFile<ExtensionManifest>(manifestPath);
     });
 
     it("should have vso.project scope for listing projects", () => {

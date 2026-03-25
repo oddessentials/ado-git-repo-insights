@@ -1,23 +1,25 @@
 {
   "version": 1,
-  "generated_at": "2026-02-03T02:38:54Z",
+  "generated_at": "2026-03-25T18:38:04Z",
   "total": 46,
   "by_scope": {
     "python-backend": 9,
-    "typescript-extension": 36,
-    "typescript-tests": 1
+    "typescript-extension": 33,
+    "typescript-tests": 4
   },
   "by_type": {
-    "eslint-disable-block": 1,
+    "eslint-disable-block": 2,
     "eslint-disable-line": 0,
-    "eslint-disable-next-line": 36,
+    "eslint-disable-next-line": 35,
     "noqa": 9,
     "ts-expect-error": 0,
     "ts-ignore": 0,
     "type-ignore": 0
   },
   "by_file": {
-    "extension/tests/local-mode-integration.test.ts": 1,
+    "extension/tests/dashboard.test.ts": 1,
+    "extension/tests/helpers/fs-test-utils.ts": 1,
+    "extension/tests/production-issues.test.ts": 2,
     "extension/ui/artifact-client.ts": 3,
     "extension/ui/dashboard.ts": 2,
     "extension/ui/dataset-loader.ts": 2,
@@ -25,7 +27,7 @@
     "extension/ui/modules/charts/cycle-time.ts": 1,
     "extension/ui/modules/charts/predictions.ts": 4,
     "extension/ui/modules/dom.ts": 5,
-    "extension/ui/modules/metrics.ts": 4,
+    "extension/ui/modules/metrics.ts": 1,
     "extension/ui/modules/ml.ts": 1,
     "extension/ui/modules/shared/format.ts": 2,
     "extension/ui/modules/shared/security.ts": 1,
@@ -39,14 +41,14 @@
     "src/ado_git_repo_insights/utils/run_summary.py": 1
   },
   "by_rule": {
-    "@typescript-eslint/no-explicit-any": 10,
-    "@typescript-eslint/no-non-null-assertion": 2,
+    "@typescript-eslint/no-explicit-any": 9,
     "F401": 3,
     "S311": 2,
     "S603": 1,
     "S607": 1,
     "S608": 1,
     "UP006": 2,
-    "security/detect-object-injection": 24
+    "prefer-const": 3,
+    "security/detect-object-injection": 23
   }
 }

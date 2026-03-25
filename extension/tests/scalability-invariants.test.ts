@@ -13,8 +13,8 @@
  * - Comment extraction enabled
  */
 
-import * as fs from "fs";
 import * as path from "path";
+import { pathExists, readTextFile } from "./helpers/fs-test-utils";
 
 describe("Scalability Invariants", () => {
   const extensionRoot = path.join(__dirname, "..");
@@ -23,9 +23,9 @@ describe("Scalability Invariants", () => {
   describe("Chart Data Caps", () => {
     test("Throughput chart has MAX_THROUGHPUT_POINTS defined", () => {
       const filePath = path.join(chartsDir, "throughput.ts");
-      expect(fs.existsSync(filePath)).toBe(true);
+      expect(pathExists(filePath)).toBe(true);
 
-      const content = fs.readFileSync(filePath, "utf-8");
+      const content = readTextFile(filePath);
       const hasMaxPoints =
         /MAX_THROUGHPUT_POINTS\s*=\s*\d+/.test(content) ||
         /const\s+MAX_THROUGHPUT_POINTS/.test(content);
@@ -35,9 +35,9 @@ describe("Scalability Invariants", () => {
 
     test("Cycle time chart has MAX_CYCLE_TIME_POINTS defined", () => {
       const filePath = path.join(chartsDir, "cycle-time.ts");
-      expect(fs.existsSync(filePath)).toBe(true);
+      expect(pathExists(filePath)).toBe(true);
 
-      const content = fs.readFileSync(filePath, "utf-8");
+      const content = readTextFile(filePath);
       const hasMaxPoints =
         /MAX_CYCLE_TIME_POINTS\s*=\s*\d+/.test(content) ||
         /const\s+MAX_CYCLE_TIME_POINTS/.test(content);
@@ -47,9 +47,9 @@ describe("Scalability Invariants", () => {
 
     test("Predictions chart has MAX_CHART_POINTS defined", () => {
       const filePath = path.join(chartsDir, "predictions.ts");
-      expect(fs.existsSync(filePath)).toBe(true);
+      expect(pathExists(filePath)).toBe(true);
 
-      const content = fs.readFileSync(filePath, "utf-8");
+      const content = readTextFile(filePath);
       const hasMaxPoints = /MAX_CHART_POINTS\s*=\s*\d+/.test(content);
 
       expect(hasMaxPoints).toBe(true);
@@ -57,9 +57,9 @@ describe("Scalability Invariants", () => {
 
     test("ML module has MAX_SPARKLINE_POINTS defined", () => {
       const filePath = path.join(extensionRoot, "ui", "modules", "ml.ts");
-      expect(fs.existsSync(filePath)).toBe(true);
+      expect(pathExists(filePath)).toBe(true);
 
-      const content = fs.readFileSync(filePath, "utf-8");
+      const content = readTextFile(filePath);
       const hasMaxPoints = /MAX_SPARKLINE_POINTS\s*=\s*\d+/.test(content);
 
       expect(hasMaxPoints).toBe(true);
@@ -75,9 +75,9 @@ describe("Scalability Invariants", () => {
     );
 
     test("Generator supports --users argument", () => {
-      expect(fs.existsSync(generatorPath)).toBe(true);
+      expect(pathExists(generatorPath)).toBe(true);
 
-      const content = fs.readFileSync(generatorPath, "utf-8");
+      const content = readTextFile(generatorPath);
       const hasUsersArg =
         /--users/.test(content) || /add_argument.*users/.test(content);
 
@@ -85,9 +85,9 @@ describe("Scalability Invariants", () => {
     });
 
     test("Generator supports --include-comments flag", () => {
-      expect(fs.existsSync(generatorPath)).toBe(true);
+      expect(pathExists(generatorPath)).toBe(true);
 
-      const content = fs.readFileSync(generatorPath, "utf-8");
+      const content = readTextFile(generatorPath);
       const hasCommentsFlag =
         /--include-comments/.test(content) ||
         /add_argument.*include.?comments/.test(content);
@@ -96,18 +96,18 @@ describe("Scalability Invariants", () => {
     });
 
     test("Generator does not cap users at 30", () => {
-      expect(fs.existsSync(generatorPath)).toBe(true);
+      expect(pathExists(generatorPath)).toBe(true);
 
-      const content = fs.readFileSync(generatorPath, "utf-8");
+      const content = readTextFile(generatorPath);
       const hasOldUserCap = /num_users\s*=\s*min\s*\(\s*30/.test(content);
 
       expect(hasOldUserCap).toBe(false);
     });
 
     test("Generator does not cap weeks at 52", () => {
-      expect(fs.existsSync(generatorPath)).toBe(true);
+      expect(pathExists(generatorPath)).toBe(true);
 
-      const content = fs.readFileSync(generatorPath, "utf-8");
+      const content = readTextFile(generatorPath);
       const hasOldWeekCap = /weeks\s*=\s*min\s*\(\s*52/.test(content);
 
       expect(hasOldWeekCap).toBe(false);
@@ -127,11 +127,11 @@ describe("Scalability Invariants", () => {
       for (const fileName of chartFiles) {
         const filePath = path.join(chartsDir, fileName);
 
-        if (!fs.existsSync(filePath)) {
+        if (!pathExists(filePath)) {
           continue;
         }
 
-        const content = fs.readFileSync(filePath, "utf-8");
+        const content = readTextFile(filePath);
 
         // Check that the file either:
         // 1. Uses .slice() for data limiting, OR
@@ -152,8 +152,6 @@ describe("Scalability Invariants", () => {
 });
 
 describe("Scalability Test Data Requirements", () => {
-  const extensionRoot = path.join(__dirname, "..");
-
   /**
    * These constants define the minimum requirements for scalability testing.
    * Any test dataset claiming to be a "scalability test" must meet these thresholds.

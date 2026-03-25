@@ -14,41 +14,44 @@ import {
   MockArtifactClient,
 } from "../ui/artifact-client";
 import type { ManifestSchema, VSSBuildArtifact } from "../ui/types";
-
-// Mock VSS SDK globally
-declare const VSS: {
+type MockVSS = {
   getWebContext: () => { collection: { uri: string }; project: { id: string } };
   getAccessToken: () => Promise<string | { token: string }>;
+  leakyKey?: string;
 };
 
 describe("ArtifactClient", () => {
   let mockFetch: jest.Mock;
-  let originalVSS: typeof VSS | undefined;
+  const globalScope = global as unknown as {
+    fetch: jest.Mock;
+    VSS?: unknown;
+  };
+  let originalVSS: MockVSS | undefined;
   let originalVSSWasUndefined: boolean;
 
   beforeEach(() => {
     // Setup mock fetch
     mockFetch = jest.fn();
-    (global as any).fetch = mockFetch;
+    globalScope.fetch = mockFetch;
 
     // Setup mock VSS SDK
-    originalVSS = (global as any).VSS;
+    originalVSS = globalScope.VSS as MockVSS | undefined;
     originalVSSWasUndefined = typeof originalVSS === "undefined";
-    (global as any).VSS = {
+    globalScope.VSS = {
       getWebContext: () => ({
         collection: { uri: "https://dev.azure.com/testorg/" },
         project: { id: "test-project-id" },
       }),
       getAccessToken: () => Promise.resolve({ token: "mock-token-12345" }),
-    };
+    } as unknown;
   });
 
   afterEach(() => {
     jest.restoreAllMocks();
     if (originalVSSWasUndefined) {
-      delete (global as any).VSS;
+      delete globalScope.VSS;
     } else {
-      (global as any).VSS = originalVSS;
+      globalScope.VSS = originalVSS as unknown;
     }
   });
 
@@ -75,8 +78,11 @@ describe("ArtifactClient", () => {
     });
 
     it("handles string token format", async () => {
-      (global as any).VSS.getAccessToken = () =>
-        Promise.resolve("string-token");
+      const vss = globalScope.VSS as MockVSS | undefined;
+      if (!vss) {
+        throw new Error("VSS mock not initialized");
+      }
+      vss.getAccessToken = () => Promise.resolve("string-token");
 
       const client = new ArtifactClient("test-project");
       await client.initialize();
@@ -97,7 +103,11 @@ describe("ArtifactClient", () => {
 
     it("only initializes once (idempotent)", async () => {
       const client = new ArtifactClient("test-project");
-      const accessTokenSpy = jest.spyOn((global as any).VSS, "getAccessToken");
+      const vss = globalScope.VSS as MockVSS | undefined;
+      if (!vss) {
+        throw new Error("VSS mock not initialized");
+      }
+      const accessTokenSpy = jest.spyOn(vss, "getAccessToken");
 
       await client.initialize();
       await client.initialize();
@@ -660,12 +670,16 @@ describe("ArtifactClient", () => {
 
   describe("VSS isolation", () => {
     it("does not allow VSS state to leak between tests", () => {
-      (global as any).VSS.leakyKey = "leak";
-      expect((global as any).VSS.leakyKey).toBe("leak");
+      const vss = globalScope.VSS as MockVSS | undefined;
+      if (!vss) {
+        throw new Error("VSS mock not initialized");
+      }
+      vss.leakyKey = "leak";
+      expect(vss.leakyKey).toBe("leak");
     });
 
     it("restores VSS to a clean state", () => {
-      expect((global as any).VSS.leakyKey).toBeUndefined();
+      expect((globalScope.VSS as MockVSS | undefined)?.leakyKey).toBeUndefined();
     });
   });
 });

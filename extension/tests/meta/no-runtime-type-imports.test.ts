@@ -11,9 +11,9 @@
  * @see specs/022-deterministic-smoke-tests/contracts/test-contracts.md
  */
 
-import * as fs from "fs";
 import * as path from "path";
 import { glob } from "glob";
+import { pathExists, readTextFile } from "../helpers/fs-test-utils";
 
 const UI_DIR = path.resolve(__dirname, "../../ui");
 
@@ -45,7 +45,7 @@ describe("No Runtime Type-Test Imports", () => {
     });
 
     for (const file of uiFiles) {
-      const content = fs.readFileSync(file, "utf-8");
+      const content = readTextFile(file);
       const lines = content.split("\n");
 
       lines.forEach((line, index) => {
@@ -74,7 +74,7 @@ describe("No Runtime Type-Test Imports", () => {
    * Ensures the meta-test is scanning the correct location.
    */
   it("ui/ directory exists", () => {
-    if (!fs.existsSync(UI_DIR)) {
+    if (!pathExists(UI_DIR)) {
       throw new Error(`UI directory not found at ${UI_DIR}`);
     }
   });

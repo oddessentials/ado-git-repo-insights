@@ -9,11 +9,29 @@
 
 import { DatasetLoader } from "../ui/dataset-loader";
 
+class TestDatasetLoader extends DatasetLoader {
+  public validatePredictionsSchemaForTest(predictions: unknown) {
+    return this.validatePredictionsSchema(predictions);
+  }
+
+  public validateInsightsSchemaForTest(insights: unknown) {
+    return this.validateInsightsSchema(insights);
+  }
+
+  public setManifestForTest(manifest: unknown): void {
+    this.manifest = manifest;
+  }
+}
+
+const testGlobal = global as typeof globalThis & {
+  fetch: jest.Mock;
+};
+
 describe("DatasetLoader", () => {
-  let loader: DatasetLoader;
+  let loader: TestDatasetLoader;
 
   beforeEach(() => {
-    loader = new DatasetLoader("http://test-api");
+    loader = new TestDatasetLoader("http://test-api");
   });
 
   describe("validatePredictionsSchema", () => {
@@ -37,14 +55,13 @@ describe("DatasetLoader", () => {
         ],
       };
 
-      const result = (loader as any).validatePredictionsSchema(
-        validPredictions,
-      );
+      const result =
+        loader.validatePredictionsSchemaForTest(validPredictions);
       expect(result).toEqual({ valid: true });
     });
 
     it("returns { valid: false, error } for missing data", () => {
-      const result = (loader as any).validatePredictionsSchema(null as any);
+      const result = loader.validatePredictionsSchemaForTest(null);
       expect(result.valid).toBe(false);
       expect(result.error).toBeDefined();
     });
@@ -55,9 +72,8 @@ describe("DatasetLoader", () => {
         forecasts: [],
       };
 
-      const result = (loader as any).validatePredictionsSchema(
-        invalidPredictions as any,
-      );
+      const result =
+        loader.validatePredictionsSchemaForTest(invalidPredictions);
       expect(result.valid).toBe(false);
       expect(result.error).toContain("schema_version");
     });
@@ -69,9 +85,8 @@ describe("DatasetLoader", () => {
         forecasts: [],
       };
 
-      const result = (loader as any).validatePredictionsSchema(
-        futurePredictions as any,
-      );
+      const result =
+        loader.validatePredictionsSchemaForTest(futurePredictions);
       expect(result.valid).toBe(false);
       expect(result.error).toContain("version");
     });
@@ -82,9 +97,8 @@ describe("DatasetLoader", () => {
         generated_at: "2026-01-14T12:00:00Z",
       };
 
-      const result = (loader as any).validatePredictionsSchema(
-        invalidPredictions as any,
-      );
+      const result =
+        loader.validatePredictionsSchemaForTest(invalidPredictions);
       expect(result.valid).toBe(false);
       expect(result.error).toContain("forecasts");
     });
@@ -96,9 +110,8 @@ describe("DatasetLoader", () => {
         forecasts: [{ invalid: true }],
       };
 
-      const result = (loader as any).validatePredictionsSchema(
-        invalidPredictions as any,
-      );
+      const result =
+        loader.validatePredictionsSchemaForTest(invalidPredictions);
       expect(result.valid).toBe(false);
     });
   });
@@ -120,7 +133,7 @@ describe("DatasetLoader", () => {
         ],
       };
 
-      const result = (loader as any).validateInsightsSchema(validInsights);
+      const result = loader.validateInsightsSchemaForTest(validInsights);
       expect(result).toEqual({ valid: true });
     });
 
@@ -130,7 +143,7 @@ describe("DatasetLoader", () => {
 
       testCases.forEach((input) => {
         expect(() => {
-          const result = (loader as any).validateInsightsSchema(input as any);
+          const result = loader.validateInsightsSchemaForTest(input);
           expect(result.valid).toBe(false);
         }).not.toThrow();
       });
@@ -142,9 +155,7 @@ describe("DatasetLoader", () => {
         insights: [],
       };
 
-      const result = (loader as any).validateInsightsSchema(
-        invalidInsights as any,
-      );
+      const result = loader.validateInsightsSchemaForTest(invalidInsights);
       expect(result.valid).toBe(false);
       expect(result.error).toContain("schema_version");
     });
@@ -155,9 +166,7 @@ describe("DatasetLoader", () => {
         generated_at: "2026-01-14T12:00:00Z",
       };
 
-      const result = (loader as any).validateInsightsSchema(
-        invalidInsights as any,
-      );
+      const result = loader.validateInsightsSchemaForTest(invalidInsights);
       expect(result.valid).toBe(false);
       expect(result.error).toContain("insights");
     });
@@ -169,9 +178,7 @@ describe("DatasetLoader", () => {
         insights: [{ id: "test" }], // Missing required fields
       };
 
-      const result = (loader as any).validateInsightsSchema(
-        invalidInsights as any,
-      );
+      const result = loader.validateInsightsSchemaForTest(invalidInsights);
       expect(result.valid).toBe(false);
     });
   });
@@ -185,35 +192,35 @@ describe("DatasetLoader", () => {
     };
 
     beforeEach(async () => {
-      (loader as any).manifest = validManifest;
+      loader.setManifestForTest(validManifest);
     });
 
     it('returns { state: "disabled" } when feature flag is false', async () => {
-      (loader as any).manifest = {
+      loader.setManifestForTest({
         ...validManifest,
         features: { predictions: false },
-      };
+      });
 
       const result = await loader.loadPredictions();
       expect(result).toEqual({ state: "disabled" });
     });
 
     it('returns { state: "missing" } on 404', async () => {
-      (global as any).fetch = jest.fn(() => mockFetch404());
+      testGlobal.fetch = jest.fn(() => mockFetch404());
 
       const result = await loader.loadPredictions();
       expect(result).toEqual({ state: "missing" });
     });
 
     it('returns { state: "auth" } on 401', async () => {
-      (global as any).fetch = jest.fn(() => mockFetch401());
+      testGlobal.fetch = jest.fn(() => mockFetch401());
 
       const result = await loader.loadPredictions();
       expect(result).toEqual({ state: "auth" });
     });
 
     it('returns { state: "auth" } on 403', async () => {
-      (global as any).fetch = jest.fn(() => mockFetch403());
+      testGlobal.fetch = jest.fn(() => mockFetch403());
 
       const result = await loader.loadPredictions();
       expect(result).toEqual({ state: "auth" });
@@ -221,7 +228,7 @@ describe("DatasetLoader", () => {
 
     it('returns { state: "invalid" } on schema failure', async () => {
       const invalidData = { schema_version: 99, forecasts: [] };
-      (global as any).fetch = jest.fn(() => mockFetchResponse(invalidData));
+      testGlobal.fetch = jest.fn(() => mockFetchResponse(invalidData));
 
       const result = await loader.loadPredictions();
       expect(result.state).toBe("invalid");
@@ -248,7 +255,7 @@ describe("DatasetLoader", () => {
           },
         ],
       };
-      (global as any).fetch = jest.fn(() => mockFetchResponse(validData));
+      testGlobal.fetch = jest.fn(() => mockFetchResponse(validData));
 
       const result = await loader.loadPredictions();
       expect(result.state).toBe("ok");
@@ -275,7 +282,7 @@ describe("DatasetLoader", () => {
       ];
 
       for (const { mock, expectedState } of testCases) {
-        (global as any).fetch = jest.fn(mock);
+        testGlobal.fetch = jest.fn(mock);
         const result = await loader.loadPredictions();
         expect(result).not.toBeNull();
         expect(result).not.toBeUndefined();
@@ -293,28 +300,28 @@ describe("DatasetLoader", () => {
     };
 
     beforeEach(async () => {
-      (loader as any).manifest = validManifest;
+      loader.setManifestForTest(validManifest);
     });
 
     it('returns { state: "disabled" } when feature flag is false', async () => {
-      (loader as any).manifest = {
+      loader.setManifestForTest({
         ...validManifest,
         features: { ai_insights: false },
-      };
+      });
 
       const result = await loader.loadInsights();
       expect(result).toEqual({ state: "disabled" });
     });
 
     it('returns { state: "missing" } on 404', async () => {
-      (global as any).fetch = jest.fn(() => mockFetch404());
+      testGlobal.fetch = jest.fn(() => mockFetch404());
 
       const result = await loader.loadInsights();
       expect(result).toEqual({ state: "missing" });
     });
 
     it('returns { state: "auth" } on 401', async () => {
-      (global as any).fetch = jest.fn(() => mockFetch401());
+      testGlobal.fetch = jest.fn(() => mockFetch401());
 
       const result = await loader.loadInsights();
       expect(result).toEqual({ state: "auth" });
@@ -322,7 +329,7 @@ describe("DatasetLoader", () => {
 
     it('returns { state: "invalid" } on schema failure', async () => {
       const invalidData = { schema_version: 99, insights: [] };
-      (global as any).fetch = jest.fn(() => mockFetchResponse(invalidData));
+      testGlobal.fetch = jest.fn(() => mockFetchResponse(invalidData));
 
       const result = await loader.loadInsights();
       expect(result.state).toBe("invalid");
@@ -344,7 +351,7 @@ describe("DatasetLoader", () => {
           },
         ],
       };
-      (global as any).fetch = jest.fn(() => mockFetchResponse(validData));
+      testGlobal.fetch = jest.fn(() => mockFetchResponse(validData));
 
       const result = await loader.loadInsights();
       expect(result.state).toBe("ok");
@@ -354,17 +361,17 @@ describe("DatasetLoader", () => {
 
   describe("isFeatureEnabled", () => {
     it("returns false when manifest is not loaded", () => {
-      (loader as any).manifest = null;
+      loader.setManifestForTest(null);
       expect(loader.isFeatureEnabled("predictions")).toBe(false);
     });
 
     it("returns true when feature flag is true", () => {
-      (loader as any).manifest = { features: { predictions: true } };
+      loader.setManifestForTest({ features: { predictions: true } });
       expect(loader.isFeatureEnabled("predictions")).toBe(true);
     });
 
     it("returns false when feature flag is false", () => {
-      (loader as any).manifest = { features: { predictions: false } };
+      loader.setManifestForTest({ features: { predictions: false } });
       expect(loader.isFeatureEnabled("predictions")).toBe(false);
     });
   });
