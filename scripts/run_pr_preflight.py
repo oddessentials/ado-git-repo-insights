@@ -197,6 +197,11 @@ def build_commands(
             cwd=EXTENSION_ROOT,
         ),
         CommandSpec(
+            "Extension VSIX artifact inspection",
+            (PNPM_SENTINEL, "run", "test:vsix"),
+            cwd=EXTENSION_ROOT,
+        ),
+        CommandSpec(
             "Local patch coverage parity",
             (
                 "__PYTHON__",

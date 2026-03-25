@@ -45,7 +45,7 @@ type FixtureRollup = {
   authors_count: number;
   reviewers_count: number;
   by_repository: Record<string, RollupEntry> | null;
-  by_team?: Record<string, RollupEntry> | null;
+  by_team: Record<string, RollupEntry> | null;
   by_team_and_repo?: Record<string, Record<string, RollupEntry>>;
 };
 
