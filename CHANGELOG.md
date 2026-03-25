@@ -1,3 +1,12 @@
+## [5.27.3](https://github.com/oddessentials/ado-git-repo-insights/compare/v5.27.2...v5.27.3) (2026-03-25)
+
+
+### Bug Fixes
+
+* **ci:** raise perf gate base threshold to 45s for CI runner headroom ([3e0401f](https://github.com/oddessentials/ado-git-repo-insights/commit/3e0401f4e6ca56d7f7bc516d5b188cc0798a9022))
+* **ci:** resolve all 3 CI failures with cross-platform parity safeguards ([c0a63bc](https://github.com/oddessentials/ado-git-repo-insights/commit/c0a63bc51beff990371e9759e05ada1905297216))
+* **ci:** resolve remaining type errors and add vsix test to preflight ([88ed3b7](https://github.com/oddessentials/ado-git-repo-insights/commit/88ed3b7e050fc94d280c7faeca9aff66efbd6338))
+
 ## [5.27.2](https://github.com/oddessentials/ado-git-repo-insights/compare/v5.27.1...v5.27.2) (2026-03-25)
 
 
