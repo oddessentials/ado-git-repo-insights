@@ -1,3 +1,10 @@
+## [5.27.2](https://github.com/oddessentials/ado-git-repo-insights/compare/v5.27.1...v5.27.2) (2026-03-25)
+
+
+### Bug Fixes
+
+* guard entire hook with command check and remove unrelated UPDATES.md ([75e3c62](https://github.com/oddessentials/ado-git-repo-insights/commit/75e3c62ae08806507b8d135125436862a788ca94))
+
 ## [5.27.1](https://github.com/oddessentials/ado-git-repo-insights/compare/v5.27.0...v5.27.1) (2026-03-21)
 
 
