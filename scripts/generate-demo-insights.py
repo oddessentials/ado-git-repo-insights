@@ -31,12 +31,14 @@ import argparse
 import logging
 import math
 import sys
+import time
 from dataclasses import dataclass, field
 from datetime import date
 from pathlib import Path
 
 from demo_generation_common import (
     FIXED_GENERATED_AT,
+    list_stable_json_files,
     load_json_file,
     refresh_demo_manifest_features,
     require_demo_generation_baseline_for_output,
@@ -138,50 +140,62 @@ class Insight:
 
 def load_weekly_rollups(rollups_dir: Path) -> list[WeeklyRollup]:
     """Load all weekly rollups with full repo breakdown."""
-    rollups = []
+    last_error: OSError | None = None
+    for attempt in range(5):
+        try:
+            rollups = []
 
-    for rollup_file in sorted(rollups_dir.glob("*.json")):
-        data = load_json_file(rollup_file)
+            for rollup_file in list_stable_json_files(rollups_dir):
+                data = load_json_file(rollup_file)
 
-        repos = []
-        for repo_name, repo_data in data.get("by_repository", {}).items():
-            repos.append(
-                RepoMetrics(
-                    name=repo_name,
-                    pr_count=repo_data["pr_count"],
-                    cycle_time_p50=_coerce_cycle_time(
-                        "cycle_time_p50",
-                        repo_data["cycle_time_p50"],
-                        context=f"{data['week']} repo {repo_name}",
-                    ),
-                    cycle_time_p90=_coerce_cycle_time(
-                        "cycle_time_p90",
-                        repo_data["cycle_time_p90"],
-                        context=f"{data['week']} repo {repo_name}",
-                    ),
+                repos = []
+                for repo_name, repo_data in data.get("by_repository", {}).items():
+                    repos.append(
+                        RepoMetrics(
+                            name=repo_name,
+                            pr_count=repo_data["pr_count"],
+                            cycle_time_p50=_coerce_cycle_time(
+                                "cycle_time_p50",
+                                repo_data["cycle_time_p50"],
+                                context=f"{data['week']} repo {repo_name}",
+                            ),
+                            cycle_time_p90=_coerce_cycle_time(
+                                "cycle_time_p90",
+                                repo_data["cycle_time_p90"],
+                                context=f"{data['week']} repo {repo_name}",
+                            ),
+                        )
+                    )
+
+                rollups.append(
+                    WeeklyRollup(
+                        week=data["week"],
+                        start_date=date.fromisoformat(data["start_date"]),
+                        pr_count=data["pr_count"],
+                        cycle_time_p50=_coerce_cycle_time(
+                            "cycle_time_p50",
+                            data["cycle_time_p50"],
+                            context=f"{data['week']} rollup",
+                        ),
+                        cycle_time_p90=_coerce_cycle_time(
+                            "cycle_time_p90",
+                            data["cycle_time_p90"],
+                            context=f"{data['week']} rollup",
+                        ),
+                        repos=repos,
+                    )
                 )
-            )
+            return sorted(rollups, key=lambda r: r.week)
+        except OSError as exc:
+            last_error = exc
+            if attempt < 4:
+                time.sleep(0.1 * (attempt + 1))
+            else:
+                raise RuntimeError(
+                    "Weekly rollups did not stabilize before insights generation"
+                ) from last_error
 
-        rollups.append(
-            WeeklyRollup(
-                week=data["week"],
-                start_date=date.fromisoformat(data["start_date"]),
-                pr_count=data["pr_count"],
-                cycle_time_p50=_coerce_cycle_time(
-                    "cycle_time_p50",
-                    data["cycle_time_p50"],
-                    context=f"{data['week']} rollup",
-                ),
-                cycle_time_p90=_coerce_cycle_time(
-                    "cycle_time_p90",
-                    data["cycle_time_p90"],
-                    context=f"{data['week']} rollup",
-                ),
-                repos=repos,
-            )
-        )
-
-    return sorted(rollups, key=lambda r: r.week)
+    raise AssertionError("unreachable")
 
 
 # =============================================================================

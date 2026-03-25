@@ -56,6 +56,18 @@ def _cleanup_test_tmp_root() -> None:
 atexit.register(_cleanup_test_tmp_root)
 
 
+@pytest.fixture(autouse=True)
+def isolate_artifact_root(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Give each test a fresh canonical artifact root to avoid cross-test collisions."""
+    artifact_root = make_scratch_dir("artifact-root")
+    monkeypatch.setenv("ADO_DEMO_ARTIFACT_ROOT", str(artifact_root))
+    module = sys.modules[__name__]
+    monkeypatch.setattr(module, "ARTIFACT_ROOT", artifact_root)
+    monkeypatch.setattr(module, "ARTIFACT_DATA", artifact_root / "data")
+    monkeypatch.setattr(module, "ARTIFACT_REPORT", artifact_root / "report")
+    monkeypatch.setattr(module, "ARTIFACT_METADATA", artifact_root / "metadata")
+
+
 def load_build_module():
     """Load build-demo-dataset.py as a Python module for direct contract testing."""
     script_dir = str(BUILD_SCRIPT.parent)
@@ -144,6 +156,10 @@ def run_demo_validate_only_with_promote() -> subprocess.CompletedProcess[str]:
 class TestCanonicalArtifactRoot:
     """Canonical build output is generated under artifacts/demo-enterprise."""
 
+    def test_build_uses_isolated_scratch_artifact_root(self) -> None:
+        assert ARTIFACT_ROOT.parent == TEST_TMP_ROOT
+        assert ARTIFACT_ROOT != REPO_ROOT / "artifacts" / "demo-enterprise"
+
     def test_build_creates_canonical_artifacts(self) -> None:
         run_demo_build()
 
@@ -152,33 +168,31 @@ class TestCanonicalArtifactRoot:
         assert (ARTIFACT_REPORT / "startup-parity.json").exists()
         assert (ARTIFACT_METADATA / "demo-profile.json").exists()
 
-    def test_docs_promotion_matches_canonical_bytes(self) -> None:
-        # Promotion exercises the canonical publishing path and is only valid on
-        # the approved baseline interpreter. Off-baseline jobs validate the
-        # non-promoting artifact boundary instead.
-        if not _IS_BASELINE_PYTHON:
-            pytest.skip(
-                "promotion parity is validated only on the baseline interpreter"
+    if _IS_BASELINE_PYTHON:
+
+        def test_docs_promotion_matches_canonical_bytes(self) -> None:
+            # Promotion exercises the canonical publishing path and is covered
+            # only on the approved baseline interpreter. Non-baseline jobs
+            # validate the non-promoting artifact boundary instead.
+            promoted_dir = make_scratch_dir("published-demo")
+            run_demo_build(promote=True, promote_dir=promoted_dir)
+
+            canonical_files = sorted(
+                path.relative_to(ARTIFACT_DATA)
+                for path in ARTIFACT_DATA.rglob("*")
+                if path.is_file()
             )
-        promoted_dir = make_scratch_dir("published-demo")
-        run_demo_build(promote=True, promote_dir=promoted_dir)
+            promoted_files = sorted(
+                path.relative_to(promoted_dir)
+                for path in promoted_dir.rglob("*")
+                if path.is_file()
+            )
 
-        canonical_files = sorted(
-            path.relative_to(ARTIFACT_DATA)
-            for path in ARTIFACT_DATA.rglob("*")
-            if path.is_file()
-        )
-        promoted_files = sorted(
-            path.relative_to(promoted_dir)
-            for path in promoted_dir.rglob("*")
-            if path.is_file()
-        )
-
-        assert canonical_files == promoted_files
-        for rel_path in canonical_files:
-            assert (ARTIFACT_DATA / rel_path).read_bytes() == (
-                promoted_dir / rel_path
-            ).read_bytes()
+            assert canonical_files == promoted_files
+            for rel_path in canonical_files:
+                assert (ARTIFACT_DATA / rel_path).read_bytes() == (
+                    promoted_dir / rel_path
+                ).read_bytes()
 
     def test_promotion_cleans_stale_files(self) -> None:
         run_demo_build()
@@ -310,7 +324,7 @@ class TestCapabilityAndParityReports:
     def test_demo_dimensions_include_author_and_reviewer_lookups(self) -> None:
         run_demo_build()
         dimensions = json.loads(
-            (REPO_ROOT / "docs" / "data" / "aggregates" / "dimensions.json").read_text(
+            (ARTIFACT_DATA / "aggregates" / "dimensions.json").read_text(
                 encoding="utf-8"
             )
         )
@@ -337,12 +351,7 @@ class TestCapabilityAndParityReports:
         run_demo_build()
         sample_rollup = json.loads(
             (
-                REPO_ROOT
-                / "docs"
-                / "data"
-                / "aggregates"
-                / "weekly_rollups"
-                / "2025-W52.json"
+                ARTIFACT_DATA / "aggregates" / "weekly_rollups" / "2025-W52.json"
             ).read_text(encoding="utf-8")
         )
 

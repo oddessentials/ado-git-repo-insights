@@ -19,6 +19,7 @@ from __future__ import annotations
 
 import argparse
 import sys
+import time
 from dataclasses import dataclass
 from datetime import date, timedelta
 from decimal import Decimal
@@ -27,6 +28,7 @@ from typing import Any
 
 from demo_generation_common import (
     FIXED_GENERATED_AT,
+    list_stable_json_files,
     load_json_file,
     refresh_demo_manifest_features,
     require_demo_generation_baseline_for_output,
@@ -66,21 +68,32 @@ class WeeklyMetrics:
 
 def load_weekly_rollups(rollups_dir: Path) -> list[WeeklyMetrics]:
     """Load all weekly rollups and extract relevant metrics."""
-    rollups = []
+    last_error: OSError | None = None
+    for attempt in range(5):
+        try:
+            rollups = []
+            for rollup_file in list_stable_json_files(rollups_dir):
+                data = load_json_file(rollup_file)
 
-    for rollup_file in sorted(rollups_dir.glob("*.json")):
-        data = load_json_file(rollup_file)
+                rollups.append(
+                    WeeklyMetrics(
+                        week=data["week"],
+                        start_date=date.fromisoformat(data["start_date"]),
+                        pr_count=data["pr_count"],
+                        cycle_time_p50=data["cycle_time_p50"] or 0.0,
+                    )
+                )
+            return sorted(rollups, key=lambda r: r.week)
+        except OSError as exc:
+            last_error = exc
+            if attempt < 4:
+                time.sleep(0.1 * (attempt + 1))
+            else:
+                raise RuntimeError(
+                    "Weekly rollups did not stabilize before predictions generation"
+                ) from last_error
 
-        rollups.append(
-            WeeklyMetrics(
-                week=data["week"],
-                start_date=date.fromisoformat(data["start_date"]),
-                pr_count=data["pr_count"],
-                cycle_time_p50=data["cycle_time_p50"] or 0.0,
-            )
-        )
-
-    return sorted(rollups, key=lambda r: r.week)
+    raise AssertionError("unreachable")
 
 
 # =============================================================================

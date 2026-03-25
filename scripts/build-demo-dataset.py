@@ -26,7 +26,12 @@ from demo_generation_common import (
 from demo_shell import render_demo_html_from_path
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
-ARTIFACT_ROOT = REPO_ROOT / "artifacts" / "demo-enterprise"
+ARTIFACT_ROOT = Path(
+    os.environ.get(
+        "ADO_DEMO_ARTIFACT_ROOT",
+        str(REPO_ROOT / "artifacts" / "demo-enterprise"),
+    )
+).resolve()
 ARTIFACT_DATA_DIR = ARTIFACT_ROOT / "data"
 ARTIFACT_REPORT_DIR = ARTIFACT_ROOT / "report"
 ARTIFACT_METADATA_DIR = ARTIFACT_ROOT / "metadata"
@@ -267,6 +272,65 @@ def stamp_canonical_manifest_provenance(data_dir: Path) -> None:
         generation_mode=CANONICAL_COMMITTED_DEMO_MODE,
     )
     write_json_file(manifest_path, manifest)
+
+
+def ensure_demo_data_complete(data_dir: Path, *, max_retries: int = 5) -> None:
+    """Wait for the generated aggregate surface to be fully materialized on disk."""
+    manifest_path = data_dir / "dataset-manifest.json"
+    dimensions_path = data_dir / "aggregates" / "dimensions.json"
+    last_missing: list[str] = []
+    for attempt in range(max_retries):
+        if not manifest_path.exists() or not dimensions_path.exists():
+            last_missing = [
+                str(path.relative_to(data_dir)).replace("\\", "/")
+                for path in (manifest_path, dimensions_path)
+                if not path.exists()
+            ]
+        else:
+            manifest = load_json_file(manifest_path)
+            expected_paths = [dimensions_path]
+            expected_paths.extend(
+                data_dir / entry["path"]
+                for entry in manifest.get("aggregate_index", {}).get(
+                    "weekly_rollups", []
+                )
+            )
+            expected_paths.extend(
+                data_dir / entry["path"]
+                for entry in manifest.get("aggregate_index", {}).get(
+                    "distributions", []
+                )
+            )
+            missing = [path for path in expected_paths if not path.exists()]
+            if not missing:
+                return
+            last_missing = [
+                str(path.relative_to(data_dir)).replace("\\", "/") for path in missing
+            ]
+
+        if attempt < max_retries - 1:
+            time.sleep(0.1 * (attempt + 1))
+
+    raise RuntimeError(
+        "Canonical demo data generator did not fully materialize all indexed files. "
+        f"Missing after {max_retries} attempts: {last_missing}"
+    )
+
+
+def restamp_final_artifact_provenance(
+    data_dir: Path,
+    profile_path: Path,
+    *,
+    generation_mode: str,
+) -> None:
+    """Normalize final artifact provenance under the canonical builder contract."""
+    stamp_canonical_manifest_provenance(data_dir)
+    profile = load_json_file(profile_path)
+    profile["generation_provenance"] = build_generation_provenance(
+        generator_script=CANONICAL_COMMITTED_DEMO_SCRIPT,
+        generation_mode=generation_mode,
+    )
+    write_json_file(profile_path, profile)
 
 
 def validate_canonical_provenance(
@@ -770,18 +834,6 @@ def write_reports(data_dir: Path, *, generation_mode: str) -> dict[str, Any]:
     return startup_parity
 
 
-def restamp_demo_profile_provenance(
-    profile_path: Path, *, generation_mode: str
-) -> None:
-    """Force demo-profile.json provenance to match the active build mode."""
-    profile = load_json_file(profile_path)
-    profile["generation_provenance"] = build_generation_provenance(
-        generator_script=CANONICAL_COMMITTED_DEMO_SCRIPT,
-        generation_mode=generation_mode,
-    )
-    write_json_file(profile_path, profile)
-
-
 def promote_data(source_dir: Path, destination_dir: Path) -> None:
     """Replace docs/data atomically from the canonical artifact root."""
     destination_dir.mkdir(parents=True, exist_ok=True)
@@ -834,12 +886,15 @@ def main(argv: list[str] | None = None) -> int:
         for script_name in GENERATOR_STEPS:
             print(f"[demo-build] running {script_name}")
             run_generator(script_name, ARTIFACT_DATA_DIR)
+            if script_name == "generate-demo-data.py":
+                ensure_demo_data_complete(ARTIFACT_DATA_DIR)
         stamp_canonical_manifest_provenance(ARTIFACT_DATA_DIR)
         active_mode = CANONICAL_COMMITTED_DEMO_MODE
 
     validate_manifest_addressability(ARTIFACT_DATA_DIR)
     startup_parity = write_reports(ARTIFACT_DATA_DIR, generation_mode=active_mode)
-    restamp_demo_profile_provenance(
+    restamp_final_artifact_provenance(
+        ARTIFACT_DATA_DIR,
         ARTIFACT_METADATA_DIR / "demo-profile.json",
         generation_mode=active_mode,
     )

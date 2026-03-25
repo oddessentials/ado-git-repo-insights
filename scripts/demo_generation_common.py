@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import sys
+import tempfile
 import time
 import uuid
 from datetime import date, datetime, timezone
@@ -186,10 +187,25 @@ def write_json_file(path: Path, data: Any, *, max_retries: int = 1) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     encoded = canonical_json(data).encode("utf-8")
     for attempt in range(max_retries):
+        tmp_path: Path | None = None
         try:
-            path.write_bytes(encoded)
+            with tempfile.NamedTemporaryFile(
+                dir=path.parent,
+                prefix=f"{path.name}.",
+                suffix=".tmp",
+                delete=False,
+            ) as handle:
+                handle.write(encoded)
+                handle.flush()
+                tmp_path = Path(handle.name)
+            tmp_path.replace(path)
             return
         except OSError:
+            if tmp_path is not None:
+                try:
+                    tmp_path.unlink()
+                except OSError:
+                    pass
             if attempt < max_retries - 1:
                 time.sleep(0.1 * (attempt + 1))
             else:
@@ -207,6 +223,28 @@ def load_json_file(path: Path, *, max_retries: int = 3) -> dict[str, Any]:
             else:
                 raise
     raise AssertionError("unreachable")
+
+
+def list_stable_json_files(
+    root: Path,
+    *,
+    pattern: str = "*.json",
+    max_retries: int = 5,
+) -> list[Path]:
+    """Return a bounded-stable snapshot of JSON files under a directory."""
+    previous_snapshot: list[str] | None = None
+    for attempt in range(max_retries):
+        files = sorted(root.glob(pattern))
+        snapshot = [path.name for path in files]
+        if previous_snapshot == snapshot and all(path.exists() for path in files):
+            return files
+        previous_snapshot = snapshot
+        if attempt < max_retries - 1:
+            time.sleep(0.1 * (attempt + 1))
+
+    raise RuntimeError(
+        f"JSON file set under `{root}` did not stabilize after {max_retries} attempts"
+    )
 
 
 def discover_demo_feature_flags(data_dir: Path) -> dict[str, bool]:
