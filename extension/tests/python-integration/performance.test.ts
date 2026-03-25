@@ -7,16 +7,36 @@
  * TODO(phase4-gap): Add full DatasetLoader mocked fetch tests when Jest environment stabilizes
  */
 
-import * as fs from "fs";
 import * as os from "os";
 import * as path from "path";
+import {
+  ensureDir,
+  makeTempDir,
+  pathExists,
+  readJsonFile,
+  removeDir,
+  removeDirSafe,
+  writeTextFile,
+} from "../helpers/fs-test-utils";
 import {
   assertPythonSubprocessSupport,
   probePythonSubprocessSupport,
   runPythonScript,
 } from "./python-subprocess";
 
-const performanceTempRoot = fs.mkdtempSync(
+type MockGcGlobal = typeof globalThis & { gc?: () => void };
+type AggregateIndex = { weekly_rollups: Array<{ path: string }> };
+type PerfManifest = {
+  manifest_schema_version: number;
+  aggregate_index: AggregateIndex;
+};
+type PerfRollup = { week: string; pr_count?: number };
+type PerfBaselines = {
+  metrics?: Record<string, number>;
+};
+
+const gcGlobal = global as MockGcGlobal;
+const performanceTempRoot = makeTempDir(
   path.join(
     process.env["GRI_EXTENSION_TEST_TMPDIR"] ?? os.tmpdir(),
     "gri-extension-perf-",
@@ -50,6 +70,15 @@ function runSyntheticDatasetGenerator(outputDir: string, prCount: number) {
   ]);
 }
 
+function getMetricBaseline(
+  baselines: PerfBaselines,
+  key: string,
+): number | undefined {
+  return Object.entries(baselines.metrics ?? {}).find(
+    ([candidateKey]) => candidateKey === key,
+  )?.[1];
+}
+
 describe("Performance Baseline Tests (Simplified)", () => {
   beforeAll(() => {
     assertPythonSubprocessSupport("Performance Baseline Tests");
@@ -69,8 +98,8 @@ describe("Performance Baseline Tests (Simplified)", () => {
    * Measure memory delta
    */
   function measureMemoryDelta(operation: () => void) {
-    if ((global as any).gc) {
-      (global as any).gc();
+    if (gcGlobal.gc) {
+      gcGlobal.gc();
     }
 
     const startMem = process.memoryUsage().heapUsed;
@@ -84,8 +113,8 @@ describe("Performance Baseline Tests (Simplified)", () => {
     const outputDir = path.join(performanceFixturesDir, "1000pr");
 
     // Clean previous run
-    if (fs.existsSync(outputDir)) {
-      fs.rmSync(outputDir, { recursive: true, force: true });
+    if (pathExists(outputDir)) {
+      removeDir(outputDir);
     }
 
     // Baseline: 5s, Budget: 10s (2x tolerance)
@@ -94,7 +123,7 @@ describe("Performance Baseline Tests (Simplified)", () => {
     });
 
     expect(duration).toBeLessThan(10000);
-    expect(fs.existsSync(path.join(outputDir, "dataset-manifest.json"))).toBe(
+    expect(pathExists(path.join(outputDir, "dataset-manifest.json"))).toBe(
       true,
     );
 
@@ -115,15 +144,14 @@ describe("Performance Baseline Tests (Simplified)", () => {
       "dataset-manifest.json",
     );
 
-    if (!fs.existsSync(manifestPath)) {
+    if (!pathExists(manifestPath)) {
       const outputDir = path.join(performanceFixturesDir, "1000pr");
       runSyntheticDatasetGenerator(outputDir, 1000);
     }
 
     // Baseline: 10ms, Budget: 50ms (generous for file I/O)
     const duration = measureTiming(() => {
-      const content = fs.readFileSync(manifestPath, "utf-8");
-      const manifest = JSON.parse(content);
+      const manifest = readJsonFile<PerfManifest>(manifestPath);
 
       // Validate basic structure
       expect(manifest.manifest_schema_version).toBe(1);
@@ -148,17 +176,17 @@ describe("Performance Baseline Tests (Simplified)", () => {
       const fixtureDir = path.join(performanceFixturesDir, "1000pr");
       const manifestPath = path.join(fixtureDir, "dataset-manifest.json");
 
-      if (!fs.existsSync(manifestPath)) {
+      if (!pathExists(manifestPath)) {
         runSyntheticDatasetGenerator(fixtureDir, 1000);
       }
 
-      const manifest = JSON.parse(fs.readFileSync(manifestPath, "utf-8"));
+      const manifest = readJsonFile<PerfManifest>(manifestPath);
 
       // Baseline: 100ms, Budget: 500ms (2x tolerance + file I/O)
       const duration = measureTiming(() => {
         for (const entry of manifest.aggregate_index.weekly_rollups) {
           const rollupPath = path.join(fixtureDir, entry.path);
-          const rollupData = JSON.parse(fs.readFileSync(rollupPath, "utf-8"));
+          const rollupData = readJsonFile<PerfRollup>(rollupPath);
 
           // Simulate processing
           expect(rollupData.week).toBeDefined();
@@ -186,30 +214,22 @@ describe("Performance Baseline Tests (Simplified)", () => {
       const fixtureDir = path.join(performanceFixturesDir, "1000pr");
       const manifestPath = path.join(fixtureDir, "dataset-manifest.json");
 
-      if (!fs.existsSync(manifestPath)) {
+      if (!pathExists(manifestPath)) {
         runSyntheticDatasetGenerator(fixtureDir, 1000);
       }
 
       // Budget: 20MB delta (conservative for file I/O + parsing)
       const memoryDelta = measureMemoryDelta(() => {
-        const manifest = JSON.parse(fs.readFileSync(manifestPath, "utf-8"));
-        const dimensions = JSON.parse(
-          fs.readFileSync(
-            path.join(fixtureDir, "aggregates", "dimensions.json"),
-            "utf-8",
-          ),
+        const manifest = readJsonFile<PerfManifest>(manifestPath);
+        const dimensions = readJsonFile<unknown>(
+          path.join(fixtureDir, "aggregates", "dimensions.json"),
         );
 
         // Load some rollups
-        const rollups = [];
-        for (
-          let i = 0;
-          i < 5 && i < manifest.aggregate_index.weekly_rollups.length;
-          i++
-        ) {
-          const entry = manifest.aggregate_index.weekly_rollups[i];
+        const rollups: PerfRollup[] = [];
+        for (const entry of manifest.aggregate_index.weekly_rollups.slice(0, 5)) {
           const rollupPath = path.join(fixtureDir, entry.path);
-          rollups.push(JSON.parse(fs.readFileSync(rollupPath, "utf-8")));
+          rollups.push(readJsonFile<PerfRollup>(rollupPath));
         }
 
         // Keep references
@@ -240,8 +260,11 @@ describe("Performance Baseline Tests (Simplified)", () => {
       gap: "TODO: Add DatasetLoader mocked fetch tests (phase4-gap)",
     };
 
-    fs.mkdirSync(path.dirname(performanceSummaryPath), { recursive: true });
-    fs.writeFileSync(performanceSummaryPath, JSON.stringify(summary, null, 2));
+    ensureDir(path.dirname(performanceSummaryPath));
+    writeTextFile(performanceSummaryPath, JSON.stringify(summary, null, 2));
+
+    // Best-effort cleanup of unique temp dir to prevent accumulation
+    removeDirSafe(performanceTempRoot);
   });
 });
 
@@ -265,14 +288,14 @@ describe.each([1000, 5000, 10000])(
     const regressionThreshold = 0.2;
     const mode = process.env["PERF_MODE"] || "trend";
 
-    let baselines: any = {};
+    let baselines: PerfBaselines = {};
 
     beforeAll(() => {
       assertPythonSubprocessSupport(`Scaling Performance at ${prCount} PRs`);
 
       // Load committed baselines
-      if (fs.existsSync(baselinesPath)) {
-        baselines = JSON.parse(fs.readFileSync(baselinesPath, "utf-8"));
+      if (pathExists(baselinesPath)) {
+        baselines = readJsonFile<PerfBaselines>(baselinesPath);
       }
     });
 
@@ -288,7 +311,7 @@ describe.each([1000, 5000, 10000])(
       }
 
       // GC between runs if available
-      if ((global as any).gc) (global as any).gc();
+      if (gcGlobal.gc) gcGlobal.gc();
 
       // Measure
       for (let i = 0; i < measureRuns; i++) {
@@ -296,7 +319,7 @@ describe.each([1000, 5000, 10000])(
         operation();
         const end = performance.now();
         times.push(end - start);
-        if ((global as any).gc) (global as any).gc();
+        if (gcGlobal.gc) gcGlobal.gc();
       }
 
       // Return median
@@ -339,8 +362,8 @@ describe.each([1000, 5000, 10000])(
         const fixtureDir = path.join(performanceFixturesDir, `${prCount}pr`);
 
         // Clean previous run
-        if (fs.existsSync(fixtureDir)) {
-          fs.rmSync(fixtureDir, { recursive: true, force: true });
+        if (pathExists(fixtureDir)) {
+          removeDir(fixtureDir);
         }
 
         const duration = measureWithWarmup(() => {
@@ -353,7 +376,7 @@ describe.each([1000, 5000, 10000])(
 
         // Check regression
         const baselineKey = `${prCount}pr_fixture_gen_ms`;
-        const baseline = baselines.metrics?.[baselineKey];
+        const baseline = getMetricBaseline(baselines, baselineKey);
         checkRegression(`${prCount}pr-fixture-gen`, duration, baseline);
 
         console.log(
@@ -373,13 +396,12 @@ describe.each([1000, 5000, 10000])(
       const manifestPath = path.join(fixtureDir, "dataset-manifest.json");
 
       // Generate if not exists
-      if (!fs.existsSync(manifestPath)) {
+      if (!pathExists(manifestPath)) {
         runSyntheticDatasetGenerator(fixtureDir, prCount);
       }
 
       const duration = measureWithWarmup(() => {
-        const content = fs.readFileSync(manifestPath, "utf-8");
-        const manifest = JSON.parse(content);
+        const manifest = readJsonFile<PerfManifest>(manifestPath);
         expect(manifest.manifest_schema_version).toBe(1);
       });
 
@@ -388,7 +410,7 @@ describe.each([1000, 5000, 10000])(
       expect(duration).toBeLessThan(budget);
 
       const baselineKey = `${prCount}pr_manifest_parse_ms`;
-      const baseline = baselines.metrics?.[baselineKey];
+      const baseline = getMetricBaseline(baselines, baselineKey);
       checkRegression(`${prCount}pr-manifest-parse`, duration, baseline);
     });
 
@@ -396,16 +418,16 @@ describe.each([1000, 5000, 10000])(
       const fixtureDir = path.join(performanceFixturesDir, `${prCount}pr`);
       const manifestPath = path.join(fixtureDir, "dataset-manifest.json");
 
-      if (!fs.existsSync(manifestPath)) {
+      if (!pathExists(manifestPath)) {
         runSyntheticDatasetGenerator(fixtureDir, prCount);
       }
 
-      const manifest = JSON.parse(fs.readFileSync(manifestPath, "utf-8"));
+      const manifest = readJsonFile<PerfManifest>(manifestPath);
 
       const duration = measureWithWarmup(() => {
         for (const entry of manifest.aggregate_index.weekly_rollups) {
           const rollupPath = path.join(fixtureDir, entry.path);
-          const rollupData = JSON.parse(fs.readFileSync(rollupPath, "utf-8"));
+          const rollupData = readJsonFile<PerfRollup>(rollupPath);
           expect(rollupData.week).toBeDefined();
         }
       });
@@ -415,7 +437,7 @@ describe.each([1000, 5000, 10000])(
       expect(duration).toBeLessThan(budget);
 
       const baselineKey = `${prCount}pr_bulk_parse_ms`;
-      const baseline = baselines.metrics?.[baselineKey];
+      const baseline = getMetricBaseline(baselines, baselineKey);
       checkRegression(`${prCount}pr-bulk-parse`, duration, baseline);
     });
   },

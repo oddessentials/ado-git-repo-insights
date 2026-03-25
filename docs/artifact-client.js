@@ -331,9 +331,11 @@ var PRInsightsArtifactClient = (() => {
         this.validateManifest(this.manifest);
         return this.manifest;
       } catch (error) {
-        throw new Error(
+        const wrappedError = new Error(
           `Failed to load dataset manifest: ${getErrorMessage(error)}`
         );
+        wrappedError.cause = error;
+        throw wrappedError;
       }
     }
     validateManifest(manifest) {

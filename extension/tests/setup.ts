@@ -17,22 +17,46 @@ if (typeof global.TextDecoder === "undefined") {
 
 // Define types for global helpers
 // Note: fetch is not re-declared here since it's now a built-in global in Node.js 18+
+type MockFetchOptions = { status?: number; ok?: boolean };
+type MockedFetch = jest.MockedFunction<typeof fetch>;
+type MutablePerformance = Performance & {
+  mark?: typeof performance.mark;
+  measure?: typeof performance.measure;
+  getEntriesByName?: typeof performance.getEntriesByName;
+  clearMarks?: () => void;
+  clearMeasures?: () => void;
+  marks?: Map<string, number>;
+};
+type MeasureEntry = PerformanceEntry & {
+  name: string;
+  duration: number;
+  entryType: string;
+  startTime: number;
+  toJSON: () => Record<string, unknown>;
+};
+
 declare global {
   var mockFetchResponse: (
-    data: any,
-    options?: { status?: number; ok?: boolean },
-  ) => Promise<any>;
-  var mockFetch404: () => Promise<any>;
-  var mockFetch401: () => Promise<any>;
-  var mockFetch403: () => Promise<any>;
+    data: unknown,
+    options?: MockFetchOptions,
+  ) => Promise<Response>;
+  var mockFetch404: () => Promise<Response>;
+  var mockFetch401: () => Promise<Response>;
+  var mockFetch403: () => Promise<Response>;
 
   interface Performance {
     marks?: Map<string, number>;
   }
 }
 
+const globalScope = global as typeof globalThis & {
+  fetch: MockedFetch;
+  performance: MutablePerformance;
+};
+const performanceScope = globalScope.performance as MutablePerformance;
+
 // Mock fetch globally
-(global as any).fetch = jest.fn();
+globalScope.fetch = jest.fn() as unknown as MockedFetch;
 
 // Polyfill performance API for jsdom (missing mark/measure methods)
 const performanceMarks = new Map<string, number>();
@@ -40,60 +64,82 @@ let performanceMeasures: Array<{
   name: string;
   duration: number;
   entryType: string;
+  startTime: number;
+  toJSON: () => Record<string, unknown>;
 }> = [];
 
-if (!(global.performance as any).mark) {
-  (global.performance as any).mark = (name: string) => {
-    performanceMarks.set(name, global.performance.now());
-  };
+if (!performanceScope.mark) {
+  performanceScope.mark = ((name: string) => {
+    const startTime = performanceScope.now();
+    performanceMarks.set(name, startTime);
+    return {
+      name,
+      entryType: "mark",
+      startTime,
+      duration: 0,
+      toJSON: () => ({ name, entryType: "mark", startTime, duration: 0 }),
+    } as PerformanceMark;
+  }) as typeof performance.mark;
 }
 
-if (!(global.performance as any).measure) {
-  (global.performance as any).measure = (
+if (!performanceScope.measure) {
+  performanceScope.measure = ((
     name: string,
     startMark: string,
     endMark: string,
   ) => {
     const startTime = performanceMarks.get(startMark) || 0;
-    const endTime = performanceMarks.get(endMark) || global.performance.now();
-    performanceMeasures.push({
+    const endTime =
+      performanceMarks.get(endMark) || performanceScope.now();
+    const entry: MeasureEntry = {
       name,
       duration: endTime - startTime,
       entryType: "measure",
-    });
-  };
+      startTime,
+      toJSON: () => ({
+        name,
+        duration: endTime - startTime,
+        entryType: "measure",
+        startTime,
+      }),
+    };
+    performanceMeasures.push(entry);
+    return entry as PerformanceMeasure;
+  }) as typeof performance.measure;
 }
 
-if (!(global.performance as any).getEntriesByName) {
-  (global.performance as any).getEntriesByName = (
+if (!performanceScope.getEntriesByName) {
+  performanceScope.getEntriesByName = ((
     name: string,
     type: string,
   ) => {
     if (type === "measure") {
-      return performanceMeasures.filter((m) => m.name === name);
+      return performanceMeasures.filter(
+        (entry) => entry.name === name,
+      ) as PerformanceEntryList;
     }
-    return [];
-  };
+    return [] as PerformanceEntryList;
+  }) as typeof performance.getEntriesByName;
 }
 
-if (!(global.performance as any).clearMarks) {
-  (global.performance as any).clearMarks = () => {
+if (!performanceScope.clearMarks) {
+  performanceScope.clearMarks = () => {
     performanceMarks.clear();
   };
 }
 
-if (!(global.performance as any).clearMeasures) {
-  (global.performance as any).clearMeasures = () => {
+if (!performanceScope.clearMeasures) {
+  performanceScope.clearMeasures = () => {
     performanceMeasures = [];
   };
 }
 
 // Expose marks storage for test assertions
-(global.performance as any).marks = performanceMarks;
+performanceScope.marks = performanceMarks;
 
 // Reset mocks before each test
 beforeEach(() => {
-  ((global as any).fetch as jest.Mock).mockReset();
+  globalScope.fetch.mockReset();
   // Reset performance state
   performanceMarks.clear();
   performanceMeasures = [];
@@ -101,8 +147,8 @@ beforeEach(() => {
 
 // Helper to create mock fetch responses
 global.mockFetchResponse = (
-  data: any,
-  options: { status?: number; ok?: boolean } = {},
+  data: unknown,
+  options: MockFetchOptions = {},
 ) => {
   const { status = 200, ok = true } = options;
   return Promise.resolve({

@@ -7,7 +7,6 @@
  * Constitution Gates: QG-28, QG-29
  */
 
-import * as fs from "fs";
 import * as path from "path";
 import {
   renderThroughputChart,
@@ -23,6 +22,25 @@ import {
 } from "../../ui/modules/charts/reviewer-activity";
 import { DatasetLoader } from "../../ui/dataset-loader";
 import type { Rollup } from "../../ui/dataset-loader";
+import type { ManifestSchema } from "../../ui/types";
+import {
+  pathExists,
+  readJsonFile,
+} from "../helpers/fs-test-utils";
+
+type RealDataManifest = ManifestSchema & {
+  coverage: { total_prs: number; date_range: { min: string; max: string } };
+  aggregate_index: {
+    weekly_rollups: Array<{ week: string; path: string }>;
+    distributions: unknown[];
+  };
+};
+
+class TestDatasetLoader extends DatasetLoader {
+  setManifest(manifest: Partial<ManifestSchema>): void {
+    this.manifest = manifest as ManifestSchema;
+  }
+}
 
 /** Create N synthetic rollups for testing. */
 function createRollups(count: number, reviewersCount = 3): Rollup[] {
@@ -406,32 +424,32 @@ describe("Comments Feature Compatibility", () => {
   });
 
   it("T049: isFeatureEnabled reads comments flag from manifest", () => {
-    const loader = new DatasetLoader("");
+    const loader = new TestDatasetLoader("");
 
     // No manifest loaded — returns false
     expect(loader.isFeatureEnabled("comments")).toBe(false);
 
     // Manifest with comments: true
-    (loader as any).manifest = {
+    loader.setManifest({
       features: {
         teams: true,
         comments: true,
         predictions: false,
         ai_insights: false,
       },
-    };
+    });
     expect(loader.isFeatureEnabled("comments")).toBe(true);
 
     // Manifest with comments: false
-    (loader as any).manifest = {
+    loader.setManifest({
       features: { teams: true, comments: false },
-    };
+    });
     expect(loader.isFeatureEnabled("comments")).toBe(false);
   });
 
   it("T050: isFeatureEnabled returns false when features object is missing", () => {
-    const loader = new DatasetLoader("");
-    (loader as any).manifest = {};
+    const loader = new TestDatasetLoader("");
+    loader.setManifest({});
     expect(loader.isFeatureEnabled("comments")).toBe(false);
   });
 
@@ -454,25 +472,22 @@ describe("Integration: Real Generated Data", () => {
   const manifestPath = path.join(docsDataDir, "dataset-manifest.json");
 
   // Skip if docs/data hasn't been generated
-  const dataExists = fs.existsSync(manifestPath);
+  const dataExists = pathExists(manifestPath);
 
-  let manifest: Record<string, unknown>;
+  let manifest: RealDataManifest;
   let rollups: Rollup[];
   let container: HTMLElement;
 
   beforeAll(() => {
     if (!dataExists) return;
 
-    manifest = JSON.parse(fs.readFileSync(manifestPath, "utf-8"));
-    const index = (manifest as any).aggregate_index.weekly_rollups as Array<{
-      week: string;
-      path: string;
-    }>;
+    manifest = readJsonFile<RealDataManifest>(manifestPath);
+    const index = manifest.aggregate_index.weekly_rollups;
 
     // Load all rollup files from disk
     rollups = index.map((entry) => {
       const filePath = path.join(docsDataDir, entry.path);
-      return JSON.parse(fs.readFileSync(filePath, "utf-8")) as Rollup;
+      return readJsonFile<Rollup>(filePath);
     });
   });
 
@@ -488,11 +503,11 @@ describe("Integration: Real Generated Data", () => {
   (dataExists ? it : it.skip)(
     "manifest has 260 weeks and valid coverage",
     () => {
-      const coverage = (manifest as any).coverage;
+      const coverage = manifest.coverage;
       expect(coverage.total_prs).toBeGreaterThan(0);
       expect(coverage.date_range.min).toBeTruthy();
       expect(coverage.date_range.max).toBeTruthy();
-      expect((manifest as any).aggregate_index.weekly_rollups.length).toBe(260);
+      expect(manifest.aggregate_index.weekly_rollups.length).toBe(260);
     },
   );
 

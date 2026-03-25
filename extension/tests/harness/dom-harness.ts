@@ -8,6 +8,9 @@
  */
 
 import { jest } from "@jest/globals";
+import * as path from "path";
+import { readJsonFile } from "../helpers/fs-test-utils";
+import { setupVssMocks } from "./vss-sdk-mock";
 
 // ============================================================================
 // Fixture Types
@@ -70,6 +73,9 @@ const DEFAULT_DOM = `
 
 // Track harness state
 let harnessSetup = false;
+const fixtureRoot = path.join(__dirname, "..", "fixtures");
+const extensionArtifactsRoot = path.join(fixtureRoot, "extension-artifacts");
+const legacyDatasetsRoot = path.join(fixtureRoot, "legacy-datasets");
 
 /**
  * Setup the shared DOM test harness.
@@ -91,8 +97,6 @@ export function setupDomHarness(options: DomHarnessOptions = {}): void {
 
   // Setup VSS SDK mocks if requested
   if (withVssSdk) {
-    // Lazy import to avoid circular dependencies
-    const { setupVssMocks } = require("./vss-sdk-mock");
     setupVssMocks();
   }
 
@@ -181,57 +185,42 @@ export function setupFixtureMocks(
   const fixtureMap: Record<string, unknown> = {};
 
   if (fixtures === "manifest" || fixtures === "all") {
-    try {
-      fixtureMap[
-        "dataset-manifest.json"
-      ] = require("../fixtures/dataset-manifest.json");
-    } catch {
-      // Fixture not available
-    }
+    fixtureMap["dataset-manifest.json"] = loadJsonFixture(
+      path.join(fixtureRoot, "dataset-manifest.json"),
+    );
   }
 
   if (fixtures === "dimensions" || fixtures === "all") {
-    try {
-      fixtureMap[
-        "aggregates/dimensions.json"
-      ] = require("../fixtures/aggregates/dimensions.json");
-    } catch {
-      // Fixture not available
-    }
+    fixtureMap["aggregates/dimensions.json"] = loadJsonFixture(
+      path.join(fixtureRoot, "aggregates", "dimensions.json"),
+    );
   }
 
   if (fixtures === "rollup" || fixtures === "all") {
-    try {
-      fixtureMap[
-        "aggregates/weekly_rollups/2026-W02.json"
-      ] = require("../fixtures/aggregates/weekly_rollups/2026-W02.json");
-    } catch {
-      // Fixture not available
-    }
+    fixtureMap["aggregates/weekly_rollups/2026-W02.json"] = loadJsonFixture(
+      path.join(fixtureRoot, "aggregates", "weekly_rollups", "2026-W02.json"),
+    );
   }
 
   if (fixtures === "predictions" || fixtures === "all") {
-    try {
-      fixtureMap[
-        "predictions/trends.json"
-      ] = require("../fixtures/predictions/trends.json");
-    } catch {
-      // Fixture not available
-    }
+    fixtureMap["predictions/trends.json"] = loadJsonFixture(
+      path.join(fixtureRoot, "predictions", "trends.json"),
+    );
   }
 
   // Configure fetch mock to return fixtures
   mockFetch.mockImplementation((url: string) => {
     const filename = url.split("/").pop() || "";
-    const matchingKey = Object.keys(fixtureMap).find(
-      (key) => url.includes(key) || key.endsWith(filename),
+    const matchingFixture = Object.entries(fixtureMap).find(
+      ([key]) => url.includes(key) || key.endsWith(filename),
     );
 
-    if (matchingKey && fixtureMap[matchingKey]) {
+    if (matchingFixture) {
+      const [, fixtureData] = matchingFixture;
       return Promise.resolve({
         ok: true,
         status: 200,
-        json: () => Promise.resolve(fixtureMap[matchingKey]),
+        json: () => Promise.resolve(fixtureData),
       } as Response);
     }
 
@@ -256,14 +245,9 @@ export function setupFixtureMocks(
 export function loadManifestFixture(
   variant: "default" | "extension-artifacts" = "default",
 ): unknown {
-  try {
-    if (variant === "extension-artifacts") {
-      return require("../fixtures/extension-artifacts/dataset-manifest.json");
-    }
-    return require("../fixtures/dataset-manifest.json");
-  } catch {
-    return null;
-  }
+  return variant === "extension-artifacts"
+    ? loadJsonFixture(path.join(extensionArtifactsRoot, "dataset-manifest.json"))
+    : loadJsonFixture(path.join(fixtureRoot, "dataset-manifest.json"));
 }
 
 /**
@@ -275,14 +259,9 @@ export function loadManifestFixture(
 export function loadDimensionsFixture(
   variant: "default" | "extension-artifacts" = "default",
 ): unknown {
-  try {
-    if (variant === "extension-artifacts") {
-      return require("../fixtures/extension-artifacts/dimensions.json");
-    }
-    return require("../fixtures/aggregates/dimensions.json");
-  } catch {
-    return null;
-  }
+  return variant === "extension-artifacts"
+    ? loadJsonFixture(path.join(extensionArtifactsRoot, "dimensions.json"))
+    : loadJsonFixture(path.join(fixtureRoot, "aggregates", "dimensions.json"));
 }
 
 /**
@@ -292,14 +271,11 @@ export function loadDimensionsFixture(
  * @returns Rollup data or null if not found
  */
 export function loadRollupFixture(week: string = "2026-W02"): unknown {
-  try {
-    if (week === "2026-W03") {
-      return require("../fixtures/extension-artifacts/2026-W03.json");
-    }
-    return require("../fixtures/aggregates/weekly_rollups/2026-W02.json");
-  } catch {
-    return null;
-  }
+  return week === "2026-W03"
+    ? loadJsonFixture(path.join(extensionArtifactsRoot, "2026-W03.json"))
+    : loadJsonFixture(
+        path.join(fixtureRoot, "aggregates", "weekly_rollups", "2026-W02.json"),
+      );
 }
 
 /**
@@ -311,14 +287,9 @@ export function loadRollupFixture(week: string = "2026-W02"): unknown {
 export function loadPredictionsFixture(
   variant: "default" | "extension-artifacts" = "default",
 ): unknown {
-  try {
-    if (variant === "extension-artifacts") {
-      return require("../fixtures/extension-artifacts/predictions.json");
-    }
-    return require("../fixtures/predictions/trends.json");
-  } catch {
-    return null;
-  }
+  return variant === "extension-artifacts"
+    ? loadJsonFixture(path.join(extensionArtifactsRoot, "predictions.json"))
+    : loadJsonFixture(path.join(fixtureRoot, "predictions", "trends.json"));
 }
 
 /**
@@ -330,11 +301,7 @@ export function loadPredictionsFixture(
 export function loadLegacyRollupFixture(
   version: "v1.0" | "v1.1" | "v1.2",
 ): unknown {
-  try {
-    return require(`../fixtures/legacy-datasets/${version}-rollup.json`);
-  } catch {
-    return null;
-  }
+  return loadJsonFixture(path.join(legacyDatasetsRoot, `${version}-rollup.json`));
 }
 
 /**
@@ -354,6 +321,14 @@ export function loadAllFixtures(): LoadedFixtures {
       "v1.2": loadLegacyRollupFixture("v1.2"),
     },
   };
+}
+
+function loadJsonFixture(filePath: string): unknown {
+  try {
+    return readJsonFile<unknown>(filePath);
+  } catch {
+    return null;
+  }
 }
 
 /**

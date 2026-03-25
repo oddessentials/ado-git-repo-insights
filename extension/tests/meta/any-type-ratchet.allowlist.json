@@ -1,0 +1,11 @@
+{
+  "_comment": "Files permitted to contain explicit `any`. Each entry must include a justification. Any file NOT in this list that contains `any` in the scanned directories will fail the guard.",
+  "allowlist": [
+    {
+      "file": "ui/types.ts",
+      "maxCount": 9,
+      "reason": "Window interface augmentation for IIFE globals — circular import avoidance"
+    }
+  ],
+  "scanDirs": ["ui/", "tests/setup.ts", "tests/harness/", "tests/helpers/", "tests/local-mode-integration.test.ts"]
+}

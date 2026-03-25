@@ -12,9 +12,9 @@
  * @see specs/022-deterministic-smoke-tests/contracts/test-contracts.md
  */
 
-import * as fs from "fs";
 import * as path from "path";
 import { glob } from "glob";
+import { pathExists, readTextFile } from "../helpers/fs-test-utils";
 
 const TYPES_DIR = path.resolve(__dirname, "../types");
 
@@ -44,7 +44,7 @@ describe("Type Test Header Guard", () => {
     }
 
     for (const file of typeTestFiles) {
-      const content = fs.readFileSync(file, "utf-8");
+      const content = readTextFile(file);
       const lines = content.split("\n").slice(0, HEADER_SEARCH_LINES);
       const headerContent = lines.join("\n");
 
@@ -70,7 +70,7 @@ describe("Type Test Header Guard", () => {
    * Ensures the meta-test is scanning the correct location.
    */
   it("types/ directory exists", () => {
-    if (!fs.existsSync(TYPES_DIR)) {
+    if (!pathExists(TYPES_DIR)) {
       throw new Error(`Types directory not found at ${TYPES_DIR}`);
     }
   });

@@ -15,10 +15,12 @@ import {
   DatasetLoader,
   fetchSemaphore,
   createRollupCache,
+  type ProgressEvent,
 } from "../ui/dataset-loader";
+import type { ManifestSchema } from "../ui/types";
 
 // Mock helpers
-function mockFetchResponse(data: any, status: number = 200) {
+function mockFetchResponse(data: unknown, status: number = 200) {
   return Promise.resolve({
     ok: status >= 200 && status < 300,
     status,
@@ -42,8 +44,17 @@ function mockFetch500() {
   return Promise.resolve({ ok: false, status: 500 } as Response);
 }
 
+type RollupContext = Parameters<DatasetLoader["getWeeklyRollupsWithProgress"]>[2];
+
+class TestDatasetLoader extends DatasetLoader {
+  setManifest(manifest: Partial<ManifestSchema>): void {
+    this.manifest = manifest as ManifestSchema;
+  }
+}
+
 describe("Phase 4: Chunked Loading", () => {
-  let loader: DatasetLoader;
+  const globalScope = global as typeof globalThis & { fetch: typeof fetch };
+  let loader: TestDatasetLoader;
   let fakeClock: () => number;
   let currentTime: number;
 
@@ -55,8 +66,8 @@ describe("Phase 4: Chunked Loading", () => {
     currentTime = 1000000;
     fakeClock = () => currentTime;
 
-    loader = new DatasetLoader("http://test-api");
-    (loader as any).manifest = {
+    loader = new TestDatasetLoader("http://test-api");
+    loader.setManifest({
       manifest_schema_version: 1,
       dataset_schema_version: 1,
       aggregates_schema_version: 1,
@@ -69,7 +80,7 @@ describe("Phase 4: Chunked Loading", () => {
           { week: "2026-W05", path: "aggregates/weekly/2026-W05.json" },
         ],
       },
-    };
+    });
   });
 
   afterEach(() => {
@@ -109,8 +120,8 @@ describe("Phase 4: Chunked Loading", () => {
       }
 
       // Queue 2 more
-      fetchSemaphore.acquire().then(() => order.push("first"));
-      fetchSemaphore.acquire().then(() => order.push("second"));
+      void fetchSemaphore.acquire().then(() => order.push("first"));
+      void fetchSemaphore.acquire().then(() => order.push("second"));
 
       // Release twice
       fetchSemaphore.release();
@@ -246,14 +257,17 @@ describe("Phase 4: Chunked Loading", () => {
       const cache = createRollupCache(fakeClock);
 
       expect(() => {
-        cache.makeKey({ week: "2026-W01", org: "test" } as any); // Missing project, repo
+        cache.makeKey({
+          week: "2026-W01",
+          org: "test",
+        } as Parameters<typeof cache.makeKey>[0]); // Missing project, repo
       }).toThrow("Cache key missing required field");
     });
   });
 
   describe("getWeeklyRollupsWithProgress", () => {
     it("returns explicit missingWeeks[] for 404s", async () => {
-      (global as any).fetch = jest.fn((url: string) => {
+      globalScope.fetch = (jest.fn((url: string) => {
         if (url.includes("2026-W02")) return mockFetch404();
         if (url.includes("2026-W04")) return mockFetch404();
         const weekMatch = url.match(/(2026-W\d+)/);
@@ -261,9 +275,13 @@ describe("Phase 4: Chunked Loading", () => {
           week: weekMatch ? weekMatch[1] : "2026-W01",
           pr_count: 10,
         });
-      });
+      }) as unknown as typeof fetch);
 
-      const context = { org: "test", project: "proj", repo: "repo" };
+      const context: RollupContext = {
+        org: "test",
+        project: "proj",
+        repo: "repo",
+      };
       const result = await loader.getWeeklyRollupsWithProgress(
         new Date("2026-01-05"),
         new Date("2026-01-26"),
@@ -277,18 +295,20 @@ describe("Phase 4: Chunked Loading", () => {
     });
 
     it("returns explicit failedWeeks[] for 5xx after retry", async () => {
-      let callCount = 0;
-      (global as any).fetch = jest.fn((url: string) => {
-        callCount++;
+      globalScope.fetch = (jest.fn((url: string) => {
         if (url.includes("2026-W03")) return mockFetch500();
         const weekMatch = url.match(/(2026-W\d+)/);
         return mockFetchResponse({
           week: weekMatch ? weekMatch[1] : "2026-W01",
           pr_count: 10,
         });
-      });
+      }) as unknown as typeof fetch);
 
-      const context = { org: "test", project: "proj", repo: "repo" };
+      const context: RollupContext = {
+        org: "test",
+        project: "proj",
+        repo: "repo",
+      };
       const result = await loader.getWeeklyRollupsWithProgress(
         new Date("2026-01-05"),
         new Date("2026-01-19"),
@@ -302,9 +322,13 @@ describe("Phase 4: Chunked Loading", () => {
     });
 
     it("throws AUTH_REQUIRED if authError && data.length === 0", async () => {
-      (global as any).fetch = jest.fn(() => mockFetch401());
+      globalScope.fetch = jest.fn(() => mockFetch401()) as unknown as typeof fetch;
 
-      const context = { org: "test", project: "proj", repo: "repo" };
+      const context: RollupContext = {
+        org: "test",
+        project: "proj",
+        repo: "repo",
+      };
 
       await expect(
         loader.getWeeklyRollupsWithProgress(
@@ -316,15 +340,19 @@ describe("Phase 4: Chunked Loading", () => {
     });
 
     it("returns degraded state if partial auth success", async () => {
-      (global as any).fetch = jest.fn((url: string) => {
+      globalScope.fetch = (jest.fn((url: string) => {
         if (url.includes("2026-W01"))
           return mockFetchResponse({ week: "2026-W01", pr_count: 10 });
         if (url.includes("2026-W02"))
           return mockFetchResponse({ week: "2026-W02", pr_count: 15 });
         return mockFetch403();
-      });
+      }) as unknown as typeof fetch);
 
-      const context = { org: "test", project: "proj", repo: "repo" };
+      const context: RollupContext = {
+        org: "test",
+        project: "proj",
+        repo: "repo",
+      };
       const result = await loader.getWeeklyRollupsWithProgress(
         new Date("2026-01-05"),
         new Date("2026-01-19"),
@@ -337,18 +365,23 @@ describe("Phase 4: Chunked Loading", () => {
     });
 
     it("calls onProgress with correct semantics", async () => {
-      (global as any).fetch = jest.fn((url: string) => {
+      globalScope.fetch = (jest.fn((url: string) => {
         const weekMatch = url.match(/(2026-W\d+)/);
         return mockFetchResponse({
           week: weekMatch ? weekMatch[1] : "2026-W01",
           pr_count: 10,
         });
-      });
+      }) as unknown as typeof fetch);
 
-      const progressCalls: any[] = [];
-      const onProgress = (progress: any) => progressCalls.push({ ...progress });
+      const progressCalls: ProgressEvent[] = [];
+      const onProgress = (progress: ProgressEvent) =>
+        progressCalls.push({ ...progress });
 
-      const context = { org: "test", project: "proj", repo: "repo" };
+      const context: RollupContext = {
+        org: "test",
+        project: "proj",
+        repo: "repo",
+      };
       await loader.getWeeklyRollupsWithProgress(
         new Date("2026-01-05"),
         new Date("2026-01-19"),
@@ -367,7 +400,7 @@ describe("Phase 4: Chunked Loading", () => {
 
     it("retries go through semaphore", async () => {
       let retryCount = 0;
-      (global as any).fetch = jest.fn((url: string) => {
+      globalScope.fetch = (jest.fn((url: string) => {
         if (url.includes("2026-W02") && retryCount === 0) {
           retryCount++;
           return mockFetch500();
@@ -377,7 +410,7 @@ describe("Phase 4: Chunked Loading", () => {
           week: match ? match[0] : "W01",
           pr_count: 10,
         });
-      });
+      }) as unknown as typeof fetch);
 
       const originalAcquire = fetchSemaphore.acquire.bind(fetchSemaphore);
       const acquireSpy = jest
@@ -386,7 +419,11 @@ describe("Phase 4: Chunked Loading", () => {
           return originalAcquire();
         });
 
-      const context = { org: "test", project: "proj", repo: "repo" };
+      const context: RollupContext = {
+        org: "test",
+        project: "proj",
+        repo: "repo",
+      };
       await loader.getWeeklyRollupsWithProgress(
         new Date("2026-01-05"),
         new Date("2026-01-12"),
@@ -411,7 +448,7 @@ describe("Phase 4: Chunked Loading", () => {
         delays.push(Math.floor(seededRandom() * 100));
       }
 
-      (global as any).fetch = jest.fn((url: string) => {
+      globalScope.fetch = (jest.fn((url: string) => {
         const weekMatch = url.match(/W(\d+)/);
         const weekNum = weekMatch ? parseInt(weekMatch[1]!) : 1;
         const delay = delays[weekNum - 1] || 0;
@@ -427,9 +464,13 @@ describe("Phase 4: Chunked Loading", () => {
             );
           }, delay);
         });
-      });
+      }) as unknown as typeof fetch);
 
-      const context = { org: "test", project: "proj", repo: "repo" };
+      const context: RollupContext = {
+        org: "test",
+        project: "proj",
+        repo: "repo",
+      };
       const result = await loader.getWeeklyRollupsWithProgress(
         new Date("2026-01-05"),
         new Date("2026-02-02"),

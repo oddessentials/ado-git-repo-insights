@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import json
 import sys
-import tempfile
 import time
 import uuid
 from datetime import date, datetime, timezone
@@ -187,25 +186,10 @@ def write_json_file(path: Path, data: Any, *, max_retries: int = 1) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     encoded = canonical_json(data).encode("utf-8")
     for attempt in range(max_retries):
-        tmp_path: Path | None = None
         try:
-            with tempfile.NamedTemporaryFile(
-                dir=path.parent,
-                prefix=f"{path.name}.",
-                suffix=".tmp",
-                delete=False,
-            ) as handle:
-                handle.write(encoded)
-                handle.flush()
-                tmp_path = Path(handle.name)
-            tmp_path.replace(path)
+            path.write_bytes(encoded)
             return
         except OSError:
-            if tmp_path is not None:
-                try:
-                    tmp_path.unlink()
-                except OSError:
-                    pass
             if attempt < max_retries - 1:
                 time.sleep(0.1 * (attempt + 1))
             else:

@@ -3352,9 +3352,11 @@ var PRInsightsDashboard = (() => {
         this.validateManifest(this.manifest);
         return this.manifest;
       } catch (error) {
-        throw new Error(
+        const wrappedError = new Error(
           `Failed to load dataset manifest: ${getErrorMessage(error)}`
         );
+        wrappedError.cause = error;
+        throw wrappedError;
       }
     }
     validateManifest(manifest) {
@@ -5168,18 +5170,8 @@ var PRInsightsDashboard = (() => {
     const isNeutral = Math.abs(percentChange) < 2;
     const isPositive = percentChange > 0;
     const absChange = Math.abs(percentChange);
-    let cssClass = "metric-delta ";
-    let arrow = "";
-    if (isNeutral) {
-      cssClass += "delta-neutral";
-      arrow = "~";
-    } else if (isPositive) {
-      cssClass += inverse ? "delta-negative-inverse" : "delta-positive";
-      arrow = "&#9650;";
-    } else {
-      cssClass += inverse ? "delta-positive-inverse" : "delta-negative";
-      arrow = "&#9660;";
-    }
+    const cssClass = isNeutral ? "metric-delta delta-neutral" : isPositive ? `metric-delta ${inverse ? "delta-negative-inverse" : "delta-positive"}` : `metric-delta ${inverse ? "delta-positive-inverse" : "delta-negative"}`;
+    const arrow = isNeutral ? "~" : isPositive ? "&#9650;" : "&#9660;";
     const sign = isPositive ? "+" : "";
     element.className = cssClass;
     renderTrustedHtml(

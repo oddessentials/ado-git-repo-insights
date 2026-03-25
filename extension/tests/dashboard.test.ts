@@ -750,19 +750,12 @@ describe("Sprint 1: Trend Deltas & Metrics", () => {
       const isPositive = percentChange > 0;
       const absChange = Math.abs(percentChange);
 
-      let cssClass = "metric-delta ";
-      let arrow = "";
-
-      if (isNeutral) {
-        cssClass += "delta-neutral";
-        arrow = "~";
-      } else if (isPositive) {
-        cssClass += inverse ? "delta-negative-inverse" : "delta-positive";
-        arrow = "&#9650;";
-      } else {
-        cssClass += inverse ? "delta-positive-inverse" : "delta-negative";
-        arrow = "&#9660;";
-      }
+      const cssClass = isNeutral
+        ? "metric-delta delta-neutral"
+        : isPositive
+          ? `metric-delta ${inverse ? "delta-negative-inverse" : "delta-positive"}`
+          : `metric-delta ${inverse ? "delta-positive-inverse" : "delta-negative"}`;
+      const arrow = isNeutral ? "~" : isPositive ? "&#9650;" : "&#9660;";
 
       const sign = isPositive ? "+" : "";
       element.className = cssClass;
@@ -1369,7 +1362,7 @@ describe("Sprint 4: Charts & Tooltips", () => {
 
       // Hover first dot
       dots[0].dispatchEvent(new MouseEvent("mouseenter", { bubbles: true }));
-      let tooltip = container.querySelector(".chart-tooltip");
+      const tooltip = container.querySelector(".chart-tooltip");
       expect(tooltip.innerHTML).toContain("2025-W01");
       expect(tooltip.innerHTML).toContain("60");
 
@@ -1937,6 +1930,7 @@ describe("Sprint 5: Comparison Mode & Export", () => {
     });
 
     it("exits comparison mode", () => {
+      // eslint-disable-next-line prefer-const -- REASON: intentionally mutable to verify true→false state transition
       let comparisonMode = true;
       const toggle = document.getElementById("compare-toggle");
       const banner = document.getElementById("comparison-banner");
@@ -2449,8 +2443,6 @@ describe("Sprint 2: Filter Management", () => {
     });
 
     it("clears all filters on clear button click", () => {
-      let currentFilters = { repos: ["backend"], teams: ["platform"] };
-
       // Select options
       const repoFilter = document.getElementById(
         "repo-filter",
@@ -2468,7 +2460,7 @@ describe("Sprint 2: Filter Management", () => {
       ).selected = true;
 
       // Clear filters
-      currentFilters = { repos: [], teams: [] };
+      const currentFilters = { repos: [], teams: [] };
       Array.from(repoFilter.options).forEach(
         (o) => (o.selected = o.value === ""),
       );
@@ -2544,7 +2536,7 @@ describe("Sprint 2: Filter Management", () => {
     it("restores repo filters from URL params", () => {
       const params = new URLSearchParams("repos=backend,frontend");
       const reposParam = params.get("repos");
-      let currentFilters = { repos: [], teams: [] };
+      const currentFilters = { repos: [], teams: [] };
 
       if (reposParam) {
         currentFilters.repos = reposParam.split(",").filter((v) => v);
@@ -2578,7 +2570,7 @@ describe("Sprint 2: Filter Management", () => {
     it("restores team filters from URL params", () => {
       const params = new URLSearchParams("teams=platform");
       const teamsParam = params.get("teams");
-      let currentFilters = { repos: [], teams: [] };
+      const currentFilters = { repos: [], teams: [] };
 
       if (teamsParam) {
         currentFilters.teams = teamsParam.split(",").filter((v) => v);
@@ -2596,7 +2588,7 @@ describe("Sprint 2: Filter Management", () => {
 
     it("handles missing URL params gracefully", () => {
       const params = new URLSearchParams("");
-      let currentFilters = { repos: [], teams: [] };
+      const currentFilters = { repos: [], teams: [] };
 
       const reposParam = params.get("repos");
       const teamsParam = params.get("teams");
@@ -2616,8 +2608,8 @@ describe("Sprint 2: Filter Management", () => {
       // URL contains 'nonexistent' repo which is not in the dropdown
       const params = new URLSearchParams("repos=backend,nonexistent,frontend");
       const reposParam = params.get("repos");
-      let currentFilters = { repos: [], teams: [] };
-      let validFilters = { repos: [], teams: [] };
+      const currentFilters = { repos: [], teams: [] };
+      const validFilters = { repos: [], teams: [] };
 
       if (reposParam) {
         currentFilters.repos = reposParam.split(",").filter((v) => v);
@@ -2650,7 +2642,7 @@ describe("Sprint 2: Filter Management", () => {
       const params = new URLSearchParams(
         "foo=bar&repos=backend&baz=qux&teams=platform",
       );
-      let currentFilters = { repos: [], teams: [] };
+      const currentFilters = { repos: [], teams: [] };
 
       const reposParam = params.get("repos");
       const teamsParam = params.get("teams");
@@ -2673,7 +2665,7 @@ describe("Sprint 2: Filter Management", () => {
     it("handles malformed URL params gracefully", () => {
       // Empty values, trailing commas, multiple commas
       const params = new URLSearchParams("repos=,,backend,,&teams=");
-      let currentFilters = { repos: [], teams: [] };
+      const currentFilters = { repos: [], teams: [] };
 
       const reposParam = params.get("repos");
       const teamsParam = params.get("teams");

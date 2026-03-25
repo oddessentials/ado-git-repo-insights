@@ -5,21 +5,31 @@
  */
 
 import { DatasetLoader } from "../ui/dataset-loader";
-import * as fs from "fs";
 import * as path from "path";
+import { pathExists, readJsonFile } from "./helpers/fs-test-utils";
 
 const FIXTURES_DIR = path.join(__dirname, "fixtures");
+
+class TestDatasetLoader extends DatasetLoader {
+  public validatePredictionsSchemaForTest(predictions: unknown) {
+    return this.validatePredictionsSchema(predictions);
+  }
+
+  public validateInsightsSchemaForTest(insights: unknown) {
+    return this.validateInsightsSchema(insights);
+  }
+}
 
 describe("Golden Fixtures", () => {
   describe("Fixture files exist", () => {
     it("has dataset-manifest.json", () => {
       const manifestPath = path.join(FIXTURES_DIR, "dataset-manifest.json");
-      expect(fs.existsSync(manifestPath)).toBe(true);
+      expect(pathExists(manifestPath)).toBe(true);
     });
 
     it("has dimensions.json", () => {
       const dimPath = path.join(FIXTURES_DIR, "aggregates", "dimensions.json");
-      expect(fs.existsSync(dimPath)).toBe(true);
+      expect(pathExists(dimPath)).toBe(true);
     });
 
     it("has weekly rollup fixture", () => {
@@ -29,34 +39,33 @@ describe("Golden Fixtures", () => {
         "weekly_rollups",
         "2026-W02.json",
       );
-      expect(fs.existsSync(rollupPath)).toBe(true);
+      expect(pathExists(rollupPath)).toBe(true);
     });
 
     it("has predictions fixture", () => {
       const predPath = path.join(FIXTURES_DIR, "predictions", "trends.json");
-      expect(fs.existsSync(predPath)).toBe(true);
+      expect(pathExists(predPath)).toBe(true);
     });
 
     it("has insights fixture", () => {
       const insightsPath = path.join(FIXTURES_DIR, "insights", "summary.json");
-      expect(fs.existsSync(insightsPath)).toBe(true);
+      expect(pathExists(insightsPath)).toBe(true);
     });
   });
 
   describe("Fixture schema validation", () => {
-    let loader: DatasetLoader;
+    let loader: TestDatasetLoader;
 
     beforeEach(() => {
-      loader = new DatasetLoader("");
+      loader = new TestDatasetLoader("");
     });
 
     it("manifest has required schema versions", () => {
-      const manifest = JSON.parse(
-        fs.readFileSync(
-          path.join(FIXTURES_DIR, "dataset-manifest.json"),
-          "utf8",
-        ),
-      );
+      const manifest = readJsonFile<{
+        manifest_schema_version: number;
+        dataset_schema_version: number;
+        aggregates_schema_version: number;
+      }>(path.join(FIXTURES_DIR, "dataset-manifest.json"));
 
       expect(manifest.manifest_schema_version).toBe(1);
       expect(manifest.dataset_schema_version).toBe(1);
@@ -64,12 +73,9 @@ describe("Golden Fixtures", () => {
     });
 
     it("manifest has required feature flags", () => {
-      const manifest = JSON.parse(
-        fs.readFileSync(
-          path.join(FIXTURES_DIR, "dataset-manifest.json"),
-          "utf8",
-        ),
-      );
+      const manifest = readJsonFile<{
+        features: { predictions: boolean; ai_insights: boolean };
+      }>(path.join(FIXTURES_DIR, "dataset-manifest.json"));
 
       expect(manifest.features).toBeDefined();
       expect(typeof manifest.features.predictions).toBe("boolean");
@@ -77,41 +83,37 @@ describe("Golden Fixtures", () => {
     });
 
     it("predictions fixture passes schema validation", () => {
-      const predictions = JSON.parse(
-        fs.readFileSync(
-          path.join(FIXTURES_DIR, "predictions", "trends.json"),
-          "utf8",
-        ),
+      const predictions = readJsonFile<unknown>(
+        path.join(FIXTURES_DIR, "predictions", "trends.json"),
       );
 
-      const result = (loader as any).validatePredictionsSchema(predictions);
+      const result = loader.validatePredictionsSchemaForTest(predictions);
       expect(result.valid).toBe(true);
     });
 
     it("insights fixture passes schema validation", () => {
-      const insights = JSON.parse(
-        fs.readFileSync(
-          path.join(FIXTURES_DIR, "insights", "summary.json"),
-          "utf8",
-        ),
+      const insights = readJsonFile<unknown>(
+        path.join(FIXTURES_DIR, "insights", "summary.json"),
       );
 
-      const result = (loader as any).validateInsightsSchema(insights);
+      const result = loader.validateInsightsSchemaForTest(insights);
       expect(result.valid).toBe(true);
     });
   });
 
   describe("Fixture content validation", () => {
     it("weekly rollup has expected structure", () => {
-      const rollup = JSON.parse(
-        fs.readFileSync(
-          path.join(
-            FIXTURES_DIR,
-            "aggregates",
-            "weekly_rollups",
-            "2026-W02.json",
-          ),
-          "utf8",
+      const rollup = readJsonFile<{
+        week: string;
+        pr_count: number;
+        cycle_time_p50: number | null;
+        cycle_time_p90: number | null;
+      }>(
+        path.join(
+          FIXTURES_DIR,
+          "aggregates",
+          "weekly_rollups",
+          "2026-W02.json",
         ),
       );
 
@@ -122,12 +124,11 @@ describe("Golden Fixtures", () => {
     });
 
     it("dimensions has filter values", () => {
-      const dimensions = JSON.parse(
-        fs.readFileSync(
-          path.join(FIXTURES_DIR, "aggregates", "dimensions.json"),
-          "utf8",
-        ),
-      );
+      const dimensions = readJsonFile<{
+        repositories: unknown[];
+        users: unknown[];
+        teams: unknown[];
+      }>(path.join(FIXTURES_DIR, "aggregates", "dimensions.json"));
 
       expect(dimensions.repositories).toBeDefined();
       expect(Array.isArray(dimensions.repositories)).toBe(true);
@@ -136,12 +137,10 @@ describe("Golden Fixtures", () => {
     });
 
     it("predictions has forecasts array", () => {
-      const predictions = JSON.parse(
-        fs.readFileSync(
-          path.join(FIXTURES_DIR, "predictions", "trends.json"),
-          "utf8",
-        ),
-      );
+      const predictions = readJsonFile<{
+        forecasts: unknown[];
+        is_stub: boolean;
+      }>(path.join(FIXTURES_DIR, "predictions", "trends.json"));
 
       expect(Array.isArray(predictions.forecasts)).toBe(true);
       expect(predictions.forecasts.length).toBeGreaterThan(0);
@@ -149,14 +148,11 @@ describe("Golden Fixtures", () => {
     });
 
     it("insights has all severity levels", () => {
-      const insights = JSON.parse(
-        fs.readFileSync(
-          path.join(FIXTURES_DIR, "insights", "summary.json"),
-          "utf8",
-        ),
-      );
+      const insights = readJsonFile<{
+        insights: Array<{ severity: string }>;
+      }>(path.join(FIXTURES_DIR, "insights", "summary.json"));
 
-      const severities = insights.insights.map((i: any) => i.severity);
+      const severities = insights.insights.map((insight) => insight.severity);
       expect(severities).toContain("info");
       expect(severities).toContain("warning");
       expect(severities).toContain("critical");

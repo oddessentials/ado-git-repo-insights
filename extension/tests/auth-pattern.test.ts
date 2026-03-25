@@ -11,8 +11,24 @@
 
 import { ArtifactClient } from "../ui/artifact-client";
 
+type MockVSS = {
+  getWebContext: jest.Mock;
+  getAccessToken: jest.Mock<Promise<string | { token: string }>>;
+  getService: jest.Mock;
+  ServiceIds: {
+    ExtensionData: string;
+    Dialog: string;
+    Navigation: string;
+    AuthTokenService?: string;
+  };
+};
+
 describe("ArtifactClient Authentication Pattern", () => {
-  let mockVSS: any;
+  const globalScope = global as unknown as {
+    VSS?: unknown;
+    fetch?: unknown;
+  };
+  let mockVSS: MockVSS;
 
   beforeEach(() => {
     // Create a mock VSS SDK that tracks method calls
@@ -35,11 +51,11 @@ describe("ArtifactClient Authentication Pattern", () => {
       },
     };
 
-    (global as any).VSS = mockVSS;
+    globalScope.VSS = mockVSS as unknown;
   });
 
   afterEach(() => {
-    delete (global as any).VSS;
+    delete globalScope.VSS;
     jest.clearAllMocks();
   });
 
@@ -70,7 +86,9 @@ describe("ArtifactClient Authentication Pattern", () => {
       await client.initialize();
 
       // Access the internal authToken (testing implementation detail, but critical)
-      expect((client as any).authToken).toBe(expectedToken);
+      expect((client as unknown as { authToken?: string }).authToken).toBe(
+        expectedToken,
+      );
     });
 
     it("should handle getAccessToken returning token in correct format", async () => {
@@ -80,7 +98,9 @@ describe("ArtifactClient Authentication Pattern", () => {
       const client = new ArtifactClient("test-project-id");
       await client.initialize();
 
-      expect((client as any).authToken).toBe("format-test-token");
+      expect((client as unknown as { authToken?: string }).authToken).toBe(
+        "format-test-token",
+      );
     });
   });
 
@@ -98,17 +118,17 @@ describe("ArtifactClient Authentication Pattern", () => {
 
   describe("authenticated fetch behavior", () => {
     beforeEach(() => {
-      (global as any).fetch = jest.fn(() =>
+      globalScope.fetch = (jest.fn(() =>
         Promise.resolve({
           ok: true,
           status: 200,
           json: () => Promise.resolve({ value: [] }),
-        }),
-      );
+        } as Response),
+      ) as unknown as typeof fetch);
     });
 
     afterEach(() => {
-      delete (global as any).fetch;
+      delete globalScope.fetch;
     });
 
     it("should use Bearer token in Authorization header", async () => {
