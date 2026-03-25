@@ -146,6 +146,70 @@ jobs:
         working-directory: extension
         run: pnpm run build
 
+      - name: Set up Python (for docs sync validation)
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Validate docs/ Asset Sync (Release Gate)
+        run: |
+          set -euo pipefail
+          echo "Release gate: verifying docs/ assets match extension/dist/ui/..."
+
+          DOCS_FILES="dashboard.js dataset-loader.js artifact-client.js error-types.js error-codes.js styles.css VSS.SDK.min.js"
+          DRIFT_FOUND=false
+
+          for file in $DOCS_FILES; do
+            SRC="extension/dist/ui/$file"
+            DEST="docs/$file"
+            if [ -f "$SRC" ] && [ -f "$DEST" ]; then
+              SRC_HASH=$(cat "$SRC" | tr -d '\r' | sha256sum | cut -d' ' -f1)
+              DEST_HASH=$(cat "$DEST" | tr -d '\r' | sha256sum | cut -d' ' -f1)
+              if [ "$SRC_HASH" != "$DEST_HASH" ]; then
+                echo "::error::docs/$file is out of sync with extension/dist/ui/$file"
+                DRIFT_FOUND=true
+              fi
+            elif [ -f "$SRC" ] && [ ! -f "$DEST" ]; then
+              echo "::error::docs/$file missing (expected from extension/dist/ui/$file)"
+              DRIFT_FOUND=true
+            fi
+          done
+
+          if [ "$DRIFT_FOUND" = true ]; then
+            echo ""
+            echo "::error::RELEASE BLOCKED: docs/ assets are stale"
+            echo "Fix: Run 'python scripts/publish-demo-surface.py' and commit before releasing"
+            exit 1
+          fi
+          echo "[OK] docs/ assets match extension/dist/ui/"
+        shell: bash
+
+      - name: Validate docs/index.html Template Parity (Release Gate)
+        run: |
+          set -euo pipefail
+          echo "Release gate: verifying docs/index.html matches demo_shell.py transformation..."
+
+          python -c "
+          import sys
+          sys.path.insert(0, 'scripts')
+          from demo_shell import render_demo_html_from_path
+          from pathlib import Path
+
+          expected = render_demo_html_from_path(Path('extension/ui/index.html'))
+          Path('/tmp/expected-docs-index.html').write_text(expected, encoding='utf-8', newline='\n')
+          "
+
+          EXPECTED_HASH=$(cat /tmp/expected-docs-index.html | tr -d '\r' | sha256sum | cut -d' ' -f1)
+          ACTUAL_HASH=$(cat docs/index.html | tr -d '\r' | sha256sum | cut -d' ' -f1)
+
+          if [ "$EXPECTED_HASH" != "$ACTUAL_HASH" ]; then
+            echo "::error::RELEASE BLOCKED: docs/index.html is stale"
+            echo "Fix: Run 'python scripts/publish-demo-surface.py' and commit before releasing"
+            exit 1
+          fi
+          echo "[OK] docs/index.html matches expected transformation"
+        shell: bash
+
       - name: Stage task dependencies
         working-directory: extension
         run: pnpm run stage:tasks

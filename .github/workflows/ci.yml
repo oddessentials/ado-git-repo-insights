@@ -250,6 +250,37 @@ jobs:
           echo "[OK] docs/ assets are in sync"
         shell: bash
 
+      - name: Check docs/index.html Template Parity
+        run: |
+          echo "Verifying docs/index.html matches demo_shell.py transformation of extension/ui/index.html..."
+
+          # Generate expected docs/index.html from source template
+          python -c "
+          import sys
+          sys.path.insert(0, 'scripts')
+          from demo_shell import render_demo_html_from_path
+          from pathlib import Path
+
+          expected = render_demo_html_from_path(Path('extension/ui/index.html'))
+          Path('/tmp/expected-docs-index.html').write_text(expected, encoding='utf-8', newline='\n')
+          "
+
+          # Normalize CRLF and compare
+          EXPECTED_HASH=$(cat /tmp/expected-docs-index.html | tr -d '\r' | sha256sum | cut -d' ' -f1)
+          ACTUAL_HASH=$(cat docs/index.html | tr -d '\r' | sha256sum | cut -d' ' -f1)
+
+          if [ "$EXPECTED_HASH" != "$ACTUAL_HASH" ]; then
+            echo "::error::docs/index.html does not match demo_shell.py transformation of extension/ui/index.html"
+            echo ""
+            echo "Expected (from demo_shell.py):"
+            diff <(cat /tmp/expected-docs-index.html | tr -d '\r') <(cat docs/index.html | tr -d '\r') || true
+            echo ""
+            echo "Fix: Run 'python scripts/publish-demo-surface.py' to regenerate docs/index.html"
+            exit 1
+          fi
+          echo "[OK] docs/index.html matches expected transformation"
+        shell: bash
+
   # Guard: Block task Major changes without explicit marker
   task-major-guard:
     runs-on: ubuntu-latest
