@@ -11,18 +11,33 @@ repos:
       - id: ruff
         # Auto-fix on commit for a smoother DX; re-run hook will verify clean.
         args: [--fix]
+        stages: [pre-commit]
+      - id: ruff
+        name: ruff (check)
+        stages: [pre-push]
       - id: ruff-format
         # Auto-format on commit for a smoother DX.
+        stages: [pre-commit]
+      - id: ruff-format
+        name: ruff format (check)
+        args: [--check]
+        stages: [pre-push]
 
   - repo: https://github.com/pre-commit/pre-commit-hooks
     rev: v4.5.0
     hooks:
       - id: trailing-whitespace
+        stages: [pre-commit]
       - id: end-of-file-fixer
+        stages: [pre-commit]
       - id: check-yaml
+        stages: [pre-commit]
       - id: check-added-large-files
+        stages: [pre-commit, pre-push]
       - id: check-merge-conflict
+        stages: [pre-commit, pre-push]
       - id: detect-private-key
+        stages: [pre-commit, pre-push]
 
   - repo: local
     hooks:
@@ -32,6 +47,7 @@ repos:
         language: python
         pass_filenames: false
         always_run: true
+        stages: [pre-commit, pre-push]
 
       - id: pytest
         name: pytest
@@ -46,6 +62,7 @@ repos:
         language: system
         pass_filenames: false
         always_run: true
+        stages: [pre-commit, pre-push]
 
       - id: tool-version-parity
         name: Tool Version Parity
@@ -53,3 +70,12 @@ repos:
         language: system
         pass_filenames: false
         always_run: true
+        stages: [pre-commit, pre-push]
+
+      - id: yaml-validate
+        name: YAML Validation
+        entry: python scripts/validate_yaml_files.py
+        language: system
+        pass_filenames: false
+        always_run: true
+        stages: [pre-push]

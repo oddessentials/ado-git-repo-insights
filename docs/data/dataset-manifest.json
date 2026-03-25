@@ -1377,6 +1377,12 @@
     "teams": true
   },
   "generated_at": "2026-01-30T12:00:00Z",
+  "generation_provenance": {
+    "generation_mode": "canonical-committed-demo",
+    "generator_script": "scripts/build-demo-dataset.py",
+    "python_major_minor": "3.10",
+    "python_version": "3.10.x"
+  },
   "insights_schema_version": 1,
   "limits": {
     "max_distribution_files": 5,
@@ -1394,6 +1400,54 @@
     "globs": [
       "aggregates/comments/comments-batch-*.json"
     ]
+  },
+  "reviewer_fixtures": {
+    "minimum_active_reviewers": 5,
+    "minimum_multi_repo_reviewers": 1,
+    "minimum_review_actions_per_reviewer": 3,
+    "minimum_reviewed_prs_per_reviewer": 3,
+    "reviewer_constrained_example": {
+      "mode": "constrained",
+      "reason": "reviewer_repository_mode=constrained",
+      "repository_name": "user-service",
+      "reviewer_id": "a2bcc6dc-41a3-50d2-86cf-8dcb98701597",
+      "reviewer_name": "Lawrence Nguyen",
+      "week": "2025-W28"
+    },
+    "reviewer_filter_examples": [
+      {
+        "repositories_count": 2,
+        "reviewed_prs": 6,
+        "reviewer_id": "a2bcc6dc-41a3-50d2-86cf-8dcb98701597",
+        "reviewer_name": "Lawrence Nguyen",
+        "reviews_count": 6,
+        "week": "2025-W28"
+      },
+      {
+        "repositories_count": 2,
+        "reviewed_prs": 5,
+        "reviewer_id": "c52a8434-8e4b-51ae-89db-010dc937ade2",
+        "reviewer_name": "James Clark",
+        "reviews_count": 8,
+        "week": "2025-W28"
+      },
+      {
+        "repositories_count": 2,
+        "reviewed_prs": 5,
+        "reviewer_id": "321f42a1-e6c8-5a9f-a514-989fefce50a2",
+        "reviewer_name": "Harold Thomas",
+        "reviews_count": 7,
+        "week": "2025-W28"
+      }
+    ],
+    "reviewer_team_disallowed_example": {
+      "mode": "disallowed",
+      "reason": "reviewer_team_mode=disallowed",
+      "reviewer_id": "a2bcc6dc-41a3-50d2-86cf-8dcb98701597",
+      "reviewer_name": "Lawrence Nguyen",
+      "team_name": "Platform Team",
+      "week": "2025-W28"
+    }
   },
   "run_id": "demo-static"
 }

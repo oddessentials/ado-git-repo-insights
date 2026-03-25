@@ -13,7 +13,7 @@ Usage:
     python scripts/generate-demo-data.py
 
 Requirements:
-    Python 3.11+ (pinned for cross-platform reproducibility)
+    Python 3.10.x baseline (machine-enforced for committed demo artifacts)
 """
 
 from __future__ import annotations
@@ -33,11 +33,13 @@ _src_path = Path(__file__).resolve().parent.parent / "src"
 if str(_src_path) not in sys.path:
     sys.path.insert(0, str(_src_path))
 
-from ado_git_repo_insights.transform.schema_versions import AGGREGATES_SCHEMA_VERSION  # noqa: E402, I001
+from ado_git_repo_insights.transform.schema_versions import AGGREGATES_SCHEMA_VERSION  # type: ignore[import-untyped]  # noqa: E402, I001
 from demo_generation_common import (  # noqa: E402
     FIXED_GENERATED_AT,
+    build_generation_provenance,
     discover_demo_feature_flags,
     largest_remainder_allocate,
+    require_demo_generation_baseline_for_output,
     write_json_file,
 )
 
@@ -77,6 +79,8 @@ CYCLE_TIME_SIGMA = 1.5
 DEFAULT_OUTPUT_DIR = Path(__file__).parent.parent / "docs" / "data"
 DEMO_PROFILE_NAME = "enterprise-demo"
 DEMO_PROFILE_VERSION = "2.0.0"
+GENERATOR_SCRIPT = "scripts/generate-demo-data.py"
+GENERATION_MODE = "helper-demo-data"
 DEMO_COMMENT_BATCH_COUNT = 100
 DEMO_COMMENT_PRS_PER_BATCH = 3
 DEMO_COMMENT_COMMENTS_PER_PR = 2
@@ -168,6 +172,11 @@ AUTHOR_RATIO = 0.3  # Root-level: ~30% of weekly PR count
 REVIEWER_RATIO = 0.45  # Root-level: ~45% of weekly PR count
 SUBLINEAR_EXPONENT = 0.6  # Sub-linear scaling for repo/team/team-repo counts
 TEAM_AFFINITY_PRIMARY_SHARE = 0.65  # 65% of team PRs go to primary repos
+MIN_ACTIVE_REVIEWERS = 5
+MIN_REVIEWED_PRS_PER_ACTIVE_REVIEWER = 3
+MIN_REVIEW_ACTIONS_PER_ACTIVE_REVIEWER = 3
+MIN_MULTI_REPO_REVIEWERS = 1
+REVIEWER_FILTER_EXAMPLE_COUNT = 3
 
 
 # =============================================================================
@@ -501,12 +510,19 @@ LAST_NAMES = [
 
 def generate_users() -> list[SyntheticUser]:
     """Generate enterprise-scale synthetic users with realistic names."""
+    total_name_pairs = len(FIRST_NAMES) * len(LAST_NAMES)
+    if NUM_USERS > total_name_pairs:
+        raise ValueError(
+            "Not enough deterministic name pairs to generate unique synthetic users"
+        )
+
     users = []
+    permutation_step = 37  # co-prime with 2500 available name pairs
     for i in range(NUM_USERS):
-        first_name = FIRST_NAMES[i % len(FIRST_NAMES)]
-        last_name = LAST_NAMES[(i * 7) % len(LAST_NAMES)]
-        suffix = f" {i + 1}" if i >= len(FIRST_NAMES) else ""
-        display_name = f"{first_name} {last_name}{suffix}"
+        pair_index = (i * permutation_step) % total_name_pairs
+        first_name = FIRST_NAMES[pair_index // len(LAST_NAMES)]
+        last_name = LAST_NAMES[pair_index % len(LAST_NAMES)]
+        display_name = f"{first_name} {last_name}"
         # UUID generated as: uuid5(DNS_NAMESPACE, f"user/{display_name}")
         user_id = generate_uuid(f"user/{display_name}")
         users.append(SyntheticUser(user_id=user_id, display_name=display_name))
@@ -597,7 +613,7 @@ def _allocate_author_repo_entries(
             )
             / 100.0
         )
-        author_entry = {
+        author_entry: dict[str, Any] = {
             "pr_count": author_prs,
             "cycle_time_p50": None,
             "cycle_time_p90": None,
@@ -676,17 +692,38 @@ def _generate_reviewer_breakdown(
     if pr_count <= 0 or not users:
         return {}
 
-    reviewer_count = max(1, min(len(users), int(pr_count * REVIEWER_RATIO)))
+    guaranteed_active_reviewers = min(
+        len(users),
+        MIN_ACTIVE_REVIEWERS,
+        max(1, pr_count // MIN_REVIEWED_PRS_PER_ACTIVE_REVIEWER),
+    )
+    reviewer_count = max(
+        guaranteed_active_reviewers,
+        min(len(users), int(pr_count * REVIEWER_RATIO)),
+    )
     week_offset = sum(ord(ch) for ch in week_key) % len(users)
     selected_reviewers = [
         users[(week_offset + offset * 3) % len(users)]
         for offset in range(reviewer_count)
     ]
 
-    review_allocations = largest_remainder_allocate(
-        pr_count,
+    baseline_allocations = [0 for _ in range(reviewer_count)]
+    guaranteed_prs = guaranteed_active_reviewers * MIN_REVIEWED_PRS_PER_ACTIVE_REVIEWER
+    if pr_count >= guaranteed_prs:
+        for idx in range(guaranteed_active_reviewers):
+            baseline_allocations[idx] = MIN_REVIEWED_PRS_PER_ACTIVE_REVIEWER
+        remaining_prs = pr_count - guaranteed_prs
+    else:
+        remaining_prs = pr_count
+
+    additional_allocations = largest_remainder_allocate(
+        remaining_prs,
         [1.0 + ((idx % 5) * 0.12) for idx in range(reviewer_count)],
     )
+    review_allocations = [
+        baseline_allocations[idx] + additional_allocations[idx]
+        for idx in range(reviewer_count)
+    ]
 
     by_reviewer: dict[str, dict[str, Any]] = {}
     for idx, (reviewer, reviewed_prs) in enumerate(
@@ -696,6 +733,8 @@ def _generate_reviewer_breakdown(
             continue
 
         reviews_count = reviewed_prs + ((idx + len(week_key)) % 4)
+        if idx < guaranteed_active_reviewers:
+            reviews_count = max(reviews_count, MIN_REVIEW_ACTIONS_PER_ACTIVE_REVIEWER)
         approval_rate = round(
             min(0.95, max(0.55, 0.62 + ((idx % 7) * 0.04))),
             3,
@@ -708,6 +747,8 @@ def _generate_reviewer_breakdown(
             1,
             min(repo_count, int(reviewed_prs**SUBLINEAR_EXPONENT)),
         )
+        if idx < MIN_MULTI_REPO_REVIEWERS and repo_count >= 2:
+            repositories_count = max(repositories_count, 2)
 
         by_reviewer[str(reviewer.user_id)] = {
             "reviewed_prs": reviewed_prs,
@@ -792,6 +833,112 @@ def generate_dimensions(
     }
 
 
+def _select_reviewer_fixture_metadata(
+    rollups: list[WeeklyRollup], users: list[SyntheticUser]
+) -> dict[str, Any]:
+    """Select deterministic reviewer walkthrough fixtures from generated rollups."""
+    user_lookup = {str(user.user_id): user.display_name for user in users}
+    ranked_candidates: list[
+        tuple[int, int, int, str, WeeklyRollup, list[tuple[str, dict[str, Any]]]]
+    ] = []
+
+    for rollup in rollups:
+        by_reviewer = rollup.by_reviewer or {}
+        if not by_reviewer or not rollup.by_repository or not rollup.by_team:
+            continue
+
+        eligible_reviewers = [
+            (reviewer_id, entry)
+            for reviewer_id, entry in by_reviewer.items()
+            if entry["reviewed_prs"] >= MIN_REVIEWED_PRS_PER_ACTIVE_REVIEWER
+            and entry["reviews_count"] >= MIN_REVIEW_ACTIONS_PER_ACTIVE_REVIEWER
+        ]
+        multi_repo_reviewers = [
+            (reviewer_id, entry)
+            for reviewer_id, entry in eligible_reviewers
+            if entry["repositories_count"] >= 2
+        ]
+        if len(eligible_reviewers) < MIN_ACTIVE_REVIEWERS:
+            continue
+        if len(multi_repo_reviewers) < MIN_MULTI_REPO_REVIEWERS:
+            continue
+
+        ranked_candidates.append(
+            (
+                len(eligible_reviewers),
+                len(multi_repo_reviewers),
+                rollup.pr_count,
+                rollup.week,
+                rollup,
+                eligible_reviewers,
+            )
+        )
+
+    if not ranked_candidates:
+        raise RuntimeError(
+            "Unable to derive canonical reviewer fixtures from generated rollups"
+        )
+
+    ranked_candidates.sort(
+        key=lambda item: (-item[0], -item[1], -item[2], item[3]),
+    )
+    _, _, _, _, fixture_rollup, eligible_reviewers = ranked_candidates[0]
+
+    eligible_reviewers.sort(
+        key=lambda item: (
+            -item[1]["reviewed_prs"],
+            -item[1]["reviews_count"],
+            -item[1]["repositories_count"],
+            item[0],
+        )
+    )
+    top_examples = eligible_reviewers[:REVIEWER_FILTER_EXAMPLE_COUNT]
+    primary_reviewer_id, primary_reviewer = top_examples[0]
+
+    top_repository_name = max(
+        fixture_rollup.by_repository.items(),
+        key=lambda item: (item[1]["pr_count"], item[0]),
+    )[0]
+    top_team_name = max(
+        fixture_rollup.by_team.items(),
+        key=lambda item: (item[1]["pr_count"], item[0]),
+    )[0]
+
+    return {
+        "minimum_active_reviewers": MIN_ACTIVE_REVIEWERS,
+        "minimum_reviewed_prs_per_reviewer": MIN_REVIEWED_PRS_PER_ACTIVE_REVIEWER,
+        "minimum_review_actions_per_reviewer": MIN_REVIEW_ACTIONS_PER_ACTIVE_REVIEWER,
+        "minimum_multi_repo_reviewers": MIN_MULTI_REPO_REVIEWERS,
+        "reviewer_filter_examples": [
+            {
+                "week": fixture_rollup.week,
+                "reviewer_id": reviewer_id,
+                "reviewer_name": user_lookup[reviewer_id],
+                "reviewed_prs": entry["reviewed_prs"],
+                "reviews_count": entry["reviews_count"],
+                "repositories_count": entry["repositories_count"],
+            }
+            for reviewer_id, entry in top_examples
+        ],
+        "reviewer_constrained_example": {
+            "week": fixture_rollup.week,
+            "reviewer_id": primary_reviewer_id,
+            "reviewer_name": user_lookup[primary_reviewer_id],
+            "repository_name": top_repository_name,
+            "mode": "constrained",
+            "reason": "reviewer_repository_mode=constrained",
+        },
+        "reviewer_team_disallowed_example": {
+            "week": fixture_rollup.week,
+            "reviewer_id": primary_reviewer_id,
+            "reviewer_name": user_lookup[primary_reviewer_id],
+            "team_name": top_team_name,
+            "mode": "disallowed",
+            "reason": "reviewer_team_mode=disallowed",
+        },
+    }
+
+
 # =============================================================================
 # Weekly Rollup Generator (T013-T015)
 # =============================================================================
@@ -833,7 +980,7 @@ def generate_cycle_times(count: int, mu_factor: float = 1.0) -> list[float]:
 
 def adjusted_repo_weight(repo_name: str) -> float:
     """Apply a stronger power-law bias when allocating demo PRs to repos."""
-    return REPO_WEIGHTS.get(repo_name, 0.1) ** REPO_WEIGHT_EXPONENT
+    return float(REPO_WEIGHTS.get(repo_name, 0.1) ** REPO_WEIGHT_EXPONENT)
 
 
 def calculate_percentile(values: list[float], percentile: float) -> float:
@@ -845,7 +992,7 @@ def calculate_percentile(values: list[float], percentile: float) -> float:
     lower = int(idx)
     upper = min(lower + 1, len(sorted_values) - 1)
     weight = idx - lower
-    return sorted_values[lower] * (1 - weight) + sorted_values[upper] * weight
+    return float(sorted_values[lower] * (1 - weight) + sorted_values[upper] * weight)
 
 
 def generate_weekly_rollups(
@@ -881,8 +1028,8 @@ def generate_weekly_rollups(
 
             # Generate cycle times for this week
             cycle_times = generate_cycle_times(pr_count)
-            p50 = calculate_percentile(cycle_times, 50)
-            p90 = calculate_percentile(cycle_times, 90)
+            p50: float | None = calculate_percentile(cycle_times, 50)
+            p90: float | None = calculate_percentile(cycle_times, 90)
 
             # Authors and reviewers at root level
             authors_count = max(1, int(pr_count * AUTHOR_RATIO))
@@ -1250,12 +1397,14 @@ def generate_manifest(
     distributions: list[YearlyDistribution],
     output_dir: Path,
     comments_coverage: dict[str, Any],
+    users: list[SyntheticUser],
 ) -> dict[str, Any]:
     """Generate dataset-manifest.json."""
     # Calculate date range
     min_date = rollups[0].start_date if rollups else date(START_YEAR, 1, 1)
     max_date = rollups[-1].end_date if rollups else date(END_YEAR, 12, 31)
     total_prs = sum(r.pr_count for r in rollups)
+    reviewer_fixture_metadata = _select_reviewer_fixture_metadata(rollups, users)
 
     published_globs = [
         "aggregates/comments/comments-batch-*.json",
@@ -1275,6 +1424,10 @@ def generate_manifest(
             "seed": SEED,
             "canonical_output_root": "artifacts/demo-enterprise",
         },
+        "generation_provenance": build_generation_provenance(
+            generator_script=GENERATOR_SCRIPT,
+            generation_mode=GENERATION_MODE,
+        ),
         "defaults": {
             "default_date_range_days": 90,
         },
@@ -1295,6 +1448,7 @@ def generate_manifest(
             "reviewer_team_mode": "disallowed",
             "cross_dimensional_available": True,
         },
+        "reviewer_fixtures": reviewer_fixture_metadata,
         "coverage": {
             "total_prs": total_prs,
             "teams_count": 4,
@@ -1360,6 +1514,7 @@ def main(argv: list[str] | None = None) -> int:
     """Generate all demo data files."""
     args = parse_args(argv)
     output_dir = args.output_root.resolve()
+    require_demo_generation_baseline_for_output(GENERATOR_SCRIPT, output_dir)
     print("Generating demo data with seed=42...")
     print(f"Output directory: {output_dir}")
 
@@ -1456,7 +1611,13 @@ def main(argv: list[str] | None = None) -> int:
 
     # Generate manifest
     print("\n[6/6] Generating dataset-manifest.json...")
-    manifest = generate_manifest(rollups, distributions, output_dir, comments_coverage)
+    manifest = generate_manifest(
+        rollups,
+        distributions,
+        output_dir,
+        comments_coverage,
+        users,
+    )
     manifest_path = output_dir / "dataset-manifest.json"
     write_json_file(manifest_path, manifest, max_retries=3)
     print(f"  Written: {manifest_path}")

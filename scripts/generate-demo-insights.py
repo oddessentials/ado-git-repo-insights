@@ -22,7 +22,7 @@ Usage:
 
 Requirements:
     - Must run AFTER generate-demo-data.py (needs weekly rollups)
-    - Python 3.11+ (pinned for cross-platform reproducibility)
+    - Python 3.10.x baseline (machine-enforced for committed demo artifacts)
 """
 
 from __future__ import annotations
@@ -31,14 +31,17 @@ import argparse
 import logging
 import math
 import sys
+import time
 from dataclasses import dataclass, field
 from datetime import date
 from pathlib import Path
 
 from demo_generation_common import (
     FIXED_GENERATED_AT,
+    list_stable_json_files,
     load_json_file,
     refresh_demo_manifest_features,
+    require_demo_generation_baseline_for_output,
     round_float,
     write_json_file,
 )
@@ -66,6 +69,7 @@ ANOMALY_ROLLING_WEEKS = 8  # Rolling window for average
 ANOMALY_INACTIVE_WEEKS = 2  # Weeks with no PRs
 
 DEFAULT_DATA_DIR = Path(__file__).parent.parent / "docs" / "data"
+GENERATOR_SCRIPT = "scripts/generate-demo-insights.py"
 # Schema version
 INSIGHTS_SCHEMA_VERSION = 1
 # =============================================================================
@@ -136,50 +140,62 @@ class Insight:
 
 def load_weekly_rollups(rollups_dir: Path) -> list[WeeklyRollup]:
     """Load all weekly rollups with full repo breakdown."""
-    rollups = []
+    last_error: OSError | None = None
+    for attempt in range(5):
+        try:
+            rollups = []
 
-    for rollup_file in sorted(rollups_dir.glob("*.json")):
-        data = load_json_file(rollup_file)
+            for rollup_file in list_stable_json_files(rollups_dir):
+                data = load_json_file(rollup_file)
 
-        repos = []
-        for repo_name, repo_data in data.get("by_repository", {}).items():
-            repos.append(
-                RepoMetrics(
-                    name=repo_name,
-                    pr_count=repo_data["pr_count"],
-                    cycle_time_p50=_coerce_cycle_time(
-                        "cycle_time_p50",
-                        repo_data["cycle_time_p50"],
-                        context=f"{data['week']} repo {repo_name}",
-                    ),
-                    cycle_time_p90=_coerce_cycle_time(
-                        "cycle_time_p90",
-                        repo_data["cycle_time_p90"],
-                        context=f"{data['week']} repo {repo_name}",
-                    ),
+                repos = []
+                for repo_name, repo_data in data.get("by_repository", {}).items():
+                    repos.append(
+                        RepoMetrics(
+                            name=repo_name,
+                            pr_count=repo_data["pr_count"],
+                            cycle_time_p50=_coerce_cycle_time(
+                                "cycle_time_p50",
+                                repo_data["cycle_time_p50"],
+                                context=f"{data['week']} repo {repo_name}",
+                            ),
+                            cycle_time_p90=_coerce_cycle_time(
+                                "cycle_time_p90",
+                                repo_data["cycle_time_p90"],
+                                context=f"{data['week']} repo {repo_name}",
+                            ),
+                        )
+                    )
+
+                rollups.append(
+                    WeeklyRollup(
+                        week=data["week"],
+                        start_date=date.fromisoformat(data["start_date"]),
+                        pr_count=data["pr_count"],
+                        cycle_time_p50=_coerce_cycle_time(
+                            "cycle_time_p50",
+                            data["cycle_time_p50"],
+                            context=f"{data['week']} rollup",
+                        ),
+                        cycle_time_p90=_coerce_cycle_time(
+                            "cycle_time_p90",
+                            data["cycle_time_p90"],
+                            context=f"{data['week']} rollup",
+                        ),
+                        repos=repos,
+                    )
                 )
-            )
+            return sorted(rollups, key=lambda r: r.week)
+        except OSError as exc:
+            last_error = exc
+            if attempt < 4:
+                time.sleep(0.1 * (attempt + 1))
+            else:
+                raise RuntimeError(
+                    "Weekly rollups did not stabilize before insights generation"
+                ) from last_error
 
-        rollups.append(
-            WeeklyRollup(
-                week=data["week"],
-                start_date=date.fromisoformat(data["start_date"]),
-                pr_count=data["pr_count"],
-                cycle_time_p50=_coerce_cycle_time(
-                    "cycle_time_p50",
-                    data["cycle_time_p50"],
-                    context=f"{data['week']} rollup",
-                ),
-                cycle_time_p90=_coerce_cycle_time(
-                    "cycle_time_p90",
-                    data["cycle_time_p90"],
-                    context=f"{data['week']} rollup",
-                ),
-                repos=repos,
-            )
-        )
-
-    return sorted(rollups, key=lambda r: r.week)
+    raise AssertionError("unreachable")
 
 
 # =============================================================================
@@ -276,7 +292,7 @@ def detect_trend_001(rollups: list[WeeklyRollup]) -> list[Insight]:
 
     Scans the entire dataset to find the most significant throughput increase.
     """
-    insights = []
+    insights: list[Insight] = []
     if len(rollups) < TREND_WEEKS * 2:
         return insights
 
@@ -326,7 +342,7 @@ def detect_trend_002(rollups: list[WeeklyRollup]) -> list[Insight]:
 
     Scans the entire dataset to find the most significant cycle time improvement.
     """
-    insights = []
+    insights: list[Insight] = []
     if len(rollups) < TREND_WEEKS * 2:
         return insights
 
@@ -376,7 +392,7 @@ def detect_trend_003(rollups: list[WeeklyRollup]) -> list[Insight]:
 
     Scans the entire dataset to find the most significant throughput decline.
     """
-    insights = []
+    insights: list[Insight] = []
     if len(rollups) < TREND_WEEKS * 2:
         return insights
 
@@ -426,7 +442,7 @@ def detect_anomaly_001(rollups: list[WeeklyRollup]) -> list[Insight]:
 
     Scans the entire dataset to find the most notable high-activity week.
     """
-    insights = []
+    insights: list[Insight] = []
     if len(rollups) < ANOMALY_ROLLING_WEEKS + 1:
         return insights
 
@@ -478,7 +494,7 @@ def detect_anomaly_002(rollups: list[WeeklyRollup]) -> list[Insight]:
 
     Scans the entire dataset to find the most notable low-activity week.
     """
-    insights = []
+    insights: list[Insight] = []
     if len(rollups) < ANOMALY_ROLLING_WEEKS + 1:
         return insights
 
@@ -528,7 +544,7 @@ def detect_anomaly_003(rollups: list[WeeklyRollup]) -> list[Insight]:
     """
     T048: Detect repos with no PRs merged in 2+ weeks (critical severity).
     """
-    insights = []
+    insights: list[Insight] = []
     if len(rollups) < ANOMALY_INACTIVE_WEEKS:
         return insights
 
@@ -597,6 +613,7 @@ def main(argv: list[str] | None = None) -> int:
     """Generate insights data."""
     args = parse_args(argv)
     data_dir = args.output_root.resolve()
+    require_demo_generation_baseline_for_output(GENERATOR_SCRIPT, data_dir)
     rollups_dir = data_dir / "aggregates" / "weekly_rollups"
     insights_dir = data_dir / "insights"
     output_file = insights_dir / "summary.json"
@@ -689,7 +706,7 @@ def main(argv: list[str] | None = None) -> int:
     print("\nInsights generation complete!")
 
     # Summary by category
-    by_category = {}
+    by_category: dict[str, int] = {}
     for i in all_insights:
         by_category[i.category] = by_category.get(i.category, 0) + 1
 
@@ -697,7 +714,7 @@ def main(argv: list[str] | None = None) -> int:
     for category, count in sorted(by_category.items()):
         print(f"  {category}: {count}")
 
-    by_severity = {}
+    by_severity: dict[str, int] = {}
     for i in all_insights:
         by_severity[i.severity] = by_severity.get(i.severity, 0) + 1
 

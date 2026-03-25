@@ -281,9 +281,11 @@ var PRInsightsDatasetLoader = (() => {
     "defaults",
     "limits",
     "demo_profile",
+    "generation_provenance",
     "published_files",
     "features",
     "capabilities",
+    "reviewer_fixtures",
     "coverage",
     "aggregate_index",
     "warnings",
@@ -355,7 +357,39 @@ var PRInsightsDatasetLoader = (() => {
     "seed",
     "canonical_output_root"
   ]);
+  var KNOWN_GENERATION_PROVENANCE_FIELDS = /* @__PURE__ */ new Set([
+    "python_version",
+    "python_major_minor",
+    "generator_script",
+    "generation_mode"
+  ]);
   var KNOWN_PUBLISHED_FILES_FIELDS = /* @__PURE__ */ new Set(["direct", "globs"]);
+  var KNOWN_REVIEWER_FIXTURES_FIELDS = /* @__PURE__ */ new Set([
+    "minimum_active_reviewers",
+    "minimum_reviewed_prs_per_reviewer",
+    "minimum_review_actions_per_reviewer",
+    "minimum_multi_repo_reviewers",
+    "reviewer_filter_examples",
+    "reviewer_constrained_example",
+    "reviewer_team_disallowed_example"
+  ]);
+  var KNOWN_REVIEWER_FILTER_EXAMPLE_FIELDS = /* @__PURE__ */ new Set([
+    "reviewer_id",
+    "reviewer_name",
+    "week",
+    "reviewed_prs",
+    "reviews_count",
+    "repositories_count"
+  ]);
+  var KNOWN_REVIEWER_FIXTURE_EXAMPLE_FIELDS = /* @__PURE__ */ new Set([
+    "reviewer_id",
+    "reviewer_name",
+    "week",
+    "mode",
+    "reason",
+    "repository_name",
+    "team_name"
+  ]);
   function validateWeeklyRollupEntry(data, path, strict) {
     const errors = [];
     const warnings = [];
@@ -860,6 +894,225 @@ var PRInsightsDatasetLoader = (() => {
     warnings.push(...unknown.warnings);
     return { errors, warnings };
   }
+  function validateGenerationProvenance(data, path, strict) {
+    const errors = [];
+    const warnings = [];
+    if (!isObject(data)) {
+      errors.push(createError(path, "object", getTypeName(data)));
+      return { errors, warnings };
+    }
+    for (const field of KNOWN_GENERATION_PROVENANCE_FIELDS) {
+      const fieldPath = buildPath(path, field);
+      const required = validateRequired(data, field, path);
+      if (required) {
+        errors.push(required);
+        continue;
+      }
+      const err = validateString(
+        Object.getOwnPropertyDescriptor(data, field)?.value,
+        fieldPath
+      );
+      if (err) errors.push(err);
+    }
+    const unknown = findUnknownFields(
+      data,
+      KNOWN_GENERATION_PROVENANCE_FIELDS,
+      path,
+      strict
+    );
+    errors.push(...unknown.errors);
+    warnings.push(...unknown.warnings);
+    return { errors, warnings };
+  }
+  function validateReviewerFilterExample(data, path, strict) {
+    const errors = [];
+    const warnings = [];
+    if (!isObject(data)) {
+      errors.push(createError(path, "object", getTypeName(data)));
+      return { errors, warnings };
+    }
+    const stringFields = ["reviewer_id", "reviewer_name", "week"];
+    for (const field of stringFields) {
+      const required = validateRequired(data, field, path);
+      if (required) {
+        errors.push(required);
+        continue;
+      }
+      const err = validateString(
+        Object.getOwnPropertyDescriptor(data, field)?.value,
+        buildPath(path, field)
+      );
+      if (err) errors.push(err);
+    }
+    if ("week" in data) {
+      const err = validateIsoWeek(data.week, buildPath(path, "week"));
+      if (err) errors.push(err);
+    }
+    const numericFields = ["reviewed_prs", "reviews_count", "repositories_count"];
+    for (const field of numericFields) {
+      if (Object.prototype.hasOwnProperty.call(data, field)) {
+        const err = validateNonNegativeNumber(
+          Object.getOwnPropertyDescriptor(data, field)?.value,
+          buildPath(path, field)
+        );
+        if (err) errors.push(err);
+      }
+    }
+    const unknown = findUnknownFields(
+      data,
+      KNOWN_REVIEWER_FILTER_EXAMPLE_FIELDS,
+      path,
+      strict
+    );
+    errors.push(...unknown.errors);
+    warnings.push(...unknown.warnings);
+    return { errors, warnings };
+  }
+  function validateReviewerFixtureExample(data, path, strict) {
+    const errors = [];
+    const warnings = [];
+    if (!isObject(data)) {
+      errors.push(createError(path, "object", getTypeName(data)));
+      return { errors, warnings };
+    }
+    const requiredStringFields = ["reviewer_id", "reviewer_name", "week", "mode", "reason"];
+    for (const field of requiredStringFields) {
+      const required = validateRequired(data, field, path);
+      if (required) {
+        errors.push(required);
+        continue;
+      }
+      const err = validateString(
+        Object.getOwnPropertyDescriptor(data, field)?.value,
+        buildPath(path, field)
+      );
+      if (err) errors.push(err);
+    }
+    if ("week" in data) {
+      const err = validateIsoWeek(data.week, buildPath(path, "week"));
+      if (err) errors.push(err);
+    }
+    if ("mode" in data && typeof data.mode === "string") {
+      if (!(/* @__PURE__ */ new Set(["constrained", "disallowed"])).has(data.mode)) {
+        errors.push(
+          createError(
+            buildPath(path, "mode"),
+            "constrained | disallowed",
+            data.mode
+          )
+        );
+      }
+    }
+    for (const field of ["repository_name", "team_name"]) {
+      if (Object.prototype.hasOwnProperty.call(data, field)) {
+        const err = validateString(
+          Object.getOwnPropertyDescriptor(data, field)?.value,
+          buildPath(path, field)
+        );
+        if (err) errors.push(err);
+      }
+    }
+    const unknown = findUnknownFields(
+      data,
+      KNOWN_REVIEWER_FIXTURE_EXAMPLE_FIELDS,
+      path,
+      strict
+    );
+    errors.push(...unknown.errors);
+    warnings.push(...unknown.warnings);
+    return { errors, warnings };
+  }
+  function validateReviewerFixtures(data, path, strict) {
+    const errors = [];
+    const warnings = [];
+    if (!isObject(data)) {
+      errors.push(createError(path, "object", getTypeName(data)));
+      return { errors, warnings };
+    }
+    const thresholdFields = [
+      "minimum_active_reviewers",
+      "minimum_reviewed_prs_per_reviewer",
+      "minimum_review_actions_per_reviewer",
+      "minimum_multi_repo_reviewers"
+    ];
+    for (const field of thresholdFields) {
+      const required = validateRequired(data, field, path);
+      if (required) {
+        errors.push(required);
+        continue;
+      }
+      const err = validateNonNegativeNumber(
+        Object.getOwnPropertyDescriptor(data, field)?.value,
+        buildPath(path, field)
+      );
+      if (err) errors.push(err);
+    }
+    const filterExamplesRequired = validateRequired(
+      data,
+      "reviewer_filter_examples",
+      path
+    );
+    if (filterExamplesRequired) {
+      errors.push(filterExamplesRequired);
+    } else {
+      const filterPath = buildPath(path, "reviewer_filter_examples");
+      const err = validateArray(data.reviewer_filter_examples, filterPath);
+      if (err) {
+        errors.push(err);
+      } else if (isArray(data.reviewer_filter_examples)) {
+        data.reviewer_filter_examples.forEach((item, index) => {
+          const result = validateReviewerFilterExample(
+            item,
+            buildPath(filterPath, String(index)),
+            strict
+          );
+          errors.push(...result.errors);
+          warnings.push(...result.warnings);
+        });
+      }
+    }
+    const constrainedRequired = validateRequired(
+      data,
+      "reviewer_constrained_example",
+      path
+    );
+    if (constrainedRequired) {
+      errors.push(constrainedRequired);
+    } else {
+      const result = validateReviewerFixtureExample(
+        data.reviewer_constrained_example,
+        buildPath(path, "reviewer_constrained_example"),
+        strict
+      );
+      errors.push(...result.errors);
+      warnings.push(...result.warnings);
+    }
+    const disallowedRequired = validateRequired(
+      data,
+      "reviewer_team_disallowed_example",
+      path
+    );
+    if (disallowedRequired) {
+      errors.push(disallowedRequired);
+    } else {
+      const result = validateReviewerFixtureExample(
+        data.reviewer_team_disallowed_example,
+        buildPath(path, "reviewer_team_disallowed_example"),
+        strict
+      );
+      errors.push(...result.errors);
+      warnings.push(...result.warnings);
+    }
+    const unknown = findUnknownFields(
+      data,
+      KNOWN_REVIEWER_FIXTURES_FIELDS,
+      path,
+      strict
+    );
+    errors.push(...unknown.errors);
+    warnings.push(...unknown.warnings);
+    return { errors, warnings };
+  }
   function validateManifest(data, strict) {
     const errors = [];
     const warnings = [];
@@ -957,6 +1210,15 @@ var PRInsightsDatasetLoader = (() => {
       errors.push(...result.errors);
       warnings.push(...result.warnings);
     }
+    if ("generation_provenance" in data && data.generation_provenance !== void 0) {
+      const result = validateGenerationProvenance(
+        data.generation_provenance,
+        "generation_provenance",
+        strict
+      );
+      errors.push(...result.errors);
+      warnings.push(...result.warnings);
+    }
     if ("published_files" in data && data.published_files !== void 0) {
       const result = validatePublishedFiles(
         data.published_files,
@@ -975,6 +1237,15 @@ var PRInsightsDatasetLoader = (() => {
       const result = validateCapabilities(
         data.capabilities,
         "capabilities",
+        strict
+      );
+      errors.push(...result.errors);
+      warnings.push(...result.warnings);
+    }
+    if ("reviewer_fixtures" in data && data.reviewer_fixtures !== void 0) {
+      const result = validateReviewerFixtures(
+        data.reviewer_fixtures,
+        "reviewer_fixtures",
         strict
       );
       errors.push(...result.errors);

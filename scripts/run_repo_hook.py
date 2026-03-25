@@ -242,10 +242,10 @@ def run_pre_commit_hook() -> None:
     safe_print("[pre-commit] managed UI artifacts synced successfully")
 
 
-def run_pre_commit_all_files() -> None:
+def run_pre_push_pre_commit_checks() -> None:
     pre_commit = resolve_pre_commit()
-    safe_print("[pre-push] running pre-commit on all files")
-    run_command([pre_commit, "run", "--all-files"])
+    safe_print("[pre-push] running pre-commit checks on all files")
+    run_command([pre_commit, "run", "--all-files", "--hook-stage", "pre-push"])
 
 
 def check_crlf(path: Path) -> bool:
@@ -341,7 +341,7 @@ def run_asset_validation() -> None:
 def run_pre_push_hook() -> None:
     safe_print("[pre-push] running baseline integrity check")
     run_command(["node", ".github/scripts/check-baseline-integrity.js"])
-    run_pre_commit_all_files()
+    run_pre_push_pre_commit_checks()
     run_crlf_guard()
     run_asset_validation()
     safe_print("[pre-push] running PR preflight")

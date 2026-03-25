@@ -3,10 +3,9 @@
 # Build demo dashboard for GitHub Pages deployment.
 #
 # This script:
-# 1. Builds the extension UI bundles (pnpm build:ui)
-# 2. Publishes the docs demo shell and built assets from a canonical source
-# 4. Regenerates the canonical enterprise demo dataset and promotes it to docs/data
-# 5. Verifies the published demo surface
+# 1. Ensures extension dependencies are installed
+# 2. Runs the canonical committed-demo builder
+# 3. Verifies the published demo surface
 #
 # Usage:
 #     ./scripts/build-demo.sh
@@ -14,7 +13,6 @@
 # Requirements:
 #     - pnpm 9.15.0 (via corepack)
 #     - Node.js 22
-#     - Extension dependencies installed (pnpm install in extension/)
 #
 
 set -euo pipefail
@@ -24,41 +22,55 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
 EXTENSION_DIR="${REPO_ROOT}/extension"
 DOCS_DIR="${REPO_ROOT}/docs"
+BASELINE_PYTHON=()
+
+resolve_baseline_python() {
+    if command -v py >/dev/null 2>&1; then
+        if py -3.10 -c "import sys; raise SystemExit(0 if sys.version_info[:2] == (3, 10) else 1)" >/dev/null 2>&1; then
+            BASELINE_PYTHON=(py -3.10)
+            return 0
+        fi
+    fi
+
+    for candidate in python3.10 python3 python; do
+        if command -v "${candidate}" >/dev/null 2>&1; then
+            if "${candidate}" -c "import sys; raise SystemExit(0 if sys.version_info[:2] == (3, 10) else 1)" >/dev/null 2>&1; then
+                BASELINE_PYTHON=("${candidate}")
+                return 0
+            fi
+        fi
+    done
+
+    return 1
+}
 
 echo "=== Building Demo Dashboard ==="
 echo "Repository root: ${REPO_ROOT}"
 echo ""
 
-# Step 1: Build extension UI
-echo "[1/5] Building extension UI bundles..."
-cd "${EXTENSION_DIR}"
-
-# Ensure dependencies are installed
-if [ ! -d "node_modules" ]; then
-    echo "  Installing dependencies..."
-    pnpm install --frozen-lockfile
+if ! resolve_baseline_python; then
+    echo "ERROR: Python 3.10 is required for canonical committed-demo generation."
+    echo "Install or expose Python 3.10, then rerun scripts/build-demo.sh."
+    exit 1
 fi
 
-# Build UI bundles (IIFE format)
-pnpm run build:ui
+# Step 1: Prepare extension dependencies
+echo "[1/3] Preparing extension dependencies..."
+cd "${EXTENSION_DIR}"
 
-echo "  Build complete."
-echo ""
+# Always reconcile extension dependencies with the lockfile so local stale
+# installs cannot skew the canonical published demo surface.
+echo "  Syncing extension dependencies to pnpm-lock.yaml..."
+pnpm install --frozen-lockfile
 
-# Step 2: Publish docs surface from built extension assets
-echo "[2/5] Publishing demo shell and assets..."
-python "${SCRIPT_DIR}/publish-demo-surface.py" --source "${EXTENSION_DIR}/dist/ui" --docs-dir "${DOCS_DIR}"
-
-echo ""
-
-# Step 3: Build canonical enterprise demo data and promote to docs/data
-echo "[3/5] Building canonical enterprise demo dataset..."
-python "${SCRIPT_DIR}/build-demo-dataset.py"
+# Step 2: Build canonical enterprise demo data and docs surface
+echo "[2/3] Building canonical enterprise demo dataset and surface..."
+"${BASELINE_PYTHON[@]}" "${SCRIPT_DIR}/build-demo-dataset.py"
 
 echo ""
 
-# Step 4: Verify output
-echo "[4/5] Verifying output..."
+# Step 3: Verify output
+echo "[3/3] Verifying output..."
 
 # Check required files exist
 REQUIRED_FILES=(
@@ -102,7 +114,7 @@ if [ $MISSING -gt 0 ]; then
     exit 1
 fi
 
-echo "[5/5] Demo surface published successfully."
+echo "[3/3] Demo surface published successfully."
 
 echo "=== Build Complete ==="
 echo ""

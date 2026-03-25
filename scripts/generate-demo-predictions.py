@@ -12,13 +12,14 @@ Usage:
 
 Requirements:
     - Must run AFTER generate-demo-data.py (needs weekly rollups)
-    - Python 3.11+ (pinned for cross-platform reproducibility)
+    - Python 3.10.x baseline (machine-enforced for committed demo artifacts)
 """
 
 from __future__ import annotations
 
 import argparse
 import sys
+import time
 from dataclasses import dataclass
 from datetime import date, timedelta
 from decimal import Decimal
@@ -27,8 +28,10 @@ from typing import Any
 
 from demo_generation_common import (
     FIXED_GENERATED_AT,
+    list_stable_json_files,
     load_json_file,
     refresh_demo_manifest_features,
+    require_demo_generation_baseline_for_output,
     round_float,
     write_json_file,
 )
@@ -45,6 +48,7 @@ CONFIDENCE_WIDENING_PER_WEEK = 0.01  # +1% per week
 REVIEW_TIME_FRACTION = 0.4  # Review time is ~40% of total cycle time
 
 DEFAULT_DATA_DIR = Path(__file__).parent.parent / "docs" / "data"
+GENERATOR_SCRIPT = "scripts/generate-demo-predictions.py"
 # Schema version
 PREDICTIONS_SCHEMA_VERSION = 1
 # =============================================================================
@@ -64,21 +68,32 @@ class WeeklyMetrics:
 
 def load_weekly_rollups(rollups_dir: Path) -> list[WeeklyMetrics]:
     """Load all weekly rollups and extract relevant metrics."""
-    rollups = []
+    last_error: OSError | None = None
+    for attempt in range(5):
+        try:
+            rollups = []
+            for rollup_file in list_stable_json_files(rollups_dir):
+                data = load_json_file(rollup_file)
 
-    for rollup_file in sorted(rollups_dir.glob("*.json")):
-        data = load_json_file(rollup_file)
+                rollups.append(
+                    WeeklyMetrics(
+                        week=data["week"],
+                        start_date=date.fromisoformat(data["start_date"]),
+                        pr_count=data["pr_count"],
+                        cycle_time_p50=data["cycle_time_p50"] or 0.0,
+                    )
+                )
+            return sorted(rollups, key=lambda r: r.week)
+        except OSError as exc:
+            last_error = exc
+            if attempt < 4:
+                time.sleep(0.1 * (attempt + 1))
+            else:
+                raise RuntimeError(
+                    "Weekly rollups did not stabilize before predictions generation"
+                ) from last_error
 
-        rollups.append(
-            WeeklyMetrics(
-                week=data["week"],
-                start_date=date.fromisoformat(data["start_date"]),
-                pr_count=data["pr_count"],
-                cycle_time_p50=data["cycle_time_p50"] or 0.0,
-            )
-        )
-
-    return sorted(rollups, key=lambda r: r.week)
+    raise AssertionError("unreachable")
 
 
 # =============================================================================
@@ -110,9 +125,13 @@ def calculate_linear_trend(values: list[float]) -> tuple[Decimal, Decimal]:
     d_y_mean = sum(d_values) / d_n
 
     d_numerator = sum(
-        (Decimal(i) - d_x_mean) * (y - d_y_mean) for i, y in enumerate(d_values)
+        ((Decimal(i) - d_x_mean) * (y - d_y_mean) for i, y in enumerate(d_values)),
+        Decimal("0"),
     )
-    d_denominator = sum((Decimal(i) - d_x_mean) ** 2 for i in range(n))
+    d_denominator = sum(
+        ((Decimal(i) - d_x_mean) ** 2 for i in range(n)),
+        Decimal("0"),
+    )
 
     if d_denominator == 0:
         return Decimal("0"), d_y_mean
@@ -271,6 +290,7 @@ def main(argv: list[str] | None = None) -> int:
     """Generate predictions data."""
     args = parse_args(argv)
     data_dir = args.output_root.resolve()
+    require_demo_generation_baseline_for_output(GENERATOR_SCRIPT, data_dir)
     rollups_dir = data_dir / "aggregates" / "weekly_rollups"
     predictions_dir = data_dir / "predictions"
     output_file = predictions_dir / "trends.json"
