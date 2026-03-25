@@ -116,3 +116,27 @@ class TestCrossLanguageSchemaParity:
             f"{sorted(now_produced)}. "
             f"Remove them from TS_ONLY_FORWARD_COMPAT_FIELDS — they're no longer forward-compat."
         )
+
+
+class TestSchemaParityRedPath:
+    """Prove the parity guard catches drift — not just passes when healthy."""
+
+    def test_extra_python_field_is_caught(
+        self, python_rollup_fields, typescript_known_fields
+    ):
+        """Simulated drift: Python adds a field TypeScript doesn't know about."""
+        drifted_py = python_rollup_fields | {"sentiment_score"}
+        python_only = drifted_py - typescript_known_fields
+        assert "sentiment_score" in python_only, (
+            "Guard failed to detect a Python-only field — parity check is broken"
+        )
+
+    def test_extra_typescript_field_is_caught(
+        self, python_rollup_fields, typescript_known_fields
+    ):
+        """Simulated drift: TypeScript adds a field Python doesn't produce."""
+        drifted_ts = typescript_known_fields | {"response_time_p99"}
+        ts_only = drifted_ts - python_rollup_fields - TS_ONLY_FORWARD_COMPAT_FIELDS
+        assert "response_time_p99" in ts_only, (
+            "Guard failed to detect a TypeScript-only field — parity check is broken"
+        )
