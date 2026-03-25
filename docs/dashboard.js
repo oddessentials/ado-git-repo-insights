@@ -5668,6 +5668,7 @@ var PRInsightsDashboard = (() => {
       );
       return;
     }
+    const truncated = rollups.length > MAX_REVIEWER_WEEKS;
     const recentRollups = rollups.slice(-MAX_REVIEWER_WEEKS);
     const maxReviewers = Math.max(
       ...recentRollups.map((r) => r.reviewers_count || 0)
@@ -5695,9 +5696,10 @@ var PRInsightsDashboard = (() => {
             </div>
         `;
     }).join("");
+    const truncationHtml = truncated ? `<div class="truncation-indicator">Showing last ${MAX_REVIEWER_WEEKS} weeks</div>` : "";
     renderTrustedHtml(
       container,
-      `<p class="chart-subtitle">${escapeHtml(subtitle)}</p><div class="horizontal-bar-chart">${barsHtml}</div>`
+      `${truncationHtml}<p class="chart-subtitle">${escapeHtml(subtitle)}</p><div class="horizontal-bar-chart">${barsHtml}</div>`
     );
   }
 
