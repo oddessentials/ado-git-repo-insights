@@ -11,6 +11,7 @@ Tests cover:
 from __future__ import annotations
 
 import hashlib
+import importlib.util
 import shutil
 from pathlib import Path
 from unittest.mock import patch
@@ -325,75 +326,120 @@ class TestFullSync:
 
 # =============================================================================
 # Sync Audit Tests (P4 guardrail)
+#
+# Transitive coverage model:
+#   dist/ui ↔ ui_bundle   (CI: ui-bundle-sync job rebuilds + git diff, ci.yml lines 210-220)
+#   ui_bundle ↔ docs      (these tests)
+#   ∴ dist/ui ↔ docs      (transitive)
+#
+# These tests use only committed artifacts (ui_bundle/, docs/) so they
+# always run in CI without skips. The dist/ui ↔ ui_bundle link is
+# enforced by the separate "Check UI Bundle Synchronization" CI step.
 # =============================================================================
+
+# Import the canonical asset list from the single source of truth
+_pds_spec = importlib.util.spec_from_file_location(
+    "publish_demo_surface",
+    Path(__file__).parent.parent.parent / "scripts" / "publish-demo-surface.py",
+)
+assert _pds_spec
+assert _pds_spec.loader
+_pds_mod = importlib.util.module_from_spec(_pds_spec)
+_pds_spec.loader.exec_module(_pds_mod)
+STATIC_ASSETS: list[str] = _pds_mod.STATIC_ASSET_FILES
+
+# Full set of files expected in ui_bundle (static assets + HTML pages + settings)
+UI_BUNDLE_EXPECTED_FILES = set(STATIC_ASSETS) | {
+    "index.html",
+    "settings.html",
+    "settings.js",
+}
+
+REPO_ROOT = Path(__file__).parent.parent.parent
+UI_BUNDLE = REPO_ROOT / "src" / "ado_git_repo_insights" / "ui_bundle"
+DOCS_DIR = REPO_ROOT / "docs"
+CI_WORKFLOW = REPO_ROOT / ".github" / "workflows" / "ci.yml"
 
 
 class TestSyncAudit:
-    """Verify the committed ui_bundle matches what sync would produce."""
+    """Verify committed ui_bundle is consistent and in sync with docs/."""
 
-    REPO_ROOT = Path(__file__).parent.parent.parent
-    DIST_UI = REPO_ROOT / "extension" / "dist" / "ui"
-    UI_BUNDLE = REPO_ROOT / "src" / "ado_git_repo_insights" / "ui_bundle"
-    STATIC_ASSETS = [
-        "dashboard.js",
-        "dataset-loader.js",
-        "artifact-client.js",
-        "error-types.js",
-        "error-codes.js",
-        "styles.css",
-        "VSS.SDK.min.js",
-    ]
+    def test_static_assets_allowlist_non_empty(self):
+        """Guard against empty allowlist making all tests vacuously pass."""
+        assert STATIC_ASSETS, "STATIC_ASSET_FILES allowlist must not be empty"
 
-    @pytest.fixture(autouse=True)
-    def _skip_if_no_dist(self):
-        if not self.DIST_UI.exists():
-            pytest.skip("extension/dist/ui not present (not in dev environment)")
+    def test_ui_bundle_contains_exactly_expected_files(self):
+        """ui_bundle must contain exactly the expected files — no extras, no missing."""
+        actual = {f.name for f in UI_BUNDLE.iterdir() if f.is_file()}
+        assert actual == UI_BUNDLE_EXPECTED_FILES, (
+            f"ui_bundle file set mismatch.\n"
+            f"  Missing: {sorted(UI_BUNDLE_EXPECTED_FILES - actual)}\n"
+            f"  Extra: {sorted(actual - UI_BUNDLE_EXPECTED_FILES)}"
+        )
 
-    def test_ui_bundle_files_match_dist_ui(self):
-        """Each ui_bundle file must have identical content hash to dist/ui."""
-        for asset in self.STATIC_ASSETS:
-            src = self.DIST_UI / asset
-            dest = self.UI_BUNDLE / asset
-            if not src.exists():
-                pytest.skip(f"dist/ui/{asset} not found")
-            assert dest.exists(), f"ui_bundle/{asset} missing"
+    def test_ui_bundle_files_are_non_empty(self):
+        """Every expected file in ui_bundle must exist and have content."""
+        for asset in STATIC_ASSETS:
+            path = UI_BUNDLE / asset
+            assert path.exists(), f"ui_bundle/{asset} missing"
+            assert path.stat().st_size > 0, f"ui_bundle/{asset} is empty"
+
+    def test_ui_bundle_static_assets_match_docs(self):
+        """Each static asset in ui_bundle must match the corresponding docs/ file."""
+        for asset in STATIC_ASSETS:
+            src = UI_BUNDLE / asset
+            dest = DOCS_DIR / asset
+            assert src.exists(), f"ui_bundle/{asset} missing"
+            assert dest.exists(), f"docs/{asset} missing"
+            assert src.stat().st_size > 0, f"ui_bundle/{asset} is empty"
+            assert dest.stat().st_size > 0, f"docs/{asset} is empty"
             src_hash = hashlib.sha256(src.read_bytes()).hexdigest()
             dest_hash = hashlib.sha256(dest.read_bytes()).hexdigest()
-            assert src_hash == dest_hash, (
-                f"ui_bundle/{asset} differs from dist/ui/{asset}"
-            )
+            assert src_hash == dest_hash, f"ui_bundle/{asset} differs from docs/{asset}"
 
-    def test_ui_bundle_has_no_extra_files(self):
-        """ui_bundle must not contain files absent from dist/ui."""
-        dist_files = {f.name for f in self.DIST_UI.iterdir() if f.is_file()}
-        bundle_files = {f.name for f in self.UI_BUNDLE.iterdir() if f.is_file()}
-        extra = bundle_files - dist_files
-        assert not extra, (
-            f"ui_bundle has files not in dist/ui: {sorted(extra)}. "
-            f"Run scripts/sync_ui_bundle.py to clean up."
+    def test_sync_needed_detects_content_change(self, tmp_path):
+        """Self-contained: sync_needed detects content mutation between two dirs."""
+        source = tmp_path / "source"
+        target = tmp_path / "target"
+        source.mkdir()
+        target.mkdir()
+
+        # Create identical files in both dirs
+        for name in ["a.js", "b.css"]:
+            content = f"content of {name}"
+            (source / name).write_text(content)
+            (target / name).write_text(content)
+
+        # Green: identical content → no sync needed
+        assert not sync_needed(source, target)
+
+        # Red: mutate target → sync needed
+        (target / "a.js").write_text("TAMPERED content")
+        assert sync_needed(source, target), (
+            "sync_needed failed to detect content mutation"
         )
 
-    def test_sync_needed_returns_false_when_synced(self):
-        """sync_needed() should report no sync required for committed state."""
-        assert not sync_needed(self.DIST_UI, self.UI_BUNDLE), (
-            "ui_bundle is out of sync with dist/ui — run scripts/sync_ui_bundle.py"
-        )
+    def test_sync_needed_detects_file_removal(self, tmp_path):
+        """Self-contained: sync_needed detects structural drift (missing file)."""
+        source = tmp_path / "source"
+        target = tmp_path / "target"
+        source.mkdir()
+        target.mkdir()
 
-    def test_verify_detects_tampered_file(self, tmp_path):
-        """Red path: mutating a file in ui_bundle makes sync_needed return True."""
-        # Copy ui_bundle to temp dir
-        temp_bundle = tmp_path / "ui_bundle"
-        shutil.copytree(self.UI_BUNDLE, temp_bundle)
+        for name in ["a.js", "b.css"]:
+            content = f"content of {name}"
+            (source / name).write_text(content)
+            (target / name).write_text(content)
 
-        # Mutate one file
-        dashboard = temp_bundle / "dashboard.js"
-        dashboard.write_text(
-            dashboard.read_text(encoding="utf-8") + "\n// TAMPERED",
-            encoding="utf-8",
-        )
+        # Remove a file from target → structural drift
+        (target / "b.css").unlink()
+        assert sync_needed(source, target), "sync_needed failed to detect missing file"
 
-        # sync_needed should detect the drift
-        assert sync_needed(self.DIST_UI, temp_bundle), (
-            "sync_needed failed to detect tampered dashboard.js — "
-            "verify flag would miss this drift"
+    def test_ci_workflow_contains_sync_guard(self):
+        """Transitive model enforcement: CI must contain the sync guard step."""
+        assert CI_WORKFLOW.exists(), "ci.yml workflow file not found"
+        content = CI_WORKFLOW.read_text(encoding="utf-8")
+        assert "Check UI Bundle Synchronization" in content, (
+            "CI workflow is missing the 'Check UI Bundle Synchronization' step. "
+            "The transitive parity model (dist/ui ↔ ui_bundle ↔ docs) depends on it."
         )
