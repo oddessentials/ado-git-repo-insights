@@ -72,8 +72,18 @@ def _read_repo_version() -> str | None:
 def _is_metadata_stale(metadata_version: str, repo_version: str) -> bool:
     """Check if metadata version is stale relative to repo VERSION.
 
-    Stale means the base version in metadata (stripping .devN+gHASH)
-    does not match the repo VERSION file content.
+    Compares base versions only (stripping .devN+gHASH suffixes).
+
+    Version contract: resolve_version() provides semantic version identity.
+    The +gHASH local segment (PEP 440) is informational and MUST NOT be
+    treated as authoritative commit identity by any consumer. Commit
+    identity is always sourced from get_git_sha() in run_summary.py,
+    which calls git rev-parse HEAD directly.
+
+    When base versions match (e.g., metadata 5.28.1.dev2+gOLDHASH vs
+    VERSION 5.28.1), metadata is considered fresh and returned as-is.
+    The +gOLDHASH suffix may reference a prior commit within the same
+    release cycle. This is by design.
     """
     # Extract base: "5.27.2.dev89+g3bf5b3ba7" -> "5.27.2"
     base = metadata_version.split(".dev")[0].split("+")[0]

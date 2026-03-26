@@ -14,6 +14,8 @@ from __future__ import annotations
 from pathlib import Path
 from unittest.mock import patch
 
+import pytest
+
 from ado_git_repo_insights.utils.version import (
     _is_metadata_stale,
     _read_metadata_version,
@@ -139,6 +141,45 @@ class TestStalenessDetection:
     def test_dev_suffix_stripped_for_comparison(self) -> None:
         assert _is_metadata_stale("5.27.2.dev0", "5.28.1") is True
         assert _is_metadata_stale("5.28.1.dev0", "5.28.1") is False
+
+
+class TestVersionContract:
+    """Enforce the version contract: semantic version only, commit identity via git_sha."""
+
+    def test_resolver_keeps_metadata_when_base_version_matches(self) -> None:
+        """Version string is semantic identity; +gHASH is informational, not commit identity.
+
+        When base versions match, the resolver returns the full metadata string
+        unchanged. Consumers must not interpret the +gHASH suffix as authoritative
+        commit identity — that comes from get_git_sha().
+        """
+        with patch(
+            "ado_git_repo_insights.utils.version._read_metadata_version",
+            return_value="5.28.1.dev2+gOLDHASH",
+        ):
+            with patch(
+                "ado_git_repo_insights.utils.version._read_repo_version",
+                return_value="5.28.1",
+            ):
+                result = resolve_version()
+
+        assert result == "5.28.1.dev2+gOLDHASH"
+
+    def test_get_git_sha_is_authoritative_commit_identity(self) -> None:
+        """Commit identity comes from get_git_sha(), not the version string."""
+        import re
+
+        git_dir = Path(__file__).resolve().parents[2] / ".git"
+        if not git_dir.exists():
+            pytest.skip("requires git repo")
+
+        from ado_git_repo_insights.utils.run_summary import get_git_sha
+
+        sha = get_git_sha()
+        assert sha is not None, "get_git_sha() must return a value in a git repo"
+        assert re.match(r"^[0-9a-f]{7,}$", sha), (
+            f"get_git_sha() must return a hex SHA, got: {sha!r}"
+        )
 
 
 class TestHelpers:
