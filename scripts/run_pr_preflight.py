@@ -154,6 +154,7 @@ def build_commands(
                 "-q",
                 "-ra",
                 "--junit-xml=test-results.xml",
+                "--cov-report=xml",
                 "-o",
                 f"cache_dir={cache_dir('python')}",
                 "--basetemp",
@@ -314,23 +315,12 @@ def build_commands(
             ),
         ),
         CommandSpec(
-            "Threshold change warning",
+            "Threshold change guard",
             (
                 "__PYTHON__",
-                "-c",
-                "import subprocess, sys; "
-                "diff = subprocess.run(['git', 'diff', 'origin/main...HEAD', '--name-only'], "
-                "capture_output=True, text=True).stdout; "
-                "files = [f for f in diff.splitlines() "
-                "if f in ('extension/jest.config.ts', 'pyproject.toml')]; "
-                "exit(0) if not files else ("
-                "log := subprocess.run(['git', 'log', '--oneline', 'origin/main...HEAD'], "
-                "capture_output=True, text=True).stdout, "
-                "exit(0) if '[threshold-update]' in log else ("
-                "print('Coverage threshold files changed without [threshold-update] marker:'), "
-                "[print(f'  - {f}') for f in files], "
-                "print('Add [threshold-update] to a commit message to acknowledge.'), "
-                "sys.exit(1)))",
+                "scripts/check_threshold_changes.py",
+                "--base-ref",
+                "origin/main",
             ),
         ),
     ]
