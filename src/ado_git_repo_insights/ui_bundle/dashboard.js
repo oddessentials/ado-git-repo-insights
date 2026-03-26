@@ -4870,8 +4870,8 @@ var PRInsightsDashboard = (() => {
       const y = padding + (1 - (val - minVal) / range) * effectiveHeight;
       return `${x.toFixed(1)},${y.toFixed(1)}`;
     }).join(" ");
-    const firstVal = cleanValues[0] ?? 0;
-    const lastVal = cleanValues[cleanValues.length - 1] ?? 0;
+    const firstVal = cleanValues[0];
+    const lastVal = cleanValues[cleanValues.length - 1];
     const trendDescription = lastVal > firstVal ? "upward trend" : lastVal < firstVal ? "downward trend" : "stable trend";
     const truncatedBadge = values.length > MAX_SPARKLINE_POINTS ? `<span class="truncation-badge" title="Showing last ${MAX_SPARKLINE_POINTS} of ${values.length} data points">*</span>` : "";
     return `

@@ -196,8 +196,9 @@ function renderInsightSparkline(
     .join(" ");
 
   // Calculate trend direction for accessible description
-  const firstVal = cleanValues[0] ?? 0;
-  const lastVal = cleanValues[cleanValues.length - 1] ?? 0;
+  // Safe: cleanValues.length >= 2 is enforced by the guard above (line 178)
+  const firstVal = cleanValues[0] as number;
+  const lastVal = cleanValues[cleanValues.length - 1] as number;
   const trendDescription =
     lastVal > firstVal
       ? "upward trend"

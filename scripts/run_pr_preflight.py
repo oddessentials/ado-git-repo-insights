@@ -80,11 +80,25 @@ def smoke_report_dir() -> Path:
 def main_branch_suppression_baseline() -> Path | None:
     baseline_path = PREFLIGHT_ROOT / "baseline" / "main-suppression-baseline.json"
     baseline_path.parent.mkdir(parents=True, exist_ok=True)
+    # Fetch origin/main so the baseline is fresh, not stale
+    fetch_result = run_subprocess(
+        ["git", "fetch", "origin", "main", "--quiet"],
+        cwd=REPO_ROOT,
+    )
+    if fetch_result.returncode != 0:
+        safe_print(
+            "[WARNING] Could not fetch origin/main for suppression baseline. "
+            "Suppression diff may use a stale baseline or be skipped."
+        )
     result = run_subprocess(
         ["git", "show", "origin/main:.suppression-baseline.json"],
         cwd=REPO_ROOT,
     )
     if result.returncode != 0 or not result.stdout.strip():
+        safe_print(
+            "[WARNING] Suppression baseline not available from origin/main. "
+            "Suppression diff will run without a baseline comparison."
+        )
         return None
     baseline_path.write_text(result.stdout, encoding="utf-8", newline="\n")
     return baseline_path
@@ -139,6 +153,8 @@ def build_commands(
                 "tests/",
                 "-q",
                 "-ra",
+                "--junit-xml=test-results.xml",
+                "--cov-report=xml",
                 "-o",
                 f"cache_dir={cache_dir('python')}",
                 "--basetemp",
@@ -222,6 +238,90 @@ def build_commands(
                 "PLAYWRIGHT_OUTPUT_DIR": str(smoke_output_dir()),
                 "PLAYWRIGHT_REPORT_DIR": str(smoke_report_dir()),
             },
+        ),
+        # --- CI parity gates (close audit gaps) ---
+        CommandSpec(
+            "Python test count validation",
+            (
+                "__PYTHON__",
+                ".github/scripts/validate-test-results.py",
+                "test-results.xml",
+                "--min-collected=312",
+                "--max-skips=0",
+            ),
+        ),
+        CommandSpec(
+            "Extension test count validation",
+            (
+                "__PYTHON__",
+                ".github/scripts/validate-test-results.py",
+                "extension/test-results.xml",
+                "--min-collected=632",
+                "--max-skips=5",
+            ),
+        ),
+        CommandSpec(
+            "Python package build check",
+            (
+                "__PYTHON__",
+                "-m",
+                "build",
+                "--sdist",
+                "--outdir",
+                str(base_temp("build")),
+            ),
+        ),
+        CommandSpec(
+            "Extension task unit tests",
+            ("node", "extension/tasks/extract-prs/index.test.js"),
+        ),
+        CommandSpec(
+            "Task input validation",
+            (
+                PNPM_SENTINEL,
+                "exec",
+                "ts-node",
+                "../scripts/validate-task-inputs.ts",
+            ),
+            cwd=EXTENSION_ROOT,
+        ),
+        CommandSpec(
+            "Pandas version policy",
+            (
+                "__PYTHON__",
+                "-c",
+                "import sys, pandas as pd; "
+                "major = int(pd.__version__.split('.')[0]); "
+                "py_minor = sys.version_info.minor; "
+                "expected = 2 if py_minor == 10 else 3; "
+                "sys.exit(0) if major == expected else "
+                "(print(f'Pandas major {major} != expected {expected} for Python 3.{py_minor}'), sys.exit(1))",
+            ),
+        ),
+        CommandSpec(
+            "Demo generation contract",
+            ("__PYTHON__", "scripts/validate_demo_generation_contract.py"),
+        ),
+        CommandSpec(
+            "Demo directory size check",
+            (
+                "__PYTHON__",
+                "-c",
+                "from pathlib import Path; "
+                "size = sum(f.stat().st_size for f in Path('docs').rglob('*') if f.is_file()); "
+                "limit = 50 * 1024 * 1024; "
+                "print(f'docs/ size: {size / 1024 / 1024:.1f} MB (limit: 50 MB)'); "
+                "exit(1) if size > limit else None",
+            ),
+        ),
+        CommandSpec(
+            "Threshold change guard",
+            (
+                "__PYTHON__",
+                "scripts/check_threshold_changes.py",
+                "--base-ref",
+                "origin/main",
+            ),
         ),
     ]
 
@@ -455,6 +555,11 @@ def ensure_paths() -> None:
         smoke_report_dir(),
     ):
         path.mkdir(parents=True, exist_ok=True)
+    # Clean build artifacts from previous runs to avoid accumulation
+    build_dir = base_temp("build")
+    if build_dir.exists():
+        shutil.rmtree(build_dir, ignore_errors=True)
+    build_dir.mkdir(parents=True, exist_ok=True)
 
 
 def parse_args() -> argparse.Namespace:

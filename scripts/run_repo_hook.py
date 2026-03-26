@@ -1,5 +1,11 @@
 #!/usr/bin/env python3
-"""Cross-platform orchestrator for repo-owned Git hooks."""
+"""Cross-platform orchestrator for repo-owned Git hooks.
+
+Responsibility split:
+  - Pre-commit guards check STAGED files only (what's entering the repo).
+  - Pre-push preflight checks the full worktree (last gate before CI).
+  - CI checks the clean checkout (authoritative, full-tree policy enforcement).
+"""
 
 from __future__ import annotations
 
@@ -91,6 +97,28 @@ def git_output(*args: str) -> str:
 def staged_paths() -> list[str]:
     output = git_output("diff", "--cached", "--name-only", "--diff-filter=d")
     return [line.strip() for line in output.splitlines() if line.strip()]
+
+
+def staged_file_content(path: str) -> str | None:
+    """Return the staged content of a file, or None if it cannot be read.
+
+    Uses ``git show :path`` which accepts forward-slash paths on all platforms.
+    Binary files are decoded with replacement characters — callers searching for
+    text patterns will safely get no match on binary content.
+    """
+    command = ["git", "show", f":{path}"]
+    result = subprocess.run(  # noqa: S603 - repo-owned git command
+        command,
+        cwd=REPO_ROOT,
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        errors="replace",
+        check=False,
+    )
+    if result.returncode != 0:
+        return None
+    return result.stdout
 
 
 def worktree_paths(pathspec: str) -> list[str]:
@@ -218,8 +246,162 @@ def require_clean_ui_sources() -> None:
     raise SystemExit(1)
 
 
+def run_pnpm_lockfile_guard() -> None:
+    """Block package-lock.json from being committed (pnpm-only policy).
+
+    Staged-only: CI enforces the full-tree policy on every PR.
+    """
+    offending = [path for path in staged_paths() if path.endswith("package-lock.json")]
+    if offending:
+        safe_print("[pre-commit] package-lock.json detected (pnpm-only policy):")
+        for path in offending:
+            safe_print(f"  - {path}")
+        raise SystemExit(1)
+    safe_print("[pre-commit] pnpm lockfile guard passed")
+
+
+def run_npm_command_guard() -> None:
+    """Block npm ci/install commands in staged workflow/script files.
+
+    Staged-only: CI enforces the full-tree policy on every PR.
+    """
+    import re
+
+    staged_prefixes = (".github/workflows/", "scripts/")
+    staged_exact = (
+        "package.json",
+        "extension/package.json",
+        "extension/tasks/extract-prs/package.json",
+    )
+    staged_suffixes = (".yml", ".yaml", ".json", ".sh")
+    pattern = re.compile(r"npm\s+(ci|install)\b")
+    allowlist = re.compile(r"npm install -g tfx-cli")
+    skip_patterns = re.compile(r"(^\s*#|pnpm|echo.*npm|name:.*npm)")
+    offending: list[str] = []
+
+    for path in staged_paths():
+        in_scope = (
+            any(path.startswith(p) for p in staged_prefixes) or path in staged_exact
+        )
+        if not in_scope:
+            continue
+        if path not in staged_exact and not path.endswith(staged_suffixes):
+            continue
+        text = staged_file_content(path)
+        if text is None:
+            continue
+        for i, line in enumerate(text.splitlines(), 1):
+            if (
+                pattern.search(line)
+                and not allowlist.search(line)
+                and not skip_patterns.search(line)
+            ):
+                offending.append(f"{path}:{i}")
+
+    if offending:
+        safe_print("[pre-commit] npm ci/install commands found (pnpm-only policy):")
+        for loc in offending:
+            safe_print(f"  - {loc}")
+        raise SystemExit(1)
+    safe_print("[pre-commit] npm command guard passed")
+
+
+def run_pagination_token_guard() -> None:
+    """Block direct continuationToken usage in staged src/tests files.
+
+    Staged-only: CI enforces the full-tree policy on every PR.
+    """
+    import fnmatch
+
+    allowlist_path = REPO_ROOT / ".pagination-allowlist"
+    allowed_patterns: list[str] = []
+    if allowlist_path.exists():
+        for line in allowlist_path.read_text(encoding="utf-8").splitlines():
+            stripped = line.strip()
+            if stripped and not stripped.startswith("#"):
+                allowed_patterns.append(stripped)
+    else:
+        allowed_patterns = [
+            "**/pagination.py",
+            "**/test_pagination*.py",
+            "specs/**",
+            "**/*.md",
+        ]
+
+    offending: list[str] = []
+    for path in staged_paths():
+        if not (path.startswith("src/") or path.startswith("tests/")):
+            continue
+        if any(fnmatch.fnmatch(path, pat) for pat in allowed_patterns):
+            continue
+        text = staged_file_content(path)
+        if text is None:
+            continue
+        if "continuationToken" in text:
+            offending.append(path)
+
+    if offending:
+        safe_print("[pre-commit] direct continuationToken usage found:")
+        for loc in offending:
+            safe_print(f"  - {loc}")
+        safe_print("Use the pagination helper instead.")
+        raise SystemExit(1)
+    safe_print("[pre-commit] pagination token guard passed")
+
+
+def run_ui_bundle_guards() -> None:
+    """Block TypeScript files and ESM syntax in staged ui_bundle files.
+
+    Staged-only: CI enforces the full-tree policy on every PR.
+    """
+    import re
+
+    esm_pattern = re.compile(r"^\s*(import|export)\s", re.MULTILINE)
+    ui_bundle_prefix = "src/ado_git_repo_insights/ui_bundle/"
+    ts_files: list[str] = []
+    esm_files: list[str] = []
+
+    for path in staged_paths():
+        if not path.startswith(ui_bundle_prefix):
+            continue
+        if path.endswith(".ts"):
+            ts_files.append(path)
+        elif path.endswith(".js"):
+            text = staged_file_content(path)
+            if text is not None and esm_pattern.search(text):
+                esm_files.append(path)
+
+    errors: list[str] = []
+    if ts_files:
+        errors.append("[pre-commit] TypeScript files found in ui_bundle:")
+        for f in ts_files:
+            errors.append(f"  - {f}")
+    if esm_files:
+        errors.append("[pre-commit] ESM import/export syntax found in ui_bundle:")
+        for f in esm_files:
+            errors.append(f"  - {f}")
+
+    if errors:
+        for line in errors:
+            safe_print(line)
+        raise SystemExit(1)
+    safe_print("[pre-commit] ui_bundle guards passed (no .ts, no ESM)")
+
+
 def run_managed_artifacts(*args: str) -> None:
     run_command([sys.executable, "scripts/manage_generated_artifacts.py", *args])
+
+
+def run_extension_lint() -> None:
+    """Run ESLint on extension UI sources (FR-005 gate)."""
+    pnpm = shutil.which("pnpm.cmd") or shutil.which("pnpm")
+    if not pnpm:
+        raise SystemExit(
+            "[pre-commit] pnpm is required to lint extension UI sources "
+            "but was not found on PATH."
+        )
+    safe_print("[pre-commit] running extension lint (ESLint)")
+    run_command([pnpm, "run", "lint"], cwd=EXTENSION_ROOT)
 
 
 def run_pre_commit_hook() -> None:
@@ -227,6 +409,10 @@ def run_pre_commit_hook() -> None:
     run_pre_commit_stage()
     run_managed_artifacts("sync", "--scope", "sdk", "--stage", "--require-clean")
     ensure_no_compiled_js()
+    run_pnpm_lockfile_guard()
+    run_npm_command_guard()
+    run_pagination_token_guard()
+    run_ui_bundle_guards()
 
     staged = staged_paths()
     triggers = [path for path in staged if is_ui_trigger(path)]
