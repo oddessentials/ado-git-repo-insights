@@ -222,6 +222,18 @@ def run_managed_artifacts(*args: str) -> None:
     run_command([sys.executable, "scripts/manage_generated_artifacts.py", *args])
 
 
+def run_extension_lint() -> None:
+    """Run ESLint on extension UI sources (FR-005 gate)."""
+    pnpm = shutil.which("pnpm.cmd") or shutil.which("pnpm")
+    if not pnpm:
+        raise SystemExit(
+            "[pre-commit] pnpm is required to lint extension UI sources "
+            "but was not found on PATH."
+        )
+    safe_print("[pre-commit] running extension lint (ESLint)")
+    run_command([pnpm, "run", "lint"], cwd=EXTENSION_ROOT)
+
+
 def run_pre_commit_hook() -> None:
     run_acl_health_check()
     run_pre_commit_stage()
@@ -238,6 +250,7 @@ def run_pre_commit_hook() -> None:
     for path in triggers:
         safe_print(f"  - {path}")
     require_clean_ui_sources()
+    run_extension_lint()
     run_managed_artifacts("sync", "--scope", "all", "--stage", "--require-clean")
     safe_print("[pre-commit] managed UI artifacts synced successfully")
 
