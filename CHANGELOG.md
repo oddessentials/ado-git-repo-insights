@@ -1,3 +1,17 @@
+# [5.28.0](https://github.com/oddessentials/ado-git-repo-insights/compare/v5.27.3...v5.28.0) (2026-03-26)
+
+
+### Bug Fixes
+
+* **ci:** eliminate 12 test skips by using committed artifacts only ([16c4aea](https://github.com/oddessentials/ado-git-repo-insights/commit/16c4aea4bf8a383907b365231cf5b4514f0033b2))
+* dynamic chart legends for missing metrics + trend line visibility ([9027fe7](https://github.com/oddessentials/ado-git-repo-insights/commit/9027fe710ca5e2c030dde7a62ca626815f8223a6))
+* predictions NaN from undefined bounds + sparkline filtering + global NaN invariant ([6107442](https://github.com/oddessentials/ado-git-repo-insights/commit/6107442a6173d32450388a2fc48dd305bfaf469d))
+
+
+### Features
+
+* add reviewer-activity truncation indicator + prod-shape tests (P4) ([7aae114](https://github.com/oddessentials/ado-git-repo-insights/commit/7aae1141ba78cf58a7c9f6ba5dd252b836ca2642))
+
 ## [5.27.3](https://github.com/oddessentials/ado-git-repo-insights/compare/v5.27.2...v5.27.3) (2026-03-25)
 
 
