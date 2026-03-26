@@ -6,7 +6,9 @@ on failure without requiring subprocess calls.
 
 from __future__ import annotations
 
+import json
 from pathlib import Path
+from unittest.mock import patch
 
 import pytest
 
@@ -246,3 +248,109 @@ class TestCliExitCodes:
         )
         result = main()
         assert result == 1
+
+    def test_keyboard_interrupt_returns_130_and_writes_summary(
+        self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+    ) -> None:
+        """KeyboardInterrupt in command handler returns 130 and writes summary.
+
+        Exercises the lazy create_minimal_summary import in the KeyboardInterrupt
+        except block (cli.py lines 1747-1757).
+        """
+        from ado_git_repo_insights.cli import main
+
+        config_file = tmp_path / "config.yaml"
+        config_file.write_text(
+            "organization: Org\nprojects:\n  - Proj\n", encoding="utf-8"
+        )
+        artifacts_dir = tmp_path / "artifacts"
+
+        monkeypatch.setattr(
+            "sys.argv",
+            [
+                "ado-insights",
+                "--artifacts-dir",
+                str(artifacts_dir),
+                "extract",
+                "--pat",
+                "x",
+                "--config",
+                str(config_file),
+                "--organization",
+                "Org",
+                "--projects",
+                "Proj",
+            ],
+        )
+
+        call_count = 0
+
+        def raise_keyboard_interrupt(*_args: object, **_kwargs: object) -> int:
+            nonlocal call_count
+            call_count += 1
+            raise KeyboardInterrupt
+
+        with patch(
+            "ado_git_repo_insights.cli.cmd_extract",
+            side_effect=raise_keyboard_interrupt,
+        ):
+            result = main()
+
+        assert call_count == 1, "Patched cmd_extract was not called"
+        assert result == 130
+        summary_path = artifacts_dir / "run_summary.json"
+        assert summary_path.exists(), "run_summary.json was not written"
+        content = json.loads(summary_path.read_text(encoding="utf-8"))
+        assert "cancelled" in content.get("first_fatal_error", "").lower()
+
+    def test_unexpected_exception_returns_1_and_writes_summary(
+        self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+    ) -> None:
+        """Unexpected RuntimeError in command handler returns 1 and writes summary.
+
+        Exercises the lazy create_minimal_summary import in the generic Exception
+        except block (cli.py lines 1760-1768).
+        """
+        from ado_git_repo_insights.cli import main
+
+        config_file = tmp_path / "config.yaml"
+        config_file.write_text(
+            "organization: Org\nprojects:\n  - Proj\n", encoding="utf-8"
+        )
+        artifacts_dir = tmp_path / "artifacts"
+
+        monkeypatch.setattr(
+            "sys.argv",
+            [
+                "ado-insights",
+                "--artifacts-dir",
+                str(artifacts_dir),
+                "extract",
+                "--pat",
+                "x",
+                "--config",
+                str(config_file),
+                "--organization",
+                "Org",
+                "--projects",
+                "Proj",
+            ],
+        )
+
+        call_count = 0
+
+        def raise_runtime_error(*_args: object, **_kwargs: object) -> int:
+            nonlocal call_count
+            call_count += 1
+            raise RuntimeError("boom")
+
+        with patch(
+            "ado_git_repo_insights.cli.cmd_extract",
+            side_effect=raise_runtime_error,
+        ):
+            result = main()
+
+        assert call_count == 1, "Patched cmd_extract was not called"
+        assert result == 1
+        summary_path = artifacts_dir / "run_summary.json"
+        assert summary_path.exists(), "run_summary.json was not written"
