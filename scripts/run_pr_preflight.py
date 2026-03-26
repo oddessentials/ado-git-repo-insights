@@ -153,6 +153,7 @@ def build_commands(
                 "tests/",
                 "-q",
                 "-ra",
+                "--junit-xml=test-results.xml",
                 "-o",
                 f"cache_dir={cache_dir('python')}",
                 "--basetemp",
