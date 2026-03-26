@@ -1,3 +1,15 @@
+## [5.28.1](https://github.com/oddessentials/ado-git-repo-insights/compare/v5.28.0...v5.28.1) (2026-03-26)
+
+
+### Bug Fixes
+
+* add --junit-xml to preflight pytest for test count validation ([93e6faa](https://github.com/oddessentials/ado-git-repo-insights/commit/93e6faa0259442709edaf9d915e47275a4347028))
+* add build dep, match CI threshold logic, generate fresh coverage.xml ([5875215](https://github.com/oddessentials/ado-git-repo-insights/commit/5875215b3c73ad30c8ee840ccdd78d2d97a2a2f0))
+* close 18 CI parity gaps with local pre-commit and pre-push guards ([3247874](https://github.com/oddessentials/ado-git-repo-insights/commit/3247874771bca0ee966b0451216b5a0bd847ed9d))
+* replace non-null assertions with type casts and gate ESLint in pre-commit ([7264576](https://github.com/oddessentials/ado-git-repo-insights/commit/7264576b4dd53e061356c402a15a1cf0d093814b))
+* rewrite pre-commit guards to staged-only and fix build --check ([1c0a874](https://github.com/oddessentials/ado-git-repo-insights/commit/1c0a87472882ddaabf3a9fc51a7851451c4b6b42))
+* scope npm guard to all manifests and remove full-tree lint from pre-commit ([e8f95ab](https://github.com/oddessentials/ado-git-repo-insights/commit/e8f95abfbaf0e49d9910a73d2821a17ff67d9e73))
+
 # [5.28.0](https://github.com/oddessentials/ado-git-repo-insights/compare/v5.27.3...v5.28.0) (2026-03-26)
 
 
