@@ -5433,18 +5433,16 @@ var PRInsightsDashboard = (() => {
             </div>
         `;
     }).join("");
-    const trendLineHtml = renderTrendLine(displayRollups, movingAvg, maxCount);
+    const trendResult = renderTrendLine(displayRollups, movingAvg, maxCount);
     const truncationHtml = truncated ? `<div class="truncation-indicator">Showing last ${MAX_THROUGHPUT_POINTS} weeks</div>` : "";
+    const trendLegendItem = trendResult.rendered ? `<div class="legend-item"><span class="legend-line"></span><span>4-week avg</span></div>` : `<div class="legend-item legend-insufficient"><span class="legend-line dimmed"></span><span>4-week avg \u2014 needs 4+ weeks</span></div>`;
     const legendHtml = `
         <div class="chart-legend">
             <div class="legend-item">
                 <span class="legend-bar"></span>
                 <span>Weekly PRs</span>
             </div>
-            <div class="legend-item">
-                <span class="legend-line"></span>
-                <span>4-week avg</span>
-            </div>
+            ${trendLegendItem}
         </div>
     `;
     renderTrustedHtml(
@@ -5453,7 +5451,7 @@ var PRInsightsDashboard = (() => {
         ${truncationHtml}
         <div class="chart-with-trend" style="--chart-surface: var(--bg-primary);">
             <div class="bar-chart">${barsHtml}</div>
-            ${trendLineHtml}
+            ${trendResult.html}
         </div>
         ${legendHtml}
     `
@@ -5469,9 +5467,9 @@ var PRInsightsDashboard = (() => {
     });
   }
   function renderTrendLine(rollups, movingAvg, maxCount) {
-    if (rollups.length < 4) return "";
+    if (rollups.length < 4) return { html: "", rendered: false };
     const validPoints = movingAvg.map((val, i) => ({ val, i })).filter((p) => p.val !== null);
-    if (validPoints.length < 2) return "";
+    if (validPoints.length < 2) return { html: "", rendered: false };
     const chartHeight = 200;
     const chartPadding = 8;
     const points = validPoints.map((p) => {
@@ -5482,13 +5480,10 @@ var PRInsightsDashboard = (() => {
     const pathD = points.map(
       (pt, i) => `${i === 0 ? "M" : "L"} ${pt.x.toFixed(1)}% ${pt.y.toFixed(1)}`
     ).join(" ");
-    return `
-        <div class="trend-line-overlay">
-            <svg viewBox="0 0 100 ${chartHeight}" preserveAspectRatio="none">
-                <path class="trend-line" d="${pathD}" vector-effect="non-scaling-stroke"/>
-            </svg>
-        </div>
-    `;
+    return {
+      html: `<div class="trend-line-overlay"><svg viewBox="0 0 100 ${chartHeight}" preserveAspectRatio="none"><path class="trend-line" d="${pathD}" vector-effect="non-scaling-stroke"/></svg></div>`,
+      rendered: true
+    };
   }
 
   // ../ui/modules/charts/cycle-time.ts
@@ -5616,18 +5611,18 @@ var PRInsightsDashboard = (() => {
             ${p50Path ? p50Path.points.map((p) => `<circle class="line-chart-dot" cx="${p.x}" cy="${p.y}" r="${dotRadius}" fill="var(--primary)" data-week="${escapeHtml(p.week)}" data-value="${escapeHtml(String(p.value))}" data-metric="P50"/>`).join("") : ""}
         </svg>
     `;
-    const legendHtml = `
-        <div class="chart-legend">
-            <div class="legend-item">
-                <span class="chart-tooltip-dot legend-p50"></span>
-                <span>P50 (Median)</span>
-            </div>
-            <div class="legend-item">
-                <span class="chart-tooltip-dot legend-p90"></span>
-                <span>P90</span>
-            </div>
-        </div>
-    `;
+    const legendItems = [];
+    if (p50Path) {
+      legendItems.push(`<div class="legend-item"><span class="chart-tooltip-dot legend-p50"></span><span>P50 (Median)</span></div>`);
+    } else if (p50Data.length > 0) {
+      legendItems.push(`<div class="legend-item legend-insufficient"><span class="chart-tooltip-dot legend-p50 dimmed"></span><span>P50 (Median) \u2014 insufficient points</span></div>`);
+    }
+    if (p90Path) {
+      legendItems.push(`<div class="legend-item"><span class="chart-tooltip-dot legend-p90"></span><span>P90</span></div>`);
+    } else if (p90Data.length > 0) {
+      legendItems.push(`<div class="legend-item legend-insufficient"><span class="chart-tooltip-dot legend-p90 dimmed"></span><span>P90 \u2014 insufficient points</span></div>`);
+    }
+    const legendHtml = `<div class="chart-legend">${legendItems.join("")}</div>`;
     const truncationHtml = truncated ? `<div class="truncation-indicator">Showing last ${MAX_CYCLE_TIME_POINTS} weeks</div>` : "";
     renderTrustedHtml(
       container,

@@ -77,24 +77,24 @@ export function renderThroughputChart(
     .join("");
 
   // Render trend line SVG overlay
-  const trendLineHtml = renderTrendLine(displayRollups, movingAvg, maxCount);
+  const trendResult = renderTrendLine(displayRollups, movingAvg, maxCount);
 
   // Truncation indicator
   const truncationHtml = truncated
     ? `<div class="truncation-indicator">Showing last ${MAX_THROUGHPUT_POINTS} weeks</div>`
     : "";
 
-  // Legend
+  // Legend — trend line entry is conditional on whether the trend actually rendered
+  const trendLegendItem = trendResult.rendered
+    ? `<div class="legend-item"><span class="legend-line"></span><span>4-week avg</span></div>`
+    : `<div class="legend-item legend-insufficient"><span class="legend-line dimmed"></span><span>4-week avg — needs 4+ weeks</span></div>`;
   const legendHtml = `
         <div class="chart-legend">
             <div class="legend-item">
                 <span class="legend-bar"></span>
                 <span>Weekly PRs</span>
             </div>
-            <div class="legend-item">
-                <span class="legend-line"></span>
-                <span>4-week avg</span>
-            </div>
+            ${trendLegendItem}
         </div>
     `;
 
@@ -105,7 +105,7 @@ export function renderThroughputChart(
         ${truncationHtml}
         <div class="chart-with-trend" style="--chart-surface: var(--bg-primary);">
             <div class="bar-chart">${barsHtml}</div>
-            ${trendLineHtml}
+            ${trendResult.html}
         </div>
         ${legendHtml}
     `,
@@ -130,14 +130,14 @@ function renderTrendLine(
   rollups: Rollup[],
   movingAvg: (number | null)[],
   maxCount: number,
-): string {
-  if (rollups.length < 4) return "";
+): { html: string; rendered: boolean } {
+  if (rollups.length < 4) return { html: "", rendered: false };
 
   const validPoints = movingAvg
     .map((val, i) => ({ val, i }))
     .filter((p): p is { val: number; i: number } => p.val !== null);
 
-  if (validPoints.length < 2) return "";
+  if (validPoints.length < 2) return { html: "", rendered: false };
 
   const chartHeight = 200;
   const chartPadding = 8;
@@ -161,11 +161,8 @@ function renderTrendLine(
     )
     .join(" ");
 
-  return `
-        <div class="trend-line-overlay">
-            <svg viewBox="0 0 100 ${chartHeight}" preserveAspectRatio="none">
-                <path class="trend-line" d="${pathD}" vector-effect="non-scaling-stroke"/>
-            </svg>
-        </div>
-    `;
+  return {
+    html: `<div class="trend-line-overlay"><svg viewBox="0 0 100 ${chartHeight}" preserveAspectRatio="none"><path class="trend-line" d="${pathD}" vector-effect="non-scaling-stroke"/></svg></div>`,
+    rendered: true,
+  };
 }
