@@ -261,7 +261,14 @@ def build_commands(
         ),
         CommandSpec(
             "Python package build check",
-            ("__PYTHON__", "-m", "build", "--check"),
+            (
+                "__PYTHON__",
+                "-m",
+                "build",
+                "--sdist",
+                "--outdir",
+                str(base_temp("build")),
+            ),
         ),
         CommandSpec(
             "Extension task unit tests",
@@ -558,6 +565,11 @@ def ensure_paths() -> None:
         smoke_report_dir(),
     ):
         path.mkdir(parents=True, exist_ok=True)
+    # Clean build artifacts from previous runs to avoid accumulation
+    build_dir = base_temp("build")
+    if build_dir.exists():
+        shutil.rmtree(build_dir, ignore_errors=True)
+    build_dir.mkdir(parents=True, exist_ok=True)
 
 
 def parse_args() -> argparse.Namespace:

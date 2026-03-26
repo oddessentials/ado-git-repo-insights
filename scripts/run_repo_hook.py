@@ -1,5 +1,11 @@
 #!/usr/bin/env python3
-"""Cross-platform orchestrator for repo-owned Git hooks."""
+"""Cross-platform orchestrator for repo-owned Git hooks.
+
+Responsibility split:
+  - Pre-commit guards check STAGED files only (what's entering the repo).
+  - Pre-push preflight checks the full worktree (last gate before CI).
+  - CI checks the clean checkout (authoritative, full-tree policy enforcement).
+"""
 
 from __future__ import annotations
 
@@ -91,6 +97,28 @@ def git_output(*args: str) -> str:
 def staged_paths() -> list[str]:
     output = git_output("diff", "--cached", "--name-only", "--diff-filter=d")
     return [line.strip() for line in output.splitlines() if line.strip()]
+
+
+def staged_file_content(path: str) -> str | None:
+    """Return the staged content of a file, or None if it cannot be read.
+
+    Uses ``git show :path`` which accepts forward-slash paths on all platforms.
+    Binary files are decoded with replacement characters — callers searching for
+    text patterns will safely get no match on binary content.
+    """
+    command = ["git", "show", f":{path}"]
+    result = subprocess.run(  # noqa: S603 - repo-owned git command
+        command,
+        cwd=REPO_ROOT,
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        errors="replace",
+        check=False,
+    )
+    if result.returncode != 0:
+        return None
+    return result.stdout
 
 
 def worktree_paths(pathspec: str) -> list[str]:
@@ -219,18 +247,11 @@ def require_clean_ui_sources() -> None:
 
 
 def run_pnpm_lockfile_guard() -> None:
-    """Block package-lock.json files (pnpm-only policy)."""
-    offending = []
-    for path in staged_paths():
-        if path.endswith("package-lock.json"):
-            offending.append(path)
-    # Also scan for any committed lockfiles outside staged
-    for lockfile in REPO_ROOT.rglob("package-lock.json"):
-        if "node_modules" in lockfile.parts:
-            continue
-        rel = lockfile.relative_to(REPO_ROOT).as_posix()
-        if rel not in offending:
-            offending.append(rel)
+    """Block package-lock.json from being committed (pnpm-only policy).
+
+    Staged-only: CI enforces the full-tree policy on every PR.
+    """
+    offending = [path for path in staged_paths() if path.endswith("package-lock.json")]
     if offending:
         safe_print("[pre-commit] package-lock.json detected (pnpm-only policy):")
         for path in offending:
@@ -240,45 +261,30 @@ def run_pnpm_lockfile_guard() -> None:
 
 
 def run_npm_command_guard() -> None:
-    """Block npm ci/install commands in workflows, scripts, and package.json."""
+    """Block npm ci/install commands in staged workflow/script files.
+
+    Staged-only: CI enforces the full-tree policy on every PR.
+    """
     import re
 
-    scan_dirs = [
-        REPO_ROOT / ".github" / "workflows",
-        REPO_ROOT / "scripts",
-    ]
-    scan_files = [REPO_ROOT / "package.json"]
+    staged_prefixes = (".github/workflows/", "scripts/")
+    staged_exact = ("package.json",)
+    staged_suffixes = (".yml", ".yaml", ".json", ".sh")
     pattern = re.compile(r"npm\s+(ci|install)\b")
     allowlist = re.compile(r"npm install -g tfx-cli")
     skip_patterns = re.compile(r"(^\s*#|pnpm|echo.*npm|name:.*npm)")
     offending: list[str] = []
 
-    for scan_dir in scan_dirs:
-        if not scan_dir.exists():
+    for path in staged_paths():
+        in_scope = (
+            any(path.startswith(p) for p in staged_prefixes) or path in staged_exact
+        )
+        if not in_scope:
             continue
-        for path in scan_dir.rglob("*"):
-            if not path.is_file():
-                continue
-            if path.suffix not in {".yml", ".yaml", ".json", ".sh"}:
-                continue
-            try:
-                text = path.read_text(encoding="utf-8")
-            except (OSError, UnicodeDecodeError):
-                continue
-            for i, line in enumerate(text.splitlines(), 1):
-                if (
-                    pattern.search(line)
-                    and not allowlist.search(line)
-                    and not skip_patterns.search(line)
-                ):
-                    offending.append(f"{path.relative_to(REPO_ROOT).as_posix()}:{i}")
-
-    for scan_file in scan_files:
-        if not scan_file.exists():
+        if path not in staged_exact and not path.endswith(staged_suffixes):
             continue
-        try:
-            text = scan_file.read_text(encoding="utf-8")
-        except (OSError, UnicodeDecodeError):
+        text = staged_file_content(path)
+        if text is None:
             continue
         for i, line in enumerate(text.splitlines(), 1):
             if (
@@ -286,7 +292,7 @@ def run_npm_command_guard() -> None:
                 and not allowlist.search(line)
                 and not skip_patterns.search(line)
             ):
-                offending.append(f"{scan_file.relative_to(REPO_ROOT).as_posix()}:{i}")
+                offending.append(f"{path}:{i}")
 
     if offending:
         safe_print("[pre-commit] npm ci/install commands found (pnpm-only policy):")
@@ -297,14 +303,19 @@ def run_npm_command_guard() -> None:
 
 
 def run_pagination_token_guard() -> None:
-    """Block direct continuationToken usage outside allowed paths."""
+    """Block direct continuationToken usage in staged src/tests files.
+
+    Staged-only: CI enforces the full-tree policy on every PR.
+    """
+    import fnmatch
+
     allowlist_path = REPO_ROOT / ".pagination-allowlist"
     allowed_patterns: list[str] = []
     if allowlist_path.exists():
         for line in allowlist_path.read_text(encoding="utf-8").splitlines():
-            line = line.strip()
-            if line and not line.startswith("#"):
-                allowed_patterns.append(line)
+            stripped = line.strip()
+            if stripped and not stripped.startswith("#"):
+                allowed_patterns.append(stripped)
     else:
         allowed_patterns = [
             "**/pagination.py",
@@ -313,24 +324,17 @@ def run_pagination_token_guard() -> None:
             "**/*.md",
         ]
 
-    import fnmatch
-
     offending: list[str] = []
-    for search_dir in (REPO_ROOT / "src", REPO_ROOT / "tests"):
-        if not search_dir.exists():
+    for path in staged_paths():
+        if not (path.startswith("src/") or path.startswith("tests/")):
             continue
-        for path in search_dir.rglob("*"):
-            if not path.is_file():
-                continue
-            rel = path.relative_to(REPO_ROOT).as_posix()
-            if any(fnmatch.fnmatch(rel, pat) for pat in allowed_patterns):
-                continue
-            try:
-                text = path.read_text(encoding="utf-8")
-            except (OSError, UnicodeDecodeError):
-                continue
-            if "continuationToken" in text:
-                offending.append(rel)
+        if any(fnmatch.fnmatch(path, pat) for pat in allowed_patterns):
+            continue
+        text = staged_file_content(path)
+        if text is None:
+            continue
+        if "continuationToken" in text:
+            offending.append(path)
 
     if offending:
         safe_print("[pre-commit] direct continuationToken usage found:")
@@ -342,30 +346,26 @@ def run_pagination_token_guard() -> None:
 
 
 def run_ui_bundle_guards() -> None:
-    """Block TypeScript files and ESM syntax in ui_bundle."""
-    bundle_dir = REPO_ROOT / "src" / "ado_git_repo_insights" / "ui_bundle"
-    if not bundle_dir.exists():
-        return
+    """Block TypeScript files and ESM syntax in staged ui_bundle files.
 
+    Staged-only: CI enforces the full-tree policy on every PR.
+    """
     import re
 
     esm_pattern = re.compile(r"^\s*(import|export)\s", re.MULTILINE)
+    ui_bundle_prefix = "src/ado_git_repo_insights/ui_bundle/"
     ts_files: list[str] = []
     esm_files: list[str] = []
 
-    for path in bundle_dir.iterdir():
-        if not path.is_file():
+    for path in staged_paths():
+        if not path.startswith(ui_bundle_prefix):
             continue
-        rel = path.relative_to(REPO_ROOT).as_posix()
-        if path.suffix == ".ts":
-            ts_files.append(rel)
-        if path.suffix == ".js":
-            try:
-                text = path.read_text(encoding="utf-8")
-            except (OSError, UnicodeDecodeError):
-                continue
-            if esm_pattern.search(text):
-                esm_files.append(rel)
+        if path.endswith(".ts"):
+            ts_files.append(path)
+        elif path.endswith(".js"):
+            text = staged_file_content(path)
+            if text is not None and esm_pattern.search(text):
+                esm_files.append(path)
 
     errors: list[str] = []
     if ts_files:
