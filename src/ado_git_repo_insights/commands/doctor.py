@@ -23,17 +23,10 @@ logger = logging.getLogger(__name__)
 
 
 def _get_version() -> str:
-    """Get the installed version of ado-insights.
+    """Get the version of ado-insights via canonical resolver."""
+    from ..utils.version import resolve_version
 
-    Returns:
-        Version string or 'unknown'
-    """
-    try:
-        from importlib.metadata import PackageNotFoundError, version
-
-        return version("ado-git-repo-insights")
-    except PackageNotFoundError:
-        return "unknown (dev)"
+    return resolve_version()
 
 
 def cmd_doctor(args: Namespace) -> int:

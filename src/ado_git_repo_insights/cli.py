@@ -28,13 +28,10 @@ logger = logging.getLogger(__name__)
 
 
 def _get_runtime_version() -> str:
-    """Resolve version from package metadata. Single source of truth."""
-    try:
-        from importlib.metadata import PackageNotFoundError, version
+    """Resolve version via canonical resolver."""
+    from .utils.version import resolve_version
 
-        return version("ado-git-repo-insights")
-    except PackageNotFoundError:
-        return "unknown (dev)"
+    return resolve_version()
 
 
 def create_parser() -> argparse.ArgumentParser:

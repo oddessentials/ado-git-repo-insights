@@ -145,13 +145,10 @@ class RunSummary:
 
 
 def get_tool_version() -> str:
-    """Get tool version from package metadata."""
-    try:
-        from importlib.metadata import PackageNotFoundError, version
+    """Get tool version via canonical resolver."""
+    from .version import resolve_version
 
-        return version("ado-git-repo-insights")
-    except PackageNotFoundError:
-        return "unknown (dev)"
+    return resolve_version()
 
 
 def get_git_sha() -> str | None:
