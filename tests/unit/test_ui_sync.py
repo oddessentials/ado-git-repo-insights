@@ -321,3 +321,79 @@ class TestFullSync:
 
         with pytest.raises(SyncError):
             sync_ui_bundle(invalid_dist, bundle)
+
+
+# =============================================================================
+# Sync Audit Tests (P4 guardrail)
+# =============================================================================
+
+
+class TestSyncAudit:
+    """Verify the committed ui_bundle matches what sync would produce."""
+
+    REPO_ROOT = Path(__file__).parent.parent.parent
+    DIST_UI = REPO_ROOT / "extension" / "dist" / "ui"
+    UI_BUNDLE = REPO_ROOT / "src" / "ado_git_repo_insights" / "ui_bundle"
+    STATIC_ASSETS = [
+        "dashboard.js",
+        "dataset-loader.js",
+        "artifact-client.js",
+        "error-types.js",
+        "error-codes.js",
+        "styles.css",
+        "VSS.SDK.min.js",
+    ]
+
+    @pytest.fixture(autouse=True)
+    def _skip_if_no_dist(self):
+        if not self.DIST_UI.exists():
+            pytest.skip("extension/dist/ui not present (not in dev environment)")
+
+    def test_ui_bundle_files_match_dist_ui(self):
+        """Each ui_bundle file must have identical content hash to dist/ui."""
+        for asset in self.STATIC_ASSETS:
+            src = self.DIST_UI / asset
+            dest = self.UI_BUNDLE / asset
+            if not src.exists():
+                pytest.skip(f"dist/ui/{asset} not found")
+            assert dest.exists(), f"ui_bundle/{asset} missing"
+            src_hash = hashlib.sha256(src.read_bytes()).hexdigest()
+            dest_hash = hashlib.sha256(dest.read_bytes()).hexdigest()
+            assert src_hash == dest_hash, (
+                f"ui_bundle/{asset} differs from dist/ui/{asset}"
+            )
+
+    def test_ui_bundle_has_no_extra_files(self):
+        """ui_bundle must not contain files absent from dist/ui."""
+        dist_files = {f.name for f in self.DIST_UI.iterdir() if f.is_file()}
+        bundle_files = {f.name for f in self.UI_BUNDLE.iterdir() if f.is_file()}
+        extra = bundle_files - dist_files
+        assert not extra, (
+            f"ui_bundle has files not in dist/ui: {sorted(extra)}. "
+            f"Run scripts/sync_ui_bundle.py to clean up."
+        )
+
+    def test_sync_needed_returns_false_when_synced(self):
+        """sync_needed() should report no sync required for committed state."""
+        assert not sync_needed(self.DIST_UI, self.UI_BUNDLE), (
+            "ui_bundle is out of sync with dist/ui — run scripts/sync_ui_bundle.py"
+        )
+
+    def test_verify_detects_tampered_file(self, tmp_path):
+        """Red path: mutating a file in ui_bundle makes sync_needed return True."""
+        # Copy ui_bundle to temp dir
+        temp_bundle = tmp_path / "ui_bundle"
+        shutil.copytree(self.UI_BUNDLE, temp_bundle)
+
+        # Mutate one file
+        dashboard = temp_bundle / "dashboard.js"
+        dashboard.write_text(
+            dashboard.read_text(encoding="utf-8") + "\n// TAMPERED",
+            encoding="utf-8",
+        )
+
+        # sync_needed should detect the drift
+        assert sync_needed(self.DIST_UI, temp_bundle), (
+            "sync_needed failed to detect tampered dashboard.js — "
+            "verify flag would miss this drift"
+        )
