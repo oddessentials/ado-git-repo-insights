@@ -140,3 +140,46 @@ class TestSchemaParityRedPath:
         assert "response_time_p99" in ts_only, (
             "Guard failed to detect a TypeScript-only field — parity check is broken"
         )
+
+
+class TestDemoWorkflowTriggerCoverage:
+    """Verify demo.yml watches all Python sources that affect demo output."""
+
+    DEMO_WORKFLOW = REPO_ROOT / ".github" / "workflows" / "demo.yml"
+
+    # Python sources that demo generators import from (affects output shape)
+    REQUIRED_SCHEMA_TRIGGERS = {
+        "src/ado_git_repo_insights/transform/aggregators.py",
+        "src/ado_git_repo_insights/transform/schema_versions.py",
+    }
+
+    def _extract_workflow_paths(self) -> set[str]:
+        """Extract all path triggers from demo.yml."""
+        content = self.DEMO_WORKFLOW.read_text(encoding="utf-8")
+        # Extract quoted path strings from the paths: blocks
+        return set(re.findall(r"- '([^']+)'", content))
+
+    def test_demo_workflow_covers_schema_sources(self):
+        """demo.yml must trigger on Python files that affect demo output shape."""
+        paths = self._extract_workflow_paths()
+        for required in self.REQUIRED_SCHEMA_TRIGGERS:
+            assert required in paths, (
+                f"demo.yml is missing trigger for {required}. "
+                f"Schema changes to this file can silently stale the demo dataset."
+            )
+
+    def test_demo_workflow_push_pr_symmetry(self):
+        """push and pull_request path triggers should be identical."""
+        import yaml
+
+        content = self.DEMO_WORKFLOW.read_text(encoding="utf-8")
+        workflow = yaml.safe_load(content)
+        # YAML parses "on" as boolean True; access via True key
+        triggers = workflow[True]
+        pr_paths = set(triggers["pull_request"]["paths"])
+        push_paths = set(triggers["push"]["paths"])
+        assert pr_paths == push_paths, (
+            f"demo.yml push/PR path triggers differ.\n"
+            f"PR only: {pr_paths - push_paths}\n"
+            f"Push only: {push_paths - pr_paths}"
+        )
