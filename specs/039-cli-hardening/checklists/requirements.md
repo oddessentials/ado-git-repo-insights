@@ -31,7 +31,8 @@
 
 ## Notes
 
-- All items pass validation. Spec is ready for `/speckit.clarify` or `/speckit.plan`.
-- The spec deliberately avoids specifying implementation details (e.g., "decorator vs dict" for the registry, specific import patterns) — these are planning-phase decisions.
-- 25 functional requirements cover all 6 findings from issue #200 plus the 4 architectural concerns raised in feedback rounds.
-- Zero [NEEDS CLARIFICATION] markers — all decisions were resolved through expert review rounds.
+- All items pass validation. Spec is ready for `/speckit.plan`.
+- Spec was rewritten by user to be execution-focused hardening (not architecture).
+- 31 functional requirements cover all 6 findings from issue #200.
+- Explicit non-goals: no command registry, no CLI redesign, no packaging overhaul.
+- Zero [NEEDS CLARIFICATION] markers — all decisions resolved through expert review.

@@ -45,7 +45,7 @@ Work MUST be completed in this exact sequence:
 
 ---
 
-## 2. User Scenarios & Testing _(mandatory)_
+## 2. User Scenarios & Testing *(mandatory)*
 
 ### User Story 1 — Version and Invocation Work Reliably (P1)
 
@@ -115,7 +115,7 @@ All version outputs align.
 
 ---
 
-## 4. Functional Requirements
+## 4. Functional Requirements *(mandatory)*
 
 ### Version and Invocation
 
@@ -225,7 +225,7 @@ Before validation passes, the system MUST NOT:
 
 ---
 
-## 8. Success Criteria
+## 8. Success Criteria *(mandatory)*
 
 - **SC-001**: `--version` works universally
 - **SC-002**: `python -m` works
@@ -240,7 +240,19 @@ Before validation passes, the system MUST NOT:
 
 ---
 
-## 9. Execution Guardrails (Churn Prevention)
+## 9. Assumptions
+
+- Single active user (repo owner) — no backwards compatibility constraints
+- Python 3.10+ baseline — `importlib.metadata` is stdlib, no backport needed
+- setuptools_scm populates package metadata — `importlib.metadata.version()` works for editable and wheel installs without `write_to`
+- VERSION file serves the Node/extension ecosystem only — not the Python version source
+- Existing test infrastructure (pytest, ruff, mypy, 14-gate preflight) is stable and will validate changes
+- No new pip dependencies are introduced — all changes use stdlib only
+- `Config.__post_init__` may be called by programmatic callers who bypass the CLI — defense-in-depth validation is retained
+
+---
+
+## 10. Execution Guardrails (Churn Prevention)
 
 - Every requirement is test-backed
 - No speculative improvements allowed
@@ -249,7 +261,7 @@ Before validation passes, the system MUST NOT:
 
 ---
 
-## 10. Definition of Done
+## 11. Definition of Done
 
 This work is complete ONLY when:
 

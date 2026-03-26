@@ -2,11 +2,23 @@
 
 from pathlib import Path
 
+import pytest
+
 from ado_git_repo_insights.cli import create_parser
 
 
 class TestArgumentParsing:
     """Tests for CLI argument parsing."""
+
+    def test_version_flag_exits_zero(self, capsys: pytest.CaptureFixture) -> None:
+        """--version flag prints version and exits 0 (T-01, FR-001/FR-002)."""
+        parser = create_parser()
+        with pytest.raises(SystemExit) as exc_info:
+            parser.parse_args(["--version"])
+        assert exc_info.value.code == 0
+        captured = capsys.readouterr()
+        assert "ado-insights" in captured.out
+        assert "0.0.0" not in captured.out
 
     def test_extract_command_required_args(self) -> None:
         parser = create_parser()

@@ -206,8 +206,8 @@ class TestServeFunctionality:
     """Tests for --serve functionality when flags are valid."""
 
     @patch("ado_git_repo_insights.cli._serve_dashboard")
-    @patch("ado_git_repo_insights.cli.AggregateGenerator")
-    @patch("ado_git_repo_insights.cli.DatabaseManager")
+    @patch("ado_git_repo_insights.transform.aggregators.AggregateGenerator")
+    @patch("ado_git_repo_insights.persistence.database.DatabaseManager")
     def test_serve_called_after_successful_build(
         self,
         mock_db_manager: MagicMock,
@@ -257,8 +257,8 @@ class TestServeFunctionality:
         )
 
     @patch("ado_git_repo_insights.cli._serve_dashboard")
-    @patch("ado_git_repo_insights.cli.AggregateGenerator")
-    @patch("ado_git_repo_insights.cli.DatabaseManager")
+    @patch("ado_git_repo_insights.transform.aggregators.AggregateGenerator")
+    @patch("ado_git_repo_insights.persistence.database.DatabaseManager")
     def test_serve_not_called_without_flag(
         self,
         mock_db_manager: MagicMock,
@@ -302,8 +302,8 @@ class TestServeFunctionality:
         mock_serve_dashboard.assert_not_called()
 
     @patch("ado_git_repo_insights.cli._serve_dashboard")
-    @patch("ado_git_repo_insights.cli.AggregateGenerator")
-    @patch("ado_git_repo_insights.cli.DatabaseManager")
+    @patch("ado_git_repo_insights.transform.aggregators.AggregateGenerator")
+    @patch("ado_git_repo_insights.persistence.database.DatabaseManager")
     def test_serve_not_called_on_build_failure(
         self,
         mock_db_manager: MagicMock,

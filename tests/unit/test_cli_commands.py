@@ -22,7 +22,7 @@ import pytest
 class TestCmdExtract:
     """Tests for cmd_extract command function."""
 
-    @patch("ado_git_repo_insights.cli.load_config")
+    @patch("ado_git_repo_insights.config.load_config")
     def test_configuration_error_returns_1(
         self,
         mock_load_config: MagicMock,
@@ -56,8 +56,8 @@ class TestCmdExtract:
         # Verify run summary was written
         assert (artifacts_dir / "run_summary.json").exists()
 
-    @patch("ado_git_repo_insights.cli.load_config")
-    @patch("ado_git_repo_insights.cli.DatabaseManager")
+    @patch("ado_git_repo_insights.config.load_config")
+    @patch("ado_git_repo_insights.persistence.database.DatabaseManager")
     def test_database_error_returns_1(
         self,
         mock_db_manager: MagicMock,
@@ -97,9 +97,9 @@ class TestCmdExtract:
         assert result == 1
         assert (artifacts_dir / "run_summary.json").exists()
 
-    @patch("ado_git_repo_insights.cli.load_config")
-    @patch("ado_git_repo_insights.cli.DatabaseManager")
-    @patch("ado_git_repo_insights.cli.ADOClient")
+    @patch("ado_git_repo_insights.config.load_config")
+    @patch("ado_git_repo_insights.persistence.database.DatabaseManager")
+    @patch("ado_git_repo_insights.extractor.ado_client.ADOClient")
     def test_extraction_error_returns_1(
         self,
         mock_ado_client: MagicMock,
@@ -166,7 +166,7 @@ class TestCmdGenerateCsv:
 
         assert result == 1
 
-    @patch("ado_git_repo_insights.cli.DatabaseManager")
+    @patch("ado_git_repo_insights.persistence.database.DatabaseManager")
     def test_database_error_returns_1(
         self,
         mock_db_manager: MagicMock,
@@ -191,8 +191,8 @@ class TestCmdGenerateCsv:
 
         assert result == 1
 
-    @patch("ado_git_repo_insights.cli.DatabaseManager")
-    @patch("ado_git_repo_insights.cli.CSVGenerator")
+    @patch("ado_git_repo_insights.persistence.database.DatabaseManager")
+    @patch("ado_git_repo_insights.transform.csv_generator.CSVGenerator")
     def test_csv_generation_error_returns_1(
         self,
         mock_csv_generator: MagicMock,
@@ -223,8 +223,8 @@ class TestCmdGenerateCsv:
 
         assert result == 1
 
-    @patch("ado_git_repo_insights.cli.DatabaseManager")
-    @patch("ado_git_repo_insights.cli.CSVGenerator")
+    @patch("ado_git_repo_insights.persistence.database.DatabaseManager")
+    @patch("ado_git_repo_insights.transform.csv_generator.CSVGenerator")
     def test_successful_generation_returns_0(
         self,
         mock_csv_generator: MagicMock,
@@ -317,8 +317,8 @@ class TestCmdGenerateAggregates:
         error_msg = mock_logger.error.call_args[0][0]
         assert "OPENAI_API_KEY is required" in error_msg
 
-    @patch("ado_git_repo_insights.cli.DatabaseManager")
-    @patch("ado_git_repo_insights.cli.AggregateGenerator")
+    @patch("ado_git_repo_insights.persistence.database.DatabaseManager")
+    @patch("ado_git_repo_insights.transform.aggregators.AggregateGenerator")
     def test_insights_dry_run_without_api_key_proceeds(
         self,
         mock_agg_generator: MagicMock,
@@ -372,7 +372,7 @@ class TestCmdGenerateAggregates:
             for call in mock_logger.error.call_args_list
         )
 
-    @patch("ado_git_repo_insights.cli.DatabaseManager")
+    @patch("ado_git_repo_insights.persistence.database.DatabaseManager")
     def test_database_error_returns_1(
         self,
         mock_db_manager: MagicMock,
@@ -406,8 +406,8 @@ class TestCmdGenerateAggregates:
 
         assert result == 1
 
-    @patch("ado_git_repo_insights.cli.DatabaseManager")
-    @patch("ado_git_repo_insights.cli.AggregateGenerator")
+    @patch("ado_git_repo_insights.persistence.database.DatabaseManager")
+    @patch("ado_git_repo_insights.transform.aggregators.AggregateGenerator")
     def test_aggregation_error_returns_1(
         self,
         mock_agg_generator: MagicMock,
@@ -447,8 +447,8 @@ class TestCmdGenerateAggregates:
 
         assert result == 1
 
-    @patch("ado_git_repo_insights.cli.DatabaseManager")
-    @patch("ado_git_repo_insights.cli.AggregateGenerator")
+    @patch("ado_git_repo_insights.persistence.database.DatabaseManager")
+    @patch("ado_git_repo_insights.transform.aggregators.AggregateGenerator")
     def test_stub_generation_error_returns_1(
         self,
         mock_agg_generator: MagicMock,
@@ -488,8 +488,8 @@ class TestCmdGenerateAggregates:
 
         assert result == 1
 
-    @patch("ado_git_repo_insights.cli.DatabaseManager")
-    @patch("ado_git_repo_insights.cli.AggregateGenerator")
+    @patch("ado_git_repo_insights.persistence.database.DatabaseManager")
+    @patch("ado_git_repo_insights.transform.aggregators.AggregateGenerator")
     def test_successful_generation_returns_0(
         self,
         mock_agg_generator: MagicMock,
