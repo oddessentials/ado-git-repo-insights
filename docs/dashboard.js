@@ -4299,8 +4299,8 @@ var PRInsightsDashboard = (() => {
     }
     values.forEach((v) => {
       allValues.push(v.predicted);
-      allValues.push(v.lower_bound);
-      allValues.push(v.upper_bound);
+      if (v.lower_bound != null) allValues.push(v.lower_bound);
+      if (v.upper_bound != null) allValues.push(v.upper_bound);
     });
     const maxValue = Math.max(...allValues, 1);
     const minValue = Math.min(...allValues, 0);
@@ -4322,8 +4322,8 @@ var PRInsightsDashboard = (() => {
     values.forEach((v, i) => {
       const x = getX(historicalCount + i);
       forecastPoints.push({ x, y: getY(v.predicted) });
-      upperPoints.push({ x, y: getY(v.upper_bound) });
-      lowerPoints.push({ x, y: getY(v.lower_bound) });
+      if (v.upper_bound != null) upperPoints.push({ x, y: getY(v.upper_bound) });
+      if (v.lower_bound != null) lowerPoints.push({ x, y: getY(v.lower_bound) });
     });
     const historicalPoints = [];
     if (historicalData) {
@@ -4347,7 +4347,7 @@ var PRInsightsDashboard = (() => {
       return `<text x="${x}%" y="${chartHeight - 2}" class="axis-label">${escapeHtml(formatted)}</text>`;
     }).join("");
     const latestValue = values[values.length - 1];
-    const accessibleSummary = latestValue ? `${metricLabel} forecast: ${latestValue.predicted.toFixed(1)} ${forecast.unit} (range ${latestValue.lower_bound.toFixed(1)} to ${latestValue.upper_bound.toFixed(1)})` : `${metricLabel} forecast chart`;
+    const accessibleSummary = latestValue ? `${metricLabel} forecast: ${latestValue.predicted.toFixed(1)} ${forecast.unit}${latestValue.lower_bound != null && latestValue.upper_bound != null ? ` (range ${latestValue.lower_bound.toFixed(1)} to ${latestValue.upper_bound.toFixed(1)})` : ""}` : `${metricLabel} forecast chart`;
     const safeMetricId = sanitizeForId(forecast.metric);
     return `
     <div class="forecast-chart" role="region" aria-label="${escapeHtml(metricLabel)} forecast">
@@ -4853,24 +4853,30 @@ var PRInsightsDashboard = (() => {
       return `<span class="sparkline-empty" aria-label="No trend data available">\u2014</span>`;
     }
     const limitedValues = values.length > MAX_SPARKLINE_POINTS ? values.slice(-MAX_SPARKLINE_POINTS) : values;
-    const minVal = Math.min(...limitedValues);
-    const maxVal = Math.max(...limitedValues);
+    const cleanValues = limitedValues.filter(
+      (v) => typeof v === "number" && Number.isFinite(v)
+    );
+    if (cleanValues.length < 2) {
+      return `<span class="sparkline-empty" aria-label="No trend data available">\u2014</span>`;
+    }
+    const minVal = Math.min(...cleanValues);
+    const maxVal = Math.max(...cleanValues);
     const range = maxVal - minVal || 1;
     const padding = 2;
     const effectiveHeight = height - padding * 2;
     const effectiveWidth = width - padding * 2;
-    const points = limitedValues.map((val, i) => {
-      const x = padding + i / (limitedValues.length - 1) * effectiveWidth;
+    const points = cleanValues.map((val, i) => {
+      const x = padding + i / (cleanValues.length - 1) * effectiveWidth;
       const y = padding + (1 - (val - minVal) / range) * effectiveHeight;
       return `${x.toFixed(1)},${y.toFixed(1)}`;
     }).join(" ");
-    const firstVal = limitedValues[0] ?? 0;
-    const lastVal = limitedValues[limitedValues.length - 1] ?? 0;
+    const firstVal = cleanValues[0] ?? 0;
+    const lastVal = cleanValues[cleanValues.length - 1] ?? 0;
     const trendDescription = lastVal > firstVal ? "upward trend" : lastVal < firstVal ? "downward trend" : "stable trend";
     const truncatedBadge = values.length > MAX_SPARKLINE_POINTS ? `<span class="truncation-badge" title="Showing last ${MAX_SPARKLINE_POINTS} of ${values.length} data points">*</span>` : "";
     return `
     <svg class="sparkline" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}"
-         role="img" aria-label="Sparkline showing ${trendDescription} over ${limitedValues.length} data points">
+         role="img" aria-label="Sparkline showing ${trendDescription} over ${cleanValues.length} data points">
       <polyline
         points="${points}"
         fill="none"

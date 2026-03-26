@@ -24,6 +24,8 @@ describe("cycle-time module", () => {
   });
 
   afterEach(() => {
+    // Global NaN invariant: no chart should ever produce NaN in SVG coordinates
+    expect(container.innerHTML).not.toContain("NaN");
     document.body.removeChild(container);
   });
 
