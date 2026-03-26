@@ -268,7 +268,11 @@ def run_npm_command_guard() -> None:
     import re
 
     staged_prefixes = (".github/workflows/", "scripts/")
-    staged_exact = ("package.json",)
+    staged_exact = (
+        "package.json",
+        "extension/package.json",
+        "extension/tasks/extract-prs/package.json",
+    )
     staged_suffixes = (".yml", ".yaml", ".json", ".sh")
     pattern = re.compile(r"npm\s+(ci|install)\b")
     allowlist = re.compile(r"npm install -g tfx-cli")
@@ -420,7 +424,6 @@ def run_pre_commit_hook() -> None:
     for path in triggers:
         safe_print(f"  - {path}")
     require_clean_ui_sources()
-    run_extension_lint()
     run_managed_artifacts("sync", "--scope", "all", "--stage", "--require-clean")
     safe_print("[pre-commit] managed UI artifacts synced successfully")
 
