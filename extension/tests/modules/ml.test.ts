@@ -441,6 +441,32 @@ describe("renderAIInsights", () => {
     renderAIInsights(container, insights);
     expect(container.querySelector(".sparkline-empty")).not.toBeNull();
   });
+
+  it("filters non-number types coerced into sparkline array", () => {
+    const insights: InsightsRenderData = {
+      insights: [
+        {
+          severity: "info",
+          category: "Test",
+          title: "Mixed types",
+          description: "Has non-number values",
+          data: {
+            metric: "test",
+            current_value: 5,
+            trend_direction: "up" as const,
+            sparkline: [null, undefined, 2, "three", 4] as unknown as number[],
+          },
+        },
+      ],
+    };
+    renderAIInsights(container, insights);
+    // After filtering non-numbers, [2, 4] remains — enough for SVG with a polyline
+    const svg = container.querySelector("svg.sparkline");
+    expect(svg).not.toBeNull();
+    expect(svg?.querySelector("polyline")).not.toBeNull();
+    expect(svg?.innerHTML).not.toContain("NaN");
+    expect(svg?.innerHTML).not.toContain("undefined");
+  });
 });
 
 describe("renderPredictionsError", () => {
