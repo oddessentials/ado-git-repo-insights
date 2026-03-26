@@ -132,45 +132,29 @@ describe("Schema Parity Tests", () => {
   });
 
   describe("Extension Artifacts Validation", () => {
-    it("extension manifest passes validation (if present)", () => {
-      if (!extensionManifest) {
-        // SKIP_REASON: Extension artifacts not yet captured (T022 pending)
-        console.log("Skipping: extension manifest not captured yet");
-        return;
-      }
+    it("extension manifest passes validation", () => {
+      expect(extensionManifest).not.toBeNull();
       const result = validateManifest(extensionManifest, true);
       expect(result.valid).toBe(true);
       expect(result.errors).toHaveLength(0);
     });
 
-    it("extension dimensions passes validation (if present)", () => {
-      if (!extensionDimensions) {
-        // SKIP_REASON: Extension artifacts not yet captured (T022 pending)
-        console.log("Skipping: extension dimensions not captured yet");
-        return;
-      }
+    it("extension dimensions passes validation", () => {
+      expect(extensionDimensions).not.toBeNull();
       const result = validateDimensions(extensionDimensions, true);
       expect(result.valid).toBe(true);
       expect(result.errors).toHaveLength(0);
     });
 
-    it("extension rollup passes validation (if present)", () => {
-      if (!extensionRollup) {
-        // SKIP_REASON: Extension artifacts not yet captured (T022 pending)
-        console.log("Skipping: extension rollup not captured yet");
-        return;
-      }
+    it("extension rollup passes validation", () => {
+      expect(extensionRollup).not.toBeNull();
       const result = validateRollup(extensionRollup, false);
       expect(result.valid).toBe(true);
       expect(result.errors).toHaveLength(0);
     });
 
-    it("extension predictions passes validation (if present)", () => {
-      if (!extensionPredictions) {
-        // SKIP_REASON: Extension artifacts not yet captured (T022 pending)
-        console.log("Skipping: extension predictions not captured yet");
-        return;
-      }
+    it("extension predictions passes validation", () => {
+      expect(extensionPredictions).not.toBeNull();
       const result = validatePredictions(extensionPredictions, false);
       expect(result.valid).toBe(true);
       expect(result.errors).toHaveLength(0);
@@ -179,14 +163,9 @@ describe("Schema Parity Tests", () => {
 
   describe("Normalized Shape Parity", () => {
     it("normalized manifest has consistent shape between sources", () => {
-      if (!extensionManifest) {
-        // SKIP_REASON: Extension artifacts not yet captured (T022 pending)
-        console.log("Skipping: extension manifest not captured yet");
-        return;
-      }
-
+      expect(extensionManifest).not.toBeNull();
       const localNormalized = normalizeManifest(localManifest);
-      const extensionNormalized = normalizeManifest(extensionManifest);
+      const extensionNormalized = normalizeManifest(extensionManifest!);
 
       // Check that both have the same top-level keys
       const localKeys = Object.keys(localNormalized).sort();
@@ -201,14 +180,9 @@ describe("Schema Parity Tests", () => {
     });
 
     it("normalized dimensions has consistent shape between sources", () => {
-      if (!extensionDimensions) {
-        // SKIP_REASON: Extension artifacts not yet captured (T022 pending)
-        console.log("Skipping: extension dimensions not captured yet");
-        return;
-      }
-
+      expect(extensionDimensions).not.toBeNull();
       const localNormalized = normalizeDimensions(localDimensions);
-      const extensionNormalized = normalizeDimensions(extensionDimensions);
+      const extensionNormalized = normalizeDimensions(extensionDimensions!);
 
       // Check that both have the same top-level keys
       const localKeys = Object.keys(localNormalized).sort();
@@ -223,14 +197,9 @@ describe("Schema Parity Tests", () => {
     });
 
     it("normalized rollup has consistent shape between sources", () => {
-      if (!extensionRollup) {
-        // SKIP_REASON: Extension artifacts not yet captured (T022 pending)
-        console.log("Skipping: extension rollup not captured yet");
-        return;
-      }
-
+      expect(extensionRollup).not.toBeNull();
       const localNormalized = normalizeRollup(localRollup);
-      const extensionNormalized = normalizeRollup(extensionRollup);
+      const extensionNormalized = normalizeRollup(extensionRollup!);
 
       // Check that both have required fields
       expect(localNormalized).toHaveProperty("week");
@@ -244,14 +213,9 @@ describe("Schema Parity Tests", () => {
     });
 
     it("normalized predictions has consistent shape between sources", () => {
-      if (!extensionPredictions) {
-        // SKIP_REASON: Extension artifacts not yet captured (T022 pending)
-        console.log("Skipping: extension predictions not captured yet");
-        return;
-      }
-
+      expect(extensionPredictions).not.toBeNull();
       const localNormalized = normalizePredictions(localPredictions);
-      const extensionNormalized = normalizePredictions(extensionPredictions);
+      const extensionNormalized = normalizePredictions(extensionPredictions!);
 
       // Check that both have required fields
       expect(localNormalized).toHaveProperty("schema_version");
@@ -263,14 +227,9 @@ describe("Schema Parity Tests", () => {
 
   describe("Cross-Source Data Consistency", () => {
     it("manifest schema versions are compatible", () => {
-      if (!extensionManifest) {
-        // SKIP_REASON: Extension artifacts not yet captured (T022 pending)
-        console.log("Skipping: extension manifest not captured yet");
-        return;
-      }
-
+      expect(extensionManifest).not.toBeNull();
       const localNormalized = normalizeManifest(localManifest);
-      const extensionNormalized = normalizeManifest(extensionManifest);
+      const extensionNormalized = normalizeManifest(extensionManifest!);
 
       // Schema versions should match or be compatible
       expect(localNormalized.manifest_schema_version).toBe(
@@ -279,14 +238,9 @@ describe("Schema Parity Tests", () => {
     });
 
     it("dimensions entity types are consistent", () => {
-      if (!extensionDimensions) {
-        // SKIP_REASON: Extension artifacts not yet captured (T022 pending)
-        console.log("Skipping: extension dimensions not captured yet");
-        return;
-      }
-
+      expect(extensionDimensions).not.toBeNull();
       const localNormalized = normalizeDimensions(localDimensions);
-      const extensionNormalized = normalizeDimensions(extensionDimensions);
+      const extensionNormalized = normalizeDimensions(extensionDimensions!);
 
       // If both have repositories, check structure
       if (
@@ -301,6 +255,22 @@ describe("Schema Parity Tests", () => {
         ).sort();
         expect(localRepoKeys).toEqual(extensionRepoKeys);
       }
+    });
+  });
+
+  describe("Fixture Provenance Lock", () => {
+    it("extension-artifacts/predictions.json matches canonical generator output", () => {
+      // Provenance guard: the extension-artifacts predictions fixture must be
+      // derived from the canonical demo generator output. If someone hand-edits
+      // the fixture or the generator output changes, this test catches the drift.
+      const canonicalPredictions = require("../../../docs/data/predictions/trends.json");
+
+      // Compare by serializing with sorted keys to ignore formatting differences
+      const normalize = (obj: unknown) =>
+        JSON.stringify(obj, Object.keys(obj as object).sort());
+      expect(normalize(extensionPredictionsRaw)).toEqual(
+        normalize(canonicalPredictions),
+      );
     });
   });
 });

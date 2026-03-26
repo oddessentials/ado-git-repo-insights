@@ -868,6 +868,15 @@ input[type="search"]::placeholder {
     gap: 6px;
 }
 
+.legend-insufficient {
+    opacity: 0.5;
+    font-style: italic;
+}
+
+.dimmed {
+    opacity: 0.3;
+}
+
 .legend-bar {
     width: 12px;
     height: 12px;

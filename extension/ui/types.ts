@@ -461,8 +461,8 @@ export interface QueryParamResult {
 export interface ForecastValue {
   period_start: string;
   predicted: number;
-  lower_bound: number;
-  upper_bound: number;
+  lower_bound?: number;
+  upper_bound?: number;
 }
 
 /**

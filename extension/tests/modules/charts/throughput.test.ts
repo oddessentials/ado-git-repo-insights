@@ -38,6 +38,8 @@ describe("throughput module", () => {
   });
 
   afterEach(() => {
+    // Global NaN invariant: no chart should ever produce NaN in SVG coordinates
+    expect(container.innerHTML).not.toContain("NaN");
     document.body.removeChild(container);
   });
 
@@ -240,5 +242,36 @@ describe("Label thinning", () => {
     expect(tooltip?.textContent).toContain("10");
 
     bar.dispatchEvent(new MouseEvent("mouseleave", { bubbles: true }));
+  });
+});
+
+describe("Throughput trend line legend", () => {
+  let container: HTMLDivElement;
+
+  beforeEach(() => {
+    container = document.createElement("div");
+  });
+
+  it("shows insufficient legend AND no trend SVG when < 4 weeks", () => {
+    renderThroughputChart(container, makeTestRollups(3));
+
+    // Legend must indicate trend line is unavailable
+    expect(container.innerHTML).toContain("needs 4+ weeks");
+    expect(container.querySelector(".legend-insufficient")).not.toBeNull();
+    // AND no trend SVG path must exist — assert both together
+    expect(container.querySelector(".trend-line-overlay")).toBeNull();
+  });
+
+  it("shows normal legend AND trend SVG path when >= 4 weeks", () => {
+    renderThroughputChart(container, makeTestRollups(6));
+
+    // Legend must show normal "4-week avg" without qualifier
+    expect(container.innerHTML).toContain("4-week avg");
+    expect(container.innerHTML).not.toContain("needs 4+ weeks");
+    expect(container.querySelector(".legend-insufficient")).toBeNull();
+    // AND trend SVG must contain a path element
+    const overlay = container.querySelector(".trend-line-overlay");
+    expect(overlay).not.toBeNull();
+    expect(overlay?.innerHTML).toContain("<path");
   });
 });

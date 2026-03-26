@@ -24,6 +24,8 @@ describe("cycle-time module", () => {
   });
 
   afterEach(() => {
+    // Global NaN invariant: no chart should ever produce NaN in SVG coordinates
+    expect(container.innerHTML).not.toContain("NaN");
     document.body.removeChild(container);
   });
 
@@ -226,6 +228,67 @@ describe("cycle-time module", () => {
       dots.forEach((dot) => {
         expect(dot.getAttribute("data-value")).not.toBeNull();
       });
+    });
+  });
+
+  describe("dynamic legend for partial metrics", () => {
+    it("shows P50 normal and P90 insufficient when P90 has only 1 point", () => {
+      const rollups: Rollup[] = Array.from({ length: 4 }, (_, i) => ({
+        week: `2025-W${String(i + 1).padStart(2, "0")}`,
+        pr_count: 10,
+        cycle_time_p50: 60 + i * 10,
+        // Only first rollup has P90
+        cycle_time_p90: i === 0 ? 120 : null,
+        authors_count: 5,
+        reviewers_count: 3,
+        by_repository: null,
+        by_team: null,
+      }));
+      renderCycleTimeTrend(container, rollups);
+
+      expect(container.innerHTML).toContain("P50 (Median)");
+      expect(container.innerHTML).not.toContain(
+        "P50 (Median) — insufficient points",
+      );
+      expect(container.innerHTML).toContain("P90 — insufficient points");
+      expect(container.querySelector(".legend-insufficient")).not.toBeNull();
+    });
+
+    it("omits P50 legend entirely when P50 has 0 data points", () => {
+      const rollups: Rollup[] = Array.from({ length: 4 }, (_, i) => ({
+        week: `2025-W${String(i + 1).padStart(2, "0")}`,
+        pr_count: 10,
+        cycle_time_p50: null,
+        cycle_time_p90: 120 + i * 20,
+        authors_count: 5,
+        reviewers_count: 3,
+        by_repository: null,
+        by_team: null,
+      }));
+      renderCycleTimeTrend(container, rollups);
+
+      expect(container.innerHTML).not.toContain("P50");
+      expect(container.innerHTML).toContain("P90");
+      expect(container.querySelector(".legend-insufficient")).toBeNull();
+    });
+
+    it("shows both legends normal when both metrics have sufficient data", () => {
+      const rollups: Rollup[] = Array.from({ length: 4 }, (_, i) => ({
+        week: `2025-W${String(i + 1).padStart(2, "0")}`,
+        pr_count: 10,
+        cycle_time_p50: 60 + i * 10,
+        cycle_time_p90: 120 + i * 20,
+        authors_count: 5,
+        reviewers_count: 3,
+        by_repository: null,
+        by_team: null,
+      }));
+      renderCycleTimeTrend(container, rollups);
+
+      expect(container.innerHTML).toContain("P50 (Median)");
+      expect(container.innerHTML).toContain("P90");
+      expect(container.innerHTML).not.toContain("insufficient points");
+      expect(container.querySelector(".legend-insufficient")).toBeNull();
     });
   });
 });

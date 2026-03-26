@@ -67,6 +67,7 @@ export function renderReviewerActivity(
   }
 
   // Take last MAX_REVIEWER_WEEKS weeks for display
+  const truncated = rollups.length > MAX_REVIEWER_WEEKS;
   const recentRollups = rollups.slice(-MAX_REVIEWER_WEEKS);
   const maxReviewers = Math.max(
     ...recentRollups.map((r) => r.reviewers_count || 0),
@@ -102,9 +103,14 @@ export function renderReviewerActivity(
     })
     .join("");
 
+  // Truncation indicator (matches throughput.ts and cycle-time.ts pattern)
+  const truncationHtml = truncated
+    ? `<div class="truncation-indicator">Showing last ${MAX_REVIEWER_WEEKS} weeks</div>`
+    : "";
+
   // SECURITY: barsHtml uses escapeHtml for week values, count is numeric
   renderTrustedHtml(
     container,
-    `<p class="chart-subtitle">${escapeHtml(subtitle)}</p><div class="horizontal-bar-chart">${barsHtml}</div>`,
+    `${truncationHtml}<p class="chart-subtitle">${escapeHtml(subtitle)}</p><div class="horizontal-bar-chart">${barsHtml}</div>`,
   );
 }

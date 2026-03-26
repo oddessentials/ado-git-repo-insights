@@ -191,8 +191,8 @@ export function renderForecastChart(
   }
   values.forEach((v) => {
     allValues.push(v.predicted);
-    allValues.push(v.lower_bound);
-    allValues.push(v.upper_bound);
+    if (v.lower_bound != null) allValues.push(v.lower_bound);
+    if (v.upper_bound != null) allValues.push(v.upper_bound);
   });
 
   const maxValue = Math.max(...allValues, 1);
@@ -225,8 +225,8 @@ export function renderForecastChart(
   values.forEach((v, i) => {
     const x = getX(historicalCount + i);
     forecastPoints.push({ x, y: getY(v.predicted) });
-    upperPoints.push({ x, y: getY(v.upper_bound) });
-    lowerPoints.push({ x, y: getY(v.lower_bound) });
+    if (v.upper_bound != null) upperPoints.push({ x, y: getY(v.upper_bound) });
+    if (v.lower_bound != null) lowerPoints.push({ x, y: getY(v.lower_bound) });
   });
 
   // Calculate historical line points
@@ -269,7 +269,7 @@ export function renderForecastChart(
   // Generate accessible summary for screen readers
   const latestValue = values[values.length - 1];
   const accessibleSummary = latestValue
-    ? `${metricLabel} forecast: ${latestValue.predicted.toFixed(1)} ${forecast.unit} (range ${latestValue.lower_bound.toFixed(1)} to ${latestValue.upper_bound.toFixed(1)})`
+    ? `${metricLabel} forecast: ${latestValue.predicted.toFixed(1)} ${forecast.unit}${latestValue.lower_bound != null && latestValue.upper_bound != null ? ` (range ${latestValue.lower_bound.toFixed(1)} to ${latestValue.upper_bound.toFixed(1)})` : ""}`
     : `${metricLabel} forecast chart`;
 
   // Sanitize metric for use in HTML id attributes (prevents XSS in id/aria-* attributes)
@@ -435,7 +435,7 @@ export function renderForecastTable(forecast: Forecast): string {
       <tr>
         <td>${escapeHtml(v.period_start)}</td>
         <td class="number">${v.predicted.toFixed(1)}</td>
-        <td class="number range">${v.lower_bound.toFixed(1)} - ${v.upper_bound.toFixed(1)}</td>
+        <td class="number range">${v.lower_bound != null && v.upper_bound != null ? `${v.lower_bound.toFixed(1)} - ${v.upper_bound.toFixed(1)}` : "N/A"}</td>
       </tr>
     `,
     )

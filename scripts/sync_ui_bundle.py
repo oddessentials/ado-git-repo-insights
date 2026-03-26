@@ -32,6 +32,11 @@ def main() -> int:
         action="store_true",
         help="Force sync even if content hashes match",
     )
+    parser.add_argument(
+        "--verify",
+        action="store_true",
+        help="Verify ui_bundle matches source without modifying files (exit 0 if synced, 1 if drifted)",
+    )
 
     args = parser.parse_args()
 
@@ -54,6 +59,14 @@ def main() -> int:
     except SyncError as e:
         print(f"::error::{e}")
         return 1
+
+    # Verify mode: check sync state without modifying files
+    if args.verify:
+        if sync_needed(args.source, args.bundle):
+            print(f"::error::ui_bundle is out of sync with {args.source}")
+            return 1
+        print(f"[OK] ui_bundle is in sync with {args.source}")
+        return 0
 
     # Check if sync needed
     if not args.force and not sync_needed(args.source, args.bundle):

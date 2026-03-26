@@ -330,6 +330,117 @@ describe("renderAIInsights", () => {
     expect(badge).not.toBeNull();
     expect(badge?.getAttribute("title")).toContain("200");
   });
+
+  it("renders dash for empty sparkline array", () => {
+    const insights: InsightsRenderData = {
+      insights: [
+        {
+          severity: "info",
+          category: "Test",
+          title: "Empty sparkline",
+          description: "Has no data",
+          data: {
+            metric: "test",
+            current_value: 0,
+            trend_direction: "stable" as const,
+            sparkline: [],
+          },
+        },
+      ],
+    };
+    renderAIInsights(container, insights);
+    expect(container.querySelector(".sparkline-empty")).not.toBeNull();
+    expect(container.querySelector(".sparkline")).toBeNull();
+  });
+
+  it("renders dash for single-element sparkline", () => {
+    const insights: InsightsRenderData = {
+      insights: [
+        {
+          severity: "info",
+          category: "Test",
+          title: "Single point",
+          description: "Only one value",
+          data: {
+            metric: "test",
+            current_value: 42,
+            trend_direction: "stable" as const,
+            sparkline: [42],
+          },
+        },
+      ],
+    };
+    renderAIInsights(container, insights);
+    expect(container.querySelector(".sparkline-empty")).not.toBeNull();
+  });
+
+  it("renders flat SVG line for all-zero sparkline", () => {
+    const insights: InsightsRenderData = {
+      insights: [
+        {
+          severity: "info",
+          category: "Test",
+          title: "All zeros",
+          description: "Flat data",
+          data: {
+            metric: "test",
+            current_value: 0,
+            trend_direction: "stable" as const,
+            sparkline: [0, 0, 0, 0],
+          },
+        },
+      ],
+    };
+    renderAIInsights(container, insights);
+    const svg = container.querySelector("svg.sparkline");
+    expect(svg).not.toBeNull();
+    expect(svg?.innerHTML).not.toContain("NaN");
+  });
+
+  it("filters NaN values and renders remaining or dash", () => {
+    const insights: InsightsRenderData = {
+      insights: [
+        {
+          severity: "info",
+          category: "Test",
+          title: "NaN values",
+          description: "Has invalid data",
+          data: {
+            metric: "test",
+            current_value: 5,
+            trend_direction: "up" as const,
+            sparkline: [1, NaN, 3, NaN, 5] as number[],
+          },
+        },
+      ],
+    };
+    renderAIInsights(container, insights);
+    // Should render SVG with valid points (1, 3, 5) — enough for a line
+    const svg = container.querySelector("svg.sparkline");
+    expect(svg).not.toBeNull();
+    expect(svg?.innerHTML).not.toContain("NaN");
+  });
+
+  it("renders dash when non-finite values reduce array below 2", () => {
+    const insights: InsightsRenderData = {
+      insights: [
+        {
+          severity: "info",
+          category: "Test",
+          title: "Mostly NaN",
+          description: "Almost all invalid",
+          data: {
+            metric: "test",
+            current_value: 1,
+            trend_direction: "stable" as const,
+            sparkline: [1, NaN, NaN, NaN] as number[],
+          },
+        },
+      ],
+    };
+    renderAIInsights(container, insights);
+    expect(container.querySelector(".sparkline-empty")).not.toBeNull();
+  });
 });
 
 describe("renderPredictionsError", () => {

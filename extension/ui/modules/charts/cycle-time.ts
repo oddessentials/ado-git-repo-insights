@@ -156,6 +156,8 @@ export function renderCycleTimeTrend(
 
   // Generate paths
   const generatePath = (data: { week: string; value: number }[]) => {
+    // Defensive guard: unreachable in current flow (line 102 catches rollups.length < 2
+    // before we reach here), but kept as safety net if the early check is ever loosened.
     if (displayRollups.length < 2) return { pathD: "", points: [] };
     const points = data
       .map((d) => {
@@ -221,18 +223,20 @@ export function renderCycleTimeTrend(
         </svg>
     `;
 
-  const legendHtml = `
-        <div class="chart-legend">
-            <div class="legend-item">
-                <span class="chart-tooltip-dot legend-p50"></span>
-                <span>P50 (Median)</span>
-            </div>
-            <div class="legend-item">
-                <span class="chart-tooltip-dot legend-p90"></span>
-                <span>P90</span>
-            </div>
-        </div>
-    `;
+  // Dynamic legend: only show entries for metrics that actually rendered,
+  // and mark metrics with some data but insufficient points for a trend line.
+  const legendItems: string[] = [];
+  if (p50Path) {
+    legendItems.push(`<div class="legend-item"><span class="chart-tooltip-dot legend-p50"></span><span>P50 (Median)</span></div>`);
+  } else if (p50Data.length > 0) {
+    legendItems.push(`<div class="legend-item legend-insufficient"><span class="chart-tooltip-dot legend-p50 dimmed"></span><span>P50 (Median) — insufficient points</span></div>`);
+  }
+  if (p90Path) {
+    legendItems.push(`<div class="legend-item"><span class="chart-tooltip-dot legend-p90"></span><span>P90</span></div>`);
+  } else if (p90Data.length > 0) {
+    legendItems.push(`<div class="legend-item legend-insufficient"><span class="chart-tooltip-dot legend-p90 dimmed"></span><span>P90 — insufficient points</span></div>`);
+  }
+  const legendHtml = `<div class="chart-legend">${legendItems.join("")}</div>`;
 
   // Truncation indicator
   const truncationHtml = truncated

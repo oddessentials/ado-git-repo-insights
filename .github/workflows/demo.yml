@@ -18,10 +18,14 @@ on:
       - 'scripts/regenerate-demo.py'
       - 'scripts/demo_generation_common.py'
       - 'scripts/generate-demo-*.py'
+      - 'scripts/generate-demo-data.py'
       - 'scripts/validate_demo_generation_contract.py'
       - 'extension/ui/**'
       - 'docs/**'
       - '.github/workflows/demo.yml'
+      # Python schema sources that affect demo output shape
+      - 'src/ado_git_repo_insights/transform/aggregators.py'
+      - 'src/ado_git_repo_insights/transform/schema_versions.py'
   push:
     branches:
       - main
@@ -30,9 +34,14 @@ on:
       - 'scripts/regenerate-demo.py'
       - 'scripts/demo_generation_common.py'
       - 'scripts/generate-demo-*.py'
+      - 'scripts/generate-demo-data.py'
       - 'scripts/validate_demo_generation_contract.py'
       - 'extension/ui/**'
       - 'docs/**'
+      - '.github/workflows/demo.yml'
+      # Python schema sources that affect demo output shape
+      - 'src/ado_git_repo_insights/transform/aggregators.py'
+      - 'src/ado_git_repo_insights/transform/schema_versions.py'
 
 # Prevent concurrent runs on same PR
 concurrency:

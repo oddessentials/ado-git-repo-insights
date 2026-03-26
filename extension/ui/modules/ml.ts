@@ -171,25 +171,33 @@ function renderInsightSparkline(
       ? values.slice(-MAX_SPARKLINE_POINTS)
       : values;
 
-  const minVal = Math.min(...limitedValues);
-  const maxVal = Math.max(...limitedValues);
+  // Filter out non-finite values (null, undefined, NaN, Infinity coerced into the array)
+  const cleanValues = limitedValues.filter(
+    (v): v is number => typeof v === "number" && Number.isFinite(v),
+  );
+  if (cleanValues.length < 2) {
+    return `<span class="sparkline-empty" aria-label="No trend data available">—</span>`;
+  }
+
+  const minVal = Math.min(...cleanValues);
+  const maxVal = Math.max(...cleanValues);
   const range = maxVal - minVal || 1;
   const padding = 2;
   const effectiveHeight = height - padding * 2;
   const effectiveWidth = width - padding * 2;
 
   // Calculate points for polyline
-  const points = limitedValues
+  const points = cleanValues
     .map((val, i) => {
-      const x = padding + (i / (limitedValues.length - 1)) * effectiveWidth;
+      const x = padding + (i / (cleanValues.length - 1)) * effectiveWidth;
       const y = padding + (1 - (val - minVal) / range) * effectiveHeight;
       return `${x.toFixed(1)},${y.toFixed(1)}`;
     })
     .join(" ");
 
   // Calculate trend direction for accessible description
-  const firstVal = limitedValues[0] ?? 0;
-  const lastVal = limitedValues[limitedValues.length - 1] ?? 0;
+  const firstVal = cleanValues[0] ?? 0;
+  const lastVal = cleanValues[cleanValues.length - 1] ?? 0;
   const trendDescription =
     lastVal > firstVal
       ? "upward trend"
@@ -204,7 +212,7 @@ function renderInsightSparkline(
 
   return `
     <svg class="sparkline" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}"
-         role="img" aria-label="Sparkline showing ${trendDescription} over ${limitedValues.length} data points">
+         role="img" aria-label="Sparkline showing ${trendDescription} over ${cleanValues.length} data points">
       <polyline
         points="${points}"
         fill="none"
