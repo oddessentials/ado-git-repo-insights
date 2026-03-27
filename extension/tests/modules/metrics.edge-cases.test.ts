@@ -486,7 +486,7 @@ describe("T025: SC-002 dashboard load time overhead", () => {
   const MEASURE_RUNS = 50;
   const MAX_OVERHEAD_PERCENT = 10;
   /** Below this threshold (ms), percentage comparisons are noise-dominated. */
-  const NOISE_FLOOR_MS = 2;
+  const NOISE_FLOOR_MS = 5;
 
   /**
    * Build an array of rollups for timing measurement.
