@@ -227,3 +227,240 @@ describe("Layer B: Cross-entry-point wiring parity", () => {
     expect(extContainer.innerHTML).not.toBe("");
   });
 });
+
+// ---------------------------------------------------------------------------
+// Layer C: New component parity (041-metrics-dashboard-ux)
+// ---------------------------------------------------------------------------
+
+import { initTypeaheadDropdown } from "../../ui/modules/typeahead-dropdown";
+import {
+  classifyEmptyState,
+  type EmptyStateContext,
+} from "../../ui/modules/empty-state-classifier";
+import type { DataAvailabilitySignal } from "../../ui/types";
+import type { FilterState } from "../../ui/modules/filters";
+
+const defaultAvailability: DataAvailabilitySignal = {
+  reviewerDataPresent: true,
+  reviewerDataEmpty: false,
+  cycleTimePresent: true,
+  reviewerRepoMode: "constrained",
+  commentsStatus: "disabled",
+};
+
+const emptyFilters: FilterState = {
+  repos: [],
+  teams: [],
+  reviewers: [],
+  authors: [],
+};
+
+describe("Layer C: New component parity", () => {
+  afterEach(() => {
+    document.body.innerHTML = "";
+  });
+
+  it("typeahead dropdown renders identically in two containers with same config", () => {
+    const containerA = document.createElement("div");
+    containerA.id = "parity-a";
+    document.body.appendChild(containerA);
+
+    const containerB = document.createElement("div");
+    containerB.id = "parity-b";
+    document.body.appendChild(containerB);
+
+    const options = [
+      { id: "r1", displayName: "Repo Alpha" },
+      { id: "r2", displayName: "Repo Beta" },
+      { id: "r3", displayName: "Repo Gamma" },
+    ];
+
+    initTypeaheadDropdown({
+      containerId: "parity-a",
+      options,
+      mode: "multi",
+      placeholder: "Search...",
+      initialSelection: [],
+      onChange: () => {},
+    });
+
+    initTypeaheadDropdown({
+      containerId: "parity-b",
+      options,
+      mode: "multi",
+      placeholder: "Search...",
+      initialSelection: [],
+      onChange: () => {},
+    });
+
+    expect(containerA.innerHTML).toBe(containerB.innerHTML);
+    expect(containerA.innerHTML).not.toBe(""); // non-vacuous
+  });
+
+  it("typeahead dropdown renders identically with same pre-selected values", () => {
+    const containerA = document.createElement("div");
+    containerA.id = "parity-sel-a";
+    document.body.appendChild(containerA);
+
+    const containerB = document.createElement("div");
+    containerB.id = "parity-sel-b";
+    document.body.appendChild(containerB);
+
+    const options = [
+      { id: "t1", displayName: "Team One" },
+      { id: "t2", displayName: "Team Two" },
+    ];
+
+    initTypeaheadDropdown({
+      containerId: "parity-sel-a",
+      options,
+      mode: "multi",
+      placeholder: "Search teams...",
+      initialSelection: ["t1"],
+      onChange: () => {},
+    });
+
+    initTypeaheadDropdown({
+      containerId: "parity-sel-b",
+      options,
+      mode: "multi",
+      placeholder: "Search teams...",
+      initialSelection: ["t1"],
+      onChange: () => {},
+    });
+
+    expect(containerA.innerHTML).toBe(containerB.innerHTML);
+    // Verify chip is present (non-vacuous)
+    expect(containerA.querySelector(".typeahead-chip")).not.toBeNull();
+  });
+
+  it("typeahead single-select renders identically in two containers", () => {
+    const containerA = document.createElement("div");
+    containerA.id = "parity-single-a";
+    document.body.appendChild(containerA);
+
+    const containerB = document.createElement("div");
+    containerB.id = "parity-single-b";
+    document.body.appendChild(containerB);
+
+    const options = [
+      { id: "a1", displayName: "Alice" },
+      { id: "a2", displayName: "Bob" },
+    ];
+
+    const instanceA = initTypeaheadDropdown({
+      containerId: "parity-single-a",
+      options,
+      mode: "single",
+      placeholder: "Search authors...",
+      initialSelection: ["a1"],
+      onChange: () => {},
+    });
+
+    const instanceB = initTypeaheadDropdown({
+      containerId: "parity-single-b",
+      options,
+      mode: "single",
+      placeholder: "Search authors...",
+      initialSelection: ["a1"],
+      onChange: () => {},
+    });
+
+    expect(containerA.innerHTML).toBe(containerB.innerHTML);
+    // Verify selected value shows in input (non-vacuous)
+    const inputA = containerA.querySelector(
+      ".typeahead-input",
+    ) as HTMLInputElement;
+    expect(inputA?.value).toBe("Alice");
+  });
+
+  it("empty state classifier produces identical output for identical inputs", () => {
+    const ctx: EmptyStateContext = {
+      chartType: "throughput",
+      filters: { repos: ["repo-a"], teams: [], reviewers: [], authors: [] },
+      unfilteredRollups: makeTestRollups(8),
+      filteredRollups: [],
+      availability: defaultAvailability,
+      minimumDataPoints: 0,
+    };
+
+    const result1 = classifyEmptyState(ctx);
+    const result2 = classifyEmptyState(ctx);
+
+    expect(result1).toEqual(result2);
+    expect(result1).not.toBeNull();
+    expect(result1!.reason).toBe("filter_caused");
+  });
+
+  it("empty state classifier is deterministic across chart types with same availability", () => {
+    const baseCtx = {
+      filters: emptyFilters,
+      unfilteredRollups: [],
+      filteredRollups: [],
+      availability: { ...defaultAvailability, reviewerDataPresent: false },
+      minimumDataPoints: 0,
+    };
+
+    // Reviewer: not_extracted
+    const reviewer1 = classifyEmptyState({
+      ...baseCtx,
+      chartType: "reviewer_activity",
+    });
+    const reviewer2 = classifyEmptyState({
+      ...baseCtx,
+      chartType: "reviewer_activity",
+    });
+    expect(reviewer1).toEqual(reviewer2);
+    expect(reviewer1!.reason).toBe("not_extracted");
+
+    // Throughput: falls through to date_range_empty (pr_count always available)
+    const throughput1 = classifyEmptyState({
+      ...baseCtx,
+      chartType: "throughput",
+    });
+    const throughput2 = classifyEmptyState({
+      ...baseCtx,
+      chartType: "throughput",
+    });
+    expect(throughput1).toEqual(throughput2);
+    expect(throughput1!.reason).toBe("date_range_empty");
+  });
+
+  it("charts with empty-state classifier options produce identical output", () => {
+    const rollups = makeTestRollups(0); // empty
+    const unfilteredRollups = makeTestRollups(8);
+    const filters: FilterState = {
+      repos: ["nonexistent"],
+      teams: [],
+      reviewers: [],
+      authors: [],
+    };
+    const options = {
+      filters,
+      unfilteredRollups,
+      availability: defaultAvailability,
+    };
+
+    // Throughput parity with classifier options
+    const tpA = document.createElement("div");
+    const tpB = document.createElement("div");
+    renderThroughputChart(tpA, rollups, options);
+    renderThroughputChart(tpB, rollups, options);
+    expect(tpA.innerHTML).toBe(tpB.innerHTML);
+    expect(tpA.innerHTML).not.toBe("");
+
+    // Reviewer activity parity with classifier options
+    const raA = document.createElement("div");
+    const raB = document.createElement("div");
+    renderReviewerActivity(raA, rollups, {
+      reviewerFilterActive: false,
+      ...options,
+    });
+    renderReviewerActivity(raB, rollups, {
+      reviewerFilterActive: false,
+      ...options,
+    });
+    expect(raA.innerHTML).toBe(raB.innerHTML);
+    expect(raA.innerHTML).not.toBe("");
+  });
+});
