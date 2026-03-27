@@ -1,3 +1,11 @@
+## [5.28.2](https://github.com/oddessentials/ado-git-repo-insights/compare/v5.28.1...v5.28.2) (2026-03-27)
+
+
+### Bug Fixes
+
+* harden CLI — add --version, __main__.py, lazy imports, parse validation, PATH fix ([ba46899](https://github.com/oddessentials/ado-git-repo-insights/commit/ba46899af5085d2bc4eded2b41b96bdb60f76d43)), closes [#200](https://github.com/oddessentials/ado-git-repo-insights/issues/200)
+* resolve version from checkout when metadata is stale ([b935abc](https://github.com/oddessentials/ado-git-repo-insights/commit/b935abcce1cf0847d97f98e82eddeae8901fe2b5))
+
 ## [5.28.1](https://github.com/oddessentials/ado-git-repo-insights/compare/v5.28.0...v5.28.1) (2026-03-26)
 
 
