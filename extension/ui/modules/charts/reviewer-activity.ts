@@ -9,26 +9,17 @@
  */
 
 import type { Rollup } from "../../dataset-loader";
+import type { DataAvailabilitySignal } from "../../types";
+import type { FilterState } from "../filters";
+import { classifyEmptyState } from "../empty-state-classifier";
 import {
   escapeHtml,
-  NO_DATA_HINTS,
   renderNoData,
   renderTrustedHtml,
 } from "../shared/render";
 
 /** Maximum weeks displayed in the reviewer activity panel. */
 export const MAX_REVIEWER_WEEKS = 8;
-
-function getReviewerNoDataHint(
-  reviewerFilterActive: boolean,
-  hasRollups: boolean,
-): string {
-  return reviewerFilterActive
-    ? "Try widening the date range or adjusting reviewer filters."
-    : hasRollups
-      ? NO_DATA_HINTS.REVIEWER_PIPELINE
-      : NO_DATA_HINTS.WIDEN_FILTERS;
-}
 
 /**
  * Render reviewer activity chart (horizontal bar chart).
@@ -40,12 +31,17 @@ function getReviewerNoDataHint(
  *
  * @param container - Target container element (or null for no-op)
  * @param rollups - Array of weekly rollup data
- * @param options - Optional rendering mode
+ * @param options - Optional rendering mode and classifier inputs
  */
 export function renderReviewerActivity(
   container: HTMLElement | null,
   rollups: Rollup[],
-  options: { reviewerFilterActive?: boolean } = {},
+  options: {
+    reviewerFilterActive?: boolean;
+    filters?: FilterState;
+    unfilteredRollups?: Rollup[];
+    availability?: DataAvailabilitySignal;
+  } = {},
 ): void {
   if (!container) return;
 
@@ -56,12 +52,26 @@ export function renderReviewerActivity(
     : `Active reviewers per week (last ${Math.min(rollups.length, MAX_REVIEWER_WEEKS)} weeks)`;
 
   if (!rollups || !rollups.length) {
+    const classification = options.availability
+      ? classifyEmptyState({
+          chartType: "reviewer_activity",
+          filters: options.filters ?? { repos: [], teams: [], reviewers: [], authors: [] },
+          unfilteredRollups: options.unfilteredRollups ?? [],
+          filteredRollups: rollups ?? [],
+          availability: options.availability,
+          minimumDataPoints: 0,
+        })
+      : null;
+    const fallbackHint = reviewerFilterActive
+      ? "Try widening the date range or adjusting reviewer filters."
+      : "Try widening the date range or adjusting repository/team filters.";
     renderNoData(
       container,
-      reviewerFilterActive
-        ? "No review activity available"
-        : "No reviewer data available",
-      getReviewerNoDataHint(reviewerFilterActive, false),
+      classification?.message ??
+        (reviewerFilterActive
+          ? "No review activity available"
+          : "No reviewer data available"),
+      classification?.hint ?? fallbackHint,
     );
     return;
   }
@@ -74,12 +84,26 @@ export function renderReviewerActivity(
   );
 
   if (maxReviewers === 0) {
+    const classification = options.availability
+      ? classifyEmptyState({
+          chartType: "reviewer_activity",
+          filters: options.filters ?? { repos: [], teams: [], reviewers: [], authors: [] },
+          unfilteredRollups: options.unfilteredRollups ?? [],
+          filteredRollups: rollups,
+          availability: options.availability,
+          minimumDataPoints: 0,
+        })
+      : null;
+    const fallbackHint = reviewerFilterActive
+      ? "Try widening the date range or adjusting reviewer filters."
+      : "Reviewer data requires the extraction pipeline to capture reviewer details.";
     renderNoData(
       container,
-      reviewerFilterActive
-        ? "No review activity available"
-        : "No reviewer data available",
-      getReviewerNoDataHint(reviewerFilterActive, true),
+      classification?.message ??
+        (reviewerFilterActive
+          ? "No review activity available"
+          : "No reviewer data available"),
+      classification?.hint ?? fallbackHint,
     );
     return;
   }

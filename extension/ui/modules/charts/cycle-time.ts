@@ -8,12 +8,13 @@
  */
 
 import type { Rollup } from "../../dataset-loader";
-import type { DistributionData } from "../../types";
+import type { DataAvailabilitySignal, DistributionData } from "../../types";
+import type { FilterState } from "../filters";
 import { addChartTooltips, clearChartTooltips } from "../charts";
+import { classifyEmptyState } from "../empty-state-classifier";
 import { formatDuration } from "../shared/format";
 import {
   escapeHtml,
-  NO_DATA_HINTS,
   renderNoData,
   renderTrustedHtml,
 } from "../shared/render";
@@ -32,14 +33,35 @@ export const MAX_CYCLE_TIME_POINTS = 104;
 export function renderCycleDistribution(
   container: HTMLElement | null,
   distributions: DistributionData[],
+  options?: {
+    filters?: FilterState;
+    unfilteredRollups?: Rollup[];
+    availability?: DataAvailabilitySignal;
+  },
 ): void {
   if (!container) return;
 
   if (!distributions || !distributions.length) {
+    const classification = options
+      ? classifyEmptyState({
+          chartType: "cycle_time_distribution",
+          filters: options.filters ?? { repos: [], teams: [], reviewers: [], authors: [] },
+          unfilteredRollups: options.unfilteredRollups ?? [],
+          filteredRollups: [],
+          availability: options.availability ?? {
+            reviewerDataPresent: false,
+            reviewerDataEmpty: false,
+            cycleTimePresent: false,
+            reviewerRepoMode: "constrained",
+            commentsStatus: "disabled",
+          },
+          minimumDataPoints: 0,
+        })
+      : null;
     renderNoData(
       container,
-      "No data for selected range",
-      NO_DATA_HINTS.WIDEN_FILTERS,
+      classification?.message ?? "No data for selected range",
+      classification?.hint ?? "Try widening the date range or adjusting repository/team filters.",
     );
     return;
   }
@@ -61,7 +83,7 @@ export function renderCycleDistribution(
 
   const total = Object.values(buckets).reduce((a, b) => a + b, 0);
   if (total === 0) {
-    renderNoData(container, "No cycle time data", NO_DATA_HINTS.WIDEN_FILTERS);
+    renderNoData(container, "No cycle time data", "Try widening the date range or adjusting repository/team filters.");
     return;
   }
 
@@ -95,15 +117,36 @@ export function renderCycleDistribution(
 export function renderCycleTimeTrend(
   container: HTMLElement | null,
   rollups: Rollup[],
+  options?: {
+    filters?: FilterState;
+    unfilteredRollups?: Rollup[];
+    availability?: DataAvailabilitySignal;
+  },
 ): void {
   if (!container) return;
   clearChartTooltips(container);
 
   if (!rollups || rollups.length < 2) {
+    const classification = options
+      ? classifyEmptyState({
+          chartType: "cycle_time_trend",
+          filters: options.filters ?? { repos: [], teams: [], reviewers: [], authors: [] },
+          unfilteredRollups: options.unfilteredRollups ?? [],
+          filteredRollups: rollups ?? [],
+          availability: options.availability ?? {
+            reviewerDataPresent: false,
+            reviewerDataEmpty: false,
+            cycleTimePresent: false,
+            reviewerRepoMode: "constrained",
+            commentsStatus: "disabled",
+          },
+          minimumDataPoints: 2,
+        })
+      : null;
     renderNoData(
       container,
-      "Not enough data for trend",
-      NO_DATA_HINTS.TREND_MINIMUM,
+      classification?.message ?? "Not enough data for trend",
+      classification?.hint ?? "At least 2 weeks of data are needed to show trends.",
     );
     return;
   }
@@ -125,7 +168,7 @@ export function renderCycleTimeTrend(
     renderNoData(
       container,
       "No cycle time data available",
-      NO_DATA_HINTS.WIDEN_FILTERS,
+      "Try widening the date range or adjusting repository/team filters.",
     );
     return;
   }

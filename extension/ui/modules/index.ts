@@ -35,6 +35,18 @@ export * from "./charts/index";
 // Filter utilities
 export * from "./filters";
 
+// Filter constraint resolver
+export * from "./filter-constraint-resolver";
+
+// Tooltip manager (cross-system coordinator)
+export * from "./tooltip-manager";
+
+// Data availability signals
+export * from "./data-availability";
+
+// Empty state classifier
+export * from "./empty-state-classifier";
+
 // Comparison mode utilities
 export * from "./comparison";
 

@@ -994,7 +994,7 @@ input[type="search"]::placeholder {
 
 /* Chart Tooltip */
 .chart-tooltip {
-    position: absolute;
+    position: fixed;
     background: var(--bg-primary);
     border: 1px solid var(--border);
     border-radius: var(--radius);
@@ -1004,6 +1004,47 @@ input[type="search"]::placeholder {
     pointer-events: none;
     z-index: 100;
     white-space: nowrap;
+}
+
+/* Info Tooltip (summary card metric explanations) */
+.info-tooltip {
+    position: fixed;
+    background: var(--bg-primary);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 8px 12px;
+    box-shadow: var(--shadow-md);
+    font-size: 12px;
+    pointer-events: none;
+    z-index: 150;
+    max-width: 280px;
+    white-space: normal;
+    line-height: 1.4;
+    color: var(--text-secondary);
+}
+
+/* Info icon button on summary cards */
+.info-icon-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 16px;
+    height: 16px;
+    font-size: 12px;
+    color: var(--text-tertiary);
+    cursor: help;
+    border: none;
+    background: none;
+    padding: 0;
+    margin-left: 4px;
+    vertical-align: middle;
+    border-radius: 50%;
+    transition: color 0.15s ease;
+}
+
+.info-icon-btn:hover,
+.info-icon-btn:focus-visible {
+    color: var(--primary);
 }
 
 .chart-tooltip-title {

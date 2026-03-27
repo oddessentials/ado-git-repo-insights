@@ -18,6 +18,24 @@ import {
 import { renderDelta, renderSparkline } from "../charts";
 import { formatDuration } from "../shared/format";
 import { clearElement } from "../shared/render";
+import { showInfoTooltip, dismissAllTooltips } from "../tooltip-manager";
+
+/**
+ * Metric explanations for info icons (FR-017, FR-018).
+ * Plain-English descriptions of what each summary card metric represents.
+ */
+export const METRIC_EXPLANATIONS: Record<string, string> = {
+  totalPrs:
+    "Total merged pull requests in the selected period and filters.",
+  cycleP50:
+    "Median time from PR creation to merge. Half of all PRs completed faster than this.",
+  cycleP90:
+    "90th percentile cycle time. 90% of PRs completed faster. High values may indicate bottlenecks.",
+  authorsCount:
+    "Average number of unique PR authors per week in this period.",
+  reviewersCount:
+    "Average number of unique reviewers per week in this period.",
+};
 
 /**
  * Container elements for summary cards.
@@ -87,6 +105,9 @@ export function renderSummaryCards(options: RenderSummaryCardsOptions): void {
 
   // Render metric values
   renderMetricValues(containers, current);
+
+  // Attach info icons to summary card titles
+  attachInfoIcons(containers);
 
   // Render sparklines
   const sparklineData = extractSparklineData(rollups);
@@ -215,4 +236,68 @@ function clearDeltas(containers: SummaryCardsContainers): void {
       el.className = "metric-delta";
     }
   });
+}
+
+/**
+ * Metric ID to container value element mapping.
+ * Used to locate the card title element for info icon injection.
+ */
+const METRIC_TO_CONTAINER_KEY: Array<{
+  metricId: string;
+  containerKey: keyof SummaryCardsContainers;
+}> = [
+  { metricId: "totalPrs", containerKey: "totalPrs" },
+  { metricId: "cycleP50", containerKey: "cycleP50" },
+  { metricId: "cycleP90", containerKey: "cycleP90" },
+  { metricId: "authorsCount", containerKey: "authorsCount" },
+  { metricId: "reviewersCount", containerKey: "reviewersCount" },
+];
+
+/**
+ * Attach info icons to summary card titles.
+ *
+ * Finds the card title element (h3) for each metric container
+ * and appends an info icon button that shows the metric explanation
+ * on hover or click.
+ */
+function attachInfoIcons(containers: SummaryCardsContainers): void {
+  for (const { metricId, containerKey } of METRIC_TO_CONTAINER_KEY) {
+    const valueEl = containers[containerKey];
+    if (!valueEl) continue;
+
+    // Find the parent card element, then locate the h3 title
+    const card = valueEl.closest(".metric-card");
+    if (!card) continue;
+
+    const title = card.querySelector("h3");
+    if (!title) continue;
+
+    // Avoid duplicate info icons on re-render
+    const existing = title.querySelector(".info-icon-btn");
+    if (existing) continue;
+
+    const explanation =
+      METRIC_EXPLANATIONS[metricId] ?? "";
+    if (!explanation) continue;
+
+    const btn = document.createElement("button");
+    btn.className = "info-icon-btn";
+    btn.setAttribute("type", "button");
+    btn.setAttribute("aria-label", `About this metric`);
+    btn.setAttribute("data-info-tooltip", metricId);
+    btn.textContent = "\u2139"; // Unicode info symbol ⓘ
+
+    btn.addEventListener("mouseenter", () => {
+      showInfoTooltip(btn, explanation);
+    });
+    btn.addEventListener("mouseleave", () => {
+      dismissAllTooltips();
+    });
+    btn.addEventListener("click", (e) => {
+      e.stopPropagation();
+      showInfoTooltip(btn, explanation);
+    });
+
+    title.appendChild(btn);
+  }
 }

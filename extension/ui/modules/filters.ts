@@ -37,30 +37,56 @@ export function hasActiveFilters(state: FilterState): boolean {
 }
 
 /**
+ * Parse a comma-separated URL parameter into decoded, non-empty values.
+ */
+function parseCommaSeparated(raw: string | null): string[] {
+  if (!raw) return [];
+  return raw
+    .split(",")
+    .map((v) => {
+      try {
+        return decodeURIComponent(v).trim();
+      } catch {
+        return v.trim();
+      }
+    })
+    .filter((v) => v.length > 0);
+}
+
+/**
  * Parse filter state from URL search params.
+ *
+ * Deserialization accepts any value ordering and produces the same
+ * filter state regardless of parameter value order (FR-009).
+ *
  * @param params - URL search params
  * @returns Parsed filter state
  */
 export function parseFiltersFromUrl(params: URLSearchParams): FilterState {
-  const reposParam = params.get("repos");
-  const teamsParam = params.get("teams");
-  const reviewersParam = params.get("reviewers");
-  const authorParam = params.get("author");
-  const reviewerValues = reviewersParam
-    ? reviewersParam.split(",").filter((v) => v.trim())
-    : [];
+  const repos = parseCommaSeparated(params.get("repos"));
+  const teams = parseCommaSeparated(params.get("teams"));
+  const reviewerValues = parseCommaSeparated(params.get("reviewers"));
   const firstReviewer = reviewerValues[0];
+  const authorValues = parseCommaSeparated(params.get("author"));
+  const firstAuthor = authorValues[0];
 
   return {
-    repos: reposParam ? reposParam.split(",").filter((v) => v.trim()) : [],
-    teams: teamsParam ? teamsParam.split(",").filter((v) => v.trim()) : [],
+    repos,
+    teams,
     reviewers: firstReviewer ? [firstReviewer] : [],
-    authors: authorParam ? [authorParam].filter((v) => v.trim()) : [],
+    authors: firstAuthor ? [firstAuthor] : [],
   };
 }
 
 /**
  * Serialize filter state to URL search params.
+ *
+ * Canonical format (FR-009):
+ * - Delimiter: comma (no spaces)
+ * - Values: URI-encoded via encodeURIComponent()
+ * - Multi-select: sorted lexicographically (ascending, case-sensitive)
+ * - Empty selection: parameter deleted entirely
+ *
  * @param state - Filter state
  * @param params - Existing URL search params to update
  */
@@ -69,13 +95,15 @@ export function serializeFiltersToUrl(
   params: URLSearchParams,
 ): void {
   if (state.repos.length > 0) {
-    params.set("repos", state.repos.join(","));
+    const sorted = [...state.repos].sort();
+    params.set("repos", sorted.map(encodeURIComponent).join(","));
   } else {
     params.delete("repos");
   }
 
   if (state.teams.length > 0) {
-    params.set("teams", state.teams.join(","));
+    const sorted = [...state.teams].sort();
+    params.set("teams", sorted.map(encodeURIComponent).join(","));
   } else {
     params.delete("teams");
   }
@@ -83,7 +111,7 @@ export function serializeFiltersToUrl(
   if (state.reviewers.length > 0) {
     const firstReviewer = state.reviewers[0];
     if (firstReviewer) {
-      params.set("reviewers", firstReviewer);
+      params.set("reviewers", encodeURIComponent(firstReviewer));
     } else {
       params.delete("reviewers");
     }
@@ -94,7 +122,7 @@ export function serializeFiltersToUrl(
   if (state.authors.length > 0) {
     const firstAuthor = state.authors[0];
     if (firstAuthor) {
-      params.set("author", firstAuthor);
+      params.set("author", encodeURIComponent(firstAuthor));
     } else {
       params.delete("author");
     }

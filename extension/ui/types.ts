@@ -376,6 +376,26 @@ export interface DatasetCapabilityState {
 }
 
 /**
+ * Explicit indicator of upstream data availability.
+ *
+ * Distinguishes "not extracted" (null fields) from "extracted but empty"
+ * (empty objects). Used by the empty state classifier to provide
+ * context-specific messaging.
+ */
+export interface DataAvailabilitySignal {
+  /** by_reviewer field is non-null (extracted, possibly empty). */
+  reviewerDataPresent: boolean;
+  /** by_reviewer is non-null but has zero entries. */
+  reviewerDataEmpty: boolean;
+  /** cycle_time_p50 is non-null in at least one rollup. */
+  cycleTimePresent: boolean;
+  /** From manifest capabilities. */
+  reviewerRepoMode: "exact" | "constrained" | "disallowed";
+  /** From manifest capabilities. */
+  commentsStatus: "disabled" | "full" | "partial";
+}
+
+/**
  * Predictions data structure.
  */
 export interface PredictionsData {

@@ -3586,12 +3586,6 @@ var PRInsightsDashboard = (() => {
   }
 
   // ../ui/modules/shared/render.ts
-  var NO_DATA_HINTS = {
-    WIDEN_FILTERS: "Try widening the date range or adjusting repository/team filters.",
-    TREND_MINIMUM: "At least 2 weeks of data are needed to show trends.",
-    REVIEWER_NO_ACTIVITY: "No reviewers were active in the selected period.",
-    REVIEWER_PIPELINE: "Reviewer data requires the extraction pipeline to capture reviewer details."
-  };
   function clearElement(el) {
     if (!el) return;
     while (el.firstChild) {
@@ -5164,6 +5158,56 @@ var PRInsightsDashboard = (() => {
     }
   }
 
+  // ../ui/modules/tooltip-manager.ts
+  function dismissAllTooltips() {
+    const chartTooltip = document.querySelector(".chart-tooltip");
+    if (chartTooltip) chartTooltip.remove();
+    const infoTooltip = document.querySelector(".info-tooltip");
+    if (infoTooltip) infoTooltip.remove();
+  }
+  function positionTooltip(tooltip, targetRect) {
+    tooltip.style.visibility = "hidden";
+    tooltip.style.position = "fixed";
+    document.body.appendChild(tooltip);
+    const tooltipRect = tooltip.getBoundingClientRect();
+    const gap = 8;
+    let top = targetRect.top - tooltipRect.height - gap;
+    if (top < 0) {
+      top = targetRect.bottom + gap;
+    }
+    if (top + tooltipRect.height > window.innerHeight) {
+      top = window.innerHeight - tooltipRect.height - 4;
+    }
+    let left = targetRect.left + targetRect.width / 2 - tooltipRect.width / 2;
+    if (left < 4) {
+      left = 4;
+    }
+    if (left + tooltipRect.width > window.innerWidth - 4) {
+      left = window.innerWidth - tooltipRect.width - 4;
+    }
+    tooltip.style.top = `${top}px`;
+    tooltip.style.left = `${left}px`;
+    tooltip.style.visibility = "";
+  }
+  function showChartTooltip(target, content) {
+    dismissAllTooltips();
+    const tooltip = document.createElement("div");
+    tooltip.className = "chart-tooltip";
+    renderTrustedHtml(tooltip, content);
+    tooltip.style.position = "fixed";
+    const rect = target.getBoundingClientRect();
+    positionTooltip(tooltip, rect);
+  }
+  function showInfoTooltip(target, content) {
+    dismissAllTooltips();
+    const tooltip = document.createElement("div");
+    tooltip.className = "info-tooltip";
+    tooltip.textContent = content;
+    tooltip.style.position = "fixed";
+    const rect = target.getBoundingClientRect();
+    positionTooltip(tooltip, rect);
+  }
+
   // ../ui/modules/charts.ts
   var SCROLL_CANCEL_THRESHOLD = 10;
   function renderDelta(element, percentChange, inverse = false) {
@@ -5228,8 +5272,7 @@ var PRInsightsDashboard = (() => {
   var dismissListenerController = null;
   var activeTooltipContainerCount = 0;
   function dismissActiveTooltip() {
-    const existing = document.querySelector(".chart-tooltip");
-    if (existing) existing.remove();
+    dismissAllTooltips();
   }
   function ensureDismissListener() {
     if (dismissListenerController) return;
@@ -5272,17 +5315,8 @@ var PRInsightsDashboard = (() => {
     ensureDismissListener();
     const { signal } = controller;
     function showTooltip(dot) {
-      dismissActiveTooltip();
       const content = contentFn(dot);
-      const tooltip = document.createElement("div");
-      tooltip.className = "chart-tooltip";
-      renderTrustedHtml(tooltip, content);
-      tooltip.style.position = "absolute";
-      const rect = dot.getBoundingClientRect();
-      tooltip.style.left = `${rect.left + rect.width / 2}px`;
-      tooltip.style.top = `${rect.top - 8}px`;
-      tooltip.style.transform = "translateX(-50%) translateY(-100%)";
-      document.body.appendChild(tooltip);
+      showChartTooltip(dot, content);
     }
     dots.forEach((dot) => {
       const el = dot;
@@ -5315,12 +5349,20 @@ var PRInsightsDashboard = (() => {
   }
 
   // ../ui/modules/charts/summary-cards.ts
+  var METRIC_EXPLANATIONS = {
+    totalPrs: "Total merged pull requests in the selected period and filters.",
+    cycleP50: "Median time from PR creation to merge. Half of all PRs completed faster than this.",
+    cycleP90: "90th percentile cycle time. 90% of PRs completed faster. High values may indicate bottlenecks.",
+    authorsCount: "Average number of unique PR authors per week in this period.",
+    reviewersCount: "Average number of unique reviewers per week in this period."
+  };
   function renderSummaryCards(options) {
     const { rollups, prevRollups = [], containers, metricsCollector: metricsCollector2 } = options;
     if (metricsCollector2) metricsCollector2.mark("render-summary-cards-start");
     const current = calculateMetrics(rollups);
     const previous = calculateMetrics(prevRollups);
     renderMetricValues(containers, current);
+    attachInfoIcons(containers);
     const sparklineData = extractSparklineData(rollups);
     renderSparklines(containers, sparklineData);
     if (prevRollups && prevRollups.length > 0) {
@@ -5406,18 +5448,142 @@ var PRInsightsDashboard = (() => {
       }
     });
   }
+  var METRIC_TO_CONTAINER_KEY = [
+    { metricId: "totalPrs", containerKey: "totalPrs" },
+    { metricId: "cycleP50", containerKey: "cycleP50" },
+    { metricId: "cycleP90", containerKey: "cycleP90" },
+    { metricId: "authorsCount", containerKey: "authorsCount" },
+    { metricId: "reviewersCount", containerKey: "reviewersCount" }
+  ];
+  function attachInfoIcons(containers) {
+    for (const { metricId, containerKey } of METRIC_TO_CONTAINER_KEY) {
+      const valueEl = containers[containerKey];
+      if (!valueEl) continue;
+      const card = valueEl.closest(".metric-card");
+      if (!card) continue;
+      const title = card.querySelector("h3");
+      if (!title) continue;
+      const existing = title.querySelector(".info-icon-btn");
+      if (existing) continue;
+      const explanation = METRIC_EXPLANATIONS[metricId] ?? "";
+      if (!explanation) continue;
+      const btn = document.createElement("button");
+      btn.className = "info-icon-btn";
+      btn.setAttribute("type", "button");
+      btn.setAttribute("aria-label", `About this metric`);
+      btn.setAttribute("data-info-tooltip", metricId);
+      btn.textContent = "\u2139";
+      btn.addEventListener("mouseenter", () => {
+        showInfoTooltip(btn, explanation);
+      });
+      btn.addEventListener("mouseleave", () => {
+        dismissAllTooltips();
+      });
+      btn.addEventListener("click", (e) => {
+        e.stopPropagation();
+        showInfoTooltip(btn, explanation);
+      });
+      title.appendChild(btn);
+    }
+  }
+
+  // ../ui/modules/empty-state-classifier.ts
+  var EMPTY_STATE_MESSAGES = {
+    NOT_EXTRACTED: "This data is not yet available.",
+    FILTER_CAUSED: "No data matches your current filters.",
+    MINIMUM_DATA_TREND: "Not enough data for trend analysis.",
+    MINIMUM_DATA_GENERIC: "Insufficient data for this view.",
+    DATE_RANGE_EMPTY: "No data in this period."
+  };
+  var EMPTY_STATE_HINTS = {
+    NOT_EXTRACTED_REVIEWER: "Ensure the data pipeline is configured to capture reviewer information.",
+    NOT_EXTRACTED_CYCLE_TIME: "Cycle time data requires PR completion timestamps in the extraction pipeline.",
+    FILTER_CAUSED: "Try removing some filters or widening the date range.",
+    MINIMUM_TREND: "At least 2 weeks of data are needed to show trends.",
+    MINIMUM_GENERIC: "Try widening the date range.",
+    DATE_RANGE: "Try widening the date range or selecting a different period."
+  };
+  function hasActiveFilters(filters) {
+    return filters.repos.length > 0 || filters.teams.length > 0 || filters.reviewers.length > 0 || filters.authors.length > 0;
+  }
+  function checkNotExtracted(ctx) {
+    const { chartType, availability } = ctx;
+    if (chartType === "reviewer_activity" && !availability.reviewerDataPresent) {
+      return {
+        reason: "not_extracted",
+        message: EMPTY_STATE_MESSAGES.NOT_EXTRACTED,
+        hint: EMPTY_STATE_HINTS.NOT_EXTRACTED_REVIEWER
+      };
+    }
+    if ((chartType === "cycle_time_trend" || chartType === "cycle_time_distribution") && !availability.cycleTimePresent) {
+      return {
+        reason: "not_extracted",
+        message: EMPTY_STATE_MESSAGES.NOT_EXTRACTED,
+        hint: EMPTY_STATE_HINTS.NOT_EXTRACTED_CYCLE_TIME
+      };
+    }
+    return null;
+  }
+  function checkFilterCaused(ctx) {
+    if (hasActiveFilters(ctx.filters) && ctx.unfilteredRollups.length > 0 && ctx.filteredRollups.length === 0) {
+      return {
+        reason: "filter_caused",
+        message: EMPTY_STATE_MESSAGES.FILTER_CAUSED,
+        hint: EMPTY_STATE_HINTS.FILTER_CAUSED
+      };
+    }
+    return null;
+  }
+  function checkMinimumData(ctx) {
+    if (ctx.filteredRollups.length > 0 && ctx.filteredRollups.length < ctx.minimumDataPoints) {
+      const isTrend = ctx.chartType === "cycle_time_trend";
+      return {
+        reason: "minimum_data",
+        message: isTrend ? EMPTY_STATE_MESSAGES.MINIMUM_DATA_TREND : EMPTY_STATE_MESSAGES.MINIMUM_DATA_GENERIC,
+        hint: isTrend ? EMPTY_STATE_HINTS.MINIMUM_TREND : EMPTY_STATE_HINTS.MINIMUM_GENERIC
+      };
+    }
+    return null;
+  }
+  function checkDateRangeEmpty(ctx) {
+    if (ctx.unfilteredRollups.length === 0) {
+      return {
+        reason: "date_range_empty",
+        message: EMPTY_STATE_MESSAGES.DATE_RANGE_EMPTY,
+        hint: EMPTY_STATE_HINTS.DATE_RANGE
+      };
+    }
+    return null;
+  }
+  function classifyEmptyState(ctx) {
+    return checkNotExtracted(ctx) ?? checkFilterCaused(ctx) ?? checkMinimumData(ctx) ?? checkDateRangeEmpty(ctx);
+  }
 
   // ../ui/modules/charts/throughput.ts
   var MAX_THROUGHPUT_POINTS = 104;
   var MAX_VISIBLE_LABELS = 16;
-  function renderThroughputChart(container, rollups) {
+  function renderThroughputChart(container, rollups, options) {
     if (!container) return;
     clearChartTooltips(container);
     if (!rollups || !rollups.length) {
+      const classification = options ? classifyEmptyState({
+        chartType: "throughput",
+        filters: options.filters ?? { repos: [], teams: [], reviewers: [], authors: [] },
+        unfilteredRollups: options.unfilteredRollups ?? [],
+        filteredRollups: rollups ?? [],
+        availability: options.availability ?? {
+          reviewerDataPresent: false,
+          reviewerDataEmpty: false,
+          cycleTimePresent: false,
+          reviewerRepoMode: "constrained",
+          commentsStatus: "disabled"
+        },
+        minimumDataPoints: 0
+      }) : null;
       renderNoData(
         container,
-        "No data for selected range",
-        NO_DATA_HINTS.WIDEN_FILTERS
+        classification?.message ?? "No data for selected range",
+        classification?.hint ?? "Try widening the date range or adjusting repository/team filters."
       );
       return;
     }
@@ -5494,13 +5660,27 @@ var PRInsightsDashboard = (() => {
 
   // ../ui/modules/charts/cycle-time.ts
   var MAX_CYCLE_TIME_POINTS = 104;
-  function renderCycleDistribution(container, distributions) {
+  function renderCycleDistribution(container, distributions, options) {
     if (!container) return;
     if (!distributions || !distributions.length) {
+      const classification = options ? classifyEmptyState({
+        chartType: "cycle_time_distribution",
+        filters: options.filters ?? { repos: [], teams: [], reviewers: [], authors: [] },
+        unfilteredRollups: options.unfilteredRollups ?? [],
+        filteredRollups: [],
+        availability: options.availability ?? {
+          reviewerDataPresent: false,
+          reviewerDataEmpty: false,
+          cycleTimePresent: false,
+          reviewerRepoMode: "constrained",
+          commentsStatus: "disabled"
+        },
+        minimumDataPoints: 0
+      }) : null;
       renderNoData(
         container,
-        "No data for selected range",
-        NO_DATA_HINTS.WIDEN_FILTERS
+        classification?.message ?? "No data for selected range",
+        classification?.hint ?? "Try widening the date range or adjusting repository/team filters."
       );
       return;
     }
@@ -5519,7 +5699,7 @@ var PRInsightsDashboard = (() => {
     });
     const total = Object.values(buckets).reduce((a, b) => a + b, 0);
     if (total === 0) {
-      renderNoData(container, "No cycle time data", NO_DATA_HINTS.WIDEN_FILTERS);
+      renderNoData(container, "No cycle time data", "Try widening the date range or adjusting repository/team filters.");
       return;
     }
     const html = Object.entries(buckets).map(([label, count]) => {
@@ -5536,14 +5716,28 @@ var PRInsightsDashboard = (() => {
     }).join("");
     renderTrustedHtml(container, html);
   }
-  function renderCycleTimeTrend(container, rollups) {
+  function renderCycleTimeTrend(container, rollups, options) {
     if (!container) return;
     clearChartTooltips(container);
     if (!rollups || rollups.length < 2) {
+      const classification = options ? classifyEmptyState({
+        chartType: "cycle_time_trend",
+        filters: options.filters ?? { repos: [], teams: [], reviewers: [], authors: [] },
+        unfilteredRollups: options.unfilteredRollups ?? [],
+        filteredRollups: rollups ?? [],
+        availability: options.availability ?? {
+          reviewerDataPresent: false,
+          reviewerDataEmpty: false,
+          cycleTimePresent: false,
+          reviewerRepoMode: "constrained",
+          commentsStatus: "disabled"
+        },
+        minimumDataPoints: 2
+      }) : null;
       renderNoData(
         container,
-        "Not enough data for trend",
-        NO_DATA_HINTS.TREND_MINIMUM
+        classification?.message ?? "Not enough data for trend",
+        classification?.hint ?? "At least 2 weeks of data are needed to show trends."
       );
       return;
     }
@@ -5555,7 +5749,7 @@ var PRInsightsDashboard = (() => {
       renderNoData(
         container,
         "No cycle time data available",
-        NO_DATA_HINTS.WIDEN_FILTERS
+        "Try widening the date range or adjusting repository/team filters."
       );
       return;
     }
@@ -5653,19 +5847,25 @@ var PRInsightsDashboard = (() => {
 
   // ../ui/modules/charts/reviewer-activity.ts
   var MAX_REVIEWER_WEEKS = 8;
-  function getReviewerNoDataHint(reviewerFilterActive, hasRollups) {
-    return reviewerFilterActive ? "Try widening the date range or adjusting reviewer filters." : hasRollups ? NO_DATA_HINTS.REVIEWER_PIPELINE : NO_DATA_HINTS.WIDEN_FILTERS;
-  }
   function renderReviewerActivity(container, rollups, options = {}) {
     if (!container) return;
     const { reviewerFilterActive = false } = options;
     const noun = reviewerFilterActive ? "reviews" : "reviewers";
     const subtitle = reviewerFilterActive ? `Review activity per week (last ${Math.min(rollups.length, MAX_REVIEWER_WEEKS)} weeks)` : `Active reviewers per week (last ${Math.min(rollups.length, MAX_REVIEWER_WEEKS)} weeks)`;
     if (!rollups || !rollups.length) {
+      const classification = options.availability ? classifyEmptyState({
+        chartType: "reviewer_activity",
+        filters: options.filters ?? { repos: [], teams: [], reviewers: [], authors: [] },
+        unfilteredRollups: options.unfilteredRollups ?? [],
+        filteredRollups: rollups ?? [],
+        availability: options.availability,
+        minimumDataPoints: 0
+      }) : null;
+      const fallbackHint = reviewerFilterActive ? "Try widening the date range or adjusting reviewer filters." : "Try widening the date range or adjusting repository/team filters.";
       renderNoData(
         container,
-        reviewerFilterActive ? "No review activity available" : "No reviewer data available",
-        getReviewerNoDataHint(reviewerFilterActive, false)
+        classification?.message ?? (reviewerFilterActive ? "No review activity available" : "No reviewer data available"),
+        classification?.hint ?? fallbackHint
       );
       return;
     }
@@ -5675,10 +5875,19 @@ var PRInsightsDashboard = (() => {
       ...recentRollups.map((r) => r.reviewers_count || 0)
     );
     if (maxReviewers === 0) {
+      const classification = options.availability ? classifyEmptyState({
+        chartType: "reviewer_activity",
+        filters: options.filters ?? { repos: [], teams: [], reviewers: [], authors: [] },
+        unfilteredRollups: options.unfilteredRollups ?? [],
+        filteredRollups: rollups,
+        availability: options.availability,
+        minimumDataPoints: 0
+      }) : null;
+      const fallbackHint = reviewerFilterActive ? "Try widening the date range or adjusting reviewer filters." : "Reviewer data requires the extraction pipeline to capture reviewer details.";
       renderNoData(
         container,
-        reviewerFilterActive ? "No review activity available" : "No reviewer data available",
-        getReviewerNoDataHint(reviewerFilterActive, true)
+        classification?.message ?? (reviewerFilterActive ? "No review activity available" : "No reviewer data available"),
+        classification?.hint ?? fallbackHint
       );
       return;
     }
