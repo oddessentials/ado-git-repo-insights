@@ -141,7 +141,7 @@ export function initTypeaheadDropdown(
       return;
     }
 
-    filteredOptions.forEach((opt, i) => {
+    filteredOptions.forEach((opt) => {
       const item = document.createElement("div");
       item.className = "typeahead-option";
       item.setAttribute("role", "option");
@@ -336,6 +336,7 @@ export function initTypeaheadDropdown(
         filterOptions(input.value);
       }
       if (highlightIndex >= 0 && highlightIndex < filteredOptions.length) {
+        // eslint-disable-next-line security/detect-object-injection -- SECURITY: highlightIndex is a bounds-checked numeric index, not user input
         const opt = filteredOptions[highlightIndex];
         if (opt) toggleOption(opt.id);
       }
@@ -364,6 +365,7 @@ export function initTypeaheadDropdown(
       );
     });
     // Scroll highlighted item into view
+    // eslint-disable-next-line security/detect-object-injection -- SECURITY: highlightIndex is a bounds-checked numeric index
     const highlighted = items[highlightIndex] as HTMLElement | undefined;
     highlighted?.scrollIntoView({ block: "nearest" });
   }

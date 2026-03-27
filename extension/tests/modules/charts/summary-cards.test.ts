@@ -12,8 +12,8 @@
 import {
   renderSummaryCards,
   type SummaryCardsContainers,
-  type RenderSummaryCardsOptions,
 } from "../../../ui/modules/charts/summary-cards";
+
 
 describe("summary-cards module", () => {
   /**

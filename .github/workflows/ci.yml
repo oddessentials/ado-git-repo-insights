@@ -735,7 +735,7 @@ jobs:
 
   build-extension:
     runs-on: ubuntu-latest
-    needs: test
+    needs: [test, extension-tests]  # extension-tests gates tsc; no redundant type check here
 
     steps:
       - uses: actions/checkout@v4
@@ -1002,9 +1002,9 @@ jobs:
         working-directory: extension
         run: pnpm install --frozen-lockfile
 
-      - name: Build extension
+      - name: Build extension (esbuild only — tsc gated by extension-tests job)
         working-directory: extension
-        run: pnpm run build
+        run: pnpm run build:ui
 
       - name: Run unit tests (no Python)
         working-directory: extension

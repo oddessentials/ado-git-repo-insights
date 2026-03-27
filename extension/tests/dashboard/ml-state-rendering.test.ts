@@ -24,13 +24,7 @@ import type { ArtifactState } from "../../ui/types";
 
 // Load fixtures
 import predictionsReady from "../fixtures/predictions-ready.json";
-import predictionsNoData from "../fixtures/predictions-no-data.json";
-import predictionsInvalid from "../fixtures/predictions-invalid.json";
-import predictionsUnsupportedV from "../fixtures/predictions-unsupported-v.json";
 import insightsReady from "../fixtures/insights-ready.json";
-import insightsNoData from "../fixtures/insights-no-data.json";
-import insightsInvalid from "../fixtures/insights-invalid.json";
-import insightsUnsupportedV from "../fixtures/insights-unsupported-v.json";
 
 // Custom DOM for ML tab containers
 const ML_TAB_DOM = `

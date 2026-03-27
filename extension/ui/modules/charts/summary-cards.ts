@@ -268,6 +268,7 @@ const infoIconControllers = new WeakMap<HTMLElement, AbortController>();
  */
 function attachInfoIcons(containers: SummaryCardsContainers): void {
   for (const { metricId, containerKey } of METRIC_TO_CONTAINER_KEY) {
+    // eslint-disable-next-line security/detect-object-injection -- SECURITY: containerKey is from METRIC_TO_CONTAINER_KEY constant, not user input
     const valueEl = containers[containerKey];
     if (!valueEl) continue;
 
@@ -286,8 +287,8 @@ function attachInfoIcons(containers: SummaryCardsContainers): void {
       existing.remove();
     }
 
-    const explanation =
-      METRIC_EXPLANATIONS[metricId] ?? "";
+    // eslint-disable-next-line security/detect-object-injection -- SECURITY: metricId is from METRIC_TO_CONTAINER_KEY constant, not user input
+    const explanation = METRIC_EXPLANATIONS[metricId] ?? "";
     if (!explanation) continue;
 
     const controller = new AbortController();

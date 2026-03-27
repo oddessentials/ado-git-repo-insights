@@ -31,6 +31,7 @@ import {
   type DimensionsData,
   type DistributionData,
   type ManifestSchema,
+  type DataAvailabilitySignal,
 } from "./types";
 
 // Import from extracted modules
@@ -73,7 +74,6 @@ import {
   hideAllPanels,
   // Safe DOM rendering utilities
   clearElement,
-  createOption,
   renderTrustedHtml,
 } from "./modules";
 
@@ -124,21 +124,6 @@ function getOwnRecordValue<T>(
 ): T | undefined {
   const descriptor = Object.getOwnPropertyDescriptor(record, key);
   return descriptor?.value as T | undefined;
-}
-
-/**
- * Typed DOM element accessor.
- * Provides type-safe access to cached DOM elements.
- * @param id - Element ID from cache
- * @returns Typed element or null
- */
-function getElement<T extends HTMLElement = HTMLElement>(id: string): T | null {
-  // eslint-disable-next-line security/detect-object-injection -- SECURITY: id is string parameter for DOM element lookup, not user input
-  const el = elements[id];
-  if (el instanceof HTMLElement) {
-    return el as T;
-  }
-  return null;
 }
 
 /**
@@ -1036,7 +1021,7 @@ function renderSummaryCards(
 function renderThroughputChart(
   rollups: Rollup[],
   unfilteredRollups?: Rollup[],
-  availability?: import("./types").DataAvailabilitySignal,
+  availability?: DataAvailabilitySignal,
 ): void {
   renderThroughputChartModule(elements["throughput-chart"] ?? null, rollups, {
     filters: currentFilters,
@@ -1052,7 +1037,7 @@ function renderThroughputChart(
 function renderCycleDistribution(
   distributions: DistributionData[],
   unfilteredRollups?: Rollup[],
-  availability?: import("./types").DataAvailabilitySignal,
+  availability?: DataAvailabilitySignal,
 ): void {
   renderCycleDistributionModule(
     elements["cycle-distribution"] ?? null,
@@ -1072,7 +1057,7 @@ function renderCycleDistribution(
 function renderCycleTimeTrend(
   rollups: Rollup[],
   unfilteredRollups?: Rollup[],
-  availability?: import("./types").DataAvailabilitySignal,
+  availability?: DataAvailabilitySignal,
 ): void {
   renderCycleTimeTrendModule(elements["cycle-time-trend"] ?? null, rollups, {
     filters: currentFilters,
@@ -1088,7 +1073,7 @@ function renderCycleTimeTrend(
 function renderReviewerActivity(
   rollups: Rollup[],
   unfilteredRollups?: Rollup[],
-  availability?: import("./types").DataAvailabilitySignal,
+  availability?: DataAvailabilitySignal,
 ): void {
   renderReviewerActivityModule(elements["reviewer-activity"] ?? null, rollups, {
     reviewerFilterActive: currentFilters.reviewers.length > 0,
@@ -1408,14 +1393,6 @@ function handleTypeaheadFilterChange(): void {
 }
 
 /**
- * Legacy handleFilterChange kept for backward compatibility with any
- * remaining event listeners. Delegates to typeahead handler.
- */
-function handleFilterChange(_event: Event): void {
-  handleTypeaheadFilterChange();
-}
-
-/**
  * Clear all filters.
  */
 function clearAllFilters(): void {
@@ -1434,19 +1411,6 @@ function clearAllFilters(): void {
   updateFilterUI();
   updateUrlState();
   void refreshMetrics(); // Single refresh, not 5
-}
-
-/**
- * Find an <option> element by value inside a <select>, using CSS.escape
- * to safely handle special characters in the value attribute.
- */
-function findOptionByValue(
-  select: HTMLSelectElement | null,
-  value: string,
-): HTMLOptionElement | null {
-  return select?.querySelector(
-    `option[value="${CSS.escape(value)}"]`,
-  ) as HTMLOptionElement | null;
 }
 
 /**

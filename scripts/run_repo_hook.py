@@ -404,6 +404,26 @@ def run_extension_lint() -> None:
     run_command([pnpm, "run", "lint"], cwd=EXTENSION_ROOT)
 
 
+def run_extension_typecheck() -> None:
+    """Run TypeScript type check on extension sources (tsc --noEmit).
+
+    Closes the local/CI parity gap: CI runs ``pnpm run build:check``
+    (tsc --noEmit) as a hard gate, but esbuild and ts-jest both skip
+    type checking.  Without this gate, unused-variable (TS6133) and
+    type-narrowing (TS2769) errors pass locally and fail only in CI.
+
+    Prior incidents: commits 88ed3b7, 7264576, 3247874, PR #207.
+    """
+    pnpm = shutil.which("pnpm.cmd") or shutil.which("pnpm")
+    if not pnpm:
+        raise SystemExit(
+            "[pre-commit] pnpm is required to type-check extension sources "
+            "but was not found on PATH."
+        )
+    safe_print("[pre-commit] running TypeScript type check (tsc --noEmit)")
+    run_command([pnpm, "run", "build:check"], cwd=EXTENSION_ROOT)
+
+
 def run_pre_commit_hook() -> None:
     run_acl_health_check()
     run_pre_commit_stage()
@@ -424,6 +444,8 @@ def run_pre_commit_hook() -> None:
     for path in triggers:
         safe_print(f"  - {path}")
     require_clean_ui_sources()
+    run_extension_typecheck()
+    run_extension_lint()
     run_managed_artifacts("sync", "--scope", "all", "--stage", "--require-clean")
     safe_print("[pre-commit] managed UI artifacts synced successfully")
 

@@ -6026,10 +6026,14 @@ var PRInsightsDashboard = (() => {
   };
   function deriveAvailabilitySignal(rollups, capabilities) {
     const caps = capabilities ?? DEFAULT_CAPABILITIES;
-    const hasAnyReviewerField = rollups.some((r) => r.by_reviewer !== null);
-    const allReviewerFieldsEmpty = hasAnyReviewerField && rollups.every(
-      (r) => r.by_reviewer === null || Object.keys(r.by_reviewer).length === 0
+    const hasAnyReviewerField = rollups.some(
+      (r) => r.by_reviewer != null
+      // intentional loose equality to cover both null and undefined
     );
+    const allReviewerFieldsEmpty = hasAnyReviewerField && rollups.every((r) => {
+      if (r.by_reviewer == null) return true;
+      return Object.keys(r.by_reviewer).length === 0;
+    });
     const hasAnyCycleTime = rollups.some((r) => r.cycle_time_p50 !== null);
     return {
       reviewerDataPresent: hasAnyReviewerField,
@@ -6110,7 +6114,7 @@ var PRInsightsDashboard = (() => {
         dropdown.appendChild(empty);
         return;
       }
-      filteredOptions.forEach((opt, i) => {
+      filteredOptions.forEach((opt) => {
         const item = document.createElement("div");
         item.className = "typeahead-option";
         item.setAttribute("role", "option");

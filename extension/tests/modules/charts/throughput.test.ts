@@ -11,7 +11,6 @@
 
 import {
   renderThroughputChart,
-  MAX_VISIBLE_LABELS,
 } from "../../../ui/modules/charts/throughput";
 import type { Rollup } from "../../../ui/dataset-loader";
 

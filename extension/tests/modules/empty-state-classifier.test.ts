@@ -9,8 +9,8 @@ import {
   classifyEmptyState,
   EMPTY_STATE_MESSAGES,
   EMPTY_STATE_HINTS,
-  type EmptyStateContext,
 } from "../../ui/modules/empty-state-classifier";
+
 import type { DataAvailabilitySignal } from "../../ui/types";
 import type { FilterState } from "../../ui/modules/filters";
 import type { Rollup } from "../../ui/dataset-loader";

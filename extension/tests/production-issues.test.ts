@@ -805,7 +805,7 @@ describe("Regression Prevention", () => {
       // eslint-disable-next-line prefer-const -- REASON: intentionally mutable so callback can set to true, proving negative assertion
       let discoveryTriggered = false;
 
-      const resolveExplicit = async (queryPipelineId: number) => {
+      const resolveExplicit = async (_queryPipelineId: number) => {
         // Explicit from query param - no fallback
         throw new Error("Pipeline not found");
       };

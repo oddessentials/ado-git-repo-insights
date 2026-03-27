@@ -6,13 +6,9 @@
  */
 
 import { hasMLMethods } from "../ui/types";
-import {
-  type PredictionsData,
-  type InsightsData,
-  type ManifestSchema,
-  type DimensionsData,
-  type DistributionData,
-  type CoverageInfo,
+import type {
+  PredictionsData,
+  InsightsData,
 } from "../ui/types";
 
 describe("hasMLMethods type guard", () => {

@@ -117,7 +117,7 @@ describe("Typeahead Dropdown", () => {
 
     it("renders chips for selected values", () => {
       createContainer("multi");
-      const instance = initTypeaheadDropdown(
+      initTypeaheadDropdown(
         makeConfig("multi", {
           mode: "multi",
           initialSelection: ["alpha", "gamma"],

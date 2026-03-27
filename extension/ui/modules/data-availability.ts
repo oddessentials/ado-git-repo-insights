@@ -42,15 +42,18 @@ export function deriveAvailabilitySignal(
 ): DataAvailabilitySignal {
   const caps = capabilities ?? DEFAULT_CAPABILITIES;
 
-  // Check reviewer data across all rollups
-  const hasAnyReviewerField = rollups.some((r) => r.by_reviewer !== null);
+  // Check reviewer data across all rollups.
+  // Type guard: by_reviewer is Record<...> | null | undefined on the Rollup interface.
+  // null/undefined = not extracted; empty object = extracted but no data.
+  const hasAnyReviewerField = rollups.some(
+    (r) => r.by_reviewer != null, // intentional loose equality to cover both null and undefined
+  );
   const allReviewerFieldsEmpty =
     hasAnyReviewerField &&
-    rollups.every(
-      (r) =>
-        r.by_reviewer === null ||
-        Object.keys(r.by_reviewer).length === 0,
-    );
+    rollups.every((r) => {
+      if (r.by_reviewer == null) return true; // null or undefined — treat as empty for this check
+      return Object.keys(r.by_reviewer).length === 0;
+    });
 
   // Check cycle time data across all rollups
   const hasAnyCycleTime = rollups.some((r) => r.cycle_time_p50 !== null);

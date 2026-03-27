@@ -348,7 +348,7 @@ describe("Layer C: New component parity", () => {
       { id: "a2", displayName: "Bob" },
     ];
 
-    const instanceA = initTypeaheadDropdown({
+    initTypeaheadDropdown({
       containerId: "parity-single-a",
       options,
       mode: "single",
@@ -357,7 +357,7 @@ describe("Layer C: New component parity", () => {
       onChange: () => {},
     });
 
-    const instanceB = initTypeaheadDropdown({
+    initTypeaheadDropdown({
       containerId: "parity-single-b",
       options,
       mode: "single",

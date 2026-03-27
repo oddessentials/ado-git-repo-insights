@@ -14,13 +14,6 @@ import {
 } from "../../ui/modules/metrics";
 import type { Rollup } from "../../ui/dataset-loader";
 
-// Helper to create test rollups with required fields
-const createRollup = (overrides: Partial<Rollup>): Rollup =>
-  ({
-    week: "test",
-    ...overrides,
-  }) as Rollup;
-
 describe("metrics module", () => {
   describe("calculateMetrics", () => {
     it("returns zeros for empty rollups", () => {

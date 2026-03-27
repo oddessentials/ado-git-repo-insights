@@ -7,8 +7,8 @@
 
 import {
   resolveFilterConstraints,
-  type FilterConstraintResult,
 } from "../../ui/modules/filter-constraint-resolver";
+
 import type { FilterState } from "../../ui/modules/filters";
 
 function makeFilters(overrides: Partial<FilterState> = {}): FilterState {
