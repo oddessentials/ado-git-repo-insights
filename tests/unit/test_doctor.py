@@ -213,6 +213,75 @@ class TestCmdDoctor:
             for char in captured.out:
                 assert not (start <= char <= end), f"Found emoji: {char}"
 
+    def test_no_path_warning_in_active_venv(
+        self, capsys: pytest.CaptureFixture, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Doctor suppresses PATH warning in active venv (T-14, FR-016/FR-017, SC-008)."""
+        args = Namespace()
+        monkeypatch.setattr("sys.prefix", "/fake/venv")
+        monkeypatch.setattr("sys.base_prefix", "/usr")
+
+        with patch(
+            "ado_git_repo_insights.commands.doctor.detect_installation_method",
+            return_value="pip",
+        ):
+            with patch(
+                "ado_git_repo_insights.commands.doctor.detect_shell",
+                return_value="bash",
+            ):
+                with patch(
+                    "ado_git_repo_insights.commands.doctor.get_scripts_directory",
+                    return_value=Path("/fake/venv/bin"),
+                ):
+                    with patch(
+                        "ado_git_repo_insights.commands.doctor.is_on_path",
+                        return_value=False,
+                    ):
+                        with patch(
+                            "ado_git_repo_insights.commands.doctor.find_all_installations",
+                            return_value=[],
+                        ):
+                            result = cmd_doctor(args)
+
+        captured = capsys.readouterr()
+        assert "PATH Issue Detected" not in captured.out
+        assert result == 0
+
+    def test_path_warning_still_shown_outside_venv(
+        self, capsys: pytest.CaptureFixture, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Doctor still warns for real PATH issues outside venv (T-15, FR-018, SC-008)."""
+        args = Namespace()
+        # Same prefix = not in venv
+        monkeypatch.setattr("sys.prefix", "/usr")
+        monkeypatch.setattr("sys.base_prefix", "/usr")
+
+        with patch(
+            "ado_git_repo_insights.commands.doctor.detect_installation_method",
+            return_value="pip",
+        ):
+            with patch(
+                "ado_git_repo_insights.commands.doctor.detect_shell",
+                return_value="bash",
+            ):
+                with patch(
+                    "ado_git_repo_insights.commands.doctor.get_scripts_directory",
+                    return_value=Path("/home/user/.local/bin"),
+                ):
+                    with patch(
+                        "ado_git_repo_insights.commands.doctor.is_on_path",
+                        return_value=False,
+                    ):
+                        with patch(
+                            "ado_git_repo_insights.commands.doctor.find_all_installations",
+                            return_value=[],
+                        ):
+                            result = cmd_doctor(args)
+
+        captured = capsys.readouterr()
+        assert "PATH Issue Detected" in captured.out
+        assert result == 1
+
 
 class TestPrintConflictRecommendations:
     """Tests for _print_conflict_recommendations() function."""

@@ -25,17 +25,54 @@ class TestOptionalDepsIsolation:
         assert result.returncode == 0, f"CLI help failed: {result.stderr}"
         assert "usage:" in result.stdout.lower() or "ado-insights" in result.stdout
 
-    def test_cli_version_works(self) -> None:
-        """CLI version command works without optional deps."""
+    def test_cli_version_flag_works(self) -> None:
+        """--version flag works without optional deps (T-16, FR-030)."""
         result = subprocess.run(  # noqa: S603
-            [sys.executable, "-m", "ado_git_repo_insights.cli", "version"],
+            [sys.executable, "-m", "ado_git_repo_insights", "--version"],
             capture_output=True,
             text=True,
             timeout=30,
         )
-        # Version command should succeed or show help (not ImportError)
-        assert "ImportError" not in result.stderr
-        assert "ModuleNotFoundError" not in result.stderr
+        assert result.returncode == 0, f"--version failed: {result.stderr}"
+        assert "ado-insights" in result.stdout
+        assert "0.0.0" not in result.stdout
+
+    def test_version_not_zero(self) -> None:
+        """__version__ is not '0.0.0' in editable install (T-05, FR-005, SC-006)."""
+        from ado_git_repo_insights import __version__
+
+        assert __version__ != "0.0.0", (
+            "__version__ must not be the stale 0.0.0 sentinel"
+        )
+        assert "0.0.0" not in __version__
+
+    def test_version_resolves_in_editable_install(self) -> None:
+        """Version resolves to real value in editable install (T-06, FR-006, SC-007)."""
+        from ado_git_repo_insights import __version__
+
+        assert __version__ != "unknown (dev)", (
+            "Version should resolve via importlib.metadata in editable install"
+        )
+
+    def test_cli_import_does_not_load_heavy_deps(self) -> None:
+        """cli.py import does NOT load pandas, requests, or yaml (T-07, FR-012, SC-009)."""
+        result = subprocess.run(  # noqa: S603
+            [
+                sys.executable,
+                "-c",
+                "from ado_git_repo_insights.cli import create_parser; "
+                "import sys; "
+                "heavy = [m for m in ('pandas', 'requests', 'yaml') if m in sys.modules]; "
+                "print(','.join(heavy) if heavy else 'CLEAN')",
+            ],
+            capture_output=True,
+            text=True,
+            timeout=30,
+        )
+        assert result.returncode == 0, f"Import check failed: {result.stderr}"
+        assert result.stdout.strip() == "CLEAN", (
+            f"Heavy deps loaded at import time: {result.stdout.strip()}"
+        )
 
     def test_openai_import_is_lazy(self) -> None:
         """openai is not imported at module load time."""

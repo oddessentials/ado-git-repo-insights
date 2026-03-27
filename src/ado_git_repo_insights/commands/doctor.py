@@ -23,17 +23,10 @@ logger = logging.getLogger(__name__)
 
 
 def _get_version() -> str:
-    """Get the installed version of ado-insights.
+    """Get the version of ado-insights via canonical resolver."""
+    from ..utils.version import resolve_version
 
-    Returns:
-        Version string or 'unknown'
-    """
-    try:
-        from importlib.metadata import PackageNotFoundError, version
-
-        return version("ado-git-repo-insights")
-    except PackageNotFoundError:
-        return "unknown"
+    return resolve_version()
 
 
 def cmd_doctor(args: Namespace) -> int:
@@ -88,7 +81,8 @@ def cmd_doctor(args: Namespace) -> int:
     print(f"Scripts Directory: {scripts_dir}")
     print(f"On PATH: {'Yes' if on_path else 'No'}")
 
-    if not on_path and install_method == "pip":
+    in_venv = sys.prefix != sys.base_prefix
+    if not on_path and install_method == "pip" and not in_venv:
         issues_found = True
         print()
         print("PATH Issue Detected:")

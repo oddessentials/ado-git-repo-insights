@@ -11,44 +11,39 @@ from datetime import date, datetime, timezone
 from pathlib import Path
 from typing import TYPE_CHECKING
 
-from .config import ConfigurationError, load_config
-from .extractor.ado_client import ADOClient, ExtractionError
-from .extractor.pr_extractor import PRExtractor
-from .persistence.database import DatabaseError, DatabaseManager
-from .transform.aggregators import (
-    AggregateGenerator,
-    AggregationError,
-    StubGenerationError,
-)
-from .transform.csv_generator import CSVGenerationError, CSVGenerator
 from .utils.install_detection import detect_installation_method
 from .utils.logging_config import LoggingConfig, setup_logging
 from .utils.path_security import ensure_safe_filename, safe_join
 from .utils.path_utils import format_path_guidance, get_scripts_directory, is_on_path
-from .utils.run_summary import (
-    RunCounts,
-    RunSummary,
-    RunTimings,
-    create_minimal_summary,
-    get_git_sha,
-    get_tool_version,
-)
-from .utils.safe_extract import ZipSlipError, safe_extract_zip
 from .utils.shell_detection import detect_shell
 
 if TYPE_CHECKING:
     from argparse import Namespace
 
     from .config import Config
+    from .extractor.ado_client import ADOClient
+    from .persistence.database import DatabaseManager
 
 logger = logging.getLogger(__name__)
 
 
-def create_parser() -> argparse.ArgumentParser:  # pragma: no cover
+def _get_runtime_version() -> str:
+    """Resolve version via canonical resolver."""
+    from .utils.version import resolve_version
+
+    return resolve_version()
+
+
+def create_parser() -> argparse.ArgumentParser:
     """Create the argument parser for the CLI."""
     parser = argparse.ArgumentParser(
         prog="ado-insights",
         description="Extract Azure DevOps PR metrics and generate PowerBI-compatible CSVs.",
+    )
+    parser.add_argument(
+        "--version",
+        action="version",
+        version=f"%(prog)s {_get_runtime_version()}",
     )
 
     # Global options
@@ -427,6 +422,7 @@ def _extract_comments(
     """
     import json
 
+    from .extractor.ado_client import ExtractionError
     from .persistence.repository import PRRepository
 
     repo = PRRepository(db)
@@ -556,6 +552,19 @@ def _extract_comments(
 
 def cmd_extract(args: Namespace) -> int:
     """Execute the extract command."""
+    from .config import ConfigurationError, load_config
+    from .extractor.ado_client import ADOClient, ExtractionError
+    from .extractor.pr_extractor import PRExtractor
+    from .persistence.database import DatabaseError, DatabaseManager
+    from .utils.run_summary import (
+        RunCounts,
+        RunSummary,
+        RunTimings,
+        create_minimal_summary,
+        get_git_sha,
+        get_tool_version,
+    )
+
     start_time = time.perf_counter()
     timing = RunTimings()
     counts = RunCounts()
@@ -723,6 +732,9 @@ def cmd_extract(args: Namespace) -> int:
 
 def cmd_generate_csv(args: Namespace) -> int:
     """Execute the generate-csv command."""
+    from .persistence.database import DatabaseError, DatabaseManager
+    from .transform.csv_generator import CSVGenerationError, CSVGenerator
+
     logger.info("Generating CSV files...")
     logger.info(f"Database: {args.database}")
     logger.info(f"Output: {args.output}")
@@ -761,6 +773,13 @@ def cmd_generate_csv(args: Namespace) -> int:
 
 def cmd_generate_aggregates(args: Namespace) -> int:
     """Execute the generate-aggregates command (Phase 3 + Phase 5 ML)."""
+    from .persistence.database import DatabaseError, DatabaseManager
+    from .transform.aggregators import (
+        AggregateGenerator,
+        AggregationError,
+        StubGenerationError,
+    )
+
     logger.info("Generating JSON aggregates...")
     logger.info(f"Database: {args.database}")
     logger.info(f"Output: {args.output}")
@@ -879,6 +898,9 @@ def _validate_serve_flags(args: Namespace) -> int | None:
 
 def cmd_build_aggregates(args: Namespace) -> int:
     """Execute the build-aggregates command (Phase 6 - alias for generate-aggregates)."""
+    from .persistence.database import DatabaseError, DatabaseManager
+    from .transform.aggregators import AggregateGenerator, AggregationError
+
     # FR-010: Use shared flag validation
     validation_result = _validate_serve_flags(args)
     if validation_result is not None:
@@ -1174,6 +1196,8 @@ def cmd_stage_artifacts(args: Namespace) -> int:
     from datetime import datetime, timezone
 
     import requests
+
+    from .utils.safe_extract import ZipSlipError, safe_extract_zip
 
     # FR-010: Use shared flag validation
     validation_result = _validate_serve_flags(args)
@@ -1642,6 +1666,10 @@ def _check_path_guidance(command: str | None) -> None:
     if command in ("setup-path", "doctor"):
         return
 
+    # Don't warn inside activated virtualenvs (venv activation handles PATH)
+    if sys.prefix != sys.base_prefix:
+        return
+
     # Only emit for pip installs (pipx/uv handle PATH automatically)
     install_method = detect_installation_method()
     if install_method not in ("pip", "unknown"):
@@ -1664,7 +1692,19 @@ def main() -> int:
     parser = create_parser()
     args = parser.parse_args()
 
-    # Setup logging early
+    # Parse-boundary validation: ZERO side effects before this passes (FR-009..FR-011)
+    if args.command == "extract" and not getattr(args, "config", None):
+        missing = []
+        if not args.organization:
+            missing.append("--organization")
+        if not args.projects:
+            missing.append("--projects")
+        if missing:
+            parser.error(
+                f"{' and '.join(missing)} required when --config is not provided"
+            )
+
+    # Side effects begin ONLY after validation passes
     log_config = LoggingConfig(
         format=getattr(args, "log_format", "console"),
         artifacts_dir=getattr(args, "artifacts_dir", Path("run_artifacts")),
@@ -1709,6 +1749,8 @@ def main() -> int:
 
         # Write minimal failure summary if success summary doesn't exist
         if not summary_path.exists():
+            from .utils.run_summary import create_minimal_summary
+
             minimal_summary = create_minimal_summary(
                 "Operation cancelled by user", artifacts_dir
             )
@@ -1720,6 +1762,8 @@ def main() -> int:
 
         # Write minimal failure summary if success summary doesn't exist
         if not summary_path.exists():
+            from .utils.run_summary import create_minimal_summary
+
             minimal_summary = create_minimal_summary(str(e), artifacts_dir)
             minimal_summary.write(summary_path)
 

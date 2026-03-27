@@ -83,6 +83,43 @@ class TestSetupPathIntegration:
         assert "# Existing config" in final_content
 
 
+class TestVersionFlag:
+    """Integration tests for --version flag (T-02, T-03, T-04)."""
+
+    def test_version_output_never_contains_zero(self) -> None:
+        """--version output never contains '0.0.0' (T-02, FR-005, SC-006)."""
+        result = subprocess.run(  # noqa: S603
+            [sys.executable, "-m", "ado_git_repo_insights", "--version"],
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        assert result.returncode == 0
+        assert "0.0.0" not in result.stdout
+
+    def test_python_dash_m_help_exits_zero(self) -> None:
+        """python -m ado_git_repo_insights --help exits 0 (T-03, FR-003, SC-002)."""
+        result = subprocess.run(  # noqa: S603
+            [sys.executable, "-m", "ado_git_repo_insights", "--help"],
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        assert result.returncode == 0
+        assert "ado-insights" in result.stdout
+
+    def test_python_dash_m_version_exits_zero(self) -> None:
+        """python -m ado_git_repo_insights --version exits 0 (T-04, FR-003, SC-001)."""
+        result = subprocess.run(  # noqa: S603
+            [sys.executable, "-m", "ado_git_repo_insights", "--version"],
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        assert result.returncode == 0
+        assert "ado-insights" in result.stdout
+
+
 class TestDoctorIntegration:
     """Integration tests for doctor command."""
 

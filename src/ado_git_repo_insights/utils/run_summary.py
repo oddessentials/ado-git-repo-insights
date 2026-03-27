@@ -145,27 +145,18 @@ class RunSummary:
 
 
 def get_tool_version() -> str:
-    """Get tool version from VERSION file."""
-    version_file = Path(__file__).parent.parent.parent.parent / "VERSION"
-    if version_file.exists():
-        return version_file.read_text().strip()
-    return "unknown"
+    """Get tool version via canonical resolver."""
+    from .version import resolve_version
+
+    return resolve_version()
 
 
 def get_git_sha() -> str | None:
-    """Get Git SHA from VERSION file or git command.
+    """Get Git SHA via git command.
 
     Returns:
         Git SHA or None if unavailable.
     """
-    # Try VERSION file first
-    version_file = Path(__file__).parent.parent.parent.parent / "VERSION"
-    if version_file.exists():
-        version = version_file.read_text().strip()
-        if "+" in version:  # Version format like "1.0.7+8d88fb4"
-            return version.split("+")[1]
-
-    # Fallback to git command
     try:
         result = subprocess.run(  # noqa: S603, S607 -- SECURITY: hardcoded git command with no user input
             ["git", "rev-parse", "--short", "HEAD"],

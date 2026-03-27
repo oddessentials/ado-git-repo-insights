@@ -578,16 +578,14 @@ class TestCLIZipSlipErrorHandling:
 class TestSafeExtractImport:
     """Verify safe_extract_zip is properly imported and used."""
 
-    def test_safe_extract_zip_imported_in_cli(self) -> None:
-        """Verify safe_extract_zip is available in cli module."""
-        from ado_git_repo_insights import cli
+    def test_safe_extract_zip_importable(self) -> None:
+        """Verify safe_extract_zip is importable from its source module."""
+        from ado_git_repo_insights.utils.safe_extract import safe_extract_zip
 
-        assert hasattr(cli, "safe_extract_zip")
-        assert callable(cli.safe_extract_zip)
+        assert callable(safe_extract_zip)
 
-    def test_zipslip_error_imported_in_cli(self) -> None:
-        """Verify ZipSlipError is available in cli module."""
-        from ado_git_repo_insights import cli
+    def test_zipslip_error_importable(self) -> None:
+        """Verify ZipSlipError is importable from its source module."""
+        from ado_git_repo_insights.utils.safe_extract import ZipSlipError
 
-        assert hasattr(cli, "ZipSlipError")
-        assert issubclass(cli.ZipSlipError, Exception)
+        assert issubclass(ZipSlipError, Exception)
