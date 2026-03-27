@@ -62,7 +62,33 @@ describe("Filter Constraint Resolver", () => {
     });
   });
 
-  describe("Rule 1: Author + Team -> clear teams", () => {
+  describe("Rule 1: Author + Reviewer -> clear author", () => {
+    it("clears author when both author and reviewer active", () => {
+      const result = resolveFilterConstraints(
+        makeFilters({ authors: ["auth-1"], reviewers: ["rev-1"] }),
+      );
+      expect(result.effectiveState.authors).toEqual([]);
+      expect(result.effectiveState.reviewers).toEqual(["rev-1"]);
+      expect(result.constraintsApplied.some((n) => n.type === "author_reviewer")).toBe(true);
+    });
+
+    it("preserves repos and teams when author+reviewer constrained", () => {
+      const result = resolveFilterConstraints(
+        makeFilters({
+          authors: ["auth-1"],
+          reviewers: ["rev-1"],
+          repos: ["repo-a"],
+          teams: ["team-x"],
+        }),
+      );
+      expect(result.effectiveState.authors).toEqual([]);
+      expect(result.effectiveState.reviewers).toEqual(["rev-1"]);
+      // Reviewer+team also fires → teams cleared
+      expect(result.effectiveState.repos).toEqual(["repo-a"]);
+    });
+  });
+
+  describe("Rule 2: Author + Team -> clear teams", () => {
     it("clears teams when author and team both active", () => {
       const result = resolveFilterConstraints(
         makeFilters({ authors: ["auth-1"], teams: ["team-x"] }),

@@ -5984,7 +5984,14 @@ var PRInsightsDashboard = (() => {
     const hasTeam = effective.teams.length > 0;
     const hasReviewer = effective.reviewers.length > 0;
     const hasRepo = effective.repos.length > 0;
-    if (hasAuthor && hasTeam) {
+    if (hasAuthor && hasReviewer) {
+      effective.authors = [];
+      notices.push({
+        type: "author_reviewer",
+        message: "Author and reviewer filters cannot be combined; using reviewer filter."
+      });
+    }
+    if (effective.authors.length > 0 && hasTeam) {
       effective.teams = [];
       notices.push({
         type: "author_team",
@@ -6295,6 +6302,9 @@ var PRInsightsDashboard = (() => {
     updateInputDisplay();
     const instance = {
       getSelected() {
+        if (config.mode === "multi" && selected.length > 0 && selected.length === options.length) {
+          return [];
+        }
         return [...selected];
       },
       setSelected(ids) {
@@ -7219,6 +7229,9 @@ var PRInsightsDashboard = (() => {
     const { effectiveState, constraintsApplied } = resolveFilterConstraints(rawState);
     const notice = constraintsApplied[0];
     reviewerFilterNoticeMessage = notice?.message ?? null;
+    if (constraintsApplied.some((n) => n.type === "author_reviewer")) {
+      typeaheadAuthor?.setSelected(effectiveState.authors);
+    }
     if (constraintsApplied.some(
       (n) => n.type === "author_team" || n.type === "reviewer_team"
     )) {
@@ -7232,10 +7245,10 @@ var PRInsightsDashboard = (() => {
   function clearAllFilters() {
     currentFilters = { repos: [], teams: [], reviewers: [], authors: [] };
     reviewerFilterNoticeMessage = null;
-    typeaheadRepo?.clear();
-    typeaheadTeam?.clear();
-    typeaheadReviewer?.clear();
-    typeaheadAuthor?.clear();
+    typeaheadRepo?.setSelected([]);
+    typeaheadTeam?.setSelected([]);
+    typeaheadReviewer?.setSelected([]);
+    typeaheadAuthor?.setSelected([]);
     updateFilterUI();
     updateUrlState();
     void refreshMetrics();

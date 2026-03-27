@@ -1390,6 +1390,9 @@ function handleTypeaheadFilterChange(): void {
   reviewerFilterNoticeMessage = notice?.message ?? null;
 
   // Sync typeahead UI with resolved state (constraints may have cleared selections)
+  if (constraintsApplied.some((n) => n.type === "author_reviewer")) {
+    typeaheadAuthor?.setSelected(effectiveState.authors);
+  }
   if (
     constraintsApplied.some(
       (n) => n.type === "author_team" || n.type === "reviewer_team",
@@ -1419,14 +1422,18 @@ function clearAllFilters(): void {
   currentFilters = { repos: [], teams: [], reviewers: [], authors: [] };
   reviewerFilterNoticeMessage = null;
 
-  typeaheadRepo?.clear();
-  typeaheadTeam?.clear();
-  typeaheadReviewer?.clear();
-  typeaheadAuthor?.clear();
+  // Use setSelected([]) instead of clear() to avoid triggering onChange
+  // callbacks on each widget. clear() calls normalizeAndEmit() which
+  // fires handleTypeaheadFilterChange() → refreshMetrics() per widget.
+  // setSelected() is a silent programmatic update (no onChange).
+  typeaheadRepo?.setSelected([]);
+  typeaheadTeam?.setSelected([]);
+  typeaheadReviewer?.setSelected([]);
+  typeaheadAuthor?.setSelected([]);
 
   updateFilterUI();
   updateUrlState();
-  void refreshMetrics();
+  void refreshMetrics(); // Single refresh, not 5
 }
 
 /**

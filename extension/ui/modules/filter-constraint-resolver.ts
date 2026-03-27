@@ -7,17 +7,18 @@
  *
  * No consumer may implement its own constraint logic (FR-010).
  *
- * Constraint rules:
- * 1. Author + Team: Clear teams, use author-only metrics
- * 2. Reviewer + Team: Clear teams
- * 3. Reviewer + Repo: Keep both in state, but metrics use reviewer-only
+ * Constraint rules (applied in order):
+ * 1. Author + Reviewer: Clear author (reviewer takes precedence, matching legacy behavior)
+ * 2. Author + Team: Clear teams, use author-only metrics
+ * 3. Reviewer + Team: Clear teams
+ * 4. Reviewer + Repo: Keep both in state, but metrics use reviewer-only
  */
 
 import type { FilterState } from "./filters";
 
 /** Notice about a constraint that was applied. */
 export interface ConstraintNotice {
-  type: "author_team" | "reviewer_repo" | "reviewer_team";
+  type: "author_reviewer" | "author_team" | "reviewer_repo" | "reviewer_team";
   message: string;
 }
 
@@ -64,8 +65,20 @@ export function resolveFilterConstraints(
   const hasReviewer = effective.reviewers.length > 0;
   const hasRepo = effective.repos.length > 0;
 
-  // Rule 1: Author + Team → clear teams, use author-only metrics
-  if (hasAuthor && hasTeam) {
+  // Rule 1: Author + Reviewer → clear author (reviewer takes precedence)
+  // The metrics layer short-circuits to reviewer-only when a reviewer is
+  // present, so allowing both would silently ignore the author selection.
+  if (hasAuthor && hasReviewer) {
+    effective.authors = [];
+    notices.push({
+      type: "author_reviewer",
+      message:
+        "Author and reviewer filters cannot be combined; using reviewer filter.",
+    });
+  }
+
+  // Rule 2: Author + Team → clear teams, use author-only metrics
+  if (effective.authors.length > 0 && hasTeam) {
     effective.teams = [];
     notices.push({
       type: "author_team",
@@ -74,7 +87,7 @@ export function resolveFilterConstraints(
     });
   }
 
-  // Rule 2: Reviewer + Team → clear teams
+  // Rule 3: Reviewer + Team → clear teams
   if (hasReviewer && hasTeam) {
     effective.teams = [];
     notices.push({
@@ -84,7 +97,7 @@ export function resolveFilterConstraints(
     });
   }
 
-  // Rule 3: Reviewer + Repo → notice only, both retained in state
+  // Rule 4: Reviewer + Repo → notice only, both retained in state
   if (hasReviewer && hasRepo) {
     notices.push({
       type: "reviewer_repo",

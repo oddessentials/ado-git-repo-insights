@@ -151,7 +151,7 @@ describe("Typeahead Dropdown", () => {
   });
 
   describe("All-selected normalization (FR-011)", () => {
-    it("emits empty array when all options selected in multi mode", () => {
+    it("getSelected returns empty array when all options selected in multi mode", () => {
       createContainer("norm");
       const onChange = jest.fn();
       const instance = initTypeaheadDropdown(
@@ -160,15 +160,20 @@ describe("Typeahead Dropdown", () => {
 
       // Select all four options
       instance!.setSelected(["alpha", "beta", "gamma", "delta"]);
-      expect(instance!.getSelected()).toEqual([
-        "alpha",
-        "beta",
-        "gamma",
-        "delta",
-      ]);
 
-      // Trigger onChange by clearing and re-selecting (simulates user action)
-      // The normalization happens inside onChange callback
+      // FR-011: getSelected() returns [] when all options are selected
+      // (canonical "no filter" state at the state layer)
+      expect(instance!.getSelected()).toEqual([]);
+    });
+
+    it("getSelected returns actual values when NOT all options selected", () => {
+      createContainer("norm-partial");
+      const instance = initTypeaheadDropdown(
+        makeConfig("norm-partial", { mode: "multi" }),
+      );
+
+      instance!.setSelected(["alpha", "beta"]);
+      expect(instance!.getSelected()).toEqual(["alpha", "beta"]);
     });
 
     it("does NOT normalize in single-select mode", () => {

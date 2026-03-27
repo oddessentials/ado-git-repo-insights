@@ -376,6 +376,16 @@ export function initTypeaheadDropdown(
   // --- Public API ---
   const instance: TypeaheadInstance = {
     getSelected(): string[] {
+      // FR-011: All-selected normalization at the state layer.
+      // Returns empty array when all options are selected in multi mode,
+      // so consumers always see the canonical "no filter" state.
+      if (
+        config.mode === "multi" &&
+        selected.length > 0 &&
+        selected.length === options.length
+      ) {
+        return [];
+      }
       return [...selected];
     },
 
