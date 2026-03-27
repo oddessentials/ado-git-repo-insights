@@ -1,3 +1,10 @@
+## [5.28.3](https://github.com/oddessentials/ado-git-repo-insights/compare/v5.28.2...v5.28.3) (2026-03-27)
+
+
+### Bug Fixes
+
+* raise NOISE_FLOOR_MS to 5 ms to eliminate CI flakiness ([8a9857d](https://github.com/oddessentials/ado-git-repo-insights/commit/8a9857db16b682bb02a8518dfc93ef48fcc84ef5)), closes [#202](https://github.com/oddessentials/ado-git-repo-insights/issues/202)
+
 ## [5.28.2](https://github.com/oddessentials/ado-git-repo-insights/compare/v5.28.1...v5.28.2) (2026-03-27)
 
 
