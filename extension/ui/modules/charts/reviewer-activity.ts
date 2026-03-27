@@ -91,7 +91,7 @@ export function renderReviewerActivity(
           unfilteredRollups: options.unfilteredRollups ?? [],
           filteredRollups: rollups,
           availability: options.availability,
-          minimumDataPoints: 0,
+          minimumDataPoints: 1, // Requires at least 1 reviewer to render
         })
       : null;
     const fallbackHint = reviewerFilterActive

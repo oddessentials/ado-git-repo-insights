@@ -47,7 +47,7 @@ export function renderCycleDistribution(
           chartType: "cycle_time_distribution",
           filters: options.filters ?? { repos: [], teams: [], reviewers: [], authors: [] },
           unfilteredRollups: options.unfilteredRollups ?? [],
-          filteredRollups: [],
+          filteredRollups: options.unfilteredRollups ?? [], // Use unfiltered as proxy — distribution data is not dimension-filtered
           availability: options.availability ?? {
             reviewerDataPresent: false,
             reviewerDataEmpty: false,
@@ -55,7 +55,7 @@ export function renderCycleDistribution(
             reviewerRepoMode: "constrained",
             commentsStatus: "disabled",
           },
-          minimumDataPoints: 0,
+          minimumDataPoints: 1, // Requires at least 1 distribution to render
         })
       : null;
     renderNoData(

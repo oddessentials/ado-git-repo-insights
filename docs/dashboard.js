@@ -5675,7 +5675,8 @@ var PRInsightsDashboard = (() => {
         chartType: "cycle_time_distribution",
         filters: options.filters ?? { repos: [], teams: [], reviewers: [], authors: [] },
         unfilteredRollups: options.unfilteredRollups ?? [],
-        filteredRollups: [],
+        filteredRollups: options.unfilteredRollups ?? [],
+        // Use unfiltered as proxy — distribution data is not dimension-filtered
         availability: options.availability ?? {
           reviewerDataPresent: false,
           reviewerDataEmpty: false,
@@ -5683,7 +5684,8 @@ var PRInsightsDashboard = (() => {
           reviewerRepoMode: "constrained",
           commentsStatus: "disabled"
         },
-        minimumDataPoints: 0
+        minimumDataPoints: 1
+        // Requires at least 1 distribution to render
       }) : null;
       renderNoData(
         container,
@@ -5889,7 +5891,8 @@ var PRInsightsDashboard = (() => {
         unfilteredRollups: options.unfilteredRollups ?? [],
         filteredRollups: rollups,
         availability: options.availability,
-        minimumDataPoints: 0
+        minimumDataPoints: 1
+        // Requires at least 1 reviewer to render
       }) : null;
       const fallbackHint = reviewerFilterActive ? "Try widening the date range or adjusting reviewer filters." : "Reviewer data requires the extraction pipeline to capture reviewer details.";
       renderNoData(
