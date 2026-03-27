@@ -47,6 +47,9 @@ export * from "./data-availability";
 // Empty state classifier
 export * from "./empty-state-classifier";
 
+// Typeahead dropdown component
+export * from "./typeahead-dropdown";
+
 // Comparison mode utilities
 export * from "./comparison";
 

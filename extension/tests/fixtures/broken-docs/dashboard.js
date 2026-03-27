@@ -3626,13 +3626,6 @@ var PRInsightsDashboard = (() => {
       container.appendChild(temp.firstChild);
     }
   }
-  function createOption(value, text, selected = false) {
-    const option = createElement("option", { value }, text);
-    if (selected) {
-      option.selected = true;
-    }
-    return option;
-  }
 
   // ../ui/modules/metrics.ts
   var HAS_WINDOW = typeof window !== "undefined";
@@ -5952,6 +5945,74 @@ var PRInsightsDashboard = (() => {
     );
   }
 
+  // ../ui/modules/filters.ts
+  function parseCommaSeparated(raw) {
+    if (!raw) return [];
+    return raw.split(",").map((v) => {
+      try {
+        return decodeURIComponent(v).trim();
+      } catch {
+        return v.trim();
+      }
+    }).filter((v) => v.length > 0);
+  }
+  function parseFiltersFromUrl(params) {
+    const repos = parseCommaSeparated(params.get("repos"));
+    const teams = parseCommaSeparated(params.get("teams"));
+    const reviewerValues = parseCommaSeparated(params.get("reviewers"));
+    const firstReviewer = reviewerValues[0];
+    const authorValues = parseCommaSeparated(params.get("author"));
+    const firstAuthor = authorValues[0];
+    return {
+      repos,
+      teams,
+      reviewers: firstReviewer ? [firstReviewer] : [],
+      authors: firstAuthor ? [firstAuthor] : []
+    };
+  }
+
+  // ../ui/modules/filter-constraint-resolver.ts
+  function resolveFilterConstraints(raw) {
+    const notices = [];
+    const effective = {
+      repos: [...raw.repos],
+      teams: [...raw.teams],
+      reviewers: [...raw.reviewers],
+      authors: [...raw.authors]
+    };
+    if (effective.reviewers.length > 1) {
+      effective.reviewers = effective.reviewers[0] ? [effective.reviewers[0]] : [];
+    }
+    if (effective.authors.length > 1) {
+      effective.authors = effective.authors[0] ? [effective.authors[0]] : [];
+    }
+    const hasAuthor = effective.authors.length > 0;
+    const hasTeam = effective.teams.length > 0;
+    const hasReviewer = effective.reviewers.length > 0;
+    const hasRepo = effective.repos.length > 0;
+    if (hasAuthor && hasTeam) {
+      effective.teams = [];
+      notices.push({
+        type: "author_team",
+        message: "Using author-only metrics; team selection cleared."
+      });
+    }
+    if (hasReviewer && hasTeam) {
+      effective.teams = [];
+      notices.push({
+        type: "reviewer_team",
+        message: "Reviewer and team filtering cannot be combined; team selection cleared."
+      });
+    }
+    if (hasReviewer && hasRepo) {
+      notices.push({
+        type: "reviewer_repo",
+        message: "Using reviewer-only metrics; repository selection retained for display."
+      });
+    }
+    return { effectiveState: effective, constraintsApplied: notices };
+  }
+
   // ../ui/modules/data-availability.ts
   var DEFAULT_CAPABILITIES = {
     authorFiltersAvailable: false,
@@ -5976,6 +6037,295 @@ var PRInsightsDashboard = (() => {
       reviewerRepoMode: caps.reviewerRepositoryMode,
       commentsStatus: caps.commentsCoverageStatus
     };
+  }
+
+  // ../ui/modules/typeahead-dropdown.ts
+  var DEBOUNCE_MS = 200;
+  function initTypeaheadDropdown(config) {
+    const container = document.getElementById(config.containerId);
+    if (!container) return null;
+    let options = [...config.options];
+    let selected = [...config.initialSelection];
+    let filteredOptions = [];
+    let highlightIndex = -1;
+    let isOpen = false;
+    let debounceTimer = null;
+    const controller = new AbortController();
+    const { signal } = controller;
+    container.innerHTML = "";
+    container.classList.add("typeahead-container");
+    const wrapper = document.createElement("div");
+    wrapper.className = "typeahead-wrapper";
+    const chipsArea = document.createElement("div");
+    chipsArea.className = "typeahead-chips";
+    const input = document.createElement("input");
+    input.type = "text";
+    input.className = "typeahead-input";
+    input.placeholder = config.placeholder;
+    input.setAttribute("role", "combobox");
+    input.setAttribute("aria-expanded", "false");
+    input.setAttribute("aria-autocomplete", "list");
+    input.setAttribute("autocomplete", "off");
+    const dropdown = document.createElement("div");
+    dropdown.className = "typeahead-dropdown";
+    dropdown.setAttribute("role", "listbox");
+    dropdown.style.display = "none";
+    wrapper.appendChild(chipsArea);
+    wrapper.appendChild(input);
+    container.appendChild(wrapper);
+    container.appendChild(dropdown);
+    function renderChips() {
+      chipsArea.innerHTML = "";
+      if (config.mode !== "multi") return;
+      selected.forEach((id) => {
+        const opt = options.find((o) => o.id === id);
+        if (!opt) return;
+        const chip = document.createElement("span");
+        chip.className = "typeahead-chip";
+        const label = document.createElement("span");
+        label.className = "typeahead-chip-label";
+        label.textContent = opt.displayName;
+        const remove = document.createElement("button");
+        remove.className = "typeahead-chip-remove";
+        remove.type = "button";
+        remove.setAttribute("aria-label", `Remove ${opt.displayName}`);
+        remove.textContent = "\xD7";
+        remove.addEventListener("click", (e) => {
+          e.stopPropagation();
+          deselectOption(id);
+        }, { signal });
+        chip.appendChild(label);
+        chip.appendChild(remove);
+        chipsArea.appendChild(chip);
+      });
+    }
+    function renderDropdown() {
+      dropdown.innerHTML = "";
+      highlightIndex = -1;
+      if (filteredOptions.length === 0) {
+        const empty = document.createElement("div");
+        empty.className = "typeahead-empty";
+        empty.textContent = "No matching options";
+        dropdown.appendChild(empty);
+        return;
+      }
+      filteredOptions.forEach((opt, i) => {
+        const item = document.createElement("div");
+        item.className = "typeahead-option";
+        item.setAttribute("role", "option");
+        item.setAttribute("aria-selected", selected.includes(opt.id) ? "true" : "false");
+        item.dataset.optionId = opt.id;
+        if (selected.includes(opt.id)) {
+          item.classList.add("typeahead-option-selected");
+        }
+        const searchVal = input.value.toLowerCase();
+        if (searchVal) {
+          const idx = opt.displayName.toLowerCase().indexOf(searchVal);
+          if (idx >= 0) {
+            item.appendChild(
+              document.createTextNode(opt.displayName.substring(0, idx))
+            );
+            const strong = document.createElement("strong");
+            strong.textContent = opt.displayName.substring(
+              idx,
+              idx + searchVal.length
+            );
+            item.appendChild(strong);
+            item.appendChild(
+              document.createTextNode(
+                opt.displayName.substring(idx + searchVal.length)
+              )
+            );
+          } else {
+            item.textContent = opt.displayName;
+          }
+        } else {
+          item.textContent = opt.displayName;
+        }
+        item.addEventListener("pointerdown", (e) => {
+          e.preventDefault();
+          toggleOption(opt.id);
+        }, { signal });
+        dropdown.appendChild(item);
+      });
+    }
+    function updateInputDisplay() {
+      if (config.mode === "single") {
+        if (selected.length > 0) {
+          const opt = options.find((o) => o.id === selected[0]);
+          input.value = opt?.displayName ?? "";
+        } else {
+          input.value = "";
+        }
+      } else {
+        input.value = "";
+      }
+      input.placeholder = selected.length > 0 && config.mode === "multi" ? "Search..." : config.placeholder;
+    }
+    function filterOptions(query) {
+      const q = query.toLowerCase().trim();
+      if (!q) {
+        filteredOptions = [...options];
+      } else {
+        filteredOptions = options.filter(
+          (o) => o.displayName.toLowerCase().includes(q)
+        );
+      }
+      renderDropdown();
+    }
+    function normalizeAndEmit() {
+      let emitted;
+      if (config.mode === "multi" && selected.length > 0 && selected.length === options.length) {
+        emitted = [];
+      } else {
+        emitted = [...selected];
+      }
+      config.onChange(emitted);
+    }
+    function selectOption(id) {
+      if (config.mode === "single") {
+        selected = [id];
+        updateInputDisplay();
+        closeDropdown();
+      } else {
+        if (!selected.includes(id)) {
+          selected.push(id);
+        }
+        input.value = "";
+        filterOptions("");
+        renderChips();
+      }
+      normalizeAndEmit();
+    }
+    function deselectOption(id) {
+      selected = selected.filter((s) => s !== id);
+      renderChips();
+      normalizeAndEmit();
+    }
+    function toggleOption(id) {
+      if (config.mode === "single") {
+        if (selected[0] === id) {
+          selected = [];
+          updateInputDisplay();
+        } else {
+          selectOption(id);
+          return;
+        }
+      } else {
+        if (selected.includes(id)) {
+          deselectOption(id);
+          return;
+        } else {
+          selectOption(id);
+          return;
+        }
+      }
+      normalizeAndEmit();
+    }
+    function openDropdown() {
+      if (isOpen) return;
+      isOpen = true;
+      dropdown.style.display = "";
+      input.setAttribute("aria-expanded", "true");
+      filterOptions(config.mode === "single" ? "" : input.value);
+    }
+    function closeDropdown() {
+      if (!isOpen) return;
+      isOpen = false;
+      dropdown.style.display = "none";
+      input.setAttribute("aria-expanded", "false");
+      highlightIndex = -1;
+      if (config.mode === "single") {
+        updateInputDisplay();
+      }
+    }
+    input.addEventListener("focus", () => {
+      if (config.mode === "single") {
+        input.value = "";
+      }
+      openDropdown();
+    }, { signal });
+    input.addEventListener("input", () => {
+      if (debounceTimer !== null) clearTimeout(debounceTimer);
+      debounceTimer = setTimeout(() => {
+        filterOptions(input.value);
+        if (!isOpen) openDropdown();
+      }, DEBOUNCE_MS);
+    }, { signal });
+    input.addEventListener("keydown", (e) => {
+      const items = dropdown.querySelectorAll(".typeahead-option");
+      if (e.key === "ArrowDown") {
+        e.preventDefault();
+        highlightIndex = Math.min(highlightIndex + 1, items.length - 1);
+        updateHighlight(items);
+      } else if (e.key === "ArrowUp") {
+        e.preventDefault();
+        highlightIndex = Math.max(highlightIndex - 1, 0);
+        updateHighlight(items);
+      } else if (e.key === "Enter") {
+        e.preventDefault();
+        if (highlightIndex >= 0 && highlightIndex < filteredOptions.length) {
+          const opt = filteredOptions[highlightIndex];
+          if (opt) toggleOption(opt.id);
+        }
+      } else if (e.key === "Escape") {
+        closeDropdown();
+        input.blur();
+      } else if (e.key === "Backspace" && input.value === "" && config.mode === "multi" && selected.length > 0) {
+        const last = selected[selected.length - 1];
+        if (last) deselectOption(last);
+      }
+    }, { signal });
+    document.addEventListener("pointerdown", (e) => {
+      if (!container.contains(e.target)) {
+        closeDropdown();
+      }
+    }, { signal });
+    function updateHighlight(items) {
+      items.forEach((item, i) => {
+        item.classList.toggle(
+          "typeahead-option-highlighted",
+          i === highlightIndex
+        );
+      });
+      const highlighted = items[highlightIndex];
+      highlighted?.scrollIntoView({ block: "nearest" });
+    }
+    filteredOptions = [...options];
+    renderChips();
+    updateInputDisplay();
+    const instance = {
+      getSelected() {
+        return [...selected];
+      },
+      setSelected(ids) {
+        selected = ids.filter((id) => options.some((o) => o.id === id));
+        renderChips();
+        updateInputDisplay();
+      },
+      setOptions(newOptions) {
+        options = [...newOptions];
+        selected = selected.filter((id) => options.some((o) => o.id === id));
+        filteredOptions = [...options];
+        renderChips();
+        updateInputDisplay();
+        if (isOpen) renderDropdown();
+      },
+      clear() {
+        selected = [];
+        input.value = "";
+        renderChips();
+        updateInputDisplay();
+        normalizeAndEmit();
+      },
+      destroy() {
+        controller.abort();
+        if (debounceTimer !== null) clearTimeout(debounceTimer);
+        container.innerHTML = "";
+        container.classList.remove("typeahead-container");
+      }
+    };
+    return instance;
   }
 
   // ../ui/modules/export.ts
@@ -6080,6 +6430,10 @@ var PRInsightsDashboard = (() => {
     authors: []
   };
   var reviewerFilterNoticeMessage = null;
+  var typeaheadRepo = null;
+  var typeaheadTeam = null;
+  var typeaheadReviewer = null;
+  var typeaheadAuthor = null;
   var comparisonMode = false;
   var cachedRollups = [];
   var currentBuildId = null;
@@ -6091,13 +6445,6 @@ var PRInsightsDashboard = (() => {
   function getOwnRecordValue(record, key) {
     const descriptor = Object.getOwnPropertyDescriptor(record, key);
     return descriptor?.value;
-  }
-  function getElement(id) {
-    const el = elements[id];
-    if (el instanceof HTMLElement) {
-      return el;
-    }
-    return null;
   }
   var IS_PRODUCTION2 = typeof window !== "undefined" && window.process?.env?.NODE_ENV === "production";
   var DEBUG_ENABLED = !IS_PRODUCTION2 && (typeof window !== "undefined" && window.__DASHBOARD_DEBUG__ || typeof window !== "undefined" && new URLSearchParams(window.location.search).has("debug"));
@@ -6472,10 +6819,6 @@ var PRInsightsDashboard = (() => {
     elements["retry-btn"]?.addEventListener("click", () => init());
     document.getElementById("setup-retry-btn")?.addEventListener("click", () => init());
     document.getElementById("permission-retry-btn")?.addEventListener("click", () => init());
-    elements["repo-filter"]?.addEventListener("change", handleFilterChange);
-    elements["team-filter"]?.addEventListener("change", handleFilterChange);
-    elements["reviewer-filter"]?.addEventListener("change", handleFilterChange);
-    elements["author-filter"]?.addEventListener("change", handleFilterChange);
     elements["clear-filters"]?.addEventListener("click", clearAllFilters);
     elements["compare-toggle"]?.addEventListener("click", toggleComparisonMode);
     elements["exit-compare"]?.addEventListener("click", exitComparisonMode);
@@ -6790,173 +7133,96 @@ var PRInsightsDashboard = (() => {
   }
   function populateFilterDropdowns(dimensions) {
     if (!dimensions) return;
-    const repoFilter = getElement("repo-filter");
-    if (repoFilter && dimensions.repositories && dimensions.repositories.length > 0) {
-      clearElement(repoFilter);
-      repoFilter.appendChild(createOption("", "All"));
-      dimensions.repositories.forEach((repo) => {
-        const option = document.createElement("option");
-        option.value = repo.repository_name;
-        option.textContent = repo.repository_name;
-        repoFilter.appendChild(option);
+    typeaheadRepo?.destroy();
+    typeaheadTeam?.destroy();
+    typeaheadReviewer?.destroy();
+    typeaheadAuthor?.destroy();
+    if (dimensions.repositories && dimensions.repositories.length > 0) {
+      typeaheadRepo = initTypeaheadDropdown({
+        containerId: "repo-filter",
+        options: dimensions.repositories.map((r) => ({
+          id: r.repository_name,
+          displayName: r.repository_name
+        })),
+        mode: "multi",
+        placeholder: "Search repositories...",
+        initialSelection: [],
+        onChange: () => handleTypeaheadFilterChange()
       });
       elements["repo-filter-group"]?.classList.remove("hidden");
     } else {
+      typeaheadRepo = null;
       elements["repo-filter-group"]?.classList.add("hidden");
     }
-    const teamFilter = getElement("team-filter");
-    if (teamFilter && dimensions.teams && dimensions.teams.length > 0) {
-      clearElement(teamFilter);
-      teamFilter.appendChild(createOption("", "All"));
-      dimensions.teams.forEach((team) => {
-        const option = document.createElement("option");
-        option.value = team.team_name;
-        option.textContent = team.team_name;
-        teamFilter.appendChild(option);
+    if (dimensions.teams && dimensions.teams.length > 0) {
+      typeaheadTeam = initTypeaheadDropdown({
+        containerId: "team-filter",
+        options: dimensions.teams.map((t) => ({
+          id: t.team_name,
+          displayName: t.team_name
+        })),
+        mode: "multi",
+        placeholder: "Search teams...",
+        initialSelection: [],
+        onChange: () => handleTypeaheadFilterChange()
       });
       elements["team-filter-group"]?.classList.remove("hidden");
     } else {
+      typeaheadTeam = null;
       elements["team-filter-group"]?.classList.add("hidden");
     }
-    const reviewerFilter = getElement("reviewer-filter");
-    if (reviewerFilter && dimensions.reviewers && dimensions.reviewers.length > 0) {
-      clearElement(reviewerFilter);
-      reviewerFilter.appendChild(createOption("", "All"));
-      dimensions.reviewers.forEach((reviewer) => {
-        const option = document.createElement("option");
-        option.value = reviewer.reviewer_id;
-        option.textContent = reviewer.reviewer_name;
-        reviewerFilter.appendChild(option);
+    if (dimensions.reviewers && dimensions.reviewers.length > 0) {
+      typeaheadReviewer = initTypeaheadDropdown({
+        containerId: "reviewer-filter",
+        options: dimensions.reviewers.map((r) => ({
+          id: r.reviewer_id,
+          displayName: r.reviewer_name
+        })),
+        mode: "single",
+        placeholder: "Search reviewers...",
+        initialSelection: [],
+        onChange: () => handleTypeaheadFilterChange()
       });
       elements["reviewer-filter-group"]?.classList.remove("hidden");
     } else {
+      typeaheadReviewer = null;
       elements["reviewer-filter-group"]?.classList.add("hidden");
     }
-    const authorFilter = getElement("author-filter");
-    const authorFilterOptions = getElement(
-      "author-filter-options"
-    );
-    if (authorFilter && authorFilterOptions && dimensions.authors && dimensions.authors.length > 0) {
-      clearElement(authorFilterOptions);
-      dimensions.authors.forEach((author) => {
-        const option = document.createElement("option");
-        option.value = author.author_name;
-        option.label = author.author_id;
-        option.dataset["authorId"] = author.author_id;
-        authorFilterOptions.appendChild(option);
+    if (dimensions.authors && dimensions.authors.length > 0) {
+      typeaheadAuthor = initTypeaheadDropdown({
+        containerId: "author-filter",
+        options: dimensions.authors.map((a) => ({
+          id: a.author_id,
+          displayName: a.author_name
+        })),
+        mode: "single",
+        placeholder: "Search authors...",
+        initialSelection: [],
+        onChange: () => handleTypeaheadFilterChange()
       });
       elements["author-filter-group"]?.classList.remove("hidden");
     } else {
+      typeaheadAuthor = null;
       elements["author-filter-group"]?.classList.add("hidden");
     }
     restoreFiltersFromUrl();
   }
-  function clearSelectToAll(select) {
-    if (!select) return;
-    Array.from(select.options).forEach((o) => {
-      o.selected = o.value === "";
-    });
-  }
-  function normalizeReviewerSelection(reviewerValues, source) {
-    if (reviewerValues.length <= 1) {
-      return reviewerValues;
-    }
-    const ignored = reviewerValues.slice(1);
-    console.warn(
-      `Reviewer Phase 1 supports a single exact reviewer filter; ignoring additional ${source} values:`,
-      ignored
-    );
-    return reviewerValues[0] ? [reviewerValues[0]] : [];
-  }
-  function normalizeAuthorSelection(authorValues, dimensions) {
-    const firstValue = authorValues[0];
-    if (!firstValue) {
-      return [];
-    }
-    const matchedAuthor = dimensions?.authors?.find(
-      (author) => author.author_id === firstValue || author.author_name === firstValue
-    );
-    if (!matchedAuthor) {
-      console.warn("Ignoring invalid author filter value:", firstValue);
-      return [];
-    }
-    return [matchedAuthor.author_id];
-  }
-  function clearAuthorInput() {
-    const authorFilter = elements["author-filter"];
-    if (authorFilter) {
-      authorFilter.value = "";
-    }
-  }
-  function applyAuthorFilterCompatibility(sourceId, filters) {
-    if (filters.authors.length === 0) {
-      return filters;
-    }
-    const reviewerFilter = elements["reviewer-filter"];
-    if (filters.reviewers.length > 0) {
-      if (sourceId === "author-filter") {
-        clearSelectToAll(reviewerFilter);
-        return { ...filters, reviewers: [] };
-      }
-      if (sourceId === "reviewer-filter") {
-        clearAuthorInput();
-        return { ...filters, authors: [] };
-      }
-      console.warn(
-        "Author filters cannot be combined with reviewer filters in the current schema; keeping reviewer filters only"
-      );
-      clearAuthorInput();
-      return { ...filters, authors: [] };
-    }
-    return filters;
-  }
-  function applyReviewerFilterCompatibility(sourceId, repoValues, teamValues, reviewerValues) {
-    const normalizedReviewers = normalizeReviewerSelection(reviewerValues, "ui");
-    const reviewerRepoNotice = "Reviewer + repository uses reviewer-only metrics while retaining repository state.";
-    const reviewerTeamNotice = "Reviewer + team is not supported in the current schema. Team selection was cleared.";
-    reviewerFilterNoticeMessage = null;
-    if (normalizedReviewers.length === 0 || repoValues.length === 0 && teamValues.length === 0) {
-      return {
-        repos: repoValues,
-        teams: teamValues,
-        reviewers: normalizedReviewers
-      };
-    }
-    const teamFilter = elements["team-filter"];
-    if (teamValues.length > 0) {
-      reviewerFilterNoticeMessage = reviewerTeamNotice;
-      clearSelectToAll(teamFilter);
-      return { repos: repoValues, teams: [], reviewers: normalizedReviewers };
-    }
-    if (repoValues.length > 0) {
-      reviewerFilterNoticeMessage = reviewerRepoNotice;
-      if (sourceId !== "reviewer-filter") {
-        console.warn(reviewerRepoNotice);
-      }
-    }
-    return { repos: repoValues, teams: [], reviewers: normalizedReviewers };
-  }
-  function handleFilterChange(event) {
-    const repoFilter = elements["repo-filter"];
-    const teamFilter = elements["team-filter"];
-    const reviewerFilter = elements["reviewer-filter"];
-    const authorFilter = elements["author-filter"];
-    const repoValues = repoFilter ? Array.from(repoFilter.selectedOptions).map((o) => o.value).filter((v) => v) : [];
-    const teamValues = teamFilter ? Array.from(teamFilter.selectedOptions).map((o) => o.value).filter((v) => v) : [];
-    const reviewerValues = reviewerFilter ? [reviewerFilter.value].filter((v) => v) : [];
-    const authorValues = authorFilter ? [authorFilter.value].filter((v) => v) : [];
-    const sourceId = event.currentTarget instanceof HTMLElement ? event.currentTarget.id : null;
-    const reviewerCompatibleFilters = applyReviewerFilterCompatibility(
-      sourceId,
-      repoValues,
-      teamValues,
-      reviewerValues
-    );
-    const normalizedFilters = {
-      ...reviewerCompatibleFilters,
-      authors: normalizeAuthorSelection(authorValues, currentDimensions)
+  function handleTypeaheadFilterChange() {
+    const rawState = {
+      repos: typeaheadRepo?.getSelected() ?? [],
+      teams: typeaheadTeam?.getSelected() ?? [],
+      reviewers: typeaheadReviewer?.getSelected() ?? [],
+      authors: typeaheadAuthor?.getSelected() ?? []
     };
-    currentFilters = applyAuthorFilterCompatibility(sourceId, normalizedFilters);
+    const { effectiveState, constraintsApplied } = resolveFilterConstraints(rawState);
+    const notice = constraintsApplied[0];
+    reviewerFilterNoticeMessage = notice?.message ?? null;
+    if (constraintsApplied.some(
+      (n) => n.type === "author_team" || n.type === "reviewer_team"
+    )) {
+      typeaheadTeam?.setSelected(effectiveState.teams);
+    }
+    currentFilters = effectiveState;
     updateFilterUI();
     updateUrlState();
     void refreshMetrics();
@@ -6964,47 +7230,29 @@ var PRInsightsDashboard = (() => {
   function clearAllFilters() {
     currentFilters = { repos: [], teams: [], reviewers: [], authors: [] };
     reviewerFilterNoticeMessage = null;
-    const repoFilter = elements["repo-filter"];
-    const teamFilter = elements["team-filter"];
-    const reviewerFilter = elements["reviewer-filter"];
-    const authorFilter = elements["author-filter"];
-    clearSelectToAll(repoFilter);
-    clearSelectToAll(teamFilter);
-    clearSelectToAll(reviewerFilter);
-    if (authorFilter) {
-      authorFilter.value = "";
-    }
+    typeaheadRepo?.clear();
+    typeaheadTeam?.clear();
+    typeaheadReviewer?.clear();
+    typeaheadAuthor?.clear();
     updateFilterUI();
     updateUrlState();
     void refreshMetrics();
   }
-  function findOptionByValue(select, value) {
-    return select?.querySelector(
-      `option[value="${CSS.escape(value)}"]`
-    );
-  }
   function removeFilter(type, value) {
     if (type === "repo") {
       currentFilters.repos = currentFilters.repos.filter((v) => v !== value);
-      const repoFilter = elements["repo-filter"];
-      const option = findOptionByValue(repoFilter, value);
-      if (option) option.selected = false;
+      typeaheadRepo?.setSelected(currentFilters.repos);
     } else if (type === "team") {
       currentFilters.teams = currentFilters.teams.filter((v) => v !== value);
-      const teamFilter = elements["team-filter"];
-      const option = findOptionByValue(teamFilter, value);
-      if (option) option.selected = false;
+      typeaheadTeam?.setSelected(currentFilters.teams);
     } else if (type === "reviewer") {
       currentFilters.reviewers = currentFilters.reviewers.filter(
         (v) => v !== value
       );
-      const reviewerFilter = elements["reviewer-filter"];
-      const option = findOptionByValue(reviewerFilter, value);
-      if (option) option.selected = false;
+      typeaheadReviewer?.setSelected(currentFilters.reviewers);
     } else if (type === "author") {
       currentFilters.authors = currentFilters.authors.filter((v) => v !== value);
-      const authorFilter = elements["author-filter"];
-      if (authorFilter) authorFilter.value = "";
+      typeaheadAuthor?.setSelected(currentFilters.authors);
     }
     updateFilterUI();
     updateUrlState();
@@ -7061,23 +7309,18 @@ var PRInsightsDashboard = (() => {
   }
   function getFilterLabel(type, value) {
     if (type === "repo") {
-      const repoFilter = elements["repo-filter"];
-      return findOptionByValue(repoFilter, value)?.textContent ?? value;
+      return currentDimensions?.repositories?.find(
+        (r) => r.repository_name === value
+      )?.repository_name ?? value;
     }
     if (type === "team") {
-      const teamFilter = elements["team-filter"];
-      return findOptionByValue(teamFilter, value)?.textContent ?? value;
+      return currentDimensions?.teams?.find((t) => t.team_name === value)?.team_name ?? value;
     }
     if (type === "reviewer") {
-      const reviewerFilter = elements["reviewer-filter"];
-      return findOptionByValue(reviewerFilter, value)?.textContent ?? value;
+      return currentDimensions?.reviewers?.find((r) => r.reviewer_id === value)?.reviewer_name ?? value;
     }
     if (type === "author") {
-      const authorFilterOptions = elements["author-filter-options"];
-      const option = authorFilterOptions?.querySelector(
-        `option[data-author-id="${CSS.escape(value)}"]`
-      );
-      return option?.value ?? value;
+      return currentDimensions?.authors?.find((a) => a.author_id === value)?.author_name ?? value;
     }
     return value;
   }
@@ -7124,97 +7367,63 @@ var PRInsightsDashboard = (() => {
   }
   function restoreFiltersFromUrl() {
     const params = new URLSearchParams(window.location.search);
-    const reposParam = params.get("repos");
-    const teamsParam = params.get("teams");
-    const reviewersParam = params.get("reviewers");
-    if (reposParam) {
-      currentFilters.repos = reposParam.split(",").filter((v) => v);
-      const repoFilter = elements["repo-filter"];
-      if (repoFilter) {
-        const valid = currentFilters.repos.filter(
-          (v) => findOptionByValue(repoFilter, v) !== null
-        );
-        if (valid.length < currentFilters.repos.length) {
-          console.warn(
-            "Ignoring invalid repo filters from URL:",
-            currentFilters.repos.filter((v) => !valid.includes(v))
-          );
-        }
-        currentFilters.repos = valid;
-        currentFilters.repos.forEach((value) => {
-          const option = findOptionByValue(repoFilter, value);
-          if (option) option.selected = true;
-        });
-      }
-    }
-    if (teamsParam) {
-      currentFilters.teams = teamsParam.split(",").filter((v) => v);
-      const teamFilter = elements["team-filter"];
-      if (teamFilter) {
-        const valid = currentFilters.teams.filter(
-          (v) => findOptionByValue(teamFilter, v) !== null
-        );
-        if (valid.length < currentFilters.teams.length) {
-          console.warn(
-            "Ignoring invalid team filters from URL:",
-            currentFilters.teams.filter((v) => !valid.includes(v))
-          );
-        }
-        currentFilters.teams = valid;
-        currentFilters.teams.forEach((value) => {
-          const option = findOptionByValue(teamFilter, value);
-          if (option) option.selected = true;
-        });
-      }
-    }
-    if (reviewersParam) {
-      currentFilters.reviewers = normalizeReviewerSelection(
-        reviewersParam.split(",").filter((v) => v),
-        "url"
+    const parsed = parseFiltersFromUrl(params);
+    const validRepos = parsed.repos.filter(
+      (v) => currentDimensions?.repositories?.some((r) => r.repository_name === v)
+    );
+    if (validRepos.length < parsed.repos.length) {
+      console.warn(
+        "Ignoring invalid repo filters from URL:",
+        parsed.repos.filter((v) => !validRepos.includes(v))
       );
-      const reviewerFilter = elements["reviewer-filter"];
-      if (reviewerFilter) {
-        const valid = currentFilters.reviewers.filter(
-          (v) => findOptionByValue(reviewerFilter, v) !== null
-        );
-        if (valid.length < currentFilters.reviewers.length) {
-          console.warn(
-            "Ignoring invalid reviewer filters from URL:",
-            currentFilters.reviewers.filter((v) => !valid.includes(v))
-          );
-        }
-        currentFilters.reviewers = valid;
-        reviewerFilter.value = currentFilters.reviewers[0] ?? "";
-      }
     }
-    const authorParam = params.get("author");
-    if (authorParam) {
-      currentFilters.authors = normalizeAuthorSelection(
-        [authorParam],
-        currentDimensions
+    const validTeams = parsed.teams.filter(
+      (v) => currentDimensions?.teams?.some((t) => t.team_name === v)
+    );
+    if (validTeams.length < parsed.teams.length) {
+      console.warn(
+        "Ignoring invalid team filters from URL:",
+        parsed.teams.filter((v) => !validTeams.includes(v))
       );
-      const authorFilter = elements["author-filter"];
-      if (authorFilter) {
-        if (currentFilters.authors.length > 0) {
-          const label = getFilterLabel("author", currentFilters.authors[0] ?? "");
-          authorFilter.value = label;
-        } else {
-          authorFilter.value = "";
-        }
-      }
     }
-    currentFilters = applyAuthorFilterCompatibility(null, {
-      ...applyReviewerFilterCompatibility(
-        null,
-        currentFilters.repos,
-        currentFilters.teams,
-        currentFilters.reviewers
-      ),
-      authors: currentFilters.authors
+    const validReviewers = parsed.reviewers.filter(
+      (v) => currentDimensions?.reviewers?.some((r) => r.reviewer_id === v)
+    );
+    if (validReviewers.length < parsed.reviewers.length) {
+      console.warn(
+        "Ignoring invalid reviewer filters from URL:",
+        parsed.reviewers.filter((v) => !validReviewers.includes(v))
+      );
+    }
+    const validAuthors = parsed.authors.filter(
+      (v) => currentDimensions?.authors?.some(
+        (a) => a.author_id === v || a.author_name === v
+      )
+    );
+    const normalizedAuthors = validAuthors.map((v) => {
+      const match = currentDimensions?.authors?.find(
+        (a) => a.author_id === v || a.author_name === v
+      );
+      return match?.author_id ?? v;
     });
-    if (currentFilters.authors.length === 0 && authorParam) {
-      console.warn("Ignoring invalid author filter from URL:", authorParam);
+    if (normalizedAuthors.length < parsed.authors.length) {
+      console.warn(
+        "Ignoring invalid author filters from URL:",
+        parsed.authors.filter((v) => !validAuthors.includes(v))
+      );
     }
+    const { effectiveState, constraintsApplied } = resolveFilterConstraints({
+      repos: validRepos,
+      teams: validTeams,
+      reviewers: validReviewers,
+      authors: normalizedAuthors
+    });
+    reviewerFilterNoticeMessage = constraintsApplied[0]?.message ?? null;
+    currentFilters = effectiveState;
+    typeaheadRepo?.setSelected(currentFilters.repos);
+    typeaheadTeam?.setSelected(currentFilters.teams);
+    typeaheadReviewer?.setSelected(currentFilters.reviewers);
+    typeaheadAuthor?.setSelected(currentFilters.authors);
     updateFilterUI();
   }
   function restoreStateFromUrl() {
