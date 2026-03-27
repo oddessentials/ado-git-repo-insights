@@ -10,12 +10,33 @@
 
 import { renderTrustedHtml } from "./shared/render";
 
+/** Controller for the scroll/resize dismiss listener. */
+let scrollDismissController: AbortController | null = null;
+
+/** Attach scroll/resize listeners that dismiss tooltips on viewport change. */
+function ensureScrollDismissListener(): void {
+  if (scrollDismissController) return;
+  scrollDismissController = new AbortController();
+  const { signal } = scrollDismissController;
+
+  const dismiss = () => dismissAllTooltips();
+  window.addEventListener("scroll", dismiss, { signal, passive: true });
+  window.addEventListener("resize", dismiss, { signal, passive: true });
+}
+
+/** Remove scroll/resize listeners when no tooltip is visible. */
+function releaseScrollDismissListener(): void {
+  scrollDismissController?.abort();
+  scrollDismissController = null;
+}
+
 /** Dismiss all tooltips from both chart and info systems. */
 export function dismissAllTooltips(): void {
   const chartTooltip = document.querySelector(".chart-tooltip");
   if (chartTooltip) chartTooltip.remove();
   const infoTooltip = document.querySelector(".info-tooltip");
   if (infoTooltip) infoTooltip.remove();
+  releaseScrollDismissListener();
 }
 
 /**
@@ -79,7 +100,9 @@ export function showChartTooltip(target: HTMLElement, content: string): void {
   // Step 3: Position within viewport bounds
   const rect = target.getBoundingClientRect();
   positionTooltip(tooltip, rect);
-  // positionTooltip already appends to body
+
+  // Step 4: Dismiss on scroll/resize (tooltip stays at old fixed coords otherwise)
+  ensureScrollDismissListener();
 }
 
 /**
@@ -101,7 +124,9 @@ export function showInfoTooltip(target: HTMLElement, content: string): void {
   // Step 3: Position within viewport bounds
   const rect = target.getBoundingClientRect();
   positionTooltip(tooltip, rect);
-  // positionTooltip already appends to body
+
+  // Step 4: Dismiss on scroll/resize
+  ensureScrollDismissListener();
 }
 
 /**

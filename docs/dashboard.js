@@ -5159,11 +5159,25 @@ var PRInsightsDashboard = (() => {
   }
 
   // ../ui/modules/tooltip-manager.ts
+  var scrollDismissController = null;
+  function ensureScrollDismissListener() {
+    if (scrollDismissController) return;
+    scrollDismissController = new AbortController();
+    const { signal } = scrollDismissController;
+    const dismiss = () => dismissAllTooltips();
+    window.addEventListener("scroll", dismiss, { signal, passive: true });
+    window.addEventListener("resize", dismiss, { signal, passive: true });
+  }
+  function releaseScrollDismissListener() {
+    scrollDismissController?.abort();
+    scrollDismissController = null;
+  }
   function dismissAllTooltips() {
     const chartTooltip = document.querySelector(".chart-tooltip");
     if (chartTooltip) chartTooltip.remove();
     const infoTooltip = document.querySelector(".info-tooltip");
     if (infoTooltip) infoTooltip.remove();
+    releaseScrollDismissListener();
   }
   function positionTooltip(tooltip, targetRect) {
     tooltip.style.visibility = "hidden";
@@ -5197,6 +5211,7 @@ var PRInsightsDashboard = (() => {
     tooltip.style.position = "fixed";
     const rect = target.getBoundingClientRect();
     positionTooltip(tooltip, rect);
+    ensureScrollDismissListener();
   }
   function showInfoTooltip(target, content) {
     dismissAllTooltips();
@@ -5206,6 +5221,7 @@ var PRInsightsDashboard = (() => {
     tooltip.style.position = "fixed";
     const rect = target.getBoundingClientRect();
     positionTooltip(tooltip, rect);
+    ensureScrollDismissListener();
   }
 
   // ../ui/modules/charts.ts
@@ -5488,7 +5504,19 @@ var PRInsightsDashboard = (() => {
       }, { signal });
       btn.addEventListener("click", (e) => {
         e.stopPropagation();
-        showInfoTooltip(btn, explanation);
+        const existing2 = document.querySelector(".info-tooltip");
+        if (existing2) {
+          dismissAllTooltips();
+        } else {
+          showInfoTooltip(btn, explanation);
+          requestAnimationFrame(() => {
+            const dismissOnce = () => {
+              dismissAllTooltips();
+              document.removeEventListener("click", dismissOnce);
+            };
+            document.addEventListener("click", dismissOnce);
+          });
+        }
       }, { signal });
       infoIconControllers.set(btn, controller);
       title.appendChild(btn);
@@ -5922,6 +5950,32 @@ var PRInsightsDashboard = (() => {
       container,
       `${truncationHtml}<p class="chart-subtitle">${escapeHtml(subtitle)}</p><div class="horizontal-bar-chart">${barsHtml}</div>`
     );
+  }
+
+  // ../ui/modules/data-availability.ts
+  var DEFAULT_CAPABILITIES = {
+    authorFiltersAvailable: false,
+    authorRepoExactAvailable: false,
+    commentsMetricsAvailable: false,
+    commentsCoverageStatus: "disabled",
+    reviewerRepositoryMode: "constrained",
+    reviewerTeamMode: "disallowed",
+    crossDimensionalAvailable: false
+  };
+  function deriveAvailabilitySignal(rollups, capabilities) {
+    const caps = capabilities ?? DEFAULT_CAPABILITIES;
+    const hasAnyReviewerField = rollups.some((r) => r.by_reviewer !== null);
+    const allReviewerFieldsEmpty = hasAnyReviewerField && rollups.every(
+      (r) => r.by_reviewer === null || Object.keys(r.by_reviewer).length === 0
+    );
+    const hasAnyCycleTime = rollups.some((r) => r.cycle_time_p50 !== null);
+    return {
+      reviewerDataPresent: hasAnyReviewerField,
+      reviewerDataEmpty: hasAnyReviewerField && allReviewerFieldsEmpty,
+      cycleTimePresent: hasAnyCycleTime,
+      reviewerRepoMode: caps.reviewerRepositoryMode,
+      commentsStatus: caps.commentsCoverageStatus
+    };
   }
 
   // ../ui/modules/export.ts
@@ -6503,11 +6557,15 @@ var PRInsightsDashboard = (() => {
     cachedRollups = rollups;
     updateAccuracyIndicator(rawRollups, currentFilters);
     updateOverlapIndicator(rawRollups, currentFilters);
+    const availability = deriveAvailabilitySignal(
+      rawRollups,
+      loader?.getCapabilityState?.() ?? null
+    );
     renderSummaryCards2(rollups, prevRollups);
-    renderThroughputChart2(rollups);
-    renderCycleTimeTrend2(rollups);
-    renderReviewerActivity2(rollups);
-    renderCycleDistribution2(distributions);
+    renderThroughputChart2(rollups, rawRollups, availability);
+    renderCycleTimeTrend2(rollups, rawRollups, availability);
+    renderReviewerActivity2(rollups, rawRollups, availability);
+    renderCycleDistribution2(distributions, rawRollups, availability);
     if (comparisonMode) {
       updateComparisonBanner();
     }
@@ -6600,21 +6658,37 @@ var PRInsightsDashboard = (() => {
       metricsCollector
     });
   }
-  function renderThroughputChart2(rollups) {
-    renderThroughputChart(elements["throughput-chart"] ?? null, rollups);
+  function renderThroughputChart2(rollups, unfilteredRollups, availability) {
+    renderThroughputChart(elements["throughput-chart"] ?? null, rollups, {
+      filters: currentFilters,
+      unfilteredRollups,
+      availability
+    });
   }
-  function renderCycleDistribution2(distributions) {
+  function renderCycleDistribution2(distributions, unfilteredRollups, availability) {
     renderCycleDistribution(
       elements["cycle-distribution"] ?? null,
-      distributions
+      distributions,
+      {
+        filters: currentFilters,
+        unfilteredRollups,
+        availability
+      }
     );
   }
-  function renderCycleTimeTrend2(rollups) {
-    renderCycleTimeTrend(elements["cycle-time-trend"] ?? null, rollups);
+  function renderCycleTimeTrend2(rollups, unfilteredRollups, availability) {
+    renderCycleTimeTrend(elements["cycle-time-trend"] ?? null, rollups, {
+      filters: currentFilters,
+      unfilteredRollups,
+      availability
+    });
   }
-  function renderReviewerActivity2(rollups) {
+  function renderReviewerActivity2(rollups, unfilteredRollups, availability) {
     renderReviewerActivity(elements["reviewer-activity"] ?? null, rollups, {
-      reviewerFilterActive: currentFilters.reviewers.length > 0
+      reviewerFilterActive: currentFilters.reviewers.length > 0,
+      filters: currentFilters,
+      unfilteredRollups,
+      availability
     });
   }
   function toArtifactLoadResult(loaderResult, artifactPath) {

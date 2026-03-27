@@ -309,7 +309,24 @@ function attachInfoIcons(containers: SummaryCardsContainers): void {
     }, { signal });
     btn.addEventListener("click", (e) => {
       e.stopPropagation();
-      showInfoTooltip(btn, explanation);
+      // Toggle: if info tooltip already showing for this button, dismiss it;
+      // otherwise show it. This handles touch devices where pointerleave
+      // doesn't fire after a tap.
+      const existing = document.querySelector(".info-tooltip");
+      if (existing) {
+        dismissAllTooltips();
+      } else {
+        showInfoTooltip(btn, explanation);
+        // Add one-time document click listener to dismiss on tap-elsewhere.
+        // Deferred to next frame so this click doesn't immediately trigger it.
+        requestAnimationFrame(() => {
+          const dismissOnce = () => {
+            dismissAllTooltips();
+            document.removeEventListener("click", dismissOnce);
+          };
+          document.addEventListener("click", dismissOnce);
+        });
+      }
     }, { signal });
 
     infoIconControllers.set(btn, controller);

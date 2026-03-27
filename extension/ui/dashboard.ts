@@ -49,6 +49,8 @@ import {
   renderCycleDistribution as renderCycleDistributionModule,
   renderCycleTimeTrend as renderCycleTimeTrendModule,
   renderReviewerActivity as renderReviewerActivityModule,
+  // Data availability signal derivation
+  deriveAvailabilitySignal,
   // State machine and state-specific rendering (FR-001 through FR-004)
   resolvePredictionsState,
   resolveInsightsState,
@@ -839,11 +841,17 @@ async function refreshMetrics(): Promise<void> {
   // and cross-dim PR sum exceeds repository total.
   updateOverlapIndicator(rawRollups, currentFilters);
 
+  // Derive data availability signal for empty-state classification
+  const availability = deriveAvailabilitySignal(
+    rawRollups,
+    loader?.getCapabilityState?.() ?? null,
+  );
+
   renderSummaryCards(rollups, prevRollups);
-  renderThroughputChart(rollups);
-  renderCycleTimeTrend(rollups);
-  renderReviewerActivity(rollups);
-  renderCycleDistribution(distributions);
+  renderThroughputChart(rollups, rawRollups, availability);
+  renderCycleTimeTrend(rollups, rawRollups, availability);
+  renderReviewerActivity(rollups, rawRollups, availability);
+  renderCycleDistribution(distributions, rawRollups, availability);
 
   // Update comparison banner if in comparison mode
   if (comparisonMode) {
@@ -1014,18 +1022,35 @@ function renderSummaryCards(
  * Render throughput chart with trend line overlay.
  * Thin wrapper that delegates to extracted module.
  */
-function renderThroughputChart(rollups: Rollup[]): void {
-  renderThroughputChartModule(elements["throughput-chart"] ?? null, rollups);
+function renderThroughputChart(
+  rollups: Rollup[],
+  unfilteredRollups?: Rollup[],
+  availability?: import("./types").DataAvailabilitySignal,
+): void {
+  renderThroughputChartModule(elements["throughput-chart"] ?? null, rollups, {
+    filters: currentFilters,
+    unfilteredRollups,
+    availability,
+  });
 }
 
 /**
  * Render cycle time distribution.
  * Thin wrapper that delegates to extracted module.
  */
-function renderCycleDistribution(distributions: DistributionData[]): void {
+function renderCycleDistribution(
+  distributions: DistributionData[],
+  unfilteredRollups?: Rollup[],
+  availability?: import("./types").DataAvailabilitySignal,
+): void {
   renderCycleDistributionModule(
     elements["cycle-distribution"] ?? null,
     distributions,
+    {
+      filters: currentFilters,
+      unfilteredRollups,
+      availability,
+    },
   );
 }
 
@@ -1033,17 +1058,32 @@ function renderCycleDistribution(distributions: DistributionData[]): void {
  * Render cycle time trend chart (line chart with P50 and P90).
  * Thin wrapper that delegates to extracted module.
  */
-function renderCycleTimeTrend(rollups: Rollup[]): void {
-  renderCycleTimeTrendModule(elements["cycle-time-trend"] ?? null, rollups);
+function renderCycleTimeTrend(
+  rollups: Rollup[],
+  unfilteredRollups?: Rollup[],
+  availability?: import("./types").DataAvailabilitySignal,
+): void {
+  renderCycleTimeTrendModule(elements["cycle-time-trend"] ?? null, rollups, {
+    filters: currentFilters,
+    unfilteredRollups,
+    availability,
+  });
 }
 
 /**
  * Render reviewer activity chart (horizontal bar chart).
  * Thin wrapper that delegates to extracted module.
  */
-function renderReviewerActivity(rollups: Rollup[]): void {
+function renderReviewerActivity(
+  rollups: Rollup[],
+  unfilteredRollups?: Rollup[],
+  availability?: import("./types").DataAvailabilitySignal,
+): void {
   renderReviewerActivityModule(elements["reviewer-activity"] ?? null, rollups, {
     reviewerFilterActive: currentFilters.reviewers.length > 0,
+    filters: currentFilters,
+    unfilteredRollups,
+    availability,
   });
 }
 
