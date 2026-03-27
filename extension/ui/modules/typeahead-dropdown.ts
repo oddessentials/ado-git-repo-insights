@@ -329,6 +329,12 @@ export function initTypeaheadDropdown(
       updateHighlight(items);
     } else if (e.key === "Enter") {
       e.preventDefault();
+      // Flush pending debounce to ensure filteredOptions is current
+      if (debounceTimer !== null) {
+        clearTimeout(debounceTimer);
+        debounceTimer = null;
+        filterOptions(input.value);
+      }
       if (highlightIndex >= 0 && highlightIndex < filteredOptions.length) {
         const opt = filteredOptions[highlightIndex];
         if (opt) toggleOption(opt.id);
@@ -398,8 +404,12 @@ export function initTypeaheadDropdown(
     },
 
     destroy(): void {
+      // Clear timer BEFORE aborting to prevent orphaned callbacks
+      if (debounceTimer !== null) {
+        clearTimeout(debounceTimer);
+        debounceTimer = null;
+      }
       controller.abort();
-      if (debounceTimer !== null) clearTimeout(debounceTimer);
       container.innerHTML = "";
       container.classList.remove("typeahead-container");
     },

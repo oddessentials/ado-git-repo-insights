@@ -5948,13 +5948,7 @@ var PRInsightsDashboard = (() => {
   // ../ui/modules/filters.ts
   function parseCommaSeparated(raw) {
     if (!raw) return [];
-    return raw.split(",").map((v) => {
-      try {
-        return decodeURIComponent(v).trim();
-      } catch {
-        return v.trim();
-      }
-    }).filter((v) => v.length > 0);
+    return raw.split(",").map((v) => v.trim()).filter((v) => v.length > 0);
   }
   function parseFiltersFromUrl(params) {
     const repos = parseCommaSeparated(params.get("repos"));
@@ -6264,6 +6258,11 @@ var PRInsightsDashboard = (() => {
         updateHighlight(items);
       } else if (e.key === "Enter") {
         e.preventDefault();
+        if (debounceTimer !== null) {
+          clearTimeout(debounceTimer);
+          debounceTimer = null;
+          filterOptions(input.value);
+        }
         if (highlightIndex >= 0 && highlightIndex < filteredOptions.length) {
           const opt = filteredOptions[highlightIndex];
           if (opt) toggleOption(opt.id);
@@ -6319,8 +6318,11 @@ var PRInsightsDashboard = (() => {
         normalizeAndEmit();
       },
       destroy() {
+        if (debounceTimer !== null) {
+          clearTimeout(debounceTimer);
+          debounceTimer = null;
+        }
         controller.abort();
-        if (debounceTimer !== null) clearTimeout(debounceTimer);
         container.innerHTML = "";
         container.classList.remove("typeahead-container");
       }

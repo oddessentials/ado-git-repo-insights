@@ -281,7 +281,8 @@ input[type="search"]::placeholder {
 .typeahead-container {
     position: relative;
     min-width: 160px;
-    max-width: 260px;
+    max-width: 320px;
+    touch-action: manipulation; /* Prevent double-tap zoom for reliable pointer events */
 }
 
 .typeahead-wrapper {

@@ -100,7 +100,7 @@ describe("Filter URL Serialization Round-Trip", () => {
   });
 
   describe("URI encoding", () => {
-    it("encodes special characters in values", () => {
+    it("handles values with spaces via URLSearchParams built-in encoding", () => {
       const state: FilterState = {
         repos: ["Project With Spaces"],
         teams: [],
@@ -109,12 +109,29 @@ describe("Filter URL Serialization Round-Trip", () => {
       };
       const params = new URLSearchParams();
       serializeFiltersToUrl(state, params);
+
+      // URLSearchParams.get() returns decoded value
       const raw = params.get("repos") ?? "";
-      expect(raw).toContain("Project%20With%20Spaces");
+      expect(raw).toBe("Project With Spaces");
+
+      // URL string contains encoded form (+ or %20)
+      const urlStr = params.toString();
+      expect(urlStr).toMatch(/Project[+%].*Spaces/);
 
       // Round-trip preserves the original value
       const restored = parseFiltersFromUrl(params);
       expect(restored.repos).toEqual(["Project With Spaces"]);
+    });
+
+    it("round-trips values with special characters", () => {
+      const state: FilterState = {
+        repos: ["foo&bar", "alpha/beta"],
+        teams: [],
+        reviewers: [],
+        authors: [],
+      };
+      const result = roundTrip(state);
+      expect(result.repos.sort()).toEqual(["alpha/beta", "foo&bar"]);
     });
   });
 

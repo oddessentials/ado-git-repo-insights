@@ -37,19 +37,18 @@ export function hasActiveFilters(state: FilterState): boolean {
 }
 
 /**
- * Parse a comma-separated URL parameter into decoded, non-empty values.
+ * Parse a comma-separated URL parameter into non-empty values.
+ *
+ * URLSearchParams.get() already decodes the value, so no manual
+ * decodeURIComponent is needed. The try/catch handles edge cases
+ * where old bookmarks may contain pre-encoded values (%20 etc.)
+ * that were stored literally (not double-encoded).
  */
 function parseCommaSeparated(raw: string | null): string[] {
   if (!raw) return [];
   return raw
     .split(",")
-    .map((v) => {
-      try {
-        return decodeURIComponent(v).trim();
-      } catch {
-        return v.trim();
-      }
-    })
+    .map((v) => v.trim())
     .filter((v) => v.length > 0);
 }
 
@@ -96,14 +95,16 @@ export function serializeFiltersToUrl(
 ): void {
   if (state.repos.length > 0) {
     const sorted = [...state.repos].sort();
-    params.set("repos", sorted.map(encodeURIComponent).join(","));
+    // URLSearchParams.set() handles encoding automatically when
+    // serialized via toString(). No manual encodeURIComponent needed.
+    params.set("repos", sorted.join(","));
   } else {
     params.delete("repos");
   }
 
   if (state.teams.length > 0) {
     const sorted = [...state.teams].sort();
-    params.set("teams", sorted.map(encodeURIComponent).join(","));
+    params.set("teams", sorted.join(","));
   } else {
     params.delete("teams");
   }
@@ -111,7 +112,7 @@ export function serializeFiltersToUrl(
   if (state.reviewers.length > 0) {
     const firstReviewer = state.reviewers[0];
     if (firstReviewer) {
-      params.set("reviewers", encodeURIComponent(firstReviewer));
+      params.set("reviewers", firstReviewer);
     } else {
       params.delete("reviewers");
     }
@@ -122,7 +123,7 @@ export function serializeFiltersToUrl(
   if (state.authors.length > 0) {
     const firstAuthor = state.authors[0];
     if (firstAuthor) {
-      params.set("author", encodeURIComponent(firstAuthor));
+      params.set("author", firstAuthor);
     } else {
       params.delete("author");
     }
