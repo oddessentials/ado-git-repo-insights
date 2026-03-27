@@ -1017,7 +1017,7 @@ input[type="search"]::placeholder {
     font-size: 12px;
     pointer-events: none;
     z-index: 150;
-    max-width: 280px;
+    max-width: min(280px, calc(100vw - 16px));
     white-space: normal;
     line-height: 1.4;
     color: var(--text-secondary);
@@ -1028,23 +1028,32 @@ input[type="search"]::placeholder {
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    width: 16px;
-    height: 16px;
+    width: 20px;
+    height: 20px;
     font-size: 12px;
-    color: var(--text-tertiary);
+    color: var(--text-secondary);
     cursor: help;
     border: none;
     background: none;
-    padding: 0;
+    padding: 4px;
     margin-left: 4px;
     vertical-align: middle;
     border-radius: 50%;
-    transition: color 0.15s ease;
+    transition: color 0.15s ease, background-color 0.15s ease;
+    outline: 2px solid transparent;
+    outline-offset: 1px;
+    /* Touch target: 20px + 4px padding each side = 28px visible,
+       but hit area includes the padding for better tap accuracy */
 }
 
-.info-icon-btn:hover,
+.info-icon-btn:hover {
+    color: var(--primary);
+    background-color: var(--bg-tertiary);
+}
+
 .info-icon-btn:focus-visible {
     color: var(--primary);
+    outline-color: var(--primary);
 }
 
 .chart-tooltip-title {

@@ -253,12 +253,18 @@ const METRIC_TO_CONTAINER_KEY: Array<{
   { metricId: "reviewersCount", containerKey: "reviewersCount" },
 ];
 
+/** Per-button AbortControllers to prevent listener accumulation on re-render. */
+const infoIconControllers = new WeakMap<HTMLElement, AbortController>();
+
 /**
  * Attach info icons to summary card titles.
  *
  * Finds the card title element (h3) for each metric container
  * and appends an info icon button that shows the metric explanation
  * on hover or click.
+ *
+ * Safe to call on re-render: removes old icons and their listeners
+ * before creating new ones, preventing memory leaks.
  */
 function attachInfoIcons(containers: SummaryCardsContainers): void {
   for (const { metricId, containerKey } of METRIC_TO_CONTAINER_KEY) {
@@ -272,13 +278,20 @@ function attachInfoIcons(containers: SummaryCardsContainers): void {
     const title = card.querySelector("h3");
     if (!title) continue;
 
-    // Avoid duplicate info icons on re-render
-    const existing = title.querySelector(".info-icon-btn");
-    if (existing) continue;
+    // Remove old info icon and its listeners on re-render
+    const existing = title.querySelector(".info-icon-btn") as HTMLElement | null;
+    if (existing) {
+      infoIconControllers.get(existing)?.abort();
+      infoIconControllers.delete(existing);
+      existing.remove();
+    }
 
     const explanation =
       METRIC_EXPLANATIONS[metricId] ?? "";
     if (!explanation) continue;
+
+    const controller = new AbortController();
+    const { signal } = controller;
 
     const btn = document.createElement("button");
     btn.className = "info-icon-btn";
@@ -287,17 +300,19 @@ function attachInfoIcons(containers: SummaryCardsContainers): void {
     btn.setAttribute("data-info-tooltip", metricId);
     btn.textContent = "\u2139"; // Unicode info symbol ⓘ
 
-    btn.addEventListener("mouseenter", () => {
+    // Use pointer events for cross-device support (mouse, touch, pen)
+    btn.addEventListener("pointerenter", () => {
       showInfoTooltip(btn, explanation);
-    });
-    btn.addEventListener("mouseleave", () => {
+    }, { signal });
+    btn.addEventListener("pointerleave", () => {
       dismissAllTooltips();
-    });
+    }, { signal });
     btn.addEventListener("click", (e) => {
       e.stopPropagation();
       showInfoTooltip(btn, explanation);
-    });
+    }, { signal });
 
+    infoIconControllers.set(btn, controller);
     title.appendChild(btn);
   }
 }

@@ -5455,6 +5455,7 @@ var PRInsightsDashboard = (() => {
     { metricId: "authorsCount", containerKey: "authorsCount" },
     { metricId: "reviewersCount", containerKey: "reviewersCount" }
   ];
+  var infoIconControllers = /* @__PURE__ */ new WeakMap();
   function attachInfoIcons(containers) {
     for (const { metricId, containerKey } of METRIC_TO_CONTAINER_KEY) {
       const valueEl = containers[containerKey];
@@ -5464,25 +5465,32 @@ var PRInsightsDashboard = (() => {
       const title = card.querySelector("h3");
       if (!title) continue;
       const existing = title.querySelector(".info-icon-btn");
-      if (existing) continue;
+      if (existing) {
+        infoIconControllers.get(existing)?.abort();
+        infoIconControllers.delete(existing);
+        existing.remove();
+      }
       const explanation = METRIC_EXPLANATIONS[metricId] ?? "";
       if (!explanation) continue;
+      const controller = new AbortController();
+      const { signal } = controller;
       const btn = document.createElement("button");
       btn.className = "info-icon-btn";
       btn.setAttribute("type", "button");
       btn.setAttribute("aria-label", `About this metric`);
       btn.setAttribute("data-info-tooltip", metricId);
       btn.textContent = "\u2139";
-      btn.addEventListener("mouseenter", () => {
+      btn.addEventListener("pointerenter", () => {
         showInfoTooltip(btn, explanation);
-      });
-      btn.addEventListener("mouseleave", () => {
+      }, { signal });
+      btn.addEventListener("pointerleave", () => {
         dismissAllTooltips();
-      });
+      }, { signal });
       btn.addEventListener("click", (e) => {
         e.stopPropagation();
         showInfoTooltip(btn, explanation);
-      });
+      }, { signal });
+      infoIconControllers.set(btn, controller);
       title.appendChild(btn);
     }
   }
