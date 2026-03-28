@@ -16,6 +16,9 @@ import {
   parseFiltersFromUrl,
   serializeFiltersToUrl,
 } from "../../ui/modules/filters";
+import {
+  resolveFilterConstraints,
+} from "../../ui/modules/filter-constraint-resolver";
 import type { FilterState } from "../../ui/modules/filters";
 import {
   classifyEmptyState,
@@ -264,5 +267,60 @@ describe("Regression: allMetricsZeroed boundary conditions", () => {
 
     // Some data remains after filter — not empty
     expect(result).toBeNull();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Regression 4: Author+Reviewer must use "last interaction wins"
+// ---------------------------------------------------------------------------
+
+describe("Regression: author selection replaces reviewer when author is last touched", () => {
+  it("selecting author clears reviewer (lastChanged='authors')", () => {
+    const result = resolveFilterConstraints(
+      { repos: [], teams: [], reviewers: ["rev-1"], authors: ["auth-1"] },
+      "authors",
+    );
+    expect(result.effectiveState.authors).toEqual(["auth-1"]);
+    expect(result.effectiveState.reviewers).toEqual([]);
+  });
+
+  it("selecting reviewer clears author (lastChanged='reviewers')", () => {
+    const result = resolveFilterConstraints(
+      { repos: [], teams: [], reviewers: ["rev-1"], authors: ["auth-1"] },
+      "reviewers",
+    );
+    expect(result.effectiveState.authors).toEqual([]);
+    expect(result.effectiveState.reviewers).toEqual(["rev-1"]);
+  });
+
+  it("URL restore defaults to reviewer precedence (no lastChanged)", () => {
+    const result = resolveFilterConstraints(
+      { repos: [], teams: [], reviewers: ["rev-1"], authors: ["auth-1"] },
+    );
+    expect(result.effectiveState.authors).toEqual([]);
+    expect(result.effectiveState.reviewers).toEqual(["rev-1"]);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Regression 5: Author+Team must retain team state
+// ---------------------------------------------------------------------------
+
+describe("Regression: team chips preserved when author filter is applied", () => {
+  it("teams remain in effectiveState with author active", () => {
+    const result = resolveFilterConstraints(
+      { repos: [], teams: ["team-x", "team-y"], reviewers: [], authors: ["auth-1"] },
+    );
+    expect(result.effectiveState.teams).toEqual(["team-x", "team-y"]);
+    expect(result.effectiveState.authors).toEqual(["auth-1"]);
+    expect(result.constraintsApplied.some((n) => n.type === "author_team")).toBe(true);
+  });
+
+  it("teams in URL are preserved on restore with author", () => {
+    const result = resolveFilterConstraints(
+      { repos: [], teams: ["backend"], reviewers: [], authors: ["alice"] },
+    );
+    expect(result.effectiveState.teams).toEqual(["backend"]);
+    expect(result.effectiveState.authors).toEqual(["alice"]);
   });
 });

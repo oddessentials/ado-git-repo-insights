@@ -5968,7 +5968,7 @@ var PRInsightsDashboard = (() => {
   }
 
   // ../ui/modules/filter-constraint-resolver.ts
-  function resolveFilterConstraints(raw) {
+  function resolveFilterConstraints(raw, lastChanged) {
     const notices = [];
     const effective = {
       repos: [...raw.repos],
@@ -5982,32 +5982,31 @@ var PRInsightsDashboard = (() => {
     if (effective.authors.length > 1) {
       effective.authors = effective.authors[0] ? [effective.authors[0]] : [];
     }
-    const hasAuthor = effective.authors.length > 0;
-    const hasTeam = effective.teams.length > 0;
-    const hasReviewer = effective.reviewers.length > 0;
-    const hasRepo = effective.repos.length > 0;
-    if (hasAuthor && hasReviewer) {
-      effective.authors = [];
+    if (effective.authors.length > 0 && effective.reviewers.length > 0) {
+      if (lastChanged === "authors") {
+        effective.reviewers = [];
+      } else {
+        effective.authors = [];
+      }
       notices.push({
         type: "author_reviewer",
-        message: "Author and reviewer filters cannot be combined; using reviewer filter."
+        message: lastChanged === "authors" ? "Author and reviewer filters cannot be combined; reviewer filter cleared." : "Author and reviewer filters cannot be combined; using reviewer filter."
       });
     }
-    if (effective.authors.length > 0 && hasTeam) {
-      effective.teams = [];
+    if (effective.authors.length > 0 && effective.teams.length > 0) {
       notices.push({
         type: "author_team",
-        message: "Using author-only metrics; team selection cleared."
+        message: "Author filter active; showing author-only metrics. Team selection retained for display."
       });
     }
-    if (hasReviewer && hasTeam) {
+    if (effective.reviewers.length > 0 && effective.teams.length > 0) {
       effective.teams = [];
       notices.push({
         type: "reviewer_team",
         message: "Reviewer and team filtering cannot be combined; team selection cleared."
       });
     }
-    if (hasReviewer && hasRepo) {
+    if (effective.reviewers.length > 0 && effective.repos.length > 0) {
       notices.push({
         type: "reviewer_repo",
         message: "Using reviewer-only metrics; repository selection retained for display."
@@ -7166,7 +7165,7 @@ var PRInsightsDashboard = (() => {
         mode: "multi",
         placeholder: "Search repositories...",
         initialSelection: [],
-        onChange: () => handleTypeaheadFilterChange()
+        onChange: () => handleTypeaheadFilterChange("repos")
       });
       elements["repo-filter-group"]?.classList.remove("hidden");
     } else {
@@ -7183,7 +7182,7 @@ var PRInsightsDashboard = (() => {
         mode: "multi",
         placeholder: "Search teams...",
         initialSelection: [],
-        onChange: () => handleTypeaheadFilterChange()
+        onChange: () => handleTypeaheadFilterChange("teams")
       });
       elements["team-filter-group"]?.classList.remove("hidden");
     } else {
@@ -7200,7 +7199,7 @@ var PRInsightsDashboard = (() => {
         mode: "single",
         placeholder: "Search reviewers...",
         initialSelection: [],
-        onChange: () => handleTypeaheadFilterChange()
+        onChange: () => handleTypeaheadFilterChange("reviewers")
       });
       elements["reviewer-filter-group"]?.classList.remove("hidden");
     } else {
@@ -7217,7 +7216,7 @@ var PRInsightsDashboard = (() => {
         mode: "single",
         placeholder: "Search authors...",
         initialSelection: [],
-        onChange: () => handleTypeaheadFilterChange()
+        onChange: () => handleTypeaheadFilterChange("authors")
       });
       elements["author-filter-group"]?.classList.remove("hidden");
     } else {
@@ -7226,22 +7225,23 @@ var PRInsightsDashboard = (() => {
     }
     restoreFiltersFromUrl();
   }
-  function handleTypeaheadFilterChange() {
+  function handleTypeaheadFilterChange(lastChanged) {
     const rawState = {
       repos: typeaheadRepo?.getSelected() ?? [],
       teams: typeaheadTeam?.getSelected() ?? [],
       reviewers: typeaheadReviewer?.getSelected() ?? [],
       authors: typeaheadAuthor?.getSelected() ?? []
     };
-    const { effectiveState, constraintsApplied } = resolveFilterConstraints(rawState);
-    const notice = constraintsApplied[0];
-    reviewerFilterNoticeMessage = notice?.message ?? null;
+    const { effectiveState, constraintsApplied } = resolveFilterConstraints(rawState, lastChanged);
+    const reviewerNotice = constraintsApplied.find(
+      (n) => n.type === "author_reviewer" || n.type === "reviewer_team" || n.type === "reviewer_repo"
+    );
+    reviewerFilterNoticeMessage = reviewerNotice?.message ?? null;
     if (constraintsApplied.some((n) => n.type === "author_reviewer")) {
       typeaheadAuthor?.setSelected(effectiveState.authors);
+      typeaheadReviewer?.setSelected(effectiveState.reviewers);
     }
-    if (constraintsApplied.some(
-      (n) => n.type === "author_team" || n.type === "reviewer_team"
-    )) {
+    if (constraintsApplied.some((n) => n.type === "reviewer_team")) {
       typeaheadTeam?.setSelected(effectiveState.teams);
     }
     currentFilters = effectiveState;

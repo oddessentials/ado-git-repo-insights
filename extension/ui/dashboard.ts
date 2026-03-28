@@ -54,6 +54,7 @@ import {
   deriveAvailabilitySignal,
   // Filter constraint resolver
   resolveFilterConstraints,
+  type FilterDimension,
   // Typeahead dropdown component
   initTypeaheadDropdown,
   type TypeaheadInstance,
@@ -1278,7 +1279,7 @@ function populateFilterDropdowns(dimensions: DimensionsData | null): void {
       mode: "multi",
       placeholder: "Search repositories...",
       initialSelection: [],
-      onChange: () => handleTypeaheadFilterChange(),
+      onChange: () => handleTypeaheadFilterChange("repos"),
     });
     elements["repo-filter-group"]?.classList.remove("hidden");
   } else {
@@ -1297,7 +1298,7 @@ function populateFilterDropdowns(dimensions: DimensionsData | null): void {
       mode: "multi",
       placeholder: "Search teams...",
       initialSelection: [],
-      onChange: () => handleTypeaheadFilterChange(),
+      onChange: () => handleTypeaheadFilterChange("teams"),
     });
     elements["team-filter-group"]?.classList.remove("hidden");
   } else {
@@ -1316,7 +1317,7 @@ function populateFilterDropdowns(dimensions: DimensionsData | null): void {
       mode: "single",
       placeholder: "Search reviewers...",
       initialSelection: [],
-      onChange: () => handleTypeaheadFilterChange(),
+      onChange: () => handleTypeaheadFilterChange("reviewers"),
     });
     elements["reviewer-filter-group"]?.classList.remove("hidden");
   } else {
@@ -1335,7 +1336,7 @@ function populateFilterDropdowns(dimensions: DimensionsData | null): void {
       mode: "single",
       placeholder: "Search authors...",
       initialSelection: [],
-      onChange: () => handleTypeaheadFilterChange(),
+      onChange: () => handleTypeaheadFilterChange("authors"),
     });
     elements["author-filter-group"]?.classList.remove("hidden");
   } else {
@@ -1357,8 +1358,11 @@ function populateFilterDropdowns(dimensions: DimensionsData | null): void {
  *
  * Reads selections from all typeahead instances, resolves constraints
  * via the single-authority resolver (FR-010), and updates state.
+ *
+ * @param lastChanged - Which dimension the user last interacted with.
+ *   Passed to the resolver for Author ↔ Reviewer "last interaction wins."
  */
-function handleTypeaheadFilterChange(): void {
+function handleTypeaheadFilterChange(lastChanged?: FilterDimension): void {
   const rawState = {
     repos: typeaheadRepo?.getSelected() ?? [],
     teams: typeaheadTeam?.getSelected() ?? [],
@@ -1368,21 +1372,24 @@ function handleTypeaheadFilterChange(): void {
 
   // FR-010: Single-authority constraint resolution
   const { effectiveState, constraintsApplied } =
-    resolveFilterConstraints(rawState);
+    resolveFilterConstraints(rawState, lastChanged);
 
-  // Update notice message from constraint resolver
-  const notice = constraintsApplied[0];
-  reviewerFilterNoticeMessage = notice?.message ?? null;
+  // Update notice messages from constraint resolver (display only)
+  const reviewerNotice = constraintsApplied.find(
+    (n) =>
+      n.type === "author_reviewer" ||
+      n.type === "reviewer_team" ||
+      n.type === "reviewer_repo",
+  );
+  reviewerFilterNoticeMessage = reviewerNotice?.message ?? null;
 
   // Sync typeahead UI with resolved state (constraints may have cleared selections)
   if (constraintsApplied.some((n) => n.type === "author_reviewer")) {
+    // Bidirectional: one side was cleared, sync both
     typeaheadAuthor?.setSelected(effectiveState.authors);
+    typeaheadReviewer?.setSelected(effectiveState.reviewers);
   }
-  if (
-    constraintsApplied.some(
-      (n) => n.type === "author_team" || n.type === "reviewer_team",
-    )
-  ) {
+  if (constraintsApplied.some((n) => n.type === "reviewer_team")) {
     typeaheadTeam?.setSelected(effectiveState.teams);
   }
 
