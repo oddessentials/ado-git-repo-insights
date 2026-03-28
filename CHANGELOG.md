@@ -1,3 +1,10 @@
+# [5.30.0](https://github.com/oddessentials/ado-git-repo-insights/compare/v5.29.0...v5.30.0) (2026-03-28)
+
+
+### Features
+
+* **dashboard:** show "All selected" placeholder when all filter options chosen ([89cd2fa](https://github.com/oddessentials/ado-git-repo-insights/commit/89cd2fa0b52163fd5324a6e6f9c30233dd307401))
+
 # [5.29.0](https://github.com/oddessentials/ado-git-repo-insights/compare/v5.28.3...v5.29.0) (2026-03-28)
 
 
