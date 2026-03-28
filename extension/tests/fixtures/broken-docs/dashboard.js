@@ -6119,6 +6119,7 @@ var PRInsightsDashboard = (() => {
         item.className = "typeahead-option";
         item.setAttribute("role", "option");
         item.setAttribute("aria-selected", selected.includes(opt.id) ? "true" : "false");
+        item.setAttribute("data-testid", `typeahead-option-${opt.id}`);
         item.dataset.optionId = opt.id;
         if (selected.includes(opt.id)) {
           item.classList.add("typeahead-option-selected");

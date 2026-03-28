@@ -107,17 +107,13 @@ def main_branch_suppression_baseline() -> Path | None:
 def build_commands(
     suppression_baseline: Path | None, *, strict: bool = False
 ) -> tuple[CommandSpec, ...]:
+    # Suppression audit runs in strict mode for ALL branches (no --allow-pending-approval).
+    # Prior parity gap: non-strict branches used warning-only mode locally but CI
+    # enforced strictly, causing repeated churn (PR #207 incident).
+    # CI-hard-gate checks must never exist in a weaker local mode.
     local_suppression_gate = ["__PYTHON__", "scripts/audit-suppressions.py", "--diff"]
-    suppression_preview_command = [
-        "__PYTHON__",
-        "scripts/audit-suppressions.py",
-        "--diff",
-    ]
-    if not strict:
-        # In non-strict mode, warn but don't block on suppression increases
-        suppression_preview_command.append("--allow-pending-approval")
     if suppression_baseline is not None:
-        suppression_preview_command.extend(("--baseline", str(suppression_baseline)))
+        local_suppression_gate.extend(("--baseline", str(suppression_baseline)))
 
     suppression_env = {
         # Local preflight must not inherit ambient CI metadata and accidentally
@@ -326,11 +322,20 @@ def build_commands(
     ]
 
     if suppression_baseline is not None:
+        # When main-branch baseline is available, also run a comparison against it.
+        # Uses the same strict mode as the committed-baseline gate (no preview/warning mode).
+        main_suppression_command = [
+            "__PYTHON__",
+            "scripts/audit-suppressions.py",
+            "--diff",
+            "--baseline",
+            str(suppression_baseline),
+        ]
         commands.insert(
             8,
             CommandSpec(
-                "Suppression main-baseline preview",
-                tuple(suppression_preview_command),
+                "Suppression main-baseline gate",
+                tuple(main_suppression_command),
                 extra_env=suppression_env,
                 show_output_on_success=True,
             ),
