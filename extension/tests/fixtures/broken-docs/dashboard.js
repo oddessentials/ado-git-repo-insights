@@ -6205,7 +6205,9 @@ var PRInsightsDashboard = (() => {
         input.placeholder = selected.length > 0 ? "" : config.placeholder;
       } else {
         input.value = "";
-        if (selected.length === 0 || isAllSelected()) {
+        if (isAllSelected()) {
+          input.placeholder = "All selected";
+        } else if (selected.length === 0) {
           input.placeholder = config.placeholder;
         } else {
           input.placeholder = "Search...";
