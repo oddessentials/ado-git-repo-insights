@@ -35,7 +35,7 @@ describe("Dashboard Rendering", () => {
     // Import functions after DOM is set up
     const createRenderPredictions = () => {
       // Inline the rendering logic for testing
-      return function renderPredictions(container, predictions) {
+      return function renderPredictions(container: HTMLElement | null, predictions: { synthetic_warning?: boolean; is_stub?: boolean; forecasts?: Array<{ metric: string }> } | null | undefined) {
         if (!container) return;
 
         const content = document.createElement("div");
@@ -51,7 +51,7 @@ describe("Dashboard Rendering", () => {
         }
 
         if (predictions && predictions.forecasts) {
-          predictions.forecasts.forEach((forecast) => {
+          predictions.forecasts.forEach((forecast: { metric: string }) => {
             const section = document.createElement("div");
             section.className = "forecast-section";
             section.innerHTML = `<h4>${forecast.metric}</h4>`;
@@ -92,8 +92,8 @@ describe("Dashboard Rendering", () => {
 
       renderPredictions(container, stubPredictions);
 
-      expect(container.innerHTML).toContain("stub-warning");
-      expect(container.innerHTML).toContain("synthetic");
+      expect(container!.innerHTML).toContain("stub-warning");
+      expect(container!.innerHTML).toContain("synthetic");
     });
 
     it("does not render stub warning when is_stub=false", () => {
@@ -107,7 +107,7 @@ describe("Dashboard Rendering", () => {
 
       renderPredictions(container, realPredictions);
 
-      expect(container.innerHTML).not.toContain("stub-warning");
+      expect(container!.innerHTML).not.toContain("stub-warning");
     });
 
     it("handles null container safely", () => {
@@ -121,7 +121,7 @@ describe("Dashboard Rendering", () => {
 
   describe("renderAIInsights", () => {
     const createRenderAIInsights = () => {
-      return function renderAIInsights(container, insights) {
+      return function renderAIInsights(container: HTMLElement | null, insights: { is_stub?: boolean; insights?: Array<{ severity: string; title: string }> } | null | undefined) {
         if (!container) return;
 
         const content = document.createElement("div");
@@ -138,10 +138,10 @@ describe("Dashboard Rendering", () => {
         if (insights && insights.insights) {
           // Group by severity
           const severityOrder = ["critical", "warning", "info"];
-          const grouped = {};
-          insights.insights.forEach((insight) => {
+          const grouped: Record<string, Array<{ severity: string; title: string }>> = {};
+          insights.insights.forEach((insight: { severity: string; title: string }) => {
             if (!grouped[insight.severity]) grouped[insight.severity] = [];
-            grouped[insight.severity].push(insight);
+            grouped[insight.severity]!.push(insight);
           });
 
           severityOrder.forEach((severity) => {
@@ -151,7 +151,7 @@ describe("Dashboard Rendering", () => {
             section.className = `severity-section severity-${severity}`;
             section.setAttribute("data-severity", severity);
             section.innerHTML = `<h4>${severity}</h4>`;
-            grouped[severity].forEach((insight) => {
+            grouped[severity]!.forEach((insight: { severity: string; title: string }) => {
               section.innerHTML += `<div class="insight-card">${insight.title}</div>`;
             });
             content.appendChild(section);
@@ -178,7 +178,7 @@ describe("Dashboard Rendering", () => {
       renderAIInsights(container, insights);
 
       // Check severity sections exist
-      const sections = container.querySelectorAll(".severity-section");
+      const sections = container!.querySelectorAll(".severity-section");
       expect(sections.length).toBe(3);
 
       // Check order: critical, warning, info
@@ -217,13 +217,13 @@ describe("Dashboard Rendering", () => {
 
       renderAIInsights(container, stubInsights);
 
-      expect(container.innerHTML).toContain("stub-warning");
+      expect(container!.innerHTML).toContain("stub-warning");
     });
   });
 
   describe("Error State Rendering", () => {
     const createRenderPredictionsError = () => {
-      return function renderPredictionsError(container, errorCode, message) {
+      return function renderPredictionsError(container: HTMLElement | null, errorCode: string, message: string) {
         if (!container) return;
 
         const unavailable = container.querySelector(".feature-unavailable");
@@ -240,7 +240,7 @@ describe("Dashboard Rendering", () => {
     };
 
     const createRenderPredictionsEmpty = () => {
-      return function renderPredictionsEmpty(container) {
+      return function renderPredictionsEmpty(container: HTMLElement | null) {
         if (!container) return;
 
         const unavailable = container.querySelector(".feature-unavailable");
@@ -256,7 +256,7 @@ describe("Dashboard Rendering", () => {
     };
 
     const createRenderInsightsError = () => {
-      return function renderInsightsError(container, errorCode, message) {
+      return function renderInsightsError(container: HTMLElement | null, errorCode: string, message: string) {
         if (!container) return;
 
         const unavailable = container.querySelector(".feature-unavailable");
@@ -273,7 +273,7 @@ describe("Dashboard Rendering", () => {
     };
 
     const createRenderInsightsEmpty = () => {
-      return function renderInsightsEmpty(container) {
+      return function renderInsightsEmpty(container: HTMLElement | null) {
         if (!container) return;
 
         const unavailable = container.querySelector(".feature-unavailable");
@@ -294,7 +294,7 @@ describe("Dashboard Rendering", () => {
 
       renderPredictionsEmpty(container);
 
-      expect(container.innerHTML).toContain("No Prediction Data");
+      expect(container!.innerHTML).toContain("No Prediction Data");
     });
 
     it('Invalid state shows "Unable to display" + diagnostic code for predictions', () => {
@@ -303,8 +303,8 @@ describe("Dashboard Rendering", () => {
 
       renderPredictionsError(container, "PRED_001", "Schema validation failed");
 
-      expect(container.innerHTML).toContain("Unable to Display");
-      expect(container.innerHTML).toContain("PRED_001");
+      expect(container!.innerHTML).toContain("Unable to Display");
+      expect(container!.innerHTML).toContain("PRED_001");
     });
 
     it('Empty state shows "No data yet" message for insights', () => {
@@ -313,7 +313,7 @@ describe("Dashboard Rendering", () => {
 
       renderInsightsEmpty(container);
 
-      expect(container.innerHTML).toContain("No Insights Available");
+      expect(container!.innerHTML).toContain("No Insights Available");
     });
 
     it('Invalid state shows "Unable to display" + diagnostic code for insights', () => {
@@ -322,8 +322,8 @@ describe("Dashboard Rendering", () => {
 
       renderInsightsError(container, "AI_001", "Schema validation failed");
 
-      expect(container.innerHTML).toContain("Unable to Display");
-      expect(container.innerHTML).toContain("AI_001");
+      expect(container!.innerHTML).toContain("Unable to Display");
+      expect(container!.innerHTML).toContain("AI_001");
     });
 
     it("rendering functions handle null container (never throw)", () => {
@@ -345,7 +345,7 @@ describe("Dashboard Rendering", () => {
      * Mirrors the logic in dashboard.js.
      */
     const createShowDateRangeWarning = () => {
-      return function showDateRangeWarning(days) {
+      return function showDateRangeWarning(days: string | number) {
         return new Promise((resolve) => {
           // Create modal if it doesn't exist
           let modal = document.getElementById("date-range-warning-modal");
@@ -372,17 +372,17 @@ describe("Dashboard Rendering", () => {
           }
 
           // Update days count
-          document.getElementById("modal-days").textContent = days;
+          document.getElementById("modal-days")!.textContent = String(days);
 
           // Show modal
           modal.classList.add("show");
 
           // Handle button clicks
-          const adjustBtn = document.getElementById("modal-adjust");
-          const continueBtn = document.getElementById("modal-continue");
+          const adjustBtn = document.getElementById("modal-adjust")!;
+          const continueBtn = document.getElementById("modal-continue")!;
 
           const cleanup = () => {
-            modal.classList.remove("show");
+            modal!.classList.remove("show");
             adjustBtn.removeEventListener("click", onAdjust);
             continueBtn.removeEventListener("click", onContinue);
           };
@@ -424,14 +424,14 @@ describe("Dashboard Rendering", () => {
       // Modal should be visible
       const modal = document.getElementById("date-range-warning-modal");
       expect(modal).not.toBeNull();
-      expect(modal.classList.contains("show")).toBe(true);
+      expect(modal!.classList.contains("show")).toBe(true);
 
       // Days should be displayed
       const daysElement = document.getElementById("modal-days");
-      expect(daysElement.textContent).toBe("400");
+      expect(daysElement!.textContent).toBe("400");
 
       // Clean up by clicking continue
-      document.getElementById("modal-continue").click();
+      document.getElementById("modal-continue")!.click();
       await warningPromise;
     });
 
@@ -442,7 +442,7 @@ describe("Dashboard Rendering", () => {
       const warningPromise = showDateRangeWarning(days);
 
       // Click "Adjust Range"
-      document.getElementById("modal-adjust").click();
+      document.getElementById("modal-adjust")!.click();
 
       const result = await warningPromise;
 
@@ -451,7 +451,7 @@ describe("Dashboard Rendering", () => {
 
       // Modal should be hidden
       const modal = document.getElementById("date-range-warning-modal");
-      expect(modal.classList.contains("show")).toBe(false);
+      expect(modal!.classList.contains("show")).toBe(false);
     });
 
     it('"Continue" click → modal hidden, returns true (load proceeds)', async () => {
@@ -461,7 +461,7 @@ describe("Dashboard Rendering", () => {
       const warningPromise = showDateRangeWarning(days);
 
       // Click "Continue Anyway"
-      document.getElementById("modal-continue").click();
+      document.getElementById("modal-continue")!.click();
 
       const result = await warningPromise;
 
@@ -470,7 +470,7 @@ describe("Dashboard Rendering", () => {
 
       // Modal should be hidden
       const modal = document.getElementById("date-range-warning-modal");
-      expect(modal.classList.contains("show")).toBe(false);
+      expect(modal!.classList.contains("show")).toBe(false);
     });
 
     it("Modal displays correct day count", async () => {
@@ -480,10 +480,10 @@ describe("Dashboard Rendering", () => {
       const warningPromise = showDateRangeWarning(days);
 
       const daysElement = document.getElementById("modal-days");
-      expect(daysElement.textContent).toBe("999");
+      expect(daysElement!.textContent).toBe("999");
 
       // Clean up
-      document.getElementById("modal-continue").click();
+      document.getElementById("modal-continue")!.click();
       await warningPromise;
     });
 
@@ -492,13 +492,13 @@ describe("Dashboard Rendering", () => {
 
       // First show
       let promise = showDateRangeWarning(400);
-      document.getElementById("modal-adjust").click();
+      document.getElementById("modal-adjust")!.click();
       let result = await promise;
       expect(result).toBe(false);
 
       // Second show
       promise = showDateRangeWarning(500);
-      document.getElementById("modal-continue").click();
+      document.getElementById("modal-continue")!.click();
       result = await promise;
       expect(result).toBe(true);
     });
@@ -507,10 +507,10 @@ describe("Dashboard Rendering", () => {
       /**
        * Simulates applyCustomDates logic for testing threshold behavior.
        */
-      const createApplyCustomDates = (showWarningFn) => {
-        return async function applyCustomDates(startDate, endDate) {
+      const createApplyCustomDates = (showWarningFn: (days: number) => Promise<boolean>) => {
+        return async function applyCustomDates(startDate: Date, endDate: Date) {
           const daysDiff = Math.floor(
-            (endDate - startDate) / (1000 * 60 * 60 * 24),
+            (endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24),
           );
 
           // Show warning if range > 365 days
@@ -565,7 +565,7 @@ describe("Dashboard Rendering", () => {
         const result = await applyCustomDates(start, end);
 
         expect(result.proceeded).toBe(false);
-        expect(result.reason).toBe("user-cancelled");
+        expect((result as { proceeded: false; reason: string }).reason).toBe("user-cancelled");
       });
     });
   });
@@ -596,8 +596,8 @@ describe("Utility Functions", () => {
       const sorted = [...arr].sort((a, b) => a - b);
       const mid = Math.floor(sorted.length / 2);
       return sorted.length % 2
-        ? sorted[mid]
-        : (sorted[mid - 1] + sorted[mid]) / 2;
+        ? sorted[mid]!
+        : (sorted[mid - 1]! + sorted[mid]!) / 2;
     };
   };
 
@@ -655,7 +655,7 @@ describe("Sprint 1: Trend Deltas & Metrics", () => {
   /**
    * Calculate metrics from rollups (mirrors dashboard.js calculateMetrics)
    */
-  const createCalculateMetrics = (medianFn) => {
+  const createCalculateMetrics = (medianFn: (arr: number[]) => number | null) => {
     return function calculateMetrics(rollups: any[]) {
       if (!rollups || !rollups.length) {
         return {
@@ -767,8 +767,8 @@ describe("Sprint 1: Trend Deltas & Metrics", () => {
     const sorted = [...arr].sort((a, b) => a - b);
     const mid = Math.floor(sorted.length / 2);
     return sorted.length % 2
-      ? sorted[mid]
-      : (sorted[mid - 1] + sorted[mid]) / 2;
+      ? sorted[mid]!
+      : (sorted[mid - 1]! + sorted[mid]!) / 2;
   };
 
   describe("calculateMetrics", () => {
@@ -819,8 +819,8 @@ describe("Sprint 1: Trend Deltas & Metrics", () => {
     });
 
     it("handles null/undefined rollups", () => {
-      expect(createCalculateMetrics(median)(null).totalPrs).toBe(0);
-      expect(createCalculateMetrics(median)(undefined).totalPrs).toBe(0);
+      expect(createCalculateMetrics(median)(null as unknown as any[]).totalPrs).toBe(0);
+      expect(createCalculateMetrics(median)(undefined as unknown as any[]).totalPrs).toBe(0);
     });
 
     it("handles missing fields in rollups", () => {
@@ -923,7 +923,7 @@ describe("Sprint 1: Trend Deltas & Metrics", () => {
     });
 
     it("renders positive delta with up arrow", () => {
-      const element = document.getElementById("delta-element");
+      const element = document.getElementById("delta-element")!;
       renderDelta(element, 15);
 
       expect(element.className).toContain("delta-positive");
@@ -932,7 +932,7 @@ describe("Sprint 1: Trend Deltas & Metrics", () => {
     });
 
     it("renders negative delta with down arrow", () => {
-      const element = document.getElementById("delta-element");
+      const element = document.getElementById("delta-element")!;
       renderDelta(element, -20);
 
       expect(element.className).toContain("delta-negative");
@@ -940,7 +940,7 @@ describe("Sprint 1: Trend Deltas & Metrics", () => {
     });
 
     it("renders neutral delta for small changes", () => {
-      const element = document.getElementById("delta-element");
+      const element = document.getElementById("delta-element")!;
       renderDelta(element, 1.5);
 
       expect(element.className).toContain("delta-neutral");
@@ -948,14 +948,14 @@ describe("Sprint 1: Trend Deltas & Metrics", () => {
     });
 
     it("applies inverse logic for cycle time (lower is better)", () => {
-      const element = document.getElementById("delta-element");
+      const element = document.getElementById("delta-element")!;
       renderDelta(element, -15, true); // Cycle time decreased = good
 
       expect(element.className).toContain("delta-positive-inverse");
     });
 
     it("clears element for null percentChange", () => {
-      const element = document.getElementById("delta-element");
+      const element = document.getElementById("delta-element")!;
       element.innerHTML = "previous content";
       renderDelta(element, null);
 
@@ -968,7 +968,7 @@ describe("Sprint 1: Trend Deltas & Metrics", () => {
     });
 
     it("handles boundary value of exactly 2%", () => {
-      const element = document.getElementById("delta-element");
+      const element = document.getElementById("delta-element")!;
       renderDelta(element, 2);
 
       // 2% is at the boundary, should still be neutral (< 2 check uses strict less than)
@@ -976,7 +976,7 @@ describe("Sprint 1: Trend Deltas & Metrics", () => {
     });
 
     it("handles boundary value of -2%", () => {
-      const element = document.getElementById("delta-element");
+      const element = document.getElementById("delta-element")!;
       renderDelta(element, -2);
 
       expect(element.className).toContain("delta-negative");
@@ -990,7 +990,7 @@ describe("Sprint 3: Sparklines & Moving Average", () => {
    */
   const createCalculateMovingAverage = () => {
     return function calculateMovingAverage(values: number[], window = 4) {
-      const result = [];
+      const result: (number | null)[] = [];
       for (let i = 0; i < values.length; i++) {
         if (i < window - 1) {
           result.push(null);
@@ -1065,8 +1065,8 @@ describe("Sprint 3: Sparklines & Moving Average", () => {
         .join(" ");
       const areaD =
         pathD +
-        ` L ${points[points.length - 1].x.toFixed(1)} ${height - padding} L ${points[0].x.toFixed(1)} ${height - padding} Z`;
-      const lastPoint = points[points.length - 1];
+        ` L ${points[points.length - 1]!.x.toFixed(1)} ${height - padding} L ${points[0]!.x.toFixed(1)} ${height - padding} Z`;
+      const lastPoint = points[points.length - 1]!;
 
       element.innerHTML = `
                 <svg viewBox="0 0 ${width} ${height}" preserveAspectRatio="none">
@@ -1207,7 +1207,7 @@ describe("Sprint 3: Sparklines & Moving Average", () => {
     });
 
     it("renders SVG with path elements", () => {
-      const element = document.getElementById("sparkline-container");
+      const element = document.getElementById("sparkline-container")!;
       renderSparkline(element, [10, 20, 30, 40, 50]);
 
       expect(element.innerHTML).toContain("<svg");
@@ -1217,7 +1217,7 @@ describe("Sprint 3: Sparklines & Moving Average", () => {
     });
 
     it("limits to last 8 data points", () => {
-      const element = document.getElementById("sparkline-container");
+      const element = document.getElementById("sparkline-container")!;
       const values = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12];
       renderSparkline(element, values);
 
@@ -1226,7 +1226,7 @@ describe("Sprint 3: Sparklines & Moving Average", () => {
     });
 
     it("clears element for insufficient data", () => {
-      const element = document.getElementById("sparkline-container");
+      const element = document.getElementById("sparkline-container")!;
       element.innerHTML = "previous content";
       renderSparkline(element, [10]); // Only 1 point
 
@@ -1234,7 +1234,7 @@ describe("Sprint 3: Sparklines & Moving Average", () => {
     });
 
     it("clears element for null values", () => {
-      const element = document.getElementById("sparkline-container");
+      const element = document.getElementById("sparkline-container")!;
       element.innerHTML = "previous content";
       renderSparkline(element, null);
 
@@ -1246,7 +1246,7 @@ describe("Sprint 3: Sparklines & Moving Average", () => {
     });
 
     it("handles flat data (all same values)", () => {
-      const element = document.getElementById("sparkline-container");
+      const element = document.getElementById("sparkline-container")!;
       renderSparkline(element, [50, 50, 50, 50]);
 
       expect(element.innerHTML).toContain("<svg");
@@ -1254,7 +1254,7 @@ describe("Sprint 3: Sparklines & Moving Average", () => {
     });
 
     it("includes viewBox attribute for proper scaling", () => {
-      const element = document.getElementById("sparkline-container");
+      const element = document.getElementById("sparkline-container")!;
       renderSparkline(element, [10, 20, 30]);
 
       expect(element.innerHTML).toContain('viewBox="0 0 60 24"');
@@ -1272,7 +1272,7 @@ describe("Sprint 4: Charts & Tooltips", () => {
       contentFn: (dot: Element) => string,
     ) {
       const dots = container.querySelectorAll(".line-chart-dot");
-      let tooltip = null;
+      let tooltip: HTMLDivElement | null = null;
 
       dots.forEach((dot) => {
         dot.addEventListener("mouseenter", (_e) => {
@@ -1314,8 +1314,8 @@ describe("Sprint 4: Charts & Tooltips", () => {
     });
 
     it("attaches event listeners to chart dots", () => {
-      const container = document.getElementById("chart-container");
-      const contentFn = (dot) => `<div>Week: ${dot.dataset.week}</div>`;
+      const container = document.getElementById("chart-container")!;
+      const contentFn = (dot: Element) => `<div>Week: ${(dot as HTMLElement).dataset.week}</div>`;
 
       addChartTooltips(container, contentFn);
 
@@ -1324,50 +1324,50 @@ describe("Sprint 4: Charts & Tooltips", () => {
 
       // Simulate mouseenter
       const event = new MouseEvent("mouseenter", { bubbles: true });
-      dots[0].dispatchEvent(event);
+      dots[0]!.dispatchEvent(event);
 
       const tooltip = container.querySelector(".chart-tooltip");
       expect(tooltip).not.toBeNull();
-      expect(tooltip.innerHTML).toContain("2025-W01");
+      expect(tooltip!.innerHTML).toContain("2025-W01");
     });
 
     it("hides tooltip on mouseleave", () => {
-      const container = document.getElementById("chart-container");
-      const contentFn = (dot) => `<div>Week: ${dot.dataset.week}</div>`;
+      const container = document.getElementById("chart-container")!;
+      const contentFn = (dot: Element) => `<div>Week: ${(dot as HTMLElement).dataset.week}</div>`;
 
       addChartTooltips(container, contentFn);
 
       const dots = container.querySelectorAll(".line-chart-dot");
 
       // Show tooltip
-      dots[0].dispatchEvent(new MouseEvent("mouseenter", { bubbles: true }));
+      dots[0]!.dispatchEvent(new MouseEvent("mouseenter", { bubbles: true }));
       const tooltip = container.querySelector(".chart-tooltip") as HTMLElement;
       expect(tooltip.style.display).toBe("block");
 
       // Hide tooltip
-      dots[0].dispatchEvent(new MouseEvent("mouseleave", { bubbles: true }));
+      dots[0]!.dispatchEvent(new MouseEvent("mouseleave", { bubbles: true }));
       expect(tooltip.style.display).toBe("none");
     });
 
     it("updates tooltip content on different dot hover", () => {
-      const container = document.getElementById("chart-container");
-      const contentFn = (dot) =>
-        `<div>${dot.dataset.week}: ${dot.dataset.value}</div>`;
+      const container = document.getElementById("chart-container")!;
+      const contentFn = (dot: Element) =>
+        `<div>${(dot as HTMLElement).dataset.week}: ${(dot as HTMLElement).dataset.value}</div>`;
 
       addChartTooltips(container, contentFn);
 
       const dots = container.querySelectorAll(".line-chart-dot");
 
       // Hover first dot
-      dots[0].dispatchEvent(new MouseEvent("mouseenter", { bubbles: true }));
+      dots[0]!.dispatchEvent(new MouseEvent("mouseenter", { bubbles: true }));
       const tooltip = container.querySelector(".chart-tooltip");
-      expect(tooltip.innerHTML).toContain("2025-W01");
-      expect(tooltip.innerHTML).toContain("60");
+      expect(tooltip!.innerHTML).toContain("2025-W01");
+      expect(tooltip!.innerHTML).toContain("60");
 
       // Hover second dot
-      dots[1].dispatchEvent(new MouseEvent("mouseenter", { bubbles: true }));
-      expect(tooltip.innerHTML).toContain("2025-W02");
-      expect(tooltip.innerHTML).toContain("75");
+      dots[1]!.dispatchEvent(new MouseEvent("mouseenter", { bubbles: true }));
+      expect(tooltip!.innerHTML).toContain("2025-W02");
+      expect(tooltip!.innerHTML).toContain("75");
     });
   });
 
@@ -1397,11 +1397,11 @@ describe("Sprint 4: Charts & Tooltips", () => {
       ];
 
       if (!rollups || rollups.length < 2) {
-        container.innerHTML =
+        container!.innerHTML =
           '<p class="no-data">Not enough data for trend</p>';
       }
 
-      expect(container.innerHTML).toContain("Not enough data");
+      expect(container!.innerHTML).toContain("Not enough data");
     });
   });
 
@@ -1434,11 +1434,11 @@ describe("Sprint 4: Charts & Tooltips", () => {
         ...rollups.map((r) => r.reviewers_count || 0),
       );
       if (maxReviewers === 0) {
-        container.innerHTML =
+        container!.innerHTML =
           '<p class="no-data">No reviewer data available</p>';
       }
 
-      expect(container.innerHTML).toContain("No reviewer data");
+      expect(container!.innerHTML).toContain("No reviewer data");
     });
   });
 });
@@ -1479,22 +1479,22 @@ describe("Sprint 5: Comparison Mode & Export", () => {
 
       const toast = document.querySelector(".toast");
       expect(toast).not.toBeNull();
-      expect(toast.className).toContain("success");
-      expect(toast.textContent).toBe("Test message");
+      expect(toast!.className).toContain("success");
+      expect(toast!.textContent).toBe("Test message");
     });
 
     it("creates toast with error type", () => {
       showToast("Error occurred", "error");
 
       const toast = document.querySelector(".toast");
-      expect(toast.className).toContain("error");
+      expect(toast!.className).toContain("error");
     });
 
     it("defaults to success type", () => {
       showToast("Default type");
 
       const toast = document.querySelector(".toast");
-      expect(toast.className).toContain("success");
+      expect(toast!.className).toContain("success");
     });
 
     it("removes toast after 3 seconds", () => {
@@ -1509,7 +1509,7 @@ describe("Sprint 5: Comparison Mode & Export", () => {
   });
 
   describe("exportToCsv", () => {
-    const createExportToCsv = (cachedRollups, showToastFn) => {
+    const createExportToCsv = (cachedRollups: any[] | null, showToastFn: (msg: string, type: string) => void) => {
       return function exportToCsv() {
         if (!cachedRollups || cachedRollups.length === 0) {
           showToastFn("No data to export", "error");
@@ -1633,10 +1633,10 @@ describe("Sprint 5: Comparison Mode & Export", () => {
      * Create downloadRawDataZip function for testing
      */
     const createDownloadRawDataZip = (
-      currentBuildId,
-      artifactClient,
-      showToastFn,
-      elementsExportMenu,
+      currentBuildId: number | null,
+      artifactClient: any,
+      showToastFn: (msg: string, type: string) => void,
+      elementsExportMenu: any,
     ) => {
       return async function downloadRawDataZip() {
         elementsExportMenu?.classList.add("hidden");
@@ -1703,7 +1703,7 @@ describe("Sprint 5: Comparison Mode & Export", () => {
       const result = await downloadRawDataZip();
 
       expect(result.success).toBe(false);
-      expect(result.reason).toBe("no-build-id");
+      expect((result as { success: false; reason: string }).reason).toBe("no-build-id");
       expect(showToast).toHaveBeenCalledWith(
         "Raw data not available in direct URL mode",
         "error",
@@ -1723,7 +1723,7 @@ describe("Sprint 5: Comparison Mode & Export", () => {
       const result = await downloadRawDataZip();
 
       expect(result.success).toBe(false);
-      expect(result.reason).toBe("no-artifact");
+      expect((result as { success: false; reason: string }).reason).toBe("no-artifact");
       expect(showToast).toHaveBeenCalledWith(
         "Raw CSV artifact not found in this pipeline run",
         "error",
@@ -1745,7 +1745,7 @@ describe("Sprint 5: Comparison Mode & Export", () => {
       const result = await downloadRawDataZip();
 
       expect(result.success).toBe(false);
-      expect(result.reason).toBe("no-url");
+      expect((result as { success: false; reason: string }).reason).toBe("no-url");
       expect(showToast).toHaveBeenCalledWith(
         "Download URL not available",
         "error",
@@ -1772,7 +1772,7 @@ describe("Sprint 5: Comparison Mode & Export", () => {
       const result = await downloadRawDataZip();
 
       expect(result.success).toBe(true);
-      expect(result.zipUrl).toContain("format=zip");
+      expect((result as { success: true; zipUrl: string }).zipUrl).toContain("format=zip");
       expect(artifactClient._authenticatedFetch).toHaveBeenCalledWith(
         expect.stringContaining("format=zip"),
       );
@@ -1797,7 +1797,7 @@ describe("Sprint 5: Comparison Mode & Export", () => {
 
       expect(result.success).toBe(true);
       // Should not have double format=zip
-      expect((result.zipUrl.match(/format=zip/g) || []).length).toBe(1);
+      expect(((result as { success: true; zipUrl: string }).zipUrl.match(/format=zip/g) || []).length).toBe(1);
     });
 
     it("handles 403 permission denied", async () => {
@@ -1914,8 +1914,8 @@ describe("Sprint 5: Comparison Mode & Export", () => {
 
     it("toggles comparison mode on button click", () => {
       let comparisonMode = false;
-      const toggle = document.getElementById("compare-toggle");
-      const banner = document.getElementById("comparison-banner");
+      const toggle = document.getElementById("compare-toggle")!;
+      const banner = document.getElementById("comparison-banner")!;
 
       // Simulate toggle
       comparisonMode = !comparisonMode;
@@ -1930,8 +1930,8 @@ describe("Sprint 5: Comparison Mode & Export", () => {
     it("exits comparison mode", () => {
       // eslint-disable-next-line prefer-const -- REASON: intentionally mutable to verify true→false state transition
       let comparisonMode = true;
-      const toggle = document.getElementById("compare-toggle");
-      const banner = document.getElementById("comparison-banner");
+      const toggle = document.getElementById("compare-toggle")!;
+      const banner = document.getElementById("comparison-banner")!;
 
       toggle.classList.add("active");
       banner.classList.remove("hidden");
@@ -1960,12 +1960,12 @@ describe("Sprint 5: Comparison Mode & Export", () => {
     it("updates banner with formatted date ranges", () => {
       const currentPeriodDates = document.getElementById(
         "current-period-dates",
-      );
+      )!;
       const previousPeriodDates = document.getElementById(
         "previous-period-dates",
-      );
+      )!;
 
-      const formatDate = (date) =>
+      const formatDate = (date: Date) =>
         date.toLocaleDateString("en-US", {
           month: "short",
           day: "numeric",
@@ -2411,10 +2411,10 @@ describe("Sprint 2: Filter Management", () => {
     });
 
     it("shows clear button when filters are active", () => {
-      const clearBtn = document.getElementById("clear-filters");
-      const activeFilters = document.getElementById("active-filters");
+      const clearBtn = document.getElementById("clear-filters")!;
+      const activeFilters = document.getElementById("active-filters")!;
 
-      const currentFilters = { repos: ["backend"], teams: [] };
+      const currentFilters: { repos: string[]; teams: string[] } = { repos: ["backend"], teams: [] };
       const hasFilters =
         currentFilters.repos.length > 0 || currentFilters.teams.length > 0;
 
@@ -2426,10 +2426,10 @@ describe("Sprint 2: Filter Management", () => {
     });
 
     it("hides clear button when no filters", () => {
-      const clearBtn = document.getElementById("clear-filters");
-      const activeFilters = document.getElementById("active-filters");
+      const clearBtn = document.getElementById("clear-filters")!;
+      const activeFilters = document.getElementById("active-filters")!;
 
-      const currentFilters = { repos: [], teams: [] };
+      const currentFilters: { repos: string[]; teams: string[] } = { repos: [], teams: [] };
       const hasFilters =
         currentFilters.repos.length > 0 || currentFilters.teams.length > 0;
 
@@ -2458,7 +2458,7 @@ describe("Sprint 2: Filter Management", () => {
       ).selected = true;
 
       // Clear filters
-      const currentFilters = { repos: [], teams: [] };
+      const currentFilters: { repos: string[]; teams: string[] } = { repos: [], teams: [] };
       Array.from(repoFilter.options).forEach(
         (o) => (o.selected = o.value === ""),
       );
@@ -2534,7 +2534,7 @@ describe("Sprint 2: Filter Management", () => {
     it("restores repo filters from URL params", () => {
       const params = new URLSearchParams("repos=backend,frontend");
       const reposParam = params.get("repos");
-      const currentFilters = { repos: [], teams: [] };
+      const currentFilters: { repos: string[]; teams: string[] } = { repos: [], teams: [] };
 
       if (reposParam) {
         currentFilters.repos = reposParam.split(",").filter((v) => v);
@@ -2568,7 +2568,7 @@ describe("Sprint 2: Filter Management", () => {
     it("restores team filters from URL params", () => {
       const params = new URLSearchParams("teams=platform");
       const teamsParam = params.get("teams");
-      const currentFilters = { repos: [], teams: [] };
+      const currentFilters: { repos: string[]; teams: string[] } = { repos: [], teams: [] };
 
       if (teamsParam) {
         currentFilters.teams = teamsParam.split(",").filter((v) => v);
@@ -2586,7 +2586,7 @@ describe("Sprint 2: Filter Management", () => {
 
     it("handles missing URL params gracefully", () => {
       const params = new URLSearchParams("");
-      const currentFilters = { repos: [], teams: [] };
+      const currentFilters: { repos: string[]; teams: string[] } = { repos: [], teams: [] };
 
       const reposParam = params.get("repos");
       const teamsParam = params.get("teams");
@@ -2606,8 +2606,8 @@ describe("Sprint 2: Filter Management", () => {
       // URL contains 'nonexistent' repo which is not in the dropdown
       const params = new URLSearchParams("repos=backend,nonexistent,frontend");
       const reposParam = params.get("repos");
-      const currentFilters = { repos: [], teams: [] };
-      const validFilters = { repos: [], teams: [] };
+      const currentFilters: { repos: string[]; teams: string[] } = { repos: [], teams: [] };
+      const validFilters: { repos: string[]; teams: string[] } = { repos: [], teams: [] };
 
       if (reposParam) {
         currentFilters.repos = reposParam.split(",").filter((v) => v);
@@ -2640,7 +2640,7 @@ describe("Sprint 2: Filter Management", () => {
       const params = new URLSearchParams(
         "foo=bar&repos=backend&baz=qux&teams=platform",
       );
-      const currentFilters = { repos: [], teams: [] };
+      const currentFilters: { repos: string[]; teams: string[] } = { repos: [], teams: [] };
 
       const reposParam = params.get("repos");
       const teamsParam = params.get("teams");
@@ -2663,7 +2663,7 @@ describe("Sprint 2: Filter Management", () => {
     it("handles malformed URL params gracefully", () => {
       // Empty values, trailing commas, multiple commas
       const params = new URLSearchParams("repos=,,backend,,&teams=");
-      const currentFilters = { repos: [], teams: [] };
+      const currentFilters: { repos: string[]; teams: string[] } = { repos: [], teams: [] };
 
       const reposParam = params.get("repos");
       const teamsParam = params.get("teams");
@@ -3055,7 +3055,7 @@ describe("Sprint 2: Filter Management", () => {
       };
 
       // Sample weekly rollup with by_repository keyed by repository_name
-      const weeklyRollup = {
+      const weeklyRollup: { week: string; pr_count: number; by_repository: Record<string, { pr_count: number; cycle_time_p50: number }> } = {
         week: "2025-W01",
         pr_count: 10,
         by_repository: {
@@ -3074,8 +3074,8 @@ describe("Sprint 2: Filter Management", () => {
 
       // The filter value should match the key in by_repository
       expect(repoOption?.value).toBe("Backend API");
-      expect(weeklyRollup.by_repository[repoOption?.value]).toBeDefined();
-      expect(weeklyRollup.by_repository[repoOption?.value].pr_count).toBe(10);
+      expect(weeklyRollup.by_repository[repoOption!.value]).toBeDefined();
+      expect(weeklyRollup.by_repository[repoOption!.value]!.pr_count).toBe(10);
     });
 
     it("filter values match by_team keys in weekly rollups", () => {
@@ -3095,7 +3095,7 @@ describe("Sprint 2: Filter Management", () => {
       };
 
       // Sample weekly rollup with by_team keyed by team_name
-      const weeklyRollup = {
+      const weeklyRollup: { week: string; pr_count: number; by_team: Record<string, { pr_count: number; cycle_time_p50: number }> } = {
         week: "2025-W01",
         pr_count: 10,
         by_team: {
@@ -3114,8 +3114,8 @@ describe("Sprint 2: Filter Management", () => {
 
       // The filter value should match the key in by_team
       expect(teamOption?.value).toBe("Platform Team");
-      expect(weeklyRollup.by_team[teamOption?.value]).toBeDefined();
-      expect(weeklyRollup.by_team[teamOption?.value].pr_count).toBe(8);
+      expect(weeklyRollup.by_team[teamOption!.value]).toBeDefined();
+      expect(weeklyRollup.by_team[teamOption!.value]!.pr_count).toBe(8);
     });
   });
 });
@@ -3230,7 +3230,7 @@ describe("Local Mode Detection", () => {
       window.LOCAL_DASHBOARD_MODE = true;
 
       const isLocalMode = createIsLocalMode();
-      let currentBuildId = 123; // Simulate existing value
+      let currentBuildId: number | null = 123; // Simulate existing value
 
       if (isLocalMode()) {
         currentBuildId = null;

@@ -31,12 +31,12 @@ const SETTINGS_KEY_PIPELINE = "pr-insights-pipeline-id";
 async function downloadRawDataContract(
   lastValidation: { valid: boolean; buildId?: number } | null,
   deps: {
-    dataService: { getValue: jest.Mock };
+    dataService: { getValue: jest.Mock<(key: string, options?: unknown) => unknown> };
     webContext: { project?: { id: string } };
     artifactClient: {
-      initialize: jest.Mock;
-      getArtifactMetadata: jest.Mock;
-      authenticatedFetch: jest.Mock;
+      initialize: jest.Mock<(...args: unknown[]) => unknown>;
+      getArtifactMetadata: jest.Mock<(...args: unknown[]) => unknown>;
+      authenticatedFetch: jest.Mock<(...args: unknown[]) => unknown>;
     };
   },
 ): Promise<{

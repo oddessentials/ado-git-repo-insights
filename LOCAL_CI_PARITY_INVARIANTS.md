@@ -4,7 +4,7 @@ This document is the authoritative reference for CI/local check parity in ado-gi
 
 **Last verified**: 2026-03-28
 **Verified by**: 5-specialist team (Python, TypeScript, Extension, CLI, DevOps DevEx)
-**Total CI checks**: 33 (+ 2 external)
+**Total CI checks**: 35 (+ 2 external)
 **Total historical CI failures audited**: 529 job failures across 173 failed runs
 
 ## How It Works
@@ -27,6 +27,8 @@ git push    -->  .husky/pre-push    -->  run_repo_hook.py pre-push    -->  Tier 
 | 5   | ui-bundle-sync           | `run_managed_artifacts("sync")` | Match   |                  12 | [run_repo_hook.py:449](scripts/run_repo_hook.py)                       | Pre-commit triggers full artifact sync (SDK + UI + docs) when TypeScript files are staged. All 12 historical failures predated the managed-artifact pipeline; zero failures since [3247874](https://github.com/oddessentials/ado-git-repo-insights/commit/3247874).                                   |
 | 6   | extension-tests (tsc)    | `run_extension_typecheck()`     | Match   |         29 (shared) | [run_repo_hook.py:run_extension_typecheck()](scripts/run_repo_hook.py) | `tsc --noEmit` now runs in pre-commit when TS files are staged. Added in [5d18b31](https://github.com/oddessentials/ado-git-repo-insights/commit/5d18b31) after 4 prior escapes (88ed3b7, 7264576, 3247874, PR #207). The 29 historical extension-tests failures include Jest + tsc + smoke combined. |
 | 7   | extension-tests (ESLint) | `run_extension_lint()`          | Match   |             (in #6) | [run_repo_hook.py:395](scripts/run_repo_hook.py)                       | ESLint runs in pre-commit when TS files are staged. Added in [7264576](https://github.com/oddessentials/ado-git-repo-insights/commit/7264576).                                                                                                                                                        |
+| 7a  | extension-tests (test tsc) | `run_extension_test_typecheck()` | Match |                   0 | [run_repo_hook.py:run_extension_test_typecheck()](scripts/run_repo_hook.py) | `tsc --noEmit -p tsconfig.test.json` runs in pre-commit when test files or tsconfig files are staged. Added in 042-test-strict-alignment (QG-35 compliance). Pre-push: [run_pr_preflight.py](scripts/run_pr_preflight.py). CI: [ci.yml](.github/workflows/ci.yml) `extension-tests` job. |
+| 7b  | test config parity       | `run_extension_config_parity()` | Match   |                   0 | [run_repo_hook.py:run_extension_config_parity()](scripts/run_repo_hook.py) | Resolved-config comparison between tsconfig.json and tsconfig.test.json runs in pre-commit when tsconfig files are staged. Forward-looking: catches new TypeScript flags automatically. Added in 042-test-strict-alignment (QG-35 compliance). Pre-push: [run_pr_preflight.py](scripts/run_pr_preflight.py). CI: [ci.yml](.github/workflows/ci.yml) `extension-tests` job. |
 
 ## Tier 2: Pre-Push Preflight (automatic on `git push`)
 

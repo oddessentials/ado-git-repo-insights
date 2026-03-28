@@ -248,10 +248,10 @@ describe("Schema Parity Tests", () => {
         extensionNormalized.repositories.length > 0
       ) {
         const localRepoKeys = Object.keys(
-          localNormalized.repositories[0],
+          localNormalized.repositories[0]!,
         ).sort();
         const extensionRepoKeys = Object.keys(
-          extensionNormalized.repositories[0],
+          extensionNormalized.repositories[0]!,
         ).sort();
         expect(localRepoKeys).toEqual(extensionRepoKeys);
       }

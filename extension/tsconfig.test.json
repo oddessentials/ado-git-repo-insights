@@ -1,13 +1,9 @@
 {
   "extends": "./tsconfig.json",
   "compilerOptions": {
-    "strict": false,
-    "noImplicitAny": false,
-    "strictNullChecks": false,
-    "noUncheckedIndexedAccess": false,
-    "noUnusedLocals": true,
-    "noUnusedParameters": true,
-    "noEmit": true
+    "noEmit": true,
+    "declaration": false,
+    "sourceMap": false
   },
   "include": ["tests/**/*.ts", "ui/**/*.ts", "../types/vss.d.ts"],
   "exclude": ["node_modules", "dist"]

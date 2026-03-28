@@ -62,7 +62,7 @@ describe("Rollup Schema Validator", () => {
       const result = validateRollup(invalid, false);
       expect(result.valid).toBe(false);
       expect(result.errors.length).toBeGreaterThan(0);
-      expect(result.errors[0].field).toContain("week");
+      expect(result.errors[0]!.field).toContain("week");
     });
 
     it("should pass when start_date is missing (optional for legacy datasets)", () => {
@@ -375,7 +375,7 @@ describe("Rollup Schema Validator", () => {
       const result = validateRollup({}, false);
       expect(result.valid).toBe(false);
       expect(result.errors.length).toBeGreaterThan(0);
-      expect(result.errors[0].message).toContain("required");
+      expect(result.errors[0]!.message).toContain("required");
     });
 
     it("should fail for null input", () => {
@@ -605,10 +605,10 @@ describe("Rollup Schema Validator", () => {
       expect(normalized.by_team_and_repo).not.toBeUndefined();
       expect(normalized.by_team_and_repo!["Backend Team"]).toBeDefined();
       expect(
-        normalized.by_team_and_repo!["Backend Team"]["main-repo"].pr_count,
+        normalized.by_team_and_repo!["Backend Team"]!["main-repo"]!.pr_count,
       ).toBe(15);
       expect(
-        normalized.by_team_and_repo!["Frontend Team"]["secondary-repo"]
+        normalized.by_team_and_repo!["Frontend Team"]!["secondary-repo"]!
           .pr_count,
       ).toBe(5);
     });

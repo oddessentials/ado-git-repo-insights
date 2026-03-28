@@ -75,12 +75,12 @@ function countAnyInFile(filePath: string): { count: number; lines: string[] } {
   for (let i = 0; i < fileLines.length; i++) {
     const line = fileLines[i];
     // Skip comment-only lines
-    if (line.trimStart().startsWith("//") || line.trimStart().startsWith("*")) {
+    if (line!.trimStart().startsWith("//") || line!.trimStart().startsWith("*")) {
       continue;
     }
-    const matches = line.match(ANY_PATTERN);
+    const matches = line!.match(ANY_PATTERN);
     if (matches) {
-      violations.push(`${filePath}:${i + 1}: ${line.trim()}`);
+      violations.push(`${filePath}:${i + 1}: ${line!.trim()}`);
     }
   }
 

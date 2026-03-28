@@ -19,9 +19,9 @@
 
 **Purpose**: Capture baseline state before any changes and prepare tooling.
 
-- [ ] T001 Capture pre-migration behavioral equivalence baseline by running `npx jest --json --outputFile=../specs/042-test-strict-alignment/baseline-snapshot.json` in `extension/`
-- [ ] T002 Capture pre-migration coverage baseline by running `npx jest --coverage --coverageReporters=json-summary` and copying `extension/coverage/coverage-summary.json` to `specs/042-test-strict-alignment/baseline-coverage.json`
-- [ ] T003 Generate the full strict-mode error list by running `tsc --noEmit` against a temporary strict test config and saving output to `specs/042-test-strict-alignment/error-inventory.txt` for triage reference
+- [x] T001 Capture pre-migration behavioral equivalence baseline by running `npx jest --json --outputFile=../specs/042-test-strict-alignment/baseline-snapshot.json` in `extension/`
+- [x] T002 Capture pre-migration coverage baseline by running `npx jest --coverage --coverageReporters=json-summary` and copying `extension/coverage/coverage-summary.json` to `specs/042-test-strict-alignment/baseline-coverage.json`
+- [x] T003 Generate the full strict-mode error list by running `tsc --noEmit` against a temporary strict test config and saving output to `specs/042-test-strict-alignment/error-inventory.txt` for triage reference
 
 **Checkpoint**: Baseline snapshots captured. Triage and infrastructure work can begin.
 
@@ -33,9 +33,9 @@
 
 **CRITICAL**: No user story work can begin until this phase is complete.
 
-- [ ] T004 [P] Create resolved-config parity script at `extension/scripts/check-test-config-parity.mjs` that uses `tsc --showConfig` to compare resolved `compilerOptions` between `extension/tsconfig.json` and `extension/tsconfig.test.json`, failing on any non-allowlisted difference (allowlist: `noEmit`, `declaration`, `sourceMap`, `outDir`, `rootDir`)
-- [ ] T005 [P] Add `"test:config-parity": "node scripts/check-test-config-parity.mjs"` and `"build:check-tests": "tsc --noEmit --project tsconfig.test.json"` scripts to `extension/package.json`
-- [ ] T006 Categorize all ~574 errors from `specs/042-test-strict-alignment/error-inventory.txt` into mechanical (~514: TS2532, TS18047, TS18048, TS2531, TS18049, TS7006, TS7053, TS7005, TS7034) and semantic (~60: TS2345, TS2322, TS2769, TS2488). Document each semantic error with file, line, expected vs actual type, and root cause (bad mock / outdated fixture / changed interface) in `specs/042-test-strict-alignment/semantic-triage.md`
+- [x] T004 [P] Create resolved-config parity script at `extension/scripts/check-test-config-parity.mjs` that uses `tsc --showConfig` to compare resolved `compilerOptions` between `extension/tsconfig.json` and `extension/tsconfig.test.json`, failing on any non-allowlisted difference (allowlist: `noEmit`, `declaration`, `sourceMap`, `outDir`, `rootDir`)
+- [x] T005 [P] Add `"test:config-parity": "node scripts/check-test-config-parity.mjs"` and `"build:check-tests": "tsc --noEmit --project tsconfig.test.json"` scripts to `extension/package.json`
+- [x] T006 Categorize all ~574 errors from `specs/042-test-strict-alignment/error-inventory.txt` into mechanical (~514: TS2532, TS18047, TS18048, TS2531, TS18049, TS7006, TS7053, TS7005, TS7034) and semantic (~60: TS2345, TS2322, TS2769, TS2488). Document each semantic error with file, line, expected vs actual type, and root cause (bad mock / outdated fixture / changed interface) in `specs/042-test-strict-alignment/semantic-triage.md`
 
 **Checkpoint**: Infrastructure scripts created, errors triaged. If any semantic error reveals a genuine production contract violation requiring production code changes, escalate to a separate issue before proceeding.
 
@@ -49,51 +49,51 @@
 
 ### Layer 1: Fix Shared Helpers (FR-008 — must complete before leaf tests)
 
-- [ ] T007 [US1] Fix 4 implicit `any` types in `extension/tests/mocks/ado-sdk.ts`: add explicit types for `webContext` (line 10), error callback parameter (line 33), `runs` (line 39), and `artifacts` (line 40) in `SdkMockOptions` and `BuildApiScenario` interfaces
-- [ ] T008 [US1] Fix 8 type errors in `extension/tests/harness/vss-sdk-mock.ts`: add null guards and explicit types for mock factory functions and internal object types
+- [x] T007 [US1] Fix 4 implicit `any` types in `extension/tests/mocks/ado-sdk.ts`: add explicit types for `webContext` (line 10), error callback parameter (line 33), `runs` (line 39), and `artifacts` (line 40) in `SdkMockOptions` and `BuildApiScenario` interfaces
+- [x] T008 [US1] Fix 8 type errors in `extension/tests/harness/vss-sdk-mock.ts`: add null guards and explicit types for mock factory functions and internal object types
 
 ### Layer 2: Fix Leaf Tests — Batch A (63% of all errors)
 
-- [ ] T009 [P] [US1] Fix 196 type errors in `extension/tests/modules/metrics.test.ts`: add non-null assertions on metric lookups, explicit parameter types on mock callbacks, and null guards on DOM element access
-- [ ] T010 [P] [US1] Fix 166 type errors in `extension/tests/dashboard.test.ts`: add non-null assertions on element queries, explicit types on mock function parameters, and type guards on fixture data access
+- [x] T009 [P] [US1] Fix 196 type errors in `extension/tests/modules/metrics.test.ts`: add non-null assertions on metric lookups, explicit parameter types on mock callbacks, and null guards on DOM element access
+- [x] T010 [P] [US1] Fix 166 type errors in `extension/tests/dashboard.test.ts`: add non-null assertions on element queries, explicit types on mock function parameters, and type guards on fixture data access
 
 ### Layer 3: Fix Leaf Tests — Batch B (17% of all errors)
 
-- [ ] T011 [P] [US1] Fix 34 type errors in `extension/tests/version-adapter-integration.test.ts`: add explicit types for adapter mock parameters and null guards on version lookup results
-- [ ] T012 [P] [US1] Fix 34 type errors in `extension/tests/modules/metrics.edge-cases.test.ts`: add non-null assertions on edge-case metric lookups and explicit parameter types
-- [ ] T013 [P] [US1] Fix 28 type errors in `extension/tests/modules/ml.test.ts`: add explicit types for ML model mock data and null guards on prediction results
+- [x] T011 [P] [US1] Fix 34 type errors in `extension/tests/version-adapter-integration.test.ts`: add explicit types for adapter mock parameters and null guards on version lookup results
+- [x] T012 [P] [US1] Fix 34 type errors in `extension/tests/modules/metrics.edge-cases.test.ts`: add non-null assertions on edge-case metric lookups and explicit parameter types
+- [x] T013 [P] [US1] Fix 28 type errors in `extension/tests/modules/ml.test.ts`: add explicit types for ML model mock data and null guards on prediction results
 
 ### Layer 4: Fix Leaf Tests — Batch C (8% of all errors)
 
-- [ ] T014 [P] [US1] Fix 19 type errors in `extension/tests/python-integration/synthetic-fixtures.test.ts`: add explicit types for Python subprocess results and null guards on fixture parsing
-- [ ] T015 [P] [US1] Fix 16 type errors in `extension/tests/e2e/dashboard-render.test.ts`: add non-null assertions on rendered DOM elements and explicit types for render context
-- [ ] T016 [P] [US1] Fix 13 type errors in `extension/tests/vsix-packaging.test.ts`: add null guards on manifest property access (screenshots, contributions)
+- [x] T014 [P] [US1] Fix 19 type errors in `extension/tests/python-integration/synthetic-fixtures.test.ts`: add explicit types for Python subprocess results and null guards on fixture parsing
+- [x] T015 [P] [US1] Fix 16 type errors in `extension/tests/e2e/dashboard-render.test.ts`: add non-null assertions on rendered DOM elements and explicit types for render context
+- [x] T016 [P] [US1] Fix 13 type errors in `extension/tests/vsix-packaging.test.ts`: add null guards on manifest property access (screenshots, contributions)
 
 ### Layer 5: Fix Leaf Tests — Batch D (remaining 12% — 24 files with <10 errors each)
 
-- [ ] T017 [P] [US1] Fix 6 type errors in `extension/tests/schema/rollup.test.ts`
-- [ ] T018 [P] [US1] Fix 6 type errors in `extension/tests/production-issues.test.ts`
-- [ ] T019 [P] [US1] Fix 5 type errors in `extension/tests/smoke/filter-display.smoke.ts`
-- [ ] T020 [P] [US1] Fix 4 type errors in `extension/tests/ml-types.test.ts`
-- [ ] T021 [P] [US1] Fix 4 type errors in `extension/tests/meta/any-type-ratchet.test.ts`
-- [ ] T022 [P] [US1] Fix 4 type errors in `extension/tests/dataset-loader-validation.test.ts`
-- [ ] T023 [P] [US1] Fix 3 type errors in `extension/tests/schema/manifest.test.ts`
-- [ ] T024 [P] [US1] Fix 3 type errors in `extension/tests/metrics.test.ts`
-- [ ] T025 [P] [US1] Fix 3 type errors in `extension/tests/meta/ec-traceability.test.ts`
-- [ ] T026 [P] [US1] Fix 3 type errors in `extension/tests/chunked-loading.test.ts`
-- [ ] T027 [P] [US1] Fix 3 type errors in `extension/tests/ado-sdk.test.ts`
-- [ ] T028 [P] [US1] Fix 2 type errors in `extension/tests/schema/parity.test.ts`
-- [ ] T029 [P] [US1] Fix 2 type errors in `extension/tests/meta/suppression-ratchet.test.ts`
-- [ ] T030 [US1] Fix remaining type errors in any files with ≤1 error each (verify count at implementation time — error inventory may shift slightly from main branch changes)
+- [x] T017 [P] [US1] Fix 6 type errors in `extension/tests/schema/rollup.test.ts`
+- [x] T018 [P] [US1] Fix 6 type errors in `extension/tests/production-issues.test.ts`
+- [x] T019 [P] [US1] Fix 5 type errors in `extension/tests/smoke/filter-display.smoke.ts`
+- [x] T020 [P] [US1] Fix 4 type errors in `extension/tests/ml-types.test.ts`
+- [x] T021 [P] [US1] Fix 4 type errors in `extension/tests/meta/any-type-ratchet.test.ts`
+- [x] T022 [P] [US1] Fix 4 type errors in `extension/tests/dataset-loader-validation.test.ts`
+- [x] T023 [P] [US1] Fix 3 type errors in `extension/tests/schema/manifest.test.ts`
+- [x] T024 [P] [US1] Fix 3 type errors in `extension/tests/metrics.test.ts`
+- [x] T025 [P] [US1] Fix 3 type errors in `extension/tests/meta/ec-traceability.test.ts`
+- [x] T026 [P] [US1] Fix 3 type errors in `extension/tests/chunked-loading.test.ts`
+- [x] T027 [P] [US1] Fix 3 type errors in `extension/tests/ado-sdk.test.ts`
+- [x] T028 [P] [US1] Fix 2 type errors in `extension/tests/schema/parity.test.ts`
+- [x] T029 [P] [US1] Fix 2 type errors in `extension/tests/meta/suppression-ratchet.test.ts`
+- [x] T030 [US1] Fix remaining type errors in any files with ≤1 error each (verify count at implementation time — error inventory may shift slightly from main branch changes)
 
 ### Layer 6: Config Change and Verification
 
-- [ ] T031 [US1] Remove all strictness overrides from `extension/tsconfig.test.json` — final file should contain only `extends`, `noEmit: true`, `declaration: false`, `sourceMap: false`, plus `include`/`exclude`
-- [ ] T032 [US1] Verify `tsc --noEmit --project tsconfig.test.json` reports zero errors in `extension/`
-- [ ] T033 [US4] Capture post-migration snapshot by running `npx jest --json --outputFile=../specs/042-test-strict-alignment/post-snapshot.json` and `npx jest --coverage --coverageReporters=json-summary` in `extension/`
-- [ ] T034 [US4] Compare `specs/042-test-strict-alignment/baseline-snapshot.json` vs `post-snapshot.json` and `baseline-coverage.json` vs post-migration coverage: verify identical per-test pass/fail/skip status (2,015 pass, 9 skip, 0 fail) and coverage within ±0.1%
-- [ ] T035 [US1] Verify zero new suppression comments were added by running `python scripts/audit-suppressions.py --diff` from repo root — test-file suppression count must remain at 5
-- [ ] T035a [US1] Audit `specs/042-test-strict-alignment/semantic-triage.md` to confirm every semantic error (~60 TS2345/TS2322/TS2769/TS2488) has a documented resolution (fix test, fix mock, or fix interface) with rationale — satisfies SC-006
+- [x] T031 [US1] Remove all strictness overrides from `extension/tsconfig.test.json` — final file should contain only `extends`, `noEmit: true`, `declaration: false`, `sourceMap: false`, plus `include`/`exclude`
+- [x] T032 [US1] Verify `tsc --noEmit --project tsconfig.test.json` reports zero errors in `extension/`
+- [x] T033 [US4] Capture post-migration snapshot by running `npx jest --json --outputFile=../specs/042-test-strict-alignment/post-snapshot.json` and `npx jest --coverage --coverageReporters=json-summary` in `extension/`
+- [x] T034 [US4] Compare `specs/042-test-strict-alignment/baseline-snapshot.json` vs `post-snapshot.json` and `baseline-coverage.json` vs post-migration coverage: verify identical per-test pass/fail/skip status (2,015 pass, 9 skip, 0 fail) and coverage within ±0.1%
+- [x] T035 [US1] Verify zero new suppression comments were added by running `python scripts/audit-suppressions.py --diff` from repo root — test-file suppression count must remain at 5
+- [x] T035a [US1] Audit `specs/042-test-strict-alignment/semantic-triage.md` to confirm every semantic error (~60 TS2345/TS2322/TS2769/TS2488) has a documented resolution (fix test, fix mock, or fix interface) with rationale — satisfies SC-006
 
 **Checkpoint**: US1 + US4 complete. Type checker reports zero errors, all 2,024 tests pass with proven behavioral equivalence, zero new suppressions, config overrides removed.
 
@@ -105,7 +105,7 @@
 
 **Independent Test**: Create a new test file with strict patterns (explicit types, null guards) and confirm it compiles without errors.
 
-- [ ] T036 [US2] Verify that a new test file created in `extension/tests/` with properly typed code compiles cleanly under `tsc --noEmit --project tsconfig.test.json` and that a new test file with an implicit `any` parameter is rejected by the type checker (manual verification — no permanent file created)
+- [x] T036 [US2] Verify that a new test file created in `extension/tests/` with properly typed code compiles cleanly under `tsc --noEmit --project tsconfig.test.json` and that a new test file with an implicit `any` parameter is rejected by the type checker (manual verification — no permanent file created)
 
 **Checkpoint**: US2 verified. Future test authoring is unblocked under strict rules.
 
@@ -119,26 +119,26 @@
 
 ### Pre-Commit and Pre-Push Integration
 
-- [ ] T037 [US3] Add test file trigger patterns (`extension/tests/**/*.ts`) to the UI trigger list in `scripts/run_repo_hook.py` (around lines 218–232) so that staging test files triggers type checking
-- [ ] T038 [US3] Add a `run_extension_test_typecheck()` function in `scripts/run_repo_hook.py` that runs `pnpm run build:check-tests` when test files or `tsconfig*.json` files are staged, following the pattern of existing `run_extension_typecheck()` (lines 407–424)
-- [ ] T038a [US3] Add config parity check to `scripts/run_repo_hook.py` that runs `pnpm run test:config-parity` when any `tsconfig*.json` file is staged — closes the plan Layer 1a integration point and satisfies QG-35 (every CI gate has a local equivalent)
-- [ ] T039 [US3] Add `CommandSpec("Extension test type check", (PNPM_SENTINEL, "run", "build:check-tests"), cwd=EXTENSION_ROOT)` to `scripts/run_pr_preflight.py` command list (after the existing "Extension build check" entry around line 161)
-- [ ] T040 [US3] Add `CommandSpec("Extension test config parity", (PNPM_SENTINEL, "run", "test:config-parity"), cwd=EXTENSION_ROOT)` to `scripts/run_pr_preflight.py` command list
+- [x] T037 [US3] Add test file trigger patterns (`extension/tests/**/*.ts`) to the UI trigger list in `scripts/run_repo_hook.py` (around lines 218–232) so that staging test files triggers type checking
+- [x] T038 [US3] Add a `run_extension_test_typecheck()` function in `scripts/run_repo_hook.py` that runs `pnpm run build:check-tests` when test files or `tsconfig*.json` files are staged, following the pattern of existing `run_extension_typecheck()` (lines 407–424)
+- [x] T038a [US3] Add config parity check to `scripts/run_repo_hook.py` that runs `pnpm run test:config-parity` when any `tsconfig*.json` file is staged — closes the plan Layer 1a integration point and satisfies QG-35 (every CI gate has a local equivalent)
+- [x] T039 [US3] Add `CommandSpec("Extension test type check", (PNPM_SENTINEL, "run", "build:check-tests"), cwd=EXTENSION_ROOT)` to `scripts/run_pr_preflight.py` command list (after the existing "Extension build check" entry around line 161)
+- [x] T040 [US3] Add `CommandSpec("Extension test config parity", (PNPM_SENTINEL, "run", "test:config-parity"), cwd=EXTENSION_ROOT)` to `scripts/run_pr_preflight.py` command list
 
 ### CI Integration
 
-- [ ] T041 [P] [US3] Add `pnpm run build:check-tests` step in `.github/workflows/ci.yml` `extension-tests` job after the existing "TypeScript Type Check" step (around line 830)
-- [ ] T042 [P] [US3] Add `pnpm run test:config-parity` step in `.github/workflows/ci.yml` `extension-tests` job after the new test type-check step
+- [x] T041 [P] [US3] Add `pnpm run build:check-tests` step in `.github/workflows/ci.yml` `extension-tests` job after the existing "TypeScript Type Check" step (around line 830)
+- [x] T042 [P] [US3] Add `pnpm run test:config-parity` step in `.github/workflows/ci.yml` `extension-tests` job after the new test type-check step
 
 ### Skipped Test Review (FR-009)
 
-- [ ] T043 [US3] Review all 9 conditionally-skipped tests + 1 skipped suite: verify each compiles under strict mode, confirm skip condition is still valid, and add a one-line justification comment at each skip site in `extension/tests/vsix-artifact-inspection.test.ts`, `extension/tests/unit/chart-scalability.test.ts`, `extension/tests/python-integration/performance.test.ts`, and `extension/tests/python-integration/synthetic-fixtures.test.ts`
+- [x] T043 [US3] Review all 9 conditionally-skipped tests + 1 skipped suite: verify each compiles under strict mode, confirm skip condition is still valid, and add a one-line justification comment at each skip site in `extension/tests/vsix-artifact-inspection.test.ts`, `extension/tests/unit/chart-scalability.test.ts`, `extension/tests/python-integration/performance.test.ts`, and `extension/tests/python-integration/synthetic-fixtures.test.ts`
 
 ### Verification
 
-- [ ] T044 [US3] Run `pnpm run test:config-parity` in `extension/` and confirm exit 0 (parity holds)
-- [ ] T045 [US3] Temporarily add `"strict": false` to `extension/tsconfig.test.json`, run `pnpm run test:config-parity`, confirm exit 1 (parity violation detected), then revert the change
-- [ ] T046 [US3] Run full preflight via `python scripts/run_pr_preflight.py` from repo root and confirm all checks pass including the two new gates
+- [x] T044 [US3] Run `pnpm run test:config-parity` in `extension/` and confirm exit 0 (parity holds)
+- [x] T045 [US3] Temporarily add `"strict": false` to `extension/tsconfig.test.json`, run `pnpm run test:config-parity`, confirm exit 1 (parity violation detected), then revert the change
+- [x] T046 [US3] Run full preflight via `python scripts/run_pr_preflight.py` from repo root and confirm all checks pass including the two new gates
 
 **Checkpoint**: US3 complete. Config parity and test type-check are enforced in pre-commit, pre-push, and CI. Skipped tests reviewed.
 
@@ -148,9 +148,9 @@
 
 **Purpose**: Documentation updates and final validation.
 
-- [ ] T047 [P] Update `LOCAL_CI_PARITY_INVARIANTS.md` to document two new Tier 1/2 gates: "Extension test type check" (`pnpm run build:check-tests`) and "Extension test config parity" (`pnpm run test:config-parity`), following the existing gate documentation format
-- [ ] T048 [P] Verify quickstart instructions in `specs/042-test-strict-alignment/quickstart.md` are still accurate after implementation — run through each verification command
-- [ ] T049 Run final full validation: `tsc --noEmit --project tsconfig.test.json` (0 errors) + `npx jest` (2,024 tests, 0 failures) + `pnpm run test:config-parity` (exit 0) + `python scripts/audit-suppressions.py --diff` (no new suppressions) + `python scripts/run_pr_preflight.py` (all pass)
+- [x] T04- [x] T047 [P] Update `LOCAL_CI_PARITY_INVARIANTS.md` to document two new Tier 1/2 gates: "Extension test type check" (`pnpm run build:check-tests`) and "Extension test config parity" (`pnpm run test:config-parity`), following the existing gate documentation format
+- [x] T04- [x] T048 [P] Verify quickstart instructions in `specs/042-test-strict-alignment/quickstart.md` are still accurate after implementation — run through each verification command
+- [x] T04- [x] T049 Run final full validation: `tsc --noEmit --project tsconfig.test.json` (0 errors) + `npx jest` (2,024 tests, 0 failures) + `pnpm run test:config-parity` (exit 0) + `python scripts/audit-suppressions.py --diff` (no new suppressions) + `python scripts/run_pr_preflight.py` (all pass)
 
 **Checkpoint**: All user stories verified, documentation updated, preflight green. Ready for PR.
 

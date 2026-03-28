@@ -61,10 +61,10 @@ describe("EC Traceability Meta-Test", () => {
     const seen = new Set<string>();
     const duplicates: string[] = [];
     for (const marker of foundMarkers) {
-      if (seen.has(marker)) {
-        duplicates.push(marker);
+      if (seen.has(marker!)) {
+        duplicates.push(marker!);
       }
-      seen.add(marker);
+      seen.add(marker!);
     }
 
     if (duplicates.length > 0) {

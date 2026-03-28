@@ -38,9 +38,9 @@ function countSuppressions(filePath: string): {
   for (let i = 0; i < fileLines.length; i++) {
     const line = fileLines[i];
     // Count all suppression directives (including comments — these ARE the suppressions)
-    const matches = line.match(SUPPRESSION_PATTERN);
+    const matches = line!.match(SUPPRESSION_PATTERN);
     if (matches) {
-      violations.push(`${filePath}:${i + 1}: ${line.trim()}`);
+      violations.push(`${filePath}:${i + 1}: ${line!.trim()}`);
     }
   }
 

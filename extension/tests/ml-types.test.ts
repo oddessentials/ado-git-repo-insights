@@ -140,8 +140,8 @@ describe("Type interface consistency", () => {
     };
 
     expect(predictions.forecasts.length).toBe(1);
-    expect(predictions.forecasts[0].values.length).toBe(1);
-    expect(predictions.forecasts[0].values[0].predicted).toBe(10);
+    expect(predictions.forecasts[0]!.values.length).toBe(1);
+    expect(predictions.forecasts[0]!.values[0]!.predicted).toBe(10);
   });
 
   it("InsightsRenderData has required fields", () => {
@@ -158,6 +158,6 @@ describe("Type interface consistency", () => {
     };
 
     expect(insights.insights.length).toBe(1);
-    expect(insights.insights[0].severity).toBe("warning");
+    expect(insights.insights[0]!.severity).toBe("warning");
   });
 });

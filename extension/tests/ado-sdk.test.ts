@@ -57,12 +57,12 @@ describe("ADO SDK Mocks", () => {
       const api = createBuildApiMock("SUCCESS");
 
       const runs = await api.getBuilds();
-      expect(runs.length).toBe(1);
-      expect(runs[0].result).toBe("succeeded");
+      expect(runs!.length).toBe(1);
+      expect(runs![0]!.result).toBe("succeeded");
 
       const artifacts = await api.getArtifacts();
       expect(artifacts.length).toBe(1);
-      expect(artifacts[0].name).toBe("insights-output");
+      expect(artifacts[0]!.name).toBe("insights-output");
     });
 
     it("returns empty runs for NO_RUNS scenario", async () => {
@@ -76,7 +76,7 @@ describe("ADO SDK Mocks", () => {
       const api = createBuildApiMock("NO_ARTIFACTS");
 
       const runs = await api.getBuilds();
-      expect(runs.length).toBe(1);
+      expect(runs!.length).toBe(1);
 
       const artifacts = await api.getArtifacts();
       expect(artifacts).toEqual([]);

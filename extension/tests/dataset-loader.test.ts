@@ -8,6 +8,7 @@
  */
 
 import { DatasetLoader } from "../ui/dataset-loader";
+import type { ManifestSchema } from "../ui/types";
 
 class TestDatasetLoader extends DatasetLoader {
   public validatePredictionsSchemaForTest(predictions: unknown) {
@@ -19,7 +20,7 @@ class TestDatasetLoader extends DatasetLoader {
   }
 
   public setManifestForTest(manifest: unknown): void {
-    this.manifest = manifest;
+    this.manifest = manifest as ManifestSchema | null;
   }
 }
 

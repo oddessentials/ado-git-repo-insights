@@ -142,7 +142,7 @@ describe("addChartTooltips click/tap support", () => {
 
     const tooltips = document.querySelectorAll(".chart-tooltip");
     expect(tooltips.length).toBe(1);
-    expect(tooltips[0].innerHTML).toContain("2025-W02");
+    expect(tooltips[0]!.innerHTML).toContain("2025-W02");
   });
 
   it("preserves tooltip interactivity on first chart after second chart is rendered", () => {

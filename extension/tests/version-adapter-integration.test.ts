@@ -47,7 +47,8 @@ describe("Version Adapter Integration", () => {
 
     // Configure fetch mock to read fixture files from disk
     // DatasetLoader calls: fetch(baseUrl + '/' + relativePath)
-    globalScope.fetch.mockImplementation(async (url: string) => {
+    globalScope.fetch.mockImplementation(async (input: string | URL | Request, _init?: RequestInit) => {
+      const url = String(input);
       // URL format: fixtureDir/dataset-manifest.json or fixtureDir/v1.0-rollup.json
       // We need to extract the filename from the URL
       let filePath: string;
@@ -64,7 +65,7 @@ describe("Version Adapter Integration", () => {
       } else {
         // Try to extract just the filename
         const parts = normalizedUrl.split("/");
-        const filename = parts[parts.length - 1];
+        const filename = parts[parts.length - 1]!;
         filePath = path.join(fixtureDir, filename);
       }
 
@@ -96,7 +97,7 @@ describe("Version Adapter Integration", () => {
       );
 
       expect(rollups.length).toBe(1);
-      const rollup = rollups[0];
+      const rollup = rollups[0]!;
 
       // User-visible behavior: all expected fields exist
       expect(rollup.week).toBe("2024-W01");
@@ -122,7 +123,7 @@ describe("Version Adapter Integration", () => {
       );
 
       expect(rollups.length).toBe(1);
-      const rollup = rollups[0];
+      const rollup = rollups[0]!;
 
       // Preserved fields
       expect(rollup.week).toBe("2025-W01");
@@ -148,7 +149,7 @@ describe("Version Adapter Integration", () => {
       );
 
       expect(rollups.length).toBe(1);
-      const rollup = rollups[0];
+      const rollup = rollups[0]!;
 
       // All v1.2 fields preserved
       expect(rollup.week).toBe("2025-W20");
@@ -178,7 +179,8 @@ describe("Version Adapter Integration", () => {
       };
 
       // Override manifest to include current rollup
-      globalScope.fetch.mockImplementation(async (url: string) => {
+      globalScope.fetch.mockImplementation(async (input: string | URL | Request, _init?: RequestInit) => {
+        const url = String(input);
         if (url.includes("manifest")) {
           const manifest: TestManifest = {
             manifest_schema_version: 1,
@@ -210,7 +212,7 @@ describe("Version Adapter Integration", () => {
       );
 
       expect(rollups.length).toBe(1);
-      const rollup = rollups[0];
+      const rollup = rollups[0]!;
 
       // All fields preserved exactly
       expect(rollup).toEqual({
@@ -224,7 +226,8 @@ describe("Version Adapter Integration", () => {
 
   describe("Capability precedence", () => {
     it("prefers manifest capability flags over schema-version inference", async () => {
-      globalScope.fetch.mockImplementation(async (url: string) => {
+      globalScope.fetch.mockImplementation(async (input: string | URL | Request, _init?: RequestInit) => {
+        const url = String(input);
         if (url.includes("manifest")) {
           const manifest: TestManifest = {
             manifest_schema_version: 1,
@@ -309,7 +312,7 @@ describe("Version Adapter Integration", () => {
       );
 
       expect(result.data.length).toBe(1);
-      const rollup = result.data[0];
+      const rollup = result.data[0]!;
 
       // Verify normalization happened via concurrent path
       expect(rollup.authors_count).toBe(0);
@@ -320,7 +323,8 @@ describe("Version Adapter Integration", () => {
   describe("Graceful degradation", () => {
     it("throws SchemaValidationError for malformed rollup data", async () => {
       // Mock a completely malformed rollup - now with schema validation, this throws
-      globalScope.fetch.mockImplementation(async (url: string) => {
+      globalScope.fetch.mockImplementation(async (input: string | URL | Request, _init?: RequestInit) => {
+        const url = String(input);
         if (url.includes("manifest")) {
           const manifest: TestManifest = {
             manifest_schema_version: 1,

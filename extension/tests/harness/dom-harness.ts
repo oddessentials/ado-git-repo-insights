@@ -209,7 +209,8 @@ export function setupFixtureMocks(
   }
 
   // Configure fetch mock to return fixtures
-  mockFetch.mockImplementation((url: string) => {
+  (mockFetch as jest.Mock<(input: string | URL | Request) => Promise<Response>>).mockImplementation((input) => {
+    const url = String(input);
     const filename = url.split("/").pop() || "";
     const matchingFixture = Object.entries(fixtureMap).find(
       ([key]) => url.includes(key) || key.endsWith(filename),

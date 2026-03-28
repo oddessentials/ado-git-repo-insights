@@ -93,7 +93,7 @@ describe("data-testid DOM Validation", () => {
     const ids = matches.map((m) => m[1]);
 
     // Convention: lowercase kebab-case (e.g., "filter-repository", "error-generic")
-    const invalidIds = ids.filter((id) => !isLowercaseKebabCase(id));
+    const invalidIds = ids.filter((id) => !isLowercaseKebabCase(id!));
 
     if (invalidIds.length > 0) {
       throw new Error(

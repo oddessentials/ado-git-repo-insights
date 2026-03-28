@@ -48,6 +48,7 @@ const performanceSummaryPath = path.join(
   "perf-summary.json",
 );
 const pythonSubprocessSupport = probePythonSubprocessSupport();
+// Skip justification: requires Python subprocess for performance benchmarking; not available in all CI/local environments
 const performanceTest = pythonSubprocessSupport.supported ? test : test.skip;
 
 function runSyntheticDatasetGenerator(outputDir: string, prCount: number) {

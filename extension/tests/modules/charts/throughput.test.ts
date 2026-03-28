@@ -226,7 +226,7 @@ describe("Label thinning", () => {
   it("first label (index 0) is always visible", () => {
     renderThroughputChart(container, makeTestRollups(104));
     const labels = container.querySelectorAll(".bar-label");
-    expect(labels[0].textContent).not.toBe("");
+    expect(labels[0]!.textContent).not.toBe("");
   });
 
   it("shows tooltip with week and PR count on bar hover", () => {
