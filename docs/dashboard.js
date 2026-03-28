@@ -6239,12 +6239,15 @@ var PRInsightsDashboard = (() => {
         input.value = "";
         filterOptions("");
         renderChips();
+        updateInputDisplay();
       }
       normalizeAndEmit();
     }
     function deselectOption(id) {
       selected = selected.filter((s) => s !== id);
       renderChips();
+      if (isOpen) renderDropdown();
+      updateInputDisplay();
       normalizeAndEmit();
     }
     function toggleOption(id) {
@@ -7480,7 +7483,10 @@ var PRInsightsDashboard = (() => {
       reviewers: validReviewers,
       authors: normalizedAuthors
     });
-    reviewerFilterNoticeMessage = constraintsApplied[0]?.message ?? null;
+    const reviewerNotice = constraintsApplied.find(
+      (n) => n.type === "author_reviewer" || n.type === "reviewer_team" || n.type === "reviewer_repo"
+    );
+    reviewerFilterNoticeMessage = reviewerNotice?.message ?? null;
     currentFilters = effectiveState;
     typeaheadRepo?.setSelected(currentFilters.repos);
     typeaheadTeam?.setSelected(currentFilters.teams);

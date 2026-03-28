@@ -252,8 +252,9 @@ export function initTypeaheadDropdown(
         selected.push(id);
       }
       input.value = "";
-      filterOptions("");
+      filterOptions(""); // calls renderDropdown() — syncs checkmarks
       renderChips();
+      updateInputDisplay(); // Sync placeholder for partial ↔ all-selected transitions
     }
     normalizeAndEmit();
   }
@@ -261,6 +262,8 @@ export function initTypeaheadDropdown(
   function deselectOption(id: string): void {
     selected = selected.filter((s) => s !== id);
     renderChips();
+    if (isOpen) renderDropdown(); // Sync dropdown visual state (aria-selected, class)
+    updateInputDisplay(); // Sync placeholder for all-selected ↔ partial transitions
     normalizeAndEmit();
   }
 

@@ -1686,7 +1686,16 @@ function restoreFiltersFromUrl(): void {
     authors: normalizedAuthors,
   });
 
-  reviewerFilterNoticeMessage = constraintsApplied[0]?.message ?? null;
+  // Update notice messages from constraint resolver (display only)
+  // Use the same type-filtering logic as handleTypeaheadFilterChange() to avoid
+  // routing non-reviewer notices (author_team, etc) into the reviewer notice area
+  const reviewerNotice = constraintsApplied.find(
+    (n) =>
+      n.type === "author_reviewer" ||
+      n.type === "reviewer_team" ||
+      n.type === "reviewer_repo",
+  );
+  reviewerFilterNoticeMessage = reviewerNotice?.message ?? null;
   currentFilters = effectiveState;
 
   // Sync typeahead UI with restored state
