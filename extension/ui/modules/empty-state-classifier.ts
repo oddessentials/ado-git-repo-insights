@@ -112,7 +112,25 @@ function checkNotExtracted(
 }
 
 /**
+ * Check whether all rollups have zeroed-out metric content.
+ *
+ * applyFiltersToRollups uses .map() (not .filter()), so filtered rollups
+ * preserve array length but zero metric fields via ZEROED_ROLLUP_FIELDS.
+ * An empty result is signaled by all pr_count values being 0, not by
+ * an empty array.
+ */
+function allMetricsZeroed(rollups: Rollup[]): boolean {
+  if (rollups.length === 0) return true;
+  return rollups.every((r) => r.pr_count === 0);
+}
+
+/**
  * Step 2: Check if active filters caused the empty state.
+ *
+ * Detects filter-caused empties by comparing metric content, not array
+ * length. The filtering pipeline keeps week rows and zeroes metric fields,
+ * so filteredRollups.length stays non-zero even when filters exclude all
+ * usable data.
  */
 function checkFilterCaused(
   ctx: EmptyStateContext,
@@ -120,7 +138,8 @@ function checkFilterCaused(
   if (
     hasActiveFilters(ctx.filters) &&
     ctx.unfilteredRollups.length > 0 &&
-    ctx.filteredRollups.length === 0
+    !allMetricsZeroed(ctx.unfilteredRollups) &&
+    (ctx.filteredRollups.length === 0 || allMetricsZeroed(ctx.filteredRollups))
   ) {
     return {
       reason: "filter_caused",

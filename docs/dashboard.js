@@ -5553,8 +5553,12 @@ var PRInsightsDashboard = (() => {
     }
     return null;
   }
+  function allMetricsZeroed(rollups) {
+    if (rollups.length === 0) return true;
+    return rollups.every((r) => r.pr_count === 0);
+  }
   function checkFilterCaused(ctx) {
-    if (hasActiveFilters(ctx.filters) && ctx.unfilteredRollups.length > 0 && ctx.filteredRollups.length === 0) {
+    if (hasActiveFilters(ctx.filters) && ctx.unfilteredRollups.length > 0 && !allMetricsZeroed(ctx.unfilteredRollups) && (ctx.filteredRollups.length === 0 || allMetricsZeroed(ctx.filteredRollups))) {
       return {
         reason: "filter_caused",
         message: EMPTY_STATE_MESSAGES.FILTER_CAUSED,
@@ -5953,15 +5957,13 @@ var PRInsightsDashboard = (() => {
   function parseFiltersFromUrl(params) {
     const repos = parseCommaSeparated(params.get("repos"));
     const teams = parseCommaSeparated(params.get("teams"));
-    const reviewerValues = parseCommaSeparated(params.get("reviewers"));
-    const firstReviewer = reviewerValues[0];
-    const authorValues = parseCommaSeparated(params.get("author"));
-    const firstAuthor = authorValues[0];
+    const reviewerRaw = params.get("reviewers")?.trim() ?? "";
+    const authorRaw = params.get("author")?.trim() ?? "";
     return {
       repos,
       teams,
-      reviewers: firstReviewer ? [firstReviewer] : [],
-      authors: firstAuthor ? [firstAuthor] : []
+      reviewers: reviewerRaw ? [reviewerRaw] : [],
+      authors: authorRaw ? [authorRaw] : []
     };
   }
 

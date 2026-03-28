@@ -62,18 +62,21 @@ function parseCommaSeparated(raw: string | null): string[] {
  * @returns Parsed filter state
  */
 export function parseFiltersFromUrl(params: URLSearchParams): FilterState {
+  // Multi-select: comma-separated (repos, teams)
   const repos = parseCommaSeparated(params.get("repos"));
   const teams = parseCommaSeparated(params.get("teams"));
-  const reviewerValues = parseCommaSeparated(params.get("reviewers"));
-  const firstReviewer = reviewerValues[0];
-  const authorValues = parseCommaSeparated(params.get("author"));
-  const firstAuthor = authorValues[0];
+
+  // Single-select: preserve entire value as scalar (reviewer, author).
+  // Do NOT split on comma — identifiers/names may contain commas.
+  // The serializer writes these as single values, not comma-delimited lists.
+  const reviewerRaw = params.get("reviewers")?.trim() ?? "";
+  const authorRaw = params.get("author")?.trim() ?? "";
 
   return {
     repos,
     teams,
-    reviewers: firstReviewer ? [firstReviewer] : [],
-    authors: firstAuthor ? [firstAuthor] : [],
+    reviewers: reviewerRaw ? [reviewerRaw] : [],
+    authors: authorRaw ? [authorRaw] : [],
   };
 }
 
