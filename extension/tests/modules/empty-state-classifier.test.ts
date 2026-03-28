@@ -186,6 +186,38 @@ describe("Empty State Classifier", () => {
     });
   });
 
+  describe("allMetricsZeroed empty array branch (line 123)", () => {
+    it("classifies as filter_caused when filteredRollups is empty array with active filters", () => {
+      const result = classifyEmptyState({
+        chartType: "throughput",
+        filters: activeFilters,
+        unfilteredRollups: [makeRollup()],
+        filteredRollups: [],
+        availability: defaultAvailability,
+        minimumDataPoints: 0,
+      });
+      expect(result).not.toBeNull();
+      expect(result!.reason).toBe("filter_caused");
+    });
+  });
+
+  describe("minimum_data non-trend message (lines 166-169)", () => {
+    it("returns MINIMUM_DATA_GENERIC for non-trend chart below minimumDataPoints", () => {
+      const result = classifyEmptyState({
+        chartType: "throughput",
+        filters: emptyFilters,
+        unfilteredRollups: [makeRollup()],
+        filteredRollups: [makeRollup()],
+        availability: defaultAvailability,
+        minimumDataPoints: 3,
+      });
+      expect(result).not.toBeNull();
+      expect(result!.reason).toBe("minimum_data");
+      expect(result!.message).toBe(EMPTY_STATE_MESSAGES.MINIMUM_DATA_GENERIC);
+      expect(result!.hint).toBe(EMPTY_STATE_HINTS.MINIMUM_GENERIC);
+    });
+  });
+
   describe("Normal rendering (no empty state)", () => {
     it("returns null when sufficient data exists", () => {
       const result = classifyEmptyState({

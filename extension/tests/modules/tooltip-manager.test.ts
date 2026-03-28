@@ -330,6 +330,50 @@ describe("Tooltip Manager", () => {
     });
   });
 
+  describe("Viewport boundary clamping", () => {
+    it("clamps tooltip to bottom of viewport when it overflows (line 67)", () => {
+      const target = document.createElement("div");
+      document.body.appendChild(target);
+
+      // Target near bottom: top=0 so tooltip placed below at bottom+gap=28.
+      // Make tooltip tall enough to overflow innerHeight.
+      target.getBoundingClientRect = () => ({
+        top: 0, left: 100, bottom: 20, right: 120,
+        width: 20, height: 20, x: 100, y: 0, toJSON: () => ({}),
+      });
+
+      // Mock innerHeight to a small value so tooltip overflows bottom
+      const origInnerHeight = window.innerHeight;
+      Object.defineProperty(window, "innerHeight", { value: 50, configurable: true });
+
+      showChartTooltip(target, "<span>Tall tooltip content</span>");
+
+      const tooltip = document.querySelector(".chart-tooltip") as HTMLElement;
+      // The tooltip's top should be clamped: innerHeight - height - 4
+      const top = parseFloat(tooltip.style.top);
+      expect(top).toBeLessThanOrEqual(50);
+
+      Object.defineProperty(window, "innerHeight", { value: origInnerHeight, configurable: true });
+    });
+
+    it("clamps tooltip left edge to minimum of 4px (line 76)", () => {
+      const target = document.createElement("div");
+      document.body.appendChild(target);
+
+      // Target at far left so centered tooltip would go negative
+      target.getBoundingClientRect = () => ({
+        top: 100, left: 0, bottom: 120, right: 5,
+        width: 5, height: 20, x: 0, y: 100, toJSON: () => ({}),
+      });
+
+      showInfoTooltip(target, "Left edge test");
+
+      const tooltip = document.querySelector(".info-tooltip") as HTMLElement;
+      const left = parseFloat(tooltip.style.left);
+      expect(left).toBeGreaterThanOrEqual(4);
+    });
+  });
+
   describe("Lifecycle invariant", () => {
     it("never allows two tooltips to coexist", () => {
       const target1 = document.createElement("div");

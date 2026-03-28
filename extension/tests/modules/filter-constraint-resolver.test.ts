@@ -295,6 +295,20 @@ describe("Filter Constraint Resolver", () => {
       );
       expect(result.effectiveState.authors).toEqual(["auth-1"]);
     });
+
+    it("truncates reviewers to empty when first element is falsy", () => {
+      const result = resolveFilterConstraints(
+        makeFilters({ reviewers: ["", "rev-2"] }),
+      );
+      expect(result.effectiveState.reviewers).toEqual([]);
+    });
+
+    it("truncates authors to empty when first element is falsy", () => {
+      const result = resolveFilterConstraints(
+        makeFilters({ authors: ["", "auth-2"] }),
+      );
+      expect(result.effectiveState.authors).toEqual([]);
+    });
   });
 
   // ────────────────────────────────────────────────────────────────────

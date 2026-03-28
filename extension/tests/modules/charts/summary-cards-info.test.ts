@@ -237,6 +237,37 @@ describe("Summary Cards Info Icons (attachInfoIcons)", () => {
     expect(document.querySelectorAll(".info-icon-btn").length).toBe(0);
   });
 
+  it("click-dismiss rAF path registers and fires dismissOnce listener (lines 324-328)", () => {
+    jest.useFakeTimers();
+
+    const containers = createContainersWithCards();
+    renderSummaryCards({ rollups: createSampleRollups(), containers });
+
+    const firstIcon = document.querySelector(".info-icon-btn") as HTMLElement;
+    firstIcon.getBoundingClientRect = () => ({
+      top: 100, left: 100, bottom: 120, right: 120,
+      width: 20, height: 20, x: 100, y: 100,
+      toJSON: () => ({}),
+    });
+
+    // Ensure no tooltip exists
+    const existing = document.querySelector(".info-tooltip");
+    if (existing) existing.remove();
+
+    // Click to show tooltip (no existing tooltip -> enters the else branch)
+    firstIcon.click();
+    expect(document.querySelector(".info-tooltip")).not.toBeNull();
+
+    // Advance to flush the rAF callback that adds the dismissOnce listener
+    jest.advanceTimersByTime(16);
+
+    // Now click on document to trigger dismissOnce
+    document.dispatchEvent(new Event("click", { bubbles: true }));
+    expect(document.querySelector(".info-tooltip")).toBeNull();
+
+    jest.useRealTimers();
+  });
+
   it("missing h3 in metric card gracefully skips", () => {
     // Create a card without h3
     const card = document.createElement("div");

@@ -1521,6 +1521,71 @@ describe("Typeahead Dropdown", () => {
   });
 
   // ────────────────────────────────────────────────────────────────────
+  // Non-search dropdown renders plain text (line 186)
+  // ────────────────────────────────────────────────────────────────────
+
+  describe("Non-search dropdown rendering (no match highlight)", () => {
+    it("options use plain textContent when dropdown opens without search text", () => {
+      createContainer("no-highlight");
+      initTypeaheadDropdown(makeConfig("no-highlight"));
+
+      const input = document.querySelector(
+        "#no-highlight .typeahead-input",
+      ) as HTMLInputElement;
+
+      // Focus opens dropdown with no search text
+      input.dispatchEvent(new Event("focus"));
+
+      const options = document.querySelectorAll(
+        "#no-highlight .typeahead-option",
+      );
+      expect(options.length).toBe(4);
+      // No <strong> elements — plain text only
+      options.forEach((opt) => {
+        expect(opt.querySelector("strong")).toBeNull();
+        expect(opt.textContent).toBeTruthy();
+      });
+    });
+  });
+
+  // ────────────────────────────────────────────────────────────────────
+  // Single-select toggle-off (lines 273-278)
+  // ────────────────────────────────────────────────────────────────────
+
+  describe("Single-select toggle-off (click already-selected option)", () => {
+    it("clears selection when clicking the already-selected option", () => {
+      createContainer("single-toggle-off");
+      const onChange = jest.fn();
+      const instance = initTypeaheadDropdown(
+        makeConfig("single-toggle-off", {
+          mode: "single",
+          initialSelection: ["alpha"],
+          onChange,
+        }),
+      );
+
+      const input = document.querySelector(
+        "#single-toggle-off .typeahead-input",
+      ) as HTMLInputElement;
+
+      // Focus opens dropdown (clears input for search in single-select)
+      input.dispatchEvent(new Event("focus"));
+
+      // Find the "alpha" option and click it (toggle-off)
+      const alphaOption = document.querySelector(
+        '#single-toggle-off [data-option-id="alpha"]',
+      ) as HTMLElement;
+      alphaOption.dispatchEvent(
+        new PointerEvent("pointerdown", { bubbles: true }),
+      );
+
+      // Selection should now be empty
+      expect(instance!.getSelected()).toEqual([]);
+      expect(onChange).toHaveBeenCalledWith([]);
+    });
+  });
+
+  // ────────────────────────────────────────────────────────────────────
   // Bug fix: setSelected() must refresh open dropdown
   // ────────────────────────────────────────────────────────────────────
 
