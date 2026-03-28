@@ -8,14 +8,16 @@
  */
 
 import type { Rollup } from "../../dataset-loader";
+import type { DataAvailabilitySignal } from "../../types";
+import type { FilterState } from "../filters";
 import { calculateMovingAverage } from "../metrics";
 import {
   escapeHtml,
-  NO_DATA_HINTS,
   renderNoData,
   renderTrustedHtml,
 } from "../shared/render";
 import { addChartTooltips, clearChartTooltips } from "../charts";
+import { classifyEmptyState } from "../empty-state-classifier";
 
 /** Maximum data points rendered in the throughput chart (2 years of weekly data). */
 export const MAX_THROUGHPUT_POINTS = 104;
@@ -35,15 +37,36 @@ export const MAX_VISIBLE_LABELS = 16;
 export function renderThroughputChart(
   container: HTMLElement | null,
   rollups: Rollup[],
+  options?: {
+    filters?: FilterState;
+    unfilteredRollups?: Rollup[];
+    availability?: DataAvailabilitySignal;
+  },
 ): void {
   if (!container) return;
   clearChartTooltips(container);
 
   if (!rollups || !rollups.length) {
+    const classification = options
+      ? classifyEmptyState({
+          chartType: "throughput",
+          filters: options.filters ?? { repos: [], teams: [], reviewers: [], authors: [] },
+          unfilteredRollups: options.unfilteredRollups ?? [],
+          filteredRollups: rollups ?? [],
+          availability: options.availability ?? {
+            reviewerDataPresent: false,
+            reviewerDataEmpty: false,
+            cycleTimePresent: false,
+            reviewerRepoMode: "constrained",
+            commentsStatus: "disabled",
+          },
+          minimumDataPoints: 0,
+        })
+      : null;
     renderNoData(
       container,
-      "No data for selected range",
-      NO_DATA_HINTS.WIDEN_FILTERS,
+      classification?.message ?? "No data for selected range",
+      classification?.hint ?? "Try widening the date range or adjusting repository/team filters.",
     );
     return;
   }

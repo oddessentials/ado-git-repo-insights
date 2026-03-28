@@ -31,6 +31,7 @@ import {
   type DimensionsData,
   type DistributionData,
   type ManifestSchema,
+  type DataAvailabilitySignal,
 } from "./types";
 
 // Import from extracted modules
@@ -49,6 +50,18 @@ import {
   renderCycleDistribution as renderCycleDistributionModule,
   renderCycleTimeTrend as renderCycleTimeTrendModule,
   renderReviewerActivity as renderReviewerActivityModule,
+  // Data availability signal derivation
+  deriveAvailabilitySignal,
+  // Filter constraint resolver
+  resolveFilterConstraints,
+  type FilterDimension,
+  // Typeahead dropdown component
+  initTypeaheadDropdown,
+  type TypeaheadInstance,
+  // Filter URL serialization
+  parseFiltersFromUrl,
+  serializeFiltersToUrl,
+  type FilterState,
   // State machine and state-specific rendering (FR-001 through FR-004)
   resolvePredictionsState,
   resolveInsightsState,
@@ -64,7 +77,6 @@ import {
   hideAllPanels,
   // Safe DOM rendering utilities
   clearElement,
-  createOption,
   renderTrustedHtml,
 } from "./modules";
 
@@ -88,6 +100,12 @@ let currentFilters: {
   authors: [],
 };
 let reviewerFilterNoticeMessage: string | null = null;
+
+// Typeahead dropdown instances for the four filter dimensions
+let typeaheadRepo: TypeaheadInstance | null = null;
+let typeaheadTeam: TypeaheadInstance | null = null;
+let typeaheadReviewer: TypeaheadInstance | null = null;
+let typeaheadAuthor: TypeaheadInstance | null = null;
 let comparisonMode = false;
 let cachedRollups: Rollup[] = []; // Cache for export
 let currentBuildId: number | null = null; // Store build ID for raw data download
@@ -109,21 +127,6 @@ function getOwnRecordValue<T>(
 ): T | undefined {
   const descriptor = Object.getOwnPropertyDescriptor(record, key);
   return descriptor?.value as T | undefined;
-}
-
-/**
- * Typed DOM element accessor.
- * Provides type-safe access to cached DOM elements.
- * @param id - Element ID from cache
- * @returns Typed element or null
- */
-function getElement<T extends HTMLElement = HTMLElement>(id: string): T | null {
-  // eslint-disable-next-line security/detect-object-injection -- SECURITY: id is string parameter for DOM element lookup, not user input
-  const el = elements[id];
-  if (el instanceof HTMLElement) {
-    return el as T;
-  }
-  return null;
 }
 
 /**
@@ -694,10 +697,8 @@ function setupEventListeners(): void {
     .getElementById("permission-retry-btn")
     ?.addEventListener("click", () => init());
 
-  elements["repo-filter"]?.addEventListener("change", handleFilterChange);
-  elements["team-filter"]?.addEventListener("change", handleFilterChange);
-  elements["reviewer-filter"]?.addEventListener("change", handleFilterChange);
-  elements["author-filter"]?.addEventListener("change", handleFilterChange);
+  // Filter event listeners now managed by typeahead component onChange callbacks
+  // (wired in populateFilterDropdowns → initTypeaheadDropdown)
   elements["clear-filters"]?.addEventListener("click", clearAllFilters);
 
   elements["compare-toggle"]?.addEventListener("click", toggleComparisonMode);
@@ -839,11 +840,17 @@ async function refreshMetrics(): Promise<void> {
   // and cross-dim PR sum exceeds repository total.
   updateOverlapIndicator(rawRollups, currentFilters);
 
+  // Derive data availability signal for empty-state classification
+  const availability = deriveAvailabilitySignal(
+    rawRollups,
+    loader?.getCapabilityState?.() ?? null,
+  );
+
   renderSummaryCards(rollups, prevRollups);
-  renderThroughputChart(rollups);
-  renderCycleTimeTrend(rollups);
-  renderReviewerActivity(rollups);
-  renderCycleDistribution(distributions);
+  renderThroughputChart(rollups, rawRollups, availability);
+  renderCycleTimeTrend(rollups, rawRollups, availability);
+  renderReviewerActivity(rollups, rawRollups, availability);
+  renderCycleDistribution(distributions, rawRollups, availability);
 
   // Update comparison banner if in comparison mode
   if (comparisonMode) {
@@ -1014,18 +1021,35 @@ function renderSummaryCards(
  * Render throughput chart with trend line overlay.
  * Thin wrapper that delegates to extracted module.
  */
-function renderThroughputChart(rollups: Rollup[]): void {
-  renderThroughputChartModule(elements["throughput-chart"] ?? null, rollups);
+function renderThroughputChart(
+  rollups: Rollup[],
+  unfilteredRollups?: Rollup[],
+  availability?: DataAvailabilitySignal,
+): void {
+  renderThroughputChartModule(elements["throughput-chart"] ?? null, rollups, {
+    filters: currentFilters,
+    unfilteredRollups,
+    availability,
+  });
 }
 
 /**
  * Render cycle time distribution.
  * Thin wrapper that delegates to extracted module.
  */
-function renderCycleDistribution(distributions: DistributionData[]): void {
+function renderCycleDistribution(
+  distributions: DistributionData[],
+  unfilteredRollups?: Rollup[],
+  availability?: DataAvailabilitySignal,
+): void {
   renderCycleDistributionModule(
     elements["cycle-distribution"] ?? null,
     distributions,
+    {
+      filters: currentFilters,
+      unfilteredRollups,
+      availability,
+    },
   );
 }
 
@@ -1033,17 +1057,32 @@ function renderCycleDistribution(distributions: DistributionData[]): void {
  * Render cycle time trend chart (line chart with P50 and P90).
  * Thin wrapper that delegates to extracted module.
  */
-function renderCycleTimeTrend(rollups: Rollup[]): void {
-  renderCycleTimeTrendModule(elements["cycle-time-trend"] ?? null, rollups);
+function renderCycleTimeTrend(
+  rollups: Rollup[],
+  unfilteredRollups?: Rollup[],
+  availability?: DataAvailabilitySignal,
+): void {
+  renderCycleTimeTrendModule(elements["cycle-time-trend"] ?? null, rollups, {
+    filters: currentFilters,
+    unfilteredRollups,
+    availability,
+  });
 }
 
 /**
  * Render reviewer activity chart (horizontal bar chart).
  * Thin wrapper that delegates to extracted module.
  */
-function renderReviewerActivity(rollups: Rollup[]): void {
+function renderReviewerActivity(
+  rollups: Rollup[],
+  unfilteredRollups?: Rollup[],
+  availability?: DataAvailabilitySignal,
+): void {
   renderReviewerActivityModule(elements["reviewer-activity"] ?? null, rollups, {
     reviewerFilterActive: currentFilters.reviewers.length > 0,
+    filters: currentFilters,
+    unfilteredRollups,
+    availability,
   });
 }
 
@@ -1219,90 +1258,91 @@ function switchTab(tabId: string): void {
  *
  * The filter values MUST use repository_name/team_name because that's how
  * the by_repository and by_team slices in weekly rollups are keyed.
+ *
+ * Uses unified typeahead dropdown components (FR-005) with single/multi modes.
  */
 function populateFilterDropdowns(dimensions: DimensionsData | null): void {
   if (!dimensions) return;
 
-  // Populate repository filter
-  const repoFilter = getElement<HTMLSelectElement>("repo-filter");
-  if (
-    repoFilter &&
-    dimensions.repositories &&
-    dimensions.repositories.length > 0
-  ) {
-    // SECURITY: Use safe DOM APIs for filter dropdown
-    clearElement(repoFilter);
-    repoFilter.appendChild(createOption("", "All"));
-    dimensions.repositories.forEach((repo) => {
-      const option = document.createElement("option");
-      // Use repository_name as value (matches by_repository keys in rollups)
-      option.value = repo.repository_name;
-      option.textContent = repo.repository_name;
-      repoFilter.appendChild(option);
+  // Destroy previous instances to prevent listener leaks on re-initialization
+  typeaheadRepo?.destroy();
+  typeaheadTeam?.destroy();
+  typeaheadReviewer?.destroy();
+  typeaheadAuthor?.destroy();
+
+  // Populate repository filter (multi-select)
+  if (dimensions.repositories && dimensions.repositories.length > 0) {
+    typeaheadRepo = initTypeaheadDropdown({
+      containerId: "repo-filter",
+      options: dimensions.repositories.map((r) => ({
+        id: r.repository_name,
+        displayName: r.repository_name,
+      })),
+      mode: "multi",
+      placeholder: "Search repositories...",
+      initialSelection: [],
+      onChange: () => handleTypeaheadFilterChange("repos"),
     });
     elements["repo-filter-group"]?.classList.remove("hidden");
   } else {
+    typeaheadRepo = null;
     elements["repo-filter-group"]?.classList.add("hidden");
   }
 
-  // Populate team filter
-  const teamFilter = getElement<HTMLSelectElement>("team-filter");
-  if (teamFilter && dimensions.teams && dimensions.teams.length > 0) {
-    // SECURITY: Use safe DOM APIs for filter dropdown
-    clearElement(teamFilter);
-    teamFilter.appendChild(createOption("", "All"));
-    dimensions.teams.forEach((team) => {
-      const option = document.createElement("option");
-      // Use team_name as value (matches by_team keys in rollups)
-      option.value = team.team_name;
-      option.textContent = team.team_name;
-      teamFilter.appendChild(option);
+  // Populate team filter (multi-select)
+  if (dimensions.teams && dimensions.teams.length > 0) {
+    typeaheadTeam = initTypeaheadDropdown({
+      containerId: "team-filter",
+      options: dimensions.teams.map((t) => ({
+        id: t.team_name,
+        displayName: t.team_name,
+      })),
+      mode: "multi",
+      placeholder: "Search teams...",
+      initialSelection: [],
+      onChange: () => handleTypeaheadFilterChange("teams"),
     });
     elements["team-filter-group"]?.classList.remove("hidden");
   } else {
+    typeaheadTeam = null;
     elements["team-filter-group"]?.classList.add("hidden");
   }
 
-  // Populate reviewer filter
-  const reviewerFilter = getElement<HTMLSelectElement>("reviewer-filter");
-  if (
-    reviewerFilter &&
-    dimensions.reviewers &&
-    dimensions.reviewers.length > 0
-  ) {
-    clearElement(reviewerFilter);
-    reviewerFilter.appendChild(createOption("", "All"));
-    dimensions.reviewers.forEach((reviewer) => {
-      const option = document.createElement("option");
-      option.value = reviewer.reviewer_id;
-      option.textContent = reviewer.reviewer_name;
-      reviewerFilter.appendChild(option);
+  // Populate reviewer filter (single-select)
+  if (dimensions.reviewers && dimensions.reviewers.length > 0) {
+    typeaheadReviewer = initTypeaheadDropdown({
+      containerId: "reviewer-filter",
+      options: dimensions.reviewers.map((r) => ({
+        id: r.reviewer_id,
+        displayName: r.reviewer_name,
+      })),
+      mode: "single",
+      placeholder: "Search reviewers...",
+      initialSelection: [],
+      onChange: () => handleTypeaheadFilterChange("reviewers"),
     });
     elements["reviewer-filter-group"]?.classList.remove("hidden");
   } else {
+    typeaheadReviewer = null;
     elements["reviewer-filter-group"]?.classList.add("hidden");
   }
 
-  const authorFilter = getElement<HTMLInputElement>("author-filter");
-  const authorFilterOptions = getElement<HTMLDataListElement>(
-    "author-filter-options",
-  );
-  if (
-    authorFilter &&
-    authorFilterOptions &&
-    dimensions.authors &&
-    dimensions.authors.length > 0
-  ) {
-    clearElement(authorFilterOptions);
-    dimensions.authors.forEach((author) => {
-      const option = document.createElement("option");
-      option.value = author.author_name;
-      option.label = author.author_id;
-      option.dataset["authorId"] = author.author_id;
-      authorFilterOptions.appendChild(option);
+  // Populate author filter (single-select)
+  if (dimensions.authors && dimensions.authors.length > 0) {
+    typeaheadAuthor = initTypeaheadDropdown({
+      containerId: "author-filter",
+      options: dimensions.authors.map((a) => ({
+        id: a.author_id,
+        displayName: a.author_name,
+      })),
+      mode: "single",
+      placeholder: "Search authors...",
+      initialSelection: [],
+      onChange: () => handleTypeaheadFilterChange("authors"),
     });
     elements["author-filter-group"]?.classList.remove("hidden");
   } else {
+    typeaheadAuthor = null;
     elements["author-filter-group"]?.classList.add("hidden");
   }
 
@@ -1310,262 +1350,99 @@ function populateFilterDropdowns(dimensions: DimensionsData | null): void {
   restoreFiltersFromUrl();
 }
 
-function clearSelectToAll(select: HTMLSelectElement | null): void {
-  if (!select) return;
-  Array.from(select.options).forEach((o) => {
-    o.selected = o.value === "";
-  });
-}
-
-function normalizeReviewerSelection(
-  reviewerValues: string[],
-  source: "ui" | "url",
-): string[] {
-  if (reviewerValues.length <= 1) {
-    return reviewerValues;
-  }
-
-  const ignored = reviewerValues.slice(1);
-  console.warn(
-    `Reviewer Phase 1 supports a single exact reviewer filter; ignoring additional ${source} values:`,
-    ignored,
-  );
-  return reviewerValues[0] ? [reviewerValues[0]] : [];
-}
-
-function normalizeAuthorSelection(
-  authorValues: string[],
-  dimensions: DimensionsData | null,
-): string[] {
-  const firstValue = authorValues[0];
-  if (!firstValue) {
-    return [];
-  }
-
-  const matchedAuthor = dimensions?.authors?.find(
-    (author) =>
-      author.author_id === firstValue || author.author_name === firstValue,
-  );
-
-  if (!matchedAuthor) {
-    console.warn("Ignoring invalid author filter value:", firstValue);
-    return [];
-  }
-
-  return [matchedAuthor.author_id];
-}
-
-function clearAuthorInput(): void {
-  const authorFilter = elements["author-filter"] as HTMLInputElement | null;
-  if (authorFilter) {
-    authorFilter.value = "";
-  }
-}
-
-function applyAuthorFilterCompatibility(
-  sourceId: string | null,
-  filters: {
-    repos: string[];
-    teams: string[];
-    reviewers: string[];
-    authors: string[];
-  },
-): {
-  repos: string[];
-  teams: string[];
-  reviewers: string[];
-  authors: string[];
-} {
-  if (filters.authors.length === 0) {
-    return filters;
-  }
-
-  const reviewerFilter = elements[
-    "reviewer-filter"
-  ] as HTMLSelectElement | null;
-
-  if (filters.reviewers.length > 0) {
-    if (sourceId === "author-filter") {
-      clearSelectToAll(reviewerFilter);
-      return { ...filters, reviewers: [] };
-    }
-
-    if (sourceId === "reviewer-filter") {
-      clearAuthorInput();
-      return { ...filters, authors: [] };
-    }
-
-    console.warn(
-      "Author filters cannot be combined with reviewer filters in the current schema; keeping reviewer filters only",
-    );
-    clearAuthorInput();
-    return { ...filters, authors: [] };
-  }
-
-  return filters;
-}
-
-function applyReviewerFilterCompatibility(
-  sourceId: string | null,
-  repoValues: string[],
-  teamValues: string[],
-  reviewerValues: string[],
-): { repos: string[]; teams: string[]; reviewers: string[] } {
-  const normalizedReviewers = normalizeReviewerSelection(reviewerValues, "ui");
-  const reviewerRepoNotice =
-    "Reviewer + repository uses reviewer-only metrics while retaining repository state.";
-  const reviewerTeamNotice =
-    "Reviewer + team is not supported in the current schema. Team selection was cleared.";
-
-  reviewerFilterNoticeMessage = null;
-
-  if (
-    normalizedReviewers.length === 0 ||
-    (repoValues.length === 0 && teamValues.length === 0)
-  ) {
-    return {
-      repos: repoValues,
-      teams: teamValues,
-      reviewers: normalizedReviewers,
-    };
-  }
-
-  const teamFilter = elements["team-filter"] as HTMLSelectElement | null;
-
-  if (teamValues.length > 0) {
-    reviewerFilterNoticeMessage = reviewerTeamNotice;
-    clearSelectToAll(teamFilter);
-    return { repos: repoValues, teams: [], reviewers: normalizedReviewers };
-  }
-
-  if (repoValues.length > 0) {
-    reviewerFilterNoticeMessage = reviewerRepoNotice;
-    if (sourceId !== "reviewer-filter") {
-      console.warn(reviewerRepoNotice);
-    }
-  }
-
-  return { repos: repoValues, teams: [], reviewers: normalizedReviewers };
-}
+// Legacy constraint and normalization functions removed.
+// All constraint logic is now in filter-constraint-resolver.ts (FR-010).
+// Single-select enforcement handled by the resolver.
+// Author name→ID normalization handled in restoreFiltersFromUrl().
 
 /**
- * Handle filter dropdown change.
+ * Single authority for filter state updates. ALL filter mutations
+ * route through this function. No caller may modify currentFilters
+ * directly.
+ *
+ * Sequence: resolve constraints → derive notices → update state →
+ * sync typeahead UI → update filter UI → serialize URL → refresh metrics.
+ *
+ * @param raw - Raw filter state (pre-constraint-resolution)
+ * @param lastChanged - Which dimension the user last interacted with.
+ *   Passed to the resolver for Author ↔ Reviewer "last interaction wins."
  */
-function handleFilterChange(event: Event): void {
-  const repoFilter = elements["repo-filter"] as HTMLSelectElement | null;
-  const teamFilter = elements["team-filter"] as HTMLSelectElement | null;
-  const reviewerFilter = elements[
-    "reviewer-filter"
-  ] as HTMLSelectElement | null;
-  const authorFilter = elements["author-filter"] as HTMLInputElement | null;
+function applyFilterState(
+  raw: FilterState,
+  lastChanged?: FilterDimension,
+): void {
+  // 1. Resolve constraints (single authority, FR-010)
+  const { effectiveState, constraintsApplied } =
+    resolveFilterConstraints(raw, lastChanged);
 
-  const repoValues = repoFilter
-    ? Array.from(repoFilter.selectedOptions)
-        .map((o) => o.value)
-        .filter((v) => v)
-    : [];
-  const teamValues = teamFilter
-    ? Array.from(teamFilter.selectedOptions)
-        .map((o) => o.value)
-        .filter((v) => v)
-    : [];
-  const reviewerValues = reviewerFilter
-    ? [reviewerFilter.value].filter((v) => v)
-    : [];
-  const authorValues = authorFilter
-    ? [authorFilter.value].filter((v) => v)
-    : [];
-
-  const sourceId =
-    event.currentTarget instanceof HTMLElement ? event.currentTarget.id : null;
-  const reviewerCompatibleFilters = applyReviewerFilterCompatibility(
-    sourceId,
-    repoValues,
-    teamValues,
-    reviewerValues,
+  // 2. Derive notice state (always derived from resolver output, never stored)
+  const reviewerNotice = constraintsApplied.find(
+    (n) =>
+      n.type === "author_reviewer" ||
+      n.type === "reviewer_team" ||
+      n.type === "reviewer_repo",
   );
-  const normalizedFilters = {
-    ...reviewerCompatibleFilters,
-    authors: normalizeAuthorSelection(authorValues, currentDimensions),
-  };
-  currentFilters = applyAuthorFilterCompatibility(sourceId, normalizedFilters);
+  reviewerFilterNoticeMessage = reviewerNotice?.message ?? null;
 
+  // 3. Update canonical state
+  currentFilters = effectiveState;
+
+  // 4. Sync all typeahead UIs with resolved state
+  typeaheadRepo?.setSelected(effectiveState.repos);
+  typeaheadTeam?.setSelected(effectiveState.teams);
+  typeaheadReviewer?.setSelected(effectiveState.reviewers);
+  typeaheadAuthor?.setSelected(effectiveState.authors);
+
+  // 5. Update filter UI (chips, labels, notices)
   updateFilterUI();
+
+  // 6. Serialize canonical URL
   updateUrlState();
+
+  // 7. Refresh metrics
   void refreshMetrics();
 }
 
 /**
- * Clear all filters.
+ * Handle filter change from typeahead components.
+ * Reads raw state from typeaheads and delegates to applyFilterState.
+ */
+function handleTypeaheadFilterChange(lastChanged?: FilterDimension): void {
+  applyFilterState({
+    repos: typeaheadRepo?.getSelected() ?? [],
+    teams: typeaheadTeam?.getSelected() ?? [],
+    reviewers: typeaheadReviewer?.getSelected() ?? [],
+    authors: typeaheadAuthor?.getSelected() ?? [],
+  }, lastChanged);
+}
+
+/**
+ * Clear all filters. Delegates to applyFilterState with empty state.
  */
 function clearAllFilters(): void {
-  currentFilters = { repos: [], teams: [], reviewers: [], authors: [] };
-  reviewerFilterNoticeMessage = null;
-
-  const repoFilter = elements["repo-filter"] as HTMLSelectElement | null;
-  const teamFilter = elements["team-filter"] as HTMLSelectElement | null;
-  const reviewerFilter = elements[
-    "reviewer-filter"
-  ] as HTMLSelectElement | null;
-  const authorFilter = elements["author-filter"] as HTMLInputElement | null;
-
-  clearSelectToAll(repoFilter);
-  clearSelectToAll(teamFilter);
-  clearSelectToAll(reviewerFilter);
-  if (authorFilter) {
-    authorFilter.value = "";
-  }
-
-  updateFilterUI();
-  updateUrlState();
-  void refreshMetrics();
+  applyFilterState({ repos: [], teams: [], reviewers: [], authors: [] });
 }
 
 /**
- * Find an <option> element by value inside a <select>, using CSS.escape
- * to safely handle special characters in the value attribute.
- */
-function findOptionByValue(
-  select: HTMLSelectElement | null,
-  value: string,
-): HTMLOptionElement | null {
-  return select?.querySelector(
-    `option[value="${CSS.escape(value)}"]`,
-  ) as HTMLOptionElement | null;
-}
-
-/**
- * Remove a specific filter.
+ * Remove a specific filter. Computes next state and delegates to applyFilterState.
  */
 function removeFilter(type: string, value: string): void {
+  const next: FilterState = {
+    repos: [...currentFilters.repos],
+    teams: [...currentFilters.teams],
+    reviewers: [...currentFilters.reviewers],
+    authors: [...currentFilters.authors],
+  };
   if (type === "repo") {
-    currentFilters.repos = currentFilters.repos.filter((v) => v !== value);
-    const repoFilter = elements["repo-filter"] as HTMLSelectElement | null;
-    const option = findOptionByValue(repoFilter, value);
-    if (option) option.selected = false;
+    next.repos = next.repos.filter((v) => v !== value);
   } else if (type === "team") {
-    currentFilters.teams = currentFilters.teams.filter((v) => v !== value);
-    const teamFilter = elements["team-filter"] as HTMLSelectElement | null;
-    const option = findOptionByValue(teamFilter, value);
-    if (option) option.selected = false;
+    next.teams = next.teams.filter((v) => v !== value);
   } else if (type === "reviewer") {
-    currentFilters.reviewers = currentFilters.reviewers.filter(
-      (v) => v !== value,
-    );
-    const reviewerFilter = elements[
-      "reviewer-filter"
-    ] as HTMLSelectElement | null;
-    const option = findOptionByValue(reviewerFilter, value);
-    if (option) option.selected = false;
+    next.reviewers = next.reviewers.filter((v) => v !== value);
   } else if (type === "author") {
-    currentFilters.authors = currentFilters.authors.filter((v) => v !== value);
-    const authorFilter = elements["author-filter"] as HTMLInputElement | null;
-    if (authorFilter) authorFilter.value = "";
+    next.authors = next.authors.filter((v) => v !== value);
   }
-
-  updateFilterUI();
-  updateUrlState();
-  void refreshMetrics();
+  applyFilterState(next);
 }
 
 /**
@@ -1644,30 +1521,33 @@ function renderFilterChips(): void {
 
 /**
  * Get display label for a filter value.
+ * Looks up display name from dimension data rather than DOM elements.
  */
 function getFilterLabel(type: string, value: string): string {
   if (type === "repo") {
-    const repoFilter = elements["repo-filter"] as HTMLSelectElement | null;
-    return findOptionByValue(repoFilter, value)?.textContent ?? value;
+    return (
+      currentDimensions?.repositories?.find(
+        (r) => r.repository_name === value,
+      )?.repository_name ?? value
+    );
   }
   if (type === "team") {
-    const teamFilter = elements["team-filter"] as HTMLSelectElement | null;
-    return findOptionByValue(teamFilter, value)?.textContent ?? value;
+    return (
+      currentDimensions?.teams?.find((t) => t.team_name === value)
+        ?.team_name ?? value
+    );
   }
   if (type === "reviewer") {
-    const reviewerFilter = elements[
-      "reviewer-filter"
-    ] as HTMLSelectElement | null;
-    return findOptionByValue(reviewerFilter, value)?.textContent ?? value;
+    return (
+      currentDimensions?.reviewers?.find((r) => r.reviewer_id === value)
+        ?.reviewer_name ?? value
+    );
   }
   if (type === "author") {
-    const authorFilterOptions = elements[
-      "author-filter-options"
-    ] as HTMLDataListElement | null;
-    const option = authorFilterOptions?.querySelector(
-      `option[data-author-id="${CSS.escape(value)}"]`,
-    ) as HTMLOptionElement | null;
-    return option?.value ?? value;
+    return (
+      currentDimensions?.authors?.find((a) => a.author_id === value)
+        ?.author_name ?? value
+    );
   }
   return value;
 }
@@ -1738,111 +1618,76 @@ function updateMetricLabels(): void {
 
 /**
  * Restore filters from URL parameters.
+ *
+ * Uses parseFiltersFromUrl for canonical deserialization (FR-009),
+ * then validates against available dimensions, resolves constraints
+ * via the single-authority resolver (FR-010), and syncs typeahead UI.
  */
 function restoreFiltersFromUrl(): void {
   const params = new URLSearchParams(window.location.search);
+  const parsed = parseFiltersFromUrl(params);
 
-  const reposParam = params.get("repos");
-  const teamsParam = params.get("teams");
-  const reviewersParam = params.get("reviewers");
-
-  if (reposParam) {
-    currentFilters.repos = reposParam.split(",").filter((v) => v);
-    const repoFilter = elements["repo-filter"] as HTMLSelectElement | null;
-    if (repoFilter) {
-      const valid = currentFilters.repos.filter(
-        (v) => findOptionByValue(repoFilter, v) !== null,
-      );
-      if (valid.length < currentFilters.repos.length) {
-        console.warn(
-          "Ignoring invalid repo filters from URL:",
-          currentFilters.repos.filter((v) => !valid.includes(v)),
-        );
-      }
-      currentFilters.repos = valid;
-      currentFilters.repos.forEach((value) => {
-        const option = findOptionByValue(repoFilter, value);
-        if (option) option.selected = true;
-      });
-    }
-  }
-
-  if (teamsParam) {
-    currentFilters.teams = teamsParam.split(",").filter((v) => v);
-    const teamFilter = elements["team-filter"] as HTMLSelectElement | null;
-    if (teamFilter) {
-      const valid = currentFilters.teams.filter(
-        (v) => findOptionByValue(teamFilter, v) !== null,
-      );
-      if (valid.length < currentFilters.teams.length) {
-        console.warn(
-          "Ignoring invalid team filters from URL:",
-          currentFilters.teams.filter((v) => !valid.includes(v)),
-        );
-      }
-      currentFilters.teams = valid;
-      currentFilters.teams.forEach((value) => {
-        const option = findOptionByValue(teamFilter, value);
-        if (option) option.selected = true;
-      });
-    }
-  }
-
-  if (reviewersParam) {
-    currentFilters.reviewers = normalizeReviewerSelection(
-      reviewersParam.split(",").filter((v) => v),
-      "url",
+  // Validate against available dimension options
+  const validRepos = parsed.repos.filter((v) =>
+    currentDimensions?.repositories?.some((r) => r.repository_name === v),
+  );
+  if (validRepos.length < parsed.repos.length) {
+    console.warn(
+      "Ignoring invalid repo filters from URL:",
+      parsed.repos.filter((v) => !validRepos.includes(v)),
     );
-    const reviewerFilter = elements[
-      "reviewer-filter"
-    ] as HTMLSelectElement | null;
-    if (reviewerFilter) {
-      const valid = currentFilters.reviewers.filter(
-        (v) => findOptionByValue(reviewerFilter, v) !== null,
-      );
-      if (valid.length < currentFilters.reviewers.length) {
-        console.warn(
-          "Ignoring invalid reviewer filters from URL:",
-          currentFilters.reviewers.filter((v) => !valid.includes(v)),
-        );
-      }
-      currentFilters.reviewers = valid;
-      reviewerFilter.value = currentFilters.reviewers[0] ?? "";
-    }
   }
 
-  const authorParam = params.get("author");
-  if (authorParam) {
-    currentFilters.authors = normalizeAuthorSelection(
-      [authorParam],
-      currentDimensions,
+  const validTeams = parsed.teams.filter((v) =>
+    currentDimensions?.teams?.some((t) => t.team_name === v),
+  );
+  if (validTeams.length < parsed.teams.length) {
+    console.warn(
+      "Ignoring invalid team filters from URL:",
+      parsed.teams.filter((v) => !validTeams.includes(v)),
     );
-    const authorFilter = elements["author-filter"] as HTMLInputElement | null;
-    if (authorFilter) {
-      if (currentFilters.authors.length > 0) {
-        const label = getFilterLabel("author", currentFilters.authors[0] ?? "");
-        authorFilter.value = label;
-      } else {
-        authorFilter.value = "";
-      }
-    }
   }
 
-  currentFilters = applyAuthorFilterCompatibility(null, {
-    ...applyReviewerFilterCompatibility(
-      null,
-      currentFilters.repos,
-      currentFilters.teams,
-      currentFilters.reviewers,
+  const validReviewers = parsed.reviewers.filter((v) =>
+    currentDimensions?.reviewers?.some((r) => r.reviewer_id === v),
+  );
+  if (validReviewers.length < parsed.reviewers.length) {
+    console.warn(
+      "Ignoring invalid reviewer filters from URL:",
+      parsed.reviewers.filter((v) => !validReviewers.includes(v)),
+    );
+  }
+
+  const validAuthors = parsed.authors.filter((v) =>
+    currentDimensions?.authors?.some(
+      (a) => a.author_id === v || a.author_name === v,
     ),
-    authors: currentFilters.authors,
+  );
+  // Normalize author names to IDs
+  const normalizedAuthors = validAuthors.map((v) => {
+    const match = currentDimensions?.authors?.find(
+      (a) => a.author_id === v || a.author_name === v,
+    );
+    return match?.author_id ?? v;
   });
-
-  if (currentFilters.authors.length === 0 && authorParam) {
-    console.warn("Ignoring invalid author filter from URL:", authorParam);
+  if (normalizedAuthors.length < parsed.authors.length) {
+    console.warn(
+      "Ignoring invalid author filters from URL:",
+      parsed.authors.filter((v) => !validAuthors.includes(v)),
+    );
   }
 
-  updateFilterUI();
+  // Delegate to centralized applyFilterState (no lastChanged for URL restore).
+  // applyFilterState handles: resolve → derive notices → update state →
+  // sync typeaheads → update UI → serialize URL → refresh metrics.
+  // Note: refreshMetrics() will be called by applyFilterState, but for URL
+  // restore this is correct — the initial load triggers a full refresh anyway.
+  applyFilterState({
+    repos: validRepos,
+    teams: validTeams,
+    reviewers: validReviewers,
+    authors: normalizedAuthors,
+  });
 }
 
 function restoreStateFromUrl(): void {
@@ -2159,19 +2004,11 @@ function updateUrlState(): void {
     newParams.set("tab", tabValue);
   }
 
-  // Add filters
-  if (currentFilters.repos.length > 0) {
-    newParams.set("repos", currentFilters.repos.join(","));
-  }
-  if (currentFilters.teams.length > 0) {
-    newParams.set("teams", currentFilters.teams.join(","));
-  }
-  if (currentFilters.reviewers.length > 0) {
-    newParams.set("reviewers", currentFilters.reviewers.join(","));
-  }
-  if (currentFilters.authors.length > 0) {
-    newParams.set("author", currentFilters.authors[0] ?? "");
-  }
+  // FR-009: All filter URL writes go through the canonical serializer.
+  // No inline .set("repos")/.set("teams") allowed outside this call.
+  // The serializer sorts multi-select values lexicographically and
+  // deletes params when empty, ensuring stable canonical URLs.
+  serializeFiltersToUrl(currentFilters, newParams);
 
   // Add comparison mode
   if (comparisonMode) {

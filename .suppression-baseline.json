@@ -1,18 +1,18 @@
 {
   "version": 1,
-  "generated_at": "2026-03-25T18:38:04Z",
-  "total": 46,
+  "generated_at": "2026-03-27T23:25:19Z",
+  "total": 50,
   "by_scope": {
     "python-backend": 9,
-    "typescript-extension": 33,
-    "typescript-tests": 4
+    "typescript-extension": 36,
+    "typescript-tests": 5
   },
   "by_type": {
     "eslint-disable-block": 2,
     "eslint-disable-line": 0,
-    "eslint-disable-next-line": 35,
+    "eslint-disable-next-line": 38,
     "noqa": 9,
-    "ts-expect-error": 0,
+    "ts-expect-error": 1,
     "ts-ignore": 0,
     "type-ignore": 0
   },
@@ -20,17 +20,20 @@
     "extension/tests/dashboard.test.ts": 1,
     "extension/tests/helpers/fs-test-utils.ts": 1,
     "extension/tests/production-issues.test.ts": 2,
+    "extension/tests/smoke/negative-fixture.smoke.ts": 1,
     "extension/ui/artifact-client.ts": 3,
-    "extension/ui/dashboard.ts": 2,
+    "extension/ui/dashboard.ts": 1,
     "extension/ui/dataset-loader.ts": 2,
     "extension/ui/error-codes.ts": 1,
     "extension/ui/modules/charts/cycle-time.ts": 1,
     "extension/ui/modules/charts/predictions.ts": 4,
+    "extension/ui/modules/charts/summary-cards.ts": 2,
     "extension/ui/modules/dom.ts": 5,
     "extension/ui/modules/metrics.ts": 1,
     "extension/ui/modules/ml.ts": 1,
     "extension/ui/modules/shared/format.ts": 2,
     "extension/ui/modules/shared/security.ts": 1,
+    "extension/ui/modules/typeahead-dropdown.ts": 2,
     "extension/ui/schemas/utils.ts": 1,
     "extension/ui/types.ts": 9,
     "src/ado_git_repo_insights/cli.py": 2,
@@ -49,6 +52,6 @@
     "S608": 1,
     "UP006": 2,
     "prefer-const": 3,
-    "security/detect-object-injection": 23
+    "security/detect-object-injection": 26
   }
 }

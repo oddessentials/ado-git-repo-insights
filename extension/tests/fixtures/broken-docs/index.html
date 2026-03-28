@@ -135,28 +135,21 @@
                 <div id="comments-coverage-banner" class="filter-hint hidden" data-testid="comments-coverage-banner"></div>
                 <div class="filter-separator"></div>
                 <div class="filter-group" id="repo-filter-group">
-                    <label for="repo-filter">Repository</label>
-                    <select id="repo-filter" multiple data-testid="filter-repository">
-                        <option value="" selected>All</option>
-                    </select>
+                    <label>Repository</label>
+                    <div id="repo-filter" data-testid="filter-repository"></div>
                 </div>
                 <div class="filter-group" id="team-filter-group">
-                    <label for="team-filter">Team</label>
-                    <select id="team-filter" multiple data-testid="filter-team">
-                        <option value="" selected>All</option>
-                    </select>
+                    <label>Team</label>
+                    <div id="team-filter" data-testid="filter-team"></div>
                 </div>
                 <div class="filter-group" id="reviewer-filter-group">
-                    <label for="reviewer-filter">Reviewer</label>
-                    <select id="reviewer-filter" data-testid="filter-reviewer">
-                        <option value="" selected>All</option>
-                    </select>
+                    <label>Reviewer</label>
+                    <div id="reviewer-filter" data-testid="filter-reviewer"></div>
                     <div id="reviewer-filter-notice" class="filter-hint hidden"></div>
                 </div>
                 <div class="filter-group hidden" id="author-filter-group">
-                    <label for="author-filter">Author</label>
-                    <input id="author-filter" list="author-filter-options" type="search" placeholder="Search authors" data-testid="filter-author">
-                    <datalist id="author-filter-options"></datalist>
+                    <label>Author</label>
+                    <div id="author-filter" data-testid="filter-author"></div>
                     <div id="author-filter-notice" class="filter-hint hidden">Author + team uses author-only metrics while retaining team state.</div>
                 </div>
                 <button id="clear-filters" class="btn btn-small btn-secondary hidden">Clear Filters</button>

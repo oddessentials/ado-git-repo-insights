@@ -135,49 +135,50 @@ test.describe("Filter Display Smoke Tests", () => {
     expect(Number.isFinite(initialValue)).toBe(true);
     expect(initialValue).toBeGreaterThan(0);
 
-    // Interact with the repository filter
+    // Interact with the repository filter (typeahead dropdown component)
     const repoFilter = page.getByTestId("filter-repository");
     await expect(repoFilter).toBeVisible();
 
-    // Get available options
-    const options = await repoFilter.locator("option").all();
-    expect(options.length).toBeGreaterThan(1); // At least "All" and one repo
+    // Open the typeahead dropdown by clicking the input
+    const repoInput = repoFilter.locator(".typeahead-input");
+    await repoInput.click();
 
-    // Select a specific repository (skip "All" which is the first option)
-    if (options.length > 1) {
-      const secondOption = await options[1].getAttribute("value");
-      if (secondOption) {
-        // Capture prior text for change detection
-        const priorText = await totalPrsElement.textContent();
+    // Get available options using stable role-based selectors (not DOM tag names)
+    const options = await repoFilter.locator('[role="option"]').all();
+    expect(options.length).toBeGreaterThan(0); // At least one repo option
 
-        await repoFilter.selectOption(secondOption);
+    // Select a specific repository by clicking the first option
+    if (options.length > 0) {
+      // Capture prior text for change detection
+      const priorText = await totalPrsElement.textContent();
 
-        // Wait for Total PRs to change from prior value (condition-based, not network-based)
-        await expect(totalPrsElement).not.toHaveText(priorText ?? "", {
-          timeout: SMOKE_TIMEOUT_MS,
-        });
+      await options[0].click();
 
-        // Wait for Total PRs to match digit pattern (settled state)
-        await expect(totalPrsElement).toHaveText(/^\d+$/, {
-          timeout: SMOKE_TIMEOUT_MS,
-        });
+      // Wait for Total PRs to change from prior value (condition-based, not network-based)
+      await expect(totalPrsElement).not.toHaveText(priorText ?? "", {
+        timeout: SMOKE_TIMEOUT_MS,
+      });
 
-        // Capture screenshot after filter selection
-        await page.screenshot({
-          path: testInfo.outputPath("repository-filter.png"),
-        });
+      // Wait for Total PRs to match digit pattern (settled state)
+      await expect(totalPrsElement).toHaveText(/^\d[\d,]*$/, {
+        timeout: SMOKE_TIMEOUT_MS,
+      });
 
-        // Verify Total PRs is still a finite number after filtering
-        const filteredText = await totalPrsElement.textContent();
-        expect(filteredText).not.toBe("-");
-        expect(filteredText).not.toBe("");
+      // Capture screenshot after filter selection
+      await page.screenshot({
+        path: testInfo.outputPath("repository-filter.png"),
+      });
 
-        const filteredValue = parseInt(
-          filteredText?.replace(/,/g, "") || "0",
-          10,
-        );
-        expect(Number.isFinite(filteredValue)).toBe(true);
-      }
+      // Verify Total PRs is still a finite number after filtering
+      const filteredText = await totalPrsElement.textContent();
+      expect(filteredText).not.toBe("-");
+      expect(filteredText).not.toBe("");
+
+      const filteredValue = parseInt(
+        filteredText?.replace(/,/g, "") || "0",
+        10,
+      );
+      expect(Number.isFinite(filteredValue)).toBe(true);
     }
   });
 
@@ -234,51 +235,52 @@ test.describe("Filter Display Smoke Tests", () => {
       return;
     }
 
-    // Team filter is visible - proceed with filter interaction test
+    // Team filter is visible - proceed with filter interaction test (typeahead)
     const teamFilter = page.getByTestId("filter-team");
     await expect(teamFilter).toBeVisible();
 
-    // Get available options
-    const options = await teamFilter.locator("option").all();
-    expect(options.length).toBeGreaterThanOrEqual(1); // At least "All"
+    // Open the typeahead dropdown by clicking the input
+    const teamInput = teamFilter.locator(".typeahead-input");
+    await teamInput.click();
 
-    // Select a specific team if available (skip "All" which is the first option)
-    if (options.length > 1) {
-      const secondOption = await options[1].getAttribute("value");
-      if (secondOption) {
-        // Capture prior text for change detection
-        const priorText = await totalPrsElement.textContent();
+    // Get available options using stable role-based selectors
+    const options = await teamFilter.locator('[role="option"]').all();
+    expect(options.length).toBeGreaterThanOrEqual(1); // At least one team
 
-        await teamFilter.selectOption(secondOption);
+    // Select a specific team by clicking the first option
+    if (options.length > 0) {
+      // Capture prior text for change detection
+      const priorText = await totalPrsElement.textContent();
 
-        // Wait for Total PRs to change from prior value (condition-based, not network-based)
-        await expect(totalPrsElement).not.toHaveText(priorText ?? "", {
-          timeout: SMOKE_TIMEOUT_MS,
-        });
+      await options[0].click();
 
-        // Wait for Total PRs to match digit pattern (settled state)
-        await expect(totalPrsElement).toHaveText(/^\d+$/, {
-          timeout: SMOKE_TIMEOUT_MS,
-        });
+      // Wait for Total PRs to change from prior value (condition-based, not network-based)
+      await expect(totalPrsElement).not.toHaveText(priorText ?? "", {
+        timeout: SMOKE_TIMEOUT_MS,
+      });
 
-        // Capture screenshot after filter selection
-        await page.screenshot({
-          path: testInfo.outputPath("team-filter.png"),
-        });
+      // Wait for Total PRs to match digit pattern (settled state)
+      await expect(totalPrsElement).toHaveText(/^\d[\d,]*$/, {
+        timeout: SMOKE_TIMEOUT_MS,
+      });
 
-        // Verify Total PRs is still a finite number after filtering
-        const filteredText = await totalPrsElement.textContent();
-        expect(filteredText).not.toBe("-");
-        expect(filteredText).not.toBe("");
+      // Capture screenshot after filter selection
+      await page.screenshot({
+        path: testInfo.outputPath("team-filter.png"),
+      });
 
-        const filteredValue = parseInt(
-          filteredText?.replace(/,/g, "") || "0",
-          10,
-        );
-        expect(Number.isFinite(filteredValue)).toBe(true);
-      }
+      // Verify Total PRs is still a finite number after filtering
+      const filteredText = await totalPrsElement.textContent();
+      expect(filteredText).not.toBe("-");
+      expect(filteredText).not.toBe("");
+
+      const filteredValue = parseInt(
+        filteredText?.replace(/,/g, "") || "0",
+        10,
+      );
+      expect(Number.isFinite(filteredValue)).toBe(true);
     } else {
-      // If no team options beyond "All", just verify the current state
+      // If no team options, just verify the current state
       await page.screenshot({
         path: testInfo.outputPath("team-filter-default.png"),
       });

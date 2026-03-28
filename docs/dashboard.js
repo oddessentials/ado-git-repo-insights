@@ -3586,12 +3586,6 @@ var PRInsightsDashboard = (() => {
   }
 
   // ../ui/modules/shared/render.ts
-  var NO_DATA_HINTS = {
-    WIDEN_FILTERS: "Try widening the date range or adjusting repository/team filters.",
-    TREND_MINIMUM: "At least 2 weeks of data are needed to show trends.",
-    REVIEWER_NO_ACTIVITY: "No reviewers were active in the selected period.",
-    REVIEWER_PIPELINE: "Reviewer data requires the extraction pipeline to capture reviewer details."
-  };
   function clearElement(el) {
     if (!el) return;
     while (el.firstChild) {
@@ -3631,13 +3625,6 @@ var PRInsightsDashboard = (() => {
     while (temp.firstChild) {
       container.appendChild(temp.firstChild);
     }
-  }
-  function createOption(value, text, selected = false) {
-    const option = createElement("option", { value }, text);
-    if (selected) {
-      option.selected = true;
-    }
-    return option;
   }
 
   // ../ui/modules/metrics.ts
@@ -5164,6 +5151,72 @@ var PRInsightsDashboard = (() => {
     }
   }
 
+  // ../ui/modules/tooltip-manager.ts
+  var scrollDismissController = null;
+  function ensureScrollDismissListener() {
+    if (scrollDismissController) return;
+    scrollDismissController = new AbortController();
+    const { signal } = scrollDismissController;
+    const dismiss = () => dismissAllTooltips();
+    window.addEventListener("scroll", dismiss, { signal, passive: true });
+    window.addEventListener("resize", dismiss, { signal, passive: true });
+  }
+  function releaseScrollDismissListener() {
+    scrollDismissController?.abort();
+    scrollDismissController = null;
+  }
+  function dismissAllTooltips() {
+    const chartTooltip = document.querySelector(".chart-tooltip");
+    if (chartTooltip) chartTooltip.remove();
+    const infoTooltip = document.querySelector(".info-tooltip");
+    if (infoTooltip) infoTooltip.remove();
+    releaseScrollDismissListener();
+  }
+  function positionTooltip(tooltip, targetRect) {
+    tooltip.style.visibility = "hidden";
+    tooltip.style.position = "fixed";
+    document.body.appendChild(tooltip);
+    const tooltipRect = tooltip.getBoundingClientRect();
+    const gap = 8;
+    let top = targetRect.top - tooltipRect.height - gap;
+    if (top < 0) {
+      top = targetRect.bottom + gap;
+    }
+    if (top + tooltipRect.height > window.innerHeight) {
+      top = window.innerHeight - tooltipRect.height - 4;
+    }
+    let left = targetRect.left + targetRect.width / 2 - tooltipRect.width / 2;
+    if (left < 4) {
+      left = 4;
+    }
+    if (left + tooltipRect.width > window.innerWidth - 4) {
+      left = window.innerWidth - tooltipRect.width - 4;
+    }
+    tooltip.style.top = `${top}px`;
+    tooltip.style.left = `${left}px`;
+    tooltip.style.visibility = "";
+  }
+  function showChartTooltip(target, content) {
+    dismissAllTooltips();
+    const tooltip = document.createElement("div");
+    tooltip.className = "chart-tooltip";
+    renderTrustedHtml(tooltip, content);
+    tooltip.style.position = "fixed";
+    const rect = target.getBoundingClientRect();
+    positionTooltip(tooltip, rect);
+    ensureScrollDismissListener();
+  }
+  function showInfoTooltip(target, content) {
+    dismissAllTooltips();
+    const tooltip = document.createElement("div");
+    tooltip.className = "info-tooltip";
+    tooltip.textContent = content;
+    tooltip.style.position = "fixed";
+    const rect = target.getBoundingClientRect();
+    positionTooltip(tooltip, rect);
+    ensureScrollDismissListener();
+  }
+
   // ../ui/modules/charts.ts
   var SCROLL_CANCEL_THRESHOLD = 10;
   function renderDelta(element, percentChange, inverse = false) {
@@ -5228,8 +5281,7 @@ var PRInsightsDashboard = (() => {
   var dismissListenerController = null;
   var activeTooltipContainerCount = 0;
   function dismissActiveTooltip() {
-    const existing = document.querySelector(".chart-tooltip");
-    if (existing) existing.remove();
+    dismissAllTooltips();
   }
   function ensureDismissListener() {
     if (dismissListenerController) return;
@@ -5272,17 +5324,8 @@ var PRInsightsDashboard = (() => {
     ensureDismissListener();
     const { signal } = controller;
     function showTooltip(dot) {
-      dismissActiveTooltip();
       const content = contentFn(dot);
-      const tooltip = document.createElement("div");
-      tooltip.className = "chart-tooltip";
-      renderTrustedHtml(tooltip, content);
-      tooltip.style.position = "absolute";
-      const rect = dot.getBoundingClientRect();
-      tooltip.style.left = `${rect.left + rect.width / 2}px`;
-      tooltip.style.top = `${rect.top - 8}px`;
-      tooltip.style.transform = "translateX(-50%) translateY(-100%)";
-      document.body.appendChild(tooltip);
+      showChartTooltip(dot, content);
     }
     dots.forEach((dot) => {
       const el = dot;
@@ -5315,12 +5358,20 @@ var PRInsightsDashboard = (() => {
   }
 
   // ../ui/modules/charts/summary-cards.ts
+  var METRIC_EXPLANATIONS = {
+    totalPrs: "Total merged pull requests in the selected period and filters.",
+    cycleP50: "Median time from PR creation to merge. Half of all PRs completed faster than this.",
+    cycleP90: "90th percentile cycle time. 90% of PRs completed faster. High values may indicate bottlenecks.",
+    authorsCount: "Average number of unique PR authors per week in this period.",
+    reviewersCount: "Average number of unique reviewers per week in this period."
+  };
   function renderSummaryCards(options) {
     const { rollups, prevRollups = [], containers, metricsCollector: metricsCollector2 } = options;
     if (metricsCollector2) metricsCollector2.mark("render-summary-cards-start");
     const current = calculateMetrics(rollups);
     const previous = calculateMetrics(prevRollups);
     renderMetricValues(containers, current);
+    attachInfoIcons(containers);
     const sparklineData = extractSparklineData(rollups);
     renderSparklines(containers, sparklineData);
     if (prevRollups && prevRollups.length > 0) {
@@ -5406,18 +5457,166 @@ var PRInsightsDashboard = (() => {
       }
     });
   }
+  var METRIC_TO_CONTAINER_KEY = [
+    { metricId: "totalPrs", containerKey: "totalPrs" },
+    { metricId: "cycleP50", containerKey: "cycleP50" },
+    { metricId: "cycleP90", containerKey: "cycleP90" },
+    { metricId: "authorsCount", containerKey: "authorsCount" },
+    { metricId: "reviewersCount", containerKey: "reviewersCount" }
+  ];
+  var infoIconControllers = /* @__PURE__ */ new WeakMap();
+  function attachInfoIcons(containers) {
+    for (const { metricId, containerKey } of METRIC_TO_CONTAINER_KEY) {
+      const valueEl = containers[containerKey];
+      if (!valueEl) continue;
+      const card = valueEl.closest(".metric-card");
+      if (!card) continue;
+      const title = card.querySelector("h3");
+      if (!title) continue;
+      const existing = title.querySelector(".info-icon-btn");
+      if (existing) {
+        infoIconControllers.get(existing)?.abort();
+        infoIconControllers.delete(existing);
+        existing.remove();
+      }
+      const explanation = METRIC_EXPLANATIONS[metricId] ?? "";
+      if (!explanation) continue;
+      const controller = new AbortController();
+      const { signal } = controller;
+      const btn = document.createElement("button");
+      btn.className = "info-icon-btn";
+      btn.setAttribute("type", "button");
+      btn.setAttribute("aria-label", `About this metric`);
+      btn.setAttribute("data-info-tooltip", metricId);
+      btn.textContent = "\u2139";
+      btn.addEventListener("pointerenter", () => {
+        showInfoTooltip(btn, explanation);
+      }, { signal });
+      btn.addEventListener("pointerleave", () => {
+        dismissAllTooltips();
+      }, { signal });
+      btn.addEventListener("click", (e) => {
+        e.stopPropagation();
+        const existing2 = document.querySelector(".info-tooltip");
+        if (existing2) {
+          dismissAllTooltips();
+        } else {
+          showInfoTooltip(btn, explanation);
+          requestAnimationFrame(() => {
+            const dismissOnce = () => {
+              dismissAllTooltips();
+              document.removeEventListener("click", dismissOnce);
+            };
+            document.addEventListener("click", dismissOnce);
+          });
+        }
+      }, { signal });
+      infoIconControllers.set(btn, controller);
+      title.appendChild(btn);
+    }
+  }
+
+  // ../ui/modules/empty-state-classifier.ts
+  var EMPTY_STATE_MESSAGES = {
+    NOT_EXTRACTED: "This data is not yet available.",
+    FILTER_CAUSED: "No data matches your current filters.",
+    MINIMUM_DATA_TREND: "Not enough data for trend analysis.",
+    MINIMUM_DATA_GENERIC: "Insufficient data for this view.",
+    DATE_RANGE_EMPTY: "No data in this period."
+  };
+  var EMPTY_STATE_HINTS = {
+    NOT_EXTRACTED_REVIEWER: "Ensure the data pipeline is configured to capture reviewer information.",
+    NOT_EXTRACTED_CYCLE_TIME: "Cycle time data requires PR completion timestamps in the extraction pipeline.",
+    FILTER_CAUSED: "Try removing some filters or widening the date range.",
+    MINIMUM_TREND: "At least 2 weeks of data are needed to show trends.",
+    MINIMUM_GENERIC: "Try widening the date range.",
+    DATE_RANGE: "Try widening the date range or selecting a different period."
+  };
+  function hasActiveFilters(filters) {
+    return filters.repos.length > 0 || filters.teams.length > 0 || filters.reviewers.length > 0 || filters.authors.length > 0;
+  }
+  function checkNotExtracted(ctx) {
+    const { chartType, availability } = ctx;
+    if (chartType === "reviewer_activity" && !availability.reviewerDataPresent) {
+      return {
+        reason: "not_extracted",
+        message: EMPTY_STATE_MESSAGES.NOT_EXTRACTED,
+        hint: EMPTY_STATE_HINTS.NOT_EXTRACTED_REVIEWER
+      };
+    }
+    if ((chartType === "cycle_time_trend" || chartType === "cycle_time_distribution") && !availability.cycleTimePresent) {
+      return {
+        reason: "not_extracted",
+        message: EMPTY_STATE_MESSAGES.NOT_EXTRACTED,
+        hint: EMPTY_STATE_HINTS.NOT_EXTRACTED_CYCLE_TIME
+      };
+    }
+    return null;
+  }
+  function allMetricsZeroed(rollups) {
+    if (rollups.length === 0) return true;
+    return rollups.every((r) => r.pr_count === 0);
+  }
+  function checkFilterCaused(ctx) {
+    if (hasActiveFilters(ctx.filters) && ctx.unfilteredRollups.length > 0 && !allMetricsZeroed(ctx.unfilteredRollups) && (ctx.filteredRollups.length === 0 || allMetricsZeroed(ctx.filteredRollups))) {
+      return {
+        reason: "filter_caused",
+        message: EMPTY_STATE_MESSAGES.FILTER_CAUSED,
+        hint: EMPTY_STATE_HINTS.FILTER_CAUSED
+      };
+    }
+    return null;
+  }
+  function checkMinimumData(ctx) {
+    if (ctx.filteredRollups.length > 0 && ctx.filteredRollups.length < ctx.minimumDataPoints) {
+      const isTrend = ctx.chartType === "cycle_time_trend";
+      return {
+        reason: "minimum_data",
+        message: isTrend ? EMPTY_STATE_MESSAGES.MINIMUM_DATA_TREND : EMPTY_STATE_MESSAGES.MINIMUM_DATA_GENERIC,
+        hint: isTrend ? EMPTY_STATE_HINTS.MINIMUM_TREND : EMPTY_STATE_HINTS.MINIMUM_GENERIC
+      };
+    }
+    return null;
+  }
+  function checkDateRangeEmpty(ctx) {
+    if (ctx.unfilteredRollups.length === 0) {
+      return {
+        reason: "date_range_empty",
+        message: EMPTY_STATE_MESSAGES.DATE_RANGE_EMPTY,
+        hint: EMPTY_STATE_HINTS.DATE_RANGE
+      };
+    }
+    return null;
+  }
+  function classifyEmptyState(ctx) {
+    return checkNotExtracted(ctx) ?? checkFilterCaused(ctx) ?? checkMinimumData(ctx) ?? checkDateRangeEmpty(ctx);
+  }
 
   // ../ui/modules/charts/throughput.ts
   var MAX_THROUGHPUT_POINTS = 104;
   var MAX_VISIBLE_LABELS = 16;
-  function renderThroughputChart(container, rollups) {
+  function renderThroughputChart(container, rollups, options) {
     if (!container) return;
     clearChartTooltips(container);
     if (!rollups || !rollups.length) {
+      const classification = options ? classifyEmptyState({
+        chartType: "throughput",
+        filters: options.filters ?? { repos: [], teams: [], reviewers: [], authors: [] },
+        unfilteredRollups: options.unfilteredRollups ?? [],
+        filteredRollups: rollups ?? [],
+        availability: options.availability ?? {
+          reviewerDataPresent: false,
+          reviewerDataEmpty: false,
+          cycleTimePresent: false,
+          reviewerRepoMode: "constrained",
+          commentsStatus: "disabled"
+        },
+        minimumDataPoints: 0
+      }) : null;
       renderNoData(
         container,
-        "No data for selected range",
-        NO_DATA_HINTS.WIDEN_FILTERS
+        classification?.message ?? "No data for selected range",
+        classification?.hint ?? "Try widening the date range or adjusting repository/team filters."
       );
       return;
     }
@@ -5494,13 +5693,29 @@ var PRInsightsDashboard = (() => {
 
   // ../ui/modules/charts/cycle-time.ts
   var MAX_CYCLE_TIME_POINTS = 104;
-  function renderCycleDistribution(container, distributions) {
+  function renderCycleDistribution(container, distributions, options) {
     if (!container) return;
     if (!distributions || !distributions.length) {
+      const classification = options ? classifyEmptyState({
+        chartType: "cycle_time_distribution",
+        filters: options.filters ?? { repos: [], teams: [], reviewers: [], authors: [] },
+        unfilteredRollups: options.unfilteredRollups ?? [],
+        filteredRollups: options.unfilteredRollups ?? [],
+        // Use unfiltered as proxy — distribution data is not dimension-filtered
+        availability: options.availability ?? {
+          reviewerDataPresent: false,
+          reviewerDataEmpty: false,
+          cycleTimePresent: false,
+          reviewerRepoMode: "constrained",
+          commentsStatus: "disabled"
+        },
+        minimumDataPoints: 1
+        // Requires at least 1 distribution to render
+      }) : null;
       renderNoData(
         container,
-        "No data for selected range",
-        NO_DATA_HINTS.WIDEN_FILTERS
+        classification?.message ?? "No data for selected range",
+        classification?.hint ?? "Try widening the date range or adjusting repository/team filters."
       );
       return;
     }
@@ -5519,7 +5734,7 @@ var PRInsightsDashboard = (() => {
     });
     const total = Object.values(buckets).reduce((a, b) => a + b, 0);
     if (total === 0) {
-      renderNoData(container, "No cycle time data", NO_DATA_HINTS.WIDEN_FILTERS);
+      renderNoData(container, "No cycle time data", "Try widening the date range or adjusting repository/team filters.");
       return;
     }
     const html = Object.entries(buckets).map(([label, count]) => {
@@ -5536,14 +5751,28 @@ var PRInsightsDashboard = (() => {
     }).join("");
     renderTrustedHtml(container, html);
   }
-  function renderCycleTimeTrend(container, rollups) {
+  function renderCycleTimeTrend(container, rollups, options) {
     if (!container) return;
     clearChartTooltips(container);
     if (!rollups || rollups.length < 2) {
+      const classification = options ? classifyEmptyState({
+        chartType: "cycle_time_trend",
+        filters: options.filters ?? { repos: [], teams: [], reviewers: [], authors: [] },
+        unfilteredRollups: options.unfilteredRollups ?? [],
+        filteredRollups: rollups ?? [],
+        availability: options.availability ?? {
+          reviewerDataPresent: false,
+          reviewerDataEmpty: false,
+          cycleTimePresent: false,
+          reviewerRepoMode: "constrained",
+          commentsStatus: "disabled"
+        },
+        minimumDataPoints: 2
+      }) : null;
       renderNoData(
         container,
-        "Not enough data for trend",
-        NO_DATA_HINTS.TREND_MINIMUM
+        classification?.message ?? "Not enough data for trend",
+        classification?.hint ?? "At least 2 weeks of data are needed to show trends."
       );
       return;
     }
@@ -5555,7 +5784,7 @@ var PRInsightsDashboard = (() => {
       renderNoData(
         container,
         "No cycle time data available",
-        NO_DATA_HINTS.WIDEN_FILTERS
+        "Try widening the date range or adjusting repository/team filters."
       );
       return;
     }
@@ -5653,19 +5882,25 @@ var PRInsightsDashboard = (() => {
 
   // ../ui/modules/charts/reviewer-activity.ts
   var MAX_REVIEWER_WEEKS = 8;
-  function getReviewerNoDataHint(reviewerFilterActive, hasRollups) {
-    return reviewerFilterActive ? "Try widening the date range or adjusting reviewer filters." : hasRollups ? NO_DATA_HINTS.REVIEWER_PIPELINE : NO_DATA_HINTS.WIDEN_FILTERS;
-  }
   function renderReviewerActivity(container, rollups, options = {}) {
     if (!container) return;
     const { reviewerFilterActive = false } = options;
     const noun = reviewerFilterActive ? "reviews" : "reviewers";
     const subtitle = reviewerFilterActive ? `Review activity per week (last ${Math.min(rollups.length, MAX_REVIEWER_WEEKS)} weeks)` : `Active reviewers per week (last ${Math.min(rollups.length, MAX_REVIEWER_WEEKS)} weeks)`;
     if (!rollups || !rollups.length) {
+      const classification = options.availability ? classifyEmptyState({
+        chartType: "reviewer_activity",
+        filters: options.filters ?? { repos: [], teams: [], reviewers: [], authors: [] },
+        unfilteredRollups: options.unfilteredRollups ?? [],
+        filteredRollups: rollups ?? [],
+        availability: options.availability,
+        minimumDataPoints: 0
+      }) : null;
+      const fallbackHint = reviewerFilterActive ? "Try widening the date range or adjusting reviewer filters." : "Try widening the date range or adjusting repository/team filters.";
       renderNoData(
         container,
-        reviewerFilterActive ? "No review activity available" : "No reviewer data available",
-        getReviewerNoDataHint(reviewerFilterActive, false)
+        classification?.message ?? (reviewerFilterActive ? "No review activity available" : "No reviewer data available"),
+        classification?.hint ?? fallbackHint
       );
       return;
     }
@@ -5675,10 +5910,20 @@ var PRInsightsDashboard = (() => {
       ...recentRollups.map((r) => r.reviewers_count || 0)
     );
     if (maxReviewers === 0) {
+      const classification = options.availability ? classifyEmptyState({
+        chartType: "reviewer_activity",
+        filters: options.filters ?? { repos: [], teams: [], reviewers: [], authors: [] },
+        unfilteredRollups: options.unfilteredRollups ?? [],
+        filteredRollups: rollups,
+        availability: options.availability,
+        minimumDataPoints: 1
+        // Requires at least 1 reviewer to render
+      }) : null;
+      const fallbackHint = reviewerFilterActive ? "Try widening the date range or adjusting reviewer filters." : "Reviewer data requires the extraction pipeline to capture reviewer details.";
       renderNoData(
         container,
-        reviewerFilterActive ? "No review activity available" : "No reviewer data available",
-        getReviewerNoDataHint(reviewerFilterActive, true)
+        classification?.message ?? (reviewerFilterActive ? "No review activity available" : "No reviewer data available"),
+        classification?.hint ?? fallbackHint
       );
       return;
     }
@@ -5702,6 +5947,447 @@ var PRInsightsDashboard = (() => {
       container,
       `${truncationHtml}<p class="chart-subtitle">${escapeHtml(subtitle)}</p><div class="horizontal-bar-chart">${barsHtml}</div>`
     );
+  }
+
+  // ../ui/modules/filters.ts
+  function parseCommaSeparated(raw) {
+    if (!raw) return [];
+    return raw.split(",").map((v) => v.trim()).filter((v) => v.length > 0);
+  }
+  function parseFiltersFromUrl(params) {
+    const repos = parseCommaSeparated(params.get("repos"));
+    const teams = parseCommaSeparated(params.get("teams"));
+    const reviewerRaw = params.get("reviewers")?.trim() ?? "";
+    const authorRaw = params.get("author")?.trim() ?? "";
+    return {
+      repos,
+      teams,
+      reviewers: reviewerRaw ? [reviewerRaw] : [],
+      authors: authorRaw ? [authorRaw] : []
+    };
+  }
+  function serializeFiltersToUrl(state, params) {
+    if (state.repos.length > 0) {
+      const sorted = [...state.repos].sort();
+      params.set("repos", sorted.join(","));
+    } else {
+      params.delete("repos");
+    }
+    if (state.teams.length > 0) {
+      const sorted = [...state.teams].sort();
+      params.set("teams", sorted.join(","));
+    } else {
+      params.delete("teams");
+    }
+    if (state.reviewers.length > 0) {
+      const firstReviewer = state.reviewers[0];
+      if (firstReviewer) {
+        params.set("reviewers", firstReviewer);
+      } else {
+        params.delete("reviewers");
+      }
+    } else {
+      params.delete("reviewers");
+    }
+    if (state.authors.length > 0) {
+      const firstAuthor = state.authors[0];
+      if (firstAuthor) {
+        params.set("author", firstAuthor);
+      } else {
+        params.delete("author");
+      }
+    } else {
+      params.delete("author");
+    }
+  }
+
+  // ../ui/modules/filter-constraint-resolver.ts
+  function resolveFilterConstraints(raw, lastChanged) {
+    const notices = [];
+    const effective = {
+      repos: [...raw.repos],
+      teams: [...raw.teams],
+      reviewers: [...raw.reviewers],
+      authors: [...raw.authors]
+    };
+    if (effective.reviewers.length > 1) {
+      effective.reviewers = effective.reviewers[0] ? [effective.reviewers[0]] : [];
+    }
+    if (effective.authors.length > 1) {
+      effective.authors = effective.authors[0] ? [effective.authors[0]] : [];
+    }
+    if (effective.authors.length > 0 && effective.reviewers.length > 0) {
+      if (lastChanged === "authors") {
+        effective.reviewers = [];
+      } else {
+        effective.authors = [];
+      }
+      notices.push({
+        type: "author_reviewer",
+        message: lastChanged === "authors" ? "Author and reviewer filters cannot be combined; reviewer filter cleared." : "Author and reviewer filters cannot be combined; using reviewer filter."
+      });
+    }
+    if (effective.authors.length > 0 && effective.teams.length > 0) {
+      notices.push({
+        type: "author_team",
+        message: "Author filter active; showing author-only metrics. Team selection retained for display."
+      });
+    }
+    if (effective.reviewers.length > 0 && effective.teams.length > 0) {
+      effective.teams = [];
+      notices.push({
+        type: "reviewer_team",
+        message: "Reviewer and team filtering cannot be combined; team selection cleared."
+      });
+    }
+    if (effective.reviewers.length > 0 && effective.repos.length > 0) {
+      notices.push({
+        type: "reviewer_repo",
+        message: "Using reviewer-only metrics; repository selection retained for display."
+      });
+    }
+    return { effectiveState: effective, constraintsApplied: notices };
+  }
+
+  // ../ui/modules/data-availability.ts
+  var DEFAULT_CAPABILITIES = {
+    authorFiltersAvailable: false,
+    authorRepoExactAvailable: false,
+    commentsMetricsAvailable: false,
+    commentsCoverageStatus: "disabled",
+    reviewerRepositoryMode: "constrained",
+    reviewerTeamMode: "disallowed",
+    crossDimensionalAvailable: false
+  };
+  function deriveAvailabilitySignal(rollups, capabilities) {
+    const caps = capabilities ?? DEFAULT_CAPABILITIES;
+    const hasAnyReviewerField = rollups.some(
+      (r) => r.by_reviewer != null
+      // intentional loose equality to cover both null and undefined
+    );
+    const allReviewerFieldsEmpty = hasAnyReviewerField && rollups.every((r) => {
+      if (r.by_reviewer == null) return true;
+      return Object.keys(r.by_reviewer).length === 0;
+    });
+    const hasAnyCycleTime = rollups.some((r) => r.cycle_time_p50 !== null);
+    return {
+      reviewerDataPresent: hasAnyReviewerField,
+      reviewerDataEmpty: hasAnyReviewerField && allReviewerFieldsEmpty,
+      cycleTimePresent: hasAnyCycleTime,
+      reviewerRepoMode: caps.reviewerRepositoryMode,
+      commentsStatus: caps.commentsCoverageStatus
+    };
+  }
+
+  // ../ui/modules/typeahead-dropdown.ts
+  var DEBOUNCE_MS = 200;
+  function initTypeaheadDropdown(config) {
+    const container = document.getElementById(config.containerId);
+    if (!container) return null;
+    let options = [...config.options];
+    let selected = [...config.initialSelection];
+    let filteredOptions = [];
+    let highlightIndex = -1;
+    let isOpen = false;
+    let debounceTimer = null;
+    const controller = new AbortController();
+    const { signal } = controller;
+    container.innerHTML = "";
+    container.classList.add("typeahead-container");
+    const wrapper = document.createElement("div");
+    wrapper.className = "typeahead-wrapper";
+    const chipsArea = document.createElement("div");
+    chipsArea.className = "typeahead-chips";
+    const input = document.createElement("input");
+    input.type = "text";
+    input.className = "typeahead-input";
+    input.placeholder = config.placeholder;
+    input.setAttribute("role", "combobox");
+    input.setAttribute("aria-expanded", "false");
+    input.setAttribute("aria-autocomplete", "list");
+    input.setAttribute("autocomplete", "off");
+    const dropdown = document.createElement("div");
+    dropdown.className = "typeahead-dropdown";
+    dropdown.setAttribute("role", "listbox");
+    dropdown.style.display = "none";
+    wrapper.appendChild(chipsArea);
+    wrapper.appendChild(input);
+    container.appendChild(wrapper);
+    container.appendChild(dropdown);
+    function isAllSelected() {
+      return config.mode === "multi" && selected.length > 0 && selected.length === options.length;
+    }
+    function renderChips() {
+      chipsArea.innerHTML = "";
+      if (config.mode !== "multi") return;
+      if (isAllSelected()) return;
+      selected.forEach((id) => {
+        const opt = options.find((o) => o.id === id);
+        if (!opt) return;
+        const chip = document.createElement("span");
+        chip.className = "typeahead-chip";
+        const label = document.createElement("span");
+        label.className = "typeahead-chip-label";
+        label.textContent = opt.displayName;
+        const remove = document.createElement("button");
+        remove.className = "typeahead-chip-remove";
+        remove.type = "button";
+        remove.setAttribute("aria-label", `Remove ${opt.displayName}`);
+        remove.textContent = "\xD7";
+        remove.addEventListener("click", (e) => {
+          e.stopPropagation();
+          deselectOption(id);
+        }, { signal });
+        chip.appendChild(label);
+        chip.appendChild(remove);
+        chipsArea.appendChild(chip);
+      });
+    }
+    function renderDropdown() {
+      dropdown.innerHTML = "";
+      highlightIndex = -1;
+      if (filteredOptions.length === 0) {
+        const empty = document.createElement("div");
+        empty.className = "typeahead-empty";
+        empty.textContent = "No matching options";
+        dropdown.appendChild(empty);
+        return;
+      }
+      filteredOptions.forEach((opt) => {
+        const item = document.createElement("div");
+        item.className = "typeahead-option";
+        item.setAttribute("role", "option");
+        item.setAttribute("aria-selected", selected.includes(opt.id) ? "true" : "false");
+        item.setAttribute("data-testid", `typeahead-option-${opt.id}`);
+        item.dataset.optionId = opt.id;
+        if (selected.includes(opt.id)) {
+          item.classList.add("typeahead-option-selected");
+        }
+        const searchVal = input.value.toLowerCase();
+        if (searchVal) {
+          const idx = opt.displayName.toLowerCase().indexOf(searchVal);
+          if (idx >= 0) {
+            item.appendChild(
+              document.createTextNode(opt.displayName.substring(0, idx))
+            );
+            const strong = document.createElement("strong");
+            strong.textContent = opt.displayName.substring(
+              idx,
+              idx + searchVal.length
+            );
+            item.appendChild(strong);
+            item.appendChild(
+              document.createTextNode(
+                opt.displayName.substring(idx + searchVal.length)
+              )
+            );
+          } else {
+            item.textContent = opt.displayName;
+          }
+        } else {
+          item.textContent = opt.displayName;
+        }
+        item.addEventListener("pointerdown", (e) => {
+          e.preventDefault();
+          toggleOption(opt.id);
+        }, { signal });
+        dropdown.appendChild(item);
+      });
+    }
+    function updateInputDisplay() {
+      if (config.mode === "single") {
+        if (selected.length > 0) {
+          const opt = options.find((o) => o.id === selected[0]);
+          input.value = opt?.displayName ?? "";
+        } else {
+          input.value = "";
+        }
+        input.placeholder = selected.length > 0 ? "" : config.placeholder;
+      } else {
+        input.value = "";
+        if (selected.length === 0 || isAllSelected()) {
+          input.placeholder = config.placeholder;
+        } else {
+          input.placeholder = "Search...";
+        }
+      }
+    }
+    function filterOptions(query) {
+      const q = query.toLowerCase().trim();
+      if (!q) {
+        filteredOptions = [...options];
+      } else {
+        filteredOptions = options.filter(
+          (o) => o.displayName.toLowerCase().includes(q)
+        );
+      }
+      renderDropdown();
+    }
+    function normalizeAndEmit() {
+      const emitted = isAllSelected() ? [] : [...selected];
+      config.onChange(emitted);
+    }
+    function selectOption(id) {
+      if (config.mode === "single") {
+        selected = [id];
+        updateInputDisplay();
+        closeDropdown();
+      } else {
+        if (!selected.includes(id)) {
+          selected.push(id);
+        }
+        input.value = "";
+        filterOptions("");
+        renderChips();
+        updateInputDisplay();
+      }
+      normalizeAndEmit();
+    }
+    function deselectOption(id) {
+      selected = selected.filter((s) => s !== id);
+      renderChips();
+      if (isOpen) renderDropdown();
+      updateInputDisplay();
+      normalizeAndEmit();
+    }
+    function toggleOption(id) {
+      if (config.mode === "single") {
+        if (selected[0] === id) {
+          selected = [];
+          updateInputDisplay();
+        } else {
+          selectOption(id);
+          return;
+        }
+      } else {
+        if (selected.includes(id)) {
+          deselectOption(id);
+          return;
+        } else {
+          selectOption(id);
+          return;
+        }
+      }
+      normalizeAndEmit();
+    }
+    function openDropdown() {
+      if (isOpen) return;
+      isOpen = true;
+      dropdown.style.display = "";
+      input.setAttribute("aria-expanded", "true");
+      filterOptions(config.mode === "single" ? "" : input.value);
+    }
+    function closeDropdown() {
+      if (!isOpen) return;
+      isOpen = false;
+      dropdown.style.display = "none";
+      input.setAttribute("aria-expanded", "false");
+      highlightIndex = -1;
+      if (config.mode === "single") {
+        updateInputDisplay();
+      }
+    }
+    input.addEventListener("focus", () => {
+      if (config.mode === "single") {
+        input.value = "";
+      }
+      openDropdown();
+    }, { signal });
+    input.addEventListener("blur", () => {
+      requestAnimationFrame(() => {
+        closeDropdown();
+      });
+    }, { signal });
+    input.addEventListener("input", () => {
+      if (debounceTimer !== null) clearTimeout(debounceTimer);
+      debounceTimer = setTimeout(() => {
+        filterOptions(input.value);
+        if (!isOpen) openDropdown();
+      }, DEBOUNCE_MS);
+    }, { signal });
+    input.addEventListener("keydown", (e) => {
+      const items = dropdown.querySelectorAll(".typeahead-option");
+      if (e.key === "ArrowDown") {
+        e.preventDefault();
+        highlightIndex = Math.min(highlightIndex + 1, items.length - 1);
+        updateHighlight(items);
+      } else if (e.key === "ArrowUp") {
+        e.preventDefault();
+        highlightIndex = Math.max(highlightIndex - 1, 0);
+        updateHighlight(items);
+      } else if (e.key === "Enter") {
+        e.preventDefault();
+        if (debounceTimer !== null) {
+          clearTimeout(debounceTimer);
+          debounceTimer = null;
+          filterOptions(input.value);
+        }
+        if (highlightIndex >= 0 && highlightIndex < filteredOptions.length) {
+          const opt = filteredOptions[highlightIndex];
+          if (opt) toggleOption(opt.id);
+        }
+      } else if (e.key === "Escape") {
+        closeDropdown();
+        input.blur();
+      } else if (e.key === "Backspace" && input.value === "" && config.mode === "multi" && selected.length > 0) {
+        const last = selected[selected.length - 1];
+        if (last) deselectOption(last);
+      }
+    }, { signal });
+    document.addEventListener("pointerdown", (e) => {
+      if (!container.contains(e.target)) {
+        closeDropdown();
+      }
+    }, { signal });
+    function updateHighlight(items) {
+      items.forEach((item, i) => {
+        item.classList.toggle(
+          "typeahead-option-highlighted",
+          i === highlightIndex
+        );
+      });
+      const highlighted = items[highlightIndex];
+      highlighted?.scrollIntoView({ block: "nearest" });
+    }
+    filteredOptions = [...options];
+    renderChips();
+    updateInputDisplay();
+    const instance = {
+      getSelected() {
+        return isAllSelected() ? [] : [...selected];
+      },
+      setSelected(ids) {
+        selected = ids.filter((id) => options.some((o) => o.id === id));
+        renderChips();
+        if (isOpen) renderDropdown();
+        updateInputDisplay();
+      },
+      setOptions(newOptions) {
+        options = [...newOptions];
+        selected = selected.filter((id) => options.some((o) => o.id === id));
+        filteredOptions = [...options];
+        renderChips();
+        updateInputDisplay();
+        if (isOpen) renderDropdown();
+      },
+      clear() {
+        selected = [];
+        input.value = "";
+        renderChips();
+        updateInputDisplay();
+        normalizeAndEmit();
+      },
+      destroy() {
+        if (debounceTimer !== null) {
+          clearTimeout(debounceTimer);
+          debounceTimer = null;
+        }
+        controller.abort();
+        container.innerHTML = "";
+        container.classList.remove("typeahead-container");
+      }
+    };
+    return instance;
   }
 
   // ../ui/modules/export.ts
@@ -5806,6 +6492,10 @@ var PRInsightsDashboard = (() => {
     authors: []
   };
   var reviewerFilterNoticeMessage = null;
+  var typeaheadRepo = null;
+  var typeaheadTeam = null;
+  var typeaheadReviewer = null;
+  var typeaheadAuthor = null;
   var comparisonMode = false;
   var cachedRollups = [];
   var currentBuildId = null;
@@ -5817,13 +6507,6 @@ var PRInsightsDashboard = (() => {
   function getOwnRecordValue(record, key) {
     const descriptor = Object.getOwnPropertyDescriptor(record, key);
     return descriptor?.value;
-  }
-  function getElement(id) {
-    const el = elements[id];
-    if (el instanceof HTMLElement) {
-      return el;
-    }
-    return null;
   }
   var IS_PRODUCTION2 = typeof window !== "undefined" && window.process?.env?.NODE_ENV === "production";
   var DEBUG_ENABLED = !IS_PRODUCTION2 && (typeof window !== "undefined" && window.__DASHBOARD_DEBUG__ || typeof window !== "undefined" && new URLSearchParams(window.location.search).has("debug"));
@@ -6198,10 +6881,6 @@ var PRInsightsDashboard = (() => {
     elements["retry-btn"]?.addEventListener("click", () => init());
     document.getElementById("setup-retry-btn")?.addEventListener("click", () => init());
     document.getElementById("permission-retry-btn")?.addEventListener("click", () => init());
-    elements["repo-filter"]?.addEventListener("change", handleFilterChange);
-    elements["team-filter"]?.addEventListener("change", handleFilterChange);
-    elements["reviewer-filter"]?.addEventListener("change", handleFilterChange);
-    elements["author-filter"]?.addEventListener("change", handleFilterChange);
     elements["clear-filters"]?.addEventListener("click", clearAllFilters);
     elements["compare-toggle"]?.addEventListener("click", toggleComparisonMode);
     elements["exit-compare"]?.addEventListener("click", exitComparisonMode);
@@ -6283,11 +6962,15 @@ var PRInsightsDashboard = (() => {
     cachedRollups = rollups;
     updateAccuracyIndicator(rawRollups, currentFilters);
     updateOverlapIndicator(rawRollups, currentFilters);
+    const availability = deriveAvailabilitySignal(
+      rawRollups,
+      loader?.getCapabilityState?.() ?? null
+    );
     renderSummaryCards2(rollups, prevRollups);
-    renderThroughputChart2(rollups);
-    renderCycleTimeTrend2(rollups);
-    renderReviewerActivity2(rollups);
-    renderCycleDistribution2(distributions);
+    renderThroughputChart2(rollups, rawRollups, availability);
+    renderCycleTimeTrend2(rollups, rawRollups, availability);
+    renderReviewerActivity2(rollups, rawRollups, availability);
+    renderCycleDistribution2(distributions, rawRollups, availability);
     if (comparisonMode) {
       updateComparisonBanner();
     }
@@ -6380,21 +7063,37 @@ var PRInsightsDashboard = (() => {
       metricsCollector
     });
   }
-  function renderThroughputChart2(rollups) {
-    renderThroughputChart(elements["throughput-chart"] ?? null, rollups);
+  function renderThroughputChart2(rollups, unfilteredRollups, availability) {
+    renderThroughputChart(elements["throughput-chart"] ?? null, rollups, {
+      filters: currentFilters,
+      unfilteredRollups,
+      availability
+    });
   }
-  function renderCycleDistribution2(distributions) {
+  function renderCycleDistribution2(distributions, unfilteredRollups, availability) {
     renderCycleDistribution(
       elements["cycle-distribution"] ?? null,
-      distributions
+      distributions,
+      {
+        filters: currentFilters,
+        unfilteredRollups,
+        availability
+      }
     );
   }
-  function renderCycleTimeTrend2(rollups) {
-    renderCycleTimeTrend(elements["cycle-time-trend"] ?? null, rollups);
+  function renderCycleTimeTrend2(rollups, unfilteredRollups, availability) {
+    renderCycleTimeTrend(elements["cycle-time-trend"] ?? null, rollups, {
+      filters: currentFilters,
+      unfilteredRollups,
+      availability
+    });
   }
-  function renderReviewerActivity2(rollups) {
+  function renderReviewerActivity2(rollups, unfilteredRollups, availability) {
     renderReviewerActivity(elements["reviewer-activity"] ?? null, rollups, {
-      reviewerFilterActive: currentFilters.reviewers.length > 0
+      reviewerFilterActive: currentFilters.reviewers.length > 0,
+      filters: currentFilters,
+      unfilteredRollups,
+      availability
     });
   }
   function toArtifactLoadResult(loaderResult, artifactPath) {
@@ -6496,225 +7195,123 @@ var PRInsightsDashboard = (() => {
   }
   function populateFilterDropdowns(dimensions) {
     if (!dimensions) return;
-    const repoFilter = getElement("repo-filter");
-    if (repoFilter && dimensions.repositories && dimensions.repositories.length > 0) {
-      clearElement(repoFilter);
-      repoFilter.appendChild(createOption("", "All"));
-      dimensions.repositories.forEach((repo) => {
-        const option = document.createElement("option");
-        option.value = repo.repository_name;
-        option.textContent = repo.repository_name;
-        repoFilter.appendChild(option);
+    typeaheadRepo?.destroy();
+    typeaheadTeam?.destroy();
+    typeaheadReviewer?.destroy();
+    typeaheadAuthor?.destroy();
+    if (dimensions.repositories && dimensions.repositories.length > 0) {
+      typeaheadRepo = initTypeaheadDropdown({
+        containerId: "repo-filter",
+        options: dimensions.repositories.map((r) => ({
+          id: r.repository_name,
+          displayName: r.repository_name
+        })),
+        mode: "multi",
+        placeholder: "Search repositories...",
+        initialSelection: [],
+        onChange: () => handleTypeaheadFilterChange("repos")
       });
       elements["repo-filter-group"]?.classList.remove("hidden");
     } else {
+      typeaheadRepo = null;
       elements["repo-filter-group"]?.classList.add("hidden");
     }
-    const teamFilter = getElement("team-filter");
-    if (teamFilter && dimensions.teams && dimensions.teams.length > 0) {
-      clearElement(teamFilter);
-      teamFilter.appendChild(createOption("", "All"));
-      dimensions.teams.forEach((team) => {
-        const option = document.createElement("option");
-        option.value = team.team_name;
-        option.textContent = team.team_name;
-        teamFilter.appendChild(option);
+    if (dimensions.teams && dimensions.teams.length > 0) {
+      typeaheadTeam = initTypeaheadDropdown({
+        containerId: "team-filter",
+        options: dimensions.teams.map((t) => ({
+          id: t.team_name,
+          displayName: t.team_name
+        })),
+        mode: "multi",
+        placeholder: "Search teams...",
+        initialSelection: [],
+        onChange: () => handleTypeaheadFilterChange("teams")
       });
       elements["team-filter-group"]?.classList.remove("hidden");
     } else {
+      typeaheadTeam = null;
       elements["team-filter-group"]?.classList.add("hidden");
     }
-    const reviewerFilter = getElement("reviewer-filter");
-    if (reviewerFilter && dimensions.reviewers && dimensions.reviewers.length > 0) {
-      clearElement(reviewerFilter);
-      reviewerFilter.appendChild(createOption("", "All"));
-      dimensions.reviewers.forEach((reviewer) => {
-        const option = document.createElement("option");
-        option.value = reviewer.reviewer_id;
-        option.textContent = reviewer.reviewer_name;
-        reviewerFilter.appendChild(option);
+    if (dimensions.reviewers && dimensions.reviewers.length > 0) {
+      typeaheadReviewer = initTypeaheadDropdown({
+        containerId: "reviewer-filter",
+        options: dimensions.reviewers.map((r) => ({
+          id: r.reviewer_id,
+          displayName: r.reviewer_name
+        })),
+        mode: "single",
+        placeholder: "Search reviewers...",
+        initialSelection: [],
+        onChange: () => handleTypeaheadFilterChange("reviewers")
       });
       elements["reviewer-filter-group"]?.classList.remove("hidden");
     } else {
+      typeaheadReviewer = null;
       elements["reviewer-filter-group"]?.classList.add("hidden");
     }
-    const authorFilter = getElement("author-filter");
-    const authorFilterOptions = getElement(
-      "author-filter-options"
-    );
-    if (authorFilter && authorFilterOptions && dimensions.authors && dimensions.authors.length > 0) {
-      clearElement(authorFilterOptions);
-      dimensions.authors.forEach((author) => {
-        const option = document.createElement("option");
-        option.value = author.author_name;
-        option.label = author.author_id;
-        option.dataset["authorId"] = author.author_id;
-        authorFilterOptions.appendChild(option);
+    if (dimensions.authors && dimensions.authors.length > 0) {
+      typeaheadAuthor = initTypeaheadDropdown({
+        containerId: "author-filter",
+        options: dimensions.authors.map((a) => ({
+          id: a.author_id,
+          displayName: a.author_name
+        })),
+        mode: "single",
+        placeholder: "Search authors...",
+        initialSelection: [],
+        onChange: () => handleTypeaheadFilterChange("authors")
       });
       elements["author-filter-group"]?.classList.remove("hidden");
     } else {
+      typeaheadAuthor = null;
       elements["author-filter-group"]?.classList.add("hidden");
     }
     restoreFiltersFromUrl();
   }
-  function clearSelectToAll(select) {
-    if (!select) return;
-    Array.from(select.options).forEach((o) => {
-      o.selected = o.value === "";
-    });
-  }
-  function normalizeReviewerSelection(reviewerValues, source) {
-    if (reviewerValues.length <= 1) {
-      return reviewerValues;
-    }
-    const ignored = reviewerValues.slice(1);
-    console.warn(
-      `Reviewer Phase 1 supports a single exact reviewer filter; ignoring additional ${source} values:`,
-      ignored
+  function applyFilterState(raw, lastChanged) {
+    const { effectiveState, constraintsApplied } = resolveFilterConstraints(raw, lastChanged);
+    const reviewerNotice = constraintsApplied.find(
+      (n) => n.type === "author_reviewer" || n.type === "reviewer_team" || n.type === "reviewer_repo"
     );
-    return reviewerValues[0] ? [reviewerValues[0]] : [];
-  }
-  function normalizeAuthorSelection(authorValues, dimensions) {
-    const firstValue = authorValues[0];
-    if (!firstValue) {
-      return [];
-    }
-    const matchedAuthor = dimensions?.authors?.find(
-      (author) => author.author_id === firstValue || author.author_name === firstValue
-    );
-    if (!matchedAuthor) {
-      console.warn("Ignoring invalid author filter value:", firstValue);
-      return [];
-    }
-    return [matchedAuthor.author_id];
-  }
-  function clearAuthorInput() {
-    const authorFilter = elements["author-filter"];
-    if (authorFilter) {
-      authorFilter.value = "";
-    }
-  }
-  function applyAuthorFilterCompatibility(sourceId, filters) {
-    if (filters.authors.length === 0) {
-      return filters;
-    }
-    const reviewerFilter = elements["reviewer-filter"];
-    if (filters.reviewers.length > 0) {
-      if (sourceId === "author-filter") {
-        clearSelectToAll(reviewerFilter);
-        return { ...filters, reviewers: [] };
-      }
-      if (sourceId === "reviewer-filter") {
-        clearAuthorInput();
-        return { ...filters, authors: [] };
-      }
-      console.warn(
-        "Author filters cannot be combined with reviewer filters in the current schema; keeping reviewer filters only"
-      );
-      clearAuthorInput();
-      return { ...filters, authors: [] };
-    }
-    return filters;
-  }
-  function applyReviewerFilterCompatibility(sourceId, repoValues, teamValues, reviewerValues) {
-    const normalizedReviewers = normalizeReviewerSelection(reviewerValues, "ui");
-    const reviewerRepoNotice = "Reviewer + repository uses reviewer-only metrics while retaining repository state.";
-    const reviewerTeamNotice = "Reviewer + team is not supported in the current schema. Team selection was cleared.";
-    reviewerFilterNoticeMessage = null;
-    if (normalizedReviewers.length === 0 || repoValues.length === 0 && teamValues.length === 0) {
-      return {
-        repos: repoValues,
-        teams: teamValues,
-        reviewers: normalizedReviewers
-      };
-    }
-    const teamFilter = elements["team-filter"];
-    if (teamValues.length > 0) {
-      reviewerFilterNoticeMessage = reviewerTeamNotice;
-      clearSelectToAll(teamFilter);
-      return { repos: repoValues, teams: [], reviewers: normalizedReviewers };
-    }
-    if (repoValues.length > 0) {
-      reviewerFilterNoticeMessage = reviewerRepoNotice;
-      if (sourceId !== "reviewer-filter") {
-        console.warn(reviewerRepoNotice);
-      }
-    }
-    return { repos: repoValues, teams: [], reviewers: normalizedReviewers };
-  }
-  function handleFilterChange(event) {
-    const repoFilter = elements["repo-filter"];
-    const teamFilter = elements["team-filter"];
-    const reviewerFilter = elements["reviewer-filter"];
-    const authorFilter = elements["author-filter"];
-    const repoValues = repoFilter ? Array.from(repoFilter.selectedOptions).map((o) => o.value).filter((v) => v) : [];
-    const teamValues = teamFilter ? Array.from(teamFilter.selectedOptions).map((o) => o.value).filter((v) => v) : [];
-    const reviewerValues = reviewerFilter ? [reviewerFilter.value].filter((v) => v) : [];
-    const authorValues = authorFilter ? [authorFilter.value].filter((v) => v) : [];
-    const sourceId = event.currentTarget instanceof HTMLElement ? event.currentTarget.id : null;
-    const reviewerCompatibleFilters = applyReviewerFilterCompatibility(
-      sourceId,
-      repoValues,
-      teamValues,
-      reviewerValues
-    );
-    const normalizedFilters = {
-      ...reviewerCompatibleFilters,
-      authors: normalizeAuthorSelection(authorValues, currentDimensions)
-    };
-    currentFilters = applyAuthorFilterCompatibility(sourceId, normalizedFilters);
+    reviewerFilterNoticeMessage = reviewerNotice?.message ?? null;
+    currentFilters = effectiveState;
+    typeaheadRepo?.setSelected(effectiveState.repos);
+    typeaheadTeam?.setSelected(effectiveState.teams);
+    typeaheadReviewer?.setSelected(effectiveState.reviewers);
+    typeaheadAuthor?.setSelected(effectiveState.authors);
     updateFilterUI();
     updateUrlState();
     void refreshMetrics();
+  }
+  function handleTypeaheadFilterChange(lastChanged) {
+    applyFilterState({
+      repos: typeaheadRepo?.getSelected() ?? [],
+      teams: typeaheadTeam?.getSelected() ?? [],
+      reviewers: typeaheadReviewer?.getSelected() ?? [],
+      authors: typeaheadAuthor?.getSelected() ?? []
+    }, lastChanged);
   }
   function clearAllFilters() {
-    currentFilters = { repos: [], teams: [], reviewers: [], authors: [] };
-    reviewerFilterNoticeMessage = null;
-    const repoFilter = elements["repo-filter"];
-    const teamFilter = elements["team-filter"];
-    const reviewerFilter = elements["reviewer-filter"];
-    const authorFilter = elements["author-filter"];
-    clearSelectToAll(repoFilter);
-    clearSelectToAll(teamFilter);
-    clearSelectToAll(reviewerFilter);
-    if (authorFilter) {
-      authorFilter.value = "";
-    }
-    updateFilterUI();
-    updateUrlState();
-    void refreshMetrics();
-  }
-  function findOptionByValue(select, value) {
-    return select?.querySelector(
-      `option[value="${CSS.escape(value)}"]`
-    );
+    applyFilterState({ repos: [], teams: [], reviewers: [], authors: [] });
   }
   function removeFilter(type, value) {
+    const next = {
+      repos: [...currentFilters.repos],
+      teams: [...currentFilters.teams],
+      reviewers: [...currentFilters.reviewers],
+      authors: [...currentFilters.authors]
+    };
     if (type === "repo") {
-      currentFilters.repos = currentFilters.repos.filter((v) => v !== value);
-      const repoFilter = elements["repo-filter"];
-      const option = findOptionByValue(repoFilter, value);
-      if (option) option.selected = false;
+      next.repos = next.repos.filter((v) => v !== value);
     } else if (type === "team") {
-      currentFilters.teams = currentFilters.teams.filter((v) => v !== value);
-      const teamFilter = elements["team-filter"];
-      const option = findOptionByValue(teamFilter, value);
-      if (option) option.selected = false;
+      next.teams = next.teams.filter((v) => v !== value);
     } else if (type === "reviewer") {
-      currentFilters.reviewers = currentFilters.reviewers.filter(
-        (v) => v !== value
-      );
-      const reviewerFilter = elements["reviewer-filter"];
-      const option = findOptionByValue(reviewerFilter, value);
-      if (option) option.selected = false;
+      next.reviewers = next.reviewers.filter((v) => v !== value);
     } else if (type === "author") {
-      currentFilters.authors = currentFilters.authors.filter((v) => v !== value);
-      const authorFilter = elements["author-filter"];
-      if (authorFilter) authorFilter.value = "";
+      next.authors = next.authors.filter((v) => v !== value);
     }
-    updateFilterUI();
-    updateUrlState();
-    void refreshMetrics();
+    applyFilterState(next);
   }
   function updateFilterUI() {
     const hasFilters = currentFilters.repos.length > 0 || currentFilters.teams.length > 0 || currentFilters.reviewers.length > 0 || currentFilters.authors.length > 0;
@@ -6767,23 +7364,18 @@ var PRInsightsDashboard = (() => {
   }
   function getFilterLabel(type, value) {
     if (type === "repo") {
-      const repoFilter = elements["repo-filter"];
-      return findOptionByValue(repoFilter, value)?.textContent ?? value;
+      return currentDimensions?.repositories?.find(
+        (r) => r.repository_name === value
+      )?.repository_name ?? value;
     }
     if (type === "team") {
-      const teamFilter = elements["team-filter"];
-      return findOptionByValue(teamFilter, value)?.textContent ?? value;
+      return currentDimensions?.teams?.find((t) => t.team_name === value)?.team_name ?? value;
     }
     if (type === "reviewer") {
-      const reviewerFilter = elements["reviewer-filter"];
-      return findOptionByValue(reviewerFilter, value)?.textContent ?? value;
+      return currentDimensions?.reviewers?.find((r) => r.reviewer_id === value)?.reviewer_name ?? value;
     }
     if (type === "author") {
-      const authorFilterOptions = elements["author-filter-options"];
-      const option = authorFilterOptions?.querySelector(
-        `option[data-author-id="${CSS.escape(value)}"]`
-      );
-      return option?.value ?? value;
+      return currentDimensions?.authors?.find((a) => a.author_id === value)?.author_name ?? value;
     }
     return value;
   }
@@ -6830,98 +7422,57 @@ var PRInsightsDashboard = (() => {
   }
   function restoreFiltersFromUrl() {
     const params = new URLSearchParams(window.location.search);
-    const reposParam = params.get("repos");
-    const teamsParam = params.get("teams");
-    const reviewersParam = params.get("reviewers");
-    if (reposParam) {
-      currentFilters.repos = reposParam.split(",").filter((v) => v);
-      const repoFilter = elements["repo-filter"];
-      if (repoFilter) {
-        const valid = currentFilters.repos.filter(
-          (v) => findOptionByValue(repoFilter, v) !== null
-        );
-        if (valid.length < currentFilters.repos.length) {
-          console.warn(
-            "Ignoring invalid repo filters from URL:",
-            currentFilters.repos.filter((v) => !valid.includes(v))
-          );
-        }
-        currentFilters.repos = valid;
-        currentFilters.repos.forEach((value) => {
-          const option = findOptionByValue(repoFilter, value);
-          if (option) option.selected = true;
-        });
-      }
-    }
-    if (teamsParam) {
-      currentFilters.teams = teamsParam.split(",").filter((v) => v);
-      const teamFilter = elements["team-filter"];
-      if (teamFilter) {
-        const valid = currentFilters.teams.filter(
-          (v) => findOptionByValue(teamFilter, v) !== null
-        );
-        if (valid.length < currentFilters.teams.length) {
-          console.warn(
-            "Ignoring invalid team filters from URL:",
-            currentFilters.teams.filter((v) => !valid.includes(v))
-          );
-        }
-        currentFilters.teams = valid;
-        currentFilters.teams.forEach((value) => {
-          const option = findOptionByValue(teamFilter, value);
-          if (option) option.selected = true;
-        });
-      }
-    }
-    if (reviewersParam) {
-      currentFilters.reviewers = normalizeReviewerSelection(
-        reviewersParam.split(",").filter((v) => v),
-        "url"
+    const parsed = parseFiltersFromUrl(params);
+    const validRepos = parsed.repos.filter(
+      (v) => currentDimensions?.repositories?.some((r) => r.repository_name === v)
+    );
+    if (validRepos.length < parsed.repos.length) {
+      console.warn(
+        "Ignoring invalid repo filters from URL:",
+        parsed.repos.filter((v) => !validRepos.includes(v))
       );
-      const reviewerFilter = elements["reviewer-filter"];
-      if (reviewerFilter) {
-        const valid = currentFilters.reviewers.filter(
-          (v) => findOptionByValue(reviewerFilter, v) !== null
-        );
-        if (valid.length < currentFilters.reviewers.length) {
-          console.warn(
-            "Ignoring invalid reviewer filters from URL:",
-            currentFilters.reviewers.filter((v) => !valid.includes(v))
-          );
-        }
-        currentFilters.reviewers = valid;
-        reviewerFilter.value = currentFilters.reviewers[0] ?? "";
-      }
     }
-    const authorParam = params.get("author");
-    if (authorParam) {
-      currentFilters.authors = normalizeAuthorSelection(
-        [authorParam],
-        currentDimensions
+    const validTeams = parsed.teams.filter(
+      (v) => currentDimensions?.teams?.some((t) => t.team_name === v)
+    );
+    if (validTeams.length < parsed.teams.length) {
+      console.warn(
+        "Ignoring invalid team filters from URL:",
+        parsed.teams.filter((v) => !validTeams.includes(v))
       );
-      const authorFilter = elements["author-filter"];
-      if (authorFilter) {
-        if (currentFilters.authors.length > 0) {
-          const label = getFilterLabel("author", currentFilters.authors[0] ?? "");
-          authorFilter.value = label;
-        } else {
-          authorFilter.value = "";
-        }
-      }
     }
-    currentFilters = applyAuthorFilterCompatibility(null, {
-      ...applyReviewerFilterCompatibility(
-        null,
-        currentFilters.repos,
-        currentFilters.teams,
-        currentFilters.reviewers
-      ),
-      authors: currentFilters.authors
+    const validReviewers = parsed.reviewers.filter(
+      (v) => currentDimensions?.reviewers?.some((r) => r.reviewer_id === v)
+    );
+    if (validReviewers.length < parsed.reviewers.length) {
+      console.warn(
+        "Ignoring invalid reviewer filters from URL:",
+        parsed.reviewers.filter((v) => !validReviewers.includes(v))
+      );
+    }
+    const validAuthors = parsed.authors.filter(
+      (v) => currentDimensions?.authors?.some(
+        (a) => a.author_id === v || a.author_name === v
+      )
+    );
+    const normalizedAuthors = validAuthors.map((v) => {
+      const match = currentDimensions?.authors?.find(
+        (a) => a.author_id === v || a.author_name === v
+      );
+      return match?.author_id ?? v;
     });
-    if (currentFilters.authors.length === 0 && authorParam) {
-      console.warn("Ignoring invalid author filter from URL:", authorParam);
+    if (normalizedAuthors.length < parsed.authors.length) {
+      console.warn(
+        "Ignoring invalid author filters from URL:",
+        parsed.authors.filter((v) => !validAuthors.includes(v))
+      );
     }
-    updateFilterUI();
+    applyFilterState({
+      repos: validRepos,
+      teams: validTeams,
+      reviewers: validReviewers,
+      authors: normalizedAuthors
+    });
   }
   function restoreStateFromUrl() {
     const params = new URLSearchParams(window.location.search);
@@ -7137,18 +7688,7 @@ var PRInsightsDashboard = (() => {
     if (tabValue && tabValue !== "metrics") {
       newParams.set("tab", tabValue);
     }
-    if (currentFilters.repos.length > 0) {
-      newParams.set("repos", currentFilters.repos.join(","));
-    }
-    if (currentFilters.teams.length > 0) {
-      newParams.set("teams", currentFilters.teams.join(","));
-    }
-    if (currentFilters.reviewers.length > 0) {
-      newParams.set("reviewers", currentFilters.reviewers.join(","));
-    }
-    if (currentFilters.authors.length > 0) {
-      newParams.set("author", currentFilters.authors[0] ?? "");
-    }
+    serializeFiltersToUrl(currentFilters, newParams);
     if (comparisonMode) {
       newParams.set("compare", "1");
     }

@@ -526,9 +526,7 @@ describe("Dashboard Rendering", () => {
       };
 
       it("Range <= 365 days → no modal, load proceeds immediately", async () => {
-        let warningShown = false;
         const mockShowWarning = jest.fn(() => {
-          warningShown = true;
           return Promise.resolve(true);
         });
 
@@ -1277,7 +1275,7 @@ describe("Sprint 4: Charts & Tooltips", () => {
       let tooltip = null;
 
       dots.forEach((dot) => {
-        dot.addEventListener("mouseenter", (e) => {
+        dot.addEventListener("mouseenter", (_e) => {
           if (!tooltip) {
             tooltip = document.createElement("div");
             tooltip.className = "chart-tooltip";

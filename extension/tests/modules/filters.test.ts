@@ -120,16 +120,19 @@ describe("filters module", () => {
       expect(result.repos).toEqual(["repo-a", "repo-b"]);
     });
 
-    it("parses reviewers param", () => {
-      const params = new URLSearchParams("reviewers=user-1,user-2");
+    it("parses reviewers param as single scalar (not comma-split)", () => {
+      // Reviewer is single-select; serializer writes one value.
+      // Entire param value is preserved, even if it contains commas.
+      const params = new URLSearchParams("reviewers=user-1");
       const result = parseFiltersFromUrl(params);
       expect(result.reviewers).toEqual(["user-1"]);
     });
 
-    it("ignores blank reviewer values and keeps the first non-empty reviewer", () => {
-      const params = new URLSearchParams("reviewers=, ,user-2,user-3");
+    it("preserves reviewer value containing commas (e.g. legacy or encoded IDs)", () => {
+      // A reviewer ID with commas should NOT be split.
+      const params = new URLSearchParams("reviewers=org%5Cuser%2Cteam");
       const result = parseFiltersFromUrl(params);
-      expect(result.reviewers).toEqual(["user-2"]);
+      expect(result.reviewers).toHaveLength(1);
     });
 
     it("parses canonical author filter from URL", () => {

@@ -10,6 +10,7 @@
 
 import { renderReviewerActivity } from "../../../ui/modules/charts/reviewer-activity";
 import type { Rollup } from "../../../ui/dataset-loader";
+import type { DataAvailabilitySignal } from "../../../ui/types";
 
 describe("reviewer-activity module", () => {
   let container: HTMLElement;
@@ -253,6 +254,77 @@ describe("reviewer-activity module", () => {
       renderReviewerActivity(container, rollups);
 
       expect(container.innerHTML).toContain("Wcustom_format");
+    });
+  });
+
+  describe("classifier integration paths", () => {
+    const baseAvailability: DataAvailabilitySignal = {
+      reviewerDataPresent: false,
+      reviewerDataEmpty: false,
+      cycleTimePresent: true,
+      reviewerRepoMode: "constrained",
+      commentsStatus: "disabled",
+    };
+
+    it("renderReviewerActivity with availability triggers classifier path for empty rollups", () => {
+      renderReviewerActivity(container, [], {
+        availability: { ...baseAvailability, reviewerDataPresent: false },
+        unfilteredRollups: [],
+      });
+
+      expect(container.innerHTML).toContain("no-data");
+      // Classifier with reviewerDataPresent: false produces NOT_EXTRACTED message
+      expect(container.innerHTML).toContain("not yet available");
+    });
+
+    it("renderReviewerActivity with availability triggers classifier for zero-count rollups", () => {
+      const rollups = createRollups(3).map((r) => ({
+        ...r,
+        reviewers_count: 0,
+      }));
+
+      renderReviewerActivity(container, rollups, {
+        availability: { ...baseAvailability, reviewerDataPresent: true, reviewerDataEmpty: true },
+        unfilteredRollups: rollups,
+      });
+
+      expect(container.innerHTML).toContain("no-data");
+    });
+
+    it("fallback hints match legacy behavior when no availability provided", () => {
+      // Empty rollups without availability — uses fallback path
+      renderReviewerActivity(container, []);
+
+      expect(container.innerHTML).toContain("No reviewer data available");
+      expect(container.innerHTML).toContain(
+        "Try widening the date range or adjusting repository/team filters.",
+      );
+    });
+
+    it("fallback hints match legacy behavior for zero-count without availability", () => {
+      const rollups = createRollups(2).map((r) => ({
+        ...r,
+        reviewers_count: 0,
+      }));
+
+      renderReviewerActivity(container, rollups);
+
+      expect(container.innerHTML).toContain("No reviewer data available");
+      expect(container.innerHTML).toContain(
+        "Reviewer data requires the extraction pipeline to capture reviewer details.",
+      );
+    });
+
+    it("classifier path with active filters and availability", () => {
+      const unfilteredRollups = createRollups(4);
+
+      renderReviewerActivity(container, [], {
+        availability: { ...baseAvailability, reviewerDataPresent: true },
+        filters: { repos: ["repo-a"], teams: [], reviewers: [], authors: [] },
+        unfilteredRollups,
+      });
+
+      expect(container.innerHTML).toContain("no-data");
     });
   });
 });

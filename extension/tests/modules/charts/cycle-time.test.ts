@@ -13,7 +13,7 @@ import {
   renderCycleTimeTrend,
 } from "../../../ui/modules/charts/cycle-time";
 import type { Rollup } from "../../../ui/dataset-loader";
-import type { DistributionData } from "../../../ui/types";
+import type { DataAvailabilitySignal, DistributionData } from "../../../ui/types";
 
 describe("cycle-time module", () => {
   let container: HTMLElement;
@@ -227,6 +227,101 @@ describe("cycle-time module", () => {
       expect(dots.length).toBeGreaterThan(0);
       dots.forEach((dot) => {
         expect(dot.getAttribute("data-value")).not.toBeNull();
+      });
+    });
+  });
+
+  describe("classifier integration paths", () => {
+    /**
+     * Default availability signal for testing classifier integration.
+     */
+    const baseAvailability: DataAvailabilitySignal = {
+      reviewerDataPresent: true,
+      reviewerDataEmpty: false,
+      cycleTimePresent: false,
+      reviewerRepoMode: "constrained",
+      commentsStatus: "disabled",
+    };
+
+    describe("renderCycleDistribution with options.availability", () => {
+      it("triggers classifier when availability provided and no data", () => {
+        renderCycleDistribution(container, [], {
+          availability: { ...baseAvailability, cycleTimePresent: false },
+          unfilteredRollups: [],
+        });
+
+        // Classifier should produce a "not extracted" message for cycle time
+        expect(container.innerHTML).toContain("no-data");
+        // With cycleTimePresent: false, classifier returns NOT_EXTRACTED message
+        expect(container.innerHTML).toContain("not yet available");
+      });
+
+      it("triggers classifier with filters and empty data", () => {
+        const unfilteredRollups: Rollup[] = Array.from({ length: 4 }, (_, i) => ({
+          week: `2025-W${String(i + 1).padStart(2, "0")}`,
+          pr_count: 10,
+          cycle_time_p50: 60,
+          cycle_time_p90: 120,
+          authors_count: 5,
+          reviewers_count: 3,
+          by_repository: null,
+          by_team: null,
+        }));
+
+        renderCycleDistribution(container, [], {
+          availability: { ...baseAvailability, cycleTimePresent: true },
+          filters: { repos: ["repo-a"], teams: [], reviewers: [], authors: [] },
+          unfilteredRollups,
+        });
+
+        expect(container.innerHTML).toContain("no-data");
+      });
+
+      it("still works without options (backward compatibility)", () => {
+        renderCycleDistribution(container, []);
+
+        expect(container.innerHTML).toContain("no-data");
+        expect(container.innerHTML).toContain("No data for selected range");
+      });
+    });
+
+    describe("renderCycleTimeTrend with options.availability", () => {
+      it("triggers classifier when availability provided and insufficient data", () => {
+        const singleRollup: Rollup[] = [{
+          week: "2025-W01",
+          pr_count: 10,
+          cycle_time_p50: 60,
+          cycle_time_p90: 120,
+          authors_count: 5,
+          reviewers_count: 3,
+          by_repository: null,
+          by_team: null,
+        }];
+
+        renderCycleTimeTrend(container, singleRollup, {
+          availability: { ...baseAvailability, cycleTimePresent: true },
+          unfilteredRollups: singleRollup,
+        });
+
+        expect(container.innerHTML).toContain("no-data");
+      });
+
+      it("triggers classifier with empty rollups and availability", () => {
+        renderCycleTimeTrend(container, [], {
+          availability: { ...baseAvailability, cycleTimePresent: false },
+          unfilteredRollups: [],
+        });
+
+        expect(container.innerHTML).toContain("no-data");
+        // Classifier produces NOT_EXTRACTED for cycle_time_trend when cycleTimePresent: false
+        expect(container.innerHTML).toContain("not yet available");
+      });
+
+      it("still works without options (backward compatibility)", () => {
+        renderCycleTimeTrend(container, []);
+
+        expect(container.innerHTML).toContain("no-data");
+        expect(container.innerHTML).toContain("Not enough data for trend");
       });
     });
   });

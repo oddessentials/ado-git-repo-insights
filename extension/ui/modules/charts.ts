@@ -9,6 +9,10 @@
  */
 
 import { clearElement, renderTrustedHtml } from "./shared/render";
+import {
+  dismissAllTooltips,
+  showChartTooltip,
+} from "./tooltip-manager";
 
 /** Pixel movement threshold to cancel a tap-to-tooltip gesture (scroll detection). */
 export const SCROLL_CANCEL_THRESHOLD = 10;
@@ -136,10 +140,10 @@ let activeTooltipContainerCount = 0;
 
 /**
  * Dismiss any active chart tooltip.
+ * Delegates to the shared tooltip manager to also dismiss info tooltips.
  */
 function dismissActiveTooltip(): void {
-  const existing = document.querySelector(".chart-tooltip");
-  if (existing) existing.remove();
+  dismissAllTooltips();
 }
 
 function ensureDismissListener(): void {
@@ -209,19 +213,8 @@ export function addChartTooltips(
   const { signal } = controller;
 
   function showTooltip(dot: HTMLElement): void {
-    dismissActiveTooltip();
     const content = contentFn(dot);
-    const tooltip = document.createElement("div");
-    tooltip.className = "chart-tooltip";
-    renderTrustedHtml(tooltip, content);
-    tooltip.style.position = "absolute";
-
-    const rect = dot.getBoundingClientRect();
-    tooltip.style.left = `${rect.left + rect.width / 2}px`;
-    tooltip.style.top = `${rect.top - 8}px`;
-    tooltip.style.transform = "translateX(-50%) translateY(-100%)";
-
-    document.body.appendChild(tooltip);
+    showChartTooltip(dot, content);
   }
 
   dots.forEach((dot) => {

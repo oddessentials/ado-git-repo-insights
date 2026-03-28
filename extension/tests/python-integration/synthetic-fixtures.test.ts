@@ -10,7 +10,6 @@ import { resolveInside } from "../../tasks/_shared/safe-path";
 import {
   ensureDir,
   pathExists,
-  readDir,
   readJsonFile,
   readTextFile,
 } from "../helpers/fs-test-utils";
