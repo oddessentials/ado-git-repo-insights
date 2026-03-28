@@ -785,7 +785,7 @@ describe("Typeahead Dropdown", () => {
       expect(instance!.getSelected()).toEqual([]);
     });
 
-    it("shows original placeholder when all options are selected", () => {
+    it("shows 'All selected' placeholder when all options are selected", () => {
       createContainer("allsel-ph");
       initTypeaheadDropdown(
         makeConfig("allsel-ph", {
@@ -797,7 +797,7 @@ describe("Typeahead Dropdown", () => {
       const input = document.querySelector(
         "#allsel-ph .typeahead-input",
       ) as HTMLInputElement;
-      expect(input.placeholder).toBe("Search repositories...");
+      expect(input.placeholder).toBe("All selected");
     });
 
     it("shows N-1 chips after deselecting one from all-selected", () => {
@@ -1083,8 +1083,8 @@ describe("Typeahead Dropdown", () => {
       chips = document.querySelectorAll("#qa-all-selected-user .typeahead-chip");
       expect(chips).toHaveLength(0);
 
-      // Placeholder should restore to original
-      expect(input.placeholder).toBe("Search repositories...");
+      // Placeholder should show "All selected" indicator
+      expect(input.placeholder).toBe("All selected");
 
       // getSelected() should return empty array (canonical "no filter")
       expect(instance!.getSelected()).toEqual([]);
@@ -1515,8 +1515,8 @@ describe("Typeahead Dropdown", () => {
         new PointerEvent("pointerdown", { bubbles: true }),
       );
 
-      // Now all-selected: placeholder should revert to original
-      expect(input.placeholder).toBe("Search repos...");
+      // Now all-selected: placeholder should show "All selected"
+      expect(input.placeholder).toBe("All selected");
     });
   });
 

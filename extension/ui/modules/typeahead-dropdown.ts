@@ -212,7 +212,9 @@ export function initTypeaheadDropdown(
       // Empty selection OR all-selected (canonical empty) → original placeholder.
       // Partial selection → "Search..." to indicate active filtering.
       input.value = "";
-      if (selected.length === 0 || isAllSelected()) {
+      if (isAllSelected()) {
+        input.placeholder = "All selected";
+      } else if (selected.length === 0) {
         input.placeholder = config.placeholder;
       } else {
         input.placeholder = "Search...";
