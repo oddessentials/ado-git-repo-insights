@@ -1,3 +1,26 @@
+# [5.29.0](https://github.com/oddessentials/ado-git-repo-insights/compare/v5.28.3...v5.29.0) (2026-03-28)
+
+
+### Bug Fixes
+
+* **ci:** close tsc parity gap — add type check to pre-commit, align test config, fix errors ([5d18b31](https://github.com/oddessentials/ado-git-repo-insights/commit/5d18b3187ac48f8c139d7006fa877c63bbeaf36a))
+* **ci:** smoke test selectors, strict suppression audit, data-testid on typeahead ([db5b04b](https://github.com/oddessentials/ado-git-repo-insights/commit/db5b04bd722bc4d08305d1b7c8b39e0b8792b83a)), closes [#207](https://github.com/oddessentials/ado-git-repo-insights/issues/207) [#207](https://github.com/oddessentials/ado-git-repo-insights/issues/207)
+* **dashboard:** address review feedback — memory leak, pointer events, accessibility ([c72359b](https://github.com/oddessentials/ado-git-repo-insights/commit/c72359b8a92d490e37a4ae1d8601066b2e01e9d2))
+* **dashboard:** address US2 review — URL encoding, debounce race, dead code, a11y ([504771d](https://github.com/oddessentials/ado-git-repo-insights/commit/504771d5d356962266aa1d84c087b9ae6a8c508e))
+* **dashboard:** author param regression, filter_caused classifier, comprehensive test coverage ([643fd5b](https://github.com/oddessentials/ado-git-repo-insights/commit/643fd5bd31e1b7aae54f7cb2b3ca3c28a94cab49)), closes [#207](https://github.com/oddessentials/ado-git-repo-insights/issues/207) [#207](https://github.com/oddessentials/ado-git-repo-insights/issues/207)
+* **dashboard:** complete typeahead state transitions and notice routing ([ab02403](https://github.com/oddessentials/ado-git-repo-insights/commit/ab02403ee8279e53a8f0aedf5449273f5e8e0fe5))
+* **dashboard:** correct empty-state classifier inputs for reviewer and distribution charts ([258fcf4](https://github.com/oddessentials/ado-git-repo-insights/commit/258fcf4a2cdaa042a48927ad761c30a86865162e))
+* **dashboard:** prevent author+reviewer coexistence, fix normalization and clear perf ([08091b5](https://github.com/oddessentials/ado-git-repo-insights/commit/08091b5c2ff221319c59c619b9ff1ec5e7f008ac))
+* **dashboard:** restore filter semantics — last-interaction-wins and team retention ([dfea4c3](https://github.com/oddessentials/ado-git-repo-insights/commit/dfea4c389a47ccfba29d34eec2c00f3aaec97dc1))
+* **dashboard:** typeahead state parity, blur restore, canonical URL serialization ([9fa8530](https://github.com/oddessentials/ado-git-repo-insights/commit/9fa8530ca3e31d22001bb5492bef046b7d428964))
+* **dashboard:** wire classifier into live renders, add scroll dismiss, fix info tooltip click ([ebece7f](https://github.com/oddessentials/ado-git-repo-insights/commit/ebece7fb8e6a2bfc862a3ad226638acd8677482b))
+
+
+### Features
+
+* **dashboard:** metrics tab UX improvements — tooltips, filters, empty states, info icons ([f99921a](https://github.com/oddessentials/ado-git-repo-insights/commit/f99921a11aeac685696adc6ec1dcbe4a6ed02660))
+* **dashboard:** unified typeahead filter component replacing 4 inconsistent filter UIs ([2abf42a](https://github.com/oddessentials/ado-git-repo-insights/commit/2abf42a2f52324d0f9e6670dbdfa1804a11925c7))
+
 ## [5.28.3](https://github.com/oddessentials/ado-git-repo-insights/compare/v5.28.2...v5.28.3) (2026-03-27)
 
 
