@@ -6359,6 +6359,7 @@ var PRInsightsDashboard = (() => {
       setSelected(ids) {
         selected = ids.filter((id) => options.some((o) => o.id === id));
         renderChips();
+        if (isOpen) renderDropdown();
         updateInputDisplay();
       },
       setOptions(newOptions) {
@@ -7268,60 +7269,49 @@ var PRInsightsDashboard = (() => {
     }
     restoreFiltersFromUrl();
   }
-  function handleTypeaheadFilterChange(lastChanged) {
-    const rawState = {
-      repos: typeaheadRepo?.getSelected() ?? [],
-      teams: typeaheadTeam?.getSelected() ?? [],
-      reviewers: typeaheadReviewer?.getSelected() ?? [],
-      authors: typeaheadAuthor?.getSelected() ?? []
-    };
-    const { effectiveState, constraintsApplied } = resolveFilterConstraints(rawState, lastChanged);
+  function applyFilterState(raw, lastChanged) {
+    const { effectiveState, constraintsApplied } = resolveFilterConstraints(raw, lastChanged);
     const reviewerNotice = constraintsApplied.find(
       (n) => n.type === "author_reviewer" || n.type === "reviewer_team" || n.type === "reviewer_repo"
     );
     reviewerFilterNoticeMessage = reviewerNotice?.message ?? null;
-    if (constraintsApplied.some((n) => n.type === "author_reviewer")) {
-      typeaheadAuthor?.setSelected(effectiveState.authors);
-      typeaheadReviewer?.setSelected(effectiveState.reviewers);
-    }
-    if (constraintsApplied.some((n) => n.type === "reviewer_team")) {
-      typeaheadTeam?.setSelected(effectiveState.teams);
-    }
     currentFilters = effectiveState;
+    typeaheadRepo?.setSelected(effectiveState.repos);
+    typeaheadTeam?.setSelected(effectiveState.teams);
+    typeaheadReviewer?.setSelected(effectiveState.reviewers);
+    typeaheadAuthor?.setSelected(effectiveState.authors);
     updateFilterUI();
     updateUrlState();
     void refreshMetrics();
+  }
+  function handleTypeaheadFilterChange(lastChanged) {
+    applyFilterState({
+      repos: typeaheadRepo?.getSelected() ?? [],
+      teams: typeaheadTeam?.getSelected() ?? [],
+      reviewers: typeaheadReviewer?.getSelected() ?? [],
+      authors: typeaheadAuthor?.getSelected() ?? []
+    }, lastChanged);
   }
   function clearAllFilters() {
-    currentFilters = { repos: [], teams: [], reviewers: [], authors: [] };
-    reviewerFilterNoticeMessage = null;
-    typeaheadRepo?.setSelected([]);
-    typeaheadTeam?.setSelected([]);
-    typeaheadReviewer?.setSelected([]);
-    typeaheadAuthor?.setSelected([]);
-    updateFilterUI();
-    updateUrlState();
-    void refreshMetrics();
+    applyFilterState({ repos: [], teams: [], reviewers: [], authors: [] });
   }
   function removeFilter(type, value) {
+    const next = {
+      repos: [...currentFilters.repos],
+      teams: [...currentFilters.teams],
+      reviewers: [...currentFilters.reviewers],
+      authors: [...currentFilters.authors]
+    };
     if (type === "repo") {
-      currentFilters.repos = currentFilters.repos.filter((v) => v !== value);
-      typeaheadRepo?.setSelected(currentFilters.repos);
+      next.repos = next.repos.filter((v) => v !== value);
     } else if (type === "team") {
-      currentFilters.teams = currentFilters.teams.filter((v) => v !== value);
-      typeaheadTeam?.setSelected(currentFilters.teams);
+      next.teams = next.teams.filter((v) => v !== value);
     } else if (type === "reviewer") {
-      currentFilters.reviewers = currentFilters.reviewers.filter(
-        (v) => v !== value
-      );
-      typeaheadReviewer?.setSelected(currentFilters.reviewers);
+      next.reviewers = next.reviewers.filter((v) => v !== value);
     } else if (type === "author") {
-      currentFilters.authors = currentFilters.authors.filter((v) => v !== value);
-      typeaheadAuthor?.setSelected(currentFilters.authors);
+      next.authors = next.authors.filter((v) => v !== value);
     }
-    updateFilterUI();
-    updateUrlState();
-    void refreshMetrics();
+    applyFilterState(next);
   }
   function updateFilterUI() {
     const hasFilters = currentFilters.repos.length > 0 || currentFilters.teams.length > 0 || currentFilters.reviewers.length > 0 || currentFilters.authors.length > 0;
@@ -7477,22 +7467,12 @@ var PRInsightsDashboard = (() => {
         parsed.authors.filter((v) => !validAuthors.includes(v))
       );
     }
-    const { effectiveState, constraintsApplied } = resolveFilterConstraints({
+    applyFilterState({
       repos: validRepos,
       teams: validTeams,
       reviewers: validReviewers,
       authors: normalizedAuthors
     });
-    const reviewerNotice = constraintsApplied.find(
-      (n) => n.type === "author_reviewer" || n.type === "reviewer_team" || n.type === "reviewer_repo"
-    );
-    reviewerFilterNoticeMessage = reviewerNotice?.message ?? null;
-    currentFilters = effectiveState;
-    typeaheadRepo?.setSelected(currentFilters.repos);
-    typeaheadTeam?.setSelected(currentFilters.teams);
-    typeaheadReviewer?.setSelected(currentFilters.reviewers);
-    typeaheadAuthor?.setSelected(currentFilters.authors);
-    updateFilterUI();
   }
   function restoreStateFromUrl() {
     const params = new URLSearchParams(window.location.search);

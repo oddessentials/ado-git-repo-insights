@@ -1519,4 +1519,85 @@ describe("Typeahead Dropdown", () => {
       expect(input.placeholder).toBe("Search repos...");
     });
   });
+
+  // ────────────────────────────────────────────────────────────────────
+  // Bug fix: setSelected() must refresh open dropdown
+  // ────────────────────────────────────────────────────────────────────
+
+  describe("setSelected refreshes open dropdown visual state", () => {
+    it("programmatic setSelected([]) clears aria-selected on open dropdown", () => {
+      createContainer("setsel-dropdown");
+      const instance = initTypeaheadDropdown(
+        makeConfig("setsel-dropdown", {
+          mode: "multi",
+          initialSelection: ["alpha", "beta"],
+        }),
+      );
+
+      // Open dropdown
+      const input = document.querySelector(
+        "#setsel-dropdown .typeahead-input",
+      ) as HTMLInputElement;
+      input.dispatchEvent(new Event("focus"));
+
+      // Verify alpha is selected in dropdown
+      const alphaBefore = document.querySelector(
+        '#setsel-dropdown [data-option-id="alpha"]',
+      ) as HTMLElement;
+      expect(alphaBefore.getAttribute("aria-selected")).toBe("true");
+
+      // Programmatic clear (simulates constraint resolver or "Clear filters")
+      instance!.setSelected([]);
+
+      // Dropdown should immediately reflect cleared state
+      const alphaAfter = document.querySelector(
+        '#setsel-dropdown [data-option-id="alpha"]',
+      ) as HTMLElement;
+      expect(alphaAfter.getAttribute("aria-selected")).toBe("false");
+      expect(alphaAfter.classList.contains("typeahead-option-selected")).toBe(false);
+    });
+
+    it("programmatic setSelected with new values updates open dropdown checkmarks", () => {
+      createContainer("setsel-update");
+      const instance = initTypeaheadDropdown(
+        makeConfig("setsel-update", {
+          mode: "multi",
+          initialSelection: ["alpha"],
+        }),
+      );
+
+      // Open dropdown
+      const input = document.querySelector(
+        "#setsel-update .typeahead-input",
+      ) as HTMLInputElement;
+      input.dispatchEvent(new Event("focus"));
+
+      // Alpha selected, beta not
+      const alphaBefore = document.querySelector(
+        '#setsel-update [data-option-id="alpha"]',
+      ) as HTMLElement;
+      const betaBefore = document.querySelector(
+        '#setsel-update [data-option-id="beta"]',
+      ) as HTMLElement;
+      expect(alphaBefore.getAttribute("aria-selected")).toBe("true");
+      expect(betaBefore.getAttribute("aria-selected")).toBe("false");
+
+      // Change selection programmatically: remove alpha, add beta+gamma
+      instance!.setSelected(["beta", "gamma"]);
+
+      // Dropdown should reflect new selection immediately
+      const alphaAfter = document.querySelector(
+        '#setsel-update [data-option-id="alpha"]',
+      ) as HTMLElement;
+      const betaAfter = document.querySelector(
+        '#setsel-update [data-option-id="beta"]',
+      ) as HTMLElement;
+      const gammaAfter = document.querySelector(
+        '#setsel-update [data-option-id="gamma"]',
+      ) as HTMLElement;
+      expect(alphaAfter.getAttribute("aria-selected")).toBe("false");
+      expect(betaAfter.getAttribute("aria-selected")).toBe("true");
+      expect(gammaAfter.getAttribute("aria-selected")).toBe("true");
+    });
+  });
 });

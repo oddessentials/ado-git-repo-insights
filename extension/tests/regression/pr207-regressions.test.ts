@@ -324,3 +324,50 @@ describe("Regression: team chips preserved when author filter is applied", () =>
     expect(result.effectiveState.authors).toEqual(["alice"]);
   });
 });
+
+// ---------------------------------------------------------------------------
+// Regression 6: Chip removal must clear stale constraint notices
+// ---------------------------------------------------------------------------
+
+describe("Regression: chip removal clears stale reviewer notice via resolver", () => {
+  it("removing repo from reviewer+repo state clears reviewer_repo notice", () => {
+    // State: reviewer + repo → resolver emits reviewer_repo notice
+    const withRepo = resolveFilterConstraints(
+      { repos: ["api"], teams: [], reviewers: ["bob"], authors: [] },
+    );
+    expect(
+      withRepo.constraintsApplied.some((n) => n.type === "reviewer_repo"),
+    ).toBe(true);
+
+    // Simulate chip removal: remove repo, re-resolve
+    const withoutRepo = resolveFilterConstraints(
+      { repos: [], teams: [], reviewers: ["bob"], authors: [] },
+    );
+    // reviewer_repo notice should be gone — no conflict remains
+    expect(
+      withoutRepo.constraintsApplied.some((n) => n.type === "reviewer_repo"),
+    ).toBe(false);
+    expect(withoutRepo.constraintsApplied).toHaveLength(0);
+  });
+
+  it("removing reviewer from reviewer+team state clears reviewer_team notice", () => {
+    const withReviewer = resolveFilterConstraints(
+      { repos: [], teams: ["platform"], reviewers: ["bob"], authors: [] },
+    );
+    expect(
+      withReviewer.constraintsApplied.some((n) => n.type === "reviewer_team"),
+    ).toBe(true);
+
+    const withoutReviewer = resolveFilterConstraints(
+      { repos: [], teams: ["platform"], reviewers: [], authors: [] },
+    );
+    expect(withoutReviewer.constraintsApplied).toHaveLength(0);
+  });
+
+  it("clearing all filters produces zero notices", () => {
+    const result = resolveFilterConstraints(
+      { repos: [], teams: [], reviewers: [], authors: [] },
+    );
+    expect(result.constraintsApplied).toHaveLength(0);
+  });
+});

@@ -61,6 +61,7 @@ import {
   // Filter URL serialization
   parseFiltersFromUrl,
   serializeFiltersToUrl,
+  type FilterState,
   // State machine and state-specific rendering (FR-001 through FR-004)
   resolvePredictionsState,
   resolveInsightsState,
@@ -1355,27 +1356,26 @@ function populateFilterDropdowns(dimensions: DimensionsData | null): void {
 // Author name→ID normalization handled in restoreFiltersFromUrl().
 
 /**
- * Handle filter change from typeahead components.
+ * Single authority for filter state updates. ALL filter mutations
+ * route through this function. No caller may modify currentFilters
+ * directly.
  *
- * Reads selections from all typeahead instances, resolves constraints
- * via the single-authority resolver (FR-010), and updates state.
+ * Sequence: resolve constraints → derive notices → update state →
+ * sync typeahead UI → update filter UI → serialize URL → refresh metrics.
  *
+ * @param raw - Raw filter state (pre-constraint-resolution)
  * @param lastChanged - Which dimension the user last interacted with.
  *   Passed to the resolver for Author ↔ Reviewer "last interaction wins."
  */
-function handleTypeaheadFilterChange(lastChanged?: FilterDimension): void {
-  const rawState = {
-    repos: typeaheadRepo?.getSelected() ?? [],
-    teams: typeaheadTeam?.getSelected() ?? [],
-    reviewers: typeaheadReviewer?.getSelected() ?? [],
-    authors: typeaheadAuthor?.getSelected() ?? [],
-  };
-
-  // FR-010: Single-authority constraint resolution
+function applyFilterState(
+  raw: FilterState,
+  lastChanged?: FilterDimension,
+): void {
+  // 1. Resolve constraints (single authority, FR-010)
   const { effectiveState, constraintsApplied } =
-    resolveFilterConstraints(rawState, lastChanged);
+    resolveFilterConstraints(raw, lastChanged);
 
-  // Update notice messages from constraint resolver (display only)
+  // 2. Derive notice state (always derived from resolver output, never stored)
   const reviewerNotice = constraintsApplied.find(
     (n) =>
       n.type === "author_reviewer" ||
@@ -1384,66 +1384,65 @@ function handleTypeaheadFilterChange(lastChanged?: FilterDimension): void {
   );
   reviewerFilterNoticeMessage = reviewerNotice?.message ?? null;
 
-  // Sync typeahead UI with resolved state (constraints may have cleared selections)
-  if (constraintsApplied.some((n) => n.type === "author_reviewer")) {
-    // Bidirectional: one side was cleared, sync both
-    typeaheadAuthor?.setSelected(effectiveState.authors);
-    typeaheadReviewer?.setSelected(effectiveState.reviewers);
-  }
-  if (constraintsApplied.some((n) => n.type === "reviewer_team")) {
-    typeaheadTeam?.setSelected(effectiveState.teams);
-  }
-
+  // 3. Update canonical state
   currentFilters = effectiveState;
+
+  // 4. Sync all typeahead UIs with resolved state
+  typeaheadRepo?.setSelected(effectiveState.repos);
+  typeaheadTeam?.setSelected(effectiveState.teams);
+  typeaheadReviewer?.setSelected(effectiveState.reviewers);
+  typeaheadAuthor?.setSelected(effectiveState.authors);
+
+  // 5. Update filter UI (chips, labels, notices)
   updateFilterUI();
+
+  // 6. Serialize canonical URL
   updateUrlState();
+
+  // 7. Refresh metrics
   void refreshMetrics();
 }
 
 /**
- * Clear all filters.
+ * Handle filter change from typeahead components.
+ * Reads raw state from typeaheads and delegates to applyFilterState.
+ */
+function handleTypeaheadFilterChange(lastChanged?: FilterDimension): void {
+  applyFilterState({
+    repos: typeaheadRepo?.getSelected() ?? [],
+    teams: typeaheadTeam?.getSelected() ?? [],
+    reviewers: typeaheadReviewer?.getSelected() ?? [],
+    authors: typeaheadAuthor?.getSelected() ?? [],
+  }, lastChanged);
+}
+
+/**
+ * Clear all filters. Delegates to applyFilterState with empty state.
  */
 function clearAllFilters(): void {
-  currentFilters = { repos: [], teams: [], reviewers: [], authors: [] };
-  reviewerFilterNoticeMessage = null;
-
-  // Use setSelected([]) instead of clear() to avoid triggering onChange
-  // callbacks on each widget. clear() calls normalizeAndEmit() which
-  // fires handleTypeaheadFilterChange() → refreshMetrics() per widget.
-  // setSelected() is a silent programmatic update (no onChange).
-  typeaheadRepo?.setSelected([]);
-  typeaheadTeam?.setSelected([]);
-  typeaheadReviewer?.setSelected([]);
-  typeaheadAuthor?.setSelected([]);
-
-  updateFilterUI();
-  updateUrlState();
-  void refreshMetrics(); // Single refresh, not 5
+  applyFilterState({ repos: [], teams: [], reviewers: [], authors: [] });
 }
 
 /**
- * Remove a specific filter.
+ * Remove a specific filter. Computes next state and delegates to applyFilterState.
  */
 function removeFilter(type: string, value: string): void {
+  const next: FilterState = {
+    repos: [...currentFilters.repos],
+    teams: [...currentFilters.teams],
+    reviewers: [...currentFilters.reviewers],
+    authors: [...currentFilters.authors],
+  };
   if (type === "repo") {
-    currentFilters.repos = currentFilters.repos.filter((v) => v !== value);
-    typeaheadRepo?.setSelected(currentFilters.repos);
+    next.repos = next.repos.filter((v) => v !== value);
   } else if (type === "team") {
-    currentFilters.teams = currentFilters.teams.filter((v) => v !== value);
-    typeaheadTeam?.setSelected(currentFilters.teams);
+    next.teams = next.teams.filter((v) => v !== value);
   } else if (type === "reviewer") {
-    currentFilters.reviewers = currentFilters.reviewers.filter(
-      (v) => v !== value,
-    );
-    typeaheadReviewer?.setSelected(currentFilters.reviewers);
+    next.reviewers = next.reviewers.filter((v) => v !== value);
   } else if (type === "author") {
-    currentFilters.authors = currentFilters.authors.filter((v) => v !== value);
-    typeaheadAuthor?.setSelected(currentFilters.authors);
+    next.authors = next.authors.filter((v) => v !== value);
   }
-
-  updateFilterUI();
-  updateUrlState();
-  void refreshMetrics();
+  applyFilterState(next);
 }
 
 /**
@@ -1678,33 +1677,17 @@ function restoreFiltersFromUrl(): void {
     );
   }
 
-  // Resolve constraints via single-authority resolver (FR-010)
-  const { effectiveState, constraintsApplied } = resolveFilterConstraints({
+  // Delegate to centralized applyFilterState (no lastChanged for URL restore).
+  // applyFilterState handles: resolve → derive notices → update state →
+  // sync typeaheads → update UI → serialize URL → refresh metrics.
+  // Note: refreshMetrics() will be called by applyFilterState, but for URL
+  // restore this is correct — the initial load triggers a full refresh anyway.
+  applyFilterState({
     repos: validRepos,
     teams: validTeams,
     reviewers: validReviewers,
     authors: normalizedAuthors,
   });
-
-  // Update notice messages from constraint resolver (display only)
-  // Use the same type-filtering logic as handleTypeaheadFilterChange() to avoid
-  // routing non-reviewer notices (author_team, etc) into the reviewer notice area
-  const reviewerNotice = constraintsApplied.find(
-    (n) =>
-      n.type === "author_reviewer" ||
-      n.type === "reviewer_team" ||
-      n.type === "reviewer_repo",
-  );
-  reviewerFilterNoticeMessage = reviewerNotice?.message ?? null;
-  currentFilters = effectiveState;
-
-  // Sync typeahead UI with restored state
-  typeaheadRepo?.setSelected(currentFilters.repos);
-  typeaheadTeam?.setSelected(currentFilters.teams);
-  typeaheadReviewer?.setSelected(currentFilters.reviewers);
-  typeaheadAuthor?.setSelected(currentFilters.authors);
-
-  updateFilterUI();
 }
 
 function restoreStateFromUrl(): void {

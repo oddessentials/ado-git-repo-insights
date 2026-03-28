@@ -406,7 +406,10 @@ export function initTypeaheadDropdown(
 
     setSelected(ids: string[]): void {
       selected = ids.filter((id) => options.some((o) => o.id === id));
+      // Same render sequence as selectOption/deselectOption:
+      // chips → dropdown (if open) → input display
       renderChips();
+      if (isOpen) renderDropdown();
       updateInputDisplay();
     },
 
