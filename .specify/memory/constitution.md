@@ -2,6 +2,37 @@
   =============================================================================
   SYNC IMPACT REPORT
   =============================================================================
+  Version Change: 1.2.0 → 1.3.0 (local/CI parity governance addition)
+
+  Modified Principles: None (Core Principles unchanged)
+
+  Added Sections:
+  - Local/CI Parity Gates (QG-35 through QG-38)
+
+  Rationale:
+  Local/CI parity is a governed invariant. PR #207 exposed recurring
+  desync between local hooks and CI checks (tsc, suppression audit,
+  smoke tests). Four quality gates now enforce that:
+  - Every CI check has a local equivalent (QG-35)
+  - No weaker local modes (QG-36)
+  - New CI checks require local gate + doc update (QG-37)
+  - --no-verify is forbidden (QG-38)
+
+  Evidence Files:
+  - LOCAL_CI_PARITY_INVARIANTS.md (authoritative reference)
+  - scripts/run_repo_hook.py (pre-commit hooks)
+  - scripts/run_pr_preflight.py (pre-push preflight)
+
+  Templates Updated:
+  - .specify/templates/plan-template.md: ✅ Compatible
+  - .specify/templates/spec-template.md: ✅ Compatible
+  - .specify/templates/tasks-template.md: ✅ Compatible
+
+  Follow-up TODOs:
+  - Keep LOCAL_CI_PARITY_INVARIANTS.md aligned with any new CI checks
+  - Verify parity after CI workflow changes via `python scripts/run_pr_preflight.py`
+  =============================================================================
+
   Version Change: 1.1.0 → 1.2.0 (demo parity governance addition)
 
   Modified Principles: None (Core Principles unchanged)
@@ -267,6 +298,15 @@ Definition of Done and map to CI/CD checkpoints.
 | QG-33 | Enterprise demo capability matrix passes for all supported dashboard features | `tests/demo/test_demo_parity_pipeline.py` |
 | QG-34 | Normalized startup-state parity passes for docs and CLI demo surfaces | `tests/demo/test_demo_parity_pipeline.py` |
 
+### Local/CI Parity Gates
+
+| Gate | Requirement | Evidence |
+|------|-------------|----------|
+| QG-35 | Every CI-hard-gate check has a local equivalent that runs automatically via git hooks | `LOCAL_CI_PARITY_INVARIANTS.md` |
+| QG-36 | No CI check may exist in a weaker local mode than its CI enforcement level | `LOCAL_CI_PARITY_INVARIANTS.md`, `scripts/run_repo_hook.py`, `scripts/run_pr_preflight.py` |
+| QG-37 | Adding a new CI check MUST include a corresponding local gate update and an update to `LOCAL_CI_PARITY_INVARIANTS.md` | `LOCAL_CI_PARITY_INVARIANTS.md` Governance section |
+| QG-38 | `--no-verify` is forbidden by project policy; git hooks must never be bypassed | `LOCAL_CI_PARITY_INVARIANTS.md` |
+
 ## Verification Requirements
 
 A phase is not complete until every verification step passes without manual intervention.
@@ -370,4 +410,4 @@ These decisions are final and may not be revisited without MAJOR version change:
 - **Historical migration**: No MongoDB migration (fresh extraction from configured start date)
 - **Output compatibility**: 100% PowerBI CSV parity is mandatory
 
-**Version**: 1.2.0 | **Ratified**: 2026-01-26 | **Last Amended**: 2026-03-21
+**Version**: 1.3.0 | **Ratified**: 2026-01-26 | **Last Amended**: 2026-03-28
