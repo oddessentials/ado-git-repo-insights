@@ -182,4 +182,97 @@ describe("Filter URL Serialization Round-Trip", () => {
       });
     });
   });
+
+  // ────────────────────────────────────────────────────────────────────
+  // Bug 3: Canonical sort order enforcement
+  // ────────────────────────────────────────────────────────────────────
+
+  describe("Canonical sort order (Bug 3)", () => {
+    it("sorts repos lexicographically in serialized URL", () => {
+      const state: FilterState = {
+        repos: ["Z-Repo", "A-Repo", "M-Repo"],
+        teams: [],
+        reviewers: [],
+        authors: [],
+      };
+      const params = new URLSearchParams();
+      serializeFiltersToUrl(state, params);
+      const reposValue = params.get("repos") ?? "";
+      expect(reposValue).toBe("A-Repo,M-Repo,Z-Repo");
+    });
+
+    it("sorts teams lexicographically in serialized URL", () => {
+      const state: FilterState = {
+        repos: [],
+        teams: ["zebra-team", "alpha-team"],
+        reviewers: [],
+        authors: [],
+      };
+      const params = new URLSearchParams();
+      serializeFiltersToUrl(state, params);
+      const teamsValue = params.get("teams") ?? "";
+      expect(teamsValue).toBe("alpha-team,zebra-team");
+    });
+
+    it("produces identical URL regardless of selection order", () => {
+      const orderA: FilterState = {
+        repos: ["Z-Repo", "A-Repo", "M-Repo"],
+        teams: ["beta", "alpha"],
+        reviewers: [],
+        authors: [],
+      };
+      const orderB: FilterState = {
+        repos: ["A-Repo", "M-Repo", "Z-Repo"],
+        teams: ["alpha", "beta"],
+        reviewers: [],
+        authors: [],
+      };
+
+      const paramsA = new URLSearchParams();
+      serializeFiltersToUrl(orderA, paramsA);
+      const paramsB = new URLSearchParams();
+      serializeFiltersToUrl(orderB, paramsB);
+
+      expect(paramsA.toString()).toBe(paramsB.toString());
+    });
+
+    it("deletes filter params when empty (not repos=)", () => {
+      const params = new URLSearchParams();
+      params.set("repos", "old-value");
+      params.set("teams", "old-team");
+
+      const emptyState: FilterState = {
+        repos: [],
+        teams: [],
+        reviewers: [],
+        authors: [],
+      };
+      serializeFiltersToUrl(emptyState, params);
+
+      expect(params.has("repos")).toBe(false);
+      expect(params.has("teams")).toBe(false);
+    });
+
+    it("dashboard.ts must not contain inline filter serialization", () => {
+      // Grep-based guard: no .set("repos", or .set("teams", in dashboard.ts
+      // outside of comments. This prevents reintroduction of inline serialization.
+      const fs = require("fs") as typeof import("fs");
+      const path = require("path") as typeof import("path");
+      const dashboardPath = path.resolve(
+        __dirname,
+        "../../ui/dashboard.ts",
+      );
+      const content = fs.readFileSync(dashboardPath, "utf-8");
+
+      // Remove comments before scanning
+      const noComments = content.replace(/\/\/.*$/gm, "").replace(/\/\*[\s\S]*?\*\//g, "");
+
+      // These patterns indicate inline filter serialization bypassing serializeFiltersToUrl
+      const inlineReposWrite = /newParams\.set\(\s*["']repos["']\s*,/;
+      const inlineTeamsWrite = /newParams\.set\(\s*["']teams["']\s*,/;
+
+      expect(noComments).not.toMatch(inlineReposWrite);
+      expect(noComments).not.toMatch(inlineTeamsWrite);
+    });
+  });
 });

@@ -5966,6 +5966,40 @@ var PRInsightsDashboard = (() => {
       authors: authorRaw ? [authorRaw] : []
     };
   }
+  function serializeFiltersToUrl(state, params) {
+    if (state.repos.length > 0) {
+      const sorted = [...state.repos].sort();
+      params.set("repos", sorted.join(","));
+    } else {
+      params.delete("repos");
+    }
+    if (state.teams.length > 0) {
+      const sorted = [...state.teams].sort();
+      params.set("teams", sorted.join(","));
+    } else {
+      params.delete("teams");
+    }
+    if (state.reviewers.length > 0) {
+      const firstReviewer = state.reviewers[0];
+      if (firstReviewer) {
+        params.set("reviewers", firstReviewer);
+      } else {
+        params.delete("reviewers");
+      }
+    } else {
+      params.delete("reviewers");
+    }
+    if (state.authors.length > 0) {
+      const firstAuthor = state.authors[0];
+      if (firstAuthor) {
+        params.set("author", firstAuthor);
+      } else {
+        params.delete("author");
+      }
+    } else {
+      params.delete("author");
+    }
+  }
 
   // ../ui/modules/filter-constraint-resolver.ts
   function resolveFilterConstraints(raw, lastChanged) {
@@ -6080,9 +6114,13 @@ var PRInsightsDashboard = (() => {
     wrapper.appendChild(input);
     container.appendChild(wrapper);
     container.appendChild(dropdown);
+    function isAllSelected() {
+      return config.mode === "multi" && selected.length > 0 && selected.length === options.length;
+    }
     function renderChips() {
       chipsArea.innerHTML = "";
       if (config.mode !== "multi") return;
+      if (isAllSelected()) return;
       selected.forEach((id) => {
         const opt = options.find((o) => o.id === id);
         if (!opt) return;
@@ -6164,10 +6202,15 @@ var PRInsightsDashboard = (() => {
         } else {
           input.value = "";
         }
+        input.placeholder = selected.length > 0 ? "" : config.placeholder;
       } else {
         input.value = "";
+        if (selected.length === 0 || isAllSelected()) {
+          input.placeholder = config.placeholder;
+        } else {
+          input.placeholder = "Search...";
+        }
       }
-      input.placeholder = selected.length > 0 && config.mode === "multi" ? "Search..." : config.placeholder;
     }
     function filterOptions(query) {
       const q = query.toLowerCase().trim();
@@ -6181,12 +6224,7 @@ var PRInsightsDashboard = (() => {
       renderDropdown();
     }
     function normalizeAndEmit() {
-      let emitted;
-      if (config.mode === "multi" && selected.length > 0 && selected.length === options.length) {
-        emitted = [];
-      } else {
-        emitted = [...selected];
-      }
+      const emitted = isAllSelected() ? [] : [...selected];
       config.onChange(emitted);
     }
     function selectOption(id) {
@@ -6252,6 +6290,11 @@ var PRInsightsDashboard = (() => {
       }
       openDropdown();
     }, { signal });
+    input.addEventListener("blur", () => {
+      requestAnimationFrame(() => {
+        closeDropdown();
+      });
+    }, { signal });
     input.addEventListener("input", () => {
       if (debounceTimer !== null) clearTimeout(debounceTimer);
       debounceTimer = setTimeout(() => {
@@ -6308,10 +6351,7 @@ var PRInsightsDashboard = (() => {
     updateInputDisplay();
     const instance = {
       getSelected() {
-        if (config.mode === "multi" && selected.length > 0 && selected.length === options.length) {
-          return [];
-        }
-        return [...selected];
+        return isAllSelected() ? [] : [...selected];
       },
       setSelected(ids) {
         selected = ids.filter((id) => options.some((o) => o.id === id));
@@ -7662,18 +7702,7 @@ var PRInsightsDashboard = (() => {
     if (tabValue && tabValue !== "metrics") {
       newParams.set("tab", tabValue);
     }
-    if (currentFilters.repos.length > 0) {
-      newParams.set("repos", currentFilters.repos.join(","));
-    }
-    if (currentFilters.teams.length > 0) {
-      newParams.set("teams", currentFilters.teams.join(","));
-    }
-    if (currentFilters.reviewers.length > 0) {
-      newParams.set("reviewers", currentFilters.reviewers.join(","));
-    }
-    if (currentFilters.authors.length > 0) {
-      newParams.set("author", currentFilters.authors[0] ?? "");
-    }
+    serializeFiltersToUrl(currentFilters, newParams);
     if (comparisonMode) {
       newParams.set("compare", "1");
     }

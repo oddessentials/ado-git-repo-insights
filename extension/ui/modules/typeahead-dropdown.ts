@@ -96,11 +96,21 @@ export function initTypeaheadDropdown(
   container.appendChild(wrapper);
   container.appendChild(dropdown);
 
+  // --- Canonical helpers ---
+
+  /** Single canonical check for "all options selected = no filter" (FR-011).
+   *  Used by renderChips, getSelected, normalizeAndEmit, updateInputDisplay.
+   *  Compares against options.length (full set), never filteredOptions.length. */
+  function isAllSelected(): boolean {
+    return config.mode === "multi" && selected.length > 0 && selected.length === options.length;
+  }
+
   // --- Render helpers ---
 
   function renderChips(): void {
     chipsArea.innerHTML = "";
     if (config.mode !== "multi") return;
+    if (isAllSelected()) return; // FR-011: canonical "All" state = no chips
 
     selected.forEach((id) => {
       const opt = options.find((o) => o.id === id);
@@ -196,12 +206,18 @@ export function initTypeaheadDropdown(
       } else {
         input.value = "";
       }
+      input.placeholder = selected.length > 0 ? "" : config.placeholder;
     } else {
+      // Multi-select: deterministic placeholder tied to canonical state.
+      // Empty selection OR all-selected (canonical empty) → original placeholder.
+      // Partial selection → "Search..." to indicate active filtering.
       input.value = "";
+      if (selected.length === 0 || isAllSelected()) {
+        input.placeholder = config.placeholder;
+      } else {
+        input.placeholder = "Search...";
+      }
     }
-    input.placeholder = selected.length > 0 && config.mode === "multi"
-      ? "Search..."
-      : config.placeholder;
   }
 
   // --- Filter logic ---
@@ -221,17 +237,8 @@ export function initTypeaheadDropdown(
   // --- Selection logic ---
 
   function normalizeAndEmit(): void {
-    // FR-011: All-selected normalization — emit empty array when all selected
-    let emitted: string[];
-    if (
-      config.mode === "multi" &&
-      selected.length > 0 &&
-      selected.length === options.length
-    ) {
-      emitted = [];
-    } else {
-      emitted = [...selected];
-    }
+    // FR-011: All-selected normalization via shared isAllSelected() helper
+    const emitted = isAllSelected() ? [] : [...selected];
     config.onChange(emitted);
   }
 
@@ -310,6 +317,15 @@ export function initTypeaheadDropdown(
     openDropdown();
   }, { signal });
 
+  input.addEventListener("blur", () => {
+    // Defer to next frame so pointerdown handlers on dropdown options
+    // complete before the dropdown is removed. closeDropdown() is
+    // idempotent (guards with isOpen check) so double-call is safe.
+    requestAnimationFrame(() => {
+      closeDropdown();
+    });
+  }, { signal });
+
   input.addEventListener("input", () => {
     if (debounceTimer !== null) clearTimeout(debounceTimer);
     debounceTimer = setTimeout(() => {
@@ -379,17 +395,10 @@ export function initTypeaheadDropdown(
   // --- Public API ---
   const instance: TypeaheadInstance = {
     getSelected(): string[] {
-      // FR-011: All-selected normalization at the state layer.
-      // Returns empty array when all options are selected in multi mode,
-      // so consumers always see the canonical "no filter" state.
-      if (
-        config.mode === "multi" &&
-        selected.length > 0 &&
-        selected.length === options.length
-      ) {
-        return [];
-      }
-      return [...selected];
+      // FR-011: All-selected normalization via shared isAllSelected() helper.
+      // Returns empty array when all options selected, so consumers see
+      // the canonical "no filter" state.
+      return isAllSelected() ? [] : [...selected];
     },
 
     setSelected(ids: string[]): void {

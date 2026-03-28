@@ -760,4 +760,231 @@ describe("Typeahead Dropdown", () => {
       expect(onChange).not.toHaveBeenCalled();
     });
   });
+
+  // ────────────────────────────────────────────────────────────────────
+  // Bug 1: All-selected split-brain UI (FR-011 display parity)
+  // ────────────────────────────────────────────────────────────────────
+
+  describe("All-selected display parity (Bug 1)", () => {
+    it("shows zero chips when all options are selected", () => {
+      createContainer("allsel-chips");
+      const instance = initTypeaheadDropdown(
+        makeConfig("allsel-chips", { mode: "multi" }),
+      );
+      instance!.setSelected(["alpha", "beta", "gamma", "delta"]);
+      const chips = document.querySelectorAll("#allsel-chips .typeahead-chip");
+      expect(chips).toHaveLength(0);
+    });
+
+    it("getSelected returns [] when all options are selected", () => {
+      createContainer("allsel-get");
+      const instance = initTypeaheadDropdown(
+        makeConfig("allsel-get", { mode: "multi" }),
+      );
+      instance!.setSelected(["alpha", "beta", "gamma", "delta"]);
+      expect(instance!.getSelected()).toEqual([]);
+    });
+
+    it("shows original placeholder when all options are selected", () => {
+      createContainer("allsel-ph");
+      initTypeaheadDropdown(
+        makeConfig("allsel-ph", {
+          mode: "multi",
+          placeholder: "Search repositories...",
+          initialSelection: ["alpha", "beta", "gamma", "delta"],
+        }),
+      );
+      const input = document.querySelector(
+        "#allsel-ph .typeahead-input",
+      ) as HTMLInputElement;
+      expect(input.placeholder).toBe("Search repositories...");
+    });
+
+    it("shows N-1 chips after deselecting one from all-selected", () => {
+      createContainer("allsel-desel");
+      const instance = initTypeaheadDropdown(
+        makeConfig("allsel-desel", { mode: "multi" }),
+      );
+      // Select all
+      instance!.setSelected(["alpha", "beta", "gamma", "delta"]);
+      expect(document.querySelectorAll("#allsel-desel .typeahead-chip")).toHaveLength(0);
+
+      // Open dropdown and deselect one by clicking its option
+      const input = document.querySelector(
+        "#allsel-desel .typeahead-input",
+      ) as HTMLInputElement;
+      input.dispatchEvent(new Event("focus"));
+
+      // Find and click the "alpha" option to deselect it
+      const options = document.querySelectorAll(
+        "#allsel-desel [role='option']",
+      );
+      const alphaOption = Array.from(options).find(
+        (o) => (o as HTMLElement).dataset.optionId === "alpha",
+      );
+      alphaOption?.dispatchEvent(
+        new PointerEvent("pointerdown", { bubbles: true }),
+      );
+
+      // Should now show 3 chips (all minus alpha)
+      const chips = document.querySelectorAll("#allsel-desel .typeahead-chip");
+      expect(chips).toHaveLength(3);
+    });
+
+    it("getSelected returns N-1 IDs after deselecting one from all-selected", () => {
+      createContainer("allsel-desel-get");
+      const instance = initTypeaheadDropdown(
+        makeConfig("allsel-desel-get", { mode: "multi" }),
+      );
+      instance!.setSelected(["alpha", "beta", "gamma", "delta"]);
+
+      const input = document.querySelector(
+        "#allsel-desel-get .typeahead-input",
+      ) as HTMLInputElement;
+      input.dispatchEvent(new Event("focus"));
+
+      const options = document.querySelectorAll(
+        "#allsel-desel-get [role='option']",
+      );
+      const alphaOption = Array.from(options).find(
+        (o) => (o as HTMLElement).dataset.optionId === "alpha",
+      );
+      alphaOption?.dispatchEvent(
+        new PointerEvent("pointerdown", { bubbles: true }),
+      );
+
+      const selected = instance!.getSelected();
+      expect(selected).toHaveLength(3);
+      expect(selected).not.toContain("alpha");
+    });
+
+    it("isAllSelected uses options.length not filteredOptions.length", () => {
+      createContainer("allsel-search");
+      jest.useFakeTimers();
+      const instance = initTypeaheadDropdown(
+        makeConfig("allsel-search", { mode: "multi" }),
+      );
+
+      // Type a search that matches only 2 of 4 options
+      const input = document.querySelector(
+        "#allsel-search .typeahead-input",
+      ) as HTMLInputElement;
+      input.dispatchEvent(new Event("focus"));
+      input.value = "alpha";
+      input.dispatchEvent(new Event("input"));
+      jest.advanceTimersByTime(250);
+
+      // Select the 2 matching results
+      const visibleOptions = document.querySelectorAll(
+        "#allsel-search [role='option']",
+      );
+      visibleOptions.forEach((opt) => {
+        opt.dispatchEvent(new PointerEvent("pointerdown", { bubbles: true }));
+      });
+
+      // Should NOT be treated as all-selected (2 of 4 != all)
+      expect(instance!.getSelected()).not.toEqual([]);
+      jest.useRealTimers();
+    });
+  });
+
+  // ────────────────────────────────────────────────────────────────────
+  // Bug 2: Single-select blank on blur
+  // ────────────────────────────────────────────────────────────────────
+
+  describe("Single-select blur restore (Bug 2)", () => {
+    beforeEach(() => {
+      jest.useFakeTimers();
+    });
+
+    afterEach(() => {
+      jest.useRealTimers();
+    });
+
+    it("restores selected display name after blur", () => {
+      createContainer("blur-restore");
+      const instance = initTypeaheadDropdown(
+        makeConfig("blur-restore", { mode: "single" }),
+      );
+      instance!.setSelected(["beta"]);
+
+      const input = document.querySelector(
+        "#blur-restore .typeahead-input",
+      ) as HTMLInputElement;
+
+      // Focus clears value for search
+      input.dispatchEvent(new Event("focus"));
+      expect(input.value).toBe("");
+
+      // Blur triggers deferred closeDropdown via rAF
+      input.dispatchEvent(new Event("blur"));
+      jest.advanceTimersByTime(20);
+
+      // After blur + rAF, input should show "Beta"
+      expect(input.value).toBe("Beta");
+    });
+
+    it("closes dropdown after blur", () => {
+      createContainer("blur-close");
+      initTypeaheadDropdown(
+        makeConfig("blur-close", { mode: "single" }),
+      );
+
+      const input = document.querySelector(
+        "#blur-close .typeahead-input",
+      ) as HTMLInputElement;
+      const dropdown = document.querySelector(
+        "#blur-close .typeahead-dropdown",
+      ) as HTMLElement;
+
+      input.dispatchEvent(new Event("focus"));
+      expect(dropdown.style.display).not.toBe("none");
+
+      input.dispatchEvent(new Event("blur"));
+      jest.advanceTimersByTime(20);
+
+      expect(dropdown.style.display).toBe("none");
+    });
+
+    it("does not affect multi-select placeholder on blur", () => {
+      createContainer("blur-multi");
+      const instance = initTypeaheadDropdown(
+        makeConfig("blur-multi", { mode: "multi" }),
+      );
+      instance!.setSelected(["alpha"]);
+
+      const input = document.querySelector(
+        "#blur-multi .typeahead-input",
+      ) as HTMLInputElement;
+
+      const placeholderBefore = input.placeholder;
+      input.dispatchEvent(new Event("focus"));
+      input.dispatchEvent(new Event("blur"));
+      jest.advanceTimersByTime(20);
+
+      expect(input.placeholder).toBe(placeholderBefore);
+    });
+
+    it("closeDropdown is idempotent (safe to call twice)", () => {
+      createContainer("blur-idem");
+      initTypeaheadDropdown(
+        makeConfig("blur-idem", { mode: "single" }),
+      );
+
+      const input = document.querySelector(
+        "#blur-idem .typeahead-input",
+      ) as HTMLInputElement;
+
+      input.dispatchEvent(new Event("focus"));
+      input.dispatchEvent(new Event("blur"));
+      jest.advanceTimersByTime(20);
+
+      // Close again manually via outside click — should not throw
+      expect(() => {
+        document.dispatchEvent(
+          new PointerEvent("pointerdown", { bubbles: true }),
+        );
+      }).not.toThrow();
+    });
+  });
 });

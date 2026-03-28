@@ -60,6 +60,7 @@ import {
   type TypeaheadInstance,
   // Filter URL serialization
   parseFiltersFromUrl,
+  serializeFiltersToUrl,
   // State machine and state-specific rendering (FR-001 through FR-004)
   resolvePredictionsState,
   resolveInsightsState,
@@ -2011,19 +2012,11 @@ function updateUrlState(): void {
     newParams.set("tab", tabValue);
   }
 
-  // Add filters
-  if (currentFilters.repos.length > 0) {
-    newParams.set("repos", currentFilters.repos.join(","));
-  }
-  if (currentFilters.teams.length > 0) {
-    newParams.set("teams", currentFilters.teams.join(","));
-  }
-  if (currentFilters.reviewers.length > 0) {
-    newParams.set("reviewers", currentFilters.reviewers.join(","));
-  }
-  if (currentFilters.authors.length > 0) {
-    newParams.set("author", currentFilters.authors[0] ?? "");
-  }
+  // FR-009: All filter URL writes go through the canonical serializer.
+  // No inline .set("repos")/.set("teams") allowed outside this call.
+  // The serializer sorts multi-select values lexicographically and
+  // deletes params when empty, ensuring stable canonical URLs.
+  serializeFiltersToUrl(currentFilters, newParams);
 
   // Add comparison mode
   if (comparisonMode) {
