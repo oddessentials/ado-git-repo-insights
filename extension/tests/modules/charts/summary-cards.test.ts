@@ -419,7 +419,7 @@ describe("summary-cards module", () => {
     it("displays 'Last N weeks' below each sparkline", () => {
       const containers = createContainers();
       const card = document.createElement("div");
-      card.className = "metric-card";
+      card.className = "card";
       card.appendChild(document.createElement("h3"));
       card.appendChild(containers.totalPrs!);
       card.appendChild(containers.totalPrsSparkline!);
@@ -436,7 +436,7 @@ describe("summary-cards module", () => {
     it("reflects actual week count when fewer than lookback", () => {
       const containers = createContainers();
       const card = document.createElement("div");
-      card.className = "metric-card";
+      card.className = "card";
       card.appendChild(document.createElement("h3"));
       card.appendChild(containers.totalPrs!);
       card.appendChild(containers.totalPrsSparkline!);
@@ -448,10 +448,10 @@ describe("summary-cards module", () => {
       expect(label!.textContent).toBe("Last 4 weeks");
     });
 
-    it("uses singular 'week' for count of 1", () => {
+    it("skips label when fewer than 2 data points (sparkline not rendered)", () => {
       const containers = createContainers();
       const card = document.createElement("div");
-      card.className = "metric-card";
+      card.className = "card";
       card.appendChild(document.createElement("h3"));
       card.appendChild(containers.totalPrs!);
       card.appendChild(containers.totalPrsSparkline!);
@@ -459,8 +459,9 @@ describe("summary-cards module", () => {
 
       renderSummaryCards({ rollups: createRollups(1), containers });
 
+      // renderSparkline requires >= 2 points; label should not appear
       const label = card.querySelector(".sparkline-label");
-      expect(label!.textContent).toBe("Last 1 week");
+      expect(label).toBeNull();
     });
 
     it("shows consistent N across all sparkline labels", () => {
@@ -472,7 +473,7 @@ describe("summary-cards module", () => {
       const cards: HTMLElement[] = [];
       for (const [valEl, sparkEl] of pairs) {
         const card = document.createElement("div");
-        card.className = "metric-card";
+        card.className = "card";
         card.appendChild(document.createElement("h3"));
         card.appendChild(valEl);
         card.appendChild(sparkEl);
@@ -496,7 +497,7 @@ describe("summary-cards module", () => {
       const containers = createContainers();
       // Wrap a value element in a .metric-card so sample-size can be injected
       const card = document.createElement("div");
-      card.className = "metric-card";
+      card.className = "card";
       const h3 = document.createElement("h3");
       h3.textContent = "Total PRs";
       card.appendChild(h3);
@@ -514,7 +515,7 @@ describe("summary-cards module", () => {
     it("uses singular 'PR' for count of 1", () => {
       const containers = createContainers();
       const card = document.createElement("div");
-      card.className = "metric-card";
+      card.className = "card";
       card.appendChild(document.createElement("h3"));
       card.appendChild(containers.totalPrs!);
       document.body.appendChild(card);
@@ -544,7 +545,7 @@ describe("summary-cards module", () => {
       const cards: HTMLElement[] = [];
       for (const valEl of valueEls) {
         const card = document.createElement("div");
-        card.className = "metric-card";
+        card.className = "card";
         card.appendChild(document.createElement("h3"));
         card.appendChild(valEl);
         document.body.appendChild(card);
@@ -564,7 +565,7 @@ describe("summary-cards module", () => {
     it("applies .low-sample class when below LOW_SAMPLE_THRESHOLD", () => {
       const containers = createContainers();
       const card = document.createElement("div");
-      card.className = "metric-card";
+      card.className = "card";
       card.appendChild(document.createElement("h3"));
       card.appendChild(containers.totalPrs!);
       document.body.appendChild(card);
@@ -582,6 +583,89 @@ describe("summary-cards module", () => {
       expect(sampleEl).not.toBeNull();
       expect(sampleEl!.classList.contains("low-sample")).toBe(true);
       expect(sampleEl!.textContent).toBe("Based on 5 PRs");
+    });
+  });
+
+  describe("correctness regressions", () => {
+    it("sample-size subtitle renders under .card (not .metric-card)", () => {
+      const containers = createContainers();
+      // Use real HTML class "card" matching index.html
+      const card = document.createElement("div");
+      card.className = "card";
+      card.appendChild(document.createElement("h3"));
+      card.appendChild(containers.totalPrs!);
+      document.body.appendChild(card);
+
+      renderSummaryCards({ rollups: createRollups(4), containers });
+
+      expect(card.querySelector(".metric-sample-size")).not.toBeNull();
+    });
+
+    it("review-time cards show metric-specific sample size, not total PR count", () => {
+      const containers = createContainers();
+
+      // General card
+      const generalCard = document.createElement("div");
+      generalCard.className = "card";
+      generalCard.appendChild(document.createElement("h3"));
+      generalCard.appendChild(containers.totalPrs!);
+      document.body.appendChild(generalCard);
+
+      // Review-time card
+      const rtCard = document.createElement("div");
+      rtCard.className = "card";
+      rtCard.appendChild(document.createElement("h3"));
+      rtCard.appendChild(containers.reviewTimeP50!);
+      document.body.appendChild(rtCard);
+
+      // 4 rollups but only 2 have review_time data
+      const rollups = [
+        { week: "2025-W01", pr_count: 20, cycle_time_p50: 60, cycle_time_p90: 120, review_time_p50: 30, review_time_p90: 60, authors_count: 5, reviewers_count: 3, by_repository: null, by_team: null },
+        { week: "2025-W02", pr_count: 25, cycle_time_p50: 45, cycle_time_p90: 90, review_time_p50: null, review_time_p90: null, authors_count: 7, reviewers_count: 4, by_repository: null, by_team: null },
+        { week: "2025-W03", pr_count: 15, cycle_time_p50: 50, cycle_time_p90: 100, review_time_p50: 45, review_time_p90: 90, authors_count: 6, reviewers_count: 3, by_repository: null, by_team: null },
+        { week: "2025-W04", pr_count: 30, cycle_time_p50: 55, cycle_time_p90: 110, review_time_p50: null, review_time_p90: null, authors_count: 8, reviewers_count: 5, by_repository: null, by_team: null },
+      ];
+
+      renderSummaryCards({ rollups, containers });
+
+      // General card: total = 20 + 25 + 15 + 30 = 90
+      const generalSample = generalCard.querySelector(".metric-sample-size");
+      expect(generalSample!.textContent).toBe("Based on 90 PRs");
+
+      // Review-time card: only weeks with review_time = 20 + 15 = 35
+      const rtSample = rtCard.querySelector(".metric-sample-size");
+      expect(rtSample!.textContent).toBe("Based on 35 PRs");
+    });
+
+    it("sparkline label matches plotted point count after null filtering", () => {
+      const containers = createContainers();
+      const card = document.createElement("div");
+      card.className = "card";
+      card.appendChild(document.createElement("h3"));
+      card.appendChild(containers.reviewTimeP50!);
+      card.appendChild(containers.reviewTimeP50Sparkline!);
+      document.body.appendChild(card);
+
+      // 8 rollups but only 3 have non-null review_time_p50
+      const rollups = Array.from({ length: 8 }, (_, i) => ({
+        week: `2025-W${(i + 1).toString().padStart(2, "0")}`,
+        pr_count: 10,
+        cycle_time_p50: 60,
+        cycle_time_p90: 120,
+        review_time_p50: i < 3 ? 30 + i * 10 : null as number | null,
+        review_time_p90: i < 3 ? 60 + i * 20 : null as number | null,
+        authors_count: 5,
+        reviewers_count: 3,
+        by_repository: null,
+        by_team: null,
+      }));
+
+      renderSummaryCards({ rollups, containers });
+
+      // Only 3 non-null points plotted, not 8
+      const label = card.querySelector(".sparkline-label");
+      expect(label).not.toBeNull();
+      expect(label!.textContent).toBe("Last 3 weeks");
     });
   });
 });

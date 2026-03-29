@@ -23,12 +23,12 @@ import {
 import type { Rollup } from "../../../ui/dataset-loader";
 
 /**
- * Build a .metric-card > h3 + value-el DOM structure for a given metric key.
+ * Build a .card > h3 + value-el DOM structure for a given metric key.
  * Returns the value element (to place in the containers object).
  */
 function buildCardDOM(metricKey: string): HTMLElement {
   const card = document.createElement("div");
-  card.className = "metric-card";
+  card.className = "card";
 
   const title = document.createElement("h3");
   title.textContent = metricKey;
@@ -240,7 +240,7 @@ describe("Summary Cards Info Icons (attachInfoIcons)", () => {
       reviewersDelta: document.createElement("div"),
     };
 
-    // No .metric-card ancestor, so attachInfoIcons should skip gracefully
+    // No .card ancestor, so attachInfoIcons should skip gracefully
     expect(() => {
       renderSummaryCards({ rollups: createSampleRollups(), containers });
     }).not.toThrow();
@@ -283,7 +283,7 @@ describe("Summary Cards Info Icons (attachInfoIcons)", () => {
   it("missing h3 in metric card gracefully skips", () => {
     // Create a card without h3
     const card = document.createElement("div");
-    card.className = "metric-card";
+    card.className = "card";
     const value = document.createElement("span");
     card.appendChild(value);
     document.body.appendChild(card);

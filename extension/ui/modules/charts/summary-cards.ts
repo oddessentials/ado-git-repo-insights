@@ -15,7 +15,11 @@ import {
   extractSparklineData,
   type CalculatedMetrics,
 } from "../metrics";
-import { renderDelta, renderSparkline, getLookbackWeekCount } from "../charts";
+import {
+  renderDelta,
+  renderSparkline,
+  SPARKLINE_LOOKBACK_WEEKS,
+} from "../charts";
 import { formatDuration } from "../shared/format";
 import { LOW_SAMPLE_THRESHOLD } from "../shared/constants";
 import { clearElement } from "../shared/render";
@@ -139,7 +143,11 @@ export function renderSummaryCards(options: RenderSummaryCardsOptions): void {
   renderMetricValues(containers, current);
 
   // Render sample size subtitle on each card (FR-006, FR-007)
-  renderSampleSize(containers, current.totalPrs);
+  // Review-time cards use metric-specific count (only PRs with review_time data)
+  const reviewTimePrCount = rollups
+    .filter((r) => r.review_time_p50 != null || r.review_time_p90 != null)
+    .reduce((sum, r) => sum + (r.pr_count || 0), 0);
+  renderSampleSize(containers, current.totalPrs, reviewTimePrCount);
 
   // Attach info icons to summary card titles
   attachInfoIcons(containers);
@@ -149,7 +157,9 @@ export function renderSummaryCards(options: RenderSummaryCardsOptions): void {
   renderSparklines(containers, sparklineData);
 
   // Render sparkline time period labels (FR-010, FR-011)
-  renderSparklineLabels(containers, rollups.length);
+  // Labels derived from plotted data (after null filtering + lookback truncation),
+  // not raw rollup count, so they accurately reflect what the sparkline shows.
+  renderSparklineLabels(containers, sparklineData);
 
   // Render deltas (only if we have previous period data)
   if (prevRollups && prevRollups.length > 0) {
@@ -170,35 +180,46 @@ export function renderSummaryCards(options: RenderSummaryCardsOptions): void {
 }
 
 /**
+ * Format a sample size label with singular/plural handling.
+ */
+function formatSampleLabel(count: number): string {
+  return `Based on ${count.toLocaleString()} ${count === 1 ? "PR" : "PRs"}`;
+}
+
+/**
  * Render sample size subtitle ("Based on N PRs") on each visible metric card.
- * Computed once, shared across all cards (FR-006). Applies .low-sample class
+ * General cards use totalPrs; review-time cards use their metric-specific count
+ * (only PRs with non-null review_time data). Applies .low-sample class
  * when count is below LOW_SAMPLE_THRESHOLD (FR-009).
  */
 function renderSampleSize(
   containers: SummaryCardsContainers,
   totalPrs: number,
+  reviewTimePrCount: number,
 ): void {
-  const label = `Based on ${totalPrs.toLocaleString()} ${totalPrs === 1 ? "PR" : "PRs"}`;
-  const isLow = totalPrs < LOW_SAMPLE_THRESHOLD;
+  const generalLabel = formatSampleLabel(totalPrs);
+  const reviewTimeLabel = formatSampleLabel(reviewTimePrCount);
 
-  const valueElements: (HTMLElement | null)[] = [
-    containers.totalPrs,
-    containers.cycleP50,
-    containers.cycleP90,
-    containers.reviewTimeP50,
-    containers.reviewTimeP90,
-    containers.authorsCount,
-    containers.reviewersCount,
+  // Map each container to its appropriate sample count
+  const entries: [HTMLElement | null, number, string][] = [
+    [containers.totalPrs, totalPrs, generalLabel],
+    [containers.cycleP50, totalPrs, generalLabel],
+    [containers.cycleP90, totalPrs, generalLabel],
+    [containers.reviewTimeP50, reviewTimePrCount, reviewTimeLabel],
+    [containers.reviewTimeP90, reviewTimePrCount, reviewTimeLabel],
+    [containers.authorsCount, totalPrs, generalLabel],
+    [containers.reviewersCount, totalPrs, generalLabel],
   ];
 
-  for (const el of valueElements) {
-    const card = el?.closest(".metric-card") as HTMLElement | null;
+  for (const [el, count, label] of entries) {
+    const card = el?.closest(".card") as HTMLElement | null;
     if (!card) continue;
 
     // Remove old sample-size element on re-render
     const existing = card.querySelector(".metric-sample-size");
     if (existing) existing.remove();
 
+    const isLow = count < LOW_SAMPLE_THRESHOLD;
     const subtitle = document.createElement("p");
     subtitle.className = isLow ? "metric-sample-size low-sample" : "metric-sample-size";
     subtitle.textContent = label;
@@ -213,35 +234,47 @@ function renderSampleSize(
 }
 
 /**
+ * Compute the number of points actually plotted by renderSparkline():
+ * filter nulls, then take last SPARKLINE_LOOKBACK_WEEKS non-null points.
+ */
+function plottedPointCount(values: (number | null)[]): number {
+  const nonNull = values.filter((v): v is number => v !== null);
+  return Math.min(nonNull.length, SPARKLINE_LOOKBACK_WEEKS);
+}
+
+/**
  * Render sparkline time period labels (e.g., "Last 8 weeks") on each card.
- * Uses getLookbackWeekCount() as single source of truth (FR-010).
+ * Labels derived from the plotted series (after null filtering + lookback
+ * truncation), so they accurately reflect what the sparkline actually shows.
  */
 function renderSparklineLabels(
   containers: SummaryCardsContainers,
-  rollupCount: number,
+  sparklineData: SparklineData,
 ): void {
-  const n = getLookbackWeekCount(rollupCount);
-  const text = `Last ${n} ${n === 1 ? "week" : "weeks"}`;
-
-  const sparklineElements: (HTMLElement | null)[] = [
-    containers.totalPrsSparkline,
-    containers.cycleP50Sparkline,
-    containers.cycleP90Sparkline,
-    containers.reviewTimeP50Sparkline,
-    containers.reviewTimeP90Sparkline,
-    containers.authorsSparkline,
-    containers.reviewersSparkline,
+  // Each sparkline element paired with its data series
+  const entries: [HTMLElement | null, (number | null)[]][] = [
+    [containers.totalPrsSparkline, sparklineData.prCounts],
+    [containers.cycleP50Sparkline, sparklineData.p50s],
+    [containers.cycleP90Sparkline, sparklineData.p90s],
+    [containers.reviewTimeP50Sparkline, sparklineData.reviewTimeP50s],
+    [containers.reviewTimeP90Sparkline, sparklineData.reviewTimeP90s],
+    [containers.authorsSparkline, sparklineData.authors],
+    [containers.reviewersSparkline, sparklineData.reviewers],
   ];
 
-  for (const el of sparklineElements) {
+  for (const [el, series] of entries) {
     if (!el) continue;
-    const card = el.closest(".metric-card") as HTMLElement | null;
+    const card = el.closest(".card") as HTMLElement | null;
     if (!card) continue;
 
     // Remove old label on re-render
     const existing = card.querySelector(".sparkline-label");
     if (existing) existing.remove();
 
+    const n = plottedPointCount(series);
+    if (n < 2) continue; // renderSparkline requires >= 2 points; no label for empty sparklines
+
+    const text = `Last ${n} ${n === 1 ? "week" : "weeks"}`;
     const label = document.createElement("p");
     label.className = "sparkline-label";
     label.textContent = text;
@@ -448,7 +481,7 @@ function attachInfoIcons(containers: SummaryCardsContainers): void {
     if (!valueEl) continue;
 
     // Find the parent card element, then locate the h3 title
-    const card = valueEl.closest(".metric-card");
+    const card = valueEl.closest(".card");
     if (!card) continue;
 
     const title = card.querySelector("h3");
