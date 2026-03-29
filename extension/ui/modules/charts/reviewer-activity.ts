@@ -18,8 +18,39 @@ import {
   renderTrustedHtml,
 } from "../shared/render";
 
+import type { ReviewerBreakdownEntry } from "../../schemas/rollup.schema";
+
 /** Maximum weeks displayed in the reviewer activity panel. */
 export const MAX_REVIEWER_WEEKS = 8;
+
+/**
+ * Compute PR-weighted average approval rate from by_reviewer breakdowns
+ * across all rollups for the selected reviewer(s).
+ * Returns null when no reviewer has a finite approval_rate.
+ */
+function computeApprovalRate(
+  rollups: Rollup[],
+  reviewerIds: string[],
+): number | null {
+  let weightedSum = 0;
+  let totalPrs = 0;
+
+  for (const rollup of rollups) {
+    if (!rollup.by_reviewer || typeof rollup.by_reviewer !== "object") continue;
+    const reviewerMap = new Map(Object.entries(rollup.by_reviewer as Record<string, ReviewerBreakdownEntry>));
+    for (const id of reviewerIds) {
+      const entry = reviewerMap.get(id);
+      if (!entry) continue;
+      const rate = entry.approval_rate;
+      if (typeof rate !== "number" || !Number.isFinite(rate)) continue;
+      const prs = entry.reviewed_prs ?? 0;
+      weightedSum += rate * prs;
+      totalPrs += prs;
+    }
+  }
+
+  return totalPrs > 0 ? weightedSum / totalPrs : null;
+}
 
 /**
  * Render reviewer activity chart (horizontal bar chart).
@@ -132,9 +163,21 @@ export function renderReviewerActivity(
     ? `<div class="truncation-indicator">Showing last ${MAX_REVIEWER_WEEKS} weeks</div>`
     : "";
 
-  // SECURITY: barsHtml uses escapeHtml for week values, count is numeric
+  // Approval rate (shown only when reviewer filter is active and data is available)
+  let approvalHtml = "";
+  if (reviewerFilterActive) {
+    const reviewerIds = options.filters?.reviewers ?? [];
+    const sourceRollups = options.unfilteredRollups ?? rollups;
+    const approvalRate = computeApprovalRate(sourceRollups, reviewerIds);
+    if (approvalRate !== null) {
+      const pct = Math.round(approvalRate * 100);
+      approvalHtml = `<p class="approval-rate">Approval Rate: ${pct}%</p>`;
+    }
+  }
+
+  // SECURITY: barsHtml uses escapeHtml for week values, count and pct are numeric
   renderTrustedHtml(
     container,
-    `${truncationHtml}<p class="chart-subtitle">${escapeHtml(subtitle)}</p><div class="horizontal-bar-chart">${barsHtml}</div>`,
+    `${truncationHtml}<p class="chart-subtitle">${escapeHtml(subtitle)}</p><div class="horizontal-bar-chart">${barsHtml}</div>${approvalHtml}`,
   );
 }

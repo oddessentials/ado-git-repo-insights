@@ -78,16 +78,16 @@
 
 ### Tests for US2
 
-- [ ] T022 [P] [US2] Add conditional rendering test in extension/tests/modules/charts/reviewer-activity.test.ts: given reviewerFilterActive=true and rollups with by_reviewer containing approval_rate=0.78, assert "Approval Rate: 78%" text present in rendered DOM
-- [ ] T023 [P] [US2] Add hidden-when-inactive test in extension/tests/modules/charts/reviewer-activity.test.ts: given reviewerFilterActive=false, assert no approval rate element exists in DOM
-- [ ] T024 [P] [US2] Add null-handling test in extension/tests/modules/charts/reviewer-activity.test.ts: given reviewerFilterActive=true but approval_rate=null, assert renderNoData() pattern used (not "0%")
-- [ ] T025 [P] [US2] Add edge case tests in extension/tests/modules/charts/reviewer-activity.test.ts: approval_rate=0.0 shows "0%", approval_rate=1.0 shows "100%"
+- [x] T022 [P] [US2] Add conditional rendering test in extension/tests/modules/charts/reviewer-activity.test.ts: given reviewerFilterActive=true and rollups with by_reviewer containing approval_rate=0.78, assert "Approval Rate: 78%" text present in rendered DOM
+- [x] T023 [P] [US2] Add hidden-when-inactive test in extension/tests/modules/charts/reviewer-activity.test.ts: given reviewerFilterActive=false, assert no approval rate element exists in DOM
+- [x] T024 [P] [US2] Add null-handling test in extension/tests/modules/charts/reviewer-activity.test.ts: given reviewerFilterActive=true but approval_rate=null, assert renderNoData() pattern used (not "0%")
+- [x] T025 [P] [US2] Add edge case tests in extension/tests/modules/charts/reviewer-activity.test.ts: approval_rate=0.0 shows "0%", approval_rate=1.0 shows "100%"
 
 ### Implementation for US2
 
-- [ ] T026 [US2] Add approval rate computation in renderReviewerActivity() in extension/ui/modules/charts/reviewer-activity.ts: when reviewerFilterActive, extract approval_rate from raw by_reviewer breakdown via unfilteredRollups, compute PR-weighted average using existing aggregateReviewerEntries pattern
-- [ ] T027 [US2] Add approval rate HTML rendering in extension/ui/modules/charts/reviewer-activity.ts: display "Approval Rate: N%" below the horizontal bar chart when active, using escapeHtml for safety
-- [ ] T028 [US2] Ensure approval_rate data is available: verify dashboard.ts passes unfilteredRollups to renderReviewerActivity (implementation checkpoint from project memory)
+- [x] T026 [US2] Add approval rate computation in renderReviewerActivity() in extension/ui/modules/charts/reviewer-activity.ts: when reviewerFilterActive, extract approval_rate from raw by_reviewer breakdown via unfilteredRollups, compute PR-weighted average using existing aggregateReviewerEntries pattern
+- [x] T027 [US2] Add approval rate HTML rendering in extension/ui/modules/charts/reviewer-activity.ts: display "Approval Rate: N%" below the horizontal bar chart when active, using escapeHtml for safety
+- [x] T028 [US2] Ensure approval_rate data is available: verify dashboard.ts passes unfilteredRollups to renderReviewerActivity (implementation checkpoint from project memory)
 
 **Checkpoint**: Approval rate visible when reviewer filter active, hidden otherwise.
 

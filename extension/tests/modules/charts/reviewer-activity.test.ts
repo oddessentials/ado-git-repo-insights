@@ -327,4 +327,86 @@ describe("reviewer-activity module", () => {
       expect(container.innerHTML).toContain("no-data");
     });
   });
+
+  describe("approval rate (US2)", () => {
+    function createRollupsWithReviewer(approvalRate: number | null) {
+      return Array.from({ length: 4 }, (_, i) => ({
+        week: `2025-W${(i + 1).toString().padStart(2, "0")}`,
+        pr_count: 10,
+        cycle_time_p50: 60,
+        cycle_time_p90: 120,
+        authors_count: 5,
+        reviewers_count: 3,
+        by_repository: null,
+        by_team: null,
+        by_reviewer: {
+          "alice-id": {
+            reviewed_prs: 8,
+            reviews_count: 10,
+            approval_rate: approvalRate,
+            authors_count: 3,
+            repositories_count: 2,
+          },
+        },
+      }));
+    }
+
+    it("shows approval rate when reviewer filter is active", () => {
+      const rollups = createRollupsWithReviewer(0.78);
+      renderReviewerActivity(container, rollups, {
+        reviewerFilterActive: true,
+        filters: { repos: [], teams: [], reviewers: ["alice-id"], authors: [] },
+        unfilteredRollups: rollups,
+      });
+
+      expect(container.innerHTML).toContain("Approval Rate");
+      expect(container.innerHTML).toContain("78%");
+    });
+
+    it("hides approval rate when reviewer filter is NOT active", () => {
+      const rollups = createRollupsWithReviewer(0.78);
+      renderReviewerActivity(container, rollups, {
+        reviewerFilterActive: false,
+      });
+
+      expect(container.innerHTML).not.toContain("Approval Rate");
+    });
+
+    it("shows no-data state for null approval_rate", () => {
+      const rollups = createRollupsWithReviewer(null);
+      renderReviewerActivity(container, rollups, {
+        reviewerFilterActive: true,
+        filters: { repos: [], teams: [], reviewers: ["alice-id"], authors: [] },
+        unfilteredRollups: rollups,
+      });
+
+      // Should NOT show approval rate element for null — omit entirely
+      expect(container.querySelector(".approval-rate")).toBeNull();
+      expect(container.innerHTML).not.toContain("Approval Rate");
+    });
+
+    it("shows 0% for approval_rate of 0.0", () => {
+      const rollups = createRollupsWithReviewer(0.0);
+      renderReviewerActivity(container, rollups, {
+        reviewerFilterActive: true,
+        filters: { repos: [], teams: [], reviewers: ["alice-id"], authors: [] },
+        unfilteredRollups: rollups,
+      });
+
+      expect(container.innerHTML).toContain("Approval Rate");
+      expect(container.innerHTML).toContain("0%");
+    });
+
+    it("shows 100% for approval_rate of 1.0", () => {
+      const rollups = createRollupsWithReviewer(1.0);
+      renderReviewerActivity(container, rollups, {
+        reviewerFilterActive: true,
+        filters: { repos: [], teams: [], reviewers: ["alice-id"], authors: [] },
+        unfilteredRollups: rollups,
+      });
+
+      expect(container.innerHTML).toContain("Approval Rate");
+      expect(container.innerHTML).toContain("100%");
+    });
+  });
 });
