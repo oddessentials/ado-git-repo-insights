@@ -12,10 +12,8 @@
  */
 
 import * as path from "path";
+import * as ts from "typescript";
 import { describe, it, expect } from "@jest/globals";
-
-// eslint-disable-next-line @typescript-eslint/no-require-imports -- REASON: typescript package exports CommonJS only; import() would require top-level await
-const ts = require("typescript");
 
 const extensionRoot = path.resolve(__dirname, "..", "..");
 
