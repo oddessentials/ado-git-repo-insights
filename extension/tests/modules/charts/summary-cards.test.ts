@@ -738,17 +738,23 @@ describe("summary-cards module", () => {
       expect(rtSample!.textContent).toBe("From 2 weeks of data");
     });
 
-    it("sparkline label uses shared rollup count, not per-series non-null count", () => {
+    it("sparkline label uses metric-specific week count, not raw rollup count", () => {
       const containers = createContainers();
-      const card = document.createElement("div");
-      card.className = "card";
-      card.appendChild(document.createElement("h3"));
-      card.appendChild(containers.reviewTimeP50!);
-      card.appendChild(containers.reviewTimeP50Sparkline!);
-      document.body.appendChild(card);
+      const rtCard = document.createElement("div");
+      rtCard.className = "card";
+      rtCard.appendChild(document.createElement("h3"));
+      rtCard.appendChild(containers.reviewTimeP50!);
+      rtCard.appendChild(containers.reviewTimeP50Sparkline!);
+      document.body.appendChild(rtCard);
+
+      const authCard = document.createElement("div");
+      authCard.className = "card";
+      authCard.appendChild(document.createElement("h3"));
+      authCard.appendChild(containers.authorsCount!);
+      authCard.appendChild(containers.authorsSparkline!);
+      document.body.appendChild(authCard);
 
       // 8 rollups, only first 3 have non-null review_time_p50
-      // Label must still show "Last 8 weeks" (shared from rollup count)
       const rollups = Array.from({ length: 8 }, (_, i) => ({
         week: `2025-W${(i + 1).toString().padStart(2, "0")}`,
         pr_count: 10,
@@ -764,40 +770,15 @@ describe("summary-cards module", () => {
 
       renderSummaryCards({ rollups, containers });
 
-      const label = card.querySelector(".sparkline-label");
-      expect(label).not.toBeNull();
-      expect(label!.textContent).toBe("Last 8 weeks");
-    });
+      // Review-time card: 3 non-null weeks → "Last 3 weeks"
+      const rtLabel = rtCard.querySelector(".sparkline-label");
+      expect(rtLabel).not.toBeNull();
+      expect(rtLabel!.textContent).toBe("Last 3 weeks");
 
-    it("sparse series label reflects calendar span, not point count", () => {
-      const containers = createContainers();
-      const card = document.createElement("div");
-      card.className = "card";
-      card.appendChild(document.createElement("h3"));
-      card.appendChild(containers.reviewTimeP50!);
-      card.appendChild(containers.reviewTimeP50Sparkline!);
-      document.body.appendChild(card);
-
-      // 8 rollups, non-null at indices 0, 3, 7 (scattered across 8-week span)
-      const rollups = Array.from({ length: 8 }, (_, i) => ({
-        week: `2025-W${(i + 1).toString().padStart(2, "0")}`,
-        pr_count: 10,
-        cycle_time_p50: 60,
-        cycle_time_p90: 120,
-        review_time_p50: (i === 0 || i === 3 || i === 7) ? 30 + i * 10 : null as number | null,
-        review_time_p90: null as number | null,
-        authors_count: 5,
-        reviewers_count: 3,
-        by_repository: null,
-        by_team: null,
-      }));
-
-      renderSummaryCards({ rollups, containers });
-
-      // 3 points but spanning indices 0-7 → calendar span = 8
-      const label = card.querySelector(".sparkline-label");
-      expect(label).not.toBeNull();
-      expect(label!.textContent).toBe("Last 8 weeks");
+      // Authors card: all 8 weeks → "Last 8 weeks"
+      const authLabel = authCard.querySelector(".sparkline-label");
+      expect(authLabel).not.toBeNull();
+      expect(authLabel!.textContent).toBe("Last 8 weeks");
     });
 
     it("review-time P50/P90 cards show independent week counts", () => {
@@ -1102,6 +1083,67 @@ describe("summary-cards module", () => {
 
       expect(containers.totalPrsDelta!.innerHTML).toBe("");
       expect(containers.totalPrsDelta!.querySelector(".delta-label")).toBeNull();
+    });
+
+    it("sparse series: all labels match metric-specific coverage, not raw window", () => {
+      const containers = createContainers();
+
+      // Cycle P50 card
+      const cycleCard = document.createElement("div");
+      cycleCard.className = "card";
+      cycleCard.appendChild(document.createElement("h3"));
+      cycleCard.appendChild(containers.cycleP50!);
+      cycleCard.appendChild(containers.cycleP50Sparkline!);
+      cycleCard.appendChild(containers.cycleP50Delta!);
+      document.body.appendChild(cycleCard);
+
+      // Authors card (uses weekCount = all rollups)
+      const authCard = document.createElement("div");
+      authCard.className = "card";
+      authCard.appendChild(document.createElement("h3"));
+      authCard.appendChild(containers.authorsCount!);
+      authCard.appendChild(containers.authorsSparkline!);
+      authCard.appendChild(containers.authorsDelta!);
+      document.body.appendChild(authCard);
+
+      // 8 rollups, only 2 with non-null cycle_time_p50
+      const rollups = Array.from({ length: 8 }, (_, i) => ({
+        week: `2025-W${(i + 1).toString().padStart(2, "0")}`,
+        pr_count: 10,
+        cycle_time_p50: i < 2 ? 60 + i * 10 : (null as number | null),
+        cycle_time_p90: i < 2 ? 120 + i * 20 : (null as number | null),
+        authors_count: 5,
+        reviewers_count: 3,
+        by_repository: null,
+        by_team: null,
+      }));
+      // Previous period: same sparsity pattern
+      const prevRollups = Array.from({ length: 8 }, (_, i) => ({
+        week: `2024-W${(i + 45).toString().padStart(2, "0")}`,
+        pr_count: 8,
+        cycle_time_p50: i < 2 ? 55 + i * 10 : (null as number | null),
+        cycle_time_p90: i < 2 ? 110 + i * 20 : (null as number | null),
+        authors_count: 4,
+        reviewers_count: 2,
+        by_repository: null,
+        by_team: null,
+      }));
+
+      renderSummaryCards({ rollups, prevRollups, containers });
+
+      // Cycle P50 card: only 2 non-null weeks — all labels must say "2"
+      const cycleSample = cycleCard.querySelector(".metric-sample-size");
+      expect(cycleSample!.textContent).toBe("From 2 weeks of data");
+      const cycleSparkline = cycleCard.querySelector(".sparkline-label");
+      expect(cycleSparkline!.textContent).toBe("Last 2 weeks");
+      expect(containers.cycleP50Delta!.innerHTML).toContain("vs prior 2 weeks");
+
+      // Authors card: all 8 weeks — labels must say "8"
+      const authSample = authCard.querySelector(".metric-sample-size");
+      expect(authSample!.textContent).toBe("From 8 weeks of data");
+      const authSparkline = authCard.querySelector(".sparkline-label");
+      expect(authSparkline!.textContent).toBe("Last 8 weeks");
+      expect(containers.authorsDelta!.innerHTML).toContain("vs prior 8 weeks");
     });
   });
 

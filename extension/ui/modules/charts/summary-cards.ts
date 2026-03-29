@@ -157,12 +157,12 @@ export function renderSummaryCards(options: RenderSummaryCardsOptions): void {
   renderSparklines(containers, sparklineData);
 
   // Render sparkline time period labels (FR-010, FR-011)
-  // Single shared label from filtered rollup count, capped by lookback window.
-  renderSparklineLabels(containers, rollups.length);
+  // Each label uses metric-specific non-null week count, capped by lookback window.
+  renderSparklineLabels(containers, current);
 
   // Render deltas (only if we have previous period data)
   if (prevRollups && prevRollups.length > 0) {
-    renderDeltas(containers, current, previous, prevRollups.length, rollups.length);
+    renderDeltas(containers, current, previous);
   } else {
     clearDeltas(containers);
   }
@@ -186,6 +186,21 @@ export function renderSummaryCards(options: RenderSummaryCardsOptions): void {
       "dashboard-init",
       "first-meaningful-paint",
     );
+  }
+}
+
+/**
+ * Return the metric-specific non-null week count for a given container key.
+ * Single source of truth for the mapping used by sample-size, sparkline labels,
+ * and delta labels — all three must describe the same dataset per card.
+ */
+function metricWeekCount(metrics: CalculatedMetrics, key: string): number {
+  switch (key) {
+    case "cycleP50": return metrics.cycleP50WeekCount;
+    case "cycleP90": return metrics.cycleP90WeekCount;
+    case "reviewTimeP50": return metrics.reviewTimeP50WeekCount;
+    case "reviewTimeP90": return metrics.reviewTimeP90WeekCount;
+    default: return metrics.weekCount; // totalPrs, authorsCount, reviewersCount
   }
 }
 
@@ -301,44 +316,37 @@ function renderSampleSize(
 
 /**
  * Render sparkline time period labels (e.g., "Last 8 weeks") on each card.
- * Uses a single shared label derived from the filtered rollup count,
- * capped by the sparkline lookback window, so all cards agree on the
- * displayed time range.
+ * Each label reflects the metric-specific non-null week count (capped by
+ * SPARKLINE_LOOKBACK_WEEKS), matching the sample-size subtitle basis so
+ * all labels on a card describe the same dataset.
  */
 function renderSparklineLabels(
   containers: SummaryCardsContainers,
-  rollupCount: number,
+  metrics: CalculatedMetrics,
 ): void {
-  const sparklineElements: (HTMLElement | null)[] = [
-    containers.totalPrsSparkline,
-    containers.cycleP50Sparkline,
-    containers.cycleP90Sparkline,
-    containers.reviewTimeP50Sparkline,
-    containers.reviewTimeP90Sparkline,
-    containers.authorsSparkline,
-    containers.reviewersSparkline,
+  const sparklineConfig: Array<{ el: HTMLElement | null; key: string }> = [
+    { el: containers.totalPrsSparkline, key: "totalPrs" },
+    { el: containers.cycleP50Sparkline, key: "cycleP50" },
+    { el: containers.cycleP90Sparkline, key: "cycleP90" },
+    { el: containers.reviewTimeP50Sparkline, key: "reviewTimeP50" },
+    { el: containers.reviewTimeP90Sparkline, key: "reviewTimeP90" },
+    { el: containers.authorsSparkline, key: "authorsCount" },
+    { el: containers.reviewersSparkline, key: "reviewersCount" },
   ];
 
-  // Always clean up old labels first — prevents stale "Last N weeks"
-  // from surviving when a re-render produces zero rollups.
-  for (const el of sparklineElements) {
+  for (const { el, key } of sparklineConfig) {
     if (!el) continue;
     const card = el.closest(".card") as HTMLElement | null;
     if (!card) continue;
+
+    // Always clean up old label first
     const existing = card.querySelector(".sparkline-label");
     if (existing) existing.remove();
-  }
 
-  const sharedSpan = getLookbackWeekCount(rollupCount);
-  if (sharedSpan < 1) return;
+    const count = getLookbackWeekCount(metricWeekCount(metrics, key));
+    if (count < 1) continue;
 
-  const text = `Last ${sharedSpan} ${sharedSpan === 1 ? "week" : "weeks"}`;
-
-  for (const el of sparklineElements) {
-    if (!el) continue;
-    const card = el.closest(".card") as HTMLElement | null;
-    if (!card) continue;
-
+    const text = `Last ${count} ${count === 1 ? "week" : "weeks"}`;
     const label = document.createElement("p");
     label.className = "sparkline-label";
     label.textContent = text;
@@ -444,64 +452,68 @@ function renderSparklines(
 }
 
 /**
+ * Compute the delta period label for a specific metric.
+ * Uses metric-specific week counts so the label matches the sample-size basis.
+ * Falls back to "vs prev" when current and previous counts diverge by > 1.
+ */
+function deltaPeriodLabel(current: CalculatedMetrics, previous: CalculatedMetrics, key: string): string {
+  const cur = metricWeekCount(current, key);
+  const prev = metricWeekCount(previous, key);
+  if (Math.abs(prev - cur) > 1) return "vs prev";
+  return `vs prior ${prev} ${prev === 1 ? "week" : "weeks"}`;
+}
+
+/**
  * Render delta indicators with period-over-period comparison.
+ * Each delta label reflects the metric-specific week count from the previous
+ * period, matching the sample-size and sparkline label basis per card.
  */
 function renderDeltas(
   containers: SummaryCardsContainers,
   current: CalculatedMetrics,
   previous: CalculatedMetrics,
-  prevWeekCount: number,
-  currentWeekCount: number,
 ): void {
-  // Runtime guard: only show explicit period label when window lengths are aligned
-  // (±1 week tolerance for boundary effects). Sparse data that causes larger
-  // divergence falls back to generic "vs prev" to avoid claiming false precision.
-  const aligned = Math.abs(prevWeekCount - currentWeekCount) <= 1;
-  const periodLabel = aligned
-    ? `vs prior ${prevWeekCount} ${prevWeekCount === 1 ? "week" : "weeks"}`
-    : "vs prev";
-
   renderDelta(
     containers.totalPrsDelta,
     calculatePercentChange(current.totalPrs, previous.totalPrs),
     false,
-    periodLabel,
+    deltaPeriodLabel(current, previous, "totalPrs"),
   );
   renderDelta(
     containers.cycleP50Delta,
     calculatePercentChange(current.cycleP50, previous.cycleP50),
     true, // Inverse: lower is better
-    periodLabel,
+    deltaPeriodLabel(current, previous, "cycleP50"),
   );
   renderDelta(
     containers.cycleP90Delta,
     calculatePercentChange(current.cycleP90, previous.cycleP90),
     true, // Inverse: lower is better
-    periodLabel,
+    deltaPeriodLabel(current, previous, "cycleP90"),
   );
   renderDelta(
     containers.reviewTimeP50Delta,
     calculatePercentChange(current.reviewTimeP50, previous.reviewTimeP50),
     true, // Inverse: lower review time is better
-    periodLabel,
+    deltaPeriodLabel(current, previous, "reviewTimeP50"),
   );
   renderDelta(
     containers.reviewTimeP90Delta,
     calculatePercentChange(current.reviewTimeP90, previous.reviewTimeP90),
     true, // Inverse: lower review time is better
-    periodLabel,
+    deltaPeriodLabel(current, previous, "reviewTimeP90"),
   );
   renderDelta(
     containers.authorsDelta,
     calculatePercentChange(current.avgAuthors, previous.avgAuthors),
     false,
-    periodLabel,
+    deltaPeriodLabel(current, previous, "authorsCount"),
   );
   renderDelta(
     containers.reviewersDelta,
     calculatePercentChange(current.avgReviewers, previous.avgReviewers),
     false,
-    periodLabel,
+    deltaPeriodLabel(current, previous, "reviewersCount"),
   );
 }
 
