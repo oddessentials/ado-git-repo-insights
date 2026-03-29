@@ -1,3 +1,20 @@
+## [5.30.1](https://github.com/oddessentials/ado-git-repo-insights/compare/v5.30.0...v5.30.1) (2026-03-29)
+
+
+### Bug Fixes
+
+* add suppression count guard to pre-commit ([7df6035](https://github.com/oddessentials/ado-git-repo-insights/commit/7df6035af249fb51031c466095afba1397be060e))
+* broaden pre-commit trigger scope to match test compilation scope ([4dfb726](https://github.com/oddessentials/ado-git-repo-insights/commit/4dfb72675f1876e485e355f52adb0619ec8de00c))
+* close types/vss.d.ts trigger gap and codify trigger-to-compilation contract ([f05f1aa](https://github.com/oddessentials/ado-git-repo-insights/commit/f05f1aae35cf1165d865654c2a95c47789a3a7f8))
+* correct tsconfig guard pathspec to match actual files ([4dc7c86](https://github.com/oddessentials/ado-git-repo-insights/commit/4dc7c8657c06636e5a22f3b024ac21de244f2371))
+* guard test typecheck against unstaged UI sources and wire into test:ci ([e170a6d](https://github.com/oddessentials/ado-git-repo-insights/commit/e170a6dbdbbc8075c1d3efa24150594371c43eaf))
+* guard test typecheck and config parity against full compilation scope ([ba789ac](https://github.com/oddessentials/ado-git-repo-insights/commit/ba789ac785a89e10a1ba187fb22912bf5237e4bb))
+* include tsconfig files in test compilation scope guard ([0313e13](https://github.com/oddessentials/ado-git-repo-insights/commit/0313e131abb100dc80b90dd9bf270e79cae21a61))
+* limit parity check to explicit flag set and add resolution tests ([0d49aea](https://github.com/oddessentials/ado-git-repo-insights/commit/0d49aeac0acff5a7fdb8f3e30b1b544d4250cdff))
+* remove eslint suppression from config-parity-resolution test ([d08b1e2](https://github.com/oddessentials/ado-git-repo-insights/commit/d08b1e237043e768a054b15dde6aeff9d3585b2f))
+* use direct process execution in parity script and fail on missing configs ([23fd4c7](https://github.com/oddessentials/ado-git-repo-insights/commit/23fd4c7cbb454772f6fe74b4eb3be62a530dea25))
+* use TypeScript API in-process for config parity — no child processes ([3b2b1e8](https://github.com/oddessentials/ado-git-repo-insights/commit/3b2b1e8838c4dc1602120a7089600b2fa3cf0fb9))
+
 # [5.30.0](https://github.com/oddessentials/ado-git-repo-insights/compare/v5.29.0...v5.30.0) (2026-03-28)
 
 
