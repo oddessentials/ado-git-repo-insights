@@ -425,8 +425,16 @@ def run_extension_typecheck() -> None:
 
 
 def is_test_trigger(path: str) -> bool:
-    """Return True if the staged path should trigger test type-checking."""
+    """Return True if the staged path should trigger test type-checking.
+
+    The trigger scope must match the effective compilation scope of
+    tsconfig.test.json (currently: tests/**/*.ts, ui/**/*.ts, types/).
+    Any file the test type-checker compiles is a valid trigger — this
+    ensures the pre-commit gate has the same coverage as CI (QG-35).
+    """
     if path.startswith("extension/tests/") and path.endswith(".ts"):
+        return True
+    if path.startswith("extension/ui/") and path.endswith(".ts"):
         return True
     if path.startswith("extension/tsconfig") and path.endswith(".json"):
         return True

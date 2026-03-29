@@ -253,9 +253,11 @@ Purpose: Add explicit `tsc --noEmit --project tsconfig.test.json` as a gate.
 
 Integration points (identical command in all environments per QG-35/QG-36):
 - `package.json`: add `"build:check-tests": "tsc --noEmit --project tsconfig.test.json"` script
-- `run_repo_hook.py`: call `pnpm run build:check-tests` when test files or tsconfig files are staged
+- `run_repo_hook.py`: call `pnpm run build:check-tests` when any file in the test tsconfig's compilation scope is staged. **Structural requirement**: pre-commit trigger scope must match or exceed the effective compilation scope of `tsconfig.test.json` (currently: `tests/**/*.ts`, `ui/**/*.ts`, `tsconfig*.json`). Define triggers by what the compiler reads, not by what the developer intends to change. Regression tests for trigger functions are in `tests/unit/test_hook_triggers.py`.
 - `run_pr_preflight.py`: add `CommandSpec("Extension test type check", (PNPM_SENTINEL, "run", "build:check-tests"), cwd=EXTENSION_ROOT)`
 - CI (`ci.yml`): add step `pnpm run build:check-tests` in `extension-tests` job after the production type check
+
+**Note on intentional double-check**: Qualifying UI changes trigger both production tsc (gate #6) and test tsc (gate #7a). This is intentional — they protect different contracts: UI correctness and cross-boundary test compatibility.
 
 #### Layer 2: Error Triage
 
