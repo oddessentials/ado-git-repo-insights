@@ -93,7 +93,7 @@ def is_prophet_available() -> bool:
         from prophet import Prophet
 
         return Prophet is not None
-    except ImportError:
+    except Exception:
         return False
 
 

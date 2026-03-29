@@ -111,7 +111,19 @@ class TestRequireCleanTestCompilationScope:
             with pytest.raises(SystemExit):
                 require_clean_test_compilation_scope()
 
-    def test_checks_all_four_pathspecs(self) -> None:
+    def test_blocks_on_unstaged_eslint_config(self) -> None:
+        """Unstaged ESLint config must block because lint:tests reads it
+        from the worktree, not the staged index."""
+        mock = _mock_worktree_paths(
+            {
+                "extension/eslint.config.mjs": ["extension/eslint.config.mjs"],
+            }
+        )
+        with patch.object(_hook_module, "worktree_paths", side_effect=mock):
+            with pytest.raises(SystemExit):
+                require_clean_test_compilation_scope()
+
+    def test_checks_all_five_pathspecs(self) -> None:
         """Verify the guard calls worktree_paths for every scope, not just some."""
         calls: list[str] = []
 
@@ -126,7 +138,8 @@ class TestRequireCleanTestCompilationScope:
         assert "extension/ui/" in calls
         assert "types/" in calls
         assert "extension/tsconfig*.json" in calls
-        assert len(calls) == 4
+        assert "extension/eslint.config.mjs" in calls
+        assert len(calls) == 5
 
 
 class TestRequireCleanTsconfigs:

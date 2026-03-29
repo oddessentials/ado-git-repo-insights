@@ -533,6 +533,28 @@ class TestProphetAutoDetection:
         result = is_prophet_available()
         assert isinstance(result, bool)
 
+    def test_is_prophet_available_returns_false_on_broken_install(self):
+        """Broken prophet install (ValueError on import) must return False.
+
+        A pandas/numpy ABI mismatch or corrupt native extension can raise
+        ValueError, AttributeError, or RuntimeError during import. The
+        function must catch these and fall back, not crash get_forecaster().
+        """
+        from ado_git_repo_insights.ml import is_prophet_available
+
+        with patch("importlib.util.find_spec") as mock_find_spec:
+            mock_find_spec.return_value = MagicMock()  # find_spec says "installed"
+            with patch.dict("sys.modules", {"prophet": None}):
+                # Importing from a None module entry raises ImportError,
+                # but we need to simulate a deeper failure. Use builtins.
+                with patch(
+                    "builtins.__import__",
+                    side_effect=ValueError("prophet.__spec__ is None"),
+                ):
+                    result = is_prophet_available()
+
+        assert result is False
+
 
 # ============================================================================
 # LLMInsightsGenerator Integration Tests
