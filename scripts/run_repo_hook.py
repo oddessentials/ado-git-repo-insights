@@ -531,6 +531,7 @@ def run_pre_commit_hook() -> None:
         safe_print("[pre-commit] test file triggers detected")
         for path in test_triggers:
             safe_print(f"  - {path}")
+        require_clean_ui_sources()
         run_extension_test_typecheck()
 
     if tsconfig_triggers:
