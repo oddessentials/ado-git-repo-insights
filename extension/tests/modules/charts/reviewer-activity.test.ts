@@ -380,9 +380,13 @@ describe("reviewer-activity module", () => {
         unfilteredRollups: rollups,
       });
 
-      // Should NOT show approval rate element for null — omit entirely
-      expect(container.querySelector(".approval-rate")).toBeNull();
-      expect(container.innerHTML).not.toContain("Approval Rate");
+      // Element present with explicit no-data indicator (not silently omitted)
+      const el = container.querySelector(".approval-rate");
+      expect(el).not.toBeNull();
+      expect(el!.classList.contains("approval-rate-no-data")).toBe(true);
+      expect(el!.textContent).toContain("No data");
+      // Must not contain any percentage
+      expect(el!.textContent).not.toMatch(/\d+%/);
     });
 
     it("shows 0% for approval_rate of 0.0", () => {

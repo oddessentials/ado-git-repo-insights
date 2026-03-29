@@ -5365,6 +5365,9 @@ var PRInsightsDashboard = (() => {
   // ../ui/modules/charts.ts
   var SCROLL_CANCEL_THRESHOLD = 10;
   var SPARKLINE_LOOKBACK_WEEKS = 8;
+  function getLookbackWeekCount(rollupCount) {
+    return Math.min(rollupCount, SPARKLINE_LOOKBACK_WEEKS);
+  }
   function renderDelta(element, percentChange, inverse = false) {
     if (!element) return;
     if (percentChange === null) {
@@ -5552,7 +5555,7 @@ var PRInsightsDashboard = (() => {
     attachInfoIcons(containers);
     const sparklineData = extractSparklineData(rollups);
     renderSparklines(containers, sparklineData);
-    renderSparklineLabels(containers, sparklineData);
+    renderSparklineLabels(containers, rollups.length);
     if (prevRollups && prevRollups.length > 0) {
       renderDeltas(containers, current, previous);
     } else {
@@ -5600,38 +5603,25 @@ var PRInsightsDashboard = (() => {
       }
     }
   }
-  function plottedWeekSpan(values) {
-    const nonNullIndices = [];
-    for (let i = 0; i < values.length; i++) {
-      const v = values.at(i);
-      if (v !== null && v !== void 0) nonNullIndices.push(i);
-    }
-    if (nonNullIndices.length < 2) return 0;
-    const retained = nonNullIndices.slice(-SPARKLINE_LOOKBACK_WEEKS);
-    const firstIdx = retained.at(0);
-    const lastIdx = retained.at(-1);
-    if (firstIdx === void 0 || lastIdx === void 0) return 0;
-    return lastIdx - firstIdx + 1;
-  }
-  function renderSparklineLabels(containers, sparklineData) {
-    const entries = [
-      [containers.totalPrsSparkline, sparklineData.prCounts],
-      [containers.cycleP50Sparkline, sparklineData.p50s],
-      [containers.cycleP90Sparkline, sparklineData.p90s],
-      [containers.reviewTimeP50Sparkline, sparklineData.reviewTimeP50s],
-      [containers.reviewTimeP90Sparkline, sparklineData.reviewTimeP90s],
-      [containers.authorsSparkline, sparklineData.authors],
-      [containers.reviewersSparkline, sparklineData.reviewers]
+  function renderSparklineLabels(containers, rollupCount) {
+    const sharedSpan = getLookbackWeekCount(rollupCount);
+    if (sharedSpan < 1) return;
+    const text = `Last ${sharedSpan} ${sharedSpan === 1 ? "week" : "weeks"}`;
+    const sparklineElements = [
+      containers.totalPrsSparkline,
+      containers.cycleP50Sparkline,
+      containers.cycleP90Sparkline,
+      containers.reviewTimeP50Sparkline,
+      containers.reviewTimeP90Sparkline,
+      containers.authorsSparkline,
+      containers.reviewersSparkline
     ];
-    for (const [el, series] of entries) {
+    for (const el of sparklineElements) {
       if (!el) continue;
       const card = el.closest(".card");
       if (!card) continue;
       const existing = card.querySelector(".sparkline-label");
       if (existing) existing.remove();
-      const span = plottedWeekSpan(series);
-      if (span < 2) continue;
-      const text = `Last ${span} ${span === 1 ? "week" : "weeks"}`;
       const label = document.createElement("p");
       label.className = "sparkline-label";
       label.textContent = text;
@@ -6270,6 +6260,8 @@ var PRInsightsDashboard = (() => {
       if (approvalRate !== null) {
         const pct = Math.round(approvalRate * 100);
         approvalHtml = `<p class="approval-rate">Approval Rate: ${pct}%</p>`;
+      } else {
+        approvalHtml = `<p class="approval-rate approval-rate-no-data">Approval Rate: No data</p>`;
       }
     }
     renderTrustedHtml(

@@ -505,7 +505,7 @@ describe("summary-cards module", () => {
       expect(label!.textContent).toBe("Last 4 weeks");
     });
 
-    it("skips label when fewer than 2 data points (sparkline not rendered)", () => {
+    it("shows 'Last 1 week' label for single-week selection", () => {
       const containers = createContainers();
       const card = document.createElement("div");
       card.className = "card";
@@ -516,9 +516,10 @@ describe("summary-cards module", () => {
 
       renderSummaryCards({ rollups: createRollups(1), containers });
 
-      // renderSparkline requires >= 2 points; label should not appear
+      // Label provides time context even when sparkline doesn't render (< 2 points)
       const label = card.querySelector(".sparkline-label");
-      expect(label).toBeNull();
+      expect(label).not.toBeNull();
+      expect(label!.textContent).toBe("Last 1 week");
     });
 
     it("shows consistent N across all sparkline labels", () => {
@@ -546,6 +547,32 @@ describe("summary-cards module", () => {
       expect(labels.length).toBe(pairs.length);
       expect(new Set(labels).size).toBe(1);
       expect(labels[0]).toBe("Last 8 weeks");
+    });
+
+    it("sparkline label N equals min(filteredRollups.length, lookback)", () => {
+      // Invariant: the label must reflect the exact filtered dataset,
+      // not any unfiltered or global source.
+      const containers = createContainers();
+      const card = document.createElement("div");
+      card.className = "card";
+      card.appendChild(document.createElement("h3"));
+      card.appendChild(containers.totalPrs!);
+      card.appendChild(containers.totalPrsSparkline!);
+      document.body.appendChild(card);
+
+      // Simulate a filter that reduces 20 weeks to 6
+      const filteredRollups = createRollups(6);
+      renderSummaryCards({ rollups: filteredRollups, containers });
+
+      const label = card.querySelector(".sparkline-label");
+      expect(label).not.toBeNull();
+      // 6 < 8 (lookback cap), so label shows 6
+      expect(label!.textContent).toBe("Last 6 weeks");
+
+      // Re-render with 12 weeks (exceeds lookback)
+      renderSummaryCards({ rollups: createRollups(12), containers });
+      const label2 = card.querySelector(".sparkline-label");
+      expect(label2!.textContent).toBe("Last 8 weeks");
     });
   });
 
@@ -691,7 +718,7 @@ describe("summary-cards module", () => {
       expect(rtSample!.textContent).toBe("From 2 weeks");
     });
 
-    it("sparkline label shows calendar span of consecutive non-null data", () => {
+    it("sparkline label uses shared rollup count, not per-series non-null count", () => {
       const containers = createContainers();
       const card = document.createElement("div");
       card.className = "card";
@@ -700,7 +727,8 @@ describe("summary-cards module", () => {
       card.appendChild(containers.reviewTimeP50Sparkline!);
       document.body.appendChild(card);
 
-      // 8 rollups, only first 3 have non-null review_time_p50 (indices 0,1,2)
+      // 8 rollups, only first 3 have non-null review_time_p50
+      // Label must still show "Last 8 weeks" (shared from rollup count)
       const rollups = Array.from({ length: 8 }, (_, i) => ({
         week: `2025-W${(i + 1).toString().padStart(2, "0")}`,
         pr_count: 10,
@@ -716,10 +744,9 @@ describe("summary-cards module", () => {
 
       renderSummaryCards({ rollups, containers });
 
-      // 3 consecutive points at indices 0-2 → span = 3
       const label = card.querySelector(".sparkline-label");
       expect(label).not.toBeNull();
-      expect(label!.textContent).toBe("Last 3 weeks");
+      expect(label!.textContent).toBe("Last 8 weeks");
     });
 
     it("sparse series label reflects calendar span, not point count", () => {

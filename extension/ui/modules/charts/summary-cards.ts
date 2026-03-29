@@ -18,7 +18,7 @@ import {
 import {
   renderDelta,
   renderSparkline,
-  SPARKLINE_LOOKBACK_WEEKS,
+  getLookbackWeekCount,
 } from "../charts";
 import { formatDuration } from "../shared/format";
 import { LOW_SAMPLE_THRESHOLD } from "../shared/constants";
@@ -164,9 +164,8 @@ export function renderSummaryCards(options: RenderSummaryCardsOptions): void {
   renderSparklines(containers, sparklineData);
 
   // Render sparkline time period labels (FR-010, FR-011)
-  // Labels derived from plotted data (after null filtering + lookback truncation),
-  // not raw rollup count, so they accurately reflect what the sparkline shows.
-  renderSparklineLabels(containers, sparklineData);
+  // Single shared label from filtered rollup count, capped by lookback window.
+  renderSparklineLabels(containers, rollups.length);
 
   // Render deltas (only if we have previous period data)
   if (prevRollups && prevRollups.length > 0) {
@@ -248,54 +247,31 @@ function renderSampleSize(
 }
 
 /**
- * Compute the calendar span (in weeks) of the data actually plotted by
- * renderSparkline(). Mirrors its logic: filter nulls, take last
- * SPARKLINE_LOOKBACK_WEEKS, then measure from the first retained week
- * index to the last retained week index.
- *
- * Returns 0 when fewer than 2 non-null points exist (sparkline won't render).
- */
-function plottedWeekSpan(values: (number | null)[]): number {
-  // Collect indices of non-null values (matching renderSparkline's filter)
-  const nonNullIndices: number[] = [];
-  for (let i = 0; i < values.length; i++) {
-    const v = values.at(i);
-    if (v !== null && v !== undefined) nonNullIndices.push(i);
-  }
-  if (nonNullIndices.length < 2) return 0;
-
-  // Take last SPARKLINE_LOOKBACK_WEEKS indices (matching renderSparkline's slice)
-  const retained = nonNullIndices.slice(-SPARKLINE_LOOKBACK_WEEKS);
-  const firstIdx = retained.at(0);
-  const lastIdx = retained.at(-1);
-  if (firstIdx === undefined || lastIdx === undefined) return 0;
-
-  // Calendar span = distance between first and last retained week + 1
-  return lastIdx - firstIdx + 1;
-}
-
-/**
  * Render sparkline time period labels (e.g., "Last 8 weeks") on each card.
- * Labels show the actual calendar span of the plotted data, not the count
- * of non-null points. This prevents sparse series (e.g., 3 points drawn
- * from an 8-week range) from understating the time span.
+ * Uses a single shared label derived from the filtered rollup count,
+ * capped by the sparkline lookback window, so all cards agree on the
+ * displayed time range.
  */
 function renderSparklineLabels(
   containers: SummaryCardsContainers,
-  sparklineData: SparklineData,
+  rollupCount: number,
 ): void {
-  // Each sparkline element paired with its data series
-  const entries: [HTMLElement | null, (number | null)[]][] = [
-    [containers.totalPrsSparkline, sparklineData.prCounts],
-    [containers.cycleP50Sparkline, sparklineData.p50s],
-    [containers.cycleP90Sparkline, sparklineData.p90s],
-    [containers.reviewTimeP50Sparkline, sparklineData.reviewTimeP50s],
-    [containers.reviewTimeP90Sparkline, sparklineData.reviewTimeP90s],
-    [containers.authorsSparkline, sparklineData.authors],
-    [containers.reviewersSparkline, sparklineData.reviewers],
+  const sharedSpan = getLookbackWeekCount(rollupCount);
+  if (sharedSpan < 1) return;
+
+  const text = `Last ${sharedSpan} ${sharedSpan === 1 ? "week" : "weeks"}`;
+
+  const sparklineElements: (HTMLElement | null)[] = [
+    containers.totalPrsSparkline,
+    containers.cycleP50Sparkline,
+    containers.cycleP90Sparkline,
+    containers.reviewTimeP50Sparkline,
+    containers.reviewTimeP90Sparkline,
+    containers.authorsSparkline,
+    containers.reviewersSparkline,
   ];
 
-  for (const [el, series] of entries) {
+  for (const el of sparklineElements) {
     if (!el) continue;
     const card = el.closest(".card") as HTMLElement | null;
     if (!card) continue;
@@ -304,16 +280,10 @@ function renderSparklineLabels(
     const existing = card.querySelector(".sparkline-label");
     if (existing) existing.remove();
 
-    const span = plottedWeekSpan(series);
-    if (span < 2) continue; // renderSparkline requires >= 2 points; no label for empty sparklines
-
-    const text = `Last ${span} ${span === 1 ? "week" : "weeks"}`;
     const label = document.createElement("p");
     label.className = "sparkline-label";
     label.textContent = text;
     // Insert after the .metric-row that contains the sparkline.
-    // The sparkline is inside .metric-row (not a direct child of .card),
-    // so we walk up to .metric-row and insert after it.
     const metricRow = el.closest(".metric-row") as HTMLElement | null;
     const insertTarget = metricRow ?? el;
     if (insertTarget.nextSibling) {
