@@ -9,6 +9,7 @@
  */
 
 import { clearElement, renderTrustedHtml } from "./shared/render";
+import { buildLinePath } from "./shared/svg-path";
 import {
   dismissAllTooltips,
   showChartTooltip,
@@ -17,16 +18,29 @@ import {
 /** Pixel movement threshold to cancel a tap-to-tooltip gesture (scroll detection). */
 export const SCROLL_CANCEL_THRESHOLD = 10;
 
+/** Number of recent non-null weeks to display in sparklines. */
+export const SPARKLINE_LOOKBACK_WEEKS = 8;
+
+/**
+ * Return the actual number of sparkline weeks available, capped at SPARKLINE_LOOKBACK_WEEKS.
+ * Single source of truth for sparkline time labels — all cards MUST use this.
+ */
+export function getLookbackWeekCount(rollupCount: number): number {
+  return Math.min(rollupCount, SPARKLINE_LOOKBACK_WEEKS);
+}
+
 /**
  * Render a delta indicator element.
  * @param element - Target element (or null for no-op)
  * @param percentChange - Percentage change value (null clears indicator)
  * @param inverse - If true, positive change is bad (e.g., cycle time increase)
+ * @param periodLabel - Comparison period label (e.g., "vs prior 8 weeks")
  */
 export function renderDelta(
   element: HTMLElement | null,
   percentChange: number | null,
   inverse = false,
+  periodLabel = "vs prev",
 ): void {
   if (!element) return;
 
@@ -49,10 +63,11 @@ export function renderDelta(
 
   const sign = isPositive ? "+" : "";
   element.className = cssClass;
-  // SECURITY: All values are computed from numbers and code constants
+  // SECURITY: All values are computed from numbers and code constants; periodLabel
+  // is derived from rollup array length (a number), never from user input.
   renderTrustedHtml(
     element,
-    `<span class="delta-arrow">${arrow}</span> ${sign}${absChange.toFixed(0)}% <span class="delta-label">vs prev</span>`,
+    `<span class="delta-arrow">${arrow}</span> ${sign}${absChange.toFixed(0)}% <span class="delta-label">${periodLabel}</span>`,
   );
 }
 
@@ -78,7 +93,7 @@ export function renderSparkline(
     return;
   }
 
-  const data = nonNull.slice(-8);
+  const data = nonNull.slice(-SPARKLINE_LOOKBACK_WEEKS);
   const width = 60;
   const height = 24;
   const padding = 2;
@@ -96,9 +111,7 @@ export function renderSparkline(
   });
 
   // Create path
-  const pathD = points
-    .map((p, i) => `${i === 0 ? "M" : "L"} ${p.x.toFixed(1)} ${p.y.toFixed(1)}`)
-    .join(" ");
+  const pathD = buildLinePath(points);
 
   // Points array is guaranteed non-empty (values.length >= 2 checked above)
   const firstPoint = points[0];

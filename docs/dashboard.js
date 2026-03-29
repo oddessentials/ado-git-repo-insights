@@ -3592,6 +3592,18 @@ var PRInsightsDashboard = (() => {
     window.MockArtifactClient = MockArtifactClient;
   }
 
+  // ../ui/modules/shared/chart-layout.ts
+  function renderTruncationIndicator(truncated, maxPoints, noun = "weeks") {
+    if (!truncated) return "";
+    return `<div class="truncation-indicator truncation-badge">Showing last ${maxPoints} ${noun}</div>`;
+  }
+
+  // ../ui/modules/shared/constants.ts
+  var LOW_SAMPLE_THRESHOLD = 10;
+  var MODERATE_SAMPLE_THRESHOLD = 30;
+  var LOW_WEEK_THRESHOLD = 3;
+  var MODERATE_WEEK_THRESHOLD = 8;
+
   // ../ui/modules/shared/format.ts
   function formatDuration(minutes) {
     if (minutes < 60) {
@@ -3658,6 +3670,14 @@ var PRInsightsDashboard = (() => {
     }
   }
 
+  // ../ui/modules/shared/svg-path.ts
+  function buildLinePath(points) {
+    if (points.length < 2) return "";
+    return points.map(
+      (p, i) => `${i === 0 ? "M" : "L"} ${p.x.toFixed(1)} ${p.y.toFixed(1)}`
+    ).join(" ");
+  }
+
   // ../ui/modules/metrics.ts
   var HAS_WINDOW = typeof window !== "undefined";
   var IS_PRODUCTION = typeof process !== "undefined" && false;
@@ -3686,13 +3706,22 @@ var PRInsightsDashboard = (() => {
         totalPrs: 0,
         cycleP50: null,
         cycleP90: null,
+        reviewTimeP50: null,
+        reviewTimeP90: null,
         avgAuthors: 0,
-        avgReviewers: 0
+        avgReviewers: 0,
+        weekCount: 0,
+        cycleP50WeekCount: 0,
+        cycleP90WeekCount: 0,
+        reviewTimeP50WeekCount: 0,
+        reviewTimeP90WeekCount: 0
       };
     }
     const totalPrs = rollups.reduce((sum, r) => sum + (r.pr_count || 0), 0);
     const p50Values = rollups.map((r) => r.cycle_time_p50).filter((v) => v !== null && v !== void 0);
     const p90Values = rollups.map((r) => r.cycle_time_p90).filter((v) => v !== null && v !== void 0);
+    const reviewTimeP50Values = rollups.map((r) => r.review_time_p50).filter((v) => v !== null && v !== void 0);
+    const reviewTimeP90Values = rollups.map((r) => r.review_time_p90).filter((v) => v !== null && v !== void 0);
     const authorsSum = rollups.reduce(
       (sum, r) => sum + (r.authors_count || 0),
       0
@@ -3705,8 +3734,15 @@ var PRInsightsDashboard = (() => {
       totalPrs,
       cycleP50: p50Values.length ? median(p50Values) : null,
       cycleP90: p90Values.length ? median(p90Values) : null,
+      reviewTimeP50: reviewTimeP50Values.length ? median(reviewTimeP50Values) : null,
+      reviewTimeP90: reviewTimeP90Values.length ? median(reviewTimeP90Values) : null,
       avgAuthors: rollups.length > 0 ? Math.round(authorsSum / rollups.length) : 0,
-      avgReviewers: rollups.length > 0 ? Math.round(reviewersSum / rollups.length) : 0
+      avgReviewers: rollups.length > 0 ? Math.round(reviewersSum / rollups.length) : 0,
+      weekCount: rollups.length,
+      cycleP50WeekCount: p50Values.length,
+      cycleP90WeekCount: p90Values.length,
+      reviewTimeP50WeekCount: reviewTimeP50Values.length,
+      reviewTimeP90WeekCount: reviewTimeP90Values.length
     };
   }
   function calculatePercentChange(current, previous) {
@@ -3770,10 +3806,44 @@ var PRInsightsDashboard = (() => {
         ) / p90PrCount;
       }
     }
+    const rtP50Entries = entries.filter(
+      (e) => typeof e.review_time_p50 === "number" && Number.isFinite(e.review_time_p50)
+    );
+    const rtP90Entries = entries.filter(
+      (e) => typeof e.review_time_p90 === "number" && Number.isFinite(e.review_time_p90)
+    );
+    let reviewTimeP50 = null;
+    let reviewTimeP90 = null;
+    if (rtP50Entries.length > 0) {
+      const rtP50PrCount = rtP50Entries.reduce(
+        (sum, e) => sum + toFiniteNumber(e.pr_count),
+        0
+      );
+      if (rtP50PrCount > 0) {
+        reviewTimeP50 = rtP50Entries.reduce(
+          (sum, e) => sum + toFiniteNumber(e.review_time_p50) * toFiniteNumber(e.pr_count),
+          0
+        ) / rtP50PrCount;
+      }
+    }
+    if (rtP90Entries.length > 0) {
+      const rtP90PrCount = rtP90Entries.reduce(
+        (sum, e) => sum + toFiniteNumber(e.pr_count),
+        0
+      );
+      if (rtP90PrCount > 0) {
+        reviewTimeP90 = rtP90Entries.reduce(
+          (sum, e) => sum + toFiniteNumber(e.review_time_p90) * toFiniteNumber(e.pr_count),
+          0
+        ) / rtP90PrCount;
+      }
+    }
     return {
       pr_count: totalPrCount,
       cycle_time_p50: cycleP50,
       cycle_time_p90: cycleP90,
+      review_time_p50: reviewTimeP50,
+      review_time_p90: reviewTimeP90,
       authors_count: totalAuthors,
       reviewers_count: totalReviewers
     };
@@ -3852,6 +3922,8 @@ var PRInsightsDashboard = (() => {
       // ...rollup spread when the slice legitimately has null/0 values.
       cycle_time_p50: slice.cycle_time_p50,
       cycle_time_p90: slice.cycle_time_p90,
+      review_time_p50: slice.review_time_p50,
+      review_time_p90: slice.review_time_p90,
       authors_count: slice.authors_count,
       reviewers_count: slice.reviewers_count
     };
@@ -3920,6 +3992,8 @@ var PRInsightsDashboard = (() => {
           pr_count: reviewerSlice.reviewed_prs,
           cycle_time_p50: null,
           cycle_time_p90: null,
+          review_time_p50: null,
+          review_time_p90: null,
           authors_count: reviewerSlice.authors_count,
           // Reuse reviewers_count for review-activity UI surfaces.
           reviewers_count: reviewerSlice.reviews_count
@@ -3928,6 +4002,7 @@ var PRInsightsDashboard = (() => {
       if (authorSlice && repoSlice && rollup.by_author_and_repo) {
         let cdPr = 0, cdAuthors = 0, cdReviewers = 0;
         let cdP50WSum = 0, cdP50WPr = 0, cdP90WSum = 0, cdP90WPr = 0;
+        let cdRtP50WSum = 0, cdRtP50WPr = 0, cdRtP90WSum = 0, cdRtP90WPr = 0;
         let cdFound = 0;
         for (const authorId of authorFilters) {
           const authorRepos = getOwnPropertyValue(
@@ -3953,6 +4028,16 @@ var PRInsightsDashboard = (() => {
               cdP90WSum += p90 * pr;
               cdP90WPr += pr;
             }
+            const rtP50 = e.review_time_p50;
+            if (typeof rtP50 === "number" && Number.isFinite(rtP50)) {
+              cdRtP50WSum += rtP50 * pr;
+              cdRtP50WPr += pr;
+            }
+            const rtP90 = e.review_time_p90;
+            if (typeof rtP90 === "number" && Number.isFinite(rtP90)) {
+              cdRtP90WSum += rtP90 * pr;
+              cdRtP90WPr += pr;
+            }
           }
         }
         if (cdFound > 0) {
@@ -3972,6 +4057,8 @@ var PRInsightsDashboard = (() => {
               pr_count: cdPr,
               cycle_time_p50: cdP50WPr > 0 ? cdP50WSum / cdP50WPr : null,
               cycle_time_p90: cdP90WPr > 0 ? cdP90WSum / cdP90WPr : null,
+              review_time_p50: cdRtP50WPr > 0 ? cdRtP50WSum / cdRtP50WPr : null,
+              review_time_p90: cdRtP90WPr > 0 ? cdRtP90WSum / cdRtP90WPr : null,
               authors_count: cdAuthors,
               reviewers_count: cdReviewers
             });
@@ -4003,6 +4090,14 @@ var PRInsightsDashboard = (() => {
           authorSlice.cycle_time_p90,
           repoSlice.cycle_time_p90
         ].filter((v) => v !== null);
+        const rtP50s = [
+          authorSlice.review_time_p50,
+          repoSlice.review_time_p50
+        ].filter((v) => v !== null);
+        const rtP90s = [
+          authorSlice.review_time_p90,
+          repoSlice.review_time_p90
+        ].filter((v) => v !== null);
         if (teamSlice) {
           console.warn(
             "Combined author and team filtering is constrained; using author+repository metrics while retaining team UI state"
@@ -4013,6 +4108,8 @@ var PRInsightsDashboard = (() => {
           pr_count: combinedPrCount,
           cycle_time_p50: p50s.length > 0 ? p50s.reduce((a, b) => a + b, 0) / p50s.length : null,
           cycle_time_p90: p90s.length > 0 ? p90s.reduce((a, b) => a + b, 0) / p90s.length : null,
+          review_time_p50: rtP50s.length > 0 ? rtP50s.reduce((a, b) => a + b, 0) / rtP50s.length : null,
+          review_time_p90: rtP90s.length > 0 ? rtP90s.reduce((a, b) => a + b, 0) / rtP90s.length : null,
           authors_count: combinedAuthors,
           reviewers_count: combinedReviewers
         };
@@ -4028,6 +4125,7 @@ var PRInsightsDashboard = (() => {
       if (repoSlice && teamSlice && rollup.by_team_and_repo) {
         let cdPr = 0, cdAuthors = 0, cdReviewers = 0;
         let cdP50WSum = 0, cdP50WPr = 0, cdP90WSum = 0, cdP90WPr = 0;
+        let cdRtP50WSum = 0, cdRtP50WPr = 0, cdRtP90WSum = 0, cdRtP90WPr = 0;
         let cdFound = 0;
         for (const team of filters.teams) {
           const teamRepos = getOwnPropertyValue(rollup.by_team_and_repo, team);
@@ -4050,6 +4148,16 @@ var PRInsightsDashboard = (() => {
               cdP90WSum += p90 * pr;
               cdP90WPr += pr;
             }
+            const rtP50 = e.review_time_p50;
+            if (typeof rtP50 === "number" && Number.isFinite(rtP50)) {
+              cdRtP50WSum += rtP50 * pr;
+              cdRtP50WPr += pr;
+            }
+            const rtP90 = e.review_time_p90;
+            if (typeof rtP90 === "number" && Number.isFinite(rtP90)) {
+              cdRtP90WSum += rtP90 * pr;
+              cdRtP90WPr += pr;
+            }
           }
         }
         if (cdFound > 0) {
@@ -4064,6 +4172,8 @@ var PRInsightsDashboard = (() => {
               pr_count: cdPr,
               cycle_time_p50: cdP50WPr > 0 ? cdP50WSum / cdP50WPr : null,
               cycle_time_p90: cdP90WPr > 0 ? cdP90WSum / cdP90WPr : null,
+              review_time_p50: cdRtP50WPr > 0 ? cdRtP50WSum / cdRtP50WPr : null,
+              review_time_p90: cdRtP90WPr > 0 ? cdRtP90WSum / cdRtP90WPr : null,
               authors_count: cdAuthors,
               reviewers_count: cdReviewers
             });
@@ -4093,6 +4203,14 @@ var PRInsightsDashboard = (() => {
         const p90s = [repoSlice.cycle_time_p90, teamSlice.cycle_time_p90].filter(
           (v) => v !== null
         );
+        const rtP50s = [
+          repoSlice.review_time_p50,
+          teamSlice.review_time_p50
+        ].filter((v) => v !== null);
+        const rtP90s = [
+          repoSlice.review_time_p90,
+          teamSlice.review_time_p90
+        ].filter((v) => v !== null);
         return {
           ...rollup,
           pr_count: combinedPrCount,
@@ -4100,6 +4218,8 @@ var PRInsightsDashboard = (() => {
           // ...rollup spread when proportional estimates are null/0.
           cycle_time_p50: p50s.length > 0 ? p50s.reduce((a, b) => a + b, 0) / p50s.length : null,
           cycle_time_p90: p90s.length > 0 ? p90s.reduce((a, b) => a + b, 0) / p90s.length : null,
+          review_time_p50: rtP50s.length > 0 ? rtP50s.reduce((a, b) => a + b, 0) / rtP50s.length : null,
+          review_time_p90: rtP90s.length > 0 ? rtP90s.reduce((a, b) => a + b, 0) / rtP90s.length : null,
           authors_count: combinedAuthors,
           reviewers_count: combinedReviewers
         };
@@ -4118,6 +4238,8 @@ var PRInsightsDashboard = (() => {
       prCounts: rollups.map((r) => r.pr_count ?? 0),
       p50s: rollups.map((r) => r.cycle_time_p50 ?? null),
       p90s: rollups.map((r) => r.cycle_time_p90 ?? null),
+      reviewTimeP50s: rollups.map((r) => r.review_time_p50 ?? null),
+      reviewTimeP90s: rollups.map((r) => r.review_time_p90 ?? null),
       authors: rollups.map((r) => r.authors_count ?? 0),
       reviewers: rollups.map((r) => r.reviewers_count ?? 0)
     };
@@ -5255,7 +5377,11 @@ var PRInsightsDashboard = (() => {
 
   // ../ui/modules/charts.ts
   var SCROLL_CANCEL_THRESHOLD = 10;
-  function renderDelta(element, percentChange, inverse = false) {
+  var SPARKLINE_LOOKBACK_WEEKS = 8;
+  function getLookbackWeekCount(rollupCount) {
+    return Math.min(rollupCount, SPARKLINE_LOOKBACK_WEEKS);
+  }
+  function renderDelta(element, percentChange, inverse = false, periodLabel = "vs prev") {
     if (!element) return;
     if (percentChange === null) {
       clearElement(element);
@@ -5271,7 +5397,7 @@ var PRInsightsDashboard = (() => {
     element.className = cssClass;
     renderTrustedHtml(
       element,
-      `<span class="delta-arrow">${arrow}</span> ${sign}${absChange.toFixed(0)}% <span class="delta-label">vs prev</span>`
+      `<span class="delta-arrow">${arrow}</span> ${sign}${absChange.toFixed(0)}% <span class="delta-label">${periodLabel}</span>`
     );
   }
   function renderSparkline(element, values) {
@@ -5284,7 +5410,7 @@ var PRInsightsDashboard = (() => {
       clearElement(element);
       return;
     }
-    const data = nonNull.slice(-8);
+    const data = nonNull.slice(-SPARKLINE_LOOKBACK_WEEKS);
     const width = 60;
     const height = 24;
     const padding = 2;
@@ -5296,7 +5422,7 @@ var PRInsightsDashboard = (() => {
       const y = height - padding - (val - minVal) / range * (height - padding * 2);
       return { x, y };
     });
-    const pathD = points.map((p, i) => `${i === 0 ? "M" : "L"} ${p.x.toFixed(1)} ${p.y.toFixed(1)}`).join(" ");
+    const pathD = buildLinePath(points);
     const firstPoint = points[0];
     const lastPoint = points[points.length - 1];
     if (!firstPoint || !lastPoint) return;
@@ -5401,11 +5527,11 @@ var PRInsightsDashboard = (() => {
     ],
     [
       "cycleP50",
-      "Median time from PR creation to merge. Half of all PRs completed faster than this."
+      "Median time from PR creation to merge. Half of all PRs completed faster than this. (Aggregated from weekly values.)"
     ],
     [
       "cycleP90",
-      "90th percentile cycle time. 90% of PRs completed faster. High values may indicate bottlenecks."
+      "90th percentile cycle time. 90% of PRs completed faster. High values may indicate bottlenecks. (Aggregated from weekly values.)"
     ],
     [
       "authorsCount",
@@ -5414,6 +5540,14 @@ var PRInsightsDashboard = (() => {
     [
       "reviewersCount",
       "Average number of unique reviewers per week in this period."
+    ],
+    [
+      "reviewTimeP50",
+      "Median time from first review request to review completion. Half of all reviews completed faster than this. (Aggregated from weekly values.)"
+    ],
+    [
+      "reviewTimeP90",
+      "90th percentile review time. 90% of reviews completed faster. High values may indicate review bottlenecks. (Aggregated from weekly values.)"
     ]
   ]);
   function renderSummaryCards(options) {
@@ -5422,14 +5556,18 @@ var PRInsightsDashboard = (() => {
     const current = calculateMetrics(rollups);
     const previous = calculateMetrics(prevRollups);
     renderMetricValues(containers, current);
-    attachInfoIcons(containers);
+    renderSampleSize(containers, current);
+    attachInfoIcons(containers, options.reviewerFilterActive ?? false);
     const sparklineData = extractSparklineData(rollups);
     renderSparklines(containers, sparklineData);
+    renderSparklineLabels(containers, current);
     if (prevRollups && prevRollups.length > 0) {
       renderDeltas(containers, current, previous);
     } else {
       clearDeltas(containers);
     }
+    toggleReviewTimeCard(containers.reviewTimeP50, current.reviewTimeP50WeekCount > 0);
+    toggleReviewTimeCard(containers.reviewTimeP90, current.reviewTimeP90WeekCount > 0);
     if (metricsCollector2) {
       metricsCollector2.mark("render-summary-cards-end");
       metricsCollector2.mark("first-meaningful-paint");
@@ -5440,6 +5578,136 @@ var PRInsightsDashboard = (() => {
       );
     }
   }
+  function metricWeekCount(metrics, key) {
+    switch (key) {
+      case "cycleP50":
+        return metrics.cycleP50WeekCount;
+      case "cycleP90":
+        return metrics.cycleP90WeekCount;
+      case "reviewTimeP50":
+        return metrics.reviewTimeP50WeekCount;
+      case "reviewTimeP90":
+        return metrics.reviewTimeP90WeekCount;
+      default:
+        return metrics.weekCount;
+    }
+  }
+  function isSparseMetric(key) {
+    return key === "cycleP50" || key === "cycleP90" || key === "reviewTimeP50" || key === "reviewTimeP90";
+  }
+  function sampleTierClass(count, low, moderate) {
+    if (count < low) return "metric-sample-size low-sample";
+    if (count < moderate) return "metric-sample-size moderate-sample";
+    return "metric-sample-size";
+  }
+  function renderSampleSize(containers, metrics) {
+    const weekLabel = (n) => `From ${n} ${n === 1 ? "week" : "weeks"} of data`;
+    const pointLabel = (n) => `From ${n} data ${n === 1 ? "point" : "points"}`;
+    const config = [
+      {
+        el: containers.totalPrs,
+        count: metrics.totalPrs,
+        label: `Based on ${metrics.totalPrs.toLocaleString()} ${metrics.totalPrs === 1 ? "PR" : "PRs"}`,
+        low: LOW_SAMPLE_THRESHOLD,
+        moderate: MODERATE_SAMPLE_THRESHOLD
+      },
+      {
+        el: containers.cycleP50,
+        count: metrics.cycleP50WeekCount,
+        label: pointLabel(metrics.cycleP50WeekCount),
+        low: LOW_WEEK_THRESHOLD,
+        moderate: MODERATE_WEEK_THRESHOLD
+      },
+      {
+        el: containers.cycleP90,
+        count: metrics.cycleP90WeekCount,
+        label: pointLabel(metrics.cycleP90WeekCount),
+        low: LOW_WEEK_THRESHOLD,
+        moderate: MODERATE_WEEK_THRESHOLD
+      },
+      {
+        el: containers.reviewTimeP50,
+        count: metrics.reviewTimeP50WeekCount,
+        label: pointLabel(metrics.reviewTimeP50WeekCount),
+        low: LOW_WEEK_THRESHOLD,
+        moderate: MODERATE_WEEK_THRESHOLD
+      },
+      {
+        el: containers.reviewTimeP90,
+        count: metrics.reviewTimeP90WeekCount,
+        label: pointLabel(metrics.reviewTimeP90WeekCount),
+        low: LOW_WEEK_THRESHOLD,
+        moderate: MODERATE_WEEK_THRESHOLD
+      },
+      {
+        el: containers.authorsCount,
+        count: metrics.weekCount,
+        label: weekLabel(metrics.weekCount),
+        low: LOW_WEEK_THRESHOLD,
+        moderate: MODERATE_WEEK_THRESHOLD
+      },
+      {
+        el: containers.reviewersCount,
+        count: metrics.weekCount,
+        label: weekLabel(metrics.weekCount),
+        low: LOW_WEEK_THRESHOLD,
+        moderate: MODERATE_WEEK_THRESHOLD
+      }
+    ];
+    for (const { el, count, label, low, moderate } of config) {
+      const card = el?.closest(".card");
+      if (!card) continue;
+      const existing = card.querySelector(".metric-sample-size");
+      if (existing) existing.remove();
+      if (count === 0) continue;
+      const subtitle = document.createElement("p");
+      subtitle.className = sampleTierClass(count, low, moderate);
+      subtitle.textContent = label;
+      const title = card.querySelector("h3");
+      if (title?.nextSibling) {
+        card.insertBefore(subtitle, title.nextSibling);
+      } else {
+        card.appendChild(subtitle);
+      }
+    }
+  }
+  function renderSparklineLabels(containers, metrics) {
+    const sparklineConfig = [
+      { el: containers.totalPrsSparkline, key: "totalPrs" },
+      { el: containers.cycleP50Sparkline, key: "cycleP50" },
+      { el: containers.cycleP90Sparkline, key: "cycleP90" },
+      { el: containers.reviewTimeP50Sparkline, key: "reviewTimeP50" },
+      { el: containers.reviewTimeP90Sparkline, key: "reviewTimeP90" },
+      { el: containers.authorsSparkline, key: "authorsCount" },
+      { el: containers.reviewersSparkline, key: "reviewersCount" }
+    ];
+    for (const { el, key } of sparklineConfig) {
+      if (!el) continue;
+      const card = el.closest(".card");
+      if (!card) continue;
+      const existing = card.querySelector(".sparkline-label");
+      if (existing) existing.remove();
+      const count = getLookbackWeekCount(metricWeekCount(metrics, key));
+      if (count < 1) continue;
+      const text = isSparseMetric(key) ? `${count} data ${count === 1 ? "point" : "points"}` : `Last ${count} ${count === 1 ? "week" : "weeks"}`;
+      const label = document.createElement("p");
+      label.className = "sparkline-label";
+      label.textContent = text;
+      const metricRow = el.closest(".metric-row");
+      const insertTarget = metricRow ?? el;
+      if (insertTarget.nextSibling) {
+        card.insertBefore(label, insertTarget.nextSibling);
+      } else {
+        card.appendChild(label);
+      }
+    }
+  }
+  function toggleReviewTimeCard(el, visible) {
+    const card = el?.closest(".card");
+    if (!card) return;
+    card.style.display = visible ? "" : "none";
+    if (!visible && el) el.textContent = "";
+  }
   function renderMetricValues(containers, metrics) {
     if (containers.totalPrs) {
       containers.totalPrs.textContent = metrics.totalPrs.toLocaleString();
@@ -5449,6 +5717,12 @@ var PRInsightsDashboard = (() => {
     }
     if (containers.cycleP90) {
       containers.cycleP90.textContent = metrics.cycleP90 !== null ? formatDuration(metrics.cycleP90) : "-";
+    }
+    if (containers.reviewTimeP50) {
+      containers.reviewTimeP50.textContent = metrics.reviewTimeP50 !== null ? formatDuration(metrics.reviewTimeP50) : "-";
+    }
+    if (containers.reviewTimeP90) {
+      containers.reviewTimeP90.textContent = metrics.reviewTimeP90 !== null ? formatDuration(metrics.reviewTimeP90) : "-";
     }
     if (containers.authorsCount) {
       containers.authorsCount.textContent = metrics.avgAuthors.toLocaleString();
@@ -5461,36 +5735,64 @@ var PRInsightsDashboard = (() => {
     renderSparkline(containers.totalPrsSparkline, data.prCounts);
     renderSparkline(containers.cycleP50Sparkline, data.p50s);
     renderSparkline(containers.cycleP90Sparkline, data.p90s);
+    renderSparkline(containers.reviewTimeP50Sparkline, data.reviewTimeP50s);
+    renderSparkline(containers.reviewTimeP90Sparkline, data.reviewTimeP90s);
     renderSparkline(containers.authorsSparkline, data.authors);
     renderSparkline(containers.reviewersSparkline, data.reviewers);
+  }
+  function deltaPeriodLabel(current, previous, key) {
+    if (isSparseMetric(key)) return "vs prior period";
+    const cur = metricWeekCount(current, key);
+    const prev = metricWeekCount(previous, key);
+    if (prev !== cur) return "vs prior period";
+    return `vs prior ${prev} ${prev === 1 ? "week" : "weeks"}`;
   }
   function renderDeltas(containers, current, previous) {
     renderDelta(
       containers.totalPrsDelta,
       calculatePercentChange(current.totalPrs, previous.totalPrs),
-      false
+      false,
+      deltaPeriodLabel(current, previous, "totalPrs")
     );
     renderDelta(
       containers.cycleP50Delta,
       calculatePercentChange(current.cycleP50, previous.cycleP50),
-      true
+      true,
       // Inverse: lower is better
+      deltaPeriodLabel(current, previous, "cycleP50")
     );
     renderDelta(
       containers.cycleP90Delta,
       calculatePercentChange(current.cycleP90, previous.cycleP90),
-      true
+      true,
       // Inverse: lower is better
+      deltaPeriodLabel(current, previous, "cycleP90")
+    );
+    renderDelta(
+      containers.reviewTimeP50Delta,
+      calculatePercentChange(current.reviewTimeP50, previous.reviewTimeP50),
+      true,
+      // Inverse: lower review time is better
+      deltaPeriodLabel(current, previous, "reviewTimeP50")
+    );
+    renderDelta(
+      containers.reviewTimeP90Delta,
+      calculatePercentChange(current.reviewTimeP90, previous.reviewTimeP90),
+      true,
+      // Inverse: lower review time is better
+      deltaPeriodLabel(current, previous, "reviewTimeP90")
     );
     renderDelta(
       containers.authorsDelta,
       calculatePercentChange(current.avgAuthors, previous.avgAuthors),
-      false
+      false,
+      deltaPeriodLabel(current, previous, "authorsCount")
     );
     renderDelta(
       containers.reviewersDelta,
       calculatePercentChange(current.avgReviewers, previous.avgReviewers),
-      false
+      false,
+      deltaPeriodLabel(current, previous, "reviewersCount")
     );
   }
   function clearDeltas(containers) {
@@ -5498,6 +5800,8 @@ var PRInsightsDashboard = (() => {
       containers.totalPrsDelta,
       containers.cycleP50Delta,
       containers.cycleP90Delta,
+      containers.reviewTimeP50Delta,
+      containers.reviewTimeP90Delta,
       containers.authorsDelta,
       containers.reviewersDelta
     ];
@@ -5512,18 +5816,20 @@ var PRInsightsDashboard = (() => {
     { metricId: "totalPrs", containerKey: "totalPrs" },
     { metricId: "cycleP50", containerKey: "cycleP50" },
     { metricId: "cycleP90", containerKey: "cycleP90" },
+    { metricId: "reviewTimeP50", containerKey: "reviewTimeP50" },
+    { metricId: "reviewTimeP90", containerKey: "reviewTimeP90" },
     { metricId: "authorsCount", containerKey: "authorsCount" },
     { metricId: "reviewersCount", containerKey: "reviewersCount" }
   ];
   var infoIconControllers = /* @__PURE__ */ new WeakMap();
-  function attachInfoIcons(containers) {
+  function attachInfoIcons(containers, reviewerFilterActive) {
     const containerMap = new Map(
       Object.entries(containers)
     );
     for (const { metricId, containerKey } of METRIC_TO_CONTAINER_KEY) {
       const valueEl = containerMap.get(containerKey) ?? null;
       if (!valueEl) continue;
-      const card = valueEl.closest(".metric-card");
+      const card = valueEl.closest(".card");
       if (!card) continue;
       const title = card.querySelector("h3");
       if (!title) continue;
@@ -5533,7 +5839,10 @@ var PRInsightsDashboard = (() => {
         infoIconControllers.delete(existing);
         existing.remove();
       }
-      const explanation = METRIC_EXPLANATIONS.get(metricId) ?? "";
+      let explanation = METRIC_EXPLANATIONS.get(metricId) ?? "";
+      if (metricId === "reviewersCount" && reviewerFilterActive) {
+        explanation = "Average number of reviews per week in this period.";
+      }
       if (!explanation) continue;
       const controller = new AbortController();
       const { signal } = controller;
@@ -5693,7 +6002,7 @@ var PRInsightsDashboard = (() => {
         `;
     }).join("");
     const trendResult = renderTrendLine(displayRollups, movingAvg, maxCount);
-    const truncationHtml = truncated ? `<div class="truncation-indicator">Showing last ${MAX_THROUGHPUT_POINTS} weeks</div>` : "";
+    const truncationHtml = renderTruncationIndicator(truncated, MAX_THROUGHPUT_POINTS);
     const trendLegendItem = trendResult.rendered ? `<div class="legend-item"><span class="legend-line"></span><span>4-week avg</span></div>` : `<div class="legend-item legend-insufficient"><span class="legend-line dimmed"></span><span>4-week avg \u2014 needs 4+ weeks</span></div>`;
     const legendHtml = `
         <div class="chart-legend">
@@ -5747,6 +6056,14 @@ var PRInsightsDashboard = (() => {
 
   // ../ui/modules/charts/cycle-time.ts
   var MAX_CYCLE_TIME_POINTS = 104;
+  var BUCKET_COLOR_MAP = /* @__PURE__ */ new Map([
+    ["0-1h", "fast"],
+    ["1-4h", "fast"],
+    ["4-24h", "moderate"],
+    ["1-3d", "moderate"],
+    ["3-7d", "slow"],
+    ["7d+", "slow"]
+  ]);
   function renderCycleDistribution(container, distributions, options) {
     if (!container) return;
     if (!distributions || !distributions.length) {
@@ -5793,8 +6110,10 @@ var PRInsightsDashboard = (() => {
     }
     const html = Array.from(buckets.entries()).map(([label, count]) => {
       const pct = (count / total * 100).toFixed(1);
+      const category = BUCKET_COLOR_MAP.get(label);
+      const categoryClass = category ? ` bucket-${category}` : "";
       return `
-            <div class="dist-row">
+            <div class="dist-row${categoryClass}">
                 <span class="dist-label">${label}</span>
                 <div class="dist-bar-bg">
                     <div class="dist-bar" style="width: ${pct}%"></div>
@@ -5869,9 +6188,7 @@ var PRInsightsDashboard = (() => {
       }).filter(
         (p) => p !== null
       );
-      const pathD = points.map(
-        (p, i) => `${i === 0 ? "M" : "L"} ${p.x.toFixed(1)} ${p.y.toFixed(1)}`
-      ).join(" ");
+      const pathD = buildLinePath(points);
       return { pathD, points };
     };
     const p50Path = p50Data.length >= 2 ? generatePath(p50Data) : null;
@@ -5912,7 +6229,7 @@ var PRInsightsDashboard = (() => {
       legendItems.push(`<div class="legend-item legend-insufficient"><span class="chart-tooltip-dot legend-p90 dimmed"></span><span>P90 \u2014 insufficient points</span></div>`);
     }
     const legendHtml = `<div class="chart-legend">${legendItems.join("")}</div>`;
-    const truncationHtml = truncated ? `<div class="truncation-indicator">Showing last ${MAX_CYCLE_TIME_POINTS} weeks</div>` : "";
+    const truncationHtml = renderTruncationIndicator(truncated, MAX_CYCLE_TIME_POINTS);
     renderTrustedHtml(
       container,
       `${truncationHtml}<div class="line-chart">${svgContent}</div>${legendHtml}`
@@ -5936,6 +6253,32 @@ var PRInsightsDashboard = (() => {
 
   // ../ui/modules/charts/reviewer-activity.ts
   var MAX_REVIEWER_WEEKS = 8;
+  function computeApprovalRate(rollups, reviewerIds) {
+    let weightedSum = 0;
+    let totalPrs = 0;
+    let weeksWithData = 0;
+    for (const rollup of rollups) {
+      if (!rollup.by_reviewer || typeof rollup.by_reviewer !== "object") continue;
+      const reviewerMap = new Map(Object.entries(rollup.by_reviewer));
+      let weekContributed = false;
+      for (const id of reviewerIds) {
+        const entry = reviewerMap.get(id);
+        if (!entry) continue;
+        const rate = entry.approval_rate;
+        if (typeof rate !== "number" || !Number.isFinite(rate)) continue;
+        const prs = entry.reviewed_prs ?? 0;
+        if (prs <= 0) continue;
+        weightedSum += rate * prs;
+        totalPrs += prs;
+        weekContributed = true;
+      }
+      if (weekContributed) weeksWithData++;
+    }
+    return {
+      rate: totalPrs > 0 ? weightedSum / totalPrs : null,
+      weeksWithData
+    };
+  }
   function renderReviewerActivity(container, rollups, options = {}) {
     if (!container) return;
     const { reviewerFilterActive = false } = options;
@@ -5996,10 +6339,23 @@ var PRInsightsDashboard = (() => {
             </div>
         `;
     }).join("");
-    const truncationHtml = truncated ? `<div class="truncation-indicator">Showing last ${MAX_REVIEWER_WEEKS} weeks</div>` : "";
+    const truncationHtml = renderTruncationIndicator(truncated, MAX_REVIEWER_WEEKS);
+    let approvalHtml = "";
+    if (reviewerFilterActive) {
+      const firstReviewer = options.filters?.reviewers?.[0];
+      const reviewerIds = firstReviewer ? [firstReviewer] : [];
+      const { rate: approvalRate, weeksWithData } = computeApprovalRate(recentRollups, reviewerIds);
+      const coverageLabel = weeksWithData > 0 ? `(from ${weeksWithData} ${weeksWithData === 1 ? "week" : "weeks"} of data)` : "";
+      if (approvalRate !== null) {
+        const pct = Math.round(approvalRate * 100);
+        approvalHtml = `<p class="approval-rate" data-weeks="${weeksWithData}">Approval Rate: ${pct}% ${escapeHtml(coverageLabel)}</p>`;
+      } else {
+        approvalHtml = `<p class="approval-rate approval-rate-no-data" data-weeks="${weeksWithData}">Approval Rate: No data</p>`;
+      }
+    }
     renderTrustedHtml(
       container,
-      `${truncationHtml}<p class="chart-subtitle">${escapeHtml(subtitle)}</p><div class="horizontal-bar-chart">${barsHtml}</div>`
+      `${truncationHtml}<p class="chart-subtitle">${escapeHtml(subtitle)}</p><div class="horizontal-bar-chart">${barsHtml}</div>${approvalHtml}`
     );
   }
 
@@ -6871,6 +7227,8 @@ var PRInsightsDashboard = (() => {
       "total-prs",
       "cycle-p50",
       "cycle-p90",
+      "review-time-p50",
+      "review-time-p90",
       "authors-count",
       "reviewers-count",
       "throughput-chart",
@@ -6878,6 +7236,8 @@ var PRInsightsDashboard = (() => {
       "total-prs-delta",
       "cycle-p50-delta",
       "cycle-p90-delta",
+      "review-time-p50-delta",
+      "review-time-p90-delta",
       "authors-delta",
       "reviewers-delta",
       "repo-filter",
@@ -6897,6 +7257,8 @@ var PRInsightsDashboard = (() => {
       "total-prs-sparkline",
       "cycle-p50-sparkline",
       "cycle-p90-sparkline",
+      "review-time-p50-sparkline",
+      "review-time-p90-sparkline",
       "authors-sparkline",
       "reviewers-sparkline",
       "cycle-time-trend",
@@ -7022,7 +7384,7 @@ var PRInsightsDashboard = (() => {
       rawRollups,
       loader?.getCapabilityState?.() ?? null
     );
-    renderSummaryCards2(rollups, prevRollups);
+    renderSummaryCards2(rollups, prevRollups, rawRollups);
     renderThroughputChart2(rollups, rawRollups, availability);
     renderCycleTimeTrend2(rollups, rawRollups, availability);
     renderReviewerActivity2(rollups, rawRollups, availability);
@@ -7094,21 +7456,27 @@ var PRInsightsDashboard = (() => {
       summarySection.removeAttribute("data-overlap");
     }
   }
-  function renderSummaryCards2(rollups, prevRollups = []) {
+  function renderSummaryCards2(rollups, prevRollups = [], unfilteredRollups) {
     const containers = {
       totalPrs: elements.get("total-prs") ?? null,
       cycleP50: elements.get("cycle-p50") ?? null,
       cycleP90: elements.get("cycle-p90") ?? null,
+      reviewTimeP50: elements.get("review-time-p50") ?? null,
+      reviewTimeP90: elements.get("review-time-p90") ?? null,
       authorsCount: elements.get("authors-count") ?? null,
       reviewersCount: elements.get("reviewers-count") ?? null,
       totalPrsSparkline: elements.get("total-prs-sparkline") ?? null,
       cycleP50Sparkline: elements.get("cycle-p50-sparkline") ?? null,
       cycleP90Sparkline: elements.get("cycle-p90-sparkline") ?? null,
+      reviewTimeP50Sparkline: elements.get("review-time-p50-sparkline") ?? null,
+      reviewTimeP90Sparkline: elements.get("review-time-p90-sparkline") ?? null,
       authorsSparkline: elements.get("authors-sparkline") ?? null,
       reviewersSparkline: elements.get("reviewers-sparkline") ?? null,
       totalPrsDelta: elements.get("total-prs-delta") ?? null,
       cycleP50Delta: elements.get("cycle-p50-delta") ?? null,
       cycleP90Delta: elements.get("cycle-p90-delta") ?? null,
+      reviewTimeP50Delta: elements.get("review-time-p50-delta") ?? null,
+      reviewTimeP90Delta: elements.get("review-time-p90-delta") ?? null,
       authorsDelta: elements.get("authors-delta") ?? null,
       reviewersDelta: elements.get("reviewers-delta") ?? null
     };
@@ -7116,7 +7484,9 @@ var PRInsightsDashboard = (() => {
       rollups,
       prevRollups,
       containers,
-      metricsCollector
+      metricsCollector,
+      unfilteredRollups,
+      reviewerFilterActive: currentFilters.reviewers.length > 0
     });
   }
   function renderThroughputChart2(rollups, unfilteredRollups, availability) {

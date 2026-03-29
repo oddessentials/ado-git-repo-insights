@@ -55,8 +55,20 @@ export interface CalculatedMetrics {
   totalPrs: number;
   cycleP50: number | null;
   cycleP90: number | null;
+  reviewTimeP50: number | null;
+  reviewTimeP90: number | null;
   avgAuthors: number;
   avgReviewers: number;
+  /** Total rollup weeks (denominator for authors/reviewers averages). */
+  weekCount: number;
+  /** Non-null cycle_time_p50 weeks (derivation basis for cycleP50). */
+  cycleP50WeekCount: number;
+  /** Non-null cycle_time_p90 weeks (derivation basis for cycleP90). */
+  cycleP90WeekCount: number;
+  /** Non-null review_time_p50 weeks (derivation basis for reviewTimeP50). */
+  reviewTimeP50WeekCount: number;
+  /** Non-null review_time_p90 weeks (derivation basis for reviewTimeP90). */
+  reviewTimeP90WeekCount: number;
 }
 
 /**
@@ -87,8 +99,15 @@ export function calculateMetrics(rollups: Rollup[]): CalculatedMetrics {
       totalPrs: 0,
       cycleP50: null,
       cycleP90: null,
+      reviewTimeP50: null,
+      reviewTimeP90: null,
       avgAuthors: 0,
       avgReviewers: 0,
+      weekCount: 0,
+      cycleP50WeekCount: 0,
+      cycleP90WeekCount: 0,
+      reviewTimeP50WeekCount: 0,
+      reviewTimeP90WeekCount: 0,
     };
   }
 
@@ -99,6 +118,13 @@ export function calculateMetrics(rollups: Rollup[]): CalculatedMetrics {
     .filter((v): v is number => v !== null && v !== undefined);
   const p90Values = rollups
     .map((r) => r.cycle_time_p90)
+    .filter((v): v is number => v !== null && v !== undefined);
+
+  const reviewTimeP50Values = rollups
+    .map((r) => r.review_time_p50)
+    .filter((v): v is number => v !== null && v !== undefined);
+  const reviewTimeP90Values = rollups
+    .map((r) => r.review_time_p90)
     .filter((v): v is number => v !== null && v !== undefined);
 
   const authorsSum = rollups.reduce(
@@ -114,10 +140,21 @@ export function calculateMetrics(rollups: Rollup[]): CalculatedMetrics {
     totalPrs,
     cycleP50: p50Values.length ? median(p50Values) : null,
     cycleP90: p90Values.length ? median(p90Values) : null,
+    reviewTimeP50: reviewTimeP50Values.length
+      ? median(reviewTimeP50Values)
+      : null,
+    reviewTimeP90: reviewTimeP90Values.length
+      ? median(reviewTimeP90Values)
+      : null,
     avgAuthors:
       rollups.length > 0 ? Math.round(authorsSum / rollups.length) : 0,
     avgReviewers:
       rollups.length > 0 ? Math.round(reviewersSum / rollups.length) : 0,
+    weekCount: rollups.length,
+    cycleP50WeekCount: p50Values.length,
+    cycleP90WeekCount: p90Values.length,
+    reviewTimeP50WeekCount: reviewTimeP50Values.length,
+    reviewTimeP90WeekCount: reviewTimeP90Values.length,
   };
 }
 
@@ -160,11 +197,13 @@ interface AggregatedSlice {
   pr_count: number;
   cycle_time_p50: number | null;
   cycle_time_p90: number | null;
+  review_time_p50: number | null;
+  review_time_p90: number | null;
   authors_count: number;
   reviewers_count: number;
 }
 
-interface AggregatedReviewerSlice {
+export interface AggregatedReviewerSlice {
   reviewed_prs: number;
   reviews_count: number;
   approval_rate: number | null;
@@ -234,10 +273,59 @@ function aggregateEntries(entries: BreakdownEntry[]): AggregatedSlice {
     }
   }
 
+  // Review time: same PR-weighted average pattern as cycle time.
+  const rtP50Entries = entries.filter(
+    (e) =>
+      typeof e.review_time_p50 === "number" &&
+      Number.isFinite(e.review_time_p50),
+  );
+  const rtP90Entries = entries.filter(
+    (e) =>
+      typeof e.review_time_p90 === "number" &&
+      Number.isFinite(e.review_time_p90),
+  );
+
+  let reviewTimeP50: number | null = null;
+  let reviewTimeP90: number | null = null;
+
+  if (rtP50Entries.length > 0) {
+    const rtP50PrCount = rtP50Entries.reduce(
+      (sum, e) => sum + toFiniteNumber(e.pr_count),
+      0,
+    );
+    if (rtP50PrCount > 0) {
+      reviewTimeP50 =
+        rtP50Entries.reduce(
+          (sum, e) =>
+            sum +
+            toFiniteNumber(e.review_time_p50) * toFiniteNumber(e.pr_count),
+          0,
+        ) / rtP50PrCount;
+    }
+  }
+
+  if (rtP90Entries.length > 0) {
+    const rtP90PrCount = rtP90Entries.reduce(
+      (sum, e) => sum + toFiniteNumber(e.pr_count),
+      0,
+    );
+    if (rtP90PrCount > 0) {
+      reviewTimeP90 =
+        rtP90Entries.reduce(
+          (sum, e) =>
+            sum +
+            toFiniteNumber(e.review_time_p90) * toFiniteNumber(e.pr_count),
+          0,
+        ) / rtP90PrCount;
+    }
+  }
+
   return {
     pr_count: totalPrCount,
     cycle_time_p50: cycleP50,
     cycle_time_p90: cycleP90,
+    review_time_p50: reviewTimeP50,
+    review_time_p90: reviewTimeP90,
     authors_count: totalAuthors,
     reviewers_count: totalReviewers,
   };
@@ -279,7 +367,7 @@ function resolveReviewerEntries(
     );
 }
 
-function aggregateReviewerEntries(
+export function aggregateReviewerEntries(
   entries: ReviewerBreakdownEntry[],
 ): AggregatedReviewerSlice {
   const reviewedPrs = entries.reduce(
@@ -303,6 +391,8 @@ function aggregateReviewerEntries(
     (e) =>
       typeof e.approval_rate === "number" && Number.isFinite(e.approval_rate),
   );
+  // Weight by reviewed_prs (distinct PRs reviewed), not reviews_count (review events).
+  // approval_rate is a per-PR metric, so the denominator must match.
   const approvalDenominator = approvalEntries.reduce(
     (sum, entry) => sum + toFiniteNumber(entry.reviewed_prs),
     0,
@@ -354,6 +444,8 @@ function buildFilteredRollup(rollup: Rollup, slice: AggregatedSlice): Rollup {
     // ...rollup spread when the slice legitimately has null/0 values.
     cycle_time_p50: slice.cycle_time_p50,
     cycle_time_p90: slice.cycle_time_p90,
+    review_time_p50: slice.review_time_p50,
+    review_time_p90: slice.review_time_p90,
     authors_count: slice.authors_count,
     reviewers_count: slice.reviewers_count,
   } as Rollup;
@@ -373,6 +465,10 @@ export function applyFiltersToRollups(
 ): Rollup[] {
   const firstAuthor = filters.authors?.[0];
   const authorFilters = firstAuthor ? [firstAuthor] : [];
+  // DESIGN: Reviewer filter is effectively single-select end-to-end.
+  // Only the first selected reviewer is used for metric aggregation.
+  // reviewer-activity.ts:computeApprovalRate must use the same scope.
+  // If multi-reviewer aggregation is implemented, both sites must move together.
   const firstReviewer = filters.reviewers?.[0];
   const reviewerFilters = firstReviewer ? [firstReviewer] : [];
 
@@ -468,6 +564,8 @@ export function applyFiltersToRollups(
         pr_count: reviewerSlice.reviewed_prs,
         cycle_time_p50: null,
         cycle_time_p90: null,
+        review_time_p50: null,
+        review_time_p90: null,
         authors_count: reviewerSlice.authors_count,
         // Reuse reviewers_count for review-activity UI surfaces.
         reviewers_count: reviewerSlice.reviews_count,
@@ -482,6 +580,10 @@ export function applyFiltersToRollups(
         cdP50WPr = 0,
         cdP90WSum = 0,
         cdP90WPr = 0;
+      let cdRtP50WSum = 0,
+        cdRtP50WPr = 0,
+        cdRtP90WSum = 0,
+        cdRtP90WPr = 0;
       let cdFound = 0;
 
       for (const authorId of authorFilters) {
@@ -508,6 +610,16 @@ export function applyFiltersToRollups(
             cdP90WSum += p90 * pr;
             cdP90WPr += pr;
           }
+          const rtP50 = e.review_time_p50;
+          if (typeof rtP50 === "number" && Number.isFinite(rtP50)) {
+            cdRtP50WSum += rtP50 * pr;
+            cdRtP50WPr += pr;
+          }
+          const rtP90 = e.review_time_p90;
+          if (typeof rtP90 === "number" && Number.isFinite(rtP90)) {
+            cdRtP90WSum += rtP90 * pr;
+            cdRtP90WPr += pr;
+          }
         }
       }
 
@@ -533,6 +645,10 @@ export function applyFiltersToRollups(
             pr_count: cdPr,
             cycle_time_p50: cdP50WPr > 0 ? cdP50WSum / cdP50WPr : null,
             cycle_time_p90: cdP90WPr > 0 ? cdP90WSum / cdP90WPr : null,
+            review_time_p50:
+              cdRtP50WPr > 0 ? cdRtP50WSum / cdRtP50WPr : null,
+            review_time_p90:
+              cdRtP90WPr > 0 ? cdRtP90WSum / cdRtP90WPr : null,
             authors_count: cdAuthors,
             reviewers_count: cdReviewers,
           });
@@ -570,6 +686,14 @@ export function applyFiltersToRollups(
         authorSlice.cycle_time_p90,
         repoSlice.cycle_time_p90,
       ].filter((v): v is number => v !== null);
+      const rtP50s = [
+        authorSlice.review_time_p50,
+        repoSlice.review_time_p50,
+      ].filter((v): v is number => v !== null);
+      const rtP90s = [
+        authorSlice.review_time_p90,
+        repoSlice.review_time_p90,
+      ].filter((v): v is number => v !== null);
 
       if (teamSlice) {
         console.warn(
@@ -587,6 +711,14 @@ export function applyFiltersToRollups(
         cycle_time_p90:
           p90s.length > 0
             ? p90s.reduce((a, b) => a + b, 0) / p90s.length
+            : null,
+        review_time_p50:
+          rtP50s.length > 0
+            ? rtP50s.reduce((a, b) => a + b, 0) / rtP50s.length
+            : null,
+        review_time_p90:
+          rtP90s.length > 0
+            ? rtP90s.reduce((a, b) => a + b, 0) / rtP90s.length
             : null,
         authors_count: combinedAuthors,
         reviewers_count: combinedReviewers,
@@ -613,6 +745,10 @@ export function applyFiltersToRollups(
         cdP50WPr = 0,
         cdP90WSum = 0,
         cdP90WPr = 0;
+      let cdRtP50WSum = 0,
+        cdRtP50WPr = 0,
+        cdRtP90WSum = 0,
+        cdRtP90WPr = 0;
       let cdFound = 0;
 
       for (const team of filters.teams) {
@@ -636,6 +772,16 @@ export function applyFiltersToRollups(
             cdP90WSum += p90 * pr;
             cdP90WPr += pr;
           }
+          const rtP50 = e.review_time_p50;
+          if (typeof rtP50 === "number" && Number.isFinite(rtP50)) {
+            cdRtP50WSum += rtP50 * pr;
+            cdRtP50WPr += pr;
+          }
+          const rtP90 = e.review_time_p90;
+          if (typeof rtP90 === "number" && Number.isFinite(rtP90)) {
+            cdRtP90WSum += rtP90 * pr;
+            cdRtP90WPr += pr;
+          }
         }
       }
 
@@ -657,6 +803,10 @@ export function applyFiltersToRollups(
             pr_count: cdPr,
             cycle_time_p50: cdP50WPr > 0 ? cdP50WSum / cdP50WPr : null,
             cycle_time_p90: cdP90WPr > 0 ? cdP90WSum / cdP90WPr : null,
+            review_time_p50:
+              cdRtP50WPr > 0 ? cdRtP50WSum / cdRtP50WPr : null,
+            review_time_p90:
+              cdRtP90WPr > 0 ? cdRtP90WSum / cdRtP90WPr : null,
             authors_count: cdAuthors,
             reviewers_count: cdReviewers,
           });
@@ -705,6 +855,14 @@ export function applyFiltersToRollups(
       const p90s = [repoSlice.cycle_time_p90, teamSlice.cycle_time_p90].filter(
         (v): v is number => v !== null,
       );
+      const rtP50s = [
+        repoSlice.review_time_p50,
+        teamSlice.review_time_p50,
+      ].filter((v): v is number => v !== null);
+      const rtP90s = [
+        repoSlice.review_time_p90,
+        teamSlice.review_time_p90,
+      ].filter((v): v is number => v !== null);
 
       return {
         ...rollup,
@@ -718,6 +876,14 @@ export function applyFiltersToRollups(
         cycle_time_p90:
           p90s.length > 0
             ? p90s.reduce((a, b) => a + b, 0) / p90s.length
+            : null,
+        review_time_p50:
+          rtP50s.length > 0
+            ? rtP50s.reduce((a, b) => a + b, 0) / rtP50s.length
+            : null,
+        review_time_p90:
+          rtP90s.length > 0
+            ? rtP90s.reduce((a, b) => a + b, 0) / rtP90s.length
             : null,
         authors_count: combinedAuthors,
         reviewers_count: combinedReviewers,
@@ -744,6 +910,8 @@ export function extractSparklineData(rollups: Rollup[]): {
   prCounts: number[];
   p50s: (number | null)[];
   p90s: (number | null)[];
+  reviewTimeP50s: (number | null)[];
+  reviewTimeP90s: (number | null)[];
   authors: number[];
   reviewers: number[];
 } {
@@ -751,6 +919,8 @@ export function extractSparklineData(rollups: Rollup[]): {
     prCounts: rollups.map((r) => r.pr_count ?? 0),
     p50s: rollups.map((r) => r.cycle_time_p50 ?? null),
     p90s: rollups.map((r) => r.cycle_time_p90 ?? null),
+    reviewTimeP50s: rollups.map((r) => r.review_time_p50 ?? null),
+    reviewTimeP90s: rollups.map((r) => r.review_time_p90 ?? null),
     authors: rollups.map((r) => r.authors_count ?? 0),
     reviewers: rollups.map((r) => r.reviewers_count ?? 0),
   };

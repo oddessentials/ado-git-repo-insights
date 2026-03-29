@@ -7,7 +7,12 @@
  * - Graceful empty/edge dataset handling
  */
 
-import { renderDelta, renderSparkline } from "../../ui/modules/charts";
+import {
+  renderDelta,
+  renderSparkline,
+  getLookbackWeekCount,
+  SPARKLINE_LOOKBACK_WEEKS,
+} from "../../ui/modules/charts";
 
 describe("charts module", () => {
   let container: HTMLElement;
@@ -61,6 +66,17 @@ describe("charts module", () => {
     it("handles null element gracefully", () => {
       expect(() => renderDelta(null, 10)).not.toThrow();
     });
+
+    it("uses custom periodLabel when provided", () => {
+      renderDelta(container, 25, false, "vs prior 5 weeks");
+      expect(container.innerHTML).toContain("vs prior 5 weeks");
+      expect(container.innerHTML).not.toContain("vs prev");
+    });
+
+    it("defaults to 'vs prev' when no periodLabel given", () => {
+      renderDelta(container, 25);
+      expect(container.innerHTML).toContain("vs prev");
+    });
   });
 
   describe("renderSparkline", () => {
@@ -111,6 +127,28 @@ describe("charts module", () => {
     it("clears element when fewer than 2 non-null values", () => {
       renderSparkline(container, [null, 42, null, null]);
       expect(container.innerHTML).toBe("");
+    });
+  });
+
+  describe("getLookbackWeekCount", () => {
+    it("caps at SPARKLINE_LOOKBACK_WEEKS for large datasets", () => {
+      expect(getLookbackWeekCount(20)).toBe(SPARKLINE_LOOKBACK_WEEKS);
+      expect(getLookbackWeekCount(52)).toBe(SPARKLINE_LOOKBACK_WEEKS);
+    });
+
+    it("returns actual count when fewer weeks than lookback", () => {
+      expect(getLookbackWeekCount(4)).toBe(4);
+      expect(getLookbackWeekCount(1)).toBe(1);
+    });
+
+    it("returns 0 for empty dataset", () => {
+      expect(getLookbackWeekCount(0)).toBe(0);
+    });
+
+    it("returns exact lookback value at boundary", () => {
+      expect(getLookbackWeekCount(SPARKLINE_LOOKBACK_WEEKS)).toBe(
+        SPARKLINE_LOOKBACK_WEEKS,
+      );
     });
   });
 });

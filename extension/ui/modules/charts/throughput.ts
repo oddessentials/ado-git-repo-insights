@@ -16,6 +16,7 @@ import {
   renderNoData,
   renderTrustedHtml,
 } from "../shared/render";
+import { renderTruncationIndicator } from "../shared/chart-layout";
 import { addChartTooltips, clearChartTooltips } from "../charts";
 import { classifyEmptyState } from "../empty-state-classifier";
 
@@ -103,9 +104,7 @@ export function renderThroughputChart(
   const trendResult = renderTrendLine(displayRollups, movingAvg, maxCount);
 
   // Truncation indicator
-  const truncationHtml = truncated
-    ? `<div class="truncation-indicator">Showing last ${MAX_THROUGHPUT_POINTS} weeks</div>`
-    : "";
+  const truncationHtml = renderTruncationIndicator(truncated, MAX_THROUGHPUT_POINTS);
 
   // Legend — trend line entry is conditional on whether the trend actually rendered
   const trendLegendItem = trendResult.rendered

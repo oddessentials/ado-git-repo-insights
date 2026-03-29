@@ -23,12 +23,12 @@ import {
 import type { Rollup } from "../../../ui/dataset-loader";
 
 /**
- * Build a .metric-card > h3 + value-el DOM structure for a given metric key.
+ * Build a .card > h3 + value-el DOM structure for a given metric key.
  * Returns the value element (to place in the containers object).
  */
 function buildCardDOM(metricKey: string): HTMLElement {
   const card = document.createElement("div");
-  card.className = "metric-card";
+  card.className = "card";
 
   const title = document.createElement("h3");
   title.textContent = metricKey;
@@ -50,16 +50,22 @@ function createContainersWithCards(): SummaryCardsContainers {
     totalPrs: buildCardDOM("Total PRs"),
     cycleP50: buildCardDOM("Cycle P50"),
     cycleP90: buildCardDOM("Cycle P90"),
+    reviewTimeP50: buildCardDOM("Review Time P50"),
+    reviewTimeP90: buildCardDOM("Review Time P90"),
     authorsCount: buildCardDOM("Authors"),
     reviewersCount: buildCardDOM("Reviewers"),
     totalPrsSparkline: document.createElement("div"),
     cycleP50Sparkline: document.createElement("div"),
     cycleP90Sparkline: document.createElement("div"),
+    reviewTimeP50Sparkline: document.createElement("div"),
+    reviewTimeP90Sparkline: document.createElement("div"),
     authorsSparkline: document.createElement("div"),
     reviewersSparkline: document.createElement("div"),
     totalPrsDelta: document.createElement("div"),
     cycleP50Delta: document.createElement("div"),
     cycleP90Delta: document.createElement("div"),
+    reviewTimeP50Delta: document.createElement("div"),
+    reviewTimeP90Delta: document.createElement("div"),
     authorsDelta: document.createElement("div"),
     reviewersDelta: document.createElement("div"),
   };
@@ -87,12 +93,12 @@ describe("Summary Cards Info Icons (attachInfoIcons)", () => {
     );
   });
 
-  it("renders info icon for each of 5 summary cards", () => {
+  it("renders info icon for each of 7 summary cards", () => {
     const containers = createContainersWithCards();
     renderSummaryCards({ rollups: createSampleRollups(), containers });
 
     const infoIcons = document.querySelectorAll(".info-icon-btn");
-    expect(infoIcons.length).toBe(5);
+    expect(infoIcons.length).toBe(7);
   });
 
   it("info icon has correct aria-label and data attribute", () => {
@@ -155,13 +161,13 @@ describe("Summary Cards Info Icons (attachInfoIcons)", () => {
 
     // First render
     renderSummaryCards({ rollups, containers });
-    expect(document.querySelectorAll(".info-icon-btn").length).toBe(5);
+    expect(document.querySelectorAll(".info-icon-btn").length).toBe(7);
 
     // Second render (re-render)
     renderSummaryCards({ rollups, containers });
 
     // Still exactly 5 icons — old ones removed, new ones created
-    expect(document.querySelectorAll(".info-icon-btn").length).toBe(5);
+    expect(document.querySelectorAll(".info-icon-btn").length).toBe(7);
   });
 
   it("re-render aborts old icon AbortControllers (no listener leaks)", () => {
@@ -214,21 +220,27 @@ describe("Summary Cards Info Icons (attachInfoIcons)", () => {
       totalPrs: document.createElement("span"),
       cycleP50: document.createElement("span"),
       cycleP90: document.createElement("span"),
+      reviewTimeP50: document.createElement("span"),
+      reviewTimeP90: document.createElement("span"),
       authorsCount: document.createElement("span"),
       reviewersCount: document.createElement("span"),
       totalPrsSparkline: document.createElement("div"),
       cycleP50Sparkline: document.createElement("div"),
       cycleP90Sparkline: document.createElement("div"),
+      reviewTimeP50Sparkline: document.createElement("div"),
+      reviewTimeP90Sparkline: document.createElement("div"),
       authorsSparkline: document.createElement("div"),
       reviewersSparkline: document.createElement("div"),
       totalPrsDelta: document.createElement("div"),
       cycleP50Delta: document.createElement("div"),
       cycleP90Delta: document.createElement("div"),
+      reviewTimeP50Delta: document.createElement("div"),
+      reviewTimeP90Delta: document.createElement("div"),
       authorsDelta: document.createElement("div"),
       reviewersDelta: document.createElement("div"),
     };
 
-    // No .metric-card ancestor, so attachInfoIcons should skip gracefully
+    // No .card ancestor, so attachInfoIcons should skip gracefully
     expect(() => {
       renderSummaryCards({ rollups: createSampleRollups(), containers });
     }).not.toThrow();
@@ -271,7 +283,7 @@ describe("Summary Cards Info Icons (attachInfoIcons)", () => {
   it("missing h3 in metric card gracefully skips", () => {
     // Create a card without h3
     const card = document.createElement("div");
-    card.className = "metric-card";
+    card.className = "card";
     const value = document.createElement("span");
     card.appendChild(value);
     document.body.appendChild(card);
@@ -280,16 +292,22 @@ describe("Summary Cards Info Icons (attachInfoIcons)", () => {
       totalPrs: value,
       cycleP50: null,
       cycleP90: null,
+      reviewTimeP50: null,
+      reviewTimeP90: null,
       authorsCount: null,
       reviewersCount: null,
       totalPrsSparkline: null,
       cycleP50Sparkline: null,
       cycleP90Sparkline: null,
+      reviewTimeP50Sparkline: null,
+      reviewTimeP90Sparkline: null,
       authorsSparkline: null,
       reviewersSparkline: null,
       totalPrsDelta: null,
       cycleP50Delta: null,
       cycleP90Delta: null,
+      reviewTimeP50Delta: null,
+      reviewTimeP90Delta: null,
       authorsDelta: null,
       reviewersDelta: null,
     };
@@ -300,5 +318,51 @@ describe("Summary Cards Info Icons (attachInfoIcons)", () => {
 
     // No info icons on cards without h3
     expect(document.querySelectorAll(".info-icon-btn").length).toBe(0);
+  });
+
+  it("reviewer tooltip switches to 'reviews' when reviewerFilterActive is true", () => {
+    const containers = createContainersWithCards();
+    renderSummaryCards({ rollups: createSampleRollups(), containers, reviewerFilterActive: true });
+
+    // Find the info icon on the reviewers card
+    const reviewersCard = containers.reviewersCount!.closest(".card");
+    const icon = reviewersCard?.querySelector(".info-icon-btn") as HTMLElement | null;
+    expect(icon).not.toBeNull();
+
+    // Trigger pointerenter to show tooltip — the explanation passed to showInfoTooltip
+    // contains "reviews" (not "reviewers") when filter is active
+    icon!.dispatchEvent(new Event("pointerenter"));
+    const tooltip = document.querySelector(".info-tooltip");
+    expect(tooltip?.textContent).toContain("reviews");
+    expect(tooltip?.textContent).not.toContain("reviewers");
+  });
+
+  it("reviewer tooltip shows 'reviewers' when reviewerFilterActive is false", () => {
+    const containers = createContainersWithCards();
+    renderSummaryCards({ rollups: createSampleRollups(), containers, reviewerFilterActive: false });
+
+    const reviewersCard = containers.reviewersCount!.closest(".card");
+    const icon = reviewersCard?.querySelector(".info-icon-btn") as HTMLElement | null;
+    expect(icon).not.toBeNull();
+
+    icon!.dispatchEvent(new Event("pointerenter"));
+    const tooltip = document.querySelector(".info-tooltip");
+    expect(tooltip?.textContent).toContain("reviewers");
+  });
+
+  describe("median-of-medians disclosure", () => {
+    it("median metrics include aggregation disclosure", () => {
+      for (const key of ["cycleP50", "cycleP90", "reviewTimeP50", "reviewTimeP90"]) {
+        const text = METRIC_EXPLANATIONS.get(key) ?? "";
+        expect(text).toContain("Aggregated from weekly values");
+      }
+    });
+
+    it("non-median metrics do NOT include aggregation disclosure", () => {
+      for (const key of ["totalPrs", "authorsCount", "reviewersCount"]) {
+        const text = METRIC_EXPLANATIONS.get(key) ?? "";
+        expect(text).not.toContain("Aggregated");
+      }
+    });
   });
 });

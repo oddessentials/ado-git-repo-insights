@@ -327,4 +327,364 @@ describe("reviewer-activity module", () => {
       expect(container.innerHTML).toContain("no-data");
     });
   });
+
+  describe("approval rate (US2)", () => {
+    function createRollupsWithReviewer(approvalRate: number | null) {
+      return Array.from({ length: 4 }, (_, i) => ({
+        week: `2025-W${(i + 1).toString().padStart(2, "0")}`,
+        pr_count: 10,
+        cycle_time_p50: 60,
+        cycle_time_p90: 120,
+        authors_count: 5,
+        reviewers_count: 3,
+        by_repository: null,
+        by_team: null,
+        by_reviewer: {
+          "alice-id": {
+            reviewed_prs: 8,
+            reviews_count: 10,
+            approval_rate: approvalRate,
+            authors_count: 3,
+            repositories_count: 2,
+          },
+        },
+      }));
+    }
+
+    it("shows approval rate with time-period label when reviewer filter is active", () => {
+      const rollups = createRollupsWithReviewer(0.78);
+      renderReviewerActivity(container, rollups, {
+        reviewerFilterActive: true,
+        filters: { repos: [], teams: [], reviewers: ["alice-id"], authors: [] },
+        unfilteredRollups: rollups,
+      });
+
+      expect(container.innerHTML).toContain("Approval Rate");
+      expect(container.innerHTML).toContain("78%");
+      // Time-period label must be present
+      expect(container.innerHTML).toContain("(last 4 weeks)");
+    });
+
+    it("hides approval rate when reviewer filter is NOT active", () => {
+      const rollups = createRollupsWithReviewer(0.78);
+      renderReviewerActivity(container, rollups, {
+        reviewerFilterActive: false,
+      });
+
+      expect(container.innerHTML).not.toContain("Approval Rate");
+    });
+
+    it("shows no-data state for null approval_rate", () => {
+      const rollups = createRollupsWithReviewer(null);
+      renderReviewerActivity(container, rollups, {
+        reviewerFilterActive: true,
+        filters: { repos: [], teams: [], reviewers: ["alice-id"], authors: [] },
+        unfilteredRollups: rollups,
+      });
+
+      // Element present with explicit no-data indicator (not silently omitted)
+      const el = container.querySelector(".approval-rate");
+      expect(el).not.toBeNull();
+      expect(el!.classList.contains("approval-rate-no-data")).toBe(true);
+      expect(el!.textContent).toContain("No data");
+      // No coverage label when no weeks contributed
+      expect(el!.textContent).not.toContain("weeks");
+      // Must not contain any percentage
+      expect(el!.textContent).not.toMatch(/\d+%/);
+    });
+
+    it("shows 0% for approval_rate of 0.0", () => {
+      const rollups = createRollupsWithReviewer(0.0);
+      renderReviewerActivity(container, rollups, {
+        reviewerFilterActive: true,
+        filters: { repos: [], teams: [], reviewers: ["alice-id"], authors: [] },
+        unfilteredRollups: rollups,
+      });
+
+      expect(container.innerHTML).toContain("Approval Rate");
+      expect(container.innerHTML).toContain("0%");
+    });
+
+    it("shows 100% for approval_rate of 1.0", () => {
+      const rollups = createRollupsWithReviewer(1.0);
+      renderReviewerActivity(container, rollups, {
+        reviewerFilterActive: true,
+        filters: { repos: [], teams: [], reviewers: ["alice-id"], authors: [] },
+        unfilteredRollups: rollups,
+      });
+
+      expect(container.innerHTML).toContain("Approval Rate");
+      expect(container.innerHTML).toContain("100%");
+    });
+
+    it("weights approval rate by reviewed_prs, not reviews_count", () => {
+      // Divergent reviewed_prs vs reviews_count with different approval rates.
+      // Week 1: 5 PRs, 10 reviews, 80% approval
+      // Week 2: 5 PRs, 5 reviews, 40% approval
+      // Correct (PR-weighted):      (0.8×5 + 0.4×5) / (5+5) = 6/10 = 60%
+      // Wrong (event-weighted):     (0.8×10 + 0.4×5) / (10+5) = 10/15 ≈ 67%
+      const rollups = [
+        {
+          week: "2025-W01",
+          pr_count: 10,
+          cycle_time_p50: 60,
+          cycle_time_p90: 120,
+          authors_count: 5,
+          reviewers_count: 3,
+          by_repository: null,
+          by_team: null,
+          by_reviewer: {
+            "alice-id": {
+              reviewed_prs: 5,
+              reviews_count: 10,
+              approval_rate: 0.8,
+              authors_count: 3,
+              repositories_count: 2,
+            },
+          },
+        },
+        {
+          week: "2025-W02",
+          pr_count: 10,
+          cycle_time_p50: 60,
+          cycle_time_p90: 120,
+          authors_count: 5,
+          reviewers_count: 3,
+          by_repository: null,
+          by_team: null,
+          by_reviewer: {
+            "alice-id": {
+              reviewed_prs: 5,
+              reviews_count: 5,
+              approval_rate: 0.4,
+              authors_count: 3,
+              repositories_count: 2,
+            },
+          },
+        },
+      ];
+
+      renderReviewerActivity(container, rollups, {
+        reviewerFilterActive: true,
+        filters: { repos: [], teams: [], reviewers: ["alice-id"], authors: [] },
+        unfilteredRollups: rollups,
+      });
+
+      // PR-weighted: (0.8×5 + 0.4×5) / 10 = 6/10 = 60%
+      expect(container.innerHTML).toContain("Approval Rate");
+      expect(container.innerHTML).toContain("60%");
+      // Must NOT show the event-weighted answer
+      expect(container.innerHTML).not.toContain("67%");
+    });
+
+    it("approval badge follows PR weighting when review events diverge from reviewed PRs", () => {
+      // Extreme divergence: Week 1 has 1 reviewed PR but 10 events (all approved).
+      // Week 2 has 10 reviewed PRs but 10 events (none approved).
+      // Event-weighted: (1.0×10 + 0.0×10) / 20 = 50% ← wrong
+      // PR-weighted:    (1.0×1 + 0.0×10) / 11 ≈ 9%  ← correct
+      const rollups = [
+        {
+          week: "2025-W01",
+          pr_count: 5, cycle_time_p50: 60, cycle_time_p90: 120,
+          authors_count: 3, reviewers_count: 2,
+          by_repository: null, by_team: null,
+          by_reviewer: {
+            "alice-id": {
+              reviewed_prs: 1, reviews_count: 10,
+              approval_rate: 1.0, authors_count: 1, repositories_count: 1,
+            },
+          },
+        },
+        {
+          week: "2025-W02",
+          pr_count: 15, cycle_time_p50: 80, cycle_time_p90: 160,
+          authors_count: 5, reviewers_count: 3,
+          by_repository: null, by_team: null,
+          by_reviewer: {
+            "alice-id": {
+              reviewed_prs: 10, reviews_count: 10,
+              approval_rate: 0.0, authors_count: 5, repositories_count: 3,
+            },
+          },
+        },
+      ];
+
+      renderReviewerActivity(container, rollups, {
+        reviewerFilterActive: true,
+        filters: { repos: [], teams: [], reviewers: ["alice-id"], authors: [] },
+        unfilteredRollups: rollups,
+      });
+
+      // PR-weighted: (1.0×1 + 0.0×10) / 11 = 1/11 ≈ 0.0909 → 9%
+      expect(container.innerHTML).toContain("9%");
+      // Must NOT show event-weighted 50%
+      expect(container.innerHTML).not.toContain("50%");
+    });
+
+    it("approval rate reflects only the displayed 8-week window, not full range", () => {
+      // 12 weeks: first 4 have 50% approval, last 8 have 90% approval
+      const rollups = Array.from({ length: 12 }, (_, i) => ({
+        week: `2025-W${(i + 1).toString().padStart(2, "0")}`,
+        pr_count: 10,
+        cycle_time_p50: 60,
+        cycle_time_p90: 120,
+        authors_count: 5,
+        reviewers_count: 3,
+        by_repository: null,
+        by_team: null,
+        by_reviewer: {
+          "alice-id": {
+            reviewed_prs: 10,
+            reviews_count: 12,
+            approval_rate: i < 4 ? 0.5 : 0.9,
+            authors_count: 3,
+            repositories_count: 2,
+          },
+        },
+      }));
+
+      renderReviewerActivity(container, rollups, {
+        reviewerFilterActive: true,
+        filters: { repos: [], teams: [], reviewers: ["alice-id"], authors: [] },
+        unfilteredRollups: rollups,
+      });
+
+      // Chart shows last 8 weeks (W05-W12), all with 0.9 approval
+      // Badge must show 90%, NOT the full-range average that includes the 0.5 weeks
+      expect(container.innerHTML).toContain("Approval Rate");
+      expect(container.innerHTML).toContain("90%");
+      expect(container.innerHTML).not.toContain("Approval Rate: 77%"); // would be ~77% if full range used
+    });
+
+    it("approval rate label uses metric-specific coverage, not chart window size", () => {
+      // 12 weeks input → chart displays last 8 (MAX_REVIEWER_WEEKS)
+      // All 8 visible weeks have approval_rate → badge says "(from 8 weeks of data)"
+      const rollups = createRollupsWithReviewer(0.85);
+      const longRollups = [
+        ...rollups, ...rollups, ...rollups, // 12 weeks
+      ].map((r, i) => ({ ...r, week: `2025-W${(i + 1).toString().padStart(2, "0")}` }));
+
+      renderReviewerActivity(container, longRollups, {
+        reviewerFilterActive: true,
+        filters: { repos: [], teams: [], reviewers: ["alice-id"], authors: [] },
+        unfilteredRollups: longRollups,
+      });
+
+      const badge = container.querySelector(".approval-rate");
+      expect(badge).not.toBeNull();
+      expect(badge!.getAttribute("data-weeks")).toBe("8");
+      expect(badge!.textContent).toContain("(from 8 weeks of data)");
+
+      // Short input: 3 weeks → all have data, label says "(from 3 weeks of data)"
+      container.innerHTML = "";
+      const shortRollups = createRollupsWithReviewer(0.9).slice(0, 3);
+      renderReviewerActivity(container, shortRollups, {
+        reviewerFilterActive: true,
+        filters: { repos: [], teams: [], reviewers: ["alice-id"], authors: [] },
+        unfilteredRollups: shortRollups,
+      });
+
+      const badge2 = container.querySelector(".approval-rate");
+      expect(badge2!.getAttribute("data-weeks")).toBe("3");
+      expect(badge2!.textContent).toContain("(from 3 weeks of data)");
+    });
+
+    it("badge shows metric-specific coverage when only some weeks have approval data", () => {
+      // 8 visible weeks, only 3 with approval_rate data for the reviewer
+      const rollups = Array.from({ length: 8 }, (_, i) => ({
+        week: `2025-W${(i + 1).toString().padStart(2, "0")}`,
+        pr_count: 10,
+        cycle_time_p50: 60,
+        cycle_time_p90: 120,
+        authors_count: 5,
+        reviewers_count: 3,
+        by_repository: null,
+        by_team: null,
+        by_reviewer: i < 3 ? {
+          "alice-id": {
+            reviewed_prs: 5,
+            reviews_count: 6,
+            approval_rate: 0.8,
+            authors_count: 3,
+            repositories_count: 2,
+          },
+        } : null,
+      }));
+
+      renderReviewerActivity(container, rollups, {
+        reviewerFilterActive: true,
+        filters: { repos: [], teams: [], reviewers: ["alice-id"], authors: [] },
+        unfilteredRollups: rollups,
+      });
+
+      const badge = container.querySelector(".approval-rate");
+      expect(badge).not.toBeNull();
+      // Must say "from 3 weeks of data", NOT "last 8 weeks"
+      expect(badge!.getAttribute("data-weeks")).toBe("3");
+      expect(badge!.textContent).toContain("(from 3 weeks of data)");
+      expect(badge!.textContent).not.toContain("8 weeks");
+      expect(badge!.textContent).toContain("80%");
+    });
+
+    it("approval badge uses first reviewer only when multiple are selected", () => {
+      const rollups = [{
+        week: "2025-W01",
+        pr_count: 20, cycle_time_p50: 60, cycle_time_p90: 120,
+        authors_count: 5, reviewers_count: 4,
+        by_repository: null, by_team: null,
+        by_reviewer: {
+          "alice-id": {
+            reviewed_prs: 5, reviews_count: 5,
+            approval_rate: 0.8, authors_count: 3, repositories_count: 2,
+          },
+          "bob-id": {
+            reviewed_prs: 5, reviews_count: 5,
+            approval_rate: 0.2, authors_count: 3, repositories_count: 2,
+          },
+        },
+      }];
+
+      // Multi-select: alice first
+      renderReviewerActivity(container, rollups, {
+        reviewerFilterActive: true,
+        filters: { repos: [], teams: [], reviewers: ["alice-id", "bob-id"], authors: [] },
+        unfilteredRollups: rollups,
+      });
+
+      // First-reviewer-only: alice's 80%
+      // All-reviewer blend would be (0.8×5 + 0.2×5) / 10 = 50%
+      expect(container.innerHTML).toContain("80%");
+      expect(container.innerHTML).not.toContain("50%");
+    });
+
+    it("only first reviewer is used — explicit scope lock", () => {
+      const rollups = [{
+        week: "2025-W01",
+        pr_count: 20, cycle_time_p50: 60, cycle_time_p90: 120,
+        authors_count: 5, reviewers_count: 4,
+        by_repository: null, by_team: null,
+        by_reviewer: {
+          "alice-id": {
+            reviewed_prs: 5, reviews_count: 5,
+            approval_rate: 0.8, authors_count: 3, repositories_count: 2,
+          },
+          "bob-id": {
+            reviewed_prs: 5, reviews_count: 5,
+            approval_rate: 0.2, authors_count: 3, repositories_count: 2,
+          },
+        },
+      }];
+
+      // Bob first this time
+      renderReviewerActivity(container, rollups, {
+        reviewerFilterActive: true,
+        filters: { repos: [], teams: [], reviewers: ["bob-id", "alice-id"], authors: [] },
+        unfilteredRollups: rollups,
+      });
+
+      // Must show bob's rate (20%), not alice's (80%)
+      expect(container.innerHTML).toContain("20%");
+      expect(container.innerHTML).not.toContain("80%");
+    });
+  });
 });

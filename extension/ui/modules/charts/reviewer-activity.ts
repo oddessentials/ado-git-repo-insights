@@ -12,14 +12,62 @@ import type { Rollup } from "../../dataset-loader";
 import type { DataAvailabilitySignal } from "../../types";
 import type { FilterState } from "../filters";
 import { classifyEmptyState } from "../empty-state-classifier";
+import { renderTruncationIndicator } from "../shared/chart-layout";
 import {
   escapeHtml,
   renderNoData,
   renderTrustedHtml,
 } from "../shared/render";
 
+import type { ReviewerBreakdownEntry } from "../../schemas/rollup.schema";
+
 /** Maximum weeks displayed in the reviewer activity panel. */
 export const MAX_REVIEWER_WEEKS = 8;
+
+/**
+ * Compute PR-weighted average approval rate from by_reviewer breakdowns
+ * across all rollups for the selected reviewer(s).
+ *
+ * DESIGN: Weighted by reviewed_prs (distinct PRs reviewed), not reviews_count
+ * (review events). approval_rate is a per-PR metric, so weighting by events
+ * would skew toward PRs with multiple review rounds. The same weighting is
+ * used in aggregateReviewerEntries() in metrics.ts — both must stay aligned.
+ *
+ * Returns null when no reviewer has a finite approval_rate or reviewed_prs > 0.
+ */
+function computeApprovalRate(
+  rollups: Rollup[],
+  reviewerIds: string[],
+): { rate: number | null; weeksWithData: number } {
+  let weightedSum = 0;
+  let totalPrs = 0;
+  let weeksWithData = 0;
+
+  for (const rollup of rollups) {
+    if (!rollup.by_reviewer || typeof rollup.by_reviewer !== "object") continue;
+    const reviewerMap = new Map(Object.entries(rollup.by_reviewer as Record<string, ReviewerBreakdownEntry>));
+    let weekContributed = false;
+    for (const id of reviewerIds) {
+      const entry = reviewerMap.get(id);
+      if (!entry) continue;
+      const rate = entry.approval_rate;
+      if (typeof rate !== "number" || !Number.isFinite(rate)) continue;
+      // Weight by reviewed_prs (distinct PRs reviewed), not reviews_count (review events).
+      // approval_rate is a per-PR metric, so the denominator must match.
+      const prs = entry.reviewed_prs ?? 0;
+      if (prs <= 0) continue;
+      weightedSum += rate * prs;
+      totalPrs += prs;
+      weekContributed = true;
+    }
+    if (weekContributed) weeksWithData++;
+  }
+
+  return {
+    rate: totalPrs > 0 ? weightedSum / totalPrs : null,
+    weeksWithData,
+  };
+}
 
 /**
  * Render reviewer activity chart (horizontal bar chart).
@@ -127,14 +175,40 @@ export function renderReviewerActivity(
     })
     .join("");
 
-  // Truncation indicator (matches throughput.ts and cycle-time.ts pattern)
-  const truncationHtml = truncated
-    ? `<div class="truncation-indicator">Showing last ${MAX_REVIEWER_WEEKS} weeks</div>`
-    : "";
+  // Truncation indicator
+  const truncationHtml = renderTruncationIndicator(truncated, MAX_REVIEWER_WEEKS);
 
-  // SECURITY: barsHtml uses escapeHtml for week values, count is numeric
+  // Approval rate: always rendered when reviewer filter is active.
+  // Uses recentRollups (the truncated 8-week window) so the badge reflects the
+  // same time range as the chart bars, not the full selected date range.
+  // When data is missing (null), renders an explicit no-data indicator rather
+  // than silently omitting the element.
+  let approvalHtml = "";
+  if (reviewerFilterActive) {
+    // DESIGN: Reviewer filter is effectively single-select end-to-end.
+    // Scoped to first reviewer only — matches applyFiltersToRollups() in metrics.ts
+    // which uses filters.reviewers[0]. If multi-reviewer aggregation is implemented,
+    // both this site and applyFiltersToRollups must move together.
+    const firstReviewer = options.filters?.reviewers?.[0];
+    const reviewerIds = firstReviewer ? [firstReviewer] : [];
+    const { rate: approvalRate, weeksWithData } = computeApprovalRate(recentRollups, reviewerIds);
+    // Badge label uses metric-specific coverage (weeks that actually contributed
+    // to the approval rate), not the visual chart window — consistent with the
+    // sample-size convention on summary cards.
+    const coverageLabel = weeksWithData > 0
+      ? `(from ${weeksWithData} ${weeksWithData === 1 ? "week" : "weeks"} of data)`
+      : "";
+    if (approvalRate !== null) {
+      const pct = Math.round(approvalRate * 100);
+      approvalHtml = `<p class="approval-rate" data-weeks="${weeksWithData}">Approval Rate: ${pct}% ${escapeHtml(coverageLabel)}</p>`;
+    } else {
+      approvalHtml = `<p class="approval-rate approval-rate-no-data" data-weeks="${weeksWithData}">Approval Rate: No data</p>`;
+    }
+  }
+
+  // SECURITY: barsHtml uses escapeHtml for week values, count and pct are numeric
   renderTrustedHtml(
     container,
-    `${truncationHtml}<p class="chart-subtitle">${escapeHtml(subtitle)}</p><div class="horizontal-bar-chart">${barsHtml}</div>`,
+    `${truncationHtml}<p class="chart-subtitle">${escapeHtml(subtitle)}</p><div class="horizontal-bar-chart">${barsHtml}</div>${approvalHtml}`,
   );
 }

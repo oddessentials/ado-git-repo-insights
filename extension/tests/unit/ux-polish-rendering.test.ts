@@ -4,8 +4,10 @@
  * Tests for filter hints, truncation indicators, empty states,
  * and other UX polish rendering behaviors.
  */
+import { resolve } from "node:path";
 import { renderThroughputChart } from "../../ui/modules/charts/throughput";
 import { renderNoData } from "../../ui/modules/shared/render";
+import { readTextFile } from "../helpers/fs-test-utils";
 import type { Rollup } from "../../ui/dataset-loader";
 
 function makeRollups(count: number): Rollup[] {
@@ -94,5 +96,44 @@ describe("Button and tab disabled states", () => {
 
     expect(container.querySelector(".no-data-hint")).toBeNull();
     expect(container.querySelector(".bar-chart")).not.toBeNull();
+  });
+});
+
+describe("Dimmed legend opacity (US6)", () => {
+  it(".dimmed CSS rule declares opacity: 0.55", () => {
+    const stylesPath = resolve(__dirname, "..", "..", "ui", "styles.css");
+    const css = readTextFile(stylesPath);
+
+    // Match the .dimmed rule and extract opacity value
+    const dimmedMatch = css.match(/\.dimmed\s*\{[^}]*opacity:\s*([\d.]+)/);
+    expect(dimmedMatch).not.toBeNull();
+    expect(dimmedMatch![1]).toBe("0.55");
+  });
+});
+
+describe("Truncation badge restyle (US7)", () => {
+  it("truncation indicator has .truncation-badge class when data exceeds cap", () => {
+    const container = document.createElement("div");
+    renderThroughputChart(container, makeRollups(110));
+
+    const badge = container.querySelector(".truncation-badge");
+    expect(badge).not.toBeNull();
+    expect(badge?.textContent).toContain("Showing last");
+    expect(badge?.textContent).toContain("weeks");
+  });
+
+  it("no .truncation-badge when data fits within cap", () => {
+    const container = document.createElement("div");
+    renderThroughputChart(container, makeRollups(50));
+
+    expect(container.querySelector(".truncation-badge")).toBeNull();
+  });
+
+  it(".truncation-badge also retains .truncation-indicator class", () => {
+    const container = document.createElement("div");
+    renderThroughputChart(container, makeRollups(110));
+
+    const badge = container.querySelector(".truncation-badge");
+    expect(badge?.classList.contains("truncation-indicator")).toBe(true);
   });
 });

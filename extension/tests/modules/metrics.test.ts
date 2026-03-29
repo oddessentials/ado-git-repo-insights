@@ -11,7 +11,9 @@ import {
   applyFiltersToRollups,
   extractSparklineData,
   calculateMovingAverage,
+  aggregateReviewerEntries,
 } from "../../ui/modules/metrics";
+import type { ReviewerBreakdownEntry } from "../../ui/schemas/rollup.schema";
 import type { Rollup } from "../../ui/dataset-loader";
 
 describe("metrics module", () => {
@@ -22,8 +24,15 @@ describe("metrics module", () => {
         totalPrs: 0,
         cycleP50: null,
         cycleP90: null,
+        reviewTimeP50: null,
+        reviewTimeP90: null,
         avgAuthors: 0,
         avgReviewers: 0,
+        weekCount: 0,
+        cycleP50WeekCount: 0,
+        cycleP90WeekCount: 0,
+        reviewTimeP50WeekCount: 0,
+        reviewTimeP90WeekCount: 0,
       });
     });
 
@@ -70,6 +79,70 @@ describe("metrics module", () => {
 
       expect(result.cycleP50).toBeNull();
       expect(result.cycleP90).toBeNull();
+    });
+
+    it("extracts reviewTimeP50/P90 median from non-null values", () => {
+      const rollups = [
+        { week: "2026-W01", pr_count: 10, review_time_p50: 1800, review_time_p90: 3600 } as Rollup,
+        { week: "2026-W02", pr_count: 15, review_time_p50: 2400, review_time_p90: 5400 } as Rollup,
+        { week: "2026-W03", pr_count: 12, review_time_p50: 3000, review_time_p90: 7200 } as Rollup,
+      ];
+      const result = calculateMetrics(rollups);
+      expect(result.reviewTimeP50).toBe(2400); // median of [1800, 2400, 3000]
+      expect(result.reviewTimeP90).toBe(5400); // median of [3600, 5400, 7200]
+    });
+
+    it("skips null review_time values in median calculation", () => {
+      const rollups = [
+        { week: "2026-W01", pr_count: 10, review_time_p50: 1800, review_time_p90: null } as Rollup,
+        { week: "2026-W02", pr_count: 15, review_time_p50: null, review_time_p90: 5400 } as Rollup,
+      ];
+      const result = calculateMetrics(rollups);
+      expect(result.reviewTimeP50).toBe(1800); // only one non-null value
+      expect(result.reviewTimeP90).toBe(5400); // only one non-null value
+    });
+
+    it("returns null reviewTime when all values are null", () => {
+      const rollups = [
+        { week: "2026-W01", pr_count: 10, review_time_p50: null, review_time_p90: null } as Rollup,
+        { week: "2026-W02", pr_count: 15 } as Rollup, // undefined, not null
+      ];
+      const result = calculateMetrics(rollups);
+      expect(result.reviewTimeP50).toBeNull();
+      expect(result.reviewTimeP90).toBeNull();
+    });
+
+    it("extracts reviewTime from single-week dataset", () => {
+      const rollups = [
+        { week: "2026-W01", pr_count: 5, review_time_p50: 900, review_time_p90: 1800 } as Rollup,
+      ];
+      const result = calculateMetrics(rollups);
+      expect(result.reviewTimeP50).toBe(900);
+      expect(result.reviewTimeP90).toBe(1800);
+    });
+
+    it("exposes independent P50 and P90 week counts", () => {
+      // P50 and P90 have deliberately different null patterns to test independence
+      const rollups = [
+        { week: "2026-W01", pr_count: 5, cycle_time_p50: 60, cycle_time_p90: 120, review_time_p50: 900, review_time_p90: null } as Rollup,
+        { week: "2026-W02", pr_count: 8, cycle_time_p50: 80, cycle_time_p90: null, review_time_p50: null, review_time_p90: 1800 } as Rollup,
+        { week: "2026-W03", pr_count: 3, cycle_time_p50: null, cycle_time_p90: 200, review_time_p50: 1200, review_time_p90: 2400 } as Rollup,
+        { week: "2026-W04", pr_count: 6, cycle_time_p50: 70, cycle_time_p90: 140, review_time_p50: null, review_time_p90: null } as Rollup,
+        { week: "2026-W05", pr_count: 4, cycle_time_p50: null, cycle_time_p90: null } as Rollup,
+        { week: "2026-W06", pr_count: 7, cycle_time_p50: 90, cycle_time_p90: 180, review_time_p50: 600, review_time_p90: 1200 } as Rollup,
+        { week: "2026-W07", pr_count: 2, cycle_time_p50: 50, cycle_time_p90: null, review_time_p50: null, review_time_p90: 900 } as Rollup,
+        { week: "2026-W08", pr_count: 9, cycle_time_p50: null, cycle_time_p90: 300 } as Rollup,
+      ];
+      const result = calculateMetrics(rollups);
+      expect(result.weekCount).toBe(8);
+      // P50: weeks 1,2,4,6,7 = 5 non-null
+      expect(result.cycleP50WeekCount).toBe(5);
+      // P90: weeks 1,3,4,6,8 = 5 non-null (different weeks than P50!)
+      expect(result.cycleP90WeekCount).toBe(5);
+      // reviewTime P50: weeks 1,3,6 = 3 non-null
+      expect(result.reviewTimeP50WeekCount).toBe(3);
+      // reviewTime P90: weeks 2,3,6,7 = 4 non-null (different from P50's 3!)
+      expect(result.reviewTimeP90WeekCount).toBe(4);
     });
   });
 
@@ -685,6 +758,45 @@ describe("metrics module", () => {
       expect(result[0]!.authors_count).toBe(3);
       expect(result[0]!.cycle_time_p50).toBeNull();
       expect(result[0]!.cycle_time_p90).toBeNull();
+    });
+
+    it("aggregateReviewerEntries weights approval_rate by reviewed_prs, not reviews_count", () => {
+      // Entry A: 5 PRs, 10 reviews, 80% approval
+      // Entry B: 5 PRs, 5 reviews, 40% approval
+      // Correct (PR-weighted):      (0.8×5 + 0.4×5) / (5+5) = 6/10 = 0.6
+      // Wrong   (event-weighted):   (0.8×10 + 0.4×5) / (10+5) = 10/15 ≈ 0.6667
+      const entries: ReviewerBreakdownEntry[] = [
+        {
+          reviewed_prs: 5,
+          reviews_count: 10,
+          approval_rate: 0.8,
+          authors_count: 3,
+          repositories_count: 2,
+        },
+        {
+          reviewed_prs: 5,
+          reviews_count: 5,
+          approval_rate: 0.4,
+          authors_count: 2,
+          repositories_count: 1,
+        },
+      ];
+
+      const result = aggregateReviewerEntries(entries);
+
+      // Must be PR-weighted: 6/10 = 0.6
+      expect(result.approval_rate).toBeCloseTo(0.6, 4);
+      // Must NOT be 10/15 (the event-weighted answer)
+      expect(result.approval_rate).not.toBeCloseTo(10 / 15, 2);
+    });
+
+    it("aggregateReviewerEntries returns null when all entries have zero reviewed_prs", () => {
+      const entries: ReviewerBreakdownEntry[] = [
+        { reviewed_prs: 0, reviews_count: 5, approval_rate: 0.8, authors_count: 1, repositories_count: 1 },
+        { reviewed_prs: 0, reviews_count: 3, approval_rate: 0.5, authors_count: 1, repositories_count: 1 },
+      ];
+      const result = aggregateReviewerEntries(entries);
+      expect(result.approval_rate).toBeNull();
     });
 
     it("returns zero counts for unknown repo filter", () => {
@@ -2317,5 +2429,116 @@ describe("zero-leakage regression", () => {
     expect(result[0]!.reviewers_count).toBe(0);
     expect(result[0]!.cycle_time_p50).toBeNull();
     expect(result[0]!.cycle_time_p90).toBeNull();
+  });
+});
+
+describe("review_time filter propagation (044)", () => {
+  const rollupWithReviewTime = {
+    week: "2026-W10",
+    pr_count: 100,
+    cycle_time_p50: 60,
+    cycle_time_p90: 120,
+    review_time_p50: 3600,
+    review_time_p90: 7200,
+    authors_count: 10,
+    reviewers_count: 5,
+    by_repository: {
+      "repo-a": {
+        pr_count: 40,
+        cycle_time_p50: 50,
+        cycle_time_p90: 100,
+        review_time_p50: 1800,
+        review_time_p90: 3600,
+        authors_count: 4,
+        reviewers_count: 2,
+      },
+      "repo-b": {
+        pr_count: 60,
+        cycle_time_p50: 70,
+        cycle_time_p90: 140,
+        review_time_p50: 5400,
+        review_time_p90: 10800,
+        authors_count: 6,
+        reviewers_count: 3,
+      },
+    },
+    by_team: {
+      "team-x": {
+        pr_count: 50,
+        cycle_time_p50: 55,
+        cycle_time_p90: 110,
+        review_time_p50: 2400,
+        review_time_p90: 4800,
+        authors_count: 5,
+        reviewers_count: 3,
+      },
+    },
+    by_author: {
+      "alice": {
+        pr_count: 30,
+        cycle_time_p50: 45,
+        cycle_time_p90: 90,
+        review_time_p50: 1200,
+        review_time_p90: 2400,
+        authors_count: 1,
+        reviewers_count: 2,
+      },
+    },
+    by_reviewer: {
+      "bob": {
+        reviewed_prs: 20,
+        reviews_count: 25,
+        approval_rate: 0.8,
+      },
+    },
+  } as Rollup;
+
+  it("repo filter uses slice review_time, not global", () => {
+    const result = applyFiltersToRollups([rollupWithReviewTime], {
+      repos: ["repo-a"],
+      teams: [],
+    });
+    expect(result[0]!.review_time_p50).toBe(1800);
+    expect(result[0]!.review_time_p90).toBe(3600);
+    // Must NOT be the global 3600/7200
+    expect(result[0]!.review_time_p50).not.toBe(rollupWithReviewTime.review_time_p50);
+  });
+
+  it("team filter uses slice review_time, not global", () => {
+    const result = applyFiltersToRollups([rollupWithReviewTime], {
+      repos: [],
+      teams: ["team-x"],
+    });
+    expect(result[0]!.review_time_p50).toBe(2400);
+    expect(result[0]!.review_time_p90).toBe(4800);
+  });
+
+  it("author filter uses slice review_time, not global", () => {
+    const result = applyFiltersToRollups([rollupWithReviewTime], {
+      repos: [],
+      teams: [],
+      authors: ["alice"],
+    });
+    expect(result[0]!.review_time_p50).toBe(1200);
+    expect(result[0]!.review_time_p90).toBe(2400);
+  });
+
+  it("reviewer filter nulls review_time (no reviewer-scoped review_time)", () => {
+    const result = applyFiltersToRollups([rollupWithReviewTime], {
+      repos: [],
+      teams: [],
+      reviewers: ["bob"],
+    });
+    expect(result[0]!.review_time_p50).toBeNull();
+    expect(result[0]!.review_time_p90).toBeNull();
+  });
+
+  it("unfiltered preserves global review_time", () => {
+    const result = applyFiltersToRollups([rollupWithReviewTime], {
+      repos: [],
+      teams: [],
+    });
+    expect(result[0]!.review_time_p50).toBe(3600);
+    expect(result[0]!.review_time_p90).toBe(7200);
   });
 });

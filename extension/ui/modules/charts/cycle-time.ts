@@ -13,6 +13,8 @@ import type { FilterState } from "../filters";
 import { addChartTooltips, clearChartTooltips } from "../charts";
 import { classifyEmptyState } from "../empty-state-classifier";
 import { formatDuration } from "../shared/format";
+import { renderTruncationIndicator } from "../shared/chart-layout";
+import { buildLinePath } from "../shared/svg-path";
 import {
   escapeHtml,
   renderNoData,
@@ -21,6 +23,22 @@ import {
 
 /** Maximum data points rendered in the cycle time trend chart (2 years of weekly data). */
 export const MAX_CYCLE_TIME_POINTS = 104;
+
+/**
+ * Speed category for cycle time distribution buckets (FR-012).
+ * Maps bucket label → color category for deterministic, testable CSS class assignment.
+ * Boundaries: fast = [0, 4h), moderate = [4h, 3d), slow = [3d, +∞).
+ */
+export type BucketCategory = "fast" | "moderate" | "slow";
+
+export const BUCKET_COLOR_MAP = new Map<string, BucketCategory>([
+  ["0-1h", "fast"],
+  ["1-4h", "fast"],
+  ["4-24h", "moderate"],
+  ["1-3d", "moderate"],
+  ["3-7d", "slow"],
+  ["7d+", "slow"],
+]);
 
 /**
  * Render cycle time distribution as horizontal bar chart.
@@ -89,8 +107,10 @@ export function renderCycleDistribution(
   const html = Array.from(buckets.entries())
     .map(([label, count]) => {
       const pct = ((count / total) * 100).toFixed(1);
+      const category = BUCKET_COLOR_MAP.get(label);
+      const categoryClass = category ? ` bucket-${category}` : "";
       return `
-            <div class="dist-row">
+            <div class="dist-row${categoryClass}">
                 <span class="dist-label">${label}</span>
                 <div class="dist-bar-bg">
                     <div class="dist-bar" style="width: ${pct}%"></div>
@@ -217,11 +237,7 @@ export function renderCycleTimeTrend(
         (p): p is { x: number; y: number; week: string; value: number } =>
           p !== null,
       );
-    const pathD = points
-      .map(
-        (p, i) => `${i === 0 ? "M" : "L"} ${p.x.toFixed(1)} ${p.y.toFixed(1)}`,
-      )
-      .join(" ");
+    const pathD = buildLinePath(points);
     return { pathD, points };
   };
 
@@ -281,9 +297,7 @@ export function renderCycleTimeTrend(
   const legendHtml = `<div class="chart-legend">${legendItems.join("")}</div>`;
 
   // Truncation indicator
-  const truncationHtml = truncated
-    ? `<div class="truncation-indicator">Showing last ${MAX_CYCLE_TIME_POINTS} weeks</div>`
-    : "";
+  const truncationHtml = renderTruncationIndicator(truncated, MAX_CYCLE_TIME_POINTS);
 
   // SECURITY: Content is SVG from computed coordinates + escapeHtml'd week values
   renderTrustedHtml(

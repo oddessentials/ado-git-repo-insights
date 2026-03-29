@@ -607,6 +607,8 @@ function cacheElements(): void {
     "total-prs",
     "cycle-p50",
     "cycle-p90",
+    "review-time-p50",
+    "review-time-p90",
     "authors-count",
     "reviewers-count",
     "throughput-chart",
@@ -614,6 +616,8 @@ function cacheElements(): void {
     "total-prs-delta",
     "cycle-p50-delta",
     "cycle-p90-delta",
+    "review-time-p50-delta",
+    "review-time-p90-delta",
     "authors-delta",
     "reviewers-delta",
     "repo-filter",
@@ -633,6 +637,8 @@ function cacheElements(): void {
     "total-prs-sparkline",
     "cycle-p50-sparkline",
     "cycle-p90-sparkline",
+    "review-time-p50-sparkline",
+    "review-time-p90-sparkline",
     "authors-sparkline",
     "reviewers-sparkline",
     "cycle-time-trend",
@@ -845,7 +851,7 @@ async function refreshMetrics(): Promise<void> {
     loader?.getCapabilityState?.() ?? null,
   );
 
-  renderSummaryCards(rollups, prevRollups);
+  renderSummaryCards(rollups, prevRollups, rawRollups);
   renderThroughputChart(rollups, rawRollups, availability);
   renderCycleTimeTrend(rollups, rawRollups, availability);
   renderReviewerActivity(rollups, rawRollups, availability);
@@ -986,22 +992,29 @@ function updateOverlapIndicator(
 function renderSummaryCards(
   rollups: Rollup[],
   prevRollups: Rollup[] = [],
+  unfilteredRollups?: Rollup[],
 ): void {
   // Build container references from cached elements
   const containers: SummaryCardsContainers = {
     totalPrs: elements.get("total-prs") ?? null,
     cycleP50: elements.get("cycle-p50") ?? null,
     cycleP90: elements.get("cycle-p90") ?? null,
+    reviewTimeP50: elements.get("review-time-p50") ?? null,
+    reviewTimeP90: elements.get("review-time-p90") ?? null,
     authorsCount: elements.get("authors-count") ?? null,
     reviewersCount: elements.get("reviewers-count") ?? null,
     totalPrsSparkline: elements.get("total-prs-sparkline") ?? null,
     cycleP50Sparkline: elements.get("cycle-p50-sparkline") ?? null,
     cycleP90Sparkline: elements.get("cycle-p90-sparkline") ?? null,
+    reviewTimeP50Sparkline: elements.get("review-time-p50-sparkline") ?? null,
+    reviewTimeP90Sparkline: elements.get("review-time-p90-sparkline") ?? null,
     authorsSparkline: elements.get("authors-sparkline") ?? null,
     reviewersSparkline: elements.get("reviewers-sparkline") ?? null,
     totalPrsDelta: elements.get("total-prs-delta") ?? null,
     cycleP50Delta: elements.get("cycle-p50-delta") ?? null,
     cycleP90Delta: elements.get("cycle-p90-delta") ?? null,
+    reviewTimeP50Delta: elements.get("review-time-p50-delta") ?? null,
+    reviewTimeP90Delta: elements.get("review-time-p90-delta") ?? null,
     authorsDelta: elements.get("authors-delta") ?? null,
     reviewersDelta: elements.get("reviewers-delta") ?? null,
   };
@@ -1011,6 +1024,8 @@ function renderSummaryCards(
     prevRollups,
     containers,
     metricsCollector,
+    unfilteredRollups,
+    reviewerFilterActive: currentFilters.reviewers.length > 0,
   });
 }
 

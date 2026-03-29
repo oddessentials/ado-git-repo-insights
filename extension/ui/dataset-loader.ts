@@ -115,6 +115,8 @@ export interface Rollup {
   pr_count: number;
   cycle_time_p50: number | null;
   cycle_time_p90: number | null;
+  review_time_p50?: number | null;
+  review_time_p90?: number | null;
   authors_count: number;
   reviewers_count: number;
   by_repository: Record<string, BreakdownEntry> | null;
