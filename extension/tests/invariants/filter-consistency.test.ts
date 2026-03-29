@@ -176,7 +176,7 @@ describe("Cross-component parity: sparkline labels, delta labels, and sample siz
     expect(sampleEl).not.toBeNull();
     expect(sampleEl!.textContent).toBe("Based on 60 PRs");
 
-    // Cycle card: week-based, uses cycleWeekCount from same 6 rollups
+    // Cycle card: week-based, uses cycleP50WeekCount from same 6 rollups
     const cycleCard = containers.cycleP50!.closest(".card");
     const cycleSample = cycleCard?.querySelector(".metric-sample-size");
     expect(cycleSample).not.toBeNull();

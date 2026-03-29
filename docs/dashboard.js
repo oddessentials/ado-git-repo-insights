@@ -3711,8 +3711,10 @@ var PRInsightsDashboard = (() => {
         avgAuthors: 0,
         avgReviewers: 0,
         weekCount: 0,
-        cycleWeekCount: 0,
-        reviewTimeWeekCount: 0
+        cycleP50WeekCount: 0,
+        cycleP90WeekCount: 0,
+        reviewTimeP50WeekCount: 0,
+        reviewTimeP90WeekCount: 0
       };
     }
     const totalPrs = rollups.reduce((sum, r) => sum + (r.pr_count || 0), 0);
@@ -3737,8 +3739,10 @@ var PRInsightsDashboard = (() => {
       avgAuthors: rollups.length > 0 ? Math.round(authorsSum / rollups.length) : 0,
       avgReviewers: rollups.length > 0 ? Math.round(reviewersSum / rollups.length) : 0,
       weekCount: rollups.length,
-      cycleWeekCount: p50Values.length,
-      reviewTimeWeekCount: reviewTimeP50Values.length
+      cycleP50WeekCount: p50Values.length,
+      cycleP90WeekCount: p90Values.length,
+      reviewTimeP50WeekCount: reviewTimeP50Values.length,
+      reviewTimeP90WeekCount: reviewTimeP90Values.length
     };
   }
   function calculatePercentChange(current, previous) {
@@ -5594,29 +5598,29 @@ var PRInsightsDashboard = (() => {
       },
       {
         el: containers.cycleP50,
-        count: metrics.cycleWeekCount,
-        label: weekLabel(metrics.cycleWeekCount),
+        count: metrics.cycleP50WeekCount,
+        label: weekLabel(metrics.cycleP50WeekCount),
         low: LOW_WEEK_THRESHOLD,
         moderate: MODERATE_WEEK_THRESHOLD
       },
       {
         el: containers.cycleP90,
-        count: metrics.cycleWeekCount,
-        label: weekLabel(metrics.cycleWeekCount),
+        count: metrics.cycleP90WeekCount,
+        label: weekLabel(metrics.cycleP90WeekCount),
         low: LOW_WEEK_THRESHOLD,
         moderate: MODERATE_WEEK_THRESHOLD
       },
       {
         el: containers.reviewTimeP50,
-        count: metrics.reviewTimeWeekCount,
-        label: weekLabel(metrics.reviewTimeWeekCount),
+        count: metrics.reviewTimeP50WeekCount,
+        label: weekLabel(metrics.reviewTimeP50WeekCount),
         low: LOW_WEEK_THRESHOLD,
         moderate: MODERATE_WEEK_THRESHOLD
       },
       {
         el: containers.reviewTimeP90,
-        count: metrics.reviewTimeWeekCount,
-        label: weekLabel(metrics.reviewTimeWeekCount),
+        count: metrics.reviewTimeP90WeekCount,
+        label: weekLabel(metrics.reviewTimeP90WeekCount),
         low: LOW_WEEK_THRESHOLD,
         moderate: MODERATE_WEEK_THRESHOLD
       },

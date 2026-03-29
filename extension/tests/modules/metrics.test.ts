@@ -29,8 +29,10 @@ describe("metrics module", () => {
         avgAuthors: 0,
         avgReviewers: 0,
         weekCount: 0,
-        cycleWeekCount: 0,
-        reviewTimeWeekCount: 0,
+        cycleP50WeekCount: 0,
+        cycleP90WeekCount: 0,
+        reviewTimeP50WeekCount: 0,
+        reviewTimeP90WeekCount: 0,
       });
     });
 
@@ -119,21 +121,28 @@ describe("metrics module", () => {
       expect(result.reviewTimeP90).toBe(1800);
     });
 
-    it("exposes per-metric week counts", () => {
+    it("exposes independent P50 and P90 week counts", () => {
+      // P50 and P90 have deliberately different null patterns to test independence
       const rollups = [
-        { week: "2026-W01", pr_count: 5, cycle_time_p50: 60, review_time_p50: 900 } as Rollup,
-        { week: "2026-W02", pr_count: 8, cycle_time_p50: 80, review_time_p50: null } as Rollup,
-        { week: "2026-W03", pr_count: 3, cycle_time_p50: null, review_time_p50: 1200 } as Rollup,
-        { week: "2026-W04", pr_count: 6, cycle_time_p50: 70, review_time_p50: null } as Rollup,
-        { week: "2026-W05", pr_count: 4, cycle_time_p50: null } as Rollup,
-        { week: "2026-W06", pr_count: 7, cycle_time_p50: 90, review_time_p50: 600 } as Rollup,
-        { week: "2026-W07", pr_count: 2, cycle_time_p50: 50, review_time_p50: null } as Rollup,
-        { week: "2026-W08", pr_count: 9, cycle_time_p50: null } as Rollup,
+        { week: "2026-W01", pr_count: 5, cycle_time_p50: 60, cycle_time_p90: 120, review_time_p50: 900, review_time_p90: null } as Rollup,
+        { week: "2026-W02", pr_count: 8, cycle_time_p50: 80, cycle_time_p90: null, review_time_p50: null, review_time_p90: 1800 } as Rollup,
+        { week: "2026-W03", pr_count: 3, cycle_time_p50: null, cycle_time_p90: 200, review_time_p50: 1200, review_time_p90: 2400 } as Rollup,
+        { week: "2026-W04", pr_count: 6, cycle_time_p50: 70, cycle_time_p90: 140, review_time_p50: null, review_time_p90: null } as Rollup,
+        { week: "2026-W05", pr_count: 4, cycle_time_p50: null, cycle_time_p90: null } as Rollup,
+        { week: "2026-W06", pr_count: 7, cycle_time_p50: 90, cycle_time_p90: 180, review_time_p50: 600, review_time_p90: 1200 } as Rollup,
+        { week: "2026-W07", pr_count: 2, cycle_time_p50: 50, cycle_time_p90: null, review_time_p50: null, review_time_p90: 900 } as Rollup,
+        { week: "2026-W08", pr_count: 9, cycle_time_p50: null, cycle_time_p90: 300 } as Rollup,
       ];
       const result = calculateMetrics(rollups);
       expect(result.weekCount).toBe(8);
-      expect(result.cycleWeekCount).toBe(5);      // 5 non-null cycle_time_p50
-      expect(result.reviewTimeWeekCount).toBe(3);  // 3 non-null review_time_p50
+      // P50: weeks 1,2,4,6,7 = 5 non-null
+      expect(result.cycleP50WeekCount).toBe(5);
+      // P90: weeks 1,3,4,6,8 = 5 non-null (different weeks than P50!)
+      expect(result.cycleP90WeekCount).toBe(5);
+      // reviewTime P50: weeks 1,3,6 = 3 non-null
+      expect(result.reviewTimeP50WeekCount).toBe(3);
+      // reviewTime P90: weeks 2,3,6,7 = 4 non-null (different from P50's 3!)
+      expect(result.reviewTimeP90WeekCount).toBe(4);
     });
   });
 

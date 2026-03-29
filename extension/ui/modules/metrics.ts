@@ -61,10 +61,14 @@ export interface CalculatedMetrics {
   avgReviewers: number;
   /** Total rollup weeks (denominator for authors/reviewers averages). */
   weekCount: number;
-  /** Non-null cycle_time_p50 weeks (derivation basis for cycleP50/P90). */
-  cycleWeekCount: number;
-  /** Non-null review_time_p50 weeks (derivation basis for reviewTimeP50/P90). */
-  reviewTimeWeekCount: number;
+  /** Non-null cycle_time_p50 weeks (derivation basis for cycleP50). */
+  cycleP50WeekCount: number;
+  /** Non-null cycle_time_p90 weeks (derivation basis for cycleP90). */
+  cycleP90WeekCount: number;
+  /** Non-null review_time_p50 weeks (derivation basis for reviewTimeP50). */
+  reviewTimeP50WeekCount: number;
+  /** Non-null review_time_p90 weeks (derivation basis for reviewTimeP90). */
+  reviewTimeP90WeekCount: number;
 }
 
 /**
@@ -100,8 +104,10 @@ export function calculateMetrics(rollups: Rollup[]): CalculatedMetrics {
       avgAuthors: 0,
       avgReviewers: 0,
       weekCount: 0,
-      cycleWeekCount: 0,
-      reviewTimeWeekCount: 0,
+      cycleP50WeekCount: 0,
+      cycleP90WeekCount: 0,
+      reviewTimeP50WeekCount: 0,
+      reviewTimeP90WeekCount: 0,
     };
   }
 
@@ -145,8 +151,10 @@ export function calculateMetrics(rollups: Rollup[]): CalculatedMetrics {
     avgReviewers:
       rollups.length > 0 ? Math.round(reviewersSum / rollups.length) : 0,
     weekCount: rollups.length,
-    cycleWeekCount: p50Values.length,
-    reviewTimeWeekCount: reviewTimeP50Values.length,
+    cycleP50WeekCount: p50Values.length,
+    cycleP90WeekCount: p90Values.length,
+    reviewTimeP50WeekCount: reviewTimeP50Values.length,
+    reviewTimeP90WeekCount: reviewTimeP90Values.length,
   };
 }
 

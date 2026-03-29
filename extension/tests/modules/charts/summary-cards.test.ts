@@ -799,7 +799,7 @@ describe("summary-cards module", () => {
       expect(label!.textContent).toBe("Last 8 weeks");
     });
 
-    it("review-time P50/P90 cards share the same reviewTimeWeekCount", () => {
+    it("review-time P50/P90 cards show independent week counts", () => {
       const containers = createContainers();
 
       const p50Card = document.createElement("div");
@@ -814,6 +814,8 @@ describe("summary-cards module", () => {
       p90Card.appendChild(containers.reviewTimeP90!);
       document.body.appendChild(p90Card);
 
+      // P50 non-null on weeks 1,3 (2 weeks). P90 non-null on weeks 1,2 (2 weeks).
+      // Different weeks but same count — ensures independence is wired, not coincidental.
       const rollups = [
         { week: "2025-W01", pr_count: 10, cycle_time_p50: 60, cycle_time_p90: 120, review_time_p50: 30, review_time_p90: 60, authors_count: 5, reviewers_count: 3, by_repository: null, by_team: null },
         { week: "2025-W02", pr_count: 15, cycle_time_p50: 45, cycle_time_p90: 90, review_time_p50: null, review_time_p90: 90, authors_count: 7, reviewers_count: 4, by_repository: null, by_team: null },
@@ -822,12 +824,49 @@ describe("summary-cards module", () => {
 
       renderSummaryCards({ rollups, containers });
 
-      // Both review-time cards use reviewTimeWeekCount (2 non-null review_time_p50 weeks)
+      // P50: 2 non-null review_time_p50 weeks (W01, W03)
       const p50Sample = p50Card.querySelector(".metric-sample-size");
       expect(p50Sample!.textContent).toBe("From 2 weeks of data");
 
+      // P90: 2 non-null review_time_p90 weeks (W01, W02) — independent from P50
       const p90Sample = p90Card.querySelector(".metric-sample-size");
       expect(p90Sample!.textContent).toBe("From 2 weeks of data");
+    });
+
+    it("P90 card shows different count than P50 when null patterns diverge", () => {
+      const containers = createContainers();
+
+      const p50Card = document.createElement("div");
+      p50Card.className = "card";
+      p50Card.appendChild(document.createElement("h3"));
+      p50Card.appendChild(containers.cycleP50!);
+      document.body.appendChild(p50Card);
+
+      const p90Card = document.createElement("div");
+      p90Card.className = "card";
+      p90Card.appendChild(document.createElement("h3"));
+      p90Card.appendChild(containers.cycleP90!);
+      document.body.appendChild(p90Card);
+
+      // P50 non-null on weeks 1,2 (2 weeks). P90 non-null on weeks 1,2,3,4 (4 weeks).
+      const rollups = [
+        { week: "2025-W01", pr_count: 10, cycle_time_p50: 60, cycle_time_p90: 120, authors_count: 5, reviewers_count: 3, by_repository: null, by_team: null },
+        { week: "2025-W02", pr_count: 15, cycle_time_p50: 45, cycle_time_p90: 90, authors_count: 7, reviewers_count: 4, by_repository: null, by_team: null },
+        { week: "2025-W03", pr_count: 20, cycle_time_p50: null, cycle_time_p90: 100, authors_count: 6, reviewers_count: 3, by_repository: null, by_team: null },
+        { week: "2025-W04", pr_count: 12, cycle_time_p50: null, cycle_time_p90: 140, authors_count: 4, reviewers_count: 2, by_repository: null, by_team: null },
+      ];
+
+      renderSummaryCards({ rollups, containers });
+
+      // P50: 2 non-null weeks → low-sample (2 < 3)
+      const p50Sample = p50Card.querySelector(".metric-sample-size");
+      expect(p50Sample!.textContent).toBe("From 2 weeks of data");
+      expect(p50Sample!.classList.contains("low-sample")).toBe(true);
+
+      // P90: 4 non-null weeks → moderate-sample (3 ≤ 4 < 8)
+      const p90Sample = p90Card.querySelector(".metric-sample-size");
+      expect(p90Sample!.textContent).toBe("From 4 weeks of data");
+      expect(p90Sample!.classList.contains("moderate-sample")).toBe(true);
     });
 
     it("week-based cards show 'From N weeks of data'", () => {
@@ -866,7 +905,7 @@ describe("summary-cards module", () => {
       card.appendChild(containers.reviewTimeP50!);
       document.body.appendChild(card);
 
-      // All rollups have null review_time_p50 → reviewTimeWeekCount = 0
+      // All rollups have null review_time_p50 → reviewTimeP50WeekCount = 0
       const rollups = [
         { week: "2025-W01", pr_count: 10, cycle_time_p50: 60, cycle_time_p90: 120, authors_count: 5, reviewers_count: 3, by_repository: null, by_team: null },
         { week: "2025-W02", pr_count: 15, cycle_time_p50: 80, cycle_time_p90: 160, authors_count: 7, reviewers_count: 4, by_repository: null, by_team: null },
@@ -914,7 +953,7 @@ describe("summary-cards module", () => {
       card.appendChild(containers.cycleP50!);
       document.body.appendChild(card);
 
-      // 4 rollups, all with non-null cycle_time_p50 → cycleWeekCount = 4
+      // 4 rollups, all with non-null cycle_time_p50 → cycleP50WeekCount = 4
       renderSummaryCards({ rollups: createRollups(4), containers });
 
       const sampleEl = card.querySelector(".metric-sample-size");
@@ -931,7 +970,7 @@ describe("summary-cards module", () => {
       card.appendChild(containers.cycleP50!);
       document.body.appendChild(card);
 
-      // 8 rollups, all with non-null cycle_time_p50 → cycleWeekCount = 8
+      // 8 rollups, all with non-null cycle_time_p50 → cycleP50WeekCount = 8
       renderSummaryCards({ rollups: createRollups(8), containers });
 
       const sampleEl = card.querySelector(".metric-sample-size");
