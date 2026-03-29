@@ -104,7 +104,7 @@ export function renderThroughputChart(
 
   // Truncation indicator
   const truncationHtml = truncated
-    ? `<div class="truncation-indicator">Showing last ${MAX_THROUGHPUT_POINTS} weeks</div>`
+    ? `<div class="truncation-indicator truncation-badge">Showing last ${MAX_THROUGHPUT_POINTS} weeks</div>`
     : "";
 
   // Legend — trend line entry is conditional on whether the trend actually rendered

@@ -160,7 +160,7 @@ export function renderReviewerActivity(
 
   // Truncation indicator (matches throughput.ts and cycle-time.ts pattern)
   const truncationHtml = truncated
-    ? `<div class="truncation-indicator">Showing last ${MAX_REVIEWER_WEEKS} weeks</div>`
+    ? `<div class="truncation-indicator truncation-badge">Showing last ${MAX_REVIEWER_WEEKS} weeks</div>`
     : "";
 
   // Approval rate (shown only when reviewer filter is active and data is available)

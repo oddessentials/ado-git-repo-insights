@@ -105,8 +105,10 @@ export function renderCycleDistribution(
   const html = Array.from(buckets.entries())
     .map(([label, count]) => {
       const pct = ((count / total) * 100).toFixed(1);
+      const category = BUCKET_COLOR_MAP.get(label);
+      const categoryClass = category ? ` bucket-${category}` : "";
       return `
-            <div class="dist-row">
+            <div class="dist-row${categoryClass}">
                 <span class="dist-label">${label}</span>
                 <div class="dist-bar-bg">
                     <div class="dist-bar" style="width: ${pct}%"></div>
@@ -298,7 +300,7 @@ export function renderCycleTimeTrend(
 
   // Truncation indicator
   const truncationHtml = truncated
-    ? `<div class="truncation-indicator">Showing last ${MAX_CYCLE_TIME_POINTS} weeks</div>`
+    ? `<div class="truncation-indicator truncation-badge">Showing last ${MAX_CYCLE_TIME_POINTS} weeks</div>`
     : "";
 
   // SECURITY: Content is SVG from computed coordinates + escapeHtml'd week values

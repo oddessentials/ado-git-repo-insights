@@ -144,15 +144,15 @@
 
 ### Tests for US5
 
-- [ ] T040 [P] [US5] Add color class test in extension/tests/modules/charts/cycle-time.test.ts: given distribution with all 6 buckets, assert "0-1h" and "1-4h" dist-rows have .bucket-fast, "4-24h" and "1-3d" have .bucket-moderate, "3-7d" and "7d+" have .bucket-slow
-- [ ] T041 [P] [US5] Add unknown-label fallback test in extension/tests/modules/charts/cycle-time.test.ts: given a bucket with label "unknown", assert no bucket-* class (falls back to default styling)
+- [x] T040 [P] [US5] Add color class test in extension/tests/modules/charts/cycle-time.test.ts: given distribution with all 6 buckets, assert "0-1h" and "1-4h" dist-rows have .bucket-fast, "4-24h" and "1-3d" have .bucket-moderate, "3-7d" and "7d+" have .bucket-slow
+- [x] T041 [P] [US5] Add unknown-label fallback test in extension/tests/modules/charts/cycle-time.test.ts: given a bucket with label "unknown", assert no bucket-* class (falls back to default styling)
 - [ ] T042 [P] [US5] Add responsive test in extension/tests/invariants/mobile-layout.test.ts: at < MOBILE_BREAKPOINT, assert distribution .dist-row elements have stacked layout
 
 ### Implementation for US5
 
-- [ ] T043 [US5] Add bucket-fast, bucket-moderate, bucket-slow CSS rules in extension/ui/styles.css using var(--success), var(--warning), var(--error) respectively for .dist-bar background
-- [ ] T044 [US5] Add responsive stacking rules for .dist-row at @media (max-width: 480px) in extension/ui/styles.css: flex-direction: column, adjusted gaps and widths
-- [ ] T045 [US5] Update renderCycleDistribution() in extension/ui/modules/charts/cycle-time.ts: look up each bucket label in BUCKET_COLOR_MAP, add bucket-{category} class to dist-row element, fall back to no class for unknown labels
+- [x] T043 [US5] Add bucket-fast, bucket-moderate, bucket-slow CSS rules in extension/ui/styles.css using var(--success), var(--warning), var(--error) respectively for .dist-bar background
+- [x] T044 [US5] Add responsive stacking rules for .dist-row at @media (max-width: 480px) in extension/ui/styles.css: flex-direction: column, adjusted gaps and widths
+- [x] T045 [US5] Update renderCycleDistribution() in extension/ui/modules/charts/cycle-time.ts: look up each bucket label in BUCKET_COLOR_MAP, add bucket-{category} class to dist-row element, fall back to no class for unknown labels
 
 **Checkpoint**: Distribution chart visually indicates fast/moderate/slow with correct colors.
 
@@ -166,11 +166,11 @@
 
 ### Tests for US6
 
-- [ ] T046 [US6] Add opacity assertion test in extension/tests/unit/ux-polish-rendering.test.ts: assert .dimmed CSS rule declares opacity: 0.55 (grep styles.css or assert class presence on insufficient-data legend items)
+- [x] T046 [US6] Add opacity assertion test in extension/tests/unit/ux-polish-rendering.test.ts: assert .dimmed CSS rule declares opacity: 0.55 (grep styles.css or assert class presence on insufficient-data legend items)
 
 ### Implementation for US6
 
-- [ ] T047 [US6] Change .dimmed rule in extension/ui/styles.css line 1007 from opacity: 0.3 to opacity: 0.55
+- [x] T047 [US6] Change .dimmed rule in extension/ui/styles.css line 1007 from opacity: 0.3 to opacity: 0.55
 
 **Checkpoint**: Dimmed legend items readable.
 
@@ -184,15 +184,15 @@
 
 ### Tests for US7
 
-- [ ] T048 [P] [US7] Add badge class test in extension/tests/unit/ux-polish-rendering.test.ts: given data exceeding MAX_THROUGHPUT_POINTS, assert truncation indicator has .truncation-badge class AND text matches "Showing last 104 weeks"
-- [ ] T049 [P] [US7] Add absence test in extension/tests/unit/ux-polish-rendering.test.ts: given data within limits, assert no .truncation-badge element present
+- [x] T048 [P] [US7] Add badge class test in extension/tests/unit/ux-polish-rendering.test.ts: given data exceeding MAX_THROUGHPUT_POINTS, assert truncation indicator has .truncation-badge class AND text matches "Showing last 104 weeks"
+- [x] T049 [P] [US7] Add absence test in extension/tests/unit/ux-polish-rendering.test.ts: given data within limits, assert no .truncation-badge element present
 - [ ] T050 [P] [US7] Add mobile banner test in extension/tests/invariants/mobile-layout.test.ts: at < MOBILE_BREAKPOINT, assert truncation indicator has full-width banner styling
 
 ### Implementation for US7
 
-- [ ] T051 [US7] Add .truncation-badge CSS rules in extension/ui/styles.css: background: var(--bg-tertiary), border: 1px solid var(--border), border-radius: var(--radius), padding: 6px 12px, font-weight: 600, display: inline-block
-- [ ] T052 [US7] Add mobile .truncation-badge rules at @media (max-width: 480px) in extension/ui/styles.css: display: block, width: 100%, background: var(--warning-bg), border-left: 3px solid var(--warning)
-- [ ] T053 [US7] Add .truncation-badge class to truncation indicator divs in extension/ui/modules/charts/throughput.ts (line ~107), extension/ui/modules/charts/reviewer-activity.ts (line ~132), and extension/ui/modules/charts/cycle-time.ts (similar pattern)
+- [x] T051 [US7] Add .truncation-badge CSS rules in extension/ui/styles.css: background: var(--bg-tertiary), border: 1px solid var(--border), border-radius: var(--radius), padding: 6px 12px, font-weight: 600, display: inline-block
+- [x] T052 [US7] Add mobile .truncation-badge rules at @media (max-width: 480px) in extension/ui/styles.css: display: block, width: 100%, background: var(--warning-bg), border-left: 3px solid var(--warning)
+- [x] T053 [US7] Add .truncation-badge class to truncation indicator divs in extension/ui/modules/charts/throughput.ts (line ~107), extension/ui/modules/charts/reviewer-activity.ts (line ~132), and extension/ui/modules/charts/cycle-time.ts (similar pattern)
 
 **Checkpoint**: Truncation indicators prominent as badges on desktop, banners on mobile.
 

@@ -5914,7 +5914,7 @@ var PRInsightsDashboard = (() => {
         `;
     }).join("");
     const trendResult = renderTrendLine(displayRollups, movingAvg, maxCount);
-    const truncationHtml = truncated ? `<div class="truncation-indicator">Showing last ${MAX_THROUGHPUT_POINTS} weeks</div>` : "";
+    const truncationHtml = truncated ? `<div class="truncation-indicator truncation-badge">Showing last ${MAX_THROUGHPUT_POINTS} weeks</div>` : "";
     const trendLegendItem = trendResult.rendered ? `<div class="legend-item"><span class="legend-line"></span><span>4-week avg</span></div>` : `<div class="legend-item legend-insufficient"><span class="legend-line dimmed"></span><span>4-week avg \u2014 needs 4+ weeks</span></div>`;
     const legendHtml = `
         <div class="chart-legend">
@@ -5968,6 +5968,14 @@ var PRInsightsDashboard = (() => {
 
   // ../ui/modules/charts/cycle-time.ts
   var MAX_CYCLE_TIME_POINTS = 104;
+  var BUCKET_COLOR_MAP = /* @__PURE__ */ new Map([
+    ["0-1h", "fast"],
+    ["1-4h", "fast"],
+    ["4-24h", "moderate"],
+    ["1-3d", "moderate"],
+    ["3-7d", "slow"],
+    ["7d+", "slow"]
+  ]);
   function renderCycleDistribution(container, distributions, options) {
     if (!container) return;
     if (!distributions || !distributions.length) {
@@ -6014,8 +6022,10 @@ var PRInsightsDashboard = (() => {
     }
     const html = Array.from(buckets.entries()).map(([label, count]) => {
       const pct = (count / total * 100).toFixed(1);
+      const category = BUCKET_COLOR_MAP.get(label);
+      const categoryClass = category ? ` bucket-${category}` : "";
       return `
-            <div class="dist-row">
+            <div class="dist-row${categoryClass}">
                 <span class="dist-label">${label}</span>
                 <div class="dist-bar-bg">
                     <div class="dist-bar" style="width: ${pct}%"></div>
@@ -6133,7 +6143,7 @@ var PRInsightsDashboard = (() => {
       legendItems.push(`<div class="legend-item legend-insufficient"><span class="chart-tooltip-dot legend-p90 dimmed"></span><span>P90 \u2014 insufficient points</span></div>`);
     }
     const legendHtml = `<div class="chart-legend">${legendItems.join("")}</div>`;
-    const truncationHtml = truncated ? `<div class="truncation-indicator">Showing last ${MAX_CYCLE_TIME_POINTS} weeks</div>` : "";
+    const truncationHtml = truncated ? `<div class="truncation-indicator truncation-badge">Showing last ${MAX_CYCLE_TIME_POINTS} weeks</div>` : "";
     renderTrustedHtml(
       container,
       `${truncationHtml}<div class="line-chart">${svgContent}</div>${legendHtml}`
@@ -6235,7 +6245,7 @@ var PRInsightsDashboard = (() => {
             </div>
         `;
     }).join("");
-    const truncationHtml = truncated ? `<div class="truncation-indicator">Showing last ${MAX_REVIEWER_WEEKS} weeks</div>` : "";
+    const truncationHtml = truncated ? `<div class="truncation-indicator truncation-badge">Showing last ${MAX_REVIEWER_WEEKS} weeks</div>` : "";
     let approvalHtml = "";
     if (reviewerFilterActive) {
       const reviewerIds = options.filters?.reviewers ?? [];

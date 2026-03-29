@@ -1001,6 +1001,15 @@ input[type="search"]::placeholder {
     margin-bottom: 8px;
 }
 
+.truncation-badge {
+    display: inline-block;
+    padding: 6px 12px;
+    background: var(--bg-tertiary);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    font-weight: 600;
+}
+
 .chart-legend {
     display: flex;
     justify-content: flex-end;
@@ -1022,7 +1031,7 @@ input[type="search"]::placeholder {
 }
 
 .dimmed {
-    opacity: 0.3;
+    opacity: 0.55;
 }
 
 .legend-bar {
@@ -1272,6 +1281,18 @@ input[type="search"]::placeholder {
     );
     border-radius: var(--radius);
     transition: width 0.3s ease;
+}
+
+.bucket-fast .dist-bar {
+    background: linear-gradient(90deg, var(--success) 0%, #0a5f0a 100%);
+}
+
+.bucket-moderate .dist-bar {
+    background: linear-gradient(90deg, var(--warning) 0%, #e08900 100%);
+}
+
+.bucket-slow .dist-bar {
+    background: linear-gradient(90deg, var(--error) 0%, #a01f1a 100%);
 }
 
 .dist-value {
@@ -2527,6 +2548,34 @@ input[type="search"]::placeholder {
 
     .comparison-period .period-dates {
         font-size: 12px;
+    }
+
+    .truncation-badge {
+        display: block;
+        width: 100%;
+        background: var(--warning-bg);
+        border: none;
+        border-left: 3px solid var(--warning);
+        border-radius: 0;
+    }
+
+    .dist-row {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 6px;
+    }
+
+    .dist-label {
+        width: 100%;
+    }
+
+    .dist-bar-bg {
+        width: 100%;
+    }
+
+    .dist-value {
+        width: 100%;
+        text-align: left;
     }
 }
 
