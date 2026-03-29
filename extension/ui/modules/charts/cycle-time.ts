@@ -13,6 +13,8 @@ import type { FilterState } from "../filters";
 import { addChartTooltips, clearChartTooltips } from "../charts";
 import { classifyEmptyState } from "../empty-state-classifier";
 import { formatDuration } from "../shared/format";
+import { renderTruncationIndicator } from "../shared/chart-layout";
+import { buildLinePath } from "../shared/svg-path";
 import {
   escapeHtml,
   renderNoData,
@@ -235,11 +237,7 @@ export function renderCycleTimeTrend(
         (p): p is { x: number; y: number; week: string; value: number } =>
           p !== null,
       );
-    const pathD = points
-      .map(
-        (p, i) => `${i === 0 ? "M" : "L"} ${p.x.toFixed(1)} ${p.y.toFixed(1)}`,
-      )
-      .join(" ");
+    const pathD = buildLinePath(points);
     return { pathD, points };
   };
 
@@ -299,9 +297,7 @@ export function renderCycleTimeTrend(
   const legendHtml = `<div class="chart-legend">${legendItems.join("")}</div>`;
 
   // Truncation indicator
-  const truncationHtml = truncated
-    ? `<div class="truncation-indicator truncation-badge">Showing last ${MAX_CYCLE_TIME_POINTS} weeks</div>`
-    : "";
+  const truncationHtml = renderTruncationIndicator(truncated, MAX_CYCLE_TIME_POINTS);
 
   // SECURITY: Content is SVG from computed coordinates + escapeHtml'd week values
   renderTrustedHtml(

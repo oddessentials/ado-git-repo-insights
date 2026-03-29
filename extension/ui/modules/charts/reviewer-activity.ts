@@ -12,6 +12,7 @@ import type { Rollup } from "../../dataset-loader";
 import type { DataAvailabilitySignal } from "../../types";
 import type { FilterState } from "../filters";
 import { classifyEmptyState } from "../empty-state-classifier";
+import { renderTruncationIndicator } from "../shared/chart-layout";
 import {
   escapeHtml,
   renderNoData,
@@ -158,10 +159,8 @@ export function renderReviewerActivity(
     })
     .join("");
 
-  // Truncation indicator (matches throughput.ts and cycle-time.ts pattern)
-  const truncationHtml = truncated
-    ? `<div class="truncation-indicator truncation-badge">Showing last ${MAX_REVIEWER_WEEKS} weeks</div>`
-    : "";
+  // Truncation indicator
+  const truncationHtml = renderTruncationIndicator(truncated, MAX_REVIEWER_WEEKS);
 
   // Approval rate (shown only when reviewer filter is active and data is available)
   let approvalHtml = "";

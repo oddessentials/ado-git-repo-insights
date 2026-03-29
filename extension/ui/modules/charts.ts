@@ -9,6 +9,7 @@
  */
 
 import { clearElement, renderTrustedHtml } from "./shared/render";
+import { buildLinePath } from "./shared/svg-path";
 import {
   dismissAllTooltips,
   showChartTooltip,
@@ -107,9 +108,7 @@ export function renderSparkline(
   });
 
   // Create path
-  const pathD = points
-    .map((p, i) => `${i === 0 ? "M" : "L"} ${p.x.toFixed(1)} ${p.y.toFixed(1)}`)
-    .join(" ");
+  const pathD = buildLinePath(points);
 
   // Points array is guaranteed non-empty (values.length >= 2 checked above)
   const firstPoint = points[0];

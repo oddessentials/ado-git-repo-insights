@@ -3592,6 +3592,12 @@ var PRInsightsDashboard = (() => {
     window.MockArtifactClient = MockArtifactClient;
   }
 
+  // ../ui/modules/shared/chart-layout.ts
+  function renderTruncationIndicator(truncated, maxPoints, noun = "weeks") {
+    if (!truncated) return "";
+    return `<div class="truncation-indicator truncation-badge">Showing last ${maxPoints} ${noun}</div>`;
+  }
+
   // ../ui/modules/shared/constants.ts
   var LOW_SAMPLE_THRESHOLD = 10;
 
@@ -3659,6 +3665,14 @@ var PRInsightsDashboard = (() => {
     while (temp.firstChild) {
       container.appendChild(temp.firstChild);
     }
+  }
+
+  // ../ui/modules/shared/svg-path.ts
+  function buildLinePath(points) {
+    if (points.length < 2) return "";
+    return points.map(
+      (p, i) => `${i === 0 ? "M" : "L"} ${p.x.toFixed(1)} ${p.y.toFixed(1)}`
+    ).join(" ");
   }
 
   // ../ui/modules/metrics.ts
@@ -5392,7 +5406,7 @@ var PRInsightsDashboard = (() => {
       const y = height - padding - (val - minVal) / range * (height - padding * 2);
       return { x, y };
     });
-    const pathD = points.map((p, i) => `${i === 0 ? "M" : "L"} ${p.x.toFixed(1)} ${p.y.toFixed(1)}`).join(" ");
+    const pathD = buildLinePath(points);
     const firstPoint = points[0];
     const lastPoint = points[points.length - 1];
     if (!firstPoint || !lastPoint) return;
@@ -5914,7 +5928,7 @@ var PRInsightsDashboard = (() => {
         `;
     }).join("");
     const trendResult = renderTrendLine(displayRollups, movingAvg, maxCount);
-    const truncationHtml = truncated ? `<div class="truncation-indicator truncation-badge">Showing last ${MAX_THROUGHPUT_POINTS} weeks</div>` : "";
+    const truncationHtml = renderTruncationIndicator(truncated, MAX_THROUGHPUT_POINTS);
     const trendLegendItem = trendResult.rendered ? `<div class="legend-item"><span class="legend-line"></span><span>4-week avg</span></div>` : `<div class="legend-item legend-insufficient"><span class="legend-line dimmed"></span><span>4-week avg \u2014 needs 4+ weeks</span></div>`;
     const legendHtml = `
         <div class="chart-legend">
@@ -6100,9 +6114,7 @@ var PRInsightsDashboard = (() => {
       }).filter(
         (p) => p !== null
       );
-      const pathD = points.map(
-        (p, i) => `${i === 0 ? "M" : "L"} ${p.x.toFixed(1)} ${p.y.toFixed(1)}`
-      ).join(" ");
+      const pathD = buildLinePath(points);
       return { pathD, points };
     };
     const p50Path = p50Data.length >= 2 ? generatePath(p50Data) : null;
@@ -6143,7 +6155,7 @@ var PRInsightsDashboard = (() => {
       legendItems.push(`<div class="legend-item legend-insufficient"><span class="chart-tooltip-dot legend-p90 dimmed"></span><span>P90 \u2014 insufficient points</span></div>`);
     }
     const legendHtml = `<div class="chart-legend">${legendItems.join("")}</div>`;
-    const truncationHtml = truncated ? `<div class="truncation-indicator truncation-badge">Showing last ${MAX_CYCLE_TIME_POINTS} weeks</div>` : "";
+    const truncationHtml = renderTruncationIndicator(truncated, MAX_CYCLE_TIME_POINTS);
     renderTrustedHtml(
       container,
       `${truncationHtml}<div class="line-chart">${svgContent}</div>${legendHtml}`
@@ -6245,7 +6257,7 @@ var PRInsightsDashboard = (() => {
             </div>
         `;
     }).join("");
-    const truncationHtml = truncated ? `<div class="truncation-indicator truncation-badge">Showing last ${MAX_REVIEWER_WEEKS} weeks</div>` : "";
+    const truncationHtml = renderTruncationIndicator(truncated, MAX_REVIEWER_WEEKS);
     let approvalHtml = "";
     if (reviewerFilterActive) {
       const reviewerIds = options.filters?.reviewers ?? [];
