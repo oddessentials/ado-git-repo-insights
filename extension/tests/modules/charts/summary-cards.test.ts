@@ -414,4 +414,174 @@ describe("summary-cards module", () => {
       expect(p90Card.style.display).toBe("");
     });
   });
+
+  describe("sparkline time labels (US4)", () => {
+    it("displays 'Last N weeks' below each sparkline", () => {
+      const containers = createContainers();
+      const card = document.createElement("div");
+      card.className = "metric-card";
+      card.appendChild(document.createElement("h3"));
+      card.appendChild(containers.totalPrs!);
+      card.appendChild(containers.totalPrsSparkline!);
+      document.body.appendChild(card);
+
+      // 20 weeks → capped at 8
+      renderSummaryCards({ rollups: createRollups(20), containers });
+
+      const label = card.querySelector(".sparkline-label");
+      expect(label).not.toBeNull();
+      expect(label!.textContent).toBe("Last 8 weeks");
+    });
+
+    it("reflects actual week count when fewer than lookback", () => {
+      const containers = createContainers();
+      const card = document.createElement("div");
+      card.className = "metric-card";
+      card.appendChild(document.createElement("h3"));
+      card.appendChild(containers.totalPrs!);
+      card.appendChild(containers.totalPrsSparkline!);
+      document.body.appendChild(card);
+
+      renderSummaryCards({ rollups: createRollups(4), containers });
+
+      const label = card.querySelector(".sparkline-label");
+      expect(label!.textContent).toBe("Last 4 weeks");
+    });
+
+    it("uses singular 'week' for count of 1", () => {
+      const containers = createContainers();
+      const card = document.createElement("div");
+      card.className = "metric-card";
+      card.appendChild(document.createElement("h3"));
+      card.appendChild(containers.totalPrs!);
+      card.appendChild(containers.totalPrsSparkline!);
+      document.body.appendChild(card);
+
+      renderSummaryCards({ rollups: createRollups(1), containers });
+
+      const label = card.querySelector(".sparkline-label");
+      expect(label!.textContent).toBe("Last 1 week");
+    });
+
+    it("shows consistent N across all sparkline labels", () => {
+      const containers = createContainers();
+      const pairs: [HTMLElement, HTMLElement][] = [
+        [containers.totalPrs!, containers.totalPrsSparkline!],
+        [containers.cycleP50!, containers.cycleP50Sparkline!],
+      ];
+      const cards: HTMLElement[] = [];
+      for (const [valEl, sparkEl] of pairs) {
+        const card = document.createElement("div");
+        card.className = "metric-card";
+        card.appendChild(document.createElement("h3"));
+        card.appendChild(valEl);
+        card.appendChild(sparkEl);
+        document.body.appendChild(card);
+        cards.push(card);
+      }
+
+      renderSummaryCards({ rollups: createRollups(12), containers });
+
+      const labels = cards
+        .map((c) => c.querySelector(".sparkline-label")?.textContent)
+        .filter(Boolean);
+      expect(labels.length).toBe(pairs.length);
+      expect(new Set(labels).size).toBe(1);
+      expect(labels[0]).toBe("Last 8 weeks");
+    });
+  });
+
+  describe("sample size indicator (US3)", () => {
+    it("displays 'Based on N PRs' on each summary card", () => {
+      const containers = createContainers();
+      // Wrap a value element in a .metric-card so sample-size can be injected
+      const card = document.createElement("div");
+      card.className = "metric-card";
+      const h3 = document.createElement("h3");
+      h3.textContent = "Total PRs";
+      card.appendChild(h3);
+      card.appendChild(containers.totalPrs!);
+      document.body.appendChild(card);
+
+      // 4 rollups: pr_count = 10 + 15 + 20 + 25 = 70
+      renderSummaryCards({ rollups: createRollups(4), containers });
+
+      const sampleEl = card.querySelector(".metric-sample-size");
+      expect(sampleEl).not.toBeNull();
+      expect(sampleEl!.textContent).toBe("Based on 70 PRs");
+    });
+
+    it("uses singular 'PR' for count of 1", () => {
+      const containers = createContainers();
+      const card = document.createElement("div");
+      card.className = "metric-card";
+      card.appendChild(document.createElement("h3"));
+      card.appendChild(containers.totalPrs!);
+      document.body.appendChild(card);
+
+      const rollups = [{
+        week: "2025-W01", pr_count: 1,
+        cycle_time_p50: 60, cycle_time_p90: 120,
+        authors_count: 1, reviewers_count: 1,
+        by_repository: null, by_team: null,
+      }];
+
+      renderSummaryCards({ rollups, containers });
+
+      const sampleEl = card.querySelector(".metric-sample-size");
+      expect(sampleEl!.textContent).toBe("Based on 1 PR");
+    });
+
+    it("shows same N value across all cards", () => {
+      const containers = createContainers();
+      const valueEls = [
+        containers.totalPrs!,
+        containers.cycleP50!,
+        containers.cycleP90!,
+        containers.authorsCount!,
+        containers.reviewersCount!,
+      ];
+      const cards: HTMLElement[] = [];
+      for (const valEl of valueEls) {
+        const card = document.createElement("div");
+        card.className = "metric-card";
+        card.appendChild(document.createElement("h3"));
+        card.appendChild(valEl);
+        document.body.appendChild(card);
+        cards.push(card);
+      }
+
+      renderSummaryCards({ rollups: createRollups(4), containers });
+
+      const values = cards
+        .map((c) => c.querySelector(".metric-sample-size")?.textContent)
+        .filter(Boolean);
+      expect(values.length).toBe(valueEls.length);
+      expect(new Set(values).size).toBe(1); // All identical
+      expect(values[0]).toBe("Based on 70 PRs");
+    });
+
+    it("applies .low-sample class when below LOW_SAMPLE_THRESHOLD", () => {
+      const containers = createContainers();
+      const card = document.createElement("div");
+      card.className = "metric-card";
+      card.appendChild(document.createElement("h3"));
+      card.appendChild(containers.totalPrs!);
+      document.body.appendChild(card);
+
+      const rollups = [{
+        week: "2025-W01", pr_count: 5,
+        cycle_time_p50: 60, cycle_time_p90: 120,
+        authors_count: 2, reviewers_count: 1,
+        by_repository: null, by_team: null,
+      }];
+
+      renderSummaryCards({ rollups, containers });
+
+      const sampleEl = card.querySelector(".metric-sample-size");
+      expect(sampleEl).not.toBeNull();
+      expect(sampleEl!.classList.contains("low-sample")).toBe(true);
+      expect(sampleEl!.textContent).toBe("Based on 5 PRs");
+    });
+  });
 });

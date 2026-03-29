@@ -3592,6 +3592,9 @@ var PRInsightsDashboard = (() => {
     window.MockArtifactClient = MockArtifactClient;
   }
 
+  // ../ui/modules/shared/constants.ts
+  var LOW_SAMPLE_THRESHOLD = 10;
+
   // ../ui/modules/shared/format.ts
   function formatDuration(minutes) {
     if (minutes < 60) {
@@ -5348,6 +5351,9 @@ var PRInsightsDashboard = (() => {
   // ../ui/modules/charts.ts
   var SCROLL_CANCEL_THRESHOLD = 10;
   var SPARKLINE_LOOKBACK_WEEKS = 8;
+  function getLookbackWeekCount(rollupCount) {
+    return Math.min(rollupCount, SPARKLINE_LOOKBACK_WEEKS);
+  }
   function renderDelta(element, percentChange, inverse = false) {
     if (!element) return;
     if (percentChange === null) {
@@ -5527,9 +5533,11 @@ var PRInsightsDashboard = (() => {
     );
     toggleReviewTimeCards(containers, hasReviewTimeData);
     renderMetricValues(containers, current);
+    renderSampleSize(containers, current.totalPrs);
     attachInfoIcons(containers);
     const sparklineData = extractSparklineData(rollups);
     renderSparklines(containers, sparklineData);
+    renderSparklineLabels(containers, rollups.length);
     if (prevRollups && prevRollups.length > 0) {
       renderDeltas(containers, current, previous);
     } else {
@@ -5543,6 +5551,62 @@ var PRInsightsDashboard = (() => {
         "dashboard-init",
         "first-meaningful-paint"
       );
+    }
+  }
+  function renderSampleSize(containers, totalPrs) {
+    const label = `Based on ${totalPrs.toLocaleString()} ${totalPrs === 1 ? "PR" : "PRs"}`;
+    const isLow = totalPrs < LOW_SAMPLE_THRESHOLD;
+    const valueElements = [
+      containers.totalPrs,
+      containers.cycleP50,
+      containers.cycleP90,
+      containers.reviewTimeP50,
+      containers.reviewTimeP90,
+      containers.authorsCount,
+      containers.reviewersCount
+    ];
+    for (const el of valueElements) {
+      const card = el?.closest(".metric-card");
+      if (!card) continue;
+      const existing = card.querySelector(".metric-sample-size");
+      if (existing) existing.remove();
+      const subtitle = document.createElement("p");
+      subtitle.className = isLow ? "metric-sample-size low-sample" : "metric-sample-size";
+      subtitle.textContent = label;
+      const title = card.querySelector("h3");
+      if (title?.nextSibling) {
+        card.insertBefore(subtitle, title.nextSibling);
+      } else {
+        card.appendChild(subtitle);
+      }
+    }
+  }
+  function renderSparklineLabels(containers, rollupCount) {
+    const n = getLookbackWeekCount(rollupCount);
+    const text = `Last ${n} ${n === 1 ? "week" : "weeks"}`;
+    const sparklineElements = [
+      containers.totalPrsSparkline,
+      containers.cycleP50Sparkline,
+      containers.cycleP90Sparkline,
+      containers.reviewTimeP50Sparkline,
+      containers.reviewTimeP90Sparkline,
+      containers.authorsSparkline,
+      containers.reviewersSparkline
+    ];
+    for (const el of sparklineElements) {
+      if (!el) continue;
+      const card = el.closest(".metric-card");
+      if (!card) continue;
+      const existing = card.querySelector(".sparkline-label");
+      if (existing) existing.remove();
+      const label = document.createElement("p");
+      label.className = "sparkline-label";
+      label.textContent = text;
+      if (el.nextSibling) {
+        card.insertBefore(label, el.nextSibling);
+      } else {
+        card.appendChild(label);
+      }
     }
   }
   function toggleReviewTimeCards(containers, visible) {

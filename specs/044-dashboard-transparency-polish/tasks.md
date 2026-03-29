@@ -101,15 +101,15 @@
 
 ### Tests for US3
 
-- [ ] T029 [P] [US3] Add sample size rendering test in extension/tests/modules/charts/summary-cards.test.ts: given 127 total PRs, assert all cards contain "Based on 127 PRs" subtitle with .metric-sample-size class
-- [ ] T030 [P] [US3] Add consistency test in extension/tests/modules/charts/summary-cards.test.ts: assert all sample-size subtitles across all cards show identical N value
-- [ ] T031 [P] [US3] Add singular test in extension/tests/modules/charts/summary-cards.test.ts: given 1 PR, assert "Based on 1 PR" (no 's')
-- [ ] T032 [P] [US3] Add low-sample test in extension/tests/modules/charts/summary-cards.test.ts: given 5 PRs (< LOW_SAMPLE_THRESHOLD), assert .low-sample CSS class applied to subtitle
+- [x] T029 [P] [US3] Add sample size rendering test in extension/tests/modules/charts/summary-cards.test.ts: given 127 total PRs, assert all cards contain "Based on 127 PRs" subtitle with .metric-sample-size class
+- [x] T030 [P] [US3] Add consistency test in extension/tests/modules/charts/summary-cards.test.ts: assert all sample-size subtitles across all cards show identical N value
+- [x] T031 [P] [US3] Add singular test in extension/tests/modules/charts/summary-cards.test.ts: given 1 PR, assert "Based on 1 PR" (no 's')
+- [x] T032 [P] [US3] Add low-sample test in extension/tests/modules/charts/summary-cards.test.ts: given 5 PRs (< LOW_SAMPLE_THRESHOLD), assert .low-sample CSS class applied to subtitle
 
 ### Implementation for US3
 
-- [ ] T033 [US3] Add .metric-sample-size and .metric-sample-size.low-sample CSS rules in extension/ui/styles.css (font-size: 12px, color: var(--text-secondary), italic when low-sample)
-- [ ] T034 [US3] Add sample size subtitle rendering in renderSummaryCards() in extension/ui/modules/charts/summary-cards.ts: compute totalPrs once from calculateMetrics(), format as "Based on N PR(s)", inject into each card's DOM with .metric-sample-size class, add .low-sample when below LOW_SAMPLE_THRESHOLD
+- [x] T033 [US3] Add .metric-sample-size and .metric-sample-size.low-sample CSS rules in extension/ui/styles.css (font-size: 12px, color: var(--text-secondary), italic when low-sample)
+- [x] T034 [US3] Add sample size subtitle rendering in renderSummaryCards() in extension/ui/modules/charts/summary-cards.ts: compute totalPrs once from calculateMetrics(), format as "Based on N PR(s)", inject into each card's DOM with .metric-sample-size class, add .low-sample when below LOW_SAMPLE_THRESHOLD
 
 **Checkpoint**: All cards show consistent sample size. Low counts visually de-emphasized.
 
@@ -123,14 +123,14 @@
 
 ### Tests for US4
 
-- [ ] T035 [P] [US4] Add label rendering test in extension/tests/modules/charts/summary-cards.test.ts: given 20 weeks data, assert all sparklines have "Last 8 weeks" label with .sparkline-label class
-- [ ] T036 [P] [US4] Add short-data test in extension/tests/modules/charts/summary-cards.test.ts: given 4 weeks data, assert "Last 4 weeks"; given 1 week, assert "Last 1 week" (singular)
-- [ ] T037 [P] [US4] Add consistency test in extension/tests/modules/charts/summary-cards.test.ts: assert all sparkline labels within a single render display identical N value
+- [x] T035 [P] [US4] Add label rendering test in extension/tests/modules/charts/summary-cards.test.ts: given 20 weeks data, assert all sparklines have "Last 8 weeks" label with .sparkline-label class
+- [x] T036 [P] [US4] Add short-data test in extension/tests/modules/charts/summary-cards.test.ts: given 4 weeks data, assert "Last 4 weeks"; given 1 week, assert "Last 1 week" (singular)
+- [x] T037 [P] [US4] Add consistency test in extension/tests/modules/charts/summary-cards.test.ts: assert all sparkline labels within a single render display identical N value
 
 ### Implementation for US4
 
-- [ ] T038 [US4] Add .sparkline-label CSS rule in extension/ui/styles.css (font-size: 10px, color: var(--text-tertiary), text-align: right)
-- [ ] T039 [US4] Add sparkline time label rendering in renderSummaryCards() in extension/ui/modules/charts/summary-cards.ts: call getLookbackWeekCount() once, format as "Last N week(s)", inject below each sparkline container
+- [x] T038 [US4] Add .sparkline-label CSS rule in extension/ui/styles.css (font-size: 10px, color: var(--text-tertiary), text-align: right)
+- [x] T039 [US4] Add sparkline time label rendering in renderSummaryCards() in extension/ui/modules/charts/summary-cards.ts: call getLookbackWeekCount() once, format as "Last N week(s)", inject below each sparkline container
 
 **Checkpoint**: All sparklines labeled with consistent time period.
 

@@ -15,8 +15,9 @@ import {
   extractSparklineData,
   type CalculatedMetrics,
 } from "../metrics";
-import { renderDelta, renderSparkline } from "../charts";
+import { renderDelta, renderSparkline, getLookbackWeekCount } from "../charts";
 import { formatDuration } from "../shared/format";
+import { LOW_SAMPLE_THRESHOLD } from "../shared/constants";
 import { clearElement } from "../shared/render";
 import { showInfoTooltip, dismissAllTooltips } from "../tooltip-manager";
 
@@ -137,12 +138,18 @@ export function renderSummaryCards(options: RenderSummaryCardsOptions): void {
   // Render metric values
   renderMetricValues(containers, current);
 
+  // Render sample size subtitle on each card (FR-006, FR-007)
+  renderSampleSize(containers, current.totalPrs);
+
   // Attach info icons to summary card titles
   attachInfoIcons(containers);
 
   // Render sparklines
   const sparklineData = extractSparklineData(rollups);
   renderSparklines(containers, sparklineData);
+
+  // Render sparkline time period labels (FR-010, FR-011)
+  renderSparklineLabels(containers, rollups.length);
 
   // Render deltas (only if we have previous period data)
   if (prevRollups && prevRollups.length > 0) {
@@ -159,6 +166,91 @@ export function renderSummaryCards(options: RenderSummaryCardsOptions): void {
       "dashboard-init",
       "first-meaningful-paint",
     );
+  }
+}
+
+/**
+ * Render sample size subtitle ("Based on N PRs") on each visible metric card.
+ * Computed once, shared across all cards (FR-006). Applies .low-sample class
+ * when count is below LOW_SAMPLE_THRESHOLD (FR-009).
+ */
+function renderSampleSize(
+  containers: SummaryCardsContainers,
+  totalPrs: number,
+): void {
+  const label = `Based on ${totalPrs.toLocaleString()} ${totalPrs === 1 ? "PR" : "PRs"}`;
+  const isLow = totalPrs < LOW_SAMPLE_THRESHOLD;
+
+  const valueElements: (HTMLElement | null)[] = [
+    containers.totalPrs,
+    containers.cycleP50,
+    containers.cycleP90,
+    containers.reviewTimeP50,
+    containers.reviewTimeP90,
+    containers.authorsCount,
+    containers.reviewersCount,
+  ];
+
+  for (const el of valueElements) {
+    const card = el?.closest(".metric-card") as HTMLElement | null;
+    if (!card) continue;
+
+    // Remove old sample-size element on re-render
+    const existing = card.querySelector(".metric-sample-size");
+    if (existing) existing.remove();
+
+    const subtitle = document.createElement("p");
+    subtitle.className = isLow ? "metric-sample-size low-sample" : "metric-sample-size";
+    subtitle.textContent = label;
+    // Insert after the h3 title
+    const title = card.querySelector("h3");
+    if (title?.nextSibling) {
+      card.insertBefore(subtitle, title.nextSibling);
+    } else {
+      card.appendChild(subtitle);
+    }
+  }
+}
+
+/**
+ * Render sparkline time period labels (e.g., "Last 8 weeks") on each card.
+ * Uses getLookbackWeekCount() as single source of truth (FR-010).
+ */
+function renderSparklineLabels(
+  containers: SummaryCardsContainers,
+  rollupCount: number,
+): void {
+  const n = getLookbackWeekCount(rollupCount);
+  const text = `Last ${n} ${n === 1 ? "week" : "weeks"}`;
+
+  const sparklineElements: (HTMLElement | null)[] = [
+    containers.totalPrsSparkline,
+    containers.cycleP50Sparkline,
+    containers.cycleP90Sparkline,
+    containers.reviewTimeP50Sparkline,
+    containers.reviewTimeP90Sparkline,
+    containers.authorsSparkline,
+    containers.reviewersSparkline,
+  ];
+
+  for (const el of sparklineElements) {
+    if (!el) continue;
+    const card = el.closest(".metric-card") as HTMLElement | null;
+    if (!card) continue;
+
+    // Remove old label on re-render
+    const existing = card.querySelector(".sparkline-label");
+    if (existing) existing.remove();
+
+    const label = document.createElement("p");
+    label.className = "sparkline-label";
+    label.textContent = text;
+    // Insert after the sparkline container
+    if (el.nextSibling) {
+      card.insertBefore(label, el.nextSibling);
+    } else {
+      card.appendChild(label);
+    }
   }
 }
 
