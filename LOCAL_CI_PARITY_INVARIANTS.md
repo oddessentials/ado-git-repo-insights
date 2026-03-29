@@ -116,8 +116,9 @@ git push    -->  .husky/pre-push    -->  run_repo_hook.py pre-push    -->  Tier 
 ## Governance
 
 - **Adding a new CI check**: MUST add corresponding local equivalent in `run_repo_hook.py` or `run_pr_preflight.py` before merging. Update this document.
-- **Trigger scope alignment**: Pre-commit trigger scope MUST match or exceed the effective compilation scope of the gate it guards. If a gate compiles files from multiple directories (e.g., `tsconfig.test.json` includes both `tests/` and `ui/`), the trigger must fire for changes to any of those directories. Define triggers by what the compiler reads, not by what the developer intends to change. Regression tests for trigger functions are in `tests/unit/test_hook_triggers.py`.
+- **Trigger scope alignment**: Pre-commit trigger scope MUST match or exceed the effective compilation scope of the gate it guards. Any file included in a gate's tsconfig (or equivalent config) MUST have a corresponding trigger in `is_test_trigger()` or `is_ui_trigger()`. If a gate compiles files from multiple directories (e.g., `tsconfig.test.json` includes `tests/`, `ui/`, and `types/`), the trigger must fire for changes to any of those directories. Define triggers by what the compiler reads, not by what the developer intends to change. If a tsconfig gains a new include path, add a trigger and a regression test. Regression tests: `tests/unit/test_hook_triggers.py`.
 - **Weakening a local check**: MUST document rationale in this file. CI-hard-gate checks must never exist in a weaker local mode.
+- **Pre-commit selectivity (Tier 1 asymmetry)**: Pre-commit gates are intentionally selective — they run only when relevant files are staged, not unconditionally. This is a performance tradeoff: pre-push (Tier 2) runs unconditionally and catches anything pre-commit missed. The asymmetry is between Tier 1 and Tier 2, not between local and CI. This is by design, not a defect.
 - **`--no-verify`**: Forbidden by project policy. Never bypass git hooks.
 - **Reviewing this document**: After any CI pipeline change, verify parity by running the full preflight locally: `python scripts/run_pr_preflight.py`.
 

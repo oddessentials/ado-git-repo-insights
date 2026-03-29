@@ -75,12 +75,28 @@ class TestIsTestTrigger:
     @pytest.mark.parametrize(
         "path",
         [
+            "types/vss.d.ts",
+        ],
+    )
+    def test_type_declaration_files_are_triggers(self, path: str) -> None:
+        """types/vss.d.ts is referenced in tsconfig.test.json as ../types/vss.d.ts.
+
+        Changes to shared type declarations can break test compilation.
+        This trigger prevents the gap where CI catches the error but
+        pre-commit does not.
+        """
+        assert is_test_trigger(path) is True
+
+    @pytest.mark.parametrize(
+        "path",
+        [
             "extension/package.json",
             "extension/ui/styles.css",
             "extension/ui/index.html",
             "scripts/run_repo_hook.py",
             "src/ado_git_repo_insights/extract.py",
             "extension/tests/fixtures/some-fixture.json",
+            "types/some-other.ts",  # only .d.ts should trigger, not arbitrary .ts in types/
         ],
     )
     def test_non_ts_files_are_not_triggers(self, path: str) -> None:

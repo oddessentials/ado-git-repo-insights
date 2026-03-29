@@ -427,16 +427,28 @@ def run_extension_typecheck() -> None:
 def is_test_trigger(path: str) -> bool:
     """Return True if the staged path should trigger test type-checking.
 
-    The trigger scope must match the effective compilation scope of
-    tsconfig.test.json (currently: tests/**/*.ts, ui/**/*.ts, types/).
-    Any file the test type-checker compiles is a valid trigger — this
-    ensures the pre-commit gate has the same coverage as CI (QG-35).
+    CONTRACT: any file included in tsconfig.test.json MUST be covered
+    here.  The trigger scope must match or exceed the effective
+    compilation scope of the test tsconfig.
+
+    Current tsconfig.test.json includes:
+      - tests/**/*.ts       → extension/tests/**/*.ts
+      - ui/**/*.ts          → extension/ui/**/*.ts
+      - ../types/vss.d.ts   → types/vss.d.ts
+      - tsconfig*.json      → config changes can alter compilation
+
+    If tsconfig.test.json gains a new include path, add a
+    corresponding trigger here and a regression test in
+    tests/unit/test_hook_triggers.py.
     """
     if path.startswith("extension/tests/") and path.endswith(".ts"):
         return True
     if path.startswith("extension/ui/") and path.endswith(".ts"):
         return True
     if path.startswith("extension/tsconfig") and path.endswith(".json"):
+        return True
+    # types/vss.d.ts is referenced by tsconfig.test.json as ../types/vss.d.ts
+    if path.startswith("types/") and path.endswith(".d.ts"):
         return True
     return False
 
