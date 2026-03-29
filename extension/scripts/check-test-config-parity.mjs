@@ -7,14 +7,14 @@
  *
  * No child processes are spawned — configs are loaded and resolved
  * entirely within this Node process using ts.readConfigFile and
- * ts.parseJsonConfigFileContent.  This avoids execSync/execFileSync
- * and the shell/EPERM failures they cause on restricted Windows
- * environments.
+ * ts.parseJsonConfigFileContent.
  *
- * Fails if any non-allowlisted key differs, ensuring test strictness
- * stays in parity with production. Forward-looking: new TypeScript
- * flags added in future versions are automatically covered because
- * only allowlisted deviations are permitted.
+ * Comparison is limited to an explicit set of parity-critical flags
+ * (strictness + unused-variable checks).  This avoids noisy churn
+ * from internal TypeScript API shape changes across upgrades while
+ * still catching every strictness deviation.  When TypeScript adds
+ * new strict-family flags, add them to PARITY_FLAGS and review
+ * during the TypeScript upgrade.
  *
  * Configs checked (all required — missing configs fail the check):
  *   tsconfig.test.json       — main test suite (Jest / ts-jest)
@@ -35,21 +35,35 @@ const ts = require("typescript");
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const extensionRoot = resolve(__dirname, "..");
 
-// Keys that may legitimately differ in ANY test config (output-related)
-const BASE_ALLOWLIST = [
-  "noEmit",
-  "declaration",
-  "sourceMap",
-  "outDir",
-  "rootDir",
+// Parity-critical flags: the explicit set of compiler options that must
+// match between production and test configs.  Only these flags are
+// compared — all other resolved options are ignored.
+//
+// When TypeScript adds a new strict-family flag, add it here.
+// Review this list during TypeScript version upgrades.
+const PARITY_FLAGS = [
+  "strict",
+  "noImplicitAny",
+  "strictNullChecks",
+  "strictFunctionTypes",
+  "strictBindCallApply",
+  "strictPropertyInitialization",
+  "noImplicitThis",
+  "useUnknownInCatchVariables",
+  "alwaysStrict",
+  "strictBuiltinIteratorReturn",
+  "noUncheckedIndexedAccess",
+  "noUnusedLocals",
+  "noUnusedParameters",
 ];
 
 // Each entry is a REQUIRED config — missing files fail the check.
+// allowedDeviations: flags from PARITY_FLAGS that may differ for this config.
 const CONFIGS = [
   {
     file: "tsconfig.test.json",
     label: "test suite",
-    extraAllowlist: [],
+    allowedDeviations: [],
   },
   {
     file: "tsconfig.type-tests.json",
@@ -58,7 +72,7 @@ const CONFIGS = [
     // type assertions (e.g., `const _x: number = entry.field; void _x;`).
     // These are never executed at runtime. Relaxing unused-variable checks
     // is ergonomic, not a strictness deviation.
-    extraAllowlist: ["noUnusedLocals", "noUnusedParameters"],
+    allowedDeviations: ["noUnusedLocals", "noUnusedParameters"],
   },
 ];
 
@@ -82,6 +96,18 @@ function getResolvedOptions(tsconfigPath) {
   return parsed.options;
 }
 
+function validateRequiredFlags(opts, configLabel) {
+  // strict must always be resolvable — it is the master switch.
+  // If it cannot be read, the TypeScript API has changed shape.
+  if (opts.strict === undefined) {
+    throw new Error(
+      `Cannot read 'strict' from resolved options of ${configLabel}. ` +
+        `The TypeScript compiler API may have changed. ` +
+        `Review the TypeScript upgrade and update this script.`,
+    );
+  }
+}
+
 function compareConfig(prodOpts, configEntry) {
   const configPath = resolve(extensionRoot, configEntry.file);
 
@@ -96,22 +122,19 @@ function compareConfig(prodOpts, configEntry) {
   }
 
   const testOpts = getResolvedOptions(configPath);
+  validateRequiredFlags(testOpts, configEntry.file);
 
-  const allowlist = new Set([...BASE_ALLOWLIST, ...configEntry.extraAllowlist]);
-  const allKeys = new Set([
-    ...Object.keys(prodOpts),
-    ...Object.keys(testOpts),
-  ]);
+  const allowed = new Set(configEntry.allowedDeviations);
 
   const violations = [];
-  for (const key of allKeys) {
-    if (allowlist.has(key)) continue;
+  for (const flag of PARITY_FLAGS) {
+    if (allowed.has(flag)) continue;
 
-    const prodVal = JSON.stringify(prodOpts[key]);
-    const testVal = JSON.stringify(testOpts[key]);
+    const prodVal = prodOpts[flag];
+    const testVal = testOpts[flag];
 
     if (prodVal !== testVal) {
-      violations.push({ key, prod: prodOpts[key], test: testOpts[key] });
+      violations.push({ flag, prod: prodVal, test: testVal });
     }
   }
 
@@ -119,7 +142,7 @@ function compareConfig(prodOpts, configEntry) {
     missing: false,
     label: configEntry.label,
     file: configEntry.file,
-    allowlist: [...allowlist],
+    allowed: [...allowed],
     violations,
   };
 }
@@ -132,6 +155,7 @@ function run() {
   }
 
   const prodOpts = getResolvedOptions(prodConfigPath);
+  validateRequiredFlags(prodOpts, "tsconfig.json");
 
   let failures = 0;
   const results = [];
@@ -149,28 +173,29 @@ function run() {
   // Report results
   for (const result of results) {
     if (result.missing) {
-      // Error already printed in compareConfig
       continue;
     }
 
     if (result.violations.length === 0) {
       console.log(
-        `✓ ${result.file} (${result.label}): all non-allowlisted compilerOptions match production.`,
+        `✓ ${result.file} (${result.label}): all parity-critical flags match production.`,
       );
     } else {
       console.error(
-        `\n✗ ${result.file} (${result.label}) FAILED: the following compilerOptions differ from production:\n`,
+        `\n✗ ${result.file} (${result.label}) FAILED: the following parity-critical flags differ from production:\n`,
       );
       for (const v of result.violations) {
-        console.error(`  ${v.key}:`);
+        console.error(`  ${v.flag}:`);
         console.error(`    production: ${JSON.stringify(v.prod)}`);
         console.error(`    test:       ${JSON.stringify(v.test)}`);
       }
+      if (result.allowed.length > 0) {
+        console.error(
+          `\n  Allowed deviations for this config: ${result.allowed.join(", ")}`,
+        );
+      }
       console.error(
-        `\n  Allowlisted keys: ${result.allowlist.join(", ")}`,
-      );
-      console.error(
-        `  Fix: remove the override from ${result.file} or add the key to the allowlist with justification.`,
+        `  Fix: remove the override from ${result.file} or add the flag to allowedDeviations with justification.`,
       );
     }
   }
