@@ -413,6 +413,63 @@ describe("summary-cards module", () => {
       expect(p50Card.style.display).toBe("");
       expect(p90Card.style.display).toBe("");
     });
+
+    it("keeps review time cards visible when filtered rollups null review_time but unfiltered data has it", () => {
+      const containers = createContainers();
+      const p50Card = document.createElement("div");
+      p50Card.className = "card";
+      p50Card.appendChild(containers.reviewTimeP50!);
+      document.body.appendChild(p50Card);
+      const p90Card = document.createElement("div");
+      p90Card.className = "card";
+      p90Card.appendChild(containers.reviewTimeP90!);
+      document.body.appendChild(p90Card);
+
+      // Filtered rollups have review_time nulled (as applyFiltersToRollups does for reviewer filters)
+      const filteredRollups = createRollups(4); // no review_time fields
+
+      // Unfiltered rollups DO have review_time data
+      const unfilteredRollups = [
+        {
+          week: "2025-W01",
+          pr_count: 10,
+          cycle_time_p50: 60,
+          cycle_time_p90: 120,
+          review_time_p50: 90,
+          review_time_p90: 240,
+          authors_count: 5,
+          reviewers_count: 3,
+          by_repository: null,
+          by_team: null,
+        },
+      ];
+
+      renderSummaryCards({ rollups: filteredRollups, containers, unfilteredRollups });
+
+      // Cards should remain visible because the dataset supports review_time
+      expect(p50Card.style.display).toBe("");
+      expect(p90Card.style.display).toBe("");
+    });
+
+    it("hides review time cards when both filtered and unfiltered rollups lack review_time", () => {
+      const containers = createContainers();
+      const p50Card = document.createElement("div");
+      p50Card.className = "card";
+      p50Card.appendChild(containers.reviewTimeP50!);
+      document.body.appendChild(p50Card);
+      const p90Card = document.createElement("div");
+      p90Card.className = "card";
+      p90Card.appendChild(containers.reviewTimeP90!);
+      document.body.appendChild(p90Card);
+
+      const rollups = createRollups(4);
+      const unfilteredRollups = createRollups(4); // also no review_time
+
+      renderSummaryCards({ rollups, containers, unfilteredRollups });
+
+      expect(p50Card.style.display).toBe("none");
+      expect(p90Card.style.display).toBe("none");
+    });
   });
 
   describe("sparkline time labels (US4)", () => {

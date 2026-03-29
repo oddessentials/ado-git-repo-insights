@@ -11,7 +11,9 @@ import {
   applyFiltersToRollups,
   extractSparklineData,
   calculateMovingAverage,
+  aggregateReviewerEntries,
 } from "../../ui/modules/metrics";
+import type { ReviewerBreakdownEntry } from "../../ui/schemas/rollup.schema";
 import type { Rollup } from "../../ui/dataset-loader";
 
 describe("metrics module", () => {
@@ -727,6 +729,36 @@ describe("metrics module", () => {
       expect(result[0]!.authors_count).toBe(3);
       expect(result[0]!.cycle_time_p50).toBeNull();
       expect(result[0]!.cycle_time_p90).toBeNull();
+    });
+
+    it("aggregateReviewerEntries weights approval_rate by reviews_count, not reviewed_prs", () => {
+      // Entry A: 5 PRs, 10 reviews, 80% approval → 8 approvals out of 10 reviews
+      // Entry B: 5 PRs, 5 reviews, 40% approval  → 2 approvals out of 5 reviews
+      // Correct (review-weighted): (0.8×10 + 0.4×5) / (10+5) = 10/15 ≈ 0.6667
+      // Wrong   (PR-weighted):     (0.8×5 + 0.4×5) / (5+5)   = 6/10  = 0.6
+      const entries: ReviewerBreakdownEntry[] = [
+        {
+          reviewed_prs: 5,
+          reviews_count: 10,
+          approval_rate: 0.8,
+          authors_count: 3,
+          repositories_count: 2,
+        },
+        {
+          reviewed_prs: 5,
+          reviews_count: 5,
+          approval_rate: 0.4,
+          authors_count: 2,
+          repositories_count: 1,
+        },
+      ];
+
+      const result = aggregateReviewerEntries(entries);
+
+      // Must be review-weighted: 10/15 �� 0.6667
+      expect(result.approval_rate).toBeCloseTo(10 / 15, 4);
+      // Must NOT be 0.6 (the PR-weighted answer)
+      expect(result.approval_rate).not.toBeCloseTo(0.6, 2);
     });
 
     it("returns zero counts for unknown repo filter", () => {

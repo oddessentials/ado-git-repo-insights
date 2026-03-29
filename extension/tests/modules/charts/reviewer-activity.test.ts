@@ -409,6 +409,66 @@ describe("reviewer-activity module", () => {
       expect(container.innerHTML).toContain("100%");
     });
 
+    it("weights approval rate by reviews_count, not reviewed_prs", () => {
+      // Divergent reviewed_prs vs reviews_count with different approval rates.
+      // Week 1: 5 PRs, 10 reviews, 80% approval → 8 approvals out of 10 reviews
+      // Week 2: 5 PRs, 5 reviews, 40% approval → 2 approvals out of 5 reviews
+      // Correct (review-weighted): (0.8×10 + 0.4×5) / (10+5) = 10/15 ≈ 67%
+      // Wrong (PR-weighted):       (0.8×5 + 0.4×5) / (5+5) = 6/10 = 60%
+      const rollups = [
+        {
+          week: "2025-W01",
+          pr_count: 10,
+          cycle_time_p50: 60,
+          cycle_time_p90: 120,
+          authors_count: 5,
+          reviewers_count: 3,
+          by_repository: null,
+          by_team: null,
+          by_reviewer: {
+            "alice-id": {
+              reviewed_prs: 5,
+              reviews_count: 10,
+              approval_rate: 0.8,
+              authors_count: 3,
+              repositories_count: 2,
+            },
+          },
+        },
+        {
+          week: "2025-W02",
+          pr_count: 10,
+          cycle_time_p50: 60,
+          cycle_time_p90: 120,
+          authors_count: 5,
+          reviewers_count: 3,
+          by_repository: null,
+          by_team: null,
+          by_reviewer: {
+            "alice-id": {
+              reviewed_prs: 5,
+              reviews_count: 5,
+              approval_rate: 0.4,
+              authors_count: 3,
+              repositories_count: 2,
+            },
+          },
+        },
+      ];
+
+      renderReviewerActivity(container, rollups, {
+        reviewerFilterActive: true,
+        filters: { repos: [], teams: [], reviewers: ["alice-id"], authors: [] },
+        unfilteredRollups: rollups,
+      });
+
+      // Review-weighted: (0.8×10 + 0.4×5) / 15 = 10/15 ≈ 0.6667 → 67%
+      expect(container.innerHTML).toContain("Approval Rate");
+      expect(container.innerHTML).toContain("67%");
+      // Must NOT show the PR-weighted answer
+      expect(container.innerHTML).not.toContain("60%");
+    });
+
     it("approval rate reflects only the displayed 8-week window, not full range", () => {
       // 12 weeks: first 4 have 50% approval, last 8 have 90% approval
       const rollups = Array.from({ length: 12 }, (_, i) => ({

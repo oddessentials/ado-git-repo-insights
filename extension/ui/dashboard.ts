@@ -851,7 +851,7 @@ async function refreshMetrics(): Promise<void> {
     loader?.getCapabilityState?.() ?? null,
   );
 
-  renderSummaryCards(rollups, prevRollups);
+  renderSummaryCards(rollups, prevRollups, rawRollups);
   renderThroughputChart(rollups, rawRollups, availability);
   renderCycleTimeTrend(rollups, rawRollups, availability);
   renderReviewerActivity(rollups, rawRollups, availability);
@@ -992,6 +992,7 @@ function updateOverlapIndicator(
 function renderSummaryCards(
   rollups: Rollup[],
   prevRollups: Rollup[] = [],
+  unfilteredRollups?: Rollup[],
 ): void {
   // Build container references from cached elements
   const containers: SummaryCardsContainers = {
@@ -1023,6 +1024,7 @@ function renderSummaryCards(
     prevRollups,
     containers,
     metricsCollector,
+    unfilteredRollups,
   });
 }
 

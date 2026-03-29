@@ -3874,11 +3874,11 @@ var PRInsightsDashboard = (() => {
       (e) => typeof e.approval_rate === "number" && Number.isFinite(e.approval_rate)
     );
     const approvalDenominator = approvalEntries.reduce(
-      (sum, entry) => sum + toFiniteNumber(entry.reviewed_prs),
+      (sum, entry) => sum + toFiniteNumber(entry.reviews_count),
       0
     );
     const approvalWeightedSum = approvalEntries.reduce(
-      (sum, entry) => sum + toFiniteNumber(entry.approval_rate) * toFiniteNumber(entry.reviewed_prs),
+      (sum, entry) => sum + toFiniteNumber(entry.approval_rate) * toFiniteNumber(entry.reviews_count),
       0
     );
     return {
@@ -5539,7 +5539,8 @@ var PRInsightsDashboard = (() => {
     if (metricsCollector2) metricsCollector2.mark("render-summary-cards-start");
     const current = calculateMetrics(rollups);
     const previous = calculateMetrics(prevRollups);
-    const hasReviewTimeData = rollups.some(
+    const capabilityRollups = options.unfilteredRollups ?? rollups;
+    const hasReviewTimeData = capabilityRollups.some(
       (r) => r.review_time_p50 != null || r.review_time_p90 != null
     );
     toggleReviewTimeCards(containers, hasReviewTimeData);
@@ -6185,7 +6186,7 @@ var PRInsightsDashboard = (() => {
   var MAX_REVIEWER_WEEKS = 8;
   function computeApprovalRate(rollups, reviewerIds) {
     let weightedSum = 0;
-    let totalPrs = 0;
+    let totalReviews = 0;
     for (const rollup of rollups) {
       if (!rollup.by_reviewer || typeof rollup.by_reviewer !== "object") continue;
       const reviewerMap = new Map(Object.entries(rollup.by_reviewer));
@@ -6194,12 +6195,12 @@ var PRInsightsDashboard = (() => {
         if (!entry) continue;
         const rate = entry.approval_rate;
         if (typeof rate !== "number" || !Number.isFinite(rate)) continue;
-        const prs = entry.reviewed_prs ?? 0;
-        weightedSum += rate * prs;
-        totalPrs += prs;
+        const reviews = entry.reviews_count ?? 0;
+        weightedSum += rate * reviews;
+        totalReviews += reviews;
       }
     }
-    return totalPrs > 0 ? weightedSum / totalPrs : null;
+    return totalReviews > 0 ? weightedSum / totalReviews : null;
   }
   function renderReviewerActivity(container, rollups, options = {}) {
     if (!container) return;
@@ -7302,7 +7303,7 @@ var PRInsightsDashboard = (() => {
       rawRollups,
       loader?.getCapabilityState?.() ?? null
     );
-    renderSummaryCards2(rollups, prevRollups);
+    renderSummaryCards2(rollups, prevRollups, rawRollups);
     renderThroughputChart2(rollups, rawRollups, availability);
     renderCycleTimeTrend2(rollups, rawRollups, availability);
     renderReviewerActivity2(rollups, rawRollups, availability);
@@ -7374,7 +7375,7 @@ var PRInsightsDashboard = (() => {
       summarySection.removeAttribute("data-overlap");
     }
   }
-  function renderSummaryCards2(rollups, prevRollups = []) {
+  function renderSummaryCards2(rollups, prevRollups = [], unfilteredRollups) {
     const containers = {
       totalPrs: elements.get("total-prs") ?? null,
       cycleP50: elements.get("cycle-p50") ?? null,
@@ -7402,7 +7403,8 @@ var PRInsightsDashboard = (() => {
       rollups,
       prevRollups,
       containers,
-      metricsCollector
+      metricsCollector,
+      unfilteredRollups
     });
   }
   function renderThroughputChart2(rollups, unfilteredRollups, availability) {

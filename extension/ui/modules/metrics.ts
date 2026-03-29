@@ -183,7 +183,7 @@ interface AggregatedSlice {
   reviewers_count: number;
 }
 
-interface AggregatedReviewerSlice {
+export interface AggregatedReviewerSlice {
   reviewed_prs: number;
   reviews_count: number;
   approval_rate: number | null;
@@ -347,7 +347,7 @@ function resolveReviewerEntries(
     );
 }
 
-function aggregateReviewerEntries(
+export function aggregateReviewerEntries(
   entries: ReviewerBreakdownEntry[],
 ): AggregatedReviewerSlice {
   const reviewedPrs = entries.reduce(
@@ -372,13 +372,13 @@ function aggregateReviewerEntries(
       typeof e.approval_rate === "number" && Number.isFinite(e.approval_rate),
   );
   const approvalDenominator = approvalEntries.reduce(
-    (sum, entry) => sum + toFiniteNumber(entry.reviewed_prs),
+    (sum, entry) => sum + toFiniteNumber(entry.reviews_count),
     0,
   );
   const approvalWeightedSum = approvalEntries.reduce(
     (sum, entry) =>
       sum +
-      toFiniteNumber(entry.approval_rate) * toFiniteNumber(entry.reviewed_prs),
+      toFiniteNumber(entry.approval_rate) * toFiniteNumber(entry.reviews_count),
     0,
   );
 

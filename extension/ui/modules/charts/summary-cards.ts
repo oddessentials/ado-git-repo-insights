@@ -114,6 +114,8 @@ export interface RenderSummaryCardsOptions {
   containers: SummaryCardsContainers;
   /** Optional performance metrics collector */
   metricsCollector?: PerformanceCollector | null;
+  /** Unfiltered rollups for dataset capability checks (defaults to rollups) */
+  unfilteredRollups?: Rollup[];
 }
 
 /**
@@ -132,9 +134,12 @@ export function renderSummaryCards(options: RenderSummaryCardsOptions): void {
   const current = calculateMetrics(rollups);
   const previous = calculateMetrics(prevRollups);
 
-  // Hide review-time cards when dataset has no review_time data at all,
+  // Hide review-time cards when the underlying dataset has no review_time data,
   // so users don't see permanently blank KPIs on older datasets.
-  const hasReviewTimeData = rollups.some(
+  // Uses unfiltered rollups for capability check: some filter paths (e.g. reviewer)
+  // intentionally null review_time fields, which doesn't mean the feature is absent.
+  const capabilityRollups = options.unfilteredRollups ?? rollups;
+  const hasReviewTimeData = capabilityRollups.some(
     (r) => r.review_time_p50 != null || r.review_time_p90 != null,
   );
   toggleReviewTimeCards(containers, hasReviewTimeData);

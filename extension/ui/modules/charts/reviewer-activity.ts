@@ -34,7 +34,7 @@ function computeApprovalRate(
   reviewerIds: string[],
 ): number | null {
   let weightedSum = 0;
-  let totalPrs = 0;
+  let totalReviews = 0;
 
   for (const rollup of rollups) {
     if (!rollup.by_reviewer || typeof rollup.by_reviewer !== "object") continue;
@@ -44,13 +44,13 @@ function computeApprovalRate(
       if (!entry) continue;
       const rate = entry.approval_rate;
       if (typeof rate !== "number" || !Number.isFinite(rate)) continue;
-      const prs = entry.reviewed_prs ?? 0;
-      weightedSum += rate * prs;
-      totalPrs += prs;
+      const reviews = entry.reviews_count ?? 0;
+      weightedSum += rate * reviews;
+      totalReviews += reviews;
     }
   }
 
-  return totalPrs > 0 ? weightedSum / totalPrs : null;
+  return totalReviews > 0 ? weightedSum / totalReviews : null;
 }
 
 /**
