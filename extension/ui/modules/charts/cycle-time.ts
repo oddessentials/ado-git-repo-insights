@@ -23,6 +23,22 @@ import {
 export const MAX_CYCLE_TIME_POINTS = 104;
 
 /**
+ * Speed category for cycle time distribution buckets (FR-012).
+ * Maps bucket label → color category for deterministic, testable CSS class assignment.
+ * Boundaries: fast = [0, 4h), moderate = [4h, 3d), slow = [3d, +∞).
+ */
+export type BucketCategory = "fast" | "moderate" | "slow";
+
+export const BUCKET_COLOR_MAP = new Map<string, BucketCategory>([
+  ["0-1h", "fast"],
+  ["1-4h", "fast"],
+  ["4-24h", "moderate"],
+  ["1-3d", "moderate"],
+  ["3-7d", "slow"],
+  ["7d+", "slow"],
+]);
+
+/**
  * Render cycle time distribution as horizontal bar chart.
  *
  * Shows distribution across time buckets (0-1h, 1-4h, etc.)

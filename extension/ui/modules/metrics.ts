@@ -55,6 +55,8 @@ export interface CalculatedMetrics {
   totalPrs: number;
   cycleP50: number | null;
   cycleP90: number | null;
+  reviewTimeP50: number | null;
+  reviewTimeP90: number | null;
   avgAuthors: number;
   avgReviewers: number;
 }
@@ -87,6 +89,8 @@ export function calculateMetrics(rollups: Rollup[]): CalculatedMetrics {
       totalPrs: 0,
       cycleP50: null,
       cycleP90: null,
+      reviewTimeP50: null,
+      reviewTimeP90: null,
       avgAuthors: 0,
       avgReviewers: 0,
     };
@@ -99,6 +103,13 @@ export function calculateMetrics(rollups: Rollup[]): CalculatedMetrics {
     .filter((v): v is number => v !== null && v !== undefined);
   const p90Values = rollups
     .map((r) => r.cycle_time_p90)
+    .filter((v): v is number => v !== null && v !== undefined);
+
+  const reviewTimeP50Values = rollups
+    .map((r) => r.review_time_p50)
+    .filter((v): v is number => v !== null && v !== undefined);
+  const reviewTimeP90Values = rollups
+    .map((r) => r.review_time_p90)
     .filter((v): v is number => v !== null && v !== undefined);
 
   const authorsSum = rollups.reduce(
@@ -114,6 +125,12 @@ export function calculateMetrics(rollups: Rollup[]): CalculatedMetrics {
     totalPrs,
     cycleP50: p50Values.length ? median(p50Values) : null,
     cycleP90: p90Values.length ? median(p90Values) : null,
+    reviewTimeP50: reviewTimeP50Values.length
+      ? median(reviewTimeP50Values)
+      : null,
+    reviewTimeP90: reviewTimeP90Values.length
+      ? median(reviewTimeP90Values)
+      : null,
     avgAuthors:
       rollups.length > 0 ? Math.round(authorsSum / rollups.length) : 0,
     avgReviewers:
@@ -744,6 +761,8 @@ export function extractSparklineData(rollups: Rollup[]): {
   prCounts: number[];
   p50s: (number | null)[];
   p90s: (number | null)[];
+  reviewTimeP50s: (number | null)[];
+  reviewTimeP90s: (number | null)[];
   authors: number[];
   reviewers: number[];
 } {
@@ -751,6 +770,8 @@ export function extractSparklineData(rollups: Rollup[]): {
     prCounts: rollups.map((r) => r.pr_count ?? 0),
     p50s: rollups.map((r) => r.cycle_time_p50 ?? null),
     p90s: rollups.map((r) => r.cycle_time_p90 ?? null),
+    reviewTimeP50s: rollups.map((r) => r.review_time_p50 ?? null),
+    reviewTimeP90s: rollups.map((r) => r.review_time_p90 ?? null),
     authors: rollups.map((r) => r.authors_count ?? 0),
     reviewers: rollups.map((r) => r.reviewers_count ?? 0),
   };

@@ -17,6 +17,17 @@ import {
 /** Pixel movement threshold to cancel a tap-to-tooltip gesture (scroll detection). */
 export const SCROLL_CANCEL_THRESHOLD = 10;
 
+/** Number of recent non-null weeks to display in sparklines. */
+export const SPARKLINE_LOOKBACK_WEEKS = 8;
+
+/**
+ * Return the actual number of sparkline weeks available, capped at SPARKLINE_LOOKBACK_WEEKS.
+ * Single source of truth for sparkline time labels — all cards MUST use this.
+ */
+export function getLookbackWeekCount(rollupCount: number): number {
+  return Math.min(rollupCount, SPARKLINE_LOOKBACK_WEEKS);
+}
+
 /**
  * Render a delta indicator element.
  * @param element - Target element (or null for no-op)
@@ -78,7 +89,7 @@ export function renderSparkline(
     return;
   }
 
-  const data = nonNull.slice(-8);
+  const data = nonNull.slice(-SPARKLINE_LOOKBACK_WEEKS);
   const width = 60;
   const height = 24;
   const padding = 2;

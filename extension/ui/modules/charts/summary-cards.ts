@@ -45,6 +45,14 @@ export const METRIC_EXPLANATIONS = new Map<string, string>([
     "reviewersCount",
     "Average number of unique reviewers per week in this period.",
   ],
+  [
+    "reviewTimeP50",
+    "Median time from first review request to review completion. Half of all reviews completed faster than this.",
+  ],
+  [
+    "reviewTimeP90",
+    "90th percentile review time. 90% of reviews completed faster. High values may indicate review bottlenecks.",
+  ],
 ]);
 
 /**

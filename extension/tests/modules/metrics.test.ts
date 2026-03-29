@@ -22,6 +22,8 @@ describe("metrics module", () => {
         totalPrs: 0,
         cycleP50: null,
         cycleP90: null,
+        reviewTimeP50: null,
+        reviewTimeP90: null,
         avgAuthors: 0,
         avgReviewers: 0,
       });

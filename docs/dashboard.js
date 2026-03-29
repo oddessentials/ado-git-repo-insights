@@ -3686,6 +3686,8 @@ var PRInsightsDashboard = (() => {
         totalPrs: 0,
         cycleP50: null,
         cycleP90: null,
+        reviewTimeP50: null,
+        reviewTimeP90: null,
         avgAuthors: 0,
         avgReviewers: 0
       };
@@ -3693,6 +3695,8 @@ var PRInsightsDashboard = (() => {
     const totalPrs = rollups.reduce((sum, r) => sum + (r.pr_count || 0), 0);
     const p50Values = rollups.map((r) => r.cycle_time_p50).filter((v) => v !== null && v !== void 0);
     const p90Values = rollups.map((r) => r.cycle_time_p90).filter((v) => v !== null && v !== void 0);
+    const reviewTimeP50Values = rollups.map((r) => r.review_time_p50).filter((v) => v !== null && v !== void 0);
+    const reviewTimeP90Values = rollups.map((r) => r.review_time_p90).filter((v) => v !== null && v !== void 0);
     const authorsSum = rollups.reduce(
       (sum, r) => sum + (r.authors_count || 0),
       0
@@ -3705,6 +3709,8 @@ var PRInsightsDashboard = (() => {
       totalPrs,
       cycleP50: p50Values.length ? median(p50Values) : null,
       cycleP90: p90Values.length ? median(p90Values) : null,
+      reviewTimeP50: reviewTimeP50Values.length ? median(reviewTimeP50Values) : null,
+      reviewTimeP90: reviewTimeP90Values.length ? median(reviewTimeP90Values) : null,
       avgAuthors: rollups.length > 0 ? Math.round(authorsSum / rollups.length) : 0,
       avgReviewers: rollups.length > 0 ? Math.round(reviewersSum / rollups.length) : 0
     };
@@ -4118,6 +4124,8 @@ var PRInsightsDashboard = (() => {
       prCounts: rollups.map((r) => r.pr_count ?? 0),
       p50s: rollups.map((r) => r.cycle_time_p50 ?? null),
       p90s: rollups.map((r) => r.cycle_time_p90 ?? null),
+      reviewTimeP50s: rollups.map((r) => r.review_time_p50 ?? null),
+      reviewTimeP90s: rollups.map((r) => r.review_time_p90 ?? null),
       authors: rollups.map((r) => r.authors_count ?? 0),
       reviewers: rollups.map((r) => r.reviewers_count ?? 0)
     };
@@ -5255,6 +5263,7 @@ var PRInsightsDashboard = (() => {
 
   // ../ui/modules/charts.ts
   var SCROLL_CANCEL_THRESHOLD = 10;
+  var SPARKLINE_LOOKBACK_WEEKS = 8;
   function renderDelta(element, percentChange, inverse = false) {
     if (!element) return;
     if (percentChange === null) {
@@ -5284,7 +5293,7 @@ var PRInsightsDashboard = (() => {
       clearElement(element);
       return;
     }
-    const data = nonNull.slice(-8);
+    const data = nonNull.slice(-SPARKLINE_LOOKBACK_WEEKS);
     const width = 60;
     const height = 24;
     const padding = 2;
@@ -5414,6 +5423,14 @@ var PRInsightsDashboard = (() => {
     [
       "reviewersCount",
       "Average number of unique reviewers per week in this period."
+    ],
+    [
+      "reviewTimeP50",
+      "Median time from first review request to review completion. Half of all reviews completed faster than this."
+    ],
+    [
+      "reviewTimeP90",
+      "90th percentile review time. 90% of reviews completed faster. High values may indicate review bottlenecks."
     ]
   ]);
   function renderSummaryCards(options) {
