@@ -59,6 +59,12 @@ export interface CalculatedMetrics {
   reviewTimeP90: number | null;
   avgAuthors: number;
   avgReviewers: number;
+  /** Total rollup weeks (denominator for authors/reviewers averages). */
+  weekCount: number;
+  /** Non-null cycle_time_p50 weeks (derivation basis for cycleP50/P90). */
+  cycleWeekCount: number;
+  /** Non-null review_time_p50 weeks (derivation basis for reviewTimeP50/P90). */
+  reviewTimeWeekCount: number;
 }
 
 /**
@@ -93,6 +99,9 @@ export function calculateMetrics(rollups: Rollup[]): CalculatedMetrics {
       reviewTimeP90: null,
       avgAuthors: 0,
       avgReviewers: 0,
+      weekCount: 0,
+      cycleWeekCount: 0,
+      reviewTimeWeekCount: 0,
     };
   }
 
@@ -135,6 +144,9 @@ export function calculateMetrics(rollups: Rollup[]): CalculatedMetrics {
       rollups.length > 0 ? Math.round(authorsSum / rollups.length) : 0,
     avgReviewers:
       rollups.length > 0 ? Math.round(reviewersSum / rollups.length) : 0,
+    weekCount: rollups.length,
+    cycleWeekCount: p50Values.length,
+    reviewTimeWeekCount: reviewTimeP50Values.length,
   };
 }
 

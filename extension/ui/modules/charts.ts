@@ -34,11 +34,13 @@ export function getLookbackWeekCount(rollupCount: number): number {
  * @param element - Target element (or null for no-op)
  * @param percentChange - Percentage change value (null clears indicator)
  * @param inverse - If true, positive change is bad (e.g., cycle time increase)
+ * @param periodLabel - Comparison period label (e.g., "vs prior 8 weeks")
  */
 export function renderDelta(
   element: HTMLElement | null,
   percentChange: number | null,
   inverse = false,
+  periodLabel = "vs prev",
 ): void {
   if (!element) return;
 
@@ -61,10 +63,11 @@ export function renderDelta(
 
   const sign = isPositive ? "+" : "";
   element.className = cssClass;
-  // SECURITY: All values are computed from numbers and code constants
+  // SECURITY: All values are computed from numbers and code constants; periodLabel
+  // is derived from rollup array length (a number), never from user input.
   renderTrustedHtml(
     element,
-    `<span class="delta-arrow">${arrow}</span> ${sign}${absChange.toFixed(0)}% <span class="delta-label">vs prev</span>`,
+    `<span class="delta-arrow">${arrow}</span> ${sign}${absChange.toFixed(0)}% <span class="delta-label">${periodLabel}</span>`,
   );
 }
 

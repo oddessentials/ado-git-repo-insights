@@ -3600,6 +3600,9 @@ var PRInsightsDashboard = (() => {
 
   // ../ui/modules/shared/constants.ts
   var LOW_SAMPLE_THRESHOLD = 10;
+  var MODERATE_SAMPLE_THRESHOLD = 30;
+  var LOW_WEEK_THRESHOLD = 3;
+  var MODERATE_WEEK_THRESHOLD = 8;
 
   // ../ui/modules/shared/format.ts
   function formatDuration(minutes) {
@@ -3706,7 +3709,10 @@ var PRInsightsDashboard = (() => {
         reviewTimeP50: null,
         reviewTimeP90: null,
         avgAuthors: 0,
-        avgReviewers: 0
+        avgReviewers: 0,
+        weekCount: 0,
+        cycleWeekCount: 0,
+        reviewTimeWeekCount: 0
       };
     }
     const totalPrs = rollups.reduce((sum, r) => sum + (r.pr_count || 0), 0);
@@ -3729,7 +3735,10 @@ var PRInsightsDashboard = (() => {
       reviewTimeP50: reviewTimeP50Values.length ? median(reviewTimeP50Values) : null,
       reviewTimeP90: reviewTimeP90Values.length ? median(reviewTimeP90Values) : null,
       avgAuthors: rollups.length > 0 ? Math.round(authorsSum / rollups.length) : 0,
-      avgReviewers: rollups.length > 0 ? Math.round(reviewersSum / rollups.length) : 0
+      avgReviewers: rollups.length > 0 ? Math.round(reviewersSum / rollups.length) : 0,
+      weekCount: rollups.length,
+      cycleWeekCount: p50Values.length,
+      reviewTimeWeekCount: reviewTimeP50Values.length
     };
   }
   function calculatePercentChange(current, previous) {
@@ -5368,7 +5377,7 @@ var PRInsightsDashboard = (() => {
   function getLookbackWeekCount(rollupCount) {
     return Math.min(rollupCount, SPARKLINE_LOOKBACK_WEEKS);
   }
-  function renderDelta(element, percentChange, inverse = false) {
+  function renderDelta(element, percentChange, inverse = false, periodLabel = "vs prev") {
     if (!element) return;
     if (percentChange === null) {
       clearElement(element);
@@ -5384,7 +5393,7 @@ var PRInsightsDashboard = (() => {
     element.className = cssClass;
     renderTrustedHtml(
       element,
-      `<span class="delta-arrow">${arrow}</span> ${sign}${absChange.toFixed(0)}% <span class="delta-label">vs prev</span>`
+      `<span class="delta-arrow">${arrow}</span> ${sign}${absChange.toFixed(0)}% <span class="delta-label">${periodLabel}</span>`
     );
   }
   function renderSparkline(element, values) {
@@ -5514,11 +5523,11 @@ var PRInsightsDashboard = (() => {
     ],
     [
       "cycleP50",
-      "Median time from PR creation to merge. Half of all PRs completed faster than this."
+      "Median time from PR creation to merge. Half of all PRs completed faster than this. (Aggregated from weekly values.)"
     ],
     [
       "cycleP90",
-      "90th percentile cycle time. 90% of PRs completed faster. High values may indicate bottlenecks."
+      "90th percentile cycle time. 90% of PRs completed faster. High values may indicate bottlenecks. (Aggregated from weekly values.)"
     ],
     [
       "authorsCount",
@@ -5530,11 +5539,11 @@ var PRInsightsDashboard = (() => {
     ],
     [
       "reviewTimeP50",
-      "Median time from first review request to review completion. Half of all reviews completed faster than this."
+      "Median time from first review request to review completion. Half of all reviews completed faster than this. (Aggregated from weekly values.)"
     ],
     [
       "reviewTimeP90",
-      "90th percentile review time. 90% of reviews completed faster. High values may indicate review bottlenecks."
+      "90th percentile review time. 90% of reviews completed faster. High values may indicate review bottlenecks. (Aggregated from weekly values.)"
     ]
   ]);
   function renderSummaryCards(options) {
@@ -5548,13 +5557,13 @@ var PRInsightsDashboard = (() => {
     );
     toggleReviewTimeCards(containers, hasReviewTimeData);
     renderMetricValues(containers, current);
-    renderSampleSize(containers, current.totalPrs);
+    renderSampleSize(containers, current);
     attachInfoIcons(containers, options.reviewerFilterActive ?? false);
     const sparklineData = extractSparklineData(rollups);
     renderSparklines(containers, sparklineData);
     renderSparklineLabels(containers, rollups.length);
     if (prevRollups && prevRollups.length > 0) {
-      renderDeltas(containers, current, previous);
+      renderDeltas(containers, current, previous, prevRollups.length, rollups.length);
     } else {
       clearDeltas(containers);
     }
@@ -5568,25 +5577,72 @@ var PRInsightsDashboard = (() => {
       );
     }
   }
-  function renderSampleSize(containers, totalPrs) {
-    const label = `Based on ${totalPrs.toLocaleString()} ${totalPrs === 1 ? "PR" : "PRs"}`;
-    const elements2 = [
-      containers.totalPrs,
-      containers.cycleP50,
-      containers.cycleP90,
-      containers.reviewTimeP50,
-      containers.reviewTimeP90,
-      containers.authorsCount,
-      containers.reviewersCount
+  function sampleTierClass(count, low, moderate) {
+    if (count < low) return "metric-sample-size low-sample";
+    if (count < moderate) return "metric-sample-size moderate-sample";
+    return "metric-sample-size";
+  }
+  function renderSampleSize(containers, metrics) {
+    const weekLabel = (n) => `From ${n} ${n === 1 ? "week" : "weeks"} of data`;
+    const config = [
+      {
+        el: containers.totalPrs,
+        count: metrics.totalPrs,
+        label: `Based on ${metrics.totalPrs.toLocaleString()} ${metrics.totalPrs === 1 ? "PR" : "PRs"}`,
+        low: LOW_SAMPLE_THRESHOLD,
+        moderate: MODERATE_SAMPLE_THRESHOLD
+      },
+      {
+        el: containers.cycleP50,
+        count: metrics.cycleWeekCount,
+        label: weekLabel(metrics.cycleWeekCount),
+        low: LOW_WEEK_THRESHOLD,
+        moderate: MODERATE_WEEK_THRESHOLD
+      },
+      {
+        el: containers.cycleP90,
+        count: metrics.cycleWeekCount,
+        label: weekLabel(metrics.cycleWeekCount),
+        low: LOW_WEEK_THRESHOLD,
+        moderate: MODERATE_WEEK_THRESHOLD
+      },
+      {
+        el: containers.reviewTimeP50,
+        count: metrics.reviewTimeWeekCount,
+        label: weekLabel(metrics.reviewTimeWeekCount),
+        low: LOW_WEEK_THRESHOLD,
+        moderate: MODERATE_WEEK_THRESHOLD
+      },
+      {
+        el: containers.reviewTimeP90,
+        count: metrics.reviewTimeWeekCount,
+        label: weekLabel(metrics.reviewTimeWeekCount),
+        low: LOW_WEEK_THRESHOLD,
+        moderate: MODERATE_WEEK_THRESHOLD
+      },
+      {
+        el: containers.authorsCount,
+        count: metrics.weekCount,
+        label: weekLabel(metrics.weekCount),
+        low: LOW_WEEK_THRESHOLD,
+        moderate: MODERATE_WEEK_THRESHOLD
+      },
+      {
+        el: containers.reviewersCount,
+        count: metrics.weekCount,
+        label: weekLabel(metrics.weekCount),
+        low: LOW_WEEK_THRESHOLD,
+        moderate: MODERATE_WEEK_THRESHOLD
+      }
     ];
-    const isLow = totalPrs < LOW_SAMPLE_THRESHOLD;
-    for (const el of elements2) {
+    for (const { el, count, label, low, moderate } of config) {
       const card = el?.closest(".card");
       if (!card) continue;
       const existing = card.querySelector(".metric-sample-size");
       if (existing) existing.remove();
+      if (count === 0) continue;
       const subtitle = document.createElement("p");
-      subtitle.className = isLow ? "metric-sample-size low-sample" : "metric-sample-size";
+      subtitle.className = sampleTierClass(count, low, moderate);
       subtitle.textContent = label;
       const title = card.querySelector("h3");
       if (title?.nextSibling) {
@@ -5676,45 +5732,54 @@ var PRInsightsDashboard = (() => {
     renderSparkline(containers.authorsSparkline, data.authors);
     renderSparkline(containers.reviewersSparkline, data.reviewers);
   }
-  function renderDeltas(containers, current, previous) {
+  function renderDeltas(containers, current, previous, prevWeekCount, currentWeekCount) {
+    const aligned = Math.abs(prevWeekCount - currentWeekCount) <= 1;
+    const periodLabel = aligned ? `vs prior ${prevWeekCount} ${prevWeekCount === 1 ? "week" : "weeks"}` : "vs prev";
     renderDelta(
       containers.totalPrsDelta,
       calculatePercentChange(current.totalPrs, previous.totalPrs),
-      false
+      false,
+      periodLabel
     );
     renderDelta(
       containers.cycleP50Delta,
       calculatePercentChange(current.cycleP50, previous.cycleP50),
-      true
+      true,
       // Inverse: lower is better
+      periodLabel
     );
     renderDelta(
       containers.cycleP90Delta,
       calculatePercentChange(current.cycleP90, previous.cycleP90),
-      true
+      true,
       // Inverse: lower is better
+      periodLabel
     );
     renderDelta(
       containers.reviewTimeP50Delta,
       calculatePercentChange(current.reviewTimeP50, previous.reviewTimeP50),
-      true
+      true,
       // Inverse: lower review time is better
+      periodLabel
     );
     renderDelta(
       containers.reviewTimeP90Delta,
       calculatePercentChange(current.reviewTimeP90, previous.reviewTimeP90),
-      true
+      true,
       // Inverse: lower review time is better
+      periodLabel
     );
     renderDelta(
       containers.authorsDelta,
       calculatePercentChange(current.avgAuthors, previous.avgAuthors),
-      false
+      false,
+      periodLabel
     );
     renderDelta(
       containers.reviewersDelta,
       calculatePercentChange(current.avgReviewers, previous.avgReviewers),
-      false
+      false,
+      periodLabel
     );
   }
   function clearDeltas(containers) {

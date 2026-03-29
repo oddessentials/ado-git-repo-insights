@@ -121,3 +121,110 @@ describe("Filter consistency (FR-028)", () => {
     expect(filteredTotalPrs).not.toBe(unfilteredTotalPrs);
   });
 });
+
+describe("Cross-component parity: sparkline labels, delta labels, and sample size derive from same filtered dataset", () => {
+  afterEach(() => {
+    document.body.innerHTML = "";
+  });
+
+  // NOTE: These components intentionally use different scopes of the same filtered dataset:
+  // - Sparkline labels: capped at SPARKLINE_LOOKBACK_WEEKS (8) — describes the chart visual
+  // - Sample size: full filtered set — describes the metric derivation evidence
+  // - Delta labels: full prev period — describes the comparison window
+  // When rollups.length <= 8, all three agree. When > 8, sparkline caps but others don't.
+  // This is by design — each label describes its own component's data scope.
+
+  it("all labels agree when rollups fit within sparkline lookback window", () => {
+    const containers = makeContainersInCards();
+
+    const rollups: Rollup[] = Array.from({ length: 6 }, (_, i) => ({
+      week: `2025-W${(i + 1).toString().padStart(2, "0")}`,
+      pr_count: 10,
+      cycle_time_p50: 60 + i * 5,
+      cycle_time_p90: 120 + i * 10,
+      authors_count: 5,
+      reviewers_count: 3,
+      by_repository: null,
+      by_team: null,
+    }));
+    const prevRollups: Rollup[] = Array.from({ length: 6 }, (_, i) => ({
+      week: `2024-W${(i + 45).toString().padStart(2, "0")}`,
+      pr_count: 8,
+      cycle_time_p50: 55 + i * 5,
+      cycle_time_p90: 110 + i * 10,
+      authors_count: 4,
+      reviewers_count: 2,
+      by_repository: null,
+      by_team: null,
+    }));
+
+    renderSummaryCards({ rollups, prevRollups, containers });
+
+    // Sparkline label: "Last 6 weeks" (6 < 8, not capped)
+    const sparklineLabel = document.querySelector(".sparkline-label");
+    expect(sparklineLabel).not.toBeNull();
+    expect(sparklineLabel!.textContent).toBe("Last 6 weeks");
+
+    // Delta label: "vs prior 6 weeks" (aligned: 6 === 6)
+    const deltaLabel = document.querySelector(".delta-label");
+    expect(deltaLabel).not.toBeNull();
+    expect(deltaLabel!.textContent).toBe("vs prior 6 weeks");
+
+    // Sample size on totalPrs card: sum of pr_count from same 6 rollups (6 × 10 = 60)
+    const prCard = containers.totalPrs!.closest(".card");
+    const sampleEl = prCard?.querySelector(".metric-sample-size");
+    expect(sampleEl).not.toBeNull();
+    expect(sampleEl!.textContent).toBe("Based on 60 PRs");
+
+    // Cycle card: week-based, uses cycleWeekCount from same 6 rollups
+    const cycleCard = containers.cycleP50!.closest(".card");
+    const cycleSample = cycleCard?.querySelector(".metric-sample-size");
+    expect(cycleSample).not.toBeNull();
+    expect(cycleSample!.textContent).toBe("From 6 weeks of data");
+  });
+
+  it("with > 8 rollups, sparkline caps but sample size and delta use full set", () => {
+    const containers = makeContainersInCards();
+
+    const rollups: Rollup[] = Array.from({ length: 12 }, (_, i) => ({
+      week: `2025-W${(i + 1).toString().padStart(2, "0")}`,
+      pr_count: 5,
+      cycle_time_p50: 60 + i * 3,
+      cycle_time_p90: 120 + i * 6,
+      authors_count: 4,
+      reviewers_count: 2,
+      by_repository: null,
+      by_team: null,
+    }));
+    const prevRollups: Rollup[] = Array.from({ length: 12 }, (_, i) => ({
+      week: `2024-W${(i + 40).toString().padStart(2, "0")}`,
+      pr_count: 4,
+      cycle_time_p50: 50 + i * 3,
+      cycle_time_p90: 100 + i * 6,
+      authors_count: 3,
+      reviewers_count: 2,
+      by_repository: null,
+      by_team: null,
+    }));
+
+    renderSummaryCards({ rollups, prevRollups, containers });
+
+    // Sparkline label: capped at 8
+    const sparklineLabel = document.querySelector(".sparkline-label");
+    expect(sparklineLabel!.textContent).toBe("Last 8 weeks");
+
+    // Delta label: uses full prev period (12 weeks, aligned with current 12)
+    const deltaLabel = document.querySelector(".delta-label");
+    expect(deltaLabel!.textContent).toBe("vs prior 12 weeks");
+
+    // Sample size on totalPrs card: full 12 rollups (12 × 5 = 60)
+    const prCard = containers.totalPrs!.closest(".card");
+    const sampleEl = prCard?.querySelector(".metric-sample-size");
+    expect(sampleEl!.textContent).toBe("Based on 60 PRs");
+
+    // Cycle card: full 12 weeks (all have non-null cycle_time_p50)
+    const cycleCard = containers.cycleP50!.closest(".card");
+    const cycleSample = cycleCard?.querySelector(".metric-sample-size");
+    expect(cycleSample!.textContent).toBe("From 12 weeks of data");
+  });
+});

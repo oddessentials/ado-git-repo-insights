@@ -349,4 +349,20 @@ describe("Summary Cards Info Icons (attachInfoIcons)", () => {
     const tooltip = document.querySelector(".info-tooltip");
     expect(tooltip?.textContent).toContain("reviewers");
   });
+
+  describe("median-of-medians disclosure", () => {
+    it("median metrics include aggregation disclosure", () => {
+      for (const key of ["cycleP50", "cycleP90", "reviewTimeP50", "reviewTimeP90"]) {
+        const text = METRIC_EXPLANATIONS.get(key) ?? "";
+        expect(text).toContain("Aggregated from weekly values");
+      }
+    });
+
+    it("non-median metrics do NOT include aggregation disclosure", () => {
+      for (const key of ["totalPrs", "authorsCount", "reviewersCount"]) {
+        const text = METRIC_EXPLANATIONS.get(key) ?? "";
+        expect(text).not.toContain("Aggregated");
+      }
+    });
+  });
 });

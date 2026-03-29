@@ -66,6 +66,17 @@ describe("charts module", () => {
     it("handles null element gracefully", () => {
       expect(() => renderDelta(null, 10)).not.toThrow();
     });
+
+    it("uses custom periodLabel when provided", () => {
+      renderDelta(container, 25, false, "vs prior 5 weeks");
+      expect(container.innerHTML).toContain("vs prior 5 weeks");
+      expect(container.innerHTML).not.toContain("vs prev");
+    });
+
+    it("defaults to 'vs prev' when no periodLabel given", () => {
+      renderDelta(container, 25);
+      expect(container.innerHTML).toContain("vs prev");
+    });
   });
 
   describe("renderSparkline", () => {

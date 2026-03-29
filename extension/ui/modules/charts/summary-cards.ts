@@ -21,7 +21,12 @@ import {
   getLookbackWeekCount,
 } from "../charts";
 import { formatDuration } from "../shared/format";
-import { LOW_SAMPLE_THRESHOLD } from "../shared/constants";
+import {
+  LOW_SAMPLE_THRESHOLD,
+  MODERATE_SAMPLE_THRESHOLD,
+  LOW_WEEK_THRESHOLD,
+  MODERATE_WEEK_THRESHOLD,
+} from "../shared/constants";
 import { clearElement } from "../shared/render";
 import { showInfoTooltip, dismissAllTooltips } from "../tooltip-manager";
 
@@ -36,11 +41,11 @@ export const METRIC_EXPLANATIONS = new Map<string, string>([
   ],
   [
     "cycleP50",
-    "Median time from PR creation to merge. Half of all PRs completed faster than this.",
+    "Median time from PR creation to merge. Half of all PRs completed faster than this. (Aggregated from weekly values.)",
   ],
   [
     "cycleP90",
-    "90th percentile cycle time. 90% of PRs completed faster. High values may indicate bottlenecks.",
+    "90th percentile cycle time. 90% of PRs completed faster. High values may indicate bottlenecks. (Aggregated from weekly values.)",
   ],
   [
     "authorsCount",
@@ -52,11 +57,11 @@ export const METRIC_EXPLANATIONS = new Map<string, string>([
   ],
   [
     "reviewTimeP50",
-    "Median time from first review request to review completion. Half of all reviews completed faster than this.",
+    "Median time from first review request to review completion. Half of all reviews completed faster than this. (Aggregated from weekly values.)",
   ],
   [
     "reviewTimeP90",
-    "90th percentile review time. 90% of reviews completed faster. High values may indicate review bottlenecks.",
+    "90th percentile review time. 90% of reviews completed faster. High values may indicate review bottlenecks. (Aggregated from weekly values.)",
   ],
 ]);
 
@@ -150,9 +155,9 @@ export function renderSummaryCards(options: RenderSummaryCardsOptions): void {
   renderMetricValues(containers, current);
 
   // Render sample size subtitle on each card (FR-006, FR-007)
-  // All cards show the filtered PR count as the sample size — this is the
-  // evidence backing every KPI regardless of how the metric is derived.
-  renderSampleSize(containers, current.totalPrs);
+  // Each card shows its metric-specific derivation basis: PR count for totalPrs,
+  // non-null week count for cycle/review time, total weeks for authors/reviewers.
+  renderSampleSize(containers, current);
 
   // Attach info icons to summary card titles
   attachInfoIcons(containers, options.reviewerFilterActive ?? false);
@@ -167,7 +172,7 @@ export function renderSummaryCards(options: RenderSummaryCardsOptions): void {
 
   // Render deltas (only if we have previous period data)
   if (prevRollups && prevRollups.length > 0) {
-    renderDeltas(containers, current, previous);
+    renderDeltas(containers, current, previous, prevRollups.length, rollups.length);
   } else {
     clearDeltas(containers);
   }
@@ -184,31 +189,92 @@ export function renderSummaryCards(options: RenderSummaryCardsOptions): void {
 }
 
 /**
+ * Return the CSS class for a sample-size subtitle based on tier thresholds.
+ */
+function sampleTierClass(count: number, low: number, moderate: number): string {
+  if (count < low) return "metric-sample-size low-sample";
+  if (count < moderate) return "metric-sample-size moderate-sample";
+  return "metric-sample-size";
+}
+
+/**
  * Render sample size subtitle on each visible metric card.
  *
- * Every card shows the total filtered PR count — this is the evidence
- * backing the KPI regardless of how the metric is derived internally.
- * Applies .low-sample class when count is below LOW_SAMPLE_THRESHOLD (FR-009).
+ * Each card shows its metric-specific derivation basis:
+ * - totalPrs: PR count (the metric IS a sum of PRs)
+ * - cycle time: non-null cycle time week count (median-of-weekly-medians)
+ * - review time: non-null review time week count (median-of-weekly-medians)
+ * - authors/reviewers: total week count (average of all weeks, incl. zeros)
+ *
+ * Tier thresholds differ by basis: PR count uses LOW/MODERATE_SAMPLE_THRESHOLD,
+ * week counts use LOW/MODERATE_WEEK_THRESHOLD. When count is 0, no subtitle
+ * is rendered (the card is already in no-data state).
  */
 function renderSampleSize(
   containers: SummaryCardsContainers,
-  totalPrs: number,
+  metrics: CalculatedMetrics,
 ): void {
-  const label = `Based on ${totalPrs.toLocaleString()} ${totalPrs === 1 ? "PR" : "PRs"}`;
+  const weekLabel = (n: number) => `From ${n} ${n === 1 ? "week" : "weeks"} of data`;
 
-  const elements: (HTMLElement | null)[] = [
-    containers.totalPrs,
-    containers.cycleP50,
-    containers.cycleP90,
-    containers.reviewTimeP50,
-    containers.reviewTimeP90,
-    containers.authorsCount,
-    containers.reviewersCount,
+  const config: Array<{
+    el: HTMLElement | null;
+    count: number;
+    label: string;
+    low: number;
+    moderate: number;
+  }> = [
+    {
+      el: containers.totalPrs,
+      count: metrics.totalPrs,
+      label: `Based on ${metrics.totalPrs.toLocaleString()} ${metrics.totalPrs === 1 ? "PR" : "PRs"}`,
+      low: LOW_SAMPLE_THRESHOLD,
+      moderate: MODERATE_SAMPLE_THRESHOLD,
+    },
+    {
+      el: containers.cycleP50,
+      count: metrics.cycleWeekCount,
+      label: weekLabel(metrics.cycleWeekCount),
+      low: LOW_WEEK_THRESHOLD,
+      moderate: MODERATE_WEEK_THRESHOLD,
+    },
+    {
+      el: containers.cycleP90,
+      count: metrics.cycleWeekCount,
+      label: weekLabel(metrics.cycleWeekCount),
+      low: LOW_WEEK_THRESHOLD,
+      moderate: MODERATE_WEEK_THRESHOLD,
+    },
+    {
+      el: containers.reviewTimeP50,
+      count: metrics.reviewTimeWeekCount,
+      label: weekLabel(metrics.reviewTimeWeekCount),
+      low: LOW_WEEK_THRESHOLD,
+      moderate: MODERATE_WEEK_THRESHOLD,
+    },
+    {
+      el: containers.reviewTimeP90,
+      count: metrics.reviewTimeWeekCount,
+      label: weekLabel(metrics.reviewTimeWeekCount),
+      low: LOW_WEEK_THRESHOLD,
+      moderate: MODERATE_WEEK_THRESHOLD,
+    },
+    {
+      el: containers.authorsCount,
+      count: metrics.weekCount,
+      label: weekLabel(metrics.weekCount),
+      low: LOW_WEEK_THRESHOLD,
+      moderate: MODERATE_WEEK_THRESHOLD,
+    },
+    {
+      el: containers.reviewersCount,
+      count: metrics.weekCount,
+      label: weekLabel(metrics.weekCount),
+      low: LOW_WEEK_THRESHOLD,
+      moderate: MODERATE_WEEK_THRESHOLD,
+    },
   ];
 
-  const isLow = totalPrs < LOW_SAMPLE_THRESHOLD;
-
-  for (const el of elements) {
+  for (const { el, count, label, low, moderate } of config) {
     const card = el?.closest(".card") as HTMLElement | null;
     if (!card) continue;
 
@@ -216,8 +282,11 @@ function renderSampleSize(
     const existing = card.querySelector(".metric-sample-size");
     if (existing) existing.remove();
 
+    // Zero-count guard: don't render a "From 0 weeks" label when card is in no-data state
+    if (count === 0) continue;
+
     const subtitle = document.createElement("p");
-    subtitle.className = isLow ? "metric-sample-size low-sample" : "metric-sample-size";
+    subtitle.className = sampleTierClass(count, low, moderate);
     subtitle.textContent = label;
     // Insert after the h3 title
     const title = card.querySelector("h3");
@@ -378,41 +447,58 @@ function renderDeltas(
   containers: SummaryCardsContainers,
   current: CalculatedMetrics,
   previous: CalculatedMetrics,
+  prevWeekCount: number,
+  currentWeekCount: number,
 ): void {
+  // Runtime guard: only show explicit period label when window lengths are aligned
+  // (±1 week tolerance for boundary effects). Sparse data that causes larger
+  // divergence falls back to generic "vs prev" to avoid claiming false precision.
+  const aligned = Math.abs(prevWeekCount - currentWeekCount) <= 1;
+  const periodLabel = aligned
+    ? `vs prior ${prevWeekCount} ${prevWeekCount === 1 ? "week" : "weeks"}`
+    : "vs prev";
+
   renderDelta(
     containers.totalPrsDelta,
     calculatePercentChange(current.totalPrs, previous.totalPrs),
     false,
+    periodLabel,
   );
   renderDelta(
     containers.cycleP50Delta,
     calculatePercentChange(current.cycleP50, previous.cycleP50),
     true, // Inverse: lower is better
+    periodLabel,
   );
   renderDelta(
     containers.cycleP90Delta,
     calculatePercentChange(current.cycleP90, previous.cycleP90),
     true, // Inverse: lower is better
+    periodLabel,
   );
   renderDelta(
     containers.reviewTimeP50Delta,
     calculatePercentChange(current.reviewTimeP50, previous.reviewTimeP50),
     true, // Inverse: lower review time is better
+    periodLabel,
   );
   renderDelta(
     containers.reviewTimeP90Delta,
     calculatePercentChange(current.reviewTimeP90, previous.reviewTimeP90),
     true, // Inverse: lower review time is better
+    periodLabel,
   );
   renderDelta(
     containers.authorsDelta,
     calculatePercentChange(current.avgAuthors, previous.avgAuthors),
     false,
+    periodLabel,
   );
   renderDelta(
     containers.reviewersDelta,
     calculatePercentChange(current.avgReviewers, previous.avgReviewers),
     false,
+    periodLabel,
   );
 }
 

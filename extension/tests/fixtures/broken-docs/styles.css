@@ -796,6 +796,10 @@ input[type="search"]::placeholder {
     opacity: 0.7;
 }
 
+.metric-sample-size.moderate-sample {
+    opacity: 0.85;
+}
+
 /* Trend Delta Indicators */
 .metric-delta {
     display: flex;

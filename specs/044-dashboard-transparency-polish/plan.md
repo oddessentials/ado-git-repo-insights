@@ -1,218 +1,215 @@
-# Implementation Plan: Dashboard Data Transparency, Visual Polish & Component Extraction
+# Implementation Plan: 044 Final Polish — Fixes, Transparency & Test Coverage
 
 **Branch**: `044-dashboard-transparency-polish` | **Date**: 2026-03-29 | **Spec**: [spec.md](spec.md)
-**Input**: Feature specification from `/specs/044-dashboard-transparency-polish/spec.md`
+**Input**: Branch review findings + 3 new transparency issues + 2 open test tasks (T042, T050)
 
 ## Summary
 
-Implement the remaining 8 acceptance criteria from issue #204: surface review time P50/P90 and approval rate metrics, add sample size indicators and sparkline time labels for data transparency, color-code distribution buckets and improve visual polish (legend opacity, truncation indicators), and extract shared chart components. All data fields already exist in the rollup schema — this is a rendering, UX, and refactoring task. No backend or data pipeline changes required.
+Final phase of the 044 branch. Five discrete work items:
+
+1. **Low-sample threshold cliff** — Replace the binary low-sample indicator (hard cutoff at 10) with a multi-tier visual treatment so confidence reads as a gradient, not a cliff.
+2. **Median-of-medians disclosure** — Add aggregation-method context to metric tooltips so analytical users understand the derivation.
+3. **Delta "vs prev" period clarification** — Replace the ambiguous "vs prev" label with an explicit comparison period derived from the actual data.
+4. **T042** — Mobile responsive DOM test for distribution row stacking.
+5. **T050** — Mobile responsive DOM test for truncation indicator banner.
 
 ## Technical Context
 
-**Language/Version**: TypeScript 5.x (extension UI), Python 3.10+ (backend — read-only for this feature)
-**Primary Dependencies**: esbuild (IIFE bundler), vanilla DOM (no framework), renderTrustedHtml + escapeHtml (safe HTML pipeline)
-**Storage**: N/A (reads JSON aggregates from dataset-loader/artifact-client, no writes)
-**Testing**: Jest 30 + ts-jest + jsdom (extension), pytest (backend — existing tests only)
-**Target Platform**: Azure DevOps managed hub extension (webview panel, no CSP restrictions)
-**Project Type**: VS Code / ADO extension with dashboard UI
-**Performance Goals**: Dashboard renders 156 weeks in < 1000ms (QG-28). No new full-data passes (FR-027).
-**Constraints**: All 3 data paths (extension hub, CLI local, /docs demo) must produce identical output (FR-022). 2,024+ existing tests must pass (FR-023).
-**Scale/Scope**: 8 acceptance criteria across 3 themes, ~30 files touched, ~100+ new tests
+**Language/Version**: TypeScript 5.x (extension UI + tests)
+**Primary Dependencies**: esbuild (IIFE bundler), vanilla DOM, renderTrustedHtml + escapeHtml
+**Storage**: N/A (reads JSON aggregates)
+**Testing**: Jest 30 (ts-jest transformer)
+**Target Platform**: Azure DevOps extension hub + CLI local + /docs demo
+**Project Type**: Extension UI dashboard
+**Constraints**: All 3 entry points must stay in parity; no framework; no new O(n) data passes
 
 ## Constitution Check
 
-*GATE: Must pass before Phase 0 research. Re-check after Phase 1 design.*
+*GATE: Checked against constitution v1.3.0.*
 
-| Gate | Relevant? | Status | Notes |
-|------|-----------|--------|-------|
-| QG-17 | Yes | WILL SATISFY | Lint + format via pre-commit hooks (ESLint 9.x flat config) |
-| QG-18 | Yes | WILL SATISFY | tsc type checking in pre-commit |
-| QG-19 | Yes | WILL SATISFY | Jest + pytest in test:ci |
-| QG-20 | Yes | WILL SATISFY | Coverage thresholds in jest.config.ts |
-| QG-22 | Yes | WILL SATISFY | VSIX builds via esbuild |
-| QG-28 | Yes | WILL SATISFY | No new data passes; extending existing aggregation functions only |
-| QG-29 | Yes | WILL SATISFY | Existing MAX_THROUGHPUT_POINTS (104), MAX_REVIEWER_WEEKS (8) unchanged |
-| QG-30 | Yes | WILL SATISFY | Shared UI bundle — chart functions are mode-agnostic |
-| QG-35 | Yes | WILL SATISFY | Every CI check has local hook equivalent |
-| QG-36 | Yes | WILL SATISFY | No weaker local modes |
-| QG-38 | Yes | WILL SATISFY | No --no-verify usage |
+| Gate | Status | Notes |
+|------|--------|-------|
+| QG-17 | PASS | lint + format checked by pre-commit hooks |
+| QG-18 | PASS | tsc checked by pre-commit hooks |
+| QG-19 | PASS | Jest test:ci gate runs in pre-commit/pre-push/CI |
+| QG-28 | N/A | No performance-critical changes (CSS + label text only) |
+| QG-29 | N/A | No MAX_*_POINTS changes |
+| QG-30 | PASS | Shared UI bundle; parity enforced by render-equivalence tests |
+| QG-35-38 | PASS | All local/CI parity gates satisfied by existing hooks |
 
-**No violations. All gates satisfied or will be satisfied by implementation.**
+No violations. No complexity justification needed.
 
 ## Project Structure
-
-### Documentation (this feature)
 
 ```text
 specs/044-dashboard-transparency-polish/
 ├── plan.md              # This file
-├── spec.md              # Feature specification (30 FRs, 10 SCs)
-├── research.md          # Phase 0 research (9 findings)
-├── data-model.md        # Phase 1 data model
-├── quickstart.md        # Developer quickstart
-├── checklists/
-│   └── requirements.md  # Spec quality checklist (v4)
-└── tasks.md             # Phase 2 output (created by /speckit.tasks)
+├── research.md          # Phase 0 (already complete from prior work)
+├── data-model.md        # Phase 1 (already complete from prior work)
+├── quickstart.md        # Phase 1 (already complete from prior work)
+└── tasks.md             # Phase 2 (to be updated with new tasks)
 ```
 
-### Source Code (repository root)
+### Source Files Modified
 
 ```text
-extension/ui/
-├── modules/
-│   ├── metrics.ts                    # MODIFY: Add reviewTimeP50/P90 to CalculatedMetrics + extractSparklineData
-│   ├── charts.ts                     # MODIFY: Add SPARKLINE_LOOKBACK_WEEKS, getLookbackWeekCount()
-│   ├── charts/
-│   │   ├── summary-cards.ts          # MODIFY: Sample size, sparkline labels, review time metrics
-│   │   ├── cycle-time.ts             # MODIFY: BUCKET_COLOR_MAP, color classes
-│   │   ├── reviewer-activity.ts      # MODIFY: Approval rate rendering
-│   │   └── throughput.ts             # MODIFY: .truncation-badge class
-│   └── shared/
-│       ├── constants.ts              # NEW: MOBILE_BREAKPOINT, shared constants
-│       ├── horizontal-bar.ts         # NEW: Extracted bar rendering (Phase 3)
-│       ├── svg-path.ts               # NEW: Extracted SVG path (Phase 3)
-│       ├── label-decimator.ts        # NEW: Extracted label thinning (Phase 3)
-│       ├── render.ts                 # UNCHANGED
-│       ├── format.ts                 # UNCHANGED
-│       └── security.ts              # UNCHANGED
-├── styles.css                        # MODIFY: Bucket colors, opacity, truncation badge, responsive
-├── index.html                        # MODIFY: Review time card containers (if needed)
-└── dashboard.ts                      # MINOR: Pass review time / approval rate data
+extension/ui/modules/charts.ts                     # Delta label change
+extension/ui/modules/charts/summary-cards.ts        # Low-sample tiers + tooltip text
+extension/ui/modules/shared/constants.ts            # Threshold tier boundaries
+extension/ui/styles.css                             # Multi-tier CSS classes
+docs/styles.css                                     # Parity copy
+src/ado_git_repo_insights/ui_bundle/styles.css      # Parity copy
 
-extension/tests/
-├── modules/
-│   ├── metrics.test.ts               # EXTEND: reviewTimeP50/P90 tests
-│   ├── charts.test.ts                # EXTEND: getLookbackWeekCount tests
-│   ├── charts/
-│   │   ├── summary-cards.test.ts     # EXTEND: Sample size, sparkline labels, review time
-│   │   ├── reviewer-activity.test.ts # EXTEND: Approval rate conditional tests
-│   │   └── cycle-time.test.ts        # EXTEND: Bucket color class tests
-│   └── shared/
-│       ├── horizontal-bar.test.ts    # NEW (Phase 3)
-│       ├── svg-path.test.ts          # NEW (Phase 3)
-│       └── label-decimator.test.ts   # NEW (Phase 3)
-├── parity/
-│   └── render-equivalence.test.ts    # EXTEND: New component parity, normalized DOM comparison
-├── unit/
-│   ├── ux-polish-rendering.test.ts   # EXTEND: Truncation badge, opacity, color classes
-│   └── filter-consistency.test.ts    # NEW: FR-028 filter interaction invariant
-└── invariants/
-    ├── no-data-parity.test.ts        # NEW: FR-029 all-null renderNoData parity
-    └── mobile-layout.test.ts         # NEW: FR-030 mobile breakpoint layout
+extension/tests/modules/charts/summary-cards.test.ts  # Low-sample tier tests + delta label tests
+extension/tests/invariants/mobile-layout.test.ts       # T042 + T050
 ```
 
-**Structure Decision**: Extends existing extension/ui/ modules. New files only for shared component extraction (Phase 3) and new test invariants. No new directories beyond shared/ additions.
+---
+
+## Research (Phase 0)
+
+### R1: Low-Sample Tier Design
+
+**Question**: How to replace the binary cliff with a gradient without over-engineering?
+
+**Finding**: The current implementation at `summary-cards.ts:209` applies a single binary class:
+```typescript
+const isLow = totalPrs < LOW_SAMPLE_THRESHOLD; // 10
+subtitle.className = isLow ? "metric-sample-size low-sample" : "metric-sample-size";
+```
+CSS treatment (`styles.css:794`): `font-style: italic; opacity: 0.7`.
+
+**Decision**: Introduce a 3-tier system using the existing `LOW_SAMPLE_THRESHOLD = 10` as the boundary between tiers 1 and 2, with a new `MODERATE_SAMPLE_THRESHOLD = 30` as the boundary between tiers 2 and 3:
+
+| Tier | PR count | CSS class | Visual treatment |
+|------|----------|-----------|------------------|
+| Low | < 10 | `.low-sample` | italic, opacity 0.55, warning icon prefix "⚠ " |
+| Moderate | 10–29 | `.moderate-sample` | opacity 0.8 (subtle de-emphasis, no italic) |
+| Adequate | >= 30 | (none) | Normal rendering |
+
+This preserves backward compatibility (`.low-sample` class still exists for tests that check it) while adding a middle tier that smooths the visual transition. The existing `LOW_SAMPLE_THRESHOLD` constant keeps its value; a new `MODERATE_SAMPLE_THRESHOLD` constant is added beside it.
+
+**Alternatives rejected**:
+- Continuous opacity formula (e.g., `opacity = min(1, prCount / 30)`) — harder to test, no clear semantic meaning, accessibility risk at very low opacities.
+- 5-tier system — over-engineered for the information density of a subtitle.
+
+### R2: Median-of-Medians Tooltip Wording
+
+**Question**: How to disclose aggregation method without making tooltips overly technical?
+
+**Finding**: Current METRIC_EXPLANATIONS (`summary-cards.ts:28-61`) describe what each metric measures but not how it's derived. Example:
+```
+"Median time from PR creation to merge. Half of all PRs completed faster than this."
+```
+The actual calculation is median-of-weekly-medians (`metrics.ts:84-138`), which can diverge from true median when weekly sample sizes vary.
+
+**Decision**: Append a parenthetical to cycle time and review time tooltips: `"(Aggregated from weekly values.)"`. This is honest without being intimidating. Users who care will understand; users who don't will ignore the parenthetical. No change to totalPrs, authorsCount, or reviewersCount tooltips (those are sums/averages, not medians).
+
+Updated tooltip text:
+- cycleP50: `"Median time from PR creation to merge. Half of all PRs completed faster than this. (Aggregated from weekly values.)"`
+- cycleP90: `"90th percentile cycle time. 90% of PRs completed faster. High values may indicate bottlenecks. (Aggregated from weekly values.)"`
+- reviewTimeP50: `"Median time from first review request to review completion. Half of all reviews completed faster than this. (Aggregated from weekly values.)"`
+- reviewTimeP90: `"90th percentile review time. 90% of reviews completed faster. High values may indicate review bottlenecks. (Aggregated from weekly values.)"`
+
+**Alternatives rejected**:
+- Separate "How is this calculated?" expandable section — too much UI complexity for a tooltip.
+- "Median of weekly medians" literal text — too technical for the target audience (engineering managers).
+
+### R3: Delta Period Label
+
+**Question**: What does "vs prev" actually compare, and how to label it clearly?
+
+**Finding**: `getPreviousPeriod()` (`metrics.ts:162-171`) computes a mirror-image window: if the current range is N days, the previous range is the N days immediately before it. The `renderDelta()` function (`charts.ts:67`) hardcodes the label `"vs prev"`.
+
+The sparkline already shows "Last N weeks" via `getLookbackWeekCount()`. The delta comparison window is determined by the date range picker — it compares the current selected period against the immediately preceding period of equal length. For the default 8-week view, "vs prev" means "vs the 8 weeks before that."
+
+**Decision**: Change the delta label from the static `"vs prev"` to a dynamic label computed from the previous-period rollup count. The `renderDelta` signature gains an optional `periodLabel` parameter defaulting to `"vs prev"` for backward compatibility. `renderDeltas()` in summary-cards.ts passes a computed label like `"vs prior 8 weeks"` derived from `prevRollups.length`.
+
+Format: `"vs prior N week(s)"` where N = `prevRollups.length`. When prevRollups is empty, deltas are already cleared (no label needed).
+
+**Alternatives rejected**:
+- Showing exact date ranges (e.g., "vs Jan 5 – Mar 1") — too long for the delta label space, would require layout changes.
+- Tooltip-only disclosure — users shouldn't have to hover to understand what's being compared.
+
+---
+
+## Design Decisions
+
+### D1: Parity Enforcement
+
+All CSS changes go to all 3 `styles.css` files (extension, docs, src). The dashboard.js bundle is built from TypeScript and copied to docs + src automatically by the build step — no manual sync needed for JS.
+
+### D2: No New Data Passes
+
+All changes are rendering-layer only:
+- Tier classification is a simple numeric comparison on `totalPrs` (already computed)
+- Delta label is derived from `prevRollups.length` (already available)
+- Tooltip text is a static string change
+
+### D3: Test Strategy
+
+- **Low-sample tiers**: Extend existing summary-cards.test.ts with tests at each tier boundary (9, 10, 29, 30)
+- **Tooltip text**: Extend summary-cards-info.test.ts to verify the aggregation parenthetical
+- **Delta label**: Add tests in summary-cards.test.ts verifying dynamic period text
+- **T042/T050**: Add DOM-based responsive tests in mobile-layout.test.ts
+
+---
 
 ## Implementation Phases
 
-### Phase 1: Data Transparency (FR-001 through FR-011)
+### Work Item 1: Low-Sample Tier System
 
-**Dependency order**: metrics.ts → charts.ts → summary-cards.ts → reviewer-activity.ts
+**Files**: `shared/constants.ts`, `summary-cards.ts`, `styles.css` (x3), `summary-cards.test.ts`
 
-1. **Extend CalculatedMetrics** (metrics.ts)
-   - Add `reviewTimeP50: number | null` and `reviewTimeP90: number | null`
-   - Extract in existing `calculateMetrics()` pass using same median pattern
-   - Extend `extractSparklineData()` with `reviewTimeP50s` and `reviewTimeP90s`
-   - Tests: metrics.test.ts (null handling, partial data, all-null)
+1. Add `MODERATE_SAMPLE_THRESHOLD = 30` to `shared/constants.ts`
+2. Update `renderSampleSize()` in `summary-cards.ts` to apply 3-tier classification:
+   - `totalPrs < LOW_SAMPLE_THRESHOLD` → class `low-sample`, prefix "⚠ "
+   - `totalPrs < MODERATE_SAMPLE_THRESHOLD` → class `moderate-sample`
+   - else → no extra class
+3. Update `.low-sample` CSS rule: change opacity from 0.7 to 0.55 (consistent with dimmed legend)
+4. Add `.moderate-sample` CSS rule: `opacity: 0.8` (no italic)
+5. Sync CSS to all 3 entry points
+6. Add boundary tests: 9 PRs → low-sample, 10 PRs → moderate-sample, 29 PRs → moderate-sample, 30 PRs → no class
 
-2. **Add sparkline lookback infrastructure** (charts.ts)
-   - Export `SPARKLINE_LOOKBACK_WEEKS = 8`
-   - Export `getLookbackWeekCount(rollups)` function
-   - Replace hardcoded `slice(-8)` with `slice(-SPARKLINE_LOOKBACK_WEEKS)`
-   - Tests: charts.test.ts (lookback with various data sizes)
+### Work Item 2: Median-of-Medians Disclosure
 
-3. **Enhance summary cards** (summary-cards.ts)
-   - Add review time P50/P90 metric rendering with info icons + METRIC_EXPLANATIONS entries
-   - Add sample size subtitle: `"Based on ${totalPrs} PR${totalPrs === 1 ? '' : 's'}"` using `calculateMetrics().totalPrs`
-   - Add `LOW_SAMPLE_THRESHOLD = 10` — apply `.low-sample` class when below
-   - Add sparkline time label: `"Last ${getLookbackWeekCount(rollups)} week${n === 1 ? '' : 's'}"`
-   - Tests: summary-cards.test.ts (all new elements, consistency assertions)
+**Files**: `summary-cards.ts`, `summary-cards-info.test.ts`
 
-4. **Add approval rate rendering** (reviewer-activity.ts)
-   - When `reviewerFilterActive`, compute approval_rate from raw `by_reviewer` breakdown data
-   - Display as "Approval Rate: N%" in chart subtitle or secondary metric
-   - Handle null (renderNoData pattern), 0%, 100% edge cases
-   - **CHECKPOINT**: Verify approval_rate survives filter path (see memory: project_044_approval_rate_checkpoint)
-   - Tests: reviewer-activity.test.ts (conditional display, null, 0%, 100%, filter on/off)
+1. Append `" (Aggregated from weekly values.)"` to the 4 median/percentile entries in `METRIC_EXPLANATIONS`
+2. Update info icon test assertions to verify the new text
 
-### Phase 2: Visual Polish (FR-012 through FR-017)
+### Work Item 3: Delta Period Label
 
-**No dependencies on Phase 1. Can proceed in parallel on styles.**
+**Files**: `charts.ts`, `summary-cards.ts`, `summary-cards.test.ts`
 
-5. **Color-code distribution buckets** (cycle-time.ts + styles.css)
-   - Define `BUCKET_COLOR_MAP` constant with 6 entries → "fast"/"moderate"/"slow"
-   - Add `bucket-fast`, `bucket-moderate`, `bucket-slow` CSS class to each `dist-row`
-   - Add CSS rules: `.bucket-fast .dist-bar { background: var(--success) }` etc.
-   - Add responsive stacking at `@media (max-width: 480px)` for distribution rows
-   - Tests: cycle-time.test.ts (color class assignment, unknown label fallback)
+1. Add optional `periodLabel?: string` parameter to `renderDelta()` in `charts.ts`, defaulting to `"vs prev"`
+2. Update `renderDeltas()` in `summary-cards.ts` to accept `prevRollups` length and compute `"vs prior N week(s)"`
+3. Pass the computed label to each `renderDelta()` call
+4. Add test: with 8 prev rollups, assert delta contains "vs prior 8 weeks"
+5. Add test: with 1 prev rollup, assert delta contains "vs prior 1 week"
 
-6. **Update dimmed legend opacity** (styles.css)
-   - Change `.dimmed { opacity: 0.3 }` to `.dimmed { opacity: 0.55 }`
-   - Single line change
-   - Tests: ux-polish-rendering.test.ts (assert .dimmed class present on insufficient-data legends)
+### Work Item 4: T042 — Mobile Distribution Row Test
 
-7. **Restyle truncation indicators** (styles.css + 3 chart modules)
-   - Add `.truncation-badge` class to all truncation indicator `<div>` elements in throughput.ts, reviewer-activity.ts, cycle-time.ts
-   - Style: `background: var(--bg-tertiary); border: 1px solid var(--border); border-radius: var(--radius); padding: 6px 12px; font-weight: 600; display: inline-block`
-   - Mobile: `@media (max-width: 480px)` → full-width banner with `var(--warning-bg)` background and left accent border
-   - Tests: ux-polish-rendering.test.ts (class presence, text content pattern)
+**Files**: `mobile-layout.test.ts`
 
-### Phase 2.5: Cross-Cutting Invariant Tests (FR-022, FR-028-030)
+1. Add test that renders a cycle-time distribution at a viewport below MOBILE_BREAKPOINT
+2. Assert `.dist-row` elements have the stacked-layout CSS class or computed flex-direction
+3. Since JSDOM doesn't compute media queries, verify via CSS file grep that `@media (max-width: 480px)` contains `.dist-row` with `flex-direction: column`
 
-8. **Parity tests** (render-equivalence.test.ts)
-   - Extend Layer A: idempotency tests for new summary card elements
-   - Extend Layer B: cross-path normalization for review time fields
-   - Add normalized DOM comparison (collapse whitespace, sort attributes)
+### Work Item 5: T050 — Mobile Truncation Banner Test
 
-9. **Filter interaction test** (NEW: filter-consistency.test.ts)
-   - Apply filter → assert all metrics reflect filtered data consistently
-   - Remove filter → assert all metrics return to unfiltered state
+**Files**: `mobile-layout.test.ts`
 
-10. **All-null no-data test** (NEW: no-data-parity.test.ts)
-    - Render with all-null dataset → assert every card/chart uses renderNoData() with .no-data structure
+1. Add test that verifies the mobile CSS for `.truncation-badge` at narrow viewport
+2. Assert via CSS file grep that `@media (max-width: 480px)` contains `.truncation-badge` with `display: block` and `width: 100%`
 
-11. **Mobile layout test** (NEW: mobile-layout.test.ts)
-    - Render at < MOBILE_BREAKPOINT → assert distribution row stacking, truncation banner, card grid changes
-    - Verify MOBILE_BREAKPOINT JS constant matches CSS media query value
+---
 
-### Phase 3: Component Extraction (FR-018 through FR-021)
+## Verification
 
-**MUST be last — after all Phase 1-2 features stabilize.**
+After all work items:
 
-12. **Capture pre-extraction snapshots**
-    - Snapshot all chart module HTML output with test datasets
-    - Record baseline LOC: `wc -l` on chart modules
-
-13. **Extract shared horizontal bar** (NEW: shared/horizontal-bar.ts)
-    - Extract from reviewer-activity.ts (lines 111-128) and cycle-time.ts (lines 89-101)
-    - Tests: horizontal-bar.test.ts (pure function tests + DOM integration)
-    - Verify: post-extraction snapshots identical to pre-extraction
-
-14. **Extract SVG path generation** (NEW: shared/svg-path.ts)
-    - Extract sparkline coordinate scaling + path building from charts.ts
-    - Tests: svg-path.test.ts (coordinate math, empty data, single point)
-    - Verify: sparkline rendering unchanged
-
-15. **Extract label decimation** (NEW: shared/label-decimator.ts)
-    - Extract label thinning logic from throughput.ts and cycle-time.ts
-    - Tests: label-decimator.test.ts (step calculation, boundary cases)
-    - Verify: label visibility unchanged
-
-16. **Verify LOC delta**
-    - Run automated LOC count against post-Phase-2 baseline
-    - Assert at least 80 lines net reduction
-    - Run full test suite — all 2,024+ existing tests must pass
-
-## Risk Mitigation
-
-| Risk | Mitigation |
-|------|-----------|
-| approval_rate dropped in filter path | Implementation checkpoint: verify propagation before wiring UI |
-| Extraction introduces regression | Pre/post snapshot parity tests; extract after features stabilize |
-| Mobile breakpoint JS/CSS drift | Automated parity test greps CSS, compares to JS constant |
-| Sample size inconsistent across cards | Single computation from calculateMetrics().totalPrs, shared across all cards |
-| Sparkline label drift per card | Single getLookbackWeekCount() function, test asserts identical N across all labels |
-
-## Complexity Tracking
-
-> No constitution violations. No complexity justification needed.
+1. `pnpm run test:ci` — all Jest tests pass (existing + new)
+2. `git diff --stat` — CSS changes are identical across all 3 entry points
+3. Pre-commit hooks pass (tsc, eslint, ruff, suppression audit)
+4. Visual spot-check: dashboard renders correctly with sample dataset

@@ -634,9 +634,9 @@ describe("summary-cards module", () => {
       expect(sampleEl!.textContent).toBe("Based on 1 PR");
     });
 
-    it("all cards show the same PR-based sample size", () => {
+    it("totalPrs card shows PR count, cycle card shows week count", () => {
       const containers = createContainers();
-      // Aggregate card (cycle time)
+      // Cycle time card
       const aggCard = document.createElement("div");
       aggCard.className = "card";
       aggCard.appendChild(document.createElement("h3"));
@@ -650,14 +650,16 @@ describe("summary-cards module", () => {
       prCard.appendChild(containers.totalPrs!);
       document.body.appendChild(prCard);
 
+      // 4 rollups, all with non-null cycle_time_p50
       renderSummaryCards({ rollups: createRollups(4), containers });
 
       const aggSample = aggCard.querySelector(".metric-sample-size");
       const prSample = prCard.querySelector(".metric-sample-size");
 
-      // Both cards show the filtered PR count as sample size
-      expect(aggSample!.textContent).toBe("Based on 70 PRs");
+      // PR card: sum of pr_count (10+15+20+25=70)
       expect(prSample!.textContent).toBe("Based on 70 PRs");
+      // Cycle card: week count (4 weeks with non-null cycle_time_p50)
+      expect(aggSample!.textContent).toBe("From 4 weeks of data");
     });
 
     it("applies .low-sample class when below LOW_SAMPLE_THRESHOLD", () => {
@@ -699,7 +701,7 @@ describe("summary-cards module", () => {
       expect(card.querySelector(".metric-sample-size")).not.toBeNull();
     });
 
-    it("review-time cards show the same PR-based sample size as other cards", () => {
+    it("review-time cards show week-based sample size from non-null weeks", () => {
       const containers = createContainers();
 
       // Total PRs card
@@ -716,7 +718,7 @@ describe("summary-cards module", () => {
       rtCard.appendChild(containers.reviewTimeP50!);
       document.body.appendChild(rtCard);
 
-      // 4 rollups, some with null review_time — sample size is still total PRs
+      // 4 rollups, 2 with non-null review_time_p50
       const rollups = [
         { week: "2025-W01", pr_count: 20, cycle_time_p50: 60, cycle_time_p90: 120, review_time_p50: 30, review_time_p90: 60, authors_count: 5, reviewers_count: 3, by_repository: null, by_team: null },
         { week: "2025-W02", pr_count: 25, cycle_time_p50: 45, cycle_time_p90: 90, review_time_p50: null, review_time_p90: null, authors_count: 7, reviewers_count: 4, by_repository: null, by_team: null },
@@ -726,12 +728,13 @@ describe("summary-cards module", () => {
 
       renderSummaryCards({ rollups, containers });
 
-      // Both cards: total filtered PR count
+      // PR card: sum of pr_count (20+25+15+30=90)
       const prSample = prCard.querySelector(".metric-sample-size");
       expect(prSample!.textContent).toBe("Based on 90 PRs");
 
+      // Review-time card: 2 non-null review_time_p50 weeks
       const rtSample = rtCard.querySelector(".metric-sample-size");
-      expect(rtSample!.textContent).toBe("Based on 90 PRs");
+      expect(rtSample!.textContent).toBe("From 2 weeks of data");
     });
 
     it("sparkline label uses shared rollup count, not per-series non-null count", () => {
@@ -796,7 +799,7 @@ describe("summary-cards module", () => {
       expect(label!.textContent).toBe("Last 8 weeks");
     });
 
-    it("review-time P50/P90 cards share the same PR-based sample size", () => {
+    it("review-time P50/P90 cards share the same reviewTimeWeekCount", () => {
       const containers = createContainers();
 
       const p50Card = document.createElement("div");
@@ -819,24 +822,24 @@ describe("summary-cards module", () => {
 
       renderSummaryCards({ rollups, containers });
 
-      // Both cards show total filtered PR count (10+15+20=45)
+      // Both review-time cards use reviewTimeWeekCount (2 non-null review_time_p50 weeks)
       const p50Sample = p50Card.querySelector(".metric-sample-size");
-      expect(p50Sample!.textContent).toBe("Based on 45 PRs");
+      expect(p50Sample!.textContent).toBe("From 2 weeks of data");
 
       const p90Sample = p90Card.querySelector(".metric-sample-size");
-      expect(p90Sample!.textContent).toBe("Based on 45 PRs");
+      expect(p90Sample!.textContent).toBe("From 2 weeks of data");
     });
 
-    it("all cards render 'Based on N PRs'", () => {
+    it("week-based cards show 'From N weeks of data'", () => {
       const containers = createContainers();
-      const aggregateEls = [
+      const weekBasedEls = [
         containers.cycleP50!,
         containers.cycleP90!,
         containers.authorsCount!,
         containers.reviewersCount!,
       ];
       const cards: HTMLElement[] = [];
-      for (const el of aggregateEls) {
+      for (const el of weekBasedEls) {
         const card = document.createElement("div");
         card.className = "card";
         card.appendChild(document.createElement("h3"));
@@ -845,13 +848,220 @@ describe("summary-cards module", () => {
         cards.push(card);
       }
 
+      // createRollups(8) produces 8 rollups, all with non-null cycle_time_p50
       renderSummaryCards({ rollups: createRollups(8), containers });
 
       for (const card of cards) {
         const label = card.querySelector(".metric-sample-size")?.textContent ?? "";
-        expect(label).toContain("Based on");
-        expect(label).toContain("PRs");
+        expect(label).toContain("From");
+        expect(label).toContain("weeks of data");
       }
+    });
+
+    it("zero-count suppresses sample-size subtitle", () => {
+      const containers = createContainers();
+      const card = document.createElement("div");
+      card.className = "card";
+      card.appendChild(document.createElement("h3"));
+      card.appendChild(containers.reviewTimeP50!);
+      document.body.appendChild(card);
+
+      // All rollups have null review_time_p50 → reviewTimeWeekCount = 0
+      const rollups = [
+        { week: "2025-W01", pr_count: 10, cycle_time_p50: 60, cycle_time_p90: 120, authors_count: 5, reviewers_count: 3, by_repository: null, by_team: null },
+        { week: "2025-W02", pr_count: 15, cycle_time_p50: 80, cycle_time_p90: 160, authors_count: 7, reviewers_count: 4, by_repository: null, by_team: null },
+      ];
+
+      renderSummaryCards({ rollups, containers });
+
+      // No subtitle when count is 0 — card is in no-data state
+      expect(card.querySelector(".metric-sample-size")).toBeNull();
+    });
+
+    it("cycle card with partial data shows week count and low-sample tier", () => {
+      const containers = createContainers();
+      const card = document.createElement("div");
+      card.className = "card";
+      card.appendChild(document.createElement("h3"));
+      card.appendChild(containers.cycleP50!);
+      document.body.appendChild(card);
+
+      // 8 rollups, only 2 with non-null cycle_time_p50
+      const rollups = Array.from({ length: 8 }, (_, i) => ({
+        week: `2025-W${(i + 1).toString().padStart(2, "0")}`,
+        pr_count: 10,
+        cycle_time_p50: i < 2 ? 60 + i * 10 : (null as number | null),
+        cycle_time_p90: i < 2 ? 120 + i * 20 : (null as number | null),
+        authors_count: 5,
+        reviewers_count: 3,
+        by_repository: null,
+        by_team: null,
+      }));
+
+      renderSummaryCards({ rollups, containers });
+
+      const sampleEl = card.querySelector(".metric-sample-size");
+      expect(sampleEl).not.toBeNull();
+      expect(sampleEl!.textContent).toBe("From 2 weeks of data");
+      expect(sampleEl!.classList.contains("low-sample")).toBe(true); // 2 < LOW_WEEK_THRESHOLD(3)
+    });
+
+    it("week-based moderate tier at 4 weeks", () => {
+      const containers = createContainers();
+      const card = document.createElement("div");
+      card.className = "card";
+      card.appendChild(document.createElement("h3"));
+      card.appendChild(containers.cycleP50!);
+      document.body.appendChild(card);
+
+      // 4 rollups, all with non-null cycle_time_p50 → cycleWeekCount = 4
+      renderSummaryCards({ rollups: createRollups(4), containers });
+
+      const sampleEl = card.querySelector(".metric-sample-size");
+      expect(sampleEl).not.toBeNull();
+      expect(sampleEl!.classList.contains("moderate-sample")).toBe(true); // 3 <= 4 < 8
+      expect(sampleEl!.classList.contains("low-sample")).toBe(false);
+    });
+
+    it("week-based adequate tier at 8+ weeks", () => {
+      const containers = createContainers();
+      const card = document.createElement("div");
+      card.className = "card";
+      card.appendChild(document.createElement("h3"));
+      card.appendChild(containers.cycleP50!);
+      document.body.appendChild(card);
+
+      // 8 rollups, all with non-null cycle_time_p50 → cycleWeekCount = 8
+      renderSummaryCards({ rollups: createRollups(8), containers });
+
+      const sampleEl = card.querySelector(".metric-sample-size");
+      expect(sampleEl).not.toBeNull();
+      expect(sampleEl!.classList.contains("moderate-sample")).toBe(false);
+      expect(sampleEl!.classList.contains("low-sample")).toBe(false);
+    });
+
+    it("PR-based tier boundaries: 9 low, 10 moderate, 30 adequate", () => {
+      const makeRollup = (prCount: number) => [{
+        week: "2025-W01", pr_count: prCount,
+        cycle_time_p50: 60, cycle_time_p90: 120,
+        authors_count: 5, reviewers_count: 3,
+        by_repository: null, by_team: null,
+      }];
+
+      for (const { prCount, expected } of [
+        { prCount: 9, expected: "low-sample" },
+        { prCount: 10, expected: "moderate-sample" },
+        { prCount: 30, expected: "adequate" },
+      ]) {
+        const containers = createContainers();
+        const card = document.createElement("div");
+        card.className = "card";
+        card.appendChild(document.createElement("h3"));
+        card.appendChild(containers.totalPrs!);
+        document.body.appendChild(card);
+
+        renderSummaryCards({ rollups: makeRollup(prCount), containers });
+
+        const el = card.querySelector(".metric-sample-size")!;
+        if (expected === "adequate") {
+          expect(el.classList.contains("low-sample")).toBe(false);
+          expect(el.classList.contains("moderate-sample")).toBe(false);
+        } else {
+          expect(el.classList.contains(expected)).toBe(true);
+        }
+
+        document.body.removeChild(card);
+      }
+    });
+  });
+
+  describe("delta period label", () => {
+    it("shows 'vs prior N weeks' when windows are aligned", () => {
+      const containers = createContainers();
+      const card = document.createElement("div");
+      card.className = "card";
+      card.appendChild(document.createElement("h3"));
+      card.appendChild(containers.totalPrs!);
+      card.appendChild(containers.totalPrsDelta!);
+      document.body.appendChild(card);
+
+      const rollups = createRollups(8);
+      const prevRollups = createRollups(8);
+
+      renderSummaryCards({ rollups, prevRollups, containers });
+
+      expect(containers.totalPrsDelta!.innerHTML).toContain("vs prior 8 weeks");
+    });
+
+    it("shows singular 'week' for 1 prevRollup", () => {
+      const containers = createContainers();
+      const card = document.createElement("div");
+      card.className = "card";
+      card.appendChild(document.createElement("h3"));
+      card.appendChild(containers.totalPrs!);
+      card.appendChild(containers.totalPrsDelta!);
+      document.body.appendChild(card);
+
+      const rollups = createRollups(1);
+      const prevRollups = createRollups(1);
+
+      renderSummaryCards({ rollups, prevRollups, containers });
+
+      expect(containers.totalPrsDelta!.innerHTML).toContain("vs prior 1 week");
+      expect(containers.totalPrsDelta!.innerHTML).not.toContain("weeks");
+    });
+
+    it("falls back to 'vs prev' when windows are mismatched", () => {
+      const containers = createContainers();
+      const card = document.createElement("div");
+      card.className = "card";
+      card.appendChild(document.createElement("h3"));
+      card.appendChild(containers.totalPrs!);
+      card.appendChild(containers.totalPrsDelta!);
+      document.body.appendChild(card);
+
+      const rollups = createRollups(8);
+      const prevRollups = createRollups(5); // mismatch > 1
+
+      renderSummaryCards({ rollups, prevRollups, containers });
+
+      expect(containers.totalPrsDelta!.innerHTML).toContain("vs prev");
+      expect(containers.totalPrsDelta!.innerHTML).not.toContain("vs prior");
+    });
+
+    it("tolerates off-by-one window difference", () => {
+      const containers = createContainers();
+      const card = document.createElement("div");
+      card.className = "card";
+      card.appendChild(document.createElement("h3"));
+      card.appendChild(containers.totalPrs!);
+      card.appendChild(containers.totalPrsDelta!);
+      document.body.appendChild(card);
+
+      const rollups = createRollups(8);
+      const prevRollups = createRollups(7); // mismatch = 1 → tolerated
+
+      renderSummaryCards({ rollups, prevRollups, containers });
+
+      expect(containers.totalPrsDelta!.innerHTML).toContain("vs prior 7 weeks");
+    });
+
+    it("clears deltas and label when prevRollups is empty", () => {
+      const containers = createContainers();
+      const card = document.createElement("div");
+      card.className = "card";
+      card.appendChild(document.createElement("h3"));
+      card.appendChild(containers.totalPrs!);
+      card.appendChild(containers.totalPrsDelta!);
+      document.body.appendChild(card);
+
+      // Pre-populate delta
+      containers.totalPrsDelta!.innerHTML = '<span class="delta-label">old</span>';
+
+      renderSummaryCards({ rollups: createRollups(4), prevRollups: [], containers });
+
+      expect(containers.totalPrsDelta!.innerHTML).toBe("");
+      expect(containers.totalPrsDelta!.querySelector(".delta-label")).toBeNull();
     });
   });
 });
