@@ -523,31 +523,32 @@ describe("summary-cards module", () => {
       expect(label!.textContent).toBe("Last 1 week");
     });
 
-    it("shows consistent N across all sparkline labels", () => {
+    it("sparkline labels use correct wording per metric type", () => {
       const containers = createContainers();
-      const pairs: [HTMLElement, HTMLElement][] = [
-        [containers.totalPrs!, containers.totalPrsSparkline!],
-        [containers.cycleP50!, containers.cycleP50Sparkline!],
-      ];
-      const cards: HTMLElement[] = [];
-      for (const [valEl, sparkEl] of pairs) {
-        const card = document.createElement("div");
-        card.className = "card";
-        card.appendChild(document.createElement("h3"));
-        card.appendChild(valEl);
-        card.appendChild(sparkEl);
-        document.body.appendChild(card);
-        cards.push(card);
-      }
+      // Total PRs card (contiguous window → "weeks")
+      const prCard = document.createElement("div");
+      prCard.className = "card";
+      prCard.appendChild(document.createElement("h3"));
+      prCard.appendChild(containers.totalPrs!);
+      prCard.appendChild(containers.totalPrsSparkline!);
+      document.body.appendChild(prCard);
 
+      // Cycle P50 card (sparse metric → "data points")
+      const cycleCard = document.createElement("div");
+      cycleCard.className = "card";
+      cycleCard.appendChild(document.createElement("h3"));
+      cycleCard.appendChild(containers.cycleP50!);
+      cycleCard.appendChild(containers.cycleP50Sparkline!);
+      document.body.appendChild(cycleCard);
+
+      // 12 rollups, all with non-null cycle_time_p50 → both capped at 8
       renderSummaryCards({ rollups: createRollups(12), containers });
 
-      const labels = cards
-        .map((c) => c.querySelector(".sparkline-label")?.textContent)
-        .filter(Boolean);
-      expect(labels.length).toBe(pairs.length);
-      expect(new Set(labels).size).toBe(1);
-      expect(labels[0]).toBe("Last 8 weeks");
+      const prLabel = prCard.querySelector(".sparkline-label");
+      expect(prLabel!.textContent).toBe("Last 8 weeks");
+
+      const cycleLabel = cycleCard.querySelector(".sparkline-label");
+      expect(cycleLabel!.textContent).toBe("8 data points");
     });
 
     it("sparkline label N equals min(filteredRollups.length, lookback)", () => {
@@ -659,8 +660,8 @@ describe("summary-cards module", () => {
 
       // PR card: sum of pr_count (10+15+20+25=70)
       expect(prSample!.textContent).toBe("Based on 70 PRs");
-      // Cycle card: week count (4 weeks with non-null cycle_time_p50)
-      expect(aggSample!.textContent).toBe("From 4 weeks of data");
+      // Cycle card: sparse metric — non-null data point count
+      expect(aggSample!.textContent).toBe("From 4 data points");
     });
 
     it("applies .low-sample class when below LOW_SAMPLE_THRESHOLD", () => {
@@ -733,9 +734,9 @@ describe("summary-cards module", () => {
       const prSample = prCard.querySelector(".metric-sample-size");
       expect(prSample!.textContent).toBe("Based on 90 PRs");
 
-      // Review-time card: 2 non-null review_time_p50 weeks
+      // Review-time card: sparse metric — 2 non-null data points
       const rtSample = rtCard.querySelector(".metric-sample-size");
-      expect(rtSample!.textContent).toBe("From 2 weeks of data");
+      expect(rtSample!.textContent).toBe("From 2 data points");
     });
 
     it("sparkline label uses metric-specific week count, not raw rollup count", () => {
@@ -770,10 +771,10 @@ describe("summary-cards module", () => {
 
       renderSummaryCards({ rollups, containers });
 
-      // Review-time card: 3 non-null weeks → "Last 3 weeks"
+      // Review-time card: sparse metric — 3 non-null data points
       const rtLabel = rtCard.querySelector(".sparkline-label");
       expect(rtLabel).not.toBeNull();
-      expect(rtLabel!.textContent).toBe("Last 3 weeks");
+      expect(rtLabel!.textContent).toBe("3 data points");
 
       // Authors card: all 8 weeks → "Last 8 weeks"
       const authLabel = authCard.querySelector(".sparkline-label");
@@ -806,13 +807,13 @@ describe("summary-cards module", () => {
 
       renderSummaryCards({ rollups, containers });
 
-      // P50: 2 non-null review_time_p50 weeks (W01, W03)
+      // P50: 2 non-null review_time_p50 data points (W01, W03)
       const p50Sample = p50Card.querySelector(".metric-sample-size");
-      expect(p50Sample!.textContent).toBe("From 2 weeks of data");
+      expect(p50Sample!.textContent).toBe("From 2 data points");
 
-      // P90: 2 non-null review_time_p90 weeks (W01, W02) — independent from P50
+      // P90: 2 non-null review_time_p90 data points (W01, W02) — independent from P50
       const p90Sample = p90Card.querySelector(".metric-sample-size");
-      expect(p90Sample!.textContent).toBe("From 2 weeks of data");
+      expect(p90Sample!.textContent).toBe("From 2 data points");
     });
 
     it("P90 card shows different count than P50 when null patterns diverge", () => {
@@ -840,42 +841,53 @@ describe("summary-cards module", () => {
 
       renderSummaryCards({ rollups, containers });
 
-      // P50: 2 non-null weeks → low-sample (2 < 3)
+      // P50: 2 non-null data points → low-sample (2 < 3)
       const p50Sample = p50Card.querySelector(".metric-sample-size");
-      expect(p50Sample!.textContent).toBe("From 2 weeks of data");
+      expect(p50Sample!.textContent).toBe("From 2 data points");
       expect(p50Sample!.classList.contains("low-sample")).toBe(true);
 
-      // P90: 4 non-null weeks → moderate-sample (3 ≤ 4 < 8)
+      // P90: 4 non-null data points → moderate-sample (3 ≤ 4 < 8)
       const p90Sample = p90Card.querySelector(".metric-sample-size");
-      expect(p90Sample!.textContent).toBe("From 4 weeks of data");
+      expect(p90Sample!.textContent).toBe("From 4 data points");
       expect(p90Sample!.classList.contains("moderate-sample")).toBe(true);
     });
 
-    it("week-based cards show 'From N weeks of data'", () => {
+    it("contiguous-window cards show 'weeks', sparse cards show 'data points'", () => {
       const containers = createContainers();
-      const weekBasedEls = [
-        containers.cycleP50!,
-        containers.cycleP90!,
-        containers.authorsCount!,
-        containers.reviewersCount!,
-      ];
-      const cards: HTMLElement[] = [];
-      for (const el of weekBasedEls) {
+
+      // Contiguous-window cards (authors, reviewers)
+      const contiguousEls = [containers.authorsCount!, containers.reviewersCount!];
+      const contiguousCards: HTMLElement[] = [];
+      for (const el of contiguousEls) {
         const card = document.createElement("div");
         card.className = "card";
         card.appendChild(document.createElement("h3"));
         card.appendChild(el);
         document.body.appendChild(card);
-        cards.push(card);
+        contiguousCards.push(card);
       }
 
-      // createRollups(8) produces 8 rollups, all with non-null cycle_time_p50
+      // Sparse cards (cycle time)
+      const sparseEls = [containers.cycleP50!, containers.cycleP90!];
+      const sparseCards: HTMLElement[] = [];
+      for (const el of sparseEls) {
+        const card = document.createElement("div");
+        card.className = "card";
+        card.appendChild(document.createElement("h3"));
+        card.appendChild(el);
+        document.body.appendChild(card);
+        sparseCards.push(card);
+      }
+
       renderSummaryCards({ rollups: createRollups(8), containers });
 
-      for (const card of cards) {
+      for (const card of contiguousCards) {
         const label = card.querySelector(".metric-sample-size")?.textContent ?? "";
-        expect(label).toContain("From");
         expect(label).toContain("weeks of data");
+      }
+      for (const card of sparseCards) {
+        const label = card.querySelector(".metric-sample-size")?.textContent ?? "";
+        expect(label).toContain("data points");
       }
     });
 
@@ -923,7 +935,7 @@ describe("summary-cards module", () => {
 
       const sampleEl = card.querySelector(".metric-sample-size");
       expect(sampleEl).not.toBeNull();
-      expect(sampleEl!.textContent).toBe("From 2 weeks of data");
+      expect(sampleEl!.textContent).toBe("From 2 data points");
       expect(sampleEl!.classList.contains("low-sample")).toBe(true); // 2 < LOW_WEEK_THRESHOLD(3)
     });
 
@@ -1162,14 +1174,16 @@ describe("summary-cards module", () => {
 
       renderSummaryCards({ rollups, prevRollups, containers });
 
-      // Cycle P50 card: only 2 non-null weeks — all labels must say "2"
+      // Cycle P50 card: sparse metric — 2 non-null data points, generic delta
       const cycleSample = cycleCard.querySelector(".metric-sample-size");
-      expect(cycleSample!.textContent).toBe("From 2 weeks of data");
+      expect(cycleSample!.textContent).toBe("From 2 data points");
       const cycleSparkline = cycleCard.querySelector(".sparkline-label");
-      expect(cycleSparkline!.textContent).toBe("Last 2 weeks");
-      expect(containers.cycleP50Delta!.innerHTML).toContain("vs prior 2 weeks");
+      expect(cycleSparkline!.textContent).toBe("2 data points");
+      // Sparse metrics never claim specific week windows
+      expect(containers.cycleP50Delta!.innerHTML).toContain("vs prior period");
+      expect(containers.cycleP50Delta!.innerHTML).not.toContain("vs prior 2 weeks");
 
-      // Authors card: all 8 weeks — labels must say "8"
+      // Authors card: contiguous window — all 8 weeks
       const authSample = authCard.querySelector(".metric-sample-size");
       expect(authSample!.textContent).toBe("From 8 weeks of data");
       const authSparkline = authCard.querySelector(".sparkline-label");

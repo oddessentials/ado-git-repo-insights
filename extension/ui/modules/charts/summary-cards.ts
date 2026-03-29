@@ -205,6 +205,16 @@ function metricWeekCount(metrics: CalculatedMetrics, key: string): number {
 }
 
 /**
+ * Whether a metric key represents a sparse series (non-null subset of weeks)
+ * vs a contiguous window (all weeks contribute). Sparse series must not use
+ * temporal "weeks" wording since the data points may skip calendar weeks.
+ */
+function isSparseMetric(key: string): boolean {
+  return key === "cycleP50" || key === "cycleP90"
+    || key === "reviewTimeP50" || key === "reviewTimeP90";
+}
+
+/**
  * Return the CSS class for a sample-size subtitle based on tier thresholds.
  */
 function sampleTierClass(count: number, low: number, moderate: number): string {
@@ -231,6 +241,7 @@ function renderSampleSize(
   metrics: CalculatedMetrics,
 ): void {
   const weekLabel = (n: number) => `From ${n} ${n === 1 ? "week" : "weeks"} of data`;
+  const pointLabel = (n: number) => `From ${n} data ${n === 1 ? "point" : "points"}`;
 
   const config: Array<{
     el: HTMLElement | null;
@@ -249,28 +260,28 @@ function renderSampleSize(
     {
       el: containers.cycleP50,
       count: metrics.cycleP50WeekCount,
-      label: weekLabel(metrics.cycleP50WeekCount),
+      label: pointLabel(metrics.cycleP50WeekCount),
       low: LOW_WEEK_THRESHOLD,
       moderate: MODERATE_WEEK_THRESHOLD,
     },
     {
       el: containers.cycleP90,
       count: metrics.cycleP90WeekCount,
-      label: weekLabel(metrics.cycleP90WeekCount),
+      label: pointLabel(metrics.cycleP90WeekCount),
       low: LOW_WEEK_THRESHOLD,
       moderate: MODERATE_WEEK_THRESHOLD,
     },
     {
       el: containers.reviewTimeP50,
       count: metrics.reviewTimeP50WeekCount,
-      label: weekLabel(metrics.reviewTimeP50WeekCount),
+      label: pointLabel(metrics.reviewTimeP50WeekCount),
       low: LOW_WEEK_THRESHOLD,
       moderate: MODERATE_WEEK_THRESHOLD,
     },
     {
       el: containers.reviewTimeP90,
       count: metrics.reviewTimeP90WeekCount,
-      label: weekLabel(metrics.reviewTimeP90WeekCount),
+      label: pointLabel(metrics.reviewTimeP90WeekCount),
       low: LOW_WEEK_THRESHOLD,
       moderate: MODERATE_WEEK_THRESHOLD,
     },
@@ -346,7 +357,12 @@ function renderSparklineLabels(
     const count = getLookbackWeekCount(metricWeekCount(metrics, key));
     if (count < 1) continue;
 
-    const text = `Last ${count} ${count === 1 ? "week" : "weeks"}`;
+    // Sparse metrics (cycle/review time) use non-temporal "data points" wording
+    // since the plotted values may skip calendar weeks. Contiguous-window metrics
+    // (totalPrs, authors, reviewers) can safely say "weeks".
+    const text = isSparseMetric(key)
+      ? `${count} data ${count === 1 ? "point" : "points"}`
+      : `Last ${count} ${count === 1 ? "week" : "weeks"}`;
     const label = document.createElement("p");
     label.className = "sparkline-label";
     label.textContent = text;
@@ -453,12 +469,13 @@ function renderSparklines(
 
 /**
  * Compute the delta period label for a specific metric.
- * Uses metric-specific week counts so the label matches the sample-size basis.
- * Only emits a specific "vs prior N weeks" when current and previous counts
- * match exactly. Any mismatch — even off-by-one — means the comparison
- * windows have different sparse coverage, so a specific claim is misleading.
+ * Sparse metrics (cycle/review time) always use generic "vs prior period"
+ * because their non-null counts don't imply contiguous calendar weeks.
+ * Contiguous-window metrics use specific "vs prior N weeks" when counts match.
  */
 function deltaPeriodLabel(current: CalculatedMetrics, previous: CalculatedMetrics, key: string): string {
+  // Sparse metrics can never safely claim a specific week window
+  if (isSparseMetric(key)) return "vs prior period";
   const cur = metricWeekCount(current, key);
   const prev = metricWeekCount(previous, key);
   if (prev !== cur) return "vs prior period";

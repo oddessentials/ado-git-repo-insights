@@ -177,11 +177,11 @@ describe("Cross-component parity: sparkline labels, delta labels, and sample siz
     expect(sampleEl).not.toBeNull();
     expect(sampleEl!.textContent).toBe("Based on 60 PRs");
 
-    // Cycle card: week-based, uses cycleP50WeekCount from same 6 rollups
+    // Cycle card: sparse metric — uses cycleP50WeekCount from same 6 rollups
     const cycleCard = containers.cycleP50!.closest(".card");
     const cycleSample = cycleCard?.querySelector(".metric-sample-size");
     expect(cycleSample).not.toBeNull();
-    expect(cycleSample!.textContent).toBe("From 6 weeks of data");
+    expect(cycleSample!.textContent).toBe("From 6 data points");
   });
 
   it("with > 8 rollups, sparkline caps but sample size and delta use full set", () => {
@@ -223,10 +223,10 @@ describe("Cross-component parity: sparkline labels, delta labels, and sample siz
     const sampleEl = prCard?.querySelector(".metric-sample-size");
     expect(sampleEl!.textContent).toBe("Based on 60 PRs");
 
-    // Cycle card: full 12 weeks (all have non-null cycle_time_p50)
+    // Cycle card: sparse metric — 12 non-null data points
     const cycleCard = containers.cycleP50!.closest(".card");
     const cycleSample = cycleCard?.querySelector(".metric-sample-size");
-    expect(cycleSample!.textContent).toBe("From 12 weeks of data");
+    expect(cycleSample!.textContent).toBe("From 12 data points");
   });
 });
 

@@ -5594,6 +5594,9 @@ var PRInsightsDashboard = (() => {
         return metrics.weekCount;
     }
   }
+  function isSparseMetric(key) {
+    return key === "cycleP50" || key === "cycleP90" || key === "reviewTimeP50" || key === "reviewTimeP90";
+  }
   function sampleTierClass(count, low, moderate) {
     if (count < low) return "metric-sample-size low-sample";
     if (count < moderate) return "metric-sample-size moderate-sample";
@@ -5601,6 +5604,7 @@ var PRInsightsDashboard = (() => {
   }
   function renderSampleSize(containers, metrics) {
     const weekLabel = (n) => `From ${n} ${n === 1 ? "week" : "weeks"} of data`;
+    const pointLabel = (n) => `From ${n} data ${n === 1 ? "point" : "points"}`;
     const config = [
       {
         el: containers.totalPrs,
@@ -5612,28 +5616,28 @@ var PRInsightsDashboard = (() => {
       {
         el: containers.cycleP50,
         count: metrics.cycleP50WeekCount,
-        label: weekLabel(metrics.cycleP50WeekCount),
+        label: pointLabel(metrics.cycleP50WeekCount),
         low: LOW_WEEK_THRESHOLD,
         moderate: MODERATE_WEEK_THRESHOLD
       },
       {
         el: containers.cycleP90,
         count: metrics.cycleP90WeekCount,
-        label: weekLabel(metrics.cycleP90WeekCount),
+        label: pointLabel(metrics.cycleP90WeekCount),
         low: LOW_WEEK_THRESHOLD,
         moderate: MODERATE_WEEK_THRESHOLD
       },
       {
         el: containers.reviewTimeP50,
         count: metrics.reviewTimeP50WeekCount,
-        label: weekLabel(metrics.reviewTimeP50WeekCount),
+        label: pointLabel(metrics.reviewTimeP50WeekCount),
         low: LOW_WEEK_THRESHOLD,
         moderate: MODERATE_WEEK_THRESHOLD
       },
       {
         el: containers.reviewTimeP90,
         count: metrics.reviewTimeP90WeekCount,
-        label: weekLabel(metrics.reviewTimeP90WeekCount),
+        label: pointLabel(metrics.reviewTimeP90WeekCount),
         low: LOW_WEEK_THRESHOLD,
         moderate: MODERATE_WEEK_THRESHOLD
       },
@@ -5687,7 +5691,7 @@ var PRInsightsDashboard = (() => {
       if (existing) existing.remove();
       const count = getLookbackWeekCount(metricWeekCount(metrics, key));
       if (count < 1) continue;
-      const text = `Last ${count} ${count === 1 ? "week" : "weeks"}`;
+      const text = isSparseMetric(key) ? `${count} data ${count === 1 ? "point" : "points"}` : `Last ${count} ${count === 1 ? "week" : "weeks"}`;
       const label = document.createElement("p");
       label.className = "sparkline-label";
       label.textContent = text;
@@ -5746,6 +5750,7 @@ var PRInsightsDashboard = (() => {
     renderSparkline(containers.reviewersSparkline, data.reviewers);
   }
   function deltaPeriodLabel(current, previous, key) {
+    if (isSparseMetric(key)) return "vs prior period";
     const cur = metricWeekCount(current, key);
     const prev = metricWeekCount(previous, key);
     if (prev !== cur) return "vs prior period";
