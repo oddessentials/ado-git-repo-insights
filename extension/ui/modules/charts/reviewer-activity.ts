@@ -38,13 +38,15 @@ export const MAX_REVIEWER_WEEKS = 8;
 function computeApprovalRate(
   rollups: Rollup[],
   reviewerIds: string[],
-): number | null {
+): { rate: number | null; weeksWithData: number } {
   let weightedSum = 0;
   let totalPrs = 0;
+  let weeksWithData = 0;
 
   for (const rollup of rollups) {
     if (!rollup.by_reviewer || typeof rollup.by_reviewer !== "object") continue;
     const reviewerMap = new Map(Object.entries(rollup.by_reviewer as Record<string, ReviewerBreakdownEntry>));
+    let weekContributed = false;
     for (const id of reviewerIds) {
       const entry = reviewerMap.get(id);
       if (!entry) continue;
@@ -56,10 +58,15 @@ function computeApprovalRate(
       if (prs <= 0) continue;
       weightedSum += rate * prs;
       totalPrs += prs;
+      weekContributed = true;
     }
+    if (weekContributed) weeksWithData++;
   }
 
-  return totalPrs > 0 ? weightedSum / totalPrs : null;
+  return {
+    rate: totalPrs > 0 ? weightedSum / totalPrs : null,
+    weeksWithData,
+  };
 }
 
 /**
@@ -184,14 +191,18 @@ export function renderReviewerActivity(
     // both this site and applyFiltersToRollups must move together.
     const firstReviewer = options.filters?.reviewers?.[0];
     const reviewerIds = firstReviewer ? [firstReviewer] : [];
-    const approvalRate = computeApprovalRate(recentRollups, reviewerIds);
-    const windowWeeks = recentRollups.length;
-    const windowLabel = `(last ${windowWeeks} ${windowWeeks === 1 ? "week" : "weeks"})`;
+    const { rate: approvalRate, weeksWithData } = computeApprovalRate(recentRollups, reviewerIds);
+    // Badge label uses metric-specific coverage (weeks that actually contributed
+    // to the approval rate), not the visual chart window — consistent with the
+    // sample-size convention on summary cards.
+    const coverageLabel = weeksWithData > 0
+      ? `(from ${weeksWithData} ${weeksWithData === 1 ? "week" : "weeks"} of data)`
+      : "";
     if (approvalRate !== null) {
       const pct = Math.round(approvalRate * 100);
-      approvalHtml = `<p class="approval-rate" data-weeks="${windowWeeks}">Approval Rate: ${pct}% ${escapeHtml(windowLabel)}</p>`;
+      approvalHtml = `<p class="approval-rate" data-weeks="${weeksWithData}">Approval Rate: ${pct}% ${escapeHtml(coverageLabel)}</p>`;
     } else {
-      approvalHtml = `<p class="approval-rate approval-rate-no-data" data-weeks="${windowWeeks}">Approval Rate: No data ${escapeHtml(windowLabel)}</p>`;
+      approvalHtml = `<p class="approval-rate approval-rate-no-data" data-weeks="${weeksWithData}">Approval Rate: No data</p>`;
     }
   }
 

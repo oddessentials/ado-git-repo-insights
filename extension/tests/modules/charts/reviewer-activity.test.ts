@@ -387,7 +387,8 @@ describe("reviewer-activity module", () => {
       expect(el).not.toBeNull();
       expect(el!.classList.contains("approval-rate-no-data")).toBe(true);
       expect(el!.textContent).toContain("No data");
-      expect(el!.textContent).toContain("(last 4 weeks)");
+      // No coverage label when no weeks contributed
+      expect(el!.textContent).not.toContain("weeks");
       // Must not contain any percentage
       expect(el!.textContent).not.toMatch(/\d+%/);
     });
@@ -555,9 +556,9 @@ describe("reviewer-activity module", () => {
       expect(container.innerHTML).not.toContain("Approval Rate: 77%"); // would be ~77% if full range used
     });
 
-    it("approval rate label weeks equals recentRollups.length (invariant)", () => {
+    it("approval rate label uses metric-specific coverage, not chart window size", () => {
       // 12 weeks input → chart displays last 8 (MAX_REVIEWER_WEEKS)
-      // Badge label must say "(last 8 weeks)", not "(last 12 weeks)"
+      // All 8 visible weeks have approval_rate → badge says "(from 8 weeks of data)"
       const rollups = createRollupsWithReviewer(0.85);
       const longRollups = [
         ...rollups, ...rollups, ...rollups, // 12 weeks
@@ -571,11 +572,10 @@ describe("reviewer-activity module", () => {
 
       const badge = container.querySelector(".approval-rate");
       expect(badge).not.toBeNull();
-      // data-weeks attribute must equal the displayed window size (8), not input size (12)
       expect(badge!.getAttribute("data-weeks")).toBe("8");
-      expect(badge!.textContent).toContain("(last 8 weeks)");
+      expect(badge!.textContent).toContain("(from 8 weeks of data)");
 
-      // Short input: 3 weeks → all displayed, label says "(last 3 weeks)"
+      // Short input: 3 weeks → all have data, label says "(from 3 weeks of data)"
       container.innerHTML = "";
       const shortRollups = createRollupsWithReviewer(0.9).slice(0, 3);
       renderReviewerActivity(container, shortRollups, {
@@ -586,7 +586,44 @@ describe("reviewer-activity module", () => {
 
       const badge2 = container.querySelector(".approval-rate");
       expect(badge2!.getAttribute("data-weeks")).toBe("3");
-      expect(badge2!.textContent).toContain("(last 3 weeks)");
+      expect(badge2!.textContent).toContain("(from 3 weeks of data)");
+    });
+
+    it("badge shows metric-specific coverage when only some weeks have approval data", () => {
+      // 8 visible weeks, only 3 with approval_rate data for the reviewer
+      const rollups = Array.from({ length: 8 }, (_, i) => ({
+        week: `2025-W${(i + 1).toString().padStart(2, "0")}`,
+        pr_count: 10,
+        cycle_time_p50: 60,
+        cycle_time_p90: 120,
+        authors_count: 5,
+        reviewers_count: 3,
+        by_repository: null,
+        by_team: null,
+        by_reviewer: i < 3 ? {
+          "alice-id": {
+            reviewed_prs: 5,
+            reviews_count: 6,
+            approval_rate: 0.8,
+            authors_count: 3,
+            repositories_count: 2,
+          },
+        } : null,
+      }));
+
+      renderReviewerActivity(container, rollups, {
+        reviewerFilterActive: true,
+        filters: { repos: [], teams: [], reviewers: ["alice-id"], authors: [] },
+        unfilteredRollups: rollups,
+      });
+
+      const badge = container.querySelector(".approval-rate");
+      expect(badge).not.toBeNull();
+      // Must say "from 3 weeks of data", NOT "last 8 weeks"
+      expect(badge!.getAttribute("data-weeks")).toBe("3");
+      expect(badge!.textContent).toContain("(from 3 weeks of data)");
+      expect(badge!.textContent).not.toContain("8 weeks");
+      expect(badge!.textContent).toContain("80%");
     });
 
     it("approval badge uses first reviewer only when multiple are selected", () => {
