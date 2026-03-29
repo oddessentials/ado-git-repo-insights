@@ -112,6 +112,7 @@ git push    -->  .husky/pre-push    -->  run_repo_hook.py pre-push    -->  Tier 
 | VSIX packaging is CI-only                                 | Requires tfx-cli; `test:vsix` inspection covers validation.                                       |
 | Scalability tests are CI-only                             | 10K PR synthetic data gen is expensive; run on demand locally via `pnpm run test:scalability`.    |
 | Fresh-clone-verify is CI-only                             | Cannot simulate fresh clone without re-cloning. Verifies lockfile determinism.                    |
+| mypy is Tier 2 (pre-push), not Tier 1 (pre-commit)       | Requires `[ml]` optional deps for full coverage; not every commit-stage environment has them. Pre-push catches errors before code leaves the machine. Parity is Match at Tier 2. |
 
 ## Governance
 

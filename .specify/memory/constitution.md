@@ -318,7 +318,7 @@ These requirements derive from Victory Gates and define the final "are we done?"
 |------------|---------|---------------|
 | VR-01 | Environment setup | `pip install -e .[dev]` succeeds |
 | VR-02 | Lint/format | `ruff check . && ruff format --check .` passes |
-| VR-03 | Type checking | `mypy src/` passes (if enabled) |
+| VR-03 | Type checking | `mypy src/` passes |
 | VR-04 | Unit tests | `pytest tests/unit` all pass, no skipped contract tests |
 | VR-05 | Golden outputs | `pytest tests/integration/test_golden_outputs.py` hashes stable |
 | VR-06 | Incremental run | `pytest tests/integration/test_incremental_run.py` no duplicates |
