@@ -391,14 +391,16 @@ export function aggregateReviewerEntries(
     (e) =>
       typeof e.approval_rate === "number" && Number.isFinite(e.approval_rate),
   );
+  // Weight by reviewed_prs (distinct PRs reviewed), not reviews_count (review events).
+  // approval_rate is a per-PR metric, so the denominator must match.
   const approvalDenominator = approvalEntries.reduce(
-    (sum, entry) => sum + toFiniteNumber(entry.reviews_count),
+    (sum, entry) => sum + toFiniteNumber(entry.reviewed_prs),
     0,
   );
   const approvalWeightedSum = approvalEntries.reduce(
     (sum, entry) =>
       sum +
-      toFiniteNumber(entry.approval_rate) * toFiniteNumber(entry.reviews_count),
+      toFiniteNumber(entry.approval_rate) * toFiniteNumber(entry.reviewed_prs),
     0,
   );
 

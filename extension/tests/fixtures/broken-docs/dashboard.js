@@ -3887,11 +3887,11 @@ var PRInsightsDashboard = (() => {
       (e) => typeof e.approval_rate === "number" && Number.isFinite(e.approval_rate)
     );
     const approvalDenominator = approvalEntries.reduce(
-      (sum, entry) => sum + toFiniteNumber(entry.reviews_count),
+      (sum, entry) => sum + toFiniteNumber(entry.reviewed_prs),
       0
     );
     const approvalWeightedSum = approvalEntries.reduce(
-      (sum, entry) => sum + toFiniteNumber(entry.approval_rate) * toFiniteNumber(entry.reviews_count),
+      (sum, entry) => sum + toFiniteNumber(entry.approval_rate) * toFiniteNumber(entry.reviewed_prs),
       0
     );
     return {
@@ -5555,11 +5555,6 @@ var PRInsightsDashboard = (() => {
     if (metricsCollector2) metricsCollector2.mark("render-summary-cards-start");
     const current = calculateMetrics(rollups);
     const previous = calculateMetrics(prevRollups);
-    const capabilityRollups = options.unfilteredRollups ?? rollups;
-    const hasReviewTimeData = capabilityRollups.some(
-      (r) => r.review_time_p50 != null || r.review_time_p90 != null
-    );
-    toggleReviewTimeCards(containers, hasReviewTimeData);
     renderMetricValues(containers, current);
     renderSampleSize(containers, current);
     attachInfoIcons(containers, options.reviewerFilterActive ?? false);
@@ -5571,6 +5566,10 @@ var PRInsightsDashboard = (() => {
     } else {
       clearDeltas(containers);
     }
+    const hasReviewTimeData = rollups.some(
+      (r) => r.review_time_p50 != null || r.review_time_p90 != null
+    );
+    toggleReviewTimeCards(containers, hasReviewTimeData);
     if (metricsCollector2) {
       metricsCollector2.mark("render-summary-cards-end");
       metricsCollector2.mark("first-meaningful-paint");
@@ -5701,6 +5700,7 @@ var PRInsightsDashboard = (() => {
       const card = el?.closest(".card");
       if (card) {
         card.style.display = visible ? "" : "none";
+        if (!visible && el) el.textContent = "";
       }
     }
   }
@@ -6246,7 +6246,7 @@ var PRInsightsDashboard = (() => {
   var MAX_REVIEWER_WEEKS = 8;
   function computeApprovalRate(rollups, reviewerIds) {
     let weightedSum = 0;
-    let totalReviews = 0;
+    let totalPrs = 0;
     for (const rollup of rollups) {
       if (!rollup.by_reviewer || typeof rollup.by_reviewer !== "object") continue;
       const reviewerMap = new Map(Object.entries(rollup.by_reviewer));
@@ -6255,12 +6255,13 @@ var PRInsightsDashboard = (() => {
         if (!entry) continue;
         const rate = entry.approval_rate;
         if (typeof rate !== "number" || !Number.isFinite(rate)) continue;
-        const reviews = entry.reviews_count ?? 0;
-        weightedSum += rate * reviews;
-        totalReviews += reviews;
+        const prs = entry.reviewed_prs ?? 0;
+        if (prs <= 0) continue;
+        weightedSum += rate * prs;
+        totalPrs += prs;
       }
     }
-    return totalReviews > 0 ? weightedSum / totalReviews : null;
+    return totalPrs > 0 ? weightedSum / totalPrs : null;
   }
   function renderReviewerActivity(container, rollups, options = {}) {
     if (!container) return;
@@ -6325,7 +6326,8 @@ var PRInsightsDashboard = (() => {
     const truncationHtml = renderTruncationIndicator(truncated, MAX_REVIEWER_WEEKS);
     let approvalHtml = "";
     if (reviewerFilterActive) {
-      const reviewerIds = options.filters?.reviewers ?? [];
+      const firstReviewer = options.filters?.reviewers?.[0];
+      const reviewerIds = firstReviewer ? [firstReviewer] : [];
       const approvalRate = computeApprovalRate(recentRollups, reviewerIds);
       const windowWeeks = recentRollups.length;
       const windowLabel = `(last ${windowWeeks} ${windowWeeks === 1 ? "week" : "weeks"})`;

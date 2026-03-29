@@ -414,7 +414,7 @@ describe("summary-cards module", () => {
       expect(p90Card.style.display).toBe("");
     });
 
-    it("keeps review time cards visible when filtered rollups null review_time but unfiltered data has it", () => {
+    it("hides review time cards when filtered rollups null review_time even if unfiltered data has it", () => {
       const containers = createContainers();
       const p50Card = document.createElement("div");
       p50Card.className = "card";
@@ -446,9 +446,10 @@ describe("summary-cards module", () => {
 
       renderSummaryCards({ rollups: filteredRollups, containers, unfilteredRollups });
 
-      // Cards should remain visible because the dataset supports review_time
-      expect(p50Card.style.display).toBe("");
-      expect(p90Card.style.display).toBe("");
+      // Cards must be hidden — filtered slice has no review_time data.
+      // Showing blank "-" KPIs is worse than hiding for unsupported slices.
+      expect(p50Card.style.display).toBe("none");
+      expect(p90Card.style.display).toBe("none");
     });
 
     it("hides review time cards when both filtered and unfiltered rollups lack review_time", () => {
@@ -1101,6 +1102,97 @@ describe("summary-cards module", () => {
 
       expect(containers.totalPrsDelta!.innerHTML).toBe("");
       expect(containers.totalPrsDelta!.querySelector(".delta-label")).toBeNull();
+    });
+  });
+
+  describe("review-time card visibility (Bug 3)", () => {
+    it("hides review-time cards when filtered slice lacks review_time but global data has it", () => {
+      const containers = createContainers();
+      const rtCard = document.createElement("div");
+      rtCard.className = "card";
+      rtCard.appendChild(document.createElement("h3"));
+      rtCard.appendChild(containers.reviewTimeP50!);
+      document.body.appendChild(rtCard);
+
+      // Unfiltered rollups have review_time data
+      const unfilteredRollups = Array.from({ length: 4 }, (_, i) => ({
+        week: `2025-W${(i + 1).toString().padStart(2, "0")}`,
+        pr_count: 10, cycle_time_p50: 60, cycle_time_p90: 120,
+        review_time_p50: 900 + i * 100, review_time_p90: 1800 + i * 200,
+        authors_count: 5, reviewers_count: 3,
+        by_repository: null, by_team: null,
+      }));
+
+      // Filtered rollups have NO review_time data (e.g., reviewer filter zeros them)
+      const rollups = Array.from({ length: 4 }, (_, i) => ({
+        week: `2025-W${(i + 1).toString().padStart(2, "0")}`,
+        pr_count: 5, cycle_time_p50: null, cycle_time_p90: null,
+        review_time_p50: null as number | null, review_time_p90: null as number | null,
+        authors_count: 3, reviewers_count: 2,
+        by_repository: null, by_team: null,
+      }));
+
+      renderSummaryCards({ rollups, unfilteredRollups, containers });
+
+      // Card must be hidden — not showing blank "-" KPIs
+      expect(rtCard.style.display).toBe("none");
+      // Container must have no stale content
+      expect(containers.reviewTimeP50!.textContent).toBe("");
+    });
+
+    it("shows review-time cards when filtered slice HAS review_time data", () => {
+      const containers = createContainers();
+      const rtCard = document.createElement("div");
+      rtCard.className = "card";
+      rtCard.appendChild(document.createElement("h3"));
+      rtCard.appendChild(containers.reviewTimeP50!);
+      document.body.appendChild(rtCard);
+
+      const rollups = Array.from({ length: 4 }, (_, i) => ({
+        week: `2025-W${(i + 1).toString().padStart(2, "0")}`,
+        pr_count: 10, cycle_time_p50: 60, cycle_time_p90: 120,
+        review_time_p50: 900 + i * 100, review_time_p90: 1800,
+        authors_count: 5, reviewers_count: 3,
+        by_repository: null, by_team: null,
+      }));
+
+      renderSummaryCards({ rollups, containers });
+
+      expect(rtCard.style.display).not.toBe("none");
+      expect(containers.reviewTimeP50!.textContent).not.toBe("");
+      expect(containers.reviewTimeP50!.textContent).not.toBe("-");
+    });
+
+    it("visibility derived from filtered rollups regardless of unfiltered data", () => {
+      const containers = createContainers();
+      const rtCard = document.createElement("div");
+      rtCard.className = "card";
+      rtCard.appendChild(document.createElement("h3"));
+      rtCard.appendChild(containers.reviewTimeP50!);
+      document.body.appendChild(rtCard);
+
+      const noReviewTimeRollups = Array.from({ length: 4 }, (_, i) => ({
+        week: `2025-W${(i + 1).toString().padStart(2, "0")}`,
+        pr_count: 10, cycle_time_p50: 60, cycle_time_p90: 120,
+        authors_count: 5, reviewers_count: 3,
+        by_repository: null, by_team: null,
+      }));
+
+      const withReviewTimeRollups = Array.from({ length: 4 }, (_, i) => ({
+        week: `2025-W${(i + 1).toString().padStart(2, "0")}`,
+        pr_count: 10, cycle_time_p50: 60, cycle_time_p90: 120,
+        review_time_p50: 900, review_time_p90: 1800,
+        authors_count: 5, reviewers_count: 3,
+        by_repository: null, by_team: null,
+      }));
+
+      // Case 1: unfilteredRollups have data, filtered don't → hidden
+      renderSummaryCards({ rollups: noReviewTimeRollups, unfilteredRollups: withReviewTimeRollups, containers });
+      expect(rtCard.style.display).toBe("none");
+
+      // Case 2: no unfilteredRollups passed, filtered don't have data → still hidden
+      renderSummaryCards({ rollups: noReviewTimeRollups, containers });
+      expect(rtCard.style.display).toBe("none");
     });
   });
 });

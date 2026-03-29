@@ -10,6 +10,7 @@ import {
   renderSummaryCards,
   type SummaryCardsContainers,
 } from "../../ui/modules/charts/summary-cards";
+import { renderReviewerActivity } from "../../ui/modules/charts/reviewer-activity";
 import { applyFiltersToRollups } from "../../ui/modules/metrics";
 import type { Rollup } from "../../ui/dataset-loader";
 
@@ -226,5 +227,87 @@ describe("Cross-component parity: sparkline labels, delta labels, and sample siz
     const cycleCard = containers.cycleP50!.closest(".card");
     const cycleSample = cycleCard?.querySelector(".metric-sample-size");
     expect(cycleSample!.textContent).toBe("From 12 weeks of data");
+  });
+});
+
+describe("End-to-end: approval rate, reviewer scope, and review-time visibility under combined conditions", () => {
+  afterEach(() => {
+    document.body.innerHTML = "";
+  });
+
+  it("all three fixes correct under combined filtered conditions", () => {
+    const containers = makeContainersInCards();
+
+    // Create a reviewer activity container
+    const reviewerContainer = document.createElement("div");
+    document.body.appendChild(reviewerContainer);
+
+    // 8 rollups: alice has 80% approval (5 reviewed_prs, 8 reviews_count per week),
+    // bob has 20% approval (5 reviewed_prs, 5 reviews_count per week).
+    // review_time data on only first 4 rollups.
+    const rawRollups: Rollup[] = Array.from({ length: 8 }, (_, i) => ({
+      week: `2025-W${(i + 1).toString().padStart(2, "0")}`,
+      pr_count: 20,
+      cycle_time_p50: 60 + i * 5,
+      cycle_time_p90: 120 + i * 10,
+      review_time_p50: i < 4 ? (900 + i * 100) : (null as number | null),
+      review_time_p90: i < 4 ? (1800 + i * 200) : (null as number | null),
+      authors_count: 5,
+      reviewers_count: 4,
+      by_repository: null,
+      by_team: null,
+      by_reviewer: {
+        "alice-id": {
+          reviewed_prs: 5,
+          reviews_count: 8,
+          approval_rate: 0.8,
+          authors_count: 3,
+          repositories_count: 2,
+        },
+        "bob-id": {
+          reviewed_prs: 5,
+          reviews_count: 5,
+          approval_rate: 0.2,
+          authors_count: 3,
+          repositories_count: 2,
+        },
+      },
+    }));
+
+    // Multi-select reviewer filter: alice first, bob second
+    const filters = { repos: [], teams: [], reviewers: ["alice-id", "bob-id"], authors: [] };
+    const filteredRollups = applyFiltersToRollups(rawRollups, filters);
+
+    // Render summary cards with filtered data
+    renderSummaryCards({
+      rollups: filteredRollups,
+      unfilteredRollups: rawRollups,
+      containers,
+      reviewerFilterActive: true,
+    });
+
+    // Render reviewer activity panel
+    renderReviewerActivity(reviewerContainer, filteredRollups, {
+      reviewerFilterActive: true,
+      filters,
+      unfilteredRollups: rawRollups,
+    });
+
+    // ASSERTION 1: Approval rate = 80% (alice-only, first reviewer, PR-weighted)
+    // NOT 50% (all-reviewer blend) and NOT event-weighted
+    const badge = reviewerContainer.querySelector(".approval-rate");
+    expect(badge).not.toBeNull();
+    expect(badge!.textContent).toContain("80%");
+
+    // ASSERTION 2: Reviewer scope = first reviewer only
+    // applyFiltersToRollups uses first reviewer (alice), so badge must match
+    expect(badge!.textContent).not.toContain("50%"); // not blended
+
+    // ASSERTION 3: Review-time cards hidden
+    // Reviewer filter zeros review_time in filtered rollups, cards must not be visible
+    const rtCard = containers.reviewTimeP50?.closest(".card") as HTMLElement | null;
+    expect(rtCard?.style.display).toBe("none");
+    // No stale content
+    expect(containers.reviewTimeP50?.textContent).toBe("");
   });
 });

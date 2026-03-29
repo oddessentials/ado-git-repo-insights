@@ -34,7 +34,7 @@ function computeApprovalRate(
   reviewerIds: string[],
 ): number | null {
   let weightedSum = 0;
-  let totalReviews = 0;
+  let totalPrs = 0;
 
   for (const rollup of rollups) {
     if (!rollup.by_reviewer || typeof rollup.by_reviewer !== "object") continue;
@@ -44,13 +44,16 @@ function computeApprovalRate(
       if (!entry) continue;
       const rate = entry.approval_rate;
       if (typeof rate !== "number" || !Number.isFinite(rate)) continue;
-      const reviews = entry.reviews_count ?? 0;
-      weightedSum += rate * reviews;
-      totalReviews += reviews;
+      // Weight by reviewed_prs (distinct PRs reviewed), not reviews_count (review events).
+      // approval_rate is a per-PR metric, so the denominator must match.
+      const prs = entry.reviewed_prs ?? 0;
+      if (prs <= 0) continue;
+      weightedSum += rate * prs;
+      totalPrs += prs;
     }
   }
 
-  return totalReviews > 0 ? weightedSum / totalReviews : null;
+  return totalPrs > 0 ? weightedSum / totalPrs : null;
 }
 
 /**
@@ -169,7 +172,11 @@ export function renderReviewerActivity(
   // than silently omitting the element.
   let approvalHtml = "";
   if (reviewerFilterActive) {
-    const reviewerIds = options.filters?.reviewers ?? [];
+    // Scope to first reviewer only — matches applyFiltersToRollups() which uses
+    // filters.reviewers[0]. Until multi-reviewer aggregation is implemented across
+    // all panel elements, the badge must not aggregate a broader set than the chart.
+    const firstReviewer = options.filters?.reviewers?.[0];
+    const reviewerIds = firstReviewer ? [firstReviewer] : [];
     const approvalRate = computeApprovalRate(recentRollups, reviewerIds);
     const windowWeeks = recentRollups.length;
     const windowLabel = `(last ${windowWeeks} ${windowWeeks === 1 ? "week" : "weeks"})`;

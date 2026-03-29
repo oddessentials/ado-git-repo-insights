@@ -141,17 +141,7 @@ export function renderSummaryCards(options: RenderSummaryCardsOptions): void {
   const current = calculateMetrics(rollups);
   const previous = calculateMetrics(prevRollups);
 
-  // Hide review-time cards when the underlying dataset has no review_time data,
-  // so users don't see permanently blank KPIs on older datasets.
-  // Uses unfiltered rollups for capability check: some filter paths (e.g. reviewer)
-  // intentionally null review_time fields, which doesn't mean the feature is absent.
-  const capabilityRollups = options.unfilteredRollups ?? rollups;
-  const hasReviewTimeData = capabilityRollups.some(
-    (r) => r.review_time_p50 != null || r.review_time_p90 != null,
-  );
-  toggleReviewTimeCards(containers, hasReviewTimeData);
-
-  // Render metric values
+  // Render metric values first (may write "-" for null review_time)
   renderMetricValues(containers, current);
 
   // Render sample size subtitle on each card (FR-006, FR-007)
@@ -176,6 +166,15 @@ export function renderSummaryCards(options: RenderSummaryCardsOptions): void {
   } else {
     clearDeltas(containers);
   }
+
+  // Visibility check runs AFTER all rendering so toggleReviewTimeCards can
+  // hide cards AND clear any "-" placeholders written by renderMetricValues.
+  // Uses filtered rollups (not unfiltered) so cards are hidden when the active
+  // filter slice lacks review_time data.
+  const hasReviewTimeData = rollups.some(
+    (r) => r.review_time_p50 != null || r.review_time_p90 != null,
+  );
+  toggleReviewTimeCards(containers, hasReviewTimeData);
 
   if (metricsCollector) {
     metricsCollector.mark("render-summary-cards-end");
@@ -368,6 +367,8 @@ function toggleReviewTimeCards(
     const card = el?.closest(".card") as HTMLElement | null;
     if (card) {
       card.style.display = visible ? "" : "none";
+      // Clear stale content from hidden cards to prevent DOM remnants
+      if (!visible && el) el.textContent = "";
     }
   }
 }
