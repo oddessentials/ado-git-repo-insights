@@ -8,6 +8,7 @@
  */
 
 import {
+  assertTooltipStructure,
   dismissAllTooltips,
   showChartTooltip,
   showInfoTooltip,
@@ -266,11 +267,6 @@ describe("Tooltip Manager", () => {
     });
 
     it("logs warning when positioned ancestor with transform exists", () => {
-      // Import assertTooltipStructure
-      const { assertTooltipStructure } = require("../../ui/modules/tooltip-manager") as {
-        assertTooltipStructure: () => void;
-      };
-
       // Create a positioned ancestor with transform
       const wrapper = document.createElement("div");
       wrapper.id = "wrapper";
@@ -306,10 +302,6 @@ describe("Tooltip Manager", () => {
     });
 
     it("does not warn when no positioned ancestor with transform exists", () => {
-      const { assertTooltipStructure } = require("../../ui/modules/tooltip-manager") as {
-        assertTooltipStructure: () => void;
-      };
-
       const mainContent = document.createElement("div");
       mainContent.id = "main-content";
       document.body.appendChild(mainContent);
@@ -320,10 +312,6 @@ describe("Tooltip Manager", () => {
     });
 
     it("returns early when main-content element is missing", () => {
-      const { assertTooltipStructure } = require("../../ui/modules/tooltip-manager") as {
-        assertTooltipStructure: () => void;
-      };
-
       // No main-content in DOM
       expect(() => assertTooltipStructure()).not.toThrow();
       expect(consoleWarnSpy).not.toHaveBeenCalled();

@@ -73,7 +73,7 @@ function countAnyInFile(filePath: string): { count: number; lines: string[] } {
   const violations: string[] = [];
 
   for (let i = 0; i < fileLines.length; i++) {
-    const line = fileLines[i];
+    const line = fileLines.at(i);
     // Skip comment-only lines
     if (line!.trimStart().startsWith("//") || line!.trimStart().startsWith("*")) {
       continue;

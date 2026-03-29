@@ -184,6 +184,11 @@ def build_commands(
             cwd=EXTENSION_ROOT,
         ),
         CommandSpec(
+            "Extension test lint",
+            (PNPM_SENTINEL, "run", "lint:tests"),
+            cwd=EXTENSION_ROOT,
+        ),
+        CommandSpec(
             "Extension UI bundle",
             (PNPM_SENTINEL, "run", "build:ui"),
             cwd=EXTENSION_ROOT,

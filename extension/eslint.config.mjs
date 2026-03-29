@@ -76,7 +76,7 @@ export default tseslint.config(
             '@typescript-eslint/no-explicit-any': 'warn',  // Allow any in tests (with warning)
             '@typescript-eslint/no-floating-promises': 'warn',  // Relaxed for test setup
             '@typescript-eslint/require-await': 'off',
-            '@typescript-eslint/no-unused-vars': 'warn',  // Relaxed for test fixtures
+            '@typescript-eslint/no-unused-vars': ['warn', { argsIgnorePattern: '^_', varsIgnorePattern: '^_', caughtErrorsIgnorePattern: '^_' }],  // Relaxed for test fixtures
             '@typescript-eslint/no-inferrable-types': 'off',
             '@typescript-eslint/no-require-imports': 'warn',  // Tests often use require() for dynamic imports
             '@typescript-eslint/consistent-type-imports': 'warn',  // Relaxed for tests

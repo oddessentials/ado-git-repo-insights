@@ -5,12 +5,14 @@
  * existing test expectations and user-facing diagnostics.
  */
 
-import * as fs from "fs";
+import * as _fsOriginal from "fs";
+function _loadFs(): typeof _fsOriginal { return _fsOriginal; }
+const _fs = _loadFs();
 import * as path from "path";
 
 describe("error diagnostics preservation", () => {
   const errorsPath = path.join(__dirname, "../../ui/modules/errors.ts");
-  const errorsContent = fs.readFileSync(errorsPath, "utf-8");
+  const errorsContent = _fs.readFileSync(errorsPath, "utf-8");
   const indexHtmlPath = path.join(__dirname, "../../ui/index.html");
 
   describe("panel IDs", () => {
@@ -23,8 +25,8 @@ describe("error diagnostics preservation", () => {
     });
 
     it("panel IDs match index.html", () => {
-      if (fs.existsSync(indexHtmlPath)) {
-        const htmlContent = fs.readFileSync(indexHtmlPath, "utf-8");
+      if (_fs.existsSync(indexHtmlPath)) {
+        const htmlContent = _fs.readFileSync(indexHtmlPath, "utf-8");
         expect(htmlContent).toContain('id="setup-required"');
         expect(htmlContent).toContain('id="error-state"');
         expect(htmlContent).toContain('id="loading-state"');

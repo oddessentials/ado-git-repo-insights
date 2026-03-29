@@ -452,6 +452,18 @@ def run_extension_lint() -> None:
     run_command([pnpm, "run", "lint"], cwd=EXTENSION_ROOT)
 
 
+def run_extension_test_lint() -> None:
+    """Run ESLint on extension test sources (--max-warnings=0)."""
+    pnpm = shutil.which("pnpm.cmd") or shutil.which("pnpm")
+    if not pnpm:
+        raise SystemExit(
+            "[pre-commit] pnpm is required to lint extension test sources "
+            "but was not found on PATH."
+        )
+    safe_print("[pre-commit] running extension test lint (ESLint)")
+    run_command([pnpm, "run", "lint:tests"], cwd=EXTENSION_ROOT)
+
+
 def run_extension_typecheck() -> None:
     """Run TypeScript type check on extension sources (tsc --noEmit).
 
@@ -497,6 +509,9 @@ def is_test_trigger(path: str) -> bool:
         return True
     # types/vss.d.ts is referenced by tsconfig.test.json as ../types/vss.d.ts
     if path.startswith("types/") and path.endswith(".d.ts"):
+        return True
+    # ESLint config changes affect test lint results
+    if path == "extension/eslint.config.mjs":
         return True
     return False
 
@@ -583,6 +598,7 @@ def run_pre_commit_hook() -> None:
             safe_print(f"  - {path}")
         require_clean_test_compilation_scope()
         run_extension_test_typecheck()
+        run_extension_test_lint()
 
     if tsconfig_triggers:
         require_clean_tsconfigs()

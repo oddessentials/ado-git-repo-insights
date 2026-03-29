@@ -82,7 +82,7 @@ describe("Issue 1: PartiallySucceeded Builds Acceptance", () => {
      * Simulates the build filtering that happens in resolveFromPipelineId
      * and discoverInsightsPipelines
      */
-    const filterBuilds = (builds: any[], resultFilter: number) => {
+    const filterBuilds = (builds: { id: number; result: number; name: string }[], resultFilter: number) => {
       return builds.filter((build) => {
         return (build.result & resultFilter) !== 0;
       });
@@ -227,7 +227,7 @@ describe("Issue 2: Stale Settings and Auto-Discovery Fallback", () => {
     /**
      * Simulates the resolveConfiguration logic with fallback
      */
-    const createResolveConfiguration = (options: any) => {
+    const createResolveConfiguration = (options: { queryPipelineId?: number | null; savedPipelineId?: number | null; resolveFromPipelineIdFn: (id: number) => Promise<{ buildId: number }>; discoverAndResolveFn: () => Promise<{ buildId: number }>; clearStalePipelineSettingFn: () => Promise<void>; }) => {
       const {
         queryPipelineId,
         savedPipelineId,
@@ -246,7 +246,7 @@ describe("Issue 2: Stale Settings and Auto-Discovery Fallback", () => {
         if (savedPipelineId) {
           try {
             return await resolveFromPipelineIdFn(savedPipelineId);
-          } catch (error) {
+          } catch (_error) {
             // Saved pipeline is invalid - clear and fall back
             await clearStalePipelineSettingFn();
             // Continue to discovery
@@ -363,7 +363,7 @@ describe("Issue 2: Stale Settings and Auto-Discovery Fallback", () => {
     /**
      * Simulates clearing the stale setting
      */
-    const createClearStalePipelineSetting = (dataService: any) => {
+    const createClearStalePipelineSetting = (dataService: { setValue: (key: string, value: unknown, opts: { scopeType: string }) => Promise<void> }) => {
       return async function clearStalePipelineSetting() {
         await dataService.setValue("pr-insights-pipeline-id", null, {
           scopeType: "User",
@@ -413,7 +413,7 @@ describe("Issue 2: Stale Settings and Auto-Discovery Fallback", () => {
     /**
      * Simulates the validatePipeline function in settings.js
      */
-    const createValidatePipeline = (mockClient: any) => {
+    const createValidatePipeline = (mockClient: { getDefinitions: (projectId: string, pipelineId: number) => Promise<{ name: string }[] | null>; getBuilds: (projectId: string, pipelineId: number) => Promise<{ id: number }[] | null>; }) => {
       return async function validatePipeline(
         pipelineId: number,
         projectId: string,
@@ -431,7 +431,7 @@ describe("Issue 2: Stale Settings and Auto-Discovery Fallback", () => {
           };
         }
 
-        const pipelineName = definitions[0].name;
+        const pipelineName = definitions[0]!.name;
 
         // Check for successful/partially-succeeded builds
         const builds = await mockClient.getBuilds(projectId, pipelineId);
@@ -447,7 +447,7 @@ describe("Issue 2: Stale Settings and Auto-Discovery Fallback", () => {
         return {
           valid: true,
           name: pipelineName,
-          buildId: builds[0].id,
+          buildId: builds[0]!.id,
         };
       };
     };
@@ -503,7 +503,7 @@ describe("Issue 2: Stale Settings and Auto-Discovery Fallback", () => {
     /**
      * Simulates the discoverPipelines function in settings.js
      */
-    const createDiscoverPipelines = (mockClient: any) => {
+    const createDiscoverPipelines = (mockClient: { getDefinitions: () => Promise<{ id: number; name: string }[]>; getBuilds: (id: number) => Promise<{ id: number }[] | null>; getArtifacts: (id: number) => Promise<{ name: string }[]>; }) => {
       return async function discoverPipelines() {
         const definitions = await mockClient.getDefinitions();
         const matches = [];
@@ -512,13 +512,13 @@ describe("Issue 2: Stale Settings and Auto-Discovery Fallback", () => {
           const builds = await mockClient.getBuilds(def.id);
           if (!builds || builds.length === 0) continue;
 
-          const artifacts = await mockClient.getArtifacts(builds[0].id);
-          if (!artifacts.some((a: any) => a.name === "aggregates")) continue;
+          const artifacts = await mockClient.getArtifacts(builds[0]!.id);
+          if (!artifacts.some((a: { name: string }) => a.name === "aggregates")) continue;
 
           matches.push({
             id: def.id,
             name: def.name,
-            buildId: builds[0].id,
+            buildId: builds[0]!.id,
           });
         }
 
@@ -622,7 +622,7 @@ describe("Issue 2: Stale Settings and Auto-Discovery Fallback", () => {
         if (savedPipelineId) {
           try {
             return await mockResolveFromPipelineId(savedPipelineId);
-          } catch (error) {
+          } catch (_error) {
             await mockClearStalePipelineSetting();
             // Fall through to discovery
           }
@@ -908,7 +908,7 @@ describe("Phase 5 Feature Flag (Predictions & AI Insights)", () => {
      * Simulates the initializePhase5Features function
      */
     const createInitializePhase5Features = (featureFlag: boolean) => {
-      return function initializePhase5Features(mockTabs: any[]) {
+      return function initializePhase5Features(mockTabs: { show: () => void }[]) {
         if (featureFlag) {
           mockTabs.forEach((tab) => tab.show());
         } else {

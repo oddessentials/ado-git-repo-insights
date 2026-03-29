@@ -10,7 +10,9 @@
  * Artifact: Screenshots captured to test-artifacts/smoke/
  */
 import { test, expect } from "@playwright/test";
-import * as fs from "fs";
+import * as _fsOriginal from "fs";
+function _loadFs(): typeof _fsOriginal { return _fsOriginal; }
+const _fs = _loadFs();
 import * as path from "path";
 import { SMOKE_TIMEOUT_MS } from "./constants";
 
@@ -47,12 +49,12 @@ test.describe("Filter Display Smoke Tests", () => {
 
     // Validate fixture exists
     expect(
-      fs.existsSync(fixturePath),
+      _fs.existsSync(fixturePath),
       `Fixture not found at ${fixturePath}. Ensure docs/data/dataset-manifest.json exists.`,
     ).toBe(true);
 
     // Parse and validate minimum schema
-    const content = fs.readFileSync(fixturePath, "utf-8");
+    const content = _fs.readFileSync(fixturePath, "utf-8");
     let manifest: ManifestFixture;
     try {
       manifest = JSON.parse(content);

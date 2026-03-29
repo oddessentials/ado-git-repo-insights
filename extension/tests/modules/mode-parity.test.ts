@@ -9,9 +9,12 @@
  * import or branch on isLocalMode, ensuring rendering stays mode-agnostic.
  */
 
-import * as fs from "fs";
+import * as _fsOriginal from "fs";
+function _loadFs(): typeof _fsOriginal { return _fsOriginal; }
+const _fs = _loadFs();
 import * as path from "path";
 import { isLocalMode, getLocalDatasetPath } from "../../ui/modules/sdk";
+import { DatasetLoader, normalizeRollup } from "../../ui/dataset-loader";
 
 // ---------------------------------------------------------------------------
 // Mode Detection (behavioral)
@@ -98,7 +101,7 @@ describe("Shared Error Handlers (behavioral)", () => {
 
 describe("DatasetLoader parity (behavioral)", () => {
   it("DatasetLoader can be instantiated with a filesystem path", () => {
-    const { DatasetLoader } = require("../../ui/dataset-loader");
+    // DatasetLoader imported at top level
     expect(typeof DatasetLoader).toBe("function");
 
     // CLI/docs mode: DatasetLoader takes a base URL string
@@ -107,7 +110,7 @@ describe("DatasetLoader parity (behavioral)", () => {
   });
 
   it("normalizeRollup is shared between both modes", () => {
-    const { normalizeRollup } = require("../../ui/dataset-loader");
+    // normalizeRollup imported at top level
     expect(typeof normalizeRollup).toBe("function");
 
     // Both modes normalize through the same function
@@ -145,7 +148,7 @@ describe("Chart module isolation invariant", () => {
         "../../ui/modules/charts",
         filename,
       );
-      const source = fs.readFileSync(filePath, "utf-8");
+      const source = _fs.readFileSync(filePath, "utf-8");
       expect(source).not.toContain("isLocalMode");
       expect(source).not.toContain("LOCAL_DASHBOARD_MODE");
     },

@@ -10,7 +10,9 @@
  * - The SDK file becomes corrupted/empty
  */
 
-import * as fs from "fs";
+import * as _fsOriginal from "fs";
+function _loadFs(): typeof _fsOriginal { return _fsOriginal; }
+const _fs = _loadFs();
 import * as path from "path";
 
 // Use require for package.json to avoid TS build issues if resolveJsonModule is not perfectly set up in all environments
@@ -28,16 +30,16 @@ const STALE_CDN_PATTERN = /cdn\.vsassets\.io\/v\/[A-Z0-9_]+\//i;
 describe("SDK Bundling Integrity", () => {
   describe("VSS.SDK.min.js", () => {
     it("exists in extension/ui folder", () => {
-      expect(fs.existsSync(SDK_FILE)).toBe(true);
+      expect(_fs.existsSync(SDK_FILE)).toBe(true);
     });
 
     it("is non-empty", () => {
-      const stats = fs.statSync(SDK_FILE);
+      const stats = _fs.statSync(SDK_FILE);
       expect(stats.size).toBeGreaterThan(1000); // SDK should be at least 1KB
     });
 
     it("contains VSS namespace definition", () => {
-      const content = fs.readFileSync(SDK_FILE, "utf8");
+      const content = _fs.readFileSync(SDK_FILE, "utf8");
       // The SDK defines the VSS global namespace
       expect(content).toMatch(/VSS/);
     });
@@ -47,7 +49,7 @@ describe("SDK Bundling Integrity", () => {
     let content: string;
 
     beforeAll(() => {
-      content = fs.readFileSync(INDEX_HTML, "utf8");
+      content = _fs.readFileSync(INDEX_HTML, "utf8");
     });
 
     it("references local SDK file", () => {
@@ -74,7 +76,7 @@ describe("SDK Bundling Integrity", () => {
     let content: string;
 
     beforeAll(() => {
-      content = fs.readFileSync(SETTINGS_HTML, "utf8");
+      content = _fs.readFileSync(SETTINGS_HTML, "utf8");
     });
 
     it("references local SDK file", () => {

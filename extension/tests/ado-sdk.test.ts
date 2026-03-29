@@ -122,7 +122,7 @@ describe("ADO SDK Mocks", () => {
     it("installs SDK on global object", () => {
       const sdk = installSdkMocks();
 
-      expect((global as any).VSS).toBe(sdk);
+      expect((global as unknown as Record<string, unknown>).VSS).toBe(sdk);
     });
 
     it("returns the created SDK", () => {

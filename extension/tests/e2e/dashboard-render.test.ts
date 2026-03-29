@@ -97,10 +97,9 @@ describe("Dashboard E2E render (composited)", () => {
     document.body.innerHTML = ids
       .map((id) => `<div id="${id}"></div>`)
       .join("");
-    containers = {};
-    ids.forEach((id) => {
-      containers[id] = document.getElementById(id)!;
-    });
+    containers = Object.fromEntries(
+      ids.map((id) => [id, document.getElementById(id)!]),
+    );
     errorSpy = jest.spyOn(console, "error").mockImplementation(() => {});
   });
 
