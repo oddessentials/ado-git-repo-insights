@@ -1,3 +1,38 @@
+# [5.32.0](https://github.com/oddessentials/ado-git-repo-insights/compare/v5.31.0...v5.32.0) (2026-03-29)
+
+
+### Bug Fixes
+
+* **044:** approval badge label uses metric-specific coverage, not chart window ([41cfa8a](https://github.com/oddessentials/ado-git-repo-insights/commit/41cfa8a69d834389750cfc43853268e4f01b6b21))
+* **044:** approval-rate time label, no-data styling, reviewer tooltip switch ([25ab814](https://github.com/oddessentials/ado-git-repo-insights/commit/25ab814eb60a5e823fe044704b1b9d38a3cfeabf))
+* **044:** approval-rate weighting, reviewer scope, review-time visibility ([b5f6cce](https://github.com/oddessentials/ado-git-repo-insights/commit/b5f6cce7fb364341b41381cbbcb12265a1596d1f))
+* **044:** cache review-time element IDs so summary cards render ([68c820b](https://github.com/oddessentials/ado-git-repo-insights/commit/68c820bfd8266d2cf88075db514d4f6b137a1bcf))
+* **044:** correct approval-rate weighting and review-time card visibility ([b730acb](https://github.com/oddessentials/ado-git-repo-insights/commit/b730acb4a00d257d0dd1aeb786814cea0ad44330))
+* **044:** correct card class selector, per-metric sample size, plotted-data labels ([16fa3bf](https://github.com/oddessentials/ado-git-repo-insights/commit/16fa3bfd201547893c54ba6d637aa4ae4bc64cea))
+* **044:** hide review-time cards when dataset lacks review_time fields ([1cbe164](https://github.com/oddessentials/ado-git-repo-insights/commit/1cbe164ed04b149f817a5cda7f3b0aa42ea0aaa7))
+* **044:** independent P50/P90 sample counts + calendar-span sparkline labels ([f2ec531](https://github.com/oddessentials/ado-git-repo-insights/commit/f2ec53151dc654824af6706a889f50ec41820742))
+* **044:** independent P50/P90 week counts for sample-size accuracy ([044c1cc](https://github.com/oddessentials/ado-git-repo-insights/commit/044c1cc25fa24acbc607857b9ef3bc8ee3afcdb0))
+* **044:** metric-specific source labels + approval rate window alignment ([37272f1](https://github.com/oddessentials/ado-git-repo-insights/commit/37272f10e712a687702bf2604cb9a712b6d77bb2))
+* **044:** metric-specific sparkline and delta labels for sparse series ([25e6330](https://github.com/oddessentials/ado-git-repo-insights/commit/25e6330ce81f1edd18a01a541520045f19085155))
+* **044:** propagate review_time through all filtered-rollup paths ([c0dfc8c](https://github.com/oddessentials/ado-git-repo-insights/commit/c0dfc8c3113a7c16f15010c464d1faec4300033b))
+* **044:** remove off-by-one tolerance from delta labels for sparse metrics ([cf12c32](https://github.com/oddessentials/ado-git-repo-insights/commit/cf12c32858861ab7ebea2aa199ab15bf35f9e3f3))
+* **044:** scope truncation badge CSS to chart indicators only ([da33692](https://github.com/oddessentials/ado-git-repo-insights/commit/da33692856b7548117f4844e61f9bc9d8125b83e))
+* **044:** shared sparkline labels, 1-week support, approval-rate no-data state ([9f5e250](https://github.com/oddessentials/ado-git-repo-insights/commit/9f5e25028a840674517ec7bf71cf4cf349534f00))
+* **044:** toggle review-time P50/P90 cards independently ([c2ac653](https://github.com/oddessentials/ado-git-repo-insights/commit/c2ac653ac9e3f9e4d84a4144374e470dc4f331b3))
+* **044:** uniform PR-based sample-size subtitles, stale sparkline label cleanup ([e845cfe](https://github.com/oddessentials/ado-git-repo-insights/commit/e845cfe79b570136eefc51c0a6d0d171e1bc9c10))
+* **044:** use non-temporal labels for sparse metric series ([0c05279](https://github.com/oddessentials/ado-git-repo-insights/commit/0c052794104d283cddfb1874d76afaa2a44684f5))
+
+
+### Features
+
+* **044:** add approval rate to reviewer activity chart (US2, T022-T028) ([15b0b26](https://github.com/oddessentials/ado-git-repo-insights/commit/15b0b266be1e18cf853175f99de27a3b2fe6bb4c))
+* **044:** add sample size indicator and sparkline time labels (US3+US4, T029-T039) ([3501493](https://github.com/oddessentials/ado-git-repo-insights/commit/35014939890c1df15c88f86f2ff1b69b8cea543a))
+* **044:** add spec, plan, and Phase 1 setup for dashboard transparency polish ([9af11fb](https://github.com/oddessentials/ado-git-repo-insights/commit/9af11fb453ff3486c41a180cf0cc3837f0a680ac)), closes [#204](https://github.com/oddessentials/ado-git-repo-insights/issues/204)
+* **044:** color-coded distribution, legend opacity, truncation badges (US5-US7, T040-T053) ([1ca617d](https://github.com/oddessentials/ado-git-repo-insights/commit/1ca617d4d6c69d21b328db3c73deaba282f08d5f))
+* **044:** metric-specific sample tiers, delta labels, tooltip disclosure, T042/T050 ([d749380](https://github.com/oddessentials/ado-git-repo-insights/commit/d7493807e9d67f3774e99946d30d6b996523ce4d))
+* **044:** Phase 11 invariant tests + insertBefore fix + badge CSS reset ([d3aeb98](https://github.com/oddessentials/ado-git-repo-insights/commit/d3aeb98e4eaf66c9e1f816d26d5667c63e2873eb))
+* **044:** wire review time P50/P90 into dashboard UI (US1, T011-T021) ([261ce2a](https://github.com/oddessentials/ado-git-repo-insights/commit/261ce2abc55830e552f2000d8ba56a3d509db9dd))
+
 # [5.31.0](https://github.com/oddessentials/ado-git-repo-insights/compare/v5.30.1...v5.31.0) (2026-03-29)
 
 
