@@ -1001,7 +1001,7 @@ input[type="search"]::placeholder {
     margin-bottom: 8px;
 }
 
-.truncation-badge {
+.truncation-indicator.truncation-badge {
     display: inline-block;
     padding: 6px 12px;
     background: var(--bg-tertiary);
@@ -2550,7 +2550,7 @@ input[type="search"]::placeholder {
         font-size: 12px;
     }
 
-    .truncation-badge {
+    .truncation-indicator.truncation-badge {
         display: block;
         width: 100%;
         background: var(--warning-bg);
