@@ -167,16 +167,13 @@ export function renderSummaryCards(options: RenderSummaryCardsOptions): void {
     clearDeltas(containers);
   }
 
-  // DESIGN: Review-time visibility is filter-slice-based by design.
-  // Visibility check runs AFTER all rendering so toggleReviewTimeCards can
-  // hide cards AND clear any "-" placeholders written by renderMetricValues.
-  // Uses filtered rollups (not unfiltered) so cards are hidden when the active
-  // filter slice lacks review_time data — e.g., reviewer-filtered views where
-  // review_time is intentionally nulled, or repos from older pipelines.
-  const hasReviewTimeData = rollups.some(
-    (r) => r.review_time_p50 != null || r.review_time_p90 != null,
-  );
-  toggleReviewTimeCards(containers, hasReviewTimeData);
+  // DESIGN: Review-time visibility is per-card and filter-slice-based.
+  // Each percentile card is shown/hidden independently based on its own
+  // metric-specific week count — a dataset with only P50 data must not
+  // make the P90 card visible (and vice versa). Runs AFTER renderMetricValues
+  // so it can clear any "-" placeholders written for null metrics.
+  toggleReviewTimeCard(containers.reviewTimeP50, current.reviewTimeP50WeekCount > 0);
+  toggleReviewTimeCard(containers.reviewTimeP90, current.reviewTimeP90WeekCount > 0);
 
   if (metricsCollector) {
     metricsCollector.mark("render-summary-cards-end");
@@ -378,25 +375,17 @@ function renderSparklineLabels(
 }
 
 /**
- * Show or hide review-time summary cards based on data availability.
- * Walks from the value element up to its parent .card and toggles display.
+ * Show or hide a single review-time card based on its metric-specific data availability.
+ * Clears stale content from hidden cards to prevent "-" placeholders in the DOM.
  */
-function toggleReviewTimeCards(
-  containers: SummaryCardsContainers,
+function toggleReviewTimeCard(
+  el: HTMLElement | null,
   visible: boolean,
 ): void {
-  const reviewTimeElements = [
-    containers.reviewTimeP50,
-    containers.reviewTimeP90,
-  ];
-  for (const el of reviewTimeElements) {
-    const card = el?.closest(".card") as HTMLElement | null;
-    if (card) {
-      card.style.display = visible ? "" : "none";
-      // Clear stale content from hidden cards to prevent DOM remnants
-      if (!visible && el) el.textContent = "";
-    }
-  }
+  const card = el?.closest(".card") as HTMLElement | null;
+  if (!card) return;
+  card.style.display = visible ? "" : "none";
+  if (!visible && el) el.textContent = "";
 }
 
 /**

@@ -1281,5 +1281,69 @@ describe("summary-cards module", () => {
       renderSummaryCards({ rollups: noReviewTimeRollups, containers });
       expect(rtCard.style.display).toBe("none");
     });
+
+    it("toggles P50 and P90 cards independently", () => {
+      const containers = createContainers();
+      const p50Card = document.createElement("div");
+      p50Card.className = "card";
+      p50Card.appendChild(document.createElement("h3"));
+      p50Card.appendChild(containers.reviewTimeP50!);
+      document.body.appendChild(p50Card);
+
+      const p90Card = document.createElement("div");
+      p90Card.className = "card";
+      p90Card.appendChild(document.createElement("h3"));
+      p90Card.appendChild(containers.reviewTimeP90!);
+      document.body.appendChild(p90Card);
+
+      // Only P50 data present, no P90
+      const p50Only = Array.from({ length: 4 }, (_, i) => ({
+        week: `2025-W${(i + 1).toString().padStart(2, "0")}`,
+        pr_count: 10, cycle_time_p50: 60, cycle_time_p90: 120,
+        review_time_p50: 900 + i * 100,
+        authors_count: 5, reviewers_count: 3,
+        by_repository: null, by_team: null,
+      }));
+      renderSummaryCards({ rollups: p50Only, containers });
+      expect(p50Card.style.display).toBe("");    // visible
+      expect(p90Card.style.display).toBe("none"); // hidden
+      expect(containers.reviewTimeP90!.textContent).toBe(""); // no stale "-"
+
+      // Only P90 data present, no P50
+      const p90Only = Array.from({ length: 4 }, (_, i) => ({
+        week: `2025-W${(i + 1).toString().padStart(2, "0")}`,
+        pr_count: 10, cycle_time_p50: 60, cycle_time_p90: 120,
+        review_time_p90: 1800 + i * 200,
+        authors_count: 5, reviewers_count: 3,
+        by_repository: null, by_team: null,
+      }));
+      renderSummaryCards({ rollups: p90Only, containers });
+      expect(p50Card.style.display).toBe("none"); // hidden
+      expect(p90Card.style.display).toBe("");      // visible
+      expect(containers.reviewTimeP50!.textContent).toBe(""); // no stale "-"
+
+      // Both present
+      const both = Array.from({ length: 4 }, (_, i) => ({
+        week: `2025-W${(i + 1).toString().padStart(2, "0")}`,
+        pr_count: 10, cycle_time_p50: 60, cycle_time_p90: 120,
+        review_time_p50: 900, review_time_p90: 1800,
+        authors_count: 5, reviewers_count: 3,
+        by_repository: null, by_team: null,
+      }));
+      renderSummaryCards({ rollups: both, containers });
+      expect(p50Card.style.display).toBe(""); // visible
+      expect(p90Card.style.display).toBe(""); // visible
+
+      // Neither present
+      const neither = Array.from({ length: 4 }, (_, i) => ({
+        week: `2025-W${(i + 1).toString().padStart(2, "0")}`,
+        pr_count: 10, cycle_time_p50: 60, cycle_time_p90: 120,
+        authors_count: 5, reviewers_count: 3,
+        by_repository: null, by_team: null,
+      }));
+      renderSummaryCards({ rollups: neither, containers });
+      expect(p50Card.style.display).toBe("none"); // hidden
+      expect(p90Card.style.display).toBe("none"); // hidden
+    });
   });
 });

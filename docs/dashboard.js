@@ -5566,10 +5566,8 @@ var PRInsightsDashboard = (() => {
     } else {
       clearDeltas(containers);
     }
-    const hasReviewTimeData = rollups.some(
-      (r) => r.review_time_p50 != null || r.review_time_p90 != null
-    );
-    toggleReviewTimeCards(containers, hasReviewTimeData);
+    toggleReviewTimeCard(containers.reviewTimeP50, current.reviewTimeP50WeekCount > 0);
+    toggleReviewTimeCard(containers.reviewTimeP90, current.reviewTimeP90WeekCount > 0);
     if (metricsCollector2) {
       metricsCollector2.mark("render-summary-cards-end");
       metricsCollector2.mark("first-meaningful-paint");
@@ -5704,18 +5702,11 @@ var PRInsightsDashboard = (() => {
       }
     }
   }
-  function toggleReviewTimeCards(containers, visible) {
-    const reviewTimeElements = [
-      containers.reviewTimeP50,
-      containers.reviewTimeP90
-    ];
-    for (const el of reviewTimeElements) {
-      const card = el?.closest(".card");
-      if (card) {
-        card.style.display = visible ? "" : "none";
-        if (!visible && el) el.textContent = "";
-      }
-    }
+  function toggleReviewTimeCard(el, visible) {
+    const card = el?.closest(".card");
+    if (!card) return;
+    card.style.display = visible ? "" : "none";
+    if (!visible && el) el.textContent = "";
   }
   function renderMetricValues(containers, metrics) {
     if (containers.totalPrs) {
