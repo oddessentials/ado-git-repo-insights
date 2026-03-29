@@ -1,3 +1,21 @@
+# [5.31.0](https://github.com/oddessentials/ado-git-repo-insights/compare/v5.30.1...v5.31.0) (2026-03-29)
+
+
+### Bug Fixes
+
+* catch non-ImportError Prophet failures and guard eslint config drift ([baf758d](https://github.com/oddessentials/ado-git-repo-insights/commit/baf758d07eb1fad535314645ae2f962660eca761))
+* harden test:ci pytest path, restore Prophet runtime check, close coverage gaps ([c8a527c](https://github.com/oddessentials/ado-git-repo-insights/commit/c8a527c0707d2a177360fae89738f40094e61afd))
+* include eslint.config.mjs in UI trigger and clean-snapshot guard ([52564ff](https://github.com/oddessentials/ado-git-repo-insights/commit/52564ffb8d86453f855536356f0dca16065fe283))
+* resolve audit migration regression, git SHA resolution, and test:ci parity gaps ([29ff7ea](https://github.com/oddessentials/ado-git-repo-insights/commit/29ff7eaa0d3dae94635ff990203dcc10383b91a2))
+* resolve linked-worktree ref lookup via commondir ([1575486](https://github.com/oddessentials/ado-git-repo-insights/commit/1575486cdc0fafaf42e42f34f044eb59e5dede8e))
+* unblock insights dry-run, align build-aggregates ML flags, fix stale audit tests ([acf6811](https://github.com/oddessentials/ado-git-repo-insights/commit/acf6811788951c468e0d320fd7333d0248fd3a6c))
+
+
+### Features
+
+* eliminate all 50 suppression comments and harden enforcement to zero baseline ([#211](https://github.com/oddessentials/ado-git-repo-insights/issues/211)) ([2a474a5](https://github.com/oddessentials/ado-git-repo-insights/commit/2a474a5e8f006a64f6de3527073c2aed2e4bb148))
+* enforce test ESLint as hard gate in all enforcement paths ([c49396d](https://github.com/oddessentials/ado-git-repo-insights/commit/c49396d22920c92ab688e9477103095a0f196dea))
+
 ## [5.30.1](https://github.com/oddessentials/ado-git-repo-insights/compare/v5.30.0...v5.30.1) (2026-03-29)
 
 
