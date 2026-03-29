@@ -225,6 +225,7 @@ def is_ui_trigger(path: str) -> bool:
         "extension/scripts/copy-vss-sdk.mjs",
         "extension/package.json",
         "extension/pnpm-lock.yaml",
+        "extension/eslint.config.mjs",
     }:
         return True
     if path.startswith("extension/tsconfig") and path.endswith(".json"):
@@ -234,6 +235,7 @@ def is_ui_trigger(path: str) -> bool:
 
 def require_clean_ui_sources() -> None:
     unstaged = worktree_paths("extension/ui/")
+    unstaged.extend(worktree_paths("extension/eslint.config.mjs"))
     if not unstaged:
         return
     safe_print("[pre-commit] unstaged changes in extension/ui/ detected")
@@ -260,6 +262,7 @@ def require_clean_test_compilation_scope() -> None:
     unstaged.extend(worktree_paths("extension/ui/"))
     unstaged.extend(worktree_paths("types/"))
     unstaged.extend(worktree_paths("extension/tsconfig*.json"))
+    unstaged.extend(worktree_paths("extension/eslint.config.mjs"))
     if not unstaged:
         return
     safe_print("[pre-commit] unstaged changes in test compilation scope detected")
@@ -452,6 +455,18 @@ def run_extension_lint() -> None:
     run_command([pnpm, "run", "lint"], cwd=EXTENSION_ROOT)
 
 
+def run_extension_test_lint() -> None:
+    """Run ESLint on extension test sources (--max-warnings=0)."""
+    pnpm = shutil.which("pnpm.cmd") or shutil.which("pnpm")
+    if not pnpm:
+        raise SystemExit(
+            "[pre-commit] pnpm is required to lint extension test sources "
+            "but was not found on PATH."
+        )
+    safe_print("[pre-commit] running extension test lint (ESLint)")
+    run_command([pnpm, "run", "lint:tests"], cwd=EXTENSION_ROOT)
+
+
 def run_extension_typecheck() -> None:
     """Run TypeScript type check on extension sources (tsc --noEmit).
 
@@ -498,6 +513,9 @@ def is_test_trigger(path: str) -> bool:
     # types/vss.d.ts is referenced by tsconfig.test.json as ../types/vss.d.ts
     if path.startswith("types/") and path.endswith(".d.ts"):
         return True
+    # ESLint config changes affect test lint results
+    if path == "extension/eslint.config.mjs":
+        return True
     return False
 
 
@@ -542,6 +560,8 @@ def run_extension_config_parity() -> None:
 
 
 def run_pre_commit_hook() -> None:
+    safe_print("[pre-commit] running suppression audit (zero-tolerance)")
+    run_command([sys.executable, "scripts/audit-suppressions.py", "--diff"])
     run_acl_health_check()
     run_pre_commit_stage()
     run_managed_artifacts("sync", "--scope", "sdk", "--stage", "--require-clean")
@@ -581,6 +601,7 @@ def run_pre_commit_hook() -> None:
             safe_print(f"  - {path}")
         require_clean_test_compilation_scope()
         run_extension_test_typecheck()
+        run_extension_test_lint()
 
     if tsconfig_triggers:
         require_clean_tsconfigs()

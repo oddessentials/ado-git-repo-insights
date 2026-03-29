@@ -45,8 +45,7 @@ function getOwnPropertyValue<T>(
   obj: Record<string, T>,
   key: string,
 ): T | undefined {
-  // eslint-disable-next-line security/detect-object-injection -- SECURITY: key is guarded by hasOwnProperty on a typed record
-  return Object.prototype.hasOwnProperty.call(obj, key) ? obj[key] : undefined;
+  return new Map<string, T>(Object.entries(obj)).get(key);
 }
 
 /**

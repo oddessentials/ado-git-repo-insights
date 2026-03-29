@@ -178,7 +178,42 @@ var PRInsightsDatasetLoader = (() => {
     return null;
   }
   var ISO_DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
-  var ISO_DATETIME_PATTERN = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{1,6})?(?:Z|[+-]\d{2}:\d{2})?$/;
+  function isValidIsoDatetime(input) {
+    if (input.length < 19) {
+      return false;
+    }
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(input.substring(0, 10))) {
+      return false;
+    }
+    if (input.charAt(10) !== "T") {
+      return false;
+    }
+    if (!/^\d{2}:\d{2}:\d{2}$/.test(input.substring(11, 19))) {
+      return false;
+    }
+    let pos = 19;
+    if (pos < input.length && input.charAt(pos) === ".") {
+      pos++;
+      const fracStart = pos;
+      while (pos < input.length && /^\d$/.test(input.charAt(pos))) {
+        pos++;
+      }
+      const fracLen = pos - fracStart;
+      if (fracLen < 1 || fracLen > 6) {
+        return false;
+      }
+    }
+    if (pos < input.length) {
+      const tail = input.substring(pos);
+      if (tail === "Z") {
+        return true;
+      }
+      if (!/^[+-]\d{2}:\d{2}$/.test(tail)) {
+        return false;
+      }
+    }
+    return true;
+  }
   var ISO_WEEK_PATTERN = /^\d{4}-W\d{2}$/;
   var YEAR_PATTERN = /^\d{4}$/;
   function validateIsoDate(value, path) {
@@ -203,7 +238,7 @@ var PRInsightsDatasetLoader = (() => {
     if (!isString(value)) {
       return createError(path, "ISO datetime string", getTypeName(value));
     }
-    if (!ISO_DATETIME_PATTERN.test(value)) {
+    if (!isValidIsoDatetime(value)) {
       return createError(
         path,
         "ISO datetime format",
@@ -2379,8 +2414,9 @@ var PRInsightsDatasetLoader = (() => {
        * Build composite cache key. Throws if required params missing.
        */
       makeKey(params) {
+        const paramsMap = new Map(Object.entries(params));
         for (const field of requiredKeyFields) {
-          if (!params[field]) {
+          if (!paramsMap.get(field)) {
             throw new Error(`Cache key missing required field: ${field}`);
           }
         }
@@ -2798,7 +2834,8 @@ var PRInsightsDatasetLoader = (() => {
      */
     isFeatureEnabled(feature) {
       if (!this.manifest) return false;
-      return this.manifest.features?.[feature] === true;
+      const featuresMap = new Map(Object.entries(this.manifest.features ?? {}));
+      return featuresMap.get(feature) === true;
     }
     getCapabilityState() {
       return this.capabilityState ?? DEFAULT_CAPABILITY_STATE;

@@ -5,6 +5,10 @@
  * Canonical format: comma delimiter, encodeURIComponent, sorted multi-select, empty = delete.
  */
 
+import * as _fsOriginal from "fs";
+function _loadFs(): typeof _fsOriginal { return _fsOriginal; }
+const _fs = _loadFs();
+import path from "path";
 import {
   parseFiltersFromUrl,
   serializeFiltersToUrl,
@@ -256,13 +260,11 @@ describe("Filter URL Serialization Round-Trip", () => {
     it("dashboard.ts must not contain inline filter serialization", () => {
       // Grep-based guard: no .set("repos", or .set("teams", in dashboard.ts
       // outside of comments. This prevents reintroduction of inline serialization.
-      const fs = require("fs") as typeof import("fs");
-      const path = require("path") as typeof import("path");
       const dashboardPath = path.resolve(
         __dirname,
         "../../ui/dashboard.ts",
       );
-      const content = fs.readFileSync(dashboardPath, "utf-8");
+      const content = _fs.readFileSync(dashboardPath, "utf-8");
 
       // Remove comments before scanning
       const noComments = content.replace(/\/\/.*$/gm, "").replace(/\/\*[\s\S]*?\*\//g, "");

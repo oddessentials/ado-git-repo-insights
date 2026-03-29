@@ -59,20 +59,26 @@ const FORECASTER_LABELS: Record<string, string> = {
 /**
  * Data quality display messages.
  */
-const DATA_QUALITY_MESSAGES: Record<
+const DATA_QUALITY_MESSAGES = new Map<
   string,
   { label: string; cssClass: string }
-> = {
-  normal: { label: "High Confidence", cssClass: "quality-normal" },
-  low_confidence: {
-    label: "Low Confidence - More data recommended",
-    cssClass: "quality-low",
-  },
-  insufficient: {
-    label: "Insufficient Data",
-    cssClass: "quality-insufficient",
-  },
-};
+>([
+  ["normal", { label: "High Confidence", cssClass: "quality-normal" }],
+  [
+    "low_confidence",
+    {
+      label: "Low Confidence - More data recommended",
+      cssClass: "quality-low",
+    },
+  ],
+  [
+    "insufficient",
+    {
+      label: "Insufficient Data",
+      cssClass: "quality-insufficient",
+    },
+  ],
+]);
 
 /**
  * Render the forecaster type indicator badge.
@@ -94,8 +100,7 @@ export function renderDataQualityBanner(
 ): string {
   if (!dataQuality || dataQuality === "normal") return "";
 
-  // eslint-disable-next-line security/detect-object-injection -- SECURITY: dataQuality is typed union, keys are from known const object
-  const quality = DATA_QUALITY_MESSAGES[dataQuality];
+  const quality = DATA_QUALITY_MESSAGES.get(dataQuality);
   if (!quality) return "";
 
   return `
@@ -377,27 +382,27 @@ function extractHistoricalDataResult(
     return { data: [], wasTruncated: false };
   }
 
-  // Map metric names to rollup fields
+  // Map metric names to rollup field getters
   // Note: review_time_minutes removed - it used cycle_time as misleading proxy
-  const metricFieldMap: Record<string, keyof RollupForChart> = {
-    pr_throughput: "pr_count",
-    cycle_time_minutes: "cycle_time_p50",
-  };
+  const metricFieldMap = new Map<
+    string,
+    (r: RollupForChart) => number | null
+  >([
+    ["pr_throughput", (r) => r.pr_count],
+    ["cycle_time_minutes", (r) => r.cycle_time_p50],
+  ]);
 
-  // eslint-disable-next-line security/detect-object-injection -- SECURITY: metric is string key, metricFieldMap is local const
-  const field = metricFieldMap[metric];
-  if (!field) {
+  const getter = metricFieldMap.get(metric);
+  if (!getter) {
     return { data: [], wasTruncated: false };
   }
 
   const data = rollups
-    // eslint-disable-next-line security/detect-object-injection -- SECURITY: field is from local const metricFieldMap, typed as keyof RollupForChart
-    .filter((r) => r[field] !== null && r[field] !== undefined)
+    .filter((r) => getter(r) !== null && getter(r) !== undefined)
     .map((r) => ({
       // Convert ISO week format to date if needed
       week: r.week.includes("-W") ? isoWeekToDate(r.week) : r.week,
-      // eslint-disable-next-line security/detect-object-injection -- SECURITY: field is from local const metricFieldMap, typed as keyof RollupForChart
-      value: Number(r[field]),
+      value: Number(getter(r)),
     }))
     .sort((a, b) => a.week.localeCompare(b.week));
 

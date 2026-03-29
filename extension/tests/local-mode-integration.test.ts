@@ -178,7 +178,7 @@ describe("Local Mode Integration", () => {
             errorMessage.textContent =
               "Ensure the analytics pipeline has run successfully.";
         }
-      } catch (e) {
+      } catch (_e) {
         // Network error path
       }
 

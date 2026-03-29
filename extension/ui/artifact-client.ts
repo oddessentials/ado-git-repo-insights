@@ -598,10 +598,10 @@ export class AuthenticatedDatasetLoader implements IDatasetLoader {
 export class MockArtifactClient {
   public readonly projectId: string = "mock-project";
   public initialized: boolean = true;
-  private mockData: Record<string, unknown>;
+  private mockData: Map<string, unknown>;
 
   constructor(mockData: Record<string, unknown> = {}) {
-    this.mockData = mockData;
+    this.mockData = new Map(Object.entries(mockData));
   }
 
   async initialize(): Promise<MockArtifactClient> {
@@ -614,10 +614,8 @@ export class MockArtifactClient {
     filePath: string,
   ): Promise<unknown> {
     const key = `${buildId}/${artifactName}/${filePath}`;
-    // eslint-disable-next-line security/detect-object-injection -- SECURITY: key is constructed from function parameters, not user input
-    if (this.mockData[key]) {
-      // eslint-disable-next-line security/detect-object-injection -- SECURITY: key is constructed from function parameters, not user input
-      return JSON.parse(JSON.stringify(this.mockData[key]));
+    if (this.mockData.has(key)) {
+      return JSON.parse(JSON.stringify(this.mockData.get(key)));
     }
     throw new Error(`Mock: File not found: ${key}`);
   }
@@ -628,20 +626,19 @@ export class MockArtifactClient {
     filePath: string,
   ): Promise<boolean> {
     const key = `${buildId}/${artifactName}/${filePath}`;
-    // eslint-disable-next-line security/detect-object-injection -- SECURITY: key is constructed from function parameters, not user input
-    return !!this.mockData[key];
+    return this.mockData.has(key);
   }
 
   async getArtifacts(buildId: number): Promise<VSSBuildArtifact[]> {
-    return (this.mockData[`${buildId}/artifacts`] ?? []) as VSSBuildArtifact[];
+    return (this.mockData.get(`${buildId}/artifacts`) ?? []) as VSSBuildArtifact[];
   }
 
   async getDefinitions(): Promise<BuildDefinitionReference[]> {
-    return (this.mockData["definitions"] ?? []) as BuildDefinitionReference[];
+    return (this.mockData.get("definitions") ?? []) as BuildDefinitionReference[];
   }
 
   async getBuilds(definitionId: number): Promise<Build[]> {
-    return (this.mockData[`builds/${definitionId}`] ?? []) as Build[];
+    return (this.mockData.get(`builds/${definitionId}`) ?? []) as Build[];
   }
 
   createDatasetLoader(

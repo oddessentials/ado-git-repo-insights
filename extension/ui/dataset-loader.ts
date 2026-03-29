@@ -336,9 +336,9 @@ export function createRollupCache(clock: () => number = Date.now): RollupCache {
       branch?: string;
       apiVersion?: string;
     }) {
+      const paramsMap = new Map(Object.entries(params));
       for (const field of requiredKeyFields) {
-        // eslint-disable-next-line security/detect-object-injection -- SECURITY: field is from const array of known property names
-        if (!params[field]) {
+        if (!paramsMap.get(field)) {
           throw new Error(`Cache key missing required field: ${field}`);
         }
       }
@@ -973,8 +973,8 @@ export class DatasetLoader implements IDatasetLoader {
    */
   isFeatureEnabled(feature: string): boolean {
     if (!this.manifest) return false;
-    // eslint-disable-next-line security/detect-object-injection -- SECURITY: feature is string parameter for checking known feature flags
-    return this.manifest.features?.[feature] === true;
+    const featuresMap = new Map(Object.entries(this.manifest.features ?? {}));
+    return featuresMap.get(feature) === true;
   }
 
   getCapabilityState(): DatasetCapabilityState {

@@ -124,6 +124,11 @@ def build_commands(
     }
 
     commands = [
+        CommandSpec(
+            "Suppression baseline sync gate",
+            tuple(local_suppression_gate),
+            extra_env=suppression_env,
+        ),
         CommandSpec("Python type check", ("__PYTHON__", "-m", "mypy", "src/")),
         CommandSpec(
             "Demo dashboard validation",
@@ -179,6 +184,11 @@ def build_commands(
             cwd=EXTENSION_ROOT,
         ),
         CommandSpec(
+            "Extension test lint",
+            (PNPM_SENTINEL, "run", "lint:tests"),
+            cwd=EXTENSION_ROOT,
+        ),
+        CommandSpec(
             "Extension UI bundle",
             (PNPM_SENTINEL, "run", "build:ui"),
             cwd=EXTENSION_ROOT,
@@ -192,11 +202,6 @@ def build_commands(
                 "--scope",
                 "all",
             ),
-        ),
-        CommandSpec(
-            "Suppression baseline sync gate",
-            tuple(local_suppression_gate),
-            extra_env=suppression_env,
         ),
         CommandSpec(
             "Extension type tests",
@@ -342,7 +347,7 @@ def build_commands(
             str(suppression_baseline),
         ]
         commands.insert(
-            8,
+            1,
             CommandSpec(
                 "Suppression main-baseline gate",
                 tuple(main_suppression_command),

@@ -227,13 +227,61 @@ export function validateObject(
 const ISO_DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
 
 /**
- * ISO 8601 datetime pattern (YYYY-MM-DDTHH:mm:ss with optional timezone).
- * Uses bounded quantifiers to prevent ReDoS via catastrophic backtracking.
+ * Validate an ISO 8601 datetime string (YYYY-MM-DDTHH:mm:ss with optional
+ * fractional seconds and timezone) using only small, fixed-length sub-pattern
+ * tests so the security/detect-unsafe-regex rule stays satisfied.
  */
-/* eslint-disable security/detect-unsafe-regex -- SECURITY: Pattern is safe - all groups use bounded quantifiers to prevent ReDoS */
-const ISO_DATETIME_PATTERN =
-  /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{1,6})?(?:Z|[+-]\d{2}:\d{2})?$/;
-/* eslint-enable security/detect-unsafe-regex */
+function isValidIsoDatetime(input: string): boolean {
+  // Minimum: YYYY-MM-DDTHH:mm:ss (19 chars)
+  if (input.length < 19) {
+    return false;
+  }
+
+  // Date part: chars 0-9 → "YYYY-MM-DD"
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(input.substring(0, 10))) {
+    return false;
+  }
+
+  // Separator
+  if (input.charAt(10) !== "T") {
+    return false;
+  }
+
+  // Time part: chars 11-18 → "HH:mm:ss"
+  if (!/^\d{2}:\d{2}:\d{2}$/.test(input.substring(11, 19))) {
+    return false;
+  }
+
+  // Everything after position 19 is optional tail (fractional seconds + tz).
+  let pos = 19;
+
+  // Optional fractional seconds: ".1" through ".123456"
+  if (pos < input.length && input.charAt(pos) === ".") {
+    pos++; // skip the dot
+    const fracStart = pos;
+    while (pos < input.length && /^\d$/.test(input.charAt(pos))) {
+      pos++;
+    }
+    const fracLen = pos - fracStart;
+    if (fracLen < 1 || fracLen > 6) {
+      return false;
+    }
+  }
+
+  // Optional timezone suffix
+  if (pos < input.length) {
+    const tail = input.substring(pos);
+    if (tail === "Z") {
+      return true;
+    }
+    // +HH:mm or -HH:mm (exactly 6 chars)
+    if (!/^[+-]\d{2}:\d{2}$/.test(tail)) {
+      return false;
+    }
+  }
+
+  return true;
+}
 
 /**
  * ISO week pattern (YYYY-Www).
@@ -280,7 +328,7 @@ export function validateIsoDatetime(
   if (!isString(value)) {
     return createError(path, "ISO datetime string", getTypeName(value));
   }
-  if (!ISO_DATETIME_PATTERN.test(value)) {
+  if (!isValidIsoDatetime(value)) {
     return createError(
       path,
       "ISO datetime format",

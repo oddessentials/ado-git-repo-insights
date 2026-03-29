@@ -245,11 +245,11 @@ describe("FR-025: Batch execution - state isolation", () => {
     if (Array.isArray(obj)) {
       return obj.map(safeClone) as T;
     }
-    const result: Record<string, unknown> = {};
-    for (const key of Object.keys(obj)) {
-      result[key] = safeClone((obj as Record<string, unknown>)[key]);
+    const result = new Map<string, unknown>();
+    for (const [key, val] of Object.entries(obj as Record<string, unknown>)) {
+      result.set(key, safeClone(val));
     }
-    return result as T;
+    return Object.fromEntries(result) as T;
   };
 
   const TEST_CASES = [
@@ -294,30 +294,27 @@ describe("FR-025: Batch execution - state isolation", () => {
 
     // Assert: Results match expected
     for (let i = 0; i < TEST_CASES.length; i++) {
-      expect(run1Results[i]!.actual).toBe(TEST_CASES[i]!.expected);
+      expect(run1Results.at(i)!.actual).toBe(TEST_CASES.at(i)!.expected);
     }
 
     // Assert: Run 1 === Run 2 (determinism)
     for (let i = 0; i < TEST_CASES.length; i++) {
-      expect(run1Results[i]!.actual).toBe(run2Results[i]!.actual);
+      expect(run1Results.at(i)!.actual).toBe(run2Results.at(i)!.actual);
     }
 
     // Assert: Input not mutated (compare structure, handle NaN specially)
     for (let i = 0; i < TEST_CASES.length; i++) {
-      const inputAfter = run1Results[i]!.inputAfter;
-      const originalInput = TEST_CASES[i]!.input;
+      const inputAfter = run1Results.at(i)!.inputAfter;
+      const originalInput = TEST_CASES.at(i)!.input;
 
       // Compare keys
       expect(Object.keys(inputAfter)).toEqual(Object.keys(originalInput));
 
       // Compare values, handling NaN specially
-      for (const key of Object.keys(originalInput)) {
-        const afterVal = (inputAfter as Record<string, { pr_count: unknown }>)[
-          key
-        ]!.pr_count;
-        const origVal = (
-          originalInput as Record<string, { pr_count: unknown }>
-        )[key]!.pr_count;
+      for (const [entryKey, entry] of Object.entries(originalInput as Record<string, { pr_count: unknown }>)) {
+        const afterMap = new Map(Object.entries(inputAfter as Record<string, { pr_count: unknown }>));
+        const afterVal = afterMap.get(entryKey)!.pr_count;
+        const origVal = entry.pr_count;
 
         if (typeof origVal === "number" && Number.isNaN(origVal)) {
           expect(Number.isNaN(afterVal)).toBe(true);
@@ -535,7 +532,7 @@ describe("T025: SC-002 dashboard load time overhead", () => {
       if (includeCrossDim) {
         for (let t = 0; t < NUM_TEAMS; t++) {
           const teamKey = `team-${t}`;
-          byTeamAndRepo[teamKey] = {};
+          const repoEntries = new Map<string, Record<string, number>>();
           // Each team contributes to ~3 repos (sparse)
           for (
             let r = t % NUM_REPOS;
@@ -544,14 +541,15 @@ describe("T025: SC-002 dashboard load time overhead", () => {
           ) {
             const repoKey = `repo-${r}`;
             const prCount = 2 + ((w + t + r) % 8);
-            byTeamAndRepo[teamKey][repoKey] = {
+            repoEntries.set(repoKey, {
               pr_count: prCount,
               cycle_time_p50: 30 + (((t + r) * 7) % 60),
               cycle_time_p90: 60 + (((t + r) * 13) % 120),
               authors_count: 1 + ((t + r) % 3),
               reviewers_count: 1 + ((t + r) % 2),
-            };
+            });
           }
+          byTeamAndRepo[`${teamKey}`] = Object.fromEntries(repoEntries);
         }
       }
 
@@ -671,10 +669,10 @@ describe("T025: SC-002 dashboard load time overhead", () => {
 
     // All values should be finite numbers
     for (let i = 0; i < NUM_WEEKS; i++) {
-      expect(Number.isFinite(v1Result[i]!.pr_count)).toBe(true);
-      expect(Number.isFinite(v2Result[i]!.pr_count)).toBe(true);
-      expect(v1Result[i]!.pr_count).toBeGreaterThanOrEqual(0);
-      expect(v2Result[i]!.pr_count).toBeGreaterThanOrEqual(0);
+      expect(Number.isFinite(v1Result.at(i)!.pr_count)).toBe(true);
+      expect(Number.isFinite(v2Result.at(i)!.pr_count)).toBe(true);
+      expect(v1Result.at(i)!.pr_count).toBeGreaterThanOrEqual(0);
+      expect(v2Result.at(i)!.pr_count).toBeGreaterThanOrEqual(0);
     }
   });
 });

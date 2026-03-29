@@ -60,12 +60,12 @@ describe("export DOM functions", () => {
       if (hadCreateObjectURL) {
         expect(URL.createObjectURL).toBe(originalCreateObjectURL);
       } else {
-        delete (URL as any).createObjectURL;
+        delete (URL as unknown as Record<string, unknown>).createObjectURL;
       }
       if (hadRevokeObjectURL) {
         expect(URL.revokeObjectURL).toBe(originalRevokeObjectURL);
       } else {
-        delete (URL as any).revokeObjectURL;
+        delete (URL as unknown as Record<string, unknown>).revokeObjectURL;
       }
     });
 

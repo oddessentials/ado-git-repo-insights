@@ -179,10 +179,10 @@ export function createErrorMessage(
   errorKey: string,
   details: string | null = null,
 ): ErrorMessage {
-  const error =
-    // eslint-disable-next-line security/detect-object-injection -- SECURITY: errorKey is typed ErrorCodeKey from known enum
-    (ErrorCodes as Record<string, ErrorCodeDefinition>)[errorKey] ??
-    ErrorCodes.UNKNOWN;
+  const errorCodeMap = new Map<string, ErrorCodeDefinition>(
+    Object.entries(ErrorCodes as Record<string, ErrorCodeDefinition>),
+  );
+  const error = errorCodeMap.get(errorKey) ?? ErrorCodes.UNKNOWN;
   return {
     code: error.code,
     message: details ? `${error.message} (${details})` : error.message,

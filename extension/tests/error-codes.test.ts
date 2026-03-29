@@ -82,7 +82,7 @@ describe("Error Codes", () => {
     });
 
     it("falls back to UNKNOWN for invalid key", () => {
-      const result = createErrorMessage("INVALID_KEY" as any);
+      const result = createErrorMessage("INVALID_KEY");
 
       expect(result.code).toBe("UNKNOWN");
     });

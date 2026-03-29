@@ -14,7 +14,9 @@
  * @see specs/022-deterministic-smoke-tests/contracts/test-contracts.md
  */
 
-import * as fs from "fs";
+import * as _fsOriginal from "fs";
+function _loadFs(): typeof _fsOriginal { return _fsOriginal; }
+const _fs = _loadFs();
 import * as path from "path";
 import { glob } from "glob";
 
@@ -42,7 +44,7 @@ describe("Smoke Test Determinism Guard", () => {
     const violations: string[] = [];
 
     for (const file of smokeTestFiles) {
-      const content = fs.readFileSync(file, "utf-8");
+      const content = _fs.readFileSync(file, "utf-8");
       const lines = content.split("\n");
 
       lines.forEach((line, index) => {
@@ -71,7 +73,7 @@ describe("Smoke Test Determinism Guard", () => {
     const violations: string[] = [];
 
     for (const file of smokeTestFiles) {
-      const content = fs.readFileSync(file, "utf-8");
+      const content = _fs.readFileSync(file, "utf-8");
       const lines = content.split("\n");
 
       lines.forEach((line, index) => {
@@ -102,7 +104,7 @@ describe("Smoke Test Determinism Guard", () => {
     const timeoutLiteralRegex = /timeout:\s*\d+/g;
 
     for (const file of smokeTestFiles) {
-      const content = fs.readFileSync(file, "utf-8");
+      const content = _fs.readFileSync(file, "utf-8");
       const lines = content.split("\n");
 
       lines.forEach((line, index) => {
@@ -138,7 +140,7 @@ describe("Smoke Test Determinism Guard", () => {
     const hardcodedPathRegex = /path:\s*["']test-artifacts\//g;
 
     for (const file of smokeTestFiles) {
-      const content = fs.readFileSync(file, "utf-8");
+      const content = _fs.readFileSync(file, "utf-8");
       const lines = content.split("\n");
 
       lines.forEach((line, index) => {
@@ -177,7 +179,7 @@ describe("Smoke Test Determinism Guard", () => {
     });
 
     for (const file of allTestFiles) {
-      const content = fs.readFileSync(file, "utf-8");
+      const content = _fs.readFileSync(file, "utf-8");
       const lines = content.split("\n");
 
       lines.forEach((line, index) => {

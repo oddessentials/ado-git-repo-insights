@@ -1115,7 +1115,7 @@ describe("Typeahead Dropdown", () => {
       input.dispatchEvent(new Event("focus"));
 
       // User clicks "alpha" option to deselect it
-      let options = document.querySelectorAll(
+      const options = document.querySelectorAll(
         "#qa-desel-from-all [role='option']",
       );
       const alphaOption = Array.from(options).find(
@@ -1175,10 +1175,10 @@ describe("Typeahead Dropdown", () => {
       input.dispatchEvent(new Event("focus"));
 
       // Find alpha option
-      let options = document.querySelectorAll(
+      const options = document.querySelectorAll(
         "#qa-visual-after-desel [role='option']",
       );
-      let alphaOption = Array.from(options).find(
+      const alphaOption = Array.from(options).find(
         (o) => (o as HTMLElement).dataset.optionId === "alpha",
       ) as HTMLElement | undefined;
 

@@ -151,10 +151,10 @@ describe("Layer A: Chart function idempotency", () => {
     renderSummaryCards({ rollups, containers: containersB });
 
     // Compare each container element pair
-    for (const key of Object.keys(containersA) as Array<
-      keyof typeof containersA
-    >) {
-      expect(containersA[key]!.innerHTML).toBe(containersB[key]!.innerHTML);
+    const mapB = new Map(Object.entries(containersB));
+    for (const [key, elA] of Object.entries(containersA)) {
+      const elB = mapB.get(key);
+      expect(elA!.innerHTML).toBe(elB!.innerHTML);
     }
     // Non-vacuous: at least totalPrs should have content
     expect(containersA.totalPrs!.textContent).not.toBe("");

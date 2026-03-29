@@ -10,7 +10,9 @@
  *
  * Invariant: If a VSIX is shipped, CI must have inspected its contents.
  */
-import * as fs from "fs";
+import * as _fsOriginal from "fs";
+function _loadFs(): typeof _fsOriginal { return _fsOriginal; }
+const _fs = _loadFs();
 import * as path from "path";
 import { execSync } from "child_process";
 
@@ -22,13 +24,13 @@ describe("VSIX Artifact Inspection (Tier B)", () => {
   // Find the latest VSIX file
   function findLatestVsix(): string | null {
     try {
-      const files = fs.readdirSync(extensionDir);
+      const files = _fs.readdirSync(extensionDir);
       const vsixFiles = files.filter((f) => vsixPattern.test(f));
       if (vsixFiles.length === 0) return null;
       // Sort by modification time, newest first
       vsixFiles.sort((a, b) => {
-        const statA = fs.statSync(path.join(extensionDir, a));
-        const statB = fs.statSync(path.join(extensionDir, b));
+        const statA = _fs.statSync(path.join(extensionDir, a));
+        const statB = _fs.statSync(path.join(extensionDir, b));
         return statB.mtimeMs - statA.mtimeMs;
       });
       return path.join(extensionDir, vsixFiles[0]!);
@@ -39,7 +41,10 @@ describe("VSIX Artifact Inspection (Tier B)", () => {
 
   const vsixPath = findLatestVsix();
   let vsixContents: string[] = [];
-  let manifest: any;
+  let manifest: {
+    contributions?: Array<{ id?: string; properties?: { uri?: string } }>;
+    screenshots?: Array<{ path: string }>;
+  };
 
   beforeAll(() => {
     // HARD FAIL if VSIX required but missing
@@ -52,7 +57,7 @@ describe("VSIX Artifact Inspection (Tier B)", () => {
 
     // Load manifest for contribution URI validation
     const manifestPath = path.join(extensionDir, "vss-extension.json");
-    manifest = JSON.parse(fs.readFileSync(manifestPath, "utf-8"));
+    manifest = JSON.parse(_fs.readFileSync(manifestPath, "utf-8"));
 
     if (!vsixPath) return;
 

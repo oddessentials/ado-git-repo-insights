@@ -9,7 +9,9 @@
  * the negative smoke test fixture.
  */
 
-import * as fs from "fs";
+import * as _fsOriginal from "fs";
+function _loadFs(): typeof _fsOriginal { return _fsOriginal; }
+const _fs = _loadFs();
 import * as path from "path";
 
 describe("broken-docs Drift Protection", () => {
@@ -44,16 +46,16 @@ describe("broken-docs Drift Protection", () => {
   ];
 
   it("docs/index.html exists", () => {
-    expect(fs.existsSync(DOCS_HTML)).toBe(true);
+    expect(_fs.existsSync(DOCS_HTML)).toBe(true);
   });
 
   it("broken-docs/index.html exists", () => {
-    expect(fs.existsSync(BROKEN_HTML)).toBe(true);
+    expect(_fs.existsSync(BROKEN_HTML)).toBe(true);
   });
 
   it("broken-docs/index.html has same structure as docs/index.html", () => {
-    const docsContent = fs.readFileSync(DOCS_HTML, "utf-8");
-    const brokenContent = fs.readFileSync(BROKEN_HTML, "utf-8");
+    const docsContent = _fs.readFileSync(DOCS_HTML, "utf-8");
+    const brokenContent = _fs.readFileSync(BROKEN_HTML, "utf-8");
 
     const missingInDocs: string[] = [];
     const missingInBroken: string[] = [];
@@ -93,9 +95,9 @@ describe("broken-docs Drift Protection", () => {
       "../fixtures/broken-docs/data/dataset-manifest.json",
     );
 
-    expect(fs.existsSync(manifestPath)).toBe(true);
+    expect(_fs.existsSync(manifestPath)).toBe(true);
 
-    const content = fs.readFileSync(manifestPath, "utf-8");
+    const content = _fs.readFileSync(manifestPath, "utf-8");
 
     // The manifest should NOT be valid JSON (intentionally malformed)
     let isValidJson = true;
@@ -130,7 +132,7 @@ describe("broken-docs Drift Protection", () => {
     const missingFiles: string[] = [];
     for (const file of requiredFiles) {
       const filePath = path.join(brokenDocsDir, file);
-      if (!fs.existsSync(filePath)) {
+      if (!_fs.existsSync(filePath)) {
         missingFiles.push(file);
       }
     }

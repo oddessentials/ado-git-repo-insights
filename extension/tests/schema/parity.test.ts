@@ -37,6 +37,7 @@ import extensionManifestRaw from "../fixtures/extension-artifacts/dataset-manife
 import extensionDimensionsRaw from "../fixtures/extension-artifacts/dimensions.json";
 import extensionRollupRaw from "../fixtures/extension-artifacts/2026-W03.json";
 import extensionPredictionsRaw from "../fixtures/extension-artifacts/predictions.json";
+import canonicalPredictions from "../../../docs/data/predictions/trends.json";
 
 /**
  * Check if artifact is a placeholder (not yet captured).
@@ -263,8 +264,6 @@ describe("Schema Parity Tests", () => {
       // Provenance guard: the extension-artifacts predictions fixture must be
       // derived from the canonical demo generator output. If someone hand-edits
       // the fixture or the generator output changes, this test catches the drift.
-      const canonicalPredictions = require("../../../docs/data/predictions/trends.json");
-
       // Compare by serializing with sorted keys to ignore formatting differences
       const normalize = (obj: unknown) =>
         JSON.stringify(obj, Object.keys(obj as object).sort());

@@ -137,8 +137,9 @@ export const BuildApiScenarios: Record<string, BuildApiScenario> = {
  * @returns Mock API client
  */
 export function createBuildApiMock(scenario: string = "SUCCESS") {
+  const scenarioMap = new Map(Object.entries(BuildApiScenarios));
   const scenarioData =
-    BuildApiScenarios[scenario] || BuildApiScenarios["SUCCESS"];
+    scenarioMap.get(scenario) || BuildApiScenarios["SUCCESS"];
 
   return {
     getBuilds: async () => {
@@ -173,10 +174,10 @@ export function installSdkMocks(options: SdkMockOptions = {}) {
   const sdk = createSdkMock(options);
 
   if (typeof window !== "undefined") {
-    (window as any).VSS = sdk;
+    (window as unknown as Record<string, unknown>).VSS = sdk;
   }
   if (typeof global !== "undefined") {
-    (global as any).VSS = sdk;
+    (global as unknown as Record<string, unknown>).VSS = sdk;
   }
 
   return sdk;

@@ -36,6 +36,7 @@ Install with: pip install -e ".[ml]"
 
 from __future__ import annotations
 
+import importlib.util
 import logging
 from pathlib import Path
 from typing import TYPE_CHECKING, Protocol
@@ -76,16 +77,23 @@ __all__ = [
 def is_prophet_available() -> bool:
     """Check if Prophet is available for import.
 
+    Uses find_spec as a fast pre-check (avoids import overhead when the
+    package is not installed), then performs a real runtime import to
+    catch broken or partial installations.
+
     Returns:
-        True if Prophet can be imported, False otherwise.
+        True if Prophet can be imported successfully, False otherwise.
     """
     try:
-        from prophet import (
-            Prophet,  # noqa: F401 -- REASON: import used for ML dependency check
-        )
+        if importlib.util.find_spec("prophet") is None:
+            return False
+    except (ValueError, ModuleNotFoundError):
+        return False
+    try:
+        from prophet import Prophet
 
-        return True
-    except ImportError:
+        return Prophet is not None
+    except Exception:
         return False
 
 

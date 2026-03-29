@@ -11,7 +11,7 @@
 
 // Make this file a module (required for global augmentation in types.ts)
 // Window interface is declared in ../ui/types.ts
-export {};
+import type { Rollup } from "../ui/dataset-loader";
 
 // Mock DOM elements and functions from dashboard.js
 // Since dashboard.js uses globals and DOM, we need to set up the environment
@@ -138,20 +138,20 @@ describe("Dashboard Rendering", () => {
         if (insights && insights.insights) {
           // Group by severity
           const severityOrder = ["critical", "warning", "info"];
-          const grouped: Record<string, Array<{ severity: string; title: string }>> = {};
+          const grouped = new Map<string, Array<{ severity: string; title: string }>>();
           insights.insights.forEach((insight: { severity: string; title: string }) => {
-            if (!grouped[insight.severity]) grouped[insight.severity] = [];
-            grouped[insight.severity]!.push(insight);
+            if (!grouped.has(insight.severity)) grouped.set(insight.severity, []);
+            grouped.get(insight.severity)!.push(insight);
           });
 
           severityOrder.forEach((severity) => {
-            if (!grouped[severity]) return;
+            if (!grouped.has(severity)) return;
 
             const section = document.createElement("div");
             section.className = `severity-section severity-${severity}`;
             section.setAttribute("data-severity", severity);
             section.innerHTML = `<h4>${severity}</h4>`;
-            grouped[severity]!.forEach((insight: { severity: string; title: string }) => {
+            grouped.get(severity)!.forEach((insight: { severity: string; title: string }) => {
               section.innerHTML += `<div class="insight-card">${insight.title}</div>`;
             });
             content.appendChild(section);
@@ -596,8 +596,8 @@ describe("Utility Functions", () => {
       const sorted = [...arr].sort((a, b) => a - b);
       const mid = Math.floor(sorted.length / 2);
       return sorted.length % 2
-        ? sorted[mid]!
-        : (sorted[mid - 1]! + sorted[mid]!) / 2;
+        ? sorted.at(mid)!
+        : (sorted.at(mid - 1)! + sorted.at(mid)!) / 2;
     };
   };
 
@@ -656,7 +656,7 @@ describe("Sprint 1: Trend Deltas & Metrics", () => {
    * Calculate metrics from rollups (mirrors dashboard.js calculateMetrics)
    */
   const createCalculateMetrics = (medianFn: (arr: number[]) => number | null) => {
-    return function calculateMetrics(rollups: any[]) {
+    return function calculateMetrics(rollups: Partial<Rollup>[]) {
       if (!rollups || !rollups.length) {
         return {
           totalPrs: 0,
@@ -767,8 +767,8 @@ describe("Sprint 1: Trend Deltas & Metrics", () => {
     const sorted = [...arr].sort((a, b) => a - b);
     const mid = Math.floor(sorted.length / 2);
     return sorted.length % 2
-      ? sorted[mid]!
-      : (sorted[mid - 1]! + sorted[mid]!) / 2;
+      ? sorted.at(mid)!
+      : (sorted.at(mid - 1)! + sorted.at(mid)!) / 2;
   };
 
   describe("calculateMetrics", () => {
@@ -819,8 +819,8 @@ describe("Sprint 1: Trend Deltas & Metrics", () => {
     });
 
     it("handles null/undefined rollups", () => {
-      expect(createCalculateMetrics(median)(null as unknown as any[]).totalPrs).toBe(0);
-      expect(createCalculateMetrics(median)(undefined as unknown as any[]).totalPrs).toBe(0);
+      expect(createCalculateMetrics(median)(null as unknown as Partial<Rollup>[]).totalPrs).toBe(0);
+      expect(createCalculateMetrics(median)(undefined as unknown as Partial<Rollup>[]).totalPrs).toBe(0);
     });
 
     it("handles missing fields in rollups", () => {
@@ -1009,7 +1009,7 @@ describe("Sprint 3: Sparklines & Moving Average", () => {
    * Extract sparkline data from rollups (mirrors dashboard.js extractSparklineData)
    */
   const createExtractSparklineData = () => {
-    return function extractSparklineData(rollups: any[] | null | undefined) {
+    return function extractSparklineData(rollups: Partial<Rollup>[] | null | undefined) {
       if (!rollups || !rollups.length) {
         return { prCounts: [], p50s: [], p90s: [], authors: [], reviewers: [] };
       }
@@ -1275,7 +1275,7 @@ describe("Sprint 4: Charts & Tooltips", () => {
       let tooltip: HTMLDivElement | null = null;
 
       dots.forEach((dot) => {
-        dot.addEventListener("mouseenter", (_e) => {
+        dot.addEventListener("mouseenter", () => {
           if (!tooltip) {
             tooltip = document.createElement("div");
             tooltip.className = "chart-tooltip";
@@ -1379,7 +1379,7 @@ describe("Sprint 4: Charts & Tooltips", () => {
 
     it("renders no-data message for empty rollups", () => {
       const container = document.getElementById("cycle-time-trend");
-      const emptyRollups: any[] = [];
+      const emptyRollups: Partial<Rollup>[] = [];
 
       // Simulate the check from dashboard.js
       if (!emptyRollups || emptyRollups.length < 2) {
@@ -1413,7 +1413,7 @@ describe("Sprint 4: Charts & Tooltips", () => {
 
     it("renders no-data message for empty rollups", () => {
       const container = document.getElementById("reviewer-activity");
-      const emptyRollups: any[] = [];
+      const emptyRollups: Partial<Rollup>[] = [];
 
       if (!emptyRollups || emptyRollups.length === 0) {
         container!.innerHTML =
@@ -1509,7 +1509,7 @@ describe("Sprint 5: Comparison Mode & Export", () => {
   });
 
   describe("exportToCsv", () => {
-    const createExportToCsv = (cachedRollups: any[] | null, showToastFn: (msg: string, type: string) => void) => {
+    const createExportToCsv = (cachedRollups: Partial<Rollup>[] | null, showToastFn: (msg: string, type: string) => void) => {
       return function exportToCsv() {
         if (!cachedRollups || cachedRollups.length === 0) {
           showToastFn("No data to export", "error");
@@ -1608,7 +1608,7 @@ describe("Sprint 5: Comparison Mode & Export", () => {
      */
     const createMockArtifactClient = (
       options: {
-        artifact?: any;
+        artifact?: { name?: string; resource?: { downloadUrl?: string } } | null;
         fetchOk?: boolean;
         fetchStatus?: number;
         statusText?: string;
@@ -1634,9 +1634,9 @@ describe("Sprint 5: Comparison Mode & Export", () => {
      */
     const createDownloadRawDataZip = (
       currentBuildId: number | null,
-      artifactClient: any,
+      artifactClient: ReturnType<typeof createMockArtifactClient> | null,
       showToastFn: (msg: string, type: string) => void,
-      elementsExportMenu: any,
+      elementsExportMenu: HTMLElement | null,
     ) => {
       return async function downloadRawDataZip() {
         elementsExportMenu?.classList.add("hidden");
@@ -1684,7 +1684,7 @@ describe("Sprint 5: Comparison Mode & Export", () => {
           }
 
           return { success: true, zipUrl };
-        } catch (err) {
+        } catch {
           showToastFn("Failed to download raw data", "error");
           return { success: false, reason: "error" };
         }
@@ -1887,7 +1887,7 @@ describe("Sprint 5: Comparison Mode & Export", () => {
           resource: { downloadUrl: "https://example.com/artifact" },
         },
       });
-      const exportMenu = { classList: { add: jest.fn() } };
+      const exportMenu = { classList: { add: jest.fn() } } as unknown as HTMLElement;
       const downloadRawDataZip = createDownloadRawDataZip(
         123,
         artifactClient,
@@ -1928,8 +1928,7 @@ describe("Sprint 5: Comparison Mode & Export", () => {
     });
 
     it("exits comparison mode", () => {
-      // eslint-disable-next-line prefer-const -- REASON: intentionally mutable to verify true→false state transition
-      let comparisonMode = true;
+      const comparisonMode = { value: true };
       const toggle = document.getElementById("compare-toggle")!;
       const banner = document.getElementById("comparison-banner")!;
 
@@ -1937,11 +1936,11 @@ describe("Sprint 5: Comparison Mode & Export", () => {
       banner.classList.remove("hidden");
 
       // Exit comparison mode
-      comparisonMode = false;
+      comparisonMode.value = false;
       toggle.classList.remove("active");
       banner.classList.add("hidden");
 
-      expect(comparisonMode).toBe(false);
+      expect(comparisonMode.value).toBe(false);
       expect(toggle.classList.contains("active")).toBe(false);
       expect(banner.classList.contains("hidden")).toBe(true);
     });
@@ -1995,14 +1994,14 @@ describe("Sprint 5: Comparison Mode & Export", () => {
 
   describe("URL State Management", () => {
     const createUpdateUrlState = () => {
-      return function updateUrlState(state: any) {
+      return function updateUrlState(state: { start?: Date; end?: Date; repos?: string[]; teams?: string[]; compare?: boolean }) {
         const params = new URLSearchParams();
 
         if (state.start) {
-          params.set("start", state.start.toISOString().split("T")[0]);
+          params.set("start", state.start.toISOString().split("T")[0]!);
         }
         if (state.end) {
-          params.set("end", state.end.toISOString().split("T")[0]);
+          params.set("end", state.end.toISOString().split("T")[0]!);
         }
         if (state.repos && state.repos.length > 0) {
           params.set("repos", state.repos.join(","));
@@ -2078,7 +2077,7 @@ describe("Client-Side Filtering (applyFiltersToRollups)", () => {
    */
   const createApplyFiltersToRollups = () => {
     return function applyFiltersToRollups(
-      rollups: any[],
+      rollups: Partial<Rollup>[],
       filters: { repos: string[]; teams: string[] },
     ) {
       if (!filters.repos.length && !filters.teams.length) {
@@ -2089,13 +2088,14 @@ describe("Client-Side Filtering (applyFiltersToRollups)", () => {
         if (filters.repos.length && rollup.by_repository) {
           const selectedRepos = filters.repos
             .map((repoId) => {
-              const repoData = rollup.by_repository[repoId];
+              const byRepoMap = new Map<string, unknown>(Object.entries(rollup.by_repository!));
+              const repoData = byRepoMap.get(repoId);
               if (repoData) return repoData;
-              return Object.entries(rollup.by_repository).find(
+              return Object.entries(rollup.by_repository!).find(
                 ([name]) => name === repoId,
               )?.[1];
             })
-            .filter(Boolean);
+            .filter(Boolean) as Array<Record<string, number | null>>;
 
           if (selectedRepos.length === 0) {
             return {
@@ -2139,9 +2139,10 @@ describe("Client-Side Filtering (applyFiltersToRollups)", () => {
         }
 
         if (filters.teams.length && rollup.by_team) {
+          const byTeamMap = new Map<string, unknown>(Object.entries(rollup.by_team));
           const selectedTeams = filters.teams
-            .map((teamId) => rollup.by_team[teamId])
-            .filter(Boolean);
+            .map((teamId) => byTeamMap.get(teamId))
+            .filter(Boolean) as Array<Record<string, number | null>>;
 
           if (selectedTeams.length === 0) {
             return {
@@ -2211,11 +2212,11 @@ describe("Client-Side Filtering (applyFiltersToRollups)", () => {
 
     const result = applyFiltersToRollups(rollups, filters);
 
-    expect(result[0].pr_count).toBe(20);
-    expect(result[0].cycle_time_p50).toBe(80);
-    expect(result[0].authors_count).toBe(6);
-    expect(result[0].reviewers_count).toBe(5);
-    expect(result[0]._filtered).toBe(true);
+    expect(result[0]!.pr_count).toBe(20);
+    expect(result[0]!.cycle_time_p50).toBe(80);
+    expect(result[0]!.authors_count).toBe(6);
+    expect(result[0]!.reviewers_count).toBe(5);
+    expect(result[0]!._filtered).toBe(true);
   });
 
   it("aggregates metrics across multiple selected repos", () => {
@@ -2249,10 +2250,10 @@ describe("Client-Side Filtering (applyFiltersToRollups)", () => {
 
     const result = applyFiltersToRollups(rollups, filters);
 
-    expect(result[0].pr_count).toBe(35); // 20 + 15
-    expect(result[0].cycle_time_p50).toBe(75); // (60 + 90) / 2
-    expect(result[0].authors_count).toBe(9); // 5 + 4
-    expect(result[0].reviewers_count).toBe(5); // 3 + 2
+    expect(result[0]!.pr_count).toBe(35); // 20 + 15
+    expect(result[0]!.cycle_time_p50).toBe(75); // (60 + 90) / 2
+    expect(result[0]!.authors_count).toBe(9); // 5 + 4
+    expect(result[0]!.reviewers_count).toBe(5); // 3 + 2
   });
 
   it("returns zeroed metrics when selected repos not found", () => {
@@ -2269,10 +2270,10 @@ describe("Client-Side Filtering (applyFiltersToRollups)", () => {
 
     const result = applyFiltersToRollups(rollups, filters);
 
-    expect(result[0].pr_count).toBe(0);
-    expect(result[0].cycle_time_p50).toBe(null);
-    expect(result[0].authors_count).toBe(0);
-    expect(result[0].reviewers_count).toBe(0);
+    expect(result[0]!.pr_count).toBe(0);
+    expect(result[0]!.cycle_time_p50).toBe(null);
+    expect(result[0]!.authors_count).toBe(0);
+    expect(result[0]!.reviewers_count).toBe(0);
   });
 
   it("returns original rollup when no slices available for filter", () => {
@@ -2305,8 +2306,8 @@ describe("Client-Side Filtering (applyFiltersToRollups)", () => {
 
     const result = applyFiltersToRollups(rollups, filters);
 
-    expect(result[0].pr_count).toBe(25);
-    expect(result[0]._filtered).toBe(true);
+    expect(result[0]!.pr_count).toBe(25);
+    expect(result[0]!._filtered).toBe(true);
   });
 
   it("handles null cycle time values in aggregation", () => {
@@ -2324,7 +2325,7 @@ describe("Client-Side Filtering (applyFiltersToRollups)", () => {
 
     const result = applyFiltersToRollups(rollups, filters);
 
-    expect(result[0].cycle_time_p50).toBe(60); // Only non-null value
+    expect(result[0]!.cycle_time_p50).toBe(60); // Only non-null value
   });
 
   it("preserves other rollup fields when filtering", () => {
@@ -2343,9 +2344,9 @@ describe("Client-Side Filtering (applyFiltersToRollups)", () => {
 
     const result = applyFiltersToRollups(rollups, filters);
 
-    expect(result[0].week).toBe("2025-W01");
-    expect(result[0].start_date).toBe("2025-01-01");
-    expect(result[0].end_date).toBe("2025-01-07");
+    expect(result[0]!.week).toBe("2025-W01");
+    expect(result[0]!.start_date).toBe("2025-01-01");
+    expect(result[0]!.end_date).toBe("2025-01-07");
   });
 });
 
@@ -2687,14 +2688,14 @@ describe("Sprint 2: Filter Management", () => {
      * This ensures URL state can be restored exactly after page reload.
      */
     const createUpdateUrlState = () => {
-      return function updateUrlState(state: any) {
+      return function updateUrlState(state: { start?: Date; end?: Date; repos?: string[]; teams?: string[]; compare?: boolean }) {
         const params = new URLSearchParams();
 
         if (state.start) {
-          params.set("start", state.start.toISOString().split("T")[0]);
+          params.set("start", state.start.toISOString().split("T")[0]!);
         }
         if (state.end) {
-          params.set("end", state.end.toISOString().split("T")[0]);
+          params.set("end", state.end.toISOString().split("T")[0]!);
         }
         if (state.repos && state.repos.length > 0) {
           // Sort for deterministic ordering
@@ -2714,7 +2715,7 @@ describe("Sprint 2: Filter Management", () => {
 
     const parseUrlState = (queryString: string) => {
       const params = new URLSearchParams(queryString);
-      const state: any = {};
+      const state: { start?: Date; end?: Date; repos?: string[]; teams?: string[]; compare?: boolean } = {};
 
       const startParam = params.get("start");
       const endParam = params.get("end");
@@ -2797,10 +2798,10 @@ describe("Sprint 2: Filter Management", () => {
       const urlParams = updateUrlState(originalState);
       const restoredState = parseUrlState(urlParams);
 
-      expect(restoredState.start.toISOString().split("T")[0]).toBe(
+      expect(restoredState.start!.toISOString().split("T")[0]).toBe(
         "2025-01-15",
       );
-      expect(restoredState.end.toISOString().split("T")[0]).toBe("2025-03-20");
+      expect(restoredState.end!.toISOString().split("T")[0]).toBe("2025-03-20");
       expect(restoredState.repos).toEqual(["backend"]);
     });
 
@@ -2847,7 +2848,7 @@ describe("Sprint 2: Filter Management", () => {
      * IMPORTANT: Filter values use repository_name/team_name because that's how
      * the by_repository and by_team slices in weekly rollups are keyed.
      */
-    const populateFilterDropdowns = (dimensions: any) => {
+    const populateFilterDropdowns = (dimensions: { repositories?: { repository_name: string }[]; teams?: { team_name: string }[]; authors?: { author_name: string; author_id: string }[] } | null | undefined) => {
       if (!dimensions) return;
 
       // Populate repository filter
@@ -2855,9 +2856,9 @@ describe("Sprint 2: Filter Management", () => {
         "repo-filter",
       ) as HTMLSelectElement | null;
       const repoFilterGroup = document.getElementById("repo-filter-group");
-      if (repoFilter && dimensions.repositories?.length > 0) {
+      if (repoFilter && dimensions.repositories && dimensions.repositories.length > 0) {
         repoFilter.innerHTML = '<option value="">All</option>';
-        dimensions.repositories.forEach((repo: any) => {
+        dimensions.repositories.forEach((repo: { repository_name: string }) => {
           const option = document.createElement("option");
           // Use repository_name as value (matches by_repository keys in rollups)
           option.value = repo.repository_name;
@@ -2874,9 +2875,9 @@ describe("Sprint 2: Filter Management", () => {
         "team-filter",
       ) as HTMLSelectElement | null;
       const teamFilterGroup = document.getElementById("team-filter-group");
-      if (teamFilter && dimensions.teams?.length > 0) {
+      if (teamFilter && dimensions.teams && dimensions.teams.length > 0) {
         teamFilter.innerHTML = '<option value="">All</option>';
-        dimensions.teams.forEach((team: any) => {
+        dimensions.teams.forEach((team: { team_name: string }) => {
           const option = document.createElement("option");
           // Use team_name as value (matches by_team keys in rollups)
           option.value = team.team_name;
@@ -2892,9 +2893,9 @@ describe("Sprint 2: Filter Management", () => {
       const authorOptions = document.getElementById(
         "author-filter-options",
       ) as HTMLDataListElement | null;
-      if (authorOptions && dimensions.authors?.length > 0) {
+      if (authorOptions && dimensions.authors && dimensions.authors.length > 0) {
         authorOptions.innerHTML = "";
-        dimensions.authors.forEach((author: any) => {
+        dimensions.authors.forEach((author: { author_name: string; author_id: string }) => {
           const option = document.createElement("option");
           option.value = author.author_name;
           option.label = author.author_id;
@@ -3262,29 +3263,30 @@ describe("Version Adapter Pattern", () => {
   /**
    * Normalize a rollup object (mirrors dataset-loader.js)
    */
-  const normalizeRollup = (rollup: any) => {
+  const normalizeRollup = (rollup: unknown): Record<string, unknown> => {
     if (!rollup || typeof rollup !== "object") {
       return { week: "unknown", ...ROLLUP_FIELD_DEFAULTS };
     }
 
+    const r = rollup as Record<string, unknown>;
     return {
-      ...rollup,
-      pr_count: rollup.pr_count ?? ROLLUP_FIELD_DEFAULTS.pr_count,
+      ...r,
+      pr_count: r.pr_count ?? ROLLUP_FIELD_DEFAULTS.pr_count,
       cycle_time_p50:
-        rollup.cycle_time_p50 ?? ROLLUP_FIELD_DEFAULTS.cycle_time_p50,
+        r.cycle_time_p50 ?? ROLLUP_FIELD_DEFAULTS.cycle_time_p50,
       cycle_time_p90:
-        rollup.cycle_time_p90 ?? ROLLUP_FIELD_DEFAULTS.cycle_time_p90,
+        r.cycle_time_p90 ?? ROLLUP_FIELD_DEFAULTS.cycle_time_p90,
       authors_count:
-        rollup.authors_count ?? ROLLUP_FIELD_DEFAULTS.authors_count,
+        r.authors_count ?? ROLLUP_FIELD_DEFAULTS.authors_count,
       reviewers_count:
-        rollup.reviewers_count ?? ROLLUP_FIELD_DEFAULTS.reviewers_count,
+        r.reviewers_count ?? ROLLUP_FIELD_DEFAULTS.reviewers_count,
       by_repository:
-        rollup.by_repository !== undefined ? rollup.by_repository : null,
-      by_team: rollup.by_team !== undefined ? rollup.by_team : null,
+        r.by_repository !== undefined ? r.by_repository : null,
+      by_team: r.by_team !== undefined ? r.by_team : null,
     };
   };
 
-  const normalizeRollups = (rollups: any) => {
+  const normalizeRollups = (rollups: unknown) => {
     if (!Array.isArray(rollups)) {
       return [];
     }
@@ -3446,10 +3448,10 @@ describe("Version Adapter Pattern", () => {
       const result = normalizeRollups(rollups);
 
       expect(result.length).toBe(2);
-      expect(result[0].authors_count).toBe(0);
-      expect(result[0].reviewers_count).toBe(0);
-      expect(result[1].authors_count).toBe(5);
-      expect(result[1].reviewers_count).toBe(0);
+      expect(result[0]!.authors_count).toBe(0);
+      expect(result[0]!.reviewers_count).toBe(0);
+      expect(result[1]!.authors_count).toBe(5);
+      expect(result[1]!.reviewers_count).toBe(0);
     });
 
     it("handles mixed valid and invalid entries", () => {
@@ -3463,10 +3465,10 @@ describe("Version Adapter Pattern", () => {
       const result = normalizeRollups(rollups);
 
       expect(result.length).toBe(4);
-      expect(result[0].week).toBe("2026-W01");
-      expect(result[1].week).toBe("unknown");
-      expect(result[2].week).toBe("unknown");
-      expect(result[3].week).toBe("2026-W03");
+      expect(result[0]!.week).toBe("2026-W01");
+      expect(result[1]!.week).toBe("unknown");
+      expect(result[2]!.week).toBe("unknown");
+      expect(result[3]!.week).toBe("2026-W03");
     });
   });
 

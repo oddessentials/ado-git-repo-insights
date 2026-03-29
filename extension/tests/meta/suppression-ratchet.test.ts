@@ -36,7 +36,7 @@ function countSuppressions(filePath: string): {
   const violations: string[] = [];
 
   for (let i = 0; i < fileLines.length; i++) {
-    const line = fileLines[i];
+    const line = fileLines.at(i);
     // Count all suppression directives (including comments — these ARE the suppressions)
     const matches = line!.match(SUPPRESSION_PATTERN);
     if (matches) {
@@ -81,9 +81,8 @@ describe("suppression ratchet guard", () => {
   });
 
   it("total suppression count across touched files does not exceed ceiling", () => {
-    // 1 file-level block in fs-test-utils + 1 prefer-const in dashboard
-    // + 2 prefer-const in production-issues = 4 total
-    const SUPPRESSION_CEILING = 4;
+    // All suppressions eliminated — baseline is zero
+    const SUPPRESSION_CEILING = 0;
 
     const allFiles = [
       ...config.caps.map((c) => c.file),

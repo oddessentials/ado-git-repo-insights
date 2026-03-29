@@ -151,7 +151,42 @@ var PRInsightsDashboard = (() => {
     return null;
   }
   var ISO_DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
-  var ISO_DATETIME_PATTERN = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{1,6})?(?:Z|[+-]\d{2}:\d{2})?$/;
+  function isValidIsoDatetime(input) {
+    if (input.length < 19) {
+      return false;
+    }
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(input.substring(0, 10))) {
+      return false;
+    }
+    if (input.charAt(10) !== "T") {
+      return false;
+    }
+    if (!/^\d{2}:\d{2}:\d{2}$/.test(input.substring(11, 19))) {
+      return false;
+    }
+    let pos = 19;
+    if (pos < input.length && input.charAt(pos) === ".") {
+      pos++;
+      const fracStart = pos;
+      while (pos < input.length && /^\d$/.test(input.charAt(pos))) {
+        pos++;
+      }
+      const fracLen = pos - fracStart;
+      if (fracLen < 1 || fracLen > 6) {
+        return false;
+      }
+    }
+    if (pos < input.length) {
+      const tail = input.substring(pos);
+      if (tail === "Z") {
+        return true;
+      }
+      if (!/^[+-]\d{2}:\d{2}$/.test(tail)) {
+        return false;
+      }
+    }
+    return true;
+  }
   var ISO_WEEK_PATTERN = /^\d{4}-W\d{2}$/;
   var YEAR_PATTERN = /^\d{4}$/;
   function validateIsoDate(value, path) {
@@ -176,7 +211,7 @@ var PRInsightsDashboard = (() => {
     if (!isString(value)) {
       return createError(path, "ISO datetime string", getTypeName(value));
     }
-    if (!ISO_DATETIME_PATTERN.test(value)) {
+    if (!isValidIsoDatetime(value)) {
       return createError(
         path,
         "ISO datetime format",
@@ -2351,8 +2386,9 @@ var PRInsightsDashboard = (() => {
        * Build composite cache key. Throws if required params missing.
        */
       makeKey(params) {
+        const paramsMap = new Map(Object.entries(params));
         for (const field of requiredKeyFields) {
-          if (!params[field]) {
+          if (!paramsMap.get(field)) {
             throw new Error(`Cache key missing required field: ${field}`);
           }
         }
@@ -2770,7 +2806,8 @@ var PRInsightsDashboard = (() => {
      */
     isFeatureEnabled(feature) {
       if (!this.manifest) return false;
-      return this.manifest.features?.[feature] === true;
+      const featuresMap = new Map(Object.entries(this.manifest.features ?? {}));
+      return featuresMap.get(feature) === true;
     }
     getCapabilityState() {
       return this.capabilityState ?? DEFAULT_CAPABILITY_STATE;
@@ -3516,30 +3553,30 @@ var PRInsightsDashboard = (() => {
     constructor(mockData = {}) {
       this.projectId = "mock-project";
       this.initialized = true;
-      this.mockData = mockData;
+      this.mockData = new Map(Object.entries(mockData));
     }
     async initialize() {
       return this;
     }
     async getArtifactFile(buildId, artifactName, filePath) {
       const key = `${buildId}/${artifactName}/${filePath}`;
-      if (this.mockData[key]) {
-        return JSON.parse(JSON.stringify(this.mockData[key]));
+      if (this.mockData.has(key)) {
+        return JSON.parse(JSON.stringify(this.mockData.get(key)));
       }
       throw new Error(`Mock: File not found: ${key}`);
     }
     async hasArtifactFile(buildId, artifactName, filePath) {
       const key = `${buildId}/${artifactName}/${filePath}`;
-      return !!this.mockData[key];
+      return this.mockData.has(key);
     }
     async getArtifacts(buildId) {
-      return this.mockData[`${buildId}/artifacts`] ?? [];
+      return this.mockData.get(`${buildId}/artifacts`) ?? [];
     }
     async getDefinitions() {
-      return this.mockData["definitions"] ?? [];
+      return this.mockData.get("definitions") ?? [];
     }
     async getBuilds(definitionId) {
-      return this.mockData[`builds/${definitionId}`] ?? [];
+      return this.mockData.get(`builds/${definitionId}`) ?? [];
     }
     createDatasetLoader(buildId, artifactName) {
       return new AuthenticatedDatasetLoader(
@@ -3571,13 +3608,7 @@ var PRInsightsDashboard = (() => {
     if (!Array.isArray(arr) || arr.length === 0) return 0;
     const sorted = [...arr].sort((a, b) => a - b);
     const mid = Math.floor(sorted.length / 2);
-    return sorted.length % 2 !== 0 ? (
-      // eslint-disable-next-line security/detect-object-injection -- SECURITY: mid is computed from array length, always valid index
-      sorted[mid] ?? 0
-    ) : (
-      // eslint-disable-next-line security/detect-object-injection -- SECURITY: mid/mid-1 are computed from array length, always valid indices
-      ((sorted[mid - 1] ?? 0) + (sorted[mid] ?? 0)) / 2
-    );
+    return sorted.length % 2 !== 0 ? sorted.at(mid) ?? 0 : ((sorted.at(mid - 1) ?? 0) + (sorted.at(mid) ?? 0)) / 2;
   }
 
   // ../ui/modules/shared/security.ts
@@ -3647,7 +3678,7 @@ var PRInsightsDashboard = (() => {
     return 0;
   }
   function getOwnPropertyValue(obj, key) {
-    return Object.prototype.hasOwnProperty.call(obj, key) ? obj[key] : void 0;
+    return new Map(Object.entries(obj)).get(key);
   }
   function calculateMetrics(rollups) {
     if (!rollups || !rollups.length) {
@@ -4227,17 +4258,23 @@ var PRInsightsDashboard = (() => {
     linear: "Linear Forecast",
     prophet: "Prophet Forecast"
   };
-  var DATA_QUALITY_MESSAGES = {
-    normal: { label: "High Confidence", cssClass: "quality-normal" },
-    low_confidence: {
-      label: "Low Confidence - More data recommended",
-      cssClass: "quality-low"
-    },
-    insufficient: {
-      label: "Insufficient Data",
-      cssClass: "quality-insufficient"
-    }
-  };
+  var DATA_QUALITY_MESSAGES = /* @__PURE__ */ new Map([
+    ["normal", { label: "High Confidence", cssClass: "quality-normal" }],
+    [
+      "low_confidence",
+      {
+        label: "Low Confidence - More data recommended",
+        cssClass: "quality-low"
+      }
+    ],
+    [
+      "insufficient",
+      {
+        label: "Insufficient Data",
+        cssClass: "quality-insufficient"
+      }
+    ]
+  ]);
   function renderForecasterIndicator(forecaster) {
     const label = FORECASTER_LABELS[forecaster || "linear"] || "Forecast";
     const cssClass = forecaster === "prophet" ? "forecaster-prophet" : "forecaster-linear";
@@ -4245,7 +4282,7 @@ var PRInsightsDashboard = (() => {
   }
   function renderDataQualityBanner(dataQuality) {
     if (!dataQuality || dataQuality === "normal") return "";
-    const quality = DATA_QUALITY_MESSAGES[dataQuality];
+    const quality = DATA_QUALITY_MESSAGES.get(dataQuality);
     if (!quality) return "";
     return `
     <div class="data-quality-banner ${quality.cssClass}">
@@ -4404,19 +4441,18 @@ var PRInsightsDashboard = (() => {
     if (!rollups || rollups.length === 0) {
       return { data: [], wasTruncated: false };
     }
-    const metricFieldMap = {
-      pr_throughput: "pr_count",
-      cycle_time_minutes: "cycle_time_p50"
-    };
-    const field = metricFieldMap[metric];
-    if (!field) {
+    const metricFieldMap = /* @__PURE__ */ new Map([
+      ["pr_throughput", (r) => r.pr_count],
+      ["cycle_time_minutes", (r) => r.cycle_time_p50]
+    ]);
+    const getter = metricFieldMap.get(metric);
+    if (!getter) {
       return { data: [], wasTruncated: false };
     }
-    const data = rollups.filter((r) => r[field] !== null && r[field] !== void 0).map((r) => ({
+    const data = rollups.filter((r) => getter(r) !== null && getter(r) !== void 0).map((r) => ({
       // Convert ISO week format to date if needed
       week: r.week.includes("-W") ? isoWeekToDate(r.week) : r.week,
-      // eslint-disable-next-line security/detect-object-injection -- SECURITY: field is from local const metricFieldMap, typed as keyof RollupForChart
-      value: Number(r[field])
+      value: Number(getter(r))
     })).sort((a, b) => a.week.localeCompare(b.week));
     const wasTruncated = data.length > MAX_CHART_POINTS;
     return {
@@ -4791,11 +4827,11 @@ var PRInsightsDashboard = (() => {
     return typeof data === "object" && data !== null && "insights" in data && Array.isArray(data.insights);
   }
   var MAX_SPARKLINE_POINTS = 200;
-  var SEVERITY_ICONS = {
-    critical: { icon: "\u{1F534}", label: "Critical" },
-    warning: { icon: "\u{1F7E1}", label: "Warning" },
-    info: { icon: "\u{1F535}", label: "Informational" }
-  };
+  var SEVERITY_ICONS = /* @__PURE__ */ new Map([
+    ["critical", { icon: "\u{1F534}", label: "Critical" }],
+    ["warning", { icon: "\u{1F7E1}", label: "Warning" }],
+    ["info", { icon: "\u{1F535}", label: "Informational" }]
+  ]);
   var PRIORITY_BADGES = {
     high: { label: "High Priority", cssClass: "priority-high" },
     medium: { label: "Medium Priority", cssClass: "priority-medium" },
@@ -4939,7 +4975,7 @@ var PRInsightsDashboard = (() => {
   }
   function renderRichInsightCard(insight) {
     const defaultSeverity = { icon: "\u{1F535}", label: "Informational" };
-    const severityInfo = SEVERITY_ICONS[insight.severity] ?? defaultSeverity;
+    const severityInfo = SEVERITY_ICONS.get(insight.severity) ?? defaultSeverity;
     return `
     <article class="insight-card rich-card ${escapeHtml(String(insight.severity))}"
              role="article" aria-labelledby="insight-title-${escapeHtml(String(insight.id))}">
@@ -5005,7 +5041,7 @@ var PRInsightsDashboard = (() => {
         (i) => i.severity === severity
       );
       if (!items.length) return;
-      const severityInfo = SEVERITY_ICONS[severity] ?? defaultSeverityInfo;
+      const severityInfo = SEVERITY_ICONS.get(severity) ?? defaultSeverityInfo;
       const sectionLabel = `${severity.charAt(0).toUpperCase() + severity.slice(1)} insights`;
       appendTrustedHtml(
         content,
@@ -5358,13 +5394,28 @@ var PRInsightsDashboard = (() => {
   }
 
   // ../ui/modules/charts/summary-cards.ts
-  var METRIC_EXPLANATIONS = {
-    totalPrs: "Total merged pull requests in the selected period and filters.",
-    cycleP50: "Median time from PR creation to merge. Half of all PRs completed faster than this.",
-    cycleP90: "90th percentile cycle time. 90% of PRs completed faster. High values may indicate bottlenecks.",
-    authorsCount: "Average number of unique PR authors per week in this period.",
-    reviewersCount: "Average number of unique reviewers per week in this period."
-  };
+  var METRIC_EXPLANATIONS = /* @__PURE__ */ new Map([
+    [
+      "totalPrs",
+      "Total merged pull requests in the selected period and filters."
+    ],
+    [
+      "cycleP50",
+      "Median time from PR creation to merge. Half of all PRs completed faster than this."
+    ],
+    [
+      "cycleP90",
+      "90th percentile cycle time. 90% of PRs completed faster. High values may indicate bottlenecks."
+    ],
+    [
+      "authorsCount",
+      "Average number of unique PR authors per week in this period."
+    ],
+    [
+      "reviewersCount",
+      "Average number of unique reviewers per week in this period."
+    ]
+  ]);
   function renderSummaryCards(options) {
     const { rollups, prevRollups = [], containers, metricsCollector: metricsCollector2 } = options;
     if (metricsCollector2) metricsCollector2.mark("render-summary-cards-start");
@@ -5466,8 +5517,11 @@ var PRInsightsDashboard = (() => {
   ];
   var infoIconControllers = /* @__PURE__ */ new WeakMap();
   function attachInfoIcons(containers) {
+    const containerMap = new Map(
+      Object.entries(containers)
+    );
     for (const { metricId, containerKey } of METRIC_TO_CONTAINER_KEY) {
-      const valueEl = containers[containerKey];
+      const valueEl = containerMap.get(containerKey) ?? null;
       if (!valueEl) continue;
       const card = valueEl.closest(".metric-card");
       if (!card) continue;
@@ -5479,7 +5533,7 @@ var PRInsightsDashboard = (() => {
         infoIconControllers.delete(existing);
         existing.remove();
       }
-      const explanation = METRIC_EXPLANATIONS[metricId] ?? "";
+      const explanation = METRIC_EXPLANATIONS.get(metricId) ?? "";
       if (!explanation) continue;
       const controller = new AbortController();
       const { signal } = controller;
@@ -5719,25 +5773,25 @@ var PRInsightsDashboard = (() => {
       );
       return;
     }
-    const buckets = {
-      "0-1h": 0,
-      "1-4h": 0,
-      "4-24h": 0,
-      "1-3d": 0,
-      "3-7d": 0,
-      "7d+": 0
-    };
+    const buckets = /* @__PURE__ */ new Map([
+      ["0-1h", 0],
+      ["1-4h", 0],
+      ["4-24h", 0],
+      ["1-3d", 0],
+      ["3-7d", 0],
+      ["7d+", 0]
+    ]);
     distributions.forEach((d) => {
       Object.entries(d.cycle_time_buckets || {}).forEach(([key, val]) => {
-        buckets[key] = (buckets[key] || 0) + val;
+        buckets.set(key, (buckets.get(key) ?? 0) + val);
       });
     });
-    const total = Object.values(buckets).reduce((a, b) => a + b, 0);
+    const total = Array.from(buckets.values()).reduce((a, b) => a + b, 0);
     if (total === 0) {
       renderNoData(container, "No cycle time data", "Try widening the date range or adjusting repository/team filters.");
       return;
     }
-    const html = Object.entries(buckets).map(([label, count]) => {
+    const html = Array.from(buckets.entries()).map(([label, count]) => {
       const pct = (count / total * 100).toFixed(1);
       return `
             <div class="dist-row">
@@ -6325,7 +6379,7 @@ var PRInsightsDashboard = (() => {
           filterOptions(input.value);
         }
         if (highlightIndex >= 0 && highlightIndex < filteredOptions.length) {
-          const opt = filteredOptions[highlightIndex];
+          const opt = filteredOptions.at(highlightIndex);
           if (opt) toggleOption(opt.id);
         }
       } else if (e.key === "Escape") {
@@ -6348,7 +6402,7 @@ var PRInsightsDashboard = (() => {
           i === highlightIndex
         );
       });
-      const highlighted = items[highlightIndex];
+      const highlighted = Array.from(items).at(highlightIndex);
       highlighted?.scrollIntoView({ block: "nearest" });
     }
     filteredOptions = [...options];
@@ -6504,7 +6558,7 @@ var PRInsightsDashboard = (() => {
   var chipsDelegatedElement = null;
   var SETTINGS_KEY_PROJECT = "pr-insights-source-project";
   var SETTINGS_KEY_PIPELINE = "pr-insights-pipeline-id";
-  var elements = {};
+  var elements = /* @__PURE__ */ new Map();
   var elementLists = {};
   function getOwnRecordValue(record, key) {
     const descriptor = Object.getOwnPropertyDescriptor(record, key);
@@ -6863,7 +6917,7 @@ var PRInsightsDashboard = (() => {
       "reviewer-activity-label"
     ];
     ids.forEach((id) => {
-      elements[id] = document.getElementById(id);
+      elements.set(id, document.getElementById(id));
     });
     elementLists.tabs = document.querySelectorAll(".tab");
   }
@@ -6871,7 +6925,7 @@ var PRInsightsDashboard = (() => {
     console.log("Phase 5 ML features initialized - tabs visible by default");
   }
   function setupEventListeners() {
-    elements["date-range"]?.addEventListener("change", handleDateRangeChange);
+    elements.get("date-range")?.addEventListener("change", handleDateRangeChange);
     document.getElementById("apply-dates")?.addEventListener("click", applyCustomDates);
     elementLists.tabs?.forEach((tab) => {
       const htmlTab = tab;
@@ -6880,20 +6934,20 @@ var PRInsightsDashboard = (() => {
         if (tabId) switchTab(tabId);
       });
     });
-    elements["retry-btn"]?.addEventListener("click", () => init());
+    elements.get("retry-btn")?.addEventListener("click", () => init());
     document.getElementById("setup-retry-btn")?.addEventListener("click", () => init());
     document.getElementById("permission-retry-btn")?.addEventListener("click", () => init());
-    elements["clear-filters"]?.addEventListener("click", clearAllFilters);
-    elements["compare-toggle"]?.addEventListener("click", toggleComparisonMode);
-    elements["exit-compare"]?.addEventListener("click", exitComparisonMode);
-    elements["export-btn"]?.addEventListener("click", toggleExportMenu);
-    elements["export-csv"]?.addEventListener("click", exportToCsv);
-    elements["export-link"]?.addEventListener("click", copyShareableLink);
-    elements["export-raw-zip"]?.addEventListener("click", downloadRawDataZip);
+    elements.get("clear-filters")?.addEventListener("click", clearAllFilters);
+    elements.get("compare-toggle")?.addEventListener("click", toggleComparisonMode);
+    elements.get("exit-compare")?.addEventListener("click", exitComparisonMode);
+    elements.get("export-btn")?.addEventListener("click", toggleExportMenu);
+    elements.get("export-csv")?.addEventListener("click", exportToCsv);
+    elements.get("export-link")?.addEventListener("click", copyShareableLink);
+    elements.get("export-raw-zip")?.addEventListener("click", downloadRawDataZip);
     document.addEventListener("click", (e) => {
       const target = e.target;
       if (!target.closest(".export-dropdown")) {
-        elements["export-menu"]?.classList.add("hidden");
+        elements.get("export-menu")?.classList.add("hidden");
       }
     });
   }
@@ -6926,8 +6980,8 @@ var PRInsightsDashboard = (() => {
       const startDate = new Date(endDate);
       startDate.setDate(startDate.getDate() - defaultDays);
       currentDateRange = { start: startDate, end: endDate };
-      const startDateEl = elements["start-date"];
-      const endDateEl = elements["end-date"];
+      const startDateEl = elements.get("start-date");
+      const endDateEl = elements.get("end-date");
       if (startDateEl) {
         startDateEl.value = startDate.toISOString().split("T")[0] ?? "";
       }
@@ -7042,21 +7096,21 @@ var PRInsightsDashboard = (() => {
   }
   function renderSummaryCards2(rollups, prevRollups = []) {
     const containers = {
-      totalPrs: elements["total-prs"] ?? null,
-      cycleP50: elements["cycle-p50"] ?? null,
-      cycleP90: elements["cycle-p90"] ?? null,
-      authorsCount: elements["authors-count"] ?? null,
-      reviewersCount: elements["reviewers-count"] ?? null,
-      totalPrsSparkline: elements["total-prs-sparkline"] ?? null,
-      cycleP50Sparkline: elements["cycle-p50-sparkline"] ?? null,
-      cycleP90Sparkline: elements["cycle-p90-sparkline"] ?? null,
-      authorsSparkline: elements["authors-sparkline"] ?? null,
-      reviewersSparkline: elements["reviewers-sparkline"] ?? null,
-      totalPrsDelta: elements["total-prs-delta"] ?? null,
-      cycleP50Delta: elements["cycle-p50-delta"] ?? null,
-      cycleP90Delta: elements["cycle-p90-delta"] ?? null,
-      authorsDelta: elements["authors-delta"] ?? null,
-      reviewersDelta: elements["reviewers-delta"] ?? null
+      totalPrs: elements.get("total-prs") ?? null,
+      cycleP50: elements.get("cycle-p50") ?? null,
+      cycleP90: elements.get("cycle-p90") ?? null,
+      authorsCount: elements.get("authors-count") ?? null,
+      reviewersCount: elements.get("reviewers-count") ?? null,
+      totalPrsSparkline: elements.get("total-prs-sparkline") ?? null,
+      cycleP50Sparkline: elements.get("cycle-p50-sparkline") ?? null,
+      cycleP90Sparkline: elements.get("cycle-p90-sparkline") ?? null,
+      authorsSparkline: elements.get("authors-sparkline") ?? null,
+      reviewersSparkline: elements.get("reviewers-sparkline") ?? null,
+      totalPrsDelta: elements.get("total-prs-delta") ?? null,
+      cycleP50Delta: elements.get("cycle-p50-delta") ?? null,
+      cycleP90Delta: elements.get("cycle-p90-delta") ?? null,
+      authorsDelta: elements.get("authors-delta") ?? null,
+      reviewersDelta: elements.get("reviewers-delta") ?? null
     };
     renderSummaryCards({
       rollups,
@@ -7066,7 +7120,7 @@ var PRInsightsDashboard = (() => {
     });
   }
   function renderThroughputChart2(rollups, unfilteredRollups, availability) {
-    renderThroughputChart(elements["throughput-chart"] ?? null, rollups, {
+    renderThroughputChart(elements.get("throughput-chart") ?? null, rollups, {
       filters: currentFilters,
       unfilteredRollups,
       availability
@@ -7074,7 +7128,7 @@ var PRInsightsDashboard = (() => {
   }
   function renderCycleDistribution2(distributions, unfilteredRollups, availability) {
     renderCycleDistribution(
-      elements["cycle-distribution"] ?? null,
+      elements.get("cycle-distribution") ?? null,
       distributions,
       {
         filters: currentFilters,
@@ -7084,14 +7138,14 @@ var PRInsightsDashboard = (() => {
     );
   }
   function renderCycleTimeTrend2(rollups, unfilteredRollups, availability) {
-    renderCycleTimeTrend(elements["cycle-time-trend"] ?? null, rollups, {
+    renderCycleTimeTrend(elements.get("cycle-time-trend") ?? null, rollups, {
       filters: currentFilters,
       unfilteredRollups,
       availability
     });
   }
   function renderReviewerActivity2(rollups, unfilteredRollups, availability) {
-    renderReviewerActivity(elements["reviewer-activity"] ?? null, rollups, {
+    renderReviewerActivity(elements.get("reviewer-activity") ?? null, rollups, {
       reviewerFilterActive: currentFilters.reviewers.length > 0,
       filters: currentFilters,
       unfilteredRollups,
@@ -7161,10 +7215,10 @@ var PRInsightsDashboard = (() => {
     const target = e.target;
     const value = target.value;
     if (value === "custom") {
-      elements["custom-dates"]?.classList.remove("hidden");
+      elements.get("custom-dates")?.classList.remove("hidden");
       return;
     }
-    elements["custom-dates"]?.classList.add("hidden");
+    elements.get("custom-dates")?.classList.add("hidden");
     const days = parseInt(value, 10);
     const coverage = loader?.getCoverage() || null;
     const endDate = coverage?.date_range?.max ? new Date(coverage.date_range.max) : /* @__PURE__ */ new Date();
@@ -7175,8 +7229,8 @@ var PRInsightsDashboard = (() => {
     void refreshMetrics();
   }
   function applyCustomDates() {
-    const start = elements["start-date"]?.value;
-    const end = elements["end-date"]?.value;
+    const start = elements.get("start-date")?.value;
+    const end = elements.get("end-date")?.value;
     if (!start || !end) return;
     currentDateRange = { start: new Date(start), end: new Date(end) };
     updateUrlState();
@@ -7213,10 +7267,10 @@ var PRInsightsDashboard = (() => {
         initialSelection: [],
         onChange: () => handleTypeaheadFilterChange("repos")
       });
-      elements["repo-filter-group"]?.classList.remove("hidden");
+      elements.get("repo-filter-group")?.classList.remove("hidden");
     } else {
       typeaheadRepo = null;
-      elements["repo-filter-group"]?.classList.add("hidden");
+      elements.get("repo-filter-group")?.classList.add("hidden");
     }
     if (dimensions.teams && dimensions.teams.length > 0) {
       typeaheadTeam = initTypeaheadDropdown({
@@ -7230,10 +7284,10 @@ var PRInsightsDashboard = (() => {
         initialSelection: [],
         onChange: () => handleTypeaheadFilterChange("teams")
       });
-      elements["team-filter-group"]?.classList.remove("hidden");
+      elements.get("team-filter-group")?.classList.remove("hidden");
     } else {
       typeaheadTeam = null;
-      elements["team-filter-group"]?.classList.add("hidden");
+      elements.get("team-filter-group")?.classList.add("hidden");
     }
     if (dimensions.reviewers && dimensions.reviewers.length > 0) {
       typeaheadReviewer = initTypeaheadDropdown({
@@ -7247,10 +7301,10 @@ var PRInsightsDashboard = (() => {
         initialSelection: [],
         onChange: () => handleTypeaheadFilterChange("reviewers")
       });
-      elements["reviewer-filter-group"]?.classList.remove("hidden");
+      elements.get("reviewer-filter-group")?.classList.remove("hidden");
     } else {
       typeaheadReviewer = null;
-      elements["reviewer-filter-group"]?.classList.add("hidden");
+      elements.get("reviewer-filter-group")?.classList.add("hidden");
     }
     if (dimensions.authors && dimensions.authors.length > 0) {
       typeaheadAuthor = initTypeaheadDropdown({
@@ -7264,10 +7318,10 @@ var PRInsightsDashboard = (() => {
         initialSelection: [],
         onChange: () => handleTypeaheadFilterChange("authors")
       });
-      elements["author-filter-group"]?.classList.remove("hidden");
+      elements.get("author-filter-group")?.classList.remove("hidden");
     } else {
       typeaheadAuthor = null;
-      elements["author-filter-group"]?.classList.add("hidden");
+      elements.get("author-filter-group")?.classList.add("hidden");
     }
     restoreFiltersFromUrl();
   }
@@ -7317,21 +7371,24 @@ var PRInsightsDashboard = (() => {
   }
   function updateFilterUI() {
     const hasFilters = currentFilters.repos.length > 0 || currentFilters.teams.length > 0 || currentFilters.reviewers.length > 0 || currentFilters.authors.length > 0;
-    if (elements["clear-filters"]) {
-      elements["clear-filters"].classList.toggle("hidden", !hasFilters);
+    const clearFiltersEl = elements.get("clear-filters");
+    if (clearFiltersEl) {
+      clearFiltersEl.classList.toggle("hidden", !hasFilters);
     }
-    if (elements["active-filters"] && elements["filter-chips"]) {
-      elements["active-filters"].classList.toggle("hidden", !hasFilters);
+    const activeFiltersEl = elements.get("active-filters");
+    const filterChipsEl = elements.get("filter-chips");
+    if (activeFiltersEl && filterChipsEl) {
+      activeFiltersEl.classList.toggle("hidden", !hasFilters);
       if (hasFilters) {
         renderFilterChips();
       } else {
-        clearElement(elements["filter-chips"]);
+        clearElement(filterChipsEl);
       }
     }
     updateMetricLabels();
   }
   function renderFilterChips() {
-    const chipsEl = elements["filter-chips"];
+    const chipsEl = elements.get("filter-chips");
     if (!chipsEl) return;
     const chips = [];
     currentFilters.repos.forEach((value) => {
@@ -7393,11 +7450,11 @@ var PRInsightsDashboard = (() => {
   function updateMetricLabels() {
     const reviewerMode = currentFilters.reviewers.length > 0;
     const authorTeamConstrained = currentFilters.authors.length > 0 && currentFilters.teams.length > 0;
-    elements["author-filter-notice"]?.classList.toggle(
+    elements.get("author-filter-notice")?.classList.toggle(
       "hidden",
       !authorTeamConstrained
     );
-    const reviewerNotice = elements["reviewer-filter-notice"];
+    const reviewerNotice = elements.get("reviewer-filter-notice");
     if (reviewerNotice) {
       if (reviewerFilterNoticeMessage) {
         reviewerNotice.textContent = reviewerFilterNoticeMessage;
@@ -7409,17 +7466,21 @@ var PRInsightsDashboard = (() => {
         reviewerNotice.classList.remove("filter-hint-warning");
       }
     }
-    if (elements["total-prs-label"]) {
-      elements["total-prs-label"].textContent = reviewerMode ? "Reviewed PRs" : "Total PRs";
+    const totalPrsLabel = elements.get("total-prs-label");
+    if (totalPrsLabel) {
+      totalPrsLabel.textContent = reviewerMode ? "Reviewed PRs" : "Total PRs";
     }
-    if (elements["authors-count-label"]) {
-      elements["authors-count-label"].textContent = reviewerMode ? "Reviewed Authors" : "Contributors";
+    const authorsLabel = elements.get("authors-count-label");
+    if (authorsLabel) {
+      authorsLabel.textContent = reviewerMode ? "Reviewed Authors" : "Contributors";
     }
-    if (elements["reviewers-count-label"]) {
-      elements["reviewers-count-label"].textContent = reviewerMode ? "Reviews" : "Reviewers";
+    const reviewersLabel = elements.get("reviewers-count-label");
+    if (reviewersLabel) {
+      reviewersLabel.textContent = reviewerMode ? "Reviews" : "Reviewers";
     }
-    if (elements["reviewer-activity-label"]) {
-      elements["reviewer-activity-label"].textContent = reviewerMode ? "Review Activity" : "Reviewer Activity";
+    const activityLabel = elements.get("reviewer-activity-label");
+    if (activityLabel) {
+      activityLabel.textContent = reviewerMode ? "Review Activity" : "Reviewer Activity";
     }
   }
   function restoreFiltersFromUrl() {
@@ -7482,13 +7543,13 @@ var PRInsightsDashboard = (() => {
     const endParam = params.get("end");
     if (startParam && endParam) {
       currentDateRange = { start: new Date(startParam), end: new Date(endParam) };
-      const dateRangeEl = elements["date-range"];
+      const dateRangeEl = elements.get("date-range");
       if (dateRangeEl) {
         dateRangeEl.value = "custom";
-        elements["custom-dates"]?.classList.remove("hidden");
+        elements.get("custom-dates")?.classList.remove("hidden");
       }
-      const startEl = elements["start-date"];
-      const endEl = elements["end-date"];
+      const startEl = elements.get("start-date");
+      const endEl = elements.get("end-date");
       if (startEl) startEl.value = startParam;
       if (endEl) endEl.value = endParam;
     }
@@ -7499,14 +7560,14 @@ var PRInsightsDashboard = (() => {
     const compareParam = params.get("compare");
     if (compareParam === "1") {
       comparisonMode = true;
-      elements["compare-toggle"]?.classList.add("active");
-      elements["comparison-banner"]?.classList.remove("hidden");
+      elements.get("compare-toggle")?.classList.add("active");
+      elements.get("comparison-banner")?.classList.remove("hidden");
     }
   }
   function toggleComparisonMode() {
     comparisonMode = !comparisonMode;
-    elements["compare-toggle"]?.classList.toggle("active", comparisonMode);
-    elements["comparison-banner"]?.classList.toggle("hidden", !comparisonMode);
+    elements.get("compare-toggle")?.classList.toggle("active", comparisonMode);
+    elements.get("comparison-banner")?.classList.toggle("hidden", !comparisonMode);
     if (comparisonMode) {
       updateComparisonBanner();
     }
@@ -7515,8 +7576,8 @@ var PRInsightsDashboard = (() => {
   }
   function exitComparisonMode() {
     comparisonMode = false;
-    elements["compare-toggle"]?.classList.remove("active");
-    elements["comparison-banner"]?.classList.add("hidden");
+    elements.get("compare-toggle")?.classList.remove("active");
+    elements.get("comparison-banner")?.classList.add("hidden");
     updateUrlState();
     void refreshMetrics();
   }
@@ -7529,8 +7590,9 @@ var PRInsightsDashboard = (() => {
     });
     const currentStart = formatDate(currentDateRange.start);
     const currentEnd = formatDate(currentDateRange.end);
-    if (elements["current-period-dates"]) {
-      elements["current-period-dates"].textContent = `${currentStart} - ${currentEnd}`;
+    const currentDatesEl = elements.get("current-period-dates");
+    if (currentDatesEl) {
+      currentDatesEl.textContent = `${currentStart} - ${currentEnd}`;
     }
     const prevPeriod = getPreviousPeriod(
       currentDateRange.start,
@@ -7538,10 +7600,11 @@ var PRInsightsDashboard = (() => {
     );
     const prevStart = formatDate(prevPeriod.start);
     const prevEnd = formatDate(prevPeriod.end);
-    if (elements["previous-period-dates"]) {
-      elements["previous-period-dates"].textContent = `${prevStart} - ${prevEnd}`;
+    const prevDatesEl = elements.get("previous-period-dates");
+    if (prevDatesEl) {
+      prevDatesEl.textContent = `${prevStart} - ${prevEnd}`;
     }
-    const banner = elements["comparison-banner"];
+    const banner = elements.get("comparison-banner");
     if (banner) {
       const hasFilters = currentFilters.repos.length > 0 || currentFilters.teams.length > 0 || currentFilters.reviewers.length > 0 || currentFilters.authors.length > 0;
       banner.setAttribute("data-filtered", hasFilters ? "true" : "false");
@@ -7549,10 +7612,10 @@ var PRInsightsDashboard = (() => {
   }
   function toggleExportMenu(e) {
     e.stopPropagation();
-    elements["export-menu"]?.classList.toggle("hidden");
+    elements.get("export-menu")?.classList.toggle("hidden");
   }
   function exportToCsv() {
-    elements["export-menu"]?.classList.add("hidden");
+    elements.get("export-menu")?.classList.add("hidden");
     if (!cachedRollups || cachedRollups.length === 0) {
       showToast("No data to export", "error");
       return;
@@ -7563,7 +7626,7 @@ var PRInsightsDashboard = (() => {
     showToast("CSV exported successfully", "success");
   }
   async function copyShareableLink() {
-    elements["export-menu"]?.classList.add("hidden");
+    elements.get("export-menu")?.classList.add("hidden");
     try {
       await navigator.clipboard.writeText(window.location.href);
       showToast("Link copied to clipboard", "success");
@@ -7578,7 +7641,7 @@ var PRInsightsDashboard = (() => {
     }
   }
   async function downloadRawDataZip() {
-    elements["export-menu"]?.classList.add("hidden");
+    elements.get("export-menu")?.classList.add("hidden");
     if (!currentBuildId || !artifactClient) {
       showToast("Raw data not available in direct URL mode", "error");
       return;
@@ -7630,18 +7693,18 @@ var PRInsightsDashboard = (() => {
   }
   function showLoading() {
     hideAllPanels();
-    elements["loading-state"]?.classList.remove("hidden");
+    elements.get("loading-state")?.classList.remove("hidden");
   }
   function showContent() {
     hideAllPanels();
-    elements["main-content"]?.classList.remove("hidden");
+    elements.get("main-content")?.classList.remove("hidden");
   }
   function updateDatasetInfo(manifest) {
     const generatedAt = manifest?.generated_at ? new Date(manifest.generated_at).toLocaleString() : "Unknown";
     const runId = manifest?.run_id || "";
     const capabilityState = loader?.getCapabilityState?.() ?? null;
     const commentsCoverage = manifest?.coverage?.comments;
-    const commentsBanner = elements["comments-coverage-banner"];
+    const commentsBanner = elements.get("comments-coverage-banner");
     let commentsSummary = null;
     if (capabilityState?.commentsMetricsAvailable) {
       if (capabilityState.commentsCoverageStatus === "partial") {
@@ -7653,7 +7716,7 @@ var PRInsightsDashboard = (() => {
         commentsSummary = "Comments coverage: full";
       }
     }
-    const runInfo = elements["run-info"];
+    const runInfo = elements.get("run-info");
     if (runInfo) {
       runInfo.textContent = `Generated: ${generatedAt}`;
       if (runId) runInfo.textContent += ` | Run: ${runId.slice(0, 8)}`;

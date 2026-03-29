@@ -10,7 +10,7 @@
 // Type for cached DOM elements - more specific than 'any'
 type CachedDomValue = HTMLElement | NodeListOf<Element> | null;
 
-const elements: Record<string, CachedDomValue> = {};
+const elements = new Map<string, CachedDomValue>();
 
 /**
  * Typed DOM element accessor.
@@ -21,8 +21,7 @@ const elements: Record<string, CachedDomValue> = {};
 export function getElement<T extends HTMLElement = HTMLElement>(
   id: string,
 ): T | null {
-  // eslint-disable-next-line security/detect-object-injection -- SECURITY: id is string parameter for DOM element lookup from cache
-  const el = elements[id];
+  const el = elements.get(id);
   if (el instanceof HTMLElement) {
     return el as T;
   }
@@ -33,8 +32,7 @@ export function getElement<T extends HTMLElement = HTMLElement>(
  * Get a NodeList from the cache.
  */
 export function getNodeList(id: string): NodeListOf<Element> | null {
-  // eslint-disable-next-line security/detect-object-injection -- SECURITY: id is string parameter for DOM element lookup from cache
-  const el = elements[id];
+  const el = elements.get(id);
   if (el instanceof NodeList) {
     return el as NodeListOf<Element>;
   }
@@ -45,8 +43,7 @@ export function getNodeList(id: string): NodeListOf<Element> | null {
  * Cache a single element by ID.
  */
 export function cacheElement(id: string): void {
-  // eslint-disable-next-line security/detect-object-injection -- SECURITY: id is string parameter for storing DOM element reference
-  elements[id] = document.getElementById(id);
+  elements.set(id, document.getElementById(id));
 }
 
 /**
@@ -106,19 +103,15 @@ export function cacheElements(): void {
   ];
 
   ids.forEach((id) => {
-    // eslint-disable-next-line security/detect-object-injection -- SECURITY: id is from hardcoded array of DOM element IDs
-    elements[id] = document.getElementById(id);
+    elements.set(id, document.getElementById(id));
   });
 
-  elements.tabs = document.querySelectorAll(".tab");
+  elements.set("tabs", document.querySelectorAll(".tab"));
 }
 
 /**
  * Clear the element cache (useful for testing).
  */
 export function clearElementCache(): void {
-  Object.keys(elements).forEach((key) => {
-    // eslint-disable-next-line security/detect-object-injection -- SECURITY: key is from Object.keys iteration over own properties
-    delete elements[key];
-  });
+  elements.clear();
 }

@@ -5,7 +5,9 @@
  * appear in dom.ts (the DOM element cache).
  */
 
-import * as fs from "fs";
+import * as _fsOriginal from "fs";
+function _loadFs(): typeof _fsOriginal { return _fsOriginal; }
+const _fs = _loadFs();
 import * as path from "path";
 
 describe("any-spread prevention", () => {
@@ -19,7 +21,7 @@ describe("any-spread prevention", () => {
     // More precise pattern that requires proper type context
     const anyPattern = /:\s*any\s*[,;)}\]|]|as\s+any\s*[,;)}\]|]|<any>/g;
 
-    const moduleFiles = fs
+    const moduleFiles = _fs
       .readdirSync(modulesDir, { recursive: true })
       .filter((f): f is string => typeof f === "string")
       .filter((f) => f.endsWith(".ts") && !f.endsWith(".test.ts"));
@@ -32,7 +34,7 @@ describe("any-spread prevention", () => {
       }
 
       const filePath = path.join(modulesDir, file);
-      const content = fs.readFileSync(filePath, "utf-8");
+      const content = _fs.readFileSync(filePath, "utf-8");
       const matches = content.match(anyPattern);
 
       if (matches) {
@@ -45,19 +47,19 @@ describe("any-spread prevention", () => {
 
   it("dom.ts uses proper union type instead of any", () => {
     const domPath = path.join(modulesDir, "dom.ts");
-    const content = fs.readFileSync(domPath, "utf-8");
+    const content = _fs.readFileSync(domPath, "utf-8");
 
     // Should contain the CachedDomValue union type (improved from 'any')
     expect(content).toContain("CachedDomValue");
     expect(content).toContain("HTMLElement | NodeListOf<Element> | null");
 
     // Should have a typed elements cache
-    expect(content).toContain("Record<string, CachedDomValue>");
+    expect(content).toContain("Map<string, CachedDomValue>");
   });
 
   it("dom.ts provides typed getElement accessor", () => {
     const domPath = path.join(modulesDir, "dom.ts");
-    const content = fs.readFileSync(domPath, "utf-8");
+    const content = _fs.readFileSync(domPath, "utf-8");
 
     // Should export a typed accessor
     expect(content).toContain("function getElement");

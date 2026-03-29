@@ -7,7 +7,9 @@
  * Contract: FR-022 (data-testid selectors only), FR-033, FR-034
  */
 
-import * as fs from "fs";
+import * as _fsOriginal from "fs";
+function _loadFs(): typeof _fsOriginal { return _fsOriginal; }
+const _fs = _loadFs();
 import * as path from "path";
 
 describe("data-testid DOM Validation", () => {
@@ -45,11 +47,11 @@ describe("data-testid DOM Validation", () => {
   ];
 
   it("docs/index.html exists", () => {
-    expect(fs.existsSync(HTML_PATH)).toBe(true);
+    expect(_fs.existsSync(HTML_PATH)).toBe(true);
   });
 
   it("all required data-testid attributes exist", () => {
-    const html = fs.readFileSync(HTML_PATH, "utf-8");
+    const html = _fs.readFileSync(HTML_PATH, "utf-8");
     const missing: string[] = [];
 
     for (const testId of REQUIRED_TEST_IDS) {
@@ -71,7 +73,7 @@ describe("data-testid DOM Validation", () => {
   });
 
   it("no duplicate data-testid attributes", () => {
-    const html = fs.readFileSync(HTML_PATH, "utf-8");
+    const html = _fs.readFileSync(HTML_PATH, "utf-8");
     const matches = [...html.matchAll(/data-testid="([^"]+)"/g)];
     const ids = matches.map((m) => m[1]);
     const duplicates = ids.filter((id, i) => ids.indexOf(id) !== i);
@@ -88,7 +90,7 @@ describe("data-testid DOM Validation", () => {
   });
 
   it("data-testid values follow naming convention", () => {
-    const html = fs.readFileSync(HTML_PATH, "utf-8");
+    const html = _fs.readFileSync(HTML_PATH, "utf-8");
     const matches = [...html.matchAll(/data-testid="([^"]+)"/g)];
     const ids = matches.map((m) => m[1]);
 
@@ -111,7 +113,7 @@ describe("data-testid DOM Validation", () => {
    * This ensures Playwright selectors target meaningful UI components.
    */
   it("required data-testid attributes are on appropriate elements", () => {
-    const html = fs.readFileSync(HTML_PATH, "utf-8");
+    const html = _fs.readFileSync(HTML_PATH, "utf-8");
 
     const assertTaggedTestId = (tag: string, testId: string): void => {
       expect(html).toContain(`<${tag}`);

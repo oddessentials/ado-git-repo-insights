@@ -116,7 +116,7 @@ const SETTINGS_KEY_PROJECT = "pr-insights-source-project";
 const SETTINGS_KEY_PIPELINE = "pr-insights-pipeline-id";
 
 // DOM element cache - stores single HTMLElements only
-const elements: Record<string, HTMLElement | null> = {};
+const elements = new Map<string, HTMLElement | null>();
 
 // DOM element list cache - stores NodeLists for multi-element queries
 const elementLists: Record<string, NodeListOf<Element>> = {};
@@ -654,8 +654,7 @@ function cacheElements(): void {
   ];
 
   ids.forEach((id) => {
-    // eslint-disable-next-line security/detect-object-injection -- SECURITY: id is from hardcoded array of DOM element IDs
-    elements[id] = document.getElementById(id);
+    elements.set(id, document.getElementById(id));
   });
 
   elementLists.tabs = document.querySelectorAll(".tab");
@@ -676,7 +675,7 @@ function initializePhase5Features(): void {
  * Set up event listeners.
  */
 function setupEventListeners(): void {
-  elements["date-range"]?.addEventListener("change", handleDateRangeChange);
+  elements.get("date-range")?.addEventListener("change", handleDateRangeChange);
   document
     .getElementById("apply-dates")
     ?.addEventListener("click", applyCustomDates);
@@ -689,7 +688,7 @@ function setupEventListeners(): void {
     });
   });
 
-  elements["retry-btn"]?.addEventListener("click", () => init());
+  elements.get("retry-btn")?.addEventListener("click", () => init());
   document
     .getElementById("setup-retry-btn")
     ?.addEventListener("click", () => init());
@@ -699,20 +698,20 @@ function setupEventListeners(): void {
 
   // Filter event listeners now managed by typeahead component onChange callbacks
   // (wired in populateFilterDropdowns → initTypeaheadDropdown)
-  elements["clear-filters"]?.addEventListener("click", clearAllFilters);
+  elements.get("clear-filters")?.addEventListener("click", clearAllFilters);
 
-  elements["compare-toggle"]?.addEventListener("click", toggleComparisonMode);
-  elements["exit-compare"]?.addEventListener("click", exitComparisonMode);
+  elements.get("compare-toggle")?.addEventListener("click", toggleComparisonMode);
+  elements.get("exit-compare")?.addEventListener("click", exitComparisonMode);
 
-  elements["export-btn"]?.addEventListener("click", toggleExportMenu);
-  elements["export-csv"]?.addEventListener("click", exportToCsv);
-  elements["export-link"]?.addEventListener("click", copyShareableLink);
-  elements["export-raw-zip"]?.addEventListener("click", downloadRawDataZip);
+  elements.get("export-btn")?.addEventListener("click", toggleExportMenu);
+  elements.get("export-csv")?.addEventListener("click", exportToCsv);
+  elements.get("export-link")?.addEventListener("click", copyShareableLink);
+  elements.get("export-raw-zip")?.addEventListener("click", downloadRawDataZip);
 
   document.addEventListener("click", (e: MouseEvent) => {
     const target = e.target as HTMLElement;
     if (!target.closest(".export-dropdown")) {
-      elements["export-menu"]?.classList.add("hidden");
+      elements.get("export-menu")?.classList.add("hidden");
     }
   });
 }
@@ -780,8 +779,8 @@ function setInitialDateRange(): void {
 
     currentDateRange = { start: startDate, end: endDate };
 
-    const startDateEl = elements["start-date"] as HTMLInputElement | null;
-    const endDateEl = elements["end-date"] as HTMLInputElement | null;
+    const startDateEl = elements.get("start-date") as HTMLInputElement | null;
+    const endDateEl = elements.get("end-date") as HTMLInputElement | null;
     if (startDateEl) {
       startDateEl.value = startDate.toISOString().split("T")[0] ?? "";
     }
@@ -990,21 +989,21 @@ function renderSummaryCards(
 ): void {
   // Build container references from cached elements
   const containers: SummaryCardsContainers = {
-    totalPrs: elements["total-prs"] ?? null,
-    cycleP50: elements["cycle-p50"] ?? null,
-    cycleP90: elements["cycle-p90"] ?? null,
-    authorsCount: elements["authors-count"] ?? null,
-    reviewersCount: elements["reviewers-count"] ?? null,
-    totalPrsSparkline: elements["total-prs-sparkline"] ?? null,
-    cycleP50Sparkline: elements["cycle-p50-sparkline"] ?? null,
-    cycleP90Sparkline: elements["cycle-p90-sparkline"] ?? null,
-    authorsSparkline: elements["authors-sparkline"] ?? null,
-    reviewersSparkline: elements["reviewers-sparkline"] ?? null,
-    totalPrsDelta: elements["total-prs-delta"] ?? null,
-    cycleP50Delta: elements["cycle-p50-delta"] ?? null,
-    cycleP90Delta: elements["cycle-p90-delta"] ?? null,
-    authorsDelta: elements["authors-delta"] ?? null,
-    reviewersDelta: elements["reviewers-delta"] ?? null,
+    totalPrs: elements.get("total-prs") ?? null,
+    cycleP50: elements.get("cycle-p50") ?? null,
+    cycleP90: elements.get("cycle-p90") ?? null,
+    authorsCount: elements.get("authors-count") ?? null,
+    reviewersCount: elements.get("reviewers-count") ?? null,
+    totalPrsSparkline: elements.get("total-prs-sparkline") ?? null,
+    cycleP50Sparkline: elements.get("cycle-p50-sparkline") ?? null,
+    cycleP90Sparkline: elements.get("cycle-p90-sparkline") ?? null,
+    authorsSparkline: elements.get("authors-sparkline") ?? null,
+    reviewersSparkline: elements.get("reviewers-sparkline") ?? null,
+    totalPrsDelta: elements.get("total-prs-delta") ?? null,
+    cycleP50Delta: elements.get("cycle-p50-delta") ?? null,
+    cycleP90Delta: elements.get("cycle-p90-delta") ?? null,
+    authorsDelta: elements.get("authors-delta") ?? null,
+    reviewersDelta: elements.get("reviewers-delta") ?? null,
   };
 
   renderSummaryCardsModule({
@@ -1026,7 +1025,7 @@ function renderThroughputChart(
   unfilteredRollups?: Rollup[],
   availability?: DataAvailabilitySignal,
 ): void {
-  renderThroughputChartModule(elements["throughput-chart"] ?? null, rollups, {
+  renderThroughputChartModule(elements.get("throughput-chart") ?? null, rollups, {
     filters: currentFilters,
     unfilteredRollups,
     availability,
@@ -1043,7 +1042,7 @@ function renderCycleDistribution(
   availability?: DataAvailabilitySignal,
 ): void {
   renderCycleDistributionModule(
-    elements["cycle-distribution"] ?? null,
+    elements.get("cycle-distribution") ?? null,
     distributions,
     {
       filters: currentFilters,
@@ -1062,7 +1061,7 @@ function renderCycleTimeTrend(
   unfilteredRollups?: Rollup[],
   availability?: DataAvailabilitySignal,
 ): void {
-  renderCycleTimeTrendModule(elements["cycle-time-trend"] ?? null, rollups, {
+  renderCycleTimeTrendModule(elements.get("cycle-time-trend") ?? null, rollups, {
     filters: currentFilters,
     unfilteredRollups,
     availability,
@@ -1078,7 +1077,7 @@ function renderReviewerActivity(
   unfilteredRollups?: Rollup[],
   availability?: DataAvailabilitySignal,
 ): void {
-  renderReviewerActivityModule(elements["reviewer-activity"] ?? null, rollups, {
+  renderReviewerActivityModule(elements.get("reviewer-activity") ?? null, rollups, {
     reviewerFilterActive: currentFilters.reviewers.length > 0,
     filters: currentFilters,
     unfilteredRollups,
@@ -1199,11 +1198,11 @@ function handleDateRangeChange(e: Event): void {
   const value = target.value;
 
   if (value === "custom") {
-    elements["custom-dates"]?.classList.remove("hidden");
+    elements.get("custom-dates")?.classList.remove("hidden");
     return;
   }
 
-  elements["custom-dates"]?.classList.add("hidden");
+  elements.get("custom-dates")?.classList.add("hidden");
 
   const days = parseInt(value, 10);
   const coverage = loader?.getCoverage() || null;
@@ -1219,8 +1218,8 @@ function handleDateRangeChange(e: Event): void {
 }
 
 function applyCustomDates(): void {
-  const start = (elements["start-date"] as HTMLInputElement)?.value;
-  const end = (elements["end-date"] as HTMLInputElement)?.value;
+  const start = (elements.get("start-date") as HTMLInputElement)?.value;
+  const end = (elements.get("end-date") as HTMLInputElement)?.value;
 
   if (!start || !end) return;
 
@@ -1283,10 +1282,10 @@ function populateFilterDropdowns(dimensions: DimensionsData | null): void {
       initialSelection: [],
       onChange: () => handleTypeaheadFilterChange("repos"),
     });
-    elements["repo-filter-group"]?.classList.remove("hidden");
+    elements.get("repo-filter-group")?.classList.remove("hidden");
   } else {
     typeaheadRepo = null;
-    elements["repo-filter-group"]?.classList.add("hidden");
+    elements.get("repo-filter-group")?.classList.add("hidden");
   }
 
   // Populate team filter (multi-select)
@@ -1302,10 +1301,10 @@ function populateFilterDropdowns(dimensions: DimensionsData | null): void {
       initialSelection: [],
       onChange: () => handleTypeaheadFilterChange("teams"),
     });
-    elements["team-filter-group"]?.classList.remove("hidden");
+    elements.get("team-filter-group")?.classList.remove("hidden");
   } else {
     typeaheadTeam = null;
-    elements["team-filter-group"]?.classList.add("hidden");
+    elements.get("team-filter-group")?.classList.add("hidden");
   }
 
   // Populate reviewer filter (single-select)
@@ -1321,10 +1320,10 @@ function populateFilterDropdowns(dimensions: DimensionsData | null): void {
       initialSelection: [],
       onChange: () => handleTypeaheadFilterChange("reviewers"),
     });
-    elements["reviewer-filter-group"]?.classList.remove("hidden");
+    elements.get("reviewer-filter-group")?.classList.remove("hidden");
   } else {
     typeaheadReviewer = null;
-    elements["reviewer-filter-group"]?.classList.add("hidden");
+    elements.get("reviewer-filter-group")?.classList.add("hidden");
   }
 
   // Populate author filter (single-select)
@@ -1340,10 +1339,10 @@ function populateFilterDropdowns(dimensions: DimensionsData | null): void {
       initialSelection: [],
       onChange: () => handleTypeaheadFilterChange("authors"),
     });
-    elements["author-filter-group"]?.classList.remove("hidden");
+    elements.get("author-filter-group")?.classList.remove("hidden");
   } else {
     typeaheadAuthor = null;
-    elements["author-filter-group"]?.classList.add("hidden");
+    elements.get("author-filter-group")?.classList.add("hidden");
   }
 
   // Restore filter state from URL
@@ -1455,17 +1454,20 @@ function updateFilterUI(): void {
     currentFilters.reviewers.length > 0 ||
     currentFilters.authors.length > 0;
 
-  if (elements["clear-filters"]) {
-    elements["clear-filters"].classList.toggle("hidden", !hasFilters);
+  const clearFiltersEl = elements.get("clear-filters");
+  if (clearFiltersEl) {
+    clearFiltersEl.classList.toggle("hidden", !hasFilters);
   }
 
-  if (elements["active-filters"] && elements["filter-chips"]) {
-    elements["active-filters"].classList.toggle("hidden", !hasFilters);
+  const activeFiltersEl = elements.get("active-filters");
+  const filterChipsEl = elements.get("filter-chips");
+  if (activeFiltersEl && filterChipsEl) {
+    activeFiltersEl.classList.toggle("hidden", !hasFilters);
 
     if (hasFilters) {
       renderFilterChips();
     } else {
-      clearElement(elements["filter-chips"]);
+      clearElement(filterChipsEl as HTMLElement | null);
     }
   }
 
@@ -1476,7 +1478,7 @@ function updateFilterUI(): void {
  * Render filter chips for active filters.
  */
 function renderFilterChips(): void {
-  const chipsEl = elements["filter-chips"] as HTMLElement | null;
+  const chipsEl = elements.get("filter-chips") as HTMLElement | null;
   if (!chipsEl) return;
 
   const chips: string[] = [];
@@ -1577,11 +1579,11 @@ function updateMetricLabels(): void {
   const reviewerMode = currentFilters.reviewers.length > 0;
   const authorTeamConstrained =
     currentFilters.authors.length > 0 && currentFilters.teams.length > 0;
-  elements["author-filter-notice"]?.classList.toggle(
+  elements.get("author-filter-notice")?.classList.toggle(
     "hidden",
     !authorTeamConstrained,
   );
-  const reviewerNotice = elements["reviewer-filter-notice"];
+  const reviewerNotice = elements.get("reviewer-filter-notice");
   if (reviewerNotice) {
     if (reviewerFilterNoticeMessage) {
       reviewerNotice.textContent = reviewerFilterNoticeMessage;
@@ -1594,25 +1596,21 @@ function updateMetricLabels(): void {
     }
   }
 
-  if (elements["total-prs-label"]) {
-    elements["total-prs-label"].textContent = reviewerMode
-      ? "Reviewed PRs"
-      : "Total PRs";
+  const totalPrsLabel = elements.get("total-prs-label");
+  if (totalPrsLabel) {
+    totalPrsLabel.textContent = reviewerMode ? "Reviewed PRs" : "Total PRs";
   }
-  if (elements["authors-count-label"]) {
-    elements["authors-count-label"].textContent = reviewerMode
-      ? "Reviewed Authors"
-      : "Contributors";
+  const authorsLabel = elements.get("authors-count-label");
+  if (authorsLabel) {
+    authorsLabel.textContent = reviewerMode ? "Reviewed Authors" : "Contributors";
   }
-  if (elements["reviewers-count-label"]) {
-    elements["reviewers-count-label"].textContent = reviewerMode
-      ? "Reviews"
-      : "Reviewers";
+  const reviewersLabel = elements.get("reviewers-count-label");
+  if (reviewersLabel) {
+    reviewersLabel.textContent = reviewerMode ? "Reviews" : "Reviewers";
   }
-  if (elements["reviewer-activity-label"]) {
-    elements["reviewer-activity-label"].textContent = reviewerMode
-      ? "Review Activity"
-      : "Reviewer Activity";
+  const activityLabel = elements.get("reviewer-activity-label");
+  if (activityLabel) {
+    activityLabel.textContent = reviewerMode ? "Review Activity" : "Reviewer Activity";
   }
 }
 
@@ -1697,13 +1695,13 @@ function restoreStateFromUrl(): void {
   const endParam = params.get("end");
   if (startParam && endParam) {
     currentDateRange = { start: new Date(startParam), end: new Date(endParam) };
-    const dateRangeEl = elements["date-range"] as HTMLSelectElement | null;
+    const dateRangeEl = elements.get("date-range") as HTMLSelectElement | null;
     if (dateRangeEl) {
       dateRangeEl.value = "custom";
-      elements["custom-dates"]?.classList.remove("hidden");
+      elements.get("custom-dates")?.classList.remove("hidden");
     }
-    const startEl = elements["start-date"] as HTMLInputElement | null;
-    const endEl = elements["end-date"] as HTMLInputElement | null;
+    const startEl = elements.get("start-date") as HTMLInputElement | null;
+    const endEl = elements.get("end-date") as HTMLInputElement | null;
     if (startEl) startEl.value = startParam;
     if (endEl) endEl.value = endParam;
   }
@@ -1717,8 +1715,8 @@ function restoreStateFromUrl(): void {
   const compareParam = params.get("compare");
   if (compareParam === "1") {
     comparisonMode = true;
-    elements["compare-toggle"]?.classList.add("active");
-    elements["comparison-banner"]?.classList.remove("hidden");
+    elements.get("compare-toggle")?.classList.add("active");
+    elements.get("comparison-banner")?.classList.remove("hidden");
   }
 }
 // ============================================================================
@@ -1731,8 +1729,8 @@ function restoreStateFromUrl(): void {
 function toggleComparisonMode(): void {
   comparisonMode = !comparisonMode;
 
-  elements["compare-toggle"]?.classList.toggle("active", comparisonMode);
-  elements["comparison-banner"]?.classList.toggle("hidden", !comparisonMode);
+  elements.get("compare-toggle")?.classList.toggle("active", comparisonMode);
+  elements.get("comparison-banner")?.classList.toggle("hidden", !comparisonMode);
 
   if (comparisonMode) {
     updateComparisonBanner();
@@ -1747,8 +1745,8 @@ function toggleComparisonMode(): void {
  */
 function exitComparisonMode(): void {
   comparisonMode = false;
-  elements["compare-toggle"]?.classList.remove("active");
-  elements["comparison-banner"]?.classList.add("hidden");
+  elements.get("compare-toggle")?.classList.remove("active");
+  elements.get("comparison-banner")?.classList.add("hidden");
   updateUrlState();
   void refreshMetrics();
 }
@@ -1769,9 +1767,9 @@ function updateComparisonBanner(): void {
   // Current period
   const currentStart = formatDate(currentDateRange.start);
   const currentEnd = formatDate(currentDateRange.end);
-  if (elements["current-period-dates"]) {
-    elements["current-period-dates"].textContent =
-      `${currentStart} - ${currentEnd}`;
+  const currentDatesEl = elements.get("current-period-dates");
+  if (currentDatesEl) {
+    currentDatesEl.textContent = `${currentStart} - ${currentEnd}`;
   }
 
   // Previous period
@@ -1781,11 +1779,12 @@ function updateComparisonBanner(): void {
   );
   const prevStart = formatDate(prevPeriod.start);
   const prevEnd = formatDate(prevPeriod.end);
-  if (elements["previous-period-dates"]) {
-    elements["previous-period-dates"].textContent = `${prevStart} - ${prevEnd}`;
+  const prevDatesEl = elements.get("previous-period-dates");
+  if (prevDatesEl) {
+    prevDatesEl.textContent = `${prevStart} - ${prevEnd}`;
   }
 
-  const banner = elements["comparison-banner"];
+  const banner = elements.get("comparison-banner");
   if (banner) {
     const hasFilters =
       currentFilters.repos.length > 0 ||
@@ -1805,14 +1804,14 @@ function updateComparisonBanner(): void {
  */
 function toggleExportMenu(e: Event): void {
   e.stopPropagation();
-  elements["export-menu"]?.classList.toggle("hidden");
+  elements.get("export-menu")?.classList.toggle("hidden");
 }
 
 /**
  * Export current data to CSV.
  */
 function exportToCsv(): void {
-  elements["export-menu"]?.classList.add("hidden");
+  elements.get("export-menu")?.classList.add("hidden");
 
   if (!cachedRollups || cachedRollups.length === 0) {
     showToast("No data to export", "error");
@@ -1831,7 +1830,7 @@ function exportToCsv(): void {
  * Copy shareable link to clipboard.
  */
 async function copyShareableLink(): Promise<void> {
-  elements["export-menu"]?.classList.add("hidden");
+  elements.get("export-menu")?.classList.add("hidden");
 
   try {
     await navigator.clipboard.writeText(window.location.href);
@@ -1852,7 +1851,7 @@ async function copyShareableLink(): Promise<void> {
  * Download raw CSV data as a ZIP file.
  */
 async function downloadRawDataZip(): Promise<void> {
-  elements["export-menu"]?.classList.add("hidden");
+  elements.get("export-menu")?.classList.add("hidden");
 
   if (!currentBuildId || !artifactClient) {
     showToast("Raw data not available in direct URL mode", "error");
@@ -1924,12 +1923,12 @@ async function downloadRawDataZip(): Promise<void> {
 
 function showLoading(): void {
   hideAllPanels();
-  elements["loading-state"]?.classList.remove("hidden");
+  elements.get("loading-state")?.classList.remove("hidden");
 }
 
 function showContent(): void {
   hideAllPanels();
-  elements["main-content"]?.classList.remove("hidden");
+  elements.get("main-content")?.classList.remove("hidden");
 }
 
 function updateDatasetInfo(manifest: ManifestSchema | null): void {
@@ -1939,7 +1938,7 @@ function updateDatasetInfo(manifest: ManifestSchema | null): void {
   const runId = (manifest as { run_id?: string })?.run_id || "";
   const capabilityState = loader?.getCapabilityState?.() ?? null;
   const commentsCoverage = manifest?.coverage?.comments;
-  const commentsBanner = elements["comments-coverage-banner"];
+  const commentsBanner = elements.get("comments-coverage-banner");
   let commentsSummary: string | null = null;
 
   if (capabilityState?.commentsMetricsAvailable) {
@@ -1957,7 +1956,7 @@ function updateDatasetInfo(manifest: ManifestSchema | null): void {
     }
   }
 
-  const runInfo = elements["run-info"];
+  const runInfo = elements.get("run-info");
   if (runInfo) {
     runInfo.textContent = `Generated: ${generatedAt}`;
     if (runId) runInfo.textContent += ` | Run: ${runId.slice(0, 8)}`;

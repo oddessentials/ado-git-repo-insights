@@ -513,10 +513,11 @@ export function configureExtensionDataService(
   const service = getMockExtensionDataService();
 
   // Override getValue to handle all scenarios
+  const errorKeyMap = new Map(Object.entries(errorKeys));
   service.getValue.mockImplementation(((settingKey: string, _options?: unknown) => {
     // Check for error scenario first
-    if (errorKeys[settingKey]) {
-      return Promise.reject(errorKeys[settingKey]);
+    if (errorKeyMap.has(settingKey)) {
+      return Promise.reject(errorKeyMap.get(settingKey));
     }
 
     // Check for explicitly missing keys

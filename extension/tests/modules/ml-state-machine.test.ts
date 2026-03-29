@@ -15,6 +15,7 @@ import {
   isReadyState,
   type ArtifactLoadResult,
 } from "../../ui/modules/ml/state-machine";
+import type { PredictionsRenderData } from "../../ui/types";
 
 describe("ML State Machine", () => {
   describe("resolvePredictionsState", () => {
@@ -296,7 +297,7 @@ describe("ML State Machine", () => {
       expect(
         getStateMessage({
           type: "ready",
-          data: { forecasts: [] } as any,
+          data: { forecasts: [] } as PredictionsRenderData,
         }),
       ).toBe("Data Available");
     });
@@ -329,14 +330,14 @@ describe("ML State Machine", () => {
 
     it("returns false for ready", () => {
       expect(
-        isErrorState({ type: "ready", data: { forecasts: [] } as any }),
+        isErrorState({ type: "ready", data: { forecasts: [] } as PredictionsRenderData }),
       ).toBe(false);
     });
   });
 
   describe("isReadyState", () => {
     it("returns true for ready state", () => {
-      const state = { type: "ready" as const, data: { forecasts: [] } as any };
+      const state = { type: "ready" as const, data: { forecasts: [] } as PredictionsRenderData };
       expect(isReadyState(state)).toBe(true);
     });
 

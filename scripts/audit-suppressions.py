@@ -147,11 +147,7 @@ EXCLUDED_DIRS = {
 }
 
 # Excluded file patterns (fnmatch-style)
-# Type-test files use @ts-expect-error as compile-time assertions, not to hide issues
-# They are verified separately by TypeScript (TS2578 error if assertion fails)
-EXCLUDED_FILE_PATTERNS = {
-    "*.type-test.ts",
-}
+EXCLUDED_FILE_PATTERNS: set[str] = set()
 
 # Security limits to prevent ReDoS and resource exhaustion
 MAX_FILE_SIZE_BYTES = 10 * 1024 * 1024  # 10 MB

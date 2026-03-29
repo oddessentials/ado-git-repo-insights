@@ -2,12 +2,12 @@
 
 Tests the suppression audit functionality including:
 - File exclusion patterns (directories and file patterns)
-- Type-test file exclusion (*.type-test.ts)
+- Live constant verification against the script's actual values
 """
 
 from __future__ import annotations
 
-import fnmatch
+import importlib.util
 import json
 import os
 import subprocess
@@ -19,38 +19,15 @@ import pytest
 # Path to the audit script
 AUDIT_SCRIPT = Path(__file__).parent.parent.parent / "scripts" / "audit-suppressions.py"
 
+# Import the live constants and functions directly from the script
+# so tests always validate the script's actual behavior, not stale copies.
+_spec = importlib.util.spec_from_file_location("audit_suppressions", AUDIT_SCRIPT)
+_audit_module = importlib.util.module_from_spec(_spec)
+_spec.loader.exec_module(_audit_module)
 
-# Replicate the constants and functions we're testing to avoid exec() issues
-EXCLUDED_DIRS = {
-    "node_modules",
-    "dist",
-    ".venv",
-    "venv",
-    "build",
-    "coverage",
-    "__pycache__",
-    ".git",
-}
-
-EXCLUDED_FILE_PATTERNS = {
-    "*.type-test.ts",
-}
-
-
-def is_excluded(path: Path) -> bool:
-    """Check if path should be excluded from scanning.
-
-    This is a copy of the function from audit-suppressions.py for testing.
-    """
-    parts = path.parts
-    # Check excluded directories
-    if any(excluded in parts for excluded in EXCLUDED_DIRS):
-        return True
-    # Check excluded file patterns
-    filename = path.name
-    if any(fnmatch.fnmatch(filename, pattern) for pattern in EXCLUDED_FILE_PATTERNS):
-        return True
-    return False
+EXCLUDED_DIRS = _audit_module.EXCLUDED_DIRS
+EXCLUDED_FILE_PATTERNS = _audit_module.EXCLUDED_FILE_PATTERNS
+is_excluded = _audit_module.is_excluded
 
 
 class TestIsExcluded:
@@ -76,20 +53,22 @@ class TestIsExcluded:
         path = Path("src/ado_git_repo_insights/__pycache__/cli.cpython-311.pyc")
         assert is_excluded(path) is True, "__pycache__ should be excluded"
 
-    def test_excludes_type_test_files(self) -> None:
-        """Files matching *.type-test.ts should be excluded.
+    def test_does_not_exclude_type_test_files(self) -> None:
+        """Type-test files must NOT be excluded — zero-suppression policy.
 
-        Type-test files use @ts-expect-error as compile-time assertions,
-        not to hide issues. They are verified separately by TypeScript.
+        The *.type-test.ts exclusion was removed in 043-zero-suppressions.
+        All files are now scanned equally (FR-023, FR-024).
         """
         path = Path("extension/tests/types/rollup.type-test.ts")
-        assert is_excluded(path) is True, "*.type-test.ts should be excluded"
+        assert is_excluded(path) is False, (
+            "*.type-test.ts must not be excluded — zero-suppression policy"
+        )
 
-    def test_excludes_type_test_files_any_directory(self) -> None:
-        """Type-test files should be excluded regardless of directory."""
+    def test_does_not_exclude_type_test_files_any_directory(self) -> None:
+        """Type-test files must be scanned regardless of directory."""
         path = Path("some/other/path/foo.type-test.ts")
-        assert is_excluded(path) is True, (
-            "*.type-test.ts should be excluded in any directory"
+        assert is_excluded(path) is False, (
+            "*.type-test.ts must not be excluded in any directory"
         )
 
     def test_does_not_exclude_regular_test_files(self) -> None:
@@ -111,17 +90,20 @@ class TestIsExcluded:
 class TestExcludedFilePatterns:
     """Tests for EXCLUDED_FILE_PATTERNS constant."""
 
-    def test_type_test_pattern_exists(self) -> None:
-        """EXCLUDED_FILE_PATTERNS should include *.type-test.ts."""
-        assert "*.type-test.ts" in EXCLUDED_FILE_PATTERNS
+    def test_excluded_file_patterns_is_empty(self) -> None:
+        """EXCLUDED_FILE_PATTERNS must be empty — zero-suppression policy.
 
-    def test_pattern_uses_fnmatch_syntax(self) -> None:
-        """Patterns should work with fnmatch."""
-        pattern = "*.type-test.ts"
-        assert fnmatch.fnmatch("foo.type-test.ts", pattern)
-        assert fnmatch.fnmatch("rollup.type-test.ts", pattern)
-        assert not fnmatch.fnmatch("foo.test.ts", pattern)
-        assert not fnmatch.fnmatch("type-test.ts", pattern)  # No prefix
+        No file patterns are excluded from the audit scan (FR-023).
+        This test reads the live constant from the script to prevent
+        stale hardcoded expectations.
+        """
+        assert EXCLUDED_FILE_PATTERNS == set(), (
+            f"EXCLUDED_FILE_PATTERNS must be empty, got: {EXCLUDED_FILE_PATTERNS}"
+        )
+
+    def test_type_test_pattern_not_in_exclusions(self) -> None:
+        """*.type-test.ts must not be in exclusion set (removed in 043)."""
+        assert "*.type-test.ts" not in EXCLUDED_FILE_PATTERNS
 
 
 class TestAuditSuppressionsCLI:
@@ -196,53 +178,157 @@ class TestAuditSuppressionsCLI:
         self, tmp_path: Path
     ) -> None:
         """Direct-push protection must still win under CI-style main env."""
-        baseline_path = tmp_path / "baseline.json"
+        repo_root = Path(__file__).parent.parent.parent
+        # Inject a temporary file with a suppression so current > baseline
+        injected = repo_root / "src" / "_test_injected_suppression.py"
+        injected.write_text("x = 1  # noqa: E501\n", encoding="utf-8")
+        try:
+            baseline_path = tmp_path / "baseline.json"
+            baseline_path.write_text(
+                json.dumps(
+                    {
+                        "version": 1,
+                        "generated_at": "2026-03-22T00:00:00Z",
+                        "total": 0,
+                        "by_scope": {
+                            "python-backend": 0,
+                            "typescript-extension": 0,
+                            "typescript-tests": 0,
+                        },
+                        "by_type": {
+                            "eslint-disable-block": 0,
+                            "eslint-disable-line": 0,
+                            "eslint-disable-next-line": 0,
+                            "noqa": 0,
+                            "ts-expect-error": 0,
+                            "ts-ignore": 0,
+                            "type-ignore": 0,
+                        },
+                        "by_file": {},
+                        "by_rule": {},
+                    },
+                    indent=2,
+                ),
+                encoding="utf-8",
+            )
+            env = self._local_env()
+            env["GITHUB_EVENT_NAME"] = "push"
+            env["GITHUB_REF"] = "refs/heads/main"
+            result = subprocess.run(  # noqa: S603 - trusted test code
+                [
+                    sys.executable,
+                    str(AUDIT_SCRIPT),
+                    "--diff",
+                    "--allow-pending-approval",
+                    "--baseline",
+                    str(baseline_path),
+                ],
+                capture_output=True,
+                text=True,
+                cwd=repo_root,
+                env=env,
+            )
+            assert result.returncode == 1
+            assert "Direct push to main" in result.stdout
+        finally:
+            injected.unlink(missing_ok=True)
+
+    def test_diff_allows_negative_delta_against_nonzero_external_baseline(
+        self, tmp_path: Path
+    ) -> None:
+        """Migration case: external baseline with total>0 must allow reduction.
+
+        When CI runs --diff --baseline /tmp/main-baseline.json and main still
+        has total:50, the branch scan yielding 0 must produce delta:-50 (PASS),
+        NOT fail because the loaded baseline is non-zero.
+        """
+        repo_root = Path(__file__).parent.parent.parent
+        baseline_path = tmp_path / "nonzero_baseline.json"
         baseline_path.write_text(
             json.dumps(
                 {
                     "version": 1,
                     "generated_at": "2026-03-22T00:00:00Z",
-                    "total": 0,
+                    "total": 50,
                     "by_scope": {
-                        "python-backend": 0,
-                        "typescript-extension": 0,
-                        "typescript-tests": 0,
+                        "python-backend": 9,
+                        "typescript-extension": 36,
+                        "typescript-tests": 5,
                     },
                     "by_type": {
-                        "eslint-disable-block": 0,
+                        "eslint-disable-block": 2,
                         "eslint-disable-line": 0,
-                        "eslint-disable-next-line": 0,
-                        "noqa": 0,
-                        "ts-expect-error": 0,
+                        "eslint-disable-next-line": 38,
+                        "noqa": 9,
+                        "ts-expect-error": 1,
                         "ts-ignore": 0,
                         "type-ignore": 0,
                     },
-                    "by_file": {},
-                    "by_rule": {},
+                    "by_file": {
+                        "extension/tests/dashboard.test.ts": 1,
+                        "extension/tests/helpers/fs-test-utils.ts": 1,
+                        "extension/tests/production-issues.test.ts": 2,
+                        "extension/tests/smoke/negative-fixture.smoke.ts": 1,
+                        "extension/ui/artifact-client.ts": 3,
+                        "extension/ui/dashboard.ts": 1,
+                        "extension/ui/dataset-loader.ts": 2,
+                        "extension/ui/error-codes.ts": 1,
+                        "extension/ui/modules/charts/cycle-time.ts": 1,
+                        "extension/ui/modules/charts/predictions.ts": 4,
+                        "extension/ui/modules/charts/summary-cards.ts": 2,
+                        "extension/ui/modules/dom.ts": 5,
+                        "extension/ui/modules/metrics.ts": 1,
+                        "extension/ui/modules/ml.ts": 1,
+                        "extension/ui/modules/shared/format.ts": 2,
+                        "extension/ui/modules/shared/security.ts": 1,
+                        "extension/ui/modules/typeahead-dropdown.ts": 2,
+                        "extension/ui/schemas/utils.ts": 1,
+                        "extension/ui/types.ts": 9,
+                        "src/ado_git_repo_insights/cli.py": 2,
+                        "src/ado_git_repo_insights/ml/__init__.py": 1,
+                        "src/ado_git_repo_insights/persistence/database.py": 2,
+                        "src/ado_git_repo_insights/transform/aggregators.py": 2,
+                        "src/ado_git_repo_insights/transform/csv_generator.py": 1,
+                        "src/ado_git_repo_insights/utils/run_summary.py": 1,
+                    },
+                    "by_rule": {
+                        "@typescript-eslint/no-explicit-any": 9,
+                        "F401": 3,
+                        "S311": 2,
+                        "S603": 1,
+                        "S607": 1,
+                        "S608": 1,
+                        "UP006": 2,
+                        "prefer-const": 3,
+                        "security/detect-object-injection": 26,
+                    },
                 },
                 indent=2,
             ),
             encoding="utf-8",
         )
         env = self._local_env()
-        env["GITHUB_EVENT_NAME"] = "push"
-        env["GITHUB_REF"] = "refs/heads/main"
         result = subprocess.run(  # noqa: S603 - trusted test code
             [
                 sys.executable,
                 str(AUDIT_SCRIPT),
                 "--diff",
-                "--allow-pending-approval",
                 "--baseline",
                 str(baseline_path),
             ],
             capture_output=True,
             text=True,
-            cwd=Path(__file__).parent.parent.parent,
+            cwd=repo_root,
             env=env,
         )
-        assert result.returncode == 1
-        assert "Direct push to main" in result.stdout
+        assert result.returncode == 0, (
+            f"Expected pass (negative delta) but got rc={result.returncode}.\n"
+            f"stdout: {result.stdout}\nstderr: {result.stderr}"
+        )
+        assert (
+            "reduced" in result.stdout.lower()
+            or "no suppression" in result.stdout.lower()
+        )
 
     def test_validate_command_works(self) -> None:
         """The --validate command should run without errors."""

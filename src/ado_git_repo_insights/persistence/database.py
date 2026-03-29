@@ -158,7 +158,7 @@ class DatabaseManager:
         finally:
             cursor.close()
 
-    def execute(self, sql: str, parameters: tuple[Any, ...] = ()) -> Cursor:  # noqa: UP006 -- REASON: tuple[Any, ...] matches sqlite3 API signature
+    def execute(self, sql: str, parameters: tuple[Any, ...] = ()) -> Cursor:
         """Execute a single SQL statement.
 
         Args:
@@ -173,7 +173,7 @@ class DatabaseManager:
     def executemany(
         self,
         sql: str,
-        parameters: list[tuple[Any, ...]],  # noqa: UP006 -- REASON: list[tuple[Any, ...]] matches sqlite3 API signature
+        parameters: list[tuple[Any, ...]],
     ) -> Cursor:
         """Execute a SQL statement with multiple parameter sets.
 

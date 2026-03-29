@@ -9,7 +9,9 @@
  * Contract: FR-037, FR-038
  */
 
-import * as fs from "fs";
+import * as _fsOriginal from "fs";
+function _loadFs(): typeof _fsOriginal { return _fsOriginal; }
+const _fs = _loadFs();
 import * as path from "path";
 
 describe("EC Traceability Meta-Test", () => {
@@ -26,11 +28,11 @@ describe("EC Traceability Meta-Test", () => {
   );
 
   it("metrics.edge-cases.test.ts exists", () => {
-    expect(fs.existsSync(EDGE_CASE_TEST_FILE)).toBe(true);
+    expect(_fs.existsSync(EDGE_CASE_TEST_FILE)).toBe(true);
   });
 
   it("all required EC-### markers are present (EC-001 through EC-005)", () => {
-    const content = fs.readFileSync(EDGE_CASE_TEST_FILE, "utf-8");
+    const content = _fs.readFileSync(EDGE_CASE_TEST_FILE, "utf-8");
 
     // Pattern: // Covers EC-###: description
     const coveragePattern = /\/\/\s*Covers\s+(EC-\d{3}):/g;
@@ -50,7 +52,7 @@ describe("EC Traceability Meta-Test", () => {
   });
 
   it("no duplicate EC-### markers exist", () => {
-    const content = fs.readFileSync(EDGE_CASE_TEST_FILE, "utf-8");
+    const content = _fs.readFileSync(EDGE_CASE_TEST_FILE, "utf-8");
 
     // Pattern: // Covers EC-###: description
     const coveragePattern = /\/\/\s*Covers\s+(EC-\d{3}):/g;
@@ -76,7 +78,7 @@ describe("EC Traceability Meta-Test", () => {
   });
 
   it("EC markers follow the standard format", () => {
-    const content = fs.readFileSync(EDGE_CASE_TEST_FILE, "utf-8");
+    const content = _fs.readFileSync(EDGE_CASE_TEST_FILE, "utf-8");
 
     // Find all EC-### patterns
     const allEcPattern = /EC-\d{3}/g;
@@ -109,7 +111,7 @@ describe("EC Traceability Meta-Test", () => {
   });
 
   it("each EC marker has an associated test", () => {
-    const content = fs.readFileSync(EDGE_CASE_TEST_FILE, "utf-8");
+    const content = _fs.readFileSync(EDGE_CASE_TEST_FILE, "utf-8");
 
     // Pattern: it("EC-### or it('EC-###
     const testPattern = /it\s*\(\s*["'`]EC-\d{3}/g;

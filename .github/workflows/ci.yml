@@ -837,9 +837,13 @@ jobs:
         working-directory: extension
         run: pnpm run test:config-parity
 
-      - name: ESLint
+      - name: ESLint (production)
         working-directory: extension
         run: pnpm run lint
+
+      - name: ESLint (tests)
+        working-directory: extension
+        run: pnpm run lint:tests
 
       - name: Run Extension UI Tests
         id: pnpm_test

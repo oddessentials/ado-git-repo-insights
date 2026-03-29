@@ -8,7 +8,9 @@
  *
  * Tests catch "bundled but breaks at runtime" regressions.
  */
-import * as fs from "fs";
+import * as _fsOriginal from "fs";
+function _loadFs(): typeof _fsOriginal { return _fsOriginal; }
+const _fs = _loadFs();
 import * as path from "path";
 import { JSDOM } from "jsdom";
 
@@ -23,7 +25,7 @@ describe("Smoke Render Tests (ADO Simulation)", () => {
    */
   function createAdoSimulatedDOM(htmlFile: string): JSDOM {
     const htmlPath = path.join(distUiPath, htmlFile);
-    const html = fs.readFileSync(htmlPath, "utf-8");
+    const html = _fs.readFileSync(htmlPath, "utf-8");
 
     const dom = new JSDOM(html, {
       runScripts: "outside-only",
@@ -85,7 +87,7 @@ describe("Smoke Render Tests (ADO Simulation)", () => {
       const dom = createAdoSimulatedDOM("settings.html");
 
       // Load the settings script (simulating <script src="settings.js">)
-      const settingsJs = fs.readFileSync(
+      const settingsJs = _fs.readFileSync(
         path.join(distUiPath, "settings.js"),
         "utf-8",
       );
@@ -137,7 +139,7 @@ describe("Smoke Render Tests (ADO Simulation)", () => {
       ];
 
       for (const script of scripts) {
-        const content = fs.readFileSync(path.join(distUiPath, script), "utf-8");
+        const content = _fs.readFileSync(path.join(distUiPath, script), "utf-8");
         expect(() => dom.window.eval(content)).not.toThrow();
       }
 
@@ -184,7 +186,7 @@ describe("Smoke Render Tests (ADO Simulation)", () => {
       ];
 
       for (const script of scripts) {
-        const content = fs.readFileSync(path.join(distUiPath, script), "utf-8");
+        const content = _fs.readFileSync(path.join(distUiPath, script), "utf-8");
         dom.window.eval(content);
       }
 
@@ -202,7 +204,7 @@ describe("Smoke Render Tests (ADO Simulation)", () => {
     it.each(entryPoints)(
       "%s does not use ESM import/export syntax",
       (filename) => {
-        const content = fs.readFileSync(
+        const content = _fs.readFileSync(
           path.join(distUiPath, filename),
           "utf-8",
         );

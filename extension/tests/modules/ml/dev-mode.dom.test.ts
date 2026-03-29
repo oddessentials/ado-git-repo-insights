@@ -14,17 +14,17 @@ import {
 describe("dev-mode (custom URL environments via JSDOM)", () => {
   function runInEnvironment(url: string, testFn: () => void): void {
     const dom = new JSDOM("<!DOCTYPE html><html><body></body></html>", { url });
-    const originalWindow = (global as any).window;
-    const originalDocument = (global as any).document;
+    const originalWindow = (global as unknown as Record<string, unknown>).window;
+    const originalDocument = (global as unknown as Record<string, unknown>).document;
 
-    (global as any).window = dom.window;
-    (global as any).document = dom.window.document;
+    (global as unknown as Record<string, unknown>).window = dom.window;
+    (global as unknown as Record<string, unknown>).document = dom.window.document;
 
     try {
       testFn();
     } finally {
-      (global as any).window = originalWindow;
-      (global as any).document = originalDocument;
+      (global as unknown as Record<string, unknown>).window = originalWindow;
+      (global as unknown as Record<string, unknown>).document = originalDocument;
       dom.window.close();
     }
   }

@@ -3,13 +3,15 @@
  *
  * Locks rendering constants and verifies CSS touch-target rules via stylesheet text.
  */
-import { readFileSync } from "fs";
+import * as _fsOriginal from "fs";
+function _loadFs(): typeof _fsOriginal { return _fsOriginal; }
+const _fs = _loadFs();
 import { resolve } from "path";
 import { MAX_VISIBLE_LABELS } from "../../ui/modules/charts/throughput";
 import { SCROLL_CANCEL_THRESHOLD } from "../../ui/modules/charts";
 
 const stylesPath = resolve(__dirname, "../../ui/styles.css");
-const css = readFileSync(stylesPath, "utf-8");
+const css = _fs.readFileSync(stylesPath, "utf-8");
 
 describe("Rendering Constants Contract", () => {
   it("MAX_VISIBLE_LABELS is 16", () => {
