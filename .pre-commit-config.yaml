@@ -64,6 +64,14 @@ repos:
         always_run: true
         stages: [pre-commit, pre-push]
 
+      - id: suppression-count
+        name: Suppression Count Guard
+        entry: python scripts/audit-suppressions.py --diff
+        language: system
+        pass_filenames: false
+        always_run: true
+        stages: [pre-commit, pre-push]
+
       - id: tool-version-parity
         name: Tool Version Parity
         entry: python scripts/check_tool_versions.py
