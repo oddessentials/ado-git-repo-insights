@@ -500,6 +500,7 @@ describe("Integration: Real Generated Data", () => {
     document.body.removeChild(container);
   });
 
+  // Skip justification: requires pre-generated scalability dataset (build-demo-dataset.py); not available in all environments
   (dataExists ? it : it.skip)(
     "manifest has 260 weeks and valid coverage",
     () => {

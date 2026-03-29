@@ -298,7 +298,7 @@ describe("Predictions Schema Validator", () => {
       const result = validatePredictions({}, false);
       expect(result.valid).toBe(false);
       expect(result.errors.length).toBeGreaterThan(0);
-      expect(result.errors[0].message).toContain("required");
+      expect(result.errors[0]!.message).toContain("required");
     });
 
     // Note: null/undefined are valid for predictions (absent file handling)

@@ -54,8 +54,8 @@ describe("metrics edge cases: pr_count handling", () => {
     });
 
     // NaN passes typeof check but toFiniteNumber converts to 0
-    expect(filtered[0].pr_count).toBe(0);
-    expect(Number.isFinite(filtered[0].pr_count)).toBe(true);
+    expect(filtered[0]!.pr_count).toBe(0);
+    expect(Number.isFinite(filtered[0]!.pr_count)).toBe(true);
   });
 
   /**
@@ -83,8 +83,8 @@ describe("metrics edge cases: pr_count handling", () => {
 
     // String fails typeof === "number" check, filtered out, aggregation returns 0
     // Note: toFiniteNumber would convert "50" to 50, but type guard provides defense-in-depth
-    expect(filtered[0].pr_count).toBe(0);
-    expect(typeof filtered[0].pr_count).toBe("number");
+    expect(filtered[0]!.pr_count).toBe(0);
+    expect(typeof filtered[0]!.pr_count).toBe("number");
   });
 
   /**
@@ -110,8 +110,8 @@ describe("metrics edge cases: pr_count handling", () => {
     });
 
     // Infinity passes typeof check but toFiniteNumber converts to 0
-    expect(filtered[0].pr_count).toBe(0);
-    expect(Number.isFinite(filtered[0].pr_count)).toBe(true);
+    expect(filtered[0]!.pr_count).toBe(0);
+    expect(Number.isFinite(filtered[0]!.pr_count)).toBe(true);
   });
 
   /**
@@ -137,8 +137,8 @@ describe("metrics edge cases: pr_count handling", () => {
     });
 
     // -Infinity passes typeof check but toFiniteNumber converts to 0
-    expect(filtered[0].pr_count).toBe(0);
-    expect(Number.isFinite(filtered[0].pr_count)).toBe(true);
+    expect(filtered[0]!.pr_count).toBe(0);
+    expect(Number.isFinite(filtered[0]!.pr_count)).toBe(true);
   });
 
   /**
@@ -213,8 +213,8 @@ describe("metrics edge cases: pr_count handling", () => {
 
     // team-valid: 25, team-nan: 0 (NaN→0), team-infinity: 0 (Infinity→0)
     // Sum: 25 + 0 + 0 = 25
-    expect(filtered[0].pr_count).toBe(25);
-    expect(Number.isFinite(filtered[0].pr_count)).toBe(true);
+    expect(filtered[0]!.pr_count).toBe(25);
+    expect(Number.isFinite(filtered[0]!.pr_count)).toBe(true);
   });
 });
 
@@ -273,39 +273,39 @@ describe("FR-025: Batch execution - state isolation", () => {
     // Run 1: Collect results
     // Using safeClone() which correctly handles NaN, Infinity, -Infinity
     const run1Results = TEST_CASES.map((tc) => {
-      const inputCopy = safeClone(tc.input);
+      const inputCopy = safeClone(tc.input) as Record<string, { pr_count: unknown }>;
       const rollup = createRollupWithBreakdown(inputCopy);
       const filtered = applyFiltersToRollups([rollup], {
         repos: Object.keys(tc.input),
         teams: [],
       });
-      return { id: tc.id, actual: filtered[0].pr_count, inputAfter: inputCopy };
+      return { id: tc.id, actual: filtered[0]!.pr_count, inputAfter: inputCopy };
     });
 
     // Run 2: Same process, same order
     const run2Results = TEST_CASES.map((tc) => {
-      const rollup = createRollupWithBreakdown(safeClone(tc.input));
+      const rollup = createRollupWithBreakdown(safeClone(tc.input) as Record<string, { pr_count: unknown }>);
       const filtered = applyFiltersToRollups([rollup], {
         repos: Object.keys(tc.input),
         teams: [],
       });
-      return { id: tc.id, actual: filtered[0].pr_count };
+      return { id: tc.id, actual: filtered[0]!.pr_count };
     });
 
     // Assert: Results match expected
     for (let i = 0; i < TEST_CASES.length; i++) {
-      expect(run1Results[i].actual).toBe(TEST_CASES[i].expected);
+      expect(run1Results[i]!.actual).toBe(TEST_CASES[i]!.expected);
     }
 
     // Assert: Run 1 === Run 2 (determinism)
     for (let i = 0; i < TEST_CASES.length; i++) {
-      expect(run1Results[i].actual).toBe(run2Results[i].actual);
+      expect(run1Results[i]!.actual).toBe(run2Results[i]!.actual);
     }
 
     // Assert: Input not mutated (compare structure, handle NaN specially)
     for (let i = 0; i < TEST_CASES.length; i++) {
-      const inputAfter = run1Results[i].inputAfter;
-      const originalInput = TEST_CASES[i].input;
+      const inputAfter = run1Results[i]!.inputAfter;
+      const originalInput = TEST_CASES[i]!.input;
 
       // Compare keys
       expect(Object.keys(inputAfter)).toEqual(Object.keys(originalInput));
@@ -314,10 +314,10 @@ describe("FR-025: Batch execution - state isolation", () => {
       for (const key of Object.keys(originalInput)) {
         const afterVal = (inputAfter as Record<string, { pr_count: unknown }>)[
           key
-        ].pr_count;
+        ]!.pr_count;
         const origVal = (
           originalInput as Record<string, { pr_count: unknown }>
-        )[key].pr_count;
+        )[key]!.pr_count;
 
         if (typeof origVal === "number" && Number.isNaN(origVal)) {
           expect(Number.isNaN(afterVal)).toBe(true);
@@ -424,9 +424,9 @@ describe("cross-dimensional multi-team overlap (T014)", () => {
 
     // Cross-dim: team-x/repo-a(20) + team-y/repo-a(15) = 35
     // This EXCEEDS by_repository["repo-a"].pr_count (30) — intentional per FR-016
-    expect(result[0].pr_count).toBe(35);
-    expect(result[0].pr_count).toBeGreaterThan(
-      overlapRollup.by_repository!["repo-a"].pr_count,
+    expect(result[0]!.pr_count).toBe(35);
+    expect(result[0]!.pr_count).toBeGreaterThan(
+      overlapRollup.by_repository!["repo-a"]!.pr_count,
     );
   });
 
@@ -437,7 +437,7 @@ describe("cross-dimensional multi-team overlap (T014)", () => {
     });
 
     // All 4 entries: 20 + 25 + 15 + 40 = 100 = global pr_count
-    expect(result[0].pr_count).toBe(100);
+    expect(result[0]!.pr_count).toBe(100);
   });
 
   it("single team + single repo returns exact lookup value", () => {
@@ -447,8 +447,8 @@ describe("cross-dimensional multi-team overlap (T014)", () => {
     });
 
     // Exact: by_team_and_repo["team-y"]["repo-b"]
-    expect(result[0].pr_count).toBe(40);
-    expect(result[0].cycle_time_p50).toBe(67);
+    expect(result[0]!.pr_count).toBe(40);
+    expect(result[0]!.cycle_time_p50).toBe(67);
   });
 
   it("aggregated authors_count is upper bound (sum >= team total)", () => {
@@ -460,8 +460,8 @@ describe("cross-dimensional multi-team overlap (T014)", () => {
     // Cross-dim authors: team-x/repo-a(3) + team-x/repo-b(3) = 6
     // Team total: team-x.authors_count = 5
     // Sum >= team total because same author in two repos is counted twice
-    expect(result[0].authors_count).toBeGreaterThanOrEqual(
-      overlapRollup.by_team!["team-x"].authors_count!,
+    expect(result[0]!.authors_count).toBeGreaterThanOrEqual(
+      overlapRollup.by_team!["team-x"]!.authors_count!,
     );
   });
 });
@@ -671,10 +671,10 @@ describe("T025: SC-002 dashboard load time overhead", () => {
 
     // All values should be finite numbers
     for (let i = 0; i < NUM_WEEKS; i++) {
-      expect(Number.isFinite(v1Result[i].pr_count)).toBe(true);
-      expect(Number.isFinite(v2Result[i].pr_count)).toBe(true);
-      expect(v1Result[i].pr_count).toBeGreaterThanOrEqual(0);
-      expect(v2Result[i].pr_count).toBeGreaterThanOrEqual(0);
+      expect(Number.isFinite(v1Result[i]!.pr_count)).toBe(true);
+      expect(Number.isFinite(v2Result[i]!.pr_count)).toBe(true);
+      expect(v1Result[i]!.pr_count).toBeGreaterThanOrEqual(0);
+      expect(v2Result[i]!.pr_count).toBeGreaterThanOrEqual(0);
     }
   });
 });

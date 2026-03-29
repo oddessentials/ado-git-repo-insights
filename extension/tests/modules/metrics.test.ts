@@ -198,10 +198,10 @@ describe("metrics module", () => {
         authors: ["author-1"],
       });
 
-      expect(result[0].pr_count).toBe(25);
-      expect(result[0].cycle_time_p50).toBe(45);
-      expect(result[0].authors_count).toBe(1);
-      expect(result[0].reviewers_count).toBe(3);
+      expect(result[0]!.pr_count).toBe(25);
+      expect(result[0]!.cycle_time_p50).toBe(45);
+      expect(result[0]!.authors_count).toBe(1);
+      expect(result[0]!.reviewers_count).toBe(3);
     });
 
     it("uses author-only metrics when author and team are both selected", () => {
@@ -224,9 +224,9 @@ describe("metrics module", () => {
         authors: ["author-1"],
       });
 
-      expect(result[0].pr_count).toBe(25);
-      expect(result[0].cycle_time_p50).toBe(45);
-      expect(result[0].authors_count).toBe(1);
+      expect(result[0]!.pr_count).toBe(25);
+      expect(result[0]!.cycle_time_p50).toBe(45);
+      expect(result[0]!.authors_count).toBe(1);
     });
 
     it("uses exact author+repo breakdown when available", () => {
@@ -260,11 +260,11 @@ describe("metrics module", () => {
         authors: ["author-1"],
       });
 
-      expect(result[0].pr_count).toBe(9);
-      expect(result[0].cycle_time_p50).toBe(42);
-      expect(result[0].cycle_time_p90).toBe(88);
-      expect(result[0].authors_count).toBe(1);
-      expect(result[0].reviewers_count).toBe(2);
+      expect(result[0]!.pr_count).toBe(9);
+      expect(result[0]!.cycle_time_p50).toBe(42);
+      expect(result[0]!.cycle_time_p90).toBe(88);
+      expect(result[0]!.authors_count).toBe(1);
+      expect(result[0]!.reviewers_count).toBe(2);
     });
 
     it("falls back to proportional author+repo estimation when exact data is unavailable", () => {
@@ -287,11 +287,11 @@ describe("metrics module", () => {
         authors: ["author-1"],
       });
 
-      expect(result[0].pr_count).toBe(8);
-      expect(result[0].cycle_time_p50).toBeCloseTo(47.5);
-      expect(result[0].cycle_time_p90).toBeCloseTo(95);
-      expect(result[0].authors_count).toBe(1);
-      expect(result[0].reviewers_count).toBe(0);
+      expect(result[0]!.pr_count).toBe(8);
+      expect(result[0]!.cycle_time_p50).toBeCloseTo(47.5);
+      expect(result[0]!.cycle_time_p90).toBeCloseTo(95);
+      expect(result[0]!.authors_count).toBe(1);
+      expect(result[0]!.reviewers_count).toBe(0);
     });
 
     it("returns zero values when author filter is active but by_author is missing", () => {
@@ -301,11 +301,11 @@ describe("metrics module", () => {
         authors: ["author-1"],
       });
 
-      expect(result[0].pr_count).toBe(0);
-      expect(result[0].authors_count).toBe(0);
-      expect(result[0].reviewers_count).toBe(0);
-      expect(result[0].cycle_time_p50).toBeNull();
-      expect(result[0].cycle_time_p90).toBeNull();
+      expect(result[0]!.pr_count).toBe(0);
+      expect(result[0]!.authors_count).toBe(0);
+      expect(result[0]!.reviewers_count).toBe(0);
+      expect(result[0]!.cycle_time_p50).toBeNull();
+      expect(result[0]!.cycle_time_p90).toBeNull();
     });
 
     it("returns zero values when the selected author is not found", () => {
@@ -328,9 +328,9 @@ describe("metrics module", () => {
         authors: ["author-1"],
       });
 
-      expect(result[0].pr_count).toBe(0);
-      expect(result[0].authors_count).toBe(0);
-      expect(result[0].reviewers_count).toBe(0);
+      expect(result[0]!.pr_count).toBe(0);
+      expect(result[0]!.authors_count).toBe(0);
+      expect(result[0]!.reviewers_count).toBe(0);
     });
 
     it("returns zero values when exact author+repo data is non-truncated and lookup misses", () => {
@@ -364,9 +364,9 @@ describe("metrics module", () => {
         authors: ["author-1"],
       });
 
-      expect(result[0].pr_count).toBe(0);
-      expect(result[0].authors_count).toBe(0);
-      expect(result[0].reviewers_count).toBe(0);
+      expect(result[0]!.pr_count).toBe(0);
+      expect(result[0]!.authors_count).toBe(0);
+      expect(result[0]!.reviewers_count).toBe(0);
     });
 
     it("falls back to proportional author+repo estimation when truncated exact data is incomplete", () => {
@@ -402,8 +402,8 @@ describe("metrics module", () => {
         authors: ["author-1"],
       });
 
-      expect(result[0].pr_count).toBe(25);
-      expect(result[0].cycle_time_p50).toBeCloseTo(52.75);
+      expect(result[0]!.pr_count).toBe(25);
+      expect(result[0]!.cycle_time_p50).toBeCloseTo(52.75);
       expect(warnSpy).toHaveBeenCalledWith(
         expect.stringContaining("Author x repo data truncated"),
       );
@@ -437,8 +437,8 @@ describe("metrics module", () => {
         authors: ["author-1", "author-2"],
       });
 
-      expect(result[0].pr_count).toBe(25);
-      expect(result[0].cycle_time_p50).toBe(45);
+      expect(result[0]!.pr_count).toBe(25);
+      expect(result[0]!.cycle_time_p50).toBe(45);
     });
 
     it("filters by repository - pr_count", () => {
@@ -447,7 +447,7 @@ describe("metrics module", () => {
         teams: [],
       });
 
-      expect(result[0].pr_count).toBe(30);
+      expect(result[0]!.pr_count).toBe(30);
     });
 
     it("filters by repository - single repo cycle time", () => {
@@ -456,10 +456,10 @@ describe("metrics module", () => {
         teams: [],
       });
 
-      expect(result[0].cycle_time_p50).toBe(50);
-      expect(result[0].cycle_time_p90).toBe(100);
-      expect(result[0].authors_count).toBe(4);
-      expect(result[0].reviewers_count).toBe(2);
+      expect(result[0]!.cycle_time_p50).toBe(50);
+      expect(result[0]!.cycle_time_p90).toBe(100);
+      expect(result[0]!.authors_count).toBe(4);
+      expect(result[0]!.reviewers_count).toBe(2);
     });
 
     it("filters by repository - multi-repo weighted average cycle time", () => {
@@ -469,12 +469,12 @@ describe("metrics module", () => {
       });
 
       // Weighted avg: (50*30 + 65*70) / (30+70) = (1500+4550)/100 = 60.5
-      expect(result[0].pr_count).toBe(100);
-      expect(result[0].cycle_time_p50).toBeCloseTo(60.5);
+      expect(result[0]!.pr_count).toBe(100);
+      expect(result[0]!.cycle_time_p50).toBeCloseTo(60.5);
       // Weighted avg: (100*30 + 130*70) / 100 = (3000+9100)/100 = 121
-      expect(result[0].cycle_time_p90).toBeCloseTo(121);
-      expect(result[0].authors_count).toBe(10);
-      expect(result[0].reviewers_count).toBe(5);
+      expect(result[0]!.cycle_time_p90).toBeCloseTo(121);
+      expect(result[0]!.authors_count).toBe(10);
+      expect(result[0]!.reviewers_count).toBe(5);
     });
 
     it("filters by repository - legacy data with pr_count only", () => {
@@ -498,9 +498,9 @@ describe("metrics module", () => {
 
       // Legacy: only pr_count available, cycle time nulled to prevent
       // global values leaking through for a filtered subset
-      expect(result[0].pr_count).toBe(30);
-      expect(result[0].cycle_time_p50).toBeNull();
-      expect(result[0].cycle_time_p90).toBeNull();
+      expect(result[0]!.pr_count).toBe(30);
+      expect(result[0]!.cycle_time_p50).toBeNull();
+      expect(result[0]!.cycle_time_p90).toBeNull();
     });
 
     it("filters by team", () => {
@@ -509,7 +509,7 @@ describe("metrics module", () => {
         teams: ["team-x"],
       });
 
-      expect(result[0].pr_count).toBe(40);
+      expect(result[0]!.pr_count).toBe(40);
     });
 
     it("filters by reviewer using reviewer activity slices", () => {
@@ -532,11 +532,11 @@ describe("metrics module", () => {
         reviewers: ["reviewer-1"],
       });
 
-      expect(result[0].pr_count).toBe(8);
-      expect(result[0].cycle_time_p50).toBeNull();
-      expect(result[0].cycle_time_p90).toBeNull();
-      expect(result[0].authors_count).toBe(5);
-      expect(result[0].reviewers_count).toBe(10);
+      expect(result[0]!.pr_count).toBe(8);
+      expect(result[0]!.cycle_time_p50).toBeNull();
+      expect(result[0]!.cycle_time_p90).toBeNull();
+      expect(result[0]!.authors_count).toBe(5);
+      expect(result[0]!.reviewers_count).toBe(10);
     });
 
     it("uses reviewer-only metrics when reviewer and repository are both selected", () => {
@@ -559,9 +559,9 @@ describe("metrics module", () => {
         reviewers: ["reviewer-1"],
       });
 
-      expect(result[0].pr_count).toBe(6);
-      expect(result[0].authors_count).toBe(4);
-      expect(result[0].reviewers_count).toBe(7);
+      expect(result[0]!.pr_count).toBe(6);
+      expect(result[0]!.authors_count).toBe(4);
+      expect(result[0]!.reviewers_count).toBe(7);
     });
 
     it("uses reviewer-only metrics when reviewer and team are both selected", () => {
@@ -584,9 +584,9 @@ describe("metrics module", () => {
         reviewers: ["reviewer-1"],
       });
 
-      expect(result[0].pr_count).toBe(6);
-      expect(result[0].authors_count).toBe(4);
-      expect(result[0].reviewers_count).toBe(7);
+      expect(result[0]!.pr_count).toBe(6);
+      expect(result[0]!.authors_count).toBe(4);
+      expect(result[0]!.reviewers_count).toBe(7);
     });
 
     it("uses only the first reviewer when multiple reviewer values are present", () => {
@@ -616,9 +616,9 @@ describe("metrics module", () => {
         reviewers: ["reviewer-1", "reviewer-2"],
       });
 
-      expect(result[0].pr_count).toBe(6);
-      expect(result[0].authors_count).toBe(4);
-      expect(result[0].reviewers_count).toBe(7);
+      expect(result[0]!.pr_count).toBe(6);
+      expect(result[0]!.authors_count).toBe(4);
+      expect(result[0]!.reviewers_count).toBe(7);
     });
 
     it("returns zero values when reviewer filter is active but by_reviewer is missing", () => {
@@ -628,11 +628,11 @@ describe("metrics module", () => {
         reviewers: ["reviewer-1"],
       });
 
-      expect(result[0].pr_count).toBe(0);
-      expect(result[0].authors_count).toBe(0);
-      expect(result[0].reviewers_count).toBe(0);
-      expect(result[0].cycle_time_p50).toBeNull();
-      expect(result[0].cycle_time_p90).toBeNull();
+      expect(result[0]!.pr_count).toBe(0);
+      expect(result[0]!.authors_count).toBe(0);
+      expect(result[0]!.reviewers_count).toBe(0);
+      expect(result[0]!.cycle_time_p50).toBeNull();
+      expect(result[0]!.cycle_time_p90).toBeNull();
     });
 
     it("returns zero values when the selected reviewer is not found", () => {
@@ -655,9 +655,9 @@ describe("metrics module", () => {
         reviewers: ["reviewer-1"],
       });
 
-      expect(result[0].pr_count).toBe(0);
-      expect(result[0].authors_count).toBe(0);
-      expect(result[0].reviewers_count).toBe(0);
+      expect(result[0]!.pr_count).toBe(0);
+      expect(result[0]!.authors_count).toBe(0);
+      expect(result[0]!.reviewers_count).toBe(0);
     });
 
     it("ignores reviewer entries with null approval_rate when computing reviewer-only metrics", () => {
@@ -680,11 +680,11 @@ describe("metrics module", () => {
         reviewers: ["reviewer-1"],
       });
 
-      expect(result[0].pr_count).toBe(4);
-      expect(result[0].reviewers_count).toBe(6);
-      expect(result[0].authors_count).toBe(3);
-      expect(result[0].cycle_time_p50).toBeNull();
-      expect(result[0].cycle_time_p90).toBeNull();
+      expect(result[0]!.pr_count).toBe(4);
+      expect(result[0]!.reviewers_count).toBe(6);
+      expect(result[0]!.authors_count).toBe(3);
+      expect(result[0]!.cycle_time_p50).toBeNull();
+      expect(result[0]!.cycle_time_p90).toBeNull();
     });
 
     it("returns zero counts for unknown repo filter", () => {
@@ -693,7 +693,7 @@ describe("metrics module", () => {
         teams: [],
       });
 
-      expect(result[0].pr_count).toBe(0);
+      expect(result[0]!.pr_count).toBe(0);
     });
 
     it("applies both repo and team filters with proportional intersection", () => {
@@ -704,13 +704,13 @@ describe("metrics module", () => {
 
       // repo-a = 30/100 = 30%, team-x = 40/100 = 40%
       // Combined: 100 * 0.3 * 0.4 = 12
-      expect(result[0].pr_count).toBe(12);
+      expect(result[0]!.pr_count).toBe(12);
       // authors: round(10 * 0.12) = 1, reviewers: round(5 * 0.12) = 1
-      expect(result[0].authors_count).toBe(1);
-      expect(result[0].reviewers_count).toBe(1);
+      expect(result[0]!.authors_count).toBe(1);
+      expect(result[0]!.reviewers_count).toBe(1);
       // Cycle time: average of repo-a (50) and team-x (55) = 52.5
-      expect(result[0].cycle_time_p50).toBeCloseTo(52.5);
-      expect(result[0].cycle_time_p90).toBeCloseTo(105);
+      expect(result[0]!.cycle_time_p50).toBeCloseTo(52.5);
+      expect(result[0]!.cycle_time_p90).toBeCloseTo(105);
     });
 
     it("returns zeros when both filters active and one matches nothing", () => {
@@ -719,7 +719,7 @@ describe("metrics module", () => {
         teams: ["team-x"],
       });
 
-      expect(result[0].pr_count).toBe(0);
+      expect(result[0]!.pr_count).toBe(0);
     });
   });
 
@@ -813,10 +813,10 @@ describe("applyFiltersToRollups regression: object concatenation bug", () => {
       teams: [],
     });
 
-    expect(typeof result[0].pr_count).toBe("number");
-    expect(Number.isFinite(result[0].pr_count)).toBe(true);
-    expect(String(result[0].pr_count)).not.toContain("[object");
-    expect(String(result[0].pr_count)).not.toContain("Object");
+    expect(typeof result[0]!.pr_count).toBe("number");
+    expect(Number.isFinite(result[0]!.pr_count)).toBe(true);
+    expect(String(result[0]!.pr_count)).not.toContain("[object");
+    expect(String(result[0]!.pr_count)).not.toContain("Object");
   });
 
   it("returns finite number, not [object Object] string, when filtering by team", () => {
@@ -833,10 +833,10 @@ describe("applyFiltersToRollups regression: object concatenation bug", () => {
       teams: ["team-x"],
     });
 
-    expect(typeof result[0].pr_count).toBe("number");
-    expect(Number.isFinite(result[0].pr_count)).toBe(true);
-    expect(String(result[0].pr_count)).not.toContain("[object");
-    expect(String(result[0].pr_count)).not.toContain("Object");
+    expect(typeof result[0]!.pr_count).toBe("number");
+    expect(Number.isFinite(result[0]!.pr_count)).toBe(true);
+    expect(String(result[0]!.pr_count)).not.toContain("[object");
+    expect(String(result[0]!.pr_count)).not.toContain("Object");
   });
 
   it("handles missing pr_count property gracefully (T013)", () => {
@@ -854,7 +854,7 @@ describe("applyFiltersToRollups regression: object concatenation bug", () => {
     });
 
     // Entry without pr_count should be filtered out, resulting in 0
-    expect(result[0].pr_count).toBe(0);
+    expect(result[0]!.pr_count).toBe(0);
   });
 
   it("handles null pr_count gracefully (T014)", () => {
@@ -872,7 +872,7 @@ describe("applyFiltersToRollups regression: object concatenation bug", () => {
     });
 
     // Entry with null pr_count should be filtered out, resulting in 0
-    expect(result[0].pr_count).toBe(0);
+    expect(result[0]!.pr_count).toBe(0);
   });
 
   it("handles NaN pr_count gracefully (T015)", () => {
@@ -890,9 +890,9 @@ describe("applyFiltersToRollups regression: object concatenation bug", () => {
     });
 
     // NaN is typeof 'number', so it passes the type guard but toFiniteNumber returns 0
-    expect(typeof result[0].pr_count).toBe("number");
-    expect(Number.isFinite(result[0].pr_count)).toBe(true);
-    expect(result[0].pr_count).toBe(0);
+    expect(typeof result[0]!.pr_count).toBe("number");
+    expect(Number.isFinite(result[0]!.pr_count)).toBe(true);
+    expect(result[0]!.pr_count).toBe(0);
   });
 
   it("filters out string pr_count values via type guard (T015b)", () => {
@@ -911,7 +911,7 @@ describe("applyFiltersToRollups regression: object concatenation bug", () => {
 
     // String "50" is filtered out by type guard (typeof "50" !== 'number')
     // Result is 0 since no valid entries remain after filtering
-    expect(result[0].pr_count).toBe(0);
+    expect(result[0]!.pr_count).toBe(0);
   });
 
   it("handles Infinity pr_count gracefully (T015c)", () => {
@@ -929,9 +929,9 @@ describe("applyFiltersToRollups regression: object concatenation bug", () => {
     });
 
     // Infinity is typeof 'number', so it passes the type guard but toFiniteNumber returns 0
-    expect(typeof result[0].pr_count).toBe("number");
-    expect(Number.isFinite(result[0].pr_count)).toBe(true);
-    expect(result[0].pr_count).toBe(0);
+    expect(typeof result[0]!.pr_count).toBe("number");
+    expect(Number.isFinite(result[0]!.pr_count)).toBe(true);
+    expect(result[0]!.pr_count).toBe(0);
   });
 
   it("sums multiple repositories correctly", () => {
@@ -949,9 +949,9 @@ describe("applyFiltersToRollups regression: object concatenation bug", () => {
       teams: [],
     });
 
-    expect(result[0].pr_count).toBe(100);
-    expect(result[0].authors_count).toBe(10);
-    expect(result[0].reviewers_count).toBe(5);
+    expect(result[0]!.pr_count).toBe(100);
+    expect(result[0]!.authors_count).toBe(10);
+    expect(result[0]!.reviewers_count).toBe(5);
   });
 
   it("sums multiple teams correctly", () => {
@@ -969,7 +969,7 @@ describe("applyFiltersToRollups regression: object concatenation bug", () => {
       teams: ["team-x", "team-y"],
     });
 
-    expect(result[0].pr_count).toBe(100);
+    expect(result[0]!.pr_count).toBe(100);
   });
 });
 
@@ -1006,11 +1006,11 @@ describe("applyFiltersToRollups coverage: uncovered paths", () => {
       teams: ["unknown-team"],
     });
 
-    expect(result[0].pr_count).toBe(0);
-    expect(result[0].cycle_time_p50).toBeNull();
-    expect(result[0].cycle_time_p90).toBeNull();
-    expect(result[0].authors_count).toBe(0);
-    expect(result[0].reviewers_count).toBe(0);
+    expect(result[0]!.pr_count).toBe(0);
+    expect(result[0]!.cycle_time_p50).toBeNull();
+    expect(result[0]!.cycle_time_p90).toBeNull();
+    expect(result[0]!.authors_count).toBe(0);
+    expect(result[0]!.reviewers_count).toBe(0);
   });
 
   it("passes through rollup when filters active but breakdown objects missing", () => {
@@ -1031,8 +1031,8 @@ describe("applyFiltersToRollups coverage: uncovered paths", () => {
     });
 
     // No breakdown data available — rollup passes through unchanged
-    expect(result[0].pr_count).toBe(50);
-    expect(result[0].cycle_time_p50).toBe(30);
+    expect(result[0]!.pr_count).toBe(50);
+    expect(result[0]!.cycle_time_p50).toBe(30);
   });
 
   it("combined filter handles rollup with pr_count = 0", () => {
@@ -1056,7 +1056,7 @@ describe("applyFiltersToRollups coverage: uncovered paths", () => {
       teams: ["team-x"],
     });
 
-    expect(result[0].pr_count).toBe(0);
+    expect(result[0]!.pr_count).toBe(0);
   });
 
   it("combined filter handles missing authors and reviewers counts", () => {
@@ -1077,9 +1077,9 @@ describe("applyFiltersToRollups coverage: uncovered paths", () => {
     });
 
     // Proportional intersection: 50/100 * 40/100 = 0.2 → 100 * 0.2 = 20
-    expect(result[0].pr_count).toBe(20);
+    expect(result[0]!.pr_count).toBe(20);
     // No cycle times in breakdown entries → null (not global leak-through)
-    expect(result[0].cycle_time_p50).toBeNull();
+    expect(result[0]!.cycle_time_p50).toBeNull();
   });
 
   it("combined filter with no cycle time data in either slice", () => {
@@ -1102,13 +1102,13 @@ describe("applyFiltersToRollups coverage: uncovered paths", () => {
     });
 
     // 30/100 * 40/100 = 0.12 → pr_count = round(100 * 0.12) = 12
-    expect(result[0].pr_count).toBe(12);
+    expect(result[0]!.pr_count).toBe(12);
     // No cycle_time in breakdown entries → null (not global leak-through)
-    expect(result[0].cycle_time_p50).toBeNull();
-    expect(result[0].cycle_time_p90).toBeNull();
+    expect(result[0]!.cycle_time_p50).toBeNull();
+    expect(result[0]!.cycle_time_p90).toBeNull();
     // authors: round(10 * 0.12) = 1, reviewers: round(5 * 0.12) = 1
-    expect(result[0].authors_count).toBe(1);
-    expect(result[0].reviewers_count).toBe(1);
+    expect(result[0]!.authors_count).toBe(1);
+    expect(result[0]!.reviewers_count).toBe(1);
   });
 
   it("combined filter returns null cycle_time_p90 when p90s array is empty", () => {
@@ -1149,10 +1149,10 @@ describe("applyFiltersToRollups coverage: uncovered paths", () => {
     });
 
     // p50s has values from both slices → averaged
-    expect(result[0].cycle_time_p50).toBeCloseTo((55 + 58) / 2);
+    expect(result[0]!.cycle_time_p50).toBeCloseTo((55 + 58) / 2);
     // null p90 entries are excluded → aggregateEntries returns null p90
     // → p90s filter produces empty array → guard returns null
-    expect(result[0].cycle_time_p90).toBeNull();
+    expect(result[0]!.cycle_time_p90).toBeNull();
   });
 
   it("clamps teamShare to 1 when overlapping team members inflate team slice", () => {
@@ -1201,10 +1201,10 @@ describe("applyFiltersToRollups coverage: uncovered paths", () => {
     //   → combinedPrCount = round(100 * 0.6) = 60 (exceeds repo's 50!)
     // With clamping:    teamShare = min(1, 1.2) = 1.0, combinedRatio = 0.5 * 1.0 = 0.5
     //   → combinedPrCount = round(100 * 0.5) = 50 (correct: repo-a has 50)
-    expect(result[0].pr_count).toBeLessThanOrEqual(100);
-    expect(result[0].pr_count).toBe(50);
-    expect(result[0].authors_count).toBeLessThanOrEqual(10);
-    expect(result[0].reviewers_count).toBeLessThanOrEqual(5);
+    expect(result[0]!.pr_count).toBeLessThanOrEqual(100);
+    expect(result[0]!.pr_count).toBe(50);
+    expect(result[0]!.authors_count).toBeLessThanOrEqual(10);
+    expect(result[0]!.reviewers_count).toBeLessThanOrEqual(5);
   });
 
   it("mixed cycle-time: entries without cycle data do not dilute weighted average", () => {
@@ -1236,9 +1236,9 @@ describe("applyFiltersToRollups coverage: uncovered paths", () => {
 
     // Only service-a has cycle-time data, so the average should equal service-a's values
     // (not diluted by service-b's 50 PRs)
-    expect(result[0].cycle_time_p50).toBe(120);
-    expect(result[0].cycle_time_p90).toBe(200);
-    expect(result[0].pr_count).toBe(100);
+    expect(result[0]!.cycle_time_p50).toBe(120);
+    expect(result[0]!.cycle_time_p90).toBe(200);
+    expect(result[0]!.pr_count).toBe(100);
   });
 
   it("all-null cycle-time entries return null (not 0)", () => {
@@ -1278,8 +1278,8 @@ describe("applyFiltersToRollups coverage: uncovered paths", () => {
 
     // Both entries have null cycle times → aggregateEntries returns null →
     // buildFilteredRollup falls back to rollup's null → result is null
-    expect(result[0].cycle_time_p50).toBeNull();
-    expect(result[0].cycle_time_p90).toBeNull();
+    expect(result[0]!.cycle_time_p50).toBeNull();
+    expect(result[0]!.cycle_time_p90).toBeNull();
   });
 
   it("combined filter where proportional ratio rounds to zero zeroes all fields", () => {
@@ -1303,11 +1303,11 @@ describe("applyFiltersToRollups coverage: uncovered paths", () => {
 
     // 10/1000 * 10/1000 = 0.0001, combinedPrCount = round(1000 * 0.0001) = 0
     // Zero-leakage guard: all metric fields zeroed when pr_count rounds to 0
-    expect(result[0].pr_count).toBe(0);
-    expect(result[0].authors_count).toBe(0);
-    expect(result[0].reviewers_count).toBe(0);
-    expect(result[0].cycle_time_p50).toBeNull();
-    expect(result[0].cycle_time_p90).toBeNull();
+    expect(result[0]!.pr_count).toBe(0);
+    expect(result[0]!.authors_count).toBe(0);
+    expect(result[0]!.reviewers_count).toBe(0);
+    expect(result[0]!.cycle_time_p50).toBeNull();
+    expect(result[0]!.cycle_time_p90).toBeNull();
   });
 });
 
@@ -1400,20 +1400,20 @@ describe("Compare mode with filters", () => {
     const previousFiltered = applyFiltersToRollups([previousRollup], filter);
 
     // Current: repo-a has 30 of 100 PRs
-    expect(currentFiltered[0].pr_count).toBe(30);
+    expect(currentFiltered[0]!.pr_count).toBe(30);
     // Previous: repo-a has 50 of 80 PRs
-    expect(previousFiltered[0].pr_count).toBe(50);
+    expect(previousFiltered[0]!.pr_count).toBe(50);
 
     // Cycle times should come from repo-a directly
-    expect(currentFiltered[0].cycle_time_p50).toBe(50);
-    expect(previousFiltered[0].cycle_time_p50).toBe(45);
+    expect(currentFiltered[0]!.cycle_time_p50).toBe(50);
+    expect(previousFiltered[0]!.cycle_time_p50).toBe(45);
   });
 
   it("filter zeroes out one period when repo missing from previous", () => {
     const prevWithoutRepoC = {
       ...previousRollup,
       by_repository: {
-        "repo-a": previousRollup.by_repository!["repo-a"],
+        "repo-a": previousRollup.by_repository!["repo-a"]!,
       },
     } as Rollup;
 
@@ -1422,9 +1422,9 @@ describe("Compare mode with filters", () => {
     const previousFiltered = applyFiltersToRollups([prevWithoutRepoC], filter);
 
     // Current: repo-b exists, should get its PRs
-    expect(currentFiltered[0].pr_count).toBe(70);
+    expect(currentFiltered[0]!.pr_count).toBe(70);
     // Previous: repo-b doesn't exist, should get 0
-    expect(previousFiltered[0].pr_count).toBe(0);
+    expect(previousFiltered[0]!.pr_count).toBe(0);
   });
 
   it("combined repo+team filter in both periods applies proportional intersection", () => {
@@ -1434,11 +1434,11 @@ describe("Compare mode with filters", () => {
 
     // Current: repo-a share = 30/100 = 0.3, team-x share = 40/100 = 0.4
     // Combined pr_count = round(100 * 0.3 * 0.4) = round(12) = 12
-    expect(currentFiltered[0].pr_count).toBe(12);
+    expect(currentFiltered[0]!.pr_count).toBe(12);
 
     // Previous: repo-a share = 50/80 = 0.625, team-x share = 60/80 = 0.75
     // Combined pr_count = round(80 * 0.625 * 0.75) = round(37.5) = 38
-    expect(previousFiltered[0].pr_count).toBe(38);
+    expect(previousFiltered[0]!.pr_count).toBe(38);
   });
 
   it("getPreviousPeriod with non-midnight boundary returns end exactly 1 day before start", () => {
@@ -1553,11 +1553,11 @@ describe("cross-dimensional exact lookup (T013)", () => {
     });
 
     // Exact lookup: by_team_and_repo["team-x"]["repo-a"]
-    expect(result[0].pr_count).toBe(20);
-    expect(result[0].cycle_time_p50).toBe(45);
-    expect(result[0].cycle_time_p90).toBe(95);
-    expect(result[0].authors_count).toBe(3);
-    expect(result[0].reviewers_count).toBe(2);
+    expect(result[0]!.pr_count).toBe(20);
+    expect(result[0]!.cycle_time_p50).toBe(45);
+    expect(result[0]!.cycle_time_p90).toBe(95);
+    expect(result[0]!.authors_count).toBe(3);
+    expect(result[0]!.reviewers_count).toBe(2);
   });
 
   // Validates that selecting a team-repo pair with no intersection entry
@@ -1596,11 +1596,11 @@ describe("cross-dimensional exact lookup (T013)", () => {
     });
 
     // No matching cross-dim entry for team-z + repo-a -> zeroed result
-    expect(result[0].pr_count).toBe(0);
-    expect(result[0].cycle_time_p50).toBeNull();
-    expect(result[0].cycle_time_p90).toBeNull();
-    expect(result[0].authors_count).toBe(0);
-    expect(result[0].reviewers_count).toBe(0);
+    expect(result[0]!.pr_count).toBe(0);
+    expect(result[0]!.cycle_time_p50).toBeNull();
+    expect(result[0]!.cycle_time_p90).toBeNull();
+    expect(result[0]!.authors_count).toBe(0);
+    expect(result[0]!.reviewers_count).toBe(0);
   });
 
   // Validates that selecting 2 teams and 2 repos aggregates (sums) pr_count
@@ -1614,11 +1614,11 @@ describe("cross-dimensional exact lookup (T013)", () => {
     // Aggregation across all 4 cross-dim entries:
     // team-x/repo-a: 20, team-x/repo-b: 20, team-y/repo-a: 10, team-y/repo-b: 50
     // Total: 20 + 20 + 10 + 50 = 100
-    expect(result[0].pr_count).toBe(100);
+    expect(result[0]!.pr_count).toBe(100);
     // authors: 3 + 3 + 2 + 5 = 13
-    expect(result[0].authors_count).toBe(13);
+    expect(result[0]!.authors_count).toBe(13);
     // reviewers: 2 + 2 + 1 + 3 = 8
-    expect(result[0].reviewers_count).toBe(8);
+    expect(result[0]!.reviewers_count).toBe(8);
   });
 
   // Validates that without by_team_and_repo, the function falls through to
@@ -1673,9 +1673,9 @@ describe("cross-dimensional exact lookup (T013)", () => {
 
     // Proportional estimation: repoShare = 30/100 = 0.3, teamShare = 40/100 = 0.4
     // combinedPrCount = round(100 * 0.3 * 0.4) = 12
-    expect(result[0].pr_count).toBe(12);
+    expect(result[0]!.pr_count).toBe(12);
     // Cycle time: average of repo-a p50 (50) and team-x p50 (55) = 52.5
-    expect(result[0].cycle_time_p50).toBeCloseTo(52.5);
+    expect(result[0]!.cycle_time_p50).toBeCloseTo(52.5);
   });
 });
 
@@ -1740,15 +1740,15 @@ describe("legacy rollup fallback (T018)", () => {
     // Proportional: repoShare = 30/100 = 0.3, teamShare = 40/100 = 0.4
     // Combined ratio = 0.12
     // pr_count = round(100 * 0.12) = 12
-    expect(result[0].pr_count).toBe(12);
+    expect(result[0]!.pr_count).toBe(12);
     // authors: round(10 * 0.12) = 1
-    expect(result[0].authors_count).toBe(1);
+    expect(result[0]!.authors_count).toBe(1);
     // reviewers: round(5 * 0.12) = 1
-    expect(result[0].reviewers_count).toBe(1);
+    expect(result[0]!.reviewers_count).toBe(1);
     // Cycle time p50: avg(50, 55) = 52.5
-    expect(result[0].cycle_time_p50).toBeCloseTo(52.5);
+    expect(result[0]!.cycle_time_p50).toBeCloseTo(52.5);
     // Cycle time p90: avg(100, 110) = 105
-    expect(result[0].cycle_time_p90).toBeCloseTo(105);
+    expect(result[0]!.cycle_time_p90).toBeCloseTo(105);
   });
 
   // Validates that a v1 rollup without by_team_and_repo field still works
@@ -1809,10 +1809,10 @@ describe("legacy rollup fallback (T018)", () => {
     });
 
     // Result should be a valid rollup with finite numbers
-    expect(typeof result[0].pr_count).toBe("number");
-    expect(Number.isFinite(result[0].pr_count)).toBe(true);
-    expect(result[0].pr_count).toBeGreaterThan(0);
-    expect(result[0].week).toBe("2026-W01");
+    expect(typeof result[0]!.pr_count).toBe("number");
+    expect(Number.isFinite(result[0]!.pr_count)).toBe(true);
+    expect(result[0]!.pr_count).toBeGreaterThan(0);
+    expect(result[0]!.week).toBe("2026-W01");
   });
 });
 
@@ -1952,13 +1952,13 @@ describe("mixed-week blend (T019)", () => {
     });
 
     // Week 1 (v2): exact lookup team-x + repo-a = 20
-    expect(result[0].pr_count).toBe(20);
-    expect(result[0].cycle_time_p50).toBe(45);
+    expect(result[0]!.pr_count).toBe(20);
+    expect(result[0]!.cycle_time_p50).toBe(45);
 
     // Week 2 (v1): proportional = round(80 * (40/80) * (48/80)) = round(80 * 0.5 * 0.6) = round(24) = 24
-    expect(result[1].pr_count).toBe(24);
+    expect(result[1]!.pr_count).toBe(24);
     // Cycle time: avg(48, 52) = 50
-    expect(result[1].cycle_time_p50).toBeCloseTo(50);
+    expect(result[1]!.cycle_time_p50).toBeCloseTo(50);
   });
 
   // Validates that by_team_and_repo !== undefined correctly distinguishes
@@ -1991,13 +1991,13 @@ describe("mixed-week blend (T019)", () => {
     });
 
     // v2 uses exact: 35 (from cross-dim lookup)
-    expect(results[0].pr_count).toBe(35);
+    expect(results[0]!.pr_count).toBe(35);
 
     // v1 uses proportional: round(100 * 0.5 * 0.6) = 30
-    expect(results[1].pr_count).toBe(30);
+    expect(results[1]!.pr_count).toBe(30);
 
     // The two values differ, confirming different resolution paths
-    expect(results[0].pr_count).not.toBe(results[1].pr_count);
+    expect(results[0]!.pr_count).not.toBe(results[1]!.pr_count);
   });
 });
 
@@ -2034,11 +2034,11 @@ describe("zero-leakage regression", () => {
       teams: [],
     });
 
-    expect(result[0].pr_count).toBe(0);
-    expect(result[0].authors_count).toBe(0);
-    expect(result[0].reviewers_count).toBe(0);
-    expect(result[0].cycle_time_p50).toBeNull();
-    expect(result[0].cycle_time_p90).toBeNull();
+    expect(result[0]!.pr_count).toBe(0);
+    expect(result[0]!.authors_count).toBe(0);
+    expect(result[0]!.reviewers_count).toBe(0);
+    expect(result[0]!.cycle_time_p50).toBeNull();
+    expect(result[0]!.cycle_time_p90).toBeNull();
   });
 
   // Bug 2: proportional path must not leak global values when small shares
@@ -2079,12 +2079,12 @@ describe("zero-leakage regression", () => {
 
     // repoShare=5/500=0.01, teamShare=5/500=0.01, ratio=0.0001
     // combinedPrCount=round(500*0.0001)=round(0.05)=0
-    expect(result[0].pr_count).toBe(0);
+    expect(result[0]!.pr_count).toBe(0);
     // Zero-leakage: must NOT show "0 PRs by 20 authors"
-    expect(result[0].authors_count).toBe(0);
-    expect(result[0].reviewers_count).toBe(0);
-    expect(result[0].cycle_time_p50).toBeNull();
-    expect(result[0].cycle_time_p90).toBeNull();
+    expect(result[0]!.authors_count).toBe(0);
+    expect(result[0]!.reviewers_count).toBe(0);
+    expect(result[0]!.cycle_time_p50).toBeNull();
+    expect(result[0]!.cycle_time_p90).toBeNull();
   });
 
   // Bug 4: truncated cross-dim map should fall back to proportional estimation
@@ -2139,9 +2139,9 @@ describe("zero-leakage regression", () => {
     // have been dropped. Falls back to proportional estimation:
     // repoShare=40/100=0.4, teamShare=60/100=0.6, ratio=0.24
     // combinedPrCount=round(100*0.24)=24
-    expect(result[0].pr_count).toBe(24);
+    expect(result[0]!.pr_count).toBe(24);
     // Confirms proportional path was used (not zeroed)
-    expect(result[0].pr_count).toBeGreaterThan(0);
+    expect(result[0]!.pr_count).toBeGreaterThan(0);
   });
 
   // PR#158 adoption: non-zero pr_count but zero authors must not leak global values
@@ -2170,9 +2170,9 @@ describe("zero-leakage regression", () => {
     });
 
     // pr_count is 5, but authors/reviewers are 0 — must NOT show global 15/8
-    expect(result[0].pr_count).toBe(5);
-    expect(result[0].authors_count).toBe(0);
-    expect(result[0].reviewers_count).toBe(0);
+    expect(result[0]!.pr_count).toBe(5);
+    expect(result[0]!.authors_count).toBe(0);
+    expect(result[0]!.reviewers_count).toBe(0);
   });
 
   // PR#158 adoption: non-zero pr_count but no cycle_time data must not leak global values
@@ -2200,9 +2200,9 @@ describe("zero-leakage regression", () => {
     });
 
     // pr_count is 10, but cycle times should be null — must NOT show global 60/120
-    expect(result[0].pr_count).toBe(10);
-    expect(result[0].cycle_time_p50).toBeNull();
-    expect(result[0].cycle_time_p90).toBeNull();
+    expect(result[0]!.pr_count).toBe(10);
+    expect(result[0]!.cycle_time_p50).toBeNull();
+    expect(result[0]!.cycle_time_p90).toBeNull();
   });
 
   // PR#158: truncated cross-dim map with partial hit must fall through to proportional,
@@ -2262,7 +2262,7 @@ describe("zero-leakage regression", () => {
 
     // With the bug, this would return pr_count=15 (only team-x/repo-a exact).
     // Fixed: falls through to proportional = 100 * (70/100) * (50/100) = 35.
-    expect(result[0].pr_count).toBe(35);
+    expect(result[0]!.pr_count).toBe(35);
   });
 
   // Existing behavior preserved: non-truncated map with lookup miss returns zero.
@@ -2312,10 +2312,10 @@ describe("zero-leakage regression", () => {
     });
 
     // Non-truncated miss means genuinely zero PRs for this intersection
-    expect(result[0].pr_count).toBe(0);
-    expect(result[0].authors_count).toBe(0);
-    expect(result[0].reviewers_count).toBe(0);
-    expect(result[0].cycle_time_p50).toBeNull();
-    expect(result[0].cycle_time_p90).toBeNull();
+    expect(result[0]!.pr_count).toBe(0);
+    expect(result[0]!.authors_count).toBe(0);
+    expect(result[0]!.reviewers_count).toBe(0);
+    expect(result[0]!.cycle_time_p50).toBeNull();
+    expect(result[0]!.cycle_time_p90).toBeNull();
   });
 });

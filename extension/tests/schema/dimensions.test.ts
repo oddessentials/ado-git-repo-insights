@@ -644,7 +644,7 @@ describe("Dimensions Schema Validator", () => {
       const result = validateDimensions({}, true);
       expect(result.valid).toBe(false);
       expect(result.errors.length).toBeGreaterThan(0);
-      expect(result.errors[0].message).toContain("required");
+      expect(result.errors[0]!.message).toContain("required");
     });
 
     it("should fail for null input", () => {

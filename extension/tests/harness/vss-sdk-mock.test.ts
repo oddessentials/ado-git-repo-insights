@@ -227,8 +227,8 @@ describe("VSS SDK Mock", () => {
 
       mocks.require(
         ["TFS/Build/RestClient"],
-        (client: { getClient: () => unknown }) => {
-          buildClient = client;
+        (client: unknown) => {
+          buildClient = client as { getClient: () => unknown };
         },
       );
 
@@ -242,8 +242,8 @@ describe("VSS SDK Mock", () => {
 
       mocks.require(
         ["TFS/Build/RestClient"],
-        (client: { getClient: () => unknown }) => {
-          restClient = client.getClient() as ReturnType<
+        (client: unknown) => {
+          restClient = (client as { getClient: () => unknown }).getClient() as ReturnType<
             typeof getMockBuildRestClient
           >;
         },

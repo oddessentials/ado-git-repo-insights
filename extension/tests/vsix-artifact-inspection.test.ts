@@ -31,7 +31,7 @@ describe("VSIX Artifact Inspection (Tier B)", () => {
         const statB = fs.statSync(path.join(extensionDir, b));
         return statB.mtimeMs - statA.mtimeMs;
       });
-      return path.join(extensionDir, vsixFiles[0]);
+      return path.join(extensionDir, vsixFiles[0]!);
     } catch {
       return null;
     }
@@ -104,7 +104,7 @@ describe("VSIX Artifact Inspection (Tier B)", () => {
     }
   });
 
-  // Skip entire suite if no VSIX and not required
+  // Skip justification: requires VSIX artifact on disk (produced by package:vsix); not available in standard test runs
   const skipTests = !vsixPath && !vsixRequired;
 
   (skipTests ? describe.skip : describe)("Actual VSIX Contents", () => {

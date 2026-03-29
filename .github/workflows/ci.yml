@@ -829,6 +829,14 @@ jobs:
         working-directory: extension
         run: pnpm run build:check
 
+      - name: TypeScript Test Type Check
+        working-directory: extension
+        run: pnpm run build:check-tests
+
+      - name: TypeScript Test Config Parity
+        working-directory: extension
+        run: pnpm run test:config-parity
+
       - name: ESLint
         working-directory: extension
         run: pnpm run lint

@@ -5,9 +5,15 @@
  * authentication flow and Build Artifacts API responses.
  */
 
+export interface MockWebContext {
+  account: { name: string };
+  project: { name: string; id: string };
+  user: { name: string; id: string };
+}
+
 export interface SdkMockOptions {
   accessToken?: string;
-  webContext?: any;
+  webContext?: MockWebContext;
 }
 
 /**
@@ -30,14 +36,31 @@ export function createSdkMock(options: SdkMockOptions = {}) {
       witInputs: {},
     }),
     notifyLoadSucceeded: () => {},
-    notifyLoadFailed: (error: any) => console.error("SDK Load Failed:", error),
+    notifyLoadFailed: (error: unknown) => console.error("SDK Load Failed:", error),
     resize: () => {},
   };
 }
 
+export interface MockBuildRun {
+  id: number;
+  buildNumber: string;
+  result: string;
+  finishTime: string;
+}
+
+export interface MockBuildArtifact {
+  id: number;
+  name: string;
+  resource: {
+    type: string;
+    data: string;
+    downloadUrl: string;
+  };
+}
+
 export interface BuildApiScenario {
-  runs: any[] | null;
-  artifacts?: any[];
+  runs: MockBuildRun[] | null;
+  artifacts?: MockBuildArtifact[];
   error?: { status: number; message: string } | null;
 }
 
@@ -120,7 +143,7 @@ export function createBuildApiMock(scenario: string = "SUCCESS") {
   return {
     getBuilds: async () => {
       if (scenarioData?.error) {
-        const err = new Error(scenarioData.error.message) as any;
+        const err = new Error(scenarioData.error.message) as Error & { status: number };
         err.status = scenarioData.error.status;
         throw err;
       }
@@ -129,7 +152,7 @@ export function createBuildApiMock(scenario: string = "SUCCESS") {
 
     getArtifacts: async () => {
       if (scenarioData?.error) {
-        const err = new Error(scenarioData.error.message) as any;
+        const err = new Error(scenarioData.error.message) as Error & { status: number };
         err.status = scenarioData.error.status;
         throw err;
       }

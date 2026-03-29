@@ -52,8 +52,8 @@ describe("VSIX Packaging Contract (Tier A)", () => {
     it("must package dist/ui (compiled), not ui (source)", () => {
       const addressableEntry = manifest.files?.find((file) => file.addressable);
       expect(addressableEntry).toBeDefined();
-      expect(addressableEntry.path).toBe("dist/ui");
-      expect(addressableEntry.path).not.toBe("ui");
+      expect(addressableEntry!.path).toBe("dist/ui");
+      expect(addressableEntry!.path).not.toBe("ui");
     });
 
     it("dist/ui directory must exist at test time", () => {
@@ -94,10 +94,10 @@ describe("VSIX Packaging Contract (Tier A)", () => {
       for (const hub of hubs) {
         const uri = hub.properties?.uri;
         expect(uri).toBeDefined();
-        expect(uri).toMatch(/^dist\/ui\//);
+        expect(uri!).toMatch(/^dist\/ui\//);
 
         // Verify referenced file exists
-        const filePath = path.join(extensionDir, uri);
+        const filePath = path.join(extensionDir, uri!);
         expect(pathExists(filePath)).toBe(true);
       }
     });
@@ -218,20 +218,20 @@ describe("VSIX Packaging Contract (Tier A)", () => {
   describe("Marketplace Readiness", () => {
     it("galleryFlags contains Public and Preview", () => {
       expect(manifest.galleryFlags).toBeDefined();
-      expect(manifest.galleryFlags).toContain("Public");
-      expect(manifest.galleryFlags).toContain("Preview");
+      expect(manifest.galleryFlags!).toContain("Public");
+      expect(manifest.galleryFlags!).toContain("Preview");
     });
 
     it("tags array has at least 8 entries", () => {
       expect(manifest.tags).toBeDefined();
       expect(Array.isArray(manifest.tags)).toBe(true);
-      expect(manifest.tags.length).toBeGreaterThanOrEqual(8);
+      expect(manifest.tags!.length).toBeGreaterThanOrEqual(8);
     });
 
     it("galleryBanner has valid hex color and theme", () => {
       expect(manifest.galleryBanner).toBeDefined();
-      expect(manifest.galleryBanner.color).toMatch(/^#[0-9a-fA-F]{6}$/);
-      expect(["dark", "light"]).toContain(manifest.galleryBanner.theme);
+      expect(manifest.galleryBanner!.color).toMatch(/^#[0-9a-fA-F]{6}$/);
+      expect(["dark", "light"]).toContain(manifest.galleryBanner!.theme);
     });
 
     it("all 6 link types exist", () => {
@@ -255,33 +255,33 @@ describe("VSIX Packaging Contract (Tier A)", () => {
 
     it("CustomerQnASupport is enabled with URL", () => {
       expect(manifest.CustomerQnASupport).toBeDefined();
-      expect(manifest.CustomerQnASupport.enableqna).toBe(true);
-      expect(manifest.CustomerQnASupport.url).toBeDefined();
+      expect(manifest.CustomerQnASupport!.enableqna).toBe(true);
+      expect(manifest.CustomerQnASupport!.url).toBeDefined();
     });
 
     it("badges array has at least 2 entries", () => {
       expect(manifest.badges).toBeDefined();
       expect(Array.isArray(manifest.badges)).toBe(true);
-      expect(manifest.badges.length).toBeGreaterThanOrEqual(2);
+      expect(manifest.badges!.length).toBeGreaterThanOrEqual(2);
     });
 
     it("description is under 200 characters", () => {
       expect(manifest.description).toBeDefined();
-      expect(manifest.description.length).toBeLessThanOrEqual(200);
+      expect(manifest.description!.length).toBeLessThanOrEqual(200);
     });
 
     it("description contains optional/configurable/add-on qualifier for ML/AI", () => {
-      expect(manifest.description).toMatch(/optional|configurable|add-on/i);
+      expect(manifest.description!).toMatch(/optional|configurable|add-on/i);
     });
 
     it("at least 3 screenshots defined", () => {
       expect(manifest.screenshots).toBeDefined();
       expect(Array.isArray(manifest.screenshots)).toBe(true);
-      expect(manifest.screenshots.length).toBeGreaterThanOrEqual(3);
+      expect(manifest.screenshots!.length).toBeGreaterThanOrEqual(3);
     });
 
     it("all screenshot files exist on disk", () => {
-      for (const screenshot of manifest.screenshots) {
+      for (const screenshot of manifest.screenshots!) {
         const filePath = path.join(extensionDir, screenshot.path);
         expect(pathExists(filePath)).toBe(true);
       }
@@ -314,7 +314,7 @@ describe("VSIX Packaging Contract (Tier A)", () => {
       const MIN_SCREENSHOT_WIDTH = 800;
       const MIN_SCREENSHOT_HEIGHT = 400;
 
-      for (const screenshot of manifest.screenshots) {
+      for (const screenshot of manifest.screenshots!) {
         const filePath = path.join(extensionDir, screenshot.path);
         const buffer = readBufferFile(filePath);
 

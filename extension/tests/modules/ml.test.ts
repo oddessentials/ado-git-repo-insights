@@ -222,8 +222,8 @@ describe("extractHistoricalData", () => {
     ];
     const result = extractHistoricalData(rollups, "pr_throughput");
     expect(result).toHaveLength(2);
-    expect(result[0].value).toBe(5);
-    expect(result[1].value).toBe(10);
+    expect(result[0]!.value).toBe(5);
+    expect(result[1]!.value).toBe(10);
   });
 });
 
@@ -894,9 +894,9 @@ describe("sortInsights (T031)", () => {
 
     const sorted = sortInsights(insights);
 
-    expect(sorted[0].severity).toBe("critical");
-    expect(sorted[1].severity).toBe("warning");
-    expect(sorted[2].severity).toBe("info");
+    expect(sorted[0]!.severity).toBe("critical");
+    expect(sorted[1]!.severity).toBe("warning");
+    expect(sorted[2]!.severity).toBe("info");
   });
 
   it("sorts by category ASC when severity is equal", () => {
@@ -926,9 +926,9 @@ describe("sortInsights (T031)", () => {
 
     const sorted = sortInsights(insights);
 
-    expect(sorted[0].category).toBe("alpha");
-    expect(sorted[1].category).toBe("mike");
-    expect(sorted[2].category).toBe("zulu");
+    expect(sorted[0]!.category).toBe("alpha");
+    expect(sorted[1]!.category).toBe("mike");
+    expect(sorted[2]!.category).toBe("zulu");
   });
 
   it("sorts by id ASC when severity and category are equal", () => {
@@ -958,9 +958,9 @@ describe("sortInsights (T031)", () => {
 
     const sorted = sortInsights(insights);
 
-    expect(sorted[0].id).toBe("insight-10");
-    expect(sorted[1].id).toBe("insight-20");
-    expect(sorted[2].id).toBe("insight-30");
+    expect(sorted[0]!.id).toBe("insight-10");
+    expect(sorted[1]!.id).toBe("insight-20");
+    expect(sorted[2]!.id).toBe("insight-30");
   });
 
   it("applies full sort order: severity DESC → category ASC → id ASC", () => {
@@ -998,18 +998,18 @@ describe("sortInsights (T031)", () => {
     const sorted = sortInsights(insights);
 
     // First: critical severity
-    expect(sorted[0].severity).toBe("critical");
-    expect(sorted[0].category).toBe("alpha");
+    expect(sorted[0]!.severity).toBe("critical");
+    expect(sorted[0]!.category).toBe("alpha");
     // Then: info severity, alpha category
-    expect(sorted[1].severity).toBe("info");
-    expect(sorted[1].category).toBe("alpha");
-    expect(sorted[1].id).toBe("a-1i");
+    expect(sorted[1]!.severity).toBe("info");
+    expect(sorted[1]!.category).toBe("alpha");
+    expect(sorted[1]!.id).toBe("a-1i");
     // Then: info severity, beta category, id b-1
-    expect(sorted[2].category).toBe("beta");
-    expect(sorted[2].id).toBe("b-1");
+    expect(sorted[2]!.category).toBe("beta");
+    expect(sorted[2]!.id).toBe("b-1");
     // Last: info severity, beta category, id b-2
-    expect(sorted[3].category).toBe("beta");
-    expect(sorted[3].id).toBe("b-2");
+    expect(sorted[3]!.category).toBe("beta");
+    expect(sorted[3]!.id).toBe("b-2");
   });
 
   it("does not mutate the original array", () => {
@@ -1033,10 +1033,10 @@ describe("sortInsights (T031)", () => {
     const sorted = sortInsights(original);
 
     // Original should remain unchanged
-    expect(original[0].id).toBe("insight-2");
-    expect(original[1].id).toBe("insight-1");
+    expect(original[0]!.id).toBe("insight-2");
+    expect(original[1]!.id).toBe("insight-1");
     // Sorted should be different
-    expect(sorted[0].id).toBe("insight-1");
+    expect(sorted[0]!.id).toBe("insight-1");
     expect(sorted).not.toBe(original);
   });
 
@@ -1060,8 +1060,8 @@ describe("sortInsights (T031)", () => {
 
     const sorted = sortInsights(insights);
 
-    expect(sorted[0].id).toBe("a-insight");
-    expect(sorted[1].id).toBe("z-insight");
+    expect(sorted[0]!.id).toBe("a-insight");
+    expect(sorted[1]!.id).toBe("z-insight");
   });
 });
 
@@ -1320,8 +1320,8 @@ describe("T021: Predictions Chronological Ordering", () => {
       a.period_start.localeCompare(b.period_start),
     );
 
-    expect(sorted[0].period_start).toBe("2026-01-28");
-    expect(sorted[1].period_start).toBe("2026-01-29");
-    expect(sorted[2].period_start).toBe("2026-01-30");
+    expect(sorted[0]!.period_start).toBe("2026-01-28");
+    expect(sorted[1]!.period_start).toBe("2026-01-29");
+    expect(sorted[2]!.period_start).toBe("2026-01-30");
   });
 });

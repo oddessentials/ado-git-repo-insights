@@ -36,14 +36,20 @@ export interface MockWebContext {
  * Mock extension data service.
  */
 export interface MockExtensionDataService {
-  getValue: jest.Mock;
-  setValue: jest.Mock;
-  getDocument: jest.Mock;
-  setDocument: jest.Mock;
-  createDocument: jest.Mock;
-  deleteDocument: jest.Mock;
-  getDocuments: jest.Mock;
-  queryCollections: jest.Mock;
+  getValue: jest.Mock<(key: string, options?: unknown) => Promise<unknown>>;
+  setValue: jest.Mock<(key: string, value: unknown) => Promise<unknown>>;
+  getDocument: jest.Mock<(collection: string, id: string) => Promise<unknown>>;
+  setDocument: jest.Mock<
+    (collection: string, doc: { id: string }) => Promise<{ id: string }>
+  >;
+  createDocument: jest.Mock<
+    (collection: string, doc: { id: string }) => Promise<{ id: string }>
+  >;
+  deleteDocument: jest.Mock<
+    (collection: string, id: string) => Promise<void>
+  >;
+  getDocuments: jest.Mock<() => Promise<unknown[]>>;
+  queryCollections: jest.Mock<() => Promise<unknown[]>>;
 }
 
 /**
@@ -125,7 +131,7 @@ const mockSettingsStorage = new Map<string, unknown>();
  */
 export function createMockExtensionDataService(): MockExtensionDataService {
   return {
-    getValue: jest.fn((key: string) =>
+    getValue: jest.fn((key: string, _options?: unknown) =>
       Promise.resolve(mockSettingsStorage.get(key) ?? null),
     ),
     setValue: jest.fn((key: string, value: unknown) => {
@@ -360,15 +366,15 @@ export function setMockSettingError(key: string, error: Error): void {
   const service = getMockExtensionDataService();
   const originalImpl = service.getValue.getMockImplementation();
 
-  service.getValue.mockImplementation((requestedKey: string) => {
+  service.getValue.mockImplementation(((requestedKey: string, _options?: unknown) => {
     if (requestedKey === key) {
       return Promise.reject(error);
     }
     if (originalImpl) {
-      return originalImpl(requestedKey);
+      return (originalImpl as (k: string, o?: unknown) => Promise<unknown>)(requestedKey);
     }
     return Promise.resolve(mockSettingsStorage.get(requestedKey) ?? null);
-  });
+  }) as (key: string, options?: unknown) => Promise<unknown>);
 }
 
 /**
@@ -507,21 +513,21 @@ export function configureExtensionDataService(
   const service = getMockExtensionDataService();
 
   // Override getValue to handle all scenarios
-  service.getValue.mockImplementation((key: string) => {
+  service.getValue.mockImplementation(((settingKey: string, _options?: unknown) => {
     // Check for error scenario first
-    if (errorKeys[key]) {
-      return Promise.reject(errorKeys[key]);
+    if (errorKeys[settingKey]) {
+      return Promise.reject(errorKeys[settingKey]);
     }
 
     // Check for explicitly missing keys
-    if (missingKeys.includes(key)) {
+    if (missingKeys.includes(settingKey)) {
       return Promise.resolve(undefined);
     }
 
     // Return the configured value or undefined if not set
-    const value = mockSettingsStorage.get(key);
+    const value = mockSettingsStorage.get(settingKey);
     return Promise.resolve(value ?? null);
-  });
+  }) as (key: string, options?: unknown) => Promise<unknown>);
 }
 
 /**

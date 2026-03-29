@@ -403,7 +403,7 @@ describe("Insights Schema Validator", () => {
       const result = validateInsights({}, false);
       expect(result.valid).toBe(false);
       expect(result.errors.length).toBeGreaterThan(0);
-      expect(result.errors[0].message).toContain("required");
+      expect(result.errors[0]!.message).toContain("required");
     });
   });
 });

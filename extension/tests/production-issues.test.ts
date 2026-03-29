@@ -546,9 +546,9 @@ describe("Issue 2: Stale Settings and Auto-Discovery Fallback", () => {
       const matches = await discoverPipelines();
 
       expect(matches.length).toBe(1);
-      expect(matches[0].id).toBe(7);
-      expect(matches[0].name).toBe("PR Insights Pipeline");
-      expect(matches[0].buildId).toBe(9);
+      expect(matches[0]!.id).toBe(7);
+      expect(matches[0]!.name).toBe("PR Insights Pipeline");
+      expect(matches[0]!.buildId).toBe(9);
     });
 
     it("returns empty when no pipelines have aggregates", async () => {
@@ -707,7 +707,7 @@ describe("Combined: First-run PartiallySucceeded + Auto-discovery", () => {
         {
           id: 7,
           name: "PR Insights",
-          buildId: filteredBuilds[0].id,
+          buildId: filteredBuilds[0]!.id,
         },
       ];
     };
@@ -715,7 +715,7 @@ describe("Combined: First-run PartiallySucceeded + Auto-discovery", () => {
     const discovered = await mockDiscoverPipelines();
 
     expect(discovered.length).toBe(1);
-    expect(discovered[0].buildId).toBe(9);
+    expect(discovered[0]!.buildId).toBe(9);
   });
 
   it("old resultFilter would have missed first-run after reinstall", async () => {
@@ -745,7 +745,7 @@ describe("Combined: First-run PartiallySucceeded + Auto-discovery", () => {
         {
           id: 7,
           name: "PR Insights",
-          buildId: filteredBuilds[0].id,
+          buildId: filteredBuilds[0]!.id,
         },
       ];
     };

@@ -92,7 +92,7 @@ describe("Manifest Schema Validator", () => {
       const result = validateManifest(invalid, true);
       expect(result.valid).toBe(false);
       expect(result.errors.length).toBeGreaterThan(0);
-      expect(result.errors[0].field).toContain("manifest_schema_version");
+      expect(result.errors[0]!.field).toContain("manifest_schema_version");
     });
 
     it("should fail when generated_at is missing", () => {
@@ -129,7 +129,7 @@ describe("Manifest Schema Validator", () => {
       const invalid = { ...validManifest, manifest_schema_version: "1" };
       const result = validateManifest(invalid, true);
       expect(result.valid).toBe(false);
-      expect(result.errors[0].expected).toContain("number");
+      expect(result.errors[0]!.expected).toContain("number");
     });
 
     it("should fail when generated_at is not a valid ISO datetime", () => {
@@ -411,7 +411,7 @@ describe("Manifest Schema Validator", () => {
       const result = validateManifest({}, true);
       expect(result.valid).toBe(false);
       expect(result.errors.length).toBeGreaterThan(0);
-      expect(result.errors[0].message).toContain("required");
+      expect(result.errors[0]!.message).toContain("required");
     });
 
     it("should fail for null input", () => {

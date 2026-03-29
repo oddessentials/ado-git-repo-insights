@@ -4,7 +4,7 @@
  * Ensures generated datasets can be loaded by the extension UI.
  */
 
-import { DatasetLoader } from "../../ui/dataset-loader";
+import { DatasetLoader, type Rollup } from "../../ui/dataset-loader";
 import * as path from "path";
 import { resolveInside } from "../../tasks/_shared/safe-path";
 import {
@@ -59,6 +59,7 @@ const testGlobal = global as typeof globalThis & {
 };
 
 const pythonSubprocessSupport = probePythonSubprocessSupport();
+// Skip justification: requires Python subprocess for synthetic data generation; not available in all CI/local environments
 const syntheticFixtureTest = pythonSubprocessSupport.supported
   ? test
   : test.skip;
@@ -199,8 +200,8 @@ describe("Synthetic Fixture Consumer Validation", () => {
       expect(manifest).toBeDefined();
       expect(manifest.manifest_schema_version).toBe(1);
       expect(manifest.aggregates_schema_version).toBe(2);
-      expect(manifest.aggregate_index.weekly_rollups).toBeInstanceOf(Array);
-      expect(manifest.aggregate_index.weekly_rollups.length).toBeGreaterThan(0);
+      expect(manifest.aggregate_index!.weekly_rollups).toBeInstanceOf(Array);
+      expect(manifest.aggregate_index!.weekly_rollups!.length).toBeGreaterThan(0);
     },
   );
 
@@ -228,7 +229,7 @@ describe("Synthetic Fixture Consumer Validation", () => {
     const manifest = loader.getManifestForTest() as FixtureManifest;
     expect(manifest.aggregate_index.weekly_rollups.length).toBeGreaterThan(0);
 
-    const rollupEntry = manifest.aggregate_index.weekly_rollups[0];
+    const rollupEntry = manifest.aggregate_index.weekly_rollups[0]!;
     const rollupPath = path.join(fixturePath, rollupEntry.path);
 
     expect(pathExists(rollupPath)).toBe(true);
@@ -249,14 +250,16 @@ describe("Synthetic Fixture Consumer Validation", () => {
     await loader.loadManifest();
 
     const dimensions = await loader.loadDimensions();
+    expect(dimensions).not.toBeNull();
+    const dims = dimensions!;
 
-    expect(dimensions).toHaveProperty("repositories");
-    expect(dimensions).toHaveProperty("users");
-    expect(dimensions).toHaveProperty("projects");
-    expect(dimensions).toHaveProperty("date_range");
+    expect(dims).toHaveProperty("repositories");
+    expect(dims).toHaveProperty("users");
+    expect(dims).toHaveProperty("projects");
+    expect(dims).toHaveProperty("date_range");
 
-    expect(Array.isArray(dimensions.repositories)).toBe(true);
-    expect(Array.isArray(dimensions.users)).toBe(true);
+    expect(Array.isArray(dims.repositories)).toBe(true);
+    expect(Array.isArray(dims.users)).toBe(true);
   });
 
   syntheticFixtureTest("5k PR fixture generates successfully", async () => {
@@ -323,37 +326,39 @@ describe("Synthetic Fixture Consumer Validation", () => {
         }
 
         expect(targetRollup).not.toBeNull();
-        expect(targetRollup.by_team_and_repo).toBeDefined();
+        const rollup = targetRollup!;
+        expect(rollup.by_team_and_repo).toBeDefined();
+        const byTeamAndRepo = rollup.by_team_and_repo!;
 
         // Get known exact values from the fixture
-        const teamNames = Object.keys(targetRollup.by_team_and_repo).filter(
+        const teamNames = Object.keys(byTeamAndRepo).filter(
           (k) => !k.startsWith("_"),
         );
         expect(teamNames.length).toBeGreaterThan(0);
 
-        const firstTeam = teamNames[0];
-        const teamRepoEntries = Object.entries(targetRollup.by_team_and_repo)
+        const firstTeam = teamNames[0]!;
+        const teamRepoEntries = Object.entries(byTeamAndRepo)
           .filter(([teamName]) => teamName === firstTeam);
         expect(teamRepoEntries.length).toBe(1);
 
-        const [, teamRepos] = teamRepoEntries[0];
+        const [, teamRepos] = teamRepoEntries[0]!;
         const repoEntries = Object.entries(teamRepos);
         expect(repoEntries.length).toBeGreaterThan(0);
 
-        const [firstRepo, expectedEntry] = repoEntries[0];
+        const [firstRepo, expectedEntry] = repoEntries[0]!;
         const expectedPrCount = expectedEntry.pr_count;
 
         // Now run through TypeScript's applyFiltersToRollups
         const { applyFiltersToRollups } =
           await import("../../ui/modules/metrics");
 
-        const filtered = applyFiltersToRollups([targetRollup], {
+        const filtered = applyFiltersToRollups([rollup as Rollup], {
           teams: [firstTeam],
           repos: [firstRepo],
         });
 
         // The filtered result should match the exact cross-dim value
-        expect(filtered[0].pr_count).toBe(expectedPrCount);
+        expect(filtered[0]!.pr_count).toBe(expectedPrCount);
       },
     );
 
@@ -411,23 +416,24 @@ describe("Synthetic Fixture Consumer Validation", () => {
           }
         }
         expect(targetRollup).not.toBeNull();
+        const rollup = targetRollup! as Rollup;
 
         const { applyFiltersToRollups } =
           await import("../../ui/modules/metrics");
 
         // Non-existent team
-        const filteredTeam = applyFiltersToRollups([targetRollup], {
+        const filteredTeam = applyFiltersToRollups([rollup], {
           teams: ["NonExistentTeam_XYZ"],
           repos: [],
         });
-        expect(filteredTeam[0].pr_count).toBe(0);
+        expect(filteredTeam[0]!.pr_count).toBe(0);
 
         // Non-existent repo
-        const filteredRepo = applyFiltersToRollups([targetRollup], {
+        const filteredRepo = applyFiltersToRollups([rollup], {
           teams: [],
           repos: ["NonExistentRepo_XYZ"],
         });
-        expect(filteredRepo[0].pr_count).toBe(0);
+        expect(filteredRepo[0]!.pr_count).toBe(0);
       },
     );
   });

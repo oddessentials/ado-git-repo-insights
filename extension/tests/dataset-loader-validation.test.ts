@@ -257,7 +257,7 @@ describe("DatasetLoader Validation Integration", () => {
       expect(caught).toBeInstanceOf(SchemaValidationError);
       expect(caught?.artifactType).toBe("manifest");
       expect(caught?.errors.length).toBeGreaterThan(0);
-      expect(caught?.errors[0].field).toContain("manifest_schema_version");
+      expect(caught?.errors[0]!.field).toContain("manifest_schema_version");
     });
 
     it("should cache validated manifest and skip validation on subsequent calls", async () => {
@@ -389,7 +389,7 @@ describe("DatasetLoader Validation Integration", () => {
       );
 
       expect(result).toHaveLength(1);
-      expect(result[0].week).toBe("2026-W03");
+      expect(result[0]!.week).toBe("2026-W03");
     });
 
     it("should throw SchemaValidationError when week is missing", async () => {
@@ -440,7 +440,7 @@ describe("DatasetLoader Validation Integration", () => {
       );
 
       // Both calls should return same data
-      expect(result1[0].week).toBe(result2[0].week);
+      expect(result1[0]!.week).toBe(result2[0]!.week);
       // Fetch should only be called once
       expect(fetchCount).toBe(1);
     });

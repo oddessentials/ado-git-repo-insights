@@ -56,7 +56,8 @@ describe("Local Mode Integration", () => {
         `;
 
     // Mock fetch responses — cast partial objects as Response (standard Jest pattern)
-    globalScope.fetch.mockImplementation(async (url: string) => {
+    globalScope.fetch.mockImplementation(async (input: string | URL | Request) => {
+      const url = String(input);
       if (url.includes("dataset-manifest.json")) {
         if (!manifestExists) {
           return { ok: false, status: 404, statusText: "Not Found" } as Response;

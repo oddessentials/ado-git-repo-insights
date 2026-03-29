@@ -246,6 +246,54 @@ def require_clean_ui_sources() -> None:
     raise SystemExit(1)
 
 
+def require_clean_test_compilation_scope() -> None:
+    """Block commit if any file in the test compilation scope has unstaged changes.
+
+    tsconfig.test.json compiles: tests/**/*.ts, ui/**/*.ts, ../types/vss.d.ts.
+    The tsconfig files themselves are also inputs — an unstaged config edit
+    changes what tsc resolves.  tsc reads the worktree, not the staged index.
+    If unstaged changes exist in these paths, the type-check result does not
+    match the staged snapshot.
+    """
+    unstaged: list[str] = []
+    unstaged.extend(worktree_paths("extension/tests/"))
+    unstaged.extend(worktree_paths("extension/ui/"))
+    unstaged.extend(worktree_paths("types/"))
+    unstaged.extend(worktree_paths("extension/tsconfig*.json"))
+    if not unstaged:
+        return
+    safe_print("[pre-commit] unstaged changes in test compilation scope detected")
+    safe_print("")
+    safe_print(
+        "Stage or stash these files before committing so the test type-check"
+        " matches the staged snapshot:"
+    )
+    for path in unstaged:
+        safe_print(f"  - {path}")
+    raise SystemExit(1)
+
+
+def require_clean_tsconfigs() -> None:
+    """Block commit if any extension tsconfig has unstaged changes.
+
+    The config parity check reads tsconfig files from the worktree via the
+    TypeScript API.  If any have unstaged changes, the parity result does
+    not match the staged snapshot.
+    """
+    unstaged = worktree_paths("extension/tsconfig*.json")
+    if not unstaged:
+        return
+    safe_print("[pre-commit] unstaged changes in tsconfig files detected")
+    safe_print("")
+    safe_print(
+        "Stage or stash these files before committing so the config parity"
+        " check matches the staged snapshot:"
+    )
+    for path in unstaged:
+        safe_print(f"  - {path}")
+    raise SystemExit(1)
+
+
 def run_pnpm_lockfile_guard() -> None:
     """Block package-lock.json from being committed (pnpm-only policy).
 
@@ -424,6 +472,75 @@ def run_extension_typecheck() -> None:
     run_command([pnpm, "run", "build:check"], cwd=EXTENSION_ROOT)
 
 
+def is_test_trigger(path: str) -> bool:
+    """Return True if the staged path should trigger test type-checking.
+
+    CONTRACT: any file included in tsconfig.test.json MUST be covered
+    here.  The trigger scope must match or exceed the effective
+    compilation scope of the test tsconfig.
+
+    Current tsconfig.test.json includes:
+      - tests/**/*.ts       → extension/tests/**/*.ts
+      - ui/**/*.ts          → extension/ui/**/*.ts
+      - ../types/vss.d.ts   → types/vss.d.ts
+      - tsconfig*.json      → config changes can alter compilation
+
+    If tsconfig.test.json gains a new include path, add a
+    corresponding trigger here and a regression test in
+    tests/unit/test_hook_triggers.py.
+    """
+    if path.startswith("extension/tests/") and path.endswith(".ts"):
+        return True
+    if path.startswith("extension/ui/") and path.endswith(".ts"):
+        return True
+    if path.startswith("extension/tsconfig") and path.endswith(".json"):
+        return True
+    # types/vss.d.ts is referenced by tsconfig.test.json as ../types/vss.d.ts
+    if path.startswith("types/") and path.endswith(".d.ts"):
+        return True
+    return False
+
+
+def run_extension_test_typecheck() -> None:
+    """Run TypeScript type check on test files (tsc --noEmit -p tsconfig.test.json).
+
+    Closes the local/CI parity gap for test strictness: CI runs
+    ``pnpm run build:check-tests`` as a hard gate.  Without this gate,
+    strict-mode errors in test files pass locally and fail only in CI.
+
+    Added as part of 042-test-strict-alignment (QG-35 compliance).
+    """
+    pnpm = shutil.which("pnpm.cmd") or shutil.which("pnpm")
+    if not pnpm:
+        raise SystemExit(
+            "[pre-commit] pnpm is required to type-check test files "
+            "but was not found on PATH."
+        )
+    safe_print(
+        "[pre-commit] running test TypeScript type check (tsc --noEmit -p tsconfig.test.json)"
+    )
+    run_command([pnpm, "run", "build:check-tests"], cwd=EXTENSION_ROOT)
+
+
+def run_extension_config_parity() -> None:
+    """Verify tsconfig.test.json stays in parity with tsconfig.json.
+
+    Uses tsc --showConfig to compare resolved compilerOptions and fails
+    if any non-allowlisted key differs.  Forward-looking: new TypeScript
+    flags are automatically covered.
+
+    Added as part of 042-test-strict-alignment (QG-35 compliance).
+    """
+    pnpm = shutil.which("pnpm.cmd") or shutil.which("pnpm")
+    if not pnpm:
+        raise SystemExit(
+            "[pre-commit] pnpm is required to check config parity "
+            "but was not found on PATH."
+        )
+    safe_print("[pre-commit] running test config parity check")
+    run_command([pnpm, "run", "test:config-parity"], cwd=EXTENSION_ROOT)
+
+
 def run_pre_commit_hook() -> None:
     run_acl_health_check()
     run_pre_commit_stage()
@@ -435,19 +552,39 @@ def run_pre_commit_hook() -> None:
     run_ui_bundle_guards()
 
     staged = staged_paths()
-    triggers = [path for path in staged if is_ui_trigger(path)]
-    if not triggers:
+    ui_triggers = [path for path in staged if is_ui_trigger(path)]
+    test_triggers = [path for path in staged if is_test_trigger(path)]
+    tsconfig_triggers = [
+        path
+        for path in staged
+        if path.startswith("extension/tsconfig") and path.endswith(".json")
+    ]
+
+    if not ui_triggers and not test_triggers:
         return
 
-    safe_print("")
-    safe_print("[pre-commit] UI build triggers detected")
-    for path in triggers:
-        safe_print(f"  - {path}")
-    require_clean_ui_sources()
-    run_extension_typecheck()
-    run_extension_lint()
-    run_managed_artifacts("sync", "--scope", "all", "--stage", "--require-clean")
-    safe_print("[pre-commit] managed UI artifacts synced successfully")
+    if ui_triggers:
+        safe_print("")
+        safe_print("[pre-commit] UI build triggers detected")
+        for path in ui_triggers:
+            safe_print(f"  - {path}")
+        require_clean_ui_sources()
+        run_extension_typecheck()
+        run_extension_lint()
+        run_managed_artifacts("sync", "--scope", "all", "--stage", "--require-clean")
+        safe_print("[pre-commit] managed UI artifacts synced successfully")
+
+    if test_triggers:
+        safe_print("")
+        safe_print("[pre-commit] test file triggers detected")
+        for path in test_triggers:
+            safe_print(f"  - {path}")
+        require_clean_test_compilation_scope()
+        run_extension_test_typecheck()
+
+    if tsconfig_triggers:
+        require_clean_tsconfigs()
+        run_extension_config_parity()
 
 
 def run_pre_push_pre_commit_checks() -> None:

@@ -163,7 +163,7 @@ describe("Metrics Collector (Phase 4)", () => {
         if (entries.length > 0) {
           this.measures.push({
             name,
-            duration: entries[entries.length - 1].duration,
+            duration: entries[entries.length - 1]!.duration,
             timestamp: Date.now(),
           });
         }
@@ -175,8 +175,8 @@ describe("Metrics Collector (Phase 4)", () => {
     collector.measure("test-measure", "start", "end");
 
     expect(collector.measures.length).toBe(1);
-    expect(collector.measures[0].name).toBe("test-measure");
-    expect(collector.measures[0].duration).toBeGreaterThanOrEqual(0);
+    expect(collector.measures[0]!.name).toBe("test-measure");
+    expect(collector.measures[0]!.duration).toBeGreaterThanOrEqual(0);
   });
 
   it("Metrics collector reset() clears all metrics", () => {

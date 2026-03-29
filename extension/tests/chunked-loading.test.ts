@@ -394,8 +394,8 @@ describe("Phase 4: Chunked Loading", () => {
 
       // Final progress should have loaded === total
       const finalProgress = progressCalls[progressCalls.length - 1];
-      expect(finalProgress.loaded).toBe(finalProgress.total);
-      expect(finalProgress.currentWeek).toBeNull();
+      expect(finalProgress!.loaded).toBe(finalProgress!.total);
+      expect(finalProgress!.currentWeek).toBeNull();
     });
 
     it("retries go through semaphore", async () => {

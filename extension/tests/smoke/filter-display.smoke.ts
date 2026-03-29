@@ -84,7 +84,7 @@ test.describe("Filter Display Smoke Tests", () => {
     ).toBeGreaterThan(0);
 
     // Validate first weekly rollup has required fields
-    const firstRollup = manifest.aggregate_index.weekly_rollups[0];
+    const firstRollup = manifest.aggregate_index.weekly_rollups[0]!;
     expect(firstRollup.path, "First weekly rollup missing path").toBeDefined();
 
     expect(
@@ -152,7 +152,7 @@ test.describe("Filter Display Smoke Tests", () => {
       // Capture prior text for change detection
       const priorText = await totalPrsElement.textContent();
 
-      await options[0].click();
+      await options[0]!.click();
 
       // Wait for Total PRs to change from prior value (condition-based, not network-based)
       await expect(totalPrsElement).not.toHaveText(priorText ?? "", {
@@ -252,7 +252,7 @@ test.describe("Filter Display Smoke Tests", () => {
       // Capture prior text for change detection
       const priorText = await totalPrsElement.textContent();
 
-      await options[0].click();
+      await options[0]!.click();
 
       // Wait for Total PRs to change from prior value (condition-based, not network-based)
       await expect(totalPrsElement).not.toHaveText(priorText ?? "", {

@@ -164,6 +164,16 @@ def build_commands(
             cwd=EXTENSION_ROOT,
         ),
         CommandSpec(
+            "Extension test type check",
+            (PNPM_SENTINEL, "run", "build:check-tests"),
+            cwd=EXTENSION_ROOT,
+        ),
+        CommandSpec(
+            "Extension test config parity",
+            (PNPM_SENTINEL, "run", "test:config-parity"),
+            cwd=EXTENSION_ROOT,
+        ),
+        CommandSpec(
             "Extension lint",
             (PNPM_SENTINEL, "run", "lint"),
             cwd=EXTENSION_ROOT,

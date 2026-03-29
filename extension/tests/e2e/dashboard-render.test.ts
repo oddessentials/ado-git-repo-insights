@@ -113,10 +113,10 @@ describe("Dashboard E2E render (composited)", () => {
     const rollups = makeIntegrationRollups(12);
     const distributions = makeIntegrationDistributions();
 
-    renderThroughputChart(containers["throughput-chart"], rollups);
-    renderCycleTimeTrend(containers["cycle-time-trend"], rollups);
-    renderCycleDistribution(containers["cycle-distribution"], distributions);
-    renderReviewerActivity(containers["reviewer-activity"], rollups);
+    renderThroughputChart(containers["throughput-chart"] ?? null, rollups);
+    renderCycleTimeTrend(containers["cycle-time-trend"] ?? null, rollups);
+    renderCycleDistribution(containers["cycle-distribution"] ?? null, distributions);
+    renderReviewerActivity(containers["reviewer-activity"] ?? null, rollups);
 
     // 1. No console.error calls
     expect(errorSpy).not.toHaveBeenCalled();
@@ -129,16 +129,16 @@ describe("Dashboard E2E render (composited)", () => {
 
     // 3. Specific chart elements exist
     expect(
-      containers["throughput-chart"].querySelectorAll(".bar-container").length,
+      containers["throughput-chart"]!.querySelectorAll(".bar-container").length,
     ).toBeGreaterThan(0);
     expect(
-      containers["cycle-time-trend"].querySelector("svg"),
+      containers["cycle-time-trend"]!.querySelector("svg"),
     ).not.toBeNull();
     expect(
-      containers["cycle-distribution"].innerHTML,
+      containers["cycle-distribution"]!.innerHTML,
     ).toContain("dist-row");
     expect(
-      containers["reviewer-activity"].querySelectorAll(".h-bar-row").length,
+      containers["reviewer-activity"]!.querySelectorAll(".h-bar-row").length,
     ).toBeGreaterThan(0);
   });
 
@@ -146,10 +146,10 @@ describe("Dashboard E2E render (composited)", () => {
     const rollups = makeIntegrationRollups(12);
     const distributions = makeIntegrationDistributions();
 
-    renderThroughputChart(containers["throughput-chart"], rollups);
-    renderCycleTimeTrend(containers["cycle-time-trend"], rollups);
-    renderCycleDistribution(containers["cycle-distribution"], distributions);
-    renderReviewerActivity(containers["reviewer-activity"], rollups);
+    renderThroughputChart(containers["throughput-chart"] ?? null, rollups);
+    renderCycleTimeTrend(containers["cycle-time-trend"] ?? null, rollups);
+    renderCycleDistribution(containers["cycle-distribution"] ?? null, distributions);
+    renderReviewerActivity(containers["reviewer-activity"] ?? null, rollups);
 
     for (const [, el] of Object.entries(containers)) {
       expect(el.innerHTML).not.toContain("NaN");
@@ -173,13 +173,13 @@ describe("Dashboard E2E render (composited)", () => {
   it("throughput and cycle-time trend agree on week count (cross-chart invariant)", () => {
     const rollups = makeIntegrationRollups(12);
 
-    renderThroughputChart(containers["throughput-chart"], rollups);
-    renderCycleTimeTrend(containers["cycle-time-trend"], rollups);
+    renderThroughputChart(containers["throughput-chart"] ?? null, rollups);
+    renderCycleTimeTrend(containers["cycle-time-trend"] ?? null, rollups);
 
-    const throughputBars = containers["throughput-chart"].querySelectorAll(
+    const throughputBars = containers["throughput-chart"]!.querySelectorAll(
       ".bar-container",
     ).length;
-    const cycleTimeDots = containers["cycle-time-trend"].querySelectorAll(
+    const cycleTimeDots = containers["cycle-time-trend"]!.querySelectorAll(
       ".line-chart-dot",
     ).length;
 
