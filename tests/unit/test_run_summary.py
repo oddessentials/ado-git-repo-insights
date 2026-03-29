@@ -1,7 +1,6 @@
 """Tests for run_summary module."""
 
 import json
-import subprocess
 import tempfile
 from pathlib import Path
 from unittest.mock import patch
@@ -239,31 +238,29 @@ class TestRunSummaryOutput:
 
 
 class TestGetGitShaErrorHandling:
-    """Tests for get_git_sha error handling when VERSION file is absent."""
+    """Tests for get_git_sha error handling when .git/HEAD is unreadable."""
 
     @patch(
-        "ado_git_repo_insights.utils.run_summary.subprocess.run",
+        "ado_git_repo_insights.utils.run_summary.Path.read_text",
         side_effect=FileNotFoundError,
     )
-    @patch("ado_git_repo_insights.utils.run_summary.Path.exists", return_value=False)
-    def test_file_not_found_returns_none(self, mock_exists, mock_run) -> None:
-        """Returns None when git executable is not found."""
+    def test_file_not_found_returns_none(self, mock_read) -> None:
+        """Returns None when .git/HEAD does not exist."""
         assert get_git_sha() is None
 
     @patch(
-        "ado_git_repo_insights.utils.run_summary.subprocess.run",
-        side_effect=subprocess.TimeoutExpired(cmd="git", timeout=5),
+        "ado_git_repo_insights.utils.run_summary.Path.read_text",
+        return_value="not-a-valid-ref\n",
     )
-    @patch("ado_git_repo_insights.utils.run_summary.Path.exists", return_value=False)
-    def test_timeout_returns_none(self, mock_exists, mock_run) -> None:
-        """Returns None when git command times out."""
-        assert get_git_sha() is None
+    def test_malformed_head_returns_short_hash(self, mock_read) -> None:
+        """Returns first 7 chars of raw content when HEAD is not a ref pointer."""
+        result = get_git_sha()
+        assert result == "not-a-v"
 
     @patch(
-        "ado_git_repo_insights.utils.run_summary.subprocess.run",
+        "ado_git_repo_insights.utils.run_summary.Path.read_text",
         side_effect=PermissionError("access denied"),
     )
-    @patch("ado_git_repo_insights.utils.run_summary.Path.exists", return_value=False)
-    def test_generic_error_returns_none(self, mock_exists, mock_run) -> None:
-        """Returns None on generic errors (e.g., PermissionError)."""
+    def test_generic_error_returns_none(self, mock_read) -> None:
+        """Returns None on generic OS errors (e.g., PermissionError)."""
         assert get_git_sha() is None

@@ -41,21 +41,6 @@ repos:
 
   - repo: local
     hooks:
-      - id: env-guard
-        name: Environment Variable Guard
-        entry: python scripts/env_guard.py
-        language: python
-        pass_filenames: false
-        always_run: true
-        stages: [pre-commit, pre-push]
-
-      - id: pytest
-        name: pytest
-        entry: python -m pytest tests/ --no-cov -q
-        language: system
-        pass_filenames: false
-        stages: [manual]  # Run via Husky pre-push, not pre-commit
-
       - id: suppression-format
         name: Suppression Format Validation (FR-017)
         entry: python scripts/audit-suppressions.py --check-justifications
@@ -71,6 +56,21 @@ repos:
         pass_filenames: false
         always_run: true
         stages: [pre-commit, pre-push]
+
+      - id: env-guard
+        name: Environment Variable Guard
+        entry: python scripts/env_guard.py
+        language: python
+        pass_filenames: false
+        always_run: true
+        stages: [pre-commit, pre-push]
+
+      - id: pytest
+        name: pytest
+        entry: python -m pytest tests/ --no-cov -q
+        language: system
+        pass_filenames: false
+        stages: [manual]  # Run via Husky pre-push, not pre-commit
 
       - id: tool-version-parity
         name: Tool Version Parity

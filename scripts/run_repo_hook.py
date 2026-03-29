@@ -542,6 +542,8 @@ def run_extension_config_parity() -> None:
 
 
 def run_pre_commit_hook() -> None:
+    safe_print("[pre-commit] running suppression audit (zero-tolerance)")
+    run_command([sys.executable, "scripts/audit-suppressions.py", "--diff"])
     run_acl_health_check()
     run_pre_commit_stage()
     run_managed_artifacts("sync", "--scope", "sdk", "--stage", "--require-clean")

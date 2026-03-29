@@ -1,57 +1,21 @@
 {
   "version": 1,
-  "generated_at": "2026-03-27T23:25:19Z",
-  "total": 50,
+  "generated_at": "2026-03-29T03:26:05Z",
+  "total": 0,
   "by_scope": {
-    "python-backend": 9,
-    "typescript-extension": 36,
-    "typescript-tests": 5
+    "python-backend": 0,
+    "typescript-extension": 0,
+    "typescript-tests": 0
   },
   "by_type": {
-    "eslint-disable-block": 2,
+    "eslint-disable-block": 0,
     "eslint-disable-line": 0,
-    "eslint-disable-next-line": 38,
-    "noqa": 9,
-    "ts-expect-error": 1,
+    "eslint-disable-next-line": 0,
+    "noqa": 0,
+    "ts-expect-error": 0,
     "ts-ignore": 0,
     "type-ignore": 0
   },
-  "by_file": {
-    "extension/tests/dashboard.test.ts": 1,
-    "extension/tests/helpers/fs-test-utils.ts": 1,
-    "extension/tests/production-issues.test.ts": 2,
-    "extension/tests/smoke/negative-fixture.smoke.ts": 1,
-    "extension/ui/artifact-client.ts": 3,
-    "extension/ui/dashboard.ts": 1,
-    "extension/ui/dataset-loader.ts": 2,
-    "extension/ui/error-codes.ts": 1,
-    "extension/ui/modules/charts/cycle-time.ts": 1,
-    "extension/ui/modules/charts/predictions.ts": 4,
-    "extension/ui/modules/charts/summary-cards.ts": 2,
-    "extension/ui/modules/dom.ts": 5,
-    "extension/ui/modules/metrics.ts": 1,
-    "extension/ui/modules/ml.ts": 1,
-    "extension/ui/modules/shared/format.ts": 2,
-    "extension/ui/modules/shared/security.ts": 1,
-    "extension/ui/modules/typeahead-dropdown.ts": 2,
-    "extension/ui/schemas/utils.ts": 1,
-    "extension/ui/types.ts": 9,
-    "src/ado_git_repo_insights/cli.py": 2,
-    "src/ado_git_repo_insights/ml/__init__.py": 1,
-    "src/ado_git_repo_insights/persistence/database.py": 2,
-    "src/ado_git_repo_insights/transform/aggregators.py": 2,
-    "src/ado_git_repo_insights/transform/csv_generator.py": 1,
-    "src/ado_git_repo_insights/utils/run_summary.py": 1
-  },
-  "by_rule": {
-    "@typescript-eslint/no-explicit-any": 9,
-    "F401": 3,
-    "S311": 2,
-    "S603": 1,
-    "S607": 1,
-    "S608": 1,
-    "UP006": 2,
-    "prefer-const": 3,
-    "security/detect-object-injection": 26
-  }
+  "by_file": {},
+  "by_rule": {}
 }

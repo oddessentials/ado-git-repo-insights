@@ -52,7 +52,7 @@ describe("any-spread prevention", () => {
     expect(content).toContain("HTMLElement | NodeListOf<Element> | null");
 
     // Should have a typed elements cache
-    expect(content).toContain("Record<string, CachedDomValue>");
+    expect(content).toContain("Map<string, CachedDomValue>");
   });
 
   it("dom.ts provides typed getElement accessor", () => {

@@ -1442,6 +1442,14 @@ class AggregateGenerator:
             )
 
 
+class DeterministicRNG(random.Random):
+    """Non-cryptographic seeded RNG for deterministic synthetic data.
+
+    NOT for security-sensitive operations. Used only for reproducible
+    stub generation behind the ALLOW_ML_STUBS=1 safety gate.
+    """
+
+
 class StubGenerationError(Exception):
     """Stub generation failed due to missing ALLOW_ML_STUBS env var."""
 
@@ -1505,7 +1513,7 @@ class PredictionGenerator:
                 # Deterministic seed per metric+period
                 seed_str = f"{self.seed_base}:{metric}:{period_start.isoformat()}"
                 seed = int(hashlib.sha256(seed_str.encode()).hexdigest()[:8], 16)
-                rng = random.Random(seed)  # noqa: S311 -- REASON: intentional for deterministic stubs
+                rng = DeterministicRNG(seed)
 
                 # Generate synthetic values based on metric type
                 if metric == "pr_throughput":
@@ -1616,7 +1624,7 @@ class InsightsGenerator:
         # Deterministic selection of insights based on seed
         seed_str = f"{self.seed_base}:insights"
         seed = int(hashlib.sha256(seed_str.encode()).hexdigest()[:8], 16)
-        rng = random.Random(seed)  # noqa: S311 -- REASON: intentional for deterministic stubs
+        rng = DeterministicRNG(seed)
 
         # Generate 2-3 insights from templates
         num_insights = rng.randint(2, 3)

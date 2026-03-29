@@ -2,14 +2,12 @@
 
 Captures comprehensive run telemetry including per-project status and first fatal error.
 """
-# ruff: noqa: S603, S607
 
 from __future__ import annotations
 
 import json
 import os
 import re
-import subprocess
 from dataclasses import dataclass, field
 from datetime import date
 from pathlib import Path
@@ -152,28 +150,21 @@ def get_tool_version() -> str:
 
 
 def get_git_sha() -> str | None:
-    """Get Git SHA via git command.
+    """Read current short commit SHA from .git/HEAD.
 
     Returns:
-        Git SHA or None if unavailable.
+        Short (7-char) Git SHA or None if unavailable.
     """
     try:
-        result = subprocess.run(  # noqa: S603, S607 -- SECURITY: hardcoded git command with no user input
-            ["git", "rev-parse", "--short", "HEAD"],
-            capture_output=True,
-            text=True,
-            check=True,
-            timeout=5,
-        )
-        return result.stdout.strip()
-    except FileNotFoundError:
-        # git executable not found on PATH
-        return None
-    except subprocess.TimeoutExpired:
-        # git command timed out (e.g., network drive or large repo)
-        return None
-    except (subprocess.CalledProcessError, OSError):
-        # Other git invocation errors (non-zero exit code, permission issues, etc.)
+        git_dir = Path(".git")
+        head_content = (git_dir / "HEAD").read_text(encoding="utf-8").strip()
+        if head_content.startswith("ref: "):
+            ref_path = git_dir / head_content[5:]
+            if ref_path.exists():
+                return ref_path.read_text(encoding="utf-8").strip()[:7]
+            return None
+        return head_content[:7]  # Detached HEAD
+    except OSError:
         return None
 
 

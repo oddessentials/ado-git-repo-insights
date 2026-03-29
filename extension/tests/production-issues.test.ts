@@ -645,8 +645,7 @@ describe("Issue 2: Stale Settings and Auto-Discovery Fallback", () => {
     });
 
     it("next load uses discovery directly after stale setting cleared", async () => {
-      // eslint-disable-next-line prefer-const -- REASON: intentionally mutable so test contract can assign value
-      let savedPipelineId: number | null = null; // Already cleared from previous load
+      const savedPipelineId = { value: null as number | null }; // Already cleared from previous load
 
       const mockResolveFromPipelineId = jest.fn();
       const mockDiscoverAndResolve = jest.fn(async () => {
@@ -655,8 +654,8 @@ describe("Issue 2: Stale Settings and Auto-Discovery Fallback", () => {
 
       // Simulate resolveConfiguration with no saved setting
       const resolveConfiguration = async () => {
-        if (savedPipelineId) {
-          return await mockResolveFromPipelineId(savedPipelineId);
+        if (savedPipelineId.value) {
+          return await mockResolveFromPipelineId(savedPipelineId.value);
         }
         return await mockDiscoverAndResolve();
       };
@@ -802,8 +801,7 @@ describe("Regression Prevention", () => {
     });
 
     it("query param errors should NOT trigger discovery fallback", async () => {
-      // eslint-disable-next-line prefer-const -- REASON: intentionally mutable so callback can set to true, proving negative assertion
-      let discoveryTriggered = false;
+      const discoveryTriggered = { value: false };
 
       const resolveExplicit = async (_queryPipelineId: number) => {
         // Explicit from query param - no fallback
@@ -811,7 +809,7 @@ describe("Regression Prevention", () => {
       };
 
       await expect(resolveExplicit(3)).rejects.toThrow();
-      expect(discoveryTriggered).toBe(false);
+      expect(discoveryTriggered.value).toBe(false);
     });
   });
 

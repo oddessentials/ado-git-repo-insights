@@ -72,11 +72,11 @@ const MAX_SPARKLINE_POINTS = 200;
 /**
  * Severity icons and accessible labels for insight rendering (WCAG 2.1 AA).
  */
-const SEVERITY_ICONS: Record<string, { icon: string; label: string }> = {
-  critical: { icon: "🔴", label: "Critical" },
-  warning: { icon: "🟡", label: "Warning" },
-  info: { icon: "🔵", label: "Informational" },
-};
+const SEVERITY_ICONS = new Map<string, { icon: string; label: string }>([
+  ["critical", { icon: "🔴", label: "Critical" }],
+  ["warning", { icon: "🟡", label: "Warning" }],
+  ["info", { icon: "🔵", label: "Informational" }],
+]);
 
 /**
  * Priority badge labels and CSS classes.
@@ -342,7 +342,7 @@ function renderAffectedEntities(
  */
 function renderRichInsightCard(insight: InsightItem): string {
   const defaultSeverity = { icon: "🔵", label: "Informational" };
-  const severityInfo = SEVERITY_ICONS[insight.severity] ?? defaultSeverity;
+  const severityInfo = SEVERITY_ICONS.get(insight.severity) ?? defaultSeverity;
 
   return `
     <article class="insight-card rich-card ${escapeHtml(String(insight.severity))}"
@@ -470,8 +470,7 @@ export function renderAIInsights(
     );
     if (!items.length) return;
 
-    // eslint-disable-next-line security/detect-object-injection -- SECURITY: severity is typed InsightSeverity enum
-    const severityInfo = SEVERITY_ICONS[severity] ?? defaultSeverityInfo;
+    const severityInfo = SEVERITY_ICONS.get(severity) ?? defaultSeverityInfo;
     const sectionLabel = `${severity.charAt(0).toUpperCase() + severity.slice(1)} insights`;
 
     // SECURITY: All user-controlled data is escaped in renderRichInsightCard

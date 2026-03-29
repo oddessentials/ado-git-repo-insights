@@ -602,32 +602,23 @@ export function hasMLMethods(loader: unknown): loader is IDatasetLoaderWithML {
  * That creates circular type dependencies (types.ts ↔ dataset-loader.ts)
  * which causes Jest to silently fail test collection in CI (Linux/Ubuntu).
  * See: https://github.com/oddessentials/ado-git-repo-insights/pull/78
- * The `any` types here are intentional - these are runtime globals where
+ * The `unknown` types here are intentional - these are runtime globals where
  * full type safety isn't possible anyway.
  */
 declare global {
   interface Window {
     // Dataset Loader exports (typed as unknown to avoid circular imports)
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- REASON: Window globals typed as any to avoid circular imports between IIFE bundles
-    DatasetLoader?: any;
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- REASON: Window globals typed as any to avoid circular imports between IIFE bundles
-    fetchSemaphore?: any;
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- REASON: Window globals typed as any to avoid circular imports between IIFE bundles
-    createRollupCache?: any;
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- REASON: Window globals typed as any to avoid circular imports between IIFE bundles
-    normalizeRollup?: any;
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- REASON: Window globals typed as any to avoid circular imports between IIFE bundles
-    normalizeRollups?: any;
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- REASON: Window globals typed as any to avoid circular imports between IIFE bundles
-    ROLLUP_FIELD_DEFAULTS?: any;
+    DatasetLoader?: unknown;
+    fetchSemaphore?: unknown;
+    createRollupCache?: unknown;
+    normalizeRollup?: unknown;
+    normalizeRollups?: unknown;
+    ROLLUP_FIELD_DEFAULTS?: unknown;
 
     // Artifact Client exports (typed as unknown to avoid circular imports)
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- REASON: Window globals typed as any to avoid circular imports between IIFE bundles
-    ArtifactClient?: any;
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- REASON: Window globals typed as any to avoid circular imports between IIFE bundles
-    AuthenticatedDatasetLoader?: any;
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- REASON: Window globals typed as any to avoid circular imports between IIFE bundles
-    MockArtifactClient?: any;
+    ArtifactClient?: unknown;
+    AuthenticatedDatasetLoader?: unknown;
+    MockArtifactClient?: unknown;
 
     // Settings page exports
     selectDiscoveredPipeline?: (pipelineId: number) => void;

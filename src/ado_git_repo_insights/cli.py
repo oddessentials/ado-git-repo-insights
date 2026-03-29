@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+import importlib.util
 import logging
 import shutil
 import sys
@@ -805,8 +806,13 @@ def cmd_generate_aggregates(args: Namespace) -> int:
 
         # Check for openai package (needed even for dry-run to build prompt)
         try:
-            import openai  # noqa: F401 -- REASON: import used for ML dependency check
-        except ImportError:
+            openai_available = (
+                "openai" in sys.modules
+                or importlib.util.find_spec("openai") is not None
+            )
+        except (ValueError, ModuleNotFoundError):
+            openai_available = False
+        if not openai_available:
             logger.error(
                 "OpenAI SDK not installed. Install ML extras: pip install -e '.[ml]'"
             )
@@ -941,8 +947,13 @@ def cmd_build_aggregates(args: Namespace) -> int:
             return 1
 
         try:
-            import openai  # noqa: F401 -- REASON: import used for ML dependency check
-        except ImportError:
+            openai_available = (
+                "openai" in sys.modules
+                or importlib.util.find_spec("openai") is not None
+            )
+        except (ValueError, ModuleNotFoundError):
+            openai_available = False
+        if not openai_available:
             logger.error(
                 "OpenAI SDK not installed. Install ML extras: pip install -e '.[ml]'"
             )

@@ -9,10 +9,11 @@
  *
  * Test Mechanism:
  * - Positive tests: Code that MUST compile without errors
- * - Negative tests: Code using `// @ts-expect-error -- REASON:` that MUST produce type errors
+ * - Negative tests: `expectTypeOf` assertions from `expect-type` that verify
+ *   type-level constraints at compile time (no @ts-expect-error directives)
  *
- * If a negative test's expected error disappears (type regression), TypeScript
- * will emit error TS2578: "Unused '@ts-expect-error' directive" and the build fails.
+ * If a negative test's constraint no longer holds (type regression), TypeScript
+ * will emit a compile error and the build fails.
  *
  * Run: pnpm run test:types
  * Pass: Exit code 0 (all expected errors occurred, all positive tests compiled)
@@ -27,6 +28,7 @@ import type {
   ReviewerBreakdownEntry,
   WeeklyRollup,
 } from "../../ui/schemas/rollup.schema";
+import { expectTypeOf } from "expect-type";
 
 // ============================================================================
 // Positive Tests - These MUST compile without errors
@@ -109,48 +111,42 @@ function positiveTest_reviewerBreakdownShape(
 }
 
 // ============================================================================
-// Negative Tests - These MUST produce type errors (caught by @ts-expect-error)
+// Negative Tests - These verify type constraints via expectTypeOf assertions
 // ============================================================================
 
 /**
  * Negative Test 1: BreakdownEntry cannot be assigned to number
  *
- * If this compiles without the @ts-expect-error, it means BreakdownEntry
- * has regressed to a simple number type, which is the original bug.
+ * If BreakdownEntry regresses to a simple number type, this assertion
+ * will fail to compile.
  */
 function negativeTest_breakdownEntryIsNotNumber(entry: BreakdownEntry): void {
-  // @ts-expect-error -- REASON: BreakdownEntry is an object with pr_count, not a number - regression test for type safety
-  const num: number = entry;
-  void num;
+  expectTypeOf(entry).not.toMatchTypeOf<number>();
 }
 
 /**
  * Negative Test 2: Rollup.by_repository['key'] cannot be treated as direct number
  *
- * If this compiles without the @ts-expect-error, it means by_repository
- * has regressed to Record<string, number> instead of Record<string, BreakdownEntry>.
+ * If by_repository regresses to Record<string, number>, this assertion
+ * will fail to compile.
  */
 function negativeTest_byRepositoryNotNumber(rollup: WeeklyRollup): void {
   const entry = rollup.by_repository?.["repo-a"];
   if (entry) {
-    // @ts-expect-error -- REASON: entry is BreakdownEntry, not number - regression test for by_repository type
-    const sum: number = entry + 10;
-    void sum;
+    expectTypeOf(entry).not.toMatchTypeOf<number>();
   }
 }
 
 /**
  * Negative Test 3: Rollup.by_team['key'] cannot be treated as direct number
  *
- * If this compiles without the @ts-expect-error, it means by_team
- * has regressed to Record<string, number> instead of Record<string, BreakdownEntry>.
+ * If by_team regresses to Record<string, number>, this assertion
+ * will fail to compile.
  */
 function negativeTest_byTeamNotNumber(rollup: WeeklyRollup): void {
   const entry = rollup.by_team?.["team-x"];
   if (entry) {
-    // @ts-expect-error -- REASON: entry is BreakdownEntry, not number - regression test for by_team type
-    const sum: number = entry + 10;
-    void sum;
+    expectTypeOf(entry).not.toMatchTypeOf<number>();
   }
 }
 
@@ -159,21 +155,17 @@ function negativeTest_byTeamNotNumber(rollup: WeeklyRollup): void {
  *
  * Verifies that BreakdownEntry is a strict interface, not a loose Record.
  */
-function negativeTest_noArbitraryProperties(entry: BreakdownEntry): void {
-  // @ts-expect-error -- REASON: nonExistentField does not exist on BreakdownEntry - verifies strict interface
-  const _value = entry.nonExistentField;
-  void _value;
+function negativeTest_noArbitraryProperties(_entry: BreakdownEntry): void {
+  expectTypeOf<BreakdownEntry>().not.toMatchTypeOf<{ nonExistentField: unknown }>();
 }
 
 /**
  * Negative Test 5: ReviewerBreakdownEntry does not expose cycle_time fields.
  */
 function negativeTest_reviewerBreakdownNoCycleTime(
-  entry: ReviewerBreakdownEntry,
+  _entry: ReviewerBreakdownEntry,
 ): void {
-  // @ts-expect-error -- REASON: reviewer breakdowns intentionally exclude cycle-time fields
-  const _value = entry.cycle_time_p50;
-  void _value;
+  expectTypeOf<ReviewerBreakdownEntry>().not.toMatchTypeOf<{ cycle_time_p50: unknown }>();
 }
 
 // ============================================================================

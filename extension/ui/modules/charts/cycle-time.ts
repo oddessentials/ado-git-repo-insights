@@ -66,28 +66,27 @@ export function renderCycleDistribution(
     return;
   }
 
-  const buckets: Record<string, number> = {
-    "0-1h": 0,
-    "1-4h": 0,
-    "4-24h": 0,
-    "1-3d": 0,
-    "3-7d": 0,
-    "7d+": 0,
-  };
+  const buckets = new Map<string, number>([
+    ["0-1h", 0],
+    ["1-4h", 0],
+    ["4-24h", 0],
+    ["1-3d", 0],
+    ["3-7d", 0],
+    ["7d+", 0],
+  ]);
   distributions.forEach((d) => {
     Object.entries(d.cycle_time_buckets || {}).forEach(([key, val]) => {
-      // eslint-disable-next-line security/detect-object-injection -- SECURITY: key is from Object.entries iteration over known bucket structure
-      buckets[key] = (buckets[key] || 0) + (val as number);
+      buckets.set(key, (buckets.get(key) ?? 0) + (val as number));
     });
   });
 
-  const total = Object.values(buckets).reduce((a, b) => a + b, 0);
+  const total = Array.from(buckets.values()).reduce((a, b) => a + b, 0);
   if (total === 0) {
     renderNoData(container, "No cycle time data", "Try widening the date range or adjusting repository/team filters.");
     return;
   }
 
-  const html = Object.entries(buckets)
+  const html = Array.from(buckets.entries())
     .map(([label, count]) => {
       const pct = ((count / total) * 100).toFixed(1);
       return `

@@ -125,7 +125,7 @@ describe("Summary Cards Info Icons (attachInfoIcons)", () => {
     // Tooltip should contain one of the metric explanations
     const metricId = firstIcon.getAttribute("data-info-tooltip");
     expect(metricId).toBeTruthy();
-    const expectedText = METRIC_EXPLANATIONS[metricId!];
+    const expectedText = METRIC_EXPLANATIONS.get(metricId!);
     expect(tooltip?.textContent).toBe(expectedText);
   });
 

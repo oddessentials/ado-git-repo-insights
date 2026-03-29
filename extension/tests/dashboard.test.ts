@@ -1928,8 +1928,7 @@ describe("Sprint 5: Comparison Mode & Export", () => {
     });
 
     it("exits comparison mode", () => {
-      // eslint-disable-next-line prefer-const -- REASON: intentionally mutable to verify true→false state transition
-      let comparisonMode = true;
+      const comparisonMode = { value: true };
       const toggle = document.getElementById("compare-toggle")!;
       const banner = document.getElementById("comparison-banner")!;
 
@@ -1937,11 +1936,11 @@ describe("Sprint 5: Comparison Mode & Export", () => {
       banner.classList.remove("hidden");
 
       // Exit comparison mode
-      comparisonMode = false;
+      comparisonMode.value = false;
       toggle.classList.remove("active");
       banner.classList.add("hidden");
 
-      expect(comparisonMode).toBe(false);
+      expect(comparisonMode.value).toBe(false);
       expect(toggle.classList.contains("active")).toBe(false);
       expect(banner.classList.contains("hidden")).toBe(true);
     });

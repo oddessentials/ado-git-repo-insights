@@ -21,8 +21,8 @@
 
 **Purpose**: Verify current state and install dependencies needed for refactoring
 
-- [ ] T001 Verify current suppression count is 50 by running `python scripts/audit-suppressions.py`
-- [ ] T002 Install `expect-type` as dev dependency in extension via `pnpm add -D expect-type` in extension/package.json
+- [x] T001 Verify current suppression count is 50 by running `python scripts/audit-suppressions.py`
+- [x] T002 Install `expect-type` as dev dependency in extension via `pnpm add -D expect-type` in extension/package.json
 
 **Checkpoint**: Current state verified, dependencies ready
 
@@ -44,38 +44,38 @@
 
 ### TypeScript Map Conversions (20 object-injection suppressions)
 
-- [ ] T003 [P] [US1] Convert `elements` record to `Map<string, HTMLElement | null>` in extension/ui/modules/dom.ts — replace `elements[id]` with `.get(id)`, `elements[id] = ...` with `.set(id, ...)`, `delete elements[key]` with `.delete(key)`, clear loop with `.clear()` — remove 5 suppression comments
-- [ ] T004 [P] [US1] Convert `mockData` record to `Map<string, unknown>` in extension/ui/artifact-client.ts — replace `this.mockData[key]` with `.get(key)` and `.has(key)` — remove 3 suppression comments
-- [ ] T005 [P] [US1] Convert `elements` record to `Map<string, HTMLElement | null>` in extension/ui/dashboard.ts — replace `elements[id] = ...` with `.set(id, ...)` — remove 1 suppression comment
-- [ ] T006 [P] [US1] Refactor `params[field]` to use `Object.hasOwn()` guard or Map in extension/ui/dataset-loader.ts line ~340 and convert `manifest.features?.[feature]` to Map-based lookup at line ~976 — remove 2 suppression comments
-- [ ] T007 [P] [US1] Convert `ErrorCodes` lookup to `Map<string, ErrorCodeDefinition>` in extension/ui/error-codes.ts — replace `(ErrorCodes as Record)[errorKey]` with `.get(errorKey)` — remove 1 suppression comment
-- [ ] T008 [P] [US1] Convert `DATA_QUALITY_MESSAGES` and `metricFieldMap` to `Map` in extension/ui/modules/charts/predictions.ts — replace bracket access with `.get()` — refactor `r[field]` dynamic rollup access to switch/dispatch on known metric keys — remove 4 suppression comments
-- [ ] T009 [P] [US1] Convert `containers` and `METRIC_EXPLANATIONS` to `Map` in extension/ui/modules/charts/summary-cards.ts — replace `containers[containerKey]` and `METRIC_EXPLANATIONS[metricId]` with `.get()` — remove 2 suppression comments
-- [ ] T010 [P] [US1] Convert `buckets` accumulator to `Map<string, number>` in extension/ui/modules/charts/cycle-time.ts — replace `buckets[key] = (buckets[key] || 0) + val` with `.set(key, (.get(key) ?? 0) + val)` — remove 1 suppression comment
-- [ ] T011 [P] [US1] Refactor `getOwnPropertyValue` helper to accept `Map` or use `Object.entries()` in extension/ui/modules/metrics.ts — remove 1 suppression comment
-- [ ] T012 [P] [US1] Convert `SEVERITY_ICONS` to `Map<string, SeverityInfo>` in extension/ui/modules/ml.ts — replace `SEVERITY_ICONS[severity]` with `.get(severity)` — remove 1 suppression comment
+- [x] T003 [P] [US1] Convert `elements` record to `Map<string, HTMLElement | null>` in extension/ui/modules/dom.ts — replace `elements[id]` with `.get(id)`, `elements[id] = ...` with `.set(id, ...)`, `delete elements[key]` with `.delete(key)`, clear loop with `.clear()` — remove 5 suppression comments
+- [x] T004 [P] [US1] Convert `mockData` record to `Map<string, unknown>` in extension/ui/artifact-client.ts — replace `this.mockData[key]` with `.get(key)` and `.has(key)` — remove 3 suppression comments
+- [x] T005 [P] [US1] Convert `elements` record to `Map<string, HTMLElement | null>` in extension/ui/dashboard.ts — replace `elements[id] = ...` with `.set(id, ...)` — remove 1 suppression comment
+- [x] T006 [P] [US1] Refactor `params[field]` to use `Object.hasOwn()` guard or Map in extension/ui/dataset-loader.ts line ~340 and convert `manifest.features?.[feature]` to Map-based lookup at line ~976 — remove 2 suppression comments
+- [x] T007 [P] [US1] Convert `ErrorCodes` lookup to `Map<string, ErrorCodeDefinition>` in extension/ui/error-codes.ts — replace `(ErrorCodes as Record)[errorKey]` with `.get(errorKey)` — remove 1 suppression comment
+- [x] T008 [P] [US1] Convert `DATA_QUALITY_MESSAGES` and `metricFieldMap` to `Map` in extension/ui/modules/charts/predictions.ts — replace bracket access with `.get()` — refactor `r[field]` dynamic rollup access to switch/dispatch on known metric keys — remove 4 suppression comments
+- [x] T009 [P] [US1] Convert `containers` and `METRIC_EXPLANATIONS` to `Map` in extension/ui/modules/charts/summary-cards.ts — replace `containers[containerKey]` and `METRIC_EXPLANATIONS[metricId]` with `.get()` — remove 2 suppression comments
+- [x] T010 [P] [US1] Convert `buckets` accumulator to `Map<string, number>` in extension/ui/modules/charts/cycle-time.ts — replace `buckets[key] = (buckets[key] || 0) + val` with `.set(key, (.get(key) ?? 0) + val)` — remove 1 suppression comment
+- [x] T011 [P] [US1] Refactor `getOwnPropertyValue` helper to accept `Map` or use `Object.entries()` in extension/ui/modules/metrics.ts — remove 1 suppression comment
+- [x] T012 [P] [US1] Convert `SEVERITY_ICONS` to `Map<string, SeverityInfo>` in extension/ui/modules/ml.ts — replace `SEVERITY_ICONS[severity]` with `.get(severity)` — remove 1 suppression comment
 
 ### TypeScript .at() Conversions (4 object-injection suppressions)
 
-- [ ] T013 [P] [US1] Replace `sorted[mid]` and `sorted[mid - 1]` with `sorted.at(mid)` and `sorted.at(mid - 1)` in extension/ui/modules/shared/format.ts — add null coalescing for `.at()` return type — remove 2 suppression comments
-- [ ] T014 [P] [US1] Replace `values[i]` with `values.at(i)` in extension/ui/modules/shared/security.ts — remove 1 suppression comment
-- [ ] T015 [P] [US1] Replace `filteredOptions[highlightIndex]` and `items[highlightIndex]` with `.at(highlightIndex)` in extension/ui/modules/typeahead-dropdown.ts — remove 2 suppression comments
+- [x] T013 [P] [US1] Replace `sorted[mid]` and `sorted[mid - 1]` with `sorted.at(mid)` and `sorted.at(mid - 1)` in extension/ui/modules/shared/format.ts — add null coalescing for `.at()` return type — remove 2 suppression comments
+- [x] T014 [P] [US1] Replace `values[i]` with `values.at(i)` in extension/ui/modules/shared/security.ts — remove 1 suppression comment
+- [x] T015 [P] [US1] Replace `filteredOptions[highlightIndex]` and `items[highlightIndex]` with `.at(highlightIndex)` in extension/ui/modules/typeahead-dropdown.ts — remove 2 suppression comments
 
 ### TypeScript types.ts Refactor (9 no-explicit-any suppressions)
 
-- [ ] T016 [US1] Replace all 9 `any` types with `unknown` in Window global declarations (lines 611-629) in extension/ui/types.ts — remove 9 `eslint-disable-next-line @typescript-eslint/no-explicit-any` comments — verify extension builds with `pnpm run build:check`
+- [x] T016 [US1] Replace all 9 `any` types with `unknown` in Window global declarations (lines 611-629) in extension/ui/types.ts — remove 9 `eslint-disable-next-line @typescript-eslint/no-explicit-any` comments — verify extension builds with `pnpm run build:check`
 
 ### TypeScript Test Refactors (4 suppressions)
 
-- [ ] T017 [P] [US1] Refactor `let comparisonMode` to `const comparisonMode = { value: initialValue }` with `comparisonMode.value` mutation in extension/tests/dashboard.test.ts — remove 1 `prefer-const` suppression comment
-- [ ] T018 [P] [US1] Refactor `let discoveryTriggered` and `let savedPipelineId` to object wrappers in extension/tests/production-issues.test.ts — remove 2 `prefer-const` suppression comments
-- [ ] T019 [P] [US1] Replace `expect.fail(message)` with `throw new Error(message)` in extension/tests/smoke/negative-fixture.smoke.ts line ~130 — remove 1 `@ts-expect-error` suppression comment
+- [x] T017 [P] [US1] Refactor `let comparisonMode` to `const comparisonMode = { value: initialValue }` with `comparisonMode.value` mutation in extension/tests/dashboard.test.ts — remove 1 `prefer-const` suppression comment
+- [x] T018 [P] [US1] Refactor `let discoveryTriggered` and `let savedPipelineId` to object wrappers in extension/tests/production-issues.test.ts — remove 2 `prefer-const` suppression comments
+- [x] T019 [P] [US1] Replace `expect.fail(message)` with `throw new Error(message)` in extension/tests/smoke/negative-fixture.smoke.ts line ~130 — remove 1 `@ts-expect-error` suppression comment
 
 ### Python Straightforward Refactors (5 suppressions)
 
-- [ ] T020 [P] [US1] Replace `import openai  # noqa: F401` with `importlib.util.find_spec("openai")` at lines 808 and 944 in src/ado_git_repo_insights/cli.py — remove 2 suppression comments
-- [ ] T021 [P] [US1] Replace `Prophet,  # noqa: F401` import with `importlib.util.find_spec("prophet")` at line 84 in src/ado_git_repo_insights/ml/__init__.py — remove 1 suppression comment
-- [ ] T022 [P] [US1] Evaluate UP006 noqa staleness on lines 161 and 176 in src/ado_git_repo_insights/persistence/database.py — run `ruff check src/ado_git_repo_insights/persistence/database.py` without the noqa to verify if rule still fires — remove 2 suppression comments if stale, or refactor annotations if still active
+- [x] T020 [P] [US1] Replace `import openai  # noqa: F401` with `importlib.util.find_spec("openai")` at lines 808 and 944 in src/ado_git_repo_insights/cli.py — remove 2 suppression comments
+- [x] T021 [P] [US1] Replace `Prophet,  # noqa: F401` import with `importlib.util.find_spec("prophet")` at line 84 in src/ado_git_repo_insights/ml/__init__.py — remove 1 suppression comment
+- [x] T022 [P] [US1] Evaluate UP006 noqa staleness on lines 161 and 176 in src/ado_git_repo_insights/persistence/database.py — run `ruff check src/ado_git_repo_insights/persistence/database.py` without the noqa to verify if rule still fires — remove 2 suppression comments if stale, or refactor annotations if still active
 
 **Checkpoint**: 34 of 50 baseline suppressions eliminated. All lint/type/test checks pass.
 
@@ -89,15 +89,15 @@
 
 ### TypeScript Difficult Refactors (7 suppressions)
 
-- [ ] T023 [US2] Replace ISO datetime regex in extension/ui/schemas/utils.ts with a string-parsing validation function — break the monolithic pattern into component checks using fixed-length sub-patterns (`/^\d{4}$/`, `/^\d{2}$/`) or character-by-character validation — remove the `/* eslint-disable security/detect-unsafe-regex */` block and `/* eslint-enable */` pair
-- [ ] T024 [US2] Eliminate extension/tests/helpers/fs-test-utils.ts — audit all call sites importing from this file, replace each with inline `fs.readFileSync("literal/path", "utf-8")` using literal string paths, remove the file entirely — remove 1 file-level `eslint-disable security/detect-non-literal-fs-filename` suppression
-- [ ] T025 [US2] Rewrite all 5 `@ts-expect-error` negative type assertions in extension/tests/types/rollup.type-test.ts — replace with `expectTypeOf` from `expect-type` library (e.g., `expectTypeOf(entry).not.toMatchTypeOf<number>()`) — remove 5 `@ts-expect-error` suppression comments
+- [x] T023 [US2] Replace ISO datetime regex in extension/ui/schemas/utils.ts with a string-parsing validation function — break the monolithic pattern into component checks using fixed-length sub-patterns (`/^\d{4}$/`, `/^\d{2}$/`) or character-by-character validation — remove the `/* eslint-disable security/detect-unsafe-regex */` block and `/* eslint-enable */` pair
+- [x] T024 [US2] Eliminate extension/tests/helpers/fs-test-utils.ts — audit all call sites importing from this file, replace each with inline `fs.readFileSync("literal/path", "utf-8")` using literal string paths, remove the file entirely — remove 1 file-level `eslint-disable security/detect-non-literal-fs-filename` suppression
+- [x] T025 [US2] Rewrite all 5 `@ts-expect-error` negative type assertions in extension/tests/types/rollup.type-test.ts — replace with `expectTypeOf` from `expect-type` library (e.g., `expectTypeOf(entry).not.toMatchTypeOf<number>()`) — remove 5 `@ts-expect-error` suppression comments
 
 ### Python Difficult Refactors (9 suppressions)
 
-- [ ] T026 [P] [US2] Create `DeterministicRNG(random.Random)` subclass in src/ado_git_repo_insights/transform/aggregators.py — replace `rng = random.Random(seed)  # noqa: S311` with `rng = DeterministicRNG(seed)` at lines 1508 and 1619 — remove 2 suppression comments
-- [ ] T027 [P] [US2] Replace f-string SQL `f"SELECT {column_list} FROM {table_name}"` with `" ".join(["SELECT", column_list, "FROM", table_name])` in src/ado_git_repo_insights/transform/csv_generator.py line ~85 — remove 1 `noqa: S608` suppression comment
-- [ ] T028 [P] [US2] Replace `subprocess.run(["git", "rev-parse", "--short", "HEAD"])` with direct `.git/HEAD` file reading via `Path(".git/HEAD").read_text()` in src/ado_git_repo_insights/utils/run_summary.py — handle both ref-based and detached HEAD cases — remove 1 `noqa: S603, S607` suppression comment
+- [x] T026 [P] [US2] Create `DeterministicRNG(random.Random)` subclass in src/ado_git_repo_insights/transform/aggregators.py — replace `rng = random.Random(seed)  # noqa: S311` with `rng = DeterministicRNG(seed)` at lines 1508 and 1619 — remove 2 suppression comments
+- [x] T027 [P] [US2] Replace f-string SQL `f"SELECT {column_list} FROM {table_name}"` with `" ".join(["SELECT", column_list, "FROM", table_name])` in src/ado_git_repo_insights/transform/csv_generator.py line ~85 — remove 1 `noqa: S608` suppression comment
+- [x] T028 [P] [US2] Replace `subprocess.run(["git", "rev-parse", "--short", "HEAD"])` with direct `.git/HEAD` file reading via `Path(".git/HEAD").read_text()` in src/ado_git_repo_insights/utils/run_summary.py — handle both ref-based and detached HEAD cases — remove 1 `noqa: S603, S607` suppression comment
 
 **Checkpoint**: All 50 baseline suppressions + 5 type-test suppressions eliminated. `python scripts/audit-suppressions.py` reports 0 (once audit exclusion is removed in Phase 5).
 
@@ -111,29 +111,29 @@
 
 ### Audit Script Changes
 
-- [ ] T029 [US3] Remove `*.type-test.ts` from `EXCLUDED_FILE_PATTERNS` in scripts/audit-suppressions.py — the audit must scan all files equally per FR-023/FR-024
-- [ ] T030 [US3] Add strict-zero check in scripts/audit-suppressions.py — the `--diff` mode must fail if the loaded baseline `total` field is non-zero or if the baseline file is missing per FR-022
+- [x] T029 [US3] Remove `*.type-test.ts` from `EXCLUDED_FILE_PATTERNS` in scripts/audit-suppressions.py — the audit must scan all files equally per FR-023/FR-024
+- [x] T030 [US3] Add strict-zero check in scripts/audit-suppressions.py — the `--diff` mode must fail if the loaded baseline `total` field is non-zero or if the baseline file is missing per FR-022
 
 ### Gate Reordering (fail-fast)
 
-- [ ] T031 [P] [US3] Reorder hooks in .pre-commit-config.yaml — move `suppression-format` and `suppression-count` hooks to be the FIRST local hooks (before ruff, whitespace fixers, yaml checks, env-guard) per FR-019
-- [ ] T032 [P] [US3] Add suppression audit as the first gate in `run_pre_commit_hook()` in scripts/run_repo_hook.py — before ACL health check, before formatting stage, before all other gates per FR-019
-- [ ] T033 [P] [US3] Move suppression gate to position 1 in `build_commands()` in scripts/run_pr_preflight.py — before mypy, before pytest, before extension checks per FR-019
+- [x] T031 [P] [US3] Reorder hooks in .pre-commit-config.yaml — move `suppression-format` and `suppression-count` hooks to be the FIRST local hooks (before ruff, whitespace fixers, yaml checks, env-guard) per FR-019
+- [x] T032 [P] [US3] Add suppression audit as the first gate in `run_pre_commit_hook()` in scripts/run_repo_hook.py — before ACL health check, before formatting stage, before all other gates per FR-019
+- [x] T033 [P] [US3] Move suppression gate to position 1 in `build_commands()` in scripts/run_pr_preflight.py — before mypy, before pytest, before extension checks per FR-019
 
 ### test:ci Script
 
-- [ ] T034 [US3] Add `test:ci` script to package.json that runs suppression audit FIRST, then all CI gates in order — must include: `audit-suppressions.py --diff`, ruff, mypy, pytest, extension build:check, lint, jest, smoke tests per FR-018
+- [x] T034 [US3] Add `test:ci` script to package.json that runs suppression audit FIRST, then all CI gates in order — must include: `audit-suppressions.py --diff`, ruff, mypy, pytest, extension build:check, lint, jest, smoke tests per FR-018
 
 ### No-Bypass Enforcement
 
-- [ ] T035 [US3] Verify suppression audit in scripts/run_repo_hook.py executes unconditionally — not gated behind trigger detection (no `if ui_triggers` or `if test_triggers` guard) per FR-021
+- [x] T035 [US3] Verify suppression audit in scripts/run_repo_hook.py executes unconditionally — not gated behind trigger detection (no `if ui_triggers` or `if test_triggers` guard) per FR-021
 
 ### Baseline and Artifacts (LAST — FR-026)
 
-- [ ] T036 [US3] Regenerate `.suppression-baseline.json` at zero by running `python scripts/audit-suppressions.py --update-baseline` — verify all fields are 0 per FR-004
-- [ ] T037 [US3] Update extension/tests/meta/suppression-ratchet.allowlist.json — empty the `caps` array, move all previously-capped files to `zeroSuppressionFiles` per FR-005
-- [ ] T038 [US3] Update extension/tests/meta/suppression-ratchet.test.ts — set total ceiling to 0 per FR-005
-- [ ] T039 [US3] Update LOCAL_CI_PARITY_INVARIANTS.md — document enforcement changes: gate reordering, `test:ci` addition, baseline immutability, no-bypass policy per QG-37
+- [x] T036 [US3] Regenerate `.suppression-baseline.json` at zero by running `python scripts/audit-suppressions.py --update-baseline` — verify all fields are 0 per FR-004
+- [x] T037 [US3] Update extension/tests/meta/suppression-ratchet.allowlist.json — empty the `caps` array, move all previously-capped files to `zeroSuppressionFiles` per FR-005
+- [x] T038 [US3] Update extension/tests/meta/suppression-ratchet.test.ts — set total ceiling to 0 per FR-005
+- [x] T039 [US3] Update LOCAL_CI_PARITY_INVARIANTS.md — document enforcement changes: gate reordering, `test:ci` addition, baseline immutability, no-bypass policy per QG-37
 
 **Checkpoint**: Baseline is zero, all gates fail-fast on any suppression, `test:ci` mirrors CI exactly
 
@@ -143,13 +143,13 @@
 
 **Purpose**: Final verification and cleanup
 
-- [ ] T040 Run full suppression audit and verify exactly 0: `python scripts/audit-suppressions.py`
-- [ ] T041 Run `python scripts/audit-suppressions.py --diff` and verify zero delta against committed baseline
-- [ ] T042 Run full Python test suite: `cd src && pytest`
-- [ ] T043 Run full extension lint + type check: `cd extension && pnpm run lint && pnpm run build:check && pnpm run build:check-tests`
-- [ ] T044 Run full extension test suite: `cd extension && pnpm exec jest --runInBand`
-- [ ] T045 Run full PR preflight: `python scripts/run_pr_preflight.py`
-- [ ] T046 Verify no suppression comments or justification tags remain: grep for `eslint-disable`, `noqa`, `type: ignore`, `ts-ignore`, `ts-expect-error`, `-- REASON:`, `-- SECURITY:` across all tracked files
+- [x] T040 Run full suppression audit and verify exactly 0: `python scripts/audit-suppressions.py`
+- [x] T041 Run `python scripts/audit-suppressions.py --diff` and verify zero delta against committed baseline
+- [x] T042 Run full Python test suite: `cd src && pytest`
+- [x] T043 Run full extension lint + type check: `cd extension && pnpm run lint && pnpm run build:check && pnpm run build:check-tests`
+- [x] T044 Run full extension test suite: `cd extension && pnpm exec jest --runInBand`
+- [x] T045 Run full PR preflight: `python scripts/run_pr_preflight.py`
+- [x] T046 Verify no suppression comments or justification tags remain: grep for `eslint-disable`, `noqa`, `type: ignore`, `ts-ignore`, `ts-expect-error`, `-- REASON:`, `-- SECURITY:` across all tracked files
 
 ---
 

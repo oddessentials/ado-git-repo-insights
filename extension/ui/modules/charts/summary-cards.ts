@@ -24,18 +24,28 @@ import { showInfoTooltip, dismissAllTooltips } from "../tooltip-manager";
  * Metric explanations for info icons (FR-017, FR-018).
  * Plain-English descriptions of what each summary card metric represents.
  */
-export const METRIC_EXPLANATIONS: Record<string, string> = {
-  totalPrs:
+export const METRIC_EXPLANATIONS = new Map<string, string>([
+  [
+    "totalPrs",
     "Total merged pull requests in the selected period and filters.",
-  cycleP50:
+  ],
+  [
+    "cycleP50",
     "Median time from PR creation to merge. Half of all PRs completed faster than this.",
-  cycleP90:
+  ],
+  [
+    "cycleP90",
     "90th percentile cycle time. 90% of PRs completed faster. High values may indicate bottlenecks.",
-  authorsCount:
+  ],
+  [
+    "authorsCount",
     "Average number of unique PR authors per week in this period.",
-  reviewersCount:
+  ],
+  [
+    "reviewersCount",
     "Average number of unique reviewers per week in this period.",
-};
+  ],
+]);
 
 /**
  * Container elements for summary cards.
@@ -267,9 +277,11 @@ const infoIconControllers = new WeakMap<HTMLElement, AbortController>();
  * before creating new ones, preventing memory leaks.
  */
 function attachInfoIcons(containers: SummaryCardsContainers): void {
+  const containerMap = new Map<string, HTMLElement | null>(
+    Object.entries(containers),
+  );
   for (const { metricId, containerKey } of METRIC_TO_CONTAINER_KEY) {
-    // eslint-disable-next-line security/detect-object-injection -- SECURITY: containerKey is from METRIC_TO_CONTAINER_KEY constant, not user input
-    const valueEl = containers[containerKey];
+    const valueEl = containerMap.get(containerKey) ?? null;
     if (!valueEl) continue;
 
     // Find the parent card element, then locate the h3 title
@@ -287,8 +299,7 @@ function attachInfoIcons(containers: SummaryCardsContainers): void {
       existing.remove();
     }
 
-    // eslint-disable-next-line security/detect-object-injection -- SECURITY: metricId is from METRIC_TO_CONTAINER_KEY constant, not user input
-    const explanation = METRIC_EXPLANATIONS[metricId] ?? "";
+    const explanation = METRIC_EXPLANATIONS.get(metricId) ?? "";
     if (!explanation) continue;
 
     const controller = new AbortController();

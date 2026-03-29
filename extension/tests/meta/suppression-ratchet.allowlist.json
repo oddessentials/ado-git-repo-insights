@@ -1,23 +1,10 @@
 {
   "_comment": "Declared suppression caps for files touched by refactor/any-types. Each entry must include a justification. Files not listed must have zero suppressions.",
-  "caps": [
-    {
-      "file": "tests/helpers/fs-test-utils.ts",
-      "max": 1,
-      "reason": "Single file-level eslint-disable block for security/detect-non-literal-fs-filename — all fs wrappers share one architectural decision"
-    },
-    {
-      "file": "tests/dashboard.test.ts",
-      "max": 1,
-      "reason": "prefer-const suppression for mutable comparisonMode state-transition assertion"
-    },
-    {
-      "file": "tests/production-issues.test.ts",
-      "max": 2,
-      "reason": "prefer-const suppressions for mutable discoveryTriggered and savedPipelineId test contract variables"
-    }
-  ],
+  "caps": [],
   "zeroSuppressionFiles": [
+    "tests/dashboard.test.ts",
+    "tests/production-issues.test.ts",
+    "tests/helpers/fs-test-utils.ts",
     "tests/setup.ts",
     "tests/harness/dom-harness.ts",
     "tests/local-mode-integration.test.ts"

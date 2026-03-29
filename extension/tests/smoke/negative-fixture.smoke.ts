@@ -127,8 +127,7 @@ test.describe("Negative Smoke Tests - Error State Gate", () => {
       expect(messageText?.length).toBeGreaterThan(5);
     } else {
       // Neither panel visible - fail the test
-      // @ts-expect-error -- REASON: expect.fail() is a Playwright assertion not in Jest types; intentional negative-fixture test
-      expect.fail(
+      throw new Error(
         "Expected either error-generic or error-setup-required to be visible",
       );
     }

@@ -549,30 +549,30 @@ var PRInsightsSettings = (() => {
     constructor(mockData = {}) {
       this.projectId = "mock-project";
       this.initialized = true;
-      this.mockData = mockData;
+      this.mockData = new Map(Object.entries(mockData));
     }
     async initialize() {
       return this;
     }
     async getArtifactFile(buildId, artifactName, filePath) {
       const key = `${buildId}/${artifactName}/${filePath}`;
-      if (this.mockData[key]) {
-        return JSON.parse(JSON.stringify(this.mockData[key]));
+      if (this.mockData.has(key)) {
+        return JSON.parse(JSON.stringify(this.mockData.get(key)));
       }
       throw new Error(`Mock: File not found: ${key}`);
     }
     async hasArtifactFile(buildId, artifactName, filePath) {
       const key = `${buildId}/${artifactName}/${filePath}`;
-      return !!this.mockData[key];
+      return this.mockData.has(key);
     }
     async getArtifacts(buildId) {
-      return this.mockData[`${buildId}/artifacts`] ?? [];
+      return this.mockData.get(`${buildId}/artifacts`) ?? [];
     }
     async getDefinitions() {
-      return this.mockData["definitions"] ?? [];
+      return this.mockData.get("definitions") ?? [];
     }
     async getBuilds(definitionId) {
-      return this.mockData[`builds/${definitionId}`] ?? [];
+      return this.mockData.get(`builds/${definitionId}`) ?? [];
     }
     createDatasetLoader(buildId, artifactName) {
       return new AuthenticatedDatasetLoader(

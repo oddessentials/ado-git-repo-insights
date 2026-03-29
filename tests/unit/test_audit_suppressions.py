@@ -196,53 +196,60 @@ class TestAuditSuppressionsCLI:
         self, tmp_path: Path
     ) -> None:
         """Direct-push protection must still win under CI-style main env."""
-        baseline_path = tmp_path / "baseline.json"
-        baseline_path.write_text(
-            json.dumps(
-                {
-                    "version": 1,
-                    "generated_at": "2026-03-22T00:00:00Z",
-                    "total": 0,
-                    "by_scope": {
-                        "python-backend": 0,
-                        "typescript-extension": 0,
-                        "typescript-tests": 0,
+        repo_root = Path(__file__).parent.parent.parent
+        # Inject a temporary file with a suppression so current > baseline
+        injected = repo_root / "src" / "_test_injected_suppression.py"
+        injected.write_text("x = 1  # noqa: E501\n", encoding="utf-8")
+        try:
+            baseline_path = tmp_path / "baseline.json"
+            baseline_path.write_text(
+                json.dumps(
+                    {
+                        "version": 1,
+                        "generated_at": "2026-03-22T00:00:00Z",
+                        "total": 0,
+                        "by_scope": {
+                            "python-backend": 0,
+                            "typescript-extension": 0,
+                            "typescript-tests": 0,
+                        },
+                        "by_type": {
+                            "eslint-disable-block": 0,
+                            "eslint-disable-line": 0,
+                            "eslint-disable-next-line": 0,
+                            "noqa": 0,
+                            "ts-expect-error": 0,
+                            "ts-ignore": 0,
+                            "type-ignore": 0,
+                        },
+                        "by_file": {},
+                        "by_rule": {},
                     },
-                    "by_type": {
-                        "eslint-disable-block": 0,
-                        "eslint-disable-line": 0,
-                        "eslint-disable-next-line": 0,
-                        "noqa": 0,
-                        "ts-expect-error": 0,
-                        "ts-ignore": 0,
-                        "type-ignore": 0,
-                    },
-                    "by_file": {},
-                    "by_rule": {},
-                },
-                indent=2,
-            ),
-            encoding="utf-8",
-        )
-        env = self._local_env()
-        env["GITHUB_EVENT_NAME"] = "push"
-        env["GITHUB_REF"] = "refs/heads/main"
-        result = subprocess.run(  # noqa: S603 - trusted test code
-            [
-                sys.executable,
-                str(AUDIT_SCRIPT),
-                "--diff",
-                "--allow-pending-approval",
-                "--baseline",
-                str(baseline_path),
-            ],
-            capture_output=True,
-            text=True,
-            cwd=Path(__file__).parent.parent.parent,
-            env=env,
-        )
-        assert result.returncode == 1
-        assert "Direct push to main" in result.stdout
+                    indent=2,
+                ),
+                encoding="utf-8",
+            )
+            env = self._local_env()
+            env["GITHUB_EVENT_NAME"] = "push"
+            env["GITHUB_REF"] = "refs/heads/main"
+            result = subprocess.run(  # noqa: S603 - trusted test code
+                [
+                    sys.executable,
+                    str(AUDIT_SCRIPT),
+                    "--diff",
+                    "--allow-pending-approval",
+                    "--baseline",
+                    str(baseline_path),
+                ],
+                capture_output=True,
+                text=True,
+                cwd=repo_root,
+                env=env,
+            )
+            assert result.returncode == 1
+            assert "Direct push to main" in result.stdout
+        finally:
+            injected.unlink(missing_ok=True)
 
     def test_validate_command_works(self) -> None:
         """The --validate command should run without errors."""
