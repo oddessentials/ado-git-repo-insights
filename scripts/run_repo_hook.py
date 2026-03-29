@@ -246,6 +246,51 @@ def require_clean_ui_sources() -> None:
     raise SystemExit(1)
 
 
+def require_clean_test_compilation_scope() -> None:
+    """Block commit if any file in the test compilation scope has unstaged changes.
+
+    tsconfig.test.json compiles: tests/**/*.ts, ui/**/*.ts, ../types/vss.d.ts.
+    tsc reads the worktree, not the staged index.  If unstaged changes exist
+    in these paths, the type-check result does not match the staged snapshot.
+    """
+    unstaged: list[str] = []
+    unstaged.extend(worktree_paths("extension/tests/"))
+    unstaged.extend(worktree_paths("extension/ui/"))
+    unstaged.extend(worktree_paths("types/"))
+    if not unstaged:
+        return
+    safe_print("[pre-commit] unstaged changes in test compilation scope detected")
+    safe_print("")
+    safe_print(
+        "Stage or stash these files before committing so the test type-check"
+        " matches the staged snapshot:"
+    )
+    for path in unstaged:
+        safe_print(f"  - {path}")
+    raise SystemExit(1)
+
+
+def require_clean_tsconfigs() -> None:
+    """Block commit if any extension tsconfig has unstaged changes.
+
+    The config parity check reads tsconfig files from the worktree via the
+    TypeScript API.  If any have unstaged changes, the parity result does
+    not match the staged snapshot.
+    """
+    unstaged = worktree_paths("extension/tsconfig")
+    if not unstaged:
+        return
+    safe_print("[pre-commit] unstaged changes in tsconfig files detected")
+    safe_print("")
+    safe_print(
+        "Stage or stash these files before committing so the config parity"
+        " check matches the staged snapshot:"
+    )
+    for path in unstaged:
+        safe_print(f"  - {path}")
+    raise SystemExit(1)
+
+
 def run_pnpm_lockfile_guard() -> None:
     """Block package-lock.json from being committed (pnpm-only policy).
 
@@ -531,10 +576,11 @@ def run_pre_commit_hook() -> None:
         safe_print("[pre-commit] test file triggers detected")
         for path in test_triggers:
             safe_print(f"  - {path}")
-        require_clean_ui_sources()
+        require_clean_test_compilation_scope()
         run_extension_test_typecheck()
 
     if tsconfig_triggers:
+        require_clean_tsconfigs()
         run_extension_config_parity()
 
 
