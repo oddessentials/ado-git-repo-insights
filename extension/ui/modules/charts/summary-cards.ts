@@ -127,6 +127,13 @@ export function renderSummaryCards(options: RenderSummaryCardsOptions): void {
   const current = calculateMetrics(rollups);
   const previous = calculateMetrics(prevRollups);
 
+  // Hide review-time cards when dataset has no review_time data at all,
+  // so users don't see permanently blank KPIs on older datasets.
+  const hasReviewTimeData = rollups.some(
+    (r) => r.review_time_p50 != null || r.review_time_p90 != null,
+  );
+  toggleReviewTimeCards(containers, hasReviewTimeData);
+
   // Render metric values
   renderMetricValues(containers, current);
 
@@ -152,6 +159,26 @@ export function renderSummaryCards(options: RenderSummaryCardsOptions): void {
       "dashboard-init",
       "first-meaningful-paint",
     );
+  }
+}
+
+/**
+ * Show or hide review-time summary cards based on data availability.
+ * Walks from the value element up to its parent .card and toggles display.
+ */
+function toggleReviewTimeCards(
+  containers: SummaryCardsContainers,
+  visible: boolean,
+): void {
+  const reviewTimeElements = [
+    containers.reviewTimeP50,
+    containers.reviewTimeP90,
+  ];
+  for (const el of reviewTimeElements) {
+    const card = el?.closest(".card") as HTMLElement | null;
+    if (card) {
+      card.style.display = visible ? "" : "none";
+    }
   }
 }
 

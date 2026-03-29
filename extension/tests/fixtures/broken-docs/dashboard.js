@@ -5522,6 +5522,10 @@ var PRInsightsDashboard = (() => {
     if (metricsCollector2) metricsCollector2.mark("render-summary-cards-start");
     const current = calculateMetrics(rollups);
     const previous = calculateMetrics(prevRollups);
+    const hasReviewTimeData = rollups.some(
+      (r) => r.review_time_p50 != null || r.review_time_p90 != null
+    );
+    toggleReviewTimeCards(containers, hasReviewTimeData);
     renderMetricValues(containers, current);
     attachInfoIcons(containers);
     const sparklineData = extractSparklineData(rollups);
@@ -5539,6 +5543,18 @@ var PRInsightsDashboard = (() => {
         "dashboard-init",
         "first-meaningful-paint"
       );
+    }
+  }
+  function toggleReviewTimeCards(containers, visible) {
+    const reviewTimeElements = [
+      containers.reviewTimeP50,
+      containers.reviewTimeP90
+    ];
+    for (const el of reviewTimeElements) {
+      const card = el?.closest(".card");
+      if (card) {
+        card.style.display = visible ? "" : "none";
+      }
     }
   }
   function renderMetricValues(containers, metrics) {

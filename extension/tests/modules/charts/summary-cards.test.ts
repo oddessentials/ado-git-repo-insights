@@ -361,5 +361,57 @@ describe("summary-cards module", () => {
       expect(containers.reviewTimeP50Sparkline!.innerHTML).toBe("");
       expect(containers.reviewTimeP90Sparkline!.innerHTML).toBe("");
     });
+
+    it("hides review time cards when dataset has no review_time data", () => {
+      // Wrap review time values inside .card elements so closest() works
+      const containers = createContainers();
+      const p50Card = document.createElement("div");
+      p50Card.className = "card";
+      p50Card.appendChild(containers.reviewTimeP50!);
+      document.body.appendChild(p50Card);
+      const p90Card = document.createElement("div");
+      p90Card.className = "card";
+      p90Card.appendChild(containers.reviewTimeP90!);
+      document.body.appendChild(p90Card);
+
+      const rollups = createRollups(4); // no review_time fields
+
+      renderSummaryCards({ rollups, containers });
+
+      expect(p50Card.style.display).toBe("none");
+      expect(p90Card.style.display).toBe("none");
+    });
+
+    it("shows review time cards when dataset has review_time data", () => {
+      const containers = createContainers();
+      const p50Card = document.createElement("div");
+      p50Card.className = "card";
+      p50Card.appendChild(containers.reviewTimeP50!);
+      document.body.appendChild(p50Card);
+      const p90Card = document.createElement("div");
+      p90Card.className = "card";
+      p90Card.appendChild(containers.reviewTimeP90!);
+      document.body.appendChild(p90Card);
+
+      const rollups = [
+        {
+          week: "2025-W01",
+          pr_count: 10,
+          cycle_time_p50: 60,
+          cycle_time_p90: 120,
+          review_time_p50: 90,
+          review_time_p90: 240,
+          authors_count: 5,
+          reviewers_count: 3,
+          by_repository: null,
+          by_team: null,
+        },
+      ];
+
+      renderSummaryCards({ rollups, containers });
+
+      expect(p50Card.style.display).toBe("");
+      expect(p90Card.style.display).toBe("");
+    });
   });
 });
