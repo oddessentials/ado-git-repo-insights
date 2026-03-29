@@ -277,7 +277,7 @@ def require_clean_tsconfigs() -> None:
     TypeScript API.  If any have unstaged changes, the parity result does
     not match the staged snapshot.
     """
-    unstaged = worktree_paths("extension/tsconfig")
+    unstaged = worktree_paths("extension/tsconfig*.json")
     if not unstaged:
         return
     safe_print("[pre-commit] unstaged changes in tsconfig files detected")
