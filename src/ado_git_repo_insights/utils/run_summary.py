@@ -172,21 +172,64 @@ def _find_git_dir(start: Path | None = None) -> Path | None:
     return None
 
 
-def _resolve_ref(git_dir: Path, ref: str) -> str | None:
-    """Resolve a git ref to a commit SHA, checking loose refs then packed-refs."""
-    # Loose ref file (most common case)
-    loose = git_dir / ref
-    if loose.is_file():
-        return loose.read_text(encoding="utf-8").strip()
-    # Packed-refs fallback
-    packed = git_dir / "packed-refs"
-    if packed.is_file():
-        prefix = f" {ref}\n"
-        for line in packed.read_text(encoding="utf-8").splitlines(keepends=True):
-            if line.endswith(prefix) or line.rstrip().endswith(f" {ref}"):
-                sha_candidate = line.split()[0]
-                if len(sha_candidate) >= 7:
-                    return sha_candidate
+def _get_common_git_dir(git_dir: Path) -> Path:
+    """Return the common git directory for *git_dir*.
+
+    In a linked worktree the per-worktree admin dir contains a
+    ``commondir`` file whose content is a path (usually relative)
+    to the shared git directory where refs and packed-refs live.
+    For a normal repo the file is absent and *git_dir* is returned
+    unchanged.
+    """
+    commondir_file = git_dir / "commondir"
+    if commondir_file.is_file():
+        raw = commondir_file.read_text(encoding="utf-8").strip()
+        target = Path(raw)
+        if not target.is_absolute():
+            target = (git_dir / target).resolve()
+        if target.is_dir():
+            return target
+    return git_dir
+
+
+def _resolve_ref(
+    git_dir: Path,
+    ref: str,
+    common_git_dir: Path | None = None,
+) -> str | None:
+    """Resolve a git ref to a commit SHA.
+
+    Search order:
+      1. Per-worktree loose ref  (``git_dir / ref``)
+      2. Common loose ref        (``common_git_dir / ref``)
+      3. Per-worktree packed-refs
+      4. Common packed-refs
+
+    When *common_git_dir* is ``None`` or equals *git_dir*, steps 2
+    and 4 are skipped (normal-repo fast path).
+    """
+    common = common_git_dir if common_git_dir is not None else git_dir
+    search_dirs: list[Path] = [git_dir]
+    if common != git_dir:
+        search_dirs.append(common)
+
+    # Loose ref files
+    for d in search_dirs:
+        loose = d / ref
+        if loose.is_file():
+            return loose.read_text(encoding="utf-8").strip()
+
+    # Packed-refs files
+    for d in search_dirs:
+        packed = d / "packed-refs"
+        if packed.is_file():
+            suffix = f" {ref}"
+            for line in packed.read_text(encoding="utf-8").splitlines():
+                if line.endswith(suffix):
+                    sha_candidate = line.split()[0]
+                    if len(sha_candidate) >= 7:
+                        return sha_candidate
+
     return None
 
 
@@ -194,7 +237,7 @@ def get_git_sha() -> str | None:
     """Read current short commit SHA from the git directory.
 
     Works from any subdirectory inside the checkout, and supports
-    worktree layouts and packed-refs.
+    linked-worktree layouts (via ``commondir``) and packed-refs.
 
     Returns:
         Short (7-char) Git SHA or None if unavailable.
@@ -203,9 +246,10 @@ def get_git_sha() -> str | None:
         git_dir = _find_git_dir()
         if git_dir is None:
             return None
+        common_git_dir = _get_common_git_dir(git_dir)
         head_content = (git_dir / "HEAD").read_text(encoding="utf-8").strip()
         if head_content.startswith("ref: "):
-            sha = _resolve_ref(git_dir, head_content[5:])
+            sha = _resolve_ref(git_dir, head_content[5:], common_git_dir)
             return sha[:7] if sha else None
         return head_content[:7]  # Detached HEAD — raw SHA
     except OSError:

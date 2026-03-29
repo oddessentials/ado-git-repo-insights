@@ -193,6 +193,89 @@ class TestHelperFunctions:
         result = _resolve_ref(git_dir, "refs/heads/main")
         assert result == loose_sha
 
+    def test_get_git_sha_linked_worktree_loose_ref(self, tmp_path: Path) -> None:
+        """get_git_sha must resolve a branch ref via commondir loose ref."""
+        sha = "aabbccdd11223344556677889900aabbccddeeff"
+        # Common git dir with the loose ref
+        common = tmp_path / "common_git"
+        common.mkdir()
+        refs_dir = common / "refs" / "heads"
+        refs_dir.mkdir(parents=True)
+        (refs_dir / "feature").write_text(f"{sha}\n")
+        # Per-worktree admin dir with HEAD and commondir
+        admin = common / "worktrees" / "wt1"
+        admin.mkdir(parents=True)
+        (admin / "HEAD").write_text("ref: refs/heads/feature\n")
+        (admin / "commondir").write_text("../..\n")
+        # Worktree checkout with .git file pointing to admin dir
+        checkout = tmp_path / "worktree_checkout"
+        checkout.mkdir()
+        (checkout / ".git").write_text(f"gitdir: {admin}\n")
+        saved = os.getcwd()
+        try:
+            os.chdir(checkout)
+            result = get_git_sha()
+            assert result is not None, (
+                "get_git_sha() returned None in linked-worktree with loose ref"
+            )
+            assert result == sha[:7]
+        finally:
+            os.chdir(saved)
+
+    def test_get_git_sha_linked_worktree_packed_ref(self, tmp_path: Path) -> None:
+        """get_git_sha must resolve a branch ref via commondir packed-refs."""
+        sha = "1122334455667788990011223344556677889900"
+        # Common git dir with packed-refs only (no loose ref)
+        common = tmp_path / "common_git"
+        common.mkdir()
+        (common / "packed-refs").write_text(
+            f"# pack-refs with: peeled fully-peeled sorted\n{sha} refs/heads/feature\n"
+        )
+        # Per-worktree admin dir
+        admin = common / "worktrees" / "wt1"
+        admin.mkdir(parents=True)
+        (admin / "HEAD").write_text("ref: refs/heads/feature\n")
+        (admin / "commondir").write_text("../..\n")
+        # Worktree checkout
+        checkout = tmp_path / "worktree_checkout"
+        checkout.mkdir()
+        (checkout / ".git").write_text(f"gitdir: {admin}\n")
+        saved = os.getcwd()
+        try:
+            os.chdir(checkout)
+            result = get_git_sha()
+            assert result is not None, (
+                "get_git_sha() returned None in linked-worktree with packed ref"
+            )
+            assert result == sha[:7]
+        finally:
+            os.chdir(saved)
+
+    def test_resolve_ref_checks_common_dir(self, tmp_path: Path) -> None:
+        """_resolve_ref must search common_git_dir after git_dir."""
+        worktree_sha = "aaaaaaa000000011111112222222333333344444"
+        common_sha = "bbbbbbb000000011111112222222333333344444"
+        # Per-worktree dir: no refs at all
+        wt_dir = tmp_path / "wt_admin"
+        wt_dir.mkdir()
+        # Common dir: has the loose ref
+        common_dir = tmp_path / "common"
+        common_dir.mkdir()
+        refs_dir = common_dir / "refs" / "heads"
+        refs_dir.mkdir(parents=True)
+        (refs_dir / "main").write_text(f"{common_sha}\n")
+        # Without common_git_dir: returns None (ref not in wt_dir)
+        assert _resolve_ref(wt_dir, "refs/heads/main") is None
+        # With common_git_dir: finds the ref
+        result = _resolve_ref(wt_dir, "refs/heads/main", common_dir)
+        assert result == common_sha
+        # Per-worktree ref takes precedence when both exist
+        wt_refs = wt_dir / "refs" / "heads"
+        wt_refs.mkdir(parents=True)
+        (wt_refs / "main").write_text(f"{worktree_sha}\n")
+        result = _resolve_ref(wt_dir, "refs/heads/main", common_dir)
+        assert result == worktree_sha
+
     def test_get_git_sha_returns_none_outside_repo(self, tmp_path: Path) -> None:
         """get_git_sha must return None in a directory with no .git ancestor."""
         saved = os.getcwd()
