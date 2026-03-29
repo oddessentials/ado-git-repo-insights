@@ -53,8 +53,16 @@ describe("dom module", () => {
       expect(getNodeList("uncached-list")).toBeNull();
     });
 
-    // Note: getNodeList requires manual caching of NodeList
-    // which is typically done in cacheElements() for specific cases
+    it("returns cached NodeList from cacheElements", () => {
+      document.body.innerHTML = `
+        <div class="tab">Tab 1</div>
+        <div class="tab">Tab 2</div>
+      `;
+      cacheElements();
+      const tabs = getNodeList("tabs");
+      expect(tabs).not.toBeNull();
+      expect(tabs!.length).toBe(2);
+    });
   });
 
   describe("cacheElements", () => {

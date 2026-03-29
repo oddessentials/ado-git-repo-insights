@@ -169,6 +169,22 @@ class TestHelperFunctions:
         result = _find_git_dir(start=worktree)
         assert result == real_git
 
+    def test_find_git_dir_worktree_relative_gitdir(self, tmp_path: Path) -> None:
+        """_find_git_dir must resolve a relative gitdir path in a .git file."""
+        # Layout: tmp/repo/.git/worktrees/wt1/ (real git dir)
+        #         tmp/worktree/.git (file with "gitdir: ../repo/.git/worktrees/wt1")
+        repo_git = tmp_path / "repo" / ".git" / "worktrees" / "wt1"
+        repo_git.mkdir(parents=True)
+        (repo_git / "HEAD").write_text("ref: refs/heads/main\n")
+        worktree = tmp_path / "worktree"
+        worktree.mkdir()
+        # Use a relative path from the worktree to the git dir
+        relative = "../repo/.git/worktrees/wt1"
+        (worktree / ".git").write_text(f"gitdir: {relative}\n")
+        result = _find_git_dir(start=worktree)
+        assert result is not None, "_find_git_dir returned None for relative gitdir"
+        assert result.resolve() == repo_git.resolve()
+
     def test_resolve_ref_packed_refs(self, tmp_path: Path) -> None:
         """_resolve_ref must find a SHA in packed-refs when loose ref is absent."""
         git_dir = tmp_path / "git_dir"

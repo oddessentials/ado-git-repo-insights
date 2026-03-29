@@ -225,6 +225,27 @@ describe("extractHistoricalData", () => {
     expect(result[0]!.value).toBe(5);
     expect(result[1]!.value).toBe(10);
   });
+
+  it("returns data points for cycle_time_minutes metric", () => {
+    const rollups = [
+      { week: "2024-W01", pr_count: 5, cycle_time_p50: 60 },
+      { week: "2024-W02", pr_count: 10, cycle_time_p50: 120 },
+    ];
+    const result = extractHistoricalData(rollups, "cycle_time_minutes");
+    expect(result).toHaveLength(2);
+    expect(result[0]!.value).toBe(60);
+    expect(result[1]!.value).toBe(120);
+  });
+
+  it("filters null values from cycle_time_minutes metric", () => {
+    const rollups = [
+      { week: "2024-W01", pr_count: 5, cycle_time_p50: null },
+      { week: "2024-W02", pr_count: 10, cycle_time_p50: 90 },
+    ];
+    const result = extractHistoricalData(rollups, "cycle_time_minutes");
+    expect(result).toHaveLength(1);
+    expect(result[0]!.value).toBe(90);
+  });
 });
 
 describe("renderAIInsights", () => {

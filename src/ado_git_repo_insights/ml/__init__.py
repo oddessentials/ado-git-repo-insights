@@ -77,12 +77,23 @@ __all__ = [
 def is_prophet_available() -> bool:
     """Check if Prophet is available for import.
 
+    Uses find_spec as a fast pre-check (avoids import overhead when the
+    package is not installed), then performs a real runtime import to
+    catch broken or partial installations.
+
     Returns:
-        True if Prophet can be imported, False otherwise.
+        True if Prophet can be imported successfully, False otherwise.
     """
     try:
-        return importlib.util.find_spec("prophet") is not None
+        if importlib.util.find_spec("prophet") is None:
+            return False
     except (ValueError, ModuleNotFoundError):
+        return False
+    try:
+        from prophet import Prophet
+
+        return Prophet is not None
+    except ImportError:
         return False
 
 
