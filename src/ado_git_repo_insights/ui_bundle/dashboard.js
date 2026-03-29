@@ -5551,6 +5551,12 @@ var PRInsightsDashboard = (() => {
     if (containers.cycleP90) {
       containers.cycleP90.textContent = metrics.cycleP90 !== null ? formatDuration(metrics.cycleP90) : "-";
     }
+    if (containers.reviewTimeP50) {
+      containers.reviewTimeP50.textContent = metrics.reviewTimeP50 !== null ? formatDuration(metrics.reviewTimeP50) : "-";
+    }
+    if (containers.reviewTimeP90) {
+      containers.reviewTimeP90.textContent = metrics.reviewTimeP90 !== null ? formatDuration(metrics.reviewTimeP90) : "-";
+    }
     if (containers.authorsCount) {
       containers.authorsCount.textContent = metrics.avgAuthors.toLocaleString();
     }
@@ -5562,6 +5568,8 @@ var PRInsightsDashboard = (() => {
     renderSparkline(containers.totalPrsSparkline, data.prCounts);
     renderSparkline(containers.cycleP50Sparkline, data.p50s);
     renderSparkline(containers.cycleP90Sparkline, data.p90s);
+    renderSparkline(containers.reviewTimeP50Sparkline, data.reviewTimeP50s);
+    renderSparkline(containers.reviewTimeP90Sparkline, data.reviewTimeP90s);
     renderSparkline(containers.authorsSparkline, data.authors);
     renderSparkline(containers.reviewersSparkline, data.reviewers);
   }
@@ -5584,6 +5592,18 @@ var PRInsightsDashboard = (() => {
       // Inverse: lower is better
     );
     renderDelta(
+      containers.reviewTimeP50Delta,
+      calculatePercentChange(current.reviewTimeP50, previous.reviewTimeP50),
+      true
+      // Inverse: lower review time is better
+    );
+    renderDelta(
+      containers.reviewTimeP90Delta,
+      calculatePercentChange(current.reviewTimeP90, previous.reviewTimeP90),
+      true
+      // Inverse: lower review time is better
+    );
+    renderDelta(
       containers.authorsDelta,
       calculatePercentChange(current.avgAuthors, previous.avgAuthors),
       false
@@ -5599,6 +5619,8 @@ var PRInsightsDashboard = (() => {
       containers.totalPrsDelta,
       containers.cycleP50Delta,
       containers.cycleP90Delta,
+      containers.reviewTimeP50Delta,
+      containers.reviewTimeP90Delta,
       containers.authorsDelta,
       containers.reviewersDelta
     ];
@@ -5613,6 +5635,8 @@ var PRInsightsDashboard = (() => {
     { metricId: "totalPrs", containerKey: "totalPrs" },
     { metricId: "cycleP50", containerKey: "cycleP50" },
     { metricId: "cycleP90", containerKey: "cycleP90" },
+    { metricId: "reviewTimeP50", containerKey: "reviewTimeP50" },
+    { metricId: "reviewTimeP90", containerKey: "reviewTimeP90" },
     { metricId: "authorsCount", containerKey: "authorsCount" },
     { metricId: "reviewersCount", containerKey: "reviewersCount" }
   ];
@@ -7200,16 +7224,22 @@ var PRInsightsDashboard = (() => {
       totalPrs: elements.get("total-prs") ?? null,
       cycleP50: elements.get("cycle-p50") ?? null,
       cycleP90: elements.get("cycle-p90") ?? null,
+      reviewTimeP50: elements.get("review-time-p50") ?? null,
+      reviewTimeP90: elements.get("review-time-p90") ?? null,
       authorsCount: elements.get("authors-count") ?? null,
       reviewersCount: elements.get("reviewers-count") ?? null,
       totalPrsSparkline: elements.get("total-prs-sparkline") ?? null,
       cycleP50Sparkline: elements.get("cycle-p50-sparkline") ?? null,
       cycleP90Sparkline: elements.get("cycle-p90-sparkline") ?? null,
+      reviewTimeP50Sparkline: elements.get("review-time-p50-sparkline") ?? null,
+      reviewTimeP90Sparkline: elements.get("review-time-p90-sparkline") ?? null,
       authorsSparkline: elements.get("authors-sparkline") ?? null,
       reviewersSparkline: elements.get("reviewers-sparkline") ?? null,
       totalPrsDelta: elements.get("total-prs-delta") ?? null,
       cycleP50Delta: elements.get("cycle-p50-delta") ?? null,
       cycleP90Delta: elements.get("cycle-p90-delta") ?? null,
+      reviewTimeP50Delta: elements.get("review-time-p50-delta") ?? null,
+      reviewTimeP90Delta: elements.get("review-time-p90-delta") ?? null,
       authorsDelta: elements.get("authors-delta") ?? null,
       reviewersDelta: elements.get("reviewers-delta") ?? null
     };

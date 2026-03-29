@@ -24,16 +24,22 @@ describe("summary-cards module", () => {
       totalPrs: document.createElement("span"),
       cycleP50: document.createElement("span"),
       cycleP90: document.createElement("span"),
+      reviewTimeP50: document.createElement("span"),
+      reviewTimeP90: document.createElement("span"),
       authorsCount: document.createElement("span"),
       reviewersCount: document.createElement("span"),
       totalPrsSparkline: document.createElement("div"),
       cycleP50Sparkline: document.createElement("div"),
       cycleP90Sparkline: document.createElement("div"),
+      reviewTimeP50Sparkline: document.createElement("div"),
+      reviewTimeP90Sparkline: document.createElement("div"),
       authorsSparkline: document.createElement("div"),
       reviewersSparkline: document.createElement("div"),
       totalPrsDelta: document.createElement("div"),
       cycleP50Delta: document.createElement("div"),
       cycleP90Delta: document.createElement("div"),
+      reviewTimeP50Delta: document.createElement("div"),
+      reviewTimeP90Delta: document.createElement("div"),
       authorsDelta: document.createElement("div"),
       reviewersDelta: document.createElement("div"),
     };
@@ -145,16 +151,22 @@ describe("summary-cards module", () => {
         totalPrs: null,
         cycleP50: null,
         cycleP90: null,
+        reviewTimeP50: null,
+        reviewTimeP90: null,
         authorsCount: null,
         reviewersCount: null,
         totalPrsSparkline: null,
         cycleP50Sparkline: null,
         cycleP90Sparkline: null,
+        reviewTimeP50Sparkline: null,
+        reviewTimeP90Sparkline: null,
         authorsSparkline: null,
         reviewersSparkline: null,
         totalPrsDelta: null,
         cycleP50Delta: null,
         cycleP90Delta: null,
+        reviewTimeP50Delta: null,
+        reviewTimeP90Delta: null,
         authorsDelta: null,
         reviewersDelta: null,
       };
@@ -242,6 +254,112 @@ describe("summary-cards module", () => {
       // Cycle time increased (bad), so should show inverse indicator
       // The delta-negative-inverse class indicates "went up but that's bad"
       expect(containers.cycleP50Delta!.className).toContain("inverse");
+    });
+  });
+
+  describe("review time metrics (US1)", () => {
+    it("renders review time P50/P90 as formatted durations", () => {
+      const containers = createContainers();
+      // review_time values are in minutes (same unit as cycle_time)
+      const rollups = [
+        {
+          week: "2025-W01",
+          pr_count: 10,
+          cycle_time_p50: 60,
+          cycle_time_p90: 120,
+          review_time_p50: 90,   // 1.5h
+          review_time_p90: 240,  // 4.0h
+          authors_count: 5,
+          reviewers_count: 3,
+          by_repository: null,
+          by_team: null,
+        },
+        {
+          week: "2025-W02",
+          pr_count: 15,
+          cycle_time_p50: 45,
+          cycle_time_p90: 90,
+          review_time_p50: 90,
+          review_time_p90: 240,
+          authors_count: 7,
+          reviewers_count: 4,
+          by_repository: null,
+          by_team: null,
+        },
+      ];
+
+      renderSummaryCards({ rollups, containers });
+
+      // formatDuration(90) = "1.5h", formatDuration(240) = "4.0h"
+      expect(containers.reviewTimeP50!.textContent).not.toBe("-");
+      expect(containers.reviewTimeP90!.textContent).not.toBe("-");
+      expect(containers.reviewTimeP50!.textContent).toContain("h");
+      expect(containers.reviewTimeP90!.textContent).toContain("h");
+    });
+
+    it("shows dash for null review time values", () => {
+      const containers = createContainers();
+      const rollups = [
+        {
+          week: "2025-W01",
+          pr_count: 10,
+          cycle_time_p50: 60,
+          cycle_time_p90: 120,
+          review_time_p50: null,
+          review_time_p90: null,
+          authors_count: 5,
+          reviewers_count: 3,
+          by_repository: null,
+          by_team: null,
+        },
+      ];
+
+      renderSummaryCards({ rollups, containers });
+
+      expect(containers.reviewTimeP50!.textContent).toBe("-");
+      expect(containers.reviewTimeP90!.textContent).toBe("-");
+    });
+
+    it("renders review time sparklines with valid data", () => {
+      const containers = createContainers();
+      const rollups = Array.from({ length: 4 }, (_, i) => ({
+        week: `2025-W${(i + 1).toString().padStart(2, "0")}`,
+        pr_count: 10,
+        cycle_time_p50: 60,
+        cycle_time_p90: 120,
+        review_time_p50: 30 + i * 15,   // minutes
+        review_time_p90: 60 + i * 30,   // minutes
+        authors_count: 5,
+        reviewers_count: 3,
+        by_repository: null,
+        by_team: null,
+      }));
+
+      renderSummaryCards({ rollups, containers });
+
+      expect(containers.reviewTimeP50Sparkline!.innerHTML).toContain("<svg");
+      expect(containers.reviewTimeP90Sparkline!.innerHTML).toContain("<svg");
+    });
+
+    it("clears review time sparklines when all values are null", () => {
+      const containers = createContainers();
+      const rollups = Array.from({ length: 4 }, (_, i) => ({
+        week: `2025-W${(i + 1).toString().padStart(2, "0")}`,
+        pr_count: 10,
+        cycle_time_p50: 60,
+        cycle_time_p90: 120,
+        review_time_p50: null as number | null,
+        review_time_p90: null as number | null,
+        authors_count: 5,
+        reviewers_count: 3,
+        by_repository: null,
+        by_team: null,
+      }));
+
+      renderSummaryCards({ rollups, containers });
+
+      expect(containers.reviewTimeP50Sparkline!.innerHTML).toBe("");
+      expect(containers.reviewTimeP90Sparkline!.innerHTML).toBe("");
     });
   });
 });

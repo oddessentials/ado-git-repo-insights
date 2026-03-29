@@ -51,20 +51,20 @@
 
 ### Tests for US1
 
-- [ ] T011 [P] [US1] Add rendering test in extension/tests/modules/charts/summary-cards.test.ts: given rollups with review_time_p50=3600 and review_time_p90=7200, assert review time metric elements display formatted durations ("1h 0m", "2h 0m")
-- [ ] T012 [P] [US1] Add null-handling test in extension/tests/modules/charts/summary-cards.test.ts: given rollups where ALL review_time values are null, assert renderNoData() is invoked with .no-data class present
-- [ ] T013 [P] [US1] Add sparkline test in extension/tests/modules/charts/summary-cards.test.ts: given 12 weeks of review_time data, assert sparkline SVG renders with correct number of data points
-- [ ] T014 [P] [US1] Add info icon test in extension/tests/modules/charts/summary-cards-info.test.ts: assert info icon exists for reviewTimeP50 and reviewTimeP90 with correct METRIC_EXPLANATIONS text
+- [x] T011 [P] [US1] Add rendering test in extension/tests/modules/charts/summary-cards.test.ts: given rollups with review_time_p50=3600 and review_time_p90=7200, assert review time metric elements display formatted durations ("1h 0m", "2h 0m")
+- [x] T012 [P] [US1] Add null-handling test in extension/tests/modules/charts/summary-cards.test.ts: given rollups where ALL review_time values are null, assert renderNoData() is invoked with .no-data class present
+- [x] T013 [P] [US1] Add sparkline test in extension/tests/modules/charts/summary-cards.test.ts: given 12 weeks of review_time data, assert sparkline SVG renders with correct number of data points
+- [x] T014 [P] [US1] Add info icon test in extension/tests/modules/charts/summary-cards-info.test.ts: assert info icon exists for reviewTimeP50 and reviewTimeP90 with correct METRIC_EXPLANATIONS text
 
 ### Implementation for US1
 
-- [ ] T015 [US1] Add review time metric card HTML containers (reviewTimeP50, reviewTimeP90 value/sparkline/delta elements) in extension/ui/index.html following the existing metric-card pattern
-- [ ] T016 [US1] Extend SummaryCardsContainers interface in extension/ui/modules/charts/summary-cards.ts with reviewTimeP50, reviewTimeP90, reviewTimeP50Sparkline, reviewTimeP90Sparkline, reviewTimeP50Delta, reviewTimeP90Delta
-- [ ] T017 [US1] Add review time rendering to renderMetricValues() in extension/ui/modules/charts/summary-cards.ts using formatDuration() for non-null, renderNoData() contract for null
-- [ ] T018 [US1] Add review time sparklines to renderSparklines() in extension/ui/modules/charts/summary-cards.ts using extractSparklineData().reviewTimeP50s/P90s
-- [ ] T019 [US1] Add review time deltas to renderDeltas() in extension/ui/modules/charts/summary-cards.ts using calculatePercentChange()
-- [ ] T020 [US1] Wire review time containers in dashboard.ts wrapper function (extend elements.get() calls and pass to renderSummaryCards)
-- [ ] T021 [US1] Add review time to METRIC_TO_CONTAINER_KEY array and attachInfoIcons() in extension/ui/modules/charts/summary-cards.ts
+- [x] T015 [US1] Add review time metric card HTML containers (reviewTimeP50, reviewTimeP90 value/sparkline/delta elements) in extension/ui/index.html following the existing metric-card pattern
+- [x] T016 [US1] Extend SummaryCardsContainers interface in extension/ui/modules/charts/summary-cards.ts with reviewTimeP50, reviewTimeP90, reviewTimeP50Sparkline, reviewTimeP90Sparkline, reviewTimeP50Delta, reviewTimeP90Delta
+- [x] T017 [US1] Add review time rendering to renderMetricValues() in extension/ui/modules/charts/summary-cards.ts using formatDuration() for non-null, renderNoData() contract for null
+- [x] T018 [US1] Add review time sparklines to renderSparklines() in extension/ui/modules/charts/summary-cards.ts using extractSparklineData().reviewTimeP50s/P90s
+- [x] T019 [US1] Add review time deltas to renderDeltas() in extension/ui/modules/charts/summary-cards.ts using calculatePercentChange()
+- [x] T020 [US1] Wire review time containers in dashboard.ts wrapper function (extend elements.get() calls and pass to renderSummaryCards)
+- [x] T021 [US1] Add review time to METRIC_TO_CONTAINER_KEY array and attachInfoIcons() in extension/ui/modules/charts/summary-cards.ts
 
 **Checkpoint**: Review time P50/P90 visible on dashboard with sparklines, deltas, and info icons.
 

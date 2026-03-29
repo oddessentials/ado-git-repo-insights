@@ -50,16 +50,22 @@ function createContainersWithCards(): SummaryCardsContainers {
     totalPrs: buildCardDOM("Total PRs"),
     cycleP50: buildCardDOM("Cycle P50"),
     cycleP90: buildCardDOM("Cycle P90"),
+    reviewTimeP50: buildCardDOM("Review Time P50"),
+    reviewTimeP90: buildCardDOM("Review Time P90"),
     authorsCount: buildCardDOM("Authors"),
     reviewersCount: buildCardDOM("Reviewers"),
     totalPrsSparkline: document.createElement("div"),
     cycleP50Sparkline: document.createElement("div"),
     cycleP90Sparkline: document.createElement("div"),
+    reviewTimeP50Sparkline: document.createElement("div"),
+    reviewTimeP90Sparkline: document.createElement("div"),
     authorsSparkline: document.createElement("div"),
     reviewersSparkline: document.createElement("div"),
     totalPrsDelta: document.createElement("div"),
     cycleP50Delta: document.createElement("div"),
     cycleP90Delta: document.createElement("div"),
+    reviewTimeP50Delta: document.createElement("div"),
+    reviewTimeP90Delta: document.createElement("div"),
     authorsDelta: document.createElement("div"),
     reviewersDelta: document.createElement("div"),
   };
@@ -87,12 +93,12 @@ describe("Summary Cards Info Icons (attachInfoIcons)", () => {
     );
   });
 
-  it("renders info icon for each of 5 summary cards", () => {
+  it("renders info icon for each of 7 summary cards", () => {
     const containers = createContainersWithCards();
     renderSummaryCards({ rollups: createSampleRollups(), containers });
 
     const infoIcons = document.querySelectorAll(".info-icon-btn");
-    expect(infoIcons.length).toBe(5);
+    expect(infoIcons.length).toBe(7);
   });
 
   it("info icon has correct aria-label and data attribute", () => {
@@ -155,13 +161,13 @@ describe("Summary Cards Info Icons (attachInfoIcons)", () => {
 
     // First render
     renderSummaryCards({ rollups, containers });
-    expect(document.querySelectorAll(".info-icon-btn").length).toBe(5);
+    expect(document.querySelectorAll(".info-icon-btn").length).toBe(7);
 
     // Second render (re-render)
     renderSummaryCards({ rollups, containers });
 
     // Still exactly 5 icons — old ones removed, new ones created
-    expect(document.querySelectorAll(".info-icon-btn").length).toBe(5);
+    expect(document.querySelectorAll(".info-icon-btn").length).toBe(7);
   });
 
   it("re-render aborts old icon AbortControllers (no listener leaks)", () => {
@@ -214,16 +220,22 @@ describe("Summary Cards Info Icons (attachInfoIcons)", () => {
       totalPrs: document.createElement("span"),
       cycleP50: document.createElement("span"),
       cycleP90: document.createElement("span"),
+      reviewTimeP50: document.createElement("span"),
+      reviewTimeP90: document.createElement("span"),
       authorsCount: document.createElement("span"),
       reviewersCount: document.createElement("span"),
       totalPrsSparkline: document.createElement("div"),
       cycleP50Sparkline: document.createElement("div"),
       cycleP90Sparkline: document.createElement("div"),
+      reviewTimeP50Sparkline: document.createElement("div"),
+      reviewTimeP90Sparkline: document.createElement("div"),
       authorsSparkline: document.createElement("div"),
       reviewersSparkline: document.createElement("div"),
       totalPrsDelta: document.createElement("div"),
       cycleP50Delta: document.createElement("div"),
       cycleP90Delta: document.createElement("div"),
+      reviewTimeP50Delta: document.createElement("div"),
+      reviewTimeP90Delta: document.createElement("div"),
       authorsDelta: document.createElement("div"),
       reviewersDelta: document.createElement("div"),
     };
@@ -280,16 +292,22 @@ describe("Summary Cards Info Icons (attachInfoIcons)", () => {
       totalPrs: value,
       cycleP50: null,
       cycleP90: null,
+      reviewTimeP50: null,
+      reviewTimeP90: null,
       authorsCount: null,
       reviewersCount: null,
       totalPrsSparkline: null,
       cycleP50Sparkline: null,
       cycleP90Sparkline: null,
+      reviewTimeP50Sparkline: null,
+      reviewTimeP90Sparkline: null,
       authorsSparkline: null,
       reviewersSparkline: null,
       totalPrsDelta: null,
       cycleP50Delta: null,
       cycleP90Delta: null,
+      reviewTimeP50Delta: null,
+      reviewTimeP90Delta: null,
       authorsDelta: null,
       reviewersDelta: null,
     };

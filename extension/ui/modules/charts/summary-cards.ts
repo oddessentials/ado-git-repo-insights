@@ -64,6 +64,8 @@ export interface SummaryCardsContainers {
   totalPrs: HTMLElement | null;
   cycleP50: HTMLElement | null;
   cycleP90: HTMLElement | null;
+  reviewTimeP50: HTMLElement | null;
+  reviewTimeP90: HTMLElement | null;
   authorsCount: HTMLElement | null;
   reviewersCount: HTMLElement | null;
 
@@ -71,6 +73,8 @@ export interface SummaryCardsContainers {
   totalPrsSparkline: HTMLElement | null;
   cycleP50Sparkline: HTMLElement | null;
   cycleP90Sparkline: HTMLElement | null;
+  reviewTimeP50Sparkline: HTMLElement | null;
+  reviewTimeP90Sparkline: HTMLElement | null;
   authorsSparkline: HTMLElement | null;
   reviewersSparkline: HTMLElement | null;
 
@@ -78,6 +82,8 @@ export interface SummaryCardsContainers {
   totalPrsDelta: HTMLElement | null;
   cycleP50Delta: HTMLElement | null;
   cycleP90Delta: HTMLElement | null;
+  reviewTimeP50Delta: HTMLElement | null;
+  reviewTimeP90Delta: HTMLElement | null;
   authorsDelta: HTMLElement | null;
   reviewersDelta: HTMLElement | null;
 }
@@ -167,6 +173,18 @@ function renderMetricValues(
     containers.cycleP90.textContent =
       metrics.cycleP90 !== null ? formatDuration(metrics.cycleP90) : "-";
   }
+  if (containers.reviewTimeP50) {
+    containers.reviewTimeP50.textContent =
+      metrics.reviewTimeP50 !== null
+        ? formatDuration(metrics.reviewTimeP50)
+        : "-";
+  }
+  if (containers.reviewTimeP90) {
+    containers.reviewTimeP90.textContent =
+      metrics.reviewTimeP90 !== null
+        ? formatDuration(metrics.reviewTimeP90)
+        : "-";
+  }
   if (containers.authorsCount) {
     containers.authorsCount.textContent = metrics.avgAuthors.toLocaleString();
   }
@@ -183,6 +201,8 @@ interface SparklineData {
   prCounts: number[];
   p50s: (number | null)[];
   p90s: (number | null)[];
+  reviewTimeP50s: (number | null)[];
+  reviewTimeP90s: (number | null)[];
   authors: number[];
   reviewers: number[];
 }
@@ -197,6 +217,8 @@ function renderSparklines(
   renderSparkline(containers.totalPrsSparkline, data.prCounts);
   renderSparkline(containers.cycleP50Sparkline, data.p50s);
   renderSparkline(containers.cycleP90Sparkline, data.p90s);
+  renderSparkline(containers.reviewTimeP50Sparkline, data.reviewTimeP50s);
+  renderSparkline(containers.reviewTimeP90Sparkline, data.reviewTimeP90s);
   renderSparkline(containers.authorsSparkline, data.authors);
   renderSparkline(containers.reviewersSparkline, data.reviewers);
 }
@@ -225,6 +247,16 @@ function renderDeltas(
     true, // Inverse: lower is better
   );
   renderDelta(
+    containers.reviewTimeP50Delta,
+    calculatePercentChange(current.reviewTimeP50, previous.reviewTimeP50),
+    true, // Inverse: lower review time is better
+  );
+  renderDelta(
+    containers.reviewTimeP90Delta,
+    calculatePercentChange(current.reviewTimeP90, previous.reviewTimeP90),
+    true, // Inverse: lower review time is better
+  );
+  renderDelta(
     containers.authorsDelta,
     calculatePercentChange(current.avgAuthors, previous.avgAuthors),
     false,
@@ -244,6 +276,8 @@ function clearDeltas(containers: SummaryCardsContainers): void {
     containers.totalPrsDelta,
     containers.cycleP50Delta,
     containers.cycleP90Delta,
+    containers.reviewTimeP50Delta,
+    containers.reviewTimeP90Delta,
     containers.authorsDelta,
     containers.reviewersDelta,
   ];
@@ -267,6 +301,8 @@ const METRIC_TO_CONTAINER_KEY: Array<{
   { metricId: "totalPrs", containerKey: "totalPrs" },
   { metricId: "cycleP50", containerKey: "cycleP50" },
   { metricId: "cycleP90", containerKey: "cycleP90" },
+  { metricId: "reviewTimeP50", containerKey: "reviewTimeP50" },
+  { metricId: "reviewTimeP90", containerKey: "reviewTimeP90" },
   { metricId: "authorsCount", containerKey: "authorsCount" },
   { metricId: "reviewersCount", containerKey: "reviewersCount" },
 ];
