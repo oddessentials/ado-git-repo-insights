@@ -28,6 +28,7 @@ _spec.loader.exec_module(_hook_module)
 
 require_clean_test_compilation_scope = _hook_module.require_clean_test_compilation_scope
 require_clean_tsconfigs = _hook_module.require_clean_tsconfigs
+require_clean_ui_sources = _hook_module.require_clean_ui_sources
 
 
 def _mock_worktree_paths(dirty_files: dict[str, list[str]]):
@@ -175,6 +176,26 @@ class TestRequireCleanTsconfigs:
         ):
             with pytest.raises(SystemExit):
                 require_clean_tsconfigs()
+
+
+class TestRequireCleanUiSources:
+    """require_clean_ui_sources must guard ESLint config alongside ui/ sources."""
+
+    def test_passes_when_worktree_is_clean(self) -> None:
+        with patch.object(_hook_module, "worktree_paths", return_value=[]):
+            require_clean_ui_sources()  # should not raise
+
+    def test_blocks_on_unstaged_eslint_config(self) -> None:
+        """Unstaged ESLint config must block because pnpm run lint reads it
+        from the worktree, not the staged index."""
+        mock = _mock_worktree_paths(
+            {
+                "extension/eslint.config.mjs": ["extension/eslint.config.mjs"],
+            }
+        )
+        with patch.object(_hook_module, "worktree_paths", side_effect=mock):
+            with pytest.raises(SystemExit):
+                require_clean_ui_sources()
 
     def test_uses_glob_pathspec(self) -> None:
         """Verify the guard uses extension/tsconfig*.json, not the bare

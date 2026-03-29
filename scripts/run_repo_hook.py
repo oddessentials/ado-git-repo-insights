@@ -225,6 +225,7 @@ def is_ui_trigger(path: str) -> bool:
         "extension/scripts/copy-vss-sdk.mjs",
         "extension/package.json",
         "extension/pnpm-lock.yaml",
+        "extension/eslint.config.mjs",
     }:
         return True
     if path.startswith("extension/tsconfig") and path.endswith(".json"):
@@ -234,6 +235,7 @@ def is_ui_trigger(path: str) -> bool:
 
 def require_clean_ui_sources() -> None:
     unstaged = worktree_paths("extension/ui/")
+    unstaged.extend(worktree_paths("extension/eslint.config.mjs"))
     if not unstaged:
         return
     safe_print("[pre-commit] unstaged changes in extension/ui/ detected")

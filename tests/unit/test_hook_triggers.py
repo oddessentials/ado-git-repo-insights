@@ -114,6 +114,7 @@ class TestIsUiTrigger:
             "extension/ui/index.html",
             "extension/tsconfig.json",
             "extension/package.json",
+            "extension/eslint.config.mjs",
         ],
     )
     def test_ui_files_are_triggers(self, path: str) -> None:
