@@ -465,6 +465,10 @@ export function applyFiltersToRollups(
 ): Rollup[] {
   const firstAuthor = filters.authors?.[0];
   const authorFilters = firstAuthor ? [firstAuthor] : [];
+  // DESIGN: Reviewer filter is effectively single-select end-to-end.
+  // Only the first selected reviewer is used for metric aggregation.
+  // reviewer-activity.ts:computeApprovalRate must use the same scope.
+  // If multi-reviewer aggregation is implemented, both sites must move together.
   const firstReviewer = filters.reviewers?.[0];
   const reviewerFilters = firstReviewer ? [firstReviewer] : [];
 

@@ -167,10 +167,12 @@ export function renderSummaryCards(options: RenderSummaryCardsOptions): void {
     clearDeltas(containers);
   }
 
+  // DESIGN: Review-time visibility is filter-slice-based by design.
   // Visibility check runs AFTER all rendering so toggleReviewTimeCards can
   // hide cards AND clear any "-" placeholders written by renderMetricValues.
   // Uses filtered rollups (not unfiltered) so cards are hidden when the active
-  // filter slice lacks review_time data.
+  // filter slice lacks review_time data — e.g., reviewer-filtered views where
+  // review_time is intentionally nulled, or repos from older pipelines.
   const hasReviewTimeData = rollups.some(
     (r) => r.review_time_p50 != null || r.review_time_p90 != null,
   );

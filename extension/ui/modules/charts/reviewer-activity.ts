@@ -27,7 +27,13 @@ export const MAX_REVIEWER_WEEKS = 8;
 /**
  * Compute PR-weighted average approval rate from by_reviewer breakdowns
  * across all rollups for the selected reviewer(s).
- * Returns null when no reviewer has a finite approval_rate.
+ *
+ * DESIGN: Weighted by reviewed_prs (distinct PRs reviewed), not reviews_count
+ * (review events). approval_rate is a per-PR metric, so weighting by events
+ * would skew toward PRs with multiple review rounds. The same weighting is
+ * used in aggregateReviewerEntries() in metrics.ts — both must stay aligned.
+ *
+ * Returns null when no reviewer has a finite approval_rate or reviewed_prs > 0.
  */
 function computeApprovalRate(
   rollups: Rollup[],
@@ -172,9 +178,10 @@ export function renderReviewerActivity(
   // than silently omitting the element.
   let approvalHtml = "";
   if (reviewerFilterActive) {
-    // Scope to first reviewer only — matches applyFiltersToRollups() which uses
-    // filters.reviewers[0]. Until multi-reviewer aggregation is implemented across
-    // all panel elements, the badge must not aggregate a broader set than the chart.
+    // DESIGN: Reviewer filter is effectively single-select end-to-end.
+    // Scoped to first reviewer only — matches applyFiltersToRollups() in metrics.ts
+    // which uses filters.reviewers[0]. If multi-reviewer aggregation is implemented,
+    // both this site and applyFiltersToRollups must move together.
     const firstReviewer = options.filters?.reviewers?.[0];
     const reviewerIds = firstReviewer ? [firstReviewer] : [];
     const approvalRate = computeApprovalRate(recentRollups, reviewerIds);
