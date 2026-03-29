@@ -454,12 +454,14 @@ function renderSparklines(
 /**
  * Compute the delta period label for a specific metric.
  * Uses metric-specific week counts so the label matches the sample-size basis.
- * Falls back to "vs prev" when current and previous counts diverge by > 1.
+ * Only emits a specific "vs prior N weeks" when current and previous counts
+ * match exactly. Any mismatch — even off-by-one — means the comparison
+ * windows have different sparse coverage, so a specific claim is misleading.
  */
 function deltaPeriodLabel(current: CalculatedMetrics, previous: CalculatedMetrics, key: string): string {
   const cur = metricWeekCount(current, key);
   const prev = metricWeekCount(previous, key);
-  if (Math.abs(prev - cur) > 1) return "vs prev";
+  if (prev !== cur) return "vs prior period";
   return `vs prior ${prev} ${prev === 1 ? "week" : "weeks"}`;
 }
 

@@ -5748,7 +5748,7 @@ var PRInsightsDashboard = (() => {
   function deltaPeriodLabel(current, previous, key) {
     const cur = metricWeekCount(current, key);
     const prev = metricWeekCount(previous, key);
-    if (Math.abs(prev - cur) > 1) return "vs prev";
+    if (prev !== cur) return "vs prior period";
     return `vs prior ${prev} ${prev === 1 ? "week" : "weeks"}`;
   }
   function renderDeltas(containers, current, previous) {

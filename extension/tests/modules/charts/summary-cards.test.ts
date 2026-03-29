@@ -1032,7 +1032,7 @@ describe("summary-cards module", () => {
       expect(containers.totalPrsDelta!.innerHTML).not.toContain("weeks");
     });
 
-    it("falls back to 'vs prev' when windows are mismatched", () => {
+    it("falls back to generic label when windows are mismatched", () => {
       const containers = createContainers();
       const card = document.createElement("div");
       card.className = "card";
@@ -1042,15 +1042,17 @@ describe("summary-cards module", () => {
       document.body.appendChild(card);
 
       const rollups = createRollups(8);
-      const prevRollups = createRollups(5); // mismatch > 1
+      const prevRollups = createRollups(5); // mismatch
 
       renderSummaryCards({ rollups, prevRollups, containers });
 
-      expect(containers.totalPrsDelta!.innerHTML).toContain("vs prev");
-      expect(containers.totalPrsDelta!.innerHTML).not.toContain("vs prior");
+      expect(containers.totalPrsDelta!.innerHTML).toContain("vs prior period");
+      // Must NOT claim a specific week count
+      expect(containers.totalPrsDelta!.innerHTML).not.toContain("vs prior 5 weeks");
+      expect(containers.totalPrsDelta!.innerHTML).not.toContain("vs prior 8 weeks");
     });
 
-    it("tolerates off-by-one window difference", () => {
+    it("falls back to generic label on off-by-one mismatch (no tolerance for sparse counts)", () => {
       const containers = createContainers();
       const card = document.createElement("div");
       card.className = "card";
@@ -1060,11 +1062,40 @@ describe("summary-cards module", () => {
       document.body.appendChild(card);
 
       const rollups = createRollups(8);
-      const prevRollups = createRollups(7); // mismatch = 1 → tolerated
+      const prevRollups = createRollups(7); // off-by-one → still a mismatch
 
       renderSummaryCards({ rollups, prevRollups, containers });
 
-      expect(containers.totalPrsDelta!.innerHTML).toContain("vs prior 7 weeks");
+      expect(containers.totalPrsDelta!.innerHTML).toContain("vs prior period");
+      expect(containers.totalPrsDelta!.innerHTML).not.toContain("vs prior 7 weeks");
+    });
+
+    it("sparse off-by-one: does not claim specific prior coverage", () => {
+      const containers = createContainers();
+      const card = document.createElement("div");
+      card.className = "card";
+      card.appendChild(document.createElement("h3"));
+      card.appendChild(containers.cycleP50!);
+      card.appendChild(containers.cycleP50Delta!);
+      document.body.appendChild(card);
+
+      // Current: 1 non-null cycle_time_p50 week
+      const rollups = [
+        { week: "2025-W01", pr_count: 10, cycle_time_p50: 60, cycle_time_p90: 120, authors_count: 5, reviewers_count: 3, by_repository: null, by_team: null },
+        { week: "2025-W02", pr_count: 10, cycle_time_p50: null as number | null, cycle_time_p90: null as number | null, authors_count: 5, reviewers_count: 3, by_repository: null, by_team: null },
+      ];
+      // Previous: 2 non-null cycle_time_p50 weeks
+      const prevRollups = [
+        { week: "2024-W50", pr_count: 8, cycle_time_p50: 55, cycle_time_p90: 110, authors_count: 4, reviewers_count: 2, by_repository: null, by_team: null },
+        { week: "2024-W51", pr_count: 8, cycle_time_p50: 65, cycle_time_p90: 130, authors_count: 4, reviewers_count: 2, by_repository: null, by_team: null },
+      ];
+
+      renderSummaryCards({ rollups, prevRollups, containers });
+
+      // cycleP50WeekCount: current=1, previous=2 → mismatch → generic label
+      expect(containers.cycleP50Delta!.innerHTML).toContain("vs prior period");
+      expect(containers.cycleP50Delta!.innerHTML).not.toContain("vs prior 2 weeks");
+      expect(containers.cycleP50Delta!.innerHTML).not.toContain("vs prior 1 week");
     });
 
     it("clears deltas and label when prevRollups is empty", () => {
