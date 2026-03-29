@@ -2321,3 +2321,114 @@ describe("zero-leakage regression", () => {
     expect(result[0]!.cycle_time_p90).toBeNull();
   });
 });
+
+describe("review_time filter propagation (044)", () => {
+  const rollupWithReviewTime = {
+    week: "2026-W10",
+    pr_count: 100,
+    cycle_time_p50: 60,
+    cycle_time_p90: 120,
+    review_time_p50: 3600,
+    review_time_p90: 7200,
+    authors_count: 10,
+    reviewers_count: 5,
+    by_repository: {
+      "repo-a": {
+        pr_count: 40,
+        cycle_time_p50: 50,
+        cycle_time_p90: 100,
+        review_time_p50: 1800,
+        review_time_p90: 3600,
+        authors_count: 4,
+        reviewers_count: 2,
+      },
+      "repo-b": {
+        pr_count: 60,
+        cycle_time_p50: 70,
+        cycle_time_p90: 140,
+        review_time_p50: 5400,
+        review_time_p90: 10800,
+        authors_count: 6,
+        reviewers_count: 3,
+      },
+    },
+    by_team: {
+      "team-x": {
+        pr_count: 50,
+        cycle_time_p50: 55,
+        cycle_time_p90: 110,
+        review_time_p50: 2400,
+        review_time_p90: 4800,
+        authors_count: 5,
+        reviewers_count: 3,
+      },
+    },
+    by_author: {
+      "alice": {
+        pr_count: 30,
+        cycle_time_p50: 45,
+        cycle_time_p90: 90,
+        review_time_p50: 1200,
+        review_time_p90: 2400,
+        authors_count: 1,
+        reviewers_count: 2,
+      },
+    },
+    by_reviewer: {
+      "bob": {
+        reviewed_prs: 20,
+        reviews_count: 25,
+        approval_rate: 0.8,
+      },
+    },
+  } as Rollup;
+
+  it("repo filter uses slice review_time, not global", () => {
+    const result = applyFiltersToRollups([rollupWithReviewTime], {
+      repos: ["repo-a"],
+      teams: [],
+    });
+    expect(result[0]!.review_time_p50).toBe(1800);
+    expect(result[0]!.review_time_p90).toBe(3600);
+    // Must NOT be the global 3600/7200
+    expect(result[0]!.review_time_p50).not.toBe(rollupWithReviewTime.review_time_p50);
+  });
+
+  it("team filter uses slice review_time, not global", () => {
+    const result = applyFiltersToRollups([rollupWithReviewTime], {
+      repos: [],
+      teams: ["team-x"],
+    });
+    expect(result[0]!.review_time_p50).toBe(2400);
+    expect(result[0]!.review_time_p90).toBe(4800);
+  });
+
+  it("author filter uses slice review_time, not global", () => {
+    const result = applyFiltersToRollups([rollupWithReviewTime], {
+      repos: [],
+      teams: [],
+      authors: ["alice"],
+    });
+    expect(result[0]!.review_time_p50).toBe(1200);
+    expect(result[0]!.review_time_p90).toBe(2400);
+  });
+
+  it("reviewer filter nulls review_time (no reviewer-scoped review_time)", () => {
+    const result = applyFiltersToRollups([rollupWithReviewTime], {
+      repos: [],
+      teams: [],
+      reviewers: ["bob"],
+    });
+    expect(result[0]!.review_time_p50).toBeNull();
+    expect(result[0]!.review_time_p90).toBeNull();
+  });
+
+  it("unfiltered preserves global review_time", () => {
+    const result = applyFiltersToRollups([rollupWithReviewTime], {
+      repos: [],
+      teams: [],
+    });
+    expect(result[0]!.review_time_p50).toBe(3600);
+    expect(result[0]!.review_time_p90).toBe(7200);
+  });
+});
