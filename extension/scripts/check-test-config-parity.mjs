@@ -3,7 +3,13 @@
  * check-test-config-parity.mjs
  *
  * Compares resolved compilerOptions between tsconfig.json (production)
- * and each test tsconfig using `tsc --showConfig`.
+ * and each test tsconfig using the TypeScript compiler API in-process.
+ *
+ * No child processes are spawned — configs are loaded and resolved
+ * entirely within this Node process using ts.readConfigFile and
+ * ts.parseJsonConfigFileContent.  This avoids execSync/execFileSync
+ * and the shell/EPERM failures they cause on restricted Windows
+ * environments.
  *
  * Fails if any non-allowlisted key differs, ensuring test strictness
  * stays in parity with production. Forward-looking: new TypeScript
@@ -18,18 +24,16 @@
  *            Issue #210 (tsconfig.type-tests.json parity)
  */
 
-import { execFileSync } from "node:child_process";
+import { createRequire } from "node:module";
 import { existsSync } from "node:fs";
 import { resolve, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 
+const require = createRequire(import.meta.url);
+const ts = require("typescript");
+
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const extensionRoot = resolve(__dirname, "..");
-
-// Resolve the tsc entry point via the local typescript installation.
-// Using node + tsc.js directly avoids shell execution (no cmd.exe on
-// Windows), which prevents EPERM failures in restricted environments.
-const tscPath = resolve(extensionRoot, "node_modules", "typescript", "bin", "tsc");
 
 // Keys that may legitimately differ in ANY test config (output-related)
 const BASE_ALLOWLIST = [
@@ -58,17 +62,24 @@ const CONFIGS = [
   },
 ];
 
-function getResolvedConfig(tsconfigPath) {
-  const result = execFileSync(
-    process.execPath,
-    [tscPath, "--showConfig", "-p", tsconfigPath],
-    {
-      cwd: extensionRoot,
-      encoding: "utf-8",
-      stdio: ["pipe", "pipe", "pipe"],
-    },
+function getResolvedOptions(tsconfigPath) {
+  const { config, error } = ts.readConfigFile(tsconfigPath, ts.sys.readFile);
+  if (error) {
+    const message = ts.flattenDiagnosticMessageText(error.messageText, "\n");
+    throw new Error(`Failed to read ${tsconfigPath}: ${message}`);
+  }
+  const parsed = ts.parseJsonConfigFileContent(
+    config,
+    ts.sys,
+    dirname(tsconfigPath),
   );
-  return JSON.parse(result);
+  if (parsed.errors.length > 0) {
+    const messages = parsed.errors
+      .map((d) => ts.flattenDiagnosticMessageText(d.messageText, "\n"))
+      .join("\n  ");
+    throw new Error(`Failed to parse ${tsconfigPath}:\n  ${messages}`);
+  }
+  return parsed.options;
 }
 
 function compareConfig(prodOpts, configEntry) {
@@ -84,8 +95,7 @@ function compareConfig(prodOpts, configEntry) {
     return { missing: true, label: configEntry.label, file: configEntry.file };
   }
 
-  const testConfig = getResolvedConfig(configPath);
-  const testOpts = testConfig.compilerOptions || {};
+  const testOpts = getResolvedOptions(configPath);
 
   const allowlist = new Set([...BASE_ALLOWLIST, ...configEntry.extraAllowlist]);
   const allKeys = new Set([
@@ -115,20 +125,13 @@ function compareConfig(prodOpts, configEntry) {
 }
 
 function run() {
-  if (!existsSync(tscPath)) {
-    console.error(
-      `✗ TypeScript compiler not found at ${tscPath}`,
-    );
-    console.error(
-      `  Run 'pnpm install' in the extension directory first.`,
-    );
+  const prodConfigPath = resolve(extensionRoot, "tsconfig.json");
+  if (!existsSync(prodConfigPath)) {
+    console.error(`✗ Production tsconfig not found at ${prodConfigPath}`);
     process.exit(1);
   }
 
-  const prodConfig = getResolvedConfig(
-    resolve(extensionRoot, "tsconfig.json"),
-  );
-  const prodOpts = prodConfig.compilerOptions || {};
+  const prodOpts = getResolvedOptions(prodConfigPath);
 
   let failures = 0;
   const results = [];
