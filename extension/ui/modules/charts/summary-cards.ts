@@ -143,11 +143,14 @@ export function renderSummaryCards(options: RenderSummaryCardsOptions): void {
   renderMetricValues(containers, current);
 
   // Render sample size subtitle on each card (FR-006, FR-007)
-  // Review-time cards use metric-specific count (only PRs with review_time data)
-  const reviewTimePrCount = rollups
-    .filter((r) => r.review_time_p50 != null || r.review_time_p90 != null)
+  // Review-time cards use independent per-series counts
+  const rtP50PrCount = rollups
+    .filter((r) => r.review_time_p50 != null)
     .reduce((sum, r) => sum + (r.pr_count || 0), 0);
-  renderSampleSize(containers, current.totalPrs, reviewTimePrCount);
+  const rtP90PrCount = rollups
+    .filter((r) => r.review_time_p90 != null)
+    .reduce((sum, r) => sum + (r.pr_count || 0), 0);
+  renderSampleSize(containers, current.totalPrs, rtP50PrCount, rtP90PrCount);
 
   // Attach info icons to summary card titles
   attachInfoIcons(containers);
@@ -195,18 +198,18 @@ function formatSampleLabel(count: number): string {
 function renderSampleSize(
   containers: SummaryCardsContainers,
   totalPrs: number,
-  reviewTimePrCount: number,
+  rtP50PrCount: number,
+  rtP90PrCount: number,
 ): void {
   const generalLabel = formatSampleLabel(totalPrs);
-  const reviewTimeLabel = formatSampleLabel(reviewTimePrCount);
 
-  // Map each container to its appropriate sample count
+  // Map each container to its appropriate sample count (independent per series)
   const entries: [HTMLElement | null, number, string][] = [
     [containers.totalPrs, totalPrs, generalLabel],
     [containers.cycleP50, totalPrs, generalLabel],
     [containers.cycleP90, totalPrs, generalLabel],
-    [containers.reviewTimeP50, reviewTimePrCount, reviewTimeLabel],
-    [containers.reviewTimeP90, reviewTimePrCount, reviewTimeLabel],
+    [containers.reviewTimeP50, rtP50PrCount, formatSampleLabel(rtP50PrCount)],
+    [containers.reviewTimeP90, rtP90PrCount, formatSampleLabel(rtP90PrCount)],
     [containers.authorsCount, totalPrs, generalLabel],
     [containers.reviewersCount, totalPrs, generalLabel],
   ];
@@ -234,18 +237,37 @@ function renderSampleSize(
 }
 
 /**
- * Compute the number of points actually plotted by renderSparkline():
- * filter nulls, then take last SPARKLINE_LOOKBACK_WEEKS non-null points.
+ * Compute the calendar span (in weeks) of the data actually plotted by
+ * renderSparkline(). Mirrors its logic: filter nulls, take last
+ * SPARKLINE_LOOKBACK_WEEKS, then measure from the first retained week
+ * index to the last retained week index.
+ *
+ * Returns 0 when fewer than 2 non-null points exist (sparkline won't render).
  */
-function plottedPointCount(values: (number | null)[]): number {
-  const nonNull = values.filter((v): v is number => v !== null);
-  return Math.min(nonNull.length, SPARKLINE_LOOKBACK_WEEKS);
+function plottedWeekSpan(values: (number | null)[]): number {
+  // Collect indices of non-null values (matching renderSparkline's filter)
+  const nonNullIndices: number[] = [];
+  for (let i = 0; i < values.length; i++) {
+    const v = values.at(i);
+    if (v !== null && v !== undefined) nonNullIndices.push(i);
+  }
+  if (nonNullIndices.length < 2) return 0;
+
+  // Take last SPARKLINE_LOOKBACK_WEEKS indices (matching renderSparkline's slice)
+  const retained = nonNullIndices.slice(-SPARKLINE_LOOKBACK_WEEKS);
+  const firstIdx = retained.at(0);
+  const lastIdx = retained.at(-1);
+  if (firstIdx === undefined || lastIdx === undefined) return 0;
+
+  // Calendar span = distance between first and last retained week + 1
+  return lastIdx - firstIdx + 1;
 }
 
 /**
  * Render sparkline time period labels (e.g., "Last 8 weeks") on each card.
- * Labels derived from the plotted series (after null filtering + lookback
- * truncation), so they accurately reflect what the sparkline actually shows.
+ * Labels show the actual calendar span of the plotted data, not the count
+ * of non-null points. This prevents sparse series (e.g., 3 points drawn
+ * from an 8-week range) from understating the time span.
  */
 function renderSparklineLabels(
   containers: SummaryCardsContainers,
@@ -271,10 +293,10 @@ function renderSparklineLabels(
     const existing = card.querySelector(".sparkline-label");
     if (existing) existing.remove();
 
-    const n = plottedPointCount(series);
-    if (n < 2) continue; // renderSparkline requires >= 2 points; no label for empty sparklines
+    const span = plottedWeekSpan(series);
+    if (span < 2) continue; // renderSparkline requires >= 2 points; no label for empty sparklines
 
-    const text = `Last ${n} ${n === 1 ? "week" : "weeks"}`;
+    const text = `Last ${span} ${span === 1 ? "week" : "weeks"}`;
     const label = document.createElement("p");
     label.className = "sparkline-label";
     label.textContent = text;

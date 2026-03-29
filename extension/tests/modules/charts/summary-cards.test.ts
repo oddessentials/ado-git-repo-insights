@@ -637,7 +637,7 @@ describe("summary-cards module", () => {
       expect(rtSample!.textContent).toBe("Based on 35 PRs");
     });
 
-    it("sparkline label matches plotted point count after null filtering", () => {
+    it("sparkline label shows calendar span of consecutive non-null data", () => {
       const containers = createContainers();
       const card = document.createElement("div");
       card.className = "card";
@@ -646,7 +646,7 @@ describe("summary-cards module", () => {
       card.appendChild(containers.reviewTimeP50Sparkline!);
       document.body.appendChild(card);
 
-      // 8 rollups but only 3 have non-null review_time_p50
+      // 8 rollups, only first 3 have non-null review_time_p50 (indices 0,1,2)
       const rollups = Array.from({ length: 8 }, (_, i) => ({
         week: `2025-W${(i + 1).toString().padStart(2, "0")}`,
         pr_count: 10,
@@ -662,10 +662,73 @@ describe("summary-cards module", () => {
 
       renderSummaryCards({ rollups, containers });
 
-      // Only 3 non-null points plotted, not 8
+      // 3 consecutive points at indices 0-2 → span = 3
       const label = card.querySelector(".sparkline-label");
       expect(label).not.toBeNull();
       expect(label!.textContent).toBe("Last 3 weeks");
+    });
+
+    it("sparse series label reflects calendar span, not point count", () => {
+      const containers = createContainers();
+      const card = document.createElement("div");
+      card.className = "card";
+      card.appendChild(document.createElement("h3"));
+      card.appendChild(containers.reviewTimeP50!);
+      card.appendChild(containers.reviewTimeP50Sparkline!);
+      document.body.appendChild(card);
+
+      // 8 rollups, non-null at indices 0, 3, 7 (scattered across 8-week span)
+      const rollups = Array.from({ length: 8 }, (_, i) => ({
+        week: `2025-W${(i + 1).toString().padStart(2, "0")}`,
+        pr_count: 10,
+        cycle_time_p50: 60,
+        cycle_time_p90: 120,
+        review_time_p50: (i === 0 || i === 3 || i === 7) ? 30 + i * 10 : null as number | null,
+        review_time_p90: null as number | null,
+        authors_count: 5,
+        reviewers_count: 3,
+        by_repository: null,
+        by_team: null,
+      }));
+
+      renderSummaryCards({ rollups, containers });
+
+      // 3 points but spanning indices 0-7 → calendar span = 8
+      const label = card.querySelector(".sparkline-label");
+      expect(label).not.toBeNull();
+      expect(label!.textContent).toBe("Last 8 weeks");
+    });
+
+    it("P50 card count excludes weeks where only P90 exists", () => {
+      const containers = createContainers();
+
+      const p50Card = document.createElement("div");
+      p50Card.className = "card";
+      p50Card.appendChild(document.createElement("h3"));
+      p50Card.appendChild(containers.reviewTimeP50!);
+      document.body.appendChild(p50Card);
+
+      const p90Card = document.createElement("div");
+      p90Card.className = "card";
+      p90Card.appendChild(document.createElement("h3"));
+      p90Card.appendChild(containers.reviewTimeP90!);
+      document.body.appendChild(p90Card);
+
+      const rollups = [
+        { week: "2025-W01", pr_count: 10, cycle_time_p50: 60, cycle_time_p90: 120, review_time_p50: 30, review_time_p90: 60, authors_count: 5, reviewers_count: 3, by_repository: null, by_team: null },
+        { week: "2025-W02", pr_count: 15, cycle_time_p50: 45, cycle_time_p90: 90, review_time_p50: null, review_time_p90: 90, authors_count: 7, reviewers_count: 4, by_repository: null, by_team: null },
+        { week: "2025-W03", pr_count: 20, cycle_time_p50: 50, cycle_time_p90: 100, review_time_p50: 45, review_time_p90: null, authors_count: 6, reviewers_count: 3, by_repository: null, by_team: null },
+      ];
+
+      renderSummaryCards({ rollups, containers });
+
+      // P50 card: only weeks 1 and 3 have p50 → 10 + 20 = 30
+      const p50Sample = p50Card.querySelector(".metric-sample-size");
+      expect(p50Sample!.textContent).toBe("Based on 30 PRs");
+
+      // P90 card: only weeks 1 and 2 have p90 → 10 + 15 = 25
+      const p90Sample = p90Card.querySelector(".metric-sample-size");
+      expect(p90Sample!.textContent).toBe("Based on 25 PRs");
     });
   });
 });
