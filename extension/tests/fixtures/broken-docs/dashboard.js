@@ -3776,10 +3776,44 @@ var PRInsightsDashboard = (() => {
         ) / p90PrCount;
       }
     }
+    const rtP50Entries = entries.filter(
+      (e) => typeof e.review_time_p50 === "number" && Number.isFinite(e.review_time_p50)
+    );
+    const rtP90Entries = entries.filter(
+      (e) => typeof e.review_time_p90 === "number" && Number.isFinite(e.review_time_p90)
+    );
+    let reviewTimeP50 = null;
+    let reviewTimeP90 = null;
+    if (rtP50Entries.length > 0) {
+      const rtP50PrCount = rtP50Entries.reduce(
+        (sum, e) => sum + toFiniteNumber(e.pr_count),
+        0
+      );
+      if (rtP50PrCount > 0) {
+        reviewTimeP50 = rtP50Entries.reduce(
+          (sum, e) => sum + toFiniteNumber(e.review_time_p50) * toFiniteNumber(e.pr_count),
+          0
+        ) / rtP50PrCount;
+      }
+    }
+    if (rtP90Entries.length > 0) {
+      const rtP90PrCount = rtP90Entries.reduce(
+        (sum, e) => sum + toFiniteNumber(e.pr_count),
+        0
+      );
+      if (rtP90PrCount > 0) {
+        reviewTimeP90 = rtP90Entries.reduce(
+          (sum, e) => sum + toFiniteNumber(e.review_time_p90) * toFiniteNumber(e.pr_count),
+          0
+        ) / rtP90PrCount;
+      }
+    }
     return {
       pr_count: totalPrCount,
       cycle_time_p50: cycleP50,
       cycle_time_p90: cycleP90,
+      review_time_p50: reviewTimeP50,
+      review_time_p90: reviewTimeP90,
       authors_count: totalAuthors,
       reviewers_count: totalReviewers
     };
@@ -3858,6 +3892,8 @@ var PRInsightsDashboard = (() => {
       // ...rollup spread when the slice legitimately has null/0 values.
       cycle_time_p50: slice.cycle_time_p50,
       cycle_time_p90: slice.cycle_time_p90,
+      review_time_p50: slice.review_time_p50,
+      review_time_p90: slice.review_time_p90,
       authors_count: slice.authors_count,
       reviewers_count: slice.reviewers_count
     };
@@ -3926,6 +3962,8 @@ var PRInsightsDashboard = (() => {
           pr_count: reviewerSlice.reviewed_prs,
           cycle_time_p50: null,
           cycle_time_p90: null,
+          review_time_p50: null,
+          review_time_p90: null,
           authors_count: reviewerSlice.authors_count,
           // Reuse reviewers_count for review-activity UI surfaces.
           reviewers_count: reviewerSlice.reviews_count
@@ -3934,6 +3972,7 @@ var PRInsightsDashboard = (() => {
       if (authorSlice && repoSlice && rollup.by_author_and_repo) {
         let cdPr = 0, cdAuthors = 0, cdReviewers = 0;
         let cdP50WSum = 0, cdP50WPr = 0, cdP90WSum = 0, cdP90WPr = 0;
+        let cdRtP50WSum = 0, cdRtP50WPr = 0, cdRtP90WSum = 0, cdRtP90WPr = 0;
         let cdFound = 0;
         for (const authorId of authorFilters) {
           const authorRepos = getOwnPropertyValue(
@@ -3959,6 +3998,16 @@ var PRInsightsDashboard = (() => {
               cdP90WSum += p90 * pr;
               cdP90WPr += pr;
             }
+            const rtP50 = e.review_time_p50;
+            if (typeof rtP50 === "number" && Number.isFinite(rtP50)) {
+              cdRtP50WSum += rtP50 * pr;
+              cdRtP50WPr += pr;
+            }
+            const rtP90 = e.review_time_p90;
+            if (typeof rtP90 === "number" && Number.isFinite(rtP90)) {
+              cdRtP90WSum += rtP90 * pr;
+              cdRtP90WPr += pr;
+            }
           }
         }
         if (cdFound > 0) {
@@ -3978,6 +4027,8 @@ var PRInsightsDashboard = (() => {
               pr_count: cdPr,
               cycle_time_p50: cdP50WPr > 0 ? cdP50WSum / cdP50WPr : null,
               cycle_time_p90: cdP90WPr > 0 ? cdP90WSum / cdP90WPr : null,
+              review_time_p50: cdRtP50WPr > 0 ? cdRtP50WSum / cdRtP50WPr : null,
+              review_time_p90: cdRtP90WPr > 0 ? cdRtP90WSum / cdRtP90WPr : null,
               authors_count: cdAuthors,
               reviewers_count: cdReviewers
             });
@@ -4009,6 +4060,14 @@ var PRInsightsDashboard = (() => {
           authorSlice.cycle_time_p90,
           repoSlice.cycle_time_p90
         ].filter((v) => v !== null);
+        const rtP50s = [
+          authorSlice.review_time_p50,
+          repoSlice.review_time_p50
+        ].filter((v) => v !== null);
+        const rtP90s = [
+          authorSlice.review_time_p90,
+          repoSlice.review_time_p90
+        ].filter((v) => v !== null);
         if (teamSlice) {
           console.warn(
             "Combined author and team filtering is constrained; using author+repository metrics while retaining team UI state"
@@ -4019,6 +4078,8 @@ var PRInsightsDashboard = (() => {
           pr_count: combinedPrCount,
           cycle_time_p50: p50s.length > 0 ? p50s.reduce((a, b) => a + b, 0) / p50s.length : null,
           cycle_time_p90: p90s.length > 0 ? p90s.reduce((a, b) => a + b, 0) / p90s.length : null,
+          review_time_p50: rtP50s.length > 0 ? rtP50s.reduce((a, b) => a + b, 0) / rtP50s.length : null,
+          review_time_p90: rtP90s.length > 0 ? rtP90s.reduce((a, b) => a + b, 0) / rtP90s.length : null,
           authors_count: combinedAuthors,
           reviewers_count: combinedReviewers
         };
@@ -4034,6 +4095,7 @@ var PRInsightsDashboard = (() => {
       if (repoSlice && teamSlice && rollup.by_team_and_repo) {
         let cdPr = 0, cdAuthors = 0, cdReviewers = 0;
         let cdP50WSum = 0, cdP50WPr = 0, cdP90WSum = 0, cdP90WPr = 0;
+        let cdRtP50WSum = 0, cdRtP50WPr = 0, cdRtP90WSum = 0, cdRtP90WPr = 0;
         let cdFound = 0;
         for (const team of filters.teams) {
           const teamRepos = getOwnPropertyValue(rollup.by_team_and_repo, team);
@@ -4056,6 +4118,16 @@ var PRInsightsDashboard = (() => {
               cdP90WSum += p90 * pr;
               cdP90WPr += pr;
             }
+            const rtP50 = e.review_time_p50;
+            if (typeof rtP50 === "number" && Number.isFinite(rtP50)) {
+              cdRtP50WSum += rtP50 * pr;
+              cdRtP50WPr += pr;
+            }
+            const rtP90 = e.review_time_p90;
+            if (typeof rtP90 === "number" && Number.isFinite(rtP90)) {
+              cdRtP90WSum += rtP90 * pr;
+              cdRtP90WPr += pr;
+            }
           }
         }
         if (cdFound > 0) {
@@ -4070,6 +4142,8 @@ var PRInsightsDashboard = (() => {
               pr_count: cdPr,
               cycle_time_p50: cdP50WPr > 0 ? cdP50WSum / cdP50WPr : null,
               cycle_time_p90: cdP90WPr > 0 ? cdP90WSum / cdP90WPr : null,
+              review_time_p50: cdRtP50WPr > 0 ? cdRtP50WSum / cdRtP50WPr : null,
+              review_time_p90: cdRtP90WPr > 0 ? cdRtP90WSum / cdRtP90WPr : null,
               authors_count: cdAuthors,
               reviewers_count: cdReviewers
             });
@@ -4099,6 +4173,14 @@ var PRInsightsDashboard = (() => {
         const p90s = [repoSlice.cycle_time_p90, teamSlice.cycle_time_p90].filter(
           (v) => v !== null
         );
+        const rtP50s = [
+          repoSlice.review_time_p50,
+          teamSlice.review_time_p50
+        ].filter((v) => v !== null);
+        const rtP90s = [
+          repoSlice.review_time_p90,
+          teamSlice.review_time_p90
+        ].filter((v) => v !== null);
         return {
           ...rollup,
           pr_count: combinedPrCount,
@@ -4106,6 +4188,8 @@ var PRInsightsDashboard = (() => {
           // ...rollup spread when proportional estimates are null/0.
           cycle_time_p50: p50s.length > 0 ? p50s.reduce((a, b) => a + b, 0) / p50s.length : null,
           cycle_time_p90: p90s.length > 0 ? p90s.reduce((a, b) => a + b, 0) / p90s.length : null,
+          review_time_p50: rtP50s.length > 0 ? rtP50s.reduce((a, b) => a + b, 0) / rtP50s.length : null,
+          review_time_p90: rtP90s.length > 0 ? rtP90s.reduce((a, b) => a + b, 0) / rtP90s.length : null,
           authors_count: combinedAuthors,
           reviewers_count: combinedReviewers
         };

@@ -177,6 +177,8 @@ interface AggregatedSlice {
   pr_count: number;
   cycle_time_p50: number | null;
   cycle_time_p90: number | null;
+  review_time_p50: number | null;
+  review_time_p90: number | null;
   authors_count: number;
   reviewers_count: number;
 }
@@ -251,10 +253,59 @@ function aggregateEntries(entries: BreakdownEntry[]): AggregatedSlice {
     }
   }
 
+  // Review time: same PR-weighted average pattern as cycle time.
+  const rtP50Entries = entries.filter(
+    (e) =>
+      typeof e.review_time_p50 === "number" &&
+      Number.isFinite(e.review_time_p50),
+  );
+  const rtP90Entries = entries.filter(
+    (e) =>
+      typeof e.review_time_p90 === "number" &&
+      Number.isFinite(e.review_time_p90),
+  );
+
+  let reviewTimeP50: number | null = null;
+  let reviewTimeP90: number | null = null;
+
+  if (rtP50Entries.length > 0) {
+    const rtP50PrCount = rtP50Entries.reduce(
+      (sum, e) => sum + toFiniteNumber(e.pr_count),
+      0,
+    );
+    if (rtP50PrCount > 0) {
+      reviewTimeP50 =
+        rtP50Entries.reduce(
+          (sum, e) =>
+            sum +
+            toFiniteNumber(e.review_time_p50) * toFiniteNumber(e.pr_count),
+          0,
+        ) / rtP50PrCount;
+    }
+  }
+
+  if (rtP90Entries.length > 0) {
+    const rtP90PrCount = rtP90Entries.reduce(
+      (sum, e) => sum + toFiniteNumber(e.pr_count),
+      0,
+    );
+    if (rtP90PrCount > 0) {
+      reviewTimeP90 =
+        rtP90Entries.reduce(
+          (sum, e) =>
+            sum +
+            toFiniteNumber(e.review_time_p90) * toFiniteNumber(e.pr_count),
+          0,
+        ) / rtP90PrCount;
+    }
+  }
+
   return {
     pr_count: totalPrCount,
     cycle_time_p50: cycleP50,
     cycle_time_p90: cycleP90,
+    review_time_p50: reviewTimeP50,
+    review_time_p90: reviewTimeP90,
     authors_count: totalAuthors,
     reviewers_count: totalReviewers,
   };
@@ -371,6 +422,8 @@ function buildFilteredRollup(rollup: Rollup, slice: AggregatedSlice): Rollup {
     // ...rollup spread when the slice legitimately has null/0 values.
     cycle_time_p50: slice.cycle_time_p50,
     cycle_time_p90: slice.cycle_time_p90,
+    review_time_p50: slice.review_time_p50,
+    review_time_p90: slice.review_time_p90,
     authors_count: slice.authors_count,
     reviewers_count: slice.reviewers_count,
   } as Rollup;
@@ -485,6 +538,8 @@ export function applyFiltersToRollups(
         pr_count: reviewerSlice.reviewed_prs,
         cycle_time_p50: null,
         cycle_time_p90: null,
+        review_time_p50: null,
+        review_time_p90: null,
         authors_count: reviewerSlice.authors_count,
         // Reuse reviewers_count for review-activity UI surfaces.
         reviewers_count: reviewerSlice.reviews_count,
@@ -499,6 +554,10 @@ export function applyFiltersToRollups(
         cdP50WPr = 0,
         cdP90WSum = 0,
         cdP90WPr = 0;
+      let cdRtP50WSum = 0,
+        cdRtP50WPr = 0,
+        cdRtP90WSum = 0,
+        cdRtP90WPr = 0;
       let cdFound = 0;
 
       for (const authorId of authorFilters) {
@@ -525,6 +584,16 @@ export function applyFiltersToRollups(
             cdP90WSum += p90 * pr;
             cdP90WPr += pr;
           }
+          const rtP50 = e.review_time_p50;
+          if (typeof rtP50 === "number" && Number.isFinite(rtP50)) {
+            cdRtP50WSum += rtP50 * pr;
+            cdRtP50WPr += pr;
+          }
+          const rtP90 = e.review_time_p90;
+          if (typeof rtP90 === "number" && Number.isFinite(rtP90)) {
+            cdRtP90WSum += rtP90 * pr;
+            cdRtP90WPr += pr;
+          }
         }
       }
 
@@ -550,6 +619,10 @@ export function applyFiltersToRollups(
             pr_count: cdPr,
             cycle_time_p50: cdP50WPr > 0 ? cdP50WSum / cdP50WPr : null,
             cycle_time_p90: cdP90WPr > 0 ? cdP90WSum / cdP90WPr : null,
+            review_time_p50:
+              cdRtP50WPr > 0 ? cdRtP50WSum / cdRtP50WPr : null,
+            review_time_p90:
+              cdRtP90WPr > 0 ? cdRtP90WSum / cdRtP90WPr : null,
             authors_count: cdAuthors,
             reviewers_count: cdReviewers,
           });
@@ -587,6 +660,14 @@ export function applyFiltersToRollups(
         authorSlice.cycle_time_p90,
         repoSlice.cycle_time_p90,
       ].filter((v): v is number => v !== null);
+      const rtP50s = [
+        authorSlice.review_time_p50,
+        repoSlice.review_time_p50,
+      ].filter((v): v is number => v !== null);
+      const rtP90s = [
+        authorSlice.review_time_p90,
+        repoSlice.review_time_p90,
+      ].filter((v): v is number => v !== null);
 
       if (teamSlice) {
         console.warn(
@@ -604,6 +685,14 @@ export function applyFiltersToRollups(
         cycle_time_p90:
           p90s.length > 0
             ? p90s.reduce((a, b) => a + b, 0) / p90s.length
+            : null,
+        review_time_p50:
+          rtP50s.length > 0
+            ? rtP50s.reduce((a, b) => a + b, 0) / rtP50s.length
+            : null,
+        review_time_p90:
+          rtP90s.length > 0
+            ? rtP90s.reduce((a, b) => a + b, 0) / rtP90s.length
             : null,
         authors_count: combinedAuthors,
         reviewers_count: combinedReviewers,
@@ -630,6 +719,10 @@ export function applyFiltersToRollups(
         cdP50WPr = 0,
         cdP90WSum = 0,
         cdP90WPr = 0;
+      let cdRtP50WSum = 0,
+        cdRtP50WPr = 0,
+        cdRtP90WSum = 0,
+        cdRtP90WPr = 0;
       let cdFound = 0;
 
       for (const team of filters.teams) {
@@ -653,6 +746,16 @@ export function applyFiltersToRollups(
             cdP90WSum += p90 * pr;
             cdP90WPr += pr;
           }
+          const rtP50 = e.review_time_p50;
+          if (typeof rtP50 === "number" && Number.isFinite(rtP50)) {
+            cdRtP50WSum += rtP50 * pr;
+            cdRtP50WPr += pr;
+          }
+          const rtP90 = e.review_time_p90;
+          if (typeof rtP90 === "number" && Number.isFinite(rtP90)) {
+            cdRtP90WSum += rtP90 * pr;
+            cdRtP90WPr += pr;
+          }
         }
       }
 
@@ -674,6 +777,10 @@ export function applyFiltersToRollups(
             pr_count: cdPr,
             cycle_time_p50: cdP50WPr > 0 ? cdP50WSum / cdP50WPr : null,
             cycle_time_p90: cdP90WPr > 0 ? cdP90WSum / cdP90WPr : null,
+            review_time_p50:
+              cdRtP50WPr > 0 ? cdRtP50WSum / cdRtP50WPr : null,
+            review_time_p90:
+              cdRtP90WPr > 0 ? cdRtP90WSum / cdRtP90WPr : null,
             authors_count: cdAuthors,
             reviewers_count: cdReviewers,
           });
@@ -722,6 +829,14 @@ export function applyFiltersToRollups(
       const p90s = [repoSlice.cycle_time_p90, teamSlice.cycle_time_p90].filter(
         (v): v is number => v !== null,
       );
+      const rtP50s = [
+        repoSlice.review_time_p50,
+        teamSlice.review_time_p50,
+      ].filter((v): v is number => v !== null);
+      const rtP90s = [
+        repoSlice.review_time_p90,
+        teamSlice.review_time_p90,
+      ].filter((v): v is number => v !== null);
 
       return {
         ...rollup,
@@ -735,6 +850,14 @@ export function applyFiltersToRollups(
         cycle_time_p90:
           p90s.length > 0
             ? p90s.reduce((a, b) => a + b, 0) / p90s.length
+            : null,
+        review_time_p50:
+          rtP50s.length > 0
+            ? rtP50s.reduce((a, b) => a + b, 0) / rtP50s.length
+            : null,
+        review_time_p90:
+          rtP90s.length > 0
+            ? rtP90s.reduce((a, b) => a + b, 0) / rtP90s.length
             : null,
         authors_count: combinedAuthors,
         reviewers_count: combinedReviewers,
