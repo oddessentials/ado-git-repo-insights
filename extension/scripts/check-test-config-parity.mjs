@@ -10,7 +10,7 @@
  * flags added in future versions are automatically covered because
  * only allowlisted deviations are permitted.
  *
- * Configs checked:
+ * Configs checked (all required — missing configs fail the check):
  *   tsconfig.test.json       — main test suite (Jest / ts-jest)
  *   tsconfig.type-tests.json — compile-time type-assertion tests
  *
@@ -18,13 +18,18 @@
  *            Issue #210 (tsconfig.type-tests.json parity)
  */
 
-import { execSync } from "node:child_process";
+import { execFileSync } from "node:child_process";
 import { existsSync } from "node:fs";
 import { resolve, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const extensionRoot = resolve(__dirname, "..");
+
+// Resolve the tsc entry point via the local typescript installation.
+// Using node + tsc.js directly avoids shell execution (no cmd.exe on
+// Windows), which prevents EPERM failures in restricted environments.
+const tscPath = resolve(extensionRoot, "node_modules", "typescript", "bin", "tsc");
 
 // Keys that may legitimately differ in ANY test config (output-related)
 const BASE_ALLOWLIST = [
@@ -35,7 +40,7 @@ const BASE_ALLOWLIST = [
   "rootDir",
 ];
 
-// Each entry: [configFile, extraAllowedKeys[], reason]
+// Each entry is a REQUIRED config — missing files fail the check.
 const CONFIGS = [
   {
     file: "tsconfig.test.json",
@@ -54,11 +59,15 @@ const CONFIGS = [
 ];
 
 function getResolvedConfig(tsconfigPath) {
-  const result = execSync(`npx tsc --showConfig -p "${tsconfigPath}"`, {
-    cwd: extensionRoot,
-    encoding: "utf-8",
-    stdio: ["pipe", "pipe", "pipe"],
-  });
+  const result = execFileSync(
+    process.execPath,
+    [tscPath, "--showConfig", "-p", tsconfigPath],
+    {
+      cwd: extensionRoot,
+      encoding: "utf-8",
+      stdio: ["pipe", "pipe", "pipe"],
+    },
+  );
   return JSON.parse(result);
 }
 
@@ -66,7 +75,13 @@ function compareConfig(prodOpts, configEntry) {
   const configPath = resolve(extensionRoot, configEntry.file);
 
   if (!existsSync(configPath)) {
-    return { skipped: true, label: configEntry.label, file: configEntry.file };
+    console.error(
+      `✗ ${configEntry.file} (${configEntry.label}) MISSING: expected at ${configPath}`,
+    );
+    console.error(
+      `  Every file in CONFIGS is required. A missing test tsconfig is a repo misconfiguration.`,
+    );
+    return { missing: true, label: configEntry.label, file: configEntry.file };
   }
 
   const testConfig = getResolvedConfig(configPath);
@@ -91,7 +106,7 @@ function compareConfig(prodOpts, configEntry) {
   }
 
   return {
-    skipped: false,
+    missing: false,
     label: configEntry.label,
     file: configEntry.file,
     allowlist: [...allowlist],
@@ -100,26 +115,38 @@ function compareConfig(prodOpts, configEntry) {
 }
 
 function run() {
+  if (!existsSync(tscPath)) {
+    console.error(
+      `✗ TypeScript compiler not found at ${tscPath}`,
+    );
+    console.error(
+      `  Run 'pnpm install' in the extension directory first.`,
+    );
+    process.exit(1);
+  }
+
   const prodConfig = getResolvedConfig(
     resolve(extensionRoot, "tsconfig.json"),
   );
   const prodOpts = prodConfig.compilerOptions || {};
 
-  let totalViolations = 0;
+  let failures = 0;
   const results = [];
 
   for (const entry of CONFIGS) {
     const result = compareConfig(prodOpts, entry);
     results.push(result);
-    if (!result.skipped) {
-      totalViolations += result.violations.length;
+    if (result.missing) {
+      failures++;
+    } else {
+      failures += result.violations.length;
     }
   }
 
   // Report results
   for (const result of results) {
-    if (result.skipped) {
-      console.log(`⊘ ${result.file} (${result.label}): not found, skipped.`);
+    if (result.missing) {
+      // Error already printed in compareConfig
       continue;
     }
 
@@ -145,11 +172,7 @@ function run() {
     }
   }
 
-  if (totalViolations > 0) {
-    process.exit(1);
-  }
-
-  process.exit(0);
+  process.exit(failures > 0 ? 1 : 0);
 }
 
 run();
