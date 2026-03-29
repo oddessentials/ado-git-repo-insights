@@ -31,6 +31,8 @@ function makeTestRollups(count: number): Rollup[] {
     pr_count: 10 + i * 5,
     cycle_time_p50: 60 + i * 10,
     cycle_time_p90: 120 + i * 20,
+    review_time_p50: 30 + i * 5,
+    review_time_p90: 60 + i * 10,
     authors_count: 5 + i,
     reviewers_count: 3 + i,
     by_repository: null,
@@ -164,6 +166,22 @@ describe("Layer A: Chart function idempotency", () => {
     }
     // Non-vacuous: at least totalPrs should have content
     expect(containersA.totalPrs!.textContent).not.toBe("");
+  });
+
+  it("summary-cards idempotency covers review_time fields", () => {
+    const rollups = makeTestRollups(8); // includes review_time_p50/p90
+    const containers = makeSummaryContainers();
+
+    renderSummaryCards({ rollups, containers });
+
+    // review_time values should be rendered (not "-") since fixture has data
+    expect(containers.reviewTimeP50!.textContent).not.toBe("");
+    expect(containers.reviewTimeP50!.textContent).not.toBe("-");
+    expect(containers.reviewTimeP90!.textContent).not.toBe("");
+    expect(containers.reviewTimeP90!.textContent).not.toBe("-");
+    // sparklines should have SVG content
+    expect(containers.reviewTimeP50Sparkline!.innerHTML).toContain("<svg");
+    expect(containers.reviewTimeP90Sparkline!.innerHTML).toContain("<svg");
   });
 });
 

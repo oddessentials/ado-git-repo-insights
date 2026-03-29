@@ -300,9 +300,13 @@ function renderSparklineLabels(
     const label = document.createElement("p");
     label.className = "sparkline-label";
     label.textContent = text;
-    // Insert after the sparkline container
-    if (el.nextSibling) {
-      card.insertBefore(label, el.nextSibling);
+    // Insert after the .metric-row that contains the sparkline.
+    // The sparkline is inside .metric-row (not a direct child of .card),
+    // so we walk up to .metric-row and insert after it.
+    const metricRow = el.closest(".metric-row") as HTMLElement | null;
+    const insertTarget = metricRow ?? el;
+    if (insertTarget.nextSibling) {
+      card.insertBefore(label, insertTarget.nextSibling);
     } else {
       card.appendChild(label);
     }

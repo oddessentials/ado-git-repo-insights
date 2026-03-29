@@ -5632,8 +5632,10 @@ var PRInsightsDashboard = (() => {
       const label = document.createElement("p");
       label.className = "sparkline-label";
       label.textContent = text;
-      if (el.nextSibling) {
-        card.insertBefore(label, el.nextSibling);
+      const metricRow = el.closest(".metric-row");
+      const insertTarget = metricRow ?? el;
+      if (insertTarget.nextSibling) {
+        card.insertBefore(label, insertTarget.nextSibling);
       } else {
         card.appendChild(label);
       }

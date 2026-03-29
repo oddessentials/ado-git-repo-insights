@@ -1008,6 +1008,10 @@ input[type="search"]::placeholder {
     border: 1px solid var(--border);
     border-radius: var(--radius);
     font-weight: 600;
+    /* Reset properties inherited from later generic .truncation-badge rule (line ~2410) */
+    font-size: 12px;
+    margin-left: 0;
+    vertical-align: baseline;
 }
 
 .chart-legend {
@@ -2557,6 +2561,7 @@ input[type="search"]::placeholder {
         border: none;
         border-left: 3px solid var(--warning);
         border-radius: 0;
+        margin-left: 0;
     }
 
     .dist-row {

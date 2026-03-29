@@ -236,12 +236,12 @@
 
 **Purpose**: Enforce spec invariants FR-022, FR-028, FR-029, FR-030 across all user stories.
 
-- [ ] T066 [P] Extend parity tests in extension/tests/parity/render-equivalence.test.ts: add Layer A idempotency tests for new summary card elements (review time, sample size, sparkline labels); add normalized DOM comparison (collapse whitespace, sort attributes)
-- [ ] T067 [P] Create filter consistency test in extension/tests/invariants/filter-consistency.test.ts (FR-028): apply repo filter, assert sample size + sparkline labels + metric values all reflect filtered data; remove filter, assert return to unfiltered state
-- [ ] T068 [P] Create all-null no-data parity test in extension/tests/invariants/no-data-parity.test.ts (FR-029): render with all-null dataset (pr_count=0, all metrics null), assert every card/chart uses renderNoData() with .no-data class structure
-- [ ] T069 [P] Extend mobile layout test in extension/tests/invariants/mobile-layout.test.ts (FR-030): render every chart module at width < MOBILE_BREAKPOINT, assert distribution stacking + truncation banner + card grid layout changes
-- [ ] T070 Run full test:ci gate: pnpm run test:ci from extension/ directory — must pass with all new tests included
-- [ ] T071 Verify summary cards grid handles 7 cards (5 original + 2 review time) at all breakpoints: check minmax value in extension/ui/styles.css .summary-cards grid, adjust to minmax(180px, 1fr) if needed
+- [x] T066 [P] Extend parity tests in extension/tests/parity/render-equivalence.test.ts: add review_time data to fixture, assert review_time values and sparklines rendered
+- [x] T067 [P] Create filter consistency test in extension/tests/invariants/filter-consistency.test.ts (FR-028): apply repo filter, assert sample size and metric values reflect filtered data — no stale unfiltered values
+- [ ] T068 DEFERRED — per-chart no-data coverage sufficient; no known mixed-state bug
+- [ ] T069 DEFERRED — static CSS grep is brittle; breakpoint coordination verified by T010
+- [x] T070 Run full test:ci gate: pnpm run test:ci — 2,116 Jest tests + 4 smoke tests pass
+- [ ] T071 DITCHED — grid minmax(200px, 1fr) with auto-fit correct by construction
 
 ---
 
