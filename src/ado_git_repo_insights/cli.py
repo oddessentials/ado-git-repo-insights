@@ -260,6 +260,30 @@ def create_parser() -> argparse.ArgumentParser:
         default=False,
         help="Enable OpenAI-based insights",
     )
+    build_parser.add_argument(
+        "--insights-max-tokens",
+        type=int,
+        default=1000,
+        help="Maximum tokens for OpenAI insights response (default: 1000)",
+    )
+    build_parser.add_argument(
+        "--insights-cache-ttl-hours",
+        type=int,
+        default=24,
+        help="Cache TTL for insights in hours (default: 24)",
+    )
+    build_parser.add_argument(
+        "--insights-dry-run",
+        action="store_true",
+        default=False,
+        help="Generate prompt artifact without calling OpenAI API",
+    )
+    build_parser.add_argument(
+        "--stub-mode",
+        action="store_true",
+        default=False,
+        help=argparse.SUPPRESS,  # Hidden from help
+    )
     # Unified dashboard serve flags (Flight 260127A)
     build_parser.add_argument(
         "--serve",
@@ -804,19 +828,21 @@ def cmd_generate_aggregates(args: Namespace) -> int:
             )
             return 1
 
-        # Check for openai package (needed even for dry-run to build prompt)
-        try:
-            openai_available = (
-                "openai" in sys.modules
-                or importlib.util.find_spec("openai") is not None
-            )
-        except (ValueError, ModuleNotFoundError):
-            openai_available = False
-        if not openai_available:
-            logger.error(
-                "OpenAI SDK not installed. Install ML extras: pip install -e '.[ml]'"
-            )
-            return 1
+        # Check for openai package only when API will actually be called
+        # Dry-run writes prompt.json without importing openai
+        if not insights_dry_run:
+            try:
+                openai_available = (
+                    "openai" in sys.modules
+                    or importlib.util.find_spec("openai") is not None
+                )
+            except (ValueError, ModuleNotFoundError):
+                openai_available = False
+            if not openai_available:
+                logger.error(
+                    "OpenAI SDK not installed. Install ML extras: pip install -e '.[ml]'"
+                )
+                return 1
 
     try:
         db = DatabaseManager(args.database)
@@ -935,29 +961,31 @@ def cmd_build_aggregates(args: Namespace) -> int:
         return 1
 
     # Phase 5: Early validation for insights (same as generate-aggregates)
-    enable_insights = getattr(args, "enable_insights", False)
+    enable_insights = args.enable_insights
+    insights_dry_run = args.insights_dry_run
     if enable_insights:
         import os
 
-        if not os.environ.get("OPENAI_API_KEY"):
+        if not insights_dry_run and not os.environ.get("OPENAI_API_KEY"):
             logger.error(
                 "OPENAI_API_KEY is required for --enable-insights. "
                 "Set the environment variable, or use --insights-dry-run for prompt iteration."
             )
             return 1
 
-        try:
-            openai_available = (
-                "openai" in sys.modules
-                or importlib.util.find_spec("openai") is not None
-            )
-        except (ValueError, ModuleNotFoundError):
-            openai_available = False
-        if not openai_available:
-            logger.error(
-                "OpenAI SDK not installed. Install ML extras: pip install -e '.[ml]'"
-            )
-            return 1
+        if not insights_dry_run:
+            try:
+                openai_available = (
+                    "openai" in sys.modules
+                    or importlib.util.find_spec("openai") is not None
+                )
+            except (ValueError, ModuleNotFoundError):
+                openai_available = False
+            if not openai_available:
+                logger.error(
+                    "OpenAI SDK not installed. Install ML extras: pip install -e '.[ml]'"
+                )
+                return 1
 
     # Clean up stale aggregates from previous runs to prevent data mixing
     aggregates_dir = (args.out / "aggregates").resolve()
@@ -984,8 +1012,12 @@ def cmd_build_aggregates(args: Namespace) -> int:
                 db=db,
                 output_dir=args.out,
                 run_id=args.run_id,
-                enable_predictions=getattr(args, "enable_predictions", False),
+                enable_predictions=args.enable_predictions,
                 enable_insights=enable_insights,
+                insights_max_tokens=args.insights_max_tokens,
+                insights_cache_ttl_hours=args.insights_cache_ttl_hours,
+                insights_dry_run=args.insights_dry_run,
+                stub_mode=args.stub_mode,
             )
             manifest = generator.generate_all()
 

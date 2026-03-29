@@ -373,17 +373,36 @@ class TestCmdGenerateAggregates:
             for call in mock_logger.error.call_args_list
         )
 
+    @patch("ado_git_repo_insights.persistence.database.DatabaseManager")
+    @patch("ado_git_repo_insights.transform.aggregators.AggregateGenerator")
     def test_insights_dry_run_openai_not_installed(
         self,
+        mock_agg_generator: MagicMock,
+        mock_db_manager: MagicMock,
         tmp_path: Path,
         monkeypatch: pytest.MonkeyPatch,
     ) -> None:
-        """--insights-dry-run without openai installed should return 1."""
+        """--insights-dry-run must succeed even when openai is not installed.
+
+        The dry-run path writes prompt.json without importing openai,
+        so the SDK availability check must be bypassed entirely.
+        """
         from ado_git_repo_insights.cli import cmd_generate_aggregates
 
         monkeypatch.delenv("OPENAI_API_KEY", raising=False)
         db_path = tmp_path / "test.sqlite"
         db_path.touch()
+
+        mock_db = MagicMock()
+        mock_db_manager.return_value = mock_db
+        mock_generator = MagicMock()
+        mock_manifest = MagicMock()
+        mock_manifest.aggregate_index.weekly_rollups = []
+        mock_manifest.aggregate_index.distributions = []
+        mock_manifest.features = {"predictions": False, "ai_insights": True}
+        mock_manifest.warnings = []
+        mock_generator.generate_all.return_value = mock_manifest
+        mock_agg_generator.return_value = mock_generator
 
         args = Namespace(
             database=db_path,
@@ -399,16 +418,17 @@ class TestCmdGenerateAggregates:
             stub_mode=False,
         )
 
-        # Remove openai from sys.modules so "openai" in sys.modules is False,
-        # then mock find_spec to return None (package not installed)
+        # openai is NOT in sys.modules and find_spec returns None
         monkeypatch.delitem(sys.modules, "openai", raising=False)
         with patch("importlib.util.find_spec", return_value=None):
             with patch("ado_git_repo_insights.cli.logger") as mock_logger:
                 result = cmd_generate_aggregates(args)
 
-        assert result == 1
-        assert mock_logger.error.called
-        assert "OpenAI SDK not installed" in mock_logger.error.call_args[0][0]
+        assert result == 0, "dry-run must succeed without openai SDK"
+        assert not any(
+            "OpenAI SDK not installed" in str(call)
+            for call in mock_logger.error.call_args_list
+        )
 
     def test_insights_openai_not_installed_with_api_key(
         self,

@@ -243,6 +243,10 @@ class TestServeFunctionality:
             port=3000,
             enable_predictions=False,
             enable_insights=False,
+            insights_max_tokens=1000,
+            insights_cache_ttl_hours=24,
+            insights_dry_run=False,
+            stub_mode=False,
         )
 
         # Execute
@@ -292,6 +296,10 @@ class TestServeFunctionality:
             port=8080,
             enable_predictions=False,
             enable_insights=False,
+            insights_max_tokens=1000,
+            insights_cache_ttl_hours=24,
+            insights_dry_run=False,
+            stub_mode=False,
         )
 
         # Execute
@@ -335,6 +343,10 @@ class TestServeFunctionality:
             port=3000,
             enable_predictions=False,
             enable_insights=False,
+            insights_max_tokens=1000,
+            insights_cache_ttl_hours=24,
+            insights_dry_run=False,
+            stub_mode=False,
         )
 
         # Execute

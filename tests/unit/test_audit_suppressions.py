@@ -2,12 +2,12 @@
 
 Tests the suppression audit functionality including:
 - File exclusion patterns (directories and file patterns)
-- Type-test file exclusion (*.type-test.ts)
+- Live constant verification against the script's actual values
 """
 
 from __future__ import annotations
 
-import fnmatch
+import importlib.util
 import json
 import os
 import subprocess
@@ -19,38 +19,15 @@ import pytest
 # Path to the audit script
 AUDIT_SCRIPT = Path(__file__).parent.parent.parent / "scripts" / "audit-suppressions.py"
 
+# Import the live constants and functions directly from the script
+# so tests always validate the script's actual behavior, not stale copies.
+_spec = importlib.util.spec_from_file_location("audit_suppressions", AUDIT_SCRIPT)
+_audit_module = importlib.util.module_from_spec(_spec)
+_spec.loader.exec_module(_audit_module)
 
-# Replicate the constants and functions we're testing to avoid exec() issues
-EXCLUDED_DIRS = {
-    "node_modules",
-    "dist",
-    ".venv",
-    "venv",
-    "build",
-    "coverage",
-    "__pycache__",
-    ".git",
-}
-
-EXCLUDED_FILE_PATTERNS = {
-    "*.type-test.ts",
-}
-
-
-def is_excluded(path: Path) -> bool:
-    """Check if path should be excluded from scanning.
-
-    This is a copy of the function from audit-suppressions.py for testing.
-    """
-    parts = path.parts
-    # Check excluded directories
-    if any(excluded in parts for excluded in EXCLUDED_DIRS):
-        return True
-    # Check excluded file patterns
-    filename = path.name
-    if any(fnmatch.fnmatch(filename, pattern) for pattern in EXCLUDED_FILE_PATTERNS):
-        return True
-    return False
+EXCLUDED_DIRS = _audit_module.EXCLUDED_DIRS
+EXCLUDED_FILE_PATTERNS = _audit_module.EXCLUDED_FILE_PATTERNS
+is_excluded = _audit_module.is_excluded
 
 
 class TestIsExcluded:
@@ -76,20 +53,22 @@ class TestIsExcluded:
         path = Path("src/ado_git_repo_insights/__pycache__/cli.cpython-311.pyc")
         assert is_excluded(path) is True, "__pycache__ should be excluded"
 
-    def test_excludes_type_test_files(self) -> None:
-        """Files matching *.type-test.ts should be excluded.
+    def test_does_not_exclude_type_test_files(self) -> None:
+        """Type-test files must NOT be excluded — zero-suppression policy.
 
-        Type-test files use @ts-expect-error as compile-time assertions,
-        not to hide issues. They are verified separately by TypeScript.
+        The *.type-test.ts exclusion was removed in 043-zero-suppressions.
+        All files are now scanned equally (FR-023, FR-024).
         """
         path = Path("extension/tests/types/rollup.type-test.ts")
-        assert is_excluded(path) is True, "*.type-test.ts should be excluded"
+        assert is_excluded(path) is False, (
+            "*.type-test.ts must not be excluded — zero-suppression policy"
+        )
 
-    def test_excludes_type_test_files_any_directory(self) -> None:
-        """Type-test files should be excluded regardless of directory."""
+    def test_does_not_exclude_type_test_files_any_directory(self) -> None:
+        """Type-test files must be scanned regardless of directory."""
         path = Path("some/other/path/foo.type-test.ts")
-        assert is_excluded(path) is True, (
-            "*.type-test.ts should be excluded in any directory"
+        assert is_excluded(path) is False, (
+            "*.type-test.ts must not be excluded in any directory"
         )
 
     def test_does_not_exclude_regular_test_files(self) -> None:
@@ -111,17 +90,20 @@ class TestIsExcluded:
 class TestExcludedFilePatterns:
     """Tests for EXCLUDED_FILE_PATTERNS constant."""
 
-    def test_type_test_pattern_exists(self) -> None:
-        """EXCLUDED_FILE_PATTERNS should include *.type-test.ts."""
-        assert "*.type-test.ts" in EXCLUDED_FILE_PATTERNS
+    def test_excluded_file_patterns_is_empty(self) -> None:
+        """EXCLUDED_FILE_PATTERNS must be empty — zero-suppression policy.
 
-    def test_pattern_uses_fnmatch_syntax(self) -> None:
-        """Patterns should work with fnmatch."""
-        pattern = "*.type-test.ts"
-        assert fnmatch.fnmatch("foo.type-test.ts", pattern)
-        assert fnmatch.fnmatch("rollup.type-test.ts", pattern)
-        assert not fnmatch.fnmatch("foo.test.ts", pattern)
-        assert not fnmatch.fnmatch("type-test.ts", pattern)  # No prefix
+        No file patterns are excluded from the audit scan (FR-023).
+        This test reads the live constant from the script to prevent
+        stale hardcoded expectations.
+        """
+        assert EXCLUDED_FILE_PATTERNS == set(), (
+            f"EXCLUDED_FILE_PATTERNS must be empty, got: {EXCLUDED_FILE_PATTERNS}"
+        )
+
+    def test_type_test_pattern_not_in_exclusions(self) -> None:
+        """*.type-test.ts must not be in exclusion set (removed in 043)."""
+        assert "*.type-test.ts" not in EXCLUDED_FILE_PATTERNS
 
 
 class TestAuditSuppressionsCLI:
