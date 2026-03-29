@@ -162,12 +162,13 @@ export function renderReviewerActivity(
   // Truncation indicator
   const truncationHtml = renderTruncationIndicator(truncated, MAX_REVIEWER_WEEKS);
 
-  // Approval rate (shown only when reviewer filter is active and data is available)
+  // Approval rate (shown only when reviewer filter is active and data is available).
+  // Uses recentRollups (the truncated 8-week window) so the badge reflects the
+  // same time range as the chart bars, not the full selected date range.
   let approvalHtml = "";
   if (reviewerFilterActive) {
     const reviewerIds = options.filters?.reviewers ?? [];
-    const sourceRollups = options.unfilteredRollups ?? rollups;
-    const approvalRate = computeApprovalRate(sourceRollups, reviewerIds);
+    const approvalRate = computeApprovalRate(recentRollups, reviewerIds);
     if (approvalRate !== null) {
       const pct = Math.round(approvalRate * 100);
       approvalHtml = `<p class="approval-rate">Approval Rate: ${pct}%</p>`;

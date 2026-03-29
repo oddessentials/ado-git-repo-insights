@@ -5544,9 +5544,10 @@ var PRInsightsDashboard = (() => {
     );
     toggleReviewTimeCards(containers, hasReviewTimeData);
     renderMetricValues(containers, current);
-    const rtP50PrCount = rollups.filter((r) => r.review_time_p50 != null).reduce((sum, r) => sum + (r.pr_count || 0), 0);
-    const rtP90PrCount = rollups.filter((r) => r.review_time_p90 != null).reduce((sum, r) => sum + (r.pr_count || 0), 0);
-    renderSampleSize(containers, current.totalPrs, rtP50PrCount, rtP90PrCount);
+    const weekCount = rollups.length;
+    const rtP50WeekCount = rollups.filter((r) => r.review_time_p50 != null).length;
+    const rtP90WeekCount = rollups.filter((r) => r.review_time_p90 != null).length;
+    renderSampleSize(containers, current.totalPrs, weekCount, rtP50WeekCount, rtP90WeekCount);
     attachInfoIcons(containers);
     const sparklineData = extractSparklineData(rollups);
     renderSparklines(containers, sparklineData);
@@ -5566,19 +5567,20 @@ var PRInsightsDashboard = (() => {
       );
     }
   }
-  function formatSampleLabel(count) {
-    return `Based on ${count.toLocaleString()} ${count === 1 ? "PR" : "PRs"}`;
+  function formatWeekLabel2(count) {
+    return `From ${count.toLocaleString()} ${count === 1 ? "week" : "weeks"}`;
   }
-  function renderSampleSize(containers, totalPrs, rtP50PrCount, rtP90PrCount) {
-    const generalLabel = formatSampleLabel(totalPrs);
+  function renderSampleSize(containers, totalPrs, weekCount, rtP50WeekCount, rtP90WeekCount) {
+    const prLabel = `Based on ${totalPrs.toLocaleString()} ${totalPrs === 1 ? "PR" : "PRs"}`;
+    const weekLabel = formatWeekLabel2(weekCount);
     const entries = [
-      [containers.totalPrs, totalPrs, generalLabel],
-      [containers.cycleP50, totalPrs, generalLabel],
-      [containers.cycleP90, totalPrs, generalLabel],
-      [containers.reviewTimeP50, rtP50PrCount, formatSampleLabel(rtP50PrCount)],
-      [containers.reviewTimeP90, rtP90PrCount, formatSampleLabel(rtP90PrCount)],
-      [containers.authorsCount, totalPrs, generalLabel],
-      [containers.reviewersCount, totalPrs, generalLabel]
+      [containers.totalPrs, totalPrs, prLabel],
+      [containers.cycleP50, weekCount, weekLabel],
+      [containers.cycleP90, weekCount, weekLabel],
+      [containers.reviewTimeP50, rtP50WeekCount, formatWeekLabel2(rtP50WeekCount)],
+      [containers.reviewTimeP90, rtP90WeekCount, formatWeekLabel2(rtP90WeekCount)],
+      [containers.authorsCount, weekCount, weekLabel],
+      [containers.reviewersCount, weekCount, weekLabel]
     ];
     for (const [el, count, label] of entries) {
       const card = el?.closest(".card");
@@ -6263,8 +6265,7 @@ var PRInsightsDashboard = (() => {
     let approvalHtml = "";
     if (reviewerFilterActive) {
       const reviewerIds = options.filters?.reviewers ?? [];
-      const sourceRollups = options.unfilteredRollups ?? rollups;
-      const approvalRate = computeApprovalRate(sourceRollups, reviewerIds);
+      const approvalRate = computeApprovalRate(recentRollups, reviewerIds);
       if (approvalRate !== null) {
         const pct = Math.round(approvalRate * 100);
         approvalHtml = `<p class="approval-rate">Approval Rate: ${pct}%</p>`;

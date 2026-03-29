@@ -143,14 +143,13 @@ export function renderSummaryCards(options: RenderSummaryCardsOptions): void {
   renderMetricValues(containers, current);
 
   // Render sample size subtitle on each card (FR-006, FR-007)
-  // Review-time cards use independent per-series counts
-  const rtP50PrCount = rollups
-    .filter((r) => r.review_time_p50 != null)
-    .reduce((sum, r) => sum + (r.pr_count || 0), 0);
-  const rtP90PrCount = rollups
-    .filter((r) => r.review_time_p90 != null)
-    .reduce((sum, r) => sum + (r.pr_count || 0), 0);
-  renderSampleSize(containers, current.totalPrs, rtP50PrCount, rtP90PrCount);
+  // - Total PRs: "Based on N PRs" (metric IS the PR count)
+  // - Weekly aggregate cards: "From N weeks" (metrics derived from rollups, not individual PRs)
+  // - Review-time cards: "From N weeks" where N is weeks with non-null review_time data
+  const weekCount = rollups.length;
+  const rtP50WeekCount = rollups.filter((r) => r.review_time_p50 != null).length;
+  const rtP90WeekCount = rollups.filter((r) => r.review_time_p90 != null).length;
+  renderSampleSize(containers, current.totalPrs, weekCount, rtP50WeekCount, rtP90WeekCount);
 
   // Attach info icons to summary card titles
   attachInfoIcons(containers);
@@ -183,35 +182,42 @@ export function renderSummaryCards(options: RenderSummaryCardsOptions): void {
 }
 
 /**
- * Format a sample size label with singular/plural handling.
+ * Format a week-count label with singular/plural handling.
  */
-function formatSampleLabel(count: number): string {
-  return `Based on ${count.toLocaleString()} ${count === 1 ? "PR" : "PRs"}`;
+function formatWeekLabel(count: number): string {
+  return `From ${count.toLocaleString()} ${count === 1 ? "week" : "weeks"}`;
 }
 
 /**
- * Render sample size subtitle ("Based on N PRs") on each visible metric card.
- * General cards use totalPrs; review-time cards use their metric-specific count
- * (only PRs with non-null review_time data). Applies .low-sample class
- * when count is below LOW_SAMPLE_THRESHOLD (FR-009).
+ * Render sample size subtitle on each visible metric card.
+ *
+ * Labels are metric-specific to accurately describe the data source:
+ * - Total PRs: "Based on N PRs" (the metric IS the PR count)
+ * - Weekly aggregate cards (cycle time, authors, reviewers): "From N weeks"
+ *   (metrics derived from weekly rollup aggregates, not individual PRs)
+ * - Review-time cards: "From N weeks" where N is weeks with non-null data
+ *
+ * Applies .low-sample class when count is below LOW_SAMPLE_THRESHOLD (FR-009).
  */
 function renderSampleSize(
   containers: SummaryCardsContainers,
   totalPrs: number,
-  rtP50PrCount: number,
-  rtP90PrCount: number,
+  weekCount: number,
+  rtP50WeekCount: number,
+  rtP90WeekCount: number,
 ): void {
-  const generalLabel = formatSampleLabel(totalPrs);
+  const prLabel = `Based on ${totalPrs.toLocaleString()} ${totalPrs === 1 ? "PR" : "PRs"}`;
+  const weekLabel = formatWeekLabel(weekCount);
 
-  // Map each container to its appropriate sample count (independent per series)
+  // Map each container to its metric-specific source label and threshold count
   const entries: [HTMLElement | null, number, string][] = [
-    [containers.totalPrs, totalPrs, generalLabel],
-    [containers.cycleP50, totalPrs, generalLabel],
-    [containers.cycleP90, totalPrs, generalLabel],
-    [containers.reviewTimeP50, rtP50PrCount, formatSampleLabel(rtP50PrCount)],
-    [containers.reviewTimeP90, rtP90PrCount, formatSampleLabel(rtP90PrCount)],
-    [containers.authorsCount, totalPrs, generalLabel],
-    [containers.reviewersCount, totalPrs, generalLabel],
+    [containers.totalPrs, totalPrs, prLabel],
+    [containers.cycleP50, weekCount, weekLabel],
+    [containers.cycleP90, weekCount, weekLabel],
+    [containers.reviewTimeP50, rtP50WeekCount, formatWeekLabel(rtP50WeekCount)],
+    [containers.reviewTimeP90, rtP90WeekCount, formatWeekLabel(rtP90WeekCount)],
+    [containers.authorsCount, weekCount, weekLabel],
+    [containers.reviewersCount, weekCount, weekLabel],
   ];
 
   for (const [el, count, label] of entries) {

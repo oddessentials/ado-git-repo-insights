@@ -408,5 +408,40 @@ describe("reviewer-activity module", () => {
       expect(container.innerHTML).toContain("Approval Rate");
       expect(container.innerHTML).toContain("100%");
     });
+
+    it("approval rate reflects only the displayed 8-week window, not full range", () => {
+      // 12 weeks: first 4 have 50% approval, last 8 have 90% approval
+      const rollups = Array.from({ length: 12 }, (_, i) => ({
+        week: `2025-W${(i + 1).toString().padStart(2, "0")}`,
+        pr_count: 10,
+        cycle_time_p50: 60,
+        cycle_time_p90: 120,
+        authors_count: 5,
+        reviewers_count: 3,
+        by_repository: null,
+        by_team: null,
+        by_reviewer: {
+          "alice-id": {
+            reviewed_prs: 10,
+            reviews_count: 12,
+            approval_rate: i < 4 ? 0.5 : 0.9,
+            authors_count: 3,
+            repositories_count: 2,
+          },
+        },
+      }));
+
+      renderReviewerActivity(container, rollups, {
+        reviewerFilterActive: true,
+        filters: { repos: [], teams: [], reviewers: ["alice-id"], authors: [] },
+        unfilteredRollups: rollups,
+      });
+
+      // Chart shows last 8 weeks (W05-W12), all with 0.9 approval
+      // Badge must show 90%, NOT the full-range average that includes the 0.5 weeks
+      expect(container.innerHTML).toContain("Approval Rate");
+      expect(container.innerHTML).toContain("90%");
+      expect(container.innerHTML).not.toContain("Approval Rate: 77%"); // would be ~77% if full range used
+    });
   });
 });

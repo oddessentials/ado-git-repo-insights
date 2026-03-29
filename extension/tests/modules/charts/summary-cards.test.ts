@@ -493,9 +493,8 @@ describe("summary-cards module", () => {
   });
 
   describe("sample size indicator (US3)", () => {
-    it("displays 'Based on N PRs' on each summary card", () => {
+    it("displays 'Based on N PRs' on the Total PRs card", () => {
       const containers = createContainers();
-      // Wrap a value element in a .metric-card so sample-size can be injected
       const card = document.createElement("div");
       card.className = "card";
       const h3 = document.createElement("h3");
@@ -533,33 +532,31 @@ describe("summary-cards module", () => {
       expect(sampleEl!.textContent).toBe("Based on 1 PR");
     });
 
-    it("shows same N value across all cards", () => {
+    it("aggregate cards show 'From N weeks', not 'Based on N PRs'", () => {
       const containers = createContainers();
-      const valueEls = [
-        containers.totalPrs!,
-        containers.cycleP50!,
-        containers.cycleP90!,
-        containers.authorsCount!,
-        containers.reviewersCount!,
-      ];
-      const cards: HTMLElement[] = [];
-      for (const valEl of valueEls) {
-        const card = document.createElement("div");
-        card.className = "card";
-        card.appendChild(document.createElement("h3"));
-        card.appendChild(valEl);
-        document.body.appendChild(card);
-        cards.push(card);
-      }
+      // Aggregate card (cycle time — derived from weekly rollups)
+      const aggCard = document.createElement("div");
+      aggCard.className = "card";
+      aggCard.appendChild(document.createElement("h3"));
+      aggCard.appendChild(containers.cycleP50!);
+      document.body.appendChild(aggCard);
+
+      // Total PRs card (PR count — directly from data)
+      const prCard = document.createElement("div");
+      prCard.className = "card";
+      prCard.appendChild(document.createElement("h3"));
+      prCard.appendChild(containers.totalPrs!);
+      document.body.appendChild(prCard);
 
       renderSummaryCards({ rollups: createRollups(4), containers });
 
-      const values = cards
-        .map((c) => c.querySelector(".metric-sample-size")?.textContent)
-        .filter(Boolean);
-      expect(values.length).toBe(valueEls.length);
-      expect(new Set(values).size).toBe(1); // All identical
-      expect(values[0]).toBe("Based on 70 PRs");
+      const aggSample = aggCard.querySelector(".metric-sample-size");
+      const prSample = prCard.querySelector(".metric-sample-size");
+
+      // Aggregate card: week-based label
+      expect(aggSample!.textContent).toBe("From 4 weeks");
+      // Total PRs card: PR-based label
+      expect(prSample!.textContent).toBe("Based on 70 PRs");
     });
 
     it("applies .low-sample class when below LOW_SAMPLE_THRESHOLD", () => {
@@ -601,15 +598,15 @@ describe("summary-cards module", () => {
       expect(card.querySelector(".metric-sample-size")).not.toBeNull();
     });
 
-    it("review-time cards show metric-specific sample size, not total PR count", () => {
+    it("review-time cards show week count from non-null data, not total PRs", () => {
       const containers = createContainers();
 
-      // General card
-      const generalCard = document.createElement("div");
-      generalCard.className = "card";
-      generalCard.appendChild(document.createElement("h3"));
-      generalCard.appendChild(containers.totalPrs!);
-      document.body.appendChild(generalCard);
+      // Total PRs card
+      const prCard = document.createElement("div");
+      prCard.className = "card";
+      prCard.appendChild(document.createElement("h3"));
+      prCard.appendChild(containers.totalPrs!);
+      document.body.appendChild(prCard);
 
       // Review-time card
       const rtCard = document.createElement("div");
@@ -628,13 +625,13 @@ describe("summary-cards module", () => {
 
       renderSummaryCards({ rollups, containers });
 
-      // General card: total = 20 + 25 + 15 + 30 = 90
-      const generalSample = generalCard.querySelector(".metric-sample-size");
-      expect(generalSample!.textContent).toBe("Based on 90 PRs");
+      // Total PRs card: PR-based label
+      const prSample = prCard.querySelector(".metric-sample-size");
+      expect(prSample!.textContent).toBe("Based on 90 PRs");
 
-      // Review-time card: only weeks with review_time = 20 + 15 = 35
+      // Review-time card: week-based label, only 2 weeks have non-null p50
       const rtSample = rtCard.querySelector(".metric-sample-size");
-      expect(rtSample!.textContent).toBe("Based on 35 PRs");
+      expect(rtSample!.textContent).toBe("From 2 weeks");
     });
 
     it("sparkline label shows calendar span of consecutive non-null data", () => {
@@ -722,13 +719,41 @@ describe("summary-cards module", () => {
 
       renderSummaryCards({ rollups, containers });
 
-      // P50 card: only weeks 1 and 3 have p50 → 10 + 20 = 30
+      // P50 card: only weeks 1 and 3 have p50 → 2 weeks
       const p50Sample = p50Card.querySelector(".metric-sample-size");
-      expect(p50Sample!.textContent).toBe("Based on 30 PRs");
+      expect(p50Sample!.textContent).toBe("From 2 weeks");
 
-      // P90 card: only weeks 1 and 2 have p90 → 10 + 15 = 25
+      // P90 card: only weeks 1 and 2 have p90 → 2 weeks
       const p90Sample = p90Card.querySelector(".metric-sample-size");
-      expect(p90Sample!.textContent).toBe("Based on 25 PRs");
+      expect(p90Sample!.textContent).toBe("From 2 weeks");
+    });
+
+    it("non-Total-PR cards must not render 'Based on N PRs'", () => {
+      const containers = createContainers();
+      const aggregateEls = [
+        containers.cycleP50!,
+        containers.cycleP90!,
+        containers.authorsCount!,
+        containers.reviewersCount!,
+      ];
+      const cards: HTMLElement[] = [];
+      for (const el of aggregateEls) {
+        const card = document.createElement("div");
+        card.className = "card";
+        card.appendChild(document.createElement("h3"));
+        card.appendChild(el);
+        document.body.appendChild(card);
+        cards.push(card);
+      }
+
+      renderSummaryCards({ rollups: createRollups(8), containers });
+
+      for (const card of cards) {
+        const label = card.querySelector(".metric-sample-size")?.textContent ?? "";
+        expect(label).not.toContain("Based on");
+        expect(label).not.toContain("PRs");
+        expect(label).toContain("weeks");
+      }
     });
   });
 });
