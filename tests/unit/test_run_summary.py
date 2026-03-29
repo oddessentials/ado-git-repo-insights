@@ -1,6 +1,7 @@
 """Tests for run_summary module."""
 
 import json
+import os
 import tempfile
 from pathlib import Path
 from unittest.mock import patch
@@ -9,6 +10,8 @@ from ado_git_repo_insights.utils.run_summary import (
     RunCounts,
     RunSummary,
     RunTimings,
+    _find_git_dir,
+    _resolve_ref,
     create_minimal_summary,
     get_git_sha,
     get_tool_version,
@@ -134,6 +137,70 @@ class TestHelperFunctions:
     def test_get_git_sha_returns_string_or_none(self) -> None:
         sha = get_git_sha()
         assert sha is None or isinstance(sha, str)
+
+    def test_get_git_sha_works_from_subdirectory(self) -> None:
+        """git SHA must resolve when CWD is a subdirectory of the repo."""
+        repo_root = Path(__file__).parent.parent.parent
+        sub_dir = repo_root / "src"
+        assert sub_dir.is_dir(), "src/ must exist for this test"
+        saved = os.getcwd()
+        try:
+            os.chdir(sub_dir)
+            sha = get_git_sha()
+            assert sha is not None, "get_git_sha() returned None from src/"
+            assert len(sha) == 7
+        finally:
+            os.chdir(saved)
+
+    def test_find_git_dir_from_nested_subdir(self) -> None:
+        """_find_git_dir must discover .git from deeply nested paths."""
+        git_dir = _find_git_dir(start=Path(__file__).parent)
+        assert git_dir is not None, "_find_git_dir returned None from tests/unit/"
+        assert (git_dir / "HEAD").is_file()
+
+    def test_find_git_dir_worktree_layout(self, tmp_path: Path) -> None:
+        """_find_git_dir must follow a .git file (worktree pointer)."""
+        real_git = tmp_path / "real_git_dir"
+        real_git.mkdir()
+        (real_git / "HEAD").write_text("ref: refs/heads/main\n")
+        worktree = tmp_path / "worktree"
+        worktree.mkdir()
+        (worktree / ".git").write_text(f"gitdir: {real_git}\n")
+        result = _find_git_dir(start=worktree)
+        assert result == real_git
+
+    def test_resolve_ref_packed_refs(self, tmp_path: Path) -> None:
+        """_resolve_ref must find a SHA in packed-refs when loose ref is absent."""
+        git_dir = tmp_path / "git_dir"
+        git_dir.mkdir()
+        sha = "abc1234def5678901234567890abcdef12345678"
+        (git_dir / "packed-refs").write_text(
+            f"# pack-refs with: peeled fully-peeled sorted\n{sha} refs/heads/main\n"
+        )
+        result = _resolve_ref(git_dir, "refs/heads/main")
+        assert result == sha
+
+    def test_resolve_ref_loose_preferred_over_packed(self, tmp_path: Path) -> None:
+        """Loose ref file takes precedence over packed-refs."""
+        git_dir = tmp_path / "git_dir"
+        git_dir.mkdir()
+        refs_dir = git_dir / "refs" / "heads"
+        refs_dir.mkdir(parents=True)
+        loose_sha = "1111111222222233333334444444555555566666"
+        packed_sha = "aaaaaaa000000011111112222222333333344444"
+        (refs_dir / "main").write_text(f"{loose_sha}\n")
+        (git_dir / "packed-refs").write_text(f"{packed_sha} refs/heads/main\n")
+        result = _resolve_ref(git_dir, "refs/heads/main")
+        assert result == loose_sha
+
+    def test_get_git_sha_returns_none_outside_repo(self, tmp_path: Path) -> None:
+        """get_git_sha must return None in a directory with no .git ancestor."""
+        saved = os.getcwd()
+        try:
+            os.chdir(tmp_path)
+            assert get_git_sha() is None
+        finally:
+            os.chdir(saved)
 
     def test_create_minimal_summary(self) -> None:
         with tempfile.TemporaryDirectory() as tmpdir:

@@ -251,6 +251,103 @@ class TestAuditSuppressionsCLI:
         finally:
             injected.unlink(missing_ok=True)
 
+    def test_diff_allows_negative_delta_against_nonzero_external_baseline(
+        self, tmp_path: Path
+    ) -> None:
+        """Migration case: external baseline with total>0 must allow reduction.
+
+        When CI runs --diff --baseline /tmp/main-baseline.json and main still
+        has total:50, the branch scan yielding 0 must produce delta:-50 (PASS),
+        NOT fail because the loaded baseline is non-zero.
+        """
+        repo_root = Path(__file__).parent.parent.parent
+        baseline_path = tmp_path / "nonzero_baseline.json"
+        baseline_path.write_text(
+            json.dumps(
+                {
+                    "version": 1,
+                    "generated_at": "2026-03-22T00:00:00Z",
+                    "total": 50,
+                    "by_scope": {
+                        "python-backend": 9,
+                        "typescript-extension": 36,
+                        "typescript-tests": 5,
+                    },
+                    "by_type": {
+                        "eslint-disable-block": 2,
+                        "eslint-disable-line": 0,
+                        "eslint-disable-next-line": 38,
+                        "noqa": 9,
+                        "ts-expect-error": 1,
+                        "ts-ignore": 0,
+                        "type-ignore": 0,
+                    },
+                    "by_file": {
+                        "extension/tests/dashboard.test.ts": 1,
+                        "extension/tests/helpers/fs-test-utils.ts": 1,
+                        "extension/tests/production-issues.test.ts": 2,
+                        "extension/tests/smoke/negative-fixture.smoke.ts": 1,
+                        "extension/ui/artifact-client.ts": 3,
+                        "extension/ui/dashboard.ts": 1,
+                        "extension/ui/dataset-loader.ts": 2,
+                        "extension/ui/error-codes.ts": 1,
+                        "extension/ui/modules/charts/cycle-time.ts": 1,
+                        "extension/ui/modules/charts/predictions.ts": 4,
+                        "extension/ui/modules/charts/summary-cards.ts": 2,
+                        "extension/ui/modules/dom.ts": 5,
+                        "extension/ui/modules/metrics.ts": 1,
+                        "extension/ui/modules/ml.ts": 1,
+                        "extension/ui/modules/shared/format.ts": 2,
+                        "extension/ui/modules/shared/security.ts": 1,
+                        "extension/ui/modules/typeahead-dropdown.ts": 2,
+                        "extension/ui/schemas/utils.ts": 1,
+                        "extension/ui/types.ts": 9,
+                        "src/ado_git_repo_insights/cli.py": 2,
+                        "src/ado_git_repo_insights/ml/__init__.py": 1,
+                        "src/ado_git_repo_insights/persistence/database.py": 2,
+                        "src/ado_git_repo_insights/transform/aggregators.py": 2,
+                        "src/ado_git_repo_insights/transform/csv_generator.py": 1,
+                        "src/ado_git_repo_insights/utils/run_summary.py": 1,
+                    },
+                    "by_rule": {
+                        "@typescript-eslint/no-explicit-any": 9,
+                        "F401": 3,
+                        "S311": 2,
+                        "S603": 1,
+                        "S607": 1,
+                        "S608": 1,
+                        "UP006": 2,
+                        "prefer-const": 3,
+                        "security/detect-object-injection": 26,
+                    },
+                },
+                indent=2,
+            ),
+            encoding="utf-8",
+        )
+        env = self._local_env()
+        result = subprocess.run(  # noqa: S603 - trusted test code
+            [
+                sys.executable,
+                str(AUDIT_SCRIPT),
+                "--diff",
+                "--baseline",
+                str(baseline_path),
+            ],
+            capture_output=True,
+            text=True,
+            cwd=repo_root,
+            env=env,
+        )
+        assert result.returncode == 0, (
+            f"Expected pass (negative delta) but got rc={result.returncode}.\n"
+            f"stdout: {result.stdout}\nstderr: {result.stderr}"
+        )
+        assert (
+            "reduced" in result.stdout.lower()
+            or "no suppression" in result.stdout.lower()
+        )
+
     def test_validate_command_works(self) -> None:
         """The --validate command should run without errors."""
         result = subprocess.run(  # noqa: S603 - trusted test code

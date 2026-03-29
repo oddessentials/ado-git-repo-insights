@@ -20,7 +20,7 @@
     "preinstall": "node -e \"if(process.env.npm_config_user_agent && process.env.npm_config_user_agent.startsWith('npm/')) { console.error('Error: Use pnpm, not npm'); process.exit(1); }\"",
     "prepare": "husky",
     "release:preflight": "node scripts/stamp-extension-version.cjs 0.0.0 --dry-run",
-    "test:ci": "python scripts/audit-suppressions.py --diff && cd src && ruff check . && cd .. && python -m mypy src/ && cd src && pytest && cd ../extension && pnpm run build:check && pnpm run lint && pnpm exec jest --ci --runInBand --coverage && pnpm run test:smoke",
+    "test:ci": "python scripts/audit-suppressions.py --diff && cd src && ruff check . && cd .. && python -m mypy src/ && cd src && pytest && cd ../extension && pnpm run test:ci",
     "standards:ts": "repo-standards typescript-js",
     "standards:py": "repo-standards python"
   },

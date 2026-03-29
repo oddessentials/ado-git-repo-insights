@@ -666,15 +666,6 @@ def cmd_diff(
             print(f"  - {error}", file=sys.stderr)
         return 1
 
-    # FR-022: Strict zero-suppression baseline check
-    if baseline.get("total", 0) > 0:
-        print(
-            f"Error: Baseline total is {baseline['total']}, expected 0.",
-            file=sys.stderr,
-        )
-        print("The zero-suppression policy requires baseline total = 0.")
-        return 1
-
     # Scan current codebase
     scan_results = scan_codebase(repo_root)
     current = build_baseline(scan_results, repo_root)
