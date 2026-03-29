@@ -319,4 +319,34 @@ describe("Summary Cards Info Icons (attachInfoIcons)", () => {
     // No info icons on cards without h3
     expect(document.querySelectorAll(".info-icon-btn").length).toBe(0);
   });
+
+  it("reviewer tooltip switches to 'reviews' when reviewerFilterActive is true", () => {
+    const containers = createContainersWithCards();
+    renderSummaryCards({ rollups: createSampleRollups(), containers, reviewerFilterActive: true });
+
+    // Find the info icon on the reviewers card
+    const reviewersCard = containers.reviewersCount!.closest(".card");
+    const icon = reviewersCard?.querySelector(".info-icon-btn") as HTMLElement | null;
+    expect(icon).not.toBeNull();
+
+    // Trigger pointerenter to show tooltip — the explanation passed to showInfoTooltip
+    // contains "reviews" (not "reviewers") when filter is active
+    icon!.dispatchEvent(new Event("pointerenter"));
+    const tooltip = document.querySelector(".info-tooltip");
+    expect(tooltip?.textContent).toContain("reviews");
+    expect(tooltip?.textContent).not.toContain("reviewers");
+  });
+
+  it("reviewer tooltip shows 'reviewers' when reviewerFilterActive is false", () => {
+    const containers = createContainersWithCards();
+    renderSummaryCards({ rollups: createSampleRollups(), containers, reviewerFilterActive: false });
+
+    const reviewersCard = containers.reviewersCount!.closest(".card");
+    const icon = reviewersCard?.querySelector(".info-icon-btn") as HTMLElement | null;
+    expect(icon).not.toBeNull();
+
+    icon!.dispatchEvent(new Event("pointerenter"));
+    const tooltip = document.querySelector(".info-tooltip");
+    expect(tooltip?.textContent).toContain("reviewers");
+  });
 });

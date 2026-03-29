@@ -351,7 +351,7 @@ describe("reviewer-activity module", () => {
       }));
     }
 
-    it("shows approval rate when reviewer filter is active", () => {
+    it("shows approval rate with time-period label when reviewer filter is active", () => {
       const rollups = createRollupsWithReviewer(0.78);
       renderReviewerActivity(container, rollups, {
         reviewerFilterActive: true,
@@ -361,6 +361,8 @@ describe("reviewer-activity module", () => {
 
       expect(container.innerHTML).toContain("Approval Rate");
       expect(container.innerHTML).toContain("78%");
+      // Time-period label must be present
+      expect(container.innerHTML).toContain("(last 4 weeks)");
     });
 
     it("hides approval rate when reviewer filter is NOT active", () => {
@@ -385,6 +387,7 @@ describe("reviewer-activity module", () => {
       expect(el).not.toBeNull();
       expect(el!.classList.contains("approval-rate-no-data")).toBe(true);
       expect(el!.textContent).toContain("No data");
+      expect(el!.textContent).toContain("(last 4 weeks)");
       // Must not contain any percentage
       expect(el!.textContent).not.toMatch(/\d+%/);
     });
@@ -506,6 +509,40 @@ describe("reviewer-activity module", () => {
       expect(container.innerHTML).toContain("Approval Rate");
       expect(container.innerHTML).toContain("90%");
       expect(container.innerHTML).not.toContain("Approval Rate: 77%"); // would be ~77% if full range used
+    });
+
+    it("approval rate label weeks equals recentRollups.length (invariant)", () => {
+      // 12 weeks input → chart displays last 8 (MAX_REVIEWER_WEEKS)
+      // Badge label must say "(last 8 weeks)", not "(last 12 weeks)"
+      const rollups = createRollupsWithReviewer(0.85);
+      const longRollups = [
+        ...rollups, ...rollups, ...rollups, // 12 weeks
+      ].map((r, i) => ({ ...r, week: `2025-W${(i + 1).toString().padStart(2, "0")}` }));
+
+      renderReviewerActivity(container, longRollups, {
+        reviewerFilterActive: true,
+        filters: { repos: [], teams: [], reviewers: ["alice-id"], authors: [] },
+        unfilteredRollups: longRollups,
+      });
+
+      const badge = container.querySelector(".approval-rate");
+      expect(badge).not.toBeNull();
+      // data-weeks attribute must equal the displayed window size (8), not input size (12)
+      expect(badge!.getAttribute("data-weeks")).toBe("8");
+      expect(badge!.textContent).toContain("(last 8 weeks)");
+
+      // Short input: 3 weeks → all displayed, label says "(last 3 weeks)"
+      container.innerHTML = "";
+      const shortRollups = createRollupsWithReviewer(0.9).slice(0, 3);
+      renderReviewerActivity(container, shortRollups, {
+        reviewerFilterActive: true,
+        filters: { repos: [], teams: [], reviewers: ["alice-id"], authors: [] },
+        unfilteredRollups: shortRollups,
+      });
+
+      const badge2 = container.querySelector(".approval-rate");
+      expect(badge2!.getAttribute("data-weeks")).toBe("3");
+      expect(badge2!.textContent).toContain("(last 3 weeks)");
     });
   });
 });

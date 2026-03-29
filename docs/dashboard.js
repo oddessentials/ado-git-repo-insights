@@ -5549,7 +5549,7 @@ var PRInsightsDashboard = (() => {
     toggleReviewTimeCards(containers, hasReviewTimeData);
     renderMetricValues(containers, current);
     renderSampleSize(containers, current.totalPrs);
-    attachInfoIcons(containers);
+    attachInfoIcons(containers, options.reviewerFilterActive ?? false);
     const sparklineData = extractSparklineData(rollups);
     renderSparklines(containers, sparklineData);
     renderSparklineLabels(containers, rollups.length);
@@ -5744,7 +5744,7 @@ var PRInsightsDashboard = (() => {
     { metricId: "reviewersCount", containerKey: "reviewersCount" }
   ];
   var infoIconControllers = /* @__PURE__ */ new WeakMap();
-  function attachInfoIcons(containers) {
+  function attachInfoIcons(containers, reviewerFilterActive) {
     const containerMap = new Map(
       Object.entries(containers)
     );
@@ -5761,7 +5761,10 @@ var PRInsightsDashboard = (() => {
         infoIconControllers.delete(existing);
         existing.remove();
       }
-      const explanation = METRIC_EXPLANATIONS.get(metricId) ?? "";
+      let explanation = METRIC_EXPLANATIONS.get(metricId) ?? "";
+      if (metricId === "reviewersCount" && reviewerFilterActive) {
+        explanation = "Average number of reviews per week in this period.";
+      }
       if (!explanation) continue;
       const controller = new AbortController();
       const { signal } = controller;
@@ -6255,11 +6258,13 @@ var PRInsightsDashboard = (() => {
     if (reviewerFilterActive) {
       const reviewerIds = options.filters?.reviewers ?? [];
       const approvalRate = computeApprovalRate(recentRollups, reviewerIds);
+      const windowWeeks = recentRollups.length;
+      const windowLabel = `(last ${windowWeeks} ${windowWeeks === 1 ? "week" : "weeks"})`;
       if (approvalRate !== null) {
         const pct = Math.round(approvalRate * 100);
-        approvalHtml = `<p class="approval-rate">Approval Rate: ${pct}%</p>`;
+        approvalHtml = `<p class="approval-rate" data-weeks="${windowWeeks}">Approval Rate: ${pct}% ${escapeHtml(windowLabel)}</p>`;
       } else {
-        approvalHtml = `<p class="approval-rate approval-rate-no-data">Approval Rate: No data</p>`;
+        approvalHtml = `<p class="approval-rate approval-rate-no-data" data-weeks="${windowWeeks}">Approval Rate: No data ${escapeHtml(windowLabel)}</p>`;
       }
     }
     renderTrustedHtml(
@@ -7394,7 +7399,8 @@ var PRInsightsDashboard = (() => {
       prevRollups,
       containers,
       metricsCollector,
-      unfilteredRollups
+      unfilteredRollups,
+      reviewerFilterActive: currentFilters.reviewers.length > 0
     });
   }
   function renderThroughputChart2(rollups, unfilteredRollups, availability) {

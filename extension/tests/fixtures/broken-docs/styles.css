@@ -1153,6 +1153,18 @@ input[type="search"]::placeholder {
     font-variant-numeric: tabular-nums;
 }
 
+/* Approval Rate Badge */
+.approval-rate {
+    font-size: 13px;
+    color: var(--text-primary);
+    margin-top: 8px;
+}
+
+.approval-rate-no-data {
+    color: var(--text-tertiary);
+    font-style: italic;
+}
+
 /* Chart Tooltip */
 .chart-tooltip {
     position: fixed;

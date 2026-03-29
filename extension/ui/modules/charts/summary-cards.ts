@@ -116,6 +116,8 @@ export interface RenderSummaryCardsOptions {
   metricsCollector?: PerformanceCollector | null;
   /** Unfiltered rollups for dataset capability checks (defaults to rollups) */
   unfilteredRollups?: Rollup[];
+  /** Whether a reviewer filter is currently active (switches tooltip copy) */
+  reviewerFilterActive?: boolean;
 }
 
 /**
@@ -153,7 +155,7 @@ export function renderSummaryCards(options: RenderSummaryCardsOptions): void {
   renderSampleSize(containers, current.totalPrs);
 
   // Attach info icons to summary card titles
-  attachInfoIcons(containers);
+  attachInfoIcons(containers, options.reviewerFilterActive ?? false);
 
   // Render sparklines
   const sparklineData = extractSparklineData(rollups);
@@ -466,7 +468,10 @@ const infoIconControllers = new WeakMap<HTMLElement, AbortController>();
  * Safe to call on re-render: removes old icons and their listeners
  * before creating new ones, preventing memory leaks.
  */
-function attachInfoIcons(containers: SummaryCardsContainers): void {
+function attachInfoIcons(
+  containers: SummaryCardsContainers,
+  reviewerFilterActive: boolean,
+): void {
   const containerMap = new Map<string, HTMLElement | null>(
     Object.entries(containers),
   );
@@ -489,7 +494,11 @@ function attachInfoIcons(containers: SummaryCardsContainers): void {
       existing.remove();
     }
 
-    const explanation = METRIC_EXPLANATIONS.get(metricId) ?? "";
+    // Switch reviewer tooltip copy when reviewer filter is active
+    let explanation = METRIC_EXPLANATIONS.get(metricId) ?? "";
+    if (metricId === "reviewersCount" && reviewerFilterActive) {
+      explanation = "Average number of reviews per week in this period.";
+    }
     if (!explanation) continue;
 
     const controller = new AbortController();

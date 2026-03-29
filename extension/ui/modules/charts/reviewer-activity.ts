@@ -171,11 +171,13 @@ export function renderReviewerActivity(
   if (reviewerFilterActive) {
     const reviewerIds = options.filters?.reviewers ?? [];
     const approvalRate = computeApprovalRate(recentRollups, reviewerIds);
+    const windowWeeks = recentRollups.length;
+    const windowLabel = `(last ${windowWeeks} ${windowWeeks === 1 ? "week" : "weeks"})`;
     if (approvalRate !== null) {
       const pct = Math.round(approvalRate * 100);
-      approvalHtml = `<p class="approval-rate">Approval Rate: ${pct}%</p>`;
+      approvalHtml = `<p class="approval-rate" data-weeks="${windowWeeks}">Approval Rate: ${pct}% ${escapeHtml(windowLabel)}</p>`;
     } else {
-      approvalHtml = `<p class="approval-rate approval-rate-no-data">Approval Rate: No data</p>`;
+      approvalHtml = `<p class="approval-rate approval-rate-no-data" data-weeks="${windowWeeks}">Approval Rate: No data ${escapeHtml(windowLabel)}</p>`;
     }
   }
 

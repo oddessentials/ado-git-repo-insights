@@ -1025,6 +1025,7 @@ function renderSummaryCards(
     containers,
     metricsCollector,
     unfilteredRollups,
+    reviewerFilterActive: currentFilters.reviewers.length > 0,
   });
 }
 
