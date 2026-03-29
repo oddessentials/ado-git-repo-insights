@@ -34,10 +34,10 @@
 
 **Purpose**: Tests for the shared infrastructure that MUST pass before user story work begins.
 
-- [ ] T007 [P] Add unit tests for reviewTimeP50/P90 extraction in extension/tests/modules/metrics.test.ts: non-null values, partial nulls, all-null returns null, single-week dataset
-- [ ] T008 [P] Add unit tests for getLookbackWeekCount() in extension/tests/modules/charts.test.ts: 20 rollups returns 8, 4 rollups returns 4, 1 rollup returns 1, 0 rollups returns 0
-- [ ] T009 [P] Add unit test for BUCKET_COLOR_MAP completeness in extension/tests/modules/charts/cycle-time.test.ts: all 6 bucket labels mapped, unknown label returns undefined (fallback to default)
-- [ ] T010 [P] Add MOBILE_BREAKPOINT parity test in extension/tests/invariants/mobile-layout.test.ts: grep extension/ui/styles.css for "@media (max-width: 480px)" and assert matches MOBILE_BREAKPOINT constant value
+- [x] T007 [P] Add unit tests for reviewTimeP50/P90 extraction in extension/tests/modules/metrics.test.ts: non-null values, partial nulls, all-null returns null, single-week dataset
+- [x] T008 [P] Add unit tests for getLookbackWeekCount() in extension/tests/modules/charts.test.ts: 20 rollups returns 8, 4 rollups returns 4, 1 rollup returns 1, 0 rollups returns 0
+- [x] T009 [P] Add unit test for BUCKET_COLOR_MAP completeness in extension/tests/modules/charts/cycle-time.test.ts: all 6 bucket labels mapped, unknown label returns undefined (fallback to default)
+- [x] T010 [P] Add MOBILE_BREAKPOINT parity test in extension/tests/invariants/mobile-layout.test.ts: grep extension/ui/styles.css for "@media (max-width: 480px)" and assert matches MOBILE_BREAKPOINT constant value
 
 **Checkpoint**: Foundation tests green. All shared infrastructure verified.
 

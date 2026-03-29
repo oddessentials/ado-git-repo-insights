@@ -73,6 +73,46 @@ describe("metrics module", () => {
       expect(result.cycleP50).toBeNull();
       expect(result.cycleP90).toBeNull();
     });
+
+    it("extracts reviewTimeP50/P90 median from non-null values", () => {
+      const rollups = [
+        { week: "2026-W01", pr_count: 10, review_time_p50: 1800, review_time_p90: 3600 } as Rollup,
+        { week: "2026-W02", pr_count: 15, review_time_p50: 2400, review_time_p90: 5400 } as Rollup,
+        { week: "2026-W03", pr_count: 12, review_time_p50: 3000, review_time_p90: 7200 } as Rollup,
+      ];
+      const result = calculateMetrics(rollups);
+      expect(result.reviewTimeP50).toBe(2400); // median of [1800, 2400, 3000]
+      expect(result.reviewTimeP90).toBe(5400); // median of [3600, 5400, 7200]
+    });
+
+    it("skips null review_time values in median calculation", () => {
+      const rollups = [
+        { week: "2026-W01", pr_count: 10, review_time_p50: 1800, review_time_p90: null } as Rollup,
+        { week: "2026-W02", pr_count: 15, review_time_p50: null, review_time_p90: 5400 } as Rollup,
+      ];
+      const result = calculateMetrics(rollups);
+      expect(result.reviewTimeP50).toBe(1800); // only one non-null value
+      expect(result.reviewTimeP90).toBe(5400); // only one non-null value
+    });
+
+    it("returns null reviewTime when all values are null", () => {
+      const rollups = [
+        { week: "2026-W01", pr_count: 10, review_time_p50: null, review_time_p90: null } as Rollup,
+        { week: "2026-W02", pr_count: 15 } as Rollup, // undefined, not null
+      ];
+      const result = calculateMetrics(rollups);
+      expect(result.reviewTimeP50).toBeNull();
+      expect(result.reviewTimeP90).toBeNull();
+    });
+
+    it("extracts reviewTime from single-week dataset", () => {
+      const rollups = [
+        { week: "2026-W01", pr_count: 5, review_time_p50: 900, review_time_p90: 1800 } as Rollup,
+      ];
+      const result = calculateMetrics(rollups);
+      expect(result.reviewTimeP50).toBe(900);
+      expect(result.reviewTimeP90).toBe(1800);
+    });
   });
 
   describe("calculatePercentChange", () => {

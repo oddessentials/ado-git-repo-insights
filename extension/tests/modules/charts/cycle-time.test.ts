@@ -11,6 +11,7 @@
 import {
   renderCycleDistribution,
   renderCycleTimeTrend,
+  BUCKET_COLOR_MAP,
 } from "../../../ui/modules/charts/cycle-time";
 import type { Rollup } from "../../../ui/dataset-loader";
 import type { DataAvailabilitySignal, DistributionData } from "../../../ui/types";
@@ -384,6 +385,31 @@ describe("cycle-time module", () => {
       expect(container.innerHTML).toContain("P90");
       expect(container.innerHTML).not.toContain("insufficient points");
       expect(container.querySelector(".legend-insufficient")).toBeNull();
+    });
+  });
+
+  describe("BUCKET_COLOR_MAP (FR-012)", () => {
+    const expectedBuckets = ["0-1h", "1-4h", "4-24h", "1-3d", "3-7d", "7d+"];
+
+    it("maps all 6 distribution bucket labels", () => {
+      for (const label of expectedBuckets) {
+        expect(BUCKET_COLOR_MAP.has(label)).toBe(true);
+      }
+      expect(BUCKET_COLOR_MAP.size).toBe(6);
+    });
+
+    it("assigns correct speed categories", () => {
+      expect(BUCKET_COLOR_MAP.get("0-1h")).toBe("fast");
+      expect(BUCKET_COLOR_MAP.get("1-4h")).toBe("fast");
+      expect(BUCKET_COLOR_MAP.get("4-24h")).toBe("moderate");
+      expect(BUCKET_COLOR_MAP.get("1-3d")).toBe("moderate");
+      expect(BUCKET_COLOR_MAP.get("3-7d")).toBe("slow");
+      expect(BUCKET_COLOR_MAP.get("7d+")).toBe("slow");
+    });
+
+    it("returns undefined for unknown bucket labels (fallback to default)", () => {
+      expect(BUCKET_COLOR_MAP.get("unknown")).toBeUndefined();
+      expect(BUCKET_COLOR_MAP.get("0-30m")).toBeUndefined();
     });
   });
 });
