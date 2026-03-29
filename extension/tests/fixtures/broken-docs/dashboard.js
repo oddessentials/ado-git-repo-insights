@@ -5548,10 +5548,7 @@ var PRInsightsDashboard = (() => {
     );
     toggleReviewTimeCards(containers, hasReviewTimeData);
     renderMetricValues(containers, current);
-    const weekCount = rollups.length;
-    const rtP50WeekCount = rollups.filter((r) => r.review_time_p50 != null).length;
-    const rtP90WeekCount = rollups.filter((r) => r.review_time_p90 != null).length;
-    renderSampleSize(containers, current.totalPrs, weekCount, rtP50WeekCount, rtP90WeekCount);
+    renderSampleSize(containers, current.totalPrs);
     attachInfoIcons(containers);
     const sparklineData = extractSparklineData(rollups);
     renderSparklines(containers, sparklineData);
@@ -5571,27 +5568,23 @@ var PRInsightsDashboard = (() => {
       );
     }
   }
-  function formatWeekLabel2(count) {
-    return `From ${count.toLocaleString()} ${count === 1 ? "week" : "weeks"}`;
-  }
-  function renderSampleSize(containers, totalPrs, weekCount, rtP50WeekCount, rtP90WeekCount) {
-    const prLabel = `Based on ${totalPrs.toLocaleString()} ${totalPrs === 1 ? "PR" : "PRs"}`;
-    const weekLabel = formatWeekLabel2(weekCount);
-    const entries = [
-      [containers.totalPrs, totalPrs, prLabel],
-      [containers.cycleP50, weekCount, weekLabel],
-      [containers.cycleP90, weekCount, weekLabel],
-      [containers.reviewTimeP50, rtP50WeekCount, formatWeekLabel2(rtP50WeekCount)],
-      [containers.reviewTimeP90, rtP90WeekCount, formatWeekLabel2(rtP90WeekCount)],
-      [containers.authorsCount, weekCount, weekLabel],
-      [containers.reviewersCount, weekCount, weekLabel]
+  function renderSampleSize(containers, totalPrs) {
+    const label = `Based on ${totalPrs.toLocaleString()} ${totalPrs === 1 ? "PR" : "PRs"}`;
+    const elements2 = [
+      containers.totalPrs,
+      containers.cycleP50,
+      containers.cycleP90,
+      containers.reviewTimeP50,
+      containers.reviewTimeP90,
+      containers.authorsCount,
+      containers.reviewersCount
     ];
-    for (const [el, count, label] of entries) {
+    const isLow = totalPrs < LOW_SAMPLE_THRESHOLD;
+    for (const el of elements2) {
       const card = el?.closest(".card");
       if (!card) continue;
       const existing = card.querySelector(".metric-sample-size");
       if (existing) existing.remove();
-      const isLow = count < LOW_SAMPLE_THRESHOLD;
       const subtitle = document.createElement("p");
       subtitle.className = isLow ? "metric-sample-size low-sample" : "metric-sample-size";
       subtitle.textContent = label;
@@ -5604,9 +5597,6 @@ var PRInsightsDashboard = (() => {
     }
   }
   function renderSparklineLabels(containers, rollupCount) {
-    const sharedSpan = getLookbackWeekCount(rollupCount);
-    if (sharedSpan < 1) return;
-    const text = `Last ${sharedSpan} ${sharedSpan === 1 ? "week" : "weeks"}`;
     const sparklineElements = [
       containers.totalPrsSparkline,
       containers.cycleP50Sparkline,
@@ -5622,6 +5612,14 @@ var PRInsightsDashboard = (() => {
       if (!card) continue;
       const existing = card.querySelector(".sparkline-label");
       if (existing) existing.remove();
+    }
+    const sharedSpan = getLookbackWeekCount(rollupCount);
+    if (sharedSpan < 1) return;
+    const text = `Last ${sharedSpan} ${sharedSpan === 1 ? "week" : "weeks"}`;
+    for (const el of sparklineElements) {
+      if (!el) continue;
+      const card = el.closest(".card");
+      if (!card) continue;
       const label = document.createElement("p");
       label.className = "sparkline-label";
       label.textContent = text;

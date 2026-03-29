@@ -148,13 +148,9 @@ export function renderSummaryCards(options: RenderSummaryCardsOptions): void {
   renderMetricValues(containers, current);
 
   // Render sample size subtitle on each card (FR-006, FR-007)
-  // - Total PRs: "Based on N PRs" (metric IS the PR count)
-  // - Weekly aggregate cards: "From N weeks" (metrics derived from rollups, not individual PRs)
-  // - Review-time cards: "From N weeks" where N is weeks with non-null review_time data
-  const weekCount = rollups.length;
-  const rtP50WeekCount = rollups.filter((r) => r.review_time_p50 != null).length;
-  const rtP90WeekCount = rollups.filter((r) => r.review_time_p90 != null).length;
-  renderSampleSize(containers, current.totalPrs, weekCount, rtP50WeekCount, rtP90WeekCount);
+  // All cards show the filtered PR count as the sample size — this is the
+  // evidence backing every KPI regardless of how the metric is derived.
+  renderSampleSize(containers, current.totalPrs);
 
   // Attach info icons to summary card titles
   attachInfoIcons(containers);
@@ -186,45 +182,31 @@ export function renderSummaryCards(options: RenderSummaryCardsOptions): void {
 }
 
 /**
- * Format a week-count label with singular/plural handling.
- */
-function formatWeekLabel(count: number): string {
-  return `From ${count.toLocaleString()} ${count === 1 ? "week" : "weeks"}`;
-}
-
-/**
  * Render sample size subtitle on each visible metric card.
  *
- * Labels are metric-specific to accurately describe the data source:
- * - Total PRs: "Based on N PRs" (the metric IS the PR count)
- * - Weekly aggregate cards (cycle time, authors, reviewers): "From N weeks"
- *   (metrics derived from weekly rollup aggregates, not individual PRs)
- * - Review-time cards: "From N weeks" where N is weeks with non-null data
- *
+ * Every card shows the total filtered PR count — this is the evidence
+ * backing the KPI regardless of how the metric is derived internally.
  * Applies .low-sample class when count is below LOW_SAMPLE_THRESHOLD (FR-009).
  */
 function renderSampleSize(
   containers: SummaryCardsContainers,
   totalPrs: number,
-  weekCount: number,
-  rtP50WeekCount: number,
-  rtP90WeekCount: number,
 ): void {
-  const prLabel = `Based on ${totalPrs.toLocaleString()} ${totalPrs === 1 ? "PR" : "PRs"}`;
-  const weekLabel = formatWeekLabel(weekCount);
+  const label = `Based on ${totalPrs.toLocaleString()} ${totalPrs === 1 ? "PR" : "PRs"}`;
 
-  // Map each container to its metric-specific source label and threshold count
-  const entries: [HTMLElement | null, number, string][] = [
-    [containers.totalPrs, totalPrs, prLabel],
-    [containers.cycleP50, weekCount, weekLabel],
-    [containers.cycleP90, weekCount, weekLabel],
-    [containers.reviewTimeP50, rtP50WeekCount, formatWeekLabel(rtP50WeekCount)],
-    [containers.reviewTimeP90, rtP90WeekCount, formatWeekLabel(rtP90WeekCount)],
-    [containers.authorsCount, weekCount, weekLabel],
-    [containers.reviewersCount, weekCount, weekLabel],
+  const elements: (HTMLElement | null)[] = [
+    containers.totalPrs,
+    containers.cycleP50,
+    containers.cycleP90,
+    containers.reviewTimeP50,
+    containers.reviewTimeP90,
+    containers.authorsCount,
+    containers.reviewersCount,
   ];
 
-  for (const [el, count, label] of entries) {
+  const isLow = totalPrs < LOW_SAMPLE_THRESHOLD;
+
+  for (const el of elements) {
     const card = el?.closest(".card") as HTMLElement | null;
     if (!card) continue;
 
@@ -232,7 +214,6 @@ function renderSampleSize(
     const existing = card.querySelector(".metric-sample-size");
     if (existing) existing.remove();
 
-    const isLow = count < LOW_SAMPLE_THRESHOLD;
     const subtitle = document.createElement("p");
     subtitle.className = isLow ? "metric-sample-size low-sample" : "metric-sample-size";
     subtitle.textContent = label;
@@ -256,11 +237,6 @@ function renderSparklineLabels(
   containers: SummaryCardsContainers,
   rollupCount: number,
 ): void {
-  const sharedSpan = getLookbackWeekCount(rollupCount);
-  if (sharedSpan < 1) return;
-
-  const text = `Last ${sharedSpan} ${sharedSpan === 1 ? "week" : "weeks"}`;
-
   const sparklineElements: (HTMLElement | null)[] = [
     containers.totalPrsSparkline,
     containers.cycleP50Sparkline,
@@ -271,14 +247,25 @@ function renderSparklineLabels(
     containers.reviewersSparkline,
   ];
 
+  // Always clean up old labels first — prevents stale "Last N weeks"
+  // from surviving when a re-render produces zero rollups.
   for (const el of sparklineElements) {
     if (!el) continue;
     const card = el.closest(".card") as HTMLElement | null;
     if (!card) continue;
-
-    // Remove old label on re-render
     const existing = card.querySelector(".sparkline-label");
     if (existing) existing.remove();
+  }
+
+  const sharedSpan = getLookbackWeekCount(rollupCount);
+  if (sharedSpan < 1) return;
+
+  const text = `Last ${sharedSpan} ${sharedSpan === 1 ? "week" : "weeks"}`;
+
+  for (const el of sparklineElements) {
+    if (!el) continue;
+    const card = el.closest(".card") as HTMLElement | null;
+    if (!card) continue;
 
     const label = document.createElement("p");
     label.className = "sparkline-label";
