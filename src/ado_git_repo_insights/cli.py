@@ -1601,14 +1601,16 @@ def _run_http_server(
             # Also respect the caller's signal policy: if SIGINT is set to
             # SIG_IGN or SIG_DFL, the process has intentionally configured
             # that behavior and we must not override it.
-            original_sigint = (
+            _prev_sigint = (
                 signal.getsignal(signal.SIGINT)
                 if threading.current_thread() is threading.main_thread()
                 else None
             )
-            can_install_sigint = callable(original_sigint)
-
-            if can_install_sigint:
+            # Only install when the existing handler is a callable Python
+            # function.  SIG_IGN / SIG_DFL are ints — respect those as the
+            # caller's explicit signal policy.
+            if callable(_prev_sigint):
+                _orig_handler = _prev_sigint
 
                 def _request_shutdown(
                     signum: int, frame: types.FrameType | None
@@ -1619,16 +1621,16 @@ def _run_http_server(
                     # Skip default_int_handler (raises KeyboardInterrupt,
                     # which would abort serve_forever before it can exit
                     # cleanly).
-                    if original_sigint is not signal.default_int_handler:
-                        original_sigint(signum, frame)
+                    if _orig_handler is not signal.default_int_handler:
+                        _orig_handler(signum, frame)
 
                 signal.signal(signal.SIGINT, _request_shutdown)
 
             try:
                 httpd.serve_forever()
             finally:
-                if can_install_sigint:
-                    signal.signal(signal.SIGINT, original_sigint)
+                if callable(_prev_sigint):
+                    signal.signal(signal.SIGINT, _prev_sigint)
 
             logger.info("\nServer stopped")
 
