@@ -1586,14 +1586,18 @@ def _run_http_server(
             logger.info(f"Dashboard running at {url}")
             logger.info("Press Ctrl+C to stop")
 
+            if open_browser:
+                webbrowser.open(url)
+
             # Install SIGINT handler to ensure shutdown even in environments
             # where KeyboardInterrupt delivery is unreliable (e.g. some
             # Windows terminals, IDE integrated terminals).
+            # Installed after webbrowser.open() so Ctrl+C during a slow
+            # browser launch still raises KeyboardInterrupt normally.
             # shutdown() must be called from a different thread than
             # serve_forever() to avoid deadlock.
             # signal.signal() is only legal from the main thread; skip
-            # registration when called from a worker thread (e.g. test
-            # harness, IDE integration, embedding application).
+            # when called from a worker thread (e.g. test harness, IDE).
             can_install_sigint = threading.current_thread() is threading.main_thread()
 
             if can_install_sigint:
@@ -1603,11 +1607,18 @@ def _run_http_server(
                     signum: int, frame: types.FrameType | None
                 ) -> None:
                     threading.Thread(target=httpd.shutdown, daemon=True).start()
+                    # Chain to any custom handler so embedding code that
+                    # registered its own SIGINT cleanup still runs.
+                    # Skip default_int_handler (raises KeyboardInterrupt,
+                    # which would abort serve_forever before it can exit
+                    # cleanly) and non-callable sentinels (SIG_DFL/SIG_IGN).
+                    if (
+                        callable(original_sigint)
+                        and original_sigint is not signal.default_int_handler
+                    ):
+                        original_sigint(signum, frame)
 
                 signal.signal(signal.SIGINT, _request_shutdown)
-
-            if open_browser:
-                webbrowser.open(url)
 
             try:
                 httpd.serve_forever()

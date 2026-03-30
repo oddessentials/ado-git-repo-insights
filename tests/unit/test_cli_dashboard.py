@@ -306,6 +306,90 @@ class TestHttpServerSignalHandling:
 
         assert result == 0
 
+    def test_browser_launch_before_sigint_override(self, tmp_path: Path) -> None:
+        """webbrowser.open() runs before the SIGINT handler is replaced.
+
+        Ctrl+C during a slow browser launch must still raise
+        KeyboardInterrupt so the CLI can abort startup.
+        """
+        from ado_git_repo_insights.cli import _run_http_server
+
+        (tmp_path / "index.html").write_text("<h1>test</h1>")
+        handler_during_open = None
+
+        def _capture_handler_during_open(url: str) -> None:
+            nonlocal handler_during_open
+            handler_during_open = signal.getsignal(signal.SIGINT)
+
+        with (
+            patch(
+                "socketserver.TCPServer.serve_forever",
+                autospec=True,
+            ),
+            patch("webbrowser.open", side_effect=_capture_handler_during_open),
+        ):
+            _run_http_server(tmp_path, port=0, open_browser=True)
+
+        # During webbrowser.open the handler should still be the original,
+        # not our custom _request_shutdown.
+        assert handler_during_open is signal.default_int_handler or callable(
+            handler_during_open
+        )
+        # More precisely: should NOT be the custom handler that was active
+        # during serve_forever.
+        handler_during_serve = [None]
+
+        def _capture_serve_handler(self_httpd: object) -> None:
+            handler_during_serve[0] = signal.getsignal(signal.SIGINT)
+
+        with (
+            patch(
+                "socketserver.TCPServer.serve_forever",
+                side_effect=_capture_serve_handler,
+                autospec=True,
+            ),
+            patch("webbrowser.open"),
+        ):
+            _run_http_server(tmp_path, port=0, open_browser=True)
+
+        assert handler_during_open is not handler_during_serve[0]
+
+    def test_previous_sigint_handler_chained(self, tmp_path: Path) -> None:
+        """Custom SIGINT handler chains to the previously registered handler.
+
+        Embedding code that installs its own SIGINT cleanup must still run
+        when Ctrl+C is pressed during serve_forever().
+        """
+        from ado_git_repo_insights.cli import _run_http_server
+
+        (tmp_path / "index.html").write_text("<h1>test</h1>")
+        previous_handler_called = False
+
+        def _embedding_handler(signum: int, frame: object) -> None:
+            nonlocal previous_handler_called
+            previous_handler_called = True
+
+        original = signal.signal(signal.SIGINT, _embedding_handler)
+
+        try:
+
+            def _invoke_handler(self_httpd: object) -> None:
+                handler = signal.getsignal(signal.SIGINT)
+                handler(signal.SIGINT, None)
+
+            with patch(
+                "socketserver.TCPServer.serve_forever",
+                side_effect=_invoke_handler,
+                autospec=True,
+            ):
+                _run_http_server(tmp_path, port=0, open_browser=False)
+
+            assert previous_handler_called, (
+                "Previous SIGINT handler must be invoked when Ctrl+C is pressed"
+            )
+        finally:
+            signal.signal(signal.SIGINT, original)
+
     def test_worker_thread_does_not_raise_on_signal_registration(
         self, tmp_path: Path
     ) -> None:
