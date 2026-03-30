@@ -1824,16 +1824,23 @@ function restoreStateFromUrl(): void {
   const startParam = params.get("start");
   const endParam = params.get("end");
   if (startParam && endParam) {
-    currentDateRange = { start: new Date(startParam), end: new Date(endParam) };
-    const dateRangeEl = elements.get("date-range") as HTMLSelectElement | null;
-    if (dateRangeEl) {
-      dateRangeEl.value = "custom";
-      elements.get("custom-dates")?.classList.remove("hidden");
+    const parsedStart = new Date(startParam);
+    const parsedEnd = new Date(endParam);
+    // Reject invalid dates — fall through to default date range from manifest.
+    if (isNaN(parsedStart.getTime()) || isNaN(parsedEnd.getTime())) {
+      console.debug("Invalid date params in URL, ignoring:", startParam, endParam);
+    } else {
+      currentDateRange = { start: parsedStart, end: parsedEnd };
+      const dateRangeEl = elements.get("date-range") as HTMLSelectElement | null;
+      if (dateRangeEl) {
+        dateRangeEl.value = "custom";
+        elements.get("custom-dates")?.classList.remove("hidden");
+      }
+      const startEl = elements.get("start-date") as HTMLInputElement | null;
+      const endEl = elements.get("end-date") as HTMLInputElement | null;
+      if (startEl) startEl.value = startParam;
+      if (endEl) endEl.value = endParam;
     }
-    const startEl = elements.get("start-date") as HTMLInputElement | null;
-    const endEl = elements.get("end-date") as HTMLInputElement | null;
-    if (startEl) startEl.value = startParam;
-    if (endEl) endEl.value = endParam;
   }
 
   const tabParam = params.get("tab");
