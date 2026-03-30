@@ -12,8 +12,10 @@ var PRInsightsSettings = (() => {
 
   // ../ui/modules/shared/host-resize.ts
   var pendingHostResize = false;
+  var rafHandle = null;
   var hostResizeObserver = null;
   var windowListenerAttached = false;
+  var generation = 0;
   function syncHostHeight() {
     const resizeFn = globalThis.VSS?.resize;
     if (typeof resizeFn !== "function") return;
@@ -27,16 +29,26 @@ var PRInsightsSettings = (() => {
   function scheduleHostResize() {
     if (pendingHostResize) return;
     pendingHostResize = true;
-    requestAnimationFrame(() => {
+    const gen = generation;
+    rafHandle = requestAnimationFrame(() => {
+      rafHandle = null;
+      if (gen !== generation) return;
       pendingHostResize = false;
       syncHostHeight();
     });
   }
   function initializeHostResizeSync(containerSelector) {
+    generation++;
+    if (rafHandle !== null) {
+      cancelAnimationFrame(rafHandle);
+      rafHandle = null;
+    }
+    pendingHostResize = false;
+    hostResizeObserver?.disconnect();
+    hostResizeObserver = null;
     if (typeof ResizeObserver === "function") {
       const root = document.querySelector(containerSelector);
       if (root) {
-        hostResizeObserver?.disconnect();
         hostResizeObserver = new ResizeObserver(() => {
           scheduleHostResize();
         });
