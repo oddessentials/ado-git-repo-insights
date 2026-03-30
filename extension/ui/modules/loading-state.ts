@@ -43,6 +43,9 @@ let currentCycleId = 0;
 /** Whether a refresh cycle is currently in-flight. */
 let active = false;
 
+/** The EffectiveState that the current in-flight refresh is targeting (null when idle). */
+let inFlightState: EffectiveState | null = null;
+
 /** Timer ID for the live-region clear delay. Stored so it can be cancelled. */
 let announcementTimerId: ReturnType<typeof setTimeout> | null = null;
 
@@ -73,18 +76,49 @@ function removeSpinner(region: HTMLElement): void {
 }
 
 // ---------------------------------------------------------------------------
-// Announcement timer helper
+// Announcement helpers
 // ---------------------------------------------------------------------------
 
 /**
  * Cancel any pending live-region clear timer.
- * Called before writing a new announcement and on failure/reset paths
- * so old timers cannot wipe later messages.
  */
 function cancelAnnouncementTimer(): void {
   if (announcementTimerId !== null) {
     clearTimeout(announcementTimerId);
     announcementTimerId = null;
+  }
+}
+
+/**
+ * Announce a message to screen readers via the polite live region.
+ *
+ * Forces a real DOM mutation even if the text is already the same by
+ * clearing first, then writing in the next microtask. This ensures
+ * aria-live fires for back-to-back identical announcements.
+ */
+function announce(statusEl: HTMLElement, message: string): void {
+  cancelAnnouncementTimer();
+  statusEl.textContent = "";
+
+  // Write the message in the next microtask so the browser observes
+  // two distinct mutations ("" → message) and fires aria-live.
+  void Promise.resolve().then(() => {
+    statusEl.textContent = message;
+    announcementTimerId = setTimeout(() => {
+      statusEl.textContent = "";
+      announcementTimerId = null;
+    }, 1000);
+  });
+}
+
+/**
+ * Clear the live-region text and cancel any pending timer.
+ * Used by failure paths to remove stale success messages.
+ */
+function clearAnnouncement(statusEl: HTMLElement | null): void {
+  cancelAnnouncementTimer();
+  if (statusEl) {
+    statusEl.textContent = "";
   }
 }
 
@@ -96,6 +130,7 @@ function cancelAnnouncementTimer(): void {
  * Begin a refresh cycle.
  *
  * - Increments the monotonic cycle counter.
+ * - Records the target state for in-flight dedup.
  * - Marks all regions as loading (CSS class + spinner element).
  * - Sets aria-busy on the metrics section.
  *
@@ -104,14 +139,17 @@ function cancelAnnouncementTimer(): void {
  *
  * @param metricsSection - The #tab-metrics element (receives aria-busy).
  * @param regions        - Chart region elements to dim (summary-cards + 4 chart-containers).
+ * @param targetState    - The EffectiveState this refresh is loading (for in-flight dedup).
  * @returns The cycle ID for this refresh (caller must pass to endRefresh).
  */
 export function startRefresh(
   metricsSection: HTMLElement,
   regions: ReadonlyArray<HTMLElement>,
+  targetState: EffectiveState,
 ): number {
   currentCycleId += 1;
   active = true;
+  inFlightState = targetState;
 
   for (const region of regions) {
     region.classList.add(LOADING_CLASS);
@@ -141,6 +179,7 @@ function clearLoading(
   }
 
   active = false;
+  inFlightState = null;
 
   for (const region of regions) {
     region.classList.remove(LOADING_CLASS);
@@ -164,12 +203,6 @@ function clearLoading(
  * If the cycle ID is stale (superseded refresh):
  * - Does nothing — loading state remains for the newer cycle.
  * - Returns false.
- *
- * @param cycleId        - The ID returned by startRefresh for this cycle.
- * @param metricsSection - The #tab-metrics element.
- * @param regions        - The same region elements passed to startRefresh.
- * @param statusEl       - The #metrics-status aria-live element (nullable for safety).
- * @returns true if this was the winning refresh, false if stale.
  */
 export function endRefresh(
   cycleId: number,
@@ -181,15 +214,8 @@ export function endRefresh(
     return false;
   }
 
-  // Announce to screen readers via polite live region (success only).
-  // Cancel any pending clear timer so it cannot wipe this new announcement.
   if (statusEl) {
-    cancelAnnouncementTimer();
-    statusEl.textContent = "Dashboard updated";
-    announcementTimerId = setTimeout(() => {
-      statusEl.textContent = "";
-      announcementTimerId = null;
-    }, 1000);
+    announce(statusEl, "Dashboard updated");
   }
 
   return true;
@@ -199,22 +225,18 @@ export function endRefresh(
  * End a refresh cycle on failure.
  *
  * Clears loading presentation (CSS class + spinner + aria-busy) without
- * announcing success. Cancels any pending announcement clear timer so
- * old timers cannot wipe later messages.
- *
- * @param cycleId        - The ID returned by startRefresh for this cycle.
- * @param metricsSection - The #tab-metrics element.
- * @param regions        - The same region elements passed to startRefresh.
- * @returns true if this was the current cycle (loading cleared), false if stale.
+ * announcing success. Always cancels pending announcement timer and clears
+ * any stale success text from the live region.
  */
 export function failRefresh(
   cycleId: number,
   metricsSection: HTMLElement,
   regions: ReadonlyArray<HTMLElement>,
+  statusEl: HTMLElement | null,
 ): boolean {
   const cleared = clearLoading(cycleId, metricsSection, regions);
   if (cleared) {
-    cancelAnnouncementTimer();
+    clearAnnouncement(statusEl);
   }
   return cleared;
 }
@@ -231,6 +253,14 @@ export function isStale(cycleId: number): boolean {
  */
 export function isActive(): boolean {
   return active;
+}
+
+/**
+ * Get the EffectiveState that the current in-flight refresh is targeting.
+ * Returns null when no refresh is active.
+ */
+export function getInFlightState(): EffectiveState | null {
+  return inFlightState;
 }
 
 // ---------------------------------------------------------------------------
@@ -260,5 +290,6 @@ export function hasStateChanged(
 export function _resetForTesting(): void {
   currentCycleId = 0;
   active = false;
+  inFlightState = null;
   cancelAnnouncementTimer();
 }

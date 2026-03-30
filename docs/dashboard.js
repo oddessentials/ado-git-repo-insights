@@ -6894,6 +6894,7 @@ var PRInsightsDashboard = (() => {
   var LOADING_CLASS = "metrics-loading";
   var currentCycleId = 0;
   var active = false;
+  var inFlightState = null;
   var announcementTimerId = null;
   function addSpinner(region) {
     if (region.querySelector(`.${SPINNER_CLASS}`)) return;
@@ -6913,9 +6914,27 @@ var PRInsightsDashboard = (() => {
       announcementTimerId = null;
     }
   }
-  function startRefresh(metricsSection2, regions) {
+  function announce(statusEl, message) {
+    cancelAnnouncementTimer();
+    statusEl.textContent = "";
+    void Promise.resolve().then(() => {
+      statusEl.textContent = message;
+      announcementTimerId = setTimeout(() => {
+        statusEl.textContent = "";
+        announcementTimerId = null;
+      }, 1e3);
+    });
+  }
+  function clearAnnouncement(statusEl) {
+    cancelAnnouncementTimer();
+    if (statusEl) {
+      statusEl.textContent = "";
+    }
+  }
+  function startRefresh(metricsSection2, regions, targetState) {
     currentCycleId += 1;
     active = true;
+    inFlightState = targetState;
     for (const region of regions) {
       region.classList.add(LOADING_CLASS);
       addSpinner(region);
@@ -6928,6 +6947,7 @@ var PRInsightsDashboard = (() => {
       return false;
     }
     active = false;
+    inFlightState = null;
     for (const region of regions) {
       region.classList.remove(LOADING_CLASS);
       removeSpinner(region);
@@ -6940,24 +6960,25 @@ var PRInsightsDashboard = (() => {
       return false;
     }
     if (statusEl) {
-      cancelAnnouncementTimer();
-      statusEl.textContent = "Dashboard updated";
-      announcementTimerId = setTimeout(() => {
-        statusEl.textContent = "";
-        announcementTimerId = null;
-      }, 1e3);
+      announce(statusEl, "Dashboard updated");
     }
     return true;
   }
-  function failRefresh(cycleId, metricsSection2, regions) {
+  function failRefresh(cycleId, metricsSection2, regions, statusEl) {
     const cleared = clearLoading(cycleId, metricsSection2, regions);
     if (cleared) {
-      cancelAnnouncementTimer();
+      clearAnnouncement(statusEl);
     }
     return cleared;
   }
   function isStale(cycleId) {
     return cycleId - currentCycleId !== 0;
+  }
+  function isActive() {
+    return active;
+  }
+  function getInFlightState() {
+    return inFlightState;
   }
   function hasStateChanged(prev, next) {
     if (prev === null) return true;
@@ -7438,21 +7459,29 @@ var PRInsightsDashboard = (() => {
       }
     }
   }
+  function safeDateString(date) {
+    if (!date || isNaN(date.getTime())) return "";
+    return date.toISOString();
+  }
   function buildEffectiveState() {
     return {
       filters: { ...currentFilters },
-      startDate: currentDateRange.start?.toISOString() ?? "",
-      endDate: currentDateRange.end?.toISOString() ?? "",
+      startDate: safeDateString(currentDateRange.start),
+      endDate: safeDateString(currentDateRange.end),
       comparisonMode
     };
   }
   async function refreshMetrics() {
     if (!currentDateRange.start || !currentDateRange.end || !loader) return;
     const candidateState = buildEffectiveState();
-    if (!hasStateChanged(lastEffectiveState, candidateState)) return;
+    if (isActive()) {
+      if (!hasStateChanged(getInFlightState(), candidateState)) return;
+    } else {
+      if (!hasStateChanged(lastEffectiveState, candidateState)) return;
+    }
     let cycleId = 0;
     if (metricsSection && loadingRegions.length > 0) {
-      cycleId = startRefresh(metricsSection, loadingRegions);
+      cycleId = startRefresh(metricsSection, loadingRegions, candidateState);
     }
     try {
       const rawRollups = await loader.getWeeklyRollups(
@@ -7505,7 +7534,7 @@ var PRInsightsDashboard = (() => {
       lastEffectiveState = candidateState;
     } catch (err) {
       if (cycleId > 0 && metricsSection) {
-        failRefresh(cycleId, metricsSection, loadingRegions);
+        failRefresh(cycleId, metricsSection, loadingRegions, metricsStatusEl);
       }
       throw err;
     }
@@ -7726,9 +7755,9 @@ var PRInsightsDashboard = (() => {
   function switchTab(tabId) {
     elementLists.tabs?.forEach((tab) => {
       const htmlTab = tab;
-      const isActive = htmlTab.dataset["tab"] === tabId;
-      htmlTab.classList.toggle("active", isActive);
-      htmlTab.setAttribute("aria-selected", isActive ? "true" : "false");
+      const isActive2 = htmlTab.dataset["tab"] === tabId;
+      htmlTab.classList.toggle("active", isActive2);
+      htmlTab.setAttribute("aria-selected", isActive2 ? "true" : "false");
     });
     document.querySelectorAll(".tab-content").forEach((content) => {
       content.classList.toggle("active", content.id === `tab-${tabId}`);

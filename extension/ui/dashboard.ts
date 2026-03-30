@@ -83,6 +83,8 @@ import {
   endRefresh,
   failRefresh,
   isStale,
+  isActive,
+  getInFlightState,
   hasStateChanged,
   type EffectiveState,
 } from "./modules";
@@ -824,13 +826,22 @@ function setInitialDateRange(): void {
 // getPreviousPeriod and applyFiltersToRollups are now imported from "./modules/metrics"
 
 /**
+ * Safely serialize a Date to ISO string, returning "" for null or Invalid Date.
+ * Prevents RangeError from toISOString() on dates created from invalid URL params.
+ */
+function safeDateString(date: Date | null): string {
+  if (!date || isNaN(date.getTime())) return "";
+  return date.toISOString();
+}
+
+/**
  * Build an EffectiveState snapshot for the no-op guard.
  */
 function buildEffectiveState(): EffectiveState {
   return {
     filters: { ...currentFilters },
-    startDate: currentDateRange.start?.toISOString() ?? "",
-    endDate: currentDateRange.end?.toISOString() ?? "",
+    startDate: safeDateString(currentDateRange.start),
+    endDate: safeDateString(currentDateRange.end),
     comparisonMode,
   };
 }
@@ -856,14 +867,20 @@ async function refreshMetrics(): Promise<void> {
   if (!currentDateRange.start || !currentDateRange.end || !loader) return;
 
   // No-op guard: skip refresh if effective state hasn't changed (FR-002).
-  // candidateState is NOT committed until successful render completes.
+  // When a refresh is in-flight, compare against the in-flight target instead
+  // of the last committed state. This handles A→B→A correctly (supersedes B)
+  // while avoiding redundant B→B reloads.
   const candidateState = buildEffectiveState();
-  if (!hasStateChanged(lastEffectiveState, candidateState)) return;
+  if (isActive()) {
+    if (!hasStateChanged(getInFlightState(), candidateState)) return;
+  } else {
+    if (!hasStateChanged(lastEffectiveState, candidateState)) return;
+  }
 
   // Start loading state (FR-001, FR-003).
   let cycleId = 0;
   if (metricsSection && loadingRegions.length > 0) {
-    cycleId = startRefresh(metricsSection, loadingRegions);
+    cycleId = startRefresh(metricsSection, loadingRegions, candidateState);
   }
 
   try {
@@ -952,9 +969,10 @@ async function refreshMetrics(): Promise<void> {
     lastEffectiveState = candidateState;
   } catch (err) {
     // Clear loading without success announcement (FR-012).
+    // Clears any stale success text from the live region.
     // Do NOT commit lastEffectiveState — failed state must remain retryable.
     if (cycleId > 0 && metricsSection) {
-      failRefresh(cycleId, metricsSection, loadingRegions);
+      failRefresh(cycleId, metricsSection, loadingRegions, metricsStatusEl);
     }
     throw err;
   }

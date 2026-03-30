@@ -2,7 +2,7 @@
  * Loading State Tests
  *
  * Validates the refresh-cycle state machine for the Metrics tab.
- * Five required behavioral tests per spec, plus three regression tests
+ * Five required behavioral tests per spec, plus regression tests
  * for correctness invariants, plus edge cases.
  *
  * @see specs/045-professional-loading-feedback/spec.md — Required Test Coverage
@@ -13,6 +13,7 @@ import {
   failRefresh,
   isStale,
   isActive,
+  getInFlightState,
   hasStateChanged,
   _resetForTesting,
   type EffectiveState,
@@ -23,15 +24,14 @@ import {
 // ---------------------------------------------------------------------------
 
 function createMockElement(): HTMLElement {
-  const el = document.createElement("div");
-  return el;
+  return document.createElement("div");
 }
 
 function createMockRegions(count: number): HTMLElement[] {
   return Array.from({ length: count }, () => createMockElement());
 }
 
-function makeEffectiveState(overrides: Partial<EffectiveState> = {}): EffectiveState {
+function makeState(overrides: Partial<EffectiveState> = {}): EffectiveState {
   return {
     filters: { repos: [], teams: [], reviewers: [], authors: [] },
     startDate: "2026-01-01T00:00:00.000Z",
@@ -39,6 +39,11 @@ function makeEffectiveState(overrides: Partial<EffectiveState> = {}): EffectiveS
     comparisonMode: false,
     ...overrides,
   };
+}
+
+/** Flush the microtask queue so announce() writes to the live region. */
+async function flushMicrotasks(): Promise<void> {
+  await Promise.resolve();
 }
 
 // ---------------------------------------------------------------------------
@@ -55,10 +60,10 @@ beforeEach(() => {
 
 describe("Loading starts on filter-triggered refresh", () => {
   it("adds .metrics-loading to all regions and sets aria-busy", () => {
-    const metricsSection = createMockElement();
+    const ms = createMockElement();
     const regions = createMockRegions(5);
 
-    const id = startRefresh(metricsSection, regions);
+    const id = startRefresh(ms, regions, makeState());
 
     expect(id).toBeGreaterThan(0);
     expect(isActive()).toBe(true);
@@ -67,17 +72,17 @@ describe("Loading starts on filter-triggered refresh", () => {
       expect(region.classList.contains("metrics-loading")).toBe(true);
     }
 
-    expect(metricsSection.getAttribute("aria-busy")).toBe("true");
+    expect(ms.getAttribute("aria-busy")).toBe("true");
   });
 
   it("returns a monotonically increasing cycle ID", () => {
-    const metricsSection = createMockElement();
+    const ms = createMockElement();
     const regions = createMockRegions(1);
 
-    const id1 = startRefresh(metricsSection, regions);
-    endRefresh(id1, metricsSection, regions, null);
+    const id1 = startRefresh(ms, regions, makeState());
+    endRefresh(id1, ms, regions, null);
 
-    const id2 = startRefresh(metricsSection, regions);
+    const id2 = startRefresh(ms, regions, makeState());
     expect(id2).toBeGreaterThan(id1);
   });
 });
@@ -87,45 +92,47 @@ describe("Loading starts on filter-triggered refresh", () => {
 // ---------------------------------------------------------------------------
 
 describe("Superseded request does not render stale results", () => {
-  it("endRefresh returns false for a stale cycle and keeps loading active", () => {
-    const metricsSection = createMockElement();
+  it("endRefresh returns false for a stale cycle and keeps loading active", async () => {
+    const ms = createMockElement();
     const regions = createMockRegions(3);
     const statusEl = createMockElement();
+    const stateA = makeState();
+    const stateB = makeState({ comparisonMode: true });
 
-    const id1 = startRefresh(metricsSection, regions);
-    const id2 = startRefresh(metricsSection, regions);
+    const id1 = startRefresh(ms, regions, stateA);
+    const id2 = startRefresh(ms, regions, stateB);
 
     // Stale refresh (id1) tries to end — should be rejected.
-    const staleResult = endRefresh(id1, metricsSection, regions, statusEl);
-    expect(staleResult).toBe(false);
+    expect(endRefresh(id1, ms, regions, statusEl)).toBe(false);
 
     // Loading should still be active (id2 is in-flight).
     expect(isActive()).toBe(true);
     for (const region of regions) {
       expect(region.classList.contains("metrics-loading")).toBe(true);
     }
-    expect(metricsSection.getAttribute("aria-busy")).toBe("true");
+    expect(ms.getAttribute("aria-busy")).toBe("true");
+    await flushMicrotasks();
     expect(statusEl.textContent).toBe("");
 
     // Winning refresh (id2) ends — should succeed.
-    const winResult = endRefresh(id2, metricsSection, regions, statusEl);
-    expect(winResult).toBe(true);
+    expect(endRefresh(id2, ms, regions, statusEl)).toBe(true);
     expect(isActive()).toBe(false);
     for (const region of regions) {
       expect(region.classList.contains("metrics-loading")).toBe(false);
     }
-    expect(metricsSection.getAttribute("aria-busy")).toBeNull();
+    expect(ms.getAttribute("aria-busy")).toBeNull();
+    await flushMicrotasks();
     expect(statusEl.textContent).toBe("Dashboard updated");
   });
 
   it("isStale correctly identifies superseded cycles", () => {
-    const metricsSection = createMockElement();
+    const ms = createMockElement();
     const regions = createMockRegions(1);
 
-    const id1 = startRefresh(metricsSection, regions);
+    const id1 = startRefresh(ms, regions, makeState());
     expect(isStale(id1)).toBe(false);
 
-    const id2 = startRefresh(metricsSection, regions);
+    const id2 = startRefresh(ms, regions, makeState({ comparisonMode: true }));
     expect(isStale(id1)).toBe(true);
     expect(isStale(id2)).toBe(false);
   });
@@ -136,15 +143,15 @@ describe("Superseded request does not render stale results", () => {
 // ---------------------------------------------------------------------------
 
 describe("Loading clears on success", () => {
-  it("endRefresh removes loading class, aria-busy, and announces completion", () => {
-    const metricsSection = createMockElement();
+  it("endRefresh removes loading class, aria-busy, and announces completion", async () => {
+    const ms = createMockElement();
     const regions = createMockRegions(5);
     const statusEl = createMockElement();
 
-    const id = startRefresh(metricsSection, regions);
+    const id = startRefresh(ms, regions, makeState());
     expect(isActive()).toBe(true);
 
-    const result = endRefresh(id, metricsSection, regions, statusEl);
+    const result = endRefresh(id, ms, regions, statusEl);
 
     expect(result).toBe(true);
     expect(isActive()).toBe(false);
@@ -153,20 +160,23 @@ describe("Loading clears on success", () => {
       expect(region.classList.contains("metrics-loading")).toBe(false);
     }
 
-    expect(metricsSection.getAttribute("aria-busy")).toBeNull();
+    expect(ms.getAttribute("aria-busy")).toBeNull();
+    await flushMicrotasks();
     expect(statusEl.textContent).toBe("Dashboard updated");
   });
 
-  it("clears the announcement text after 1 second", () => {
+  it("clears the announcement text after 1 second", async () => {
     jest.useFakeTimers();
 
-    const metricsSection = createMockElement();
+    const ms = createMockElement();
     const regions = createMockRegions(1);
     const statusEl = createMockElement();
 
-    const id = startRefresh(metricsSection, regions);
-    endRefresh(id, metricsSection, regions, statusEl);
+    const id = startRefresh(ms, regions, makeState());
+    endRefresh(id, ms, regions, statusEl);
 
+    // Flush the microtask that writes the announcement.
+    await flushMicrotasks();
     expect(statusEl.textContent).toBe("Dashboard updated");
 
     jest.advanceTimersByTime(1000);
@@ -182,12 +192,11 @@ describe("Loading clears on success", () => {
 
 describe("Loading clears on failure", () => {
   it("failRefresh clears loading class and aria-busy", () => {
-    const metricsSection = createMockElement();
+    const ms = createMockElement();
     const regions = createMockRegions(5);
 
-    const id = startRefresh(metricsSection, regions);
-
-    const result = failRefresh(id, metricsSection, regions);
+    const id = startRefresh(ms, regions, makeState());
+    const result = failRefresh(id, ms, regions, null);
 
     expect(result).toBe(true);
     expect(isActive()).toBe(false);
@@ -196,21 +205,45 @@ describe("Loading clears on failure", () => {
       expect(region.classList.contains("metrics-loading")).toBe(false);
     }
 
-    expect(metricsSection.getAttribute("aria-busy")).toBeNull();
+    expect(ms.getAttribute("aria-busy")).toBeNull();
   });
 
-  it("failRefresh does NOT announce 'Dashboard updated'", () => {
-    const metricsSection = createMockElement();
+  it("failRefresh does NOT announce 'Dashboard updated'", async () => {
+    const ms = createMockElement();
     const regions = createMockRegions(1);
     const statusEl = createMockElement();
 
-    const id = startRefresh(metricsSection, regions);
+    const id = startRefresh(ms, regions, makeState());
+    failRefresh(id, ms, regions, statusEl);
 
-    // failRefresh does not take a statusEl — it never announces.
-    failRefresh(id, metricsSection, regions);
-
-    // The status element should remain empty.
+    await flushMicrotasks();
     expect(statusEl.textContent).toBe("");
+  });
+
+  it("failRefresh clears stale success text from a prior endRefresh", async () => {
+    jest.useFakeTimers();
+    const ms = createMockElement();
+    const regions = createMockRegions(1);
+    const statusEl = createMockElement();
+
+    // First refresh succeeds — "Dashboard updated" in live region.
+    const id1 = startRefresh(ms, regions, makeState());
+    endRefresh(id1, ms, regions, statusEl);
+    await flushMicrotasks();
+    expect(statusEl.textContent).toBe("Dashboard updated");
+
+    // Second refresh fails within the 1s window.
+    const id2 = startRefresh(ms, regions, makeState({ comparisonMode: true }));
+    failRefresh(id2, ms, regions, statusEl);
+
+    // Stale success text must be cleared.
+    expect(statusEl.textContent).toBe("");
+
+    // The first timer must also be cancelled — no wipe of later messages.
+    jest.advanceTimersByTime(2000);
+    expect(statusEl.textContent).toBe("");
+
+    jest.useRealTimers();
   });
 });
 
@@ -220,200 +253,265 @@ describe("Loading clears on failure", () => {
 
 describe("No-op state change does not trigger loading", () => {
   it("hasStateChanged returns false for identical states", () => {
-    const state1 = makeEffectiveState();
-    const state2 = makeEffectiveState();
-
-    expect(hasStateChanged(state1, state2)).toBe(false);
+    expect(hasStateChanged(makeState(), makeState())).toBe(false);
   });
 
   it("hasStateChanged returns true for different filters", () => {
-    const state1 = makeEffectiveState();
-    const state2 = makeEffectiveState({
-      filters: { repos: ["my-repo"], teams: [], reviewers: [], authors: [] },
-    });
-
-    expect(hasStateChanged(state1, state2)).toBe(true);
+    const s2 = makeState({ filters: { repos: ["my-repo"], teams: [], reviewers: [], authors: [] } });
+    expect(hasStateChanged(makeState(), s2)).toBe(true);
   });
 
   it("hasStateChanged returns true for different date range", () => {
-    const state1 = makeEffectiveState();
-    const state2 = makeEffectiveState({
-      endDate: "2026-06-01T00:00:00.000Z",
-    });
-
-    expect(hasStateChanged(state1, state2)).toBe(true);
+    expect(hasStateChanged(makeState(), makeState({ endDate: "2026-06-01T00:00:00.000Z" }))).toBe(true);
   });
 
   it("hasStateChanged returns true for different comparison mode", () => {
-    const state1 = makeEffectiveState();
-    const state2 = makeEffectiveState({ comparisonMode: true });
-
-    expect(hasStateChanged(state1, state2)).toBe(true);
+    expect(hasStateChanged(makeState(), makeState({ comparisonMode: true }))).toBe(true);
   });
 
   it("hasStateChanged returns true when previous state is null (first load)", () => {
-    const next = makeEffectiveState();
-    expect(hasStateChanged(null, next)).toBe(true);
+    expect(hasStateChanged(null, makeState())).toBe(true);
   });
 });
 
 // ---------------------------------------------------------------------------
-// Regression tests: three correctness invariants
+// Regression: correctness invariants
 // ---------------------------------------------------------------------------
 
 describe("Regression: failed refresh for unchanged state remains retryable", () => {
   it("hasStateChanged returns true after a failed refresh for the same state", () => {
-    // Simulate: state A is attempted, fails, lastEffectiveState NOT committed.
-    // Next attempt with the same state A must pass the no-op guard.
-    const stateA = makeEffectiveState({ comparisonMode: true });
-
-    // First attempt: passes guard (prev is null).
+    const stateA = makeState({ comparisonMode: true });
     expect(hasStateChanged(null, stateA)).toBe(true);
-
-    // Simulate failure: lastEffectiveState is NOT updated (caller responsibility).
-    // The previous committed state remains null.
-
-    // Retry with same state A: must still pass guard.
+    // Simulate failure: lastEffectiveState NOT updated. Retry must pass.
     expect(hasStateChanged(null, stateA)).toBe(true);
   });
 
   it("hasStateChanged returns true when retrying after failure with prior committed state", () => {
-    const stateA = makeEffectiveState();
-    const stateB = makeEffectiveState({ comparisonMode: true });
-
-    // State A was successfully committed.
-    // State B is attempted and fails — lastEffectiveState stays at A.
-    // Retry state B must pass.
+    const stateA = makeState();
+    const stateB = makeState({ comparisonMode: true });
     expect(hasStateChanged(stateA, stateB)).toBe(true);
   });
 });
 
 describe("Regression: older refresh cannot render after a newer refresh starts", () => {
   it("isStale returns true for older cycle once newer cycle starts", () => {
-    const metricsSection = createMockElement();
+    const ms = createMockElement();
     const regions = createMockRegions(1);
 
-    const oldId = startRefresh(metricsSection, regions);
+    const oldId = startRefresh(ms, regions, makeState());
     expect(isStale(oldId)).toBe(false);
 
-    // Newer refresh starts — old cycle is now stale.
-    startRefresh(metricsSection, regions);
+    startRefresh(ms, regions, makeState({ comparisonMode: true }));
     expect(isStale(oldId)).toBe(true);
   });
 
-  it("endRefresh rejects stale cycle even after data loads", () => {
-    const metricsSection = createMockElement();
+  it("endRefresh rejects stale cycle even after data loads", async () => {
+    const ms = createMockElement();
     const regions = createMockRegions(1);
     const statusEl = createMockElement();
 
-    const oldId = startRefresh(metricsSection, regions);
-    const newId = startRefresh(metricsSection, regions);
+    const oldId = startRefresh(ms, regions, makeState());
+    const newId = startRefresh(ms, regions, makeState({ comparisonMode: true }));
 
-    // Old cycle tries to endRefresh after its data arrives — rejected.
-    expect(endRefresh(oldId, metricsSection, regions, statusEl)).toBe(false);
+    expect(endRefresh(oldId, ms, regions, statusEl)).toBe(false);
+    await flushMicrotasks();
     expect(statusEl.textContent).toBe("");
 
-    // New cycle completes — accepted.
-    expect(endRefresh(newId, metricsSection, regions, statusEl)).toBe(true);
+    expect(endRefresh(newId, ms, regions, statusEl)).toBe(true);
+    await flushMicrotasks();
     expect(statusEl.textContent).toBe("Dashboard updated");
   });
 
   it("failRefresh also rejects stale cycles", () => {
-    const metricsSection = createMockElement();
+    const ms = createMockElement();
     const regions = createMockRegions(1);
 
-    const oldId = startRefresh(metricsSection, regions);
-    startRefresh(metricsSection, regions);
+    const oldId = startRefresh(ms, regions, makeState());
+    startRefresh(ms, regions, makeState({ comparisonMode: true }));
 
-    // Old cycle fails — should be rejected (loading stays for new cycle).
-    expect(failRefresh(oldId, metricsSection, regions)).toBe(false);
+    expect(failRefresh(oldId, ms, regions, null)).toBe(false);
     expect(isActive()).toBe(true);
   });
 });
 
 describe("Regression: failed refresh does not announce success to assistive tech", () => {
-  it("failRefresh never writes to the status element", () => {
-    const metricsSection = createMockElement();
+  it("failRefresh clears status text instead of announcing", () => {
+    const ms = createMockElement();
     const regions = createMockRegions(1);
     const statusEl = createMockElement();
+    statusEl.textContent = "leftover text";
 
-    const id = startRefresh(metricsSection, regions);
-
-    // failRefresh does not receive statusEl — by design it cannot announce.
-    failRefresh(id, metricsSection, regions);
+    const id = startRefresh(ms, regions, makeState());
+    failRefresh(id, ms, regions, statusEl);
 
     expect(statusEl.textContent).toBe("");
   });
 
-  it("endRefresh announces but failRefresh does not for same scenario", () => {
-    const metricsSection = createMockElement();
+  it("endRefresh announces but failRefresh does not for same scenario", async () => {
+    const ms = createMockElement();
     const regions = createMockRegions(1);
     const statusEl = createMockElement();
 
-    // Success path: announces.
-    const successId = startRefresh(metricsSection, regions);
-    endRefresh(successId, metricsSection, regions, statusEl);
+    const successId = startRefresh(ms, regions, makeState());
+    endRefresh(successId, ms, regions, statusEl);
+    await flushMicrotasks();
     expect(statusEl.textContent).toBe("Dashboard updated");
 
-    // Reset for failure path.
     _resetForTesting();
     statusEl.textContent = "";
 
-    const failId = startRefresh(metricsSection, regions);
-    failRefresh(failId, metricsSection, regions);
+    const failId = startRefresh(ms, regions, makeState());
+    failRefresh(failId, ms, regions, statusEl);
     expect(statusEl.textContent).toBe("");
   });
 });
 
 // ---------------------------------------------------------------------------
-// Edge cases
+// In-flight state tracking (A→B→A revert)
 // ---------------------------------------------------------------------------
 
-describe("Edge cases", () => {
-  it("endRefresh handles null statusEl gracefully", () => {
-    const metricsSection = createMockElement();
+describe("In-flight state tracking", () => {
+  it("getInFlightState returns the target state of the active refresh", () => {
+    const ms = createMockElement();
+    const regions = createMockRegions(1);
+    const stateB = makeState({ comparisonMode: true });
+
+    expect(getInFlightState()).toBeNull();
+
+    startRefresh(ms, regions, stateB);
+    expect(getInFlightState()).toEqual(stateB);
+  });
+
+  it("getInFlightState returns null after refresh completes", () => {
+    const ms = createMockElement();
     const regions = createMockRegions(1);
 
-    const id = startRefresh(metricsSection, regions);
-    const result = endRefresh(id, metricsSection, regions, null);
+    const id = startRefresh(ms, regions, makeState());
+    endRefresh(id, ms, regions, null);
 
-    expect(result).toBe(true);
-    expect(isActive()).toBe(false);
+    expect(getInFlightState()).toBeNull();
   });
 
-  it("endRefresh with empty regions array does not throw", () => {
-    const metricsSection = createMockElement();
-    const regions: HTMLElement[] = [];
+  it("A→B→A: in-flight B is superseded because A differs from B", () => {
+    const ms = createMockElement();
+    const regions = createMockRegions(1);
+    const stateA = makeState();
+    const stateB = makeState({ comparisonMode: true });
 
-    const id = startRefresh(metricsSection, regions);
-    expect(() => {
-      endRefresh(id, metricsSection, regions, null);
-    }).not.toThrow();
+    // Refresh for B starts.
+    startRefresh(ms, regions, stateB);
+    expect(getInFlightState()).toEqual(stateB);
+
+    // User reverts to A — differs from in-flight B, so must start new cycle.
+    expect(hasStateChanged(getInFlightState(), stateA)).toBe(true);
+
+    // New cycle supersedes B.
+    const newId = startRefresh(ms, regions, stateA);
+    expect(getInFlightState()).toEqual(stateA);
+    expect(isStale(newId)).toBe(false);
   });
 
-  it("multiple rapid starts all increment cycle ID", () => {
-    const metricsSection = createMockElement();
+  it("B→B: in-flight B matches new B, so no new cycle needed", () => {
+    const ms = createMockElement();
+    const regions = createMockRegions(1);
+    const stateB = makeState({ comparisonMode: true });
+
+    startRefresh(ms, regions, stateB);
+
+    // Same state B again — should be a no-op (caller checks this).
+    expect(hasStateChanged(getInFlightState(), stateB)).toBe(false);
+  });
+
+  it("getInFlightState returns null after failRefresh", () => {
+    const ms = createMockElement();
     const regions = createMockRegions(1);
 
-    const t1 = startRefresh(metricsSection, regions);
-    const t2 = startRefresh(metricsSection, regions);
-    const t3 = startRefresh(metricsSection, regions);
+    const id = startRefresh(ms, regions, makeState());
+    failRefresh(id, ms, regions, null);
 
-    expect(t1).toBeLessThan(t2);
-    expect(t2).toBeLessThan(t3);
-    expect(isStale(t1)).toBe(true);
-    expect(isStale(t2)).toBe(true);
-    expect(isStale(t3)).toBe(false);
+    expect(getInFlightState()).toBeNull();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Announcement: back-to-back and failure paths
+// ---------------------------------------------------------------------------
+
+describe("Back-to-back success announcements", () => {
+  it("second announcement is a distinct DOM mutation via microtask clear", async () => {
+    const ms = createMockElement();
+    const regions = createMockRegions(1);
+    const statusEl = createMockElement();
+
+    // First success.
+    const id1 = startRefresh(ms, regions, makeState());
+    endRefresh(id1, ms, regions, statusEl);
+    await flushMicrotasks();
+    expect(statusEl.textContent).toBe("Dashboard updated");
+
+    // Second success — text is cleared synchronously, then rewritten in microtask.
+    const id2 = startRefresh(ms, regions, makeState({ comparisonMode: true }));
+    endRefresh(id2, ms, regions, statusEl);
+
+    // After endRefresh but before microtask: text was cleared to force mutation.
+    expect(statusEl.textContent).toBe("");
+
+    // After microtask: rewritten.
+    await flushMicrotasks();
+    expect(statusEl.textContent).toBe("Dashboard updated");
+  });
+});
+
+describe("Announcement timer cancellation", () => {
+  it("second completion announcement survives the first timer", async () => {
+    jest.useFakeTimers();
+
+    const ms = createMockElement();
+    const regions = createMockRegions(1);
+    const statusEl = createMockElement();
+
+    // First refresh completes.
+    const id1 = startRefresh(ms, regions, makeState());
+    endRefresh(id1, ms, regions, statusEl);
+    await flushMicrotasks();
+    expect(statusEl.textContent).toBe("Dashboard updated");
+
+    // 500ms later, second refresh completes.
+    jest.advanceTimersByTime(500);
+    const id2 = startRefresh(ms, regions, makeState({ comparisonMode: true }));
+    endRefresh(id2, ms, regions, statusEl);
+    await flushMicrotasks();
+    expect(statusEl.textContent).toBe("Dashboard updated");
+
+    // At 1000ms total — first timer would have fired. Must still be present.
+    jest.advanceTimersByTime(500);
+    expect(statusEl.textContent).toBe("Dashboard updated");
+
+    // At 1500ms — second timer fires.
+    jest.advanceTimersByTime(500);
+    expect(statusEl.textContent).toBe("");
+
+    jest.useRealTimers();
   });
 
-  it("failRefresh with empty regions array does not throw", () => {
-    const metricsSection = createMockElement();
-    const regions: HTMLElement[] = [];
+  it("_resetForTesting clears pending timer state", async () => {
+    jest.useFakeTimers();
 
-    const id = startRefresh(metricsSection, regions);
-    expect(() => {
-      failRefresh(id, metricsSection, regions);
-    }).not.toThrow();
+    const ms = createMockElement();
+    const regions = createMockRegions(1);
+    const statusEl = createMockElement();
+
+    const id = startRefresh(ms, regions, makeState());
+    endRefresh(id, ms, regions, statusEl);
+    await flushMicrotasks();
+    expect(statusEl.textContent).toBe("Dashboard updated");
+
+    _resetForTesting();
+
+    jest.advanceTimersByTime(2000);
+    expect(statusEl.textContent).toBe("Dashboard updated");
+
+    jest.useRealTimers();
   });
 });
 
@@ -423,10 +521,10 @@ describe("Edge cases", () => {
 
 describe("Spinner DOM lifecycle", () => {
   it("startRefresh appends a .metrics-loading-spinner to each region", () => {
-    const metricsSection = createMockElement();
+    const ms = createMockElement();
     const regions = createMockRegions(3);
 
-    startRefresh(metricsSection, regions);
+    startRefresh(ms, regions, makeState());
 
     for (const region of regions) {
       const spinner = region.querySelector(".metrics-loading-spinner");
@@ -436,11 +534,11 @@ describe("Spinner DOM lifecycle", () => {
   });
 
   it("startRefresh twice does NOT create duplicate spinner elements", () => {
-    const metricsSection = createMockElement();
+    const ms = createMockElement();
     const regions = createMockRegions(2);
 
-    startRefresh(metricsSection, regions);
-    startRefresh(metricsSection, regions);
+    startRefresh(ms, regions, makeState());
+    startRefresh(ms, regions, makeState({ comparisonMode: true }));
 
     for (const region of regions) {
       const spinners = region.querySelectorAll(".metrics-loading-spinner");
@@ -449,30 +547,27 @@ describe("Spinner DOM lifecycle", () => {
   });
 
   it("spinner removed on success (endRefresh)", () => {
-    const metricsSection = createMockElement();
+    const ms = createMockElement();
     const regions = createMockRegions(2);
 
-    const id = startRefresh(metricsSection, regions);
-
-    // Verify spinners exist.
+    const id = startRefresh(ms, regions, makeState());
     for (const region of regions) {
       expect(region.querySelector(".metrics-loading-spinner")).not.toBeNull();
     }
 
-    endRefresh(id, metricsSection, regions, null);
+    endRefresh(id, ms, regions, null);
 
-    // Verify spinners removed.
     for (const region of regions) {
       expect(region.querySelector(".metrics-loading-spinner")).toBeNull();
     }
   });
 
   it("spinner removed on failure (failRefresh)", () => {
-    const metricsSection = createMockElement();
+    const ms = createMockElement();
     const regions = createMockRegions(2);
 
-    const id = startRefresh(metricsSection, regions);
-    failRefresh(id, metricsSection, regions);
+    const id = startRefresh(ms, regions, makeState());
+    failRefresh(id, ms, regions, null);
 
     for (const region of regions) {
       expect(region.querySelector(".metrics-loading-spinner")).toBeNull();
@@ -481,62 +576,43 @@ describe("Spinner DOM lifecycle", () => {
 });
 
 // ---------------------------------------------------------------------------
-// Announcement timer cancellation
+// Edge cases
 // ---------------------------------------------------------------------------
 
-describe("Announcement timer cancellation", () => {
-  it("second completion announcement survives the first timer", () => {
-    jest.useFakeTimers();
-
-    const metricsSection = createMockElement();
+describe("Edge cases", () => {
+  it("endRefresh handles null statusEl gracefully", () => {
+    const ms = createMockElement();
     const regions = createMockRegions(1);
-    const statusEl = createMockElement();
 
-    // First refresh completes — schedules 1s clear timer.
-    const id1 = startRefresh(metricsSection, regions);
-    endRefresh(id1, metricsSection, regions, statusEl);
-    expect(statusEl.textContent).toBe("Dashboard updated");
-
-    // 500ms later, second refresh completes — must cancel first timer.
-    jest.advanceTimersByTime(500);
-    const id2 = startRefresh(metricsSection, regions);
-    endRefresh(id2, metricsSection, regions, statusEl);
-    expect(statusEl.textContent).toBe("Dashboard updated");
-
-    // At 1000ms total (500ms after first endRefresh), the first timer would
-    // have fired. The announcement must still be present because the second
-    // endRefresh cancelled it and scheduled a new 1s timer.
-    jest.advanceTimersByTime(500);
-    expect(statusEl.textContent).toBe("Dashboard updated");
-
-    // At 1500ms total (1000ms after second endRefresh), the second timer fires.
-    jest.advanceTimersByTime(500);
-    expect(statusEl.textContent).toBe("");
-
-    jest.useRealTimers();
+    const id = startRefresh(ms, regions, makeState());
+    expect(endRefresh(id, ms, regions, null)).toBe(true);
+    expect(isActive()).toBe(false);
   });
 
-  it("_resetForTesting clears pending timer state", () => {
-    jest.useFakeTimers();
+  it("endRefresh with empty regions array does not throw", () => {
+    const ms = createMockElement();
+    const id = startRefresh(ms, [], makeState());
+    expect(() => { endRefresh(id, ms, [], null); }).not.toThrow();
+  });
 
-    const metricsSection = createMockElement();
+  it("failRefresh with empty regions array does not throw", () => {
+    const ms = createMockElement();
+    const id = startRefresh(ms, [], makeState());
+    expect(() => { failRefresh(id, ms, [], null); }).not.toThrow();
+  });
+
+  it("multiple rapid starts all increment cycle ID", () => {
+    const ms = createMockElement();
     const regions = createMockRegions(1);
-    const statusEl = createMockElement();
 
-    const id = startRefresh(metricsSection, regions);
-    endRefresh(id, metricsSection, regions, statusEl);
-    expect(statusEl.textContent).toBe("Dashboard updated");
+    const t1 = startRefresh(ms, regions, makeState());
+    const t2 = startRefresh(ms, regions, makeState({ comparisonMode: true }));
+    const t3 = startRefresh(ms, regions, makeState({ endDate: "2027-01-01T00:00:00.000Z" }));
 
-    // Reset clears the pending timer.
-    _resetForTesting();
-
-    // Advance past when the timer would have fired.
-    jest.advanceTimersByTime(2000);
-
-    // The text should still be "Dashboard updated" because reset cancelled
-    // the clear timer, and nothing else touched statusEl.
-    expect(statusEl.textContent).toBe("Dashboard updated");
-
-    jest.useRealTimers();
+    expect(t1).toBeLessThan(t2);
+    expect(t2).toBeLessThan(t3);
+    expect(isStale(t1)).toBe(true);
+    expect(isStale(t2)).toBe(true);
+    expect(isStale(t3)).toBe(false);
   });
 });
