@@ -1554,7 +1554,10 @@ def _run_http_server(
     """
     import http.server
     import os
+    import signal
     import socketserver
+    import threading
+    import types
     import webbrowser
 
     # Change to serve directory
@@ -1586,10 +1589,50 @@ def _run_http_server(
             if open_browser:
                 webbrowser.open(url)
 
+            # Install SIGINT handler to ensure shutdown even in environments
+            # where KeyboardInterrupt delivery is unreliable (e.g. some
+            # Windows terminals, IDE integrated terminals).
+            # Installed after webbrowser.open() so Ctrl+C during a slow
+            # browser launch still raises KeyboardInterrupt normally.
+            # shutdown() must be called from a different thread than
+            # serve_forever() to avoid deadlock.
+            # signal.signal() is only legal from the main thread; skip
+            # when called from a worker thread (e.g. test harness, IDE).
+            # Also respect the caller's signal policy: if SIGINT is set to
+            # SIG_IGN or SIG_DFL, the process has intentionally configured
+            # that behavior and we must not override it.
+            _prev_sigint = (
+                signal.getsignal(signal.SIGINT)
+                if threading.current_thread() is threading.main_thread()
+                else None
+            )
+            # Only install when the existing handler is a callable Python
+            # function.  SIG_IGN / SIG_DFL are ints — respect those as the
+            # caller's explicit signal policy.
+            if callable(_prev_sigint):
+                _orig_handler = _prev_sigint
+
+                def _request_shutdown(
+                    signum: int, frame: types.FrameType | None
+                ) -> None:
+                    threading.Thread(target=httpd.shutdown, daemon=True).start()
+                    # Chain to any custom handler so embedding code that
+                    # registered its own SIGINT cleanup still runs.
+                    # Skip default_int_handler (raises KeyboardInterrupt,
+                    # which would abort serve_forever before it can exit
+                    # cleanly).
+                    if _orig_handler is not signal.default_int_handler:
+                        _orig_handler(signum, frame)
+
+                signal.signal(signal.SIGINT, _request_shutdown)
+
             try:
                 httpd.serve_forever()
-            except KeyboardInterrupt:
-                logger.info("\nServer stopped")
+            finally:
+                if callable(_prev_sigint):
+                    signal.signal(signal.SIGINT, _prev_sigint)
+
+            logger.info("\nServer stopped")
 
     finally:
         os.chdir(original_dir)
