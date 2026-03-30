@@ -81,6 +81,8 @@ import {
   // Loading state (refresh-cycle state machine)
   startRefresh,
   endRefresh,
+  failRefresh,
+  isStale,
   hasStateChanged,
   type EffectiveState,
 } from "./modules";
@@ -839,17 +841,24 @@ function buildEffectiveState(): EffectiveState {
  * Loading state lifecycle:
  * 1. No-op guard — skip if effective state unchanged.
  * 2. startRefresh() — dims all chart regions, sets aria-busy.
- * 3. Async data fetch + chart render.
- * 4. endRefresh(cycleId) — clears loading if this is the winning refresh.
- *    If stale (superseded by a newer refresh), results are discarded.
+ * 3. Async data fetch (stale check after).
+ * 4. Stale check before render — older requests never paint.
+ * 5. Render charts.
+ * 6. endRefresh(cycleId) — clears loading, announces success.
+ * 7. Commit lastEffectiveState — only on successful render.
+ *
+ * Invariants:
+ * - No state is considered refreshed until the winning request has successfully rendered.
+ * - No request may render once it loses ownership.
+ * - No failed refresh may emit a success signal.
  */
 async function refreshMetrics(): Promise<void> {
   if (!currentDateRange.start || !currentDateRange.end || !loader) return;
 
   // No-op guard: skip refresh if effective state hasn't changed (FR-002).
-  const nextState = buildEffectiveState();
-  if (!hasStateChanged(lastEffectiveState, nextState)) return;
-  lastEffectiveState = nextState;
+  // candidateState is NOT committed until successful render completes.
+  const candidateState = buildEffectiveState();
+  if (!hasStateChanged(lastEffectiveState, candidateState)) return;
 
   // Start loading state (FR-001, FR-003).
   let cycleId = 0;
@@ -888,12 +897,15 @@ async function refreshMetrics(): Promise<void> {
       console.debug("Previous period data not available:", e);
     }
 
-    // Stale-result discard: if a newer refresh superseded this one, bail (FR-006).
-    if (cycleId > 0 && metricsSection) {
-      if (!endRefresh(cycleId, metricsSection, loadingRegions, metricsStatusEl)) {
-        return; // Superseded — discard results.
-      }
+    // Stale-result discard after data load: if a newer refresh superseded
+    // this one, bail before any DOM writes (FR-006).
+    if (cycleId > 0 && isStale(cycleId)) {
+      return;
     }
+
+    // --- Render phase: guarded by ownership check ---
+    // Once we begin rendering, this request must still be the current cycle.
+    // No endRefresh yet — loading stays visible until render completes.
 
     // Cache filtered rollups for export
     cachedRollups = rollups;
@@ -912,6 +924,12 @@ async function refreshMetrics(): Promise<void> {
       loader?.getCapabilityState?.() ?? null,
     );
 
+    // Final ownership check before committing to DOM renders.
+    // If a newer refresh started during the sync processing above, abort.
+    if (cycleId > 0 && isStale(cycleId)) {
+      return;
+    }
+
     renderSummaryCards(rollups, prevRollups, rawRollups);
     renderThroughputChart(rollups, rawRollups, availability);
     renderCycleTimeTrend(rollups, rawRollups, availability);
@@ -922,10 +940,21 @@ async function refreshMetrics(): Promise<void> {
     if (comparisonMode) {
       updateComparisonBanner();
     }
-  } catch (err) {
-    // Ensure loading state clears on failure (FR-012).
+
+    // --- Success: clear loading, announce, commit state ---
     if (cycleId > 0 && metricsSection) {
       endRefresh(cycleId, metricsSection, loadingRegions, metricsStatusEl);
+    }
+
+    // Commit effective state only after successful render.
+    // Failed or superseded refreshes leave lastEffectiveState unchanged
+    // so the same state remains retryable.
+    lastEffectiveState = candidateState;
+  } catch (err) {
+    // Clear loading without success announcement (FR-012).
+    // Do NOT commit lastEffectiveState — failed state must remain retryable.
+    if (cycleId > 0 && metricsSection) {
+      failRefresh(cycleId, metricsSection, loadingRegions);
     }
     throw err;
   }

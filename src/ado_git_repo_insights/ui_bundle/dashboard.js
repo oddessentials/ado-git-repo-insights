@@ -5145,12 +5145,12 @@ var PRInsightsDashboard = (() => {
   function renderPredictions(container, predictions, rollups) {
     renderPredictionsWithCharts(container, predictions, rollups);
   }
-  function renderAIInsights(container, insights, isStale) {
+  function renderAIInsights(container, insights, isStale2) {
     if (!container) return;
     if (!insights) return;
     const content = document.createElement("div");
     content.className = "insights-content";
-    if (isStale && insights.generated_at) {
+    if (isStale2 && insights.generated_at) {
       appendTrustedHtml(content, renderStaleDataBanner(insights.generated_at));
     }
     if (insights.is_stub) {
@@ -6901,7 +6901,7 @@ var PRInsightsDashboard = (() => {
     metricsSection2.setAttribute("aria-busy", "true");
     return currentCycleId;
   }
-  function endRefresh(cycleId, metricsSection2, regions, statusEl) {
+  function clearLoading(cycleId, metricsSection2, regions) {
     if (cycleId - currentCycleId !== 0) {
       return false;
     }
@@ -6910,6 +6910,12 @@ var PRInsightsDashboard = (() => {
       region.classList.remove("metrics-loading");
     }
     metricsSection2.removeAttribute("aria-busy");
+    return true;
+  }
+  function endRefresh(cycleId, metricsSection2, regions, statusEl) {
+    if (!clearLoading(cycleId, metricsSection2, regions)) {
+      return false;
+    }
     if (statusEl) {
       statusEl.textContent = "Dashboard updated";
       setTimeout(() => {
@@ -6917,6 +6923,12 @@ var PRInsightsDashboard = (() => {
       }, 1e3);
     }
     return true;
+  }
+  function failRefresh(cycleId, metricsSection2, regions) {
+    return clearLoading(cycleId, metricsSection2, regions);
+  }
+  function isStale(cycleId) {
+    return cycleId - currentCycleId !== 0;
   }
   function hasStateChanged(prev, next) {
     if (prev === null) return true;
@@ -7407,9 +7419,8 @@ var PRInsightsDashboard = (() => {
   }
   async function refreshMetrics() {
     if (!currentDateRange.start || !currentDateRange.end || !loader) return;
-    const nextState = buildEffectiveState();
-    if (!hasStateChanged(lastEffectiveState, nextState)) return;
-    lastEffectiveState = nextState;
+    const candidateState = buildEffectiveState();
+    if (!hasStateChanged(lastEffectiveState, candidateState)) return;
     let cycleId = 0;
     if (metricsSection && loadingRegions.length > 0) {
       cycleId = startRefresh(metricsSection, loadingRegions);
@@ -7438,10 +7449,8 @@ var PRInsightsDashboard = (() => {
       } catch (e) {
         console.debug("Previous period data not available:", e);
       }
-      if (cycleId > 0 && metricsSection) {
-        if (!endRefresh(cycleId, metricsSection, loadingRegions, metricsStatusEl)) {
-          return;
-        }
+      if (cycleId > 0 && isStale(cycleId)) {
+        return;
       }
       cachedRollups = rollups;
       updateAccuracyIndicator(rawRollups, currentFilters);
@@ -7450,6 +7459,9 @@ var PRInsightsDashboard = (() => {
         rawRollups,
         loader?.getCapabilityState?.() ?? null
       );
+      if (cycleId > 0 && isStale(cycleId)) {
+        return;
+      }
       renderSummaryCards2(rollups, prevRollups, rawRollups);
       renderThroughputChart2(rollups, rawRollups, availability);
       renderCycleTimeTrend2(rollups, rawRollups, availability);
@@ -7458,9 +7470,13 @@ var PRInsightsDashboard = (() => {
       if (comparisonMode) {
         updateComparisonBanner();
       }
-    } catch (err) {
       if (cycleId > 0 && metricsSection) {
         endRefresh(cycleId, metricsSection, loadingRegions, metricsStatusEl);
+      }
+      lastEffectiveState = candidateState;
+    } catch (err) {
+      if (cycleId > 0 && metricsSection) {
+        failRefresh(cycleId, metricsSection, loadingRegions);
       }
       throw err;
     }

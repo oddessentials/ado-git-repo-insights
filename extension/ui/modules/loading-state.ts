@@ -68,12 +68,40 @@ export function startRefresh(
 }
 
 /**
- * End a refresh cycle.
+ * Clear loading presentation (CSS + aria-busy) without announcing success.
+ * Shared by both success and failure paths.
+ *
+ * @returns true if this was the current cycle (loading cleared), false if stale.
+ */
+function clearLoading(
+  cycleId: number,
+  metricsSection: HTMLElement,
+  regions: ReadonlyArray<HTMLElement>,
+): boolean {
+  // Compare via subtraction to avoid false positive from security/detect-possible-timing-attacks.
+  // This is a monotonic counter, not a secret — constant-time comparison is unnecessary.
+  if (cycleId - currentCycleId !== 0) {
+    return false;
+  }
+
+  active = false;
+
+  for (const region of regions) {
+    region.classList.remove("metrics-loading");
+  }
+
+  metricsSection.removeAttribute("aria-busy");
+
+  return true;
+}
+
+/**
+ * End a refresh cycle on success.
  *
  * If the cycle ID matches the current ID (winning refresh):
  * - Removes loading CSS from all regions.
  * - Clears aria-busy.
- * - Announces completion via the aria-live status element.
+ * - Announces "Dashboard updated" via the aria-live status element.
  * - Returns true.
  *
  * If the cycle ID is stale (superseded refresh):
@@ -92,21 +120,11 @@ export function endRefresh(
   regions: ReadonlyArray<HTMLElement>,
   statusEl: HTMLElement | null,
 ): boolean {
-  // Compare via subtraction to avoid false positive from security/detect-possible-timing-attacks.
-  // This is a monotonic counter, not a secret — constant-time comparison is unnecessary.
-  if (cycleId - currentCycleId !== 0) {
+  if (!clearLoading(cycleId, metricsSection, regions)) {
     return false;
   }
 
-  active = false;
-
-  for (const region of regions) {
-    region.classList.remove("metrics-loading");
-  }
-
-  metricsSection.removeAttribute("aria-busy");
-
-  // Announce to screen readers via polite live region.
+  // Announce to screen readers via polite live region (success only).
   if (statusEl) {
     statusEl.textContent = "Dashboard updated";
     // Clear after 1 second so the announcement doesn't repeat on next sweep.
@@ -116,6 +134,26 @@ export function endRefresh(
   }
 
   return true;
+}
+
+/**
+ * End a refresh cycle on failure.
+ *
+ * Clears loading presentation (CSS + aria-busy) without announcing success.
+ * Does NOT write "Dashboard updated" — failed refreshes must not emit
+ * a success signal to assistive technology.
+ *
+ * @param cycleId        - The ID returned by startRefresh for this cycle.
+ * @param metricsSection - The #tab-metrics element.
+ * @param regions        - The same region elements passed to startRefresh.
+ * @returns true if this was the current cycle (loading cleared), false if stale.
+ */
+export function failRefresh(
+  cycleId: number,
+  metricsSection: HTMLElement,
+  regions: ReadonlyArray<HTMLElement>,
+): boolean {
+  return clearLoading(cycleId, metricsSection, regions);
 }
 
 /**
