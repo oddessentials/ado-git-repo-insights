@@ -275,6 +275,24 @@ describe("host-resize module", () => {
     expect(resizeSpy).not.toHaveBeenCalled();
   });
 
+  it("generation guard discards stale callback even if cancelAnimationFrame is a no-op", () => {
+    // Simulate the real browser race where cancelAnimationFrame doesn't
+    // prevent a callback that has already been dequeued by the runtime.
+    (globalThis as Record<string, unknown>).cancelAnimationFrame = () => {};
+
+    initializeHostResizeSync(".settings-container");
+    // rAF queued — cancelAnimationFrame is now a no-op, so teardown
+    // can't actually cancel it.  The generation guard must catch it.
+
+    teardownHostResizeSync();
+    flushRaf();
+
+    expect(resizeSpy).not.toHaveBeenCalled();
+
+    // Restore the real mock for subsequent tests
+    (globalThis as Record<string, unknown>).cancelAnimationFrame = mockCancelRaf;
+  });
+
   it("does not call VSS.resize when a queued rAF fires after re-initialization", () => {
     initializeHostResizeSync(".settings-container");
     // rAF queued from first init — don't flush yet

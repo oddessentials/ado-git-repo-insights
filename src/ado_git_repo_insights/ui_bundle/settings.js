@@ -19,8 +19,8 @@ var PRInsightsSettings = (() => {
   function syncHostHeight() {
     const resizeFn = globalThis.VSS?.resize;
     if (typeof resizeFn !== "function") return;
-    const bodyHeight = document.body?.scrollHeight ?? 0;
-    const docHeight = document.documentElement?.scrollHeight ?? 0;
+    const bodyHeight = document.body.scrollHeight;
+    const docHeight = document.documentElement.scrollHeight;
     const targetHeight = Math.max(bodyHeight, docHeight);
     if (targetHeight > 0) {
       resizeFn(void 0, targetHeight);
