@@ -5145,12 +5145,12 @@ var PRInsightsDashboard = (() => {
   function renderPredictions(container, predictions, rollups) {
     renderPredictionsWithCharts(container, predictions, rollups);
   }
-  function renderAIInsights(container, insights, isStale) {
+  function renderAIInsights(container, insights, isStale2) {
     if (!container) return;
     if (!insights) return;
     const content = document.createElement("div");
     content.className = "insights-content";
-    if (isStale && insights.generated_at) {
+    if (isStale2 && insights.generated_at) {
       appendTrustedHtml(content, renderStaleDataBanner(insights.generated_at));
     }
     if (insights.is_stub) {
@@ -6889,6 +6889,107 @@ var PRInsightsDashboard = (() => {
     return typeof window !== "undefined" && window.DATASET_PATH || "./dataset";
   }
 
+  // ../ui/modules/loading-state.ts
+  var SPINNER_CLASS = "metrics-loading-spinner";
+  var LOADING_CLASS = "metrics-loading";
+  var currentCycleId = 0;
+  var active = false;
+  var inFlightState = null;
+  var announcementTimerId = null;
+  var announceGeneration = 0;
+  function addSpinner(region) {
+    if (region.querySelector(`.${SPINNER_CLASS}`)) return;
+    const spinner = document.createElement("div");
+    spinner.className = SPINNER_CLASS;
+    region.appendChild(spinner);
+  }
+  function removeSpinner(region) {
+    const spinner = region.querySelector(`.${SPINNER_CLASS}`);
+    if (spinner) {
+      spinner.remove();
+    }
+  }
+  function cancelAnnouncementTimer() {
+    if (announcementTimerId !== null) {
+      clearTimeout(announcementTimerId);
+      announcementTimerId = null;
+    }
+  }
+  function announce(statusEl, message) {
+    cancelAnnouncementTimer();
+    announceGeneration += 1;
+    const gen = announceGeneration;
+    statusEl.textContent = "";
+    void Promise.resolve().then(() => {
+      if (gen - announceGeneration !== 0) return;
+      statusEl.textContent = message;
+      announcementTimerId = setTimeout(() => {
+        statusEl.textContent = "";
+        announcementTimerId = null;
+      }, 1e3);
+    });
+  }
+  function clearAnnouncement(statusEl) {
+    cancelAnnouncementTimer();
+    announceGeneration += 1;
+    if (statusEl) {
+      statusEl.textContent = "";
+    }
+  }
+  function startRefresh(metricsSection2, regions, targetState) {
+    currentCycleId += 1;
+    active = true;
+    inFlightState = targetState;
+    for (const region of regions) {
+      region.classList.add(LOADING_CLASS);
+      addSpinner(region);
+    }
+    metricsSection2.setAttribute("aria-busy", "true");
+    return currentCycleId;
+  }
+  function clearLoading(cycleId, metricsSection2, regions) {
+    if (cycleId - currentCycleId !== 0) {
+      return false;
+    }
+    active = false;
+    inFlightState = null;
+    for (const region of regions) {
+      region.classList.remove(LOADING_CLASS);
+      removeSpinner(region);
+    }
+    metricsSection2.removeAttribute("aria-busy");
+    return true;
+  }
+  function endRefresh(cycleId, metricsSection2, regions, statusEl) {
+    if (!clearLoading(cycleId, metricsSection2, regions)) {
+      return false;
+    }
+    if (statusEl) {
+      announce(statusEl, "Dashboard updated");
+    }
+    return true;
+  }
+  function failRefresh(cycleId, metricsSection2, regions, statusEl) {
+    const cleared = clearLoading(cycleId, metricsSection2, regions);
+    if (cleared) {
+      clearAnnouncement(statusEl);
+    }
+    return cleared;
+  }
+  function isStale(cycleId) {
+    return cycleId - currentCycleId !== 0;
+  }
+  function isActive() {
+    return active;
+  }
+  function getInFlightState() {
+    return inFlightState;
+  }
+  function hasStateChanged(prev, next) {
+    if (prev === null) return true;
+    return JSON.stringify(prev) !== JSON.stringify(next);
+  }
+
   // ../ui/dashboard.ts
   var loader = null;
   var artifactClient = null;
@@ -6912,6 +7013,10 @@ var PRInsightsDashboard = (() => {
   var cachedRollups = [];
   var currentBuildId = null;
   var chipsDelegatedElement = null;
+  var metricsSection = null;
+  var metricsStatusEl = null;
+  var loadingRegions = [];
+  var lastEffectiveState = null;
   var SETTINGS_KEY_PROJECT = "pr-insights-source-project";
   var SETTINGS_KEY_PIPELINE = "pr-insights-pipeline-id";
   var elements = /* @__PURE__ */ new Map();
@@ -7282,6 +7387,13 @@ var PRInsightsDashboard = (() => {
       elements.set(id, document.getElementById(id));
     });
     elementLists.tabs = document.querySelectorAll(".tab");
+    metricsSection = document.getElementById("tab-metrics");
+    metricsStatusEl = document.getElementById("metrics-status");
+    const summaryCards = document.querySelector(".summary-cards");
+    const chartContainers = Array.from(
+      document.querySelectorAll(".chart-container")
+    );
+    loadingRegions = summaryCards ? [summaryCards, ...chartContainers] : chartContainers;
   }
   function initializePhase5Features() {
     console.log("Phase 5 ML features initialized - tabs visible by default");
@@ -7352,45 +7464,84 @@ var PRInsightsDashboard = (() => {
       }
     }
   }
+  function safeDateString(date) {
+    if (!date || isNaN(date.getTime())) return "";
+    return date.toISOString();
+  }
+  function buildEffectiveState() {
+    return {
+      filters: { ...currentFilters },
+      startDate: safeDateString(currentDateRange.start),
+      endDate: safeDateString(currentDateRange.end),
+      comparisonMode
+    };
+  }
   async function refreshMetrics() {
     if (!currentDateRange.start || !currentDateRange.end || !loader) return;
-    const rawRollups = await loader.getWeeklyRollups(
-      currentDateRange.start,
-      currentDateRange.end
-    );
-    const distributions = await loader.getDistributions(
-      currentDateRange.start,
-      currentDateRange.end
-    );
-    const rollups = applyFiltersToRollups(rawRollups, currentFilters);
-    const prevPeriod = getPreviousPeriod(
-      currentDateRange.start,
-      currentDateRange.end
-    );
-    let prevRollups = [];
-    try {
-      const rawPrevRollups = await loader.getWeeklyRollups(
-        prevPeriod.start,
-        prevPeriod.end
-      );
-      prevRollups = applyFiltersToRollups(rawPrevRollups, currentFilters);
-    } catch (e) {
-      console.debug("Previous period data not available:", e);
+    const candidateState = buildEffectiveState();
+    if (isActive()) {
+      if (!hasStateChanged(getInFlightState(), candidateState)) return;
+    } else {
+      if (!hasStateChanged(lastEffectiveState, candidateState)) return;
     }
-    cachedRollups = rollups;
-    updateAccuracyIndicator(rawRollups, currentFilters);
-    updateOverlapIndicator(rawRollups, currentFilters);
-    const availability = deriveAvailabilitySignal(
-      rawRollups,
-      loader?.getCapabilityState?.() ?? null
-    );
-    renderSummaryCards2(rollups, prevRollups, rawRollups);
-    renderThroughputChart2(rollups, rawRollups, availability);
-    renderCycleTimeTrend2(rollups, rawRollups, availability);
-    renderReviewerActivity2(rollups, rawRollups, availability);
-    renderCycleDistribution2(distributions, rawRollups, availability);
-    if (comparisonMode) {
-      updateComparisonBanner();
+    let cycleId = 0;
+    if (metricsSection && loadingRegions.length > 0) {
+      cycleId = startRefresh(metricsSection, loadingRegions, candidateState);
+    }
+    try {
+      const rawRollups = await loader.getWeeklyRollups(
+        currentDateRange.start,
+        currentDateRange.end
+      );
+      const distributions = await loader.getDistributions(
+        currentDateRange.start,
+        currentDateRange.end
+      );
+      const rollups = applyFiltersToRollups(rawRollups, currentFilters);
+      const prevPeriod = getPreviousPeriod(
+        currentDateRange.start,
+        currentDateRange.end
+      );
+      let prevRollups = [];
+      try {
+        const rawPrevRollups = await loader.getWeeklyRollups(
+          prevPeriod.start,
+          prevPeriod.end
+        );
+        prevRollups = applyFiltersToRollups(rawPrevRollups, currentFilters);
+      } catch (e) {
+        console.debug("Previous period data not available:", e);
+      }
+      if (cycleId > 0 && isStale(cycleId)) {
+        return;
+      }
+      cachedRollups = rollups;
+      updateAccuracyIndicator(rawRollups, currentFilters);
+      updateOverlapIndicator(rawRollups, currentFilters);
+      const availability = deriveAvailabilitySignal(
+        rawRollups,
+        loader?.getCapabilityState?.() ?? null
+      );
+      if (cycleId > 0 && isStale(cycleId)) {
+        return;
+      }
+      renderSummaryCards2(rollups, prevRollups, rawRollups);
+      renderThroughputChart2(rollups, rawRollups, availability);
+      renderCycleTimeTrend2(rollups, rawRollups, availability);
+      renderReviewerActivity2(rollups, rawRollups, availability);
+      renderCycleDistribution2(distributions, rawRollups, availability);
+      if (comparisonMode) {
+        updateComparisonBanner();
+      }
+      if (cycleId > 0 && metricsSection) {
+        endRefresh(cycleId, metricsSection, loadingRegions, metricsStatusEl);
+      }
+      lastEffectiveState = candidateState;
+    } catch (err) {
+      if (cycleId > 0 && metricsSection) {
+        failRefresh(cycleId, metricsSection, loadingRegions, metricsStatusEl);
+      }
+      throw err;
     }
   }
   function updateAccuracyIndicator(rawRollups, filters) {
@@ -7609,9 +7760,9 @@ var PRInsightsDashboard = (() => {
   function switchTab(tabId) {
     elementLists.tabs?.forEach((tab) => {
       const htmlTab = tab;
-      const isActive = htmlTab.dataset["tab"] === tabId;
-      htmlTab.classList.toggle("active", isActive);
-      htmlTab.setAttribute("aria-selected", isActive ? "true" : "false");
+      const isActive2 = htmlTab.dataset["tab"] === tabId;
+      htmlTab.classList.toggle("active", isActive2);
+      htmlTab.setAttribute("aria-selected", isActive2 ? "true" : "false");
     });
     document.querySelectorAll(".tab-content").forEach((content) => {
       content.classList.toggle("active", content.id === `tab-${tabId}`);
@@ -7912,16 +8063,22 @@ var PRInsightsDashboard = (() => {
     const startParam = params.get("start");
     const endParam = params.get("end");
     if (startParam && endParam) {
-      currentDateRange = { start: new Date(startParam), end: new Date(endParam) };
-      const dateRangeEl = elements.get("date-range");
-      if (dateRangeEl) {
-        dateRangeEl.value = "custom";
-        elements.get("custom-dates")?.classList.remove("hidden");
+      const parsedStart = new Date(startParam);
+      const parsedEnd = new Date(endParam);
+      if (isNaN(parsedStart.getTime()) || isNaN(parsedEnd.getTime())) {
+        console.debug("Invalid date params in URL, ignoring:", startParam, endParam);
+      } else {
+        currentDateRange = { start: parsedStart, end: parsedEnd };
+        const dateRangeEl = elements.get("date-range");
+        if (dateRangeEl) {
+          dateRangeEl.value = "custom";
+          elements.get("custom-dates")?.classList.remove("hidden");
+        }
+        const startEl = elements.get("start-date");
+        const endEl = elements.get("end-date");
+        if (startEl) startEl.value = startParam;
+        if (endEl) endEl.value = endParam;
       }
-      const startEl = elements.get("start-date");
-      const endEl = elements.get("end-date");
-      if (startEl) startEl.value = startParam;
-      if (endEl) endEl.value = endParam;
     }
     const tabParam = params.get("tab");
     if (tabParam) {

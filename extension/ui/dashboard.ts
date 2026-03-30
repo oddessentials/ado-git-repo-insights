@@ -78,6 +78,15 @@ import {
   // Safe DOM rendering utilities
   clearElement,
   renderTrustedHtml,
+  // Loading state (refresh-cycle state machine)
+  startRefresh,
+  endRefresh,
+  failRefresh,
+  isStale,
+  isActive,
+  getInFlightState,
+  hasStateChanged,
+  type EffectiveState,
 } from "./modules";
 
 // Dashboard state
@@ -110,6 +119,12 @@ let comparisonMode = false;
 let cachedRollups: Rollup[] = []; // Cache for export
 let currentBuildId: number | null = null; // Store build ID for raw data download
 let chipsDelegatedElement: HTMLElement | null = null; // Track delegated element
+
+// Loading state — cached region elements and last effective state for no-op guard
+let metricsSection: HTMLElement | null = null;
+let metricsStatusEl: HTMLElement | null = null;
+let loadingRegions: HTMLElement[] = [];
+let lastEffectiveState: EffectiveState | null = null;
 
 // Settings keys for extension data storage (must match settings.js)
 const SETTINGS_KEY_PROJECT = "pr-insights-source-project";
@@ -664,6 +679,18 @@ function cacheElements(): void {
   });
 
   elementLists.tabs = document.querySelectorAll(".tab");
+
+  // Cache loading-state region elements (queried once, reused on every refresh)
+  metricsSection = document.getElementById("tab-metrics");
+  metricsStatusEl = document.getElementById("metrics-status");
+
+  const summaryCards = document.querySelector(".summary-cards") as HTMLElement | null;
+  const chartContainers = Array.from(
+    document.querySelectorAll(".chart-container"),
+  ) as HTMLElement[];
+  loadingRegions = summaryCards
+    ? [summaryCards, ...chartContainers]
+    : chartContainers;
 }
 
 /**
@@ -799,67 +826,155 @@ function setInitialDateRange(): void {
 // getPreviousPeriod and applyFiltersToRollups are now imported from "./modules/metrics"
 
 /**
+ * Safely serialize a Date to ISO string, returning "" for null or Invalid Date.
+ * Prevents RangeError from toISOString() on dates created from invalid URL params.
+ */
+function safeDateString(date: Date | null): string {
+  if (!date || isNaN(date.getTime())) return "";
+  return date.toISOString();
+}
+
+/**
+ * Build an EffectiveState snapshot for the no-op guard.
+ */
+function buildEffectiveState(): EffectiveState {
+  return {
+    filters: { ...currentFilters },
+    startDate: safeDateString(currentDateRange.start),
+    endDate: safeDateString(currentDateRange.end),
+    comparisonMode,
+  };
+}
+
+/**
  * Refresh metrics for current date range.
+ *
+ * Loading state lifecycle:
+ * 1. No-op guard — skip if effective state unchanged.
+ * 2. startRefresh() — dims all chart regions, sets aria-busy.
+ * 3. Async data fetch (stale check after).
+ * 4. Stale check before render — older requests never paint.
+ * 5. Render charts.
+ * 6. endRefresh(cycleId) — clears loading, announces success.
+ * 7. Commit lastEffectiveState — only on successful render.
+ *
+ * Invariants:
+ * - No state is considered refreshed until the winning request has successfully rendered.
+ * - No request may render once it loses ownership.
+ * - No failed refresh may emit a success signal.
  */
 async function refreshMetrics(): Promise<void> {
   if (!currentDateRange.start || !currentDateRange.end || !loader) return;
 
-  // Load current period data
-  const rawRollups = await loader.getWeeklyRollups(
-    currentDateRange.start,
-    currentDateRange.end,
-  );
-
-  const distributions = await loader.getDistributions(
-    currentDateRange.start,
-    currentDateRange.end,
-  );
-
-  // Apply dimension filters to rollups
-  const rollups = applyFiltersToRollups(rawRollups, currentFilters);
-
-  // Load previous period data for comparison
-  const prevPeriod = getPreviousPeriod(
-    currentDateRange.start,
-    currentDateRange.end,
-  );
-  let prevRollups: Rollup[] = [];
-  try {
-    const rawPrevRollups = await loader.getWeeklyRollups(
-      prevPeriod.start,
-      prevPeriod.end,
-    );
-    prevRollups = applyFiltersToRollups(rawPrevRollups, currentFilters);
-  } catch (e) {
-    console.debug("Previous period data not available:", e);
+  // No-op guard: skip refresh if effective state hasn't changed (FR-002).
+  // When a refresh is in-flight, compare against the in-flight target instead
+  // of the last committed state. This handles A→B→A correctly (supersedes B)
+  // while avoiding redundant B→B reloads.
+  const candidateState = buildEffectiveState();
+  if (isActive()) {
+    if (!hasStateChanged(getInFlightState(), candidateState)) return;
+  } else {
+    if (!hasStateChanged(lastEffectiveState, candidateState)) return;
   }
 
-  // Cache filtered rollups for export
-  cachedRollups = rollups;
+  // Start loading state (FR-001, FR-003).
+  let cycleId = 0;
+  if (metricsSection && loadingRegions.length > 0) {
+    cycleId = startRefresh(metricsSection, loadingRegions, candidateState);
+  }
 
-  // T012: Accuracy indicator — when both team and repo filters active,
-  // check if any visible rollup lacks by_team_and_repo (pre-migration data).
-  updateAccuracyIndicator(rawRollups, currentFilters);
+  try {
+    // Load current period data
+    const rawRollups = await loader.getWeeklyRollups(
+      currentDateRange.start,
+      currentDateRange.end,
+    );
 
-  // T012a: Multi-team overlap indicator — when multiple teams selected
-  // and cross-dim PR sum exceeds repository total.
-  updateOverlapIndicator(rawRollups, currentFilters);
+    const distributions = await loader.getDistributions(
+      currentDateRange.start,
+      currentDateRange.end,
+    );
 
-  // Derive data availability signal for empty-state classification
-  const availability = deriveAvailabilitySignal(
-    rawRollups,
-    loader?.getCapabilityState?.() ?? null,
-  );
+    // Apply dimension filters to rollups
+    const rollups = applyFiltersToRollups(rawRollups, currentFilters);
 
-  renderSummaryCards(rollups, prevRollups, rawRollups);
-  renderThroughputChart(rollups, rawRollups, availability);
-  renderCycleTimeTrend(rollups, rawRollups, availability);
-  renderReviewerActivity(rollups, rawRollups, availability);
-  renderCycleDistribution(distributions, rawRollups, availability);
+    // Load previous period data for comparison
+    const prevPeriod = getPreviousPeriod(
+      currentDateRange.start,
+      currentDateRange.end,
+    );
+    let prevRollups: Rollup[] = [];
+    try {
+      const rawPrevRollups = await loader.getWeeklyRollups(
+        prevPeriod.start,
+        prevPeriod.end,
+      );
+      prevRollups = applyFiltersToRollups(rawPrevRollups, currentFilters);
+    } catch (e) {
+      console.debug("Previous period data not available:", e);
+    }
 
-  // Update comparison banner if in comparison mode
-  if (comparisonMode) {
-    updateComparisonBanner();
+    // Stale-result discard after data load: if a newer refresh superseded
+    // this one, bail before any DOM writes (FR-006).
+    if (cycleId > 0 && isStale(cycleId)) {
+      return;
+    }
+
+    // --- Render phase: guarded by ownership check ---
+    // Once we begin rendering, this request must still be the current cycle.
+    // No endRefresh yet — loading stays visible until render completes.
+
+    // Cache filtered rollups for export
+    cachedRollups = rollups;
+
+    // T012: Accuracy indicator — when both team and repo filters active,
+    // check if any visible rollup lacks by_team_and_repo (pre-migration data).
+    updateAccuracyIndicator(rawRollups, currentFilters);
+
+    // T012a: Multi-team overlap indicator — when multiple teams selected
+    // and cross-dim PR sum exceeds repository total.
+    updateOverlapIndicator(rawRollups, currentFilters);
+
+    // Derive data availability signal for empty-state classification
+    const availability = deriveAvailabilitySignal(
+      rawRollups,
+      loader?.getCapabilityState?.() ?? null,
+    );
+
+    // Final ownership check before committing to DOM renders.
+    // If a newer refresh started during the sync processing above, abort.
+    if (cycleId > 0 && isStale(cycleId)) {
+      return;
+    }
+
+    renderSummaryCards(rollups, prevRollups, rawRollups);
+    renderThroughputChart(rollups, rawRollups, availability);
+    renderCycleTimeTrend(rollups, rawRollups, availability);
+    renderReviewerActivity(rollups, rawRollups, availability);
+    renderCycleDistribution(distributions, rawRollups, availability);
+
+    // Update comparison banner if in comparison mode
+    if (comparisonMode) {
+      updateComparisonBanner();
+    }
+
+    // --- Success: clear loading, announce, commit state ---
+    if (cycleId > 0 && metricsSection) {
+      endRefresh(cycleId, metricsSection, loadingRegions, metricsStatusEl);
+    }
+
+    // Commit effective state only after successful render.
+    // Failed or superseded refreshes leave lastEffectiveState unchanged
+    // so the same state remains retryable.
+    lastEffectiveState = candidateState;
+  } catch (err) {
+    // Clear loading without success announcement (FR-012).
+    // Clears any stale success text from the live region.
+    // Do NOT commit lastEffectiveState — failed state must remain retryable.
+    if (cycleId > 0 && metricsSection) {
+      failRefresh(cycleId, metricsSection, loadingRegions, metricsStatusEl);
+    }
+    throw err;
   }
 }
 
@@ -1709,16 +1824,23 @@ function restoreStateFromUrl(): void {
   const startParam = params.get("start");
   const endParam = params.get("end");
   if (startParam && endParam) {
-    currentDateRange = { start: new Date(startParam), end: new Date(endParam) };
-    const dateRangeEl = elements.get("date-range") as HTMLSelectElement | null;
-    if (dateRangeEl) {
-      dateRangeEl.value = "custom";
-      elements.get("custom-dates")?.classList.remove("hidden");
+    const parsedStart = new Date(startParam);
+    const parsedEnd = new Date(endParam);
+    // Reject invalid dates — fall through to default date range from manifest.
+    if (isNaN(parsedStart.getTime()) || isNaN(parsedEnd.getTime())) {
+      console.debug("Invalid date params in URL, ignoring:", startParam, endParam);
+    } else {
+      currentDateRange = { start: parsedStart, end: parsedEnd };
+      const dateRangeEl = elements.get("date-range") as HTMLSelectElement | null;
+      if (dateRangeEl) {
+        dateRangeEl.value = "custom";
+        elements.get("custom-dates")?.classList.remove("hidden");
+      }
+      const startEl = elements.get("start-date") as HTMLInputElement | null;
+      const endEl = elements.get("end-date") as HTMLInputElement | null;
+      if (startEl) startEl.value = startParam;
+      if (endEl) endEl.value = endParam;
     }
-    const startEl = elements.get("start-date") as HTMLInputElement | null;
-    const endEl = elements.get("end-date") as HTMLInputElement | null;
-    if (startEl) startEl.value = startParam;
-    if (endEl) endEl.value = endParam;
   }
 
   const tabParam = params.get("tab");
