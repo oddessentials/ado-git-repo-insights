@@ -78,6 +78,11 @@ import {
   // Safe DOM rendering utilities
   clearElement,
   renderTrustedHtml,
+  // Loading state (refresh-cycle state machine)
+  startRefresh,
+  endRefresh,
+  hasStateChanged,
+  type EffectiveState,
 } from "./modules";
 
 // Dashboard state
@@ -110,6 +115,12 @@ let comparisonMode = false;
 let cachedRollups: Rollup[] = []; // Cache for export
 let currentBuildId: number | null = null; // Store build ID for raw data download
 let chipsDelegatedElement: HTMLElement | null = null; // Track delegated element
+
+// Loading state — cached region elements and last effective state for no-op guard
+let metricsSection: HTMLElement | null = null;
+let metricsStatusEl: HTMLElement | null = null;
+let loadingRegions: HTMLElement[] = [];
+let lastEffectiveState: EffectiveState | null = null;
 
 // Settings keys for extension data storage (must match settings.js)
 const SETTINGS_KEY_PROJECT = "pr-insights-source-project";
@@ -664,6 +675,18 @@ function cacheElements(): void {
   });
 
   elementLists.tabs = document.querySelectorAll(".tab");
+
+  // Cache loading-state region elements (queried once, reused on every refresh)
+  metricsSection = document.getElementById("tab-metrics");
+  metricsStatusEl = document.getElementById("metrics-status");
+
+  const summaryCards = document.querySelector(".summary-cards") as HTMLElement | null;
+  const chartContainers = Array.from(
+    document.querySelectorAll(".chart-container"),
+  ) as HTMLElement[];
+  loadingRegions = summaryCards
+    ? [summaryCards, ...chartContainers]
+    : chartContainers;
 }
 
 /**
@@ -799,67 +822,112 @@ function setInitialDateRange(): void {
 // getPreviousPeriod and applyFiltersToRollups are now imported from "./modules/metrics"
 
 /**
+ * Build an EffectiveState snapshot for the no-op guard.
+ */
+function buildEffectiveState(): EffectiveState {
+  return {
+    filters: { ...currentFilters },
+    startDate: currentDateRange.start?.toISOString() ?? "",
+    endDate: currentDateRange.end?.toISOString() ?? "",
+    comparisonMode,
+  };
+}
+
+/**
  * Refresh metrics for current date range.
+ *
+ * Loading state lifecycle:
+ * 1. No-op guard — skip if effective state unchanged.
+ * 2. startRefresh() — dims all chart regions, sets aria-busy.
+ * 3. Async data fetch + chart render.
+ * 4. endRefresh(cycleId) — clears loading if this is the winning refresh.
+ *    If stale (superseded by a newer refresh), results are discarded.
  */
 async function refreshMetrics(): Promise<void> {
   if (!currentDateRange.start || !currentDateRange.end || !loader) return;
 
-  // Load current period data
-  const rawRollups = await loader.getWeeklyRollups(
-    currentDateRange.start,
-    currentDateRange.end,
-  );
+  // No-op guard: skip refresh if effective state hasn't changed (FR-002).
+  const nextState = buildEffectiveState();
+  if (!hasStateChanged(lastEffectiveState, nextState)) return;
+  lastEffectiveState = nextState;
 
-  const distributions = await loader.getDistributions(
-    currentDateRange.start,
-    currentDateRange.end,
-  );
-
-  // Apply dimension filters to rollups
-  const rollups = applyFiltersToRollups(rawRollups, currentFilters);
-
-  // Load previous period data for comparison
-  const prevPeriod = getPreviousPeriod(
-    currentDateRange.start,
-    currentDateRange.end,
-  );
-  let prevRollups: Rollup[] = [];
-  try {
-    const rawPrevRollups = await loader.getWeeklyRollups(
-      prevPeriod.start,
-      prevPeriod.end,
-    );
-    prevRollups = applyFiltersToRollups(rawPrevRollups, currentFilters);
-  } catch (e) {
-    console.debug("Previous period data not available:", e);
+  // Start loading state (FR-001, FR-003).
+  let cycleId = 0;
+  if (metricsSection && loadingRegions.length > 0) {
+    cycleId = startRefresh(metricsSection, loadingRegions);
   }
 
-  // Cache filtered rollups for export
-  cachedRollups = rollups;
+  try {
+    // Load current period data
+    const rawRollups = await loader.getWeeklyRollups(
+      currentDateRange.start,
+      currentDateRange.end,
+    );
 
-  // T012: Accuracy indicator — when both team and repo filters active,
-  // check if any visible rollup lacks by_team_and_repo (pre-migration data).
-  updateAccuracyIndicator(rawRollups, currentFilters);
+    const distributions = await loader.getDistributions(
+      currentDateRange.start,
+      currentDateRange.end,
+    );
 
-  // T012a: Multi-team overlap indicator — when multiple teams selected
-  // and cross-dim PR sum exceeds repository total.
-  updateOverlapIndicator(rawRollups, currentFilters);
+    // Apply dimension filters to rollups
+    const rollups = applyFiltersToRollups(rawRollups, currentFilters);
 
-  // Derive data availability signal for empty-state classification
-  const availability = deriveAvailabilitySignal(
-    rawRollups,
-    loader?.getCapabilityState?.() ?? null,
-  );
+    // Load previous period data for comparison
+    const prevPeriod = getPreviousPeriod(
+      currentDateRange.start,
+      currentDateRange.end,
+    );
+    let prevRollups: Rollup[] = [];
+    try {
+      const rawPrevRollups = await loader.getWeeklyRollups(
+        prevPeriod.start,
+        prevPeriod.end,
+      );
+      prevRollups = applyFiltersToRollups(rawPrevRollups, currentFilters);
+    } catch (e) {
+      console.debug("Previous period data not available:", e);
+    }
 
-  renderSummaryCards(rollups, prevRollups, rawRollups);
-  renderThroughputChart(rollups, rawRollups, availability);
-  renderCycleTimeTrend(rollups, rawRollups, availability);
-  renderReviewerActivity(rollups, rawRollups, availability);
-  renderCycleDistribution(distributions, rawRollups, availability);
+    // Stale-result discard: if a newer refresh superseded this one, bail (FR-006).
+    if (cycleId > 0 && metricsSection) {
+      if (!endRefresh(cycleId, metricsSection, loadingRegions, metricsStatusEl)) {
+        return; // Superseded — discard results.
+      }
+    }
 
-  // Update comparison banner if in comparison mode
-  if (comparisonMode) {
-    updateComparisonBanner();
+    // Cache filtered rollups for export
+    cachedRollups = rollups;
+
+    // T012: Accuracy indicator — when both team and repo filters active,
+    // check if any visible rollup lacks by_team_and_repo (pre-migration data).
+    updateAccuracyIndicator(rawRollups, currentFilters);
+
+    // T012a: Multi-team overlap indicator — when multiple teams selected
+    // and cross-dim PR sum exceeds repository total.
+    updateOverlapIndicator(rawRollups, currentFilters);
+
+    // Derive data availability signal for empty-state classification
+    const availability = deriveAvailabilitySignal(
+      rawRollups,
+      loader?.getCapabilityState?.() ?? null,
+    );
+
+    renderSummaryCards(rollups, prevRollups, rawRollups);
+    renderThroughputChart(rollups, rawRollups, availability);
+    renderCycleTimeTrend(rollups, rawRollups, availability);
+    renderReviewerActivity(rollups, rawRollups, availability);
+    renderCycleDistribution(distributions, rawRollups, availability);
+
+    // Update comparison banner if in comparison mode
+    if (comparisonMode) {
+      updateComparisonBanner();
+    }
+  } catch (err) {
+    // Ensure loading state clears on failure (FR-012).
+    if (cycleId > 0 && metricsSection) {
+      endRefresh(cycleId, metricsSection, loadingRegions, metricsStatusEl);
+    }
+    throw err;
   }
 }
 

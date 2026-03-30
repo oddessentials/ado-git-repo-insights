@@ -106,6 +106,37 @@ body {
     }
 }
 
+/* In-page refresh loading state (applied to chart regions during data reload) */
+.metrics-loading {
+    opacity: 0.5;
+    transition: opacity 0.3s ease-in-out;
+    pointer-events: none;
+    position: relative;
+}
+
+.metrics-loading-spinner {
+    position: absolute;
+    top: 8px;
+    right: 8px;
+    width: 20px;
+    height: 20px;
+    border: 2px solid var(--border);
+    border-top-color: var(--primary);
+    border-radius: 50%;
+    animation: spin 1s linear infinite;
+    z-index: 1;
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .metrics-loading {
+        transition: none;
+    }
+
+    .metrics-loading-spinner {
+        animation: none;
+    }
+}
+
 .error-state .error-icon {
     font-size: 48px;
     margin-bottom: 16px;
@@ -887,6 +918,7 @@ input[type="search"]::placeholder {
     border-radius: var(--radius-lg);
     padding: 24px;
     box-shadow: var(--shadow-sm);
+    position: relative;
 }
 
 .chart-container h3 {
