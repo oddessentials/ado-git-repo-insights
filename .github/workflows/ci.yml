@@ -222,10 +222,9 @@ jobs:
       - name: Check docs/ Asset Synchronization
         run: |
           echo "Verifying docs/ JS/CSS assets match extension/dist/ui..."
-          DOCS_FILES="dashboard.js dataset-loader.js artifact-client.js error-types.js error-codes.js styles.css"
           DRIFT_FOUND=false
 
-          for file in $DOCS_FILES; do
+          while IFS= read -r file; do
             SRC="extension/dist/ui/$file"
             DEST="docs/$file"
             if [ -f "$SRC" ] && [ -f "$DEST" ]; then
@@ -239,7 +238,7 @@ jobs:
               echo "::error::docs/$file missing (expected from extension/dist/ui/$file)"
               DRIFT_FOUND=true
             fi
-          done
+          done < <(python scripts/publish-demo-surface.py --list-assets)
 
           if [ "$DRIFT_FOUND" = true ]; then
             echo ""

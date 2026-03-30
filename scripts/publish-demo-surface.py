@@ -32,6 +32,11 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         description="Publish the docs demo shell from extension/ui and assets from extension/dist/ui."
     )
     parser.add_argument(
+        "--list-assets",
+        action="store_true",
+        help="Print the canonical static asset filenames (one per line) and exit.",
+    )
+    parser.add_argument(
         "--source",
         type=Path,
         default=DIST_UI_DIR,
@@ -91,6 +96,12 @@ def publish_broken_fixture(source_dir: Path) -> None:
 def main(argv: list[str] | None = None) -> int:
     """Publish the docs demo shell and static assets."""
     args = parse_args(argv)
+
+    if args.list_assets:
+        for filename in STATIC_ASSET_FILES:
+            print(filename)
+        return 0
+
     source_dir = args.source.resolve()
     docs_dir = args.docs_dir.resolve()
 

@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import argparse
 import hashlib
+import importlib.util
 import shutil
 import subprocess
 import sys
@@ -18,24 +19,30 @@ UI_BUNDLE_DIR = REPO_ROOT / "src" / "ado_git_repo_insights" / "ui_bundle"
 DOCS_DIR = REPO_ROOT / "docs"
 BROKEN_DOCS_DIR = EXTENSION_ROOT / "tests" / "fixtures" / "broken-docs"
 
+# Import the canonical asset list from publish-demo-surface.py.
+# index.html is always included (rendered separately by the publisher).
+_scripts_dir = str(REPO_ROOT / "scripts")
+sys.path.insert(0, _scripts_dir)
+try:
+    _spec = importlib.util.spec_from_file_location(
+        "publish_demo_surface", REPO_ROOT / "scripts" / "publish-demo-surface.py"
+    )
+    assert _spec is not None
+    assert _spec.loader is not None
+    _mod = importlib.util.module_from_spec(_spec)
+    _spec.loader.exec_module(_mod)
+    _DEMO_ASSETS: list[str] = _mod.STATIC_ASSET_FILES
+finally:
+    sys.path.remove(_scripts_dir)
+
 DOCS_OUTPUTS = [
     DOCS_DIR / "index.html",
-    DOCS_DIR / "dashboard.js",
-    DOCS_DIR / "dataset-loader.js",
-    DOCS_DIR / "artifact-client.js",
-    DOCS_DIR / "error-types.js",
-    DOCS_DIR / "error-codes.js",
-    DOCS_DIR / "styles.css",
+    *(DOCS_DIR / f for f in _DEMO_ASSETS),
 ]
 
 BROKEN_DOCS_OUTPUTS = [
     BROKEN_DOCS_DIR / "index.html",
-    BROKEN_DOCS_DIR / "dashboard.js",
-    BROKEN_DOCS_DIR / "dataset-loader.js",
-    BROKEN_DOCS_DIR / "artifact-client.js",
-    BROKEN_DOCS_DIR / "error-types.js",
-    BROKEN_DOCS_DIR / "error-codes.js",
-    BROKEN_DOCS_DIR / "styles.css",
+    *(BROKEN_DOCS_DIR / f for f in _DEMO_ASSETS),
 ]
 
 

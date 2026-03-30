@@ -72,19 +72,21 @@ echo ""
 # Step 3: Verify output
 echo "[3/3] Verifying output..."
 
-# Check required files exist
+# Check required files exist.
+# Static assets read from the canonical source in publish-demo-surface.py.
+# index.html and data files are always required (not part of the asset list).
+MISSING=0
+
+STATIC_ASSETS=$("${BASELINE_PYTHON[@]}" "${SCRIPT_DIR}/publish-demo-surface.py" --list-assets)
 REQUIRED_FILES=(
     "index.html"
-    "dashboard.js"
-    "dataset-loader.js"
-    "artifact-client.js"
-    "error-types.js"
-    "styles.css"
     "data/dataset-manifest.json"
     "data/aggregates/dimensions.json"
 )
+while IFS= read -r asset; do
+    REQUIRED_FILES+=("${asset}")
+done <<< "${STATIC_ASSETS}"
 
-MISSING=0
 for file in "${REQUIRED_FILES[@]}"; do
     if [ -f "${DOCS_DIR}/${file}" ]; then
         echo "  ✓ ${file}"

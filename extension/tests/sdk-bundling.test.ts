@@ -160,11 +160,30 @@ describe("SDK Bundling Integrity (post-migration)", () => {
       expect(_fs.existsSync(sdkFile)).toBe(false);
     });
 
-    it("build-demo.sh does not require VSS.SDK.min.js", () => {
+    it("build-demo.sh reads asset list from publish-demo-surface.py, not hardcoded", () => {
       const buildDemoPath = path.join(__dirname, "../../scripts/build-demo.sh");
       if (!_fs.existsSync(buildDemoPath)) return;
       const content = _fs.readFileSync(buildDemoPath, "utf8");
-      expect(content).not.toContain('"VSS.SDK.min.js"');
+
+      // Must call --list-assets instead of hardcoding filenames
+      expect(content).toContain("--list-assets");
+      // Must not contain hardcoded JS bundle filenames
+      expect(content).not.toMatch(/"dashboard\.js"/);
+      expect(content).not.toMatch(/"artifact-client\.js"/);
+    });
+
+    it("CI workflows read asset list from publish-demo-surface.py, not hardcoded", () => {
+      const workflowDir = path.join(__dirname, "../../.github/workflows");
+      for (const wf of ["ci.yml", "release.yml", "demo.yml"]) {
+        const wfPath = path.join(workflowDir, wf);
+        if (!_fs.existsSync(wfPath)) continue;
+        const content = _fs.readFileSync(wfPath, "utf8");
+
+        // Must not contain hardcoded DOCS_FILES assignment
+        expect(content).not.toMatch(/DOCS_FILES="/);
+        // Must not contain hardcoded inline asset loops
+        expect(content).not.toMatch(/for asset in dashboard\.js/);
+      }
     });
   });
 });
