@@ -26,6 +26,7 @@ import {
 import {
   mockSdkModule,
   setupSdkMocks,
+  setMockServiceLocation,
 } from "../harness/vss-sdk-mock";
 
 // Store original window properties for cleanup
@@ -307,6 +308,18 @@ describe("SDK Module", () => {
       expect(mockSdkModule.getService).toHaveBeenCalledWith(
         "ms.vss-features.location-service",
       );
+    });
+
+    it("normalizes URI without trailing slash", async () => {
+      setMockServiceLocation("https://dev.azure.com/test-org");
+      const uri = await getCollectionUri();
+      expect(uri).toBe("https://dev.azure.com/test-org/");
+    });
+
+    it("preserves URI that already has trailing slash", async () => {
+      setMockServiceLocation("https://dev.azure.com/test-org/");
+      const uri = await getCollectionUri();
+      expect(uri).toBe("https://dev.azure.com/test-org/");
     });
   });
 

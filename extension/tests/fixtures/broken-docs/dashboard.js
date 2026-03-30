@@ -3964,7 +3964,8 @@ var PRInsightsDashboard = (() => {
     const locationService = await F(
       LocationServiceId
     );
-    return locationService.getServiceLocation();
+    const raw = await locationService.getServiceLocation();
+    return raw.endsWith("/") ? raw : `${raw}/`;
   }
   async function getAccessToken() {
     return L();

@@ -168,12 +168,15 @@ export function getWebContext(): WebContext | undefined {
  *
  * Uses the ILocationService to resolve the host service URL.
  * This replaces the old VSS.getWebContext().collection.uri pattern.
+ * The returned URI is normalized to always end with a trailing slash
+ * because downstream URL construction concatenates paths directly.
  */
 export async function getCollectionUri(): Promise<string> {
   const locationService = await SDK.getService<ILocationService>(
     LocationServiceId,
   );
-  return locationService.getServiceLocation();
+  const raw = await locationService.getServiceLocation();
+  return raw.endsWith("/") ? raw : `${raw}/`;
 }
 
 /**
