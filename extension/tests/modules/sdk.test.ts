@@ -169,6 +169,34 @@ describe("SDK Module", () => {
       expect(callOrder).toEqual(["ready", "onReady", "notifyLoadSucceeded"]);
     });
 
+    it("getWebContext returns context during onReady (not undefined)", async () => {
+      let contextDuringOnReady: ReturnType<typeof getWebContext> | undefined;
+
+      await initializeAdoSdk({
+        onReady: () => {
+          contextDuringOnReady = getWebContext();
+        },
+      });
+
+      expect(contextDuringOnReady).toBeDefined();
+      expect(contextDuringOnReady?.project?.name).toBe("test-project");
+    });
+
+    it("resizeHost is callable during onReady (not gated out)", async () => {
+      const { resizeHost } = await import("../../ui/modules/sdk");
+      let resizeCalledDuringOnReady = false;
+
+      await initializeAdoSdk({
+        onReady: () => {
+          resizeHost(undefined, 500);
+          resizeCalledDuringOnReady = mockSdkModule.resize.mock.calls.length > 0;
+        },
+      });
+
+      expect(resizeCalledDuringOnReady).toBe(true);
+      expect(mockSdkModule.resize).toHaveBeenCalledWith(undefined, 500);
+    });
+
     it("skips initialization if already initialized (idempotency)", async () => {
       await initializeAdoSdk();
       jest.clearAllMocks();

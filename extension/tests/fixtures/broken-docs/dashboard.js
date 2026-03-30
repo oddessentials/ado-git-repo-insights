@@ -3912,11 +3912,11 @@ var PRInsightsDashboard = (() => {
     const initSequence = async () => {
       await k({ loaded: false });
       await j();
+      sdkInitialized = true;
       if (options?.onReady) {
         options.onReady();
       }
       await R();
-      sdkInitialized = true;
     };
     const timeoutPromise = new Promise((_2, reject) => {
       setTimeout(

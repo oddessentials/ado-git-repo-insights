@@ -79,13 +79,13 @@ export async function initializeAdoSdk(
   const initSequence = async (): Promise<void> => {
     await SDK.init({ loaded: false });
     await SDK.ready();
+    sdkInitialized = true;
 
     if (options?.onReady) {
       options.onReady();
     }
 
     await SDK.notifyLoadSucceeded();
-    sdkInitialized = true;
   };
 
   const timeoutPromise = new Promise<never>((_, reject) => {
