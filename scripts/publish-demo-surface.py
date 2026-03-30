@@ -23,7 +23,6 @@ STATIC_ASSET_FILES = [
     "error-types.js",
     "error-codes.js",
     "styles.css",
-    "VSS.SDK.min.js",
 ]
 
 

@@ -72,6 +72,8 @@ import {
   initializeAdoSdk,
   isLocalMode,
   getLocalDatasetPath,
+  getExtensionDataService,
+  getWebContext,
   // Error handling functions (dispatch handled internally)
   handleError,
   hideAllPanels,
@@ -310,9 +312,7 @@ async function getSourceConfig(): Promise<{
     pipelineId: null,
   };
   try {
-    const dataService = await VSS.getService<IExtensionDataService>(
-      VSS.ServiceIds.ExtensionData,
-    );
+    const dataService = await getExtensionDataService();
 
     // Get source project ID
     const savedProjectId = await dataService.getValue<string>(
@@ -350,9 +350,7 @@ async function getSourceConfig(): Promise<{
  */
 async function clearStalePipelineSetting(): Promise<void> {
   try {
-    const dataService = await VSS.getService<IExtensionDataService>(
-      VSS.ServiceIds.ExtensionData,
-    );
+    const dataService = await getExtensionDataService();
     await dataService.setValue(SETTINGS_KEY_PIPELINE, null, {
       scopeType: "User",
     });
@@ -384,8 +382,8 @@ async function resolveConfiguration(): Promise<{
   }
 
   // Get current project context
-  const webContext = VSS.getWebContext();
-  const currentProjectId = webContext.project?.id;
+  const webCtx = getWebContext();
+  const currentProjectId = webCtx?.project?.id;
   if (!currentProjectId) {
     throw new Error("No project context available");
   }
@@ -561,10 +559,10 @@ async function init(): Promise<void> {
     await initializeAdoSdk({
       onReady: () => {
         // Update project name in UI after SDK initialization
-        const webContext = VSS.getWebContext();
+        const webCtx = getWebContext();
         const projectNameEl = document.getElementById("current-project-name");
-        if (projectNameEl && webContext?.project?.name) {
-          projectNameEl.textContent = webContext.project.name;
+        if (projectNameEl && webCtx?.project?.name) {
+          projectNameEl.textContent = webCtx.project.name;
         }
       },
     });

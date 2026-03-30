@@ -91,7 +91,6 @@ async function build() {
         'index.html',
         'settings.html',
         'styles.css',
-        'VSS.SDK.min.js',
     ]);
 
     // Best-effort prune unexpected leftovers. Do not delete expected outputs first:
@@ -150,7 +149,7 @@ async function build() {
     }
 
     // Copy static assets (HTML, CSS, SDK) to dist/ui
-    const staticFiles = ['index.html', 'settings.html', 'styles.css', 'VSS.SDK.min.js'];
+    const staticFiles = ['index.html', 'settings.html', 'styles.css'];
 
     console.log('\n📄 Copying static files...');
     for (const file of staticFiles) {

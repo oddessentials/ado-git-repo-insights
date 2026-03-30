@@ -2,85 +2,68 @@
  * Artifact Client Auth Pattern Tests
  *
  * These tests ensure the correct authentication pattern is used.
- * VSS.getAccessToken() is the documented method - NOT VSS.getService(AuthTokenService).
+ * The ArtifactClient must use getAccessToken() from sdk.ts (which delegates
+ * to azure-devops-extension-sdk) -- NOT getAppToken() or any legacy
+ * VSS.getService(AuthTokenService) pattern.
  *
- * This test prevents regression of the issue where VSS.ServiceIds.AuthTokenService
- * was used but doesn't exist in the bundled SDK, causing:
- * "Contribution with id '' could not be found"
+ * This test prevents regression of the issue where an incorrect auth
+ * method was used, causing "Contribution with id '' could not be found".
  */
 
 import { ArtifactClient } from "../ui/artifact-client";
-
-type MockVSS = {
-  getWebContext: jest.Mock;
-  getAccessToken: jest.Mock<Promise<string | { token: string }>>;
-  getService: jest.Mock;
-  ServiceIds: {
-    ExtensionData: string;
-    Dialog: string;
-    Navigation: string;
-    AuthTokenService?: string;
-  };
-};
+import {
+  setupSdkMocks,
+  teardownSdkMocks,
+  setMockAccessToken,
+  setMockServiceLocation,
+  mockSdkModule,
+} from "./harness/vss-sdk-mock";
 
 describe("ArtifactClient Authentication Pattern", () => {
-  const globalScope = global as unknown as {
-    VSS?: unknown;
-    fetch?: unknown;
-  };
-  let mockVSS: MockVSS;
+  let originalFetch: typeof global.fetch;
 
   beforeEach(() => {
-    // Create a mock VSS SDK that tracks method calls
-    mockVSS = {
-      getWebContext: jest.fn(() => ({
-        collection: { uri: "https://dev.azure.com/test-org/" },
-        project: { id: "test-project-id", name: "test-project" },
-      })),
-      getAccessToken: jest.fn(() =>
-        Promise.resolve({ token: "mock-token-12345" }),
-      ),
-      getService: jest.fn(() => {
-        throw new Error("VSS.getService should NOT be called for auth tokens");
-      }),
-      ServiceIds: {
-        // Intentionally NOT including AuthTokenService to match real SDK
-        ExtensionData: "ms.vss-web.data-service",
-        Dialog: "ms.vss-web.dialog-service",
-        Navigation: "ms.vss-web.navigation-service",
-      },
-    };
-
-    globalScope.VSS = mockVSS as unknown;
+    setupSdkMocks();
+    // Save the original mock fetch (set up in tests/setup.ts) and replace with our own
+    originalFetch = global.fetch;
+    (global as unknown as { fetch: jest.Mock }).fetch = jest.fn(() =>
+      Promise.resolve({
+        ok: true,
+        status: 200,
+        json: () => Promise.resolve({ value: [] }),
+      } as Response),
+    );
   });
 
   afterEach(() => {
-    delete globalScope.VSS;
+    teardownSdkMocks();
+    // Restore the original mock fetch (don't delete — setup.ts expects it)
+    (global as unknown as { fetch: typeof fetch }).fetch = originalFetch;
     jest.clearAllMocks();
   });
 
   describe("initialize()", () => {
-    it("should use VSS.getAccessToken() for authentication", async () => {
+    it("should use getAccessToken() from the SDK for authentication", async () => {
       const client = new ArtifactClient("test-project-id");
 
       await client.initialize();
 
-      // Verify getAccessToken was called
-      expect(mockVSS.getAccessToken).toHaveBeenCalledTimes(1);
+      // Verify getAccessToken was called (via the mock SDK module)
+      expect(mockSdkModule.getAccessToken).toHaveBeenCalled();
     });
 
-    it("should NOT use VSS.getService() for authentication", async () => {
+    it("should NOT use getAppToken() for authentication", async () => {
       const client = new ArtifactClient("test-project-id");
 
       await client.initialize();
 
-      // Verify getService was NOT called
-      expect(mockVSS.getService).not.toHaveBeenCalled();
+      // Verify getAppToken was NOT called
+      expect(mockSdkModule.getAppToken).not.toHaveBeenCalled();
     });
 
-    it("should extract token from getAccessToken result correctly", async () => {
+    it("should extract token as a plain string (not { token })", async () => {
       const expectedToken = "test-bearer-token-abc123";
-      mockVSS.getAccessToken.mockResolvedValue({ token: expectedToken });
+      setMockAccessToken(expectedToken);
 
       const client = new ArtifactClient("test-project-id");
       await client.initialize();
@@ -91,49 +74,21 @@ describe("ArtifactClient Authentication Pattern", () => {
       );
     });
 
-    it("should handle getAccessToken returning token in correct format", async () => {
-      // The VSS SDK returns { token: string } format
-      mockVSS.getAccessToken.mockResolvedValue({ token: "format-test-token" });
+    it("should use the LocationService for collection URI", async () => {
+      setMockServiceLocation("https://dev.azure.com/custom-org/");
 
       const client = new ArtifactClient("test-project-id");
       await client.initialize();
 
-      expect((client as unknown as { authToken?: string }).authToken).toBe(
-        "format-test-token",
-      );
-    });
-  });
-
-  describe("SDK ServiceIds verification", () => {
-    it("should verify AuthTokenService is NOT in bundled SDK ServiceIds", () => {
-      // This documents the known limitation of the bundled SDK
-      // If this test fails, it means the SDK was updated and we should review
-      expect(mockVSS.ServiceIds.AuthTokenService).toBeUndefined();
-    });
-
-    it("should verify VSS.getAccessToken exists as the correct auth method", () => {
-      expect(typeof mockVSS.getAccessToken).toBe("function");
+      // Verify the SDK's getService was called (for LocationService)
+      expect(mockSdkModule.getService).toHaveBeenCalled();
     });
   });
 
   describe("authenticated fetch behavior", () => {
-    beforeEach(() => {
-      globalScope.fetch = (jest.fn(() =>
-        Promise.resolve({
-          ok: true,
-          status: 200,
-          json: () => Promise.resolve({ value: [] }),
-        } as Response),
-      ) as unknown as typeof fetch);
-    });
-
-    afterEach(() => {
-      delete globalScope.fetch;
-    });
-
     it("should use Bearer token in Authorization header", async () => {
       const testToken = "bearer-test-token";
-      mockVSS.getAccessToken.mockResolvedValue({ token: testToken });
+      setMockAccessToken(testToken);
 
       const client = new ArtifactClient("test-project-id");
       await client.initialize();

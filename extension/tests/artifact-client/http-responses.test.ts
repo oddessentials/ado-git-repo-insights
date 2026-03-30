@@ -11,24 +11,22 @@
  */
 
 import { ArtifactClient } from "../../ui/artifact-client";
+import {
+  setupSdkMocks,
+  teardownSdkMocks,
+} from "../harness/vss-sdk-mock";
 
 describe("ArtifactClient HTTP Response Handling", () => {
   let mockFetch: jest.Mock;
   let client: ArtifactClient;
 
   beforeEach(async () => {
+    // Setup SDK mocks (replaces old global.VSS pattern)
+    setupSdkMocks();
+
     // Setup mock fetch
     mockFetch = jest.fn();
     (global as unknown as { fetch: jest.Mock }).fetch = mockFetch;
-
-    // Setup mock VSS SDK
-    (global as unknown as { VSS: unknown }).VSS = {
-      getWebContext: () => ({
-        collection: { uri: "https://dev.azure.com/testorg/" },
-        project: { id: "test-project-id" },
-      }),
-      getAccessToken: () => Promise.resolve({ token: "mock-token-12345" }),
-    };
 
     // Initialize client
     client = new ArtifactClient("test-project");
@@ -37,7 +35,7 @@ describe("ArtifactClient HTTP Response Handling", () => {
 
   afterEach(() => {
     jest.restoreAllMocks();
-    delete (global as unknown as { VSS?: unknown }).VSS;
+    teardownSdkMocks();
   });
 
   // =========================================================================
@@ -73,7 +71,7 @@ describe("ArtifactClient HTTP Response Handling", () => {
 
       expect(mockFetch).toHaveBeenCalled();
       const headers = mockFetch.mock.calls[0][1].headers;
-      expect(headers.Authorization).toBe("Bearer mock-token-12345");
+      expect(headers.Authorization).toBe("Bearer mock-access-token-12345");
     });
 
     it("includes Accept: application/json header", async () => {

@@ -4,10 +4,11 @@
  * Comprehensive tests for the shared SDK initialization module including:
  * - Local mode detection (isLocalMode, getLocalDatasetPath)
  * - SDK state management (isSdkInitialized, resetSdkState)
- * - SDK initialization timeout, callback behavior, and idempotency
- * - Build client retrieval (removed — now via ArtifactClient)
+ * - SDK initialization (init → ready → notifyLoadSucceeded sequence, FR-014)
  * - Extension data service access (getExtensionDataService)
  * - Web context access (getWebContext)
+ * - Collection URI access (getCollectionUri)
+ * - Access token retrieval (getAccessToken)
  */
 
 import {
@@ -18,7 +19,14 @@ import {
   initializeAdoSdk,
   getWebContext,
   getExtensionDataService,
+  getCollectionUri,
+  getAccessToken,
 } from "../../ui/modules/sdk";
+
+import {
+  mockSdkModule,
+  setupSdkMocks,
+} from "../harness/vss-sdk-mock";
 
 // Store original window properties for cleanup
 const originalLocalDashboardMode = (
@@ -28,15 +36,13 @@ const originalDatasetPath = (window as { DATASET_PATH?: string }).DATASET_PATH;
 
 describe("SDK Module", () => {
   beforeEach(() => {
-    // Reset SDK state before each test
+    setupSdkMocks();
     resetSdkState();
-    // Reset window properties
     delete (window as { LOCAL_DASHBOARD_MODE?: boolean }).LOCAL_DASHBOARD_MODE;
     delete (window as { DATASET_PATH?: string }).DATASET_PATH;
   });
 
   afterAll(() => {
-    // Restore original window properties
     if (originalLocalDashboardMode !== undefined) {
       (window as { LOCAL_DASHBOARD_MODE?: boolean }).LOCAL_DASHBOARD_MODE =
         originalLocalDashboardMode;
@@ -64,7 +70,6 @@ describe("SDK Module", () => {
     });
 
     it("returns false for truthy non-boolean values", () => {
-      // Test that only explicit true triggers local mode
       (
         window as unknown as { LOCAL_DASHBOARD_MODE: number }
       ).LOCAL_DASHBOARD_MODE = 1;
@@ -101,7 +106,7 @@ describe("SDK Module", () => {
 
     it("persists state across multiple calls", () => {
       expect(isSdkInitialized()).toBe(false);
-      expect(isSdkInitialized()).toBe(false); // Multiple calls should be consistent
+      expect(isSdkInitialized()).toBe(false);
     });
   });
 
@@ -126,53 +131,19 @@ describe("SDK Module", () => {
   });
 
   describe("initializeAdoSdk", () => {
-    // Mock VSS global for initialization tests
-    const mockWebContext = {
-      project: { name: "TestProject", id: "test-id" },
-      user: { name: "TestUser", id: "user-id" },
-      host: { name: "org.visualstudio.com" },
-    };
-
-    const mockVSS = {
-      init: jest.fn(),
-      ready: jest.fn((callback: () => void) => {
-        // Simulate async ready callback
-        setTimeout(callback, 10);
-      }),
-      notifyLoadSucceeded: jest.fn(),
-      getWebContext: jest.fn(() => mockWebContext),
-    };
-
-    beforeEach(() => {
-      // Setup VSS mock
-      (global as unknown as { VSS: typeof mockVSS }).VSS = mockVSS;
-      jest.clearAllMocks();
-      resetSdkState();
-    });
-
-    afterEach(() => {
-      // Clean up VSS mock
-      delete (global as unknown as { VSS?: typeof mockVSS }).VSS;
-    });
-
-    it("calls VSS.init with correct options", async () => {
+    it("calls SDK.init with { loaded: false }", async () => {
       await initializeAdoSdk();
-
-      expect(mockVSS.init).toHaveBeenCalledWith({
-        explicitNotifyLoaded: true,
-        usePlatformScripts: true,
-        usePlatformStyles: true,
-      });
+      expect(mockSdkModule.init).toHaveBeenCalledWith({ loaded: false });
     });
 
-    it("sets SDK as initialized after VSS.ready", async () => {
+    it("sets SDK as initialized after ready", async () => {
       await initializeAdoSdk();
       expect(isSdkInitialized()).toBe(true);
     });
 
-    it("calls VSS.notifyLoadSucceeded after ready", async () => {
+    it("calls notifyLoadSucceeded after ready (FR-014)", async () => {
       await initializeAdoSdk();
-      expect(mockVSS.notifyLoadSucceeded).toHaveBeenCalled();
+      expect(mockSdkModule.notifyLoadSucceeded).toHaveBeenCalled();
     });
 
     it("executes onReady callback when provided", async () => {
@@ -181,45 +152,36 @@ describe("SDK Module", () => {
       expect(onReady).toHaveBeenCalled();
     });
 
-    it("onReady callback is called before notifyLoadSucceeded", async () => {
+    it("onReady callback fires between ready and notifyLoadSucceeded (FR-014)", async () => {
       const callOrder: string[] = [];
-      mockVSS.notifyLoadSucceeded.mockImplementation(() => {
+      mockSdkModule.ready.mockImplementation(() => {
+        callOrder.push("ready");
+        return Promise.resolve();
+      });
+      mockSdkModule.notifyLoadSucceeded.mockImplementation(() => {
         callOrder.push("notifyLoadSucceeded");
+        return Promise.resolve();
       });
       const onReady = jest.fn(() => callOrder.push("onReady"));
 
       await initializeAdoSdk({ onReady });
 
-      expect(callOrder).toEqual(["onReady", "notifyLoadSucceeded"]);
+      expect(callOrder).toEqual(["ready", "onReady", "notifyLoadSucceeded"]);
     });
 
-    it("skips initialization if already initialized", async () => {
+    it("skips initialization if already initialized (idempotency)", async () => {
       await initializeAdoSdk();
       jest.clearAllMocks();
 
       await initializeAdoSdk();
-      expect(mockVSS.init).not.toHaveBeenCalled();
-    });
-
-    it("uses default timeout of 10000ms", async () => {
-      // Verify default timeout by checking it doesn't reject quickly
-      const fastVSS = {
-        ...mockVSS,
-        ready: jest.fn((callback: () => void) => {
-          setTimeout(callback, 5);
-        }),
-      };
-      (global as unknown as { VSS: typeof fastVSS }).VSS = fastVSS;
-
-      await expect(initializeAdoSdk()).resolves.toBeUndefined();
+      expect(mockSdkModule.init).not.toHaveBeenCalled();
     });
 
     it("rejects on timeout", async () => {
-      const slowVSS = {
-        ...mockVSS,
-        ready: jest.fn(), // Never calls the callback
-      };
-      (global as unknown as { VSS: typeof slowVSS }).VSS = slowVSS;
+      // Make ready() never resolve
+      mockSdkModule.ready.mockImplementation(
+        () => new Promise<void>(() => {}),
+      );
       resetSdkState();
 
       await expect(initializeAdoSdk({ timeout: 50 })).rejects.toThrow(
@@ -231,63 +193,72 @@ describe("SDK Module", () => {
       await initializeAdoSdk();
 
       const context = getWebContext();
-      expect(context).toEqual(mockWebContext);
-      expect(mockVSS.getWebContext).toHaveBeenCalled();
+      expect(context).toBeDefined();
+      expect(context?.project?.name).toBe("test-project");
+      expect(context?.project?.id).toBe("proj-456");
     });
   });
 
   describe("getExtensionDataService", () => {
-    it("resolves via VSS.getService with ExtensionData service ID", async () => {
-      const mockDataService = {
-        getValue: jest.fn(),
-        setValue: jest.fn(),
-      };
+    it("returns object with getValue and setValue methods", async () => {
+      const manager = await getExtensionDataService();
+      expect(typeof manager.getValue).toBe("function");
+      expect(typeof manager.setValue).toBe("function");
+    });
 
-      // Setup VSS mock
-      const mockVSS = {
-        getService: jest.fn(() => Promise.resolve(mockDataService)),
-        ServiceIds: {
-          ExtensionData: "extension-data-service-id",
-        },
-      };
-      (global as unknown as { VSS: typeof mockVSS }).VSS = mockVSS;
-
-      const service = await getExtensionDataService();
-
-      expect(service).toBe(mockDataService);
-      expect(mockVSS.getService).toHaveBeenCalledWith(
-        "extension-data-service-id",
+    it("calls getService with ExtensionDataService ID", async () => {
+      await getExtensionDataService();
+      expect(mockSdkModule.getService).toHaveBeenCalledWith(
+        "ms.vss-features.extension-data-service",
       );
+    });
 
-      // Cleanup
-      delete (global as unknown as { VSS?: typeof mockVSS }).VSS;
+    it("calls getAccessToken for data manager creation", async () => {
+      await getExtensionDataService();
+      expect(mockSdkModule.getAccessToken).toHaveBeenCalled();
+    });
+
+    it("calls getExtensionContext for data manager creation", async () => {
+      await getExtensionDataService();
+      expect(mockSdkModule.getExtensionContext).toHaveBeenCalled();
+    });
+  });
+
+  describe("getCollectionUri", () => {
+    it("returns the mock service location", async () => {
+      const uri = await getCollectionUri();
+      expect(uri).toBe("https://dev.azure.com/test-org/");
+    });
+
+    it("calls getService with LocationService ID", async () => {
+      await getCollectionUri();
+      expect(mockSdkModule.getService).toHaveBeenCalledWith(
+        "ms.vss-features.location-service",
+      );
+    });
+  });
+
+  describe("getAccessToken", () => {
+    it("returns a string token (not { token })", async () => {
+      const token = await getAccessToken();
+      expect(typeof token).toBe("string");
+      expect(token).toBe("mock-access-token-12345");
     });
   });
 
   describe("module-level state isolation", () => {
     it("state is shared across multiple imports", () => {
-      // This test verifies the module singleton pattern
       expect(isSdkInitialized()).toBe(false);
       resetSdkState();
       expect(isSdkInitialized()).toBe(false);
     });
 
     it("resetSdkState affects subsequent isSdkInitialized calls", async () => {
-      const mockVSS = {
-        init: jest.fn(),
-        ready: jest.fn((callback: () => void) => setTimeout(callback, 5)),
-        notifyLoadSucceeded: jest.fn(),
-        getWebContext: jest.fn(),
-      };
-      (global as unknown as { VSS: typeof mockVSS }).VSS = mockVSS;
-
       await initializeAdoSdk();
       expect(isSdkInitialized()).toBe(true);
 
       resetSdkState();
       expect(isSdkInitialized()).toBe(false);
-
-      delete (global as unknown as { VSS?: typeof mockVSS }).VSS;
     });
   });
 });

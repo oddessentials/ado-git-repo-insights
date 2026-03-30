@@ -5,6 +5,6 @@
     "declaration": false,
     "sourceMap": false
   },
-  "include": ["tests/**/*.ts", "ui/**/*.ts", "../types/vss.d.ts"],
+  "include": ["tests/**/*.ts", "ui/**/*.ts"],
   "exclude": ["node_modules", "dist"]
 }

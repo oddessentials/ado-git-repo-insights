@@ -1,16 +1,32 @@
 /**
- * VSS SDK Mock Allowlist
+ * Azure DevOps Extension SDK Mock Harness
  *
- * Enumerated list of exact VSS SDK functions used in the codebase.
- * Only these functions are mocked - additions require explicit approval.
+ * Provides mock implementations for azure-devops-extension-sdk and
+ * azure-devops-extension-api. All mock state is managed here.
  *
- * Allowlist (6 functions):
- * - VSS.init()
- * - VSS.ready()
- * - VSS.notifyLoadSucceeded()
- * - VSS.getWebContext()
- * - VSS.getService(ServiceIds.ExtensionData)
- * - VSS.require(["TFS/Build/RestClient"])
+ * Test files opt in to mocking by calling jest.mock() with the exported
+ * mock module shapes:
+ *
+ *   jest.mock("azure-devops-extension-sdk",
+ *     () => require("../harness/vss-sdk-mock").mockSdkModule);
+ *   jest.mock("azure-devops-extension-api",
+ *     () => require("../harness/vss-sdk-mock").mockApiModule);
+ *
+ * Then import configuration helpers:
+ *   import { setupSdkMocks, setMockWebContext, ... } from "../harness/vss-sdk-mock";
+ *
+ * Allowlist (SDK functions mocked):
+ * - SDK.init()
+ * - SDK.ready()
+ * - SDK.notifyLoadSucceeded()
+ * - SDK.getWebContext()
+ * - SDK.getUser()
+ * - SDK.getHost()
+ * - SDK.getExtensionContext()
+ * - SDK.getAccessToken()
+ * - SDK.getAppToken()
+ * - SDK.getService(CommonServiceIds.ExtensionDataService)
+ * - getClient(CoreRestClient) from azure-devops-extension-api
  *
  * @module tests/harness/vss-sdk-mock
  */
@@ -21,72 +37,87 @@ import { jest } from "@jest/globals";
 // Mock Types
 // ============================================================================
 
-/**
- * Mock VSS web context.
- */
 export interface MockWebContext {
-  account: { name: string; id: string };
   project: { name: string; id: string };
-  user: { name: string; id: string; email?: string };
-  host?: { name: string; id: string };
-  team?: { name: string; id: string };
+  team: { name: string; id: string };
 }
 
-/**
- * Mock extension data service.
- */
-export interface MockExtensionDataService {
+export interface MockUserContext {
+  id: string;
+  name: string;
+  displayName: string;
+  descriptor: string;
+  imageUrl: string;
+}
+
+export interface MockHostContext {
+  id: string;
+  name: string;
+  serviceVersion: string;
+  type: number;
+  isHosted: boolean;
+}
+
+export interface MockExtensionContext {
+  id: string;
+  publisherId: string;
+  extensionId: string;
+  version: string;
+}
+
+export interface MockExtensionDataManager {
   getValue: jest.Mock<(key: string, options?: unknown) => Promise<unknown>>;
   setValue: jest.Mock<(key: string, value: unknown) => Promise<unknown>>;
-  getDocument: jest.Mock<(collection: string, id: string) => Promise<unknown>>;
+  getDocument: jest.Mock<
+    (collection: string, id: string, options?: unknown) => Promise<unknown>
+  >;
   setDocument: jest.Mock<
-    (collection: string, doc: { id: string }) => Promise<{ id: string }>
+    (
+      collection: string,
+      doc: { id: string },
+      options?: unknown,
+    ) => Promise<{ id: string }>
   >;
   createDocument: jest.Mock<
-    (collection: string, doc: { id: string }) => Promise<{ id: string }>
+    (
+      collection: string,
+      doc: { id: string },
+      options?: unknown,
+    ) => Promise<{ id: string }>
   >;
   deleteDocument: jest.Mock<
-    (collection: string, id: string) => Promise<void>
+    (collection: string, id: string, options?: unknown) => Promise<void>
   >;
-  getDocuments: jest.Mock<() => Promise<unknown[]>>;
-  queryCollections: jest.Mock<() => Promise<unknown[]>>;
+  getDocuments: jest.Mock<
+    (collection: string, options?: unknown) => Promise<unknown[]>
+  >;
+  queryCollectionsByName: jest.Mock<
+    (collectionNames: string[]) => Promise<unknown[]>
+  >;
+  queryCollections: jest.Mock<(collections: unknown[]) => Promise<unknown[]>>;
+  updateDocument: jest.Mock<
+    (
+      collection: string,
+      doc: { id: string },
+      options?: unknown,
+    ) => Promise<unknown>
+  >;
 }
 
-/**
- * Mock build REST client.
- */
-export interface MockBuildRestClient {
-  getBuilds: jest.Mock;
-  getBuild: jest.Mock;
-  getArtifact: jest.Mock;
-  getArtifacts: jest.Mock;
+export interface MockExtensionDataService {
+  getExtensionDataManager: jest.Mock<
+    (extensionId: string, accessToken: string) => Promise<MockExtensionDataManager>
+  >;
 }
 
-/**
- * VSS SDK mock structure with typed return values.
- * Using function type wrappers for Jest 30 compatibility.
- */
-export interface VssSdkMocks {
-  init: jest.Mock<(options?: Record<string, unknown>) => void>;
-  ready: jest.Mock<(callback: () => void) => void>;
-  notifyLoadSucceeded: jest.Mock<() => void>;
-  getWebContext: jest.Mock<() => MockWebContext>;
-  getService: jest.Mock<
-    (serviceId: string) => Promise<MockExtensionDataService>
-  >;
-  require: jest.Mock<
-    (deps: string[], callback: (...args: unknown[]) => void) => void
-  >;
-  ServiceIds: { ExtensionData: string };
+export interface MockCoreRestClient {
+  getProjects: jest.Mock;
 }
 
 // ============================================================================
-// Default Mock Values
+// Deep Freeze Utility
 // ============================================================================
 
-/**
- * Deep freeze an object to make it immutable.
- */
 function deepFreeze<T extends object>(obj: T): T {
   Object.freeze(obj);
   for (const value of Object.values(obj)) {
@@ -101,35 +132,65 @@ function deepFreeze<T extends object>(obj: T): T {
   return obj;
 }
 
-/**
- * Default mock web context (immutable).
- */
+// ============================================================================
+// Default Mock Values (immutable)
+// ============================================================================
+
 export const defaultMockWebContext: MockWebContext = deepFreeze({
-  account: { name: "test-org", id: "org-123" },
   project: { name: "test-project", id: "proj-456" },
-  user: { name: "Test User", id: "user-789", email: "test@example.com" },
-  host: { name: "dev.azure.com", id: "host-001" },
   team: { name: "Test Team", id: "team-001" },
 });
 
-/**
- * Current mock web context (can be modified via setMockWebContext).
- */
-let currentMockWebContext: MockWebContext = { ...defaultMockWebContext };
+export const defaultMockUserContext: MockUserContext = deepFreeze({
+  id: "user-789",
+  name: "Test User",
+  displayName: "Test User",
+  descriptor: "aad.dGVzdC11c2Vy",
+  imageUrl: "https://dev.azure.com/_api/_common/identityImage?id=user-789",
+});
 
-/**
- * Mock settings storage (key-value pairs).
- */
+export const defaultMockHostContext: MockHostContext = deepFreeze({
+  id: "host-001",
+  name: "test-org",
+  serviceVersion: "dev",
+  type: 4, // Organization
+  isHosted: true,
+});
+
+export const defaultMockExtensionContext: MockExtensionContext = deepFreeze({
+  id: "publisher.extension",
+  publisherId: "publisher",
+  extensionId: "extension",
+  version: "1.0.0",
+});
+
+const DEFAULT_MOCK_ACCESS_TOKEN = "mock-access-token-12345";
+const DEFAULT_MOCK_SERVICE_LOCATION = "https://dev.azure.com/test-org/";
+
+// ============================================================================
+// Mutable Mock State
+// ============================================================================
+
+let currentMockWebContext: MockWebContext = { ...defaultMockWebContext };
+let currentMockUserContext: MockUserContext = { ...defaultMockUserContext };
+let currentMockHostContext: MockHostContext = { ...defaultMockHostContext };
+let currentMockExtensionContext: MockExtensionContext = {
+  ...defaultMockExtensionContext,
+};
+let currentMockAccessToken: string = DEFAULT_MOCK_ACCESS_TOKEN;
+let currentMockServiceLocation: string = DEFAULT_MOCK_SERVICE_LOCATION;
+
 const mockSettingsStorage = new Map<string, unknown>();
 
 // ============================================================================
-// Mock Implementations
+// Singleton Mock Instances
 // ============================================================================
 
-/**
- * Create mock extension data service.
- */
-export function createMockExtensionDataService(): MockExtensionDataService {
+let mockDataManager: MockExtensionDataManager | null = null;
+let mockDataService: MockExtensionDataService | null = null;
+let mockCoreClient: MockCoreRestClient | null = null;
+
+export function createMockExtensionDataManager(): MockExtensionDataManager {
   return {
     getValue: jest.fn((key: string, _options?: unknown) =>
       Promise.resolve(mockSettingsStorage.get(key) ?? null),
@@ -138,407 +199,471 @@ export function createMockExtensionDataService(): MockExtensionDataService {
       mockSettingsStorage.set(key, value);
       return Promise.resolve(value);
     }),
-    getDocument: jest.fn((collection: string, id: string) =>
-      Promise.resolve(mockSettingsStorage.get(`${collection}:${id}`) ?? null),
+    getDocument: jest.fn(
+      (collection: string, id: string, _options?: unknown) =>
+        Promise.resolve(
+          mockSettingsStorage.get(`${collection}:${id}`) ?? null,
+        ),
     ),
-    setDocument: jest.fn((collection: string, doc: { id: string }) => {
-      mockSettingsStorage.set(`${collection}:${doc.id}`, doc);
-      return Promise.resolve(doc);
-    }),
-    createDocument: jest.fn((collection: string, doc: { id: string }) => {
-      mockSettingsStorage.set(`${collection}:${doc.id}`, doc);
-      return Promise.resolve(doc);
-    }),
-    deleteDocument: jest.fn((collection: string, id: string) => {
-      mockSettingsStorage.delete(`${collection}:${id}`);
-      return Promise.resolve();
-    }),
-    getDocuments: jest.fn(() => Promise.resolve([])),
-    queryCollections: jest.fn(() => Promise.resolve([])),
-  };
-}
-
-/**
- * Create mock build REST client.
- */
-export function createMockBuildRestClient(): MockBuildRestClient {
-  return {
-    getBuilds: jest.fn(() => Promise.resolve([])),
-    getBuild: jest.fn(() => Promise.resolve(null)),
-    getArtifact: jest.fn(() => Promise.resolve(null)),
-    getArtifacts: jest.fn(() => Promise.resolve([])),
-  };
-}
-
-// Singleton instances
-let mockExtensionDataService: MockExtensionDataService | null = null;
-let mockBuildRestClient: MockBuildRestClient | null = null;
-
-/**
- * Get or create mock extension data service.
- */
-export function getMockExtensionDataService(): MockExtensionDataService {
-  if (!mockExtensionDataService) {
-    mockExtensionDataService = createMockExtensionDataService();
-  }
-  return mockExtensionDataService;
-}
-
-/**
- * Get or create mock build REST client.
- */
-export function getMockBuildRestClient(): MockBuildRestClient {
-  if (!mockBuildRestClient) {
-    mockBuildRestClient = createMockBuildRestClient();
-  }
-  return mockBuildRestClient;
-}
-
-// ============================================================================
-// Setup Functions
-// ============================================================================
-
-/**
- * Setup VSS SDK mocks with default values.
- * Attaches mocks to global.VSS.
- *
- * @returns The mock object for assertions
- */
-export function setupVssMocks(): VssSdkMocks {
-  const mocks: VssSdkMocks = {
-    init: jest.fn(),
-    ready: jest.fn((callback: () => void) => {
-      // Execute callback immediately (synchronous for testing)
-      callback();
-    }),
-    notifyLoadSucceeded: jest.fn(),
-    getWebContext: jest.fn(() => currentMockWebContext),
-    getService: jest.fn(() => Promise.resolve(getMockExtensionDataService())),
-    require: jest.fn(
-      (deps: string[], callback: (...args: unknown[]) => void) => {
-        // Simulate TFS/Build/RestClient require
-        if (deps.includes("TFS/Build/RestClient")) {
-          callback({ getClient: () => getMockBuildRestClient() });
-        } else {
-          callback();
-        }
+    setDocument: jest.fn(
+      (collection: string, doc: { id: string }, _options?: unknown) => {
+        mockSettingsStorage.set(`${collection}:${doc.id}`, doc);
+        return Promise.resolve(doc);
       },
     ),
-    ServiceIds: { ExtensionData: "ms.vss-features.extension-data-service" },
+    createDocument: jest.fn(
+      (collection: string, doc: { id: string }, _options?: unknown) => {
+        mockSettingsStorage.set(`${collection}:${doc.id}`, doc);
+        return Promise.resolve(doc);
+      },
+    ),
+    deleteDocument: jest.fn(
+      (collection: string, id: string, _options?: unknown) => {
+        mockSettingsStorage.delete(`${collection}:${id}`);
+        return Promise.resolve();
+      },
+    ),
+    getDocuments: jest.fn(
+      (_collection: string, _options?: unknown) => Promise.resolve([]),
+    ),
+    queryCollectionsByName: jest.fn((_collectionNames: string[]) =>
+      Promise.resolve([]),
+    ),
+    queryCollections: jest.fn((_collections: unknown[]) =>
+      Promise.resolve([]),
+    ),
+    updateDocument: jest.fn(
+      (collection: string, doc: { id: string }, _options?: unknown) => {
+        mockSettingsStorage.set(`${collection}:${doc.id}`, doc);
+        return Promise.resolve(doc);
+      },
+    ),
   };
+}
 
-  // Attach to global
-  (global as unknown as { VSS: VssSdkMocks }).VSS = mocks;
+export function getMockExtensionDataManager(): MockExtensionDataManager {
+  if (!mockDataManager) {
+    mockDataManager = createMockExtensionDataManager();
+  }
+  return mockDataManager;
+}
 
-  return mocks;
+function createMockExtensionDataService(): MockExtensionDataService {
+  return {
+    getExtensionDataManager: jest.fn(
+      (_extensionId: string, _accessToken: string) =>
+        Promise.resolve(getMockExtensionDataManager()),
+    ),
+  };
+}
+
+function getMockExtensionDataService(): MockExtensionDataService {
+  if (!mockDataService) {
+    mockDataService = createMockExtensionDataService();
+  }
+  return mockDataService;
+}
+
+export function createMockCoreRestClient(): MockCoreRestClient {
+  return {
+    getProjects: jest.fn(() =>
+      Promise.resolve([
+        { name: "test-project", id: "proj-456" },
+        { name: "other-project", id: "proj-789" },
+      ]),
+    ),
+  };
+}
+
+export function getMockCoreRestClient(): MockCoreRestClient {
+  if (!mockCoreClient) {
+    mockCoreClient = createMockCoreRestClient();
+  }
+  return mockCoreClient;
+}
+
+// ============================================================================
+// Mock Location Service
+// ============================================================================
+
+export interface MockLocationService {
+  getServiceLocation: jest.Mock<
+    (serviceInstanceType?: string, hostType?: unknown) => Promise<string>
+  >;
+  getResourceAreaLocation: jest.Mock<
+    (resourceAreaId: string) => Promise<string>
+  >;
+  routeUrl: jest.Mock<
+    (
+      routeId: string,
+      routeValues?: Record<string, string>,
+      hostPath?: string,
+    ) => Promise<string>
+  >;
+}
+
+let mockLocationService: MockLocationService | null = null;
+
+function createMockLocationService(): MockLocationService {
+  return {
+    getServiceLocation: jest.fn(
+      (_serviceInstanceType?: string, _hostType?: unknown) =>
+        Promise.resolve(currentMockServiceLocation),
+    ),
+    getResourceAreaLocation: jest.fn((_resourceAreaId: string) =>
+      Promise.resolve(currentMockServiceLocation),
+    ),
+    routeUrl: jest.fn(
+      (
+        _routeId: string,
+        _routeValues?: Record<string, string>,
+        _hostPath?: string,
+      ) => Promise.resolve("/"),
+    ),
+  };
+}
+
+function getMockLocationService(): MockLocationService {
+  if (!mockLocationService) {
+    mockLocationService = createMockLocationService();
+  }
+  return mockLocationService;
+}
+
+// ============================================================================
+// Mock Module: azure-devops-extension-sdk
+// ============================================================================
+
+/**
+ * Use this as the factory for jest.mock("azure-devops-extension-sdk"):
+ *
+ *   jest.mock("azure-devops-extension-sdk",
+ *     () => require("../harness/vss-sdk-mock").mockSdkModule);
+ */
+export const mockSdkModule = {
+  init: jest.fn((_options?: unknown) => Promise.resolve()),
+  ready: jest.fn(() => Promise.resolve()),
+  notifyLoadSucceeded: jest.fn(() => Promise.resolve()),
+  notifyLoadFailed: jest.fn((_e: unknown) => Promise.resolve()),
+  getWebContext: jest.fn(() => currentMockWebContext),
+  getUser: jest.fn(() => currentMockUserContext),
+  getHost: jest.fn(() => currentMockHostContext),
+  getExtensionContext: jest.fn(() => currentMockExtensionContext),
+  getAccessToken: jest.fn(() => Promise.resolve(currentMockAccessToken)),
+  getAppToken: jest.fn(() => Promise.resolve("mock-app-token")),
+  getTeamContext: jest.fn(() => currentMockWebContext.team),
+  getService: jest.fn((contributionId: string): Promise<unknown> => {
+    if (
+      contributionId === "ms.vss-features.extension-data-service"
+    ) {
+      return Promise.resolve(getMockExtensionDataService());
+    }
+    if (contributionId === "ms.vss-features.location-service") {
+      return Promise.resolve(getMockLocationService());
+    }
+    return Promise.reject(
+      new Error(`Unknown service: ${contributionId}`),
+    );
+  }),
+  getConfiguration: jest.fn(() => ({})),
+  getContributionId: jest.fn(() => "publisher.extension.contribution"),
+  register: jest.fn(),
+  unregister: jest.fn(),
+  resize: jest.fn(),
+  applyTheme: jest.fn(),
+  getPageContext: jest.fn(() => ({
+    globalization: {},
+    timeZonesConfiguration: {},
+    webContext: currentMockWebContext,
+  })),
+  sdkVersion: 4.2,
+};
+
+// ============================================================================
+// Mock Module: azure-devops-extension-api
+// ============================================================================
+
+/**
+ * Use this as the factory for jest.mock("azure-devops-extension-api"):
+ *
+ *   jest.mock("azure-devops-extension-api",
+ *     () => require("../harness/vss-sdk-mock").mockApiModule);
+ */
+export const mockApiModule = {
+  CommonServiceIds: {
+    ExtensionDataService: "ms.vss-features.extension-data-service",
+    LocationService: "ms.vss-features.location-service",
+    GlobalMessagesService: "ms.vss-tfs-web.tfs-global-messages-service",
+    HostNavigationService: "ms.vss-features.host-navigation-service",
+    HostPageLayoutService: "ms.vss-features.host-page-layout-service",
+    ProjectPageService: "ms.vss-tfs-web.tfs-page-data-service",
+  },
+  getClient: jest.fn((_clientClass: unknown) => getMockCoreRestClient()),
+};
+
+// ============================================================================
+// Setup / Reset / Teardown
+// ============================================================================
+
+/**
+ * Setup SDK mocks with default values.
+ * Call in beforeEach() to ensure clean state.
+ */
+export function setupSdkMocks(): void {
+  resetSdkMocks();
 }
 
 /**
- * Reset VSS SDK mocks to default state.
+ * Reset all mock state to defaults.
  */
-export function resetVssMocks(): void {
+export function resetSdkMocks(): void {
   currentMockWebContext = { ...defaultMockWebContext };
+  currentMockUserContext = { ...defaultMockUserContext };
+  currentMockHostContext = { ...defaultMockHostContext };
+  currentMockExtensionContext = { ...defaultMockExtensionContext };
+  currentMockAccessToken = DEFAULT_MOCK_ACCESS_TOKEN;
+  currentMockServiceLocation = DEFAULT_MOCK_SERVICE_LOCATION;
   mockSettingsStorage.clear();
-  mockExtensionDataService = null;
-  mockBuildRestClient = null;
+
+  // Reset singleton instances
+  mockDataManager = null;
+  mockDataService = null;
+  mockCoreClient = null;
+  mockLocationService = null;
 
   // Clear mock call histories
-  const vss = (global as unknown as { VSS?: VssSdkMocks }).VSS;
-  if (vss) {
-    vss.init.mockClear();
-    vss.ready.mockClear();
-    vss.notifyLoadSucceeded.mockClear();
-    vss.getWebContext.mockClear();
-    vss.getService.mockClear();
-    vss.require.mockClear();
+  for (const fn of Object.values(mockSdkModule)) {
+    if (typeof fn === "function" && "mockClear" in fn) {
+      (fn as jest.Mock).mockClear();
+    }
   }
+  for (const fn of Object.values(mockApiModule)) {
+    if (typeof fn === "function" && "mockClear" in fn) {
+      (fn as jest.Mock).mockClear();
+    }
+  }
+
+  // Re-wire all mock implementations to use fresh state
+  mockSdkModule.init.mockImplementation(
+    (_options?: unknown) => Promise.resolve(),
+  );
+  mockSdkModule.ready.mockImplementation(() => Promise.resolve());
+  mockSdkModule.notifyLoadSucceeded.mockImplementation(
+    () => Promise.resolve(),
+  );
+  mockSdkModule.getWebContext.mockImplementation(() => currentMockWebContext);
+  mockSdkModule.getUser.mockImplementation(() => currentMockUserContext);
+  mockSdkModule.getHost.mockImplementation(() => currentMockHostContext);
+  mockSdkModule.getExtensionContext.mockImplementation(
+    () => currentMockExtensionContext,
+  );
+  mockSdkModule.getAccessToken.mockImplementation(() =>
+    Promise.resolve(currentMockAccessToken),
+  );
+  mockSdkModule.getService.mockImplementation(
+    (contributionId: string): Promise<unknown> => {
+      if (contributionId === "ms.vss-features.extension-data-service") {
+        return Promise.resolve(getMockExtensionDataService());
+      }
+      if (contributionId === "ms.vss-features.location-service") {
+        return Promise.resolve(getMockLocationService());
+      }
+      return Promise.reject(new Error(`Unknown service: ${contributionId}`));
+    },
+  );
+  mockApiModule.getClient.mockImplementation(
+    (_clientClass: unknown) => getMockCoreRestClient(),
+  );
 }
 
 /**
- * Teardown VSS SDK mocks completely.
+ * Teardown SDK mocks completely.
  */
-export function teardownVssMocks(): void {
-  resetVssMocks();
-  delete (global as unknown as { VSS?: VssSdkMocks }).VSS;
+export function teardownSdkMocks(): void {
+  resetSdkMocks();
 }
 
 // ============================================================================
 // Configuration Helpers
 // ============================================================================
 
-/**
- * Configure mock web context for a specific test.
- *
- * @param context - Partial context to merge with defaults
- */
-export function setMockWebContext(context: Partial<MockWebContext>): void {
+export function setMockWebContext(
+  context: Partial<{
+    project: Partial<{ name: string; id: string }>;
+    team: Partial<{ name: string; id: string }>;
+  }>,
+): void {
   currentMockWebContext = {
-    ...defaultMockWebContext,
-    ...context,
-    account: { ...defaultMockWebContext.account, ...context.account },
-    project: { ...defaultMockWebContext.project, ...context.project },
-    user: { ...defaultMockWebContext.user, ...context.user },
+    project: {
+      ...defaultMockWebContext.project,
+      ...context.project,
+    },
+    team: {
+      ...defaultMockWebContext.team,
+      ...context.team,
+    },
   };
 }
 
-/**
- * Get the current mock web context.
- */
 export function getMockWebContext(): MockWebContext {
   return { ...currentMockWebContext };
 }
 
-/**
- * Configure mock extension data service responses.
- *
- * @param key - Setting key
- * @param value - Value to return when getValue is called
- */
+export function setMockUserContext(
+  context: Partial<MockUserContext>,
+): void {
+  currentMockUserContext = { ...defaultMockUserContext, ...context };
+}
+
+export function setMockHostContext(
+  context: Partial<MockHostContext>,
+): void {
+  currentMockHostContext = { ...defaultMockHostContext, ...context };
+}
+
+export function setMockAccessToken(token: string): void {
+  currentMockAccessToken = token;
+}
+
+export function setMockServiceLocation(location: string): void {
+  currentMockServiceLocation = location;
+}
+
 export function setMockSettingValue(key: string, value: unknown): void {
   mockSettingsStorage.set(key, value);
 }
 
-/**
- * Get a mock setting value (for assertions).
- *
- * @param key - Setting key
- * @returns The stored value or undefined
- */
 export function getMockSettingValue(key: string): unknown {
   return mockSettingsStorage.get(key);
 }
 
-/**
- * Clear all mock settings.
- */
 export function clearMockSettings(): void {
   mockSettingsStorage.clear();
-}
-
-/**
- * Check if VSS SDK mocks are set up.
- */
-export function isVssMocksSetup(): boolean {
-  return !!(global as unknown as { VSS?: VssSdkMocks }).VSS;
 }
 
 // ============================================================================
 // Advanced Configuration Helpers
 // ============================================================================
 
-/**
- * Configure mock build client response for getBuilds.
- *
- * @param builds - Array of build objects to return
- */
-export function setMockBuilds(builds: unknown[]): void {
-  const client = getMockBuildRestClient();
-  client.getBuilds.mockImplementation(() => Promise.resolve(builds));
-}
-
-/**
- * Configure mock build client response for getBuild.
- *
- * @param build - Build object to return
- */
-export function setMockBuild(build: unknown): void {
-  const client = getMockBuildRestClient();
-  client.getBuild.mockImplementation(() => Promise.resolve(build));
-}
-
-/**
- * Configure mock build client response for getArtifacts.
- *
- * @param artifacts - Array of artifact objects to return
- */
-export function setMockArtifacts(artifacts: unknown[]): void {
-  const client = getMockBuildRestClient();
-  client.getArtifacts.mockImplementation(() => Promise.resolve(artifacts));
-}
-
-/**
- * Configure mock extension data service to fail with specific error.
- *
- * @param key - Setting key that should fail
- * @param error - Error to throw
- */
 export function setMockSettingError(key: string, error: Error): void {
-  const service = getMockExtensionDataService();
-  const originalImpl = service.getValue.getMockImplementation();
+  const manager = getMockExtensionDataManager();
+  const originalImpl = manager.getValue.getMockImplementation();
 
-  service.getValue.mockImplementation(((requestedKey: string, _options?: unknown) => {
-    if (requestedKey === key) {
-      return Promise.reject(error);
-    }
-    if (originalImpl) {
-      return (originalImpl as (k: string, o?: unknown) => Promise<unknown>)(requestedKey);
-    }
-    return Promise.resolve(mockSettingsStorage.get(requestedKey) ?? null);
-  }) as (key: string, options?: unknown) => Promise<unknown>);
+  manager.getValue.mockImplementation(
+    ((requestedKey: string, _options?: unknown) => {
+      if (requestedKey === key) {
+        return Promise.reject(error);
+      }
+      if (originalImpl) {
+        return (originalImpl as (k: string, o?: unknown) => Promise<unknown>)(
+          requestedKey,
+        );
+      }
+      return Promise.resolve(mockSettingsStorage.get(requestedKey) ?? null);
+    }) as (key: string, options?: unknown) => Promise<unknown>,
+  );
 }
 
-/**
- * Configure mock VSS.getService to fail for specific service.
- *
- * @param serviceId - Service ID that should fail
- * @param error - Error to throw
- */
-export function setMockServiceError(serviceId: string, error: Error): void {
-  const vss = (global as unknown as { VSS?: VssSdkMocks }).VSS;
-  if (!vss) {
-    throw new Error("VSS mocks not set up. Call setupVssMocks() first.");
-  }
+export function setMockServiceError(
+  serviceId: string,
+  error: Error,
+): void {
+  const originalImpl = mockSdkModule.getService.getMockImplementation();
 
-  const originalImpl = vss.getService.getMockImplementation();
-
-  vss.getService.mockImplementation((requestedId: string) => {
-    if (requestedId === serviceId) {
-      return Promise.reject(error);
-    }
-    if (originalImpl) {
-      return originalImpl(requestedId);
-    }
-    return Promise.resolve(getMockExtensionDataService());
-  });
+  mockSdkModule.getService.mockImplementation(
+    (requestedId: string): Promise<unknown> => {
+      if (requestedId === serviceId) {
+        return Promise.reject(error);
+      }
+      if (originalImpl) {
+        return originalImpl(requestedId);
+      }
+      return Promise.resolve(getMockExtensionDataService());
+    },
+  );
 }
 
-/**
- * Get the current VSS mocks object.
- * Throws if mocks are not set up.
- */
-export function getVssMocks(): VssSdkMocks {
-  const vss = (global as unknown as { VSS?: VssSdkMocks }).VSS;
-  if (!vss) {
-    throw new Error("VSS mocks not set up. Call setupVssMocks() first.");
-  }
-  return vss;
-}
-
-/**
- * Configure mock VSS.ready to execute async (with delay).
- *
- * @param delayMs - Delay in milliseconds before executing callback
- */
 export function setMockReadyAsync(delayMs: number): void {
-  const vss = getVssMocks();
-  vss.ready.mockImplementation((callback: () => void) => {
-    setTimeout(callback, delayMs);
-  });
+  mockSdkModule.ready.mockImplementation(
+    () =>
+      new Promise<void>((resolve) => {
+        setTimeout(resolve, delayMs);
+      }),
+  );
 }
 
-/**
- * Configure mock VSS.init to track options.
- *
- * @returns Function that returns the last init options passed
- */
 export function trackMockInitOptions(): () => unknown {
   let lastOptions: unknown = undefined;
-  const vss = getVssMocks();
 
-  vss.init.mockImplementation((options: unknown) => {
+  mockSdkModule.init.mockImplementation((options: unknown) => {
     lastOptions = options;
+    return Promise.resolve();
   });
 
   return () => lastOptions;
 }
 
 // ============================================================================
-// Settings Mock Configuration Helpers
+// Build Client Helpers (preserved from old mock)
 // ============================================================================
 
-/**
- * Configuration for mocking extension data service settings.
- *
- * Key mapping for dashboard settings:
- * - 'pr-insights-source-project' -> projectId
- * - 'pr-insights-pipeline-id' -> pipelineId
- * - 'pr-insights-artifact-name' -> artifactName
- */
+export function setMockBuilds(builds: unknown[]): void {
+  // For tests that mock the build API via getClient
+  const client = getMockCoreRestClient();
+  (client as unknown as Record<string, jest.Mock>).getBuilds =
+    jest.fn(() => Promise.resolve(builds));
+}
+
+export function setMockBuild(build: unknown): void {
+  const client = getMockCoreRestClient();
+  (client as unknown as Record<string, jest.Mock>).getBuild =
+    jest.fn(() => Promise.resolve(build));
+}
+
+export function setMockArtifacts(artifacts: unknown[]): void {
+  const client = getMockCoreRestClient();
+  (client as unknown as Record<string, jest.Mock>).getArtifacts =
+    jest.fn(() => Promise.resolve(artifacts));
+}
+
+// ============================================================================
+// Settings Scenario Presets
+// ============================================================================
+
 export interface SettingsScenario {
-  /** Setting key-value pairs to return from getValue */
   values?: Record<string, unknown>;
-
-  /** Keys that should return undefined (missing settings) */
   missingKeys?: string[];
-
-  /** Keys that should reject with an error */
   errorKeys?: Record<string, Error>;
 }
 
-/**
- * Configure mock extension data service with a specific settings scenario.
- *
- * This helper provides a convenient way to mock the ExtensionDataService
- * for testing `getSourceConfig()` and `resolveConfiguration()`.
- *
- * Usage:
- * ```typescript
- * // Valid settings
- * configureExtensionDataService({
- *   values: {
- *     'pr-insights-source-project': 'my-project',
- *     'pr-insights-pipeline-id': 42
- *   }
- * });
- *
- * // Missing settings (returns undefined for these keys)
- * configureExtensionDataService({
- *   missingKeys: ['pr-insights-source-project', 'pr-insights-pipeline-id']
- * });
- *
- * // Error scenario
- * configureExtensionDataService({
- *   errorKeys: {
- *     'pr-insights-source-project': new Error('Service unavailable')
- *   }
- * });
- * ```
- *
- * @param scenario - The settings scenario to configure
- */
 export function configureExtensionDataService(
   scenario: SettingsScenario,
 ): void {
   const { values = {}, missingKeys = [], errorKeys = {} } = scenario;
 
-  // Clear existing settings
   clearMockSettings();
 
-  // Set up the values
   for (const [key, value] of Object.entries(values)) {
     setMockSettingValue(key, value);
   }
 
-  // Get the service and configure custom behavior
-  const service = getMockExtensionDataService();
-
-  // Override getValue to handle all scenarios
+  const manager = getMockExtensionDataManager();
   const errorKeyMap = new Map(Object.entries(errorKeys));
-  service.getValue.mockImplementation(((settingKey: string, _options?: unknown) => {
-    // Check for error scenario first
-    if (errorKeyMap.has(settingKey)) {
-      return Promise.reject(errorKeyMap.get(settingKey));
-    }
 
-    // Check for explicitly missing keys
-    if (missingKeys.includes(settingKey)) {
-      return Promise.resolve(undefined);
-    }
-
-    // Return the configured value or undefined if not set
-    const value = mockSettingsStorage.get(settingKey);
-    return Promise.resolve(value ?? null);
-  }) as (key: string, options?: unknown) => Promise<unknown>);
+  manager.getValue.mockImplementation(
+    ((settingKey: string, _options?: unknown) => {
+      if (errorKeyMap.has(settingKey)) {
+        return Promise.reject(errorKeyMap.get(settingKey));
+      }
+      if (missingKeys.includes(settingKey)) {
+        return Promise.resolve(undefined);
+      }
+      const value = mockSettingsStorage.get(settingKey);
+      return Promise.resolve(value ?? null);
+    }) as (key: string, options?: unknown) => Promise<unknown>,
+  );
 }
 
-/**
- * Preset: Mock extension data service with valid dashboard settings.
- *
- * Sets up commonly used valid settings for dashboard tests:
- * - projectId: 'test-project'
- * - pipelineId: 123
- * - artifactName: 'pr-insights-data'
- */
 export function mockValidDashboardSettings(): void {
   configureExtensionDataService({
     values: {
@@ -549,11 +674,6 @@ export function mockValidDashboardSettings(): void {
   });
 }
 
-/**
- * Preset: Mock extension data service with missing settings (null returns).
- *
- * Simulates the scenario where no settings have been configured.
- */
 export function mockMissingDashboardSettings(): void {
   configureExtensionDataService({
     missingKeys: [
@@ -564,13 +684,6 @@ export function mockMissingDashboardSettings(): void {
   });
 }
 
-/**
- * Preset: Mock extension data service with invalid settings.
- *
- * Sets up invalid values that should trigger validation failures:
- * - projectId: '' (empty string)
- * - pipelineId: -1 (invalid)
- */
 export function mockInvalidDashboardSettings(): void {
   configureExtensionDataService({
     values: {
@@ -580,13 +693,6 @@ export function mockInvalidDashboardSettings(): void {
   });
 }
 
-/**
- * Preset: Mock extension data service to throw errors.
- *
- * Simulates service unavailability or permission errors.
- *
- * @param errorMessage - Custom error message (default: 'ExtensionData service unavailable')
- */
 export function mockDashboardSettingsError(
   errorMessage = "ExtensionData service unavailable",
 ): void {

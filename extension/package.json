@@ -31,8 +31,7 @@
     "test:ci": "pnpm run build:check && pnpm run lint:tests && pnpm run build:check-tests && pnpm run test:config-parity && pnpm run test:types && jest --ci --coverage --reporters=default --reporters=jest-junit --testPathIgnorePatterns=vsix-artifact-inspection && pnpm run test:smoke",
     "test:vsix": "jest --ci --testPathPatterns vsix-artifact-inspection",
     "perf:update-baseline": "npx ts-node scripts/update-perf-baseline.ts",
-    "copy-sdk": "node scripts/copy-vss-sdk.mjs",
-    "postinstall": "node scripts/copy-vss-sdk.mjs && pnpm exec playwright install chromium",
+    "postinstall": "pnpm exec playwright install chromium",
     "stage:tasks": "node scripts/stage-task-deps.mjs",
     "clean:tasks": "node scripts/clean-task-deps.mjs",
     "package:vsix": "pnpm run build && pnpm run stage:tasks && pnpm exec tfx-cli extension create --manifest-globs vss-extension.json",
@@ -71,6 +70,7 @@
     "outputName": "test-results.xml"
   },
   "dependencies": {
-    "vss-web-extension-sdk": "^5.141.0"
+    "azure-devops-extension-sdk": "^4.0.2",
+    "azure-devops-extension-api": "^4.0.0"
   }
 }

@@ -57,9 +57,9 @@ The `IExtensionDataManager` interface provides the same methods our code uses: `
 
 ## R-03: AMD Module Loading Replacement
 
-**Decision**: Replace `VSS.require(["TFS/Core/RestClient"])` with a direct ESM import of `CoreRestClient` from `azure-devops-extension-api`.
+**Decision**: Replace `VSS.require(["TFS/Core/RestClient"])` with a direct authenticated REST call to `_apis/projects`.
 
-**Rationale**: The old SDK used AMD (RequireJS) module loading for ADO REST clients. The new SDK uses standard ESM imports:
+**Rationale**: The old SDK used AMD (RequireJS) module loading for ADO REST clients. The initial plan was to replace the AMD call with an ESM import of `CoreRestClient` from `azure-devops-extension-api`:
 
 ```typescript
 // Old pattern (AMD)
@@ -68,7 +68,7 @@ VSS.require(["TFS/Core/RestClient"], (CoreRestClient) => {
   const projects = await client.getProjects();
 });
 
-// New pattern (ESM import + getClient)
+// Initially planned pattern (ESM import + getClient)
 import { CoreRestClient } from "azure-devops-extension-api/Core";
 import { getClient } from "azure-devops-extension-api";
 
@@ -76,11 +76,27 @@ const client = getClient(CoreRestClient);
 const projects = await client.getProjects();
 ```
 
-**Impact**: `settings.ts` line ~179 is the only call site. The `getClient()` function from `azure-devops-extension-api` instantiates REST clients using the host connection established by `SDK.init()`.
+**AMD Incompatibility Finding**: During implementation, `azure-devops-extension-api`'s runtime JavaScript (`CoreClient.js`, `RestClientBase.js`, etc.) was found to ship as AMD modules only. When esbuild bundles these into an IIFE, the `define()` calls fail at runtime because no AMD loader is present in the IIFE context. This makes the package's REST client classes unusable at runtime in this project's bundling architecture. The package's TypeScript type declarations (`.d.ts` files) are unaffected and remain usable via `import type`.
 
-**CoreRestClient.getProjects()** returns `Promise<PagedList<TeamProjectReference>>` with properties: `id`, `name`, `state`, `description`, `url`. This is compatible with the current `VSSProject` type used in settings.ts (which expects `{ name: string, id: string }`).
+**Actual implementation**: `settings.ts` calls the Azure DevOps Projects REST API directly using `fetch()` with a Bearer token obtained from `SDK.getAccessToken()`:
 
-**Alternatives considered**: Using `IProjectPageService` from `CommonServiceIds.ProjectPageService`. Rejected because it provides current-project info only, not a list of all projects.
+```typescript
+const url = `${collectionUri}_apis/projects?api-version=7.1&$top=500`;
+const response = await fetch(url, {
+  headers: { Authorization: `Bearer ${token}`, Accept: "application/json" },
+});
+const data = await response.json();
+// Runtime guard validates only the fields actually consumed (id, name)
+```
+
+This approach is consistent with `ArtifactClient`, which already uses direct REST calls for build and artifact endpoints. The `azure-devops-extension-api` package is retained as a devDependency for its type declarations (e.g., `TeamProjectReference`, `CommonServiceIds`, `IExtensionDataService`) but its runtime JavaScript is never imported.
+
+**Impact**: `settings.ts` `getOrganizationProjects()` is the only call site. The response shape (`{ value: TeamProjectReference[] }`) is validated at runtime with a narrow type guard that checks only `id` and `name`.
+
+**Alternatives considered**:
+1. Using `CoreRestClient` via ESM import + `getClient()`. Rejected because the package ships AMD-only JS incompatible with esbuild + IIFE bundling.
+2. Using `IProjectPageService` from `CommonServiceIds.ProjectPageService`. Rejected because it provides current-project info only, not a list of all projects.
+3. Shimming an AMD `define()` function into the IIFE bundle. Rejected as fragile and complex for a single REST call that is trivial to make directly.
 
 ---
 

@@ -121,7 +121,6 @@ describe("broken-docs Drift Protection", () => {
     const requiredFiles = [
       "index.html",
       "styles.css",
-      "VSS.SDK.min.js",
       "error-types.js",
       "artifact-client.js",
       "dataset-loader.js",

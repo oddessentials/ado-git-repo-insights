@@ -10,10 +10,10 @@
 
 import { jest } from "@jest/globals";
 import {
-  setupVssMocks,
-  teardownVssMocks,
+  setupSdkMocks,
+  teardownSdkMocks,
   configureExtensionDataService,
-  getMockExtensionDataService,
+  getMockExtensionDataManager,
 } from "../harness/vss-sdk-mock";
 
 // Constants matching settings.ts
@@ -196,7 +196,7 @@ async function downloadRawDataContract(
 
 describe("Settings Download: downloadRawData contract", () => {
   beforeEach(() => {
-    setupVssMocks();
+    setupSdkMocks();
     configureExtensionDataService({
       values: {
         [SETTINGS_KEY_PROJECT]: "test-project-id",
@@ -206,7 +206,7 @@ describe("Settings Download: downloadRawData contract", () => {
   });
 
   afterEach(() => {
-    teardownVssMocks();
+    teardownSdkMocks();
   });
 
   function createMockArtifactClient(
@@ -250,7 +250,7 @@ describe("Settings Download: downloadRawData contract", () => {
     }> = {},
   ) {
     return {
-      dataService: getMockExtensionDataService(),
+      dataService: getMockExtensionDataManager(),
       webContext: { project: { id: "proj-456" } },
       artifactClient: createMockArtifactClient(clientOverrides),
     };
@@ -914,7 +914,7 @@ describe("Settings Download: auto-discovery download enablement", () => {
 
     // Feed lastValidation into the download contract
     const deps = {
-      dataService: getMockExtensionDataService(),
+      dataService: getMockExtensionDataManager(),
       webContext: { project: { id: "proj-123" } },
       artifactClient: {
         initialize: jest.fn(() => Promise.resolve()),

@@ -14,45 +14,30 @@ import {
   MockArtifactClient,
 } from "../ui/artifact-client";
 import type { ManifestSchema, VSSBuildArtifact } from "../ui/types";
-type MockVSS = {
-  getWebContext: () => { collection: { uri: string }; project: { id: string } };
-  getAccessToken: () => Promise<string | { token: string }>;
-  leakyKey?: string;
-};
+import {
+  setupSdkMocks,
+  teardownSdkMocks,
+  mockSdkModule,
+} from "./harness/vss-sdk-mock";
 
 describe("ArtifactClient", () => {
   let mockFetch: jest.Mock;
   const globalScope = global as unknown as {
     fetch: jest.Mock;
-    VSS?: unknown;
   };
-  let originalVSS: MockVSS | undefined;
-  let originalVSSWasUndefined: boolean;
 
   beforeEach(() => {
     // Setup mock fetch
     mockFetch = jest.fn();
     globalScope.fetch = mockFetch;
 
-    // Setup mock VSS SDK
-    originalVSS = globalScope.VSS as MockVSS | undefined;
-    originalVSSWasUndefined = typeof originalVSS === "undefined";
-    globalScope.VSS = {
-      getWebContext: () => ({
-        collection: { uri: "https://dev.azure.com/testorg/" },
-        project: { id: "test-project-id" },
-      }),
-      getAccessToken: () => Promise.resolve({ token: "mock-token-12345" }),
-    } as unknown;
+    // Setup SDK mocks (replaces old global.VSS pattern)
+    setupSdkMocks();
   });
 
   afterEach(() => {
     jest.restoreAllMocks();
-    if (originalVSSWasUndefined) {
-      delete globalScope.VSS;
-    } else {
-      globalScope.VSS = originalVSS as unknown;
-    }
+    teardownSdkMocks();
   });
 
   describe("initialization", () => {
@@ -77,13 +62,8 @@ describe("ArtifactClient", () => {
       expect(result).toBe(client); // Returns this for chaining
     });
 
-    it("handles string token format", async () => {
-      const vss = globalScope.VSS as MockVSS | undefined;
-      if (!vss) {
-        throw new Error("VSS mock not initialized");
-      }
-      vss.getAccessToken = () => Promise.resolve("string-token");
-
+    it("uses the SDK access token as a plain string", async () => {
+      // The new SDK returns a plain string token (not { token: string })
       const client = new ArtifactClient("test-project");
       await client.initialize();
 
@@ -98,22 +78,20 @@ describe("ArtifactClient", () => {
 
       expect(mockFetch).toHaveBeenCalled();
       const headers = mockFetch.mock.calls[0][1].headers;
-      expect(headers.Authorization).toBe("Bearer string-token");
+      expect(headers.Authorization).toBe("Bearer mock-access-token-12345");
     });
 
     it("only initializes once (idempotent)", async () => {
       const client = new ArtifactClient("test-project");
-      const vss = globalScope.VSS as MockVSS | undefined;
-      if (!vss) {
-        throw new Error("VSS mock not initialized");
-      }
-      const accessTokenSpy = jest.spyOn(vss, "getAccessToken");
 
       await client.initialize();
       await client.initialize();
       await client.initialize();
 
-      expect(accessTokenSpy).toHaveBeenCalledTimes(1);
+      // getAccessToken is called once per initialization
+      // (the mock SDK module's getAccessToken tracks calls)
+      const { mockSdkModule } = await import("./harness/vss-sdk-mock");
+      expect(mockSdkModule.getAccessToken).toHaveBeenCalledTimes(1);
     });
   });
 
@@ -140,7 +118,7 @@ describe("ArtifactClient", () => {
 
       expect(mockFetch).toHaveBeenCalled();
       const headers = mockFetch.mock.calls[0][1].headers;
-      expect(headers.Authorization).toBe("Bearer mock-token-12345");
+      expect(headers.Authorization).toBe("Bearer mock-access-token-12345");
     });
 
     it("throws PermissionDeniedError on 401", async () => {
@@ -629,7 +607,7 @@ describe("ArtifactClient", () => {
       await client.authenticatedFetch("https://example.com/api");
 
       const headers = mockFetch.mock.calls[0][1].headers;
-      expect(headers.Authorization).toBe("Bearer mock-token-12345");
+      expect(headers.Authorization).toBe("Bearer mock-access-token-12345");
     });
 
     it("throws if not initialized", async () => {
@@ -668,18 +646,17 @@ describe("ArtifactClient", () => {
     });
   });
 
-  describe("VSS isolation", () => {
-    it("does not allow VSS state to leak between tests", () => {
-      const vss = globalScope.VSS as MockVSS | undefined;
-      if (!vss) {
-        throw new Error("VSS mock not initialized");
-      }
-      vss.leakyKey = "leak";
-      expect(vss.leakyKey).toBe("leak");
+  describe("SDK mock isolation", () => {
+    it("does not allow SDK mock state to leak between tests", () => {
+      // Verify that setupSdkMocks() in beforeEach resets state cleanly
+      expect(mockSdkModule.getAccessToken).toBeDefined();
+      // Call count should be 0 since we haven't called initialize() in this test
+      expect(mockSdkModule.getAccessToken.mock.calls.length).toBe(0);
     });
 
-    it("restores VSS to a clean state", () => {
-      expect((globalScope.VSS as MockVSS | undefined)?.leakyKey).toBeUndefined();
+    it("resets mock call counts between tests", () => {
+      // Previous test did not call getAccessToken, this test verifies isolation
+      expect(mockSdkModule.getAccessToken.mock.calls.length).toBe(0);
     });
   });
 });

@@ -12,15 +12,15 @@
  */
 
 import {
-  setupVssMocks,
-  teardownVssMocks,
+  setupSdkMocks,
+  teardownSdkMocks,
   configureExtensionDataService,
   mockValidDashboardSettings,
   mockMissingDashboardSettings,
   mockInvalidDashboardSettings,
   mockDashboardSettingsError,
-  getMockExtensionDataService,
-  type VssSdkMocks,
+  getMockExtensionDataManager,
+  mockSdkModule,
 } from "../harness/vss-sdk-mock";
 
 // Constants matching dashboard.ts
@@ -30,6 +30,11 @@ const SETTINGS_KEY_PIPELINE = "pr-insights-pipeline-id";
 /**
  * Simulates the getSourceConfig() function from dashboard.ts
  * This allows contract testing without exporting the internal function.
+ *
+ * In the new SDK, settings are accessed via the ExtensionDataManager
+ * obtained through SDK.getService(ExtensionDataServiceId) ->
+ * getExtensionDataManager(). The mock harness provides this via
+ * getMockExtensionDataManager().
  */
 async function getSourceConfigContract(): Promise<{
   projectId: string | null;
@@ -41,11 +46,10 @@ async function getSourceConfigContract(): Promise<{
   };
 
   try {
-    const VSS = (global as unknown as { VSS: VssSdkMocks }).VSS;
-    const dataService = await VSS.getService(VSS.ServiceIds.ExtensionData);
+    const dataManager = getMockExtensionDataManager();
 
     // Get source project ID
-    const savedProjectId = await dataService.getValue(SETTINGS_KEY_PROJECT, {
+    const savedProjectId = await dataManager.getValue(SETTINGS_KEY_PROJECT, {
       scopeType: "User",
     });
     if (
@@ -57,7 +61,7 @@ async function getSourceConfigContract(): Promise<{
     }
 
     // Get pipeline definition ID
-    const savedPipelineId = await dataService.getValue(SETTINGS_KEY_PIPELINE, {
+    const savedPipelineId = await dataManager.getValue(SETTINGS_KEY_PIPELINE, {
       scopeType: "User",
     });
     if (
@@ -118,11 +122,11 @@ function createResolveConfiguration(options: ResolveConfigOptions) {
 
 describe("Settings Contract Tests", () => {
   beforeEach(() => {
-    setupVssMocks();
+    setupSdkMocks();
   });
 
   afterEach(() => {
-    teardownVssMocks();
+    teardownSdkMocks();
     jest.restoreAllMocks();
   });
 
@@ -132,21 +136,16 @@ describe("Settings Contract Tests", () => {
   // Ensures the VssSdkMocks type accurately describes what setupVssMocks()
   // attaches to global.VSS. If this fails, the cast is lying.
 
-  describe("VssSdkMocks shape verification", () => {
-    it("has all required VSS SDK functions", () => {
-      const VSS = (global as unknown as { VSS: VssSdkMocks }).VSS;
-
-      // Core SDK functions used by dashboard.ts
-      expect(typeof VSS.init).toBe("function");
-      expect(typeof VSS.ready).toBe("function");
-      expect(typeof VSS.notifyLoadSucceeded).toBe("function");
-      expect(typeof VSS.getWebContext).toBe("function");
-      expect(typeof VSS.getService).toBe("function");
-      expect(typeof VSS.require).toBe("function");
-
-      // ServiceIds object
-      expect(VSS.ServiceIds).toBeDefined();
-      expect(typeof VSS.ServiceIds.ExtensionData).toBe("string");
+  describe("SDK mock shape verification", () => {
+    it("has all required SDK mock functions", () => {
+      // Core SDK functions used by dashboard.ts (via sdk.ts)
+      expect(typeof mockSdkModule.init).toBe("function");
+      expect(typeof mockSdkModule.ready).toBe("function");
+      expect(typeof mockSdkModule.notifyLoadSucceeded).toBe("function");
+      expect(typeof mockSdkModule.getWebContext).toBe("function");
+      expect(typeof mockSdkModule.getService).toBe("function");
+      expect(typeof mockSdkModule.getAccessToken).toBe("function");
+      expect(typeof mockSdkModule.getExtensionContext).toBe("function");
     });
   });
 
@@ -491,17 +490,17 @@ describe("Settings Contract Tests", () => {
   // ExtensionDataService Mock Verification
   // =========================================================================
 
-  describe("VSS Mock Integration", () => {
+  describe("SDK Mock Integration", () => {
     it("getValue is called with correct scope", async () => {
       mockValidDashboardSettings();
-      const service = getMockExtensionDataService();
+      const manager = getMockExtensionDataManager();
 
       await getSourceConfigContract();
 
-      expect(service.getValue).toHaveBeenCalledWith(SETTINGS_KEY_PROJECT, {
+      expect(manager.getValue).toHaveBeenCalledWith(SETTINGS_KEY_PROJECT, {
         scopeType: "User",
       });
-      expect(service.getValue).toHaveBeenCalledWith(SETTINGS_KEY_PIPELINE, {
+      expect(manager.getValue).toHaveBeenCalledWith(SETTINGS_KEY_PIPELINE, {
         scopeType: "User",
       });
     });

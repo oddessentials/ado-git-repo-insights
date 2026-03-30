@@ -19,8 +19,14 @@ import {
   type BuildDefinitionReference,
 } from "./types";
 
-// Import SDK initialization from shared module
-import { initializeAdoSdk } from "./modules";
+// Import SDK functions from shared module
+import {
+  initializeAdoSdk,
+  getExtensionDataService,
+  getWebContext,
+  getCollectionUri,
+  getAccessToken,
+} from "./modules";
 
 // Import safe DOM rendering utilities
 import {
@@ -65,7 +71,7 @@ const ADO_DOMAIN_SUFFIXES = [
 ];
 
 // State
-let dataService: IExtensionDataService | null = null;
+let dataService: Awaited<ReturnType<typeof getExtensionDataService>> | null = null;
 let projectDropdownAvailable = false;
 let projectList: VSSProject[] = [];
 let lastValidation: { valid: boolean; buildId?: number } | null = null;
@@ -88,16 +94,16 @@ async function init(): Promise<void> {
   try {
     await initializeAdoSdk();
 
-    // Get extension data service
-    dataService = await VSS.getService(VSS.ServiceIds.ExtensionData);
+    // Get extension data manager
+    dataService = await getExtensionDataService();
 
     // Set current project as placeholder
-    const webContext = VSS.getWebContext();
+    const webCtx = getWebContext();
     const projectInput = document.getElementById(
       "project-id",
     ) as HTMLInputElement | null;
-    if (projectInput && webContext?.project?.name) {
-      projectInput.placeholder = `Current: ${webContext.project.name}`;
+    if (projectInput && webCtx?.project?.name) {
+      projectInput.placeholder = `Current: ${webCtx.project.name}`;
     }
 
     // Try to load project dropdown
@@ -175,26 +181,27 @@ async function tryLoadProjectDropdown(): Promise<void> {
  * Requires vso.project scope.
  */
 async function getOrganizationProjects(): Promise<VSSProject[]> {
-  return new Promise((resolve, reject) => {
-    VSS.require(["TFS/Core/RestClient"], (...modules: unknown[]) => {
-      const CoreRestClient = modules[0] as {
-        getClient: () => { getProjects: () => Promise<VSSProject[]> };
-      };
-      try {
-        const client = CoreRestClient.getClient();
-        client
-          .getProjects()
-          .then((projects: VSSProject[]) => {
-            resolve(projects || []);
-          })
-          .catch((error: unknown) => {
-            reject(error);
-          });
-      } catch (error) {
-        reject(error);
-      }
-    });
+  const collectionUri = await getCollectionUri();
+  const token = await getAccessToken();
+  const url = `${collectionUri}_apis/projects?api-version=7.1&$top=500`;
+  const response = await fetch(url, {
+    headers: {
+      Authorization: `Bearer ${token}`,
+      Accept: "application/json",
+    },
   });
+  if (!response.ok) {
+    throw new Error(`Failed to list projects: ${response.status}`);
+  }
+  const data = await response.json();
+  const raw: unknown[] = Array.isArray(data.value) ? data.value : [];
+  return raw.filter(
+    (p): p is VSSProject =>
+      p !== null &&
+      typeof p === "object" &&
+      typeof (p as Record<string, unknown>).name === "string" &&
+      typeof (p as Record<string, unknown>).id === "string",
+  );
 }
 
 /**
@@ -357,7 +364,7 @@ async function updateStatus(): Promise<void> {
       SETTINGS_KEY_PIPELINE,
       { scopeType: "User" },
     );
-    const webContext = VSS.getWebContext();
+    const webContext = getWebContext();
     const currentProjectName = webContext?.project?.name || "Unknown";
     const currentProjectId = webContext?.project?.id;
 
@@ -515,7 +522,7 @@ async function downloadRawData(): Promise<void> {
       SETTINGS_KEY_PROJECT,
       { scopeType: "User" },
     );
-    const webContext = VSS.getWebContext();
+    const webContext = getWebContext();
     const projectId = savedProjectId || webContext?.project?.id;
     if (!projectId) {
       showToast("No project ID available", "error");
@@ -665,8 +672,8 @@ async function validatePipeline(
 async function discoverPipelines(
   targetProjectId?: string,
 ): Promise<DiscoveryResult> {
-  const webContext = VSS.getWebContext();
-  const projectId = targetProjectId || webContext.project?.id;
+  const webContext = getWebContext();
+  const projectId = targetProjectId || webContext?.project?.id;
   if (!projectId) {
     return { pipelines: [], skippedCount: 0, error: "No project ID available" };
   }

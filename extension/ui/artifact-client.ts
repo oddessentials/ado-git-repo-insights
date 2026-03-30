@@ -9,6 +9,7 @@
  */
 
 import { type IDatasetLoader, type Rollup } from "./dataset-loader";
+import { getCollectionUri, getAccessToken } from "./modules";
 import { createPermissionDeniedError } from "./error-types";
 import {
   getErrorMessage,
@@ -43,7 +44,7 @@ export class ArtifactClient {
 
   /**
    * Initialize the client with ADO SDK auth.
-   * MUST be called after VSS.ready() and before any other methods.
+   * MUST be called after SDK initialization and before any other methods.
    *
    * @returns This client instance
    */
@@ -52,16 +53,11 @@ export class ArtifactClient {
       return this;
     }
 
-    // Get web context for collection URI
-    const webContext = VSS.getWebContext();
-    this.collectionUri = webContext.collection.uri;
+    // Get collection URI via LocationService
+    this.collectionUri = await getCollectionUri();
 
-    // Get auth token from SDK
-    const tokenResult = await VSS.getAccessToken();
-    this.authToken =
-      typeof tokenResult === "string"
-        ? tokenResult
-        : (tokenResult as { token: string }).token;
+    // Get auth token from SDK (returns string directly in new SDK)
+    this.authToken = await getAccessToken();
 
     this.initialized = true;
     return this;

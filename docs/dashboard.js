@@ -1,5 +1,9 @@
 "use strict";
 var PRInsightsDashboard = (() => {
+  var __defProp = Object.defineProperty;
+  var __defNormalProp = (obj, key, value) => key in obj ? __defProp(obj, key, { enumerable: true, configurable: true, writable: true, value }) : obj[key] = value;
+  var __publicField = (obj, key, value) => __defNormalProp(obj, typeof key !== "symbol" ? key + "" : key, value);
+
   // ../ui/types.ts
   var ML_SCHEMA_VERSION_RANGE = [1, 1];
   function isErrorWithMessage(error) {
@@ -39,7 +43,7 @@ var PRInsightsDashboard = (() => {
   // ../ui/schemas/errors.ts
   var SchemaValidationError = class _SchemaValidationError extends Error {
     constructor(errors, artifactType) {
-      const errorSummary = errors.slice(0, 3).map((e) => `${e.field}: ${e.message}`).join("; ");
+      const errorSummary = errors.slice(0, 3).map((e2) => `${e2.field}: ${e2.message}`).join("; ");
       const moreCount = errors.length > 3 ? ` (+${errors.length - 3} more)` : "";
       super(
         `Schema validation failed for ${artifactType}: ${errorSummary}${moreCount}`
@@ -516,10 +520,10 @@ var PRInsightsDashboard = (() => {
       );
       if (weeklyArrErr) errors.push(weeklyArrErr);
       else if (isArray(data.weekly_rollups)) {
-        data.weekly_rollups.forEach((item, i) => {
+        data.weekly_rollups.forEach((item, i2) => {
           const result = validateWeeklyRollupEntry(
             item,
-            buildPath(path, `weekly_rollups[${i}]`),
+            buildPath(path, `weekly_rollups[${i2}]`),
             strict
           );
           errors.push(...result.errors);
@@ -536,10 +540,10 @@ var PRInsightsDashboard = (() => {
       );
       if (distArrErr) errors.push(distArrErr);
       else if (isArray(data.distributions)) {
-        data.distributions.forEach((item, i) => {
+        data.distributions.forEach((item, i2) => {
           const result = validateDistributionEntry(
             item,
-            buildPath(path, `distributions[${i}]`),
+            buildPath(path, `distributions[${i2}]`),
             strict
           );
           errors.push(...result.errors);
@@ -1973,10 +1977,10 @@ var PRInsightsDashboard = (() => {
       }
     }
     if ("repositories" in data && isArray(data.repositories)) {
-      data.repositories.forEach((item, i) => {
+      data.repositories.forEach((item, i2) => {
         const result = validateRepositoryEntry(
           item,
-          buildPath("repositories", i),
+          buildPath("repositories", i2),
           strict
         );
         errors.push(...result.errors);
@@ -1984,8 +1988,8 @@ var PRInsightsDashboard = (() => {
       });
     }
     if ("users" in data && isArray(data.users)) {
-      data.users.forEach((item, i) => {
-        const result = validateUserEntry(item, buildPath("users", i), strict);
+      data.users.forEach((item, i2) => {
+        const result = validateUserEntry(item, buildPath("users", i2), strict);
         errors.push(...result.errors);
         warnings.push(...result.warnings);
       });
@@ -1995,10 +1999,10 @@ var PRInsightsDashboard = (() => {
       if (arrErr) {
         errors.push(arrErr);
       } else if (isArray(data.reviewers)) {
-        data.reviewers.forEach((item, i) => {
+        data.reviewers.forEach((item, i2) => {
           const result = validateReviewerEntry(
             item,
-            buildPath("reviewers", i),
+            buildPath("reviewers", i2),
             strict
           );
           errors.push(...result.errors);
@@ -2011,10 +2015,10 @@ var PRInsightsDashboard = (() => {
       if (arrErr) {
         errors.push(arrErr);
       } else if (isArray(data.authors)) {
-        data.authors.forEach((item, i) => {
+        data.authors.forEach((item, i2) => {
           const result = validateAuthorEntry(
             item,
-            buildPath("authors", i),
+            buildPath("authors", i2),
             strict
           );
           errors.push(...result.errors);
@@ -2023,10 +2027,10 @@ var PRInsightsDashboard = (() => {
       }
     }
     if ("projects" in data && isArray(data.projects)) {
-      data.projects.forEach((item, i) => {
+      data.projects.forEach((item, i2) => {
         const result = validateProjectEntry(
           item,
-          buildPath("projects", i),
+          buildPath("projects", i2),
           strict
         );
         errors.push(...result.errors);
@@ -2038,8 +2042,8 @@ var PRInsightsDashboard = (() => {
       if (arrErr) {
         errors.push(arrErr);
       } else if (isArray(data.teams)) {
-        data.teams.forEach((item, i) => {
-          const result = validateTeamEntry(item, buildPath("teams", i), strict);
+        data.teams.forEach((item, i2) => {
+          const result = validateTeamEntry(item, buildPath("teams", i2), strict);
           errors.push(...result.errors);
           warnings.push(...result.warnings);
         });
@@ -2164,10 +2168,10 @@ var PRInsightsDashboard = (() => {
       if (valuesArrErr) {
         errors.push(valuesArrErr);
       } else if (isArray(data.values)) {
-        data.values.forEach((item, i) => {
+        data.values.forEach((item, i2) => {
           const result = validateForecastValue(
             item,
-            buildPath(path, `values[${i}]`),
+            buildPath(path, `values[${i2}]`),
             strict
           );
           errors.push(...result.errors);
@@ -2215,10 +2219,10 @@ var PRInsightsDashboard = (() => {
       if (arrErr) {
         errors.push(arrErr);
       } else if (isArray(data.forecasts)) {
-        data.forecasts.forEach((item, i) => {
+        data.forecasts.forEach((item, i2) => {
           const result = validateForecastEntry(
             item,
-            buildPath("forecasts", i),
+            buildPath("forecasts", i2),
             strict
           );
           errors.push(...result.errors);
@@ -2257,7 +2261,7 @@ var PRInsightsDashboard = (() => {
       const contextSuffix = context ? ` for ${context}` : "";
       console.warn(
         `[DatasetLoader] ${artifactType} validation warnings${contextSuffix}:`,
-        result.warnings.map((w) => w.message).join("; ")
+        result.warnings.map((w2) => w2.message).join("; ")
       );
     }
   }
@@ -2297,27 +2301,27 @@ var PRInsightsDashboard = (() => {
     if (!rollup || typeof rollup !== "object") {
       return { week: "unknown", ...ROLLUP_FIELD_DEFAULTS };
     }
-    const r = rollup;
+    const r2 = rollup;
     return {
       // Preserve all existing fields
-      ...r,
+      ...r2,
       // Ensure required fields have defaults (don't override if already set)
-      pr_count: r.pr_count ?? ROLLUP_FIELD_DEFAULTS.pr_count,
-      cycle_time_p50: r.cycle_time_p50 ?? ROLLUP_FIELD_DEFAULTS.cycle_time_p50,
-      cycle_time_p90: r.cycle_time_p90 ?? ROLLUP_FIELD_DEFAULTS.cycle_time_p90,
-      authors_count: r.authors_count ?? ROLLUP_FIELD_DEFAULTS.authors_count,
-      reviewers_count: r.reviewers_count ?? ROLLUP_FIELD_DEFAULTS.reviewers_count,
+      pr_count: r2.pr_count ?? ROLLUP_FIELD_DEFAULTS.pr_count,
+      cycle_time_p50: r2.cycle_time_p50 ?? ROLLUP_FIELD_DEFAULTS.cycle_time_p50,
+      cycle_time_p90: r2.cycle_time_p90 ?? ROLLUP_FIELD_DEFAULTS.cycle_time_p90,
+      authors_count: r2.authors_count ?? ROLLUP_FIELD_DEFAULTS.authors_count,
+      reviewers_count: r2.reviewers_count ?? ROLLUP_FIELD_DEFAULTS.reviewers_count,
       // by_repository and by_team are optional features - preserve null if missing
-      by_repository: r.by_repository !== void 0 ? r.by_repository : null,
-      by_author: r.by_author !== void 0 ? r.by_author : null,
-      ...r.by_author_and_repo !== void 0 ? {
-        by_author_and_repo: r.by_author_and_repo
+      by_repository: r2.by_repository !== void 0 ? r2.by_repository : null,
+      by_author: r2.by_author !== void 0 ? r2.by_author : null,
+      ...r2.by_author_and_repo !== void 0 ? {
+        by_author_and_repo: r2.by_author_and_repo
       } : {},
-      by_team: r.by_team !== void 0 ? r.by_team : null,
-      by_reviewer: r.by_reviewer !== void 0 ? r.by_reviewer : null,
+      by_team: r2.by_team !== void 0 ? r2.by_team : null,
+      by_reviewer: r2.by_reviewer !== void 0 ? r2.by_reviewer : null,
       // Cross-dimensional breakdown (v2 schema) — pass through if present
-      ...r.by_team_and_repo !== void 0 ? {
-        by_team_and_repo: r.by_team_and_repo
+      ...r2.by_team_and_repo !== void 0 ? {
+        by_team_and_repo: r2.by_team_and_repo
       } : {}
     };
   }
@@ -2424,10 +2428,10 @@ var PRInsightsDashboard = (() => {
         if (entries.size >= maxSize && !entries.has(key)) {
           let oldestKey = null;
           let oldestTime = Infinity;
-          for (const [k, v] of entries) {
-            if (v.touchedAt < oldestTime) {
-              oldestTime = v.touchedAt;
-              oldestKey = k;
+          for (const [k2, v2] of entries) {
+            if (v2.touchedAt < oldestTime) {
+              oldestTime = v2.touchedAt;
+              oldestKey = k2;
             }
           }
           if (oldestKey) entries.delete(oldestKey);
@@ -2550,20 +2554,20 @@ var PRInsightsDashboard = (() => {
      */
     validateManifestSchema(manifest) {
       validateSchema(manifest, validateManifest, "manifest", true);
-      const m = manifest;
-      if (m.manifest_schema_version !== void 0 && m.manifest_schema_version > SUPPORTED_MANIFEST_VERSION) {
+      const m2 = manifest;
+      if (m2.manifest_schema_version !== void 0 && m2.manifest_schema_version > SUPPORTED_MANIFEST_VERSION) {
         throw new Error(
-          `Manifest version ${m.manifest_schema_version} not supported. Maximum supported: ${SUPPORTED_MANIFEST_VERSION}. Please update the extension.`
+          `Manifest version ${m2.manifest_schema_version} not supported. Maximum supported: ${SUPPORTED_MANIFEST_VERSION}. Please update the extension.`
         );
       }
-      if (m.dataset_schema_version !== void 0 && m.dataset_schema_version > SUPPORTED_DATASET_VERSION) {
+      if (m2.dataset_schema_version !== void 0 && m2.dataset_schema_version > SUPPORTED_DATASET_VERSION) {
         throw new Error(
-          `Dataset version ${m.dataset_schema_version} not supported. Please update the extension.`
+          `Dataset version ${m2.dataset_schema_version} not supported. Please update the extension.`
         );
       }
-      if (m.aggregates_schema_version !== void 0 && m.aggregates_schema_version > SUPPORTED_AGGREGATES_VERSION) {
+      if (m2.aggregates_schema_version !== void 0 && m2.aggregates_schema_version > SUPPORTED_AGGREGATES_VERSION) {
         throw new Error(
-          `Aggregates version ${m.aggregates_schema_version} not supported. Please update the extension.`
+          `Aggregates version ${m2.aggregates_schema_version} not supported. Please update the extension.`
         );
       }
     }
@@ -2600,7 +2604,7 @@ var PRInsightsDashboard = (() => {
           continue;
         }
         const indexEntry = this.manifest?.aggregate_index?.weekly_rollups?.find(
-          (r) => r.week === weekStr
+          (r2) => r2.week === weekStr
         );
         if (!indexEntry) {
           continue;
@@ -2615,7 +2619,7 @@ var PRInsightsDashboard = (() => {
           results.push(data);
         }
       }
-      return results.sort((a, b) => a.week.localeCompare(b.week));
+      return results.sort((a2, b2) => a2.week.localeCompare(b2.week));
     }
     /**
      * Get weekly rollups with concurrent fetching, progress reporting, and caching (Phase 4).
@@ -2657,8 +2661,8 @@ var PRInsightsDashboard = (() => {
         }
       }
       const batches = [];
-      for (let i = 0; i < weeksToFetch.length; i += fetchSemaphore.maxConcurrent) {
-        batches.push(weeksToFetch.slice(i, i + fetchSemaphore.maxConcurrent));
+      for (let i2 = 0; i2 < weeksToFetch.length; i2 += fetchSemaphore.maxConcurrent) {
+        batches.push(weeksToFetch.slice(i2, i2 + fetchSemaphore.maxConcurrent));
       }
       let loaded = 0;
       const total = weeksToFetch.length;
@@ -2666,7 +2670,7 @@ var PRInsightsDashboard = (() => {
         const batchPromises = batch.map(async (weekStr) => {
           onProgress({ loaded, total, currentWeek: weekStr });
           const indexEntry = this.manifest?.aggregate_index?.weekly_rollups?.find(
-            (r) => r.week === weekStr
+            (r2) => r2.week === weekStr
           );
           if (!indexEntry) {
             return { week: weekStr, status: "missing" };
@@ -2707,7 +2711,7 @@ var PRInsightsDashboard = (() => {
       }
       onProgress({ loaded: total, total, currentWeek: null });
       return {
-        data: allData.sort((a, b) => a.week.localeCompare(b.week)),
+        data: allData.sort((a2, b2) => a2.week.localeCompare(b2.week)),
         missingWeeks,
         failedWeeks,
         partial,
@@ -2788,7 +2792,7 @@ var PRInsightsDashboard = (() => {
           continue;
         }
         const indexEntry = this.manifest?.aggregate_index?.distributions?.find(
-          (d) => d.year === yearStr
+          (d2) => d2.year === yearStr
         );
         if (!indexEntry) continue;
         const url = this.resolvePath(indexEntry.path);
@@ -2857,7 +2861,7 @@ var PRInsightsDashboard = (() => {
         if (!schemaResult.valid) {
           console.error(
             "[DatasetLoader] Invalid predictions schema:",
-            schemaResult.errors.map((e) => e.message).join("; ")
+            schemaResult.errors.map((e2) => e2.message).join("; ")
           );
           return {
             state: "invalid",
@@ -2868,7 +2872,7 @@ var PRInsightsDashboard = (() => {
         if (schemaResult.warnings.length > 0) {
           console.warn(
             "[DatasetLoader] Predictions validation warnings:",
-            schemaResult.warnings.map((w) => w.message).join("; ")
+            schemaResult.warnings.map((w2) => w2.message).join("; ")
           );
         }
         return { state: "ok", data: predictions };
@@ -2929,20 +2933,20 @@ var PRInsightsDashboard = (() => {
     validatePredictionsSchema(predictions) {
       if (!predictions || typeof predictions !== "object")
         return { valid: false, error: "Missing predictions data" };
-      const p = predictions;
-      if (typeof p.schema_version !== "number") {
+      const p2 = predictions;
+      if (typeof p2.schema_version !== "number") {
         return { valid: false, error: "Missing schema_version" };
       }
-      if (p.schema_version > 1) {
+      if (p2.schema_version > 1) {
         return {
           valid: false,
-          error: `Unsupported schema version: ${p.schema_version}`
+          error: `Unsupported schema version: ${p2.schema_version}`
         };
       }
-      if (!Array.isArray(p.forecasts)) {
+      if (!Array.isArray(p2.forecasts)) {
         return { valid: false, error: "Missing forecasts array" };
       }
-      for (const forecast of p.forecasts) {
+      for (const forecast of p2.forecasts) {
         if (!forecast.metric || !forecast.unit || !Array.isArray(forecast.values)) {
           return { valid: false, error: "Invalid forecast structure" };
         }
@@ -2955,20 +2959,20 @@ var PRInsightsDashboard = (() => {
     validateInsightsSchema(insights) {
       if (!insights || typeof insights !== "object")
         return { valid: false, error: "Missing insights data" };
-      const i = insights;
-      if (typeof i.schema_version !== "number") {
+      const i2 = insights;
+      if (typeof i2.schema_version !== "number") {
         return { valid: false, error: "Missing schema_version" };
       }
-      if (i.schema_version > 1) {
+      if (i2.schema_version > 1) {
         return {
           valid: false,
-          error: `Unsupported schema version: ${i.schema_version}`
+          error: `Unsupported schema version: ${i2.schema_version}`
         };
       }
-      if (!Array.isArray(i.insights)) {
+      if (!Array.isArray(i2.insights)) {
         return { valid: false, error: "Missing insights array" };
       }
-      for (const insight of i.insights) {
+      for (const insight of i2.insights) {
         if (!insight.id || !insight.category || !insight.severity || !insight.title) {
           return { valid: false, error: "Invalid insight structure" };
         }
@@ -3009,16 +3013,16 @@ var PRInsightsDashboard = (() => {
      * Get ISO week string for a date.
      */
     getISOWeek(date) {
-      const d = new Date(
+      const d2 = new Date(
         Date.UTC(date.getFullYear(), date.getMonth(), date.getDate())
       );
-      const dayNum = d.getUTCDay() || 7;
-      d.setUTCDate(d.getUTCDate() + 4 - dayNum);
-      const yearStart = new Date(Date.UTC(d.getUTCFullYear(), 0, 1));
+      const dayNum = d2.getUTCDay() || 7;
+      d2.setUTCDate(d2.getUTCDate() + 4 - dayNum);
+      const yearStart = new Date(Date.UTC(d2.getUTCFullYear(), 0, 1));
       const weekNo = Math.ceil(
-        ((d.getTime() - yearStart.getTime()) / 864e5 + 1) / 7
+        ((d2.getTime() - yearStart.getTime()) / 864e5 + 1) / 7
       );
-      return `${d.getUTCFullYear()}-W${weekNo.toString().padStart(2, "0")}`;
+      return `${d2.getUTCFullYear()}-W${weekNo.toString().padStart(2, "0")}`;
     }
   };
   if (typeof window !== "undefined") {
@@ -3028,568 +3032,6 @@ var PRInsightsDashboard = (() => {
     window.normalizeRollup = normalizeRollup2;
     window.normalizeRollups = normalizeRollups;
     window.ROLLUP_FIELD_DEFAULTS = ROLLUP_FIELD_DEFAULTS;
-  }
-
-  // ../ui/error-types.ts
-  var ErrorTypes = {
-    SETUP_REQUIRED: "setup_required",
-    MULTIPLE_PIPELINES: "multiple_pipelines",
-    NO_SUCCESSFUL_BUILDS: "no_successful_builds",
-    ARTIFACTS_MISSING: "artifacts_missing",
-    PERMISSION_DENIED: "permission_denied",
-    INVALID_CONFIG: "invalid_config"
-  };
-  var PrInsightsError = class extends Error {
-    constructor(type, title, message, details = null) {
-      super(message);
-      this.name = "PrInsightsError";
-      this.type = type;
-      this.title = title;
-      this.details = details;
-    }
-  };
-  function createSetupRequiredError() {
-    return new PrInsightsError(
-      ErrorTypes.SETUP_REQUIRED,
-      "Setup Required",
-      "No PR Insights pipeline found in this project.",
-      {
-        instructions: [
-          "Create a pipeline from pr-insights-pipeline.yml",
-          'Ensure it publishes an "aggregates" artifact',
-          "Run it at least once successfully",
-          "Return here to view your dashboard"
-        ],
-        docsUrl: "https://github.com/oddessentials/ado-git-repo-insights#setup"
-      }
-    );
-  }
-  function createNoSuccessfulBuildsError(pipelineName) {
-    return new PrInsightsError(
-      ErrorTypes.NO_SUCCESSFUL_BUILDS,
-      "No Successful Runs",
-      `Pipeline "${pipelineName}" has no successful builds.`,
-      {
-        instructions: [
-          "Check the pipeline for errors",
-          "Run it manually and ensure extraction completes",
-          'Note: "Partially Succeeded" builds are acceptable - first runs may show this status because no prior database artifact exists yet, but extraction still works',
-          "Return here after a successful or partially successful run"
-        ]
-      }
-    );
-  }
-  function createArtifactsMissingError(pipelineName, buildId) {
-    return new PrInsightsError(
-      ErrorTypes.ARTIFACTS_MISSING,
-      "Aggregates Not Found",
-      `Build #${buildId} of "${pipelineName}" does not have an aggregates artifact.`,
-      {
-        instructions: [
-          "Add generateAggregates: true to your ExtractPullRequests task",
-          "Add a PublishPipelineArtifact step for the aggregates directory",
-          "Re-run the pipeline"
-        ]
-      }
-    );
-  }
-  function createPermissionDeniedError(operation) {
-    return new PrInsightsError(
-      ErrorTypes.PERMISSION_DENIED,
-      "Permission Denied",
-      `You don't have permission to ${operation}.`,
-      {
-        instructions: [
-          'Request "Build (Read)" permission from your project administrator',
-          "Ensure you have access to view pipeline artifacts",
-          "If using a service account, verify its permissions"
-        ],
-        permissionNeeded: "Build (Read)"
-      }
-    );
-  }
-  function createInvalidConfigError(param, value, reason) {
-    let hint;
-    if (param === "pipelineId") {
-      hint = "pipelineId must be a positive integer (e.g., ?pipelineId=123)";
-    } else if (param === "dataset") {
-      hint = "dataset must be a valid HTTPS URL";
-    } else {
-      hint = "Check the parameter value and try again";
-    }
-    return new PrInsightsError(
-      ErrorTypes.INVALID_CONFIG,
-      "Invalid Configuration",
-      `Invalid value for ${param}: "${value}"`,
-      {
-        reason,
-        hint
-      }
-    );
-  }
-  if (typeof window !== "undefined") {
-    window.PrInsightsError = PrInsightsError;
-  }
-
-  // ../ui/artifact-client.ts
-  var ArtifactClient = class {
-    /**
-     * Create a new ArtifactClient.
-     *
-     * @param projectId - Azure DevOps project ID
-     */
-    constructor(projectId) {
-      this.collectionUri = null;
-      this.authToken = null;
-      this.initialized = false;
-      this.projectId = projectId;
-    }
-    /**
-     * Initialize the client with ADO SDK auth.
-     * MUST be called after VSS.ready() and before any other methods.
-     *
-     * @returns This client instance
-     */
-    async initialize() {
-      if (this.initialized) {
-        return this;
-      }
-      const webContext = VSS.getWebContext();
-      this.collectionUri = webContext.collection.uri;
-      const tokenResult = await VSS.getAccessToken();
-      this.authToken = typeof tokenResult === "string" ? tokenResult : tokenResult.token;
-      this.initialized = true;
-      return this;
-    }
-    /**
-     * Ensure the client is initialized.
-     */
-    _ensureInitialized() {
-      if (!this.initialized) {
-        throw new Error(
-          "ArtifactClient not initialized. Call initialize() first."
-        );
-      }
-    }
-    /**
-     * Fetch a file from a build artifact.
-     *
-     * @param buildId - Build ID
-     * @param artifactName - Artifact name (e.g., 'aggregates')
-     * @param filePath - Path within artifact (e.g., 'dataset-manifest.json')
-     * @returns Parsed JSON content
-     * @throws {PrInsightsError} On permission denied or not found
-     */
-    async getArtifactFile(buildId, artifactName, filePath) {
-      this._ensureInitialized();
-      const url = this._buildFileUrl(buildId, artifactName, filePath);
-      const response = await this._authenticatedFetch(url);
-      if (response.status === 401 || response.status === 403) {
-        throw createPermissionDeniedError("read artifact files");
-      }
-      if (response.status === 404) {
-        throw new Error(
-          `File '${filePath}' not found in artifact '${artifactName}'`
-        );
-      }
-      if (!response.ok) {
-        throw new Error(
-          `Failed to fetch artifact file: ${response.status} ${response.statusText}`
-        );
-      }
-      return response.json();
-    }
-    /**
-     * Check if a specific file exists in an artifact.
-     */
-    async hasArtifactFile(buildId, artifactName, filePath) {
-      this._ensureInitialized();
-      try {
-        const url = this._buildFileUrl(buildId, artifactName, filePath);
-        const response = await this._authenticatedFetch(url, { method: "HEAD" });
-        return response.ok;
-      } catch {
-        return false;
-      }
-    }
-    /**
-     * Get artifact metadata by looking it up from the artifacts list.
-     */
-    async getArtifactMetadata(buildId, artifactName) {
-      this._ensureInitialized();
-      const artifacts = await this.getArtifacts(buildId);
-      const artifact = artifacts.find(
-        (a) => a.name === artifactName
-      );
-      if (!artifact) {
-        console.log(
-          "[getArtifactMetadata] Artifact '%s' not found in build %d",
-          artifactName,
-          buildId
-        );
-        return null;
-      }
-      return artifact;
-    }
-    /**
-     * Get artifact content via SDK approach.
-     */
-    async getArtifactFileViaSdk(buildId, artifactName, filePath) {
-      this._ensureInitialized();
-      const artifact = await this.getArtifactMetadata(buildId, artifactName);
-      if (!artifact) {
-        throw new Error(
-          `Artifact '${artifactName}' not found in build ${buildId}`
-        );
-      }
-      const downloadUrl = artifact.resource?.downloadUrl;
-      if (!downloadUrl) {
-        throw new Error(
-          `No downloadUrl available for artifact '${artifactName}'`
-        );
-      }
-      const normalizedPath = filePath.startsWith("/") ? filePath : "/" + filePath;
-      let url;
-      if (downloadUrl.includes("format=")) {
-        url = downloadUrl.replace(/format=\w+/, "format=file");
-      } else {
-        const separator = downloadUrl.includes("?") ? "&" : "?";
-        url = `${downloadUrl}${separator}format=file`;
-      }
-      url += `&subPath=${encodeURIComponent(normalizedPath)}`;
-      const response = await this._authenticatedFetch(url);
-      if (response.status === 404) {
-        throw new Error(
-          `File '${filePath}' not found in artifact '${artifactName}'`
-        );
-      }
-      if (response.status === 401 || response.status === 403) {
-        throw createPermissionDeniedError("read artifact file");
-      }
-      if (!response.ok) {
-        throw new Error(
-          `Failed to fetch file: ${response.status} ${response.statusText}`
-        );
-      }
-      return response.json();
-    }
-    /**
-     * Get list of artifacts for a build.
-     */
-    async getArtifacts(buildId) {
-      this._ensureInitialized();
-      const url = `${this.collectionUri}${this.projectId}/_apis/build/builds/${buildId}/artifacts?api-version=7.1`;
-      const response = await this._authenticatedFetch(url);
-      if (response.status === 401 || response.status === 403) {
-        throw createPermissionDeniedError("list build artifacts");
-      }
-      if (!response.ok) {
-        throw new Error(`Failed to list artifacts: ${response.status}`);
-      }
-      const data = await response.json();
-      return data.value || [];
-    }
-    /**
-     * Get pipeline definitions for the project.
-     *
-     * @param top - Maximum number of definitions to return (default: 50)
-     * @param queryOrder - Sort order (2 = lastModifiedDescending)
-     * @returns Array of pipeline definition references
-     */
-    async getDefinitions(top = 50, queryOrder = 2) {
-      this._ensureInitialized();
-      const url = `${this.collectionUri}${this.projectId}/_apis/build/definitions?api-version=7.1&$top=${top}&queryOrder=${queryOrder}`;
-      const response = await this._authenticatedFetch(url);
-      if (response.status === 401 || response.status === 403) {
-        throw createPermissionDeniedError("list build definitions");
-      }
-      if (!response.ok) {
-        throw new Error(`Failed to list definitions: ${response.status}`);
-      }
-      const data = await response.json();
-      return data.value || [];
-    }
-    /**
-     * Get builds for a specific pipeline definition.
-     *
-     * @param definitionId - Pipeline definition ID to filter by
-     * @param top - Maximum number of builds to return (default: 1)
-     * @returns Array of builds (filtered to completed + succeeded)
-     */
-    async getBuilds(definitionId, top = 1) {
-      this._ensureInitialized();
-      const url = `${this.collectionUri}${this.projectId}/_apis/build/builds?api-version=7.1&definitions=${definitionId}&statusFilter=2&resultFilter=6&$top=${top}`;
-      const response = await this._authenticatedFetch(url);
-      if (response.status === 401 || response.status === 403) {
-        throw createPermissionDeniedError("list builds");
-      }
-      if (!response.ok) {
-        throw new Error(`Failed to list builds: ${response.status}`);
-      }
-      const data = await response.json();
-      return data.value || [];
-    }
-    /**
-     * Create a DatasetLoader that uses this client for authenticated requests.
-     */
-    createDatasetLoader(buildId, artifactName) {
-      return new AuthenticatedDatasetLoader(this, buildId, artifactName);
-    }
-    /**
-     * Build the URL for accessing a file within an artifact.
-     */
-    _buildFileUrl(buildId, artifactName, filePath) {
-      const normalizedPath = filePath.startsWith("/") ? filePath : "/" + filePath;
-      return `${this.collectionUri}${this.projectId}/_apis/build/builds/${buildId}/artifacts?artifactName=${encodeURIComponent(artifactName)}&%24format=file&subPath=${encodeURIComponent(normalizedPath)}&api-version=7.1`;
-    }
-    /**
-     * Perform an authenticated fetch using the ADO auth token.
-     */
-    async _authenticatedFetch(url, options = {}) {
-      const headers = {
-        Authorization: `Bearer ${this.authToken}`,
-        Accept: "application/json",
-        ...options.headers || {}
-      };
-      return fetch(url, { ...options, headers });
-    }
-    /**
-     * Public wrapper for authenticated fetch.
-     * Use this for external callers (e.g., dashboard raw data download).
-     *
-     * @param url - URL to fetch
-     * @param options - Fetch options
-     * @returns Response
-     */
-    async authenticatedFetch(url, options = {}) {
-      this._ensureInitialized();
-      return this._authenticatedFetch(url, options);
-    }
-  };
-  var AuthenticatedDatasetLoader = class {
-    constructor(artifactClient2, buildId, artifactName) {
-      this.manifest = null;
-      this.dimensions = null;
-      this.rollupCache = /* @__PURE__ */ new Map();
-      this.distributionCache = /* @__PURE__ */ new Map();
-      this.artifactClient = artifactClient2;
-      this.buildId = buildId;
-      this.artifactName = artifactName;
-    }
-    async loadManifest() {
-      try {
-        this.manifest = await this.artifactClient.getArtifactFileViaSdk(
-          this.buildId,
-          this.artifactName,
-          "dataset-manifest.json"
-        );
-        if (!this.manifest) {
-          throw new Error("Manifest file is empty or invalid");
-        }
-        this.validateManifest(this.manifest);
-        return this.manifest;
-      } catch (error) {
-        const wrappedError = new Error(
-          `Failed to load dataset manifest: ${getErrorMessage(error)}`
-        );
-        wrappedError.cause = error;
-        throw wrappedError;
-      }
-    }
-    validateManifest(manifest) {
-      const SUPPORTED_MANIFEST_VERSION2 = 1;
-      const SUPPORTED_DATASET_VERSION2 = 1;
-      const SUPPORTED_AGGREGATES_VERSION2 = 2;
-      if (!manifest.manifest_schema_version) {
-        throw new Error("Invalid manifest: missing schema version");
-      }
-      if (manifest.manifest_schema_version > SUPPORTED_MANIFEST_VERSION2) {
-        throw new Error(
-          `Manifest version ${manifest.manifest_schema_version} not supported.`
-        );
-      }
-      if (manifest.dataset_schema_version !== void 0 && manifest.dataset_schema_version > SUPPORTED_DATASET_VERSION2) {
-        throw new Error(
-          `Dataset version ${manifest.dataset_schema_version} not supported.`
-        );
-      }
-      if (manifest.aggregates_schema_version !== void 0 && manifest.aggregates_schema_version > SUPPORTED_AGGREGATES_VERSION2) {
-        throw new Error(
-          `Aggregates version ${manifest.aggregates_schema_version} not supported.`
-        );
-      }
-    }
-    async loadDimensions() {
-      if (this.dimensions) return this.dimensions;
-      this.dimensions = await this.artifactClient.getArtifactFileViaSdk(
-        this.buildId,
-        this.artifactName,
-        "aggregates/dimensions.json"
-      );
-      if (!this.dimensions) {
-        throw new Error("Dimensions file is empty or invalid");
-      }
-      return this.dimensions;
-    }
-    async getWeeklyRollups(startDate, endDate) {
-      if (!this.manifest) throw new Error("Manifest not loaded.");
-      const neededWeeks = this.getWeeksInRange(startDate, endDate);
-      const results = [];
-      for (const weekStr of neededWeeks) {
-        const cachedRollup = this.rollupCache.get(weekStr);
-        if (cachedRollup) {
-          results.push(cachedRollup);
-          continue;
-        }
-        const indexEntry = this.manifest?.aggregate_index?.weekly_rollups?.find(
-          (r) => r.week === weekStr
-        );
-        if (!indexEntry) continue;
-        try {
-          const rollup = await this.artifactClient.getArtifactFileViaSdk(
-            this.buildId,
-            this.artifactName,
-            indexEntry.path
-          );
-          this.rollupCache.set(weekStr, rollup);
-          results.push(rollup);
-        } catch (e) {
-          console.warn("Failed to load rollup for %s:", weekStr, e);
-        }
-      }
-      return results;
-    }
-    async getDistributions(startDate, endDate) {
-      if (!this.manifest) throw new Error("Manifest not loaded.");
-      const startYear = startDate.getFullYear();
-      const endYear = endDate.getFullYear();
-      const results = [];
-      for (let year = startYear; year <= endYear; year++) {
-        const yearStr = String(year);
-        const cachedDistribution = this.distributionCache.get(yearStr);
-        if (cachedDistribution) {
-          results.push(cachedDistribution);
-          continue;
-        }
-        const indexEntry = this.manifest?.aggregate_index?.distributions?.find(
-          (d) => d.year === yearStr
-        );
-        if (!indexEntry) continue;
-        try {
-          const dist = await this.artifactClient.getArtifactFileViaSdk(
-            this.buildId,
-            this.artifactName,
-            indexEntry.path
-          );
-          this.distributionCache.set(yearStr, dist);
-          results.push(dist);
-        } catch (e) {
-          console.warn("Failed to load distribution for %s:", yearStr, e);
-        }
-      }
-      return results;
-    }
-    getWeeksInRange(startDate, endDate) {
-      const weeks = [];
-      const current = new Date(startDate);
-      const day = current.getDay();
-      const diff = current.getDate() - day + (day === 0 ? -6 : 1);
-      current.setDate(diff);
-      while (current <= endDate) {
-        weeks.push(this.getISOWeek(current));
-        current.setDate(current.getDate() + 7);
-      }
-      return weeks;
-    }
-    getISOWeek(date) {
-      const d = new Date(
-        Date.UTC(date.getFullYear(), date.getMonth(), date.getDate())
-      );
-      d.setUTCDate(d.getUTCDate() + 4 - (d.getUTCDay() || 7));
-      const yearStart = new Date(Date.UTC(d.getUTCFullYear(), 0, 1));
-      const weekNo = Math.ceil(
-        ((d.getTime() - yearStart.getTime()) / 864e5 + 1) / 7
-      );
-      return `${d.getUTCFullYear()}-W${String(weekNo).padStart(2, "0")}`;
-    }
-    getCoverage() {
-      return this.manifest?.coverage || null;
-    }
-    getDefaultRangeDays() {
-      return this.manifest?.defaults?.default_date_range_days || 90;
-    }
-    async loadPredictions() {
-      try {
-        const indexEntry = this.manifest?.aggregate_index?.predictions;
-        if (!indexEntry) return { state: "unavailable" };
-        const data = await this.artifactClient.getArtifactFileViaSdk(
-          this.buildId,
-          this.artifactName,
-          indexEntry.path
-        );
-        return { state: "ok", data };
-      } catch (e) {
-        console.warn("Failed to load predictions:", e);
-        return { state: "unavailable" };
-      }
-    }
-    async loadInsights() {
-      try {
-        const indexEntry = this.manifest?.aggregate_index?.ai_insights;
-        if (!indexEntry) return { state: "unavailable" };
-        const data = await this.artifactClient.getArtifactFileViaSdk(
-          this.buildId,
-          this.artifactName,
-          indexEntry.path
-        );
-        return { state: "ok", data };
-      } catch (e) {
-        console.warn("Failed to load AI insights:", e);
-        return { state: "unavailable" };
-      }
-    }
-  };
-  var MockArtifactClient = class {
-    constructor(mockData = {}) {
-      this.projectId = "mock-project";
-      this.initialized = true;
-      this.mockData = new Map(Object.entries(mockData));
-    }
-    async initialize() {
-      return this;
-    }
-    async getArtifactFile(buildId, artifactName, filePath) {
-      const key = `${buildId}/${artifactName}/${filePath}`;
-      if (this.mockData.has(key)) {
-        return JSON.parse(JSON.stringify(this.mockData.get(key)));
-      }
-      throw new Error(`Mock: File not found: ${key}`);
-    }
-    async hasArtifactFile(buildId, artifactName, filePath) {
-      const key = `${buildId}/${artifactName}/${filePath}`;
-      return this.mockData.has(key);
-    }
-    async getArtifacts(buildId) {
-      return this.mockData.get(`${buildId}/artifacts`) ?? [];
-    }
-    async getDefinitions() {
-      return this.mockData.get("definitions") ?? [];
-    }
-    async getBuilds(definitionId) {
-      return this.mockData.get(`builds/${definitionId}`) ?? [];
-    }
-    createDatasetLoader(buildId, artifactName) {
-      return new AuthenticatedDatasetLoader(
-        this,
-        buildId,
-        artifactName
-      );
-    }
-  };
-  if (typeof window !== "undefined") {
-    window.ArtifactClient = ArtifactClient;
-    window.AuthenticatedDatasetLoader = AuthenticatedDatasetLoader;
-    window.MockArtifactClient = MockArtifactClient;
   }
 
   // ../ui/modules/shared/chart-layout.ts
@@ -3618,7 +3060,7 @@ var PRInsightsDashboard = (() => {
   }
   function median(arr) {
     if (!Array.isArray(arr) || arr.length === 0) return 0;
-    const sorted = [...arr].sort((a, b) => a - b);
+    const sorted = [...arr].sort((a2, b2) => a2 - b2);
     const mid = Math.floor(sorted.length / 2);
     return sorted.length % 2 !== 0 ? sorted.at(mid) ?? 0 : ((sorted.at(mid - 1) ?? 0) + (sorted.at(mid) ?? 0)) / 2;
   }
@@ -3650,8 +3092,8 @@ var PRInsightsDashboard = (() => {
   function renderNoData(container, message, hint) {
     if (!container) return;
     clearElement(container);
-    const p = createElement("p", { class: "no-data" }, message);
-    container.appendChild(p);
+    const p2 = createElement("p", { class: "no-data" }, message);
+    container.appendChild(p2);
     if (hint) {
       const hintEl = createElement("p", { class: "no-data-hint" }, hint);
       container.appendChild(hintEl);
@@ -3674,7 +3116,7 @@ var PRInsightsDashboard = (() => {
   function buildLinePath(points) {
     if (points.length < 2) return "";
     return points.map(
-      (p, i) => `${i === 0 ? "M" : "L"} ${p.x.toFixed(1)} ${p.y.toFixed(1)}`
+      (p2, i2) => `${i2 === 0 ? "M" : "L"} ${p2.x.toFixed(1)} ${p2.y.toFixed(1)}`
     ).join(" ");
   }
 
@@ -3684,9 +3126,9 @@ var PRInsightsDashboard = (() => {
   var SHOULD_WARN_ON_COERCION = !IS_PRODUCTION && HAS_WINDOW && window.__DASHBOARD_DEBUG__ === true;
   var hasWarnedOnMetricCoercion = false;
   function toFiniteNumber(value) {
-    const n = Number(value);
-    if (Number.isFinite(n)) {
-      return n;
+    const n2 = Number(value);
+    if (Number.isFinite(n2)) {
+      return n2;
     }
     if (SHOULD_WARN_ON_COERCION && !hasWarnedOnMetricCoercion) {
       hasWarnedOnMetricCoercion = true;
@@ -3717,17 +3159,17 @@ var PRInsightsDashboard = (() => {
         reviewTimeP90WeekCount: 0
       };
     }
-    const totalPrs = rollups.reduce((sum, r) => sum + (r.pr_count || 0), 0);
-    const p50Values = rollups.map((r) => r.cycle_time_p50).filter((v) => v !== null && v !== void 0);
-    const p90Values = rollups.map((r) => r.cycle_time_p90).filter((v) => v !== null && v !== void 0);
-    const reviewTimeP50Values = rollups.map((r) => r.review_time_p50).filter((v) => v !== null && v !== void 0);
-    const reviewTimeP90Values = rollups.map((r) => r.review_time_p90).filter((v) => v !== null && v !== void 0);
+    const totalPrs = rollups.reduce((sum, r2) => sum + (r2.pr_count || 0), 0);
+    const p50Values = rollups.map((r2) => r2.cycle_time_p50).filter((v2) => v2 !== null && v2 !== void 0);
+    const p90Values = rollups.map((r2) => r2.cycle_time_p90).filter((v2) => v2 !== null && v2 !== void 0);
+    const reviewTimeP50Values = rollups.map((r2) => r2.review_time_p50).filter((v2) => v2 !== null && v2 !== void 0);
+    const reviewTimeP90Values = rollups.map((r2) => r2.review_time_p90).filter((v2) => v2 !== null && v2 !== void 0);
     const authorsSum = rollups.reduce(
-      (sum, r) => sum + (r.authors_count || 0),
+      (sum, r2) => sum + (r2.authors_count || 0),
       0
     );
     const reviewersSum = rollups.reduce(
-      (sum, r) => sum + (r.reviewers_count || 0),
+      (sum, r2) => sum + (r2.reviewers_count || 0),
       0
     );
     return {
@@ -3775,65 +3217,65 @@ var PRInsightsDashboard = (() => {
       0
     );
     const p50Entries = entries.filter(
-      (e) => typeof e.cycle_time_p50 === "number" && Number.isFinite(e.cycle_time_p50)
+      (e2) => typeof e2.cycle_time_p50 === "number" && Number.isFinite(e2.cycle_time_p50)
     );
     const p90Entries = entries.filter(
-      (e) => typeof e.cycle_time_p90 === "number" && Number.isFinite(e.cycle_time_p90)
+      (e2) => typeof e2.cycle_time_p90 === "number" && Number.isFinite(e2.cycle_time_p90)
     );
     let cycleP50 = null;
     let cycleP90 = null;
     if (p50Entries.length > 0) {
       const p50PrCount = p50Entries.reduce(
-        (sum, e) => sum + toFiniteNumber(e.pr_count),
+        (sum, e2) => sum + toFiniteNumber(e2.pr_count),
         0
       );
       if (p50PrCount > 0) {
         cycleP50 = p50Entries.reduce(
-          (sum, e) => sum + toFiniteNumber(e.cycle_time_p50) * toFiniteNumber(e.pr_count),
+          (sum, e2) => sum + toFiniteNumber(e2.cycle_time_p50) * toFiniteNumber(e2.pr_count),
           0
         ) / p50PrCount;
       }
     }
     if (p90Entries.length > 0) {
       const p90PrCount = p90Entries.reduce(
-        (sum, e) => sum + toFiniteNumber(e.pr_count),
+        (sum, e2) => sum + toFiniteNumber(e2.pr_count),
         0
       );
       if (p90PrCount > 0) {
         cycleP90 = p90Entries.reduce(
-          (sum, e) => sum + toFiniteNumber(e.cycle_time_p90) * toFiniteNumber(e.pr_count),
+          (sum, e2) => sum + toFiniteNumber(e2.cycle_time_p90) * toFiniteNumber(e2.pr_count),
           0
         ) / p90PrCount;
       }
     }
     const rtP50Entries = entries.filter(
-      (e) => typeof e.review_time_p50 === "number" && Number.isFinite(e.review_time_p50)
+      (e2) => typeof e2.review_time_p50 === "number" && Number.isFinite(e2.review_time_p50)
     );
     const rtP90Entries = entries.filter(
-      (e) => typeof e.review_time_p90 === "number" && Number.isFinite(e.review_time_p90)
+      (e2) => typeof e2.review_time_p90 === "number" && Number.isFinite(e2.review_time_p90)
     );
     let reviewTimeP50 = null;
     let reviewTimeP90 = null;
     if (rtP50Entries.length > 0) {
       const rtP50PrCount = rtP50Entries.reduce(
-        (sum, e) => sum + toFiniteNumber(e.pr_count),
+        (sum, e2) => sum + toFiniteNumber(e2.pr_count),
         0
       );
       if (rtP50PrCount > 0) {
         reviewTimeP50 = rtP50Entries.reduce(
-          (sum, e) => sum + toFiniteNumber(e.review_time_p50) * toFiniteNumber(e.pr_count),
+          (sum, e2) => sum + toFiniteNumber(e2.review_time_p50) * toFiniteNumber(e2.pr_count),
           0
         ) / rtP50PrCount;
       }
     }
     if (rtP90Entries.length > 0) {
       const rtP90PrCount = rtP90Entries.reduce(
-        (sum, e) => sum + toFiniteNumber(e.pr_count),
+        (sum, e2) => sum + toFiniteNumber(e2.pr_count),
         0
       );
       if (rtP90PrCount > 0) {
         reviewTimeP90 = rtP90Entries.reduce(
-          (sum, e) => sum + toFiniteNumber(e.review_time_p90) * toFiniteNumber(e.pr_count),
+          (sum, e2) => sum + toFiniteNumber(e2.review_time_p90) * toFiniteNumber(e2.pr_count),
           0
         ) / rtP90PrCount;
       }
@@ -3884,7 +3326,7 @@ var PRInsightsDashboard = (() => {
       0
     );
     const approvalEntries = entries.filter(
-      (e) => typeof e.approval_rate === "number" && Number.isFinite(e.approval_rate)
+      (e2) => typeof e2.approval_rate === "number" && Number.isFinite(e2.approval_rate)
     );
     const approvalDenominator = approvalEntries.reduce(
       (sum, entry) => sum + toFiniteNumber(entry.reviewed_prs),
@@ -4011,29 +3453,29 @@ var PRInsightsDashboard = (() => {
           );
           if (!authorRepos) continue;
           for (const repo of filters.repos) {
-            const e = getOwnPropertyValue(authorRepos, repo);
-            if (!e) continue;
+            const e2 = getOwnPropertyValue(authorRepos, repo);
+            if (!e2) continue;
             cdFound++;
-            const pr = toFiniteNumber(e.pr_count);
+            const pr = toFiniteNumber(e2.pr_count);
             cdPr += pr;
-            cdAuthors += toFiniteNumber(e.authors_count);
-            cdReviewers += toFiniteNumber(e.reviewers_count);
-            const p50 = e.cycle_time_p50;
+            cdAuthors += toFiniteNumber(e2.authors_count);
+            cdReviewers += toFiniteNumber(e2.reviewers_count);
+            const p50 = e2.cycle_time_p50;
             if (typeof p50 === "number" && Number.isFinite(p50)) {
               cdP50WSum += p50 * pr;
               cdP50WPr += pr;
             }
-            const p90 = e.cycle_time_p90;
+            const p90 = e2.cycle_time_p90;
             if (typeof p90 === "number" && Number.isFinite(p90)) {
               cdP90WSum += p90 * pr;
               cdP90WPr += pr;
             }
-            const rtP50 = e.review_time_p50;
+            const rtP50 = e2.review_time_p50;
             if (typeof rtP50 === "number" && Number.isFinite(rtP50)) {
               cdRtP50WSum += rtP50 * pr;
               cdRtP50WPr += pr;
             }
-            const rtP90 = e.review_time_p90;
+            const rtP90 = e2.review_time_p90;
             if (typeof rtP90 === "number" && Number.isFinite(rtP90)) {
               cdRtP90WSum += rtP90 * pr;
               cdRtP90WPr += pr;
@@ -4085,19 +3527,19 @@ var PRInsightsDashboard = (() => {
         const p50s = [
           authorSlice.cycle_time_p50,
           repoSlice.cycle_time_p50
-        ].filter((v) => v !== null);
+        ].filter((v2) => v2 !== null);
         const p90s = [
           authorSlice.cycle_time_p90,
           repoSlice.cycle_time_p90
-        ].filter((v) => v !== null);
+        ].filter((v2) => v2 !== null);
         const rtP50s = [
           authorSlice.review_time_p50,
           repoSlice.review_time_p50
-        ].filter((v) => v !== null);
+        ].filter((v2) => v2 !== null);
         const rtP90s = [
           authorSlice.review_time_p90,
           repoSlice.review_time_p90
-        ].filter((v) => v !== null);
+        ].filter((v2) => v2 !== null);
         if (teamSlice) {
           console.warn(
             "Combined author and team filtering is constrained; using author+repository metrics while retaining team UI state"
@@ -4106,10 +3548,10 @@ var PRInsightsDashboard = (() => {
         return {
           ...rollup,
           pr_count: combinedPrCount,
-          cycle_time_p50: p50s.length > 0 ? p50s.reduce((a, b) => a + b, 0) / p50s.length : null,
-          cycle_time_p90: p90s.length > 0 ? p90s.reduce((a, b) => a + b, 0) / p90s.length : null,
-          review_time_p50: rtP50s.length > 0 ? rtP50s.reduce((a, b) => a + b, 0) / rtP50s.length : null,
-          review_time_p90: rtP90s.length > 0 ? rtP90s.reduce((a, b) => a + b, 0) / rtP90s.length : null,
+          cycle_time_p50: p50s.length > 0 ? p50s.reduce((a2, b2) => a2 + b2, 0) / p50s.length : null,
+          cycle_time_p90: p90s.length > 0 ? p90s.reduce((a2, b2) => a2 + b2, 0) / p90s.length : null,
+          review_time_p50: rtP50s.length > 0 ? rtP50s.reduce((a2, b2) => a2 + b2, 0) / rtP50s.length : null,
+          review_time_p90: rtP90s.length > 0 ? rtP90s.reduce((a2, b2) => a2 + b2, 0) / rtP90s.length : null,
           authors_count: combinedAuthors,
           reviewers_count: combinedReviewers
         };
@@ -4131,29 +3573,29 @@ var PRInsightsDashboard = (() => {
           const teamRepos = getOwnPropertyValue(rollup.by_team_and_repo, team);
           if (!teamRepos) continue;
           for (const repo of filters.repos) {
-            const e = getOwnPropertyValue(teamRepos, repo);
-            if (!e) continue;
+            const e2 = getOwnPropertyValue(teamRepos, repo);
+            if (!e2) continue;
             cdFound++;
-            const pr = toFiniteNumber(e.pr_count);
+            const pr = toFiniteNumber(e2.pr_count);
             cdPr += pr;
-            cdAuthors += toFiniteNumber(e.authors_count);
-            cdReviewers += toFiniteNumber(e.reviewers_count);
-            const p50 = e.cycle_time_p50;
+            cdAuthors += toFiniteNumber(e2.authors_count);
+            cdReviewers += toFiniteNumber(e2.reviewers_count);
+            const p50 = e2.cycle_time_p50;
             if (typeof p50 === "number" && Number.isFinite(p50)) {
               cdP50WSum += p50 * pr;
               cdP50WPr += pr;
             }
-            const p90 = e.cycle_time_p90;
+            const p90 = e2.cycle_time_p90;
             if (typeof p90 === "number" && Number.isFinite(p90)) {
               cdP90WSum += p90 * pr;
               cdP90WPr += pr;
             }
-            const rtP50 = e.review_time_p50;
+            const rtP50 = e2.review_time_p50;
             if (typeof rtP50 === "number" && Number.isFinite(rtP50)) {
               cdRtP50WSum += rtP50 * pr;
               cdRtP50WPr += pr;
             }
-            const rtP90 = e.review_time_p90;
+            const rtP90 = e2.review_time_p90;
             if (typeof rtP90 === "number" && Number.isFinite(rtP90)) {
               cdRtP90WSum += rtP90 * pr;
               cdRtP90WPr += pr;
@@ -4198,28 +3640,28 @@ var PRInsightsDashboard = (() => {
           (rollup.reviewers_count || 0) * combinedRatio
         );
         const p50s = [repoSlice.cycle_time_p50, teamSlice.cycle_time_p50].filter(
-          (v) => v !== null
+          (v2) => v2 !== null
         );
         const p90s = [repoSlice.cycle_time_p90, teamSlice.cycle_time_p90].filter(
-          (v) => v !== null
+          (v2) => v2 !== null
         );
         const rtP50s = [
           repoSlice.review_time_p50,
           teamSlice.review_time_p50
-        ].filter((v) => v !== null);
+        ].filter((v2) => v2 !== null);
         const rtP90s = [
           repoSlice.review_time_p90,
           teamSlice.review_time_p90
-        ].filter((v) => v !== null);
+        ].filter((v2) => v2 !== null);
         return {
           ...rollup,
           pr_count: combinedPrCount,
           // Always override to prevent global values leaking through the
           // ...rollup spread when proportional estimates are null/0.
-          cycle_time_p50: p50s.length > 0 ? p50s.reduce((a, b) => a + b, 0) / p50s.length : null,
-          cycle_time_p90: p90s.length > 0 ? p90s.reduce((a, b) => a + b, 0) / p90s.length : null,
-          review_time_p50: rtP50s.length > 0 ? rtP50s.reduce((a, b) => a + b, 0) / rtP50s.length : null,
-          review_time_p90: rtP90s.length > 0 ? rtP90s.reduce((a, b) => a + b, 0) / rtP90s.length : null,
+          cycle_time_p50: p50s.length > 0 ? p50s.reduce((a2, b2) => a2 + b2, 0) / p50s.length : null,
+          cycle_time_p90: p90s.length > 0 ? p90s.reduce((a2, b2) => a2 + b2, 0) / p90s.length : null,
+          review_time_p50: rtP50s.length > 0 ? rtP50s.reduce((a2, b2) => a2 + b2, 0) / rtP50s.length : null,
+          review_time_p90: rtP90s.length > 0 ? rtP90s.reduce((a2, b2) => a2 + b2, 0) / rtP90s.length : null,
           authors_count: combinedAuthors,
           reviewers_count: combinedReviewers
         };
@@ -4235,22 +3677,123 @@ var PRInsightsDashboard = (() => {
   }
   function extractSparklineData(rollups) {
     return {
-      prCounts: rollups.map((r) => r.pr_count ?? 0),
-      p50s: rollups.map((r) => r.cycle_time_p50 ?? null),
-      p90s: rollups.map((r) => r.cycle_time_p90 ?? null),
-      reviewTimeP50s: rollups.map((r) => r.review_time_p50 ?? null),
-      reviewTimeP90s: rollups.map((r) => r.review_time_p90 ?? null),
-      authors: rollups.map((r) => r.authors_count ?? 0),
-      reviewers: rollups.map((r) => r.reviewers_count ?? 0)
+      prCounts: rollups.map((r2) => r2.pr_count ?? 0),
+      p50s: rollups.map((r2) => r2.cycle_time_p50 ?? null),
+      p90s: rollups.map((r2) => r2.cycle_time_p90 ?? null),
+      reviewTimeP50s: rollups.map((r2) => r2.review_time_p50 ?? null),
+      reviewTimeP90s: rollups.map((r2) => r2.review_time_p90 ?? null),
+      authors: rollups.map((r2) => r2.authors_count ?? 0),
+      reviewers: rollups.map((r2) => r2.reviewers_count ?? 0)
     };
   }
   function calculateMovingAverage(values, window2 = 4) {
-    return values.map((_, i) => {
-      if (i < window2 - 1) return null;
-      const slice = values.slice(i - window2 + 1, i + 1);
-      const sum = slice.reduce((a, b) => a + b, 0);
+    return values.map((_2, i2) => {
+      if (i2 < window2 - 1) return null;
+      const slice = values.slice(i2 - window2 + 1, i2 + 1);
+      const sum = slice.reduce((a2, b2) => a2 + b2, 0);
       return sum / window2;
     });
+  }
+
+  // ../ui/error-types.ts
+  var ErrorTypes = {
+    SETUP_REQUIRED: "setup_required",
+    MULTIPLE_PIPELINES: "multiple_pipelines",
+    NO_SUCCESSFUL_BUILDS: "no_successful_builds",
+    ARTIFACTS_MISSING: "artifacts_missing",
+    PERMISSION_DENIED: "permission_denied",
+    INVALID_CONFIG: "invalid_config"
+  };
+  var PrInsightsError = class extends Error {
+    constructor(type, title, message, details = null) {
+      super(message);
+      this.name = "PrInsightsError";
+      this.type = type;
+      this.title = title;
+      this.details = details;
+    }
+  };
+  function createSetupRequiredError() {
+    return new PrInsightsError(
+      ErrorTypes.SETUP_REQUIRED,
+      "Setup Required",
+      "No PR Insights pipeline found in this project.",
+      {
+        instructions: [
+          "Create a pipeline from pr-insights-pipeline.yml",
+          'Ensure it publishes an "aggregates" artifact',
+          "Run it at least once successfully",
+          "Return here to view your dashboard"
+        ],
+        docsUrl: "https://github.com/oddessentials/ado-git-repo-insights#setup"
+      }
+    );
+  }
+  function createNoSuccessfulBuildsError(pipelineName) {
+    return new PrInsightsError(
+      ErrorTypes.NO_SUCCESSFUL_BUILDS,
+      "No Successful Runs",
+      `Pipeline "${pipelineName}" has no successful builds.`,
+      {
+        instructions: [
+          "Check the pipeline for errors",
+          "Run it manually and ensure extraction completes",
+          'Note: "Partially Succeeded" builds are acceptable - first runs may show this status because no prior database artifact exists yet, but extraction still works',
+          "Return here after a successful or partially successful run"
+        ]
+      }
+    );
+  }
+  function createArtifactsMissingError(pipelineName, buildId) {
+    return new PrInsightsError(
+      ErrorTypes.ARTIFACTS_MISSING,
+      "Aggregates Not Found",
+      `Build #${buildId} of "${pipelineName}" does not have an aggregates artifact.`,
+      {
+        instructions: [
+          "Add generateAggregates: true to your ExtractPullRequests task",
+          "Add a PublishPipelineArtifact step for the aggregates directory",
+          "Re-run the pipeline"
+        ]
+      }
+    );
+  }
+  function createPermissionDeniedError(operation) {
+    return new PrInsightsError(
+      ErrorTypes.PERMISSION_DENIED,
+      "Permission Denied",
+      `You don't have permission to ${operation}.`,
+      {
+        instructions: [
+          'Request "Build (Read)" permission from your project administrator',
+          "Ensure you have access to view pipeline artifacts",
+          "If using a service account, verify its permissions"
+        ],
+        permissionNeeded: "Build (Read)"
+      }
+    );
+  }
+  function createInvalidConfigError(param, value, reason) {
+    let hint;
+    if (param === "pipelineId") {
+      hint = "pipelineId must be a positive integer (e.g., ?pipelineId=123)";
+    } else if (param === "dataset") {
+      hint = "dataset must be a valid HTTPS URL";
+    } else {
+      hint = "Check the parameter value and try again";
+    }
+    return new PrInsightsError(
+      ErrorTypes.INVALID_CONFIG,
+      "Invalid Configuration",
+      `Invalid value for ${param}: "${value}"`,
+      {
+        reason,
+        hint
+      }
+    );
+  }
+  if (typeof window !== "undefined") {
+    window.PrInsightsError = PrInsightsError;
   }
 
   // ../ui/modules/errors.ts
@@ -4305,8 +3848,8 @@ var PRInsightsDashboard = (() => {
       const stepsList = document.getElementById("setup-steps");
       if (stepsList) {
         clearElement(stepsList);
-        details.instructions.forEach((s) => {
-          const li = createElement("li", {}, s);
+        details.instructions.forEach((s2) => {
+          const li = createElement("li", {}, s2);
           stepsList.appendChild(li);
         });
       }
@@ -4328,10 +3871,10 @@ var PRInsightsDashboard = (() => {
     const details = error.details;
     if (listEl && details?.matches && Array.isArray(details.matches)) {
       const html = details.matches.map(
-        (m) => `
-                <a href="?pipelineId=${escapeHtml(String(m.id))}" class="pipeline-option">
-                    <strong>${escapeHtml(m.name)}</strong>
-                    <span class="pipeline-id">ID: ${escapeHtml(String(m.id))}</span>
+        (m2) => `
+                <a href="?pipelineId=${escapeHtml(String(m2.id))}" class="pipeline-option">
+                    <strong>${escapeHtml(m2.name)}</strong>
+                    <span class="pipeline-id">ID: ${escapeHtml(String(m2.id))}</span>
                 </a>
             `
       ).join("");
@@ -4365,8 +3908,8 @@ var PRInsightsDashboard = (() => {
       const stepsList = document.getElementById("missing-steps");
       if (stepsList) {
         clearElement(stepsList);
-        details.instructions.forEach((s) => {
-          const li = createElement("li", {}, s);
+        details.instructions.forEach((s2) => {
+          const li = createElement("li", {}, s2);
           stepsList.appendChild(li);
         });
       }
@@ -4419,13 +3962,13 @@ var PRInsightsDashboard = (() => {
   function calculateLinePath(values) {
     if (values.length === 0) return "";
     return values.map(
-      (pt, i) => `${i === 0 ? "M" : "L"} ${pt.x.toFixed(2)} ${pt.y.toFixed(2)}`
+      (pt, i2) => `${i2 === 0 ? "M" : "L"} ${pt.x.toFixed(2)} ${pt.y.toFixed(2)}`
     ).join(" ");
   }
   function calculateBandPath(upperValues, lowerValues) {
     if (upperValues.length === 0 || lowerValues.length === 0) return "";
     const upperPath = upperValues.map(
-      (pt, i) => `${i === 0 ? "M" : "L"} ${pt.x.toFixed(2)} ${pt.y.toFixed(2)}`
+      (pt, i2) => `${i2 === 0 ? "M" : "L"} ${pt.x.toFixed(2)} ${pt.y.toFixed(2)}`
     ).join(" ");
     const lowerReversed = [...lowerValues].reverse();
     const lowerPath = lowerReversed.map((pt) => `L ${pt.x.toFixed(2)} ${pt.y.toFixed(2)}`).join(" ");
@@ -4437,16 +3980,16 @@ var PRInsightsDashboard = (() => {
       return `<div class="forecast-chart-empty">No forecast data available</div>`;
     }
     const values = [...rawValues].sort(
-      (a, b) => a.period_start.localeCompare(b.period_start)
+      (a2, b2) => a2.period_start.localeCompare(b2.period_start)
     );
     const allValues = [];
     if (historicalData) {
-      historicalData.forEach((h) => allValues.push(h.value));
+      historicalData.forEach((h2) => allValues.push(h2.value));
     }
-    values.forEach((v) => {
-      allValues.push(v.predicted);
-      if (v.lower_bound != null) allValues.push(v.lower_bound);
-      if (v.upper_bound != null) allValues.push(v.upper_bound);
+    values.forEach((v2) => {
+      allValues.push(v2.predicted);
+      if (v2.lower_bound != null) allValues.push(v2.lower_bound);
+      if (v2.upper_bound != null) allValues.push(v2.upper_bound);
     });
     const maxValue = Math.max(...allValues, 1);
     const minValue = Math.min(...allValues, 0);
@@ -4465,16 +4008,16 @@ var PRInsightsDashboard = (() => {
     const getX = (index) => {
       return (index + 0.5) / totalPoints * 100;
     };
-    values.forEach((v, i) => {
-      const x = getX(historicalCount + i);
-      forecastPoints.push({ x, y: getY(v.predicted) });
-      if (v.upper_bound != null) upperPoints.push({ x, y: getY(v.upper_bound) });
-      if (v.lower_bound != null) lowerPoints.push({ x, y: getY(v.lower_bound) });
+    values.forEach((v2, i2) => {
+      const x2 = getX(historicalCount + i2);
+      forecastPoints.push({ x: x2, y: getY(v2.predicted) });
+      if (v2.upper_bound != null) upperPoints.push({ x: x2, y: getY(v2.upper_bound) });
+      if (v2.lower_bound != null) lowerPoints.push({ x: x2, y: getY(v2.lower_bound) });
     });
     const historicalPoints = [];
     if (historicalData) {
-      historicalData.forEach((h, i) => {
-        historicalPoints.push({ x: getX(i), y: getY(h.value) });
+      historicalData.forEach((h2, i2) => {
+        historicalPoints.push({ x: getX(i2), y: getY(h2.value) });
       });
     }
     const historicalPath = calculateLinePath(historicalPoints);
@@ -4483,14 +4026,14 @@ var PRInsightsDashboard = (() => {
     const metricLabel = forecast.metric.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
     const allWeeks = [];
     if (historicalData) {
-      historicalData.forEach((h) => allWeeks.push(h.week));
+      historicalData.forEach((h2) => allWeeks.push(h2.week));
     }
-    values.forEach((v) => allWeeks.push(v.period_start));
+    values.forEach((v2) => allWeeks.push(v2.period_start));
     const labelStep = Math.ceil(allWeeks.length / 6);
-    const xAxisLabels = allWeeks.filter((_, i) => i % labelStep === 0).map((week, i) => {
-      const x = getX(i * labelStep);
+    const xAxisLabels = allWeeks.filter((_2, i2) => i2 % labelStep === 0).map((week, i2) => {
+      const x2 = getX(i2 * labelStep);
       const formatted = formatWeekLabel(week);
-      return `<text x="${x}%" y="${chartHeight - 2}" class="axis-label">${escapeHtml(formatted)}</text>`;
+      return `<text x="${x2}%" y="${chartHeight - 2}" class="axis-label">${escapeHtml(formatted)}</text>`;
     }).join("");
     const latestValue = values[values.length - 1];
     const accessibleSummary = latestValue ? `${metricLabel} forecast: ${latestValue.predicted.toFixed(1)} ${forecast.unit}${latestValue.lower_bound != null && latestValue.upper_bound != null ? ` (range ${latestValue.lower_bound.toFixed(1)} to ${latestValue.upper_bound.toFixed(1)})` : ""}` : `${metricLabel} forecast chart`;
@@ -4564,18 +4107,18 @@ var PRInsightsDashboard = (() => {
       return { data: [], wasTruncated: false };
     }
     const metricFieldMap = /* @__PURE__ */ new Map([
-      ["pr_throughput", (r) => r.pr_count],
-      ["cycle_time_minutes", (r) => r.cycle_time_p50]
+      ["pr_throughput", (r2) => r2.pr_count],
+      ["cycle_time_minutes", (r2) => r2.cycle_time_p50]
     ]);
     const getter = metricFieldMap.get(metric);
     if (!getter) {
       return { data: [], wasTruncated: false };
     }
-    const data = rollups.filter((r) => getter(r) !== null && getter(r) !== void 0).map((r) => ({
+    const data = rollups.filter((r2) => getter(r2) !== null && getter(r2) !== void 0).map((r2) => ({
       // Convert ISO week format to date if needed
-      week: r.week.includes("-W") ? isoWeekToDate(r.week) : r.week,
-      value: Number(getter(r))
-    })).sort((a, b) => a.week.localeCompare(b.week));
+      week: r2.week.includes("-W") ? isoWeekToDate(r2.week) : r2.week,
+      value: Number(getter(r2))
+    })).sort((a2, b2) => a2.week.localeCompare(b2.week));
     const wasTruncated = data.length > MAX_CHART_POINTS;
     return {
       data: wasTruncated ? data.slice(-MAX_CHART_POINTS) : data,
@@ -4635,7 +4178,7 @@ var PRInsightsDashboard = (() => {
       }
     });
     const hasReviewTime = predictions.forecasts.some(
-      (f) => f.metric === "review_time_minutes"
+      (f2) => f2.metric === "review_time_minutes"
     );
     if (!hasReviewTime && predictions.forecasts.length > 0) {
       appendTrustedHtml(
@@ -4695,8 +4238,8 @@ var PRInsightsDashboard = (() => {
       liveRegion.className = "visually-hidden";
       document.body.appendChild(liveRegion);
     }
-    container.addEventListener("click", async (e) => {
-      const button = e.target.closest(
+    container.addEventListener("click", async (e2) => {
+      const button = e2.target.closest(
         ".copy-yaml-btn"
       );
       if (!button) return;
@@ -4975,22 +4518,22 @@ var PRInsightsDashboard = (() => {
     info: 1
   };
   function sortInsights(insights) {
-    return [...insights].sort((a, b) => {
-      const severityA = SEVERITY_PRIORITY[a.severity] ?? 0;
-      const severityB = SEVERITY_PRIORITY[b.severity] ?? 0;
+    return [...insights].sort((a2, b2) => {
+      const severityA = SEVERITY_PRIORITY[a2.severity] ?? 0;
+      const severityB = SEVERITY_PRIORITY[b2.severity] ?? 0;
       if (severityB !== severityA) {
         return severityB - severityA;
       }
-      const categoryCompare = String(a.category).localeCompare(
-        String(b.category)
+      const categoryCompare = String(a2.category).localeCompare(
+        String(b2.category)
       );
       if (categoryCompare !== 0) {
         return categoryCompare;
       }
-      if (typeof a.id === "number" && typeof b.id === "number") {
-        return a.id - b.id;
+      if (typeof a2.id === "number" && typeof b2.id === "number") {
+        return a2.id - b2.id;
       }
-      return String(a.id).localeCompare(String(b.id));
+      return String(a2.id).localeCompare(String(b2.id));
     });
   }
   function renderInsightSparkline(values, width = 60, height = 20) {
@@ -4999,7 +4542,7 @@ var PRInsightsDashboard = (() => {
     }
     const limitedValues = values.length > MAX_SPARKLINE_POINTS ? values.slice(-MAX_SPARKLINE_POINTS) : values;
     const cleanValues = limitedValues.filter(
-      (v) => typeof v === "number" && Number.isFinite(v)
+      (v2) => typeof v2 === "number" && Number.isFinite(v2)
     );
     if (cleanValues.length < 2) {
       return `<span class="sparkline-empty" aria-label="No trend data available">\u2014</span>`;
@@ -5010,10 +4553,10 @@ var PRInsightsDashboard = (() => {
     const padding = 2;
     const effectiveHeight = height - padding * 2;
     const effectiveWidth = width - padding * 2;
-    const points = cleanValues.map((val, i) => {
-      const x = padding + i / (cleanValues.length - 1) * effectiveWidth;
-      const y = padding + (1 - (val - minVal) / range) * effectiveHeight;
-      return `${x.toFixed(1)},${y.toFixed(1)}`;
+    const points = cleanValues.map((val, i2) => {
+      const x2 = padding + i2 / (cleanValues.length - 1) * effectiveWidth;
+      const y2 = padding + (1 - (val - minVal) / range) * effectiveHeight;
+      return `${x2.toFixed(1)},${y2.toFixed(1)}`;
     }).join(" ");
     const firstVal = cleanValues[0];
     const lastVal = cleanValues[cleanValues.length - 1];
@@ -5160,7 +4703,7 @@ var PRInsightsDashboard = (() => {
     const defaultSeverityInfo = { icon: "\u{1F535}", label: "Informational" };
     ["critical", "warning", "info"].forEach((severity) => {
       const items = sortedInsights.filter(
-        (i) => i.severity === severity
+        (i2) => i2.severity === severity
       );
       if (!items.length) return;
       const severityInfo = SEVERITY_ICONS.get(severity) ?? defaultSeverityInfo;
@@ -5175,7 +4718,7 @@ var PRInsightsDashboard = (() => {
             <span class="visually-hidden">(${items.length} ${items.length === 1 ? "item" : "items"})</span>
           </h4>
           <div class="insight-cards" role="feed" aria-label="${sectionLabel} list">
-            ${items.map((i) => renderRichInsightCard(i)).join("")}
+            ${items.map((i2) => renderRichInsightCard(i2)).join("")}
           </div>
         </section>
       `
@@ -5405,7 +4948,7 @@ var PRInsightsDashboard = (() => {
       if (element) clearElement(element);
       return;
     }
-    const nonNull = values.filter((v) => v !== null);
+    const nonNull = values.filter((v2) => v2 !== null);
     if (nonNull.length < 2) {
       clearElement(element);
       return;
@@ -5417,10 +4960,10 @@ var PRInsightsDashboard = (() => {
     const minVal = Math.min(...data);
     const maxVal = Math.max(...data);
     const range = maxVal - minVal || 1;
-    const points = data.map((val, i) => {
-      const x = padding + i / (data.length - 1) * (width - padding * 2);
-      const y = height - padding - (val - minVal) / range * (height - padding * 2);
-      return { x, y };
+    const points = data.map((val, i2) => {
+      const x2 = padding + i2 / (data.length - 1) * (width - padding * 2);
+      const y2 = height - padding - (val - minVal) / range * (height - padding * 2);
+      return { x: x2, y: y2 };
     });
     const pathD = buildLinePath(points);
     const firstPoint = points[0];
@@ -5451,9 +4994,9 @@ var PRInsightsDashboard = (() => {
     const { signal } = dismissListenerController;
     document.addEventListener(
       "click",
-      (e) => {
+      (e2) => {
         if (!document.querySelector(".chart-tooltip")) return;
-        const target = e.target;
+        const target = e2.target;
         if (!target.closest("[data-tooltip]") && !target.closest(".chart-tooltip")) {
           dismissActiveTooltip();
         }
@@ -5496,21 +5039,21 @@ var PRInsightsDashboard = (() => {
       el.addEventListener("mouseleave", () => dismissActiveTooltip(), { signal });
       el.addEventListener(
         "pointerdown",
-        (e) => {
-          pointerOrigin = { x: e.clientX, y: e.clientY };
+        (e2) => {
+          pointerOrigin = { x: e2.clientX, y: e2.clientY };
         },
         { signal }
       );
       el.addEventListener(
         "pointerup",
-        (e) => {
+        (e2) => {
           if (!pointerOrigin) return;
-          const dx = e.clientX - pointerOrigin.x;
-          const dy = e.clientY - pointerOrigin.y;
+          const dx = e2.clientX - pointerOrigin.x;
+          const dy = e2.clientY - pointerOrigin.y;
           const distance = Math.sqrt(dx * dx + dy * dy);
           pointerOrigin = null;
           if (distance < SCROLL_CANCEL_THRESHOLD) {
-            e.preventDefault();
+            e2.preventDefault();
             showTooltip(el);
           }
         },
@@ -5601,8 +5144,8 @@ var PRInsightsDashboard = (() => {
     return "metric-sample-size";
   }
   function renderSampleSize(containers, metrics) {
-    const weekLabel = (n) => `From ${n} ${n === 1 ? "week" : "weeks"} of data`;
-    const pointLabel = (n) => `From ${n} data ${n === 1 ? "point" : "points"}`;
+    const weekLabel = (n2) => `From ${n2} ${n2 === 1 ? "week" : "weeks"} of data`;
+    const pointLabel = (n2) => `From ${n2} data ${n2 === 1 ? "point" : "points"}`;
     const config = [
       {
         el: containers.totalPrs,
@@ -5858,8 +5401,8 @@ var PRInsightsDashboard = (() => {
       btn.addEventListener("pointerleave", () => {
         dismissAllTooltips();
       }, { signal });
-      btn.addEventListener("click", (e) => {
-        e.stopPropagation();
+      btn.addEventListener("click", (e2) => {
+        e2.stopPropagation();
         const existing2 = document.querySelector(".info-tooltip");
         if (existing2) {
           dismissAllTooltips();
@@ -5918,7 +5461,7 @@ var PRInsightsDashboard = (() => {
   }
   function allMetricsZeroed(rollups) {
     if (rollups.length === 0) return true;
-    return rollups.every((r) => r.pr_count === 0);
+    return rollups.every((r2) => r2.pr_count === 0);
   }
   function checkFilterCaused(ctx) {
     if (hasActiveFilters(ctx.filters) && ctx.unfilteredRollups.length > 0 && !allMetricsZeroed(ctx.unfilteredRollups) && (ctx.filteredRollups.length === 0 || allMetricsZeroed(ctx.filteredRollups))) {
@@ -5985,17 +5528,17 @@ var PRInsightsDashboard = (() => {
     }
     const truncated = rollups.length > MAX_THROUGHPUT_POINTS;
     const displayRollups = truncated ? rollups.slice(-MAX_THROUGHPUT_POINTS) : rollups;
-    const prCounts = displayRollups.map((r) => r.pr_count || 0);
+    const prCounts = displayRollups.map((r2) => r2.pr_count || 0);
     const maxCount = Math.max(...prCounts);
     const movingAvg = calculateMovingAverage(prCounts, 4);
     const labelStep = Math.ceil(displayRollups.length / MAX_VISIBLE_LABELS);
-    const barsHtml = displayRollups.map((r, index) => {
-      const height = maxCount > 0 ? (r.pr_count || 0) / maxCount * 100 : 0;
-      const wParts = r.week.split("-W");
-      const weekLabel = wParts[1] ?? r.week;
+    const barsHtml = displayRollups.map((r2, index) => {
+      const height = maxCount > 0 ? (r2.pr_count || 0) / maxCount * 100 : 0;
+      const wParts = r2.week.split("-W");
+      const weekLabel = wParts[1] ?? r2.week;
       const showLabel = index % labelStep === 0;
       return `
-            <div class="bar-container" data-tooltip="true" data-week="${escapeHtml(r.week)}" data-count="${r.pr_count || 0}">
+            <div class="bar-container" data-tooltip="true" data-week="${escapeHtml(r2.week)}" data-count="${r2.pr_count || 0}">
                 <div class="bar" style="height: ${height}%"></div>
                 <div class="bar-label">${showLabel ? escapeHtml(weekLabel) : ""}</div>
             </div>
@@ -6036,17 +5579,17 @@ var PRInsightsDashboard = (() => {
   }
   function renderTrendLine(rollups, movingAvg, maxCount) {
     if (rollups.length < 4) return { html: "", rendered: false };
-    const validPoints = movingAvg.map((val, i) => ({ val, i })).filter((p) => p.val !== null);
+    const validPoints = movingAvg.map((val, i2) => ({ val, i: i2 })).filter((p2) => p2.val !== null);
     if (validPoints.length < 2) return { html: "", rendered: false };
     const chartHeight = 200;
     const chartPadding = 8;
-    const points = validPoints.map((p) => {
-      const x = p.i / (rollups.length - 1) * 100;
-      const y = maxCount > 0 ? chartHeight - chartPadding - p.val / maxCount * (chartHeight - chartPadding * 2) : chartHeight / 2;
-      return { x, y };
+    const points = validPoints.map((p2) => {
+      const x2 = p2.i / (rollups.length - 1) * 100;
+      const y2 = maxCount > 0 ? chartHeight - chartPadding - p2.val / maxCount * (chartHeight - chartPadding * 2) : chartHeight / 2;
+      return { x: x2, y: y2 };
     });
     const pathD = points.map(
-      (pt, i) => `${i === 0 ? "M" : "L"} ${pt.x.toFixed(1)}% ${pt.y.toFixed(1)}`
+      (pt, i2) => `${i2 === 0 ? "M" : "L"} ${pt.x.toFixed(1)}% ${pt.y.toFixed(1)}`
     ).join(" ");
     return {
       html: `<div class="trend-line-overlay"><svg viewBox="0 0 100 ${chartHeight}" preserveAspectRatio="none"><path class="trend-line" d="${pathD}" vector-effect="non-scaling-stroke"/></svg></div>`,
@@ -6098,12 +5641,12 @@ var PRInsightsDashboard = (() => {
       ["3-7d", 0],
       ["7d+", 0]
     ]);
-    distributions.forEach((d) => {
-      Object.entries(d.cycle_time_buckets || {}).forEach(([key, val]) => {
+    distributions.forEach((d2) => {
+      Object.entries(d2.cycle_time_buckets || {}).forEach(([key, val]) => {
         buckets.set(key, (buckets.get(key) ?? 0) + val);
       });
     });
-    const total = Array.from(buckets.values()).reduce((a, b) => a + b, 0);
+    const total = Array.from(buckets.values()).reduce((a2, b2) => a2 + b2, 0);
     if (total === 0) {
       renderNoData(container, "No cycle time data", "Try widening the date range or adjusting repository/team filters.");
       return;
@@ -6151,8 +5694,8 @@ var PRInsightsDashboard = (() => {
     }
     const truncated = rollups.length > MAX_CYCLE_TIME_POINTS;
     const displayRollups = truncated ? rollups.slice(-MAX_CYCLE_TIME_POINTS) : rollups;
-    const p50Data = displayRollups.map((r) => ({ week: r.week, value: r.cycle_time_p50 })).filter((d) => d.value !== null);
-    const p90Data = displayRollups.map((r) => ({ week: r.week, value: r.cycle_time_p90 })).filter((d) => d.value !== null);
+    const p50Data = displayRollups.map((r2) => ({ week: r2.week, value: r2.cycle_time_p50 })).filter((d2) => d2.value !== null);
+    const p90Data = displayRollups.map((r2) => ({ week: r2.week, value: r2.cycle_time_p90 })).filter((d2) => d2.value !== null);
     if (p50Data.length < 2 && p90Data.length < 2) {
       renderNoData(
         container,
@@ -6162,8 +5705,8 @@ var PRInsightsDashboard = (() => {
       return;
     }
     const allValues = [
-      ...p50Data.map((d) => d.value),
-      ...p90Data.map((d) => d.value)
+      ...p50Data.map((d2) => d2.value),
+      ...p90Data.map((d2) => d2.value)
     ];
     const maxVal = Math.max(...allValues);
     const minVal = Math.min(...allValues);
@@ -6179,14 +5722,14 @@ var PRInsightsDashboard = (() => {
     const dotRadius = Math.max(1.5, Math.min(4, 200 / displayRollups.length));
     const generatePath = (data) => {
       if (displayRollups.length < 2) return { pathD: "", points: [] };
-      const points = data.map((d) => {
-        const dataIndex = displayRollups.findIndex((r) => r.week === d.week);
+      const points = data.map((d2) => {
+        const dataIndex = displayRollups.findIndex((r2) => r2.week === d2.week);
         if (dataIndex === -1) return null;
-        const x = padding.left + dataIndex / (displayRollups.length - 1) * chartWidth;
-        const y = padding.top + chartHeight - (d.value - minVal) / range * chartHeight;
-        return { x, y, week: d.week, value: d.value };
+        const x2 = padding.left + dataIndex / (displayRollups.length - 1) * chartWidth;
+        const y2 = padding.top + chartHeight - (d2.value - minVal) / range * chartHeight;
+        return { x: x2, y: y2, week: d2.week, value: d2.value };
       }).filter(
-        (p) => p !== null
+        (p2) => p2 !== null
       );
       const pathD = buildLinePath(points);
       return { pathD, points };
@@ -6197,15 +5740,15 @@ var PRInsightsDashboard = (() => {
     const svgContent = `
         <svg viewBox="0 0 ${width} ${height}" preserveAspectRatio="xMinYMid meet">
             <!-- Grid lines -->
-            ${yLabels.map((_, i) => {
-      const y = padding.top + chartHeight - i / (yLabels.length - 1) * chartHeight;
-      return `<line class="line-chart-grid" x1="${padding.left}" y1="${y}" x2="${width - padding.right}" y2="${y}"/>`;
+            ${yLabels.map((_2, i2) => {
+      const y2 = padding.top + chartHeight - i2 / (yLabels.length - 1) * chartHeight;
+      return `<line class="line-chart-grid" x1="${padding.left}" y1="${y2}" x2="${width - padding.right}" y2="${y2}"/>`;
     }).join("")}
 
             <!-- Y-axis labels -->
-            ${yLabels.map((val, i) => {
-      const y = padding.top + chartHeight - i / (yLabels.length - 1) * chartHeight;
-      return `<text class="line-chart-axis" x="${padding.left - 4}" y="${y + 3}" text-anchor="end">${formatDuration(val)}</text>`;
+            ${yLabels.map((val, i2) => {
+      const y2 = padding.top + chartHeight - i2 / (yLabels.length - 1) * chartHeight;
+      return `<text class="line-chart-axis" x="${padding.left - 4}" y="${y2 + 3}" text-anchor="end">${formatDuration(val)}</text>`;
     }).join("")}
 
             <!-- Lines -->
@@ -6213,8 +5756,8 @@ var PRInsightsDashboard = (() => {
             ${p50Path ? `<path class="line-chart-p50" d="${p50Path.pathD}" vector-effect="non-scaling-stroke"/>` : ""}
 
             <!-- Dots -->
-            ${p90Path ? p90Path.points.map((p) => `<circle class="line-chart-dot" cx="${p.x}" cy="${p.y}" r="${dotRadius}" fill="var(--warning)" data-week="${escapeHtml(p.week)}" data-value="${escapeHtml(String(p.value))}" data-metric="P90"/>`).join("") : ""}
-            ${p50Path ? p50Path.points.map((p) => `<circle class="line-chart-dot" cx="${p.x}" cy="${p.y}" r="${dotRadius}" fill="var(--primary)" data-week="${escapeHtml(p.week)}" data-value="${escapeHtml(String(p.value))}" data-metric="P50"/>`).join("") : ""}
+            ${p90Path ? p90Path.points.map((p2) => `<circle class="line-chart-dot" cx="${p2.x}" cy="${p2.y}" r="${dotRadius}" fill="var(--warning)" data-week="${escapeHtml(p2.week)}" data-value="${escapeHtml(String(p2.value))}" data-metric="P90"/>`).join("") : ""}
+            ${p50Path ? p50Path.points.map((p2) => `<circle class="line-chart-dot" cx="${p2.x}" cy="${p2.y}" r="${dotRadius}" fill="var(--primary)" data-week="${escapeHtml(p2.week)}" data-value="${escapeHtml(String(p2.value))}" data-metric="P50"/>`).join("") : ""}
         </svg>
     `;
     const legendItems = [];
@@ -6304,7 +5847,7 @@ var PRInsightsDashboard = (() => {
     const truncated = rollups.length > MAX_REVIEWER_WEEKS;
     const recentRollups = rollups.slice(-MAX_REVIEWER_WEEKS);
     const maxReviewers = Math.max(
-      ...recentRollups.map((r) => r.reviewers_count || 0)
+      ...recentRollups.map((r2) => r2.reviewers_count || 0)
     );
     if (maxReviewers === 0) {
       const classification = options.availability ? classifyEmptyState({
@@ -6324,13 +5867,13 @@ var PRInsightsDashboard = (() => {
       );
       return;
     }
-    const barsHtml = recentRollups.map((r) => {
-      const count = r.reviewers_count || 0;
+    const barsHtml = recentRollups.map((r2) => {
+      const count = r2.reviewers_count || 0;
       const pct = count / maxReviewers * 100;
-      const wParts = r.week.split("-W");
-      const weekLabel = wParts[1] ?? r.week;
+      const wParts = r2.week.split("-W");
+      const weekLabel = wParts[1] ?? r2.week;
       return `
-            <div class="h-bar-row" title="${escapeHtml(r.week)}: ${count} ${noun}">
+            <div class="h-bar-row" title="${escapeHtml(r2.week)}: ${count} ${noun}">
                 <span class="h-bar-label">W${escapeHtml(weekLabel)}</span>
                 <div class="h-bar-container">
                     <div class="h-bar" style="width: ${pct}%"></div>
@@ -6362,7 +5905,7 @@ var PRInsightsDashboard = (() => {
   // ../ui/modules/filters.ts
   function parseCommaSeparated(raw) {
     if (!raw) return [];
-    return raw.split(",").map((v) => v.trim()).filter((v) => v.length > 0);
+    return raw.split(",").map((v2) => v2.trim()).filter((v2) => v2.length > 0);
   }
   function parseFiltersFromUrl(params) {
     const repos = parseCommaSeparated(params.get("repos"));
@@ -6472,14 +6015,14 @@ var PRInsightsDashboard = (() => {
   function deriveAvailabilitySignal(rollups, capabilities) {
     const caps = capabilities ?? DEFAULT_CAPABILITIES;
     const hasAnyReviewerField = rollups.some(
-      (r) => r.by_reviewer != null
+      (r2) => r2.by_reviewer != null
       // intentional loose equality to cover both null and undefined
     );
-    const allReviewerFieldsEmpty = hasAnyReviewerField && rollups.every((r) => {
-      if (r.by_reviewer == null) return true;
-      return Object.keys(r.by_reviewer).length === 0;
+    const allReviewerFieldsEmpty = hasAnyReviewerField && rollups.every((r2) => {
+      if (r2.by_reviewer == null) return true;
+      return Object.keys(r2.by_reviewer).length === 0;
     });
-    const hasAnyCycleTime = rollups.some((r) => r.cycle_time_p50 !== null);
+    const hasAnyCycleTime = rollups.some((r2) => r2.cycle_time_p50 !== null);
     return {
       reviewerDataPresent: hasAnyReviewerField,
       reviewerDataEmpty: hasAnyReviewerField && allReviewerFieldsEmpty,
@@ -6532,7 +6075,7 @@ var PRInsightsDashboard = (() => {
       if (config.mode !== "multi") return;
       if (isAllSelected()) return;
       selected.forEach((id) => {
-        const opt = options.find((o) => o.id === id);
+        const opt = options.find((o2) => o2.id === id);
         if (!opt) return;
         const chip = document.createElement("span");
         chip.className = "typeahead-chip";
@@ -6544,8 +6087,8 @@ var PRInsightsDashboard = (() => {
         remove.type = "button";
         remove.setAttribute("aria-label", `Remove ${opt.displayName}`);
         remove.textContent = "\xD7";
-        remove.addEventListener("click", (e) => {
-          e.stopPropagation();
+        remove.addEventListener("click", (e2) => {
+          e2.stopPropagation();
           deselectOption(id);
         }, { signal });
         chip.appendChild(label);
@@ -6597,8 +6140,8 @@ var PRInsightsDashboard = (() => {
         } else {
           item.textContent = opt.displayName;
         }
-        item.addEventListener("pointerdown", (e) => {
-          e.preventDefault();
+        item.addEventListener("pointerdown", (e2) => {
+          e2.preventDefault();
           toggleOption(opt.id);
         }, { signal });
         dropdown.appendChild(item);
@@ -6607,7 +6150,7 @@ var PRInsightsDashboard = (() => {
     function updateInputDisplay() {
       if (config.mode === "single") {
         if (selected.length > 0) {
-          const opt = options.find((o) => o.id === selected[0]);
+          const opt = options.find((o2) => o2.id === selected[0]);
           input.value = opt?.displayName ?? "";
         } else {
           input.value = "";
@@ -6630,7 +6173,7 @@ var PRInsightsDashboard = (() => {
         filteredOptions = [...options];
       } else {
         filteredOptions = options.filter(
-          (o) => o.displayName.toLowerCase().includes(q)
+          (o2) => o2.displayName.toLowerCase().includes(q)
         );
       }
       renderDropdown();
@@ -6656,7 +6199,7 @@ var PRInsightsDashboard = (() => {
       normalizeAndEmit();
     }
     function deselectOption(id) {
-      selected = selected.filter((s) => s !== id);
+      selected = selected.filter((s2) => s2 !== id);
       renderChips();
       if (isOpen) renderDropdown();
       updateInputDisplay();
@@ -6717,18 +6260,18 @@ var PRInsightsDashboard = (() => {
         if (!isOpen) openDropdown();
       }, DEBOUNCE_MS);
     }, { signal });
-    input.addEventListener("keydown", (e) => {
+    input.addEventListener("keydown", (e2) => {
       const items = dropdown.querySelectorAll(".typeahead-option");
-      if (e.key === "ArrowDown") {
-        e.preventDefault();
+      if (e2.key === "ArrowDown") {
+        e2.preventDefault();
         highlightIndex = Math.min(highlightIndex + 1, items.length - 1);
         updateHighlight(items);
-      } else if (e.key === "ArrowUp") {
-        e.preventDefault();
+      } else if (e2.key === "ArrowUp") {
+        e2.preventDefault();
         highlightIndex = Math.max(highlightIndex - 1, 0);
         updateHighlight(items);
-      } else if (e.key === "Enter") {
-        e.preventDefault();
+      } else if (e2.key === "Enter") {
+        e2.preventDefault();
         if (debounceTimer !== null) {
           clearTimeout(debounceTimer);
           debounceTimer = null;
@@ -6738,24 +6281,24 @@ var PRInsightsDashboard = (() => {
           const opt = filteredOptions.at(highlightIndex);
           if (opt) toggleOption(opt.id);
         }
-      } else if (e.key === "Escape") {
+      } else if (e2.key === "Escape") {
         closeDropdown();
         input.blur();
-      } else if (e.key === "Backspace" && input.value === "" && config.mode === "multi" && selected.length > 0) {
+      } else if (e2.key === "Backspace" && input.value === "" && config.mode === "multi" && selected.length > 0) {
         const last = selected[selected.length - 1];
         if (last) deselectOption(last);
       }
     }, { signal });
-    document.addEventListener("pointerdown", (e) => {
-      if (!container.contains(e.target)) {
+    document.addEventListener("pointerdown", (e2) => {
+      if (!container.contains(e2.target)) {
         closeDropdown();
       }
     }, { signal });
     function updateHighlight(items) {
-      items.forEach((item, i) => {
+      items.forEach((item, i2) => {
         item.classList.toggle(
           "typeahead-option-highlighted",
-          i === highlightIndex
+          i2 === highlightIndex
         );
       });
       const highlighted = Array.from(items).at(highlightIndex);
@@ -6769,14 +6312,14 @@ var PRInsightsDashboard = (() => {
         return isAllSelected() ? [] : [...selected];
       },
       setSelected(ids) {
-        selected = ids.filter((id) => options.some((o) => o.id === id));
+        selected = ids.filter((id) => options.some((o2) => o2.id === id));
         renderChips();
         if (isOpen) renderDropdown();
         updateInputDisplay();
       },
       setOptions(newOptions) {
         options = [...newOptions];
-        selected = selected.filter((id) => options.some((o) => o.id === id));
+        selected = selected.filter((id) => options.some((o2) => o2.id === id));
         filteredOptions = [...options];
         renderChips();
         updateInputDisplay();
@@ -6817,17 +6360,17 @@ var PRInsightsDashboard = (() => {
     if (!rollups || rollups.length === 0) {
       return "";
     }
-    const rows = rollups.map((r) => [
-      r.week,
-      r.start_date || "",
-      r.end_date || "",
-      r.pr_count || 0,
-      r.cycle_time_p50 != null ? r.cycle_time_p50.toFixed(1) : "",
-      r.cycle_time_p90 != null ? r.cycle_time_p90.toFixed(1) : "",
-      r.authors_count || 0,
-      r.reviewers_count || 0
+    const rows = rollups.map((r2) => [
+      r2.week,
+      r2.start_date || "",
+      r2.end_date || "",
+      r2.pr_count || 0,
+      r2.cycle_time_p50 != null ? r2.cycle_time_p50.toFixed(1) : "",
+      r2.cycle_time_p90 != null ? r2.cycle_time_p90.toFixed(1) : "",
+      r2.authors_count || 0,
+      r2.reviewers_count || 0
     ]);
-    const headerRow = CSV_HEADERS.map((h) => h);
+    const headerRow = CSV_HEADERS.map((h2) => h2);
     return [headerRow, ...rows].map((row) => row.map((cell) => `"${cell}"`).join(",")).join("\n");
   }
   function generateExportFilename(prefix, extension) {
@@ -6855,38 +6398,342 @@ var PRInsightsDashboard = (() => {
     }, durationMs);
   }
 
-  // ../ui/modules/sdk.ts
-  var sdkInitialized = false;
-  async function initializeAdoSdk(options = {}) {
-    if (sdkInitialized) {
-      return;
+  // ../node_modules/.pnpm/azure-devops-extension-sdk@4.2.0/node_modules/azure-devops-extension-sdk/esm/SDK.min.js
+  var e = parseInt("10000000000", 36);
+  var t = Number.MAX_SAFE_INTEGER || 9007199254740991;
+  var n = class {
+    constructor() {
+      __publicField(this, "objects", {});
     }
-    const { timeout = 1e4, onReady } = options;
-    return new Promise((resolve, reject) => {
-      const timeoutId = setTimeout(() => {
-        reject(new Error("Azure DevOps SDK initialization timed out"));
-      }, timeout);
-      VSS.init({
-        explicitNotifyLoaded: true,
-        usePlatformScripts: true,
-        usePlatformStyles: true
-      });
-      VSS.ready(() => {
-        clearTimeout(timeoutId);
-        sdkInitialized = true;
-        if (onReady) {
-          onReady();
+    register(e2, t2) {
+      this.objects[e2] = t2;
+    }
+    unregister(e2) {
+      delete this.objects[e2];
+    }
+    getInstance(e2, t2) {
+      var n2 = this.objects[e2];
+      if (n2) return "function" == typeof n2 ? n2(t2) : n2;
+    }
+  };
+  var o = 1;
+  var r = class {
+    constructor(r2, i2) {
+      __publicField(this, "promises", {});
+      __publicField(this, "postToWindow");
+      __publicField(this, "targetOrigin");
+      __publicField(this, "handshakeToken");
+      __publicField(this, "registry");
+      __publicField(this, "channelId");
+      __publicField(this, "nextMessageId", 1);
+      __publicField(this, "nextProxyId", 1);
+      __publicField(this, "proxyFunctions", {});
+      this.postToWindow = r2, this.targetOrigin = i2, this.registry = new n(), this.channelId = o++, this.targetOrigin || (this.handshakeToken = Math.floor(Math.random() * (t - e) + e).toString(36) + Math.floor(Math.random() * (t - e) + e).toString(36));
+    }
+    getObjectRegistry() {
+      return this.registry;
+    }
+    async invokeRemoteMethod(e2, t2, n2, o2, r2) {
+      const i2 = { id: this.nextMessageId++, methodName: e2, instanceId: t2, instanceContext: o2, params: this._customSerializeObject(n2, r2), serializationSettings: r2 };
+      this.targetOrigin || (i2.handshakeToken = this.handshakeToken);
+      const s2 = new Promise(((e3, t3) => {
+        this.promises[i2.id] = { resolve: e3, reject: t3 };
+      }));
+      return this._sendRpcMessage(i2), s2;
+    }
+    getRemoteObjectProxy(e2, t2) {
+      return this.invokeRemoteMethod("", e2, void 0, t2);
+    }
+    invokeMethod(e2, t2) {
+      if (t2.methodName) {
+        var n2 = e2[t2.methodName];
+        if ("function" == typeof n2) try {
+          var o2 = [];
+          t2.params && (o2 = this._customDeserializeObject(t2.params, {}));
+          var r2 = n2.apply(e2, o2);
+          r2 && r2.then && "function" == typeof r2.then ? r2.then(((e3) => {
+            this._success(t2, e3, t2.handshakeToken);
+          }), ((e3) => {
+            this.error(t2, e3);
+          })) : this._success(t2, r2, t2.handshakeToken);
+        } catch (e3) {
+          this.error(t2, e3);
         }
-        VSS.notifyLoadSucceeded();
-        resolve();
+        else this.error(t2, new Error("RPC method not found: " + t2.methodName));
+      } else this._success(t2, e2, t2.handshakeToken);
+    }
+    getRegisteredObject(e2, t2) {
+      if ("__proxyFunctions" === e2) return this.proxyFunctions;
+      var n2 = this.registry.getInstance(e2, t2);
+      return n2 || (n2 = i.getInstance(e2, t2)), n2;
+    }
+    onMessage(e2) {
+      if (e2.instanceId) {
+        const t2 = this.getRegisteredObject(e2.instanceId, e2.instanceContext);
+        if (!t2) return false;
+        "function" == typeof t2.then ? t2.then(((t3) => {
+          this.invokeMethod(t3, e2);
+        }), ((t3) => {
+          this.error(e2, t3);
+        })) : this.invokeMethod(t2, e2);
+      } else {
+        const t2 = this.promises[e2.id];
+        if (!t2) return false;
+        e2.error ? t2.reject(this._customDeserializeObject([e2.error], {})[0]) : t2.resolve(this._customDeserializeObject([e2.result], {})[0]), delete this.promises[e2.id];
+      }
+      return true;
+    }
+    owns(e2, t2, n2) {
+      if (this.postToWindow === e2) {
+        if (this.targetOrigin) return !!t2 && ("null" === t2.toLowerCase() || 0 === this.targetOrigin.toLowerCase().indexOf(t2.toLowerCase()));
+        if (n2.handshakeToken && n2.handshakeToken === this.handshakeToken) return this.targetOrigin = t2, true;
+      }
+      return false;
+    }
+    error(e2, t2) {
+      this._sendRpcMessage({ id: e2.id, error: this._customSerializeObject([t2], e2.serializationSettings)[0], handshakeToken: e2.handshakeToken });
+    }
+    _success(e2, t2, n2) {
+      this._sendRpcMessage({ id: e2.id, result: this._customSerializeObject([t2], e2.serializationSettings)[0], handshakeToken: n2 });
+    }
+    _sendRpcMessage(e2) {
+      this.postToWindow.postMessage(JSON.stringify(e2), "*");
+    }
+    _customSerializeObject(e2, t2, n2, o2 = 1, r2 = 1) {
+      if (!e2 || r2 > 100) return;
+      if (e2 instanceof Node || e2 instanceof Window || e2 instanceof Event) return;
+      var i2;
+      let s2;
+      s2 = n2 || { newObjects: [], originalObjects: [] }, s2.originalObjects.push(e2);
+      var c = (n3, i3, c2) => {
+        var a3;
+        try {
+          a3 = n3[c2];
+        } catch (e3) {
+        }
+        var h3 = typeof a3;
+        if ("undefined" !== h3) {
+          var d3 = -1;
+          if ("object" === h3 && (d3 = s2.originalObjects.indexOf(a3)), d3 >= 0) {
+            var u2 = s2.newObjects[d3];
+            u2.__circularReferenceId || (u2.__circularReferenceId = o2++), i3[c2] = { __circularReference: u2.__circularReferenceId };
+          } else "function" === h3 ? (this.nextProxyId++, i3[c2] = { __proxyFunctionId: this._registerProxyFunction(a3, e2), _channelId: this.channelId }) : "object" === h3 ? a3 && a3 instanceof Date ? i3[c2] = { __proxyDate: a3.getTime() } : i3[c2] = this._customSerializeObject(a3, t2, s2, o2, r2 + 1) : "__proxyFunctionId" !== c2 && (i3[c2] = a3);
+        }
+      };
+      if (e2 instanceof Array) {
+        i2 = [], s2.newObjects.push(i2);
+        for (var a2 = 0, h2 = e2.length; a2 < h2; a2++) c(e2, i2, a2);
+      } else {
+        i2 = {}, s2.newObjects.push(i2);
+        let n3 = {};
+        try {
+          n3 = (function(e3) {
+            const t3 = {};
+            for (; e3 && e3 !== Object.prototype; ) {
+              const n4 = Object.getOwnPropertyNames(e3);
+              for (const e4 of n4) "constructor" !== e4 && (t3[e4] = true);
+              e3 = Object.getPrototypeOf(e3);
+            }
+            return t3;
+          })(e2);
+        } catch (e3) {
+        }
+        for (var d2 in n3) (d2 && "_" !== d2[0] || t2 && t2.includeUnderscoreProperties) && c(e2, i2, d2);
+      }
+      return s2.originalObjects.pop(), s2.newObjects.pop(), i2;
+    }
+    _registerProxyFunction(e2, t2) {
+      var n2 = this.nextProxyId++;
+      return this.proxyFunctions["proxy" + n2] = function() {
+        return e2.apply(t2, Array.prototype.slice.call(arguments, 0));
+      }, n2;
+    }
+    _customDeserializeObject(e2, t2) {
+      var n2 = this;
+      if (!e2) return null;
+      var o2 = (e3, o3) => {
+        var r3 = e3[o3], i3 = typeof r3;
+        "__circularReferenceId" === o3 && "number" === i3 ? (t2[r3] = e3, delete e3[o3]) : "object" === i3 && r3 && (r3.__proxyFunctionId ? e3[o3] = function() {
+          return n2.invokeRemoteMethod("proxy" + r3.__proxyFunctionId, "__proxyFunctions", Array.prototype.slice.call(arguments, 0), {}, { includeUnderscoreProperties: true });
+        } : r3.__proxyDate ? e3[o3] = new Date(r3.__proxyDate) : r3.__circularReference ? e3[o3] = t2[r3.__circularReference] : this._customDeserializeObject(r3, t2));
+      };
+      if (e2 instanceof Array) for (var r2 = 0, i2 = e2.length; r2 < i2; r2++) o2(e2, r2);
+      else if ("object" == typeof e2) for (var s2 in e2) o2(e2, s2);
+      return e2;
+    }
+  };
+  var i = new n();
+  var s = new class {
+    constructor() {
+      __publicField(this, "_channels", []);
+      __publicField(this, "_handleMessageReceived", (e2) => {
+        let t2;
+        if ("string" == typeof e2.data) try {
+          t2 = JSON.parse(e2.data);
+        } catch (e3) {
+        }
+        if (t2) {
+          let n2, o2 = false;
+          for (const r2 of this._channels) r2.owns(e2.source, e2.origin, t2) && (n2 = r2, o2 = r2.onMessage(t2) || o2);
+          n2 && !o2 && (window.console && console.error(`No handler found on any channel for message: ${JSON.stringify(t2)}`), t2.instanceId && n2.error(t2, new Error(`The registered object ${t2.instanceId} could not be found.`)));
+        }
       });
+      window.addEventListener("message", this._handleMessageReceived);
+    }
+    addChannel(e2, t2) {
+      const n2 = new r(e2, t2);
+      return this._channels.push(n2), n2;
+    }
+    removeChannel(e2) {
+      this._channels = this._channels.filter(((t2) => t2 !== e2));
+    }
+  }();
+  var a = window;
+  var h;
+  a._AzureDevOpsSDKVersion && console.error("The AzureDevOps SDK is already loaded. Only one version of this module can be loaded in a given document."), a._AzureDevOpsSDKVersion = 4.2, (function(e2) {
+    e2[e2.Unknown = 0] = "Unknown", e2[e2.Deployment = 1] = "Deployment", e2[e2.Enterprise = 2] = "Enterprise", e2[e2.Organization = 4] = "Organization";
+  })(h || (h = {}));
+  var d = "DevOps.HostControl";
+  var u = s.addChannel(window.parent);
+  var l;
+  var f;
+  var g;
+  var p;
+  var m;
+  var y;
+  var v;
+  var _;
+  var b;
+  var w;
+  var O = new Promise(((e2) => {
+    w = e2;
+  }));
+  function x(e2, t2) {
+    const n2 = window;
+    let o2;
+    "function" == typeof n2.CustomEvent ? o2 = new n2.CustomEvent(e2, t2) : (t2 = t2 || { bubbles: false, cancelable: false }, o2 = document.createEvent("CustomEvent"), o2.initCustomEvent(e2, t2.bubbles, t2.cancelable, t2.detail)), window.dispatchEvent(o2);
+  }
+  function k(e2) {
+    return new Promise(((t2) => {
+      const n2 = { ...e2, sdkVersion: 4.2 };
+      u.invokeRemoteMethod("initialHandshake", d, [n2]).then(((e3) => {
+        if ("pageContext" in e3) {
+          const t3 = e3;
+          if (g = t3.pageContext, f = g ? g.webContext : void 0, l = f ? f.team : void 0, m = t3.initialConfig || {}, y = t3.contribution.id, p = t3.extensionContext, p.id = p.publisherId + "." + p.extensionId, "context" in e3) {
+            const t4 = e3.context;
+            v = t4.user, _ = t4.host;
+          }
+        } else {
+          const t3 = e3, n3 = t3.context;
+          g = n3.pageContext, f = g ? g.webContext : void 0, l = f ? f.team : void 0, m = t3.initialConfig || {}, y = t3.contributionId, p = n3.extension, v = n3.user, _ = n3.host;
+        }
+        e3.themeData && (J(e3.themeData), window.addEventListener("themeChanged", ((e4) => {
+          J(e4.detail.data);
+        }))), w(), t2();
+      }));
+    }));
+  }
+  async function j() {
+    return O;
+  }
+  function R() {
+    return u.invokeRemoteMethod("notifyLoadSucceeded", d);
+  }
+  function I(e2) {
+    return `Attempted to call ${e2}() before init() was complete. Wait for init to complete or place within a ready() callback.`;
+  }
+  function T() {
+    if (!v) throw new Error(I("getUser"));
+    return v;
+  }
+  function D() {
+    if (!_) throw new Error(I("getHost"));
+    return _;
+  }
+  function S() {
+    if (!p) throw new Error(I("getExtensionContext"));
+    return p;
+  }
+  function A() {
+    if (!f) throw new Error(I("getWebContext"));
+    return f;
+  }
+  async function F(e2) {
+    return j().then((() => u.invokeRemoteMethod("getService", "DevOps.ServiceManager", [e2])));
+  }
+  async function L() {
+    return u.invokeRemoteMethod("getAccessToken", d).then(((e2) => e2.token));
+  }
+  function J(e2) {
+    b || (b = document.createElement("style"), b.type = "text/css", document.head.appendChild(b));
+    const t2 = [];
+    if (e2) for (const n2 in e2) t2.push("--" + n2 + ": " + e2[n2]);
+    b.innerText = ":root { " + t2.join("; ") + " } body { color: var(--text-primary-color) }", x("themeApplied", { detail: e2 });
+  }
+  u.getObjectRegistry().register("DevOps.SdkClient", { dispatchEvent: x });
+
+  // ../ui/modules/sdk.ts
+  var ExtensionDataServiceId = "ms.vss-features.extension-data-service";
+  var LocationServiceId = "ms.vss-features.location-service";
+  var sdkInitialized = false;
+  var DEFAULT_TIMEOUT_MS = 1e4;
+  async function initializeAdoSdk(options) {
+    if (sdkInitialized) return;
+    const timeout = options?.timeout ?? DEFAULT_TIMEOUT_MS;
+    const initSequence = async () => {
+      await k({ loaded: false });
+      await j();
+      if (options?.onReady) {
+        options.onReady();
+      }
+      await R();
+      sdkInitialized = true;
+    };
+    const timeoutPromise = new Promise((_2, reject) => {
+      setTimeout(
+        () => reject(new Error("Azure DevOps SDK initialization timed out")),
+        timeout
+      );
     });
+    await Promise.race([initSequence(), timeoutPromise]);
+  }
+  async function getExtensionDataService() {
+    const dataService = await F(
+      ExtensionDataServiceId
+    );
+    const extensionContext = S();
+    const accessToken = await L();
+    return dataService.getExtensionDataManager(extensionContext.id, accessToken);
+  }
+  function getWebContext() {
+    if (!sdkInitialized) return void 0;
+    const webCtx = A();
+    const user = T();
+    const host = D();
+    return {
+      project: webCtx.project ? { id: webCtx.project.id, name: webCtx.project.name } : void 0,
+      team: webCtx.team ? { id: webCtx.team.id, name: webCtx.team.name } : void 0,
+      user: { id: user.id, name: user.name, displayName: user.displayName },
+      host: { id: host.id, name: host.name }
+    };
+  }
+  async function getCollectionUri() {
+    const locationService = await F(
+      LocationServiceId
+    );
+    return locationService.getServiceLocation();
+  }
+  async function getAccessToken() {
+    return L();
   }
   function isLocalMode() {
-    return typeof window !== "undefined" && window.LOCAL_DASHBOARD_MODE === true;
+    return typeof LOCAL_DASHBOARD_MODE !== "undefined" && LOCAL_DASHBOARD_MODE === true;
   }
   function getLocalDatasetPath() {
-    return typeof window !== "undefined" && window.DATASET_PATH || "./dataset";
+    if (typeof DATASET_PATH !== "undefined" && DATASET_PATH !== "") {
+      return DATASET_PATH;
+    }
+    return "./dataset";
   }
 
   // ../ui/modules/loading-state.ts
@@ -6988,6 +6835,465 @@ var PRInsightsDashboard = (() => {
   function hasStateChanged(prev, next) {
     if (prev === null) return true;
     return JSON.stringify(prev) !== JSON.stringify(next);
+  }
+
+  // ../ui/artifact-client.ts
+  var ArtifactClient = class {
+    /**
+     * Create a new ArtifactClient.
+     *
+     * @param projectId - Azure DevOps project ID
+     */
+    constructor(projectId) {
+      this.collectionUri = null;
+      this.authToken = null;
+      this.initialized = false;
+      this.projectId = projectId;
+    }
+    /**
+     * Initialize the client with ADO SDK auth.
+     * MUST be called after SDK initialization and before any other methods.
+     *
+     * @returns This client instance
+     */
+    async initialize() {
+      if (this.initialized) {
+        return this;
+      }
+      this.collectionUri = await getCollectionUri();
+      this.authToken = await getAccessToken();
+      this.initialized = true;
+      return this;
+    }
+    /**
+     * Ensure the client is initialized.
+     */
+    _ensureInitialized() {
+      if (!this.initialized) {
+        throw new Error(
+          "ArtifactClient not initialized. Call initialize() first."
+        );
+      }
+    }
+    /**
+     * Fetch a file from a build artifact.
+     *
+     * @param buildId - Build ID
+     * @param artifactName - Artifact name (e.g., 'aggregates')
+     * @param filePath - Path within artifact (e.g., 'dataset-manifest.json')
+     * @returns Parsed JSON content
+     * @throws {PrInsightsError} On permission denied or not found
+     */
+    async getArtifactFile(buildId, artifactName, filePath) {
+      this._ensureInitialized();
+      const url = this._buildFileUrl(buildId, artifactName, filePath);
+      const response = await this._authenticatedFetch(url);
+      if (response.status === 401 || response.status === 403) {
+        throw createPermissionDeniedError("read artifact files");
+      }
+      if (response.status === 404) {
+        throw new Error(
+          `File '${filePath}' not found in artifact '${artifactName}'`
+        );
+      }
+      if (!response.ok) {
+        throw new Error(
+          `Failed to fetch artifact file: ${response.status} ${response.statusText}`
+        );
+      }
+      return response.json();
+    }
+    /**
+     * Check if a specific file exists in an artifact.
+     */
+    async hasArtifactFile(buildId, artifactName, filePath) {
+      this._ensureInitialized();
+      try {
+        const url = this._buildFileUrl(buildId, artifactName, filePath);
+        const response = await this._authenticatedFetch(url, { method: "HEAD" });
+        return response.ok;
+      } catch {
+        return false;
+      }
+    }
+    /**
+     * Get artifact metadata by looking it up from the artifacts list.
+     */
+    async getArtifactMetadata(buildId, artifactName) {
+      this._ensureInitialized();
+      const artifacts = await this.getArtifacts(buildId);
+      const artifact = artifacts.find(
+        (a2) => a2.name === artifactName
+      );
+      if (!artifact) {
+        console.log(
+          "[getArtifactMetadata] Artifact '%s' not found in build %d",
+          artifactName,
+          buildId
+        );
+        return null;
+      }
+      return artifact;
+    }
+    /**
+     * Get artifact content via SDK approach.
+     */
+    async getArtifactFileViaSdk(buildId, artifactName, filePath) {
+      this._ensureInitialized();
+      const artifact = await this.getArtifactMetadata(buildId, artifactName);
+      if (!artifact) {
+        throw new Error(
+          `Artifact '${artifactName}' not found in build ${buildId}`
+        );
+      }
+      const downloadUrl = artifact.resource?.downloadUrl;
+      if (!downloadUrl) {
+        throw new Error(
+          `No downloadUrl available for artifact '${artifactName}'`
+        );
+      }
+      const normalizedPath = filePath.startsWith("/") ? filePath : "/" + filePath;
+      let url;
+      if (downloadUrl.includes("format=")) {
+        url = downloadUrl.replace(/format=\w+/, "format=file");
+      } else {
+        const separator = downloadUrl.includes("?") ? "&" : "?";
+        url = `${downloadUrl}${separator}format=file`;
+      }
+      url += `&subPath=${encodeURIComponent(normalizedPath)}`;
+      const response = await this._authenticatedFetch(url);
+      if (response.status === 404) {
+        throw new Error(
+          `File '${filePath}' not found in artifact '${artifactName}'`
+        );
+      }
+      if (response.status === 401 || response.status === 403) {
+        throw createPermissionDeniedError("read artifact file");
+      }
+      if (!response.ok) {
+        throw new Error(
+          `Failed to fetch file: ${response.status} ${response.statusText}`
+        );
+      }
+      return response.json();
+    }
+    /**
+     * Get list of artifacts for a build.
+     */
+    async getArtifacts(buildId) {
+      this._ensureInitialized();
+      const url = `${this.collectionUri}${this.projectId}/_apis/build/builds/${buildId}/artifacts?api-version=7.1`;
+      const response = await this._authenticatedFetch(url);
+      if (response.status === 401 || response.status === 403) {
+        throw createPermissionDeniedError("list build artifacts");
+      }
+      if (!response.ok) {
+        throw new Error(`Failed to list artifacts: ${response.status}`);
+      }
+      const data = await response.json();
+      return data.value || [];
+    }
+    /**
+     * Get pipeline definitions for the project.
+     *
+     * @param top - Maximum number of definitions to return (default: 50)
+     * @param queryOrder - Sort order (2 = lastModifiedDescending)
+     * @returns Array of pipeline definition references
+     */
+    async getDefinitions(top = 50, queryOrder = 2) {
+      this._ensureInitialized();
+      const url = `${this.collectionUri}${this.projectId}/_apis/build/definitions?api-version=7.1&$top=${top}&queryOrder=${queryOrder}`;
+      const response = await this._authenticatedFetch(url);
+      if (response.status === 401 || response.status === 403) {
+        throw createPermissionDeniedError("list build definitions");
+      }
+      if (!response.ok) {
+        throw new Error(`Failed to list definitions: ${response.status}`);
+      }
+      const data = await response.json();
+      return data.value || [];
+    }
+    /**
+     * Get builds for a specific pipeline definition.
+     *
+     * @param definitionId - Pipeline definition ID to filter by
+     * @param top - Maximum number of builds to return (default: 1)
+     * @returns Array of builds (filtered to completed + succeeded)
+     */
+    async getBuilds(definitionId, top = 1) {
+      this._ensureInitialized();
+      const url = `${this.collectionUri}${this.projectId}/_apis/build/builds?api-version=7.1&definitions=${definitionId}&statusFilter=2&resultFilter=6&$top=${top}`;
+      const response = await this._authenticatedFetch(url);
+      if (response.status === 401 || response.status === 403) {
+        throw createPermissionDeniedError("list builds");
+      }
+      if (!response.ok) {
+        throw new Error(`Failed to list builds: ${response.status}`);
+      }
+      const data = await response.json();
+      return data.value || [];
+    }
+    /**
+     * Create a DatasetLoader that uses this client for authenticated requests.
+     */
+    createDatasetLoader(buildId, artifactName) {
+      return new AuthenticatedDatasetLoader(this, buildId, artifactName);
+    }
+    /**
+     * Build the URL for accessing a file within an artifact.
+     */
+    _buildFileUrl(buildId, artifactName, filePath) {
+      const normalizedPath = filePath.startsWith("/") ? filePath : "/" + filePath;
+      return `${this.collectionUri}${this.projectId}/_apis/build/builds/${buildId}/artifacts?artifactName=${encodeURIComponent(artifactName)}&%24format=file&subPath=${encodeURIComponent(normalizedPath)}&api-version=7.1`;
+    }
+    /**
+     * Perform an authenticated fetch using the ADO auth token.
+     */
+    async _authenticatedFetch(url, options = {}) {
+      const headers = {
+        Authorization: `Bearer ${this.authToken}`,
+        Accept: "application/json",
+        ...options.headers || {}
+      };
+      return fetch(url, { ...options, headers });
+    }
+    /**
+     * Public wrapper for authenticated fetch.
+     * Use this for external callers (e.g., dashboard raw data download).
+     *
+     * @param url - URL to fetch
+     * @param options - Fetch options
+     * @returns Response
+     */
+    async authenticatedFetch(url, options = {}) {
+      this._ensureInitialized();
+      return this._authenticatedFetch(url, options);
+    }
+  };
+  var AuthenticatedDatasetLoader = class {
+    constructor(artifactClient2, buildId, artifactName) {
+      this.manifest = null;
+      this.dimensions = null;
+      this.rollupCache = /* @__PURE__ */ new Map();
+      this.distributionCache = /* @__PURE__ */ new Map();
+      this.artifactClient = artifactClient2;
+      this.buildId = buildId;
+      this.artifactName = artifactName;
+    }
+    async loadManifest() {
+      try {
+        this.manifest = await this.artifactClient.getArtifactFileViaSdk(
+          this.buildId,
+          this.artifactName,
+          "dataset-manifest.json"
+        );
+        if (!this.manifest) {
+          throw new Error("Manifest file is empty or invalid");
+        }
+        this.validateManifest(this.manifest);
+        return this.manifest;
+      } catch (error) {
+        const wrappedError = new Error(
+          `Failed to load dataset manifest: ${getErrorMessage(error)}`
+        );
+        wrappedError.cause = error;
+        throw wrappedError;
+      }
+    }
+    validateManifest(manifest) {
+      const SUPPORTED_MANIFEST_VERSION2 = 1;
+      const SUPPORTED_DATASET_VERSION2 = 1;
+      const SUPPORTED_AGGREGATES_VERSION2 = 2;
+      if (!manifest.manifest_schema_version) {
+        throw new Error("Invalid manifest: missing schema version");
+      }
+      if (manifest.manifest_schema_version > SUPPORTED_MANIFEST_VERSION2) {
+        throw new Error(
+          `Manifest version ${manifest.manifest_schema_version} not supported.`
+        );
+      }
+      if (manifest.dataset_schema_version !== void 0 && manifest.dataset_schema_version > SUPPORTED_DATASET_VERSION2) {
+        throw new Error(
+          `Dataset version ${manifest.dataset_schema_version} not supported.`
+        );
+      }
+      if (manifest.aggregates_schema_version !== void 0 && manifest.aggregates_schema_version > SUPPORTED_AGGREGATES_VERSION2) {
+        throw new Error(
+          `Aggregates version ${manifest.aggregates_schema_version} not supported.`
+        );
+      }
+    }
+    async loadDimensions() {
+      if (this.dimensions) return this.dimensions;
+      this.dimensions = await this.artifactClient.getArtifactFileViaSdk(
+        this.buildId,
+        this.artifactName,
+        "aggregates/dimensions.json"
+      );
+      if (!this.dimensions) {
+        throw new Error("Dimensions file is empty or invalid");
+      }
+      return this.dimensions;
+    }
+    async getWeeklyRollups(startDate, endDate) {
+      if (!this.manifest) throw new Error("Manifest not loaded.");
+      const neededWeeks = this.getWeeksInRange(startDate, endDate);
+      const results = [];
+      for (const weekStr of neededWeeks) {
+        const cachedRollup = this.rollupCache.get(weekStr);
+        if (cachedRollup) {
+          results.push(cachedRollup);
+          continue;
+        }
+        const indexEntry = this.manifest?.aggregate_index?.weekly_rollups?.find(
+          (r2) => r2.week === weekStr
+        );
+        if (!indexEntry) continue;
+        try {
+          const rollup = await this.artifactClient.getArtifactFileViaSdk(
+            this.buildId,
+            this.artifactName,
+            indexEntry.path
+          );
+          this.rollupCache.set(weekStr, rollup);
+          results.push(rollup);
+        } catch (e2) {
+          console.warn("Failed to load rollup for %s:", weekStr, e2);
+        }
+      }
+      return results;
+    }
+    async getDistributions(startDate, endDate) {
+      if (!this.manifest) throw new Error("Manifest not loaded.");
+      const startYear = startDate.getFullYear();
+      const endYear = endDate.getFullYear();
+      const results = [];
+      for (let year = startYear; year <= endYear; year++) {
+        const yearStr = String(year);
+        const cachedDistribution = this.distributionCache.get(yearStr);
+        if (cachedDistribution) {
+          results.push(cachedDistribution);
+          continue;
+        }
+        const indexEntry = this.manifest?.aggregate_index?.distributions?.find(
+          (d2) => d2.year === yearStr
+        );
+        if (!indexEntry) continue;
+        try {
+          const dist = await this.artifactClient.getArtifactFileViaSdk(
+            this.buildId,
+            this.artifactName,
+            indexEntry.path
+          );
+          this.distributionCache.set(yearStr, dist);
+          results.push(dist);
+        } catch (e2) {
+          console.warn("Failed to load distribution for %s:", yearStr, e2);
+        }
+      }
+      return results;
+    }
+    getWeeksInRange(startDate, endDate) {
+      const weeks = [];
+      const current = new Date(startDate);
+      const day = current.getDay();
+      const diff = current.getDate() - day + (day === 0 ? -6 : 1);
+      current.setDate(diff);
+      while (current <= endDate) {
+        weeks.push(this.getISOWeek(current));
+        current.setDate(current.getDate() + 7);
+      }
+      return weeks;
+    }
+    getISOWeek(date) {
+      const d2 = new Date(
+        Date.UTC(date.getFullYear(), date.getMonth(), date.getDate())
+      );
+      d2.setUTCDate(d2.getUTCDate() + 4 - (d2.getUTCDay() || 7));
+      const yearStart = new Date(Date.UTC(d2.getUTCFullYear(), 0, 1));
+      const weekNo = Math.ceil(
+        ((d2.getTime() - yearStart.getTime()) / 864e5 + 1) / 7
+      );
+      return `${d2.getUTCFullYear()}-W${String(weekNo).padStart(2, "0")}`;
+    }
+    getCoverage() {
+      return this.manifest?.coverage || null;
+    }
+    getDefaultRangeDays() {
+      return this.manifest?.defaults?.default_date_range_days || 90;
+    }
+    async loadPredictions() {
+      try {
+        const indexEntry = this.manifest?.aggregate_index?.predictions;
+        if (!indexEntry) return { state: "unavailable" };
+        const data = await this.artifactClient.getArtifactFileViaSdk(
+          this.buildId,
+          this.artifactName,
+          indexEntry.path
+        );
+        return { state: "ok", data };
+      } catch (e2) {
+        console.warn("Failed to load predictions:", e2);
+        return { state: "unavailable" };
+      }
+    }
+    async loadInsights() {
+      try {
+        const indexEntry = this.manifest?.aggregate_index?.ai_insights;
+        if (!indexEntry) return { state: "unavailable" };
+        const data = await this.artifactClient.getArtifactFileViaSdk(
+          this.buildId,
+          this.artifactName,
+          indexEntry.path
+        );
+        return { state: "ok", data };
+      } catch (e2) {
+        console.warn("Failed to load AI insights:", e2);
+        return { state: "unavailable" };
+      }
+    }
+  };
+  var MockArtifactClient = class {
+    constructor(mockData = {}) {
+      this.projectId = "mock-project";
+      this.initialized = true;
+      this.mockData = new Map(Object.entries(mockData));
+    }
+    async initialize() {
+      return this;
+    }
+    async getArtifactFile(buildId, artifactName, filePath) {
+      const key = `${buildId}/${artifactName}/${filePath}`;
+      if (this.mockData.has(key)) {
+        return JSON.parse(JSON.stringify(this.mockData.get(key)));
+      }
+      throw new Error(`Mock: File not found: ${key}`);
+    }
+    async hasArtifactFile(buildId, artifactName, filePath) {
+      const key = `${buildId}/${artifactName}/${filePath}`;
+      return this.mockData.has(key);
+    }
+    async getArtifacts(buildId) {
+      return this.mockData.get(`${buildId}/artifacts`) ?? [];
+    }
+    async getDefinitions() {
+      return this.mockData.get("definitions") ?? [];
+    }
+    async getBuilds(definitionId) {
+      return this.mockData.get(`builds/${definitionId}`) ?? [];
+    }
+    createDatasetLoader(buildId, artifactName) {
+      return new AuthenticatedDatasetLoader(
+        this,
+        buildId,
+        artifactName
+      );
+    }
+  };
+  if (typeof window !== "undefined") {
+    window.ArtifactClient = ArtifactClient;
+    window.AuthenticatedDatasetLoader = AuthenticatedDatasetLoader;
+    window.MockArtifactClient = MockArtifactClient;
   }
 
   // ../ui/dashboard.ts
@@ -7133,9 +7439,7 @@ var PRInsightsDashboard = (() => {
       pipelineId: null
     };
     try {
-      const dataService = await VSS.getService(
-        VSS.ServiceIds.ExtensionData
-      );
+      const dataService = await getExtensionDataService();
       const savedProjectId = await dataService.getValue(
         SETTINGS_KEY_PROJECT,
         { scopeType: "User" }
@@ -7150,22 +7454,20 @@ var PRInsightsDashboard = (() => {
       if (savedPipelineId && typeof savedPipelineId === "number" && savedPipelineId > 0) {
         result.pipelineId = savedPipelineId;
       }
-    } catch (e) {
-      console.log("Could not read extension settings:", e);
+    } catch (e2) {
+      console.log("Could not read extension settings:", e2);
     }
     return result;
   }
   async function clearStalePipelineSetting() {
     try {
-      const dataService = await VSS.getService(
-        VSS.ServiceIds.ExtensionData
-      );
+      const dataService = await getExtensionDataService();
       await dataService.setValue(SETTINGS_KEY_PIPELINE, null, {
         scopeType: "User"
       });
       console.log("Cleared stale pipeline setting to re-enable auto-discovery");
-    } catch (e) {
-      console.warn("Could not clear stale pipeline setting:", e);
+    } catch (e2) {
+      console.warn("Could not clear stale pipeline setting:", e2);
     }
   }
   async function resolveConfiguration() {
@@ -7176,8 +7478,8 @@ var PRInsightsDashboard = (() => {
     if (queryResult.mode === "direct") {
       return { directUrl: queryResult.value };
     }
-    const webContext = VSS.getWebContext();
-    const currentProjectId = webContext.project?.id;
+    const webCtx = getWebContext();
+    const currentProjectId = webCtx?.project?.id;
     if (!currentProjectId) {
       throw new Error("No project context available");
     }
@@ -7225,7 +7527,7 @@ var PRInsightsDashboard = (() => {
     const latestBuild = builds[0];
     if (!latestBuild) throw new Error("Failed to retrieve latest build");
     const artifacts = await artifactClient.getArtifacts(latestBuild.id);
-    const hasAggregates = artifacts.some((a) => a.name === "aggregates");
+    const hasAggregates = artifacts.some((a2) => a2.name === "aggregates");
     if (!hasAggregates) {
       const name = latestBuild.definition?.name || `ID ${pipelineId}`;
       throw createArtifactsMissingError(name, latestBuild.id);
@@ -7252,14 +7554,14 @@ var PRInsightsDashboard = (() => {
         const latestBuild = builds[0];
         if (!latestBuild) continue;
         const artifacts = await artifactClient.getArtifacts(latestBuild.id);
-        if (!artifacts.some((a) => a.name === "aggregates")) continue;
+        if (!artifacts.some((a2) => a2.name === "aggregates")) continue;
         matches.push({
           id: def.id,
           name: def.name,
           buildId: latestBuild.id
         });
-      } catch (e) {
-        console.debug(`Skipping pipeline ${def.name}:`, e);
+      } catch (e2) {
+        console.debug(`Skipping pipeline ${def.name}:`, e2);
       }
     }
     return matches;
@@ -7288,10 +7590,10 @@ var PRInsightsDashboard = (() => {
       }
       await initializeAdoSdk({
         onReady: () => {
-          const webContext = VSS.getWebContext();
+          const webCtx = getWebContext();
           const projectNameEl = document.getElementById("current-project-name");
-          if (projectNameEl && webContext?.project?.name) {
-            projectNameEl.textContent = webContext.project.name;
+          if (projectNameEl && webCtx?.project?.name) {
+            projectNameEl.textContent = webCtx.project.name;
           }
         }
       });
@@ -7418,8 +7720,8 @@ var PRInsightsDashboard = (() => {
     elements.get("export-csv")?.addEventListener("click", exportToCsv);
     elements.get("export-link")?.addEventListener("click", copyShareableLink);
     elements.get("export-raw-zip")?.addEventListener("click", downloadRawDataZip);
-    document.addEventListener("click", (e) => {
-      const target = e.target;
+    document.addEventListener("click", (e2) => {
+      const target = e2.target;
       if (!target.closest(".export-dropdown")) {
         elements.get("export-menu")?.classList.add("hidden");
       }
@@ -7509,8 +7811,8 @@ var PRInsightsDashboard = (() => {
           prevPeriod.end
         );
         prevRollups = applyFiltersToRollups(rawPrevRollups, currentFilters);
-      } catch (e) {
-        console.debug("Previous period data not available:", e);
+      } catch (e2) {
+        console.debug("Previous period data not available:", e2);
       }
       if (cycleId > 0 && isStale(cycleId)) {
         return;
@@ -7553,11 +7855,11 @@ var PRInsightsDashboard = (() => {
       summarySection.removeAttribute("data-accuracy");
       return;
     }
-    const isEstimated = (r) => {
+    const isEstimated = (r2) => {
       if (isTeamRepoFilter) {
-        return r.by_team_and_repo == null || r.by_team_and_repo["_truncated"] === true;
+        return r2.by_team_and_repo == null || r2.by_team_and_repo["_truncated"] === true;
       }
-      return r.by_author_and_repo == null || r.by_author_and_repo["_truncated"] === true;
+      return r2.by_author_and_repo == null || r2.by_author_and_repo["_truncated"] === true;
     };
     const hasEstimatedWeeks = rawRollups.some(isEstimated);
     if (hasEstimatedWeeks) {
@@ -7732,8 +8034,8 @@ var PRInsightsDashboard = (() => {
       renderInsightsForState(aiContent, state);
     }
   }
-  function handleDateRangeChange(e) {
-    const target = e.target;
+  function handleDateRangeChange(e2) {
+    const target = e2.target;
     const value = target.value;
     if (value === "custom") {
       elements.get("custom-dates")?.classList.remove("hidden");
@@ -7779,9 +8081,9 @@ var PRInsightsDashboard = (() => {
     if (dimensions.repositories && dimensions.repositories.length > 0) {
       typeaheadRepo = initTypeaheadDropdown({
         containerId: "repo-filter",
-        options: dimensions.repositories.map((r) => ({
-          id: r.repository_name,
-          displayName: r.repository_name
+        options: dimensions.repositories.map((r2) => ({
+          id: r2.repository_name,
+          displayName: r2.repository_name
         })),
         mode: "multi",
         placeholder: "Search repositories...",
@@ -7796,9 +8098,9 @@ var PRInsightsDashboard = (() => {
     if (dimensions.teams && dimensions.teams.length > 0) {
       typeaheadTeam = initTypeaheadDropdown({
         containerId: "team-filter",
-        options: dimensions.teams.map((t) => ({
-          id: t.team_name,
-          displayName: t.team_name
+        options: dimensions.teams.map((t2) => ({
+          id: t2.team_name,
+          displayName: t2.team_name
         })),
         mode: "multi",
         placeholder: "Search teams...",
@@ -7813,9 +8115,9 @@ var PRInsightsDashboard = (() => {
     if (dimensions.reviewers && dimensions.reviewers.length > 0) {
       typeaheadReviewer = initTypeaheadDropdown({
         containerId: "reviewer-filter",
-        options: dimensions.reviewers.map((r) => ({
-          id: r.reviewer_id,
-          displayName: r.reviewer_name
+        options: dimensions.reviewers.map((r2) => ({
+          id: r2.reviewer_id,
+          displayName: r2.reviewer_name
         })),
         mode: "single",
         placeholder: "Search reviewers...",
@@ -7830,9 +8132,9 @@ var PRInsightsDashboard = (() => {
     if (dimensions.authors && dimensions.authors.length > 0) {
       typeaheadAuthor = initTypeaheadDropdown({
         containerId: "author-filter",
-        options: dimensions.authors.map((a) => ({
-          id: a.author_id,
-          displayName: a.author_name
+        options: dimensions.authors.map((a2) => ({
+          id: a2.author_id,
+          displayName: a2.author_name
         })),
         mode: "single",
         placeholder: "Search authors...",
@@ -7849,7 +8151,7 @@ var PRInsightsDashboard = (() => {
   function applyFilterState(raw, lastChanged) {
     const { effectiveState, constraintsApplied } = resolveFilterConstraints(raw, lastChanged);
     const reviewerNotice = constraintsApplied.find(
-      (n) => n.type === "author_reviewer" || n.type === "reviewer_team" || n.type === "reviewer_repo"
+      (n2) => n2.type === "author_reviewer" || n2.type === "reviewer_team" || n2.type === "reviewer_repo"
     );
     reviewerFilterNoticeMessage = reviewerNotice?.message ?? null;
     currentFilters = effectiveState;
@@ -7880,13 +8182,13 @@ var PRInsightsDashboard = (() => {
       authors: [...currentFilters.authors]
     };
     if (type === "repo") {
-      next.repos = next.repos.filter((v) => v !== value);
+      next.repos = next.repos.filter((v2) => v2 !== value);
     } else if (type === "team") {
-      next.teams = next.teams.filter((v) => v !== value);
+      next.teams = next.teams.filter((v2) => v2 !== value);
     } else if (type === "reviewer") {
-      next.reviewers = next.reviewers.filter((v) => v !== value);
+      next.reviewers = next.reviewers.filter((v2) => v2 !== value);
     } else if (type === "author") {
-      next.authors = next.authors.filter((v) => v !== value);
+      next.authors = next.authors.filter((v2) => v2 !== value);
     }
     applyFilterState(next);
   }
@@ -7931,8 +8233,8 @@ var PRInsightsDashboard = (() => {
     renderTrustedHtml(chipsEl, chips.join(""));
     if (chipsDelegatedElement !== chipsEl) {
       chipsDelegatedElement = chipsEl;
-      chipsEl.addEventListener("click", (e) => {
-        const btn = e.target.closest(
+      chipsEl.addEventListener("click", (e2) => {
+        const btn = e2.target.closest(
           ".filter-chip-remove"
         );
         if (!btn) return;
@@ -7945,17 +8247,17 @@ var PRInsightsDashboard = (() => {
   function getFilterLabel(type, value) {
     if (type === "repo") {
       return currentDimensions?.repositories?.find(
-        (r) => r.repository_name === value
+        (r2) => r2.repository_name === value
       )?.repository_name ?? value;
     }
     if (type === "team") {
-      return currentDimensions?.teams?.find((t) => t.team_name === value)?.team_name ?? value;
+      return currentDimensions?.teams?.find((t2) => t2.team_name === value)?.team_name ?? value;
     }
     if (type === "reviewer") {
-      return currentDimensions?.reviewers?.find((r) => r.reviewer_id === value)?.reviewer_name ?? value;
+      return currentDimensions?.reviewers?.find((r2) => r2.reviewer_id === value)?.reviewer_name ?? value;
     }
     if (type === "author") {
-      return currentDimensions?.authors?.find((a) => a.author_id === value)?.author_name ?? value;
+      return currentDimensions?.authors?.find((a2) => a2.author_id === value)?.author_name ?? value;
     }
     return value;
   }
@@ -8008,47 +8310,47 @@ var PRInsightsDashboard = (() => {
     const params = new URLSearchParams(window.location.search);
     const parsed = parseFiltersFromUrl(params);
     const validRepos = parsed.repos.filter(
-      (v) => currentDimensions?.repositories?.some((r) => r.repository_name === v)
+      (v2) => currentDimensions?.repositories?.some((r2) => r2.repository_name === v2)
     );
     if (validRepos.length < parsed.repos.length) {
       console.warn(
         "Ignoring invalid repo filters from URL:",
-        parsed.repos.filter((v) => !validRepos.includes(v))
+        parsed.repos.filter((v2) => !validRepos.includes(v2))
       );
     }
     const validTeams = parsed.teams.filter(
-      (v) => currentDimensions?.teams?.some((t) => t.team_name === v)
+      (v2) => currentDimensions?.teams?.some((t2) => t2.team_name === v2)
     );
     if (validTeams.length < parsed.teams.length) {
       console.warn(
         "Ignoring invalid team filters from URL:",
-        parsed.teams.filter((v) => !validTeams.includes(v))
+        parsed.teams.filter((v2) => !validTeams.includes(v2))
       );
     }
     const validReviewers = parsed.reviewers.filter(
-      (v) => currentDimensions?.reviewers?.some((r) => r.reviewer_id === v)
+      (v2) => currentDimensions?.reviewers?.some((r2) => r2.reviewer_id === v2)
     );
     if (validReviewers.length < parsed.reviewers.length) {
       console.warn(
         "Ignoring invalid reviewer filters from URL:",
-        parsed.reviewers.filter((v) => !validReviewers.includes(v))
+        parsed.reviewers.filter((v2) => !validReviewers.includes(v2))
       );
     }
     const validAuthors = parsed.authors.filter(
-      (v) => currentDimensions?.authors?.some(
-        (a) => a.author_id === v || a.author_name === v
+      (v2) => currentDimensions?.authors?.some(
+        (a2) => a2.author_id === v2 || a2.author_name === v2
       )
     );
-    const normalizedAuthors = validAuthors.map((v) => {
+    const normalizedAuthors = validAuthors.map((v2) => {
       const match = currentDimensions?.authors?.find(
-        (a) => a.author_id === v || a.author_name === v
+        (a2) => a2.author_id === v2 || a2.author_name === v2
       );
-      return match?.author_id ?? v;
+      return match?.author_id ?? v2;
     });
     if (normalizedAuthors.length < parsed.authors.length) {
       console.warn(
         "Ignoring invalid author filters from URL:",
-        parsed.authors.filter((v) => !validAuthors.includes(v))
+        parsed.authors.filter((v2) => !validAuthors.includes(v2))
       );
     }
     applyFilterState({
@@ -8137,8 +8439,8 @@ var PRInsightsDashboard = (() => {
       banner.setAttribute("data-filtered", hasFilters ? "true" : "false");
     }
   }
-  function toggleExportMenu(e) {
-    e.stopPropagation();
+  function toggleExportMenu(e2) {
+    e2.stopPropagation();
     elements.get("export-menu")?.classList.toggle("hidden");
   }
   function exportToCsv() {

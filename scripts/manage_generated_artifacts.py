@@ -18,11 +18,6 @@ UI_BUNDLE_DIR = REPO_ROOT / "src" / "ado_git_repo_insights" / "ui_bundle"
 DOCS_DIR = REPO_ROOT / "docs"
 BROKEN_DOCS_DIR = EXTENSION_ROOT / "tests" / "fixtures" / "broken-docs"
 
-SDK_SOURCE = (
-    EXTENSION_ROOT / "node_modules" / "vss-web-extension-sdk" / "lib" / "VSS.SDK.min.js"
-)
-SDK_DEST = EXTENSION_ROOT / "ui" / "VSS.SDK.min.js"
-
 DOCS_OUTPUTS = [
     DOCS_DIR / "index.html",
     DOCS_DIR / "dashboard.js",
@@ -31,7 +26,6 @@ DOCS_OUTPUTS = [
     DOCS_DIR / "error-types.js",
     DOCS_DIR / "error-codes.js",
     DOCS_DIR / "styles.css",
-    DOCS_DIR / "VSS.SDK.min.js",
 ]
 
 BROKEN_DOCS_OUTPUTS = [
@@ -42,7 +36,6 @@ BROKEN_DOCS_OUTPUTS = [
     BROKEN_DOCS_DIR / "error-types.js",
     BROKEN_DOCS_DIR / "error-codes.js",
     BROKEN_DOCS_DIR / "styles.css",
-    BROKEN_DOCS_DIR / "VSS.SDK.min.js",
 ]
 
 
@@ -51,7 +44,6 @@ class ScopeConfig:
     name: str
     stage_paths: tuple[Path, ...]
     verify_paths: tuple[Path, ...]
-    sync_vss_sdk: bool
     build_ui: bool
     sync_ui_bundle: bool
     publish_demo_surface: bool
@@ -60,27 +52,24 @@ class ScopeConfig:
 SCOPE_CONFIG = {
     "sdk": ScopeConfig(
         name="sdk",
-        stage_paths=(SDK_DEST,),
-        verify_paths=(SDK_DEST,),
-        sync_vss_sdk=True,
+        stage_paths=(),
+        verify_paths=(),
         build_ui=False,
         sync_ui_bundle=False,
         publish_demo_surface=False,
     ),
     "ui": ScopeConfig(
         name="ui",
-        stage_paths=(SDK_DEST, UI_BUNDLE_DIR),
-        verify_paths=(SDK_DEST, UI_BUNDLE_DIR),
-        sync_vss_sdk=True,
+        stage_paths=(UI_BUNDLE_DIR,),
+        verify_paths=(UI_BUNDLE_DIR,),
         build_ui=True,
         sync_ui_bundle=True,
         publish_demo_surface=False,
     ),
     "all": ScopeConfig(
         name="all",
-        stage_paths=(SDK_DEST, UI_BUNDLE_DIR, *DOCS_OUTPUTS, *BROKEN_DOCS_OUTPUTS),
-        verify_paths=(SDK_DEST, UI_BUNDLE_DIR, *DOCS_OUTPUTS, *BROKEN_DOCS_OUTPUTS),
-        sync_vss_sdk=True,
+        stage_paths=(UI_BUNDLE_DIR, *DOCS_OUTPUTS, *BROKEN_DOCS_OUTPUTS),
+        verify_paths=(UI_BUNDLE_DIR, *DOCS_OUTPUTS, *BROKEN_DOCS_OUTPUTS),
         build_ui=True,
         sync_ui_bundle=True,
         publish_demo_surface=True,
@@ -151,17 +140,6 @@ def ensure_node_modules() -> None:
     )
 
 
-def sync_vss_sdk() -> bool:
-    if not SDK_SOURCE.exists() or not SDK_DEST.exists():
-        return False
-    if normalize_sha256(SDK_SOURCE) == normalize_sha256(SDK_DEST):
-        return False
-
-    safe_print("[artifacts] syncing VSS SDK from npm package")
-    run_command(["node", "scripts/copy-vss-sdk.mjs"], cwd=EXTENSION_ROOT)
-    return True
-
-
 def build_ui() -> None:
     ensure_node_modules()
     pnpm = resolve_pnpm()
@@ -222,8 +200,6 @@ def require_clean_worktree(paths: tuple[Path, ...], *, context: str) -> None:
 
 
 def execute_scope(config: ScopeConfig) -> None:
-    if config.sync_vss_sdk:
-        sync_vss_sdk()
     if config.build_ui:
         build_ui()
     if config.sync_ui_bundle:

@@ -1,5 +1,9 @@
 "use strict";
 var PRInsightsSettings = (() => {
+  var __defProp = Object.defineProperty;
+  var __defNormalProp = (obj, key, value) => key in obj ? __defProp(obj, key, { enumerable: true, configurable: true, writable: true, value }) : obj[key] = value;
+  var __publicField = (obj, key, value) => __defNormalProp(obj, typeof key !== "symbol" ? key + "" : key, value);
+
   // ../ui/types.ts
   function isErrorWithMessage(error) {
     return typeof error === "object" && error !== null && "message" in error && typeof error.message === "string";
@@ -152,32 +156,333 @@ var PRInsightsSettings = (() => {
     }, durationMs);
   }
 
-  // ../ui/modules/sdk.ts
-  var sdkInitialized = false;
-  async function initializeAdoSdk(options = {}) {
-    if (sdkInitialized) {
-      return;
+  // ../node_modules/.pnpm/azure-devops-extension-sdk@4.2.0/node_modules/azure-devops-extension-sdk/esm/SDK.min.js
+  var e = parseInt("10000000000", 36);
+  var t = Number.MAX_SAFE_INTEGER || 9007199254740991;
+  var n = class {
+    constructor() {
+      __publicField(this, "objects", {});
     }
-    const { timeout = 1e4, onReady } = options;
-    return new Promise((resolve, reject) => {
-      const timeoutId = setTimeout(() => {
-        reject(new Error("Azure DevOps SDK initialization timed out"));
-      }, timeout);
-      VSS.init({
-        explicitNotifyLoaded: true,
-        usePlatformScripts: true,
-        usePlatformStyles: true
-      });
-      VSS.ready(() => {
-        clearTimeout(timeoutId);
-        sdkInitialized = true;
-        if (onReady) {
-          onReady();
+    register(e2, t2) {
+      this.objects[e2] = t2;
+    }
+    unregister(e2) {
+      delete this.objects[e2];
+    }
+    getInstance(e2, t2) {
+      var n2 = this.objects[e2];
+      if (n2) return "function" == typeof n2 ? n2(t2) : n2;
+    }
+  };
+  var o = 1;
+  var r = class {
+    constructor(r2, i2) {
+      __publicField(this, "promises", {});
+      __publicField(this, "postToWindow");
+      __publicField(this, "targetOrigin");
+      __publicField(this, "handshakeToken");
+      __publicField(this, "registry");
+      __publicField(this, "channelId");
+      __publicField(this, "nextMessageId", 1);
+      __publicField(this, "nextProxyId", 1);
+      __publicField(this, "proxyFunctions", {});
+      this.postToWindow = r2, this.targetOrigin = i2, this.registry = new n(), this.channelId = o++, this.targetOrigin || (this.handshakeToken = Math.floor(Math.random() * (t - e) + e).toString(36) + Math.floor(Math.random() * (t - e) + e).toString(36));
+    }
+    getObjectRegistry() {
+      return this.registry;
+    }
+    async invokeRemoteMethod(e2, t2, n2, o2, r2) {
+      const i2 = { id: this.nextMessageId++, methodName: e2, instanceId: t2, instanceContext: o2, params: this._customSerializeObject(n2, r2), serializationSettings: r2 };
+      this.targetOrigin || (i2.handshakeToken = this.handshakeToken);
+      const s2 = new Promise(((e3, t3) => {
+        this.promises[i2.id] = { resolve: e3, reject: t3 };
+      }));
+      return this._sendRpcMessage(i2), s2;
+    }
+    getRemoteObjectProxy(e2, t2) {
+      return this.invokeRemoteMethod("", e2, void 0, t2);
+    }
+    invokeMethod(e2, t2) {
+      if (t2.methodName) {
+        var n2 = e2[t2.methodName];
+        if ("function" == typeof n2) try {
+          var o2 = [];
+          t2.params && (o2 = this._customDeserializeObject(t2.params, {}));
+          var r2 = n2.apply(e2, o2);
+          r2 && r2.then && "function" == typeof r2.then ? r2.then(((e3) => {
+            this._success(t2, e3, t2.handshakeToken);
+          }), ((e3) => {
+            this.error(t2, e3);
+          })) : this._success(t2, r2, t2.handshakeToken);
+        } catch (e3) {
+          this.error(t2, e3);
         }
-        VSS.notifyLoadSucceeded();
-        resolve();
+        else this.error(t2, new Error("RPC method not found: " + t2.methodName));
+      } else this._success(t2, e2, t2.handshakeToken);
+    }
+    getRegisteredObject(e2, t2) {
+      if ("__proxyFunctions" === e2) return this.proxyFunctions;
+      var n2 = this.registry.getInstance(e2, t2);
+      return n2 || (n2 = i.getInstance(e2, t2)), n2;
+    }
+    onMessage(e2) {
+      if (e2.instanceId) {
+        const t2 = this.getRegisteredObject(e2.instanceId, e2.instanceContext);
+        if (!t2) return false;
+        "function" == typeof t2.then ? t2.then(((t3) => {
+          this.invokeMethod(t3, e2);
+        }), ((t3) => {
+          this.error(e2, t3);
+        })) : this.invokeMethod(t2, e2);
+      } else {
+        const t2 = this.promises[e2.id];
+        if (!t2) return false;
+        e2.error ? t2.reject(this._customDeserializeObject([e2.error], {})[0]) : t2.resolve(this._customDeserializeObject([e2.result], {})[0]), delete this.promises[e2.id];
+      }
+      return true;
+    }
+    owns(e2, t2, n2) {
+      if (this.postToWindow === e2) {
+        if (this.targetOrigin) return !!t2 && ("null" === t2.toLowerCase() || 0 === this.targetOrigin.toLowerCase().indexOf(t2.toLowerCase()));
+        if (n2.handshakeToken && n2.handshakeToken === this.handshakeToken) return this.targetOrigin = t2, true;
+      }
+      return false;
+    }
+    error(e2, t2) {
+      this._sendRpcMessage({ id: e2.id, error: this._customSerializeObject([t2], e2.serializationSettings)[0], handshakeToken: e2.handshakeToken });
+    }
+    _success(e2, t2, n2) {
+      this._sendRpcMessage({ id: e2.id, result: this._customSerializeObject([t2], e2.serializationSettings)[0], handshakeToken: n2 });
+    }
+    _sendRpcMessage(e2) {
+      this.postToWindow.postMessage(JSON.stringify(e2), "*");
+    }
+    _customSerializeObject(e2, t2, n2, o2 = 1, r2 = 1) {
+      if (!e2 || r2 > 100) return;
+      if (e2 instanceof Node || e2 instanceof Window || e2 instanceof Event) return;
+      var i2;
+      let s2;
+      s2 = n2 || { newObjects: [], originalObjects: [] }, s2.originalObjects.push(e2);
+      var c = (n3, i3, c2) => {
+        var a3;
+        try {
+          a3 = n3[c2];
+        } catch (e3) {
+        }
+        var h3 = typeof a3;
+        if ("undefined" !== h3) {
+          var d3 = -1;
+          if ("object" === h3 && (d3 = s2.originalObjects.indexOf(a3)), d3 >= 0) {
+            var u2 = s2.newObjects[d3];
+            u2.__circularReferenceId || (u2.__circularReferenceId = o2++), i3[c2] = { __circularReference: u2.__circularReferenceId };
+          } else "function" === h3 ? (this.nextProxyId++, i3[c2] = { __proxyFunctionId: this._registerProxyFunction(a3, e2), _channelId: this.channelId }) : "object" === h3 ? a3 && a3 instanceof Date ? i3[c2] = { __proxyDate: a3.getTime() } : i3[c2] = this._customSerializeObject(a3, t2, s2, o2, r2 + 1) : "__proxyFunctionId" !== c2 && (i3[c2] = a3);
+        }
+      };
+      if (e2 instanceof Array) {
+        i2 = [], s2.newObjects.push(i2);
+        for (var a2 = 0, h2 = e2.length; a2 < h2; a2++) c(e2, i2, a2);
+      } else {
+        i2 = {}, s2.newObjects.push(i2);
+        let n3 = {};
+        try {
+          n3 = (function(e3) {
+            const t3 = {};
+            for (; e3 && e3 !== Object.prototype; ) {
+              const n4 = Object.getOwnPropertyNames(e3);
+              for (const e4 of n4) "constructor" !== e4 && (t3[e4] = true);
+              e3 = Object.getPrototypeOf(e3);
+            }
+            return t3;
+          })(e2);
+        } catch (e3) {
+        }
+        for (var d2 in n3) (d2 && "_" !== d2[0] || t2 && t2.includeUnderscoreProperties) && c(e2, i2, d2);
+      }
+      return s2.originalObjects.pop(), s2.newObjects.pop(), i2;
+    }
+    _registerProxyFunction(e2, t2) {
+      var n2 = this.nextProxyId++;
+      return this.proxyFunctions["proxy" + n2] = function() {
+        return e2.apply(t2, Array.prototype.slice.call(arguments, 0));
+      }, n2;
+    }
+    _customDeserializeObject(e2, t2) {
+      var n2 = this;
+      if (!e2) return null;
+      var o2 = (e3, o3) => {
+        var r3 = e3[o3], i3 = typeof r3;
+        "__circularReferenceId" === o3 && "number" === i3 ? (t2[r3] = e3, delete e3[o3]) : "object" === i3 && r3 && (r3.__proxyFunctionId ? e3[o3] = function() {
+          return n2.invokeRemoteMethod("proxy" + r3.__proxyFunctionId, "__proxyFunctions", Array.prototype.slice.call(arguments, 0), {}, { includeUnderscoreProperties: true });
+        } : r3.__proxyDate ? e3[o3] = new Date(r3.__proxyDate) : r3.__circularReference ? e3[o3] = t2[r3.__circularReference] : this._customDeserializeObject(r3, t2));
+      };
+      if (e2 instanceof Array) for (var r2 = 0, i2 = e2.length; r2 < i2; r2++) o2(e2, r2);
+      else if ("object" == typeof e2) for (var s2 in e2) o2(e2, s2);
+      return e2;
+    }
+  };
+  var i = new n();
+  var s = new class {
+    constructor() {
+      __publicField(this, "_channels", []);
+      __publicField(this, "_handleMessageReceived", (e2) => {
+        let t2;
+        if ("string" == typeof e2.data) try {
+          t2 = JSON.parse(e2.data);
+        } catch (e3) {
+        }
+        if (t2) {
+          let n2, o2 = false;
+          for (const r2 of this._channels) r2.owns(e2.source, e2.origin, t2) && (n2 = r2, o2 = r2.onMessage(t2) || o2);
+          n2 && !o2 && (window.console && console.error(`No handler found on any channel for message: ${JSON.stringify(t2)}`), t2.instanceId && n2.error(t2, new Error(`The registered object ${t2.instanceId} could not be found.`)));
+        }
       });
+      window.addEventListener("message", this._handleMessageReceived);
+    }
+    addChannel(e2, t2) {
+      const n2 = new r(e2, t2);
+      return this._channels.push(n2), n2;
+    }
+    removeChannel(e2) {
+      this._channels = this._channels.filter(((t2) => t2 !== e2));
+    }
+  }();
+  var a = window;
+  var h;
+  a._AzureDevOpsSDKVersion && console.error("The AzureDevOps SDK is already loaded. Only one version of this module can be loaded in a given document."), a._AzureDevOpsSDKVersion = 4.2, (function(e2) {
+    e2[e2.Unknown = 0] = "Unknown", e2[e2.Deployment = 1] = "Deployment", e2[e2.Enterprise = 2] = "Enterprise", e2[e2.Organization = 4] = "Organization";
+  })(h || (h = {}));
+  var d = "DevOps.HostControl";
+  var u = s.addChannel(window.parent);
+  var l;
+  var f;
+  var g;
+  var p;
+  var m;
+  var y;
+  var v;
+  var _;
+  var b;
+  var w;
+  var O = new Promise(((e2) => {
+    w = e2;
+  }));
+  function x(e2, t2) {
+    const n2 = window;
+    let o2;
+    "function" == typeof n2.CustomEvent ? o2 = new n2.CustomEvent(e2, t2) : (t2 = t2 || { bubbles: false, cancelable: false }, o2 = document.createEvent("CustomEvent"), o2.initCustomEvent(e2, t2.bubbles, t2.cancelable, t2.detail)), window.dispatchEvent(o2);
+  }
+  function k(e2) {
+    return new Promise(((t2) => {
+      const n2 = { ...e2, sdkVersion: 4.2 };
+      u.invokeRemoteMethod("initialHandshake", d, [n2]).then(((e3) => {
+        if ("pageContext" in e3) {
+          const t3 = e3;
+          if (g = t3.pageContext, f = g ? g.webContext : void 0, l = f ? f.team : void 0, m = t3.initialConfig || {}, y = t3.contribution.id, p = t3.extensionContext, p.id = p.publisherId + "." + p.extensionId, "context" in e3) {
+            const t4 = e3.context;
+            v = t4.user, _ = t4.host;
+          }
+        } else {
+          const t3 = e3, n3 = t3.context;
+          g = n3.pageContext, f = g ? g.webContext : void 0, l = f ? f.team : void 0, m = t3.initialConfig || {}, y = t3.contributionId, p = n3.extension, v = n3.user, _ = n3.host;
+        }
+        e3.themeData && (J(e3.themeData), window.addEventListener("themeChanged", ((e4) => {
+          J(e4.detail.data);
+        }))), w(), t2();
+      }));
+    }));
+  }
+  async function j() {
+    return O;
+  }
+  function R() {
+    return u.invokeRemoteMethod("notifyLoadSucceeded", d);
+  }
+  function I(e2) {
+    return `Attempted to call ${e2}() before init() was complete. Wait for init to complete or place within a ready() callback.`;
+  }
+  function T() {
+    if (!v) throw new Error(I("getUser"));
+    return v;
+  }
+  function D() {
+    if (!_) throw new Error(I("getHost"));
+    return _;
+  }
+  function S() {
+    if (!p) throw new Error(I("getExtensionContext"));
+    return p;
+  }
+  function A() {
+    if (!f) throw new Error(I("getWebContext"));
+    return f;
+  }
+  async function F(e2) {
+    return j().then((() => u.invokeRemoteMethod("getService", "DevOps.ServiceManager", [e2])));
+  }
+  async function L() {
+    return u.invokeRemoteMethod("getAccessToken", d).then(((e2) => e2.token));
+  }
+  function J(e2) {
+    b || (b = document.createElement("style"), b.type = "text/css", document.head.appendChild(b));
+    const t2 = [];
+    if (e2) for (const n2 in e2) t2.push("--" + n2 + ": " + e2[n2]);
+    b.innerText = ":root { " + t2.join("; ") + " } body { color: var(--text-primary-color) }", x("themeApplied", { detail: e2 });
+  }
+  u.getObjectRegistry().register("DevOps.SdkClient", { dispatchEvent: x });
+
+  // ../ui/modules/sdk.ts
+  var ExtensionDataServiceId = "ms.vss-features.extension-data-service";
+  var LocationServiceId = "ms.vss-features.location-service";
+  var sdkInitialized = false;
+  var DEFAULT_TIMEOUT_MS = 1e4;
+  async function initializeAdoSdk(options) {
+    if (sdkInitialized) return;
+    const timeout = options?.timeout ?? DEFAULT_TIMEOUT_MS;
+    const initSequence = async () => {
+      await k({ loaded: false });
+      await j();
+      if (options?.onReady) {
+        options.onReady();
+      }
+      await R();
+      sdkInitialized = true;
+    };
+    const timeoutPromise = new Promise((_2, reject) => {
+      setTimeout(
+        () => reject(new Error("Azure DevOps SDK initialization timed out")),
+        timeout
+      );
     });
+    await Promise.race([initSequence(), timeoutPromise]);
+  }
+  async function getExtensionDataService() {
+    const dataService2 = await F(
+      ExtensionDataServiceId
+    );
+    const extensionContext = S();
+    const accessToken = await L();
+    return dataService2.getExtensionDataManager(extensionContext.id, accessToken);
+  }
+  function getWebContext() {
+    if (!sdkInitialized) return void 0;
+    const webCtx = A();
+    const user = T();
+    const host = D();
+    return {
+      project: webCtx.project ? { id: webCtx.project.id, name: webCtx.project.name } : void 0,
+      team: webCtx.team ? { id: webCtx.team.id, name: webCtx.team.name } : void 0,
+      user: { id: user.id, name: user.name, displayName: user.displayName },
+      host: { id: host.id, name: host.name }
+    };
+  }
+  async function getCollectionUri() {
+    const locationService = await F(
+      LocationServiceId
+    );
+    return locationService.getServiceLocation();
+  }
+  async function getAccessToken() {
+    return L();
   }
 
   // ../ui/artifact-client.ts
@@ -195,7 +500,7 @@ var PRInsightsSettings = (() => {
     }
     /**
      * Initialize the client with ADO SDK auth.
-     * MUST be called after VSS.ready() and before any other methods.
+     * MUST be called after SDK initialization and before any other methods.
      *
      * @returns This client instance
      */
@@ -203,10 +508,8 @@ var PRInsightsSettings = (() => {
       if (this.initialized) {
         return this;
       }
-      const webContext = VSS.getWebContext();
-      this.collectionUri = webContext.collection.uri;
-      const tokenResult = await VSS.getAccessToken();
-      this.authToken = typeof tokenResult === "string" ? tokenResult : tokenResult.token;
+      this.collectionUri = await getCollectionUri();
+      this.authToken = await getAccessToken();
       this.initialized = true;
       return this;
     }
@@ -268,7 +571,7 @@ var PRInsightsSettings = (() => {
       this._ensureInitialized();
       const artifacts = await this.getArtifacts(buildId);
       const artifact = artifacts.find(
-        (a) => a.name === artifactName
+        (a2) => a2.name === artifactName
       );
       if (!artifact) {
         console.log(
@@ -491,7 +794,7 @@ var PRInsightsSettings = (() => {
           continue;
         }
         const indexEntry = this.manifest?.aggregate_index?.weekly_rollups?.find(
-          (r) => r.week === weekStr
+          (r2) => r2.week === weekStr
         );
         if (!indexEntry) continue;
         try {
@@ -502,8 +805,8 @@ var PRInsightsSettings = (() => {
           );
           this.rollupCache.set(weekStr, rollup);
           results.push(rollup);
-        } catch (e) {
-          console.warn("Failed to load rollup for %s:", weekStr, e);
+        } catch (e2) {
+          console.warn("Failed to load rollup for %s:", weekStr, e2);
         }
       }
       return results;
@@ -521,7 +824,7 @@ var PRInsightsSettings = (() => {
           continue;
         }
         const indexEntry = this.manifest?.aggregate_index?.distributions?.find(
-          (d) => d.year === yearStr
+          (d2) => d2.year === yearStr
         );
         if (!indexEntry) continue;
         try {
@@ -532,8 +835,8 @@ var PRInsightsSettings = (() => {
           );
           this.distributionCache.set(yearStr, dist);
           results.push(dist);
-        } catch (e) {
-          console.warn("Failed to load distribution for %s:", yearStr, e);
+        } catch (e2) {
+          console.warn("Failed to load distribution for %s:", yearStr, e2);
         }
       }
       return results;
@@ -551,15 +854,15 @@ var PRInsightsSettings = (() => {
       return weeks;
     }
     getISOWeek(date) {
-      const d = new Date(
+      const d2 = new Date(
         Date.UTC(date.getFullYear(), date.getMonth(), date.getDate())
       );
-      d.setUTCDate(d.getUTCDate() + 4 - (d.getUTCDay() || 7));
-      const yearStart = new Date(Date.UTC(d.getUTCFullYear(), 0, 1));
+      d2.setUTCDate(d2.getUTCDate() + 4 - (d2.getUTCDay() || 7));
+      const yearStart = new Date(Date.UTC(d2.getUTCFullYear(), 0, 1));
       const weekNo = Math.ceil(
-        ((d.getTime() - yearStart.getTime()) / 864e5 + 1) / 7
+        ((d2.getTime() - yearStart.getTime()) / 864e5 + 1) / 7
       );
-      return `${d.getUTCFullYear()}-W${String(weekNo).padStart(2, "0")}`;
+      return `${d2.getUTCFullYear()}-W${String(weekNo).padStart(2, "0")}`;
     }
     getCoverage() {
       return this.manifest?.coverage || null;
@@ -577,8 +880,8 @@ var PRInsightsSettings = (() => {
           indexEntry.path
         );
         return { state: "ok", data };
-      } catch (e) {
-        console.warn("Failed to load predictions:", e);
+      } catch (e2) {
+        console.warn("Failed to load predictions:", e2);
         return { state: "unavailable" };
       }
     }
@@ -592,8 +895,8 @@ var PRInsightsSettings = (() => {
           indexEntry.path
         );
         return { state: "ok", data };
-      } catch (e) {
-        console.warn("Failed to load AI insights:", e);
+      } catch (e2) {
+        console.warn("Failed to load AI insights:", e2);
         return { state: "unavailable" };
       }
     }
@@ -660,13 +963,13 @@ var PRInsightsSettings = (() => {
     initializeHostResizeSync(".settings-container");
     try {
       await initializeAdoSdk();
-      dataService = await VSS.getService(VSS.ServiceIds.ExtensionData);
-      const webContext = VSS.getWebContext();
+      dataService = await getExtensionDataService();
+      const webCtx = getWebContext();
       const projectInput = document.getElementById(
         "project-id"
       );
-      if (projectInput && webContext?.project?.name) {
-        projectInput.placeholder = `Current: ${webContext.project.name}`;
+      if (projectInput && webCtx?.project?.name) {
+        projectInput.placeholder = `Current: ${webCtx.project.name}`;
       }
       await tryLoadProjectDropdown();
       await loadSettings();
@@ -693,7 +996,7 @@ var PRInsightsSettings = (() => {
         clearElement(dropdown);
         dropdown.appendChild(createOption("", "Current project (auto)"));
         for (const project of projects.sort(
-          (a, b) => a.name.localeCompare(b.name)
+          (a2, b2) => a2.name.localeCompare(b2.name)
         )) {
           const option = document.createElement("option");
           option.value = project.id;
@@ -717,21 +1020,23 @@ var PRInsightsSettings = (() => {
     }
   }
   async function getOrganizationProjects() {
-    return new Promise((resolve, reject) => {
-      VSS.require(["TFS/Core/RestClient"], (...modules) => {
-        const CoreRestClient = modules[0];
-        try {
-          const client = CoreRestClient.getClient();
-          client.getProjects().then((projects) => {
-            resolve(projects || []);
-          }).catch((error) => {
-            reject(error);
-          });
-        } catch (error) {
-          reject(error);
-        }
-      });
+    const collectionUri = await getCollectionUri();
+    const token = await getAccessToken();
+    const url = `${collectionUri}_apis/projects?api-version=7.1&$top=500`;
+    const response = await fetch(url, {
+      headers: {
+        Authorization: `Bearer ${token}`,
+        Accept: "application/json"
+      }
     });
+    if (!response.ok) {
+      throw new Error(`Failed to list projects: ${response.status}`);
+    }
+    const data = await response.json();
+    const raw = Array.isArray(data.value) ? data.value : [];
+    return raw.filter(
+      (p2) => p2 !== null && typeof p2 === "object" && typeof p2.name === "string" && typeof p2.id === "string"
+    );
   }
   async function loadSettings() {
     if (!dataService) return;
@@ -856,7 +1161,7 @@ var PRInsightsSettings = (() => {
         SETTINGS_KEY_PIPELINE,
         { scopeType: "User" }
       );
-      const webContext = VSS.getWebContext();
+      const webContext = getWebContext();
       const currentProjectName = webContext?.project?.name || "Unknown";
       const currentProjectId = webContext?.project?.id;
       let html = "";
@@ -937,8 +1242,8 @@ var PRInsightsSettings = (() => {
       renderTrustedHtml(statusDisplay, html);
       const retryLink = document.getElementById("retry-discovery-link");
       if (retryLink) {
-        retryLink.addEventListener("click", (e) => {
-          e.preventDefault();
+        retryLink.addEventListener("click", (e2) => {
+          e2.preventDefault();
           void updateStatus();
         });
       }
@@ -950,7 +1255,7 @@ var PRInsightsSettings = (() => {
     }
   }
   function getProjectNameById(projectId) {
-    const project = projectList.find((p) => p.id === projectId);
+    const project = projectList.find((p2) => p2.id === projectId);
     return project?.name || projectId;
   }
   async function downloadRawData() {
@@ -976,7 +1281,7 @@ var PRInsightsSettings = (() => {
         SETTINGS_KEY_PROJECT,
         { scopeType: "User" }
       );
-      const webContext = VSS.getWebContext();
+      const webContext = getWebContext();
       const projectId = savedProjectId || webContext?.project?.id;
       if (!projectId) {
         showToast("No project ID available", "error");
@@ -1053,8 +1358,8 @@ var PRInsightsSettings = (() => {
     const client = new ArtifactClient(projectId);
     try {
       await client.initialize();
-    } catch (e) {
-      return { valid: false, error: `Validation error: ${getErrorMessage(e)}` };
+    } catch (e2) {
+      return { valid: false, error: `Validation error: ${getErrorMessage(e2)}` };
     }
     try {
       const builds = await client.getBuilds(pipelineId);
@@ -1074,24 +1379,24 @@ var PRInsightsSettings = (() => {
         name: pipelineName,
         buildId: firstBuild.id
       };
-    } catch (e) {
-      return { valid: false, error: `Build check failed: ${getErrorMessage(e)}` };
+    } catch (e2) {
+      return { valid: false, error: `Build check failed: ${getErrorMessage(e2)}` };
     }
   }
   async function discoverPipelines(targetProjectId) {
-    const webContext = VSS.getWebContext();
-    const projectId = targetProjectId || webContext.project?.id;
+    const webContext = getWebContext();
+    const projectId = targetProjectId || webContext?.project?.id;
     if (!projectId) {
       return { pipelines: [], skippedCount: 0, error: "No project ID available" };
     }
     const client = new ArtifactClient(projectId);
     try {
       await client.initialize();
-    } catch (e) {
+    } catch (e2) {
       return {
         pipelines: [],
         skippedCount: 0,
-        error: `Failed to initialize: ${getErrorMessage(e)}`
+        error: `Failed to initialize: ${getErrorMessage(e2)}`
       };
     }
     let skippedCount = 0;
@@ -1099,11 +1404,11 @@ var PRInsightsSettings = (() => {
     let definitions;
     try {
       definitions = await client.getDefinitions();
-    } catch (e) {
+    } catch (e2) {
       return {
         pipelines: [],
         skippedCount: 0,
-        error: `Failed to list pipelines: ${getErrorMessage(e)}`
+        error: `Failed to list pipelines: ${getErrorMessage(e2)}`
       };
     }
     for (const def of definitions) {
@@ -1113,16 +1418,16 @@ var PRInsightsSettings = (() => {
         const latestBuild = builds[0];
         if (!latestBuild) continue;
         const artifacts = await client.getArtifacts(latestBuild.id);
-        if (!artifacts.some((a) => a.name === "aggregates"))
+        if (!artifacts.some((a2) => a2.name === "aggregates"))
           continue;
         pipelines.push({
           id: def.id,
           name: def.name,
           buildId: latestBuild.id
         });
-      } catch (e) {
+      } catch (e2) {
         skippedCount++;
-        console.debug("Skipping pipeline %s:", def.name, e);
+        console.debug("Skipping pipeline %s:", def.name, e2);
       }
     }
     return { pipelines, skippedCount };
@@ -1143,8 +1448,8 @@ var PRInsightsSettings = (() => {
         renderTrustedHtml(statusDisplay, errorHtml);
         const retryLink = document.getElementById("retry-run-discovery-link");
         if (retryLink) {
-          retryLink.addEventListener("click", (e) => {
-            e.preventDefault();
+          retryLink.addEventListener("click", (e2) => {
+            e2.preventDefault();
             void runDiscovery();
           });
         }
@@ -1211,13 +1516,13 @@ var PRInsightsSettings = (() => {
     document.getElementById("clear-btn")?.addEventListener("click", () => void clearSettings());
     document.getElementById("discover-btn")?.addEventListener("click", () => void runDiscovery());
     document.getElementById("download-raw-btn")?.addEventListener("click", () => void downloadRawData());
-    document.getElementById("pipeline-id")?.addEventListener("keypress", (e) => {
-      if (e.key === "Enter") {
+    document.getElementById("pipeline-id")?.addEventListener("keypress", (e2) => {
+      if (e2.key === "Enter") {
         void saveSettings();
       }
     });
-    document.getElementById("project-id")?.addEventListener("keypress", (e) => {
-      if (e.key === "Enter") {
+    document.getElementById("project-id")?.addEventListener("keypress", (e2) => {
+      if (e2.key === "Enter") {
         void saveSettings();
       }
     });

@@ -193,11 +193,7 @@ def run_pre_commit_stage() -> None:
 def ensure_no_compiled_js() -> None:
     offending = []
     for path in staged_paths():
-        if (
-            path.startswith("extension/ui/")
-            and path.endswith(".js")
-            and path != "extension/ui/VSS.SDK.min.js"
-        ):
+        if path.startswith("extension/ui/") and path.endswith(".js"):
             offending.append(path)
     if not offending:
         safe_print("[pre-commit] no compiled artifacts found")
@@ -218,11 +214,8 @@ def ensure_no_compiled_js() -> None:
 def is_ui_trigger(path: str) -> bool:
     if path.startswith("extension/ui/") and path.endswith((".ts", ".html", ".css")):
         return True
-    if path == "extension/ui/VSS.SDK.min.js":
-        return True
     if path in {
         "extension/scripts/bundle-ui.mjs",
-        "extension/scripts/copy-vss-sdk.mjs",
         "extension/package.json",
         "extension/pnpm-lock.yaml",
         "extension/eslint.config.mjs",
