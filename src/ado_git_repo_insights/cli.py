@@ -1556,6 +1556,8 @@ def _run_http_server(
     import os
     import signal
     import socketserver
+    import threading
+    import types
     import webbrowser
 
     # Change to serve directory
@@ -1587,15 +1589,32 @@ def _run_http_server(
             # Install SIGINT handler to ensure shutdown even in environments
             # where KeyboardInterrupt delivery is unreliable (e.g. some
             # Windows terminals, IDE integrated terminals).
-            def _signal_shutdown(signum: int, frame: object) -> None:
-                httpd.shutdown()
+            # shutdown() must be called from a different thread than
+            # serve_forever() to avoid deadlock.
+            # signal.signal() is only legal from the main thread; skip
+            # registration when called from a worker thread (e.g. test
+            # harness, IDE integration, embedding application).
+            can_install_sigint = threading.current_thread() is threading.main_thread()
 
-            signal.signal(signal.SIGINT, _signal_shutdown)
+            if can_install_sigint:
+                original_sigint = signal.getsignal(signal.SIGINT)
+
+                def _request_shutdown(
+                    signum: int, frame: types.FrameType | None
+                ) -> None:
+                    threading.Thread(target=httpd.shutdown, daemon=True).start()
+
+                signal.signal(signal.SIGINT, _request_shutdown)
 
             if open_browser:
                 webbrowser.open(url)
 
-            httpd.serve_forever()
+            try:
+                httpd.serve_forever()
+            finally:
+                if can_install_sigint:
+                    signal.signal(signal.SIGINT, original_sigint)
+
             logger.info("\nServer stopped")
 
     finally:
