@@ -351,7 +351,7 @@ describe("SDK Module", () => {
   });
 
   describe("getCollectionUri", () => {
-    it("returns the mock service location", async () => {
+    it("returns the mock resource area location", async () => {
       const uri = await getCollectionUri();
       expect(uri).toBe("https://dev.azure.com/test-org/");
     });
@@ -361,6 +361,24 @@ describe("SDK Module", () => {
       expect(mockSdkModule.getService).toHaveBeenCalledWith(
         "ms.vss-features.location-service",
       );
+    });
+
+    it("uses getResourceAreaLocation, not getServiceLocation", async () => {
+      await getCollectionUri();
+
+      // Retrieve the mock location service from the last getService call
+      const locationService = await mockSdkModule.getService(
+        "ms.vss-features.location-service",
+      );
+      const svc = locationService as unknown as {
+        getResourceAreaLocation: jest.Mock;
+        getServiceLocation: jest.Mock;
+      };
+
+      expect(svc.getResourceAreaLocation).toHaveBeenCalledWith(
+        "79134c72-4a58-4b42-976c-04e7115f32bf",
+      );
+      expect(svc.getServiceLocation).not.toHaveBeenCalled();
     });
 
     it("normalizes URI without trailing slash", async () => {
@@ -373,6 +391,26 @@ describe("SDK Module", () => {
       setMockServiceLocation("https://dev.azure.com/test-org/");
       const uri = await getCollectionUri();
       expect(uri).toBe("https://dev.azure.com/test-org/");
+    });
+
+    it("preserves Server-style collection path segment", async () => {
+      setMockServiceLocation(
+        "https://tfs.example.com:8080/tfs/DefaultCollection/",
+      );
+      const uri = await getCollectionUri();
+      expect(uri).toBe(
+        "https://tfs.example.com:8080/tfs/DefaultCollection/",
+      );
+    });
+
+    it("normalizes Server-style path without trailing slash", async () => {
+      setMockServiceLocation(
+        "https://tfs.example.com:8080/tfs/DefaultCollection",
+      );
+      const uri = await getCollectionUri();
+      expect(uri).toBe(
+        "https://tfs.example.com:8080/tfs/DefaultCollection/",
+      );
     });
   });
 

@@ -298,6 +298,7 @@ var PRInsightsSettings = (() => {
   // ../ui/modules/sdk.ts
   var ExtensionDataServiceId = "ms.vss-features.extension-data-service";
   var LocationServiceId = "ms.vss-features.location-service";
+  var CORE_RESOURCE_AREA_ID = "79134c72-4a58-4b42-976c-04e7115f32bf";
   var sdkInitialized = false;
   var sdkReadyForCalls = false;
   var initAttemptId = 0;
@@ -369,7 +370,9 @@ var PRInsightsSettings = (() => {
     const locationService = await F(
       LocationServiceId
     );
-    const raw = await locationService.getServiceLocation();
+    const raw = await locationService.getResourceAreaLocation(
+      CORE_RESOURCE_AREA_ID
+    );
     return raw.endsWith("/") ? raw : `${raw}/`;
   }
   async function getAccessToken() {

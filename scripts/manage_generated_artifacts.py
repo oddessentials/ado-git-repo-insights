@@ -57,12 +57,14 @@ class ScopeConfig:
 
 
 SCOPE_CONFIG = {
+    # The SDK is now bundled into UI entry points — no standalone SDK artifact.
+    # Bridge to ui scope so any remaining invocations still stage correctly.
     "sdk": ScopeConfig(
         name="sdk",
-        stage_paths=(),
-        verify_paths=(),
-        build_ui=False,
-        sync_ui_bundle=False,
+        stage_paths=(UI_BUNDLE_DIR,),
+        verify_paths=(UI_BUNDLE_DIR,),
+        build_ui=True,
+        sync_ui_bundle=True,
         publish_demo_surface=False,
     ),
     "ui": ScopeConfig(

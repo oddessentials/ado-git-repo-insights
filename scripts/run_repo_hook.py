@@ -557,7 +557,6 @@ def run_pre_commit_hook() -> None:
     run_command([sys.executable, "scripts/audit-suppressions.py", "--diff"])
     run_acl_health_check()
     run_pre_commit_stage()
-    run_managed_artifacts("sync", "--scope", "sdk", "--stage", "--require-clean")
     ensure_no_compiled_js()
     run_pnpm_lockfile_guard()
     run_npm_command_guard()

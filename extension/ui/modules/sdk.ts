@@ -21,6 +21,16 @@ import type {
 const ExtensionDataServiceId = "ms.vss-features.extension-data-service";
 const LocationServiceId = "ms.vss-features.location-service";
 
+/**
+ * Core REST API resource area GUID (stable, documented by Microsoft).
+ * Used with ILocationService.getResourceAreaLocation() to recover a
+ * collection-scoped REST base URL that includes the collection segment
+ * on Azure DevOps Server / on-prem installs (e.g. /DefaultCollection/).
+ * getServiceLocation() omits this segment, breaking REST URL construction
+ * in Server environments.
+ */
+const CORE_RESOURCE_AREA_ID = "79134c72-4a58-4b42-976c-04e7115f32bf";
+
 /* ── Types ─────────────────────────────────────────────────────── */
 
 /** Options for SDK initialization. */
@@ -213,8 +223,11 @@ export function getWebContext(): WebContext | undefined {
 /**
  * Get the collection/organization base URI for REST API calls.
  *
- * Uses the ILocationService to resolve the host service URL.
- * This replaces the old VSS.getWebContext().collection.uri pattern.
+ * Uses ILocationService.getResourceAreaLocation() with the Core
+ * resource area to resolve a collection-scoped URL. This preserves
+ * the collection path segment on Azure DevOps Server (e.g.
+ * /DefaultCollection/), matching the old webContext.collection.uri.
+ *
  * The returned URI is normalized to always end with a trailing slash
  * because downstream URL construction concatenates paths directly.
  */
@@ -222,7 +235,9 @@ export async function getCollectionUri(): Promise<string> {
   const locationService = await SDK.getService<ILocationService>(
     LocationServiceId,
   );
-  const raw = await locationService.getServiceLocation();
+  const raw = await locationService.getResourceAreaLocation(
+    CORE_RESOURCE_AREA_ID,
+  );
   return raw.endsWith("/") ? raw : `${raw}/`;
 }
 
