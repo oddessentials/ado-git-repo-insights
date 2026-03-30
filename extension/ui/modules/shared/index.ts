@@ -5,6 +5,7 @@
 export * from "./chart-layout";
 export * from "./constants";
 export * from "./format";
+export * from "./host-resize";
 export * from "./render";
 export * from "./security";
 export * from "./svg-path";

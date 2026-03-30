@@ -10,6 +10,47 @@ var PRInsightsSettings = (() => {
     return "Unknown error";
   }
 
+  // ../ui/modules/shared/host-resize.ts
+  var pendingHostResize = false;
+  var hostResizeObserver = null;
+  var windowListenerAttached = false;
+  function syncHostHeight() {
+    const resizeFn = globalThis.VSS?.resize;
+    if (typeof resizeFn !== "function") return;
+    const bodyHeight = document.body?.scrollHeight ?? 0;
+    const docHeight = document.documentElement?.scrollHeight ?? 0;
+    const targetHeight = Math.max(bodyHeight, docHeight);
+    if (targetHeight > 0) {
+      resizeFn(void 0, targetHeight);
+    }
+  }
+  function scheduleHostResize() {
+    if (pendingHostResize) return;
+    pendingHostResize = true;
+    requestAnimationFrame(() => {
+      pendingHostResize = false;
+      syncHostHeight();
+    });
+  }
+  function initializeHostResizeSync(containerSelector) {
+    if (typeof ResizeObserver === "function") {
+      const root = document.querySelector(containerSelector);
+      if (root) {
+        hostResizeObserver?.disconnect();
+        hostResizeObserver = new ResizeObserver(() => {
+          scheduleHostResize();
+        });
+        hostResizeObserver.observe(root);
+      }
+    }
+    if (windowListenerAttached) {
+      window.removeEventListener("resize", scheduleHostResize);
+    }
+    window.addEventListener("resize", scheduleHostResize);
+    windowListenerAttached = true;
+    scheduleHostResize();
+  }
+
   // ../ui/modules/shared/security.ts
   function escapeHtml(text) {
     return text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#039;");
@@ -602,6 +643,7 @@ var PRInsightsSettings = (() => {
   var projectDropdownAvailable = false;
   var projectList = [];
   var lastValidation = null;
+  var statusTimerId = null;
   async function init() {
     try {
       await initializeAdoSdk();
@@ -617,6 +659,7 @@ var PRInsightsSettings = (() => {
       await loadSettings();
       await updateStatus();
       setupEventListeners();
+      initializeHostResizeSync(".settings-container");
     } catch (error) {
       console.error("Settings initialization failed:", error);
       showStatus(
@@ -1142,9 +1185,11 @@ var PRInsightsSettings = (() => {
   function showStatus(message, type = "info") {
     const statusEl = document.getElementById("status-message");
     if (!statusEl) return;
+    if (statusTimerId !== null) clearTimeout(statusTimerId);
     statusEl.textContent = message;
     statusEl.className = `status-message status-${type}`;
-    setTimeout(() => {
+    statusTimerId = setTimeout(() => {
+      statusTimerId = null;
       statusEl.textContent = "";
       statusEl.className = "status-message";
     }, 5e3);

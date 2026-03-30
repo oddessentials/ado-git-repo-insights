@@ -30,6 +30,9 @@ import {
   createOption,
 } from "./modules/shared/render";
 
+// Import host iframe resize sync
+import { initializeHostResizeSync } from "./modules/shared/host-resize";
+
 // Import ArtifactClient for authenticated artifact download
 import { ArtifactClient } from "./artifact-client";
 
@@ -67,59 +70,7 @@ let projectDropdownAvailable = false;
 let projectList: VSSProject[] = [];
 let lastValidation: { valid: boolean; buildId?: number } | null = null;
 
-let pendingHostResize = false;
-let hostResizeObserver: ResizeObserver | null = null;
-
-/**
- * Keep the Azure DevOps host iframe height in sync with dynamic settings content.
- * Prevents controls from rendering below the fold without a host scrollbar.
- */
-function syncHostHeight(): void {
-  const resizeFn = (
-    globalThis as {
-      VSS?: { resize?: (width?: number, height?: number) => void };
-    }
-  ).VSS?.resize;
-  if (typeof resizeFn !== "function") return;
-
-  const bodyHeight = document.body?.scrollHeight ?? 0;
-  const docHeight = document.documentElement?.scrollHeight ?? 0;
-  const targetHeight = Math.max(bodyHeight, docHeight);
-  if (targetHeight > 0) {
-    resizeFn(undefined, targetHeight);
-  }
-}
-
-/**
- * Debounce host resize calls while async status/discovery content renders.
- */
-function scheduleHostResize(): void {
-  if (pendingHostResize) return;
-  pendingHostResize = true;
-
-  requestAnimationFrame(() => {
-    pendingHostResize = false;
-    syncHostHeight();
-  });
-}
-
-/**
- * Observe settings page layout changes and keep host frame sized correctly.
- */
-function initializeHostResizeSync(): void {
-  const settingsRoot = document.querySelector(".settings-container");
-
-  if (typeof ResizeObserver === "function" && settingsRoot) {
-    hostResizeObserver?.disconnect();
-    hostResizeObserver = new ResizeObserver(() => {
-      scheduleHostResize();
-    });
-    hostResizeObserver.observe(settingsRoot);
-  }
-
-  window.addEventListener("resize", scheduleHostResize);
-  scheduleHostResize();
-}
+let statusTimerId: ReturnType<typeof setTimeout> | null = null;
 
 // initializeAdoSdk is now imported from "./modules/sdk"
 
@@ -155,7 +106,7 @@ async function init(): Promise<void> {
     setupEventListeners();
 
     // Keep host iframe height in sync with lazy-loaded content
-    initializeHostResizeSync();
+    initializeHostResizeSync(".settings-container");
   } catch (error: unknown) {
     console.error("Settings initialization failed:", error);
     showStatus(
@@ -503,7 +454,6 @@ async function updateStatus(): Promise<void> {
 
     // SECURITY: html uses escapeHtml for all dynamic values
     renderTrustedHtml(statusDisplay, html);
-    scheduleHostResize();
 
     // Bind retry handler if discovery failed (FR-006)
     const retryLink = document.getElementById("retry-discovery-link");
@@ -518,7 +468,6 @@ async function updateStatus(): Promise<void> {
       statusDisplay,
       `<p class="status-error">Failed to load status: ${escapeHtml(getErrorMessage(error))}</p>`,
     );
-    scheduleHostResize();
   }
 }
 
@@ -785,7 +734,6 @@ async function runDiscovery(): Promise<void> {
     statusDisplay,
     "<p>🔍 Discovering pipelines with aggregates artifact...</p>",
   );
-  scheduleHostResize();
 
   try {
     const result = await discoverPipelines();
@@ -794,7 +742,6 @@ async function runDiscovery(): Promise<void> {
       let errorHtml = `<p class="status-warning">⚠️ Discovery failed: ${escapeHtml(result.error)}</p>`;
       errorHtml += `<p class="status-hint"><a href="#" id="retry-run-discovery-link">Retry</a></p>`;
       renderTrustedHtml(statusDisplay, errorHtml);
-      scheduleHostResize();
       const retryLink = document.getElementById("retry-run-discovery-link");
       if (retryLink) {
         retryLink.addEventListener("click", (e) => {
@@ -814,7 +761,6 @@ async function runDiscovery(): Promise<void> {
                 <p class="status-hint">Create a pipeline using pr-insights-pipeline.yml and run it at least once.</p>
             `,
       );
-      scheduleHostResize();
       showStatus("No pipelines found with aggregates artifact", "warning");
       return;
     }
@@ -836,7 +782,6 @@ async function runDiscovery(): Promise<void> {
 
     // SECURITY: html uses escapeHtml for match.name
     renderTrustedHtml(statusDisplay, html);
-    scheduleHostResize();
 
     // Add event listeners for discovered pipelines
     for (const match of result.pipelines) {
@@ -857,7 +802,6 @@ async function runDiscovery(): Promise<void> {
     showStatus(`Found ${result.pipelines.length} pipeline(s)`, "success");
   } catch (error: unknown) {
     renderTrustedHtml(statusDisplay, originalContent);
-    scheduleHostResize();
     showStatus("Discovery failed: " + getErrorMessage(error), "error");
   }
 }
@@ -869,15 +813,16 @@ function showStatus(message: string, type = "info"): void {
   const statusEl = document.getElementById("status-message");
   if (!statusEl) return;
 
+  if (statusTimerId !== null) clearTimeout(statusTimerId);
+
   statusEl.textContent = message;
   statusEl.className = `status-message status-${type}`;
-  scheduleHostResize();
 
   // Clear after delay
-  setTimeout(() => {
+  statusTimerId = setTimeout(() => {
+    statusTimerId = null;
     statusEl.textContent = "";
     statusEl.className = "status-message";
-    scheduleHostResize();
   }, 5000);
 }
 
