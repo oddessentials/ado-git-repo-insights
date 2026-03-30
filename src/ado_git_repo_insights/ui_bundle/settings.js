@@ -365,7 +365,10 @@ var PRInsightsSettings = (() => {
   }
   function resizeHost(width, height) {
     if (!sdkInitialized) return;
-    H(width, height);
+    try {
+      H(width, height);
+    } catch {
+    }
   }
 
   // ../ui/modules/shared/host-resize.ts

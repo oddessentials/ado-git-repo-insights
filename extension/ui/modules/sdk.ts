@@ -197,7 +197,13 @@ export async function getAccessToken(): Promise<string> {
  */
 export function resizeHost(width?: number, height?: number): void {
   if (!sdkInitialized) return;
-  SDK.resize(width, height);
+  try {
+    SDK.resize(width, height);
+  } catch {
+    // Host communication failure — swallow to prevent rAF crash.
+    // Resize is best-effort; a missed resize self-corrects on the
+    // next observer or window resize event.
+  }
 }
 
 /* ── Local development mode ────────────────────────────────────── */
