@@ -579,7 +579,7 @@ jobs:
         shell: bash
 
       - name: Upload Python Coverage
-        uses: codecov/codecov-action@v5
+        uses: codecov/codecov-action@v6
         if: matrix.python-version == '3.11' && matrix.os == 'ubuntu-latest'
         with:
           files: ./coverage.xml
@@ -899,7 +899,7 @@ jobs:
         shell: bash
 
       - name: Upload TypeScript Coverage
-        uses: codecov/codecov-action@v5
+        uses: codecov/codecov-action@v6
         if: success()
         with:
           files: ./extension/coverage/lcov.info
