@@ -80,7 +80,6 @@ REQUIRED_FILES=(
     "artifact-client.js"
     "error-types.js"
     "styles.css"
-    "VSS.SDK.min.js"
     "data/dataset-manifest.json"
     "data/aggregates/dimensions.json"
 )

@@ -179,7 +179,7 @@ jobs:
 
       - name: Test JavaScript assets
         run: |
-          for asset in dashboard.js dataset-loader.js artifact-client.js error-types.js styles.css VSS.SDK.min.js; do
+          for asset in dashboard.js dataset-loader.js artifact-client.js error-types.js styles.css; do
             if [ -f "docs/$asset" ]; then
               STATUS=$(curl -s -o /dev/null -w "%{http_code}" "http://localhost:8080/$asset")
               if [ "$STATUS" != "200" ]; then

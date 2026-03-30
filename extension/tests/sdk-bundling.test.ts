@@ -152,4 +152,19 @@ describe("SDK Bundling Integrity (post-migration)", () => {
       expect(deps["azure-devops-extension-api"]).toBeDefined();
     });
   });
+
+  describe("demo surface parity", () => {
+    it("docs/ does not contain VSS.SDK.min.js", () => {
+      const docsDir = path.join(__dirname, "../../docs");
+      const sdkFile = path.join(docsDir, "VSS.SDK.min.js");
+      expect(_fs.existsSync(sdkFile)).toBe(false);
+    });
+
+    it("build-demo.sh does not require VSS.SDK.min.js", () => {
+      const buildDemoPath = path.join(__dirname, "../../scripts/build-demo.sh");
+      if (!_fs.existsSync(buildDemoPath)) return;
+      const content = _fs.readFileSync(buildDemoPath, "utf8");
+      expect(content).not.toContain('"VSS.SDK.min.js"');
+    });
+  });
 });

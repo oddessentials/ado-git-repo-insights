@@ -999,6 +999,7 @@ var PRInsightsSettings = (() => {
     initializeHostResizeSync(".settings-container");
     try {
       await initializeAdoSdk();
+      syncHostHeight();
       dataService = await getExtensionDataService();
       const webCtx = getWebContext();
       const projectInput = document.getElementById(

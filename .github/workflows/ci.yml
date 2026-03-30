@@ -222,7 +222,7 @@ jobs:
       - name: Check docs/ Asset Synchronization
         run: |
           echo "Verifying docs/ JS/CSS assets match extension/dist/ui..."
-          DOCS_FILES="dashboard.js dataset-loader.js artifact-client.js error-types.js error-codes.js styles.css VSS.SDK.min.js"
+          DOCS_FILES="dashboard.js dataset-loader.js artifact-client.js error-types.js error-codes.js styles.css"
           DRIFT_FOUND=false
 
           for file in $DOCS_FILES; do

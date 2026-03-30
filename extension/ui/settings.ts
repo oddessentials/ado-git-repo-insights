@@ -37,7 +37,10 @@ import {
 } from "./modules/shared/render";
 
 // Import host iframe resize sync
-import { initializeHostResizeSync } from "./modules/shared/host-resize";
+import {
+  initializeHostResizeSync,
+  syncHostHeight,
+} from "./modules/shared/host-resize";
 
 // Import ArtifactClient for authenticated artifact download
 import { ArtifactClient } from "./artifact-client";
@@ -93,6 +96,12 @@ async function init(): Promise<void> {
 
   try {
     await initializeAdoSdk();
+
+    // The pre-init resize scheduled by initializeHostResizeSync no-ops
+    // because resizeHost requires the SDK to be callable. Now that the
+    // SDK is initialized, fire the initial resize so hosts without
+    // ResizeObserver support still get the correct iframe height.
+    syncHostHeight();
 
     // Get extension data manager
     dataService = await getExtensionDataService();

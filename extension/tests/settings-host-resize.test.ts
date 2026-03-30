@@ -231,4 +231,25 @@ describe("host-resize module", () => {
     // Only the re-init resize should fire, not the stale one
     expect(mockSdkModule.resize).toHaveBeenCalledTimes(1);
   });
+
+  it("post-SDK-init syncHostHeight triggers resize even when pre-init call no-ops", async () => {
+    const { resetSdkState } = await import("../ui/modules/sdk");
+    resetSdkState();
+
+    // Pre-init: initializeHostResizeSync schedules a resize, but
+    // resizeHost no-ops because SDK isn't callable yet.
+    initializeHostResizeSync(".settings-container");
+    flushRaf();
+    expect(mockSdkModule.resize).not.toHaveBeenCalled();
+
+    // SDK init completes — wrappers now callable.
+    await initializeAdoSdk();
+    (mockSdkModule.resize as jest.Mock).mockClear();
+
+    // Explicit post-init syncHostHeight (as settings.ts now does).
+    syncHostHeight();
+
+    expect(mockSdkModule.resize).toHaveBeenCalledTimes(1);
+    expect(mockSdkModule.resize).toHaveBeenCalledWith(undefined, expect.any(Number));
+  });
 });

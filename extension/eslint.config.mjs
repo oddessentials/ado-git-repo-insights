@@ -98,7 +98,6 @@ export default tseslint.config(
             'node_modules/**',
             'dist/**',
             'coverage/**',
-            'ui/VSS.SDK.min.js',
             '**/*.js',           // Ignore remaining JS files during transition
             '**/*.cjs',          // Ignore CommonJS config files (dependency-cruiser)
             'scripts/**',        // Scripts type-checked via scripts/tsconfig.json
