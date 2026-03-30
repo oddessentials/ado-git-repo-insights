@@ -245,7 +245,6 @@ describe("SDK Module", () => {
     });
 
     it("does not set sdkInitialized if timeout fires before ready resolves", async () => {
-      // ready() resolves after 200ms, but timeout is 50ms
       mockSdkModule.ready.mockImplementation(
         () => new Promise<void>((resolve) => setTimeout(resolve, 200)),
       );
@@ -255,11 +254,47 @@ describe("SDK Module", () => {
         "timed out",
       );
 
-      // Wait for the ready promise to resolve in the background
+      // Wait for the background ready to resolve
       await new Promise((resolve) => setTimeout(resolve, 300));
 
-      // Flag must still be false — init was abandoned
       expect(isSdkInitialized()).toBe(false);
+    });
+
+    it("does not set sdkInitialized if timeout fires during notifyLoadSucceeded", async () => {
+      // ready() resolves instantly, but notifyLoadSucceeded hangs
+      mockSdkModule.notifyLoadSucceeded.mockImplementation(
+        () => new Promise<void>((resolve) => setTimeout(resolve, 200)),
+      );
+      resetSdkState();
+
+      await expect(initializeAdoSdk({ timeout: 50 })).rejects.toThrow(
+        "timed out",
+      );
+
+      // Wait for the background notifyLoadSucceeded to resolve
+      await new Promise((resolve) => setTimeout(resolve, 300));
+
+      expect(isSdkInitialized()).toBe(false);
+    });
+
+    it("allows retry after timeout", async () => {
+      // First attempt: ready hangs, times out
+      mockSdkModule.ready.mockImplementation(
+        () => new Promise<void>(() => {}),
+      );
+      resetSdkState();
+
+      await expect(initializeAdoSdk({ timeout: 50 })).rejects.toThrow(
+        "timed out",
+      );
+      expect(isSdkInitialized()).toBe(false);
+
+      // Second attempt: succeeds normally
+      setupSdkMocks();
+      resetSdkState();
+
+      await initializeAdoSdk();
+      expect(isSdkInitialized()).toBe(true);
     });
 
     it("allows getWebContext after initialization", async () => {

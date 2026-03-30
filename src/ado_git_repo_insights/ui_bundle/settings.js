@@ -299,30 +299,37 @@ var PRInsightsSettings = (() => {
   var ExtensionDataServiceId = "ms.vss-features.extension-data-service";
   var LocationServiceId = "ms.vss-features.location-service";
   var sdkInitialized = false;
+  var sdkReadyForCalls = false;
+  var initAttemptId = 0;
   var DEFAULT_TIMEOUT_MS = 1e4;
+  function isSdkCallable() {
+    return sdkInitialized || sdkReadyForCalls;
+  }
   async function initializeAdoSdk(options) {
     if (sdkInitialized) return;
     const timeout = options?.timeout ?? DEFAULT_TIMEOUT_MS;
-    let abandoned = false;
+    const attemptId = ++initAttemptId;
     const initSequence = async () => {
       await k({ loaded: false });
       await j();
-      if (abandoned) return;
-      sdkInitialized = true;
+      if (attemptId !== initAttemptId) return;
+      sdkReadyForCalls = true;
       try {
         if (options?.onReady) {
           options.onReady();
         }
+        if (attemptId !== initAttemptId) return;
         await R();
-      } catch (e2) {
-        sdkInitialized = false;
-        throw e2;
+      } finally {
+        sdkReadyForCalls = false;
       }
+      if (attemptId !== initAttemptId) return;
+      sdkInitialized = true;
     };
     let timeoutId;
     const timeoutPromise = new Promise((_2, reject) => {
       timeoutId = setTimeout(() => {
-        abandoned = true;
+        initAttemptId++;
         reject(new Error("Azure DevOps SDK initialization timed out"));
       }, timeout);
     });
@@ -343,7 +350,7 @@ var PRInsightsSettings = (() => {
     return dataService2.getExtensionDataManager(extensionContext.id, accessToken);
   }
   function getWebContext() {
-    if (!sdkInitialized) return void 0;
+    if (!isSdkCallable()) return void 0;
     const webCtx = A();
     const user = T();
     const host = D();
@@ -365,7 +372,7 @@ var PRInsightsSettings = (() => {
     return L();
   }
   function resizeHost(width, height) {
-    if (!sdkInitialized) return;
+    if (!isSdkCallable()) return;
     try {
       H(width, height);
     } catch {

@@ -45,8 +45,35 @@ export interface WebContext {
 
 /* ── Module-level state (singleton) ────────────────────────────── */
 
+/**
+ * Committed success flag — set only after the ENTIRE init sequence
+ * completes (ready + onReady + notifyLoadSucceeded) without timeout.
+ */
 let sdkInitialized = false;
+
+/**
+ * Temporary flag scoped to the onReady callback window. Allows
+ * SDK wrapper functions (getWebContext, resizeHost) to work during
+ * onReady without committing "fully initialized" state. Cleared
+ * in a finally block after onReady returns.
+ */
+let sdkReadyForCalls = false;
+
+/**
+ * Monotonic counter — each call to initializeAdoSdk increments it.
+ * A timeout or new call also increments it, invalidating the prior
+ * attempt so its background continuation cannot commit state.
+ */
+let initAttemptId = 0;
+
 const DEFAULT_TIMEOUT_MS = 10_000;
+
+/* ── Internal helper ───────────────────────────────────────────── */
+
+/** SDK wrappers are usable if fully initialized OR inside onReady. */
+function isSdkCallable(): boolean {
+  return sdkInitialized || sdkReadyForCalls;
+}
 
 /* ── Public functions ──────────────────────────────────────────── */
 
@@ -58,6 +85,8 @@ export function isSdkInitialized(): boolean {
 /** Reset SDK state. Test-only utility. */
 export function resetSdkState(): void {
   sdkInitialized = false;
+  sdkReadyForCalls = false;
+  initAttemptId++;
 }
 
 /**
@@ -67,6 +96,11 @@ export function resetSdkState(): void {
  * performs actual initialization. The sequence is:
  *   init() → ready() → onReady callback → notifyLoadSucceeded()
  *
+ * SDK wrapper functions (getWebContext, resizeHost) are usable during
+ * onReady via a temporary ready-for-calls window. The module-wide
+ * "initialized" flag is committed only after the full sequence
+ * succeeds and has not been abandoned by a timeout.
+ *
  * Rejects with a timeout error if the host does not respond in time.
  */
 export async function initializeAdoSdk(
@@ -75,38 +109,39 @@ export async function initializeAdoSdk(
   if (sdkInitialized) return;
 
   const timeout = options?.timeout ?? DEFAULT_TIMEOUT_MS;
-
-  // Tracks whether the timeout fired before init completed.
-  // If true, the init sequence must not commit sdkInitialized
-  // because the caller already received a timeout rejection.
-  let abandoned = false;
+  const attemptId = ++initAttemptId;
 
   const initSequence = async (): Promise<void> => {
     await SDK.init({ loaded: false });
     await SDK.ready();
 
-    // If the timeout fired while we were waiting, bail out.
-    if (abandoned) return;
+    // If this attempt was invalidated (timeout or new call), bail.
+    if (attemptId !== initAttemptId) return;
 
-    // SDK APIs are now usable. Set the flag before onReady so
-    // callbacks can call getWebContext(), resizeHost(), etc.
-    // If onReady or notifyLoadSucceeded fails, roll back.
-    sdkInitialized = true;
+    // Temporarily enable SDK wrappers for onReady callbacks.
+    sdkReadyForCalls = true;
     try {
       if (options?.onReady) {
         options.onReady();
       }
+
+      // Check again — onReady may have taken long enough for timeout.
+      if (attemptId !== initAttemptId) return;
+
       await SDK.notifyLoadSucceeded();
-    } catch (e) {
-      sdkInitialized = false;
-      throw e;
+    } finally {
+      sdkReadyForCalls = false;
     }
+
+    // Final gate: only commit if this attempt still owns the slot.
+    if (attemptId !== initAttemptId) return;
+    sdkInitialized = true;
   };
 
   let timeoutId: ReturnType<typeof setTimeout> | undefined;
   const timeoutPromise = new Promise<never>((_, reject) => {
     timeoutId = setTimeout(() => {
-      abandoned = true;
+      initAttemptId++; // Invalidate the current attempt
       reject(new Error("Azure DevOps SDK initialization timed out"));
     }, timeout);
   });
@@ -140,12 +175,11 @@ export async function getExtensionDataService(): Promise<IExtensionDataManager> 
 /**
  * Get the current web context (project, team, user, host).
  *
- * Returns undefined if the SDK has not been initialized.
- * Composes from SDK accessors to provide a shape compatible
- * with the old VSS.WebContext layout.
+ * Returns undefined if the SDK is not callable (neither fully
+ * initialized nor inside an onReady callback window).
  */
 export function getWebContext(): WebContext | undefined {
-  if (!sdkInitialized) return undefined;
+  if (!isSdkCallable()) return undefined;
 
   const webCtx = SDK.getWebContext();
   const user = SDK.getUser();
@@ -194,12 +228,12 @@ export async function getAccessToken(): Promise<string> {
 /**
  * Notify the Azure DevOps host to resize the extension iframe.
  *
- * No-op until the SDK has been initialized. This is intentional:
- * resize calls before init cannot reach the host anyway, and
- * silently dropping them avoids errors during early DOM mutations.
+ * No-op until the SDK is callable (fully initialized or inside
+ * an onReady callback). Silently swallows host communication
+ * failures to prevent rAF callback crashes.
  */
 export function resizeHost(width?: number, height?: number): void {
-  if (!sdkInitialized) return;
+  if (!isSdkCallable()) return;
   try {
     SDK.resize(width, height);
   } catch {
