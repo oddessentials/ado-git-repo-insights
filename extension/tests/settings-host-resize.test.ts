@@ -5,6 +5,8 @@
  * when observed container dimensions change or the window resizes.
  */
 
+import * as path from "path";
+import { readTextFile } from "./helpers/fs-test-utils";
 import {
   initializeHostResizeSync,
   teardownHostResizeSync,
@@ -285,5 +287,49 @@ describe("host-resize module", () => {
 
     // Exactly one resize from the second init, not two
     expect(resizeSpy).toHaveBeenCalledTimes(1);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Init ordering contract: resize sync must start before async startup work
+// ---------------------------------------------------------------------------
+
+describe("settings init ordering contract", () => {
+  // Source-reading test is the correct pattern here: this is a cross-file
+  // structural contract (like artifact-paths and settings-key sync tests),
+  // not a behavioral test of the resize module itself.
+
+  let initBody: string;
+
+  beforeAll(() => {
+    const settingsPath = path.join(__dirname, "../ui/settings.ts");
+    const source = readTextFile(settingsPath);
+
+    // Extract the init() function body (from "async function init" to its
+    // closing brace).  This is intentionally fragile — if the function is
+    // renamed or restructured, the test should fail loudly.
+    const match = source.match(
+      /async function init\(\): Promise<void> \{([\s\S]*?)\n\}/,
+    );
+    expect(match).not.toBeNull();
+    initBody = match![1] as string;
+  });
+
+  it("calls initializeHostResizeSync before initializeAdoSdk", () => {
+    const resizeIdx = initBody.indexOf("initializeHostResizeSync(");
+    const sdkIdx = initBody.indexOf("initializeAdoSdk(");
+
+    expect(resizeIdx).toBeGreaterThan(-1);
+    expect(sdkIdx).toBeGreaterThan(-1);
+    expect(resizeIdx).toBeLessThan(sdkIdx);
+  });
+
+  it("calls initializeHostResizeSync before the try block", () => {
+    const resizeIdx = initBody.indexOf("initializeHostResizeSync(");
+    const tryIdx = initBody.indexOf("try {");
+
+    expect(resizeIdx).toBeGreaterThan(-1);
+    expect(tryIdx).toBeGreaterThan(-1);
+    expect(resizeIdx).toBeLessThan(tryIdx);
   });
 });

@@ -78,6 +78,13 @@ let statusTimerId: ReturnType<typeof setTimeout> | null = null;
  * Initialize the settings page.
  */
 async function init(): Promise<void> {
+  // Start observing layout changes before any async work so startup DOM
+  // mutations (project dropdown, settings load, status render) and error-
+  // path content are all captured.  syncHostHeight() is a no-op until
+  // VSS.resize becomes available after SDK init, so this is safe to call
+  // early.  .settings-container is static HTML — always present.
+  initializeHostResizeSync(".settings-container");
+
   try {
     await initializeAdoSdk();
 
@@ -104,9 +111,6 @@ async function init(): Promise<void> {
 
     // Set up event listeners
     setupEventListeners();
-
-    // Keep host iframe height in sync with lazy-loaded content
-    initializeHostResizeSync(".settings-container");
   } catch (error: unknown) {
     console.error("Settings initialization failed:", error);
     showStatus(

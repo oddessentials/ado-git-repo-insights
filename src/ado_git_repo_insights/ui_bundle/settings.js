@@ -657,6 +657,7 @@ var PRInsightsSettings = (() => {
   var lastValidation = null;
   var statusTimerId = null;
   async function init() {
+    initializeHostResizeSync(".settings-container");
     try {
       await initializeAdoSdk();
       dataService = await VSS.getService(VSS.ServiceIds.ExtensionData);
@@ -671,7 +672,6 @@ var PRInsightsSettings = (() => {
       await loadSettings();
       await updateStatus();
       setupEventListeners();
-      initializeHostResizeSync(".settings-container");
     } catch (error) {
       console.error("Settings initialization failed:", error);
       showStatus(
