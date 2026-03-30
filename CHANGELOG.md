@@ -1,3 +1,14 @@
+## [5.33.2](https://github.com/oddessentials/ado-git-repo-insights/compare/v5.33.1...v5.33.2) (2026-03-30)
+
+
+### Bug Fixes
+
+* avoid deadlock and thread-safety regression in SIGINT dashboard shutdown ([74e02b6](https://github.com/oddessentials/ado-git-repo-insights/commit/74e02b622cd65c4d17108743477a0d73e07229f5))
+* move SIGINT override after browser launch, chain to prior handlers ([24b015c](https://github.com/oddessentials/ado-git-repo-insights/commit/24b015c3d9143f4791ce91bba77e355e7c412652))
+* resolve mypy error in SIGINT handler closure ([1e4edda](https://github.com/oddessentials/ado-git-repo-insights/commit/1e4eddac2ccff131e9a834b31f2e224bf27711c6))
+* respect SIG_IGN/SIG_DFL — skip SIGINT override when caller configured signal policy ([a3f9f55](https://github.com/oddessentials/ado-git-repo-insights/commit/a3f9f5535922bf80221894cc9237ad7d2dfaa806))
+* use SIGINT signal handler for reliable dashboard shutdown ([b2ba5fb](https://github.com/oddessentials/ado-git-repo-insights/commit/b2ba5fb1b5f29db592b6d2f0cd7d1b44c14cae9c)), closes [#225](https://github.com/oddessentials/ado-git-repo-insights/issues/225)
+
 ## [5.33.1](https://github.com/oddessentials/ado-git-repo-insights/compare/v5.33.0...v5.33.1) (2026-03-30)
 
 
