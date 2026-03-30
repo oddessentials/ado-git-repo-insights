@@ -76,26 +76,48 @@ export async function initializeAdoSdk(
 
   const timeout = options?.timeout ?? DEFAULT_TIMEOUT_MS;
 
+  // Tracks whether the timeout fired before init completed.
+  // If true, the init sequence must not commit sdkInitialized
+  // because the caller already received a timeout rejection.
+  let abandoned = false;
+
   const initSequence = async (): Promise<void> => {
     await SDK.init({ loaded: false });
     await SDK.ready();
+
+    // If the timeout fired while we were waiting, bail out.
+    if (abandoned) return;
+
+    // SDK APIs are now usable. Set the flag before onReady so
+    // callbacks can call getWebContext(), resizeHost(), etc.
+    // If onReady or notifyLoadSucceeded fails, roll back.
     sdkInitialized = true;
-
-    if (options?.onReady) {
-      options.onReady();
+    try {
+      if (options?.onReady) {
+        options.onReady();
+      }
+      await SDK.notifyLoadSucceeded();
+    } catch (e) {
+      sdkInitialized = false;
+      throw e;
     }
-
-    await SDK.notifyLoadSucceeded();
   };
 
+  let timeoutId: ReturnType<typeof setTimeout> | undefined;
   const timeoutPromise = new Promise<never>((_, reject) => {
-    setTimeout(
-      () => reject(new Error("Azure DevOps SDK initialization timed out")),
-      timeout,
-    );
+    timeoutId = setTimeout(() => {
+      abandoned = true;
+      reject(new Error("Azure DevOps SDK initialization timed out"));
+    }, timeout);
   });
 
-  await Promise.race([initSequence(), timeoutPromise]);
+  try {
+    await Promise.race([initSequence(), timeoutPromise]);
+  } finally {
+    if (timeoutId !== undefined) {
+      clearTimeout(timeoutId);
+    }
+  }
 }
 
 /**

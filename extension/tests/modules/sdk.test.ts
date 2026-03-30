@@ -206,7 +206,6 @@ describe("SDK Module", () => {
     });
 
     it("rejects on timeout", async () => {
-      // Make ready() never resolve
       mockSdkModule.ready.mockImplementation(
         () => new Promise<void>(() => {}),
       );
@@ -215,6 +214,51 @@ describe("SDK Module", () => {
       await expect(initializeAdoSdk({ timeout: 50 })).rejects.toThrow(
         "Azure DevOps SDK initialization timed out",
       );
+    });
+
+    it("rolls back sdkInitialized if onReady throws", async () => {
+      resetSdkState();
+
+      await expect(
+        initializeAdoSdk({
+          onReady: () => {
+            throw new Error("callback failed");
+          },
+        }),
+      ).rejects.toThrow("callback failed");
+
+      expect(isSdkInitialized()).toBe(false);
+    });
+
+    it("rolls back sdkInitialized if notifyLoadSucceeded rejects", async () => {
+      mockSdkModule.notifyLoadSucceeded.mockImplementation(() =>
+        Promise.reject(new Error("host notification failed")),
+      );
+      resetSdkState();
+
+      await expect(initializeAdoSdk()).rejects.toThrow(
+        "host notification failed",
+      );
+
+      expect(isSdkInitialized()).toBe(false);
+    });
+
+    it("does not set sdkInitialized if timeout fires before ready resolves", async () => {
+      // ready() resolves after 200ms, but timeout is 50ms
+      mockSdkModule.ready.mockImplementation(
+        () => new Promise<void>((resolve) => setTimeout(resolve, 200)),
+      );
+      resetSdkState();
+
+      await expect(initializeAdoSdk({ timeout: 50 })).rejects.toThrow(
+        "timed out",
+      );
+
+      // Wait for the ready promise to resolve in the background
+      await new Promise((resolve) => setTimeout(resolve, 300));
+
+      // Flag must still be false — init was abandoned
+      expect(isSdkInitialized()).toBe(false);
     });
 
     it("allows getWebContext after initialization", async () => {

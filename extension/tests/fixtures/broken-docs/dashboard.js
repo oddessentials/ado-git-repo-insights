@@ -3909,22 +3909,36 @@ var PRInsightsDashboard = (() => {
   async function initializeAdoSdk(options) {
     if (sdkInitialized) return;
     const timeout = options?.timeout ?? DEFAULT_TIMEOUT_MS;
+    let abandoned = false;
     const initSequence = async () => {
       await k({ loaded: false });
       await j();
+      if (abandoned) return;
       sdkInitialized = true;
-      if (options?.onReady) {
-        options.onReady();
+      try {
+        if (options?.onReady) {
+          options.onReady();
+        }
+        await R();
+      } catch (e2) {
+        sdkInitialized = false;
+        throw e2;
       }
-      await R();
     };
+    let timeoutId;
     const timeoutPromise = new Promise((_2, reject) => {
-      setTimeout(
-        () => reject(new Error("Azure DevOps SDK initialization timed out")),
-        timeout
-      );
+      timeoutId = setTimeout(() => {
+        abandoned = true;
+        reject(new Error("Azure DevOps SDK initialization timed out"));
+      }, timeout);
     });
-    await Promise.race([initSequence(), timeoutPromise]);
+    try {
+      await Promise.race([initSequence(), timeoutPromise]);
+    } finally {
+      if (timeoutId !== void 0) {
+        clearTimeout(timeoutId);
+      }
+    }
   }
   async function getExtensionDataService() {
     const dataService = await F(
