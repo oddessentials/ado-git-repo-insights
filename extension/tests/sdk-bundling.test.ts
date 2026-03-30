@@ -92,6 +92,41 @@ describe("SDK Bundling Integrity (post-migration)", () => {
     });
   });
 
+  describe("artifact-client SDK isolation", () => {
+    it("artifact-client.ts does not import from modules/sdk or azure-devops-extension-sdk", () => {
+      const artifactClientPath = path.join(UI_DIR, "artifact-client.ts");
+      const content = _fs.readFileSync(artifactClientPath, "utf8");
+
+      // Must not import the SDK directly
+      expect(content).not.toMatch(/from\s+["']azure-devops-extension-sdk["']/);
+      // Must not import from the modules barrel (which re-exports SDK)
+      expect(content).not.toMatch(/from\s+["']\.\/(modules|modules\/sdk)["']/);
+    });
+
+    it("artifact-client.js bundle does not contain SDK internals", () => {
+      const bundlePath = path.join(DIST_UI_DIR, "artifact-client.js");
+      if (!_fs.existsSync(bundlePath)) return; // Skip if not built
+      const content = _fs.readFileSync(bundlePath, "utf8");
+
+      // XDM channelManager is the SDK's core internal — its presence
+      // means the SDK was bundled into artifact-client.js
+      expect(content).not.toContain("channelManager");
+    });
+  });
+
+  describe("resize bridge", () => {
+    it("host-resize.ts uses resizeHost from sdk.ts, not globalThis.VSS", () => {
+      const hostResizePath = path.join(UI_DIR, "modules", "shared", "host-resize.ts");
+      const content = _fs.readFileSync(hostResizePath, "utf8");
+
+      // Must import resizeHost from the SDK abstraction
+      expect(content).toMatch(/import\s*\{[^}]*resizeHost[^}]*\}\s*from\s*["']\.\.\/sdk["']/);
+      // Must not reference the legacy globalThis.VSS pattern
+      expect(content).not.toMatch(/globalThis.*VSS/);
+      expect(content).not.toMatch(/VSS\?\.resize/);
+    });
+  });
+
   describe("package.json", () => {
     it("does NOT include vss-web-extension-sdk dependency", () => {
       const deps: Record<string, string> = {

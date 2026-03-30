@@ -30,7 +30,7 @@ describe("ArtifactClient HTTP Response Handling", () => {
 
     // Initialize client
     client = new ArtifactClient("test-project");
-    await client.initialize();
+    await client.initialize("https://dev.azure.com/test-org/", "mock-access-token-12345");
   });
 
   afterEach(() => {

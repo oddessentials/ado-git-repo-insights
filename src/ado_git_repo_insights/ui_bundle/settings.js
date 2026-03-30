@@ -14,148 +14,6 @@ var PRInsightsSettings = (() => {
     return "Unknown error";
   }
 
-  // ../ui/modules/shared/host-resize.ts
-  var pendingHostResize = false;
-  var rafHandle = null;
-  var hostResizeObserver = null;
-  var windowListenerAttached = false;
-  var generation = 0;
-  function syncHostHeight() {
-    const resizeFn = globalThis.VSS?.resize;
-    if (typeof resizeFn !== "function") return;
-    const bodyHeight = document.body.scrollHeight;
-    const docHeight = document.documentElement.scrollHeight;
-    const targetHeight = Math.max(bodyHeight, docHeight);
-    if (targetHeight > 0) {
-      resizeFn(void 0, targetHeight);
-    }
-  }
-  function scheduleHostResize() {
-    if (pendingHostResize) return;
-    pendingHostResize = true;
-    const gen = generation;
-    rafHandle = requestAnimationFrame(() => {
-      rafHandle = null;
-      if (gen !== generation) return;
-      pendingHostResize = false;
-      syncHostHeight();
-    });
-  }
-  function initializeHostResizeSync(containerSelector) {
-    generation++;
-    if (rafHandle !== null) {
-      cancelAnimationFrame(rafHandle);
-      rafHandle = null;
-    }
-    pendingHostResize = false;
-    hostResizeObserver?.disconnect();
-    hostResizeObserver = null;
-    if (typeof ResizeObserver === "function") {
-      const root = document.querySelector(containerSelector);
-      if (root) {
-        hostResizeObserver = new ResizeObserver(() => {
-          scheduleHostResize();
-        });
-        hostResizeObserver.observe(root);
-      }
-    }
-    if (windowListenerAttached) {
-      window.removeEventListener("resize", scheduleHostResize);
-    }
-    window.addEventListener("resize", scheduleHostResize);
-    windowListenerAttached = true;
-    scheduleHostResize();
-  }
-
-  // ../ui/modules/shared/security.ts
-  function escapeHtml(text) {
-    return text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#039;");
-  }
-
-  // ../ui/modules/shared/render.ts
-  function clearElement(el) {
-    if (!el) return;
-    while (el.firstChild) {
-      el.removeChild(el.firstChild);
-    }
-  }
-  function createElement(tag, attributes, textContent) {
-    const el = document.createElement(tag);
-    if (attributes) {
-      for (const [key, value] of Object.entries(attributes)) {
-        el.setAttribute(key, value);
-      }
-    }
-    if (textContent !== void 0) {
-      el.textContent = textContent;
-    }
-    return el;
-  }
-  function renderTrustedHtml(container, trustedHtml) {
-    if (!container) return;
-    container.innerHTML = trustedHtml;
-  }
-  function createOption(value, text, selected = false) {
-    const option = createElement("option", { value }, text);
-    if (selected) {
-      option.selected = true;
-    }
-    return option;
-  }
-
-  // ../ui/modules/metrics.ts
-  var HAS_WINDOW = typeof window !== "undefined";
-  var IS_PRODUCTION = typeof process !== "undefined" && false;
-  var SHOULD_WARN_ON_COERCION = !IS_PRODUCTION && HAS_WINDOW && window.__DASHBOARD_DEBUG__ === true;
-
-  // ../ui/error-types.ts
-  var ErrorTypes = {
-    SETUP_REQUIRED: "setup_required",
-    MULTIPLE_PIPELINES: "multiple_pipelines",
-    NO_SUCCESSFUL_BUILDS: "no_successful_builds",
-    ARTIFACTS_MISSING: "artifacts_missing",
-    PERMISSION_DENIED: "permission_denied",
-    INVALID_CONFIG: "invalid_config"
-  };
-  var PrInsightsError = class extends Error {
-    constructor(type, title, message, details = null) {
-      super(message);
-      this.name = "PrInsightsError";
-      this.type = type;
-      this.title = title;
-      this.details = details;
-    }
-  };
-  function createPermissionDeniedError(operation) {
-    return new PrInsightsError(
-      ErrorTypes.PERMISSION_DENIED,
-      "Permission Denied",
-      `You don't have permission to ${operation}.`,
-      {
-        instructions: [
-          'Request "Build (Read)" permission from your project administrator',
-          "Ensure you have access to view pipeline artifacts",
-          "If using a service account, verify its permissions"
-        ],
-        permissionNeeded: "Build (Read)"
-      }
-    );
-  }
-  if (typeof window !== "undefined") {
-    window.PrInsightsError = PrInsightsError;
-  }
-
-  // ../ui/modules/export.ts
-  function showToast(message, type = "success", durationMs = 3e3) {
-    const toast = document.createElement("div");
-    toast.className = `toast ${type}`;
-    toast.textContent = message;
-    document.body.appendChild(toast);
-    setTimeout(() => {
-      toast.remove();
-    }, durationMs);
-  }
-
   // ../node_modules/.pnpm/azure-devops-extension-sdk@4.2.0/node_modules/azure-devops-extension-sdk/esm/SDK.min.js
   var e = parseInt("10000000000", 36);
   var t = Number.MAX_SAFE_INTEGER || 9007199254740991;
@@ -422,6 +280,13 @@ var PRInsightsSettings = (() => {
   async function L() {
     return u.invokeRemoteMethod("getAccessToken", d).then(((e2) => e2.token));
   }
+  function H(e2, t2) {
+    const n2 = document.body;
+    if (n2) {
+      const o2 = "number" == typeof e2 ? e2 : n2 ? n2.scrollWidth : void 0, r2 = "number" == typeof t2 ? t2 : n2 ? n2.scrollHeight : void 0;
+      u.invokeRemoteMethod("resize", d, [o2, r2]);
+    }
+  }
   function J(e2) {
     b || (b = document.createElement("style"), b.type = "text/css", document.head.appendChild(b));
     const t2 = [];
@@ -484,6 +349,150 @@ var PRInsightsSettings = (() => {
   async function getAccessToken() {
     return L();
   }
+  function resizeHost(width, height) {
+    if (!sdkInitialized) return;
+    H(width, height);
+  }
+
+  // ../ui/modules/shared/host-resize.ts
+  var pendingHostResize = false;
+  var rafHandle = null;
+  var hostResizeObserver = null;
+  var windowListenerAttached = false;
+  var generation = 0;
+  function syncHostHeight() {
+    const bodyHeight = document.body.scrollHeight;
+    const docHeight = document.documentElement.scrollHeight;
+    const targetHeight = Math.max(bodyHeight, docHeight);
+    if (targetHeight > 0) {
+      resizeHost(void 0, targetHeight);
+    }
+  }
+  function scheduleHostResize() {
+    if (pendingHostResize) return;
+    pendingHostResize = true;
+    const gen = generation;
+    rafHandle = requestAnimationFrame(() => {
+      rafHandle = null;
+      if (gen !== generation) return;
+      pendingHostResize = false;
+      syncHostHeight();
+    });
+  }
+  function initializeHostResizeSync(containerSelector) {
+    generation++;
+    if (rafHandle !== null) {
+      cancelAnimationFrame(rafHandle);
+      rafHandle = null;
+    }
+    pendingHostResize = false;
+    hostResizeObserver?.disconnect();
+    hostResizeObserver = null;
+    if (typeof ResizeObserver === "function") {
+      const root = document.querySelector(containerSelector);
+      if (root) {
+        hostResizeObserver = new ResizeObserver(() => {
+          scheduleHostResize();
+        });
+        hostResizeObserver.observe(root);
+      }
+    }
+    if (windowListenerAttached) {
+      window.removeEventListener("resize", scheduleHostResize);
+    }
+    window.addEventListener("resize", scheduleHostResize);
+    windowListenerAttached = true;
+    scheduleHostResize();
+  }
+
+  // ../ui/modules/shared/security.ts
+  function escapeHtml(text) {
+    return text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#039;");
+  }
+
+  // ../ui/modules/shared/render.ts
+  function clearElement(el) {
+    if (!el) return;
+    while (el.firstChild) {
+      el.removeChild(el.firstChild);
+    }
+  }
+  function createElement(tag, attributes, textContent) {
+    const el = document.createElement(tag);
+    if (attributes) {
+      for (const [key, value] of Object.entries(attributes)) {
+        el.setAttribute(key, value);
+      }
+    }
+    if (textContent !== void 0) {
+      el.textContent = textContent;
+    }
+    return el;
+  }
+  function renderTrustedHtml(container, trustedHtml) {
+    if (!container) return;
+    container.innerHTML = trustedHtml;
+  }
+  function createOption(value, text, selected = false) {
+    const option = createElement("option", { value }, text);
+    if (selected) {
+      option.selected = true;
+    }
+    return option;
+  }
+
+  // ../ui/modules/metrics.ts
+  var HAS_WINDOW = typeof window !== "undefined";
+  var IS_PRODUCTION = typeof process !== "undefined" && false;
+  var SHOULD_WARN_ON_COERCION = !IS_PRODUCTION && HAS_WINDOW && window.__DASHBOARD_DEBUG__ === true;
+
+  // ../ui/error-types.ts
+  var ErrorTypes = {
+    SETUP_REQUIRED: "setup_required",
+    MULTIPLE_PIPELINES: "multiple_pipelines",
+    NO_SUCCESSFUL_BUILDS: "no_successful_builds",
+    ARTIFACTS_MISSING: "artifacts_missing",
+    PERMISSION_DENIED: "permission_denied",
+    INVALID_CONFIG: "invalid_config"
+  };
+  var PrInsightsError = class extends Error {
+    constructor(type, title, message, details = null) {
+      super(message);
+      this.name = "PrInsightsError";
+      this.type = type;
+      this.title = title;
+      this.details = details;
+    }
+  };
+  function createPermissionDeniedError(operation) {
+    return new PrInsightsError(
+      ErrorTypes.PERMISSION_DENIED,
+      "Permission Denied",
+      `You don't have permission to ${operation}.`,
+      {
+        instructions: [
+          'Request "Build (Read)" permission from your project administrator',
+          "Ensure you have access to view pipeline artifacts",
+          "If using a service account, verify its permissions"
+        ],
+        permissionNeeded: "Build (Read)"
+      }
+    );
+  }
+  if (typeof window !== "undefined") {
+    window.PrInsightsError = PrInsightsError;
+  }
+
+  // ../ui/modules/export.ts
+  function showToast(message, type = "success", durationMs = 3e3) {
+    const toast = document.createElement("div");
+    toast.className = `toast ${type}`;
+    toast.textContent = message;
+    document.body.appendChild(toast);
+    setTimeout(() => {
+      toast.remove();
+    }, durationMs);
+  }
 
   // ../ui/artifact-client.ts
   var ArtifactClient = class {
@@ -499,17 +508,19 @@ var PRInsightsSettings = (() => {
       this.projectId = projectId;
     }
     /**
-     * Initialize the client with ADO SDK auth.
+     * Initialize the client with authentication credentials.
      * MUST be called after SDK initialization and before any other methods.
      *
+     * @param collectionUri - Azure DevOps collection/organization base URI
+     * @param authToken - Bearer token for authenticated REST calls
      * @returns This client instance
      */
-    async initialize() {
+    async initialize(collectionUri, authToken) {
       if (this.initialized) {
         return this;
       }
-      this.collectionUri = await getCollectionUri();
-      this.authToken = await getAccessToken();
+      this.collectionUri = collectionUri;
+      this.authToken = authToken;
       this.initialized = true;
       return this;
     }
@@ -1291,8 +1302,12 @@ var PRInsightsSettings = (() => {
         showToast("Invalid build ID", "error");
         return;
       }
+      const [collectionUri, authToken] = await Promise.all([
+        getCollectionUri(),
+        getAccessToken()
+      ]);
       const artifactClient = new ArtifactClient(projectId);
-      await artifactClient.initialize();
+      await artifactClient.initialize(collectionUri, authToken);
       const artifact = await artifactClient.getArtifactMetadata(
         lastValidation.buildId,
         ARTIFACT_NAME_CSV
@@ -1357,7 +1372,11 @@ var PRInsightsSettings = (() => {
   async function validatePipeline(pipelineId, projectId) {
     const client = new ArtifactClient(projectId);
     try {
-      await client.initialize();
+      const [collectionUri, authToken] = await Promise.all([
+        getCollectionUri(),
+        getAccessToken()
+      ]);
+      await client.initialize(collectionUri, authToken);
     } catch (e2) {
       return { valid: false, error: `Validation error: ${getErrorMessage(e2)}` };
     }
@@ -1389,9 +1408,13 @@ var PRInsightsSettings = (() => {
     if (!projectId) {
       return { pipelines: [], skippedCount: 0, error: "No project ID available" };
     }
+    const [collectionUri, authToken] = await Promise.all([
+      getCollectionUri(),
+      getAccessToken()
+    ]);
     const client = new ArtifactClient(projectId);
     try {
-      await client.initialize();
+      await client.initialize(collectionUri, authToken);
     } catch (e2) {
       return {
         pipelines: [],

@@ -2,14 +2,15 @@
  * Artifact Client for PR Insights Hub
  *
  * Provides authenticated access to Azure DevOps pipeline artifacts.
- * Uses the ADO Extension SDK for proper authentication.
+ * This module is SDK-free: callers supply collectionUri and authToken
+ * at initialization. This prevents duplicate SDK instances when
+ * multiple IIFE bundles load on the same page.
  *
  * IMPORTANT: In ADO extension context, plain fetch() will return 401.
- * We must use the SDK's auth token service.
+ * Callers must obtain a Bearer token from the SDK before initializing.
  */
 
 import { type IDatasetLoader, type Rollup } from "./dataset-loader";
-import { getCollectionUri, getAccessToken } from "./modules";
 import { createPermissionDeniedError } from "./error-types";
 import {
   getErrorMessage,
@@ -43,22 +44,23 @@ export class ArtifactClient {
   }
 
   /**
-   * Initialize the client with ADO SDK auth.
+   * Initialize the client with authentication credentials.
    * MUST be called after SDK initialization and before any other methods.
    *
+   * @param collectionUri - Azure DevOps collection/organization base URI
+   * @param authToken - Bearer token for authenticated REST calls
    * @returns This client instance
    */
-  async initialize(): Promise<ArtifactClient> {
+  async initialize(
+    collectionUri: string,
+    authToken: string,
+  ): Promise<ArtifactClient> {
     if (this.initialized) {
       return this;
     }
 
-    // Get collection URI via LocationService
-    this.collectionUri = await getCollectionUri();
-
-    // Get auth token from SDK (returns string directly in new SDK)
-    this.authToken = await getAccessToken();
-
+    this.collectionUri = collectionUri;
+    this.authToken = authToken;
     this.initialized = true;
     return this;
   }

@@ -164,6 +164,20 @@ export async function getAccessToken(): Promise<string> {
   return SDK.getAccessToken();
 }
 
+/* ── Host resize ───────────────────────────────────────────────── */
+
+/**
+ * Notify the Azure DevOps host to resize the extension iframe.
+ *
+ * No-op until the SDK has been initialized. This is intentional:
+ * resize calls before init cannot reach the host anyway, and
+ * silently dropping them avoids errors during early DOM mutations.
+ */
+export function resizeHost(width?: number, height?: number): void {
+  if (!sdkInitialized) return;
+  SDK.resize(width, height);
+}
+
 /* ── Local development mode ────────────────────────────────────── */
 
 declare const LOCAL_DASHBOARD_MODE: boolean | undefined;

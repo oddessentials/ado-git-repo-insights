@@ -74,6 +74,8 @@ import {
   getLocalDatasetPath,
   getExtensionDataService,
   getWebContext,
+  getCollectionUri,
+  getAccessToken,
   // Error handling functions (dispatch handled internally)
   handleError,
   hideAllPanels,
@@ -400,9 +402,13 @@ async function resolveConfiguration(): Promise<{
     sourceConfig.projectId ? " (from settings)" : " (current context)",
   );
 
-  // Initialize artifact client with target project
+  // Initialize artifact client with target project and SDK credentials
+  const [collectionUri, authToken] = await Promise.all([
+    getCollectionUri(),
+    getAccessToken(),
+  ]);
   artifactClient = new ArtifactClient(targetProjectId);
-  await artifactClient.initialize();
+  await artifactClient.initialize(collectionUri, authToken);
 
   // Mode: explicit pipelineId from query
   if (queryResult.mode === "explicit") {

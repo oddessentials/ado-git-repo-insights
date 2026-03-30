@@ -538,9 +538,13 @@ async function downloadRawData(): Promise<void> {
       return;
     }
 
-    // Create and initialize ArtifactClient
+    // Create and initialize ArtifactClient with SDK credentials
+    const [collectionUri, authToken] = await Promise.all([
+      getCollectionUri(),
+      getAccessToken(),
+    ]);
     const artifactClient = new ArtifactClient(projectId);
-    await artifactClient.initialize();
+    await artifactClient.initialize(collectionUri, authToken);
 
     // Get artifact metadata
     const artifact = await artifactClient.getArtifactMetadata(
@@ -631,7 +635,11 @@ async function validatePipeline(
 }> {
   const client = new ArtifactClient(projectId);
   try {
-    await client.initialize();
+    const [collectionUri, authToken] = await Promise.all([
+      getCollectionUri(),
+      getAccessToken(),
+    ]);
+    await client.initialize(collectionUri, authToken);
   } catch (e: unknown) {
     return { valid: false, error: `Validation error: ${getErrorMessage(e)}` };
   }
@@ -679,9 +687,13 @@ async function discoverPipelines(
   }
 
   // Create a dedicated ArtifactClient for the target project
+  const [collectionUri, authToken] = await Promise.all([
+    getCollectionUri(),
+    getAccessToken(),
+  ]);
   const client = new ArtifactClient(projectId);
   try {
-    await client.initialize();
+    await client.initialize(collectionUri, authToken);
   } catch (e: unknown) {
     return {
       pipelines: [],
