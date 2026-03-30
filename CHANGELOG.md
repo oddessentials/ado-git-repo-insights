@@ -1,3 +1,12 @@
+## [5.33.1](https://github.com/oddessentials/ado-git-repo-insights/compare/v5.33.0...v5.33.1) (2026-03-30)
+
+
+### Bug Fixes
+
+* disconnect stale observer on re-init miss, cancel queued rAF on teardown ([2a8d763](https://github.com/oddessentials/ado-git-repo-insights/commit/2a8d7639fc1e35bba2863a80fdb18c0b3aecf38f))
+* extract host-resize module, remove redundant manual calls, harden tests ([9ff2857](https://github.com/oddessentials/ado-git-repo-insights/commit/9ff2857f48634b2f23260d353a35b9f0409b5c71))
+* start host-resize sync before async init to cover startup/error paths ([056f132](https://github.com/oddessentials/ado-git-repo-insights/commit/056f132f48d22ec61e81e8d4c345f9c7e2c927b0))
+
 # [5.33.0](https://github.com/oddessentials/ado-git-repo-insights/compare/v5.32.0...v5.33.0) (2026-03-30)
 
 
