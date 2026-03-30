@@ -60,11 +60,16 @@ let sdkInitialized = false;
 let sdkReadyForCalls = false;
 
 /**
- * Monotonic counter — each call to initializeAdoSdk increments it.
- * A timeout or new call also increments it, invalidating the prior
- * attempt so its background continuation cannot commit state.
+ * Monotonic counter — incremented by timeout to invalidate the
+ * current attempt so its background continuation cannot commit state.
  */
 let initAttemptId = 0;
+
+/**
+ * In-flight initialization promise. Concurrent callers share this
+ * so they all await the same result instead of racing each other.
+ */
+let initPromise: Promise<void> | null = null;
 
 const DEFAULT_TIMEOUT_MS = 10_000;
 
@@ -87,6 +92,7 @@ export function resetSdkState(): void {
   sdkInitialized = false;
   sdkReadyForCalls = false;
   initAttemptId++;
+  initPromise = null;
 }
 
 /**
@@ -108,6 +114,10 @@ export async function initializeAdoSdk(
 ): Promise<void> {
   if (sdkInitialized) return;
 
+  // Share the in-flight promise so concurrent callers await the same
+  // result instead of invalidating each other's attempt.
+  if (initPromise) return initPromise;
+
   const timeout = options?.timeout ?? DEFAULT_TIMEOUT_MS;
   const attemptId = ++initAttemptId;
 
@@ -115,7 +125,7 @@ export async function initializeAdoSdk(
     await SDK.init({ loaded: false });
     await SDK.ready();
 
-    // If this attempt was invalidated (timeout or new call), bail.
+    // If this attempt was invalidated by a timeout, bail.
     if (attemptId !== initAttemptId) return;
 
     // Temporarily enable SDK wrappers for onReady callbacks.
@@ -146,13 +156,16 @@ export async function initializeAdoSdk(
     }, timeout);
   });
 
-  try {
-    await Promise.race([initSequence(), timeoutPromise]);
-  } finally {
-    if (timeoutId !== undefined) {
-      clearTimeout(timeoutId);
-    }
-  }
+  initPromise = Promise.race([initSequence(), timeoutPromise]).finally(
+    () => {
+      if (timeoutId !== undefined) {
+        clearTimeout(timeoutId);
+      }
+      initPromise = null;
+    },
+  );
+
+  return initPromise;
 }
 
 /**

@@ -301,12 +301,14 @@ var PRInsightsSettings = (() => {
   var sdkInitialized = false;
   var sdkReadyForCalls = false;
   var initAttemptId = 0;
+  var initPromise = null;
   var DEFAULT_TIMEOUT_MS = 1e4;
   function isSdkCallable() {
     return sdkInitialized || sdkReadyForCalls;
   }
   async function initializeAdoSdk(options) {
     if (sdkInitialized) return;
+    if (initPromise) return initPromise;
     const timeout = options?.timeout ?? DEFAULT_TIMEOUT_MS;
     const attemptId = ++initAttemptId;
     const initSequence = async () => {
@@ -333,13 +335,15 @@ var PRInsightsSettings = (() => {
         reject(new Error("Azure DevOps SDK initialization timed out"));
       }, timeout);
     });
-    try {
-      await Promise.race([initSequence(), timeoutPromise]);
-    } finally {
-      if (timeoutId !== void 0) {
-        clearTimeout(timeoutId);
+    initPromise = Promise.race([initSequence(), timeoutPromise]).finally(
+      () => {
+        if (timeoutId !== void 0) {
+          clearTimeout(timeoutId);
+        }
+        initPromise = null;
       }
-    }
+    );
+    return initPromise;
   }
   async function getExtensionDataService() {
     const dataService2 = await F(
@@ -1059,21 +1063,31 @@ var PRInsightsSettings = (() => {
   async function getOrganizationProjects() {
     const collectionUri = await getCollectionUri();
     const token = await getAccessToken();
-    const url = `${collectionUri}_apis/projects?api-version=7.1&$top=500`;
-    const response = await fetch(url, {
-      headers: {
-        Authorization: `Bearer ${token}`,
-        Accept: "application/json"
+    const allProjects = [];
+    let continuationToken = null;
+    do {
+      let url = `${collectionUri}_apis/projects?api-version=7.1&$top=500`;
+      if (continuationToken) {
+        url += `&continuationToken=${encodeURIComponent(continuationToken)}`;
       }
-    });
-    if (!response.ok) {
-      throw new Error(`Failed to list projects: ${response.status}`);
-    }
-    const data = await response.json();
-    const raw = Array.isArray(data.value) ? data.value : [];
-    return raw.filter(
-      (p2) => p2 !== null && typeof p2 === "object" && typeof p2.name === "string" && typeof p2.id === "string"
-    );
+      const response = await fetch(url, {
+        headers: {
+          Authorization: `Bearer ${token}`,
+          Accept: "application/json"
+        }
+      });
+      if (!response.ok) {
+        throw new Error(`Failed to list projects: ${response.status}`);
+      }
+      const data = await response.json();
+      const raw = Array.isArray(data.value) ? data.value : [];
+      const page = raw.filter(
+        (p2) => p2 !== null && typeof p2 === "object" && typeof p2.name === "string" && typeof p2.id === "string"
+      );
+      allProjects.push(...page);
+      continuationToken = response.headers.get("x-ms-continuationtoken") ?? null;
+    } while (continuationToken);
+    return allProjects;
   }
   async function loadSettings() {
     if (!dataService) return;

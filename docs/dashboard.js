@@ -3907,12 +3907,14 @@ var PRInsightsDashboard = (() => {
   var sdkInitialized = false;
   var sdkReadyForCalls = false;
   var initAttemptId = 0;
+  var initPromise = null;
   var DEFAULT_TIMEOUT_MS = 1e4;
   function isSdkCallable() {
     return sdkInitialized || sdkReadyForCalls;
   }
   async function initializeAdoSdk(options) {
     if (sdkInitialized) return;
+    if (initPromise) return initPromise;
     const timeout = options?.timeout ?? DEFAULT_TIMEOUT_MS;
     const attemptId = ++initAttemptId;
     const initSequence = async () => {
@@ -3939,13 +3941,15 @@ var PRInsightsDashboard = (() => {
         reject(new Error("Azure DevOps SDK initialization timed out"));
       }, timeout);
     });
-    try {
-      await Promise.race([initSequence(), timeoutPromise]);
-    } finally {
-      if (timeoutId !== void 0) {
-        clearTimeout(timeoutId);
+    initPromise = Promise.race([initSequence(), timeoutPromise]).finally(
+      () => {
+        if (timeoutId !== void 0) {
+          clearTimeout(timeoutId);
+        }
+        initPromise = null;
       }
-    }
+    );
+    return initPromise;
   }
   async function getExtensionDataService() {
     const dataService = await F(

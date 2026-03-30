@@ -192,25 +192,41 @@ async function tryLoadProjectDropdown(): Promise<void> {
 async function getOrganizationProjects(): Promise<VSSProject[]> {
   const collectionUri = await getCollectionUri();
   const token = await getAccessToken();
-  const url = `${collectionUri}_apis/projects?api-version=7.1&$top=500`;
-  const response = await fetch(url, {
-    headers: {
-      Authorization: `Bearer ${token}`,
-      Accept: "application/json",
-    },
-  });
-  if (!response.ok) {
-    throw new Error(`Failed to list projects: ${response.status}`);
-  }
-  const data = await response.json();
-  const raw: unknown[] = Array.isArray(data.value) ? data.value : [];
-  return raw.filter(
-    (p): p is VSSProject =>
-      p !== null &&
-      typeof p === "object" &&
-      typeof (p as Record<string, unknown>).name === "string" &&
-      typeof (p as Record<string, unknown>).id === "string",
-  );
+  const allProjects: VSSProject[] = [];
+  let continuationToken: string | null = null;
+
+  do {
+    let url = `${collectionUri}_apis/projects?api-version=7.1&$top=500`;
+    if (continuationToken) {
+      url += `&continuationToken=${encodeURIComponent(continuationToken)}`;
+    }
+
+    const response = await fetch(url, {
+      headers: {
+        Authorization: `Bearer ${token}`,
+        Accept: "application/json",
+      },
+    });
+    if (!response.ok) {
+      throw new Error(`Failed to list projects: ${response.status}`);
+    }
+
+    const data = await response.json();
+    const raw: unknown[] = Array.isArray(data.value) ? data.value : [];
+    const page = raw.filter(
+      (p): p is VSSProject =>
+        p !== null &&
+        typeof p === "object" &&
+        typeof (p as Record<string, unknown>).name === "string" &&
+        typeof (p as Record<string, unknown>).id === "string",
+    );
+    allProjects.push(...page);
+
+    continuationToken =
+      response.headers.get("x-ms-continuationtoken") ?? null;
+  } while (continuationToken);
+
+  return allProjects;
 }
 
 /**

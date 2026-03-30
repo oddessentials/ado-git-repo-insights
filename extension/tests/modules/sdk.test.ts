@@ -206,6 +206,24 @@ describe("SDK Module", () => {
       expect(mockSdkModule.init).not.toHaveBeenCalled();
     });
 
+    it("shares in-flight promise for concurrent callers", async () => {
+      // Make ready() resolve after a short delay
+      mockSdkModule.ready.mockImplementation(
+        () => new Promise<void>((resolve) => setTimeout(resolve, 50)),
+      );
+      resetSdkState();
+
+      // Two concurrent calls
+      const p1 = initializeAdoSdk();
+      const p2 = initializeAdoSdk();
+
+      await Promise.all([p1, p2]);
+
+      // SDK.init should be called exactly once, not twice
+      expect(mockSdkModule.init).toHaveBeenCalledTimes(1);
+      expect(isSdkInitialized()).toBe(true);
+    });
+
     it("rejects on timeout", async () => {
       mockSdkModule.ready.mockImplementation(
         () => new Promise<void>(() => {}),
