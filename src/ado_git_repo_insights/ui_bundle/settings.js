@@ -10,6 +10,59 @@ var PRInsightsSettings = (() => {
     return "Unknown error";
   }
 
+  // ../ui/modules/shared/host-resize.ts
+  var pendingHostResize = false;
+  var rafHandle = null;
+  var hostResizeObserver = null;
+  var windowListenerAttached = false;
+  var generation = 0;
+  function syncHostHeight() {
+    const resizeFn = globalThis.VSS?.resize;
+    if (typeof resizeFn !== "function") return;
+    const bodyHeight = document.body.scrollHeight;
+    const docHeight = document.documentElement.scrollHeight;
+    const targetHeight = Math.max(bodyHeight, docHeight);
+    if (targetHeight > 0) {
+      resizeFn(void 0, targetHeight);
+    }
+  }
+  function scheduleHostResize() {
+    if (pendingHostResize) return;
+    pendingHostResize = true;
+    const gen = generation;
+    rafHandle = requestAnimationFrame(() => {
+      rafHandle = null;
+      if (gen !== generation) return;
+      pendingHostResize = false;
+      syncHostHeight();
+    });
+  }
+  function initializeHostResizeSync(containerSelector) {
+    generation++;
+    if (rafHandle !== null) {
+      cancelAnimationFrame(rafHandle);
+      rafHandle = null;
+    }
+    pendingHostResize = false;
+    hostResizeObserver?.disconnect();
+    hostResizeObserver = null;
+    if (typeof ResizeObserver === "function") {
+      const root = document.querySelector(containerSelector);
+      if (root) {
+        hostResizeObserver = new ResizeObserver(() => {
+          scheduleHostResize();
+        });
+        hostResizeObserver.observe(root);
+      }
+    }
+    if (windowListenerAttached) {
+      window.removeEventListener("resize", scheduleHostResize);
+    }
+    window.addEventListener("resize", scheduleHostResize);
+    windowListenerAttached = true;
+    scheduleHostResize();
+  }
+
   // ../ui/modules/shared/security.ts
   function escapeHtml(text) {
     return text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#039;");
@@ -602,7 +655,9 @@ var PRInsightsSettings = (() => {
   var projectDropdownAvailable = false;
   var projectList = [];
   var lastValidation = null;
+  var statusTimerId = null;
   async function init() {
+    initializeHostResizeSync(".settings-container");
     try {
       await initializeAdoSdk();
       dataService = await VSS.getService(VSS.ServiceIds.ExtensionData);
@@ -1142,9 +1197,11 @@ var PRInsightsSettings = (() => {
   function showStatus(message, type = "info") {
     const statusEl = document.getElementById("status-message");
     if (!statusEl) return;
+    if (statusTimerId !== null) clearTimeout(statusTimerId);
     statusEl.textContent = message;
     statusEl.className = `status-message status-${type}`;
-    setTimeout(() => {
+    statusTimerId = setTimeout(() => {
+      statusTimerId = null;
       statusEl.textContent = "";
       statusEl.className = "status-message";
     }, 5e3);

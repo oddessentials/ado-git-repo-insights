@@ -30,6 +30,9 @@ import {
   createOption,
 } from "./modules/shared/render";
 
+// Import host iframe resize sync
+import { initializeHostResizeSync } from "./modules/shared/host-resize";
+
 // Import ArtifactClient for authenticated artifact download
 import { ArtifactClient } from "./artifact-client";
 
@@ -67,12 +70,21 @@ let projectDropdownAvailable = false;
 let projectList: VSSProject[] = [];
 let lastValidation: { valid: boolean; buildId?: number } | null = null;
 
+let statusTimerId: ReturnType<typeof setTimeout> | null = null;
+
 // initializeAdoSdk is now imported from "./modules/sdk"
 
 /**
  * Initialize the settings page.
  */
 async function init(): Promise<void> {
+  // Start observing layout changes before any async work so startup DOM
+  // mutations (project dropdown, settings load, status render) and error-
+  // path content are all captured.  syncHostHeight() is a no-op until
+  // VSS.resize becomes available after SDK init, so this is safe to call
+  // early.  .settings-container is static HTML — always present.
+  initializeHostResizeSync(".settings-container");
+
   try {
     await initializeAdoSdk();
 
@@ -805,11 +817,14 @@ function showStatus(message: string, type = "info"): void {
   const statusEl = document.getElementById("status-message");
   if (!statusEl) return;
 
+  if (statusTimerId !== null) clearTimeout(statusTimerId);
+
   statusEl.textContent = message;
   statusEl.className = `status-message status-${type}`;
 
   // Clear after delay
-  setTimeout(() => {
+  statusTimerId = setTimeout(() => {
+    statusTimerId = null;
     statusEl.textContent = "";
     statusEl.className = "status-message";
   }, 5000);
