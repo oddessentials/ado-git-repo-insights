@@ -446,3 +446,68 @@ class TestHttpServerSignalHandling:
         assert signal_called is False, (
             "signal.signal(SIGINT) must not be called from a worker thread"
         )
+
+    def test_sigint_handler_not_installed_when_sig_ign(self, tmp_path: Path) -> None:
+        """SIGINT handler is not installed when the process ignores SIGINT.
+
+        Regression: if a hosting application sets SIGINT to SIG_IGN, installing
+        our handler would override that policy and stop the server on Ctrl+C
+        even though the caller explicitly disabled it.
+        """
+        from ado_git_repo_insights.cli import _run_http_server
+
+        (tmp_path / "index.html").write_text("<h1>test</h1>")
+
+        original = signal.signal(signal.SIGINT, signal.SIG_IGN)
+
+        try:
+            handler_during_serve = None
+
+            def _capture(self_httpd: object) -> None:
+                nonlocal handler_during_serve
+                handler_during_serve = signal.getsignal(signal.SIGINT)
+
+            with patch(
+                "socketserver.TCPServer.serve_forever",
+                side_effect=_capture,
+                autospec=True,
+            ):
+                _run_http_server(tmp_path, port=0, open_browser=False)
+
+            assert handler_during_serve is signal.SIG_IGN, (
+                "SIG_IGN policy must not be overridden by dashboard server"
+            )
+        finally:
+            signal.signal(signal.SIGINT, original)
+
+    def test_sigint_handler_not_installed_when_sig_dfl(self, tmp_path: Path) -> None:
+        """SIGINT handler is not installed when the process uses SIG_DFL.
+
+        Regression: SIG_DFL delegates to the OS default action (terminate);
+        overriding it changes the process's signal contract.
+        """
+        from ado_git_repo_insights.cli import _run_http_server
+
+        (tmp_path / "index.html").write_text("<h1>test</h1>")
+
+        original = signal.signal(signal.SIGINT, signal.SIG_DFL)
+
+        try:
+            handler_during_serve = None
+
+            def _capture(self_httpd: object) -> None:
+                nonlocal handler_during_serve
+                handler_during_serve = signal.getsignal(signal.SIGINT)
+
+            with patch(
+                "socketserver.TCPServer.serve_forever",
+                side_effect=_capture,
+                autospec=True,
+            ):
+                _run_http_server(tmp_path, port=0, open_browser=False)
+
+            assert handler_during_serve is signal.SIG_DFL, (
+                "SIG_DFL policy must not be overridden by dashboard server"
+            )
+        finally:
+            signal.signal(signal.SIGINT, original)

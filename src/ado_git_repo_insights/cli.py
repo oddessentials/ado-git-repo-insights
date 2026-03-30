@@ -1598,10 +1598,17 @@ def _run_http_server(
             # serve_forever() to avoid deadlock.
             # signal.signal() is only legal from the main thread; skip
             # when called from a worker thread (e.g. test harness, IDE).
-            can_install_sigint = threading.current_thread() is threading.main_thread()
+            # Also respect the caller's signal policy: if SIGINT is set to
+            # SIG_IGN or SIG_DFL, the process has intentionally configured
+            # that behavior and we must not override it.
+            original_sigint = (
+                signal.getsignal(signal.SIGINT)
+                if threading.current_thread() is threading.main_thread()
+                else None
+            )
+            can_install_sigint = callable(original_sigint)
 
             if can_install_sigint:
-                original_sigint = signal.getsignal(signal.SIGINT)
 
                 def _request_shutdown(
                     signum: int, frame: types.FrameType | None
@@ -1611,11 +1618,8 @@ def _run_http_server(
                     # registered its own SIGINT cleanup still runs.
                     # Skip default_int_handler (raises KeyboardInterrupt,
                     # which would abort serve_forever before it can exit
-                    # cleanly) and non-callable sentinels (SIG_DFL/SIG_IGN).
-                    if (
-                        callable(original_sigint)
-                        and original_sigint is not signal.default_int_handler
-                    ):
+                    # cleanly).
+                    if original_sigint is not signal.default_int_handler:
                         original_sigint(signum, frame)
 
                 signal.signal(signal.SIGINT, _request_shutdown)
