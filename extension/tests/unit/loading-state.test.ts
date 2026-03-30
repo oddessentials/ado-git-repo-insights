@@ -416,3 +416,127 @@ describe("Edge cases", () => {
     }).not.toThrow();
   });
 });
+
+// ---------------------------------------------------------------------------
+// Spinner DOM lifecycle
+// ---------------------------------------------------------------------------
+
+describe("Spinner DOM lifecycle", () => {
+  it("startRefresh appends a .metrics-loading-spinner to each region", () => {
+    const metricsSection = createMockElement();
+    const regions = createMockRegions(3);
+
+    startRefresh(metricsSection, regions);
+
+    for (const region of regions) {
+      const spinner = region.querySelector(".metrics-loading-spinner");
+      expect(spinner).not.toBeNull();
+      expect(spinner?.tagName).toBe("DIV");
+    }
+  });
+
+  it("startRefresh twice does NOT create duplicate spinner elements", () => {
+    const metricsSection = createMockElement();
+    const regions = createMockRegions(2);
+
+    startRefresh(metricsSection, regions);
+    startRefresh(metricsSection, regions);
+
+    for (const region of regions) {
+      const spinners = region.querySelectorAll(".metrics-loading-spinner");
+      expect(spinners.length).toBe(1);
+    }
+  });
+
+  it("spinner removed on success (endRefresh)", () => {
+    const metricsSection = createMockElement();
+    const regions = createMockRegions(2);
+
+    const id = startRefresh(metricsSection, regions);
+
+    // Verify spinners exist.
+    for (const region of regions) {
+      expect(region.querySelector(".metrics-loading-spinner")).not.toBeNull();
+    }
+
+    endRefresh(id, metricsSection, regions, null);
+
+    // Verify spinners removed.
+    for (const region of regions) {
+      expect(region.querySelector(".metrics-loading-spinner")).toBeNull();
+    }
+  });
+
+  it("spinner removed on failure (failRefresh)", () => {
+    const metricsSection = createMockElement();
+    const regions = createMockRegions(2);
+
+    const id = startRefresh(metricsSection, regions);
+    failRefresh(id, metricsSection, regions);
+
+    for (const region of regions) {
+      expect(region.querySelector(".metrics-loading-spinner")).toBeNull();
+    }
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Announcement timer cancellation
+// ---------------------------------------------------------------------------
+
+describe("Announcement timer cancellation", () => {
+  it("second completion announcement survives the first timer", () => {
+    jest.useFakeTimers();
+
+    const metricsSection = createMockElement();
+    const regions = createMockRegions(1);
+    const statusEl = createMockElement();
+
+    // First refresh completes — schedules 1s clear timer.
+    const id1 = startRefresh(metricsSection, regions);
+    endRefresh(id1, metricsSection, regions, statusEl);
+    expect(statusEl.textContent).toBe("Dashboard updated");
+
+    // 500ms later, second refresh completes — must cancel first timer.
+    jest.advanceTimersByTime(500);
+    const id2 = startRefresh(metricsSection, regions);
+    endRefresh(id2, metricsSection, regions, statusEl);
+    expect(statusEl.textContent).toBe("Dashboard updated");
+
+    // At 1000ms total (500ms after first endRefresh), the first timer would
+    // have fired. The announcement must still be present because the second
+    // endRefresh cancelled it and scheduled a new 1s timer.
+    jest.advanceTimersByTime(500);
+    expect(statusEl.textContent).toBe("Dashboard updated");
+
+    // At 1500ms total (1000ms after second endRefresh), the second timer fires.
+    jest.advanceTimersByTime(500);
+    expect(statusEl.textContent).toBe("");
+
+    jest.useRealTimers();
+  });
+
+  it("_resetForTesting clears pending timer state", () => {
+    jest.useFakeTimers();
+
+    const metricsSection = createMockElement();
+    const regions = createMockRegions(1);
+    const statusEl = createMockElement();
+
+    const id = startRefresh(metricsSection, regions);
+    endRefresh(id, metricsSection, regions, statusEl);
+    expect(statusEl.textContent).toBe("Dashboard updated");
+
+    // Reset clears the pending timer.
+    _resetForTesting();
+
+    // Advance past when the timer would have fired.
+    jest.advanceTimersByTime(2000);
+
+    // The text should still be "Dashboard updated" because reset cancelled
+    // the clear timer, and nothing else touched statusEl.
+    expect(statusEl.textContent).toBe("Dashboard updated");
+
+    jest.useRealTimers();
+  });
+});

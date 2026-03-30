@@ -27,6 +27,13 @@ export interface EffectiveState {
 }
 
 // ---------------------------------------------------------------------------
+// Constants
+// ---------------------------------------------------------------------------
+
+const SPINNER_CLASS = "metrics-loading-spinner";
+const LOADING_CLASS = "metrics-loading";
+
+// ---------------------------------------------------------------------------
 // Internal state
 // ---------------------------------------------------------------------------
 
@@ -36,6 +43,51 @@ let currentCycleId = 0;
 /** Whether a refresh cycle is currently in-flight. */
 let active = false;
 
+/** Timer ID for the live-region clear delay. Stored so it can be cancelled. */
+let announcementTimerId: ReturnType<typeof setTimeout> | null = null;
+
+// ---------------------------------------------------------------------------
+// Spinner DOM helpers
+// ---------------------------------------------------------------------------
+
+/**
+ * Idempotently append a spinner element to a region.
+ * If the region already contains a spinner (from a superseded refresh),
+ * no duplicate is created.
+ */
+function addSpinner(region: HTMLElement): void {
+  if (region.querySelector(`.${SPINNER_CLASS}`)) return;
+  const spinner = document.createElement("div");
+  spinner.className = SPINNER_CLASS;
+  region.appendChild(spinner);
+}
+
+/**
+ * Remove all spinner elements from a region.
+ */
+function removeSpinner(region: HTMLElement): void {
+  const spinner = region.querySelector(`.${SPINNER_CLASS}`);
+  if (spinner) {
+    spinner.remove();
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Announcement timer helper
+// ---------------------------------------------------------------------------
+
+/**
+ * Cancel any pending live-region clear timer.
+ * Called before writing a new announcement and on failure/reset paths
+ * so old timers cannot wipe later messages.
+ */
+function cancelAnnouncementTimer(): void {
+  if (announcementTimerId !== null) {
+    clearTimeout(announcementTimerId);
+    announcementTimerId = null;
+  }
+}
+
 // ---------------------------------------------------------------------------
 // Refresh-cycle state machine
 // ---------------------------------------------------------------------------
@@ -44,8 +96,11 @@ let active = false;
  * Begin a refresh cycle.
  *
  * - Increments the monotonic cycle counter.
- * - Marks all regions as loading (CSS class).
+ * - Marks all regions as loading (CSS class + spinner element).
  * - Sets aria-busy on the metrics section.
+ *
+ * Spinner insertion is idempotent — if a region already has a spinner
+ * from a superseded refresh, no duplicate is created.
  *
  * @param metricsSection - The #tab-metrics element (receives aria-busy).
  * @param regions        - Chart region elements to dim (summary-cards + 4 chart-containers).
@@ -59,7 +114,8 @@ export function startRefresh(
   active = true;
 
   for (const region of regions) {
-    region.classList.add("metrics-loading");
+    region.classList.add(LOADING_CLASS);
+    addSpinner(region);
   }
 
   metricsSection.setAttribute("aria-busy", "true");
@@ -68,7 +124,7 @@ export function startRefresh(
 }
 
 /**
- * Clear loading presentation (CSS + aria-busy) without announcing success.
+ * Clear loading presentation (CSS class + spinner + aria-busy).
  * Shared by both success and failure paths.
  *
  * @returns true if this was the current cycle (loading cleared), false if stale.
@@ -87,7 +143,8 @@ function clearLoading(
   active = false;
 
   for (const region of regions) {
-    region.classList.remove("metrics-loading");
+    region.classList.remove(LOADING_CLASS);
+    removeSpinner(region);
   }
 
   metricsSection.removeAttribute("aria-busy");
@@ -99,7 +156,7 @@ function clearLoading(
  * End a refresh cycle on success.
  *
  * If the cycle ID matches the current ID (winning refresh):
- * - Removes loading CSS from all regions.
+ * - Removes loading CSS and spinner from all regions.
  * - Clears aria-busy.
  * - Announces "Dashboard updated" via the aria-live status element.
  * - Returns true.
@@ -125,11 +182,13 @@ export function endRefresh(
   }
 
   // Announce to screen readers via polite live region (success only).
+  // Cancel any pending clear timer so it cannot wipe this new announcement.
   if (statusEl) {
+    cancelAnnouncementTimer();
     statusEl.textContent = "Dashboard updated";
-    // Clear after 1 second so the announcement doesn't repeat on next sweep.
-    setTimeout(() => {
+    announcementTimerId = setTimeout(() => {
       statusEl.textContent = "";
+      announcementTimerId = null;
     }, 1000);
   }
 
@@ -139,9 +198,9 @@ export function endRefresh(
 /**
  * End a refresh cycle on failure.
  *
- * Clears loading presentation (CSS + aria-busy) without announcing success.
- * Does NOT write "Dashboard updated" — failed refreshes must not emit
- * a success signal to assistive technology.
+ * Clears loading presentation (CSS class + spinner + aria-busy) without
+ * announcing success. Cancels any pending announcement clear timer so
+ * old timers cannot wipe later messages.
  *
  * @param cycleId        - The ID returned by startRefresh for this cycle.
  * @param metricsSection - The #tab-metrics element.
@@ -153,7 +212,11 @@ export function failRefresh(
   metricsSection: HTMLElement,
   regions: ReadonlyArray<HTMLElement>,
 ): boolean {
-  return clearLoading(cycleId, metricsSection, regions);
+  const cleared = clearLoading(cycleId, metricsSection, regions);
+  if (cleared) {
+    cancelAnnouncementTimer();
+  }
+  return cleared;
 }
 
 /**
@@ -197,4 +260,5 @@ export function hasStateChanged(
 export function _resetForTesting(): void {
   currentCycleId = 0;
   active = false;
+  cancelAnnouncementTimer();
 }

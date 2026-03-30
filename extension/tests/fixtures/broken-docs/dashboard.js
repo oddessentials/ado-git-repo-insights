@@ -6890,13 +6890,35 @@ var PRInsightsDashboard = (() => {
   }
 
   // ../ui/modules/loading-state.ts
+  var SPINNER_CLASS = "metrics-loading-spinner";
+  var LOADING_CLASS = "metrics-loading";
   var currentCycleId = 0;
   var active = false;
+  var announcementTimerId = null;
+  function addSpinner(region) {
+    if (region.querySelector(`.${SPINNER_CLASS}`)) return;
+    const spinner = document.createElement("div");
+    spinner.className = SPINNER_CLASS;
+    region.appendChild(spinner);
+  }
+  function removeSpinner(region) {
+    const spinner = region.querySelector(`.${SPINNER_CLASS}`);
+    if (spinner) {
+      spinner.remove();
+    }
+  }
+  function cancelAnnouncementTimer() {
+    if (announcementTimerId !== null) {
+      clearTimeout(announcementTimerId);
+      announcementTimerId = null;
+    }
+  }
   function startRefresh(metricsSection2, regions) {
     currentCycleId += 1;
     active = true;
     for (const region of regions) {
-      region.classList.add("metrics-loading");
+      region.classList.add(LOADING_CLASS);
+      addSpinner(region);
     }
     metricsSection2.setAttribute("aria-busy", "true");
     return currentCycleId;
@@ -6907,7 +6929,8 @@ var PRInsightsDashboard = (() => {
     }
     active = false;
     for (const region of regions) {
-      region.classList.remove("metrics-loading");
+      region.classList.remove(LOADING_CLASS);
+      removeSpinner(region);
     }
     metricsSection2.removeAttribute("aria-busy");
     return true;
@@ -6917,15 +6940,21 @@ var PRInsightsDashboard = (() => {
       return false;
     }
     if (statusEl) {
+      cancelAnnouncementTimer();
       statusEl.textContent = "Dashboard updated";
-      setTimeout(() => {
+      announcementTimerId = setTimeout(() => {
         statusEl.textContent = "";
+        announcementTimerId = null;
       }, 1e3);
     }
     return true;
   }
   function failRefresh(cycleId, metricsSection2, regions) {
-    return clearLoading(cycleId, metricsSection2, regions);
+    const cleared = clearLoading(cycleId, metricsSection2, regions);
+    if (cleared) {
+      cancelAnnouncementTimer();
+    }
+    return cleared;
   }
   function isStale(cycleId) {
     return cycleId - currentCycleId !== 0;
