@@ -1,3 +1,19 @@
+# [5.33.0](https://github.com/oddessentials/ado-git-repo-insights/compare/v5.32.0...v5.33.0) (2026-03-30)
+
+
+### Bug Fixes
+
+* **045:** aria-live mutations, stale text cleanup, in-flight dedup, safe dates ([056e2dc](https://github.com/oddessentials/ado-git-repo-insights/commit/056e2dcf54d64db30b94a68b8a3916e32907e58d))
+* **045:** correct three loading-state invariant violations ([5a88e25](https://github.com/oddessentials/ado-git-repo-insights/commit/5a88e252cac27866359ab23bcf9ba12ec0005b4e))
+* **045:** guard announce microtask with generation counter ([6222b49](https://github.com/oddessentials/ado-git-repo-insights/commit/6222b49789c72a184b82a76297e3fefdd5e8805e))
+* **045:** reject invalid URL date params at restore, not just serialize ([e504d27](https://github.com/oddessentials/ado-git-repo-insights/commit/e504d27e29858c47b4d8806aa669ee7c6bb86e3a))
+* **045:** render spinner elements and cancel stale announcement timers ([89b7d6c](https://github.com/oddessentials/ado-git-repo-insights/commit/89b7d6cffdaabf2ad436c164a60c16b5b1623a52))
+
+
+### Features
+
+* **045:** add refresh-cycle loading state for Metrics tab ([3811e39](https://github.com/oddessentials/ado-git-repo-insights/commit/3811e397370432fcb48164f05bcf44b9a7ed5f8a))
+
 # [5.32.0](https://github.com/oddessentials/ado-git-repo-insights/compare/v5.31.0...v5.32.0) (2026-03-29)
 
 
