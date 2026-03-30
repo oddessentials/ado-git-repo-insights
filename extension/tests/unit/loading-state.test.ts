@@ -245,6 +245,26 @@ describe("Loading clears on failure", () => {
 
     jest.useRealTimers();
   });
+
+  it("queued success microtask does not write after a later failure", async () => {
+    const ms = createMockElement();
+    const regions = createMockRegions(1);
+    const statusEl = createMockElement();
+
+    // Refresh A succeeds — endRefresh queues microtask to write "Dashboard updated".
+    const idA = startRefresh(ms, regions, makeState());
+    endRefresh(idA, ms, regions, statusEl);
+    // Do NOT flush microtasks yet — the write is still pending.
+
+    // Refresh B starts and fails BEFORE A's microtask runs.
+    const idB = startRefresh(ms, regions, makeState({ comparisonMode: true }));
+    failRefresh(idB, ms, regions, statusEl);
+    expect(statusEl.textContent).toBe("");
+
+    // Now flush: A's microtask runs but must be a no-op (generation invalidated).
+    await flushMicrotasks();
+    expect(statusEl.textContent).toBe("");
+  });
 });
 
 // ---------------------------------------------------------------------------

@@ -49,6 +49,10 @@ let inFlightState: EffectiveState | null = null;
 /** Timer ID for the live-region clear delay. Stored so it can be cancelled. */
 let announcementTimerId: ReturnType<typeof setTimeout> | null = null;
 
+/** Generation counter for the announce microtask. Incremented on every announce
+ *  or clearAnnouncement call so stale microtasks become no-ops. */
+let announceGeneration = 0;
+
 // ---------------------------------------------------------------------------
 // Spinner DOM helpers
 // ---------------------------------------------------------------------------
@@ -95,14 +99,23 @@ function cancelAnnouncementTimer(): void {
  * Forces a real DOM mutation even if the text is already the same by
  * clearing first, then writing in the next microtask. This ensures
  * aria-live fires for back-to-back identical announcements.
+ *
+ * A generation counter guards the microtask: if clearAnnouncement or
+ * another announce call runs before the microtask executes, the stale
+ * microtask becomes a no-op.
  */
 function announce(statusEl: HTMLElement, message: string): void {
   cancelAnnouncementTimer();
+  announceGeneration += 1;
+  const gen = announceGeneration;
   statusEl.textContent = "";
 
   // Write the message in the next microtask so the browser observes
   // two distinct mutations ("" → message) and fires aria-live.
   void Promise.resolve().then(() => {
+    // Stale: another announce or clearAnnouncement ran since we were queued.
+    if (gen - announceGeneration !== 0) return;
+
     statusEl.textContent = message;
     announcementTimerId = setTimeout(() => {
       statusEl.textContent = "";
@@ -112,11 +125,13 @@ function announce(statusEl: HTMLElement, message: string): void {
 }
 
 /**
- * Clear the live-region text and cancel any pending timer.
- * Used by failure paths to remove stale success messages.
+ * Clear the live-region text, cancel any pending timer, and invalidate
+ * any queued announce microtask. Used by failure paths to remove stale
+ * success messages.
  */
 function clearAnnouncement(statusEl: HTMLElement | null): void {
   cancelAnnouncementTimer();
+  announceGeneration += 1;
   if (statusEl) {
     statusEl.textContent = "";
   }
@@ -292,4 +307,5 @@ export function _resetForTesting(): void {
   active = false;
   inFlightState = null;
   cancelAnnouncementTimer();
+  announceGeneration += 1;
 }

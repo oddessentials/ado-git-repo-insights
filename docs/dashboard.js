@@ -6896,6 +6896,7 @@ var PRInsightsDashboard = (() => {
   var active = false;
   var inFlightState = null;
   var announcementTimerId = null;
+  var announceGeneration = 0;
   function addSpinner(region) {
     if (region.querySelector(`.${SPINNER_CLASS}`)) return;
     const spinner = document.createElement("div");
@@ -6916,8 +6917,11 @@ var PRInsightsDashboard = (() => {
   }
   function announce(statusEl, message) {
     cancelAnnouncementTimer();
+    announceGeneration += 1;
+    const gen = announceGeneration;
     statusEl.textContent = "";
     void Promise.resolve().then(() => {
+      if (gen - announceGeneration !== 0) return;
       statusEl.textContent = message;
       announcementTimerId = setTimeout(() => {
         statusEl.textContent = "";
@@ -6927,6 +6931,7 @@ var PRInsightsDashboard = (() => {
   }
   function clearAnnouncement(statusEl) {
     cancelAnnouncementTimer();
+    announceGeneration += 1;
     if (statusEl) {
       statusEl.textContent = "";
     }
