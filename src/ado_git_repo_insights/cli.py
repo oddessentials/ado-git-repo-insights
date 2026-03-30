@@ -1554,6 +1554,7 @@ def _run_http_server(
     """
     import http.server
     import os
+    import signal
     import socketserver
     import webbrowser
 
@@ -1583,13 +1584,19 @@ def _run_http_server(
             logger.info(f"Dashboard running at {url}")
             logger.info("Press Ctrl+C to stop")
 
+            # Install SIGINT handler to ensure shutdown even in environments
+            # where KeyboardInterrupt delivery is unreliable (e.g. some
+            # Windows terminals, IDE integrated terminals).
+            def _signal_shutdown(signum: int, frame: object) -> None:
+                httpd.shutdown()
+
+            signal.signal(signal.SIGINT, _signal_shutdown)
+
             if open_browser:
                 webbrowser.open(url)
 
-            try:
-                httpd.serve_forever()
-            except KeyboardInterrupt:
-                logger.info("\nServer stopped")
+            httpd.serve_forever()
+            logger.info("\nServer stopped")
 
     finally:
         os.chdir(original_dir)
