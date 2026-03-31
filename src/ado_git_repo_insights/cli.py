@@ -1655,8 +1655,7 @@ def _run_http_server(
 
                     _handler_type = ctypes.WINFUNCTYPE(ctypes.c_bool, ctypes.c_uint)
 
-                    @_handler_type
-                    def _console_ctrl_handler(ctrl_type: int) -> bool:
+                    def _on_console_ctrl(ctrl_type: int) -> bool:
                         if ctrl_type in (_ctrl_c, _ctrl_break):
                             threading.Thread(target=httpd.shutdown, daemon=True).start()
                         # Always return False so the event propagates to
@@ -1664,6 +1663,8 @@ def _run_http_server(
                         # True would swallow the event and suppress
                         # SIGINT / KeyboardInterrupt on normal consoles.
                         return False
+
+                    _console_ctrl_handler = _handler_type(_on_console_ctrl)
 
                     if _kernel32.SetConsoleCtrlHandler(_console_ctrl_handler, True):
 
