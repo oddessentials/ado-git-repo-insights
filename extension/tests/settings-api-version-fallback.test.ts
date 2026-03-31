@@ -59,4 +59,18 @@ describe("Settings API version fallback", () => {
     );
     expect(paginationSection).not.toMatch(/api-version=7\.1/);
   });
+
+  it("terminates pagination on malformed JSON", () => {
+    // processPage must catch JSON parse failures and return null
+    // to stop the pagination loop (not throw or continue)
+    const processPageBlock = settingsCode.slice(
+      settingsCode.indexOf("const processPage"),
+      settingsCode.indexOf("let continuationToken = await processPage"),
+    );
+    // Must have try/catch around response.json()
+    expect(processPageBlock).toMatch(/try\s*\{[\s\S]*?await response\.json\(\)/);
+    expect(processPageBlock).toMatch(/\}\s*catch\s*\{/);
+    // Must return null in the catch path (terminates pagination)
+    expect(processPageBlock).toMatch(/catch\s*\{[\s\S]*?return null/);
+  });
 });

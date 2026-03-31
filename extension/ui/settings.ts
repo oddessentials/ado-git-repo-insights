@@ -89,9 +89,9 @@ let statusTimerId: ReturnType<typeof setTimeout> | null = null;
 async function init(): Promise<void> {
   // Start observing layout changes before any async work so startup DOM
   // mutations (project dropdown, settings load, status render) and error-
-  // path content are all captured.  syncHostHeight() is a no-op until
-  // VSS.resize becomes available after SDK init, so this is safe to call
-  // early.  .settings-container is static HTML — always present.
+  // path content are all captured.  resizeHost() is a no-op until SDK
+  // init completes, so this is safe to call early.
+  // .settings-container is static HTML — always present.
   initializeHostResizeSync(".settings-container");
 
   try {
