@@ -594,7 +594,9 @@ class TestHttpServerSignalHandling:
         def _invoke_console_handler(self_httpd: object) -> None:
             assert captured_handler is not None
             result = captured_handler(0)  # CTRL_C_EVENT
-            assert result is True
+            # Must return False so the event propagates to Python's
+            # built-in handler (SIGINT / KeyboardInterrupt).
+            assert result is False
 
         with (
             patch("ado_git_repo_insights.cli.sys") as mock_sys,

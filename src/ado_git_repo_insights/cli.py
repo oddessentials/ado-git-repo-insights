@@ -1629,13 +1629,15 @@ def _run_http_server(
 
             # Windows: also hook console control events directly because
             # some terminals (Git Bash/MinTTY, some IDE terminals) do not
-            # reliably translate Ctrl+C into a Python SIGINT signal.
-            # This is additive — it does not replace the SIGINT handler
-            # above and operates independently of SIG_IGN/SIG_DFL policy
-            # (those govern Python signal delivery, not OS console events).
-            # httpd.shutdown() is safe to call multiple times, so if both
-            # the SIGINT handler and console handler fire (as cmd.exe
-            # does), the second call is a harmless no-op.
+            # reliably produce a Python-level SIGINT / KeyboardInterrupt
+            # when Ctrl+C is pressed.  This callback is purely additive:
+            # it requests httpd.shutdown() then returns False so the event
+            # propagates to the next handler in the chain (Python's own
+            # console handler).  On terminals where Python SIGINT works,
+            # both paths fire and the second shutdown() is a harmless
+            # no-op.  On broken terminals, this callback is the fallback.
+            # CTRL_CLOSE_EVENT is not handled — the OS default (terminate
+            # process) is the correct behavior for console window close.
             _restore_console_handler: object = None
             if (
                 sys.platform == "win32"
@@ -1650,19 +1652,17 @@ def _run_http_server(
                     _kernel32 = _windll.kernel32
                     _ctrl_c = 0
                     _ctrl_break = 1
-                    _ctrl_close = 2
 
                     _handler_type = ctypes.WINFUNCTYPE(ctypes.c_bool, ctypes.c_uint)
 
                     @_handler_type
                     def _console_ctrl_handler(ctrl_type: int) -> bool:
-                        if ctrl_type in (
-                            _ctrl_c,
-                            _ctrl_break,
-                            _ctrl_close,
-                        ):
+                        if ctrl_type in (_ctrl_c, _ctrl_break):
                             threading.Thread(target=httpd.shutdown, daemon=True).start()
-                            return True
+                        # Always return False so the event propagates to
+                        # Python's built-in console handler.  Returning
+                        # True would swallow the event and suppress
+                        # SIGINT / KeyboardInterrupt on normal consoles.
                         return False
 
                     if _kernel32.SetConsoleCtrlHandler(_console_ctrl_handler, True):
