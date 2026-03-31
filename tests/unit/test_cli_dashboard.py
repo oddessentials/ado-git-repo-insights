@@ -13,6 +13,7 @@ Per guardrails: non-brittle assertions, verify injection occurred not full HTML.
 
 import shutil
 import signal
+import sys
 import threading
 from pathlib import Path
 from unittest.mock import MagicMock, patch
@@ -514,6 +515,7 @@ class TestHttpServerSignalHandling:
         finally:
             signal.signal(signal.SIGINT, original)
 
+    @pytest.mark.skipif(sys.platform != "win32", reason="Windows console API only")
     def test_windows_console_handler_registered_and_restored(
         self, tmp_path: Path
     ) -> None:
@@ -562,6 +564,7 @@ class TestHttpServerSignalHandling:
         # Same handler object both times
         assert registered_calls[0][0] is registered_calls[1][0]
 
+    @pytest.mark.skipif(sys.platform != "win32", reason="Windows console API only")
     def test_windows_console_handler_dispatches_shutdown(self, tmp_path: Path) -> None:
         """Windows console control handler dispatches httpd.shutdown()
         via a daemon thread when CTRL_C_EVENT is received."""
@@ -626,6 +629,7 @@ class TestHttpServerSignalHandling:
         assert shutdown_thread.daemon is True
         shutdown_thread.start.assert_called_once()
 
+    @pytest.mark.skipif(sys.platform != "win32", reason="Windows console API only")
     def test_windows_console_handler_installed_even_when_sig_ign(
         self, tmp_path: Path
     ) -> None:

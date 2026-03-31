@@ -179,6 +179,7 @@ jobs:
 
       - name: Test JavaScript assets
         run: |
+          ASSET_LIST=$(python scripts/publish-demo-surface.py --list-assets)
           while IFS= read -r asset; do
             if [ -f "docs/$asset" ]; then
               STATUS=$(curl -s -o /dev/null -w "%{http_code}" "http://localhost:8080/$asset")
@@ -188,7 +189,7 @@ jobs:
               fi
               echo "$asset: OK (200)"
             fi
-          done < <(python scripts/publish-demo-surface.py --list-assets)
+          done <<< "$ASSET_LIST"
 
       - name: Test data manifest
         run: |

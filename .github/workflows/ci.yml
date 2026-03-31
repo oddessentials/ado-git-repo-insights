@@ -222,6 +222,7 @@ jobs:
       - name: Check docs/ Asset Synchronization
         run: |
           echo "Verifying docs/ JS/CSS assets match extension/dist/ui..."
+          ASSET_LIST=$(python scripts/publish-demo-surface.py --list-assets)
           DRIFT_FOUND=false
 
           while IFS= read -r file; do
@@ -238,7 +239,7 @@ jobs:
               echo "::error::docs/$file missing (expected from extension/dist/ui/$file)"
               DRIFT_FOUND=true
             fi
-          done < <(python scripts/publish-demo-surface.py --list-assets)
+          done <<< "$ASSET_LIST"
 
           if [ "$DRIFT_FOUND" = true ]; then
             echo ""

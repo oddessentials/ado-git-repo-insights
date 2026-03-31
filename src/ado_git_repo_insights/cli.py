@@ -1585,7 +1585,19 @@ def _run_http_server(
         with socketserver.TCPServer(("", port), CORSHTTPRequestHandler) as httpd:
             url = f"http://localhost:{port}"
             logger.info(f"Dashboard running at {url}")
-            logger.info("Press Ctrl+C to stop")
+
+            # Detect whether stdin is an interactive TTY — used below
+            # to decide whether to offer the stdin shutdown fallback.
+            try:
+                _stdin_is_tty = hasattr(sys.stdin, "fileno") and os.isatty(
+                    sys.stdin.fileno()
+                )
+            except (OSError, ValueError):
+                _stdin_is_tty = False
+            if _stdin_is_tty:
+                logger.info("Press Ctrl+C or q+Enter to stop")
+            else:
+                logger.info("Press Ctrl+C to stop")
 
             if open_browser:
                 webbrowser.open(url)
@@ -1681,6 +1693,32 @@ def _run_http_server(
                 except (ImportError, AttributeError, OSError):
                     # ctypes or windll unavailable — non-Windows or restricted env
                     pass
+
+            # Stdin fallback: in terminals without real console support
+            # (Git Bash/MinTTY, some IDE terminals), neither Python SIGINT
+            # nor SetConsoleCtrlHandler reliably delivers Ctrl+C.  A stdin
+            # polling thread lets users type 'q' + Enter to stop the
+            # server.  Only enabled when stdin is an interactive TTY.
+            _stdin_thread: threading.Thread | None = None
+            if _stdin_is_tty:
+
+                def _stdin_shutdown_poll() -> None:
+                    try:
+                        while True:
+                            line = sys.stdin.readline()
+                            if not line or line.strip().lower() == "q":
+                                threading.Thread(
+                                    target=httpd.shutdown, daemon=True
+                                ).start()
+                                break
+                    except (OSError, ValueError):
+                        # stdin closed or not readable — give up silently
+                        pass
+
+                _stdin_thread = threading.Thread(
+                    target=_stdin_shutdown_poll, daemon=True
+                )
+                _stdin_thread.start()
 
             try:
                 httpd.serve_forever()
