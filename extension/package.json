@@ -34,7 +34,7 @@
     "postinstall": "pnpm exec playwright install chromium",
     "stage:tasks": "node scripts/stage-task-deps.mjs",
     "clean:tasks": "node scripts/clean-task-deps.mjs",
-    "package:vsix": "pnpm run build && pnpm run stage:tasks && pnpm exec tfx-cli extension create --manifest-globs vss-extension.json",
+    "package:vsix": "pnpm run build && pnpm run stage:tasks && tfx extension create --manifest-globs vss-extension.json",
     "build:check-tests": "tsc --noEmit --project tsconfig.test.json",
     "test:config-parity": "node scripts/check-test-config-parity.mjs",
     "hooks:precommit": "cd .. && python scripts/run_repo_hook.py pre-commit",
