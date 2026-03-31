@@ -126,12 +126,21 @@ async function init(): Promise<void> {
 
     // Set up event listeners
     setupEventListeners();
+
+    // Final resize after all async content has rendered. On hosts
+    // without ResizeObserver, the resize at line 104 only captured
+    // the static HTML height — this captures the full rendered page.
+    syncHostHeight();
   } catch (error: unknown) {
     console.error("Settings initialization failed:", error);
     showStatus(
       "Failed to initialize settings: " + getErrorMessage(error),
       "error",
     );
+
+    // Resize after error content is added so the error message
+    // is visible without scrolling on non-ResizeObserver hosts.
+    syncHostHeight();
   }
 }
 

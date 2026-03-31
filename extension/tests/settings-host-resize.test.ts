@@ -252,4 +252,56 @@ describe("host-resize module", () => {
     expect(mockSdkModule.resize).toHaveBeenCalledTimes(1);
     expect(mockSdkModule.resize).toHaveBeenCalledWith(undefined, expect.any(Number));
   });
+
+  it("final resize fires after async settings content renders (no ResizeObserver)", async () => {
+    // Remove ResizeObserver to simulate non-supporting host
+    delete (globalThis as Record<string, unknown>).ResizeObserver;
+
+    await initializeAdoSdk();
+    (mockSdkModule.resize as jest.Mock).mockClear();
+
+    // Simulate the settings init sequence: initial resize, then
+    // async content that grows the page, then final resize.
+    syncHostHeight(); // post-SDK-init resize (line 104 in settings.ts)
+
+    // Simulate async DOM mutations (dropdown, settings, status)
+    document.body.innerHTML +=
+      '<div class="settings-content">Project dropdown with many options</div>';
+    Object.defineProperty(document.body, "scrollHeight", {
+      value: 900,
+      configurable: true,
+    });
+
+    // Final resize after async content (line 128 in settings.ts)
+    syncHostHeight();
+
+    // Must have been called at least twice — once post-init, once post-render
+    expect((mockSdkModule.resize as jest.Mock).mock.calls.length).toBeGreaterThanOrEqual(2);
+    // Last call should use the updated height
+    const lastCall = (mockSdkModule.resize as jest.Mock).mock.calls.at(-1);
+    expect(lastCall?.[1]).toBe(900);
+  });
+
+  it("final resize fires after error content renders (no ResizeObserver)", async () => {
+    // Remove ResizeObserver to simulate non-supporting host
+    delete (globalThis as Record<string, unknown>).ResizeObserver;
+
+    await initializeAdoSdk();
+    (mockSdkModule.resize as jest.Mock).mockClear();
+
+    // Simulate error path: error message is added to DOM
+    document.body.innerHTML +=
+      '<div class="error-state">Failed to initialize settings: Service unavailable</div>';
+    Object.defineProperty(document.body, "scrollHeight", {
+      value: 700,
+      configurable: true,
+    });
+
+    // Final resize after error content (catch block in settings.ts)
+    syncHostHeight();
+
+    expect(mockSdkModule.resize).toHaveBeenCalledTimes(1);
+    const call = (mockSdkModule.resize as jest.Mock).mock.calls[0];
+    expect(call?.[1]).toBe(700);
+  });
 });

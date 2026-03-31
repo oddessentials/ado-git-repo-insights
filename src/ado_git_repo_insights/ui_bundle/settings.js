@@ -1019,12 +1019,14 @@ var PRInsightsSettings = (() => {
       await loadSettings();
       await updateStatus();
       setupEventListeners();
+      syncHostHeight();
     } catch (error) {
       console.error("Settings initialization failed:", error);
       showStatus(
         "Failed to initialize settings: " + getErrorMessage(error),
         "error"
       );
+      syncHostHeight();
     }
   }
   async function tryLoadProjectDropdown() {
