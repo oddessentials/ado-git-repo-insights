@@ -47,7 +47,7 @@ def _mock_worktree_paths(dirty_files: dict[str, list[str]]):
 class TestRequireCleanTestCompilationScope:
     """require_clean_test_compilation_scope must cover ALL inputs to build:check-tests.
 
-    tsconfig.test.json compiles: tests/**/*.ts, ui/**/*.ts, ../types/vss.d.ts
+    tsconfig.test.json compiles: tests/**/*.ts, ui/**/*.ts.
     The tsconfig files themselves are also inputs.
     """
 
@@ -75,16 +75,6 @@ class TestRequireCleanTestCompilationScope:
             with pytest.raises(SystemExit):
                 require_clean_test_compilation_scope()
 
-    def test_blocks_on_unstaged_type_declaration(self) -> None:
-        mock = _mock_worktree_paths(
-            {
-                "types/": ["types/vss.d.ts"],
-            }
-        )
-        with patch.object(_hook_module, "worktree_paths", side_effect=mock):
-            with pytest.raises(SystemExit):
-                require_clean_test_compilation_scope()
-
     def test_blocks_on_unstaged_tsconfig(self) -> None:
         """This is the exact bug that was fixed — tsconfig files are inputs
         to tsc and must be guarded."""
@@ -104,7 +94,6 @@ class TestRequireCleanTestCompilationScope:
             {
                 "extension/tests/": ["extension/tests/foo.test.ts"],
                 "extension/ui/": ["extension/ui/bar.ts"],
-                "types/": ["types/vss.d.ts"],
                 "extension/tsconfig*.json": ["extension/tsconfig.json"],
             }
         )
@@ -124,7 +113,7 @@ class TestRequireCleanTestCompilationScope:
             with pytest.raises(SystemExit):
                 require_clean_test_compilation_scope()
 
-    def test_checks_all_five_pathspecs(self) -> None:
+    def test_checks_all_four_pathspecs(self) -> None:
         """Verify the guard calls worktree_paths for every scope, not just some."""
         calls: list[str] = []
 
@@ -137,10 +126,9 @@ class TestRequireCleanTestCompilationScope:
 
         assert "extension/tests/" in calls
         assert "extension/ui/" in calls
-        assert "types/" in calls
         assert "extension/tsconfig*.json" in calls
         assert "extension/eslint.config.mjs" in calls
-        assert len(calls) == 5
+        assert len(calls) == 4
 
 
 class TestRequireCleanTsconfigs:
@@ -233,7 +221,7 @@ class TestPathspecsMatchRealFiles:
         assert "extension/tsconfig.test.json" in files
         assert "extension/tsconfig.type-tests.json" in files
 
-    def test_types_directory_has_declaration_files(self) -> None:
-        """types/ must contain at least vss.d.ts."""
+    def test_no_custom_type_declarations_in_types_directory(self) -> None:
+        """types/ must be empty — custom declarations replaced by SDK-provided types."""
         files = self._git_ls_files("types/*.d.ts")
-        assert any("vss.d.ts" in f for f in files)
+        assert len(files) == 0, f"Unexpected .d.ts files in types/: {files}"

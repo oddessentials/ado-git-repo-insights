@@ -244,7 +244,7 @@ def require_clean_ui_sources() -> None:
 def require_clean_test_compilation_scope() -> None:
     """Block commit if any file in the test compilation scope has unstaged changes.
 
-    tsconfig.test.json compiles: tests/**/*.ts, ui/**/*.ts, ../types/vss.d.ts.
+    tsconfig.test.json compiles: tests/**/*.ts, ui/**/*.ts.
     The tsconfig files themselves are also inputs — an unstaged config edit
     changes what tsc resolves.  tsc reads the worktree, not the staged index.
     If unstaged changes exist in these paths, the type-check result does not
@@ -253,7 +253,6 @@ def require_clean_test_compilation_scope() -> None:
     unstaged: list[str] = []
     unstaged.extend(worktree_paths("extension/tests/"))
     unstaged.extend(worktree_paths("extension/ui/"))
-    unstaged.extend(worktree_paths("types/"))
     unstaged.extend(worktree_paths("extension/tsconfig*.json"))
     unstaged.extend(worktree_paths("extension/eslint.config.mjs"))
     if not unstaged:
