@@ -370,6 +370,17 @@ class TestSuppressionPatternDetection:
         finally:
             test_file.unlink(missing_ok=True)
 
+    def _scan_py_content(self, content: str) -> int:
+        """Write content to a .py temp file in src/ and return suppression count."""
+        target_dir = self.REPO_ROOT / "src"
+        test_file = target_dir / f"_audit_test_{id(content)}.py"
+        test_file.write_text(content, encoding="utf-8")
+        try:
+            results = scan_file(test_file, "python-backend", self.REPO_ROOT)
+            return len(results)
+        finally:
+            test_file.unlink(missing_ok=True)
+
     # ── Coverage suppressions ─────────────────────────────────────
 
     def test_istanbul_ignore_detected(self, tmp_path: Path) -> None:
@@ -399,6 +410,15 @@ class TestSuppressionPatternDetection:
         )
         assert count == 1
 
+    def test_c8_ignore_with_double_space_detected(self, tmp_path: Path) -> None:
+        """/* c8  ignore next */ with double space → detected."""
+        count = self._scan_ts_content(
+            "/* c8  ignore next */\nconst x = 1;\n",
+            tmp_path,
+            "typescript-extension",
+        )
+        assert count == 1
+
     def test_c8_in_prose_not_detected(self, tmp_path: Path) -> None:
         """The text 'c8' without ignore pattern → NOT detected."""
         count = self._scan_ts_content(
@@ -419,10 +439,46 @@ class TestSuppressionPatternDetection:
         )
         assert count == 1
 
+    def test_it_only_each_detected(self, tmp_path: Path) -> None:
+        """it.only.each() → detected (Jest parameterized variant)."""
+        count = self._scan_ts_content(
+            "it.only.each([1, 2])('test %i', (n) => {});\n",
+            tmp_path,
+            "typescript-tests",
+        )
+        assert count == 1
+
+    def test_test_skip_each_detected(self, tmp_path: Path) -> None:
+        """test.skip.each() → detected (Jest parameterized variant)."""
+        count = self._scan_ts_content(
+            "test.skip.each([1, 2])('test %i', (n) => {});\n",
+            tmp_path,
+            "typescript-tests",
+        )
+        assert count == 1
+
+    def test_only_with_space_before_paren_detected(self, tmp_path: Path) -> None:
+        """it.only ("x") with space before paren → detected."""
+        count = self._scan_ts_content(
+            'it.only ("focused test", () => {});\n',
+            tmp_path,
+            "typescript-tests",
+        )
+        assert count == 1
+
     def test_only_property_not_detected(self, tmp_path: Path) -> None:
         """result.only without parens → NOT detected."""
         count = self._scan_ts_content(
             "const x = result.only;\n",
+            tmp_path,
+            "typescript-tests",
+        )
+        assert count == 0
+
+    def test_skip_property_not_detected(self, tmp_path: Path) -> None:
+        """result.skip_count without call syntax → NOT detected."""
+        count = self._scan_ts_content(
+            "const x = result.skip_count;\n",
             tmp_path,
             "typescript-tests",
         )
@@ -445,5 +501,35 @@ class TestSuppressionPatternDetection:
             "// ts-nocheck is documented here\n",
             tmp_path,
             "typescript-extension",
+        )
+        assert count == 0
+
+    # ── Python suppressions ───────────────────────────────────────
+
+    def test_type_ignore_detected(self) -> None:
+        """# type: ignore in a Python file → detected."""
+        count = self._scan_py_content(
+            "x = foo()  # type: ignore[attr-defined]\n",
+        )
+        assert count == 1
+
+    def test_type_ignore_prose_not_detected(self) -> None:
+        """The words 'type' and 'ignore' in normal prose → NOT detected."""
+        count = self._scan_py_content(
+            "# The type system ignores this pattern\n",
+        )
+        assert count == 0
+
+    def test_noqa_detected(self) -> None:
+        """# noqa in a Python file → detected."""
+        count = self._scan_py_content(
+            "import os  # noqa: F401\n",
+        )
+        assert count == 1
+
+    def test_noqa_prose_not_detected(self) -> None:
+        """The word 'noqa' in normal prose without # prefix → NOT detected."""
+        count = self._scan_py_content(
+            "# See noqa documentation for details\n",
         )
         assert count == 0

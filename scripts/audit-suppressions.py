@@ -113,8 +113,8 @@ SUPPRESSION_PATTERNS = {
     "istanbul-ignore": re.compile(r"/\*\s*istanbul\s+ignore\s+(next|if|else|file)\b"),
     "c8-ignore": re.compile(r"/\*\s*c8\s+ignore\s+(next|start|stop)\b"),
     # Test-runner escapes
-    "test-only": re.compile(r"(?:^|\W)(?:describe|it|test)?\.only\s*\("),
-    "test-skip": re.compile(r"(?:^|\W)(?:describe|it|test)?\.skip\s*\("),
+    "test-only": re.compile(r"(?:^|\W)(?:describe|it|test)?\.only(?:\.each)?\s*\("),
+    "test-skip": re.compile(r"(?:^|\W)(?:describe|it|test)?\.skip(?:\.each)?\s*\("),
     "test-xit": re.compile(r"(?:^|\W)(?:xit|xdescribe)\s*\("),
     # Python
     "type-ignore": re.compile(r"#\s*type:\s*ignore"),
@@ -308,9 +308,9 @@ def scan_file(file_path: Path, scope: str, repo_root: Path) -> list[Suppression]
                 "@ts-expect-error",
                 "@ts-nocheck",
                 "istanbul",
-                "c8 ignore",
-                ".only(",
-                ".skip(",
+                "c8",
+                ".only",
+                ".skip",
                 "xit(",
                 "xdescribe(",
                 "type:",
