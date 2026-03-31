@@ -295,6 +295,37 @@ describe("SDK Module", () => {
       expect(isSdkInitialized()).toBe(false);
     });
 
+    it("does not commit sdkInitialized if attempt was invalidated during onReady", async () => {
+      // Simulate the scenario where the timeout fires and invalidates
+      // the current attempt while onReady is executing. In practice
+      // this requires the timeout to fire between onReady and
+      // notifyLoadSucceeded. We test the guard by manually
+      // incrementing initAttemptId inside onReady (simulating what
+      // the timeout callback would do).
+      resetSdkState();
+
+      // Import the module to access initAttemptId indirectly
+      const sdkModule = await import("../../ui/modules/sdk");
+
+      let contextDuringOnReady: ReturnType<typeof getWebContext>;
+
+      await initializeAdoSdk({
+        onReady: () => {
+          // At this point sdkReadyForCalls is true, wrappers work
+          contextDuringOnReady = getWebContext();
+          // Simulate timeout invalidation by resetting state
+          // (this is what the timeout callback does: initAttemptId++)
+          sdkModule.resetSdkState();
+        },
+      });
+
+      // onReady saw the context (sdkReadyForCalls was true)
+      expect(contextDuringOnReady!).toBeDefined();
+      // But the final commit was blocked because resetSdkState
+      // invalidated the attempt
+      expect(isSdkInitialized()).toBe(false);
+    });
+
     it("allows retry after timeout", async () => {
       // First attempt: ready hangs, times out
       mockSdkModule.ready.mockImplementation(

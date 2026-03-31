@@ -108,6 +108,14 @@ SUPPRESSION_PATTERNS = {
     "eslint-disable-line": re.compile(r"//\s*eslint-disable-line"),
     "ts-ignore": re.compile(r"//\s*@ts-ignore"),
     "ts-expect-error": re.compile(r"//\s*@ts-expect-error"),
+    "ts-nocheck": re.compile(r"//\s*@ts-nocheck\b"),
+    # Coverage suppressions
+    "istanbul-ignore": re.compile(r"/\*\s*istanbul\s+ignore\s+(next|if|else|file)\b"),
+    "c8-ignore": re.compile(r"/\*\s*c8\s+ignore\s+(next|start|stop)\b"),
+    # Test-runner escapes
+    "test-only": re.compile(r"(?:^|\W)(?:describe|it|test)?\.only\s*\("),
+    "test-skip": re.compile(r"(?:^|\W)(?:describe|it|test)?\.skip\s*\("),
+    "test-xit": re.compile(r"(?:^|\W)(?:xit|xdescribe)\s*\("),
     # Python
     "type-ignore": re.compile(r"#\s*type:\s*ignore"),
     "noqa": re.compile(r"#\s*noqa"),
@@ -120,6 +128,12 @@ TYPE_LANGUAGES = {
     "eslint-disable-line": "typescript",
     "ts-ignore": "typescript",
     "ts-expect-error": "typescript",
+    "ts-nocheck": "typescript",
+    "istanbul-ignore": "typescript",
+    "c8-ignore": "typescript",
+    "test-only": "typescript",
+    "test-skip": "typescript",
+    "test-xit": "typescript",
     "type-ignore": "python",
     "noqa": "python",
 }
@@ -146,8 +160,15 @@ EXCLUDED_DIRS = {
     ".git",
 }
 
-# Excluded file patterns (fnmatch-style)
-EXCLUDED_FILE_PATTERNS: set[str] = set()
+# Excluded file patterns (fnmatch-style) — prevent false positives from
+# documentation, snapshots, and lockfiles that may contain suppression keywords.
+EXCLUDED_FILE_PATTERNS: set[str] = {
+    "*.md",
+    "*.snap",
+    "*.lock",
+    "pnpm-lock.yaml",
+    "package-lock.json",
+}
 
 # Security limits to prevent ReDoS and resource exhaustion
 MAX_FILE_SIZE_BYTES = 10 * 1024 * 1024  # 10 MB
@@ -227,13 +248,31 @@ def scan_file(file_path: Path, scope: str, repo_root: Path) -> list[Suppression]
     # Determine which patterns to check based on scope
     if scope == "python-backend":
         patterns_to_check = ["type-ignore", "noqa"]
-    else:
+    elif scope == "typescript-tests":
         patterns_to_check = [
             "eslint-disable-block",
             "eslint-disable-next-line",
             "eslint-disable-line",
             "ts-ignore",
             "ts-expect-error",
+            "ts-nocheck",
+            "istanbul-ignore",
+            "c8-ignore",
+            "test-only",
+            "test-skip",
+            "test-xit",
+        ]
+    else:
+        # typescript-extension: all TS suppressions, no test escapes
+        patterns_to_check = [
+            "eslint-disable-block",
+            "eslint-disable-next-line",
+            "eslint-disable-line",
+            "ts-ignore",
+            "ts-expect-error",
+            "ts-nocheck",
+            "istanbul-ignore",
+            "c8-ignore",
         ]
 
     # SECURITY: Check file size before reading to prevent resource exhaustion
@@ -267,6 +306,13 @@ def scan_file(file_path: Path, scope: str, repo_root: Path) -> list[Suppression]
                 "eslint-disable",
                 "@ts-ignore",
                 "@ts-expect-error",
+                "@ts-nocheck",
+                "istanbul",
+                "c8 ignore",
+                ".only(",
+                ".skip(",
+                "xit(",
+                "xdescribe(",
                 "type:",
                 "noqa",
             )
