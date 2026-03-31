@@ -1556,6 +1556,7 @@ def _run_http_server(
     import os
     import signal
     import socketserver
+    import sys
     import threading
     import types
     import webbrowser
@@ -1626,11 +1627,67 @@ def _run_http_server(
 
                 signal.signal(signal.SIGINT, _request_shutdown)
 
+            # Windows: also hook console control events directly because
+            # some terminals (Git Bash/MinTTY, some IDE terminals) do not
+            # reliably translate Ctrl+C into a Python SIGINT signal.
+            # This is additive — it does not replace the SIGINT handler
+            # above and operates independently of SIG_IGN/SIG_DFL policy
+            # (those govern Python signal delivery, not OS console events).
+            # httpd.shutdown() is safe to call multiple times, so if both
+            # the SIGINT handler and console handler fire (as cmd.exe
+            # does), the second call is a harmless no-op.
+            _restore_console_handler: object = None
+            if (
+                sys.platform == "win32"
+                and threading.current_thread() is threading.main_thread()
+            ):
+                try:
+                    import ctypes
+
+                    _windll = getattr(ctypes, "windll", None)
+                    if _windll is None:
+                        raise AttributeError("ctypes.windll")
+                    _kernel32 = _windll.kernel32
+                    _ctrl_c = 0
+                    _ctrl_break = 1
+                    _ctrl_close = 2
+
+                    _handler_type = ctypes.WINFUNCTYPE(ctypes.c_bool, ctypes.c_uint)
+
+                    @_handler_type
+                    def _console_ctrl_handler(ctrl_type: int) -> bool:
+                        if ctrl_type in (
+                            _ctrl_c,
+                            _ctrl_break,
+                            _ctrl_close,
+                        ):
+                            threading.Thread(target=httpd.shutdown, daemon=True).start()
+                            return True
+                        return False
+
+                    if _kernel32.SetConsoleCtrlHandler(_console_ctrl_handler, True):
+
+                        def _unregister() -> None:
+                            _kernel32.SetConsoleCtrlHandler(
+                                _console_ctrl_handler, False
+                            )
+
+                        _restore_console_handler = _unregister
+                    else:
+                        logger.debug(
+                            "Could not install Windows console control handler"
+                        )
+                except (ImportError, AttributeError, OSError):
+                    # ctypes or windll unavailable — non-Windows or restricted env
+                    pass
+
             try:
                 httpd.serve_forever()
             finally:
                 if callable(_prev_sigint):
                     signal.signal(signal.SIGINT, _prev_sigint)
+                if callable(_restore_console_handler):
+                    _restore_console_handler()
 
             logger.info("\nServer stopped")
 
