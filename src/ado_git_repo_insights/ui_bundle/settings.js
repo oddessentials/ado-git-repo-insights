@@ -1063,33 +1063,59 @@ var PRInsightsSettings = (() => {
       textInput.style.display = "block";
     }
   }
+  var PROJECT_API_VERSIONS = ["7.1", "6.0", "5.1"];
   async function getOrganizationProjects() {
     const collectionUri = await getCollectionUri();
     const token = await getAccessToken();
-    const allProjects = [];
-    let continuationToken = null;
-    do {
-      let url = `${collectionUri}_apis/projects?api-version=7.1&$top=500`;
-      if (continuationToken) {
-        url += `&continuationToken=${encodeURIComponent(continuationToken)}`;
-      }
-      const response = await fetch(url, {
-        headers: {
-          Authorization: `Bearer ${token}`,
-          Accept: "application/json"
-        }
-      });
-      if (!response.ok) {
+    const headers = {
+      Authorization: `Bearer ${token}`,
+      Accept: "application/json"
+    };
+    let workingVersion = null;
+    let firstResponse = null;
+    let lastError = null;
+    for (const version of PROJECT_API_VERSIONS) {
+      const url = `${collectionUri}_apis/projects?api-version=${version}&$top=500`;
+      const response = await fetch(url, { headers });
+      if (response.status === 401 || response.status === 403) {
         throw new Error(`Failed to list projects: ${response.status}`);
       }
-      const data = await response.json();
+      if (response.ok) {
+        workingVersion = version;
+        firstResponse = response;
+        break;
+      }
+      lastError = new Error(
+        `Failed to list projects with api-version=${version}: ${response.status}`
+      );
+    }
+    if (!workingVersion || !firstResponse) {
+      throw lastError ?? new Error("No compatible API version for project listing");
+    }
+    const allProjects = [];
+    const processPage = async (response) => {
+      let data;
+      try {
+        data = await response.json();
+      } catch {
+        return null;
+      }
       const raw = Array.isArray(data.value) ? data.value : [];
       const page = raw.filter(
         (p2) => p2 !== null && typeof p2 === "object" && typeof p2.name === "string" && typeof p2.id === "string"
       );
       allProjects.push(...page);
-      continuationToken = response.headers.get("x-ms-continuationtoken") ?? null;
-    } while (continuationToken);
+      return response.headers.get("x-ms-continuationtoken") ?? null;
+    };
+    let continuationToken = await processPage(firstResponse);
+    while (continuationToken) {
+      const url = `${collectionUri}_apis/projects?api-version=${workingVersion}&$top=500&continuationToken=${encodeURIComponent(continuationToken)}`;
+      const response = await fetch(url, { headers });
+      if (!response.ok) {
+        throw new Error(`Failed to list projects: ${response.status}`);
+      }
+      continuationToken = await processPage(response);
+    }
     return allProjects;
   }
   async function loadSettings() {

@@ -189,29 +189,62 @@ async function tryLoadProjectDropdown(): Promise<void> {
  * Get list of projects in the organization.
  * Requires vso.project scope.
  */
+/**
+ * API versions to try, newest first. The old CoreRestClient.getProjects()
+ * negotiated a host-supported version; this fallback chain preserves
+ * compatibility with Azure DevOps Server 2019+ (5.1) through Services (7.1).
+ */
+const PROJECT_API_VERSIONS = ["7.1", "6.0", "5.1"];
+
 async function getOrganizationProjects(): Promise<VSSProject[]> {
   const collectionUri = await getCollectionUri();
   const token = await getAccessToken();
-  const allProjects: VSSProject[] = [];
-  let continuationToken: string | null = null;
+  const headers: HeadersInit = {
+    Authorization: `Bearer ${token}`,
+    Accept: "application/json",
+  };
 
-  do {
-    let url = `${collectionUri}_apis/projects?api-version=7.1&$top=500`;
-    if (continuationToken) {
-      url += `&continuationToken=${encodeURIComponent(continuationToken)}`;
-    }
+  // Discover a working API version using the first page request.
+  let workingVersion: string | null = null;
+  let firstResponse: Response | null = null;
+  let lastError: Error | null = null;
 
-    const response = await fetch(url, {
-      headers: {
-        Authorization: `Bearer ${token}`,
-        Accept: "application/json",
-      },
-    });
-    if (!response.ok) {
+  for (const version of PROJECT_API_VERSIONS) {
+    const url = `${collectionUri}_apis/projects?api-version=${version}&$top=500`;
+    const response = await fetch(url, { headers });
+
+    // Auth failures are not version-related — fail fast.
+    if (response.status === 401 || response.status === 403) {
       throw new Error(`Failed to list projects: ${response.status}`);
     }
 
-    const data = await response.json();
+    if (response.ok) {
+      workingVersion = version;
+      firstResponse = response;
+      break;
+    }
+
+    // 400/404 likely means version not supported — try next.
+    lastError = new Error(
+      `Failed to list projects with api-version=${version}: ${response.status}`,
+    );
+  }
+
+  if (!workingVersion || !firstResponse) {
+    throw lastError ?? new Error("No compatible API version for project listing");
+  }
+
+  // Process the first page (already fetched during version discovery).
+  const allProjects: VSSProject[] = [];
+
+  const processPage = async (response: Response): Promise<string | null> => {
+    // Non-JSON or malformed response is terminal — do not keep paginating.
+    let data: { value?: unknown };
+    try {
+      data = (await response.json()) as { value?: unknown };
+    } catch {
+      return null;
+    }
     const raw: unknown[] = Array.isArray(data.value) ? data.value : [];
     const page = raw.filter(
       (p): p is VSSProject =>
@@ -221,10 +254,22 @@ async function getOrganizationProjects(): Promise<VSSProject[]> {
         typeof (p as Record<string, unknown>).id === "string",
     );
     allProjects.push(...page);
+    return response.headers.get("x-ms-continuationtoken") ?? null;
+  };
 
-    continuationToken =
-      response.headers.get("x-ms-continuationtoken") ?? null;
-  } while (continuationToken);
+  let continuationToken = await processPage(firstResponse);
+
+  // Paginate remaining pages with the discovered version.
+  while (continuationToken) {
+    const url =
+      `${collectionUri}_apis/projects?api-version=${workingVersion}&$top=500` +
+      `&continuationToken=${encodeURIComponent(continuationToken)}`;
+    const response = await fetch(url, { headers });
+    if (!response.ok) {
+      throw new Error(`Failed to list projects: ${response.status}`);
+    }
+    continuationToken = await processPage(response);
+  }
 
   return allProjects;
 }
