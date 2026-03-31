@@ -66,13 +66,6 @@ const SETTINGS_KEY_PIPELINE = "pr-insights-pipeline-id";
 const ARTIFACT_NAME_CSV = "csv-output";
 const BLOB_CLEANUP_TIMEOUT_MS = 10_000;
 
-/** Allowed ADO hostname suffixes for download URL validation (mirrors dashboard.ts) */
-const ADO_DOMAIN_SUFFIXES = [
-  "dev.azure.com",
-  ".visualstudio.com",
-  ".azure.com",
-];
-
 // State
 let dataService: Awaited<ReturnType<typeof getExtensionDataService>> | null = null;
 let projectDropdownAvailable = false;
@@ -641,12 +634,14 @@ async function downloadRawData(): Promise<void> {
       return;
     }
 
+    // Validate download URL against the collection URI origin.
+    // This supports both Azure DevOps Services (dev.azure.com) and
+    // Azure DevOps Server/on-prem (any hostname returned by
+    // getCollectionUri). Rejects cross-origin and non-HTTPS URLs.
     try {
       const parsed = new URL(downloadUrl);
-      const isAdoDomain = ADO_DOMAIN_SUFFIXES.some((suffix) =>
-        parsed.hostname.endsWith(suffix),
-      );
-      if (parsed.protocol !== "https:" || !isAdoDomain) {
+      const collectionOrigin = new URL(collectionUri).origin;
+      if (parsed.origin !== collectionOrigin) {
         showToast("Invalid download URL", "error");
         return;
       }

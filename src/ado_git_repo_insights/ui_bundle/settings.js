@@ -992,11 +992,6 @@ var PRInsightsSettings = (() => {
   var SETTINGS_KEY_PIPELINE = "pr-insights-pipeline-id";
   var ARTIFACT_NAME_CSV = "csv-output";
   var BLOB_CLEANUP_TIMEOUT_MS = 1e4;
-  var ADO_DOMAIN_SUFFIXES = [
-    "dev.azure.com",
-    ".visualstudio.com",
-    ".azure.com"
-  ];
   var dataService = null;
   var projectDropdownAvailable = false;
   var projectList = [];
@@ -1394,10 +1389,8 @@ var PRInsightsSettings = (() => {
       }
       try {
         const parsed = new URL(downloadUrl);
-        const isAdoDomain = ADO_DOMAIN_SUFFIXES.some(
-          (suffix) => parsed.hostname.endsWith(suffix)
-        );
-        if (parsed.protocol !== "https:" || !isAdoDomain) {
+        const collectionOrigin = new URL(collectionUri).origin;
+        if (parsed.origin !== collectionOrigin) {
           showToast("Invalid download URL", "error");
           return;
         }
