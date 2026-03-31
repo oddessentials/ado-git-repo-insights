@@ -484,6 +484,42 @@ class TestSuppressionPatternDetection:
         )
         assert count == 0
 
+    def test_fit_detected(self, tmp_path: Path) -> None:
+        """fit() focused-test alias → detected."""
+        count = self._scan_ts_content(
+            'fit("focused test", () => {});\n',
+            tmp_path,
+            "typescript-tests",
+        )
+        assert count == 1
+
+    def test_fdescribe_detected(self, tmp_path: Path) -> None:
+        """fdescribe() focused-suite alias → detected."""
+        count = self._scan_ts_content(
+            'fdescribe("focused suite", () => {});\n',
+            tmp_path,
+            "typescript-tests",
+        )
+        assert count == 1
+
+    def test_outfit_not_detected(self, tmp_path: Path) -> None:
+        """'outfit(' is not a focused-test call → NOT detected."""
+        count = self._scan_ts_content(
+            'const outfit = getOutfit("casual");\n',
+            tmp_path,
+            "typescript-tests",
+        )
+        assert count == 0
+
+    def test_fdescribe_in_identifier_not_detected(self, tmp_path: Path) -> None:
+        """'safe_fdescribe_name' is not a focused-test call → NOT detected."""
+        count = self._scan_ts_content(
+            "const safe_fdescribe_name = true;\n",
+            tmp_path,
+            "typescript-tests",
+        )
+        assert count == 0
+
     # ── ts-nocheck ────────────────────────────────────────────────
 
     def test_ts_nocheck_detected(self, tmp_path: Path) -> None:

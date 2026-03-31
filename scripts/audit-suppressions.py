@@ -113,9 +113,12 @@ SUPPRESSION_PATTERNS = {
     "istanbul-ignore": re.compile(r"/\*\s*istanbul\s+ignore\s+(next|if|else|file)\b"),
     "c8-ignore": re.compile(r"/\*\s*c8\s+ignore\s+(next|start|stop)\b"),
     # Test-runner escapes
-    "test-only": re.compile(r"(?:^|\W)(?:describe|it|test)?\.only(?:\.each)?\s*\("),
-    "test-skip": re.compile(r"(?:^|\W)(?:describe|it|test)?\.skip(?:\.each)?\s*\("),
-    "test-xit": re.compile(r"(?:^|\W)(?:xit|xdescribe)\s*\("),
+    "test-only": re.compile(
+        r"(?:^|\W)(?:(?:describe|it|test)\.only(?:\.each)?|fit|fdescribe)\s*\("
+    ),
+    "test-skip": re.compile(
+        r"(?:^|\W)(?:(?:describe|it|test)\.skip(?:\.each)?|xit|xdescribe)\s*\("
+    ),
     # Python
     "type-ignore": re.compile(r"#\s*type:\s*ignore"),
     "noqa": re.compile(r"#\s*noqa"),
@@ -133,7 +136,6 @@ TYPE_LANGUAGES = {
     "c8-ignore": "typescript",
     "test-only": "typescript",
     "test-skip": "typescript",
-    "test-xit": "typescript",
     "type-ignore": "python",
     "noqa": "python",
 }
@@ -260,7 +262,6 @@ def scan_file(file_path: Path, scope: str, repo_root: Path) -> list[Suppression]
             "c8-ignore",
             "test-only",
             "test-skip",
-            "test-xit",
         ]
     else:
         # typescript-extension: all TS suppressions, no test escapes
@@ -311,6 +312,8 @@ def scan_file(file_path: Path, scope: str, repo_root: Path) -> list[Suppression]
                 "c8",
                 ".only",
                 ".skip",
+                "fit(",
+                "fdescribe(",
                 "xit(",
                 "xdescribe(",
                 "type:",
