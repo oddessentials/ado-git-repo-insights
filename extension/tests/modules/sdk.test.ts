@@ -357,27 +357,81 @@ describe("SDK Module", () => {
   });
 
   describe("getExtensionDataService", () => {
+    let originalFetch: typeof global.fetch;
+
+    beforeEach(async () => {
+      originalFetch = global.fetch;
+      global.fetch = jest.fn(() =>
+        Promise.resolve({
+          ok: true,
+          status: 200,
+          json: () => Promise.resolve({ id: "test-key", value: "test-value" }),
+        }),
+      ) as unknown as typeof global.fetch;
+      // SDK must be initialized before getExtensionDataService can resolve
+      await initializeAdoSdk();
+    });
+
+    afterEach(() => {
+      global.fetch = originalFetch;
+    });
+
     it("returns object with getValue and setValue methods", async () => {
-      const manager = await getExtensionDataService();
-      expect(typeof manager.getValue).toBe("function");
-      expect(typeof manager.setValue).toBe("function");
+      const client = await getExtensionDataService();
+      expect(typeof client.getValue).toBe("function");
+      expect(typeof client.setValue).toBe("function");
     });
 
-    it("calls getService with ExtensionDataService ID", async () => {
-      await getExtensionDataService();
-      expect(mockSdkModule.getService).toHaveBeenCalledWith(
-        "ms.vss-features.extension-data-service",
-      );
-    });
-
-    it("calls getAccessToken for data manager creation", async () => {
+    it("calls getAccessToken for REST authentication", async () => {
       await getExtensionDataService();
       expect(mockSdkModule.getAccessToken).toHaveBeenCalled();
     });
 
-    it("calls getExtensionContext for data manager creation", async () => {
+    it("calls getExtensionContext for REST URL construction", async () => {
       await getExtensionDataService();
       expect(mockSdkModule.getExtensionContext).toHaveBeenCalled();
+    });
+
+    it("getValue uses direct REST call, not XDM proxy", async () => {
+      const client = await getExtensionDataService();
+      await client.getValue("test-key", { scopeType: "User" });
+
+      expect(global.fetch).toHaveBeenCalledTimes(1);
+      const url = (global.fetch as jest.Mock).mock.calls.at(0)?.[0] as string;
+      expect(url).toContain("_apis/ExtensionManagement/InstalledExtensions");
+      expect(url).toContain("Scopes/User/Me");
+      expect(url).toContain("test-key");
+      // Must NOT call the old XDM data service
+      expect(mockSdkModule.getService).not.toHaveBeenCalledWith(
+        "ms.vss-features.extension-data-service",
+      );
+    });
+
+    it("getValue returns defaultValue on 404", async () => {
+      const client = await getExtensionDataService();
+      (global.fetch as jest.Mock).mockResolvedValueOnce({
+        ok: false,
+        status: 404,
+        statusText: "Not Found",
+      });
+
+      const result = await client.getValue("missing", {
+        scopeType: "User",
+        defaultValue: "fallback",
+      });
+      expect(result).toBe("fallback");
+    });
+
+    it("setValue sends PUT with document envelope", async () => {
+      const client = await getExtensionDataService();
+      await client.setValue("my-key", 42, { scopeType: "User" });
+
+      const call = (global.fetch as jest.Mock).mock.calls.at(0);
+      const url = call?.[0] as string;
+      const opts = call?.[1] as RequestInit;
+      expect(url).toContain("my-key");
+      expect(opts.method).toBe("PUT");
+      expect(JSON.parse(opts.body as string)).toEqual({ id: "my-key", value: 42 });
     });
   });
 

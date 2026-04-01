@@ -428,14 +428,23 @@ async function updateStatus(): Promise<void> {
   if (!statusDisplay) return;
 
   try {
-    const savedProjectId = await dataService.getValue<string>(
-      SETTINGS_KEY_PROJECT,
-      { scopeType: "User", defaultValue: "" },
-    );
-    const savedPipelineId = await dataService.getValue<number>(
-      SETTINGS_KEY_PIPELINE,
-      { scopeType: "User", defaultValue: 0 },
-    );
+    // Read saved settings — isolated try/catch because the host's XDM
+    // proxy can fail independently (e.g. MeProxy CDN outage). A failed
+    // read should not prevent the rest of the status UI from rendering.
+    let savedProjectId = "";
+    let savedPipelineId = 0;
+    try {
+      savedProjectId = await dataService.getValue<string>(
+        SETTINGS_KEY_PROJECT,
+        { scopeType: "User", defaultValue: "" },
+      ) || "";
+      savedPipelineId = await dataService.getValue<number>(
+        SETTINGS_KEY_PIPELINE,
+        { scopeType: "User", defaultValue: 0 },
+      ) || 0;
+    } catch (readError: unknown) {
+      console.warn("Could not read saved settings:", readError);
+    }
     const webContext = getWebContext();
     const currentProjectName = webContext?.project?.name || "Unknown";
     const currentProjectId = webContext?.project?.id;
@@ -590,10 +599,15 @@ async function downloadRawData(): Promise<void> {
       showToast("Settings service not available", "error");
       return;
     }
-    const savedProjectId = await dataService.getValue<string>(
-      SETTINGS_KEY_PROJECT,
-      { scopeType: "User", defaultValue: "" },
-    );
+    let savedProjectId = "";
+    try {
+      savedProjectId = await dataService.getValue<string>(
+        SETTINGS_KEY_PROJECT,
+        { scopeType: "User", defaultValue: "" },
+      ) || "";
+    } catch {
+      console.warn("Could not read saved project setting for download");
+    }
     const webContext = getWebContext();
     const projectId = savedProjectId || webContext?.project?.id;
     if (!projectId) {

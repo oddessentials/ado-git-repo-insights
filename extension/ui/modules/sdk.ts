@@ -11,14 +11,11 @@
 
 import * as SDK from "azure-devops-extension-sdk";
 import type {
-  IExtensionDataManager,
-  IExtensionDataService,
   ILocationService,
 } from "azure-devops-extension-api";
 
 // CommonServiceIds is a const enum (inlined by tsc, invisible to esbuild).
 // Use string literals directly to avoid esbuild "import is undefined" warning.
-const ExtensionDataServiceId = "ms.vss-features.extension-data-service";
 const LocationServiceId = "ms.vss-features.location-service";
 
 /**
@@ -179,20 +176,102 @@ export async function initializeAdoSdk(
 }
 
 /**
- * Get the Extension Data Manager for reading/writing settings.
- *
- * Returns an IExtensionDataManager that exposes getValue<T>() and
- * setValue<T>() — the same consumer-facing API as the old SDK's
- * IExtensionDataService. The two-step indirection (getService →
- * getExtensionDataManager) is absorbed here.
+ * Options for getValue/setValue — matches the subset of
+ * IDocumentOptions that callers actually use.
  */
-export async function getExtensionDataService(): Promise<IExtensionDataManager> {
-  const dataService = await SDK.getService<IExtensionDataService>(
-    ExtensionDataServiceId,
-  );
-  const extensionContext = SDK.getExtensionContext();
-  const accessToken = await SDK.getAccessToken();
-  return dataService.getExtensionDataManager(extensionContext.id, accessToken);
+export interface ExtensionDataOptions {
+  scopeType?: string;
+  scopeValue?: string;
+  defaultValue?: unknown;
+}
+
+/**
+ * Minimal data manager interface exposed to callers.
+ * Drop-in replacement for IExtensionDataManager's getValue/setValue.
+ */
+export interface ExtensionDataClient {
+  getValue<T>(key: string, documentOptions?: ExtensionDataOptions): Promise<T>;
+  setValue<T>(key: string, value: T, documentOptions?: ExtensionDataOptions): Promise<T>;
+}
+
+/**
+ * Get an Extension Data Client for reading/writing settings.
+ *
+ * Uses direct REST calls to the Extension Management API instead of
+ * the SDK's XDM-proxied IExtensionDataManager. The XDM proxy chain
+ * (getService → getExtensionDataManager → proxy.getValue) triggers
+ * host-side serialization errors (__remoteSerializationSettings) in
+ * some Azure DevOps environments. Direct REST bypasses XDM entirely.
+ *
+ * REST endpoint pattern:
+ *   {collectionUri}_apis/ExtensionManagement/InstalledExtensions/
+ *   {publisher}/{extension}/Data/Scopes/{scope}/{scopeValue}/
+ *   Collections/$settings/Documents/{key}
+ */
+export async function getExtensionDataService(): Promise<ExtensionDataClient> {
+  const collectionUri = await getCollectionUri();
+  const accessToken = await getAccessToken();
+  const ctx = SDK.getExtensionContext();
+
+  function buildUrl(key: string, scopeType?: string): string {
+    const scope = scopeType === "User" ? "User" : "Default";
+    const scopeValue = scopeType === "User" ? "Me" : "Current";
+    return (
+      `${collectionUri}_apis/ExtensionManagement/InstalledExtensions/` +
+      `${encodeURIComponent(ctx.publisherId)}/${encodeURIComponent(ctx.extensionId)}/` +
+      `Data/Scopes/${scope}/${scopeValue}/Collections/%24settings/Documents/${encodeURIComponent(key)}`
+    );
+  }
+
+  const headers: HeadersInit = {
+    Authorization: `Bearer ${accessToken}`,
+    Accept: "application/json",
+    "Content-Type": "application/json",
+  };
+
+  return {
+    async getValue<T>(key: string, options?: ExtensionDataOptions): Promise<T> {
+      const url = buildUrl(key, options?.scopeType);
+      const response = await fetch(url, { headers });
+
+      if (response.status === 404) {
+        // Key does not exist — return defaultValue or undefined
+        return (options?.defaultValue ?? undefined) as T;
+      }
+
+      if (!response.ok) {
+        throw new Error(
+          `Extension data GET failed: ${response.status} ${response.statusText}`,
+        );
+      }
+
+      const doc = await response.json();
+      // The REST API wraps the value in a document envelope: { id, __etag, value }
+      // getValue should return the raw value, matching the SDK behavior.
+      if (doc && typeof doc === "object" && "value" in doc) {
+        return doc.value as T;
+      }
+      return doc as T;
+    },
+
+    async setValue<T>(key: string, value: T, options?: ExtensionDataOptions): Promise<T> {
+      const url = buildUrl(key, options?.scopeType);
+      const body = JSON.stringify({ id: key, value });
+      const response = await fetch(url, { method: "PUT", headers, body });
+
+      if (!response.ok) {
+        throw new Error(
+          `Extension data PUT failed: ${response.status} ${response.statusText}`,
+        );
+      }
+
+      const doc = await response.json();
+      if (doc && typeof doc === "object" && "value" in doc) {
+        return doc.value as T;
+      }
+      return doc as T;
+    },
+  };
 }
 
 /**

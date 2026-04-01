@@ -3954,7 +3954,6 @@ var PRInsightsDashboard = (() => {
   u.getObjectRegistry().register("DevOps.SdkClient", { dispatchEvent: x });
 
   // ../ui/modules/sdk.ts
-  var ExtensionDataServiceId = "ms.vss-features.extension-data-service";
   var LocationServiceId = "ms.vss-features.location-service";
   var CORE_RESOURCE_AREA_ID = "79134c72-4a58-4b42-976c-04e7115f32bf";
   var sdkInitialized = false;
@@ -4005,12 +4004,53 @@ var PRInsightsDashboard = (() => {
     return initPromise;
   }
   async function getExtensionDataService() {
-    const dataService = await F(
-      ExtensionDataServiceId
-    );
-    const extensionContext = S();
-    const accessToken = await L();
-    return dataService.getExtensionDataManager(extensionContext.id, accessToken);
+    const collectionUri = await getCollectionUri();
+    const accessToken = await getAccessToken();
+    const ctx = S();
+    function buildUrl(key, scopeType) {
+      const scope = scopeType === "User" ? "User" : "Default";
+      const scopeValue = scopeType === "User" ? "Me" : "Current";
+      return `${collectionUri}_apis/ExtensionManagement/InstalledExtensions/${encodeURIComponent(ctx.publisherId)}/${encodeURIComponent(ctx.extensionId)}/Data/Scopes/${scope}/${scopeValue}/Collections/%24settings/Documents/${encodeURIComponent(key)}`;
+    }
+    const headers = {
+      Authorization: `Bearer ${accessToken}`,
+      Accept: "application/json",
+      "Content-Type": "application/json"
+    };
+    return {
+      async getValue(key, options) {
+        const url = buildUrl(key, options?.scopeType);
+        const response = await fetch(url, { headers });
+        if (response.status === 404) {
+          return options?.defaultValue ?? void 0;
+        }
+        if (!response.ok) {
+          throw new Error(
+            `Extension data GET failed: ${response.status} ${response.statusText}`
+          );
+        }
+        const doc = await response.json();
+        if (doc && typeof doc === "object" && "value" in doc) {
+          return doc.value;
+        }
+        return doc;
+      },
+      async setValue(key, value, options) {
+        const url = buildUrl(key, options?.scopeType);
+        const body = JSON.stringify({ id: key, value });
+        const response = await fetch(url, { method: "PUT", headers, body });
+        if (!response.ok) {
+          throw new Error(
+            `Extension data PUT failed: ${response.status} ${response.statusText}`
+          );
+        }
+        const doc = await response.json();
+        if (doc && typeof doc === "object" && "value" in doc) {
+          return doc.value;
+        }
+        return doc;
+      }
+    };
   }
   function getWebContext() {
     if (!isSdkCallable()) return void 0;
