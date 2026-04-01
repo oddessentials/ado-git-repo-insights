@@ -433,6 +433,56 @@ describe("SDK Module", () => {
       expect(opts.method).toBe("PUT");
       expect(JSON.parse(opts.body as string)).toEqual({ id: "my-key", value: 42 });
     });
+
+    it("getValue throws on non-ok, non-404 response", async () => {
+      const client = await getExtensionDataService();
+      (global.fetch as jest.Mock).mockResolvedValueOnce({
+        ok: false,
+        status: 500,
+        statusText: "Internal Server Error",
+      });
+
+      await expect(
+        client.getValue("key", { scopeType: "User" }),
+      ).rejects.toThrow("Extension data GET failed: 500");
+    });
+
+    it("getValue returns raw doc when response has no value property", async () => {
+      const client = await getExtensionDataService();
+      (global.fetch as jest.Mock).mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        json: () => Promise.resolve("raw-string-value"),
+      });
+
+      const result = await client.getValue<string>("key", { scopeType: "User" });
+      expect(result).toBe("raw-string-value");
+    });
+
+    it("setValue throws on non-ok response", async () => {
+      const client = await getExtensionDataService();
+      (global.fetch as jest.Mock).mockResolvedValueOnce({
+        ok: false,
+        status: 403,
+        statusText: "Forbidden",
+      });
+
+      await expect(
+        client.setValue("key", "val", { scopeType: "User" }),
+      ).rejects.toThrow("Extension data PUT failed: 403");
+    });
+
+    it("setValue returns raw doc when response has no value property", async () => {
+      const client = await getExtensionDataService();
+      (global.fetch as jest.Mock).mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        json: () => Promise.resolve("raw-put-result"),
+      });
+
+      const result = await client.setValue("key", "val", { scopeType: "User" });
+      expect(result).toBe("raw-put-result");
+    });
   });
 
   describe("getCollectionUri", () => {
