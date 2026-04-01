@@ -712,7 +712,14 @@ def _current_branch() -> str:
         return ""
 
 
+def run_version_guard() -> None:
+    """Block manual version bumps before push — fail fast."""
+    safe_print("[pre-push] running version guard")
+    run_command([sys.executable, "scripts/check-version-unchanged.py", "origin/main"])
+
+
 def run_pre_push_hook() -> None:
+    run_version_guard()
     safe_print("[pre-push] running baseline integrity check")
     run_command(["node", ".github/scripts/check-baseline-integrity.js"])
     run_pre_push_pre_commit_checks()
