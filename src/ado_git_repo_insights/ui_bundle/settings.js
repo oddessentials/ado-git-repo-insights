@@ -302,6 +302,8 @@ var PRInsightsSettings = (() => {
   var sdkReadyForCalls = false;
   var initAttemptId = 0;
   var initPromise = null;
+  var cachedCollectionUri = null;
+  var cachedAccessToken = null;
   var DEFAULT_TIMEOUT_MS = 1e4;
   function isSdkCallable() {
     return sdkInitialized || sdkReadyForCalls;
@@ -372,7 +374,7 @@ var PRInsightsSettings = (() => {
           );
         }
         const doc = await response.json();
-        if (doc && typeof doc === "object" && "value" in doc) {
+        if (doc !== null && typeof doc === "object" && "value" in doc) {
           return doc.value;
         }
         return doc;
@@ -387,7 +389,7 @@ var PRInsightsSettings = (() => {
           );
         }
         const doc = await response.json();
-        if (doc && typeof doc === "object" && "value" in doc) {
+        if (doc !== null && typeof doc === "object" && "value" in doc) {
           return doc.value;
         }
         return doc;
@@ -407,16 +409,20 @@ var PRInsightsSettings = (() => {
     };
   }
   async function getCollectionUri() {
+    if (cachedCollectionUri) return cachedCollectionUri;
     const locationService = await F(
       LocationServiceId
     );
     const raw = await locationService.getResourceAreaLocation(
       CORE_RESOURCE_AREA_ID
     );
-    return raw.endsWith("/") ? raw : `${raw}/`;
+    cachedCollectionUri = raw.endsWith("/") ? raw : `${raw}/`;
+    return cachedCollectionUri;
   }
   async function getAccessToken() {
-    return L();
+    if (cachedAccessToken) return cachedAccessToken;
+    cachedAccessToken = await L();
+    return cachedAccessToken;
   }
   function resizeHost(width, height) {
     if (!isSdkCallable()) return;

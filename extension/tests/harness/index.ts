@@ -32,7 +32,6 @@ export {
 export type {
   MockWebContext,
   MockExtensionDataManager,
-  MockExtensionDataService,
   MockCoreRestClient,
 } from "./vss-sdk-mock";
 

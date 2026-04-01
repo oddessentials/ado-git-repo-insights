@@ -38,7 +38,6 @@ import {
   mockDashboardSettingsError,
   mockSdkModule,
   mockApiModule,
-  type MockExtensionDataService,
   type MockLocationService,
 } from "./vss-sdk-mock";
 
@@ -125,12 +124,6 @@ describe("Azure DevOps Extension SDK Mock Harness", () => {
   describe("mockApiModule", () => {
     it("exports CommonServiceIds", () => {
       expect(mockApiModule.CommonServiceIds).toHaveProperty(
-        "ExtensionDataService",
-      );
-      expect(mockApiModule.CommonServiceIds.ExtensionDataService).toBe(
-        "ms.vss-features.extension-data-service",
-      );
-      expect(mockApiModule.CommonServiceIds).toHaveProperty(
         "LocationService",
       );
     });
@@ -146,32 +139,9 @@ describe("Azure DevOps Extension SDK Mock Harness", () => {
     });
   });
 
-  describe("getService (data service chain)", () => {
+  describe("getService (service resolution)", () => {
     beforeEach(() => {
       setupSdkMocks();
-    });
-
-    it("returns data service for ExtensionDataService ID", async () => {
-      const service = await mockSdkModule.getService(
-        "ms.vss-features.extension-data-service",
-      );
-      expect(service).toHaveProperty("getExtensionDataManager");
-    });
-
-    it("data service → data manager chain works", async () => {
-      const service = await mockSdkModule.getService(
-        "ms.vss-features.extension-data-service",
-      );
-      const manager = await (service as MockExtensionDataService).getExtensionDataManager(
-        "ext-id",
-        "token",
-      );
-      expect(manager).toHaveProperty("getValue");
-      expect(manager).toHaveProperty("setValue");
-      expect(manager).toHaveProperty("getDocument");
-      expect(manager).toHaveProperty("setDocument");
-      expect(manager).toHaveProperty("createDocument");
-      expect(manager).toHaveProperty("deleteDocument");
     });
 
     it("returns location service for LocationService ID", async () => {

@@ -497,6 +497,15 @@ describe("SDK Module", () => {
         "https://tfs.example.com:8080/tfs/DefaultCollection/",
       );
     });
+
+    it("caches the resolved URI and does not call getService again", async () => {
+      const first = await getCollectionUri();
+      mockSdkModule.getService.mockClear();
+
+      const second = await getCollectionUri();
+      expect(second).toBe(first);
+      expect(mockSdkModule.getService).not.toHaveBeenCalled();
+    });
   });
 
   describe("getAccessToken", () => {
@@ -504,6 +513,15 @@ describe("SDK Module", () => {
       const token = await getAccessToken();
       expect(typeof token).toBe("string");
       expect(token).toBe("mock-access-token-12345");
+    });
+
+    it("caches the token and does not call SDK.getAccessToken again", async () => {
+      const first = await getAccessToken();
+      mockSdkModule.getAccessToken.mockClear();
+
+      const second = await getAccessToken();
+      expect(second).toBe(first);
+      expect(mockSdkModule.getAccessToken).not.toHaveBeenCalled();
     });
   });
 

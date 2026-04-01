@@ -78,6 +78,12 @@ let initAttemptId = 0;
  */
 let initPromise: Promise<void> | null = null;
 
+/** Cached collection URI — resolved once per session via ILocationService. */
+let cachedCollectionUri: string | null = null;
+
+/** Cached access token — resolved once per session via SDK.getAccessToken(). */
+let cachedAccessToken: string | null = null;
+
 const DEFAULT_TIMEOUT_MS = 10_000;
 
 /* ── Internal helper ───────────────────────────────────────────── */
@@ -100,6 +106,8 @@ export function resetSdkState(): void {
   sdkReadyForCalls = false;
   initAttemptId++;
   initPromise = null;
+  cachedCollectionUri = null;
+  cachedAccessToken = null;
 }
 
 /**
@@ -245,11 +253,11 @@ export async function getExtensionDataService(): Promise<ExtensionDataClient> {
         );
       }
 
-      const doc = await response.json();
+      const doc: unknown = await response.json();
       // The REST API wraps the value in a document envelope: { id, __etag, value }
       // getValue should return the raw value, matching the SDK behavior.
-      if (doc && typeof doc === "object" && "value" in doc) {
-        return doc.value as T;
+      if (doc !== null && typeof doc === "object" && "value" in doc) {
+        return (doc as Record<string, unknown>).value as T;
       }
       return doc as T;
     },
@@ -265,9 +273,9 @@ export async function getExtensionDataService(): Promise<ExtensionDataClient> {
         );
       }
 
-      const doc = await response.json();
-      if (doc && typeof doc === "object" && "value" in doc) {
-        return doc.value as T;
+      const doc: unknown = await response.json();
+      if (doc !== null && typeof doc === "object" && "value" in doc) {
+        return (doc as Record<string, unknown>).value as T;
       }
       return doc as T;
     },
@@ -311,13 +319,15 @@ export function getWebContext(): WebContext | undefined {
  * because downstream URL construction concatenates paths directly.
  */
 export async function getCollectionUri(): Promise<string> {
+  if (cachedCollectionUri) return cachedCollectionUri;
   const locationService = await SDK.getService<ILocationService>(
     LocationServiceId,
   );
   const raw = await locationService.getResourceAreaLocation(
     CORE_RESOURCE_AREA_ID,
   );
-  return raw.endsWith("/") ? raw : `${raw}/`;
+  cachedCollectionUri = raw.endsWith("/") ? raw : `${raw}/`;
+  return cachedCollectionUri;
 }
 
 /**
@@ -327,7 +337,9 @@ export async function getCollectionUri(): Promise<string> {
  * unlike the old SDK which returned { token: string }).
  */
 export async function getAccessToken(): Promise<string> {
-  return SDK.getAccessToken();
+  if (cachedAccessToken) return cachedAccessToken;
+  cachedAccessToken = await SDK.getAccessToken();
+  return cachedAccessToken;
 }
 
 /* ── Host resize ───────────────────────────────────────────────── */

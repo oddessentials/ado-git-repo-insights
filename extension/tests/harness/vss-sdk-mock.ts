@@ -25,7 +25,7 @@
  * - SDK.getExtensionContext()
  * - SDK.getAccessToken()
  * - SDK.getAppToken()
- * - SDK.getService(CommonServiceIds.ExtensionDataService)
+ * - SDK.getService(CommonServiceIds.LocationService)
  * - getClient(CoreRestClient) from azure-devops-extension-api
  *
  * @module tests/harness/vss-sdk-mock
@@ -101,12 +101,6 @@ export interface MockExtensionDataManager {
       doc: { id: string },
       options?: unknown,
     ) => Promise<unknown>
-  >;
-}
-
-export interface MockExtensionDataService {
-  getExtensionDataManager: jest.Mock<
-    (extensionId: string, accessToken: string) => Promise<MockExtensionDataManager>
   >;
 }
 
@@ -187,7 +181,6 @@ const mockSettingsStorage = new Map<string, unknown>();
 // ============================================================================
 
 let mockDataManager: MockExtensionDataManager | null = null;
-let mockDataService: MockExtensionDataService | null = null;
 let mockCoreClient: MockCoreRestClient | null = null;
 
 export function createMockExtensionDataManager(): MockExtensionDataManager {
@@ -246,22 +239,6 @@ export function getMockExtensionDataManager(): MockExtensionDataManager {
     mockDataManager = createMockExtensionDataManager();
   }
   return mockDataManager;
-}
-
-function createMockExtensionDataService(): MockExtensionDataService {
-  return {
-    getExtensionDataManager: jest.fn(
-      (_extensionId: string, _accessToken: string) =>
-        Promise.resolve(getMockExtensionDataManager()),
-    ),
-  };
-}
-
-function getMockExtensionDataService(): MockExtensionDataService {
-  if (!mockDataService) {
-    mockDataService = createMockExtensionDataService();
-  }
-  return mockDataService;
 }
 
 export function createMockCoreRestClient(): MockCoreRestClient {
@@ -353,11 +330,6 @@ export const mockSdkModule = {
   getAppToken: jest.fn(() => Promise.resolve("mock-app-token")),
   getTeamContext: jest.fn(() => currentMockWebContext.team),
   getService: jest.fn((contributionId: string): Promise<unknown> => {
-    if (
-      contributionId === "ms.vss-features.extension-data-service"
-    ) {
-      return Promise.resolve(getMockExtensionDataService());
-    }
     if (contributionId === "ms.vss-features.location-service") {
       return Promise.resolve(getMockLocationService());
     }
@@ -391,7 +363,6 @@ export const mockSdkModule = {
  */
 export const mockApiModule = {
   CommonServiceIds: {
-    ExtensionDataService: "ms.vss-features.extension-data-service",
     LocationService: "ms.vss-features.location-service",
     GlobalMessagesService: "ms.vss-tfs-web.tfs-global-messages-service",
     HostNavigationService: "ms.vss-features.host-navigation-service",
@@ -427,7 +398,6 @@ export function resetSdkMocks(): void {
 
   // Reset singleton instances
   mockDataManager = null;
-  mockDataService = null;
   mockCoreClient = null;
   mockLocationService = null;
 
@@ -462,9 +432,6 @@ export function resetSdkMocks(): void {
   );
   mockSdkModule.getService.mockImplementation(
     (contributionId: string): Promise<unknown> => {
-      if (contributionId === "ms.vss-features.extension-data-service") {
-        return Promise.resolve(getMockExtensionDataService());
-      }
       if (contributionId === "ms.vss-features.location-service") {
         return Promise.resolve(getMockLocationService());
       }
@@ -578,7 +545,7 @@ export function setMockServiceError(
       if (originalImpl) {
         return originalImpl(requestedId);
       }
-      return Promise.resolve(getMockExtensionDataService());
+      return Promise.reject(new Error(`Unknown service: ${requestedId}`));
     },
   );
 }

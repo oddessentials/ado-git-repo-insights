@@ -3960,6 +3960,8 @@ var PRInsightsDashboard = (() => {
   var sdkReadyForCalls = false;
   var initAttemptId = 0;
   var initPromise = null;
+  var cachedCollectionUri = null;
+  var cachedAccessToken = null;
   var DEFAULT_TIMEOUT_MS = 1e4;
   function isSdkCallable() {
     return sdkInitialized || sdkReadyForCalls;
@@ -4030,7 +4032,7 @@ var PRInsightsDashboard = (() => {
           );
         }
         const doc = await response.json();
-        if (doc && typeof doc === "object" && "value" in doc) {
+        if (doc !== null && typeof doc === "object" && "value" in doc) {
           return doc.value;
         }
         return doc;
@@ -4045,7 +4047,7 @@ var PRInsightsDashboard = (() => {
           );
         }
         const doc = await response.json();
-        if (doc && typeof doc === "object" && "value" in doc) {
+        if (doc !== null && typeof doc === "object" && "value" in doc) {
           return doc.value;
         }
         return doc;
@@ -4065,16 +4067,20 @@ var PRInsightsDashboard = (() => {
     };
   }
   async function getCollectionUri() {
+    if (cachedCollectionUri) return cachedCollectionUri;
     const locationService = await F(
       LocationServiceId
     );
     const raw = await locationService.getResourceAreaLocation(
       CORE_RESOURCE_AREA_ID
     );
-    return raw.endsWith("/") ? raw : `${raw}/`;
+    cachedCollectionUri = raw.endsWith("/") ? raw : `${raw}/`;
+    return cachedCollectionUri;
   }
   async function getAccessToken() {
-    return L();
+    if (cachedAccessToken) return cachedAccessToken;
+    cachedAccessToken = await L();
+    return cachedAccessToken;
   }
   function isLocalMode() {
     return typeof LOCAL_DASHBOARD_MODE !== "undefined" && LOCAL_DASHBOARD_MODE === true;
@@ -7448,6 +7454,13 @@ var PRInsightsDashboard = (() => {
   var lastEffectiveState = null;
   var SETTINGS_KEY_PROJECT = "pr-insights-source-project";
   var SETTINGS_KEY_PIPELINE = "pr-insights-pipeline-id";
+  var cachedDataService = null;
+  async function getDataService() {
+    if (!cachedDataService) {
+      cachedDataService = await getExtensionDataService();
+    }
+    return cachedDataService;
+  }
   var elements = /* @__PURE__ */ new Map();
   var elementLists = {};
   function getOwnRecordValue(record, key) {
@@ -7562,7 +7575,7 @@ var PRInsightsDashboard = (() => {
       pipelineId: null
     };
     try {
-      const dataService = await getExtensionDataService();
+      const dataService = await getDataService();
       const savedProjectId = await dataService.getValue(
         SETTINGS_KEY_PROJECT,
         { scopeType: "User", defaultValue: "" }
@@ -7584,7 +7597,7 @@ var PRInsightsDashboard = (() => {
   }
   async function clearStalePipelineSetting() {
     try {
-      const dataService = await getExtensionDataService();
+      const dataService = await getDataService();
       await dataService.setValue(SETTINGS_KEY_PIPELINE, null, {
         scopeType: "User"
       });
