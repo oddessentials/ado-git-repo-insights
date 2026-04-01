@@ -101,8 +101,9 @@ jobs:
 
       - uses: ./.github/actions/setup-pnpm
 
-      - name: Install tfx-cli
-        run: npm install -g tfx-cli@0.17.0
+      - name: Install extension dependencies
+        working-directory: extension
+        run: pnpm install --frozen-lockfile
 
       - name: Validate Version Consistency
         run: |
@@ -216,7 +217,7 @@ jobs:
 
       - name: Create extension package
         working-directory: extension
-        run: tfx extension create --manifest-globs vss-extension.json
+        run: pnpm exec tfx extension create --manifest-globs vss-extension.json
 
       - name: Upload VSIX artifact
         uses: actions/upload-artifact@v4
@@ -285,9 +286,6 @@ jobs:
           name: vsix-extension
           path: extension/
 
-      - name: Install tfx-cli
-        run: npm install -g tfx-cli@0.17.0
-
       - name: Publish to VS Marketplace
         run: |
           set -euo pipefail
@@ -314,7 +312,7 @@ jobs:
           RETRY_DELAY=10
           for ((i=1; i<=MAX_RETRIES; i++)); do
             echo "Publish attempt $i of $MAX_RETRIES..."
-            if tfx extension publish \
+            if npx --yes tfx-cli@0.17.0 extension publish \
                 --vsix "$VSIX_FILE" \
                 --token "$VS_MARKETPLACE_PAT" \
                 --no-prompt \
