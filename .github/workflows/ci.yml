@@ -566,11 +566,13 @@ jobs:
           fi
 
           # Phase 2: Validate test results using JUnit XML parsing
-          # MIN_COLLECTED: Minimum expected tests (update when adding/removing tests)
+          # MIN_COLLECTED: 1233 = cross-platform minimum (Linux/macOS count)
+          # Windows collects 4 more (test_*_windows.py); conftest.py excludes them
+          # on non-Windows so they are never skipped — only uncollected.
           # MAX_SKIPS: Maximum allowed skipped tests (0 = no skips allowed in CI)
           python .github/scripts/validate-test-results.py \
             test-results.xml \
-            --min-collected=345 \
+            --min-collected=1233 \
             --max-skips=0
         shell: bash
 
@@ -884,13 +886,13 @@ jobs:
           fi
 
           # Phase 2: Validate test results using JUnit XML parsing
-          # MIN_COLLECTED: 642 actual tests - 10 tolerance = 632
-          # Policy: Detects material drops while allowing normal growth
+          # MIN_COLLECTED: 2280 actual tests, zero tolerance on collected count
+          # --max-skips handles execution variance separately
           # Update threshold only when tests intentionally decrease (with PR justification)
           # MAX_SKIPS: Maximum allowed skipped tests (5 for platform-specific edge cases)
           python .github/scripts/validate-test-results.py \
             extension/test-results.xml \
-            --min-collected=632 \
+            --min-collected=2280 \
             --max-skips=5
         shell: bash
 
