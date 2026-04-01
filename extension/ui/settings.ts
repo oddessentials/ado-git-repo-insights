@@ -621,13 +621,11 @@ async function downloadRawData(): Promise<void> {
       return;
     }
 
-    // Create and initialize ArtifactClient with SDK credentials
-    const [collectionUri, authToken] = await Promise.all([
-      getCollectionUri(),
-      getAccessToken(),
-    ]);
+    // Create and initialize ArtifactClient with SDK credentials.
+    // Pass getAccessToken as a provider — resolved per-request for token refresh.
+    const collectionUri = await getCollectionUri();
     const artifactClient = new ArtifactClient(projectId);
-    await artifactClient.initialize(collectionUri, authToken);
+    await artifactClient.initialize(collectionUri, getAccessToken);
 
     // Get artifact metadata
     const artifact = await artifactClient.getArtifactMetadata(
@@ -727,11 +725,8 @@ async function validatePipeline(
 }> {
   const client = new ArtifactClient(projectId);
   try {
-    const [collectionUri, authToken] = await Promise.all([
-      getCollectionUri(),
-      getAccessToken(),
-    ]);
-    await client.initialize(collectionUri, authToken);
+    const collectionUri = await getCollectionUri();
+    await client.initialize(collectionUri, getAccessToken);
   } catch (e: unknown) {
     return { valid: false, error: `Validation error: ${getErrorMessage(e)}` };
   }
@@ -778,14 +773,12 @@ async function discoverPipelines(
     return { pipelines: [], skippedCount: 0, error: "No project ID available" };
   }
 
-  // Create a dedicated ArtifactClient for the target project
-  const [collectionUri, authToken] = await Promise.all([
-    getCollectionUri(),
-    getAccessToken(),
-  ]);
+  // Create a dedicated ArtifactClient for the target project.
+  // Pass getAccessToken as a provider — resolved per-request for token refresh.
+  const collectionUri = await getCollectionUri();
   const client = new ArtifactClient(projectId);
   try {
-    await client.initialize(collectionUri, authToken);
+    await client.initialize(collectionUri, getAccessToken);
   } catch (e: unknown) {
     return {
       pipelines: [],

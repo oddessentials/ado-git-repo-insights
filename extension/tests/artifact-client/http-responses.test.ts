@@ -34,9 +34,12 @@ describe("ArtifactClient HTTP Response Handling", () => {
     );
     (global as unknown as { fetch: jest.Mock }).fetch = mockFetch;
 
-    // Initialize client
+    // Initialize client with token provider (resolved per-request)
     client = new ArtifactClient("test-project");
-    await client.initialize("https://dev.azure.com/test-org/", "mock-access-token-12345");
+    await client.initialize(
+      "https://dev.azure.com/test-org/",
+      () => Promise.resolve("mock-access-token-12345"),
+    );
   });
 
   afterEach(() => {

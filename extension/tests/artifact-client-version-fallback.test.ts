@@ -15,6 +15,7 @@ import {
 
 const TEST_COLLECTION_URI = "https://dev.azure.com/test-org/";
 const TEST_AUTH_TOKEN = "mock-access-token-12345";
+const TEST_TOKEN_PROVIDER = (): Promise<string> => Promise.resolve(TEST_AUTH_TOKEN);
 
 /** Helper: create a mock Response with the given status. */
 function mockResponse(
@@ -46,7 +47,7 @@ describe("ArtifactClient per-endpoint-family version fallback", () => {
 
   async function createClient(): Promise<ArtifactClient> {
     const client = new ArtifactClient("test-project");
-    await client.initialize(TEST_COLLECTION_URI, TEST_AUTH_TOKEN);
+    await client.initialize(TEST_COLLECTION_URI, TEST_TOKEN_PROVIDER);
     return client;
   }
 
@@ -179,7 +180,23 @@ describe("ArtifactClient per-endpoint-family version fallback", () => {
       expect(mockFetch).toHaveBeenCalledTimes(3);
     });
 
-    it("throws when all versions return 404", async () => {
+    it("throws when all versions return 400", async () => {
+      const client = await createClient();
+
+      mockFetch
+        .mockResolvedValueOnce(mockResponse(400))
+        .mockResolvedValueOnce(mockResponse(400))
+        .mockResolvedValueOnce(mockResponse(400));
+
+      await expect(client.getDefinitions()).rejects.toThrow(
+        "Build API api-version=5.1: 400",
+      );
+
+      // All 3 versions tried
+      expect(mockFetch).toHaveBeenCalledTimes(3);
+    });
+
+    it("throws when all versions return 404 for a true list endpoint", async () => {
       const client = await createClient();
 
       mockFetch
@@ -187,9 +204,28 @@ describe("ArtifactClient per-endpoint-family version fallback", () => {
         .mockResolvedValueOnce(mockResponse(404))
         .mockResolvedValueOnce(mockResponse(404));
 
-      await expect(client.getArtifacts(1)).rejects.toThrow(
+      await expect(client.getDefinitions()).rejects.toThrow(
         "Build API api-version=5.1: 404",
       );
+    });
+
+    it("getArtifacts 404 returns to caller as stale-build error (not version exhaustion)", async () => {
+      const client = await createClient();
+
+      mockFetch.mockResolvedValueOnce(mockResponse(404));
+
+      await expect(client.getArtifacts(999)).rejects.toThrow(
+        "Build 999 not found or has been deleted",
+      );
+
+      // Only 1 fetch call — no version exhaustion
+      expect(mockFetch).toHaveBeenCalledTimes(1);
+
+      // Version must NOT be cached
+      expect(
+        (client as unknown as { resolvedApiVersions: Map<string, string> })
+          .resolvedApiVersions.get("artifacts"),
+      ).toBeUndefined();
     });
   });
 
@@ -271,7 +307,7 @@ describe("ArtifactClient per-endpoint-family version fallback", () => {
       // fast path (cached version), so 404 goes straight to caller.
       mockFetch.mockResolvedValueOnce(mockResponse(404));
       await expect(client.getArtifacts(999)).rejects.toThrow(
-        "Failed to list artifacts: 404",
+        "Build 999 not found or has been deleted",
       );
 
       // Only 2 total fetch calls — second call used cached version,

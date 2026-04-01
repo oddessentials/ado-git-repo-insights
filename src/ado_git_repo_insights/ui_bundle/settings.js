@@ -307,7 +307,7 @@ var PRInsightsSettings = (() => {
   var initAttemptId = 0;
   var initPromise = null;
   var cachedCollectionUri = null;
-  var cachedAccessToken = null;
+  var tokenInflight = null;
   var DEFAULT_TIMEOUT_MS = 1e4;
   function isSdkCallable() {
     return sdkInitialized || sdkReadyForCalls;
@@ -353,20 +353,20 @@ var PRInsightsSettings = (() => {
   }
   async function getExtensionDataService() {
     const collectionUri = await getCollectionUri();
-    const accessToken = await getAccessToken();
     const ctx = S();
     function buildUrl(key, scopeType) {
       const scope = scopeType === "User" ? "User" : "Default";
       const scopeValue = scopeType === "User" ? "Me" : "Current";
       return `${collectionUri}_apis/ExtensionManagement/InstalledExtensions/${encodeURIComponent(ctx.publisherId)}/${encodeURIComponent(ctx.extensionId)}/Data/Scopes/${scope}/${scopeValue}/Collections/%24settings/Documents/${encodeURIComponent(key)}?api-version=${EXTENSION_DATA_API_VERSION}`;
     }
-    const headers = {
-      Authorization: `Bearer ${accessToken}`,
-      Accept: "application/json",
-      "Content-Type": "application/json"
-    };
     return {
       async getValue(key, options) {
+        const accessToken = await getAccessToken();
+        const headers = {
+          Authorization: `Bearer ${accessToken}`,
+          Accept: "application/json",
+          "Content-Type": "application/json"
+        };
         const url = buildUrl(key, options?.scopeType);
         const response = await fetch(url, { headers });
         if (response.status === 404) {
@@ -384,6 +384,12 @@ var PRInsightsSettings = (() => {
         return doc;
       },
       async setValue(key, value, options) {
+        const accessToken = await getAccessToken();
+        const headers = {
+          Authorization: `Bearer ${accessToken}`,
+          Accept: "application/json",
+          "Content-Type": "application/json"
+        };
         const url = buildUrl(key, options?.scopeType);
         const body = JSON.stringify({ id: key, value });
         const response = await fetch(url, { method: "PUT", headers, body });
@@ -424,9 +430,13 @@ var PRInsightsSettings = (() => {
     return cachedCollectionUri;
   }
   async function getAccessToken() {
-    if (cachedAccessToken) return cachedAccessToken;
-    cachedAccessToken = await L();
-    return cachedAccessToken;
+    if (tokenInflight) return tokenInflight;
+    tokenInflight = L();
+    try {
+      return await tokenInflight;
+    } finally {
+      tokenInflight = null;
+    }
   }
   function resizeHost(width, height) {
     if (!isSdkCallable()) return;
@@ -579,8 +589,7 @@ var PRInsightsSettings = (() => {
   // ../ui/artifact-client.ts
   var LIST_ENDPOINT_FAMILIES = /* @__PURE__ */ new Set([
     "definitions",
-    "builds",
-    "artifacts"
+    "builds"
   ]);
   var ArtifactClient = class {
     /**
@@ -590,7 +599,7 @@ var PRInsightsSettings = (() => {
      */
     constructor(projectId) {
       this.collectionUri = null;
-      this.authToken = null;
+      this.tokenProvider = null;
       this.initialized = false;
       /** Per-family API version cache. Scoped to this client instance,
        *  which is bound to a single collectionUri + projectId by
@@ -603,15 +612,17 @@ var PRInsightsSettings = (() => {
      * MUST be called after SDK initialization and before any other methods.
      *
      * @param collectionUri - Azure DevOps collection/organization base URI
-     * @param authToken - Bearer token for authenticated REST calls
+     * @param tokenProvider - Async function that returns a fresh Bearer token
+     *   per request. The host manages token lifecycle; callers should pass
+     *   the SDK's getAccessToken function directly.
      * @returns This client instance
      */
-    async initialize(collectionUri, authToken) {
+    async initialize(collectionUri, tokenProvider) {
       if (this.initialized) {
         return this;
       }
       this.collectionUri = collectionUri;
-      this.authToken = authToken;
+      this.tokenProvider = tokenProvider;
       this.initialized = true;
       return this;
     }
@@ -791,6 +802,11 @@ var PRInsightsSettings = (() => {
       if (response.status === 401 || response.status === 403) {
         throw createPermissionDeniedError("list build artifacts");
       }
+      if (response.status === 404) {
+        throw new Error(
+          `Build ${buildId} not found or has been deleted`
+        );
+      }
       if (!response.ok) {
         throw new Error(`Failed to list artifacts: ${response.status}`);
       }
@@ -860,8 +876,12 @@ var PRInsightsSettings = (() => {
      * Perform an authenticated fetch using the ADO auth token.
      */
     async _authenticatedFetch(url, options = {}) {
+      if (!this.tokenProvider) {
+        throw new Error("ArtifactClient not initialized. Call initialize() first.");
+      }
+      const token = await this.tokenProvider();
       const headers = {
-        Authorization: `Bearer ${this.authToken}`,
+        Authorization: `Bearer ${token}`,
         Accept: "application/json",
         ...options.headers || {}
       };
@@ -1497,12 +1517,9 @@ var PRInsightsSettings = (() => {
         showToast("Invalid build ID", "error");
         return;
       }
-      const [collectionUri, authToken] = await Promise.all([
-        getCollectionUri(),
-        getAccessToken()
-      ]);
+      const collectionUri = await getCollectionUri();
       const artifactClient = new ArtifactClient(projectId);
-      await artifactClient.initialize(collectionUri, authToken);
+      await artifactClient.initialize(collectionUri, getAccessToken);
       const artifact = await artifactClient.getArtifactMetadata(
         lastValidation.buildId,
         ARTIFACT_NAME_CSV
@@ -1571,11 +1588,8 @@ var PRInsightsSettings = (() => {
   async function validatePipeline(pipelineId, projectId) {
     const client = new ArtifactClient(projectId);
     try {
-      const [collectionUri, authToken] = await Promise.all([
-        getCollectionUri(),
-        getAccessToken()
-      ]);
-      await client.initialize(collectionUri, authToken);
+      const collectionUri = await getCollectionUri();
+      await client.initialize(collectionUri, getAccessToken);
     } catch (e2) {
       return { valid: false, error: `Validation error: ${getErrorMessage(e2)}` };
     }
@@ -1607,13 +1621,10 @@ var PRInsightsSettings = (() => {
     if (!projectId) {
       return { pipelines: [], skippedCount: 0, error: "No project ID available" };
     }
-    const [collectionUri, authToken] = await Promise.all([
-      getCollectionUri(),
-      getAccessToken()
-    ]);
+    const collectionUri = await getCollectionUri();
     const client = new ArtifactClient(projectId);
     try {
-      await client.initialize(collectionUri, authToken);
+      await client.initialize(collectionUri, getAccessToken);
     } catch (e2) {
       return {
         pipelines: [],

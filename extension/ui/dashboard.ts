@@ -412,13 +412,11 @@ async function resolveConfiguration(): Promise<{
     sourceConfig.projectId ? " (from settings)" : " (current context)",
   );
 
-  // Initialize artifact client with target project and SDK credentials
-  const [collectionUri, authToken] = await Promise.all([
-    getCollectionUri(),
-    getAccessToken(),
-  ]);
+  // Initialize artifact client with target project and SDK credentials.
+  // Pass getAccessToken as a provider — resolved per-request for token refresh.
+  const collectionUri = await getCollectionUri();
   artifactClient = new ArtifactClient(targetProjectId);
-  await artifactClient.initialize(collectionUri, authToken);
+  await artifactClient.initialize(collectionUri, getAccessToken);
 
   // Mode: explicit pipelineId from query
   if (queryResult.mode === "explicit") {

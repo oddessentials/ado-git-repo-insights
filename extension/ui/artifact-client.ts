@@ -38,13 +38,13 @@ export type EndpointFamily = "definitions" | "builds" | "artifacts" | "artifact-
  *  genuinely signals "version not supported." Resource endpoints use
  *  404 for "not found" — only 400 triggers version fallback for those. */
 const LIST_ENDPOINT_FAMILIES: ReadonlySet<EndpointFamily> = new Set([
-  "definitions", "builds", "artifacts",
+  "definitions", "builds",
 ]);
 
 export class ArtifactClient {
   public readonly projectId: string;
   private collectionUri: string | null = null;
-  private authToken: string | null = null;
+  private tokenProvider: (() => Promise<string>) | null = null;
   private initialized: boolean = false;
   /** Per-family API version cache. Scoped to this client instance,
    *  which is bound to a single collectionUri + projectId by
@@ -65,19 +65,21 @@ export class ArtifactClient {
    * MUST be called after SDK initialization and before any other methods.
    *
    * @param collectionUri - Azure DevOps collection/organization base URI
-   * @param authToken - Bearer token for authenticated REST calls
+   * @param tokenProvider - Async function that returns a fresh Bearer token
+   *   per request. The host manages token lifecycle; callers should pass
+   *   the SDK's getAccessToken function directly.
    * @returns This client instance
    */
   async initialize(
     collectionUri: string,
-    authToken: string,
+    tokenProvider: () => Promise<string>,
   ): Promise<ArtifactClient> {
     if (this.initialized) {
       return this;
     }
 
     this.collectionUri = collectionUri;
-    this.authToken = authToken;
+    this.tokenProvider = tokenProvider;
     this.initialized = true;
     return this;
   }
@@ -324,6 +326,12 @@ export class ArtifactClient {
       throw createPermissionDeniedError("list build artifacts");
     }
 
+    if (response.status === 404) {
+      throw new Error(
+        `Build ${buildId} not found or has been deleted`,
+      );
+    }
+
     if (!response.ok) {
       throw new Error(`Failed to list artifacts: ${response.status}`);
     }
@@ -433,8 +441,12 @@ export class ArtifactClient {
     url: string,
     options: RequestInit = {},
   ): Promise<Response> {
+    if (!this.tokenProvider) {
+      throw new Error("ArtifactClient not initialized. Call initialize() first.");
+    }
+    const token = await this.tokenProvider();
     const headers: HeadersInit = {
-      Authorization: `Bearer ${this.authToken}`,
+      Authorization: `Bearer ${token}`,
       Accept: "application/json",
       ...(options.headers || {}),
     };

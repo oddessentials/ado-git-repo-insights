@@ -18,6 +18,7 @@ import {
 
 const TEST_COLLECTION_URI = "https://dev.azure.com/test-org/";
 const TEST_AUTH_TOKEN = "test-bearer-token-abc123";
+const TEST_TOKEN_PROVIDER = (): Promise<string> => Promise.resolve(TEST_AUTH_TOKEN);
 
 describe("ArtifactClient Authentication Pattern", () => {
   let originalFetch: typeof fetch;
@@ -43,11 +44,11 @@ describe("ArtifactClient Authentication Pattern", () => {
   describe("initialize()", () => {
     it("stores credentials passed by the caller", async () => {
       const client = new ArtifactClient("test-project-id");
-      await client.initialize(TEST_COLLECTION_URI, TEST_AUTH_TOKEN);
+      await client.initialize(TEST_COLLECTION_URI, TEST_TOKEN_PROVIDER);
 
       expect(
-        (client as unknown as { authToken?: string }).authToken,
-      ).toBe(TEST_AUTH_TOKEN);
+        (client as unknown as { tokenProvider: (() => Promise<string>) | null }).tokenProvider,
+      ).toBe(TEST_TOKEN_PROVIDER);
       expect(
         (client as unknown as { collectionUri?: string }).collectionUri,
       ).toBe(TEST_COLLECTION_URI);
@@ -55,20 +56,21 @@ describe("ArtifactClient Authentication Pattern", () => {
 
     it("is idempotent — second call is a no-op", async () => {
       const client = new ArtifactClient("test-project-id");
-      await client.initialize(TEST_COLLECTION_URI, TEST_AUTH_TOKEN);
-      await client.initialize("https://other.com/", "other-token");
+      const otherProvider = (): Promise<string> => Promise.resolve("other-token");
+      await client.initialize(TEST_COLLECTION_URI, TEST_TOKEN_PROVIDER);
+      await client.initialize("https://other.com/", otherProvider);
 
       // First values are preserved
       expect(
-        (client as unknown as { authToken?: string }).authToken,
-      ).toBe(TEST_AUTH_TOKEN);
+        (client as unknown as { tokenProvider: (() => Promise<string>) | null }).tokenProvider,
+      ).toBe(TEST_TOKEN_PROVIDER);
     });
   });
 
   describe("authenticated fetch behavior", () => {
     it("uses Bearer token in Authorization header", async () => {
       const client = new ArtifactClient("test-project-id");
-      await client.initialize(TEST_COLLECTION_URI, TEST_AUTH_TOKEN);
+      await client.initialize(TEST_COLLECTION_URI, TEST_TOKEN_PROVIDER);
 
       await client.getArtifacts(12345);
 
@@ -83,7 +85,7 @@ describe("ArtifactClient Authentication Pattern", () => {
 
     it("uses collection URI as base URL for API calls", async () => {
       const client = new ArtifactClient("test-project-id");
-      await client.initialize(TEST_COLLECTION_URI, TEST_AUTH_TOKEN);
+      await client.initialize(TEST_COLLECTION_URI, TEST_TOKEN_PROVIDER);
 
       await client.getArtifacts(12345);
 

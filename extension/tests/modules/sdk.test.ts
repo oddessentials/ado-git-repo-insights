@@ -382,8 +382,21 @@ describe("SDK Module", () => {
       expect(typeof client.setValue).toBe("function");
     });
 
-    it("calls getAccessToken for REST authentication", async () => {
-      await getExtensionDataService();
+    it("defers getAccessToken to per-request (not construction time)", async () => {
+      const ds = await getExtensionDataService();
+      // Token is NOT fetched at construction — only when a request is made
+      expect(mockSdkModule.getAccessToken).not.toHaveBeenCalled();
+
+      // After a getValue call, the token should be fetched
+      const mockFetch = jest.fn(() =>
+        Promise.resolve({
+          ok: true,
+          status: 200,
+          json: () => Promise.resolve({ id: "k", value: "v" }),
+        }),
+      );
+      (global as unknown as { fetch: jest.Mock }).fetch = mockFetch;
+      await ds.getValue("k", { scopeType: "User", defaultValue: "" });
       expect(mockSdkModule.getAccessToken).toHaveBeenCalled();
     });
 
@@ -565,13 +578,97 @@ describe("SDK Module", () => {
       expect(token).toBe("mock-access-token-12345");
     });
 
-    it("caches the token and does not call SDK.getAccessToken again", async () => {
-      const first = await getAccessToken();
-      mockSdkModule.getAccessToken.mockClear();
+    it("calls SDK.getAccessToken fresh on each non-concurrent invocation", async () => {
+      mockSdkModule.getAccessToken
+        .mockResolvedValueOnce("token-1")
+        .mockResolvedValueOnce("token-2");
 
+      const first = await getAccessToken();
       const second = await getAccessToken();
-      expect(second).toBe(first);
-      expect(mockSdkModule.getAccessToken).not.toHaveBeenCalled();
+
+      expect(first).toBe("token-1");
+      expect(second).toBe("token-2");
+      expect(mockSdkModule.getAccessToken).toHaveBeenCalledTimes(2);
+    });
+
+    it("deduplicates concurrent calls within the same tick", async () => {
+      let resolveToken: (value: string) => void;
+      mockSdkModule.getAccessToken.mockReturnValueOnce(
+        new Promise<string>((resolve) => { resolveToken = resolve; }),
+      );
+
+      // Two concurrent calls before the first resolves
+      const promise1 = getAccessToken();
+      const promise2 = getAccessToken();
+
+      resolveToken!("shared-token");
+
+      const [result1, result2] = await Promise.all([promise1, promise2]);
+
+      expect(result1).toBe("shared-token");
+      expect(result2).toBe("shared-token");
+      // Only one SDK call — both callers shared the in-flight promise
+      expect(mockSdkModule.getAccessToken).toHaveBeenCalledTimes(1);
+    });
+
+    it("yields a fresh token after the in-flight promise resolves", async () => {
+      mockSdkModule.getAccessToken
+        .mockResolvedValueOnce("batch-1-token")
+        .mockResolvedValueOnce("batch-2-token");
+
+      // First batch
+      const first = await getAccessToken();
+      expect(first).toBe("batch-1-token");
+
+      // After resolution, next call gets a fresh token
+      const second = await getAccessToken();
+      expect(second).toBe("batch-2-token");
+      expect(mockSdkModule.getAccessToken).toHaveBeenCalledTimes(2);
+    });
+
+    it("resetSdkState clears in-flight token state", async () => {
+      mockSdkModule.getAccessToken.mockResolvedValueOnce("before-reset");
+      await getAccessToken();
+
+      resetSdkState();
+
+      mockSdkModule.getAccessToken.mockResolvedValueOnce("after-reset");
+      const token = await getAccessToken();
+      expect(token).toBe("after-reset");
+    });
+  });
+
+  describe("getExtensionDataService token freshness", () => {
+    it("resolves a fresh token per getValue/setValue call", async () => {
+      await initializeAdoSdk();
+
+      // Setup mock fetch
+      const mockFetch = jest.fn(() =>
+        Promise.resolve({
+          ok: true,
+          status: 200,
+          json: () => Promise.resolve({ id: "key", value: "val" }),
+        }),
+      );
+      (global as unknown as { fetch: jest.Mock }).fetch = mockFetch;
+
+      mockSdkModule.getAccessToken
+        .mockResolvedValueOnce("token-A")
+        .mockResolvedValueOnce("token-B");
+
+      const ds = await getExtensionDataService();
+
+      await ds.getValue("some-key", { scopeType: "User", defaultValue: "" });
+      await ds.getValue("other-key", { scopeType: "User", defaultValue: "" });
+
+      // Each getValue call should have used a different token
+      const call1 = mockFetch.mock.calls[0] as unknown as [string, RequestInit];
+      const call2 = mockFetch.mock.calls[1] as unknown as [string, RequestInit];
+      const authHeader1 = call1[1].headers as Record<string, string>;
+      const authHeader2 = call2[1].headers as Record<string, string>;
+
+      expect(authHeader1.Authorization).toBe("Bearer token-A");
+      expect(authHeader2.Authorization).toBe("Bearer token-B");
     });
   });
 

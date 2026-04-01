@@ -82,8 +82,12 @@ let initPromise: Promise<void> | null = null;
 /** Cached collection URI — resolved once per session via ILocationService. */
 let cachedCollectionUri: string | null = null;
 
-/** Cached access token — resolved once per session via SDK.getAccessToken(). */
-let cachedAccessToken: string | null = null;
+/**
+ * In-flight token promise — deduplicates concurrent getAccessToken() calls
+ * within the same microtask. Cleared after resolution so the next call
+ * gets a fresh token from the host (which manages token lifecycle/refresh).
+ */
+let tokenInflight: Promise<string> | null = null;
 
 const DEFAULT_TIMEOUT_MS = 10_000;
 
@@ -108,7 +112,7 @@ export function resetSdkState(): void {
   initAttemptId++;
   initPromise = null;
   cachedCollectionUri = null;
-  cachedAccessToken = null;
+  tokenInflight = null;
 }
 
 /**
@@ -219,8 +223,9 @@ export interface ExtensionDataClient {
  */
 export async function getExtensionDataService(): Promise<ExtensionDataClient> {
   const collectionUri = await getCollectionUri();
-  const accessToken = await getAccessToken();
   const ctx = SDK.getExtensionContext();
+  // Token is NOT captured here — resolved per-request in getValue/setValue
+  // to ensure fresh tokens after host-side refresh.
 
   function buildUrl(key: string, scopeType?: string): string {
     const scope = scopeType === "User" ? "User" : "Default";
@@ -233,14 +238,14 @@ export async function getExtensionDataService(): Promise<ExtensionDataClient> {
     );
   }
 
-  const headers: HeadersInit = {
-    Authorization: `Bearer ${accessToken}`,
-    Accept: "application/json",
-    "Content-Type": "application/json",
-  };
-
   return {
     async getValue<T>(key: string, options?: ExtensionDataOptions): Promise<T> {
+      const accessToken = await getAccessToken();
+      const headers: HeadersInit = {
+        Authorization: `Bearer ${accessToken}`,
+        Accept: "application/json",
+        "Content-Type": "application/json",
+      };
       const url = buildUrl(key, options?.scopeType);
       const response = await fetch(url, { headers });
 
@@ -265,6 +270,12 @@ export async function getExtensionDataService(): Promise<ExtensionDataClient> {
     },
 
     async setValue<T>(key: string, value: T, options?: ExtensionDataOptions): Promise<T> {
+      const accessToken = await getAccessToken();
+      const headers: HeadersInit = {
+        Authorization: `Bearer ${accessToken}`,
+        Accept: "application/json",
+        "Content-Type": "application/json",
+      };
       const url = buildUrl(key, options?.scopeType);
       const body = JSON.stringify({ id: key, value });
       const response = await fetch(url, { method: "PUT", headers, body });
@@ -335,13 +346,21 @@ export async function getCollectionUri(): Promise<string> {
 /**
  * Get a user-delegated access token for Bearer authentication.
  *
- * Returns a plain string (the new SDK returns string directly,
- * unlike the old SDK which returned { token: string }).
+ * Uses in-flight promise deduplication: concurrent calls within the
+ * same microtask share one SDK.getAccessToken() call (consistent
+ * tokens within a request batch). After resolution the promise is
+ * cleared, so the next call gets a fresh token from the host — which
+ * manages token lifecycle and refresh. This prevents the session-long
+ * token pinning that caused 401s after token expiry.
  */
 export async function getAccessToken(): Promise<string> {
-  if (cachedAccessToken) return cachedAccessToken;
-  cachedAccessToken = await SDK.getAccessToken();
-  return cachedAccessToken;
+  if (tokenInflight) return tokenInflight;
+  tokenInflight = SDK.getAccessToken();
+  try {
+    return await tokenInflight;
+  } finally {
+    tokenInflight = null;
+  }
 }
 
 /* ── Host resize ───────────────────────────────────────────────── */

@@ -79,8 +79,7 @@ var PRInsightsArtifactClient = (() => {
   // ../ui/artifact-client.ts
   var LIST_ENDPOINT_FAMILIES = /* @__PURE__ */ new Set([
     "definitions",
-    "builds",
-    "artifacts"
+    "builds"
   ]);
   var ArtifactClient = class {
     /**
@@ -90,7 +89,7 @@ var PRInsightsArtifactClient = (() => {
      */
     constructor(projectId) {
       this.collectionUri = null;
-      this.authToken = null;
+      this.tokenProvider = null;
       this.initialized = false;
       /** Per-family API version cache. Scoped to this client instance,
        *  which is bound to a single collectionUri + projectId by
@@ -103,15 +102,17 @@ var PRInsightsArtifactClient = (() => {
      * MUST be called after SDK initialization and before any other methods.
      *
      * @param collectionUri - Azure DevOps collection/organization base URI
-     * @param authToken - Bearer token for authenticated REST calls
+     * @param tokenProvider - Async function that returns a fresh Bearer token
+     *   per request. The host manages token lifecycle; callers should pass
+     *   the SDK's getAccessToken function directly.
      * @returns This client instance
      */
-    async initialize(collectionUri, authToken) {
+    async initialize(collectionUri, tokenProvider) {
       if (this.initialized) {
         return this;
       }
       this.collectionUri = collectionUri;
-      this.authToken = authToken;
+      this.tokenProvider = tokenProvider;
       this.initialized = true;
       return this;
     }
@@ -291,6 +292,11 @@ var PRInsightsArtifactClient = (() => {
       if (response.status === 401 || response.status === 403) {
         throw createPermissionDeniedError("list build artifacts");
       }
+      if (response.status === 404) {
+        throw new Error(
+          `Build ${buildId} not found or has been deleted`
+        );
+      }
       if (!response.ok) {
         throw new Error(`Failed to list artifacts: ${response.status}`);
       }
@@ -360,8 +366,12 @@ var PRInsightsArtifactClient = (() => {
      * Perform an authenticated fetch using the ADO auth token.
      */
     async _authenticatedFetch(url, options = {}) {
+      if (!this.tokenProvider) {
+        throw new Error("ArtifactClient not initialized. Call initialize() first.");
+      }
+      const token = await this.tokenProvider();
       const headers = {
-        Authorization: `Bearer ${this.authToken}`,
+        Authorization: `Bearer ${token}`,
         Accept: "application/json",
         ...options.headers || {}
       };
