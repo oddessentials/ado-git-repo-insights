@@ -103,7 +103,7 @@ jobs:
 
       - name: Install extension dependencies
         working-directory: extension
-        run: pnpm install --frozen-lockfile
+        run: pnpm install --frozen-lockfile --ignore-scripts
 
       - name: Validate Version Consistency
         run: |
@@ -141,7 +141,7 @@ jobs:
 
       - name: Install extension dependencies
         working-directory: extension
-        run: pnpm install --frozen-lockfile
+        run: pnpm install --frozen-lockfile --ignore-scripts
 
       - name: Build extension (tsc + esbuild)
         working-directory: extension

@@ -164,7 +164,7 @@ jobs:
 
       - name: Install extension dependencies
         working-directory: extension
-        run: pnpm install --frozen-lockfile
+        run: pnpm install --frozen-lockfile --ignore-scripts
 
       - name: Build UI bundles
         working-directory: extension
@@ -748,7 +748,7 @@ jobs:
 
       - name: Install Extension Dependencies
         working-directory: extension
-        run: pnpm install --frozen-lockfile
+        run: pnpm install --frozen-lockfile --ignore-scripts
 
       - name: Validate Task Input Names
         working-directory: extension
@@ -819,7 +819,7 @@ jobs:
 
       - name: Install dependencies
         working-directory: extension
-        run: pnpm install --frozen-lockfile
+        run: pnpm install --frozen-lockfile --ignore-scripts
 
       - name: Install Playwright Browsers
         working-directory: extension
@@ -954,7 +954,7 @@ jobs:
 
       - name: Install extension dependencies
         working-directory: extension
-        run: pnpm install --frozen-lockfile
+        run: pnpm install --frozen-lockfile --ignore-scripts
 
       # Cache generated scalability test data (deterministic via --seed 42)
       - name: Cache scalability test data
@@ -1012,7 +1012,7 @@ jobs:
 
       - name: Fresh install (no cache)
         working-directory: extension
-        run: pnpm install --frozen-lockfile
+        run: pnpm install --frozen-lockfile --ignore-scripts
 
       - name: Build extension (esbuild only — tsc gated by extension-tests job)
         working-directory: extension

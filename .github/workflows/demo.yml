@@ -76,7 +76,7 @@ jobs:
 
       - name: Install extension dependencies
         working-directory: extension
-        run: pnpm install --frozen-lockfile
+        run: pnpm install --frozen-lockfile --ignore-scripts
 
       - name: Validate committed-demo generation contract
         run: python scripts/validate_demo_generation_contract.py
