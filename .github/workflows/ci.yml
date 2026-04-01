@@ -341,7 +341,6 @@ jobs:
         env:
           # SECURITY: GitHub context values must be passed via env to prevent command injection
           BASE_REF: ${{ github.base_ref }}
-          GITHUB_EVENT_PATH: ${{ github.event_path }}
         run: python scripts/check-version-unchanged.py "origin/${BASE_REF}"
 
   # Guard: Block coverage threshold changes without explicit marker

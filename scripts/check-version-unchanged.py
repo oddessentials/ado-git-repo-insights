@@ -5,8 +5,9 @@ Fails if any semantic-release managed version fields differ from the
 base branch. Prevents accidental manual version bumps that conflict
 with automated releases.
 
-Bypass: Add 'VERSION-BUMP-APPROVED' to the PR description to allow
-intentional version changes (e.g., marketplace recovery baselines).
+Bypass: Add [version-override-acknowledged] to a commit message on the
+branch. This works identically in local pre-push and CI.
+
 Direct pushes to main with version changes are NEVER allowed, even
 with the marker.
 
@@ -22,18 +23,15 @@ import subprocess
 import sys
 from pathlib import Path
 
-# Maximum event file size (1 MB) — security guard against resource exhaustion
-MAX_EVENT_FILE_BYTES = 1_048_576
+MARKER = "[version-override-acknowledged]"
 
 # Version files managed by semantic-release
-VERSION_FILES: dict[str, str | None] = {
-    # file path → jq-style description of what to extract
-    # None means read the file as plain text
-    "VERSION": None,
-    "package.json": "version",
-    "extension/vss-extension.json": "version",
-    "extension/tasks/extract-prs/task.json": "version",
-}
+VERSION_FILES = [
+    "VERSION",
+    "package.json",
+    "extension/vss-extension.json",
+    "extension/tasks/extract-prs/task.json",
+]
 
 
 def get_current_version(file_path: str) -> str:
@@ -75,45 +73,23 @@ def get_base_version(base_branch: str, file_path: str) -> str | None:
     return str(data["version"])
 
 
-def check_pr_approval() -> bool:
-    """Check if PR body contains VERSION-BUMP-APPROVED marker.
+def check_commit_marker(base_branch: str) -> bool:
+    """Check if any commit on the branch contains the bypass marker.
 
-    Reads from GITHUB_EVENT_PATH for PR body in CI.
-    Follows the same pattern as audit-suppressions.py check_pr_approval().
+    Scans git log between base branch and HEAD for the marker string.
+    Follows the same pattern as check_threshold_changes.py.
     """
-    event_path = os.environ.get("GITHUB_EVENT_PATH")
-    if not event_path:
-        return False
-
-    # SECURITY: Validate path before opening
-    event_path_obj = Path(event_path)
-    if not event_path_obj.is_file():
-        print(
-            f"Warning: GITHUB_EVENT_PATH is not a valid file: {event_path}",
-            file=sys.stderr,
+    try:
+        result = subprocess.run(  # noqa: S603 - trusted git invocation
+            ["git", "log", "--oneline", f"{base_branch}...HEAD"],  # noqa: S607
+            capture_output=True,
+            text=True,
+            check=True,
         )
+    except subprocess.CalledProcessError:
         return False
 
-    # SECURITY: Check file size to prevent resource exhaustion
-    try:
-        file_size = event_path_obj.stat().st_size
-        if file_size > MAX_EVENT_FILE_BYTES:
-            print(
-                f"Warning: Event file too large: {file_size} bytes",
-                file=sys.stderr,
-            )
-            return False
-    except OSError:
-        return False
-
-    try:
-        with open(event_path, encoding="utf-8") as f:
-            event = json.load(f)
-
-        pr_body = event.get("pull_request", {}).get("body", "") or ""
-        return "VERSION-BUMP-APPROVED" in pr_body
-    except (OSError, json.JSONDecodeError):
-        return False
+    return MARKER in result.stdout
 
 
 def is_direct_push_to_main() -> bool:
@@ -169,11 +145,9 @@ def main() -> int:
         print("Version fields are managed exclusively by semantic-release.")
         return 1
 
-    # Check for PR approval marker
-    if check_pr_approval():
-        print(
-            "Version bump approved via PR description marker (VERSION-BUMP-APPROVED)."
-        )
+    # Check for commit message marker
+    if check_commit_marker(base_branch):
+        print(f"Version override approved via commit marker ({MARKER}).")
         print("Proceeding with manual version changes.")
         return 0
 
@@ -189,11 +163,13 @@ def main() -> int:
     print(
         "To fix: revert the version changes and let semantic-release handle versioning."
     )
-    print(
-        "If this is intentional (e.g., marketplace recovery),"
-        " add 'VERSION-BUMP-APPROVED'"
-    )
-    print("to the PR description.")
+    print(f"If this is intentional (e.g., marketplace recovery), add {MARKER}")
+    print("to a commit message on this branch.")
+    print()
+    print("MANUAL ONLY: NO AGENT OVERRIDES.")
+    print("A human must add this marker by hand after verifying the")
+    print("version change is correct. Automated tools must not bypass")
+    print("this guard.")
     return 1
 
 
