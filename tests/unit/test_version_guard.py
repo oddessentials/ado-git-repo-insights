@@ -136,3 +136,16 @@ class TestVersionGuard:
         assert "GITHUB_EVENT_PATH" not in source
         assert "pull_request" not in source
         assert "pr_body" not in source
+
+    def test_uses_two_dot_range_not_symmetric_difference(self) -> None:
+        """Marker scan must use two-dot range (branch-only commits).
+
+        Three-dot (A...B) includes commits on both sides of the merge
+        base. If the base branch gains a marker commit after this branch
+        diverges, the three-dot scan would falsely approve unrelated
+        version changes. Two-dot (A..B) scans only branch-local commits.
+        """
+        source = SCRIPT.read_text(encoding="utf-8")
+        assert '..HEAD"' in source or "..HEAD]" in source
+        assert '...HEAD"' not in source
+        assert "...HEAD]" not in source

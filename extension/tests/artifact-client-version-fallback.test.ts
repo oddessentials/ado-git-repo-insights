@@ -208,23 +208,37 @@ describe("ArtifactClient per-endpoint-family version fallback", () => {
       );
     });
 
-    it("getArtifacts 404 returns to caller as stale-build error (not version exhaustion)", async () => {
+    it("getArtifacts uncached all-404 exhausts versions for Server compat", async () => {
       const client = await createClient();
 
-      mockFetch.mockResolvedValueOnce(mockResponse(404));
+      // artifacts is a list family — 404 triggers version retry
+      // (on Server, 404 means "api-version not supported on this route")
+      mockFetch
+        .mockResolvedValueOnce(mockResponse(404))
+        .mockResolvedValueOnce(mockResponse(404))
+        .mockResolvedValueOnce(mockResponse(404));
 
       await expect(client.getArtifacts(999)).rejects.toThrow(
-        "Build 999 not found or has been deleted",
+        "API api-version=5.1: 404",
       );
 
-      // Only 1 fetch call — no version exhaustion
-      expect(mockFetch).toHaveBeenCalledTimes(1);
+      // All 3 versions tried
+      expect(mockFetch).toHaveBeenCalledTimes(3);
+    });
 
-      // Version must NOT be cached
-      expect(
-        (client as unknown as { resolvedApiVersions: Map<string, string> })
-          .resolvedApiVersions.get("artifacts"),
-      ).toBeUndefined();
+    it("getArtifacts uncached 404-then-200 falls back for Server compat", async () => {
+      const client = await createClient();
+
+      // 7.1 → 404 (unsupported on Server), 6.0 → 404, 5.1 → 200
+      mockFetch
+        .mockResolvedValueOnce(mockResponse(404))
+        .mockResolvedValueOnce(mockResponse(404))
+        .mockResolvedValueOnce(mockResponse(200, { value: [{ name: "aggregates" }] }));
+
+      const artifacts = await client.getArtifacts(1);
+
+      expect(artifacts).toEqual([{ name: "aggregates" }]);
+      expect(mockFetch).toHaveBeenCalledTimes(3);
     });
   });
 

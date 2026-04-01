@@ -28,6 +28,7 @@ REPO_ROOT = Path(__file__).resolve().parent.parent
 DEFAULT_BASELINE = REPO_ROOT / ".coverage-baseline.json"
 DEFAULT_PYTHON_COVERAGE = REPO_ROOT / "coverage.xml"
 DEFAULT_TS_COVERAGE = REPO_ROOT / "extension" / "coverage" / "lcov.info"
+DEFAULT_TS_SUMMARY = REPO_ROOT / "extension" / "coverage" / "coverage-summary.json"
 
 BASELINE_VERSION = 1
 DEFAULT_THRESHOLD = 2.0
@@ -49,7 +50,9 @@ def parse_coverage_xml(path: Path) -> float:
 def parse_lcov(path: Path) -> dict[str, float]:
     """Extract coverage metrics from LCOV info file.
 
-    Returns dict with keys: lines, statements, branches, functions.
+    Returns dict with keys: lines, branches, functions.
+    LCOV does not track statement coverage — use
+    parse_coverage_summary_statements() for that metric.
     """
     lines_found = 0
     lines_hit = 0
@@ -79,10 +82,27 @@ def parse_lcov(path: Path) -> dict[str, float]:
 
     return {
         "lines": pct(lines_hit, lines_found),
-        "statements": pct(lines_hit, lines_found),
         "branches": pct(branches_hit, branches_found),
         "functions": pct(functions_hit, functions_found),
     }
+
+
+def parse_coverage_summary_statements(path: Path) -> float:
+    """Extract statements coverage from Istanbul coverage-summary.json.
+
+    Istanbul tracks statements independently from lines (multiple
+    statements per line). This is the authoritative source for
+    statement coverage — LCOV does not have this metric.
+
+    Returns coverage as a float (0.0-100.0), rounded to 2 decimals.
+    """
+    data = json.loads(path.read_text(encoding="utf-8"))
+    total = data.get("total", {})
+    stmts = total.get("statements", {})
+    pct_val = stmts.get("pct")
+    if pct_val is None:
+        raise ValueError(f"Missing total.statements.pct in {path}")
+    return round(float(pct_val), 2)
 
 
 def load_baseline(path: Path) -> dict[str, dict[str, float]]:
@@ -189,6 +209,12 @@ def main() -> int:
         help=f"Path to lcov.info (default: {DEFAULT_TS_COVERAGE})",
     )
     parser.add_argument(
+        "--ts-summary",
+        type=Path,
+        default=DEFAULT_TS_SUMMARY,
+        help=f"Path to coverage-summary.json for statement coverage (default: {DEFAULT_TS_SUMMARY})",
+    )
+    parser.add_argument(
         "--baseline",
         type=Path,
         default=DEFAULT_BASELINE,
@@ -231,6 +257,15 @@ def main() -> int:
     # Parse current coverage
     python_actual = parse_coverage_xml(args.python_coverage)
     ts_actuals = parse_lcov(args.ts_coverage)
+
+    # Statements come from Istanbul's coverage-summary.json (not LCOV).
+    # LCOV does not track statement coverage — multiple statements per
+    # line are invisible to the LF/LH counters.
+    if args.ts_summary.exists():
+        ts_actuals["statements"] = parse_coverage_summary_statements(args.ts_summary)
+    else:
+        print("[WARN] coverage-summary.json not found, using lines for statements")
+        ts_actuals["statements"] = ts_actuals["lines"]
 
     # Update mode: write baseline and exit
     if args.update:

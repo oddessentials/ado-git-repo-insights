@@ -606,7 +606,8 @@ var PRInsightsSettings = (() => {
   // ../ui/artifact-client.ts
   var LIST_ENDPOINT_FAMILIES = /* @__PURE__ */ new Set([
     "definitions",
-    "builds"
+    "builds",
+    "artifacts"
   ]);
   var ArtifactClient = class {
     /**

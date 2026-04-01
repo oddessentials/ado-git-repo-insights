@@ -76,12 +76,14 @@ def get_base_version(base_branch: str, file_path: str) -> str | None:
 def check_commit_marker(base_branch: str) -> bool:
     """Check if any commit on the branch contains the bypass marker.
 
-    Scans git log between base branch and HEAD for the marker string.
-    Follows the same pattern as check_threshold_changes.py.
+    Scans git log for commits reachable from HEAD but not from the
+    base branch (two-dot range). This ensures only branch-local
+    commits are inspected — markers on the base branch do not leak
+    into the scan.
     """
     try:
         result = subprocess.run(  # noqa: S603 - trusted git invocation
-            ["git", "log", "--oneline", f"{base_branch}...HEAD"],  # noqa: S607
+            ["git", "log", "--oneline", f"{base_branch}..HEAD"],  # noqa: S607
             capture_output=True,
             text=True,
             check=True,

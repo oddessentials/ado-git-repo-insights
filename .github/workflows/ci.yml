@@ -392,7 +392,7 @@ jobs:
           [ -n "$PY_THRESHOLD" ] && echo "  Python: $PY_THRESHOLD"
 
           # Require explicit [threshold-update] marker in any commit message
-          MARKER_FOUND=$(git log --oneline "origin/${BASE_REF}...HEAD" | \
+          MARKER_FOUND=$(git log --oneline "origin/${BASE_REF}..HEAD" | \
             grep -F "[threshold-update]" || true)
 
           if [ -z "$MARKER_FOUND" ]; then
@@ -892,7 +892,7 @@ jobs:
           # MAX_SKIPS: Maximum allowed skipped tests (5 for platform-specific edge cases)
           python .github/scripts/validate-test-results.py \
             extension/test-results.xml \
-            --min-collected=2303 \
+            --min-collected=2304 \
             --max-skips=5
         shell: bash
 

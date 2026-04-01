@@ -67,12 +67,41 @@ def write_lcov(
     )
 
 
+def write_coverage_summary(
+    path: Path,
+    *,
+    statements_total: int = 100,
+    statements_covered: int = 75,
+) -> None:
+    """Write a synthetic Istanbul coverage-summary.json."""
+    pct = (
+        round((statements_covered / statements_total) * 100, 2)
+        if statements_total > 0
+        else 0
+    )
+    data = {
+        "total": {
+            "lines": {"total": 100, "covered": 80, "skipped": 0, "pct": 80.0},
+            "statements": {
+                "total": statements_total,
+                "covered": statements_covered,
+                "skipped": 0,
+                "pct": pct,
+            },
+            "branches": {"total": 60, "covered": 45, "skipped": 0, "pct": 75.0},
+            "functions": {"total": 50, "covered": 40, "skipped": 0, "pct": 80.0},
+        },
+    }
+    path.write_text(json.dumps(data, indent=2) + "\n", encoding="utf-8")
+
+
 def run_script(
     tmp_path: Path,
     *,
     baseline: Path | None = None,
     python_cov: Path | None = None,
     ts_cov: Path | None = None,
+    ts_summary: Path | None = None,
     threshold: float | None = None,
     update: bool = False,
 ) -> subprocess.CompletedProcess[str]:
@@ -84,6 +113,8 @@ def run_script(
         args.extend(["--python-coverage", str(python_cov)])
     if ts_cov is not None:
         args.extend(["--ts-coverage", str(ts_cov)])
+    if ts_summary is not None:
+        args.extend(["--ts-summary", str(ts_summary)])
     if threshold is not None:
         args.extend(["--threshold", str(threshold)])
     if update:
@@ -442,6 +473,156 @@ class TestCoverageDeltaEdgeCases:
         """The coverage delta script must exist."""
         assert SCRIPT.is_file()
 
+
+class TestStatementsCoverageParity:
+    """Tests for real statements coverage from coverage-summary.json."""
+
+    def test_statements_parsed_from_summary_not_lcov_lines(
+        self, tmp_path: Path
+    ) -> None:
+        """Statements must come from coverage-summary.json, not LCOV lines.
+
+        This is the test that would have caught the original bug: if
+        statements is hardcoded to lines, changing only the summary JSON
+        will not affect the check.
+        """
+        baseline = tmp_path / "baseline.json"
+        python_cov = tmp_path / "coverage.xml"
+        ts_cov = tmp_path / "lcov.info"
+        ts_summary = tmp_path / "coverage-summary.json"
+
+        # LCOV says lines=80%, but summary says statements=75%
+        write_baseline(
+            baseline,
+            python_lines=80.0,
+            ts={"lines": 80.0, "statements": 75.0, "branches": 75.0, "functions": 80.0},
+        )
+        write_cobertura_xml(python_cov, 0.80)
+        write_lcov(
+            ts_cov,
+            lines_found=100,
+            lines_hit=80,
+            branches_found=100,
+            branches_hit=75,
+            funcs_found=100,
+            funcs_hit=80,
+        )
+        write_coverage_summary(ts_summary, statements_total=100, statements_covered=75)
+
+        # Should pass — statements baseline=75% matches summary=75%
+        result = run_script(
+            tmp_path,
+            baseline=baseline,
+            python_cov=python_cov,
+            ts_cov=ts_cov,
+            ts_summary=ts_summary,
+        )
+        assert result.returncode == 0, f"Expected pass:\n{result.stdout}"
+
+    def test_statements_delta_caught_independently_of_lines(
+        self, tmp_path: Path
+    ) -> None:
+        """A statements drop must fail even when lines are unchanged.
+
+        Baseline: lines=80%, statements=78%.
+        Current: lines=80% (unchanged), statements=74% (dropped 4%).
+        Should FAIL because statements dropped beyond 2% threshold.
+        """
+        baseline = tmp_path / "baseline.json"
+        python_cov = tmp_path / "coverage.xml"
+        ts_cov = tmp_path / "lcov.info"
+        ts_summary = tmp_path / "coverage-summary.json"
+
+        write_baseline(
+            baseline,
+            python_lines=80.0,
+            ts={"lines": 80.0, "statements": 78.0, "branches": 75.0, "functions": 80.0},
+        )
+        write_cobertura_xml(python_cov, 0.80)
+        write_lcov(
+            ts_cov,
+            lines_found=100,
+            lines_hit=80,
+            branches_found=100,
+            branches_hit=75,
+            funcs_found=100,
+            funcs_hit=80,
+        )
+        # statements dropped to 74% (delta = -4%, exceeds 2% threshold)
+        write_coverage_summary(ts_summary, statements_total=100, statements_covered=74)
+
+        result = run_script(
+            tmp_path,
+            baseline=baseline,
+            python_cov=python_cov,
+            ts_cov=ts_cov,
+            ts_summary=ts_summary,
+        )
+        assert result.returncode == 1, (
+            f"Expected FAIL on statements drop:\n{result.stdout}"
+        )
+        assert "[FAIL]" in result.stdout
+        assert "statements" in result.stdout
+
+    def test_falls_back_to_lines_when_summary_unavailable(self, tmp_path: Path) -> None:
+        """Without coverage-summary.json, statements falls back to lines with a warning."""
+        baseline = tmp_path / "baseline.json"
+        python_cov = tmp_path / "coverage.xml"
+        ts_cov = tmp_path / "lcov.info"
+        nonexistent_summary = tmp_path / "no-such-file.json"
+
+        write_baseline(
+            baseline,
+            python_lines=80.0,
+            ts={"lines": 80.0, "statements": 80.0, "branches": 75.0, "functions": 80.0},
+        )
+        write_cobertura_xml(python_cov, 0.80)
+        write_lcov(
+            ts_cov,
+            lines_found=100,
+            lines_hit=80,
+            branches_found=100,
+            branches_hit=75,
+            funcs_found=100,
+            funcs_hit=80,
+        )
+
+        result = run_script(
+            tmp_path,
+            baseline=baseline,
+            python_cov=python_cov,
+            ts_cov=ts_cov,
+            ts_summary=nonexistent_summary,
+        )
+        assert result.returncode == 0, f"Expected pass (fallback):\n{result.stdout}"
+        assert "[WARN]" in result.stdout
+        assert "coverage-summary.json" in result.stdout
+
+
+class TestThresholdScriptGitLogScope:
+    """Verify check_threshold_changes.py git log uses two-dot range."""
+
+    def test_git_log_uses_two_dot_range_not_symmetric_difference(self) -> None:
+        """Threshold marker scan via git log must use branch-only range.
+
+        git log A...B (three-dot) includes commits on both sides of the
+        merge base. git log A..B (two-dot) scans only branch-local commits.
+        Note: git diff A...B is CORRECT (diff since merge base) and should
+        NOT be changed.
+        """
+        threshold_script = REPO_ROOT / "scripts" / "check_threshold_changes.py"
+        source = threshold_script.read_text(encoding="utf-8")
+        # Extract only git log lines (not git diff lines)
+        log_lines = [
+            line for line in source.splitlines() if "log" in line and "HEAD" in line
+        ]
+        assert len(log_lines) > 0, "Expected at least one git log line with HEAD"
+        for line in log_lines:
+            assert "..HEAD" in line, f"git log line should use two-dot range: {line}"
+            assert "...HEAD" not in line, (
+                f"git log line must NOT use three-dot range: {line}"
+            )
+
     def test_real_baseline_passes(self) -> None:
         """The checked-in baseline should pass against current coverage.
 
@@ -453,6 +634,7 @@ class TestCoverageDeltaEdgeCases:
         baseline = REPO_ROOT / ".coverage-baseline.json"
         python_cov = REPO_ROOT / "coverage.xml"
         ts_cov = REPO_ROOT / "extension" / "coverage" / "lcov.info"
+        ts_summary = REPO_ROOT / "extension" / "coverage" / "coverage-summary.json"
 
         if not baseline.exists():
             pytest.skip("No .coverage-baseline.json found")
@@ -464,5 +646,6 @@ class TestCoverageDeltaEdgeCases:
             baseline=baseline,
             python_cov=python_cov,
             ts_cov=ts_cov,
+            ts_summary=ts_summary,
         )
         assert result.returncode == 0, f"Real baseline check failed:\n{result.stdout}"

@@ -232,6 +232,8 @@ def build_commands(
                 "coverage.xml",
                 "--ts-coverage",
                 "extension/coverage/lcov.info",
+                "--ts-summary",
+                "extension/coverage/coverage-summary.json",
             ),
         ),
         CommandSpec(
@@ -278,7 +280,7 @@ def build_commands(
                 "__PYTHON__",
                 ".github/scripts/validate-test-results.py",
                 "extension/test-results.xml",
-                "--min-collected=2303",
+                "--min-collected=2304",
                 "--max-skips=5",
             ),
         ),

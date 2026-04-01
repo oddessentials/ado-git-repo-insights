@@ -38,7 +38,7 @@ export type EndpointFamily = "definitions" | "builds" | "artifacts" | "artifact-
  *  genuinely signals "version not supported." Resource endpoints use
  *  404 for "not found" — only 400 triggers version fallback for those. */
 const LIST_ENDPOINT_FAMILIES: ReadonlySet<EndpointFamily> = new Set([
-  "definitions", "builds",
+  "definitions", "builds", "artifacts",
 ]);
 
 export class ArtifactClient {
