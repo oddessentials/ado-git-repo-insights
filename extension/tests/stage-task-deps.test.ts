@@ -46,4 +46,19 @@ describe("stage-task-deps", () => {
     const lockPath = path.join(TASK_DIR, "package-lock.json");
     expect(_fs.existsSync(lockPath)).toBe(false);
   });
+
+  it("package:vsix uses repo-local tfx via pnpm exec (no global install)", () => {
+    const pkgPath = path.join(__dirname, "../package.json");
+    const pkg = JSON.parse(_fs.readFileSync(pkgPath, "utf8"));
+    const vsixScript: string = pkg.scripts["package:vsix"];
+    expect(vsixScript).toContain("pnpm exec tfx extension create");
+    // Must not use npx (network-on-demand) or bare tfx (global install)
+    expect(vsixScript).not.toContain("npx");
+  });
+
+  it("tfx-cli is declared as a devDependency", () => {
+    const pkgPath = path.join(__dirname, "../package.json");
+    const pkg = JSON.parse(_fs.readFileSync(pkgPath, "utf8"));
+    expect(pkg.devDependencies["tfx-cli"]).toBe("0.17.0");
+  });
 });

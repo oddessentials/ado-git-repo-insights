@@ -1706,7 +1706,11 @@ def _run_http_server(
                     try:
                         while True:
                             line = sys.stdin.readline()
-                            if not line or line.strip().lower() == "q":
+                            if not line:
+                                # EOF — stdin closed (IDE, pipe, pseudo-terminal).
+                                # Exit silently; do NOT shut down the server.
+                                break
+                            if line.strip().lower() == "q":
                                 threading.Thread(
                                     target=httpd.shutdown, daemon=True
                                 ).start()

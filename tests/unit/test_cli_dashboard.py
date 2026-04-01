@@ -602,3 +602,48 @@ class TestHttpServerSignalHandling:
             "stdin 'q' input must dispatch a shutdown thread"
         )
         shutdown_threads[0].start.assert_called_once()
+
+    def test_stdin_eof_does_not_shutdown(self, tmp_path: Path) -> None:
+        """Immediate EOF on stdin must NOT trigger server shutdown.
+
+        Some IDE pseudo-terminals and pipe wrappers report stdin as a
+        TTY but return EOF immediately. The server must stay running.
+        """
+        import io
+
+        from ado_git_repo_insights.cli import _run_http_server
+
+        (tmp_path / "index.html").write_text("<h1>test</h1>")
+
+        # Empty StringIO — readline() returns "" (EOF) immediately
+        mock_stdin = io.StringIO("")
+        mock_stdin.fileno = lambda: 0  # type: ignore[assignment] -- REASON: StringIO has no fileno; fake it for os.isatty
+
+        shutdown_dispatched = False
+
+        def _serve_then_check(self_httpd: object) -> None:
+            nonlocal shutdown_dispatched
+            import time
+
+            # Give stdin thread time to read EOF and exit
+            time.sleep(0.15)
+
+            # Check if shutdown was called on the server object
+            shutdown_dispatched = getattr(
+                self_httpd, "_BaseServer__shutdown_request", False
+            )
+
+        with (
+            patch(
+                "socketserver.TCPServer.serve_forever",
+                side_effect=_serve_then_check,
+                autospec=True,
+            ),
+            patch("os.isatty", return_value=True),
+            patch("ado_git_repo_insights.cli.sys.stdin", mock_stdin),
+        ):
+            _run_http_server(tmp_path, port=0, open_browser=False)
+
+        assert shutdown_dispatched is False, (
+            "EOF on stdin must NOT trigger server shutdown"
+        )

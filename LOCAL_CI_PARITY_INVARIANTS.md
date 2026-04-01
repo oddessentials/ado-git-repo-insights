@@ -110,7 +110,7 @@ git push    -->  .husky/pre-push    -->  run_repo_hook.py pre-push    -->  Tier 
 | --------------------------------------------------------- | ------------------------------------------------------------------------------------------------- |
 | Python tests run on baseline Python only (not 3x3 matrix) | Full matrix takes 15+ min; baseline catches 99% of issues. Cross-platform bugs are CI-discovered. |
 | Python build is sdist-only (CI also builds wheel)         | sdist catches packaging issues; zero wheel-only failures in project history.                      |
-| VSIX packaging is CI-only                                 | Requires tfx-cli; `test:vsix` inspection covers validation.                                       |
+| VSIX packaging available locally via `pnpm run package:vsix` | `tfx-cli` is a devDependency; no global install needed. `test:vsix` inspection covers validation. |
 | Scalability tests are CI-only                             | 10K PR synthetic data gen is expensive; run on demand locally via `pnpm run test:scalability`.    |
 | Fresh-clone-verify is CI-only                             | Cannot simulate fresh clone without re-cloning. Verifies lockfile determinism.                    |
 | mypy is Tier 2 (pre-push), not Tier 1 (pre-commit)       | Requires `[ml]` optional deps for full coverage; not every commit-stage environment has them. Pre-push catches errors before code leaves the machine. Parity is Match at Tier 2. |
