@@ -118,12 +118,22 @@ async function downloadRawDataContract(
       };
     }
 
-    // Validate URL against the collection URI origin.
-    // Supports both Azure DevOps Services and Server/on-prem.
+    // Validate URL: HTTPS required, must be collection origin or
+    // Azure-hosted artifact CDN (*.artifacts.visualstudio.com).
     try {
       const parsed = new URL(downloadUrl);
+      if (parsed.protocol !== "https:") {
+        return {
+          outcome: "invalid-url",
+          toastMessage: "Invalid download URL",
+          toastType: "error",
+        };
+      }
       const collectionOrigin = new URL(deps.collectionUri).origin;
-      if (parsed.origin !== collectionOrigin) {
+      const isCollectionHost = parsed.origin === collectionOrigin;
+      const isAzureArtifactHost =
+        parsed.hostname.endsWith(".artifacts.visualstudio.com");
+      if (!isCollectionHost && !isAzureArtifactHost) {
         return {
           outcome: "invalid-url",
           toastMessage: "Invalid download URL",
@@ -506,14 +516,14 @@ describe("Settings Download: downloadRawData contract", () => {
     expect(result.toastType).toBe("error");
   });
 
-  it("allows cloud download URL matching collection URI origin", async () => {
+  it("allows Azure-hosted artifact download URL", async () => {
     const deps = defaultDeps({
       getArtifactMetadata: jest.fn(() =>
         Promise.resolve({
           name: "csv-output",
           resource: {
             downloadUrl:
-              "https://dev.azure.com/test-org/proj/_apis/build/builds/100/artifacts",
+              "https://artprodcus3.artifacts.visualstudio.com/A123/proj/_apis/resources/content?format=zip",
           },
         }),
       ),

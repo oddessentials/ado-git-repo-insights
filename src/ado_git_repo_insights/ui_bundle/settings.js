@@ -1389,8 +1389,14 @@ var PRInsightsSettings = (() => {
       }
       try {
         const parsed = new URL(downloadUrl);
+        if (parsed.protocol !== "https:") {
+          showToast("Invalid download URL", "error");
+          return;
+        }
         const collectionOrigin = new URL(collectionUri).origin;
-        if (parsed.origin !== collectionOrigin) {
+        const isCollectionHost = parsed.origin === collectionOrigin;
+        const isAzureArtifactHost = parsed.hostname.endsWith(".artifacts.visualstudio.com");
+        if (!isCollectionHost && !isAzureArtifactHost) {
           showToast("Invalid download URL", "error");
           return;
         }

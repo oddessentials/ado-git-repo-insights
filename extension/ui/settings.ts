@@ -634,14 +634,21 @@ async function downloadRawData(): Promise<void> {
       return;
     }
 
-    // Validate download URL against the collection URI origin.
-    // This supports both Azure DevOps Services (dev.azure.com) and
-    // Azure DevOps Server/on-prem (any hostname returned by
-    // getCollectionUri). Rejects cross-origin and non-HTTPS URLs.
+    // Validate download URL: require HTTPS and restrict to trusted
+    // origins. Azure DevOps Services uses *.artifacts.visualstudio.com
+    // for artifact storage (different origin from the collection URI),
+    // while Server/on-prem uses the collection host directly.
     try {
       const parsed = new URL(downloadUrl);
+      if (parsed.protocol !== "https:") {
+        showToast("Invalid download URL", "error");
+        return;
+      }
       const collectionOrigin = new URL(collectionUri).origin;
-      if (parsed.origin !== collectionOrigin) {
+      const isCollectionHost = parsed.origin === collectionOrigin;
+      const isAzureArtifactHost =
+        parsed.hostname.endsWith(".artifacts.visualstudio.com");
+      if (!isCollectionHost && !isAzureArtifactHost) {
         showToast("Invalid download URL", "error");
         return;
       }
