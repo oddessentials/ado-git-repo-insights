@@ -25,7 +25,7 @@ import {
   type Build,
 } from "./types";
 
-import { ADO_REST_API_VERSIONS } from "./modules/api-versions";
+import { fetchWithVersionFallback } from "./modules/api-versions";
 
 /**
  * Endpoint families for per-route API version caching.
@@ -241,17 +241,8 @@ export class ArtifactClient {
 
   /**
    * Fetch a URL with API version fallback. If the version is already
-   * cached, uses it directly. Otherwise tries each version in
-   * ADO_REST_API_VERSIONS order against the actual requested URL.
-   *
-   * Version probing:
-   * - 401/403 → fail immediately (auth, not version)
-   * - 400 → version not supported, try next (all families)
-   * - 404 → version not supported, try next (list families only)
-   *
-   * Response handling (non-retry statuses):
-   * - 2xx → cache the version, return to caller
-   * - Other (404 on resource family, 5xx) → return without caching
+   * cached, uses it directly. Otherwise delegates to the shared
+   * fetchWithVersionFallback probe and caches on success.
    *
    * @param family Endpoint family for per-route version caching
    * @param buildUrl Function that builds the URL for a given api-version
@@ -271,44 +262,22 @@ export class ArtifactClient {
       return this._authenticatedFetch(buildUrl(cachedVersion), options);
     }
 
-    // Slow path: probe each version on the actual endpoint
-    const retryOn404 = LIST_ENDPOINT_FAMILIES.has(family);
-    let lastError: Error | null = null;
+    // Slow path: delegate to shared version probe
+    const isListEndpoint = LIST_ENDPOINT_FAMILIES.has(family);
+    const { response, version } = await fetchWithVersionFallback(
+      buildUrl,
+      (url) => this._authenticatedFetch(url, options),
+      { isListEndpoint },
+    );
 
-    for (const version of ADO_REST_API_VERSIONS) {
-      const response = await this._authenticatedFetch(
-        buildUrl(version),
-        options,
-      );
-
-      // Auth failures are not version-related — fail fast
-      if (response.status === 401 || response.status === 403) {
-        return response;
-      }
-
-      // --- Version probing ---
-      // 400 always means version not supported.
-      // 404 means version not supported ONLY for list endpoints
-      // (which return { value: [] } for empty results, never 404).
-      if (response.status === 400 || (retryOn404 && response.status === 404)) {
-        lastError = new Error(
-          `Build API api-version=${version}: ${response.status}`,
-        );
-        continue;
-      }
-
-      // --- Response handling ---
-      // Cache version ONLY on 2xx success. A non-success response
-      // (404 file-not-found, 500 server error) does not prove the
-      // version works — next call will re-probe.
-      if (response.ok) {
-        this.resolvedApiVersions.set(family, version);
-      }
-
-      return response;
+    // Cache version ONLY on 2xx success. A non-success response
+    // (404 file-not-found, 500 server error) does not prove the
+    // version works — next call will re-probe.
+    if (response.ok) {
+      this.resolvedApiVersions.set(family, version);
     }
 
-    throw lastError ?? new Error("No compatible Build API version found");
+    return response;
   }
 
   /**

@@ -1,17 +1,14 @@
 /**
  * Settings page API version fallback tests.
  *
- * Verifies that getOrganizationProjects() negotiates a working API
- * version with the host, falling back from 7.1 → 6.0 → 5.1 for
- * Azure DevOps Server compatibility.
+ * Verifies that getOrganizationProjects() uses the shared
+ * fetchWithVersionFallback and handles its results correctly.
  */
 
 import * as path from "path";
 import * as _fsOriginal from "fs";
 function _loadFs(): typeof _fsOriginal { return _fsOriginal; }
 const _fs = _loadFs();
-
-import { ADO_REST_API_VERSIONS } from "../ui/modules/api-versions";
 
 const SETTINGS_PATH = path.join(__dirname, "../ui/settings.ts");
 
@@ -22,26 +19,25 @@ describe("Settings API version fallback", () => {
     settingsCode = _fs.readFileSync(SETTINGS_PATH, "utf8");
   });
 
-  it("imports the shared version fallback chain", () => {
-    // settings.ts must import ADO_REST_API_VERSIONS from the shared module
-    expect(settingsCode).toMatch(/ADO_REST_API_VERSIONS/);
+  it("uses the shared fetchWithVersionFallback (not an inline loop)", () => {
+    // settings.ts must import fetchWithVersionFallback from the shared module
+    expect(settingsCode).toMatch(/fetchWithVersionFallback/);
     expect(settingsCode).toMatch(/from\s+["']\.\/modules\/api-versions["']/);
-    // The shared constant must contain all three versions in order
-    expect([...ADO_REST_API_VERSIONS]).toEqual(["7.1", "6.0", "5.1"]);
+    // Must NOT contain its own for-loop over version arrays
+    expect(settingsCode).not.toMatch(
+      /for\s*\(\s*const\s+version\s+of\s+ADO_REST_API_VERSIONS\b/,
+    );
   });
 
-  it("fails fast on 401/403 without trying older versions", () => {
-    // The code must check for auth failures before continuing the loop
+  it("passes isListEndpoint: true for the projects endpoint", () => {
+    // _apis/projects is a true list endpoint
+    expect(settingsCode).toMatch(/isListEndpoint:\s*true/);
+  });
+
+  it("checks for auth failures (401/403) after the probe returns", () => {
     expect(settingsCode).toMatch(
-      /response\.status\s*===\s*401\s*\|\|\s*response\.status\s*===\s*403/,
+      /firstResponse\.status\s*===\s*401\s*\|\|\s*firstResponse\.status\s*===\s*403/,
     );
-    // The throw must come before the version loop continues
-    const authCheck = settingsCode.indexOf("response.status === 401");
-    const breakOrContinue = settingsCode.indexOf(
-      "workingVersion = version",
-      authCheck,
-    );
-    expect(authCheck).toBeLessThan(breakOrContinue);
   });
 
   it("reuses the discovered version for pagination", () => {
@@ -68,5 +64,13 @@ describe("Settings API version fallback", () => {
     expect(processPageBlock).toMatch(/\}\s*catch\s*\{/);
     // Must return null in the catch path (terminates pagination)
     expect(processPageBlock).toMatch(/catch\s*\{[\s\S]*?return null/);
+  });
+
+  it("throws on non-ok responses from the probe (server errors not swallowed)", () => {
+    // After the shared probe returns, settings must check !firstResponse.ok
+    // and throw — not silently continue
+    expect(settingsCode).toMatch(
+      /if\s*\(\s*!firstResponse\.ok\s*\)/,
+    );
   });
 });

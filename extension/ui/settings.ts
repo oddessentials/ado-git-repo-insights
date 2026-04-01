@@ -27,7 +27,7 @@ import {
   getCollectionUri,
   getAccessToken,
 } from "./modules";
-import { ADO_REST_API_VERSIONS } from "./modules/api-versions";
+import { fetchWithVersionFallback } from "./modules/api-versions";
 
 // Import safe DOM rendering utilities
 import {
@@ -192,8 +192,7 @@ async function tryLoadProjectDropdown(): Promise<void> {
  * Get list of projects in the organization.
  * Requires vso.project scope.
  */
-// Project listing uses the same REST API version fallback chain as the
-// Build API — see api-versions.ts for the centralized constant.
+// Project listing uses the shared version fallback from api-versions.ts.
 
 async function getOrganizationProjects(): Promise<VSSProject[]> {
   const collectionUri = await getCollectionUri();
@@ -203,34 +202,22 @@ async function getOrganizationProjects(): Promise<VSSProject[]> {
     Accept: "application/json",
   };
 
-  // Discover a working API version using the first page request.
-  let workingVersion: string | null = null;
-  let firstResponse: Response | null = null;
-  let lastError: Error | null = null;
-
-  for (const version of ADO_REST_API_VERSIONS) {
-    const url = `${collectionUri}_apis/projects?api-version=${version}&$top=500`;
-    const response = await fetch(url, { headers });
-
-    // Auth failures are not version-related — fail fast.
-    if (response.status === 401 || response.status === 403) {
-      throw new Error(`Failed to list projects: ${response.status}`);
-    }
-
-    if (response.ok) {
-      workingVersion = version;
-      firstResponse = response;
-      break;
-    }
-
-    // 400/404 likely means version not supported — try next.
-    lastError = new Error(
-      `Failed to list projects with api-version=${version}: ${response.status}`,
+  // Discover a working API version using the shared probe.
+  // _apis/projects is a true list endpoint (returns { value: [] } for
+  // empty orgs, never 404 for "no results").
+  const { response: firstResponse, version: workingVersion } =
+    await fetchWithVersionFallback(
+      (v) => `${collectionUri}_apis/projects?api-version=${v}&$top=500`,
+      (url) => fetch(url, { headers }),
+      { isListEndpoint: true },
     );
+
+  if (firstResponse.status === 401 || firstResponse.status === 403) {
+    throw new Error(`Failed to list projects: ${firstResponse.status}`);
   }
 
-  if (!workingVersion || !firstResponse) {
-    throw lastError ?? new Error("No compatible API version for project listing");
+  if (!firstResponse.ok) {
+    throw new Error(`Failed to list projects: ${firstResponse.status}`);
   }
 
   // Process the first page (already fetched during version discovery).

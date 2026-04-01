@@ -298,6 +298,23 @@ var PRInsightsSettings = (() => {
   // ../ui/modules/api-versions.ts
   var ADO_REST_API_VERSIONS = ["7.1", "6.0", "5.1"];
   var EXTENSION_DATA_API_VERSION = "7.1-preview.1";
+  async function fetchWithVersionFallback(buildUrl, fetchFn, options) {
+    let lastError = null;
+    for (const version of ADO_REST_API_VERSIONS) {
+      const response = await fetchFn(buildUrl(version));
+      if (response.status === 401 || response.status === 403) {
+        return { response, version };
+      }
+      if (response.status === 400 || options.isListEndpoint && response.status === 404) {
+        lastError = new Error(
+          `API api-version=${version}: ${response.status}`
+        );
+        continue;
+      }
+      return { response, version };
+    }
+    throw lastError ?? new Error("No compatible API version found");
+  }
 
   // ../ui/modules/sdk.ts
   var LocationServiceId = "ms.vss-features.location-service";
@@ -745,17 +762,8 @@ var PRInsightsSettings = (() => {
     }
     /**
      * Fetch a URL with API version fallback. If the version is already
-     * cached, uses it directly. Otherwise tries each version in
-     * ADO_REST_API_VERSIONS order against the actual requested URL.
-     *
-     * Version probing:
-     * - 401/403 → fail immediately (auth, not version)
-     * - 400 → version not supported, try next (all families)
-     * - 404 → version not supported, try next (list families only)
-     *
-     * Response handling (non-retry statuses):
-     * - 2xx → cache the version, return to caller
-     * - Other (404 on resource family, 5xx) → return without caching
+     * cached, uses it directly. Otherwise delegates to the shared
+     * fetchWithVersionFallback probe and caches on success.
      *
      * @param family Endpoint family for per-route version caching
      * @param buildUrl Function that builds the URL for a given api-version
@@ -767,28 +775,16 @@ var PRInsightsSettings = (() => {
       if (cachedVersion) {
         return this._authenticatedFetch(buildUrl(cachedVersion), options);
       }
-      const retryOn404 = LIST_ENDPOINT_FAMILIES.has(family);
-      let lastError = null;
-      for (const version of ADO_REST_API_VERSIONS) {
-        const response = await this._authenticatedFetch(
-          buildUrl(version),
-          options
-        );
-        if (response.status === 401 || response.status === 403) {
-          return response;
-        }
-        if (response.status === 400 || retryOn404 && response.status === 404) {
-          lastError = new Error(
-            `Build API api-version=${version}: ${response.status}`
-          );
-          continue;
-        }
-        if (response.ok) {
-          this.resolvedApiVersions.set(family, version);
-        }
-        return response;
+      const isListEndpoint = LIST_ENDPOINT_FAMILIES.has(family);
+      const { response, version } = await fetchWithVersionFallback(
+        buildUrl,
+        (url) => this._authenticatedFetch(url, options),
+        { isListEndpoint }
+      );
+      if (response.ok) {
+        this.resolvedApiVersions.set(family, version);
       }
-      throw lastError ?? new Error("No compatible Build API version found");
+      return response;
     }
     /**
      * Get list of artifacts for a build.
@@ -1206,26 +1202,16 @@ var PRInsightsSettings = (() => {
       Authorization: `Bearer ${token}`,
       Accept: "application/json"
     };
-    let workingVersion = null;
-    let firstResponse = null;
-    let lastError = null;
-    for (const version of ADO_REST_API_VERSIONS) {
-      const url = `${collectionUri}_apis/projects?api-version=${version}&$top=500`;
-      const response = await fetch(url, { headers });
-      if (response.status === 401 || response.status === 403) {
-        throw new Error(`Failed to list projects: ${response.status}`);
-      }
-      if (response.ok) {
-        workingVersion = version;
-        firstResponse = response;
-        break;
-      }
-      lastError = new Error(
-        `Failed to list projects with api-version=${version}: ${response.status}`
-      );
+    const { response: firstResponse, version: workingVersion } = await fetchWithVersionFallback(
+      (v2) => `${collectionUri}_apis/projects?api-version=${v2}&$top=500`,
+      (url) => fetch(url, { headers }),
+      { isListEndpoint: true }
+    );
+    if (firstResponse.status === 401 || firstResponse.status === 403) {
+      throw new Error(`Failed to list projects: ${firstResponse.status}`);
     }
-    if (!workingVersion || !firstResponse) {
-      throw lastError ?? new Error("No compatible API version for project listing");
+    if (!firstResponse.ok) {
+      throw new Error(`Failed to list projects: ${firstResponse.status}`);
     }
     const allProjects = [];
     const processPage = async (response) => {

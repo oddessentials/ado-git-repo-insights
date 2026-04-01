@@ -7,7 +7,6 @@
  */
 
 import { ArtifactClient } from "../ui/artifact-client";
-import { ADO_REST_API_VERSIONS } from "../ui/modules/api-versions";
 import {
   setupSdkMocks,
   teardownSdkMocks,
@@ -173,7 +172,7 @@ describe("ArtifactClient per-endpoint-family version fallback", () => {
         .mockResolvedValueOnce(mockResponse(400));
 
       await expect(client.getDefinitions()).rejects.toThrow(
-        "Build API api-version=5.1: 400",
+        "API api-version=5.1: 400",
       );
 
       // All 3 versions tried
@@ -189,7 +188,7 @@ describe("ArtifactClient per-endpoint-family version fallback", () => {
         .mockResolvedValueOnce(mockResponse(400));
 
       await expect(client.getDefinitions()).rejects.toThrow(
-        "Build API api-version=5.1: 400",
+        "API api-version=5.1: 400",
       );
 
       // All 3 versions tried
@@ -205,7 +204,7 @@ describe("ArtifactClient per-endpoint-family version fallback", () => {
         .mockResolvedValueOnce(mockResponse(404));
 
       await expect(client.getDefinitions()).rejects.toThrow(
-        "Build API api-version=5.1: 404",
+        "API api-version=5.1: 404",
       );
     });
 
@@ -226,6 +225,21 @@ describe("ArtifactClient per-endpoint-family version fallback", () => {
         (client as unknown as { resolvedApiVersions: Map<string, string> })
           .resolvedApiVersions.get("artifacts"),
       ).toBeUndefined();
+    });
+  });
+
+  describe("server error wiring (shared function integration)", () => {
+    it("500 on uncached definitions returns immediately to caller", async () => {
+      const client = await createClient();
+
+      mockFetch.mockResolvedValueOnce(mockResponse(500));
+
+      await expect(client.getDefinitions()).rejects.toThrow(
+        "Failed to list definitions: 500",
+      );
+
+      // No retry — shared function returned 500 immediately
+      expect(mockFetch).toHaveBeenCalledTimes(1);
     });
   });
 
@@ -318,11 +332,5 @@ describe("ArtifactClient per-endpoint-family version fallback", () => {
     });
   });
 
-  describe("API version ordering invariant", () => {
-    it("ADO_REST_API_VERSIONS is ordered newest → oldest", () => {
-      const versions = [...ADO_REST_API_VERSIONS].map(v => parseFloat(v));
-      const descending = [...versions].sort((a, b) => b - a);
-      expect(versions).toEqual(descending);
-    });
-  });
+  // API version ordering invariant is tested in version-fallback-contract.test.ts
 });

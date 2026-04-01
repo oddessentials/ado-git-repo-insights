@@ -892,7 +892,7 @@ jobs:
           # MAX_SKIPS: Maximum allowed skipped tests (5 for platform-specific edge cases)
           python .github/scripts/validate-test-results.py \
             extension/test-results.xml \
-            --min-collected=2288 \
+            --min-collected=2303 \
             --max-skips=5
         shell: bash
 
