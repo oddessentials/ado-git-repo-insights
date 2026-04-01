@@ -31,8 +31,24 @@ describe("ArtifactClient", () => {
   };
 
   beforeEach(() => {
-    // Setup mock fetch
-    mockFetch = jest.fn();
+    // Setup mock fetch with a default that handles API version resolution.
+    // _resolveApiVersion() probes /_apis/build/definitions?api-version=X&$top=1
+    // before any real call. The default mock returns success for that probe
+    // and an empty value array for everything else.
+    mockFetch = jest.fn((url: string) => {
+      if (typeof url === "string" && url.includes("_apis/build/definitions") && url.includes("$top=1")) {
+        return Promise.resolve({
+          ok: true,
+          status: 200,
+          json: () => Promise.resolve({ value: [] }),
+        });
+      }
+      return Promise.resolve({
+        ok: true,
+        status: 200,
+        json: () => Promise.resolve({ value: [] }),
+      });
+    });
     globalScope.fetch = mockFetch;
 
     // Setup SDK mocks (replaces old global.VSS pattern)
@@ -70,6 +86,7 @@ describe("ArtifactClient", () => {
       // The new SDK returns a plain string token (not { token: string })
       const client = new ArtifactClient("test-project");
       await client.initialize(TEST_COLLECTION_URI, TEST_AUTH_TOKEN);
+      mockFetch.mockClear();
 
       // Should not throw - string token is handled
       mockFetch.mockResolvedValue({
@@ -89,6 +106,7 @@ describe("ArtifactClient", () => {
       const client = new ArtifactClient("test-project");
 
       await client.initialize(TEST_COLLECTION_URI, TEST_AUTH_TOKEN);
+      mockFetch.mockClear();
       await client.initialize("https://other.com/", "other-token");
 
       // First values are preserved — second call is a no-op
@@ -113,6 +131,7 @@ describe("ArtifactClient", () => {
     it("includes bearer token in request", async () => {
       const client = new ArtifactClient("test-project");
       await client.initialize(TEST_COLLECTION_URI, TEST_AUTH_TOKEN);
+      mockFetch.mockClear();
 
       mockFetch.mockResolvedValue({
         ok: true,
@@ -130,6 +149,7 @@ describe("ArtifactClient", () => {
     it("throws PermissionDeniedError on 401", async () => {
       const client = new ArtifactClient("test-project");
       await client.initialize(TEST_COLLECTION_URI, TEST_AUTH_TOKEN);
+      mockFetch.mockClear();
 
       mockFetch.mockResolvedValue({
         ok: false,
@@ -145,6 +165,7 @@ describe("ArtifactClient", () => {
     it("throws PermissionDeniedError on 403", async () => {
       const client = new ArtifactClient("test-project");
       await client.initialize(TEST_COLLECTION_URI, TEST_AUTH_TOKEN);
+      mockFetch.mockClear();
 
       mockFetch.mockResolvedValue({
         ok: false,
@@ -160,6 +181,7 @@ describe("ArtifactClient", () => {
     it("throws file not found error on 404", async () => {
       const client = new ArtifactClient("test-project");
       await client.initialize(TEST_COLLECTION_URI, TEST_AUTH_TOKEN);
+      mockFetch.mockClear();
 
       mockFetch.mockResolvedValue({
         ok: false,
@@ -175,6 +197,7 @@ describe("ArtifactClient", () => {
     it("throws generic error on other status codes", async () => {
       const client = new ArtifactClient("test-project");
       await client.initialize(TEST_COLLECTION_URI, TEST_AUTH_TOKEN);
+      mockFetch.mockClear();
 
       mockFetch.mockResolvedValue({
         ok: false,
@@ -190,6 +213,7 @@ describe("ArtifactClient", () => {
     it("returns parsed JSON on success", async () => {
       const client = new ArtifactClient("test-project");
       await client.initialize(TEST_COLLECTION_URI, TEST_AUTH_TOKEN);
+      mockFetch.mockClear();
 
       const testData = { manifest_schema_version: 1, data: "test" };
       mockFetch.mockResolvedValue({
@@ -210,6 +234,7 @@ describe("ArtifactClient", () => {
     it("normalizes file path with leading slash", async () => {
       const client = new ArtifactClient("test-project");
       await client.initialize(TEST_COLLECTION_URI, TEST_AUTH_TOKEN);
+      mockFetch.mockClear();
 
       mockFetch.mockResolvedValue({
         ok: true,
@@ -228,6 +253,7 @@ describe("ArtifactClient", () => {
     it("returns true when file exists", async () => {
       const client = new ArtifactClient("test-project");
       await client.initialize(TEST_COLLECTION_URI, TEST_AUTH_TOKEN);
+      mockFetch.mockClear();
 
       mockFetch.mockResolvedValue({
         ok: true,
@@ -246,6 +272,7 @@ describe("ArtifactClient", () => {
     it("returns false when file does not exist", async () => {
       const client = new ArtifactClient("test-project");
       await client.initialize(TEST_COLLECTION_URI, TEST_AUTH_TOKEN);
+      mockFetch.mockClear();
 
       mockFetch.mockResolvedValue({
         ok: false,
@@ -264,6 +291,7 @@ describe("ArtifactClient", () => {
     it("returns false on fetch error", async () => {
       const client = new ArtifactClient("test-project");
       await client.initialize(TEST_COLLECTION_URI, TEST_AUTH_TOKEN);
+      mockFetch.mockClear();
 
       mockFetch.mockRejectedValue(new Error("Network error"));
 
@@ -279,6 +307,7 @@ describe("ArtifactClient", () => {
     it("uses HEAD method", async () => {
       const client = new ArtifactClient("test-project");
       await client.initialize(TEST_COLLECTION_URI, TEST_AUTH_TOKEN);
+      mockFetch.mockClear();
 
       mockFetch.mockResolvedValue({ ok: true, status: 200 });
 
@@ -292,6 +321,7 @@ describe("ArtifactClient", () => {
     it("returns list of artifacts for build", async () => {
       const client = new ArtifactClient("test-project");
       await client.initialize(TEST_COLLECTION_URI, TEST_AUTH_TOKEN);
+      mockFetch.mockClear();
 
       const artifacts: VSSBuildArtifact[] = [
         {
@@ -315,6 +345,7 @@ describe("ArtifactClient", () => {
     it("returns empty array when no artifacts", async () => {
       const client = new ArtifactClient("test-project");
       await client.initialize(TEST_COLLECTION_URI, TEST_AUTH_TOKEN);
+      mockFetch.mockClear();
 
       mockFetch.mockResolvedValue({
         ok: true,
@@ -330,6 +361,7 @@ describe("ArtifactClient", () => {
     it("throws on permission denied", async () => {
       const client = new ArtifactClient("test-project");
       await client.initialize(TEST_COLLECTION_URI, TEST_AUTH_TOKEN);
+      mockFetch.mockClear();
 
       mockFetch.mockResolvedValue({
         ok: false,
@@ -343,6 +375,7 @@ describe("ArtifactClient", () => {
     it("builds correct API URL", async () => {
       const client = new ArtifactClient("test-project");
       await client.initialize(TEST_COLLECTION_URI, TEST_AUTH_TOKEN);
+      mockFetch.mockClear();
 
       mockFetch.mockResolvedValue({
         ok: true,
@@ -362,6 +395,7 @@ describe("ArtifactClient", () => {
     it("returns list of definitions for project", async () => {
       const client = new ArtifactClient("test-project");
       await client.initialize(TEST_COLLECTION_URI, TEST_AUTH_TOKEN);
+      mockFetch.mockClear();
 
       const definitions = [
         { id: 1, name: "pipeline-a" },
@@ -382,6 +416,7 @@ describe("ArtifactClient", () => {
     it("returns empty array when no definitions", async () => {
       const client = new ArtifactClient("test-project");
       await client.initialize(TEST_COLLECTION_URI, TEST_AUTH_TOKEN);
+      mockFetch.mockClear();
 
       mockFetch.mockResolvedValue({
         ok: true,
@@ -397,6 +432,7 @@ describe("ArtifactClient", () => {
     it("builds correct API URL with default params", async () => {
       const client = new ArtifactClient("test-project");
       await client.initialize(TEST_COLLECTION_URI, TEST_AUTH_TOKEN);
+      mockFetch.mockClear();
 
       mockFetch.mockResolvedValue({
         ok: true,
@@ -416,6 +452,7 @@ describe("ArtifactClient", () => {
     it("uses custom top and queryOrder params", async () => {
       const client = new ArtifactClient("test-project");
       await client.initialize(TEST_COLLECTION_URI, TEST_AUTH_TOKEN);
+      mockFetch.mockClear();
 
       mockFetch.mockResolvedValue({
         ok: true,
@@ -433,6 +470,7 @@ describe("ArtifactClient", () => {
     it("throws on permission denied (401)", async () => {
       const client = new ArtifactClient("test-project");
       await client.initialize(TEST_COLLECTION_URI, TEST_AUTH_TOKEN);
+      mockFetch.mockClear();
 
       mockFetch.mockResolvedValue({
         ok: false,
@@ -446,6 +484,7 @@ describe("ArtifactClient", () => {
     it("throws on permission denied (403)", async () => {
       const client = new ArtifactClient("test-project");
       await client.initialize(TEST_COLLECTION_URI, TEST_AUTH_TOKEN);
+      mockFetch.mockClear();
 
       mockFetch.mockResolvedValue({
         ok: false,
@@ -459,6 +498,7 @@ describe("ArtifactClient", () => {
     it("throws generic error on server error", async () => {
       const client = new ArtifactClient("test-project");
       await client.initialize(TEST_COLLECTION_URI, TEST_AUTH_TOKEN);
+      mockFetch.mockClear();
 
       mockFetch.mockResolvedValue({
         ok: false,
@@ -482,6 +522,7 @@ describe("ArtifactClient", () => {
     it("returns builds for a definition", async () => {
       const client = new ArtifactClient("test-project");
       await client.initialize(TEST_COLLECTION_URI, TEST_AUTH_TOKEN);
+      mockFetch.mockClear();
 
       const builds = [
         {
@@ -506,6 +547,7 @@ describe("ArtifactClient", () => {
     it("returns empty array when no builds", async () => {
       const client = new ArtifactClient("test-project");
       await client.initialize(TEST_COLLECTION_URI, TEST_AUTH_TOKEN);
+      mockFetch.mockClear();
 
       mockFetch.mockResolvedValue({
         ok: true,
@@ -521,6 +563,7 @@ describe("ArtifactClient", () => {
     it("builds correct API URL with definition filter", async () => {
       const client = new ArtifactClient("test-project");
       await client.initialize(TEST_COLLECTION_URI, TEST_AUTH_TOKEN);
+      mockFetch.mockClear();
 
       mockFetch.mockResolvedValue({
         ok: true,
@@ -542,6 +585,7 @@ describe("ArtifactClient", () => {
     it("uses custom top param", async () => {
       const client = new ArtifactClient("test-project");
       await client.initialize(TEST_COLLECTION_URI, TEST_AUTH_TOKEN);
+      mockFetch.mockClear();
 
       mockFetch.mockResolvedValue({
         ok: true,
@@ -558,6 +602,7 @@ describe("ArtifactClient", () => {
     it("throws on permission denied (401)", async () => {
       const client = new ArtifactClient("test-project");
       await client.initialize(TEST_COLLECTION_URI, TEST_AUTH_TOKEN);
+      mockFetch.mockClear();
 
       mockFetch.mockResolvedValue({
         ok: false,
@@ -571,6 +616,7 @@ describe("ArtifactClient", () => {
     it("throws on permission denied (403)", async () => {
       const client = new ArtifactClient("test-project");
       await client.initialize(TEST_COLLECTION_URI, TEST_AUTH_TOKEN);
+      mockFetch.mockClear();
 
       mockFetch.mockResolvedValue({
         ok: false,
@@ -584,6 +630,7 @@ describe("ArtifactClient", () => {
     it("throws generic error on server error", async () => {
       const client = new ArtifactClient("test-project");
       await client.initialize(TEST_COLLECTION_URI, TEST_AUTH_TOKEN);
+      mockFetch.mockClear();
 
       mockFetch.mockResolvedValue({
         ok: false,
@@ -607,6 +654,7 @@ describe("ArtifactClient", () => {
     it("includes auth header", async () => {
       const client = new ArtifactClient("test-project");
       await client.initialize(TEST_COLLECTION_URI, TEST_AUTH_TOKEN);
+      mockFetch.mockClear();
 
       mockFetch.mockResolvedValue({ ok: true, status: 200 });
 
@@ -627,6 +675,7 @@ describe("ArtifactClient", () => {
     it("passes through request options", async () => {
       const client = new ArtifactClient("test-project");
       await client.initialize(TEST_COLLECTION_URI, TEST_AUTH_TOKEN);
+      mockFetch.mockClear();
 
       mockFetch.mockResolvedValue({ ok: true, status: 200 });
 
@@ -645,6 +694,7 @@ describe("ArtifactClient", () => {
     it("returns AuthenticatedDatasetLoader instance", async () => {
       const client = new ArtifactClient("test-project");
       await client.initialize(TEST_COLLECTION_URI, TEST_AUTH_TOKEN);
+      mockFetch.mockClear();
 
       const loader = client.createDatasetLoader(123, "aggregates");
 

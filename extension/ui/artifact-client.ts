@@ -28,11 +28,19 @@ import {
 /**
  * Client for accessing pipeline artifacts with authentication.
  */
+/**
+ * Build API versions to try, newest first. The old SDK REST clients
+ * negotiated a host-supported version; this fallback chain preserves
+ * compatibility with Azure DevOps Server 2019+ (5.1) through Services (7.1).
+ */
+const BUILD_API_VERSIONS = ["7.1", "6.0", "5.1"];
+
 export class ArtifactClient {
   public readonly projectId: string;
   private collectionUri: string | null = null;
   private authToken: string | null = null;
   private initialized: boolean = false;
+  private resolvedApiVersion: string | null = null;
 
   /**
    * Create a new ArtifactClient.
@@ -62,6 +70,7 @@ export class ArtifactClient {
     this.collectionUri = collectionUri;
     this.authToken = authToken;
     this.initialized = true;
+    await this._resolveApiVersion();
     return this;
   }
 
@@ -92,7 +101,7 @@ export class ArtifactClient {
   ): Promise<unknown> {
     this._ensureInitialized();
 
-    const url = this._buildFileUrl(buildId, artifactName, filePath);
+    const url = await this._buildFileUrl(buildId, artifactName, filePath);
     const response = await this._authenticatedFetch(url);
 
     if (response.status === 401 || response.status === 403) {
@@ -125,7 +134,7 @@ export class ArtifactClient {
     this._ensureInitialized();
 
     try {
-      const url = this._buildFileUrl(buildId, artifactName, filePath);
+      const url = await this._buildFileUrl(buildId, artifactName, filePath);
       const response = await this._authenticatedFetch(url, { method: "HEAD" });
       return response.ok;
     } catch {
@@ -216,12 +225,43 @@ export class ArtifactClient {
   }
 
   /**
+   * Resolve a working Build API version by trying each version in
+   * BUILD_API_VERSIONS order. Caches the result for all subsequent calls.
+   * Auth failures (401/403) fail fast without trying older versions.
+   */
+  private async _resolveApiVersion(): Promise<string> {
+    if (this.resolvedApiVersion) return this.resolvedApiVersion;
+    this._ensureInitialized();
+
+    let lastError: Error | null = null;
+    for (const version of BUILD_API_VERSIONS) {
+      const url =
+        `${this.collectionUri}${this.projectId}/_apis/build/definitions` +
+        `?api-version=${version}&$top=1`;
+      const response = await this._authenticatedFetch(url);
+
+      if (response.status === 401 || response.status === 403) {
+        throw createPermissionDeniedError("resolve Build API version");
+      }
+      if (response.ok) {
+        this.resolvedApiVersion = version;
+        return version;
+      }
+      lastError = new Error(
+        `Build API api-version=${version}: ${response.status}`,
+      );
+    }
+    throw lastError ?? new Error("No compatible Build API version found");
+  }
+
+  /**
    * Get list of artifacts for a build.
    */
   async getArtifacts(buildId: number): Promise<VSSBuildArtifact[]> {
     this._ensureInitialized();
+    const apiVersion = await this._resolveApiVersion();
 
-    const url = `${this.collectionUri}${this.projectId}/_apis/build/builds/${buildId}/artifacts?api-version=7.1`;
+    const url = `${this.collectionUri}${this.projectId}/_apis/build/builds/${buildId}/artifacts?api-version=${apiVersion}`;
     const response = await this._authenticatedFetch(url);
 
     if (response.status === 401 || response.status === 403) {
@@ -248,10 +288,11 @@ export class ArtifactClient {
     queryOrder: number = 2,
   ): Promise<BuildDefinitionReference[]> {
     this._ensureInitialized();
+    const apiVersion = await this._resolveApiVersion();
 
     const url =
       `${this.collectionUri}${this.projectId}/_apis/build/definitions` +
-      `?api-version=7.1&$top=${top}&queryOrder=${queryOrder}`;
+      `?api-version=${apiVersion}&$top=${top}&queryOrder=${queryOrder}`;
     const response = await this._authenticatedFetch(url);
 
     if (response.status === 401 || response.status === 403) {
@@ -275,10 +316,11 @@ export class ArtifactClient {
    */
   async getBuilds(definitionId: number, top: number = 1): Promise<Build[]> {
     this._ensureInitialized();
+    const apiVersion = await this._resolveApiVersion();
 
     const url =
       `${this.collectionUri}${this.projectId}/_apis/build/builds` +
-      `?api-version=7.1&definitions=${definitionId}` +
+      `?api-version=${apiVersion}&definitions=${definitionId}` +
       `&statusFilter=2&resultFilter=6&$top=${top}`;
     const response = await this._authenticatedFetch(url);
 
@@ -307,11 +349,12 @@ export class ArtifactClient {
   /**
    * Build the URL for accessing a file within an artifact.
    */
-  private _buildFileUrl(
+  private async _buildFileUrl(
     buildId: number,
     artifactName: string,
     filePath: string,
-  ): string {
+  ): Promise<string> {
+    const apiVersion = await this._resolveApiVersion();
     const normalizedPath = filePath.startsWith("/") ? filePath : "/" + filePath;
 
     return (
@@ -319,7 +362,7 @@ export class ArtifactClient {
       `?artifactName=${encodeURIComponent(artifactName)}` +
       `&%24format=file` +
       `&subPath=${encodeURIComponent(normalizedPath)}` +
-      `&api-version=7.1`
+      `&api-version=${apiVersion}`
     );
   }
 

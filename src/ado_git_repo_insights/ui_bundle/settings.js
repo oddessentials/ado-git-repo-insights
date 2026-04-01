@@ -527,6 +527,7 @@ var PRInsightsSettings = (() => {
   }
 
   // ../ui/artifact-client.ts
+  var BUILD_API_VERSIONS = ["7.1", "6.0", "5.1"];
   var ArtifactClient = class {
     /**
      * Create a new ArtifactClient.
@@ -537,6 +538,7 @@ var PRInsightsSettings = (() => {
       this.collectionUri = null;
       this.authToken = null;
       this.initialized = false;
+      this.resolvedApiVersion = null;
       this.projectId = projectId;
     }
     /**
@@ -554,6 +556,7 @@ var PRInsightsSettings = (() => {
       this.collectionUri = collectionUri;
       this.authToken = authToken;
       this.initialized = true;
+      await this._resolveApiVersion();
       return this;
     }
     /**
@@ -577,7 +580,7 @@ var PRInsightsSettings = (() => {
      */
     async getArtifactFile(buildId, artifactName, filePath) {
       this._ensureInitialized();
-      const url = this._buildFileUrl(buildId, artifactName, filePath);
+      const url = await this._buildFileUrl(buildId, artifactName, filePath);
       const response = await this._authenticatedFetch(url);
       if (response.status === 401 || response.status === 403) {
         throw createPermissionDeniedError("read artifact files");
@@ -600,7 +603,7 @@ var PRInsightsSettings = (() => {
     async hasArtifactFile(buildId, artifactName, filePath) {
       this._ensureInitialized();
       try {
-        const url = this._buildFileUrl(buildId, artifactName, filePath);
+        const url = await this._buildFileUrl(buildId, artifactName, filePath);
         const response = await this._authenticatedFetch(url, { method: "HEAD" });
         return response.ok;
       } catch {
@@ -669,11 +672,37 @@ var PRInsightsSettings = (() => {
       return response.json();
     }
     /**
+     * Resolve a working Build API version by trying each version in
+     * BUILD_API_VERSIONS order. Caches the result for all subsequent calls.
+     * Auth failures (401/403) fail fast without trying older versions.
+     */
+    async _resolveApiVersion() {
+      if (this.resolvedApiVersion) return this.resolvedApiVersion;
+      this._ensureInitialized();
+      let lastError = null;
+      for (const version of BUILD_API_VERSIONS) {
+        const url = `${this.collectionUri}${this.projectId}/_apis/build/definitions?api-version=${version}&$top=1`;
+        const response = await this._authenticatedFetch(url);
+        if (response.status === 401 || response.status === 403) {
+          throw createPermissionDeniedError("resolve Build API version");
+        }
+        if (response.ok) {
+          this.resolvedApiVersion = version;
+          return version;
+        }
+        lastError = new Error(
+          `Build API api-version=${version}: ${response.status}`
+        );
+      }
+      throw lastError ?? new Error("No compatible Build API version found");
+    }
+    /**
      * Get list of artifacts for a build.
      */
     async getArtifacts(buildId) {
       this._ensureInitialized();
-      const url = `${this.collectionUri}${this.projectId}/_apis/build/builds/${buildId}/artifacts?api-version=7.1`;
+      const apiVersion = await this._resolveApiVersion();
+      const url = `${this.collectionUri}${this.projectId}/_apis/build/builds/${buildId}/artifacts?api-version=${apiVersion}`;
       const response = await this._authenticatedFetch(url);
       if (response.status === 401 || response.status === 403) {
         throw createPermissionDeniedError("list build artifacts");
@@ -693,7 +722,8 @@ var PRInsightsSettings = (() => {
      */
     async getDefinitions(top = 50, queryOrder = 2) {
       this._ensureInitialized();
-      const url = `${this.collectionUri}${this.projectId}/_apis/build/definitions?api-version=7.1&$top=${top}&queryOrder=${queryOrder}`;
+      const apiVersion = await this._resolveApiVersion();
+      const url = `${this.collectionUri}${this.projectId}/_apis/build/definitions?api-version=${apiVersion}&$top=${top}&queryOrder=${queryOrder}`;
       const response = await this._authenticatedFetch(url);
       if (response.status === 401 || response.status === 403) {
         throw createPermissionDeniedError("list build definitions");
@@ -713,7 +743,8 @@ var PRInsightsSettings = (() => {
      */
     async getBuilds(definitionId, top = 1) {
       this._ensureInitialized();
-      const url = `${this.collectionUri}${this.projectId}/_apis/build/builds?api-version=7.1&definitions=${definitionId}&statusFilter=2&resultFilter=6&$top=${top}`;
+      const apiVersion = await this._resolveApiVersion();
+      const url = `${this.collectionUri}${this.projectId}/_apis/build/builds?api-version=${apiVersion}&definitions=${definitionId}&statusFilter=2&resultFilter=6&$top=${top}`;
       const response = await this._authenticatedFetch(url);
       if (response.status === 401 || response.status === 403) {
         throw createPermissionDeniedError("list builds");
@@ -733,9 +764,10 @@ var PRInsightsSettings = (() => {
     /**
      * Build the URL for accessing a file within an artifact.
      */
-    _buildFileUrl(buildId, artifactName, filePath) {
+    async _buildFileUrl(buildId, artifactName, filePath) {
+      const apiVersion = await this._resolveApiVersion();
       const normalizedPath = filePath.startsWith("/") ? filePath : "/" + filePath;
-      return `${this.collectionUri}${this.projectId}/_apis/build/builds/${buildId}/artifacts?artifactName=${encodeURIComponent(artifactName)}&%24format=file&subPath=${encodeURIComponent(normalizedPath)}&api-version=7.1`;
+      return `${this.collectionUri}${this.projectId}/_apis/build/builds/${buildId}/artifacts?artifactName=${encodeURIComponent(artifactName)}&%24format=file&subPath=${encodeURIComponent(normalizedPath)}&api-version=${apiVersion}`;
     }
     /**
      * Perform an authenticated fetch using the ADO auth token.

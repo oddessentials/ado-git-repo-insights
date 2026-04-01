@@ -122,8 +122,12 @@ class TestWindowsConsoleHandler:
         assert shutdown_thread.daemon is True
         shutdown_thread.start.assert_called_once()
 
-    def test_console_handler_installed_even_when_sig_ign(self, tmp_path: Path) -> None:
-        """Windows console handler IS installed even when caller set SIG_IGN."""
+    def test_console_handler_skipped_when_sig_ign(self, tmp_path: Path) -> None:
+        """Windows console handler is NOT installed when caller set SIG_IGN.
+
+        SIG_IGN means the caller explicitly wants Ctrl+C ignored. Both
+        the SIGINT handler and the console handler must respect this.
+        """
         from ado_git_repo_insights.cli import _run_http_server
 
         (tmp_path / "index.html").write_text("<h1>test</h1>")
@@ -164,10 +168,61 @@ class TestWindowsConsoleHandler:
                         mock_windll.kernel32 = _fake_kernel32
                         _run_http_server(tmp_path, port=0, open_browser=False)
 
-            assert len(registered_calls) == 2, (
-                "Windows console handler must be installed even when SIG_IGN is active"
+            assert len(registered_calls) == 0, (
+                "Windows console handler must NOT be installed when SIG_IGN is active"
             )
-            assert registered_calls[0][1] is True
-            assert registered_calls[1][1] is False
+        finally:
+            signal.signal(signal.SIGINT, original)
+
+    def test_console_handler_skipped_when_sig_dfl(self, tmp_path: Path) -> None:
+        """Windows console handler is NOT installed when caller set SIG_DFL.
+
+        SIG_DFL means the caller wants default OS termination semantics.
+        Installing a console handler would override that by dispatching
+        httpd.shutdown() instead of letting the OS terminate the process.
+        """
+        from ado_git_repo_insights.cli import _run_http_server
+
+        (tmp_path / "index.html").write_text("<h1>test</h1>")
+
+        registered_calls: list[tuple[object, bool]] = []
+
+        _fake_kernel32 = type("_FakeKernel32", (), {})()
+
+        def _fake_set_handler_dfl(handler: object, add: bool) -> int:
+            registered_calls.append((handler, add))
+            return 1
+
+        _fake_kernel32.SetConsoleCtrlHandler = _fake_set_handler_dfl
+
+        original = signal.signal(signal.SIGINT, signal.SIG_DFL)
+
+        try:
+            with (
+                patch("ado_git_repo_insights.cli.sys") as mock_sys,
+                patch(
+                    "socketserver.TCPServer.serve_forever",
+                    autospec=True,
+                ),
+            ):
+                mock_sys.platform = "win32"
+                mock_sys.stdout = __import__("sys").stdout
+                mock_sys.stderr = __import__("sys").stderr
+
+                import ctypes as _real_ctypes
+
+                with patch.dict(
+                    "sys.modules",
+                    {"ctypes": _real_ctypes},
+                ):
+                    with patch.object(
+                        _real_ctypes, "windll", create=True
+                    ) as mock_windll:
+                        mock_windll.kernel32 = _fake_kernel32
+                        _run_http_server(tmp_path, port=0, open_browser=False)
+
+            assert len(registered_calls) == 0, (
+                "Windows console handler must NOT be installed when SIG_DFL is active"
+            )
         finally:
             signal.signal(signal.SIGINT, original)

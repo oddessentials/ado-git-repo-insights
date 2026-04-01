@@ -1654,6 +1654,7 @@ def _run_http_server(
             if (
                 sys.platform == "win32"
                 and threading.current_thread() is threading.main_thread()
+                and callable(_prev_sigint)
             ):
                 try:
                     import ctypes
