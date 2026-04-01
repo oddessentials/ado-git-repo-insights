@@ -3,10 +3,10 @@
  *
  * Uses a timestamp-based version (99.0.<unix_seconds>) so each build
  * produces a version the marketplace will accept without manual bumping.
- * The 99.x.x prefix is always higher than any production release.
  *
- * Applies dev-overrides.json for name and gallery flags, then layers
- * a dynamic version via --override. No tracked files are modified.
+ * Builds from vss-extension-dev.json — a standalone dev manifest with
+ * publisher OddEssentials-Dev and extension ID ado-git-repo-insights-dev.
+ * This ensures dev builds never pollute the production marketplace listing.
  *
  * Usage: node scripts/package-dev-vsix.mjs
  * Called by: pnpm run package:vsix:dev
@@ -21,8 +21,7 @@ console.log(`\n📦 Dev VSIX version: ${version}\n`);
 
 execSync(
     'pnpm exec tfx extension create'
-    + ' --manifest-globs vss-extension.json'
-    + ' --overrides-file dev-overrides.json'
+    + ' --manifest-globs vss-extension-dev.json'
     + ' --override ' + JSON.stringify(override),
     { stdio: 'inherit', shell: true },
 );
