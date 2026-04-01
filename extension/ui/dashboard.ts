@@ -319,7 +319,7 @@ async function getSourceConfig(): Promise<{
     // Get source project ID
     const savedProjectId = await dataService.getValue<string>(
       SETTINGS_KEY_PROJECT,
-      { scopeType: "User" },
+      { scopeType: "User", defaultValue: "" },
     );
     if (
       savedProjectId &&
@@ -332,7 +332,7 @@ async function getSourceConfig(): Promise<{
     // Get pipeline definition ID
     const savedPipelineId = await dataService.getValue<number>(
       SETTINGS_KEY_PIPELINE,
-      { scopeType: "User" },
+      { scopeType: "User", defaultValue: 0 },
     );
     if (
       savedPipelineId &&

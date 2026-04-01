@@ -1172,11 +1172,11 @@ var PRInsightsSettings = (() => {
     try {
       const savedProjectId = await dataService.getValue(
         SETTINGS_KEY_PROJECT,
-        { scopeType: "User" }
+        { scopeType: "User", defaultValue: "" }
       );
       const savedPipelineId = await dataService.getValue(
         SETTINGS_KEY_PIPELINE,
-        { scopeType: "User" }
+        { scopeType: "User", defaultValue: 0 }
       );
       if (savedProjectId) {
         if (projectDropdownAvailable) {
@@ -1284,11 +1284,11 @@ var PRInsightsSettings = (() => {
     try {
       const savedProjectId = await dataService.getValue(
         SETTINGS_KEY_PROJECT,
-        { scopeType: "User" }
+        { scopeType: "User", defaultValue: "" }
       );
       const savedPipelineId = await dataService.getValue(
         SETTINGS_KEY_PIPELINE,
-        { scopeType: "User" }
+        { scopeType: "User", defaultValue: 0 }
       );
       const webContext = getWebContext();
       const currentProjectName = webContext?.project?.name || "Unknown";
@@ -1408,7 +1408,7 @@ var PRInsightsSettings = (() => {
       }
       const savedProjectId = await dataService.getValue(
         SETTINGS_KEY_PROJECT,
-        { scopeType: "User" }
+        { scopeType: "User", defaultValue: "" }
       );
       const webContext = getWebContext();
       const projectId = savedProjectId || webContext?.project?.id;

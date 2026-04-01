@@ -285,11 +285,11 @@ async function loadSettings(): Promise<void> {
   try {
     const savedProjectId = await dataService.getValue<string>(
       SETTINGS_KEY_PROJECT,
-      { scopeType: "User" },
+      { scopeType: "User", defaultValue: "" },
     );
     const savedPipelineId = await dataService.getValue<number>(
       SETTINGS_KEY_PIPELINE,
-      { scopeType: "User" },
+      { scopeType: "User", defaultValue: 0 },
     );
 
     // Set project
@@ -430,11 +430,11 @@ async function updateStatus(): Promise<void> {
   try {
     const savedProjectId = await dataService.getValue<string>(
       SETTINGS_KEY_PROJECT,
-      { scopeType: "User" },
+      { scopeType: "User", defaultValue: "" },
     );
     const savedPipelineId = await dataService.getValue<number>(
       SETTINGS_KEY_PIPELINE,
-      { scopeType: "User" },
+      { scopeType: "User", defaultValue: 0 },
     );
     const webContext = getWebContext();
     const currentProjectName = webContext?.project?.name || "Unknown";
@@ -592,7 +592,7 @@ async function downloadRawData(): Promise<void> {
     }
     const savedProjectId = await dataService.getValue<string>(
       SETTINGS_KEY_PROJECT,
-      { scopeType: "User" },
+      { scopeType: "User", defaultValue: "" },
     );
     const webContext = getWebContext();
     const projectId = savedProjectId || webContext?.project?.id;

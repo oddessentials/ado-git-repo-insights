@@ -7525,14 +7525,14 @@ var PRInsightsDashboard = (() => {
       const dataService = await getExtensionDataService();
       const savedProjectId = await dataService.getValue(
         SETTINGS_KEY_PROJECT,
-        { scopeType: "User" }
+        { scopeType: "User", defaultValue: "" }
       );
       if (savedProjectId && typeof savedProjectId === "string" && savedProjectId.trim()) {
         result.projectId = savedProjectId.trim();
       }
       const savedPipelineId = await dataService.getValue(
         SETTINGS_KEY_PIPELINE,
-        { scopeType: "User" }
+        { scopeType: "User", defaultValue: 0 }
       );
       if (savedPipelineId && typeof savedPipelineId === "number" && savedPipelineId > 0) {
         result.pipelineId = savedPipelineId;
