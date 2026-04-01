@@ -224,9 +224,15 @@ def build_commands(
             cwd=EXTENSION_ROOT,
         ),
         CommandSpec(
-            "Extension VSIX artifact inspection",
-            (PNPM_SENTINEL, "run", "test:vsix"),
-            cwd=EXTENSION_ROOT,
+            "Coverage delta parity (Codecov project status)",
+            (
+                "__PYTHON__",
+                "scripts/check_coverage_delta.py",
+                "--python-coverage",
+                "coverage.xml",
+                "--ts-coverage",
+                "extension/coverage/lcov.info",
+            ),
         ),
         CommandSpec(
             "Local patch coverage parity",
@@ -242,15 +248,9 @@ def build_commands(
             ),
         ),
         CommandSpec(
-            "Coverage delta parity (Codecov project status)",
-            (
-                "__PYTHON__",
-                "scripts/check_coverage_delta.py",
-                "--python-coverage",
-                "coverage.xml",
-                "--ts-coverage",
-                "extension/coverage/lcov.info",
-            ),
+            "Extension VSIX artifact inspection",
+            (PNPM_SENTINEL, "run", "test:vsix"),
+            cwd=EXTENSION_ROOT,
         ),
         CommandSpec(
             "Extension smoke tests",
