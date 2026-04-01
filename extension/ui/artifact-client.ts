@@ -26,21 +26,25 @@ import {
 } from "./types";
 
 /**
- * Client for accessing pipeline artifacts with authentication.
- */
-/**
  * Build API versions to try, newest first. The old SDK REST clients
  * negotiated a host-supported version; this fallback chain preserves
  * compatibility with Azure DevOps Server 2019+ (5.1) through Services (7.1).
  */
 const BUILD_API_VERSIONS = ["7.1", "6.0", "5.1"];
 
+/**
+ * Endpoint families for per-route API version caching.
+ * Azure DevOps Server deployments may support different API versions
+ * on different Build REST routes, so each family resolves independently.
+ */
+export type EndpointFamily = "definitions" | "builds" | "artifacts" | "artifact-file";
+
 export class ArtifactClient {
   public readonly projectId: string;
   private collectionUri: string | null = null;
   private authToken: string | null = null;
   private initialized: boolean = false;
-  private resolvedApiVersion: string | null = null;
+  private resolvedApiVersions = new Map<EndpointFamily, string>();
 
   /**
    * Create a new ArtifactClient.
@@ -101,6 +105,7 @@ export class ArtifactClient {
     this._ensureInitialized();
 
     const response = await this._fetchWithVersionFallback(
+      "artifact-file",
       (v) => this._buildFileUrl(buildId, artifactName, filePath, v),
     );
 
@@ -135,6 +140,7 @@ export class ArtifactClient {
 
     try {
       const response = await this._fetchWithVersionFallback(
+        "artifact-file",
         (v) => this._buildFileUrl(buildId, artifactName, filePath, v),
         { method: "HEAD" },
       );
@@ -239,17 +245,16 @@ export class ArtifactClient {
    * @param options Optional fetch options (e.g., { method: "HEAD" })
    */
   private async _fetchWithVersionFallback(
+    family: EndpointFamily,
     buildUrl: (version: string) => string,
     options?: RequestInit,
   ): Promise<Response> {
     this._ensureInitialized();
 
-    // Fast path: version already resolved
-    if (this.resolvedApiVersion) {
-      return this._authenticatedFetch(
-        buildUrl(this.resolvedApiVersion),
-        options,
-      );
+    // Fast path: version already resolved for this endpoint family
+    const cachedVersion = this.resolvedApiVersions.get(family);
+    if (cachedVersion) {
+      return this._authenticatedFetch(buildUrl(cachedVersion), options);
     }
 
     // Slow path: try each version on the actual endpoint
@@ -267,7 +272,7 @@ export class ArtifactClient {
 
       if (response.ok || (response.status !== 400 && response.status !== 404)) {
         // Success or a real error (not a version mismatch) — cache and return
-        this.resolvedApiVersion = version;
+        this.resolvedApiVersions.set(family, version);
         return response;
       }
 
@@ -286,6 +291,7 @@ export class ArtifactClient {
     this._ensureInitialized();
 
     const response = await this._fetchWithVersionFallback(
+      "artifacts",
       (v) => `${this.collectionUri}${this.projectId}/_apis/build/builds/${buildId}/artifacts?api-version=${v}`,
     );
 
@@ -315,6 +321,7 @@ export class ArtifactClient {
     this._ensureInitialized();
 
     const response = await this._fetchWithVersionFallback(
+      "definitions",
       (v) =>
         `${this.collectionUri}${this.projectId}/_apis/build/definitions` +
         `?api-version=${v}&$top=${top}&queryOrder=${queryOrder}`,
@@ -343,6 +350,7 @@ export class ArtifactClient {
     this._ensureInitialized();
 
     const response = await this._fetchWithVersionFallback(
+      "builds",
       (v) =>
         `${this.collectionUri}${this.projectId}/_apis/build/builds` +
         `?api-version=${v}&definitions=${definitionId}` +

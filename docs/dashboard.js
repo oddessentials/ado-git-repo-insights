@@ -3147,7 +3147,7 @@ var PRInsightsDashboard = (() => {
       this.collectionUri = null;
       this.authToken = null;
       this.initialized = false;
-      this.resolvedApiVersion = null;
+      this.resolvedApiVersions = /* @__PURE__ */ new Map();
       this.projectId = projectId;
     }
     /**
@@ -3189,6 +3189,7 @@ var PRInsightsDashboard = (() => {
     async getArtifactFile(buildId, artifactName, filePath) {
       this._ensureInitialized();
       const response = await this._fetchWithVersionFallback(
+        "artifact-file",
         (v2) => this._buildFileUrl(buildId, artifactName, filePath, v2)
       );
       if (response.status === 401 || response.status === 403) {
@@ -3213,6 +3214,7 @@ var PRInsightsDashboard = (() => {
       this._ensureInitialized();
       try {
         const response = await this._fetchWithVersionFallback(
+          "artifact-file",
           (v2) => this._buildFileUrl(buildId, artifactName, filePath, v2),
           { method: "HEAD" }
         );
@@ -3294,13 +3296,11 @@ var PRInsightsDashboard = (() => {
      * @param buildUrl URL template with {VERSION} placeholder for api-version
      * @param options Optional fetch options (e.g., { method: "HEAD" })
      */
-    async _fetchWithVersionFallback(buildUrl, options) {
+    async _fetchWithVersionFallback(family, buildUrl, options) {
       this._ensureInitialized();
-      if (this.resolvedApiVersion) {
-        return this._authenticatedFetch(
-          buildUrl(this.resolvedApiVersion),
-          options
-        );
+      const cachedVersion = this.resolvedApiVersions.get(family);
+      if (cachedVersion) {
+        return this._authenticatedFetch(buildUrl(cachedVersion), options);
       }
       let lastError = null;
       for (const version of BUILD_API_VERSIONS) {
@@ -3312,7 +3312,7 @@ var PRInsightsDashboard = (() => {
           return response;
         }
         if (response.ok || response.status !== 400 && response.status !== 404) {
-          this.resolvedApiVersion = version;
+          this.resolvedApiVersions.set(family, version);
           return response;
         }
         lastError = new Error(
@@ -3327,6 +3327,7 @@ var PRInsightsDashboard = (() => {
     async getArtifacts(buildId) {
       this._ensureInitialized();
       const response = await this._fetchWithVersionFallback(
+        "artifacts",
         (v2) => `${this.collectionUri}${this.projectId}/_apis/build/builds/${buildId}/artifacts?api-version=${v2}`
       );
       if (response.status === 401 || response.status === 403) {
@@ -3348,6 +3349,7 @@ var PRInsightsDashboard = (() => {
     async getDefinitions(top = 50, queryOrder = 2) {
       this._ensureInitialized();
       const response = await this._fetchWithVersionFallback(
+        "definitions",
         (v2) => `${this.collectionUri}${this.projectId}/_apis/build/definitions?api-version=${v2}&$top=${top}&queryOrder=${queryOrder}`
       );
       if (response.status === 401 || response.status === 403) {
@@ -3369,6 +3371,7 @@ var PRInsightsDashboard = (() => {
     async getBuilds(definitionId, top = 1) {
       this._ensureInitialized();
       const response = await this._fetchWithVersionFallback(
+        "builds",
         (v2) => `${this.collectionUri}${this.projectId}/_apis/build/builds?api-version=${v2}&definitions=${definitionId}&statusFilter=2&resultFilter=6&$top=${top}`
       );
       if (response.status === 401 || response.status === 403) {

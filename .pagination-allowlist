@@ -23,6 +23,9 @@
 # Test fixtures (mock API responses)
 tests/fixtures/**
 
+# Built UI bundles (bundled from extension/ui/ sources, not direct token usage)
+src/ado_git_repo_insights/ui_bundle/**
+
 # Specifications and documentation
 specs/**
 **/*.md

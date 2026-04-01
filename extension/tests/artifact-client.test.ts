@@ -168,8 +168,8 @@ describe("ArtifactClient", () => {
       const client = new ArtifactClient("test-project");
       await client.initialize(TEST_COLLECTION_URI, TEST_AUTH_TOKEN);
 
-      // Pre-resolve API version with one successful call
-      await client.getArtifacts(1);
+      // Pre-resolve artifact-file API version with one successful call
+      await client.hasArtifactFile(1, "aggregates", "probe.json");
 
       mockFetch.mockResolvedValue({
         ok: false,
@@ -186,8 +186,8 @@ describe("ArtifactClient", () => {
       const client = new ArtifactClient("test-project");
       await client.initialize(TEST_COLLECTION_URI, TEST_AUTH_TOKEN);
 
-      // Pre-resolve API version with one successful call
-      await client.getArtifacts(1);
+      // Pre-resolve artifact-file API version with one successful call
+      await client.hasArtifactFile(1, "aggregates", "probe.json");
 
       mockFetch.mockResolvedValue({
         ok: false,
