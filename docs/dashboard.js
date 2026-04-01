@@ -3165,7 +3165,6 @@ var PRInsightsDashboard = (() => {
       this.collectionUri = collectionUri;
       this.authToken = authToken;
       this.initialized = true;
-      await this._resolveApiVersion();
       return this;
     }
     /**
@@ -3189,7 +3188,7 @@ var PRInsightsDashboard = (() => {
      */
     async getArtifactFile(buildId, artifactName, filePath) {
       this._ensureInitialized();
-      const url = await this._buildFileUrl(buildId, artifactName, filePath);
+      const url = this._buildFileUrl(buildId, artifactName, filePath);
       const response = await this._authenticatedFetch(url);
       if (response.status === 401 || response.status === 403) {
         throw createPermissionDeniedError("read artifact files");
@@ -3212,7 +3211,7 @@ var PRInsightsDashboard = (() => {
     async hasArtifactFile(buildId, artifactName, filePath) {
       this._ensureInitialized();
       try {
-        const url = await this._buildFileUrl(buildId, artifactName, filePath);
+        const url = this._buildFileUrl(buildId, artifactName, filePath);
         const response = await this._authenticatedFetch(url, { method: "HEAD" });
         return response.ok;
       } catch {
@@ -3281,23 +3280,37 @@ var PRInsightsDashboard = (() => {
       return response.json();
     }
     /**
-     * Resolve a working Build API version by trying each version in
-     * BUILD_API_VERSIONS order. Caches the result for all subsequent calls.
-     * Auth failures (401/403) fail fast without trying older versions.
+     * Fetch a URL with API version fallback. If the version is already
+     * cached, uses it directly. Otherwise tries each version in
+     * BUILD_API_VERSIONS order against the actual requested URL.
+     *
+     * - 401/403 → fail immediately (auth, not version)
+     * - 400/404 with no cached version → try next version
+     * - Success → cache the version, return the response
+     *
+     * @param buildUrl URL template with {VERSION} placeholder for api-version
+     * @param options Optional fetch options (e.g., { method: "HEAD" })
      */
-    async _resolveApiVersion() {
-      if (this.resolvedApiVersion) return this.resolvedApiVersion;
+    async _fetchWithVersionFallback(buildUrl, options) {
       this._ensureInitialized();
+      if (this.resolvedApiVersion) {
+        return this._authenticatedFetch(
+          buildUrl(this.resolvedApiVersion),
+          options
+        );
+      }
       let lastError = null;
       for (const version of BUILD_API_VERSIONS) {
-        const url = `${this.collectionUri}${this.projectId}/_apis/build/definitions?api-version=${version}&$top=1`;
-        const response = await this._authenticatedFetch(url);
+        const response = await this._authenticatedFetch(
+          buildUrl(version),
+          options
+        );
         if (response.status === 401 || response.status === 403) {
-          throw createPermissionDeniedError("resolve Build API version");
+          return response;
         }
-        if (response.ok) {
+        if (response.ok || response.status !== 400 && response.status !== 404) {
           this.resolvedApiVersion = version;
-          return version;
+          return response;
         }
         lastError = new Error(
           `Build API api-version=${version}: ${response.status}`
@@ -3310,9 +3323,9 @@ var PRInsightsDashboard = (() => {
      */
     async getArtifacts(buildId) {
       this._ensureInitialized();
-      const apiVersion = await this._resolveApiVersion();
-      const url = `${this.collectionUri}${this.projectId}/_apis/build/builds/${buildId}/artifacts?api-version=${apiVersion}`;
-      const response = await this._authenticatedFetch(url);
+      const response = await this._fetchWithVersionFallback(
+        (v2) => `${this.collectionUri}${this.projectId}/_apis/build/builds/${buildId}/artifacts?api-version=${v2}`
+      );
       if (response.status === 401 || response.status === 403) {
         throw createPermissionDeniedError("list build artifacts");
       }
@@ -3331,9 +3344,9 @@ var PRInsightsDashboard = (() => {
      */
     async getDefinitions(top = 50, queryOrder = 2) {
       this._ensureInitialized();
-      const apiVersion = await this._resolveApiVersion();
-      const url = `${this.collectionUri}${this.projectId}/_apis/build/definitions?api-version=${apiVersion}&$top=${top}&queryOrder=${queryOrder}`;
-      const response = await this._authenticatedFetch(url);
+      const response = await this._fetchWithVersionFallback(
+        (v2) => `${this.collectionUri}${this.projectId}/_apis/build/definitions?api-version=${v2}&$top=${top}&queryOrder=${queryOrder}`
+      );
       if (response.status === 401 || response.status === 403) {
         throw createPermissionDeniedError("list build definitions");
       }
@@ -3352,9 +3365,9 @@ var PRInsightsDashboard = (() => {
      */
     async getBuilds(definitionId, top = 1) {
       this._ensureInitialized();
-      const apiVersion = await this._resolveApiVersion();
-      const url = `${this.collectionUri}${this.projectId}/_apis/build/builds?api-version=${apiVersion}&definitions=${definitionId}&statusFilter=2&resultFilter=6&$top=${top}`;
-      const response = await this._authenticatedFetch(url);
+      const response = await this._fetchWithVersionFallback(
+        (v2) => `${this.collectionUri}${this.projectId}/_apis/build/builds?api-version=${v2}&definitions=${definitionId}&statusFilter=2&resultFilter=6&$top=${top}`
+      );
       if (response.status === 401 || response.status === 403) {
         throw createPermissionDeniedError("list builds");
       }
@@ -3373,8 +3386,8 @@ var PRInsightsDashboard = (() => {
     /**
      * Build the URL for accessing a file within an artifact.
      */
-    async _buildFileUrl(buildId, artifactName, filePath) {
-      const apiVersion = await this._resolveApiVersion();
+    _buildFileUrl(buildId, artifactName, filePath) {
+      const apiVersion = this.resolvedApiVersion ?? BUILD_API_VERSIONS[0];
       const normalizedPath = filePath.startsWith("/") ? filePath : "/" + filePath;
       return `${this.collectionUri}${this.projectId}/_apis/build/builds/${buildId}/artifacts?artifactName=${encodeURIComponent(artifactName)}&%24format=file&subPath=${encodeURIComponent(normalizedPath)}&api-version=${apiVersion}`;
     }

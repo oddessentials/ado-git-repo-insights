@@ -24,21 +24,14 @@ describe("ArtifactClient HTTP Response Handling", () => {
     // Setup SDK mocks (replaces old global.VSS pattern)
     setupSdkMocks();
 
-    // Setup mock fetch with default handler for API version resolution
-    mockFetch = jest.fn((url: string) => {
-      if (typeof url === "string" && url.includes("_apis/build/definitions") && url.includes("$top=1")) {
-        return Promise.resolve({
-          ok: true,
-          status: 200,
-          json: () => Promise.resolve({ value: [] }),
-        });
-      }
-      return Promise.resolve({
+    // Setup mock fetch — returns success by default
+    mockFetch = jest.fn(() =>
+      Promise.resolve({
         ok: true,
         status: 200,
         json: () => Promise.resolve({ value: [] }),
-      });
-    });
+      }),
+    );
     (global as unknown as { fetch: jest.Mock }).fetch = mockFetch;
 
     // Initialize client

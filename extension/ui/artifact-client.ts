@@ -70,7 +70,6 @@ export class ArtifactClient {
     this.collectionUri = collectionUri;
     this.authToken = authToken;
     this.initialized = true;
-    await this._resolveApiVersion();
     return this;
   }
 
@@ -101,7 +100,7 @@ export class ArtifactClient {
   ): Promise<unknown> {
     this._ensureInitialized();
 
-    const url = await this._buildFileUrl(buildId, artifactName, filePath);
+    const url = this._buildFileUrl(buildId, artifactName, filePath);
     const response = await this._authenticatedFetch(url);
 
     if (response.status === 401 || response.status === 403) {
@@ -134,7 +133,7 @@ export class ArtifactClient {
     this._ensureInitialized();
 
     try {
-      const url = await this._buildFileUrl(buildId, artifactName, filePath);
+      const url = this._buildFileUrl(buildId, artifactName, filePath);
       const response = await this._authenticatedFetch(url, { method: "HEAD" });
       return response.ok;
     } catch {
@@ -225,28 +224,51 @@ export class ArtifactClient {
   }
 
   /**
-   * Resolve a working Build API version by trying each version in
-   * BUILD_API_VERSIONS order. Caches the result for all subsequent calls.
-   * Auth failures (401/403) fail fast without trying older versions.
+   * Fetch a URL with API version fallback. If the version is already
+   * cached, uses it directly. Otherwise tries each version in
+   * BUILD_API_VERSIONS order against the actual requested URL.
+   *
+   * - 401/403 → fail immediately (auth, not version)
+   * - 400/404 with no cached version → try next version
+   * - Success → cache the version, return the response
+   *
+   * @param buildUrl URL template with {VERSION} placeholder for api-version
+   * @param options Optional fetch options (e.g., { method: "HEAD" })
    */
-  private async _resolveApiVersion(): Promise<string> {
-    if (this.resolvedApiVersion) return this.resolvedApiVersion;
+  private async _fetchWithVersionFallback(
+    buildUrl: (version: string) => string,
+    options?: RequestInit,
+  ): Promise<Response> {
     this._ensureInitialized();
 
+    // Fast path: version already resolved
+    if (this.resolvedApiVersion) {
+      return this._authenticatedFetch(
+        buildUrl(this.resolvedApiVersion),
+        options,
+      );
+    }
+
+    // Slow path: try each version on the actual endpoint
     let lastError: Error | null = null;
     for (const version of BUILD_API_VERSIONS) {
-      const url =
-        `${this.collectionUri}${this.projectId}/_apis/build/definitions` +
-        `?api-version=${version}&$top=1`;
-      const response = await this._authenticatedFetch(url);
+      const response = await this._authenticatedFetch(
+        buildUrl(version),
+        options,
+      );
 
+      // Auth failures are not version-related — fail fast
       if (response.status === 401 || response.status === 403) {
-        throw createPermissionDeniedError("resolve Build API version");
+        return response;
       }
-      if (response.ok) {
+
+      if (response.ok || (response.status !== 400 && response.status !== 404)) {
+        // Success or a real error (not a version mismatch) — cache and return
         this.resolvedApiVersion = version;
-        return version;
+        return response;
       }
+
+      // 400/404 likely means version not supported — try next
       lastError = new Error(
         `Build API api-version=${version}: ${response.status}`,
       );
@@ -259,10 +281,10 @@ export class ArtifactClient {
    */
   async getArtifacts(buildId: number): Promise<VSSBuildArtifact[]> {
     this._ensureInitialized();
-    const apiVersion = await this._resolveApiVersion();
 
-    const url = `${this.collectionUri}${this.projectId}/_apis/build/builds/${buildId}/artifacts?api-version=${apiVersion}`;
-    const response = await this._authenticatedFetch(url);
+    const response = await this._fetchWithVersionFallback(
+      (v) => `${this.collectionUri}${this.projectId}/_apis/build/builds/${buildId}/artifacts?api-version=${v}`,
+    );
 
     if (response.status === 401 || response.status === 403) {
       throw createPermissionDeniedError("list build artifacts");
@@ -288,12 +310,12 @@ export class ArtifactClient {
     queryOrder: number = 2,
   ): Promise<BuildDefinitionReference[]> {
     this._ensureInitialized();
-    const apiVersion = await this._resolveApiVersion();
 
-    const url =
-      `${this.collectionUri}${this.projectId}/_apis/build/definitions` +
-      `?api-version=${apiVersion}&$top=${top}&queryOrder=${queryOrder}`;
-    const response = await this._authenticatedFetch(url);
+    const response = await this._fetchWithVersionFallback(
+      (v) =>
+        `${this.collectionUri}${this.projectId}/_apis/build/definitions` +
+        `?api-version=${v}&$top=${top}&queryOrder=${queryOrder}`,
+    );
 
     if (response.status === 401 || response.status === 403) {
       throw createPermissionDeniedError("list build definitions");
@@ -316,13 +338,13 @@ export class ArtifactClient {
    */
   async getBuilds(definitionId: number, top: number = 1): Promise<Build[]> {
     this._ensureInitialized();
-    const apiVersion = await this._resolveApiVersion();
 
-    const url =
-      `${this.collectionUri}${this.projectId}/_apis/build/builds` +
-      `?api-version=${apiVersion}&definitions=${definitionId}` +
-      `&statusFilter=2&resultFilter=6&$top=${top}`;
-    const response = await this._authenticatedFetch(url);
+    const response = await this._fetchWithVersionFallback(
+      (v) =>
+        `${this.collectionUri}${this.projectId}/_apis/build/builds` +
+        `?api-version=${v}&definitions=${definitionId}` +
+        `&statusFilter=2&resultFilter=6&$top=${top}`,
+    );
 
     if (response.status === 401 || response.status === 403) {
       throw createPermissionDeniedError("list builds");
@@ -349,12 +371,15 @@ export class ArtifactClient {
   /**
    * Build the URL for accessing a file within an artifact.
    */
-  private async _buildFileUrl(
+  private _buildFileUrl(
     buildId: number,
     artifactName: string,
     filePath: string,
-  ): Promise<string> {
-    const apiVersion = await this._resolveApiVersion();
+  ): string {
+    // Uses cached version — callers that need file URLs (getArtifactFile,
+    // getArtifactFileViaSdk) always call getArtifacts or getArtifactMetadata
+    // first, which resolves the version.
+    const apiVersion = this.resolvedApiVersion ?? BUILD_API_VERSIONS[0];
     const normalizedPath = filePath.startsWith("/") ? filePath : "/" + filePath;
 
     return (
