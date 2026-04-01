@@ -5,7 +5,7 @@
  * produces a version the marketplace will accept without manual bumping.
  *
  * Builds from vss-extension-dev.json — a standalone dev manifest with
- * publisher OddEssentials-Dev and extension ID ado-git-repo-insights-dev.
+ * publisher OddEssentials-Dev and extension ID ado-git-repo-insights-staging.
  * This ensures dev builds never pollute the production marketplace listing.
  *
  * Usage: node scripts/package-dev-vsix.mjs

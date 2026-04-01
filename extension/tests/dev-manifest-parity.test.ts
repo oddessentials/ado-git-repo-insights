@@ -62,7 +62,7 @@ describe("Dev manifest parity", () => {
     });
 
     it("extension ID includes -dev suffix", () => {
-      expect(dev.id).toBe("ado-git-repo-insights-dev");
+      expect(dev.id).toBe("ado-git-repo-insights-staging");
       expect(dev.id).not.toBe(prod.id);
     });
 

@@ -1,6 +1,6 @@
 {
     "manifestVersion": 1,
-    "id": "ado-git-repo-insights-dev",
+    "id": "ado-git-repo-insights-staging",
     "name": "Git Repo Insights (Dev)",
     "version": "0.0.0",
     "publisher": "OddEssentials-Dev",
@@ -96,7 +96,7 @@
                 {
                     "name": "Feature",
                     "properties": {
-                        "featureId": "OddEssentials-Dev.ado-git-repo-insights-dev.gri.dashboard-hub"
+                        "featureId": "OddEssentials-Dev.ado-git-repo-insights-staging.gri.dashboard-hub"
                     }
                 }
             ],
