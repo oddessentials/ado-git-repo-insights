@@ -11,6 +11,8 @@ import * as _fsOriginal from "fs";
 function _loadFs(): typeof _fsOriginal { return _fsOriginal; }
 const _fs = _loadFs();
 
+import { ADO_REST_API_VERSIONS } from "../ui/modules/api-versions";
+
 const SETTINGS_PATH = path.join(__dirname, "../ui/settings.ts");
 
 describe("Settings API version fallback", () => {
@@ -20,18 +22,12 @@ describe("Settings API version fallback", () => {
     settingsCode = _fs.readFileSync(SETTINGS_PATH, "utf8");
   });
 
-  it("defines a version fallback chain", () => {
-    expect(settingsCode).toMatch(
-      /PROJECT_API_VERSIONS\s*=\s*\[/,
-    );
-    // Must contain all three versions in order
-    const match = settingsCode.match(
-      /PROJECT_API_VERSIONS\s*=\s*\[([^\]]+)\]/,
-    );
-    expect(match).not.toBeNull();
-    const versions = match?.[1]?.replace(/["\s]/g, "").split(",");
-    expect(versions).toBeDefined();
-    expect(versions).toEqual(["7.1", "6.0", "5.1"]);
+  it("imports the shared version fallback chain", () => {
+    // settings.ts must import ADO_REST_API_VERSIONS from the shared module
+    expect(settingsCode).toMatch(/ADO_REST_API_VERSIONS/);
+    expect(settingsCode).toMatch(/from\s+["']\.\/modules\/api-versions["']/);
+    // The shared constant must contain all three versions in order
+    expect([...ADO_REST_API_VERSIONS]).toEqual(["7.1", "6.0", "5.1"]);
   });
 
   it("fails fast on 401/403 without trying older versions", () => {

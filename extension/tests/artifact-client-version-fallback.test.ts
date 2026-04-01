@@ -7,6 +7,7 @@
  */
 
 import { ArtifactClient } from "../ui/artifact-client";
+import { ADO_REST_API_VERSIONS } from "../ui/modules/api-versions";
 import {
   setupSdkMocks,
   teardownSdkMocks,
@@ -196,11 +197,12 @@ describe("ArtifactClient per-endpoint-family version fallback", () => {
     it("artifact-file resolves independently on older Server version", async () => {
       const client = await createClient();
 
-      // artifact-file: 7.1 → 404, 6.0 → 404, 5.1 → 200
+      // artifact-file: 7.1 → 400, 6.0 → 400, 5.1 → 200
+      // Resource families use 400 (not 404) as the version-mismatch signal.
       const fileData = { test: "data" };
       mockFetch
-        .mockResolvedValueOnce(mockResponse(404))
-        .mockResolvedValueOnce(mockResponse(404))
+        .mockResolvedValueOnce(mockResponse(400))
+        .mockResolvedValueOnce(mockResponse(400))
         .mockResolvedValueOnce(mockResponse(200, fileData));
 
       const result = await client.getArtifactFile(1, "aggregates", "manifest.json");
@@ -231,6 +233,60 @@ describe("ArtifactClient per-endpoint-family version fallback", () => {
       // hasArtifactFile reused cached 6.0 (1 call, not 2)
       expect(mockFetch).toHaveBeenCalledTimes(3);
       expect(versionOfCall(2)).toBe("6.0");
+    });
+
+    it("artifact-file 404 returns to caller without caching version", async () => {
+      const client = await createClient();
+
+      // First fetch returns 404 — file not found, not a version mismatch
+      mockFetch.mockResolvedValueOnce(mockResponse(404));
+
+      await expect(
+        client.getArtifactFile(1, "aggregates", "missing.json"),
+      ).rejects.toThrow(/not found/i);
+
+      // Version must NOT be cached — 404 does not prove the version works
+      expect(
+        (client as unknown as { resolvedApiVersions: Map<string, string> })
+          .resolvedApiVersions.get("artifact-file"),
+      ).toBeUndefined();
+
+      // Subsequent successful call re-probes from first version
+      const fileData = { test: "found" };
+      mockFetch.mockResolvedValueOnce(mockResponse(200, fileData));
+      const result = await client.getArtifactFile(1, "aggregates", "found.json");
+
+      expect(result).toEqual(fileData);
+      expect(versionOfCall(1)).toBe("7.1");
+    });
+
+    it("cached list family returns 404 directly to caller on fast path", async () => {
+      const client = await createClient();
+
+      // First call: 200 caches version for artifacts family
+      mockFetch.mockResolvedValueOnce(mockResponse(200, { value: [] }));
+      await client.getArtifacts(1);
+
+      // Second call: 404 for a build that doesn't exist — exercises the
+      // fast path (cached version), so 404 goes straight to caller.
+      mockFetch.mockResolvedValueOnce(mockResponse(404));
+      await expect(client.getArtifacts(999)).rejects.toThrow(
+        "Failed to list artifacts: 404",
+      );
+
+      // Only 2 total fetch calls — second call used cached version,
+      // did not re-enter the fallback loop.
+      expect(mockFetch).toHaveBeenCalledTimes(2);
+      expect(versionOfCall(0)).toBe("7.1");
+      expect(versionOfCall(1)).toBe("7.1");
+    });
+  });
+
+  describe("API version ordering invariant", () => {
+    it("ADO_REST_API_VERSIONS is ordered newest → oldest", () => {
+      const versions = [...ADO_REST_API_VERSIONS].map(v => parseFloat(v));
+      const descending = [...versions].sort((a, b) => b - a);
+      expect(versions).toEqual(descending);
     });
   });
 });

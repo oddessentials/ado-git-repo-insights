@@ -13,6 +13,7 @@ import * as SDK from "azure-devops-extension-sdk";
 import type {
   ILocationService,
 } from "azure-devops-extension-api";
+import { EXTENSION_DATA_API_VERSION } from "./api-versions";
 
 // CommonServiceIds is a const enum (inlined by tsc, invisible to esbuild).
 // Use string literals directly to avoid esbuild "import is undefined" warning.
@@ -227,7 +228,8 @@ export async function getExtensionDataService(): Promise<ExtensionDataClient> {
     return (
       `${collectionUri}_apis/ExtensionManagement/InstalledExtensions/` +
       `${encodeURIComponent(ctx.publisherId)}/${encodeURIComponent(ctx.extensionId)}/` +
-      `Data/Scopes/${scope}/${scopeValue}/Collections/%24settings/Documents/${encodeURIComponent(key)}`
+      `Data/Scopes/${scope}/${scopeValue}/Collections/%24settings/Documents/${encodeURIComponent(key)}` +
+      `?api-version=${EXTENSION_DATA_API_VERSION}`
     );
   }
 

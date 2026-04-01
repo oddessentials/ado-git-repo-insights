@@ -27,6 +27,7 @@ import {
   getCollectionUri,
   getAccessToken,
 } from "./modules";
+import { ADO_REST_API_VERSIONS } from "./modules/api-versions";
 
 // Import safe DOM rendering utilities
 import {
@@ -191,12 +192,8 @@ async function tryLoadProjectDropdown(): Promise<void> {
  * Get list of projects in the organization.
  * Requires vso.project scope.
  */
-/**
- * API versions to try, newest first. The old CoreRestClient.getProjects()
- * negotiated a host-supported version; this fallback chain preserves
- * compatibility with Azure DevOps Server 2019+ (5.1) through Services (7.1).
- */
-const PROJECT_API_VERSIONS = ["7.1", "6.0", "5.1"];
+// Project listing uses the same REST API version fallback chain as the
+// Build API — see api-versions.ts for the centralized constant.
 
 async function getOrganizationProjects(): Promise<VSSProject[]> {
   const collectionUri = await getCollectionUri();
@@ -211,7 +208,7 @@ async function getOrganizationProjects(): Promise<VSSProject[]> {
   let firstResponse: Response | null = null;
   let lastError: Error | null = null;
 
-  for (const version of PROJECT_API_VERSIONS) {
+  for (const version of ADO_REST_API_VERSIONS) {
     const url = `${collectionUri}_apis/projects?api-version=${version}&$top=500`;
     const response = await fetch(url, { headers });
 

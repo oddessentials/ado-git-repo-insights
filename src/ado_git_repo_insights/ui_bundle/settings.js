@@ -295,6 +295,10 @@ var PRInsightsSettings = (() => {
   }
   u.getObjectRegistry().register("DevOps.SdkClient", { dispatchEvent: x });
 
+  // ../ui/modules/api-versions.ts
+  var ADO_REST_API_VERSIONS = ["7.1", "6.0", "5.1"];
+  var EXTENSION_DATA_API_VERSION = "7.1-preview.1";
+
   // ../ui/modules/sdk.ts
   var LocationServiceId = "ms.vss-features.location-service";
   var CORE_RESOURCE_AREA_ID = "79134c72-4a58-4b42-976c-04e7115f32bf";
@@ -354,7 +358,7 @@ var PRInsightsSettings = (() => {
     function buildUrl(key, scopeType) {
       const scope = scopeType === "User" ? "User" : "Default";
       const scopeValue = scopeType === "User" ? "Me" : "Current";
-      return `${collectionUri}_apis/ExtensionManagement/InstalledExtensions/${encodeURIComponent(ctx.publisherId)}/${encodeURIComponent(ctx.extensionId)}/Data/Scopes/${scope}/${scopeValue}/Collections/%24settings/Documents/${encodeURIComponent(key)}`;
+      return `${collectionUri}_apis/ExtensionManagement/InstalledExtensions/${encodeURIComponent(ctx.publisherId)}/${encodeURIComponent(ctx.extensionId)}/Data/Scopes/${scope}/${scopeValue}/Collections/%24settings/Documents/${encodeURIComponent(key)}?api-version=${EXTENSION_DATA_API_VERSION}`;
     }
     const headers = {
       Authorization: `Bearer ${accessToken}`,
@@ -573,7 +577,11 @@ var PRInsightsSettings = (() => {
   }
 
   // ../ui/artifact-client.ts
-  var BUILD_API_VERSIONS = ["7.1", "6.0", "5.1"];
+  var LIST_ENDPOINT_FAMILIES = /* @__PURE__ */ new Set([
+    "definitions",
+    "builds",
+    "artifacts"
+  ]);
   var ArtifactClient = class {
     /**
      * Create a new ArtifactClient.
@@ -584,6 +592,9 @@ var PRInsightsSettings = (() => {
       this.collectionUri = null;
       this.authToken = null;
       this.initialized = false;
+      /** Per-family API version cache. Scoped to this client instance,
+       *  which is bound to a single collectionUri + projectId by
+       *  initialize(). A new context requires a new client instance. */
       this.resolvedApiVersions = /* @__PURE__ */ new Map();
       this.projectId = projectId;
     }
@@ -724,13 +735,19 @@ var PRInsightsSettings = (() => {
     /**
      * Fetch a URL with API version fallback. If the version is already
      * cached, uses it directly. Otherwise tries each version in
-     * BUILD_API_VERSIONS order against the actual requested URL.
+     * ADO_REST_API_VERSIONS order against the actual requested URL.
      *
+     * Version probing:
      * - 401/403 → fail immediately (auth, not version)
-     * - 400/404 with no cached version → try next version
-     * - Success → cache the version, return the response
+     * - 400 → version not supported, try next (all families)
+     * - 404 → version not supported, try next (list families only)
      *
-     * @param buildUrl URL template with {VERSION} placeholder for api-version
+     * Response handling (non-retry statuses):
+     * - 2xx → cache the version, return to caller
+     * - Other (404 on resource family, 5xx) → return without caching
+     *
+     * @param family Endpoint family for per-route version caching
+     * @param buildUrl Function that builds the URL for a given api-version
      * @param options Optional fetch options (e.g., { method: "HEAD" })
      */
     async _fetchWithVersionFallback(family, buildUrl, options) {
@@ -739,8 +756,9 @@ var PRInsightsSettings = (() => {
       if (cachedVersion) {
         return this._authenticatedFetch(buildUrl(cachedVersion), options);
       }
+      const retryOn404 = LIST_ENDPOINT_FAMILIES.has(family);
       let lastError = null;
-      for (const version of BUILD_API_VERSIONS) {
+      for (const version of ADO_REST_API_VERSIONS) {
         const response = await this._authenticatedFetch(
           buildUrl(version),
           options
@@ -748,13 +766,16 @@ var PRInsightsSettings = (() => {
         if (response.status === 401 || response.status === 403) {
           return response;
         }
-        if (response.ok || response.status !== 400 && response.status !== 404) {
-          this.resolvedApiVersions.set(family, version);
-          return response;
+        if (response.status === 400 || retryOn404 && response.status === 404) {
+          lastError = new Error(
+            `Build API api-version=${version}: ${response.status}`
+          );
+          continue;
         }
-        lastError = new Error(
-          `Build API api-version=${version}: ${response.status}`
-        );
+        if (response.ok) {
+          this.resolvedApiVersions.set(family, version);
+        }
+        return response;
       }
       throw lastError ?? new Error("No compatible Build API version found");
     }
@@ -1158,7 +1179,6 @@ var PRInsightsSettings = (() => {
       textInput.style.display = "block";
     }
   }
-  var PROJECT_API_VERSIONS = ["7.1", "6.0", "5.1"];
   async function getOrganizationProjects() {
     const collectionUri = await getCollectionUri();
     const token = await getAccessToken();
@@ -1169,7 +1189,7 @@ var PRInsightsSettings = (() => {
     let workingVersion = null;
     let firstResponse = null;
     let lastError = null;
-    for (const version of PROJECT_API_VERSIONS) {
+    for (const version of ADO_REST_API_VERSIONS) {
       const url = `${collectionUri}_apis/projects?api-version=${version}&$top=500`;
       const response = await fetch(url, { headers });
       if (response.status === 401 || response.status === 403) {

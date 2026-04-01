@@ -164,9 +164,6 @@ describe("ArtifactClient HTTP Response Handling", () => {
 
   describe("404 not found response (T033)", () => {
     it("throws error with not found message on 404", async () => {
-      // Pre-resolve artifact-file API version so 404 is treated as real "not found"
-      await client.hasArtifactFile(1, "aggregates", "probe.json");
-
       mockFetch.mockResolvedValue({
         ok: false,
         status: 404,
@@ -179,9 +176,6 @@ describe("ArtifactClient HTTP Response Handling", () => {
     });
 
     it("includes file path context in error", async () => {
-      // Pre-resolve artifact-file API version so 404 is treated as real "not found"
-      await client.hasArtifactFile(1, "aggregates", "probe.json");
-
       mockFetch.mockResolvedValue({
         ok: false,
         status: 404,
