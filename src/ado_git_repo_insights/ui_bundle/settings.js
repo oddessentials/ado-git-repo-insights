@@ -579,8 +579,9 @@ var PRInsightsSettings = (() => {
      */
     async getArtifactFile(buildId, artifactName, filePath) {
       this._ensureInitialized();
-      const url = this._buildFileUrl(buildId, artifactName, filePath);
-      const response = await this._authenticatedFetch(url);
+      const response = await this._fetchWithVersionFallback(
+        (v2) => this._buildFileUrl(buildId, artifactName, filePath, v2)
+      );
       if (response.status === 401 || response.status === 403) {
         throw createPermissionDeniedError("read artifact files");
       }
@@ -602,8 +603,10 @@ var PRInsightsSettings = (() => {
     async hasArtifactFile(buildId, artifactName, filePath) {
       this._ensureInitialized();
       try {
-        const url = this._buildFileUrl(buildId, artifactName, filePath);
-        const response = await this._authenticatedFetch(url, { method: "HEAD" });
+        const response = await this._fetchWithVersionFallback(
+          (v2) => this._buildFileUrl(buildId, artifactName, filePath, v2),
+          { method: "HEAD" }
+        );
         return response.ok;
       } catch {
         return false;
@@ -776,9 +779,10 @@ var PRInsightsSettings = (() => {
     }
     /**
      * Build the URL for accessing a file within an artifact.
+     * Takes an explicit API version — callers route through
+     * _fetchWithVersionFallback which provides the version.
      */
-    _buildFileUrl(buildId, artifactName, filePath) {
-      const apiVersion = this.resolvedApiVersion ?? BUILD_API_VERSIONS[0];
+    _buildFileUrl(buildId, artifactName, filePath, apiVersion) {
       const normalizedPath = filePath.startsWith("/") ? filePath : "/" + filePath;
       return `${this.collectionUri}${this.projectId}/_apis/build/builds/${buildId}/artifacts?artifactName=${encodeURIComponent(artifactName)}&%24format=file&subPath=${encodeURIComponent(normalizedPath)}&api-version=${apiVersion}`;
     }

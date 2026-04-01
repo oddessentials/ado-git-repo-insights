@@ -100,8 +100,9 @@ export class ArtifactClient {
   ): Promise<unknown> {
     this._ensureInitialized();
 
-    const url = this._buildFileUrl(buildId, artifactName, filePath);
-    const response = await this._authenticatedFetch(url);
+    const response = await this._fetchWithVersionFallback(
+      (v) => this._buildFileUrl(buildId, artifactName, filePath, v),
+    );
 
     if (response.status === 401 || response.status === 403) {
       throw createPermissionDeniedError("read artifact files");
@@ -133,8 +134,10 @@ export class ArtifactClient {
     this._ensureInitialized();
 
     try {
-      const url = this._buildFileUrl(buildId, artifactName, filePath);
-      const response = await this._authenticatedFetch(url, { method: "HEAD" });
+      const response = await this._fetchWithVersionFallback(
+        (v) => this._buildFileUrl(buildId, artifactName, filePath, v),
+        { method: "HEAD" },
+      );
       return response.ok;
     } catch {
       return false;
@@ -370,16 +373,15 @@ export class ArtifactClient {
 
   /**
    * Build the URL for accessing a file within an artifact.
+   * Takes an explicit API version — callers route through
+   * _fetchWithVersionFallback which provides the version.
    */
   private _buildFileUrl(
     buildId: number,
     artifactName: string,
     filePath: string,
+    apiVersion: string,
   ): string {
-    // Uses cached version — callers that need file URLs (getArtifactFile,
-    // getArtifactFileViaSdk) always call getArtifacts or getArtifactMetadata
-    // first, which resolves the version.
-    const apiVersion = this.resolvedApiVersion ?? BUILD_API_VERSIONS[0];
     const normalizedPath = filePath.startsWith("/") ? filePath : "/" + filePath;
 
     return (

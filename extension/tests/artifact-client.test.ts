@@ -168,6 +168,9 @@ describe("ArtifactClient", () => {
       const client = new ArtifactClient("test-project");
       await client.initialize(TEST_COLLECTION_URI, TEST_AUTH_TOKEN);
 
+      // Pre-resolve API version with one successful call
+      await client.getArtifacts(1);
+
       mockFetch.mockResolvedValue({
         ok: false,
         status: 404,
@@ -182,6 +185,9 @@ describe("ArtifactClient", () => {
     it("throws generic error on other status codes", async () => {
       const client = new ArtifactClient("test-project");
       await client.initialize(TEST_COLLECTION_URI, TEST_AUTH_TOKEN);
+
+      // Pre-resolve API version with one successful call
+      await client.getArtifacts(1);
 
       mockFetch.mockResolvedValue({
         ok: false,
