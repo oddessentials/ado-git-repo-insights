@@ -658,6 +658,9 @@ jobs:
             python scripts/audit-suppressions.py --diff
           fi
 
+      - name: Verify scope coverage (FR-026)
+        run: python scripts/audit-suppressions.py --check-coverage
+
   # Phase 5: Test base installation without [ml] extras
   # Enforces optional-dependency isolation - ML features must not leak into base
   # Functional validation job: verifies base package works without [ml] extras.

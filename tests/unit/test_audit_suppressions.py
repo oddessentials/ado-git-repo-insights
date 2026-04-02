@@ -164,6 +164,41 @@ class TestCanonicalScopeMap:
         assert _resolve_scope("tools/unknown.py") is None
         assert _resolve_scope("unknown.py") is None
 
+    def test_unscoped_file_detected_by_scope_guard(self) -> None:
+        """T034: staged .py file outside all scopes → guard function fails."""
+        from unittest.mock import patch
+
+        hook_script = (
+            Path(__file__).parent.parent.parent / "scripts" / "run_repo_hook.py"
+        )
+        hook_spec = importlib.util.spec_from_file_location("hook_mod_t034", hook_script)
+        hook_mod = importlib.util.module_from_spec(hook_spec)
+        hook_spec.loader.exec_module(hook_mod)
+
+        # Mock staged_paths to return a file outside all scopes
+        with patch.object(hook_mod, "staged_paths", return_value=["tools/rogue.py"]):
+            with pytest.raises(SystemExit):
+                hook_mod.run_scope_coverage_guard()
+
+    def test_scope_parity_with_hook_import(self) -> None:
+        """T033: pre-commit hook imports the same SCOPES as the audit tool (FR-015)."""
+        hook_script = (
+            Path(__file__).parent.parent.parent / "scripts" / "run_repo_hook.py"
+        )
+        hook_spec = importlib.util.spec_from_file_location("hook_mod", hook_script)
+        hook_mod = importlib.util.module_from_spec(hook_spec)
+        hook_spec.loader.exec_module(hook_mod)
+        hook_scopes = hook_mod.AUDIT_SCOPES
+        # Verify identity — same scope names, same dirs, same patterns
+        assert set(hook_scopes.keys()) == set(SCOPES.keys()), (
+            f"Hook scopes {set(hook_scopes.keys())} != audit scopes {set(SCOPES.keys())}"
+        )
+        for name in SCOPES:
+            assert hook_scopes[name]["dir"] == SCOPES[name]["dir"], (
+                f"Scope '{name}' dir mismatch: hook={hook_scopes[name]['dir']}, "
+                f"audit={SCOPES[name]['dir']}"
+            )
+
     def test_resolve_scope_longest_prefix_wins(self) -> None:
         """Nested scopes resolve to the most specific match."""
         # extension/tests/ must match typescript-tests, not a hypothetical

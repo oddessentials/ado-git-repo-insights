@@ -129,6 +129,10 @@ def build_commands(
             tuple(local_suppression_gate),
             extra_env=suppression_env,
         ),
+        CommandSpec(
+            "Suppression scope coverage (FR-026)",
+            ("__PYTHON__", "scripts/audit-suppressions.py", "--check-coverage"),
+        ),
         CommandSpec("Python type check", ("__PYTHON__", "-m", "mypy", "src/")),
         CommandSpec(
             "Demo dashboard validation",

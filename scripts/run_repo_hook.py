@@ -10,6 +10,7 @@ Responsibility split:
 from __future__ import annotations
 
 import argparse
+import importlib.util as _importlib_util
 import json
 import os
 import shutil
@@ -21,6 +22,14 @@ REPO_ROOT = Path(__file__).resolve().parent.parent
 EXTENSION_ROOT = REPO_ROOT / "extension"
 HOOK_PREFIX = "[hook]"
 PNG_MAGIC = b"\x89PNG"
+
+# Load SCOPES from audit-suppressions.py for staged-subset scope check (FR-028)
+_audit_spec = _importlib_util.spec_from_file_location(
+    "audit_suppressions", REPO_ROOT / "scripts" / "audit-suppressions.py"
+)
+_audit_mod = _importlib_util.module_from_spec(_audit_spec)  # type: ignore[arg-type]
+_audit_spec.loader.exec_module(_audit_mod)  # type: ignore[union-attr]
+AUDIT_SCOPES: dict[str, dict[str, str]] = _audit_mod.SCOPES
 
 
 def safe_print(text: str = "") -> None:
@@ -551,6 +560,39 @@ def run_extension_config_parity() -> None:
     run_command([pnpm, "run", "test:config-parity"], cwd=EXTENSION_ROOT)
 
 
+def run_scope_coverage_guard() -> None:
+    """Verify every staged .py/.ts file belongs to a known audit scope (FR-026).
+
+    Pre-commit contract: proves "no staged file escapes audit."
+    Full-tree coverage is preflight/CI only (--check-coverage).
+    """
+    staged = staged_paths()
+    unscoped: list[str] = []
+    for path in staged:
+        if not (path.endswith(".py") or path.endswith(".ts")):
+            continue
+        # Check if any scope claims this file (longest-prefix + extension match)
+        matched = False
+        for scope_cfg in AUDIT_SCOPES.values():
+            if not path.startswith(scope_cfg["dir"]):
+                continue
+            ext_match = (scope_cfg["pattern"] == "*.py" and path.endswith(".py")) or (
+                scope_cfg["pattern"] == "*.ts" and path.endswith(".ts")
+            )
+            if ext_match:
+                matched = True
+                break
+        if not matched:
+            unscoped.append(path)
+
+    if unscoped:
+        safe_print("[pre-commit] staged file(s) not in any audit scope:")
+        for p in unscoped:
+            safe_print(f"  - {p}")
+        raise SystemExit(1)
+    safe_print("[pre-commit] scope coverage guard passed")
+
+
 def run_pre_commit_hook() -> None:
     safe_print("[pre-commit] running suppression audit (zero-tolerance)")
     run_command([sys.executable, "scripts/audit-suppressions.py", "--diff"])
@@ -560,6 +602,7 @@ def run_pre_commit_hook() -> None:
     run_pnpm_lockfile_guard()
     run_npm_command_guard()
     run_pagination_token_guard()
+    run_scope_coverage_guard()
     run_ui_bundle_guards()
 
     staged = staged_paths()

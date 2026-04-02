@@ -100,14 +100,14 @@
 
 ### Implementation for US4
 
-- [ ] T030 [US4] Add staged-subset scope check to pre-commit in `scripts/run_repo_hook.py`: new `run_scope_coverage_guard()` function that iterates `staged_paths()`, matches each `.py`/`.ts` file against `SCOPES` directory prefixes, fails if any staged file is unscoped. Add call in `run_pre_commit_hook()`. File: `scripts/run_repo_hook.py`
-- [ ] T031 [US4] Add full `--check-coverage` CommandSpec to `scripts/run_pr_preflight.py` in `build_commands()`. File: `scripts/run_pr_preflight.py`
-- [ ] T032 [US4] Add `--check-coverage` step to the suppression-audit CI job in `.github/workflows/ci.yml`. File: `.github/workflows/ci.yml`
-- [ ] T033 [P] [US4] Add scope-parity test: import `SCOPES` from `audit-suppressions.py`, verify the scope names match what CI workflow references, and verify pre-commit staged-subset check uses the same `SCOPES` map. File: `tests/unit/test_audit_suppressions.py`
+- [x] T030 [US4] Add staged-subset scope check to pre-commit in `scripts/run_repo_hook.py`: new `run_scope_coverage_guard()` function that iterates `staged_paths()`, matches each `.py`/`.ts` file against `SCOPES` directory prefixes, fails if any staged file is unscoped. Add call in `run_pre_commit_hook()`. File: `scripts/run_repo_hook.py`
+- [x] T031 [US4] Add full `--check-coverage` CommandSpec to `scripts/run_pr_preflight.py` in `build_commands()`. File: `scripts/run_pr_preflight.py`
+- [x] T032 [US4] Add `--check-coverage` step to the suppression-audit CI job in `.github/workflows/ci.yml`. File: `.github/workflows/ci.yml`
+- [x] T033 [P] [US4] Add scope-parity test: import `SCOPES` from `audit-suppressions.py`, verify the scope names match what CI workflow references, and verify pre-commit staged-subset check uses the same `SCOPES` map. File: `tests/unit/test_audit_suppressions.py`
 
 ### Tests for US4
 
-- [ ] T034 [P] [US4] Add test: staged file in an unscoped directory causes pre-commit to fail. Mock `staged_paths()` to return a path outside all scopes. File: `tests/unit/test_hook_triggers.py` or `tests/unit/test_audit_suppressions.py`
+- [x] T034 [P] [US4] Add test: staged file in an unscoped directory causes pre-commit to fail. Mock `staged_paths()` to return a path outside all scopes. File: `tests/unit/test_hook_triggers.py` or `tests/unit/test_audit_suppressions.py`
 
 **Checkpoint**: Pre-commit checks staged files are in known scopes. Preflight/CI verify full repo coverage. Scope list is the single source of truth.
 

@@ -1,7 +1,7 @@
 {
   "version": 2,
-  "generated_at": "2026-04-02T12:21:17Z",
-  "total": 129,
+  "generated_at": "2026-04-02T12:29:25Z",
+  "total": 131,
   "scope_policy": {
     "python-backend": "blocking",
     "python-ci-scripts": "advisory",
@@ -18,7 +18,7 @@
   "by_scope": {
     "python-backend": 0,
     "python-ci-scripts": 4,
-    "python-scripts": 39,
+    "python-scripts": 41,
     "python-tests": 86,
     "typescript-extension": 0,
     "typescript-extension-config": 0,
@@ -40,7 +40,7 @@
     "ts-expect-error": 0,
     "ts-ignore": 0,
     "ts-nocheck": 0,
-    "type-ignore": 13
+    "type-ignore": 15
   },
   "by_file": {
     ".github/scripts/generate-badge-json.py": 1,
@@ -60,7 +60,7 @@
     "scripts/regenerate-demo.py": 1,
     "scripts/run_ci_parity.py": 4,
     "scripts/run_pr_preflight.py": 4,
-    "scripts/run_repo_hook.py": 5,
+    "scripts/run_repo_hook.py": 7,
     "tests/demo/test_base_path.py": 2,
     "tests/demo/test_demo_parity_pipeline.py": 3,
     "tests/demo/test_regeneration.py": 3,
@@ -102,10 +102,11 @@
     "S311": 5,
     "S603": 76,
     "S607": 5,
-    "arg-type": 1,
+    "arg-type": 2,
     "assignment": 3,
     "attr-defined": 7,
     "import-not-found": 1,
-    "import-untyped": 1
+    "import-untyped": 1,
+    "union-attr": 1
   }
 }
