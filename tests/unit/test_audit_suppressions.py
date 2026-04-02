@@ -342,6 +342,29 @@ class TestTwoPhaseGating:
             env=env,
         )
 
+    def _write_stale_baseline_missing_python_tests(self, baseline_path: Path) -> None:
+        subprocess.run(
+            [
+                sys.executable,
+                str(AUDIT_SCRIPT),
+                "--update-baseline",
+                "--baseline",
+                str(baseline_path),
+            ],
+            capture_output=True,
+            text=True,
+            cwd=self.REPO_ROOT,
+        )
+        data = json.loads(baseline_path.read_text(encoding="utf-8"))
+        data["by_scope"].pop("python-tests", 0)
+        if "scope_policy" in data:
+            data["scope_policy"].pop("python-tests", None)
+        data["by_file"] = {
+            k: v for k, v in data["by_file"].items() if not k.startswith("tests/")
+        }
+        data["total"] = sum(data["by_file"].values())
+        baseline_path.write_text(json.dumps(data, indent=2), encoding="utf-8")
+
     def test_advisory_scope_with_suppressions_passes(self, tmp_path: Path) -> None:
         """T026: advisory scope logs warning but returns exit code 0."""
         # Generate real baseline, set new scopes to advisory
@@ -447,54 +470,59 @@ class TestTwoPhaseGating:
         baseline_path.write_text(json.dumps(data, indent=2), encoding="utf-8")
 
         result = self._run_diff(baseline_path)
-        # v1 baseline with 3 scopes + scan with 11 scopes:
-        # missing scopes are now blocking (v1→v2 transition fallback removed).
-        # With 0 suppressions in the repo, delta=0 so it passes regardless.
-        assert result.returncode == 0, (
-            f"v1 baseline with 0 suppressions should pass.\n"
+        assert result.returncode == 1, (
+            f"v1 baseline missing current scopes must fail.\n"
             f"stdout: {result.stdout}\nstderr: {result.stderr}"
         )
+        assert "not in baseline" in result.stderr
 
     def test_missing_scope_is_blocking_after_transition(self, tmp_path: Path) -> None:
         """T091: scope in scan but absent from baseline → blocking (hard error).
 
-        After v1→v2 transition fallback removal, missing scopes are NOT advisory.
-        With 0 suppressions the delta is 0 (passes), but the error message is logged.
+        After v1→v2 transition fallback removal, missing scopes are NOT advisory
+        and must fail even when suppression delta is zero.
         """
         baseline_path = tmp_path / "baseline.json"
-        subprocess.run(
+        self._write_stale_baseline_missing_python_tests(baseline_path)
+
+        result = self._run_diff(baseline_path)
+        assert result.returncode == 1, (
+            f"Missing scope must fail even when delta=0.\n"
+            f"stdout: {result.stdout}\nstderr: {result.stderr}"
+        )
+        assert "not in baseline" in result.stderr, (
+            f"Missing scope should log an error to stderr.\nstderr: {result.stderr}"
+        )
+
+    def test_missing_scope_not_masked_by_allow_pending_approval(
+        self, tmp_path: Path
+    ) -> None:
+        """Pending approval bypass must not apply to stale-baseline failures."""
+        baseline_path = tmp_path / "baseline.json"
+        self._write_stale_baseline_missing_python_tests(baseline_path)
+
+        env = os.environ.copy()
+        for var in ("GITHUB_EVENT_NAME", "GITHUB_REF", "GITHUB_EVENT_PATH"):
+            env.pop(var, None)
+        result = subprocess.run(
             [
                 sys.executable,
                 str(AUDIT_SCRIPT),
-                "--update-baseline",
+                "--diff",
                 "--baseline",
                 str(baseline_path),
+                "--allow-pending-approval",
             ],
             capture_output=True,
             text=True,
             cwd=self.REPO_ROOT,
+            env=env,
         )
-        data = json.loads(baseline_path.read_text(encoding="utf-8"))
-        # Remove python-tests scope to simulate stale baseline
-        data["by_scope"].pop("python-tests", 0)
-        if "scope_policy" in data:
-            data["scope_policy"].pop("python-tests", None)
-        data["by_file"] = {
-            k: v for k, v in data["by_file"].items() if not k.startswith("tests/")
-        }
-        data["total"] = sum(data["by_file"].values())
-        baseline_path.write_text(json.dumps(data, indent=2), encoding="utf-8")
-
-        result = self._run_diff(baseline_path)
-        # 0 suppressions → delta=0 → passes, but error message is logged
-        assert result.returncode == 0, (
-            f"With 0 suppressions, missing scope still passes (delta=0).\n"
+        assert result.returncode == 1, (
+            "Missing scope must remain blocking with --allow-pending-approval.\n"
             f"stdout: {result.stdout}\nstderr: {result.stderr}"
         )
-        # Verify the error message is emitted (not advisory warning)
-        assert "not in baseline" in result.stderr, (
-            f"Missing scope should log an error to stderr.\nstderr: {result.stderr}"
-        )
+        assert "not in baseline" in result.stderr
 
 
 class TestNewFileMultiSuppressionDelta:

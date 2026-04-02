@@ -1025,6 +1025,8 @@ def cmd_diff(
     baseline_scope_policy: dict[str, str] = baseline.get("scope_policy", {})
     baseline_scopes: set[str] = set(baseline.get("by_scope", {}).keys())
 
+    missing_scopes: set[str] = set()
+
     def _get_scope_policy(file_path: str) -> str:
         scope = _resolve_scope(file_path)
         if scope is None:
@@ -1036,17 +1038,31 @@ def cmd_diff(
         if scope in baseline_scopes:
             return "blocking"
         # Scope in scan but absent from baseline → hard error (stale baseline)
-        print(
-            f"[ERROR] Scope '{scope}' not in baseline — "
-            "regenerate with --update-baseline.",
-            file=sys.stderr,
-        )
+        missing_scopes.add(scope)
         return "blocking"
+
+    # Validate that every current scope exists in the baseline before any
+    # delta-based success path. A stale baseline is a hard failure even when
+    # suppression counts are unchanged.
+    current_scopes = {
+        scope for scope in current["by_scope"] if current["by_scope"][scope] >= 0
+    }
+    for scope in sorted(current_scopes):
+        _get_scope_policy(f"{SCOPES[scope]['dir']}__scope_probe__")
 
     # Print summary
     print(f"Baseline: {diff['baseline_total']} suppressions")
     print(f"Current:  {diff['current_total']} suppressions")
     print(f"Delta:    {delta:+d}")
+
+    if missing_scopes:
+        for scope in sorted(missing_scopes):
+            print(
+                f"[ERROR] Scope '{scope}' not in baseline — "
+                "regenerate with --update-baseline.",
+                file=sys.stderr,
+            )
+        return 1
 
     if delta == 0:
         print("\n[PASS] No suppression changes")

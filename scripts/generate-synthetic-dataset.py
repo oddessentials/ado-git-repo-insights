@@ -15,7 +15,7 @@ from dataclasses import asdict
 from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
 from types import ModuleType
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 # Load aggregators via importlib with package stubs so relative imports resolve.
 # This allows direct script execution from a plain checkout without editable install.
@@ -41,21 +41,30 @@ _sv_mod = importlib.util.module_from_spec(_sv_spec)
 sys.modules.setdefault("ado_git_repo_insights.transform.schema_versions", _sv_mod)
 _sv_spec.loader.exec_module(_sv_mod)
 
-_agg_spec = importlib.util.spec_from_file_location(
-    "ado_git_repo_insights.transform.aggregators",
-    _transform / "aggregators.py",
-)
-assert _agg_spec is not None
-assert _agg_spec.loader is not None
-_agg_mod = importlib.util.module_from_spec(_agg_spec)
-sys.modules.setdefault("ado_git_repo_insights.transform.aggregators", _agg_mod)
-_agg_spec.loader.exec_module(_agg_mod)
+if TYPE_CHECKING:
+    from ado_git_repo_insights.transform.aggregators import (
+        AggregateIndex,
+        DatasetManifest,
+        Dimensions,
+        WeeklyRollup,
+        YearlyDistribution,
+    )
+else:
+    _agg_spec = importlib.util.spec_from_file_location(
+        "ado_git_repo_insights.transform.aggregators",
+        _transform / "aggregators.py",
+    )
+    assert _agg_spec is not None
+    assert _agg_spec.loader is not None
+    _agg_mod = importlib.util.module_from_spec(_agg_spec)
+    sys.modules.setdefault("ado_git_repo_insights.transform.aggregators", _agg_mod)
+    _agg_spec.loader.exec_module(_agg_mod)
 
-AggregateIndex = _agg_mod.AggregateIndex
-DatasetManifest = _agg_mod.DatasetManifest
-Dimensions = _agg_mod.Dimensions
-WeeklyRollup = _agg_mod.WeeklyRollup
-YearlyDistribution = _agg_mod.YearlyDistribution
+    AggregateIndex = _agg_mod.AggregateIndex
+    DatasetManifest = _agg_mod.DatasetManifest
+    Dimensions = _agg_mod.Dimensions
+    WeeklyRollup = _agg_mod.WeeklyRollup
+    YearlyDistribution = _agg_mod.YearlyDistribution
 
 # Load demo_generation_common from scripts/ via importlib (avoids sys.path manipulation)
 _common_spec = importlib.util.spec_from_file_location(
