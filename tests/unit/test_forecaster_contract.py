@@ -20,6 +20,8 @@ from unittest.mock import MagicMock, Mock, patch
 import pandas as pd
 import pytest
 
+from tests.conftest import FakeProphetModule
+
 
 class TestForecasterContract:
     """Schema contract validation for predictions/trends.json."""
@@ -84,8 +86,8 @@ class TestForecasterContract:
     @pytest.fixture
     def fake_prophet_module(self, mock_prophet_class: MagicMock) -> ModuleType:
         """Create a fake prophet module with mock Prophet class."""
-        fake_module = ModuleType("prophet")
-        fake_module.Prophet = mock_prophet_class  # type: ignore[attr-defined]
+        fake_module = FakeProphetModule("prophet")
+        fake_module.Prophet = mock_prophet_class
         return fake_module
 
     def test_predictions_schema_structure(
