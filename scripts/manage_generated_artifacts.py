@@ -11,6 +11,7 @@ import subprocess
 import sys
 from dataclasses import dataclass
 from pathlib import Path
+from types import ModuleType
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 EXTENSION_ROOT = REPO_ROOT / "extension"
@@ -19,21 +20,41 @@ UI_BUNDLE_DIR = REPO_ROOT / "src" / "ado_git_repo_insights" / "ui_bundle"
 DOCS_DIR = REPO_ROOT / "docs"
 BROKEN_DOCS_DIR = EXTENSION_ROOT / "tests" / "fixtures" / "broken-docs"
 
+
+def _load_script_module(
+    module_name: str,
+    script_path: Path,
+    *,
+    preloads: tuple[tuple[str, Path], ...] = (),
+) -> ModuleType:
+    """Load a repo script without mutating sys.path."""
+    for preload_name, preload_path in preloads:
+        preload_spec = importlib.util.spec_from_file_location(
+            preload_name, preload_path
+        )
+        if preload_spec is None or preload_spec.loader is None:
+            raise RuntimeError(f"Unable to load helper module: {preload_path}")
+        preload_module = importlib.util.module_from_spec(preload_spec)
+        sys.modules[preload_name] = preload_module
+        preload_spec.loader.exec_module(preload_module)
+
+    spec = importlib.util.spec_from_file_location(module_name, script_path)
+    if spec is None or spec.loader is None:
+        raise RuntimeError(f"Unable to load script module: {script_path}")
+    module = importlib.util.module_from_spec(spec)
+    sys.modules[module_name] = module
+    spec.loader.exec_module(module)
+    return module
+
+
 # Import the canonical asset list from publish-demo-surface.py.
 # index.html is always included (rendered separately by the publisher).
-_scripts_dir = str(REPO_ROOT / "scripts")
-sys.path.insert(0, _scripts_dir)
-try:
-    _spec = importlib.util.spec_from_file_location(
-        "publish_demo_surface", REPO_ROOT / "scripts" / "publish-demo-surface.py"
-    )
-    assert _spec is not None
-    assert _spec.loader is not None
-    _mod = importlib.util.module_from_spec(_spec)
-    _spec.loader.exec_module(_mod)
-    _DEMO_ASSETS: list[str] = _mod.STATIC_ASSET_FILES
-finally:
-    sys.path.remove(_scripts_dir)
+_publish_demo_surface = _load_script_module(
+    "publish_demo_surface",
+    REPO_ROOT / "scripts" / "publish-demo-surface.py",
+    preloads=(("demo_shell", REPO_ROOT / "scripts" / "demo_shell.py"),),
+)
+_DEMO_ASSETS: list[str] = _publish_demo_surface.STATIC_ASSET_FILES
 
 DOCS_OUTPUTS = [
     DOCS_DIR / "index.html",

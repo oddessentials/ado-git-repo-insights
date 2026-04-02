@@ -15,7 +15,7 @@
     },
     {
       "file": "scripts/manage_generated_artifacts.py",
-      "line": 108,
+      "line": 129,
       "code": "result = subprocess.run(",
       "reason": "Repo-owned command from resolved tool path"
     },
@@ -45,14 +45,14 @@
     },
     {
       "file": "tests/demo/test_demo_parity_pipeline.py",
-      "line": 118,
-      "code": "result = subprocess.run(",
+      "line": 144,
+      "code": "build_result = subprocess.run(",
       "reason": "Test runner: trusted script invocation"
     },
     {
       "file": "tests/demo/test_demo_parity_pipeline.py",
-      "line": 133,
-      "code": "result = subprocess.run(",
+      "line": 159,
+      "code": "validate_result = subprocess.run(",
       "reason": "Test runner: second trusted script call site"
     },
     {

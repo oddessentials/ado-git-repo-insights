@@ -8,9 +8,11 @@ from __future__ import annotations
 
 import importlib.util
 import json
+import shutil
 import subprocess
 import sys
 from pathlib import Path
+from unittest.mock import patch
 
 SCRIPT = (
     Path(__file__).parent.parent.parent / "scripts" / "check_rule_disable_invariants.py"
@@ -213,10 +215,10 @@ class TestSyspathGuardrail:
         violations = check_syspath_safety("tests/conftest.py", code)
         assert len(violations) == 0
 
-    def test_allowlisted_file_exempt(self) -> None:
+    def test_non_conftest_file_not_exempt(self) -> None:
         code = 'import sys\nsys.path.insert(0, "/some/path")\n'
         violations = check_syspath_safety("scripts/manage_generated_artifacts.py", code)
-        assert len(violations) == 0
+        assert len(violations) == 1
 
     def test_clean_file_passes(self) -> None:
         code = "import importlib.util\nspec = importlib.util.spec_from_file_location('m', 'f.py')\n"
@@ -233,6 +235,7 @@ class TestArtifactVerification:
     """T050: stale artifacts cause --verify-artifacts to fail."""
 
     REPO_ROOT = Path(__file__).parent.parent.parent
+    TMP_ROOT = REPO_ROOT / "tmp_test_work" / "rule-disable-invariants"
 
     def test_verify_artifacts_passes_on_current(self) -> None:
         """Fresh artifacts match the codebase."""
@@ -246,85 +249,75 @@ class TestArtifactVerification:
 
     def test_stale_artifact_detected_by_verify(self) -> None:
         """Modified artifact causes verify_artifacts() to return 1."""
-        _normalize = _mod._normalize_entries
-
-        # Generate fresh artifact data
         fresh = _mod.generate_subprocess_artifact(self.REPO_ROOT)
         fresh_entries = fresh.get("call_sites", [])
         assert len(fresh_entries) > 0, "Need at least 1 call site to test"
 
-        # Create a stale version by removing an entry
         stale = dict(fresh)
         stale["call_sites"] = list(fresh_entries[:-1])
         stale["total_call_sites"] = len(stale["call_sites"])
+        stale["unsafe_count"] = sum(
+            1 for entry in stale["call_sites"] if entry["safety"] != "safe-literal-list"
+        )
 
-        # Write stale artifact to a temp location, monkeypatch REPO_ROOT
-        import tempfile
-        from unittest.mock import patch
+        self.TMP_ROOT.mkdir(parents=True, exist_ok=True)
+        tmp_path = self.TMP_ROOT / "stale-artifact-case"
+        shutil.rmtree(tmp_path, ignore_errors=True)
+        tmp_path.mkdir(parents=True, exist_ok=True)
+        artifact_path = tmp_path / ".rule-disable-audit-S603.json"
+        artifact_path.write_text(json.dumps(stale, indent=2) + "\n", encoding="utf-8")
+        s311 = _mod.generate_random_artifact(self.REPO_ROOT)
+        s311_path = tmp_path / ".rule-disable-audit-S311.json"
+        s311_path.write_text(json.dumps(s311, indent=2) + "\n", encoding="utf-8")
 
-        with tempfile.TemporaryDirectory() as tmp:
-            tmp_path = Path(tmp)
-            artifact_path = tmp_path / ".rule-disable-audit-S603.json"
-            artifact_path.write_text(json.dumps(stale, indent=2), encoding="utf-8")
-            # Also need S311 artifact to avoid WARN
-            s311 = _mod.generate_random_artifact(self.REPO_ROOT)
-            s311_path = tmp_path / ".rule-disable-audit-S311.json"
-            s311_path.write_text(json.dumps(s311, indent=2), encoding="utf-8")
+        with (
+            patch.object(_mod, "generate_subprocess_artifact", return_value=fresh),
+            patch.object(_mod, "generate_random_artifact", return_value=s311),
+        ):
+            result = _mod.verify_artifacts(tmp_path)
 
-            # verify_artifacts reads from repo_root, so pass tmp as root
-            # but the generator scans the real repo — we need to patch
-            # the artifact path lookup
-            with patch.object(_mod, "REPO_ROOT", self.REPO_ROOT):
-                # Manually check: stale vs fresh should differ
-                stale_entries = _normalize(stale.get("call_sites", []))
-                fresh_norm = _normalize(fresh_entries)
-                assert stale_entries != fresh_norm, "Test setup error: stale == fresh"
+        assert result == 1
 
-    def test_classification_change_detected_by_normalize(self) -> None:
-        """Entries with same file/code but different classification are not equal."""
-        _normalize = _mod._normalize_entries
-        entry_safe = [
-            {
-                "file": "a.py",
-                "line": 1,
-                "code": "subprocess.run([",
-                "safety": "safe-literal-list",
-            }
-        ]
-        entry_unsafe = [
-            {
-                "file": "a.py",
-                "line": 1,
-                "code": "subprocess.run([",
-                "safety": "unsafe-shell-true",
-            }
-        ]
-        assert _normalize(entry_safe) != _normalize(entry_unsafe)
+    def test_line_number_drift_does_not_fail_verify(self) -> None:
+        """Line-number-only drift must not mark an artifact stale."""
+        fresh = _mod.generate_subprocess_artifact(self.REPO_ROOT)
+        assert fresh["call_sites"], "Need at least 1 call site to test"
 
-    def test_line_number_change_ignored_by_normalize(self) -> None:
-        """Line drift alone must not make artifacts stale."""
-        _normalize = _mod._normalize_entries
-        entry_old_line = [
-            {
-                "file": "a.py",
-                "line": 10,
-                "code": "subprocess.run([",
-                "safety": "safe-literal-list",
-            }
-        ]
-        entry_new_line = [
-            {
-                "file": "a.py",
-                "line": 11,
-                "code": "subprocess.run([",
-                "safety": "safe-literal-list",
-            }
-        ]
-        assert _normalize(entry_old_line) == _normalize(entry_new_line)
+        committed = dict(fresh)
+        committed["call_sites"] = [dict(entry) for entry in fresh["call_sites"]]
+        committed["call_sites"][0]["line"] = int(committed["call_sites"][0]["line"]) + 7
+
+        self.TMP_ROOT.mkdir(parents=True, exist_ok=True)
+        tmp_path = self.TMP_ROOT / "line-drift-case"
+        shutil.rmtree(tmp_path, ignore_errors=True)
+        tmp_path.mkdir(parents=True, exist_ok=True)
+        (tmp_path / ".rule-disable-audit-S603.json").write_text(
+            json.dumps(committed, indent=2) + "\n",
+            encoding="utf-8",
+        )
+        s311 = _mod.generate_random_artifact(self.REPO_ROOT)
+        (tmp_path / ".rule-disable-audit-S311.json").write_text(
+            json.dumps(s311, indent=2) + "\n",
+            encoding="utf-8",
+        )
+
+        with (
+            patch.object(_mod, "generate_subprocess_artifact", return_value=fresh),
+            patch.object(_mod, "generate_random_artifact", return_value=s311),
+        ):
+            result = _mod.verify_artifacts(tmp_path)
+
+        assert result == 0
 
 
 class TestAllowlistMechanism:
     """Finding 9: Tests for the subprocess allowlist loading and filtering."""
+
+    TMP_ROOT = (
+        Path(__file__).parent.parent.parent
+        / "tmp_test_work"
+        / "rule-disable-invariants"
+    )
 
     def test_load_allowlist_missing_file(self) -> None:
         """Missing allowlist file returns empty set."""
@@ -334,11 +327,13 @@ class TestAllowlistMechanism:
             result = _mod._load_subprocess_allowlist()
         assert result == set()
 
-    def test_load_allowlist_valid_file(self, tmp_path: Path) -> None:
+    def test_load_allowlist_valid_file(self) -> None:
         """Valid allowlist returns (file, line, code) triples."""
-        from unittest.mock import patch
-
-        allowlist_path = tmp_path / "allowlist.json"
+        self.TMP_ROOT.mkdir(parents=True, exist_ok=True)
+        case_dir = self.TMP_ROOT / "allowlist-valid"
+        shutil.rmtree(case_dir, ignore_errors=True)
+        case_dir.mkdir(parents=True, exist_ok=True)
+        allowlist_path = case_dir / "allowlist.json"
         allowlist_path.write_text(
             json.dumps(
                 {
@@ -364,11 +359,13 @@ class TestAllowlistMechanism:
         assert ("tests/test_x.py", 10, "subprocess.run(") in result
         assert len(result) == 2
 
-    def test_load_allowlist_corrupt_json(self, tmp_path: Path) -> None:
+    def test_load_allowlist_corrupt_json(self) -> None:
         """Corrupt JSON returns empty set, does not crash."""
-        from unittest.mock import patch
-
-        allowlist_path = tmp_path / "allowlist.json"
+        self.TMP_ROOT.mkdir(parents=True, exist_ok=True)
+        case_dir = self.TMP_ROOT / "allowlist-corrupt"
+        shutil.rmtree(case_dir, ignore_errors=True)
+        case_dir.mkdir(parents=True, exist_ok=True)
+        allowlist_path = case_dir / "allowlist.json"
         allowlist_path.write_text("not json", encoding="utf-8")
         with patch.object(_mod, "SUBPROCESS_ALLOWLIST_PATH", allowlist_path):
             result = _mod._load_subprocess_allowlist()

@@ -72,7 +72,8 @@ ignore = [
     "E501",   # Allow long lines in some cases
     "S101",   # Allow assert in tests
     "S603",   # subprocess with shell=False — compensated by check_rule_disable_invariants.py
-              # Proof: .rule-disable-audit-S603.json (76 call sites, all safe-hardcoded)
+              # Proof: .rule-disable-audit-S603.json exact-match artifact plus committed
+              # .subprocess-allowlist.json for reviewed non-literal repo-owned commands
     "S607",   # Partial executable path — all uses are repo-owned tools (git, python)
               # Compensated by S603 guardrail (detects unsafe subprocess patterns)
     "S311",   # random module usage — all uses are deterministic seeded synthetic data

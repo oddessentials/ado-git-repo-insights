@@ -682,6 +682,8 @@ def run_rule_disable_invariants_guard() -> None:
 def run_pre_commit_hook() -> None:
     safe_print("[pre-commit] running suppression audit (zero-tolerance)")
     run_command([sys.executable, "scripts/audit-suppressions.py", "--diff"])
+    safe_print("[pre-commit] running Any-type ratchet (QG-40)")
+    run_command([sys.executable, "scripts/check_no_any_types.py", "--diff"])
     run_acl_health_check()
     run_pre_commit_stage()
     ensure_no_compiled_js()

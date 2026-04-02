@@ -516,6 +516,24 @@ def _resolve_scope(file_path: str) -> str | None:
     return best_match
 
 
+def _matching_scopes(file_path: str) -> list[str]:
+    """Return every scope that matches *file_path* by prefix and extension.
+
+    Used by coverage checks that must prove a tracked file belongs to exactly one
+    scope, not merely that a canonical winner exists.
+    """
+    matches: list[str] = []
+    for scope_name, scope_cfg in SCOPES.items():
+        if not file_path.startswith(scope_cfg["dir"]):
+            continue
+        ext_match = (scope_cfg["pattern"] == "*.py" and file_path.endswith(".py")) or (
+            scope_cfg["pattern"] == "*.ts" and file_path.endswith(".ts")
+        )
+        if ext_match:
+            matches.append(scope_name)
+    return sorted(matches)
+
+
 def has_tokenize_errors(scan_results: dict[str, list[Suppression]]) -> bool:
     """Check if any scan results contain tokenize error sentinels."""
     for suppressions in scan_results.values():
@@ -1222,10 +1240,12 @@ def cmd_check_justifications(
 
 
 def cmd_check_coverage(repo_root: Path) -> int:
-    """Verify every tracked .py/.ts file belongs to exactly one scope (FR-018, FR-026).
+    """Verify tracked Python files belong to exactly one scope (FR-018, FR-026).
 
     Uses `git ls-files` to enumerate only tracked files, avoiding false positives
     from generated files in gitignored directories (.mypy_cache, htmlcov, etc.).
+    TypeScript files intentionally retain longest-prefix resolution semantics;
+    this check only proves they are covered by at least one scope.
     """
     # Enumerate tracked files via git ls-files (cross-OS safe with list args)
     try:
@@ -1249,33 +1269,35 @@ def cmd_check_coverage(repo_root: Path) -> int:
     ]
 
     uncovered: list[str] = []
+    overlapping_python: list[tuple[str, list[str]]] = []
 
     for file_path in tracked_files:
         # Skip excluded directories
         if any(excl in file_path.split("/") for excl in EXCLUDED_DIRS):
             continue
 
-        # Use _resolve_scope for longest-prefix matching (handles nested scopes)
-        scope = _resolve_scope(file_path)
-        if scope is None:
+        matches = _matching_scopes(file_path)
+        if not matches:
             uncovered.append(file_path)
             continue
-
-        # Verify file extension matches the resolved scope's pattern
-        scope_cfg = SCOPES[scope]
-        ext_match = (scope_cfg["pattern"] == "*.py" and file_path.endswith(".py")) or (
-            scope_cfg["pattern"] == "*.ts" and file_path.endswith(".ts")
-        )
-        if not ext_match:
-            uncovered.append(file_path)
+        if file_path.endswith(".py") and len(matches) > 1:
+            overlapping_python.append((file_path, matches))
 
     if uncovered:
         print(f"[FAIL] {len(uncovered)} file(s) not in any scope:")
         for f in sorted(uncovered):
             print(f"  {f}")
+    if overlapping_python:
+        print(f"[FAIL] {len(overlapping_python)} Python file(s) match multiple scopes:")
+        for file_path, matches in overlapping_python:
+            print(f"  {file_path}: {', '.join(matches)}")
+    if uncovered or overlapping_python:
         return 1
 
-    print(f"[PASS] All {len(tracked_files)} tracked files are in exactly one scope")
+    print(
+        "[PASS] All tracked Python files are in exactly one scope, and all "
+        "tracked Python/TypeScript files are covered by at least one scope"
+    )
     return 0
 
 

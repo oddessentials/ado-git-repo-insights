@@ -30,7 +30,6 @@ import subprocess
 import sys
 import tokenize
 from collections.abc import Callable
-from datetime import datetime, timezone
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
@@ -67,18 +66,6 @@ UNSEEDED_RANDOM_PATTERN = re.compile(r"\brandom\.Random\s*\(\s*\)")
 
 # Patterns that detect sys.path manipulation (importlib-only enforcement)
 SYS_PATH_PATTERN = re.compile(r"\bsys\.path\.(?:insert|append)\b")
-
-# Known-safe sys.path manipulation: files that add scripts/ to sys.path
-# temporarily so that importlib-loaded script modules can resolve their
-# own from-imports (e.g., publish-demo-surface.py imports demo_shell).
-# Each use is wrapped in try/finally or is at module init for importlib exec.
-SYSPATH_ALLOWLIST = frozenset(
-    {
-        "scripts/manage_generated_artifacts.py",
-        "tests/demo/test_demo_parity_pipeline.py",
-        "tests/unit/test_parity_guardrails_red_path.py",
-    }
-)
 
 
 def _get_tracked_py_files(cwd: Path) -> list[str]:
@@ -400,14 +387,10 @@ def check_syspath_safety(file_path: str, content: str) -> list[dict[str, str | i
 
     Scripts must use importlib.util.spec_from_file_location() instead of
     sys.path manipulation. conftest.py files are exempt (pytest needs them).
-    Additional exemptions are in SYSPATH_ALLOWLIST for files that exec
-    modules which have their own bare from-imports.
 
     Returns list of violations with file, line, pattern, code.
     """
     if file_path.replace("\\", "/").endswith("conftest.py"):
-        return []
-    if file_path.replace("\\", "/") in SYSPATH_ALLOWLIST:
         return []
 
     violations: list[dict[str, str | int]] = []
@@ -476,7 +459,6 @@ def generate_subprocess_artifact(repo_root: Path) -> dict[str, object]:
 
     return {
         "rule": "S603",
-        "generated_at": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
         "total_call_sites": len(call_sites),
         "unsafe_count": sum(
             1 for s in call_sites if s["safety"] != "safe-literal-list"
@@ -526,7 +508,6 @@ def generate_random_artifact(repo_root: Path) -> dict[str, object]:
 
     return {
         "rule": "S311",
-        "generated_at": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
         "total_usages": len(usages),
         "usages": usages,
     }
@@ -535,28 +516,27 @@ def generate_random_artifact(repo_root: Path) -> dict[str, object]:
 def _normalize_entries(
     entries: list[dict[str, object]],
 ) -> list[tuple[str, str, str]]:
-    """Extract (file, code, classification) tuples for content comparison.
+    """Normalize artifact entries for semantic comparison.
 
-    Includes the safety/purpose field so classification changes are detected.
-    Line numbers remain in the generated JSON for humans, but verifier
-    comparisons ignore line drift from formatting or nearby edits.
+    Line numbers are intentionally excluded so formatting-only churn does not
+    force artifact regeneration. Classification is retained so safety changes
+    still fail verification.
     """
     return sorted(
         (
-            str(e.get("file", "")),
-            str(e.get("code", "")),
-            str(e.get("safety", e.get("purpose", ""))),
+            str(entry.get("file", "")),
+            str(entry.get("code", "")),
+            str(entry.get("safety", entry.get("purpose", ""))),
         )
-        for e in entries
+        for entry in entries
     )
 
 
 def verify_artifacts(repo_root: Path) -> int:
     """Verify committed proof artifacts match current codebase (FR-020).
 
-    Compares semantic call site lists (file, code, classification), not just
-    counts. This catches additions, removals, and reclassifications while
-    ignoring line-number-only churn from formatting or nearby edits.
+    Verification is exact for artifact metadata and semantic entry content,
+    while tolerating line-number-only churn from formatting or nearby edits.
     """
     exit_code = 0
     artifact_configs: list[tuple[str, Callable[[Path], dict[str, object]], str]] = [
@@ -578,37 +558,41 @@ def verify_artifacts(repo_root: Path) -> int:
             committed = json.load(f)
 
         fresh = generator(repo_root)
-
-        # Compare full content, not just counts (P3 fix)
-        # JSON artifacts contain list[dict] entries; narrow from object
         committed_raw = committed.get(entries_key, [])
         fresh_raw = fresh.get(entries_key, [])
         assert isinstance(committed_raw, list)
         assert isinstance(fresh_raw, list)
+        committed_meta = {k: v for k, v in committed.items() if k != entries_key}
+        fresh_meta = {k: v for k, v in fresh.items() if k != entries_key}
         committed_entries = _normalize_entries(committed_raw)
         fresh_entries = _normalize_entries(fresh_raw)
 
-        if committed_entries != fresh_entries:
-            committed_count = len(committed_entries)
-            fresh_count = len(fresh_entries)
-            # Find specific differences for actionable output
-            committed_set = set(committed_entries)
-            fresh_set = set(fresh_entries)
-            added = fresh_set - committed_set
-            removed = committed_set - fresh_set
-
+        if committed_meta != fresh_meta or committed_entries != fresh_entries:
             print(
                 f"[FAIL] {rule} artifact stale: "
-                f"committed={committed_count}, current={fresh_count}"
+                f"committed={len(committed_raw)}, current={len(fresh_raw)}"
             )
-            if added:
-                print(f"  New call sites not in artifact ({len(added)}):")
-                for f_path, code, classification in sorted(added)[:5]:
-                    print(f"    {f_path}: [{classification}] {code[:80]}")
-            if removed:
-                print(f"  Removed call sites still in artifact ({len(removed)}):")
-                for f_path, code, classification in sorted(removed)[:5]:
-                    print(f"    {f_path}: [{classification}] {code[:80]}")
+            if committed_meta != fresh_meta:
+                print("  Artifact metadata differs:")
+                print(f"    committed: {committed_meta}")
+                print(f"    current:   {fresh_meta}")
+            if committed_entries != fresh_entries:
+                mismatch_index = next(
+                    (
+                        index
+                        for index, (committed_entry, fresh_entry) in enumerate(
+                            zip(committed_entries, fresh_entries, strict=False)
+                        )
+                        if committed_entry != fresh_entry
+                    ),
+                    None,
+                )
+                if mismatch_index is not None:
+                    print(f"  First differing entry at index {mismatch_index}:")
+                    print(f"    committed: {committed_entries[mismatch_index]}")
+                    print(f"    current:   {fresh_entries[mismatch_index]}")
+                elif len(committed_entries) != len(fresh_entries):
+                    print("  Entry count differs between committed and regenerated.")
             print(
                 "  Run: python scripts/check_rule_disable_invariants.py "
                 "--generate-artifacts"
@@ -617,7 +601,7 @@ def verify_artifacts(repo_root: Path) -> int:
         else:
             print(
                 f"[PASS] {rule} artifact matches codebase "
-                f"({len(fresh_entries)} call sites, content-verified)"
+                f"({len(fresh_raw)} entries, semantic match)"
             )
 
     return exit_code

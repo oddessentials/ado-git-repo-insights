@@ -242,12 +242,17 @@ jobs:
 
           # Generate expected docs/index.html from source template
           python -c "
+          import importlib.util
           import sys
-          sys.path.insert(0, 'scripts')
-          from demo_shell import render_demo_html_from_path
           from pathlib import Path
 
-          expected = render_demo_html_from_path(Path('extension/ui/index.html'))
+          spec = importlib.util.spec_from_file_location('demo_shell', Path('scripts/demo_shell.py'))
+          assert spec is not None and spec.loader is not None
+          module = importlib.util.module_from_spec(spec)
+          sys.modules['demo_shell'] = module
+          spec.loader.exec_module(module)
+
+          expected = module.render_demo_html_from_path(Path('extension/ui/index.html'))
           Path('/tmp/expected-docs-index.html').write_text(expected, encoding='utf-8', newline='\n')
           "
 

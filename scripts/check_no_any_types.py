@@ -12,6 +12,7 @@ Mirrors the suppression audit and the TypeScript any-type-ratchet.test.ts.
 from __future__ import annotations
 
 import json
+import subprocess
 import sys
 import tokenize
 from pathlib import Path
@@ -21,32 +22,67 @@ SRC_DIR = REPO_ROOT / "src"
 BASELINE_PATH = REPO_ROOT / ".any-type-baseline.json"
 
 
-def scan_file(filepath: Path) -> list[tuple[int, str]]:
-    """Return list of (line_number, token) for Any tokens in *filepath*."""
+def scan_file(filepath: Path) -> tuple[list[tuple[int, str]], str | None]:
+    """Return ``(hits, parse_error)`` for Any tokens in *filepath*."""
     hits: list[tuple[int, str]] = []
     try:
         with filepath.open("rb") as f:
             tokens = list(tokenize.tokenize(f.readline))
-    except tokenize.TokenError:
-        return hits
+    except (tokenize.TokenError, IndentationError) as exc:
+        return hits, f"{type(exc).__name__}: {exc}"
 
     for tok in tokens:
         if tok.type == tokenize.NAME and tok.string == "Any":
             hits.append((tok.start[0], tok.string))
-    return hits
+    return hits, None
 
 
-def scan_src() -> dict[str, int]:
-    """Return {relative_path: count} for every file containing Any."""
+def scan_paths(py_files: list[Path]) -> tuple[dict[str, int], list[str]]:
+    """Return ``({relative_path: count}, parse_failures)`` for the given files."""
     results: dict[str, int] = {}
-    for py_file in sorted(SRC_DIR.rglob("*.py")):
+    parse_failures: list[str] = []
+    for py_file in sorted(py_files):
         if "__pycache__" in py_file.parts:
             continue
-        hits = scan_file(py_file)
+        rel = str(py_file.relative_to(REPO_ROOT)).replace("\\", "/")
+        hits, parse_error = scan_file(py_file)
+        if parse_error is not None:
+            parse_failures.append(f"  {rel}: {parse_error}")
+            continue
         if hits:
-            rel = str(py_file.relative_to(REPO_ROOT)).replace("\\", "/")
             results[rel] = len(hits)
-    return results
+    return results, parse_failures
+
+
+def scan_src() -> tuple[dict[str, int], list[str]]:
+    """Return ``({relative_path: count}, parse_failures)`` for all src/ files."""
+    return scan_paths(list(SRC_DIR.rglob("*.py")))
+
+
+def staged_src_py_files() -> list[Path]:
+    """Return staged Python files under src/."""
+    result = subprocess.run(
+        ["git", "diff", "--cached", "--name-only", "--diff-filter=d", "--", "src"],
+        cwd=REPO_ROOT,
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        errors="replace",
+        check=False,
+    )
+    if result.returncode != 0:
+        print(f"[FAIL] QG-40: git diff failed: {result.stderr.strip()}")
+        raise SystemExit(1)
+
+    files: list[Path] = []
+    for line in result.stdout.splitlines():
+        rel = line.strip().replace("\\", "/")
+        if not rel.endswith(".py"):
+            continue
+        path = REPO_ROOT / rel
+        if path.exists():
+            files.append(path)
+    return files
 
 
 def load_baseline() -> dict[str, int]:
@@ -76,9 +112,32 @@ def save_baseline(current: dict[str, int]) -> None:
 
 def main() -> int:
     update = "--update-baseline" in sys.argv
+    diff_mode = "--diff" in sys.argv
 
-    current = scan_src()
+    if update and diff_mode:
+        print(
+            "[FAIL] QG-40: --diff and --update-baseline cannot be used together. "
+            "Update the baseline from a full-tree scan only."
+        )
+        return 1
+
+    if diff_mode:
+        staged_files = staged_src_py_files()
+        if not staged_files:
+            print("[PASS] QG-40: No staged Python files under src/")
+            return 0
+        current, parse_failures = scan_paths(staged_files)
+    else:
+        current, parse_failures = scan_src()
     current_total = sum(current.values())
+
+    if parse_failures:
+        print("[FAIL] QG-40: Could not parse Python file(s) in src/:")
+        for line in parse_failures:
+            print(line)
+        print()
+        print("Fix syntax/indentation errors before relying on the Any-type ratchet.")
+        return 1
 
     if update:
         save_baseline(current)
@@ -123,6 +182,13 @@ def main() -> int:
         print("Fix: Use precise types (object, TypedDict, Protocol) instead of Any.")
         print("The Any count can only decrease, never increase.")
         return 1
+
+    if diff_mode:
+        print(
+            f"[PASS] QG-40: No staged typing.Any increases "
+            f"({len(current)} staged file(s) checked)"
+        )
+        return 0
 
     if current_total < baseline_total:
         print(

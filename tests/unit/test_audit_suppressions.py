@@ -34,6 +34,7 @@ is_excluded = _audit_module.is_excluded
 scan_file = _audit_module.scan_file
 scan_codebase = _audit_module.scan_codebase
 _resolve_scope = _audit_module._resolve_scope
+cmd_check_coverage = _audit_module.cmd_check_coverage
 has_tokenize_errors = _audit_module.has_tokenize_errors
 
 
@@ -315,6 +316,30 @@ class TestCheckCoverage:
             f"stdout: {result.stdout}"
         )
         assert "tools/helper.py" in result.stdout or "tools/helper.py" in result.stderr
+
+    def test_check_coverage_fails_for_overlapping_scope(self) -> None:
+        """T019: a tracked file matching multiple scopes causes a hard failure."""
+        from unittest.mock import patch
+
+        duplicate_scope = {
+            "dir": "src/",
+            "pattern": "*.py",
+            "language": "python",
+            "check_test_patterns": False,
+        }
+
+        class MockResult:
+            returncode = 0
+            stderr = ""
+            stdout = "src/ado_git_repo_insights/__init__.py\n"
+
+        with patch.dict(_audit_module.SCOPES, {"python-backend-dup": duplicate_scope}):
+            with patch.object(
+                _audit_module.subprocess, "run", return_value=MockResult()
+            ):
+                rc = cmd_check_coverage(self.REPO_ROOT)
+
+        assert rc == 1, "Coverage check must fail when a tracked file matches >1 scope"
 
 
 class TestTwoPhaseGating:
