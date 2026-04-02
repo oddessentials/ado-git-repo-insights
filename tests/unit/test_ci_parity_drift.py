@@ -156,6 +156,18 @@ class TestExtensionTestCi:
             f"Actual: {script!r}"
         )
 
+    def test_extension_lint_is_exact_for_all_production_scopes(self) -> None:
+        """lint must cover all compiled production TypeScript paths."""
+        ext_pkg = json.loads(
+            (REPO_ROOT / "extension" / "package.json").read_text(encoding="utf-8")
+        )
+        script = ext_pkg.get("scripts", {}).get("lint", "")
+        assert script == "eslint ui/ scripts/ tasks/_shared/ --max-warnings=0", (
+            "lint must be exactly "
+            "'eslint ui/ scripts/ tasks/_shared/ --max-warnings=0'. "
+            f"Actual: {script!r}"
+        )
+
 
 class TestCiExtensionGateParity:
     """CI extension-tests steps must have preflight equivalents and vice versa."""

@@ -105,7 +105,10 @@ def main_branch_suppression_baseline() -> Path | None:
 
 
 def build_commands(
-    suppression_baseline: Path | None, *, strict: bool = False
+    suppression_baseline: Path | None,
+    *,
+    strict: bool = False,
+    gitleaks: str | None = None,
 ) -> tuple[CommandSpec, ...]:
     # Suppression audit runs in strict mode for ALL branches (no --allow-pending-approval).
     # Prior parity gap: non-strict branches used warning-only mode locally but CI
@@ -376,18 +379,12 @@ def build_commands(
     ]
 
     # Secret scanning: gitleaks parity with CI (QG-35)
-    gitleaks = resolve_gitleaks()
     if gitleaks is not None:
         commands.append(
             CommandSpec(
                 "Secret scan (gitleaks)",
                 (gitleaks, "detect", "--config=.gitleaks.toml", "--verbose"),
             ),
-        )
-    else:
-        safe_print(
-            "[WARNING] gitleaks not found on PATH — secret scanning skipped locally. "
-            "CI will still block. Install: https://github.com/gitleaks/gitleaks#installing"
         )
 
     if suppression_baseline is not None:
@@ -538,19 +535,27 @@ def resolve_gitleaks() -> str | None:
     return None
 
 
-def ensure_node_child_processes_work() -> bool:
-    """Check Node.js child-process health.  Returns True if OK, False on failure.
+def ensure_node_child_processes_work(*, allow_local_degraded: bool) -> bool:
+    """Check Node.js child-process health.
 
-    On failure, logs a warning instead of raising SystemExit so that
-    Python-only gates (lint, mypy, suppression audit) still execute.
+    In authoritative mode, any failure is fatal because CI-hard extension gates
+    would otherwise be skipped locally. In degraded mode, the failure is only
+    reported and Node-backed gates are skipped.
     """
     node = shutil.which("node")
     if node is None:
-        safe_print(
-            "[WARNING] Node.js not found on PATH — "
-            "extension gates will be skipped, but lint/mypy/audit will still run."
+        message = (
+            "Node.js not found on PATH. Install Node.js so the authoritative "
+            "local preflight can run all CI-hard extension gates."
         )
-        return False
+        if allow_local_degraded:
+            safe_print(
+                "[WARNING] "
+                + message
+                + " Running in degraded mode; extension gates will be skipped."
+            )
+            return False
+        raise SystemExit(message)
 
     try:
         probe = subprocess.run(
@@ -570,12 +575,19 @@ def ensure_node_child_processes_work() -> bool:
     except (subprocess.TimeoutExpired, OSError) as exc:
         detail = str(exc)
 
-    safe_print(
-        "[WARNING] Node child-process check failed — "
-        "extension gates will be skipped, but lint/mypy/audit will still run. "
+    message = (
+        "Node child-process check failed. Fix local Node execution so the "
+        "authoritative preflight can run all CI-hard extension gates. "
         f"Diagnostic: {detail}"
     )
-    return False
+    if allow_local_degraded:
+        safe_print(
+            "[WARNING] "
+            + message
+            + " Running in degraded mode; extension gates will be skipped."
+        )
+        return False
+    raise SystemExit(message)
 
 
 def check_runner_self(
@@ -632,10 +644,32 @@ def run_command(
         emit_output("stderr", result.stderr)
 
 
-def ensure_tooling() -> bool:
-    """Check required tools. Returns True if Node is healthy."""
+def ensure_required_tools(*, allow_local_degraded: bool) -> tuple[bool, str | None]:
+    """Check required tools.
+
+    Returns whether Node-backed gates can run plus the resolved gitleaks path.
+    In authoritative mode, missing hard-gate tooling aborts immediately.
+    """
     resolve_pnpm()
-    return ensure_node_child_processes_work()
+    node_ok = ensure_node_child_processes_work(
+        allow_local_degraded=allow_local_degraded
+    )
+    gitleaks = resolve_gitleaks()
+    if gitleaks is None:
+        message = (
+            "gitleaks not found on PATH. Install gitleaks so the authoritative "
+            "local preflight can run the same secret scan that CI enforces: "
+            "https://github.com/gitleaks/gitleaks#installing"
+        )
+        if allow_local_degraded:
+            safe_print(
+                "[WARNING] "
+                + message
+                + " Running in degraded mode; secret scanning will be skipped."
+            )
+        else:
+            raise SystemExit(message)
+    return node_ok, gitleaks
 
 
 def ensure_paths() -> None:
@@ -676,6 +710,13 @@ def parse_args() -> argparse.Namespace:
         help="Run in strict CI-parity mode: suppression increases block the push "
         "(no --allow-pending-approval). Automatically enabled for refactor/* branches.",
     )
+    parser.add_argument(
+        "--allow-local-degraded",
+        action="store_true",
+        help="Allow a diagnostic-only degraded run when CI-hard local tooling is "
+        "unavailable. This mode is non-authoritative and must not be treated as "
+        "local/CI parity.",
+    )
     return parser.parse_args()
 
 
@@ -692,7 +733,9 @@ def main() -> int:
         safe_print(f"Resolved Python: {python_executable}")
         safe_print(f"Stable temp root: {PREFLIGHT_ROOT}")
 
-    node_ok = ensure_tooling()
+    node_ok, gitleaks = ensure_required_tools(
+        allow_local_degraded=args.allow_local_degraded
+    )
     ensure_paths()
     pnpm_executable = resolve_pnpm()
     check_runner_self(
@@ -702,17 +745,31 @@ def main() -> int:
     )
 
     if args.self_check:
+        if args.allow_local_degraded and (not node_ok or gitleaks is None):
+            safe_print(
+                "\n[WARNING] PR preflight self-check passed in degraded mode only"
+            )
+            return 0
         safe_print("\n[OK] PR preflight self-check passed")
         return 0
 
     if args.strict:
         safe_print("[strict] CI-parity mode: suppression increases will block")
-    commands = build_commands(main_branch_suppression_baseline(), strict=args.strict)
-    skipped: list[str] = []
+    if args.allow_local_degraded:
+        safe_print(
+            "[degraded] Non-authoritative local run: skipped CI-hard gates will "
+            "still be enforced in CI"
+        )
+    commands = build_commands(
+        main_branch_suppression_baseline(),
+        strict=args.strict,
+        gitleaks=gitleaks,
+    )
+    degraded_skips: list[str] = []
     for spec in commands:
-        # Skip Node-dependent commands when Node is broken
-        if not node_ok and PNPM_SENTINEL in spec.command:
-            skipped.append(spec.name)
+        # Degraded mode may skip Node-dependent commands when local Node is broken.
+        if args.allow_local_degraded and not node_ok and PNPM_SENTINEL in spec.command:
+            degraded_skips.append(spec.name)
             continue
         run_command(
             spec,
@@ -721,13 +778,18 @@ def main() -> int:
             verbose=args.verbose,
         )
 
-    if skipped:
+    if args.allow_local_degraded and gitleaks is None:
+        degraded_skips.append("Secret scan (gitleaks)")
+
+    if degraded_skips:
         safe_print(
-            f"\n[WARNING] {len(skipped)} extension gate(s) skipped (Node unavailable):"
+            f"\n[WARNING] {len(degraded_skips)} CI-hard gate(s) skipped in degraded mode:"
         )
-        for name in skipped:
+        for name in degraded_skips:
             safe_print(f"  - {name}")
-        safe_print("CI will still enforce these gates.")
+        safe_print("This run is non-authoritative. CI will still enforce these gates.")
+        safe_print("\n[WARNING] Local PR preflight completed in degraded mode")
+        return 0
 
     safe_print("\n[OK] Local PR preflight passed")
     return 0

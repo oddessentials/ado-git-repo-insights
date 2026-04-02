@@ -96,6 +96,12 @@ export default tseslint.config(
         // Configuration for scripts (strict type rules, relaxed security for build tools)
         files: ['scripts/**/*.ts'],
         languageOptions: {
+            globals: {
+                console: 'readonly',
+                process: 'readonly',
+                __dirname: 'readonly',
+                require: 'readonly',
+            },
             parserOptions: {
                 projectService: {
                     allowDefaultProject: ['eslint.config.mjs'],
@@ -126,9 +132,30 @@ export default tseslint.config(
         },
     },
     {
+        // Configuration for Node build scripts authored as ESM modules (.mjs)
+        files: ['scripts/**/*.mjs'],
+        languageOptions: {
+            ecmaVersion: 'latest',
+            sourceType: 'module',
+            globals: {
+                console: 'readonly',
+                process: 'readonly',
+            },
+        },
+        rules: {
+            'security/detect-object-injection': 'off',
+            'security/detect-non-literal-fs-filename': 'off',
+            'security/detect-non-literal-regexp': 'off',
+        },
+    },
+    {
         // Configuration for tasks/_shared (same strict rules as production)
         files: ['tasks/_shared/**/*.ts'],
         languageOptions: {
+            globals: {
+                console: 'readonly',
+                process: 'readonly',
+            },
             parserOptions: {
                 projectService: {
                     allowDefaultProject: ['eslint.config.mjs'],

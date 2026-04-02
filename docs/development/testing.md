@@ -197,11 +197,11 @@ python scripts/run_pr_preflight.py
 ```
 
 What it verifies:
-- `mypy src/`
+- `mypy src/ tests/ scripts/`
 - `tests/demo/` with `--no-cov` so demo dashboard validation is exercised
 - full Python suite with coverage
 - extension `build:check`
-- extension lint
+- extension production lint for `ui/`, `scripts/`, and `tasks/_shared/`
 - extension UI build
 - managed generated artifact parity
 - extension type tests
@@ -215,6 +215,17 @@ Why this exists:
 - it makes demo validation a required local gate instead of a remembered extra step
 - it resolves Python 3.10 explicitly, so the gate runs on a supported baseline
   interpreter even if your shell default points elsewhere
+- it fails closed if CI-hard local tooling such as Node child-process support or
+  `gitleaks` is unavailable, so local success cannot silently become weaker than CI
+
+Diagnostic-only degraded mode:
+
+```bash
+python scripts/run_pr_preflight.py --allow-local-degraded
+```
+
+Use degraded mode only to gather partial diagnostics on a broken workstation. It
+is non-authoritative and must not be treated as local/CI parity.
 
 Recommended workflow:
 1. `python scripts/run_repo_hook.py pre-commit`

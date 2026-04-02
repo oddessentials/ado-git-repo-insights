@@ -48,6 +48,10 @@ python scripts/run_ci_parity.py --mode full
 
 `run_pr_preflight.py` resolves Python 3.10 explicitly, so it stays on a
 supported baseline interpreter even if your shell default points elsewhere.
+It is authoritative by default: if CI-hard local tooling such as Node-backed
+extension gates or `gitleaks` is unavailable, the command fails instead of
+silently degrading. Use `--allow-local-degraded` only for diagnostics on a
+broken workstation.
 
 **Detailed testing:** [Testing Guide](docs/development/testing.md)
 

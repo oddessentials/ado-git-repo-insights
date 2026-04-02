@@ -140,6 +140,10 @@ The authoritative implementation lives in:
 - `scripts/run_repo_hook.py`
 - `scripts/manage_generated_artifacts.py`
 
+Authoritative local parity now fails closed. If `python scripts/run_pr_preflight.py`
+cannot run a CI-hard gate such as Node-backed extension checks or `gitleaks`, it
+exits nonzero instead of silently skipping that gate.
+
 You do not need to run `pre-commit install` manually for normal repo usage.
 `pre-commit` is still required because the repo hooks delegate Python lint/format
 checks to it.
