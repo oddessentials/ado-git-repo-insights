@@ -64,9 +64,7 @@ pnpm test:all      # Runs all tests including Python integration
 
 ```bash
 cd extension
-pnpm run build
-pnpm run stage:tasks
-tfx extension create --manifest-globs vss-extension.json
+pnpm run package:vsix
 VSIX_REQUIRED=true pnpm test:vsix
 ```
 

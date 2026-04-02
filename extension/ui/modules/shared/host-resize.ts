@@ -7,6 +7,8 @@
  * @module ui/modules/shared/host-resize
  */
 
+import { resizeHost } from "../sdk";
+
 let pendingHostResize = false;
 let rafHandle: ReturnType<typeof requestAnimationFrame> | null = null;
 let hostResizeObserver: ResizeObserver | null = null;
@@ -18,18 +20,11 @@ let generation = 0;
  * Notify the Azure DevOps host iframe of the current document height.
  */
 export function syncHostHeight(): void {
-  const resizeFn = (
-    globalThis as {
-      VSS?: { resize?: (width?: number, height?: number) => void };
-    }
-  ).VSS?.resize;
-  if (typeof resizeFn !== "function") return;
-
   const bodyHeight = document.body.scrollHeight;
   const docHeight = document.documentElement.scrollHeight;
   const targetHeight = Math.max(bodyHeight, docHeight);
   if (targetHeight > 0) {
-    resizeFn(undefined, targetHeight);
+    resizeHost(undefined, targetHeight);
   }
 }
 

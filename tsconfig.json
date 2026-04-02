@@ -17,13 +17,7 @@
         "sourceMap": true,
         "noEmit": true,
         "baseUrl": ".",
-        "paths": {
-            "@types/*": [
-                "types/*"
-            ]
-        },
         "typeRoots": [
-            "./types",
             "./node_modules/@types"
         ]
     },

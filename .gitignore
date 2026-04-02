@@ -119,7 +119,7 @@ tmp_playwright_smoke/
 extension/test-artifacts/
 extension/playwright-report/
 extension/test-output.txt
-run_artifacts/*
+**/run_artifacts/
 # Compiled scripts
 scripts/dist/
 artifacts/demo-enterprise/

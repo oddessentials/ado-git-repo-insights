@@ -106,18 +106,22 @@ pnpm test
 
 ### Building the VSIX
 
+From the `extension/` directory:
+
 ```bash
-npx tfx-cli extension create --manifest-globs vss-extension.json
+pnpm run package:vsix
 ```
 
-This creates `OddEssentials.ado-git-repo-insights-X.Y.Z.vsix`.
+This builds the UI bundles, stages pipeline task dependencies, and creates
+`OddEssentials.ado-git-repo-insights-X.Y.Z.vsix` in the `extension/` directory.
+No global tool install is needed — `tfx-cli` is a repo devDependency.
 
 ### Local Testing
 
 Upload the VSIX to a test Azure DevOps organization:
 1. Go to `https://dev.azure.com/{test-org}/_settings/extensions`
 2. Click **Browse local extensions** → **Manage extensions**
-3. Click **Upload extension** → Select the `.vsix` file
+3. Click **Upload extension** → select the `.vsix` file from `extension/`
 
 ---
 

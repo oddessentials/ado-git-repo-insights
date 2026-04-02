@@ -28,27 +28,27 @@ export {
   setInputValue,
 } from "./dom-harness";
 
-// VSS SDK mocks
+// Azure DevOps Extension SDK mocks
 export type {
   MockWebContext,
-  MockExtensionDataService,
-  MockBuildRestClient,
-  VssSdkMocks,
+  MockExtensionDataManager,
+  MockCoreRestClient,
 } from "./vss-sdk-mock";
 
 export {
   defaultMockWebContext,
-  createMockExtensionDataService,
-  createMockBuildRestClient,
-  getMockExtensionDataService,
-  getMockBuildRestClient,
-  setupVssMocks,
-  resetVssMocks,
-  teardownVssMocks,
+  createMockExtensionDataManager,
+  createMockCoreRestClient,
+  getMockExtensionDataManager,
+  getMockCoreRestClient,
+  setupSdkMocks,
+  resetSdkMocks,
+  teardownSdkMocks,
   setMockWebContext,
   getMockWebContext,
   setMockSettingValue,
   getMockSettingValue,
   clearMockSettings,
-  isVssMocksSetup,
+  mockSdkModule,
+  mockApiModule,
 } from "./vss-sdk-mock";

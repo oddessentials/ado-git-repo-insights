@@ -124,6 +124,9 @@ const config: Config = {
   // Module name mapping for paths
   moduleNameMapper: {
     "^(\\.{1,2}/.*)\\.js$": "$1",
+    "^azure-devops-extension-sdk$": "<rootDir>/tests/__mocks__/azure-devops-extension-sdk.ts",
+    "^azure-devops-extension-api$": "<rootDir>/tests/__mocks__/azure-devops-extension-api.ts",
+    "^azure-devops-extension-api/(.*)$": "<rootDir>/tests/__mocks__/azure-devops-extension-api.ts",
   },
   // Transform TypeScript files with relaxed test config
   transform: {

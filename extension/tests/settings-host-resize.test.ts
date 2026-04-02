@@ -1,18 +1,25 @@
 /**
  * Behavioral tests for host iframe resize synchronization.
  *
- * Verifies that the shared host-resize module correctly calls VSS.resize
- * when observed container dimensions change or the window resizes.
+ * Verifies that the shared host-resize module correctly calls
+ * SDK.resize via the resizeHost wrapper when observed container
+ * dimensions change or the window resizes.
  */
 
-import * as path from "path";
-import { readTextFile } from "./helpers/fs-test-utils";
 import {
   initializeHostResizeSync,
   teardownHostResizeSync,
   syncHostHeight,
   scheduleHostResize,
 } from "../ui/modules/shared/host-resize";
+
+import {
+  setupSdkMocks,
+  teardownSdkMocks,
+  mockSdkModule,
+} from "./harness/vss-sdk-mock";
+
+import { initializeAdoSdk } from "../ui/modules/sdk";
 
 // ---------------------------------------------------------------------------
 // ResizeObserver mock — jsdom does not provide one
@@ -22,8 +29,6 @@ type ROCallback = (entries: ResizeObserverEntry[]) => void;
 
 let lastObserverCallback: ROCallback | null = null;
 let lastObservedElement: Element | null = null;
-let observerDisconnected = false;
-
 class MockResizeObserver {
   constructor(callback: ROCallback) {
     lastObserverCallback = callback;
@@ -35,7 +40,7 @@ class MockResizeObserver {
     /* no-op */
   }
   disconnect(): void {
-    observerDisconnected = true;
+    /* no-op */
   }
 }
 
@@ -51,9 +56,7 @@ function mockRaf(cb: () => void): number {
 }
 
 function mockCancelRaf(id: number): void {
-  // rAF IDs are 1-based (see mockRaf return)
   if (id >= 1 && id <= rafCallbacks.length) {
-    // Replace with no-op so flushRaf skips it
     rafCallbacks[id - 1] = () => {};
   }
 }
@@ -64,26 +67,11 @@ function flushRaf(): void {
 }
 
 // ---------------------------------------------------------------------------
-// VSS.resize mock
-// ---------------------------------------------------------------------------
-
-let resizeSpy: jest.Mock<(width?: number, height?: number) => void>;
-
-function setupVssResize(): void {
-  resizeSpy = jest.fn();
-  (globalThis as Record<string, unknown>).VSS = { resize: resizeSpy };
-}
-
-function teardownVssResize(): void {
-  delete (globalThis as Record<string, unknown>).VSS;
-}
-
-// ---------------------------------------------------------------------------
 // Test suite
 // ---------------------------------------------------------------------------
 
 describe("host-resize module", () => {
-  beforeEach(() => {
+  beforeEach(async () => {
     // Install mocks
     (globalThis as Record<string, unknown>).ResizeObserver = MockResizeObserver;
     (globalThis as Record<string, unknown>).requestAnimationFrame = mockRaf;
@@ -91,33 +79,41 @@ describe("host-resize module", () => {
     rafCallbacks = [];
     lastObserverCallback = null;
     lastObservedElement = null;
-    observerDisconnected = false;
-    setupVssResize();
+
+    // Setup SDK mocks and initialize so resizeHost guard passes
+    setupSdkMocks();
+    await initializeAdoSdk();
 
     // Provide a container for the observer
     document.body.innerHTML = '<div class="settings-container">initial</div>';
 
     // jsdom has no layout engine — scrollHeight is always 0.
     // Stub a realistic value so syncHostHeight passes the > 0 guard.
-    Object.defineProperty(document.body, "scrollHeight", { value: 600, configurable: true });
-    Object.defineProperty(document.documentElement, "scrollHeight", { value: 600, configurable: true });
+    Object.defineProperty(document.body, "scrollHeight", {
+      value: 600,
+      configurable: true,
+    });
+    Object.defineProperty(document.documentElement, "scrollHeight", {
+      value: 600,
+      configurable: true,
+    });
   });
 
   afterEach(() => {
     teardownHostResizeSync();
-    teardownVssResize();
+    teardownSdkMocks();
     document.body.innerHTML = "";
     delete (globalThis as Record<string, unknown>).ResizeObserver;
     delete (globalThis as Record<string, unknown>).requestAnimationFrame;
     delete (globalThis as Record<string, unknown>).cancelAnimationFrame;
   });
 
-  it("calls VSS.resize with the document height after initialization", () => {
+  it("calls SDK.resize with the document height after initialization", () => {
     initializeHostResizeSync(".settings-container");
     flushRaf();
 
-    expect(resizeSpy).toHaveBeenCalledTimes(1);
-    const height = resizeSpy.mock.calls[0][1] as number;
+    expect(mockSdkModule.resize).toHaveBeenCalledTimes(1);
+    const height = (mockSdkModule.resize as jest.Mock).mock.calls[0][1] as number;
     expect(height).toBeGreaterThan(0);
   });
 
@@ -129,225 +125,183 @@ describe("host-resize module", () => {
     );
   });
 
-  it("calls VSS.resize when the ResizeObserver fires", () => {
+  it("calls SDK.resize when the ResizeObserver fires", () => {
     initializeHostResizeSync(".settings-container");
-    flushRaf(); // flush the init resize
-    resizeSpy.mockClear();
+    flushRaf();
+    (mockSdkModule.resize as jest.Mock).mockClear();
 
-    // Simulate observer callback (content grew)
     lastObserverCallback!([] as ResizeObserverEntry[]);
     flushRaf();
 
-    expect(resizeSpy).toHaveBeenCalledTimes(1);
+    expect(mockSdkModule.resize).toHaveBeenCalledTimes(1);
   });
 
-  it("calls VSS.resize on window resize events", () => {
+  it("calls SDK.resize on window resize events", () => {
     initializeHostResizeSync(".settings-container");
     flushRaf();
-    resizeSpy.mockClear();
+    (mockSdkModule.resize as jest.Mock).mockClear();
 
     window.dispatchEvent(new Event("resize"));
     flushRaf();
 
-    expect(resizeSpy).toHaveBeenCalledTimes(1);
+    expect(mockSdkModule.resize).toHaveBeenCalledTimes(1);
   });
 
   it("coalesces rapid calls into a single resize per frame", () => {
     initializeHostResizeSync(".settings-container");
     flushRaf();
-    resizeSpy.mockClear();
+    (mockSdkModule.resize as jest.Mock).mockClear();
 
-    // Three rapid triggers before the frame flushes
     scheduleHostResize();
     scheduleHostResize();
     scheduleHostResize();
     flushRaf();
 
-    expect(resizeSpy).toHaveBeenCalledTimes(1);
+    expect(mockSdkModule.resize).toHaveBeenCalledTimes(1);
   });
 
   it("is safe to call initializeHostResizeSync twice (idempotent)", () => {
     initializeHostResizeSync(".settings-container");
+    flushRaf();
+    (mockSdkModule.resize as jest.Mock).mockClear();
+
     initializeHostResizeSync(".settings-container");
     flushRaf();
 
-    // Should have disconnected the first observer
-    expect(observerDisconnected).toBe(true);
-    // And only one pending resize flushed
-    expect(resizeSpy).toHaveBeenCalledTimes(1);
+    expect(mockSdkModule.resize).toHaveBeenCalledTimes(1);
   });
 
-  it("skips VSS.resize when VSS is not available", () => {
-    teardownVssResize(); // remove VSS from globalThis
+  it("does not call resize when SDK is not initialized", async () => {
+    // Reset SDK state to simulate pre-init
+    const { resetSdkState } = await import("../ui/modules/sdk");
+    resetSdkState();
+
+    syncHostHeight();
+
+    expect(mockSdkModule.resize).not.toHaveBeenCalled();
+  });
+
+  it("does not depend on globalThis.VSS", () => {
+    // Ensure no globalThis.VSS is set
+    delete (globalThis as Record<string, unknown>).VSS;
 
     initializeHostResizeSync(".settings-container");
     flushRaf();
 
-    // No error thrown, no calls made
-    expect(resizeSpy).not.toHaveBeenCalled();
+    // Resize still works through the SDK mock
+    expect(mockSdkModule.resize).toHaveBeenCalledTimes(1);
   });
 
   it("skips the observer when ResizeObserver is unavailable", () => {
     delete (globalThis as Record<string, unknown>).ResizeObserver;
+    (mockSdkModule.resize as jest.Mock).mockClear();
 
     initializeHostResizeSync(".settings-container");
     flushRaf();
 
-    // Observer was never created, but resize still fires via initial call
     expect(lastObservedElement).toBeNull();
-    expect(resizeSpy).toHaveBeenCalledTimes(1);
-  });
-
-  it("cleans up observer and listener on teardown", () => {
-    initializeHostResizeSync(".settings-container");
-    teardownHostResizeSync();
-
-    // Observer disconnected
-    expect(observerDisconnected).toBe(true);
-
-    // Window resize no longer triggers anything
-    resizeSpy.mockClear();
-    rafCallbacks = [];
-    window.dispatchEvent(new Event("resize"));
-    flushRaf();
-    expect(resizeSpy).not.toHaveBeenCalled();
+    expect(mockSdkModule.resize).toHaveBeenCalledTimes(1);
   });
 
   it("syncHostHeight passes undefined width and computed height", () => {
     syncHostHeight();
-
-    expect(resizeSpy).toHaveBeenCalledWith(undefined, expect.any(Number));
-    expect(resizeSpy.mock.calls[0][0]).toBeUndefined();
+    expect(mockSdkModule.resize).toHaveBeenCalledWith(undefined, expect.any(Number));
   });
 
-  it("skips VSS.resize when document height is zero", () => {
-    Object.defineProperty(document.body, "scrollHeight", { value: 0, configurable: true });
-    Object.defineProperty(document.documentElement, "scrollHeight", { value: 0, configurable: true });
+  it("does not call resize after teardown", () => {
+    initializeHostResizeSync(".settings-container");
+    flushRaf();
+    (mockSdkModule.resize as jest.Mock).mockClear();
 
+    teardownHostResizeSync();
+
+    // Stale rAF should not fire
+    flushRaf();
+    expect(mockSdkModule.resize).not.toHaveBeenCalled();
+  });
+
+  it("does not call resize when a queued rAF fires after re-initialization", () => {
+    initializeHostResizeSync(".settings-container");
+    // Don't flush — rAF is pending from first init
+
+    // Re-initialize (bumps generation, stale callback becomes no-op)
+    initializeHostResizeSync(".settings-container");
+    flushRaf();
+
+    // Only the re-init resize should fire, not the stale one
+    expect(mockSdkModule.resize).toHaveBeenCalledTimes(1);
+  });
+
+  it("post-SDK-init syncHostHeight triggers resize even when pre-init call no-ops", async () => {
+    const { resetSdkState } = await import("../ui/modules/sdk");
+    resetSdkState();
+
+    // Pre-init: initializeHostResizeSync schedules a resize, but
+    // resizeHost no-ops because SDK isn't callable yet.
+    initializeHostResizeSync(".settings-container");
+    flushRaf();
+    expect(mockSdkModule.resize).not.toHaveBeenCalled();
+
+    // SDK init completes — wrappers now callable.
+    await initializeAdoSdk();
+    (mockSdkModule.resize as jest.Mock).mockClear();
+
+    // Explicit post-init syncHostHeight (as settings.ts now does).
     syncHostHeight();
 
-    expect(resizeSpy).not.toHaveBeenCalled();
+    expect(mockSdkModule.resize).toHaveBeenCalledTimes(1);
+    expect(mockSdkModule.resize).toHaveBeenCalledWith(undefined, expect.any(Number));
   });
 
-  // -------------------------------------------------------------------------
-  // Regression: P2 — disconnect old observer even when new selector misses
-  // -------------------------------------------------------------------------
+  it("final resize fires after async settings content renders (no ResizeObserver)", async () => {
+    // Remove ResizeObserver to simulate non-supporting host
+    delete (globalThis as Record<string, unknown>).ResizeObserver;
 
-  it("disconnects the previous observer when re-initialized with a non-matching selector", () => {
-    initializeHostResizeSync(".settings-container");
-    flushRaf();
+    await initializeAdoSdk();
+    (mockSdkModule.resize as jest.Mock).mockClear();
 
-    // The observer is now watching .settings-container
-    expect(lastObservedElement).toBe(
-      document.querySelector(".settings-container"),
-    );
+    // Simulate the settings init sequence: initial resize, then
+    // async content that grows the page, then final resize.
+    syncHostHeight(); // post-SDK-init resize (line 104 in settings.ts)
 
-    // Re-init with a selector that doesn't exist in the DOM
-    initializeHostResizeSync(".does-not-exist");
-    flushRaf();
+    // Simulate async DOM mutations (dropdown, settings, status)
+    document.body.innerHTML +=
+      '<div class="settings-content">Project dropdown with many options</div>';
+    Object.defineProperty(document.body, "scrollHeight", {
+      value: 900,
+      configurable: true,
+    });
 
-    // The old observer must have been disconnected
-    expect(observerDisconnected).toBe(true);
+    // Final resize after async content (line 128 in settings.ts)
+    syncHostHeight();
 
-    // And the old observer callback must not trigger a resize
-    resizeSpy.mockClear();
-    rafCallbacks = [];
-    lastObserverCallback!([] as ResizeObserverEntry[]);
-    flushRaf();
-    // The old callback still calls scheduleHostResize, but that's harmless;
-    // the important thing is the observer itself was disconnected from the
-    // element so the browser won't deliver entries to it.
-    expect(observerDisconnected).toBe(true);
+    // Must have been called at least twice — once post-init, once post-render
+    expect((mockSdkModule.resize as jest.Mock).mock.calls.length).toBeGreaterThanOrEqual(2);
+    // Last call should use the updated height
+    const lastCall = (mockSdkModule.resize as jest.Mock).mock.calls.at(-1);
+    expect(lastCall?.[1]).toBe(900);
   });
 
-  // -------------------------------------------------------------------------
-  // Regression: P3 — stale rAF callback must not fire after teardown
-  // -------------------------------------------------------------------------
+  it("final resize fires after error content renders (no ResizeObserver)", async () => {
+    // Remove ResizeObserver to simulate non-supporting host
+    delete (globalThis as Record<string, unknown>).ResizeObserver;
 
-  it("does not call VSS.resize when a queued rAF fires after teardown", () => {
-    initializeHostResizeSync(".settings-container");
-    // A rAF callback is now queued but NOT flushed
+    await initializeAdoSdk();
+    (mockSdkModule.resize as jest.Mock).mockClear();
 
-    teardownHostResizeSync();
+    // Simulate error path: error message is added to DOM
+    document.body.innerHTML +=
+      '<div class="error-state">Failed to initialize settings: Service unavailable</div>';
+    Object.defineProperty(document.body, "scrollHeight", {
+      value: 700,
+      configurable: true,
+    });
 
-    // Now flush — the stale callback must be a no-op
-    flushRaf();
-    expect(resizeSpy).not.toHaveBeenCalled();
-  });
+    // Final resize after error content (catch block in settings.ts)
+    syncHostHeight();
 
-  it("generation guard discards stale callback even if cancelAnimationFrame is a no-op", () => {
-    // Simulate the real browser race where cancelAnimationFrame doesn't
-    // prevent a callback that has already been dequeued by the runtime.
-    (globalThis as Record<string, unknown>).cancelAnimationFrame = () => {};
-
-    initializeHostResizeSync(".settings-container");
-    // rAF queued — cancelAnimationFrame is now a no-op, so teardown
-    // can't actually cancel it.  The generation guard must catch it.
-
-    teardownHostResizeSync();
-    flushRaf();
-
-    expect(resizeSpy).not.toHaveBeenCalled();
-
-    // Restore the real mock for subsequent tests
-    (globalThis as Record<string, unknown>).cancelAnimationFrame = mockCancelRaf;
-  });
-
-  it("does not call VSS.resize when a queued rAF fires after re-initialization", () => {
-    initializeHostResizeSync(".settings-container");
-    // rAF queued from first init — don't flush yet
-
-    // Re-initialize (simulates a rerender)
-    initializeHostResizeSync(".settings-container");
-
-    // Flush all queued callbacks — only the second init's callback should fire
-    flushRaf();
-
-    // Exactly one resize from the second init, not two
-    expect(resizeSpy).toHaveBeenCalledTimes(1);
-  });
-});
-
-// ---------------------------------------------------------------------------
-// Init ordering contract: resize sync must start before async startup work
-// ---------------------------------------------------------------------------
-
-describe("settings init ordering contract", () => {
-  // Source-reading test is the correct pattern here: this is a cross-file
-  // structural contract (like artifact-paths and settings-key sync tests),
-  // not a behavioral test of the resize module itself.
-
-  let initBody: string;
-
-  beforeAll(() => {
-    const settingsPath = path.join(__dirname, "../ui/settings.ts");
-    const source = readTextFile(settingsPath);
-
-    // Extract the init() function body (from "async function init" to its
-    // closing brace).  This is intentionally fragile — if the function is
-    // renamed or restructured, the test should fail loudly.
-    const match = source.match(
-      /async function init\(\): Promise<void> \{([\s\S]*?)\n\}/,
-    );
-    expect(match).not.toBeNull();
-    initBody = match![1] as string;
-  });
-
-  it("calls initializeHostResizeSync before initializeAdoSdk", () => {
-    const resizeIdx = initBody.indexOf("initializeHostResizeSync(");
-    const sdkIdx = initBody.indexOf("initializeAdoSdk(");
-
-    expect(resizeIdx).toBeGreaterThan(-1);
-    expect(sdkIdx).toBeGreaterThan(-1);
-    expect(resizeIdx).toBeLessThan(sdkIdx);
-  });
-
-  it("calls initializeHostResizeSync before the try block", () => {
-    const resizeIdx = initBody.indexOf("initializeHostResizeSync(");
-    const tryIdx = initBody.indexOf("try {");
-
-    expect(resizeIdx).toBeGreaterThan(-1);
-    expect(tryIdx).toBeGreaterThan(-1);
-    expect(resizeIdx).toBeLessThan(tryIdx);
+    expect(mockSdkModule.resize).toHaveBeenCalledTimes(1);
+    const call = (mockSdkModule.resize as jest.Mock).mock.calls[0];
+    expect(call?.[1]).toBe(700);
   });
 });

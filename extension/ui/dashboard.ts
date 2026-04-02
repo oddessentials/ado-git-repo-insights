@@ -72,6 +72,10 @@ import {
   initializeAdoSdk,
   isLocalMode,
   getLocalDatasetPath,
+  getExtensionDataService,
+  getWebContext,
+  getCollectionUri,
+  getAccessToken,
   // Error handling functions (dispatch handled internally)
   handleError,
   hideAllPanels,
@@ -129,6 +133,16 @@ let lastEffectiveState: EffectiveState | null = null;
 // Settings keys for extension data storage (must match settings.js)
 const SETTINGS_KEY_PROJECT = "pr-insights-source-project";
 const SETTINGS_KEY_PIPELINE = "pr-insights-pipeline-id";
+
+// Cached data service — resolved once per session (matches settings.ts pattern)
+let cachedDataService: Awaited<ReturnType<typeof getExtensionDataService>> | null = null;
+
+async function getDataService(): Promise<Awaited<ReturnType<typeof getExtensionDataService>>> {
+  if (!cachedDataService) {
+    cachedDataService = await getExtensionDataService();
+  }
+  return cachedDataService;
+}
 
 // DOM element cache - stores single HTMLElements only
 const elements = new Map<string, HTMLElement | null>();
@@ -310,14 +324,12 @@ async function getSourceConfig(): Promise<{
     pipelineId: null,
   };
   try {
-    const dataService = await VSS.getService<IExtensionDataService>(
-      VSS.ServiceIds.ExtensionData,
-    );
+    const dataService = await getDataService();
 
     // Get source project ID
     const savedProjectId = await dataService.getValue<string>(
       SETTINGS_KEY_PROJECT,
-      { scopeType: "User" },
+      { scopeType: "User", defaultValue: "" },
     );
     if (
       savedProjectId &&
@@ -330,7 +342,7 @@ async function getSourceConfig(): Promise<{
     // Get pipeline definition ID
     const savedPipelineId = await dataService.getValue<number>(
       SETTINGS_KEY_PIPELINE,
-      { scopeType: "User" },
+      { scopeType: "User", defaultValue: 0 },
     );
     if (
       savedPipelineId &&
@@ -350,9 +362,7 @@ async function getSourceConfig(): Promise<{
  */
 async function clearStalePipelineSetting(): Promise<void> {
   try {
-    const dataService = await VSS.getService<IExtensionDataService>(
-      VSS.ServiceIds.ExtensionData,
-    );
+    const dataService = await getDataService();
     await dataService.setValue(SETTINGS_KEY_PIPELINE, null, {
       scopeType: "User",
     });
@@ -384,8 +394,8 @@ async function resolveConfiguration(): Promise<{
   }
 
   // Get current project context
-  const webContext = VSS.getWebContext();
-  const currentProjectId = webContext.project?.id;
+  const webCtx = getWebContext();
+  const currentProjectId = webCtx?.project?.id;
   if (!currentProjectId) {
     throw new Error("No project context available");
   }
@@ -402,9 +412,11 @@ async function resolveConfiguration(): Promise<{
     sourceConfig.projectId ? " (from settings)" : " (current context)",
   );
 
-  // Initialize artifact client with target project
+  // Initialize artifact client with target project and SDK credentials.
+  // Pass getAccessToken as a provider — resolved per-request for token refresh.
+  const collectionUri = await getCollectionUri();
   artifactClient = new ArtifactClient(targetProjectId);
-  await artifactClient.initialize();
+  await artifactClient.initialize(collectionUri, getAccessToken);
 
   // Mode: explicit pipelineId from query
   if (queryResult.mode === "explicit") {
@@ -561,10 +573,10 @@ async function init(): Promise<void> {
     await initializeAdoSdk({
       onReady: () => {
         // Update project name in UI after SDK initialization
-        const webContext = VSS.getWebContext();
+        const webCtx = getWebContext();
         const projectNameEl = document.getElementById("current-project-name");
-        if (projectNameEl && webContext?.project?.name) {
-          projectNameEl.textContent = webContext.project.name;
+        if (projectNameEl && webCtx?.project?.name) {
+          projectNameEl.textContent = webCtx.project.name;
         }
       },
     });

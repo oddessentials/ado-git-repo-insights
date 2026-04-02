@@ -10,10 +10,10 @@
 
 import { jest } from "@jest/globals";
 import {
-  setupVssMocks,
-  teardownVssMocks,
+  setupSdkMocks,
+  teardownSdkMocks,
   configureExtensionDataService,
-  getMockExtensionDataService,
+  getMockExtensionDataManager,
 } from "../harness/vss-sdk-mock";
 
 // Constants matching settings.ts
@@ -33,6 +33,7 @@ async function downloadRawDataContract(
   deps: {
     dataService: { getValue: jest.Mock<(key: string, options?: unknown) => unknown> };
     webContext: { project?: { id: string } };
+    collectionUri: string;
     artifactClient: {
       initialize: jest.Mock<(...args: unknown[]) => unknown>;
       getArtifactMetadata: jest.Mock<(...args: unknown[]) => unknown>;
@@ -117,18 +118,22 @@ async function downloadRawDataContract(
       };
     }
 
-    // Validate URL is HTTPS and points to an ADO domain
-    const ADO_DOMAIN_SUFFIXES = [
-      "dev.azure.com",
-      ".visualstudio.com",
-      ".azure.com",
-    ];
+    // Validate URL: HTTPS required, must be collection origin or
+    // Azure-hosted artifact CDN (*.artifacts.visualstudio.com).
     try {
       const parsed = new URL(downloadUrl);
-      const isAdoDomain = ADO_DOMAIN_SUFFIXES.some((suffix) =>
-        parsed.hostname.endsWith(suffix),
-      );
-      if (parsed.protocol !== "https:" || !isAdoDomain) {
+      if (parsed.protocol !== "https:") {
+        return {
+          outcome: "invalid-url",
+          toastMessage: "Invalid download URL",
+          toastType: "error",
+        };
+      }
+      const collectionOrigin = new URL(deps.collectionUri).origin;
+      const isCollectionHost = parsed.origin === collectionOrigin;
+      const isAzureArtifactHost =
+        parsed.hostname.endsWith(".artifacts.visualstudio.com");
+      if (!isCollectionHost && !isAzureArtifactHost) {
         return {
           outcome: "invalid-url",
           toastMessage: "Invalid download URL",
@@ -196,7 +201,7 @@ async function downloadRawDataContract(
 
 describe("Settings Download: downloadRawData contract", () => {
   beforeEach(() => {
-    setupVssMocks();
+    setupSdkMocks();
     configureExtensionDataService({
       values: {
         [SETTINGS_KEY_PROJECT]: "test-project-id",
@@ -206,7 +211,7 @@ describe("Settings Download: downloadRawData contract", () => {
   });
 
   afterEach(() => {
-    teardownVssMocks();
+    teardownSdkMocks();
   });
 
   function createMockArtifactClient(
@@ -250,8 +255,9 @@ describe("Settings Download: downloadRawData contract", () => {
     }> = {},
   ) {
     return {
-      dataService: getMockExtensionDataService(),
+      dataService: getMockExtensionDataManager(),
       webContext: { project: { id: "proj-456" } },
+      collectionUri: "https://dev.azure.com/test-org/",
       artifactClient: createMockArtifactClient(clientOverrides),
     };
   }
@@ -510,7 +516,52 @@ describe("Settings Download: downloadRawData contract", () => {
     expect(result.toastType).toBe("error");
   });
 
-  it("rejects non-ADO domain download URL", async () => {
+  it("allows Azure-hosted artifact download URL", async () => {
+    const deps = defaultDeps({
+      getArtifactMetadata: jest.fn(() =>
+        Promise.resolve({
+          name: "csv-output",
+          resource: {
+            downloadUrl:
+              "https://artprodcus3.artifacts.visualstudio.com/A123/proj/_apis/resources/content?format=zip",
+          },
+        }),
+      ),
+    });
+
+    const result = await downloadRawDataContract(
+      { valid: true, buildId: 100 },
+      deps,
+    );
+
+    expect(result.outcome).toBe("success");
+  });
+
+  it("allows on-prem download URL matching collection URI origin", async () => {
+    const deps = {
+      ...defaultDeps({
+        getArtifactMetadata: jest.fn(() =>
+          Promise.resolve({
+            name: "csv-output",
+            resource: {
+              downloadUrl:
+                "https://tfs.example.com/tfs/DefaultCollection/proj/_apis/build/builds/100/artifacts",
+            },
+          }),
+        ),
+      }),
+      collectionUri: "https://tfs.example.com/tfs/DefaultCollection/",
+    };
+
+    const result = await downloadRawDataContract(
+      { valid: true, buildId: 100 },
+      deps,
+    );
+
+    expect(result.outcome).toBe("success");
+  });
+
+  it("rejects cross-origin download URL", async () => {
     const deps = defaultDeps({
       getArtifactMetadata: jest.fn(() =>
         Promise.resolve({
@@ -914,8 +965,9 @@ describe("Settings Download: auto-discovery download enablement", () => {
 
     // Feed lastValidation into the download contract
     const deps = {
-      dataService: getMockExtensionDataService(),
+      dataService: getMockExtensionDataManager(),
       webContext: { project: { id: "proj-123" } },
+      collectionUri: "https://dev.azure.com/org/",
       artifactClient: {
         initialize: jest.fn(() => Promise.resolve()),
         getArtifactMetadata: jest.fn(() =>

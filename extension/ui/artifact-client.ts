@@ -2,10 +2,12 @@
  * Artifact Client for PR Insights Hub
  *
  * Provides authenticated access to Azure DevOps pipeline artifacts.
- * Uses the ADO Extension SDK for proper authentication.
+ * This module is SDK-free: callers supply collectionUri and authToken
+ * at initialization. This prevents duplicate SDK instances when
+ * multiple IIFE bundles load on the same page.
  *
  * IMPORTANT: In ADO extension context, plain fetch() will return 401.
- * We must use the SDK's auth token service.
+ * Callers must obtain a Bearer token from the SDK before initializing.
  */
 
 import { type IDatasetLoader, type Rollup } from "./dataset-loader";
@@ -23,14 +25,31 @@ import {
   type Build,
 } from "./types";
 
+import { fetchWithVersionFallback } from "./modules/api-versions";
+
 /**
- * Client for accessing pipeline artifacts with authentication.
+ * Endpoint families for per-route API version caching.
+ * Azure DevOps Server deployments may support different API versions
+ * on different Build REST routes, so each family resolves independently.
  */
+export type EndpointFamily = "definitions" | "builds" | "artifacts" | "artifact-file";
+
+/** List endpoints return { value: [] } for empty results, so 404
+ *  genuinely signals "version not supported." Resource endpoints use
+ *  404 for "not found" — only 400 triggers version fallback for those. */
+const LIST_ENDPOINT_FAMILIES: ReadonlySet<EndpointFamily> = new Set([
+  "definitions", "builds", "artifacts",
+]);
+
 export class ArtifactClient {
   public readonly projectId: string;
   private collectionUri: string | null = null;
-  private authToken: string | null = null;
+  private tokenProvider: (() => Promise<string>) | null = null;
   private initialized: boolean = false;
+  /** Per-family API version cache. Scoped to this client instance,
+   *  which is bound to a single collectionUri + projectId by
+   *  initialize(). A new context requires a new client instance. */
+  private resolvedApiVersions = new Map<EndpointFamily, string>();
 
   /**
    * Create a new ArtifactClient.
@@ -42,27 +61,25 @@ export class ArtifactClient {
   }
 
   /**
-   * Initialize the client with ADO SDK auth.
-   * MUST be called after VSS.ready() and before any other methods.
+   * Initialize the client with authentication credentials.
+   * MUST be called after SDK initialization and before any other methods.
    *
+   * @param collectionUri - Azure DevOps collection/organization base URI
+   * @param tokenProvider - Async function that returns a fresh Bearer token
+   *   per request. The host manages token lifecycle; callers should pass
+   *   the SDK's getAccessToken function directly.
    * @returns This client instance
    */
-  async initialize(): Promise<ArtifactClient> {
+  async initialize(
+    collectionUri: string,
+    tokenProvider: () => Promise<string>,
+  ): Promise<ArtifactClient> {
     if (this.initialized) {
       return this;
     }
 
-    // Get web context for collection URI
-    const webContext = VSS.getWebContext();
-    this.collectionUri = webContext.collection.uri;
-
-    // Get auth token from SDK
-    const tokenResult = await VSS.getAccessToken();
-    this.authToken =
-      typeof tokenResult === "string"
-        ? tokenResult
-        : (tokenResult as { token: string }).token;
-
+    this.collectionUri = collectionUri;
+    this.tokenProvider = tokenProvider;
     this.initialized = true;
     return this;
   }
@@ -94,8 +111,10 @@ export class ArtifactClient {
   ): Promise<unknown> {
     this._ensureInitialized();
 
-    const url = this._buildFileUrl(buildId, artifactName, filePath);
-    const response = await this._authenticatedFetch(url);
+    const response = await this._fetchWithVersionFallback(
+      "artifact-file",
+      (v) => this._buildFileUrl(buildId, artifactName, filePath, v),
+    );
 
     if (response.status === 401 || response.status === 403) {
       throw createPermissionDeniedError("read artifact files");
@@ -127,8 +146,11 @@ export class ArtifactClient {
     this._ensureInitialized();
 
     try {
-      const url = this._buildFileUrl(buildId, artifactName, filePath);
-      const response = await this._authenticatedFetch(url, { method: "HEAD" });
+      const response = await this._fetchWithVersionFallback(
+        "artifact-file",
+        (v) => this._buildFileUrl(buildId, artifactName, filePath, v),
+        { method: "HEAD" },
+      );
       return response.ok;
     } catch {
       return false;
@@ -218,16 +240,65 @@ export class ArtifactClient {
   }
 
   /**
+   * Fetch a URL with API version fallback. If the version is already
+   * cached, uses it directly. Otherwise delegates to the shared
+   * fetchWithVersionFallback probe and caches on success.
+   *
+   * @param family Endpoint family for per-route version caching
+   * @param buildUrl Function that builds the URL for a given api-version
+   * @param options Optional fetch options (e.g., { method: "HEAD" })
+   */
+  private async _fetchWithVersionFallback(
+    family: EndpointFamily,
+    buildUrl: (version: string) => string,
+    options?: RequestInit,
+  ): Promise<Response> {
+    this._ensureInitialized();
+
+    // Fast path: version already resolved — bypass fallback entirely.
+    // Once cached, 404s on this family go straight to the caller.
+    const cachedVersion = this.resolvedApiVersions.get(family);
+    if (cachedVersion) {
+      return this._authenticatedFetch(buildUrl(cachedVersion), options);
+    }
+
+    // Slow path: delegate to shared version probe
+    const isListEndpoint = LIST_ENDPOINT_FAMILIES.has(family);
+    const { response, version } = await fetchWithVersionFallback(
+      buildUrl,
+      (url) => this._authenticatedFetch(url, options),
+      { isListEndpoint },
+    );
+
+    // Cache version ONLY on 2xx success. A non-success response
+    // (404 file-not-found, 500 server error) does not prove the
+    // version works — next call will re-probe.
+    if (response.ok) {
+      this.resolvedApiVersions.set(family, version);
+    }
+
+    return response;
+  }
+
+  /**
    * Get list of artifacts for a build.
    */
   async getArtifacts(buildId: number): Promise<VSSBuildArtifact[]> {
     this._ensureInitialized();
 
-    const url = `${this.collectionUri}${this.projectId}/_apis/build/builds/${buildId}/artifacts?api-version=7.1`;
-    const response = await this._authenticatedFetch(url);
+    const response = await this._fetchWithVersionFallback(
+      "artifacts",
+      (v) => `${this.collectionUri}${this.projectId}/_apis/build/builds/${buildId}/artifacts?api-version=${v}`,
+    );
 
     if (response.status === 401 || response.status === 403) {
       throw createPermissionDeniedError("list build artifacts");
+    }
+
+    if (response.status === 404) {
+      throw new Error(
+        `Build ${buildId} not found or has been deleted`,
+      );
     }
 
     if (!response.ok) {
@@ -251,10 +322,12 @@ export class ArtifactClient {
   ): Promise<BuildDefinitionReference[]> {
     this._ensureInitialized();
 
-    const url =
-      `${this.collectionUri}${this.projectId}/_apis/build/definitions` +
-      `?api-version=7.1&$top=${top}&queryOrder=${queryOrder}`;
-    const response = await this._authenticatedFetch(url);
+    const response = await this._fetchWithVersionFallback(
+      "definitions",
+      (v) =>
+        `${this.collectionUri}${this.projectId}/_apis/build/definitions` +
+        `?api-version=${v}&$top=${top}&queryOrder=${queryOrder}`,
+    );
 
     if (response.status === 401 || response.status === 403) {
       throw createPermissionDeniedError("list build definitions");
@@ -278,11 +351,13 @@ export class ArtifactClient {
   async getBuilds(definitionId: number, top: number = 1): Promise<Build[]> {
     this._ensureInitialized();
 
-    const url =
-      `${this.collectionUri}${this.projectId}/_apis/build/builds` +
-      `?api-version=7.1&definitions=${definitionId}` +
-      `&statusFilter=2&resultFilter=6&$top=${top}`;
-    const response = await this._authenticatedFetch(url);
+    const response = await this._fetchWithVersionFallback(
+      "builds",
+      (v) =>
+        `${this.collectionUri}${this.projectId}/_apis/build/builds` +
+        `?api-version=${v}&definitions=${definitionId}` +
+        `&statusFilter=2&resultFilter=6&$top=${top}`,
+    );
 
     if (response.status === 401 || response.status === 403) {
       throw createPermissionDeniedError("list builds");
@@ -308,11 +383,14 @@ export class ArtifactClient {
 
   /**
    * Build the URL for accessing a file within an artifact.
+   * Takes an explicit API version — callers route through
+   * _fetchWithVersionFallback which provides the version.
    */
   private _buildFileUrl(
     buildId: number,
     artifactName: string,
     filePath: string,
+    apiVersion: string,
   ): string {
     const normalizedPath = filePath.startsWith("/") ? filePath : "/" + filePath;
 
@@ -321,7 +399,7 @@ export class ArtifactClient {
       `?artifactName=${encodeURIComponent(artifactName)}` +
       `&%24format=file` +
       `&subPath=${encodeURIComponent(normalizedPath)}` +
-      `&api-version=7.1`
+      `&api-version=${apiVersion}`
     );
   }
 
@@ -332,8 +410,12 @@ export class ArtifactClient {
     url: string,
     options: RequestInit = {},
   ): Promise<Response> {
+    if (!this.tokenProvider) {
+      throw new Error("ArtifactClient not initialized. Call initialize() first.");
+    }
+    const token = await this.tokenProvider();
     const headers: HeadersInit = {
-      Authorization: `Bearer ${this.authToken}`,
+      Authorization: `Bearer ${token}`,
       Accept: "application/json",
       ...(options.headers || {}),
     };

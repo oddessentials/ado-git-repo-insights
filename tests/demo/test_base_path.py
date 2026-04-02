@@ -99,7 +99,6 @@ class TestBasePathServing:
             "dataset-loader.js",
             "artifact-client.js",
             "error-types.js",
-            "VSS.SDK.min.js",
         ]
 
         for js_file in js_files:

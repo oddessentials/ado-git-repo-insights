@@ -1,5 +1,9 @@
 "use strict";
 var PRInsightsSettings = (() => {
+  var __defProp = Object.defineProperty;
+  var __defNormalProp = (obj, key, value) => key in obj ? __defProp(obj, key, { enumerable: true, configurable: true, writable: true, value }) : obj[key] = value;
+  var __publicField = (obj, key, value) => __defNormalProp(obj, typeof key !== "symbol" ? key + "" : key, value);
+
   // ../ui/types.ts
   function isErrorWithMessage(error) {
     return typeof error === "object" && error !== null && "message" in error && typeof error.message === "string";
@@ -10,6 +14,455 @@ var PRInsightsSettings = (() => {
     return "Unknown error";
   }
 
+  // ../node_modules/.pnpm/azure-devops-extension-sdk@4.2.0/node_modules/azure-devops-extension-sdk/esm/SDK.min.js
+  var e = parseInt("10000000000", 36);
+  var t = Number.MAX_SAFE_INTEGER || 9007199254740991;
+  var n = class {
+    constructor() {
+      __publicField(this, "objects", {});
+    }
+    register(e2, t2) {
+      this.objects[e2] = t2;
+    }
+    unregister(e2) {
+      delete this.objects[e2];
+    }
+    getInstance(e2, t2) {
+      var n2 = this.objects[e2];
+      if (n2) return "function" == typeof n2 ? n2(t2) : n2;
+    }
+  };
+  var o = 1;
+  var r = class {
+    constructor(r2, i2) {
+      __publicField(this, "promises", {});
+      __publicField(this, "postToWindow");
+      __publicField(this, "targetOrigin");
+      __publicField(this, "handshakeToken");
+      __publicField(this, "registry");
+      __publicField(this, "channelId");
+      __publicField(this, "nextMessageId", 1);
+      __publicField(this, "nextProxyId", 1);
+      __publicField(this, "proxyFunctions", {});
+      this.postToWindow = r2, this.targetOrigin = i2, this.registry = new n(), this.channelId = o++, this.targetOrigin || (this.handshakeToken = Math.floor(Math.random() * (t - e) + e).toString(36) + Math.floor(Math.random() * (t - e) + e).toString(36));
+    }
+    getObjectRegistry() {
+      return this.registry;
+    }
+    async invokeRemoteMethod(e2, t2, n2, o2, r2) {
+      const i2 = { id: this.nextMessageId++, methodName: e2, instanceId: t2, instanceContext: o2, params: this._customSerializeObject(n2, r2), serializationSettings: r2 };
+      this.targetOrigin || (i2.handshakeToken = this.handshakeToken);
+      const s2 = new Promise(((e3, t3) => {
+        this.promises[i2.id] = { resolve: e3, reject: t3 };
+      }));
+      return this._sendRpcMessage(i2), s2;
+    }
+    getRemoteObjectProxy(e2, t2) {
+      return this.invokeRemoteMethod("", e2, void 0, t2);
+    }
+    invokeMethod(e2, t2) {
+      if (t2.methodName) {
+        var n2 = e2[t2.methodName];
+        if ("function" == typeof n2) try {
+          var o2 = [];
+          t2.params && (o2 = this._customDeserializeObject(t2.params, {}));
+          var r2 = n2.apply(e2, o2);
+          r2 && r2.then && "function" == typeof r2.then ? r2.then(((e3) => {
+            this._success(t2, e3, t2.handshakeToken);
+          }), ((e3) => {
+            this.error(t2, e3);
+          })) : this._success(t2, r2, t2.handshakeToken);
+        } catch (e3) {
+          this.error(t2, e3);
+        }
+        else this.error(t2, new Error("RPC method not found: " + t2.methodName));
+      } else this._success(t2, e2, t2.handshakeToken);
+    }
+    getRegisteredObject(e2, t2) {
+      if ("__proxyFunctions" === e2) return this.proxyFunctions;
+      var n2 = this.registry.getInstance(e2, t2);
+      return n2 || (n2 = i.getInstance(e2, t2)), n2;
+    }
+    onMessage(e2) {
+      if (e2.instanceId) {
+        const t2 = this.getRegisteredObject(e2.instanceId, e2.instanceContext);
+        if (!t2) return false;
+        "function" == typeof t2.then ? t2.then(((t3) => {
+          this.invokeMethod(t3, e2);
+        }), ((t3) => {
+          this.error(e2, t3);
+        })) : this.invokeMethod(t2, e2);
+      } else {
+        const t2 = this.promises[e2.id];
+        if (!t2) return false;
+        e2.error ? t2.reject(this._customDeserializeObject([e2.error], {})[0]) : t2.resolve(this._customDeserializeObject([e2.result], {})[0]), delete this.promises[e2.id];
+      }
+      return true;
+    }
+    owns(e2, t2, n2) {
+      if (this.postToWindow === e2) {
+        if (this.targetOrigin) return !!t2 && ("null" === t2.toLowerCase() || 0 === this.targetOrigin.toLowerCase().indexOf(t2.toLowerCase()));
+        if (n2.handshakeToken && n2.handshakeToken === this.handshakeToken) return this.targetOrigin = t2, true;
+      }
+      return false;
+    }
+    error(e2, t2) {
+      this._sendRpcMessage({ id: e2.id, error: this._customSerializeObject([t2], e2.serializationSettings)[0], handshakeToken: e2.handshakeToken });
+    }
+    _success(e2, t2, n2) {
+      this._sendRpcMessage({ id: e2.id, result: this._customSerializeObject([t2], e2.serializationSettings)[0], handshakeToken: n2 });
+    }
+    _sendRpcMessage(e2) {
+      this.postToWindow.postMessage(JSON.stringify(e2), "*");
+    }
+    _customSerializeObject(e2, t2, n2, o2 = 1, r2 = 1) {
+      if (!e2 || r2 > 100) return;
+      if (e2 instanceof Node || e2 instanceof Window || e2 instanceof Event) return;
+      var i2;
+      let s2;
+      s2 = n2 || { newObjects: [], originalObjects: [] }, s2.originalObjects.push(e2);
+      var c = (n3, i3, c2) => {
+        var a3;
+        try {
+          a3 = n3[c2];
+        } catch (e3) {
+        }
+        var h3 = typeof a3;
+        if ("undefined" !== h3) {
+          var d3 = -1;
+          if ("object" === h3 && (d3 = s2.originalObjects.indexOf(a3)), d3 >= 0) {
+            var u2 = s2.newObjects[d3];
+            u2.__circularReferenceId || (u2.__circularReferenceId = o2++), i3[c2] = { __circularReference: u2.__circularReferenceId };
+          } else "function" === h3 ? (this.nextProxyId++, i3[c2] = { __proxyFunctionId: this._registerProxyFunction(a3, e2), _channelId: this.channelId }) : "object" === h3 ? a3 && a3 instanceof Date ? i3[c2] = { __proxyDate: a3.getTime() } : i3[c2] = this._customSerializeObject(a3, t2, s2, o2, r2 + 1) : "__proxyFunctionId" !== c2 && (i3[c2] = a3);
+        }
+      };
+      if (e2 instanceof Array) {
+        i2 = [], s2.newObjects.push(i2);
+        for (var a2 = 0, h2 = e2.length; a2 < h2; a2++) c(e2, i2, a2);
+      } else {
+        i2 = {}, s2.newObjects.push(i2);
+        let n3 = {};
+        try {
+          n3 = (function(e3) {
+            const t3 = {};
+            for (; e3 && e3 !== Object.prototype; ) {
+              const n4 = Object.getOwnPropertyNames(e3);
+              for (const e4 of n4) "constructor" !== e4 && (t3[e4] = true);
+              e3 = Object.getPrototypeOf(e3);
+            }
+            return t3;
+          })(e2);
+        } catch (e3) {
+        }
+        for (var d2 in n3) (d2 && "_" !== d2[0] || t2 && t2.includeUnderscoreProperties) && c(e2, i2, d2);
+      }
+      return s2.originalObjects.pop(), s2.newObjects.pop(), i2;
+    }
+    _registerProxyFunction(e2, t2) {
+      var n2 = this.nextProxyId++;
+      return this.proxyFunctions["proxy" + n2] = function() {
+        return e2.apply(t2, Array.prototype.slice.call(arguments, 0));
+      }, n2;
+    }
+    _customDeserializeObject(e2, t2) {
+      var n2 = this;
+      if (!e2) return null;
+      var o2 = (e3, o3) => {
+        var r3 = e3[o3], i3 = typeof r3;
+        "__circularReferenceId" === o3 && "number" === i3 ? (t2[r3] = e3, delete e3[o3]) : "object" === i3 && r3 && (r3.__proxyFunctionId ? e3[o3] = function() {
+          return n2.invokeRemoteMethod("proxy" + r3.__proxyFunctionId, "__proxyFunctions", Array.prototype.slice.call(arguments, 0), {}, { includeUnderscoreProperties: true });
+        } : r3.__proxyDate ? e3[o3] = new Date(r3.__proxyDate) : r3.__circularReference ? e3[o3] = t2[r3.__circularReference] : this._customDeserializeObject(r3, t2));
+      };
+      if (e2 instanceof Array) for (var r2 = 0, i2 = e2.length; r2 < i2; r2++) o2(e2, r2);
+      else if ("object" == typeof e2) for (var s2 in e2) o2(e2, s2);
+      return e2;
+    }
+  };
+  var i = new n();
+  var s = new class {
+    constructor() {
+      __publicField(this, "_channels", []);
+      __publicField(this, "_handleMessageReceived", (e2) => {
+        let t2;
+        if ("string" == typeof e2.data) try {
+          t2 = JSON.parse(e2.data);
+        } catch (e3) {
+        }
+        if (t2) {
+          let n2, o2 = false;
+          for (const r2 of this._channels) r2.owns(e2.source, e2.origin, t2) && (n2 = r2, o2 = r2.onMessage(t2) || o2);
+          n2 && !o2 && (window.console && console.error(`No handler found on any channel for message: ${JSON.stringify(t2)}`), t2.instanceId && n2.error(t2, new Error(`The registered object ${t2.instanceId} could not be found.`)));
+        }
+      });
+      window.addEventListener("message", this._handleMessageReceived);
+    }
+    addChannel(e2, t2) {
+      const n2 = new r(e2, t2);
+      return this._channels.push(n2), n2;
+    }
+    removeChannel(e2) {
+      this._channels = this._channels.filter(((t2) => t2 !== e2));
+    }
+  }();
+  var a = window;
+  var h;
+  a._AzureDevOpsSDKVersion && console.error("The AzureDevOps SDK is already loaded. Only one version of this module can be loaded in a given document."), a._AzureDevOpsSDKVersion = 4.2, (function(e2) {
+    e2[e2.Unknown = 0] = "Unknown", e2[e2.Deployment = 1] = "Deployment", e2[e2.Enterprise = 2] = "Enterprise", e2[e2.Organization = 4] = "Organization";
+  })(h || (h = {}));
+  var d = "DevOps.HostControl";
+  var u = s.addChannel(window.parent);
+  var l;
+  var f;
+  var g;
+  var p;
+  var m;
+  var y;
+  var v;
+  var _;
+  var b;
+  var w;
+  var O = new Promise(((e2) => {
+    w = e2;
+  }));
+  function x(e2, t2) {
+    const n2 = window;
+    let o2;
+    "function" == typeof n2.CustomEvent ? o2 = new n2.CustomEvent(e2, t2) : (t2 = t2 || { bubbles: false, cancelable: false }, o2 = document.createEvent("CustomEvent"), o2.initCustomEvent(e2, t2.bubbles, t2.cancelable, t2.detail)), window.dispatchEvent(o2);
+  }
+  function k(e2) {
+    return new Promise(((t2) => {
+      const n2 = { ...e2, sdkVersion: 4.2 };
+      u.invokeRemoteMethod("initialHandshake", d, [n2]).then(((e3) => {
+        if ("pageContext" in e3) {
+          const t3 = e3;
+          if (g = t3.pageContext, f = g ? g.webContext : void 0, l = f ? f.team : void 0, m = t3.initialConfig || {}, y = t3.contribution.id, p = t3.extensionContext, p.id = p.publisherId + "." + p.extensionId, "context" in e3) {
+            const t4 = e3.context;
+            v = t4.user, _ = t4.host;
+          }
+        } else {
+          const t3 = e3, n3 = t3.context;
+          g = n3.pageContext, f = g ? g.webContext : void 0, l = f ? f.team : void 0, m = t3.initialConfig || {}, y = t3.contributionId, p = n3.extension, v = n3.user, _ = n3.host;
+        }
+        e3.themeData && (J(e3.themeData), window.addEventListener("themeChanged", ((e4) => {
+          J(e4.detail.data);
+        }))), w(), t2();
+      }));
+    }));
+  }
+  async function j() {
+    return O;
+  }
+  function R() {
+    return u.invokeRemoteMethod("notifyLoadSucceeded", d);
+  }
+  function I(e2) {
+    return `Attempted to call ${e2}() before init() was complete. Wait for init to complete or place within a ready() callback.`;
+  }
+  function T() {
+    if (!v) throw new Error(I("getUser"));
+    return v;
+  }
+  function D() {
+    if (!_) throw new Error(I("getHost"));
+    return _;
+  }
+  function S() {
+    if (!p) throw new Error(I("getExtensionContext"));
+    return p;
+  }
+  function A() {
+    if (!f) throw new Error(I("getWebContext"));
+    return f;
+  }
+  async function F(e2) {
+    return j().then((() => u.invokeRemoteMethod("getService", "DevOps.ServiceManager", [e2])));
+  }
+  async function L() {
+    return u.invokeRemoteMethod("getAccessToken", d).then(((e2) => e2.token));
+  }
+  function H(e2, t2) {
+    const n2 = document.body;
+    if (n2) {
+      const o2 = "number" == typeof e2 ? e2 : n2 ? n2.scrollWidth : void 0, r2 = "number" == typeof t2 ? t2 : n2 ? n2.scrollHeight : void 0;
+      u.invokeRemoteMethod("resize", d, [o2, r2]);
+    }
+  }
+  function J(e2) {
+    b || (b = document.createElement("style"), b.type = "text/css", document.head.appendChild(b));
+    const t2 = [];
+    if (e2) for (const n2 in e2) t2.push("--" + n2 + ": " + e2[n2]);
+    b.innerText = ":root { " + t2.join("; ") + " } body { color: var(--text-primary-color) }", x("themeApplied", { detail: e2 });
+  }
+  u.getObjectRegistry().register("DevOps.SdkClient", { dispatchEvent: x });
+
+  // ../ui/modules/api-versions.ts
+  var ADO_REST_API_VERSIONS = ["7.1", "6.0", "5.1"];
+  var EXTENSION_DATA_API_VERSION = "7.1-preview.1";
+  async function fetchWithVersionFallback(buildUrl, fetchFn, options) {
+    let lastError = null;
+    for (const version of ADO_REST_API_VERSIONS) {
+      const response = await fetchFn(buildUrl(version));
+      if (response.status === 401 || response.status === 403) {
+        return { response, version };
+      }
+      if (response.status === 400 || options.isListEndpoint && response.status === 404) {
+        lastError = new Error(
+          `API api-version=${version}: ${response.status}`
+        );
+        continue;
+      }
+      return { response, version };
+    }
+    throw lastError ?? new Error("No compatible API version found");
+  }
+
+  // ../ui/modules/sdk.ts
+  var LocationServiceId = "ms.vss-features.location-service";
+  var CORE_RESOURCE_AREA_ID = "79134c72-4a58-4b42-976c-04e7115f32bf";
+  var sdkInitialized = false;
+  var sdkReadyForCalls = false;
+  var initAttemptId = 0;
+  var initPromise = null;
+  var cachedCollectionUri = null;
+  var tokenInflight = null;
+  var DEFAULT_TIMEOUT_MS = 1e4;
+  function isSdkCallable() {
+    return sdkInitialized || sdkReadyForCalls;
+  }
+  async function initializeAdoSdk(options) {
+    if (sdkInitialized) return;
+    if (initPromise) return initPromise;
+    const timeout = options?.timeout ?? DEFAULT_TIMEOUT_MS;
+    const attemptId = ++initAttemptId;
+    const initSequence = async () => {
+      await k({ loaded: false });
+      await j();
+      if (attemptId !== initAttemptId) return;
+      sdkReadyForCalls = true;
+      try {
+        if (options?.onReady) {
+          options.onReady();
+        }
+        if (attemptId !== initAttemptId) return;
+        await R();
+      } finally {
+        sdkReadyForCalls = false;
+      }
+      if (attemptId !== initAttemptId) return;
+      sdkInitialized = true;
+    };
+    let timeoutId;
+    const timeoutPromise = new Promise((_2, reject) => {
+      timeoutId = setTimeout(() => {
+        initAttemptId++;
+        reject(new Error("Azure DevOps SDK initialization timed out"));
+      }, timeout);
+    });
+    initPromise = Promise.race([initSequence(), timeoutPromise]).finally(
+      () => {
+        if (timeoutId !== void 0) {
+          clearTimeout(timeoutId);
+        }
+        initPromise = null;
+      }
+    );
+    return initPromise;
+  }
+  async function getExtensionDataService() {
+    const collectionUri = await getCollectionUri();
+    const ctx = S();
+    function buildUrl(key, scopeType) {
+      const scope = scopeType === "User" ? "User" : "Default";
+      const scopeValue = scopeType === "User" ? "Me" : "Current";
+      return `${collectionUri}_apis/ExtensionManagement/InstalledExtensions/${encodeURIComponent(ctx.publisherId)}/${encodeURIComponent(ctx.extensionId)}/Data/Scopes/${scope}/${scopeValue}/Collections/%24settings/Documents/${encodeURIComponent(key)}?api-version=${EXTENSION_DATA_API_VERSION}`;
+    }
+    return {
+      async getValue(key, options) {
+        const accessToken = await getAccessToken();
+        const headers = {
+          Authorization: `Bearer ${accessToken}`,
+          Accept: "application/json",
+          "Content-Type": "application/json"
+        };
+        const url = buildUrl(key, options?.scopeType);
+        const response = await fetch(url, { headers });
+        if (response.status === 404) {
+          return options?.defaultValue ?? void 0;
+        }
+        if (!response.ok) {
+          throw new Error(
+            `Extension data GET failed: ${response.status} ${response.statusText}`
+          );
+        }
+        const doc = await response.json();
+        if (doc !== null && typeof doc === "object" && "value" in doc) {
+          return doc.value;
+        }
+        return doc;
+      },
+      async setValue(key, value, options) {
+        const accessToken = await getAccessToken();
+        const headers = {
+          Authorization: `Bearer ${accessToken}`,
+          Accept: "application/json",
+          "Content-Type": "application/json"
+        };
+        const url = buildUrl(key, options?.scopeType);
+        const body = JSON.stringify({ id: key, value });
+        const response = await fetch(url, { method: "PUT", headers, body });
+        if (!response.ok) {
+          throw new Error(
+            `Extension data PUT failed: ${response.status} ${response.statusText}`
+          );
+        }
+        const doc = await response.json();
+        if (doc !== null && typeof doc === "object" && "value" in doc) {
+          return doc.value;
+        }
+        return doc;
+      }
+    };
+  }
+  function getWebContext() {
+    if (!isSdkCallable()) return void 0;
+    const webCtx = A();
+    const user = T();
+    const host = D();
+    return {
+      project: webCtx.project ? { id: webCtx.project.id, name: webCtx.project.name } : void 0,
+      team: webCtx.team ? { id: webCtx.team.id, name: webCtx.team.name } : void 0,
+      user: { id: user.id, name: user.name, displayName: user.displayName },
+      host: { id: host.id, name: host.name }
+    };
+  }
+  async function getCollectionUri() {
+    if (cachedCollectionUri) return cachedCollectionUri;
+    const locationService = await F(
+      LocationServiceId
+    );
+    const raw = await locationService.getResourceAreaLocation(
+      CORE_RESOURCE_AREA_ID
+    );
+    cachedCollectionUri = raw.endsWith("/") ? raw : `${raw}/`;
+    return cachedCollectionUri;
+  }
+  async function getAccessToken() {
+    if (tokenInflight) return tokenInflight;
+    tokenInflight = L();
+    try {
+      return await tokenInflight;
+    } finally {
+      tokenInflight = null;
+    }
+  }
+  function resizeHost(width, height) {
+    if (!isSdkCallable()) return;
+    try {
+      H(width, height);
+    } catch {
+    }
+  }
+
   // ../ui/modules/shared/host-resize.ts
   var pendingHostResize = false;
   var rafHandle = null;
@@ -17,13 +470,11 @@ var PRInsightsSettings = (() => {
   var windowListenerAttached = false;
   var generation = 0;
   function syncHostHeight() {
-    const resizeFn = globalThis.VSS?.resize;
-    if (typeof resizeFn !== "function") return;
     const bodyHeight = document.body.scrollHeight;
     const docHeight = document.documentElement.scrollHeight;
     const targetHeight = Math.max(bodyHeight, docHeight);
     if (targetHeight > 0) {
-      resizeFn(void 0, targetHeight);
+      resizeHost(void 0, targetHeight);
     }
   }
   function scheduleHostResize() {
@@ -152,35 +603,12 @@ var PRInsightsSettings = (() => {
     }, durationMs);
   }
 
-  // ../ui/modules/sdk.ts
-  var sdkInitialized = false;
-  async function initializeAdoSdk(options = {}) {
-    if (sdkInitialized) {
-      return;
-    }
-    const { timeout = 1e4, onReady } = options;
-    return new Promise((resolve, reject) => {
-      const timeoutId = setTimeout(() => {
-        reject(new Error("Azure DevOps SDK initialization timed out"));
-      }, timeout);
-      VSS.init({
-        explicitNotifyLoaded: true,
-        usePlatformScripts: true,
-        usePlatformStyles: true
-      });
-      VSS.ready(() => {
-        clearTimeout(timeoutId);
-        sdkInitialized = true;
-        if (onReady) {
-          onReady();
-        }
-        VSS.notifyLoadSucceeded();
-        resolve();
-      });
-    });
-  }
-
   // ../ui/artifact-client.ts
+  var LIST_ENDPOINT_FAMILIES = /* @__PURE__ */ new Set([
+    "definitions",
+    "builds",
+    "artifacts"
+  ]);
   var ArtifactClient = class {
     /**
      * Create a new ArtifactClient.
@@ -189,24 +617,30 @@ var PRInsightsSettings = (() => {
      */
     constructor(projectId) {
       this.collectionUri = null;
-      this.authToken = null;
+      this.tokenProvider = null;
       this.initialized = false;
+      /** Per-family API version cache. Scoped to this client instance,
+       *  which is bound to a single collectionUri + projectId by
+       *  initialize(). A new context requires a new client instance. */
+      this.resolvedApiVersions = /* @__PURE__ */ new Map();
       this.projectId = projectId;
     }
     /**
-     * Initialize the client with ADO SDK auth.
-     * MUST be called after VSS.ready() and before any other methods.
+     * Initialize the client with authentication credentials.
+     * MUST be called after SDK initialization and before any other methods.
      *
+     * @param collectionUri - Azure DevOps collection/organization base URI
+     * @param tokenProvider - Async function that returns a fresh Bearer token
+     *   per request. The host manages token lifecycle; callers should pass
+     *   the SDK's getAccessToken function directly.
      * @returns This client instance
      */
-    async initialize() {
+    async initialize(collectionUri, tokenProvider) {
       if (this.initialized) {
         return this;
       }
-      const webContext = VSS.getWebContext();
-      this.collectionUri = webContext.collection.uri;
-      const tokenResult = await VSS.getAccessToken();
-      this.authToken = typeof tokenResult === "string" ? tokenResult : tokenResult.token;
+      this.collectionUri = collectionUri;
+      this.tokenProvider = tokenProvider;
       this.initialized = true;
       return this;
     }
@@ -231,8 +665,10 @@ var PRInsightsSettings = (() => {
      */
     async getArtifactFile(buildId, artifactName, filePath) {
       this._ensureInitialized();
-      const url = this._buildFileUrl(buildId, artifactName, filePath);
-      const response = await this._authenticatedFetch(url);
+      const response = await this._fetchWithVersionFallback(
+        "artifact-file",
+        (v2) => this._buildFileUrl(buildId, artifactName, filePath, v2)
+      );
       if (response.status === 401 || response.status === 403) {
         throw createPermissionDeniedError("read artifact files");
       }
@@ -254,8 +690,11 @@ var PRInsightsSettings = (() => {
     async hasArtifactFile(buildId, artifactName, filePath) {
       this._ensureInitialized();
       try {
-        const url = this._buildFileUrl(buildId, artifactName, filePath);
-        const response = await this._authenticatedFetch(url, { method: "HEAD" });
+        const response = await this._fetchWithVersionFallback(
+          "artifact-file",
+          (v2) => this._buildFileUrl(buildId, artifactName, filePath, v2),
+          { method: "HEAD" }
+        );
         return response.ok;
       } catch {
         return false;
@@ -268,7 +707,7 @@ var PRInsightsSettings = (() => {
       this._ensureInitialized();
       const artifacts = await this.getArtifacts(buildId);
       const artifact = artifacts.find(
-        (a) => a.name === artifactName
+        (a2) => a2.name === artifactName
       );
       if (!artifact) {
         console.log(
@@ -323,14 +762,47 @@ var PRInsightsSettings = (() => {
       return response.json();
     }
     /**
+     * Fetch a URL with API version fallback. If the version is already
+     * cached, uses it directly. Otherwise delegates to the shared
+     * fetchWithVersionFallback probe and caches on success.
+     *
+     * @param family Endpoint family for per-route version caching
+     * @param buildUrl Function that builds the URL for a given api-version
+     * @param options Optional fetch options (e.g., { method: "HEAD" })
+     */
+    async _fetchWithVersionFallback(family, buildUrl, options) {
+      this._ensureInitialized();
+      const cachedVersion = this.resolvedApiVersions.get(family);
+      if (cachedVersion) {
+        return this._authenticatedFetch(buildUrl(cachedVersion), options);
+      }
+      const isListEndpoint = LIST_ENDPOINT_FAMILIES.has(family);
+      const { response, version } = await fetchWithVersionFallback(
+        buildUrl,
+        (url) => this._authenticatedFetch(url, options),
+        { isListEndpoint }
+      );
+      if (response.ok) {
+        this.resolvedApiVersions.set(family, version);
+      }
+      return response;
+    }
+    /**
      * Get list of artifacts for a build.
      */
     async getArtifacts(buildId) {
       this._ensureInitialized();
-      const url = `${this.collectionUri}${this.projectId}/_apis/build/builds/${buildId}/artifacts?api-version=7.1`;
-      const response = await this._authenticatedFetch(url);
+      const response = await this._fetchWithVersionFallback(
+        "artifacts",
+        (v2) => `${this.collectionUri}${this.projectId}/_apis/build/builds/${buildId}/artifacts?api-version=${v2}`
+      );
       if (response.status === 401 || response.status === 403) {
         throw createPermissionDeniedError("list build artifacts");
+      }
+      if (response.status === 404) {
+        throw new Error(
+          `Build ${buildId} not found or has been deleted`
+        );
       }
       if (!response.ok) {
         throw new Error(`Failed to list artifacts: ${response.status}`);
@@ -347,8 +819,10 @@ var PRInsightsSettings = (() => {
      */
     async getDefinitions(top = 50, queryOrder = 2) {
       this._ensureInitialized();
-      const url = `${this.collectionUri}${this.projectId}/_apis/build/definitions?api-version=7.1&$top=${top}&queryOrder=${queryOrder}`;
-      const response = await this._authenticatedFetch(url);
+      const response = await this._fetchWithVersionFallback(
+        "definitions",
+        (v2) => `${this.collectionUri}${this.projectId}/_apis/build/definitions?api-version=${v2}&$top=${top}&queryOrder=${queryOrder}`
+      );
       if (response.status === 401 || response.status === 403) {
         throw createPermissionDeniedError("list build definitions");
       }
@@ -367,8 +841,10 @@ var PRInsightsSettings = (() => {
      */
     async getBuilds(definitionId, top = 1) {
       this._ensureInitialized();
-      const url = `${this.collectionUri}${this.projectId}/_apis/build/builds?api-version=7.1&definitions=${definitionId}&statusFilter=2&resultFilter=6&$top=${top}`;
-      const response = await this._authenticatedFetch(url);
+      const response = await this._fetchWithVersionFallback(
+        "builds",
+        (v2) => `${this.collectionUri}${this.projectId}/_apis/build/builds?api-version=${v2}&definitions=${definitionId}&statusFilter=2&resultFilter=6&$top=${top}`
+      );
       if (response.status === 401 || response.status === 403) {
         throw createPermissionDeniedError("list builds");
       }
@@ -386,17 +862,23 @@ var PRInsightsSettings = (() => {
     }
     /**
      * Build the URL for accessing a file within an artifact.
+     * Takes an explicit API version — callers route through
+     * _fetchWithVersionFallback which provides the version.
      */
-    _buildFileUrl(buildId, artifactName, filePath) {
+    _buildFileUrl(buildId, artifactName, filePath, apiVersion) {
       const normalizedPath = filePath.startsWith("/") ? filePath : "/" + filePath;
-      return `${this.collectionUri}${this.projectId}/_apis/build/builds/${buildId}/artifacts?artifactName=${encodeURIComponent(artifactName)}&%24format=file&subPath=${encodeURIComponent(normalizedPath)}&api-version=7.1`;
+      return `${this.collectionUri}${this.projectId}/_apis/build/builds/${buildId}/artifacts?artifactName=${encodeURIComponent(artifactName)}&%24format=file&subPath=${encodeURIComponent(normalizedPath)}&api-version=${apiVersion}`;
     }
     /**
      * Perform an authenticated fetch using the ADO auth token.
      */
     async _authenticatedFetch(url, options = {}) {
+      if (!this.tokenProvider) {
+        throw new Error("ArtifactClient not initialized. Call initialize() first.");
+      }
+      const token = await this.tokenProvider();
       const headers = {
-        Authorization: `Bearer ${this.authToken}`,
+        Authorization: `Bearer ${token}`,
         Accept: "application/json",
         ...options.headers || {}
       };
@@ -491,7 +973,7 @@ var PRInsightsSettings = (() => {
           continue;
         }
         const indexEntry = this.manifest?.aggregate_index?.weekly_rollups?.find(
-          (r) => r.week === weekStr
+          (r2) => r2.week === weekStr
         );
         if (!indexEntry) continue;
         try {
@@ -502,8 +984,8 @@ var PRInsightsSettings = (() => {
           );
           this.rollupCache.set(weekStr, rollup);
           results.push(rollup);
-        } catch (e) {
-          console.warn("Failed to load rollup for %s:", weekStr, e);
+        } catch (e2) {
+          console.warn("Failed to load rollup for %s:", weekStr, e2);
         }
       }
       return results;
@@ -521,7 +1003,7 @@ var PRInsightsSettings = (() => {
           continue;
         }
         const indexEntry = this.manifest?.aggregate_index?.distributions?.find(
-          (d) => d.year === yearStr
+          (d2) => d2.year === yearStr
         );
         if (!indexEntry) continue;
         try {
@@ -532,8 +1014,8 @@ var PRInsightsSettings = (() => {
           );
           this.distributionCache.set(yearStr, dist);
           results.push(dist);
-        } catch (e) {
-          console.warn("Failed to load distribution for %s:", yearStr, e);
+        } catch (e2) {
+          console.warn("Failed to load distribution for %s:", yearStr, e2);
         }
       }
       return results;
@@ -551,15 +1033,15 @@ var PRInsightsSettings = (() => {
       return weeks;
     }
     getISOWeek(date) {
-      const d = new Date(
+      const d2 = new Date(
         Date.UTC(date.getFullYear(), date.getMonth(), date.getDate())
       );
-      d.setUTCDate(d.getUTCDate() + 4 - (d.getUTCDay() || 7));
-      const yearStart = new Date(Date.UTC(d.getUTCFullYear(), 0, 1));
+      d2.setUTCDate(d2.getUTCDate() + 4 - (d2.getUTCDay() || 7));
+      const yearStart = new Date(Date.UTC(d2.getUTCFullYear(), 0, 1));
       const weekNo = Math.ceil(
-        ((d.getTime() - yearStart.getTime()) / 864e5 + 1) / 7
+        ((d2.getTime() - yearStart.getTime()) / 864e5 + 1) / 7
       );
-      return `${d.getUTCFullYear()}-W${String(weekNo).padStart(2, "0")}`;
+      return `${d2.getUTCFullYear()}-W${String(weekNo).padStart(2, "0")}`;
     }
     getCoverage() {
       return this.manifest?.coverage || null;
@@ -577,8 +1059,8 @@ var PRInsightsSettings = (() => {
           indexEntry.path
         );
         return { state: "ok", data };
-      } catch (e) {
-        console.warn("Failed to load predictions:", e);
+      } catch (e2) {
+        console.warn("Failed to load predictions:", e2);
         return { state: "unavailable" };
       }
     }
@@ -592,8 +1074,8 @@ var PRInsightsSettings = (() => {
           indexEntry.path
         );
         return { state: "ok", data };
-      } catch (e) {
-        console.warn("Failed to load AI insights:", e);
+      } catch (e2) {
+        console.warn("Failed to load AI insights:", e2);
         return { state: "unavailable" };
       }
     }
@@ -646,11 +1128,6 @@ var PRInsightsSettings = (() => {
   var SETTINGS_KEY_PIPELINE = "pr-insights-pipeline-id";
   var ARTIFACT_NAME_CSV = "csv-output";
   var BLOB_CLEANUP_TIMEOUT_MS = 1e4;
-  var ADO_DOMAIN_SUFFIXES = [
-    "dev.azure.com",
-    ".visualstudio.com",
-    ".azure.com"
-  ];
   var dataService = null;
   var projectDropdownAvailable = false;
   var projectList = [];
@@ -660,24 +1137,27 @@ var PRInsightsSettings = (() => {
     initializeHostResizeSync(".settings-container");
     try {
       await initializeAdoSdk();
-      dataService = await VSS.getService(VSS.ServiceIds.ExtensionData);
-      const webContext = VSS.getWebContext();
+      syncHostHeight();
+      dataService = await getExtensionDataService();
+      const webCtx = getWebContext();
       const projectInput = document.getElementById(
         "project-id"
       );
-      if (projectInput && webContext?.project?.name) {
-        projectInput.placeholder = `Current: ${webContext.project.name}`;
+      if (projectInput && webCtx?.project?.name) {
+        projectInput.placeholder = `Current: ${webCtx.project.name}`;
       }
       await tryLoadProjectDropdown();
       await loadSettings();
       await updateStatus();
       setupEventListeners();
+      syncHostHeight();
     } catch (error) {
       console.error("Settings initialization failed:", error);
       showStatus(
         "Failed to initialize settings: " + getErrorMessage(error),
         "error"
       );
+      syncHostHeight();
     }
   }
   async function tryLoadProjectDropdown() {
@@ -693,7 +1173,7 @@ var PRInsightsSettings = (() => {
         clearElement(dropdown);
         dropdown.appendChild(createOption("", "Current project (auto)"));
         for (const project of projects.sort(
-          (a, b) => a.name.localeCompare(b.name)
+          (a2, b2) => a2.name.localeCompare(b2.name)
         )) {
           const option = document.createElement("option");
           option.value = project.id;
@@ -717,32 +1197,59 @@ var PRInsightsSettings = (() => {
     }
   }
   async function getOrganizationProjects() {
-    return new Promise((resolve, reject) => {
-      VSS.require(["TFS/Core/RestClient"], (...modules) => {
-        const CoreRestClient = modules[0];
-        try {
-          const client = CoreRestClient.getClient();
-          client.getProjects().then((projects) => {
-            resolve(projects || []);
-          }).catch((error) => {
-            reject(error);
-          });
-        } catch (error) {
-          reject(error);
-        }
-      });
-    });
+    const collectionUri = await getCollectionUri();
+    const token = await getAccessToken();
+    const headers = {
+      Authorization: `Bearer ${token}`,
+      Accept: "application/json"
+    };
+    const { response: firstResponse, version: workingVersion } = await fetchWithVersionFallback(
+      (v2) => `${collectionUri}_apis/projects?api-version=${v2}&$top=500`,
+      (url) => fetch(url, { headers }),
+      { isListEndpoint: true }
+    );
+    if (firstResponse.status === 401 || firstResponse.status === 403) {
+      throw new Error(`Failed to list projects: ${firstResponse.status}`);
+    }
+    if (!firstResponse.ok) {
+      throw new Error(`Failed to list projects: ${firstResponse.status}`);
+    }
+    const allProjects = [];
+    const processPage = async (response) => {
+      let data;
+      try {
+        data = await response.json();
+      } catch {
+        return null;
+      }
+      const raw = Array.isArray(data.value) ? data.value : [];
+      const page = raw.filter(
+        (p2) => p2 !== null && typeof p2 === "object" && typeof p2.name === "string" && typeof p2.id === "string"
+      );
+      allProjects.push(...page);
+      return response.headers.get("x-ms-continuationtoken") ?? null;
+    };
+    let continuationToken = await processPage(firstResponse);
+    while (continuationToken) {
+      const url = `${collectionUri}_apis/projects?api-version=${workingVersion}&$top=500&continuationToken=${encodeURIComponent(continuationToken)}`;
+      const response = await fetch(url, { headers });
+      if (!response.ok) {
+        throw new Error(`Failed to list projects: ${response.status}`);
+      }
+      continuationToken = await processPage(response);
+    }
+    return allProjects;
   }
   async function loadSettings() {
     if (!dataService) return;
     try {
       const savedProjectId = await dataService.getValue(
         SETTINGS_KEY_PROJECT,
-        { scopeType: "User" }
+        { scopeType: "User", defaultValue: "" }
       );
       const savedPipelineId = await dataService.getValue(
         SETTINGS_KEY_PIPELINE,
-        { scopeType: "User" }
+        { scopeType: "User", defaultValue: 0 }
       );
       if (savedProjectId) {
         if (projectDropdownAvailable) {
@@ -848,15 +1355,21 @@ var PRInsightsSettings = (() => {
     const statusDisplay = document.getElementById("status-display");
     if (!statusDisplay) return;
     try {
-      const savedProjectId = await dataService.getValue(
-        SETTINGS_KEY_PROJECT,
-        { scopeType: "User" }
-      );
-      const savedPipelineId = await dataService.getValue(
-        SETTINGS_KEY_PIPELINE,
-        { scopeType: "User" }
-      );
-      const webContext = VSS.getWebContext();
+      let savedProjectId = "";
+      let savedPipelineId = 0;
+      try {
+        savedProjectId = await dataService.getValue(
+          SETTINGS_KEY_PROJECT,
+          { scopeType: "User", defaultValue: "" }
+        ) || "";
+        savedPipelineId = await dataService.getValue(
+          SETTINGS_KEY_PIPELINE,
+          { scopeType: "User", defaultValue: 0 }
+        ) || 0;
+      } catch (readError) {
+        console.warn("Could not read saved settings:", readError);
+      }
+      const webContext = getWebContext();
       const currentProjectName = webContext?.project?.name || "Unknown";
       const currentProjectId = webContext?.project?.id;
       let html = "";
@@ -937,8 +1450,8 @@ var PRInsightsSettings = (() => {
       renderTrustedHtml(statusDisplay, html);
       const retryLink = document.getElementById("retry-discovery-link");
       if (retryLink) {
-        retryLink.addEventListener("click", (e) => {
-          e.preventDefault();
+        retryLink.addEventListener("click", (e2) => {
+          e2.preventDefault();
           void updateStatus();
         });
       }
@@ -950,7 +1463,7 @@ var PRInsightsSettings = (() => {
     }
   }
   function getProjectNameById(projectId) {
-    const project = projectList.find((p) => p.id === projectId);
+    const project = projectList.find((p2) => p2.id === projectId);
     return project?.name || projectId;
   }
   async function downloadRawData() {
@@ -972,11 +1485,16 @@ var PRInsightsSettings = (() => {
         showToast("Settings service not available", "error");
         return;
       }
-      const savedProjectId = await dataService.getValue(
-        SETTINGS_KEY_PROJECT,
-        { scopeType: "User" }
-      );
-      const webContext = VSS.getWebContext();
+      let savedProjectId = "";
+      try {
+        savedProjectId = await dataService.getValue(
+          SETTINGS_KEY_PROJECT,
+          { scopeType: "User", defaultValue: "" }
+        ) || "";
+      } catch {
+        console.warn("Could not read saved project setting for download");
+      }
+      const webContext = getWebContext();
       const projectId = savedProjectId || webContext?.project?.id;
       if (!projectId) {
         showToast("No project ID available", "error");
@@ -986,8 +1504,9 @@ var PRInsightsSettings = (() => {
         showToast("Invalid build ID", "error");
         return;
       }
+      const collectionUri = await getCollectionUri();
       const artifactClient = new ArtifactClient(projectId);
-      await artifactClient.initialize();
+      await artifactClient.initialize(collectionUri, getAccessToken);
       const artifact = await artifactClient.getArtifactMetadata(
         lastValidation.buildId,
         ARTIFACT_NAME_CSV
@@ -1003,10 +1522,14 @@ var PRInsightsSettings = (() => {
       }
       try {
         const parsed = new URL(downloadUrl);
-        const isAdoDomain = ADO_DOMAIN_SUFFIXES.some(
-          (suffix) => parsed.hostname.endsWith(suffix)
-        );
-        if (parsed.protocol !== "https:" || !isAdoDomain) {
+        if (parsed.protocol !== "https:") {
+          showToast("Invalid download URL", "error");
+          return;
+        }
+        const collectionOrigin = new URL(collectionUri).origin;
+        const isCollectionHost = parsed.origin === collectionOrigin;
+        const isAzureArtifactHost = parsed.hostname.endsWith(".artifacts.visualstudio.com");
+        if (!isCollectionHost && !isAzureArtifactHost) {
           showToast("Invalid download URL", "error");
           return;
         }
@@ -1052,9 +1575,10 @@ var PRInsightsSettings = (() => {
   async function validatePipeline(pipelineId, projectId) {
     const client = new ArtifactClient(projectId);
     try {
-      await client.initialize();
-    } catch (e) {
-      return { valid: false, error: `Validation error: ${getErrorMessage(e)}` };
+      const collectionUri = await getCollectionUri();
+      await client.initialize(collectionUri, getAccessToken);
+    } catch (e2) {
+      return { valid: false, error: `Validation error: ${getErrorMessage(e2)}` };
     }
     try {
       const builds = await client.getBuilds(pipelineId);
@@ -1074,24 +1598,25 @@ var PRInsightsSettings = (() => {
         name: pipelineName,
         buildId: firstBuild.id
       };
-    } catch (e) {
-      return { valid: false, error: `Build check failed: ${getErrorMessage(e)}` };
+    } catch (e2) {
+      return { valid: false, error: `Build check failed: ${getErrorMessage(e2)}` };
     }
   }
   async function discoverPipelines(targetProjectId) {
-    const webContext = VSS.getWebContext();
-    const projectId = targetProjectId || webContext.project?.id;
+    const webContext = getWebContext();
+    const projectId = targetProjectId || webContext?.project?.id;
     if (!projectId) {
       return { pipelines: [], skippedCount: 0, error: "No project ID available" };
     }
+    const collectionUri = await getCollectionUri();
     const client = new ArtifactClient(projectId);
     try {
-      await client.initialize();
-    } catch (e) {
+      await client.initialize(collectionUri, getAccessToken);
+    } catch (e2) {
       return {
         pipelines: [],
         skippedCount: 0,
-        error: `Failed to initialize: ${getErrorMessage(e)}`
+        error: `Failed to initialize: ${getErrorMessage(e2)}`
       };
     }
     let skippedCount = 0;
@@ -1099,11 +1624,11 @@ var PRInsightsSettings = (() => {
     let definitions;
     try {
       definitions = await client.getDefinitions();
-    } catch (e) {
+    } catch (e2) {
       return {
         pipelines: [],
         skippedCount: 0,
-        error: `Failed to list pipelines: ${getErrorMessage(e)}`
+        error: `Failed to list pipelines: ${getErrorMessage(e2)}`
       };
     }
     for (const def of definitions) {
@@ -1113,16 +1638,16 @@ var PRInsightsSettings = (() => {
         const latestBuild = builds[0];
         if (!latestBuild) continue;
         const artifacts = await client.getArtifacts(latestBuild.id);
-        if (!artifacts.some((a) => a.name === "aggregates"))
+        if (!artifacts.some((a2) => a2.name === "aggregates"))
           continue;
         pipelines.push({
           id: def.id,
           name: def.name,
           buildId: latestBuild.id
         });
-      } catch (e) {
+      } catch (e2) {
         skippedCount++;
-        console.debug("Skipping pipeline %s:", def.name, e);
+        console.debug("Skipping pipeline %s:", def.name, e2);
       }
     }
     return { pipelines, skippedCount };
@@ -1143,8 +1668,8 @@ var PRInsightsSettings = (() => {
         renderTrustedHtml(statusDisplay, errorHtml);
         const retryLink = document.getElementById("retry-run-discovery-link");
         if (retryLink) {
-          retryLink.addEventListener("click", (e) => {
-            e.preventDefault();
+          retryLink.addEventListener("click", (e2) => {
+            e2.preventDefault();
             void runDiscovery();
           });
         }
@@ -1211,13 +1736,13 @@ var PRInsightsSettings = (() => {
     document.getElementById("clear-btn")?.addEventListener("click", () => void clearSettings());
     document.getElementById("discover-btn")?.addEventListener("click", () => void runDiscovery());
     document.getElementById("download-raw-btn")?.addEventListener("click", () => void downloadRawData());
-    document.getElementById("pipeline-id")?.addEventListener("keypress", (e) => {
-      if (e.key === "Enter") {
+    document.getElementById("pipeline-id")?.addEventListener("keypress", (e2) => {
+      if (e2.key === "Enter") {
         void saveSettings();
       }
     });
-    document.getElementById("project-id")?.addEventListener("keypress", (e) => {
-      if (e.key === "Enter") {
+    document.getElementById("project-id")?.addEventListener("keypress", (e2) => {
+      if (e2.key === "Enter") {
         void saveSettings();
       }
     });

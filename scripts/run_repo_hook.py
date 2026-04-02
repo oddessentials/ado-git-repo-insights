@@ -193,11 +193,7 @@ def run_pre_commit_stage() -> None:
 def ensure_no_compiled_js() -> None:
     offending = []
     for path in staged_paths():
-        if (
-            path.startswith("extension/ui/")
-            and path.endswith(".js")
-            and path != "extension/ui/VSS.SDK.min.js"
-        ):
+        if path.startswith("extension/ui/") and path.endswith(".js"):
             offending.append(path)
     if not offending:
         safe_print("[pre-commit] no compiled artifacts found")
@@ -218,11 +214,8 @@ def ensure_no_compiled_js() -> None:
 def is_ui_trigger(path: str) -> bool:
     if path.startswith("extension/ui/") and path.endswith((".ts", ".html", ".css")):
         return True
-    if path == "extension/ui/VSS.SDK.min.js":
-        return True
     if path in {
         "extension/scripts/bundle-ui.mjs",
-        "extension/scripts/copy-vss-sdk.mjs",
         "extension/package.json",
         "extension/pnpm-lock.yaml",
         "extension/eslint.config.mjs",
@@ -251,7 +244,7 @@ def require_clean_ui_sources() -> None:
 def require_clean_test_compilation_scope() -> None:
     """Block commit if any file in the test compilation scope has unstaged changes.
 
-    tsconfig.test.json compiles: tests/**/*.ts, ui/**/*.ts, ../types/vss.d.ts.
+    tsconfig.test.json compiles: tests/**/*.ts, ui/**/*.ts.
     The tsconfig files themselves are also inputs — an unstaged config edit
     changes what tsc resolves.  tsc reads the worktree, not the staged index.
     If unstaged changes exist in these paths, the type-check result does not
@@ -260,7 +253,6 @@ def require_clean_test_compilation_scope() -> None:
     unstaged: list[str] = []
     unstaged.extend(worktree_paths("extension/tests/"))
     unstaged.extend(worktree_paths("extension/ui/"))
-    unstaged.extend(worktree_paths("types/"))
     unstaged.extend(worktree_paths("extension/tsconfig*.json"))
     unstaged.extend(worktree_paths("extension/eslint.config.mjs"))
     if not unstaged:
@@ -564,7 +556,6 @@ def run_pre_commit_hook() -> None:
     run_command([sys.executable, "scripts/audit-suppressions.py", "--diff"])
     run_acl_health_check()
     run_pre_commit_stage()
-    run_managed_artifacts("sync", "--scope", "sdk", "--stage", "--require-clean")
     ensure_no_compiled_js()
     run_pnpm_lockfile_guard()
     run_npm_command_guard()
@@ -721,7 +712,14 @@ def _current_branch() -> str:
         return ""
 
 
+def run_version_guard() -> None:
+    """Block manual version bumps before push — fail fast."""
+    safe_print("[pre-push] running version guard")
+    run_command([sys.executable, "scripts/check-version-unchanged.py", "origin/main"])
+
+
 def run_pre_push_hook() -> None:
+    run_version_guard()
     safe_print("[pre-push] running baseline integrity check")
     run_command(["node", ".github/scripts/check-baseline-integrity.js"])
     run_pre_push_pre_commit_checks()

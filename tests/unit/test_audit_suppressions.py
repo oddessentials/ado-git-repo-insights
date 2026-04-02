@@ -28,6 +28,7 @@ _spec.loader.exec_module(_audit_module)
 EXCLUDED_DIRS = _audit_module.EXCLUDED_DIRS
 EXCLUDED_FILE_PATTERNS = _audit_module.EXCLUDED_FILE_PATTERNS
 is_excluded = _audit_module.is_excluded
+scan_file = _audit_module.scan_file
 
 
 class TestIsExcluded:
@@ -90,15 +91,16 @@ class TestIsExcluded:
 class TestExcludedFilePatterns:
     """Tests for EXCLUDED_FILE_PATTERNS constant."""
 
-    def test_excluded_file_patterns_is_empty(self) -> None:
-        """EXCLUDED_FILE_PATTERNS must be empty — zero-suppression policy.
+    def test_excluded_file_patterns_covers_non_source_files(self) -> None:
+        """EXCLUDED_FILE_PATTERNS prevents false positives from docs, snapshots, locks.
 
-        No file patterns are excluded from the audit scan (FR-023).
-        This test reads the live constant from the script to prevent
-        stale hardcoded expectations.
+        These patterns exclude files that may contain suppression keywords
+        in non-code context (markdown prose, serialized snapshots, lockfile
+        dependency metadata). Source files are never excluded.
         """
-        assert EXCLUDED_FILE_PATTERNS == set(), (
-            f"EXCLUDED_FILE_PATTERNS must be empty, got: {EXCLUDED_FILE_PATTERNS}"
+        expected = {"*.md", "*.snap", "*.lock", "pnpm-lock.yaml", "package-lock.json"}
+        assert EXCLUDED_FILE_PATTERNS == expected, (
+            f"EXCLUDED_FILE_PATTERNS mismatch, got: {EXCLUDED_FILE_PATTERNS}"
         )
 
     def test_type_test_pattern_not_in_exclusions(self) -> None:
@@ -343,3 +345,227 @@ class TestAuditSuppressionsCLI:
         assert (
             "validation" in result.stdout.lower() or "baseline" in result.stderr.lower()
         )
+
+
+class TestSuppressionPatternDetection:
+    """Verify that each suppression family is detected and non-matching text is safe.
+
+    Each test creates a temp file in the correct scope directory, scans it,
+    and checks whether the pattern was detected.
+    """
+
+    REPO_ROOT = Path(__file__).parent.parent.parent
+
+    def _scan_ts_content(self, content: str, tmp_path: Path, scope: str) -> int:
+        """Write content to a .ts temp file and return suppression count."""
+        if scope == "typescript-tests":
+            target_dir = self.REPO_ROOT / "extension" / "tests"
+        else:
+            target_dir = self.REPO_ROOT / "extension" / "ui"
+        test_file = target_dir / f"_audit_test_{id(content)}.ts"
+        test_file.write_text(content, encoding="utf-8")
+        try:
+            results = scan_file(test_file, scope, self.REPO_ROOT)
+            return len(results)
+        finally:
+            test_file.unlink(missing_ok=True)
+
+    def _scan_py_content(self, content: str) -> int:
+        """Write content to a .py temp file in src/ and return suppression count."""
+        target_dir = self.REPO_ROOT / "src"
+        test_file = target_dir / f"_audit_test_{id(content)}.py"
+        test_file.write_text(content, encoding="utf-8")
+        try:
+            results = scan_file(test_file, "python-backend", self.REPO_ROOT)
+            return len(results)
+        finally:
+            test_file.unlink(missing_ok=True)
+
+    # ── Coverage suppressions ─────────────────────────────────────
+
+    def test_istanbul_ignore_detected(self, tmp_path: Path) -> None:
+        """istanbul ignore next in a comment → detected."""
+        count = self._scan_ts_content(
+            "/* istanbul ignore next */\nconst x = 1;\n",
+            tmp_path,
+            "typescript-extension",
+        )
+        assert count == 1
+
+    def test_istanbul_in_prose_not_detected(self, tmp_path: Path) -> None:
+        """The word 'istanbul' in normal text → NOT detected."""
+        count = self._scan_ts_content(
+            "// the istanbul bridge was built in 1973\n",
+            tmp_path,
+            "typescript-extension",
+        )
+        assert count == 0
+
+    def test_c8_ignore_detected(self, tmp_path: Path) -> None:
+        """c8 ignore next in a comment → detected."""
+        count = self._scan_ts_content(
+            "/* c8 ignore next */\nconst x = 1;\n",
+            tmp_path,
+            "typescript-extension",
+        )
+        assert count == 1
+
+    def test_c8_ignore_with_double_space_detected(self, tmp_path: Path) -> None:
+        """/* c8  ignore next */ with double space → detected."""
+        count = self._scan_ts_content(
+            "/* c8  ignore next */\nconst x = 1;\n",
+            tmp_path,
+            "typescript-extension",
+        )
+        assert count == 1
+
+    def test_c8_in_prose_not_detected(self, tmp_path: Path) -> None:
+        """The text 'c8' without ignore pattern → NOT detected."""
+        count = self._scan_ts_content(
+            "// c8 is a coverage tool\n",
+            tmp_path,
+            "typescript-extension",
+        )
+        assert count == 0
+
+    # ── Test escapes ──────────────────────────────────────────────
+
+    def test_it_only_detected(self, tmp_path: Path) -> None:
+        """it.only( → detected in test scope."""
+        count = self._scan_ts_content(
+            'it.only("focused test", () => {});\n',
+            tmp_path,
+            "typescript-tests",
+        )
+        assert count == 1
+
+    def test_it_only_each_detected(self, tmp_path: Path) -> None:
+        """it.only.each() → detected (Jest parameterized variant)."""
+        count = self._scan_ts_content(
+            "it.only.each([1, 2])('test %i', (n) => {});\n",
+            tmp_path,
+            "typescript-tests",
+        )
+        assert count == 1
+
+    def test_test_skip_each_detected(self, tmp_path: Path) -> None:
+        """test.skip.each() → detected (Jest parameterized variant)."""
+        count = self._scan_ts_content(
+            "test.skip.each([1, 2])('test %i', (n) => {});\n",
+            tmp_path,
+            "typescript-tests",
+        )
+        assert count == 1
+
+    def test_only_with_space_before_paren_detected(self, tmp_path: Path) -> None:
+        """it.only ("x") with space before paren → detected."""
+        count = self._scan_ts_content(
+            'it.only ("focused test", () => {});\n',
+            tmp_path,
+            "typescript-tests",
+        )
+        assert count == 1
+
+    def test_only_property_not_detected(self, tmp_path: Path) -> None:
+        """result.only without parens → NOT detected."""
+        count = self._scan_ts_content(
+            "const x = result.only;\n",
+            tmp_path,
+            "typescript-tests",
+        )
+        assert count == 0
+
+    def test_skip_property_not_detected(self, tmp_path: Path) -> None:
+        """result.skip_count without call syntax → NOT detected."""
+        count = self._scan_ts_content(
+            "const x = result.skip_count;\n",
+            tmp_path,
+            "typescript-tests",
+        )
+        assert count == 0
+
+    def test_fit_detected(self, tmp_path: Path) -> None:
+        """fit() focused-test alias → detected."""
+        count = self._scan_ts_content(
+            'fit("focused test", () => {});\n',
+            tmp_path,
+            "typescript-tests",
+        )
+        assert count == 1
+
+    def test_fdescribe_detected(self, tmp_path: Path) -> None:
+        """fdescribe() focused-suite alias → detected."""
+        count = self._scan_ts_content(
+            'fdescribe("focused suite", () => {});\n',
+            tmp_path,
+            "typescript-tests",
+        )
+        assert count == 1
+
+    def test_outfit_not_detected(self, tmp_path: Path) -> None:
+        """'outfit(' is not a focused-test call → NOT detected."""
+        count = self._scan_ts_content(
+            'const outfit = getOutfit("casual");\n',
+            tmp_path,
+            "typescript-tests",
+        )
+        assert count == 0
+
+    def test_fdescribe_in_identifier_not_detected(self, tmp_path: Path) -> None:
+        """'safe_fdescribe_name' is not a focused-test call → NOT detected."""
+        count = self._scan_ts_content(
+            "const safe_fdescribe_name = true;\n",
+            tmp_path,
+            "typescript-tests",
+        )
+        assert count == 0
+
+    # ── ts-nocheck ────────────────────────────────────────────────
+
+    def test_ts_nocheck_detected(self, tmp_path: Path) -> None:
+        """// @ts-nocheck → detected."""
+        count = self._scan_ts_content(
+            "// @ts-nocheck\nconst x = 1;\n",
+            tmp_path,
+            "typescript-extension",
+        )
+        assert count == 1
+
+    def test_ts_nocheck_prose_not_detected(self, tmp_path: Path) -> None:
+        """ts-nocheck without @ → NOT detected."""
+        count = self._scan_ts_content(
+            "// ts-nocheck is documented here\n",
+            tmp_path,
+            "typescript-extension",
+        )
+        assert count == 0
+
+    # ── Python suppressions ───────────────────────────────────────
+
+    def test_type_ignore_detected(self) -> None:
+        """# type: ignore in a Python file → detected."""
+        count = self._scan_py_content(
+            "x = foo()  # type: ignore[attr-defined]\n",
+        )
+        assert count == 1
+
+    def test_type_ignore_prose_not_detected(self) -> None:
+        """The words 'type' and 'ignore' in normal prose → NOT detected."""
+        count = self._scan_py_content(
+            "# The type system ignores this pattern\n",
+        )
+        assert count == 0
+
+    def test_noqa_detected(self) -> None:
+        """# noqa in a Python file → detected."""
+        count = self._scan_py_content(
+            "import os  # noqa: F401\n",
+        )
+        assert count == 1
+
+    def test_noqa_prose_not_detected(self) -> None:
+        """The word 'noqa' in normal prose without # prefix → NOT detected."""
+        count = self._scan_py_content(
+            "# See noqa documentation for details\n",
+        )
+        assert count == 0

@@ -41,6 +41,20 @@ export const ML_SCHEMA_VERSION_RANGE: [number, number] = [1, 1];
 // These provide type safety for known API shapes.
 // =============================================================================
 
+/**
+ * Minimal project shape consumed by settings and dashboard code.
+ *
+ * Corresponds to {@link https://learn.microsoft.com/en-us/rest/api/azure/devops/core/projects/list TeamProjectReference}
+ * from `azure-devops-extension-api/Core`, but declared locally with optional
+ * fields because:
+ *   1. The API type marks every field required, while the REST response may
+ *      omit fields we don't read (description, state, visibility, etc.).
+ *   2. Importing the API type would pull in AMD-only runtime JS that is
+ *      incompatible with the project's esbuild + IIFE bundling architecture.
+ *
+ * Only `id` and `name` are validated at runtime (see {@link getOrganizationProjects}
+ * in settings.ts).
+ */
 export interface VSSProject {
   id: string;
   name: string;

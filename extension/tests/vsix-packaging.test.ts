@@ -122,7 +122,6 @@ describe("VSIX Packaging Contract (Tier A)", () => {
       "index.html",
       "settings.html",
       "styles.css",
-      "VSS.SDK.min.js",
       "error-types.js",
       "artifact-client.js",
       "dataset-loader.js",

@@ -3,8 +3,8 @@
   "compilerOptions": {
     "noEmit": true,
     "declaration": false,
-    "sourceMap": false
+    "sourceMap": true
   },
-  "include": ["tests/**/*.ts", "ui/**/*.ts", "../types/vss.d.ts"],
+  "include": ["tests/**/*.ts", "ui/**/*.ts"],
   "exclude": ["node_modules", "dist"]
 }

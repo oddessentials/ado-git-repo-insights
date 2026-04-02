@@ -10,7 +10,7 @@
 import { jest } from "@jest/globals";
 import * as path from "path";
 import { readJsonFile } from "../helpers/fs-test-utils";
-import { setupVssMocks } from "./vss-sdk-mock";
+import { setupSdkMocks } from "./vss-sdk-mock";
 
 // ============================================================================
 // Fixture Types
@@ -97,7 +97,7 @@ export function setupDomHarness(options: DomHarnessOptions = {}): void {
 
   // Setup VSS SDK mocks if requested
   if (withVssSdk) {
-    setupVssMocks();
+    setupSdkMocks();
   }
 
   // Setup fixture mocks if requested

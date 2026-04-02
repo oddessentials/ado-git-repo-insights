@@ -76,7 +76,7 @@ jobs:
 
       - name: Install extension dependencies
         working-directory: extension
-        run: pnpm install --frozen-lockfile
+        run: pnpm install --frozen-lockfile --ignore-scripts
 
       - name: Validate committed-demo generation contract
         run: python scripts/validate_demo_generation_contract.py
@@ -179,7 +179,8 @@ jobs:
 
       - name: Test JavaScript assets
         run: |
-          for asset in dashboard.js dataset-loader.js artifact-client.js error-types.js styles.css VSS.SDK.min.js; do
+          ASSET_LIST=$(python scripts/publish-demo-surface.py --list-assets)
+          while IFS= read -r asset; do
             if [ -f "docs/$asset" ]; then
               STATUS=$(curl -s -o /dev/null -w "%{http_code}" "http://localhost:8080/$asset")
               if [ "$STATUS" != "200" ]; then
@@ -188,7 +189,7 @@ jobs:
               fi
               echo "$asset: OK (200)"
             fi
-          done
+          done <<< "$ASSET_LIST"
 
       - name: Test data manifest
         run: |

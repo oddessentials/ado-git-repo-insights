@@ -19,8 +19,15 @@ import {
   type BuildDefinitionReference,
 } from "./types";
 
-// Import SDK initialization from shared module
-import { initializeAdoSdk } from "./modules";
+// Import SDK functions from shared module
+import {
+  initializeAdoSdk,
+  getExtensionDataService,
+  getWebContext,
+  getCollectionUri,
+  getAccessToken,
+} from "./modules";
+import { fetchWithVersionFallback } from "./modules/api-versions";
 
 // Import safe DOM rendering utilities
 import {
@@ -31,7 +38,10 @@ import {
 } from "./modules/shared/render";
 
 // Import host iframe resize sync
-import { initializeHostResizeSync } from "./modules/shared/host-resize";
+import {
+  initializeHostResizeSync,
+  syncHostHeight,
+} from "./modules/shared/host-resize";
 
 // Import ArtifactClient for authenticated artifact download
 import { ArtifactClient } from "./artifact-client";
@@ -57,15 +67,8 @@ const SETTINGS_KEY_PIPELINE = "pr-insights-pipeline-id";
 const ARTIFACT_NAME_CSV = "csv-output";
 const BLOB_CLEANUP_TIMEOUT_MS = 10_000;
 
-/** Allowed ADO hostname suffixes for download URL validation (mirrors dashboard.ts) */
-const ADO_DOMAIN_SUFFIXES = [
-  "dev.azure.com",
-  ".visualstudio.com",
-  ".azure.com",
-];
-
 // State
-let dataService: IExtensionDataService | null = null;
+let dataService: Awaited<ReturnType<typeof getExtensionDataService>> | null = null;
 let projectDropdownAvailable = false;
 let projectList: VSSProject[] = [];
 let lastValidation: { valid: boolean; buildId?: number } | null = null;
@@ -80,24 +83,30 @@ let statusTimerId: ReturnType<typeof setTimeout> | null = null;
 async function init(): Promise<void> {
   // Start observing layout changes before any async work so startup DOM
   // mutations (project dropdown, settings load, status render) and error-
-  // path content are all captured.  syncHostHeight() is a no-op until
-  // VSS.resize becomes available after SDK init, so this is safe to call
-  // early.  .settings-container is static HTML — always present.
+  // path content are all captured.  resizeHost() is a no-op until SDK
+  // init completes, so this is safe to call early.
+  // .settings-container is static HTML — always present.
   initializeHostResizeSync(".settings-container");
 
   try {
     await initializeAdoSdk();
 
-    // Get extension data service
-    dataService = await VSS.getService(VSS.ServiceIds.ExtensionData);
+    // The pre-init resize scheduled by initializeHostResizeSync no-ops
+    // because resizeHost requires the SDK to be callable. Now that the
+    // SDK is initialized, fire the initial resize so hosts without
+    // ResizeObserver support still get the correct iframe height.
+    syncHostHeight();
+
+    // Get extension data manager
+    dataService = await getExtensionDataService();
 
     // Set current project as placeholder
-    const webContext = VSS.getWebContext();
+    const webCtx = getWebContext();
     const projectInput = document.getElementById(
       "project-id",
     ) as HTMLInputElement | null;
-    if (projectInput && webContext?.project?.name) {
-      projectInput.placeholder = `Current: ${webContext.project.name}`;
+    if (projectInput && webCtx?.project?.name) {
+      projectInput.placeholder = `Current: ${webCtx.project.name}`;
     }
 
     // Try to load project dropdown
@@ -111,12 +120,21 @@ async function init(): Promise<void> {
 
     // Set up event listeners
     setupEventListeners();
+
+    // Final resize after all async content has rendered. On hosts
+    // without ResizeObserver, the resize at line 104 only captured
+    // the static HTML height — this captures the full rendered page.
+    syncHostHeight();
   } catch (error: unknown) {
     console.error("Settings initialization failed:", error);
     showStatus(
       "Failed to initialize settings: " + getErrorMessage(error),
       "error",
     );
+
+    // Resize after error content is added so the error message
+    // is visible without scrolling on non-ResizeObserver hosts.
+    syncHostHeight();
   }
 }
 
@@ -174,27 +192,72 @@ async function tryLoadProjectDropdown(): Promise<void> {
  * Get list of projects in the organization.
  * Requires vso.project scope.
  */
+// Project listing uses the shared version fallback from api-versions.ts.
+
 async function getOrganizationProjects(): Promise<VSSProject[]> {
-  return new Promise((resolve, reject) => {
-    VSS.require(["TFS/Core/RestClient"], (...modules: unknown[]) => {
-      const CoreRestClient = modules[0] as {
-        getClient: () => { getProjects: () => Promise<VSSProject[]> };
-      };
-      try {
-        const client = CoreRestClient.getClient();
-        client
-          .getProjects()
-          .then((projects: VSSProject[]) => {
-            resolve(projects || []);
-          })
-          .catch((error: unknown) => {
-            reject(error);
-          });
-      } catch (error) {
-        reject(error);
-      }
-    });
-  });
+  const collectionUri = await getCollectionUri();
+  const token = await getAccessToken();
+  const headers: HeadersInit = {
+    Authorization: `Bearer ${token}`,
+    Accept: "application/json",
+  };
+
+  // Discover a working API version using the shared probe.
+  // _apis/projects is a true list endpoint (returns { value: [] } for
+  // empty orgs, never 404 for "no results").
+  const { response: firstResponse, version: workingVersion } =
+    await fetchWithVersionFallback(
+      (v) => `${collectionUri}_apis/projects?api-version=${v}&$top=500`,
+      (url) => fetch(url, { headers }),
+      { isListEndpoint: true },
+    );
+
+  if (firstResponse.status === 401 || firstResponse.status === 403) {
+    throw new Error(`Failed to list projects: ${firstResponse.status}`);
+  }
+
+  if (!firstResponse.ok) {
+    throw new Error(`Failed to list projects: ${firstResponse.status}`);
+  }
+
+  // Process the first page (already fetched during version discovery).
+  const allProjects: VSSProject[] = [];
+
+  const processPage = async (response: Response): Promise<string | null> => {
+    // Non-JSON or malformed response is terminal — do not keep paginating.
+    let data: { value?: unknown };
+    try {
+      data = (await response.json()) as { value?: unknown };
+    } catch {
+      return null;
+    }
+    const raw: unknown[] = Array.isArray(data.value) ? data.value : [];
+    const page = raw.filter(
+      (p): p is VSSProject =>
+        p !== null &&
+        typeof p === "object" &&
+        typeof (p as Record<string, unknown>).name === "string" &&
+        typeof (p as Record<string, unknown>).id === "string",
+    );
+    allProjects.push(...page);
+    return response.headers.get("x-ms-continuationtoken") ?? null;
+  };
+
+  let continuationToken = await processPage(firstResponse);
+
+  // Paginate remaining pages with the discovered version.
+  while (continuationToken) {
+    const url =
+      `${collectionUri}_apis/projects?api-version=${workingVersion}&$top=500` +
+      `&continuationToken=${encodeURIComponent(continuationToken)}`;
+    const response = await fetch(url, { headers });
+    if (!response.ok) {
+      throw new Error(`Failed to list projects: ${response.status}`);
+    }
+    continuationToken = await processPage(response);
+  }
+
+  return allProjects;
 }
 
 /**
@@ -206,11 +269,11 @@ async function loadSettings(): Promise<void> {
   try {
     const savedProjectId = await dataService.getValue<string>(
       SETTINGS_KEY_PROJECT,
-      { scopeType: "User" },
+      { scopeType: "User", defaultValue: "" },
     );
     const savedPipelineId = await dataService.getValue<number>(
       SETTINGS_KEY_PIPELINE,
-      { scopeType: "User" },
+      { scopeType: "User", defaultValue: 0 },
     );
 
     // Set project
@@ -349,15 +412,24 @@ async function updateStatus(): Promise<void> {
   if (!statusDisplay) return;
 
   try {
-    const savedProjectId = await dataService.getValue<string>(
-      SETTINGS_KEY_PROJECT,
-      { scopeType: "User" },
-    );
-    const savedPipelineId = await dataService.getValue<number>(
-      SETTINGS_KEY_PIPELINE,
-      { scopeType: "User" },
-    );
-    const webContext = VSS.getWebContext();
+    // Read saved settings — isolated try/catch because the host's XDM
+    // proxy can fail independently (e.g. MeProxy CDN outage). A failed
+    // read should not prevent the rest of the status UI from rendering.
+    let savedProjectId = "";
+    let savedPipelineId = 0;
+    try {
+      savedProjectId = await dataService.getValue<string>(
+        SETTINGS_KEY_PROJECT,
+        { scopeType: "User", defaultValue: "" },
+      ) || "";
+      savedPipelineId = await dataService.getValue<number>(
+        SETTINGS_KEY_PIPELINE,
+        { scopeType: "User", defaultValue: 0 },
+      ) || 0;
+    } catch (readError: unknown) {
+      console.warn("Could not read saved settings:", readError);
+    }
+    const webContext = getWebContext();
     const currentProjectName = webContext?.project?.name || "Unknown";
     const currentProjectId = webContext?.project?.id;
 
@@ -511,11 +583,16 @@ async function downloadRawData(): Promise<void> {
       showToast("Settings service not available", "error");
       return;
     }
-    const savedProjectId = await dataService.getValue<string>(
-      SETTINGS_KEY_PROJECT,
-      { scopeType: "User" },
-    );
-    const webContext = VSS.getWebContext();
+    let savedProjectId = "";
+    try {
+      savedProjectId = await dataService.getValue<string>(
+        SETTINGS_KEY_PROJECT,
+        { scopeType: "User", defaultValue: "" },
+      ) || "";
+    } catch {
+      console.warn("Could not read saved project setting for download");
+    }
+    const webContext = getWebContext();
     const projectId = savedProjectId || webContext?.project?.id;
     if (!projectId) {
       showToast("No project ID available", "error");
@@ -531,9 +608,11 @@ async function downloadRawData(): Promise<void> {
       return;
     }
 
-    // Create and initialize ArtifactClient
+    // Create and initialize ArtifactClient with SDK credentials.
+    // Pass getAccessToken as a provider — resolved per-request for token refresh.
+    const collectionUri = await getCollectionUri();
     const artifactClient = new ArtifactClient(projectId);
-    await artifactClient.initialize();
+    await artifactClient.initialize(collectionUri, getAccessToken);
 
     // Get artifact metadata
     const artifact = await artifactClient.getArtifactMetadata(
@@ -551,12 +630,21 @@ async function downloadRawData(): Promise<void> {
       return;
     }
 
+    // Validate download URL: require HTTPS and restrict to trusted
+    // origins. Azure DevOps Services uses *.artifacts.visualstudio.com
+    // for artifact storage (different origin from the collection URI),
+    // while Server/on-prem uses the collection host directly.
     try {
       const parsed = new URL(downloadUrl);
-      const isAdoDomain = ADO_DOMAIN_SUFFIXES.some((suffix) =>
-        parsed.hostname.endsWith(suffix),
-      );
-      if (parsed.protocol !== "https:" || !isAdoDomain) {
+      if (parsed.protocol !== "https:") {
+        showToast("Invalid download URL", "error");
+        return;
+      }
+      const collectionOrigin = new URL(collectionUri).origin;
+      const isCollectionHost = parsed.origin === collectionOrigin;
+      const isAzureArtifactHost =
+        parsed.hostname.endsWith(".artifacts.visualstudio.com");
+      if (!isCollectionHost && !isAzureArtifactHost) {
         showToast("Invalid download URL", "error");
         return;
       }
@@ -624,7 +712,8 @@ async function validatePipeline(
 }> {
   const client = new ArtifactClient(projectId);
   try {
-    await client.initialize();
+    const collectionUri = await getCollectionUri();
+    await client.initialize(collectionUri, getAccessToken);
   } catch (e: unknown) {
     return { valid: false, error: `Validation error: ${getErrorMessage(e)}` };
   }
@@ -665,16 +754,18 @@ async function validatePipeline(
 async function discoverPipelines(
   targetProjectId?: string,
 ): Promise<DiscoveryResult> {
-  const webContext = VSS.getWebContext();
-  const projectId = targetProjectId || webContext.project?.id;
+  const webContext = getWebContext();
+  const projectId = targetProjectId || webContext?.project?.id;
   if (!projectId) {
     return { pipelines: [], skippedCount: 0, error: "No project ID available" };
   }
 
-  // Create a dedicated ArtifactClient for the target project
+  // Create a dedicated ArtifactClient for the target project.
+  // Pass getAccessToken as a provider — resolved per-request for token refresh.
+  const collectionUri = await getCollectionUri();
   const client = new ArtifactClient(projectId);
   try {
-    await client.initialize();
+    await client.initialize(collectionUri, getAccessToken);
   } catch (e: unknown) {
     return {
       pipelines: [],

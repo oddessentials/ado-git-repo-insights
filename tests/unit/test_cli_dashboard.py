@@ -5,6 +5,8 @@ Tests for the `ado-insights dashboard` command to verify:
 - Local-config.js injection (placeholder and fallback)
 - Correct window variable setup
 - SIGINT signal handling for reliable Ctrl+C shutdown
+- Windows console control handling for reliable Ctrl+C in terminals
+  that do not deliver SIGINT to Python
 
 Per guardrails: non-brittle assertions, verify injection occurred not full HTML.
 """
@@ -511,3 +513,137 @@ class TestHttpServerSignalHandling:
             )
         finally:
             signal.signal(signal.SIGINT, original)
+
+    def test_tty_message_shown_when_stdin_is_tty(self, tmp_path: Path) -> None:
+        """When stdin is a TTY, the 'q+Enter' stop hint is logged."""
+        from ado_git_repo_insights.cli import _run_http_server
+
+        (tmp_path / "index.html").write_text("<h1>test</h1>")
+        logged_messages: list[str] = []
+
+        def _capture_info(msg: object, *args: object) -> None:
+            logged_messages.append(str(msg) % args if args else str(msg))
+
+        import io
+
+        mock_stdin = io.StringIO()
+        mock_stdin.fileno = lambda: 0  # type: ignore[assignment] -- REASON: StringIO has no fileno; fake it for os.isatty
+
+        with (
+            patch(
+                "socketserver.TCPServer.serve_forever",
+                autospec=True,
+            ),
+            patch("os.isatty", return_value=True),
+            patch("ado_git_repo_insights.cli.sys.stdin", mock_stdin),
+            patch(
+                "ado_git_repo_insights.cli.logger.info",
+                side_effect=_capture_info,
+            ),
+        ):
+            _run_http_server(tmp_path, port=0, open_browser=False)
+
+        assert any("q+Enter" in msg for msg in logged_messages), (
+            f"Expected 'q+Enter' in log messages, got: {logged_messages}"
+        )
+
+    def test_stdin_shutdown_on_q_enter(self, tmp_path: Path) -> None:
+        """Typing 'q' + Enter on stdin triggers httpd.shutdown()."""
+        import io
+
+        from ado_git_repo_insights.cli import _run_http_server
+
+        (tmp_path / "index.html").write_text("<h1>test</h1>")
+
+        def _capture_serve(self_httpd: object) -> None:
+            import time
+
+            # Give the stdin thread time to start and read "q\n"
+            time.sleep(0.15)
+
+        mock_stdin = io.StringIO("q\n")
+        mock_stdin.fileno = lambda: 0  # type: ignore[assignment] -- REASON: StringIO has no fileno; fake it for os.isatty
+
+        created_threads: list[MagicMock] = []
+        real_thread_cls = threading.Thread
+
+        # Use real threads for non-shutdown work (the stdin poller)
+        # but mock the shutdown dispatch thread so we can observe it.
+        # Distinguish by target: httpd.shutdown is the shutdown target,
+        # anything else is infrastructure (stdin poller) that needs to
+        # actually run.
+        def _selective_thread(**kwargs: object) -> threading.Thread | MagicMock:
+            target = kwargs.get("target")
+            target_name = getattr(target, "__qualname__", "")
+            if "shutdown" in target_name:
+                # Shutdown dispatch → mock so we can assert on it
+                t = MagicMock(spec=real_thread_cls)
+                t.daemon = kwargs.get("daemon", False)
+                created_threads.append(t)
+                return t
+            # Everything else (stdin poller) → real thread
+            return real_thread_cls(**kwargs)  # type: ignore[arg-type] -- REASON: kwargs typed as object but Thread expects specific types; test-only
+
+        with (
+            patch(
+                "socketserver.TCPServer.serve_forever",
+                side_effect=_capture_serve,
+                autospec=True,
+            ),
+            patch("os.isatty", return_value=True),
+            patch("ado_git_repo_insights.cli.sys.stdin", mock_stdin),
+            patch("threading.Thread", side_effect=_selective_thread),
+        ):
+            _run_http_server(tmp_path, port=0, open_browser=False)
+
+        # The stdin thread should have read "q\n" and dispatched a shutdown thread
+        shutdown_threads = [t for t in created_threads if t.daemon is True]
+        assert len(shutdown_threads) >= 1, (
+            "stdin 'q' input must dispatch a shutdown thread"
+        )
+        shutdown_threads[0].start.assert_called_once()
+
+    def test_stdin_eof_does_not_shutdown(self, tmp_path: Path) -> None:
+        """Immediate EOF on stdin must NOT trigger server shutdown.
+
+        Some IDE pseudo-terminals and pipe wrappers report stdin as a
+        TTY but return EOF immediately. The server must stay running.
+        """
+        import io
+
+        from ado_git_repo_insights.cli import _run_http_server
+
+        (tmp_path / "index.html").write_text("<h1>test</h1>")
+
+        # Empty StringIO — readline() returns "" (EOF) immediately
+        mock_stdin = io.StringIO("")
+        mock_stdin.fileno = lambda: 0  # type: ignore[assignment] -- REASON: StringIO has no fileno; fake it for os.isatty
+
+        shutdown_dispatched = False
+
+        def _serve_then_check(self_httpd: object) -> None:
+            nonlocal shutdown_dispatched
+            import time
+
+            # Give stdin thread time to read EOF and exit
+            time.sleep(0.15)
+
+            # Check if shutdown was called on the server object
+            shutdown_dispatched = getattr(
+                self_httpd, "_BaseServer__shutdown_request", False
+            )
+
+        with (
+            patch(
+                "socketserver.TCPServer.serve_forever",
+                side_effect=_serve_then_check,
+                autospec=True,
+            ),
+            patch("os.isatty", return_value=True),
+            patch("ado_git_repo_insights.cli.sys.stdin", mock_stdin),
+        ):
+            _run_http_server(tmp_path, port=0, open_browser=False)
+
+        assert shutdown_dispatched is False, (
+            "EOF on stdin must NOT trigger server shutdown"
+        )

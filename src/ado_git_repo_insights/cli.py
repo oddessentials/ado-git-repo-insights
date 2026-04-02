@@ -1556,6 +1556,7 @@ def _run_http_server(
     import os
     import signal
     import socketserver
+    import sys
     import threading
     import types
     import webbrowser
@@ -1584,7 +1585,19 @@ def _run_http_server(
         with socketserver.TCPServer(("", port), CORSHTTPRequestHandler) as httpd:
             url = f"http://localhost:{port}"
             logger.info(f"Dashboard running at {url}")
-            logger.info("Press Ctrl+C to stop")
+
+            # Detect whether stdin is an interactive TTY — used below
+            # to decide whether to offer the stdin shutdown fallback.
+            try:
+                _stdin_is_tty = hasattr(sys.stdin, "fileno") and os.isatty(
+                    sys.stdin.fileno()
+                )
+            except (OSError, ValueError):
+                _stdin_is_tty = False
+            if _stdin_is_tty:
+                logger.info("Press Ctrl+C or q+Enter to stop")
+            else:
+                logger.info("Press Ctrl+C to stop")
 
             if open_browser:
                 webbrowser.open(url)
@@ -1626,11 +1639,99 @@ def _run_http_server(
 
                 signal.signal(signal.SIGINT, _request_shutdown)
 
+            # Windows: also hook console control events directly because
+            # some terminals (Git Bash/MinTTY, some IDE terminals) do not
+            # reliably produce a Python-level SIGINT / KeyboardInterrupt
+            # when Ctrl+C is pressed.  This callback is purely additive:
+            # it requests httpd.shutdown() then returns False so the event
+            # propagates to the next handler in the chain (Python's own
+            # console handler).  On terminals where Python SIGINT works,
+            # both paths fire and the second shutdown() is a harmless
+            # no-op.  On broken terminals, this callback is the fallback.
+            # CTRL_CLOSE_EVENT is not handled — the OS default (terminate
+            # process) is the correct behavior for console window close.
+            _restore_console_handler: object = None
+            if (
+                sys.platform == "win32"
+                and threading.current_thread() is threading.main_thread()
+                and callable(_prev_sigint)
+            ):
+                try:
+                    import ctypes
+
+                    _windll = getattr(ctypes, "windll", None)
+                    if _windll is None:
+                        raise AttributeError("ctypes.windll")
+                    _kernel32 = _windll.kernel32
+                    _ctrl_c = 0
+                    _ctrl_break = 1
+
+                    _handler_type = ctypes.WINFUNCTYPE(ctypes.c_bool, ctypes.c_uint)
+
+                    def _on_console_ctrl(ctrl_type: int) -> bool:
+                        if ctrl_type in (_ctrl_c, _ctrl_break):
+                            threading.Thread(target=httpd.shutdown, daemon=True).start()
+                        # Always return False so the event propagates to
+                        # Python's built-in console handler.  Returning
+                        # True would swallow the event and suppress
+                        # SIGINT / KeyboardInterrupt on normal consoles.
+                        return False
+
+                    _console_ctrl_handler = _handler_type(_on_console_ctrl)
+
+                    if _kernel32.SetConsoleCtrlHandler(_console_ctrl_handler, True):
+
+                        def _unregister() -> None:
+                            _kernel32.SetConsoleCtrlHandler(
+                                _console_ctrl_handler, False
+                            )
+
+                        _restore_console_handler = _unregister
+                    else:
+                        logger.debug(
+                            "Could not install Windows console control handler"
+                        )
+                except (ImportError, AttributeError, OSError):
+                    # ctypes or windll unavailable — non-Windows or restricted env
+                    pass
+
+            # Stdin fallback: in terminals without real console support
+            # (Git Bash/MinTTY, some IDE terminals), neither Python SIGINT
+            # nor SetConsoleCtrlHandler reliably delivers Ctrl+C.  A stdin
+            # polling thread lets users type 'q' + Enter to stop the
+            # server.  Only enabled when stdin is an interactive TTY.
+            _stdin_thread: threading.Thread | None = None
+            if _stdin_is_tty:
+
+                def _stdin_shutdown_poll() -> None:
+                    try:
+                        while True:
+                            line = sys.stdin.readline()
+                            if not line:
+                                # EOF — stdin closed (IDE, pipe, pseudo-terminal).
+                                # Exit silently; do NOT shut down the server.
+                                break
+                            if line.strip().lower() == "q":
+                                threading.Thread(
+                                    target=httpd.shutdown, daemon=True
+                                ).start()
+                                break
+                    except (OSError, ValueError):
+                        # stdin closed or not readable — give up silently
+                        pass
+
+                _stdin_thread = threading.Thread(
+                    target=_stdin_shutdown_poll, daemon=True
+                )
+                _stdin_thread.start()
+
             try:
                 httpd.serve_forever()
             finally:
                 if callable(_prev_sigint):
                     signal.signal(signal.SIGINT, _prev_sigint)
+                if callable(_restore_console_handler):
+                    _restore_console_handler()
 
             logger.info("\nServer stopped")
 

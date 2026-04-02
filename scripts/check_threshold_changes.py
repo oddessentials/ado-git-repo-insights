@@ -72,7 +72,7 @@ def check_threshold_changes(base_ref: str) -> int:
         return 0
 
     # Stage 3: Check for [threshold-update] marker (same as CI lines 399-400)
-    log = git_output("log", "--oneline", f"{base_ref}...HEAD")
+    log = git_output("log", "--oneline", f"{base_ref}..HEAD")
     if "[threshold-update]" in log:
         print("[OK] Threshold change approved via [threshold-update] marker")
         return 0

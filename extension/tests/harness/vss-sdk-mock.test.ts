@@ -1,379 +1,258 @@
 /**
- * VSS SDK Mock Tests
+ * Azure DevOps Extension SDK Mock Harness Tests
  *
- * Tests for the VSS SDK mock allowlist.
- * Verifies all 6 allowlisted functions are mocked correctly.
+ * Verifies the mock harness for azure-devops-extension-sdk and
+ * azure-devops-extension-api provides correct mock behavior.
  *
  * @module tests/harness/vss-sdk-mock.test.ts
  */
 
 import {
-  setupVssMocks,
-  resetVssMocks,
-  teardownVssMocks,
-  isVssMocksSetup,
+  setupSdkMocks,
+  resetSdkMocks,
+  teardownSdkMocks,
   setMockWebContext,
   getMockWebContext,
   setMockSettingValue,
   getMockSettingValue,
   clearMockSettings,
-  getMockExtensionDataService,
-  getMockBuildRestClient,
+  getMockExtensionDataManager,
+  getMockCoreRestClient,
   defaultMockWebContext,
+  defaultMockUserContext,
+  defaultMockHostContext,
+  defaultMockExtensionContext,
   setMockBuilds,
   setMockBuild,
   setMockArtifacts,
   setMockSettingError,
   setMockServiceError,
-  getVssMocks,
   setMockReadyAsync,
+  setMockAccessToken,
+  setMockServiceLocation,
   trackMockInitOptions,
   configureExtensionDataService,
   mockValidDashboardSettings,
   mockMissingDashboardSettings,
   mockInvalidDashboardSettings,
   mockDashboardSettingsError,
-  type VssSdkMocks,
+  mockSdkModule,
+  mockApiModule,
+  type MockLocationService,
 } from "./vss-sdk-mock";
 
-describe("VSS SDK Mock", () => {
+describe("Azure DevOps Extension SDK Mock Harness", () => {
   afterEach(() => {
-    teardownVssMocks();
+    teardownSdkMocks();
   });
 
-  describe("setupVssMocks", () => {
-    it("creates VSS global object", () => {
-      expect((global as unknown as { VSS?: VssSdkMocks }).VSS).toBeUndefined();
-
-      setupVssMocks();
-
-      expect((global as unknown as { VSS?: VssSdkMocks }).VSS).toBeDefined();
+  describe("mockSdkModule", () => {
+    it("exports all SDK functions", () => {
+      expect(mockSdkModule).toHaveProperty("init");
+      expect(mockSdkModule).toHaveProperty("ready");
+      expect(mockSdkModule).toHaveProperty("notifyLoadSucceeded");
+      expect(mockSdkModule).toHaveProperty("getWebContext");
+      expect(mockSdkModule).toHaveProperty("getUser");
+      expect(mockSdkModule).toHaveProperty("getHost");
+      expect(mockSdkModule).toHaveProperty("getExtensionContext");
+      expect(mockSdkModule).toHaveProperty("getAccessToken");
+      expect(mockSdkModule).toHaveProperty("getAppToken");
+      expect(mockSdkModule).toHaveProperty("getService");
     });
 
-    it("returns mock object for assertions", () => {
-      const mocks = setupVssMocks();
-
-      expect(mocks).toHaveProperty("init");
-      expect(mocks).toHaveProperty("ready");
-      expect(mocks).toHaveProperty("notifyLoadSucceeded");
-      expect(mocks).toHaveProperty("getWebContext");
-      expect(mocks).toHaveProperty("getService");
-      expect(mocks).toHaveProperty("require");
-      expect(mocks).toHaveProperty("ServiceIds");
+    it("init returns a Promise", async () => {
+      setupSdkMocks();
+      const result = mockSdkModule.init();
+      expect(result).toBeInstanceOf(Promise);
+      await expect(result).resolves.toBeUndefined();
     });
 
-    it("sets up all 6 allowlisted functions", () => {
-      const mocks = setupVssMocks();
-
-      // 1. VSS.init()
-      expect(typeof mocks.init).toBe("function");
-
-      // 2. VSS.ready()
-      expect(typeof mocks.ready).toBe("function");
-
-      // 3. VSS.notifyLoadSucceeded()
-      expect(typeof mocks.notifyLoadSucceeded).toBe("function");
-
-      // 4. VSS.getWebContext()
-      expect(typeof mocks.getWebContext).toBe("function");
-
-      // 5. VSS.getService()
-      expect(typeof mocks.getService).toBe("function");
-
-      // 6. VSS.require()
-      expect(typeof mocks.require).toBe("function");
+    it("ready returns a Promise", async () => {
+      setupSdkMocks();
+      const result = mockSdkModule.ready();
+      expect(result).toBeInstanceOf(Promise);
+      await expect(result).resolves.toBeUndefined();
     });
 
-    it("provides ServiceIds.ExtensionData", () => {
-      const mocks = setupVssMocks();
+    it("notifyLoadSucceeded returns a Promise", async () => {
+      setupSdkMocks();
+      const result = mockSdkModule.notifyLoadSucceeded();
+      expect(result).toBeInstanceOf(Promise);
+      await expect(result).resolves.toBeUndefined();
+    });
 
-      expect(mocks.ServiceIds.ExtensionData).toBe(
-        "ms.vss-features.extension-data-service",
+    it("getAccessToken returns a string (not { token })", async () => {
+      setupSdkMocks();
+      const token = await mockSdkModule.getAccessToken();
+      expect(typeof token).toBe("string");
+      expect(token).toBe("mock-access-token-12345");
+    });
+
+    it("getWebContext returns mock context with project and team", () => {
+      setupSdkMocks();
+      const ctx = mockSdkModule.getWebContext();
+      expect(ctx).toHaveProperty("project");
+      expect(ctx).toHaveProperty("team");
+      expect(ctx.project.name).toBe("test-project");
+      expect(ctx.project.id).toBe("proj-456");
+    });
+
+    it("getUser returns mock user context", () => {
+      setupSdkMocks();
+      const user = mockSdkModule.getUser();
+      expect(user.id).toBe("user-789");
+      expect(user.name).toBe("Test User");
+      expect(user.displayName).toBe("Test User");
+    });
+
+    it("getHost returns mock host context", () => {
+      setupSdkMocks();
+      const host = mockSdkModule.getHost();
+      expect(host.id).toBe("host-001");
+      expect(host.name).toBe("test-org");
+      expect(host.isHosted).toBe(true);
+    });
+
+    it("getExtensionContext returns mock extension context", () => {
+      setupSdkMocks();
+      const ext = mockSdkModule.getExtensionContext();
+      expect(ext.id).toBe("publisher.extension");
+      expect(ext.publisherId).toBe("publisher");
+    });
+  });
+
+  describe("mockApiModule", () => {
+    it("exports CommonServiceIds", () => {
+      expect(mockApiModule.CommonServiceIds).toHaveProperty(
+        "LocationService",
       );
     });
-  });
 
-  describe("isVssMocksSetup", () => {
-    it("returns false when mocks not set up", () => {
-      expect(isVssMocksSetup()).toBe(false);
+    it("exports getClient", () => {
+      expect(typeof mockApiModule.getClient).toBe("function");
     });
 
-    it("returns true after setupVssMocks", () => {
-      setupVssMocks();
-
-      expect(isVssMocksSetup()).toBe(true);
-    });
-
-    it("returns false after teardownVssMocks", () => {
-      setupVssMocks();
-      teardownVssMocks();
-
-      expect(isVssMocksSetup()).toBe(false);
+    it("getClient returns mock core REST client", () => {
+      setupSdkMocks();
+      const client = mockApiModule.getClient(null);
+      expect(client).toHaveProperty("getProjects");
     });
   });
 
-  describe("VSS.init()", () => {
-    it("can be called without error", () => {
-      const mocks = setupVssMocks();
-
-      expect(() => mocks.init()).not.toThrow();
+  describe("getService (service resolution)", () => {
+    beforeEach(() => {
+      setupSdkMocks();
     });
 
-    it("records call for assertions", () => {
-      const mocks = setupVssMocks();
-
-      mocks.init();
-
-      expect(mocks.init).toHaveBeenCalled();
-    });
-  });
-
-  describe("VSS.ready()", () => {
-    it("executes callback immediately", () => {
-      const mocks = setupVssMocks();
-      let executed = false;
-
-      mocks.ready(() => {
-        executed = true;
-      });
-
-      expect(executed).toBe(true);
-    });
-
-    it("records call for assertions", () => {
-      const mocks = setupVssMocks();
-
-      mocks.ready(() => {});
-
-      expect(mocks.ready).toHaveBeenCalled();
-    });
-  });
-
-  describe("VSS.notifyLoadSucceeded()", () => {
-    it("can be called without error", () => {
-      const mocks = setupVssMocks();
-
-      expect(() => mocks.notifyLoadSucceeded()).not.toThrow();
-    });
-
-    it("records call for assertions", () => {
-      const mocks = setupVssMocks();
-
-      mocks.notifyLoadSucceeded();
-
-      expect(mocks.notifyLoadSucceeded).toHaveBeenCalled();
-    });
-  });
-
-  describe("VSS.getWebContext()", () => {
-    it("returns default mock context", () => {
-      const mocks = setupVssMocks();
-
-      const context = mocks.getWebContext();
-
-      expect(context.account.name).toBe("test-org");
-      expect(context.project.name).toBe("test-project");
-      expect(context.user.name).toBe("Test User");
-    });
-
-    it("returns context with all expected properties", () => {
-      const mocks = setupVssMocks();
-
-      const context = mocks.getWebContext();
-
-      expect(context).toHaveProperty("account");
-      expect(context).toHaveProperty("project");
-      expect(context).toHaveProperty("user");
-      expect(context.account).toHaveProperty("name");
-      expect(context.account).toHaveProperty("id");
-      expect(context.project).toHaveProperty("name");
-      expect(context.project).toHaveProperty("id");
-      expect(context.user).toHaveProperty("name");
-      expect(context.user).toHaveProperty("id");
-    });
-  });
-
-  describe("VSS.getService()", () => {
-    it("returns extension data service", async () => {
-      const mocks = setupVssMocks();
-
-      const service = await mocks.getService(mocks.ServiceIds.ExtensionData);
-
-      expect(service).toBeDefined();
-      expect(service).toHaveProperty("getValue");
-      expect(service).toHaveProperty("setValue");
-    });
-
-    it("returns service with all expected methods", async () => {
-      const mocks = setupVssMocks();
-
-      const service = await mocks.getService(mocks.ServiceIds.ExtensionData);
-
-      expect(typeof service.getValue).toBe("function");
-      expect(typeof service.setValue).toBe("function");
-      expect(typeof service.getDocument).toBe("function");
-      expect(typeof service.setDocument).toBe("function");
-      expect(typeof service.createDocument).toBe("function");
-      expect(typeof service.deleteDocument).toBe("function");
-      expect(typeof service.getDocuments).toBe("function");
-      expect(typeof service.queryCollections).toBe("function");
-    });
-  });
-
-  describe("VSS.require()", () => {
-    it("executes callback with TFS/Build/RestClient", () => {
-      const mocks = setupVssMocks();
-      let buildClient: { getClient: () => unknown } | undefined;
-
-      mocks.require(
-        ["TFS/Build/RestClient"],
-        (client: unknown) => {
-          buildClient = client as { getClient: () => unknown };
-        },
+    it("returns location service for LocationService ID", async () => {
+      const service = await mockSdkModule.getService(
+        "ms.vss-features.location-service",
       );
-
-      expect(buildClient).toBeDefined();
-      expect(buildClient?.getClient).toBeDefined();
+      expect(service).toHaveProperty("getServiceLocation");
     });
 
-    it("returns mock build client with expected methods", () => {
-      const mocks = setupVssMocks();
-      let restClient: ReturnType<typeof getMockBuildRestClient> | undefined;
-
-      mocks.require(
-        ["TFS/Build/RestClient"],
-        (client: unknown) => {
-          restClient = (client as { getClient: () => unknown }).getClient() as ReturnType<
-            typeof getMockBuildRestClient
-          >;
-        },
-      );
-
-      expect(restClient).toBeDefined();
-      expect(typeof restClient?.getBuilds).toBe("function");
-      expect(typeof restClient?.getBuild).toBe("function");
-      expect(typeof restClient?.getArtifact).toBe("function");
-      expect(typeof restClient?.getArtifacts).toBe("function");
-    });
-
-    it("executes callback for unknown dependencies", () => {
-      const mocks = setupVssMocks();
-      let called = false;
-
-      mocks.require(["Unknown/Module"], () => {
-        called = true;
-      });
-
-      expect(called).toBe(true);
+    it("rejects for unknown service ID", async () => {
+      await expect(
+        mockSdkModule.getService("unknown-service"),
+      ).rejects.toThrow("Unknown service");
     });
   });
 
-  describe("resetVssMocks", () => {
+  describe("resetSdkMocks / setupSdkMocks", () => {
     it("resets web context to default", () => {
-      setupVssMocks();
-      setMockWebContext({ account: { name: "custom-org", id: "custom-id" } });
-      expect(getMockWebContext().account.name).toBe("custom-org");
+      setupSdkMocks();
+      setMockWebContext({ project: { name: "custom", id: "custom-id" } });
+      expect(getMockWebContext().project.name).toBe("custom");
 
-      resetVssMocks();
+      resetSdkMocks();
 
-      expect(getMockWebContext().account.name).toBe("test-org");
+      expect(getMockWebContext().project.name).toBe("test-project");
     });
 
     it("clears settings storage", () => {
-      setupVssMocks();
+      setupSdkMocks();
       setMockSettingValue("test-key", "test-value");
       expect(getMockSettingValue("test-key")).toBe("test-value");
 
-      resetVssMocks();
+      resetSdkMocks();
 
       expect(getMockSettingValue("test-key")).toBeUndefined();
     });
 
-    it("clears mock call histories", () => {
-      const mocks = setupVssMocks();
-      mocks.init();
-      mocks.notifyLoadSucceeded();
-      expect(mocks.init).toHaveBeenCalled();
+    it("clears mock call histories", async () => {
+      setupSdkMocks();
+      await mockSdkModule.init();
+      expect(mockSdkModule.init).toHaveBeenCalled();
 
-      resetVssMocks();
+      resetSdkMocks();
 
-      expect(mocks.init).not.toHaveBeenCalled();
-    });
-  });
-
-  describe("teardownVssMocks", () => {
-    it("removes VSS global object", () => {
-      setupVssMocks();
-      expect((global as unknown as { VSS?: VssSdkMocks }).VSS).toBeDefined();
-
-      teardownVssMocks();
-
-      expect((global as unknown as { VSS?: VssSdkMocks }).VSS).toBeUndefined();
-    });
-
-    it("resets all mock state", () => {
-      setupVssMocks();
-      setMockWebContext({ account: { name: "custom", id: "id" } });
-      setMockSettingValue("key", "value");
-
-      teardownVssMocks();
-      setupVssMocks();
-
-      expect(getMockWebContext().account.name).toBe("test-org");
-      expect(getMockSettingValue("key")).toBeUndefined();
+      expect(mockSdkModule.init).not.toHaveBeenCalled();
     });
   });
 
   describe("setMockWebContext", () => {
     beforeEach(() => {
-      setupVssMocks();
+      setupSdkMocks();
     });
 
-    it("updates account name", () => {
-      setMockWebContext({ account: { name: "new-org", id: "new-id" } });
-
-      const context = getMockWebContext();
-      expect(context.account.name).toBe("new-org");
-    });
-
-    it("updates project name", () => {
+    it("updates project", () => {
       setMockWebContext({ project: { name: "new-project", id: "proj-id" } });
-
-      const context = getMockWebContext();
-      expect(context.project.name).toBe("new-project");
+      expect(getMockWebContext().project.name).toBe("new-project");
     });
 
-    it("updates user name", () => {
-      setMockWebContext({ user: { name: "New User", id: "user-id" } });
-
-      const context = getMockWebContext();
-      expect(context.user.name).toBe("New User");
+    it("updates team", () => {
+      setMockWebContext({ team: { name: "New Team", id: "team-id" } });
+      expect(getMockWebContext().team.name).toBe("New Team");
     });
 
     it("merges with default values", () => {
-      setMockWebContext({ account: { name: "custom", id: "id" } });
-
+      setMockWebContext({ project: { name: "custom", id: "id" } });
       const context = getMockWebContext();
-      expect(context.account.name).toBe("custom");
-      expect(context.project.name).toBe("test-project"); // Default preserved
+      expect(context.project.name).toBe("custom");
+      expect(context.team.name).toBe("Test Team"); // Default preserved
+    });
+  });
+
+  describe("setMockAccessToken", () => {
+    beforeEach(() => {
+      setupSdkMocks();
+    });
+
+    it("changes the token returned by getAccessToken", async () => {
+      setMockAccessToken("custom-token");
+      const token = await mockSdkModule.getAccessToken();
+      expect(token).toBe("custom-token");
+    });
+  });
+
+  describe("setMockServiceLocation", () => {
+    beforeEach(() => {
+      setupSdkMocks();
+    });
+
+    it("changes the location returned by LocationService", async () => {
+      setMockServiceLocation("https://custom.azure.com/org/");
+      const service = await mockSdkModule.getService(
+        "ms.vss-features.location-service",
+      );
+      const location = await (service as MockLocationService).getServiceLocation();
+      expect(location).toBe("https://custom.azure.com/org/");
     });
   });
 
   describe("setMockSettingValue / getMockSettingValue", () => {
     beforeEach(() => {
-      setupVssMocks();
+      setupSdkMocks();
     });
 
     it("stores and retrieves setting values", () => {
       setMockSettingValue("my-setting", "my-value");
-
       expect(getMockSettingValue("my-setting")).toBe("my-value");
     });
 
     it("stores complex objects", () => {
       const complexValue = { nested: { data: [1, 2, 3] } };
       setMockSettingValue("complex", complexValue);
-
       expect(getMockSettingValue("complex")).toEqual(complexValue);
     });
 
@@ -384,7 +263,7 @@ describe("VSS SDK Mock", () => {
 
   describe("clearMockSettings", () => {
     beforeEach(() => {
-      setupVssMocks();
+      setupSdkMocks();
     });
 
     it("clears all stored settings", () => {
@@ -398,96 +277,86 @@ describe("VSS SDK Mock", () => {
     });
   });
 
-  describe("Extension Data Service integration", () => {
+  describe("Extension Data Manager integration", () => {
     beforeEach(() => {
-      setupVssMocks();
+      setupSdkMocks();
     });
 
     it("getValue returns stored setting", async () => {
       setMockSettingValue("test-key", "test-value");
-      const service = getMockExtensionDataService();
-
-      const value = await service.getValue("test-key");
-
+      const manager = getMockExtensionDataManager();
+      const value = await manager.getValue("test-key");
       expect(value).toBe("test-value");
     });
 
     it("setValue stores and returns value", async () => {
-      const service = getMockExtensionDataService();
-
-      const result = await service.setValue("new-key", "new-value");
-
+      const manager = getMockExtensionDataManager();
+      const result = await manager.setValue("new-key", "new-value");
       expect(result).toBe("new-value");
       expect(getMockSettingValue("new-key")).toBe("new-value");
     });
 
     it("returns null for missing values", async () => {
-      const service = getMockExtensionDataService();
-
-      const value = await service.getValue("missing-key");
-
+      const manager = getMockExtensionDataManager();
+      const value = await manager.getValue("missing-key");
       expect(value).toBeNull();
     });
   });
 
-  describe("Build REST Client integration", () => {
+  describe("Core REST Client", () => {
     beforeEach(() => {
-      setupVssMocks();
+      setupSdkMocks();
     });
 
-    it("getBuilds returns empty array by default", async () => {
-      const client = getMockBuildRestClient();
-
-      const builds = await client.getBuilds();
-
-      expect(builds).toEqual([]);
-    });
-
-    it("getBuild returns null by default", async () => {
-      const client = getMockBuildRestClient();
-
-      const build = await client.getBuild();
-
-      expect(build).toBeNull();
-    });
-
-    it("getArtifacts returns empty array by default", async () => {
-      const client = getMockBuildRestClient();
-
-      const artifacts = await client.getArtifacts();
-
-      expect(artifacts).toEqual([]);
+    it("getProjects returns default projects", async () => {
+      const client = getMockCoreRestClient();
+      const projects = await client.getProjects() as Array<{ name: string; id: string }>;
+      expect(projects).toHaveLength(2);
+      expect(projects[0]).toHaveProperty("name", "test-project");
     });
   });
 
   describe("defaultMockWebContext", () => {
     it("has expected structure", () => {
       expect(defaultMockWebContext).toEqual({
-        account: { name: "test-org", id: "org-123" },
         project: { name: "test-project", id: "proj-456" },
-        user: { name: "Test User", id: "user-789", email: "test@example.com" },
-        host: { name: "dev.azure.com", id: "host-001" },
         team: { name: "Test Team", id: "team-001" },
       });
     });
 
     it("is immutable (throws when attempting to modify)", () => {
-      // Shallow copy still references frozen nested objects
       const copy = { ...defaultMockWebContext };
-
-      // Attempting to modify a frozen nested object throws in strict mode
       expect(() => {
-        copy.account.name = "modified";
+        copy.project.name = "modified";
       }).toThrow();
+      expect(defaultMockWebContext.project.name).toBe("test-project");
+    });
+  });
 
-      // Original value is preserved
-      expect(defaultMockWebContext.account.name).toBe("test-org");
+  describe("defaultMockUserContext", () => {
+    it("has expected structure", () => {
+      expect(defaultMockUserContext.id).toBe("user-789");
+      expect(defaultMockUserContext.name).toBe("Test User");
+    });
+  });
+
+  describe("defaultMockHostContext", () => {
+    it("has expected structure", () => {
+      expect(defaultMockHostContext.id).toBe("host-001");
+      expect(defaultMockHostContext.name).toBe("test-org");
+      expect(defaultMockHostContext.isHosted).toBe(true);
+    });
+  });
+
+  describe("defaultMockExtensionContext", () => {
+    it("has expected structure", () => {
+      expect(defaultMockExtensionContext.id).toBe("publisher.extension");
     });
   });
 
   describe("setMockBuilds", () => {
     beforeEach(() => {
-      setupVssMocks();
+      setupSdkMocks();
     });
 
     it("configures getBuilds to return specified builds", async () => {
@@ -495,59 +364,53 @@ describe("VSS SDK Mock", () => {
         { id: 1, name: "Build 1" },
         { id: 2, name: "Build 2" },
       ];
-
       setMockBuilds(mockBuilds);
-
-      const client = getMockBuildRestClient();
-      const result = await client.getBuilds();
+      const client = getMockCoreRestClient();
+      const extended = client as unknown as { getBuilds: () => Promise<unknown[]> };
+      const result = await extended.getBuilds();
       expect(result).toEqual(mockBuilds);
     });
   });
 
   describe("setMockBuild", () => {
     beforeEach(() => {
-      setupVssMocks();
+      setupSdkMocks();
     });
 
     it("configures getBuild to return specified build", async () => {
       const mockBuild = { id: 123, name: "Test Build" };
-
       setMockBuild(mockBuild);
-
-      const client = getMockBuildRestClient();
-      const result = await client.getBuild();
+      const client = getMockCoreRestClient();
+      const extended = client as unknown as { getBuild: () => Promise<unknown> };
+      const result = await extended.getBuild();
       expect(result).toEqual(mockBuild);
     });
   });
 
   describe("setMockArtifacts", () => {
     beforeEach(() => {
-      setupVssMocks();
+      setupSdkMocks();
     });
 
     it("configures getArtifacts to return specified artifacts", async () => {
       const mockArtifacts = [{ name: "drop", resource: {} }];
-
       setMockArtifacts(mockArtifacts);
-
-      const client = getMockBuildRestClient();
-      const result = await client.getArtifacts();
+      const client = getMockCoreRestClient();
+      const extended = client as unknown as { getArtifacts: () => Promise<unknown[]> };
+      const result = await extended.getArtifacts();
       expect(result).toEqual(mockArtifacts);
     });
   });
 
   describe("setMockSettingError", () => {
     beforeEach(() => {
-      setupVssMocks();
+      setupSdkMocks();
     });
 
     it("configures getValue to throw error for specific key", async () => {
-      const error = new Error("Permission denied");
-
-      setMockSettingError("restricted-key", error);
-
-      const service = getMockExtensionDataService();
-      await expect(service.getValue("restricted-key")).rejects.toThrow(
+      setMockSettingError("restricted-key", new Error("Permission denied"));
+      const manager = getMockExtensionDataManager();
+      await expect(manager.getValue("restricted-key")).rejects.toThrow(
         "Permission denied",
       );
     });
@@ -555,95 +418,64 @@ describe("VSS SDK Mock", () => {
     it("still allows other keys to work", async () => {
       setMockSettingValue("allowed-key", "allowed-value");
       setMockSettingError("restricted-key", new Error("Denied"));
-
-      const service = getMockExtensionDataService();
-      const result = await service.getValue("allowed-key");
+      const manager = getMockExtensionDataManager();
+      const result = await manager.getValue("allowed-key");
       expect(result).toBe("allowed-value");
     });
   });
 
   describe("setMockServiceError", () => {
     beforeEach(() => {
-      setupVssMocks();
+      setupSdkMocks();
     });
 
-    it("configures getService to throw error for specific service", async () => {
-      const error = new Error("Service unavailable");
-
-      setMockServiceError("ms.vss-features.extension-data-service", error);
-
-      const mocks = getVssMocks();
+    it("configures getService to throw for specific service", async () => {
+      setMockServiceError(
+        "ms.vss-features.extension-data-service",
+        new Error("Service unavailable"),
+      );
       await expect(
-        mocks.getService("ms.vss-features.extension-data-service"),
+        mockSdkModule.getService("ms.vss-features.extension-data-service"),
       ).rejects.toThrow("Service unavailable");
-    });
-  });
-
-  describe("getVssMocks", () => {
-    it("throws when mocks not set up", () => {
-      expect(() => getVssMocks()).toThrow("VSS mocks not set up");
-    });
-
-    it("returns VSS mocks when set up", () => {
-      setupVssMocks();
-
-      const mocks = getVssMocks();
-      expect(mocks).toBeDefined();
-      expect(mocks.init).toBeDefined();
     });
   });
 
   describe("setMockReadyAsync", () => {
     beforeEach(() => {
-      setupVssMocks();
+      setupSdkMocks();
     });
 
-    it("delays callback execution", async () => {
+    it("delays ready resolution", async () => {
       setMockReadyAsync(50);
-      let executed = false;
-
-      const mocks = getVssMocks();
-      mocks.ready(() => {
-        executed = true;
-      });
-
-      // Should not be executed immediately
-      expect(executed).toBe(false);
-
-      // Wait for delay
-      await new Promise((resolve) => setTimeout(resolve, 100));
-      expect(executed).toBe(true);
+      const start = Date.now();
+      await mockSdkModule.ready();
+      const elapsed = Date.now() - start;
+      expect(elapsed).toBeGreaterThanOrEqual(30); // Allow timing tolerance
     });
   });
 
   describe("trackMockInitOptions", () => {
     beforeEach(() => {
-      setupVssMocks();
+      setupSdkMocks();
     });
 
-    it("tracks init options passed to VSS.init()", () => {
+    it("tracks init options", async () => {
       const getLastOptions = trackMockInitOptions();
-      const mocks = getVssMocks();
-
-      mocks.init({ explicitNotifyLoaded: true });
-
-      expect(getLastOptions()).toEqual({ explicitNotifyLoaded: true });
+      await mockSdkModule.init({ loaded: false });
+      expect(getLastOptions()).toEqual({ loaded: false });
     });
 
-    it("tracks multiple init calls", () => {
+    it("tracks multiple init calls", async () => {
       const getLastOptions = trackMockInitOptions();
-      const mocks = getVssMocks();
-
-      mocks.init({ first: true });
-      mocks.init({ second: true });
-
-      expect(getLastOptions()).toEqual({ second: true });
+      await mockSdkModule.init({ loaded: false });
+      await mockSdkModule.init({ loaded: true });
+      expect(getLastOptions()).toEqual({ loaded: true });
     });
   });
 
   describe("configureExtensionDataService", () => {
     beforeEach(() => {
-      setupVssMocks();
+      setupSdkMocks();
     });
 
     it("configures values to return from getValue", async () => {
@@ -653,22 +485,20 @@ describe("VSS SDK Mock", () => {
           "pr-insights-pipeline-id": 42,
         },
       });
-
-      const service = getMockExtensionDataService();
-      expect(await service.getValue("pr-insights-source-project")).toBe(
+      const manager = getMockExtensionDataManager();
+      expect(await manager.getValue("pr-insights-source-project")).toBe(
         "my-project",
       );
-      expect(await service.getValue("pr-insights-pipeline-id")).toBe(42);
+      expect(await manager.getValue("pr-insights-pipeline-id")).toBe(42);
     });
 
     it("configures missing keys to return undefined", async () => {
       configureExtensionDataService({
         missingKeys: ["pr-insights-source-project"],
       });
-
-      const service = getMockExtensionDataService();
+      const manager = getMockExtensionDataManager();
       expect(
-        await service.getValue("pr-insights-source-project"),
+        await manager.getValue("pr-insights-source-project"),
       ).toBeUndefined();
     });
 
@@ -678,10 +508,9 @@ describe("VSS SDK Mock", () => {
           "pr-insights-source-project": new Error("Service unavailable"),
         },
       });
-
-      const service = getMockExtensionDataService();
+      const manager = getMockExtensionDataManager();
       await expect(
-        service.getValue("pr-insights-source-project"),
+        manager.getValue("pr-insights-source-project"),
       ).rejects.toThrow("Service unavailable");
     });
 
@@ -689,26 +518,24 @@ describe("VSS SDK Mock", () => {
       configureExtensionDataService({
         values: { "other-key": "other-value" },
       });
-
-      const service = getMockExtensionDataService();
-      expect(await service.getValue("unconfigured-key")).toBeNull();
+      const manager = getMockExtensionDataManager();
+      expect(await manager.getValue("unconfigured-key")).toBeNull();
     });
   });
 
   describe("mockValidDashboardSettings", () => {
     beforeEach(() => {
-      setupVssMocks();
+      setupSdkMocks();
     });
 
     it("sets up valid dashboard settings", async () => {
       mockValidDashboardSettings();
-
-      const service = getMockExtensionDataService();
-      expect(await service.getValue("pr-insights-source-project")).toBe(
+      const manager = getMockExtensionDataManager();
+      expect(await manager.getValue("pr-insights-source-project")).toBe(
         "test-project",
       );
-      expect(await service.getValue("pr-insights-pipeline-id")).toBe(123);
-      expect(await service.getValue("pr-insights-artifact-name")).toBe(
+      expect(await manager.getValue("pr-insights-pipeline-id")).toBe(123);
+      expect(await manager.getValue("pr-insights-artifact-name")).toBe(
         "pr-insights-data",
       );
     });
@@ -716,57 +543,52 @@ describe("VSS SDK Mock", () => {
 
   describe("mockMissingDashboardSettings", () => {
     beforeEach(() => {
-      setupVssMocks();
+      setupSdkMocks();
     });
 
     it("sets up missing dashboard settings", async () => {
       mockMissingDashboardSettings();
-
-      const service = getMockExtensionDataService();
+      const manager = getMockExtensionDataManager();
       expect(
-        await service.getValue("pr-insights-source-project"),
+        await manager.getValue("pr-insights-source-project"),
       ).toBeUndefined();
-      expect(await service.getValue("pr-insights-pipeline-id")).toBeUndefined();
       expect(
-        await service.getValue("pr-insights-artifact-name"),
+        await manager.getValue("pr-insights-pipeline-id"),
       ).toBeUndefined();
     });
   });
 
   describe("mockInvalidDashboardSettings", () => {
     beforeEach(() => {
-      setupVssMocks();
+      setupSdkMocks();
     });
 
     it("sets up invalid dashboard settings", async () => {
       mockInvalidDashboardSettings();
-
-      const service = getMockExtensionDataService();
-      expect(await service.getValue("pr-insights-source-project")).toBe("");
-      expect(await service.getValue("pr-insights-pipeline-id")).toBe(-1);
+      const manager = getMockExtensionDataManager();
+      expect(await manager.getValue("pr-insights-source-project")).toBe("");
+      expect(await manager.getValue("pr-insights-pipeline-id")).toBe(-1);
     });
   });
 
   describe("mockDashboardSettingsError", () => {
     beforeEach(() => {
-      setupVssMocks();
+      setupSdkMocks();
     });
 
     it("sets up dashboard settings to throw errors", async () => {
       mockDashboardSettingsError();
-
-      const service = getMockExtensionDataService();
+      const manager = getMockExtensionDataManager();
       await expect(
-        service.getValue("pr-insights-source-project"),
+        manager.getValue("pr-insights-source-project"),
       ).rejects.toThrow("ExtensionData service unavailable");
     });
 
     it("supports custom error message", async () => {
       mockDashboardSettingsError("Custom error message");
-
-      const service = getMockExtensionDataService();
+      const manager = getMockExtensionDataManager();
       await expect(
-        service.getValue("pr-insights-source-project"),
+        manager.getValue("pr-insights-source-project"),
       ).rejects.toThrow("Custom error message");
     });
   });
