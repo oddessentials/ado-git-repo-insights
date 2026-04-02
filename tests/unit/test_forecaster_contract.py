@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import json
 import sys
+from collections.abc import Iterator
 from datetime import date, datetime
 from pathlib import Path
 from types import ModuleType
@@ -24,7 +25,7 @@ class TestForecasterContract:
     """Schema contract validation for predictions/trends.json."""
 
     @pytest.fixture
-    def mock_db(self) -> Mock:
+    def mock_db(self) -> Iterator[Mock]:
         """Mock database with sample PR data spanning multiple weeks."""
         db = Mock()
         db.connection = Mock()

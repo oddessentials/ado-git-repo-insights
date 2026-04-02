@@ -623,8 +623,8 @@ jobs:
 
       - name: Run mypy type check
         run: |
-          echo "Running mypy on src/ with strict mode per pyproject.toml..."
-          mypy src/
+          echo "Running mypy on src/ tests/ scripts/ with strict mode per pyproject.toml..."
+          mypy src/ tests/ scripts/
           echo "[OK] mypy type check passed - all Python type errors resolved"
 
   # Suppression Audit Gate (FR-008, FR-009, FR-010, FR-011)

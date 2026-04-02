@@ -984,8 +984,8 @@ def cmd_diff(
         return 0
 
     # Delta > 0: Check scope policies — advisory scopes warn but don't fail
-    blocking_increases: dict[str, dict[str, int]] = {}
-    advisory_increases: dict[str, dict[str, int]] = {}
+    blocking_increases: dict[str, FileDiffInfo] = {}
+    advisory_increases: dict[str, FileDiffInfo] = {}
 
     for file_path in diff["new_files"]:
         policy = _get_scope_policy(file_path)

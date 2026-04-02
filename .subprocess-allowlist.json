@@ -21,25 +21,25 @@
     },
     {
       "file": "scripts/run_ci_parity.py",
-      "line": 87,
+      "line": 88,
       "code": "subprocess.run(",
       "reason": "Repo-owned parity command list"
     },
     {
       "file": "scripts/run_pr_preflight.py",
-      "line": 412,
+      "line": 415,
       "code": "completed = subprocess.run(",
       "reason": "CommandSpec-driven command list from build_commands()"
     },
     {
       "file": "scripts/run_repo_hook.py",
-      "line": 65,
+      "line": 66,
       "code": "result = subprocess.run(",
       "reason": "run_command() helper: command list from callers"
     },
     {
       "file": "scripts/run_repo_hook.py",
-      "line": 129,
+      "line": 130,
       "code": "result = subprocess.run(",
       "reason": "staged_file_content(): git show with repo-owned path"
     },

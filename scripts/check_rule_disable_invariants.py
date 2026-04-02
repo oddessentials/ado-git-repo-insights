@@ -28,6 +28,7 @@ import re
 import subprocess
 import sys
 import tokenize
+from collections.abc import Callable
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -488,7 +489,7 @@ def _normalize_entries(
     return sorted(
         (
             str(e.get("file", "")),
-            int(e.get("line", 0)),
+            int(str(e.get("line", 0))),
             str(e.get("code", "")),
             str(e.get("safety", e.get("purpose", ""))),
         )
@@ -504,7 +505,7 @@ def verify_artifacts(repo_root: Path) -> int:
     but change the actual call sites. (P3 review finding)
     """
     exit_code = 0
-    artifact_configs: list[tuple[str, object, str]] = [
+    artifact_configs: list[tuple[str, Callable[[Path], dict[str, object]], str]] = [
         ("S603", generate_subprocess_artifact, "call_sites"),
         ("S311", generate_random_artifact, "usages"),
     ]
@@ -520,8 +521,13 @@ def verify_artifacts(repo_root: Path) -> int:
         fresh = generator(repo_root)
 
         # Compare full content, not just counts (P3 fix)
-        committed_entries = _normalize_entries(committed.get(entries_key, []))
-        fresh_entries = _normalize_entries(fresh.get(entries_key, []))
+        # JSON artifacts contain list[dict] entries; narrow from object
+        committed_raw = committed.get(entries_key, [])
+        fresh_raw = fresh.get(entries_key, [])
+        assert isinstance(committed_raw, list)
+        assert isinstance(fresh_raw, list)
+        committed_entries = _normalize_entries(committed_raw)
+        fresh_entries = _normalize_entries(fresh_raw)
 
         if committed_entries != fresh_entries:
             committed_count = len(committed_entries)

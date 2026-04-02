@@ -170,9 +170,13 @@ class TestEnhancedSchemaValidation:
         # Should have all v2 fields
         assert "data" in insight
         assert "recommendation" in insight
-        assert insight["data"]["metric"] == "cycle_time_minutes"
-        assert insight["data"]["trend_direction"] == "up"
-        assert insight["recommendation"]["priority"] == "high"
+        data = insight["data"]
+        rec = insight["recommendation"]
+        assert isinstance(data, dict)
+        assert isinstance(rec, dict)
+        assert data["metric"] == "cycle_time_minutes"
+        assert data["trend_direction"] == "up"
+        assert rec["priority"] == "high"
 
     def test_v2_insight_data_field_structure(self) -> None:
         """Data field should have correct structure."""
@@ -211,6 +215,7 @@ class TestEnhancedSchemaValidation:
         ]
 
         for entity in entities:
+            assert isinstance(entity, dict)
             assert "type" in entity
             assert "name" in entity
             assert entity["type"] in ("team", "repository", "author")
@@ -436,15 +441,19 @@ class TestInsightsSchemaV2Contract:
         # V2 fields should be present
         assert "data" in insight_v2
         assert "recommendation" in insight_v2
+        data = insight_v2["data"]
+        rec = insight_v2["recommendation"]
+        assert isinstance(data, dict)
+        assert isinstance(rec, dict)
 
         # Data structure
-        assert insight_v2["data"]["metric"] == "cycle_time_minutes"
-        assert insight_v2["data"]["trend_direction"] in ("up", "down", "stable")
-        assert isinstance(insight_v2["data"]["sparkline"], list)
+        assert data["metric"] == "cycle_time_minutes"
+        assert data["trend_direction"] in ("up", "down", "stable")
+        assert isinstance(data["sparkline"], list)
 
         # Recommendation structure
-        assert insight_v2["recommendation"]["priority"] in ("high", "medium", "low")
-        assert insight_v2["recommendation"]["effort"] in ("high", "medium", "low")
+        assert rec["priority"] in ("high", "medium", "low")
+        assert rec["effort"] in ("high", "medium", "low")
 
 
 class TestP90PercentileCalculation:

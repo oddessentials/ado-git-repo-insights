@@ -5,6 +5,7 @@ Tests --include-comments, --comments-max-prs-per-run, --comments-max-threads-per
 
 from __future__ import annotations
 
+from collections.abc import Iterator
 from datetime import datetime, timezone
 from unittest.mock import MagicMock
 
@@ -93,7 +94,7 @@ class TestExtractComments:
     """Tests for _extract_comments helper function."""
 
     @pytest.fixture
-    def db(self, tmp_path) -> DatabaseManager:
+    def db(self, tmp_path) -> Iterator[DatabaseManager]:
         """Create test database with sample data."""
         db_path = tmp_path / "test.sqlite"
         db = DatabaseManager(db_path)

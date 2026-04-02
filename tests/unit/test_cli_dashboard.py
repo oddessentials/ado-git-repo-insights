@@ -11,13 +11,22 @@ Tests for the `ado-insights dashboard` command to verify:
 Per guardrails: non-brittle assertions, verify injection occurred not full HTML.
 """
 
+import io
 import shutil
 import signal
 import threading
+from collections.abc import Callable
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 import pytest
+
+
+class _MockStdin(io.StringIO):
+    """StringIO with fileno() for os.isatty() compatibility in tests."""
+
+    def fileno(self) -> int:
+        return 0
 
 
 class TestDashboardCommand:
@@ -264,7 +273,7 @@ class TestHttpServerSignalHandling:
         def _invoke_handler_then_return(self_httpd: object) -> None:
             """Call the installed SIGINT handler to verify thread dispatch."""
             handler = signal.getsignal(signal.SIGINT)
-            # Invoke the handler directly (as Python would on SIGINT)
+            assert callable(handler)
             handler(signal.SIGINT, None)
 
         real_thread_cls = threading.Thread
@@ -339,7 +348,11 @@ class TestHttpServerSignalHandling:
         )
         # More precisely: should NOT be the custom handler that was active
         # during serve_forever.
-        handler_during_serve = [None]
+        from types import FrameType
+
+        handler_during_serve: list[
+            Callable[[int, FrameType | None], object] | int | None
+        ] = [None]
 
         def _capture_serve_handler(self_httpd: object) -> None:
             handler_during_serve[0] = signal.getsignal(signal.SIGINT)
@@ -377,6 +390,7 @@ class TestHttpServerSignalHandling:
 
             def _invoke_handler(self_httpd: object) -> None:
                 handler = signal.getsignal(signal.SIGINT)
+                assert callable(handler)
                 handler(signal.SIGINT, None)
 
             with patch(
@@ -428,7 +442,12 @@ class TestHttpServerSignalHandling:
 
         original_signal = signal.signal
 
-        def _spy_signal(signum: int, handler: object) -> object:
+        from types import FrameType
+
+        def _spy_signal(
+            signum: signal.Signals,
+            handler: Callable[[int, FrameType | None], object] | int | None,
+        ) -> Callable[[int, FrameType | None], object] | int | None:
             nonlocal signal_called
             if signum == signal.SIGINT:
                 signal_called = True
@@ -524,10 +543,7 @@ class TestHttpServerSignalHandling:
         def _capture_info(msg: object, *args: object) -> None:
             logged_messages.append(str(msg) % args if args else str(msg))
 
-        import io
-
-        mock_stdin = io.StringIO()
-        mock_stdin.fileno = lambda: 0  # type: ignore[assignment] -- REASON: StringIO has no fileno; fake it for os.isatty
+        mock_stdin = _MockStdin()
 
         with (
             patch(
@@ -549,7 +565,6 @@ class TestHttpServerSignalHandling:
 
     def test_stdin_shutdown_on_q_enter(self, tmp_path: Path) -> None:
         """Typing 'q' + Enter on stdin triggers httpd.shutdown()."""
-        import io
 
         from ado_git_repo_insights.cli import _run_http_server
 
@@ -561,8 +576,7 @@ class TestHttpServerSignalHandling:
             # Give the stdin thread time to start and read "q\n"
             time.sleep(0.15)
 
-        mock_stdin = io.StringIO("q\n")
-        mock_stdin.fileno = lambda: 0  # type: ignore[assignment] -- REASON: StringIO has no fileno; fake it for os.isatty
+        mock_stdin = _MockStdin("q\n")
 
         created_threads: list[MagicMock] = []
         real_thread_cls = threading.Thread
@@ -572,17 +586,29 @@ class TestHttpServerSignalHandling:
         # Distinguish by target: httpd.shutdown is the shutdown target,
         # anything else is infrastructure (stdin poller) that needs to
         # actually run.
-        def _selective_thread(**kwargs: object) -> threading.Thread | MagicMock:
-            target = kwargs.get("target")
+        def _selective_thread(
+            group: None = None,
+            target: Callable[..., object] | None = None,
+            name: str | None = None,
+            args: tuple[object, ...] = (),
+            kwargs: dict[str, object] | None = None,
+            *,
+            daemon: bool | None = None,
+        ) -> threading.Thread | MagicMock:
             target_name = getattr(target, "__qualname__", "")
             if "shutdown" in target_name:
-                # Shutdown dispatch → mock so we can assert on it
                 t = MagicMock(spec=real_thread_cls)
-                t.daemon = kwargs.get("daemon", False)
+                t.daemon = daemon or False
                 created_threads.append(t)
                 return t
-            # Everything else (stdin poller) → real thread
-            return real_thread_cls(**kwargs)  # type: ignore[arg-type] -- REASON: kwargs typed as object but Thread expects specific types; test-only
+            return real_thread_cls(
+                group=group,
+                target=target,
+                name=name,
+                args=args,
+                kwargs=kwargs or {},
+                daemon=daemon,
+            )
 
         with (
             patch(
@@ -609,15 +635,13 @@ class TestHttpServerSignalHandling:
         Some IDE pseudo-terminals and pipe wrappers report stdin as a
         TTY but return EOF immediately. The server must stay running.
         """
-        import io
 
         from ado_git_repo_insights.cli import _run_http_server
 
         (tmp_path / "index.html").write_text("<h1>test</h1>")
 
         # Empty StringIO — readline() returns "" (EOF) immediately
-        mock_stdin = io.StringIO("")
-        mock_stdin.fileno = lambda: 0  # type: ignore[assignment] -- REASON: StringIO has no fileno; fake it for os.isatty
+        mock_stdin = _MockStdin("")
 
         shutdown_dispatched = False
 

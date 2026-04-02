@@ -89,7 +89,7 @@ class TestDevModeDetection:
         with patch("ado_git_repo_insights.utils.ui_sync.Path") as mock_path:
             # Mock cwd to be inside temp_repo
             mock_path.cwd.return_value.resolve.return_value = temp_repo / "src"
-            mock_path.__call__ = Path  # Keep normal Path behavior for __file__
+            mock_path.side_effect = Path  # Keep normal Path behavior for __file__
 
             # Can't easily mock __file__, so test the marker detection directly
             marker = temp_repo / "extension" / "package.json"

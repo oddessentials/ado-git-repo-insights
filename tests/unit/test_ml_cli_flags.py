@@ -7,6 +7,8 @@ import subprocess
 import sys
 from pathlib import Path
 
+import pytest
+
 
 class TestMLCLIFlags:
     """Test ML CLI flags comprehensively without requiring [ml] extras."""
@@ -66,7 +68,7 @@ class TestMLCLIFlags:
         assert "--insights-dry-run" in result.stdout
 
     def test_enable_insights_without_api_key_fails_early(
-        self, tmp_path: Path, monkeypatch: any
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
     ) -> None:
         """--enable-insights without OPENAI_API_KEY fails early with clear message."""
         # Remove API key if set

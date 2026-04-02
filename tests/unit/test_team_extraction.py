@@ -8,6 +8,7 @@ Covers §5 from IMPLEMENTATION_DETAILS.md:
 
 from __future__ import annotations
 
+from collections.abc import Iterator
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -131,7 +132,7 @@ class TestTeamPersistence:
     """Tests for team persistence operations."""
 
     @pytest.fixture
-    def db(self, tmp_path) -> DatabaseManager:
+    def db(self, tmp_path) -> Iterator[DatabaseManager]:
         """Create test database."""
         db_path = tmp_path / "test.sqlite"
         db = DatabaseManager(db_path)

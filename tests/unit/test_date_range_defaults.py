@@ -26,17 +26,17 @@ class FrozenDate(real_date):
     Preserves date() constructor while allowing today() to be controlled.
     """
 
-    _frozen_today: real_date | None = None
+    _frozen_today: FrozenDate | None = None
 
     @classmethod
-    def today(cls) -> real_date:
+    def today(cls) -> FrozenDate:
         if cls._frozen_today is None:
             raise RuntimeError("FrozenDate.today() called without freezing")
         return cls._frozen_today
 
     @classmethod
     def set_today(cls, frozen: real_date) -> None:
-        cls._frozen_today = frozen
+        cls._frozen_today = cls(frozen.year, frozen.month, frozen.day)
 
 
 def create_extractor_with_mocks(

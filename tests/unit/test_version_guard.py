@@ -23,6 +23,8 @@ MARKER = "[version-override-acknowledged]"
 
 # Import the guard script as a module so we can mock its functions
 _spec = importlib.util.spec_from_file_location("check_version_unchanged", SCRIPT)
+assert _spec is not None
+assert _spec.loader is not None
 _guard_module = importlib.util.module_from_spec(_spec)
 sys.modules["check_version_unchanged"] = _guard_module
 _spec.loader.exec_module(_guard_module)

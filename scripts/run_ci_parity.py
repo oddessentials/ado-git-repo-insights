@@ -21,6 +21,7 @@ import subprocess
 import sys
 from dataclasses import dataclass
 from pathlib import Path
+from typing import NoReturn
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 PARITY_ROOT = REPO_ROOT / ".ci-parity"
@@ -92,7 +93,7 @@ def run_command(
     )
 
 
-def fail(message: str) -> None:
+def fail(message: str) -> NoReturn:
     raise SystemExit(message)
 
 

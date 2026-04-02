@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+from collections.abc import Iterator
 from pathlib import Path
 
 import pytest
@@ -12,7 +13,7 @@ from ado_git_repo_insights.transform.aggregators import AggregateGenerator
 
 
 @pytest.fixture
-def sample_db_for_ops(tmp_path: Path) -> tuple[DatabaseManager, Path]:
+def sample_db_for_ops(tmp_path: Path) -> Iterator[tuple[DatabaseManager, Path]]:
     """Create a sample database with test PR data for operational tests.
 
     Follows the same pattern as test_aggregators.sample_db.

@@ -10,6 +10,7 @@ import os
 import sqlite3
 import sys
 import time
+from collections.abc import Iterator
 from datetime import date, timedelta
 from pathlib import Path
 from typing import TYPE_CHECKING
@@ -24,14 +25,14 @@ import numpy as np
 from ado_git_repo_insights.persistence.database import DatabaseManager
 from ado_git_repo_insights.persistence.repository import PRRepository
 from ado_git_repo_insights.transform.aggregators import (
-    AGGREGATES_SCHEMA_VERSION,
     AggregateGenerator,
     _NumpySafeEncoder,
 )
+from ado_git_repo_insights.transform.schema_versions import AGGREGATES_SCHEMA_VERSION
 
 
 @pytest.fixture
-def sample_db(tmp_path: Path) -> tuple[DatabaseManager, Path]:
+def sample_db(tmp_path: Path) -> Iterator[tuple[DatabaseManager, Path]]:
     """Create a sample database with test PR data."""
     db_path = tmp_path / "test.sqlite"
     db = DatabaseManager(db_path)
@@ -778,7 +779,9 @@ class TestReviewerAggregation:
     """Tests for reviewer count aggregation and dimension slicing."""
 
     @pytest.fixture
-    def db_with_reviewers(self, tmp_path: Path) -> tuple[DatabaseManager, Path]:
+    def db_with_reviewers(
+        self, tmp_path: Path
+    ) -> Iterator[tuple[DatabaseManager, Path]]:
         """Create a sample database with PRs and reviewers."""
         db_path = tmp_path / "test_reviewers.sqlite"
         db = DatabaseManager(db_path)
@@ -1033,7 +1036,7 @@ class TestTeamAggregation:
     """
 
     @pytest.fixture
-    def db_with_teams(self, tmp_path: Path) -> tuple[DatabaseManager, Path]:
+    def db_with_teams(self, tmp_path: Path) -> Iterator[tuple[DatabaseManager, Path]]:
         """Create a sample database with teams, team_members, and PRs.
 
         Fixture data:
@@ -1472,7 +1475,9 @@ class TestReviewerSlicing:
     """Tests for reviewer dimensions and reviewer activity slices."""
 
     @pytest.fixture
-    def db_with_reviewers(self, tmp_path: Path) -> tuple[DatabaseManager, Path]:
+    def db_with_reviewers(
+        self, tmp_path: Path
+    ) -> Iterator[tuple[DatabaseManager, Path]]:
         db_path = tmp_path / "reviewers.sqlite"
         db = DatabaseManager(db_path)
         db.connect()
@@ -1737,7 +1742,7 @@ class TestTeamRepoSlicing:
     @pytest.fixture
     def db_with_team_repo_correlation(
         self, tmp_path: Path
-    ) -> tuple[DatabaseManager, Path]:
+    ) -> Iterator[tuple[DatabaseManager, Path]]:
         """Create a database with correlated team-repo PR distributions.
 
         Fixture data:
@@ -2578,7 +2583,7 @@ class TestPerformanceGate:
     )
 
     @pytest.fixture
-    def stress_db(self, tmp_path: Path) -> tuple[DatabaseManager, Path]:
+    def stress_db(self, tmp_path: Path) -> Iterator[tuple[DatabaseManager, Path]]:
         """Create a stress dataset: 50 teams x 100 repos x 260 weeks.
 
         Generates a deterministic enterprise-scale dataset for performance
@@ -2763,7 +2768,7 @@ class TestFileSizeValidation:
     _MAX_ROLLUP_SIZE_BYTES = 500 * 1024
 
     @pytest.fixture
-    def typical_org_db(self, tmp_path: Path) -> tuple[DatabaseManager, Path]:
+    def typical_org_db(self, tmp_path: Path) -> Iterator[tuple[DatabaseManager, Path]]:
         """Create a typical org dataset: 20 teams, 30 repos, ~10 PRs/week."""
         db_path = tmp_path / "typical_org.sqlite"
         db = DatabaseManager(db_path)
@@ -2935,7 +2940,7 @@ class TestMinSampleSizeNonNanGuard:
     @pytest.fixture
     def db_with_sparse_cycle_times(
         self, tmp_path: Path
-    ) -> tuple[DatabaseManager, Path]:
+    ) -> Iterator[tuple[DatabaseManager, Path]]:
         """Create DB where a cross-dim intersection has many rows but few cycle times."""
         db_path = tmp_path / "test_min_sample.sqlite"
         db = DatabaseManager(db_path)

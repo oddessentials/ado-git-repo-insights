@@ -169,15 +169,19 @@ def generate_weekly_rollups(
         rollup_dict["by_team"] = {
             "Team Alpha": {
                 "pr_count": team_alpha_prs,
-                "cycle_time_p50": rollup.cycle_time_p50 * (0.8 + alpha_ratio * 0.4),
-                "cycle_time_p90": rollup.cycle_time_p90 * (0.8 + alpha_ratio * 0.4),
+                "cycle_time_p50": (rollup.cycle_time_p50 or 0.0)
+                * (0.8 + alpha_ratio * 0.4),
+                "cycle_time_p90": (rollup.cycle_time_p90 or 0.0)
+                * (0.8 + alpha_ratio * 0.4),
                 "authors_count": team_alpha_authors,
                 "reviewers_count": team_alpha_reviewers,
             },
             "Team Beta": {
                 "pr_count": team_beta_prs,
-                "cycle_time_p50": rollup.cycle_time_p50 * (1.2 - alpha_ratio * 0.4),
-                "cycle_time_p90": rollup.cycle_time_p90 * (1.2 - alpha_ratio * 0.4),
+                "cycle_time_p50": (rollup.cycle_time_p50 or 0.0)
+                * (1.2 - alpha_ratio * 0.4),
+                "cycle_time_p90": (rollup.cycle_time_p90 or 0.0)
+                * (1.2 - alpha_ratio * 0.4),
                 "authors_count": team_beta_authors,
                 "reviewers_count": team_beta_reviewers,
             },
@@ -309,8 +313,8 @@ def generate_weekly_rollups(
                 factor = 0.6 + weights[i] * len(repo_names) * 0.8
                 by_repo[name] = {
                     "pr_count": repo_prs,
-                    "cycle_time_p50": rollup.cycle_time_p50 * factor,
-                    "cycle_time_p90": rollup.cycle_time_p90 * factor,
+                    "cycle_time_p50": (rollup.cycle_time_p50 or 0.0) * factor,
+                    "cycle_time_p90": (rollup.cycle_time_p90 or 0.0) * factor,
                     "authors_count": repo_authors,
                     "reviewers_count": repo_reviewers,
                 }

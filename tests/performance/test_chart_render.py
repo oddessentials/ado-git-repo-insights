@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import time
 from datetime import date, timedelta
+from pathlib import Path
 
 
 class TestChartRenderPerformance:
@@ -41,7 +42,7 @@ class TestChartRenderPerformance:
 
         # Simulate the linear forecasting calculation
         for metric_col in ["pr_count", "cycle_time_p50"]:
-            values = df[metric_col].values.astype(float)
+            values = np.asarray(df[metric_col].values, dtype=float)
             x = np.arange(len(values))
 
             # Linear regression
@@ -188,7 +189,7 @@ class TestMemoryUsage:
 
         from ado_git_repo_insights.ml.fallback_forecaster import FallbackForecaster
 
-        forecaster = FallbackForecaster(db=mock_db, output_dir=None)
+        forecaster = FallbackForecaster(db=mock_db, output_dir=Path("."))
 
         # Rough memory estimate (object + numpy arrays)
         # This is a sanity check, not a precise measurement

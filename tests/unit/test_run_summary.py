@@ -123,6 +123,7 @@ class TestRunSummary:
             final_status="failed",
             first_fatal_error="Error at https://example.com?token=secret",
         )
+        assert summary.first_fatal_error is not None
         assert "[URL_WITH_PARAMS]" in summary.first_fatal_error
         assert "token=secret" not in summary.first_fatal_error
 

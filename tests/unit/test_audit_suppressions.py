@@ -22,6 +22,8 @@ AUDIT_SCRIPT = Path(__file__).parent.parent.parent / "scripts" / "audit-suppress
 # Import the live constants and functions directly from the script
 # so tests always validate the script's actual behavior, not stale copies.
 _spec = importlib.util.spec_from_file_location("audit_suppressions", AUDIT_SCRIPT)
+assert _spec is not None
+assert _spec.loader is not None
 _audit_module = importlib.util.module_from_spec(_spec)
 _spec.loader.exec_module(_audit_module)
 
@@ -172,6 +174,8 @@ class TestCanonicalScopeMap:
             Path(__file__).parent.parent.parent / "scripts" / "run_repo_hook.py"
         )
         hook_spec = importlib.util.spec_from_file_location("hook_mod_t034", hook_script)
+        assert hook_spec is not None
+        assert hook_spec.loader is not None
         hook_mod = importlib.util.module_from_spec(hook_spec)
         hook_spec.loader.exec_module(hook_mod)
 
@@ -186,6 +190,8 @@ class TestCanonicalScopeMap:
             Path(__file__).parent.parent.parent / "scripts" / "run_repo_hook.py"
         )
         hook_spec = importlib.util.spec_from_file_location("hook_mod", hook_script)
+        assert hook_spec is not None
+        assert hook_spec.loader is not None
         hook_mod = importlib.util.module_from_spec(hook_spec)
         hook_spec.loader.exec_module(hook_mod)
         hook_scopes = hook_mod.AUDIT_SCOPES

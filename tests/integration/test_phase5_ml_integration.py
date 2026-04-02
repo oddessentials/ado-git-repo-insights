@@ -14,6 +14,7 @@ of whether optional [ml] dependencies are installed.
 
 import json
 import sys
+from collections.abc import Iterator
 from datetime import date, timedelta
 from pathlib import Path
 from types import ModuleType
@@ -118,7 +119,7 @@ def fake_openai_module(mock_openai_client: MagicMock) -> ModuleType:
 
 
 @pytest.fixture
-def temp_db(tmp_path: Path) -> DatabaseManager:
+def temp_db(tmp_path: Path) -> Iterator[DatabaseManager]:
     """Create a temporary SQLite database with schema."""
     db_path = tmp_path / "test.db"
     db = DatabaseManager(db_path)

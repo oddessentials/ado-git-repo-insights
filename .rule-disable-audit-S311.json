@@ -1,6 +1,6 @@
 {
   "rule": "S311",
-  "generated_at": "2026-04-02T13:38:04Z",
+  "generated_at": "2026-04-02T14:35:08Z",
   "total_usages": 7,
   "usages": [
     {
@@ -23,25 +23,25 @@
     },
     {
       "file": "scripts/generate-synthetic-dataset.py",
-      "line": 345,
+      "line": 349,
       "code": "rng = random.Random(seed + 1000)",
       "purpose": "deterministic-seeded"
     },
     {
       "file": "scripts/generate-synthetic-dataset.py",
-      "line": 429,
+      "line": 433,
       "code": "rng = random.Random(seed + 2000)",
       "purpose": "deterministic-seeded"
     },
     {
       "file": "scripts/generate-synthetic-dataset.py",
-      "line": 512,
+      "line": 516,
       "code": "random.seed(seed)",
       "purpose": "deterministic-seeded"
     },
     {
       "file": "tests/performance/test_chart_render.py",
-      "line": 116,
+      "line": 117,
       "code": "values = np.random.normal(100, 20, 52)",
       "purpose": "needs-review"
     }

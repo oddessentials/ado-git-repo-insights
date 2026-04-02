@@ -109,7 +109,6 @@ exclude = [
     "^build/",
     "^dist/",
     "^\\.venv/",
-    "^scripts/",
 ]
 
 [[tool.mypy.overrides]]
@@ -117,8 +116,31 @@ module = [
     "azure.storage.blob",
     "prophet",
     "openai",
+    "defusedxml.*",
 ]
 ignore_missing_imports = true
+
+# Tests and scripts: pragmatic overrides — strict typing on src/, relaxed on
+# test/script code where fixtures, mocks, and one-off helpers dominate.
+# Bare generics (dict vs dict[str, int]) and Any-returns from mocks are normal
+# in test code; strict annotations live in src/.
+[[tool.mypy.overrides]]
+module = "tests.*"
+disallow_untyped_defs = false
+disallow_untyped_calls = false
+check_untyped_defs = false
+disallow_incomplete_defs = false
+disallow_any_generics = false
+warn_return_any = false
+
+[[tool.mypy.overrides]]
+module = "scripts.*"
+disallow_untyped_defs = false
+disallow_untyped_calls = false
+check_untyped_defs = false
+disallow_incomplete_defs = false
+disallow_any_generics = false
+warn_return_any = false
 
 [tool.coverage.run]
 source = ["src/ado_git_repo_insights"]

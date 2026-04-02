@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import hashlib
 import tempfile
+from collections.abc import Iterator
 from pathlib import Path
 
 import pytest
@@ -108,7 +109,7 @@ def create_golden_database(db: DatabaseManager) -> None:
 
 
 @pytest.fixture
-def golden_db() -> tuple[DatabaseManager, Path, Path]:
+def golden_db() -> Iterator[tuple[DatabaseManager, Path, Path]]:
     """Create a golden database and output directories."""
     with tempfile.TemporaryDirectory() as tmpdir:
         tmp_path = Path(tmpdir)

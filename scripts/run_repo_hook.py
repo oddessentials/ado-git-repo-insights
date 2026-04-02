@@ -16,6 +16,7 @@ import os
 import shutil
 import subprocess
 import sys
+from collections.abc import Callable
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
@@ -610,8 +611,12 @@ def run_rule_disable_invariants_guard() -> None:
     Uses staged_file_content() for pre-commit compatibility (R4).
     """
     # Load exclusions and allowlist from the guardrail module
-    guardrail_exclusions = getattr(_guard_mod, "GUARDRAIL_EXCLUSIONS", frozenset())
-    load_allowlist = getattr(_guard_mod, "_load_subprocess_allowlist", lambda: set())
+    guardrail_exclusions: frozenset[str] = getattr(
+        _guard_mod, "GUARDRAIL_EXCLUSIONS", frozenset()
+    )
+    load_allowlist: Callable[[], set[tuple[str, int, str]]] = getattr(
+        _guard_mod, "_load_subprocess_allowlist", lambda: set()
+    )
     match_allowlist = getattr(_guard_mod, "_match_allowlist", lambda v, a: False)
     subprocess_allowlist = load_allowlist()
     staged = staged_paths()

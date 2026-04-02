@@ -2,7 +2,7 @@
 """Run the local PR preflight with stable paths.
 
 This command is the authoritative local gate before pushing:
-- mypy on src/
+- mypy on src/ tests/ scripts/
 - demo dashboard validation tests
 - full Python test suite with coverage
 - extension build/type/lint/test checks
@@ -142,7 +142,10 @@ def build_commands(
                 "--check-random",
             ),
         ),
-        CommandSpec("Python type check", ("__PYTHON__", "-m", "mypy", "src/")),
+        CommandSpec(
+            "Python type check",
+            ("__PYTHON__", "-m", "mypy", "src/", "tests/", "scripts/"),
+        ),
         CommandSpec(
             "Demo dashboard validation",
             (
@@ -485,9 +488,9 @@ def resolve_baseline_python() -> str:
                     return candidate
 
     for candidate in (f"python{BASELINE_PYTHON}", "python3", "python"):
-        resolved = shutil.which(candidate)
-        if resolved and probe_python_version(resolved) == BASELINE_PYTHON:
-            return resolved
+        found = shutil.which(candidate)
+        if found and probe_python_version(found) == BASELINE_PYTHON:
+            return found
 
     raise SystemExit(
         "Could not find a supported baseline interpreter for PR preflight. "

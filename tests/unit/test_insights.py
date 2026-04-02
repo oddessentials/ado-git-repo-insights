@@ -60,7 +60,9 @@ class TestGetPrStatsDateParsing:
         repos_cursor = MagicMock()
         repos_cursor.fetchone.return_value = {"cnt": 0}
 
-        generator.db.execute.side_effect = [
+        mock_execute = generator.db.execute  # MagicMock from __init__
+        assert isinstance(mock_execute, MagicMock)
+        mock_execute.side_effect = [
             count_cursor,
             date_cursor,
             avg_cursor,
