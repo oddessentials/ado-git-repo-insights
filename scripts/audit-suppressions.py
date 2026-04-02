@@ -551,6 +551,31 @@ def has_tokenize_errors(scan_results: dict[str, list[Suppression]]) -> bool:
     return False
 
 
+def _iter_scope_files(scope_path: Path, pattern: str) -> list[Path]:
+    """Yield scope files while pruning excluded directories before descent."""
+    matches: list[Path] = []
+    suffix = pattern.removeprefix("*")
+
+    def _on_walk_error(_error: OSError) -> None:
+        # Vanishing dependency trees under excluded dirs must not crash scanning.
+        return
+
+    for root, dirnames, filenames in os.walk(
+        scope_path, topdown=True, onerror=_on_walk_error
+    ):
+        dirnames[:] = [name for name in dirnames if name not in EXCLUDED_DIRS]
+        root_path = Path(root)
+        for filename in filenames:
+            if suffix and not filename.endswith(suffix):
+                continue
+            file_path = root_path / filename
+            if is_excluded(file_path):
+                continue
+            matches.append(file_path)
+
+    return matches
+
+
 def scan_codebase(repo_root: Path) -> dict[str, list[Suppression]]:
     """
     Scan all files in configured scopes.
@@ -567,10 +592,7 @@ def scan_codebase(repo_root: Path) -> dict[str, list[Suppression]]:
             continue
 
         pattern = scope_cfg["pattern"]
-        for file_path in scope_path.rglob(pattern):
-            if is_excluded(file_path):
-                continue
-
+        for file_path in _iter_scope_files(scope_path, pattern):
             normalized = normalize_path(file_path, repo_root)
 
             # Only scan under canonical scope (longest prefix match) to prevent

@@ -1169,6 +1169,35 @@ class TestScanCodebaseScopeOverlap:
         )
         assert results[key][0]["type"] == "test-only"
 
+    def test_excluded_node_modules_walk_errors_do_not_break_scan(
+        self,
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        """Excluded dependency trees must be pruned before os.walk descends."""
+        ui_dir = tmp_path / "extension" / "ui"
+        ui_dir.mkdir(parents=True)
+        (ui_dir / "component.ts").write_text(
+            "// eslint-disable-next-line @typescript-eslint/no-unused-vars\n"
+            "const value = 1;\n",
+            encoding="utf-8",
+        )
+        node_modules_dir = tmp_path / "extension" / "node_modules"
+        node_modules_dir.mkdir(parents=True)
+
+        original_scandir = _audit_module.os.scandir
+
+        def fake_scandir(path: str | os.PathLike[str]):
+            if Path(path) == node_modules_dir:
+                raise FileNotFoundError("simulated transient node_modules path")
+            return original_scandir(path)
+
+        monkeypatch.setattr(_audit_module.os, "scandir", fake_scandir)
+
+        results = scan_codebase(tmp_path)
+
+        assert "extension/ui/component.ts" in results
+
 
 class TestBaselineStaleness:
     """Tests for --check-staleness (FR-025)."""
