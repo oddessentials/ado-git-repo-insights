@@ -271,8 +271,8 @@ class TestStagedSuppressionGuards:
             ),
             patch.object(
                 _hook_module,
-                "_scan_staged_suppressions",
-                return_value={"src/example.py": [{"type": "noqa", "line": 1}]},
+                "_staged_suppression_delta_inputs",
+                return_value=({"src/example.py": 0}, {"src/example.py": 1}, []),
             ),
         ):
             with pytest.raises(SystemExit):
@@ -292,11 +292,12 @@ class TestStagedSuppressionGuards:
             ),
             patch.object(
                 _hook_module,
-                "_scan_staged_suppressions",
-                return_value={
-                    "src/old.py": [],
-                    "src/new.py": [{"type": "noqa", "line": 1}],
-                },
+                "_staged_suppression_delta_inputs",
+                return_value=(
+                    {"src/old.py": 1, "src/new.py": 0},
+                    {"src/old.py": 0, "src/new.py": 1},
+                    [],
+                ),
             ),
         ):
             run_staged_suppression_diff_guard()
@@ -314,18 +315,32 @@ class TestStagedSuppressionGuards:
             ),
             patch.object(
                 _hook_module,
-                "_scan_staged_suppressions",
-                return_value={
-                    "src/old.py": [],
-                    "src/new.py": [
-                        {
-                            "type": "noqa",
-                            "line": 1,
-                            "rules": [],
-                            "has_justification": True,
-                        }
-                    ],
-                },
+                "_staged_suppression_delta_inputs",
+                return_value=(
+                    {"src/old.py": 1, "src/new.py": 0},
+                    {"src/old.py": 0, "src/new.py": 1},
+                    [],
+                ),
+            ),
+        ):
+            run_staged_suppression_diff_guard()
+
+    def test_diff_guard_handles_real_rename_status_flow(self) -> None:
+        with (
+            patch.object(
+                _hook_module,
+                "_load_authoritative_suppression_baseline",
+                return_value={"by_file": {"src/old.py": 1}},
+            ),
+            patch.object(
+                _hook_module,
+                "staged_name_status",
+                return_value=[("R100", "src/old.py", "src/new.py")],
+            ),
+            patch.object(
+                _hook_module,
+                "staged_file_content",
+                return_value="x = 1  # noqa: E501\n",
             ),
         ):
             run_staged_suppression_diff_guard()

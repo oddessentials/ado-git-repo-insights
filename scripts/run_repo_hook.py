@@ -137,8 +137,25 @@ def git_output(*args: str) -> str:
 
 
 def staged_paths() -> list[str]:
-    output = git_output("diff", "--cached", "--name-only", "--diff-filter=d")
+    output = git_output("diff", "--cached", "--name-only")
     return [line.strip() for line in output.splitlines() if line.strip()]
+
+
+def staged_name_status() -> list[tuple[str, str, str | None]]:
+    output = git_output("diff", "--cached", "--name-status", "--find-renames")
+    entries: list[tuple[str, str, str | None]] = []
+    for line in output.splitlines():
+        stripped = line.strip()
+        if not stripped:
+            continue
+        parts = stripped.split("\t")
+        status = parts[0]
+        if status.startswith("R") and len(parts) >= 3:
+            entries.append((status, parts[1], parts[2]))
+            continue
+        if len(parts) >= 2:
+            entries.append((status, parts[1], None))
+    return entries
 
 
 def staged_file_content(path: str) -> str | None:
@@ -315,32 +332,67 @@ def _scan_staged_suppressions() -> dict[str, list[dict[str, object]]]:
     return results
 
 
+def _staged_suppression_delta_inputs(
+    baseline_by_file: dict[str, object],
+) -> tuple[dict[str, int], dict[str, int], list[str]]:
+    baseline_counts: dict[str, int] = {}
+    current_counts: dict[str, int] = {}
+    tokenize_errors: list[str] = []
+
+    for status, old_path, new_path in staged_name_status():
+        if status.startswith("D"):
+            if old_path.endswith((".py", ".ts")):
+                baseline_count = baseline_by_file.get(old_path, 0)
+                baseline_counts[old_path] = (
+                    baseline_count if isinstance(baseline_count, int) else 0
+                )
+                current_counts[old_path] = 0
+            continue
+
+        target_path = new_path or old_path
+        if not target_path.endswith((".py", ".ts")):
+            continue
+
+        scope = _resolve_staged_scope(target_path)
+        if scope is None:
+            continue
+        content = staged_file_content(target_path)
+        if content is None:
+            continue
+        suppressions = scan_content(content, scope, file_path=Path(target_path))
+        if any(s["type"] == "__tokenize_error__" for s in suppressions):
+            tokenize_errors.append(target_path)
+            continue
+
+        current_counts[target_path] = len(suppressions)
+        baseline_key = old_path if status.startswith("R") else target_path
+        baseline_count = baseline_by_file.get(baseline_key, 0)
+        baseline_counts[target_path] = (
+            baseline_count if isinstance(baseline_count, int) else 0
+        )
+        if status.startswith("R") and old_path != target_path:
+            baseline_counts[old_path] = (
+                baseline_count if isinstance(baseline_count, int) else 0
+            )
+            current_counts[old_path] = 0
+
+    return baseline_counts, current_counts, tokenize_errors
+
+
 def run_staged_suppression_diff_guard() -> None:
     baseline = _load_authoritative_suppression_baseline()
     baseline_by_file = baseline.get("by_file", {})
     assert isinstance(baseline_by_file, dict)
 
-    staged_results = _scan_staged_suppressions()
-    tokenize_errors: list[str] = []
+    baseline_counts, current_counts, tokenize_errors = _staged_suppression_delta_inputs(
+        baseline_by_file
+    )
     staged_baseline = dict(baseline)
-    staged_baseline["by_file"] = {}
-    staged_baseline["total"] = 0
+    staged_baseline["by_file"] = baseline_counts
+    staged_baseline["total"] = sum(baseline_counts.values())
     staged_current = dict(baseline)
-    staged_current["by_file"] = {}
-    staged_current["total"] = 0
-
-    for file_path, suppressions in staged_results.items():
-        if any(s["type"] == "__tokenize_error__" for s in suppressions):
-            tokenize_errors.append(file_path)
-            continue
-        current_count = len(suppressions)
-        baseline_count = baseline_by_file.get(file_path, 0)
-        if not isinstance(baseline_count, int):
-            baseline_count = 0
-        staged_baseline["by_file"][file_path] = baseline_count
-        staged_baseline["total"] += baseline_count
-        staged_current["by_file"][file_path] = current_count
-        staged_current["total"] += current_count
+    staged_current["by_file"] = current_counts
+    staged_current["total"] = sum(current_counts.values())
 
     if tokenize_errors:
         safe_print("[pre-commit] staged suppression scan hit tokenize errors:")

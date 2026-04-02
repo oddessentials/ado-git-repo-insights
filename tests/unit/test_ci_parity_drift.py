@@ -233,7 +233,10 @@ class TestPrecommitParity:
         assert preflight["Suppression baseline sync gate"] == (
             "__PYTHON__ scripts/audit-suppressions.py --diff"
         )
-        assert "python scripts/audit-suppressions.py --diff" in suppression_commands
+        assert (
+            "python scripts/audit-suppressions.py --diff --baseline /tmp/main-baseline.json"
+            in suppression_commands
+        )
         assert preflight["Suppression justifications"] == (
             "__PYTHON__ scripts/audit-suppressions.py --check-justifications"
         )
@@ -248,6 +251,16 @@ class TestPrecommitParity:
         )
         assert repo_calls["__PYTHON__ scripts/check_no_any_types.py --diff"] is None
         assert str(any_step["run"]).strip() == "python scripts/check_no_any_types.py"
+
+    def test_ci_suppression_step_fails_closed_without_main_baseline(self) -> None:
+        run_block = str(
+            _find_ci_step(
+                "suppression-audit", "Run suppression audit against main baseline"
+            )["run"]
+        )
+        assert "using committed baseline" not in run_block.lower()
+        assert "exit 1" in run_block
+        assert "origin/main:.suppression-baseline.json is required" in run_block
 
     def test_extension_helper_commands_match_preflight_and_ci(self) -> None:
         preflight = _normalized_preflight_commands()
