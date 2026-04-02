@@ -208,7 +208,7 @@ class TestMemoryUsage:
 
         # Simulate cache data for 100 insights
         cache_data = {
-            "cache_key": "test-key-abc123",
+            "cache_key": "cache-entry-placeholder-001",
             "cached_at": "2026-01-26T12:00:00Z",
             "insights_data": {
                 "schema_version": 1,

@@ -56,14 +56,22 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          fetch-depth: 0  # Full history for main branch scans
+          fetch-depth: 0
+
+      - name: Compute gitleaks log range
+        id: gitleaks-range
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch origin main --quiet
+          echo "range=origin/main..HEAD" >> "$GITHUB_OUTPUT"
 
       - name: Run gitleaks
         uses: gitleaks/gitleaks-action@v2.3.9
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
-          args: --config=.gitleaks.toml
+          args: --config=.gitleaks.toml --log-opts=${{ steps.gitleaks-range.outputs.range }}
 
   # Guard: Enforce pnpm-only policy (no npm ci/install in workflows, scripts, or package.json)
   npm-command-guard:

@@ -173,37 +173,53 @@ def build_commands(
             ("__PYTHON__", "scripts/check_no_any_types.py"),
         ),
         CommandSpec(
-            "Demo dashboard validation",
+            "Pandas version policy",
             (
                 "__PYTHON__",
-                "-m",
-                "pytest",
-                "tests/demo/",
-                "-v",
-                "--no-cov",
-                "-o",
-                f"cache_dir={cache_dir('demo')}",
-                "--basetemp",
-                str(base_temp("demo")),
+                "-c",
+                "import sys, pandas as pd; "
+                "major = int(pd.__version__.split('.')[0]); "
+                "py_minor = sys.version_info.minor; "
+                "expected = 2 if py_minor == 10 else 3; "
+                "sys.exit(0) if major == expected else "
+                "(print(f'Pandas major {major} != expected {expected} for Python 3.{py_minor}'), sys.exit(1))",
             ),
         ),
         CommandSpec(
-            "Full Python test suite with coverage",
+            "Demo generation contract",
+            ("__PYTHON__", "scripts/validate_demo_generation_contract.py"),
+        ),
+        CommandSpec(
+            "Demo directory size check",
+            (
+                "__PYTHON__",
+                "-c",
+                "from pathlib import Path; "
+                "size = sum(f.stat().st_size for f in Path('docs').rglob('*') if f.is_file()); "
+                "limit = 50 * 1024 * 1024; "
+                "print(f'docs/ size: {size / 1024 / 1024:.1f} MB (limit: 50 MB)'); "
+                "exit(1) if size > limit else None",
+            ),
+        ),
+        CommandSpec(
+            "Threshold change guard",
+            (
+                "__PYTHON__",
+                "scripts/check_threshold_changes.py",
+                "--base-ref",
+                "origin/main",
+            ),
+        ),
+        CommandSpec(
+            "Python package build check",
             (
                 "__PYTHON__",
                 "-m",
-                "pytest",
-                "tests/",
-                "-q",
-                "-ra",
-                "--junit-xml=test-results.xml",
-                "--cov-report=xml",
-                "-o",
-                f"cache_dir={cache_dir('python')}",
-                "--basetemp",
-                str(base_temp("python")),
+                "build",
+                "--sdist",
+                "--outdir",
+                str(base_temp("build")),
             ),
-            extra_env={"COVERAGE_FILE": str(coverage_file("python"))},
         ),
         CommandSpec(
             "Extension build check",
@@ -251,6 +267,64 @@ def build_commands(
             cwd=EXTENSION_ROOT,
         ),
         CommandSpec(
+            "Extension task unit tests",
+            ("node", "extension/tasks/extract-prs/index.test.js"),
+        ),
+        CommandSpec(
+            "Task input validation",
+            (
+                PNPM_SENTINEL,
+                "exec",
+                "ts-node",
+                "../scripts/validate-task-inputs.ts",
+            ),
+            cwd=EXTENSION_ROOT,
+        ),
+        CommandSpec(
+            "Demo dashboard validation",
+            (
+                "__PYTHON__",
+                "-m",
+                "pytest",
+                "tests/demo/",
+                "-v",
+                "--no-cov",
+                "-o",
+                f"cache_dir={cache_dir('demo')}",
+                "--basetemp",
+                str(base_temp("demo")),
+            ),
+        ),
+        CommandSpec(
+            "Full Python test suite with coverage",
+            (
+                "__PYTHON__",
+                "-m",
+                "pytest",
+                "tests/",
+                "-q",
+                "-ra",
+                "--junit-xml=test-results.xml",
+                "--cov-report=xml",
+                "-o",
+                f"cache_dir={cache_dir('python')}",
+                "--basetemp",
+                str(base_temp("python")),
+            ),
+            extra_env={"COVERAGE_FILE": str(coverage_file("python"))},
+        ),
+        # --- CI parity gates (close audit gaps) ---
+        CommandSpec(
+            "Python test count validation",
+            (
+                "__PYTHON__",
+                ".github/scripts/validate-test-results.py",
+                "test-results.xml",
+                "--min-collected=1236",
+                "--max-skips=0",
+            ),
+        ),
+        CommandSpec(
             "Extension Jest CI",
             (
                 PNPM_SENTINEL,
@@ -264,6 +338,16 @@ def build_commands(
                 "--testPathIgnorePatterns=vsix-artifact-inspection",
             ),
             cwd=EXTENSION_ROOT,
+        ),
+        CommandSpec(
+            "Extension test count validation",
+            (
+                "__PYTHON__",
+                ".github/scripts/validate-test-results.py",
+                "extension/test-results.xml",
+                "--min-collected=2304",
+                "--max-skips=0",
+            ),
         ),
         CommandSpec(
             "Coverage delta parity (Codecov project status)",
@@ -305,98 +389,21 @@ def build_commands(
                 "PLAYWRIGHT_REPORT_DIR": str(smoke_report_dir()),
             },
         ),
-        # --- CI parity gates (close audit gaps) ---
-        CommandSpec(
-            "Python test count validation",
-            (
-                "__PYTHON__",
-                ".github/scripts/validate-test-results.py",
-                "test-results.xml",
-                "--min-collected=1236",
-                "--max-skips=0",
-            ),
-        ),
-        CommandSpec(
-            "Extension test count validation",
-            (
-                "__PYTHON__",
-                ".github/scripts/validate-test-results.py",
-                "extension/test-results.xml",
-                "--min-collected=2304",
-                "--max-skips=0",
-            ),
-        ),
-        CommandSpec(
-            "Python package build check",
-            (
-                "__PYTHON__",
-                "-m",
-                "build",
-                "--sdist",
-                "--outdir",
-                str(base_temp("build")),
-            ),
-        ),
-        CommandSpec(
-            "Extension task unit tests",
-            ("node", "extension/tasks/extract-prs/index.test.js"),
-        ),
-        CommandSpec(
-            "Task input validation",
-            (
-                PNPM_SENTINEL,
-                "exec",
-                "ts-node",
-                "../scripts/validate-task-inputs.ts",
-            ),
-            cwd=EXTENSION_ROOT,
-        ),
-        CommandSpec(
-            "Pandas version policy",
-            (
-                "__PYTHON__",
-                "-c",
-                "import sys, pandas as pd; "
-                "major = int(pd.__version__.split('.')[0]); "
-                "py_minor = sys.version_info.minor; "
-                "expected = 2 if py_minor == 10 else 3; "
-                "sys.exit(0) if major == expected else "
-                "(print(f'Pandas major {major} != expected {expected} for Python 3.{py_minor}'), sys.exit(1))",
-            ),
-        ),
-        CommandSpec(
-            "Demo generation contract",
-            ("__PYTHON__", "scripts/validate_demo_generation_contract.py"),
-        ),
-        CommandSpec(
-            "Demo directory size check",
-            (
-                "__PYTHON__",
-                "-c",
-                "from pathlib import Path; "
-                "size = sum(f.stat().st_size for f in Path('docs').rglob('*') if f.is_file()); "
-                "limit = 50 * 1024 * 1024; "
-                "print(f'docs/ size: {size / 1024 / 1024:.1f} MB (limit: 50 MB)'); "
-                "exit(1) if size > limit else None",
-            ),
-        ),
-        CommandSpec(
-            "Threshold change guard",
-            (
-                "__PYTHON__",
-                "scripts/check_threshold_changes.py",
-                "--base-ref",
-                "origin/main",
-            ),
-        ),
     ]
 
     # Secret scanning: gitleaks parity with CI (QG-35)
     if gitleaks is not None:
-        commands.append(
+        commands.insert(
+            1,
             CommandSpec(
                 "Secret scan (gitleaks)",
-                (gitleaks, "detect", "--config=.gitleaks.toml", "--verbose"),
+                (
+                    gitleaks,
+                    "detect",
+                    "--config=.gitleaks.toml",
+                    "--verbose",
+                    "--log-opts=origin/main..HEAD",
+                ),
             ),
         )
 

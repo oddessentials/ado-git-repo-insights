@@ -316,7 +316,7 @@ class TestPreflightConditionalParity:
             PARITY_BASELINE_PATH, gitleaks="gitleaks"
         )
         assert preflight["Secret scan (gitleaks)"] == (
-            "gitleaks detect --config=.gitleaks.toml --verbose"
+            "gitleaks detect --config=.gitleaks.toml --verbose --log-opts=origin/main..HEAD"
         )
 
         secret_scan_job = _load_ci_jobs()["secret-scan"]
@@ -326,6 +326,16 @@ class TestPreflightConditionalParity:
             if isinstance(step, dict) and "uses" in step
         ]
         assert "gitleaks/gitleaks-action@v2.3.9" in uses_values
+        range_step = _find_ci_step("secret-scan", "Compute gitleaks log range")
+        assert "git fetch origin main --quiet" in str(range_step["run"])
+        assert 'echo "range=origin/main..HEAD" >> "$GITHUB_OUTPUT"' in str(
+            range_step["run"]
+        )
+        gitleaks_step = _find_ci_step("secret-scan", "Run gitleaks")
+        assert (
+            str(gitleaks_step["with"]["args"]).strip()
+            == "--config=.gitleaks.toml --log-opts=${{ steps.gitleaks-range.outputs.range }}"
+        )
 
 
 class TestPreflightCiParity:

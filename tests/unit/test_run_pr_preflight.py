@@ -61,8 +61,14 @@ class TestBuildCommands:
 
     def test_gitleaks_gate_is_present_when_resolved(self) -> None:
         commands = build_commands(None, gitleaks="gitleaks")
-        names = [spec.name for spec in commands]
-        assert "Secret scan (gitleaks)" in names
+        by_name = {spec.name: spec.command for spec in commands}
+        assert by_name["Secret scan (gitleaks)"] == (
+            "gitleaks",
+            "detect",
+            "--config=.gitleaks.toml",
+            "--verbose",
+            "--log-opts=origin/main..HEAD",
+        )
 
     def test_gitleaks_gate_is_absent_when_unavailable(self) -> None:
         commands = build_commands(None, gitleaks=None)
