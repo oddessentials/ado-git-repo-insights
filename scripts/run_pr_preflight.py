@@ -140,6 +140,7 @@ def build_commands(
                 "scripts/check_rule_disable_invariants.py",
                 "--check-subprocess",
                 "--check-random",
+                "--verify-artifacts",
             ),
         ),
         CommandSpec(

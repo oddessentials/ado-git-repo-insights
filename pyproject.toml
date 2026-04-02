@@ -77,6 +77,9 @@ ignore = [
               # Compensated by S603 guardrail (detects unsafe subprocess patterns)
     "S311",   # random module usage — all uses are deterministic seeded synthetic data
               # Proof: .rule-disable-audit-S311.json. Compensated by --check-random guardrail
+    "N999",   # Invalid module name — 14 CLI scripts use hyphenated names by convention
+              # (scripts/*.py, .github/scripts/*.py). These are invoked via `python script.py`,
+              # not imported as modules. All importable modules in src/ use valid identifiers.
 ]
 
 [tool.ruff.lint.isort]

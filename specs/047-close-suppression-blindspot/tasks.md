@@ -160,11 +160,11 @@
 
 ### Implementation for US3 — mypy Extension (Phase D-0)
 
-- [ ] T052 [US3] Remove `"^scripts/"` from mypy `exclude` list in `pyproject.toml`. This is permanent — scripts/ is in steady-state mypy scope. File: `pyproject.toml`
-- [ ] T053 [US3] Add `[[tool.mypy.overrides]]` for `"tests.*"` in `pyproject.toml` with pragmatic settings: `disallow_untyped_defs = false`, `disallow_untyped_calls = false`, `check_untyped_defs = false`. Keep `strict = true` for `src/`. Add similar override for `"scripts.*"` if needed. File: `pyproject.toml`
-- [ ] T054 [US3] Change mypy invocation in CI from `mypy src/` to `mypy src/ tests/ scripts/`. File: `.github/workflows/ci.yml`
-- [ ] T055 [US3] Change mypy invocation in preflight from `mypy src/` to `mypy src/ tests/ scripts/`. File: `scripts/run_pr_preflight.py`
-- [ ] T056 [US3] Fix all mypy errors surfaced in tests/ and scripts/ by the extended scope. Do NOT add `type: ignore` — fix the code. This may require adding return type annotations, parameter types, or import stubs. Track the count of fixes.
+- [x] T052 [US3] Remove `"^scripts/"` from mypy `exclude` list in `pyproject.toml`. This is permanent — scripts/ is in steady-state mypy scope. File: `pyproject.toml`
+- [x] T053 [US3] Add `[[tool.mypy.overrides]]` for `"tests.*"` in `pyproject.toml` with pragmatic settings: `disallow_untyped_defs = false`, `disallow_untyped_calls = false`, `check_untyped_defs = false`. Keep `strict = true` for `src/`. Add similar override for `"scripts.*"` if needed. File: `pyproject.toml`
+- [x] T054 [US3] Change mypy invocation in CI from `mypy src/` to `mypy src/ tests/ scripts/`. File: `.github/workflows/ci.yml`
+- [x] T055 [US3] Change mypy invocation in preflight from `mypy src/` to `mypy src/ tests/ scripts/`. File: `scripts/run_pr_preflight.py`
+- [x] T056 [US3] Fix all mypy errors surfaced in tests/ and scripts/ by the extended scope. Do NOT add `type: ignore` — fix the code. This may require adding return type annotations, parameter types, or import stubs. Track the count of fixes.
 
 **Checkpoint**: `mypy src/ tests/ scripts/` passes. type:ignore removals in Phase D will be mechanically verified.
 

@@ -532,9 +532,20 @@ def scan_codebase(repo_root: Path) -> dict[str, list[Suppression]]:
             if is_excluded(file_path):
                 continue
 
+            normalized = normalize_path(file_path, repo_root)
+
+            # Only scan under canonical scope (longest prefix match) to prevent
+            # parent scopes from overwriting child scope results.  Without this,
+            # a file in extension/tests/ would be scanned first under
+            # typescript-tests (with test-only patterns) and then rescanned
+            # under typescript-extension-config (without them), dropping
+            # test-only suppressions. (FR-028)
+            canonical_scope = _resolve_scope(normalized)
+            if canonical_scope != scope_name:
+                continue
+
             suppressions = scan_file(file_path, scope_name, repo_root)
             if suppressions:
-                normalized = normalize_path(file_path, repo_root)
                 results[normalized] = suppressions
 
     return results

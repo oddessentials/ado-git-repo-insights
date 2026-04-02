@@ -32,6 +32,7 @@ EXCLUDED_FILE_PATTERNS = _audit_module.EXCLUDED_FILE_PATTERNS
 SCOPES = _audit_module.SCOPES
 is_excluded = _audit_module.is_excluded
 scan_file = _audit_module.scan_file
+scan_codebase = _audit_module.scan_codebase
 _resolve_scope = _audit_module._resolve_scope
 has_tokenize_errors = _audit_module.has_tokenize_errors
 
@@ -1043,3 +1044,66 @@ class TestSuppressionPatternDetection:
             assert "[ERROR] Cannot tokenize" in result.stderr
         finally:
             test_file.unlink(missing_ok=True)
+
+
+class TestScanCodebaseScopeOverlap:
+    """Regression: scan_codebase must not drop child-scope suppressions.
+
+    When parent and child scopes overlap (e.g., extension/ and extension/tests/),
+    rglob on the parent finds files in the child.  Without canonical scope
+    filtering, the parent's scan overwrites the child's results and drops
+    test-only suppressions (test-only, test-skip) that only the child scope's
+    pattern set includes.
+    """
+
+    def test_child_scope_suppressions_preserved(self, tmp_path: Path) -> None:
+        """A file in extension/tests/ retains test-only AND generic suppressions."""
+        # Build minimal directory structure matching SCOPES
+        tests_dir = tmp_path / "extension" / "tests"
+        tests_dir.mkdir(parents=True)
+
+        # File has both a test-only suppression and a generic TS suppression
+        ts_file = tests_dir / "overlap.test.ts"
+        ts_file.write_text(
+            "// eslint-disable-next-line @typescript-eslint/no-unused-vars\n"
+            "const x = 1;\n"
+            "it.only('focused test', () => {\n"
+            "  expect(true).toBe(true);\n"
+            "});\n",
+            encoding="utf-8",
+        )
+
+        results = scan_codebase(tmp_path)
+
+        key = "extension/tests/overlap.test.ts"
+        assert key in results, (
+            f"File should be in scan results. Got keys: {list(results.keys())}"
+        )
+
+        types_found = {s["type"] for s in results[key]}
+        assert "test-only" in types_found, (
+            f"test-only suppression must be preserved. Found types: {types_found}"
+        )
+        assert "eslint-disable-next-line" in types_found, (
+            f"eslint-disable-next-line must be present. Found types: {types_found}"
+        )
+
+    def test_child_scope_not_rescanned_by_parent(self, tmp_path: Path) -> None:
+        """A file ONLY in extension/tests/ with ONLY test-only suppressions is found."""
+        tests_dir = tmp_path / "extension" / "tests"
+        tests_dir.mkdir(parents=True)
+
+        ts_file = tests_dir / "focused.test.ts"
+        ts_file.write_text(
+            "describe.only('focused suite', () => {\n  it('test', () => {});\n});\n",
+            encoding="utf-8",
+        )
+
+        results = scan_codebase(tmp_path)
+
+        key = "extension/tests/focused.test.ts"
+        assert key in results, (
+            f"File with only test-only suppressions must appear in results. "
+            f"Got keys: {list(results.keys())}"
+        )
+        assert results[key][0]["type"] == "test-only"

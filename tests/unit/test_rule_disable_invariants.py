@@ -374,3 +374,67 @@ class TestCrossOSPaths:
         # (caller normalizes before calling)
         for v in violations:
             assert isinstance(v["file"], str)
+
+
+class TestPreflightCIParity:
+    """Preflight must invoke the same flags as CI for rule-disable invariants.
+
+    CI runs --check-subprocess --check-random --verify-artifacts.  If preflight
+    omits --verify-artifacts, stale proof artifacts pass locally but fail in CI,
+    breaking the 'authoritative local gate before pushing' contract.
+    """
+
+    REPO_ROOT = Path(__file__).parent.parent.parent
+
+    @staticmethod
+    def _extract_flags(text: str) -> set[str]:
+        """Extract --flags from the check_rule_disable_invariants invocation block."""
+        flags: set[str] = set()
+        in_block = False
+        for line in text.splitlines():
+            if "check_rule_disable_invariants" in line:
+                in_block = True
+            if in_block:
+                for token in line.replace('"', " ").replace("'", " ").split():
+                    if token.startswith("--"):
+                        flags.add(token.rstrip(",)"))
+                # Stop after finding all contiguous lines of the block
+                # (next non-continuation line ends it)
+                if (
+                    in_block
+                    and line.strip()
+                    and "check_rule_disable_invariants" not in line
+                ):
+                    if not any(
+                        token.startswith("--")
+                        for token in line.replace('"', " ").replace("'", " ").split()
+                    ):
+                        break
+        return flags
+
+    def test_preflight_includes_verify_artifacts(self) -> None:
+        """Preflight must include --verify-artifacts for rule-disable invariants."""
+        preflight_script = self.REPO_ROOT / "scripts" / "run_pr_preflight.py"
+        content = preflight_script.read_text(encoding="utf-8")
+        flags = self._extract_flags(content)
+        assert "--verify-artifacts" in flags, (
+            f"Preflight must include --verify-artifacts to match CI. "
+            f"Found flags: {flags}"
+        )
+
+    def test_preflight_flags_match_ci_workflow(self) -> None:
+        """CI and preflight must use the same flags for rule-disable invariants."""
+        ci_yml = self.REPO_ROOT / ".github" / "workflows" / "ci.yml"
+        ci_flags = self._extract_flags(ci_yml.read_text(encoding="utf-8"))
+
+        preflight_script = self.REPO_ROOT / "scripts" / "run_pr_preflight.py"
+        preflight_flags = self._extract_flags(
+            preflight_script.read_text(encoding="utf-8")
+        )
+
+        assert ci_flags, "Could not extract CI flags — check ci.yml parsing"
+        assert preflight_flags, "Could not extract preflight flags — check parsing"
+        assert ci_flags == preflight_flags, (
+            f"CI flags {ci_flags} != preflight flags {preflight_flags}. "
+            "These must be identical to maintain local/CI parity."
+        )
