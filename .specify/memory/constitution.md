@@ -2,6 +2,41 @@
   =============================================================================
   SYNC IMPACT REPORT
   =============================================================================
+  Version Change: 1.3.0 → 1.4.0 (code quality invariants addition)
+
+  Modified Principles: None (Core Principles unchanged)
+
+  Added Sections:
+  - Code Quality Invariants (QG-39 through QG-42)
+
+  Rationale:
+  Four standing project invariants were identified during the 047 planning
+  cycle as constraints that had been verbally enforced but never codified.
+  They surfaced late in the planning process (during task generation) when
+  they should have been default assumptions from the start:
+  - QG-39: Cross-OS compatibility (Windows/macOS/Linux)
+  - QG-40: No typing.Any (strict typing with precise types)
+  - QG-41: Zero inline suppressions (enforced by suppression audit)
+  - QG-42: Enterprise test coverage (every new code path tested)
+
+  Evidence Files:
+  - .github/workflows/ci.yml (cross-platform matrix, mypy, ruff, suppression audit)
+  - scripts/audit-suppressions.py (suppression baseline enforcement)
+  - pyproject.toml (mypy strict, ruff select)
+  - tests/ and extension/tests/ (pytest + Jest suites)
+
+  Templates Updated:
+  - .specify/templates/plan-template.md: ✅ Compatible
+  - .specify/templates/spec-template.md: ✅ Compatible
+  - .specify/templates/tasks-template.md: ✅ Compatible
+
+  Follow-up TODOs:
+  - Verify QG-39 evidence exists (CI matrix covers multiple OS)
+  - Verify QG-40 is enforceable (mypy --strict + no Any in codebase)
+  - Verify QG-41 baseline is at 0 after 047 completes
+  - Verify QG-42 ratchet thresholds are current
+  =============================================================================
+
   Version Change: 1.2.0 → 1.3.0 (local/CI parity governance addition)
 
   Modified Principles: None (Core Principles unchanged)
@@ -307,6 +342,15 @@ Definition of Done and map to CI/CD checkpoints.
 | QG-37 | Adding a new CI check MUST include a corresponding local gate update and an update to `LOCAL_CI_PARITY_INVARIANTS.md` | `LOCAL_CI_PARITY_INVARIANTS.md` Governance section |
 | QG-38 | `--no-verify` is forbidden by project policy; git hooks must never be bypassed | `LOCAL_CI_PARITY_INVARIANTS.md` |
 
+### Code Quality Invariants
+
+| Gate | Requirement | Evidence |
+|------|-------------|----------|
+| QG-39 | All code MUST work on Windows, macOS, and Linux. No OS-specific assumptions in paths, shell commands, subprocess calls, or file enumeration. | Cross-platform CI matrix, `normalize_path()` in audit tool |
+| QG-40 | `typing.Any` MUST NOT be used as a type annotation. Use precise types (`object`, `Callable[..., object]`, `type[T]`, Protocols). Requires explicit stakeholder approval to bypass with documented justification. | `mypy --strict` on `src/`, `tests/`, `scripts/` |
+| QG-41 | Zero inline suppression comments (`# noqa`, `# type: ignore`, `// eslint-disable`, `// @ts-ignore`) unless backed by a committed proof artifact, compensating guardrail, and explicit stakeholder approval. | `scripts/audit-suppressions.py --diff`, `.suppression-baseline.json` |
+| QG-42 | Every new feature, gate, guardrail, and refactor MUST have enterprise-grade test coverage in both Python (pytest) and TypeScript (Jest) as applicable. No untested code paths in new work. | `--min-collected` ratchet, `--max-skips=0`, coverage thresholds |
+
 ## Verification Requirements
 
 A phase is not complete until every verification step passes without manual intervention.
@@ -410,4 +454,4 @@ These decisions are final and may not be revisited without MAJOR version change:
 - **Historical migration**: No MongoDB migration (fresh extraction from configured start date)
 - **Output compatibility**: 100% PowerBI CSV parity is mandatory
 
-**Version**: 1.3.0 | **Ratified**: 2026-01-26 | **Last Amended**: 2026-03-28
+**Version**: 1.4.0 | **Ratified**: 2026-01-26 | **Last Amended**: 2026-04-02
