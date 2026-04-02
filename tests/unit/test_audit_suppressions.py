@@ -118,15 +118,21 @@ class TestCanonicalScopeMap:
     """Tests for the canonical SCOPES map and _resolve_scope() (FR-028)."""
 
     def test_every_scope_has_required_fields(self) -> None:
-        """Each scope config must have dir, pattern, and language."""
+        """Each scope config must have dir, pattern, language, and check_test_patterns."""
         for name, cfg in SCOPES.items():
             assert "dir" in cfg, f"Scope {name} missing 'dir'"
             assert "pattern" in cfg, f"Scope {name} missing 'pattern'"
             assert "language" in cfg, f"Scope {name} missing 'language'"
+            assert "check_test_patterns" in cfg, (
+                f"Scope {name} missing 'check_test_patterns'"
+            )
             assert cfg["language"] in (
                 "python",
                 "typescript",
             ), f"Scope {name} has invalid language: {cfg['language']}"
+            assert isinstance(cfg["check_test_patterns"], bool), (
+                f"Scope {name} check_test_patterns must be bool"
+            )
 
     def test_scope_dirs_end_with_slash(self) -> None:
         """Scope directories must end with '/' for prefix matching."""

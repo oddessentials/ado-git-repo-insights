@@ -1,11 +1,11 @@
 {
   "rule": "S311",
-  "generated_at": "2026-04-02T16:22:14Z",
+  "generated_at": "2026-04-02T16:59:07Z",
   "total_usages": 7,
   "usages": [
     {
       "file": "scripts/generate-demo-data.py",
-      "line": 193,
+      "line": 195,
       "code": "rng = random.Random(seed)",
       "purpose": "deterministic-seeded"
     },

@@ -102,53 +102,77 @@ class ScopeConfig(TypedDict):
     dir: str
     pattern: str
     language: str  # "python" or "typescript"
+    check_test_patterns: bool  # include test-only/test-skip detection
 
 
 SCOPES: dict[str, ScopeConfig] = {
     # Python scopes
-    "python-backend": {"dir": "src/", "pattern": "*.py", "language": "python"},
-    "python-scripts": {"dir": "scripts/", "pattern": "*.py", "language": "python"},
-    "python-tests": {"dir": "tests/", "pattern": "*.py", "language": "python"},
+    "python-backend": {
+        "dir": "src/",
+        "pattern": "*.py",
+        "language": "python",
+        "check_test_patterns": False,
+    },
+    "python-scripts": {
+        "dir": "scripts/",
+        "pattern": "*.py",
+        "language": "python",
+        "check_test_patterns": False,
+    },
+    "python-tests": {
+        "dir": "tests/",
+        "pattern": "*.py",
+        "language": "python",
+        "check_test_patterns": False,
+    },
     "python-ci-scripts": {
         "dir": ".github/scripts/",
         "pattern": "*.py",
         "language": "python",
+        "check_test_patterns": False,
     },
     # TypeScript scopes
     "typescript-extension": {
         "dir": "extension/ui/",
         "pattern": "*.ts",
         "language": "typescript",
+        "check_test_patterns": False,
     },
     "typescript-tests": {
         "dir": "extension/tests/",
         "pattern": "*.ts",
         "language": "typescript",
+        "check_test_patterns": True,
     },
     "typescript-tasks": {
         "dir": "extension/tasks/",
         "pattern": "*.ts",
         "language": "typescript",
+        "check_test_patterns": False,
     },
     "typescript-extension-scripts": {
         "dir": "extension/scripts/",
         "pattern": "*.ts",
         "language": "typescript",
+        "check_test_patterns": False,
     },
     "typescript-extension-config": {
         "dir": "extension/",
         "pattern": "*.ts",
         "language": "typescript",
+        "check_test_patterns": False,
     },
     "typescript-root-scripts": {
         "dir": "scripts/",
         "pattern": "*.ts",
         "language": "typescript",
+        "check_test_patterns": False,
     },
     "typescript-spec-contracts": {
         "dir": "specs/",
         "pattern": "*.ts",
         "language": "typescript",
+        "check_test_patterns": False,
     },
 }
 
@@ -419,22 +443,8 @@ def scan_file(file_path: Path, scope: str, repo_root: Path) -> list[Suppression]
     language = scope_config["language"]
     if language == "python":
         patterns_to_check = ["type-ignore", "noqa"]
-    elif scope == "typescript-tests":
-        # TypeScript tests: all TS suppressions including test-runner escapes
-        patterns_to_check = [
-            "eslint-disable-block",
-            "eslint-disable-next-line",
-            "eslint-disable-line",
-            "ts-ignore",
-            "ts-expect-error",
-            "ts-nocheck",
-            "istanbul-ignore",
-            "c8-ignore",
-            "test-only",
-            "test-skip",
-        ]
     else:
-        # TypeScript extension: all TS suppressions, no test escapes
+        # TypeScript: base suppressions for all scopes
         patterns_to_check = [
             "eslint-disable-block",
             "eslint-disable-next-line",
@@ -445,6 +455,9 @@ def scan_file(file_path: Path, scope: str, repo_root: Path) -> list[Suppression]
             "istanbul-ignore",
             "c8-ignore",
         ]
+        # Test scopes: also detect test-runner escapes (FR-028)
+        if scope_config["check_test_patterns"]:
+            patterns_to_check.extend(["test-only", "test-skip"])
 
     # SECURITY: Check file size before reading to prevent resource exhaustion
     try:

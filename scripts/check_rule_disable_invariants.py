@@ -534,15 +534,16 @@ def generate_random_artifact(repo_root: Path) -> dict[str, object]:
 
 def _normalize_entries(
     entries: list[dict[str, object]],
-) -> list[tuple[str, int, str, str]]:
-    """Extract (file, line, code, classification) tuples for content comparison.
+) -> list[tuple[str, str, str]]:
+    """Extract (file, code, classification) tuples for content comparison.
 
     Includes the safety/purpose field so classification changes are detected.
+    Line numbers remain in the generated JSON for humans, but verifier
+    comparisons ignore line drift from formatting or nearby edits.
     """
     return sorted(
         (
             str(e.get("file", "")),
-            int(str(e.get("line", 0))),
             str(e.get("code", "")),
             str(e.get("safety", e.get("purpose", ""))),
         )
@@ -553,9 +554,9 @@ def _normalize_entries(
 def verify_artifacts(repo_root: Path) -> int:
     """Verify committed proof artifacts match current codebase (FR-020).
 
-    Compares full call site lists (file, line, code), not just counts.
-    This catches moves, edits, and replacements that preserve total count
-    but change the actual call sites. (P3 review finding)
+    Compares semantic call site lists (file, code, classification), not just
+    counts. This catches additions, removals, and reclassifications while
+    ignoring line-number-only churn from formatting or nearby edits.
     """
     exit_code = 0
     artifact_configs: list[tuple[str, Callable[[Path], dict[str, object]], str]] = [
@@ -597,12 +598,12 @@ def verify_artifacts(repo_root: Path) -> int:
             )
             if added:
                 print(f"  New call sites not in artifact ({len(added)}):")
-                for f_path, line_no, code, classification in sorted(added)[:5]:
-                    print(f"    {f_path}:{line_no}: [{classification}] {code[:80]}")
+                for f_path, code, classification in sorted(added)[:5]:
+                    print(f"    {f_path}: [{classification}] {code[:80]}")
             if removed:
                 print(f"  Removed call sites still in artifact ({len(removed)}):")
-                for f_path, line_no, code, classification in sorted(removed)[:5]:
-                    print(f"    {f_path}:{line_no}: [{classification}] {code[:80]}")
+                for f_path, code, classification in sorted(removed)[:5]:
+                    print(f"    {f_path}: [{classification}] {code[:80]}")
             print(
                 "  Run: python scripts/check_rule_disable_invariants.py "
                 "--generate-artifacts"

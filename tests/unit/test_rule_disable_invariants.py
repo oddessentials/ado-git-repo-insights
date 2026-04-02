@@ -281,7 +281,7 @@ class TestArtifactVerification:
                 assert stale_entries != fresh_norm, "Test setup error: stale == fresh"
 
     def test_classification_change_detected_by_normalize(self) -> None:
-        """Entries with same file/line/code but different classification are not equal."""
+        """Entries with same file/code but different classification are not equal."""
         _normalize = _mod._normalize_entries
         entry_safe = [
             {
@@ -300,6 +300,27 @@ class TestArtifactVerification:
             }
         ]
         assert _normalize(entry_safe) != _normalize(entry_unsafe)
+
+    def test_line_number_change_ignored_by_normalize(self) -> None:
+        """Line drift alone must not make artifacts stale."""
+        _normalize = _mod._normalize_entries
+        entry_old_line = [
+            {
+                "file": "a.py",
+                "line": 10,
+                "code": "subprocess.run([",
+                "safety": "safe-literal-list",
+            }
+        ]
+        entry_new_line = [
+            {
+                "file": "a.py",
+                "line": 11,
+                "code": "subprocess.run([",
+                "safety": "safe-literal-list",
+            }
+        ]
+        assert _normalize(entry_old_line) == _normalize(entry_new_line)
 
 
 class TestAllowlistMechanism:
