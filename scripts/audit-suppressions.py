@@ -1096,7 +1096,9 @@ def cmd_diff(
         scope for scope in current["by_scope"] if current["by_scope"][scope] >= 0
     }
     for scope in sorted(current_scopes):
-        _get_scope_policy(f"{SCOPES[scope]['dir']}__scope_probe__")
+        if scope in baseline_scope_policy or scope in baseline_scopes:
+            continue
+        missing_scopes.add(scope)
 
     # Print summary
     print(f"Baseline: {diff['baseline_total']} suppressions")
