@@ -186,7 +186,7 @@ REVIEWER_FILTER_EXAMPLE_COUNT = 3
 
 def init_random(seed: int = SEED) -> random.Random:
     """Initialize deterministic random generator with fixed seed."""
-    rng = random.Random(seed)  # noqa: S311 - Intentional for deterministic synthetic data
+    rng = random.Random(seed)
     return rng
 
 

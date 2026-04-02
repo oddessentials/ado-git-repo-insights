@@ -12,7 +12,7 @@ VALIDATOR_SCRIPT = REPO_ROOT / "scripts" / "validate_demo_generation_contract.py
 
 def test_demo_generation_contract_validator_passes() -> None:
     """The canonical demo workflow and preflight contract must stay in sync."""
-    result = subprocess.run(  # noqa: S603
+    result = subprocess.run(
         [sys.executable, str(VALIDATOR_SCRIPT)],
         cwd=REPO_ROOT,
         capture_output=True,

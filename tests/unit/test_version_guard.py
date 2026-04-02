@@ -47,7 +47,7 @@ class TestVersionGuard:
     ) -> subprocess.CompletedProcess[str]:
         """Run the version guard script and return the result."""
         run_env = env or self._clean_env()
-        return subprocess.run(  # noqa: S603 - trusted test code
+        return subprocess.run(
             [sys.executable, str(SCRIPT), base_branch],
             capture_output=True,
             text=True,

@@ -84,7 +84,7 @@ def run_command(
     env: dict[str, str] | None = None,
 ) -> None:
     print(f"$ {' '.join(command)}")
-    subprocess.run(  # noqa: S603 - local parity commands are repo-controlled
+    subprocess.run(
         command,
         cwd=cwd,
         env=env,
@@ -97,7 +97,7 @@ def fail(message: str) -> None:
 
 
 def probe_python_version(executable: str) -> str | None:
-    probe = subprocess.run(  # noqa: S603 - interpreter path is verified before use
+    probe = subprocess.run(
         [
             executable,
             "-c",
@@ -142,7 +142,7 @@ def resolve_python(version: str) -> str | None:
     if sys.platform == "win32":
         launcher = shutil.which("py")
         if launcher:
-            probe = subprocess.run(  # noqa: S603 - uses trusted Python launcher
+            probe = subprocess.run(
                 [launcher, f"-{version}", "-c", "import sys; print(sys.executable)"],
                 cwd=REPO_ROOT,
                 capture_output=True,
@@ -243,7 +243,7 @@ def check_docker_available() -> bool:
     if docker is None:
         return False
 
-    probe = subprocess.run(  # noqa: S603 - probes local Docker CLI availability
+    probe = subprocess.run(
         [docker, "version"],
         cwd=REPO_ROOT,
         capture_output=True,

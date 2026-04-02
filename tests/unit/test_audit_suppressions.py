@@ -231,7 +231,7 @@ class TestCheckCoverage:
 
     def test_check_coverage_passes_on_real_repo(self) -> None:
         """T018: all tracked .py/.ts files in the real repo are scoped."""
-        result = subprocess.run(  # noqa: S603 - trusted test code
+        result = subprocess.run(
             [sys.executable, str(AUDIT_SCRIPT), "--check-coverage"],
             capture_output=True,
             text=True,
@@ -246,22 +246,22 @@ class TestCheckCoverage:
         import shutil
 
         # Create a minimal git repo with an unscoped .py file
-        subprocess.run(  # noqa: S603 - trusted test setup
-            ["git", "init"],  # noqa: S607
+        subprocess.run(
+            ["git", "init"],
             cwd=tmp_path,
             capture_output=True,
         )
         unscoped = tmp_path / "tools" / "helper.py"
         unscoped.parent.mkdir()
         unscoped.write_text("x = 1\n", encoding="utf-8")
-        subprocess.run(  # noqa: S603 - trusted test setup
-            ["git", "add", "tools/helper.py"],  # noqa: S607
+        subprocess.run(
+            ["git", "add", "tools/helper.py"],
             cwd=tmp_path,
             capture_output=True,
         )
         # Copy the audit script to tmp so it runs against this repo
         shutil.copy(AUDIT_SCRIPT, tmp_path / "audit.py")
-        result = subprocess.run(  # noqa: S603 - trusted test code
+        result = subprocess.run(
             [sys.executable, str(tmp_path / "audit.py"), "--check-coverage"],
             capture_output=True,
             text=True,
@@ -285,7 +285,7 @@ class TestTwoPhaseGating:
         env = os.environ.copy()
         for var in ("GITHUB_EVENT_NAME", "GITHUB_REF", "GITHUB_EVENT_PATH"):
             env.pop(var, None)
-        return subprocess.run(  # noqa: S603 - trusted test code
+        return subprocess.run(
             [
                 sys.executable,
                 str(AUDIT_SCRIPT),
@@ -303,7 +303,7 @@ class TestTwoPhaseGating:
         """T026: advisory scope logs warning but returns exit code 0."""
         # Generate real baseline, set new scopes to advisory
         baseline_path = tmp_path / "baseline.json"
-        subprocess.run(  # noqa: S603 - trusted test code
+        subprocess.run(
             [
                 sys.executable,
                 str(AUDIT_SCRIPT),
@@ -336,7 +336,7 @@ class TestTwoPhaseGating:
     def test_blocking_scope_with_increase_fails(self, tmp_path: Path) -> None:
         """T027: blocking scope with suppression increase returns exit code 1."""
         baseline_path = tmp_path / "baseline.json"
-        subprocess.run(  # noqa: S603 - trusted test code
+        subprocess.run(
             [
                 sys.executable,
                 str(AUDIT_SCRIPT),
@@ -367,7 +367,7 @@ class TestTwoPhaseGating:
     def test_v1_baseline_treated_as_all_blocking(self, tmp_path: Path) -> None:
         """T028: v1 baseline (no scope_policy) = all blocking."""
         baseline_path = tmp_path / "baseline.json"
-        subprocess.run(  # noqa: S603 - trusted test code
+        subprocess.run(
             [
                 sys.executable,
                 str(AUDIT_SCRIPT),
@@ -413,7 +413,7 @@ class TestTwoPhaseGating:
     ) -> None:
         """T029: scope in scan but absent from baseline → advisory + warning."""
         baseline_path = tmp_path / "baseline.json"
-        subprocess.run(  # noqa: S603 - trusted test code
+        subprocess.run(
             [
                 sys.executable,
                 str(AUDIT_SCRIPT),
@@ -459,7 +459,7 @@ class TestNewFileMultiSuppressionDelta:
         env = os.environ.copy()
         for var in ("GITHUB_EVENT_NAME", "GITHUB_REF", "GITHUB_EVENT_PATH"):
             env.pop(var, None)
-        subprocess.run(  # noqa: S603 - trusted test code
+        subprocess.run(
             [
                 sys.executable,
                 str(AUDIT_SCRIPT),
@@ -479,7 +479,7 @@ class TestNewFileMultiSuppressionDelta:
             encoding="utf-8",
         )
         try:
-            result = subprocess.run(  # noqa: S603 - trusted test code
+            result = subprocess.run(
                 [
                     sys.executable,
                     str(AUDIT_SCRIPT),
@@ -518,7 +518,7 @@ class TestAuditSuppressionsCLI:
 
     def test_script_runs_without_error(self) -> None:
         """The audit script should run without errors."""
-        result = subprocess.run(  # noqa: S603 - trusted test code
+        result = subprocess.run(
             [sys.executable, str(AUDIT_SCRIPT)],
             capture_output=True,
             text=True,
@@ -529,7 +529,7 @@ class TestAuditSuppressionsCLI:
 
     def test_count_excludes_type_test_files(self) -> None:
         """Running audit should not count suppressions in type-test files."""
-        result = subprocess.run(  # noqa: S603 - trusted test code
+        result = subprocess.run(
             [sys.executable, str(AUDIT_SCRIPT)],
             capture_output=True,
             text=True,
@@ -549,7 +549,7 @@ class TestAuditSuppressionsCLI:
 
     def test_diff_command_works(self) -> None:
         """The --diff command should run without errors."""
-        result = subprocess.run(  # noqa: S603 - trusted test code
+        result = subprocess.run(
             [sys.executable, str(AUDIT_SCRIPT), "--diff"],
             capture_output=True,
             text=True,
@@ -563,7 +563,7 @@ class TestAuditSuppressionsCLI:
 
     def test_diff_allows_pending_approval_for_local_preflight(self) -> None:
         """Local preflight mode should not fail solely on missing PR approval."""
-        result = subprocess.run(  # noqa: S603 - trusted test code
+        result = subprocess.run(
             [sys.executable, str(AUDIT_SCRIPT), "--diff", "--allow-pending-approval"],
             capture_output=True,
             text=True,
@@ -612,7 +612,7 @@ class TestAuditSuppressionsCLI:
             env = self._local_env()
             env["GITHUB_EVENT_NAME"] = "push"
             env["GITHUB_REF"] = "refs/heads/main"
-            result = subprocess.run(  # noqa: S603 - trusted test code
+            result = subprocess.run(
                 [
                     sys.executable,
                     str(AUDIT_SCRIPT),
@@ -648,7 +648,7 @@ class TestAuditSuppressionsCLI:
         # Generate a real baseline so it includes all 6 scopes
         real_baseline_path = tmp_path / "real_baseline.json"
         env = self._local_env()
-        gen_result = subprocess.run(  # noqa: S603 - trusted test code
+        gen_result = subprocess.run(
             [
                 sys.executable,
                 str(AUDIT_SCRIPT),
@@ -676,7 +676,7 @@ class TestAuditSuppressionsCLI:
         inflated_path = tmp_path / "inflated_baseline.json"
         inflated_path.write_text(json.dumps(baseline_data, indent=2), encoding="utf-8")
 
-        result = subprocess.run(  # noqa: S603 - trusted test code
+        result = subprocess.run(
             [
                 sys.executable,
                 str(AUDIT_SCRIPT),
@@ -700,7 +700,7 @@ class TestAuditSuppressionsCLI:
 
     def test_validate_command_works(self) -> None:
         """The --validate command should run without errors."""
-        result = subprocess.run(  # noqa: S603 - trusted test code
+        result = subprocess.run(
             [sys.executable, str(AUDIT_SCRIPT), "--validate"],
             capture_output=True,
             text=True,
@@ -987,7 +987,7 @@ class TestSuppressionPatternDetection:
         test_file = target_dir / "_audit_test_syntax_error_cli.py"
         test_file.write_text("def broken(\n", encoding="utf-8")
         try:
-            result = subprocess.run(  # noqa: S603 - trusted test code
+            result = subprocess.run(
                 [sys.executable, str(AUDIT_SCRIPT)],
                 capture_output=True,
                 text=True,
@@ -1024,7 +1024,7 @@ class TestSuppressionPatternDetection:
         test_file = target_dir / "_audit_test_indent_error_cli.py"
         test_file.write_text("if True:\n\tx = 1\n    y = 2\n", encoding="utf-8")
         try:
-            result = subprocess.run(  # noqa: S603 - trusted test code
+            result = subprocess.run(
                 [sys.executable, str(AUDIT_SCRIPT)],
                 capture_output=True,
                 text=True,

@@ -133,6 +133,15 @@ def build_commands(
             "Suppression scope coverage (FR-026)",
             ("__PYTHON__", "scripts/audit-suppressions.py", "--check-coverage"),
         ),
+        CommandSpec(
+            "Rule-disable invariants (FR-014)",
+            (
+                "__PYTHON__",
+                "scripts/check_rule_disable_invariants.py",
+                "--check-subprocess",
+                "--check-random",
+            ),
+        ),
         CommandSpec("Python type check", ("__PYTHON__", "-m", "mypy", "src/")),
         CommandSpec(
             "Demo dashboard validation",
@@ -377,7 +386,7 @@ def build_commands(
 
 
 def probe_python_version(executable: str) -> str | None:
-    probe = subprocess.run(  # noqa: S603 - interpreter path is verified before use
+    probe = subprocess.run(
         [
             executable,
             "-c",
@@ -400,7 +409,7 @@ def run_subprocess(
 ) -> CommandResult:
     # SECURITY: command lists are composed only from repo-owned CommandSpec entries
     # plus locally resolved tool paths; shell=False is preserved throughout.
-    completed = subprocess.run(  # noqa: S603 - commands are repo-controlled
+    completed = subprocess.run(
         command,
         cwd=cwd,
         env=env,
@@ -459,7 +468,7 @@ def resolve_baseline_python() -> str:
     if sys.platform == "win32":
         launcher = shutil.which("py")
         if launcher:
-            probe = subprocess.run(  # noqa: S603 - trusted local Python launcher
+            probe = subprocess.run(
                 [
                     launcher,
                     f"-{BASELINE_PYTHON}",
@@ -501,7 +510,7 @@ def ensure_node_child_processes_work() -> None:
             "Node.js is required for PR preflight but was not found on PATH."
         )
 
-    probe = subprocess.run(  # noqa: S603 - local toolchain probe
+    probe = subprocess.run(
         [
             node,
             "-e",

@@ -1140,8 +1140,8 @@ def cmd_check_coverage(repo_root: Path) -> int:
     """
     # Enumerate tracked files via git ls-files (cross-OS safe with list args)
     try:
-        result = subprocess.run(  # noqa: S603 -- repo-owned git command
-            ["git", "ls-files", "*.py", "*.ts"],  # noqa: S607
+        result = subprocess.run(
+            ["git", "ls-files", "*.py", "*.ts"],
             capture_output=True,
             text=True,
             cwd=repo_root,

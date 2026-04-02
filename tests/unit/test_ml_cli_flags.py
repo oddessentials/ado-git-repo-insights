@@ -13,7 +13,7 @@ class TestMLCLIFlags:
 
     def test_cli_help_includes_predictions_flag(self) -> None:
         """--enable-predictions flag appears in CLI help."""
-        result = subprocess.run(  # noqa: S603 - controlled subprocess call with known arguments
+        result = subprocess.run(
             [
                 sys.executable,
                 "-m",
@@ -31,7 +31,7 @@ class TestMLCLIFlags:
 
     def test_cli_help_includes_insights_flag(self) -> None:
         """--enable-insights flag appears in CLI help."""
-        result = subprocess.run(  # noqa: S603 - controlled subprocess call with known arguments
+        result = subprocess.run(
             [
                 sys.executable,
                 "-m",
@@ -49,7 +49,7 @@ class TestMLCLIFlags:
 
     def test_cli_help_includes_dry_run_flag(self) -> None:
         """--insights-dry-run flag appears in CLI help."""
-        result = subprocess.run(  # noqa: S603 - controlled subprocess call with known arguments
+        result = subprocess.run(
             [
                 sys.executable,
                 "-m",
@@ -90,7 +90,7 @@ class TestMLCLIFlags:
         # We must explicitly control the environment via env= parameter.
         env = {k: v for k, v in os.environ.items() if k != "OPENAI_API_KEY"}
 
-        result = subprocess.run(  # noqa: S603 - controlled subprocess call with known arguments
+        result = subprocess.run(
             [
                 sys.executable,
                 "-m",

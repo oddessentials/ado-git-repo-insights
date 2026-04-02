@@ -23,7 +23,7 @@ _scripts_dir = Path(__file__).parent
 def main() -> int:
     """Delegate to the canonical demo build pipeline."""
     require_demo_generation_baseline(CANONICAL_COMMITTED_DEMO_SCRIPT)
-    result = subprocess.run(  # noqa: S603
+    result = subprocess.run(
         [sys.executable, str(_scripts_dir / "build-demo-dataset.py")],
         check=False,
     )

@@ -31,6 +31,16 @@ _audit_mod = _importlib_util.module_from_spec(_audit_spec)  # type: ignore[arg-t
 _audit_spec.loader.exec_module(_audit_mod)  # type: ignore[union-attr]
 AUDIT_SCOPES: dict[str, dict[str, str]] = _audit_mod.SCOPES
 
+# Load guardrail check functions for staged-content scanning (FR-014, FR-021)
+_guard_spec = _importlib_util.spec_from_file_location(
+    "check_rule_disable_invariants",
+    REPO_ROOT / "scripts" / "check_rule_disable_invariants.py",
+)
+_guard_mod = _importlib_util.module_from_spec(_guard_spec)  # type: ignore[arg-type]
+_guard_spec.loader.exec_module(_guard_mod)  # type: ignore[union-attr]
+_check_subprocess_safety = _guard_mod.check_subprocess_safety
+_check_random_safety = _guard_mod.check_random_safety
+
 
 def safe_print(text: str = "") -> None:
     try:
@@ -52,7 +62,7 @@ def run_command(
     env: dict[str, str] | None = None,
     capture_output: bool = False,
 ) -> subprocess.CompletedProcess[str]:
-    result = subprocess.run(  # noqa: S603 - repo-owned command execution only
+    result = subprocess.run(
         command,
         cwd=cwd,
         env=env,
@@ -116,7 +126,7 @@ def staged_file_content(path: str) -> str | None:
     text patterns will safely get no match on binary content.
     """
     command = ["git", "show", f":{path}"]
-    result = subprocess.run(  # noqa: S603 - repo-owned git command
+    result = subprocess.run(
         command,
         cwd=REPO_ROOT,
         capture_output=True,
@@ -172,7 +182,7 @@ def run_acl_health_check() -> None:
 def run_pre_commit_stage() -> None:
     pre_commit = resolve_pre_commit()
     safe_print("[pre-commit] running formatting checks on staged files")
-    result = subprocess.run(  # noqa: S603 - repo-owned executable
+    result = subprocess.run(
         [pre_commit, "run", "--hook-stage", "pre-commit"],
         cwd=REPO_ROOT,
         check=False,
@@ -185,7 +195,7 @@ def run_pre_commit_stage() -> None:
         return
 
     if stage_changed_worktree_files():
-        rerun = subprocess.run(  # noqa: S603 - repo-owned executable
+        rerun = subprocess.run(
             [pre_commit, "run", "--hook-stage", "pre-commit"],
             cwd=REPO_ROOT,
             check=False,
@@ -593,6 +603,39 @@ def run_scope_coverage_guard() -> None:
     safe_print("[pre-commit] scope coverage guard passed")
 
 
+def run_rule_disable_invariants_guard() -> None:
+    """Check staged Python files for unsafe subprocess/random patterns (FR-014).
+
+    Compensating guardrail for globally disabled S603/S607/S311.
+    Uses staged_file_content() for pre-commit compatibility (R4).
+    """
+    # Import the exclusion set from the guardrail module
+    guardrail_exclusions = getattr(_guard_mod, "GUARDRAIL_EXCLUSIONS", frozenset())
+    staged = staged_paths()
+    violations: list[str] = []
+    for path in staged:
+        if not path.endswith(".py"):
+            continue
+        # Normalize to forward slashes and skip guardrail self-referential files
+        normalized = path.replace("\\", "/")
+        if normalized in guardrail_exclusions:
+            continue
+        content = staged_file_content(path)
+        if content is None:
+            continue
+        for v in _check_subprocess_safety(path, content):
+            violations.append(f"  {v['file']}:{v['line']}: {v['pattern']}")
+        for v in _check_random_safety(path, content):
+            violations.append(f"  {v['file']}:{v['line']}: {v['pattern']}")
+
+    if violations:
+        safe_print("[pre-commit] unsafe patterns detected (S603/S311 guardrail):")
+        for line in violations:
+            safe_print(line)
+        raise SystemExit(1)
+    safe_print("[pre-commit] rule-disable invariants guard passed")
+
+
 def run_pre_commit_hook() -> None:
     safe_print("[pre-commit] running suppression audit (zero-tolerance)")
     run_command([sys.executable, "scripts/audit-suppressions.py", "--diff"])
@@ -603,6 +646,7 @@ def run_pre_commit_hook() -> None:
     run_npm_command_guard()
     run_pagination_token_guard()
     run_scope_coverage_guard()
+    run_rule_disable_invariants_guard()
     run_ui_bundle_guards()
 
     staged = staged_paths()
@@ -744,7 +788,7 @@ def _current_branch() -> str:
     if git is None:
         return ""
     try:
-        result = subprocess.run(  # noqa: S603 - git path resolved via shutil.which
+        result = subprocess.run(
             [git, "rev-parse", "--abbrev-ref", "HEAD"],
             capture_output=True,
             text=True,

@@ -37,7 +37,7 @@ THRESHOLD_FILES = {
 
 def git_output(*args: str) -> str:
     command = ["git", *args]
-    result = subprocess.run(  # noqa: S603 - repo-owned git command
+    result = subprocess.run(
         command,
         cwd=REPO_ROOT,
         capture_output=True,

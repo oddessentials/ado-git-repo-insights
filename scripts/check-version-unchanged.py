@@ -52,8 +52,8 @@ def get_current_version(file_path: str) -> str:
 def get_base_version(base_branch: str, file_path: str) -> str | None:
     """Read a version from the base branch via git show."""
     try:
-        result = subprocess.run(  # noqa: S603 - trusted git invocation
-            ["git", "show", f"{base_branch}:{file_path}"],  # noqa: S607
+        result = subprocess.run(
+            ["git", "show", f"{base_branch}:{file_path}"],
             capture_output=True,
             text=True,
             check=True,
@@ -82,8 +82,8 @@ def check_commit_marker(base_branch: str) -> bool:
     into the scan.
     """
     try:
-        result = subprocess.run(  # noqa: S603 - trusted git invocation
-            ["git", "log", "--oneline", f"{base_branch}..HEAD"],  # noqa: S607
+        result = subprocess.run(
+            ["git", "log", "--oneline", f"{base_branch}..HEAD"],
             capture_output=True,
             text=True,
             check=True,

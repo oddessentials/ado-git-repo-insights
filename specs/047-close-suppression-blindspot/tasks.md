@@ -121,32 +121,32 @@
 
 ### Implementation for US5 — Proof Artifacts
 
-- [ ] T035 [US5] Create script to generate `.rule-disable-audit-S603.json`: walk all `.py` files via `git ls-files`, use `tokenize.generate_tokens` to find `subprocess.run/Popen/call` call sites, classify each by shell mode and argument type (literal list vs variable). Output: file, line, code snippet, safety classification. File: `scripts/check_rule_disable_invariants.py`
-- [ ] T036 [US5] Extend the script to generate `.rule-disable-audit-S311.json`: find all `random.*` usages, classify by purpose (seeded deterministic vs crypto). File: `scripts/check_rule_disable_invariants.py`
-- [ ] T037 [US5] Run both generators, review output, commit artifacts: `.rule-disable-audit-S603.json` and `.rule-disable-audit-S311.json`
+- [x] T035 [US5] Create script to generate `.rule-disable-audit-S603.json`: walk all `.py` files via `git ls-files`, use `tokenize.generate_tokens` to find `subprocess.run/Popen/call` call sites, classify each by shell mode and argument type (literal list vs variable). Output: file, line, code snippet, safety classification. File: `scripts/check_rule_disable_invariants.py`
+- [x] T036 [US5] Extend the script to generate `.rule-disable-audit-S311.json`: find all `random.*` usages, classify by purpose (seeded deterministic vs crypto). File: `scripts/check_rule_disable_invariants.py`
+- [x] T037 [US5] Run both generators, review output, commit artifacts: `.rule-disable-audit-S603.json` and `.rule-disable-audit-S311.json`
 
 ### Implementation for US5 — Guardrails
 
-- [ ] T038 [US5] Implement S603 compensating guardrail in `scripts/check_rule_disable_invariants.py`: `--check-subprocess` mode detects `subprocess.run/Popen/call` with `shell=True` or non-literal first argument. Uses `tokenize.generate_tokens` on string content (compatible with `staged_file_content()` which returns `str`). Scans full tree for preflight/CI. File: `scripts/check_rule_disable_invariants.py`
-- [ ] T039 [US5] Implement S311 compensating guardrail: `--check-random` mode detects `import secrets`, `os.urandom`, `random.SystemRandom`, or `random.Random()` without a seed argument in any file that also imports `random`. File: `scripts/check_rule_disable_invariants.py`
-- [ ] T040 [US5] Implement `--verify-artifacts` mode: regenerate audit artifacts into temp files, compare against committed artifacts (JSON-level comparison ignoring `generated_at`), fail if divergent. File: `scripts/check_rule_disable_invariants.py`
-- [ ] T041 [US5] Register guardrail in pre-commit: add `run_rule_disable_invariants_guard()` to `scripts/run_repo_hook.py` — iterate `staged_paths()`, read with `staged_file_content()`, check S603+S311 patterns on staged content. File: `scripts/run_repo_hook.py`
-- [ ] T042 [US5] Register guardrail in preflight: add `CommandSpec` for `check_rule_disable_invariants.py --check-subprocess --check-random` in `scripts/run_pr_preflight.py`. File: `scripts/run_pr_preflight.py`
-- [ ] T043 [US5] Register guardrail in CI: add `rule-disable-invariants` job to `.github/workflows/ci.yml` with `--check-subprocess --check-random --verify-artifacts`. File: `.github/workflows/ci.yml`
+- [x] T038 [US5] Implement S603 compensating guardrail in `scripts/check_rule_disable_invariants.py`: `--check-subprocess` mode detects `subprocess.run/Popen/call` with `shell=True` or non-literal first argument. Uses `tokenize.generate_tokens` on string content (compatible with `staged_file_content()` which returns `str`). Scans full tree for preflight/CI. File: `scripts/check_rule_disable_invariants.py`
+- [x] T039 [US5] Implement S311 compensating guardrail: `--check-random` mode detects `import secrets`, `os.urandom`, `random.SystemRandom`, or `random.Random()` without a seed argument in any file that also imports `random`. File: `scripts/check_rule_disable_invariants.py`
+- [x] T040 [US5] Implement `--verify-artifacts` mode: regenerate audit artifacts into temp files, compare against committed artifacts (JSON-level comparison ignoring `generated_at`), fail if divergent. File: `scripts/check_rule_disable_invariants.py`
+- [x] T041 [US5] Register guardrail in pre-commit: add `run_rule_disable_invariants_guard()` to `scripts/run_repo_hook.py` — iterate `staged_paths()`, read with `staged_file_content()`, check S603+S311 patterns on staged content. File: `scripts/run_repo_hook.py`
+- [x] T042 [US5] Register guardrail in preflight: add `CommandSpec` for `check_rule_disable_invariants.py --check-subprocess --check-random` in `scripts/run_pr_preflight.py`. File: `scripts/run_pr_preflight.py`
+- [x] T043 [US5] Register guardrail in CI: add `rule-disable-invariants` job to `.github/workflows/ci.yml` with `--check-subprocess --check-random --verify-artifacts`. File: `.github/workflows/ci.yml`
 
 ### Implementation for US5 — Rule Disable
 
-- [ ] T044 [US5] Add S603, S311, S607 to ruff `ignore` list in `pyproject.toml` with inline documentation comments explaining justification and pointing to proof artifacts. Verify S602 remains in `select`. File: `pyproject.toml`
-- [ ] T045 [US5] Remove all `# noqa: S603` comments across the entire repo (~59 occurrences in scripts/ and tests/). Verify `ruff check` passes. Files: all files listed in suppression inventory
-- [ ] T046 [US5] Remove all `# noqa: S311` comments (~5 in scripts/). Verify `ruff check` passes. Files: `scripts/generate-demo-data.py`, `scripts/generate-synthetic-dataset.py`
-- [ ] T047 [US5] Remove all `# noqa: S607` comments (2 in `scripts/check-version-unchanged.py`). Refactor to use `shutil.which("git")` with assertion that result is not `None`. Verify `ruff check` passes. File: `scripts/check-version-unchanged.py`
+- [x] T044 [US5] Add S603, S311, S607 to ruff `ignore` list in `pyproject.toml` with inline documentation comments explaining justification and pointing to proof artifacts. Verify S602 remains in `select`. File: `pyproject.toml`
+- [x] T045 [US5] Remove all `# noqa: S603` comments across the entire repo (~59 occurrences in scripts/ and tests/). Verify `ruff check` passes. Files: all files listed in suppression inventory
+- [x] T046 [US5] Remove all `# noqa: S311` comments (~5 in scripts/). Verify `ruff check` passes. Files: `scripts/generate-demo-data.py`, `scripts/generate-synthetic-dataset.py`
+- [x] T047 [US5] Remove all `# noqa: S607` comments (2 in `scripts/check-version-unchanged.py`). Refactor to use `shutil.which("git")` with assertion that result is not `None`. Verify `ruff check` passes. File: `scripts/check-version-unchanged.py`
 
 ### Tests for US5
 
-- [ ] T048 [P] [US5] Add test: simulated `shell=True` in a temp file is caught by S603 guardrail. File: `tests/unit/test_rule_disable_invariants.py`
-- [ ] T049 [P] [US5] Add test: simulated `import secrets` alongside `import random` is caught by S311 guardrail. File: `tests/unit/test_rule_disable_invariants.py`
-- [ ] T050 [P] [US5] Add test: stale proof artifact (doesn't match codebase) causes `--verify-artifacts` to fail. File: `tests/unit/test_rule_disable_invariants.py`
-- [ ] T051 [P] [US5] Add cross-OS test: guardrail script handles both forward-slash and backslash paths in output (Windows compatibility). File: `tests/unit/test_rule_disable_invariants.py`
+- [x] T048 [P] [US5] Add test: simulated `shell=True` in a temp file is caught by S603 guardrail. File: `tests/unit/test_rule_disable_invariants.py`
+- [x] T049 [P] [US5] Add test: simulated `import secrets` alongside `import random` is caught by S311 guardrail. File: `tests/unit/test_rule_disable_invariants.py`
+- [x] T050 [P] [US5] Add test: stale proof artifact (doesn't match codebase) causes `--verify-artifacts` to fail. File: `tests/unit/test_rule_disable_invariants.py`
+- [x] T051 [P] [US5] Add cross-OS test: guardrail script handles both forward-slash and backslash paths in output (Windows compatibility). File: `tests/unit/test_rule_disable_invariants.py`
 
 **Checkpoint**: S603/S311/S607 disabled with committed proof, passing guardrails, and regression tests. ~66 suppressions removed.
 

@@ -88,7 +88,7 @@ def run_non_promoting_canonical_data_build() -> None:
     args = [sys.executable, str(BUILD_SCRIPT), "--no-promote"]
     if not _IS_BASELINE_PYTHON:
         args.append("--validate-only")
-    result = subprocess.run(  # noqa: S603 - Trusted script path
+    result = subprocess.run(
         args,
         capture_output=True,
         text=True,
@@ -216,7 +216,7 @@ class TestDeterministicRegeneration:
         _set_manifest_feature_flag("predictions", False)
 
         try:
-            result = subprocess.run(  # noqa: S603 - Trusted script path
+            result = subprocess.run(
                 [sys.executable, str(SCRIPTS_DIR / "generate-demo-predictions.py")],
                 capture_output=True,
                 text=True,
@@ -254,7 +254,7 @@ class TestDeterministicRegeneration:
         _set_manifest_feature_flag("ai_insights", False)
 
         try:
-            result = subprocess.run(  # noqa: S603 - Trusted script path
+            result = subprocess.run(
                 [sys.executable, str(SCRIPTS_DIR / "generate-demo-insights.py")],
                 capture_output=True,
                 text=True,

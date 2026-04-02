@@ -118,7 +118,7 @@ def run_script(
     if update:
         args.append("--update")
 
-    return subprocess.run(  # noqa: S603 - trusted test code
+    return subprocess.run(
         args,
         capture_output=True,
         text=True,

@@ -1,0 +1,97 @@
+{
+  "rule": "S311",
+  "generated_at": "2026-04-02T12:41:55Z",
+  "total_usages": 15,
+  "usages": [
+    {
+      "file": "scripts/check_rule_disable_invariants.py",
+      "line": 210,
+      "code": "# random.Random() without seed",
+      "purpose": "deterministic-seeded"
+    },
+    {
+      "file": "scripts/check_rule_disable_invariants.py",
+      "line": 216,
+      "code": "\"pattern\": \"random.Random() without seed\",",
+      "purpose": "deterministic-seeded"
+    },
+    {
+      "file": "scripts/generate-demo-data.py",
+      "line": 189,
+      "code": "rng = random.Random(seed)",
+      "purpose": "deterministic-seeded"
+    },
+    {
+      "file": "scripts/generate-synthetic-dataset.py",
+      "line": 38,
+      "code": "rng = random.Random(seed)",
+      "purpose": "deterministic-seeded"
+    },
+    {
+      "file": "scripts/generate-synthetic-dataset.py",
+      "line": 120,
+      "code": "rng = random.Random(seed)",
+      "purpose": "deterministic-seeded"
+    },
+    {
+      "file": "scripts/generate-synthetic-dataset.py",
+      "line": 345,
+      "code": "rng = random.Random(seed + 1000)",
+      "purpose": "deterministic-seeded"
+    },
+    {
+      "file": "scripts/generate-synthetic-dataset.py",
+      "line": 429,
+      "code": "rng = random.Random(seed + 2000)",
+      "purpose": "deterministic-seeded"
+    },
+    {
+      "file": "scripts/generate-synthetic-dataset.py",
+      "line": 512,
+      "code": "random.seed(seed)",
+      "purpose": "deterministic-seeded"
+    },
+    {
+      "file": "tests/performance/test_chart_render.py",
+      "line": 116,
+      "code": "values = np.random.normal(100, 20, 52)",
+      "purpose": "needs-review"
+    },
+    {
+      "file": "tests/unit/test_rule_disable_invariants.py",
+      "line": 75,
+      "code": "code = \"import random\\nimport secrets\\nrng = random.Random(42)\\n\"",
+      "purpose": "deterministic-seeded"
+    },
+    {
+      "file": "tests/unit/test_rule_disable_invariants.py",
+      "line": 89,
+      "code": "code = \"import random\\nrng = random.SystemRandom()\\n\"",
+      "purpose": "needs-review"
+    },
+    {
+      "file": "tests/unit/test_rule_disable_invariants.py",
+      "line": 94,
+      "code": "\"\"\"random.Random() without seed is caught (non-deterministic).\"\"\"",
+      "purpose": "deterministic-seeded"
+    },
+    {
+      "file": "tests/unit/test_rule_disable_invariants.py",
+      "line": 95,
+      "code": "code = \"import random\\nrng = random.Random()\\n\"",
+      "purpose": "needs-review"
+    },
+    {
+      "file": "tests/unit/test_rule_disable_invariants.py",
+      "line": 101,
+      "code": "\"\"\"random.Random(seed) is the safe pattern — not flagged.\"\"\"",
+      "purpose": "deterministic-seeded"
+    },
+    {
+      "file": "tests/unit/test_rule_disable_invariants.py",
+      "line": 102,
+      "code": "code = \"import random\\nrng = random.Random(42)\\n\"",
+      "purpose": "deterministic-seeded"
+    }
+  ]
+}

@@ -661,6 +661,9 @@ jobs:
       - name: Verify scope coverage (FR-026)
         run: python scripts/audit-suppressions.py --check-coverage
 
+      - name: Rule-disable invariants (FR-014)
+        run: python scripts/check_rule_disable_invariants.py --check-subprocess --check-random --verify-artifacts
+
   # Phase 5: Test base installation without [ml] extras
   # Enforces optional-dependency isolation - ML features must not leak into base
   # Functional validation job: verifies base package works without [ml] extras.

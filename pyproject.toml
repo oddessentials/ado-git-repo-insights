@@ -68,7 +68,16 @@ src = ["src", "tests"]
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "B", "UP", "N", "S", "C4", "PT"]
-ignore = ["E501", "S101"]  # Allow long lines in some cases, allow assert in tests
+ignore = [
+    "E501",   # Allow long lines in some cases
+    "S101",   # Allow assert in tests
+    "S603",   # subprocess with shell=False — compensated by check_rule_disable_invariants.py
+              # Proof: .rule-disable-audit-S603.json (76 call sites, all safe-hardcoded)
+    "S607",   # Partial executable path — all uses are repo-owned tools (git, python)
+              # Compensated by S603 guardrail (detects unsafe subprocess patterns)
+    "S311",   # random module usage — all uses are deterministic seeded synthetic data
+              # Proof: .rule-disable-audit-S311.json. Compensated by --check-random guardrail
+]
 
 [tool.ruff.lint.isort]
 known-first-party = ["ado_git_repo_insights"]

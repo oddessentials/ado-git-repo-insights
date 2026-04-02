@@ -35,7 +35,7 @@ def generate_dimensions(
     pr_count: int, seed: int, num_users: int | None = None, weeks: int | None = None
 ) -> Dimensions:
     """Generate synthetic filter dimensions."""
-    rng = random.Random(seed)  # noqa: S311
+    rng = random.Random(seed)
 
     # Generate repositories (5-10 repos)
     num_repos = rng.randint(5, 10)
@@ -117,7 +117,7 @@ def generate_weekly_rollups(
     repositories: list[dict[str, str]] | None = None,
 ) -> list[dict[str, Any]]:
     """Generate weekly rollup files."""
-    rng = random.Random(seed)  # noqa: S311
+    rng = random.Random(seed)
 
     end_date = date.today()
     start_date = end_date - timedelta(weeks=weeks)
@@ -342,7 +342,7 @@ def generate_distributions(
     pr_count: int, weeks: int, seed: int, output_dir: Path
 ) -> list[dict[str, Any]]:
     """Generate yearly distribution files."""
-    rng = random.Random(seed + 1000)  # noqa: S311
+    rng = random.Random(seed + 1000)
 
     end_date = date.today()
     start_date = end_date - timedelta(weeks=weeks)
@@ -426,7 +426,7 @@ def generate_comments(
 
     Returns comment statistics for the manifest coverage section.
     """
-    rng = random.Random(seed + 2000)  # noqa: S311
+    rng = random.Random(seed + 2000)
 
     comments_dir = output_dir / "aggregates" / "comments"
     comments_dir.mkdir(parents=True, exist_ok=True)

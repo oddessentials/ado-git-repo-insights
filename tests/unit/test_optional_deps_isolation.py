@@ -16,7 +16,7 @@ class TestOptionalDepsIsolation:
     def test_cli_help_without_optional_deps(self) -> None:
         """Main CLI --help works in minimal environment."""
         # Run CLI help in a subprocess to test import behavior
-        result = subprocess.run(  # noqa: S603
+        result = subprocess.run(
             [sys.executable, "-m", "ado_git_repo_insights.cli", "--help"],
             capture_output=True,
             text=True,
@@ -27,7 +27,7 @@ class TestOptionalDepsIsolation:
 
     def test_cli_version_flag_works(self) -> None:
         """--version flag works without optional deps (T-16, FR-030)."""
-        result = subprocess.run(  # noqa: S603
+        result = subprocess.run(
             [sys.executable, "-m", "ado_git_repo_insights", "--version"],
             capture_output=True,
             text=True,
@@ -56,7 +56,7 @@ class TestOptionalDepsIsolation:
 
     def test_cli_import_does_not_load_heavy_deps(self) -> None:
         """cli.py import does NOT load pandas, requests, or yaml (T-07, FR-012, SC-009)."""
-        result = subprocess.run(  # noqa: S603
+        result = subprocess.run(
             [
                 sys.executable,
                 "-c",

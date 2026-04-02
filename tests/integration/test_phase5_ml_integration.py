@@ -898,7 +898,7 @@ class TestCLIMLFlags:
         """CLI help should document ML flags."""
         import subprocess
 
-        result = subprocess.run(  # noqa: S603 - trusted test input
+        result = subprocess.run(
             [
                 sys.executable,
                 "-m",
