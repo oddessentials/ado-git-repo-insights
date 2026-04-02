@@ -134,12 +134,17 @@ def build_commands(
             ("__PYTHON__", "scripts/audit-suppressions.py", "--check-coverage"),
         ),
         CommandSpec(
+            "Baseline staleness (FR-025)",
+            ("__PYTHON__", "scripts/audit-suppressions.py", "--check-staleness"),
+        ),
+        CommandSpec(
             "Rule-disable invariants (FR-014)",
             (
                 "__PYTHON__",
                 "scripts/check_rule_disable_invariants.py",
                 "--check-subprocess",
                 "--check-random",
+                "--check-syspath",
                 "--verify-artifacts",
             ),
         ),

@@ -9,6 +9,7 @@ weakened configuration.
 Entry points:
   --check-subprocess  Detect unsafe subprocess patterns (compensates S603/S607)
   --check-random      Detect unsafe random patterns (compensates S311)
+  --check-syspath     Detect sys.path.insert/append (enforces importlib-only)
   --verify-artifacts  Verify committed proof artifacts match codebase
   --generate-artifacts Generate proof artifacts for rule-disable justification
 
@@ -63,6 +64,21 @@ SECRETS_IMPORT_PATTERN = re.compile(
 URANDOM_PATTERN = re.compile(r"\bos\.urandom\b")
 SYSTEM_RANDOM_PATTERN = re.compile(r"\brandom\.SystemRandom\b")
 UNSEEDED_RANDOM_PATTERN = re.compile(r"\brandom\.Random\s*\(\s*\)")
+
+# Patterns that detect sys.path manipulation (importlib-only enforcement)
+SYS_PATH_PATTERN = re.compile(r"\bsys\.path\.(?:insert|append)\b")
+
+# Known-safe sys.path manipulation: files that add scripts/ to sys.path
+# temporarily so that importlib-loaded script modules can resolve their
+# own from-imports (e.g., publish-demo-surface.py imports demo_shell).
+# Each use is wrapped in try/finally or is at module init for importlib exec.
+SYSPATH_ALLOWLIST = frozenset(
+    {
+        "scripts/manage_generated_artifacts.py",
+        "tests/demo/test_demo_parity_pipeline.py",
+        "tests/unit/test_parity_guardrails_red_path.py",
+    }
+)
 
 
 def _get_tracked_py_files(cwd: Path) -> list[str]:
@@ -367,6 +383,43 @@ def check_random_safety(file_path: str, content: str) -> list[dict[str, str | in
                     "file": file_path,
                     "line": line_num,
                     "pattern": "random.Random() without seed",
+                    "code": line.strip(),
+                }
+            )
+
+    return violations
+
+
+# =============================================================================
+# sys.path guardrail (importlib-only enforcement)
+# =============================================================================
+
+
+def check_syspath_safety(file_path: str, content: str) -> list[dict[str, str | int]]:
+    """Detect sys.path.insert/append calls in a file.
+
+    Scripts must use importlib.util.spec_from_file_location() instead of
+    sys.path manipulation. conftest.py files are exempt (pytest needs them).
+    Additional exemptions are in SYSPATH_ALLOWLIST for files that exec
+    modules which have their own bare from-imports.
+
+    Returns list of violations with file, line, pattern, code.
+    """
+    if file_path.replace("\\", "/").endswith("conftest.py"):
+        return []
+    if file_path.replace("\\", "/") in SYSPATH_ALLOWLIST:
+        return []
+
+    violations: list[dict[str, str | int]] = []
+    code_lines = _get_code_lines(content)
+
+    for line_num, line in code_lines:
+        if SYS_PATH_PATTERN.search(line):
+            violations.append(
+                {
+                    "file": file_path,
+                    "line": line_num,
+                    "pattern": "sys.path manipulation",
                     "code": line.strip(),
                 }
             )
@@ -684,6 +737,11 @@ def main() -> int:
         help="Check for unsafe random patterns (S311 compensation)",
     )
     parser.add_argument(
+        "--check-syspath",
+        action="store_true",
+        help="Check for sys.path.insert/append (importlib-only enforcement)",
+    )
+    parser.add_argument(
         "--verify-artifacts",
         action="store_true",
         help="Verify committed proof artifacts match codebase",
@@ -724,7 +782,7 @@ def main() -> int:
     if args.verify_artifacts:
         exit_code = max(exit_code, verify_artifacts(repo_root))
 
-    if args.check_subprocess or args.check_random:
+    if args.check_subprocess or args.check_random or args.check_syspath:
         tracked = _get_tracked_py_files(repo_root)
         all_violations: list[dict[str, str | int]] = []
 
@@ -745,6 +803,8 @@ def main() -> int:
                 all_violations.extend(check_subprocess_safety(file_path, content))
             if args.check_random:
                 all_violations.extend(check_random_safety(file_path, content))
+            if args.check_syspath:
+                all_violations.extend(check_syspath_safety(file_path, content))
 
         # Filter out allowlisted subprocess exceptions by (file, line, code)
         # Only subprocess-related violations are filtered, not random ones
@@ -774,12 +834,15 @@ def main() -> int:
                 checks.append("subprocess")
             if args.check_random:
                 checks.append("random")
+            if args.check_syspath:
+                checks.append("syspath")
             print(f"[PASS] No unsafe {'/'.join(checks)} patterns detected")
 
     if not any(
         [
             args.check_subprocess,
             args.check_random,
+            args.check_syspath,
             args.verify_artifacts,
             args.generate_artifacts,
         ]

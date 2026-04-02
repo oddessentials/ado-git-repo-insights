@@ -871,6 +871,54 @@ def cmd_update_baseline(repo_root: Path, baseline_path: Path) -> int:
     return 0
 
 
+def cmd_check_staleness(repo_root: Path, baseline_path: Path) -> int:
+    """Verify committed baseline matches a fresh regeneration (FR-025).
+
+    JSON-level comparison ignoring the generated_at timestamp.
+    Fails if the baseline was hand-edited or is stale after code changes.
+    """
+    if not baseline_path.exists():
+        print(
+            f"[FAIL] Baseline not found: {baseline_path}\n"
+            "  Run: python scripts/audit-suppressions.py --update-baseline",
+            file=sys.stderr,
+        )
+        return 1
+
+    with open(baseline_path, encoding="utf-8") as f:
+        committed = json.load(f)
+
+    scan_results = scan_codebase(repo_root)
+    if has_tokenize_errors(scan_results):
+        print(
+            "[FAIL] Tokenize errors — fix syntax before checking staleness.",
+            file=sys.stderr,
+        )
+        return 1
+    fresh = build_baseline(scan_results, repo_root)
+
+    # Compare all fields except generated_at
+    committed_cmp = {k: v for k, v in committed.items() if k != "generated_at"}
+    fresh_cmp = {k: v for k, v in fresh.items() if k != "generated_at"}
+
+    if committed_cmp != fresh_cmp:
+        # Find which keys differ
+        diff_keys = [
+            k
+            for k in set(committed_cmp) | set(fresh_cmp)
+            if committed_cmp.get(k) != fresh_cmp.get(k)
+        ]
+        print(
+            f"[FAIL] Baseline is stale or was hand-edited. "
+            f"Differing keys: {', '.join(sorted(diff_keys))}\n"
+            "  Run: python scripts/audit-suppressions.py --update-baseline"
+        )
+        return 1
+
+    print("[PASS] Baseline matches fresh regeneration")
+    return 0
+
+
 def cmd_validate(baseline_path: Path) -> int:
     """Validate baseline format per FR-020."""
     if not baseline_path.exists():
@@ -958,9 +1006,9 @@ def cmd_diff(
     diff = compute_diff(baseline, current)
     delta = diff["delta"]
 
-    # Build scope_policy lookup — v1 baselines have no scope_policy
-    # v1: scopes in by_scope are blocking; scopes NOT in by_scope are advisory (transition)
-    # v2: explicit scope_policy field controls blocking/advisory
+    # Build scope_policy lookup — v2 baselines have explicit scope_policy.
+    # v1 baselines (no scope_policy) treat all by_scope entries as blocking.
+    # Post-transition: a scope present in scan but absent from baseline is a hard error.
     baseline_scope_policy: dict[str, str] = baseline.get("scope_policy", {})
     baseline_scopes: set[str] = set(baseline.get("by_scope", {}).keys())
 
@@ -971,15 +1019,16 @@ def cmd_diff(
         # v2: use explicit scope_policy
         if scope in baseline_scope_policy:
             return baseline_scope_policy[scope]
-        # v1 fallback: scopes in by_scope are blocking, missing scopes are advisory
+        # v1: scopes in by_scope are blocking
         if scope in baseline_scopes:
             return "blocking"
-        # Scope in scan but absent from baseline → advisory during v1->v2 transition
+        # Scope in scan but absent from baseline → hard error (stale baseline)
         print(
-            f"[WARN] Scope '{scope}' not in baseline — "
-            "treating as advisory (v1->v2 transition).",
+            f"[ERROR] Scope '{scope}' not in baseline — "
+            "regenerate with --update-baseline.",
+            file=sys.stderr,
         )
-        return "advisory"
+        return "blocking"
 
     # Print summary
     print(f"Baseline: {diff['baseline_total']} suppressions")
@@ -1233,6 +1282,11 @@ def main() -> int:
         help="Path to baseline file (default: .suppression-baseline.json)",
     )
     parser.add_argument(
+        "--check-staleness",
+        action="store_true",
+        help="Verify committed baseline matches a fresh regeneration (FR-025)",
+    )
+    parser.add_argument(
         "--check-coverage",
         action="store_true",
         help="Verify every tracked .py/.ts file belongs to exactly one scope",
@@ -1277,6 +1331,8 @@ def main() -> int:
             baseline_path,
             allow_pending_approval=args.allow_pending_approval,
         )
+    elif args.check_staleness:
+        return cmd_check_staleness(repo_root, baseline_path)
     elif args.check_coverage:
         return cmd_check_coverage(repo_root)
     elif args.check_justifications:

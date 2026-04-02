@@ -342,34 +342,40 @@ class TestTwoPhaseGating:
 
     def test_blocking_scope_with_increase_fails(self, tmp_path: Path) -> None:
         """T027: blocking scope with suppression increase returns exit code 1."""
-        baseline_path = tmp_path / "baseline.json"
-        subprocess.run(
-            [
-                sys.executable,
-                str(AUDIT_SCRIPT),
-                "--update-baseline",
-                "--baseline",
-                str(baseline_path),
-            ],
-            capture_output=True,
-            text=True,
-            cwd=self.REPO_ROOT,
-        )
-        data = json.loads(baseline_path.read_text(encoding="utf-8"))
-        # Set all scopes to blocking, zero out counts → current scan shows increases
-        data["scope_policy"] = dict.fromkeys(data["by_scope"], "blocking")
-        for key in data["by_scope"]:
-            data["by_scope"][key] = 0
-        data["total"] = 0
-        data["by_file"] = {}
-        data["by_rule"] = {}
-        data["by_type"] = dict.fromkeys(data["by_type"], 0)
-        baseline_path.write_text(json.dumps(data, indent=2), encoding="utf-8")
+        # Create a temp file with a real suppression so the scan finds > 0
+        sentinel = self.REPO_ROOT / "scripts" / "_test_blocking_sentinel.py"
+        sentinel.write_text("x = 1  # noqa: E501\n", encoding="utf-8")
+        try:
+            baseline_path = tmp_path / "baseline.json"
+            subprocess.run(
+                [
+                    sys.executable,
+                    str(AUDIT_SCRIPT),
+                    "--update-baseline",
+                    "--baseline",
+                    str(baseline_path),
+                ],
+                capture_output=True,
+                text=True,
+                cwd=self.REPO_ROOT,
+            )
+            data = json.loads(baseline_path.read_text(encoding="utf-8"))
+            # Set all scopes to blocking, zero out counts → current scan shows increases
+            data["scope_policy"] = dict.fromkeys(data["by_scope"], "blocking")
+            for key in data["by_scope"]:
+                data["by_scope"][key] = 0
+            data["total"] = 0
+            data["by_file"] = {}
+            data["by_rule"] = {}
+            data["by_type"] = dict.fromkeys(data["by_type"], 0)
+            baseline_path.write_text(json.dumps(data, indent=2), encoding="utf-8")
 
-        result = self._run_diff(baseline_path)
-        assert result.returncode == 1, (
-            f"Blocking scopes with increases should fail.\nstdout: {result.stdout}"
-        )
+            result = self._run_diff(baseline_path)
+            assert result.returncode == 1, (
+                f"Blocking scopes with increases should fail.\nstdout: {result.stdout}"
+            )
+        finally:
+            sentinel.unlink(missing_ok=True)
 
     def test_v1_baseline_treated_as_all_blocking(self, tmp_path: Path) -> None:
         """T028: v1 baseline (no scope_policy) = all blocking."""
@@ -405,20 +411,20 @@ class TestTwoPhaseGating:
         baseline_path.write_text(json.dumps(data, indent=2), encoding="utf-8")
 
         result = self._run_diff(baseline_path)
-        # v1 baseline with 3 scopes + scan with 6 scopes:
-        # missing scopes treated as advisory during transition → should pass
-        # OR if all are blocking → should fail for the new scopes
-        # Per plan: missing scopes = advisory during transition
-        # So this should PASS (the new scopes' increases are advisory)
+        # v1 baseline with 3 scopes + scan with 11 scopes:
+        # missing scopes are now blocking (v1→v2 transition fallback removed).
+        # With 0 suppressions in the repo, delta=0 so it passes regardless.
         assert result.returncode == 0, (
-            f"v1 baseline with missing scopes should treat them as advisory.\n"
+            f"v1 baseline with 0 suppressions should pass.\n"
             f"stdout: {result.stdout}\nstderr: {result.stderr}"
         )
 
-    def test_missing_scope_treated_as_advisory_during_transition(
-        self, tmp_path: Path
-    ) -> None:
-        """T029: scope in scan but absent from baseline → advisory + warning."""
+    def test_missing_scope_is_blocking_after_transition(self, tmp_path: Path) -> None:
+        """T091: scope in scan but absent from baseline → blocking (hard error).
+
+        After v1→v2 transition fallback removal, missing scopes are NOT advisory.
+        With 0 suppressions the delta is 0 (passes), but the error message is logged.
+        """
         baseline_path = tmp_path / "baseline.json"
         subprocess.run(
             [
@@ -433,22 +439,25 @@ class TestTwoPhaseGating:
             cwd=self.REPO_ROOT,
         )
         data = json.loads(baseline_path.read_text(encoding="utf-8"))
-        # Remove python-tests scope to simulate partial baseline
+        # Remove python-tests scope to simulate stale baseline
         data["by_scope"].pop("python-tests", 0)
-        # Also remove files belonging to that scope and recalculate total
+        if "scope_policy" in data:
+            data["scope_policy"].pop("python-tests", None)
         data["by_file"] = {
             k: v for k, v in data["by_file"].items() if not k.startswith("tests/")
         }
         data["total"] = sum(data["by_file"].values())
-        data.pop("scope_policy", None)
-        data["version"] = 1
         baseline_path.write_text(json.dumps(data, indent=2), encoding="utf-8")
 
         result = self._run_diff(baseline_path)
-        # Missing scope should be treated as advisory
+        # 0 suppressions → delta=0 → passes, but error message is logged
         assert result.returncode == 0, (
-            f"Missing scope should be advisory during transition.\n"
+            f"With 0 suppressions, missing scope still passes (delta=0).\n"
             f"stdout: {result.stdout}\nstderr: {result.stderr}"
+        )
+        # Verify the error message is emitted (not advisory warning)
+        assert "not in baseline" in result.stderr, (
+            f"Missing scope should log an error to stderr.\nstderr: {result.stderr}"
         )
 
 
@@ -1107,3 +1116,76 @@ class TestScanCodebaseScopeOverlap:
             f"Got keys: {list(results.keys())}"
         )
         assert results[key][0]["type"] == "test-only"
+
+
+class TestBaselineStaleness:
+    """Tests for --check-staleness (FR-025)."""
+
+    REPO_ROOT = Path(__file__).parent.parent.parent
+
+    def test_fresh_baseline_passes(self, tmp_path: Path) -> None:
+        """A freshly generated baseline passes staleness check."""
+        baseline_path = tmp_path / "baseline.json"
+        subprocess.run(
+            [
+                sys.executable,
+                str(AUDIT_SCRIPT),
+                "--update-baseline",
+                "--baseline",
+                str(baseline_path),
+            ],
+            capture_output=True,
+            text=True,
+            cwd=self.REPO_ROOT,
+        )
+        result = subprocess.run(
+            [
+                sys.executable,
+                str(AUDIT_SCRIPT),
+                "--check-staleness",
+                "--baseline",
+                str(baseline_path),
+            ],
+            capture_output=True,
+            text=True,
+            cwd=self.REPO_ROOT,
+        )
+        assert result.returncode == 0, f"Fresh baseline should pass.\n{result.stdout}"
+
+    def test_hand_edited_baseline_fails(self, tmp_path: Path) -> None:
+        """A baseline with a modified by_scope value fails staleness check."""
+        baseline_path = tmp_path / "baseline.json"
+        subprocess.run(
+            [
+                sys.executable,
+                str(AUDIT_SCRIPT),
+                "--update-baseline",
+                "--baseline",
+                str(baseline_path),
+            ],
+            capture_output=True,
+            text=True,
+            cwd=self.REPO_ROOT,
+        )
+        data = json.loads(baseline_path.read_text(encoding="utf-8"))
+        # Tamper: inflate one scope count
+        first_scope = next(iter(data["by_scope"]))
+        data["by_scope"][first_scope] = 999
+        baseline_path.write_text(json.dumps(data, indent=2), encoding="utf-8")
+
+        result = subprocess.run(
+            [
+                sys.executable,
+                str(AUDIT_SCRIPT),
+                "--check-staleness",
+                "--baseline",
+                str(baseline_path),
+            ],
+            capture_output=True,
+            text=True,
+            cwd=self.REPO_ROOT,
+        )
+        assert result.returncode == 1, (
+            f"Tampered baseline should fail.\n{result.stdout}"
+        )
+        assert "stale or was hand-edited" in result.stdout

@@ -1,41 +1,41 @@
 {
   "rule": "S311",
-  "generated_at": "2026-04-02T15:46:09Z",
+  "generated_at": "2026-04-02T16:22:14Z",
   "total_usages": 7,
   "usages": [
     {
       "file": "scripts/generate-demo-data.py",
-      "line": 189,
+      "line": 193,
       "code": "rng = random.Random(seed)",
       "purpose": "deterministic-seeded"
     },
     {
       "file": "scripts/generate-synthetic-dataset.py",
-      "line": 38,
+      "line": 42,
       "code": "rng = random.Random(seed)",
       "purpose": "deterministic-seeded"
     },
     {
       "file": "scripts/generate-synthetic-dataset.py",
-      "line": 120,
+      "line": 124,
       "code": "rng = random.Random(seed)",
       "purpose": "deterministic-seeded"
     },
     {
       "file": "scripts/generate-synthetic-dataset.py",
-      "line": 349,
+      "line": 353,
       "code": "rng = random.Random(seed + 1000)",
       "purpose": "deterministic-seeded"
     },
     {
       "file": "scripts/generate-synthetic-dataset.py",
-      "line": 433,
+      "line": 437,
       "code": "rng = random.Random(seed + 2000)",
       "purpose": "deterministic-seeded"
     },
     {
       "file": "scripts/generate-synthetic-dataset.py",
-      "line": 516,
+      "line": 520,
       "code": "random.seed(seed)",
       "purpose": "deterministic-seeded"
     },

@@ -1,12 +1,12 @@
 {
   "rule": "S603",
-  "generated_at": "2026-04-02T15:46:09Z",
-  "total_call_sites": 76,
+  "generated_at": "2026-04-02T16:22:13Z",
+  "total_call_sites": 80,
   "unsafe_count": 13,
   "call_sites": [
     {
       "file": "scripts/audit-suppressions.py",
-      "line": 1154,
+      "line": 1202,
       "code": "result = subprocess.run(",
       "shell_true": false,
       "literal_list": true,
@@ -126,7 +126,7 @@
     },
     {
       "file": "scripts/run_pr_preflight.py",
-      "line": 393,
+      "line": 398,
       "code": "probe = subprocess.run(",
       "shell_true": false,
       "literal_list": true,
@@ -134,7 +134,7 @@
     },
     {
       "file": "scripts/run_pr_preflight.py",
-      "line": 416,
+      "line": 421,
       "code": "completed = subprocess.run(",
       "shell_true": false,
       "literal_list": false,
@@ -142,7 +142,7 @@
     },
     {
       "file": "scripts/run_pr_preflight.py",
-      "line": 475,
+      "line": 480,
       "code": "probe = subprocess.run(",
       "shell_true": false,
       "literal_list": true,
@@ -150,7 +150,7 @@
     },
     {
       "file": "scripts/run_pr_preflight.py",
-      "line": 517,
+      "line": 522,
       "code": "probe = subprocess.run(",
       "shell_true": false,
       "literal_list": true,
@@ -158,7 +158,7 @@
     },
     {
       "file": "scripts/run_repo_hook.py",
-      "line": 70,
+      "line": 71,
       "code": "result = subprocess.run(",
       "shell_true": false,
       "literal_list": false,
@@ -166,7 +166,7 @@
     },
     {
       "file": "scripts/run_repo_hook.py",
-      "line": 134,
+      "line": 135,
       "code": "result = subprocess.run(",
       "shell_true": false,
       "literal_list": false,
@@ -174,7 +174,7 @@
     },
     {
       "file": "scripts/run_repo_hook.py",
-      "line": 190,
+      "line": 191,
       "code": "result = subprocess.run(",
       "shell_true": false,
       "literal_list": true,
@@ -182,7 +182,7 @@
     },
     {
       "file": "scripts/run_repo_hook.py",
-      "line": 203,
+      "line": 204,
       "code": "rerun = subprocess.run(",
       "shell_true": false,
       "literal_list": true,
@@ -190,7 +190,7 @@
     },
     {
       "file": "scripts/run_repo_hook.py",
-      "line": 815,
+      "line": 817,
       "code": "result = subprocess.run(",
       "shell_true": false,
       "literal_list": true,
@@ -382,7 +382,7 @@
     },
     {
       "file": "tests/unit/test_audit_suppressions.py",
-      "line": 346,
+      "line": 350,
       "code": "subprocess.run(",
       "shell_true": false,
       "literal_list": true,
@@ -390,7 +390,7 @@
     },
     {
       "file": "tests/unit/test_audit_suppressions.py",
-      "line": 377,
+      "line": 383,
       "code": "subprocess.run(",
       "shell_true": false,
       "literal_list": true,
@@ -398,7 +398,7 @@
     },
     {
       "file": "tests/unit/test_audit_suppressions.py",
-      "line": 423,
+      "line": 431,
       "code": "subprocess.run(",
       "shell_true": false,
       "literal_list": true,
@@ -406,7 +406,7 @@
     },
     {
       "file": "tests/unit/test_audit_suppressions.py",
-      "line": 469,
+      "line": 480,
       "code": "subprocess.run(",
       "shell_true": false,
       "literal_list": true,
@@ -414,15 +414,7 @@
     },
     {
       "file": "tests/unit/test_audit_suppressions.py",
-      "line": 489,
-      "code": "result = subprocess.run(",
-      "shell_true": false,
-      "literal_list": true,
-      "safety": "safe-literal-list"
-    },
-    {
-      "file": "tests/unit/test_audit_suppressions.py",
-      "line": 528,
+      "line": 500,
       "code": "result = subprocess.run(",
       "shell_true": false,
       "literal_list": true,
@@ -438,7 +430,7 @@
     },
     {
       "file": "tests/unit/test_audit_suppressions.py",
-      "line": 559,
+      "line": 550,
       "code": "result = subprocess.run(",
       "shell_true": false,
       "literal_list": true,
@@ -446,7 +438,7 @@
     },
     {
       "file": "tests/unit/test_audit_suppressions.py",
-      "line": 573,
+      "line": 570,
       "code": "result = subprocess.run(",
       "shell_true": false,
       "literal_list": true,
@@ -454,7 +446,7 @@
     },
     {
       "file": "tests/unit/test_audit_suppressions.py",
-      "line": 622,
+      "line": 584,
       "code": "result = subprocess.run(",
       "shell_true": false,
       "literal_list": true,
@@ -462,7 +454,15 @@
     },
     {
       "file": "tests/unit/test_audit_suppressions.py",
-      "line": 658,
+      "line": 633,
+      "code": "result = subprocess.run(",
+      "shell_true": false,
+      "literal_list": true,
+      "safety": "safe-literal-list"
+    },
+    {
+      "file": "tests/unit/test_audit_suppressions.py",
+      "line": 669,
       "code": "gen_result = subprocess.run(",
       "shell_true": false,
       "literal_list": true,
@@ -470,7 +470,7 @@
     },
     {
       "file": "tests/unit/test_audit_suppressions.py",
-      "line": 686,
+      "line": 697,
       "code": "result = subprocess.run(",
       "shell_true": false,
       "literal_list": true,
@@ -478,7 +478,7 @@
     },
     {
       "file": "tests/unit/test_audit_suppressions.py",
-      "line": 710,
+      "line": 721,
       "code": "result = subprocess.run(",
       "shell_true": false,
       "literal_list": true,
@@ -486,7 +486,7 @@
     },
     {
       "file": "tests/unit/test_audit_suppressions.py",
-      "line": 997,
+      "line": 1008,
       "code": "result = subprocess.run(",
       "shell_true": false,
       "literal_list": true,
@@ -494,7 +494,39 @@
     },
     {
       "file": "tests/unit/test_audit_suppressions.py",
-      "line": 1034,
+      "line": 1045,
+      "code": "result = subprocess.run(",
+      "shell_true": false,
+      "literal_list": true,
+      "safety": "safe-literal-list"
+    },
+    {
+      "file": "tests/unit/test_audit_suppressions.py",
+      "line": 1131,
+      "code": "subprocess.run(",
+      "shell_true": false,
+      "literal_list": true,
+      "safety": "safe-literal-list"
+    },
+    {
+      "file": "tests/unit/test_audit_suppressions.py",
+      "line": 1143,
+      "code": "result = subprocess.run(",
+      "shell_true": false,
+      "literal_list": true,
+      "safety": "safe-literal-list"
+    },
+    {
+      "file": "tests/unit/test_audit_suppressions.py",
+      "line": 1160,
+      "code": "subprocess.run(",
+      "shell_true": false,
+      "literal_list": true,
+      "safety": "safe-literal-list"
+    },
+    {
+      "file": "tests/unit/test_audit_suppressions.py",
+      "line": 1178,
       "code": "result = subprocess.run(",
       "shell_true": false,
       "literal_list": true,

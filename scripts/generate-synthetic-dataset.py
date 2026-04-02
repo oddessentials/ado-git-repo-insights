@@ -7,28 +7,32 @@ Contract-validated output matching AggregateGenerator schema exactly.
 from __future__ import annotations
 
 import argparse
+import importlib.util
 import json
 import random
-import sys
 from dataclasses import asdict
 from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any
 
-# Add src to path before local imports
-_src_path = Path(__file__).parent.parent / "src"
-if str(_src_path) not in sys.path:
-    sys.path.insert(0, str(_src_path))
-
-from demo_generation_common import largest_remainder_allocate  # noqa: E402
-
-from ado_git_repo_insights.transform.aggregators import (  # noqa: E402  # type: ignore[import-not-found]
+from ado_git_repo_insights.transform.aggregators import (
     AggregateIndex,
     DatasetManifest,
     Dimensions,
     WeeklyRollup,
     YearlyDistribution,
 )
+
+# Load demo_generation_common from scripts/ via importlib (avoids sys.path manipulation)
+_common_spec = importlib.util.spec_from_file_location(
+    "demo_generation_common",
+    Path(__file__).resolve().parent / "demo_generation_common.py",
+)
+assert _common_spec is not None
+assert _common_spec.loader is not None
+_common_mod = importlib.util.module_from_spec(_common_spec)
+_common_spec.loader.exec_module(_common_mod)
+largest_remainder_allocate = _common_mod.largest_remainder_allocate
 
 
 def generate_dimensions(

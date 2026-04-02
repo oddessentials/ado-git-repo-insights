@@ -25,6 +25,7 @@ _spec.loader.exec_module(_mod)
 
 check_subprocess_safety = _mod.check_subprocess_safety
 check_random_safety = _mod.check_random_safety
+check_syspath_safety = _mod.check_syspath_safety
 
 
 class TestSubprocessGuardrail:
@@ -191,6 +192,41 @@ class TestRandomGuardrail:
         violations = check_random_safety("test.py", code)
         # rng.random() does NOT match "random.random()" — it's instance-level
         assert not any("module-level" in v.get("pattern", "") for v in violations)
+
+
+class TestSyspathGuardrail:
+    """Tests for sys.path.insert/append detection (importlib enforcement)."""
+
+    def test_syspath_insert_detected(self) -> None:
+        code = 'import sys\nsys.path.insert(0, "/some/path")\n'
+        violations = check_syspath_safety("scripts/foo.py", code)
+        assert len(violations) == 1
+        assert violations[0]["pattern"] == "sys.path manipulation"
+
+    def test_syspath_append_detected(self) -> None:
+        code = 'import sys\nsys.path.append("/some/path")\n'
+        violations = check_syspath_safety("scripts/foo.py", code)
+        assert len(violations) == 1
+
+    def test_conftest_exempt(self) -> None:
+        code = 'import sys\nsys.path.insert(0, "/some/path")\n'
+        violations = check_syspath_safety("tests/conftest.py", code)
+        assert len(violations) == 0
+
+    def test_allowlisted_file_exempt(self) -> None:
+        code = 'import sys\nsys.path.insert(0, "/some/path")\n'
+        violations = check_syspath_safety("scripts/manage_generated_artifacts.py", code)
+        assert len(violations) == 0
+
+    def test_clean_file_passes(self) -> None:
+        code = "import importlib.util\nspec = importlib.util.spec_from_file_location('m', 'f.py')\n"
+        violations = check_syspath_safety("scripts/foo.py", code)
+        assert len(violations) == 0
+
+    def test_docstring_not_flagged(self) -> None:
+        code = '"""\nsys.path.insert is bad practice.\n"""\nprint("ok")\n'
+        violations = check_syspath_safety("scripts/foo.py", code)
+        assert len(violations) == 0
 
 
 class TestArtifactVerification:

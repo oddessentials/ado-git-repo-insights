@@ -14,12 +14,12 @@ import socket
 import socketserver
 import threading
 import time
-import urllib.request
 from collections.abc import Generator
 from pathlib import Path
 from typing import Any
 
 import pytest
+import requests
 
 # Paths relative to repository root
 REPO_ROOT = Path(__file__).parent.parent.parent
@@ -64,12 +64,9 @@ def serve_directory(directory: Path, port: int) -> Generator[str, None, None]:
 def fetch_url(url: str, timeout: float = 5.0) -> tuple[int, bytes]:
     """Fetch a URL and return (status_code, content)."""
     try:
-        # noqa: S310 - URL is from test parameters, not user input
-        with urllib.request.urlopen(url, timeout=timeout) as response:  # noqa: S310
-            return response.status, response.read()
-    except urllib.error.HTTPError as e:
-        return e.code, b""
-    except Exception:
+        response = requests.get(url, timeout=timeout)
+        return response.status_code, response.content
+    except requests.RequestException:
         return 0, b""
 
 

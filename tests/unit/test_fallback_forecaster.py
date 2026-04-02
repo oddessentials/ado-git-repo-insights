@@ -19,6 +19,7 @@ from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 import numpy as np
+import numpy.typing as npt
 import pandas as pd
 import pytest
 
@@ -1085,7 +1086,9 @@ class TestReasonCodeDeduction:
         """When polyfit returns non-finite coeffs, falls back to flat forecast."""
         df = self._make_df()
 
-        def mock_polyfit(x, y, deg):  # noqa: ANN001
+        def mock_polyfit(
+            x: npt.ArrayLike, y: npt.ArrayLike, deg: int
+        ) -> npt.NDArray[np.float64]:
             return np.array([np.inf, np.nan])
 
         with (

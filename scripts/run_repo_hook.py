@@ -45,6 +45,7 @@ _guard_mod = _importlib_util.module_from_spec(_guard_spec)
 _guard_spec.loader.exec_module(_guard_mod)
 _check_subprocess_safety = _guard_mod.check_subprocess_safety
 _check_random_safety = _guard_mod.check_random_safety
+_check_syspath_safety = _guard_mod.check_syspath_safety
 
 
 def safe_print(text: str = "") -> None:
@@ -609,9 +610,9 @@ def run_scope_coverage_guard() -> None:
 
 
 def run_rule_disable_invariants_guard() -> None:
-    """Check staged Python files for unsafe subprocess/random patterns (FR-014).
+    """Check staged Python files for unsafe subprocess/random/syspath patterns (FR-014).
 
-    Compensating guardrail for globally disabled S603/S607/S311.
+    Compensating guardrail for globally disabled S603/S607/S311 and importlib enforcement.
     Uses staged_file_content() for pre-commit compatibility (R4).
     """
     # Load exclusions and allowlist from the guardrail module
@@ -636,6 +637,7 @@ def run_rule_disable_invariants_guard() -> None:
             continue
         raw_violations.extend(_check_subprocess_safety(path, content))
         raw_violations.extend(_check_random_safety(path, content))
+        raw_violations.extend(_check_syspath_safety(path, content))
 
     # Filter using the same _match_allowlist function as the CLI path
     # Only subprocess-related violations are filtered, not random ones
