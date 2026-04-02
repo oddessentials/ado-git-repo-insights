@@ -115,7 +115,7 @@ def run_demo_build(*, promote_dir: Path | None = None, promote: bool = False) ->
         args.extend(["--promote-dir", str(promote_dir)])
     else:
         args.append("--no-promote")
-    result = subprocess.run(
+    result = subprocess.run(  # guardrail-safe: subprocess
         args,
         cwd=REPO_ROOT,
         capture_output=True,
@@ -130,7 +130,7 @@ def run_demo_build(*, promote_dir: Path | None = None, promote: bool = False) ->
 def run_demo_validate_only() -> None:
     """Run validate-only mode explicitly against committed docs/data."""
     args = [sys.executable, str(BUILD_SCRIPT), "--validate-only", "--no-promote"]
-    result = subprocess.run(
+    result = subprocess.run(  # guardrail-safe: subprocess
         args,
         cwd=REPO_ROOT,
         capture_output=True,

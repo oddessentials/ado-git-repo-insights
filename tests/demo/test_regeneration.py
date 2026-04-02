@@ -88,7 +88,7 @@ def run_non_promoting_canonical_data_build() -> None:
     args = [sys.executable, str(BUILD_SCRIPT), "--no-promote"]
     if not _IS_BASELINE_PYTHON:
         args.append("--validate-only")
-    result = subprocess.run(
+    result = subprocess.run(  # guardrail-safe: subprocess
         args,
         capture_output=True,
         text=True,

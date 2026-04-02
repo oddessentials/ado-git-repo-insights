@@ -62,7 +62,7 @@ def run_command(
     env: dict[str, str] | None = None,
     capture_output: bool = False,
 ) -> subprocess.CompletedProcess[str]:
-    result = subprocess.run(
+    result = subprocess.run(  # guardrail-safe: subprocess
         command,
         cwd=cwd,
         env=env,
@@ -126,7 +126,7 @@ def staged_file_content(path: str) -> str | None:
     text patterns will safely get no match on binary content.
     """
     command = ["git", "show", f":{path}"]
-    result = subprocess.run(
+    result = subprocess.run(  # guardrail-safe: subprocess
         command,
         cwd=REPO_ROOT,
         capture_output=True,

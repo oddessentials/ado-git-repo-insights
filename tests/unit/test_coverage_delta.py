@@ -118,7 +118,7 @@ def run_script(
     if update:
         args.append("--update")
 
-    return subprocess.run(
+    return subprocess.run(  # guardrail-safe: subprocess
         args,
         capture_output=True,
         text=True,

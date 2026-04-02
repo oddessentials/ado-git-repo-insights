@@ -1,7 +1,7 @@
 {
   "rule": "S603",
-  "generated_at": "2026-04-02T12:41:55Z",
-  "total_call_sites": 82,
+  "generated_at": "2026-04-02T12:51:58Z",
+  "total_call_sites": 90,
   "unsafe_count": 1,
   "call_sites": [
     {
@@ -21,7 +21,7 @@
     {
       "file": "scripts/build-demo-dataset.py",
       "line": 106,
-      "code": "result = subprocess.run(",
+      "code": "result = subprocess.run(  # guardrail-safe: subprocess",
       "shell_true": false,
       "safety": "safe-hardcoded"
     },
@@ -48,15 +48,29 @@
     },
     {
       "file": "scripts/check_rule_disable_invariants.py",
-      "line": 58,
+      "line": 60,
       "code": "result = subprocess.run(",
+      "shell_true": false,
+      "safety": "safe-hardcoded"
+    },
+    {
+      "file": "scripts/check_rule_disable_invariants.py",
+      "line": 192,
+      "code": "# Safe: subprocess.run([\"git\", ...]) or multi-line with [ on next line",
+      "shell_true": false,
+      "safety": "safe-hardcoded"
+    },
+    {
+      "file": "scripts/check_rule_disable_invariants.py",
+      "line": 194,
+      "code": "# Unsafe: subprocess.run(cmd) or subprocess.run(get_args())",
       "shell_true": false,
       "safety": "safe-hardcoded"
     },
     {
       "file": "scripts/check_threshold_changes.py",
       "line": 40,
-      "code": "result = subprocess.run(",
+      "code": "result = subprocess.run(  # guardrail-safe: subprocess",
       "shell_true": false,
       "safety": "safe-hardcoded"
     },
@@ -77,7 +91,7 @@
     {
       "file": "scripts/manage_generated_artifacts.py",
       "line": 108,
-      "code": "result = subprocess.run(",
+      "code": "result = subprocess.run(  # guardrail-safe: subprocess",
       "shell_true": false,
       "safety": "safe-hardcoded"
     },
@@ -91,7 +105,7 @@
     {
       "file": "scripts/run_ci_parity.py",
       "line": 87,
-      "code": "subprocess.run(",
+      "code": "subprocess.run(  # guardrail-safe: subprocess",
       "shell_true": false,
       "safety": "safe-hardcoded"
     },
@@ -126,7 +140,7 @@
     {
       "file": "scripts/run_pr_preflight.py",
       "line": 412,
-      "code": "completed = subprocess.run(",
+      "code": "completed = subprocess.run(  # guardrail-safe: subprocess",
       "shell_true": false,
       "safety": "safe-hardcoded"
     },
@@ -147,14 +161,14 @@
     {
       "file": "scripts/run_repo_hook.py",
       "line": 65,
-      "code": "result = subprocess.run(",
+      "code": "result = subprocess.run(  # guardrail-safe: subprocess",
       "shell_true": false,
       "safety": "safe-hardcoded"
     },
     {
       "file": "scripts/run_repo_hook.py",
       "line": 129,
-      "code": "result = subprocess.run(",
+      "code": "result = subprocess.run(  # guardrail-safe: subprocess",
       "shell_true": false,
       "safety": "safe-hardcoded"
     },
@@ -182,14 +196,14 @@
     {
       "file": "tests/demo/test_demo_parity_pipeline.py",
       "line": 118,
-      "code": "result = subprocess.run(",
+      "code": "result = subprocess.run(  # guardrail-safe: subprocess",
       "shell_true": false,
       "safety": "safe-hardcoded"
     },
     {
       "file": "tests/demo/test_demo_parity_pipeline.py",
       "line": 133,
-      "code": "result = subprocess.run(",
+      "code": "result = subprocess.run(  # guardrail-safe: subprocess",
       "shell_true": false,
       "safety": "safe-hardcoded"
     },
@@ -203,7 +217,7 @@
     {
       "file": "tests/demo/test_regeneration.py",
       "line": 91,
-      "code": "result = subprocess.run(",
+      "code": "result = subprocess.run(  # guardrail-safe: subprocess",
       "shell_true": false,
       "safety": "safe-hardcoded"
     },
@@ -448,7 +462,7 @@
     {
       "file": "tests/unit/test_coverage_delta.py",
       "line": 121,
-      "code": "return subprocess.run(",
+      "code": "return subprocess.run(  # guardrail-safe: subprocess",
       "shell_true": false,
       "safety": "safe-hardcoded"
     },
@@ -531,14 +545,56 @@
     },
     {
       "file": "tests/unit/test_rule_disable_invariants.py",
-      "line": 120,
+      "line": 64,
+      "code": "\"\"\"P1: subprocess.run(cmd) with variable arg is caught.\"\"\"",
+      "shell_true": false,
+      "safety": "safe-hardcoded"
+    },
+    {
+      "file": "tests/unit/test_rule_disable_invariants.py",
+      "line": 65,
+      "code": "code = \"import subprocess\\ncmd = get_command()\\nresult = subprocess.run(cmd)\\n\"",
+      "shell_true": false,
+      "safety": "safe-hardcoded"
+    },
+    {
+      "file": "tests/unit/test_rule_disable_invariants.py",
+      "line": 71,
+      "code": "\"\"\"P1: subprocess.run(get_args()) with function call arg is caught.\"\"\"",
+      "shell_true": false,
+      "safety": "safe-hardcoded"
+    },
+    {
+      "file": "tests/unit/test_rule_disable_invariants.py",
+      "line": 72,
+      "code": "code = \"import subprocess\\nresult = subprocess.run(build_cmd())\\n\"",
+      "shell_true": false,
+      "safety": "safe-hardcoded"
+    },
+    {
+      "file": "tests/unit/test_rule_disable_invariants.py",
+      "line": 77,
+      "code": "\"\"\"P1: subprocess.run(f'...') with f-string arg is caught.\"\"\"",
+      "shell_true": false,
+      "safety": "safe-hardcoded"
+    },
+    {
+      "file": "tests/unit/test_rule_disable_invariants.py",
+      "line": 78,
+      "code": "code = 'import subprocess\\nresult = subprocess.run(f\"{binary} --flag\")\\n'",
+      "shell_true": false,
+      "safety": "safe-hardcoded"
+    },
+    {
+      "file": "tests/unit/test_rule_disable_invariants.py",
+      "line": 165,
       "code": "result = subprocess.run(",
       "shell_true": false,
       "safety": "safe-hardcoded"
     },
     {
       "file": "tests/unit/test_rule_disable_invariants.py",
-      "line": 156,
+      "line": 201,
       "code": "code = 'import subprocess\\nresult = subprocess.run([\"git\", \"status\"])\\n'",
       "shell_true": false,
       "safety": "safe-hardcoded"
@@ -546,27 +602,27 @@
     {
       "file": "tests/unit/test_synthetic_dataset.py",
       "line": 90,
-      "code": "result = subprocess.run(args, capture_output=True, text=True, check=False)",
+      "code": "result = subprocess.run(  # guardrail-safe: subprocess",
       "shell_true": false,
       "safety": "safe-hardcoded"
     },
     {
       "file": "tests/unit/test_synthetic_dataset.py",
-      "line": 113,
-      "code": "result = subprocess.run(args, capture_output=True, text=True, check=False)",
+      "line": 115,
+      "code": "result = subprocess.run(  # guardrail-safe: subprocess",
       "shell_true": false,
       "safety": "safe-hardcoded"
     },
     {
       "file": "tests/unit/test_synthetic_dataset.py",
-      "line": 887,
+      "line": 891,
       "code": "result1 = subprocess.run(",
       "shell_true": false,
       "safety": "safe-hardcoded"
     },
     {
       "file": "tests/unit/test_synthetic_dataset.py",
-      "line": 900,
+      "line": 904,
       "code": "result2 = subprocess.run(",
       "shell_true": false,
       "safety": "safe-hardcoded"

@@ -60,6 +60,25 @@ class TestSubprocessGuardrail:
         violations = check_subprocess_safety("test.py", code)
         assert len(violations) == 0
 
+    def test_variable_command_detected(self) -> None:
+        """P1: subprocess.run(cmd) with variable arg is caught."""
+        code = "import subprocess\ncmd = get_command()\nresult = subprocess.run(cmd)\n"
+        violations = check_subprocess_safety("test.py", code)
+        assert len(violations) >= 1
+        assert any("non-literal" in v["pattern"] for v in violations)
+
+    def test_function_call_command_detected(self) -> None:
+        """P1: subprocess.run(get_args()) with function call arg is caught."""
+        code = "import subprocess\nresult = subprocess.run(build_cmd())\n"
+        violations = check_subprocess_safety("test.py", code)
+        assert len(violations) >= 1
+
+    def test_fstring_command_detected(self) -> None:
+        """P1: subprocess.run(f'...') with f-string arg is caught."""
+        code = 'import subprocess\nresult = subprocess.run(f"{binary} --flag")\n'
+        violations = check_subprocess_safety("test.py", code)
+        assert len(violations) >= 1
+
     def test_string_literal_not_flagged(self) -> None:
         """shell=True inside a string literal is not flagged."""
         code = 'msg = "use shell=True for shell mode"\n'
@@ -108,6 +127,32 @@ class TestRandomGuardrail:
         code = "import secrets\ntoken = secrets.token_hex(32)\n"
         violations = check_random_safety("test.py", code)
         assert len(violations) == 0
+
+    def test_random_random_detected(self) -> None:
+        """P2: random.random() module-level call is caught."""
+        code = "import random\nx = random.random()\n"
+        violations = check_random_safety("test.py", code)
+        assert len(violations) >= 1
+        assert any("module-level" in v["pattern"] for v in violations)
+
+    def test_random_randint_detected(self) -> None:
+        """P2: random.randint() module-level call is caught."""
+        code = "import random\nx = random.randint(0, 100)\n"
+        violations = check_random_safety("test.py", code)
+        assert len(violations) >= 1
+
+    def test_random_choice_detected(self) -> None:
+        """P2: random.choice() module-level call is caught."""
+        code = "import random\nx = random.choice([1, 2, 3])\n"
+        violations = check_random_safety("test.py", code)
+        assert len(violations) >= 1
+
+    def test_instance_method_not_flagged(self) -> None:
+        """Calling method on a seeded instance (rng.random()) is safe."""
+        code = "import random\nrng = random.Random(42)\nx = rng.random()\n"
+        violations = check_random_safety("test.py", code)
+        # rng.random() does NOT match "random.random()" — it's instance-level
+        assert not any("module-level" in v.get("pattern", "") for v in violations)
 
 
 class TestArtifactVerification:

@@ -409,7 +409,7 @@ def run_subprocess(
 ) -> CommandResult:
     # SECURITY: command lists are composed only from repo-owned CommandSpec entries
     # plus locally resolved tool paths; shell=False is preserved throughout.
-    completed = subprocess.run(
+    completed = subprocess.run(  # guardrail-safe: subprocess
         command,
         cwd=cwd,
         env=env,

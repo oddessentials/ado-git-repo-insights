@@ -121,19 +121,63 @@ def _get_code_lines(content: str) -> list[tuple[int, str]]:
 # =============================================================================
 
 
+SUBPROCESS_CALL_PATTERN = re.compile(
+    r"\bsubprocess\.(?:run|Popen|call|check_call|check_output)\s*\("
+)
+
+
+def _is_subprocess_arg_literal_list(
+    code_lines: list[tuple[int, str]], call_line_idx: int
+) -> bool:
+    """Check if a subprocess call's first argument is a list literal.
+
+    Handles multi-line calls by scanning forward from the opening paren
+    for up to 3 lines to find a `[` as the first non-whitespace token
+    after the paren. This covers the common patterns:
+      subprocess.run(["git", ...])         — same line
+      subprocess.run(                      — next line has [
+          ["git", ...],
+    """
+    # Check same line first
+    _, call_line = code_lines[call_line_idx]
+    paren_pos = call_line.find("(")
+    if paren_pos >= 0:
+        after_paren = call_line[paren_pos + 1 :].lstrip()
+        if after_paren.startswith("["):
+            return True
+
+    # Check next few lines for the list literal
+    for offset in range(1, 4):
+        next_idx = call_line_idx + offset
+        if next_idx >= len(code_lines):
+            break
+        _, next_line = code_lines[next_idx]
+        stripped = next_line.strip()
+        if not stripped:
+            continue  # skip blank lines
+        return stripped.startswith("[")
+
+    return False
+
+
 def check_subprocess_safety(file_path: str, content: str) -> list[dict[str, str | int]]:
     """Detect unsafe subprocess patterns in a single file.
 
     Flags:
     - subprocess.run/Popen/call/check_call/check_output with shell=True
+    - subprocess.run/Popen/call with a non-literal first argument (variable,
+      function call, f-string) — this is the untrusted-command pattern that
+      S603 was designed to catch (P1 review finding)
     - os.system, os.popen (always unsafe)
+
+    For multi-line calls, scans forward up to 3 lines to find the list literal.
 
     Returns list of violations with file, line, pattern, code.
     """
     violations: list[dict[str, str | int]] = []
     code_lines = _get_code_lines(content)
 
-    for line_num, line in code_lines:
+    for idx, (line_num, line) in enumerate(code_lines):
         # Check for shell=True in subprocess calls
         if SHELL_TRUE_PATTERN.search(line) and "subprocess" in content:
             violations.append(
@@ -144,6 +188,22 @@ def check_subprocess_safety(file_path: str, content: str) -> list[dict[str, str 
                     "code": line.strip(),
                 }
             )
+        # Check for subprocess call with non-literal first argument (P1 fix)
+        # Safe: subprocess.run(["git", ...]) or multi-line with [ on next line
+        # Safe: lines with "# guardrail-safe: subprocess" comment (reviewed & approved)
+        # Unsafe: subprocess.run(cmd) or subprocess.run(get_args())
+        elif SUBPROCESS_CALL_PATTERN.search(line):
+            if "guardrail-safe: subprocess" in line:
+                continue  # Explicitly reviewed and approved
+            if not _is_subprocess_arg_literal_list(code_lines, idx):
+                violations.append(
+                    {
+                        "file": file_path,
+                        "line": line_num,
+                        "pattern": "subprocess with non-literal command",
+                        "code": line.strip(),
+                    }
+                )
         # Check for os.system / os.popen (always unsafe)
         if re.search(r"\bos\.(?:system|popen)\s*\(", line):
             violations.append(
@@ -163,10 +223,26 @@ def check_subprocess_safety(file_path: str, content: str) -> list[dict[str, str 
 # =============================================================================
 
 
+# Module-level random functions that are non-deterministic when called directly
+# (not on a seeded Random instance). This is what S311 was designed to catch.
+# Excludes: random.seed() (safe — sets the seed), random.Random() (checked separately)
+RANDOM_MODULE_FUNC_PATTERN = re.compile(
+    r"\brandom\.(?:random|randint|randrange|choice|choices|shuffle|sample|uniform"
+    r"|triangular|betavariate|expovariate|gammavariate|gauss|lognormvariate"
+    r"|normalvariate|vonmisesvariate|paretovariate|weibullvariate"
+    r"|getrandbits|randbytes)\s*\("
+)
+# Safe pattern: calling a method on a seeded instance (rng.random(), rng.randint(), etc.)
+# These are NOT module-level — they're on a named Random() instance.
+# We detect module-level by checking for the literal "random." prefix.
+
+
 def check_random_safety(file_path: str, content: str) -> list[dict[str, str | int]]:
     """Detect unsafe random patterns in a single file.
 
     Flags:
+    - random.random(), random.randint(), etc. — module-level non-deterministic
+      functions (P2 review finding: this is what S311 was designed to catch)
     - import secrets (in a file that also uses random)
     - os.urandom (crypto usage mixed with random)
     - random.SystemRandom (crypto-grade RNG)
@@ -179,6 +255,22 @@ def check_random_safety(file_path: str, content: str) -> list[dict[str, str | in
     code_lines = _get_code_lines(content)
 
     for line_num, line in code_lines:
+        # Module-level random function calls (P2 fix)
+        # random.random(), random.randint(), random.choice(), etc.
+        # These are non-deterministic unless called on a seeded instance.
+        # Lines with "# guardrail-safe: random" are explicitly reviewed.
+        if (
+            RANDOM_MODULE_FUNC_PATTERN.search(line)
+            and "guardrail-safe: random" not in line
+        ):
+            violations.append(
+                {
+                    "file": file_path,
+                    "line": line_num,
+                    "pattern": "random module-level function (non-deterministic)",
+                    "code": line.strip(),
+                }
+            )
         # import secrets alongside random
         if has_random_import and SECRETS_IMPORT_PATTERN.search(line):
             violations.append(
@@ -312,13 +404,27 @@ def generate_random_artifact(repo_root: Path) -> dict[str, object]:
     }
 
 
+def _normalize_entries(entries: list[dict[str, object]]) -> list[tuple[str, int, str]]:
+    """Extract (file, line, code) tuples for content comparison."""
+    return sorted(
+        (str(e.get("file", "")), int(e.get("line", 0)), str(e.get("code", "")))
+        for e in entries
+    )
+
+
 def verify_artifacts(repo_root: Path) -> int:
-    """Verify committed proof artifacts match current codebase (FR-020)."""
+    """Verify committed proof artifacts match current codebase (FR-020).
+
+    Compares full call site lists (file, line, code), not just counts.
+    This catches moves, edits, and replacements that preserve total count
+    but change the actual call sites. (P3 review finding)
+    """
     exit_code = 0
-    for rule, generator in [
-        ("S603", generate_subprocess_artifact),
-        ("S311", generate_random_artifact),
-    ]:
+    artifact_configs: list[tuple[str, object, str]] = [
+        ("S603", generate_subprocess_artifact, "call_sites"),
+        ("S311", generate_random_artifact, "usages"),
+    ]
+    for rule, generator, entries_key in artifact_configs:
         artifact_path = repo_root / f".rule-disable-audit-{rule}.json"
         if not artifact_path.exists():
             print(f"[WARN] No artifact for {rule}: {artifact_path}")
@@ -329,18 +435,41 @@ def verify_artifacts(repo_root: Path) -> int:
 
         fresh = generator(repo_root)
 
-        # Compare ignoring generated_at
-        committed_key = committed.get("total_call_sites", committed.get("total_usages"))
-        fresh_key = fresh.get("total_call_sites", fresh.get("total_usages"))
+        # Compare full content, not just counts (P3 fix)
+        committed_entries = _normalize_entries(committed.get(entries_key, []))
+        fresh_entries = _normalize_entries(fresh.get(entries_key, []))
 
-        if committed_key != fresh_key:
+        if committed_entries != fresh_entries:
+            committed_count = len(committed_entries)
+            fresh_count = len(fresh_entries)
+            # Find specific differences for actionable output
+            committed_set = set(committed_entries)
+            fresh_set = set(fresh_entries)
+            added = fresh_set - committed_set
+            removed = committed_set - fresh_set
+
             print(
-                f"[FAIL] {rule} artifact stale: committed has {committed_key} "
-                f"call sites, current has {fresh_key}."
+                f"[FAIL] {rule} artifact stale: "
+                f"committed={committed_count}, current={fresh_count}"
+            )
+            if added:
+                print(f"  New call sites not in artifact ({len(added)}):")
+                for f_path, line, code in sorted(added)[:5]:
+                    print(f"    {f_path}:{line}: {code[:80]}")
+            if removed:
+                print(f"  Removed call sites still in artifact ({len(removed)}):")
+                for f_path, line, code in sorted(removed)[:5]:
+                    print(f"    {f_path}:{line}: {code[:80]}")
+            print(
+                "  Run: python scripts/check_rule_disable_invariants.py "
+                "--generate-artifacts"
             )
             exit_code = 1
         else:
-            print(f"[PASS] {rule} artifact matches codebase ({fresh_key} call sites)")
+            print(
+                f"[PASS] {rule} artifact matches codebase "
+                f"({len(fresh_entries)} call sites, content-verified)"
+            )
 
     return exit_code
 

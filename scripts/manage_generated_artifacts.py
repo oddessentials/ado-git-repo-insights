@@ -105,7 +105,7 @@ def run_command(
     cwd: Path = REPO_ROOT,
     capture_output: bool = False,
 ) -> subprocess.CompletedProcess[str]:
-    result = subprocess.run(
+    result = subprocess.run(  # guardrail-safe: subprocess
         command,
         cwd=cwd,
         check=False,

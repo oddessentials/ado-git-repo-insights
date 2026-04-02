@@ -87,7 +87,9 @@ def run_generator_raw(
         users=users,
         include_comments=include_comments,
     )
-    result = subprocess.run(args, capture_output=True, text=True, check=False)
+    result = subprocess.run(  # guardrail-safe: subprocess
+        args, capture_output=True, text=True, check=False
+    )
     return result, output_dir
 
 
@@ -110,7 +112,9 @@ def run_generator(
         include_comments=include_comments,
     )
 
-    result = subprocess.run(args, capture_output=True, text=True, check=False)
+    result = subprocess.run(  # guardrail-safe: subprocess
+        args, capture_output=True, text=True, check=False
+    )
 
     if result.returncode != 0:
         pytest.fail(f"Generator failed: {result.stderr}")

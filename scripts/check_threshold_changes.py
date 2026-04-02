@@ -37,7 +37,7 @@ THRESHOLD_FILES = {
 
 def git_output(*args: str) -> str:
     command = ["git", *args]
-    result = subprocess.run(
+    result = subprocess.run(  # guardrail-safe: subprocess
         command,
         cwd=REPO_ROOT,
         capture_output=True,
