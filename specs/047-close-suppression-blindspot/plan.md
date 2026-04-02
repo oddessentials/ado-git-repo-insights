@@ -151,7 +151,7 @@ Root files:
    - `build_baseline()` maps file paths to scopes by matching against `SCOPES` directory prefixes — no hardcoded `startswith("src/")`, no `"unknown"` fallback. A tracked Python file that matches zero scopes is a **hard error** (means the scope list is incomplete — same failure mode as `--check-coverage`).
    - This ensures scope routing cannot diverge between scanning and baseline building.
 
-4. **Implement file-coverage check** (`--check-coverage` flag)
+3. **Implement file-coverage check** (`--check-coverage` flag)
    - New `cmd_check_coverage()` function
    - Walk repo tree, collect all `.py` and `.ts` files
    - **[G3] Canonical exclusion list**: merge `EXCLUDED_DIRS` with additional directories that commonly contain generated `.py` files: `.mypy_cache`, `htmlcov`, `run_artifacts`, `eggs`, `.tox`, `.nox`, `.pytest_cache`. Alternatively, use `git ls-files` to enumerate only tracked files (respects `.gitignore` by definition). Using `git ls-files '*.py'` is the most robust approach — it cannot produce false positives from generated/cached files.
@@ -159,7 +159,7 @@ Root files:
    - Fail if any file has 0 scopes or >1 scope
    - **[G1] Register in preflight and CI ONLY — not pre-commit.** Pre-commit operates on staged files only (`staged_paths()` via `git diff --cached`). A full-tree walk violates the staged-only contract. In pre-commit, at most check that each staged `.py`/`.ts` file belongs to a known scope (staged-subset coverage, not full-tree enumeration).
 
-5. **Extend baseline to v2** with `scope_policy`
+4. **Extend baseline to v2** with `scope_policy`
    - Add `scope_policy` field to `SuppressionBaseline` TypedDict
    - Update `build_baseline()` to include scope policy (default all existing to `"blocking"`, new scopes to `"advisory"`)
    - Update `validate_baseline()` for v2 schema
@@ -168,12 +168,12 @@ Root files:
    - **v1→v2 transition exit condition**: the missing-scope-as-advisory fallback is temporary. It MUST be removed in Phase E when the v2 baseline with all 6 scopes is committed. After Phase E, any scope present in a scan but absent from the baseline is a **hard error** (means the baseline is stale or the scope list changed without updating the baseline). Phase E step 2 explicitly verifies this by removing the fallback code path.
    - **[R6] Advisory→blocking transition message**: when a suppression increase is detected in a scope whose policy just changed from advisory to blocking (detectable by comparing committed vs origin/main baseline), include in the error message: "Note: scope 'python-scripts' was recently promoted from advisory to blocking enforcement."
 
-6. **Register in entry points — with precise contracts per tier**
+5. **Register in entry points — with precise contracts per tier**
    - **Pre-commit**: staged-subset scope check only. Contract: for each staged `.py`/`.ts` file, verify it belongs to at least one scope in the canonical `SCOPES` map. This proves "no staged file escapes audit" but does NOT prove "every repo file is covered" (that's preflight/CI's job). Implementation: iterate `staged_paths()`, match each against `SCOPES` directory prefixes, fail if any staged file is unscoped.
    - **Preflight**: full `--check-coverage` via `CommandSpec`. Contract: enumerate ALL tracked `.py`/`.ts` files via `git ls-files`, verify each belongs to exactly one scope. This proves complete repo coverage.
    - **CI**: same full `--check-coverage`. Contract: identical to preflight.
 
-7. **Add scope-parity test** proving local and CI use identical scope list
+6. **Add scope-parity test** proving local and CI use identical scope list
 
 **Exit criterion**: All `.py` files in repo belong to exactly one scope. New scopes report advisory warnings. Existing scopes remain blocking. Scope routing and pattern dispatch are data-driven.
 
@@ -254,12 +254,12 @@ Root files:
    - Verify: tests pass, no functional change
 
 2. **type:ignore[attr-defined] — typed fake modules** (7 suppressions)
-   - **[R5] Use `Any` annotation, not bare `type`**: `MagicMock` is not a `type` — it's an instance. `Prophet: type` would fail mypy when assigned a MagicMock. Correct: `Prophet: Any` (or `Prophet: type[Any]` if the fixture always receives a class-like mock).
-   - Create `FakeProphetModule(ModuleType)` with `Prophet: Any` in `tests/conftest.py`
-   - Create `FakeOpenAIModule(ModuleType)` with `OpenAI: Any` in `tests/conftest.py`
+   - **[R5+QG-40] Use `MagicMock` annotation**: The assigned value is `MagicMock()` — an instance, not a type. `MagicMock` is the precise annotation. `object` would lose callable info (downstream calls `fake_module.Prophet(...)`). See research.md R-006 Pattern 1.
+   - Create `FakeProphetModule(ModuleType)` with `Prophet: MagicMock` in `tests/conftest.py`
+   - Create `FakeOpenAIModule(ModuleType)` with `OpenAI: MagicMock` in `tests/conftest.py`
    - Update all fixture usages across 5 test files
-   - **[G5] Regression prevention — grep-based CI check, not mypy-in-pytest**: add a grep check to the suppression audit (or a dedicated check) that fails if `type: ignore` reappears in `tests/` or `scripts/`. This is simpler, faster, and more reliable than running mypy programmatically inside pytest. The suppression audit itself IS this check once the expanded scope is blocking.
-   - Verify: `mypy src/ tests/` passes (Phase D-0 prerequisite ensures this is verified)
+   - **[G5] Regression prevention**: the suppression audit is the regression check once the expanded scope is blocking.
+   - Verify: `mypy src/ tests/ scripts/` passes
 
 3. **E402/I001/type:ignore[import-*] — importlib refactoring** (7 suppressions across 2 files)
    - `generate-demo-data.py`: use `importlib.util.spec_from_file_location()` for demo_generation_common; direct import for ado_git_repo_insights (package installed)
@@ -279,9 +279,7 @@ Root files:
    - Regression prevention: mypy now runs on tests/ (Phase D-0) — `StringIO.fileno = lambda: 0` will fail mypy directly. The suppression audit catches any `type: ignore` reintroduction.
 
 6. **type:ignore[arg-type] — Thread wrapper** (1 suppression)
-   - The `_selective_thread` wrapper at `test_cli_dashboard.py:575` currently has `**kwargs: object`
-   - Change to `**kwargs: Any` — this is an intentional weakening (test-only wrapper that passes through to Thread constructor). Document as: "Any is the honest type for a pass-through wrapper; the suppression is removed but the type constraint is not strengthened."
-   - Alternative: typed signature matching `threading.Thread.__init__` parameters — more precise but more brittle across Python versions
+   - **[QG-40] Use `Unpack[_ThreadKwargs]` TypedDict, not `Any`**: Define a `_ThreadKwargs(TypedDict, total=False)` matching `threading.Thread.__init__` parameters (target, daemon, name, args, kwargs, group). Use `typing_extensions.Unpack` (required for Python 3.10; guarded by `TYPE_CHECKING`). This eliminates the `type: ignore[arg-type]` because the kwargs now match Thread's constructor exactly. See research.md R-006 Pattern 2.
 
 7. **F841 — unused variables** (3 suppressions)
    - `test_chart_render.py`: add assertions on `upper_bounds` and `lower_bounds`
@@ -296,8 +294,9 @@ Root files:
    - `verify-badge-url.py`: replace with `requests.get`
 
 10. **ANN001/002/003 — type annotations** (2 suppressions)
-    - `test_aggregators.py`: `def patched(self_gen: Any, *args: Any, **kwargs: Any):`
-    - `test_fallback_forecaster.py`: `def mock_polyfit(x: Any, y: Any, deg: Any):`
+    - **[QG-40] Use precise types from source method signatures, not `Any`**:
+    - `test_aggregators.py`: `def patched(self_gen: AggregateGenerator, week_group: pd.DataFrame, week_reviewers: pd.DataFrame, team_members_df: pd.DataFrame) -> dict[str, object]:` — matches `_generate_team_repo_slice` signature. See research.md R-006 Pattern 3.
+    - `test_fallback_forecaster.py`: `def mock_polyfit(x: npt.ArrayLike, y: npt.ArrayLike, deg: int) -> npt.NDArray[np.float64]:` — matches `numpy.polyfit` signature. See research.md R-006 Pattern 4.
 
 11. **S110 — try/except/pass** (1 suppression)
     - `test_secret_redaction.py`: `with contextlib.suppress(Exception):`

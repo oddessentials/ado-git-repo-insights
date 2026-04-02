@@ -16,8 +16,8 @@
 
 **Purpose**: Project initialization — no code changes to existing behavior
 
-- [ ] T001 Create feature branch `047-close-suppression-blindspot` from main (already done)
-- [ ] T002 Read and document the verified suppression inventory by running `python scripts/audit-suppressions.py` against expanded scope to establish pre-hardening baseline count
+- [x] T001 Create feature branch `047-close-suppression-blindspot` from main (already done)
+- [x] T002 Read and document the verified suppression inventory by running `python scripts/audit-suppressions.py` against expanded scope to establish pre-hardening baseline count
 
 ---
 
@@ -25,11 +25,11 @@
 
 **Purpose**: Refactor `SCOPES` into a single authoritative structure that all scope-dependent behavior derives from. This is the prerequisite for every subsequent phase.
 
-- [ ] T003 Refactor `SCOPES` dict in `scripts/audit-suppressions.py` from `dict[str, str]` to a rich typed structure: `dict[str, ScopeConfig]` where `ScopeConfig` is a `TypedDict` with `dir: str`, `pattern: str`, `language: Literal["python", "typescript"]`. Add the 3 new scopes: `python-scripts` (`scripts/`, `*.py`, `python`), `python-tests` (`tests/`, `*.py`, `python`), `python-ci-scripts` (`.github/scripts/`, `*.py`, `python`). Update `FILE_PATTERNS` to derive from the new structure. File: `scripts/audit-suppressions.py`
-- [ ] T004 Refactor `scan_file()` pattern dispatch (line 251) in `scripts/audit-suppressions.py` to select suppression patterns by looking up `scope.language` from the canonical `SCOPES` structure — no hardcoded if/elif chain. `"python"` → `["type-ignore", "noqa"]`. `"typescript"` → all TS patterns. File: `scripts/audit-suppressions.py`
-- [ ] T005 Refactor `build_baseline()` scope routing (lines 389-396) in `scripts/audit-suppressions.py` to derive scope from `SCOPES` dict by matching file path prefix against `scope.dir` — no hardcoded `startswith("src/")`, no `"unknown"` fallback. A tracked file matching zero scopes is a hard error. File: `scripts/audit-suppressions.py`
-- [ ] T006 Refactor `cmd_check_justifications()` (line 790) in `scripts/audit-suppressions.py` to use `scope.language == "python"` from `SCOPES` instead of hardcoded `path.startswith("src/")` for the `--python-only` filter. File: `scripts/audit-suppressions.py`
-- [ ] T007 [P] Add unit tests for the canonical scope map: (a) every tracked `.py` file resolves to exactly one scope, (b) every tracked `.ts` file resolves to exactly one scope, (c) a file in an unknown directory causes a hard error, (d) scope routing in `build_baseline()` matches scope routing in `scan_file()` for all test files. File: `tests/unit/test_audit_suppressions.py`
+- [x] T003 Refactor `SCOPES` dict in `scripts/audit-suppressions.py` from `dict[str, str]` to a rich typed structure: `dict[str, ScopeConfig]` where `ScopeConfig` is a `TypedDict` with `dir: str`, `pattern: str`, `language: Literal["python", "typescript"]`. Add the 3 new scopes: `python-scripts` (`scripts/`, `*.py`, `python`), `python-tests` (`tests/`, `*.py`, `python`), `python-ci-scripts` (`.github/scripts/`, `*.py`, `python`). Update `FILE_PATTERNS` to derive from the new structure. File: `scripts/audit-suppressions.py`
+- [x] T004 Refactor `scan_file()` pattern dispatch (line 251) in `scripts/audit-suppressions.py` to select suppression patterns by looking up `scope.language` from the canonical `SCOPES` structure — no hardcoded if/elif chain. `"python"` → `["type-ignore", "noqa"]`. `"typescript"` → all TS patterns. File: `scripts/audit-suppressions.py`
+- [x] T005 Refactor `build_baseline()` scope routing (lines 389-396) in `scripts/audit-suppressions.py` to derive scope from `SCOPES` dict by matching file path prefix against `scope.dir` — no hardcoded `startswith("src/")`, no `"unknown"` fallback. A tracked file matching zero scopes is a hard error. File: `scripts/audit-suppressions.py`
+- [x] T006 Refactor `cmd_check_justifications()` (line 790) in `scripts/audit-suppressions.py` to use `scope.language == "python"` from `SCOPES` instead of hardcoded `path.startswith("src/")` for the `--python-only` filter. File: `scripts/audit-suppressions.py`
+- [x] T007 [P] Add unit tests for the canonical scope map: (a) every tracked `.py` file resolves to exactly one scope, (b) every tracked `.ts` file resolves to exactly one scope, (c) a file in an unknown directory causes a hard error, (d) scope routing in `build_baseline()` matches scope routing in `scan_file()` for all test files. File: `tests/unit/test_audit_suppressions.py`
 
 **Checkpoint**: `SCOPES` is the single source of truth. `scan_file()`, `build_baseline()`, and `cmd_check_justifications()` all derive from it. All existing tests pass.
 
@@ -43,18 +43,18 @@
 
 ### Tests for US1
 
-- [ ] T008 [P] [US1] Add regression test: string literal containing `# noqa` is NOT counted as a suppression. Create temp .py file with `msg = "x = 1  # noqa: E501\n"` plus a real `# noqa` comment. Assert count = 1. File: `tests/unit/test_audit_suppressions.py`
-- [ ] T009 [P] [US1] Add regression test: docstring containing `# type: ignore` is NOT counted. File: `tests/unit/test_audit_suppressions.py`
-- [ ] T010 [P] [US1] Add regression test: f-string containing `# noqa` is NOT counted. File: `tests/unit/test_audit_suppressions.py`
-- [ ] T011 [P] [US1] Add regression test: multi-line string with suppression pattern is NOT counted. File: `tests/unit/test_audit_suppressions.py`
-- [ ] T012 [P] [US1] Add regression test: file with syntax error causes hard error (exit code 1), NOT empty list. Verify error message format is `"[ERROR] Cannot tokenize {file_path}: {error}"`. File: `tests/unit/test_audit_suppressions.py`
-- [ ] T013 [P] [US1] Add regression test: invoke `audit-suppressions.py` via `subprocess.run` on a file with syntax error — verify exit code 1 is returned (entry-point parity for TokenError). File: `tests/unit/test_audit_suppressions.py`
+- [x] T008 [P] [US1] Add regression test: string literal containing `# noqa` is NOT counted as a suppression. Create temp .py file with `msg = "x = 1  # noqa: E501\n"` plus a real `# noqa` comment. Assert count = 1. File: `tests/unit/test_audit_suppressions.py`
+- [x] T009 [P] [US1] Add regression test: docstring containing `# type: ignore` is NOT counted. File: `tests/unit/test_audit_suppressions.py`
+- [x] T010 [P] [US1] Add regression test: f-string containing `# noqa` is NOT counted. File: `tests/unit/test_audit_suppressions.py`
+- [x] T011 [P] [US1] Add regression test: multi-line string with suppression pattern is NOT counted. File: `tests/unit/test_audit_suppressions.py`
+- [x] T012 [P] [US1] Add regression test: file with syntax error causes hard error (exit code 1), NOT empty list. Verify error message format is `"[ERROR] Cannot tokenize {file_path}: {error}"`. File: `tests/unit/test_audit_suppressions.py`
+- [x] T013 [P] [US1] Add regression test: invoke `audit-suppressions.py` via `subprocess.run` on a file with syntax error — verify exit code 1 is returned (entry-point parity for TokenError). File: `tests/unit/test_audit_suppressions.py`
 
 ### Implementation for US1
 
-- [ ] T014 [US1] Replace the inner scanning loop in `scan_file()` with `tokenize.generate_tokens(io.StringIO(content).readline)`. Only apply suppression regex patterns to tokens where `tok_type == tokenize.COMMENT`. Use `generate_tokens` (not `tokenize.tokenize`) because file content is already read as `str`. File: `scripts/audit-suppressions.py`
-- [ ] T015 [US1] Make `tokenize.TokenError` a hard error in `scan_file()`: log `"[ERROR] Cannot tokenize {file_path}: {error}"` to stderr and return a sentinel that causes the audit to exit with code 1. Do NOT return an empty list (silent false negative). Ensure identical behavior across all entry points. File: `scripts/audit-suppressions.py`
-- [ ] T016 [US1] Run verified census: execute `python scripts/audit-suppressions.py` against all 6 scopes (new scopes included from Phase 2). Document the exact count in a commit message. Expect ~5 fewer than the preliminary 114 due to false-positive elimination in `test_audit_suppressions.py`.
+- [x] T014 [US1] Replace the inner scanning loop in `scan_file()` with `tokenize.generate_tokens(io.StringIO(content).readline)`. Only apply suppression regex patterns to tokens where `tok_type == tokenize.COMMENT`. Use `generate_tokens` (not `tokenize.tokenize`) because file content is already read as `str`. File: `scripts/audit-suppressions.py`
+- [x] T015 [US1] Make `tokenize.TokenError` a hard error in `scan_file()`: log `"[ERROR] Cannot tokenize {file_path}: {error}"` to stderr and return a sentinel that causes the audit to exit with code 1. Do NOT return an empty list (silent false negative). Ensure identical behavior across all entry points. File: `scripts/audit-suppressions.py`
+- [x] T016 [US1] Run verified census: execute `python scripts/audit-suppressions.py` against all 6 scopes (new scopes included from Phase 2). Document the exact count in a commit message. Expect ~5 fewer than the preliminary 114 due to false-positive elimination in `test_audit_suppressions.py`.
 
 **Checkpoint**: Scanner produces zero false positives. TokenError is a hard failure. Verified census recorded.
 
@@ -68,25 +68,25 @@
 
 ### Tests for US2
 
-- [ ] T017 [P] [US2] Add test: `--check-coverage` on a temp repo with an unscoped `.py` file returns exit code 1 and lists the uncovered path. File: `tests/unit/test_audit_suppressions.py`
-- [ ] T018 [P] [US2] Add test: `--check-coverage` on a temp repo where all `.py` files are scoped returns exit code 0. File: `tests/unit/test_audit_suppressions.py`
-- [ ] T019 [P] [US2] Add test: a `.py` file matching multiple scopes causes a hard error (scope overlap). File: `tests/unit/test_audit_suppressions.py`
+- [x] T017 [P] [US2] Add test: `--check-coverage` on a temp repo with an unscoped `.py` file returns exit code 1 and lists the uncovered path. File: `tests/unit/test_audit_suppressions.py`
+- [x] T018 [P] [US2] Add test: `--check-coverage` on a temp repo where all `.py` files are scoped returns exit code 0. File: `tests/unit/test_audit_suppressions.py`
+- [x] T019 [P] [US2] Add test: a `.py` file matching multiple scopes causes a hard error (scope overlap). File: `tests/unit/test_audit_suppressions.py`
 
 ### Implementation for US2
 
-- [ ] T020 [US2] Implement `cmd_check_coverage()` in `scripts/audit-suppressions.py`: enumerate tracked files via `git ls-files '*.py' '*.ts'` (cross-OS: use `subprocess.run` with list args), match each against `SCOPES` directory prefixes, fail if any file has 0 or >1 scopes. Output uncovered/overlapping file paths on failure. File: `scripts/audit-suppressions.py`
-- [ ] T021 [US2] Add `--check-coverage` CLI flag to the argparse configuration in `scripts/audit-suppressions.py`, wired to `cmd_check_coverage()`. File: `scripts/audit-suppressions.py`
-- [ ] T022 [US2] Extend baseline schema to v2: add `scope_policy: dict[str, Literal["blocking", "advisory"]]` field to `SuppressionBaseline` TypedDict. Default existing scopes to `"blocking"`, new scopes to `"advisory"`. Bump `SCHEMA_VERSION` from 1 to 2. File: `scripts/audit-suppressions.py`
-- [ ] T023 [US2] Update `validate_baseline()` to validate v2 fields: `scope_policy` must exist (for v2), all scope names must match `by_scope` keys, values must be `"blocking"` or `"advisory"` only. Backward-compatible: v1 baselines (no `scope_policy`) treated as all-blocking. File: `scripts/audit-suppressions.py`
-- [ ] T024 [US2] Update `cmd_diff()` to check `scope_policy` per file: advisory scopes log warnings but do not fail. Add v1→v2 transition fallback: scopes present in scan but absent from baseline are treated as `count=0, policy="advisory"` with warning message `"Scope '{name}' not in baseline — treating as advisory (v1→v2 transition)"`. File: `scripts/audit-suppressions.py`
-- [ ] T025 [US2] Add advisory→blocking transition message to `cmd_diff()`: when a suppression increase is in a scope that was recently promoted, include `"Note: scope '{name}' was recently promoted from advisory to blocking enforcement."` File: `scripts/audit-suppressions.py`
+- [x] T020 [US2] Implement `cmd_check_coverage()` in `scripts/audit-suppressions.py`: enumerate tracked files via `git ls-files '*.py' '*.ts'` (cross-OS: use `subprocess.run` with list args), match each against `SCOPES` directory prefixes, fail if any file has 0 or >1 scopes. Output uncovered/overlapping file paths on failure. File: `scripts/audit-suppressions.py`
+- [x] T021 [US2] Add `--check-coverage` CLI flag to the argparse configuration in `scripts/audit-suppressions.py`, wired to `cmd_check_coverage()`. File: `scripts/audit-suppressions.py`
+- [x] T022 [US2] Extend baseline schema to v2: add `scope_policy: dict[str, Literal["blocking", "advisory"]]` field to `SuppressionBaseline` TypedDict. Default existing scopes to `"blocking"`, new scopes to `"advisory"`. Bump `SCHEMA_VERSION` from 1 to 2. File: `scripts/audit-suppressions.py`
+- [x] T023 [US2] Update `validate_baseline()` to validate v2 fields: `scope_policy` must exist (for v2), all scope names must match `by_scope` keys, values must be `"blocking"` or `"advisory"` only. Backward-compatible: v1 baselines (no `scope_policy`) treated as all-blocking. File: `scripts/audit-suppressions.py`
+- [x] T024 [US2] Update `cmd_diff()` to check `scope_policy` per file: advisory scopes log warnings but do not fail. Add v1→v2 transition fallback: scopes present in scan but absent from baseline are treated as `count=0, policy="advisory"` with warning message `"Scope '{name}' not in baseline — treating as advisory (v1→v2 transition)"`. File: `scripts/audit-suppressions.py`
+- [x] T025 [US2] Add advisory→blocking transition message to `cmd_diff()`: when a suppression increase is in a scope that was recently promoted, include `"Note: scope '{name}' was recently promoted from advisory to blocking enforcement."` File: `scripts/audit-suppressions.py`
 
 ### Tests for US2 (two-phase gating)
 
-- [ ] T026 [P] [US2] Add test: advisory scope with suppressions logs warning but returns exit code 0. File: `tests/unit/test_audit_suppressions.py`
-- [ ] T027 [P] [US2] Add test: blocking scope with suppressions returns exit code 1. File: `tests/unit/test_audit_suppressions.py`
-- [ ] T028 [P] [US2] Add test: v1 baseline (no `scope_policy`) is treated as all-blocking by `cmd_diff()`. File: `tests/unit/test_audit_suppressions.py`
-- [ ] T029 [P] [US2] Add test: scope in scan but absent from baseline is treated as advisory during transition. File: `tests/unit/test_audit_suppressions.py`
+- [x] T026 [P] [US2] Add test: advisory scope with suppressions logs warning but returns exit code 0. File: `tests/unit/test_audit_suppressions.py`
+- [x] T027 [P] [US2] Add test: blocking scope with suppressions returns exit code 1. File: `tests/unit/test_audit_suppressions.py`
+- [x] T028 [P] [US2] Add test: v1 baseline (no `scope_policy`) is treated as all-blocking by `cmd_diff()`. File: `tests/unit/test_audit_suppressions.py`
+- [x] T029 [P] [US2] Add test: scope in scan but absent from baseline is treated as advisory during transition. File: `tests/unit/test_audit_suppressions.py`
 
 **Checkpoint**: Every `.py` file is in exactly one scope. New scopes report advisory warnings. Coverage check works cross-OS.
 
@@ -170,15 +170,15 @@
 
 ### Implementation for US3 — Typed Test Doubles (no `Any` — use precise types)
 
-- [ ] T057 [P] [US3] Create `FakeProphetModule(ModuleType)` in `tests/conftest.py` with `Prophet: type[MagicMock]` attribute annotation. `ModuleType.__init__` accepts `(name: str)`. Usage: `mod = FakeProphetModule("prophet"); mod.Prophet = MagicMock()`. Verify `mypy --strict` accepts this. File: `tests/conftest.py`
-- [ ] T058 [P] [US3] Create `FakeOpenAIModule(ModuleType)` in `tests/conftest.py` with `OpenAI: type[MagicMock]` attribute annotation. Same pattern. File: `tests/conftest.py`
+- [ ] T057 [P] [US3] Create `FakeProphetModule(ModuleType)` in `tests/conftest.py` with `Prophet: MagicMock` attribute annotation (not `type[MagicMock]` — the value is an instance, not a type; not `Any` — QG-40 forbids it; not `object` — loses callable info needed by downstream `fake_module.Prophet(...)`). See research.md R-006 Pattern 1. File: `tests/conftest.py`
+- [ ] T058 [P] [US3] Create `FakeOpenAIModule(ModuleType)` in `tests/conftest.py` with `OpenAI: MagicMock` attribute annotation. Same pattern as T057. See research.md R-006 Pattern 1. File: `tests/conftest.py`
 - [ ] T059 [P] [US3] Create `FakeStdin(io.StringIO)` in `tests/conftest.py` with `def fileno(self) -> int: return 0`. File: `tests/conftest.py`
 - [ ] T060 [US3] Update `tests/integration/test_phase5_ml_integration.py` to use `FakeProphetModule` and `FakeOpenAIModule` fixtures. Remove all `type: ignore[attr-defined]` comments (2 occurrences). Verify mypy passes. File: `tests/integration/test_phase5_ml_integration.py`
 - [ ] T061 [P] [US3] Update `tests/unit/test_forecaster_contract.py` to use `FakeProphetModule` fixture. Remove `type: ignore[attr-defined]` (1 occurrence). File: `tests/unit/test_forecaster_contract.py`
 - [ ] T062 [P] [US3] Update `tests/unit/test_insights_contract.py` to use `FakeOpenAIModule` fixture. Remove `type: ignore[attr-defined]` (2 occurrences). File: `tests/unit/test_insights_contract.py`
 - [ ] T063 [P] [US3] Update `tests/unit/test_insights_id_stability.py` to use `FakeOpenAIModule` fixture. Remove `type: ignore[attr-defined]` (2 occurrences). File: `tests/unit/test_insights_id_stability.py`
 - [ ] T064 [US3] Update `tests/unit/test_cli_dashboard.py` to use `FakeStdin` instead of `mock_stdin.fileno = lambda: 0`. Remove all `type: ignore[assignment]` comments (3 occurrences, lines 530, 565, 620). File: `tests/unit/test_cli_dashboard.py`
-- [ ] T065 [US3] Fix Thread wrapper `type: ignore[arg-type]` at `tests/unit/test_cli_dashboard.py:585`: type the `_selective_thread` function with a signature matching `threading.Thread.__init__` parameters (`*, target: Callable[..., object] | None = ..., daemon: bool = ...`) instead of `**kwargs: object`. No `Any` types. File: `tests/unit/test_cli_dashboard.py`
+- [ ] T065 [US3] Fix Thread wrapper `type: ignore[arg-type]` at `tests/unit/test_cli_dashboard.py:585`: define `_ThreadKwargs(TypedDict, total=False)` with fields matching `threading.Thread.__init__` (group, target, name, args, kwargs, daemon). Use `typing_extensions.Unpack` (guarded by `TYPE_CHECKING` — needed for Python 3.10). Change wrapper to `def _selective_thread(**kwargs: Unpack[_ThreadKwargs])`. No `Any` types. See research.md R-006 Pattern 2. File: `tests/unit/test_cli_dashboard.py`
 
 ### Implementation for US3 — Code Refactoring (remaining suppressions)
 
@@ -197,8 +197,8 @@
 - [ ] T078 [P] [US3] Fix F401 in `tests/unit/test_optional_deps_isolation.py` (2 occurrences): replace bare `import ado_git_repo_insights.cli` and `import ado_git_repo_insights.ml.forecaster` with `importlib.import_module()`. Remove `# noqa: F401`. File: `tests/unit/test_optional_deps_isolation.py`
 - [ ] T079 [P] [US3] Fix S310 in `tests/demo/test_base_path.py`: replace `urllib.request.urlopen` with `requests.get` (requests is already a dependency). Remove `# noqa: S310` on line 68 AND the S310 comment on line 67. File: `tests/demo/test_base_path.py`
 - [ ] T080 [P] [US3] Fix S310 in `.github/scripts/verify-badge-url.py`: replace `urllib.request.urlopen` with `requests.get` with timeout. Remove `# noqa: S310`. File: `.github/scripts/verify-badge-url.py`
-- [ ] T081 [P] [US3] Fix ANN in `tests/unit/test_aggregators.py:3229`: add precise type annotations to `patched()` wrapper — `self_gen: AggregateGenerator`, `*args: object`, `**kwargs: object` (match the actual monkeypatch target signature, not `Any`). Remove `# noqa: ANN001,ANN002,ANN003`. File: `tests/unit/test_aggregators.py`
-- [ ] T082 [P] [US3] Fix ANN in `tests/unit/test_fallback_forecaster.py:1088`: add precise annotations to `mock_polyfit()` — `x: npt.NDArray[np.float64]`, `y: npt.NDArray[np.float64]`, `deg: int` (match `numpy.polyfit` signature). Remove `# noqa: ANN001`. File: `tests/unit/test_fallback_forecaster.py`
+- [ ] T081 [P] [US3] Fix ANN in `tests/unit/test_aggregators.py:3229`: spell out the full signature matching `_generate_team_repo_slice`: `def patched(self_gen: AggregateGenerator, week_group: pd.DataFrame, week_reviewers: pd.DataFrame, team_members_df: pd.DataFrame) -> dict[str, object]:`. Update the call to `original()` to pass named args. Remove `# noqa: ANN001,ANN002,ANN003`. See research.md R-006 Pattern 3. File: `tests/unit/test_aggregators.py`
+- [ ] T082 [P] [US3] Fix ANN in `tests/unit/test_fallback_forecaster.py:1088`: add `import numpy.typing as npt` and annotate `def mock_polyfit(x: npt.ArrayLike, y: npt.ArrayLike, deg: int) -> npt.NDArray[np.float64]:`. Matches `numpy.polyfit` signature. Remove `# noqa: ANN001`. See research.md R-006 Pattern 4. File: `tests/unit/test_fallback_forecaster.py`
 - [ ] T083 [P] [US3] Fix S110 in `tests/unit/test_secret_redaction.py:126`: replace `try/except: pass` with `with contextlib.suppress(Exception):`. Remove `# noqa: S110`. File: `tests/unit/test_secret_redaction.py`
 - [ ] T084 [US3] Add sys.path guard: grep-based CI check (or add to guardrail script) that fails if `sys.path.insert` or `sys.path.append` appears in any tracked `.py` file outside `conftest.py`. Add regression test. File: `scripts/check_rule_disable_invariants.py`
 
@@ -227,7 +227,7 @@
 **Purpose**: Documentation, parity records, final verification
 
 - [ ] T092 Update `LOCAL_CI_PARITY_INVARIANTS.md`: add rows for file-coverage check (Tier 1 pre-commit staged-subset + Tier 2 full-tree), rule-disable-invariants guardrail (Tier 1 + Tier 2), baseline staleness check (Tier 2). Update suppression-audit row to reflect 6 scopes. Document baseline merge/regeneration protocol. File: `LOCAL_CI_PARITY_INVARIANTS.md`
-- [ ] T093 [P] Run full verification suite and document results: `audit-suppressions.py --diff`, `--check-coverage`, `--check-staleness`, `check_rule_disable_invariants.py`, `run_pr_preflight.py`, `ruff check`, `mypy src/ tests/ scripts/`, full pytest, full Jest. All must pass.
+- [ ] T093 [P] Run full verification suite and document results: `audit-suppressions.py --diff`, `--check-coverage`, `--check-staleness`, `check_rule_disable_invariants.py`, `run_pr_preflight.py`, `ruff check`, `mypy src/ tests/ scripts/`, full pytest, full Jest. Verify SC-006: grep `pyproject.toml` for `per-file-ignores` and confirm the section is absent or empty. All must pass.
 - [ ] T094 [P] Cross-OS verification: run `python scripts/audit-suppressions.py --check-coverage` on Windows to verify `git ls-files` output uses forward slashes after normalization. Verify all path comparisons in the audit tool handle both `/` and `\`. File: `scripts/audit-suppressions.py` (verify `normalize_path()`)
 - [ ] T095 [P] Verify zero suppressions via final audit run: `python scripts/audit-suppressions.py` — total must be 0 across all 6 scopes, matching the committed baseline.
 - [ ] T096 Close GitHub issue #232 with summary of changes.

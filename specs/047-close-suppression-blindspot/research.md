@@ -118,18 +118,102 @@ For `ado_git_repo_insights` imports: remove sys.path.insert entirely. The packag
 - Must account for both Python scopes (src/, scripts/, tests/, .github/scripts/) and TypeScript scopes (extension/ui/, extension/tests/)
 - Only checks `.py` files against Python scopes and `.ts` files against TypeScript scopes
 
-## R-006: Typed Test Double Strategy
+## R-006: Typed Test Double Strategy (revised per QG-40 — no `Any`)
 
-**Decision**: Create typed `ModuleType` subclasses in `tests/conftest.py` and `FakeStdin` in test helpers
+**Decision**: Create typed `ModuleType` subclasses and `FakeStdin` in `tests/conftest.py`. All annotations use precise types — `Any` is forbidden (QG-40).
 
-**Rationale**:
-- `FakeProphetModule(ModuleType)` with `Prophet: type` attribute declaration satisfies `mypy --strict`
-- `FakeOpenAIModule(ModuleType)` with `OpenAI: type` attribute declaration
-- `FakeStdin(io.StringIO)` with `def fileno(self) -> int: return 0`
-- All three placed in shared locations (conftest.py or test helpers) — used by multiple test files
-- Regression tests: create untyped `ModuleType`, assign attribute, assert mypy rejects it
+### Pattern 1: Fake module attributes (`Prophet: MagicMock`)
+
+The `type: ignore[attr-defined]` exists because bare `ModuleType` has no `.Prophet` attribute in its type stubs. The typed subclass declares the attribute, eliminating the suppression:
+
+```python
+from unittest.mock import MagicMock
+from types import ModuleType
+
+class FakeProphetModule(ModuleType):
+    Prophet: MagicMock  # declared → mypy sees it
+
+class FakeOpenAIModule(ModuleType):
+    OpenAI: MagicMock
+```
+
+**Why `MagicMock` not `type[MagicMock]`**: The assigned value is `MagicMock()` — an instance, not a type. `type[MagicMock]` would be semantically wrong. `MagicMock` is the honest annotation: the attribute holds a MagicMock instance that is callable (all MagicMock instances are).
+
+**Why not `object`**: Would lose callable information. Downstream code calls `fake_module.Prophet(...)` — mypy needs to know it's callable.
+
+**Why not `Callable[..., object]`**: Works for the call site, but `MagicMock` is more precise and already provides `__call__` in its stubs.
+
+### Pattern 2: Thread wrapper (`Unpack[_ThreadKwargs]`)
+
+The `type: ignore[arg-type]` at `test_cli_dashboard.py:585` exists because `**kwargs: object` doesn't match `Thread.__init__` parameter types. Fix with a TypedDict + Unpack:
+
+```python
+from typing import TYPE_CHECKING, TypedDict
+from collections.abc import Callable
+if TYPE_CHECKING:
+    from typing_extensions import Unpack
+
+class _ThreadKwargs(TypedDict, total=False):
+    group: None
+    target: Callable[..., object] | None
+    name: str
+    args: tuple[object, ...]
+    kwargs: dict[str, object]
+    daemon: bool
+
+def _selective_thread(**kwargs: Unpack[_ThreadKwargs]) -> threading.Thread | MagicMock:
+    ...
+```
+
+**Why `Callable[..., object]` is acceptable**: The `...` in `Callable` is a special form meaning "any arguments" — it's distinct from `typing.Any` and does NOT violate QG-40. mypy's `--strict` does not include `--disallow-any-explicit`.
+
+**Requires**: `typing_extensions` (available — it's a transitive dependency via mypy). Import guarded by `TYPE_CHECKING` (runtime-free).
+
+### Pattern 3: Monkeypatch wrapper (spelled-out signature)
+
+The `# noqa: ANN001,ANN002,ANN003` on `test_aggregators.py:3229` exists because parameters lack annotations. Fix by matching the actual method signature:
+
+```python
+def patched(
+    self_gen: AggregateGenerator,
+    week_group: pd.DataFrame,
+    week_reviewers: pd.DataFrame,
+    team_members_df: pd.DataFrame,
+) -> dict[str, object]:
+    result = original(self_gen, week_group, week_reviewers, team_members_df)
+    ...
+```
+
+**Source method** (`aggregators.py:1042-1047`): `_generate_team_repo_slice(self, week_group: pd.DataFrame, week_reviewers: pd.DataFrame, team_members_df: pd.DataFrame) -> dict[str, Any]`. Return type `dict[str, object]` is valid because `object` is a supertype of `Any`'s contents.
+
+### Pattern 4: mock_polyfit (numpy types)
+
+```python
+import numpy.typing as npt
+
+def mock_polyfit(
+    x: npt.ArrayLike,
+    y: npt.ArrayLike,
+    deg: int,
+) -> npt.NDArray[np.float64]:
+    return np.array([np.inf, np.nan])
+```
+
+**Why `npt.ArrayLike`**: Matches `numpy.polyfit`'s documented parameter types. The production code passes `np.arange(...)` which is `ndarray`, a subtype of `ArrayLike`.
+
+### Pattern 5: FakeStdin (unchanged)
+
+```python
+class FakeStdin(io.StringIO):
+    def fileno(self) -> int:
+        return 0
+```
+
+No typing issues — `StringIO` subclass with a concrete method. mypy accepts this directly.
 
 **Files affected**:
-- `tests/conftest.py`: add `FakeProphetModule`, `FakeOpenAIModule`
-- `tests/unit/test_cli_dashboard.py`: use `FakeStdin` instead of patching fileno
-- `tests/unit/test_forecaster_contract.py`, `tests/unit/test_insights_contract.py`, `tests/unit/test_insights_id_stability.py`, `tests/integration/test_phase5_ml_integration.py`: use typed fixture
+- `tests/conftest.py`: add `FakeProphetModule`, `FakeOpenAIModule`, `FakeStdin`, `_ThreadKwargs`
+- `tests/unit/test_cli_dashboard.py`: use `FakeStdin`, `_ThreadKwargs`, `Unpack`
+- `tests/unit/test_forecaster_contract.py`, `tests/unit/test_insights_contract.py`, `tests/unit/test_insights_id_stability.py`, `tests/integration/test_phase5_ml_integration.py`: use typed module fixtures
+- `tests/unit/test_aggregators.py`: spelled-out signature for `patched()`
+- `tests/unit/test_fallback_forecaster.py`: numpy types for `mock_polyfit()`
