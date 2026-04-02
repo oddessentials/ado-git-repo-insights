@@ -23,7 +23,8 @@ import json
 import sys
 from pathlib import Path
 
-import defusedxml.ElementTree as ET  # noqa: N817
+from defusedxml.ElementTree import ParseError as XMLParseError
+from defusedxml.ElementTree import parse as parse_xml
 
 # Disallowed path prefixes (absolute paths that should never be accessed)
 # These are sensitive system directories that artifact paths should never resolve to
@@ -126,9 +127,9 @@ def parse_coverage_xml(path: str) -> float:
         raise FileNotFoundError(f"Coverage file not found: {path}")
 
     try:
-        tree = ET.parse(coverage_path)
+        tree = parse_xml(coverage_path)
         root = tree.getroot()
-    except ET.ParseError as e:
+    except XMLParseError as e:
         raise ValueError(f"Malformed XML in {path}: {e}") from e
 
     line_rate = root.get("line-rate")
@@ -207,9 +208,9 @@ def parse_junit_xml(path: str) -> dict[str, str | int]:
         raise FileNotFoundError(f"JUnit XML file not found: {path}")
 
     try:
-        tree = ET.parse(junit_path)
+        tree = parse_xml(junit_path)
         root = tree.getroot()
-    except ET.ParseError as e:
+    except XMLParseError as e:
         raise ValueError(f"Malformed XML in {path}: {e}") from e
 
     # Handle both <testsuites> (wrapper) and <testsuite> (direct)

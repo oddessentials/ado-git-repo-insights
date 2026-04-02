@@ -1,6 +1,6 @@
 {
   "rule": "S311",
-  "generated_at": "2026-04-02T15:09:15Z",
+  "generated_at": "2026-04-02T15:46:09Z",
   "total_usages": 7,
   "usages": [
     {
@@ -41,7 +41,7 @@
     },
     {
       "file": "tests/performance/test_chart_render.py",
-      "line": 117,
+      "line": 121,
       "code": "values = np.random.normal(100, 20, 52)",
       "purpose": "needs-review"
     }

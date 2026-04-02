@@ -14,8 +14,6 @@ from argparse import Namespace
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
-import pytest  # noqa: F401 - required for tmp_path fixture
-
 from ado_git_repo_insights.cli import cmd_build_aggregates, create_parser
 
 

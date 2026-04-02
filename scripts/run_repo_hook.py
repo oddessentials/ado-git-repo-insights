@@ -28,8 +28,10 @@ PNG_MAGIC = b"\x89PNG"
 _audit_spec = _importlib_util.spec_from_file_location(
     "audit_suppressions", REPO_ROOT / "scripts" / "audit-suppressions.py"
 )
-_audit_mod = _importlib_util.module_from_spec(_audit_spec)  # type: ignore[arg-type]
-_audit_spec.loader.exec_module(_audit_mod)  # type: ignore[union-attr]
+assert _audit_spec is not None, "audit-suppressions.py not found"
+assert _audit_spec.loader is not None
+_audit_mod = _importlib_util.module_from_spec(_audit_spec)
+_audit_spec.loader.exec_module(_audit_mod)
 AUDIT_SCOPES: dict[str, dict[str, str]] = _audit_mod.SCOPES
 
 # Load guardrail check functions for staged-content scanning (FR-014, FR-021)
@@ -37,8 +39,10 @@ _guard_spec = _importlib_util.spec_from_file_location(
     "check_rule_disable_invariants",
     REPO_ROOT / "scripts" / "check_rule_disable_invariants.py",
 )
-_guard_mod = _importlib_util.module_from_spec(_guard_spec)  # type: ignore[arg-type]
-_guard_spec.loader.exec_module(_guard_mod)  # type: ignore[union-attr]
+assert _guard_spec is not None, "check_rule_disable_invariants.py not found"
+assert _guard_spec.loader is not None
+_guard_mod = _importlib_util.module_from_spec(_guard_spec)
+_guard_spec.loader.exec_module(_guard_mod)
 _check_subprocess_safety = _guard_mod.check_subprocess_safety
 _check_random_safety = _guard_mod.check_random_safety
 

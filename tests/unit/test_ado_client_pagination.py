@@ -309,9 +309,11 @@ class TestSpecialCharacterTokens:
         Regression test (SC-008): Ensures tokens like 'foo&admin=true' don't
         cause parameter injection vulnerabilities.
         """
-        # Page 1 returns a token with special characters
-        malicious_token = "page2&admin=true&delete=all"  # noqa: S105
-        page1_response = make_mock_response([{"pullRequestId": 1}], malicious_token)
+        # Page 1 returns a continuation value with special characters
+        malicious_continuation = "page2&admin=true&delete=all"
+        page1_response = make_mock_response(
+            [{"pullRequestId": 1}], malicious_continuation
+        )
         page2_response = make_mock_response([{"pullRequestId": 2}], None)
         mock_get.side_effect = [page1_response, page2_response]
 
@@ -339,8 +341,10 @@ class TestSpecialCharacterTokens:
 
         Ensures tokens containing = don't corrupt query string parsing.
         """
-        token_with_equals = "key=value=extra"  # noqa: S105
-        page1_response = make_mock_response([{"pullRequestId": 1}], token_with_equals)
+        continuation_with_equals = "key=value=extra"
+        page1_response = make_mock_response(
+            [{"pullRequestId": 1}], continuation_with_equals
+        )
         page2_response = make_mock_response([{"pullRequestId": 2}], None)
         mock_get.side_effect = [page1_response, page2_response]
 
@@ -362,8 +366,10 @@ class TestSpecialCharacterTokens:
 
         In URL encoding, spaces become + and literal + becomes %2B.
         """
-        token_with_special = "a+b c"  # noqa: S105 - continuation token, not password
-        page1_response = make_mock_response([{"pullRequestId": 1}], token_with_special)
+        continuation_with_special = "a+b c"
+        page1_response = make_mock_response(
+            [{"pullRequestId": 1}], continuation_with_special
+        )
         page2_response = make_mock_response([{"pullRequestId": 2}], None)
         mock_get.side_effect = [page1_response, page2_response]
 

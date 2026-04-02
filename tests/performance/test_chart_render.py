@@ -57,8 +57,12 @@ class TestChartRenderPerformance:
             # Generate 4-week forecast
             future_x = np.arange(len(values), len(values) + 4)
             future_predictions = slope * future_x + intercept
-            upper_bounds = future_predictions + 1.96 * std_dev  # noqa: F841
-            lower_bounds = future_predictions - 1.96 * std_dev  # noqa: F841
+            upper_bounds = future_predictions + 1.96 * std_dev
+            lower_bounds = future_predictions - 1.96 * std_dev
+
+            assert len(upper_bounds) == 4, "4-week forecast"
+            assert len(lower_bounds) == 4, "4-week forecast"
+            assert np.all(upper_bounds >= lower_bounds)
 
         elapsed_ms = (time.perf_counter() - start_time) * 1000
 

@@ -6,6 +6,7 @@ DoD 5.2: Secrets Never Logged
 
 from __future__ import annotations
 
+import contextlib
 import logging
 from unittest.mock import patch
 
@@ -121,9 +122,7 @@ class TestSecretRedaction:
                     config=api_config,
                 )
 
-                try:
+                with contextlib.suppress(Exception):
                     client.test_connection("TestProject")
-                except Exception:  # noqa: S110
-                    pass  # Intentional: testing that errors don't leak secrets
 
             assert "token_should_not_appear" not in caplog.text

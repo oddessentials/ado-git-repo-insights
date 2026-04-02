@@ -286,11 +286,11 @@ class TestPaginationTokenEncoding:
         """
         from ado_git_repo_insights.extractor.pagination import add_continuation_token
 
-        # Token with characters that could cause parameter injection
-        malicious_token = "foo&admin=true&delete=all"  # noqa: S105 - not a password
+        # Continuation value with characters that could cause parameter injection
+        malicious_continuation = "foo&admin=true&delete=all"
         url = "https://dev.azure.com/org/_apis/teams?api-version=7.0"
 
-        result = add_continuation_token(url, malicious_token)
+        result = add_continuation_token(url, malicious_continuation)
 
         # The token should be URL-encoded, not interpreted as separate params
         # %26 = &, %3D = =
@@ -302,10 +302,10 @@ class TestPaginationTokenEncoding:
         """Spaces in tokens are encoded as + (query string standard)."""
         from ado_git_repo_insights.extractor.pagination import add_continuation_token
 
-        token_with_space = "token with spaces"  # noqa: S105 - not a password
+        continuation_with_space = "token with spaces"
         url = "https://example.com/api"
 
-        result = add_continuation_token(url, token_with_space)
+        result = add_continuation_token(url, continuation_with_space)
 
         # Spaces should be encoded as + (quote_plus behavior)
         assert "token+with+spaces" in result
@@ -318,9 +318,9 @@ class TestPaginationTokenEncoding:
         url = (
             "https://dev.azure.com/org/_apis/git/pullrequests?status=completed&top=100"
         )
-        token = "abc123"  # noqa: S105 - continuation token, not a password
+        continuation_marker = "abc123"
 
-        result = add_continuation_token(url, token)
+        result = add_continuation_token(url, continuation_marker)
 
         # Original params should still be present
         assert "status=completed" in result

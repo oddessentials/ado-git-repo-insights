@@ -32,7 +32,8 @@ import sys
 from pathlib import Path
 from typing import TypedDict
 
-import defusedxml.ElementTree as ET  # noqa: N817
+from defusedxml.ElementTree import ParseError as XMLParseError
+from defusedxml.ElementTree import parse as parse_xml
 
 
 class CoverageMetrics(TypedDict):
@@ -93,9 +94,9 @@ def parse_coverage_xml(path: Path) -> float:
         raise FileNotFoundError(f"Coverage file not found: {path}")
 
     try:
-        tree = ET.parse(path)
+        tree = parse_xml(path)
         root = tree.getroot()
-    except ET.ParseError as e:
+    except XMLParseError as e:
         raise ValueError(f"Malformed XML in {path}: {e}") from e
 
     line_rate = root.get("line-rate")

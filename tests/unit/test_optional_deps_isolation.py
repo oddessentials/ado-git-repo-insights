@@ -86,7 +86,7 @@ class TestOptionalDepsIsolation:
         if "ado_git_repo_insights.cli" in sys.modules:
             importlib.reload(sys.modules["ado_git_repo_insights.cli"])
         else:
-            import ado_git_repo_insights.cli  # noqa: F401
+            importlib.import_module("ado_git_repo_insights.cli")
 
         modules_after = set(sys.modules.keys())
         new_modules = modules_after - modules_before
@@ -103,7 +103,7 @@ class TestOptionalDepsIsolation:
         if "ado_git_repo_insights.ml.forecaster" in sys.modules:
             importlib.reload(sys.modules["ado_git_repo_insights.ml.forecaster"])
         else:
-            import ado_git_repo_insights.ml.forecaster  # noqa: F401
+            importlib.import_module("ado_git_repo_insights.ml.forecaster")
 
         modules_after = set(sys.modules.keys())
         new_modules = modules_after - modules_before

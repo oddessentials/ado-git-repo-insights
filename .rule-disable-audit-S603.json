@@ -1,6 +1,6 @@
 {
   "rule": "S603",
-  "generated_at": "2026-04-02T15:09:14Z",
+  "generated_at": "2026-04-02T15:46:09Z",
   "total_call_sites": 76,
   "unsafe_count": 13,
   "call_sites": [
@@ -158,7 +158,7 @@
     },
     {
       "file": "scripts/run_repo_hook.py",
-      "line": 66,
+      "line": 70,
       "code": "result = subprocess.run(",
       "shell_true": false,
       "literal_list": false,
@@ -166,7 +166,7 @@
     },
     {
       "file": "scripts/run_repo_hook.py",
-      "line": 130,
+      "line": 134,
       "code": "result = subprocess.run(",
       "shell_true": false,
       "literal_list": false,
@@ -174,7 +174,7 @@
     },
     {
       "file": "scripts/run_repo_hook.py",
-      "line": 186,
+      "line": 190,
       "code": "result = subprocess.run(",
       "shell_true": false,
       "literal_list": true,
@@ -182,7 +182,7 @@
     },
     {
       "file": "scripts/run_repo_hook.py",
-      "line": 199,
+      "line": 203,
       "code": "rerun = subprocess.run(",
       "shell_true": false,
       "literal_list": true,
@@ -190,7 +190,7 @@
     },
     {
       "file": "scripts/run_repo_hook.py",
-      "line": 811,
+      "line": 815,
       "code": "result = subprocess.run(",
       "shell_true": false,
       "literal_list": true,
@@ -247,7 +247,7 @@
     {
       "file": "tests/integration/test_cli_distribution.py",
       "line": 18,
-      "code": "result = subprocess.run(  # noqa: S603",
+      "code": "result = subprocess.run(",
       "shell_true": false,
       "literal_list": true,
       "safety": "safe-literal-list"
@@ -255,7 +255,7 @@
     {
       "file": "tests/integration/test_cli_distribution.py",
       "line": 91,
-      "code": "result = subprocess.run(  # noqa: S603",
+      "code": "result = subprocess.run(",
       "shell_true": false,
       "literal_list": true,
       "safety": "safe-literal-list"
@@ -263,7 +263,7 @@
     {
       "file": "tests/integration/test_cli_distribution.py",
       "line": 102,
-      "code": "result = subprocess.run(  # noqa: S603",
+      "code": "result = subprocess.run(",
       "shell_true": false,
       "literal_list": true,
       "safety": "safe-literal-list"
@@ -271,7 +271,7 @@
     {
       "file": "tests/integration/test_cli_distribution.py",
       "line": 113,
-      "code": "result = subprocess.run(  # noqa: S603",
+      "code": "result = subprocess.run(",
       "shell_true": false,
       "literal_list": true,
       "safety": "safe-literal-list"
@@ -279,7 +279,7 @@
     {
       "file": "tests/integration/test_cli_distribution.py",
       "line": 128,
-      "code": "result = subprocess.run(  # noqa: S603",
+      "code": "result = subprocess.run(",
       "shell_true": false,
       "literal_list": true,
       "safety": "safe-literal-list"
@@ -287,7 +287,7 @@
     {
       "file": "tests/integration/test_cli_distribution.py",
       "line": 145,
-      "code": "result = subprocess.run(  # noqa: S603",
+      "code": "result = subprocess.run(",
       "shell_true": false,
       "literal_list": true,
       "safety": "safe-literal-list"
@@ -295,7 +295,7 @@
     {
       "file": "tests/integration/test_cli_distribution.py",
       "line": 173,
-      "code": "result = subprocess.run(  # noqa: S603",
+      "code": "result = subprocess.run(",
       "shell_true": false,
       "literal_list": true,
       "safety": "safe-literal-list"
@@ -303,7 +303,7 @@
     {
       "file": "tests/integration/test_cli_distribution.py",
       "line": 191,
-      "code": "result = subprocess.run(  # noqa: S603",
+      "code": "result = subprocess.run(",
       "shell_true": false,
       "literal_list": true,
       "safety": "safe-literal-list"
@@ -311,7 +311,7 @@
     {
       "file": "tests/integration/test_cli_distribution.py",
       "line": 254,
-      "code": "result = subprocess.run(  # noqa: S603",
+      "code": "result = subprocess.run(",
       "shell_true": false,
       "literal_list": true,
       "safety": "safe-literal-list"
@@ -319,14 +319,14 @@
     {
       "file": "tests/integration/test_cli_distribution.py",
       "line": 281,
-      "code": "result = subprocess.run(  # noqa: S603",
+      "code": "result = subprocess.run(",
       "shell_true": false,
       "literal_list": true,
       "safety": "safe-literal-list"
     },
     {
       "file": "tests/integration/test_phase5_ml_integration.py",
-      "line": 902,
+      "line": 903,
       "code": "result = subprocess.run(",
       "shell_true": false,
       "literal_list": true,
