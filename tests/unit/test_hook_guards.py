@@ -345,6 +345,28 @@ class TestStagedSuppressionGuards:
         ):
             run_staged_suppression_diff_guard()
 
+    def test_diff_guard_blocks_suppression_increase_on_rename(self) -> None:
+        """Regression: rename must not double-count baseline to mask new suppressions."""
+        with (
+            patch.object(
+                _hook_module,
+                "_load_authoritative_suppression_baseline",
+                return_value={"by_file": {"src/old.py": 1}},
+            ),
+            patch.object(
+                _hook_module,
+                "suppression_staged_name_status",
+                return_value=[("R100", "src/old.py", "src/new.py")],
+            ),
+            patch.object(
+                _hook_module,
+                "staged_file_content",
+                return_value="x = 1  # noqa: E501\ny = 2  # noqa: E501\n",
+            ),
+        ):
+            with pytest.raises(SystemExit):
+                run_staged_suppression_diff_guard()
+
     def test_justification_guard_fails_for_unjustified_staged_suppression(self) -> None:
         with patch.object(
             _hook_module,

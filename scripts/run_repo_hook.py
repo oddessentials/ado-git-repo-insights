@@ -370,12 +370,6 @@ def _staged_suppression_delta_inputs(
         baseline_counts[target_path] = (
             baseline_count if isinstance(baseline_count, int) else 0
         )
-        if status.startswith("R") and old_path != target_path:
-            baseline_counts[old_path] = (
-                baseline_count if isinstance(baseline_count, int) else 0
-            )
-            current_counts[old_path] = 0
-
     return baseline_counts, current_counts, tokenize_errors
 
 
