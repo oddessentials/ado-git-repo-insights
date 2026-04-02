@@ -117,6 +117,10 @@ module = [
     "prophet",
     "openai",
     "defusedxml.*",
+    # Scripts import sibling modules via sys.path.insert at runtime;
+    # mypy cannot resolve these cross-script imports statically.
+    "demo_generation_common",
+    "demo_shell",
 ]
 ignore_missing_imports = true
 
