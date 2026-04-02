@@ -566,7 +566,12 @@ def verify_artifacts(repo_root: Path) -> int:
     for rule, generator, entries_key in artifact_configs:
         artifact_path = repo_root / f".rule-disable-audit-{rule}.json"
         if not artifact_path.exists():
-            print(f"[WARN] No artifact for {rule}: {artifact_path}")
+            print(f"[FAIL] Missing proof artifact for {rule}: {artifact_path}")
+            print(
+                "  Run: python scripts/check_rule_disable_invariants.py "
+                "--generate-artifacts"
+            )
+            exit_code = 1
             continue
 
         with open(artifact_path, encoding="utf-8") as f:

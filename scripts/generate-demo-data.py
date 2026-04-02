@@ -29,9 +29,22 @@ from datetime import date, timedelta
 from pathlib import Path
 from typing import Any
 
-from ado_git_repo_insights.transform.schema_versions import AGGREGATES_SCHEMA_VERSION
+# Load package modules via importlib (allows direct script execution from checkout)
+_schema_spec = importlib.util.spec_from_file_location(
+    "schema_versions",
+    Path(__file__).resolve().parent.parent
+    / "src"
+    / "ado_git_repo_insights"
+    / "transform"
+    / "schema_versions.py",
+)
+assert _schema_spec is not None
+assert _schema_spec.loader is not None
+_schema_mod = importlib.util.module_from_spec(_schema_spec)
+_schema_spec.loader.exec_module(_schema_mod)
+AGGREGATES_SCHEMA_VERSION: int = _schema_mod.AGGREGATES_SCHEMA_VERSION
 
-# Load demo_generation_common from scripts/ via importlib (avoids sys.path manipulation)
+# Load demo_generation_common from scripts/ via importlib
 _common_spec = importlib.util.spec_from_file_location(
     "demo_generation_common",
     Path(__file__).resolve().parent / "demo_generation_common.py",
