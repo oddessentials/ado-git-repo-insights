@@ -1,32 +1,8 @@
 {
   "rule": "S311",
-  "generated_at": "2026-04-02T12:51:58Z",
-  "total_usages": 25,
+  "generated_at": "2026-04-02T13:38:04Z",
+  "total_usages": 7,
   "usages": [
-    {
-      "file": "scripts/check_rule_disable_invariants.py",
-      "line": 228,
-      "code": "# Excludes: random.seed() (safe — sets the seed), random.Random() (checked separately)",
-      "purpose": "deterministic-seeded"
-    },
-    {
-      "file": "scripts/check_rule_disable_invariants.py",
-      "line": 259,
-      "code": "# random.random(), random.randint(), random.choice(), etc.",
-      "purpose": "needs-review"
-    },
-    {
-      "file": "scripts/check_rule_disable_invariants.py",
-      "line": 304,
-      "code": "# random.Random() without seed",
-      "purpose": "deterministic-seeded"
-    },
-    {
-      "file": "scripts/check_rule_disable_invariants.py",
-      "line": 310,
-      "code": "\"pattern\": \"random.Random() without seed\",",
-      "purpose": "deterministic-seeded"
-    },
     {
       "file": "scripts/generate-demo-data.py",
       "line": 189,
@@ -67,90 +43,6 @@
       "file": "tests/performance/test_chart_render.py",
       "line": 116,
       "code": "values = np.random.normal(100, 20, 52)",
-      "purpose": "needs-review"
-    },
-    {
-      "file": "tests/unit/test_rule_disable_invariants.py",
-      "line": 94,
-      "code": "code = \"import random\\nimport secrets\\nrng = random.Random(42)\\n\"",
-      "purpose": "deterministic-seeded"
-    },
-    {
-      "file": "tests/unit/test_rule_disable_invariants.py",
-      "line": 108,
-      "code": "code = \"import random\\nrng = random.SystemRandom()\\n\"",
-      "purpose": "needs-review"
-    },
-    {
-      "file": "tests/unit/test_rule_disable_invariants.py",
-      "line": 113,
-      "code": "\"\"\"random.Random() without seed is caught (non-deterministic).\"\"\"",
-      "purpose": "deterministic-seeded"
-    },
-    {
-      "file": "tests/unit/test_rule_disable_invariants.py",
-      "line": 114,
-      "code": "code = \"import random\\nrng = random.Random()\\n\"",
-      "purpose": "needs-review"
-    },
-    {
-      "file": "tests/unit/test_rule_disable_invariants.py",
-      "line": 120,
-      "code": "\"\"\"random.Random(seed) is the safe pattern — not flagged.\"\"\"",
-      "purpose": "deterministic-seeded"
-    },
-    {
-      "file": "tests/unit/test_rule_disable_invariants.py",
-      "line": 121,
-      "code": "code = \"import random\\nrng = random.Random(42)\\n\"",
-      "purpose": "deterministic-seeded"
-    },
-    {
-      "file": "tests/unit/test_rule_disable_invariants.py",
-      "line": 132,
-      "code": "\"\"\"P2: random.random() module-level call is caught.\"\"\"",
-      "purpose": "needs-review"
-    },
-    {
-      "file": "tests/unit/test_rule_disable_invariants.py",
-      "line": 133,
-      "code": "code = \"import random\\nx = random.random()\\n\"",
-      "purpose": "needs-review"
-    },
-    {
-      "file": "tests/unit/test_rule_disable_invariants.py",
-      "line": 139,
-      "code": "\"\"\"P2: random.randint() module-level call is caught.\"\"\"",
-      "purpose": "needs-review"
-    },
-    {
-      "file": "tests/unit/test_rule_disable_invariants.py",
-      "line": 140,
-      "code": "code = \"import random\\nx = random.randint(0, 100)\\n\"",
-      "purpose": "needs-review"
-    },
-    {
-      "file": "tests/unit/test_rule_disable_invariants.py",
-      "line": 145,
-      "code": "\"\"\"P2: random.choice() module-level call is caught.\"\"\"",
-      "purpose": "needs-review"
-    },
-    {
-      "file": "tests/unit/test_rule_disable_invariants.py",
-      "line": 146,
-      "code": "code = \"import random\\nx = random.choice([1, 2, 3])\\n\"",
-      "purpose": "needs-review"
-    },
-    {
-      "file": "tests/unit/test_rule_disable_invariants.py",
-      "line": 152,
-      "code": "code = \"import random\\nrng = random.Random(42)\\nx = rng.random()\\n\"",
-      "purpose": "deterministic-seeded"
-    },
-    {
-      "file": "tests/unit/test_rule_disable_invariants.py",
-      "line": 154,
-      "code": "# rng.random() does NOT match \"random.random()\" — it's instance-level",
       "purpose": "needs-review"
     }
   ]

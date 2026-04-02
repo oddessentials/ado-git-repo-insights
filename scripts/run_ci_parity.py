@@ -84,7 +84,7 @@ def run_command(
     env: dict[str, str] | None = None,
 ) -> None:
     print(f"$ {' '.join(command)}")
-    subprocess.run(  # guardrail-safe: subprocess
+    subprocess.run(
         command,
         cwd=cwd,
         env=env,

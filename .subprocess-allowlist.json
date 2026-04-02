@@ -1,0 +1,83 @@
+{
+  "description": "Approved exceptions for non-literal subprocess commands. Keyed on (file, line, code) for one-entry-per-call-site semantics. Run --regenerate-allowlist after formatter shifts line numbers.",
+  "entries": [
+    {
+      "file": "scripts/build-demo-dataset.py",
+      "line": 106,
+      "code": "result = subprocess.run(",
+      "reason": "Repo-owned script path constructed from constants"
+    },
+    {
+      "file": "scripts/check_threshold_changes.py",
+      "line": 40,
+      "code": "result = subprocess.run(",
+      "reason": "Repo-owned git command"
+    },
+    {
+      "file": "scripts/manage_generated_artifacts.py",
+      "line": 108,
+      "code": "result = subprocess.run(",
+      "reason": "Repo-owned command from resolved tool path"
+    },
+    {
+      "file": "scripts/run_ci_parity.py",
+      "line": 87,
+      "code": "subprocess.run(",
+      "reason": "Repo-owned parity command list"
+    },
+    {
+      "file": "scripts/run_pr_preflight.py",
+      "line": 412,
+      "code": "completed = subprocess.run(",
+      "reason": "CommandSpec-driven command list from build_commands()"
+    },
+    {
+      "file": "scripts/run_repo_hook.py",
+      "line": 65,
+      "code": "result = subprocess.run(",
+      "reason": "run_command() helper: command list from callers"
+    },
+    {
+      "file": "scripts/run_repo_hook.py",
+      "line": 129,
+      "code": "result = subprocess.run(",
+      "reason": "staged_file_content(): git show with repo-owned path"
+    },
+    {
+      "file": "tests/demo/test_demo_parity_pipeline.py",
+      "line": 118,
+      "code": "result = subprocess.run(",
+      "reason": "Test runner: trusted script invocation"
+    },
+    {
+      "file": "tests/demo/test_demo_parity_pipeline.py",
+      "line": 133,
+      "code": "result = subprocess.run(",
+      "reason": "Test runner: trusted script invocation (second call)"
+    },
+    {
+      "file": "tests/demo/test_regeneration.py",
+      "line": 91,
+      "code": "result = subprocess.run(",
+      "reason": "Test runner: trusted script invocation"
+    },
+    {
+      "file": "tests/unit/test_coverage_delta.py",
+      "line": 121,
+      "code": "return subprocess.run(",
+      "reason": "Test helper: trusted Python invocation"
+    },
+    {
+      "file": "tests/unit/test_synthetic_dataset.py",
+      "line": 90,
+      "code": "result = subprocess.run(args, capture_output=True, text=True, check=False)",
+      "reason": "Test helper: args built from constants"
+    },
+    {
+      "file": "tests/unit/test_synthetic_dataset.py",
+      "line": 113,
+      "code": "result = subprocess.run(args, capture_output=True, text=True, check=False)",
+      "reason": "Test helper: args built from constants (second call)"
+    }
+  ]
+}

@@ -42,6 +42,15 @@ GUARDRAIL_EXCLUSIONS = frozenset(
     }
 )
 
+# Approved exceptions for non-literal subprocess commands.
+# Each entry is a (file, line) pair where a reviewed, safe non-literal
+# subprocess call exists. This is a committed allowlist — adding entries
+# requires the same PR review process as any code change. No inline
+# self-service bypass comments. (Replaces guardrail-safe mechanism.)
+SUBPROCESS_ALLOWLIST_PATH = (
+    Path(__file__).resolve().parent.parent / ".subprocess-allowlist.json"
+)
+
 # Patterns that indicate unsafe subprocess usage (S603/S607 compensation)
 # These fire when shell=True or when the command is a variable (not a literal list)
 SHELL_TRUE_PATTERN = re.compile(r"\bshell\s*=\s*True\b")
@@ -69,24 +78,6 @@ def _get_tracked_py_files(cwd: Path) -> list[str]:
     return [
         f.replace("\\", "/") for f in result.stdout.strip().splitlines() if f.strip()
     ]
-
-
-def _tokenize_comments(content: str) -> list[tuple[int, str]]:
-    """Extract (line_number, full_line) for lines containing comments.
-
-    Uses tokenize to identify comment tokens, then returns the full source
-    lines for those positions. This is used so pattern matching operates
-    on code context, not just the comment text.
-    """
-    comment_lines: set[int] = set()
-    try:
-        tokens = tokenize.generate_tokens(io.StringIO(content).readline)
-        for tok_type, _tok_string, start, _end, _line in tokens:
-            if tok_type == tokenize.COMMENT:
-                comment_lines.add(start[0])
-    except (tokenize.TokenError, IndentationError):
-        pass  # Malformed files handled by audit-suppressions.py, not here
-    return comment_lines
 
 
 def _get_code_lines(content: str) -> list[tuple[int, str]]:
@@ -121,9 +112,82 @@ def _get_code_lines(content: str) -> list[tuple[int, str]]:
 # =============================================================================
 
 
+def _load_subprocess_allowlist() -> set[tuple[str, int, str]]:
+    """Load the committed subprocess allowlist — (file, line, code) triples.
+
+    Each entry maps to exactly one reviewed call site. All three fields must
+    match to suppress a violation — no blanket bypasses by file+code alone.
+
+    When a formatter shifts line numbers, entries stop matching and the
+    guardrail flags them. Run --regenerate-allowlist to update line numbers.
+
+    Returns an empty set if the file does not exist (no exceptions approved).
+    """
+    if not SUBPROCESS_ALLOWLIST_PATH.exists():
+        return set()
+    try:
+        with open(SUBPROCESS_ALLOWLIST_PATH, encoding="utf-8") as f:
+            data = json.load(f)
+        return {
+            (entry["file"], int(entry["line"]), entry["code"].strip())
+            for entry in data.get("entries", [])
+        }
+    except (OSError, json.JSONDecodeError, KeyError, ValueError):
+        return set()
+
+
+def _match_allowlist(
+    violation: dict[str, str | int],
+    allowlist: set[tuple[str, int, str]],
+) -> bool:
+    """Check if a violation matches an allowlist entry by (file, line, code).
+
+    This is the single matching function used by both the CLI enforcement path
+    and the pre-commit guard, ensuring consistent behavior.
+    """
+    return (
+        str(violation["file"]),
+        int(violation["line"]),
+        str(violation["code"]).strip(),
+    ) in allowlist
+
+
 SUBPROCESS_CALL_PATTERN = re.compile(
     r"\bsubprocess\.(?:run|Popen|call|check_call|check_output)\s*\("
 )
+
+# Regex to strip single-line string literals (both quote styles) from a line,
+# used to distinguish keyword arguments from string content.
+_STRING_LITERAL_RE = re.compile(
+    r""""[^"\\]*(?:\\.[^"\\]*)*"|'[^'\\]*(?:\\.[^'\\]*)*'"""
+)
+
+
+def _shell_true_in_code(line: str) -> bool:
+    """Return True if shell=True appears as code, not inside a string literal."""
+    stripped = _STRING_LITERAL_RE.sub("", line)
+    return bool(SHELL_TRUE_PATTERN.search(stripped))
+
+
+def _is_near_subprocess_call(
+    code_lines: list[tuple[int, str]], idx: int, lookback: int = 5
+) -> bool:
+    """Return True if a subprocess call pattern exists on or within *lookback*
+    lines above *idx*.  Covers multi-line calls like:
+
+        subprocess.run(
+            cmd,
+            shell=True,
+        )
+    """
+    for offset in range(0, lookback + 1):
+        check_idx = idx - offset
+        if check_idx < 0:
+            break
+        _, check_line = code_lines[check_idx]
+        if SUBPROCESS_CALL_PATTERN.search(check_line):
+            return True
+    return False
 
 
 def _is_subprocess_arg_literal_list(
@@ -179,7 +243,7 @@ def check_subprocess_safety(file_path: str, content: str) -> list[dict[str, str 
 
     for idx, (line_num, line) in enumerate(code_lines):
         # Check for shell=True in subprocess calls
-        if SHELL_TRUE_PATTERN.search(line) and "subprocess" in content:
+        if _shell_true_in_code(line) and _is_near_subprocess_call(code_lines, idx):
             violations.append(
                 {
                     "file": file_path,
@@ -190,11 +254,9 @@ def check_subprocess_safety(file_path: str, content: str) -> list[dict[str, str 
             )
         # Check for subprocess call with non-literal first argument (P1 fix)
         # Safe: subprocess.run(["git", ...]) or multi-line with [ on next line
-        # Safe: lines with "# guardrail-safe: subprocess" comment (reviewed & approved)
         # Unsafe: subprocess.run(cmd) or subprocess.run(get_args())
+        # Allowlisted: (file, line) pairs in .subprocess-allowlist.json
         elif SUBPROCESS_CALL_PATTERN.search(line):
-            if "guardrail-safe: subprocess" in line:
-                continue  # Explicitly reviewed and approved
             if not _is_subprocess_arg_literal_list(code_lines, idx):
                 violations.append(
                     {
@@ -258,11 +320,7 @@ def check_random_safety(file_path: str, content: str) -> list[dict[str, str | in
         # Module-level random function calls (P2 fix)
         # random.random(), random.randint(), random.choice(), etc.
         # These are non-deterministic unless called on a seeded instance.
-        # Lines with "# guardrail-safe: random" are explicitly reviewed.
-        if (
-            RANDOM_MODULE_FUNC_PATTERN.search(line)
-            and "guardrail-safe: random" not in line
-        ):
+        if RANDOM_MODULE_FUNC_PATTERN.search(line):
             violations.append(
                 {
                     "file": file_path,
@@ -330,6 +388,8 @@ def generate_subprocess_artifact(repo_root: Path) -> dict[str, object]:
     )
 
     for file_path in tracked:
+        if file_path in GUARDRAIL_EXCLUSIONS:
+            continue
         full_path = repo_root / file_path
         if not full_path.exists():
             continue
@@ -339,16 +399,23 @@ def generate_subprocess_artifact(repo_root: Path) -> dict[str, object]:
             continue
 
         code_lines = _get_code_lines(content)
-        for line_num, line in code_lines:
+        for idx, (line_num, line) in enumerate(code_lines):
             if subprocess_pattern.search(line):
                 has_shell_true = bool(SHELL_TRUE_PATTERN.search(line))
-                safety = "unsafe-shell-true" if has_shell_true else "safe-hardcoded"
+                is_literal_list = _is_subprocess_arg_literal_list(code_lines, idx)
+                if has_shell_true:
+                    safety = "unsafe-shell-true"
+                elif not is_literal_list:
+                    safety = "unsafe-non-literal-command"
+                else:
+                    safety = "safe-literal-list"
                 call_sites.append(
                     {
                         "file": file_path,
                         "line": line_num,
                         "code": line.strip()[:200],
                         "shell_true": has_shell_true,
+                        "literal_list": is_literal_list,
                         "safety": safety,
                     }
                 )
@@ -357,7 +424,9 @@ def generate_subprocess_artifact(repo_root: Path) -> dict[str, object]:
         "rule": "S603",
         "generated_at": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
         "total_call_sites": len(call_sites),
-        "unsafe_count": sum(1 for s in call_sites if s["safety"] != "safe-hardcoded"),
+        "unsafe_count": sum(
+            1 for s in call_sites if s["safety"] != "safe-literal-list"
+        ),
         "call_sites": call_sites,
     }
 
@@ -370,6 +439,8 @@ def generate_random_artifact(repo_root: Path) -> dict[str, object]:
     random_pattern = re.compile(r"\brandom\.\w+\s*\(")
 
     for file_path in tracked:
+        if file_path in GUARDRAIL_EXCLUSIONS:
+            continue
         full_path = repo_root / file_path
         if not full_path.exists():
             continue
@@ -384,7 +455,10 @@ def generate_random_artifact(repo_root: Path) -> dict[str, object]:
         code_lines = _get_code_lines(content)
         for line_num, line in code_lines:
             if random_pattern.search(line):
-                is_seeded = "seed" in line or re.search(r"Random\s*\(\s*\w", line)
+                is_seeded = bool(
+                    re.search(r"\brandom\.seed\s*\(", line)
+                    or re.search(r"Random\s*\(\s*\w", line)
+                )
                 usages.append(
                     {
                         "file": file_path,
@@ -404,10 +478,20 @@ def generate_random_artifact(repo_root: Path) -> dict[str, object]:
     }
 
 
-def _normalize_entries(entries: list[dict[str, object]]) -> list[tuple[str, int, str]]:
-    """Extract (file, line, code) tuples for content comparison."""
+def _normalize_entries(
+    entries: list[dict[str, object]],
+) -> list[tuple[str, int, str, str]]:
+    """Extract (file, line, code, classification) tuples for content comparison.
+
+    Includes the safety/purpose field so classification changes are detected.
+    """
     return sorted(
-        (str(e.get("file", "")), int(e.get("line", 0)), str(e.get("code", "")))
+        (
+            str(e.get("file", "")),
+            int(e.get("line", 0)),
+            str(e.get("code", "")),
+            str(e.get("safety", e.get("purpose", ""))),
+        )
         for e in entries
     )
 
@@ -454,12 +538,12 @@ def verify_artifacts(repo_root: Path) -> int:
             )
             if added:
                 print(f"  New call sites not in artifact ({len(added)}):")
-                for f_path, line, code in sorted(added)[:5]:
-                    print(f"    {f_path}:{line}: {code[:80]}")
+                for f_path, line_no, code, classification in sorted(added)[:5]:
+                    print(f"    {f_path}:{line_no}: [{classification}] {code[:80]}")
             if removed:
                 print(f"  Removed call sites still in artifact ({len(removed)}):")
-                for f_path, line, code in sorted(removed)[:5]:
-                    print(f"    {f_path}:{line}: {code[:80]}")
+                for f_path, line_no, code, classification in sorted(removed)[:5]:
+                    print(f"    {f_path}:{line_no}: [{classification}] {code[:80]}")
             print(
                 "  Run: python scripts/check_rule_disable_invariants.py "
                 "--generate-artifacts"
@@ -470,6 +554,106 @@ def verify_artifacts(repo_root: Path) -> int:
                 f"[PASS] {rule} artifact matches codebase "
                 f"({len(fresh_entries)} call sites, content-verified)"
             )
+
+    return exit_code
+
+
+def cmd_regenerate_allowlist(repo_root: Path) -> int:
+    """Update allowlist line numbers after formatter-induced shifts.
+
+    For each allowlist entry, scans the codebase for non-literal subprocess
+    violations matching (file, code). If exactly one match is found, updates
+    the line number. If multiple matches exist for the same (file, code),
+    fails and requires manual review — the entry is ambiguous.
+
+    Uses the same check_subprocess_safety() function as the enforcement path
+    to ensure consistent matching logic.
+    """
+    if not SUBPROCESS_ALLOWLIST_PATH.exists():
+        print("[ERROR] No allowlist file found.", file=sys.stderr)
+        return 1
+
+    with open(SUBPROCESS_ALLOWLIST_PATH, encoding="utf-8") as f:
+        data = json.load(f)
+
+    entries = data.get("entries", [])
+    if not entries:
+        print("[PASS] Allowlist is empty — nothing to regenerate.")
+        return 0
+
+    # Scan the codebase for all non-literal subprocess violations
+    tracked = _get_tracked_py_files(repo_root)
+    violations_by_file: dict[str, list[dict[str, str | int]]] = {}
+    for file_path in tracked:
+        if file_path in GUARDRAIL_EXCLUSIONS:
+            continue
+        full_path = repo_root / file_path
+        if not full_path.exists():
+            continue
+        try:
+            content = full_path.read_text(encoding="utf-8", errors="replace")
+        except OSError:
+            continue
+        file_violations = check_subprocess_safety(file_path, content)
+        if file_violations:
+            violations_by_file[file_path] = file_violations
+
+    updated = 0
+    ambiguous = 0
+    removed = 0
+    exit_code = 0
+
+    for entry in entries:
+        file_key = entry["file"]
+        code_key = entry["code"].strip()
+
+        # Find violations in this file matching this code snippet
+        file_viols = violations_by_file.get(file_key, [])
+        matches = [v for v in file_viols if str(v["code"]).strip() == code_key]
+
+        old_line = entry.get("line", 0)
+
+        if len(matches) == 0:
+            # Entry no longer matches any violation — may be resolved
+            print(f"  [REMOVED] {file_key}:{old_line}: no matching violation")
+            removed += 1
+        elif len(matches) == 1:
+            new_line = int(matches[0]["line"])
+            if new_line != old_line:
+                entry["line"] = new_line
+                print(f"  [UPDATED] {file_key}:{old_line} -> {new_line}")
+                updated += 1
+        else:
+            # Multiple violations with same (file, code).
+            # Check if the current line number still matches one of them.
+            exact_match = any(int(m["line"]) == old_line for m in matches)
+            if exact_match:
+                pass  # Current line is still valid — no update needed
+            else:
+                # Line shifted but we can't determine which match is right
+                print(
+                    f"  [AMBIGUOUS] {file_key}:{old_line}: {len(matches)} violations "
+                    f"match '{code_key[:60]}' — manual review required"
+                )
+                for m in matches:
+                    print(f"    line {m['line']}: {str(m['code'])[:80]}")
+                ambiguous += 1
+                exit_code = 1
+
+    if ambiguous:
+        print(
+            f"\n[FAIL] {ambiguous} ambiguous entries require manual review. "
+            "Split them into entries with unique code snippets."
+        )
+    else:
+        # Write updated allowlist
+        with open(SUBPROCESS_ALLOWLIST_PATH, "w", encoding="utf-8", newline="\n") as f:
+            json.dump(data, f, indent=2, ensure_ascii=False)
+            f.write("\n")
+        print(
+            f"\n[PASS] Allowlist regenerated: {updated} updated, "
+            f"{removed} no longer matching, {ambiguous} ambiguous."
+        )
 
     return exit_code
 
@@ -503,10 +687,18 @@ def main() -> int:
         action="store_true",
         help="Generate proof artifacts for rule-disable justification",
     )
+    parser.add_argument(
+        "--regenerate-allowlist",
+        action="store_true",
+        help="Update allowlist line numbers after formatter-induced shifts",
+    )
 
     args = parser.parse_args()
     repo_root = REPO_ROOT
     exit_code = 0
+
+    if args.regenerate_allowlist:
+        return cmd_regenerate_allowlist(repo_root)
 
     if args.generate_artifacts:
         for rule, generator in [
@@ -547,6 +739,22 @@ def main() -> int:
                 all_violations.extend(check_subprocess_safety(file_path, content))
             if args.check_random:
                 all_violations.extend(check_random_safety(file_path, content))
+
+        # Filter out allowlisted subprocess exceptions by (file, line, code)
+        # Only subprocess-related violations are filtered, not random ones
+        subprocess_allowlist = _load_subprocess_allowlist()
+        if subprocess_allowlist:
+            subprocess_patterns = {
+                "subprocess with non-literal command",
+                "shell=True",
+                "os.system/popen",
+            }
+            all_violations = [
+                v
+                for v in all_violations
+                if v["pattern"] not in subprocess_patterns
+                or not _match_allowlist(v, subprocess_allowlist)
+            ]
 
         if all_violations:
             print(f"[FAIL] {len(all_violations)} unsafe pattern(s) detected:")

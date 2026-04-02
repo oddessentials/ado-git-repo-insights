@@ -62,7 +62,7 @@ def run_command(
     env: dict[str, str] | None = None,
     capture_output: bool = False,
 ) -> subprocess.CompletedProcess[str]:
-    result = subprocess.run(  # guardrail-safe: subprocess
+    result = subprocess.run(
         command,
         cwd=cwd,
         env=env,
@@ -126,7 +126,7 @@ def staged_file_content(path: str) -> str | None:
     text patterns will safely get no match on binary content.
     """
     command = ["git", "show", f":{path}"]
-    result = subprocess.run(  # guardrail-safe: subprocess
+    result = subprocess.run(
         command,
         cwd=REPO_ROOT,
         capture_output=True,
@@ -609,24 +609,39 @@ def run_rule_disable_invariants_guard() -> None:
     Compensating guardrail for globally disabled S603/S607/S311.
     Uses staged_file_content() for pre-commit compatibility (R4).
     """
-    # Import the exclusion set from the guardrail module
+    # Load exclusions and allowlist from the guardrail module
     guardrail_exclusions = getattr(_guard_mod, "GUARDRAIL_EXCLUSIONS", frozenset())
+    load_allowlist = getattr(_guard_mod, "_load_subprocess_allowlist", lambda: set())
+    match_allowlist = getattr(_guard_mod, "_match_allowlist", lambda v, a: False)
+    subprocess_allowlist = load_allowlist()
     staged = staged_paths()
-    violations: list[str] = []
+    raw_violations: list[dict[str, str | int]] = []
     for path in staged:
         if not path.endswith(".py"):
             continue
-        # Normalize to forward slashes and skip guardrail self-referential files
         normalized = path.replace("\\", "/")
         if normalized in guardrail_exclusions:
             continue
         content = staged_file_content(path)
         if content is None:
             continue
-        for v in _check_subprocess_safety(path, content):
-            violations.append(f"  {v['file']}:{v['line']}: {v['pattern']}")
-        for v in _check_random_safety(path, content):
-            violations.append(f"  {v['file']}:{v['line']}: {v['pattern']}")
+        raw_violations.extend(_check_subprocess_safety(path, content))
+        raw_violations.extend(_check_random_safety(path, content))
+
+    # Filter using the same _match_allowlist function as the CLI path
+    # Only subprocess-related violations are filtered, not random ones
+    subprocess_patterns = {
+        "subprocess with non-literal command",
+        "shell=True",
+        "os.system/popen",
+    }
+    violations: list[str] = []
+    for v in raw_violations:
+        if v["pattern"] in subprocess_patterns and match_allowlist(
+            v, subprocess_allowlist
+        ):
+            continue
+        violations.append(f"  {v['file']}:{v['line']}: {v['pattern']}")
 
     if violations:
         safe_print("[pre-commit] unsafe patterns detected (S603/S311 guardrail):")

@@ -103,7 +103,7 @@ def run_generator(script_name: str, output_root: Path) -> None:
 
 def run_repo_command(command: list[str], *, cwd: Path = REPO_ROOT) -> None:
     """Run a repo-managed command and raise a detailed error on failure."""
-    result = subprocess.run(  # guardrail-safe: subprocess
+    result = subprocess.run(
         command,
         cwd=cwd,
         capture_output=True,
