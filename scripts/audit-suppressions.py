@@ -326,8 +326,10 @@ def _scan_python_with_tokenize(
                             "has_justification": has_justification(tok_string),
                         }
                     )
-    except tokenize.TokenError as e:
-        # FR-027: TokenError is a HARD ERROR, not a silent skip.
+    except (tokenize.TokenError, IndentationError) as e:
+        # FR-027: Tokenizer failures are HARD ERRORS, not silent skips.
+        # tokenize.TokenError: unterminated strings, null bytes, EOF issues
+        # IndentationError: mixed tabs/spaces, unmatched dedent
         # Identical behavior across pre-commit, preflight, and CI.
         print(
             f"[ERROR] Cannot tokenize {file_path}: {e}",
@@ -987,8 +989,9 @@ def cmd_diff(
 
     for file_path in diff["new_files"]:
         policy = _get_scope_policy(file_path)
+        actual_count = current["by_file"].get(file_path, 1)
         target = blocking_increases if policy == "blocking" else advisory_increases
-        target[file_path] = {"was": 0, "now": 1, "delta": 1}
+        target[file_path] = {"was": 0, "now": actual_count, "delta": actual_count}
 
     for file_path, info in diff["increased_files"].items():
         policy = _get_scope_policy(file_path)

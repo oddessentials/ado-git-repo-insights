@@ -410,6 +410,65 @@ class TestTwoPhaseGating:
         )
 
 
+class TestNewFileMultiSuppressionDelta:
+    """Regression test: new files with multiple suppressions must report accurate delta."""
+
+    REPO_ROOT = Path(__file__).parent.parent.parent
+
+    def test_new_file_with_two_suppressions_reports_delta_2(
+        self, tmp_path: Path
+    ) -> None:
+        """A new file with 2 noqa comments must show delta +2, not +1."""
+        # Generate real baseline, then inject a new file with 2 suppressions
+        baseline_path = tmp_path / "baseline.json"
+        env = os.environ.copy()
+        for var in ("GITHUB_EVENT_NAME", "GITHUB_REF", "GITHUB_EVENT_PATH"):
+            env.pop(var, None)
+        subprocess.run(  # noqa: S603 - trusted test code
+            [
+                sys.executable,
+                str(AUDIT_SCRIPT),
+                "--update-baseline",
+                "--baseline",
+                str(baseline_path),
+            ],
+            capture_output=True,
+            text=True,
+            cwd=self.REPO_ROOT,
+            env=env,
+        )
+        # Inject a new file with 2 suppressions into a blocking scope (src/)
+        injected = self.REPO_ROOT / "src" / "_test_multi_suppression.py"
+        injected.write_text(
+            "import os  # noqa: F401\nx = 1  # noqa: E501\n",
+            encoding="utf-8",
+        )
+        try:
+            result = subprocess.run(  # noqa: S603 - trusted test code
+                [
+                    sys.executable,
+                    str(AUDIT_SCRIPT),
+                    "--diff",
+                    "--baseline",
+                    str(baseline_path),
+                ],
+                capture_output=True,
+                text=True,
+                cwd=self.REPO_ROOT,
+                env=env,
+            )
+            # Should fail (blocking scope increase) with accurate delta
+            assert result.returncode == 1, (
+                f"Expected failure, got rc={result.returncode}\nstdout: {result.stdout}"
+            )
+            # The output should mention +2, not +1
+            assert "(+2)" in result.stdout or "delta: +2" in result.stdout.lower(), (
+                f"Expected delta +2 for 2-suppression file, got:\n{result.stdout}"
+            )
+        finally:
+            injected.unlink(missing_ok=True)
+
+
 class TestAuditSuppressionsCLI:
     """Integration tests for the audit-suppressions.py CLI."""
 
@@ -904,6 +963,40 @@ class TestSuppressionPatternDetection:
             # Pre-hardening: returns 0 (silent skip — the bug).
             assert result.returncode == 1, (
                 f"Expected exit code 1 for syntax error, got {result.returncode}.\n"
+                f"stderr: {result.stderr}"
+            )
+            assert "[ERROR] Cannot tokenize" in result.stderr
+        finally:
+            test_file.unlink(missing_ok=True)
+
+    def test_indentation_error_causes_hard_error(self) -> None:
+        """Mixed-indent file raises IndentationError, not TokenError — must also be caught."""
+        target_dir = self.REPO_ROOT / "src"
+        test_file = target_dir / "_audit_test_indent_error.py"
+        test_file.write_text("if True:\n\tx = 1\n    y = 2\n", encoding="utf-8")
+        try:
+            results = scan_file(test_file, "python-backend", self.REPO_ROOT)
+            assert len(results) == 1, f"Expected 1 sentinel, got {len(results)}"
+            assert results[0]["type"] == "__tokenize_error__", (
+                f"Expected __tokenize_error__ sentinel, got {results[0]['type']}"
+            )
+        finally:
+            test_file.unlink(missing_ok=True)
+
+    def test_indentation_error_exit_code_via_subprocess(self) -> None:
+        """Mixed-indent file must produce exit code 1, same as TokenError."""
+        target_dir = self.REPO_ROOT / "src"
+        test_file = target_dir / "_audit_test_indent_error_cli.py"
+        test_file.write_text("if True:\n\tx = 1\n    y = 2\n", encoding="utf-8")
+        try:
+            result = subprocess.run(  # noqa: S603 - trusted test code
+                [sys.executable, str(AUDIT_SCRIPT)],
+                capture_output=True,
+                text=True,
+                cwd=self.REPO_ROOT,
+            )
+            assert result.returncode == 1, (
+                f"Expected exit code 1 for IndentationError, got {result.returncode}.\n"
                 f"stderr: {result.stderr}"
             )
             assert "[ERROR] Cannot tokenize" in result.stderr
