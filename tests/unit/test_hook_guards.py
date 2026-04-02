@@ -334,7 +334,7 @@ class TestStagedSuppressionGuards:
             ),
             patch.object(
                 _hook_module,
-                "staged_name_status",
+                "suppression_staged_name_status",
                 return_value=[("R100", "src/old.py", "src/new.py")],
             ),
             patch.object(
@@ -362,6 +362,45 @@ class TestStagedSuppressionGuards:
         ):
             with pytest.raises(SystemExit):
                 run_staged_suppression_justification_guard()
+
+
+class TestDeleteOnlyCommits:
+    def test_deleted_js_does_not_trigger_compiled_js_guard(self) -> None:
+        with patch.object(_hook_module, "staged_paths", return_value=[]):
+            _hook_module.ensure_no_compiled_js()
+
+    def test_deleted_unscoped_file_does_not_trigger_scope_coverage(self) -> None:
+        with patch.object(_hook_module, "staged_paths", return_value=[]):
+            _hook_module.run_scope_coverage_guard()
+
+    def test_deleted_files_do_not_trigger_ui_or_test_builds(self) -> None:
+        with (
+            patch.object(_hook_module, "staged_paths", return_value=[]),
+            patch.object(_hook_module, "run_staged_suppression_diff_guard"),
+            patch.object(_hook_module, "run_staged_suppression_justification_guard"),
+            patch.object(_hook_module, "run_command"),
+            patch.object(_hook_module, "run_acl_health_check"),
+            patch.object(_hook_module, "run_pre_commit_stage"),
+            patch.object(_hook_module, "ensure_no_compiled_js"),
+            patch.object(_hook_module, "run_pnpm_lockfile_guard"),
+            patch.object(_hook_module, "run_npm_command_guard"),
+            patch.object(_hook_module, "run_pagination_token_guard"),
+            patch.object(_hook_module, "run_scope_coverage_guard"),
+            patch.object(_hook_module, "run_rule_disable_invariants_guard"),
+            patch.object(_hook_module, "run_ui_bundle_guards"),
+            patch.object(_hook_module, "run_extension_typecheck") as ext_typecheck,
+            patch.object(_hook_module, "run_extension_lint") as ext_lint,
+            patch.object(
+                _hook_module, "run_extension_test_typecheck"
+            ) as test_typecheck,
+            patch.object(_hook_module, "run_extension_test_lint") as test_lint,
+        ):
+            _hook_module.run_pre_commit_hook()
+
+        ext_typecheck.assert_not_called()
+        ext_lint.assert_not_called()
+        test_typecheck.assert_not_called()
+        test_lint.assert_not_called()
 
 
 git_output = _hook_module.git_output

@@ -644,6 +644,7 @@ jobs:
 
           # Fetch baseline from main branch for accurate diff
           # This prevents bypass by updating baseline in same PR
+          git fetch origin main --quiet
           if ! git show origin/main:.suppression-baseline.json > /tmp/main-baseline.json 2>/dev/null; then
             echo "::error::origin/main:.suppression-baseline.json is required for authoritative suppression diff"
             exit 1

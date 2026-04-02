@@ -258,6 +258,7 @@ class TestPrecommitParity:
                 "suppression-audit", "Run suppression audit against main baseline"
             )["run"]
         )
+        assert "git fetch origin main --quiet" in run_block
         assert "using committed baseline" not in run_block.lower()
         assert "exit 1" in run_block
         assert "origin/main:.suppression-baseline.json is required" in run_block

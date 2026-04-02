@@ -137,11 +137,11 @@ def git_output(*args: str) -> str:
 
 
 def staged_paths() -> list[str]:
-    output = git_output("diff", "--cached", "--name-only")
+    output = git_output("diff", "--cached", "--name-only", "--diff-filter=d")
     return [line.strip() for line in output.splitlines() if line.strip()]
 
 
-def staged_name_status() -> list[tuple[str, str, str | None]]:
+def suppression_staged_name_status() -> list[tuple[str, str, str | None]]:
     output = git_output("diff", "--cached", "--name-status", "--find-renames")
     entries: list[tuple[str, str, str | None]] = []
     for line in output.splitlines():
@@ -339,7 +339,7 @@ def _staged_suppression_delta_inputs(
     current_counts: dict[str, int] = {}
     tokenize_errors: list[str] = []
 
-    for status, old_path, new_path in staged_name_status():
+    for status, old_path, new_path in suppression_staged_name_status():
         if status.startswith("D"):
             if old_path.endswith((".py", ".ts")):
                 baseline_count = baseline_by_file.get(old_path, 0)
