@@ -230,6 +230,36 @@ class TestCanonicalScopeMap:
                 f"expected '{scope_name}'"
             )
 
+    def test_all_tracked_ts_files_resolve_to_expected_scope(self) -> None:
+        """Every tracked .ts file in the repo resolves to a known scope.
+
+        Hardening: catches .ts files that silently land in the broad
+        typescript-extension-config scope (dir: 'extension/') when a more
+        specific child scope should exist for their directory.
+        """
+        repo_root = Path(__file__).parent.parent.parent
+        result = subprocess.run(
+            ["git", "ls-files", "*.ts"],
+            capture_output=True,
+            text=True,
+            cwd=repo_root,
+        )
+        ts_files = [
+            f.replace("\\", "/")
+            for f in result.stdout.strip().splitlines()
+            if f.strip()
+        ]
+        assert ts_files, "No tracked .ts files found"
+
+        unscoped: list[str] = []
+        for path in ts_files:
+            scope = _resolve_scope(path)
+            if scope is None:
+                unscoped.append(path)
+        assert not unscoped, "Tracked .ts files not in any audit scope:\n" + "\n".join(
+            f"  {p}" for p in unscoped
+        )
+
 
 class TestCheckCoverage:
     """Tests for --check-coverage file enumeration (FR-018, FR-026)."""

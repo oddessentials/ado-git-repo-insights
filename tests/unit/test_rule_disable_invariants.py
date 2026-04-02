@@ -393,6 +393,22 @@ class TestAllowlistMechanism:
         )
 
 
+class TestDualViolation:
+    """A line with both shell=True and os.system produces two distinct violations."""
+
+    def test_shell_true_and_os_system_on_same_line(self) -> None:
+        """Both patterns fire independently — intentional, not double-counting."""
+        code = (
+            "import subprocess, os\n"
+            "subprocess.run(cmd, shell=True); os.system('rm -rf /')\n"
+        )
+        violations = check_subprocess_safety("test.py", code)
+        patterns = {v["pattern"] for v in violations}
+        assert "shell=True" in patterns
+        assert "os.system/popen" in patterns
+        assert len(violations) >= 2
+
+
 class TestCrossOSPaths:
     """T051: guardrail handles both / and \\ in paths."""
 

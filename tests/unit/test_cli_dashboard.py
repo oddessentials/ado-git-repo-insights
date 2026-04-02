@@ -23,7 +23,11 @@ import pytest
 
 
 class _MockStdin(io.StringIO):
-    """StringIO with fileno() for os.isatty() compatibility in tests."""
+    """StringIO with fileno() for os.isatty() compatibility in tests.
+
+    Returns fd 0 (real stdin) from fileno() — sufficient for os.isatty()
+    checks but callers must not use this fd for actual I/O.
+    """
 
     def fileno(self) -> int:
         return 0

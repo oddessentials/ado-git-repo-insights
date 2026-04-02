@@ -53,7 +53,7 @@
       "file": "tests/demo/test_demo_parity_pipeline.py",
       "line": 133,
       "code": "result = subprocess.run(",
-      "reason": "Test runner: trusted script invocation (second call)"
+      "reason": "Test runner: second trusted script call site"
     },
     {
       "file": "tests/demo/test_regeneration.py",
@@ -77,7 +77,7 @@
       "file": "tests/unit/test_synthetic_dataset.py",
       "line": 113,
       "code": "result = subprocess.run(args, capture_output=True, text=True, check=False)",
-      "reason": "Test helper: args built from constants (second call)"
+      "reason": "Test helper: second call site, args built from constants"
     }
   ]
 }
