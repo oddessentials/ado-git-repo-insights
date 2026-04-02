@@ -131,7 +131,7 @@ git push    -->  .husky/pre-push    -->  run_repo_hook.py pre-push    -->  Tier 
 
 ## Platform-Conditional Test Collection
 
-Python CI runs a 3 OS × 3 Python matrix. Some tests are platform-specific (e.g., Windows console handler tests). These must **never** use `pytest.mark.skip` or `pytest.mark.skipIf` because CI enforces `--max-skips=0`.
+Python CI runs a 3 OS × 3 Python matrix. Some tests are platform-specific (e.g., Windows console handler tests). These must **never** use `pytest.mark.skip`, `pytest.mark.skipIf`, or runtime `pytest.skip()` calls because CI enforces `--max-skips=0`. Any form of skip — declarative or runtime — counts against the zero-tolerance gate. See [#233](https://github.com/oddessentials/ado-git-repo-insights/issues/233) for the remaining `pytest.skip()` calls that need elimination.
 
 **Pattern**: Platform-conditional tests live in files named `test_*_windows.py` (or `_linux.py`, `_macos.py`). The root `tests/conftest.py` excludes them from **collection** on non-matching platforms:
 
@@ -150,6 +150,7 @@ This means:
 - `tests/unit/test_cli_dashboard_windows.py`: 4 tests (Windows console control handler)
 - Windows collects 4 more tests than Linux/macOS
 - No `pytest.mark.skip` or `pytest.mark.skipIf` exists anywhere in the Python test suite
+- 10 runtime `pytest.skip()` calls remain — tracked in [#233](https://github.com/oddessentials/ado-git-repo-insights/issues/233)
 
 **Adding new platform-conditional tests**:
 1. Create a separate file with the platform suffix (e.g., `test_feature_windows.py`)

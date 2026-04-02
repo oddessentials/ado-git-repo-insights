@@ -270,7 +270,7 @@ def build_commands(
                 "__PYTHON__",
                 ".github/scripts/validate-test-results.py",
                 "test-results.xml",
-                "--min-collected=1233",
+                "--min-collected=1236",
                 "--max-skips=0",
             ),
         ),
@@ -281,7 +281,7 @@ def build_commands(
                 ".github/scripts/validate-test-results.py",
                 "extension/test-results.xml",
                 "--min-collected=2304",
-                "--max-skips=5",
+                "--max-skips=0",
             ),
         ),
         CommandSpec(

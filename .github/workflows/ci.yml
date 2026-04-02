@@ -535,7 +535,7 @@ jobs:
         shell: bash
 
       - name: Validate Test Results (Python)
-        if: always() && matrix.os == 'ubuntu-latest' && matrix.python-version == '3.11'
+        if: always()
         run: |
           # Two-phase validation for robust CI diagnostics
           # Phase 1: Check if pytest produced output at all
@@ -572,7 +572,7 @@ jobs:
           # MAX_SKIPS: Maximum allowed skipped tests (0 = no skips allowed in CI)
           python .github/scripts/validate-test-results.py \
             test-results.xml \
-            --min-collected=1233 \
+            --min-collected=1236 \
             --max-skips=0
         shell: bash
 
@@ -887,13 +887,12 @@ jobs:
 
           # Phase 2: Validate test results using JUnit XML parsing
           # MIN_COLLECTED: 2280 actual tests, zero tolerance on collected count
-          # --max-skips handles execution variance separately
           # Update threshold only when tests intentionally decrease (with PR justification)
-          # MAX_SKIPS: Maximum allowed skipped tests (5 for platform-specific edge cases)
+          # MAX_SKIPS: Zero tolerance — no skips allowed (parity with Python gate)
           python .github/scripts/validate-test-results.py \
             extension/test-results.xml \
             --min-collected=2304 \
-            --max-skips=5
+            --max-skips=0
         shell: bash
 
       - name: Upload TypeScript Coverage
