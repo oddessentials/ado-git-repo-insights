@@ -170,13 +170,13 @@ class TestTeamAffinity:
         errors = []
         for team, _primary_repos in self.TEAM_PRIMARY_REPOS.items():
             total = team_total_prs.get(team, 0)
-            primary = team_primary_prs.get(team, 0)
+            primary_count = team_primary_prs.get(team, 0)
             if total == 0:
                 continue
-            affinity = primary / total
+            affinity = primary_count / total
             if affinity < 0.60:
                 errors.append(
-                    f"{team}: affinity={affinity:.2%} ({primary}/{total}), expected >= 60%"
+                    f"{team}: affinity={affinity:.2%} ({primary_count}/{total}), expected >= 60%"
                 )
 
         assert not errors, "Team affinity violations:\n" + "\n".join(errors)
