@@ -9,14 +9,23 @@ These tests are fully portable (no bash/jq dependency).
 
 from __future__ import annotations
 
+import importlib
+import importlib.util
 import os
 import subprocess
 import sys
 from pathlib import Path
+from unittest.mock import patch
 
 REPO_ROOT = Path(__file__).parent.parent.parent
 SCRIPT = REPO_ROOT / "scripts" / "check-version-unchanged.py"
 MARKER = "[version-override-acknowledged]"
+
+# Import the guard script as a module so we can mock its functions
+_spec = importlib.util.spec_from_file_location("check_version_unchanged", SCRIPT)
+_guard_module = importlib.util.module_from_spec(_spec)
+sys.modules["check_version_unchanged"] = _guard_module
+_spec.loader.exec_module(_guard_module)
 
 
 class TestVersionGuard:
@@ -58,31 +67,8 @@ class TestVersionGuard:
         )
         assert "[OK]" in result.stdout
 
-    def test_fails_when_versions_changed(self) -> None:
-        """Should fail when version files differ from base."""
-        result = self._run_guard("origin/main")
-        assert result.returncode == 1, f"Expected fail:\n{result.stdout}"
-        assert MARKER in result.stdout
-
-    def test_bypass_active_with_commit_marker(self) -> None:
-        """Should pass when a commit on the branch contains the marker.
-
-        Our branch currently has commits with version changes but the
-        marker has not been added yet, so this test verifies the guard
-        DETECTS the marker when present by checking the inverse: our
-        branch without the marker should fail.
-
-        The positive path (marker present -> pass) is tested by
-        test_marker_string_is_scanned_in_git_log which validates the
-        detection logic directly.
-        """
-        # Without the marker, the guard should fail
-        result = self._run_guard("origin/main")
-        assert result.returncode == 1
-        assert (
-            "commit marker" not in result.stdout.lower()
-            or "approved" not in result.stdout.lower()
-        )
+    # test_fails_when_versions_changed — moved to TestVersionGuardIsolated
+    # test_bypass_active_with_commit_marker — moved to TestVersionGuardIsolated
 
     def test_marker_string_is_scanned_in_git_log(self) -> None:
         """The guard must scan git log for the exact marker string."""
@@ -93,15 +79,7 @@ class TestVersionGuard:
         assert "log" in source
         assert "check_commit_marker" in source
 
-    def test_direct_push_to_main_never_bypassed(self) -> None:
-        """Direct push to main must ALWAYS fail, even with marker."""
-        env = self._clean_env()
-        env["GITHUB_EVENT_NAME"] = "push"
-        env["GITHUB_REF"] = "refs/heads/main"
-
-        result = self._run_guard("origin/main", env=env)
-        assert result.returncode == 1, f"Expected fail on direct push:\n{result.stdout}"
-        assert "direct push" in result.stdout.lower()
+    # test_direct_push_to_main_never_bypassed — moved to TestVersionGuardIsolated
 
     def test_missing_git_history_no_bypass(self) -> None:
         """Should fail when git log cannot find the base branch."""
@@ -111,20 +89,8 @@ class TestVersionGuard:
         # It will either skip files (can't git show) or fail on version diff
         assert result.returncode in (0, 1)
 
-    def test_output_includes_changed_files(self) -> None:
-        """Error output must list the specific files that changed."""
-        result = self._run_guard("origin/main")
-        assert "VERSION" in result.stdout
-        assert "package.json" in result.stdout
-        assert "vss-extension.json" in result.stdout
-        assert "task.json" in result.stdout
-
-    def test_output_includes_bypass_instructions(self) -> None:
-        """Error output must tell the developer how to bypass."""
-        result = self._run_guard("origin/main")
-        assert result.returncode == 1
-        assert MARKER in result.stdout
-        assert "commit message" in result.stdout.lower()
+    # test_output_includes_changed_files — moved to TestVersionGuardIsolated
+    # test_output_includes_bypass_instructions — moved to TestVersionGuardIsolated
 
     def test_no_pr_body_mechanism(self) -> None:
         """The script must NOT use GITHUB_EVENT_PATH for bypass.
@@ -149,3 +115,74 @@ class TestVersionGuard:
         assert '..HEAD"' in source or "..HEAD]" in source
         assert '...HEAD"' not in source
         assert "...HEAD]" not in source
+
+
+class TestVersionGuardIsolated:
+    """Mock-isolated tests for main() logic paths.
+
+    These mock the git-dependent functions so tests are deterministic
+    on any branch — no dependency on which commits exist, whether the
+    override marker is present, or whether versions differ from main.
+
+    Follows the importlib + patch.object pattern from test_hook_guards.py.
+    """
+
+    @staticmethod
+    def _run_main(
+        *,
+        current: str = "2.0.0",
+        base: str = "1.0.0",
+        marker: bool = False,
+        direct_push: bool = False,
+        capsys,
+    ) -> int:
+        """Run the guard's main() with fully controlled inputs."""
+        with (
+            patch.object(_guard_module, "get_current_version", return_value=current),
+            patch.object(_guard_module, "get_base_version", return_value=base),
+            patch.object(_guard_module, "check_commit_marker", return_value=marker),
+            patch.object(
+                _guard_module, "is_direct_push_to_main", return_value=direct_push
+            ),
+            patch("sys.argv", ["check-version-unchanged.py", "origin/main"]),
+        ):
+            rc = _guard_module.main()
+        return rc
+
+    def test_fails_when_versions_changed_no_marker(self, capsys) -> None:
+        """Versions changed + no marker + not direct push → rc=1."""
+        rc = self._run_main(marker=False, capsys=capsys)
+        assert rc == 1
+        out = capsys.readouterr().out
+        assert "[FAIL]" in out
+
+    def test_passes_when_marker_present(self, capsys) -> None:
+        """Versions changed + marker present → rc=0 (bypass approved)."""
+        rc = self._run_main(marker=True, capsys=capsys)
+        assert rc == 0
+        out = capsys.readouterr().out
+        assert "approved" in out.lower()
+
+    def test_direct_push_fails_even_with_marker(self, capsys) -> None:
+        """Direct push to main → rc=1, even when marker is present."""
+        rc = self._run_main(marker=True, direct_push=True, capsys=capsys)
+        assert rc == 1
+        out = capsys.readouterr().out
+        assert "direct push" in out.lower()
+
+    def test_output_lists_changed_files(self, capsys) -> None:
+        """Error output must list the specific files that changed."""
+        self._run_main(marker=False, capsys=capsys)
+        out = capsys.readouterr().out
+        assert "VERSION" in out
+        assert "package.json" in out
+        assert "vss-extension.json" in out
+        assert "task.json" in out
+
+    def test_output_includes_bypass_instructions(self, capsys) -> None:
+        """When guard fails, output must tell the developer how to bypass."""
+        rc = self._run_main(marker=False, capsys=capsys)
+        assert rc == 1
+        out = capsys.readouterr().out
+        assert MARKER in out
+        assert "commit message" in out.lower()
