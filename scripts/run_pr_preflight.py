@@ -153,6 +153,10 @@ def build_commands(
             ("__PYTHON__", "-m", "mypy", "src/", "tests/", "scripts/"),
         ),
         CommandSpec(
+            "No typing.Any in src/ (QG-40)",
+            ("__PYTHON__", "scripts/check_no_any_types.py"),
+        ),
+        CommandSpec(
             "Demo dashboard validation",
             (
                 "__PYTHON__",
@@ -371,6 +375,21 @@ def build_commands(
         ),
     ]
 
+    # Secret scanning: gitleaks parity with CI (QG-35)
+    gitleaks = resolve_gitleaks()
+    if gitleaks is not None:
+        commands.append(
+            CommandSpec(
+                "Secret scan (gitleaks)",
+                (gitleaks, "detect", "--config=.gitleaks.toml", "--verbose"),
+            ),
+        )
+    else:
+        safe_print(
+            "[WARNING] gitleaks not found on PATH — secret scanning skipped locally. "
+            "CI will still block. Install: https://github.com/gitleaks/gitleaks#installing"
+        )
+
     if suppression_baseline is not None:
         # When main-branch baseline is available, also run a comparison against it.
         # Uses the same strict mode as the committed-baseline gate (no preview/warning mode).
@@ -512,32 +531,51 @@ def resolve_pnpm() -> str:
     raise SystemExit("pnpm is required for PR preflight but was not found on PATH.")
 
 
-def ensure_node_child_processes_work() -> None:
+def resolve_gitleaks() -> str | None:
+    resolved = shutil.which("gitleaks")
+    if resolved:
+        return resolved
+    return None
+
+
+def ensure_node_child_processes_work() -> bool:
+    """Check Node.js child-process health.  Returns True if OK, False on failure.
+
+    On failure, logs a warning instead of raising SystemExit so that
+    Python-only gates (lint, mypy, suppression audit) still execute.
+    """
     node = shutil.which("node")
     if node is None:
-        raise SystemExit(
-            "Node.js is required for PR preflight but was not found on PATH."
+        safe_print(
+            "[WARNING] Node.js not found on PATH — "
+            "extension gates will be skipped, but lint/mypy/audit will still run."
         )
+        return False
 
-    probe = subprocess.run(
-        [
-            node,
-            "-e",
-            "require('child_process').execFileSync(process.execPath,['-e','process.exit(0)']); console.log('node-child-ok')",
-        ],
-        cwd=REPO_ROOT,
-        capture_output=True,
-        text=True,
-    )
-    if probe.returncode == 0:
-        return
+    try:
+        probe = subprocess.run(
+            [
+                node,
+                "-e",
+                "require('child_process').execFileSync(process.execPath,['-e','process.exit(0)']); console.log('node-child-ok')",
+            ],
+            cwd=REPO_ROOT,
+            capture_output=True,
+            text=True,
+            timeout=30,
+        )
+        if probe.returncode == 0:
+            return True
+        detail = probe.stderr.strip() or probe.stdout.strip() or "unknown failure"
+    except (subprocess.TimeoutExpired, OSError) as exc:
+        detail = str(exc)
 
-    detail = probe.stderr.strip() or probe.stdout.strip() or "unknown failure"
-    raise SystemExit(
-        "Local PR preflight cannot run worker-based Node tooling on this machine. "
-        "Node child-process creation failed before Playwright/Jest worker startup. "
+    safe_print(
+        "[WARNING] Node child-process check failed — "
+        "extension gates will be skipped, but lint/mypy/audit will still run. "
         f"Diagnostic: {detail}"
     )
+    return False
 
 
 def check_runner_self(
@@ -594,9 +632,10 @@ def run_command(
         emit_output("stderr", result.stderr)
 
 
-def ensure_tooling() -> None:
+def ensure_tooling() -> bool:
+    """Check required tools. Returns True if Node is healthy."""
     resolve_pnpm()
-    ensure_node_child_processes_work()
+    return ensure_node_child_processes_work()
 
 
 def ensure_paths() -> None:
@@ -653,7 +692,7 @@ def main() -> int:
         safe_print(f"Resolved Python: {python_executable}")
         safe_print(f"Stable temp root: {PREFLIGHT_ROOT}")
 
-    ensure_tooling()
+    node_ok = ensure_tooling()
     ensure_paths()
     pnpm_executable = resolve_pnpm()
     check_runner_self(
@@ -669,13 +708,26 @@ def main() -> int:
     if args.strict:
         safe_print("[strict] CI-parity mode: suppression increases will block")
     commands = build_commands(main_branch_suppression_baseline(), strict=args.strict)
+    skipped: list[str] = []
     for spec in commands:
+        # Skip Node-dependent commands when Node is broken
+        if not node_ok and PNPM_SENTINEL in spec.command:
+            skipped.append(spec.name)
+            continue
         run_command(
             spec,
             python_executable,
             pnpm_executable,
             verbose=args.verbose,
         )
+
+    if skipped:
+        safe_print(
+            f"\n[WARNING] {len(skipped)} extension gate(s) skipped (Node unavailable):"
+        )
+        for name in skipped:
+            safe_print(f"  - {name}")
+        safe_print("CI will still enforce these gates.")
 
     safe_print("\n[OK] Local PR preflight passed")
     return 0

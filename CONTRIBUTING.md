@@ -11,12 +11,15 @@ Thank you for your interest in contributing! This document covers the essential 
 git clone https://github.com/oddessentials/ado-git-repo-insights.git
 cd ado-git-repo-insights
 
-# Python environment
+# 1. Install root deps + Husky hooks (MUST be first)
+pnpm install
+
+# 2. Python environment
 python -m venv .venv
 source .venv/bin/activate  # or .venv\Scripts\activate on Windows
 pip install -e .[dev]
 
-# Extension (if working on ADO extension)
+# 3. Extension (if working on ADO extension)
 cd extension && pnpm install && cd ..
 ```
 

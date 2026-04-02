@@ -93,6 +93,63 @@ export default tseslint.config(
         },
     },
     {
+        // Configuration for scripts (strict type rules, relaxed security for build tools)
+        files: ['scripts/**/*.ts'],
+        languageOptions: {
+            parserOptions: {
+                projectService: {
+                    allowDefaultProject: ['eslint.config.mjs'],
+                    defaultProject: 'tsconfig.json',
+                },
+                tsconfigRootDir: import.meta.dirname,
+            },
+        },
+        rules: {
+            '@typescript-eslint/no-explicit-any': 'error',
+            '@typescript-eslint/no-non-null-assertion': 'error',
+            '@typescript-eslint/no-floating-promises': 'error',
+            '@typescript-eslint/require-await': 'off',
+            '@typescript-eslint/no-unused-vars': ['error', {
+                argsIgnorePattern: '^_',
+                varsIgnorePattern: '^_',
+                caughtErrorsIgnorePattern: '^_',
+            }],
+            '@typescript-eslint/consistent-type-imports': ['error', {
+                prefer: 'type-imports',
+                fixStyle: 'inline-type-imports',
+            }],
+            // Security rules off for internal build scripts — these are repo-owned
+            // tools that legitimately use dynamic paths and object keys.
+            'security/detect-object-injection': 'off',
+            'security/detect-non-literal-fs-filename': 'off',
+            'security/detect-non-literal-regexp': 'off',
+        },
+    },
+    {
+        // Configuration for tasks/_shared (same strict rules as production)
+        files: ['tasks/_shared/**/*.ts'],
+        languageOptions: {
+            parserOptions: {
+                projectService: {
+                    allowDefaultProject: ['eslint.config.mjs'],
+                    defaultProject: 'tsconfig.json',
+                },
+                tsconfigRootDir: import.meta.dirname,
+            },
+        },
+        rules: {
+            '@typescript-eslint/no-explicit-any': 'error',
+            '@typescript-eslint/no-non-null-assertion': 'error',
+            '@typescript-eslint/no-floating-promises': 'error',
+            '@typescript-eslint/require-await': 'off',
+            '@typescript-eslint/no-unused-vars': ['error', {
+                argsIgnorePattern: '^_',
+                varsIgnorePattern: '^_',
+                caughtErrorsIgnorePattern: '^_',
+            }],
+        },
+    },
+    {
         // Ignore patterns
         ignores: [
             'node_modules/**',
@@ -100,7 +157,6 @@ export default tseslint.config(
             'coverage/**',
             '**/*.js',           // Ignore remaining JS files during transition
             '**/*.cjs',          // Ignore CommonJS config files (dependency-cruiser)
-            'scripts/**',        // Scripts type-checked via scripts/tsconfig.json
             'jest.config.ts',    // Ignore Jest config (handled by tsconfig)
         ],
     }

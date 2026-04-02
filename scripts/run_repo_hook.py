@@ -24,6 +24,19 @@ EXTENSION_ROOT = REPO_ROOT / "extension"
 HOOK_PREFIX = "[hook]"
 PNG_MAGIC = b"\x89PNG"
 
+
+def _ensure_husky_installed() -> None:
+    """Fail fast if .husky/ directory is missing — hooks won't work."""
+    husky_dir = REPO_ROOT / ".husky"
+    if not husky_dir.is_dir():
+        raise SystemExit(
+            f"{HOOK_PREFIX} .husky/ directory not found at {husky_dir}.\n"
+            "Hooks are not installed. Run 'pnpm install' at the repo root first."
+        )
+
+
+_ensure_husky_installed()
+
 # Load SCOPES from audit-suppressions.py for staged-subset scope check (FR-028)
 _audit_spec = _importlib_util.spec_from_file_location(
     "audit_suppressions", REPO_ROOT / "scripts" / "audit-suppressions.py"
@@ -238,6 +251,10 @@ def ensure_no_compiled_js() -> None:
 
 def is_ui_trigger(path: str) -> bool:
     if path.startswith("extension/ui/") and path.endswith((".ts", ".html", ".css")):
+        return True
+    if path.startswith("extension/scripts/") and path.endswith(".ts"):
+        return True
+    if path.startswith("extension/tasks/") and path.endswith(".ts"):
         return True
     if path in {
         "extension/scripts/bundle-ui.mjs",
