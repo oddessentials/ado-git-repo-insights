@@ -500,12 +500,32 @@ class TestTwoPhaseGating:
         )
         assert "not in baseline" in result.stderr
 
-    def test_missing_scope_is_blocking_after_transition(self, tmp_path: Path) -> None:
-        """T091: scope in scan but absent from baseline → blocking (hard error).
+    def test_v1_baseline_missing_zero_count_scopes_passes(self, tmp_path: Path) -> None:
+        """Legacy zero-count scopes must not block diff against main."""
+        repo_root = _make_temp_audit_repo(
+            tmp_path,
+            {"scripts/example.py": "value = 1\n"},
+        )
+        baseline_path = repo_root / "baseline.json"
+        _run_audit(repo_root, "--update-baseline", "--baseline", str(baseline_path))
+        data = json.loads(baseline_path.read_text(encoding="utf-8"))
+        data.pop("scope_policy", None)
+        data["version"] = 1
+        data["by_scope"] = {
+            k: v
+            for k, v in data["by_scope"].items()
+            if k in ("python-backend", "typescript-extension", "typescript-tests")
+        }
+        baseline_path.write_text(json.dumps(data, indent=2), encoding="utf-8")
 
-        After v1→v2 transition fallback removal, missing scopes are NOT advisory
-        and must fail even when suppression delta is zero.
-        """
+        result = self._run_diff(baseline_path, cwd=repo_root)
+        assert result.returncode == 0, (
+            "Legacy missing scopes with zero suppressions must not fail.\n"
+            f"stdout: {result.stdout}\nstderr: {result.stderr}"
+        )
+
+    def test_missing_scope_is_blocking_after_transition(self, tmp_path: Path) -> None:
+        """T091: missing scope with nonzero current count remains blocking."""
         repo_root = _make_temp_audit_repo(
             tmp_path,
             {"tests/test_example.py": "x = 1  # noqa: E501\n"},
@@ -515,10 +535,10 @@ class TestTwoPhaseGating:
 
         result = self._run_diff(baseline_path, cwd=repo_root)
         assert result.returncode == 1, (
-            f"Missing scope must fail even when delta=0.\n"
+            "Missing scope with suppressions must fail.\n"
             f"stdout: {result.stdout}\nstderr: {result.stderr}"
         )
-        assert "not in baseline" in result.stderr, (
+        assert "missing from baseline with current count" in result.stderr, (
             f"Missing scope should log an error to stderr.\nstderr: {result.stderr}"
         )
 
@@ -544,7 +564,7 @@ class TestTwoPhaseGating:
             "Missing scope must remain blocking with --allow-pending-approval.\n"
             f"stdout: {result.stdout}\nstderr: {result.stderr}"
         )
-        assert "not in baseline" in result.stderr
+        assert "missing from baseline with current count" in result.stderr
 
 
 class TestNewFileMultiSuppressionDelta:

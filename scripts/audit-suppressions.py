@@ -1073,7 +1073,7 @@ def cmd_diff(
     baseline_scope_policy: dict[str, str] = baseline.get("scope_policy", {})
     baseline_scopes: set[str] = set(baseline.get("by_scope", {}).keys())
 
-    missing_scopes: set[str] = set()
+    missing_scopes: dict[str, int] = {}
 
     def _get_scope_policy(file_path: str) -> str:
         scope = _resolve_scope(file_path)
@@ -1086,7 +1086,7 @@ def cmd_diff(
         if scope in baseline_scopes:
             return "blocking"
         # Scope in scan but absent from baseline → hard error (stale baseline)
-        missing_scopes.add(scope)
+        missing_scopes[scope] = current["by_scope"].get(scope, 0)
         return "blocking"
 
     # Validate that every current scope exists in the baseline before any
@@ -1098,18 +1098,22 @@ def cmd_diff(
     for scope in sorted(current_scopes):
         if scope in baseline_scope_policy or scope in baseline_scopes:
             continue
-        missing_scopes.add(scope)
+        missing_scopes[scope] = current["by_scope"].get(scope, 0)
 
     # Print summary
     print(f"Baseline: {diff['baseline_total']} suppressions")
     print(f"Current:  {diff['current_total']} suppressions")
     print(f"Delta:    {delta:+d}")
 
-    if missing_scopes:
-        for scope in sorted(missing_scopes):
+    blocking_missing_scopes = {
+        scope: count for scope, count in missing_scopes.items() if count > 0
+    }
+    if blocking_missing_scopes:
+        for scope in sorted(blocking_missing_scopes):
+            count = blocking_missing_scopes[scope]
             print(
-                f"[ERROR] Scope '{scope}' not in baseline — "
-                "regenerate with --update-baseline.",
+                f"[ERROR] Scope '{scope}' missing from baseline with current count "
+                f"{count} — regenerate with --update-baseline.",
                 file=sys.stderr,
             )
         return 1
