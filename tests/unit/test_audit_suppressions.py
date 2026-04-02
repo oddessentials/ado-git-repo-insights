@@ -498,7 +498,7 @@ class TestTwoPhaseGating:
             f"v1 baseline missing current scopes must fail.\n"
             f"stdout: {result.stdout}\nstderr: {result.stderr}"
         )
-        assert "not in baseline" in result.stderr
+        assert "missing from baseline with current count" in result.stderr
 
     def test_v1_baseline_missing_zero_count_scopes_passes(self, tmp_path: Path) -> None:
         """Legacy zero-count scopes must not block diff against main."""
