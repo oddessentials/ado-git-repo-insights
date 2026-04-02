@@ -134,9 +134,11 @@ class TestVersionGuardIsolated:
         base: str = "1.0.0",
         marker: bool = False,
         direct_push: bool = False,
+        monkeypatch,
         capsys,
     ) -> int:
         """Run the guard's main() with fully controlled inputs."""
+        monkeypatch.chdir(REPO_ROOT)
         with (
             patch.object(_guard_module, "get_current_version", return_value=current),
             patch.object(_guard_module, "get_base_version", return_value=base),
@@ -149,39 +151,41 @@ class TestVersionGuardIsolated:
             rc = _guard_module.main()
         return rc
 
-    def test_fails_when_versions_changed_no_marker(self, capsys) -> None:
+    def test_fails_when_versions_changed_no_marker(self, monkeypatch, capsys) -> None:
         """Versions changed + no marker + not direct push → rc=1."""
-        rc = self._run_main(marker=False, capsys=capsys)
+        rc = self._run_main(marker=False, monkeypatch=monkeypatch, capsys=capsys)
         assert rc == 1
         out = capsys.readouterr().out
         assert "[FAIL]" in out
 
-    def test_passes_when_marker_present(self, capsys) -> None:
+    def test_passes_when_marker_present(self, monkeypatch, capsys) -> None:
         """Versions changed + marker present → rc=0 (bypass approved)."""
-        rc = self._run_main(marker=True, capsys=capsys)
+        rc = self._run_main(marker=True, monkeypatch=monkeypatch, capsys=capsys)
         assert rc == 0
         out = capsys.readouterr().out
         assert "approved" in out.lower()
 
-    def test_direct_push_fails_even_with_marker(self, capsys) -> None:
+    def test_direct_push_fails_even_with_marker(self, monkeypatch, capsys) -> None:
         """Direct push to main → rc=1, even when marker is present."""
-        rc = self._run_main(marker=True, direct_push=True, capsys=capsys)
+        rc = self._run_main(
+            marker=True, direct_push=True, monkeypatch=monkeypatch, capsys=capsys
+        )
         assert rc == 1
         out = capsys.readouterr().out
         assert "direct push" in out.lower()
 
-    def test_output_lists_changed_files(self, capsys) -> None:
+    def test_output_lists_changed_files(self, monkeypatch, capsys) -> None:
         """Error output must list the specific files that changed."""
-        self._run_main(marker=False, capsys=capsys)
+        self._run_main(marker=False, monkeypatch=monkeypatch, capsys=capsys)
         out = capsys.readouterr().out
         assert "VERSION" in out
         assert "package.json" in out
         assert "vss-extension.json" in out
         assert "task.json" in out
 
-    def test_output_includes_bypass_instructions(self, capsys) -> None:
+    def test_output_includes_bypass_instructions(self, monkeypatch, capsys) -> None:
         """When guard fails, output must tell the developer how to bypass."""
-        rc = self._run_main(marker=False, capsys=capsys)
+        rc = self._run_main(marker=False, monkeypatch=monkeypatch, capsys=capsys)
         assert rc == 1
         out = capsys.readouterr().out
         assert MARKER in out
