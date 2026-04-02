@@ -69,6 +69,15 @@ class TestBuildCommands:
         names = [spec.name for spec in commands]
         assert "Secret scan (gitleaks)" not in names
 
+    def test_suppression_justification_gate_is_present(self) -> None:
+        commands = build_commands(None, gitleaks=None)
+        by_name = {spec.name: spec.command for spec in commands}
+        assert by_name["Suppression justifications"] == (
+            "__PYTHON__",
+            "scripts/audit-suppressions.py",
+            "--check-justifications",
+        )
+
 
 class TestMainBehavior:
     """The default CLI path must be authoritative, with explicit degraded mode."""
@@ -288,3 +297,36 @@ class TestMainBehavior:
 
         out = capsys.readouterr().out
         assert "[OK] Local PR preflight passed" in out
+
+    def test_authoritative_mode_fails_closed_when_main_baseline_is_unavailable(
+        self,
+    ) -> None:
+        with (
+            patch.object(
+                _module,
+                "parse_args",
+                return_value=self._args(
+                    allow_local_degraded=False,
+                    self_check=False,
+                ),
+            ),
+            patch.object(
+                _module, "resolve_baseline_python", return_value=sys.executable
+            ),
+            patch.object(_module, "probe_python_version", return_value="3.10"),
+            patch.object(
+                _module,
+                "ensure_required_tools",
+                return_value=(True, "gitleaks"),
+            ),
+            patch.object(_module, "ensure_paths"),
+            patch.object(_module, "resolve_pnpm", return_value="pnpm"),
+            patch.object(_module, "check_runner_self"),
+            patch.object(
+                _module,
+                "main_branch_suppression_baseline",
+                side_effect=SystemExit("Could not fetch origin/main"),
+            ),
+        ):
+            with pytest.raises(SystemExit, match="Could not fetch origin/main"):
+                main()

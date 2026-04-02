@@ -10,6 +10,7 @@ from __future__ import annotations
 import importlib.util
 import json
 import os
+import shutil
 import subprocess
 import sys
 from pathlib import Path
@@ -18,6 +19,7 @@ import pytest
 
 # Path to the audit script
 AUDIT_SCRIPT = Path(__file__).parent.parent.parent / "scripts" / "audit-suppressions.py"
+REPO_ROOT = Path(__file__).parent.parent.parent
 
 # Import the live constants and functions directly from the script
 # so tests always validate the script's actual behavior, not stale copies.
@@ -36,6 +38,52 @@ scan_codebase = _audit_module.scan_codebase
 _resolve_scope = _audit_module._resolve_scope
 cmd_check_coverage = _audit_module.cmd_check_coverage
 has_tokenize_errors = _audit_module.has_tokenize_errors
+
+
+def _local_env() -> dict[str, str]:
+    """Build a local-style environment for subprocess execution."""
+    env = os.environ.copy()
+    env.pop("GITHUB_EVENT_NAME", None)
+    env.pop("GITHUB_REF", None)
+    env.pop("GITHUB_EVENT_PATH", None)
+    return env
+
+
+def _make_temp_audit_repo(tmp_path: Path, files: dict[str, str] | None = None) -> Path:
+    """Create a temp repo with the audit script and optional source files."""
+    repo_root = tmp_path
+    repo_root.mkdir(parents=True, exist_ok=True)
+    (repo_root / "pyproject.toml").write_text(
+        "[tool.pytest.ini_options]\n",
+        encoding="utf-8",
+    )
+    script_path = repo_root / "scripts" / "audit-suppressions.py"
+    script_path.parent.mkdir(parents=True, exist_ok=True)
+    shutil.copy(AUDIT_SCRIPT, script_path)
+
+    for relative_path, content in (files or {}).items():
+        target = repo_root / relative_path
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_text(content, encoding="utf-8")
+
+    subprocess.run(["git", "init"], cwd=repo_root, capture_output=True, check=False)
+    subprocess.run(["git", "add", "."], cwd=repo_root, capture_output=True, check=False)
+    return repo_root
+
+
+def _run_audit(
+    repo_root: Path,
+    *args: str,
+    env: dict[str, str] | None = None,
+) -> subprocess.CompletedProcess[str]:
+    """Run the temp-repo copy of audit-suppressions.py."""
+    return subprocess.run(
+        [sys.executable, str(repo_root / "scripts" / "audit-suppressions.py"), *args],
+        capture_output=True,
+        text=True,
+        cwd=repo_root,
+        env=env,
+    )
 
 
 class TestIsExcluded:
@@ -345,41 +393,21 @@ class TestCheckCoverage:
 class TestTwoPhaseGating:
     """Tests for advisory/blocking scope_policy in baseline v2 (FR-019)."""
 
-    REPO_ROOT = Path(__file__).parent.parent.parent
-
     def _run_diff(
         self, baseline_path: Path, *, cwd: Path | None = None
     ) -> subprocess.CompletedProcess[str]:
-        env = os.environ.copy()
-        for var in ("GITHUB_EVENT_NAME", "GITHUB_REF", "GITHUB_EVENT_PATH"):
-            env.pop(var, None)
-        return subprocess.run(
-            [
-                sys.executable,
-                str(AUDIT_SCRIPT),
-                "--diff",
-                "--baseline",
-                str(baseline_path),
-            ],
-            capture_output=True,
-            text=True,
-            cwd=cwd or self.REPO_ROOT,
-            env=env,
+        return _run_audit(
+            cwd or baseline_path.parent,
+            "--diff",
+            "--baseline",
+            str(baseline_path),
+            env=_local_env(),
         )
 
-    def _write_stale_baseline_missing_python_tests(self, baseline_path: Path) -> None:
-        subprocess.run(
-            [
-                sys.executable,
-                str(AUDIT_SCRIPT),
-                "--update-baseline",
-                "--baseline",
-                str(baseline_path),
-            ],
-            capture_output=True,
-            text=True,
-            cwd=self.REPO_ROOT,
-        )
+    def _write_stale_baseline_missing_python_tests(
+        self, repo_root: Path, baseline_path: Path
+    ) -> None:
+        _run_audit(repo_root, "--update-baseline", "--baseline", str(baseline_path))
         data = json.loads(baseline_path.read_text(encoding="utf-8"))
         data["by_scope"].pop("python-tests", 0)
         if "scope_policy" in data:
@@ -392,20 +420,12 @@ class TestTwoPhaseGating:
 
     def test_advisory_scope_with_suppressions_passes(self, tmp_path: Path) -> None:
         """T026: advisory scope logs warning but returns exit code 0."""
-        # Generate real baseline, set new scopes to advisory
-        baseline_path = tmp_path / "baseline.json"
-        subprocess.run(
-            [
-                sys.executable,
-                str(AUDIT_SCRIPT),
-                "--update-baseline",
-                "--baseline",
-                str(baseline_path),
-            ],
-            capture_output=True,
-            text=True,
-            cwd=self.REPO_ROOT,
+        repo_root = _make_temp_audit_repo(
+            tmp_path,
+            {"scripts/example.py": "x = 1  # noqa: E501\n"},
         )
+        baseline_path = repo_root / "baseline.json"
+        _run_audit(repo_root, "--update-baseline", "--baseline", str(baseline_path))
         data = json.loads(baseline_path.read_text(encoding="utf-8"))
         # Set all scopes to advisory — any suppressions should be warnings
         data["scope_policy"] = dict.fromkeys(data["by_scope"], "advisory")
@@ -418,7 +438,7 @@ class TestTwoPhaseGating:
         data["by_type"] = dict.fromkeys(data["by_type"], 0)
         baseline_path.write_text(json.dumps(data, indent=2), encoding="utf-8")
 
-        result = self._run_diff(baseline_path)
+        result = self._run_diff(baseline_path, cwd=repo_root)
         assert result.returncode == 0, (
             f"Advisory scopes should pass even with suppressions.\n"
             f"stdout: {result.stdout}\nstderr: {result.stderr}"
@@ -426,56 +446,35 @@ class TestTwoPhaseGating:
 
     def test_blocking_scope_with_increase_fails(self, tmp_path: Path) -> None:
         """T027: blocking scope with suppression increase returns exit code 1."""
-        # Create a temp file with a real suppression so the scan finds > 0
-        sentinel = self.REPO_ROOT / "scripts" / "_test_blocking_sentinel.py"
-        sentinel.write_text("x = 1  # noqa: E501\n", encoding="utf-8")
-        try:
-            baseline_path = tmp_path / "baseline.json"
-            subprocess.run(
-                [
-                    sys.executable,
-                    str(AUDIT_SCRIPT),
-                    "--update-baseline",
-                    "--baseline",
-                    str(baseline_path),
-                ],
-                capture_output=True,
-                text=True,
-                cwd=self.REPO_ROOT,
-            )
-            data = json.loads(baseline_path.read_text(encoding="utf-8"))
-            # Set all scopes to blocking, zero out counts → current scan shows increases
-            data["scope_policy"] = dict.fromkeys(data["by_scope"], "blocking")
-            for key in data["by_scope"]:
-                data["by_scope"][key] = 0
-            data["total"] = 0
-            data["by_file"] = {}
-            data["by_rule"] = {}
-            data["by_type"] = dict.fromkeys(data["by_type"], 0)
-            baseline_path.write_text(json.dumps(data, indent=2), encoding="utf-8")
+        repo_root = _make_temp_audit_repo(
+            tmp_path,
+            {"scripts/_test_blocking_sentinel.py": "x = 1  # noqa: E501\n"},
+        )
+        baseline_path = repo_root / "baseline.json"
+        _run_audit(repo_root, "--update-baseline", "--baseline", str(baseline_path))
+        data = json.loads(baseline_path.read_text(encoding="utf-8"))
+        data["scope_policy"] = dict.fromkeys(data["by_scope"], "blocking")
+        for key in data["by_scope"]:
+            data["by_scope"][key] = 0
+        data["total"] = 0
+        data["by_file"] = {}
+        data["by_rule"] = {}
+        data["by_type"] = dict.fromkeys(data["by_type"], 0)
+        baseline_path.write_text(json.dumps(data, indent=2), encoding="utf-8")
 
-            result = self._run_diff(baseline_path)
-            assert result.returncode == 1, (
-                f"Blocking scopes with increases should fail.\nstdout: {result.stdout}"
-            )
-        finally:
-            sentinel.unlink(missing_ok=True)
+        result = self._run_diff(baseline_path, cwd=repo_root)
+        assert result.returncode == 1, (
+            f"Blocking scopes with increases should fail.\nstdout: {result.stdout}"
+        )
 
     def test_v1_baseline_treated_as_all_blocking(self, tmp_path: Path) -> None:
         """T028: v1 baseline (no scope_policy) = all blocking."""
-        baseline_path = tmp_path / "baseline.json"
-        subprocess.run(
-            [
-                sys.executable,
-                str(AUDIT_SCRIPT),
-                "--update-baseline",
-                "--baseline",
-                str(baseline_path),
-            ],
-            capture_output=True,
-            text=True,
-            cwd=self.REPO_ROOT,
+        repo_root = _make_temp_audit_repo(
+            tmp_path,
+            {"scripts/example.py": "x = 1  # noqa: E501\n"},
         )
+        baseline_path = repo_root / "baseline.json"
+        _run_audit(repo_root, "--update-baseline", "--baseline", str(baseline_path))
         data = json.loads(baseline_path.read_text(encoding="utf-8"))
         # Remove scope_policy to simulate v1, zero counts
         data.pop("scope_policy", None)
@@ -494,7 +493,7 @@ class TestTwoPhaseGating:
         }
         baseline_path.write_text(json.dumps(data, indent=2), encoding="utf-8")
 
-        result = self._run_diff(baseline_path)
+        result = self._run_diff(baseline_path, cwd=repo_root)
         assert result.returncode == 1, (
             f"v1 baseline missing current scopes must fail.\n"
             f"stdout: {result.stdout}\nstderr: {result.stderr}"
@@ -507,10 +506,14 @@ class TestTwoPhaseGating:
         After v1→v2 transition fallback removal, missing scopes are NOT advisory
         and must fail even when suppression delta is zero.
         """
-        baseline_path = tmp_path / "baseline.json"
-        self._write_stale_baseline_missing_python_tests(baseline_path)
+        repo_root = _make_temp_audit_repo(
+            tmp_path,
+            {"tests/test_example.py": "x = 1  # noqa: E501\n"},
+        )
+        baseline_path = repo_root / "baseline.json"
+        self._write_stale_baseline_missing_python_tests(repo_root, baseline_path)
 
-        result = self._run_diff(baseline_path)
+        result = self._run_diff(baseline_path, cwd=repo_root)
         assert result.returncode == 1, (
             f"Missing scope must fail even when delta=0.\n"
             f"stdout: {result.stdout}\nstderr: {result.stderr}"
@@ -523,25 +526,19 @@ class TestTwoPhaseGating:
         self, tmp_path: Path
     ) -> None:
         """Pending approval bypass must not apply to stale-baseline failures."""
-        baseline_path = tmp_path / "baseline.json"
-        self._write_stale_baseline_missing_python_tests(baseline_path)
-
-        env = os.environ.copy()
-        for var in ("GITHUB_EVENT_NAME", "GITHUB_REF", "GITHUB_EVENT_PATH"):
-            env.pop(var, None)
-        result = subprocess.run(
-            [
-                sys.executable,
-                str(AUDIT_SCRIPT),
-                "--diff",
-                "--baseline",
-                str(baseline_path),
-                "--allow-pending-approval",
-            ],
-            capture_output=True,
-            text=True,
-            cwd=self.REPO_ROOT,
-            env=env,
+        repo_root = _make_temp_audit_repo(
+            tmp_path,
+            {"tests/test_example.py": "x = 1  # noqa: E501\n"},
+        )
+        baseline_path = repo_root / "baseline.json"
+        self._write_stale_baseline_missing_python_tests(repo_root, baseline_path)
+        result = _run_audit(
+            repo_root,
+            "--diff",
+            "--baseline",
+            str(baseline_path),
+            "--allow-pending-approval",
+            env=_local_env(),
         )
         assert result.returncode == 1, (
             "Missing scope must remain blocking with --allow-pending-approval.\n"
@@ -553,93 +550,67 @@ class TestTwoPhaseGating:
 class TestNewFileMultiSuppressionDelta:
     """Regression test: new files with multiple suppressions must report accurate delta."""
 
-    REPO_ROOT = Path(__file__).parent.parent.parent
-
     def test_new_file_with_two_suppressions_reports_delta_2(
         self, tmp_path: Path
     ) -> None:
         """A new file with 2 noqa comments must show delta +2, not +1."""
-        # Generate real baseline, then inject a new file with 2 suppressions
-        baseline_path = tmp_path / "baseline.json"
-        env = os.environ.copy()
-        for var in ("GITHUB_EVENT_NAME", "GITHUB_REF", "GITHUB_EVENT_PATH"):
-            env.pop(var, None)
-        subprocess.run(
-            [
-                sys.executable,
-                str(AUDIT_SCRIPT),
-                "--update-baseline",
-                "--baseline",
-                str(baseline_path),
-            ],
-            capture_output=True,
-            text=True,
-            cwd=self.REPO_ROOT,
+        repo_root = _make_temp_audit_repo(tmp_path)
+        baseline_path = repo_root / "baseline.json"
+        env = _local_env()
+        _run_audit(
+            repo_root,
+            "--update-baseline",
+            "--baseline",
+            str(baseline_path),
             env=env,
         )
-        # Inject a new file with 2 suppressions into a blocking scope (src/)
-        injected = self.REPO_ROOT / "src" / "_test_multi_suppression.py"
+        injected = repo_root / "src" / "_test_multi_suppression.py"
+        injected.parent.mkdir(parents=True, exist_ok=True)
         injected.write_text(
             "import os  # noqa: F401\nx = 1  # noqa: E501\n",
             encoding="utf-8",
         )
-        try:
-            result = subprocess.run(
-                [
-                    sys.executable,
-                    str(AUDIT_SCRIPT),
-                    "--diff",
-                    "--baseline",
-                    str(baseline_path),
-                ],
-                capture_output=True,
-                text=True,
-                cwd=self.REPO_ROOT,
-                env=env,
-            )
-            # Should fail (blocking scope increase) with accurate delta
-            assert result.returncode == 1, (
-                f"Expected failure, got rc={result.returncode}\nstdout: {result.stdout}"
-            )
-            # The output should mention +2, not +1
-            assert "(+2)" in result.stdout or "delta: +2" in result.stdout.lower(), (
-                f"Expected delta +2 for 2-suppression file, got:\n{result.stdout}"
-            )
-        finally:
-            injected.unlink(missing_ok=True)
+        result = _run_audit(
+            repo_root,
+            "--diff",
+            "--baseline",
+            str(baseline_path),
+            env=env,
+        )
+        assert result.returncode == 1, (
+            f"Expected failure, got rc={result.returncode}\nstdout: {result.stdout}"
+        )
+        assert "(+2)" in result.stdout or "delta: +2" in result.stdout.lower(), (
+            f"Expected delta +2 for 2-suppression file, got:\n{result.stdout}"
+        )
 
 
 class TestAuditSuppressionsCLI:
     """Integration tests for the audit-suppressions.py CLI."""
 
-    @staticmethod
-    def _local_env() -> dict[str, str]:
-        """Build a local-style environment for subprocess execution."""
-        env = os.environ.copy()
-        env.pop("GITHUB_EVENT_NAME", None)
-        env.pop("GITHUB_REF", None)
-        env.pop("GITHUB_EVENT_PATH", None)
-        return env
-
-    def test_script_runs_without_error(self) -> None:
+    def test_script_runs_without_error(self, tmp_path: Path) -> None:
         """The audit script should run without errors."""
-        result = subprocess.run(
-            [sys.executable, str(AUDIT_SCRIPT)],
-            capture_output=True,
-            text=True,
-            cwd=Path(__file__).parent.parent.parent,
+        repo_root = _make_temp_audit_repo(
+            tmp_path,
+            {"src/example.py": "x = 1  # noqa: E501\n"},
         )
+        result = _run_audit(repo_root)
         assert result.returncode == 0, f"Script failed: {result.stderr}"
         assert "Total suppressions:" in result.stdout
 
-    def test_count_excludes_type_test_files(self) -> None:
+    def test_count_excludes_type_test_files(self, tmp_path: Path) -> None:
         """Running audit should not count suppressions in type-test files."""
-        result = subprocess.run(
-            [sys.executable, str(AUDIT_SCRIPT)],
-            capture_output=True,
-            text=True,
-            cwd=Path(__file__).parent.parent.parent,
+        repo_root = _make_temp_audit_repo(
+            tmp_path,
+            {
+                "extension/ui/dashboard.ts": (
+                    "// eslint-disable-next-line no-console -- REASON: test fixture\n"
+                    "console.log('x')\n"
+                ),
+                "extension/tests/types/rollup.type-test.ts": "export const value = 1;\n",
+            },
         )
+        result = _run_audit(repo_root)
         assert result.returncode == 0, f"Script failed: {result.stderr}"
         # The output should NOT include type-test files in the by-file listing
         lines = result.stdout.split("\n")
@@ -652,28 +623,37 @@ class TestAuditSuppressionsCLI:
             if by_file_section and "type-test.ts" in line:
                 pytest.fail(f"type-test files should not appear in output: {line}")
 
-    def test_diff_command_works(self) -> None:
+    def test_diff_command_works(self, tmp_path: Path) -> None:
         """The --diff command should run without errors."""
-        result = subprocess.run(
-            [sys.executable, str(AUDIT_SCRIPT), "--diff"],
-            capture_output=True,
-            text=True,
-            cwd=Path(__file__).parent.parent.parent,
+        repo_root = _make_temp_audit_repo(tmp_path)
+        baseline_path = repo_root / ".suppression-baseline.json"
+        _run_audit(repo_root, "--update-baseline", "--baseline", str(baseline_path))
+        result = _run_audit(
+            repo_root,
+            "--diff",
+            "--baseline",
+            str(baseline_path),
+            env=_local_env(),
         )
-        # Should either pass or fail with meaningful output
         assert (
             "suppressions" in result.stdout.lower()
             or "baseline" in result.stdout.lower()
         )
 
-    def test_diff_allows_pending_approval_for_local_preflight(self) -> None:
+    def test_diff_allows_pending_approval_for_local_preflight(
+        self, tmp_path: Path
+    ) -> None:
         """Local preflight mode should not fail solely on missing PR approval."""
-        result = subprocess.run(
-            [sys.executable, str(AUDIT_SCRIPT), "--diff", "--allow-pending-approval"],
-            capture_output=True,
-            text=True,
-            cwd=Path(__file__).parent.parent.parent,
-            env=self._local_env(),
+        repo_root = _make_temp_audit_repo(tmp_path)
+        baseline_path = repo_root / ".suppression-baseline.json"
+        _run_audit(repo_root, "--update-baseline", "--baseline", str(baseline_path))
+        result = _run_audit(
+            repo_root,
+            "--diff",
+            "--allow-pending-approval",
+            "--baseline",
+            str(baseline_path),
+            env=_local_env(),
         )
         assert result.returncode == 0, result.stdout + result.stderr
 
@@ -681,60 +661,25 @@ class TestAuditSuppressionsCLI:
         self, tmp_path: Path
     ) -> None:
         """Direct-push protection must still win under CI-style main env."""
-        repo_root = Path(__file__).parent.parent.parent
-        # Inject a temporary file with a suppression so current > baseline
+        repo_root = _make_temp_audit_repo(tmp_path)
+        baseline_path = repo_root / "baseline.json"
+        _run_audit(repo_root, "--update-baseline", "--baseline", str(baseline_path))
         injected = repo_root / "src" / "_test_injected_suppression.py"
+        injected.parent.mkdir(parents=True, exist_ok=True)
         injected.write_text("x = 1  # noqa: E501\n", encoding="utf-8")
-        try:
-            baseline_path = tmp_path / "baseline.json"
-            baseline_path.write_text(
-                json.dumps(
-                    {
-                        "version": 1,
-                        "generated_at": "2026-03-22T00:00:00Z",
-                        "total": 0,
-                        "by_scope": {
-                            "python-backend": 0,
-                            "typescript-extension": 0,
-                            "typescript-tests": 0,
-                        },
-                        "by_type": {
-                            "eslint-disable-block": 0,
-                            "eslint-disable-line": 0,
-                            "eslint-disable-next-line": 0,
-                            "noqa": 0,
-                            "ts-expect-error": 0,
-                            "ts-ignore": 0,
-                            "type-ignore": 0,
-                        },
-                        "by_file": {},
-                        "by_rule": {},
-                    },
-                    indent=2,
-                ),
-                encoding="utf-8",
-            )
-            env = self._local_env()
-            env["GITHUB_EVENT_NAME"] = "push"
-            env["GITHUB_REF"] = "refs/heads/main"
-            result = subprocess.run(
-                [
-                    sys.executable,
-                    str(AUDIT_SCRIPT),
-                    "--diff",
-                    "--allow-pending-approval",
-                    "--baseline",
-                    str(baseline_path),
-                ],
-                capture_output=True,
-                text=True,
-                cwd=repo_root,
-                env=env,
-            )
-            assert result.returncode == 1
-            assert "Direct push to main" in result.stdout
-        finally:
-            injected.unlink(missing_ok=True)
+        env = _local_env()
+        env["GITHUB_EVENT_NAME"] = "push"
+        env["GITHUB_REF"] = "refs/heads/main"
+        result = _run_audit(
+            repo_root,
+            "--diff",
+            "--allow-pending-approval",
+            "--baseline",
+            str(baseline_path),
+            env=env,
+        )
+        assert result.returncode == 1
+        assert "Direct push to main" in result.stdout
 
     def test_diff_allows_negative_delta_against_nonzero_external_baseline(
         self, tmp_path: Path
@@ -749,21 +694,17 @@ class TestAuditSuppressionsCLI:
         its total by adding a phantom file entry, then verify --diff reports
         a negative delta.
         """
-        repo_root = Path(__file__).parent.parent.parent
-        # Generate a real baseline so it includes all 6 scopes
-        real_baseline_path = tmp_path / "real_baseline.json"
-        env = self._local_env()
-        gen_result = subprocess.run(
-            [
-                sys.executable,
-                str(AUDIT_SCRIPT),
-                "--update-baseline",
-                "--baseline",
-                str(real_baseline_path),
-            ],
-            capture_output=True,
-            text=True,
-            cwd=repo_root,
+        repo_root = _make_temp_audit_repo(
+            tmp_path,
+            {"src/example.py": "x = 1  # noqa: E501\n"},
+        )
+        real_baseline_path = repo_root / "real_baseline.json"
+        env = _local_env()
+        gen_result = _run_audit(
+            repo_root,
+            "--update-baseline",
+            "--baseline",
+            str(real_baseline_path),
             env=env,
         )
         assert gen_result.returncode == 0, (
@@ -778,20 +719,14 @@ class TestAuditSuppressionsCLI:
             baseline_data["by_scope"].get("python-backend", 0) + 10
         )
         baseline_data["by_scope"] = dict(sorted(baseline_data["by_scope"].items()))
-        inflated_path = tmp_path / "inflated_baseline.json"
+        inflated_path = repo_root / "inflated_baseline.json"
         inflated_path.write_text(json.dumps(baseline_data, indent=2), encoding="utf-8")
 
-        result = subprocess.run(
-            [
-                sys.executable,
-                str(AUDIT_SCRIPT),
-                "--diff",
-                "--baseline",
-                str(inflated_path),
-            ],
-            capture_output=True,
-            text=True,
-            cwd=repo_root,
+        result = _run_audit(
+            repo_root,
+            "--diff",
+            "--baseline",
+            str(inflated_path),
             env=env,
         )
         assert result.returncode == 0, (
@@ -803,19 +738,19 @@ class TestAuditSuppressionsCLI:
             or "no suppression" in result.stdout.lower()
         )
 
-    def test_validate_command_works(self) -> None:
+    def test_validate_command_works(self, tmp_path: Path) -> None:
         """The --validate command should run without errors."""
-        result = subprocess.run(
-            [sys.executable, str(AUDIT_SCRIPT), "--validate"],
-            capture_output=True,
-            text=True,
-            cwd=Path(__file__).parent.parent.parent,
+        repo_root = _make_temp_audit_repo(tmp_path)
+        baseline_path = repo_root / ".suppression-baseline.json"
+        _run_audit(repo_root, "--update-baseline", "--baseline", str(baseline_path))
+        result = _run_audit(
+            repo_root,
+            "--validate",
+            "--baseline",
+            str(baseline_path),
         )
-        # Should either pass validation or report errors
-        assert result.returncode in (0, 1)
-        assert (
-            "validation" in result.stdout.lower() or "baseline" in result.stderr.lower()
-        )
+        assert result.returncode == 0, result.stderr
+        assert "validation" in result.stdout.lower()
 
 
 class TestSuppressionPatternDetection:
@@ -830,24 +765,26 @@ class TestSuppressionPatternDetection:
     def _scan_ts_content(self, content: str, tmp_path: Path, scope: str) -> int:
         """Write content to a .ts temp file and return suppression count."""
         if scope == "typescript-tests":
-            target_dir = self.REPO_ROOT / "extension" / "tests"
+            target_dir = tmp_path / "extension" / "tests"
         else:
-            target_dir = self.REPO_ROOT / "extension" / "ui"
+            target_dir = tmp_path / "extension" / "ui"
+        target_dir.mkdir(parents=True, exist_ok=True)
         test_file = target_dir / f"_audit_test_{id(content)}.ts"
         test_file.write_text(content, encoding="utf-8")
         try:
-            results = scan_file(test_file, scope, self.REPO_ROOT)
+            results = scan_file(test_file, scope, tmp_path)
             return len(results)
         finally:
             test_file.unlink(missing_ok=True)
 
-    def _scan_py_content(self, content: str) -> int:
+    def _scan_py_content(self, content: str, tmp_path: Path) -> int:
         """Write content to a .py temp file in src/ and return suppression count."""
-        target_dir = self.REPO_ROOT / "src"
+        target_dir = tmp_path / "src"
+        target_dir.mkdir(parents=True, exist_ok=True)
         test_file = target_dir / f"_audit_test_{id(content)}.py"
         test_file.write_text(content, encoding="utf-8")
         try:
-            results = scan_file(test_file, "python-backend", self.REPO_ROOT)
+            results = scan_file(test_file, "python-backend", tmp_path)
             return len(results)
         finally:
             test_file.unlink(missing_ok=True)
@@ -1013,71 +950,80 @@ class TestSuppressionPatternDetection:
 
     # ── Python suppressions ───────────────────────────────────────
 
-    def test_type_ignore_detected(self) -> None:
+    def test_type_ignore_detected(self, tmp_path: Path) -> None:
         """# type: ignore in a Python file → detected."""
         count = self._scan_py_content(
             "x = foo()  # type: ignore[attr-defined]\n",
+            tmp_path,
         )
         assert count == 1
 
-    def test_type_ignore_prose_not_detected(self) -> None:
+    def test_type_ignore_prose_not_detected(self, tmp_path: Path) -> None:
         """The words 'type' and 'ignore' in normal prose → NOT detected."""
         count = self._scan_py_content(
             "# The type system ignores this pattern\n",
+            tmp_path,
         )
         assert count == 0
 
-    def test_noqa_detected(self) -> None:
+    def test_noqa_detected(self, tmp_path: Path) -> None:
         """# noqa in a Python file → detected."""
         count = self._scan_py_content(
             "import os  # noqa: F401\n",
+            tmp_path,
         )
         assert count == 1
 
-    def test_noqa_prose_not_detected(self) -> None:
+    def test_noqa_prose_not_detected(self, tmp_path: Path) -> None:
         """The word 'noqa' in normal prose without # prefix → NOT detected."""
         count = self._scan_py_content(
             "# See noqa documentation for details\n",
+            tmp_path,
         )
         assert count == 0
 
     # ── Scanner false-positive regression tests (T008-T013, FR-006) ──
 
-    def test_string_literal_noqa_not_counted(self) -> None:
+    def test_string_literal_noqa_not_counted(self, tmp_path: Path) -> None:
         """T008: # noqa inside a string literal MUST NOT be counted."""
         count = self._scan_py_content(
             'msg = "x = 1  # noqa: E501\\n"\nreal = 1  # noqa: E501\n',
+            tmp_path,
         )
         assert count == 1, "Only the real comment should be counted, not the string"
 
-    def test_docstring_type_ignore_not_counted(self) -> None:
+    def test_docstring_type_ignore_not_counted(self, tmp_path: Path) -> None:
         """T009: # type: ignore inside a docstring MUST NOT be counted."""
         count = self._scan_py_content(
             '"""Use # type: ignore for mypy suppression."""\nx = 1\n',
+            tmp_path,
         )
         assert count == 0, "Docstring mention should not be counted"
 
-    def test_fstring_noqa_not_counted(self) -> None:
+    def test_fstring_noqa_not_counted(self, tmp_path: Path) -> None:
         """T010: # noqa inside an f-string MUST NOT be counted."""
         count = self._scan_py_content(
             'err = f"Expected: x=1  # noqa to disable"\ny = 2  # noqa: F841\n',
+            tmp_path,
         )
         assert count == 1, "Only the real comment should be counted, not the f-string"
 
-    def test_multiline_string_suppression_not_counted(self) -> None:
+    def test_multiline_string_suppression_not_counted(self, tmp_path: Path) -> None:
         """T011: suppression patterns in multi-line strings MUST NOT be counted."""
         count = self._scan_py_content(
             'text = """\nline with # noqa: E501 inside\nand # type: ignore too\n"""\n',
+            tmp_path,
         )
         assert count == 0, "Multi-line string content should not be counted"
 
-    def test_syntax_error_causes_hard_error(self) -> None:
+    def test_syntax_error_causes_hard_error(self, tmp_path: Path) -> None:
         """T012: file with syntax error → scanner returns error sentinel, not empty list."""
-        target_dir = self.REPO_ROOT / "src"
+        target_dir = tmp_path / "src"
+        target_dir.mkdir(parents=True, exist_ok=True)
         test_file = target_dir / "_audit_test_syntax_error.py"
         test_file.write_text("def broken(\n", encoding="utf-8")
         try:
-            results = scan_file(test_file, "python-backend", self.REPO_ROOT)
+            results = scan_file(test_file, "python-backend", tmp_path)
             # Post-hardening: returns a sentinel with __tokenize_error__ type
             assert len(results) == 1, f"Expected 1 sentinel, got {len(results)}"
             assert results[0]["type"] == "__tokenize_error__", (
@@ -1086,17 +1032,25 @@ class TestSuppressionPatternDetection:
         finally:
             test_file.unlink(missing_ok=True)
 
-    def test_syntax_error_exit_code_via_subprocess(self) -> None:
+    def test_syntax_error_exit_code_via_subprocess(self, tmp_path: Path) -> None:
         """T013: audit-suppressions.py returns exit code 1 for syntax errors."""
-        target_dir = self.REPO_ROOT / "src"
+        target_dir = tmp_path / "src"
+        target_dir.mkdir(parents=True, exist_ok=True)
         test_file = target_dir / "_audit_test_syntax_error_cli.py"
         test_file.write_text("def broken(\n", encoding="utf-8")
+        script_path = tmp_path / "audit.py"
+        script_path.write_text(
+            AUDIT_SCRIPT.read_text(encoding="utf-8"), encoding="utf-8"
+        )
+        (tmp_path / "pyproject.toml").write_text(
+            "[tool.pytest.ini_options]\n", encoding="utf-8"
+        )
         try:
             result = subprocess.run(
-                [sys.executable, str(AUDIT_SCRIPT)],
+                [sys.executable, str(script_path)],
                 capture_output=True,
                 text=True,
-                cwd=self.REPO_ROOT,
+                cwd=tmp_path,
             )
             # After tokenize hardening, this should return exit code 1
             # with "[ERROR] Cannot tokenize" in stderr.
@@ -1109,13 +1063,14 @@ class TestSuppressionPatternDetection:
         finally:
             test_file.unlink(missing_ok=True)
 
-    def test_indentation_error_causes_hard_error(self) -> None:
+    def test_indentation_error_causes_hard_error(self, tmp_path: Path) -> None:
         """Mixed-indent file raises IndentationError, not TokenError — must also be caught."""
-        target_dir = self.REPO_ROOT / "src"
+        target_dir = tmp_path / "src"
+        target_dir.mkdir(parents=True, exist_ok=True)
         test_file = target_dir / "_audit_test_indent_error.py"
         test_file.write_text("if True:\n\tx = 1\n    y = 2\n", encoding="utf-8")
         try:
-            results = scan_file(test_file, "python-backend", self.REPO_ROOT)
+            results = scan_file(test_file, "python-backend", tmp_path)
             assert len(results) == 1, f"Expected 1 sentinel, got {len(results)}"
             assert results[0]["type"] == "__tokenize_error__", (
                 f"Expected __tokenize_error__ sentinel, got {results[0]['type']}"
@@ -1123,17 +1078,25 @@ class TestSuppressionPatternDetection:
         finally:
             test_file.unlink(missing_ok=True)
 
-    def test_indentation_error_exit_code_via_subprocess(self) -> None:
+    def test_indentation_error_exit_code_via_subprocess(self, tmp_path: Path) -> None:
         """Mixed-indent file must produce exit code 1, same as TokenError."""
-        target_dir = self.REPO_ROOT / "src"
+        target_dir = tmp_path / "src"
+        target_dir.mkdir(parents=True, exist_ok=True)
         test_file = target_dir / "_audit_test_indent_error_cli.py"
         test_file.write_text("if True:\n\tx = 1\n    y = 2\n", encoding="utf-8")
+        script_path = tmp_path / "audit.py"
+        script_path.write_text(
+            AUDIT_SCRIPT.read_text(encoding="utf-8"), encoding="utf-8"
+        )
+        (tmp_path / "pyproject.toml").write_text(
+            "[tool.pytest.ini_options]\n", encoding="utf-8"
+        )
         try:
             result = subprocess.run(
-                [sys.executable, str(AUDIT_SCRIPT)],
+                [sys.executable, str(script_path)],
                 capture_output=True,
                 text=True,
-                cwd=self.REPO_ROOT,
+                cwd=tmp_path,
             )
             assert result.returncode == 1, (
                 f"Expected exit code 1 for IndentationError, got {result.returncode}.\n"
@@ -1210,69 +1173,41 @@ class TestScanCodebaseScopeOverlap:
 class TestBaselineStaleness:
     """Tests for --check-staleness (FR-025)."""
 
-    REPO_ROOT = Path(__file__).parent.parent.parent
-
     def test_fresh_baseline_passes(self, tmp_path: Path) -> None:
         """A freshly generated baseline passes staleness check."""
-        baseline_path = tmp_path / "baseline.json"
-        subprocess.run(
-            [
-                sys.executable,
-                str(AUDIT_SCRIPT),
-                "--update-baseline",
-                "--baseline",
-                str(baseline_path),
-            ],
-            capture_output=True,
-            text=True,
-            cwd=self.REPO_ROOT,
+        repo_root = _make_temp_audit_repo(
+            tmp_path,
+            {"src/example.py": "x = 1  # noqa: E501\n"},
         )
-        result = subprocess.run(
-            [
-                sys.executable,
-                str(AUDIT_SCRIPT),
-                "--check-staleness",
-                "--baseline",
-                str(baseline_path),
-            ],
-            capture_output=True,
-            text=True,
-            cwd=self.REPO_ROOT,
+        baseline_path = repo_root / "baseline.json"
+        _run_audit(repo_root, "--update-baseline", "--baseline", str(baseline_path))
+        result = _run_audit(
+            repo_root,
+            "--check-staleness",
+            "--baseline",
+            str(baseline_path),
         )
         assert result.returncode == 0, f"Fresh baseline should pass.\n{result.stdout}"
 
     def test_hand_edited_baseline_fails(self, tmp_path: Path) -> None:
         """A baseline with a modified by_scope value fails staleness check."""
-        baseline_path = tmp_path / "baseline.json"
-        subprocess.run(
-            [
-                sys.executable,
-                str(AUDIT_SCRIPT),
-                "--update-baseline",
-                "--baseline",
-                str(baseline_path),
-            ],
-            capture_output=True,
-            text=True,
-            cwd=self.REPO_ROOT,
+        repo_root = _make_temp_audit_repo(
+            tmp_path,
+            {"src/example.py": "x = 1  # noqa: E501\n"},
         )
+        baseline_path = repo_root / "baseline.json"
+        _run_audit(repo_root, "--update-baseline", "--baseline", str(baseline_path))
         data = json.loads(baseline_path.read_text(encoding="utf-8"))
         # Tamper: inflate one scope count
         first_scope = next(iter(data["by_scope"]))
         data["by_scope"][first_scope] = 999
         baseline_path.write_text(json.dumps(data, indent=2), encoding="utf-8")
 
-        result = subprocess.run(
-            [
-                sys.executable,
-                str(AUDIT_SCRIPT),
-                "--check-staleness",
-                "--baseline",
-                str(baseline_path),
-            ],
-            capture_output=True,
-            text=True,
-            cwd=self.REPO_ROOT,
+        result = _run_audit(
+            repo_root,
+            "--check-staleness",
+            "--baseline",
+            str(baseline_path),
         )
         assert result.returncode == 1, (
             f"Tampered baseline should fail.\n{result.stdout}"

@@ -46,6 +46,10 @@ assert _audit_spec.loader is not None
 _audit_mod = _importlib_util.module_from_spec(_audit_spec)
 _audit_spec.loader.exec_module(_audit_mod)
 AUDIT_SCOPES: dict[str, dict[str, str]] = _audit_mod.SCOPES
+scan_content = _audit_mod.scan_content
+validate_baseline = _audit_mod.validate_baseline
+find_unjustified_suppressions = _audit_mod.find_unjustified_suppressions
+compute_diff = _audit_mod.compute_diff
 
 # Load guardrail check functions for staged-content scanning (FR-014, FR-021)
 _guard_spec = _importlib_util.spec_from_file_location(
@@ -164,17 +168,21 @@ def worktree_paths(pathspec: str) -> list[str]:
     return [line.strip() for line in output.splitlines() if line.strip()]
 
 
-def stage_changed_worktree_files() -> bool:
+def modified_worktree_files() -> list[str]:
     output = git_output("diff", "--name-only")
-    files = [line.strip() for line in output.splitlines() if line.strip()]
+    return [line.strip() for line in output.splitlines() if line.strip()]
+
+
+def report_post_format_worktree_changes() -> None:
+    files = modified_worktree_files()
     if not files:
-        return False
+        raise SystemExit("[pre-commit] formatting checks failed")
     safe_print("")
-    safe_print("[pre-commit] auto-fixes applied, staging modified files")
+    safe_print("[pre-commit] formatting checks modified worktree files")
+    safe_print("Stage the updated files explicitly, then re-run the commit.")
     for file_name in files:
         safe_print(f"  - {file_name}")
-    run_command(["git", "add", "--", *files])
-    return True
+    raise SystemExit("[pre-commit] formatting checks changed files")
 
 
 def run_acl_health_check() -> None:
@@ -213,19 +221,161 @@ def run_pre_commit_stage() -> None:
         safe_print("[pre-commit] formatting checks passed")
         return
 
-    if stage_changed_worktree_files():
-        rerun = subprocess.run(
-            [pre_commit, "run", "--hook-stage", "pre-commit"],
-            cwd=REPO_ROOT,
-            check=False,
-            text=True,
-            encoding="utf-8",
-            errors="replace",
+    report_post_format_worktree_changes()
+
+
+def _allow_local_degraded() -> bool:
+    return os.environ.get("ADO_HOOK_ALLOW_LOCAL_DEGRADED", "").lower() in {
+        "1",
+        "true",
+        "yes",
+    }
+
+
+def _load_authoritative_suppression_baseline() -> dict[str, object]:
+    fetch = subprocess.run(
+        ["git", "fetch", "origin", "main", "--quiet"],
+        cwd=REPO_ROOT,
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        errors="replace",
+        check=False,
+    )
+    if fetch.returncode != 0:
+        message = (
+            "[pre-commit] Could not fetch origin/main for suppression baseline. "
+            "Set ADO_HOOK_ALLOW_LOCAL_DEGRADED=1 to continue in degraded mode."
         )
-        if rerun.returncode == 0:
-            safe_print("[pre-commit] formatting checks passed after restaging")
-            return
-    raise SystemExit("[pre-commit] formatting checks failed")
+        if _allow_local_degraded():
+            safe_print(f"{message} Running in degraded mode.")
+            return {"version": 2, "total": 0, "by_file": {}}
+        raise SystemExit(message)
+
+    result = subprocess.run(
+        ["git", "show", "origin/main:.suppression-baseline.json"],
+        cwd=REPO_ROOT,
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        errors="replace",
+        check=False,
+    )
+    if result.returncode != 0 or not result.stdout.strip():
+        message = (
+            "[pre-commit] origin/main:.suppression-baseline.json is unavailable. "
+            "Set ADO_HOOK_ALLOW_LOCAL_DEGRADED=1 to continue in degraded mode."
+        )
+        if _allow_local_degraded():
+            safe_print(f"{message} Running in degraded mode.")
+            return {"version": 2, "total": 0, "by_file": {}}
+        raise SystemExit(message)
+
+    baseline = json.loads(result.stdout)
+    errors = validate_baseline(baseline)
+    if errors:
+        safe_print("[pre-commit] authoritative suppression baseline is invalid:")
+        for error in errors:
+            safe_print(f"  - {error}")
+        raise SystemExit(1)
+    return baseline
+
+
+def _resolve_staged_scope(path: str) -> str | None:
+    best_scope: str | None = None
+    best_len = -1
+    for scope_name, scope_cfg in AUDIT_SCOPES.items():
+        if not path.startswith(scope_cfg["dir"]):
+            continue
+        ext_match = (scope_cfg["pattern"] == "*.py" and path.endswith(".py")) or (
+            scope_cfg["pattern"] == "*.ts" and path.endswith(".ts")
+        )
+        if not ext_match:
+            continue
+        if len(scope_cfg["dir"]) > best_len:
+            best_scope = scope_name
+            best_len = len(scope_cfg["dir"])
+    return best_scope
+
+
+def _scan_staged_suppressions() -> dict[str, list[dict[str, object]]]:
+    results: dict[str, list[dict[str, object]]] = {}
+    for path in staged_paths():
+        if not (path.endswith(".py") or path.endswith(".ts")):
+            continue
+        scope = _resolve_staged_scope(path)
+        if scope is None:
+            continue
+        content = staged_file_content(path)
+        if content is None:
+            continue
+        suppressions = scan_content(content, scope, file_path=Path(path))
+        if suppressions:
+            results[path] = suppressions
+    return results
+
+
+def run_staged_suppression_diff_guard() -> None:
+    baseline = _load_authoritative_suppression_baseline()
+    baseline_by_file = baseline.get("by_file", {})
+    assert isinstance(baseline_by_file, dict)
+
+    staged_results = _scan_staged_suppressions()
+    tokenize_errors: list[str] = []
+    staged_baseline = dict(baseline)
+    staged_baseline["by_file"] = {}
+    staged_baseline["total"] = 0
+    staged_current = dict(baseline)
+    staged_current["by_file"] = {}
+    staged_current["total"] = 0
+
+    for file_path, suppressions in staged_results.items():
+        if any(s["type"] == "__tokenize_error__" for s in suppressions):
+            tokenize_errors.append(file_path)
+            continue
+        current_count = len(suppressions)
+        baseline_count = baseline_by_file.get(file_path, 0)
+        if not isinstance(baseline_count, int):
+            baseline_count = 0
+        staged_baseline["by_file"][file_path] = baseline_count
+        staged_baseline["total"] += baseline_count
+        staged_current["by_file"][file_path] = current_count
+        staged_current["total"] += current_count
+
+    if tokenize_errors:
+        safe_print("[pre-commit] staged suppression scan hit tokenize errors:")
+        for file_path in tokenize_errors:
+            safe_print(f"  - {file_path}")
+        raise SystemExit(1)
+
+    diff = compute_diff(staged_baseline, staged_current)
+    if diff["delta"] > 0:
+        safe_print("[pre-commit] staged suppression increase detected:")
+        safe_print(
+            f"  baseline: {diff['baseline_total']} current: {diff['current_total']} delta: +{diff['delta']}"
+        )
+        raise SystemExit(1)
+    safe_print("[pre-commit] staged suppression guard passed")
+
+
+def run_staged_suppression_justification_guard() -> None:
+    staged_results = _scan_staged_suppressions()
+    if any(
+        supp["type"] == "__tokenize_error__"
+        for suppressions in staged_results.values()
+        for supp in suppressions
+    ):
+        raise SystemExit(1)
+    unjustified = find_unjustified_suppressions(staged_results)
+    if unjustified:
+        safe_print("[pre-commit] staged suppressions missing justification:")
+        for file_path, line_num, supp_type in unjustified:
+            safe_print(f"  {file_path}:{line_num}: {supp_type}")
+        safe_print(
+            "Required format: -- REASON: <explanation> or -- SECURITY: <explanation>"
+        )
+        raise SystemExit(1)
+    safe_print("[pre-commit] staged suppression justifications passed")
 
 
 def ensure_no_compiled_js() -> None:
@@ -680,8 +830,10 @@ def run_rule_disable_invariants_guard() -> None:
 
 
 def run_pre_commit_hook() -> None:
-    safe_print("[pre-commit] running suppression audit (zero-tolerance)")
-    run_command([sys.executable, "scripts/audit-suppressions.py", "--diff"])
+    safe_print("[pre-commit] running staged suppression guard")
+    run_staged_suppression_diff_guard()
+    safe_print("[pre-commit] running staged suppression justification guard")
+    run_staged_suppression_justification_guard()
     safe_print("[pre-commit] running Any-type ratchet (QG-40)")
     run_command([sys.executable, "scripts/check_no_any_types.py", "--diff"])
     run_acl_health_check()

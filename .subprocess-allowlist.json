@@ -27,19 +27,19 @@
     },
     {
       "file": "scripts/run_pr_preflight.py",
-      "line": 437,
+      "line": 450,
       "code": "completed = subprocess.run(",
       "reason": "CommandSpec-driven command list from build_commands()"
     },
     {
       "file": "scripts/run_repo_hook.py",
-      "line": 84,
+      "line": 88,
       "code": "result = subprocess.run(",
       "reason": "run_command() helper: command list from callers"
     },
     {
       "file": "scripts/run_repo_hook.py",
-      "line": 148,
+      "line": 152,
       "code": "result = subprocess.run(",
       "reason": "staged_file_content(): git show with repo-owned path"
     },

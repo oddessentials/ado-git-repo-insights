@@ -51,7 +51,7 @@ repos:
         language: system
         pass_filenames: false
         always_run: true
-        stages: [pre-commit, pre-push]
+        stages: [pre-push]
 
       - id: suppression-count
         name: Suppression Count Guard
@@ -59,7 +59,7 @@ repos:
         language: system
         pass_filenames: false
         always_run: true
-        stages: [pre-commit, pre-push]
+        stages: [pre-push]
 
       - id: env-guard
         name: Environment Variable Guard

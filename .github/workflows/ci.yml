@@ -655,6 +655,9 @@ jobs:
       - name: Verify scope coverage (FR-026)
         run: python scripts/audit-suppressions.py --check-coverage
 
+      - name: Suppression justifications
+        run: python scripts/audit-suppressions.py --check-justifications
+
       - name: Baseline staleness (FR-025)
         run: python scripts/audit-suppressions.py --check-staleness
 

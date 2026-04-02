@@ -29,6 +29,10 @@ CI_STEP_TO_GATE = {
         "suppression-audit",
         "Verify scope coverage (FR-026)",
     ): "Suppression scope coverage (FR-026)",
+    (
+        "suppression-audit",
+        "Suppression justifications",
+    ): "Suppression justifications",
     ("suppression-audit", "Baseline staleness (FR-025)"): "Baseline staleness (FR-025)",
     (
         "suppression-audit",
@@ -158,6 +162,27 @@ def _extract_run_command_calls(function_name: str) -> list[tuple[str, str | None
     return calls
 
 
+def _extract_called_function_names(function_name: str) -> list[str]:
+    tree = ast.parse(REPO_HOOK_SCRIPT.read_text(encoding="utf-8"))
+    target: ast.FunctionDef | None = None
+    for node in tree.body:
+        if isinstance(node, ast.FunctionDef) and node.name == function_name:
+            target = node
+            break
+    assert target is not None, f"Missing function {function_name}"
+
+    called: list[str] = []
+
+    class Visitor(ast.NodeVisitor):
+        def visit_Call(self, node: ast.Call) -> None:
+            if isinstance(node.func, ast.Name):
+                called.append(node.func.id)
+            self.generic_visit(node)
+
+    Visitor().visit(target)
+    return called
+
+
 class TestRootTestCi:
     def test_root_test_ci_is_exactly_preflight(self) -> None:
         root_pkg = json.loads((REPO_ROOT / "package.json").read_text(encoding="utf-8"))
@@ -186,7 +211,7 @@ class TestExtensionPackageScripts:
 class TestPrecommitParity:
     def test_precommit_python_commands_match_preflight_and_ci(self) -> None:
         preflight = _normalized_preflight_commands()
-        repo_calls = dict(_extract_run_command_calls("run_pre_commit_hook"))
+        called_functions = _extract_called_function_names("run_pre_commit_hook")
         suppression_commands = _extract_shell_commands(
             str(
                 _find_ci_step(
@@ -194,18 +219,34 @@ class TestPrecommitParity:
                 )["run"]
             )
         )
+        justification_commands = _extract_shell_commands(
+            str(_find_ci_step("suppression-audit", "Suppression justifications")["run"])
+        )
         any_step = _find_ci_step("mypy", "No typing.Any in src/ (QG-40)")
 
-        assert repo_calls["__PYTHON__ scripts/audit-suppressions.py --diff"] is None
+        assert "run_staged_suppression_diff_guard" in called_functions
+        assert "run_staged_suppression_justification_guard" in called_functions
+        guard_calls = _extract_called_function_names(
+            "run_staged_suppression_diff_guard"
+        )
+        assert "_load_authoritative_suppression_baseline" in guard_calls
         assert preflight["Suppression baseline sync gate"] == (
             "__PYTHON__ scripts/audit-suppressions.py --diff"
         )
         assert "python scripts/audit-suppressions.py --diff" in suppression_commands
+        assert preflight["Suppression justifications"] == (
+            "__PYTHON__ scripts/audit-suppressions.py --check-justifications"
+        )
+        assert (
+            "python scripts/audit-suppressions.py --check-justifications"
+            in justification_commands
+        )
 
-        assert repo_calls["__PYTHON__ scripts/check_no_any_types.py --diff"] is None
+        repo_calls = dict(_extract_run_command_calls("run_pre_commit_hook"))
         assert preflight["No typing.Any in src/ (QG-40)"] == (
             "__PYTHON__ scripts/check_no_any_types.py"
         )
+        assert repo_calls["__PYTHON__ scripts/check_no_any_types.py --diff"] is None
         assert str(any_step["run"]).strip() == "python scripts/check_no_any_types.py"
 
     def test_extension_helper_commands_match_preflight_and_ci(self) -> None:
@@ -278,6 +319,10 @@ class TestPreflightCiParity:
             "Suppression scope coverage (FR-026)": (
                 "suppression-audit",
                 "Verify scope coverage (FR-026)",
+            ),
+            "Suppression justifications": (
+                "suppression-audit",
+                "Suppression justifications",
             ),
             "Baseline staleness (FR-025)": (
                 "suppression-audit",

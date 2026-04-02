@@ -418,19 +418,15 @@ def _scan_with_regex(
     return suppressions
 
 
-def scan_file(file_path: Path, scope: str, repo_root: Path) -> list[Suppression]:
-    """
-    Scan a single file for suppression comments.
-
-    Returns list of suppressions with:
-    - type: suppression type ID
-    - line: line number
-    - rules: list of rules being suppressed
-    - has_justification: whether justification tag is present
-    """
+def scan_content(
+    content: str,
+    scope: str,
+    *,
+    file_path: Path | None = None,
+) -> list[Suppression]:
+    """Scan already-loaded content for suppressions in the given scope."""
     suppressions: list[Suppression] = []
 
-    # Determine which patterns to check based on scope language (FR-028)
     scope_config = SCOPES.get(scope)
     if scope_config is None:
         print(
@@ -444,7 +440,6 @@ def scan_file(file_path: Path, scope: str, repo_root: Path) -> list[Suppression]
     if language == "python":
         patterns_to_check = ["type-ignore", "noqa"]
     else:
-        # TypeScript: base suppressions for all scopes
         patterns_to_check = [
             "eslint-disable-block",
             "eslint-disable-next-line",
@@ -455,9 +450,29 @@ def scan_file(file_path: Path, scope: str, repo_root: Path) -> list[Suppression]
             "istanbul-ignore",
             "c8-ignore",
         ]
-        # Test scopes: also detect test-runner escapes (FR-028)
         if scope_config["check_test_patterns"]:
             patterns_to_check.extend(["test-only", "test-skip"])
+
+    if language == "python":
+        return _scan_python_with_tokenize(
+            content,
+            file_path or Path("<memory>"),
+            patterns_to_check,
+        )
+    return _scan_with_regex(content, patterns_to_check)
+
+
+def scan_file(file_path: Path, scope: str, repo_root: Path) -> list[Suppression]:
+    """
+    Scan a single file for suppression comments.
+
+    Returns list of suppressions with:
+    - type: suppression type ID
+    - line: line number
+    - rules: list of rules being suppressed
+    - has_justification: whether justification tag is present
+    """
+    suppressions: list[Suppression] = []
 
     # SECURITY: Check file size before reading to prevent resource exhaustion
     try:
@@ -478,14 +493,7 @@ def scan_file(file_path: Path, scope: str, repo_root: Path) -> list[Suppression]
         print(f"Warning: Could not read {file_path}: {e}", file=sys.stderr)
         return suppressions
 
-    # Use tokenize for Python files to avoid false positives from string literals.
-    # TypeScript files keep regex scanning (Python tokenizer can't parse TS).
-    if language == "python":
-        suppressions = _scan_python_with_tokenize(content, file_path, patterns_to_check)
-    else:
-        suppressions = _scan_with_regex(content, patterns_to_check)
-
-    return suppressions
+    return scan_content(content, scope, file_path=file_path)
 
 
 def _resolve_scope(file_path: str) -> str | None:

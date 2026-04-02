@@ -31,6 +31,11 @@ _spec.loader.exec_module(_hook_module)
 require_clean_test_compilation_scope = _hook_module.require_clean_test_compilation_scope
 require_clean_tsconfigs = _hook_module.require_clean_tsconfigs
 require_clean_ui_sources = _hook_module.require_clean_ui_sources
+run_pre_commit_stage = _hook_module.run_pre_commit_stage
+run_staged_suppression_diff_guard = _hook_module.run_staged_suppression_diff_guard
+run_staged_suppression_justification_guard = (
+    _hook_module.run_staged_suppression_justification_guard
+)
 
 
 def _mock_worktree_paths(dirty_files: dict[str, list[str]]):
@@ -200,6 +205,148 @@ class TestRequireCleanUiSources:
             require_clean_tsconfigs()
 
         assert calls == ["extension/tsconfig*.json"]
+
+
+class TestPreCommitStageImmutability:
+    """Formatting must not mutate the staged set after staged-only guards ran."""
+
+    def test_run_pre_commit_stage_does_not_auto_stage_worktree_changes(self) -> None:
+        process_result = type(
+            "CompletedProcess",
+            (),
+            {"returncode": 1, "stdout": "", "stderr": ""},
+        )()
+        with (
+            patch.object(_hook_module, "resolve_pre_commit", return_value="pre-commit"),
+            patch("subprocess.run", return_value=process_result),
+            patch.object(
+                _hook_module,
+                "modified_worktree_files",
+                return_value=["src/example.py"],
+            ),
+            patch.object(_hook_module, "run_command") as run_command_mock,
+        ):
+            with pytest.raises(SystemExit, match="changed files"):
+                run_pre_commit_stage()
+
+        run_command_mock.assert_not_called()
+
+
+class TestStagedSuppressionGuards:
+    def test_authoritative_baseline_loader_fails_closed_without_degraded_mode(
+        self,
+    ) -> None:
+        fetch_result = type(
+            "CompletedProcess",
+            (),
+            {"returncode": 1, "stdout": "", "stderr": "fetch failed"},
+        )()
+        with (
+            patch("subprocess.run", return_value=fetch_result),
+            patch.dict("os.environ", {}, clear=False),
+        ):
+            with pytest.raises(SystemExit, match="Could not fetch origin/main"):
+                _hook_module._load_authoritative_suppression_baseline()
+
+    def test_authoritative_baseline_loader_allows_explicit_degraded_mode(self) -> None:
+        fetch_result = type(
+            "CompletedProcess",
+            (),
+            {"returncode": 1, "stdout": "", "stderr": "fetch failed"},
+        )()
+        with (
+            patch("subprocess.run", return_value=fetch_result),
+            patch.dict("os.environ", {"ADO_HOOK_ALLOW_LOCAL_DEGRADED": "1"}),
+        ):
+            baseline = _hook_module._load_authoritative_suppression_baseline()
+        assert baseline["by_file"] == {}
+        assert baseline["total"] == 0
+
+    def test_diff_guard_fails_when_staged_net_delta_is_positive(self) -> None:
+        with (
+            patch.object(
+                _hook_module,
+                "_load_authoritative_suppression_baseline",
+                return_value={"by_file": {"src/example.py": 0}},
+            ),
+            patch.object(
+                _hook_module,
+                "_scan_staged_suppressions",
+                return_value={"src/example.py": [{"type": "noqa", "line": 1}]},
+            ),
+        ):
+            with pytest.raises(SystemExit):
+                run_staged_suppression_diff_guard()
+
+    def test_diff_guard_passes_when_staged_net_delta_is_zero(self) -> None:
+        with (
+            patch.object(
+                _hook_module,
+                "_load_authoritative_suppression_baseline",
+                return_value={
+                    "by_file": {
+                        "src/old.py": 1,
+                        "src/new.py": 0,
+                    }
+                },
+            ),
+            patch.object(
+                _hook_module,
+                "_scan_staged_suppressions",
+                return_value={
+                    "src/old.py": [],
+                    "src/new.py": [{"type": "noqa", "line": 1}],
+                },
+            ),
+        ):
+            run_staged_suppression_diff_guard()
+
+    def test_diff_guard_allows_suppression_preserving_move(self) -> None:
+        with (
+            patch.object(
+                _hook_module,
+                "_load_authoritative_suppression_baseline",
+                return_value={
+                    "by_file": {
+                        "src/old.py": 1,
+                    }
+                },
+            ),
+            patch.object(
+                _hook_module,
+                "_scan_staged_suppressions",
+                return_value={
+                    "src/old.py": [],
+                    "src/new.py": [
+                        {
+                            "type": "noqa",
+                            "line": 1,
+                            "rules": [],
+                            "has_justification": True,
+                        }
+                    ],
+                },
+            ),
+        ):
+            run_staged_suppression_diff_guard()
+
+    def test_justification_guard_fails_for_unjustified_staged_suppression(self) -> None:
+        with patch.object(
+            _hook_module,
+            "_scan_staged_suppressions",
+            return_value={
+                "src/example.py": [
+                    {
+                        "type": "noqa",
+                        "line": 3,
+                        "rules": [],
+                        "has_justification": False,
+                    }
+                ]
+            },
+        ):
+            with pytest.raises(SystemExit):
+                run_staged_suppression_justification_guard()
 
 
 git_output = _hook_module.git_output

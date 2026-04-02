@@ -77,7 +77,7 @@ def smoke_report_dir() -> Path:
     return PREFLIGHT_ROOT / "playwright" / "report"
 
 
-def main_branch_suppression_baseline() -> Path | None:
+def main_branch_suppression_baseline(*, allow_local_degraded: bool) -> Path | None:
     baseline_path = PREFLIGHT_ROOT / "baseline" / "main-suppression-baseline.json"
     baseline_path.parent.mkdir(parents=True, exist_ok=True)
     # Fetch origin/main so the baseline is fresh, not stale
@@ -86,20 +86,29 @@ def main_branch_suppression_baseline() -> Path | None:
         cwd=REPO_ROOT,
     )
     if fetch_result.returncode != 0:
-        safe_print(
-            "[WARNING] Could not fetch origin/main for suppression baseline. "
-            "Suppression diff may use a stale baseline or be skipped."
+        message = (
+            "Could not fetch origin/main for suppression baseline. "
+            "Authoritative local preflight cannot continue because CI compares "
+            "suppression growth against origin/main."
         )
+        if allow_local_degraded:
+            safe_print(f"[WARNING] {message} Running in degraded mode instead.")
+            return None
+        raise SystemExit(message)
     result = run_subprocess(
         ["git", "show", "origin/main:.suppression-baseline.json"],
         cwd=REPO_ROOT,
     )
     if result.returncode != 0 or not result.stdout.strip():
-        safe_print(
-            "[WARNING] Suppression baseline not available from origin/main. "
-            "Suppression diff will run without a baseline comparison."
+        message = (
+            "Suppression baseline not available from origin/main. "
+            "Authoritative local preflight cannot continue because CI requires "
+            "that baseline for suppression parity."
         )
-        return None
+        if allow_local_degraded:
+            safe_print(f"[WARNING] {message} Running in degraded mode instead.")
+            return None
+        raise SystemExit(message)
     baseline_path.write_text(result.stdout, encoding="utf-8", newline="\n")
     return baseline_path
 
@@ -135,6 +144,10 @@ def build_commands(
         CommandSpec(
             "Suppression scope coverage (FR-026)",
             ("__PYTHON__", "scripts/audit-suppressions.py", "--check-coverage"),
+        ),
+        CommandSpec(
+            "Suppression justifications",
+            ("__PYTHON__", "scripts/audit-suppressions.py", "--check-justifications"),
         ),
         CommandSpec(
             "Baseline staleness (FR-025)",
@@ -761,7 +774,9 @@ def main() -> int:
             "still be enforced in CI"
         )
     commands = build_commands(
-        main_branch_suppression_baseline(),
+        main_branch_suppression_baseline(
+            allow_local_degraded=args.allow_local_degraded
+        ),
         strict=args.strict,
         gitleaks=gitleaks,
     )
