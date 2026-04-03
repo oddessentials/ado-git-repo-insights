@@ -86,14 +86,13 @@ known-first-party = ["ado_git_repo_insights"]
 
 [tool.pytest.ini_options]
 minversion = "7.0"
-# All pytest runtime paths are routed to .tmp/pytest/ so pytest never touches
-# %LOCALAPPDATA%\Temp or .pytest_cache/, eliminating Windows permission failures.
-# basetemp and COVERAGE_FILE are set dynamically per-run in conftest.py to
-# prevent stale locked directories from bricking future runs.
+# Keep only the persistent pytest cache in the repo root. Normal local runs
+# use pytest defaults for basetemp because forcing basetemp into repo-owned
+# per-run directories triggers Windows teardown failures at session finish.
 addopts = "-ra -q --cov=src/ado_git_repo_insights --cov-report=term-missing"
 cache_dir = ".tmp/pytest/cache"
-# "all" = never delete basetemp at session end (avoids WinError 5 on locked
-# files). Cross-run cleanup happens in conftest.py pytest_configure instead.
+# Keep tmp_path directories for debugging; this does not change pytest's own
+# basetemp selection for ordinary local runs.
 tmp_path_retention_policy = "all"
 testpaths = ["tests"]
 pythonpath = ["src"]
@@ -159,9 +158,6 @@ warn_return_any = false
 [tool.coverage.run]
 source = ["src/ado_git_repo_insights"]
 branch = true
-# parallel = true: write per-process shards, never erase/combine/delete
-# during the run. Prevents Windows lock failures on shard cleanup.
-parallel = true
 # Static fallback for bare pytest (without the launcher). The documented
 # entrypoint (scripts/run_pytest.py) sets COVERAGE_FILE per-run before
 # pytest starts; preflight also overrides via COVERAGE_FILE env var.

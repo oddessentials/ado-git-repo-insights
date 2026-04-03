@@ -85,6 +85,18 @@ class TestBuildCommands:
             "--check-justifications",
         )
 
+    def test_python_suite_command_keeps_preflight_temp_paths(self) -> None:
+        commands = build_commands(None, gitleaks=None)
+        spec = next(
+            command
+            for command in commands
+            if command.name == "Full Python test suite with coverage"
+        )
+
+        assert "--basetemp" in spec.command
+        assert str(_module.base_temp("python")) in spec.command
+        assert spec.extra_env == {"COVERAGE_FILE": str(_module.coverage_file("python"))}
+
 
 class TestMainBehavior:
     """The default CLI path must be authoritative, with explicit degraded mode."""
