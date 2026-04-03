@@ -76,6 +76,9 @@ def pytest_configure(config: object) -> None:
     if "COVERAGE_FILE" not in os.environ:
         os.environ["COVERAGE_FILE"] = str(run_dir / ".coverage")
 
+    # Ensure coverage data_file directory exists (pyproject.toml points here)
+    (_TMP_ROOT / "coverage").mkdir(parents=True, exist_ok=True)
+
     # Self-healing: probe cache and nuke if locked
     _self_heal_cache(_TMP_ROOT / "cache")
 

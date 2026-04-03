@@ -519,9 +519,11 @@ jobs:
           # Run pytest with JUnit XML output for robust CI gating
           # -q -ra: quiet mode with short test summary (passed/failed/skipped/xfailed/error)
           # --junit-xml: machine-readable output for CI validation
-          # --cov-report=xml: coverage report for codecov
+          # --cov: explicit (no longer in addopts to avoid Windows .coverage locking)
           python -m pytest \
             -q -ra \
+            --cov=src/ado_git_repo_insights \
+            --cov-report=term-missing \
             --junit-xml=test-results.xml \
             --cov-report=xml \
             --tb=short \
@@ -733,8 +735,7 @@ jobs:
       - name: Run base-compatible tests
         run: |
           # Run tests that MUST work without [ml] extras (single invocation for efficiency)
-          # Override addopts to exclude coverage (pyproject.toml includes --cov)
-          pytest -v -o "addopts=-ra -q" \
+          pytest -v \
             tests/unit/test_ml_cli_flags.py \
             tests/unit/test_insights_schema.py \
             tests/unit/test_predictions_schema.py
