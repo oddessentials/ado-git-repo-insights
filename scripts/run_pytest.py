@@ -75,6 +75,7 @@ def _prune_old_runs(runs_root: Path) -> None:
 
 
 _SUBSET_SELECTORS = frozenset(("-k", "-m", "--lf", "--last-failed"))
+_SUBSET_SHORT = frozenset(("-k", "-m"))
 
 
 def _is_subset_run(args: list[str]) -> bool:
@@ -82,7 +83,7 @@ def _is_subset_run(args: list[str]) -> bool:
 
     Recognizes explicit test paths, pytest node IDs (path::node), and
     selector flags that reduce executed scope (-k, -m, --lf).
-    Handles both ``-k expr`` and ``-k=expr`` forms.
+    Handles ``-k expr``, ``-k=expr``, and ``-kexpr`` (argparse concat) forms.
     """
     for arg in args:
         if arg in _SUBSET_SELECTORS:
@@ -90,6 +91,11 @@ def _is_subset_run(args: list[str]) -> bool:
         for selector in _SUBSET_SELECTORS:
             if arg.startswith(selector + "="):
                 return True
+        # argparse accepts -kexpr / -mslow (short option with concatenated value)
+        if not arg.startswith("--") and any(
+            arg.startswith(s) and len(arg) > len(s) for s in _SUBSET_SHORT
+        ):
+            return True
         if arg.startswith("-"):
             continue
         base = arg.split("::", 1)[0]

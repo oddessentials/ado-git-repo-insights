@@ -92,6 +92,61 @@ class TestRunPytestLauncher:
         args = pytest_main.call_args.args[0]
         assert "--cov-fail-under=0" in args
 
+    def test_k_concat_selector_disables_coverage_floor(self) -> None:
+        with (
+            patch.object(sys, "argv", ["run_pytest.py", "-ktest_foo"]),
+            patch.dict(os.environ, {}, clear=True),
+            patch("pytest.main", return_value=0) as pytest_main,
+        ):
+            assert _module.main() == 0
+
+        args = pytest_main.call_args.args[0]
+        assert "--cov-fail-under=0" in args
+
+    def test_m_concat_selector_disables_coverage_floor(self) -> None:
+        with (
+            patch.object(sys, "argv", ["run_pytest.py", "-mslow"]),
+            patch.dict(os.environ, {}, clear=True),
+            patch("pytest.main", return_value=0) as pytest_main,
+        ):
+            assert _module.main() == 0
+
+        args = pytest_main.call_args.args[0]
+        assert "--cov-fail-under=0" in args
+
+    def test_last_failed_long_form_disables_coverage_floor(self) -> None:
+        with (
+            patch.object(sys, "argv", ["run_pytest.py", "--last-failed"]),
+            patch.dict(os.environ, {}, clear=True),
+            patch("pytest.main", return_value=0) as pytest_main,
+        ):
+            assert _module.main() == 0
+
+        args = pytest_main.call_args.args[0]
+        assert "--cov-fail-under=0" in args
+
+    def test_non_selector_flags_keep_coverage_floor(self) -> None:
+        with (
+            patch.object(sys, "argv", ["run_pytest.py", "-v", "-x", "--no-cov"]),
+            patch.dict(os.environ, {}, clear=True),
+            patch("pytest.main", return_value=0) as pytest_main,
+        ):
+            assert _module.main() == 0
+
+        args = pytest_main.call_args.args[0]
+        assert "--cov-fail-under=0" not in args
+
+    def test_lfnf_does_not_trigger_subset_mode(self) -> None:
+        with (
+            patch.object(sys, "argv", ["run_pytest.py", "--lfnf=all"]),
+            patch.dict(os.environ, {}, clear=True),
+            patch("pytest.main", return_value=0) as pytest_main,
+        ):
+            assert _module.main() == 0
+
+        args = pytest_main.call_args.args[0]
+        assert "--cov-fail-under=0" not in args
+
     def test_existing_coverage_file_is_preserved(self) -> None:
         with (
             patch.object(sys, "argv", ["run_pytest.py"]),
