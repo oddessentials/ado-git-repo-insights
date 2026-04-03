@@ -18,7 +18,7 @@ CombineFunc = Callable[
     [coverage.Coverage, Iterable[str] | None, bool, bool],
     None,
 ]
-_PATCHED = False
+_PATCHED: bool = False
 _ORIGINAL_COMBINE: CombineFunc | None = None
 
 

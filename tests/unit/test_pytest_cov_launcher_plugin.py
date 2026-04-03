@@ -3,10 +3,10 @@
 from __future__ import annotations
 
 import importlib.util
-from collections.abc import Iterable
+from collections.abc import Callable, Iterable
 from io import StringIO
 from pathlib import Path
-from typing import Protocol, cast
+from typing import cast
 
 import coverage
 from coverage.sqldata import CoverageData
@@ -22,15 +22,10 @@ assert _spec.loader is not None
 _module = importlib.util.module_from_spec(_spec)
 _spec.loader.exec_module(_module)
 
-
-class CombineFunc(Protocol):
-    def __call__(
-        self,
-        cov: coverage.Coverage,
-        data_paths: Iterable[str] | None = None,
-        strict: bool = False,
-        keep: bool = False,
-    ) -> None: ...
+CombineFunc = Callable[
+    [coverage.Coverage, Iterable[str] | None, bool, bool],
+    None,
+]
 
 
 def _write_shard(base: Path, suffix: str, filename: str, lines: list[int]) -> Path:
@@ -135,7 +130,8 @@ class TestPytestCovLauncherPlugin:
             result = cast(CombineFunc, coverage.Coverage.combine)(
                 coverage.Coverage(config_file=False),
                 "data",
-                strict=True,
+                True,
+                False,
             )
 
             assert result is None
