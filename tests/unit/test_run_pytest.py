@@ -48,6 +48,50 @@ class TestRunPytestLauncher:
         assert "--cov-fail-under=0" in args
         assert args[-1] == "tests/unit/"
 
+    def test_k_selector_disables_coverage_floor(self) -> None:
+        with (
+            patch.object(sys, "argv", ["run_pytest.py", "-k", "test_foo"]),
+            patch.dict(os.environ, {}, clear=True),
+            patch("pytest.main", return_value=0) as pytest_main,
+        ):
+            assert _module.main() == 0
+
+        args = pytest_main.call_args.args[0]
+        assert "--cov-fail-under=0" in args
+
+    def test_k_equals_selector_disables_coverage_floor(self) -> None:
+        with (
+            patch.object(sys, "argv", ["run_pytest.py", "-k=test_foo"]),
+            patch.dict(os.environ, {}, clear=True),
+            patch("pytest.main", return_value=0) as pytest_main,
+        ):
+            assert _module.main() == 0
+
+        args = pytest_main.call_args.args[0]
+        assert "--cov-fail-under=0" in args
+
+    def test_m_selector_disables_coverage_floor(self) -> None:
+        with (
+            patch.object(sys, "argv", ["run_pytest.py", "-m", "slow"]),
+            patch.dict(os.environ, {}, clear=True),
+            patch("pytest.main", return_value=0) as pytest_main,
+        ):
+            assert _module.main() == 0
+
+        args = pytest_main.call_args.args[0]
+        assert "--cov-fail-under=0" in args
+
+    def test_last_failed_disables_coverage_floor(self) -> None:
+        with (
+            patch.object(sys, "argv", ["run_pytest.py", "--lf"]),
+            patch.dict(os.environ, {}, clear=True),
+            patch("pytest.main", return_value=0) as pytest_main,
+        ):
+            assert _module.main() == 0
+
+        args = pytest_main.call_args.args[0]
+        assert "--cov-fail-under=0" in args
+
     def test_existing_coverage_file_is_preserved(self) -> None:
         with (
             patch.object(sys, "argv", ["run_pytest.py"]),

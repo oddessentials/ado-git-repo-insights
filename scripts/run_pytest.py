@@ -74,12 +74,22 @@ def _prune_old_runs(runs_root: Path) -> None:
         shutil.rmtree(path, ignore_errors=True)
 
 
-def _has_test_paths(args: list[str]) -> bool:
-    """Return True if any argument is an explicit test path on disk.
+_SUBSET_SELECTORS = frozenset(("-k", "-m", "--lf", "--last-failed"))
 
-    Recognizes both plain paths and pytest node IDs (path::node).
+
+def _is_subset_run(args: list[str]) -> bool:
+    """Return True if args narrow which tests execute.
+
+    Recognizes explicit test paths, pytest node IDs (path::node), and
+    selector flags that reduce executed scope (-k, -m, --lf).
+    Handles both ``-k expr`` and ``-k=expr`` forms.
     """
     for arg in args:
+        if arg in _SUBSET_SELECTORS:
+            return True
+        for selector in _SUBSET_SELECTORS:
+            if arg.startswith(selector + "="):
+                return True
         if arg.startswith("-"):
             continue
         base = arg.split("::", 1)[0]
@@ -109,7 +119,7 @@ def main() -> int:
     # full-suite runs, preflight, and CI.
     user_args = sys.argv[1:]
     extra_args: list[str] = []
-    if _has_test_paths(user_args):
+    if _is_subset_run(user_args):
         extra_args.append("--cov-fail-under=0")
 
     import pytest
