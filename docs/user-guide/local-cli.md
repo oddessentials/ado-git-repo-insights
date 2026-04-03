@@ -17,7 +17,7 @@ This guide covers using the Python CLI for local PR analysis and custom CI/CD in
 
 | Requirement | Details |
 |-------------|---------|
-| Python | 3.10, 3.11, or 3.12 |
+| Python | 3.11, 3.12, or 3.13 |
 | Azure DevOps PAT | Code (Read) scope |
 
 ---

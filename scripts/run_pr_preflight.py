@@ -27,7 +27,7 @@ from pathlib import Path
 REPO_ROOT = Path(__file__).resolve().parent.parent
 EXTENSION_ROOT = REPO_ROOT / "extension"
 PREFLIGHT_ROOT = Path(tempfile.gettempdir()) / "ado-git-repo-insights" / "pr-preflight"
-BASELINE_PYTHON = "3.10"
+BASELINE_PYTHON = "3.11"
 PNPM_SENTINEL = "__PNPM__"
 
 

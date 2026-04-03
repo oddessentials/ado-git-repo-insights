@@ -116,7 +116,7 @@ class TestDeterministicRegeneration:
         """
         Running the full regeneration pipeline produces identical output.
 
-        On baseline Python (3.10): runs generators twice and verifies byte-identical.
+        On baseline Python (3.11): runs generators twice and verifies byte-identical.
         On non-baseline: validates committed data passes full build validation
         and manifest carries canonical provenance (generation-vs-validation mode
         contract — see plan for details).

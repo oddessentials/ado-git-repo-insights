@@ -6,14 +6,7 @@ Local redefinitions of these types are forbidden (FR-013).
 
 from __future__ import annotations
 
-import sys
-
-if sys.version_info >= (3, 11):
-    from typing import NotRequired, TypeAlias, TypedDict
-else:
-    from typing import TypeAlias, TypedDict
-
-    from typing_extensions import NotRequired
+from typing import NotRequired, TypeAlias, TypedDict
 
 # ---------------------------------------------------------------------------
 # Foundational type aliases
