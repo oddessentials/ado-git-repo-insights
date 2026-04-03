@@ -92,7 +92,9 @@ minversion = "7.0"
 # prevent stale locked directories from bricking future runs.
 addopts = "-ra -q --cov=src/ado_git_repo_insights --cov-report=term-missing"
 cache_dir = ".tmp/pytest/cache"
-tmp_path_retention_policy = "none"
+# "all" = never delete basetemp at session end (avoids WinError 5 on locked
+# files). Cross-run cleanup happens in conftest.py pytest_configure instead.
+tmp_path_retention_policy = "all"
 testpaths = ["tests"]
 pythonpath = ["src"]
 # Suppress ResourceWarning for unclosed database connections
@@ -157,10 +159,9 @@ warn_return_any = false
 [tool.coverage.run]
 source = ["src/ado_git_repo_insights"]
 branch = true
-# Safe fallback for non-pytest coverage invocations. During pytest runs,
-# conftest.py sets COVERAGE_FILE to a per-run path which takes precedence.
-# run_pr_preflight.py also overrides via COVERAGE_FILE env var.
-data_file = ".tmp/pytest/coverage/.coverage"
+# COVERAGE_FILE is set per-run in conftest.py (local pytest) and
+# run_pr_preflight.py (preflight). No fixed data_file here — a shared
+# target can be locked on Windows and brick all future covered runs.
 
 [tool.coverage.report]
 exclude_lines = [
