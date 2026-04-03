@@ -24,15 +24,23 @@ EXTENSION_ROOT = REPO_ROOT / "extension"
 HOOK_PREFIX = "[hook]"
 PNG_MAGIC = b"\x89PNG"
 
+# Exit code contract (AD-5 in specs/049-cross-platform-hardening/spec.md):
+#   GATE  = 1: Code quality regression (always fatal)
+#   SETUP = 2: Machine not ready / missing tool (always fatal)
+#   INFRA = 3: Network or environment issue (skippable in degraded mode)
+EXIT_GATE = 1
+EXIT_SETUP = 2
+EXIT_INFRA = 3
+
 
 def _ensure_husky_installed() -> None:
     """Fail fast if .husky/ directory is missing — hooks won't work."""
     husky_dir = REPO_ROOT / ".husky"
     if not husky_dir.is_dir():
-        raise SystemExit(
-            f"{HOOK_PREFIX} .husky/ directory not found at {husky_dir}.\n"
-            "Hooks are not installed. Run 'pnpm install' at the repo root first."
-        )
+        safe_print(f"[SETUP] .husky/ directory not found at {husky_dir}.")
+        safe_print("  Install: pnpm install (at repo root)")
+        safe_print("  Required for: Git hook execution")
+        raise SystemExit(EXIT_SETUP)
 
 
 _ensure_husky_installed()
@@ -118,17 +126,32 @@ def resolve_pre_commit() -> str:
         path = Path(candidate) if not isinstance(candidate, Path) else candidate
         if path.exists():
             return str(path)
-    raise SystemExit(
-        f"{HOOK_PREFIX} pre-commit not found. Install it or activate the repo virtualenv."
-    )
+    safe_print("[SETUP] pre-commit not found.")
+    safe_print("  Install: pip install pre-commit (or activate the repo virtualenv)")
+    safe_print("  Required for: Formatting and linting hooks")
+    raise SystemExit(EXIT_SETUP)
 
 
-def resolve_powershell() -> str | None:
-    for candidate in ("pwsh", "powershell"):
-        resolved = shutil.which(candidate)
-        if resolved:
-            return resolved
-    return None
+def _acl_write_probe(directory: Path) -> str | None:
+    """Probe write access to *directory* by creating and removing a temp file.
+
+    Returns None on success, or the error message on failure.
+    Mirrors the logic of the former check-git-acl-health.ps1 script.
+    """
+    if not directory.is_dir():
+        return None
+    probe = directory / ".acl-probe.tmp"
+    try:
+        probe.write_text("probe", encoding="ascii")
+        probe.unlink()
+        return None
+    except OSError as exc:
+        # Clean up partial probe if write succeeded but unlink failed
+        try:
+            probe.unlink(missing_ok=True)
+        except OSError:
+            pass
+        return str(exc)
 
 
 def git_output(*args: str) -> str:
@@ -203,24 +226,41 @@ def report_post_format_worktree_changes() -> None:
 
 
 def run_acl_health_check() -> None:
+    """Probe filesystem write access on Windows to detect ACL/permission issues.
+
+    Checks .git/ and any .pytest-tmp* directories in the repo root.
+    Replaces the former PowerShell script (check-git-acl-health.ps1) with a
+    cross-platform Python implementation that requires no external shell.
+    """
     if os.name != "nt":
         return
-    powershell = resolve_powershell()
-    if not powershell:
-        raise SystemExit(
-            "[pre-commit] PowerShell is required on Windows for ACL health checks."
-        )
     safe_print("[pre-commit] checking ACL health on repo metadata")
-    run_command(
-        [
-            powershell,
-            "-NoProfile",
-            "-ExecutionPolicy",
-            "Bypass",
-            "-File",
-            "scripts/check-git-acl-health.ps1",
-        ]
+
+    paths_to_check: list[Path] = [REPO_ROOT / ".git"]
+    paths_to_check.extend(
+        p
+        for p in REPO_ROOT.iterdir()
+        if p.is_dir() and p.name.startswith(".pytest-tmp")
     )
+
+    failures: list[tuple[Path, str]] = []
+    for path in paths_to_check:
+        error = _acl_write_probe(path)
+        if error is not None:
+            failures.append((path, error))
+
+    if failures:
+        safe_print("")
+        safe_print("[acl-health] Filesystem probe failed")
+        for path, issue in failures:
+            safe_print(f"  - {path}: {issue}")
+        safe_print("")
+        safe_print(
+            "[acl-health] Repair permissions on the failing path before retrying."
+        )
+        raise SystemExit(1)
+
+    safe_print("[acl-health] Filesystem probe passed")
 
 
 def run_pre_commit_stage() -> None:
@@ -261,13 +301,14 @@ def _load_authoritative_suppression_baseline() -> dict[str, object] | None:
     )
     if fetch.returncode != 0:
         message = (
-            "[pre-commit] Could not fetch origin/main for suppression baseline. "
+            "Could not fetch origin/main for suppression baseline. "
             "Set ADO_HOOK_ALLOW_LOCAL_DEGRADED=1 to continue in degraded mode."
         )
         if _allow_local_degraded():
-            safe_print(f"{message} Running in degraded mode.")
+            safe_print(f"[WARNING] {message} Running in degraded mode.")
             return None
-        raise SystemExit(message)
+        safe_print(f"[INFRA] {message}")
+        raise SystemExit(EXIT_INFRA)
 
     result = subprocess.run(
         ["git", "show", "origin/main:.suppression-baseline.json"],
@@ -280,13 +321,14 @@ def _load_authoritative_suppression_baseline() -> dict[str, object] | None:
     )
     if result.returncode != 0 or not result.stdout.strip():
         message = (
-            "[pre-commit] origin/main:.suppression-baseline.json is unavailable. "
+            "origin/main:.suppression-baseline.json is unavailable. "
             "Set ADO_HOOK_ALLOW_LOCAL_DEGRADED=1 to continue in degraded mode."
         )
         if _allow_local_degraded():
-            safe_print(f"{message} Running in degraded mode.")
+            safe_print(f"[WARNING] {message} Running in degraded mode.")
             return None
-        raise SystemExit(message)
+        safe_print(f"[INFRA] {message}")
+        raise SystemExit(EXIT_INFRA)
 
     baseline = json.loads(result.stdout)
     errors = validate_baseline(baseline)
@@ -679,26 +721,27 @@ def run_managed_artifacts(*args: str) -> None:
     run_command([sys.executable, "scripts/manage_generated_artifacts.py", *args])
 
 
+def _require_pnpm(operation: str) -> str:
+    """Resolve pnpm or fail with a SETUP error."""
+    pnpm = shutil.which("pnpm.cmd") or shutil.which("pnpm")
+    if pnpm:
+        return pnpm
+    safe_print("[SETUP] pnpm not found on PATH.")
+    safe_print("  Install: https://pnpm.io/installation")
+    safe_print(f"  Required for: {operation}")
+    raise SystemExit(EXIT_SETUP)
+
+
 def run_extension_lint() -> None:
     """Run ESLint on extension UI sources (FR-005 gate)."""
-    pnpm = shutil.which("pnpm.cmd") or shutil.which("pnpm")
-    if not pnpm:
-        raise SystemExit(
-            "[pre-commit] pnpm is required to lint extension UI sources "
-            "but was not found on PATH."
-        )
+    pnpm = _require_pnpm("Extension UI linting")
     safe_print("[pre-commit] running extension lint (ESLint)")
     run_command([pnpm, "run", "lint"], cwd=EXTENSION_ROOT)
 
 
 def run_extension_test_lint() -> None:
     """Run ESLint on extension test sources (--max-warnings=0)."""
-    pnpm = shutil.which("pnpm.cmd") or shutil.which("pnpm")
-    if not pnpm:
-        raise SystemExit(
-            "[pre-commit] pnpm is required to lint extension test sources "
-            "but was not found on PATH."
-        )
+    pnpm = _require_pnpm("Extension test linting")
     safe_print("[pre-commit] running extension test lint (ESLint)")
     run_command([pnpm, "run", "lint:tests"], cwd=EXTENSION_ROOT)
 
@@ -713,12 +756,7 @@ def run_extension_typecheck() -> None:
 
     Prior incidents: commits 88ed3b7, 7264576, 3247874, PR #207.
     """
-    pnpm = shutil.which("pnpm.cmd") or shutil.which("pnpm")
-    if not pnpm:
-        raise SystemExit(
-            "[pre-commit] pnpm is required to type-check extension sources "
-            "but was not found on PATH."
-        )
+    pnpm = _require_pnpm("Extension type checking")
     safe_print("[pre-commit] running TypeScript type check (tsc --noEmit)")
     run_command([pnpm, "run", "build:check"], cwd=EXTENSION_ROOT)
 
@@ -764,12 +802,7 @@ def run_extension_test_typecheck() -> None:
 
     Added as part of 042-test-strict-alignment (QG-35 compliance).
     """
-    pnpm = shutil.which("pnpm.cmd") or shutil.which("pnpm")
-    if not pnpm:
-        raise SystemExit(
-            "[pre-commit] pnpm is required to type-check test files "
-            "but was not found on PATH."
-        )
+    pnpm = _require_pnpm("Extension test type checking")
     safe_print(
         "[pre-commit] running test TypeScript type check (tsc --noEmit -p tsconfig.test.json)"
     )
@@ -785,12 +818,7 @@ def run_extension_config_parity() -> None:
 
     Added as part of 042-test-strict-alignment (QG-35 compliance).
     """
-    pnpm = shutil.which("pnpm.cmd") or shutil.which("pnpm")
-    if not pnpm:
-        raise SystemExit(
-            "[pre-commit] pnpm is required to check config parity "
-            "but was not found on PATH."
-        )
+    pnpm = _require_pnpm("Extension config parity checking")
     safe_print("[pre-commit] running test config parity check")
     run_command([pnpm, "run", "test:config-parity"], cwd=EXTENSION_ROOT)
 

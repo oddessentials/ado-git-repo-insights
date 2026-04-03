@@ -37,8 +37,9 @@ class TestEnsureRequiredTools:
             patch.object(_module, "resolve_pnpm", return_value="pnpm"),
             patch.object(_module, "resolve_gitleaks", return_value=None),
         ):
-            with pytest.raises(SystemExit, match="gitleaks not found on PATH"):
+            with pytest.raises(SystemExit) as exc_info:
                 ensure_required_tools(allow_local_degraded=False)
+            assert exc_info.value.code == 3  # EXIT_INFRA
 
     def test_missing_gitleaks_allows_degraded_mode(self) -> None:
         with (
@@ -237,7 +238,8 @@ class TestMainBehavior:
             assert main() == 0
 
         out = capsys.readouterr().out
-        assert "[WARNING] Local PR preflight completed in degraded mode" in out
+        assert "DEGRADED MODE:" in out
+        assert "CI-hard gate(s) were SKIPPED" in out
         assert "[OK] Local PR preflight passed" not in out
 
     def test_degraded_mode_reports_missing_gitleaks_in_final_summary(
@@ -276,7 +278,8 @@ class TestMainBehavior:
 
         out = capsys.readouterr().out
         assert "Secret scan (gitleaks)" in out
-        assert "[WARNING] Local PR preflight completed in degraded mode" in out
+        assert "DEGRADED MODE:" in out
+        assert "CI-hard gate(s) were SKIPPED" in out
         assert "[OK] Local PR preflight passed" not in out
 
     def test_authoritative_mode_keeps_ok_footer(

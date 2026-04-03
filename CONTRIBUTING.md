@@ -4,6 +4,19 @@ Thank you for your interest in contributing! This document covers the essential 
 
 ---
 
+## Required Tools
+
+| Tool | Version | Windows | macOS/Linux |
+|------|---------|---------|-------------|
+| Git (with Git Bash) | any | [git-scm.com](https://git-scm.com/download/win) | Package manager |
+| Python | >= 3.12 | [python.org](https://python.org) (includes `py` launcher) | Package manager |
+| Node.js | 22 | [nodejs.org](https://nodejs.org) | Package manager |
+| pnpm | 9.15.0 | `corepack enable` | `corepack enable` |
+
+**Windows note:** Git for Windows must include Git Bash (provides `sh` for
+Husky hooks). Python for Windows includes the `py` launcher, which is the
+primary Python resolution mechanism on Windows.
+
 ## Quick Start
 
 ```bash

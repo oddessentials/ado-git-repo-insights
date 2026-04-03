@@ -74,7 +74,7 @@ semantics. They are NOT consolidated.
 | Shell wrappers (`.husky/`) | Any Python 3 | `py -3` -> `python3` -> `python` |
 | PR preflight | Python >= 3.12 | `sys.executable` -> `PR_PREFLIGHT_PYTHON` env -> `py -3.12` -> `python3.12` -> `python3` -> `python` |
 | CI parity | Exact version | `sys.executable` -> `CI_PARITY_PYTHON_X_Y` env -> `py -X.Y` -> `pythonX.Y` -> `python3` -> `python` |
-| build_demo.py (new) | Python 3.12 | Same as PR preflight |
+| build_demo.py (new) | Exactly Python 3.12 | `sys.executable` (if 3.12) -> `py -3.12` -> `python3.12` -> `python3` -> `python` (exact match only) |
 
 **Windows-specific fix:** The `py -3` launcher is FIRST in all cascades.
 This is critical because bare `python` is often not on PATH on Windows even

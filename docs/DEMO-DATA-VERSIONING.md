@@ -26,7 +26,7 @@ The published JS/CSS assets under `docs/` are copied from:
 The only supported full refresh path is:
 
 ```bash
-./scripts/build-demo.sh
+python scripts/build_demo.py
 ```
 
 The data-only refresh path is:
@@ -193,7 +193,7 @@ When changing demo generation:
 
 1. Update the generator and, if needed, the manifest schema/types
 2. Decide whether the enterprise demo profile version must bump
-3. Run `./scripts/build-demo.sh`
+3. Run `python scripts/build_demo.py`
 4. Review `artifacts/demo-enterprise/report/capability-matrix.json`
 5. Review `artifacts/demo-enterprise/report/startup-parity.json`
 6. Verify `docs/index.html` and `docs/data/` match the canonical publish flow

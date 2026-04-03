@@ -160,8 +160,8 @@ describe("SDK Bundling Integrity (post-migration)", () => {
       expect(_fs.existsSync(sdkFile)).toBe(false);
     });
 
-    it("build-demo.sh reads asset list from publish-demo-surface.py, not hardcoded", () => {
-      const buildDemoPath = path.join(__dirname, "../../scripts/build-demo.sh");
+    it("build_demo.py reads asset list from publish-demo-surface.py, not hardcoded", () => {
+      const buildDemoPath = path.join(__dirname, "../../scripts/build_demo.py");
       if (!_fs.existsSync(buildDemoPath)) return;
       const content = _fs.readFileSync(buildDemoPath, "utf8");
 
