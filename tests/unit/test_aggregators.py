@@ -3242,8 +3242,11 @@ class TestConsistencyWarningLogging:
             for team in list(result):
                 if team.startswith("_"):
                     continue
-                for repo in result[team]:
-                    result[team][repo]["pr_count"] += 999
+                repos = result[team]
+                if not isinstance(repos, dict):
+                    continue
+                for repo in repos:
+                    repos[repo]["pr_count"] += 999
             return result
 
         monkeypatch.setattr(AggregateGenerator, "_generate_team_repo_slice", patched)

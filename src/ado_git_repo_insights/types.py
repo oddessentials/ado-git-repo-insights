@@ -253,3 +253,38 @@ class TeamRecord(TypedDict):
     project_name: str
     organization_name: str
     member_count: int
+
+
+# ---------------------------------------------------------------------------
+# Weekly rollup / dimension slice types (P5b — aggregators.py slice methods)
+# ---------------------------------------------------------------------------
+
+
+class SliceMetrics(TypedDict):
+    """Common metrics shape for author/repo/team dimension slices."""
+
+    pr_count: int
+    cycle_time_p50: float | None
+    cycle_time_p90: float | None
+    authors_count: int
+    reviewers_count: int
+
+
+class ReviewerSliceMetrics(TypedDict):
+    """Reviewer-specific activity metrics (different shape from SliceMetrics)."""
+
+    reviewed_prs: int
+    reviews_count: int
+    approval_rate: float
+    authors_count: int
+    repositories_count: int
+
+
+class WeeklyRollupIndexEntry(TypedDict):
+    """Index entry for a weekly rollup file in aggregate_index."""
+
+    week: str
+    path: str
+    start_date: str
+    end_date: str
+    size_bytes: int

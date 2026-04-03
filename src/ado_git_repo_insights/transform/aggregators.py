@@ -29,6 +29,8 @@ from ..types import (
     ProjectRecord,
     RepositoryRecord,
     ReviewerRecord,
+    ReviewerSliceMetrics,
+    SliceMetrics,
     TeamRecord,
     UserRecord,
 )
@@ -684,11 +686,14 @@ class AggregateGenerator:
                     for author_id, repo_entries in by_author_and_repo.items():
                         if author_id.startswith("_"):
                             continue
+                        if not isinstance(repo_entries, dict):
+                            continue
                         cross_dim_pr_sum = sum(
                             entry["pr_count"] for entry in repo_entries.values()
                         )
-                        author_pr_count = by_author.get(author_id, {}).get(
-                            "pr_count", 0
+                        author_entry = by_author.get(author_id)
+                        author_pr_count = (
+                            author_entry["pr_count"] if author_entry is not None else 0
                         )
                         if cross_dim_pr_sum != author_pr_count:
                             logger.warning(
@@ -714,10 +719,15 @@ class AggregateGenerator:
                     for team_name, repo_entries in by_team_and_repo.items():
                         if team_name.startswith("_"):
                             continue  # skip metadata keys like _truncated
+                        if not isinstance(repo_entries, dict):
+                            continue
                         cross_dim_pr_sum = sum(
                             entry["pr_count"] for entry in repo_entries.values()
                         )
-                        team_pr_count = by_team.get(team_name, {}).get("pr_count", 0)
+                        team_entry = by_team.get(team_name)
+                        team_pr_count = (
+                            team_entry["pr_count"] if team_entry is not None else 0
+                        )
                         if cross_dim_pr_sum != team_pr_count:
                             logger.warning(
                                 "Cross-dim pr_count consistency mismatch for "
@@ -755,7 +765,7 @@ class AggregateGenerator:
 
     def _generate_author_slice(
         self, week_group: pd.DataFrame, week_reviewers: pd.DataFrame
-    ) -> dict[str, Any]:
+    ) -> dict[str, SliceMetrics]:
         """Generate per-author metrics slice for a week keyed by canonical user_id."""
         author_metrics = week_group.groupby("user_id").agg(
             pr_count=("pull_request_uid", "size"),
@@ -779,7 +789,7 @@ class AggregateGenerator:
             fill_value=0,
         )
 
-        by_author: dict[str, Any] = {}
+        by_author: dict[str, SliceMetrics] = {}
         for author_id, row in author_metrics.iterrows():
             if not isinstance(author_id, str):
                 continue
@@ -803,9 +813,9 @@ class AggregateGenerator:
 
     def _generate_author_repo_slice(
         self, week_group: pd.DataFrame, week_reviewers: pd.DataFrame
-    ) -> dict[str, Any]:
+    ) -> dict[str, dict[str, SliceMetrics] | bool]:
         """Generate per-author-per-repository metrics slice for a week."""
-        by_author_and_repo: dict[str, Any] = {}
+        entries: dict[str, dict[str, SliceMetrics]] = {}
         grouped_metrics = week_group.groupby(["user_id", "repository_name"]).agg(
             pr_count=("pull_request_uid", "size"),
             cycle_time_valid_count=("cycle_time_minutes", "count"),
@@ -828,7 +838,7 @@ class AggregateGenerator:
             fill_value=0,
         )
 
-        all_entries: list[tuple[str, str, dict[str, Any]]] = []
+        all_entries: list[tuple[str, str, SliceMetrics]] = []
         for key, row in grouped_metrics.iterrows():
             author_id, repo_name = cast(tuple[str, str], key)
             if not isinstance(author_id, str) or not isinstance(repo_name, str):
@@ -873,10 +883,11 @@ class AggregateGenerator:
             )
 
         for author_id, repo_name, entry in all_entries:
-            if author_id not in by_author_and_repo:
-                by_author_and_repo[author_id] = {}
-            by_author_and_repo[author_id][repo_name] = entry
+            if author_id not in entries:
+                entries[author_id] = {}
+            entries[author_id][repo_name] = entry
 
+        by_author_and_repo = cast(dict[str, dict[str, SliceMetrics] | bool], entries)
         if truncated:
             by_author_and_repo["_truncated"] = True
 
@@ -884,7 +895,7 @@ class AggregateGenerator:
 
     def _generate_repo_slice(
         self, week_group: pd.DataFrame, week_reviewers: pd.DataFrame
-    ) -> dict[str, Any]:
+    ) -> dict[str, SliceMetrics]:
         """Generate per-repository metrics slice for a week.
 
         Args:
@@ -917,7 +928,7 @@ class AggregateGenerator:
             fill_value=0,
         )
 
-        by_repository: dict[str, Any] = {}
+        by_repository: dict[str, SliceMetrics] = {}
         for repo_name, row in grouped_metrics.iterrows():
             if not isinstance(repo_name, str):
                 continue
@@ -944,7 +955,7 @@ class AggregateGenerator:
         week_group: pd.DataFrame,
         week_reviewers: pd.DataFrame,
         team_members_df: pd.DataFrame,
-    ) -> dict[str, Any]:
+    ) -> dict[str, SliceMetrics]:
         """Generate per-team metrics slice for a week.
 
         Authors in multiple teams will have their PRs counted in each team's slice.
@@ -994,7 +1005,7 @@ class AggregateGenerator:
             fill_value=0,
         )
 
-        by_team: dict[str, Any] = {}
+        by_team: dict[str, SliceMetrics] = {}
         for team_name, row in grouped_metrics.iterrows():
             if not isinstance(team_name, str):
                 continue
@@ -1020,7 +1031,7 @@ class AggregateGenerator:
         self,
         week_group: pd.DataFrame,
         week_reviewers: pd.DataFrame,
-    ) -> dict[str, Any]:
+    ) -> dict[str, ReviewerSliceMetrics]:
         """Generate per-reviewer activity metrics for a week.
 
         Reviewer slices are keyed by stable reviewer_id rather than display
@@ -1045,7 +1056,7 @@ class AggregateGenerator:
         if reviewer_prs.empty:
             return {}
 
-        by_reviewer: dict[str, Any] = {}
+        by_reviewer: dict[str, ReviewerSliceMetrics] = {}
 
         for reviewer_id, reviewer_group in reviewer_prs.groupby("reviewer_id"):
             if pd.isna(reviewer_id):
@@ -1092,7 +1103,7 @@ class AggregateGenerator:
         week_group: pd.DataFrame,
         week_reviewers: pd.DataFrame,
         team_members_df: pd.DataFrame,
-    ) -> dict[str, Any]:
+    ) -> dict[str, dict[str, SliceMetrics] | bool]:
         """Generate per-team-per-repository metrics slice for a week.
 
         Joins week PRs against team_members_df to tag each PR with its team
@@ -1136,7 +1147,7 @@ class AggregateGenerator:
         if tagged.empty:
             return {}
 
-        by_team_and_repo: dict[str, Any] = {}
+        entries: dict[str, dict[str, SliceMetrics]] = {}
         # Compute team-repo metrics in one pass rather than filtering reviewers
         # per intersection. This keeps the enterprise stress path bounded by a
         # few groupby/merge operations per week instead of N repeated isin scans.
@@ -1166,7 +1177,7 @@ class AggregateGenerator:
         )
 
         # Collect all entries with their pr_count for potential truncation
-        all_entries: list[tuple[str, str, dict[str, Any]]] = []
+        all_entries: list[tuple[str, str, SliceMetrics]] = []
 
         for key, row in grouped_metrics.iterrows():
             team_name, repo_name = cast(tuple[str, str], key)
@@ -1226,10 +1237,11 @@ class AggregateGenerator:
 
         # Build nested dict from (possibly truncated) entries
         for team_name, repo_name, entry in all_entries:
-            if team_name not in by_team_and_repo:
-                by_team_and_repo[team_name] = {}
-            by_team_and_repo[team_name][repo_name] = entry
+            if team_name not in entries:
+                entries[team_name] = {}
+            entries[team_name][repo_name] = entry
 
+        by_team_and_repo = cast(dict[str, dict[str, SliceMetrics] | bool], entries)
         if truncated:
             # NOTE: Mixed-type key — bool value alongside dict values.
             # Consumers must skip "_"-prefixed keys when iterating entries.
