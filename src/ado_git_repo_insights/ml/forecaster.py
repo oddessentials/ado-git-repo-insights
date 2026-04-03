@@ -6,10 +6,11 @@ import time
 from dataclasses import dataclass
 from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, cast
+from typing import TYPE_CHECKING, cast
 
 import pandas as pd
 
+from ..types import ForecastValue, MetricForecastDict
 from .date_utils import align_to_monday
 
 if TYPE_CHECKING:
@@ -31,10 +32,10 @@ METRICS = [
 
 
 @dataclass
-class ForecastValue:
-    """Single forecast value for a period."""
+class _ForecastValueLegacy:  # pragma: no cover — superseded by types.ForecastValue
+    """Legacy dataclass kept for backward compat; no code instantiates it."""
 
-    period_start: str  # YYYY-MM-DD (Monday-aligned)
+    period_start: str
     predicted: float
     lower_bound: float
     upper_bound: float
@@ -47,7 +48,7 @@ class MetricForecast:
     metric: str
     unit: str
     horizon_weeks: int
-    values: list[dict[str, Any]]
+    values: list[ForecastValue]
 
 
 class ProphetForecaster:
@@ -107,7 +108,7 @@ class ProphetForecaster:
             )
             return False
 
-        forecasts: list[dict[str, Any]] = []
+        forecasts: list[MetricForecastDict] = []
 
         for metric, unit in METRICS:
             try:
@@ -182,7 +183,7 @@ class ProphetForecaster:
         metric: str,
         unit: str,
         prophet_cls: type,
-    ) -> dict[str, Any] | None:
+    ) -> MetricForecastDict | None:
         """Forecast a single metric using Prophet.
 
         Args:
@@ -237,7 +238,7 @@ class ProphetForecaster:
         forecast = model.predict(future_df)
 
         # Build values
-        values: list[dict[str, Any]] = []
+        values: list[ForecastValue] = []
         for _, row in forecast.iterrows():
             period_start = pd.Timestamp(row["ds"]).date()
 
@@ -260,7 +261,7 @@ class ProphetForecaster:
             "values": values,
         }
 
-    def _write_predictions(self, forecasts: list[dict[str, Any]]) -> bool:
+    def _write_predictions(self, forecasts: list[MetricForecastDict]) -> bool:
         """Write predictions to trends.json.
 
         Args:

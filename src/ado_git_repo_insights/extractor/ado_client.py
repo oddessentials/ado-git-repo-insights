@@ -14,12 +14,12 @@ from collections.abc import Iterator
 from dataclasses import dataclass
 from datetime import date, datetime, timedelta, timezone
 from email.utils import parsedate_to_datetime
-from typing import Any
 
 import requests
 from requests.exceptions import HTTPError, RequestException
 
 from ..config import APIConfig
+from ..types import AdoPullRequest, AdoTeam, AdoTeamMember, AdoThread
 from .pagination import add_continuation_token, extract_continuation_token
 
 
@@ -188,7 +188,7 @@ class ADOClient:
         project: str,
         start_date: date,
         end_date: date,
-    ) -> Iterator[dict[str, Any]]:
+    ) -> Iterator[AdoPullRequest]:
         """Fetch completed PRs for a date range with automatic pagination.
 
         Adjustment 4: Handles continuation tokens, bounded retries with backoff.
@@ -221,7 +221,7 @@ class ADOClient:
 
     def _fetch_prs_for_date_paginated(
         self, project: str, dt: date
-    ) -> list[dict[str, Any]]:
+    ) -> list[AdoPullRequest]:
         """Fetch all PRs for a single date, handling continuation tokens.
 
         Invariant 12: Complete pagination via continuation tokens.
@@ -233,7 +233,7 @@ class ADOClient:
         Returns:
             List of all PRs for the date.
         """
-        all_prs: list[dict[str, Any]] = []
+        all_prs: list[AdoPullRequest] = []
         continuation_token: str | None = None
 
         while True:
@@ -257,7 +257,7 @@ class ADOClient:
         project: str,
         dt: date,
         token: str | None,
-    ) -> tuple[list[dict[str, Any]], str | None]:
+    ) -> tuple[list[AdoPullRequest], str | None]:
         """Fetch a single page of PRs with retry logic.
 
         Invariant 13: Bounded retries with exponential backoff.
@@ -359,7 +359,7 @@ class ADOClient:
 
     # Phase 3.3: Team extraction methods
 
-    def get_teams(self, project: str) -> list[dict[str, Any]]:
+    def get_teams(self, project: str) -> list[AdoTeam]:
         """Fetch all teams for a project.
 
         §5: Teams are project-scoped, fetched once per run per project.
@@ -378,7 +378,7 @@ class ADOClient:
             f"?api-version={self.config.version}"
         )
 
-        all_teams: list[dict[str, Any]] = []
+        all_teams: list[AdoTeam] = []
         continuation_token: str | None = None
 
         while True:
@@ -406,7 +406,7 @@ class ADOClient:
         logger.info(f"Fetched {len(all_teams)} teams for {project}")
         return all_teams
 
-    def get_team_members(self, project: str, team_id: str) -> list[dict[str, Any]]:
+    def get_team_members(self, project: str, team_id: str) -> list[AdoTeamMember]:
         """Fetch all members of a team.
 
         §5: Membership fetched once per run per team.
@@ -426,7 +426,7 @@ class ADOClient:
             f"?api-version={self.config.version}"
         )
 
-        all_members: list[dict[str, Any]] = []
+        all_members: list[AdoTeamMember] = []
         continuation_token: str | None = None
 
         while True:
@@ -461,7 +461,7 @@ class ADOClient:
         project: str,
         repository_id: str,
         pull_request_id: int,
-    ) -> list[dict[str, Any]]:
+    ) -> list[AdoThread]:
         """Fetch all threads for a pull request.
 
         §6: Incremental strategy - caller should filter by lastUpdatedDate.
@@ -483,7 +483,7 @@ class ADOClient:
             f"?api-version={self.config.version}"
         )
 
-        all_threads: list[dict[str, Any]] = []
+        all_threads: list[AdoThread] = []
         continuation_token: str | None = None
 
         while True:

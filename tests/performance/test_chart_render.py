@@ -74,9 +74,10 @@ class TestChartRenderPerformance:
     def test_insight_sorting_under_10ms(self) -> None:
         """Insight sorting should complete in <10ms for 100 insights."""
         from ado_git_repo_insights.ml.insights import sort_insights
+        from ado_git_repo_insights.types import JSONValue
 
         # Setup: 100 insights with mixed severities
-        insights = []
+        insights: list[dict[str, JSONValue]] = []
         categories = ["bottleneck", "trend", "anomaly"]
         severities = ["critical", "warning", "info"]
 

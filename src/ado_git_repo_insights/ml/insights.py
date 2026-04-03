@@ -18,8 +18,9 @@ import os
 import time
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, cast
 
+from ..types import JSONValue
 from ..utils.path_security import safe_join
 
 if TYPE_CHECKING:
@@ -49,7 +50,7 @@ SEVERITY_ORDER = ["critical", "warning", "info"]
 DEFAULT_CACHE_TTL_HOURS = 12
 
 
-def sort_insights(insights: list[dict[str, Any]]) -> list[dict[str, Any]]:
+def sort_insights(insights: list[dict[str, JSONValue]]) -> list[dict[str, JSONValue]]:
     """Sort insights deterministically by severity, category, then ID.
 
     Ordering (per spec clarification):
@@ -66,10 +67,10 @@ def sort_insights(insights: list[dict[str, Any]]) -> list[dict[str, Any]]:
     if not insights:
         return []
 
-    def sort_key(insight: dict[str, Any]) -> tuple[int, str, str]:
-        severity = insight.get("severity", "info")
-        category = insight.get("category", "")
-        insight_id = insight.get("id", "")
+    def sort_key(insight: dict[str, JSONValue]) -> tuple[int, str, str]:
+        severity = str(insight.get("severity", "info"))
+        category = str(insight.get("category", ""))
+        insight_id = str(insight.get("id", ""))
 
         # Severity index (lower = higher priority)
         try:
@@ -183,13 +184,15 @@ class LLMInsightsGenerator:
         self._write_cache(cache_path, cache_key, insights_data)
 
         elapsed = time.perf_counter() - start_time
+        raw_insights = insights_data.get("insights")
+        insight_count = len(raw_insights) if isinstance(raw_insights, list) else 0
         logger.info(
             f"OpenAI insights generation completed in {elapsed:.2f}s "
-            f"({len(insights_data.get('insights', []))} insights)"
+            f"({insight_count} insights)"
         )
         return True
 
-    def _build_prompt(self) -> tuple[str, dict[str, Any]]:
+    def _build_prompt(self) -> tuple[str, dict[str, JSONValue]]:
         """Build the prompt for OpenAI.
 
         Returns:
@@ -200,7 +203,7 @@ class LLMInsightsGenerator:
         stats = self._get_pr_stats()
 
         # Canonical data for cache key (sorted, normalized)
-        canonical_data = {
+        canonical_data: dict[str, JSONValue] = {
             "prompt_version": PROMPT_VERSION,
             "stats": stats,
         }
@@ -254,7 +257,7 @@ Respond ONLY with valid JSON matching this format."""
 
         return prompt, canonical_data
 
-    def _get_pr_stats(self) -> dict[str, Any]:
+    def _get_pr_stats(self) -> dict[str, JSONValue]:
         """Get PR statistics from database for prompt.
 
         Returns:
@@ -338,7 +341,7 @@ Respond ONLY with valid JSON matching this format."""
             "repositories_count": repositories_count,
         }
 
-    def _get_cache_key(self, prompt_data: dict[str, Any]) -> str:
+    def _get_cache_key(self, prompt_data: dict[str, JSONValue]) -> str:
         """Generate deterministic cache key using canonical JSON.
 
         Args:
@@ -381,7 +384,9 @@ Respond ONLY with valid JSON matching this format."""
         key_string = "|".join(str(p) for p in key_parts)
         return hashlib.sha256(key_string.encode()).hexdigest()
 
-    def _check_cache(self, cache_path: Path, cache_key: str) -> dict[str, Any] | None:
+    def _check_cache(
+        self, cache_path: Path, cache_key: str
+    ) -> dict[str, JSONValue] | None:
         """Check if valid cache exists.
 
         Args:
@@ -416,7 +421,7 @@ Respond ONLY with valid JSON matching this format."""
 
             logger.info(f"Cache hit: age {age_hours:.1f}h")
             # Cast from Any to expected type (cache stores validated insights_data)
-            cached: dict[str, Any] | None = cache_data.get("insights_data")
+            cached: dict[str, JSONValue] | None = cache_data.get("insights_data")
             return cached
 
         except Exception as e:
@@ -424,7 +429,7 @@ Respond ONLY with valid JSON matching this format."""
             return None
 
     def _write_cache(
-        self, cache_path: Path, cache_key: str, insights_data: dict[str, Any]
+        self, cache_path: Path, cache_key: str, insights_data: dict[str, JSONValue]
     ) -> None:
         """Write insights to cache.
 
@@ -441,7 +446,7 @@ Respond ONLY with valid JSON matching this format."""
         with cache_path.open("w", encoding="utf-8") as f:
             json.dump(cache_data, f, indent=2)
 
-    def _call_openai(self, prompt: str) -> dict[str, Any] | None:
+    def _call_openai(self, prompt: str) -> dict[str, JSONValue] | None:
         """Call OpenAI API and parse response.
 
         Args:
@@ -519,8 +524,8 @@ Respond ONLY with valid JSON matching this format."""
             return None
 
     def _validate_and_fix_insights(
-        self, insights_json: dict[str, Any], max_closed: str, max_updated: str
-    ) -> dict[str, Any] | None:
+        self, insights_json: dict[str, JSONValue], max_closed: str, max_updated: str
+    ) -> dict[str, JSONValue] | None:
         """Validate and fix insights to match contract.
 
         Generates deterministic IDs to ensure cache stability and prevent UI flicker.
@@ -576,10 +581,12 @@ Respond ONLY with valid JSON matching this format."""
         sorted_insights = sort_insights(fixed_insights)
 
         # Build contract-compliant output
-        return {
+        sorted_as_json = cast(JSONValue, sorted_insights)
+        result: dict[str, JSONValue] = {
             "schema_version": INSIGHTS_SCHEMA_VERSION,
             "generated_at": datetime.now(timezone.utc).isoformat(),
             "is_stub": False,
             "generated_by": GENERATOR_ID,
-            "insights": sorted_insights,
+            "insights": sorted_as_json,
         }
+        return result

@@ -11,7 +11,8 @@ import os
 import re
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any
+
+from ado_git_repo_insights.types import JSONValue
 
 
 @dataclass
@@ -95,7 +96,7 @@ class JsonlHandler(logging.Handler):
             message = record.getMessage()
             redacted_message = self.redaction_config.redact_value(message)
 
-            log_entry: dict[str, Any] = {
+            log_entry: dict[str, JSONValue] = {
                 "timestamp": self.formatter.formatTime(record)
                 if self.formatter
                 else "",
@@ -114,9 +115,9 @@ class JsonlHandler(logging.Handler):
         except Exception:
             self.handleError(record)
 
-    def _redact_dict(self, data: dict[str, Any]) -> dict[str, Any]:
+    def _redact_dict(self, data: dict[str, JSONValue]) -> dict[str, JSONValue]:
         """Recursively redact sensitive keys/values in a dictionary."""
-        result: dict[str, Any] = {}
+        result: dict[str, JSONValue] = {}
         for key, value in data.items():
             if self.redaction_config.should_redact_key(key):
                 result[key] = "***REDACTED***"

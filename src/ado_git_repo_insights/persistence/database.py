@@ -11,7 +11,9 @@ import sqlite3
 from collections.abc import Iterator
 from contextlib import contextmanager
 from pathlib import Path
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING
+
+from ado_git_repo_insights.types import SqliteParam
 
 from .models import SCHEMA_SQL
 
@@ -158,7 +160,7 @@ class DatabaseManager:
         finally:
             cursor.close()
 
-    def execute(self, sql: str, parameters: tuple[Any, ...] = ()) -> Cursor:
+    def execute(self, sql: str, parameters: tuple[SqliteParam, ...] = ()) -> Cursor:
         """Execute a single SQL statement.
 
         Args:
@@ -173,7 +175,7 @@ class DatabaseManager:
     def executemany(
         self,
         sql: str,
-        parameters: list[tuple[Any, ...]],
+        parameters: list[tuple[SqliteParam, ...]],
     ) -> Cursor:
         """Execute a SQL statement with multiple parameter sets.
 

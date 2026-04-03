@@ -11,7 +11,9 @@ import re
 from dataclasses import dataclass, field
 from datetime import date
 from pathlib import Path
-from typing import Any, Literal
+from typing import Literal
+
+from ado_git_repo_insights.types import RunSummaryDict
 
 
 def normalize_error_message(error: str, max_length: int = 500) -> str:
@@ -78,7 +80,7 @@ class RunSummary:
         if self.first_fatal_error:
             self.first_fatal_error = normalize_error_message(self.first_fatal_error)
 
-    def to_dict(self) -> dict[str, Any]:
+    def to_dict(self) -> RunSummaryDict:
         """Convert to dictionary for JSON serialization."""
         return {
             "tool_version": self.tool_version,
