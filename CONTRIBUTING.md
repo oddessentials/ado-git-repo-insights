@@ -43,8 +43,12 @@ cd extension && pnpm install && cd ..
 ## Running Tests
 
 ```bash
-# Python
-pytest
+# Python (use the launcher — it isolates coverage paths on all platforms)
+python scripts/run_pytest.py
+
+# Python with arguments
+python scripts/run_pytest.py tests/unit/ -v
+python scripts/run_pytest.py -k test_foo
 
 # Extension
 cd extension && pnpm test

@@ -4,8 +4,10 @@ Excludes Windows-only test files from collection on non-Windows
 platforms so they are never counted as skipped (CI zero-skip policy).
 
 Runtime path isolation (specs/049-cross-platform-hardening):
-  pytest_configure routes basetemp and coverage into per-run directories
-  under .tmp/pytest/runs/ so stale locked files never brick future runs.
+  pytest_configure routes basetemp into per-run directories under
+  .tmp/pytest/runs/ so stale locked files never brick future runs.
+  Coverage path isolation is handled by the launcher (scripts/run_pytest.py)
+  which sets COVERAGE_FILE before pytest starts loading plugins.
   Old runs are cleaned up on a best-effort basis (locked dirs are skipped).
 
 Typed ModuleType subclasses (FakeProphetModule, FakeOpenAIModule) declare
@@ -49,18 +51,18 @@ def _cleanup_old_runs(runs_dir: Path, current_run_id: str) -> None:
 
 
 def pytest_configure(config: object) -> None:
-    """Route pytest runtime paths into isolated per-run directories.
+    """Route pytest temp paths into isolated per-run directories.
 
     Invariant: pytest must never rely on implicit OS temp or default cache
     paths — only explicitly controlled repo-owned paths.
 
     - basetemp → .tmp/pytest/runs/<run_id>/tmp  (per-run, isolated)
-    - COVERAGE_FILE → .tmp/pytest/runs/<run_id>/.coverage  (per-run)
     - cache_dir stays fixed at .tmp/pytest/cache (set in pyproject.toml)
       but gets self-healed if locked
 
-    run_pr_preflight.py overrides basetemp (via CLI) and COVERAGE_FILE
-    (via env var), so preflight paths are unaffected by this hook.
+    Coverage path isolation is NOT handled here — it is set by the launcher
+    (scripts/run_pytest.py) before pytest starts. run_pr_preflight.py also
+    overrides basetemp (via CLI) and COVERAGE_FILE (via env var).
     """
     run_id = f"run-{os.getpid()}-{int(time.time())}"
     runs_dir = _TMP_ROOT / "runs"
@@ -72,9 +74,8 @@ def pytest_configure(config: object) -> None:
     if option is not None and getattr(option, "basetemp", None) is None:
         option.basetemp = str(run_dir / "tmp")
 
-    # Per-run coverage — only if not already set by env (e.g., preflight)
-    if "COVERAGE_FILE" not in os.environ:
-        os.environ["COVERAGE_FILE"] = str(run_dir / ".coverage")
+    # Ensure coverage data_file directory exists (pyproject.toml fallback)
+    (_TMP_ROOT / "coverage").mkdir(parents=True, exist_ok=True)
 
     # Self-healing: probe cache and nuke if locked
     _self_heal_cache(_TMP_ROOT / "cache")

@@ -159,9 +159,10 @@ warn_return_any = false
 [tool.coverage.run]
 source = ["src/ado_git_repo_insights"]
 branch = true
-# COVERAGE_FILE is set per-run in conftest.py (local pytest) and
-# run_pr_preflight.py (preflight). No fixed data_file here — a shared
-# target can be locked on Windows and brick all future covered runs.
+# Static fallback for bare pytest (without the launcher). The documented
+# entrypoint (scripts/run_pytest.py) sets COVERAGE_FILE per-run before
+# pytest starts; preflight also overrides via COVERAGE_FILE env var.
+data_file = ".tmp/pytest/coverage/.coverage"
 
 [tool.coverage.report]
 exclude_lines = [

@@ -79,18 +79,18 @@ mypy src/
 
 ### Running Tests
 
-```bash
-# All tests
-pytest
+Use the launcher — it isolates coverage paths so Windows file locking
+cannot brick future runs:
 
-# With coverage
-pytest --cov=src --cov-report=term-missing
+```bash
+# All tests (with coverage)
+python scripts/run_pytest.py
 
 # Specific test file
-pytest tests/unit/test_cli_args.py
+python scripts/run_pytest.py tests/unit/test_cli_args.py
 
 # Verbose output
-pytest -v
+python scripts/run_pytest.py -v
 ```
 
 ---
