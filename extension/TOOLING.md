@@ -8,10 +8,10 @@ This document describes the tooling and quality gates for the extension codebase
 | ---------- | ------- | ---------------------------------------------------- |
 | Node.js    | 22      | Runtime                                              |
 | pnpm       | 9.15.0  | Package manager (declared in `packageManager` field) |
-| TypeScript | 5.7.3   | Type checking and compilation                        |
-| Playwright | 1.40.0  | Browser automation for smoke tests                   |
-| Jest       | 30.0.0  | Unit test framework                                  |
-| ESLint     | 9.18.0  | Code linting                                         |
+| TypeScript | 5.9.3   | Type checking and compilation                        |
+| Playwright | 1.58.2  | Browser automation for smoke tests                   |
+| Jest       | 30.3.0  | Unit test framework                                  |
+| ESLint     | 10.1.0  | Code linting                                         |
 
 ## Quality Gates
 
@@ -178,7 +178,7 @@ Meta-tests in `tests/meta/` enforce code quality contracts that prevent flaky te
 
 The `@playwright/test` dependency MUST be exactly pinned (no `^` or `~` prefix).
 
-**Current version**: 1.40.0
+**Current version**: 1.58.2
 
 **Contract**: CI meta-test `tests/meta/playwright-version-guard.test.ts` enforces exact pinning.
 

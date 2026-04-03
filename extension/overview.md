@@ -88,7 +88,7 @@ Explore a working dashboard with sample data:
 ## Requirements
 
 - **Azure DevOps Services** (cloud) or **Azure DevOps Server 2020+** (on-premises)
-- **Node.js 20+** on the build agent (use `UseNode@1` with `version: "20.x"`)
+- **Node.js 22+** on the build agent (use `UseNode@1` with `version: "22.x"`)
 - **PAT** with **Code (Read)** scope
 - Git Repo Insights is open source ([MIT License](https://github.com/oddessentials/ado-git-repo-insights/blob/main/LICENSE)) with full source code on GitHub.
 

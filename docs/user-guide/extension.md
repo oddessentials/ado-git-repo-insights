@@ -132,9 +132,9 @@ stages:
 
           # Ensure Node.js is available
           - task: UseNode@1
-            displayName: 'Install Node.js 20'
+            displayName: 'Install Node.js 22'
             inputs:
-              version: '20.x'
+              version: '22.x'
 
           # Download previous database (enables incremental extraction)
           - task: DownloadPipelineArtifact@2
