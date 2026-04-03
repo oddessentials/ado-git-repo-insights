@@ -1,3 +1,14 @@
+# [101.0.0](https://github.com/oddessentials/ado-git-repo-insights/compare/v100.0.0...v101.0.0) (2026-04-03)
+
+
+* feat!: drop Python 3.11 support, add 3.14 to CI matrix ([f7d0467](https://github.com/oddessentials/ado-git-repo-insights/commit/f7d04670044bcb3facb2477b3609e83d080e5d9c))
+
+
+### BREAKING CHANGES
+
+* Python 3.11 is no longer supported. Minimum version is 3.12.
+Entire-Checkpoint: bcad6fc0368d
+
 # [100.0.0](https://github.com/oddessentials/ado-git-repo-insights/compare/v99.34.0...v100.0.0) (2026-04-03)
 
 
