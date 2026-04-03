@@ -448,8 +448,10 @@ class TestAggregateGenerator:
         manifest = generator.generate_all()
 
         assert manifest.capabilities["comments_metrics"] is True
-        assert manifest.coverage["comments"]["status"] == "full"
-        assert manifest.coverage["comments"]["capped"] is False
+        comments = manifest.coverage["comments"]
+        assert isinstance(comments, dict)
+        assert comments["status"] == "full"
+        assert comments["capped"] is False
 
     def test_manifest_sets_partial_comments_coverage_when_capped(
         self, sample_db: tuple[DatabaseManager, Path], tmp_path: Path
@@ -480,8 +482,10 @@ class TestAggregateGenerator:
         manifest = generator.generate_all()
 
         assert manifest.capabilities["comments_metrics"] is True
-        assert manifest.coverage["comments"]["status"] == "partial"
-        assert manifest.coverage["comments"]["capped"] is True
+        comments = manifest.coverage["comments"]
+        assert isinstance(comments, dict)
+        assert comments["status"] == "partial"
+        assert comments["capped"] is True
 
     def test_manifest_capabilities_are_emitted_from_guarded_keyset(
         self, sample_db: tuple[DatabaseManager, Path], tmp_path: Path
@@ -3242,8 +3246,11 @@ class TestConsistencyWarningLogging:
             for team in list(result):
                 if team.startswith("_"):
                     continue
-                for repo in result[team]:
-                    result[team][repo]["pr_count"] += 999
+                repos = result[team]
+                if not isinstance(repos, dict):
+                    continue
+                for repo in repos:
+                    repos[repo]["pr_count"] += 999
             return result
 
         monkeypatch.setattr(AggregateGenerator, "_generate_team_repo_slice", patched)

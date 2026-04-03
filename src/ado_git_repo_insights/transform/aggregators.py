@@ -19,11 +19,26 @@ import random
 from dataclasses import asdict, dataclass, field
 from datetime import UTC, date, datetime, timedelta
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, cast
+from typing import TYPE_CHECKING, cast
 
 import numpy as np
 import pandas as pd
 
+from ..types import (
+    AuthorRecord,
+    CommentsCoverage,
+    DistributionIndexEntry,
+    JSONValue,
+    OperationalSummary,
+    ProjectRecord,
+    RepositoryRecord,
+    ReviewerRecord,
+    ReviewerSliceMetrics,
+    SliceMetrics,
+    TeamRecord,
+    UserRecord,
+    WeeklyRollupIndexEntry,
+)
 from .schema_versions import (
     AGGREGATES_SCHEMA_VERSION,
     DATASET_SCHEMA_VERSION,
@@ -96,21 +111,87 @@ class YearlyDistribution:
 class Dimensions:
     """Filter dimensions for UI."""
 
-    repositories: list[dict[str, Any]] = field(default_factory=list)
-    users: list[dict[str, Any]] = field(default_factory=list)
-    authors: list[dict[str, Any]] = field(default_factory=list)
-    reviewers: list[dict[str, Any]] = field(default_factory=list)
-    projects: list[dict[str, Any]] = field(default_factory=list)
-    teams: list[dict[str, Any]] = field(default_factory=list)  # Phase 3.3
+    repositories: list[RepositoryRecord] = field(default_factory=list)
+    users: list[UserRecord] = field(default_factory=list)
+    authors: list[AuthorRecord] = field(default_factory=list)
+    reviewers: list[ReviewerRecord] = field(default_factory=list)
+    projects: list[ProjectRecord] = field(default_factory=list)
+    teams: list[TeamRecord] = field(default_factory=list)  # Phase 3.3
     date_range: dict[str, str] = field(default_factory=dict)
+
+
+# ---------------------------------------------------------------------------
+# Per-entity DataFrame → typed record conversion functions (FR-014)
+# ---------------------------------------------------------------------------
+
+
+def _df_to_repository_records(df: pd.DataFrame) -> list[RepositoryRecord]:
+    """Narrow repositories DataFrame to typed records."""
+    return [
+        RepositoryRecord(
+            repository_id=r["repository_id"],
+            repository_name=r["repository_name"],
+            project_name=r["project_name"],
+            organization_name=r["organization_name"],
+        )
+        for r in df.to_dict(orient="records")
+    ]
+
+
+def _df_to_user_records(df: pd.DataFrame) -> list[UserRecord]:
+    """Narrow users DataFrame to typed records."""
+    return [
+        UserRecord(user_id=r["user_id"], display_name=r["display_name"])
+        for r in df.to_dict(orient="records")
+    ]
+
+
+def _df_to_author_records(df: pd.DataFrame) -> list[AuthorRecord]:
+    """Narrow users DataFrame to author records (renamed fields)."""
+    return [
+        AuthorRecord(author_id=r["user_id"], author_name=r["display_name"])
+        for r in df.to_dict(orient="records")
+    ]
+
+
+def _df_to_reviewer_records(df: pd.DataFrame) -> list[ReviewerRecord]:
+    """Narrow reviewers DataFrame to typed records."""
+    return [
+        ReviewerRecord(reviewer_id=r["reviewer_id"], reviewer_name=r["reviewer_name"])
+        for r in df.to_dict(orient="records")
+    ]
+
+
+def _df_to_project_records(df: pd.DataFrame) -> list[ProjectRecord]:
+    """Narrow projects DataFrame to typed records."""
+    return [
+        ProjectRecord(
+            organization_name=r["organization_name"], project_name=r["project_name"]
+        )
+        for r in df.to_dict(orient="records")
+    ]
+
+
+def _df_to_team_records(df: pd.DataFrame) -> list[TeamRecord]:
+    """Narrow teams DataFrame to typed records."""
+    return [
+        TeamRecord(
+            team_id=r["team_id"],
+            team_name=r["team_name"],
+            project_name=r["project_name"],
+            organization_name=r["organization_name"],
+            member_count=r["member_count"],
+        )
+        for r in df.to_dict(orient="records")
+    ]
 
 
 @dataclass
 class AggregateIndex:
     """Index of available aggregate files."""
 
-    weekly_rollups: list[dict[str, Any]] = field(default_factory=list)
-    distributions: list[dict[str, Any]] = field(default_factory=list)
+    weekly_rollups: list[WeeklyRollupIndexEntry] = field(default_factory=list)
+    distributions: list[DistributionIndexEntry] = field(default_factory=list)
 
 
 @dataclass
@@ -126,11 +207,11 @@ class DatasetManifest:
     run_id: str = ""
     warnings: list[str] = field(default_factory=list)  # Phase 3.5: stub warnings
     aggregate_index: AggregateIndex = field(default_factory=AggregateIndex)
-    defaults: dict[str, Any] = field(default_factory=dict)
-    limits: dict[str, Any] = field(default_factory=dict)
+    defaults: dict[str, int] = field(default_factory=dict)
+    limits: dict[str, int] = field(default_factory=dict)
     features: dict[str, bool] = field(default_factory=dict)
-    capabilities: dict[str, Any] = field(default_factory=dict)
-    coverage: dict[str, Any] = field(default_factory=dict)
+    capabilities: dict[str, str | bool] = field(default_factory=dict)
+    coverage: dict[str, JSONValue] = field(default_factory=dict)
 
 
 class AggregateGenerator:
@@ -316,14 +397,17 @@ class AggregateGenerator:
                     "ai_insights": insights_generated,  # Phase 3.5/5: file-gated
                 },
                 capabilities=self._get_capabilities(),
-                coverage={
-                    "total_prs": self._get_pr_count(),
-                    "date_range": dimensions.date_range,
-                    "teams_count": len(dimensions.teams),  # Phase 3.3
-                    "comments": self._get_comments_coverage(),  # Phase 3.4
-                    # Phase 4 §5: Operational visibility
-                    "row_counts": self._get_row_counts(),
-                },
+                coverage=cast(
+                    dict[str, JSONValue],
+                    {
+                        "total_prs": self._get_pr_count(),
+                        "date_range": dimensions.date_range,
+                        "teams_count": len(dimensions.teams),  # Phase 3.3
+                        "comments": self._get_comments_coverage(),  # Phase 3.4
+                        # Phase 4 §5: Operational visibility
+                        "row_counts": self._get_row_counts(),
+                    },
+                ),
             )
 
             # Phase 4 §5: Calculate total artifact size after manifest written
@@ -479,39 +563,13 @@ class AggregateGenerator:
             logger.debug(f"Teams table not available (legacy DB?): {e}")
             teams_df = pd.DataFrame()
 
-        # Cast pandas dict records to list[dict[str, Any]] for type safety
-        # pandas to_dict returns dict[Hashable, Any], we need dict[str, Any]
-        repos_records: list[dict[str, Any]] = [
-            {str(k): v for k, v in r.items()}
-            for r in repos_df.to_dict(orient="records")
-        ]
-        users_records: list[dict[str, Any]] = [
-            {str(k): v for k, v in r.items()}
-            for r in users_df.to_dict(orient="records")
-        ]
-        author_records: list[dict[str, Any]] = [
-            {
-                "author_id": str(r["user_id"]),
-                "author_name": r["display_name"],
-            }
-            for r in authors_df.to_dict(orient="records")
-        ]
-        reviewers_records: list[dict[str, Any]] = [
-            {str(k): v for k, v in r.items()}
-            for r in reviewers_df.to_dict(orient="records")
-        ]
-        projects_records: list[dict[str, Any]] = [
-            {str(k): v for k, v in r.items()}
-            for r in projects_df.to_dict(orient="records")
-        ]
-        teams_records: list[dict[str, Any]] = (
-            [
-                {str(k): v for k, v in r.items()}
-                for r in teams_df.to_dict(orient="records")
-            ]
-            if not teams_df.empty
-            else []
-        )
+        # Convert DataFrames to typed entity records (FR-014)
+        repos_records = _df_to_repository_records(repos_df)
+        users_records = _df_to_user_records(users_df)
+        author_records = _df_to_author_records(authors_df)
+        reviewers_records = _df_to_reviewer_records(reviewers_df)
+        projects_records = _df_to_project_records(projects_df)
+        teams_records = _df_to_team_records(teams_df) if not teams_df.empty else []
         return Dimensions(
             repositories=repos_records,
             users=users_records,
@@ -522,7 +580,7 @@ class AggregateGenerator:
             date_range=date_range,
         )
 
-    def _generate_weekly_rollups(self) -> list[dict[str, Any]]:
+    def _generate_weekly_rollups(self) -> list[WeeklyRollupIndexEntry]:
         """Generate weekly rollup files, one per ISO week."""
         # Query PRs with closed dates and repository info for dimension slicing
         df = pd.read_sql_query(
@@ -577,7 +635,7 @@ class AggregateGenerator:
         df["iso_year"] = df["closed_dt"].dt.isocalendar().year
         df["iso_week"] = df["closed_dt"].dt.isocalendar().week
 
-        index: list[dict[str, Any]] = []
+        index: list[WeeklyRollupIndexEntry] = []
         any_rollup_has_cross_dim = False
         # Track cross-dim availability for features flag (set on self after loop)
 
@@ -636,11 +694,14 @@ class AggregateGenerator:
                     for author_id, repo_entries in by_author_and_repo.items():
                         if author_id.startswith("_"):
                             continue
+                        if not isinstance(repo_entries, dict):
+                            continue
                         cross_dim_pr_sum = sum(
                             entry["pr_count"] for entry in repo_entries.values()
                         )
-                        author_pr_count = by_author.get(author_id, {}).get(
-                            "pr_count", 0
+                        author_entry = by_author.get(author_id)
+                        author_pr_count = (
+                            author_entry["pr_count"] if author_entry is not None else 0
                         )
                         if cross_dim_pr_sum != author_pr_count:
                             logger.warning(
@@ -666,10 +727,15 @@ class AggregateGenerator:
                     for team_name, repo_entries in by_team_and_repo.items():
                         if team_name.startswith("_"):
                             continue  # skip metadata keys like _truncated
+                        if not isinstance(repo_entries, dict):
+                            continue
                         cross_dim_pr_sum = sum(
                             entry["pr_count"] for entry in repo_entries.values()
                         )
-                        team_pr_count = by_team.get(team_name, {}).get("pr_count", 0)
+                        team_entry = by_team.get(team_name)
+                        team_pr_count = (
+                            team_entry["pr_count"] if team_entry is not None else 0
+                        )
                         if cross_dim_pr_sum != team_pr_count:
                             logger.warning(
                                 "Cross-dim pr_count consistency mismatch for "
@@ -707,7 +773,7 @@ class AggregateGenerator:
 
     def _generate_author_slice(
         self, week_group: pd.DataFrame, week_reviewers: pd.DataFrame
-    ) -> dict[str, Any]:
+    ) -> dict[str, SliceMetrics]:
         """Generate per-author metrics slice for a week keyed by canonical user_id."""
         author_metrics = week_group.groupby("user_id").agg(
             pr_count=("pull_request_uid", "size"),
@@ -731,7 +797,7 @@ class AggregateGenerator:
             fill_value=0,
         )
 
-        by_author: dict[str, Any] = {}
+        by_author: dict[str, SliceMetrics] = {}
         for author_id, row in author_metrics.iterrows():
             if not isinstance(author_id, str):
                 continue
@@ -755,9 +821,9 @@ class AggregateGenerator:
 
     def _generate_author_repo_slice(
         self, week_group: pd.DataFrame, week_reviewers: pd.DataFrame
-    ) -> dict[str, Any]:
+    ) -> dict[str, dict[str, SliceMetrics] | bool]:
         """Generate per-author-per-repository metrics slice for a week."""
-        by_author_and_repo: dict[str, Any] = {}
+        entries: dict[str, dict[str, SliceMetrics]] = {}
         grouped_metrics = week_group.groupby(["user_id", "repository_name"]).agg(
             pr_count=("pull_request_uid", "size"),
             cycle_time_valid_count=("cycle_time_minutes", "count"),
@@ -780,7 +846,7 @@ class AggregateGenerator:
             fill_value=0,
         )
 
-        all_entries: list[tuple[str, str, dict[str, Any]]] = []
+        all_entries: list[tuple[str, str, SliceMetrics]] = []
         for key, row in grouped_metrics.iterrows():
             author_id, repo_name = cast(tuple[str, str], key)
             if not isinstance(author_id, str) or not isinstance(repo_name, str):
@@ -825,10 +891,11 @@ class AggregateGenerator:
             )
 
         for author_id, repo_name, entry in all_entries:
-            if author_id not in by_author_and_repo:
-                by_author_and_repo[author_id] = {}
-            by_author_and_repo[author_id][repo_name] = entry
+            if author_id not in entries:
+                entries[author_id] = {}
+            entries[author_id][repo_name] = entry
 
+        by_author_and_repo = cast(dict[str, dict[str, SliceMetrics] | bool], entries)
         if truncated:
             by_author_and_repo["_truncated"] = True
 
@@ -836,7 +903,7 @@ class AggregateGenerator:
 
     def _generate_repo_slice(
         self, week_group: pd.DataFrame, week_reviewers: pd.DataFrame
-    ) -> dict[str, Any]:
+    ) -> dict[str, SliceMetrics]:
         """Generate per-repository metrics slice for a week.
 
         Args:
@@ -869,7 +936,7 @@ class AggregateGenerator:
             fill_value=0,
         )
 
-        by_repository: dict[str, Any] = {}
+        by_repository: dict[str, SliceMetrics] = {}
         for repo_name, row in grouped_metrics.iterrows():
             if not isinstance(repo_name, str):
                 continue
@@ -896,7 +963,7 @@ class AggregateGenerator:
         week_group: pd.DataFrame,
         week_reviewers: pd.DataFrame,
         team_members_df: pd.DataFrame,
-    ) -> dict[str, Any]:
+    ) -> dict[str, SliceMetrics]:
         """Generate per-team metrics slice for a week.
 
         Authors in multiple teams will have their PRs counted in each team's slice.
@@ -946,7 +1013,7 @@ class AggregateGenerator:
             fill_value=0,
         )
 
-        by_team: dict[str, Any] = {}
+        by_team: dict[str, SliceMetrics] = {}
         for team_name, row in grouped_metrics.iterrows():
             if not isinstance(team_name, str):
                 continue
@@ -972,7 +1039,7 @@ class AggregateGenerator:
         self,
         week_group: pd.DataFrame,
         week_reviewers: pd.DataFrame,
-    ) -> dict[str, Any]:
+    ) -> dict[str, ReviewerSliceMetrics]:
         """Generate per-reviewer activity metrics for a week.
 
         Reviewer slices are keyed by stable reviewer_id rather than display
@@ -997,7 +1064,7 @@ class AggregateGenerator:
         if reviewer_prs.empty:
             return {}
 
-        by_reviewer: dict[str, Any] = {}
+        by_reviewer: dict[str, ReviewerSliceMetrics] = {}
 
         for reviewer_id, reviewer_group in reviewer_prs.groupby("reviewer_id"):
             if pd.isna(reviewer_id):
@@ -1044,7 +1111,7 @@ class AggregateGenerator:
         week_group: pd.DataFrame,
         week_reviewers: pd.DataFrame,
         team_members_df: pd.DataFrame,
-    ) -> dict[str, Any]:
+    ) -> dict[str, dict[str, SliceMetrics] | bool]:
         """Generate per-team-per-repository metrics slice for a week.
 
         Joins week PRs against team_members_df to tag each PR with its team
@@ -1088,7 +1155,7 @@ class AggregateGenerator:
         if tagged.empty:
             return {}
 
-        by_team_and_repo: dict[str, Any] = {}
+        entries: dict[str, dict[str, SliceMetrics]] = {}
         # Compute team-repo metrics in one pass rather than filtering reviewers
         # per intersection. This keeps the enterprise stress path bounded by a
         # few groupby/merge operations per week instead of N repeated isin scans.
@@ -1118,7 +1185,7 @@ class AggregateGenerator:
         )
 
         # Collect all entries with their pr_count for potential truncation
-        all_entries: list[tuple[str, str, dict[str, Any]]] = []
+        all_entries: list[tuple[str, str, SliceMetrics]] = []
 
         for key, row in grouped_metrics.iterrows():
             team_name, repo_name = cast(tuple[str, str], key)
@@ -1178,10 +1245,11 @@ class AggregateGenerator:
 
         # Build nested dict from (possibly truncated) entries
         for team_name, repo_name, entry in all_entries:
-            if team_name not in by_team_and_repo:
-                by_team_and_repo[team_name] = {}
-            by_team_and_repo[team_name][repo_name] = entry
+            if team_name not in entries:
+                entries[team_name] = {}
+            entries[team_name][repo_name] = entry
 
+        by_team_and_repo = cast(dict[str, dict[str, SliceMetrics] | bool], entries)
         if truncated:
             # NOTE: Mixed-type key — bool value alongside dict values.
             # Consumers must skip "_"-prefixed keys when iterating entries.
@@ -1189,7 +1257,7 @@ class AggregateGenerator:
 
         return by_team_and_repo
 
-    def _generate_distributions(self) -> list[dict[str, Any]]:
+    def _generate_distributions(self) -> list[DistributionIndexEntry]:
         """Generate yearly distribution files."""
         df = pd.read_sql_query(
             """
@@ -1210,7 +1278,7 @@ class AggregateGenerator:
         df["year"] = df["closed_dt"].dt.year
         df["month"] = df["closed_dt"].dt.strftime("%Y-%m")
 
-        index: list[dict[str, Any]] = []
+        index: list[DistributionIndexEntry] = []
 
         for year, group in df.groupby("year"):
             year_str = str(year)
@@ -1274,9 +1342,9 @@ class AggregateGenerator:
             # Legacy DB may not have pr_threads table
             return False
 
-    def _get_capabilities(self) -> dict[str, Any]:
+    def _get_capabilities(self) -> dict[str, str | bool]:
         """Get additive capability metadata for loader normalization."""
-        capabilities: dict[str, Any] = {
+        capabilities: dict[str, str | bool] = {
             "author_filters": True,
             "author_repo_exact": True,
             "comments_metrics": self._has_comments(),
@@ -1292,7 +1360,7 @@ class AggregateGenerator:
             if key in capabilities
         }
 
-    def _get_comments_coverage(self) -> dict[str, Any]:
+    def _get_comments_coverage(self) -> CommentsCoverage:
         """Get comments coverage statistics.
 
         §6: coverage.comments: "full" | "partial" | "disabled"
@@ -1389,9 +1457,9 @@ class AggregateGenerator:
 
     def _get_operational_summary(
         self,
-        weekly_index: list[dict[str, Any]],
-        dist_index: list[dict[str, Any]],
-    ) -> dict[str, Any]:
+        weekly_index: list[WeeklyRollupIndexEntry],
+        dist_index: list[DistributionIndexEntry],
+    ) -> OperationalSummary:
         """Generate operational summary for operators (Phase 4 §5).
 
         Provides immediate insight into dataset health and scale.
@@ -1425,7 +1493,7 @@ class AggregateGenerator:
             ),
         }
 
-    def _write_json(self, path: Path, data: dict[str, Any]) -> None:
+    def _write_json(self, path: Path, data: dict[str, JSONValue]) -> None:
         """Write JSON file with deterministic formatting.
 
         Uses allow_nan=False to reject NaN/Infinity values that would
@@ -1482,7 +1550,7 @@ class PredictionGenerator:
         self.output_dir = output_dir
         self.seed_base = seed_base
 
-    def generate(self) -> dict[str, Any] | None:
+    def generate(self) -> dict[str, JSONValue] | None:
         """Generate predictions stub file.
 
         Returns:
@@ -1555,7 +1623,7 @@ class PredictionGenerator:
             json.dump(predictions, f, indent=2, sort_keys=True)
 
         logger.info("Generated predictions/trends.json (stub data)")
-        return predictions
+        return cast(dict[str, JSONValue], predictions)
 
 
 class InsightsGenerator:
@@ -1604,7 +1672,7 @@ class InsightsGenerator:
         self.output_dir = output_dir
         self.seed_base = seed_base
 
-    def generate(self) -> dict[str, Any] | None:
+    def generate(self) -> dict[str, JSONValue] | None:
         """Generate insights stub file.
 
         Returns:
@@ -1666,4 +1734,4 @@ class InsightsGenerator:
             json.dump(insights, f, indent=2, sort_keys=True)
 
         logger.info("Generated insights/summary.json (stub data)")
-        return insights
+        return cast(dict[str, JSONValue], insights)

@@ -201,3 +201,134 @@ class MetricForecastDict(TypedDict):
     unit: str
     horizon_weeks: int
     values: list[ForecastValue]
+
+
+# ---------------------------------------------------------------------------
+# Dimension entity record types (P5a — aggregators.py Dimensions dataclass)
+# ---------------------------------------------------------------------------
+
+
+class RepositoryRecord(TypedDict):
+    """Repository dimension record from ``SELECT ... FROM repositories``."""
+
+    repository_id: str
+    repository_name: str
+    project_name: str
+    organization_name: str
+
+
+class UserRecord(TypedDict):
+    """User dimension record from ``SELECT ... FROM users JOIN pull_requests``."""
+
+    user_id: str
+    display_name: str
+
+
+class AuthorRecord(TypedDict):
+    """Author dimension record (renamed user fields for UI)."""
+
+    author_id: str
+    author_name: str
+
+
+class ReviewerRecord(TypedDict):
+    """Reviewer dimension record from ``SELECT ... FROM reviewers JOIN users``."""
+
+    reviewer_id: str
+    reviewer_name: str
+
+
+class ProjectRecord(TypedDict):
+    """Project dimension record from ``SELECT ... FROM projects``."""
+
+    organization_name: str
+    project_name: str
+
+
+class TeamRecord(TypedDict):
+    """Team dimension record with aggregated member count."""
+
+    team_id: str
+    team_name: str
+    project_name: str
+    organization_name: str
+    member_count: int
+
+
+# ---------------------------------------------------------------------------
+# Weekly rollup / dimension slice types (P5b — aggregators.py slice methods)
+# ---------------------------------------------------------------------------
+
+
+class SliceMetrics(TypedDict):
+    """Common metrics shape for author/repo/team dimension slices."""
+
+    pr_count: int
+    cycle_time_p50: float | None
+    cycle_time_p90: float | None
+    authors_count: int
+    reviewers_count: int
+
+
+class ReviewerSliceMetrics(TypedDict):
+    """Reviewer-specific activity metrics (different shape from SliceMetrics)."""
+
+    reviewed_prs: int
+    reviews_count: int
+    approval_rate: float
+    authors_count: int
+    repositories_count: int
+
+
+class WeeklyRollupIndexEntry(TypedDict):
+    """Index entry for a weekly rollup file in aggregate_index."""
+
+    week: str
+    path: str
+    start_date: str
+    end_date: str
+    size_bytes: int
+
+
+class DistributionIndexEntry(TypedDict):
+    """Index entry for a yearly distribution file in aggregate_index."""
+
+    year: str
+    path: str
+    start_date: str
+    end_date: str
+    size_bytes: int
+
+
+# ---------------------------------------------------------------------------
+# Manifest sub-structure types (P5c — aggregators.py DatasetManifest)
+# ---------------------------------------------------------------------------
+
+
+class CommentsCoverage(TypedDict):
+    """Comments extraction coverage statistics for dataset manifest."""
+
+    status: str
+    threads_fetched: int
+    comments_fetched: int
+    prs_with_threads: int
+    capped: bool
+
+
+class ManifestCoverage(TypedDict):
+    """Dataset manifest coverage section."""
+
+    total_prs: int
+    date_range: dict[str, str]
+    teams_count: int
+    comments: CommentsCoverage
+    row_counts: dict[str, int]
+
+
+class OperationalSummary(TypedDict):
+    """Operational summary for dataset manifest (Phase 4 §5)."""
+
+    artifact_size_bytes: int
+    weekly_rollup_count: int
+    distribution_count: int
+    retention_notice: str | None

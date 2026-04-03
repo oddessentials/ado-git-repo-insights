@@ -290,8 +290,10 @@ class TestCommentsCoverage:
         manifest = generator.generate_all()
 
         assert manifest.features["comments"] is False
-        assert manifest.coverage["comments"]["status"] == "disabled"
-        assert manifest.coverage["comments"]["threads_fetched"] == 0
+        comments = manifest.coverage["comments"]
+        assert isinstance(comments, dict)
+        assert comments["status"] == "disabled"
+        assert comments["threads_fetched"] == 0
 
         db.close()
 
@@ -355,8 +357,10 @@ class TestCommentsCoverage:
         manifest = generator.generate_all()
 
         assert manifest.features["comments"] is True
-        assert manifest.coverage["comments"]["status"] == "full"
-        assert manifest.coverage["comments"]["threads_fetched"] == 1
-        assert manifest.coverage["comments"]["prs_with_threads"] == 1
+        comments = manifest.coverage["comments"]
+        assert isinstance(comments, dict)
+        assert comments["status"] == "full"
+        assert comments["threads_fetched"] == 1
+        assert comments["prs_with_threads"] == 1
 
         db.close()
