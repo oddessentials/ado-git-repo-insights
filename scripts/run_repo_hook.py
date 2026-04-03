@@ -254,13 +254,17 @@ def run_acl_health_check() -> None:
         candidate = tmp_pytest / subdir
         if candidate.is_dir():
             paths_to_check.append(candidate)
+    failures: list[tuple[Path, str]] = []
     if runs_dir.is_dir():
-        for run_entry in runs_dir.iterdir():
+        try:
+            run_entries = list(runs_dir.iterdir())
+        except OSError as exc:
+            failures.append((runs_dir, str(exc)))
+            run_entries = []
+        for run_entry in run_entries:
             tmp_subdir = run_entry / "tmp"
             if tmp_subdir.is_dir():
                 paths_to_check.append(tmp_subdir)
-
-    failures: list[tuple[Path, str]] = []
     for path in paths_to_check:
         error = _acl_write_probe(path)
         if error is not None:
