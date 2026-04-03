@@ -237,11 +237,28 @@ def run_acl_health_check() -> None:
     safe_print("[pre-commit] checking ACL health on repo metadata")
 
     paths_to_check: list[Path] = [REPO_ROOT / ".git"]
+    # Legacy .pytest-tmp* directories
     paths_to_check.extend(
         p
         for p in REPO_ROOT.iterdir()
         if p.is_dir() and p.name.startswith(".pytest-tmp")
     )
+    # Repo-owned pytest runtime directories (.tmp/pytest/)
+    # Probe parents first — launcher must mkdir under these.
+    tmp_pytest = REPO_ROOT / ".tmp" / "pytest"
+    runs_dir = tmp_pytest / "runs"
+    for parent in (tmp_pytest, runs_dir):
+        if parent.is_dir():
+            paths_to_check.append(parent)
+    for subdir in ("cache", "coverage"):
+        candidate = tmp_pytest / subdir
+        if candidate.is_dir():
+            paths_to_check.append(candidate)
+    if runs_dir.is_dir():
+        for run_entry in runs_dir.iterdir():
+            tmp_subdir = run_entry / "tmp"
+            if tmp_subdir.is_dir():
+                paths_to_check.append(tmp_subdir)
 
     failures: list[tuple[Path, str]] = []
     for path in paths_to_check:
