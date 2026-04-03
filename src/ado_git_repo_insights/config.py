@@ -220,14 +220,18 @@ def load_config(
             f"start_date ({date_range.start}) must be <= end_date ({date_range.end})"
         )
 
-    # Build main config
+    # Build main config — only accept str values for required fields;
+    # non-str (null, dict, int) falls through as "" so __post_init__ rejects it.
+    raw_org = config_data.get("organization", "")
     raw_projects = config_data.get("projects", [])
+    raw_pat = config_data.get("pat", "")
+    raw_db = config_data.get("database", "ado-insights.sqlite")
     return Config(
-        organization=str(config_data.get("organization", "")),
+        organization=raw_org if isinstance(raw_org, str) else "",
         projects=raw_projects if isinstance(raw_projects, list) else [],
-        pat=str(config_data.get("pat", "")),
+        pat=raw_pat if isinstance(raw_pat, str) else "",
         database=database
-        or Path(str(config_data.get("database", "ado-insights.sqlite"))),
+        or Path(raw_db if isinstance(raw_db, str) else "ado-insights.sqlite"),
         api=api_config,
         backfill=backfill_config,
         date_range=date_range,

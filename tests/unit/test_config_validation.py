@@ -136,6 +136,45 @@ class TestDateRangeConfigDefaults:
         assert date_range.end is None
 
 
+class TestLoadConfigRequiredStringFields:
+    """Tests for required string field validation (QG-40 regression).
+
+    str() coercion must not silently convert non-string YAML values into
+    truthy strings that bypass __post_init__ checks.
+    """
+
+    def test_null_organization_raises_configuration_error(self, tmp_path: Path) -> None:
+        config_file = tmp_path / "config.yaml"
+        config_file.write_text("organization: null\nprojects:\n  - p\npat: t\n")
+        with pytest.raises(ConfigurationError, match="organization is required"):
+            load_config(config_path=config_file, database=Path("test.sqlite"))
+
+    def test_dict_organization_raises_configuration_error(self, tmp_path: Path) -> None:
+        config_file = tmp_path / "config.yaml"
+        config_file.write_text("organization:\n  name: foo\nprojects:\n  - p\npat: t\n")
+        with pytest.raises(ConfigurationError, match="organization is required"):
+            load_config(config_path=config_file, database=Path("test.sqlite"))
+
+    def test_null_pat_raises_configuration_error(self, tmp_path: Path) -> None:
+        config_file = tmp_path / "config.yaml"
+        config_file.write_text("organization: x\nprojects:\n  - p\npat: null\n")
+        with pytest.raises(ConfigurationError, match="PAT is required"):
+            load_config(config_path=config_file, database=Path("test.sqlite"))
+
+    def test_integer_pat_raises_configuration_error(self, tmp_path: Path) -> None:
+        config_file = tmp_path / "config.yaml"
+        config_file.write_text("organization: x\nprojects:\n  - p\npat: 12345\n")
+        with pytest.raises(ConfigurationError, match="PAT is required"):
+            load_config(config_path=config_file, database=Path("test.sqlite"))
+
+    def test_valid_string_fields_pass(self, tmp_path: Path) -> None:
+        config_file = tmp_path / "config.yaml"
+        config_file.write_text("organization: my-org\nprojects:\n  - p\npat: my-pat\n")
+        config = load_config(config_path=config_file, database=Path("test.sqlite"))
+        assert config.organization == "my-org"
+        assert config.pat == "my-pat"
+
+
 class TestLoadConfigNumericCoercion:
     """Tests for numeric config value validation (QG-40 regression)."""
 
