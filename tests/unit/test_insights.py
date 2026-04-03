@@ -8,7 +8,7 @@ Tests for:
 from __future__ import annotations
 
 import json
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 from unittest.mock import MagicMock
 
@@ -146,7 +146,7 @@ class TestCheckCacheNaiveDatetime:
 
         # Write a cache file with a naive datetime (no timezone)
         cache_key = "test-key"
-        now_utc = datetime.now(timezone.utc)
+        now_utc = datetime.now(UTC)
         naive_str = now_utc.strftime("%Y-%m-%dT%H:%M:%S")  # No timezone
 
         cache_path = tmp_path / "cache.json"
@@ -168,7 +168,7 @@ class TestCheckCacheNaiveDatetime:
         )
 
         cache_key = "test-key"
-        now_utc = datetime.now(timezone.utc)
+        now_utc = datetime.now(UTC)
         aware_str = now_utc.isoformat()  # Includes +00:00
 
         cache_path = tmp_path / "cache.json"
@@ -193,7 +193,7 @@ class TestCheckCacheNaiveDatetime:
         # Set cached_at to 2 hours ago (expired for 1-hour TTL)
         from datetime import timedelta
 
-        old_time = datetime.now(timezone.utc) - timedelta(hours=2)
+        old_time = datetime.now(UTC) - timedelta(hours=2)
         naive_str = old_time.strftime("%Y-%m-%dT%H:%M:%S")
 
         cache_path = tmp_path / "cache.json"

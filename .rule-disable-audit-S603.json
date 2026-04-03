@@ -1,6 +1,6 @@
 {
   "rule": "S603",
-  "total_call_sites": 68,
+  "total_call_sites": 69,
   "unsafe_count": 13,
   "call_sites": [
     {
@@ -350,6 +350,14 @@
     {
       "file": "tests/integration/test_phase5_ml_integration.py",
       "line": 903,
+      "code": "result = subprocess.run(",
+      "shell_true": false,
+      "literal_list": true,
+      "safety": "safe-literal-list"
+    },
+    {
+      "file": "tests/unit/test_any_type_scanner.py",
+      "line": 171,
       "code": "result = subprocess.run(",
       "shell_true": false,
       "literal_list": true,

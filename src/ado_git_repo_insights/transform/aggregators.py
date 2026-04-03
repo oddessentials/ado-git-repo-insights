@@ -17,7 +17,7 @@ import logging
 import os
 import random
 from dataclasses import asdict, dataclass, field
-from datetime import date, datetime, timedelta, timezone
+from datetime import UTC, date, datetime, timedelta
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, cast
 
@@ -173,7 +173,7 @@ class AggregateGenerator:
         """
         self.db = db
         self.output_dir = output_dir
-        self.run_id = run_id or datetime.now(timezone.utc).strftime("%Y%m%d%H%M%S")
+        self.run_id = run_id or datetime.now(UTC).strftime("%Y%m%d%H%M%S")
         self.enable_ml_stubs = enable_ml_stubs
         self.seed_base = seed_base or self.run_id
         # Phase 5
@@ -299,7 +299,7 @@ class AggregateGenerator:
 
             # Build manifest
             manifest = DatasetManifest(
-                generated_at=datetime.now(timezone.utc).isoformat(),
+                generated_at=datetime.now(UTC).isoformat(),
                 run_id=self.run_id,
                 warnings=warnings,
                 aggregate_index=AggregateIndex(
@@ -1543,7 +1543,7 @@ class PredictionGenerator:
 
         predictions = {
             "schema_version": PREDICTIONS_SCHEMA_VERSION,
-            "generated_at": datetime.now(timezone.utc).isoformat(),
+            "generated_at": datetime.now(UTC).isoformat(),
             "is_stub": True,
             "generated_by": STUB_GENERATOR_ID,
             "forecasts": forecasts,
@@ -1654,7 +1654,7 @@ class InsightsGenerator:
 
         insights = {
             "schema_version": INSIGHTS_SCHEMA_VERSION,
-            "generated_at": datetime.now(timezone.utc).isoformat(),
+            "generated_at": datetime.now(UTC).isoformat(),
             "is_stub": True,
             "generated_by": STUB_GENERATOR_ID,
             "insights": insights_list,

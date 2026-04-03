@@ -136,6 +136,132 @@ class TestDateRangeConfigDefaults:
         assert date_range.end is None
 
 
+class TestLoadConfigBackfillEnabled:
+    """Tests for backfill.enabled boolean parsing (QG-40 regression)."""
+
+    def test_backfill_enabled_true(self, tmp_path: Path) -> None:
+        config_file = tmp_path / "config.yaml"
+        config_file.write_text(
+            "organization: x\nprojects:\n  - p\npat: t\nbackfill:\n  enabled: true\n"
+        )
+        config = load_config(config_path=config_file, database=Path("test.sqlite"))
+        assert config.backfill.enabled is True
+
+    def test_backfill_enabled_false(self, tmp_path: Path) -> None:
+        config_file = tmp_path / "config.yaml"
+        config_file.write_text(
+            "organization: x\nprojects:\n  - p\npat: t\nbackfill:\n  enabled: false\n"
+        )
+        config = load_config(config_path=config_file, database=Path("test.sqlite"))
+        assert config.backfill.enabled is False
+
+    def test_backfill_enabled_zero_defaults_to_true(self, tmp_path: Path) -> None:
+        """YAML `enabled: 0` is int, not bool — must default to True."""
+        config_file = tmp_path / "config.yaml"
+        config_file.write_text(
+            "organization: x\nprojects:\n  - p\npat: t\nbackfill:\n  enabled: 0\n"
+        )
+        config = load_config(config_path=config_file, database=Path("test.sqlite"))
+        assert config.backfill.enabled is True
+
+    def test_backfill_enabled_missing_defaults_to_true(self, tmp_path: Path) -> None:
+        config_file = tmp_path / "config.yaml"
+        config_file.write_text(
+            "organization: x\nprojects:\n  - p\npat: t\nbackfill:\n  window_days: 30\n"
+        )
+        config = load_config(config_path=config_file, database=Path("test.sqlite"))
+        assert config.backfill.enabled is True
+
+
+class TestLoadConfigRequiredStringFields:
+    """Tests for required string field validation (QG-40 regression).
+
+    str() coercion must not silently convert non-string YAML values into
+    truthy strings that bypass __post_init__ checks.
+    """
+
+    def test_null_organization_raises_configuration_error(self, tmp_path: Path) -> None:
+        config_file = tmp_path / "config.yaml"
+        config_file.write_text("organization: null\nprojects:\n  - p\npat: t\n")
+        with pytest.raises(ConfigurationError, match="organization is required"):
+            load_config(config_path=config_file, database=Path("test.sqlite"))
+
+    def test_dict_organization_raises_configuration_error(self, tmp_path: Path) -> None:
+        config_file = tmp_path / "config.yaml"
+        config_file.write_text("organization:\n  name: foo\nprojects:\n  - p\npat: t\n")
+        with pytest.raises(ConfigurationError, match="organization is required"):
+            load_config(config_path=config_file, database=Path("test.sqlite"))
+
+    def test_null_pat_raises_configuration_error(self, tmp_path: Path) -> None:
+        config_file = tmp_path / "config.yaml"
+        config_file.write_text("organization: x\nprojects:\n  - p\npat: null\n")
+        with pytest.raises(ConfigurationError, match="PAT is required"):
+            load_config(config_path=config_file, database=Path("test.sqlite"))
+
+    def test_integer_pat_raises_configuration_error(self, tmp_path: Path) -> None:
+        config_file = tmp_path / "config.yaml"
+        config_file.write_text("organization: x\nprojects:\n  - p\npat: 12345\n")
+        with pytest.raises(ConfigurationError, match="PAT is required"):
+            load_config(config_path=config_file, database=Path("test.sqlite"))
+
+    def test_valid_string_fields_pass(self, tmp_path: Path) -> None:
+        config_file = tmp_path / "config.yaml"
+        config_file.write_text("organization: my-org\nprojects:\n  - p\npat: my-pat\n")
+        config = load_config(config_path=config_file, database=Path("test.sqlite"))
+        assert config.organization == "my-org"
+        assert config.pat == "my-pat"
+
+
+class TestLoadConfigNumericCoercion:
+    """Tests for numeric config value validation (QG-40 regression)."""
+
+    def test_non_numeric_max_retries_raises_configuration_error(
+        self, tmp_path: Path
+    ) -> None:
+        """Non-numeric string for max_retries raises ConfigurationError."""
+        config_file = tmp_path / "config.yaml"
+        config_file.write_text(
+            "organization: x\nprojects:\n  - p\npat: t\napi:\n  max_retries: three\n"
+        )
+        with pytest.raises(ConfigurationError, match="Expected integer.*max_retries"):
+            load_config(config_path=config_file, database=Path("test.sqlite"))
+
+    def test_non_numeric_retry_delay_raises_configuration_error(
+        self, tmp_path: Path
+    ) -> None:
+        """Non-numeric string for retry_delay_seconds raises ConfigurationError."""
+        config_file = tmp_path / "config.yaml"
+        config_file.write_text(
+            "organization: x\nprojects:\n  - p\npat: t\n"
+            "api:\n  retry_delay_seconds: fast\n"
+        )
+        with pytest.raises(ConfigurationError, match="Expected numeric.*retry_delay"):
+            load_config(config_path=config_file, database=Path("test.sqlite"))
+
+    def test_non_numeric_window_days_raises_configuration_error(
+        self, tmp_path: Path
+    ) -> None:
+        """Non-numeric string for window_days raises ConfigurationError."""
+        config_file = tmp_path / "config.yaml"
+        config_file.write_text(
+            "organization: x\nprojects:\n  - p\npat: t\n"
+            "backfill:\n  window_days: lots\n"
+        )
+        with pytest.raises(ConfigurationError, match="Expected integer.*window_days"):
+            load_config(config_path=config_file, database=Path("test.sqlite"))
+
+    def test_valid_numeric_strings_coerce_correctly(self, tmp_path: Path) -> None:
+        """Numeric strings like '5' coerce without error."""
+        config_file = tmp_path / "config.yaml"
+        config_file.write_text(
+            "organization: x\nprojects:\n  - p\npat: t\n"
+            "api:\n  max_retries: '5'\n  retry_delay_seconds: '2.5'\n"
+        )
+        config = load_config(config_path=config_file, database=Path("test.sqlite"))
+        assert config.api.max_retries == 5
+        assert config.api.retry_delay_seconds == 2.5
+
+
 class TestLoadConfigDateValidation:
     """Tests for date validation in load_config."""
 

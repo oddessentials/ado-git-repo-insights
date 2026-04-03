@@ -10,7 +10,7 @@ Tests for:
 from __future__ import annotations
 
 import json
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Any
 from unittest.mock import MagicMock, patch
@@ -23,6 +23,7 @@ from ado_git_repo_insights.ml.insights import (
     LLMInsightsGenerator,
     sort_insights,
 )
+from ado_git_repo_insights.types import JSONValue
 
 
 class TestDeterministicOrdering:
@@ -34,7 +35,7 @@ class TestDeterministicOrdering:
 
     def test_sort_insights_by_severity_descending(self) -> None:
         """Insights should be sorted by severity (critical > warning > info)."""
-        insights = [
+        insights: list[dict[str, JSONValue]] = [
             {"id": "a1", "severity": "info", "category": "trend", "title": "Info"},
             {
                 "id": "b2",
@@ -58,7 +59,7 @@ class TestDeterministicOrdering:
 
     def test_sort_insights_by_category_within_severity(self) -> None:
         """Within same severity, insights should be sorted by category alphabetically."""
-        insights = [
+        insights: list[dict[str, JSONValue]] = [
             {"id": "a1", "severity": "warning", "category": "trend", "title": "Trend"},
             {
                 "id": "b2",
@@ -82,7 +83,7 @@ class TestDeterministicOrdering:
 
     def test_sort_insights_by_id_within_category(self) -> None:
         """Within same severity and category, insights should be sorted by ID."""
-        insights = [
+        insights: list[dict[str, JSONValue]] = [
             {"id": "trend-zzz", "severity": "info", "category": "trend", "title": "Z"},
             {"id": "trend-aaa", "severity": "info", "category": "trend", "title": "A"},
             {"id": "trend-mmm", "severity": "info", "category": "trend", "title": "M"},
@@ -96,7 +97,7 @@ class TestDeterministicOrdering:
 
     def test_sort_insights_full_ordering(self) -> None:
         """Full ordering: severity desc → category asc → ID asc."""
-        insights = [
+        insights: list[dict[str, JSONValue]] = [
             {"id": "trend-2", "severity": "info", "category": "trend", "title": "T2"},
             {
                 "id": "anomaly-1",
@@ -136,7 +137,9 @@ class TestDeterministicOrdering:
 
     def test_sort_insights_single_item(self) -> None:
         """Single item should return list with that item."""
-        insights = [{"id": "a1", "severity": "info", "category": "trend", "title": "X"}]
+        insights: list[dict[str, JSONValue]] = [
+            {"id": "a1", "severity": "info", "category": "trend", "title": "X"}
+        ]
         assert sort_insights(insights) == insights
 
 
@@ -291,7 +294,7 @@ class TestCacheLogic:
                 "_call_openai",
                 return_value={
                     "schema_version": 1,
-                    "generated_at": datetime.now(timezone.utc).isoformat(),
+                    "generated_at": datetime.now(UTC).isoformat(),
                     "is_stub": False,
                     "generated_by": "openai-v1.0",
                     "insights": mock_response["insights"],
@@ -312,7 +315,7 @@ class TestCacheLogic:
         cache_path = tmp_path / "insights" / "cache.json"
         cache_path.parent.mkdir(parents=True, exist_ok=True)
 
-        expired_time = datetime.now(timezone.utc) - timedelta(hours=13)
+        expired_time = datetime.now(UTC) - timedelta(hours=13)
         cache_data = {
             "cache_key": "test-key",
             "cached_at": expired_time.isoformat(),
@@ -335,7 +338,7 @@ class TestCacheLogic:
         cache_path = tmp_path / "insights" / "cache.json"
         cache_path.parent.mkdir(parents=True, exist_ok=True)
 
-        fresh_time = datetime.now(timezone.utc) - timedelta(hours=1)
+        fresh_time = datetime.now(UTC) - timedelta(hours=1)
         insights_data = {
             "schema_version": 1,
             "insights": [{"id": "test", "severity": "info", "category": "trend"}],
@@ -351,7 +354,11 @@ class TestCacheLogic:
         # Check cache should return data (valid)
         result = generator._check_cache(cache_path, "test-key")
         assert result is not None
-        assert result["insights"][0]["id"] == "test"
+        raw_insights = result["insights"]
+        assert isinstance(raw_insights, list)
+        first = raw_insights[0]
+        assert isinstance(first, dict)
+        assert first["id"] == "test"
 
 
 class TestInsightsSchemaV2Contract:

@@ -10,7 +10,7 @@ from __future__ import annotations
 
 import json
 from collections.abc import Iterator
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -172,7 +172,7 @@ class TestThreadPersistence:
         """Test thread upsert creates and updates threads."""
         pr_uid = self.setup_pr(db)
 
-        now = datetime.now(timezone.utc).isoformat()
+        now = datetime.now(UTC).isoformat()
         repo.upsert_thread(
             thread_id="thread1",
             pull_request_uid=pr_uid,
@@ -212,7 +212,7 @@ class TestThreadPersistence:
         """Test comment upsert."""
         pr_uid = self.setup_pr(db)
 
-        now = datetime.now(timezone.utc).isoformat()
+        now = datetime.now(UTC).isoformat()
         repo.upsert_thread(
             thread_id="thread1",
             pull_request_uid=pr_uid,
@@ -340,7 +340,7 @@ class TestCommentsCoverage:
         )
 
         # Insert a thread
-        now = datetime.now(timezone.utc).isoformat()
+        now = datetime.now(UTC).isoformat()
         db.execute(
             """
             INSERT INTO pr_threads (thread_id, pull_request_uid, status, last_updated, created_at)

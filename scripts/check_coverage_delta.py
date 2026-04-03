@@ -19,7 +19,7 @@ from __future__ import annotations
 
 import argparse
 import json
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 
 from defusedxml.ElementTree import parse as parse_xml
@@ -136,7 +136,7 @@ def write_baseline(
     """Write a new coverage baseline file."""
     data = {
         "version": BASELINE_VERSION,
-        "updated_at": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
+        "updated_at": datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%SZ"),
         "python": {
             "lines": python_lines,
         },

@@ -9,6 +9,8 @@ Covers §5 from IMPLEMENTATION_DETAILS.md:
 from __future__ import annotations
 
 from collections.abc import Iterator
+from datetime import UTC
+from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -262,6 +264,73 @@ class TestTeamPersistence:
         assert cursor.fetchone()[0] == 0
 
 
+class TestRepositoryTeamQueries:
+    """Tests for PRRepository team/member query methods (QG-40 coverage)."""
+
+    @pytest.fixture
+    def db(self, tmp_path: Path) -> Iterator[DatabaseManager]:
+        db_path = tmp_path / "test.sqlite"
+        db = DatabaseManager(db_path)
+        db.connect()
+        yield db
+        db.close()
+
+    @pytest.fixture
+    def repo(self, db: DatabaseManager) -> PRRepository:
+        return PRRepository(db)
+
+    def _setup_team(self, repo: PRRepository, db: DatabaseManager) -> None:
+        db.execute(
+            "INSERT INTO organizations (organization_name) VALUES (?)", ("org1",)
+        )
+        db.execute(
+            "INSERT INTO projects (organization_name, project_name) VALUES (?, ?)",
+            ("org1", "proj1"),
+        )
+        repo.upsert_team(
+            team_id="team1",
+            team_name="Alpha",
+            project_name="proj1",
+            organization_name="org1",
+            description="Test team",
+        )
+        repo.upsert_team_member("team1", "u1", "User One", "u1@test.com", True)
+        repo.upsert_team_member("team1", "u2", "User Two", "u2@test.com", False)
+        db.connection.commit()
+
+    def test_get_teams_for_project_returns_typed_rows(
+        self, repo: PRRepository, db: DatabaseManager
+    ) -> None:
+        self._setup_team(repo, db)
+        teams = repo.get_teams_for_project("org1", "proj1")
+        assert len(teams) == 1
+        assert teams[0]["team_id"] == "team1"
+        assert teams[0]["team_name"] == "Alpha"
+        assert teams[0]["description"] == "Test team"
+
+    def test_get_team_members_returns_typed_rows(
+        self, repo: PRRepository, db: DatabaseManager
+    ) -> None:
+        self._setup_team(repo, db)
+        members = repo.get_team_members("team1")
+        assert len(members) == 2
+        assert members[0]["user_id"] in ("u1", "u2")
+        assert "display_name" in members[0]
+
+    def test_get_teams_for_project_empty(
+        self, repo: PRRepository, db: DatabaseManager
+    ) -> None:
+        db.execute(
+            "INSERT INTO organizations (organization_name) VALUES (?)", ("org1",)
+        )
+        db.execute(
+            "INSERT INTO projects (organization_name, project_name) VALUES (?, ?)",
+            ("org1", "proj1"),
+        )
+        db.connection.commit()
+        assert repo.get_teams_for_project("org1", "proj1") == []
+
+
 class TestTeamGracefulDegradation:
     """Tests for graceful degradation when teams unavailable."""
 
@@ -301,9 +370,9 @@ class TestTeamGracefulDegradation:
         )
 
         # Insert a team
-        from datetime import datetime, timezone
+        from datetime import datetime
 
-        now = datetime.now(timezone.utc).isoformat()
+        now = datetime.now(UTC).isoformat()
         db.execute(
             """
             INSERT INTO teams (team_id, team_name, project_name, organization_name, last_updated)

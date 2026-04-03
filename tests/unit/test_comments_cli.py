@@ -6,7 +6,7 @@ Tests --include-comments, --comments-max-prs-per-run, --comments-max-threads-per
 from __future__ import annotations
 
 from collections.abc import Iterator
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from unittest.mock import MagicMock
 
 import pytest
@@ -205,7 +205,7 @@ class TestExtractComments:
         """Test that unchanged threads are skipped (§6 incremental sync)."""
         # Insert existing thread with a timestamp
         # Note: repo1-5 has closed_date 2026-01-14, so it will be processed first in DESC order
-        now = datetime.now(timezone.utc).isoformat()
+        now = datetime.now(UTC).isoformat()
         db.execute(
             """INSERT INTO pr_threads
             (thread_id, pull_request_uid, status, last_updated, created_at)

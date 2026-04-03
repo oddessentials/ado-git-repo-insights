@@ -113,6 +113,48 @@ class TestJsonlHandler:
             assert pat not in content
 
 
+class TestRedactDictRecursive:
+    """Tests for _redact_dict recursive branch (QG-40 coverage)."""
+
+    def test_nested_dict_redaction(self) -> None:
+        """Nested dicts should be recursively redacted."""
+        import json
+        import tempfile
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            log_file = Path(tmpdir) / "test.log.jsonl"
+            handler = JsonlHandler(log_file)
+            pat = "a" * 52
+
+            record = logging.LogRecord(
+                name="test",
+                level=logging.INFO,
+                pathname="",
+                lineno=0,
+                msg="Nested context",
+                args=(),
+                exc_info=None,
+            )
+            record.extra = {
+                "request": {
+                    "url": "https://dev.azure.com",
+                    "auth_token": pat,
+                    "nested": {"password": "secret123"},
+                }
+            }
+            handler.emit(record)
+
+            content = log_file.read_text()
+            parsed = json.loads(content)
+            context = parsed["context"]
+            redacted = "***REDACTED***"
+            # Top-level nested dict should be recursed into
+            assert context["request"]["url"] == "https://dev.azure.com"
+            # Sensitive keys in nested dicts should be redacted
+            assert context["request"]["auth_token"] == redacted
+            assert context["request"]["nested"]["password"] == redacted
+
+
 class TestLoggingConfig:
     """Tests for LoggingConfig."""
 

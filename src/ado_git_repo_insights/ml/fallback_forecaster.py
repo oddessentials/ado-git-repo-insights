@@ -20,14 +20,15 @@ import json
 import logging
 import time
 from dataclasses import dataclass
-from datetime import date, datetime, timedelta, timezone
+from datetime import UTC, date, datetime, timedelta
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, cast
+from typing import TYPE_CHECKING, cast
 
 import numpy as np
 import numpy.typing as npt
 import pandas as pd
 
+from ..types import ForecastValue, MetricForecastDict
 from .date_utils import align_to_monday
 
 if TYPE_CHECKING:
@@ -314,7 +315,7 @@ class FallbackForecaster:
                 reason_code=self._reason_code,
             )
 
-        forecasts: list[dict[str, Any]] = []
+        forecasts: list[MetricForecastDict] = []
         metric_reason_codes: list[str] = []
 
         for metric, unit in METRICS:
@@ -425,7 +426,7 @@ class FallbackForecaster:
         df: pd.DataFrame,
         metric: str,
         unit: str,
-    ) -> tuple[dict[str, Any] | None, str | None]:
+    ) -> tuple[MetricForecastDict | None, str | None]:
         """Forecast a single metric using linear regression.
 
         Handles edge cases including constant series, NaN-heavy data,
@@ -518,7 +519,7 @@ class FallbackForecaster:
         if today.weekday() == 0:
             next_monday = today
 
-        values: list[dict[str, Any]] = []
+        values: list[ForecastValue] = []
         any_floor_applied = False
 
         for i in range(horizon):
@@ -580,7 +581,7 @@ class FallbackForecaster:
 
     def _build_constant_forecast(
         self, metric: str, unit: str, constant_value: float
-    ) -> dict[str, Any]:
+    ) -> MetricForecastDict:
         """Build a forecast for constant (zero-variance) series.
 
         For constant series, predicted = lower_bound = upper_bound = constant value.
@@ -600,7 +601,7 @@ class FallbackForecaster:
         if today.weekday() == 0:
             next_monday = today
 
-        values: list[dict[str, Any]] = []
+        values: list[ForecastValue] = []
         for i in range(horizon):
             period_start = next_monday + timedelta(weeks=i)
             period_start = align_to_monday(period_start)
@@ -639,7 +640,7 @@ class FallbackForecaster:
 
     def _write_predictions(
         self,
-        forecasts: list[dict[str, Any]],
+        forecasts: list[MetricForecastDict],
         data_quality: str = "normal",
         status: str = STATUS_OK,
         reason_code: str | None = None,
@@ -676,7 +677,7 @@ class FallbackForecaster:
 
         predictions = {
             "schema_version": PREDICTIONS_SCHEMA_VERSION,
-            "generated_at": datetime.now(timezone.utc).isoformat(),
+            "generated_at": datetime.now(UTC).isoformat(),
             "is_stub": False,
             "generated_by": GENERATOR_ID,
             "forecaster": "linear",

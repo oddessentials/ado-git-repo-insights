@@ -10,7 +10,6 @@ import os
 from dataclasses import dataclass, field
 from datetime import date
 from pathlib import Path
-from typing import Any
 
 import yaml
 
@@ -125,7 +124,7 @@ def load_config(
         ConfigurationError: If configuration is invalid.
     """
     # Start with defaults
-    config_data: dict[str, Any] = {}
+    config_data: dict[str, object] = {}
 
     # Load from file if provided
     if config_path and config_path.exists():
@@ -144,31 +143,65 @@ def load_config(
         # Try environment variable
         config_data["pat"] = os.environ.get("ADO_PAT", "")
 
+    # Narrow nested dicts from YAML (values are object after deserialization)
+    def _sub(key: str) -> dict[str, object]:
+        val = config_data.get(key, {})
+        return val if isinstance(val, dict) else {}
+
+    def _str(d: dict[str, object], key: str, default: str) -> str:
+        val = d.get(key)
+        return str(val) if val is not None else default
+
+    def _float(d: dict[str, object], key: str, default: float) -> float:
+        val = d.get(key)
+        if not isinstance(val, (int, float, str)):
+            return default
+        try:
+            return float(val)
+        except (ValueError, TypeError) as exc:
+            raise ConfigurationError(
+                f"Expected numeric value for '{key}', got: {val!r}"
+            ) from exc
+
+    def _int(d: dict[str, object], key: str, default: int) -> int:
+        val = d.get(key)
+        if not isinstance(val, (int, str)):
+            return default
+        try:
+            return int(val)
+        except (ValueError, TypeError) as exc:
+            raise ConfigurationError(
+                f"Expected integer value for '{key}', got: {val!r}"
+            ) from exc
+
     # Build API config
-    api_data = config_data.get("api", {})
+    api_data = _sub("api")
     api_config = APIConfig(
-        base_url=api_data.get("base_url", "https://dev.azure.com"),
-        version=api_data.get("version", "7.1-preview.1"),
-        rate_limit_sleep_seconds=api_data.get("rate_limit_sleep_seconds", 0.5),
-        max_retries=api_data.get("max_retries", 3),
-        retry_delay_seconds=api_data.get("retry_delay_seconds", 5.0),
-        retry_backoff_multiplier=api_data.get("retry_backoff_multiplier", 2.0),
+        base_url=_str(api_data, "base_url", "https://dev.azure.com"),
+        version=_str(api_data, "version", "7.1-preview.1"),
+        rate_limit_sleep_seconds=_float(api_data, "rate_limit_sleep_seconds", 0.5),
+        max_retries=_int(api_data, "max_retries", 3),
+        retry_delay_seconds=_float(api_data, "retry_delay_seconds", 5.0),
+        retry_backoff_multiplier=_float(api_data, "retry_backoff_multiplier", 2.0),
     )
 
     # Build backfill config
-    backfill_data = config_data.get("backfill", {})
+    backfill_data = _sub("backfill")
+    _raw_enabled = backfill_data.get("enabled", True)
+    _enabled = _raw_enabled if isinstance(_raw_enabled, bool) else True
     backfill_config = BackfillConfig(
-        enabled=backfill_data.get("enabled", True),
-        window_days=backfill_days or backfill_data.get("window_days", 60),
+        enabled=_enabled,
+        window_days=backfill_days or _int(backfill_data, "window_days", 60),
     )
 
     # Build date range config
     date_range = DateRangeConfig()
+    dr_data = _sub("date_range")
     try:
         if start_date:
             date_range.start = date.fromisoformat(start_date)
-        elif config_data.get("date_range", {}).get("start"):
-            date_range.start = date.fromisoformat(config_data["date_range"]["start"])
+        elif dr_data.get("start"):
+            date_range.start = date.fromisoformat(str(dr_data["start"]))
     except ValueError as e:
         raise ConfigurationError(
             f"Invalid start_date format (expected YYYY-MM-DD): {e}"
@@ -177,8 +210,8 @@ def load_config(
     try:
         if end_date:
             date_range.end = date.fromisoformat(end_date)
-        elif config_data.get("date_range", {}).get("end"):
-            date_range.end = date.fromisoformat(config_data["date_range"]["end"])
+        elif dr_data.get("end"):
+            date_range.end = date.fromisoformat(str(dr_data["end"]))
     except ValueError as e:
         raise ConfigurationError(
             f"Invalid end_date format (expected YYYY-MM-DD): {e}"
@@ -189,12 +222,18 @@ def load_config(
             f"start_date ({date_range.start}) must be <= end_date ({date_range.end})"
         )
 
-    # Build main config
+    # Build main config — only accept str values for required fields;
+    # non-str (null, dict, int) falls through as "" so __post_init__ rejects it.
+    raw_org = config_data.get("organization", "")
+    raw_projects = config_data.get("projects", [])
+    raw_pat = config_data.get("pat", "")
+    raw_db = config_data.get("database", "ado-insights.sqlite")
     return Config(
-        organization=config_data.get("organization", ""),
-        projects=config_data.get("projects", []),
-        pat=config_data.get("pat", ""),
-        database=database or Path(config_data.get("database", "ado-insights.sqlite")),
+        organization=raw_org if isinstance(raw_org, str) else "",
+        projects=raw_projects if isinstance(raw_projects, list) else [],
+        pat=raw_pat if isinstance(raw_pat, str) else "",
+        database=database
+        or Path(raw_db if isinstance(raw_db, str) else "ado-insights.sqlite"),
         api=api_config,
         backfill=backfill_config,
         date_range=date_range,

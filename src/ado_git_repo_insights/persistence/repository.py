@@ -9,8 +9,10 @@ from __future__ import annotations
 import json
 import logging
 from dataclasses import dataclass
-from datetime import date, datetime, timezone
-from typing import TYPE_CHECKING, Any
+from datetime import UTC, date, datetime
+from typing import TYPE_CHECKING, cast
+
+from ado_git_repo_insights.types import AdoPullRequest, TeamMemberRow, TeamRow
 
 if TYPE_CHECKING:
     from .database import DatabaseManager
@@ -100,7 +102,7 @@ class PRRepository:
                 organization,
                 project,
                 extraction_date.isoformat(),
-                datetime.now(timezone.utc).isoformat(),
+                datetime.now(UTC).isoformat(),
             ),
         )
         logger.debug(
@@ -210,7 +212,7 @@ class PRRepository:
         creation_date: str,
         closed_date: str | None,
         cycle_time_minutes: float | None,
-        raw_json: dict[str, Any] | None = None,
+        raw_json: AdoPullRequest | None = None,
     ) -> None:
         """Insert or update a pull request.
 
@@ -287,7 +289,7 @@ class PRRepository:
 
     def upsert_pr_with_related(
         self,
-        pr_data: dict[str, Any],
+        pr_data: AdoPullRequest,
         organization_name: str,
         project_name: str,
     ) -> None:
@@ -396,9 +398,9 @@ class PRRepository:
             organization_name: Organization name.
             description: Optional team description.
         """
-        from datetime import datetime, timezone
+        from datetime import datetime
 
-        now = datetime.now(timezone.utc).isoformat()
+        now = datetime.now(UTC).isoformat()
 
         self.db.execute(
             """
@@ -462,7 +464,7 @@ class PRRepository:
 
     def get_teams_for_project(
         self, organization_name: str, project_name: str
-    ) -> list[dict[str, Any]]:
+    ) -> list[TeamRow]:
         """Get all teams for a project.
 
         Args:
@@ -481,9 +483,9 @@ class PRRepository:
             """,
             (organization_name, project_name),
         )
-        return [dict(row) for row in cursor.fetchall()]
+        return [cast(TeamRow, dict(row)) for row in cursor.fetchall()]
 
-    def get_team_members(self, team_id: str) -> list[dict[str, Any]]:
+    def get_team_members(self, team_id: str) -> list[TeamMemberRow]:
         """Get all members for a team.
 
         Args:
@@ -502,7 +504,7 @@ class PRRepository:
             """,
             (team_id,),
         )
-        return [dict(row) for row in cursor.fetchall()]
+        return [cast(TeamMemberRow, dict(row)) for row in cursor.fetchall()]
 
     # --- Phase 3.4: Thread/Comment Operations ---
 

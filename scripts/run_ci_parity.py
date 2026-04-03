@@ -25,7 +25,7 @@ from typing import NoReturn
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 PARITY_ROOT = REPO_ROOT / ".ci-parity"
-SUPPORTED_PYTHONS = ("3.10", "3.11", "3.12")
+SUPPORTED_PYTHONS = ("3.11", "3.12", "3.13")
 
 
 @dataclass(frozen=True)

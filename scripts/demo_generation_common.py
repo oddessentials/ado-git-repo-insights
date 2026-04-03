@@ -6,15 +6,15 @@ import json
 import sys
 import time
 import uuid
-from datetime import date, datetime, timezone
+from datetime import UTC, date, datetime
 from decimal import ROUND_HALF_UP, Decimal
 from pathlib import Path
 from typing import Any, cast
 
-FIXED_GENERATED_AT = datetime(2026, 1, 30, 12, 0, 0, tzinfo=timezone.utc)
-COMMITTED_DEMO_BASELINE_PYTHON = (3, 10)
-COMMITTED_DEMO_BASELINE_PYTHON_VERSION = "3.10.x"
-COMMITTED_DEMO_BASELINE_PYTHON_MAJOR_MINOR = "3.10"
+FIXED_GENERATED_AT = datetime(2026, 1, 30, 12, 0, 0, tzinfo=UTC)
+COMMITTED_DEMO_BASELINE_PYTHON = (3, 11)
+COMMITTED_DEMO_BASELINE_PYTHON_VERSION = "3.11.x"
+COMMITTED_DEMO_BASELINE_PYTHON_MAJOR_MINOR = "3.11"
 CANONICAL_COMMITTED_DEMO_SCRIPT = "scripts/build-demo-dataset.py"
 CANONICAL_COMMITTED_DEMO_MODE = "canonical-committed-demo"
 VALIDATED_COMMITTED_DEMO_MODE = "validated-from-committed-artifacts"
