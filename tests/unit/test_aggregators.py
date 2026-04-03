@@ -13,7 +13,7 @@ import time
 from collections.abc import Iterator
 from datetime import date, timedelta
 from pathlib import Path
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING
 
 import pytest
 
@@ -3240,7 +3240,7 @@ class TestConsistencyWarningLogging:
             week_group: pd.DataFrame,
             week_reviewers: pd.DataFrame,
             team_members_df: pd.DataFrame,
-        ) -> dict[str, Any]:
+        ) -> dict:
             result = original(self_gen, week_group, week_reviewers, team_members_df)
             # Inflate the cross-dim pr_count to force a mismatch
             for team in list(result):

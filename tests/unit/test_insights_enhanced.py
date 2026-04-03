@@ -12,7 +12,6 @@ from __future__ import annotations
 import json
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
-from typing import Any
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -232,7 +231,7 @@ class TestCacheLogic:
         """Create mock database manager."""
         db = MagicMock()
 
-        def mock_execute(query: str, *args: Any) -> MagicMock:
+        def mock_execute(query: str, *args: object) -> MagicMock:
             cursor = MagicMock()
             if "COUNT(*)" in query and "completed" in query:
                 cursor.fetchone.return_value = {"cnt": 10}
@@ -488,7 +487,7 @@ class TestP90PercentileCalculation:
         # Create sequential dataset: 10, 20, 30, ..., 1000
         cycle_times = [i * 10 for i in range(1, 101)]  # 100 elements
 
-        def mock_execute(query: str, *args: Any) -> MagicMock:
+        def mock_execute(query: str, *args: object) -> MagicMock:
             cursor = MagicMock()
             if "COUNT(*)" in query and "completed" in query:
                 cursor.fetchone.return_value = {"cnt": 100}
@@ -547,7 +546,7 @@ class TestP90PercentileCalculation:
         # 9 normal values + 1 extreme outlier
         cycle_times = [i * 10 for i in range(1, 10)] + [10000]  # 10 elements
 
-        def mock_execute(query: str, *args: Any) -> MagicMock:
+        def mock_execute(query: str, *args: object) -> MagicMock:
             cursor = MagicMock()
             if "COUNT(*)" in query and "completed" in query:
                 cursor.fetchone.return_value = {"cnt": 10}
@@ -601,7 +600,7 @@ class TestP90PercentileCalculation:
         """P90 for small dataset (<10 elements) should handle edge case gracefully."""
         # Only 3 elements: [100, 200, 300]
 
-        def mock_execute(query: str, *args: Any) -> MagicMock:
+        def mock_execute(query: str, *args: object) -> MagicMock:
             cursor = MagicMock()
             if "COUNT(*)" in query and "completed" in query:
                 cursor.fetchone.return_value = {"cnt": 3}
@@ -649,7 +648,7 @@ class TestP90PercentileCalculation:
     ) -> None:
         """P90 for empty dataset should return 0."""
 
-        def mock_execute(query: str, *args: Any) -> MagicMock:
+        def mock_execute(query: str, *args: object) -> MagicMock:
             cursor = MagicMock()
             if "COUNT(*)" in query and "completed" in query:
                 cursor.fetchone.return_value = {"cnt": 0}

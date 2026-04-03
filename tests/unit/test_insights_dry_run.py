@@ -3,18 +3,19 @@
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Any, cast
+from typing import cast
 from unittest.mock import patch
 
 from ado_git_repo_insights.ml.insights import LLMInsightsGenerator
 from ado_git_repo_insights.persistence.database import DatabaseManager
+from ado_git_repo_insights.types import JSONValue
 
 
 class _FakeCursor:
-    def __init__(self, row: dict[str, Any] | None) -> None:
+    def __init__(self, row: dict[str, JSONValue] | None) -> None:
         self._row = row
 
-    def fetchone(self) -> dict[str, Any] | None:
+    def fetchone(self) -> dict[str, JSONValue] | None:
         return self._row
 
 

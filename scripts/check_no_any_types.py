@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
-"""Enforce QG-40: typing.Any MUST NOT grow in src/.
+"""Enforce QG-40: typing.Any MUST NOT grow in src/ or tests/.
 
-Ratchet-based check: scans all Python files under src/ for ``typing.Any``
-token usage, compares against a committed baseline, and fails if the count
-increases.  The baseline can only decrease over time (--update-baseline to
-ratchet down after fixes).
+Ratchet-based check: scans all Python files under src/ and tests/ for
+``typing.Any`` token usage, compares against a committed baseline, and fails
+if the count increases.  The baseline can only decrease over time
+(--update-baseline to ratchet down after fixes).
 
 Mirrors the suppression audit and the TypeScript any-type-ratchet.test.ts.
 """
@@ -20,6 +20,7 @@ from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 SRC_DIR = REPO_ROOT / "src"
+TESTS_DIR = REPO_ROOT / "tests"
 BASELINE_PATH = REPO_ROOT / ".any-type-baseline.json"
 
 
@@ -81,14 +82,24 @@ def scan_staged_paths(rel_paths: list[str]) -> tuple[dict[str, int], list[str]]:
 
 
 def scan_src() -> tuple[dict[str, int], list[str]]:
-    """Return ``({relative_path: count}, parse_failures)`` for all src/ files."""
-    return scan_paths(list(SRC_DIR.rglob("*.py")))
+    """Return ``({relative_path: count}, parse_failures)`` for src/ and tests/."""
+    py_files = list(SRC_DIR.rglob("*.py")) + list(TESTS_DIR.rglob("*.py"))
+    return scan_paths(py_files)
 
 
 def staged_src_py_files() -> list[str]:
-    """Return staged Python files under src/."""
+    """Return staged Python files under src/ and tests/."""
     result = subprocess.run(
-        ["git", "diff", "--cached", "--name-only", "--diff-filter=d", "--", "src"],
+        [
+            "git",
+            "diff",
+            "--cached",
+            "--name-only",
+            "--diff-filter=d",
+            "--",
+            "src",
+            "tests",
+        ],
         cwd=REPO_ROOT,
         capture_output=True,
         text=True,
@@ -160,7 +171,7 @@ def main() -> int:
     if diff_mode:
         staged_files = staged_src_py_files()
         if not staged_files:
-            print("[PASS] QG-40: No staged Python files under src/")
+            print("[PASS] QG-40: No staged Python files under src/ or tests/")
             return 0
         current, parse_failures = scan_staged_paths(staged_files)
     else:
@@ -168,7 +179,7 @@ def main() -> int:
     current_total = sum(current.values())
 
     if parse_failures:
-        print("[FAIL] QG-40: Could not parse Python file(s) in src/:")
+        print("[FAIL] QG-40: Could not parse Python file(s):")
         for line in parse_failures:
             print(line)
         print()
