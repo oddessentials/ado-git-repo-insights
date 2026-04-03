@@ -187,8 +187,10 @@ def load_config(
 
     # Build backfill config
     backfill_data = _sub("backfill")
+    _raw_enabled = backfill_data.get("enabled", True)
+    _enabled = _raw_enabled if isinstance(_raw_enabled, bool) else True
     backfill_config = BackfillConfig(
-        enabled=backfill_data.get("enabled") is not False,
+        enabled=_enabled,
         window_days=backfill_days or _int(backfill_data, "window_days", 60),
     )
 

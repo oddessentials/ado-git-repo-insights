@@ -136,6 +136,43 @@ class TestDateRangeConfigDefaults:
         assert date_range.end is None
 
 
+class TestLoadConfigBackfillEnabled:
+    """Tests for backfill.enabled boolean parsing (QG-40 regression)."""
+
+    def test_backfill_enabled_true(self, tmp_path: Path) -> None:
+        config_file = tmp_path / "config.yaml"
+        config_file.write_text(
+            "organization: x\nprojects:\n  - p\npat: t\nbackfill:\n  enabled: true\n"
+        )
+        config = load_config(config_path=config_file, database=Path("test.sqlite"))
+        assert config.backfill.enabled is True
+
+    def test_backfill_enabled_false(self, tmp_path: Path) -> None:
+        config_file = tmp_path / "config.yaml"
+        config_file.write_text(
+            "organization: x\nprojects:\n  - p\npat: t\nbackfill:\n  enabled: false\n"
+        )
+        config = load_config(config_path=config_file, database=Path("test.sqlite"))
+        assert config.backfill.enabled is False
+
+    def test_backfill_enabled_zero_defaults_to_true(self, tmp_path: Path) -> None:
+        """YAML `enabled: 0` is int, not bool — must default to True."""
+        config_file = tmp_path / "config.yaml"
+        config_file.write_text(
+            "organization: x\nprojects:\n  - p\npat: t\nbackfill:\n  enabled: 0\n"
+        )
+        config = load_config(config_path=config_file, database=Path("test.sqlite"))
+        assert config.backfill.enabled is True
+
+    def test_backfill_enabled_missing_defaults_to_true(self, tmp_path: Path) -> None:
+        config_file = tmp_path / "config.yaml"
+        config_file.write_text(
+            "organization: x\nprojects:\n  - p\npat: t\nbackfill:\n  window_days: 30\n"
+        )
+        config = load_config(config_path=config_file, database=Path("test.sqlite"))
+        assert config.backfill.enabled is True
+
+
 class TestLoadConfigRequiredStringFields:
     """Tests for required string field validation (QG-40 regression).
 
