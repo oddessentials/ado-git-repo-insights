@@ -44,7 +44,7 @@ def parse_changed_lines(base_ref: str) -> dict[str, set[int]]:
     if git is None:
         raise SystemExit("git is required for patch coverage checks but was not found.")
 
-    result = subprocess.run(  # noqa: S603
+    result = subprocess.run(
         [
             git,
             "diff",

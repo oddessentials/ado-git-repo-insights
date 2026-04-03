@@ -9,6 +9,7 @@ DoD 1.1: Schema Contract Tests
 from __future__ import annotations
 
 import tempfile
+from collections.abc import Iterator
 from pathlib import Path
 
 import pandas as pd
@@ -43,7 +44,7 @@ EXPECTED_AUXILIARY_COMMENT_COLUMNS = [
 
 
 @pytest.fixture
-def db_with_data() -> tuple[DatabaseManager, Path]:
+def db_with_data() -> Iterator[tuple[DatabaseManager, Path]]:
     """Create a database with sample data for testing."""
     with tempfile.TemporaryDirectory() as tmpdir:
         tmp_path = Path(tmpdir)

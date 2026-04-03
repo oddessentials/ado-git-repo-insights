@@ -14,10 +14,11 @@ import sys
 from datetime import datetime
 from pathlib import Path
 from types import ModuleType
-from typing import Any
 from unittest.mock import Mock, patch
 
 import pytest
+
+from tests.conftest import FakeOpenAIModule
 
 
 class TestInsightsContract:
@@ -57,7 +58,7 @@ class TestInsightsContract:
         return db
 
     @pytest.fixture
-    def mock_openai_response(self) -> dict[str, Any]:
+    def mock_openai_response(self) -> dict[str, object]:
         """Mock OpenAI API response with valid insights."""
         return {
             "insights": [
@@ -81,9 +82,9 @@ class TestInsightsContract:
         }
 
     @pytest.fixture
-    def fake_openai_module(self, mock_openai_response: dict[str, Any]) -> ModuleType:
+    def fake_openai_module(self, mock_openai_response: dict[str, object]) -> ModuleType:
         """Create a fake openai module with mock OpenAI client."""
-        fake_module = ModuleType("openai")
+        fake_module = FakeOpenAIModule("openai")
 
         # Create mock client
         mock_client = Mock()
@@ -93,7 +94,7 @@ class TestInsightsContract:
         mock_client.chat.completions.create.return_value = mock_response
 
         # OpenAI class returns the mock client
-        fake_module.OpenAI = Mock(return_value=mock_client)  # type: ignore[attr-defined]
+        fake_module.OpenAI = Mock(return_value=mock_client)
         return fake_module
 
     def test_insights_schema_structure(
@@ -329,13 +330,13 @@ class TestInsightsContract:
             ]
         }
 
-        fake_openai = ModuleType("openai")
+        fake_openai = FakeOpenAIModule("openai")
         mock_client = Mock()
         mock_response = Mock()
         mock_response.choices = [Mock()]
         mock_response.choices[0].message.content = json.dumps(mock_response_data)
         mock_client.chat.completions.create.return_value = mock_response
-        fake_openai.OpenAI = Mock(return_value=mock_client)  # type: ignore[attr-defined]
+        fake_openai.OpenAI = Mock(return_value=mock_client)
 
         with (
             patch.dict(sys.modules, {"openai": fake_openai}),

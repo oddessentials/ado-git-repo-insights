@@ -3,20 +3,8 @@ name: CI
 on:
   push:
     branches: [main]
-    paths-ignore:
-      - '**.md'
-      - 'docs/**'
-      - '*.txt'
-      - 'LICENSE'
-      - '.gitignore'
   pull_request:
     branches: [main]
-    paths-ignore:
-      - '**.md'
-      - 'docs/**'
-      - '*.txt'
-      - 'LICENSE'
-      - '.gitignore'
 
 # Canonical artifact names for badge-publish job
 # IMPORTANT: These names must match exactly between upload and download steps
@@ -68,16 +56,22 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          fetch-depth: 0  # Full history for main branch scans
+          fetch-depth: 0
+
+      - name: Compute gitleaks log range
+        id: gitleaks-range
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch origin main --quiet
+          echo "range=origin/main..HEAD" >> "$GITHUB_OUTPUT"
 
       - name: Run gitleaks
         uses: gitleaks/gitleaks-action@v2.3.9
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
-          args: --config=.gitleaks.toml
-        # Warn-only mode: don't block PRs, just report
-        continue-on-error: true
+          args: --config=.gitleaks.toml --log-opts=${{ steps.gitleaks-range.outputs.range }}
 
   # Guard: Enforce pnpm-only policy (no npm ci/install in workflows, scripts, or package.json)
   npm-command-guard:
@@ -256,12 +250,17 @@ jobs:
 
           # Generate expected docs/index.html from source template
           python -c "
+          import importlib.util
           import sys
-          sys.path.insert(0, 'scripts')
-          from demo_shell import render_demo_html_from_path
           from pathlib import Path
 
-          expected = render_demo_html_from_path(Path('extension/ui/index.html'))
+          spec = importlib.util.spec_from_file_location('demo_shell', Path('scripts/demo_shell.py'))
+          assert spec is not None and spec.loader is not None
+          module = importlib.util.module_from_spec(spec)
+          sys.modules['demo_shell'] = module
+          spec.loader.exec_module(module)
+
+          expected = module.render_demo_html_from_path(Path('extension/ui/index.html'))
           Path('/tmp/expected-docs-index.html').write_text(expected, encoding='utf-8', newline='\n')
           "
 
@@ -623,9 +622,12 @@ jobs:
 
       - name: Run mypy type check
         run: |
-          echo "Running mypy on src/ with strict mode per pyproject.toml..."
-          mypy src/
+          echo "Running mypy on src/ tests/ scripts/ with strict mode per pyproject.toml..."
+          mypy src/ tests/ scripts/
           echo "[OK] mypy type check passed - all Python type errors resolved"
+
+      - name: No typing.Any in src/ (QG-40)
+        run: python scripts/check_no_any_types.py
 
   # Suppression Audit Gate (FR-008, FR-009, FR-010, FR-011)
   # Tracks suppression comment growth and blocks increases without acknowledgment
@@ -650,13 +652,47 @@ jobs:
 
           # Fetch baseline from main branch for accurate diff
           # This prevents bypass by updating baseline in same PR
-          if git show origin/main:.suppression-baseline.json > /tmp/main-baseline.json 2>/dev/null; then
-            echo "Using baseline from origin/main for comparison"
-            python scripts/audit-suppressions.py --diff --baseline /tmp/main-baseline.json
-          else
-            echo "No baseline on main branch - using committed baseline"
-            python scripts/audit-suppressions.py --diff
+          git fetch origin main --quiet
+          if ! git show origin/main:.suppression-baseline.json > /tmp/main-baseline.json 2>/dev/null; then
+            echo "::error::origin/main:.suppression-baseline.json is required for authoritative suppression diff"
+            exit 1
           fi
+          echo "Using baseline from origin/main for comparison"
+          python scripts/audit-suppressions.py --diff --baseline /tmp/main-baseline.json
+
+      - name: Verify scope coverage (FR-026)
+        run: python scripts/audit-suppressions.py --check-coverage
+
+      - name: Suppression justifications
+        run: python scripts/audit-suppressions.py --check-justifications
+
+      - name: Baseline staleness (FR-025)
+        run: python scripts/audit-suppressions.py --check-staleness
+
+      - name: Rule-disable invariants (FR-014)
+        run: python scripts/check_rule_disable_invariants.py --check-subprocess --check-random --check-syspath --verify-artifacts
+
+  # Parity Gate: Verify local preflight and CI gates are aligned
+  # Runs the structural parity tests that parse ci.yml and run_pr_preflight.py
+  # and assert exact equality between the gate sets.
+  parity-gate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e .[dev]
+
+      - name: Run CI/preflight parity tests
+        run: |
+          python -m pytest tests/unit/test_ci_parity_drift.py -v --no-cov
+          echo "[OK] CI/preflight parity verified - all gates aligned"
 
   # Phase 5: Test base installation without [ml] extras
   # Enforces optional-dependency isolation - ML features must not leak into base

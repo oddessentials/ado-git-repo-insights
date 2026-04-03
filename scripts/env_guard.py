@@ -38,7 +38,7 @@ def validate_git() -> str:
 
     # Behavior validation: run git --version and check output pattern
     try:
-        result = subprocess.run(  # noqa: S603
+        result = subprocess.run(
             [git_path, "--version"],
             capture_output=True,
             text=True,
@@ -77,7 +77,7 @@ def main() -> int:
             continue
 
         # Get list of staged files (S603: git_path is validated above)
-        result = subprocess.run(  # noqa: S603
+        result = subprocess.run(
             [git_path, "diff", "--cached", "--name-only"],
             capture_output=True,
             text=True,

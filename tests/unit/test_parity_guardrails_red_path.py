@@ -21,16 +21,22 @@ import pytest
 
 REPO_ROOT = Path(__file__).parent.parent.parent
 
-# Add scripts/ to path for demo_shell import
-sys.path.insert(0, str(REPO_ROOT / "scripts"))
+_demo_shell_spec = importlib.util.spec_from_file_location(
+    "demo_shell", REPO_ROOT / "scripts" / "demo_shell.py"
+)
+assert _demo_shell_spec
+assert _demo_shell_spec.loader
+_demo_shell = importlib.util.module_from_spec(_demo_shell_spec)
+sys.modules["demo_shell"] = _demo_shell
+_demo_shell_spec.loader.exec_module(_demo_shell)
 
-# Import the canonical asset list from the single source of truth
 _spec = importlib.util.spec_from_file_location(
     "publish_demo_surface", REPO_ROOT / "scripts" / "publish-demo-surface.py"
 )
 assert _spec
 assert _spec.loader
 _mod = importlib.util.module_from_spec(_spec)
+sys.modules["publish_demo_surface"] = _mod
 _spec.loader.exec_module(_mod)
 STATIC_ASSET_FILES: list[str] = _mod.STATIC_ASSET_FILES
 
@@ -58,9 +64,7 @@ class TestHtmlTemplateDriftDetection:
 
     def test_current_docs_matches_transformation(self):
         """Green path: docs/index.html currently matches demo_shell.py output."""
-        from demo_shell import render_demo_html_from_path
-
-        expected = render_demo_html_from_path(EXTENSION_UI_INDEX)
+        expected = _demo_shell.render_demo_html_from_path(EXTENSION_UI_INDEX)
         actual = DOCS_INDEX.read_text(encoding="utf-8")
         assert _normalized_hash(expected) == _normalized_hash(actual), (
             "docs/index.html is already out of sync — run publish-demo-surface.py"
@@ -68,9 +72,7 @@ class TestHtmlTemplateDriftDetection:
 
     def test_mutated_template_is_caught(self):
         """Red path: injecting content into the template produces a hash mismatch."""
-        from demo_shell import render_demo_html_from_path
-
-        expected = render_demo_html_from_path(EXTENSION_UI_INDEX)
+        expected = _demo_shell.render_demo_html_from_path(EXTENSION_UI_INDEX)
         actual = DOCS_INDEX.read_text(encoding="utf-8")
 
         # Simulate drift: a developer changes the source template

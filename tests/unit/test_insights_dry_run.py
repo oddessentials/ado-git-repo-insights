@@ -3,10 +3,11 @@
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 from unittest.mock import patch
 
 from ado_git_repo_insights.ml.insights import LLMInsightsGenerator
+from ado_git_repo_insights.persistence.database import DatabaseManager
 
 
 class _FakeCursor:
@@ -36,7 +37,9 @@ class _FakeDb:
 
 def test_dry_run_never_calls_openai(tmp_path: Path) -> None:
     db = _FakeDb()
-    generator = LLMInsightsGenerator(db, output_dir=tmp_path, dry_run=True)
+    generator = LLMInsightsGenerator(
+        cast(DatabaseManager, db), output_dir=tmp_path, dry_run=True
+    )
 
     with patch.object(
         LLMInsightsGenerator, "_call_openai", side_effect=AssertionError("no api")

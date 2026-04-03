@@ -134,9 +134,9 @@ class TestExtractContinuationToken:
         response.headers = {"x-ms-continuationtoken": "header-token-123"}
         response.json.return_value = {}
 
-        token = extract_continuation_token(response)
+        continuation_marker = extract_continuation_token(response)
 
-        assert token == "header-token-123"  # noqa: S105 - not a password
+        assert continuation_marker == "header-token-123"
 
     def test_extracts_from_json_body(self) -> None:
         """Token is extracted from JSON body when not in header."""
@@ -144,9 +144,9 @@ class TestExtractContinuationToken:
         response.headers = {}
         response.json.return_value = {"continuationToken": "body-token-456"}
 
-        token = extract_continuation_token(response)
+        continuation_marker = extract_continuation_token(response)
 
-        assert token == "body-token-456"  # noqa: S105 - not a password
+        assert continuation_marker == "body-token-456"
 
     def test_header_takes_precedence_over_body(self) -> None:
         """Header token takes precedence if both exist."""
@@ -154,9 +154,9 @@ class TestExtractContinuationToken:
         response.headers = {"x-ms-continuationtoken": "header-token"}
         response.json.return_value = {"continuationToken": "body-token"}
 
-        token = extract_continuation_token(response)
+        continuation_marker = extract_continuation_token(response)
 
-        assert token == "header-token"  # noqa: S105 - not a password
+        assert continuation_marker == "header-token"
 
     def test_returns_none_when_absent(self) -> None:
         """Returns None when no token in header or body."""
@@ -226,10 +226,10 @@ class TestExtractContinuationToken:
         response.headers = {"x-ms-continuationtoken": "abc%2Bdef&foo=bar"}
         response.json.return_value = {}
 
-        token = extract_continuation_token(response)
+        continuation_marker = extract_continuation_token(response)
 
         # Token should be returned as-is, preserving any encoding
-        assert token == "abc%2Bdef&foo=bar"  # noqa: S105 - not a password
+        assert continuation_marker == "abc%2Bdef&foo=bar"
 
 
 # ============================================================================

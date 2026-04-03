@@ -19,6 +19,7 @@ Requirements:
 from __future__ import annotations
 
 import argparse
+import importlib.util
 import math
 import random
 import sys
@@ -28,20 +29,38 @@ from datetime import date, timedelta
 from pathlib import Path
 from typing import Any
 
-# Add src to path for schema version import
-_src_path = Path(__file__).resolve().parent.parent / "src"
-if str(_src_path) not in sys.path:
-    sys.path.insert(0, str(_src_path))
-
-from ado_git_repo_insights.transform.schema_versions import AGGREGATES_SCHEMA_VERSION  # type: ignore[import-untyped]  # noqa: E402, I001
-from demo_generation_common import (  # noqa: E402
-    FIXED_GENERATED_AT,
-    build_generation_provenance,
-    discover_demo_feature_flags,
-    largest_remainder_allocate,
-    require_demo_generation_baseline_for_output,
-    write_json_file,
+# Load package modules via importlib (allows direct script execution from checkout)
+_schema_spec = importlib.util.spec_from_file_location(
+    "schema_versions",
+    Path(__file__).resolve().parent.parent
+    / "src"
+    / "ado_git_repo_insights"
+    / "transform"
+    / "schema_versions.py",
 )
+assert _schema_spec is not None
+assert _schema_spec.loader is not None
+_schema_mod = importlib.util.module_from_spec(_schema_spec)
+_schema_spec.loader.exec_module(_schema_mod)
+AGGREGATES_SCHEMA_VERSION: int = _schema_mod.AGGREGATES_SCHEMA_VERSION
+
+# Load demo_generation_common from scripts/ via importlib
+_common_spec = importlib.util.spec_from_file_location(
+    "demo_generation_common",
+    Path(__file__).resolve().parent / "demo_generation_common.py",
+)
+assert _common_spec is not None
+assert _common_spec.loader is not None
+_common_mod = importlib.util.module_from_spec(_common_spec)
+_common_spec.loader.exec_module(_common_mod)
+FIXED_GENERATED_AT: str = _common_mod.FIXED_GENERATED_AT
+build_generation_provenance = _common_mod.build_generation_provenance
+discover_demo_feature_flags = _common_mod.discover_demo_feature_flags
+largest_remainder_allocate = _common_mod.largest_remainder_allocate
+require_demo_generation_baseline_for_output = (
+    _common_mod.require_demo_generation_baseline_for_output
+)
+write_json_file = _common_mod.write_json_file
 
 # =============================================================================
 # Configuration Constants
@@ -186,7 +205,7 @@ REVIEWER_FILTER_EXAMPLE_COUNT = 3
 
 def init_random(seed: int = SEED) -> random.Random:
     """Initialize deterministic random generator with fixed seed."""
-    rng = random.Random(seed)  # noqa: S311 - Intentional for deterministic synthetic data
+    rng = random.Random(seed)
     return rng
 
 

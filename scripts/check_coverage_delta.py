@@ -22,7 +22,7 @@ import json
 from datetime import datetime, timezone
 from pathlib import Path
 
-import defusedxml.ElementTree as ET  # noqa: N817
+from defusedxml.ElementTree import parse as parse_xml
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 DEFAULT_BASELINE = REPO_ROOT / ".coverage-baseline.json"
@@ -39,7 +39,7 @@ def parse_coverage_xml(path: Path) -> float:
 
     Returns coverage as a float (0.0-100.0), rounded to 2 decimals.
     """
-    tree = ET.parse(path)
+    tree = parse_xml(path)
     root = tree.getroot()
     line_rate = root.get("line-rate")
     if line_rate is None:

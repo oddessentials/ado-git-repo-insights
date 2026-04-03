@@ -1,0 +1,551 @@
+{
+  "rule": "S603",
+  "total_call_sites": 68,
+  "unsafe_count": 13,
+  "call_sites": [
+    {
+      "file": "scripts/audit-suppressions.py",
+      "line": 1288,
+      "code": "result = subprocess.run(",
+      "shell_true": false,
+      "literal_list": true,
+      "safety": "safe-literal-list"
+    },
+    {
+      "file": "scripts/build-demo-dataset.py",
+      "line": 90,
+      "code": "result = subprocess.run(",
+      "shell_true": false,
+      "literal_list": true,
+      "safety": "safe-literal-list"
+    },
+    {
+      "file": "scripts/build-demo-dataset.py",
+      "line": 106,
+      "code": "result = subprocess.run(",
+      "shell_true": false,
+      "literal_list": false,
+      "safety": "unsafe-non-literal-command"
+    },
+    {
+      "file": "scripts/check-version-unchanged.py",
+      "line": 55,
+      "code": "result = subprocess.run(",
+      "shell_true": false,
+      "literal_list": true,
+      "safety": "safe-literal-list"
+    },
+    {
+      "file": "scripts/check-version-unchanged.py",
+      "line": 85,
+      "code": "result = subprocess.run(",
+      "shell_true": false,
+      "literal_list": true,
+      "safety": "safe-literal-list"
+    },
+    {
+      "file": "scripts/check_no_any_types.py",
+      "line": 90,
+      "code": "result = subprocess.run(",
+      "shell_true": false,
+      "literal_list": true,
+      "safety": "safe-literal-list"
+    },
+    {
+      "file": "scripts/check_no_any_types.py",
+      "line": 113,
+      "code": "result = subprocess.run(",
+      "shell_true": false,
+      "literal_list": true,
+      "safety": "safe-literal-list"
+    },
+    {
+      "file": "scripts/check_patch_coverage.py",
+      "line": 47,
+      "code": "result = subprocess.run(",
+      "shell_true": false,
+      "literal_list": true,
+      "safety": "safe-literal-list"
+    },
+    {
+      "file": "scripts/check_threshold_changes.py",
+      "line": 40,
+      "code": "result = subprocess.run(",
+      "shell_true": false,
+      "literal_list": false,
+      "safety": "unsafe-non-literal-command"
+    },
+    {
+      "file": "scripts/env_guard.py",
+      "line": 41,
+      "code": "result = subprocess.run(",
+      "shell_true": false,
+      "literal_list": true,
+      "safety": "safe-literal-list"
+    },
+    {
+      "file": "scripts/env_guard.py",
+      "line": 80,
+      "code": "result = subprocess.run(",
+      "shell_true": false,
+      "literal_list": true,
+      "safety": "safe-literal-list"
+    },
+    {
+      "file": "scripts/manage_generated_artifacts.py",
+      "line": 129,
+      "code": "result = subprocess.run(",
+      "shell_true": false,
+      "literal_list": false,
+      "safety": "unsafe-non-literal-command"
+    },
+    {
+      "file": "scripts/regenerate-demo.py",
+      "line": 26,
+      "code": "result = subprocess.run(",
+      "shell_true": false,
+      "literal_list": true,
+      "safety": "safe-literal-list"
+    },
+    {
+      "file": "scripts/run_ci_parity.py",
+      "line": 88,
+      "code": "subprocess.run(",
+      "shell_true": false,
+      "literal_list": false,
+      "safety": "unsafe-non-literal-command"
+    },
+    {
+      "file": "scripts/run_ci_parity.py",
+      "line": 101,
+      "code": "probe = subprocess.run(",
+      "shell_true": false,
+      "literal_list": true,
+      "safety": "safe-literal-list"
+    },
+    {
+      "file": "scripts/run_ci_parity.py",
+      "line": 146,
+      "code": "probe = subprocess.run(",
+      "shell_true": false,
+      "literal_list": true,
+      "safety": "safe-literal-list"
+    },
+    {
+      "file": "scripts/run_ci_parity.py",
+      "line": 247,
+      "code": "probe = subprocess.run(",
+      "shell_true": false,
+      "literal_list": true,
+      "safety": "safe-literal-list"
+    },
+    {
+      "file": "scripts/run_pr_preflight.py",
+      "line": 434,
+      "code": "probe = subprocess.run(",
+      "shell_true": false,
+      "literal_list": true,
+      "safety": "safe-literal-list"
+    },
+    {
+      "file": "scripts/run_pr_preflight.py",
+      "line": 457,
+      "code": "completed = subprocess.run(",
+      "shell_true": false,
+      "literal_list": false,
+      "safety": "unsafe-non-literal-command"
+    },
+    {
+      "file": "scripts/run_pr_preflight.py",
+      "line": 522,
+      "code": "probe = subprocess.run(",
+      "shell_true": false,
+      "literal_list": true,
+      "safety": "safe-literal-list"
+    },
+    {
+      "file": "scripts/run_pr_preflight.py",
+      "line": 587,
+      "code": "probe = subprocess.run(",
+      "shell_true": false,
+      "literal_list": true,
+      "safety": "safe-literal-list"
+    },
+    {
+      "file": "scripts/run_repo_hook.py",
+      "line": 88,
+      "code": "result = subprocess.run(",
+      "shell_true": false,
+      "literal_list": false,
+      "safety": "unsafe-non-literal-command"
+    },
+    {
+      "file": "scripts/run_repo_hook.py",
+      "line": 169,
+      "code": "result = subprocess.run(",
+      "shell_true": false,
+      "literal_list": false,
+      "safety": "unsafe-non-literal-command"
+    },
+    {
+      "file": "scripts/run_repo_hook.py",
+      "line": 229,
+      "code": "result = subprocess.run(",
+      "shell_true": false,
+      "literal_list": true,
+      "safety": "safe-literal-list"
+    },
+    {
+      "file": "scripts/run_repo_hook.py",
+      "line": 253,
+      "code": "fetch = subprocess.run(",
+      "shell_true": false,
+      "literal_list": true,
+      "safety": "safe-literal-list"
+    },
+    {
+      "file": "scripts/run_repo_hook.py",
+      "line": 272,
+      "code": "result = subprocess.run(",
+      "shell_true": false,
+      "literal_list": true,
+      "safety": "safe-literal-list"
+    },
+    {
+      "file": "scripts/run_repo_hook.py",
+      "line": 1040,
+      "code": "result = subprocess.run(",
+      "shell_true": false,
+      "literal_list": true,
+      "safety": "safe-literal-list"
+    },
+    {
+      "file": "tests/demo/test_demo_parity_pipeline.py",
+      "line": 144,
+      "code": "build_result = subprocess.run(",
+      "shell_true": false,
+      "literal_list": false,
+      "safety": "unsafe-non-literal-command"
+    },
+    {
+      "file": "tests/demo/test_demo_parity_pipeline.py",
+      "line": 159,
+      "code": "validate_result = subprocess.run(",
+      "shell_true": false,
+      "literal_list": false,
+      "safety": "unsafe-non-literal-command"
+    },
+    {
+      "file": "tests/demo/test_demo_parity_pipeline.py",
+      "line": 174,
+      "code": "return subprocess.run(",
+      "shell_true": false,
+      "literal_list": true,
+      "safety": "safe-literal-list"
+    },
+    {
+      "file": "tests/demo/test_regeneration.py",
+      "line": 91,
+      "code": "result = subprocess.run(",
+      "shell_true": false,
+      "literal_list": false,
+      "safety": "unsafe-non-literal-command"
+    },
+    {
+      "file": "tests/demo/test_regeneration.py",
+      "line": 219,
+      "code": "result = subprocess.run(",
+      "shell_true": false,
+      "literal_list": true,
+      "safety": "safe-literal-list"
+    },
+    {
+      "file": "tests/demo/test_regeneration.py",
+      "line": 257,
+      "code": "result = subprocess.run(",
+      "shell_true": false,
+      "literal_list": true,
+      "safety": "safe-literal-list"
+    },
+    {
+      "file": "tests/integration/test_cli_distribution.py",
+      "line": 18,
+      "code": "result = subprocess.run(",
+      "shell_true": false,
+      "literal_list": true,
+      "safety": "safe-literal-list"
+    },
+    {
+      "file": "tests/integration/test_cli_distribution.py",
+      "line": 91,
+      "code": "result = subprocess.run(",
+      "shell_true": false,
+      "literal_list": true,
+      "safety": "safe-literal-list"
+    },
+    {
+      "file": "tests/integration/test_cli_distribution.py",
+      "line": 102,
+      "code": "result = subprocess.run(",
+      "shell_true": false,
+      "literal_list": true,
+      "safety": "safe-literal-list"
+    },
+    {
+      "file": "tests/integration/test_cli_distribution.py",
+      "line": 113,
+      "code": "result = subprocess.run(",
+      "shell_true": false,
+      "literal_list": true,
+      "safety": "safe-literal-list"
+    },
+    {
+      "file": "tests/integration/test_cli_distribution.py",
+      "line": 128,
+      "code": "result = subprocess.run(",
+      "shell_true": false,
+      "literal_list": true,
+      "safety": "safe-literal-list"
+    },
+    {
+      "file": "tests/integration/test_cli_distribution.py",
+      "line": 145,
+      "code": "result = subprocess.run(",
+      "shell_true": false,
+      "literal_list": true,
+      "safety": "safe-literal-list"
+    },
+    {
+      "file": "tests/integration/test_cli_distribution.py",
+      "line": 173,
+      "code": "result = subprocess.run(",
+      "shell_true": false,
+      "literal_list": true,
+      "safety": "safe-literal-list"
+    },
+    {
+      "file": "tests/integration/test_cli_distribution.py",
+      "line": 191,
+      "code": "result = subprocess.run(",
+      "shell_true": false,
+      "literal_list": true,
+      "safety": "safe-literal-list"
+    },
+    {
+      "file": "tests/integration/test_cli_distribution.py",
+      "line": 254,
+      "code": "result = subprocess.run(",
+      "shell_true": false,
+      "literal_list": true,
+      "safety": "safe-literal-list"
+    },
+    {
+      "file": "tests/integration/test_cli_distribution.py",
+      "line": 281,
+      "code": "result = subprocess.run(",
+      "shell_true": false,
+      "literal_list": true,
+      "safety": "safe-literal-list"
+    },
+    {
+      "file": "tests/integration/test_phase5_ml_integration.py",
+      "line": 903,
+      "code": "result = subprocess.run(",
+      "shell_true": false,
+      "literal_list": true,
+      "safety": "safe-literal-list"
+    },
+    {
+      "file": "tests/unit/test_audit_suppressions.py",
+      "line": 69,
+      "code": "subprocess.run([\"git\", \"init\"], cwd=repo_root, capture_output=True, check=False)",
+      "shell_true": false,
+      "literal_list": true,
+      "safety": "safe-literal-list"
+    },
+    {
+      "file": "tests/unit/test_audit_suppressions.py",
+      "line": 70,
+      "code": "subprocess.run([\"git\", \"add\", \".\"], cwd=repo_root, capture_output=True, check=False)",
+      "shell_true": false,
+      "literal_list": true,
+      "safety": "safe-literal-list"
+    },
+    {
+      "file": "tests/unit/test_audit_suppressions.py",
+      "line": 80,
+      "code": "return subprocess.run(",
+      "shell_true": false,
+      "literal_list": true,
+      "safety": "safe-literal-list"
+    },
+    {
+      "file": "tests/unit/test_audit_suppressions.py",
+      "line": 296,
+      "code": "result = subprocess.run(",
+      "shell_true": false,
+      "literal_list": true,
+      "safety": "safe-literal-list"
+    },
+    {
+      "file": "tests/unit/test_audit_suppressions.py",
+      "line": 326,
+      "code": "result = subprocess.run(",
+      "shell_true": false,
+      "literal_list": true,
+      "safety": "safe-literal-list"
+    },
+    {
+      "file": "tests/unit/test_audit_suppressions.py",
+      "line": 341,
+      "code": "subprocess.run(",
+      "shell_true": false,
+      "literal_list": true,
+      "safety": "safe-literal-list"
+    },
+    {
+      "file": "tests/unit/test_audit_suppressions.py",
+      "line": 349,
+      "code": "subprocess.run(",
+      "shell_true": false,
+      "literal_list": true,
+      "safety": "safe-literal-list"
+    },
+    {
+      "file": "tests/unit/test_audit_suppressions.py",
+      "line": 356,
+      "code": "result = subprocess.run(",
+      "shell_true": false,
+      "literal_list": true,
+      "safety": "safe-literal-list"
+    },
+    {
+      "file": "tests/unit/test_audit_suppressions.py",
+      "line": 1069,
+      "code": "result = subprocess.run(",
+      "shell_true": false,
+      "literal_list": true,
+      "safety": "safe-literal-list"
+    },
+    {
+      "file": "tests/unit/test_audit_suppressions.py",
+      "line": 1115,
+      "code": "result = subprocess.run(",
+      "shell_true": false,
+      "literal_list": true,
+      "safety": "safe-literal-list"
+    },
+    {
+      "file": "tests/unit/test_coverage_delta.py",
+      "line": 121,
+      "code": "return subprocess.run(",
+      "shell_true": false,
+      "literal_list": false,
+      "safety": "unsafe-non-literal-command"
+    },
+    {
+      "file": "tests/unit/test_demo_generation_contract.py",
+      "line": 15,
+      "code": "result = subprocess.run(",
+      "shell_true": false,
+      "literal_list": true,
+      "safety": "safe-literal-list"
+    },
+    {
+      "file": "tests/unit/test_ml_cli_flags.py",
+      "line": 18,
+      "code": "result = subprocess.run(",
+      "shell_true": false,
+      "literal_list": true,
+      "safety": "safe-literal-list"
+    },
+    {
+      "file": "tests/unit/test_ml_cli_flags.py",
+      "line": 36,
+      "code": "result = subprocess.run(",
+      "shell_true": false,
+      "literal_list": true,
+      "safety": "safe-literal-list"
+    },
+    {
+      "file": "tests/unit/test_ml_cli_flags.py",
+      "line": 54,
+      "code": "result = subprocess.run(",
+      "shell_true": false,
+      "literal_list": true,
+      "safety": "safe-literal-list"
+    },
+    {
+      "file": "tests/unit/test_ml_cli_flags.py",
+      "line": 95,
+      "code": "result = subprocess.run(",
+      "shell_true": false,
+      "literal_list": true,
+      "safety": "safe-literal-list"
+    },
+    {
+      "file": "tests/unit/test_optional_deps_isolation.py",
+      "line": 19,
+      "code": "result = subprocess.run(",
+      "shell_true": false,
+      "literal_list": true,
+      "safety": "safe-literal-list"
+    },
+    {
+      "file": "tests/unit/test_optional_deps_isolation.py",
+      "line": 30,
+      "code": "result = subprocess.run(",
+      "shell_true": false,
+      "literal_list": true,
+      "safety": "safe-literal-list"
+    },
+    {
+      "file": "tests/unit/test_optional_deps_isolation.py",
+      "line": 59,
+      "code": "result = subprocess.run(",
+      "shell_true": false,
+      "literal_list": true,
+      "safety": "safe-literal-list"
+    },
+    {
+      "file": "tests/unit/test_synthetic_dataset.py",
+      "line": 90,
+      "code": "result = subprocess.run(args, capture_output=True, text=True, check=False)",
+      "shell_true": false,
+      "literal_list": false,
+      "safety": "unsafe-non-literal-command"
+    },
+    {
+      "file": "tests/unit/test_synthetic_dataset.py",
+      "line": 113,
+      "code": "result = subprocess.run(args, capture_output=True, text=True, check=False)",
+      "shell_true": false,
+      "literal_list": false,
+      "safety": "unsafe-non-literal-command"
+    },
+    {
+      "file": "tests/unit/test_synthetic_dataset.py",
+      "line": 887,
+      "code": "result1 = subprocess.run(",
+      "shell_true": false,
+      "literal_list": true,
+      "safety": "safe-literal-list"
+    },
+    {
+      "file": "tests/unit/test_synthetic_dataset.py",
+      "line": 900,
+      "code": "result2 = subprocess.run(",
+      "shell_true": false,
+      "literal_list": true,
+      "safety": "safe-literal-list"
+    },
+    {
+      "file": "tests/unit/test_version_guard.py",
+      "line": 52,
+      "code": "return subprocess.run(",
+      "shell_true": false,
+      "literal_list": true,
+      "safety": "safe-literal-list"
+    }
+  ]
+}

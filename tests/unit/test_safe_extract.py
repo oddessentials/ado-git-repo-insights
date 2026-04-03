@@ -27,7 +27,7 @@ from ado_git_repo_insights.utils.safe_extract import (
 )
 
 if TYPE_CHECKING:
-    from collections.abc import Generator
+    pass
 
 
 # ============================================================================
@@ -36,7 +36,7 @@ if TYPE_CHECKING:
 
 
 @pytest.fixture
-def temp_dir(tmp_path: Path) -> Generator[Path, None, None]:
+def temp_dir(tmp_path: Path) -> Path:
     """Create a temporary directory for test extraction."""
     out_dir = tmp_path / "output"
     out_dir.mkdir()

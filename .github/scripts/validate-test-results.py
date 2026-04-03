@@ -17,7 +17,8 @@ Dependencies:
 import sys
 from pathlib import Path
 
-import defusedxml.ElementTree as ET  # noqa: N817
+from defusedxml.ElementTree import ParseError as XMLParseError
+from defusedxml.ElementTree import parse as parse_xml
 
 
 def parse_junit_xml(xml_path: str) -> dict:
@@ -31,7 +32,7 @@ def parse_junit_xml(xml_path: str) -> dict:
     Uses defusedxml for safe XML parsing (prevents XXE and related attacks).
     """
     try:
-        tree = ET.parse(xml_path)
+        tree = parse_xml(xml_path)
         root = tree.getroot()
 
         # Handle different JUnit XML structures
@@ -72,7 +73,7 @@ def parse_junit_xml(xml_path: str) -> dict:
             }
         else:
             return {"error": f"Unknown root element: {root.tag}"}
-    except ET.ParseError as e:
+    except XMLParseError as e:
         return {"error": f"XML parse error: {e}"}
     except FileNotFoundError:
         return {"error": f"File not found: {xml_path}"}

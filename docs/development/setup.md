@@ -6,11 +6,13 @@ How to set up a development environment for contributing to ado-git-repo-insight
 
 ## Prerequisites
 
-| Requirement | Version |
-|-------------|---------|
-| Python | 3.10, 3.11, or 3.12 |
-| Node.js | 16+ (for extension development) |
-| Git | Any recent version |
+| Requirement | Version | Notes |
+|-------------|---------|-------|
+| Python | 3.10, 3.11, or 3.12 | |
+| Node.js | 16+ | For extension development |
+| pnpm | 9.15.0 | Enforced by `packageManager` field |
+| Git | Any recent version | |
+| gitleaks | Any recent version | Secret scanning (CI parity) — [install](https://github.com/gitleaks/gitleaks#installing) |
 
 ---
 
@@ -21,15 +23,19 @@ How to set up a development environment for contributing to ado-git-repo-insight
 git clone https://github.com/oddessentials/ado-git-repo-insights.git
 cd ado-git-repo-insights
 
-# Create and activate virtual environment
+# 1. Install root Node dependencies and activate Husky git hooks
+#    This MUST be the first step — hooks enforce all quality gates.
+pnpm install
+
+# 2. Create and activate Python virtual environment
 python -m venv .venv
 source .venv/bin/activate  # Linux/macOS
 # .venv\Scripts\activate   # Windows
 
-# Install Python dependencies (including dev tools)
+# 3. Install Python dependencies (including dev tools)
 pip install -e .[dev]
 
-# Install Node.js dependencies (for extension development)
+# 4. Install extension Node.js dependencies
 cd extension && pnpm install && cd ..
 ```
 
@@ -133,6 +139,10 @@ The authoritative implementation lives in:
 
 - `scripts/run_repo_hook.py`
 - `scripts/manage_generated_artifacts.py`
+
+Authoritative local parity now fails closed. If `python scripts/run_pr_preflight.py`
+cannot run a CI-hard gate such as Node-backed extension checks or `gitleaks`, it
+exits nonzero instead of silently skipping that gate.
 
 You do not need to run `pre-commit install` manually for normal repo usage.
 `pre-commit` is still required because the repo hooks delegate Python lint/format

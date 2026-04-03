@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import json
 import sys
+from collections.abc import Iterator
 from datetime import date, datetime
 from pathlib import Path
 from types import ModuleType
@@ -19,12 +20,14 @@ from unittest.mock import MagicMock, Mock, patch
 import pandas as pd
 import pytest
 
+from tests.conftest import FakeProphetModule
+
 
 class TestForecasterContract:
     """Schema contract validation for predictions/trends.json."""
 
     @pytest.fixture
-    def mock_db(self) -> Mock:
+    def mock_db(self) -> Iterator[Mock]:
         """Mock database with sample PR data spanning multiple weeks."""
         db = Mock()
         db.connection = Mock()
@@ -83,8 +86,8 @@ class TestForecasterContract:
     @pytest.fixture
     def fake_prophet_module(self, mock_prophet_class: MagicMock) -> ModuleType:
         """Create a fake prophet module with mock Prophet class."""
-        fake_module = ModuleType("prophet")
-        fake_module.Prophet = mock_prophet_class  # type: ignore[attr-defined]
+        fake_module = FakeProphetModule("prophet")
+        fake_module.Prophet = mock_prophet_class
         return fake_module
 
     def test_predictions_schema_structure(

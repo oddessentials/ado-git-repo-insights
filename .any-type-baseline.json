@@ -1,0 +1,16 @@
+{
+  "_comment": "QG-40 Any-type ratchet baseline. This ceiling can only decrease. Run: python scripts/check_no_any_types.py --update-baseline",
+  "files": {
+    "src/ado_git_repo_insights/config.py": 2,
+    "src/ado_git_repo_insights/extractor/ado_client.py": 11,
+    "src/ado_git_repo_insights/ml/fallback_forecaster.py": 7,
+    "src/ado_git_repo_insights/ml/forecaster.py": 6,
+    "src/ado_git_repo_insights/ml/insights.py": 13,
+    "src/ado_git_repo_insights/persistence/database.py": 3,
+    "src/ado_git_repo_insights/persistence/repository.py": 5,
+    "src/ado_git_repo_insights/transform/aggregators.py": 46,
+    "src/ado_git_repo_insights/utils/logging_config.py": 5,
+    "src/ado_git_repo_insights/utils/run_summary.py": 2
+  },
+  "total": 100
+}

@@ -53,11 +53,11 @@ try {
     encoding: "utf-8",
     env: { ...process.env, PERF_MODE: "trend" },
   });
-} catch (error: any) {
+} catch (error: unknown) {
   console.error(
     "[ERROR] Performance tests failed. Fix failures before updating baselines.",
   );
-  console.error(error.message);
+  console.error(error instanceof Error ? error.message : String(error));
   process.exit(1);
 }
 
@@ -85,7 +85,7 @@ jsonLogs.forEach((log) => {
         timings[key] = Math.round(data.duration_ms);
       }
     }
-  } catch (e) {
+  } catch (_e) {
     // Skip malformed JSON
   }
 });
@@ -100,9 +100,9 @@ if (Object.keys(timings).length === 0) {
 let baselines: PerfBaselines;
 try {
   baselines = JSON.parse(fs.readFileSync(baselinesPath, "utf-8"));
-} catch (error: any) {
+} catch (error: unknown) {
   console.error("[ERROR] Failed to read baselines file");
-  console.error(error.message);
+  console.error(error instanceof Error ? error.message : String(error));
   process.exit(1);
 }
 

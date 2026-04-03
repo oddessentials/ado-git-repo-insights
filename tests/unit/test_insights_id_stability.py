@@ -14,8 +14,9 @@ from __future__ import annotations
 import json
 import sys
 from pathlib import Path
-from types import ModuleType
 from unittest.mock import Mock, patch
+
+from tests.conftest import FakeOpenAIModule
 
 
 class TestEdgeCaseIDStability:
@@ -68,13 +69,13 @@ class TestEdgeCaseIDStability:
         }
 
         # Create fake openai module
-        fake_openai = ModuleType("openai")
+        fake_openai = FakeOpenAIModule("openai")
         mock_client = Mock()
         mock_response = Mock()
         mock_response.choices = [Mock()]
         mock_response.choices[0].message.content = json.dumps(mock_response_data)
         mock_client.chat.completions.create.return_value = mock_response
-        fake_openai.OpenAI = Mock(return_value=mock_client)  # type: ignore[attr-defined]
+        fake_openai.OpenAI = Mock(return_value=mock_client)
 
         # Generate twice with same empty dataset
         with (
@@ -172,13 +173,13 @@ class TestEdgeCaseIDStability:
         }
 
         # Create fake openai module
-        fake_openai = ModuleType("openai")
+        fake_openai = FakeOpenAIModule("openai")
         mock_client = Mock()
         mock_response = Mock()
         mock_response.choices = [Mock()]
         mock_response.choices[0].message.content = json.dumps(mock_response_data)
         mock_client.chat.completions.create.return_value = mock_response
-        fake_openai.OpenAI = Mock(return_value=mock_client)  # type: ignore[attr-defined]
+        fake_openai.OpenAI = Mock(return_value=mock_client)
 
         # Generate twice with same data
         with (

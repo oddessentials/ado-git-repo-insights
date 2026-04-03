@@ -9,6 +9,7 @@ Victory Gate 1.5: Backfill Convergence
 from __future__ import annotations
 
 import tempfile
+from collections.abc import Iterator
 from datetime import date
 from pathlib import Path
 from unittest.mock import MagicMock, patch
@@ -53,7 +54,7 @@ def make_mock_pr(
 
 
 @pytest.fixture
-def backfill_setup() -> tuple[DatabaseManager, Config, Path]:
+def backfill_setup() -> Iterator[tuple[DatabaseManager, Config, Path]]:
     """Set up database and config for backfill testing."""
     with tempfile.TemporaryDirectory() as tmpdir:
         tmp_path = Path(tmpdir)

@@ -70,13 +70,39 @@ def isolate_artifact_root(monkeypatch: pytest.MonkeyPatch) -> None:
 
 def load_build_module():
     """Load build-demo-dataset.py as a Python module for direct contract testing."""
-    script_dir = str(BUILD_SCRIPT.parent)
-    if script_dir not in sys.path:
-        sys.path.insert(0, script_dir)
+    demo_generation_common_spec = importlib.util.spec_from_file_location(
+        "demo_generation_common", REPO_ROOT / "scripts" / "demo_generation_common.py"
+    )
+    if (
+        demo_generation_common_spec is None
+        or demo_generation_common_spec.loader is None
+    ):
+        raise RuntimeError(
+            f"Unable to load helper module: {REPO_ROOT / 'scripts' / 'demo_generation_common.py'}"
+        )
+    demo_generation_common = importlib.util.module_from_spec(
+        demo_generation_common_spec
+    )
+
+    sys.modules["demo_generation_common"] = demo_generation_common
+    demo_generation_common_spec.loader.exec_module(demo_generation_common)
+
+    demo_shell_spec = importlib.util.spec_from_file_location(
+        "demo_shell", REPO_ROOT / "scripts" / "demo_shell.py"
+    )
+    if demo_shell_spec is None or demo_shell_spec.loader is None:
+        raise RuntimeError(
+            f"Unable to load helper module: {REPO_ROOT / 'scripts' / 'demo_shell.py'}"
+        )
+    demo_shell = importlib.util.module_from_spec(demo_shell_spec)
+    sys.modules["demo_shell"] = demo_shell
+    demo_shell_spec.loader.exec_module(demo_shell)
+
     spec = importlib.util.spec_from_file_location("build_demo_dataset", BUILD_SCRIPT)
     if spec is None or spec.loader is None:
         raise AssertionError(f"Unable to load build script module: {BUILD_SCRIPT}")
     module = importlib.util.module_from_spec(spec)
+    sys.modules["build_demo_dataset"] = module
     spec.loader.exec_module(module)
     return module
 
@@ -115,36 +141,37 @@ def run_demo_build(*, promote_dir: Path | None = None, promote: bool = False) ->
         args.extend(["--promote-dir", str(promote_dir)])
     else:
         args.append("--no-promote")
-    result = subprocess.run(  # noqa: S603
+    build_result = subprocess.run(
         args,
         cwd=REPO_ROOT,
         capture_output=True,
         text=True,
         check=False,
     )
-    assert result.returncode == 0, (
-        f"build-demo-dataset.py failed: {result.stderr or result.stdout}"
+    assert build_result.returncode == 0, (
+        f"build-demo-dataset.py failed: {build_result.stderr or build_result.stdout}"
     )
 
 
 def run_demo_validate_only() -> None:
     """Run validate-only mode explicitly against committed docs/data."""
     args = [sys.executable, str(BUILD_SCRIPT), "--validate-only", "--no-promote"]
-    result = subprocess.run(  # noqa: S603
+    validate_result = subprocess.run(
         args,
         cwd=REPO_ROOT,
         capture_output=True,
         text=True,
         check=False,
     )
-    assert result.returncode == 0, (
-        f"build-demo-dataset.py --validate-only failed: {result.stderr or result.stdout}"
+    assert validate_result.returncode == 0, (
+        "build-demo-dataset.py --validate-only failed: "
+        f"{validate_result.stderr or validate_result.stdout}"
     )
 
 
 def run_demo_validate_only_with_promote() -> subprocess.CompletedProcess[str]:
     """Run validate-only mode without --no-promote to assert it is rejected."""
-    return subprocess.run(  # noqa: S603
+    return subprocess.run(
         [sys.executable, str(BUILD_SCRIPT), "--validate-only"],
         cwd=REPO_ROOT,
         capture_output=True,

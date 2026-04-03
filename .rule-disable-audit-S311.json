@@ -1,0 +1,48 @@
+{
+  "rule": "S311",
+  "total_usages": 7,
+  "usages": [
+    {
+      "file": "scripts/generate-demo-data.py",
+      "line": 208,
+      "code": "rng = random.Random(seed)",
+      "purpose": "deterministic-seeded"
+    },
+    {
+      "file": "scripts/generate-synthetic-dataset.py",
+      "line": 85,
+      "code": "rng = random.Random(seed)",
+      "purpose": "deterministic-seeded"
+    },
+    {
+      "file": "scripts/generate-synthetic-dataset.py",
+      "line": 167,
+      "code": "rng = random.Random(seed)",
+      "purpose": "deterministic-seeded"
+    },
+    {
+      "file": "scripts/generate-synthetic-dataset.py",
+      "line": 396,
+      "code": "rng = random.Random(seed + 1000)",
+      "purpose": "deterministic-seeded"
+    },
+    {
+      "file": "scripts/generate-synthetic-dataset.py",
+      "line": 480,
+      "code": "rng = random.Random(seed + 2000)",
+      "purpose": "deterministic-seeded"
+    },
+    {
+      "file": "scripts/generate-synthetic-dataset.py",
+      "line": 563,
+      "code": "random.seed(seed)",
+      "purpose": "deterministic-seeded"
+    },
+    {
+      "file": "tests/performance/test_chart_render.py",
+      "line": 121,
+      "code": "values = np.random.normal(100, 20, 52)",
+      "purpose": "needs-review"
+    }
+  ]
+}

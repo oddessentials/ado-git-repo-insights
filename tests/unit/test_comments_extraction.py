@@ -9,6 +9,7 @@ Covers §6 from IMPLEMENTATION_DETAILS.md:
 from __future__ import annotations
 
 import json
+from collections.abc import Iterator
 from datetime import datetime, timezone
 from unittest.mock import MagicMock, patch
 
@@ -115,7 +116,7 @@ class TestThreadPersistence:
     """Tests for thread/comment persistence operations."""
 
     @pytest.fixture
-    def db(self, tmp_path) -> DatabaseManager:
+    def db(self, tmp_path) -> Iterator[DatabaseManager]:
         """Create test database."""
         db_path = tmp_path / "test.sqlite"
         db = DatabaseManager(db_path)

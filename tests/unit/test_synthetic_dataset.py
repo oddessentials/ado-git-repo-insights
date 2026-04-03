@@ -87,9 +87,7 @@ def run_generator_raw(
         users=users,
         include_comments=include_comments,
     )
-    result = subprocess.run(  # noqa: S603
-        args, capture_output=True, text=True, check=False
-    )
+    result = subprocess.run(args, capture_output=True, text=True, check=False)
     return result, output_dir
 
 
@@ -112,9 +110,7 @@ def run_generator(
         include_comments=include_comments,
     )
 
-    result = subprocess.run(  # noqa: S603
-        args, capture_output=True, text=True, check=False
-    )
+    result = subprocess.run(args, capture_output=True, text=True, check=False)
 
     if result.returncode != 0:
         pytest.fail(f"Generator failed: {result.stderr}")
@@ -888,7 +884,7 @@ class TestDemoDataRealism:
         rollups_dir = scratch_dir / "aggregates" / "weekly_rollups"
 
         # Run generator twice to the same scratch dir and compare checksums
-        result1 = subprocess.run(  # noqa: S603
+        result1 = subprocess.run(
             [sys.executable, generator_script, "--output-root", str(scratch_dir)],
             capture_output=True,
             text=True,
@@ -901,7 +897,7 @@ class TestDemoDataRealism:
             checksums_a[path.name] = hashlib.sha256(path.read_bytes()).hexdigest()
         assert len(checksums_a) > 0, "No rollup files found after run 1"
 
-        result2 = subprocess.run(  # noqa: S603
+        result2 = subprocess.run(
             [sys.executable, generator_script, "--output-root", str(scratch_dir)],
             capture_output=True,
             text=True,

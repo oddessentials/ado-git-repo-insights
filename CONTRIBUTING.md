@@ -11,12 +11,15 @@ Thank you for your interest in contributing! This document covers the essential 
 git clone https://github.com/oddessentials/ado-git-repo-insights.git
 cd ado-git-repo-insights
 
-# Python environment
+# 1. Install root deps + Husky hooks (MUST be first)
+pnpm install
+
+# 2. Python environment
 python -m venv .venv
 source .venv/bin/activate  # or .venv\Scripts\activate on Windows
 pip install -e .[dev]
 
-# Extension (if working on ADO extension)
+# 3. Extension (if working on ADO extension)
 cd extension && pnpm install && cd ..
 ```
 
@@ -45,6 +48,10 @@ python scripts/run_ci_parity.py --mode full
 
 `run_pr_preflight.py` resolves Python 3.10 explicitly, so it stays on a
 supported baseline interpreter even if your shell default points elsewhere.
+It is authoritative by default: if CI-hard local tooling such as Node-backed
+extension gates or `gitleaks` is unavailable, the command fails instead of
+silently degrading. Use `--allow-local-degraded` only for diagnostics on a
+broken workstation.
 
 **Detailed testing:** [Testing Guide](docs/development/testing.md)
 

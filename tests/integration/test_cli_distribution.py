@@ -15,7 +15,7 @@ class TestSetupPathIntegration:
 
     def test_setup_path_print_only_outputs_command(self) -> None:
         """--print-only outputs the PATH command without modifying files."""
-        result = subprocess.run(  # noqa: S603
+        result = subprocess.run(
             [
                 sys.executable,
                 "-m",
@@ -88,7 +88,7 @@ class TestVersionFlag:
 
     def test_version_output_never_contains_zero(self) -> None:
         """--version output never contains '0.0.0' (T-02, FR-005, SC-006)."""
-        result = subprocess.run(  # noqa: S603
+        result = subprocess.run(
             [sys.executable, "-m", "ado_git_repo_insights", "--version"],
             capture_output=True,
             text=True,
@@ -99,7 +99,7 @@ class TestVersionFlag:
 
     def test_python_dash_m_help_exits_zero(self) -> None:
         """python -m ado_git_repo_insights --help exits 0 (T-03, FR-003, SC-002)."""
-        result = subprocess.run(  # noqa: S603
+        result = subprocess.run(
             [sys.executable, "-m", "ado_git_repo_insights", "--help"],
             capture_output=True,
             text=True,
@@ -110,7 +110,7 @@ class TestVersionFlag:
 
     def test_python_dash_m_version_exits_zero(self) -> None:
         """python -m ado_git_repo_insights --version exits 0 (T-04, FR-003, SC-001)."""
-        result = subprocess.run(  # noqa: S603
+        result = subprocess.run(
             [sys.executable, "-m", "ado_git_repo_insights", "--version"],
             capture_output=True,
             text=True,
@@ -125,7 +125,7 @@ class TestDoctorIntegration:
 
     def test_doctor_runs_without_error(self) -> None:
         """Doctor command runs without crashing."""
-        result = subprocess.run(  # noqa: S603
+        result = subprocess.run(
             [sys.executable, "-m", "ado_git_repo_insights.cli", "doctor"],
             capture_output=True,
             text=True,
@@ -142,7 +142,7 @@ class TestDoctorIntegration:
 
     def test_doctor_output_format_is_stable(self) -> None:
         """Doctor output format is stable and parseable."""
-        result = subprocess.run(  # noqa: S603
+        result = subprocess.run(
             [sys.executable, "-m", "ado_git_repo_insights.cli", "doctor"],
             capture_output=True,
             text=True,
@@ -170,7 +170,7 @@ class TestDoctorIntegration:
 
     def test_doctor_status_matches_exit_code(self) -> None:
         """Doctor Status: line matches exit code."""
-        result = subprocess.run(  # noqa: S603
+        result = subprocess.run(
             [sys.executable, "-m", "ado_git_repo_insights.cli", "doctor"],
             capture_output=True,
             text=True,
@@ -188,7 +188,7 @@ class TestPrintOnlyIntegration:
 
     def test_print_only_outputs_to_stdout(self) -> None:
         """--print-only outputs the command to stdout without errors."""
-        result = subprocess.run(  # noqa: S603
+        result = subprocess.run(
             [
                 sys.executable,
                 "-m",
@@ -251,7 +251,7 @@ class TestPathGuidanceAtStartup:
 
     def test_setup_path_command_skips_path_warning(self) -> None:
         """setup-path command should NOT emit duplicate PATH guidance."""
-        result = subprocess.run(  # noqa: S603
+        result = subprocess.run(
             [
                 sys.executable,
                 "-m",
@@ -278,7 +278,7 @@ class TestPathGuidanceAtStartup:
 
     def test_doctor_command_skips_path_warning(self) -> None:
         """doctor command should NOT emit duplicate PATH guidance."""
-        result = subprocess.run(  # noqa: S603
+        result = subprocess.run(
             [sys.executable, "-m", "ado_git_repo_insights.cli", "doctor"],
             capture_output=True,
             text=True,

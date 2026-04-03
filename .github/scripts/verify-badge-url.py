@@ -14,9 +14,9 @@ import os
 import re
 import sys
 import time
-import urllib.error
-import urllib.request
 from urllib.parse import urlparse
+
+import requests
 
 # Timeout configuration (seconds)
 # Note: urllib.request.urlopen uses a single timeout for the entire operation
@@ -114,23 +114,23 @@ def main() -> int:
 
     for i in range(1, 13):
         try:
-            # Safe: URL validated above with strict allowlist
-            with urllib.request.urlopen(url, timeout=URL_TIMEOUT_SECONDS) as response:  # noqa: S310
-                data = json.load(response)
-                if "python" in data and "coverage" in data["python"]:
-                    print("[OK] Badge JSON accessible and valid")
-                    print(json.dumps(data, indent=2))
-                    return 0
-                else:
-                    print(f"Invalid JSON structure: {data}")
-        except urllib.error.HTTPError as e:
-            print(f"HTTP {e.code}: {e.reason}")
-        except urllib.error.URLError as e:
-            print(f"URL error: {e.reason}")
+            response = requests.get(url, timeout=URL_TIMEOUT_SECONDS)
+            response.raise_for_status()
+            data = response.json()
+            if "python" in data and "coverage" in data["python"]:
+                print("[OK] Badge JSON accessible and valid")
+                print(json.dumps(data, indent=2))
+                return 0
+            else:
+                print(f"Invalid JSON structure: {data}")
+        except requests.HTTPError as e:
+            print(f"HTTP {e.response.status_code}: {e.response.reason}")
+        except requests.ConnectionError as e:
+            print(f"Connection error: {e}")
+        except requests.Timeout:
+            print(f"Request timed out after {URL_TIMEOUT_SECONDS}s")
         except json.JSONDecodeError as e:
             print(f"JSON decode error: {e}")
-        except TimeoutError:
-            print(f"Request timed out after {URL_TIMEOUT_SECONDS}s")
         except Exception as e:
             print(f"Error: {e}")
 

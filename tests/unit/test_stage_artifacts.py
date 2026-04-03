@@ -67,7 +67,7 @@ class TestBuildSelection:
         # Apply the same logic as cmd_stage_artifacts
         eligible_results = ("succeeded", "partiallySucceeded")
         eligible = [b for b in builds if b.get("result") in eligible_results]
-        eligible.sort(key=lambda b: b.get("finishTime", ""), reverse=True)
+        eligible.sort(key=lambda b: str(b.get("finishTime", "")), reverse=True)
 
         selected = eligible[0]
 
@@ -88,7 +88,7 @@ class TestBuildSelection:
 
         eligible_results = ("succeeded", "partiallySucceeded")
         eligible = [b for b in builds if b.get("result") in eligible_results]
-        eligible.sort(key=lambda b: b.get("finishTime", ""), reverse=True)
+        eligible.sort(key=lambda b: str(b.get("finishTime", "")), reverse=True)
 
         selected = eligible[0]
 
@@ -120,14 +120,14 @@ class TestBuildSelection:
 
         eligible_results = ("succeeded", "partiallySucceeded")
         eligible = [b for b in builds if b.get("result") in eligible_results]
-        eligible.sort(key=lambda b: b.get("finishTime", ""), reverse=True)
+        eligible.sort(key=lambda b: str(b.get("finishTime", "")), reverse=True)
 
         # Result should be consistent across runs (stable sort)
         selected1 = eligible[0]
 
         # Run again
         eligible2 = [b for b in builds if b.get("result") in eligible_results]
-        eligible2.sort(key=lambda b: b.get("finishTime", ""), reverse=True)
+        eligible2.sort(key=lambda b: str(b.get("finishTime", "")), reverse=True)
         selected2 = eligible2[0]
 
         assert selected1["id"] == selected2["id"]

@@ -8,6 +8,7 @@ DoD 4.2: Org/Project Scoping Verified
 from __future__ import annotations
 
 import tempfile
+from collections.abc import Iterator
 from datetime import date
 from pathlib import Path
 from unittest.mock import MagicMock, patch
@@ -52,7 +53,7 @@ def make_mock_pr(
 
 
 @pytest.fixture
-def multi_project_setup() -> tuple[DatabaseManager, Config, Path]:
+def multi_project_setup() -> Iterator[tuple[DatabaseManager, Config, Path]]:
     """Set up database and config for multi-project testing."""
     with tempfile.TemporaryDirectory() as tmpdir:
         tmp_path = Path(tmpdir)

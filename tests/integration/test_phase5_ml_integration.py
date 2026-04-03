@@ -14,6 +14,7 @@ of whether optional [ml] dependencies are installed.
 
 import json
 import sys
+from collections.abc import Iterator
 from datetime import date, timedelta
 from pathlib import Path
 from types import ModuleType
@@ -24,6 +25,7 @@ import pytest
 
 from ado_git_repo_insights.persistence.database import DatabaseManager
 from ado_git_repo_insights.transform.aggregators import AggregateGenerator
+from tests.conftest import FakeOpenAIModule, FakeProphetModule
 
 # ============================================================================
 # Mock Module Fixtures
@@ -57,8 +59,8 @@ def mock_prophet_class() -> MagicMock:
 @pytest.fixture
 def fake_prophet_module(mock_prophet_class: MagicMock) -> ModuleType:
     """Create a fake prophet module with mock Prophet class."""
-    fake_module = ModuleType("prophet")
-    fake_module.Prophet = mock_prophet_class  # type: ignore[attr-defined]
+    fake_module = FakeProphetModule("prophet")
+    fake_module.Prophet = mock_prophet_class
     return fake_module
 
 
@@ -103,11 +105,11 @@ def mock_openai_client() -> MagicMock:
 @pytest.fixture
 def fake_openai_module(mock_openai_client: MagicMock) -> ModuleType:
     """Create a fake openai module with mock client."""
-    fake_module = ModuleType("openai")
+    fake_module = FakeOpenAIModule("openai")
 
     # Mock OpenAI class that returns our mock client
     mock_openai_class = MagicMock(return_value=mock_openai_client)
-    fake_module.OpenAI = mock_openai_class  # type: ignore[attr-defined]
+    fake_module.OpenAI = mock_openai_class
 
     return fake_module
 
@@ -118,7 +120,7 @@ def fake_openai_module(mock_openai_client: MagicMock) -> ModuleType:
 
 
 @pytest.fixture
-def temp_db(tmp_path: Path) -> DatabaseManager:
+def temp_db(tmp_path: Path) -> Iterator[DatabaseManager]:
     """Create a temporary SQLite database with schema."""
     db_path = tmp_path / "test.db"
     db = DatabaseManager(db_path)
@@ -898,7 +900,7 @@ class TestCLIMLFlags:
         """CLI help should document ML flags."""
         import subprocess
 
-        result = subprocess.run(  # noqa: S603 - trusted test input
+        result = subprocess.run(
             [
                 sys.executable,
                 "-m",

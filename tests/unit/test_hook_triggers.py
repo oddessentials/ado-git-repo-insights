@@ -18,6 +18,8 @@ import pytest
 # Import the hook module directly so we can test its pure functions
 _hook_path = Path(__file__).resolve().parents[2] / "scripts" / "run_repo_hook.py"
 _spec = importlib.util.spec_from_file_location("run_repo_hook", _hook_path)
+assert _spec is not None
+assert _spec.loader is not None
 _hook_module = importlib.util.module_from_spec(_spec)
 sys.modules["run_repo_hook"] = _hook_module
 _spec.loader.exec_module(_hook_module)

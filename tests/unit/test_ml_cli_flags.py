@@ -7,13 +7,15 @@ import subprocess
 import sys
 from pathlib import Path
 
+import pytest
+
 
 class TestMLCLIFlags:
     """Test ML CLI flags comprehensively without requiring [ml] extras."""
 
     def test_cli_help_includes_predictions_flag(self) -> None:
         """--enable-predictions flag appears in CLI help."""
-        result = subprocess.run(  # noqa: S603 - controlled subprocess call with known arguments
+        result = subprocess.run(
             [
                 sys.executable,
                 "-m",
@@ -31,7 +33,7 @@ class TestMLCLIFlags:
 
     def test_cli_help_includes_insights_flag(self) -> None:
         """--enable-insights flag appears in CLI help."""
-        result = subprocess.run(  # noqa: S603 - controlled subprocess call with known arguments
+        result = subprocess.run(
             [
                 sys.executable,
                 "-m",
@@ -49,7 +51,7 @@ class TestMLCLIFlags:
 
     def test_cli_help_includes_dry_run_flag(self) -> None:
         """--insights-dry-run flag appears in CLI help."""
-        result = subprocess.run(  # noqa: S603 - controlled subprocess call with known arguments
+        result = subprocess.run(
             [
                 sys.executable,
                 "-m",
@@ -66,7 +68,7 @@ class TestMLCLIFlags:
         assert "--insights-dry-run" in result.stdout
 
     def test_enable_insights_without_api_key_fails_early(
-        self, tmp_path: Path, monkeypatch: any
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
     ) -> None:
         """--enable-insights without OPENAI_API_KEY fails early with clear message."""
         # Remove API key if set
@@ -90,7 +92,7 @@ class TestMLCLIFlags:
         # We must explicitly control the environment via env= parameter.
         env = {k: v for k, v in os.environ.items() if k != "OPENAI_API_KEY"}
 
-        result = subprocess.run(  # noqa: S603 - controlled subprocess call with known arguments
+        result = subprocess.run(
             [
                 sys.executable,
                 "-m",

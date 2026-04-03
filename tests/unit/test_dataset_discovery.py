@@ -219,6 +219,7 @@ class TestValidateDatasetRoot:
         is_valid, error = validate_dataset_root(nonexistent)
 
         assert is_valid is False
+        assert error is not None
         assert "does not exist" in error
 
     def test_returns_invalid_when_manifest_missing(self, tmp_path: Path) -> None:
@@ -229,6 +230,7 @@ class TestValidateDatasetRoot:
         is_valid, error = validate_dataset_root(dataset_dir)
 
         assert is_valid is False
+        assert error is not None
         assert "dataset-manifest.json not found" in error
 
     def test_returns_invalid_when_manifest_invalid_json(self, tmp_path: Path) -> None:
@@ -240,6 +242,7 @@ class TestValidateDatasetRoot:
         is_valid, error = validate_dataset_root(dataset_dir)
 
         assert is_valid is False
+        assert error is not None
         assert "Invalid JSON" in error
 
     def test_returns_invalid_when_manifest_schema_version_missing(
@@ -255,6 +258,7 @@ class TestValidateDatasetRoot:
         is_valid, error = validate_dataset_root(dataset_dir)
 
         assert is_valid is False
+        assert error is not None
         assert "manifest_schema_version" in error
 
     def test_returns_invalid_when_aggregate_index_missing(self, tmp_path: Path) -> None:
@@ -268,6 +272,7 @@ class TestValidateDatasetRoot:
         is_valid, error = validate_dataset_root(dataset_dir)
 
         assert is_valid is False
+        assert error is not None
         assert "aggregate_index" in error
 
     def test_returns_valid_for_valid_manifest(self, tmp_path: Path) -> None:

@@ -2,7 +2,7 @@
 """Run the local PR preflight with stable paths.
 
 This command is the authoritative local gate before pushing:
-- mypy on src/
+- mypy on src/ tests/ scripts/
 - demo dashboard validation tests
 - full Python test suite with coverage
 - extension build/type/lint/test checks
@@ -77,7 +77,7 @@ def smoke_report_dir() -> Path:
     return PREFLIGHT_ROOT / "playwright" / "report"
 
 
-def main_branch_suppression_baseline() -> Path | None:
+def main_branch_suppression_baseline(*, allow_local_degraded: bool) -> Path | None:
     baseline_path = PREFLIGHT_ROOT / "baseline" / "main-suppression-baseline.json"
     baseline_path.parent.mkdir(parents=True, exist_ok=True)
     # Fetch origin/main so the baseline is fresh, not stale
@@ -86,26 +86,38 @@ def main_branch_suppression_baseline() -> Path | None:
         cwd=REPO_ROOT,
     )
     if fetch_result.returncode != 0:
-        safe_print(
-            "[WARNING] Could not fetch origin/main for suppression baseline. "
-            "Suppression diff may use a stale baseline or be skipped."
+        message = (
+            "Could not fetch origin/main for suppression baseline. "
+            "Authoritative local preflight cannot continue because CI compares "
+            "suppression growth against origin/main."
         )
+        if allow_local_degraded:
+            safe_print(f"[WARNING] {message} Running in degraded mode instead.")
+            return None
+        raise SystemExit(message)
     result = run_subprocess(
         ["git", "show", "origin/main:.suppression-baseline.json"],
         cwd=REPO_ROOT,
     )
     if result.returncode != 0 or not result.stdout.strip():
-        safe_print(
-            "[WARNING] Suppression baseline not available from origin/main. "
-            "Suppression diff will run without a baseline comparison."
+        message = (
+            "Suppression baseline not available from origin/main. "
+            "Authoritative local preflight cannot continue because CI requires "
+            "that baseline for suppression parity."
         )
-        return None
+        if allow_local_degraded:
+            safe_print(f"[WARNING] {message} Running in degraded mode instead.")
+            return None
+        raise SystemExit(message)
     baseline_path.write_text(result.stdout, encoding="utf-8", newline="\n")
     return baseline_path
 
 
 def build_commands(
-    suppression_baseline: Path | None, *, strict: bool = False
+    suppression_baseline: Path | None,
+    *,
+    strict: bool = False,
+    gitleaks: str | None = None,
 ) -> tuple[CommandSpec, ...]:
     # Suppression audit runs in strict mode for ALL branches (no --allow-pending-approval).
     # Prior parity gap: non-strict branches used warning-only mode locally but CI
@@ -129,39 +141,85 @@ def build_commands(
             tuple(local_suppression_gate),
             extra_env=suppression_env,
         ),
-        CommandSpec("Python type check", ("__PYTHON__", "-m", "mypy", "src/")),
         CommandSpec(
-            "Demo dashboard validation",
+            "Suppression scope coverage (FR-026)",
+            ("__PYTHON__", "scripts/audit-suppressions.py", "--check-coverage"),
+        ),
+        CommandSpec(
+            "Suppression justifications",
+            ("__PYTHON__", "scripts/audit-suppressions.py", "--check-justifications"),
+        ),
+        CommandSpec(
+            "Baseline staleness (FR-025)",
+            ("__PYTHON__", "scripts/audit-suppressions.py", "--check-staleness"),
+        ),
+        CommandSpec(
+            "Rule-disable invariants (FR-014)",
             (
                 "__PYTHON__",
-                "-m",
-                "pytest",
-                "tests/demo/",
-                "-v",
-                "--no-cov",
-                "-o",
-                f"cache_dir={cache_dir('demo')}",
-                "--basetemp",
-                str(base_temp("demo")),
+                "scripts/check_rule_disable_invariants.py",
+                "--check-subprocess",
+                "--check-random",
+                "--check-syspath",
+                "--verify-artifacts",
             ),
         ),
         CommandSpec(
-            "Full Python test suite with coverage",
+            "Python type check",
+            ("__PYTHON__", "-m", "mypy", "src/", "tests/", "scripts/"),
+        ),
+        CommandSpec(
+            "No typing.Any in src/ (QG-40)",
+            ("__PYTHON__", "scripts/check_no_any_types.py"),
+        ),
+        CommandSpec(
+            "Pandas version policy",
+            (
+                "__PYTHON__",
+                "-c",
+                "import sys, pandas as pd; "
+                "major = int(pd.__version__.split('.')[0]); "
+                "py_minor = sys.version_info.minor; "
+                "expected = 2 if py_minor == 10 else 3; "
+                "sys.exit(0) if major == expected else "
+                "(print(f'Pandas major {major} != expected {expected} for Python 3.{py_minor}'), sys.exit(1))",
+            ),
+        ),
+        CommandSpec(
+            "Demo generation contract",
+            ("__PYTHON__", "scripts/validate_demo_generation_contract.py"),
+        ),
+        CommandSpec(
+            "Demo directory size check",
+            (
+                "__PYTHON__",
+                "-c",
+                "from pathlib import Path; "
+                "size = sum(f.stat().st_size for f in Path('docs').rglob('*') if f.is_file()); "
+                "limit = 50 * 1024 * 1024; "
+                "print(f'docs/ size: {size / 1024 / 1024:.1f} MB (limit: 50 MB)'); "
+                "exit(1) if size > limit else None",
+            ),
+        ),
+        CommandSpec(
+            "Threshold change guard",
+            (
+                "__PYTHON__",
+                "scripts/check_threshold_changes.py",
+                "--base-ref",
+                "origin/main",
+            ),
+        ),
+        CommandSpec(
+            "Python package build check",
             (
                 "__PYTHON__",
                 "-m",
-                "pytest",
-                "tests/",
-                "-q",
-                "-ra",
-                "--junit-xml=test-results.xml",
-                "--cov-report=xml",
-                "-o",
-                f"cache_dir={cache_dir('python')}",
-                "--basetemp",
-                str(base_temp("python")),
+                "build",
+                "--sdist",
+                "--outdir",
+                str(base_temp("build")),
             ),
-            extra_env={"COVERAGE_FILE": str(coverage_file("python"))},
         ),
         CommandSpec(
             "Extension build check",
@@ -209,6 +267,64 @@ def build_commands(
             cwd=EXTENSION_ROOT,
         ),
         CommandSpec(
+            "Extension task unit tests",
+            ("node", "extension/tasks/extract-prs/index.test.js"),
+        ),
+        CommandSpec(
+            "Task input validation",
+            (
+                PNPM_SENTINEL,
+                "exec",
+                "ts-node",
+                "../scripts/validate-task-inputs.ts",
+            ),
+            cwd=EXTENSION_ROOT,
+        ),
+        CommandSpec(
+            "Demo dashboard validation",
+            (
+                "__PYTHON__",
+                "-m",
+                "pytest",
+                "tests/demo/",
+                "-v",
+                "--no-cov",
+                "-o",
+                f"cache_dir={cache_dir('demo')}",
+                "--basetemp",
+                str(base_temp("demo")),
+            ),
+        ),
+        CommandSpec(
+            "Full Python test suite with coverage",
+            (
+                "__PYTHON__",
+                "-m",
+                "pytest",
+                "tests/",
+                "-q",
+                "-ra",
+                "--junit-xml=test-results.xml",
+                "--cov-report=xml",
+                "-o",
+                f"cache_dir={cache_dir('python')}",
+                "--basetemp",
+                str(base_temp("python")),
+            ),
+            extra_env={"COVERAGE_FILE": str(coverage_file("python"))},
+        ),
+        # --- CI parity gates (close audit gaps) ---
+        CommandSpec(
+            "Python test count validation",
+            (
+                "__PYTHON__",
+                ".github/scripts/validate-test-results.py",
+                "test-results.xml",
+                "--min-collected=1236",
+                "--max-skips=0",
+            ),
+        ),
+        CommandSpec(
             "Extension Jest CI",
             (
                 PNPM_SENTINEL,
@@ -222,6 +338,16 @@ def build_commands(
                 "--testPathIgnorePatterns=vsix-artifact-inspection",
             ),
             cwd=EXTENSION_ROOT,
+        ),
+        CommandSpec(
+            "Extension test count validation",
+            (
+                "__PYTHON__",
+                ".github/scripts/validate-test-results.py",
+                "extension/test-results.xml",
+                "--min-collected=2304",
+                "--max-skips=0",
+            ),
         ),
         CommandSpec(
             "Coverage delta parity (Codecov project status)",
@@ -263,91 +389,23 @@ def build_commands(
                 "PLAYWRIGHT_REPORT_DIR": str(smoke_report_dir()),
             },
         ),
-        # --- CI parity gates (close audit gaps) ---
-        CommandSpec(
-            "Python test count validation",
-            (
-                "__PYTHON__",
-                ".github/scripts/validate-test-results.py",
-                "test-results.xml",
-                "--min-collected=1236",
-                "--max-skips=0",
-            ),
-        ),
-        CommandSpec(
-            "Extension test count validation",
-            (
-                "__PYTHON__",
-                ".github/scripts/validate-test-results.py",
-                "extension/test-results.xml",
-                "--min-collected=2304",
-                "--max-skips=0",
-            ),
-        ),
-        CommandSpec(
-            "Python package build check",
-            (
-                "__PYTHON__",
-                "-m",
-                "build",
-                "--sdist",
-                "--outdir",
-                str(base_temp("build")),
-            ),
-        ),
-        CommandSpec(
-            "Extension task unit tests",
-            ("node", "extension/tasks/extract-prs/index.test.js"),
-        ),
-        CommandSpec(
-            "Task input validation",
-            (
-                PNPM_SENTINEL,
-                "exec",
-                "ts-node",
-                "../scripts/validate-task-inputs.ts",
-            ),
-            cwd=EXTENSION_ROOT,
-        ),
-        CommandSpec(
-            "Pandas version policy",
-            (
-                "__PYTHON__",
-                "-c",
-                "import sys, pandas as pd; "
-                "major = int(pd.__version__.split('.')[0]); "
-                "py_minor = sys.version_info.minor; "
-                "expected = 2 if py_minor == 10 else 3; "
-                "sys.exit(0) if major == expected else "
-                "(print(f'Pandas major {major} != expected {expected} for Python 3.{py_minor}'), sys.exit(1))",
-            ),
-        ),
-        CommandSpec(
-            "Demo generation contract",
-            ("__PYTHON__", "scripts/validate_demo_generation_contract.py"),
-        ),
-        CommandSpec(
-            "Demo directory size check",
-            (
-                "__PYTHON__",
-                "-c",
-                "from pathlib import Path; "
-                "size = sum(f.stat().st_size for f in Path('docs').rglob('*') if f.is_file()); "
-                "limit = 50 * 1024 * 1024; "
-                "print(f'docs/ size: {size / 1024 / 1024:.1f} MB (limit: 50 MB)'); "
-                "exit(1) if size > limit else None",
-            ),
-        ),
-        CommandSpec(
-            "Threshold change guard",
-            (
-                "__PYTHON__",
-                "scripts/check_threshold_changes.py",
-                "--base-ref",
-                "origin/main",
-            ),
-        ),
     ]
+
+    # Secret scanning: gitleaks parity with CI (QG-35)
+    if gitleaks is not None:
+        commands.insert(
+            1,
+            CommandSpec(
+                "Secret scan (gitleaks)",
+                (
+                    gitleaks,
+                    "detect",
+                    "--config=.gitleaks.toml",
+                    "--verbose",
+                    "--log-opts=origin/main..HEAD",
+                ),
+            ),
+        )
 
     if suppression_baseline is not None:
         # When main-branch baseline is available, also run a comparison against it.
@@ -373,7 +431,7 @@ def build_commands(
 
 
 def probe_python_version(executable: str) -> str | None:
-    probe = subprocess.run(  # noqa: S603 - interpreter path is verified before use
+    probe = subprocess.run(
         [
             executable,
             "-c",
@@ -396,7 +454,7 @@ def run_subprocess(
 ) -> CommandResult:
     # SECURITY: command lists are composed only from repo-owned CommandSpec entries
     # plus locally resolved tool paths; shell=False is preserved throughout.
-    completed = subprocess.run(  # noqa: S603 - commands are repo-controlled
+    completed = subprocess.run(
         command,
         cwd=cwd,
         env=env,
@@ -417,6 +475,12 @@ def run_subprocess(
 
 def render_command(command: tuple[str, ...] | list[str]) -> str:
     return " ".join(command)
+
+
+def is_node_dependent_command(spec: CommandSpec) -> bool:
+    return bool(spec.command) and (
+        PNPM_SENTINEL in spec.command or spec.command[0] == "node"
+    )
 
 
 def emit_output(prefix: str, text: str) -> None:
@@ -455,7 +519,7 @@ def resolve_baseline_python() -> str:
     if sys.platform == "win32":
         launcher = shutil.which("py")
         if launcher:
-            probe = subprocess.run(  # noqa: S603 - trusted local Python launcher
+            probe = subprocess.run(
                 [
                     launcher,
                     f"-{BASELINE_PYTHON}",
@@ -472,9 +536,9 @@ def resolve_baseline_python() -> str:
                     return candidate
 
     for candidate in (f"python{BASELINE_PYTHON}", "python3", "python"):
-        resolved = shutil.which(candidate)
-        if resolved and probe_python_version(resolved) == BASELINE_PYTHON:
-            return resolved
+        found = shutil.which(candidate)
+        if found and probe_python_version(found) == BASELINE_PYTHON:
+            return found
 
     raise SystemExit(
         "Could not find a supported baseline interpreter for PR preflight. "
@@ -490,32 +554,66 @@ def resolve_pnpm() -> str:
     raise SystemExit("pnpm is required for PR preflight but was not found on PATH.")
 
 
-def ensure_node_child_processes_work() -> None:
+def resolve_gitleaks() -> str | None:
+    resolved = shutil.which("gitleaks")
+    if resolved:
+        return resolved
+    return None
+
+
+def ensure_node_child_processes_work(*, allow_local_degraded: bool) -> bool:
+    """Check Node.js child-process health.
+
+    In authoritative mode, any failure is fatal because CI-hard extension gates
+    would otherwise be skipped locally. In degraded mode, the failure is only
+    reported and Node-backed gates are skipped.
+    """
     node = shutil.which("node")
     if node is None:
-        raise SystemExit(
-            "Node.js is required for PR preflight but was not found on PATH."
+        message = (
+            "Node.js not found on PATH. Install Node.js so the authoritative "
+            "local preflight can run all CI-hard extension gates."
         )
+        if allow_local_degraded:
+            safe_print(
+                "[WARNING] "
+                + message
+                + " Running in degraded mode; extension gates will be skipped."
+            )
+            return False
+        raise SystemExit(message)
 
-    probe = subprocess.run(  # noqa: S603 - local toolchain probe
-        [
-            node,
-            "-e",
-            "require('child_process').execFileSync(process.execPath,['-e','process.exit(0)']); console.log('node-child-ok')",
-        ],
-        cwd=REPO_ROOT,
-        capture_output=True,
-        text=True,
-    )
-    if probe.returncode == 0:
-        return
+    try:
+        probe = subprocess.run(
+            [
+                node,
+                "-e",
+                "require('child_process').execFileSync(process.execPath,['-e','process.exit(0)']); console.log('node-child-ok')",
+            ],
+            cwd=REPO_ROOT,
+            capture_output=True,
+            text=True,
+            timeout=30,
+        )
+        if probe.returncode == 0:
+            return True
+        detail = probe.stderr.strip() or probe.stdout.strip() or "unknown failure"
+    except (subprocess.TimeoutExpired, OSError) as exc:
+        detail = str(exc)
 
-    detail = probe.stderr.strip() or probe.stdout.strip() or "unknown failure"
-    raise SystemExit(
-        "Local PR preflight cannot run worker-based Node tooling on this machine. "
-        "Node child-process creation failed before Playwright/Jest worker startup. "
+    message = (
+        "Node child-process check failed. Fix local Node execution so the "
+        "authoritative preflight can run all CI-hard extension gates. "
         f"Diagnostic: {detail}"
     )
+    if allow_local_degraded:
+        safe_print(
+            "[WARNING] "
+            + message
+            + " Running in degraded mode; extension gates will be skipped."
+        )
+        return False
+    raise SystemExit(message)
 
 
 def check_runner_self(
@@ -572,9 +670,32 @@ def run_command(
         emit_output("stderr", result.stderr)
 
 
-def ensure_tooling() -> None:
+def ensure_required_tools(*, allow_local_degraded: bool) -> tuple[bool, str | None]:
+    """Check required tools.
+
+    Returns whether Node-backed gates can run plus the resolved gitleaks path.
+    In authoritative mode, missing hard-gate tooling aborts immediately.
+    """
     resolve_pnpm()
-    ensure_node_child_processes_work()
+    node_ok = ensure_node_child_processes_work(
+        allow_local_degraded=allow_local_degraded
+    )
+    gitleaks = resolve_gitleaks()
+    if gitleaks is None:
+        message = (
+            "gitleaks not found on PATH. Install gitleaks so the authoritative "
+            "local preflight can run the same secret scan that CI enforces: "
+            "https://github.com/gitleaks/gitleaks#installing"
+        )
+        if allow_local_degraded:
+            safe_print(
+                "[WARNING] "
+                + message
+                + " Running in degraded mode; secret scanning will be skipped."
+            )
+        else:
+            raise SystemExit(message)
+    return node_ok, gitleaks
 
 
 def ensure_paths() -> None:
@@ -615,6 +736,13 @@ def parse_args() -> argparse.Namespace:
         help="Run in strict CI-parity mode: suppression increases block the push "
         "(no --allow-pending-approval). Automatically enabled for refactor/* branches.",
     )
+    parser.add_argument(
+        "--allow-local-degraded",
+        action="store_true",
+        help="Allow a diagnostic-only degraded run when CI-hard local tooling is "
+        "unavailable. This mode is non-authoritative and must not be treated as "
+        "local/CI parity.",
+    )
     return parser.parse_args()
 
 
@@ -631,7 +759,9 @@ def main() -> int:
         safe_print(f"Resolved Python: {python_executable}")
         safe_print(f"Stable temp root: {PREFLIGHT_ROOT}")
 
-    ensure_tooling()
+    node_ok, gitleaks = ensure_required_tools(
+        allow_local_degraded=args.allow_local_degraded
+    )
     ensure_paths()
     pnpm_executable = resolve_pnpm()
     check_runner_self(
@@ -641,19 +771,57 @@ def main() -> int:
     )
 
     if args.self_check:
+        if args.allow_local_degraded and (not node_ok or gitleaks is None):
+            safe_print(
+                "\n[WARNING] PR preflight self-check passed in degraded mode only"
+            )
+            return 0
         safe_print("\n[OK] PR preflight self-check passed")
         return 0
 
     if args.strict:
         safe_print("[strict] CI-parity mode: suppression increases will block")
-    commands = build_commands(main_branch_suppression_baseline(), strict=args.strict)
+    if args.allow_local_degraded:
+        safe_print(
+            "[degraded] Non-authoritative local run: skipped CI-hard gates will "
+            "still be enforced in CI"
+        )
+    commands = build_commands(
+        main_branch_suppression_baseline(
+            allow_local_degraded=args.allow_local_degraded
+        ),
+        strict=args.strict,
+        gitleaks=gitleaks,
+    )
+    degraded_skips: list[str] = []
     for spec in commands:
+        # Degraded mode may skip Node-dependent commands when local Node is broken.
+        if (
+            args.allow_local_degraded
+            and not node_ok
+            and is_node_dependent_command(spec)
+        ):
+            degraded_skips.append(spec.name)
+            continue
         run_command(
             spec,
             python_executable,
             pnpm_executable,
             verbose=args.verbose,
         )
+
+    if args.allow_local_degraded and gitleaks is None:
+        degraded_skips.append("Secret scan (gitleaks)")
+
+    if degraded_skips:
+        safe_print(
+            f"\n[WARNING] {len(degraded_skips)} CI-hard gate(s) skipped in degraded mode:"
+        )
+        for name in degraded_skips:
+            safe_print(f"  - {name}")
+        safe_print("This run is non-authoritative. CI will still enforce these gates.")
+        safe_print("\n[WARNING] Local PR preflight completed in degraded mode")
+        return 0
 
     safe_print("\n[OK] Local PR preflight passed")
     return 0

@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import time
 from datetime import date, timedelta
+from pathlib import Path
 
 
 class TestChartRenderPerformance:
@@ -41,7 +42,7 @@ class TestChartRenderPerformance:
 
         # Simulate the linear forecasting calculation
         for metric_col in ["pr_count", "cycle_time_p50"]:
-            values = df[metric_col].values.astype(float)
+            values = np.asarray(df[metric_col].values, dtype=float)
             x = np.arange(len(values))
 
             # Linear regression
@@ -56,8 +57,12 @@ class TestChartRenderPerformance:
             # Generate 4-week forecast
             future_x = np.arange(len(values), len(values) + 4)
             future_predictions = slope * future_x + intercept
-            upper_bounds = future_predictions + 1.96 * std_dev  # noqa: F841
-            lower_bounds = future_predictions - 1.96 * std_dev  # noqa: F841
+            upper_bounds = future_predictions + 1.96 * std_dev
+            lower_bounds = future_predictions - 1.96 * std_dev
+
+            assert len(upper_bounds) == 4, "4-week forecast"
+            assert len(lower_bounds) == 4, "4-week forecast"
+            assert np.all(upper_bounds >= lower_bounds)
 
         elapsed_ms = (time.perf_counter() - start_time) * 1000
 
@@ -188,7 +193,7 @@ class TestMemoryUsage:
 
         from ado_git_repo_insights.ml.fallback_forecaster import FallbackForecaster
 
-        forecaster = FallbackForecaster(db=mock_db, output_dir=None)
+        forecaster = FallbackForecaster(db=mock_db, output_dir=Path("."))
 
         # Rough memory estimate (object + numpy arrays)
         # This is a sanity check, not a precise measurement
@@ -203,7 +208,7 @@ class TestMemoryUsage:
 
         # Simulate cache data for 100 insights
         cache_data = {
-            "cache_key": "test-key-abc123",
+            "cache_key": "cache-entry-placeholder-001",
             "cached_at": "2026-01-26T12:00:00Z",
             "insights_data": {
                 "schema_version": 1,

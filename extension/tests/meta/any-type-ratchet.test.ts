@@ -75,7 +75,10 @@ function countAnyInFile(filePath: string): { count: number; lines: string[] } {
   for (let i = 0; i < fileLines.length; i++) {
     const line = fileLines.at(i);
     // Skip comment-only lines
-    if (line!.trimStart().startsWith("//") || line!.trimStart().startsWith("*")) {
+    if (
+      line!.trimStart().startsWith("//") ||
+      line!.trimStart().startsWith("*")
+    ) {
       continue;
     }
     const matches = line!.match(ANY_PATTERN);
@@ -149,7 +152,7 @@ describe("any-type ratchet guard", () => {
     // This ceiling is a temporary maximum that may only decrease.
     // After fixing local-mode-integration.test.ts, the baseline is 49.
     // If you must raise it, add explicit justification here and request review.
-    const ANY_RATCHET_CAP = 49;
+    const ANY_RATCHET_CAP = 0;
 
     const testsDir = path.join(extensionRoot, "tests");
     const allTestFiles: string[] = [];

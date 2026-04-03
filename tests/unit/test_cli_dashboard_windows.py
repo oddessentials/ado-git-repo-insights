@@ -67,12 +67,14 @@ class TestWindowsConsoleHandler:
 
         (tmp_path / "index.html").write_text("<h1>test</h1>")
 
-        captured_handler = None
+        from collections.abc import Callable
+
+        captured_handler: Callable[[int], bool] | None = None
         created_threads: list[MagicMock] = []
 
         _fake_kernel32 = type("_FakeKernel32", (), {})()
 
-        def _fake_set_handler_capture(handler: object, add: bool) -> int:
+        def _fake_set_handler_capture(handler: Callable[[int], bool], add: bool) -> int:
             nonlocal captured_handler
             if add:
                 captured_handler = handler

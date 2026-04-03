@@ -10,17 +10,59 @@ Responsibility split:
 from __future__ import annotations
 
 import argparse
+import importlib.util as _importlib_util
 import json
 import os
 import shutil
 import subprocess
 import sys
+from collections.abc import Callable
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 EXTENSION_ROOT = REPO_ROOT / "extension"
 HOOK_PREFIX = "[hook]"
 PNG_MAGIC = b"\x89PNG"
+
+
+def _ensure_husky_installed() -> None:
+    """Fail fast if .husky/ directory is missing — hooks won't work."""
+    husky_dir = REPO_ROOT / ".husky"
+    if not husky_dir.is_dir():
+        raise SystemExit(
+            f"{HOOK_PREFIX} .husky/ directory not found at {husky_dir}.\n"
+            "Hooks are not installed. Run 'pnpm install' at the repo root first."
+        )
+
+
+_ensure_husky_installed()
+
+# Load SCOPES from audit-suppressions.py for staged-subset scope check (FR-028)
+_audit_spec = _importlib_util.spec_from_file_location(
+    "audit_suppressions", REPO_ROOT / "scripts" / "audit-suppressions.py"
+)
+assert _audit_spec is not None, "audit-suppressions.py not found"
+assert _audit_spec.loader is not None
+_audit_mod = _importlib_util.module_from_spec(_audit_spec)
+_audit_spec.loader.exec_module(_audit_mod)
+AUDIT_SCOPES: dict[str, dict[str, str]] = _audit_mod.SCOPES
+scan_content = _audit_mod.scan_content
+validate_baseline = _audit_mod.validate_baseline
+find_unjustified_suppressions = _audit_mod.find_unjustified_suppressions
+compute_diff = _audit_mod.compute_diff
+
+# Load guardrail check functions for staged-content scanning (FR-014, FR-021)
+_guard_spec = _importlib_util.spec_from_file_location(
+    "check_rule_disable_invariants",
+    REPO_ROOT / "scripts" / "check_rule_disable_invariants.py",
+)
+assert _guard_spec is not None, "check_rule_disable_invariants.py not found"
+assert _guard_spec.loader is not None
+_guard_mod = _importlib_util.module_from_spec(_guard_spec)
+_guard_spec.loader.exec_module(_guard_mod)
+_check_subprocess_safety = _guard_mod.check_subprocess_safety
+_check_random_safety = _guard_mod.check_random_safety
+_check_syspath_safety = _guard_mod.check_syspath_safety
 
 
 def safe_print(text: str = "") -> None:
@@ -43,7 +85,7 @@ def run_command(
     env: dict[str, str] | None = None,
     capture_output: bool = False,
 ) -> subprocess.CompletedProcess[str]:
-    result = subprocess.run(  # noqa: S603 - repo-owned command execution only
+    result = subprocess.run(
         command,
         cwd=cwd,
         env=env,
@@ -99,6 +141,23 @@ def staged_paths() -> list[str]:
     return [line.strip() for line in output.splitlines() if line.strip()]
 
 
+def suppression_staged_name_status() -> list[tuple[str, str, str | None]]:
+    output = git_output("diff", "--cached", "--name-status", "--find-renames")
+    entries: list[tuple[str, str, str | None]] = []
+    for line in output.splitlines():
+        stripped = line.strip()
+        if not stripped:
+            continue
+        parts = stripped.split("\t")
+        status = parts[0]
+        if status.startswith("R") and len(parts) >= 3:
+            entries.append((status, parts[1], parts[2]))
+            continue
+        if len(parts) >= 2:
+            entries.append((status, parts[1], None))
+    return entries
+
+
 def staged_file_content(path: str) -> str | None:
     """Return the staged content of a file, or None if it cannot be read.
 
@@ -107,7 +166,7 @@ def staged_file_content(path: str) -> str | None:
     text patterns will safely get no match on binary content.
     """
     command = ["git", "show", f":{path}"]
-    result = subprocess.run(  # noqa: S603 - repo-owned git command
+    result = subprocess.run(
         command,
         cwd=REPO_ROOT,
         capture_output=True,
@@ -126,17 +185,21 @@ def worktree_paths(pathspec: str) -> list[str]:
     return [line.strip() for line in output.splitlines() if line.strip()]
 
 
-def stage_changed_worktree_files() -> bool:
+def modified_worktree_files() -> list[str]:
     output = git_output("diff", "--name-only")
-    files = [line.strip() for line in output.splitlines() if line.strip()]
+    return [line.strip() for line in output.splitlines() if line.strip()]
+
+
+def report_post_format_worktree_changes() -> None:
+    files = modified_worktree_files()
     if not files:
-        return False
+        raise SystemExit("[pre-commit] formatting checks failed")
     safe_print("")
-    safe_print("[pre-commit] auto-fixes applied, staging modified files")
+    safe_print("[pre-commit] formatting checks modified worktree files")
+    safe_print("Stage the updated files explicitly, then re-run the commit.")
     for file_name in files:
         safe_print(f"  - {file_name}")
-    run_command(["git", "add", "--", *files])
-    return True
+    raise SystemExit("[pre-commit] formatting checks changed files")
 
 
 def run_acl_health_check() -> None:
@@ -163,7 +226,7 @@ def run_acl_health_check() -> None:
 def run_pre_commit_stage() -> None:
     pre_commit = resolve_pre_commit()
     safe_print("[pre-commit] running formatting checks on staged files")
-    result = subprocess.run(  # noqa: S603 - repo-owned executable
+    result = subprocess.run(
         [pre_commit, "run", "--hook-stage", "pre-commit"],
         cwd=REPO_ROOT,
         check=False,
@@ -175,19 +238,196 @@ def run_pre_commit_stage() -> None:
         safe_print("[pre-commit] formatting checks passed")
         return
 
-    if stage_changed_worktree_files():
-        rerun = subprocess.run(  # noqa: S603 - repo-owned executable
-            [pre_commit, "run", "--hook-stage", "pre-commit"],
-            cwd=REPO_ROOT,
-            check=False,
-            text=True,
-            encoding="utf-8",
-            errors="replace",
+    report_post_format_worktree_changes()
+
+
+def _allow_local_degraded() -> bool:
+    return os.environ.get("ADO_HOOK_ALLOW_LOCAL_DEGRADED", "").lower() in {
+        "1",
+        "true",
+        "yes",
+    }
+
+
+def _load_authoritative_suppression_baseline() -> dict[str, object] | None:
+    fetch = subprocess.run(
+        ["git", "fetch", "origin", "main", "--quiet"],
+        cwd=REPO_ROOT,
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        errors="replace",
+        check=False,
+    )
+    if fetch.returncode != 0:
+        message = (
+            "[pre-commit] Could not fetch origin/main for suppression baseline. "
+            "Set ADO_HOOK_ALLOW_LOCAL_DEGRADED=1 to continue in degraded mode."
         )
-        if rerun.returncode == 0:
-            safe_print("[pre-commit] formatting checks passed after restaging")
-            return
-    raise SystemExit("[pre-commit] formatting checks failed")
+        if _allow_local_degraded():
+            safe_print(f"{message} Running in degraded mode.")
+            return None
+        raise SystemExit(message)
+
+    result = subprocess.run(
+        ["git", "show", "origin/main:.suppression-baseline.json"],
+        cwd=REPO_ROOT,
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        errors="replace",
+        check=False,
+    )
+    if result.returncode != 0 or not result.stdout.strip():
+        message = (
+            "[pre-commit] origin/main:.suppression-baseline.json is unavailable. "
+            "Set ADO_HOOK_ALLOW_LOCAL_DEGRADED=1 to continue in degraded mode."
+        )
+        if _allow_local_degraded():
+            safe_print(f"{message} Running in degraded mode.")
+            return None
+        raise SystemExit(message)
+
+    baseline = json.loads(result.stdout)
+    errors = validate_baseline(baseline)
+    if errors:
+        safe_print("[pre-commit] authoritative suppression baseline is invalid:")
+        for error in errors:
+            safe_print(f"  - {error}")
+        raise SystemExit(1)
+    return baseline
+
+
+def _resolve_staged_scope(path: str) -> str | None:
+    best_scope: str | None = None
+    best_len = -1
+    for scope_name, scope_cfg in AUDIT_SCOPES.items():
+        if not path.startswith(scope_cfg["dir"]):
+            continue
+        ext_match = (scope_cfg["pattern"] == "*.py" and path.endswith(".py")) or (
+            scope_cfg["pattern"] == "*.ts" and path.endswith(".ts")
+        )
+        if not ext_match:
+            continue
+        if len(scope_cfg["dir"]) > best_len:
+            best_scope = scope_name
+            best_len = len(scope_cfg["dir"])
+    return best_scope
+
+
+def _scan_staged_suppressions() -> dict[str, list[dict[str, object]]]:
+    results: dict[str, list[dict[str, object]]] = {}
+    for path in staged_paths():
+        if not (path.endswith(".py") or path.endswith(".ts")):
+            continue
+        scope = _resolve_staged_scope(path)
+        if scope is None:
+            continue
+        content = staged_file_content(path)
+        if content is None:
+            continue
+        suppressions = scan_content(content, scope, file_path=Path(path))
+        if suppressions:
+            results[path] = suppressions
+    return results
+
+
+def _staged_suppression_delta_inputs(
+    baseline_by_file: dict[str, object],
+) -> tuple[dict[str, int], dict[str, int], list[str]]:
+    baseline_counts: dict[str, int] = {}
+    current_counts: dict[str, int] = {}
+    tokenize_errors: list[str] = []
+
+    for status, old_path, new_path in suppression_staged_name_status():
+        if status.startswith("D"):
+            if old_path.endswith((".py", ".ts")):
+                baseline_count = baseline_by_file.get(old_path, 0)
+                baseline_counts[old_path] = (
+                    baseline_count if isinstance(baseline_count, int) else 0
+                )
+                current_counts[old_path] = 0
+            continue
+
+        target_path = new_path or old_path
+        if not target_path.endswith((".py", ".ts")):
+            continue
+
+        scope = _resolve_staged_scope(target_path)
+        if scope is None:
+            continue
+        content = staged_file_content(target_path)
+        if content is None:
+            continue
+        suppressions = scan_content(content, scope, file_path=Path(target_path))
+        if any(s["type"] == "__tokenize_error__" for s in suppressions):
+            tokenize_errors.append(target_path)
+            continue
+
+        current_counts[target_path] = len(suppressions)
+        baseline_key = old_path if status.startswith("R") else target_path
+        baseline_count = baseline_by_file.get(baseline_key, 0)
+        baseline_counts[target_path] = (
+            baseline_count if isinstance(baseline_count, int) else 0
+        )
+    return baseline_counts, current_counts, tokenize_errors
+
+
+def run_staged_suppression_diff_guard() -> None:
+    baseline = _load_authoritative_suppression_baseline()
+    if baseline is None:
+        safe_print(
+            "[pre-commit] authoritative suppression baseline unavailable in degraded mode; "
+            "skipping staged suppression delta guard"
+        )
+        return
+    baseline_by_file = baseline.get("by_file", {})
+    assert isinstance(baseline_by_file, dict)
+
+    baseline_counts, current_counts, tokenize_errors = _staged_suppression_delta_inputs(
+        baseline_by_file
+    )
+    staged_baseline = dict(baseline)
+    staged_baseline["by_file"] = baseline_counts
+    staged_baseline["total"] = sum(baseline_counts.values())
+    staged_current = dict(baseline)
+    staged_current["by_file"] = current_counts
+    staged_current["total"] = sum(current_counts.values())
+
+    if tokenize_errors:
+        safe_print("[pre-commit] staged suppression scan hit tokenize errors:")
+        for file_path in tokenize_errors:
+            safe_print(f"  - {file_path}")
+        raise SystemExit(1)
+
+    diff = compute_diff(staged_baseline, staged_current)
+    if diff["delta"] > 0:
+        safe_print("[pre-commit] staged suppression increase detected:")
+        safe_print(
+            f"  baseline: {diff['baseline_total']} current: {diff['current_total']} delta: +{diff['delta']}"
+        )
+        raise SystemExit(1)
+    safe_print("[pre-commit] staged suppression guard passed")
+
+
+def run_staged_suppression_justification_guard() -> None:
+    staged_results = _scan_staged_suppressions()
+    if any(
+        supp["type"] == "__tokenize_error__"
+        for suppressions in staged_results.values()
+        for supp in suppressions
+    ):
+        raise SystemExit(1)
+    unjustified = find_unjustified_suppressions(staged_results)
+    if unjustified:
+        safe_print("[pre-commit] staged suppressions missing justification:")
+        for file_path, line_num, supp_type in unjustified:
+            safe_print(f"  {file_path}:{line_num}: {supp_type}")
+        safe_print(
+            "Required format: -- REASON: <explanation> or -- SECURITY: <explanation>"
+        )
+        raise SystemExit(1)
+    safe_print("[pre-commit] staged suppression justifications passed")
 
 
 def ensure_no_compiled_js() -> None:
@@ -213,6 +453,10 @@ def ensure_no_compiled_js() -> None:
 
 def is_ui_trigger(path: str) -> bool:
     if path.startswith("extension/ui/") and path.endswith((".ts", ".html", ".css")):
+        return True
+    if path.startswith("extension/scripts/") and path.endswith(".ts"):
+        return True
+    if path.startswith("extension/tasks/") and path.endswith(".ts"):
         return True
     if path in {
         "extension/scripts/bundle-ui.mjs",
@@ -551,15 +795,107 @@ def run_extension_config_parity() -> None:
     run_command([pnpm, "run", "test:config-parity"], cwd=EXTENSION_ROOT)
 
 
+def run_scope_coverage_guard() -> None:
+    """Verify every staged .py/.ts file belongs to a known audit scope (FR-026).
+
+    Pre-commit contract: proves "no staged file escapes audit."
+    Full-tree coverage is preflight/CI only (--check-coverage).
+    """
+    staged = staged_paths()
+    unscoped: list[str] = []
+    for path in staged:
+        if not (path.endswith(".py") or path.endswith(".ts")):
+            continue
+        # Check if any scope claims this file (longest-prefix + extension match)
+        matched = False
+        for scope_cfg in AUDIT_SCOPES.values():
+            if not path.startswith(scope_cfg["dir"]):
+                continue
+            ext_match = (scope_cfg["pattern"] == "*.py" and path.endswith(".py")) or (
+                scope_cfg["pattern"] == "*.ts" and path.endswith(".ts")
+            )
+            if ext_match:
+                matched = True
+                break
+        if not matched:
+            unscoped.append(path)
+
+    if unscoped:
+        safe_print("[pre-commit] staged file(s) not in any audit scope:")
+        for p in unscoped:
+            safe_print(f"  - {p}")
+        raise SystemExit(1)
+    safe_print("[pre-commit] scope coverage guard passed")
+
+
+def run_rule_disable_invariants_guard() -> None:
+    """Check staged Python files for unsafe subprocess/random/syspath patterns (FR-014).
+
+    Compensating guardrail for globally disabled S603/S607/S311 and importlib enforcement.
+    Uses staged_file_content() for pre-commit compatibility (R4).
+    """
+    # Load exclusions and allowlist from the guardrail module
+    guardrail_exclusions: frozenset[str] = getattr(
+        _guard_mod, "GUARDRAIL_EXCLUSIONS", frozenset()
+    )
+    load_allowlist: Callable[[], set[tuple[str, int, str]]] = getattr(
+        _guard_mod, "_load_subprocess_allowlist", lambda: set()
+    )
+    match_allowlist = getattr(_guard_mod, "_match_allowlist", lambda v, a: False)
+    subprocess_allowlist = load_allowlist()
+    staged = staged_paths()
+    raw_violations: list[dict[str, str | int]] = []
+    for path in staged:
+        if not path.endswith(".py"):
+            continue
+        normalized = path.replace("\\", "/")
+        if normalized in guardrail_exclusions:
+            continue
+        content = staged_file_content(path)
+        if content is None:
+            continue
+        raw_violations.extend(_check_subprocess_safety(path, content))
+        raw_violations.extend(_check_random_safety(path, content))
+        raw_violations.extend(_check_syspath_safety(path, content))
+
+    # Filter using the same _match_allowlist function as the CLI path
+    # Only subprocess-related violations are filtered, not random ones
+    subprocess_patterns = {
+        "subprocess with non-literal command",
+        "shell=True",
+        "os.system/popen",
+    }
+    violations: list[str] = []
+    for v in raw_violations:
+        if v["pattern"] in subprocess_patterns and match_allowlist(
+            v, subprocess_allowlist
+        ):
+            continue
+        violations.append(f"  {v['file']}:{v['line']}: {v['pattern']}")
+
+    if violations:
+        safe_print("[pre-commit] unsafe patterns detected (S603/S311 guardrail):")
+        for line in violations:
+            safe_print(line)
+        raise SystemExit(1)
+    safe_print("[pre-commit] rule-disable invariants guard passed")
+
+
 def run_pre_commit_hook() -> None:
-    safe_print("[pre-commit] running suppression audit (zero-tolerance)")
-    run_command([sys.executable, "scripts/audit-suppressions.py", "--diff"])
+    safe_print("[pre-commit] running staged suppression guard")
+    run_staged_suppression_diff_guard()
+    safe_print("[pre-commit] running staged suppression justification guard")
+    run_staged_suppression_justification_guard()
+    safe_print("[pre-commit] running Any-type ratchet (QG-40)")
+    run_command([sys.executable, "scripts/check_no_any_types.py", "--diff"])
     run_acl_health_check()
     run_pre_commit_stage()
     ensure_no_compiled_js()
     run_pnpm_lockfile_guard()
     run_npm_command_guard()
     run_pagination_token_guard()
+    run_scope_coverage_guard()
+    run_rule_disable_invariants_guard()
     run_ui_bundle_guards()
 
     staged = staged_paths()
@@ -701,7 +1037,7 @@ def _current_branch() -> str:
     if git is None:
         return ""
     try:
-        result = subprocess.run(  # noqa: S603 - git path resolved via shutil.which
+        result = subprocess.run(
             [git, "rev-parse", "--abbrev-ref", "HEAD"],
             capture_output=True,
             text=True,

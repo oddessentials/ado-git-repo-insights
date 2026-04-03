@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import hashlib
 import tempfile
+from collections.abc import Iterator
 from pathlib import Path
 
 import pytest
@@ -36,7 +37,7 @@ def hash_core_csvs(output_dir: Path) -> dict[str, str]:
 
 
 @pytest.fixture
-def db_with_varied_data() -> tuple[DatabaseManager, Path, Path]:
+def db_with_varied_data() -> Iterator[tuple[DatabaseManager, Path, Path]]:
     """Create a database with varied data to test determinism."""
     with tempfile.TemporaryDirectory() as tmpdir:
         tmp_path = Path(tmpdir)

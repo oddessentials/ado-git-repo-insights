@@ -7,35 +7,82 @@ Contract-validated output matching AggregateGenerator schema exactly.
 from __future__ import annotations
 
 import argparse
+import importlib.util
 import json
 import random
 import sys
 from dataclasses import asdict
 from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
-from typing import Any
+from types import ModuleType
+from typing import TYPE_CHECKING, Any
 
-# Add src to path before local imports
-_src_path = Path(__file__).parent.parent / "src"
-if str(_src_path) not in sys.path:
-    sys.path.insert(0, str(_src_path))
+# Load aggregators via importlib with package stubs so relative imports resolve.
+# This allows direct script execution from a plain checkout without editable install.
+_src = Path(__file__).resolve().parent.parent / "src"
+_pkg = _src / "ado_git_repo_insights"
+_transform = _pkg / "transform"
 
-from demo_generation_common import largest_remainder_allocate  # noqa: E402
+_pkg_stub = ModuleType("ado_git_repo_insights")
+_pkg_stub.__path__ = [str(_pkg)]
+sys.modules.setdefault("ado_git_repo_insights", _pkg_stub)
 
-from ado_git_repo_insights.transform.aggregators import (  # noqa: E402  # type: ignore[import-not-found]
-    AggregateIndex,
-    DatasetManifest,
-    Dimensions,
-    WeeklyRollup,
-    YearlyDistribution,
+_transform_stub = ModuleType("ado_git_repo_insights.transform")
+_transform_stub.__path__ = [str(_transform)]
+sys.modules.setdefault("ado_git_repo_insights.transform", _transform_stub)
+
+_sv_spec = importlib.util.spec_from_file_location(
+    "ado_git_repo_insights.transform.schema_versions",
+    _transform / "schema_versions.py",
 )
+assert _sv_spec is not None
+assert _sv_spec.loader is not None
+_sv_mod = importlib.util.module_from_spec(_sv_spec)
+sys.modules.setdefault("ado_git_repo_insights.transform.schema_versions", _sv_mod)
+_sv_spec.loader.exec_module(_sv_mod)
+
+if TYPE_CHECKING:
+    from ado_git_repo_insights.transform.aggregators import (
+        AggregateIndex,
+        DatasetManifest,
+        Dimensions,
+        WeeklyRollup,
+        YearlyDistribution,
+    )
+else:
+    _agg_spec = importlib.util.spec_from_file_location(
+        "ado_git_repo_insights.transform.aggregators",
+        _transform / "aggregators.py",
+    )
+    assert _agg_spec is not None
+    assert _agg_spec.loader is not None
+    _agg_mod = importlib.util.module_from_spec(_agg_spec)
+    sys.modules.setdefault("ado_git_repo_insights.transform.aggregators", _agg_mod)
+    _agg_spec.loader.exec_module(_agg_mod)
+
+    AggregateIndex = _agg_mod.AggregateIndex
+    DatasetManifest = _agg_mod.DatasetManifest
+    Dimensions = _agg_mod.Dimensions
+    WeeklyRollup = _agg_mod.WeeklyRollup
+    YearlyDistribution = _agg_mod.YearlyDistribution
+
+# Load demo_generation_common from scripts/ via importlib (avoids sys.path manipulation)
+_common_spec = importlib.util.spec_from_file_location(
+    "demo_generation_common",
+    Path(__file__).resolve().parent / "demo_generation_common.py",
+)
+assert _common_spec is not None
+assert _common_spec.loader is not None
+_common_mod = importlib.util.module_from_spec(_common_spec)
+_common_spec.loader.exec_module(_common_mod)
+largest_remainder_allocate = _common_mod.largest_remainder_allocate
 
 
 def generate_dimensions(
     pr_count: int, seed: int, num_users: int | None = None, weeks: int | None = None
 ) -> Dimensions:
     """Generate synthetic filter dimensions."""
-    rng = random.Random(seed)  # noqa: S311
+    rng = random.Random(seed)
 
     # Generate repositories (5-10 repos)
     num_repos = rng.randint(5, 10)
@@ -117,7 +164,7 @@ def generate_weekly_rollups(
     repositories: list[dict[str, str]] | None = None,
 ) -> list[dict[str, Any]]:
     """Generate weekly rollup files."""
-    rng = random.Random(seed)  # noqa: S311
+    rng = random.Random(seed)
 
     end_date = date.today()
     start_date = end_date - timedelta(weeks=weeks)
@@ -169,15 +216,19 @@ def generate_weekly_rollups(
         rollup_dict["by_team"] = {
             "Team Alpha": {
                 "pr_count": team_alpha_prs,
-                "cycle_time_p50": rollup.cycle_time_p50 * (0.8 + alpha_ratio * 0.4),
-                "cycle_time_p90": rollup.cycle_time_p90 * (0.8 + alpha_ratio * 0.4),
+                "cycle_time_p50": (rollup.cycle_time_p50 or 0.0)
+                * (0.8 + alpha_ratio * 0.4),
+                "cycle_time_p90": (rollup.cycle_time_p90 or 0.0)
+                * (0.8 + alpha_ratio * 0.4),
                 "authors_count": team_alpha_authors,
                 "reviewers_count": team_alpha_reviewers,
             },
             "Team Beta": {
                 "pr_count": team_beta_prs,
-                "cycle_time_p50": rollup.cycle_time_p50 * (1.2 - alpha_ratio * 0.4),
-                "cycle_time_p90": rollup.cycle_time_p90 * (1.2 - alpha_ratio * 0.4),
+                "cycle_time_p50": (rollup.cycle_time_p50 or 0.0)
+                * (1.2 - alpha_ratio * 0.4),
+                "cycle_time_p90": (rollup.cycle_time_p90 or 0.0)
+                * (1.2 - alpha_ratio * 0.4),
                 "authors_count": team_beta_authors,
                 "reviewers_count": team_beta_reviewers,
             },
@@ -309,8 +360,8 @@ def generate_weekly_rollups(
                 factor = 0.6 + weights[i] * len(repo_names) * 0.8
                 by_repo[name] = {
                     "pr_count": repo_prs,
-                    "cycle_time_p50": rollup.cycle_time_p50 * factor,
-                    "cycle_time_p90": rollup.cycle_time_p90 * factor,
+                    "cycle_time_p50": (rollup.cycle_time_p50 or 0.0) * factor,
+                    "cycle_time_p90": (rollup.cycle_time_p90 or 0.0) * factor,
                     "authors_count": repo_authors,
                     "reviewers_count": repo_reviewers,
                 }
@@ -342,7 +393,7 @@ def generate_distributions(
     pr_count: int, weeks: int, seed: int, output_dir: Path
 ) -> list[dict[str, Any]]:
     """Generate yearly distribution files."""
-    rng = random.Random(seed + 1000)  # noqa: S311
+    rng = random.Random(seed + 1000)
 
     end_date = date.today()
     start_date = end_date - timedelta(weeks=weeks)
@@ -426,7 +477,7 @@ def generate_comments(
 
     Returns comment statistics for the manifest coverage section.
     """
-    rng = random.Random(seed + 2000)  # noqa: S311
+    rng = random.Random(seed + 2000)
 
     comments_dir = output_dir / "aggregates" / "comments"
     comments_dir.mkdir(parents=True, exist_ok=True)

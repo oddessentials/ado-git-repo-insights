@@ -9,6 +9,7 @@ DoD 4.1: Stable Keys Enforced
 from __future__ import annotations
 
 import tempfile
+from collections.abc import Iterator
 from pathlib import Path
 
 import pytest
@@ -18,7 +19,7 @@ from ado_git_repo_insights.persistence.repository import PRRepository
 
 
 @pytest.fixture
-def db_manager() -> DatabaseManager:
+def db_manager() -> Iterator[DatabaseManager]:
     """Create a temporary database for testing."""
     with tempfile.TemporaryDirectory() as tmpdir:
         db_path = Path(tmpdir) / "test.sqlite"

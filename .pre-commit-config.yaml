@@ -1,8 +1,12 @@
-# Python hooks are executed via Husky; do not run `pre-commit install` manually.
-# This file is the single source of truth for Python checks.
-# Husky invokes pre-commit automatically on commit and push.
+# Hook invocation chain:
+#   git commit/push → .husky/pre-commit|pre-push → run_repo_hook.py
+#     → pre-commit run (this file's hooks) + custom Python gates
 #
-# NOTE: mypy is run in CI only (requires optional [ml] deps for full coverage).
+# Do NOT run `pre-commit install` — Husky manages the git hook entry points.
+# This file defines the ruff, formatting, and suppression hooks that
+# run_repo_hook.py invokes via `pre-commit run --hook-stage <stage>`.
+#
+# NOTE: mypy is Tier 2 (pre-push only) — requires [ml] optional deps.
 
 repos:
   - repo: https://github.com/astral-sh/ruff-pre-commit
@@ -47,7 +51,7 @@ repos:
         language: system
         pass_filenames: false
         always_run: true
-        stages: [pre-commit, pre-push]
+        stages: [pre-push]
 
       - id: suppression-count
         name: Suppression Count Guard
@@ -55,7 +59,7 @@ repos:
         language: system
         pass_filenames: false
         always_run: true
-        stages: [pre-commit, pre-push]
+        stages: [pre-push]
 
       - id: env-guard
         name: Environment Variable Guard

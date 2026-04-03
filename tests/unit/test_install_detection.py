@@ -26,7 +26,7 @@ class TestDetectInstallationMethod:
         with patch.object(sys, "executable", str(pipx_path)):
             with patch.object(Path, "resolve", return_value=pipx_path):
                 # Mock sys.executable directly
-                _result = detect_installation_method()  # noqa: F841 - verifies no crash
+                detect_installation_method()  # verifies no crash
                 # The result depends on actual sys.executable, so we test the helper
                 assert detect_installation_method_for_path(pipx_path) == "pipx"
 
