@@ -327,7 +327,7 @@ pnpm run package:vsix
 pip install -e ".[dev]"
 
 # Run tests
-pytest
+python scripts/run_pytest.py
 
 # Run linting
 ruff check .
@@ -338,7 +338,7 @@ ruff check .
 The public demo and CLI synthetic demo are governed by one canonical demo publish flow:
 
 ```bash
-./scripts/build-demo.sh
+python scripts/build_demo.py
 ```
 
 This rebuilds the extension UI shell, republishes the GitHub Pages demo surface, regenerates `artifacts/demo-enterprise/`, and promotes the published mirror under `docs/data/`.

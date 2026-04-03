@@ -1032,6 +1032,61 @@ jobs:
       - name: Check Baseline Integrity
         run: node .github/scripts/check-baseline-integrity.js
 
+  # Hook entrypoint stability test (T-3 in specs/049-cross-platform-hardening)
+  # Runs .husky/pre-commit end-to-end on all 3 OS to catch regressions in
+  # the sh -> Python invocation chain that unit tests cannot cover.
+  hook-entrypoint-test:
+    strategy:
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install Python dev dependencies
+        run: pip install -e .[dev]
+
+      - uses: ./.github/actions/setup-pnpm
+
+      - name: Install extension dependencies
+        working-directory: extension
+        run: pnpm install --frozen-lockfile
+
+      - name: Configure git for commit
+        run: |
+          git config user.name "CI Hook Test"
+          git config user.email "ci-hook-test@example.com"
+
+      - name: Stage a trivial change and run pre-commit hook
+        shell: bash
+        env:
+          ADO_HOOK_ALLOW_LOCAL_DEGRADED: '1'
+        run: |
+          set -euo pipefail
+          smoke_file="hook-entrypoint-smoke.txt"
+          cleanup() {
+            git reset -- "$smoke_file" >/dev/null 2>&1 || true
+            rm -f "$smoke_file"
+          }
+          trap cleanup EXIT
+          # Create a trivial staged change that is already formatter-clean.
+          printf 'hook entrypoint smoke\n' > "$smoke_file"
+          git add "$smoke_file"
+          # Run the hook directly (not via git commit, to isolate the hook test)
+          sh .husky/pre-commit 2>&1 | tee hook-output.txt
+          # Verify the hook actually ran (not a silent no-op)
+          if ! grep -q "\[pre-commit\]" hook-output.txt; then
+            echo "::error::Hook output did not contain [pre-commit] — hook may not have executed"
+            exit 1
+          fi
+          echo "[OK] Hook entrypoint test passed on ${{ matrix.os }}"
+
   # FR-034: Fresh-clone verification - proves deterministic builds without cache
   # FR-011: Also serves as Python-free test isolation enforcement
   fresh-clone-verify:

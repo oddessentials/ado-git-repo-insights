@@ -152,7 +152,7 @@ stages:
           # Node.js (required)
           - task: UseNode@1
             inputs:
-              version: '20.x'
+              version: '22.x'
 
           # Download prior database
           - task: DownloadPipelineArtifact@2
@@ -216,7 +216,7 @@ stages:
 | Requirement | Details |
 |-------------|---------|
 | **Hosted agents** | `ubuntu-latest`, `windows-latest` |
-| **Self-hosted** | Node.js 16+ |
+| **Self-hosted** | Node.js 22+ |
 | **PAT scope** | Code (Read) |
 
 ---

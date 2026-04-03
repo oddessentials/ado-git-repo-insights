@@ -30,24 +30,25 @@ tests/
 ### Python Tests
 
 ```bash
-# All tests
-pytest
-
-# With coverage
-pytest --cov=src --cov-report=term-missing
+# Supported local entrypoint (Windows-safe path, same pytest-cov semantics as CI)
+python scripts/run_pytest.py
 
 # Specific file
-pytest tests/unit/test_cli_args.py
+python scripts/run_pytest.py tests/unit/test_cli_args.py
 
 # Specific test
-pytest tests/unit/test_cli_args.py::test_parse_args_minimal
+python scripts/run_pytest.py tests/unit/test_cli_args.py::test_parse_args_minimal
 
 # Verbose
-pytest -v
+python scripts/run_pytest.py -v
 
 # Stop on first failure
-pytest -x
+python scripts/run_pytest.py -x
 ```
+
+Bare `python -m pytest` remains available for advanced/manual use, but it is not
+the hardened local dev path on Windows. Use the launcher above for routine local
+runs so temp-path and coverage behavior match the supported workflow.
 
 ### Extension Tests
 

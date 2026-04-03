@@ -86,7 +86,14 @@ known-first-party = ["ado_git_repo_insights"]
 
 [tool.pytest.ini_options]
 minversion = "7.0"
+# Keep only the persistent pytest cache in the repo root. Normal local runs
+# use pytest defaults for basetemp because forcing basetemp into repo-owned
+# per-run directories triggers Windows teardown failures at session finish.
 addopts = "-ra -q --cov=src/ado_git_repo_insights --cov-report=term-missing"
+cache_dir = ".tmp/pytest/cache"
+# Keep tmp_path directories for debugging; this does not change pytest's own
+# basetemp selection for ordinary local runs.
+tmp_path_retention_policy = "all"
 testpaths = ["tests"]
 pythonpath = ["src"]
 # Suppress ResourceWarning for unclosed database connections
@@ -151,6 +158,10 @@ warn_return_any = false
 [tool.coverage.run]
 source = ["src/ado_git_repo_insights"]
 branch = true
+# Static fallback for bare pytest (without the launcher). The documented
+# entrypoint (scripts/run_pytest.py) sets COVERAGE_FILE per-run before
+# pytest starts; preflight also overrides via COVERAGE_FILE env var.
+data_file = ".tmp/pytest/coverage/.coverage"
 
 [tool.coverage.report]
 exclude_lines = [

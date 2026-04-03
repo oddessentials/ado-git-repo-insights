@@ -8,10 +8,10 @@ How to set up a development environment for contributing to ado-git-repo-insight
 
 | Requirement | Version | Notes |
 |-------------|---------|-------|
-| Python | 3.12, 3.13, or 3.14 | |
-| Node.js | 16+ | For extension development |
+| Python | 3.12, 3.13, or 3.14 | Demo generation requires exactly 3.12 |
+| Node.js | 22 | For extension development |
 | pnpm | 9.15.0 | Enforced by `packageManager` field |
-| Git | Any recent version | |
+| Git | Any recent version | Windows: must include Git Bash |
 | gitleaks | Any recent version | Secret scanning (CI parity) — [install](https://github.com/gitleaks/gitleaks#installing) |
 
 ---
@@ -79,18 +79,18 @@ mypy src/
 
 ### Running Tests
 
-```bash
-# All tests
-pytest
+Use the launcher — it isolates coverage paths so Windows file locking
+cannot brick future runs:
 
-# With coverage
-pytest --cov=src --cov-report=term-missing
+```bash
+# All tests (with coverage)
+python scripts/run_pytest.py
 
 # Specific test file
-pytest tests/unit/test_cli_args.py
+python scripts/run_pytest.py tests/unit/test_cli_args.py
 
 # Verbose output
-pytest -v
+python scripts/run_pytest.py -v
 ```
 
 ---

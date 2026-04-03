@@ -10,31 +10,31 @@
     },
     {
       "file": "scripts/generate-synthetic-dataset.py",
-      "line": 85,
+      "line": 104,
       "code": "rng = random.Random(seed)",
       "purpose": "deterministic-seeded"
     },
     {
       "file": "scripts/generate-synthetic-dataset.py",
-      "line": 167,
+      "line": 186,
       "code": "rng = random.Random(seed)",
       "purpose": "deterministic-seeded"
     },
     {
       "file": "scripts/generate-synthetic-dataset.py",
-      "line": 396,
+      "line": 415,
       "code": "rng = random.Random(seed + 1000)",
       "purpose": "deterministic-seeded"
     },
     {
       "file": "scripts/generate-synthetic-dataset.py",
-      "line": 480,
+      "line": 499,
       "code": "rng = random.Random(seed + 2000)",
       "purpose": "deterministic-seeded"
     },
     {
       "file": "scripts/generate-synthetic-dataset.py",
-      "line": 563,
+      "line": 582,
       "code": "random.seed(seed)",
       "purpose": "deterministic-seeded"
     },

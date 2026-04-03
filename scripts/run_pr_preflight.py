@@ -30,6 +30,42 @@ PREFLIGHT_ROOT = Path(tempfile.gettempdir()) / "ado-git-repo-insights" / "pr-pre
 BASELINE_PYTHON = "3.12"
 PNPM_SENTINEL = "__PNPM__"
 
+# Exit code contract (AD-5 in specs/049-cross-platform-hardening/spec.md):
+#   GATE  = 1: Code quality regression (always fatal)
+#   SETUP = 2: Machine not ready / missing tool (always fatal)
+#   INFRA = 3: Network or environment issue (skippable in degraded mode)
+EXIT_GATE = 1
+EXIT_SETUP = 2
+EXIT_INFRA = 3
+
+
+def fail_setup(
+    message: str, *, install: str = "", required_for: str = ""
+) -> SystemExit:
+    """Build a SETUP failure (exit code 2) with actionable remediation."""
+    safe_print(f"[SETUP] {message}")
+    if install:
+        safe_print(f"  Install: {install}")
+    if required_for:
+        safe_print(f"  Required for: {required_for}")
+    return SystemExit(EXIT_SETUP)
+
+
+def fail_infra(message: str) -> SystemExit:
+    """Build an INFRA failure (exit code 3) for environment/network issues."""
+    safe_print(f"[INFRA] {message}")
+    return SystemExit(EXIT_INFRA)
+
+
+def fail_gate(message: str, *, command: str = "", fix: str = "") -> SystemExit:
+    """Build a GATE failure (exit code 1) for code quality regressions."""
+    safe_print(f"[GATE] {message}")
+    if command:
+        safe_print(f"  Command: {command}")
+    if fix:
+        safe_print(f"  Fix: {fix}")
+    return SystemExit(EXIT_GATE)
+
 
 @dataclass(frozen=True)
 class CommandSpec:
@@ -94,7 +130,7 @@ def main_branch_suppression_baseline(*, allow_local_degraded: bool) -> Path | No
         if allow_local_degraded:
             safe_print(f"[WARNING] {message} Running in degraded mode instead.")
             return None
-        raise SystemExit(message)
+        raise fail_infra(message)
     result = run_subprocess(
         ["git", "show", "origin/main:.suppression-baseline.json"],
         cwd=REPO_ROOT,
@@ -108,7 +144,7 @@ def main_branch_suppression_baseline(*, allow_local_degraded: bool) -> Path | No
         if allow_local_degraded:
             safe_print(f"[WARNING] {message} Running in degraded mode instead.")
             return None
-        raise SystemExit(message)
+        raise fail_infra(message)
     baseline_path.write_text(result.stdout, encoding="utf-8", newline="\n")
     return baseline_path
 
@@ -493,12 +529,11 @@ def emit_output(prefix: str, text: str) -> None:
 def require_success(result: CommandResult, *, step_name: str) -> None:
     if result.returncode == 0:
         return
-    safe_print(f"\n[ERROR] {step_name} failed")
-    safe_print(f"Command: {render_command(result.command)}")
-    safe_print(f"Exit code: {result.returncode}")
+    safe_print(f"\n[GATE] {step_name} failed (exit code {result.returncode})")
+    safe_print(f"  Command: {render_command(result.command)}")
     emit_output("stdout", result.stdout)
     emit_output("stderr", result.stderr)
-    raise SystemExit(result.returncode)
+    raise SystemExit(EXIT_GATE)
 
 
 def _version_at_least(version_str: str | None, minimum: str) -> bool:
@@ -523,9 +558,10 @@ def resolve_baseline_python() -> str:
         resolved = shutil.which(env_override) or env_override
         if _version_at_least(probe_python_version(resolved), BASELINE_PYTHON):
             return resolved
-        raise SystemExit(
-            "PR_PREFLIGHT_PYTHON is set, but it does not resolve to "
-            f"Python >= {BASELINE_PYTHON}: {env_override}"
+        raise fail_setup(
+            f"PR_PREFLIGHT_PYTHON is set but does not resolve to Python >= {BASELINE_PYTHON}: {env_override}",
+            install="https://python.org",
+            required_for="All local quality gates",
         )
 
     if sys.platform == "win32":
@@ -552,9 +588,10 @@ def resolve_baseline_python() -> str:
         if found and _version_at_least(probe_python_version(found), BASELINE_PYTHON):
             return found
 
-    raise SystemExit(
-        "Could not find a supported baseline interpreter for PR preflight. "
-        f"Install Python >= {BASELINE_PYTHON} or set PR_PREFLIGHT_PYTHON."
+    raise fail_setup(
+        f"Python >= {BASELINE_PYTHON} not found.",
+        install="https://python.org (Windows: ensures py launcher)",
+        required_for="All local quality gates",
     )
 
 
@@ -563,13 +600,25 @@ def resolve_pnpm() -> str:
         resolved = shutil.which(candidate)
         if resolved:
             return resolved
-    raise SystemExit("pnpm is required for PR preflight but was not found on PATH.")
+    raise fail_setup(
+        "pnpm not found on PATH.",
+        install="https://pnpm.io/installation",
+        required_for="Extension type checking, linting, and testing",
+    )
 
 
 def resolve_gitleaks() -> str | None:
     resolved = shutil.which("gitleaks")
     if resolved:
         return resolved
+    # Fallback: winget installs packages into per-package directories under
+    # %LOCALAPPDATA%\Microsoft\WinGet\Packages\ without adding them to PATH.
+    if sys.platform == "win32":
+        local_app_data = os.environ.get("LOCALAPPDATA", "")
+        if local_app_data:
+            winget_packages = Path(local_app_data) / "Microsoft" / "WinGet" / "Packages"
+            for candidate in winget_packages.glob("Gitleaks.Gitleaks_*/gitleaks.exe"):
+                return str(candidate)
     return None
 
 
@@ -593,7 +642,11 @@ def ensure_node_child_processes_work(*, allow_local_degraded: bool) -> bool:
                 + " Running in degraded mode; extension gates will be skipped."
             )
             return False
-        raise SystemExit(message)
+        raise fail_setup(
+            "Node.js not found on PATH.",
+            install="https://nodejs.org",
+            required_for="Extension type checking, linting, and testing",
+        )
 
     try:
         probe = subprocess.run(
@@ -625,7 +678,7 @@ def ensure_node_child_processes_work(*, allow_local_degraded: bool) -> bool:
             + " Running in degraded mode; extension gates will be skipped."
         )
         return False
-    raise SystemExit(message)
+    raise fail_infra(message)
 
 
 def check_runner_self(
@@ -694,19 +747,18 @@ def ensure_required_tools(*, allow_local_degraded: bool) -> tuple[bool, str | No
     )
     gitleaks = resolve_gitleaks()
     if gitleaks is None:
-        message = (
-            "gitleaks not found on PATH. Install gitleaks so the authoritative "
-            "local preflight can run the same secret scan that CI enforces: "
-            "https://github.com/gitleaks/gitleaks#installing"
-        )
+        message = "gitleaks not found on PATH."
         if allow_local_degraded:
             safe_print(
-                "[WARNING] "
-                + message
-                + " Running in degraded mode; secret scanning will be skipped."
+                f"[WARNING] {message} Running in degraded mode; "
+                "secret scanning will be skipped."
             )
         else:
-            raise SystemExit(message)
+            raise fail_infra(
+                f"{message} Install gitleaks so the authoritative local preflight "
+                "can run the same secret scan that CI enforces: "
+                "https://github.com/gitleaks/gitleaks#installing"
+            )
     return node_ok, gitleaks
 
 
@@ -826,13 +878,18 @@ def main() -> int:
         degraded_skips.append("Secret scan (gitleaks)")
 
     if degraded_skips:
+        separator = "=" * 60
+        safe_print(f"\n{separator}")
         safe_print(
-            f"\n[WARNING] {len(degraded_skips)} CI-hard gate(s) skipped in degraded mode:"
+            f"  DEGRADED MODE: {len(degraded_skips)} CI-hard gate(s) were SKIPPED"
         )
+        safe_print(separator)
         for name in degraded_skips:
             safe_print(f"  - {name}")
-        safe_print("This run is non-authoritative. CI will still enforce these gates.")
-        safe_print("\n[WARNING] Local PR preflight completed in degraded mode")
+        safe_print("")
+        safe_print("  These gates WILL be enforced by CI. This run is")
+        safe_print("  non-authoritative and must not be treated as local/CI parity.")
+        safe_print(separator)
         return 0
 
     safe_print("\n[OK] Local PR preflight passed")

@@ -37,8 +37,9 @@ class TestEnsureRequiredTools:
             patch.object(_module, "resolve_pnpm", return_value="pnpm"),
             patch.object(_module, "resolve_gitleaks", return_value=None),
         ):
-            with pytest.raises(SystemExit, match="gitleaks not found on PATH"):
+            with pytest.raises(SystemExit) as exc_info:
                 ensure_required_tools(allow_local_degraded=False)
+            assert exc_info.value.code == 3  # EXIT_INFRA
 
     def test_missing_gitleaks_allows_degraded_mode(self) -> None:
         with (
@@ -83,6 +84,18 @@ class TestBuildCommands:
             "scripts/audit-suppressions.py",
             "--check-justifications",
         )
+
+    def test_python_suite_command_keeps_preflight_temp_paths(self) -> None:
+        commands = build_commands(None, gitleaks=None)
+        spec = next(
+            command
+            for command in commands
+            if command.name == "Full Python test suite with coverage"
+        )
+
+        assert "--basetemp" in spec.command
+        assert str(_module.base_temp("python")) in spec.command
+        assert spec.extra_env == {"COVERAGE_FILE": str(_module.coverage_file("python"))}
 
 
 class TestMainBehavior:
@@ -237,7 +250,8 @@ class TestMainBehavior:
             assert main() == 0
 
         out = capsys.readouterr().out
-        assert "[WARNING] Local PR preflight completed in degraded mode" in out
+        assert "DEGRADED MODE:" in out
+        assert "CI-hard gate(s) were SKIPPED" in out
         assert "[OK] Local PR preflight passed" not in out
 
     def test_degraded_mode_reports_missing_gitleaks_in_final_summary(
@@ -276,7 +290,8 @@ class TestMainBehavior:
 
         out = capsys.readouterr().out
         assert "Secret scan (gitleaks)" in out
-        assert "[WARNING] Local PR preflight completed in degraded mode" in out
+        assert "DEGRADED MODE:" in out
+        assert "CI-hard gate(s) were SKIPPED" in out
         assert "[OK] Local PR preflight passed" not in out
 
     def test_authoritative_mode_keeps_ok_footer(

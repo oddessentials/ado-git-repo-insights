@@ -3,6 +3,7 @@
 import atexit
 import importlib.util
 import json
+import os
 import re
 import shutil
 import subprocess
@@ -56,16 +57,36 @@ def _cleanup_test_tmp_root() -> None:
 atexit.register(_cleanup_test_tmp_root)
 
 
+_ROOT = "ARTIFACT_ROOT"
+_DATA = "ARTIFACT_DATA"
+_REPORT = "ARTIFACT_REPORT"
+_METADATA = "ARTIFACT_METADATA"
+
+
+def _set_artifact_root(root: Path) -> None:
+    """Point module-level artifact paths at the provided scratch root."""
+    module = sys.modules[__name__]
+    setattr(module, _ROOT, root)
+    setattr(module, _DATA, root / "data")
+    setattr(module, _REPORT, root / "report")
+    setattr(module, _METADATA, root / "metadata")
+
+
+def _fresh_artifact_env() -> dict[str, str]:
+    """Allocate a fresh scratch artifact root for each subprocess build run."""
+    artifact_root = make_scratch_dir("artifact-root")
+    _set_artifact_root(artifact_root)
+    env = os.environ.copy()
+    env["ADO_DEMO_ARTIFACT_ROOT"] = str(artifact_root)
+    return env
+
+
 @pytest.fixture(autouse=True)
 def isolate_artifact_root(monkeypatch: pytest.MonkeyPatch) -> None:
     """Give each test a fresh canonical artifact root to avoid cross-test collisions."""
     artifact_root = make_scratch_dir("artifact-root")
     monkeypatch.setenv("ADO_DEMO_ARTIFACT_ROOT", str(artifact_root))
-    module = sys.modules[__name__]
-    monkeypatch.setattr(module, "ARTIFACT_ROOT", artifact_root)
-    monkeypatch.setattr(module, "ARTIFACT_DATA", artifact_root / "data")
-    monkeypatch.setattr(module, "ARTIFACT_REPORT", artifact_root / "report")
-    monkeypatch.setattr(module, "ARTIFACT_METADATA", artifact_root / "metadata")
+    _set_artifact_root(artifact_root)
 
 
 def load_build_module():
@@ -132,22 +153,40 @@ def run_demo_build(*, promote_dir: Path | None = None, promote: bool = False) ->
         raise AssertionError(
             "run_demo_build() cannot combine off-baseline validate-only mode with promotion"
         )
-    args = [sys.executable, str(BUILD_SCRIPT)]
-    if not _IS_BASELINE_PYTHON:
-        args.append("--validate-only")
+    env = _fresh_artifact_env()
     if promote:
         if promote_dir is None:
             raise AssertionError("promote_dir is required when promote=True")
-        args.extend(["--promote-dir", str(promote_dir)])
+        if not _IS_BASELINE_PYTHON:
+            raise AssertionError(
+                "run_demo_build() cannot combine off-baseline validate-only mode with promotion"
+            )
+        build_result = subprocess.run(
+            [sys.executable, str(BUILD_SCRIPT), "--promote-dir", str(promote_dir)],
+            cwd=REPO_ROOT,
+            env=env,
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+    elif not _IS_BASELINE_PYTHON:
+        build_result = subprocess.run(
+            [sys.executable, str(BUILD_SCRIPT), "--validate-only", "--no-promote"],
+            cwd=REPO_ROOT,
+            env=env,
+            capture_output=True,
+            text=True,
+            check=False,
+        )
     else:
-        args.append("--no-promote")
-    build_result = subprocess.run(
-        args,
-        cwd=REPO_ROOT,
-        capture_output=True,
-        text=True,
-        check=False,
-    )
+        build_result = subprocess.run(
+            [sys.executable, str(BUILD_SCRIPT), "--no-promote"],
+            cwd=REPO_ROOT,
+            env=env,
+            capture_output=True,
+            text=True,
+            check=False,
+        )
     assert build_result.returncode == 0, (
         f"build-demo-dataset.py failed: {build_result.stderr or build_result.stdout}"
     )
@@ -155,10 +194,11 @@ def run_demo_build(*, promote_dir: Path | None = None, promote: bool = False) ->
 
 def run_demo_validate_only() -> None:
     """Run validate-only mode explicitly against committed docs/data."""
-    args = [sys.executable, str(BUILD_SCRIPT), "--validate-only", "--no-promote"]
+    env = _fresh_artifact_env()
     validate_result = subprocess.run(
-        args,
+        [sys.executable, str(BUILD_SCRIPT), "--validate-only", "--no-promote"],
         cwd=REPO_ROOT,
+        env=env,
         capture_output=True,
         text=True,
         check=False,
@@ -171,9 +211,11 @@ def run_demo_validate_only() -> None:
 
 def run_demo_validate_only_with_promote() -> subprocess.CompletedProcess[str]:
     """Run validate-only mode without --no-promote to assert it is rejected."""
+    env = _fresh_artifact_env()
     return subprocess.run(
         [sys.executable, str(BUILD_SCRIPT), "--validate-only"],
         cwd=REPO_ROOT,
+        env=env,
         capture_output=True,
         text=True,
         check=False,
@@ -269,7 +311,8 @@ class TestCanonicalArtifactRoot:
         assert "stale-dir/nested" in removed_dirs
         assert "stale-dir" in removed_dirs
 
-    def test_validate_only_cleans_stale_canonical_artifacts(self) -> None:
+    def test_validate_only_uses_fresh_artifact_root_without_stale_leakage(self) -> None:
+        stale_root = ARTIFACT_ROOT
         ARTIFACT_DATA.mkdir(parents=True, exist_ok=True)
         ARTIFACT_REPORT.mkdir(parents=True, exist_ok=True)
         ARTIFACT_METADATA.mkdir(parents=True, exist_ok=True)
@@ -291,6 +334,8 @@ class TestCanonicalArtifactRoot:
 
         run_demo_validate_only()
 
+        assert ARTIFACT_ROOT != stale_root
+        assert (ARTIFACT_DATA / "dataset-manifest.json").exists()
         assert not (ARTIFACT_DATA / "stale.json").exists()
         assert not (ARTIFACT_REPORT / "stale.json").exists()
         assert not (ARTIFACT_METADATA / "stale.json").exists()

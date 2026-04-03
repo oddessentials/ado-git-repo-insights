@@ -263,6 +263,21 @@ class TestPrecommitParity:
         assert "exit 1" in run_block
         assert "origin/main:.suppression-baseline.json is required" in run_block
 
+
+class TestHookEntrypointSmoke:
+    def test_hook_entrypoint_uses_disposable_formatter_clean_fixture(self) -> None:
+        run_block = str(
+            _find_ci_step(
+                "hook-entrypoint-test",
+                "Stage a trivial change and run pre-commit hook",
+            )["run"]
+        )
+
+        assert 'smoke_file="hook-entrypoint-smoke.txt"' in run_block
+        assert "printf 'hook entrypoint smoke\\n' > \"$smoke_file\"" in run_block
+        assert 'git add "$smoke_file"' in run_block
+        assert "CONTRIBUTING.md" not in run_block
+
     def test_extension_helper_commands_match_preflight_and_ci(self) -> None:
         preflight = _normalized_preflight_commands()
 

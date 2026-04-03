@@ -8,6 +8,12 @@
       "reason": "Repo-owned script path constructed from constants"
     },
     {
+      "file": "scripts/build_demo.py",
+      "line": 159,
+      "code": "result = subprocess.run(",
+      "reason": "run_step() helper: command list from callers (repo-owned tools only)"
+    },
+    {
       "file": "scripts/check_threshold_changes.py",
       "line": 40,
       "code": "result = subprocess.run(",
@@ -27,19 +33,19 @@
     },
     {
       "file": "scripts/run_pr_preflight.py",
-      "line": 457,
+      "line": 493,
       "code": "completed = subprocess.run(",
       "reason": "CommandSpec-driven command list from build_commands()"
     },
     {
       "file": "scripts/run_repo_hook.py",
-      "line": 88,
+      "line": 96,
       "code": "result = subprocess.run(",
       "reason": "run_command() helper: command list from callers"
     },
     {
       "file": "scripts/run_repo_hook.py",
-      "line": 169,
+      "line": 192,
       "code": "result = subprocess.run(",
       "reason": "staged_file_content(): git show with repo-owned path"
     },

@@ -245,8 +245,9 @@ class TestStagedSuppressionGuards:
             patch("subprocess.run", return_value=fetch_result),
             patch.dict("os.environ", {}, clear=False),
         ):
-            with pytest.raises(SystemExit, match="Could not fetch origin/main"):
+            with pytest.raises(SystemExit) as exc_info:
                 _hook_module._load_authoritative_suppression_baseline()
+            assert exc_info.value.code == 3  # EXIT_INFRA
 
     def test_authoritative_baseline_loader_allows_explicit_degraded_mode(self) -> None:
         fetch_result = type(
@@ -459,3 +460,69 @@ class TestPathspecsMatchRealFiles:
         """types/ must be empty — custom declarations replaced by SDK-provided types."""
         files = self._git_ls_files("types/*.d.ts")
         assert len(files) == 0, f"Unexpected .d.ts files in types/: {files}"
+
+
+_acl_write_probe = _hook_module._acl_write_probe
+run_acl_health_check = _hook_module.run_acl_health_check
+
+
+class TestAclWriteProbe:
+    """Tests for the Python ACL write-probe that replaced check-git-acl-health.ps1."""
+
+    def test_returns_none_for_nonexistent_directory(self, tmp_path: Path) -> None:
+        missing = tmp_path / "does-not-exist"
+        assert _acl_write_probe(missing) is None
+
+    def test_returns_none_for_writable_directory(self, tmp_path: Path) -> None:
+        assert _acl_write_probe(tmp_path) is None
+
+    def test_probe_file_is_cleaned_up(self, tmp_path: Path) -> None:
+        _acl_write_probe(tmp_path)
+        assert not (tmp_path / ".acl-probe.tmp").exists()
+
+    def test_returns_error_message_on_permission_failure(self, tmp_path: Path) -> None:
+        target = tmp_path / "locked"
+        target.mkdir()
+        with patch.object(
+            Path, "write_text", side_effect=PermissionError("Access denied")
+        ):
+            result = _acl_write_probe(target)
+        assert result is not None
+        assert "Access denied" in result
+
+
+class TestRunAclHealthCheck:
+    """Integration tests for run_acl_health_check."""
+
+    def test_is_noop_on_non_windows(self) -> None:
+        with patch.object(_hook_module, "os") as mock_os:
+            mock_os.name = "posix"
+            run_acl_health_check()  # should return immediately
+
+    def test_passes_when_all_probes_succeed(self) -> None:
+        with (
+            patch.object(_hook_module, "os") as mock_os,
+            patch.object(_hook_module, "_acl_write_probe", return_value=None),
+            patch.object(_hook_module, "REPO_ROOT", Path("/fake/repo")),
+        ):
+            mock_os.name = "nt"
+            # Mock iterdir to return no .pytest-tmp dirs
+            with patch.object(Path, "iterdir", return_value=[]):
+                run_acl_health_check()
+
+    def test_fails_when_probe_returns_error(self) -> None:
+        with (
+            patch.object(_hook_module, "os") as mock_os,
+            patch.object(
+                _hook_module,
+                "_acl_write_probe",
+                return_value="Permission denied",
+            ),
+            patch.object(_hook_module, "REPO_ROOT", Path("/fake/repo")),
+        ):
+            mock_os.name = "nt"
+            with (
+                patch.object(Path, "iterdir", return_value=[]),
+                pytest.raises(SystemExit),
+            ):
+                run_acl_health_check()
