@@ -49,6 +49,12 @@ if TYPE_CHECKING:
         WeeklyRollup,
         YearlyDistribution,
     )
+    from ado_git_repo_insights.types import (
+        ProjectRecord,
+        RepositoryRecord,
+        TeamRecord,
+        UserRecord,
+    )
 else:
     _agg_spec = importlib.util.spec_from_file_location(
         "ado_git_repo_insights.transform.aggregators",
@@ -86,7 +92,7 @@ def generate_dimensions(
 
     # Generate repositories (5-10 repos)
     num_repos = rng.randint(5, 10)
-    repositories = []
+    repositories: list[RepositoryRecord] = []
     for i in range(num_repos):
         repositories.append(
             {
@@ -100,19 +106,19 @@ def generate_dimensions(
     # Generate users
     if num_users is None:
         num_users = min(200, max(10, pr_count // 10))
-    users = []
+    users: list[UserRecord] = []
     for i in range(num_users):
         users.append({"user_id": f"user-{i + 1}", "display_name": f"User {i + 1}"})
 
     # Generate projects
-    projects = [
+    projects: list[ProjectRecord] = [
         {"organization_name": "SyntheticOrg", "project_name": "Project-1"},
         {"organization_name": "SyntheticOrg", "project_name": "Project-2"},
         {"organization_name": "SyntheticOrg", "project_name": "Project-3"},
     ]
 
     # Generate teams
-    teams = [
+    teams: list[TeamRecord] = [
         {
             "team_id": "team-1",
             "team_name": "Team Alpha",
@@ -161,7 +167,7 @@ def generate_weekly_rollups(
     seed: int,
     output_dir: Path,
     num_users: int = 30,
-    repositories: list[dict[str, str]] | None = None,
+    repositories: list[RepositoryRecord] | None = None,
 ) -> list[dict[str, Any]]:
     """Generate weekly rollup files."""
     rng = random.Random(seed)
@@ -466,7 +472,7 @@ def generate_distributions(
 def generate_comments(
     pr_count: int,
     seed: int,
-    users: list[dict[str, str]],
+    users: list[UserRecord],
     output_dir: Path,
     batch_size: int = 100,
 ) -> dict[str, Any]:

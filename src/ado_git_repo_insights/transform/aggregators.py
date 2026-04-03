@@ -24,6 +24,14 @@ from typing import TYPE_CHECKING, Any, cast
 import numpy as np
 import pandas as pd
 
+from ..types import (
+    AuthorRecord,
+    ProjectRecord,
+    RepositoryRecord,
+    ReviewerRecord,
+    TeamRecord,
+    UserRecord,
+)
 from .schema_versions import (
     AGGREGATES_SCHEMA_VERSION,
     DATASET_SCHEMA_VERSION,
@@ -96,13 +104,79 @@ class YearlyDistribution:
 class Dimensions:
     """Filter dimensions for UI."""
 
-    repositories: list[dict[str, Any]] = field(default_factory=list)
-    users: list[dict[str, Any]] = field(default_factory=list)
-    authors: list[dict[str, Any]] = field(default_factory=list)
-    reviewers: list[dict[str, Any]] = field(default_factory=list)
-    projects: list[dict[str, Any]] = field(default_factory=list)
-    teams: list[dict[str, Any]] = field(default_factory=list)  # Phase 3.3
+    repositories: list[RepositoryRecord] = field(default_factory=list)
+    users: list[UserRecord] = field(default_factory=list)
+    authors: list[AuthorRecord] = field(default_factory=list)
+    reviewers: list[ReviewerRecord] = field(default_factory=list)
+    projects: list[ProjectRecord] = field(default_factory=list)
+    teams: list[TeamRecord] = field(default_factory=list)  # Phase 3.3
     date_range: dict[str, str] = field(default_factory=dict)
+
+
+# ---------------------------------------------------------------------------
+# Per-entity DataFrame → typed record conversion functions (FR-014)
+# ---------------------------------------------------------------------------
+
+
+def _df_to_repository_records(df: pd.DataFrame) -> list[RepositoryRecord]:
+    """Narrow repositories DataFrame to typed records."""
+    return [
+        RepositoryRecord(
+            repository_id=r["repository_id"],
+            repository_name=r["repository_name"],
+            project_name=r["project_name"],
+            organization_name=r["organization_name"],
+        )
+        for r in df.to_dict(orient="records")
+    ]
+
+
+def _df_to_user_records(df: pd.DataFrame) -> list[UserRecord]:
+    """Narrow users DataFrame to typed records."""
+    return [
+        UserRecord(user_id=r["user_id"], display_name=r["display_name"])
+        for r in df.to_dict(orient="records")
+    ]
+
+
+def _df_to_author_records(df: pd.DataFrame) -> list[AuthorRecord]:
+    """Narrow users DataFrame to author records (renamed fields)."""
+    return [
+        AuthorRecord(author_id=r["user_id"], author_name=r["display_name"])
+        for r in df.to_dict(orient="records")
+    ]
+
+
+def _df_to_reviewer_records(df: pd.DataFrame) -> list[ReviewerRecord]:
+    """Narrow reviewers DataFrame to typed records."""
+    return [
+        ReviewerRecord(reviewer_id=r["reviewer_id"], reviewer_name=r["reviewer_name"])
+        for r in df.to_dict(orient="records")
+    ]
+
+
+def _df_to_project_records(df: pd.DataFrame) -> list[ProjectRecord]:
+    """Narrow projects DataFrame to typed records."""
+    return [
+        ProjectRecord(
+            organization_name=r["organization_name"], project_name=r["project_name"]
+        )
+        for r in df.to_dict(orient="records")
+    ]
+
+
+def _df_to_team_records(df: pd.DataFrame) -> list[TeamRecord]:
+    """Narrow teams DataFrame to typed records."""
+    return [
+        TeamRecord(
+            team_id=r["team_id"],
+            team_name=r["team_name"],
+            project_name=r["project_name"],
+            organization_name=r["organization_name"],
+            member_count=r["member_count"],
+        )
+        for r in df.to_dict(orient="records")
+    ]
 
 
 @dataclass
@@ -479,39 +553,13 @@ class AggregateGenerator:
             logger.debug(f"Teams table not available (legacy DB?): {e}")
             teams_df = pd.DataFrame()
 
-        # Cast pandas dict records to list[dict[str, Any]] for type safety
-        # pandas to_dict returns dict[Hashable, Any], we need dict[str, Any]
-        repos_records: list[dict[str, Any]] = [
-            {str(k): v for k, v in r.items()}
-            for r in repos_df.to_dict(orient="records")
-        ]
-        users_records: list[dict[str, Any]] = [
-            {str(k): v for k, v in r.items()}
-            for r in users_df.to_dict(orient="records")
-        ]
-        author_records: list[dict[str, Any]] = [
-            {
-                "author_id": str(r["user_id"]),
-                "author_name": r["display_name"],
-            }
-            for r in authors_df.to_dict(orient="records")
-        ]
-        reviewers_records: list[dict[str, Any]] = [
-            {str(k): v for k, v in r.items()}
-            for r in reviewers_df.to_dict(orient="records")
-        ]
-        projects_records: list[dict[str, Any]] = [
-            {str(k): v for k, v in r.items()}
-            for r in projects_df.to_dict(orient="records")
-        ]
-        teams_records: list[dict[str, Any]] = (
-            [
-                {str(k): v for k, v in r.items()}
-                for r in teams_df.to_dict(orient="records")
-            ]
-            if not teams_df.empty
-            else []
-        )
+        # Convert DataFrames to typed entity records (FR-014)
+        repos_records = _df_to_repository_records(repos_df)
+        users_records = _df_to_user_records(users_df)
+        author_records = _df_to_author_records(authors_df)
+        reviewers_records = _df_to_reviewer_records(reviewers_df)
+        projects_records = _df_to_project_records(projects_df)
+        teams_records = _df_to_team_records(teams_df) if not teams_df.empty else []
         return Dimensions(
             repositories=repos_records,
             users=users_records,

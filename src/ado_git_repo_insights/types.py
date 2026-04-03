@@ -201,3 +201,55 @@ class MetricForecastDict(TypedDict):
     unit: str
     horizon_weeks: int
     values: list[ForecastValue]
+
+
+# ---------------------------------------------------------------------------
+# Dimension entity record types (P5a — aggregators.py Dimensions dataclass)
+# ---------------------------------------------------------------------------
+
+
+class RepositoryRecord(TypedDict):
+    """Repository dimension record from ``SELECT ... FROM repositories``."""
+
+    repository_id: str
+    repository_name: str
+    project_name: str
+    organization_name: str
+
+
+class UserRecord(TypedDict):
+    """User dimension record from ``SELECT ... FROM users JOIN pull_requests``."""
+
+    user_id: str
+    display_name: str
+
+
+class AuthorRecord(TypedDict):
+    """Author dimension record (renamed user fields for UI)."""
+
+    author_id: str
+    author_name: str
+
+
+class ReviewerRecord(TypedDict):
+    """Reviewer dimension record from ``SELECT ... FROM reviewers JOIN users``."""
+
+    reviewer_id: str
+    reviewer_name: str
+
+
+class ProjectRecord(TypedDict):
+    """Project dimension record from ``SELECT ... FROM projects``."""
+
+    organization_name: str
+    project_name: str
+
+
+class TeamRecord(TypedDict):
+    """Team dimension record with aggregated member count."""
+
+    team_id: str
+    team_name: str
+    project_name: str
+    organization_name: str
+    member_count: int
