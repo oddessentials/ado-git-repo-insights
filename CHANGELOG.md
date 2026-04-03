@@ -1,3 +1,41 @@
+# [99.34.0](https://github.com/oddessentials/ado-git-repo-insights/compare/v99.33.2...v99.34.0) (2026-04-03)
+
+
+### Bug Fixes
+
+* accurate new-file delta counting and IndentationError handling in audit ([#232](https://github.com/oddessentials/ado-git-repo-insights/issues/232)) ([9351b41](https://github.com/oddessentials/ado-git-repo-insights/commit/9351b41f27ded6e7cfac1bc3ed83b2d78071d39d))
+* close local-ci suppression parity gaps and harden audit tests ([218b37f](https://github.com/oddessentials/ado-git-repo-insights/commit/218b37fddb4b31e27334bdf91dadec737c28695d))
+* close suppression parity gaps for renames and ci baseline loading ([35707ab](https://github.com/oddessentials/ado-git-repo-insights/commit/35707abd6fed03c7e5a9face5269f179d103f981))
+* code review ([86f9fb8](https://github.com/oddessentials/ado-git-repo-insights/commit/86f9fb85c47256141b9fc30ba34b920724e2c31e))
+* codex ([688155b](https://github.com/oddessentials/ado-git-repo-insights/commit/688155bf9835726d323ea5eaefc17fdcc18641ca))
+* codex errors ([37e3787](https://github.com/oddessentials/ado-git-repo-insights/commit/37e3787ad5728d889d06d96742ead168256cfb6f))
+* enable check_untyped_defs for tests/ and scripts/ — catch real type errors ([#232](https://github.com/oddessentials/ado-git-repo-insights/issues/232)) ([2da4341](https://github.com/oddessentials/ado-git-repo-insights/commit/2da43417e0f15d2907d22e025a39a4c544e650e4))
+* fail suppression diff on missing baseline scopes ([a7b9f52](https://github.com/oddessentials/ado-git-repo-insights/commit/a7b9f52e636086b0d95b69c0847aa24742b7f9d5))
+* harden local/CI parity — 12-step quality gate enforcement ([#232](https://github.com/oddessentials/ado-git-repo-insights/issues/232)) ([733f8d4](https://github.com/oddessentials/ado-git-repo-insights/commit/733f8d458beb50ece63a680c7e51de9e42154c85))
+* harden quality gates — importlib migration, semantic artifact verify, diff-mode Any ratchet ([#232](https://github.com/oddessentials/ado-git-repo-insights/issues/232)) ([2d5d18c](https://github.com/oddessentials/ado-git-repo-insights/commit/2d5d18c5d41dfd4d8c746f8ce88fc3454cc73404))
+* harden subprocess allowlist with (file,line,code) triples and fix shell=True false positive ([#232](https://github.com/oddessentials/ado-git-repo-insights/issues/232)) ([a59fbca](https://github.com/oddessentials/ado-git-repo-insights/commit/a59fbcae0664ae9bcf6d4e7b86593aaa458738ef))
+* make scripts/ mypy override effective by adding __init__.py ([#232](https://github.com/oddessentials/ado-git-repo-insights/issues/232)) ([4892649](https://github.com/oddessentials/ado-git-repo-insights/commit/489264974dc588b58d39ae7218a2ef5f2208ae23))
+* preflight fails closed, TS ratchets to zero, lint covers all scopes ([#232](https://github.com/oddessentials/ado-git-repo-insights/issues/232)) ([48ddb1a](https://github.com/oddessentials/ado-git-repo-insights/commit/48ddb1aafadcc1fec98b31649e3c6542f500cdde))
+* prevent scan_codebase scope overlap from dropping child-scope suppressions and restore preflight parity ([#232](https://github.com/oddessentials/ado-git-repo-insights/issues/232)) ([2961864](https://github.com/oddessentials/ado-git-repo-insights/commit/2961864188f7c7f2dd29802bb0eb0474a8bd50f6))
+* relax artifact verification to ignore line drift, add check_test_patterns to ScopeConfig ([#232](https://github.com/oddessentials/ado-git-repo-insights/issues/232)) ([8ea7ffe](https://github.com/oddessentials/ado-git-repo-insights/commit/8ea7ffe486f5d6d158dfa280637c7be5a4c35e9b))
+* remove rename double-count bypass in staged suppression delta ([#232](https://github.com/oddessentials/ado-git-repo-insights/issues/232)) ([b535446](https://github.com/oddessentials/ado-git-repo-insights/commit/b53544617e342a7a1d92ca606c99fda13ba47272))
+* restore delete-safe hooks and fetch main baseline in ci ([7135a1d](https://github.com/oddessentials/ado-git-repo-insights/commit/7135a1d686d0241d321af1b1208b8f0037d35cc3))
+* restore script bootstraps and fail on missing proof artifacts ([#232](https://github.com/oddessentials/ado-git-repo-insights/issues/232)) ([f2c7433](https://github.com/oddessentials/ado-git-repo-insights/commit/f2c74337802103b84348996fa1c1dc6dc25c44dd))
+* strengthen guardrails to cover dynamic subprocess, module-level random, and full artifact content ([#232](https://github.com/oddessentials/ado-git-repo-insights/issues/232)) ([c064ba0](https://github.com/oddessentials/ado-git-repo-insights/commit/c064ba02f75f38fd72a1c9391fe5f1227a6e9a8a))
+* tolerate legacy zero-count suppression scopes in main baseline ([ecd6318](https://github.com/oddessentials/ado-git-repo-insights/commit/ecd631889e2dbeddf322a82ed429b1e230a81712))
+* tolerate legacy zero-count suppression scopes in main baseline ([25f0ea9](https://github.com/oddessentials/ado-git-repo-insights/commit/25f0ea9b7c937af0df6eea1be3c4e58ac3c30bae))
+
+
+### Features
+
+* disable S603/S607/S311 with proof artifacts and compensating guardrails ([#232](https://github.com/oddessentials/ado-git-repo-insights/issues/232)) ([f24d1ff](https://github.com/oddessentials/ado-git-repo-insights/commit/f24d1ff7a5c4a492eff78081aeb3b56f0e5aa9f4))
+* expand suppression audit with tokenize scanner, file coverage, and two-phase gating ([#232](https://github.com/oddessentials/ado-git-repo-insights/issues/232)) ([629c9ee](https://github.com/oddessentials/ado-git-repo-insights/commit/629c9ee6bacefde65f1f29d141268818a73e7b17))
+* extend mypy to tests/ and scripts/ — zero errors across 153 files ([#232](https://github.com/oddessentials/ado-git-repo-insights/issues/232)) ([fcce6bb](https://github.com/oddessentials/ado-git-repo-insights/commit/fcce6bb7acb8f33694ea8564d7544ca6766366c2))
+* reach baseline 0 — resolve final 10 suppressions, activate all gates, staleness check ([#232](https://github.com/oddessentials/ado-git-repo-insights/issues/232)) ([018bd59](https://github.com/oddessentials/ado-git-repo-insights/commit/018bd59d90611a85ef19c9a6679923750a32cf30))
+* register scope coverage in all entry points — pre-commit, preflight, CI ([#232](https://github.com/oddessentials/ado-git-repo-insights/issues/232)) ([84c4055](https://github.com/oddessentials/ado-git-repo-insights/commit/84c40554a29760ee8a871603244bf76a7fd41ea9))
+* replace bare ModuleType with typed subclasses — remove 7 type:ignore[attr-defined] ([#232](https://github.com/oddessentials/ado-git-repo-insights/issues/232)) ([3896c59](https://github.com/oddessentials/ado-git-repo-insights/commit/3896c597b784782d6ac8d503b8ff66aada4d3461))
+* resolve 35 suppressions — S105 renames, dead S603, N817, F841, F401, S110, type guards ([#232](https://github.com/oddessentials/ado-git-repo-insights/issues/232)) ([ae7235b](https://github.com/oddessentials/ado-git-repo-insights/commit/ae7235b257eed4028dac238f900a420514b55534))
+
 ## [5.33.2](https://github.com/oddessentials/ado-git-repo-insights/compare/v5.33.1...v5.33.2) (2026-03-30)
 
 
