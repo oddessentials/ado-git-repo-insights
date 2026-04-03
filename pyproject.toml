@@ -159,6 +159,9 @@ warn_return_any = false
 [tool.coverage.run]
 source = ["src/ado_git_repo_insights"]
 branch = true
+# parallel = true: write per-process shards, never erase/combine/delete
+# during the run. Prevents Windows lock failures on shard cleanup.
+parallel = true
 # Static fallback for bare pytest (without the launcher). The documented
 # entrypoint (scripts/run_pytest.py) sets COVERAGE_FILE per-run before
 # pytest starts; preflight also overrides via COVERAGE_FILE env var.

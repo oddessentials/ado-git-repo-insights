@@ -1,10 +1,9 @@
 #!/usr/bin/env python3
 """Launch pytest with per-run isolated coverage paths.
 
-This is the documented local test entrypoint. It sets COVERAGE_FILE to a
-unique per-run path under .tmp/pytest/runs/ before pytest starts loading
-plugins, so pytest-cov never binds to a shared file that can be locked on
-Windows.
+This is the documented local test entrypoint. It sets COVERAGE_FILE and
+COVERAGE_NO_CLEANUP before pytest starts loading plugins, so pytest-cov
+never binds to a shared file and never fails deleting locked shards.
 
 Usage:
     python scripts/run_pytest.py                    # full suite
@@ -27,13 +26,16 @@ _TMP_ROOT = _REPO_ROOT / ".tmp" / "pytest"
 
 
 def main() -> int:
-    # Set per-run unique COVERAGE_FILE before pytest loads any plugins.
+    # Per-run unique COVERAGE_FILE — set before pytest loads any plugins.
     # Preflight sets its own COVERAGE_FILE; don't override it.
     if "COVERAGE_FILE" not in os.environ:
         run_id = f"run-{os.getpid()}-{int(time.time())}"
         run_dir = _TMP_ROOT / "runs" / run_id
         run_dir.mkdir(parents=True, exist_ok=True)
         os.environ["COVERAGE_FILE"] = str(run_dir / ".coverage")
+
+    # Prevent coverage from failing on shard deletion during erase/combine.
+    os.environ.setdefault("COVERAGE_NO_CLEANUP", "1")
 
     import pytest
 
