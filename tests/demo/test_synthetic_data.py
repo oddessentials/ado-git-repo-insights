@@ -11,7 +11,6 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
-from typing import Any
 
 import pytest
 
@@ -27,7 +26,7 @@ SCHEMAS_DIR = REPO_ROOT / "schemas"
 
 
 @pytest.fixture
-def manifest() -> dict[str, Any]:
+def manifest() -> dict:
     """Load dataset manifest."""
     manifest_path = DOCS_DATA / "dataset-manifest.json"
     with open(manifest_path, encoding="utf-8") as f:
@@ -35,7 +34,7 @@ def manifest() -> dict[str, Any]:
 
 
 @pytest.fixture
-def dimensions() -> dict[str, Any]:
+def dimensions() -> dict:
     """Load dimensions file."""
     dimensions_path = DOCS_DATA / "aggregates" / "dimensions.json"
     with open(dimensions_path, encoding="utf-8") as f:
@@ -43,7 +42,7 @@ def dimensions() -> dict[str, Any]:
 
 
 @pytest.fixture
-def predictions() -> dict[str, Any]:
+def predictions() -> dict:
     """Load predictions file."""
     predictions_path = DOCS_DATA / "predictions" / "trends.json"
     with open(predictions_path, encoding="utf-8") as f:
@@ -51,7 +50,7 @@ def predictions() -> dict[str, Any]:
 
 
 @pytest.fixture
-def insights() -> dict[str, Any]:
+def insights() -> dict:
     """Load insights file."""
     insights_path = DOCS_DATA / "insights" / "summary.json"
     with open(insights_path, encoding="utf-8") as f:
@@ -66,7 +65,7 @@ def insights() -> dict[str, Any]:
 class TestSchemaValidation:
     """T052: Validate all JSON files against schemas."""
 
-    def test_manifest_has_required_fields(self, manifest: dict[str, Any]) -> None:
+    def test_manifest_has_required_fields(self, manifest: dict) -> None:
         """Manifest has all required top-level fields."""
         required = [
             "dataset_schema_version",
@@ -83,7 +82,7 @@ class TestSchemaValidation:
         for field in required:
             assert field in manifest, f"Missing required field: {field}"
 
-    def test_manifest_features_structure(self, manifest: dict[str, Any]) -> None:
+    def test_manifest_features_structure(self, manifest: dict) -> None:
         """Manifest features have expected structure."""
         features = manifest["features"]
         assert isinstance(features.get("teams"), bool)
@@ -91,7 +90,7 @@ class TestSchemaValidation:
         assert isinstance(features.get("predictions"), bool)
         assert isinstance(features.get("ai_insights"), bool)
 
-    def test_manifest_aggregate_index(self, manifest: dict[str, Any]) -> None:
+    def test_manifest_aggregate_index(self, manifest: dict) -> None:
         """Manifest aggregate_index has weekly_rollups and distributions."""
         agg_index = manifest["aggregate_index"]
         assert "weekly_rollups" in agg_index
@@ -99,7 +98,7 @@ class TestSchemaValidation:
         assert len(agg_index["weekly_rollups"]) == 260
         assert len(agg_index["distributions"]) == 5
 
-    def test_dimensions_has_required_fields(self, dimensions: dict[str, Any]) -> None:
+    def test_dimensions_has_required_fields(self, dimensions: dict) -> None:
         """Dimensions file has projects, repositories, users, and date_range."""
         # Note: organizations are derived from projects, not stored separately
         required = ["projects", "repositories", "users", "date_range"]
@@ -163,7 +162,7 @@ class TestSchemaValidation:
             for field in required:
                 assert field in dist, f"Missing {field} in {year}.json"
 
-    def test_predictions_schema(self, predictions: dict[str, Any]) -> None:
+    def test_predictions_schema(self, predictions: dict) -> None:
         """Predictions file has required structure."""
         required = ["schema_version", "generated_at", "forecasts"]
         for field in required:
@@ -177,7 +176,7 @@ class TestSchemaValidation:
             assert "values" in forecast
             assert len(forecast["values"]) == 12  # 12-week horizon
 
-    def test_insights_schema(self, insights: dict[str, Any]) -> None:
+    def test_insights_schema(self, insights: dict) -> None:
         """Insights file has required structure."""
         required = ["schema_version", "generated_at", "insights"]
         for field in required:
@@ -224,12 +223,12 @@ class TestDateRangeCoverage:
         assert len(actual_weeks) == 260
         assert actual_weeks == expected_weeks
 
-    def test_first_week_is_2021_w01(self, manifest: dict[str, Any]) -> None:
+    def test_first_week_is_2021_w01(self, manifest: dict) -> None:
         """First week in manifest is 2021-W01."""
         first_rollup = manifest["aggregate_index"]["weekly_rollups"][0]
         assert first_rollup["week"] == "2021-W01"
 
-    def test_last_week_is_2025_w52(self, manifest: dict[str, Any]) -> None:
+    def test_last_week_is_2025_w52(self, manifest: dict) -> None:
         """Last week in manifest is 2025-W52."""
         last_rollup = manifest["aggregate_index"]["weekly_rollups"][-1]
         assert last_rollup["week"] == "2025-W52"
@@ -250,34 +249,34 @@ class TestDateRangeCoverage:
 class TestEntityCounts:
     """T054: Verify entity counts match spec requirements."""
 
-    def test_organization_count(self, dimensions: dict[str, Any]) -> None:
+    def test_organization_count(self, dimensions: dict) -> None:
         """Exactly 3 organizations exist (derived from projects)."""
         # Organizations are derived from projects, not stored separately
         org_names = {proj["organization_name"] for proj in dimensions["projects"]}
         assert len(org_names) == 3, f"Expected 3 orgs, got {len(org_names)}"
 
-    def test_project_count(self, dimensions: dict[str, Any]) -> None:
+    def test_project_count(self, dimensions: dict) -> None:
         """Exactly 8 projects exist."""
         projects = dimensions["projects"]
         assert len(projects) == 8, f"Expected 8 projects, got {len(projects)}"
 
-    def test_repository_count(self, dimensions: dict[str, Any]) -> None:
+    def test_repository_count(self, dimensions: dict) -> None:
         """At least 20 repositories exist."""
         repos = dimensions["repositories"]
         assert len(repos) >= 20, f"Expected >=20 repos, got {len(repos)}"
 
-    def test_user_count(self, dimensions: dict[str, Any]) -> None:
+    def test_user_count(self, dimensions: dict) -> None:
         """Exactly 200 users exist."""
         users = dimensions["users"]
         assert len(users) == 200, f"Expected 200 users, got {len(users)}"
 
-    def test_organization_names(self, dimensions: dict[str, Any]) -> None:
+    def test_organization_names(self, dimensions: dict) -> None:
         """Organizations have expected names (derived from projects)."""
         org_names = {proj["organization_name"] for proj in dimensions["projects"]}
         expected = {"acme-corp", "contoso-dev", "fabrikam-eng"}
         assert org_names == expected
 
-    def test_projects_distributed_across_orgs(self, dimensions: dict[str, Any]) -> None:
+    def test_projects_distributed_across_orgs(self, dimensions: dict) -> None:
         """Projects are distributed across all 3 organizations."""
         orgs_with_projects = {
             proj["organization_name"] for proj in dimensions["projects"]
@@ -293,7 +292,7 @@ class TestEntityCounts:
 class TestDataQuality:
     """Additional quality checks for synthetic data."""
 
-    def test_pr_counts_have_variation(self, manifest: dict[str, Any]) -> None:
+    def test_pr_counts_have_variation(self, manifest: dict) -> None:
         """PR counts show realistic variation (not constant)."""
         pr_counts = [
             r["pr_count"] for r in manifest["aggregate_index"]["weekly_rollups"]
@@ -306,9 +305,7 @@ class TestDataQuality:
         # Expect at least 30% variation
         assert range_pct >= 0.3, f"PR counts lack variation: range={range_pct:.1%}"
 
-    def test_predictions_have_confidence_intervals(
-        self, predictions: dict[str, Any]
-    ) -> None:
+    def test_predictions_have_confidence_intervals(self, predictions: dict) -> None:
         """All forecast values have lower_bound <= predicted <= upper_bound with non-zero width."""
         for forecast in predictions["forecasts"]:
             for value in forecast["values"]:
@@ -322,12 +319,12 @@ class TestDataQuality:
                     f"Zero-width confidence interval at {value.get('period_start', '?')}"
                 )
 
-    def test_insights_cover_multiple_categories(self, insights: dict[str, Any]) -> None:
+    def test_insights_cover_multiple_categories(self, insights: dict) -> None:
         """Insights span multiple categories."""
         categories = {i["category"] for i in insights["insights"]}
         assert len(categories) >= 2, f"Only {len(categories)} category found"
 
-    def test_insights_cover_multiple_severities(self, insights: dict[str, Any]) -> None:
+    def test_insights_cover_multiple_severities(self, insights: dict) -> None:
         """Insights span multiple severity levels."""
         severities = {i["severity"] for i in insights["insights"]}
         assert len(severities) >= 2, f"Only {len(severities)} severity found"

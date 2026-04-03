@@ -11,7 +11,6 @@ Validates the predictions/trends.json schema contract:
 from __future__ import annotations
 
 from datetime import date, timedelta
-from typing import Any
 
 # Valid metric enum values as per schema contract
 VALID_METRICS = {"pr_throughput", "cycle_time_minutes", "review_time_minutes"}
@@ -24,7 +23,7 @@ METRIC_UNITS = {
 }
 
 
-def validate_predictions_schema(predictions: dict[str, Any]) -> dict[str, Any]:
+def validate_predictions_schema(predictions: dict) -> dict:
     """Validate predictions schema.
 
     Returns:
@@ -132,7 +131,7 @@ def get_monday_date(offset_weeks: int = 0) -> str:
     return target.isoformat()
 
 
-def build_valid_predictions() -> dict[str, Any]:
+def build_valid_predictions() -> dict:
     """Build a minimal valid predictions object."""
     return {
         "schema_version": 1,

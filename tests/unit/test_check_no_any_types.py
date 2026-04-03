@@ -27,6 +27,7 @@ class TestCheckNoAnyTypes:
         case_dir = self.TMP_ROOT / name
         shutil.rmtree(case_dir, ignore_errors=True)
         (case_dir / "src").mkdir(parents=True, exist_ok=True)
+        (case_dir / "tests").mkdir(parents=True, exist_ok=True)
         return case_dir
 
     def test_parse_error_fails_closed(self, capsys: pytest.CaptureFixture[str]) -> None:
@@ -45,13 +46,14 @@ class TestCheckNoAnyTypes:
         with (
             patch.object(MODULE, "REPO_ROOT", case_dir),
             patch.object(MODULE, "SRC_DIR", case_dir / "src"),
+            patch.object(MODULE, "TESTS_DIR", case_dir / "tests"),
             patch.object(MODULE, "BASELINE_PATH", baseline_path),
             patch.object(sys, "argv", ["check_no_any_types.py"]),
         ):
             assert MODULE.main() == 1
 
         out = capsys.readouterr().out
-        assert "Could not parse Python file(s) in src/" in out
+        assert "Could not parse Python file(s):" in out
         assert "src/broken_any.py" in out
 
     def test_diff_mode_passes_when_no_staged_src_python(
@@ -64,7 +66,7 @@ class TestCheckNoAnyTypes:
             assert MODULE.main() == 0
 
         out = capsys.readouterr().out
-        assert "No staged Python files under src/" in out
+        assert "No staged Python files under src/ or tests/" in out
 
     def test_diff_mode_checks_only_staged_files(
         self, capsys: pytest.CaptureFixture[str]

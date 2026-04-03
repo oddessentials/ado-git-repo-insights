@@ -7,7 +7,6 @@ import importlib.util
 import json
 import sys
 from pathlib import Path
-from typing import Any, cast
 
 import yaml
 
@@ -78,16 +77,14 @@ def _normalized_preflight_commands(
     }
 
 
-def _load_ci_jobs() -> dict[str, dict[str, Any]]:
-    ci_data = cast(
-        dict[str, Any], yaml.safe_load(CI_WORKFLOW.read_text(encoding="utf-8"))
-    )
-    return cast(dict[str, dict[str, Any]], ci_data.get("jobs", {}))
+def _load_ci_jobs():
+    ci_data = yaml.safe_load(CI_WORKFLOW.read_text(encoding="utf-8"))
+    return ci_data.get("jobs", {})
 
 
-def _find_ci_step(job_name: str, step_name: str) -> dict[str, Any]:
+def _find_ci_step(job_name: str, step_name: str):
     job = _load_ci_jobs()[job_name]
-    steps = cast(list[dict[str, Any]], job.get("steps", []))
+    steps = job.get("steps", [])
     for step in steps:
         if step.get("name") == step_name:
             return step

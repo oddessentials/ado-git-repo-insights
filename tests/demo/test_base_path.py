@@ -16,7 +16,6 @@ import threading
 import time
 from collections.abc import Generator
 from pathlib import Path
-from typing import Any
 
 import pytest
 import requests
@@ -41,10 +40,15 @@ def serve_directory(directory: Path, port: int) -> Generator[str, None, None]:
     class QuietHandler(http.server.SimpleHTTPRequestHandler):
         """HTTP handler that doesn't log to stderr."""
 
-        def __init__(self, *args: Any, **kwargs: Any) -> None:
-            super().__init__(*args, directory=str(directory), **kwargs)
+        def __init__(
+            self,
+            request: socket.socket,
+            client_address: tuple[str, int],
+            server: socketserver.BaseServer,
+        ) -> None:
+            super().__init__(request, client_address, server, directory=str(directory))
 
-        def log_message(self, format: str, *args: Any) -> None:
+        def log_message(self, format: str, *args: object) -> None:
             pass  # Suppress logging
 
     with socketserver.TCPServer(("127.0.0.1", port), QuietHandler) as httpd:

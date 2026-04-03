@@ -11,8 +11,6 @@ Validates the insights/summary.json schema contract:
 
 from __future__ import annotations
 
-from typing import Any
-
 # Valid category enum values as per schema contract
 VALID_CATEGORIES = {"bottleneck", "trend", "anomaly"}
 
@@ -20,7 +18,7 @@ VALID_CATEGORIES = {"bottleneck", "trend", "anomaly"}
 VALID_SEVERITIES = {"info", "warning", "critical"}
 
 
-def validate_insights_schema(insights: dict[str, Any]) -> dict[str, Any]:
+def validate_insights_schema(insights: dict) -> dict:
     """Validate insights schema.
 
     Returns:
@@ -116,7 +114,7 @@ def validate_insights_schema(insights: dict[str, Any]) -> dict[str, Any]:
     return {"valid": True}
 
 
-def build_valid_insights() -> dict[str, Any]:
+def build_valid_insights() -> dict:
     """Build a minimal valid insights object."""
     return {
         "schema_version": 1,

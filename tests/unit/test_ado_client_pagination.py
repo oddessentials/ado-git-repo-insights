@@ -8,7 +8,6 @@ DoD 3.1: Pagination Completeness
 from __future__ import annotations
 
 from datetime import UTC, date
-from typing import Any
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -41,7 +40,7 @@ def client(api_config: APIConfig) -> ADOClient:
 
 
 def make_mock_response(
-    prs: list[dict[str, Any]],
+    prs: list[dict],
     continuation_token: str | None = None,
 ) -> MagicMock:
     """Create a mock requests.Response with PR data."""
