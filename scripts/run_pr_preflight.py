@@ -501,19 +501,31 @@ def require_success(result: CommandResult, *, step_name: str) -> None:
     raise SystemExit(result.returncode)
 
 
+def _version_at_least(version_str: str | None, minimum: str) -> bool:
+    """Return True if *version_str* (e.g. '3.14') is >= *minimum* (e.g. '3.11')."""
+    if version_str is None:
+        return False
+    try:
+        actual = tuple(int(p) for p in version_str.split("."))
+        required = tuple(int(p) for p in minimum.split("."))
+        return actual >= required
+    except (ValueError, TypeError):
+        return False
+
+
 def resolve_baseline_python() -> str:
     current_version = f"{sys.version_info.major}.{sys.version_info.minor}"
-    if current_version == BASELINE_PYTHON:
+    if _version_at_least(current_version, BASELINE_PYTHON):
         return sys.executable
 
     env_override = os.environ.get("PR_PREFLIGHT_PYTHON")
     if env_override:
         resolved = shutil.which(env_override) or env_override
-        if probe_python_version(resolved) == BASELINE_PYTHON:
+        if _version_at_least(probe_python_version(resolved), BASELINE_PYTHON):
             return resolved
         raise SystemExit(
             "PR_PREFLIGHT_PYTHON is set, but it does not resolve to "
-            f"Python {BASELINE_PYTHON}: {env_override}"
+            f"Python >= {BASELINE_PYTHON}: {env_override}"
         )
 
     if sys.platform == "win32":
@@ -532,17 +544,17 @@ def resolve_baseline_python() -> str:
             )
             if probe.returncode == 0:
                 candidate = probe.stdout.strip()
-                if probe_python_version(candidate) == BASELINE_PYTHON:
+                if _version_at_least(probe_python_version(candidate), BASELINE_PYTHON):
                     return candidate
 
     for candidate in (f"python{BASELINE_PYTHON}", "python3", "python"):
         found = shutil.which(candidate)
-        if found and probe_python_version(found) == BASELINE_PYTHON:
+        if found and _version_at_least(probe_python_version(found), BASELINE_PYTHON):
             return found
 
     raise SystemExit(
         "Could not find a supported baseline interpreter for PR preflight. "
-        f"Install Python {BASELINE_PYTHON} or set PR_PREFLIGHT_PYTHON."
+        f"Install Python >= {BASELINE_PYTHON} or set PR_PREFLIGHT_PYTHON."
     )
 
 
