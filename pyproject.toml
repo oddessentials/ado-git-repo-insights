@@ -88,9 +88,9 @@ known-first-party = ["ado_git_repo_insights"]
 minversion = "7.0"
 # All pytest runtime paths are routed to .tmp/pytest/ so pytest never touches
 # %LOCALAPPDATA%\Temp or .pytest_cache/, eliminating Windows permission failures.
-# basetemp is set per-run in conftest.py; coverage is opt-in (not in addopts)
-# because pytest-cov initializes before conftest.py can redirect COVERAGE_FILE.
-addopts = "-ra -q"
+# basetemp and COVERAGE_FILE are set dynamically per-run in conftest.py to
+# prevent stale locked directories from bricking future runs.
+addopts = "-ra -q --cov=src/ado_git_repo_insights --cov-report=term-missing"
 cache_dir = ".tmp/pytest/cache"
 # "all" = never delete basetemp at session end (avoids WinError 5 on locked
 # files). Cross-run cleanup happens in conftest.py pytest_configure instead.
@@ -159,12 +159,9 @@ warn_return_any = false
 [tool.coverage.run]
 source = ["src/ado_git_repo_insights"]
 branch = true
-# Coverage is opt-in (--cov not in addopts). When a developer passes --cov
-# on the CLI, coverage reads this data_file — kept outside the repo root to
-# avoid Windows file-handle contention. run_pr_preflight.py overrides via
-# COVERAGE_FILE env var; conftest.py also sets COVERAGE_FILE per-run when
-# it is early enough to take effect.
-data_file = ".tmp/pytest/coverage/.coverage"
+# COVERAGE_FILE is set per-run in conftest.py (local pytest) and
+# run_pr_preflight.py (preflight). No fixed data_file here — a shared
+# target can be locked on Windows and brick all future covered runs.
 
 [tool.coverage.report]
 exclude_lines = [

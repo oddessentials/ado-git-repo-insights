@@ -340,8 +340,6 @@ def build_commands(
                 "tests/",
                 "-q",
                 "-ra",
-                "--cov=src/ado_git_repo_insights",
-                "--cov-report=term-missing",
                 "--junit-xml=test-results.xml",
                 "--cov-report=xml",
                 "-o",
