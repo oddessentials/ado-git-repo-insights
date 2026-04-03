@@ -86,9 +86,12 @@ known-first-party = ["ado_git_repo_insights"]
 
 [tool.pytest.ini_options]
 minversion = "7.0"
+# All pytest runtime paths are routed to .tmp/pytest/ so pytest never touches
+# %LOCALAPPDATA%\Temp or .pytest_cache/, eliminating Windows permission failures.
+# basetemp and COVERAGE_FILE are set dynamically per-run in conftest.py to
+# prevent stale locked directories from bricking future runs.
 addopts = "-ra -q --cov=src/ado_git_repo_insights --cov-report=term-missing"
-# Don't retain old temp directories — on Windows, locked files in stale
-# pytest-of-<user>/pytest-N dirs accumulate and block subsequent runs.
+cache_dir = ".tmp/pytest/cache"
 tmp_path_retention_policy = "none"
 testpaths = ["tests"]
 pythonpath = ["src"]
@@ -154,10 +157,10 @@ warn_return_any = false
 [tool.coverage.run]
 source = ["src/ado_git_repo_insights"]
 branch = true
-# Keep the coverage SQLite database out of the repo root where Windows file
-# watchers, anti-virus, and Search indexer compete for handle access.
-# COVERAGE_FILE env var (set by run_pr_preflight.py) takes precedence.
-data_file = ".pytest_cache/.coverage"
+# Safe fallback for non-pytest coverage invocations. During pytest runs,
+# conftest.py sets COVERAGE_FILE to a per-run path which takes precedence.
+# run_pr_preflight.py also overrides via COVERAGE_FILE env var.
+data_file = ".tmp/pytest/coverage/.coverage"
 
 [tool.coverage.report]
 exclude_lines = [

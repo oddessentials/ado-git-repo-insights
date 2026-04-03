@@ -17,6 +17,7 @@ SKIP_PARTS = {
     "tmp_test_work",
     "tmp_pytest",
     ".pytest_cache",
+    ".tmp",
 }
 
 

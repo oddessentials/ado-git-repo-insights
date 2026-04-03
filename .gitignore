@@ -108,6 +108,9 @@ secrets.yaml
 secrets.yml
 .env.local
 
+# Repo-owned pytest/coverage runtime directory (see pyproject.toml)
+.tmp/
+
 debug_extraction.py
 test_artifacts
 **/tmp/
