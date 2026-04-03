@@ -8,7 +8,7 @@ from io import StringIO
 from pathlib import Path
 from typing import cast
 
-import coverage
+from coverage import Coverage
 from coverage.sqldata import CoverageData
 
 _plugin_path = (
@@ -23,7 +23,7 @@ _module = importlib.util.module_from_spec(_spec)
 _spec.loader.exec_module(_module)
 
 CombineFunc = Callable[
-    [coverage.Coverage, Iterable[str] | None, bool, bool],
+    [Coverage, Iterable[str] | None, bool, bool],
     None,
 ]
 
@@ -43,7 +43,7 @@ def _combine_total(
     *,
     keep: bool,
 ) -> tuple[float, set[int]]:
-    cov = coverage.Coverage(
+    cov = Coverage(
         data_file=str(data_file),
         source=[str(source_dir)],
         config_file=False,
@@ -81,9 +81,7 @@ class TestPytestCovLauncherPlugin:
 
         unpatched_combine = cast(
             CombineFunc,
-            getattr(
-                coverage.Coverage.combine, "__wrapped__", coverage.Coverage.combine
-            ),
+            getattr(Coverage.combine, "__wrapped__", Coverage.combine),
         )
 
         total_false, lines_false = _combine_total(
@@ -109,14 +107,14 @@ class TestPytestCovLauncherPlugin:
         assert shard_true_b.exists()
 
     def test_plugin_forces_keep_without_changing_other_kwargs(self) -> None:
-        original_combine = cast(CombineFunc, coverage.Coverage.combine)
+        original_combine = cast(CombineFunc, Coverage.combine)
         original_patched = cast(bool, _module._PATCHED)
         try:
             _module._PATCHED = False
             captured: dict[str, object] = {}
 
             def fake_original(
-                self: coverage.Coverage,
+                self: Coverage,
                 data_paths: Iterable[str] | None = None,
                 strict: bool = False,
                 keep: bool = False,
@@ -125,10 +123,10 @@ class TestPytestCovLauncherPlugin:
                 captured["strict"] = strict
                 captured["keep"] = keep
 
-            coverage.Coverage.combine = cast(CombineFunc, fake_original)
+            Coverage.combine = cast(CombineFunc, fake_original)
             _module.pytest_configure()
-            result = cast(CombineFunc, coverage.Coverage.combine)(
-                coverage.Coverage(config_file=False),
+            result = cast(CombineFunc, Coverage.combine)(
+                Coverage(config_file=False),
                 "data",
                 True,
                 False,
@@ -141,5 +139,5 @@ class TestPytestCovLauncherPlugin:
                 "keep": True,
             }
         finally:
-            coverage.Coverage.combine = original_combine
+            Coverage.combine = original_combine
             _module._PATCHED = original_patched

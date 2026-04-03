@@ -327,7 +327,7 @@ pnpm run package:vsix
 pip install -e ".[dev]"
 
 # Run tests
-pytest
+python scripts/run_pytest.py
 
 # Run linting
 ruff check .

@@ -12,10 +12,10 @@ import functools
 from collections.abc import Callable, Iterable
 from typing import cast
 
-import coverage
+from coverage import Coverage
 
 CombineFunc = Callable[
-    [coverage.Coverage, Iterable[str] | None, bool, bool],
+    [Coverage, Iterable[str] | None, bool, bool],
     None,
 ]
 _PATCHED: bool = False
@@ -37,12 +37,12 @@ def pytest_configure() -> None:
     if _PATCHED:
         return
 
-    original_combine = coverage.Coverage.combine
+    original_combine = Coverage.combine
     _ORIGINAL_COMBINE = original_combine
 
     @functools.wraps(original_combine)
-    def combine_keep(
-        self: coverage.Coverage,
+    def patched_combine(
+        self: Coverage,
         data_paths: Iterable[str] | None = None,
         strict: bool = False,
         keep: bool = False,
@@ -51,5 +51,5 @@ def pytest_configure() -> None:
             keep = True
         return original_combine(self, data_paths, strict, keep)
 
-    coverage.Coverage.combine = cast(CombineFunc, combine_keep)
+    Coverage.combine = cast(CombineFunc, patched_combine)
     _PATCHED = True

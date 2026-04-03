@@ -108,10 +108,7 @@ def main() -> int:
     # iterate fast without the full suite. The 75% floor still applies to
     # full-suite runs, preflight, and CI.
     user_args = sys.argv[1:]
-    extra_args = [
-        "-o",
-        f"cache_dir={_TMP_ROOT / 'cache'}",
-    ]
+    extra_args: list[str] = []
     if _has_test_paths(user_args):
         extra_args.append("--cov-fail-under=0")
 
