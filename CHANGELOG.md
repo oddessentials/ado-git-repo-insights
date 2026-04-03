@@ -1,3 +1,19 @@
+## [101.0.1](https://github.com/oddessentials/ado-git-repo-insights/compare/v101.0.0...v101.0.1) (2026-04-03)
+
+
+### Bug Fixes
+
+* ACL probe covers .tmp/pytest/, subset detection handles node IDs ([#242](https://github.com/oddessentials/ado-git-repo-insights/issues/242)) ([aa101f8](https://github.com/oddessentials/ado-git-repo-insights/commit/aa101f87b4f9b3002e17e6fb7a6ba8591f46f119))
+* add run_pytest.py launcher for per-run coverage isolation ([#242](https://github.com/oddessentials/ado-git-repo-insights/issues/242)) ([a9d9e25](https://github.com/oddessentials/ado-git-repo-insights/commit/a9d9e25b4c5761ecdda2b6bb5e6a029e8e17c0be))
+* catch ACL scan enumeration failures as probe errors ([9a0a3ad](https://github.com/oddessentials/ado-git-repo-insights/commit/9a0a3ada3800dfdfd1db4e6f3ed41d43ad09e5b4))
+* codex ([60a94d8](https://github.com/oddessentials/ado-git-repo-insights/commit/60a94d820dba40d4333164f8b23cb9b2607db2fd))
+* eliminate cleanup-sensitive shared targets from pytest paths ([#242](https://github.com/oddessentials/ado-git-repo-insights/issues/242)) ([83ce322](https://github.com/oddessentials/ado-git-repo-insights/commit/83ce322ec16ffad1bded11948771838fe898c8ca))
+* parallel coverage + no cleanup to survive Windows file locks ([#242](https://github.com/oddessentials/ado-git-repo-insights/issues/242)) ([fbd32e2](https://github.com/oddessentials/ado-git-repo-insights/commit/fbd32e23150dd04e1688940beee799168e8a762d))
+* per-run isolated pytest paths under repo-owned .tmp/ ([#242](https://github.com/oddessentials/ado-git-repo-insights/issues/242)) ([709a537](https://github.com/oddessentials/ado-git-repo-insights/commit/709a537697ac9910bde70b1d3628f47209cc65fa))
+* treat selector-only pytest runs as subset invocations ([270bad9](https://github.com/oddessentials/ado-git-repo-insights/commit/270bad96281ccc194d3480aa45641e491a7d435b))
+* treat selector-only pytest runs as subset invocations ([30f1552](https://github.com/oddessentials/ado-git-repo-insights/commit/30f15522a7e98813dc017c5123d2c14303eabc82))
+* Windows pytest friction and Node engine enforcement ([#242](https://github.com/oddessentials/ado-git-repo-insights/issues/242)) ([9d8ef29](https://github.com/oddessentials/ado-git-repo-insights/commit/9d8ef29cd231c95ae62dfdc4a6c17fe1af644813))
+
 # [101.0.0](https://github.com/oddessentials/ado-git-repo-insights/compare/v100.0.0...v101.0.0) (2026-04-03)
 
 
