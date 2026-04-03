@@ -19,13 +19,17 @@ import random
 from dataclasses import asdict, dataclass, field
 from datetime import UTC, date, datetime, timedelta
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, cast
+from typing import TYPE_CHECKING, cast
 
 import numpy as np
 import pandas as pd
 
 from ..types import (
     AuthorRecord,
+    CommentsCoverage,
+    DistributionIndexEntry,
+    JSONValue,
+    OperationalSummary,
     ProjectRecord,
     RepositoryRecord,
     ReviewerRecord,
@@ -33,6 +37,7 @@ from ..types import (
     SliceMetrics,
     TeamRecord,
     UserRecord,
+    WeeklyRollupIndexEntry,
 )
 from .schema_versions import (
     AGGREGATES_SCHEMA_VERSION,
@@ -185,8 +190,8 @@ def _df_to_team_records(df: pd.DataFrame) -> list[TeamRecord]:
 class AggregateIndex:
     """Index of available aggregate files."""
 
-    weekly_rollups: list[dict[str, Any]] = field(default_factory=list)
-    distributions: list[dict[str, Any]] = field(default_factory=list)
+    weekly_rollups: list[WeeklyRollupIndexEntry] = field(default_factory=list)
+    distributions: list[DistributionIndexEntry] = field(default_factory=list)
 
 
 @dataclass
@@ -202,11 +207,11 @@ class DatasetManifest:
     run_id: str = ""
     warnings: list[str] = field(default_factory=list)  # Phase 3.5: stub warnings
     aggregate_index: AggregateIndex = field(default_factory=AggregateIndex)
-    defaults: dict[str, Any] = field(default_factory=dict)
-    limits: dict[str, Any] = field(default_factory=dict)
+    defaults: dict[str, int] = field(default_factory=dict)
+    limits: dict[str, int] = field(default_factory=dict)
     features: dict[str, bool] = field(default_factory=dict)
-    capabilities: dict[str, Any] = field(default_factory=dict)
-    coverage: dict[str, Any] = field(default_factory=dict)
+    capabilities: dict[str, str | bool] = field(default_factory=dict)
+    coverage: dict[str, JSONValue] = field(default_factory=dict)
 
 
 class AggregateGenerator:
@@ -392,14 +397,17 @@ class AggregateGenerator:
                     "ai_insights": insights_generated,  # Phase 3.5/5: file-gated
                 },
                 capabilities=self._get_capabilities(),
-                coverage={
-                    "total_prs": self._get_pr_count(),
-                    "date_range": dimensions.date_range,
-                    "teams_count": len(dimensions.teams),  # Phase 3.3
-                    "comments": self._get_comments_coverage(),  # Phase 3.4
-                    # Phase 4 §5: Operational visibility
-                    "row_counts": self._get_row_counts(),
-                },
+                coverage=cast(
+                    dict[str, JSONValue],
+                    {
+                        "total_prs": self._get_pr_count(),
+                        "date_range": dimensions.date_range,
+                        "teams_count": len(dimensions.teams),  # Phase 3.3
+                        "comments": self._get_comments_coverage(),  # Phase 3.4
+                        # Phase 4 §5: Operational visibility
+                        "row_counts": self._get_row_counts(),
+                    },
+                ),
             )
 
             # Phase 4 §5: Calculate total artifact size after manifest written
@@ -572,7 +580,7 @@ class AggregateGenerator:
             date_range=date_range,
         )
 
-    def _generate_weekly_rollups(self) -> list[dict[str, Any]]:
+    def _generate_weekly_rollups(self) -> list[WeeklyRollupIndexEntry]:
         """Generate weekly rollup files, one per ISO week."""
         # Query PRs with closed dates and repository info for dimension slicing
         df = pd.read_sql_query(
@@ -627,7 +635,7 @@ class AggregateGenerator:
         df["iso_year"] = df["closed_dt"].dt.isocalendar().year
         df["iso_week"] = df["closed_dt"].dt.isocalendar().week
 
-        index: list[dict[str, Any]] = []
+        index: list[WeeklyRollupIndexEntry] = []
         any_rollup_has_cross_dim = False
         # Track cross-dim availability for features flag (set on self after loop)
 
@@ -1249,7 +1257,7 @@ class AggregateGenerator:
 
         return by_team_and_repo
 
-    def _generate_distributions(self) -> list[dict[str, Any]]:
+    def _generate_distributions(self) -> list[DistributionIndexEntry]:
         """Generate yearly distribution files."""
         df = pd.read_sql_query(
             """
@@ -1270,7 +1278,7 @@ class AggregateGenerator:
         df["year"] = df["closed_dt"].dt.year
         df["month"] = df["closed_dt"].dt.strftime("%Y-%m")
 
-        index: list[dict[str, Any]] = []
+        index: list[DistributionIndexEntry] = []
 
         for year, group in df.groupby("year"):
             year_str = str(year)
@@ -1334,9 +1342,9 @@ class AggregateGenerator:
             # Legacy DB may not have pr_threads table
             return False
 
-    def _get_capabilities(self) -> dict[str, Any]:
+    def _get_capabilities(self) -> dict[str, str | bool]:
         """Get additive capability metadata for loader normalization."""
-        capabilities: dict[str, Any] = {
+        capabilities: dict[str, str | bool] = {
             "author_filters": True,
             "author_repo_exact": True,
             "comments_metrics": self._has_comments(),
@@ -1352,7 +1360,7 @@ class AggregateGenerator:
             if key in capabilities
         }
 
-    def _get_comments_coverage(self) -> dict[str, Any]:
+    def _get_comments_coverage(self) -> CommentsCoverage:
         """Get comments coverage statistics.
 
         §6: coverage.comments: "full" | "partial" | "disabled"
@@ -1449,9 +1457,9 @@ class AggregateGenerator:
 
     def _get_operational_summary(
         self,
-        weekly_index: list[dict[str, Any]],
-        dist_index: list[dict[str, Any]],
-    ) -> dict[str, Any]:
+        weekly_index: list[WeeklyRollupIndexEntry],
+        dist_index: list[DistributionIndexEntry],
+    ) -> OperationalSummary:
         """Generate operational summary for operators (Phase 4 §5).
 
         Provides immediate insight into dataset health and scale.
@@ -1485,7 +1493,7 @@ class AggregateGenerator:
             ),
         }
 
-    def _write_json(self, path: Path, data: dict[str, Any]) -> None:
+    def _write_json(self, path: Path, data: dict[str, JSONValue]) -> None:
         """Write JSON file with deterministic formatting.
 
         Uses allow_nan=False to reject NaN/Infinity values that would
@@ -1542,7 +1550,7 @@ class PredictionGenerator:
         self.output_dir = output_dir
         self.seed_base = seed_base
 
-    def generate(self) -> dict[str, Any] | None:
+    def generate(self) -> dict[str, JSONValue] | None:
         """Generate predictions stub file.
 
         Returns:
@@ -1615,7 +1623,7 @@ class PredictionGenerator:
             json.dump(predictions, f, indent=2, sort_keys=True)
 
         logger.info("Generated predictions/trends.json (stub data)")
-        return predictions
+        return cast(dict[str, JSONValue], predictions)
 
 
 class InsightsGenerator:
@@ -1664,7 +1672,7 @@ class InsightsGenerator:
         self.output_dir = output_dir
         self.seed_base = seed_base
 
-    def generate(self) -> dict[str, Any] | None:
+    def generate(self) -> dict[str, JSONValue] | None:
         """Generate insights stub file.
 
         Returns:
@@ -1726,4 +1734,4 @@ class InsightsGenerator:
             json.dump(insights, f, indent=2, sort_keys=True)
 
         logger.info("Generated insights/summary.json (stub data)")
-        return insights
+        return cast(dict[str, JSONValue], insights)

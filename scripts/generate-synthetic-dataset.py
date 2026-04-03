@@ -15,7 +15,7 @@ from dataclasses import asdict
 from datetime import UTC, date, datetime, timedelta
 from pathlib import Path
 from types import ModuleType
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, cast
 
 # Load aggregators via importlib with package stubs so relative imports resolve.
 # This allows direct script execution from a plain checkout without editable install.
@@ -50,10 +50,13 @@ if TYPE_CHECKING:
         YearlyDistribution,
     )
     from ado_git_repo_insights.types import (
+        DistributionIndexEntry,
+        JSONValue,
         ProjectRecord,
         RepositoryRecord,
         TeamRecord,
         UserRecord,
+        WeeklyRollupIndexEntry,
     )
 else:
     _agg_spec = importlib.util.spec_from_file_location(
@@ -71,6 +74,16 @@ else:
     Dimensions = _agg_mod.Dimensions
     WeeklyRollup = _agg_mod.WeeklyRollup
     YearlyDistribution = _agg_mod.YearlyDistribution
+
+    # Types module is loaded as a side-effect of aggregators importing from ..types
+    _types_mod = sys.modules["ado_git_repo_insights.types"]
+    DistributionIndexEntry = _types_mod.DistributionIndexEntry
+    JSONValue = _types_mod.JSONValue
+    ProjectRecord = _types_mod.ProjectRecord
+    RepositoryRecord = _types_mod.RepositoryRecord
+    TeamRecord = _types_mod.TeamRecord
+    UserRecord = _types_mod.UserRecord
+    WeeklyRollupIndexEntry = _types_mod.WeeklyRollupIndexEntry
 
 # Load demo_generation_common from scripts/ via importlib (avoids sys.path manipulation)
 _common_spec = importlib.util.spec_from_file_location(
@@ -614,7 +627,8 @@ def generate_dataset(
         run_id=f"synthetic-{seed}",
         warnings=["SYNTHETIC TEST DATA"],
         aggregate_index=AggregateIndex(
-            weekly_rollups=weekly_index, distributions=dist_index
+            weekly_rollups=cast(list[WeeklyRollupIndexEntry], weekly_index),
+            distributions=cast(list[DistributionIndexEntry], dist_index),
         ),
         defaults={"default_date_range_days": 90},
         limits={"max_date_range_days_soft": 730},
@@ -633,18 +647,21 @@ def generate_dataset(
             "reviewer_team_mode": "disallowed",
             "cross_dimensional_available": True,
         },
-        coverage={
-            "total_prs": pr_count,
-            "date_range": dimensions.date_range,
-            "teams_count": len(dimensions.teams),
-            "comments": comment_stats,
-            "row_counts": {
-                "pull_requests": pr_count,
-                "reviewers": 0,
-                "users": len(dimensions.users),
-                "repositories": len(dimensions.repositories),
+        coverage=cast(
+            dict[str, JSONValue],
+            {
+                "total_prs": pr_count,
+                "date_range": dimensions.date_range,
+                "teams_count": len(dimensions.teams),
+                "comments": comment_stats,
+                "row_counts": {
+                    "pull_requests": pr_count,
+                    "reviewers": 0,
+                    "users": len(dimensions.users),
+                    "repositories": len(dimensions.repositories),
+                },
             },
-        },
+        ),
     )
 
     # Add operational summary

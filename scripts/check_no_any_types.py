@@ -182,7 +182,7 @@ def main() -> int:
     baseline = load_baseline()
     baseline_total = sum(baseline.values())
 
-    if not baseline:
+    if not BASELINE_PATH.exists():
         print(
             "[FAIL] QG-40: No baseline found. "
             "Run: python scripts/check_no_any_types.py --update-baseline"

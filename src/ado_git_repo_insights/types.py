@@ -288,3 +288,47 @@ class WeeklyRollupIndexEntry(TypedDict):
     start_date: str
     end_date: str
     size_bytes: int
+
+
+class DistributionIndexEntry(TypedDict):
+    """Index entry for a yearly distribution file in aggregate_index."""
+
+    year: str
+    path: str
+    start_date: str
+    end_date: str
+    size_bytes: int
+
+
+# ---------------------------------------------------------------------------
+# Manifest sub-structure types (P5c — aggregators.py DatasetManifest)
+# ---------------------------------------------------------------------------
+
+
+class CommentsCoverage(TypedDict):
+    """Comments extraction coverage statistics for dataset manifest."""
+
+    status: str
+    threads_fetched: int
+    comments_fetched: int
+    prs_with_threads: int
+    capped: bool
+
+
+class ManifestCoverage(TypedDict):
+    """Dataset manifest coverage section."""
+
+    total_prs: int
+    date_range: dict[str, str]
+    teams_count: int
+    comments: CommentsCoverage
+    row_counts: dict[str, int]
+
+
+class OperationalSummary(TypedDict):
+    """Operational summary for dataset manifest (Phase 4 §5)."""
+
+    artifact_size_bytes: int
+    weekly_rollup_count: int
+    distribution_count: int
+    retention_notice: str | None
