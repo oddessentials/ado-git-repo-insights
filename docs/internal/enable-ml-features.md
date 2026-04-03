@@ -109,7 +109,7 @@ stages:
         steps:
           - task: UsePythonVersion@0
             inputs:
-              versionSpec: '3.11'
+              versionSpec: '3.12'
               addToPath: true
 
           - task: ExtractPullRequests@2

@@ -35,7 +35,7 @@ tests/
 
 Tests in `python-integration/` require:
 
-- **Python 3.11+**
+- **Python 3.12+**
 - **pandas** and other dependencies via `pip install -e .[dev]` from repository root
 
 These tests call `scripts/generate-synthetic-dataset.py` to generate test fixtures for performance and synthetic data validation.

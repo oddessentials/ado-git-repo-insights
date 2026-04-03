@@ -150,7 +150,7 @@ jobs:
       - name: Set up Python (for docs sync validation)
         uses: actions/setup-python@v5
         with:
-          python-version: '3.11'
+          python-version: '3.12'
 
       - name: Validate docs/ Asset Sync (Release Gate)
         run: |

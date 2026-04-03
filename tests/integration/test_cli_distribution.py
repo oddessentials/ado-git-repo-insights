@@ -87,7 +87,9 @@ class TestVersionFlag:
     """Integration tests for --version flag (T-02, T-03, T-04)."""
 
     def test_version_output_never_contains_zero(self) -> None:
-        """--version output never contains '0.0.0' (T-02, FR-005, SC-006)."""
+        """--version output is a real semver, not the 0.0.0 sentinel (T-02, FR-005, SC-006)."""
+        import re
+
         result = subprocess.run(
             [sys.executable, "-m", "ado_git_repo_insights", "--version"],
             capture_output=True,
@@ -95,7 +97,9 @@ class TestVersionFlag:
             check=False,
         )
         assert result.returncode == 0
-        assert "0.0.0" not in result.stdout
+        version = result.stdout.strip().split()[-1]
+        assert re.match(r"^\d+\.\d+\.\d+", version), f"Not a valid version: {version}"
+        assert version != "0.0.0", "Version must not be the unresolved sentinel"
 
     def test_python_dash_m_help_exits_zero(self) -> None:
         """python -m ado_git_repo_insights --help exits 0 (T-03, FR-003, SC-002)."""

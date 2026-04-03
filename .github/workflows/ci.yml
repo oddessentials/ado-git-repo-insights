@@ -10,9 +10,9 @@ on:
 # IMPORTANT: These names must match exactly between upload and download steps
 # Update both ARTIFACT_* env vars AND the corresponding upload steps when changing
 env:
-  # Python artifacts (uploaded from test job, ubuntu-latest/3.11 matrix leg only)
-  ARTIFACT_PYTHON_COVERAGE: coverage-ubuntu-latest-3.11
-  ARTIFACT_PYTHON_TESTS: test-results-ubuntu-latest-3.11
+  # Python artifacts (uploaded from test job, ubuntu-latest/3.12 matrix leg only)
+  ARTIFACT_PYTHON_COVERAGE: coverage-ubuntu-latest-3.12
+  ARTIFACT_PYTHON_TESTS: test-results-ubuntu-latest-3.12
   # TypeScript artifacts (uploaded from extension-tests job)
   ARTIFACT_TS_COVERAGE: extension-coverage
   ARTIFACT_TS_TESTS: extension-test-results
@@ -149,7 +149,7 @@ jobs:
 
       - uses: actions/setup-python@v5
         with:
-          python-version: '3.11'
+          python-version: '3.12'
 
       - name: Install Python package
         run: pip install -e .
@@ -465,7 +465,7 @@ jobs:
 
   test:
     # ============================================================================
-    # CANONICAL LEG: Coverage thresholds are based on ubuntu-latest + Python 3.11
+    # CANONICAL LEG: Coverage thresholds are based on ubuntu-latest + Python 3.12
     # Do NOT change this matrix without updating threshold baseline in pyproject.toml
     # See: extension/COVERAGE_RATCHET.md for ratchet formula and canonical environment
     # ============================================================================
@@ -473,7 +473,7 @@ jobs:
       fail-fast: false
       matrix:
         os: [ubuntu-latest, windows-latest, macos-latest]
-        python-version: ["3.11", "3.12", "3.13"]
+        python-version: ["3.12", "3.13", "3.14"]
     runs-on: ${{ matrix.os }}
 
     steps:
@@ -577,17 +577,17 @@ jobs:
 
       - name: Upload Python Coverage
         uses: codecov/codecov-action@v6
-        if: matrix.python-version == '3.11' && matrix.os == 'ubuntu-latest'
+        if: matrix.python-version == '3.12' && matrix.os == 'ubuntu-latest'
         with:
           files: ./coverage.xml
           flags: python
           fail_ci_if_error: false
 
-      # Upload artifacts for badge-publish job (ubuntu-latest, Python 3.11 only)
+      # Upload artifacts for badge-publish job (ubuntu-latest, Python 3.12 only)
       # Artifact names defined in workflow-level env vars for single source of truth
       - name: Upload Python coverage artifact
         uses: actions/upload-artifact@v4
-        if: matrix.python-version == '3.11' && matrix.os == 'ubuntu-latest'
+        if: matrix.python-version == '3.12' && matrix.os == 'ubuntu-latest'
         with:
           name: ${{ env.ARTIFACT_PYTHON_COVERAGE }}
           path: coverage.xml
@@ -595,7 +595,7 @@ jobs:
 
       - name: Upload Python test results artifact
         uses: actions/upload-artifact@v4
-        if: matrix.python-version == '3.11' && matrix.os == 'ubuntu-latest'
+        if: matrix.python-version == '3.12' && matrix.os == 'ubuntu-latest'
         with:
           name: ${{ env.ARTIFACT_PYTHON_TESTS }}
           path: test-results.xml
@@ -613,7 +613,7 @@ jobs:
 
       - uses: actions/setup-python@v5
         with:
-          python-version: '3.11'
+          python-version: '3.12'
 
       - name: Install dependencies
         run: |
@@ -642,7 +642,7 @@ jobs:
 
       - uses: actions/setup-python@v5
         with:
-          python-version: '3.11'
+          python-version: '3.12'
 
       - name: Run suppression audit against main baseline
         env:
@@ -682,7 +682,7 @@ jobs:
 
       - uses: actions/setup-python@v5
         with:
-          python-version: '3.11'
+          python-version: '3.12'
 
       - name: Install dependencies
         run: |
@@ -707,7 +707,7 @@ jobs:
 
       - uses: actions/setup-python@v5
         with:
-          python-version: "3.11"
+          python-version: "3.12"
 
       - name: Install base dependencies only (no [ml])
         run: |
@@ -754,7 +754,7 @@ jobs:
 
       - uses: actions/setup-python@v5
         with:
-          python-version: "3.11"
+          python-version: "3.12"
 
       - name: Build Package
         run: |
@@ -842,7 +842,7 @@ jobs:
 
       - uses: actions/setup-python@v5
         with:
-          python-version: '3.11'
+          python-version: '3.12'
 
       - name: Install Python dependencies
         run: |
@@ -978,7 +978,7 @@ jobs:
 
       - uses: actions/setup-python@v5
         with:
-          python-version: '3.11'
+          python-version: '3.12'
 
       - name: Install Python package
         run: pip install -e .
@@ -1083,7 +1083,7 @@ jobs:
 
       - uses: actions/setup-python@v5
         with:
-          python-version: '3.11'
+          python-version: '3.12'
 
       - name: Install Python dependencies
         run: pip install -e ".[dev]"

@@ -149,7 +149,7 @@ jest.mock('azure-devops-extension-sdk', () => ({
 
 Tests run across:
 - 3 operating systems (Ubuntu, Windows, macOS)
-- 3 Python versions (3.11, 3.12, 3.13)
+- 3 Python versions (3.12, 3.13, 3.14)
 
 ### Local CI Parity
 
@@ -173,7 +173,7 @@ python scripts/run_ci_parity.py --mode full
 ```
 
 Requirements:
-- Local Python 3.11, 3.12, and 3.13 must be installed, or the script will fail
+- Local Python 3.12, 3.13, and 3.14 must be installed, or the script will fail
 - `compatibility` mode runs directly on those interpreters and is the minimum
   pre-push cross-version gate
 - `full` mode additionally creates per-version virtual environments and runs
@@ -181,8 +181,8 @@ Requirements:
 - Docker Desktop can be used for future Linux parity expansion, but the script
   currently only checks whether Docker is reachable
 - If interpreter discovery differs on your machine, set environment overrides
-  such as `CI_PARITY_PYTHON_3_11`, `CI_PARITY_PYTHON_3_12`, and
-  `CI_PARITY_PYTHON_3_13`
+  such as `CI_PARITY_PYTHON_3_12`, `CI_PARITY_PYTHON_3_13`, and
+  `CI_PARITY_PYTHON_3_14`
 
 For the current machine, treat a missing interpreter as a blocker rather than a
 warning if you need CI-grade confidence before pushing.
@@ -213,7 +213,7 @@ Why this exists:
 - it avoids the Windows repo-root lock problems that can make ad hoc pytest runs
   noisy or misleading
 - it makes demo validation a required local gate instead of a remembered extra step
-- it resolves Python 3.11 explicitly, so the gate runs on a supported baseline
+- it resolves Python 3.12 explicitly, so the gate runs on a supported baseline
   interpreter even if your shell default points elsewhere
 - it fails closed if CI-hard local tooling such as Node child-process support or
   `gitleaks` is unavailable, so local success cannot silently become weaker than CI

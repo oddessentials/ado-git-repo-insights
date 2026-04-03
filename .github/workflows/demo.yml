@@ -58,10 +58,10 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Set up Python 3.11
+      - name: Set up Python 3.12
         uses: actions/setup-python@v5
         with:
-          python-version: '3.11'
+          python-version: '3.12'
 
       - name: Install Python dependencies
         run: |
@@ -114,7 +114,7 @@ jobs:
             echo "This means the committed files don't match the canonical committed-demo build output."
             echo ""
             echo "To fix:"
-            echo "1. Use Python 3.11.x"
+            echo "1. Use Python 3.12.x"
             echo "2. Run: python scripts/build-demo-dataset.py"
             echo "3. Commit the updated files"
             exit 1
@@ -156,10 +156,10 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Set up Python 3.11
+      - name: Set up Python 3.12
         uses: actions/setup-python@v5
         with:
-          python-version: '3.11'
+          python-version: '3.12'
 
       - name: Start HTTP server
         run: |
@@ -249,10 +249,10 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Set up Python 3.11
+      - name: Set up Python 3.12
         uses: actions/setup-python@v5
         with:
-          python-version: '3.11'
+          python-version: '3.12'
 
       - name: Install test dependencies
         run: |

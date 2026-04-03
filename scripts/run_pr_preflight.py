@@ -27,7 +27,7 @@ from pathlib import Path
 REPO_ROOT = Path(__file__).resolve().parent.parent
 EXTENSION_ROOT = REPO_ROOT / "extension"
 PREFLIGHT_ROOT = Path(tempfile.gettempdir()) / "ado-git-repo-insights" / "pr-preflight"
-BASELINE_PYTHON = "3.11"
+BASELINE_PYTHON = "3.12"
 PNPM_SENTINEL = "__PNPM__"
 
 
@@ -502,7 +502,7 @@ def require_success(result: CommandResult, *, step_name: str) -> None:
 
 
 def _version_at_least(version_str: str | None, minimum: str) -> bool:
-    """Return True if *version_str* (e.g. '3.14') is >= *minimum* (e.g. '3.11')."""
+    """Return True if *version_str* (e.g. '3.14') is >= *minimum* (e.g. '3.12')."""
     if version_str is None:
         return False
     try:

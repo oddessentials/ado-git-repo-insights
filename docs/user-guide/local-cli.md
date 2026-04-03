@@ -17,7 +17,7 @@ This guide covers using the Python CLI for local PR analysis and custom CI/CD in
 
 | Requirement | Details |
 |-------------|---------|
-| Python | 3.11, 3.12, or 3.13 |
+| Python | 3.12, 3.13, or 3.14 |
 | Azure DevOps PAT | Code (Read) scope |
 
 ---
@@ -344,7 +344,7 @@ jobs:
       - name: Setup Python
         uses: actions/setup-python@v5
         with:
-          python-version: '3.11'
+          python-version: '3.12'
 
       - name: Install
         run: pip install ado-git-repo-insights
@@ -394,7 +394,7 @@ pool:
 steps:
   - task: UsePythonVersion@0
     inputs:
-      versionSpec: '3.11'
+      versionSpec: '3.12'
 
   - script: pip install ado-git-repo-insights
     displayName: 'Install'
@@ -497,7 +497,7 @@ ado-insights --version
 ### Docker Deployment
 
 ```dockerfile
-FROM python:3.11-slim
+FROM python:3.12-slim
 
 RUN pip install --no-cache-dir pipx && \
     pipx install ado-git-repo-insights && \

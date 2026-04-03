@@ -27,6 +27,8 @@ class TestOptionalDepsIsolation:
 
     def test_cli_version_flag_works(self) -> None:
         """--version flag works without optional deps (T-16, FR-030)."""
+        import re
+
         result = subprocess.run(
             [sys.executable, "-m", "ado_git_repo_insights", "--version"],
             capture_output=True,
@@ -35,16 +37,22 @@ class TestOptionalDepsIsolation:
         )
         assert result.returncode == 0, f"--version failed: {result.stderr}"
         assert "ado-insights" in result.stdout
-        assert "0.0.0" not in result.stdout
+        version = result.stdout.strip().split()[-1]
+        assert re.match(r"^\d+\.\d+\.\d+", version), f"Not a valid version: {version}"
+        assert version != "0.0.0", "Version must not be the unresolved sentinel"
 
     def test_version_not_zero(self) -> None:
         """__version__ is not '0.0.0' in editable install (T-05, FR-005, SC-006)."""
+        import re
+
         from ado_git_repo_insights import __version__
 
+        assert re.match(r"^\d+\.\d+\.\d+", __version__), (
+            f"Not a valid version: {__version__}"
+        )
         assert __version__ != "0.0.0", (
             "__version__ must not be the stale 0.0.0 sentinel"
         )
-        assert "0.0.0" not in __version__
 
     def test_version_resolves_in_editable_install(self) -> None:
         """Version resolves to real value in editable install (T-06, FR-006, SC-007)."""

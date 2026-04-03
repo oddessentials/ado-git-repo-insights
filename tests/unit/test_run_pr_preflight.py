@@ -110,7 +110,7 @@ class TestMainBehavior:
             patch.object(
                 _module, "resolve_baseline_python", return_value=sys.executable
             ),
-            patch.object(_module, "probe_python_version", return_value="3.11"),
+            patch.object(_module, "probe_python_version", return_value="3.12"),
             patch.object(
                 _module,
                 "ensure_required_tools",
@@ -135,7 +135,7 @@ class TestMainBehavior:
             patch.object(
                 _module, "resolve_baseline_python", return_value=sys.executable
             ),
-            patch.object(_module, "probe_python_version", return_value="3.11"),
+            patch.object(_module, "probe_python_version", return_value="3.12"),
             patch.object(
                 _module,
                 "ensure_required_tools",
@@ -171,7 +171,7 @@ class TestMainBehavior:
             patch.object(
                 _module, "resolve_baseline_python", return_value=sys.executable
             ),
-            patch.object(_module, "probe_python_version", return_value="3.11"),
+            patch.object(_module, "probe_python_version", return_value="3.12"),
             patch.object(
                 _module,
                 "ensure_required_tools",
@@ -219,7 +219,7 @@ class TestMainBehavior:
             patch.object(
                 _module, "resolve_baseline_python", return_value=sys.executable
             ),
-            patch.object(_module, "probe_python_version", return_value="3.11"),
+            patch.object(_module, "probe_python_version", return_value="3.12"),
             patch.object(
                 _module,
                 "ensure_required_tools",
@@ -257,7 +257,7 @@ class TestMainBehavior:
             patch.object(
                 _module, "resolve_baseline_python", return_value=sys.executable
             ),
-            patch.object(_module, "probe_python_version", return_value="3.11"),
+            patch.object(_module, "probe_python_version", return_value="3.12"),
             patch.object(
                 _module,
                 "ensure_required_tools",
@@ -296,7 +296,7 @@ class TestMainBehavior:
             patch.object(
                 _module, "resolve_baseline_python", return_value=sys.executable
             ),
-            patch.object(_module, "probe_python_version", return_value="3.11"),
+            patch.object(_module, "probe_python_version", return_value="3.12"),
             patch.object(
                 _module,
                 "ensure_required_tools",
@@ -331,7 +331,7 @@ class TestMainBehavior:
             patch.object(
                 _module, "resolve_baseline_python", return_value=sys.executable
             ),
-            patch.object(_module, "probe_python_version", return_value="3.11"),
+            patch.object(_module, "probe_python_version", return_value="3.12"),
             patch.object(
                 _module,
                 "ensure_required_tools",
