@@ -8,7 +8,7 @@ import logging
 import shutil
 import sys
 import time
-from datetime import date, datetime, timezone
+from datetime import UTC, date, datetime
 from pathlib import Path
 from typing import TYPE_CHECKING
 
@@ -565,7 +565,7 @@ def _extract_comments(
 
     db.connection.commit()
     repo.update_comments_extraction_metadata(
-        last_run_timestamp=datetime.now(timezone.utc).isoformat(),
+        last_run_timestamp=datetime.now(UTC).isoformat(),
         prs_processed=int(stats["prs_processed"]),
         threads_fetched=int(stats["threads"]),
         comments_fetched=int(stats["comments"]),
@@ -1236,7 +1236,7 @@ def cmd_stage_artifacts(args: Namespace) -> int:
     """
     import base64
     import json
-    from datetime import datetime, timezone
+    from datetime import datetime
 
     import requests
 
@@ -1391,7 +1391,7 @@ def cmd_stage_artifacts(args: Namespace) -> int:
 
         # Step 6: Write STAGED.json metadata
         staged_info = {
-            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "timestamp": datetime.now(UTC).isoformat(),
             "organization": args.org,
             "project": args.project,
             "pipeline_id": args.pipeline_id,

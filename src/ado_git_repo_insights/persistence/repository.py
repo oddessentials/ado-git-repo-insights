@@ -9,7 +9,7 @@ from __future__ import annotations
 import json
 import logging
 from dataclasses import dataclass
-from datetime import date, datetime, timezone
+from datetime import UTC, date, datetime
 from typing import TYPE_CHECKING, cast
 
 from ado_git_repo_insights.types import AdoPullRequest, TeamMemberRow, TeamRow
@@ -102,7 +102,7 @@ class PRRepository:
                 organization,
                 project,
                 extraction_date.isoformat(),
-                datetime.now(timezone.utc).isoformat(),
+                datetime.now(UTC).isoformat(),
             ),
         )
         logger.debug(
@@ -398,9 +398,9 @@ class PRRepository:
             organization_name: Organization name.
             description: Optional team description.
         """
-        from datetime import datetime, timezone
+        from datetime import datetime
 
-        now = datetime.now(timezone.utc).isoformat()
+        now = datetime.now(UTC).isoformat()
 
         self.db.execute(
             """

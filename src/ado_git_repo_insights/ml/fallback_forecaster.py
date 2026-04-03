@@ -20,7 +20,7 @@ import json
 import logging
 import time
 from dataclasses import dataclass
-from datetime import date, datetime, timedelta, timezone
+from datetime import UTC, date, datetime, timedelta
 from pathlib import Path
 from typing import TYPE_CHECKING, cast
 
@@ -677,7 +677,7 @@ class FallbackForecaster:
 
         predictions = {
             "schema_version": PREDICTIONS_SCHEMA_VERSION,
-            "generated_at": datetime.now(timezone.utc).isoformat(),
+            "generated_at": datetime.now(UTC).isoformat(),
             "is_stub": False,
             "generated_by": GENERATOR_ID,
             "forecaster": "linear",

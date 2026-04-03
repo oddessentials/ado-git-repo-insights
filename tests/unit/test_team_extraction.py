@@ -9,6 +9,7 @@ Covers §5 from IMPLEMENTATION_DETAILS.md:
 from __future__ import annotations
 
 from collections.abc import Iterator
+from datetime import UTC
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -301,9 +302,9 @@ class TestTeamGracefulDegradation:
         )
 
         # Insert a team
-        from datetime import datetime, timezone
+        from datetime import datetime
 
-        now = datetime.now(timezone.utc).isoformat()
+        now = datetime.now(UTC).isoformat()
         db.execute(
             """
             INSERT INTO teams (team_id, team_name, project_name, organization_name, last_updated)

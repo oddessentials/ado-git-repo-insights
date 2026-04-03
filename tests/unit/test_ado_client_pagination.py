@@ -7,7 +7,7 @@ DoD 3.1: Pagination Completeness
 
 from __future__ import annotations
 
-from datetime import date
+from datetime import UTC, date
 from typing import Any
 from unittest.mock import MagicMock, patch
 
@@ -401,13 +401,13 @@ class TestParseRetryAfter:
         HTTP-dates are always in GMT (RFC 7231 Section 7.1.3), so the
         parsed datetime is timezone-aware and can be compared to UTC directly.
         """
-        from datetime import datetime, timedelta, timezone
+        from datetime import datetime, timedelta
 
         from ado_git_repo_insights.extractor.ado_client import parse_retry_after
 
         # Use a fixed "now" time for deterministic testing
         # Mock only _get_current_time to avoid global datetime side effects
-        fixed_now = datetime(2026, 1, 15, 12, 0, 0, tzinfo=timezone.utc)
+        fixed_now = datetime(2026, 1, 15, 12, 0, 0, tzinfo=UTC)
         future = fixed_now + timedelta(seconds=30)
         http_date = future.strftime("%a, %d %b %Y %H:%M:%S GMT")
 
@@ -462,11 +462,11 @@ class TestParseRetryAfter:
 
     def test_max_seconds_caps_http_date_value(self) -> None:
         """max_seconds parameter caps HTTP-date parsed values."""
-        from datetime import datetime, timedelta, timezone
+        from datetime import datetime, timedelta
 
         from ado_git_repo_insights.extractor.ado_client import parse_retry_after
 
-        fixed_now = datetime(2026, 1, 15, 12, 0, 0, tzinfo=timezone.utc)
+        fixed_now = datetime(2026, 1, 15, 12, 0, 0, tzinfo=UTC)
         # 5 minutes in the future
         future = fixed_now + timedelta(seconds=300)
         http_date = future.strftime("%a, %d %b %Y %H:%M:%S GMT")

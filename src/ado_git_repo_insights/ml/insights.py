@@ -16,7 +16,7 @@ import json
 import logging
 import os
 import time
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import TYPE_CHECKING, cast
 
@@ -140,7 +140,7 @@ class LLMInsightsGenerator:
                 "model": self.model,
                 "max_tokens": self.max_tokens,
                 "prompt": prompt,
-                "generated_at": datetime.now(timezone.utc).isoformat(),
+                "generated_at": datetime.now(UTC).isoformat(),
             }
             prompt_path = safe_join(insights_dir, "prompt.json")
             with prompt_path.open("w", encoding="utf-8") as f:
@@ -411,8 +411,8 @@ Respond ONLY with valid JSON matching this format."""
             # Validate TTL
             cached_at = datetime.fromisoformat(cache_data["cached_at"])
             if cached_at.tzinfo is None:
-                cached_at = cached_at.replace(tzinfo=timezone.utc)
-            age_hours = (datetime.now(timezone.utc) - cached_at).total_seconds() / 3600
+                cached_at = cached_at.replace(tzinfo=UTC)
+            age_hours = (datetime.now(UTC) - cached_at).total_seconds() / 3600
             if age_hours > self.cache_ttl_hours:
                 logger.debug(
                     f"Cache expired: {age_hours:.1f}h > {self.cache_ttl_hours}h"
@@ -440,7 +440,7 @@ Respond ONLY with valid JSON matching this format."""
         """
         cache_data = {
             "cache_key": cache_key,
-            "cached_at": datetime.now(timezone.utc).isoformat(),
+            "cached_at": datetime.now(UTC).isoformat(),
             "insights_data": insights_data,
         }
         with cache_path.open("w", encoding="utf-8") as f:
@@ -584,7 +584,7 @@ Respond ONLY with valid JSON matching this format."""
         sorted_as_json = cast(JSONValue, sorted_insights)
         result: dict[str, JSONValue] = {
             "schema_version": INSIGHTS_SCHEMA_VERSION,
-            "generated_at": datetime.now(timezone.utc).isoformat(),
+            "generated_at": datetime.now(UTC).isoformat(),
             "is_stub": False,
             "generated_by": GENERATOR_ID,
             "insights": sorted_as_json,

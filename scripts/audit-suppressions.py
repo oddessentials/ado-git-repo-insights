@@ -22,7 +22,7 @@ import re
 import subprocess
 import sys
 from collections import defaultdict
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any, TypedDict
 
@@ -669,7 +669,7 @@ def build_baseline(
     # Sort all dictionaries alphabetically for determinism
     baseline: SuppressionBaseline = {
         "version": SCHEMA_VERSION,
-        "generated_at": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
+        "generated_at": datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%SZ"),
         "total": total,
         "scope_policy": dict(sorted(scope_policy.items())),
         "by_scope": dict(sorted(by_scope.items())),

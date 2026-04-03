@@ -10,7 +10,7 @@ Tests for:
 from __future__ import annotations
 
 import json
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Any
 from unittest.mock import MagicMock, patch
@@ -294,7 +294,7 @@ class TestCacheLogic:
                 "_call_openai",
                 return_value={
                     "schema_version": 1,
-                    "generated_at": datetime.now(timezone.utc).isoformat(),
+                    "generated_at": datetime.now(UTC).isoformat(),
                     "is_stub": False,
                     "generated_by": "openai-v1.0",
                     "insights": mock_response["insights"],
@@ -315,7 +315,7 @@ class TestCacheLogic:
         cache_path = tmp_path / "insights" / "cache.json"
         cache_path.parent.mkdir(parents=True, exist_ok=True)
 
-        expired_time = datetime.now(timezone.utc) - timedelta(hours=13)
+        expired_time = datetime.now(UTC) - timedelta(hours=13)
         cache_data = {
             "cache_key": "test-key",
             "cached_at": expired_time.isoformat(),
@@ -338,7 +338,7 @@ class TestCacheLogic:
         cache_path = tmp_path / "insights" / "cache.json"
         cache_path.parent.mkdir(parents=True, exist_ok=True)
 
-        fresh_time = datetime.now(timezone.utc) - timedelta(hours=1)
+        fresh_time = datetime.now(UTC) - timedelta(hours=1)
         insights_data = {
             "schema_version": 1,
             "insights": [{"id": "test", "severity": "info", "category": "trend"}],

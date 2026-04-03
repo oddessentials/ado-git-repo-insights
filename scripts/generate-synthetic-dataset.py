@@ -12,7 +12,7 @@ import json
 import random
 import sys
 from dataclasses import asdict
-from datetime import date, datetime, timedelta, timezone
+from datetime import UTC, date, datetime, timedelta
 from pathlib import Path
 from types import ModuleType
 from typing import TYPE_CHECKING, Any
@@ -604,7 +604,7 @@ def generate_dataset(
 
     # Generate manifest
     manifest = DatasetManifest(
-        generated_at=datetime.now(timezone.utc).isoformat(),
+        generated_at=datetime.now(UTC).isoformat(),
         run_id=f"synthetic-{seed}",
         warnings=["SYNTHETIC TEST DATA"],
         aggregate_index=AggregateIndex(

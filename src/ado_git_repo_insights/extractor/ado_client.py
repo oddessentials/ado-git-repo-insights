@@ -12,7 +12,7 @@ import logging
 import time
 from collections.abc import Iterator
 from dataclasses import dataclass
-from datetime import date, datetime, timedelta, timezone
+from datetime import UTC, date, datetime, timedelta
 from email.utils import parsedate_to_datetime
 
 import requests
@@ -25,7 +25,7 @@ from .pagination import add_continuation_token, extract_continuation_token
 
 def _get_current_time() -> datetime:
     """Get current UTC time. Extracted for testability."""
-    return datetime.now(timezone.utc)
+    return datetime.now(UTC)
 
 
 def parse_retry_after(
