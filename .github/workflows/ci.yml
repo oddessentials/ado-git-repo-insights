@@ -1069,9 +1069,15 @@ jobs:
           ADO_HOOK_ALLOW_LOCAL_DEGRADED: '1'
         run: |
           set -euo pipefail
-          # Create a trivial staged change (whitespace in a non-gate file)
-          echo "" >> CONTRIBUTING.md
-          git add CONTRIBUTING.md
+          smoke_file="hook-entrypoint-smoke.txt"
+          cleanup() {
+            git reset -- "$smoke_file" >/dev/null 2>&1 || true
+            rm -f "$smoke_file"
+          }
+          trap cleanup EXIT
+          # Create a trivial staged change that is already formatter-clean.
+          printf 'hook entrypoint smoke\n' > "$smoke_file"
+          git add "$smoke_file"
           # Run the hook directly (not via git commit, to isolate the hook test)
           sh .husky/pre-commit 2>&1 | tee hook-output.txt
           # Verify the hook actually ran (not a silent no-op)
@@ -1080,8 +1086,6 @@ jobs:
             exit 1
           fi
           echo "[OK] Hook entrypoint test passed on ${{ matrix.os }}"
-          # Unstage the change
-          git checkout -- CONTRIBUTING.md
 
   # FR-034: Fresh-clone verification - proves deterministic builds without cache
   # FR-011: Also serves as Python-free test isolation enforcement
