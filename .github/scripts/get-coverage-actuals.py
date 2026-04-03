@@ -289,7 +289,7 @@ def generate_report(
         "typescript": ts_metrics,
         "formula": "threshold = floor(actual_coverage - 2.0)",
         "canonical_environment": {
-            "python": "ubuntu-latest + Python 3.11",
+            "python": "ubuntu-latest + Python 3.12",
             "typescript": "ubuntu-latest + Node 22",
         },
     }

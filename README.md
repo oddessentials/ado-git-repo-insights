@@ -15,7 +15,7 @@
 <!-- Python -->
 
 [![PyPI version](https://img.shields.io/pypi/v/ado-git-repo-insights?logo=pypi)](https://pypi.org/project/ado-git-repo-insights/)
-![Python](https://img.shields.io/badge/python-3.11%20%7C%203.12%20%7C%203.13-blue)
+![Python](https://img.shields.io/badge/python-3.12%20%7C%203.13%20%7C%203.14-blue)
 ![Python Coverage](https://img.shields.io/badge/dynamic/json?url=https%3A%2F%2Fraw.githubusercontent.com%2Foddessentials%2Fado-git-repo-insights%2Fbadges%2Fstatus.json&query=%24.python.coverage&label=Python%20Coverage&suffix=%25&color=brightgreen)
 ![Python Tests](https://img.shields.io/badge/dynamic/json?url=https%3A%2F%2Fraw.githubusercontent.com%2Foddessentials%2Fado-git-repo-insights%2Fbadges%2Fstatus.json&query=%24.python.tests.display&label=Python%20Tests&color=blue)
 
@@ -40,7 +40,7 @@
 [![Live Demo](https://img.shields.io/badge/demo-live-brightgreen?logo=github)](https://oddessentials.github.io/ado-git-repo-insights/)
 
 > [!NOTE]
-> **Python Compatibility:** Requires Python 3.11 or later. Uses pandas 3.x.
+> **Python Compatibility:** Requires Python 3.12 or later. Uses pandas 3.x.
 
 Extract Azure DevOps Pull Request metrics to SQLite and generate PowerBI-compatible CSVs.
 
@@ -293,7 +293,7 @@ Features:
 ### Prerequisites
 
 - Node.js 22+
-- Python 3.11+ (for backend/CLI)
+- Python 3.12+ (for backend/CLI)
 - pnpm (for extension development)
 
 ### Extension Development

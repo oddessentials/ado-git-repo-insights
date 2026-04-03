@@ -6,14 +6,14 @@ Local redefinitions of these types are forbidden (FR-013).
 
 from __future__ import annotations
 
-from typing import NotRequired, TypeAlias, TypedDict
+from typing import NotRequired, TypedDict
 
 # ---------------------------------------------------------------------------
 # Foundational type aliases
 # ---------------------------------------------------------------------------
 
-JSONValue: TypeAlias = (
-    "str | int | float | bool | None | list[JSONValue] | dict[str, JSONValue]"
+type JSONValue = (
+    str | int | float | bool | None | list[JSONValue] | dict[str, JSONValue]
 )
 """Recursive JSON-compatible value type.
 
@@ -21,7 +21,7 @@ Used by: _redact_dict (logging_config), _write_json (aggregators),
 emit log entry (logging_config), to_dict (run_summary).
 """
 
-SqliteParam: TypeAlias = "str | int | float | bytes | None"
+type SqliteParam = str | int | float | bytes | None
 """Allowed sqlite3 bind-parameter types (matches typeshed _SqliteData)."""
 
 

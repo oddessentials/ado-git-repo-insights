@@ -13,7 +13,7 @@ Usage:
     python scripts/generate-demo-data.py
 
 Requirements:
-    Python 3.11.x baseline (machine-enforced for committed demo artifacts)
+    Python 3.12.x baseline (machine-enforced for committed demo artifacts)
 """
 
 from __future__ import annotations

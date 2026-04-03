@@ -8,7 +8,7 @@ How to set up a development environment for contributing to ado-git-repo-insight
 
 | Requirement | Version | Notes |
 |-------------|---------|-------|
-| Python | 3.11, 3.12, or 3.13 | |
+| Python | 3.12, 3.13, or 3.14 | |
 | Node.js | 16+ | For extension development |
 | pnpm | 9.15.0 | Enforced by `packageManager` field |
 | Git | Any recent version | |

@@ -26,15 +26,15 @@ BASELINE_PYTHON=()
 
 resolve_baseline_python() {
     if command -v py >/dev/null 2>&1; then
-        if py -3.11 -c "import sys; raise SystemExit(0 if sys.version_info[:2] == (3, 11) else 1)" >/dev/null 2>&1; then
-            BASELINE_PYTHON=(py -3.11)
+        if py -3.12 -c "import sys; raise SystemExit(0 if sys.version_info[:2] == (3, 12) else 1)" >/dev/null 2>&1; then
+            BASELINE_PYTHON=(py -3.12)
             return 0
         fi
     fi
 
-    for candidate in python3.11 python3 python; do
+    for candidate in python3.12 python3 python; do
         if command -v "${candidate}" >/dev/null 2>&1; then
-            if "${candidate}" -c "import sys; raise SystemExit(0 if sys.version_info[:2] == (3, 11) else 1)" >/dev/null 2>&1; then
+            if "${candidate}" -c "import sys; raise SystemExit(0 if sys.version_info[:2] == (3, 12) else 1)" >/dev/null 2>&1; then
                 BASELINE_PYTHON=("${candidate}")
                 return 0
             fi
@@ -49,8 +49,8 @@ echo "Repository root: ${REPO_ROOT}"
 echo ""
 
 if ! resolve_baseline_python; then
-    echo "ERROR: Python 3.11 is required for canonical committed-demo generation."
-    echo "Install or expose Python 3.11, then rerun scripts/build-demo.sh."
+    echo "ERROR: Python 3.12 is required for canonical committed-demo generation."
+    echo "Install or expose Python 3.12, then rerun scripts/build-demo.sh."
     exit 1
 fi
 

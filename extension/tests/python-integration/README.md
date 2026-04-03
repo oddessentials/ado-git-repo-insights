@@ -1,6 +1,6 @@
 # Python Integration Tests
 
-Tests in this directory require Python 3.11+ with specific dependencies.
+Tests in this directory require Python 3.12+ with specific dependencies.
 
 ## Why Separate?
 
@@ -14,7 +14,7 @@ By separating them:
 
 ## Requirements
 
-- Python 3.11+
+- Python 3.12+
 - pandas and other dependencies: `pip install -e .[dev]` from repository root
 
 ## Running These Tests

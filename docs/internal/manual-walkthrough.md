@@ -5,7 +5,7 @@ This guide walks you through verifying that Phase 5 ML features (Prophet forecas
 ## Prerequisites
 
 Before starting, ensure you have:
-- Python 3.11+ installed
+- Python 3.12+ installed
 - A working Azure DevOps PAT with PR read access
 - An OpenAI API key (for insights generation)
 

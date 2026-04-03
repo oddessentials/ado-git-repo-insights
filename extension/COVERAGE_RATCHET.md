@@ -148,7 +148,7 @@ Coverage numbers MUST come from CI's canonical leg to ensure consistency:
 
 | Language   | OS            | Runtime     | Notes                 |
 | ---------- | ------------- | ----------- | --------------------- |
-| Python     | ubuntu-latest | Python 3.11 | Badge artifact source |
+| Python     | ubuntu-latest | Python 3.12 | Badge artifact source |
 | TypeScript | ubuntu-latest | Node 22     | Extension-tests job   |
 
 ### Why Canonical Environment Matters
