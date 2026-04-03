@@ -3278,6 +3278,99 @@ class TestConsistencyWarningLogging:
         ), "Expected a warning about consistency mismatch"
 
 
+class TestCrossDimNonDictEntryGuard:
+    """Verify isinstance guards skip non-dict entries in cross-dim dicts.
+
+    Covers lines 697-698 (author) and 730-731 (team) in aggregators.py.
+    These guards narrow the type for mypy when iterating cross-dim dicts
+    that may contain bool metadata values alongside dict entries.
+    """
+
+    def test_non_dict_entries_skipped_without_error(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Non-dict values at non-underscore keys must be skipped gracefully."""
+        db_path = tmp_path / "guard.sqlite"
+        db = DatabaseManager(db_path)
+        db.connect()
+
+        db.execute(
+            "INSERT INTO organizations (organization_name) VALUES (?)", ("org1",)
+        )
+        db.execute(
+            "INSERT INTO projects (organization_name, project_name) VALUES (?, ?)",
+            ("org1", "proj1"),
+        )
+        db.execute(
+            "INSERT INTO repositories (repository_id, repository_name, "
+            "project_name, organization_name) VALUES (?, ?, ?, ?)",
+            ("repo1", "Repo", "proj1", "org1"),
+        )
+        db.execute(
+            "INSERT INTO users (user_id, display_name, email) VALUES (?, ?, ?)",
+            ("user1", "User 1", "user1@test.com"),
+        )
+        db.execute(
+            "INSERT INTO teams (team_id, team_name, project_name, "
+            "organization_name, last_updated) VALUES (?, ?, ?, ?, ?)",
+            ("team1", "TeamA", "proj1", "org1", "2026-01-01T00:00:00Z"),
+        )
+        db.execute(
+            "INSERT INTO team_members (team_id, user_id) VALUES (?, ?)",
+            ("team1", "user1"),
+        )
+        db.execute(
+            """INSERT INTO pull_requests (
+                pull_request_uid, pull_request_id, organization_name,
+                project_name, repository_id, user_id, title, status,
+                description, creation_date, closed_date, cycle_time_minutes
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+            (
+                "pr-1",
+                1,
+                "org1",
+                "proj1",
+                "repo1",
+                "user1",
+                "PR 1",
+                "completed",
+                None,
+                "2026-01-05",
+                "2026-01-06",
+                60.0,
+            ),
+        )
+        db.connection.commit()
+
+        # Inject a non-dict value at a non-underscore key in author_repo slice
+        original_author = AggregateGenerator._generate_author_repo_slice
+
+        def patched_author(self_gen, week_group, week_reviewers):
+            result = original_author(self_gen, week_group, week_reviewers)
+            result["bogus_author"] = True  # non-dict, non-underscore key
+            return result
+
+        # Inject a non-dict value at a non-underscore key in team_repo slice
+        original_team = AggregateGenerator._generate_team_repo_slice
+
+        def patched_team(self_gen, week_group, week_reviewers, team_members_df):
+            result = original_team(
+                self_gen, week_group, week_reviewers, team_members_df
+            )
+            result["bogus_team"] = True  # non-dict, non-underscore key
+            return result
+
+        monkeypatch.setattr(
+            AggregateGenerator, "_generate_author_repo_slice", patched_author
+        )
+        monkeypatch.setattr(
+            AggregateGenerator, "_generate_team_repo_slice", patched_team
+        )
+
+        generator = AggregateGenerator(db, tmp_path / "output")
+        generator.generate_all()  # Must not raise
+
+
 class TestTeamMembershipDedup:
     """Verify duplicate (user_id, team_name) pairs don't inflate PR counts."""
 
