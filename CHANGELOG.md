@@ -1,3 +1,44 @@
+# [100.0.0](https://github.com/oddessentials/ado-git-repo-insights/compare/v99.34.0...v100.0.0) (2026-04-03)
+
+
+* feat!: drop Python 3.10 support, add 3.13 to CI matrix ([837544a](https://github.com/oddessentials/ado-git-repo-insights/commit/837544ad20afc61ac9d606fac2229f1f691f3421))
+* feat!: drop Python 3.10 support, add 3.13 to CI matrix ([d38f546](https://github.com/oddessentials/ado-git-repo-insights/commit/d38f54644685f10196ca92d38a335bfc4d32a6d4))
+
+
+### Bug Fixes
+
+* code review ([727433e](https://github.com/oddessentials/ado-git-repo-insights/commit/727433e1e0d5ec0c6c7ad01235f953acc68446c5))
+* eliminate 54 of 100 typing.Any usages in src/ (QG-40) ([767c90a](https://github.com/oddessentials/ado-git-repo-insights/commit/767c90a0a0fa0a0d3cbb7ed031559a901065a2f9)), closes [#235](https://github.com/oddessentials/ado-git-repo-insights/issues/235)
+* python 3.11 upgrade cleanup ([12424e8](https://github.com/oddessentials/ado-git-repo-insights/commit/12424e8b18010690d19d102064f0ed2f7921b2fa))
+* python verson gate to 11 ([444cdbe](https://github.com/oddessentials/ado-git-repo-insights/commit/444cdbe55fbb403d92c4b0efe11c0234b15647fe))
+
+
+### BREAKING CHANGES
+
+* Python 3.10 is no longer supported. Minimum version is 3.11.
+
+Co-Authored-By: Claude Opus 4.6 (1M context) <noreply@anthropic.com>
+Entire-Checkpoint: 248993c31b99
+* Minimum Python version is now 3.11.
+
+- pyproject.toml: requires-python >= 3.11, classifiers updated,
+  pandas conditional deps simplified to >= 3.0.0 only,
+  mypy python_version = 3.11, ruff target-version = py311
+- CI matrix: [3.11, 3.12, 3.13] (was [3.10, 3.11, 3.12])
+- Demo pipeline: all jobs use Python 3.11, baseline constants
+  and version checks updated in demo_generation_common.py,
+  build-demo.sh, and demo.yml
+- types.py: removed sys.version_info guard, imports NotRequired
+  directly from typing (available in 3.11+)
+- Preflight: BASELINE_PYTHON = 3.11
+- ADO pipeline samples: versionSpec 3.11
+- Docs: README, CONTRIBUTING, setup, testing, local-cli,
+  manual-walkthrough, enable-ml-features all updated
+- Committed demo manifest provenance updated to 3.11.x
+
+Co-Authored-By: Claude Opus 4.6 (1M context) <noreply@anthropic.com>
+Entire-Checkpoint: 3cc5a78d66fa
+
 # [99.34.0](https://github.com/oddessentials/ado-git-repo-insights/compare/v99.33.2...v99.34.0) (2026-04-03)
 
 
