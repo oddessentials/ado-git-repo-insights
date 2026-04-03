@@ -10,7 +10,6 @@ from __future__ import annotations
 
 import functools
 from collections.abc import Callable, Iterable
-from typing import cast
 
 from coverage import Coverage
 
@@ -18,6 +17,7 @@ CombineFunc = Callable[
     [Coverage, Iterable[str] | None, bool, bool],
     None,
 ]
+_COMBINE = "combine"
 _PATCHED: bool = False
 _ORIGINAL_COMBINE: CombineFunc | None = None
 
@@ -51,5 +51,5 @@ def pytest_configure() -> None:
             keep = True
         return original_combine(self, data_paths, strict, keep)
 
-    Coverage.combine = cast(CombineFunc, patched_combine)
+    setattr(Coverage, _COMBINE, patched_combine)
     _PATCHED = True

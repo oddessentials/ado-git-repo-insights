@@ -611,6 +611,14 @@ def resolve_gitleaks() -> str | None:
     resolved = shutil.which("gitleaks")
     if resolved:
         return resolved
+    # Fallback: winget installs packages into per-package directories under
+    # %LOCALAPPDATA%\Microsoft\WinGet\Packages\ without adding them to PATH.
+    if sys.platform == "win32":
+        local_app_data = os.environ.get("LOCALAPPDATA", "")
+        if local_app_data:
+            winget_packages = Path(local_app_data) / "Microsoft" / "WinGet" / "Packages"
+            for candidate in winget_packages.glob("Gitleaks.Gitleaks_*/gitleaks.exe"):
+                return str(candidate)
     return None
 
 

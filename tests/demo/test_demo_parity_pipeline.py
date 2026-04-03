@@ -57,13 +57,19 @@ def _cleanup_test_tmp_root() -> None:
 atexit.register(_cleanup_test_tmp_root)
 
 
+_ROOT = "ARTIFACT_ROOT"
+_DATA = "ARTIFACT_DATA"
+_REPORT = "ARTIFACT_REPORT"
+_METADATA = "ARTIFACT_METADATA"
+
+
 def _set_artifact_root(root: Path) -> None:
     """Point module-level artifact paths at the provided scratch root."""
     module = sys.modules[__name__]
-    module.ARTIFACT_ROOT = root
-    module.ARTIFACT_DATA = root / "data"
-    module.ARTIFACT_REPORT = root / "report"
-    module.ARTIFACT_METADATA = root / "metadata"
+    setattr(module, _ROOT, root)
+    setattr(module, _DATA, root / "data")
+    setattr(module, _REPORT, root / "report")
+    setattr(module, _METADATA, root / "metadata")
 
 
 def _fresh_artifact_env() -> dict[str, str]:

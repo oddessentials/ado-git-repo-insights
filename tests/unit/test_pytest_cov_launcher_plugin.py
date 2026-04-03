@@ -26,6 +26,8 @@ CombineFunc = Callable[
     [Coverage, Iterable[str] | None, bool, bool],
     None,
 ]
+_COMBINE = "combine"
+_PATCHED_ATTR = "_PATCHED"
 
 
 def _write_shard(base: Path, suffix: str, filename: str, lines: list[int]) -> Path:
@@ -108,9 +110,9 @@ class TestPytestCovLauncherPlugin:
 
     def test_plugin_forces_keep_without_changing_other_kwargs(self) -> None:
         original_combine = cast(CombineFunc, Coverage.combine)
-        original_patched = cast(bool, _module._PATCHED)
+        original_patched = cast(bool, getattr(_module, _PATCHED_ATTR))
         try:
-            _module._PATCHED = False
+            setattr(_module, _PATCHED_ATTR, False)
             captured: dict[str, object] = {}
 
             def fake_original(
@@ -123,7 +125,7 @@ class TestPytestCovLauncherPlugin:
                 captured["strict"] = strict
                 captured["keep"] = keep
 
-            Coverage.combine = cast(CombineFunc, fake_original)
+            setattr(Coverage, _COMBINE, fake_original)
             _module.pytest_configure()
             result = cast(CombineFunc, Coverage.combine)(
                 Coverage(config_file=False),
@@ -139,5 +141,5 @@ class TestPytestCovLauncherPlugin:
                 "keep": True,
             }
         finally:
-            Coverage.combine = original_combine
-            _module._PATCHED = original_patched
+            setattr(Coverage, _COMBINE, original_combine)
+            setattr(_module, _PATCHED_ATTR, original_patched)
