@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import importlib.util
+from collections.abc import Iterable
 from io import StringIO
 from pathlib import Path
 from typing import Protocol, cast
@@ -22,13 +23,14 @@ _module = importlib.util.module_from_spec(_spec)
 _spec.loader.exec_module(_module)
 
 
-class CombineCallable(Protocol):
+class CombineFunc(Protocol):
     def __call__(
         self,
         cov: coverage.Coverage,
-        *args: object,
-        **kwargs: object,
-    ) -> object: ...
+        data_paths: Iterable[str] | None = None,
+        strict: bool = False,
+        keep: bool = False,
+    ) -> None: ...
 
 
 def _write_shard(base: Path, suffix: str, filename: str, lines: list[int]) -> Path:
@@ -39,14 +41,19 @@ def _write_shard(base: Path, suffix: str, filename: str, lines: list[int]) -> Pa
 
 
 def _combine_total(
-    data_dir: Path, data_file: Path, source_dir: Path, *, keep: bool
+    combine_func: CombineFunc,
+    data_dir: Path,
+    data_file: Path,
+    source_dir: Path,
+    *,
+    keep: bool,
 ) -> tuple[float, set[int]]:
     cov = coverage.Coverage(
         data_file=str(data_file),
         source=[str(source_dir)],
         config_file=False,
     )
-    cov.combine(data_paths=[str(data_dir)], keep=keep)
+    combine_func(cov, [str(data_dir)], False, keep)
     cov.save()
     total = cov.report(file=StringIO())
     lines = set(cov.get_data().lines(str(source_dir / "mod.py")) or [])
@@ -77,13 +84,22 @@ class TestPytestCovLauncherPlugin:
         shard_true_a = _write_shard(base_true, "a", str(source_file), [1, 2, 3, 4])
         shard_true_b = _write_shard(base_true, "b", str(source_file), [1, 2, 5])
 
+        unpatched_combine = cast(
+            CombineFunc,
+            getattr(
+                coverage.Coverage.combine, "__wrapped__", coverage.Coverage.combine
+            ),
+        )
+
         total_false, lines_false = _combine_total(
+            unpatched_combine,
             base_false.parent,
             tmp_path / "combined-false" / ".coverage",
             source_dir,
             keep=False,
         )
         total_true, lines_true = _combine_total(
+            unpatched_combine,
             base_true.parent,
             tmp_path / "combined-true" / ".coverage",
             source_dir,
@@ -98,27 +114,36 @@ class TestPytestCovLauncherPlugin:
         assert shard_true_b.exists()
 
     def test_plugin_forces_keep_without_changing_other_kwargs(self) -> None:
-        original_combine = cast(CombineCallable, coverage.Coverage.combine)
+        original_combine = cast(CombineFunc, coverage.Coverage.combine)
+        original_patched = cast(bool, _module._PATCHED)
         try:
+            _module._PATCHED = False
             captured: dict[str, object] = {}
 
             def fake_original(
-                self: coverage.Coverage, *args: object, **kwargs: object
-            ) -> object:
-                captured["args"] = args
-                captured["kwargs"] = dict(kwargs)
-                return "ok"
+                self: coverage.Coverage,
+                data_paths: Iterable[str] | None = None,
+                strict: bool = False,
+                keep: bool = False,
+            ) -> None:
+                captured["data_paths"] = data_paths
+                captured["strict"] = strict
+                captured["keep"] = keep
 
-            coverage.Coverage.combine = fake_original
+            coverage.Coverage.combine = cast(CombineFunc, fake_original)
             _module.pytest_configure()
-            result = cast(CombineCallable, coverage.Coverage.combine)(
+            result = cast(CombineFunc, coverage.Coverage.combine)(
                 coverage.Coverage(config_file=False),
                 "data",
                 strict=True,
             )
 
-            assert result == "ok"
-            assert captured["args"] == ("data",)
-            assert captured["kwargs"] == {"strict": True, "keep": True}
+            assert result is None
+            assert captured == {
+                "data_paths": "data",
+                "strict": True,
+                "keep": True,
+            }
         finally:
             coverage.Coverage.combine = original_combine
+            _module._PATCHED = original_patched

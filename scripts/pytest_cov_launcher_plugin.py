@@ -8,7 +8,18 @@ this plugin to preserve shard files during combine.
 
 from __future__ import annotations
 
+import functools
+from collections.abc import Callable, Iterable
+from typing import cast
+
 import coverage
+
+CombineFunc = Callable[
+    [coverage.Coverage, Iterable[str] | None, bool, bool],
+    None,
+]
+_PATCHED = False
+_ORIGINAL_COMBINE: CombineFunc | None = None
 
 
 def pytest_configure() -> None:
@@ -21,16 +32,24 @@ def pytest_configure() -> None:
     left behind.
     """
 
-    original_combine = coverage.Coverage.combine
-
-    if getattr(original_combine, "_ado_launcher_keep", False):
+    global _PATCHED
+    global _ORIGINAL_COMBINE
+    if _PATCHED:
         return
 
-    def combine_keep(
-        self: coverage.Coverage, *args: object, **kwargs: object
-    ) -> object:
-        kwargs.setdefault("keep", True)
-        return original_combine(self, *args, **kwargs)
+    original_combine = coverage.Coverage.combine
+    _ORIGINAL_COMBINE = original_combine
 
-    combine_keep._ado_launcher_keep = True
-    coverage.Coverage.combine = combine_keep
+    @functools.wraps(original_combine)
+    def combine_keep(
+        self: coverage.Coverage,
+        data_paths: Iterable[str] | None = None,
+        strict: bool = False,
+        keep: bool = False,
+    ) -> None:
+        if not keep:
+            keep = True
+        return original_combine(self, data_paths, strict, keep)
+
+    coverage.Coverage.combine = cast(CombineFunc, combine_keep)
+    _PATCHED = True
