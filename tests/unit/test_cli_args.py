@@ -12,13 +12,17 @@ class TestArgumentParsing:
 
     def test_version_flag_exits_zero(self, capsys: pytest.CaptureFixture) -> None:
         """--version flag prints version and exits 0 (T-01, FR-001/FR-002)."""
+        import re
+
         parser = create_parser()
         with pytest.raises(SystemExit) as exc_info:
             parser.parse_args(["--version"])
         assert exc_info.value.code == 0
         captured = capsys.readouterr()
         assert "ado-insights" in captured.out
-        assert "0.0.0" not in captured.out
+        version = captured.out.strip().split()[-1]
+        assert re.match(r"^\d+\.\d+\.\d+", version), f"Not a valid version: {version}"
+        assert version != "0.0.0", "Version must not be the unresolved sentinel"
 
     def test_extract_command_required_args(self) -> None:
         parser = create_parser()
