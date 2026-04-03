@@ -154,11 +154,25 @@ def load_config(
 
     def _float(d: dict[str, object], key: str, default: float) -> float:
         val = d.get(key)
-        return float(val) if isinstance(val, (int, float, str)) else default
+        if not isinstance(val, (int, float, str)):
+            return default
+        try:
+            return float(val)
+        except (ValueError, TypeError) as exc:
+            raise ConfigurationError(
+                f"Expected numeric value for '{key}', got: {val!r}"
+            ) from exc
 
     def _int(d: dict[str, object], key: str, default: int) -> int:
         val = d.get(key)
-        return int(val) if isinstance(val, (int, str)) else default
+        if not isinstance(val, (int, str)):
+            return default
+        try:
+            return int(val)
+        except (ValueError, TypeError) as exc:
+            raise ConfigurationError(
+                f"Expected integer value for '{key}', got: {val!r}"
+            ) from exc
 
     # Build API config
     api_data = _sub("api")

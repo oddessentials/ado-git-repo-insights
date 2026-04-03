@@ -136,6 +136,56 @@ class TestDateRangeConfigDefaults:
         assert date_range.end is None
 
 
+class TestLoadConfigNumericCoercion:
+    """Tests for numeric config value validation (QG-40 regression)."""
+
+    def test_non_numeric_max_retries_raises_configuration_error(
+        self, tmp_path: Path
+    ) -> None:
+        """Non-numeric string for max_retries raises ConfigurationError."""
+        config_file = tmp_path / "config.yaml"
+        config_file.write_text(
+            "organization: x\nprojects:\n  - p\npat: t\napi:\n  max_retries: three\n"
+        )
+        with pytest.raises(ConfigurationError, match="Expected integer.*max_retries"):
+            load_config(config_path=config_file, database=Path("test.sqlite"))
+
+    def test_non_numeric_retry_delay_raises_configuration_error(
+        self, tmp_path: Path
+    ) -> None:
+        """Non-numeric string for retry_delay_seconds raises ConfigurationError."""
+        config_file = tmp_path / "config.yaml"
+        config_file.write_text(
+            "organization: x\nprojects:\n  - p\npat: t\n"
+            "api:\n  retry_delay_seconds: fast\n"
+        )
+        with pytest.raises(ConfigurationError, match="Expected numeric.*retry_delay"):
+            load_config(config_path=config_file, database=Path("test.sqlite"))
+
+    def test_non_numeric_window_days_raises_configuration_error(
+        self, tmp_path: Path
+    ) -> None:
+        """Non-numeric string for window_days raises ConfigurationError."""
+        config_file = tmp_path / "config.yaml"
+        config_file.write_text(
+            "organization: x\nprojects:\n  - p\npat: t\n"
+            "backfill:\n  window_days: lots\n"
+        )
+        with pytest.raises(ConfigurationError, match="Expected integer.*window_days"):
+            load_config(config_path=config_file, database=Path("test.sqlite"))
+
+    def test_valid_numeric_strings_coerce_correctly(self, tmp_path: Path) -> None:
+        """Numeric strings like '5' coerce without error."""
+        config_file = tmp_path / "config.yaml"
+        config_file.write_text(
+            "organization: x\nprojects:\n  - p\npat: t\n"
+            "api:\n  max_retries: '5'\n  retry_delay_seconds: '2.5'\n"
+        )
+        config = load_config(config_path=config_file, database=Path("test.sqlite"))
+        assert config.api.max_retries == 5
+        assert config.api.retry_delay_seconds == 2.5
+
+
 class TestLoadConfigDateValidation:
     """Tests for date validation in load_config."""
 
