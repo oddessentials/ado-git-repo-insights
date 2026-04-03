@@ -477,6 +477,12 @@ def render_command(command: tuple[str, ...] | list[str]) -> str:
     return " ".join(command)
 
 
+def is_node_dependent_command(spec: CommandSpec) -> bool:
+    return bool(spec.command) and (
+        PNPM_SENTINEL in spec.command or spec.command[0] == "node"
+    )
+
+
 def emit_output(prefix: str, text: str) -> None:
     if not text.strip():
         return
@@ -790,7 +796,11 @@ def main() -> int:
     degraded_skips: list[str] = []
     for spec in commands:
         # Degraded mode may skip Node-dependent commands when local Node is broken.
-        if args.allow_local_degraded and not node_ok and PNPM_SENTINEL in spec.command:
+        if (
+            args.allow_local_degraded
+            and not node_ok
+            and is_node_dependent_command(spec)
+        ):
             degraded_skips.append(spec.name)
             continue
         run_command(

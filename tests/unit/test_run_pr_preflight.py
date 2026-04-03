@@ -154,6 +154,10 @@ class TestMainBehavior:
         command_specs = (
             _module.CommandSpec("Python gate", ("__PYTHON__", "-V")),
             _module.CommandSpec("Extension lint", (PNPM_SENTINEL, "run", "lint")),
+            _module.CommandSpec(
+                "Extension task unit tests",
+                ("node", "extension/tasks/extract-prs/index.test.js"),
+            ),
         )
         with (
             patch.object(
@@ -186,6 +190,14 @@ class TestMainBehavior:
 
         executed_names = [call.args[0].name for call in run_command_mock.call_args_list]
         assert executed_names == ["Python gate"]
+
+    def test_direct_node_command_is_treated_as_node_dependent(self) -> None:
+        assert _module.is_node_dependent_command(
+            _module.CommandSpec(
+                "Extension task unit tests",
+                ("node", "extension/tasks/extract-prs/index.test.js"),
+            )
+        )
 
     def test_degraded_mode_reports_skipped_node_gates_without_ok_footer(
         self,

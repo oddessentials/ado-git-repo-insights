@@ -11,6 +11,7 @@ Mirrors the suppression audit and the TypeScript any-type-ratchet.test.ts.
 
 from __future__ import annotations
 
+import io
 import json
 import subprocess
 import sys
@@ -24,10 +25,17 @@ BASELINE_PATH = REPO_ROOT / ".any-type-baseline.json"
 
 def scan_file(filepath: Path) -> tuple[list[tuple[int, str]], str | None]:
     """Return ``(hits, parse_error)`` for Any tokens in *filepath*."""
+    try:
+        return scan_bytes(filepath.read_bytes())
+    except OSError as exc:
+        return [], f"{type(exc).__name__}: {exc}"
+
+
+def scan_bytes(content: bytes) -> tuple[list[tuple[int, str]], str | None]:
+    """Return ``(hits, parse_error)`` for Any tokens in *content*."""
     hits: list[tuple[int, str]] = []
     try:
-        with filepath.open("rb") as f:
-            tokens = list(tokenize.tokenize(f.readline))
+        tokens = list(tokenize.tokenize(io.BytesIO(content).readline))
     except (tokenize.TokenError, IndentationError) as exc:
         return hits, f"{type(exc).__name__}: {exc}"
 
@@ -54,12 +62,30 @@ def scan_paths(py_files: list[Path]) -> tuple[dict[str, int], list[str]]:
     return results, parse_failures
 
 
+def scan_staged_paths(rel_paths: list[str]) -> tuple[dict[str, int], list[str]]:
+    """Return ``({relative_path: count}, parse_failures)`` for staged files."""
+    results: dict[str, int] = {}
+    parse_failures: list[str] = []
+    for rel in sorted(rel_paths):
+        content = staged_file_bytes(rel)
+        if content is None:
+            parse_failures.append(f"  {rel}: could not read staged blob")
+            continue
+        hits, parse_error = scan_bytes(content)
+        if parse_error is not None:
+            parse_failures.append(f"  {rel}: {parse_error}")
+            continue
+        if hits:
+            results[rel] = len(hits)
+    return results, parse_failures
+
+
 def scan_src() -> tuple[dict[str, int], list[str]]:
     """Return ``({relative_path: count}, parse_failures)`` for all src/ files."""
     return scan_paths(list(SRC_DIR.rglob("*.py")))
 
 
-def staged_src_py_files() -> list[Path]:
+def staged_src_py_files() -> list[str]:
     """Return staged Python files under src/."""
     result = subprocess.run(
         ["git", "diff", "--cached", "--name-only", "--diff-filter=d", "--", "src"],
@@ -74,15 +100,25 @@ def staged_src_py_files() -> list[Path]:
         print(f"[FAIL] QG-40: git diff failed: {result.stderr.strip()}")
         raise SystemExit(1)
 
-    files: list[Path] = []
+    files: list[str] = []
     for line in result.stdout.splitlines():
         rel = line.strip().replace("\\", "/")
         if not rel.endswith(".py"):
             continue
-        path = REPO_ROOT / rel
-        if path.exists():
-            files.append(path)
+        files.append(rel)
     return files
+
+
+def staged_file_bytes(rel_path: str) -> bytes | None:
+    result = subprocess.run(
+        ["git", "show", f":{rel_path}"],
+        cwd=REPO_ROOT,
+        capture_output=True,
+        check=False,
+    )
+    if result.returncode != 0:
+        return None
+    return result.stdout
 
 
 def load_baseline() -> dict[str, int]:
@@ -126,7 +162,7 @@ def main() -> int:
         if not staged_files:
             print("[PASS] QG-40: No staged Python files under src/")
             return 0
-        current, parse_failures = scan_paths(staged_files)
+        current, parse_failures = scan_staged_paths(staged_files)
     else:
         current, parse_failures = scan_src()
     current_total = sum(current.values())

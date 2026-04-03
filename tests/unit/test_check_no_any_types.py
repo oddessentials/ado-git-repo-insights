@@ -90,7 +90,14 @@ class TestCheckNoAnyTypes:
             patch.object(MODULE, "REPO_ROOT", case_dir),
             patch.object(MODULE, "SRC_DIR", case_dir / "src"),
             patch.object(MODULE, "BASELINE_PATH", baseline_path),
-            patch.object(MODULE, "staged_src_py_files", return_value=[staged_file]),
+            patch.object(
+                MODULE, "staged_src_py_files", return_value=["src/new_any.py"]
+            ),
+            patch.object(
+                MODULE,
+                "staged_file_bytes",
+                return_value=b"from typing import Any\nvalue: Any = 1\n",
+            ),
             patch.object(sys, "argv", ["check_no_any_types.py", "--diff"]),
         ):
             assert MODULE.main() == 1
@@ -98,6 +105,37 @@ class TestCheckNoAnyTypes:
         out = capsys.readouterr().out
         assert "src/new_any.py" in out
         assert "src/ignored_any.py" not in out
+
+    def test_diff_mode_reads_staged_blob_not_worktree(
+        self, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        case_dir = self._fresh_case_dir("diff-staged-blob")
+        baseline_path = case_dir / ".any-type-baseline.json"
+        baseline_path.write_text(
+            json.dumps({"total": 0, "files": {"src/example.py": 0}}, indent=2) + "\n",
+            encoding="utf-8",
+        )
+        worktree_file = case_dir / "src" / "example.py"
+        worktree_file.write_text("value = 1\n", encoding="utf-8")
+
+        with (
+            patch.object(MODULE, "REPO_ROOT", case_dir),
+            patch.object(MODULE, "SRC_DIR", case_dir / "src"),
+            patch.object(MODULE, "BASELINE_PATH", baseline_path),
+            patch.object(
+                MODULE, "staged_src_py_files", return_value=["src/example.py"]
+            ),
+            patch.object(
+                MODULE,
+                "staged_file_bytes",
+                return_value=b"from typing import Any\nvalue: Any = 1\n",
+            ),
+            patch.object(sys, "argv", ["check_no_any_types.py", "--diff"]),
+        ):
+            assert MODULE.main() == 1
+
+        out = capsys.readouterr().out
+        assert "src/example.py" in out
 
     def test_diff_and_update_baseline_is_rejected(
         self, capsys: pytest.CaptureFixture[str]
@@ -128,7 +166,8 @@ class TestCheckNoAnyTypes:
             patch.object(MODULE, "REPO_ROOT", case_dir),
             patch.object(MODULE, "SRC_DIR", case_dir / "src"),
             patch.object(MODULE, "BASELINE_PATH", baseline_path),
-            patch.object(MODULE, "staged_src_py_files", return_value=[clean_file]),
+            patch.object(MODULE, "staged_src_py_files", return_value=["src/clean.py"]),
+            patch.object(MODULE, "staged_file_bytes", return_value=b"value = 1\n"),
             patch.object(sys, "argv", ["check_no_any_types.py", "--diff"]),
         ):
             assert MODULE.main() == 0

@@ -259,8 +259,17 @@ class TestStagedSuppressionGuards:
             patch.dict("os.environ", {"ADO_HOOK_ALLOW_LOCAL_DEGRADED": "1"}),
         ):
             baseline = _hook_module._load_authoritative_suppression_baseline()
-        assert baseline["by_file"] == {}
-        assert baseline["total"] == 0
+        assert baseline is None
+
+    def test_diff_guard_skips_when_authoritative_baseline_is_unavailable_in_degraded_mode(
+        self,
+    ) -> None:
+        with patch.object(
+            _hook_module,
+            "_load_authoritative_suppression_baseline",
+            return_value=None,
+        ):
+            run_staged_suppression_diff_guard()
 
     def test_diff_guard_fails_when_staged_net_delta_is_positive(self) -> None:
         with (

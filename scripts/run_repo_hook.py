@@ -249,7 +249,7 @@ def _allow_local_degraded() -> bool:
     }
 
 
-def _load_authoritative_suppression_baseline() -> dict[str, object]:
+def _load_authoritative_suppression_baseline() -> dict[str, object] | None:
     fetch = subprocess.run(
         ["git", "fetch", "origin", "main", "--quiet"],
         cwd=REPO_ROOT,
@@ -266,7 +266,7 @@ def _load_authoritative_suppression_baseline() -> dict[str, object]:
         )
         if _allow_local_degraded():
             safe_print(f"{message} Running in degraded mode.")
-            return {"version": 2, "total": 0, "by_file": {}}
+            return None
         raise SystemExit(message)
 
     result = subprocess.run(
@@ -285,7 +285,7 @@ def _load_authoritative_suppression_baseline() -> dict[str, object]:
         )
         if _allow_local_degraded():
             safe_print(f"{message} Running in degraded mode.")
-            return {"version": 2, "total": 0, "by_file": {}}
+            return None
         raise SystemExit(message)
 
     baseline = json.loads(result.stdout)
@@ -375,6 +375,12 @@ def _staged_suppression_delta_inputs(
 
 def run_staged_suppression_diff_guard() -> None:
     baseline = _load_authoritative_suppression_baseline()
+    if baseline is None:
+        safe_print(
+            "[pre-commit] authoritative suppression baseline unavailable in degraded mode; "
+            "skipping staged suppression delta guard"
+        )
+        return
     baseline_by_file = baseline.get("by_file", {})
     assert isinstance(baseline_by_file, dict)
 
