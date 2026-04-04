@@ -207,13 +207,27 @@ def generate_weekly_rollups(
         week_pr_count = prs_per_week + rng.randint(-5, 5)
         week_pr_count = max(1, week_pr_count)
 
+        ct_p50 = rng.uniform(120, 480)  # 2-8 hours
+        ct_p90 = rng.uniform(480, 1440)  # 8-24 hours
+        # Review time: 30-70% of cycle time with per-percentile null independence
+        rt_ratio_p50 = rng.uniform(0.3, 0.7)
+        rt_ratio_p90 = rng.uniform(0.3, 0.7)
+        rt_p50: float | None = round(ct_p50 * rt_ratio_p50, 3)
+        rt_p90: float | None = round(ct_p90 * rt_ratio_p90, 3)
+        if rng.random() < 0.10:  # ~10% null rate per percentile
+            rt_p50 = None
+        if rng.random() < 0.10:
+            rt_p90 = None
+
         rollup = WeeklyRollup(
             week=week_str,
             start_date=week_start.isoformat(),
             end_date=week_end.isoformat(),
             pr_count=week_pr_count,
-            cycle_time_p50=rng.uniform(120, 480),  # 2-8 hours
-            cycle_time_p90=rng.uniform(480, 1440),  # 8-24 hours
+            cycle_time_p50=ct_p50,
+            cycle_time_p90=ct_p90,
+            review_time_p50=rt_p50,
+            review_time_p90=rt_p90,
             authors_count=rng.randint(5, 15),
             reviewers_count=_reviewer_count(rng, num_users),
         )
@@ -232,26 +246,26 @@ def generate_weekly_rollups(
         team_beta_authors = max(1, rollup.authors_count - team_alpha_authors)
         team_alpha_reviewers = max(1, round(rollup.reviewers_count * alpha_ratio))
         team_beta_reviewers = max(1, rollup.reviewers_count - team_alpha_reviewers)
+        alpha_ct_p50 = (rollup.cycle_time_p50 or 0.0) * (0.8 + alpha_ratio * 0.4)
+        alpha_ct_p90 = (rollup.cycle_time_p90 or 0.0) * (0.8 + alpha_ratio * 0.4)
+        beta_ct_p50 = (rollup.cycle_time_p50 or 0.0) * (1.2 - alpha_ratio * 0.4)
+        beta_ct_p90 = (rollup.cycle_time_p90 or 0.0) * (1.2 - alpha_ratio * 0.4)
         rollup_dict["by_team"] = {
             "Team Alpha": {
                 "pr_count": team_alpha_prs,
-                "cycle_time_p50": (rollup.cycle_time_p50 or 0.0)
-                * (0.8 + alpha_ratio * 0.4),
-                "cycle_time_p90": (rollup.cycle_time_p90 or 0.0)
-                * (0.8 + alpha_ratio * 0.4),
-                "review_time_p50": None,
-                "review_time_p90": None,
+                "cycle_time_p50": alpha_ct_p50,
+                "cycle_time_p90": alpha_ct_p90,
+                "review_time_p50": round(alpha_ct_p50 * rng.uniform(0.3, 0.7), 3),
+                "review_time_p90": round(alpha_ct_p90 * rng.uniform(0.3, 0.7), 3),
                 "authors_count": team_alpha_authors,
                 "reviewers_count": team_alpha_reviewers,
             },
             "Team Beta": {
                 "pr_count": team_beta_prs,
-                "cycle_time_p50": (rollup.cycle_time_p50 or 0.0)
-                * (1.2 - alpha_ratio * 0.4),
-                "cycle_time_p90": (rollup.cycle_time_p90 or 0.0)
-                * (1.2 - alpha_ratio * 0.4),
-                "review_time_p50": None,
-                "review_time_p90": None,
+                "cycle_time_p50": beta_ct_p50,
+                "cycle_time_p90": beta_ct_p90,
+                "review_time_p50": round(beta_ct_p50 * rng.uniform(0.3, 0.7), 3),
+                "review_time_p90": round(beta_ct_p90 * rng.uniform(0.3, 0.7), 3),
                 "authors_count": team_beta_authors,
                 "reviewers_count": team_beta_reviewers,
             },
@@ -324,21 +338,33 @@ def generate_weekly_rollups(
 
                     # Cycle time variation per intersection:
                     # null when fewer than 5 PRs (FR-019 minimum sample size)
+                    tr_ct_p50: float | None
+                    tr_ct_p90: float | None
                     if r_prs < 5:
-                        ct_p50 = None
-                        ct_p90 = None
+                        tr_ct_p50 = None
+                        tr_ct_p90 = None
                     else:
                         team_entry = rollup_dict["by_team"][team_name]
                         ct_factor = 0.7 + repo_weights[j] * num_repos * 0.6
-                        ct_p50 = team_entry["cycle_time_p50"] * ct_factor
-                        ct_p90 = team_entry["cycle_time_p90"] * ct_factor
+                        tr_ct_p50 = team_entry["cycle_time_p50"] * ct_factor
+                        tr_ct_p90 = team_entry["cycle_time_p90"] * ct_factor
 
+                    rt_p50_tr = (
+                        round(tr_ct_p50 * rng.uniform(0.3, 0.7), 3)
+                        if tr_ct_p50 is not None
+                        else None
+                    )
+                    rt_p90_tr = (
+                        round(tr_ct_p90 * rng.uniform(0.3, 0.7), 3)
+                        if tr_ct_p90 is not None
+                        else None
+                    )
                     team_repo_entries[rname] = {
                         "pr_count": r_prs,
-                        "cycle_time_p50": ct_p50,
-                        "cycle_time_p90": ct_p90,
-                        "review_time_p50": None,
-                        "review_time_p90": None,
+                        "cycle_time_p50": tr_ct_p50,
+                        "cycle_time_p90": tr_ct_p90,
+                        "review_time_p50": rt_p50_tr,
+                        "review_time_p90": rt_p90_tr,
                         "authors_count": r_authors,
                         "reviewers_count": r_reviewers,
                     }
@@ -383,12 +409,14 @@ def generate_weekly_rollups(
 
                 # Vary cycle times by weight for realistic spread
                 factor = 0.6 + weights[i] * len(repo_names) * 0.8
+                repo_ct_p50 = (rollup.cycle_time_p50 or 0.0) * factor
+                repo_ct_p90 = (rollup.cycle_time_p90 or 0.0) * factor
                 by_repo[name] = {
                     "pr_count": repo_prs,
-                    "cycle_time_p50": (rollup.cycle_time_p50 or 0.0) * factor,
-                    "cycle_time_p90": (rollup.cycle_time_p90 or 0.0) * factor,
-                    "review_time_p50": None,
-                    "review_time_p90": None,
+                    "cycle_time_p50": repo_ct_p50,
+                    "cycle_time_p90": repo_ct_p90,
+                    "review_time_p50": round(repo_ct_p50 * rng.uniform(0.3, 0.7), 3),
+                    "review_time_p90": round(repo_ct_p90 * rng.uniform(0.3, 0.7), 3),
                     "authors_count": repo_authors,
                     "reviewers_count": repo_reviewers,
                 }

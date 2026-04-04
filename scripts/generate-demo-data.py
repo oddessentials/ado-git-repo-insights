@@ -663,6 +663,8 @@ def _allocate_author_repo_entries(
             assert p90 is not None
             author_entry["cycle_time_p50"] = p50 * factor
             author_entry["cycle_time_p90"] = p90 * factor
+            author_entry["review_time_p50"] = _derive_review_time(p50 * factor)
+            author_entry["review_time_p90"] = _derive_review_time(p90 * factor)
 
         author_id = str(author.user_id)
         author_slices.setdefault(author_id, []).append(author_entry)
@@ -681,6 +683,9 @@ def _collapse_author_slices(
         weighted_p50_total = 0.0
         weighted_p90_total = 0.0
         weighted_prs = 0
+        rt_weighted_p50_total = 0.0
+        rt_weighted_p90_total = 0.0
+        rt_weighted_prs = 0
         reviewers_count = 1
         for entry in entries:
             reviewers_count = max(reviewers_count, int(entry["reviewers_count"]))
@@ -690,6 +695,12 @@ def _collapse_author_slices(
                 weighted_prs += int(entry["pr_count"])
                 weighted_p50_total += p50 * int(entry["pr_count"])
                 weighted_p90_total += p90 * int(entry["pr_count"])
+            rt_p50 = entry["review_time_p50"]
+            rt_p90 = entry["review_time_p90"]
+            if rt_p50 is not None and rt_p90 is not None:
+                rt_weighted_prs += int(entry["pr_count"])
+                rt_weighted_p50_total += rt_p50 * int(entry["pr_count"])
+                rt_weighted_p90_total += rt_p90 * int(entry["pr_count"])
 
         by_author[author_id] = {
             "pr_count": pr_count,
@@ -699,8 +710,16 @@ def _collapse_author_slices(
             "cycle_time_p90": (
                 weighted_p90_total / weighted_prs if weighted_prs >= 5 else None
             ),
-            "review_time_p50": None,
-            "review_time_p90": None,
+            "review_time_p50": (
+                rt_weighted_p50_total / rt_weighted_prs
+                if rt_weighted_prs >= 5
+                else None
+            ),
+            "review_time_p90": (
+                rt_weighted_p90_total / rt_weighted_prs
+                if rt_weighted_prs >= 5
+                else None
+            ),
             "authors_count": 1,
             "reviewers_count": reviewers_count,
         }
@@ -1005,6 +1024,36 @@ def generate_cycle_times(count: int, mu_factor: float = 1.0) -> list[float]:
     ]
 
 
+# Review time is typically 30-70% of cycle time (FR-012).
+# Per-percentile null independence: ~10% null rate per percentile,
+# independent coin flips (FR-010).
+REVIEW_TIME_RATIO_LOW = 0.3
+REVIEW_TIME_RATIO_HIGH = 0.7
+REVIEW_TIME_NULL_RATE = 0.10
+
+
+def _derive_review_time(
+    cycle_time_val: float | None,
+) -> float | None:
+    """Derive a review time from a cycle time value.
+
+    Returns a value between 30-70% of cycle_time, or None if cycle_time is None.
+    """
+    if cycle_time_val is None:
+        return None
+    ratio = RNG.uniform(REVIEW_TIME_RATIO_LOW, REVIEW_TIME_RATIO_HIGH)
+    return round(cycle_time_val * ratio, 3)
+
+
+def _apply_review_time_null(value: float | None) -> float | None:
+    """Apply per-percentile independent null injection (~10% rate)."""
+    if value is None:
+        return None
+    if RNG.random() < REVIEW_TIME_NULL_RATE:
+        return None
+    return value
+
+
 def adjusted_repo_weight(repo_name: str) -> float:
     """Apply a stronger power-law bias when allocating demo PRs to repos."""
     return float(REPO_WEIGHTS.get(repo_name, 0.1) ** REPO_WEIGHT_EXPONENT)
@@ -1058,6 +1107,10 @@ def generate_weekly_rollups(
             p50: float | None = calculate_percentile(cycle_times, 50)
             p90: float | None = calculate_percentile(cycle_times, 90)
 
+            # Derive review time from cycle time (30-70% ratio, per-percentile null independence)
+            rt_p50: float | None = _apply_review_time_null(_derive_review_time(p50))
+            rt_p90: float | None = _apply_review_time_null(_derive_review_time(p90))
+
             # Authors and reviewers at root level
             authors_count = max(1, int(pr_count * AUTHOR_RATIO))
             reviewers_count = max(1, int(pr_count * REVIEWER_RATIO))
@@ -1100,8 +1153,8 @@ def generate_weekly_rollups(
                     "pr_count": team_pr_count,
                     "cycle_time_p50": team_p50,
                     "cycle_time_p90": team_p90,
-                    "review_time_p50": None,
-                    "review_time_p90": None,
+                    "review_time_p50": _derive_review_time(team_p50),
+                    "review_time_p90": _derive_review_time(team_p90),
                     "authors_count": team_authors,
                     "reviewers_count": team_reviewers,
                 }
@@ -1191,8 +1244,8 @@ def generate_weekly_rollups(
                         "pr_count": r_prs,
                         "cycle_time_p50": r_p50,
                         "cycle_time_p90": r_p90,
-                        "review_time_p50": None,
-                        "review_time_p90": None,
+                        "review_time_p50": _derive_review_time(r_p50),
+                        "review_time_p90": _derive_review_time(r_p90),
                         "authors_count": r_authors,
                         "reviewers_count": r_reviewers,
                     }
@@ -1231,8 +1284,8 @@ def generate_weekly_rollups(
                     "pr_count": repo_pr_count,
                     "cycle_time_p50": repo_p50,
                     "cycle_time_p90": repo_p90,
-                    "review_time_p50": None,
-                    "review_time_p90": None,
+                    "review_time_p50": _derive_review_time(repo_p50),
+                    "review_time_p90": _derive_review_time(repo_p90),
                     "authors_count": repo_authors,
                     "reviewers_count": repo_reviewers,
                 }
@@ -1241,19 +1294,27 @@ def generate_weekly_rollups(
             if pr_count < 5:
                 p50 = None
                 p90 = None
+                rt_p50 = None
+                rt_p90 = None
             for entry in by_repository.values():
                 if entry["pr_count"] < 5:
                     entry["cycle_time_p50"] = None
                     entry["cycle_time_p90"] = None
+                    entry["review_time_p50"] = None
+                    entry["review_time_p90"] = None
             for entry in by_team.values():
                 if entry["pr_count"] < 5:
                     entry["cycle_time_p50"] = None
                     entry["cycle_time_p90"] = None
+                    entry["review_time_p50"] = None
+                    entry["review_time_p90"] = None
             for team_entries in by_team_and_repo.values():
                 for entry in team_entries.values():
                     if entry["pr_count"] < 5:
                         entry["cycle_time_p50"] = None
                         entry["cycle_time_p90"] = None
+                        entry["review_time_p50"] = None
+                        entry["review_time_p90"] = None
 
             by_author = _collapse_author_slices(author_slices)
             by_reviewer = _generate_reviewer_breakdown(
@@ -1272,8 +1333,8 @@ def generate_weekly_rollups(
                     pr_count=pr_count,
                     cycle_time_p50=p50,
                     cycle_time_p90=p90,
-                    review_time_p50=None,
-                    review_time_p90=None,
+                    review_time_p50=rt_p50,
+                    review_time_p90=rt_p90,
                     authors_count=authors_count,
                     reviewers_count=reviewers_count,
                     by_repository=by_repository,

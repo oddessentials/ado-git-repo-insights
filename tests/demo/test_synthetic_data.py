@@ -330,3 +330,69 @@ class TestDataQuality:
         """Insights span multiple severity levels."""
         severities = {i["severity"] for i in insights["insights"]}
         assert len(severities) >= 2, f"Only {len(severities)} severity found"
+
+
+class TestReviewTimePresence:
+    """Gate: committed demo rollups must contain representative non-null review_time values.
+
+    Prevents closing T049/T050 on schema-only parity — the demo must actually
+    exercise the review time rendering path with non-null data.
+    """
+
+    def test_root_review_time_not_all_null(self) -> None:
+        """At least some root-level review_time_p50 values must be non-null."""
+        rollups_dir = DOCS_DATA / "aggregates" / "weekly_rollups"
+        nonnull_p50 = 0
+        nonnull_p90 = 0
+        total = 0
+        for path in sorted(rollups_dir.glob("*.json")):
+            with open(path, encoding="utf-8") as f:
+                rollup = json.load(f)
+            total += 1
+            if rollup.get("review_time_p50") is not None:
+                nonnull_p50 += 1
+            if rollup.get("review_time_p90") is not None:
+                nonnull_p90 += 1
+        assert total >= 260, f"Expected 260 rollups, found {total}"
+        assert nonnull_p50 > 0, (
+            "All 260 root review_time_p50 values are null — demo cards won't render"
+        )
+        assert nonnull_p90 > 0, (
+            "All 260 root review_time_p90 values are null — demo cards won't render"
+        )
+
+    def test_breakdown_review_time_not_all_null(self) -> None:
+        """At least some breakdown entries must have non-null review_time values."""
+        rollups_dir = DOCS_DATA / "aggregates" / "weekly_rollups"
+        nonnull_breakdown = 0
+        for path in sorted(rollups_dir.glob("*.json")):
+            with open(path, encoding="utf-8") as f:
+                rollup = json.load(f)
+            for dim in ("by_repository", "by_team", "by_author"):
+                for entry in rollup.get(dim, {}).values():
+                    if (
+                        entry.get("review_time_p50") is not None
+                        or entry.get("review_time_p90") is not None
+                    ):
+                        nonnull_breakdown += 1
+        assert nonnull_breakdown > 0, (
+            "All breakdown review_time values are null — filtered cards won't render"
+        )
+
+    def test_per_percentile_null_independence(self) -> None:
+        """P50 and P90 must have different null/non-null patterns (FR-010)."""
+        rollups_dir = DOCS_DATA / "aggregates" / "weekly_rollups"
+        p50_null_weeks: set[str] = set()
+        p90_null_weeks: set[str] = set()
+        for path in sorted(rollups_dir.glob("*.json")):
+            with open(path, encoding="utf-8") as f:
+                rollup = json.load(f)
+            week = rollup["week"]
+            if rollup.get("review_time_p50") is None:
+                p50_null_weeks.add(week)
+            if rollup.get("review_time_p90") is None:
+                p90_null_weeks.add(week)
+        assert p50_null_weeks != p90_null_weeks, (
+            "P50 and P90 have identical null patterns — "
+            "per-percentile independence is not exercised"
+        )
