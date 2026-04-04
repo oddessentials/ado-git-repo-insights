@@ -3483,7 +3483,7 @@ var PRInsightsDashboard = (() => {
     validateManifest(manifest) {
       const SUPPORTED_MANIFEST_VERSION2 = 1;
       const SUPPORTED_DATASET_VERSION2 = 1;
-      const SUPPORTED_AGGREGATES_VERSION2 = 2;
+      const SUPPORTED_AGGREGATES_VERSION2 = 3;
       if (!manifest.manifest_schema_version) {
         throw new Error("Invalid manifest: missing schema version");
       }

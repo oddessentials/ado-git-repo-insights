@@ -32,16 +32,16 @@
 
 ### Tests
 
-- [ ] T004 [P] [US3] Create `tests/unit/test_schema_migration.py` with tests: v1→v2 migration adds `reviewed_at` to reviewers and `review_time_minutes` to pull_requests; existing data preserved with NULL defaults; schema_version advances to 2
-- [ ] T005 [P] [US3] Add idempotency test in `tests/unit/test_schema_migration.py`: running migration on a v2 database produces no error and no duplicate columns
-- [ ] T006 [P] [US3] Add fresh-install test in `tests/unit/test_schema_migration.py`: new database starts at v2 with both columns present in CREATE TABLE
+- [x] T004 [P] [US3] Create `tests/unit/test_schema_migration.py` with tests: v1→v2 migration adds `reviewed_at` to reviewers and `review_time_minutes` to pull_requests; existing data preserved with NULL defaults; schema_version advances to 2
+- [x] T005 [P] [US3] Add idempotency test in `tests/unit/test_schema_migration.py`: running migration on a v2 database produces no error and no duplicate columns
+- [x] T006 [P] [US3] Add fresh-install test in `tests/unit/test_schema_migration.py`: new database starts at v2 with both columns present in CREATE TABLE
 
 ### Implementation
 
-- [ ] T007 [US3] Update `SCHEMA_SQL` in `src/ado_git_repo_insights/persistence/models.py` to include `reviewed_at TEXT` on reviewers table and `review_time_minutes REAL` on pull_requests table; update initial INSERT version from 1 to 2
-- [ ] T008 [US3] Create `src/ado_git_repo_insights/persistence/migrations.py` with `MIGRATIONS` dict mapping version 2 to `migrate_v1_to_v2()` function that runs `ALTER TABLE reviewers ADD COLUMN reviewed_at TEXT` and `ALTER TABLE pull_requests ADD COLUMN review_time_minutes REAL` and inserts version 2 into schema_version
-- [ ] T009 [US3] Add `_apply_migrations()` method to `DatabaseManager` in `src/ado_git_repo_insights/persistence/database.py` that calls `get_schema_version()`, iterates pending migrations, and logs each applied migration; hook it into `connect()` after `_validate_schema()` for existing databases
-- [ ] T010 [US3] Bump `AGGREGATES_SCHEMA_VERSION` from 2 to 3 in `src/ado_git_repo_insights/transform/schema_versions.py` to reflect the new rollup fields
+- [x] T007 [US3] Update `SCHEMA_SQL` in `src/ado_git_repo_insights/persistence/models.py` to include `reviewed_at TEXT` on reviewers table and `review_time_minutes REAL` on pull_requests table; update initial INSERT version from 1 to 2
+- [x] T008 [US3] Create `src/ado_git_repo_insights/persistence/migrations.py` with `MIGRATIONS` dict mapping version 2 to `migrate_v1_to_v2()` function that runs `ALTER TABLE reviewers ADD COLUMN reviewed_at TEXT` and `ALTER TABLE pull_requests ADD COLUMN review_time_minutes REAL` and inserts version 2 into schema_version
+- [x] T009 [US3] Add `_apply_migrations()` method to `DatabaseManager` in `src/ado_git_repo_insights/persistence/database.py` that calls `get_schema_version()`, iterates pending migrations, and logs each applied migration; hook it into `connect()` after `_validate_schema()` for existing databases
+- [x] T010 [US3] Bump `AGGREGATES_SCHEMA_VERSION` from 2 to 3 in `src/ado_git_repo_insights/transform/schema_versions.py` to reflect the new rollup fields
 
 **Checkpoint**: Schema migration passes all 3 test scenarios (upgrade, idempotency, fresh install).
 
