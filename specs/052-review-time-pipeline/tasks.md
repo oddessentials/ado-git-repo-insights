@@ -100,9 +100,9 @@
 
 ### Tests
 
-- [ ] T026 [P] [US1] Add test in `tests/unit/test_aggregators.py`: base rollup includes `review_time_p50` and `review_time_p90` when >= 2 PRs have non-null `review_time_minutes`; values are null when < 2 PRs have data
-- [ ] T027 [P] [US1] Add test in `tests/unit/test_aggregators.py`: rollup JSON output contains `review_time_p50: null` (not absent) when review_time data is below threshold — verify `asdict()` serialization produces `null` not omission
-- [ ] T028 [P] [US1] Add test in `tests/unit/test_aggregators.py`: mixed dataset where some PRs have `review_time_minutes` and some have NULL — only non-null values included in percentile computation
+- [x] T026 [P] [US1] Add test in `tests/unit/test_aggregators.py`: base rollup includes `review_time_p50` and `review_time_p90` when >= 2 PRs have non-null `review_time_minutes`; values are null when < 2 PRs have data
+- [x] T027 [P] [US1] Add test in `tests/unit/test_aggregators.py`: rollup JSON output contains `review_time_p50: null` (not absent) when review_time data is below threshold — verify `asdict()` serialization produces `null` not omission
+- [x] T028 [P] [US1] Add test in `tests/unit/test_aggregators.py`: mixed dataset where some PRs have `review_time_minutes` and some have NULL — only non-null values included in percentile computation
 
 ### Implementation
 
@@ -121,12 +121,12 @@
 
 ### Tests
 
-- [ ] T031 [P] [US2] Add test in `tests/unit/test_aggregators.py`: `by_author` slice includes `review_time_p50`/`review_time_p90` with `_ROLLUP_MIN_SAMPLE` threshold (2)
-- [ ] T032 [P] [US2] Add test in `tests/unit/test_aggregators.py`: `by_repository` slice includes review_time fields with threshold (2)
-- [ ] T033 [P] [US2] Add test in `tests/unit/test_aggregators.py`: `by_team` slice includes review_time fields with threshold (2)
-- [ ] T034 [P] [US2] Add test in `tests/unit/test_aggregators.py`: `by_author_and_repo` cross-dimensional slice uses `_CROSS_DIM_MIN_SAMPLE` threshold (5) for review_time
-- [ ] T035 [P] [US2] Add test in `tests/unit/test_aggregators.py`: `by_team_and_repo` cross-dimensional slice uses `_CROSS_DIM_MIN_SAMPLE` threshold (5) for review_time
-- [ ] T036 [P] [US2] Add test in `tests/unit/test_aggregators.py`: dimension slice where ALL PRs have NULL `review_time_minutes` produces null review_time_p50/p90 in the breakdown entry
+- [x] T031 [P] [US2] Add test in `tests/unit/test_aggregators.py`: `by_author` slice includes `review_time_p50`/`review_time_p90` with `_ROLLUP_MIN_SAMPLE` threshold (2)
+- [x] T032 [P] [US2] Add test in `tests/unit/test_aggregators.py`: `by_repository` slice includes review_time fields with threshold (2)
+- [x] T033 [P] [US2] Add test in `tests/unit/test_aggregators.py`: `by_team` slice includes review_time fields with threshold (2)
+- [x] T034 [P] [US2] Add test in `tests/unit/test_aggregators.py`: `by_author_and_repo` cross-dimensional slice uses `_CROSS_DIM_MIN_SAMPLE` threshold (5) for review_time
+- [x] T035 [P] [US2] Add test in `tests/unit/test_aggregators.py`: `by_team_and_repo` cross-dimensional slice uses `_CROSS_DIM_MIN_SAMPLE` threshold (5) for review_time
+- [x] T036 [P] [US2] Add test in `tests/unit/test_aggregators.py`: dimension slice where ALL PRs have NULL `review_time_minutes` produces null review_time_p50/p90 in the breakdown entry
 
 ### Implementation
 
@@ -149,9 +149,9 @@
 ### Tests
 
 - [x] T042 [P] [US5] Add test in `tests/demo/test_synthetic_data.py`: weekly rollup schema validation includes `review_time_p50` and `review_time_p90` in required fields
-- [ ] T043 [P] [US5] Add test in `tests/demo/test_synthetic_data.py`: review_time values are typically 30-70% of cycle_time across sampled rollups
+- [x] T043 [P] [US5] Add test in `tests/demo/test_synthetic_data.py`: review_time values are typically 30-70% of cycle_time across sampled rollups
 - [x] T044 [P] [US5] Add test in `tests/demo/test_synthetic_data.py`: P50 and P90 have different null/non-null patterns across weeks (not identical null sets)
-- [ ] T045 [P] [US5] Add test in `tests/demo/test_synthetic_data.py`: breakdown entries (`by_repository`, `by_author`, `by_team`) include review_time fields
+- [x] T045 [P] [US5] Add test in `tests/demo/test_synthetic_data.py`: breakdown entries (`by_repository`, `by_author`, `by_team`) include review_time fields
 
 ### Implementation
 
@@ -176,7 +176,7 @@
 
 ### Extension Contract Activation Test (FR-020)
 
-- [ ] T053 [US1] Create `extension/tests/modules/review-time-contract.test.ts` that: (a) loads a sample rollup JSON with review_time_p50/p90 data, passes it through `calculateMetrics()`, and asserts `reviewTimeP50WeekCount > 0`; (b) loads a rollup with null review_time and asserts `reviewTimeP50WeekCount === 0`; (c) validates the rollup against the schema normalizer after forward-compat allowlist removal to confirm no regression
+- [x] T053 [US1] Create `extension/tests/modules/review-time-contract.test.ts` that: (a) loads a sample rollup JSON with review_time_p50/p90 data, passes it through `calculateMetrics()`, and asserts `reviewTimeP50WeekCount > 0`; (b) loads a rollup with null review_time and asserts `reviewTimeP50WeekCount === 0`; (c) validates the rollup against the schema normalizer after forward-compat allowlist removal to confirm no regression
 
 ### Ratchet & Preflight
 
