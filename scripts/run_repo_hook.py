@@ -455,7 +455,7 @@ def run_commitlint_dispatcher_health_check() -> None:
     content = dispatcher.read_text(encoding="utf-8", errors="replace")
     # The standard husky dispatcher sources the `h` script.
     # Any content that does NOT include this pattern was overwritten.
-    if '/")/h"' in content or ")/h'" in content:
+    if ')/h"' in content or ")/h'" in content:
         return
     safe_print("[pre-commit] WARNING: .husky/_/commit-msg dispatcher is corrupted")
     safe_print("  Local commitlint will not run on commit messages.")

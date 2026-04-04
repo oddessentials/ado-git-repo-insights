@@ -448,11 +448,12 @@ class TestPathspecsMatchRealFiles:
         output = git_output("ls-files", "--", pathspec)
         return [f for f in output.strip().splitlines() if f]
 
-    def test_tsconfig_glob_matches_three_files(self) -> None:
-        """extension/tsconfig*.json must match exactly three tracked files."""
+    def test_tsconfig_glob_matches_four_files(self) -> None:
+        """extension/tsconfig*.json must match exactly four tracked files."""
         files = self._git_ls_files("extension/tsconfig*.json")
-        assert len(files) == 3
+        assert len(files) == 4
         assert "extension/tsconfig.json" in files
+        assert "extension/tsconfig.build.json" in files
         assert "extension/tsconfig.test.json" in files
         assert "extension/tsconfig.type-tests.json" in files
 
@@ -550,10 +551,14 @@ class TestCommitlintDispatcherHealthCheck:
         husky_internal.mkdir(parents=True, exist_ok=True)
         (husky_internal / "commit-msg").write_text(content, encoding="utf-8")
 
-    def test_passes_on_standard_husky_dispatcher(self, tmp_path: Path) -> None:
+    def test_passes_on_standard_husky_dispatcher(
+        self, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+    ) -> None:
         self._write_dispatcher(tmp_path, '#!/usr/bin/env sh\n. "$(dirname "$0")/h"\n')
         with patch.object(_hook_module, "REPO_ROOT", tmp_path):
-            run_commitlint_dispatcher_health_check()  # should not raise or warn
+            run_commitlint_dispatcher_health_check()
+        captured = capsys.readouterr()
+        assert "corrupted" not in captured.out
 
     def test_warns_on_corrupted_dispatcher(
         self, tmp_path: Path, capsys: pytest.CaptureFixture[str]
