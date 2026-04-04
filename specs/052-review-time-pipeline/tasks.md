@@ -158,8 +158,8 @@
 - [x] T046 [US5] Update local `WeeklyRollup` dataclass in `scripts/generate-demo-data.py` (line ~300) to include `review_time_p50: float | None = None` and `review_time_p90: float | None = None` fields — synchronized with canonical dataclass in `aggregators.py`
 - [x] T047 [US5] Update local `SliceMetrics` TypedDict in `scripts/generate-demo-data.py` to include `review_time_p50: float | None` and `review_time_p90: float | None` fields
 - [ ] T048 [US5] Add review_time generation logic in `scripts/generate-demo-data.py`: compute as `cycle_time * rng.uniform(0.3, 0.7)` with per-percentile independent null injection (~10% chance each, independent coin flips) for base rollup and all breakdown slices
-- [ ] T049 [US5] Add review_time population logic in `scripts/generate-synthetic-dataset.py`: `review_time_p50 = cycle_time_p50 * rng.uniform(0.3, 0.7)` with same independent null pattern
-- [ ] T050 [US5] Regenerate canonical demo dataset by running `python scripts/build_demo.py` and commit all regenerated files under `docs/data/` (260 weekly rollup JSONs + updated manifest)
+- [x] T049 [US5] Add review_time population logic in `scripts/generate-synthetic-dataset.py`: `review_time_p50 = cycle_time_p50 * rng.uniform(0.3, 0.7)` with same independent null pattern
+- [x] T050 [US5] Regenerate canonical demo dataset by running `python scripts/build_demo.py` and commit all regenerated files under `docs/data/` (260 weekly rollup JSONs + updated manifest)
 
 **Checkpoint**: `pytest tests/demo/ -v` passes with review_time fields present. Demo dashboard shows review time cards.
 
