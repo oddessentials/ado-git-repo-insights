@@ -1,11 +1,21 @@
 /**
- * Guards the tsconfig.build.json module setting.
+ * Guards the split tsconfig architecture introduced in the TS 6.0 upgrade.
  *
- * The extension uses split tsconfigs: tsconfig.json (typecheck, ES2022 +
- * bundler) and tsconfig.build.json (emit, CommonJS + bundler).  If the
- * CommonJS override is removed, build:tsc silently emits ESM to dist/,
- * breaking Node-executed scripts at runtime (__dirname undefined,
- * require() unavailable).
+ * The extension uses two configs with distinct purposes:
+ *   - tsconfig.json        (typecheck): module ES2022 + bundler resolution
+ *   - tsconfig.build.json  (emit):      module CommonJS + bundler resolution
+ *
+ * The build config MUST emit CommonJS — Node-executed scripts in dist/
+ * require CJS runtime semantics (__dirname, require()).  The typecheck
+ * config uses ES2022 for modern bundler-style resolution during tsc
+ * --noEmit checks.  Both share moduleResolution: "bundler".
+ *
+ * Five assertions prevent silent drift:
+ *   1-2. Typecheck config pins module + moduleResolution
+ *   3-4. Build config pins module + moduleResolution
+ *   5.   package.json build:tsc script references tsconfig.build.json
+ *
+ * If any assertion fails, the build output format contract is broken.
  *
  * @module tests/meta/build-output-format-guard.test
  */
@@ -13,6 +23,7 @@
 import * as path from "path";
 import * as ts from "typescript";
 import { describe, it, expect } from "@jest/globals";
+import { readJsonFile } from "../helpers/fs-test-utils";
 
 const extensionRoot = path.resolve(__dirname, "..", "..");
 
@@ -32,18 +43,38 @@ function resolveConfig(configFile: string): ts.CompilerOptions {
 }
 
 describe("Build Output Format Guard", () => {
-  const buildOpts = resolveConfig("tsconfig.build.json");
   const typecheckOpts = resolveConfig("tsconfig.json");
+  const buildOpts = resolveConfig("tsconfig.build.json");
 
-  it("tsconfig.build.json must resolve module to CommonJS", () => {
-    expect(buildOpts.module).toBe(ts.ModuleKind.CommonJS);
+  describe("typecheck config (tsconfig.json)", () => {
+    it("module must be ES2022", () => {
+      expect(typecheckOpts.module).toBe(ts.ModuleKind.ES2022);
+    });
+
+    it("moduleResolution must be Bundler", () => {
+      expect(typecheckOpts.moduleResolution).toBe(
+        ts.ModuleResolutionKind.Bundler,
+      );
+    });
   });
 
-  it("tsconfig.json uses a different module (proves guard is meaningful)", () => {
-    // The typecheck config uses ES2022 — NOT CommonJS.
-    // This test proves the guard above isn't vacuously true.
-    // If both configs resolved to CommonJS, the guard would never
-    // catch a regression where someone removes the build override.
-    expect(typecheckOpts.module).not.toBe(ts.ModuleKind.CommonJS);
+  describe("build config (tsconfig.build.json)", () => {
+    it("module must be CommonJS", () => {
+      expect(buildOpts.module).toBe(ts.ModuleKind.CommonJS);
+    });
+
+    it("moduleResolution must be Bundler", () => {
+      expect(buildOpts.moduleResolution).toBe(
+        ts.ModuleResolutionKind.Bundler,
+      );
+    });
+  });
+
+  describe("build script entry point", () => {
+    it("build:tsc must reference tsconfig.build.json", () => {
+      const pkgPath = path.resolve(extensionRoot, "package.json");
+      const pkg = readJsonFile<{ scripts: Record<string, string> }>(pkgPath);
+      expect(pkg.scripts["build:tsc"]).toContain("tsconfig.build.json");
+    });
   });
 });
