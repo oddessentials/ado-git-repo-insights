@@ -1,5 +1,5 @@
 {
-  "authors_count": 28,
+  "authors_count": 32,
   "by_author": {
     "06575f71-2e05-5966-8d9f-db7328edcd43": {
       "authors_count": 1,
@@ -28,7 +28,7 @@
       "review_time_p90": null,
       "reviewers_count": 2
     },
-    "12da521a-b144-5479-b2cc-f32c01d31acd": {
+    "11126187-6289-5bd8-a60b-c358e2ce21e4": {
       "authors_count": 1,
       "cycle_time_p50": null,
       "cycle_time_p90": null,
@@ -37,11 +37,20 @@
       "review_time_p90": null,
       "reviewers_count": 2
     },
-    "1c626ab4-1226-53f4-9eba-2f2f2cd78466": {
+    "12da521a-b144-5479-b2cc-f32c01d31acd": {
       "authors_count": 1,
       "cycle_time_p50": null,
       "cycle_time_p90": null,
-      "pr_count": 2,
+      "pr_count": 3,
+      "review_time_p50": null,
+      "review_time_p90": null,
+      "reviewers_count": 2
+    },
+    "192a25de-2d1b-5e10-a0eb-dcc2b5e7ac1e": {
+      "authors_count": 1,
+      "cycle_time_p50": null,
+      "cycle_time_p90": null,
+      "pr_count": 1,
       "review_time_p50": null,
       "review_time_p90": null,
       "reviewers_count": 2
@@ -59,7 +68,7 @@
       "authors_count": 1,
       "cycle_time_p50": null,
       "cycle_time_p90": null,
-      "pr_count": 1,
+      "pr_count": 2,
       "review_time_p50": null,
       "review_time_p90": null,
       "reviewers_count": 2
@@ -68,16 +77,16 @@
       "authors_count": 1,
       "cycle_time_p50": null,
       "cycle_time_p90": null,
-      "pr_count": 2,
+      "pr_count": 1,
       "review_time_p50": null,
       "review_time_p90": null,
       "reviewers_count": 2
     },
-    "321f42a1-e6c8-5a9f-a514-989fefce50a2": {
+    "2a7ff968-31b8-5d98-8f0b-9cb3b386e3bb": {
       "authors_count": 1,
       "cycle_time_p50": null,
       "cycle_time_p90": null,
-      "pr_count": 1,
+      "pr_count": 2,
       "review_time_p50": null,
       "review_time_p90": null,
       "reviewers_count": 2
@@ -86,7 +95,7 @@
       "authors_count": 1,
       "cycle_time_p50": null,
       "cycle_time_p90": null,
-      "pr_count": 2,
+      "pr_count": 1,
       "review_time_p50": null,
       "review_time_p90": null,
       "reviewers_count": 2
@@ -113,16 +122,7 @@
       "authors_count": 1,
       "cycle_time_p50": null,
       "cycle_time_p90": null,
-      "pr_count": 4,
-      "review_time_p50": null,
-      "review_time_p90": null,
-      "reviewers_count": 2
-    },
-    "3eded2f7-48a3-5b2f-8448-3b2ff8a1b216": {
-      "authors_count": 1,
-      "cycle_time_p50": null,
-      "cycle_time_p90": null,
-      "pr_count": 2,
+      "pr_count": 7,
       "review_time_p50": null,
       "review_time_p90": null,
       "reviewers_count": 2
@@ -131,12 +131,21 @@
       "authors_count": 1,
       "cycle_time_p50": null,
       "cycle_time_p90": null,
-      "pr_count": 3,
+      "pr_count": 6,
       "review_time_p50": null,
       "review_time_p90": null,
       "reviewers_count": 2
     },
     "40d81568-152f-54d0-98c8-ef321164926e": {
+      "authors_count": 1,
+      "cycle_time_p50": null,
+      "cycle_time_p90": null,
+      "pr_count": 3,
+      "review_time_p50": null,
+      "review_time_p90": null,
+      "reviewers_count": 2
+    },
+    "4237b7e6-65bf-5f6f-831e-efba9e5e326b": {
       "authors_count": 1,
       "cycle_time_p50": null,
       "cycle_time_p90": null,
@@ -185,7 +194,7 @@
       "authors_count": 1,
       "cycle_time_p50": null,
       "cycle_time_p90": null,
-      "pr_count": 1,
+      "pr_count": 2,
       "review_time_p50": null,
       "review_time_p90": null,
       "reviewers_count": 2
@@ -194,7 +203,25 @@
       "authors_count": 1,
       "cycle_time_p50": null,
       "cycle_time_p90": null,
+      "pr_count": 1,
+      "review_time_p50": null,
+      "review_time_p90": null,
+      "reviewers_count": 2
+    },
+    "655c7e03-2cc4-5976-84fb-c22130b784b3": {
+      "authors_count": 1,
+      "cycle_time_p50": null,
+      "cycle_time_p90": null,
       "pr_count": 2,
+      "review_time_p50": null,
+      "review_time_p90": null,
+      "reviewers_count": 2
+    },
+    "677bb7bd-0214-5e76-ae56-bbda25b1e871": {
+      "authors_count": 1,
+      "cycle_time_p50": null,
+      "cycle_time_p90": null,
+      "pr_count": 3,
       "review_time_p50": null,
       "review_time_p90": null,
       "reviewers_count": 2
@@ -208,7 +235,7 @@
       "review_time_p90": null,
       "reviewers_count": 2
     },
-    "7857d219-29d0-5f5e-a9bf-6fce154b062c": {
+    "70d0c1db-abc3-54ae-94ad-44ffb9f54fbd": {
       "authors_count": 1,
       "cycle_time_p50": null,
       "cycle_time_p90": null,
@@ -221,12 +248,12 @@
       "authors_count": 1,
       "cycle_time_p50": null,
       "cycle_time_p90": null,
-      "pr_count": 3,
+      "pr_count": 2,
       "review_time_p50": null,
       "review_time_p90": null,
       "reviewers_count": 2
     },
-    "7a2ba1f3-9e8b-5fbd-beaf-1f115c6dd2e3": {
+    "7a983fd7-ee82-530f-851a-70785c8fe4a5": {
       "authors_count": 1,
       "cycle_time_p50": null,
       "cycle_time_p90": null,
@@ -253,38 +280,11 @@
       "review_time_p90": null,
       "reviewers_count": 2
     },
-    "84434e77-3995-5517-aa30-e9724a4307ed": {
-      "authors_count": 1,
-      "cycle_time_p50": null,
-      "cycle_time_p90": null,
-      "pr_count": 1,
-      "review_time_p50": null,
-      "review_time_p90": null,
-      "reviewers_count": 2
-    },
     "85bdd61e-de82-500a-b3bd-2a71d1c06a8a": {
       "authors_count": 1,
       "cycle_time_p50": null,
       "cycle_time_p90": null,
       "pr_count": 2,
-      "review_time_p50": null,
-      "review_time_p90": null,
-      "reviewers_count": 2
-    },
-    "89b7bbb3-2f4c-5de8-b4cd-335a04f55adb": {
-      "authors_count": 1,
-      "cycle_time_p50": null,
-      "cycle_time_p90": null,
-      "pr_count": 3,
-      "review_time_p50": null,
-      "review_time_p90": null,
-      "reviewers_count": 2
-    },
-    "91ae6e14-cfd3-5c68-81ce-cd71961a30d4": {
-      "authors_count": 1,
-      "cycle_time_p50": null,
-      "cycle_time_p90": null,
-      "pr_count": 1,
       "review_time_p50": null,
       "review_time_p90": null,
       "reviewers_count": 2
@@ -298,11 +298,11 @@
       "review_time_p90": null,
       "reviewers_count": 2
     },
-    "9dd16093-4cd4-5588-95a4-024ef402adf1": {
+    "9cc11263-ee7a-5cf3-8cf0-984b7e573dff": {
       "authors_count": 1,
       "cycle_time_p50": null,
       "cycle_time_p90": null,
-      "pr_count": 2,
+      "pr_count": 3,
       "review_time_p50": null,
       "review_time_p90": null,
       "reviewers_count": 2
@@ -320,7 +320,7 @@
       "authors_count": 1,
       "cycle_time_p50": null,
       "cycle_time_p90": null,
-      "pr_count": 4,
+      "pr_count": 3,
       "review_time_p50": null,
       "review_time_p90": null,
       "reviewers_count": 2
@@ -329,7 +329,7 @@
       "authors_count": 1,
       "cycle_time_p50": null,
       "cycle_time_p90": null,
-      "pr_count": 2,
+      "pr_count": 1,
       "review_time_p50": null,
       "review_time_p90": null,
       "reviewers_count": 2
@@ -343,20 +343,20 @@
       "review_time_p90": null,
       "reviewers_count": 2
     },
-    "bd9e17b1-0b06-5284-9bf5-2300a7ec5778": {
-      "authors_count": 1,
-      "cycle_time_p50": null,
-      "cycle_time_p90": null,
-      "pr_count": 1,
-      "review_time_p50": null,
-      "review_time_p90": null,
-      "reviewers_count": 2
-    },
     "c00ae966-ee3c-535a-8ee6-672cd76da36c": {
       "authors_count": 1,
       "cycle_time_p50": null,
       "cycle_time_p90": null,
-      "pr_count": 2,
+      "pr_count": 4,
+      "review_time_p50": null,
+      "review_time_p90": null,
+      "reviewers_count": 2
+    },
+    "c05ea2fd-75f3-58c3-a3f5-97af92f23e8b": {
+      "authors_count": 1,
+      "cycle_time_p50": null,
+      "cycle_time_p90": null,
+      "pr_count": 1,
       "review_time_p50": null,
       "review_time_p90": null,
       "reviewers_count": 2
@@ -370,25 +370,7 @@
       "review_time_p90": null,
       "reviewers_count": 2
     },
-    "c14ebd6a-33d7-5119-84a8-fbf6fa8114b5": {
-      "authors_count": 1,
-      "cycle_time_p50": null,
-      "cycle_time_p90": null,
-      "pr_count": 1,
-      "review_time_p50": null,
-      "review_time_p90": null,
-      "reviewers_count": 2
-    },
     "c513be1c-8837-5c31-b5c5-fb2853442175": {
-      "authors_count": 1,
-      "cycle_time_p50": null,
-      "cycle_time_p90": null,
-      "pr_count": 1,
-      "review_time_p50": null,
-      "review_time_p90": null,
-      "reviewers_count": 2
-    },
-    "ca1fbba8-960c-5feb-994a-5ff0d85b6064": {
       "authors_count": 1,
       "cycle_time_p50": null,
       "cycle_time_p90": null,
@@ -415,15 +397,6 @@
       "review_time_p90": null,
       "reviewers_count": 2
     },
-    "ce701784-66e1-5265-bb39-3bafacb0d515": {
-      "authors_count": 1,
-      "cycle_time_p50": null,
-      "cycle_time_p90": null,
-      "pr_count": 1,
-      "review_time_p50": null,
-      "review_time_p90": null,
-      "reviewers_count": 2
-    },
     "cfe9685a-dc3e-5407-b9f6-08be45ca6529": {
       "authors_count": 1,
       "cycle_time_p50": null,
@@ -437,15 +410,6 @@
       "authors_count": 1,
       "cycle_time_p50": null,
       "cycle_time_p90": null,
-      "pr_count": 2,
-      "review_time_p50": null,
-      "review_time_p90": null,
-      "reviewers_count": 2
-    },
-    "da2833a3-7f2f-5de9-9d38-7a36c7e0c2dc": {
-      "authors_count": 1,
-      "cycle_time_p50": null,
-      "cycle_time_p90": null,
       "pr_count": 1,
       "review_time_p50": null,
       "review_time_p90": null,
@@ -455,7 +419,16 @@
       "authors_count": 1,
       "cycle_time_p50": null,
       "cycle_time_p90": null,
-      "pr_count": 2,
+      "pr_count": 1,
+      "review_time_p50": null,
+      "review_time_p90": null,
+      "reviewers_count": 2
+    },
+    "dd90d4ae-b703-5f35-9687-f6b1d3cbebd6": {
+      "authors_count": 1,
+      "cycle_time_p50": null,
+      "cycle_time_p90": null,
+      "pr_count": 3,
       "review_time_p50": null,
       "review_time_p90": null,
       "reviewers_count": 2
@@ -464,7 +437,16 @@
       "authors_count": 1,
       "cycle_time_p50": null,
       "cycle_time_p90": null,
-      "pr_count": 3,
+      "pr_count": 1,
+      "review_time_p50": null,
+      "review_time_p90": null,
+      "reviewers_count": 2
+    },
+    "e1ed9361-dd1e-54e5-8795-0b68baf8512f": {
+      "authors_count": 1,
+      "cycle_time_p50": null,
+      "cycle_time_p90": null,
+      "pr_count": 1,
       "review_time_p50": null,
       "review_time_p90": null,
       "reviewers_count": 2
@@ -473,7 +455,25 @@
       "authors_count": 1,
       "cycle_time_p50": null,
       "cycle_time_p90": null,
+      "pr_count": 1,
+      "review_time_p50": null,
+      "review_time_p90": null,
+      "reviewers_count": 2
+    },
+    "e5041028-ca35-5c7e-ace9-71fce373f9ba": {
+      "authors_count": 1,
+      "cycle_time_p50": null,
+      "cycle_time_p90": null,
       "pr_count": 3,
+      "review_time_p50": null,
+      "review_time_p90": null,
+      "reviewers_count": 2
+    },
+    "ed15254c-8741-5f52-a86a-763e430d271e": {
+      "authors_count": 1,
+      "cycle_time_p50": null,
+      "cycle_time_p90": null,
+      "pr_count": 2,
       "review_time_p50": null,
       "review_time_p90": null,
       "reviewers_count": 2
@@ -487,7 +487,25 @@
       "review_time_p90": null,
       "reviewers_count": 2
     },
-    "fa3bbf9d-fc6d-5b10-b54d-37fc21741913": {
+    "f5205e29-ac6d-5873-be14-1bee920f94b0": {
+      "authors_count": 1,
+      "cycle_time_p50": null,
+      "cycle_time_p90": null,
+      "pr_count": 2,
+      "review_time_p50": null,
+      "review_time_p90": null,
+      "reviewers_count": 2
+    },
+    "fae290f1-a24a-56db-8d42-01b4acdd6cb9": {
+      "authors_count": 1,
+      "cycle_time_p50": null,
+      "cycle_time_p90": null,
+      "pr_count": 2,
+      "review_time_p50": null,
+      "review_time_p90": null,
+      "reviewers_count": 2
+    },
+    "fde7a229-7aa3-5d95-bc33-fdfa7b802aa5": {
       "authors_count": 1,
       "cycle_time_p50": null,
       "cycle_time_p90": null,
@@ -531,8 +549,8 @@
         "reviewers_count": 2
       }
     },
-    "12da521a-b144-5479-b2cc-f32c01d31acd": {
-      "ios-app": {
+    "11126187-6289-5bd8-a60b-c358e2ce21e4": {
+      "react-shell": {
         "authors_count": 1,
         "cycle_time_p50": null,
         "cycle_time_p90": null,
@@ -542,12 +560,32 @@
         "reviewers_count": 2
       }
     },
-    "1c626ab4-1226-53f4-9eba-2f2f2cd78466": {
-      "react-shell": {
+    "12da521a-b144-5479-b2cc-f32c01d31acd": {
+      "ios-app": {
         "authors_count": 1,
         "cycle_time_p50": null,
         "cycle_time_p90": null,
         "pr_count": 2,
+        "review_time_p50": null,
+        "review_time_p90": null,
+        "reviewers_count": 2
+      },
+      "stream-processor": {
+        "authors_count": 1,
+        "cycle_time_p50": null,
+        "cycle_time_p90": null,
+        "pr_count": 1,
+        "review_time_p50": null,
+        "review_time_p90": null,
+        "reviewers_count": 2
+      }
+    },
+    "192a25de-2d1b-5e10-a0eb-dcc2b5e7ac1e": {
+      "design-system": {
+        "authors_count": 1,
+        "cycle_time_p50": null,
+        "cycle_time_p90": null,
+        "pr_count": 1,
         "review_time_p50": null,
         "review_time_p90": null,
         "reviewers_count": 2
@@ -569,7 +607,7 @@
         "authors_count": 1,
         "cycle_time_p50": null,
         "cycle_time_p90": null,
-        "pr_count": 1,
+        "pr_count": 2,
         "review_time_p50": null,
         "review_time_p90": null,
         "reviewers_count": 2
@@ -580,18 +618,18 @@
         "authors_count": 1,
         "cycle_time_p50": null,
         "cycle_time_p90": null,
-        "pr_count": 2,
+        "pr_count": 1,
         "review_time_p50": null,
         "review_time_p90": null,
         "reviewers_count": 2
       }
     },
-    "321f42a1-e6c8-5a9f-a514-989fefce50a2": {
-      "android-app": {
+    "2a7ff968-31b8-5d98-8f0b-9cb3b386e3bb": {
+      "etl-jobs": {
         "authors_count": 1,
         "cycle_time_p50": null,
         "cycle_time_p90": null,
-        "pr_count": 1,
+        "pr_count": 2,
         "review_time_p50": null,
         "review_time_p90": null,
         "reviewers_count": 2
@@ -602,7 +640,7 @@
         "authors_count": 1,
         "cycle_time_p50": null,
         "cycle_time_p90": null,
-        "pr_count": 2,
+        "pr_count": 1,
         "review_time_p50": null,
         "review_time_p90": null,
         "reviewers_count": 2
@@ -658,18 +696,16 @@
         "review_time_p90": null,
         "reviewers_count": 2
       },
-      "user-service": {
+      "ios-app": {
         "authors_count": 1,
         "cycle_time_p50": null,
         "cycle_time_p90": null,
-        "pr_count": 1,
+        "pr_count": 2,
         "review_time_p50": null,
         "review_time_p90": null,
         "reviewers_count": 2
-      }
-    },
-    "3eded2f7-48a3-5b2f-8448-3b2ff8a1b216": {
-      "ios-app": {
+      },
+      "user-service": {
         "authors_count": 1,
         "cycle_time_p50": null,
         "cycle_time_p90": null,
@@ -684,7 +720,16 @@
         "authors_count": 1,
         "cycle_time_p50": null,
         "cycle_time_p90": null,
-        "pr_count": 2,
+        "pr_count": 3,
+        "review_time_p50": null,
+        "review_time_p90": null,
+        "reviewers_count": 2
+      },
+      "gateway-core": {
+        "authors_count": 1,
+        "cycle_time_p50": null,
+        "cycle_time_p90": null,
+        "pr_count": 1,
         "review_time_p50": null,
         "review_time_p90": null,
         "reviewers_count": 2
@@ -693,7 +738,7 @@
         "authors_count": 1,
         "cycle_time_p50": null,
         "cycle_time_p90": null,
-        "pr_count": 1,
+        "pr_count": 2,
         "review_time_p50": null,
         "review_time_p90": null,
         "reviewers_count": 2
@@ -713,7 +758,18 @@
         "authors_count": 1,
         "cycle_time_p50": null,
         "cycle_time_p90": null,
-        "pr_count": 1,
+        "pr_count": 2,
+        "review_time_p50": null,
+        "review_time_p90": null,
+        "reviewers_count": 2
+      }
+    },
+    "4237b7e6-65bf-5f6f-831e-efba9e5e326b": {
+      "data-warehouse": {
+        "authors_count": 1,
+        "cycle_time_p50": null,
+        "cycle_time_p90": null,
+        "pr_count": 2,
         "review_time_p50": null,
         "review_time_p90": null,
         "reviewers_count": 2
@@ -768,7 +824,7 @@
         "authors_count": 1,
         "cycle_time_p50": null,
         "cycle_time_p90": null,
-        "pr_count": 1,
+        "pr_count": 2,
         "review_time_p50": null,
         "review_time_p90": null,
         "reviewers_count": 2
@@ -779,7 +835,29 @@
         "authors_count": 1,
         "cycle_time_p50": null,
         "cycle_time_p90": null,
+        "pr_count": 1,
+        "review_time_p50": null,
+        "review_time_p90": null,
+        "reviewers_count": 2
+      }
+    },
+    "655c7e03-2cc4-5976-84fb-c22130b784b3": {
+      "data-warehouse": {
+        "authors_count": 1,
+        "cycle_time_p50": null,
+        "cycle_time_p90": null,
         "pr_count": 2,
+        "review_time_p50": null,
+        "review_time_p90": null,
+        "reviewers_count": 2
+      }
+    },
+    "677bb7bd-0214-5e76-ae56-bbda25b1e871": {
+      "etl-jobs": {
+        "authors_count": 1,
+        "cycle_time_p50": null,
+        "cycle_time_p90": null,
+        "pr_count": 3,
         "review_time_p50": null,
         "review_time_p90": null,
         "reviewers_count": 2
@@ -796,8 +874,8 @@
         "reviewers_count": 2
       }
     },
-    "7857d219-29d0-5f5e-a9bf-6fce154b062c": {
-      "react-shell": {
+    "70d0c1db-abc3-54ae-94ad-44ffb9f54fbd": {
+      "auth-service": {
         "authors_count": 1,
         "cycle_time_p50": null,
         "cycle_time_p90": null,
@@ -808,15 +886,6 @@
       }
     },
     "79bf5913-b79e-536d-b3fa-c7bc950a244b": {
-      "design-system": {
-        "authors_count": 1,
-        "cycle_time_p50": null,
-        "cycle_time_p90": null,
-        "pr_count": 1,
-        "review_time_p50": null,
-        "review_time_p90": null,
-        "reviewers_count": 2
-      },
       "stream-processor": {
         "authors_count": 1,
         "cycle_time_p50": null,
@@ -827,8 +896,8 @@
         "reviewers_count": 2
       }
     },
-    "7a2ba1f3-9e8b-5fbd-beaf-1f115c6dd2e3": {
-      "gateway-core": {
+    "7a983fd7-ee82-530f-851a-70785c8fe4a5": {
+      "android-app": {
         "authors_count": 1,
         "cycle_time_p50": null,
         "cycle_time_p90": null,
@@ -869,54 +938,12 @@
         "reviewers_count": 2
       }
     },
-    "84434e77-3995-5517-aa30-e9724a4307ed": {
-      "ios-app": {
-        "authors_count": 1,
-        "cycle_time_p50": null,
-        "cycle_time_p90": null,
-        "pr_count": 1,
-        "review_time_p50": null,
-        "review_time_p90": null,
-        "reviewers_count": 2
-      }
-    },
     "85bdd61e-de82-500a-b3bd-2a71d1c06a8a": {
       "data-warehouse": {
         "authors_count": 1,
         "cycle_time_p50": null,
         "cycle_time_p90": null,
         "pr_count": 2,
-        "review_time_p50": null,
-        "review_time_p90": null,
-        "reviewers_count": 2
-      }
-    },
-    "89b7bbb3-2f4c-5de8-b4cd-335a04f55adb": {
-      "notification-service": {
-        "authors_count": 1,
-        "cycle_time_p50": null,
-        "cycle_time_p90": null,
-        "pr_count": 1,
-        "review_time_p50": null,
-        "review_time_p90": null,
-        "reviewers_count": 2
-      },
-      "user-service": {
-        "authors_count": 1,
-        "cycle_time_p50": null,
-        "cycle_time_p90": null,
-        "pr_count": 2,
-        "review_time_p50": null,
-        "review_time_p90": null,
-        "reviewers_count": 2
-      }
-    },
-    "91ae6e14-cfd3-5c68-81ce-cd71961a30d4": {
-      "model-training": {
-        "authors_count": 1,
-        "cycle_time_p50": null,
-        "cycle_time_p90": null,
-        "pr_count": 1,
         "review_time_p50": null,
         "review_time_p90": null,
         "reviewers_count": 2
@@ -933,12 +960,12 @@
         "reviewers_count": 2
       }
     },
-    "9dd16093-4cd4-5588-95a4-024ef402adf1": {
-      "user-service": {
+    "9cc11263-ee7a-5cf3-8cf0-984b7e573dff": {
+      "stream-processor": {
         "authors_count": 1,
         "cycle_time_p50": null,
         "cycle_time_p90": null,
-        "pr_count": 2,
+        "pr_count": 3,
         "review_time_p50": null,
         "review_time_p90": null,
         "reviewers_count": 2
@@ -956,20 +983,11 @@
       }
     },
     "a2bcc6dc-41a3-50d2-86cf-8dcb98701597": {
-      "auth-service": {
-        "authors_count": 1,
-        "cycle_time_p50": null,
-        "cycle_time_p90": null,
-        "pr_count": 2,
-        "review_time_p50": null,
-        "review_time_p90": null,
-        "reviewers_count": 2
-      },
       "etl-jobs": {
         "authors_count": 1,
         "cycle_time_p50": null,
         "cycle_time_p90": null,
-        "pr_count": 1,
+        "pr_count": 2,
         "review_time_p50": null,
         "review_time_p90": null,
         "reviewers_count": 2
@@ -993,15 +1011,6 @@
         "review_time_p50": null,
         "review_time_p90": null,
         "reviewers_count": 2
-      },
-      "user-service": {
-        "authors_count": 1,
-        "cycle_time_p50": null,
-        "cycle_time_p90": null,
-        "pr_count": 1,
-        "review_time_p50": null,
-        "review_time_p90": null,
-        "reviewers_count": 2
       }
     },
     "b5bbf539-5403-5bdb-b3ac-48bae2e0f805": {
@@ -1015,8 +1024,17 @@
         "reviewers_count": 2
       }
     },
-    "bd9e17b1-0b06-5284-9bf5-2300a7ec5778": {
-      "react-shell": {
+    "c00ae966-ee3c-535a-8ee6-672cd76da36c": {
+      "etl-jobs": {
+        "authors_count": 1,
+        "cycle_time_p50": null,
+        "cycle_time_p90": null,
+        "pr_count": 3,
+        "review_time_p50": null,
+        "review_time_p90": null,
+        "reviewers_count": 2
+      },
+      "user-service": {
         "authors_count": 1,
         "cycle_time_p50": null,
         "cycle_time_p90": null,
@@ -1026,12 +1044,12 @@
         "reviewers_count": 2
       }
     },
-    "c00ae966-ee3c-535a-8ee6-672cd76da36c": {
-      "etl-jobs": {
+    "c05ea2fd-75f3-58c3-a3f5-97af92f23e8b": {
+      "android-app": {
         "authors_count": 1,
         "cycle_time_p50": null,
         "cycle_time_p90": null,
-        "pr_count": 2,
+        "pr_count": 1,
         "review_time_p50": null,
         "review_time_p90": null,
         "reviewers_count": 2
@@ -1057,30 +1075,8 @@
         "reviewers_count": 2
       }
     },
-    "c14ebd6a-33d7-5119-84a8-fbf6fa8114b5": {
-      "auth-service": {
-        "authors_count": 1,
-        "cycle_time_p50": null,
-        "cycle_time_p90": null,
-        "pr_count": 1,
-        "review_time_p50": null,
-        "review_time_p90": null,
-        "reviewers_count": 2
-      }
-    },
     "c513be1c-8837-5c31-b5c5-fb2853442175": {
       "android-app": {
-        "authors_count": 1,
-        "cycle_time_p50": null,
-        "cycle_time_p90": null,
-        "pr_count": 1,
-        "review_time_p50": null,
-        "review_time_p90": null,
-        "reviewers_count": 2
-      }
-    },
-    "ca1fbba8-960c-5feb-994a-5ff0d85b6064": {
-      "user-service": {
         "authors_count": 1,
         "cycle_time_p50": null,
         "cycle_time_p90": null,
@@ -1130,17 +1126,6 @@
         "reviewers_count": 2
       }
     },
-    "ce701784-66e1-5265-bb39-3bafacb0d515": {
-      "dashboard-api": {
-        "authors_count": 1,
-        "cycle_time_p50": null,
-        "cycle_time_p90": null,
-        "pr_count": 1,
-        "review_time_p50": null,
-        "review_time_p90": null,
-        "reviewers_count": 2
-      }
-    },
     "cfe9685a-dc3e-5407-b9f6-08be45ca6529": {
       "ios-app": {
         "authors_count": 1,
@@ -1157,17 +1142,6 @@
         "authors_count": 1,
         "cycle_time_p50": null,
         "cycle_time_p90": null,
-        "pr_count": 2,
-        "review_time_p50": null,
-        "review_time_p90": null,
-        "reviewers_count": 2
-      }
-    },
-    "da2833a3-7f2f-5de9-9d38-7a36c7e0c2dc": {
-      "etl-jobs": {
-        "authors_count": 1,
-        "cycle_time_p50": null,
-        "cycle_time_p90": null,
         "pr_count": 1,
         "review_time_p50": null,
         "review_time_p90": null,
@@ -1179,14 +1153,25 @@
         "authors_count": 1,
         "cycle_time_p50": null,
         "cycle_time_p90": null,
-        "pr_count": 2,
+        "pr_count": 1,
+        "review_time_p50": null,
+        "review_time_p90": null,
+        "reviewers_count": 2
+      }
+    },
+    "dd90d4ae-b703-5f35-9687-f6b1d3cbebd6": {
+      "etl-jobs": {
+        "authors_count": 1,
+        "cycle_time_p50": null,
+        "cycle_time_p90": null,
+        "pr_count": 3,
         "review_time_p50": null,
         "review_time_p90": null,
         "reviewers_count": 2
       }
     },
     "dde0af13-4241-559b-9791-6efd249a207e": {
-      "etl-jobs": {
+      "react-shell": {
         "authors_count": 1,
         "cycle_time_p50": null,
         "cycle_time_p90": null,
@@ -1194,19 +1179,21 @@
         "review_time_p50": null,
         "review_time_p90": null,
         "reviewers_count": 2
-      },
-      "react-shell": {
+      }
+    },
+    "e1ed9361-dd1e-54e5-8795-0b68baf8512f": {
+      "gateway-core": {
         "authors_count": 1,
         "cycle_time_p50": null,
         "cycle_time_p90": null,
-        "pr_count": 2,
+        "pr_count": 1,
         "review_time_p50": null,
         "review_time_p90": null,
         "reviewers_count": 2
       }
     },
     "e240a9d8-6a7a-5fd1-bce3-4cd050c0946e": {
-      "notification-service": {
+      "react-shell": {
         "authors_count": 1,
         "cycle_time_p50": null,
         "cycle_time_p90": null,
@@ -1214,8 +1201,21 @@
         "review_time_p50": null,
         "review_time_p90": null,
         "reviewers_count": 2
-      },
-      "react-shell": {
+      }
+    },
+    "e5041028-ca35-5c7e-ace9-71fce373f9ba": {
+      "etl-jobs": {
+        "authors_count": 1,
+        "cycle_time_p50": null,
+        "cycle_time_p90": null,
+        "pr_count": 3,
+        "review_time_p50": null,
+        "review_time_p90": null,
+        "reviewers_count": 2
+      }
+    },
+    "ed15254c-8741-5f52-a86a-763e430d271e": {
+      "etl-jobs": {
         "authors_count": 1,
         "cycle_time_p50": null,
         "cycle_time_p90": null,
@@ -1236,8 +1236,30 @@
         "reviewers_count": 2
       }
     },
-    "fa3bbf9d-fc6d-5b10-b54d-37fc21741913": {
-      "ios-app": {
+    "f5205e29-ac6d-5873-be14-1bee920f94b0": {
+      "etl-jobs": {
+        "authors_count": 1,
+        "cycle_time_p50": null,
+        "cycle_time_p90": null,
+        "pr_count": 2,
+        "review_time_p50": null,
+        "review_time_p90": null,
+        "reviewers_count": 2
+      }
+    },
+    "fae290f1-a24a-56db-8d42-01b4acdd6cb9": {
+      "data-warehouse": {
+        "authors_count": 1,
+        "cycle_time_p50": null,
+        "cycle_time_p90": null,
+        "pr_count": 2,
+        "review_time_p50": null,
+        "review_time_p90": null,
+        "reviewers_count": 2
+      }
+    },
+    "fde7a229-7aa3-5d95-bc33-fdfa7b802aa5": {
+      "notification-service": {
         "authors_count": 1,
         "cycle_time_p50": null,
         "cycle_time_p90": null,
@@ -1250,40 +1272,40 @@
   },
   "by_repository": {
     "android-app": {
-      "authors_count": 1,
+      "authors_count": 2,
       "cycle_time_p50": null,
       "cycle_time_p90": null,
-      "pr_count": 3,
+      "pr_count": 4,
       "review_time_p50": null,
       "review_time_p90": null,
-      "reviewers_count": 2
+      "reviewers_count": 3
     },
     "auth-service": {
-      "authors_count": 3,
-      "cycle_time_p50": 295.398,
-      "cycle_time_p90": 1069.249,
-      "pr_count": 7,
-      "review_time_p50": 178.273,
-      "review_time_p90": 347.775,
-      "reviewers_count": 4
+      "authors_count": 2,
+      "cycle_time_p50": 511.57,
+      "cycle_time_p90": 4560.028,
+      "pr_count": 5,
+      "review_time_p50": 256.507,
+      "review_time_p90": 2286.452,
+      "reviewers_count": 3
     },
     "dashboard-api": {
       "authors_count": 1,
       "cycle_time_p50": null,
       "cycle_time_p90": null,
-      "pr_count": 2,
+      "pr_count": 1,
       "review_time_p50": null,
       "review_time_p90": null,
-      "reviewers_count": 2
+      "reviewers_count": 1
     },
     "data-warehouse": {
-      "authors_count": 2,
-      "cycle_time_p50": 1592.458,
-      "cycle_time_p90": 9741.189,
-      "pr_count": 5,
-      "review_time_p50": 992.891,
-      "review_time_p90": 6347.975,
-      "reviewers_count": 3
+      "authors_count": 4,
+      "cycle_time_p50": 1456.438,
+      "cycle_time_p90": 9918.777,
+      "pr_count": 11,
+      "review_time_p50": 690.218,
+      "review_time_p90": 4700.587,
+      "reviewers_count": 5
     },
     "design-system": {
       "authors_count": 1,
@@ -1295,13 +1317,13 @@
       "reviewers_count": 2
     },
     "etl-jobs": {
-      "authors_count": 4,
-      "cycle_time_p50": 3214.569,
-      "cycle_time_p90": 14695.929,
-      "pr_count": 14,
-      "review_time_p50": 1995.087,
-      "review_time_p90": 8866.818,
-      "reviewers_count": 5
+      "authors_count": 7,
+      "cycle_time_p50": 3615.578,
+      "cycle_time_p90": 23171.317,
+      "pr_count": 30,
+      "review_time_p50": 1970.897,
+      "review_time_p90": null,
+      "reviewers_count": 8
     },
     "feature-store": {
       "authors_count": 1,
@@ -1313,13 +1335,13 @@
       "reviewers_count": 2
     },
     "gateway-core": {
-      "authors_count": 1,
+      "authors_count": 2,
       "cycle_time_p50": null,
       "cycle_time_p90": null,
-      "pr_count": 3,
+      "pr_count": 4,
       "review_time_p50": null,
       "review_time_p90": null,
-      "reviewers_count": 2
+      "reviewers_count": 3
     },
     "inference-service": {
       "authors_count": 1,
@@ -1331,58 +1353,58 @@
       "reviewers_count": 2
     },
     "ios-app": {
-      "authors_count": 4,
-      "cycle_time_p50": 38.552,
-      "cycle_time_p90": 255.023,
-      "pr_count": 13,
-      "review_time_p50": 23.184,
-      "review_time_p90": 157.792,
-      "reviewers_count": 5
+      "authors_count": 3,
+      "cycle_time_p50": 88.422,
+      "cycle_time_p90": 482.839,
+      "pr_count": 9,
+      "review_time_p50": 49.026,
+      "review_time_p90": 267.709,
+      "reviewers_count": 4
     },
     "model-training": {
       "authors_count": 3,
-      "cycle_time_p50": 6662.553,
-      "cycle_time_p90": 21544.072,
+      "cycle_time_p50": 16935.37,
+      "cycle_time_p90": 44866.791,
       "pr_count": 8,
-      "review_time_p50": 2619.333,
-      "review_time_p90": 9875.254,
+      "review_time_p50": 7302.723,
+      "review_time_p90": 19347.069,
       "reviewers_count": 4
     },
     "notification-service": {
       "authors_count": 1,
       "cycle_time_p50": null,
       "cycle_time_p90": null,
-      "pr_count": 3,
+      "pr_count": 2,
       "review_time_p50": null,
       "review_time_p90": null,
       "reviewers_count": 2
     },
     "react-shell": {
       "authors_count": 4,
-      "cycle_time_p50": 45.572,
-      "cycle_time_p90": 313.448,
-      "pr_count": 14,
-      "review_time_p50": 14.71,
-      "review_time_p90": 154.33,
+      "cycle_time_p50": 236.572,
+      "cycle_time_p90": 520.863,
+      "pr_count": 11,
+      "review_time_p50": 112.084,
+      "review_time_p90": 246.777,
       "reviewers_count": 5
     },
     "stream-processor": {
-      "authors_count": 1,
-      "cycle_time_p50": null,
-      "cycle_time_p90": null,
-      "pr_count": 3,
-      "review_time_p50": null,
-      "review_time_p90": null,
-      "reviewers_count": 2
+      "authors_count": 3,
+      "cycle_time_p50": 1308.665,
+      "cycle_time_p90": 11911.685,
+      "pr_count": 8,
+      "review_time_p50": 713.419,
+      "review_time_p90": 6493.654,
+      "reviewers_count": 4
     },
     "user-service": {
-      "authors_count": 5,
-      "cycle_time_p50": 710.486,
-      "cycle_time_p90": 2983.013,
-      "pr_count": 15,
-      "review_time_p50": 276.168,
-      "review_time_p90": 1584.583,
-      "reviewers_count": 6
+      "authors_count": 3,
+      "cycle_time_p50": 618.221,
+      "cycle_time_p90": 2651.386,
+      "pr_count": 9,
+      "review_time_p50": 274.197,
+      "review_time_p90": 1175.96,
+      "reviewers_count": 4
     }
   },
   "by_reviewer": {
@@ -1399,6 +1421,13 @@
       "repositories_count": 1,
       "reviewed_prs": 2,
       "reviews_count": 3
+    },
+    "06575f71-2e05-5966-8d9f-db7328edcd43": {
+      "approval_rate": 0.74,
+      "authors_count": 2,
+      "repositories_count": 1,
+      "reviewed_prs": 1,
+      "reviews_count": 2
     },
     "08cf57e7-c6eb-568f-a9ef-8baa194946b6": {
       "approval_rate": 0.82,
@@ -1472,6 +1501,13 @@
     },
     "4237b7e6-65bf-5f6f-831e-efba9e5e326b": {
       "approval_rate": 0.66,
+      "authors_count": 2,
+      "repositories_count": 1,
+      "reviewed_prs": 2,
+      "reviews_count": 5
+    },
+    "45454a1f-599b-5b19-81c8-c01c423442c3": {
+      "approval_rate": 0.82,
       "authors_count": 2,
       "repositories_count": 1,
       "reviewed_prs": 2,
@@ -1551,8 +1587,8 @@
       "approval_rate": 0.86,
       "authors_count": 2,
       "repositories_count": 1,
-      "reviewed_prs": 1,
-      "reviews_count": 1
+      "reviewed_prs": 2,
+      "reviews_count": 2
     },
     "81fd281e-1585-58ab-ba51-80b5890145af": {
       "approval_rate": 0.62,
@@ -1568,6 +1604,13 @@
       "reviewed_prs": 2,
       "reviews_count": 3
     },
+    "938fe6da-bd5f-56d2-9c06-9b4fb1139ed3": {
+      "approval_rate": 0.66,
+      "authors_count": 2,
+      "repositories_count": 1,
+      "reviewed_prs": 2,
+      "reviews_count": 5
+    },
     "93f4b724-5be5-56fb-93b7-f5aae249ab52": {
       "approval_rate": 0.74,
       "authors_count": 2,
@@ -1575,12 +1618,19 @@
       "reviewed_prs": 2,
       "reviews_count": 5
     },
+    "9b064573-dab2-5837-b361-f50b8235b324": {
+      "approval_rate": 0.78,
+      "authors_count": 2,
+      "repositories_count": 1,
+      "reviewed_prs": 2,
+      "reviews_count": 4
+    },
     "9cc11263-ee7a-5cf3-8cf0-984b7e573dff": {
       "approval_rate": 0.78,
       "authors_count": 2,
       "repositories_count": 1,
-      "reviewed_prs": 1,
-      "reviews_count": 2
+      "reviewed_prs": 2,
+      "reviews_count": 3
     },
     "a778cba4-5127-5c45-85de-1da27ad6b478": {
       "approval_rate": 0.74,
@@ -1623,6 +1673,13 @@
       "repositories_count": 1,
       "reviewed_prs": 2,
       "reviews_count": 4
+    },
+    "d1db96a0-2eb3-5731-bd79-701dfce367ed": {
+      "approval_rate": 0.7,
+      "authors_count": 2,
+      "repositories_count": 1,
+      "reviewed_prs": 2,
+      "reviews_count": 2
     },
     "d3225da6-88d8-50bf-80c3-f547b9c530b7": {
       "approval_rate": 0.82,
@@ -1670,8 +1727,8 @@
       "approval_rate": 0.7,
       "authors_count": 2,
       "repositories_count": 1,
-      "reviewed_prs": 1,
-      "reviews_count": 3
+      "reviewed_prs": 2,
+      "reviews_count": 4
     },
     "fa2210af-6bf9-5f40-b530-17574196e576": {
       "approval_rate": 0.62,
@@ -1690,40 +1747,40 @@
   },
   "by_team": {
     "Data Team": {
-      "authors_count": 7,
-      "cycle_time_p50": 742.19,
-      "cycle_time_p90": 3038.099,
-      "pr_count": 31,
-      "review_time_p50": 414.325,
-      "review_time_p90": 989.957,
-      "reviewers_count": 8
+      "authors_count": 13,
+      "cycle_time_p50": 337.704,
+      "cycle_time_p90": 2180.033,
+      "pr_count": 73,
+      "review_time_p50": 107.364,
+      "review_time_p90": 693.081,
+      "reviewers_count": 14
     },
     "Frontend Team": {
-      "authors_count": 7,
-      "cycle_time_p50": 358.319,
-      "cycle_time_p90": 2965.468,
-      "pr_count": 29,
-      "review_time_p50": 148.165,
-      "review_time_p90": 2026.463,
-      "reviewers_count": 8
-    },
-    "ML Team": {
       "authors_count": 4,
-      "cycle_time_p50": 388.629,
-      "cycle_time_p90": 1582.16,
-      "pr_count": 14,
-      "review_time_p50": 139.929,
-      "review_time_p90": 480.336,
+      "cycle_time_p50": 712.531,
+      "cycle_time_p90": 3570.058,
+      "pr_count": 13,
+      "review_time_p50": 390.804,
+      "review_time_p90": 1958.08,
       "reviewers_count": 5
     },
+    "ML Team": {
+      "authors_count": 5,
+      "cycle_time_p50": 342.777,
+      "cycle_time_p90": 1969.66,
+      "pr_count": 17,
+      "review_time_p50": 147.512,
+      "review_time_p90": 847.631,
+      "reviewers_count": 6
+    },
     "Platform Team": {
-      "authors_count": 6,
-      "cycle_time_p50": 342.839,
-      "cycle_time_p90": 1452.234,
-      "pr_count": 22,
-      "review_time_p50": 143.522,
-      "review_time_p90": 472.616,
-      "reviewers_count": 7
+      "authors_count": 2,
+      "cycle_time_p50": 440.459,
+      "cycle_time_p90": 3004.404,
+      "pr_count": 5,
+      "review_time_p50": null,
+      "review_time_p90": 1027.798,
+      "reviewers_count": 3
     }
   },
   "by_team_and_repo": {
@@ -1732,7 +1789,7 @@
         "authors_count": 1,
         "cycle_time_p50": null,
         "cycle_time_p90": null,
-        "pr_count": 1,
+        "pr_count": 2,
         "review_time_p50": null,
         "review_time_p90": null,
         "reviewers_count": 2
@@ -1741,7 +1798,7 @@
         "authors_count": 1,
         "cycle_time_p50": null,
         "cycle_time_p90": null,
-        "pr_count": 1,
+        "pr_count": 2,
         "review_time_p50": null,
         "review_time_p90": null,
         "reviewers_count": 2
@@ -1756,141 +1813,49 @@
         "reviewers_count": 2
       },
       "data-warehouse": {
-        "authors_count": 2,
-        "cycle_time_p50": 365.355,
-        "cycle_time_p90": 1222.056,
-        "pr_count": 5,
-        "review_time_p50": 139.568,
-        "review_time_p90": 823.615,
-        "reviewers_count": 3
-      },
-      "etl-jobs": {
         "authors_count": 4,
-        "cycle_time_p50": 4658.388,
-        "cycle_time_p90": 14173.306,
-        "pr_count": 12,
-        "review_time_p50": 2563.634,
-        "review_time_p90": 5864.201,
+        "cycle_time_p50": 2013.391,
+        "cycle_time_p90": 41415.305,
+        "pr_count": 11,
+        "review_time_p50": null,
+        "review_time_p90": 22307.177,
         "reviewers_count": 5
-      },
-      "gateway-core": {
-        "authors_count": 1,
-        "cycle_time_p50": null,
-        "cycle_time_p90": null,
-        "pr_count": 1,
-        "review_time_p50": null,
-        "review_time_p90": null,
-        "reviewers_count": 2
-      },
-      "ios-app": {
-        "authors_count": 1,
-        "cycle_time_p50": null,
-        "cycle_time_p90": null,
-        "pr_count": 2,
-        "review_time_p50": null,
-        "review_time_p90": null,
-        "reviewers_count": 2
-      },
-      "model-training": {
-        "authors_count": 1,
-        "cycle_time_p50": null,
-        "cycle_time_p90": null,
-        "pr_count": 1,
-        "review_time_p50": null,
-        "review_time_p90": null,
-        "reviewers_count": 2
-      },
-      "react-shell": {
-        "authors_count": 1,
-        "cycle_time_p50": null,
-        "cycle_time_p90": null,
-        "pr_count": 2,
-        "review_time_p50": null,
-        "review_time_p90": null,
-        "reviewers_count": 2
-      },
-      "stream-processor": {
-        "authors_count": 1,
-        "cycle_time_p50": null,
-        "cycle_time_p90": null,
-        "pr_count": 3,
-        "review_time_p50": null,
-        "review_time_p90": null,
-        "reviewers_count": 2
-      },
-      "user-service": {
-        "authors_count": 1,
-        "cycle_time_p50": null,
-        "cycle_time_p90": null,
-        "pr_count": 2,
-        "review_time_p50": null,
-        "review_time_p90": null,
-        "reviewers_count": 2
-      }
-    },
-    "Frontend Team": {
-      "android-app": {
-        "authors_count": 1,
-        "cycle_time_p50": null,
-        "cycle_time_p90": null,
-        "pr_count": 1,
-        "review_time_p50": null,
-        "review_time_p90": null,
-        "reviewers_count": 2
-      },
-      "auth-service": {
-        "authors_count": 1,
-        "cycle_time_p50": null,
-        "cycle_time_p90": null,
-        "pr_count": 1,
-        "review_time_p50": null,
-        "review_time_p90": null,
-        "reviewers_count": 2
-      },
-      "dashboard-api": {
-        "authors_count": 1,
-        "cycle_time_p50": null,
-        "cycle_time_p90": null,
-        "pr_count": 1,
-        "review_time_p50": null,
-        "review_time_p90": null,
-        "reviewers_count": 2
       },
       "design-system": {
         "authors_count": 1,
         "cycle_time_p50": null,
         "cycle_time_p90": null,
-        "pr_count": 2,
+        "pr_count": 1,
         "review_time_p50": null,
         "review_time_p90": null,
         "reviewers_count": 2
       },
       "etl-jobs": {
-        "authors_count": 1,
-        "cycle_time_p50": null,
-        "cycle_time_p90": null,
-        "pr_count": 1,
-        "review_time_p50": null,
-        "review_time_p90": null,
-        "reviewers_count": 2
+        "authors_count": 7,
+        "cycle_time_p50": 1627.848,
+        "cycle_time_p90": 20015.152,
+        "pr_count": 30,
+        "review_time_p50": 1026.713,
+        "review_time_p90": 12623.913,
+        "reviewers_count": 8
       },
       "gateway-core": {
         "authors_count": 1,
         "cycle_time_p50": null,
         "cycle_time_p90": null,
-        "pr_count": 1,
+        "pr_count": 2,
         "review_time_p50": null,
         "review_time_p90": null,
         "reviewers_count": 2
       },
       "ios-app": {
-        "authors_count": 3,
-        "cycle_time_p50": 130.254,
-        "cycle_time_p90": 432.557,
-        "pr_count": 8,
-        "review_time_p50": 69.18,
-        "review_time_p90": 215.464,
-        "reviewers_count": 4
+        "authors_count": 2,
+        "cycle_time_p50": null,
+        "cycle_time_p90": null,
+        "pr_count": 4,
+        "review_time_p50": null,
+        "review_time_p90": null,
+        "reviewers_count": 3
       },
       "model-training": {
         "authors_count": 1,
@@ -1911,25 +1876,108 @@
         "reviewers_count": 2
       },
       "react-shell": {
+        "authors_count": 2,
+        "cycle_time_p50": 61.39,
+        "cycle_time_p90": 360.268,
+        "pr_count": 5,
+        "review_time_p50": 34.723,
+        "review_time_p90": 203.775,
+        "reviewers_count": 3
+      },
+      "stream-processor": {
         "authors_count": 3,
-        "cycle_time_p50": 122.865,
-        "cycle_time_p90": 160.093,
-        "pr_count": 9,
-        "review_time_p50": 44.508,
-        "review_time_p90": 71.539,
+        "cycle_time_p50": 3213.012,
+        "cycle_time_p90": 21116.601,
+        "pr_count": 8,
+        "review_time_p50": 1681.05,
+        "review_time_p90": 11048.22,
         "reviewers_count": 4
+      },
+      "user-service": {
+        "authors_count": 2,
+        "cycle_time_p50": 247.627,
+        "cycle_time_p90": 1376.64,
+        "pr_count": 5,
+        "review_time_p50": 127.858,
+        "review_time_p90": 710.807,
+        "reviewers_count": 3
+      }
+    },
+    "Frontend Team": {
+      "android-app": {
+        "authors_count": 1,
+        "cycle_time_p50": null,
+        "cycle_time_p90": null,
+        "pr_count": 1,
+        "review_time_p50": null,
+        "review_time_p90": null,
+        "reviewers_count": 2
+      },
+      "auth-service": {
+        "authors_count": 1,
+        "cycle_time_p50": null,
+        "cycle_time_p90": null,
+        "pr_count": 1,
+        "review_time_p50": null,
+        "review_time_p90": null,
+        "reviewers_count": 2
+      },
+      "design-system": {
+        "authors_count": 1,
+        "cycle_time_p50": null,
+        "cycle_time_p90": null,
+        "pr_count": 1,
+        "review_time_p50": null,
+        "review_time_p90": null,
+        "reviewers_count": 2
+      },
+      "gateway-core": {
+        "authors_count": 1,
+        "cycle_time_p50": null,
+        "cycle_time_p90": null,
+        "pr_count": 1,
+        "review_time_p50": null,
+        "review_time_p90": null,
+        "reviewers_count": 2
+      },
+      "ios-app": {
+        "authors_count": 2,
+        "cycle_time_p50": null,
+        "cycle_time_p90": null,
+        "pr_count": 4,
+        "review_time_p50": null,
+        "review_time_p90": null,
+        "reviewers_count": 3
+      },
+      "react-shell": {
+        "authors_count": 2,
+        "cycle_time_p50": null,
+        "cycle_time_p90": null,
+        "pr_count": 4,
+        "review_time_p50": null,
+        "review_time_p90": null,
+        "reviewers_count": 3
       },
       "user-service": {
         "authors_count": 1,
         "cycle_time_p50": null,
         "cycle_time_p90": null,
-        "pr_count": 3,
+        "pr_count": 1,
         "review_time_p50": null,
         "review_time_p90": null,
         "reviewers_count": 2
       }
     },
     "ML Team": {
+      "android-app": {
+        "authors_count": 1,
+        "cycle_time_p50": null,
+        "cycle_time_p90": null,
+        "pr_count": 1,
+        "review_time_p50": null,
+        "review_time_p90": null,
+        "reviewers_count": 2
+      },
       "auth-service": {
         "authors_count": 1,
         "cycle_time_p50": null,
@@ -1944,6 +1992,15 @@
         "cycle_time_p50": null,
         "cycle_time_p90": null,
         "pr_count": 2,
+        "review_time_p50": null,
+        "review_time_p90": null,
+        "reviewers_count": 2
+      },
+      "gateway-core": {
+        "authors_count": 1,
+        "cycle_time_p50": null,
+        "cycle_time_p90": null,
+        "pr_count": 1,
         "review_time_p50": null,
         "review_time_p90": null,
         "reviewers_count": 2
@@ -1967,13 +2024,13 @@
         "reviewers_count": 2
       },
       "model-training": {
-        "authors_count": 2,
-        "cycle_time_p50": 4322.584,
-        "cycle_time_p90": 6796.067,
-        "pr_count": 6,
-        "review_time_p50": 2047.225,
-        "review_time_p90": 4233.597,
-        "reviewers_count": 3
+        "authors_count": 3,
+        "cycle_time_p50": 4044.52,
+        "cycle_time_p90": 6588.927,
+        "pr_count": 7,
+        "review_time_p50": 2709.18,
+        "review_time_p90": 4413.526,
+        "reviewers_count": 4
       },
       "react-shell": {
         "authors_count": 1,
@@ -1995,47 +2052,11 @@
       }
     },
     "Platform Team": {
-      "android-app": {
-        "authors_count": 1,
-        "cycle_time_p50": null,
-        "cycle_time_p90": null,
-        "pr_count": 1,
-        "review_time_p50": null,
-        "review_time_p90": null,
-        "reviewers_count": 2
-      },
       "auth-service": {
-        "authors_count": 2,
-        "cycle_time_p50": null,
-        "cycle_time_p90": null,
-        "pr_count": 4,
-        "review_time_p50": null,
-        "review_time_p90": null,
-        "reviewers_count": 3
-      },
-      "etl-jobs": {
         "authors_count": 1,
         "cycle_time_p50": null,
         "cycle_time_p90": null,
         "pr_count": 1,
-        "review_time_p50": null,
-        "review_time_p90": null,
-        "reviewers_count": 2
-      },
-      "gateway-core": {
-        "authors_count": 1,
-        "cycle_time_p50": null,
-        "cycle_time_p90": null,
-        "pr_count": 1,
-        "review_time_p50": null,
-        "review_time_p90": null,
-        "reviewers_count": 2
-      },
-      "ios-app": {
-        "authors_count": 1,
-        "cycle_time_p50": null,
-        "cycle_time_p90": null,
-        "pr_count": 2,
         "review_time_p50": null,
         "review_time_p90": null,
         "reviewers_count": 2
@@ -2044,7 +2065,7 @@
         "authors_count": 1,
         "cycle_time_p50": null,
         "cycle_time_p90": null,
-        "pr_count": 2,
+        "pr_count": 1,
         "review_time_p50": null,
         "review_time_p90": null,
         "reviewers_count": 2
@@ -2053,29 +2074,29 @@
         "authors_count": 1,
         "cycle_time_p50": null,
         "cycle_time_p90": null,
-        "pr_count": 2,
+        "pr_count": 1,
         "review_time_p50": null,
         "review_time_p90": null,
         "reviewers_count": 2
       },
       "user-service": {
-        "authors_count": 3,
-        "cycle_time_p50": 191.844,
-        "cycle_time_p90": 2353.364,
-        "pr_count": 9,
-        "review_time_p50": 88.904,
-        "review_time_p90": 1646.622,
-        "reviewers_count": 4
+        "authors_count": 1,
+        "cycle_time_p50": null,
+        "cycle_time_p90": null,
+        "pr_count": 2,
+        "review_time_p50": null,
+        "review_time_p90": null,
+        "reviewers_count": 2
       }
     }
   },
-  "cycle_time_p50": 347.672,
-  "cycle_time_p90": 2347.652,
+  "cycle_time_p50": 391.846,
+  "cycle_time_p90": 2008.748,
   "end_date": "2022-07-31",
-  "pr_count": 96,
-  "review_time_p50": 111.298,
-  "review_time_p90": 1369.558,
-  "reviewers_count": 43,
+  "pr_count": 108,
+  "review_time_p50": 213.666,
+  "review_time_p90": 1095.335,
+  "reviewers_count": 48,
   "start_date": "2022-07-25",
   "week": "2022-W30"
 }

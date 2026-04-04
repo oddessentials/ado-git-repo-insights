@@ -663,8 +663,9 @@ def _allocate_author_repo_entries(
             assert p90 is not None
             author_entry["cycle_time_p50"] = p50 * factor
             author_entry["cycle_time_p90"] = p90 * factor
-            author_entry["review_time_p50"] = _derive_review_time(p50 * factor)
-            author_entry["review_time_p90"] = _derive_review_time(p90 * factor)
+            a_rt_p50, a_rt_p90 = _derive_review_time_pair(p50 * factor, p90 * factor)
+            author_entry["review_time_p50"] = a_rt_p50
+            author_entry["review_time_p90"] = a_rt_p90
 
         author_id = str(author.user_id)
         author_slices.setdefault(author_id, []).append(author_entry)
@@ -1032,26 +1033,34 @@ REVIEW_TIME_RATIO_HIGH = 0.7
 REVIEW_TIME_NULL_RATE = 0.10
 
 
-def _derive_review_time(
-    cycle_time_val: float | None,
-) -> float | None:
-    """Derive a review time from a cycle time value.
+def _derive_review_time_pair(
+    cycle_time_p50: float | None,
+    cycle_time_p90: float | None,
+) -> tuple[float | None, float | None]:
+    """Derive review time p50/p90 from cycle time using a single shared ratio.
 
-    Returns a value between 30-70% of cycle_time, or None if cycle_time is None.
+    A single ratio is drawn and applied to both percentiles, guaranteeing
+    that review_time_p50 <= review_time_p90 whenever cycle_time_p50 <= cycle_time_p90
+    (which is always true for percentiles from the same distribution).
+
+    Per-percentile null injection (~10% rate) is applied independently.
     """
-    if cycle_time_val is None:
-        return None
     ratio = RNG.uniform(REVIEW_TIME_RATIO_LOW, REVIEW_TIME_RATIO_HIGH)
-    return round(cycle_time_val * ratio, 3)
 
+    rt_p50: float | None = (
+        round(cycle_time_p50 * ratio, 3) if cycle_time_p50 is not None else None
+    )
+    rt_p90: float | None = (
+        round(cycle_time_p90 * ratio, 3) if cycle_time_p90 is not None else None
+    )
 
-def _apply_review_time_null(value: float | None) -> float | None:
-    """Apply per-percentile independent null injection (~10% rate)."""
-    if value is None:
-        return None
-    if RNG.random() < REVIEW_TIME_NULL_RATE:
-        return None
-    return value
+    # Per-percentile independent null injection
+    if rt_p50 is not None and RNG.random() < REVIEW_TIME_NULL_RATE:
+        rt_p50 = None
+    if rt_p90 is not None and RNG.random() < REVIEW_TIME_NULL_RATE:
+        rt_p90 = None
+
+    return rt_p50, rt_p90
 
 
 def adjusted_repo_weight(repo_name: str) -> float:
@@ -1107,9 +1116,8 @@ def generate_weekly_rollups(
             p50: float | None = calculate_percentile(cycle_times, 50)
             p90: float | None = calculate_percentile(cycle_times, 90)
 
-            # Derive review time from cycle time (30-70% ratio, per-percentile null independence)
-            rt_p50: float | None = _apply_review_time_null(_derive_review_time(p50))
-            rt_p90: float | None = _apply_review_time_null(_derive_review_time(p90))
+            # Derive review time from cycle time (single ratio, per-percentile null independence)
+            rt_p50, rt_p90 = _derive_review_time_pair(p50, p90)
 
             # Authors and reviewers at root level
             authors_count = max(1, int(pr_count * AUTHOR_RATIO))
@@ -1149,12 +1157,13 @@ def generate_weekly_rollups(
                     min(team.member_count, int(team_pr_count**SUBLINEAR_EXPONENT) + 1),
                 )
 
+                team_rt_p50, team_rt_p90 = _derive_review_time_pair(team_p50, team_p90)
                 by_team[team.team_name] = {
                     "pr_count": team_pr_count,
                     "cycle_time_p50": team_p50,
                     "cycle_time_p90": team_p90,
-                    "review_time_p50": _derive_review_time(team_p50),
-                    "review_time_p90": _derive_review_time(team_p90),
+                    "review_time_p50": team_rt_p50,
+                    "review_time_p90": team_rt_p90,
                     "authors_count": team_authors,
                     "reviewers_count": team_reviewers,
                 }
@@ -1240,12 +1249,13 @@ def generate_weekly_rollups(
                     r_cts = generate_cycle_times(r_prs, r_mu_factor)
                     r_p50 = calculate_percentile(r_cts, 50)
                     r_p90 = calculate_percentile(r_cts, 90)
+                    tr_rt_p50, tr_rt_p90 = _derive_review_time_pair(r_p50, r_p90)
                     team_repo_entries[rname] = {
                         "pr_count": r_prs,
                         "cycle_time_p50": r_p50,
                         "cycle_time_p90": r_p90,
-                        "review_time_p50": _derive_review_time(r_p50),
-                        "review_time_p90": _derive_review_time(r_p90),
+                        "review_time_p50": tr_rt_p50,
+                        "review_time_p90": tr_rt_p90,
                         "authors_count": r_authors,
                         "reviewers_count": r_reviewers,
                     }
@@ -1280,12 +1290,13 @@ def generate_weekly_rollups(
                 repo_reviewers = max(
                     1, min(repo_pr_count, int(repo_pr_count**SUBLINEAR_EXPONENT) + 1)
                 )
+                repo_rt_p50, repo_rt_p90 = _derive_review_time_pair(repo_p50, repo_p90)
                 by_repository[repo_name] = {
                     "pr_count": repo_pr_count,
                     "cycle_time_p50": repo_p50,
                     "cycle_time_p90": repo_p90,
-                    "review_time_p50": _derive_review_time(repo_p50),
-                    "review_time_p90": _derive_review_time(repo_p90),
+                    "review_time_p50": repo_rt_p50,
+                    "review_time_p90": repo_rt_p90,
                     "authors_count": repo_authors,
                     "reviewers_count": repo_reviewers,
                 }

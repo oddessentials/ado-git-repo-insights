@@ -13,9 +13,13 @@ from __future__ import annotations
 
 import logging
 import re
+from datetime import datetime
 from typing import TYPE_CHECKING
 
-from ado_git_repo_insights.utils.datetime_utils import calculate_review_time_minutes
+from ado_git_repo_insights.utils.datetime_utils import (
+    calculate_review_time_minutes,
+    parse_iso_datetime,
+)
 
 if TYPE_CHECKING:
     from ado_git_repo_insights.persistence.database import DatabaseManager
@@ -60,8 +64,8 @@ def populate_review_timestamps(db: DatabaseManager) -> int:
 
     # Step 2: Parse vote events and collect earliest positive vote per
     # (pull_request_uid, author_id).
-    # Key: (pr_uid, author_id) → earliest positive vote timestamp
-    earliest_votes: dict[tuple[str, str], str] = {}
+    # Key: (pr_uid, author_id) → (parsed datetime, raw ISO string)
+    earliest_votes: dict[tuple[str, str], tuple[datetime, str]] = {}
 
     for row in rows:
         content = row["content"]
@@ -74,18 +78,21 @@ def populate_review_timestamps(db: DatabaseManager) -> int:
 
         pr_uid = row["pull_request_uid"]
         author_id = row["author_id"]
-        vote_ts = row["created_at"]
+        vote_ts_raw: str = row["created_at"]
+        vote_dt = parse_iso_datetime(vote_ts_raw)
+        if vote_dt is None:
+            continue
         key = (pr_uid, author_id)
 
-        if key not in earliest_votes or vote_ts < earliest_votes[key]:
-            earliest_votes[key] = vote_ts
+        if key not in earliest_votes or vote_dt < earliest_votes[key][0]:
+            earliest_votes[key] = (vote_dt, vote_ts_raw)
 
     if not earliest_votes:
         logger.info("No positive vote events found in stored threads")
         return 0
 
     # Step 3: Update reviewers.reviewed_at for each discovered vote.
-    for (pr_uid, author_id), vote_ts in earliest_votes.items():
+    for (pr_uid, author_id), (_vote_dt, vote_ts_raw) in earliest_votes.items():
         db.execute(
             """
             UPDATE reviewers
@@ -94,7 +101,7 @@ def populate_review_timestamps(db: DatabaseManager) -> int:
               AND user_id = ?
               AND (reviewed_at IS NULL OR reviewed_at > ?)
             """,
-            (vote_ts, pr_uid, author_id, vote_ts),
+            (vote_ts_raw, pr_uid, author_id, vote_ts_raw),
         )
 
     # Step 4: Compute review_time_minutes on each PR from the earliest
@@ -131,6 +138,22 @@ def populate_review_timestamps(db: DatabaseManager) -> int:
             (review_minutes, pr_uid),
         )
         updated_count += 1
+
+    # Step 5: SC-002 invariant check — review_time should not exceed cycle_time.
+    # Post-merge approval votes in ADO can cause this; warn but do not reject.
+    invariant_row = db.execute(
+        "SELECT COUNT(*) AS count FROM pull_requests "
+        "WHERE review_time_minutes IS NOT NULL "
+        "AND cycle_time_minutes IS NOT NULL "
+        "AND review_time_minutes > cycle_time_minutes"
+    ).fetchone()
+    violation_count = int(invariant_row["count"]) if invariant_row else 0
+    if violation_count > 0:
+        logger.warning(
+            f"SC-002 invariant: {violation_count} PR(s) have "
+            f"review_time_minutes > cycle_time_minutes "
+            f"(possible post-merge approval votes)"
+        )
 
     logger.info(
         f"Review timestamps populated: {len(earliest_votes)} reviewer votes, "

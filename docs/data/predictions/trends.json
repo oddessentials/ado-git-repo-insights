@@ -6,76 +6,76 @@
       "unit": "count",
       "values": [
         {
-          "lower_bound": 50.73,
+          "lower_bound": 52.53,
           "period_start": "2025-12-29",
-          "predicted": 60.393,
-          "upper_bound": 70.056
+          "predicted": 62.536,
+          "upper_bound": 72.541
         },
         {
-          "lower_bound": 44.089,
+          "lower_bound": 46.124,
           "period_start": "2026-01-05",
-          "predicted": 53.119,
-          "upper_bound": 62.149
+          "predicted": 55.571,
+          "upper_bound": 65.019
         },
         {
-          "lower_bound": 37.593,
+          "lower_bound": 39.858,
           "period_start": "2026-01-12",
-          "predicted": 45.845,
-          "upper_bound": 54.097
+          "predicted": 48.607,
+          "upper_bound": 57.356
         },
         {
-          "lower_bound": 31.243,
+          "lower_bound": 33.731,
           "period_start": "2026-01-19",
-          "predicted": 38.571,
-          "upper_bound": 45.9
+          "predicted": 41.643,
+          "upper_bound": 49.555
         },
         {
-          "lower_bound": 25.038,
+          "lower_bound": 27.743,
           "period_start": "2026-01-26",
-          "predicted": 31.298,
-          "upper_bound": 37.557
+          "predicted": 34.679,
+          "upper_bound": 41.614
         },
         {
-          "lower_bound": 18.979,
+          "lower_bound": 21.894,
           "period_start": "2026-02-02",
-          "predicted": 24.024,
-          "upper_bound": 29.069
+          "predicted": 27.714,
+          "upper_bound": 33.534
         },
         {
-          "lower_bound": 13.065,
+          "lower_bound": 16.185,
           "period_start": "2026-02-09",
-          "predicted": 16.75,
-          "upper_bound": 20.435
+          "predicted": 20.75,
+          "upper_bound": 25.315
         },
         {
-          "lower_bound": 7.297,
+          "lower_bound": 10.615,
           "period_start": "2026-02-16",
-          "predicted": 9.476,
-          "upper_bound": 11.656
+          "predicted": 13.786,
+          "upper_bound": 16.956
         },
         {
-          "lower_bound": 1.674,
+          "lower_bound": 5.184,
           "period_start": "2026-02-23",
-          "predicted": 2.202,
-          "upper_bound": 2.731
+          "predicted": 6.821,
+          "upper_bound": 8.459
         },
         {
           "lower_bound": 0.0,
           "period_start": "2026-03-02",
           "predicted": 0.0,
-          "upper_bound": 1.268
+          "upper_bound": 0.036
         },
         {
           "lower_bound": 0.0,
           "period_start": "2026-03-09",
           "predicted": 0.0,
-          "upper_bound": 3.21
+          "upper_bound": 1.848
         },
         {
           "lower_bound": 0.0,
           "period_start": "2026-03-16",
           "predicted": 0.0,
-          "upper_bound": 5.297
+          "upper_bound": 3.799
         }
       ]
     },
@@ -85,76 +85,76 @@
       "unit": "minutes",
       "values": [
         {
-          "lower_bound": 285.152,
+          "lower_bound": 408.192,
           "period_start": "2025-12-29",
-          "predicted": 339.466,
-          "upper_bound": 393.781
+          "predicted": 485.943,
+          "upper_bound": 563.694
         },
         {
-          "lower_bound": 270.061,
+          "lower_bound": 406.963,
           "period_start": "2026-01-05",
-          "predicted": 325.375,
-          "upper_bound": 380.689
+          "predicted": 490.317,
+          "upper_bound": 573.67
         },
         {
-          "lower_bound": 255.253,
+          "lower_bound": 405.646,
           "period_start": "2026-01-12",
-          "predicted": 311.284,
-          "upper_bound": 367.315
+          "predicted": 494.69,
+          "upper_bound": 583.735
         },
         {
-          "lower_bound": 240.726,
+          "lower_bound": 404.242,
           "period_start": "2026-01-19",
-          "predicted": 297.193,
-          "upper_bound": 353.66
+          "predicted": 499.064,
+          "upper_bound": 593.887
         },
         {
-          "lower_bound": 226.482,
+          "lower_bound": 402.751,
           "period_start": "2026-01-26",
-          "predicted": 283.102,
-          "upper_bound": 339.722
+          "predicted": 503.438,
+          "upper_bound": 604.126
         },
         {
-          "lower_bound": 212.519,
+          "lower_bound": 401.172,
           "period_start": "2026-02-02",
-          "predicted": 269.011,
-          "upper_bound": 325.503
+          "predicted": 507.812,
+          "upper_bound": 614.453
         },
         {
-          "lower_bound": 198.838,
+          "lower_bound": 399.505,
           "period_start": "2026-02-09",
-          "predicted": 254.92,
-          "upper_bound": 311.002
+          "predicted": 512.186,
+          "upper_bound": 624.867
         },
         {
-          "lower_bound": 185.438,
+          "lower_bound": 397.751,
           "period_start": "2026-02-16",
-          "predicted": 240.829,
-          "upper_bound": 296.22
+          "predicted": 516.56,
+          "upper_bound": 635.369
         },
         {
-          "lower_bound": 172.321,
+          "lower_bound": 395.91,
           "period_start": "2026-02-23",
-          "predicted": 226.738,
-          "upper_bound": 281.155
+          "predicted": 520.934,
+          "upper_bound": 645.958
         },
         {
-          "lower_bound": 159.485,
+          "lower_bound": 393.981,
           "period_start": "2026-03-02",
-          "predicted": 212.647,
-          "upper_bound": 265.809
+          "predicted": 525.308,
+          "upper_bound": 656.635
         },
         {
-          "lower_bound": 146.931,
+          "lower_bound": 391.964,
           "period_start": "2026-03-09",
-          "predicted": 198.556,
-          "upper_bound": 250.181
+          "predicted": 529.682,
+          "upper_bound": 667.399
         },
         {
-          "lower_bound": 134.659,
+          "lower_bound": 389.86,
           "period_start": "2026-03-16",
-          "predicted": 184.465,
-          "upper_bound": 234.27
+          "predicted": 534.055,
+          "upper_bound": 678.25
         }
       ]
     },
@@ -164,76 +164,76 @@
       "unit": "minutes",
       "values": [
         {
-          "lower_bound": 114.061,
+          "lower_bound": 163.277,
           "period_start": "2025-12-29",
-          "predicted": 135.786,
-          "upper_bound": 157.512
+          "predicted": 194.377,
+          "upper_bound": 225.477
         },
         {
-          "lower_bound": 108.025,
+          "lower_bound": 162.785,
           "period_start": "2026-01-05",
-          "predicted": 130.15,
-          "upper_bound": 152.276
+          "predicted": 196.127,
+          "upper_bound": 229.468
         },
         {
-          "lower_bound": 102.101,
+          "lower_bound": 162.258,
           "period_start": "2026-01-12",
-          "predicted": 124.514,
-          "upper_bound": 146.926
+          "predicted": 197.876,
+          "upper_bound": 233.494
         },
         {
-          "lower_bound": 96.291,
+          "lower_bound": 161.697,
           "period_start": "2026-01-19",
-          "predicted": 118.877,
-          "upper_bound": 141.464
+          "predicted": 199.626,
+          "upper_bound": 237.555
         },
         {
-          "lower_bound": 90.593,
+          "lower_bound": 161.1,
           "period_start": "2026-01-26",
-          "predicted": 113.241,
-          "upper_bound": 135.889
+          "predicted": 201.375,
+          "upper_bound": 241.65
         },
         {
-          "lower_bound": 85.007,
+          "lower_bound": 160.469,
           "period_start": "2026-02-02",
-          "predicted": 107.604,
-          "upper_bound": 130.201
+          "predicted": 203.125,
+          "upper_bound": 245.781
         },
         {
-          "lower_bound": 79.535,
+          "lower_bound": 159.802,
           "period_start": "2026-02-09",
-          "predicted": 101.968,
-          "upper_bound": 124.401
+          "predicted": 204.874,
+          "upper_bound": 249.947
         },
         {
-          "lower_bound": 74.175,
+          "lower_bound": 159.1,
           "period_start": "2026-02-16",
-          "predicted": 96.332,
-          "upper_bound": 118.488
+          "predicted": 206.624,
+          "upper_bound": 254.147
         },
         {
-          "lower_bound": 68.928,
+          "lower_bound": 158.364,
           "period_start": "2026-02-23",
-          "predicted": 90.695,
-          "upper_bound": 112.462
+          "predicted": 208.374,
+          "upper_bound": 258.383
         },
         {
-          "lower_bound": 63.794,
+          "lower_bound": 157.592,
           "period_start": "2026-03-02",
-          "predicted": 85.059,
-          "upper_bound": 106.323
+          "predicted": 210.123,
+          "upper_bound": 262.654
         },
         {
-          "lower_bound": 58.773,
+          "lower_bound": 156.786,
           "period_start": "2026-03-09",
-          "predicted": 79.422,
-          "upper_bound": 100.072
+          "predicted": 211.873,
+          "upper_bound": 266.959
         },
         {
-          "lower_bound": 53.864,
+          "lower_bound": 155.944,
           "period_start": "2026-03-16",
-          "predicted": 73.786,
-          "upper_bound": 93.708
+          "predicted": 213.622,
+          "upper_bound": 271.3
         }
       ]
     }
