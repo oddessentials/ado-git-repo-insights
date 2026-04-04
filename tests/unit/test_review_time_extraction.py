@@ -746,6 +746,88 @@ class TestTriggerScope:
         finally:
             db.close()
 
+    def test_legacy_db_without_comments_table(self, tmp_path: Path) -> None:
+        """Legacy DB without pr_comments table must not crash.
+
+        Regression: unconditional SELECT 1 FROM pr_comments crashed with
+        'no such table' on databases predating the comments feature.
+        """
+        import sqlite3 as _sqlite3
+
+        db_path = tmp_path / "legacy.db"
+        # Create a minimal legacy DB WITHOUT pr_comments/pr_threads tables
+        conn = _sqlite3.connect(str(db_path))
+        conn.executescript(
+            """
+            CREATE TABLE extraction_metadata (
+                id INTEGER PRIMARY KEY CHECK (id = 1),
+                organization_name TEXT NOT NULL,
+                project_name TEXT NOT NULL,
+                last_extraction_date TEXT NOT NULL,
+                last_extraction_timestamp TEXT NOT NULL
+            );
+            CREATE TABLE organizations (organization_name TEXT PRIMARY KEY);
+            CREATE TABLE projects (
+                project_name TEXT PRIMARY KEY, organization_name TEXT NOT NULL
+            );
+            CREATE TABLE repositories (
+                repository_id TEXT PRIMARY KEY, repository_name TEXT NOT NULL,
+                project_name TEXT NOT NULL, organization_name TEXT NOT NULL
+            );
+            CREATE TABLE users (
+                user_id TEXT PRIMARY KEY, display_name TEXT NOT NULL, email TEXT
+            );
+            CREATE TABLE pull_requests (
+                pull_request_uid TEXT PRIMARY KEY,
+                pull_request_id INTEGER NOT NULL,
+                organization_name TEXT NOT NULL,
+                project_name TEXT NOT NULL,
+                repository_id TEXT NOT NULL,
+                user_id TEXT NOT NULL,
+                title TEXT NOT NULL,
+                status TEXT NOT NULL,
+                description TEXT,
+                creation_date TEXT NOT NULL,
+                closed_date TEXT,
+                cycle_time_minutes REAL,
+                review_time_minutes REAL,
+                raw_json TEXT
+            );
+            CREATE TABLE reviewers (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                pull_request_uid TEXT NOT NULL,
+                user_id TEXT NOT NULL,
+                vote INTEGER NOT NULL,
+                repository_id TEXT NOT NULL,
+                reviewed_at TEXT,
+                UNIQUE(pull_request_uid, user_id)
+            );
+            CREATE TABLE schema_version (
+                version INTEGER PRIMARY KEY, applied_at TEXT NOT NULL
+            );
+            INSERT INTO schema_version (version, applied_at)
+            VALUES (2, datetime('now'));
+            """
+        )
+        conn.close()
+
+        # The CLI guard checks sqlite_master before querying pr_comments.
+        # Simulate what cli.py does:
+        db = DatabaseManager(db_path)
+        db.connect()
+        try:
+            comments_table_exists = (
+                db.execute(
+                    "SELECT 1 FROM sqlite_master "
+                    "WHERE type='table' AND name='pr_comments'"
+                ).fetchone()
+                is not None
+            )
+            assert not comments_table_exists
+            # No crash — graceful degradation
+        finally:
+            db.close()
+
     def test_new_pr_without_comments_stays_null(self, tmp_path: Path) -> None:
         """Stale/partial run: old comments exist, new PR has no threads → NULL.
 

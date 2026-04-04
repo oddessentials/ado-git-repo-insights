@@ -992,6 +992,37 @@ def test_undersampled_slices_null_review_time() -> None:
         )
 
 
+def test_no_review_time_without_include_comments() -> None:
+    """Without --include-comments, all review_time fields must be null.
+
+    Regression: generator emitted numeric review_time even when comments
+    feature was disabled, making synthetic fixtures diverge from production
+    where review timestamps require thread extraction.
+    """
+    output_dir = run_generator(pr_count=1000, weeks=12, seed=42)
+    rollup_dir = output_dir / "aggregates" / "weekly_rollups"
+
+    nonnull_count = 0
+    for rollup_path in sorted(rollup_dir.glob("*.json")):
+        with rollup_path.open() as f:
+            data = json.load(f)
+        if data.get("review_time_p50") is not None:
+            nonnull_count += 1
+        if data.get("review_time_p90") is not None:
+            nonnull_count += 1
+        for dim in ("by_repository", "by_team"):
+            for entry in data.get(dim, {}).values():
+                if entry.get("review_time_p50") is not None:
+                    nonnull_count += 1
+                if entry.get("review_time_p90") is not None:
+                    nonnull_count += 1
+
+    assert nonnull_count == 0, (
+        f"Without --include-comments, found {nonnull_count} non-null "
+        f"review_time values — should all be null"
+    )
+
+
 def test_root_review_time_matches_production_gating() -> None:
     """Root review_time_p50 and _p90 must always be both-null or both-non-null.
 

@@ -713,7 +713,15 @@ def cmd_extract(args: Namespace) -> int:
             )
 
             include_comments = getattr(args, "include_comments", False)
-            has_comments = (
+            # Guard against legacy DBs where pr_comments table may not exist.
+            comments_table_exists = (
+                db.execute(
+                    "SELECT 1 FROM sqlite_master "
+                    "WHERE type='table' AND name='pr_comments'"
+                ).fetchone()
+                is not None
+            )
+            has_comments = comments_table_exists and (
                 db.execute("SELECT 1 FROM pr_comments LIMIT 1").fetchone() is not None
             )
             if has_comments:
