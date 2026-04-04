@@ -1,3 +1,31 @@
+# [101.1.0](https://github.com/oddessentials/ado-git-repo-insights/compare/v101.0.1...v101.1.0) (2026-04-04)
+
+
+### Bug Fixes
+
+* **QG-40:** broaden fail-fast isinstance recognition to full body ([2b0400c](https://github.com/oddessentials/ado-git-repo-insights/commit/2b0400cea6157b86143d2aa7ea94717c66da6aa0))
+* **QG-40:** close fail-open regressions from narrowing changes ([d919f42](https://github.com/oddessentials/ado-git-repo-insights/commit/d919f421865bea3808acf6fdc69cbc47f1d06d51))
+* **QG-40:** eliminate typing.Any from audit-suppressions.py ([3378378](https://github.com/oddessentials/ado-git-repo-insights/commit/33783784cff11d97e72bb1e65443b109c270c8fe)), closes [#243](https://github.com/oddessentials/ado-git-repo-insights/issues/243)
+* **QG-40:** eliminate typing.Any from build-demo-dataset.py ([a2b5f55](https://github.com/oddessentials/ado-git-repo-insights/commit/a2b5f553907c906b61d64ad7b1612d5c30ede27e)), closes [#243](https://github.com/oddessentials/ado-git-repo-insights/issues/243)
+* **QG-40:** eliminate typing.Any from demo_generation_common.py ([74202df](https://github.com/oddessentials/ado-git-repo-insights/commit/74202df5ccf6390b12fd89de34689058a2787f53)), closes [#243](https://github.com/oddessentials/ado-git-repo-insights/issues/243)
+* **QG-40:** eliminate typing.Any from generate-demo-data.py ([199b24d](https://github.com/oddessentials/ado-git-repo-insights/commit/199b24dd03115afee65706b0107427c1c8f837bb)), closes [#243](https://github.com/oddessentials/ado-git-repo-insights/issues/243)
+* **QG-40:** eliminate typing.Any from generate-demo-predictions.py ([5869129](https://github.com/oddessentials/ado-git-repo-insights/commit/58691292d189c80ed812358b5bd7e21ae414163b)), closes [#243](https://github.com/oddessentials/ado-git-repo-insights/issues/243)
+* **QG-40:** eliminate typing.Any from generate-synthetic-dataset.py ([3121ded](https://github.com/oddessentials/ado-git-repo-insights/commit/3121ded478d6c65e0c8130ee888bb61e2bd66b7a)), closes [#243](https://github.com/oddessentials/ado-git-repo-insights/issues/243)
+* **QG-40:** eliminate typing.Any from validate_demo_generation_contract.py ([f297400](https://github.com/oddessentials/ado-git-repo-insights/commit/f297400808f0ac3e82dad9adc441e07ec5d8478c)), closes [#243](https://github.com/oddessentials/ado-git-repo-insights/issues/243)
+* **QG-40:** harden AST guards — structural isinstance + qualified calls ([2004128](https://github.com/oddessentials/ado-git-repo-insights/commit/2004128510c5605beddfb7fb17579346f0998114))
+* **QG-40:** narrow ast.AST to ast.expr before isinstance guard call ([2702aa3](https://github.com/oddessentials/ado-git-repo-insights/commit/2702aa36b6f5ee3d6e70343772d10a39fbc5aa1f))
+* **QG-40:** only allow sys.exit as terminal, reject bare exit ([3193fb4](https://github.com/oddessentials/ado-git-repo-insights/commit/3193fb4d795656629ad732177945dcc4a75ca1e5))
+* **QG-40:** replace regex guards with AST-based narrowing enforcement ([add5782](https://github.com/oddessentials/ado-git-repo-insights/commit/add57821fee379a073043d2595c74be9b13c144d))
+* **QG-40:** require unconditional exit in fail-fast isinstance guard ([e9a0f51](https://github.com/oddessentials/ado-git-repo-insights/commit/e9a0f518c152bae02b7cd96f2a6bd8f1ff7732e8))
+* **QG-40:** restrict terminal-call recognition to sys.exit only ([a93f56a](https://github.com/oddessentials/ado-git-repo-insights/commit/a93f56aea4405544de0a6778ca9ad79859249037))
+
+
+### Features
+
+* **QG-40:** add CI guards for JSON narrowing discipline ([a2a2528](https://github.com/oddessentials/ado-git-repo-insights/commit/a2a25283f94f8ab1896e311cc84655eb081b76a6))
+* **QG-40:** enable cross-file mypy enforcement for scripts/ ([f0c570b](https://github.com/oddessentials/ado-git-repo-insights/commit/f0c570b52bbf24f254c4a9ff009a3f11d8db3217))
+* **QG-40:** extend Any-type ratchet scanner to cover scripts/ ([83e31ce](https://github.com/oddessentials/ado-git-repo-insights/commit/83e31ce9fda928d6b189e988dc36157d7ae9d48c)), closes [#243](https://github.com/oddessentials/ado-git-repo-insights/issues/243)
+
 ## [101.0.1](https://github.com/oddessentials/ado-git-repo-insights/compare/v101.0.0...v101.0.1) (2026-04-03)
 
 
