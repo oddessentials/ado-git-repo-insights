@@ -129,14 +129,21 @@ def _is_isinstance_dict(node: ast.expr) -> bool:
     return False
 
 
-def _body_contains_raise(body: list[ast.stmt]) -> bool:
-    """True if *body* contains a Raise anywhere (including nested if/for/with)."""
+def _body_unconditionally_exits(body: list[ast.stmt]) -> bool:
+    """True if *body* unconditionally terminates (raise/return/sys.exit).
+
+    Walks the top-level statement list.  A raise, return, or continue/break
+    at the top level counts.  Statements before the terminal (assignments,
+    plain expressions like log calls) are allowed.  Nested conditionals and
+    try/except do NOT count because control can continue past them.
+    """
     for stmt in body:
-        if isinstance(stmt, ast.Raise):
+        if isinstance(stmt, (ast.Raise, ast.Return)):
             return True
-        # Recurse into nested blocks that are still part of the failure path
-        for child in ast.walk(stmt):
-            if isinstance(child, ast.Raise):
+        # sys.exit() or similar terminal call as a bare expression
+        if isinstance(stmt, ast.Expr) and isinstance(stmt.value, ast.Call):
+            func = stmt.value.func
+            if isinstance(func, ast.Attribute) and func.attr == "exit":
                 return True
     return False
 
@@ -167,7 +174,7 @@ def _is_failfast_isinstance(node: ast.If) -> bool:
     """
     if not _test_has_not_isinstance_dict(node.test):
         return False
-    return _body_contains_raise(node.body)
+    return _body_unconditionally_exits(node.body)
 
 
 def find_raw_isinstance_dict(tree: ast.Module) -> list[int]:
@@ -276,6 +283,29 @@ class TestNoRawIsinstanceDictNarrowing:
         """)
         tree = _parse(source)
         assert find_raw_isinstance_dict(tree) == []
+
+    def test_rejects_conditional_raise_with_continuation(self) -> None:
+        """Raise inside a nested conditional — control can continue past it."""
+        source = textwrap.dedent("""\
+            if not isinstance(val, dict):
+                if debug:
+                    raise TypeError("expected dict")
+                recover()
+        """)
+        tree = _parse(source)
+        assert find_raw_isinstance_dict(tree) == [1]
+
+    def test_rejects_caught_raise_with_continuation(self) -> None:
+        """Raise inside try/except — caught and continued, not a real exit."""
+        source = textwrap.dedent("""\
+            if not isinstance(val, dict):
+                try:
+                    raise TypeError("expected dict")
+                except TypeError:
+                    recover()
+        """)
+        tree = _parse(source)
+        assert find_raw_isinstance_dict(tree) == [1]
 
     def test_rejects_isinstance_in_positive_if(self) -> None:
         """if isinstance(x, dict): ... — positive branch, no raise for non-dict."""
