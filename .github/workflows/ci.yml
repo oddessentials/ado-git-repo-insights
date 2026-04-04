@@ -327,6 +327,33 @@ jobs:
           fi
         shell: bash
 
+  # Guard: Enforce conventional commit format on PR commits
+  # Semantic release requires conventional commits to determine version bumps.
+  # Local enforcement: .husky/commit-msg runs commitlint on each commit.
+  # CI enforcement: validates ALL commits in the PR (catches force-pushed history).
+  commitlint:
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: ./.github/actions/setup-pnpm
+        with:
+          cache-dependency-path: pnpm-lock.yaml
+
+      - name: Install root dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Validate commit messages
+        env:
+          BASE_REF: ${{ github.base_ref }}
+        run: |
+          set -euo pipefail
+          echo "Validating commit messages from origin/${BASE_REF} to HEAD..."
+          pnpm exec commitlint --from "origin/${BASE_REF}" --to HEAD --verbose
+
   # Guard: Block manual version bumps (semantic-release handles versioning)
   version-guard:
     runs-on: ubuntu-latest

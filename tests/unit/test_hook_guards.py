@@ -499,6 +499,27 @@ class TestSkipLibCheckProhibited:
         )
 
 
+class TestCommitlintInfrastructure:
+    """Commitlint config and hook must be present to enforce conventional commits."""
+
+    def test_commitlint_config_exists(self) -> None:
+        repo_root = Path(__file__).resolve().parents[2]
+        config = repo_root / "commitlint.config.cjs"
+        assert config.exists(), (
+            "commitlint.config.cjs is missing — commit message linting is disabled"
+        )
+
+    def test_commit_msg_hook_invokes_commitlint(self) -> None:
+        repo_root = Path(__file__).resolve().parents[2]
+        hook = repo_root / ".husky" / "commit-msg"
+        assert hook.exists(), ".husky/commit-msg hook is missing"
+        content = hook.read_text(encoding="utf-8")
+        assert "commitlint" in content, (
+            ".husky/commit-msg does not reference commitlint — "
+            "commit messages will not be validated"
+        )
+
+
 _acl_write_probe = _hook_module._acl_write_probe
 run_acl_health_check = _hook_module.run_acl_health_check
 
