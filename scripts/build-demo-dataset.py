@@ -23,6 +23,7 @@ from demo_generation_common import (
     VALIDATED_COMMITTED_DEMO_MODE,
     build_generation_provenance,
     load_json_file,
+    narrow_int,
     narrow_mapping,
     narrow_sequence,
     require_demo_generation_baseline,
@@ -235,11 +236,15 @@ def collect_canonical_artifact_scope(
 def collect_nonindexed_direct_files(manifest: _JsonDict) -> set[str]:
     """Collect published files that must be declared outside aggregate_index."""
     direct_paths: set[str] = {"dataset-manifest.json", "aggregates/dimensions.json"}
-    features = manifest.get("features")
-    if isinstance(features, dict):
-        if features.get("predictions"):
+    features_raw = manifest.get("features")
+    if features_raw is not None:
+        if not isinstance(features_raw, dict):
+            raise TypeError(
+                f"features expected dict, got {type(features_raw).__name__}"
+            )
+        if features_raw.get("predictions"):
             direct_paths.add("predictions/trends.json")
-        if features.get("ai_insights"):
+        if features_raw.get("ai_insights"):
             direct_paths.add("insights/summary.json")
 
     return direct_paths
@@ -477,9 +482,11 @@ def _resolve_fixture_week_rollup(
         )
 
     by_rev = fixture_rollup.get("by_reviewer")
-    fixture_by_reviewer: Mapping[str, _JsonDict] = (
-        by_rev if isinstance(by_rev, dict) else {}
-    )
+    if not isinstance(by_rev, dict) or not by_rev:
+        raise RuntimeError(
+            f"Reviewer fixture week '{fixture_week}' is missing by_reviewer data"
+        )
+    fixture_by_reviewer: Mapping[str, _JsonDict] = by_rev
     if not fixture_by_reviewer:
         raise RuntimeError(
             f"Reviewer fixture week '{fixture_week}' is missing by_reviewer data"
@@ -504,8 +511,13 @@ def _validate_reviewer_filter_examples(
             raise RuntimeError(
                 f"Reviewer filter fixture references unknown week '{example_week}'"
             )
-        by_rev = example_rollup.get("by_reviewer")
-        by_reviewer_map = by_rev if isinstance(by_rev, dict) else {}
+        by_rev_raw = example_rollup.get("by_reviewer")
+        if not isinstance(by_rev_raw, dict):
+            raise TypeError(
+                f"by_reviewer in week '{example_week}' expected dict, "
+                f"got {type(by_rev_raw).__name__}"
+            )
+        by_reviewer_map = narrow_mapping(by_rev_raw)
         reviewer_entry = by_reviewer_map.get(reviewer_id)
         if reviewer_entry is None:
             raise RuntimeError(
@@ -516,16 +528,14 @@ def _validate_reviewer_filter_examples(
             raise RuntimeError(
                 f"Reviewer filter fixture name mismatch for reviewer '{reviewer_id}'"
             )
-        assert isinstance(reviewer_entry, dict)
-        reviewed_prs = reviewer_entry.get("reviewed_prs", 0)
-        assert isinstance(reviewed_prs, (int, float))
+        reviewer_data = narrow_mapping(reviewer_entry)
+        reviewed_prs = narrow_int(reviewer_data.get("reviewed_prs", 0))
         if reviewed_prs < minimum_reviewed_prs:
             raise RuntimeError(
                 f"Reviewer filter fixture reviewer '{reviewer_id}' does not meet "
                 "minimum reviewed PR threshold"
             )
-        reviews_count = reviewer_entry.get("reviews_count", 0)
-        assert isinstance(reviews_count, (int, float))
+        reviews_count = narrow_int(reviewer_data.get("reviews_count", 0))
         if reviews_count < minimum_review_actions:
             raise RuntimeError(
                 f"Reviewer filter fixture reviewer '{reviewer_id}' does not meet "
@@ -654,13 +664,21 @@ def validate_reviewer_fixture_contract(
         minimum_review_actions=thresholds["minimum_review_actions"],
     )
     constrained_raw = reviewer_fixtures["reviewer_constrained_example"]
-    assert isinstance(constrained_raw, dict)
+    if not isinstance(constrained_raw, dict):
+        raise TypeError(
+            f"reviewer_constrained_example expected dict, "
+            f"got {type(constrained_raw).__name__}"
+        )
     _validate_constrained_reviewer_example(
         constrained=constrained_raw,
         weekly_rollups=weekly_rollups,
     )
     disallowed_raw = reviewer_fixtures["reviewer_team_disallowed_example"]
-    assert isinstance(disallowed_raw, dict)
+    if not isinstance(disallowed_raw, dict):
+        raise TypeError(
+            f"reviewer_team_disallowed_example expected dict, "
+            f"got {type(disallowed_raw).__name__}"
+        )
     _validate_disallowed_reviewer_team_example(
         disallowed=disallowed_raw,
         weekly_rollups=weekly_rollups,
