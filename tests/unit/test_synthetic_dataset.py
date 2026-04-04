@@ -990,3 +990,33 @@ def test_undersampled_slices_null_review_time() -> None:
             f"{undersampled_with_value}/{undersampled_total} undersampled slices "
             f"(pr_count < 2) have non-null review_time — should be null"
         )
+
+
+def test_root_review_time_null_when_undersampled() -> None:
+    """Root review_time must be null when week has fewer than 2 PRs.
+
+    Regression: synthetic generator emitted non-null root review_time
+    unconditionally, even for 1-PR weeks where production would null.
+    """
+    # Small dataset: 100 PRs across 52 weeks → some weeks will have 1 PR
+    output_dir = run_generator(pr_count=100, weeks=52, seed=42)
+    rollup_dir = output_dir / "aggregates" / "weekly_rollups"
+
+    root_violations = 0
+    root_checked = 0
+    for rollup_path in sorted(rollup_dir.glob("*.json")):
+        with rollup_path.open() as f:
+            data = json.load(f)
+        pr_count = data.get("pr_count", 0)
+        if pr_count < 2:
+            root_checked += 1
+            rt_p50 = data.get("review_time_p50")
+            rt_p90 = data.get("review_time_p90")
+            if rt_p50 is not None or rt_p90 is not None:
+                root_violations += 1
+
+    if root_checked > 0:
+        assert root_violations == 0, (
+            f"{root_violations}/{root_checked} root rollups with pr_count < 2 "
+            f"have non-null review_time — production would null these"
+        )

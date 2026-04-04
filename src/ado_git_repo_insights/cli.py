@@ -712,6 +712,7 @@ def cmd_extract(args: Namespace) -> int:
                 populate_review_timestamps,
             )
 
+            include_comments = getattr(args, "include_comments", False)
             has_comments = (
                 db.execute("SELECT 1 FROM pr_comments LIMIT 1").fetchone() is not None
             )
@@ -719,11 +720,23 @@ def cmd_extract(args: Namespace) -> int:
                 review_time_count = populate_review_timestamps(db)
                 if review_time_count > 0:
                     logger.info(f"Review time computed for {review_time_count} PRs")
-            elif not getattr(args, "include_comments", False):
-                logger.warning(
-                    "Review time metrics unavailable: no thread data stored. "
-                    "Use --include-comments to extract review timestamps."
-                )
+
+            # Warn when this run did not fetch threads — newly extracted PRs
+            # won't have review time data even if historical data exists.
+            if not include_comments:
+                if has_comments:
+                    logger.warning(
+                        "Review time metrics partial: thread extraction was "
+                        "not enabled for this run. Newly extracted PRs will "
+                        "not have review time data. "
+                        "Use --include-comments to include them."
+                    )
+                else:
+                    logger.warning(
+                        "Review time metrics unavailable: no thread data "
+                        "stored. Use --include-comments to extract review "
+                        "timestamps."
+                    )
 
             timing.total_seconds = time.perf_counter() - start_time
 

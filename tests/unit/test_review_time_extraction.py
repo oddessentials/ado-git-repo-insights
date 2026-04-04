@@ -745,3 +745,64 @@ class TestTriggerScope:
             assert pr_row["review_time_minutes"] is not None
         finally:
             db.close()
+
+    def test_new_pr_without_comments_stays_null(self, tmp_path: Path) -> None:
+        """Stale/partial run: old comments exist, new PR has no threads → NULL.
+
+        Regression: when --include-comments is omitted after a previous
+        thread-enabled run, populate_review_timestamps() runs (correct) but
+        the user must be warned that new PRs lack review time. This test
+        verifies the data path: newly extracted PRs without comment data
+        are correctly left with NULL review_time_minutes.
+        """
+        db = _create_test_db(tmp_path)
+        try:
+            # Old PR with comments and review time
+            _seed_pr(db, pr_uid="r1-1", creation_date="2026-01-10T10:00:00Z")
+            _seed_reviewer(db, pr_uid="r1-1", user_id="u1", vote=10)
+            _seed_system_comment(
+                db,
+                comment_id="c1",
+                pr_uid="r1-1",
+                author_id="u1",
+                content="Reviewer A voted 10",
+                created_at="2026-01-10T12:00:00Z",
+            )
+
+            # New PR extracted this run — no comments (--include-comments off)
+            db.execute(
+                "INSERT INTO pull_requests "
+                "(pull_request_uid, pull_request_id, organization_name, "
+                "project_name, repository_id, user_id, title, status, "
+                "creation_date) "
+                "VALUES ('r1-new', 99, 'org', 'proj', 'r1', 'u1', "
+                "'New PR', 'completed', '2026-01-15T08:00:00Z')",
+            )
+            db.execute(
+                "INSERT OR IGNORE INTO reviewers "
+                "(pull_request_uid, user_id, vote, repository_id) "
+                "VALUES ('r1-new', 'u2', 10, 'r1')",
+            )
+
+            # Recompute (simulates what cli.py does when has_comments=True)
+            populate_review_timestamps(db)
+
+            # Old PR: should have review time
+            old_pr = db.execute(
+                "SELECT review_time_minutes FROM pull_requests "
+                "WHERE pull_request_uid = 'r1-1'"
+            ).fetchone()
+            assert old_pr is not None
+            assert old_pr["review_time_minutes"] is not None
+
+            # New PR: no comments → NULL (not in recompute scope)
+            new_pr = db.execute(
+                "SELECT review_time_minutes FROM pull_requests "
+                "WHERE pull_request_uid = 'r1-new'"
+            ).fetchone()
+            assert new_pr is not None
+            assert new_pr["review_time_minutes"] is None, (
+                "New PR without comments must have NULL review_time_minutes"
+            )
+        finally:
+            db.close()
