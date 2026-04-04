@@ -27,7 +27,14 @@ import uuid
 from dataclasses import dataclass
 from datetime import date, timedelta
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from ado_git_repo_insights.types import (
+        CommentsCoverage,
+        ReviewerSliceMetrics,
+        SliceMetrics,
+    )
 
 # Load package modules via importlib (allows direct script execution from checkout)
 _schema_spec = importlib.util.spec_from_file_location(
@@ -301,12 +308,12 @@ class WeeklyRollup:
     cycle_time_p90: float | None
     authors_count: int
     reviewers_count: int
-    by_repository: dict[str, dict[str, Any]]
-    by_team: dict[str, dict[str, Any]]
-    by_author: dict[str, dict[str, Any]]
-    by_author_and_repo: dict[str, dict[str, Any]]
-    by_reviewer: dict[str, dict[str, Any]] | None = None
-    by_team_and_repo: dict[str, dict[str, Any]] | None = None
+    by_repository: dict[str, SliceMetrics]
+    by_team: dict[str, SliceMetrics]
+    by_author: dict[str, SliceMetrics]
+    by_author_and_repo: dict[str, dict[str, SliceMetrics]]
+    by_reviewer: dict[str, ReviewerSliceMetrics] | None = None
+    by_team_and_repo: dict[str, dict[str, SliceMetrics]] | None = None
 
 
 @dataclass
@@ -583,11 +590,11 @@ def _allocate_author_repo_entries(
     week_key: str,
     team_name: str,
     repo_name: str,
-    repo_entry: dict[str, Any],
-    team_entry: dict[str, Any],
+    repo_entry: SliceMetrics,
+    team_entry: SliceMetrics,
     team_pool: list[SyntheticUser],
-    author_slices: dict[str, list[dict[str, Any]]],
-    by_author_and_repo: dict[str, dict[str, dict[str, Any]]],
+    author_slices: dict[str, list[SliceMetrics]],
+    by_author_and_repo: dict[str, dict[str, SliceMetrics]],
 ) -> None:
     """Allocate team-repo activity across deterministic author slices."""
     repo_prs = int(repo_entry["pr_count"])
@@ -632,7 +639,7 @@ def _allocate_author_repo_entries(
             )
             / 100.0
         )
-        author_entry: dict[str, Any] = {
+        author_entry: SliceMetrics = {
             "pr_count": author_prs,
             "cycle_time_p50": None,
             "cycle_time_p90": None,
@@ -646,12 +653,12 @@ def _allocate_author_repo_entries(
             ),
         }
         if author_prs >= 5:
-            author_entry["cycle_time_p50"] = (
-                float(repo_entry["cycle_time_p50"]) * factor
-            )
-            author_entry["cycle_time_p90"] = (
-                float(repo_entry["cycle_time_p90"]) * factor
-            )
+            p50 = repo_entry["cycle_time_p50"]
+            p90 = repo_entry["cycle_time_p90"]
+            assert p50 is not None
+            assert p90 is not None
+            author_entry["cycle_time_p50"] = p50 * factor
+            author_entry["cycle_time_p90"] = p90 * factor
 
         author_id = str(author.user_id)
         author_slices.setdefault(author_id, []).append(author_entry)
@@ -659,10 +666,10 @@ def _allocate_author_repo_entries(
 
 
 def _collapse_author_slices(
-    author_slices: dict[str, list[dict[str, Any]]],
-) -> dict[str, dict[str, Any]]:
+    author_slices: dict[str, list[SliceMetrics]],
+) -> dict[str, SliceMetrics]:
     """Aggregate exact author+repo entries into by_author slices."""
-    by_author: dict[str, dict[str, Any]] = {}
+    by_author: dict[str, SliceMetrics] = {}
     for author_id, entries in author_slices.items():
         pr_count = sum(int(entry["pr_count"]) for entry in entries)
         if pr_count <= 0:
@@ -673,17 +680,12 @@ def _collapse_author_slices(
         reviewers_count = 1
         for entry in entries:
             reviewers_count = max(reviewers_count, int(entry["reviewers_count"]))
-            if (
-                entry["cycle_time_p50"] is not None
-                and entry["cycle_time_p90"] is not None
-            ):
+            p50 = entry["cycle_time_p50"]
+            p90 = entry["cycle_time_p90"]
+            if p50 is not None and p90 is not None:
                 weighted_prs += int(entry["pr_count"])
-                weighted_p50_total += float(entry["cycle_time_p50"]) * int(
-                    entry["pr_count"]
-                )
-                weighted_p90_total += float(entry["cycle_time_p90"]) * int(
-                    entry["pr_count"]
-                )
+                weighted_p50_total += p50 * int(entry["pr_count"])
+                weighted_p90_total += p90 * int(entry["pr_count"])
 
         by_author[author_id] = {
             "pr_count": pr_count,
@@ -706,7 +708,7 @@ def _generate_reviewer_breakdown(
     pr_count: int,
     authors_count: int,
     repo_count: int,
-) -> dict[str, dict[str, Any]]:
+) -> dict[str, ReviewerSliceMetrics]:
     """Generate deterministic reviewer slices for one week."""
     if pr_count <= 0 or not users:
         return {}
@@ -744,7 +746,7 @@ def _generate_reviewer_breakdown(
         for idx in range(reviewer_count)
     ]
 
-    by_reviewer: dict[str, dict[str, Any]] = {}
+    by_reviewer: dict[str, ReviewerSliceMetrics] = {}
     for idx, (reviewer, reviewed_prs) in enumerate(
         zip(selected_reviewers, review_allocations, strict=True)
     ):
@@ -791,7 +793,7 @@ def generate_dimensions(
     repositories: list[SyntheticRepository],
     users: list[SyntheticUser],
     teams: list[SyntheticTeam],
-) -> dict[str, Any]:
+) -> dict[str, object]:
     """Generate dimensions.json with all entities."""
     # Calculate date range from weekly rollups (2021-W01 to 2025-W52)
     min_date = iso_week_to_dates(START_YEAR, START_WEEK)[0]
@@ -854,11 +856,11 @@ def generate_dimensions(
 
 def _select_reviewer_fixture_metadata(
     rollups: list[WeeklyRollup], users: list[SyntheticUser]
-) -> dict[str, Any]:
+) -> dict[str, object]:
     """Select deterministic reviewer walkthrough fixtures from generated rollups."""
     user_lookup = {str(user.user_id): user.display_name for user in users}
     ranked_candidates: list[
-        tuple[int, int, int, str, WeeklyRollup, list[tuple[str, dict[str, Any]]]]
+        tuple[int, int, int, str, WeeklyRollup, list[tuple[str, ReviewerSliceMetrics]]]
     ] = []
 
     for rollup in rollups:
@@ -1056,7 +1058,7 @@ def generate_weekly_rollups(
 
             repo_names = [r.repository_name for r in repositories]
             # Distribute PRs across teams using random weights
-            by_team: dict[str, dict[str, Any]] = {}
+            by_team: dict[str, SliceMetrics] = {}
             raw_team_weights = [RNG.random() for _ in teams]
             if pr_count >= len(teams):
                 residual_allocation = largest_remainder_allocate(
@@ -1099,9 +1101,9 @@ def generate_weekly_rollups(
             # Generate exact team-repo intersections first, then derive
             # by_repository from those intersections so parent totals are
             # internally consistent with exact combined-filter cells.
-            by_team_and_repo: dict[str, dict[str, Any]] = {}
-            by_author_and_repo: dict[str, dict[str, Any]] = {}
-            author_slices: dict[str, list[dict[str, Any]]] = {}
+            by_team_and_repo: dict[str, dict[str, SliceMetrics]] = {}
+            by_author_and_repo: dict[str, dict[str, SliceMetrics]] = {}
+            author_slices: dict[str, list[SliceMetrics]] = {}
             repo_pr_counts = dict.fromkeys(repo_names, 0)
             for team in teams:
                 team_pr_count = team_pr_counts.get(team.team_name, 0)
@@ -1109,7 +1111,7 @@ def generate_weekly_rollups(
                     continue
 
                 primary_repos = TEAM_PRIMARY_REPOS.get(team.team_name, [])
-                team_repo_entries: dict[str, dict[str, Any]] = {}
+                team_repo_entries: dict[str, SliceMetrics] = {}
                 team_authors = int(by_team[team.team_name]["authors_count"])
                 team_reviewers = int(by_team[team.team_name]["reviewers_count"])
                 primary_weight_sum = sum(
@@ -1200,7 +1202,7 @@ def generate_weekly_rollups(
                             by_author_and_repo=by_author_and_repo,
                         )
 
-            by_repository: dict[str, dict[str, Any]] = {}
+            by_repository: dict[str, SliceMetrics] = {}
             for repo_name in repo_names:
                 repo_pr_count = repo_pr_counts[repo_name]
                 if repo_pr_count <= 0:
@@ -1351,7 +1353,7 @@ def generate_distributions(rollups: list[WeeklyRollup]) -> list[YearlyDistributi
 def generate_comment_batches(
     output_dir: Path,
     users: list[SyntheticUser],
-) -> dict[str, int | str | bool]:
+) -> CommentsCoverage:
     """Generate deterministic auxiliary comment batch files for demo coverage."""
     comments_dir = output_dir / "aggregates" / "comments"
     total_prs = 0
@@ -1359,7 +1361,7 @@ def generate_comment_batches(
     total_comments = 0
 
     for batch_num in range(1, DEMO_COMMENT_BATCH_COUNT + 1):
-        prs: list[dict[str, Any]] = []
+        prs: list[dict[str, object]] = []
         for pr_offset in range(DEMO_COMMENT_PRS_PER_BATCH):
             pr_id = (batch_num - 1) * DEMO_COMMENT_PRS_PER_BATCH + pr_offset + 1
             thread_id = f"thread-{pr_id}-1"
@@ -1415,9 +1417,9 @@ def generate_manifest(
     rollups: list[WeeklyRollup],
     distributions: list[YearlyDistribution],
     output_dir: Path,
-    comments_coverage: dict[str, Any],
+    comments_coverage: CommentsCoverage,
     users: list[SyntheticUser],
-) -> dict[str, Any]:
+) -> dict[str, object]:
     """Generate dataset-manifest.json."""
     # Calculate date range
     min_date = rollups[0].start_date if rollups else date(START_YEAR, 1, 1)
