@@ -746,6 +746,68 @@ class TestTriggerScope:
         finally:
             db.close()
 
+    def test_coverage_downgrades_when_comments_skipped(self, tmp_path: Path) -> None:
+        """Coverage metadata must become partial when extraction skips threads.
+
+        Regression: after a thread-enabled run, re-running without
+        --include-comments left metadata.capped=False, so the manifest
+        reported coverage.comments.status="full" even though newly
+        extracted PRs had no thread data.
+        """
+        db = _create_test_db(tmp_path)
+        try:
+            # Simulate prior run WITH --include-comments: set capped=False
+            db.execute(
+                "INSERT INTO comments_extraction_metadata "
+                "(id, last_run_timestamp, prs_processed, threads_fetched, "
+                "comments_fetched, capped) "
+                "VALUES (1, '2026-01-10T00:00:00Z', 50, 100, 200, 0)"
+            )
+
+            # Seed some comment data (from the prior run)
+            _seed_pr(db)
+            _seed_reviewer(db, user_id="u1", vote=10)
+            _seed_system_comment(
+                db,
+                comment_id="c1",
+                pr_uid="r1-1",
+                author_id="u1",
+                content="Reviewer A voted 10",
+                created_at="2026-01-15T12:00:00Z",
+            )
+
+            # Verify metadata is NOT capped before the fix
+            row_before = db.execute(
+                "SELECT capped FROM comments_extraction_metadata WHERE id = 1"
+            ).fetchone()
+            assert row_before is not None
+            assert row_before["capped"] == 0, "Prior run should be uncapped"
+
+            # Simulate what cmd_extract does when --include-comments is OFF
+            # but has_comments is True: update metadata to capped
+            from ado_git_repo_insights.persistence.repository import PRRepository
+
+            repo = PRRepository(db)
+            repo.update_comments_extraction_metadata(
+                last_run_timestamp="2026-01-15T00:00:00Z",
+                prs_processed=0,
+                threads_fetched=0,
+                comments_fetched=0,
+                capped=True,
+            )
+
+            # Metadata must now be capped
+            row_after = db.execute(
+                "SELECT capped FROM comments_extraction_metadata WHERE id = 1"
+            ).fetchone()
+            assert row_after is not None
+            assert row_after["capped"] == 1, (
+                "After skipping comments, metadata must be capped "
+                "so coverage reports 'partial'"
+            )
+        finally:
+            db.close()
+
     def test_backfill_helper_populates_review_time(self, tmp_path: Path) -> None:
         """DB with pr_comments but no review_time_minutes gets backfilled
         when _backfill_review_timestamps_if_needed() runs.

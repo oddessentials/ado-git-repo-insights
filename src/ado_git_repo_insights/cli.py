@@ -727,6 +727,28 @@ def cmd_extract(args: Namespace) -> int:
                     is not None
                 )
                 if has_comments:
+                    # Downgrade coverage metadata to "partial" so the
+                    # manifest reflects that the latest extraction scope
+                    # lacks comment/thread coverage.
+                    metadata_table_exists = (
+                        db.execute(
+                            "SELECT 1 FROM sqlite_master "
+                            "WHERE type='table' "
+                            "AND name='comments_extraction_metadata'"
+                        ).fetchone()
+                        is not None
+                    )
+                    if metadata_table_exists:
+                        from .persistence.repository import PRRepository
+
+                        repo = PRRepository(db)
+                        repo.update_comments_extraction_metadata(
+                            last_run_timestamp=datetime.now(tz=UTC).isoformat(),
+                            prs_processed=0,
+                            threads_fetched=0,
+                            comments_fetched=0,
+                            capped=True,
+                        )
                     logger.warning(
                         "Review time metrics partial: thread extraction was "
                         "not enabled for this run. Newly extracted PRs will "
