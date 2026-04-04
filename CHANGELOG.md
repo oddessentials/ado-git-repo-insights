@@ -1,3 +1,17 @@
+# [101.2.0](https://github.com/oddessentials/ado-git-repo-insights/compare/v101.1.0...v101.2.0) (2026-04-04)
+
+
+### Bug Fixes
+
+* **#248:** remove skipLibCheck: true from all tsconfig files ([b844a97](https://github.com/oddessentials/ado-git-repo-insights/commit/b844a97d4685ab19e0b478bf7eeebf0e983f154a)), closes [#248](https://github.com/oddessentials/ado-git-repo-insights/issues/248) [#243](https://github.com/oddessentials/ado-git-repo-insights/issues/243) [#248](https://github.com/oddessentials/ado-git-repo-insights/issues/248)
+* **QG-40:** replace silent isinstance filtering with fail-fast validation ([50fbcbe](https://github.com/oddessentials/ado-git-repo-insights/commit/50fbcbe0664aa1d861ac46f67c1a9ea62ef652c8))
+* test the dispatcher git executes, not the tracked hook file ([94261a7](https://github.com/oddessentials/ado-git-repo-insights/commit/94261a7565e4a1530a356b1f4a3676f9e34ca8f7))
+
+
+### Features
+
+* enforce conventional commit messages via CI gate and local health check ([0e0f0a1](https://github.com/oddessentials/ado-git-repo-insights/commit/0e0f0a126c62f986e9e08396e8d85f84f23dbddf)), closes [#7](https://github.com/oddessentials/ado-git-repo-insights/issues/7)
+
 # [101.1.0](https://github.com/oddessentials/ado-git-repo-insights/compare/v101.0.1...v101.1.0) (2026-04-04)
 
 
