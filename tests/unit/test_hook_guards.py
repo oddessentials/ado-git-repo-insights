@@ -448,11 +448,12 @@ class TestPathspecsMatchRealFiles:
         output = git_output("ls-files", "--", pathspec)
         return [f for f in output.strip().splitlines() if f]
 
-    def test_tsconfig_glob_matches_three_files(self) -> None:
-        """extension/tsconfig*.json must match exactly three tracked files."""
+    def test_tsconfig_glob_matches_four_files(self) -> None:
+        """extension/tsconfig*.json must match exactly four tracked files."""
         files = self._git_ls_files("extension/tsconfig*.json")
-        assert len(files) == 3
+        assert len(files) == 4
         assert "extension/tsconfig.json" in files
+        assert "extension/tsconfig.build.json" in files
         assert "extension/tsconfig.test.json" in files
         assert "extension/tsconfig.type-tests.json" in files
 
