@@ -953,3 +953,40 @@ def test_review_time_p50_le_p90_across_seeds(seed: int) -> None:
         f"seed={seed}: {violations}/{checked} pairs have "
         f"review_time_p50 > review_time_p90"
     )
+
+
+def test_undersampled_slices_null_review_time() -> None:
+    """Synthetic slices with pr_count < 2 must emit null review_time.
+
+    Regression: by_team and by_repository entries always emitted numeric
+    review_time regardless of PR count, contradicting production semantics
+    where _ROLLUP_MIN_SAMPLE=2 nulls undersampled slices.
+    """
+    # Use a small dataset where some slices will have < 2 PRs
+    output_dir = run_generator(pr_count=100, weeks=52, seed=42)
+    rollup_dir = output_dir / "aggregates" / "weekly_rollups"
+
+    undersampled_with_value = 0
+    undersampled_total = 0
+
+    for rollup_path in sorted(rollup_dir.glob("*.json")):
+        with rollup_path.open() as f:
+            data = json.load(f)
+
+        for dim in ("by_repository", "by_team"):
+            for entry in data.get(dim, {}).values():
+                pr_count = entry.get("pr_count", 0)
+                if pr_count < 2:
+                    undersampled_total += 1
+                    rt_p50 = entry.get("review_time_p50")
+                    rt_p90 = entry.get("review_time_p90")
+                    if rt_p50 is not None or rt_p90 is not None:
+                        undersampled_with_value += 1
+
+    # With 100 PRs across 52 weeks and multiple repos, some slices
+    # will have < 2 PRs. Those must not emit numeric review_time.
+    if undersampled_total > 0:
+        assert undersampled_with_value == 0, (
+            f"{undersampled_with_value}/{undersampled_total} undersampled slices "
+            f"(pr_count < 2) have non-null review_time — should be null"
+        )

@@ -684,9 +684,12 @@ def _collapse_author_slices(
         weighted_p50_total = 0.0
         weighted_p90_total = 0.0
         weighted_prs = 0
-        rt_weighted_p50_total = 0.0
-        rt_weighted_p90_total = 0.0
-        rt_weighted_prs = 0
+        # Review time: accumulate P50 and P90 independently so that
+        # per-percentile null independence is preserved through collapse.
+        rt_p50_weighted_total = 0.0
+        rt_p50_weighted_prs = 0
+        rt_p90_weighted_total = 0.0
+        rt_p90_weighted_prs = 0
         reviewers_count = 1
         for entry in entries:
             reviewers_count = max(reviewers_count, int(entry["reviewers_count"]))
@@ -697,11 +700,13 @@ def _collapse_author_slices(
                 weighted_p50_total += p50 * int(entry["pr_count"])
                 weighted_p90_total += p90 * int(entry["pr_count"])
             rt_p50 = entry["review_time_p50"]
+            if rt_p50 is not None:
+                rt_p50_weighted_prs += int(entry["pr_count"])
+                rt_p50_weighted_total += rt_p50 * int(entry["pr_count"])
             rt_p90 = entry["review_time_p90"]
-            if rt_p50 is not None and rt_p90 is not None:
-                rt_weighted_prs += int(entry["pr_count"])
-                rt_weighted_p50_total += rt_p50 * int(entry["pr_count"])
-                rt_weighted_p90_total += rt_p90 * int(entry["pr_count"])
+            if rt_p90 is not None:
+                rt_p90_weighted_prs += int(entry["pr_count"])
+                rt_p90_weighted_total += rt_p90 * int(entry["pr_count"])
 
         by_author[author_id] = {
             "pr_count": pr_count,
@@ -712,13 +717,13 @@ def _collapse_author_slices(
                 weighted_p90_total / weighted_prs if weighted_prs >= 5 else None
             ),
             "review_time_p50": (
-                rt_weighted_p50_total / rt_weighted_prs
-                if rt_weighted_prs >= 5
+                rt_p50_weighted_total / rt_p50_weighted_prs
+                if rt_p50_weighted_prs >= 5
                 else None
             ),
             "review_time_p90": (
-                rt_weighted_p90_total / rt_weighted_prs
-                if rt_weighted_prs >= 5
+                rt_p90_weighted_total / rt_p90_weighted_prs
+                if rt_p90_weighted_prs >= 5
                 else None
             ),
             "authors_count": 1,

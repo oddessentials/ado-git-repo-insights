@@ -460,3 +460,25 @@ class TestReviewTimePresence:
         assert violations == 0, (
             f"{violations} of {checked} pairs have review_time_p50 > review_time_p90"
         )
+
+    def test_author_review_time_fields_present(self) -> None:
+        """Author-level entries must include review_time_p50/p90 fields.
+
+        Values may be null (sparse author data below threshold is expected),
+        but the FIELDS must be present for schema parity.
+        """
+        rollups_dir = DOCS_DATA / "aggregates" / "weekly_rollups"
+        sample_files = ["2021-W26.json", "2023-W26.json", "2025-W26.json"]
+        for filename in sample_files:
+            path = rollups_dir / filename
+            if not path.exists():
+                continue
+            with open(path, encoding="utf-8") as f:
+                rollup = json.load(f)
+            for aid, entry in rollup.get("by_author", {}).items():
+                assert "review_time_p50" in entry, (
+                    f"by_author[{aid}] missing review_time_p50 in {filename}"
+                )
+                assert "review_time_p90" in entry, (
+                    f"by_author[{aid}] missing review_time_p90 in {filename}"
+                )
