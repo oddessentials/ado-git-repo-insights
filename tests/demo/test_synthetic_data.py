@@ -396,3 +396,67 @@ class TestReviewTimePresence:
             "P50 and P90 have identical null patterns — "
             "per-percentile independence is not exercised"
         )
+
+    def test_review_time_ratio_to_cycle_time(self) -> None:
+        """T043: Non-null review_time is typically 30-70% of cycle_time."""
+        rollups_dir = DOCS_DATA / "aggregates" / "weekly_rollups"
+        ratios: list[float] = []
+        for path in sorted(rollups_dir.glob("*.json")):
+            with open(path, encoding="utf-8") as f:
+                rollup = json.load(f)
+            ct = rollup.get("cycle_time_p50")
+            rt = rollup.get("review_time_p50")
+            if ct is not None and rt is not None and ct > 0:
+                ratios.append(rt / ct)
+        assert len(ratios) > 0, "No rollups with both cycle_time and review_time"
+        avg_ratio = sum(ratios) / len(ratios)
+        assert 0.25 <= avg_ratio <= 0.75, (
+            f"Average review_time/cycle_time ratio {avg_ratio:.2f} outside 0.25-0.75"
+        )
+
+    def test_breakdown_entries_include_review_time(self) -> None:
+        """T045: Breakdown entries in by_repository/by_author/by_team have review_time fields."""
+        rollups_dir = DOCS_DATA / "aggregates" / "weekly_rollups"
+        sample_files = ["2021-W26.json", "2023-W26.json", "2025-W26.json"]
+        for filename in sample_files:
+            path = rollups_dir / filename
+            if not path.exists():
+                continue
+            with open(path, encoding="utf-8") as f:
+                rollup = json.load(f)
+            for dim in ("by_repository", "by_team", "by_author"):
+                entries = rollup.get(dim, {})
+                for name, entry in entries.items():
+                    assert "review_time_p50" in entry, (
+                        f"{dim}[{name}] missing review_time_p50 in {filename}"
+                    )
+                    assert "review_time_p90" in entry, (
+                        f"{dim}[{name}] missing review_time_p90 in {filename}"
+                    )
+
+    def test_review_time_p50_le_p90(self) -> None:
+        """Statistical coherence: review_time_p50 <= review_time_p90 everywhere."""
+        rollups_dir = DOCS_DATA / "aggregates" / "weekly_rollups"
+        violations = 0
+        checked = 0
+        for path in sorted(rollups_dir.glob("*.json")):
+            with open(path, encoding="utf-8") as f:
+                rollup = json.load(f)
+            p50 = rollup.get("review_time_p50")
+            p90 = rollup.get("review_time_p90")
+            if p50 is not None and p90 is not None:
+                checked += 1
+                if p50 > p90:
+                    violations += 1
+            for dim in ("by_repository", "by_team", "by_author"):
+                for entry in rollup.get(dim, {}).values():
+                    ep50 = entry.get("review_time_p50")
+                    ep90 = entry.get("review_time_p90")
+                    if ep50 is not None and ep90 is not None:
+                        checked += 1
+                        if ep50 > ep90:
+                            violations += 1
+        assert checked > 0, "No p50/p90 pairs to check"
+        assert violations == 0, (
+            f"{violations} of {checked} pairs have review_time_p50 > review_time_p90"
+        )

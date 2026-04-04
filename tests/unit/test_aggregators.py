@@ -3910,3 +3910,355 @@ class TestCrossDimFlagResetOnReuse:
         )
 
         empty_db.close()
+
+
+# ---------------------------------------------------------------------------
+# T026-T036: Review time aggregation tests
+# ---------------------------------------------------------------------------
+
+
+@pytest.fixture
+def review_time_db(tmp_path: Path) -> Iterator[tuple[DatabaseManager, Path]]:
+    """Database with review_time_minutes populated for aggregation testing.
+
+    Creates 6 PRs across 2 repos, 3 users, 1 team, spanning 2 weeks.
+    - 4 PRs have review_time_minutes (non-null)
+    - 2 PRs have review_time_minutes = NULL (sparse data)
+    This exercises both the aggregation path and the NULL-exclusion path.
+    """
+    db_path = tmp_path / "review_time_test.sqlite"
+    db = DatabaseManager(db_path)
+    db.connect()
+
+    db.execute("INSERT INTO organizations (organization_name) VALUES (?)", ("org1",))
+    db.execute(
+        "INSERT INTO projects (organization_name, project_name) VALUES (?, ?)",
+        ("org1", "proj1"),
+    )
+    db.execute(
+        "INSERT INTO repositories "
+        "(repository_id, repository_name, project_name, organization_name) "
+        "VALUES (?, ?, ?, ?)",
+        ("repo1", "Repo Alpha", "proj1", "org1"),
+    )
+    db.execute(
+        "INSERT INTO repositories "
+        "(repository_id, repository_name, project_name, organization_name) "
+        "VALUES (?, ?, ?, ?)",
+        ("repo2", "Repo Beta", "proj1", "org1"),
+    )
+    for uid, name in [("u1", "Alice"), ("u2", "Bob"), ("u3", "Carol")]:
+        db.execute(
+            "INSERT INTO users (user_id, display_name) VALUES (?, ?)",
+            (uid, name),
+        )
+
+    # Team setup
+    db.execute(
+        "INSERT INTO teams "
+        "(team_id, team_name, project_name, organization_name, last_updated) "
+        "VALUES (?, ?, ?, ?, ?)",
+        ("t1", "Team X", "proj1", "org1", "2026-01-01T00:00:00Z"),
+    )
+    for uid in ("u1", "u2", "u3"):
+        db.execute(
+            "INSERT INTO team_members (team_id, user_id) VALUES (?, ?)",
+            ("t1", uid),
+        )
+
+    # PRs: 6 total, Week 2 (Jan 5-11) and Week 3 (Jan 12-18)
+    # cycle_time / review_time intentionally designed so review < cycle
+    prs = [
+        # (uid, pr_id, repo, user, created, closed, cycle, review)
+        # Week 2: 3 PRs, 2 with review_time
+        (
+            "repo1-1",
+            1,
+            "repo1",
+            "u1",
+            "2026-01-06T08:00:00Z",
+            "2026-01-07T08:00:00Z",
+            1440.0,
+            720.0,
+        ),
+        (
+            "repo1-2",
+            2,
+            "repo1",
+            "u2",
+            "2026-01-06T10:00:00Z",
+            "2026-01-08T10:00:00Z",
+            2880.0,
+            1440.0,
+        ),
+        (
+            "repo2-1",
+            3,
+            "repo2",
+            "u3",
+            "2026-01-07T12:00:00Z",
+            "2026-01-09T12:00:00Z",
+            2880.0,
+            None,
+        ),  # NULL review
+        # Week 3: 3 PRs, 2 with review_time
+        (
+            "repo1-3",
+            4,
+            "repo1",
+            "u1",
+            "2026-01-13T09:00:00Z",
+            "2026-01-14T09:00:00Z",
+            1440.0,
+            480.0,
+        ),
+        (
+            "repo2-2",
+            5,
+            "repo2",
+            "u2",
+            "2026-01-14T08:00:00Z",
+            "2026-01-16T08:00:00Z",
+            2880.0,
+            960.0,
+        ),
+        (
+            "repo2-3",
+            6,
+            "repo2",
+            "u3",
+            "2026-01-15T10:00:00Z",
+            "2026-01-17T10:00:00Z",
+            2880.0,
+            None,
+        ),  # NULL review
+    ]
+    for pr_uid, pr_id, repo, user, created, closed, cycle, review in prs:
+        db.execute(
+            "INSERT INTO pull_requests "
+            "(pull_request_uid, pull_request_id, organization_name, "
+            "project_name, repository_id, user_id, title, status, "
+            "creation_date, closed_date, cycle_time_minutes, review_time_minutes) "
+            "VALUES (?, ?, 'org1', 'proj1', ?, ?, ?, 'completed', ?, ?, ?, ?)",
+            (pr_uid, pr_id, repo, user, f"PR {pr_id}", created, closed, cycle, review),
+        )
+
+    # Reviewers (needed for reviewer counts)
+    for pr_uid in ("repo1-1", "repo1-2", "repo2-1", "repo1-3", "repo2-2", "repo2-3"):
+        db.execute(
+            "INSERT INTO reviewers "
+            "(pull_request_uid, user_id, vote, repository_id) "
+            "VALUES (?, 'u1', 10, 'repo1')",
+            (pr_uid,),
+        )
+
+    db.connection.commit()
+    yield db, tmp_path
+    db.close()
+
+
+class TestReviewTimeBaseRollup:
+    """T026-T028: Base rollup review_time aggregation."""
+
+    def test_review_time_p50_p90_present_when_sufficient_data(
+        self, review_time_db: tuple[DatabaseManager, Path]
+    ) -> None:
+        """T026: Base rollup includes review_time when >= 2 PRs have data."""
+        db, tmp_path = review_time_db
+        output_dir = tmp_path / "output"
+
+        generator = AggregateGenerator(db, output_dir)
+        generator.generate_all()
+
+        # Week 2: 2 PRs with review_time (720, 1440) → p50=1080, p90≈1368
+        week2_path = output_dir / "aggregates" / "weekly_rollups" / "2026-W02.json"
+        assert week2_path.exists()
+        with week2_path.open() as f:
+            week2 = json.load(f)
+
+        assert week2["review_time_p50"] is not None, (
+            "review_time_p50 should be non-null when 2 PRs have data"
+        )
+        assert week2["review_time_p90"] is not None, (
+            "review_time_p90 should be non-null when 2 PRs have data"
+        )
+        # p50 of (720, 1440) = 1080.0
+        assert week2["review_time_p50"] == pytest.approx(1080.0)
+        # Values should be less than corresponding cycle_time
+        assert week2["review_time_p50"] <= week2["cycle_time_p50"]
+
+    def test_review_time_null_serialized_not_absent(
+        self, review_time_db: tuple[DatabaseManager, Path]
+    ) -> None:
+        """T027: Rollup JSON contains review_time_p50: null (not missing key)."""
+        db, tmp_path = review_time_db
+        output_dir = tmp_path / "output"
+
+        generator = AggregateGenerator(db, output_dir)
+        generator.generate_all()
+
+        week2_path = output_dir / "aggregates" / "weekly_rollups" / "2026-W02.json"
+        with week2_path.open() as f:
+            week2 = json.load(f)
+
+        # review_time fields must always be present in the JSON (via asdict)
+        assert "review_time_p50" in week2
+        assert "review_time_p90" in week2
+
+    def test_mixed_null_non_null_excludes_nulls(
+        self, review_time_db: tuple[DatabaseManager, Path]
+    ) -> None:
+        """T028: Only non-null review_time_minutes included in percentile."""
+        db, tmp_path = review_time_db
+        output_dir = tmp_path / "output"
+
+        generator = AggregateGenerator(db, output_dir)
+        generator.generate_all()
+
+        # Week 2: 3 PRs total, but only 2 have review_time (720, 1440)
+        # The NULL one (repo2-1) should be excluded
+        week2_path = output_dir / "aggregates" / "weekly_rollups" / "2026-W02.json"
+        with week2_path.open() as f:
+            week2 = json.load(f)
+
+        assert week2["pr_count"] == 3  # All PRs counted
+        # p50 computed from (720, 1440) only, not from 3 values
+        assert week2["review_time_p50"] == pytest.approx(1080.0)
+
+
+class TestReviewTimeDimensionSlices:
+    """T031-T036: Dimension slice review_time aggregation."""
+
+    def test_by_repository_includes_review_time(
+        self, review_time_db: tuple[DatabaseManager, Path]
+    ) -> None:
+        """T032: by_repository slice includes review_time fields."""
+        db, tmp_path = review_time_db
+        output_dir = tmp_path / "output"
+
+        generator = AggregateGenerator(db, output_dir)
+        generator.generate_all()
+
+        week2_path = output_dir / "aggregates" / "weekly_rollups" / "2026-W02.json"
+        with week2_path.open() as f:
+            week2 = json.load(f)
+
+        by_repo = week2["by_repository"]
+        assert "Repo Alpha" in by_repo
+        alpha = by_repo["Repo Alpha"]
+        # Repo Alpha week 2: 2 PRs (repo1-1: 720, repo1-2: 1440) → both have review_time
+        assert alpha["review_time_p50"] is not None
+        assert alpha["review_time_p90"] is not None
+        assert "review_time_p50" in alpha
+        assert "review_time_p90" in alpha
+
+        # Repo Beta week 2: 1 PR with NULL review_time → below threshold
+        beta = by_repo["Repo Beta"]
+        assert beta["review_time_p50"] is None
+        assert beta["review_time_p90"] is None
+
+    def test_by_author_includes_review_time(
+        self, review_time_db: tuple[DatabaseManager, Path]
+    ) -> None:
+        """T031: by_author slice includes review_time fields."""
+        db, tmp_path = review_time_db
+        output_dir = tmp_path / "output"
+
+        generator = AggregateGenerator(db, output_dir)
+        generator.generate_all()
+
+        # Check week 2+3 combined (u1 has PRs in both weeks)
+        for week_file in ("2026-W02.json", "2026-W03.json"):
+            week_path = output_dir / "aggregates" / "weekly_rollups" / week_file
+            with week_path.open() as f:
+                data = json.load(f)
+
+            by_author = data.get("by_author", {})
+            for author_id, entry in by_author.items():
+                assert "review_time_p50" in entry, (
+                    f"by_author[{author_id}] missing review_time_p50 in {week_file}"
+                )
+                assert "review_time_p90" in entry, (
+                    f"by_author[{author_id}] missing review_time_p90 in {week_file}"
+                )
+
+    def test_by_team_includes_review_time(
+        self, review_time_db: tuple[DatabaseManager, Path]
+    ) -> None:
+        """T033: by_team slice includes review_time fields."""
+        db, tmp_path = review_time_db
+        output_dir = tmp_path / "output"
+
+        generator = AggregateGenerator(db, output_dir)
+        generator.generate_all()
+
+        week2_path = output_dir / "aggregates" / "weekly_rollups" / "2026-W02.json"
+        with week2_path.open() as f:
+            week2 = json.load(f)
+
+        by_team = week2.get("by_team", {})
+        assert "Team X" in by_team
+        team_x = by_team["Team X"]
+        assert "review_time_p50" in team_x
+        assert "review_time_p90" in team_x
+        # Team X has 2 non-null review_time PRs in week 2 → should be non-null
+        assert team_x["review_time_p50"] is not None
+
+    def test_all_null_review_time_produces_null_slice(self, tmp_path: Path) -> None:
+        """T036: Slice where ALL PRs have NULL review_time → null in output."""
+        db_path = tmp_path / "null_rt.sqlite"
+        db = DatabaseManager(db_path)
+        db.connect()
+
+        db.execute("INSERT INTO organizations (organization_name) VALUES ('org1')")
+        db.execute(
+            "INSERT INTO projects (organization_name, project_name) "
+            "VALUES ('org1', 'proj1')"
+        )
+        db.execute(
+            "INSERT INTO repositories "
+            "(repository_id, repository_name, project_name, organization_name) "
+            "VALUES ('r1', 'Repo', 'proj1', 'org1')"
+        )
+        db.execute("INSERT INTO users (user_id, display_name) VALUES ('u1', 'Alice')")
+        db.execute("INSERT INTO users (user_id, display_name) VALUES ('u2', 'Bob')")
+        # 2 PRs, both with NULL review_time_minutes
+        for i in range(1, 3):
+            db.execute(
+                "INSERT INTO pull_requests "
+                "(pull_request_uid, pull_request_id, organization_name, "
+                "project_name, repository_id, user_id, title, status, "
+                "creation_date, closed_date, cycle_time_minutes, review_time_minutes) "
+                "VALUES (?, ?, 'org1', 'proj1', 'r1', ?, ?, 'completed', "
+                "'2026-01-06T08:00:00Z', '2026-01-07T08:00:00Z', 1440.0, NULL)",
+                (f"r1-{i}", i, f"u{i}", f"PR {i}"),
+            )
+            db.execute(
+                "INSERT INTO reviewers "
+                "(pull_request_uid, user_id, vote, repository_id) "
+                "VALUES (?, 'u1', 10, 'r1')",
+                (f"r1-{i}",),
+            )
+        db.connection.commit()
+
+        output_dir = tmp_path / "output"
+        generator = AggregateGenerator(db, output_dir)
+        generator.generate_all()
+
+        week_path = output_dir / "aggregates" / "weekly_rollups" / "2026-W02.json"
+        with week_path.open() as f:
+            data = json.load(f)
+
+        # Both PRs have NULL review_time → 0 non-null values → below threshold
+        assert data["review_time_p50"] is None
+        assert data["review_time_p90"] is None
+        # But cycle_time should still be present
+        assert data["cycle_time_p50"] is not None
+
+        # Repo breakdown should also be null for review_time
+        repo = data["by_repository"]["Repo"]
+        assert repo["review_time_p50"] is None
+        assert repo["review_time_p90"] is None
+        assert repo["cycle_time_p50"] is not None
+
+        db.close()
