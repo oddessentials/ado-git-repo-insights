@@ -1,3 +1,19 @@
+# [101.3.0](https://github.com/oddessentials/ado-git-repo-insights/compare/v101.2.0...v101.3.0) (2026-04-04)
+
+
+### Bug Fixes
+
+* **#223:** add ts-node CommonJS override to prevent __dirname crash ([749c46d](https://github.com/oddessentials/ado-git-repo-insights/commit/749c46df109aa1a967d3b0e1f4024f66e9acbeb3)), closes [#223](https://github.com/oddessentials/ado-git-repo-insights/issues/223)
+* **#223:** check parsed.errors in build output format guard resolveConfig ([3605f1c](https://github.com/oddessentials/ado-git-repo-insights/commit/3605f1c68a2079b9ef6e3b0a5d6ea53ab9222cd2)), closes [#223](https://github.com/oddessentials/ado-git-repo-insights/issues/223)
+* **#223:** correct false-positive in husky dispatcher corruption check ([51f69cf](https://github.com/oddessentials/ado-git-repo-insights/commit/51f69cf8f5e47d1a70f2410c8bf5948b0360c187)), closes [#223](https://github.com/oddessentials/ado-git-repo-insights/issues/223)
+* **#223:** scope build config to Node-only paths, exclude ui/ from tsc emit ([7ccb060](https://github.com/oddessentials/ado-git-repo-insights/commit/7ccb060e7acfe69874223c99f58e199d66665564)), closes [#223](https://github.com/oddessentials/ado-git-repo-insights/issues/223)
+* **#223:** update tsconfig pathspec test for new tsconfig.build.json ([d0cfafd](https://github.com/oddessentials/ado-git-repo-insights/commit/d0cfafd0404752aff4287e8c88e2e163995c67f6)), closes [#223](https://github.com/oddessentials/ado-git-repo-insights/issues/223)
+
+
+### Features
+
+* **#223:** upgrade TypeScript 5.9 → 6.0 with split build/typecheck configs ([61bad2d](https://github.com/oddessentials/ado-git-repo-insights/commit/61bad2d6b362bed9c7a7b61cfc8ed4c02aff3668)), closes [#223](https://github.com/oddessentials/ado-git-repo-insights/issues/223)
+
 # [101.2.0](https://github.com/oddessentials/ado-git-repo-insights/compare/v101.1.0...v101.2.0) (2026-04-04)
 
 
