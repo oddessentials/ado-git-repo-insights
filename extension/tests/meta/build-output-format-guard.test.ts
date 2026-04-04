@@ -39,6 +39,12 @@ function resolveConfig(configFile: string): ts.CompilerOptions {
     ts.sys,
     path.dirname(configPath),
   );
+  if (parsed.errors.length > 0) {
+    const messages = parsed.errors
+      .map((e) => ts.flattenDiagnosticMessageText(e.messageText, "\n"))
+      .join("\n");
+    throw new Error(`Failed to parse ${configFile}:\n${messages}`);
+  }
   return parsed.options;
 }
 
