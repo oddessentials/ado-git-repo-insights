@@ -16,9 +16,9 @@
 
 **Purpose**: Shared type definitions and utility functions that multiple stories depend on.
 
-- [ ] T001 [P] Add `review_time_p50: float | None = None` and `review_time_p90: float | None = None` fields to `WeeklyRollup` dataclass in `src/ado_git_repo_insights/transform/aggregators.py`
-- [ ] T002 [P] Add `review_time_p50: float | None` and `review_time_p90: float | None` fields to `SliceMetrics` TypedDict in `src/ado_git_repo_insights/types.py`
-- [ ] T003 [P] Add `calculate_review_time_minutes(creation_date, reviewed_at)` function to `src/ado_git_repo_insights/utils/datetime_utils.py` — parallel to `calculate_cycle_time_minutes()`, same 1.0-minute floor and 2-decimal rounding
+- [x] T001 [P] Add `review_time_p50: float | None = None` and `review_time_p90: float | None = None` fields to `WeeklyRollup` dataclass in `src/ado_git_repo_insights/transform/aggregators.py`
+- [x] T002 [P] Add `review_time_p50: float | None` and `review_time_p90: float | None` fields to `SliceMetrics` TypedDict in `src/ado_git_repo_insights/types.py`
+- [x] T003 [P] Add `calculate_review_time_minutes(creation_date, reviewed_at)` function to `src/ado_git_repo_insights/utils/datetime_utils.py` — parallel to `calculate_cycle_time_minutes()`, same 1.0-minute floor and 2-decimal rounding
 
 ---
 

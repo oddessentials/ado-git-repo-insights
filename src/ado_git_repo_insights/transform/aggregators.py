@@ -91,6 +91,8 @@ class WeeklyRollup:
     pr_count: int = 0
     cycle_time_p50: float | None = None
     cycle_time_p90: float | None = None
+    review_time_p50: float | None = None
+    review_time_p90: float | None = None
     authors_count: int = 0
     reviewers_count: int = 0
 
@@ -813,6 +815,8 @@ class AggregateGenerator:
                 if cycle_time_valid_count >= self._ROLLUP_MIN_SAMPLE
                 and not pd.isna(row["cycle_time_p90"])
                 else None,
+                "review_time_p50": None,
+                "review_time_p90": None,
                 "authors_count": 1,
                 "reviewers_count": int(row["reviewers_count"]),
             }
@@ -867,6 +871,8 @@ class AggregateGenerator:
                         if cycle_time_valid_count >= self._ROLLUP_MIN_SAMPLE
                         and not pd.isna(row["cycle_time_p90"])
                         else None,
+                        "review_time_p50": None,
+                        "review_time_p90": None,
                         "authors_count": 1,
                         "reviewers_count": int(row["reviewers_count"]),
                     },
@@ -952,6 +958,8 @@ class AggregateGenerator:
                 if cycle_time_valid_count >= self._ROLLUP_MIN_SAMPLE
                 and not pd.isna(row["cycle_time_p90"])
                 else None,
+                "review_time_p50": None,
+                "review_time_p90": None,
                 "authors_count": int(row["authors_count"]),
                 "reviewers_count": int(row["reviewers_count"]),
             }
@@ -1029,6 +1037,8 @@ class AggregateGenerator:
                 if cycle_time_valid_count >= self._ROLLUP_MIN_SAMPLE
                 and not pd.isna(row["cycle_time_p90"])
                 else None,
+                "review_time_p50": None,
+                "review_time_p90": None,
                 "authors_count": int(row["authors_count"]),
                 "reviewers_count": int(row["reviewers_count"]),
             }
@@ -1214,6 +1224,8 @@ class AggregateGenerator:
                         "pr_count": int(row["pr_count"]),
                         "cycle_time_p50": cycle_time_p50,
                         "cycle_time_p90": cycle_time_p90,
+                        "review_time_p50": None,
+                        "review_time_p90": None,
                         "authors_count": int(row["authors_count"]),
                         "reviewers_count": int(row["reviewers_count"]),
                     },
