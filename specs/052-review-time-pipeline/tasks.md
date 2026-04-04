@@ -148,18 +148,18 @@
 
 ### Tests
 
-- [ ] T042 [P] [US5] Add test in `tests/demo/test_synthetic_data.py`: weekly rollup schema validation includes `review_time_p50` and `review_time_p90` in required fields
+- [x] T042 [P] [US5] Add test in `tests/demo/test_synthetic_data.py`: weekly rollup schema validation includes `review_time_p50` and `review_time_p90` in required fields
 - [ ] T043 [P] [US5] Add test in `tests/demo/test_synthetic_data.py`: review_time values are typically 30-70% of cycle_time across sampled rollups
 - [ ] T044 [P] [US5] Add test in `tests/demo/test_synthetic_data.py`: P50 and P90 have different null/non-null patterns across weeks (not identical null sets)
 - [ ] T045 [P] [US5] Add test in `tests/demo/test_synthetic_data.py`: breakdown entries (`by_repository`, `by_author`, `by_team`) include review_time fields
 
 ### Implementation
 
-- [ ] T046 [US5] Update local `WeeklyRollup` dataclass in `scripts/generate-demo-data.py` (line ~300) to include `review_time_p50: float | None = None` and `review_time_p90: float | None = None` fields — synchronized with canonical dataclass in `aggregators.py`
-- [ ] T047 [US5] Update local `SliceMetrics` TypedDict in `scripts/generate-demo-data.py` to include `review_time_p50: float | None` and `review_time_p90: float | None` fields
+- [x] T046 [US5] Update local `WeeklyRollup` dataclass in `scripts/generate-demo-data.py` (line ~300) to include `review_time_p50: float | None = None` and `review_time_p90: float | None = None` fields — synchronized with canonical dataclass in `aggregators.py`
+- [x] T047 [US5] Update local `SliceMetrics` TypedDict in `scripts/generate-demo-data.py` to include `review_time_p50: float | None` and `review_time_p90: float | None` fields
 - [ ] T048 [US5] Add review_time generation logic in `scripts/generate-demo-data.py`: compute as `cycle_time * rng.uniform(0.3, 0.7)` with per-percentile independent null injection (~10% chance each, independent coin flips) for base rollup and all breakdown slices
-- [ ] T049 [US5] Add review_time population logic in `scripts/generate-synthetic-dataset.py`: `review_time_p50 = cycle_time_p50 * rng.uniform(0.3, 0.7)` with same independent null pattern
-- [ ] T050 [US5] Regenerate canonical demo dataset by running `python scripts/build_demo.py` and commit all regenerated files under `docs/data/` (260 weekly rollup JSONs + updated manifest)
+- [x] T049 [US5] Add review_time population logic in `scripts/generate-synthetic-dataset.py`: `review_time_p50 = cycle_time_p50 * rng.uniform(0.3, 0.7)` with same independent null pattern
+- [x] T050 [US5] Regenerate canonical demo dataset by running `python scripts/build_demo.py` and commit all regenerated files under `docs/data/` (260 weekly rollup JSONs + updated manifest)
 
 **Checkpoint**: `pytest tests/demo/ -v` passes with review_time fields present. Demo dashboard shows review time cards.
 
@@ -171,8 +171,8 @@
 
 ### Python Test Guard Updates
 
-- [ ] T051 [P] Remove `review_time_p50` and `review_time_p90` from `TS_ONLY_FORWARD_COMPAT_FIELDS` set in `tests/unit/test_schema_parity.py`
-- [ ] T052 [P] Remove `review_time_p50` and `review_time_p90` from `DEPRECATED_FIELDS` set in `tests/demo/test_schema_guard.py`
+- [x] T051 [P] Remove `review_time_p50` and `review_time_p90` from `TS_ONLY_FORWARD_COMPAT_FIELDS` set in `tests/unit/test_schema_parity.py`
+- [x] T052 [P] Remove `review_time_p50` and `review_time_p90` from `DEPRECATED_FIELDS` set in `tests/demo/test_schema_guard.py`
 
 ### Extension Contract Activation Test (FR-020)
 
