@@ -306,6 +306,8 @@ class WeeklyRollup:
     pr_count: int
     cycle_time_p50: float | None
     cycle_time_p90: float | None
+    review_time_p50: float | None
+    review_time_p90: float | None
     authors_count: int
     reviewers_count: int
     by_repository: dict[str, SliceMetrics]
@@ -643,6 +645,8 @@ def _allocate_author_repo_entries(
             "pr_count": author_prs,
             "cycle_time_p50": None,
             "cycle_time_p90": None,
+            "review_time_p50": None,
+            "review_time_p90": None,
             "authors_count": 1,
             "reviewers_count": max(
                 1,
@@ -695,6 +699,8 @@ def _collapse_author_slices(
             "cycle_time_p90": (
                 weighted_p90_total / weighted_prs if weighted_prs >= 5 else None
             ),
+            "review_time_p50": None,
+            "review_time_p90": None,
             "authors_count": 1,
             "reviewers_count": reviewers_count,
         }
@@ -1094,6 +1100,8 @@ def generate_weekly_rollups(
                     "pr_count": team_pr_count,
                     "cycle_time_p50": team_p50,
                     "cycle_time_p90": team_p90,
+                    "review_time_p50": None,
+                    "review_time_p90": None,
                     "authors_count": team_authors,
                     "reviewers_count": team_reviewers,
                 }
@@ -1183,6 +1191,8 @@ def generate_weekly_rollups(
                         "pr_count": r_prs,
                         "cycle_time_p50": r_p50,
                         "cycle_time_p90": r_p90,
+                        "review_time_p50": None,
+                        "review_time_p90": None,
                         "authors_count": r_authors,
                         "reviewers_count": r_reviewers,
                     }
@@ -1221,6 +1231,8 @@ def generate_weekly_rollups(
                     "pr_count": repo_pr_count,
                     "cycle_time_p50": repo_p50,
                     "cycle_time_p90": repo_p90,
+                    "review_time_p50": None,
+                    "review_time_p90": None,
                     "authors_count": repo_authors,
                     "reviewers_count": repo_reviewers,
                 }
@@ -1260,6 +1272,8 @@ def generate_weekly_rollups(
                     pr_count=pr_count,
                     cycle_time_p50=p50,
                     cycle_time_p90=p90,
+                    review_time_p50=None,
+                    review_time_p90=None,
                     authors_count=authors_count,
                     reviewers_count=reviewers_count,
                     by_repository=by_repository,
@@ -1583,6 +1597,8 @@ def main(argv: list[str] | None = None) -> int:
             "pr_count": rollup.pr_count,
             "cycle_time_p50": rollup.cycle_time_p50,
             "cycle_time_p90": rollup.cycle_time_p90,
+            "review_time_p50": rollup.review_time_p50,
+            "review_time_p90": rollup.review_time_p90,
             "authors_count": rollup.authors_count,
             "reviewers_count": rollup.reviewers_count,
             "by_repository": rollup.by_repository,

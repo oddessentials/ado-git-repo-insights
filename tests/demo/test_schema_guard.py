@@ -36,7 +36,9 @@ DATASET_LOADER_FILE = (
 )
 
 # Fields that exist in the schema but are not generated (deprecated/forward-compat)
-DEPRECATED_FIELDS = {"review_time_p50", "review_time_p90"}
+DEPRECATED_FIELDS: set[str] = set()
+# review_time_p50 and review_time_p90 removed — now produced by demo
+# generators as of 052-review-time-pipeline.
 OPTIONAL_ROOT_FIELDS = {"by_reviewer"}
 
 

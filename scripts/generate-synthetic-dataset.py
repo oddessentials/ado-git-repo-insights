@@ -239,6 +239,8 @@ def generate_weekly_rollups(
                 * (0.8 + alpha_ratio * 0.4),
                 "cycle_time_p90": (rollup.cycle_time_p90 or 0.0)
                 * (0.8 + alpha_ratio * 0.4),
+                "review_time_p50": None,
+                "review_time_p90": None,
                 "authors_count": team_alpha_authors,
                 "reviewers_count": team_alpha_reviewers,
             },
@@ -248,6 +250,8 @@ def generate_weekly_rollups(
                 * (1.2 - alpha_ratio * 0.4),
                 "cycle_time_p90": (rollup.cycle_time_p90 or 0.0)
                 * (1.2 - alpha_ratio * 0.4),
+                "review_time_p50": None,
+                "review_time_p90": None,
                 "authors_count": team_beta_authors,
                 "reviewers_count": team_beta_reviewers,
             },
@@ -333,6 +337,8 @@ def generate_weekly_rollups(
                         "pr_count": r_prs,
                         "cycle_time_p50": ct_p50,
                         "cycle_time_p90": ct_p90,
+                        "review_time_p50": None,
+                        "review_time_p90": None,
                         "authors_count": r_authors,
                         "reviewers_count": r_reviewers,
                     }
@@ -381,6 +387,8 @@ def generate_weekly_rollups(
                     "pr_count": repo_prs,
                     "cycle_time_p50": (rollup.cycle_time_p50 or 0.0) * factor,
                     "cycle_time_p90": (rollup.cycle_time_p90 or 0.0) * factor,
+                    "review_time_p50": None,
+                    "review_time_p90": None,
                     "authors_count": repo_authors,
                     "reviewers_count": repo_reviewers,
                 }
