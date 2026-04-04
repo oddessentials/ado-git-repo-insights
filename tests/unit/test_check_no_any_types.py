@@ -28,6 +28,7 @@ class TestCheckNoAnyTypes:
         shutil.rmtree(case_dir, ignore_errors=True)
         (case_dir / "src").mkdir(parents=True, exist_ok=True)
         (case_dir / "tests").mkdir(parents=True, exist_ok=True)
+        (case_dir / "scripts").mkdir(parents=True, exist_ok=True)
         return case_dir
 
     def test_parse_error_fails_closed(self, capsys: pytest.CaptureFixture[str]) -> None:
@@ -47,6 +48,7 @@ class TestCheckNoAnyTypes:
             patch.object(MODULE, "REPO_ROOT", case_dir),
             patch.object(MODULE, "SRC_DIR", case_dir / "src"),
             patch.object(MODULE, "TESTS_DIR", case_dir / "tests"),
+            patch.object(MODULE, "SCRIPTS_DIR", case_dir / "scripts"),
             patch.object(MODULE, "BASELINE_PATH", baseline_path),
             patch.object(sys, "argv", ["check_no_any_types.py"]),
         ):
@@ -66,7 +68,7 @@ class TestCheckNoAnyTypes:
             assert MODULE.main() == 0
 
         out = capsys.readouterr().out
-        assert "No staged Python files under src/ or tests/" in out
+        assert "No staged Python files under src/, tests/, or scripts/" in out
 
     def test_diff_mode_checks_only_staged_files(
         self, capsys: pytest.CaptureFixture[str]
@@ -177,3 +179,62 @@ class TestCheckNoAnyTypes:
         out = capsys.readouterr().out
         assert "No staged typing.Any increases" in out
         assert "Run --update-baseline to ratchet down" not in out
+
+    def test_scripts_dir_any_detected(self, capsys: pytest.CaptureFixture[str]) -> None:
+        """Any-containing file under scripts/ is detected by the scanner."""
+        case_dir = self._fresh_case_dir("scripts-any")
+        baseline_path = case_dir / ".any-type-baseline.json"
+        baseline_path.write_text(
+            json.dumps({"total": 0, "files": {}}, indent=2) + "\n",
+            encoding="utf-8",
+        )
+        any_file = case_dir / "scripts" / "bad_script.py"
+        any_file.write_text(
+            "from typing import Any\nvalue: Any = 1\n",
+            encoding="utf-8",
+        )
+
+        with (
+            patch.object(MODULE, "REPO_ROOT", case_dir),
+            patch.object(MODULE, "SRC_DIR", case_dir / "src"),
+            patch.object(MODULE, "TESTS_DIR", case_dir / "tests"),
+            patch.object(MODULE, "SCRIPTS_DIR", case_dir / "scripts"),
+            patch.object(MODULE, "BASELINE_PATH", baseline_path),
+            patch.object(sys, "argv", ["check_no_any_types.py"]),
+        ):
+            assert MODULE.main() == 1
+
+        out = capsys.readouterr().out
+        assert "scripts/bad_script.py" in out
+
+    def test_diff_mode_detects_staged_scripts_file(
+        self, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        """Staged scripts/ file with Any is detected in --diff mode."""
+        case_dir = self._fresh_case_dir("diff-scripts")
+        baseline_path = case_dir / ".any-type-baseline.json"
+        baseline_path.write_text(
+            json.dumps({"total": 0, "files": {}}, indent=2) + "\n",
+            encoding="utf-8",
+        )
+
+        with (
+            patch.object(MODULE, "REPO_ROOT", case_dir),
+            patch.object(MODULE, "SRC_DIR", case_dir / "src"),
+            patch.object(MODULE, "BASELINE_PATH", baseline_path),
+            patch.object(
+                MODULE,
+                "staged_src_py_files",
+                return_value=["scripts/new_script.py"],
+            ),
+            patch.object(
+                MODULE,
+                "staged_file_bytes",
+                return_value=b"from typing import Any\nvalue: Any = 1\n",
+            ),
+            patch.object(sys, "argv", ["check_no_any_types.py", "--diff"]),
+        ):
+            assert MODULE.main() == 1
+
+        out = capsys.readouterr().out
+        assert "scripts/new_script.py" in out

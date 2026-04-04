@@ -205,7 +205,7 @@ def build_commands(
             ("__PYTHON__", "-m", "mypy", "src/", "tests/", "scripts/"),
         ),
         CommandSpec(
-            "No typing.Any in src/ (QG-40)",
+            "No typing.Any in src/, tests/, scripts/ (QG-40)",
             ("__PYTHON__", "scripts/check_no_any_types.py"),
         ),
         CommandSpec(

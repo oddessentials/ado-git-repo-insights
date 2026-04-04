@@ -626,7 +626,7 @@ jobs:
           mypy src/ tests/ scripts/
           echo "[OK] mypy type check passed - all Python type errors resolved"
 
-      - name: No typing.Any in src/ (QG-40)
+      - name: No typing.Any in src/, tests/, scripts/ (QG-40)
         run: python scripts/check_no_any_types.py
 
   # Suppression Audit Gate (FR-008, FR-009, FR-010, FR-011)
