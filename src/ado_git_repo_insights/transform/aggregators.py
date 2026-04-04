@@ -590,6 +590,7 @@ class AggregateGenerator:
             SELECT
                 pr.closed_date,
                 pr.cycle_time_minutes,
+                pr.review_time_minutes,
                 pr.user_id,
                 pr.pull_request_uid,
                 pr.repository_id,
@@ -679,6 +680,12 @@ class AggregateGenerator:
                 else None,
                 cycle_time_p90=group["cycle_time_minutes"].quantile(0.9)
                 if group["cycle_time_minutes"].notna().sum() >= self._ROLLUP_MIN_SAMPLE
+                else None,
+                review_time_p50=group["review_time_minutes"].quantile(0.5)
+                if group["review_time_minutes"].notna().sum() >= self._ROLLUP_MIN_SAMPLE
+                else None,
+                review_time_p90=group["review_time_minutes"].quantile(0.9)
+                if group["review_time_minutes"].notna().sum() >= self._ROLLUP_MIN_SAMPLE
                 else None,
                 authors_count=group["user_id"].nunique(),
                 reviewers_count=reviewers_count,
@@ -782,6 +789,9 @@ class AggregateGenerator:
             cycle_time_valid_count=("cycle_time_minutes", "count"),
             cycle_time_p50=("cycle_time_minutes", lambda s: s.quantile(0.5)),
             cycle_time_p90=("cycle_time_minutes", lambda s: s.quantile(0.9)),
+            review_time_valid_count=("review_time_minutes", "count"),
+            review_time_p50=("review_time_minutes", lambda s: s.quantile(0.5)),
+            review_time_p90=("review_time_minutes", lambda s: s.quantile(0.9)),
         )
         author_reviewer_counts = (
             week_group[["user_id", "pull_request_uid"]]
@@ -805,6 +815,7 @@ class AggregateGenerator:
                 continue
 
             cycle_time_valid_count = int(row["cycle_time_valid_count"])
+            review_time_valid_count = int(row["review_time_valid_count"])
             by_author[str(author_id)] = {
                 "pr_count": int(row["pr_count"]),
                 "cycle_time_p50": row["cycle_time_p50"]
@@ -815,8 +826,14 @@ class AggregateGenerator:
                 if cycle_time_valid_count >= self._ROLLUP_MIN_SAMPLE
                 and not pd.isna(row["cycle_time_p90"])
                 else None,
-                "review_time_p50": None,
-                "review_time_p90": None,
+                "review_time_p50": row["review_time_p50"]
+                if review_time_valid_count >= self._ROLLUP_MIN_SAMPLE
+                and not pd.isna(row["review_time_p50"])
+                else None,
+                "review_time_p90": row["review_time_p90"]
+                if review_time_valid_count >= self._ROLLUP_MIN_SAMPLE
+                and not pd.isna(row["review_time_p90"])
+                else None,
                 "authors_count": 1,
                 "reviewers_count": int(row["reviewers_count"]),
             }
@@ -833,6 +850,9 @@ class AggregateGenerator:
             cycle_time_valid_count=("cycle_time_minutes", "count"),
             cycle_time_p50=("cycle_time_minutes", lambda s: s.quantile(0.5)),
             cycle_time_p90=("cycle_time_minutes", lambda s: s.quantile(0.9)),
+            review_time_valid_count=("review_time_minutes", "count"),
+            review_time_p50=("review_time_minutes", lambda s: s.quantile(0.5)),
+            review_time_p90=("review_time_minutes", lambda s: s.quantile(0.9)),
         )
         reviewer_counts = (
             week_group[["user_id", "repository_name", "pull_request_uid"]]
@@ -857,6 +877,7 @@ class AggregateGenerator:
                 continue
 
             cycle_time_valid_count = int(row["cycle_time_valid_count"])
+            review_time_valid_count = int(row["review_time_valid_count"])
             all_entries.append(
                 (
                     author_id,
@@ -871,8 +892,14 @@ class AggregateGenerator:
                         if cycle_time_valid_count >= self._ROLLUP_MIN_SAMPLE
                         and not pd.isna(row["cycle_time_p90"])
                         else None,
-                        "review_time_p50": None,
-                        "review_time_p90": None,
+                        "review_time_p50": row["review_time_p50"]
+                        if review_time_valid_count >= self._ROLLUP_MIN_SAMPLE
+                        and not pd.isna(row["review_time_p50"])
+                        else None,
+                        "review_time_p90": row["review_time_p90"]
+                        if review_time_valid_count >= self._ROLLUP_MIN_SAMPLE
+                        and not pd.isna(row["review_time_p90"])
+                        else None,
                         "authors_count": 1,
                         "reviewers_count": int(row["reviewers_count"]),
                     },
@@ -924,6 +951,9 @@ class AggregateGenerator:
             cycle_time_valid_count=("cycle_time_minutes", "count"),
             cycle_time_p50=("cycle_time_minutes", lambda s: s.quantile(0.5)),
             cycle_time_p90=("cycle_time_minutes", lambda s: s.quantile(0.9)),
+            review_time_valid_count=("review_time_minutes", "count"),
+            review_time_p50=("review_time_minutes", lambda s: s.quantile(0.5)),
+            review_time_p90=("review_time_minutes", lambda s: s.quantile(0.9)),
             authors_count=("user_id", "nunique"),
         )
         reviewer_counts = (
@@ -948,6 +978,7 @@ class AggregateGenerator:
                 continue
 
             cycle_time_valid_count = int(row["cycle_time_valid_count"])
+            review_time_valid_count = int(row["review_time_valid_count"])
             by_repository[str(repo_name)] = {
                 "pr_count": int(row["pr_count"]),
                 "cycle_time_p50": row["cycle_time_p50"]
@@ -958,8 +989,14 @@ class AggregateGenerator:
                 if cycle_time_valid_count >= self._ROLLUP_MIN_SAMPLE
                 and not pd.isna(row["cycle_time_p90"])
                 else None,
-                "review_time_p50": None,
-                "review_time_p90": None,
+                "review_time_p50": row["review_time_p50"]
+                if review_time_valid_count >= self._ROLLUP_MIN_SAMPLE
+                and not pd.isna(row["review_time_p50"])
+                else None,
+                "review_time_p90": row["review_time_p90"]
+                if review_time_valid_count >= self._ROLLUP_MIN_SAMPLE
+                and not pd.isna(row["review_time_p90"])
+                else None,
                 "authors_count": int(row["authors_count"]),
                 "reviewers_count": int(row["reviewers_count"]),
             }
@@ -1003,6 +1040,9 @@ class AggregateGenerator:
             cycle_time_valid_count=("cycle_time_minutes", "count"),
             cycle_time_p50=("cycle_time_minutes", lambda s: s.quantile(0.5)),
             cycle_time_p90=("cycle_time_minutes", lambda s: s.quantile(0.9)),
+            review_time_valid_count=("review_time_minutes", "count"),
+            review_time_p50=("review_time_minutes", lambda s: s.quantile(0.5)),
+            review_time_p90=("review_time_minutes", lambda s: s.quantile(0.9)),
             authors_count=("user_id", "nunique"),
         )
         reviewer_counts = (
@@ -1027,6 +1067,7 @@ class AggregateGenerator:
                 continue
 
             cycle_time_valid_count = int(row["cycle_time_valid_count"])
+            review_time_valid_count = int(row["review_time_valid_count"])
             by_team[str(team_name)] = {
                 "pr_count": int(row["pr_count"]),
                 "cycle_time_p50": row["cycle_time_p50"]
@@ -1037,8 +1078,14 @@ class AggregateGenerator:
                 if cycle_time_valid_count >= self._ROLLUP_MIN_SAMPLE
                 and not pd.isna(row["cycle_time_p90"])
                 else None,
-                "review_time_p50": None,
-                "review_time_p90": None,
+                "review_time_p50": row["review_time_p50"]
+                if review_time_valid_count >= self._ROLLUP_MIN_SAMPLE
+                and not pd.isna(row["review_time_p50"])
+                else None,
+                "review_time_p90": row["review_time_p90"]
+                if review_time_valid_count >= self._ROLLUP_MIN_SAMPLE
+                and not pd.isna(row["review_time_p90"])
+                else None,
                 "authors_count": int(row["authors_count"]),
                 "reviewers_count": int(row["reviewers_count"]),
             }
@@ -1174,6 +1221,9 @@ class AggregateGenerator:
             cycle_time_valid_count=("cycle_time_minutes", "count"),
             cycle_time_p50=("cycle_time_minutes", lambda s: s.quantile(0.5)),
             cycle_time_p90=("cycle_time_minutes", lambda s: s.quantile(0.9)),
+            review_time_valid_count=("review_time_minutes", "count"),
+            review_time_p50=("review_time_minutes", lambda s: s.quantile(0.5)),
+            review_time_p90=("review_time_minutes", lambda s: s.quantile(0.9)),
             authors_count=("user_id", "nunique"),
         )
 
@@ -1215,6 +1265,19 @@ class AggregateGenerator:
                 or pd.isna(row["cycle_time_p90"])
                 else row["cycle_time_p90"]
             )
+            review_time_valid_count = int(row["review_time_valid_count"])
+            review_time_p50 = (
+                None
+                if review_time_valid_count < self._CROSS_DIM_MIN_SAMPLE
+                or pd.isna(row["review_time_p50"])
+                else row["review_time_p50"]
+            )
+            review_time_p90 = (
+                None
+                if review_time_valid_count < self._CROSS_DIM_MIN_SAMPLE
+                or pd.isna(row["review_time_p90"])
+                else row["review_time_p90"]
+            )
 
             all_entries.append(
                 (
@@ -1224,8 +1287,8 @@ class AggregateGenerator:
                         "pr_count": int(row["pr_count"]),
                         "cycle_time_p50": cycle_time_p50,
                         "cycle_time_p90": cycle_time_p90,
-                        "review_time_p50": None,
-                        "review_time_p90": None,
+                        "review_time_p50": review_time_p50,
+                        "review_time_p90": review_time_p90,
                         "authors_count": int(row["authors_count"]),
                         "reviewers_count": int(row["reviewers_count"]),
                     },
