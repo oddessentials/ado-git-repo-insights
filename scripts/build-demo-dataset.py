@@ -438,7 +438,10 @@ def _collect_reviewer_fixture_thresholds(
 
     def _int(key: str) -> int:
         val = reviewer_fixtures[key]
-        assert isinstance(val, (int, float))
+        if not isinstance(val, (int, float)):
+            raise TypeError(
+                f"reviewer_fixtures[{key!r}] expected numeric, got {type(val).__name__}"
+            )
         return int(val)
 
     return {
@@ -460,12 +463,17 @@ def _collect_eligible_reviewer_ids(
     for reviewer_id, entry in fixture_by_reviewer.items():
         reviewed = entry.get("reviewed_prs", 0)
         reviews = entry.get("reviews_count", 0)
-        if (
-            isinstance(reviewed, (int, float))
-            and reviewed >= minimum_reviewed_prs
-            and isinstance(reviews, (int, float))
-            and reviews >= minimum_review_actions
-        ):
+        if not isinstance(reviewed, (int, float)):
+            raise TypeError(
+                f"reviewer '{reviewer_id}' has non-numeric reviewed_prs: "
+                f"{type(reviewed).__name__} (value={reviewed!r})"
+            )
+        if not isinstance(reviews, (int, float)):
+            raise TypeError(
+                f"reviewer '{reviewer_id}' has non-numeric reviews_count: "
+                f"{type(reviews).__name__} (value={reviews!r})"
+            )
+        if reviewed >= minimum_reviewed_prs and reviews >= minimum_review_actions:
             result.append(reviewer_id)
     return result
 
@@ -643,7 +651,12 @@ def validate_reviewer_fixture_contract(
         if reviewer_id not in eligible_reviewer_ids:
             continue
         repos_count = entry.get("repositories_count", 0)
-        if isinstance(repos_count, (int, float)) and repos_count >= 2:
+        if not isinstance(repos_count, (int, float)):
+            raise TypeError(
+                f"reviewer '{reviewer_id}' has non-numeric repositories_count: "
+                f"{type(repos_count).__name__} (value={repos_count!r})"
+            )
+        if repos_count >= 2:
             multi_repo_reviewers.append(reviewer_id)
 
     if len(eligible_reviewer_ids) < thresholds["minimum_active_reviewers"]:
