@@ -704,19 +704,25 @@ def cmd_extract(args: Namespace) -> int:
                         f"Comments extraction capped at {args.comments_max_prs_per_run} PRs"
                     )
 
-                # Post-process: extract review timestamps from stored thread
-                # system comments and populate reviewed_at + review_time_minutes.
-                from ado_git_repo_insights.extraction.review_time import (
-                    populate_review_timestamps,
-                )
+            # Recompute review timestamps whenever stored comment data exists,
+            # regardless of whether --include-comments was passed this run.
+            # This ensures convergence: creation_date changes, reviewer edits,
+            # or comment deletions are reflected without re-fetching threads.
+            from ado_git_repo_insights.extraction.review_time import (
+                populate_review_timestamps,
+            )
 
+            has_comments = (
+                db.execute("SELECT 1 FROM pr_comments LIMIT 1").fetchone() is not None
+            )
+            if has_comments:
                 review_time_count = populate_review_timestamps(db)
                 if review_time_count > 0:
                     logger.info(f"Review time computed for {review_time_count} PRs")
-            else:
+            elif not getattr(args, "include_comments", False):
                 logger.warning(
-                    "Review time metrics unavailable: thread extraction not "
-                    "enabled. Use --include-comments to activate."
+                    "Review time metrics unavailable: no thread data stored. "
+                    "Use --include-comments to extract review timestamps."
                 )
 
             timing.total_seconds = time.perf_counter() - start_time

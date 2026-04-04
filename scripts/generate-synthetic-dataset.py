@@ -209,11 +209,10 @@ def generate_weekly_rollups(
 
         ct_p50 = rng.uniform(120, 480)  # 2-8 hours
         ct_p90 = rng.uniform(480, 1440)  # 8-24 hours
-        # Review time: 30-70% of cycle time with per-percentile null independence
-        rt_ratio_p50 = rng.uniform(0.3, 0.7)
-        rt_ratio_p90 = rng.uniform(0.3, 0.7)
-        rt_p50: float | None = round(ct_p50 * rt_ratio_p50, 3)
-        rt_p90: float | None = round(ct_p90 * rt_ratio_p90, 3)
+        # Review time: single ratio per entity guarantees p50 <= p90
+        rt_ratio = rng.uniform(0.3, 0.7)
+        rt_p50: float | None = round(ct_p50 * rt_ratio, 3)
+        rt_p90: float | None = round(ct_p90 * rt_ratio, 3)
         if rng.random() < 0.10:  # ~10% null rate per percentile
             rt_p50 = None
         if rng.random() < 0.10:

@@ -912,3 +912,44 @@ class TestDemoDataRealism:
         assert checksums_a == checksums_b, (
             "Generator output is not deterministic — files differ between runs"
         )
+
+
+@pytest.mark.parametrize("seed", [42, 123, 9999])
+def test_review_time_p50_le_p90_across_seeds(seed: int) -> None:
+    """Synthetic review_time_p50 must never exceed review_time_p90.
+
+    Regression: independent ratio draws per percentile caused p50 > p90
+    for some seeds when ct_p50/ct_p90 gap was narrow and ratios diverged.
+    """
+    output_dir = run_generator(pr_count=1000, weeks=52, seed=seed)
+    rollup_dir = output_dir / "aggregates" / "weekly_rollups"
+
+    violations = 0
+    checked = 0
+    for rollup_path in sorted(rollup_dir.glob("*.json")):
+        with rollup_path.open() as f:
+            data = json.load(f)
+
+        # Root level
+        p50 = data.get("review_time_p50")
+        p90 = data.get("review_time_p90")
+        if p50 is not None and p90 is not None:
+            checked += 1
+            if p50 > p90:
+                violations += 1
+
+        # Breakdown entries
+        for dim in ("by_repository", "by_team"):
+            for entry in data.get(dim, {}).values():
+                ep50 = entry.get("review_time_p50")
+                ep90 = entry.get("review_time_p90")
+                if ep50 is not None and ep90 is not None:
+                    checked += 1
+                    if ep50 > ep90:
+                        violations += 1
+
+    assert checked > 0, f"No p50/p90 pairs found for seed {seed}"
+    assert violations == 0, (
+        f"seed={seed}: {violations}/{checked} pairs have "
+        f"review_time_p50 > review_time_p90"
+    )

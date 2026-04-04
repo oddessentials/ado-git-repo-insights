@@ -571,3 +571,177 @@ class TestTextOnlyThreads:
             assert count == 0
         finally:
             db.close()
+
+
+# ---------------------------------------------------------------------------
+# Convergence regression test
+# ---------------------------------------------------------------------------
+
+
+class TestConvergenceOnRerun:
+    """If a positive vote is deleted, rerun must clear reviewed_at + review_time."""
+
+    def test_deleted_vote_clears_on_rerun(self, tmp_path: Path) -> None:
+        db = _create_test_db(tmp_path)
+        try:
+            _seed_pr(db, creation_date="2026-01-15T10:00:00Z")
+            _seed_reviewer(db, user_id="u1", vote=10)
+            _seed_system_comment(
+                db,
+                comment_id="c1",
+                pr_uid="r1-1",
+                author_id="u1",
+                content="Reviewer A voted 10",
+                created_at="2026-01-15T12:00:00Z",
+            )
+
+            # First run: populates reviewed_at and review_time_minutes
+            count = populate_review_timestamps(db)
+            assert count == 1
+            row = db.execute(
+                "SELECT reviewed_at FROM reviewers WHERE user_id = 'u1'"
+            ).fetchone()
+            assert row is not None
+            assert row["reviewed_at"] is not None
+
+            pr_row = db.execute(
+                "SELECT review_time_minutes FROM pull_requests "
+                "WHERE pull_request_uid = 'r1-1'"
+            ).fetchone()
+            assert pr_row is not None
+            assert pr_row["review_time_minutes"] is not None
+
+            # Delete the vote comment (simulates sync finding it deleted)
+            db.execute("UPDATE pr_comments SET is_deleted = 1 WHERE comment_id = 'c1'")
+
+            # Second run: must clear stale data
+            count2 = populate_review_timestamps(db)
+            assert count2 == 0  # No positive votes remain
+
+            row2 = db.execute(
+                "SELECT reviewed_at FROM reviewers WHERE user_id = 'u1'"
+            ).fetchone()
+            assert row2 is not None
+            assert row2["reviewed_at"] is None, (
+                "reviewed_at must be NULL after vote deletion"
+            )
+
+            pr_row2 = db.execute(
+                "SELECT review_time_minutes FROM pull_requests "
+                "WHERE pull_request_uid = 'r1-1'"
+            ).fetchone()
+            assert pr_row2 is not None
+            assert pr_row2["review_time_minutes"] is None, (
+                "review_time_minutes must be NULL after vote deletion"
+            )
+        finally:
+            db.close()
+
+
+# ---------------------------------------------------------------------------
+# Scoping safety test
+# ---------------------------------------------------------------------------
+
+
+class TestScopingSafety:
+    """PRs without comment data must not be affected by recomputation."""
+
+    def test_pr_without_comments_untouched(self, tmp_path: Path) -> None:
+        db = _create_test_db(tmp_path)
+        try:
+            # PR 1: has comments and a positive vote
+            _seed_pr(db, pr_uid="r1-1", creation_date="2026-01-15T10:00:00Z")
+            _seed_reviewer(db, pr_uid="r1-1", user_id="u1", vote=10)
+            _seed_system_comment(
+                db,
+                comment_id="c1",
+                pr_uid="r1-1",
+                author_id="u1",
+                content="Reviewer A voted 10",
+                created_at="2026-01-15T12:00:00Z",
+            )
+
+            # PR 2: no comments at all — manually set review_time to prove
+            # it won't be cleared by the recompute of PR 1
+            db.execute(
+                "INSERT INTO pull_requests "
+                "(pull_request_uid, pull_request_id, organization_name, "
+                "project_name, repository_id, user_id, title, status, "
+                "creation_date, review_time_minutes) "
+                "VALUES ('r1-2', 2, 'org', 'proj', 'r1', 'u1', 'PR2', "
+                "'completed', '2026-01-15T08:00:00Z', 999.99)",
+            )
+            db.execute(
+                "INSERT OR IGNORE INTO reviewers "
+                "(pull_request_uid, user_id, vote, repository_id, reviewed_at) "
+                "VALUES ('r1-2', 'u2', 10, 'r1', '2026-01-15T09:00:00Z')",
+            )
+
+            populate_review_timestamps(db)
+
+            # PR 1 should be computed
+            pr1 = db.execute(
+                "SELECT review_time_minutes FROM pull_requests "
+                "WHERE pull_request_uid = 'r1-1'"
+            ).fetchone()
+            assert pr1 is not None
+            assert pr1["review_time_minutes"] is not None
+
+            # PR 2 must be UNTOUCHED (no comments = not in recompute scope)
+            pr2 = db.execute(
+                "SELECT review_time_minutes FROM pull_requests "
+                "WHERE pull_request_uid = 'r1-2'"
+            ).fetchone()
+            assert pr2 is not None
+            assert pr2["review_time_minutes"] == pytest.approx(999.99), (
+                "PR without comments must not be affected by recomputation"
+            )
+
+            rev2 = db.execute(
+                "SELECT reviewed_at FROM reviewers "
+                "WHERE pull_request_uid = 'r1-2' AND user_id = 'u2'"
+            ).fetchone()
+            assert rev2 is not None
+            assert rev2["reviewed_at"] == "2026-01-15T09:00:00Z", (
+                "Reviewer on PR without comments must retain reviewed_at"
+            )
+        finally:
+            db.close()
+
+
+# ---------------------------------------------------------------------------
+# Trigger scope test (P2)
+# ---------------------------------------------------------------------------
+
+
+class TestTriggerScope:
+    """Recomputation runs when thread data exists locally, even without --include-comments."""
+
+    def test_recompute_with_existing_comments(self, tmp_path: Path) -> None:
+        """With stored comments but no --include-comments flag, recompute still runs."""
+        db = _create_test_db(tmp_path)
+        try:
+            _seed_pr(db, creation_date="2026-01-15T10:00:00Z")
+            _seed_reviewer(db, user_id="u1", vote=10)
+            _seed_system_comment(
+                db,
+                comment_id="c1",
+                pr_uid="r1-1",
+                author_id="u1",
+                content="Reviewer A voted 10",
+                created_at="2026-01-15T12:00:00Z",
+            )
+
+            # Simulate: comments already in DB, call populate directly
+            # (this is what cli.py now does regardless of --include-comments)
+            count = populate_review_timestamps(db)
+            assert count == 1
+
+            pr_row = db.execute(
+                "SELECT review_time_minutes FROM pull_requests "
+                "WHERE pull_request_uid = 'r1-1'"
+            ).fetchone()
+            assert pr_row is not None
+            assert pr_row["review_time_minutes"] is not None
+        finally:
+            db.close()
