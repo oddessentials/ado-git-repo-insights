@@ -6,10 +6,49 @@ import json
 import sys
 import time
 import uuid
+from collections.abc import Mapping, Sequence
 from datetime import UTC, date, datetime
 from decimal import ROUND_HALF_UP, Decimal
 from pathlib import Path
-from typing import Any, cast
+from typing import TYPE_CHECKING, cast
+
+if TYPE_CHECKING:
+    from ado_git_repo_insights.types import JSONValue
+
+# ---------------------------------------------------------------------------
+# JSONValue narrowing helpers (used by callers after load_json_file)
+# ---------------------------------------------------------------------------
+
+
+def narrow_mapping(val: JSONValue) -> Mapping[str, JSONValue]:
+    """Narrow a JSON value to a read-only string-keyed mapping.
+
+    Raises TypeError on non-dict — use on untrusted JSON boundaries.
+    """
+    if not isinstance(val, dict):
+        raise TypeError(f"Expected dict, got {type(val).__name__}")
+    return val
+
+
+def narrow_sequence(val: JSONValue) -> Sequence[JSONValue]:
+    """Narrow a JSON value to a read-only sequence.
+
+    Raises TypeError on non-list.
+    """
+    if not isinstance(val, list):
+        raise TypeError(f"Expected list, got {type(val).__name__}")
+    return val
+
+
+def narrow_int(val: JSONValue) -> int:
+    """Narrow a JSON value to int.
+
+    Accepts JSON integers and floats (truncated). Raises TypeError otherwise.
+    """
+    if not isinstance(val, (int, float)):
+        raise TypeError(f"Expected numeric, got {type(val).__name__}")
+    return int(val)
+
 
 FIXED_GENERATED_AT = datetime(2026, 1, 30, 12, 0, 0, tzinfo=UTC)
 COMMITTED_DEMO_BASELINE_PYTHON = (3, 12)
@@ -79,7 +118,7 @@ def build_generation_provenance(
 
 
 def validate_generation_provenance(
-    metadata: dict[str, Any],
+    metadata: Mapping[str, object],
     *,
     expected_generator_script: str | Path,
     expected_generation_mode: str,
@@ -148,7 +187,7 @@ def largest_remainder_allocate(total: int, weights: list[float]) -> list[int]:
     return floors
 
 
-def _process_floats(obj: Any) -> Any:
+def _process_floats(obj: object) -> object:
     if isinstance(obj, float):
         return round_float(obj)
     if isinstance(obj, dict):
@@ -158,7 +197,7 @@ def _process_floats(obj: Any) -> Any:
     return obj
 
 
-def _default_serializer(obj: Any) -> Any:
+def _default_serializer(obj: object) -> str:
     if isinstance(obj, datetime):
         return obj.strftime("%Y-%m-%dT%H:%M:%SZ")
     if isinstance(obj, date):
@@ -168,7 +207,7 @@ def _default_serializer(obj: Any) -> Any:
     raise TypeError(f"Object of type {type(obj).__name__} is not JSON serializable")
 
 
-def canonical_json(data: Any, indent: int = 2) -> str:
+def canonical_json(data: object, indent: int = 2) -> str:
     """Generate canonical JSON with stable formatting and LF endings."""
     processed = _process_floats(data)
     json_str = json.dumps(
@@ -181,7 +220,7 @@ def canonical_json(data: Any, indent: int = 2) -> str:
     return json_str.replace("\r\n", "\n") + "\n"
 
 
-def write_json_file(path: Path, data: Any, *, max_retries: int = 1) -> None:
+def write_json_file(path: Path, data: object, *, max_retries: int = 1) -> None:
     """Write canonical JSON with optional retries for transient OS errors."""
     path.parent.mkdir(parents=True, exist_ok=True)
     encoded = canonical_json(data).encode("utf-8")
@@ -196,11 +235,13 @@ def write_json_file(path: Path, data: Any, *, max_retries: int = 1) -> None:
                 raise
 
 
-def load_json_file(path: Path, *, max_retries: int = 3) -> dict[str, Any]:
+def load_json_file(path: Path, *, max_retries: int = 3) -> dict[str, JSONValue]:
     """Load JSON from disk with retries for transient filesystem races."""
     for attempt in range(max_retries):
         try:
-            return cast(dict[str, Any], json.loads(path.read_text(encoding="utf-8")))
+            return cast(
+                "dict[str, JSONValue]", json.loads(path.read_text(encoding="utf-8"))
+            )
         except (json.JSONDecodeError, OSError):
             if attempt < max_retries - 1:
                 time.sleep(0.1 * (attempt + 1))
@@ -243,5 +284,7 @@ def discover_demo_feature_flags(data_dir: Path) -> dict[str, bool]:
 def refresh_demo_manifest_features(manifest_path: Path, data_dir: Path) -> None:
     """Refresh manifest feature flags from the generated demo dataset."""
     manifest = load_json_file(manifest_path)
-    manifest.setdefault("features", {}).update(discover_demo_feature_flags(data_dir))
+    features = manifest.setdefault("features", {})
+    assert isinstance(features, dict)
+    features.update(discover_demo_feature_flags(data_dir))
     write_json_file(manifest_path, manifest)

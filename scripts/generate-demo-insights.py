@@ -40,6 +40,8 @@ from demo_generation_common import (
     FIXED_GENERATED_AT,
     list_stable_json_files,
     load_json_file,
+    narrow_int,
+    narrow_mapping,
     refresh_demo_manifest_features,
     require_demo_generation_baseline_for_output,
     round_float,
@@ -85,6 +87,17 @@ class RepoMetrics:
     pr_count: int
     cycle_time_p50: float
     cycle_time_p90: float
+
+
+def _validate_cycle_time(raw: object, *, metric: str, context: str) -> float | None:
+    """Validate a JSON cycle-time value: int|float → float, None → None, else raise."""
+    if raw is None:
+        return None
+    if isinstance(raw, (int, float)):
+        return float(raw)
+    raise TypeError(
+        f"{metric} in {context} expected numeric or null, got {type(raw).__name__}"
+    )
 
 
 def _coerce_cycle_time(metric_name: str, value: float | None, *, context: str) -> float:
@@ -148,39 +161,72 @@ def load_weekly_rollups(rollups_dir: Path) -> list[WeeklyRollup]:
             for rollup_file in list_stable_json_files(rollups_dir):
                 data = load_json_file(rollup_file)
 
+                week_val = data["week"]
+                if not isinstance(week_val, str):
+                    raise TypeError(
+                        f"Expected str for week, got {type(week_val).__name__}"
+                    )
+                sd_val = data["start_date"]
+                if not isinstance(sd_val, str):
+                    raise TypeError(
+                        f"Expected str for start_date, got {type(sd_val).__name__}"
+                    )
+
+                by_repo_raw = data.get("by_repository", {})
+                by_repo = narrow_mapping(by_repo_raw)
+
                 repos = []
-                for repo_name, repo_data in data.get("by_repository", {}).items():
+                for repo_name, repo_entry in by_repo.items():
+                    rd = narrow_mapping(repo_entry)
+                    repo_ctx = f"{week_val} repo {repo_name}"
                     repos.append(
                         RepoMetrics(
                             name=repo_name,
-                            pr_count=repo_data["pr_count"],
+                            pr_count=narrow_int(rd["pr_count"]),
                             cycle_time_p50=_coerce_cycle_time(
                                 "cycle_time_p50",
-                                repo_data["cycle_time_p50"],
-                                context=f"{data['week']} repo {repo_name}",
+                                _validate_cycle_time(
+                                    rd["cycle_time_p50"],
+                                    metric="cycle_time_p50",
+                                    context=repo_ctx,
+                                ),
+                                context=repo_ctx,
                             ),
                             cycle_time_p90=_coerce_cycle_time(
                                 "cycle_time_p90",
-                                repo_data["cycle_time_p90"],
-                                context=f"{data['week']} repo {repo_name}",
+                                _validate_cycle_time(
+                                    rd["cycle_time_p90"],
+                                    metric="cycle_time_p90",
+                                    context=repo_ctx,
+                                ),
+                                context=repo_ctx,
                             ),
                         )
                     )
 
+                rollup_ctx = f"{week_val} rollup"
                 rollups.append(
                     WeeklyRollup(
-                        week=data["week"],
-                        start_date=date.fromisoformat(data["start_date"]),
-                        pr_count=data["pr_count"],
+                        week=week_val,
+                        start_date=date.fromisoformat(sd_val),
+                        pr_count=narrow_int(data["pr_count"]),
                         cycle_time_p50=_coerce_cycle_time(
                             "cycle_time_p50",
-                            data["cycle_time_p50"],
-                            context=f"{data['week']} rollup",
+                            _validate_cycle_time(
+                                data["cycle_time_p50"],
+                                metric="cycle_time_p50",
+                                context=rollup_ctx,
+                            ),
+                            context=rollup_ctx,
                         ),
                         cycle_time_p90=_coerce_cycle_time(
                             "cycle_time_p90",
-                            data["cycle_time_p90"],
-                            context=f"{data['week']} rollup",
+                            _validate_cycle_time(
+                                data["cycle_time_p90"],
+                                metric="cycle_time_p90",
+                                context=rollup_ctx,
+                            ),
+                            context=rollup_ctx,
                         ),
                         repos=repos,
                     )

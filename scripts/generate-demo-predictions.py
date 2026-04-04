@@ -24,12 +24,12 @@ from dataclasses import dataclass
 from datetime import date, timedelta
 from decimal import Decimal
 from pathlib import Path
-from typing import Any
 
 from demo_generation_common import (
     FIXED_GENERATED_AT,
     list_stable_json_files,
     load_json_file,
+    narrow_int,
     refresh_demo_manifest_features,
     require_demo_generation_baseline_for_output,
     round_float,
@@ -75,12 +75,33 @@ def load_weekly_rollups(rollups_dir: Path) -> list[WeeklyMetrics]:
             for rollup_file in list_stable_json_files(rollups_dir):
                 data = load_json_file(rollup_file)
 
+                week_val = data["week"]
+                if not isinstance(week_val, str):
+                    raise TypeError(
+                        f"Expected str for week, got {type(week_val).__name__}"
+                    )
+                sd_val = data["start_date"]
+                if not isinstance(sd_val, str):
+                    raise TypeError(
+                        f"Expected str for start_date, got {type(sd_val).__name__}"
+                    )
+                ct_p50_raw = data["cycle_time_p50"]
+                if ct_p50_raw is None:
+                    ct_p50_f = 0.0
+                elif isinstance(ct_p50_raw, (int, float)):
+                    ct_p50_f = float(ct_p50_raw)
+                else:
+                    raise TypeError(
+                        f"cycle_time_p50 in {rollup_file.name} expected "
+                        f"numeric or null, got {type(ct_p50_raw).__name__}"
+                    )
+
                 rollups.append(
                     WeeklyMetrics(
-                        week=data["week"],
-                        start_date=date.fromisoformat(data["start_date"]),
-                        pr_count=data["pr_count"],
-                        cycle_time_p50=data["cycle_time_p50"] or 0.0,
+                        week=week_val,
+                        start_date=date.fromisoformat(sd_val),
+                        pr_count=narrow_int(data["pr_count"]),
+                        cycle_time_p50=ct_p50_f,
                     )
                 )
             return sorted(rollups, key=lambda r: r.week)
@@ -148,7 +169,7 @@ def generate_forecast(
     horizon_weeks: int,
     base_confidence: float = BASE_CONFIDENCE_INTERVAL,
     widening_per_week: float = CONFIDENCE_WIDENING_PER_WEEK,
-) -> list[dict[str, Any]]:
+) -> list[dict[str, object]]:
     """
     Generate forecast values with widening confidence intervals.
 
@@ -211,7 +232,7 @@ def generate_forecast(
 # =============================================================================
 
 
-def generate_pr_throughput_forecast(rollups: list[WeeklyMetrics]) -> dict[str, Any]:
+def generate_pr_throughput_forecast(rollups: list[WeeklyMetrics]) -> dict[str, object]:
     """Generate pr_throughput forecast (T033)."""
     # Get last 8 weeks of PR counts
     recent = rollups[-TREND_LOOKBACK_WEEKS:]
@@ -228,7 +249,7 @@ def generate_pr_throughput_forecast(rollups: list[WeeklyMetrics]) -> dict[str, A
     }
 
 
-def generate_cycle_time_forecast(rollups: list[WeeklyMetrics]) -> dict[str, Any]:
+def generate_cycle_time_forecast(rollups: list[WeeklyMetrics]) -> dict[str, object]:
     """Generate cycle_time_minutes forecast (T034)."""
     # Get last 8 weeks of cycle time P50
     recent = rollups[-TREND_LOOKBACK_WEEKS:]
@@ -245,7 +266,7 @@ def generate_cycle_time_forecast(rollups: list[WeeklyMetrics]) -> dict[str, Any]
     }
 
 
-def generate_review_time_forecast(rollups: list[WeeklyMetrics]) -> dict[str, Any]:
+def generate_review_time_forecast(rollups: list[WeeklyMetrics]) -> dict[str, object]:
     """
     Generate review_time_minutes forecast (T035).
 

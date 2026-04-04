@@ -4,7 +4,7 @@
   "usages": [
     {
       "file": "scripts/generate-demo-data.py",
-      "line": 208,
+      "line": 215,
       "code": "rng = random.Random(seed)",
       "purpose": "deterministic-seeded"
     },

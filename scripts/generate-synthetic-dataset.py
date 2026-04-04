@@ -15,7 +15,7 @@ from dataclasses import asdict
 from datetime import UTC, date, datetime, timedelta
 from pathlib import Path
 from types import ModuleType
-from typing import TYPE_CHECKING, Any, cast
+from typing import TYPE_CHECKING, cast
 
 # Load aggregators via importlib with package stubs so relative imports resolve.
 # This allows direct script execution from a plain checkout without editable install.
@@ -181,7 +181,7 @@ def generate_weekly_rollups(
     output_dir: Path,
     num_users: int = 30,
     repositories: list[RepositoryRecord] | None = None,
-) -> list[dict[str, Any]]:
+) -> list[dict[str, object]]:
     """Generate weekly rollup files."""
     rng = random.Random(seed)
 
@@ -291,7 +291,7 @@ def generate_weekly_rollups(
                 ),
             }
 
-            by_team_and_repo: dict[str, dict[str, Any]] = {}
+            by_team_and_repo: dict[str, dict[str, object]] = {}
             for team_name, (
                 t_prs,
                 t_authors,
@@ -300,7 +300,7 @@ def generate_weekly_rollups(
             ) in team_repo_profiles.items():
                 if t_prs == 0:
                     continue
-                team_repo_entries: dict[str, Any] = {}
+                team_repo_entries: dict[str, object] = {}
 
                 alloc_prs = largest_remainder_allocate(t_prs, repo_weights)
                 alloc_authors = largest_remainder_allocate(t_authors, repo_weights)
@@ -353,7 +353,7 @@ def generate_weekly_rollups(
             weight_sum = sum(raw_weights)
             weights = [w / weight_sum for w in raw_weights]
 
-            by_repo: dict[str, dict[str, Any]] = {}
+            by_repo: dict[str, dict[str, object]] = {}
             alloc_repo_prs = largest_remainder_allocate(week_pr_count, weights)
             alloc_repo_authors = largest_remainder_allocate(
                 rollup.authors_count, weights
@@ -410,7 +410,7 @@ def generate_weekly_rollups(
 
 def generate_distributions(
     pr_count: int, weeks: int, seed: int, output_dir: Path
-) -> list[dict[str, Any]]:
+) -> list[dict[str, object]]:
     """Generate yearly distribution files."""
     rng = random.Random(seed + 1000)
 
@@ -488,7 +488,7 @@ def generate_comments(
     users: list[UserRecord],
     output_dir: Path,
     batch_size: int = 100,
-) -> dict[str, Any]:
+) -> dict[str, object]:
     """Generate comment threads and comments for PRs in batched files.
 
     Instead of one file per PR, writes batched JSON files
@@ -503,7 +503,7 @@ def generate_comments(
 
     total_threads = 0
     total_comments = 0
-    batch: list[dict[str, Any]] = []
+    batch: list[dict[str, object]] = []
     batch_num = 0
 
     for pr_id in range(1, pr_count + 1):
@@ -561,7 +561,7 @@ def generate_comments(
     }
 
 
-def write_json(path: Path, data: dict[str, Any]) -> None:
+def write_json(path: Path, data: object) -> None:
     """Write JSON with deterministic formatting (matches aggregators.py)."""
     with path.open("w", encoding="utf-8") as f:
         json.dump(data, f, indent=2, sort_keys=True)
@@ -608,7 +608,7 @@ def generate_dataset(
     print(f"[OK] Generated {len(dist_index)} distribution files")
 
     # Generate comments if requested
-    comment_stats: dict[str, Any] = {"status": "disabled"}
+    comment_stats: dict[str, object] = {"status": "disabled"}
     if include_comments:
         comment_stats = generate_comments(pr_count, seed, dimensions.users, output_dir)
         comment_stats["status"] = "full"
@@ -667,8 +667,13 @@ def generate_dataset(
     # Add operational summary
     manifest_dict = asdict(manifest)
 
-    total_size = sum(item["size_bytes"] for item in weekly_index)
-    total_size += sum(item["size_bytes"] for item in dist_index)
+    def _int(val: object) -> int:
+        if not isinstance(val, int):
+            raise TypeError(f"Expected int, got {type(val).__name__}")
+        return val
+
+    total_size = sum(_int(item["size_bytes"]) for item in weekly_index)
+    total_size += sum(_int(item["size_bytes"]) for item in dist_index)
     total_size += dim_path.stat().st_size
 
     manifest_dict["operational"] = {

@@ -4,8 +4,8 @@
 from __future__ import annotations
 
 import re
+from collections.abc import Mapping
 from pathlib import Path
-from typing import Any
 
 import yaml
 from demo_generation_common import (
@@ -25,14 +25,14 @@ HELPER_SCRIPTS = {
 CANONICAL_JOB_NAME = "regenerate"
 
 
-def _load_yaml(path: Path) -> dict[str, Any]:
+def _load_yaml(path: Path) -> Mapping[str, object]:
     content = yaml.safe_load(path.read_text(encoding="utf-8"))
     if not isinstance(content, dict):
         raise RuntimeError(f"{path} did not parse to a mapping")
     return content
 
 
-def _step_run_text(step: dict[str, Any]) -> str:
+def _step_run_text(step: Mapping[str, object]) -> str:
     run_value = step.get("run")
     return run_value if isinstance(run_value, str) else ""
 
