@@ -129,21 +129,34 @@ def _is_isinstance_dict(node: ast.expr) -> bool:
     return False
 
 
+def _is_terminal_call(node: ast.Call) -> bool:
+    """True if *node* is a known process-terminating call (sys.exit only)."""
+    func = node.func
+    # sys.exit(...)
+    if (
+        isinstance(func, ast.Attribute)
+        and func.attr == "exit"
+        and isinstance(func.value, ast.Name)
+        and func.value.id == "sys"
+    ):
+        return True
+    # Bare exit(...) built-in
+    if isinstance(func, ast.Name) and func.id == "exit":
+        return True
+    return False
+
+
 def _body_unconditionally_exits(body: list[ast.stmt]) -> bool:
     """True if *body* unconditionally terminates (raise/return/sys.exit).
 
-    Walks the top-level statement list.  A raise, return, or continue/break
-    at the top level counts.  Statements before the terminal (assignments,
-    plain expressions like log calls) are allowed.  Nested conditionals and
-    try/except do NOT count because control can continue past them.
+    Only top-level statements count.  Nested conditionals, try/except,
+    and non-approved calls do not qualify.
     """
     for stmt in body:
         if isinstance(stmt, (ast.Raise, ast.Return)):
             return True
-        # sys.exit() or similar terminal call as a bare expression
         if isinstance(stmt, ast.Expr) and isinstance(stmt.value, ast.Call):
-            func = stmt.value.func
-            if isinstance(func, ast.Attribute) and func.attr == "exit":
+            if _is_terminal_call(stmt.value):
                 return True
     return False
 
@@ -303,6 +316,30 @@ class TestNoRawIsinstanceDictNarrowing:
                     raise TypeError("expected dict")
                 except TypeError:
                     recover()
+        """)
+        tree = _parse(source)
+        assert find_raw_isinstance_dict(tree) == [1]
+
+    def test_allows_sys_exit(self) -> None:
+        source = textwrap.dedent("""\
+            if not isinstance(val, dict):
+                sys.exit(1)
+        """)
+        tree = _parse(source)
+        assert find_raw_isinstance_dict(tree) == []
+
+    def test_rejects_logger_exit(self) -> None:
+        source = textwrap.dedent("""\
+            if not isinstance(val, dict):
+                logger.exit("expected dict")
+        """)
+        tree = _parse(source)
+        assert find_raw_isinstance_dict(tree) == [1]
+
+    def test_rejects_client_exit(self) -> None:
+        source = textwrap.dedent("""\
+            if not isinstance(val, dict):
+                client.exit()
         """)
         tree = _parse(source)
         assert find_raw_isinstance_dict(tree) == [1]
