@@ -130,20 +130,14 @@ def _is_isinstance_dict(node: ast.expr) -> bool:
 
 
 def _is_terminal_call(node: ast.Call) -> bool:
-    """True if *node* is a known process-terminating call (sys.exit only)."""
+    """True if *node* is exactly sys.exit(...)."""
     func = node.func
-    # sys.exit(...)
-    if (
+    return (
         isinstance(func, ast.Attribute)
         and func.attr == "exit"
         and isinstance(func.value, ast.Name)
         and func.value.id == "sys"
-    ):
-        return True
-    # Bare exit(...) built-in
-    if isinstance(func, ast.Name) and func.id == "exit":
-        return True
-    return False
+    )
 
 
 def _body_unconditionally_exits(body: list[ast.stmt]) -> bool:
@@ -327,6 +321,24 @@ class TestNoRawIsinstanceDictNarrowing:
         """)
         tree = _parse(source)
         assert find_raw_isinstance_dict(tree) == []
+
+    def test_rejects_bare_exit(self) -> None:
+        source = textwrap.dedent("""\
+            if not isinstance(val, dict):
+                exit(1)
+        """)
+        tree = _parse(source)
+        assert find_raw_isinstance_dict(tree) == [1]
+
+    def test_rejects_shadowed_exit(self) -> None:
+        source = textwrap.dedent("""\
+            def exit(code=None):
+                return None
+            if not isinstance(val, dict):
+                exit(1)
+        """)
+        tree = _parse(source)
+        assert find_raw_isinstance_dict(tree) == [3]
 
     def test_rejects_logger_exit(self) -> None:
         source = textwrap.dedent("""\
