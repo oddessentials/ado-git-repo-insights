@@ -1079,6 +1079,8 @@ def cmd_build_aggregates(args: Namespace) -> int:
         db.connect()
 
         try:
+            _backfill_review_timestamps_if_needed(db)
+
             generator = AggregateGenerator(
                 db=db,
                 output_dir=args.out,

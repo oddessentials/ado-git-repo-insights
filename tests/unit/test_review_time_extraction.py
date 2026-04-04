@@ -746,13 +746,14 @@ class TestTriggerScope:
         finally:
             db.close()
 
-    def test_aggregate_path_backfills_review_time(self, tmp_path: Path) -> None:
+    def test_backfill_helper_populates_review_time(self, tmp_path: Path) -> None:
         """DB with pr_comments but no review_time_minutes gets backfilled
-        when _backfill_review_timestamps_if_needed() runs (aggregate path).
+        when _backfill_review_timestamps_if_needed() runs.
 
-        Regression: populate_review_timestamps was only wired into cmd_extract,
-        so generate-aggregates on an upgraded DB with existing comment data
-        produced null review_time rollups.
+        Regression: populate_review_timestamps was only wired into cmd_extract.
+        generate-aggregates and build-aggregates on an upgraded DB with existing
+        comment data produced null review_time rollups. The shared helper must
+        work identically from all three entry points.
         """
         db = _create_test_db(tmp_path)
         try:
