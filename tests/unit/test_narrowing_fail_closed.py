@@ -13,6 +13,7 @@ import importlib.util
 import json
 import subprocess
 import sys
+from collections.abc import Mapping
 from pathlib import Path
 from types import ModuleType
 
@@ -77,8 +78,6 @@ class TestLoadRollupIndexFailClosed:
     """_load_rollup_index must reject non-dict entries, not filter them."""
 
     def test_non_dict_entry_raises_with_index(self) -> None:
-        from collections.abc import Mapping
-
         mod = _load_script("build-demo-dataset")
         manifest: Mapping[str, object] = {
             "aggregate_index": {
@@ -137,7 +136,311 @@ class TestReviewerFilterExamplesFailClosed:
 
 
 # ---------------------------------------------------------------------------
-# 3. Non-numeric cycle_time_p50 in predictions (subprocess — complex module setup)
+# 3. Reviewer metric type enforcement (reviewed_prs, reviews_count, thresholds)
+# ---------------------------------------------------------------------------
+
+
+def _minimal_reviewer_fixture_on_disk(
+    tmp_path: Path,
+    *,
+    by_reviewer: Mapping[str, object],
+    fixture_week: str = "2025-W10",
+) -> Path:
+    """Write the minimum files needed by validate_reviewer_fixture_contract."""
+    data_dir = tmp_path / "data"
+    rollups_dir = data_dir / "aggregates" / "weekly_rollups"
+    rollups_dir.mkdir(parents=True)
+
+    reviewer_ids = list(by_reviewer.keys())
+    reviewers_dim = [
+        {"reviewer_id": rid, "reviewer_name": f"User-{rid}"} for rid in reviewer_ids
+    ]
+    (data_dir / "aggregates" / "dimensions.json").write_text(
+        json.dumps({"reviewers": reviewers_dim, "teams": []}), encoding="utf-8"
+    )
+
+    rollup = {
+        "week": fixture_week,
+        "start_date": "2025-03-03",
+        "end_date": "2025-03-09",
+        "pr_count": 50,
+        "cycle_time_p50": 120.0,
+        "cycle_time_p90": 480.0,
+        "authors_count": 10,
+        "reviewers_count": len(reviewer_ids),
+        "by_reviewer": by_reviewer,
+        "by_repository": {},
+    }
+    (rollups_dir / f"{fixture_week}.json").write_text(
+        json.dumps(rollup, indent=2), encoding="utf-8"
+    )
+
+    manifest = {
+        "aggregate_index": {
+            "weekly_rollups": [
+                {
+                    "week": fixture_week,
+                    "path": f"aggregates/weekly_rollups/{fixture_week}.json",
+                }
+            ],
+            "distributions": [],
+        },
+        "reviewer_fixtures": {
+            "minimum_active_reviewers": 1,
+            "minimum_reviewed_prs_per_reviewer": 2,
+            "minimum_review_actions_per_reviewer": 2,
+            "minimum_multi_repo_reviewers": 0,
+            "reviewer_filter_examples": [
+                {
+                    "week": fixture_week,
+                    "reviewer_id": reviewer_ids[0],
+                    "reviewer_name": f"User-{reviewer_ids[0]}",
+                }
+            ],
+            "reviewer_constrained_example": {
+                "week": fixture_week,
+                "reviewer_id": reviewer_ids[0],
+                "repository_name": "dummy-repo",
+            },
+            "reviewer_team_disallowed_example": {
+                "week": fixture_week,
+                "reviewer_id": reviewer_ids[0],
+                "team_name": "dummy-team",
+            },
+        },
+    }
+    (data_dir / "dataset-manifest.json").write_text(
+        json.dumps(manifest), encoding="utf-8"
+    )
+    return data_dir
+
+
+class TestReviewerMetricTypeEnforcement:
+    """Non-numeric reviewed_prs/reviews_count must raise, not be silently skipped."""
+
+    def test_string_reviewed_prs_raises(self) -> None:
+        mod = _load_script("build-demo-dataset")
+        fixture_by_reviewer = {
+            "r1": {
+                "reviewed_prs": "many",
+                "reviews_count": 10,
+                "repositories_count": 1,
+            },
+        }
+        with pytest.raises(TypeError, match=r"reviewer 'r1'.*non-numeric reviewed_prs"):
+            mod._collect_eligible_reviewer_ids(
+                fixture_by_reviewer, minimum_reviewed_prs=2, minimum_review_actions=2
+            )
+
+    def test_string_reviews_count_raises(self) -> None:
+        mod = _load_script("build-demo-dataset")
+        fixture_by_reviewer = {
+            "r1": {
+                "reviewed_prs": 10,
+                "reviews_count": "lots",
+                "repositories_count": 1,
+            },
+        }
+        with pytest.raises(
+            TypeError, match=r"reviewer 'r1'.*non-numeric reviews_count"
+        ):
+            mod._collect_eligible_reviewer_ids(
+                fixture_by_reviewer, minimum_reviewed_prs=2, minimum_review_actions=2
+            )
+
+    def test_none_reviewed_prs_raises(self) -> None:
+        mod = _load_script("build-demo-dataset")
+        fixture_by_reviewer = {
+            "r1": {"reviewed_prs": None, "reviews_count": 10, "repositories_count": 1},
+        }
+        with pytest.raises(TypeError, match=r"reviewer 'r1'.*non-numeric reviewed_prs"):
+            mod._collect_eligible_reviewer_ids(
+                fixture_by_reviewer, minimum_reviewed_prs=2, minimum_review_actions=2
+            )
+
+    def test_valid_numeric_values_accepted(self) -> None:
+        mod = _load_script("build-demo-dataset")
+        fixture_by_reviewer = {
+            "r1": {"reviewed_prs": 10, "reviews_count": 8, "repositories_count": 2},
+            "r2": {"reviewed_prs": 3.0, "reviews_count": 5.0, "repositories_count": 1},
+        }
+        result = mod._collect_eligible_reviewer_ids(
+            fixture_by_reviewer, minimum_reviewed_prs=2, minimum_review_actions=2
+        )
+        assert set(result) == {"r1", "r2"}
+
+
+class TestReviewerThresholdTypeEnforcement:
+    """Non-numeric fixture threshold values must raise, not pass through assert."""
+
+    def test_string_threshold_raises(self) -> None:
+        mod = _load_script("build-demo-dataset")
+        fixtures = {
+            "minimum_active_reviewers": "three",
+            "minimum_reviewed_prs_per_reviewer": 5,
+            "minimum_review_actions_per_reviewer": 5,
+            "minimum_multi_repo_reviewers": 2,
+        }
+        with pytest.raises(
+            TypeError,
+            match=r"reviewer_fixtures\['minimum_active_reviewers'\] expected numeric",
+        ):
+            mod._collect_reviewer_fixture_thresholds(fixtures)
+
+    def test_none_threshold_raises(self) -> None:
+        mod = _load_script("build-demo-dataset")
+        fixtures = {
+            "minimum_active_reviewers": 3,
+            "minimum_reviewed_prs_per_reviewer": None,
+            "minimum_review_actions_per_reviewer": 5,
+            "minimum_multi_repo_reviewers": 2,
+        }
+        with pytest.raises(
+            TypeError,
+            match=r"reviewer_fixtures\['minimum_reviewed_prs_per_reviewer'\] expected numeric",
+        ):
+            mod._collect_reviewer_fixture_thresholds(fixtures)
+
+
+class TestMixedValidInvalidReviewerSlices:
+    """A single malformed reviewer entry must fail the entire contract."""
+
+    def test_mixed_reviewer_metrics_fail_contract(self, tmp_path: Path) -> None:
+        mod = _load_script("build-demo-dataset")
+        by_reviewer = {
+            "r1": {"reviewed_prs": 10, "reviews_count": 8, "repositories_count": 2},
+            "r2": {
+                "reviewed_prs": "corrupted",
+                "reviews_count": 5,
+                "repositories_count": 1,
+            },
+        }
+        data_dir = _minimal_reviewer_fixture_on_disk(tmp_path, by_reviewer=by_reviewer)
+
+        with pytest.raises(TypeError, match=r"reviewer 'r2'.*non-numeric reviewed_prs"):
+            mod.validate_reviewer_fixture_contract(data_dir)
+
+    def test_mixed_reviews_count_fail_contract(self, tmp_path: Path) -> None:
+        mod = _load_script("build-demo-dataset")
+        by_reviewer = {
+            "r1": {"reviewed_prs": 10, "reviews_count": 8, "repositories_count": 2},
+            "r2": {
+                "reviewed_prs": 5,
+                "reviews_count": {"nested": True},
+                "repositories_count": 1,
+            },
+        }
+        data_dir = _minimal_reviewer_fixture_on_disk(tmp_path, by_reviewer=by_reviewer)
+
+        with pytest.raises(
+            TypeError, match=r"reviewer 'r2'.*non-numeric reviews_count"
+        ):
+            mod.validate_reviewer_fixture_contract(data_dir)
+
+
+class TestRepositoriesCountTypeEnforcement:
+    """Non-numeric repositories_count in multi-repo check must raise, not skip."""
+
+    def test_string_repositories_count_raises(self, tmp_path: Path) -> None:
+        mod = _load_script("build-demo-dataset")
+        # r1 is eligible (meets thresholds) but has non-numeric repositories_count
+        by_reviewer = {
+            "r1": {
+                "reviewed_prs": 10,
+                "reviews_count": 8,
+                "repositories_count": "many",
+            },
+        }
+        data_dir = _minimal_reviewer_fixture_on_disk(tmp_path, by_reviewer=by_reviewer)
+
+        with pytest.raises(
+            TypeError, match=r"reviewer 'r1'.*non-numeric repositories_count"
+        ):
+            mod.validate_reviewer_fixture_contract(data_dir)
+
+
+# ---------------------------------------------------------------------------
+# 4. python -O must not disable fail-fast validation
+# ---------------------------------------------------------------------------
+
+
+def _write_optimize_runner(tmp_path: Path, body: str) -> Path:
+    """Write a helper script that loads scripts/ modules via importlib.
+
+    Avoids sys.path manipulation — registers modules in sys.modules
+    using importlib.util.spec_from_file_location instead.
+    """
+    runner = tmp_path / "_optimize_runner.py"
+    runner.write_text(
+        "import importlib.util, sys\n"
+        "from pathlib import Path\n"
+        "\n"
+        "def _load(name, rel_path):\n"
+        "    spec = importlib.util.spec_from_file_location(name, rel_path)\n"
+        "    mod = importlib.util.module_from_spec(spec)\n"
+        "    sys.modules[name] = mod\n"
+        "    spec.loader.exec_module(mod)\n"
+        "    return mod\n"
+        "\n"
+        "_load('demo_generation_common', 'scripts/demo_generation_common.py')\n"
+        "_load('demo_shell', 'scripts/demo_shell.py')\n"
+        "\n" + body + "\n",
+        encoding="utf-8",
+    )
+    return runner
+
+
+class TestPythonOptimizeModeStillFails:
+    """Assert-based guards were replaced with explicit raises; verify under -O."""
+
+    def test_non_numeric_threshold_fails_under_optimize(self, tmp_path: Path) -> None:
+        """_collect_reviewer_fixture_thresholds must fail even with python -O."""
+        runner = _write_optimize_runner(
+            tmp_path,
+            "build = _load('build_demo_dataset', 'scripts/build-demo-dataset.py')\n"
+            "build._collect_reviewer_fixture_thresholds({\n"
+            "    'minimum_active_reviewers': 'bad',\n"
+            "    'minimum_reviewed_prs_per_reviewer': 5,\n"
+            "    'minimum_review_actions_per_reviewer': 5,\n"
+            "    'minimum_multi_repo_reviewers': 2,\n"
+            "})\n",
+        )
+        result = subprocess.run(
+            [sys.executable, "-O", str(runner)],
+            capture_output=True,
+            text=True,
+            cwd=REPO_ROOT,
+            check=False,
+        )
+        assert result.returncode != 0
+        assert "expected numeric" in result.stderr
+
+    def test_non_dict_features_fails_under_optimize(self, tmp_path: Path) -> None:
+        """refresh_demo_manifest_features must fail even with python -O."""
+        manifest_path = tmp_path / "manifest.json"
+        manifest_path.write_text(
+            json.dumps({"features": "not-a-dict"}), encoding="utf-8"
+        )
+        runner = _write_optimize_runner(
+            tmp_path,
+            "common = _load('demo_generation_common', "
+            "'scripts/demo_generation_common.py')\n"
+            f"common.refresh_demo_manifest_features(Path(r'{manifest_path}'), "
+            "Path('.'))\n",
+        )
+        result = subprocess.run(
+            [sys.executable, "-O", str(runner)],
+            capture_output=True,
+            text=True,
+            cwd=REPO_ROOT,
+            check=False,
+        )
+        assert result.returncode != 0
+        assert "expected dict" in result.stderr
+
+
+# ---------------------------------------------------------------------------
+# 5. Non-numeric cycle_time_p50 in predictions (subprocess — complex module setup)
 # ---------------------------------------------------------------------------
 
 

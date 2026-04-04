@@ -3,7 +3,8 @@
   "compilerOptions": {
     "noEmit": true,
     "declaration": false,
-    "sourceMap": true
+    "sourceMap": true,
+    "types": ["node", "jest"]
   },
   "include": ["tests/**/*.ts", "ui/**/*.ts"],
   "exclude": ["node_modules", "dist"]

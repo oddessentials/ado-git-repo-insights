@@ -20,12 +20,35 @@ from pathlib import Path
 REPO_ROOT = Path(__file__).resolve().parents[2]
 SCRIPTS_DIR = REPO_ROOT / "scripts"
 
-# Scripts that consume load_json_file and must use narrowing discipline
-CALLER_SCRIPTS = [
-    SCRIPTS_DIR / "build-demo-dataset.py",
-    SCRIPTS_DIR / "generate-demo-insights.py",
-    SCRIPTS_DIR / "generate-demo-predictions.py",
-]
+
+def _imports_load_json_file(path: Path) -> bool:
+    """True if *path* contains an import of ``load_json_file`` (AST-based)."""
+    try:
+        tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
+    except SyntaxError:
+        return False
+    for node in ast.walk(tree):
+        if isinstance(node, ast.ImportFrom):
+            for alias in node.names:
+                if alias.name == "load_json_file":
+                    return True
+        # Also catch bare `import demo_generation_common` + attribute access,
+        # but the primary pattern in this repo is `from ... import load_json_file`.
+    return False
+
+
+def _discover_caller_scripts() -> list[Path]:
+    """Auto-discover scripts/ files that import load_json_file."""
+    # demo_generation_common.py *defines* load_json_file — it is not a caller.
+    return sorted(
+        path
+        for path in SCRIPTS_DIR.glob("*.py")
+        if path.name != "demo_generation_common.py" and _imports_load_json_file(path)
+    )
+
+
+# Auto-discovered: scripts that consume load_json_file and must use narrowing discipline
+CALLER_SCRIPTS = _discover_caller_scripts()
 
 
 def _parse(source: str, filename: str = "<test>") -> ast.Module:
@@ -366,3 +389,41 @@ class TestNoRawIsinstanceDictNarrowing:
         """)
         tree = _parse(source)
         assert find_raw_isinstance_dict(tree) == [1]
+
+
+# -----------------------------------------------------------------------
+# Guard 3: Auto-discovery covers all load_json_file callers
+# -----------------------------------------------------------------------
+
+
+class TestCallerScriptsAutoDiscovery:
+    """CALLER_SCRIPTS must be auto-discovered, not a stale hard-coded list."""
+
+    def test_known_callers_are_discovered(self) -> None:
+        """The three original callers must still be in the auto-discovered set."""
+        names = {p.name for p in CALLER_SCRIPTS}
+        assert "build-demo-dataset.py" in names
+        assert "generate-demo-insights.py" in names
+        assert "generate-demo-predictions.py" in names
+
+    def test_discovery_excludes_definer(self) -> None:
+        """demo_generation_common.py defines load_json_file — it is not a caller."""
+        names = {p.name for p in CALLER_SCRIPTS}
+        assert "demo_generation_common.py" not in names
+
+    def test_temporary_script_is_auto_discovered(self, tmp_path: Path) -> None:
+        """A new script importing load_json_file is picked up by discovery."""
+        # Write a temporary script into scripts/ — but we don't want to pollute
+        # the real directory, so test the discovery function directly.
+        fake_script = tmp_path / "fake_caller.py"
+        fake_script.write_text(
+            "from demo_generation_common import load_json_file\n",
+            encoding="utf-8",
+        )
+        assert _imports_load_json_file(fake_script)
+
+    def test_non_caller_script_excluded(self, tmp_path: Path) -> None:
+        """A script that does NOT import load_json_file is excluded."""
+        fake_script = tmp_path / "unrelated.py"
+        fake_script.write_text("import json\n", encoding="utf-8")
+        assert not _imports_load_json_file(fake_script)

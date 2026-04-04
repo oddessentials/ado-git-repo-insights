@@ -436,6 +436,33 @@ def _staged_suppression_delta_inputs(
     return baseline_counts, current_counts, tokenize_errors
 
 
+def run_commitlint_dispatcher_health_check() -> None:
+    """Verify the husky commit-msg dispatcher is intact.
+
+    External tools (e.g. ``entire``) can overwrite ``.husky/_/commit-msg``
+    which is the internal hook git actually calls.  When overwritten, the
+    dispatch chain to ``.husky/commit-msg`` (the user-facing hook with
+    commitlint) breaks silently — bad commit messages pass through.
+
+    This check warns but does not block — the CI commitlint job is the
+    authoritative gate.  Blocking locally creates an unwinnable loop when
+    external tools re-inject on every commit.
+    """
+    dispatcher = REPO_ROOT / ".husky" / "_" / "commit-msg"
+    if not dispatcher.exists():
+        # .husky/_/ not generated yet — pnpm install hasn't run
+        return
+    content = dispatcher.read_text(encoding="utf-8", errors="replace")
+    # The standard husky dispatcher sources the `h` script.
+    # Any content that does NOT include this pattern was overwritten.
+    if '/")/h"' in content or ")/h'" in content:
+        return
+    safe_print("[pre-commit] WARNING: .husky/_/commit-msg dispatcher is corrupted")
+    safe_print("  Local commitlint will not run on commit messages.")
+    safe_print("  CI will still enforce conventional commits on PR.")
+    safe_print("  To restore local enforcement: pnpm exec husky")
+
+
 def run_staged_suppression_diff_guard() -> None:
     baseline = _load_authoritative_suppression_baseline()
     if baseline is None:
@@ -938,6 +965,7 @@ def run_pre_commit_hook() -> None:
     safe_print("[pre-commit] running Any-type ratchet (QG-40)")
     run_command([sys.executable, "scripts/check_no_any_types.py", "--diff"])
     run_acl_health_check()
+    run_commitlint_dispatcher_health_check()
     run_pre_commit_stage()
     ensure_no_compiled_js()
     run_pnpm_lockfile_guard()

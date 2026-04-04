@@ -1,6 +1,6 @@
 {
   "rule": "S603",
-  "total_call_sites": 79,
+  "total_call_sites": 81,
   "unsafe_count": 12,
   "call_sites": [
     {
@@ -245,7 +245,7 @@
     },
     {
       "file": "scripts/run_repo_hook.py",
-      "line": 1089,
+      "line": 1117,
       "code": "result = subprocess.run(",
       "shell_true": false,
       "literal_list": true,
@@ -549,7 +549,23 @@
     },
     {
       "file": "tests/unit/test_narrowing_fail_closed.py",
-      "line": 155,
+      "line": 408,
+      "code": "result = subprocess.run(",
+      "shell_true": false,
+      "literal_list": true,
+      "safety": "safe-literal-list"
+    },
+    {
+      "file": "tests/unit/test_narrowing_fail_closed.py",
+      "line": 431,
+      "code": "result = subprocess.run(",
+      "shell_true": false,
+      "literal_list": true,
+      "safety": "safe-literal-list"
+    },
+    {
+      "file": "tests/unit/test_narrowing_fail_closed.py",
+      "line": 458,
       "code": "return subprocess.run(",
       "shell_true": false,
       "literal_list": true,
@@ -557,7 +573,7 @@
     },
     {
       "file": "tests/unit/test_narrowing_fail_closed.py",
-      "line": 200,
+      "line": 503,
       "code": "return subprocess.run(",
       "shell_true": false,
       "literal_list": true,
@@ -565,7 +581,7 @@
     },
     {
       "file": "tests/unit/test_narrowing_fail_closed.py",
-      "line": 245,
+      "line": 548,
       "code": "result = subprocess.run(",
       "shell_true": false,
       "literal_list": true,

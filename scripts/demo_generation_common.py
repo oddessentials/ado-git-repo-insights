@@ -285,6 +285,9 @@ def refresh_demo_manifest_features(manifest_path: Path, data_dir: Path) -> None:
     """Refresh manifest feature flags from the generated demo dataset."""
     manifest = load_json_file(manifest_path)
     features = manifest.setdefault("features", {})
-    assert isinstance(features, dict)
+    if not isinstance(features, dict):
+        raise TypeError(
+            f"manifest 'features' expected dict, got {type(features).__name__}"
+        )
     features.update(discover_demo_feature_flags(data_dir))
     write_json_file(manifest_path, manifest)
