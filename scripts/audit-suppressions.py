@@ -24,7 +24,7 @@ import sys
 from collections import defaultdict
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import Any, TypedDict
+from typing import TypedDict
 
 # =============================================================================
 # Type Definitions (per data-model.md schema)
@@ -681,7 +681,7 @@ def build_baseline(
     return baseline
 
 
-def validate_baseline(baseline: dict[str, Any]) -> list[str]:
+def validate_baseline(baseline: SuppressionBaseline) -> list[str]:
     """
     Validate baseline format and ordering per FR-020.
 
@@ -729,11 +729,13 @@ def validate_baseline(baseline: dict[str, Any]) -> list[str]:
             f"Total mismatch: total={baseline['total']}, sum(by_file)={file_total}"
         )
 
-    # Check alphabetical ordering
+    # Check alphabetical ordering — plain dict view for dynamic key iteration
+    baseline_view: dict[str, object] = dict(baseline)
     for key in ["scope_policy", "by_scope", "by_type", "by_file", "by_rule"]:
-        if key in baseline and isinstance(baseline[key], dict):
-            keys = list(baseline[key].keys())
-            if keys != sorted(keys):
+        val = baseline_view.get(key)
+        if isinstance(val, dict):
+            dict_keys = list(val.keys())
+            if dict_keys != sorted(dict_keys):
                 errors.append(f"Keys not sorted alphabetically in {key}")
 
     # Check path format (forward slashes)
