@@ -992,31 +992,44 @@ def test_undersampled_slices_null_review_time() -> None:
         )
 
 
-def test_root_review_time_null_when_undersampled() -> None:
-    """Root review_time must be null when week has fewer than 2 PRs.
+def test_root_review_time_matches_production_gating() -> None:
+    """Root review_time_p50 and _p90 must always be both-null or both-non-null.
 
-    Regression: synthetic generator emitted non-null root review_time
-    unconditionally, even for 1-PR weeks where production would null.
+    Production gates both percentiles from the same sample count check
+    (review_time_minutes.notna().sum() >= 2). No impossible mixed states
+    (one null, one numeric) are allowed. Additionally, weeks with fewer
+    than 2 PRs must always emit null for both.
     """
-    # Small dataset: 100 PRs across 52 weeks → some weeks will have 1 PR
     output_dir = run_generator(pr_count=100, weeks=52, seed=42)
     rollup_dir = output_dir / "aggregates" / "weekly_rollups"
 
-    root_violations = 0
-    root_checked = 0
+    mixed_states = 0
+    undersampled_with_value = 0
+    total = 0
     for rollup_path in sorted(rollup_dir.glob("*.json")):
         with rollup_path.open() as f:
             data = json.load(f)
+        total += 1
+        rt_p50 = data.get("review_time_p50")
+        rt_p90 = data.get("review_time_p90")
         pr_count = data.get("pr_count", 0)
-        if pr_count < 2:
-            root_checked += 1
-            rt_p50 = data.get("review_time_p50")
-            rt_p90 = data.get("review_time_p90")
-            if rt_p50 is not None or rt_p90 is not None:
-                root_violations += 1
 
-    if root_checked > 0:
-        assert root_violations == 0, (
-            f"{root_violations}/{root_checked} root rollups with pr_count < 2 "
-            f"have non-null review_time — production would null these"
-        )
+        # No impossible mixed states: both null or both non-null
+        p50_null = rt_p50 is None
+        p90_null = rt_p90 is None
+        if p50_null != p90_null:
+            mixed_states += 1
+
+        # Undersampled weeks must be null
+        if pr_count < 2 and (rt_p50 is not None or rt_p90 is not None):
+            undersampled_with_value += 1
+
+    assert total > 0
+    assert mixed_states == 0, (
+        f"{mixed_states}/{total} root rollups have mixed null state "
+        f"(one null, one numeric) — production never allows this"
+    )
+    assert undersampled_with_value == 0, (
+        f"{undersampled_with_value} root rollups with pr_count < 2 "
+        f"have non-null review_time"
+    )

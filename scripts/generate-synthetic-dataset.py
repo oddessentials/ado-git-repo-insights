@@ -210,18 +210,18 @@ def generate_weekly_rollups(
         ct_p50 = rng.uniform(120, 480)  # 2-8 hours
         ct_p90 = rng.uniform(480, 1440)  # 8-24 hours
         # Review time: single ratio per entity guarantees p50 <= p90.
-        # Production nulls when < _ROLLUP_MIN_SAMPLE (2) PRs have data.
+        # Production gates both percentiles together from the same
+        # review_time_minutes.notna().sum() >= _ROLLUP_MIN_SAMPLE (2) check.
+        # Root P50 and P90 are ALWAYS both-null or both-non-null — never mixed.
         rt_ratio = rng.uniform(0.3, 0.7)
-        rt_p50: float | None = round(ct_p50 * rt_ratio, 3)
-        rt_p90: float | None = round(ct_p90 * rt_ratio, 3)
-        if week_pr_count < 2:
+        rt_p50: float | None
+        rt_p90: float | None
+        if week_pr_count < 2 or rng.random() < 0.10:
             rt_p50 = None
             rt_p90 = None
         else:
-            if rng.random() < 0.10:  # ~10% null rate per percentile
-                rt_p50 = None
-            if rng.random() < 0.10:
-                rt_p90 = None
+            rt_p50 = round(ct_p50 * rt_ratio, 3)
+            rt_p90 = round(ct_p90 * rt_ratio, 3)
 
         rollup = WeeklyRollup(
             week=week_str,
