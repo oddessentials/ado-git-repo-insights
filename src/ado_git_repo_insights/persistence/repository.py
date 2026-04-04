@@ -270,6 +270,11 @@ class PRRepository:
     ) -> None:
         """Insert or update a reviewer.
 
+        Uses ON CONFLICT to preserve ``reviewed_at`` when the PR extraction
+        pass re-upserts an existing reviewer (only vote and repository_id
+        are updated).  The old INSERT OR REPLACE would delete-then-insert,
+        wiping any previously populated ``reviewed_at`` timestamp.
+
         Args:
             pull_request_uid: PR unique identifier.
             user_id: Reviewer user ID.
@@ -278,9 +283,12 @@ class PRRepository:
         """
         self.db.execute(
             """
-            INSERT OR REPLACE INTO reviewers
-            (pull_request_uid, user_id, vote, repository_id)
+            INSERT INTO reviewers
+                (pull_request_uid, user_id, vote, repository_id)
             VALUES (?, ?, ?, ?)
+            ON CONFLICT(pull_request_uid, user_id) DO UPDATE SET
+                vote = excluded.vote,
+                repository_id = excluded.repository_id
             """,
             (pull_request_uid, user_id, vote, repository_id),
         )
