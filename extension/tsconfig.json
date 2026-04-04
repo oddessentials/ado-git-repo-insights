@@ -20,6 +20,11 @@
     "types": ["node"],
     "typeRoots": ["./node_modules/@types"]
   },
+  "ts-node": {
+    "compilerOptions": {
+      "module": "CommonJS"
+    }
+  },
   "include": [
     "ui/**/*.ts",
     "scripts/**/*.ts",
