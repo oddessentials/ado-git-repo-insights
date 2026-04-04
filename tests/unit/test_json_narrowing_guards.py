@@ -129,24 +129,25 @@ def _is_isinstance_dict(node: ast.expr) -> bool:
     return False
 
 
-def _is_failfast_isinstance(node: ast.If) -> bool:
-    """True if this `if` is a fail-fast validation that raises for non-dict.
+def _body_contains_raise(body: list[ast.stmt]) -> bool:
+    """True if *body* contains a Raise anywhere (including nested if/for/with)."""
+    for stmt in body:
+        if isinstance(stmt, ast.Raise):
+            return True
+        # Recurse into nested blocks that are still part of the failure path
+        for child in ast.walk(stmt):
+            if isinstance(child, ast.Raise):
+                return True
+    return False
 
-    Matches:
-      if not isinstance(x, dict): raise ...
-      if not isinstance(x, dict) or <other_cond>: raise ...
 
-    Does NOT match positive-branch isinstance or ternary defaults.
-    """
-    if not (node.body and isinstance(node.body[0], ast.Raise)):
-        return False
-
-    test = node.test
-    # Simple: if not isinstance(x, dict): raise
+def _test_has_not_isinstance_dict(test: ast.expr) -> bool:
+    """True if *test* contains `not isinstance(x, dict)` (simple or compound `or`)."""
+    # Simple: not isinstance(x, dict)
     if isinstance(test, ast.UnaryOp) and isinstance(test.op, ast.Not):
         if _is_isinstance_dict(test.operand):
             return True
-    # Compound: if not isinstance(x, dict) or ...: raise
+    # Compound: not isinstance(x, dict) or ...
     if isinstance(test, ast.BoolOp) and isinstance(test.op, ast.Or):
         for val in test.values:
             if isinstance(val, ast.UnaryOp) and isinstance(val.op, ast.Not):
@@ -155,23 +156,37 @@ def _is_failfast_isinstance(node: ast.If) -> bool:
     return False
 
 
+def _is_failfast_isinstance(node: ast.If) -> bool:
+    """True if this `if` is a fail-fast validation that raises for non-dict.
+
+    Matches any `if not isinstance(x, dict) [or ...]:` block whose body
+    contains a raise anywhere — including after variable assignments,
+    logging calls, or nested conditionals.
+
+    Does NOT match positive-branch isinstance or ternary defaults.
+    """
+    if not _test_has_not_isinstance_dict(node.test):
+        return False
+    return _body_contains_raise(node.body)
+
+
 def find_raw_isinstance_dict(tree: ast.Module) -> list[int]:
     """Return line numbers of raw isinstance(x, dict) that are NOT fail-fast validation."""
     # Collect line numbers of isinstance calls in approved fail-fast if-blocks
     approved_lines: set[int] = set()
     for node in ast.walk(tree):
-        if isinstance(node, ast.If) and _is_failfast_isinstance(node):
-            test = node.test
-            # Simple: not isinstance(x, dict)
-            if isinstance(test, ast.UnaryOp) and isinstance(test.op, ast.Not):
-                if _is_isinstance_dict(test.operand):
-                    approved_lines.add(test.operand.lineno)
-            # Compound: not isinstance(x, dict) or ...
-            if isinstance(test, ast.BoolOp):
-                for val in test.values:
-                    if isinstance(val, ast.UnaryOp) and isinstance(val.op, ast.Not):
-                        if _is_isinstance_dict(val.operand):
-                            approved_lines.add(val.operand.lineno)
+        if not (isinstance(node, ast.If) and _is_failfast_isinstance(node)):
+            continue
+        # Extract the isinstance call lineno from the test expression
+        test = node.test
+        if isinstance(test, ast.UnaryOp) and isinstance(test.op, ast.Not):
+            if _is_isinstance_dict(test.operand):
+                approved_lines.add(test.operand.lineno)
+        if isinstance(test, ast.BoolOp):
+            for val in test.values:
+                if isinstance(val, ast.UnaryOp) and isinstance(val.op, ast.Not):
+                    if _is_isinstance_dict(val.operand):
+                        approved_lines.add(val.operand.lineno)
 
     violations: list[int] = []
     for node in ast.walk(tree):
@@ -229,6 +244,25 @@ class TestNoRawIsinstanceDictNarrowing:
         """if not isinstance(x, dict): raise TypeError(...) — the approved pattern."""
         source = textwrap.dedent("""\
             if not isinstance(val, dict):
+                raise TypeError("expected dict")
+        """)
+        tree = _parse(source)
+        assert find_raw_isinstance_dict(tree) == []
+
+    def test_allows_assigned_message_then_raise(self) -> None:
+        source = textwrap.dedent("""\
+            if not isinstance(val, dict):
+                msg = f"expected dict, got {type(val).__name__}"
+                raise TypeError(msg)
+        """)
+        tree = _parse(source)
+        assert find_raw_isinstance_dict(tree) == []
+
+    def test_allows_nested_log_then_raise(self) -> None:
+        source = textwrap.dedent("""\
+            if not isinstance(val, dict):
+                if debug:
+                    log(val)
                 raise TypeError("expected dict")
         """)
         tree = _parse(source)
