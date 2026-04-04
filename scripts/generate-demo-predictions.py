@@ -24,7 +24,6 @@ from dataclasses import dataclass
 from datetime import date, timedelta
 from decimal import Decimal
 from pathlib import Path
-from typing import Any
 
 from demo_generation_common import (
     FIXED_GENERATED_AT,
@@ -148,7 +147,7 @@ def generate_forecast(
     horizon_weeks: int,
     base_confidence: float = BASE_CONFIDENCE_INTERVAL,
     widening_per_week: float = CONFIDENCE_WIDENING_PER_WEEK,
-) -> list[dict[str, Any]]:
+) -> list[dict[str, object]]:
     """
     Generate forecast values with widening confidence intervals.
 
@@ -211,7 +210,7 @@ def generate_forecast(
 # =============================================================================
 
 
-def generate_pr_throughput_forecast(rollups: list[WeeklyMetrics]) -> dict[str, Any]:
+def generate_pr_throughput_forecast(rollups: list[WeeklyMetrics]) -> dict[str, object]:
     """Generate pr_throughput forecast (T033)."""
     # Get last 8 weeks of PR counts
     recent = rollups[-TREND_LOOKBACK_WEEKS:]
@@ -228,7 +227,7 @@ def generate_pr_throughput_forecast(rollups: list[WeeklyMetrics]) -> dict[str, A
     }
 
 
-def generate_cycle_time_forecast(rollups: list[WeeklyMetrics]) -> dict[str, Any]:
+def generate_cycle_time_forecast(rollups: list[WeeklyMetrics]) -> dict[str, object]:
     """Generate cycle_time_minutes forecast (T034)."""
     # Get last 8 weeks of cycle time P50
     recent = rollups[-TREND_LOOKBACK_WEEKS:]
@@ -245,7 +244,7 @@ def generate_cycle_time_forecast(rollups: list[WeeklyMetrics]) -> dict[str, Any]
     }
 
 
-def generate_review_time_forecast(rollups: list[WeeklyMetrics]) -> dict[str, Any]:
+def generate_review_time_forecast(rollups: list[WeeklyMetrics]) -> dict[str, object]:
     """
     Generate review_time_minutes forecast (T035).
 
