@@ -500,7 +500,12 @@ class TestSkipLibCheckProhibited:
 
 
 class TestCommitlintInfrastructure:
-    """Commitlint config and hook must be present to enforce conventional commits."""
+    """Commitlint config and tracked hook file must reference commitlint.
+
+    These tests verify that the *tracked* infrastructure exists.  They do
+    NOT verify the dispatcher git actually executes (.husky/_/commit-msg) —
+    see TestCommitlintDispatcherHealthCheck for that.
+    """
 
     def test_commitlint_config_exists(self) -> None:
         repo_root = Path(__file__).resolve().parents[2]
@@ -509,15 +514,72 @@ class TestCommitlintInfrastructure:
             "commitlint.config.cjs is missing — commit message linting is disabled"
         )
 
-    def test_commit_msg_hook_invokes_commitlint(self) -> None:
+    def test_tracked_commit_msg_hook_references_commitlint(self) -> None:
+        """Verify .husky/commit-msg (tracked) references commitlint.
+
+        This checks the tracked hook file that husky dispatches to.
+        It does NOT prove commitlint runs — the dispatcher (.husky/_/)
+        can be overwritten by external tools, breaking the chain.
+        """
         repo_root = Path(__file__).resolve().parents[2]
         hook = repo_root / ".husky" / "commit-msg"
         assert hook.exists(), ".husky/commit-msg hook is missing"
         content = hook.read_text(encoding="utf-8")
         assert "commitlint" in content, (
-            ".husky/commit-msg does not reference commitlint — "
-            "commit messages will not be validated"
+            ".husky/commit-msg does not reference commitlint"
         )
+
+
+run_commitlint_dispatcher_health_check = (
+    _hook_module.run_commitlint_dispatcher_health_check
+)
+
+
+class TestCommitlintDispatcherHealthCheck:
+    """Unit tests for the runtime check that detects dispatcher corruption.
+
+    Git executes .husky/_/commit-msg (set via core.hooksPath), not the
+    tracked .husky/commit-msg.  External tools can overwrite the dispatcher,
+    silently breaking commitlint.  run_commitlint_dispatcher_health_check()
+    is the function that detects this at commit time.
+    """
+
+    @staticmethod
+    def _write_dispatcher(tmp_path: Path, content: str) -> None:
+        husky_internal = tmp_path / ".husky" / "_"
+        husky_internal.mkdir(parents=True, exist_ok=True)
+        (husky_internal / "commit-msg").write_text(content, encoding="utf-8")
+
+    def test_passes_on_standard_husky_dispatcher(self, tmp_path: Path) -> None:
+        self._write_dispatcher(tmp_path, '#!/usr/bin/env sh\n. "$(dirname "$0")/h"\n')
+        with patch.object(_hook_module, "REPO_ROOT", tmp_path):
+            run_commitlint_dispatcher_health_check()  # should not raise or warn
+
+    def test_warns_on_corrupted_dispatcher(
+        self, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        """Dispatcher overwritten by external tool — warn with fix command."""
+        self._write_dispatcher(
+            tmp_path,
+            "#!/bin/sh\n"
+            "# Entire CLI hooks\n"
+            'entire hooks git commit-msg "$1" || exit 1\n',
+        )
+        with patch.object(_hook_module, "REPO_ROOT", tmp_path):
+            run_commitlint_dispatcher_health_check()
+        captured = capsys.readouterr()
+        assert "corrupted" in captured.out
+        assert "pnpm exec husky" in captured.out
+
+    def test_skips_when_dispatcher_not_yet_generated(self, tmp_path: Path) -> None:
+        """Before pnpm install, .husky/_/ does not exist — silent skip.
+
+        This is expected on first clone before bootstrapping.  The CI
+        commitlint job is the authoritative gate regardless.
+        """
+        # tmp_path has no .husky/_/ directory
+        with patch.object(_hook_module, "REPO_ROOT", tmp_path):
+            run_commitlint_dispatcher_health_check()  # should return silently
 
 
 _acl_write_probe = _hook_module._acl_write_probe
