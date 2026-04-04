@@ -37,6 +37,20 @@ describe("TypeScript config parity resolution", () => {
   const testOpts = resolveConfig("tsconfig.test.json");
   const typeTestOpts = resolveConfig("tsconfig.type-tests.json");
 
+  describe("skipLibCheck must be disabled across all configs", () => {
+    it("production config does not set skipLibCheck", () => {
+      expect(prodOpts.skipLibCheck).toBeFalsy();
+    });
+
+    it("test config does not set skipLibCheck", () => {
+      expect(testOpts.skipLibCheck).toBeFalsy();
+    });
+
+    it("type-test config does not set skipLibCheck", () => {
+      expect(typeTestOpts.skipLibCheck).toBeFalsy();
+    });
+  });
+
   describe("production config baseline", () => {
     it("resolves strict as true", () => {
       expect(prodOpts.strict).toBe(true);

@@ -462,6 +462,43 @@ class TestPathspecsMatchRealFiles:
         assert len(files) == 0, f"Unexpected .d.ts files in types/: {files}"
 
 
+class TestSkipLibCheckProhibited:
+    """skipLibCheck: true must not appear in any repo-owned tsconfig.
+
+    This is the TypeScript equivalent of closing ignore_missing_imports
+    for Python (#243). All library .d.ts files must be type-checked.
+    """
+
+    # All repo-owned tsconfigs — node_modules are excluded by git ls-files.
+    REPO_TSCONFIGS = [
+        Path("extension") / "tsconfig.json",
+        Path("extension") / "tsconfig.test.json",
+        Path("extension") / "tsconfig.type-tests.json",
+        Path("scripts") / "tsconfig.json",
+        Path("tsconfig.json"),
+    ]
+
+    def test_no_skip_lib_check_in_any_tsconfig(self) -> None:
+        import json
+
+        repo_root = Path(__file__).resolve().parents[2]
+        violations: list[str] = []
+        for rel_path in self.REPO_TSCONFIGS:
+            config_path = repo_root / rel_path
+            if not config_path.exists():
+                violations.append(f"  {rel_path}: FILE MISSING")
+                continue
+            data = json.loads(config_path.read_text(encoding="utf-8"))
+            compiler_opts = data.get("compilerOptions", {})
+            if compiler_opts.get("skipLibCheck") is True:
+                violations.append(f"  {rel_path}: skipLibCheck is true")
+        assert not violations, (
+            "skipLibCheck: true re-enabled in repo-owned tsconfig files.\n"
+            "Library .d.ts type-checking must not be skipped (#248).\n"
+            + "\n".join(violations)
+        )
+
+
 _acl_write_probe = _hook_module._acl_write_probe
 run_acl_health_check = _hook_module.run_acl_health_check
 
