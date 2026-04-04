@@ -21,7 +21,7 @@
 
 <!-- TypeScript -->
 
-![TypeScript](https://img.shields.io/badge/TypeScript-5.x-blue?logo=typescript)
+![TypeScript](https://img.shields.io/badge/TypeScript-6.x-blue?logo=typescript)
 ![TypeScript Coverage](https://img.shields.io/badge/dynamic/json?url=https%3A%2F%2Fraw.githubusercontent.com%2Foddessentials%2Fado-git-repo-insights%2Fbadges%2Fstatus.json&query=%24.typescript.coverage&label=TypeScript%20Coverage&suffix=%25&color=brightgreen)
 ![TypeScript Tests](https://img.shields.io/badge/dynamic/json?url=https%3A%2F%2Fraw.githubusercontent.com%2Foddessentials%2Fado-git-repo-insights%2Fbadges%2Fstatus.json&query=%24.typescript.tests.display&label=TypeScript%20Tests&color=blue)
 
