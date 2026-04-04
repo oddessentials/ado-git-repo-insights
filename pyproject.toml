@@ -110,6 +110,7 @@ strict = true
 warn_return_any = true
 warn_unused_configs = true
 ignore_missing_imports = false
+mypy_path = ["scripts"]
 # Disable redundant-cast warnings: pandas-stubs versions differ between CI
 # (Ubuntu) and local (Windows), causing cast(pd.DataFrame, ...) to be required
 # in CI but flagged as redundant locally. See forecaster.py:176, fallback_forecaster.py:403.
@@ -126,10 +127,6 @@ module = [
     "prophet",
     "openai",
     "defusedxml.*",
-    # Scripts import sibling modules via sys.path.insert at runtime;
-    # mypy cannot resolve these cross-script imports statically.
-    "demo_generation_common",
-    "demo_shell",
 ]
 ignore_missing_imports = true
 
@@ -146,8 +143,33 @@ disallow_incomplete_defs = false
 disallow_any_generics = false
 warn_return_any = false
 
+# Scripts override: mypy_path = ["scripts"] makes these top-level modules.
+# Without scripts/__init__.py, "scripts.*" no longer matches; list modules
+# explicitly.  The test_mypy_scripts_override_coverage test enforces that
+# every valid-identifier script module appears here.
 [[tool.mypy.overrides]]
-module = "scripts.*"
+module = [
+    "build_demo",
+    "check_coverage_delta",
+    "check_no_any_types",
+    "check_patch_coverage",
+    "check_rule_disable_invariants",
+    "check_threshold_changes",
+    "check_tool_versions",
+    "csv_diff",
+    "demo_generation_common",
+    "demo_shell",
+    "env_guard",
+    "manage_generated_artifacts",
+    "pytest_cov_launcher_plugin",
+    "run_ci_parity",
+    "run_pr_preflight",
+    "run_pytest",
+    "run_repo_hook",
+    "sync_ui_bundle",
+    "validate_demo_generation_contract",
+    "validate_yaml_files",
+]
 disallow_untyped_defs = false
 disallow_untyped_calls = false
 check_untyped_defs = true

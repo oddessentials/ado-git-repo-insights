@@ -668,7 +668,8 @@ def generate_dataset(
     manifest_dict = asdict(manifest)
 
     def _int(val: object) -> int:
-        assert isinstance(val, int)
+        if not isinstance(val, int):
+            raise TypeError(f"Expected int, got {type(val).__name__}")
         return val
 
     total_size = sum(_int(item["size_bytes"]) for item in weekly_index)

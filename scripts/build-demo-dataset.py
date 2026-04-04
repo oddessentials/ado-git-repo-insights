@@ -12,7 +12,10 @@ import sys
 import time
 from collections.abc import Mapping, Sequence
 from pathlib import Path
-from typing import TypedDict
+from typing import TYPE_CHECKING, TypedDict
+
+if TYPE_CHECKING:
+    from ado_git_repo_insights.types import JSONValue
 
 from demo_generation_common import (
     CANONICAL_COMMITTED_DEMO_MODE,
@@ -20,6 +23,8 @@ from demo_generation_common import (
     VALIDATED_COMMITTED_DEMO_MODE,
     build_generation_provenance,
     load_json_file,
+    narrow_mapping,
+    narrow_sequence,
     require_demo_generation_baseline,
     validate_generation_provenance,
     write_json_file,
@@ -243,9 +248,13 @@ def collect_nonindexed_direct_files(manifest: _JsonDict) -> set[str]:
 def validate_manifest_addressability(data_dir: Path) -> None:
     """Fail if any published demo file is not declared by the manifest."""
     manifest = load_json_file(data_dir / "dataset-manifest.json")
-    published_files = manifest.get("published_files", {})
-    declared_direct = set(published_files.get("direct", []))
-    declared_globs = list(published_files.get("globs", []))
+    published_files = narrow_mapping(manifest.get("published_files", {}))
+    declared_direct: set[str] = {
+        str(v) for v in narrow_sequence(published_files.get("direct", []))
+    }
+    declared_globs: list[str] = [
+        str(v) for v in narrow_sequence(published_files.get("globs", []))
+    ]
     inferred_direct = collect_nonindexed_direct_files(manifest)
 
     if declared_direct != inferred_direct:
@@ -257,11 +266,11 @@ def validate_manifest_addressability(data_dir: Path) -> None:
         )
 
     indexed_files = set()
-    aggregate_index = manifest.get("aggregate_index", {})
-    for rollup in aggregate_index.get("weekly_rollups", []):
-        indexed_files.add(rollup["path"])
-    for distribution in aggregate_index.get("distributions", []):
-        indexed_files.add(distribution["path"])
+    agg_index = narrow_mapping(manifest.get("aggregate_index", {}))
+    for rollup in narrow_sequence(agg_index.get("weekly_rollups", [])):
+        indexed_files.add(narrow_mapping(rollup)["path"])
+    for distribution in narrow_sequence(agg_index.get("distributions", [])):
+        indexed_files.add(narrow_mapping(distribution)["path"])
 
     actual_files = list_relative_files(data_dir)
     unmatched = []
@@ -283,10 +292,13 @@ def stamp_canonical_manifest_provenance(data_dir: Path) -> None:
     """Stamp the manifest with the canonical committed-demo provenance contract."""
     manifest_path = data_dir / "dataset-manifest.json"
     manifest = load_json_file(manifest_path)
-    manifest["generation_provenance"] = build_generation_provenance(
-        generator_script=CANONICAL_COMMITTED_DEMO_SCRIPT,
-        generation_mode=CANONICAL_COMMITTED_DEMO_MODE,
+    prov: dict[str, JSONValue] = dict(
+        build_generation_provenance(
+            generator_script=CANONICAL_COMMITTED_DEMO_SCRIPT,
+            generation_mode=CANONICAL_COMMITTED_DEMO_MODE,
+        )
     )
+    manifest["generation_provenance"] = prov
     write_json_file(manifest_path, manifest)
 
 
@@ -304,18 +316,15 @@ def ensure_demo_data_complete(data_dir: Path, *, max_retries: int = 5) -> None:
             ]
         else:
             manifest = load_json_file(manifest_path)
+            agg_idx = narrow_mapping(manifest.get("aggregate_index", {}))
             expected_paths = [dimensions_path]
             expected_paths.extend(
-                data_dir / entry["path"]
-                for entry in manifest.get("aggregate_index", {}).get(
-                    "weekly_rollups", []
-                )
+                data_dir / str(narrow_mapping(entry)["path"])
+                for entry in narrow_sequence(agg_idx.get("weekly_rollups", []))
             )
             expected_paths.extend(
-                data_dir / entry["path"]
-                for entry in manifest.get("aggregate_index", {}).get(
-                    "distributions", []
-                )
+                data_dir / str(narrow_mapping(entry)["path"])
+                for entry in narrow_sequence(agg_idx.get("distributions", []))
             )
             missing = [path for path in expected_paths if not path.exists()]
             if not missing:
@@ -342,10 +351,13 @@ def restamp_final_artifact_provenance(
     """Normalize final artifact provenance under the canonical builder contract."""
     stamp_canonical_manifest_provenance(data_dir)
     profile = load_json_file(profile_path)
-    profile["generation_provenance"] = build_generation_provenance(
-        generator_script=CANONICAL_COMMITTED_DEMO_SCRIPT,
-        generation_mode=generation_mode,
+    prov: dict[str, JSONValue] = dict(
+        build_generation_provenance(
+            generator_script=CANONICAL_COMMITTED_DEMO_SCRIPT,
+            generation_mode=generation_mode,
+        )
     )
+    profile["generation_provenance"] = prov
     write_json_file(profile_path, profile)
 
 
@@ -568,10 +580,15 @@ def validate_reviewer_fixture_contract(
     reviewer_fixtures = _load_reviewer_fixture_metadata(manifest)
 
     reviewer_lookup: dict[str, str] = {
-        entry["reviewer_id"]: entry["reviewer_name"]
-        for entry in dimensions.get("reviewers", [])
+        str(narrow_mapping(entry)["reviewer_id"]): str(
+            narrow_mapping(entry)["reviewer_name"]
+        )
+        for entry in narrow_sequence(dimensions.get("reviewers", []))
     }
-    team_names: set[str] = {entry["team_name"] for entry in dimensions.get("teams", [])}
+    team_names: set[str] = {
+        str(narrow_mapping(entry)["team_name"])
+        for entry in narrow_sequence(dimensions.get("teams", []))
+    }
     weekly_rollups = _load_rollup_index(data_dir, manifest)
     thresholds = _collect_reviewer_fixture_thresholds(reviewer_fixtures)
 
@@ -669,70 +686,75 @@ def build_capability_matrix(data_dir: Path) -> dict[str, object]:
     manifest = load_json_file(data_dir / "dataset-manifest.json")
     dimensions = load_json_file(data_dir / "aggregates" / "dimensions.json")
     reviewer_contract = validate_reviewer_fixture_contract(data_dir)
+    m_agg_index = narrow_mapping(manifest["aggregate_index"])
+    m_weekly_rollups = narrow_sequence(m_agg_index["weekly_rollups"])
     first_rollup = load_json_file(
-        data_dir / manifest["aggregate_index"]["weekly_rollups"][0]["path"]
+        data_dir / str(narrow_mapping(m_weekly_rollups[0])["path"])
     )
+    m_capabilities = narrow_mapping(manifest.get("capabilities", {}))
+    m_features = narrow_mapping(manifest.get("features", {}))
+    m_coverage = narrow_mapping(manifest.get("coverage", {}))
+    m_comments = narrow_mapping(m_coverage.get("comments", {}))
+    d_users = narrow_sequence(dimensions["users"])
+    d_authors = narrow_sequence(dimensions.get("authors", []))
+    d_reviewers = narrow_sequence(dimensions.get("reviewers", []))
+    fr_by_author = narrow_mapping(first_rollup.get("by_author", {}))
+    fr_by_author_and_repo = narrow_mapping(first_rollup.get("by_author_and_repo", {}))
+    fr_by_reviewer = narrow_mapping(first_rollup.get("by_reviewer", {}))
+    fr_by_team_and_repo = narrow_mapping(first_rollup.get("by_team_and_repo", {}))
     capabilities: list[dict[str, object]] = [
         {
             "id": "long-history",
-            "status": len(manifest["aggregate_index"]["weekly_rollups"]) >= 156,
-            "evidence": {
-                "weekly_rollup_count": len(
-                    manifest["aggregate_index"]["weekly_rollups"]
-                )
-            },
+            "status": len(m_weekly_rollups) >= 156,
+            "evidence": {"weekly_rollup_count": len(m_weekly_rollups)},
         },
         {
             "id": "large-user-population",
-            "status": len(dimensions["users"]) >= 200,
-            "evidence": {"user_count": len(dimensions["users"])},
+            "status": len(d_users) >= 200,
+            "evidence": {"user_count": len(d_users)},
         },
         {
             "id": "author-filtering",
             "status": bool(first_rollup.get("by_author"))
-            and len(dimensions.get("authors", [])) >= 50
-            and manifest.get("capabilities", {}).get("author_filters") is True,
+            and len(d_authors) >= 50
+            and m_capabilities.get("author_filters") is True,
             "evidence": {
-                "authors_in_sample_week": len(first_rollup.get("by_author", {})),
-                "author_dimension_count": len(dimensions.get("authors", [])),
+                "authors_in_sample_week": len(fr_by_author),
+                "author_dimension_count": len(d_authors),
             },
         },
         {
             "id": "author-repo-exact",
             "status": bool(first_rollup.get("by_author_and_repo"))
-            and manifest.get("capabilities", {}).get("author_repo_exact") is True,
+            and m_capabilities.get("author_repo_exact") is True,
             "evidence": {
-                "authors_with_repo_entries": len(
-                    first_rollup.get("by_author_and_repo", {})
-                ),
+                "authors_with_repo_entries": len(fr_by_author_and_repo),
             },
         },
         {
             "id": "reviewer-filtering",
             "status": bool(first_rollup.get("by_reviewer"))
-            and len(dimensions.get("reviewers", [])) >= 50
+            and len(d_reviewers) >= 50
             and reviewer_contract["active_reviewers"]
             >= reviewer_contract["minimum_active_reviewers"],
             "evidence": {
-                "reviewers_in_sample_week": len(first_rollup.get("by_reviewer", {})),
-                "reviewer_dimension_count": len(dimensions.get("reviewers", [])),
+                "reviewers_in_sample_week": len(fr_by_reviewer),
+                "reviewer_dimension_count": len(d_reviewers),
                 "fixture_week": reviewer_contract["fixture_week"],
                 "fixture_active_reviewers": reviewer_contract["active_reviewers"],
             },
         },
         {
             "id": "comments-partial-coverage",
-            "status": manifest.get("coverage", {}).get("comments", {}).get("status")
-            == "partial",
-            "evidence": manifest.get("coverage", {}).get("comments", {}),
+            "status": m_comments.get("status") == "partial",
+            "evidence": m_comments,
         },
         {
             "id": "reviewer-repository-constrained",
-            "status": manifest.get("capabilities", {}).get("reviewer_repository_mode")
-            == "constrained"
+            "status": m_capabilities.get("reviewer_repository_mode") == "constrained"
             and reviewer_contract["reviewer_filter_examples"] >= 1,
             "evidence": {
-                "reviewer_repository_mode": manifest.get("capabilities", {}).get(
+                "reviewer_repository_mode": m_capabilities.get(
                     "reviewer_repository_mode"
                 ),
                 "fixture_week": reviewer_contract["fixture_week"],
@@ -740,14 +762,11 @@ def build_capability_matrix(data_dir: Path) -> dict[str, object]:
         },
         {
             "id": "reviewer-team-disallowed",
-            "status": manifest.get("capabilities", {}).get("reviewer_team_mode")
-            == "disallowed"
+            "status": m_capabilities.get("reviewer_team_mode") == "disallowed"
             and reviewer_contract["multi_repo_reviewers"]
             >= reviewer_contract["minimum_multi_repo_reviewers"],
             "evidence": {
-                "reviewer_team_mode": manifest.get("capabilities", {}).get(
-                    "reviewer_team_mode"
-                ),
+                "reviewer_team_mode": m_capabilities.get("reviewer_team_mode"),
                 "fixture_multi_repo_reviewers": reviewer_contract[
                     "multi_repo_reviewers"
                 ],
@@ -756,9 +775,9 @@ def build_capability_matrix(data_dir: Path) -> dict[str, object]:
         {
             "id": "team-cross-dimensional",
             "status": bool(first_rollup.get("by_team_and_repo"))
-            and manifest.get("features", {}).get("cross_dimensional") is True,
+            and m_features.get("cross_dimensional") is True,
             "evidence": {
-                "teams_with_cross_dim": len(first_rollup.get("by_team_and_repo", {})),
+                "teams_with_cross_dim": len(fr_by_team_and_repo),
             },
         },
         {

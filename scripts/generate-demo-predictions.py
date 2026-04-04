@@ -29,6 +29,7 @@ from demo_generation_common import (
     FIXED_GENERATED_AT,
     list_stable_json_files,
     load_json_file,
+    narrow_int,
     refresh_demo_manifest_features,
     require_demo_generation_baseline_for_output,
     round_float,
@@ -74,12 +75,28 @@ def load_weekly_rollups(rollups_dir: Path) -> list[WeeklyMetrics]:
             for rollup_file in list_stable_json_files(rollups_dir):
                 data = load_json_file(rollup_file)
 
+                week_val = data["week"]
+                if not isinstance(week_val, str):
+                    raise TypeError(
+                        f"Expected str for week, got {type(week_val).__name__}"
+                    )
+                sd_val = data["start_date"]
+                if not isinstance(sd_val, str):
+                    raise TypeError(
+                        f"Expected str for start_date, got {type(sd_val).__name__}"
+                    )
+                ct_p50 = data["cycle_time_p50"]
+                if not isinstance(ct_p50, (int, float)):
+                    ct_p50_f = 0.0
+                else:
+                    ct_p50_f = float(ct_p50)
+
                 rollups.append(
                     WeeklyMetrics(
-                        week=data["week"],
-                        start_date=date.fromisoformat(data["start_date"]),
-                        pr_count=data["pr_count"],
-                        cycle_time_p50=data["cycle_time_p50"] or 0.0,
+                        week=week_val,
+                        start_date=date.fromisoformat(sd_val),
+                        pr_count=narrow_int(data["pr_count"]),
+                        cycle_time_p50=ct_p50_f,
                     )
                 )
             return sorted(rollups, key=lambda r: r.week)

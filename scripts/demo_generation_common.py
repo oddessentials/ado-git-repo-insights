@@ -6,7 +6,7 @@ import json
 import sys
 import time
 import uuid
-from collections.abc import Mapping
+from collections.abc import Mapping, Sequence
 from datetime import UTC, date, datetime
 from decimal import ROUND_HALF_UP, Decimal
 from pathlib import Path
@@ -14,6 +14,41 @@ from typing import TYPE_CHECKING, cast
 
 if TYPE_CHECKING:
     from ado_git_repo_insights.types import JSONValue
+
+# ---------------------------------------------------------------------------
+# JSONValue narrowing helpers (used by callers after load_json_file)
+# ---------------------------------------------------------------------------
+
+
+def narrow_mapping(val: JSONValue) -> Mapping[str, JSONValue]:
+    """Narrow a JSON value to a read-only string-keyed mapping.
+
+    Raises TypeError on non-dict — use on untrusted JSON boundaries.
+    """
+    if not isinstance(val, dict):
+        raise TypeError(f"Expected dict, got {type(val).__name__}")
+    return val
+
+
+def narrow_sequence(val: JSONValue) -> Sequence[JSONValue]:
+    """Narrow a JSON value to a read-only sequence.
+
+    Raises TypeError on non-list.
+    """
+    if not isinstance(val, list):
+        raise TypeError(f"Expected list, got {type(val).__name__}")
+    return val
+
+
+def narrow_int(val: JSONValue) -> int:
+    """Narrow a JSON value to int.
+
+    Accepts JSON integers and floats (truncated). Raises TypeError otherwise.
+    """
+    if not isinstance(val, (int, float)):
+        raise TypeError(f"Expected numeric, got {type(val).__name__}")
+    return int(val)
+
 
 FIXED_GENERATED_AT = datetime(2026, 1, 30, 12, 0, 0, tzinfo=UTC)
 COMMITTED_DEMO_BASELINE_PYTHON = (3, 12)
