@@ -55,21 +55,21 @@
 
 ### Tests
 
-- [ ] T011 [P] [US4] Create `tests/unit/test_review_time_extraction.py` with test: system comment `"PM P voted 10"` with `commentType: "system"` parses to vote_value=10, author_id matched, `publishedDate` extracted as vote timestamp
-- [ ] T012 [P] [US4] Add test in `tests/unit/test_review_time_extraction.py`: deleted system comment (`is_deleted=1`) is skipped when determining earliest positive vote
-- [ ] T013 [P] [US4] Add test in `tests/unit/test_review_time_extraction.py`: PR with rejection then approval uses the approval timestamp, not the rejection
-- [ ] T014 [P] [US4] Add test in `tests/unit/test_review_time_extraction.py`: PR with multiple reviewers who approved uses the earliest approval across all reviewers for `review_time_minutes`
-- [ ] T015 [P] [US4] Add test in `tests/unit/test_review_time_extraction.py`: PR with no positive votes in threads yields NULL `reviewed_at` and NULL `review_time_minutes`
-- [ ] T016 [P] [US4] Add test in `tests/unit/test_review_time_extraction.py`: PR with no thread data (no comments extracted) yields NULL `review_time_minutes` with no errors
-- [ ] T017 [P] [US4] Add test in `tests/unit/test_review_time_extraction.py`: `review_time_minutes` computed as `(reviewed_at - creation_date)` in minutes with 1.0-minute floor and 2-decimal precision
-- [ ] T018 [P] [US4] Add test in `tests/unit/test_review_time_extraction.py`: clock-skew edge case where `reviewed_at < creation_date` produces 1.0-minute floor
-- [ ] T019 [P] [US4] Add test for `calculate_review_time_minutes()` in `tests/unit/test_review_time_extraction.py` — same contract as `calculate_cycle_time_minutes()` but with vote timestamp input
+- [x] T011 [P] [US4] Create `tests/unit/test_review_time_extraction.py` with test: system comment `"PM P voted 10"` with `commentType: "system"` parses to vote_value=10, author_id matched, `publishedDate` extracted as vote timestamp
+- [x] T012 [P] [US4] Add test in `tests/unit/test_review_time_extraction.py`: deleted system comment (`is_deleted=1`) is skipped when determining earliest positive vote
+- [x] T013 [P] [US4] Add test in `tests/unit/test_review_time_extraction.py`: PR with rejection then approval uses the approval timestamp, not the rejection
+- [x] T014 [P] [US4] Add test in `tests/unit/test_review_time_extraction.py`: PR with multiple reviewers who approved uses the earliest approval across all reviewers for `review_time_minutes`
+- [x] T015 [P] [US4] Add test in `tests/unit/test_review_time_extraction.py`: PR with no positive votes in threads yields NULL `reviewed_at` and NULL `review_time_minutes`
+- [x] T016 [P] [US4] Add test in `tests/unit/test_review_time_extraction.py`: PR with no thread data (no comments extracted) yields NULL `review_time_minutes` with no errors
+- [x] T017 [P] [US4] Add test in `tests/unit/test_review_time_extraction.py`: `review_time_minutes` computed as `(reviewed_at - creation_date)` in minutes with 1.0-minute floor and 2-decimal precision
+- [x] T018 [P] [US4] Add test in `tests/unit/test_review_time_extraction.py`: clock-skew edge case where `reviewed_at < creation_date` produces 1.0-minute floor
+- [x] T019 [P] [US4] Add test for `calculate_review_time_minutes()` in `tests/unit/test_review_time_extraction.py` — same contract as `calculate_cycle_time_minutes()` but with vote timestamp input
 
 ### Implementation
 
-- [ ] T020 [US4] Extend `upsert_reviewer()` in `src/ado_git_repo_insights/persistence/repository.py` to accept optional `reviewed_at: str | None = None` parameter and include it in the INSERT OR REPLACE SQL
-- [ ] T021 [US4] Add `_populate_review_timestamps()` function in `src/ado_git_repo_insights/cli.py` (or a new module) that: queries `pr_comments` WHERE `comment_type = 'system'` AND `is_deleted = 0`, parses content with regex `^(.+) voted (-?\d+)$`, filters for vote_value IN (10, 5), updates `reviewers.reviewed_at` with earliest positive vote per (pull_request_uid, author_id), and computes `review_time_minutes` on `pull_requests` from earliest positive `reviewed_at` across all reviewers
-- [ ] T022 [US4] Call `_populate_review_timestamps()` after `_extract_comments()` in `cmd_extract()` in `src/ado_git_repo_insights/cli.py` when `--include-comments` is enabled
+- [x] T020 [US4] Extend `upsert_reviewer()` in `src/ado_git_repo_insights/persistence/repository.py` — switched to INSERT ON CONFLICT DO UPDATE to preserve reviewed_at on re-upsert
+- [x] T021 [US4] Add `populate_review_timestamps()` in `src/ado_git_repo_insights/extraction/review_time.py` — queries pr_comments for system vote events, updates reviewed_at + review_time_minutes
+- [x] T022 [US4] Call `populate_review_timestamps()` after `_extract_comments()` in `cmd_extract()` when --include-comments is enabled
 
 **Checkpoint**: Extraction populates `reviewed_at` and `review_time_minutes` correctly for all edge cases.
 
@@ -81,12 +81,12 @@
 
 ### Tests
 
-- [ ] T023 [P] [US4] Add test in `tests/unit/test_review_time_extraction.py`: when `--include-comments` is absent, extraction emits a warning containing "review time" and "--include-comments"
-- [ ] T024 [P] [US4] Add test in `tests/unit/test_review_time_extraction.py`: when `--include-comments` IS enabled, vote timestamp extraction runs with no additional flags needed
+- [x] T023 [P] [US4] Add test in `tests/unit/test_review_time_extraction.py`: when `--include-comments` is absent, extraction emits a warning containing "review time" and "--include-comments"
+- [x] T024 [P] [US4] Add test in `tests/unit/test_review_time_extraction.py`: when `--include-comments` IS enabled, vote timestamp extraction runs with no additional flags needed
 
 ### Implementation
 
-- [ ] T025 [US4] Add warning emission in `cmd_extract()` in `src/ado_git_repo_insights/cli.py` when `--include-comments` is absent: `logger.warning("Review time metrics unavailable: thread extraction not enabled. Use --include-comments to activate.")`
+- [x] T025 [US4] Add warning emission in `cmd_extract()` in `src/ado_git_repo_insights/cli.py` when `--include-comments` is absent: `logger.warning("Review time metrics unavailable: thread extraction not enabled. Use --include-comments to activate.")`
 
 **Checkpoint**: Warning visible when threads disabled; silent auto-extraction when enabled.
 
@@ -106,8 +106,8 @@
 
 ### Implementation
 
-- [ ] T029 [US1] Add `pr.review_time_minutes` to the SQL SELECT query in `_generate_weekly_rollups()` in `src/ado_git_repo_insights/transform/aggregators.py` (alongside existing `pr.cycle_time_minutes`)
-- [ ] T030 [US1] Add `review_time_p50`/`review_time_p90` computation to the base rollup construction in `_generate_weekly_rollups()` in `src/ado_git_repo_insights/transform/aggregators.py` — same `quantile(0.5/0.9)` + `_ROLLUP_MIN_SAMPLE` threshold pattern as cycle_time
+- [x] T029 [US1] Add `pr.review_time_minutes` to the SQL SELECT query in `_generate_weekly_rollups()` in `src/ado_git_repo_insights/transform/aggregators.py` (alongside existing `pr.cycle_time_minutes`)
+- [x] T030 [US1] Add `review_time_p50`/`review_time_p90` computation to the base rollup construction in `_generate_weekly_rollups()` in `src/ado_git_repo_insights/transform/aggregators.py` — same `quantile(0.5/0.9)` + `_ROLLUP_MIN_SAMPLE` threshold pattern as cycle_time
 
 **Checkpoint**: `pytest tests/unit/test_aggregators.py` passes with review_time in base rollups.
 
@@ -130,11 +130,11 @@
 
 ### Implementation
 
-- [ ] T037 [P] [US2] Add review_time aggregation to `_generate_author_slice()` in `src/ado_git_repo_insights/transform/aggregators.py` — add `review_time_valid_count`, `review_time_p50`, `review_time_p90` to `.agg()` and threshold-gated output
-- [ ] T038 [P] [US2] Add review_time aggregation to `_generate_repo_slice()` in `src/ado_git_repo_insights/transform/aggregators.py`
-- [ ] T039 [P] [US2] Add review_time aggregation to `_generate_team_slice()` in `src/ado_git_repo_insights/transform/aggregators.py`
-- [ ] T040 [P] [US2] Add review_time aggregation to `_generate_author_repo_slice()` in `src/ado_git_repo_insights/transform/aggregators.py` — uses `_CROSS_DIM_MIN_SAMPLE` (5)
-- [ ] T041 [P] [US2] Add review_time aggregation to `_generate_team_repo_slice()` in `src/ado_git_repo_insights/transform/aggregators.py` — uses `_CROSS_DIM_MIN_SAMPLE` (5)
+- [x] T037 [P] [US2] Add review_time aggregation to `_generate_author_slice()` in `src/ado_git_repo_insights/transform/aggregators.py` — add `review_time_valid_count`, `review_time_p50`, `review_time_p90` to `.agg()` and threshold-gated output
+- [x] T038 [P] [US2] Add review_time aggregation to `_generate_repo_slice()` in `src/ado_git_repo_insights/transform/aggregators.py`
+- [x] T039 [P] [US2] Add review_time aggregation to `_generate_team_slice()` in `src/ado_git_repo_insights/transform/aggregators.py`
+- [x] T040 [P] [US2] Add review_time aggregation to `_generate_author_repo_slice()` in `src/ado_git_repo_insights/transform/aggregators.py` — uses `_CROSS_DIM_MIN_SAMPLE` (5)
+- [x] T041 [P] [US2] Add review_time aggregation to `_generate_team_repo_slice()` in `src/ado_git_repo_insights/transform/aggregators.py` — uses `_CROSS_DIM_MIN_SAMPLE` (5)
 
 **Checkpoint**: All 6 slice methods produce review_time fields. Aggregator tests green.
 
@@ -150,14 +150,14 @@
 
 - [x] T042 [P] [US5] Add test in `tests/demo/test_synthetic_data.py`: weekly rollup schema validation includes `review_time_p50` and `review_time_p90` in required fields
 - [ ] T043 [P] [US5] Add test in `tests/demo/test_synthetic_data.py`: review_time values are typically 30-70% of cycle_time across sampled rollups
-- [ ] T044 [P] [US5] Add test in `tests/demo/test_synthetic_data.py`: P50 and P90 have different null/non-null patterns across weeks (not identical null sets)
+- [x] T044 [P] [US5] Add test in `tests/demo/test_synthetic_data.py`: P50 and P90 have different null/non-null patterns across weeks (not identical null sets)
 - [ ] T045 [P] [US5] Add test in `tests/demo/test_synthetic_data.py`: breakdown entries (`by_repository`, `by_author`, `by_team`) include review_time fields
 
 ### Implementation
 
 - [x] T046 [US5] Update local `WeeklyRollup` dataclass in `scripts/generate-demo-data.py` (line ~300) to include `review_time_p50: float | None = None` and `review_time_p90: float | None = None` fields — synchronized with canonical dataclass in `aggregators.py`
 - [x] T047 [US5] Update local `SliceMetrics` TypedDict in `scripts/generate-demo-data.py` to include `review_time_p50: float | None` and `review_time_p90: float | None` fields
-- [ ] T048 [US5] Add review_time generation logic in `scripts/generate-demo-data.py`: compute as `cycle_time * rng.uniform(0.3, 0.7)` with per-percentile independent null injection (~10% chance each, independent coin flips) for base rollup and all breakdown slices
+- [x] T048 [US5] Add review_time generation logic in `scripts/generate-demo-data.py`: compute as `cycle_time * rng.uniform(0.3, 0.7)` with per-percentile independent null injection (~10% chance each, independent coin flips) for base rollup and all breakdown slices
 - [x] T049 [US5] Add review_time population logic in `scripts/generate-synthetic-dataset.py`: `review_time_p50 = cycle_time_p50 * rng.uniform(0.3, 0.7)` with same independent null pattern
 - [x] T050 [US5] Regenerate canonical demo dataset by running `python scripts/build_demo.py` and commit all regenerated files under `docs/data/` (260 weekly rollup JSONs + updated manifest)
 
