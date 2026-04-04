@@ -7,13 +7,14 @@ Guard 2: No raw isinstance(x, dict) narrowing in caller scripts — must
           use the shared narrow_mapping/narrow_sequence helpers to avoid
           the implicit dict[str, Any] that raw isinstance produces.
 
-Both guards use AST analysis (not regex) so they reliably catch nested
-calls, commas in arguments, and formatter-driven line wrapping.
+Both guards use AST analysis so they reliably catch nested calls,
+commas in arguments, and formatter-driven line wrapping.
 """
 
 from __future__ import annotations
 
 import ast
+import textwrap
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
@@ -27,6 +28,10 @@ CALLER_SCRIPTS = [
 ]
 
 
+def _parse(source: str, filename: str = "<test>") -> ast.Module:
+    return ast.parse(source, filename=filename)
+
+
 def _parse_script(path: Path) -> ast.Module:
     return ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
 
@@ -37,44 +42,67 @@ def _parse_script(path: Path) -> ast.Module:
 
 
 def _is_load_json_file_call(node: ast.expr) -> bool:
-    """True if *node* is a call to load_json_file(...)."""
-    return (
-        isinstance(node, ast.Call)
-        and isinstance(node.func, ast.Name)
-        and node.func.id == "load_json_file"
-    )
+    """True if *node* is a call to load_json_file(...) (bare or qualified)."""
+    if not isinstance(node, ast.Call):
+        return False
+    func = node.func
+    # Bare: load_json_file(...)
+    if isinstance(func, ast.Name) and func.id == "load_json_file":
+        return True
+    # Qualified: something.load_json_file(...)
+    if isinstance(func, ast.Attribute) and func.attr == "load_json_file":
+        return True
+    return False
+
+
+def find_chained_json_access(tree: ast.Module) -> list[int]:
+    """Return line numbers where load_json_file() result is accessed directly."""
+    lines: list[int] = []
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Attribute) and _is_load_json_file_call(node.value):
+            lines.append(node.lineno)
+        if isinstance(node, ast.Subscript) and _is_load_json_file_call(node.value):
+            lines.append(node.lineno)
+    return lines
 
 
 class TestNoDirectChainedJsonAccess:
     """load_json_file() returns dict[str, JSONValue] — callers must narrow first."""
 
-    def test_no_chained_access_on_load_json_file(self) -> None:
-        """Detect .attr or [subscript] directly on a load_json_file() call."""
+    def test_no_chained_access_in_caller_scripts(self) -> None:
         violations: list[str] = []
         for script in CALLER_SCRIPTS:
             tree = _parse_script(script)
-            for node in ast.walk(tree):
-                # Attribute access: load_json_file(...).get(...)
-                if isinstance(node, ast.Attribute) and _is_load_json_file_call(
-                    node.value
-                ):
-                    violations.append(
-                        f"  {script.name}:{node.lineno}: "
-                        f"load_json_file(...).{node.attr}"
-                    )
-                # Subscript access: load_json_file(...)[key]
-                if isinstance(node, ast.Subscript) and _is_load_json_file_call(
-                    node.value
-                ):
-                    violations.append(
-                        f"  {script.name}:{node.lineno}: load_json_file(...)[...]"
-                    )
+            source_lines = script.read_text(encoding="utf-8").splitlines()
+            for lineno in find_chained_json_access(tree):
+                line_text = (
+                    source_lines[lineno - 1].strip()
+                    if lineno <= len(source_lines)
+                    else ""
+                )
+                violations.append(f"  {script.name}:{lineno}: {line_text}")
 
         assert not violations, (
             "Direct chained access on load_json_file() bypasses narrowing.\n"
             "Assign the result to a variable first, then narrow with "
             "narrow_mapping() before accessing nested values.\n" + "\n".join(violations)
         )
+
+    def test_catches_bare_call(self) -> None:
+        tree = _parse('x = load_json_file(p).get("k")')
+        assert find_chained_json_access(tree) == [1]
+
+    def test_catches_qualified_call(self) -> None:
+        tree = _parse('x = common.load_json_file(p).get("k")')
+        assert find_chained_json_access(tree) == [1]
+
+    def test_catches_subscript(self) -> None:
+        tree = _parse('x = load_json_file(p)["key"]')
+        assert find_chained_json_access(tree) == [1]
+
+    def test_allows_assigned_then_accessed(self) -> None:
+        tree = _parse('data = load_json_file(p)\nx = data.get("k")')
+        assert find_chained_json_access(tree) == []
 
 
 # -----------------------------------------------------------------------
@@ -83,7 +111,7 @@ class TestNoDirectChainedJsonAccess:
 
 
 def _is_isinstance_dict(node: ast.expr) -> bool:
-    """True if *node* is isinstance(<anything>, dict)."""
+    """True if *node* is isinstance(<anything>, dict) or isinstance(<anything>, (..., dict, ...))."""
     if not isinstance(node, ast.Call):
         return False
     func = node.func
@@ -92,10 +120,8 @@ def _is_isinstance_dict(node: ast.expr) -> bool:
     if len(node.args) < 2:
         return False
     second_arg = node.args[1]
-    # isinstance(x, dict)
     if isinstance(second_arg, ast.Name) and second_arg.id == "dict":
         return True
-    # isinstance(x, (dict, ...)) — dict inside a tuple
     if isinstance(second_arg, ast.Tuple):
         for elt in second_arg.elts:
             if isinstance(elt, ast.Name) and elt.id == "dict":
@@ -103,23 +129,55 @@ def _is_isinstance_dict(node: ast.expr) -> bool:
     return False
 
 
-def _is_inside_validation_block(tree: ast.Module, target_lineno: int) -> bool:
-    """True if the isinstance at *target_lineno* is followed by a raise within 4 lines."""
-    for node in ast.walk(tree):
-        if not isinstance(node, ast.Raise):
-            continue
-        if target_lineno < node.lineno <= target_lineno + 4:
+def _is_failfast_isinstance(node: ast.If) -> bool:
+    """True if this `if` is a fail-fast validation that raises for non-dict.
+
+    Matches:
+      if not isinstance(x, dict): raise ...
+      if not isinstance(x, dict) or <other_cond>: raise ...
+
+    Does NOT match positive-branch isinstance or ternary defaults.
+    """
+    if not (node.body and isinstance(node.body[0], ast.Raise)):
+        return False
+
+    test = node.test
+    # Simple: if not isinstance(x, dict): raise
+    if isinstance(test, ast.UnaryOp) and isinstance(test.op, ast.Not):
+        if _is_isinstance_dict(test.operand):
             return True
-    # Also allow `not isinstance(...)` on the same line as an if that leads to raise
-    for node in ast.walk(tree):
-        if not isinstance(node, ast.If):
-            continue
-        if node.lineno != target_lineno:
-            continue
-        for child in ast.walk(node):
-            if isinstance(child, ast.Raise):
-                return True
+    # Compound: if not isinstance(x, dict) or ...: raise
+    if isinstance(test, ast.BoolOp) and isinstance(test.op, ast.Or):
+        for val in test.values:
+            if isinstance(val, ast.UnaryOp) and isinstance(val.op, ast.Not):
+                if _is_isinstance_dict(val.operand):
+                    return True
     return False
+
+
+def find_raw_isinstance_dict(tree: ast.Module) -> list[int]:
+    """Return line numbers of raw isinstance(x, dict) that are NOT fail-fast validation."""
+    # Collect line numbers of isinstance calls in approved fail-fast if-blocks
+    approved_lines: set[int] = set()
+    for node in ast.walk(tree):
+        if isinstance(node, ast.If) and _is_failfast_isinstance(node):
+            test = node.test
+            # Simple: not isinstance(x, dict)
+            if isinstance(test, ast.UnaryOp) and isinstance(test.op, ast.Not):
+                if _is_isinstance_dict(test.operand):
+                    approved_lines.add(test.operand.lineno)
+            # Compound: not isinstance(x, dict) or ...
+            if isinstance(test, ast.BoolOp):
+                for val in test.values:
+                    if isinstance(val, ast.UnaryOp) and isinstance(val.op, ast.Not):
+                        if _is_isinstance_dict(val.operand):
+                            approved_lines.add(val.operand.lineno)
+
+    violations: list[int] = []
+    for node in ast.walk(tree):
+        if _is_isinstance_dict(node) and node.lineno not in approved_lines:
+            violations.append(node.lineno)
+    return violations
 
 
 class TestNoRawIsinstanceDictNarrowing:
@@ -130,24 +188,66 @@ class TestNoRawIsinstanceDictNarrowing:
         for script in CALLER_SCRIPTS:
             tree = _parse_script(script)
             source_lines = script.read_text(encoding="utf-8").splitlines()
-
-            for node in ast.walk(tree):
-                if not _is_isinstance_dict(node):
-                    continue
-                if _is_inside_validation_block(tree, node.lineno):
-                    continue
-
+            for lineno in find_raw_isinstance_dict(tree):
                 line_text = (
-                    source_lines[node.lineno - 1].strip()
-                    if node.lineno <= len(source_lines)
+                    source_lines[lineno - 1].strip()
+                    if lineno <= len(source_lines)
                     else ""
                 )
-                violations.append(f"  {script.name}:{node.lineno}: {line_text}")
+                violations.append(f"  {script.name}:{lineno}: {line_text}")
 
         assert not violations, (
             "Raw isinstance(x, dict) narrows to dict[str, Any] in mypy, "
             "leaking implicit Any.\n"
             "Use narrow_mapping(val) from demo_generation_common instead, "
-            "or convert to a fail-fast validation (isinstance + raise).\n"
+            "or convert to a fail-fast validation: "
+            "`if not isinstance(x, dict): raise TypeError(...)`.\n"
             + "\n".join(violations)
         )
+
+    def test_catches_ternary_default(self) -> None:
+        """x if isinstance(x, dict) else {} — the silent-default pattern."""
+        tree = _parse("y = x if isinstance(x, dict) else {}")
+        assert find_raw_isinstance_dict(tree) == [1]
+
+    def test_catches_isinstance_with_get_arg(self) -> None:
+        """isinstance(rollup.get('by_reviewer'), dict) — commas in first arg."""
+        tree = _parse('ok = isinstance(rollup.get("by_reviewer"), dict)')
+        assert find_raw_isinstance_dict(tree) == [1]
+
+    def test_catches_nearby_unrelated_raise(self) -> None:
+        """A raise on a later line for a different condition must NOT exempt the isinstance."""
+        source = textwrap.dedent("""\
+            by_rev = x if isinstance(x, dict) else {}
+            if "key" not in by_rev:
+                raise RuntimeError("missing key")
+        """)
+        tree = _parse(source)
+        assert find_raw_isinstance_dict(tree) == [1]
+
+    def test_allows_failfast_not_isinstance_raise(self) -> None:
+        """if not isinstance(x, dict): raise TypeError(...) — the approved pattern."""
+        source = textwrap.dedent("""\
+            if not isinstance(val, dict):
+                raise TypeError("expected dict")
+        """)
+        tree = _parse(source)
+        assert find_raw_isinstance_dict(tree) == []
+
+    def test_allows_compound_failfast(self) -> None:
+        """if not isinstance(x, dict) or not x: raise ... — compound validation."""
+        source = textwrap.dedent("""\
+            if not isinstance(val, dict) or not val:
+                raise TypeError("expected non-empty dict")
+        """)
+        tree = _parse(source)
+        assert find_raw_isinstance_dict(tree) == []
+
+    def test_rejects_isinstance_in_positive_if(self) -> None:
+        """if isinstance(x, dict): ... — positive branch, no raise for non-dict."""
+        source = textwrap.dedent("""\
+            if isinstance(x, dict):
+                use(x)
+        """)
+        tree = _parse(source)
+        assert find_raw_isinstance_dict(tree) == [1]

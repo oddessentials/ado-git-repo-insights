@@ -553,15 +553,17 @@ def _validate_constrained_reviewer_example(
     if constrained_rollup is None:
         raise RuntimeError("reviewer_constrained_example references an unknown week")
     by_rev = constrained_rollup.get("by_reviewer")
-    by_reviewer_map = by_rev if isinstance(by_rev, dict) else {}
-    if str(constrained["reviewer_id"]) not in by_reviewer_map:
+    if not isinstance(by_rev, dict):
+        raise TypeError(f"by_reviewer expected dict, got {type(by_rev).__name__}")
+    if str(constrained["reviewer_id"]) not in by_rev:
         raise RuntimeError(
             "reviewer_constrained_example references a reviewer absent from the "
             "specified rollup"
         )
     by_repo = constrained_rollup.get("by_repository")
-    by_repo_map = by_repo if isinstance(by_repo, dict) else {}
-    if constrained["repository_name"] not in by_repo_map:
+    if not isinstance(by_repo, dict):
+        raise TypeError(f"by_repository expected dict, got {type(by_repo).__name__}")
+    if constrained["repository_name"] not in by_repo:
         raise RuntimeError(
             "reviewer_constrained_example references a repository absent from the "
             "specified rollup"
@@ -581,8 +583,9 @@ def _validate_disallowed_reviewer_team_example(
             "reviewer_team_disallowed_example references an unknown week"
         )
     by_rev = disallowed_rollup.get("by_reviewer")
-    by_reviewer_map = by_rev if isinstance(by_rev, dict) else {}
-    if str(disallowed["reviewer_id"]) not in by_reviewer_map:
+    if not isinstance(by_rev, dict):
+        raise TypeError(f"by_reviewer expected dict, got {type(by_rev).__name__}")
+    if str(disallowed["reviewer_id"]) not in by_rev:
         raise RuntimeError(
             "reviewer_team_disallowed_example references a reviewer absent from the "
             "specified rollup"
