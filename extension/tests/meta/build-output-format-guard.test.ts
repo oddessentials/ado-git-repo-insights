@@ -10,10 +10,15 @@
  * config uses ES2022 for modern bundler-style resolution during tsc
  * --noEmit checks.  Both share moduleResolution: "bundler".
  *
- * Five assertions prevent silent drift:
+ * dist/ui/ is owned exclusively by esbuild (build:ui).  The build config
+ * MUST NOT include ui/ — otherwise build:tsc writes CJS to dist/ui/,
+ * silently overwriting esbuild's IIFE output and breaking browser runtime.
+ *
+ * Six assertions prevent silent drift:
  *   1-2. Typecheck config pins module + moduleResolution
  *   3-4. Build config pins module + moduleResolution
  *   5.   package.json build:tsc script references tsconfig.build.json
+ *   6.   Build config must not include ui/ (esbuild-only territory)
  *
  * If any assertion fails, the build output format contract is broken.
  *
@@ -76,11 +81,23 @@ describe("Build Output Format Guard", () => {
     });
   });
 
-  describe("build script entry point", () => {
+  describe("build output ownership", () => {
     it("build:tsc must reference tsconfig.build.json", () => {
       const pkgPath = path.resolve(extensionRoot, "package.json");
       const pkg = readJsonFile<{ scripts: Record<string, string> }>(pkgPath);
       expect(pkg.scripts["build:tsc"]).toContain("tsconfig.build.json");
+    });
+
+    it("build config must not include ui/ (dist/ui/ owned by esbuild)", () => {
+      const configPath = path.resolve(extensionRoot, "tsconfig.build.json");
+      const { config } = ts.readConfigFile(configPath, ts.sys.readFile);
+      const parsed = ts.parseJsonConfigFileContent(
+        config,
+        ts.sys,
+        extensionRoot,
+      );
+      const uiFiles = parsed.fileNames.filter((f) => f.includes("/ui/"));
+      expect(uiFiles).toEqual([]);
     });
   });
 });
