@@ -222,7 +222,9 @@ class TestPrecommitParity:
         justification_commands = _extract_shell_commands(
             str(_find_ci_step("suppression-audit", "Suppression justifications")["run"])
         )
-        any_step = _find_ci_step("mypy", "No typing.Any in src/ (QG-40)")
+        any_step = _find_ci_step(
+            "mypy", "No typing.Any in src/, tests/, scripts/ (QG-40)"
+        )
 
         assert "run_staged_suppression_diff_guard" in called_functions
         assert "run_staged_suppression_justification_guard" in called_functions
@@ -246,7 +248,7 @@ class TestPrecommitParity:
         )
 
         repo_calls = dict(_extract_run_command_calls("run_pre_commit_hook"))
-        assert preflight["No typing.Any in src/ (QG-40)"] == (
+        assert preflight["No typing.Any in src/, tests/, scripts/ (QG-40)"] == (
             "__PYTHON__ scripts/check_no_any_types.py"
         )
         assert repo_calls["__PYTHON__ scripts/check_no_any_types.py --diff"] is None
