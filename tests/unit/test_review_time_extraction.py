@@ -746,6 +746,54 @@ class TestTriggerScope:
         finally:
             db.close()
 
+    def test_aggregate_path_backfills_review_time(self, tmp_path: Path) -> None:
+        """DB with pr_comments but no review_time_minutes gets backfilled
+        when _backfill_review_timestamps_if_needed() runs (aggregate path).
+
+        Regression: populate_review_timestamps was only wired into cmd_extract,
+        so generate-aggregates on an upgraded DB with existing comment data
+        produced null review_time rollups.
+        """
+        db = _create_test_db(tmp_path)
+        try:
+            _seed_pr(db, creation_date="2026-01-15T10:00:00Z")
+            _seed_reviewer(db, user_id="u1", vote=10)
+            _seed_system_comment(
+                db,
+                comment_id="c1",
+                pr_uid="r1-1",
+                author_id="u1",
+                content="Reviewer A voted 10",
+                created_at="2026-01-15T12:00:00Z",
+            )
+
+            # Verify review_time_minutes is NULL before backfill
+            pr_before = db.execute(
+                "SELECT review_time_minutes FROM pull_requests "
+                "WHERE pull_request_uid = 'r1-1'"
+            ).fetchone()
+            assert pr_before is not None
+            assert pr_before["review_time_minutes"] is None
+
+            # Simulate what cmd_generate_aggregates now does:
+            from ado_git_repo_insights.cli import (
+                _backfill_review_timestamps_if_needed,
+            )
+
+            _backfill_review_timestamps_if_needed(db)
+
+            # review_time_minutes must now be populated
+            pr_after = db.execute(
+                "SELECT review_time_minutes FROM pull_requests "
+                "WHERE pull_request_uid = 'r1-1'"
+            ).fetchone()
+            assert pr_after is not None
+            assert pr_after["review_time_minutes"] is not None, (
+                "Aggregate-path backfill must populate review_time_minutes"
+            )
+        finally:
+            db.close()
+
     def test_legacy_db_without_comments_table(self, tmp_path: Path) -> None:
         """Legacy DB without pr_comments table must not crash.
 

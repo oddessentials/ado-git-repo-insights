@@ -708,30 +708,24 @@ def cmd_extract(args: Namespace) -> int:
             # regardless of whether --include-comments was passed this run.
             # This ensures convergence: creation_date changes, reviewer edits,
             # or comment deletions are reflected without re-fetching threads.
-            from ado_git_repo_insights.extraction.review_time import (
-                populate_review_timestamps,
-            )
-
-            include_comments = getattr(args, "include_comments", False)
-            # Guard against legacy DBs where pr_comments table may not exist.
-            comments_table_exists = (
-                db.execute(
-                    "SELECT 1 FROM sqlite_master "
-                    "WHERE type='table' AND name='pr_comments'"
-                ).fetchone()
-                is not None
-            )
-            has_comments = comments_table_exists and (
-                db.execute("SELECT 1 FROM pr_comments LIMIT 1").fetchone() is not None
-            )
-            if has_comments:
-                review_time_count = populate_review_timestamps(db)
-                if review_time_count > 0:
-                    logger.info(f"Review time computed for {review_time_count} PRs")
+            # Recompute review timestamps from stored comment data.
+            _backfill_review_timestamps_if_needed(db)
 
             # Warn when this run did not fetch threads — newly extracted PRs
             # won't have review time data even if historical data exists.
+            include_comments = getattr(args, "include_comments", False)
             if not include_comments:
+                comments_table_exists = (
+                    db.execute(
+                        "SELECT 1 FROM sqlite_master "
+                        "WHERE type='table' AND name='pr_comments'"
+                    ).fetchone()
+                    is not None
+                )
+                has_comments = comments_table_exists and (
+                    db.execute("SELECT 1 FROM pr_comments LIMIT 1").fetchone()
+                    is not None
+                )
                 if has_comments:
                     logger.warning(
                         "Review time metrics partial: thread extraction was "
@@ -838,6 +832,35 @@ def cmd_generate_csv(args: Namespace) -> int:
         return 1
 
 
+def _backfill_review_timestamps_if_needed(db: object) -> None:
+    """Run review-time recomputation if stored comment data exists.
+
+    Safe to call from any command path (extract, generate-aggregates, build).
+    Guards against legacy DBs without the pr_comments table.
+    Idempotent: clear-then-repopulate ensures no double-counting.
+    """
+    from .extraction.review_time import populate_review_timestamps
+    from .persistence.database import DatabaseManager
+
+    if not isinstance(db, DatabaseManager):
+        return
+    comments_table_exists = (
+        db.execute(
+            "SELECT 1 FROM sqlite_master WHERE type='table' AND name='pr_comments'"
+        ).fetchone()
+        is not None
+    )
+    if not comments_table_exists:
+        return
+    has_comments = (
+        db.execute("SELECT 1 FROM pr_comments LIMIT 1").fetchone() is not None
+    )
+    if has_comments:
+        count = populate_review_timestamps(db)
+        if count > 0:
+            logger.info(f"Review time computed for {count} PRs")
+
+
 def cmd_generate_aggregates(args: Namespace) -> int:
     """Execute the generate-aggregates command (Phase 3 + Phase 5 ML)."""
     from .persistence.database import DatabaseError, DatabaseManager
@@ -891,6 +914,12 @@ def cmd_generate_aggregates(args: Namespace) -> int:
         db.connect()
 
         try:
+            # Ensure review timestamps are populated before aggregation.
+            # Handles upgrade path: DB has pr_comments from prior extraction
+            # but review_time_minutes was never computed (e.g., user ran
+            # generate-aggregates without a fresh extract after upgrading).
+            _backfill_review_timestamps_if_needed(db)
+
             generator = AggregateGenerator(
                 db=db,
                 output_dir=args.output,
