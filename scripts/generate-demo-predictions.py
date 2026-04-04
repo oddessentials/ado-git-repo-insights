@@ -85,11 +85,16 @@ def load_weekly_rollups(rollups_dir: Path) -> list[WeeklyMetrics]:
                     raise TypeError(
                         f"Expected str for start_date, got {type(sd_val).__name__}"
                     )
-                ct_p50 = data["cycle_time_p50"]
-                if not isinstance(ct_p50, (int, float)):
+                ct_p50_raw = data["cycle_time_p50"]
+                if ct_p50_raw is None:
                     ct_p50_f = 0.0
+                elif isinstance(ct_p50_raw, (int, float)):
+                    ct_p50_f = float(ct_p50_raw)
                 else:
-                    ct_p50_f = float(ct_p50)
+                    raise TypeError(
+                        f"cycle_time_p50 in {rollup_file.name} expected "
+                        f"numeric or null, got {type(ct_p50_raw).__name__}"
+                    )
 
                 rollups.append(
                     WeeklyMetrics(

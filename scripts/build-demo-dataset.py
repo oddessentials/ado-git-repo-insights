@@ -385,13 +385,25 @@ def validate_canonical_provenance(
 def _load_rollup_index(data_dir: Path, manifest: _JsonDict) -> dict[str, _JsonDict]:
     """Load all indexed weekly rollups keyed by week."""
     agg_index = manifest["aggregate_index"]
-    assert isinstance(agg_index, dict)
+    if not isinstance(agg_index, dict):
+        raise TypeError(
+            f"aggregate_index expected dict, got {type(agg_index).__name__}"
+        )
     rollups_list = agg_index["weekly_rollups"]
-    assert isinstance(rollups_list, list)
+    if not isinstance(rollups_list, list):
+        raise TypeError(
+            f"aggregate_index.weekly_rollups expected list, "
+            f"got {type(rollups_list).__name__}"
+        )
+    for idx, entry in enumerate(rollups_list):
+        if not isinstance(entry, dict):
+            raise TypeError(
+                f"aggregate_index.weekly_rollups[{idx}] expected dict, "
+                f"got {type(entry).__name__}"
+            )
     return {
         entry["week"]: load_json_file(data_dir / entry["path"])
         for entry in rollups_list
-        if isinstance(entry, dict)
     }
 
 
@@ -595,11 +607,13 @@ def validate_reviewer_fixture_contract(
     filter_examples_raw = reviewer_fixtures["reviewer_filter_examples"]
     if not isinstance(filter_examples_raw, list) or not filter_examples_raw:
         raise RuntimeError("reviewer_filter_examples must contain at least one fixture")
-    filter_examples: list[_JsonDict] = [
-        ex for ex in filter_examples_raw if isinstance(ex, dict)
-    ]
-    if not filter_examples:
-        raise RuntimeError("reviewer_filter_examples must contain at least one fixture")
+    for idx, ex in enumerate(filter_examples_raw):
+        if not isinstance(ex, dict):
+            raise TypeError(
+                f"reviewer_filter_examples[{idx}] expected dict, "
+                f"got {type(ex).__name__}"
+            )
+    filter_examples: list[_JsonDict] = list(filter_examples_raw)
 
     fixture_week = str(filter_examples[0]["week"])
     _, fixture_by_reviewer = _resolve_fixture_week_rollup(weekly_rollups, fixture_week)
