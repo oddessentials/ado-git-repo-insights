@@ -550,10 +550,14 @@ class TestCommitlintDispatcherHealthCheck:
         husky_internal.mkdir(parents=True, exist_ok=True)
         (husky_internal / "commit-msg").write_text(content, encoding="utf-8")
 
-    def test_passes_on_standard_husky_dispatcher(self, tmp_path: Path) -> None:
+    def test_passes_on_standard_husky_dispatcher(
+        self, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+    ) -> None:
         self._write_dispatcher(tmp_path, '#!/usr/bin/env sh\n. "$(dirname "$0")/h"\n')
         with patch.object(_hook_module, "REPO_ROOT", tmp_path):
-            run_commitlint_dispatcher_health_check()  # should not raise or warn
+            run_commitlint_dispatcher_health_check()
+        captured = capsys.readouterr()
+        assert "corrupted" not in captured.out
 
     def test_warns_on_corrupted_dispatcher(
         self, tmp_path: Path, capsys: pytest.CaptureFixture[str]
