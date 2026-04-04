@@ -204,6 +204,8 @@ def find_raw_isinstance_dict(tree: ast.Module) -> list[int]:
 
     violations: list[int] = []
     for node in ast.walk(tree):
+        if not isinstance(node, ast.expr):
+            continue
         if _is_isinstance_dict(node) and node.lineno not in approved_lines:
             violations.append(node.lineno)
     return violations
