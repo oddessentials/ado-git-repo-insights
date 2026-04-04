@@ -3,7 +3,7 @@
   "entries": [
     {
       "file": "scripts/build-demo-dataset.py",
-      "line": 106,
+      "line": 121,
       "code": "result = subprocess.run(",
       "reason": "Repo-owned script path constructed from constants"
     },
