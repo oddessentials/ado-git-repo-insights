@@ -2267,7 +2267,7 @@ var PRInsightsDashboard = (() => {
   }
   var SUPPORTED_MANIFEST_VERSION = 1;
   var SUPPORTED_DATASET_VERSION = 1;
-  var SUPPORTED_AGGREGATES_VERSION = 2;
+  var SUPPORTED_AGGREGATES_VERSION = 3;
   var DEFAULT_CAPABILITY_STATE = {
     authorFiltersAvailable: false,
     authorRepoExactAvailable: false,

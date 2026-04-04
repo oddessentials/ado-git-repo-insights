@@ -76,7 +76,7 @@ function validateSchema(
 // Supported schema versions (from dataset-contract.md)
 const SUPPORTED_MANIFEST_VERSION = 1;
 const SUPPORTED_DATASET_VERSION = 1;
-const SUPPORTED_AGGREGATES_VERSION = 2;
+const SUPPORTED_AGGREGATES_VERSION = 3;
 
 const DEFAULT_CAPABILITY_STATE: DatasetCapabilityState = {
   authorFiltersAvailable: false,

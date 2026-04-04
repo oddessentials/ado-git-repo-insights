@@ -169,7 +169,7 @@ class TestAggregateGenerator:
         # Verify manifest structure
         assert manifest.manifest_schema_version == 1
         assert manifest.dataset_schema_version == 1
-        assert manifest.aggregates_schema_version == 2
+        assert manifest.aggregates_schema_version == 3
         assert manifest.run_id == "test-run-123"
 
         # Verify manifest file exists
@@ -2346,9 +2346,9 @@ class TestTeamRepoSlicing:
         assert cross_dim["Team Beta"]["Frontend-Repo"]["cycle_time_p50"] is not None
         assert cross_dim["Team Beta"]["Frontend-Repo"]["cycle_time_p90"] is not None
 
-    def test_schema_version_is_2(self) -> None:
-        """AGGREGATES_SCHEMA_VERSION must equal 2."""
-        assert AGGREGATES_SCHEMA_VERSION == 2
+    def test_schema_version_is_3(self) -> None:
+        """AGGREGATES_SCHEMA_VERSION must equal 3 (review_time fields added)."""
+        assert AGGREGATES_SCHEMA_VERSION == 3
 
     def test_features_cross_dimensional_true(
         self,
@@ -2727,13 +2727,13 @@ class TestPerformanceGate:
             "to validate SC-007 (features.cross_dimensional should be True)"
         )
 
-    def test_schema_version_is_2(
+    def test_schema_version_is_3(
         self, stress_db: tuple[DatabaseManager, Path], tmp_path: Path
     ) -> None:
-        """Verify AGGREGATES_SCHEMA_VERSION == 2 after cross-dim feature."""
-        assert AGGREGATES_SCHEMA_VERSION == 2, (
-            f"AGGREGATES_SCHEMA_VERSION must be 2 for cross-dimensional "
-            f"feature, got {AGGREGATES_SCHEMA_VERSION}"
+        """Verify AGGREGATES_SCHEMA_VERSION == 3 (review_time fields added)."""
+        assert AGGREGATES_SCHEMA_VERSION == 3, (
+            f"AGGREGATES_SCHEMA_VERSION must be 3 for review_time feature, "
+            f"got {AGGREGATES_SCHEMA_VERSION}"
         )
 
     def test_platform_multiplier_selection(self) -> None:

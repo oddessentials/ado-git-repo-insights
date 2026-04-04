@@ -82,6 +82,7 @@ CREATE TABLE IF NOT EXISTS pull_requests (
     creation_date TEXT NOT NULL,  -- ISO 8601
     closed_date TEXT,             -- ISO 8601
     cycle_time_minutes REAL,
+    review_time_minutes REAL,    -- DB-internal: earliest approval − creation_date
     raw_json TEXT,                -- Original ADO response for auditing
     FOREIGN KEY (repository_id) REFERENCES repositories(repository_id),
     FOREIGN KEY (user_id) REFERENCES users(user_id)
@@ -98,11 +99,7 @@ CREATE TABLE IF NOT EXISTS reviewers (
     user_id TEXT NOT NULL,
     vote INTEGER NOT NULL,
     repository_id TEXT NOT NULL,
-    -- Phase 2 reviewer latency design note:
-    -- add reviewed_at TEXT (ISO 8601) only when extraction can persist a stable
-    -- final review event timestamp and backfill existing datasets. Reviewer
-    -- Phase 1 intentionally excludes latency metrics until that migration is
-    -- designed, extracted, and versioned end-to-end.
+    reviewed_at TEXT,  -- ISO 8601, earliest positive vote timestamp from PR threads
     FOREIGN KEY (pull_request_uid) REFERENCES pull_requests(pull_request_uid),
     FOREIGN KEY (user_id) REFERENCES users(user_id),
     UNIQUE(pull_request_uid, user_id)  -- One vote per reviewer per PR
@@ -177,9 +174,9 @@ CREATE TABLE IF NOT EXISTS schema_version (
     applied_at TEXT NOT NULL
 );
 
--- Insert initial schema version
+-- Insert initial schema version (v2: includes reviewed_at + review_time_minutes)
 INSERT OR IGNORE INTO schema_version (version, applied_at)
-VALUES (1, datetime('now'));
+VALUES (2, datetime('now'));
 """
 
 # CSV column order contract (NON-NEGOTIABLE per Invariants 1-4)

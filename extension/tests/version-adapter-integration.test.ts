@@ -232,7 +232,7 @@ describe("Version Adapter Integration", () => {
           const manifest: TestManifest = {
             manifest_schema_version: 1,
             dataset_schema_version: 1,
-            aggregates_schema_version: 2,
+            aggregates_schema_version: 3,
             generated_at: "2026-01-14T12:00:00Z",
             run_id: "test-run-123",
             capabilities: {
