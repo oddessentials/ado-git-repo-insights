@@ -1474,24 +1474,36 @@ class AggregateGenerator:
             metadata_row = None
 
         # Status rules:
-        #   full = usable comment data exists (threads/comments > 0)
-        #          AND extraction was uncapped (or legacy with threads)
-        #   partial = extraction ran but was capped
+        #   full = content exists AND all completed PRs have comment coverage
+        #   partial = content exists but some PRs lack coverage (or capped)
         #   disabled = no usable comment data
-        # Invariant: full ⇒ comment data exists and is usable for metrics.
+        # Invariant: full ⇒ all relevant PRs have comment data.
         extraction_ran = (
             metadata_row is not None and int(metadata_row["prs_processed"]) > 0
         )
         has_content = thread_count > 0 or comment_count > 0
-        if extraction_ran and bool(metadata_row["capped"]):
-            status = "partial"
-        elif extraction_ran and has_content:
-            status = "full"
-        elif has_content:
-            # Content exists but no metadata — legacy or manual import
-            status = "full"
-        else:
+
+        # Ground truth: count completed PRs without any pr_comments rows.
+        # This catches the case where new PRs were added after the last
+        # comment extraction — metadata says uncapped but dataset is partial.
+        try:
+            total_row = self.db.execute(
+                "SELECT COUNT(*) AS cnt FROM pull_requests WHERE status = 'completed'"
+            ).fetchone()
+            total_completed = int(total_row["cnt"]) if total_row else 0
+        except Exception:
+            total_completed = 0
+
+        if not has_content:
             status = "disabled"
+        elif extraction_ran and bool(metadata_row["capped"]):
+            status = "partial"
+        elif total_completed > 0 and prs_with_threads < total_completed:
+            # Some completed PRs lack thread data — dataset is partial.
+            status = "partial"
+        else:
+            # Content exists AND all completed PRs have threads
+            status = "full"
 
         return {
             "status": status,

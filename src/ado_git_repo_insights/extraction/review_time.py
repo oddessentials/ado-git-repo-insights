@@ -147,6 +147,9 @@ def populate_review_timestamps(db: DatabaseManager) -> int:
     updated_count = 0
 
     for pr_uid in pr_uids_with_votes:
+        # Only consider reviewers whose CURRENT vote is still positive.
+        # A reviewer who approved then withdrew (vote → 0/-10) must not
+        # contribute to review_time_minutes.
         result = db.execute(
             """
             SELECT
@@ -156,6 +159,7 @@ def populate_review_timestamps(db: DatabaseManager) -> int:
             JOIN reviewers r ON r.pull_request_uid = p.pull_request_uid
             WHERE p.pull_request_uid = ?
               AND r.reviewed_at IS NOT NULL
+              AND r.vote IN (5, 10)
             GROUP BY p.pull_request_uid
             """,
             (pr_uid,),

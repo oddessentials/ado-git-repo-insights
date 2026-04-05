@@ -639,6 +639,60 @@ class TestConvergenceOnRerun:
 
 
 # ---------------------------------------------------------------------------
+# Withdrawn approval test
+# ---------------------------------------------------------------------------
+
+
+class TestWithdrawnApproval:
+    """Reviewer who approved then changed vote must not contribute review_time."""
+
+    def test_withdrawn_approval_nulls_review_time(self, tmp_path: Path) -> None:
+        db = _create_test_db(tmp_path)
+        try:
+            _seed_pr(db, creation_date="2026-01-15T10:00:00Z")
+            # Reviewer approved (vote=10 in reviewer record)
+            _seed_reviewer(db, user_id="u1", vote=10)
+            _seed_system_comment(
+                db,
+                comment_id="c1",
+                pr_uid="r1-1",
+                author_id="u1",
+                content="Reviewer A voted 10",
+                created_at="2026-01-15T12:00:00Z",
+            )
+
+            # First run: review_time computed
+            populate_review_timestamps(db)
+            pr1 = db.execute(
+                "SELECT review_time_minutes FROM pull_requests "
+                "WHERE pull_request_uid = 'r1-1'"
+            ).fetchone()
+            assert pr1 is not None
+            assert pr1["review_time_minutes"] is not None
+
+            # Reviewer withdraws approval: vote changes to 0
+            db.execute(
+                "UPDATE reviewers SET vote = 0 "
+                "WHERE pull_request_uid = 'r1-1' AND user_id = 'u1'"
+            )
+
+            # Recompute: reviewed_at still set (historical fact), but
+            # review_time_minutes must be NULL because current vote is
+            # no longer positive.
+            populate_review_timestamps(db)
+            pr2 = db.execute(
+                "SELECT review_time_minutes FROM pull_requests "
+                "WHERE pull_request_uid = 'r1-1'"
+            ).fetchone()
+            assert pr2 is not None
+            assert pr2["review_time_minutes"] is None, (
+                "Withdrawn approval must NULL review_time_minutes"
+            )
+        finally:
+            db.close()
+
+
+# ---------------------------------------------------------------------------
 # Scoping safety test
 # ---------------------------------------------------------------------------
 
@@ -746,16 +800,10 @@ class TestTriggerScope:
         finally:
             db.close()
 
-    def test_coverage_full_with_zero_thread_prs(self, tmp_path: Path) -> None:
-        """Uncapped extraction with zero-thread PRs reports full coverage.
-
-        Regression: ground-truth heuristic compared prs_with_threads vs
-        total_completed, falsely marking coverage partial for zero-thread
-        PRs that were legitimately processed.
-        """
+    def test_coverage_full_when_all_prs_have_threads(self, tmp_path: Path) -> None:
+        """Full coverage: all completed PRs have thread data."""
         db = _create_test_db(tmp_path)
         try:
-            # Uncapped extraction processed 50 PRs
             db.execute(
                 "INSERT INTO comments_extraction_metadata "
                 "(id, last_run_timestamp, prs_processed, threads_fetched, "
@@ -772,14 +820,51 @@ class TestTriggerScope:
                 content="Reviewer A voted 10",
                 created_at="2026-01-15T12:00:00Z",
             )
-            # PR processed by extraction but with zero threads (valid)
+            # Only 1 completed PR (r1-1), and it has threads → full
+
+            from ado_git_repo_insights.transform.aggregators import (
+                AggregateGenerator,
+            )
+
+            output = tmp_path / "agg_out"
+            gen = AggregateGenerator(db, output)
+            coverage = gen._get_comments_coverage()
+            assert coverage["status"] == "full"
+        finally:
+            db.close()
+
+    def test_coverage_partial_when_new_prs_lack_threads(self, tmp_path: Path) -> None:
+        """Coverage becomes partial when new PRs are added without threads.
+
+        Full dataset with comments → extract new PRs without comments →
+        coverage must become partial, not full.
+        """
+        db = _create_test_db(tmp_path)
+        try:
+            db.execute(
+                "INSERT INTO comments_extraction_metadata "
+                "(id, last_run_timestamp, prs_processed, threads_fetched, "
+                "comments_fetched, capped) "
+                "VALUES (1, '2026-01-10T00:00:00Z', 50, 100, 200, 0)"
+            )
+            # Covered PR: has threads
+            _seed_pr(db, pr_uid="r1-1")
+            _seed_system_comment(
+                db,
+                comment_id="c1",
+                pr_uid="r1-1",
+                author_id="u1",
+                content="Reviewer A voted 10",
+                created_at="2026-01-15T12:00:00Z",
+            )
+            # New PR added without comments (no thread extraction)
             db.execute(
                 "INSERT INTO pull_requests "
                 "(pull_request_uid, pull_request_id, organization_name, "
                 "project_name, repository_id, user_id, title, status, "
                 "creation_date) "
-                "VALUES ('r1-nothreads', 99, 'org', 'proj', 'r1', 'u1', "
-                "'No Threads PR', 'completed', '2026-01-16T08:00:00Z')",
+                "VALUES ('r1-uncovered', 99, 'org', 'proj', 'r1', 'u1', "
+                "'Uncovered PR', 'completed', '2026-01-16T08:00:00Z')",
             )
 
             from ado_git_repo_insights.transform.aggregators import (
@@ -789,11 +874,11 @@ class TestTriggerScope:
             output = tmp_path / "agg_out"
             gen = AggregateGenerator(db, output)
             coverage = gen._get_comments_coverage()
-            assert coverage["status"] == "full", (
-                "Zero-thread PRs must not downgrade uncapped coverage"
+            assert coverage["status"] == "partial", (
+                "New PRs without threads must downgrade to partial"
             )
 
-            # Metadata preserved
+            # Metadata preserved — NOT overwritten
             row = db.execute(
                 "SELECT prs_processed, capped "
                 "FROM comments_extraction_metadata WHERE id = 1"
