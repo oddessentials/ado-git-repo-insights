@@ -746,20 +746,23 @@ class TestTriggerScope:
         finally:
             db.close()
 
-    def test_coverage_full_when_all_prs_have_threads(self, tmp_path: Path) -> None:
-        """Coverage is full when all completed PRs have thread data.
+    def test_coverage_full_with_zero_thread_prs(self, tmp_path: Path) -> None:
+        """Uncapped extraction with zero-thread PRs reports full coverage.
 
-        Uses _get_comments_coverage() ground truth, not metadata mutation.
+        Regression: ground-truth heuristic compared prs_with_threads vs
+        total_completed, falsely marking coverage partial for zero-thread
+        PRs that were legitimately processed.
         """
         db = _create_test_db(tmp_path)
         try:
+            # Uncapped extraction processed 50 PRs
             db.execute(
                 "INSERT INTO comments_extraction_metadata "
                 "(id, last_run_timestamp, prs_processed, threads_fetched, "
                 "comments_fetched, capped) "
                 "VALUES (1, '2026-01-10T00:00:00Z', 50, 100, 200, 0)"
             )
-            _seed_pr(db)
+            _seed_pr(db, pr_uid="r1-1")
             _seed_reviewer(db, user_id="u1", vote=10)
             _seed_system_comment(
                 db,
@@ -769,6 +772,15 @@ class TestTriggerScope:
                 content="Reviewer A voted 10",
                 created_at="2026-01-15T12:00:00Z",
             )
+            # PR processed by extraction but with zero threads (valid)
+            db.execute(
+                "INSERT INTO pull_requests "
+                "(pull_request_uid, pull_request_id, organization_name, "
+                "project_name, repository_id, user_id, title, status, "
+                "creation_date) "
+                "VALUES ('r1-nothreads', 99, 'org', 'proj', 'r1', 'u1', "
+                "'No Threads PR', 'completed', '2026-01-16T08:00:00Z')",
+            )
 
             from ado_git_repo_insights.transform.aggregators import (
                 AggregateGenerator,
@@ -777,12 +789,14 @@ class TestTriggerScope:
             output = tmp_path / "agg_out"
             gen = AggregateGenerator(db, output)
             coverage = gen._get_comments_coverage()
-            assert coverage["status"] == "full"
+            assert coverage["status"] == "full", (
+                "Zero-thread PRs must not downgrade uncapped coverage"
+            )
 
-            # Metadata preserved — not overwritten
+            # Metadata preserved
             row = db.execute(
-                "SELECT prs_processed, capped FROM comments_extraction_metadata "
-                "WHERE id = 1"
+                "SELECT prs_processed, capped "
+                "FROM comments_extraction_metadata WHERE id = 1"
             ).fetchone()
             assert row is not None
             assert row["prs_processed"] == 50
@@ -790,21 +804,16 @@ class TestTriggerScope:
         finally:
             db.close()
 
-    def test_coverage_partial_when_uncovered_prs_exist(self, tmp_path: Path) -> None:
-        """Coverage is partial when some completed PRs lack thread data.
-
-        Uses _get_comments_coverage() ground truth. Prior metadata is
-        preserved (prs_processed stays 50, not overwritten to 0).
-        """
+    def test_coverage_partial_when_capped(self, tmp_path: Path) -> None:
+        """Capped extraction reports partial coverage. Metadata preserved."""
         db = _create_test_db(tmp_path)
         try:
             db.execute(
                 "INSERT INTO comments_extraction_metadata "
                 "(id, last_run_timestamp, prs_processed, threads_fetched, "
                 "comments_fetched, capped) "
-                "VALUES (1, '2026-01-10T00:00:00Z', 50, 100, 200, 0)"
+                "VALUES (1, '2026-01-10T00:00:00Z', 100, 200, 400, 1)"
             )
-            # Covered PR
             _seed_pr(db, pr_uid="r1-1")
             _seed_system_comment(
                 db,
@@ -813,15 +822,6 @@ class TestTriggerScope:
                 author_id="u1",
                 content="Reviewer A voted 10",
                 created_at="2026-01-15T12:00:00Z",
-            )
-            # Uncovered PR: no threads/comments
-            db.execute(
-                "INSERT INTO pull_requests "
-                "(pull_request_uid, pull_request_id, organization_name, "
-                "project_name, repository_id, user_id, title, status, "
-                "creation_date) "
-                "VALUES ('r1-uncovered', 99, 'org', 'proj', 'r1', 'u1', "
-                "'Uncovered PR', 'completed', '2026-01-16T08:00:00Z')",
             )
 
             from ado_git_repo_insights.transform.aggregators import (
@@ -833,17 +833,11 @@ class TestTriggerScope:
             coverage = gen._get_comments_coverage()
             assert coverage["status"] == "partial"
 
-            # Metadata preserved — prior history NOT overwritten
             row = db.execute(
-                "SELECT prs_processed, threads_fetched, capped "
-                "FROM comments_extraction_metadata WHERE id = 1"
+                "SELECT prs_processed FROM comments_extraction_metadata WHERE id = 1"
             ).fetchone()
             assert row is not None
-            assert row["prs_processed"] == 50, "Prior metadata must be preserved"
-            assert row["threads_fetched"] == 100
-            assert row["capped"] == 0, (
-                "Metadata capped flag must not be mutated by coverage check"
-            )
+            assert row["prs_processed"] == 100, "Metadata preserved"
         finally:
             db.close()
 
