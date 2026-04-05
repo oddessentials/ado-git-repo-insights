@@ -75,13 +75,23 @@ def migrate_v2_to_v3(conn: Connection) -> None:
         conn.execute("ALTER TABLE pull_requests ADD COLUMN comments_extracted_at TEXT")
         logger.info("Added column pull_requests.comments_extracted_at")
 
-    # Backfill: any completed PR that already has rows in pr_threads was
-    # clearly processed by a prior extraction run.  Stamp it with the
-    # last_run_timestamp from comments_extraction_metadata so it counts as
-    # covered without requiring a fresh extraction.
+    # Backfill: reconstruct per-PR extraction markers from prior state.
+    #
+    # The extraction loop visits ALL completed PRs (ordered by closed_date
+    # DESC, up to the LIMIT).  When uncapped, every completed PR in the DB
+    # was visited — including those that had zero threads.  We must stamp
+    # all of them so that a previously "full" dataset stays "full" after
+    # migration.
+    #
+    # Strategy:
+    #   uncapped → stamp ALL completed PRs (extraction visited every one)
+    #   capped   → stamp only PRs with stored threads (conservative; the
+    #              remaining PRs may or may not have been in scope)
+    #   no meta  → no backfill (cannot reconstruct scope)
     try:
         meta_row = conn.execute(
-            "SELECT last_run_timestamp FROM comments_extraction_metadata WHERE id = 1"
+            "SELECT last_run_timestamp, capped "
+            "FROM comments_extraction_metadata WHERE id = 1"
         ).fetchone()
     except Exception:
         meta_row = None
@@ -92,14 +102,35 @@ def migrate_v2_to_v3(conn: Connection) -> None:
             if isinstance(meta_row, tuple)
             else meta_row["last_run_timestamp"]
         )
-        conn.execute(
-            "UPDATE pull_requests SET comments_extracted_at = ? "
-            "WHERE comments_extracted_at IS NULL "
-            "AND pull_request_uid IN "
-            "(SELECT DISTINCT pull_request_uid FROM pr_threads)",
-            (stamp,),
-        )
-        logger.info("Backfilled comments_extracted_at from existing pr_threads data")
+        capped = meta_row[1] if isinstance(meta_row, tuple) else meta_row["capped"]
+
+        if not capped:
+            # Uncapped: extraction visited every completed PR in the DB.
+            # Stamp all of them — zero-thread PRs are fully covered.
+            conn.execute(
+                "UPDATE pull_requests SET comments_extracted_at = ? "
+                "WHERE comments_extracted_at IS NULL "
+                "AND status = 'completed'",
+                (stamp,),
+            )
+            logger.info(
+                "Backfilled comments_extracted_at for all completed PRs "
+                "(uncapped extraction)"
+            )
+        else:
+            # Capped: only stamp PRs we can prove were processed (those
+            # with stored thread data).
+            conn.execute(
+                "UPDATE pull_requests SET comments_extracted_at = ? "
+                "WHERE comments_extracted_at IS NULL "
+                "AND pull_request_uid IN "
+                "(SELECT DISTINCT pull_request_uid FROM pr_threads)",
+                (stamp,),
+            )
+            logger.info(
+                "Backfilled comments_extracted_at from pr_threads data "
+                "(capped extraction)"
+            )
 
     conn.execute(
         "INSERT OR IGNORE INTO schema_version (version, applied_at) "

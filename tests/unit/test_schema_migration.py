@@ -273,3 +273,192 @@ class TestFreshInstall:
             assert db.get_schema_version() == 3
         finally:
             db.close()
+
+
+class TestMigrationV2ToV3CoveragePreservation:
+    """Migration must not downgrade a previously full dataset to partial.
+
+    Regression: the v2→v3 backfill originally only stamped PRs present in
+    pr_threads, missing zero-thread PRs that were fully visited by earlier
+    --include-comments runs.  After migration those PRs stayed unmarked and
+    coverage became "partial" on a dataset that was previously "full".
+    """
+
+    @staticmethod
+    def _create_v2_database_with_full_extraction(path: Path) -> None:
+        """Build a v2 DB representing a completed uncapped extraction.
+
+        3 completed PRs:
+        - r1-1: has a thread (non-zero discussion)
+        - r1-2: zero threads (visited, nothing to store)
+        - r1-3: zero threads (visited, nothing to store)
+
+        comments_extraction_metadata: uncapped, all 3 processed.
+        """
+        conn = sqlite3.connect(str(path))
+        conn.execute("PRAGMA foreign_keys = OFF")
+        conn.executescript("""
+            CREATE TABLE extraction_metadata (
+                id INTEGER PRIMARY KEY CHECK (id = 1),
+                organization_name TEXT NOT NULL,
+                project_name TEXT NOT NULL,
+                last_extraction_date TEXT NOT NULL,
+                last_extraction_timestamp TEXT NOT NULL
+            );
+            CREATE TABLE organizations (organization_name TEXT PRIMARY KEY);
+            CREATE TABLE projects (
+                project_name TEXT PRIMARY KEY,
+                organization_name TEXT NOT NULL
+            );
+            CREATE TABLE repositories (
+                repository_id TEXT PRIMARY KEY,
+                repository_name TEXT NOT NULL,
+                project_name TEXT NOT NULL,
+                organization_name TEXT NOT NULL
+            );
+            CREATE TABLE users (
+                user_id TEXT PRIMARY KEY,
+                display_name TEXT NOT NULL,
+                email TEXT
+            );
+            CREATE TABLE pull_requests (
+                pull_request_uid TEXT PRIMARY KEY,
+                pull_request_id INTEGER NOT NULL,
+                organization_name TEXT NOT NULL,
+                project_name TEXT NOT NULL,
+                repository_id TEXT NOT NULL,
+                user_id TEXT NOT NULL,
+                title TEXT NOT NULL,
+                status TEXT NOT NULL,
+                description TEXT,
+                creation_date TEXT NOT NULL,
+                closed_date TEXT,
+                cycle_time_minutes REAL,
+                review_time_minutes REAL,
+                raw_json TEXT
+            );
+            CREATE TABLE reviewers (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                pull_request_uid TEXT NOT NULL,
+                user_id TEXT NOT NULL,
+                vote INTEGER NOT NULL,
+                repository_id TEXT NOT NULL,
+                reviewed_at TEXT,
+                UNIQUE(pull_request_uid, user_id)
+            );
+            CREATE TABLE pr_threads (
+                thread_id TEXT PRIMARY KEY,
+                pull_request_uid TEXT NOT NULL,
+                status TEXT,
+                thread_context TEXT,
+                last_updated TEXT NOT NULL,
+                created_at TEXT NOT NULL,
+                is_deleted INTEGER DEFAULT 0
+            );
+            CREATE TABLE pr_comments (
+                comment_id TEXT PRIMARY KEY,
+                thread_id TEXT NOT NULL,
+                pull_request_uid TEXT NOT NULL,
+                author_id TEXT NOT NULL,
+                content TEXT,
+                comment_type TEXT,
+                created_at TEXT NOT NULL,
+                last_updated TEXT,
+                is_deleted INTEGER DEFAULT 0
+            );
+            CREATE TABLE comments_extraction_metadata (
+                id INTEGER PRIMARY KEY CHECK (id = 1),
+                last_run_timestamp TEXT NOT NULL,
+                prs_processed INTEGER NOT NULL DEFAULT 0,
+                threads_fetched INTEGER NOT NULL DEFAULT 0,
+                comments_fetched INTEGER NOT NULL DEFAULT 0,
+                capped INTEGER NOT NULL DEFAULT 0
+            );
+            CREATE TABLE schema_version (
+                version INTEGER PRIMARY KEY,
+                applied_at TEXT NOT NULL
+            );
+            INSERT INTO schema_version (version, applied_at)
+            VALUES (2, datetime('now'));
+        """)
+
+        # Entities
+        conn.execute("INSERT INTO users (user_id, display_name) VALUES ('u1', 'Alice')")
+        conn.execute(
+            "INSERT INTO repositories (repository_id, repository_name, "
+            "project_name, organization_name) "
+            "VALUES ('r1', 'repo', 'proj', 'org')"
+        )
+
+        # 3 completed PRs
+        for i in range(1, 4):
+            conn.execute(
+                "INSERT INTO pull_requests (pull_request_uid, pull_request_id, "
+                "organization_name, project_name, repository_id, user_id, "
+                "title, status, creation_date) "
+                "VALUES (?, ?, 'org', 'proj', 'r1', 'u1', ?, 'completed', "
+                "'2026-01-15T10:00:00Z')",
+                (f"r1-{i}", i, f"PR {i}"),
+            )
+
+        # Only r1-1 has a thread; r1-2 and r1-3 had zero threads.
+        conn.execute(
+            "INSERT INTO pr_threads (thread_id, pull_request_uid, status, "
+            "last_updated, created_at) "
+            "VALUES ('t1', 'r1-1', 'active', '2026-01-16T00:00:00Z', "
+            "'2026-01-16T00:00:00Z')"
+        )
+
+        # Metadata: uncapped, all 3 PRs processed.
+        conn.execute(
+            "INSERT INTO comments_extraction_metadata "
+            "(id, last_run_timestamp, prs_processed, threads_fetched, "
+            "comments_fetched, capped) "
+            "VALUES (1, '2026-01-20T00:00:00Z', 3, 1, 0, 0)"
+        )
+        conn.commit()
+        conn.close()
+
+    def test_migration_preserves_full_coverage_with_zero_thread_prs(
+        self, tmp_path: Path
+    ) -> None:
+        """v2→v3 migration must stamp all completed PRs when uncapped.
+
+        A prior uncapped extraction visited 3 PRs but only 1 had threads.
+        After migration, all 3 must have comments_extracted_at set so
+        coverage remains 'full'.
+        """
+        db_path = tmp_path / "v2_full.db"
+        self._create_v2_database_with_full_extraction(db_path)
+
+        # Connect triggers migration v2→v3.
+        db = DatabaseManager(db_path)
+        db.connect()
+        try:
+            assert db.get_schema_version() == 3
+
+            # All 3 completed PRs must have been stamped — not just r1-1.
+            row = db.execute(
+                "SELECT COUNT(*) AS cnt FROM pull_requests "
+                "WHERE status = 'completed' "
+                "AND comments_extracted_at IS NOT NULL"
+            ).fetchone()
+            assert row is not None
+            assert int(row["cnt"]) == 3, (
+                "All 3 completed PRs must be stamped by migration backfill, "
+                "including the 2 with zero threads"
+            )
+
+            # Verify coverage reports full via the aggregator.
+            from ado_git_repo_insights.transform.aggregators import (
+                AggregateGenerator,
+            )
+
+            output = tmp_path / "agg_out"
+            gen = AggregateGenerator(db, output)
+            coverage = gen._get_comments_coverage()
+            assert coverage["status"] == "full", (
+                "Previously full dataset must remain full after migration"
+            )
+        finally:
+            db.close()
