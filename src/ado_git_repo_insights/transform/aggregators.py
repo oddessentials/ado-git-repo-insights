@@ -1475,10 +1475,27 @@ class AggregateGenerator:
 
         if thread_count == 0:
             status = "disabled"
+        elif metadata_row is not None and bool(metadata_row["capped"]):
+            status = "partial"
         else:
+            # Ground-truth dataset coverage: if any completed PR that
+            # SHOULD have thread data (scoped by the existence of any
+            # threads in the dataset) is missing pr_comments rows,
+            # coverage is partial.  This catches the upgrade scenario
+            # where new PRs were added without --include-comments.
+            try:
+                total_completed_row = self.db.execute(
+                    "SELECT COUNT(*) AS cnt FROM pull_requests "
+                    "WHERE status = 'completed'"
+                ).fetchone()
+                total_completed = (
+                    int(total_completed_row["cnt"]) if total_completed_row else 0
+                )
+            except Exception:
+                total_completed = 0
             status = (
                 "partial"
-                if metadata_row is not None and bool(metadata_row["capped"])
+                if total_completed > 0 and prs_with_threads < total_completed
                 else "full"
             )
 

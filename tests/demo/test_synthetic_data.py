@@ -379,22 +379,26 @@ class TestReviewTimePresence:
             "All breakdown review_time values are null — filtered cards won't render"
         )
 
-    def test_per_percentile_null_independence(self) -> None:
-        """P50 and P90 must have different null/non-null patterns (FR-010)."""
+    def test_review_time_p50_p90_coupled_nullability(self) -> None:
+        """Root P50 and P90 must always be both-null or both-non-null.
+
+        Production gates both from the same sample count check.
+        Per-percentile independence was removed to match production contract.
+        """
         rollups_dir = DOCS_DATA / "aggregates" / "weekly_rollups"
-        p50_null_weeks: set[str] = set()
-        p90_null_weeks: set[str] = set()
+        mixed = 0
+        total = 0
         for path in sorted(rollups_dir.glob("*.json")):
             with open(path, encoding="utf-8") as f:
                 rollup = json.load(f)
-            week = rollup["week"]
-            if rollup.get("review_time_p50") is None:
-                p50_null_weeks.add(week)
-            if rollup.get("review_time_p90") is None:
-                p90_null_weeks.add(week)
-        assert p50_null_weeks != p90_null_weeks, (
-            "P50 and P90 have identical null patterns — "
-            "per-percentile independence is not exercised"
+            total += 1
+            p50_null = rollup.get("review_time_p50") is None
+            p90_null = rollup.get("review_time_p90") is None
+            if p50_null != p90_null:
+                mixed += 1
+        assert total > 0
+        assert mixed == 0, (
+            f"{mixed}/{total} root rollups have mixed P50/P90 nullability"
         )
 
     def test_review_time_ratio_to_cycle_time(self) -> None:
@@ -515,3 +519,34 @@ class TestReviewTimePresence:
                 f"({suppressed_pct:.0%}) single-dim slices with 2-4 PRs "
                 f"have null review_time — threshold likely too high"
             )
+
+    def test_no_mixed_review_time_nullability(self) -> None:
+        """No rollup or slice may have review_time_p50 null with p90 numeric or vice versa.
+
+        Production gates both from the same sample count. Demo must match.
+        """
+        rollups_dir = DOCS_DATA / "aggregates" / "weekly_rollups"
+        mixed = 0
+        checked = 0
+        for path in sorted(rollups_dir.glob("*.json")):
+            with open(path, encoding="utf-8") as f:
+                rollup = json.load(f)
+            # Root
+            p50_null = rollup.get("review_time_p50") is None
+            p90_null = rollup.get("review_time_p90") is None
+            checked += 1
+            if p50_null != p90_null:
+                mixed += 1
+            # All dimensions
+            for dim in ("by_repository", "by_team", "by_author"):
+                for entry in rollup.get(dim, {}).values():
+                    ep50_null = entry.get("review_time_p50") is None
+                    ep90_null = entry.get("review_time_p90") is None
+                    checked += 1
+                    if ep50_null != ep90_null:
+                        mixed += 1
+        assert checked > 0
+        assert mixed == 0, (
+            f"{mixed}/{checked} entries have mixed review_time nullability "
+            f"(one null, one numeric) — production never allows this"
+        )

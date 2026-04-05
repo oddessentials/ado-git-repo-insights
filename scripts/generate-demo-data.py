@@ -716,14 +716,16 @@ def _collapse_author_slices(
             "cycle_time_p90": (
                 weighted_p90_total / weighted_prs if weighted_prs >= 5 else None
             ),
+            # Couple P50/P90: both non-null or both null (production contract).
+            # Use minimum of both accumulators as the shared gate.
             "review_time_p50": (
                 rt_p50_weighted_total / rt_p50_weighted_prs
-                if rt_p50_weighted_prs >= 2
+                if rt_p50_weighted_prs >= 2 and rt_p90_weighted_prs >= 2
                 else None
             ),
             "review_time_p90": (
                 rt_p90_weighted_total / rt_p90_weighted_prs
-                if rt_p90_weighted_prs >= 2
+                if rt_p50_weighted_prs >= 2 and rt_p90_weighted_prs >= 2
                 else None
             ),
             "authors_count": 1,
@@ -1045,12 +1047,20 @@ def _derive_review_time_pair(
     """Derive review time p50/p90 from cycle time using a single shared ratio.
 
     A single ratio is drawn and applied to both percentiles, guaranteeing
-    that review_time_p50 <= review_time_p90 whenever cycle_time_p50 <= cycle_time_p90
-    (which is always true for percentiles from the same distribution).
+    that review_time_p50 <= review_time_p90 whenever cycle_time_p50 <= cycle_time_p90.
 
-    Per-percentile null injection (~10% rate) is applied independently.
+    Production gates both percentiles from the same sample count — they are
+    always both-null or both-non-null.  Null injection (~10% rate) is coupled:
+    one coin flip determines both.
     """
     ratio = RNG.uniform(REVIEW_TIME_RATIO_LOW, REVIEW_TIME_RATIO_HIGH)
+
+    if cycle_time_p50 is None and cycle_time_p90 is None:
+        return None, None
+
+    # Coupled null injection: both null or both present
+    if RNG.random() < REVIEW_TIME_NULL_RATE:
+        return None, None
 
     rt_p50: float | None = (
         round(cycle_time_p50 * ratio, 3) if cycle_time_p50 is not None else None
@@ -1058,12 +1068,6 @@ def _derive_review_time_pair(
     rt_p90: float | None = (
         round(cycle_time_p90 * ratio, 3) if cycle_time_p90 is not None else None
     )
-
-    # Per-percentile independent null injection
-    if rt_p50 is not None and RNG.random() < REVIEW_TIME_NULL_RATE:
-        rt_p50 = None
-    if rt_p90 is not None and RNG.random() < REVIEW_TIME_NULL_RATE:
-        rt_p90 = None
 
     return rt_p50, rt_p90
 
