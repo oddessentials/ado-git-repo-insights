@@ -628,6 +628,75 @@ class TestCmdGenerateAggregates:
 
         assert result == 0
 
+    @patch("ado_git_repo_insights.persistence.database.DatabaseManager")
+    @patch("ado_git_repo_insights.transform.aggregators.AggregateGenerator")
+    def test_backfill_survives_mocked_database_manager(
+        self,
+        mock_agg_generator: MagicMock,
+        mock_db_manager: MagicMock,
+        tmp_path: Path,
+    ) -> None:
+        """_backfill_review_timestamps_if_needed must not TypeError when
+        DatabaseManager is replaced by a MagicMock (duck-type guard).
+
+        Regression: isinstance(db, MockedClass) raised TypeError because
+        the mock is not a type.
+        """
+        from ado_git_repo_insights.cli import cmd_generate_aggregates
+
+        db_path = tmp_path / "test.sqlite"
+        db_path.touch()
+
+        mock_db = MagicMock()
+        mock_db_manager.return_value = mock_db
+        mock_generator = MagicMock()
+        mock_manifest = MagicMock()
+        mock_manifest.aggregate_index.weekly_rollups = []
+        mock_manifest.aggregate_index.distributions = []
+        mock_manifest.features = {"predictions": False, "ai_insights": False}
+        mock_manifest.warnings = []
+        mock_generator.generate_all.return_value = mock_manifest
+        mock_agg_generator.return_value = mock_generator
+
+        args = Namespace(
+            database=db_path,
+            output=tmp_path / "output",
+            run_id="",
+            enable_ml_stubs=False,
+            seed_base="",
+            enable_predictions=False,
+            enable_insights=False,
+            insights_max_tokens=1000,
+            insights_cache_ttl_hours=24,
+            insights_dry_run=False,
+            stub_mode=False,
+        )
+
+        # Must not raise TypeError from isinstance()
+        result = cmd_generate_aggregates(args)
+
+        assert result == 0
+
+    def test_backfill_helper_noop_on_plain_mock_db(self) -> None:
+        """Plain MagicMock as db must not reach populate_review_timestamps.
+
+        Regression: MagicMock.execute().fetchone() is truthy, so the
+        hasattr guard alone let mocks flow into the backfill path where
+        `count > 0` raised TypeError on a mock return value.  The row
+        validation guards must reject mock rows before any backfill runs.
+        """
+        from ado_git_repo_insights.cli import _backfill_review_timestamps_if_needed
+
+        mock_db = MagicMock()
+
+        with patch(
+            "ado_git_repo_insights.extraction.review_time.populate_review_timestamps"
+        ) as mock_populate:
+            # Must not raise, must not call populate
+            _backfill_review_timestamps_if_needed(mock_db)
+
+            mock_populate.assert_not_called()
+
 
 class TestValidateServeFlags:
     """Tests for _validate_serve_flags helper function."""

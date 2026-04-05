@@ -921,7 +921,9 @@ def test_review_time_p50_le_p90_across_seeds(seed: int) -> None:
     Regression: independent ratio draws per percentile caused p50 > p90
     for some seeds when ct_p50/ct_p90 gap was narrow and ratios diverged.
     """
-    output_dir = run_generator(pr_count=1000, weeks=52, seed=seed)
+    output_dir = run_generator(
+        pr_count=1000, weeks=52, seed=seed, include_comments=True
+    )
     rollup_dir = output_dir / "aggregates" / "weekly_rollups"
 
     violations = 0

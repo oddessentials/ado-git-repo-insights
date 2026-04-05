@@ -435,9 +435,12 @@ class TestAggregateGenerator:
             created_at="2026-01-06T14:40:00Z",
             last_updated="2026-01-06T15:00:00Z",
         )
+        # prs_processed must cover all completed PRs in sample_db (4) for
+        # "full" status — extraction visited every PR even though only one
+        # had threads.
         repo.update_comments_extraction_metadata(
             last_run_timestamp="2026-01-07T00:00:00Z",
-            prs_processed=1,
+            prs_processed=4,
             threads_fetched=1,
             comments_fetched=1,
             capped=False,
@@ -486,6 +489,39 @@ class TestAggregateGenerator:
         assert isinstance(comments, dict)
         assert comments["status"] == "partial"
         assert comments["capped"] is True
+
+    def test_full_coverage_when_extraction_processed_all_prs_with_zero_threads(
+        self, sample_db: tuple[DatabaseManager, Path], tmp_path: Path
+    ) -> None:
+        """Coverage is 'full' when extraction processed all PRs even if none had threads.
+
+        Regression: _get_comments_coverage compared prs_with_threads against
+        total_completed, marking coverage as 'partial' when processed PRs had
+        zero threads.  A PR with no threads is fully covered — it simply had
+        no discussion.
+        """
+        db, _ = sample_db
+        output_dir = tmp_path / "output"
+        repo = PRRepository(db)
+
+        # Extraction processed all 4 completed PRs, uncapped, but none
+        # had any threads.  No rows in pr_threads / pr_comments.
+        repo.update_comments_extraction_metadata(
+            last_run_timestamp="2026-01-07T00:00:00Z",
+            prs_processed=4,
+            threads_fetched=0,
+            comments_fetched=0,
+            capped=False,
+        )
+        db.connection.commit()
+
+        generator = AggregateGenerator(db, output_dir)
+        manifest = generator.generate_all()
+
+        comments = manifest.coverage["comments"]
+        assert isinstance(comments, dict)
+        assert comments["status"] == "full"
+        assert comments["capped"] is False
 
     def test_manifest_capabilities_are_emitted_from_guarded_keyset(
         self, sample_db: tuple[DatabaseManager, Path], tmp_path: Path

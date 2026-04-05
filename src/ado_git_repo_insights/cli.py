@@ -833,33 +833,60 @@ def cmd_generate_csv(args: Namespace) -> int:
         return 1
 
 
-def _backfill_review_timestamps_if_needed(db: object) -> None:
+def _backfill_review_timestamps_if_needed(db: DatabaseManager) -> None:
     """Run review-time recomputation if stored comment data exists.
 
     Safe to call from any command path (extract, generate-aggregates, build).
     Guards against legacy DBs without the pr_comments table.
     Idempotent: clear-then-repopulate ensures no double-counting.
+
+    Every intermediate result is validated for concrete scalar types so that
+    a ``MagicMock`` passed as *db* in tests fails closed (returns without
+    side-effects) instead of flowing into ``populate_review_timestamps``.
     """
     from .extraction.review_time import populate_review_timestamps
-    from .persistence.database import DatabaseManager
 
-    if not isinstance(db, DatabaseManager):
+    if not hasattr(db, "execute"):
         return
-    comments_table_exists = (
-        db.execute(
-            "SELECT 1 FROM sqlite_master WHERE type='table' AND name='pr_comments'"
-        ).fetchone()
-        is not None
-    )
-    if not comments_table_exists:
+
+    # Guard 1: pr_comments table must exist.
+    # A real fetchone() returns sqlite3.Row / tuple / None.
+    # A MagicMock returns another MagicMock which passes truthiness checks.
+    # We probe the row with ``[0]`` and require a concrete int back — this
+    # rejects mocks whose __getitem__ returns yet another mock.
+    table_row = db.execute(
+        "SELECT 1 FROM sqlite_master WHERE type='table' AND name='pr_comments'"
+    ).fetchone()
+    if not _is_real_row(table_row):
         return
-    has_comments = (
-        db.execute("SELECT 1 FROM pr_comments LIMIT 1").fetchone() is not None
-    )
-    if has_comments:
-        count = populate_review_timestamps(db)
-        if count > 0:
-            logger.info(f"Review time computed for {count} PRs")
+
+    # Guard 2: at least one comment row must exist.
+    comment_row = db.execute("SELECT 1 FROM pr_comments LIMIT 1").fetchone()
+    if not _is_real_row(comment_row):
+        return
+
+    count = populate_review_timestamps(db)
+    if isinstance(count, int) and count > 0:
+        logger.info(f"Review time computed for {count} PRs")
+
+
+def _is_real_row(row: object) -> bool:
+    """Return True only if *row* is a genuine database result row.
+
+    Rejects ``None`` (no match) and ``MagicMock`` (test double).
+    A real ``sqlite3.Row`` or tuple supports ``row[0]`` and yields a
+    concrete scalar (``int``, ``str``, …) — never another mock.
+    """
+    if row is None:
+        return False
+    getter = getattr(row, "__getitem__", None)
+    if getter is None:
+        return False
+    try:
+        val: object = getter(0)
+    except (TypeError, IndexError, KeyError):
+        return False
+    return isinstance(val, (int, float, str, bytes))
 
 
 def cmd_generate_aggregates(args: Namespace) -> int:

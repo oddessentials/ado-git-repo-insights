@@ -350,6 +350,14 @@ class TestCommentsCoverage:
             """,
             ("thread1", "repo1-1", "active", now, now),
         )
+        # Extraction metadata: processed all completed PRs, uncapped.
+        db.execute(
+            "INSERT INTO comments_extraction_metadata "
+            "(id, last_run_timestamp, prs_processed, threads_fetched, "
+            "comments_fetched, capped) "
+            "VALUES (1, ?, 1, 1, 0, 0)",
+            (now,),
+        )
         db.connection.commit()
 
         output_dir = tmp_path / "output"

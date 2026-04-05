@@ -1473,19 +1473,20 @@ class AggregateGenerator:
             prs_with_threads = 0
             metadata_row = None
 
-        # Status rules:
-        #   full = content exists AND all completed PRs have comment coverage
-        #   partial = content exists but some PRs lack coverage (or capped)
-        #   disabled = no usable comment data
-        # Invariant: full ⇒ all relevant PRs have comment data.
+        # Status rules (priority order):
+        #   1. extraction ran + capped → partial (incomplete sweep)
+        #   2. extraction ran + uncapped + processed ≥ completed → full
+        #      (some PRs may have zero threads; that is a legitimate result,
+        #       not a coverage gap)
+        #   3. extraction ran + uncapped + processed < completed → partial
+        #      (new PRs added after last comment extraction)
+        #   4. no extraction but content exists (legacy import) → partial
+        #   5. no content and no extraction → disabled
         extraction_ran = (
             metadata_row is not None and int(metadata_row["prs_processed"]) > 0
         )
         has_content = thread_count > 0 or comment_count > 0
 
-        # Ground truth: count completed PRs without any pr_comments rows.
-        # This catches the case where new PRs were added after the last
-        # comment extraction — metadata says uncapped but dataset is partial.
         try:
             total_row = self.db.execute(
                 "SELECT COUNT(*) AS cnt FROM pull_requests WHERE status = 'completed'"
@@ -1494,16 +1495,23 @@ class AggregateGenerator:
         except Exception:
             total_completed = 0
 
-        if not has_content:
-            status = "disabled"
-        elif extraction_ran and bool(metadata_row["capped"]):
+        if extraction_ran and bool(metadata_row["capped"]):
             status = "partial"
-        elif total_completed > 0 and prs_with_threads < total_completed:
-            # Some completed PRs lack thread data — dataset is partial.
+        elif extraction_ran:
+            # Extraction ran and was not capped.  Base coverage on the number
+            # of PRs the extractor actually visited (prs_processed), NOT on
+            # how many produced stored threads — a PR with zero threads is
+            # still fully covered.
+            prs_processed = int(metadata_row["prs_processed"])
+            if total_completed > 0 and prs_processed < total_completed:
+                status = "partial"
+            else:
+                status = "full"
+        elif has_content:
+            # Content exists but no extraction metadata — legacy or partial import
             status = "partial"
         else:
-            # Content exists AND all completed PRs have threads
-            status = "full"
+            status = "disabled"
 
         return {
             "status": status,

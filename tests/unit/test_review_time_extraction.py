@@ -834,18 +834,20 @@ class TestTriggerScope:
             db.close()
 
     def test_coverage_partial_when_new_prs_lack_threads(self, tmp_path: Path) -> None:
-        """Coverage becomes partial when new PRs are added without threads.
+        """Coverage becomes partial when new PRs are added after extraction.
 
-        Full dataset with comments → extract new PRs without comments →
-        coverage must become partial, not full.
+        Extraction processed 1 PR, then a second completed PR was added
+        without re-running extraction → prs_processed < total_completed →
+        coverage must become partial.
         """
         db = _create_test_db(tmp_path)
         try:
+            # Extraction only processed 1 PR (before the new one was added)
             db.execute(
                 "INSERT INTO comments_extraction_metadata "
                 "(id, last_run_timestamp, prs_processed, threads_fetched, "
                 "comments_fetched, capped) "
-                "VALUES (1, '2026-01-10T00:00:00Z', 50, 100, 200, 0)"
+                "VALUES (1, '2026-01-10T00:00:00Z', 1, 1, 1, 0)"
             )
             # Covered PR: has threads
             _seed_pr(db, pr_uid="r1-1")
@@ -857,7 +859,7 @@ class TestTriggerScope:
                 content="Reviewer A voted 10",
                 created_at="2026-01-15T12:00:00Z",
             )
-            # New PR added without comments (no thread extraction)
+            # New PR added after extraction ran (never processed)
             db.execute(
                 "INSERT INTO pull_requests "
                 "(pull_request_uid, pull_request_id, organization_name, "
@@ -875,7 +877,7 @@ class TestTriggerScope:
             gen = AggregateGenerator(db, output)
             coverage = gen._get_comments_coverage()
             assert coverage["status"] == "partial", (
-                "New PRs without threads must downgrade to partial"
+                "prs_processed < total_completed must downgrade to partial"
             )
 
             # Metadata preserved — NOT overwritten
@@ -884,7 +886,7 @@ class TestTriggerScope:
                 "FROM comments_extraction_metadata WHERE id = 1"
             ).fetchone()
             assert row is not None
-            assert row["prs_processed"] == 50
+            assert row["prs_processed"] == 1
             assert row["capped"] == 0
         finally:
             db.close()
@@ -926,13 +928,14 @@ class TestTriggerScope:
         finally:
             db.close()
 
-    def test_coverage_disabled_when_extraction_found_nothing(
+    def test_coverage_full_when_extraction_found_zero_threads(
         self, tmp_path: Path
     ) -> None:
-        """Uncapped extraction with zero threads/comments → disabled, not full.
+        """Uncapped extraction with zero threads/comments → full.
 
-        Invariant: full ⇒ usable comment data exists. If extraction ran
-        but found nothing, there's no data for review-time metrics.
+        Extraction ran and covered all completed PRs.  The absence of
+        threads is a legitimate result (those PRs simply had no discussion),
+        not a coverage gap.
         """
         db = _create_test_db(tmp_path)
         try:
@@ -951,8 +954,8 @@ class TestTriggerScope:
             output = tmp_path / "agg_out"
             gen = AggregateGenerator(db, output)
             coverage = gen._get_comments_coverage()
-            assert coverage["status"] == "disabled", (
-                "Zero content must not report full — no usable data exists"
+            assert coverage["status"] == "full", (
+                "Extraction processed all PRs — zero threads is full coverage"
             )
         finally:
             db.close()
