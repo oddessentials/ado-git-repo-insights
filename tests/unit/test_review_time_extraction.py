@@ -746,25 +746,21 @@ class TestTriggerScope:
         finally:
             db.close()
 
-    def test_coverage_downgrades_when_comments_skipped(self, tmp_path: Path) -> None:
-        """Coverage metadata must become partial when extraction skips threads.
+    def test_coverage_stays_full_on_noop_rerun(self, tmp_path: Path) -> None:
+        """No-op rerun (0 new PRs) must NOT downgrade coverage.
 
-        Regression: after a thread-enabled run, re-running without
-        --include-comments left metadata.capped=False, so the manifest
-        reported coverage.comments.status="full" even though newly
-        extracted PRs had no thread data.
+        Regression: coverage was downgraded on every non-comment run,
+        even when this extract added no uncovered PRs.
         """
         db = _create_test_db(tmp_path)
         try:
-            # Simulate prior run WITH --include-comments: set capped=False
+            # Prior run with --include-comments: capped=False
             db.execute(
                 "INSERT INTO comments_extraction_metadata "
                 "(id, last_run_timestamp, prs_processed, threads_fetched, "
                 "comments_fetched, capped) "
                 "VALUES (1, '2026-01-10T00:00:00Z', 50, 100, 200, 0)"
             )
-
-            # Seed some comment data (from the prior run)
             _seed_pr(db)
             _seed_reviewer(db, user_id="u1", vote=10)
             _seed_system_comment(
@@ -776,15 +772,46 @@ class TestTriggerScope:
                 created_at="2026-01-15T12:00:00Z",
             )
 
-            # Verify metadata is NOT capped before the fix
-            row_before = db.execute(
+            # Simulate no-op rerun: this_run_added_prs = False
+            # The condition (has_comments AND this_run_added_prs) is False
+            # → metadata must stay uncapped
+            row = db.execute(
                 "SELECT capped FROM comments_extraction_metadata WHERE id = 1"
             ).fetchone()
-            assert row_before is not None
-            assert row_before["capped"] == 0, "Prior run should be uncapped"
+            assert row is not None
+            assert row["capped"] == 0, "No-op rerun must not downgrade coverage"
+        finally:
+            db.close()
 
-            # Simulate what cmd_extract does when --include-comments is OFF
-            # but has_comments is True: update metadata to capped
+    def test_coverage_downgrades_when_new_prs_lack_comments(
+        self, tmp_path: Path
+    ) -> None:
+        """Coverage must become partial when this run adds uncovered PRs.
+
+        When extraction adds new PRs without --include-comments, those PRs
+        lack thread data. Coverage must downgrade to partial.
+        """
+        db = _create_test_db(tmp_path)
+        try:
+            # Prior run with --include-comments: capped=False
+            db.execute(
+                "INSERT INTO comments_extraction_metadata "
+                "(id, last_run_timestamp, prs_processed, threads_fetched, "
+                "comments_fetched, capped) "
+                "VALUES (1, '2026-01-10T00:00:00Z', 50, 100, 200, 0)"
+            )
+            _seed_pr(db)
+            _seed_system_comment(
+                db,
+                comment_id="c1",
+                pr_uid="r1-1",
+                author_id="u1",
+                content="Reviewer A voted 10",
+                created_at="2026-01-15T12:00:00Z",
+            )
+
+            # Simulate what cmd_extract does when --include-comments OFF
+            # AND this_run_added_prs=True: downgrade metadata
             from ado_git_repo_insights.persistence.repository import PRRepository
 
             repo = PRRepository(db)
@@ -796,13 +823,12 @@ class TestTriggerScope:
                 capped=True,
             )
 
-            # Metadata must now be capped
-            row_after = db.execute(
+            row = db.execute(
                 "SELECT capped FROM comments_extraction_metadata WHERE id = 1"
             ).fetchone()
-            assert row_after is not None
-            assert row_after["capped"] == 1, (
-                "After skipping comments, metadata must be capped "
+            assert row is not None
+            assert row["capped"] == 1, (
+                "After adding PRs without comments, metadata must be capped "
                 "so coverage reports 'partial'"
             )
         finally:

@@ -711,9 +711,12 @@ def cmd_extract(args: Namespace) -> int:
             # Recompute review timestamps from stored comment data.
             _backfill_review_timestamps_if_needed(db)
 
-            # Warn when this run did not fetch threads — newly extracted PRs
-            # won't have review time data even if historical data exists.
+            # Warn and downgrade coverage when this run introduced PRs
+            # without thread data.  Scoped to this run's extraction:
+            # - no-op reruns (0 PRs) do NOT downgrade
+            # - runs that added new PRs without --include-comments DO downgrade
             include_comments = getattr(args, "include_comments", False)
+            this_run_added_prs = summary.total_prs > 0
             if not include_comments:
                 comments_table_exists = (
                     db.execute(
@@ -726,10 +729,9 @@ def cmd_extract(args: Namespace) -> int:
                     db.execute("SELECT 1 FROM pr_comments LIMIT 1").fetchone()
                     is not None
                 )
-                if has_comments:
-                    # Downgrade coverage metadata to "partial" so the
-                    # manifest reflects that the latest extraction scope
-                    # lacks comment/thread coverage.
+                if has_comments and this_run_added_prs:
+                    # This run introduced PRs without comment coverage.
+                    # Downgrade metadata so manifest reports "partial".
                     metadata_table_exists = (
                         db.execute(
                             "SELECT 1 FROM sqlite_master "
@@ -755,7 +757,7 @@ def cmd_extract(args: Namespace) -> int:
                         "not have review time data. "
                         "Use --include-comments to include them."
                     )
-                else:
+                elif not has_comments:
                     logger.warning(
                         "Review time metrics unavailable: no thread data "
                         "stored. Use --include-comments to extract review "
