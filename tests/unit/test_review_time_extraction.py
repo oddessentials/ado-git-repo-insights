@@ -841,6 +841,39 @@ class TestTriggerScope:
         finally:
             db.close()
 
+    def test_coverage_full_zero_threads_but_extraction_ran(
+        self, tmp_path: Path
+    ) -> None:
+        """Uncapped extraction with zero threads reports full, not disabled.
+
+        Regression: thread_count == 0 check returned disabled even when
+        metadata showed prs_processed > 0 and capped = false, meaning
+        extraction ran successfully but every PR had zero threads.
+        """
+        db = _create_test_db(tmp_path)
+        try:
+            # Extraction ran, processed 30 PRs, uncapped, zero threads found
+            db.execute(
+                "INSERT INTO comments_extraction_metadata "
+                "(id, last_run_timestamp, prs_processed, threads_fetched, "
+                "comments_fetched, capped) "
+                "VALUES (1, '2026-01-10T00:00:00Z', 30, 0, 0, 0)"
+            )
+            _seed_pr(db)
+
+            from ado_git_repo_insights.transform.aggregators import (
+                AggregateGenerator,
+            )
+
+            output = tmp_path / "agg_out"
+            gen = AggregateGenerator(db, output)
+            coverage = gen._get_comments_coverage()
+            assert coverage["status"] == "full", (
+                "Zero-thread successful extraction must be full, not disabled"
+            )
+        finally:
+            db.close()
+
     def test_backfill_helper_populates_review_time(self, tmp_path: Path) -> None:
         """DB with pr_comments but no review_time_minutes gets backfilled
         when _backfill_review_timestamps_if_needed() runs.

@@ -1473,16 +1473,21 @@ class AggregateGenerator:
             prs_with_threads = 0
             metadata_row = None
 
-        if thread_count == 0:
-            status = "disabled"
-        elif metadata_row is not None and bool(metadata_row["capped"]):
+        # Status precedence: metadata proves extraction ran, thread_count
+        # is content presence only.  A successful uncapped extraction that
+        # found zero threads is "full", not "disabled".
+        extraction_ran = (
+            metadata_row is not None and int(metadata_row["prs_processed"]) > 0
+        )
+        if extraction_ran and bool(metadata_row["capped"]):
             status = "partial"
-        else:
-            # Last comment extraction was uncapped and successful.
-            # Coverage is "full" for its processed scope.  Zero-thread
-            # PRs are a valid covered outcome — do not compare
-            # prs_with_threads against total completed PRs.
+        elif extraction_ran:
             status = "full"
+        elif thread_count > 0:
+            # Threads exist but no metadata — legacy or manual import
+            status = "full"
+        else:
+            status = "disabled"
 
         return {
             "status": status,
