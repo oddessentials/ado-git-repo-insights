@@ -75,62 +75,80 @@ def migrate_v2_to_v3(conn: Connection) -> None:
         conn.execute("ALTER TABLE pull_requests ADD COLUMN comments_extracted_at TEXT")
         logger.info("Added column pull_requests.comments_extracted_at")
 
-    # Backfill: reconstruct per-PR extraction markers from prior state.
+    # Backfill: evidence-based only.
     #
-    # The extraction loop visits ALL completed PRs (ordered by closed_date
-    # DESC, up to the LIMIT).  When uncapped, every completed PR in the DB
-    # was visited — including those that had zero threads.  We must stamp
-    # all of them so that a previously "full" dataset stays "full" after
-    # migration.
+    # In a v2 database we cannot distinguish a PR that was successfully
+    # visited but had zero threads from one that failed due to an API error
+    # — neither leaves rows in pr_threads.  Batch-level metadata (capped,
+    # prs_processed) is insufficient because API failures within an
+    # uncapped run still leave gaps.
     #
-    # Strategy:
-    #   uncapped → stamp ALL completed PRs (extraction visited every one)
-    #   capped   → stamp only PRs with stored threads (conservative; the
-    #              remaining PRs may or may not have been in scope)
-    #   no meta  → no backfill (cannot reconstruct scope)
+    # Strategy: stamp only PRs with concrete evidence of processing
+    # (rows in pr_threads or pr_comments).  This may temporarily
+    # understate coverage for zero-thread PRs, but one subsequent
+    # --include-comments run will stamp all successfully processed PRs
+    # and coverage converges to the correct value.
+    #
+    # Preferring understatement over overstatement avoids marking
+    # API-failed PRs as covered, which would be a data integrity bug.
+    # Determine the best available timestamp for the backfill stamp.
+    # Prefer the metadata row's last_run_timestamp when present; fall
+    # back to the latest evidence timestamp from pr_threads/pr_comments
+    # so that provably covered PRs are never left unmarked just because
+    # the metadata row is missing or unreadable.
+    stamp: str | None = None
+
     try:
         meta_row = conn.execute(
-            "SELECT last_run_timestamp, capped "
-            "FROM comments_extraction_metadata WHERE id = 1"
+            "SELECT last_run_timestamp FROM comments_extraction_metadata WHERE id = 1"
         ).fetchone()
-    except Exception:
-        meta_row = None
+        if meta_row is not None:
+            stamp = (
+                meta_row[0]
+                if isinstance(meta_row, tuple)
+                else meta_row["last_run_timestamp"]
+            )
+    except Exception as exc:
+        logger.debug("comments_extraction_metadata not readable: %s", exc)
 
-    if meta_row is not None:
-        stamp = (
-            meta_row[0]
-            if isinstance(meta_row, tuple)
-            else meta_row["last_run_timestamp"]
+    if stamp is None:
+        # No metadata — derive timestamp from the latest evidence row.
+        try:
+            evidence_row = conn.execute(
+                "SELECT MAX(ts) AS latest FROM ("
+                "  SELECT MAX(created_at) AS ts FROM pr_threads "
+                "  UNION ALL "
+                "  SELECT MAX(created_at) AS ts FROM pr_comments"
+                ")"
+            ).fetchone()
+            if evidence_row is not None:
+                raw = (
+                    evidence_row[0]
+                    if isinstance(evidence_row, tuple)
+                    else evidence_row["latest"]
+                )
+                if isinstance(raw, str) and raw:
+                    stamp = raw
+        except Exception as exc:
+            logger.debug("Evidence timestamp query failed: %s", exc)
+
+    if stamp is None:
+        logger.info(
+            "No extraction metadata or evidence timestamps — "
+            "skipping comments_extracted_at backfill"
         )
-        capped = meta_row[1] if isinstance(meta_row, tuple) else meta_row["capped"]
-
-        if not capped:
-            # Uncapped: extraction visited every completed PR in the DB.
-            # Stamp all of them — zero-thread PRs are fully covered.
-            conn.execute(
-                "UPDATE pull_requests SET comments_extracted_at = ? "
-                "WHERE comments_extracted_at IS NULL "
-                "AND status = 'completed'",
-                (stamp,),
-            )
-            logger.info(
-                "Backfilled comments_extracted_at for all completed PRs "
-                "(uncapped extraction)"
-            )
-        else:
-            # Capped: only stamp PRs we can prove were processed (those
-            # with stored thread data).
-            conn.execute(
-                "UPDATE pull_requests SET comments_extracted_at = ? "
-                "WHERE comments_extracted_at IS NULL "
-                "AND pull_request_uid IN "
-                "(SELECT DISTINCT pull_request_uid FROM pr_threads)",
-                (stamp,),
-            )
-            logger.info(
-                "Backfilled comments_extracted_at from pr_threads data "
-                "(capped extraction)"
-            )
+    else:
+        conn.execute(
+            "UPDATE pull_requests SET comments_extracted_at = ? "
+            "WHERE comments_extracted_at IS NULL "
+            "AND pull_request_uid IN ("
+            "  SELECT DISTINCT pull_request_uid FROM pr_threads "
+            "  UNION "
+            "  SELECT DISTINCT pull_request_uid FROM pr_comments"
+            ")",
+            (stamp,),
+        )
+        logger.info("Backfilled comments_extracted_at from evidence")
 
     conn.execute(
         "INSERT OR IGNORE INTO schema_version (version, applied_at) "
