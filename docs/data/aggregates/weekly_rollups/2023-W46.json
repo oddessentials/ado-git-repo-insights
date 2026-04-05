@@ -960,8 +960,8 @@
       "cycle_time_p50": null,
       "cycle_time_p90": null,
       "pr_count": 2,
-      "review_time_p50": 275.355,
-      "review_time_p90": 289.999,
+      "review_time_p50": null,
+      "review_time_p90": null,
       "reviewers_count": 2
     },
     "auth-service": {
@@ -969,8 +969,8 @@
       "cycle_time_p50": null,
       "cycle_time_p90": null,
       "pr_count": 3,
-      "review_time_p50": 139.822,
-      "review_time_p90": 451.669,
+      "review_time_p50": null,
+      "review_time_p90": null,
       "reviewers_count": 2
     },
     "dashboard-api": {
@@ -996,8 +996,8 @@
       "cycle_time_p50": null,
       "cycle_time_p90": null,
       "pr_count": 4,
-      "review_time_p50": 144.196,
-      "review_time_p90": 233.925,
+      "review_time_p50": null,
+      "review_time_p90": null,
       "reviewers_count": 3
     },
     "etl-jobs": {
@@ -1014,8 +1014,8 @@
       "cycle_time_p50": null,
       "cycle_time_p90": null,
       "pr_count": 2,
-      "review_time_p50": 2750.098,
-      "review_time_p90": 4170.289,
+      "review_time_p50": null,
+      "review_time_p90": null,
       "reviewers_count": 2
     },
     "gateway-core": {
@@ -1023,8 +1023,8 @@
       "cycle_time_p50": null,
       "cycle_time_p90": null,
       "pr_count": 2,
-      "review_time_p50": 129.223,
-      "review_time_p90": 142.836,
+      "review_time_p50": null,
+      "review_time_p90": null,
       "reviewers_count": 2
     },
     "inference-service": {
@@ -1059,8 +1059,8 @@
       "cycle_time_p50": null,
       "cycle_time_p90": null,
       "pr_count": 2,
-      "review_time_p50": 385.803,
-      "review_time_p90": 433.441,
+      "review_time_p50": null,
+      "review_time_p90": null,
       "reviewers_count": 2
     },
     "react-shell": {
@@ -1371,8 +1371,8 @@
       "cycle_time_p50": null,
       "cycle_time_p90": null,
       "pr_count": 3,
-      "review_time_p50": 696.286,
-      "review_time_p90": 892.564,
+      "review_time_p50": null,
+      "review_time_p90": null,
       "reviewers_count": 2
     }
   },

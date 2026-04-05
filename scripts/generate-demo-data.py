@@ -716,16 +716,15 @@ def _collapse_author_slices(
             "cycle_time_p90": (
                 weighted_p90_total / weighted_prs if weighted_prs >= 5 else None
             ),
-            # Couple P50/P90: both non-null or both null (production contract).
-            # Use minimum of both accumulators as the shared gate.
+            # Couple P50/P90 with same demo threshold as cycle_time (>= 5).
             "review_time_p50": (
                 rt_p50_weighted_total / rt_p50_weighted_prs
-                if rt_p50_weighted_prs >= 2 and rt_p90_weighted_prs >= 2
+                if rt_p50_weighted_prs >= 5 and rt_p90_weighted_prs >= 5
                 else None
             ),
             "review_time_p90": (
                 rt_p90_weighted_total / rt_p90_weighted_prs
-                if rt_p50_weighted_prs >= 2 and rt_p90_weighted_prs >= 2
+                if rt_p50_weighted_prs >= 5 and rt_p90_weighted_prs >= 5
                 else None
             ),
             "authors_count": 1,
@@ -1310,27 +1309,24 @@ def generate_weekly_rollups(
                     "reviewers_count": repo_reviewers,
                 }
 
-            # T010: Contract 3 cycle time threshold — null if pr_count < 5
-            # Review time uses production _ROLLUP_MIN_SAMPLE=2 for single-dim,
-            # _CROSS_DIM_MIN_SAMPLE=5 for cross-dim (by_team_and_repo).
+            # T010: Contract 3 — null all percentiles when pr_count < 5.
+            # Review time uses the SAME demo threshold as cycle time so no
+            # slice exposes review_time while cycle_time is suppressed.
             if pr_count < 5:
                 p50 = None
                 p90 = None
-            if pr_count < 2:
                 rt_p50 = None
                 rt_p90 = None
             for entry in by_repository.values():
                 if entry["pr_count"] < 5:
                     entry["cycle_time_p50"] = None
                     entry["cycle_time_p90"] = None
-                if entry["pr_count"] < 2:
                     entry["review_time_p50"] = None
                     entry["review_time_p90"] = None
             for entry in by_team.values():
                 if entry["pr_count"] < 5:
                     entry["cycle_time_p50"] = None
                     entry["cycle_time_p90"] = None
-                if entry["pr_count"] < 2:
                     entry["review_time_p50"] = None
                     entry["review_time_p90"] = None
             for team_entries in by_team_and_repo.values():

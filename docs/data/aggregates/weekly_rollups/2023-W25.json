@@ -1490,8 +1490,8 @@
       "cycle_time_p50": null,
       "cycle_time_p90": null,
       "pr_count": 4,
-      "review_time_p50": 82.552,
-      "review_time_p90": 116.221,
+      "review_time_p50": null,
+      "review_time_p90": null,
       "reviewers_count": 3
     },
     "auth-service": {
@@ -1508,8 +1508,8 @@
       "cycle_time_p50": null,
       "cycle_time_p90": null,
       "pr_count": 3,
-      "review_time_p50": 32.105,
-      "review_time_p90": 81.302,
+      "review_time_p50": null,
+      "review_time_p90": null,
       "reviewers_count": 2
     },
     "data-warehouse": {
@@ -1526,8 +1526,8 @@
       "cycle_time_p50": null,
       "cycle_time_p90": null,
       "pr_count": 2,
-      "review_time_p50": 45.016,
-      "review_time_p90": 74.218,
+      "review_time_p50": null,
+      "review_time_p90": null,
       "reviewers_count": 2
     },
     "etl-jobs": {
@@ -1544,8 +1544,8 @@
       "cycle_time_p50": null,
       "cycle_time_p90": null,
       "pr_count": 4,
-      "review_time_p50": 404.292,
-      "review_time_p90": 3890.416,
+      "review_time_p50": null,
+      "review_time_p90": null,
       "reviewers_count": 3
     },
     "gateway-core": {
@@ -1553,8 +1553,8 @@
       "cycle_time_p50": null,
       "cycle_time_p90": null,
       "pr_count": 4,
-      "review_time_p50": 288.196,
-      "review_time_p90": 1192.092,
+      "review_time_p50": null,
+      "review_time_p90": null,
       "reviewers_count": 3
     },
     "inference-service": {
@@ -1562,8 +1562,8 @@
       "cycle_time_p50": null,
       "cycle_time_p90": null,
       "pr_count": 3,
-      "review_time_p50": 1917.646,
-      "review_time_p90": 1971.803,
+      "review_time_p50": null,
+      "review_time_p90": null,
       "reviewers_count": 2
     },
     "ios-app": {
@@ -1589,8 +1589,8 @@
       "cycle_time_p50": null,
       "cycle_time_p90": null,
       "pr_count": 4,
-      "review_time_p50": 127.246,
-      "review_time_p90": 968.971,
+      "review_time_p50": null,
+      "review_time_p90": null,
       "reviewers_count": 3
     },
     "react-shell": {
@@ -1607,8 +1607,8 @@
       "cycle_time_p50": null,
       "cycle_time_p90": null,
       "pr_count": 3,
-      "review_time_p50": 1505.546,
-      "review_time_p90": 2500.962,
+      "review_time_p50": null,
+      "review_time_p90": null,
       "reviewers_count": 2
     },
     "user-service": {

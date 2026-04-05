@@ -1367,8 +1367,8 @@
       "cycle_time_p50": null,
       "cycle_time_p90": null,
       "pr_count": 4,
-      "review_time_p50": 22.462,
-      "review_time_p90": 58.395,
+      "review_time_p50": null,
+      "review_time_p90": null,
       "reviewers_count": 3
     },
     "auth-service": {
@@ -1385,8 +1385,8 @@
       "cycle_time_p50": null,
       "cycle_time_p90": null,
       "pr_count": 2,
-      "review_time_p50": 291.882,
-      "review_time_p90": 446.133,
+      "review_time_p50": null,
+      "review_time_p90": null,
       "reviewers_count": 2
     },
     "data-warehouse": {
@@ -1403,8 +1403,8 @@
       "cycle_time_p50": null,
       "cycle_time_p90": null,
       "pr_count": 4,
-      "review_time_p50": 16.818,
-      "review_time_p90": 74.348,
+      "review_time_p50": null,
+      "review_time_p90": null,
       "reviewers_count": 3
     },
     "etl-jobs": {
@@ -1430,8 +1430,8 @@
       "cycle_time_p50": null,
       "cycle_time_p90": null,
       "pr_count": 4,
-      "review_time_p50": 322.752,
-      "review_time_p90": 591.016,
+      "review_time_p50": null,
+      "review_time_p90": null,
       "reviewers_count": 3
     },
     "inference-service": {
@@ -1457,8 +1457,8 @@
       "cycle_time_p50": null,
       "cycle_time_p90": null,
       "pr_count": 4,
-      "review_time_p50": 684.896,
-      "review_time_p90": 6313.242,
+      "review_time_p50": null,
+      "review_time_p90": null,
       "reviewers_count": 3
     },
     "notification-service": {
@@ -1466,8 +1466,8 @@
       "cycle_time_p50": null,
       "cycle_time_p90": null,
       "pr_count": 3,
-      "review_time_p50": 505.761,
-      "review_time_p90": 3486.859,
+      "review_time_p50": null,
+      "review_time_p90": null,
       "reviewers_count": 2
     },
     "react-shell": {
@@ -1484,8 +1484,8 @@
       "cycle_time_p50": null,
       "cycle_time_p90": null,
       "pr_count": 2,
-      "review_time_p50": 359.782,
-      "review_time_p90": 491.224,
+      "review_time_p50": null,
+      "review_time_p90": null,
       "reviewers_count": 2
     },
     "user-service": {

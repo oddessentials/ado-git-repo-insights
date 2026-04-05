@@ -487,38 +487,30 @@ class TestReviewTimePresence:
                     f"by_author[{aid}] missing review_time_p90 in {filename}"
                 )
 
-    def test_single_dim_review_time_uses_2pr_threshold(self) -> None:
-        """Single-dimension slices with 2-4 PRs must emit review_time.
+    def test_review_time_gating_matches_cycle_time(self) -> None:
+        """Review_time must not be visible when cycle_time is suppressed.
 
-        Regression: demo used pr_count < 5 threshold for review_time,
-        but production uses _ROLLUP_MIN_SAMPLE=2 for single-dimension
-        slices. Slices with 2-4 reviewed PRs were incorrectly null.
+        Demo uses pr_count < 5 threshold for both metrics. No slice
+        should expose review_time while cycle_time is null.
         """
         rollups_dir = DOCS_DATA / "aggregates" / "weekly_rollups"
-        suppressed_2_to_4 = 0
-        eligible_2_to_4 = 0
+        violations = 0
+        checked = 0
         for path in sorted(rollups_dir.glob("*.json")):
             with open(path, encoding="utf-8") as f:
                 rollup = json.load(f)
-            for dim in ("by_repository", "by_team"):
+            for dim in ("by_repository", "by_team", "by_author"):
                 for entry in rollup.get(dim, {}).values():
-                    pr_count = entry.get("pr_count", 0)
-                    if 2 <= pr_count <= 4:
-                        eligible_2_to_4 += 1
-                        rt_p50 = entry.get("review_time_p50")
-                        if rt_p50 is None:
-                            suppressed_2_to_4 += 1
-        # With 2-4 PRs, review_time should be non-null (unless the
-        # review_time generation itself happened to null via the
-        # independent null injection). Allow some nulls from injection
-        # but not ALL — that would indicate the threshold is wrong.
-        if eligible_2_to_4 > 0:
-            suppressed_pct = suppressed_2_to_4 / eligible_2_to_4
-            assert suppressed_pct < 0.5, (
-                f"{suppressed_2_to_4}/{eligible_2_to_4} "
-                f"({suppressed_pct:.0%}) single-dim slices with 2-4 PRs "
-                f"have null review_time — threshold likely too high"
-            )
+                    checked += 1
+                    ct_null = entry.get("cycle_time_p50") is None
+                    rt_present = entry.get("review_time_p50") is not None
+                    if ct_null and rt_present:
+                        violations += 1
+        assert checked > 0
+        assert violations == 0, (
+            f"{violations}/{checked} slices have review_time visible "
+            f"while cycle_time is suppressed — thresholds misaligned"
+        )
 
     def test_no_mixed_review_time_nullability(self) -> None:
         """No rollup or slice may have review_time_p50 null with p90 numeric or vice versa.
