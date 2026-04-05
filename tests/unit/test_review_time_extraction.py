@@ -746,15 +746,14 @@ class TestTriggerScope:
         finally:
             db.close()
 
-    def test_coverage_stays_full_on_noop_rerun(self, tmp_path: Path) -> None:
-        """No-op rerun (0 new PRs) must NOT downgrade coverage.
+    def test_coverage_stays_full_when_all_prs_covered(self, tmp_path: Path) -> None:
+        """Rerun over already-covered PRs must NOT downgrade coverage.
 
-        Regression: coverage was downgraded on every non-comment run,
-        even when this extract added no uncovered PRs.
+        Ground truth: if every completed PR has pr_comments rows,
+        coverage stays full — regardless of what this run fetched.
         """
         db = _create_test_db(tmp_path)
         try:
-            # Prior run with --include-comments: capped=False
             db.execute(
                 "INSERT INTO comments_extraction_metadata "
                 "(id, last_run_timestamp, prs_processed, threads_fetched, "
@@ -772,35 +771,42 @@ class TestTriggerScope:
                 created_at="2026-01-15T12:00:00Z",
             )
 
-            # Simulate no-op rerun: this_run_added_prs = False
-            # The condition (has_comments AND this_run_added_prs) is False
-            # → metadata must stay uncapped
+            # All completed PRs (r1-1) have comments → 0 uncovered
+            uncovered = db.execute(
+                "SELECT COUNT(*) AS cnt FROM pull_requests p "
+                "WHERE p.status = 'completed' "
+                "AND NOT EXISTS ("
+                "  SELECT 1 FROM pr_comments c "
+                "  WHERE c.pull_request_uid = p.pull_request_uid"
+                ")"
+            ).fetchone()
+            assert uncovered is not None
+            assert uncovered["cnt"] == 0
+
+            # Metadata stays uncapped
             row = db.execute(
                 "SELECT capped FROM comments_extraction_metadata WHERE id = 1"
             ).fetchone()
             assert row is not None
-            assert row["capped"] == 0, "No-op rerun must not downgrade coverage"
+            assert row["capped"] == 0
         finally:
             db.close()
 
-    def test_coverage_downgrades_when_new_prs_lack_comments(
-        self, tmp_path: Path
-    ) -> None:
-        """Coverage must become partial when this run adds uncovered PRs.
+    def test_coverage_downgrades_when_uncovered_prs_exist(self, tmp_path: Path) -> None:
+        """Coverage must become partial when dataset has uncovered PRs.
 
-        When extraction adds new PRs without --include-comments, those PRs
-        lack thread data. Coverage must downgrade to partial.
+        Ground truth: if any completed PR lacks pr_comments rows,
+        coverage is partial.
         """
         db = _create_test_db(tmp_path)
         try:
-            # Prior run with --include-comments: capped=False
             db.execute(
                 "INSERT INTO comments_extraction_metadata "
                 "(id, last_run_timestamp, prs_processed, threads_fetched, "
                 "comments_fetched, capped) "
                 "VALUES (1, '2026-01-10T00:00:00Z', 50, 100, 200, 0)"
             )
-            _seed_pr(db)
+            _seed_pr(db, pr_uid="r1-1")
             _seed_system_comment(
                 db,
                 comment_id="c1",
@@ -809,14 +815,33 @@ class TestTriggerScope:
                 content="Reviewer A voted 10",
                 created_at="2026-01-15T12:00:00Z",
             )
+            # Uncovered PR: no comments
+            db.execute(
+                "INSERT INTO pull_requests "
+                "(pull_request_uid, pull_request_id, organization_name, "
+                "project_name, repository_id, user_id, title, status, "
+                "creation_date) "
+                "VALUES ('r1-uncovered', 99, 'org', 'proj', 'r1', 'u1', "
+                "'Uncovered PR', 'completed', '2026-01-16T08:00:00Z')",
+            )
 
-            # Simulate what cmd_extract does when --include-comments OFF
-            # AND this_run_added_prs=True: downgrade metadata
+            uncovered = db.execute(
+                "SELECT COUNT(*) AS cnt FROM pull_requests p "
+                "WHERE p.status = 'completed' "
+                "AND NOT EXISTS ("
+                "  SELECT 1 FROM pr_comments c "
+                "  WHERE c.pull_request_uid = p.pull_request_uid"
+                ")"
+            ).fetchone()
+            assert uncovered is not None
+            assert uncovered["cnt"] == 1
+
+            # Simulate cli.py downgrade
             from ado_git_repo_insights.persistence.repository import PRRepository
 
             repo = PRRepository(db)
             repo.update_comments_extraction_metadata(
-                last_run_timestamp="2026-01-15T00:00:00Z",
+                last_run_timestamp="2026-01-16T00:00:00Z",
                 prs_processed=0,
                 threads_fetched=0,
                 comments_fetched=0,
@@ -827,10 +852,7 @@ class TestTriggerScope:
                 "SELECT capped FROM comments_extraction_metadata WHERE id = 1"
             ).fetchone()
             assert row is not None
-            assert row["capped"] == 1, (
-                "After adding PRs without comments, metadata must be capped "
-                "so coverage reports 'partial'"
-            )
+            assert row["capped"] == 1
         finally:
             db.close()
 

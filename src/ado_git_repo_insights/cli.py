@@ -711,12 +711,10 @@ def cmd_extract(args: Namespace) -> int:
             # Recompute review timestamps from stored comment data.
             _backfill_review_timestamps_if_needed(db)
 
-            # Warn and downgrade coverage when this run introduced PRs
-            # without thread data.  Scoped to this run's extraction:
-            # - no-op reruns (0 PRs) do NOT downgrade
-            # - runs that added new PRs without --include-comments DO downgrade
+            # Check actual dataset coverage: are there completed PRs
+            # without any pr_comments rows?  This is ground truth — not
+            # a run-scope proxy like total_prs or global has_comments.
             include_comments = getattr(args, "include_comments", False)
-            this_run_added_prs = summary.total_prs > 0
             if not include_comments:
                 comments_table_exists = (
                     db.execute(
@@ -725,44 +723,53 @@ def cmd_extract(args: Namespace) -> int:
                     ).fetchone()
                     is not None
                 )
-                has_comments = comments_table_exists and (
-                    db.execute("SELECT 1 FROM pr_comments LIMIT 1").fetchone()
-                    is not None
-                )
-                if has_comments and this_run_added_prs:
-                    # This run introduced PRs without comment coverage.
-                    # Downgrade metadata so manifest reports "partial".
-                    metadata_table_exists = (
-                        db.execute(
-                            "SELECT 1 FROM sqlite_master "
-                            "WHERE type='table' "
-                            "AND name='comments_extraction_metadata'"
-                        ).fetchone()
+                if comments_table_exists:
+                    uncovered_row = db.execute(
+                        "SELECT COUNT(*) AS cnt FROM pull_requests p "
+                        "WHERE p.status = 'completed' "
+                        "AND NOT EXISTS ("
+                        "  SELECT 1 FROM pr_comments c "
+                        "  WHERE c.pull_request_uid = p.pull_request_uid"
+                        ")"
+                    ).fetchone()
+                    uncovered_count = int(uncovered_row["cnt"]) if uncovered_row else 0
+                    has_any_comments = (
+                        db.execute("SELECT 1 FROM pr_comments LIMIT 1").fetchone()
                         is not None
                     )
-                    if metadata_table_exists:
-                        from .persistence.repository import PRRepository
 
-                        repo = PRRepository(db)
-                        repo.update_comments_extraction_metadata(
-                            last_run_timestamp=datetime.now(tz=UTC).isoformat(),
-                            prs_processed=0,
-                            threads_fetched=0,
-                            comments_fetched=0,
-                            capped=True,
+                    if uncovered_count > 0 and has_any_comments:
+                        metadata_table_exists = (
+                            db.execute(
+                                "SELECT 1 FROM sqlite_master "
+                                "WHERE type='table' "
+                                "AND name='comments_extraction_metadata'"
+                            ).fetchone()
+                            is not None
                         )
-                    logger.warning(
-                        "Review time metrics partial: thread extraction was "
-                        "not enabled for this run. Newly extracted PRs will "
-                        "not have review time data. "
-                        "Use --include-comments to include them."
-                    )
-                elif not has_comments:
-                    logger.warning(
-                        "Review time metrics unavailable: no thread data "
-                        "stored. Use --include-comments to extract review "
-                        "timestamps."
-                    )
+                        if metadata_table_exists:
+                            from .persistence.repository import PRRepository
+
+                            repo = PRRepository(db)
+                            repo.update_comments_extraction_metadata(
+                                last_run_timestamp=datetime.now(tz=UTC).isoformat(),
+                                prs_processed=0,
+                                threads_fetched=0,
+                                comments_fetched=0,
+                                capped=True,
+                            )
+                        logger.warning(
+                            f"Review time metrics partial: "
+                            f"{uncovered_count} completed PR(s) lack "
+                            f"thread data. Use --include-comments to "
+                            f"extract review timestamps for them."
+                        )
+                    elif not has_any_comments:
+                        logger.warning(
+                            "Review time metrics unavailable: no thread "
+                            "data stored. Use --include-comments to "
+                            "extract review timestamps."
+                        )
 
             timing.total_seconds = time.perf_counter() - start_time
 
