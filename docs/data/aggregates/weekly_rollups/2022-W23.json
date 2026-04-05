@@ -1391,8 +1391,8 @@
       "cycle_time_p50": null,
       "cycle_time_p90": null,
       "pr_count": 3,
-      "review_time_p50": null,
-      "review_time_p90": null,
+      "review_time_p50": 12.683,
+      "review_time_p90": 102.769,
       "reviewers_count": 2
     },
     "auth-service": {
@@ -1409,7 +1409,7 @@
       "cycle_time_p50": null,
       "cycle_time_p90": null,
       "pr_count": 2,
-      "review_time_p50": null,
+      "review_time_p50": 416.627,
       "review_time_p90": null,
       "reviewers_count": 2
     },
@@ -1427,7 +1427,7 @@
       "cycle_time_p50": null,
       "cycle_time_p90": null,
       "pr_count": 2,
-      "review_time_p50": null,
+      "review_time_p50": 28.698,
       "review_time_p90": null,
       "reviewers_count": 2
     },
@@ -1454,8 +1454,8 @@
       "cycle_time_p50": null,
       "cycle_time_p90": null,
       "pr_count": 3,
-      "review_time_p50": null,
-      "review_time_p90": null,
+      "review_time_p50": 55.182,
+      "review_time_p90": 58.111,
       "reviewers_count": 2
     },
     "inference-service": {
@@ -1463,7 +1463,7 @@
       "cycle_time_p50": null,
       "cycle_time_p90": null,
       "pr_count": 3,
-      "review_time_p50": null,
+      "review_time_p50": 6383.513,
       "review_time_p90": null,
       "reviewers_count": 2
     },

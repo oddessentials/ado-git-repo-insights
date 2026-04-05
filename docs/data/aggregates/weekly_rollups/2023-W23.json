@@ -1580,8 +1580,8 @@
       "cycle_time_p50": null,
       "cycle_time_p90": null,
       "pr_count": 4,
-      "review_time_p50": null,
-      "review_time_p90": null,
+      "review_time_p50": 13.097,
+      "review_time_p90": 37.392,
       "reviewers_count": 3
     },
     "auth-service": {
@@ -1598,8 +1598,8 @@
       "cycle_time_p50": null,
       "cycle_time_p90": null,
       "pr_count": 3,
-      "review_time_p50": null,
-      "review_time_p90": null,
+      "review_time_p50": 374.859,
+      "review_time_p90": 383.004,
       "reviewers_count": 2
     },
     "data-warehouse": {
@@ -1617,7 +1617,7 @@
       "cycle_time_p90": null,
       "pr_count": 4,
       "review_time_p50": null,
-      "review_time_p90": null,
+      "review_time_p90": 460.059,
       "reviewers_count": 3
     },
     "etl-jobs": {
@@ -1634,8 +1634,8 @@
       "cycle_time_p50": null,
       "cycle_time_p90": null,
       "pr_count": 3,
-      "review_time_p50": null,
-      "review_time_p90": null,
+      "review_time_p50": 3402.16,
+      "review_time_p90": 8028.971,
       "reviewers_count": 2
     },
     "gateway-core": {
@@ -1643,8 +1643,8 @@
       "cycle_time_p50": null,
       "cycle_time_p90": null,
       "pr_count": 4,
-      "review_time_p50": null,
-      "review_time_p90": null,
+      "review_time_p50": 87.038,
+      "review_time_p90": 2353.724,
       "reviewers_count": 3
     },
     "inference-service": {
@@ -1652,7 +1652,7 @@
       "cycle_time_p50": null,
       "cycle_time_p90": null,
       "pr_count": 2,
-      "review_time_p50": null,
+      "review_time_p50": 1486.403,
       "review_time_p90": null,
       "reviewers_count": 2
     },
@@ -1697,8 +1697,8 @@
       "cycle_time_p50": null,
       "cycle_time_p90": null,
       "pr_count": 4,
-      "review_time_p50": null,
-      "review_time_p90": null,
+      "review_time_p50": 2416.02,
+      "review_time_p90": 6109.234,
       "reviewers_count": 3
     },
     "user-service": {

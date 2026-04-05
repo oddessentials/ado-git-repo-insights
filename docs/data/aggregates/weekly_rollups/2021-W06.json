@@ -973,8 +973,8 @@
       "cycle_time_p50": null,
       "cycle_time_p90": null,
       "pr_count": 2,
-      "review_time_p50": null,
-      "review_time_p90": null,
+      "review_time_p50": 104.701,
+      "review_time_p90": 137.842,
       "reviewers_count": 2
     },
     "auth-service": {
@@ -982,8 +982,8 @@
       "cycle_time_p50": null,
       "cycle_time_p90": null,
       "pr_count": 4,
-      "review_time_p50": null,
-      "review_time_p90": null,
+      "review_time_p50": 71.448,
+      "review_time_p90": 234.273,
       "reviewers_count": 3
     },
     "dashboard-api": {
@@ -1027,8 +1027,8 @@
       "cycle_time_p50": null,
       "cycle_time_p90": null,
       "pr_count": 3,
-      "review_time_p50": null,
-      "review_time_p90": null,
+      "review_time_p50": 541.485,
+      "review_time_p90": 566.223,
       "reviewers_count": 2
     },
     "gateway-core": {
@@ -1036,8 +1036,8 @@
       "cycle_time_p50": null,
       "cycle_time_p90": null,
       "pr_count": 3,
-      "review_time_p50": null,
-      "review_time_p90": null,
+      "review_time_p50": 22.093,
+      "review_time_p90": 415.477,
       "reviewers_count": 2
     },
     "inference-service": {
@@ -1045,8 +1045,8 @@
       "cycle_time_p50": null,
       "cycle_time_p90": null,
       "pr_count": 2,
-      "review_time_p50": null,
-      "review_time_p90": null,
+      "review_time_p50": 2686.244,
+      "review_time_p90": 4185.876,
       "reviewers_count": 2
     },
     "ios-app": {
@@ -1072,8 +1072,8 @@
       "cycle_time_p50": null,
       "cycle_time_p90": null,
       "pr_count": 2,
-      "review_time_p50": null,
-      "review_time_p90": null,
+      "review_time_p50": 421.492,
+      "review_time_p90": 588.098,
       "reviewers_count": 2
     },
     "react-shell": {
@@ -1090,8 +1090,8 @@
       "cycle_time_p50": null,
       "cycle_time_p90": null,
       "pr_count": 3,
-      "review_time_p50": null,
-      "review_time_p90": null,
+      "review_time_p50": 10511.365,
+      "review_time_p90": 11859.376,
       "reviewers_count": 2
     },
     "user-service": {

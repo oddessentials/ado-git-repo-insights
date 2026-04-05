@@ -1222,8 +1222,8 @@
       "cycle_time_p50": null,
       "cycle_time_p90": null,
       "pr_count": 3,
-      "review_time_p50": null,
-      "review_time_p90": null,
+      "review_time_p50": 22.767,
+      "review_time_p90": 75.883,
       "reviewers_count": 2
     },
     "auth-service": {
@@ -1240,8 +1240,8 @@
       "cycle_time_p50": null,
       "cycle_time_p90": null,
       "pr_count": 2,
-      "review_time_p50": null,
-      "review_time_p90": null,
+      "review_time_p50": 429.753,
+      "review_time_p90": 699.347,
       "reviewers_count": 2
     },
     "data-warehouse": {
@@ -1276,8 +1276,8 @@
       "cycle_time_p50": null,
       "cycle_time_p90": null,
       "pr_count": 2,
-      "review_time_p50": null,
-      "review_time_p90": null,
+      "review_time_p50": 26640.882,
+      "review_time_p90": 47695.073,
       "reviewers_count": 2
     },
     "gateway-core": {
@@ -1285,8 +1285,8 @@
       "cycle_time_p50": null,
       "cycle_time_p90": null,
       "pr_count": 4,
-      "review_time_p50": null,
-      "review_time_p90": null,
+      "review_time_p50": 279.258,
+      "review_time_p90": 488.225,
       "reviewers_count": 3
     },
     "inference-service": {
@@ -1294,8 +1294,8 @@
       "cycle_time_p50": null,
       "cycle_time_p90": null,
       "pr_count": 2,
-      "review_time_p50": null,
-      "review_time_p90": null,
+      "review_time_p50": 3632.661,
+      "review_time_p90": 4331.533,
       "reviewers_count": 2
     },
     "ios-app": {
@@ -1321,8 +1321,8 @@
       "cycle_time_p50": null,
       "cycle_time_p90": null,
       "pr_count": 2,
-      "review_time_p50": null,
-      "review_time_p90": null,
+      "review_time_p50": 364.152,
+      "review_time_p90": 539.719,
       "reviewers_count": 2
     },
     "react-shell": {
@@ -1339,8 +1339,8 @@
       "cycle_time_p50": null,
       "cycle_time_p90": null,
       "pr_count": 3,
-      "review_time_p50": null,
-      "review_time_p90": null,
+      "review_time_p50": 385.99,
+      "review_time_p90": 2256.198,
       "reviewers_count": 2
     },
     "user-service": {

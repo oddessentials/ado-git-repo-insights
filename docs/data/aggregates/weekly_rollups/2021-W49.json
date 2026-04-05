@@ -1035,8 +1035,8 @@
       "cycle_time_p50": null,
       "cycle_time_p90": null,
       "pr_count": 2,
-      "review_time_p50": null,
-      "review_time_p90": null,
+      "review_time_p50": 9.499,
+      "review_time_p90": 13.692,
       "reviewers_count": 2
     },
     "auth-service": {
@@ -1080,8 +1080,8 @@
       "cycle_time_p50": null,
       "cycle_time_p90": null,
       "pr_count": 4,
-      "review_time_p50": null,
-      "review_time_p90": null,
+      "review_time_p50": 466.52,
+      "review_time_p90": 3339.796,
       "reviewers_count": 3
     },
     "feature-store": {
@@ -1089,8 +1089,8 @@
       "cycle_time_p50": null,
       "cycle_time_p90": null,
       "pr_count": 4,
-      "review_time_p50": null,
-      "review_time_p90": null,
+      "review_time_p50": 1580.066,
+      "review_time_p90": 12241.917,
       "reviewers_count": 3
     },
     "gateway-core": {
@@ -1098,8 +1098,8 @@
       "cycle_time_p50": null,
       "cycle_time_p90": null,
       "pr_count": 3,
-      "review_time_p50": null,
-      "review_time_p90": null,
+      "review_time_p50": 86.928,
+      "review_time_p90": 630.612,
       "reviewers_count": 2
     },
     "inference-service": {
@@ -1107,8 +1107,8 @@
       "cycle_time_p50": null,
       "cycle_time_p90": null,
       "pr_count": 3,
-      "review_time_p50": null,
-      "review_time_p90": null,
+      "review_time_p50": 415.26,
+      "review_time_p90": 560.02,
       "reviewers_count": 2
     },
     "ios-app": {
@@ -1134,8 +1134,8 @@
       "cycle_time_p50": null,
       "cycle_time_p90": null,
       "pr_count": 2,
-      "review_time_p50": null,
-      "review_time_p90": null,
+      "review_time_p50": 89.398,
+      "review_time_p90": 101.744,
       "reviewers_count": 2
     },
     "react-shell": {
@@ -1391,8 +1391,8 @@
       "cycle_time_p50": null,
       "cycle_time_p90": null,
       "pr_count": 4,
-      "review_time_p50": null,
-      "review_time_p90": null,
+      "review_time_p50": 561.499,
+      "review_time_p90": 1819.222,
       "reviewers_count": 3
     },
     "Frontend Team": {

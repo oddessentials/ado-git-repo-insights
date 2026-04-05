@@ -971,8 +971,8 @@
       "cycle_time_p50": null,
       "cycle_time_p90": null,
       "pr_count": 3,
-      "review_time_p50": null,
-      "review_time_p90": null,
+      "review_time_p50": 42.515,
+      "review_time_p90": 140.912,
       "reviewers_count": 2
     },
     "auth-service": {
@@ -989,8 +989,8 @@
       "cycle_time_p50": null,
       "cycle_time_p90": null,
       "pr_count": 3,
-      "review_time_p50": null,
-      "review_time_p90": null,
+      "review_time_p50": 722.594,
+      "review_time_p90": 1880.548,
       "reviewers_count": 2
     },
     "design-system": {
@@ -1016,8 +1016,8 @@
       "cycle_time_p50": null,
       "cycle_time_p90": null,
       "pr_count": 3,
-      "review_time_p50": null,
-      "review_time_p90": null,
+      "review_time_p50": 1239.469,
+      "review_time_p90": 5731.957,
       "reviewers_count": 2
     },
     "gateway-core": {
@@ -1025,8 +1025,8 @@
       "cycle_time_p50": null,
       "cycle_time_p90": null,
       "pr_count": 4,
-      "review_time_p50": null,
-      "review_time_p90": null,
+      "review_time_p50": 678.566,
+      "review_time_p90": 1670.707,
       "reviewers_count": 3
     },
     "inference-service": {
@@ -1034,8 +1034,8 @@
       "cycle_time_p50": null,
       "cycle_time_p90": null,
       "pr_count": 2,
-      "review_time_p50": null,
-      "review_time_p90": null,
+      "review_time_p50": 27917.24,
+      "review_time_p90": 49928.29,
       "reviewers_count": 2
     },
     "ios-app": {
@@ -1079,7 +1079,7 @@
       "cycle_time_p50": null,
       "cycle_time_p90": null,
       "pr_count": 2,
-      "review_time_p50": null,
+      "review_time_p50": 1177.64,
       "review_time_p90": null,
       "reviewers_count": 2
     },

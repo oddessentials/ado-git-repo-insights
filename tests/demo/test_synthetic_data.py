@@ -482,3 +482,36 @@ class TestReviewTimePresence:
                 assert "review_time_p90" in entry, (
                     f"by_author[{aid}] missing review_time_p90 in {filename}"
                 )
+
+    def test_single_dim_review_time_uses_2pr_threshold(self) -> None:
+        """Single-dimension slices with 2-4 PRs must emit review_time.
+
+        Regression: demo used pr_count < 5 threshold for review_time,
+        but production uses _ROLLUP_MIN_SAMPLE=2 for single-dimension
+        slices. Slices with 2-4 reviewed PRs were incorrectly null.
+        """
+        rollups_dir = DOCS_DATA / "aggregates" / "weekly_rollups"
+        suppressed_2_to_4 = 0
+        eligible_2_to_4 = 0
+        for path in sorted(rollups_dir.glob("*.json")):
+            with open(path, encoding="utf-8") as f:
+                rollup = json.load(f)
+            for dim in ("by_repository", "by_team"):
+                for entry in rollup.get(dim, {}).values():
+                    pr_count = entry.get("pr_count", 0)
+                    if 2 <= pr_count <= 4:
+                        eligible_2_to_4 += 1
+                        rt_p50 = entry.get("review_time_p50")
+                        if rt_p50 is None:
+                            suppressed_2_to_4 += 1
+        # With 2-4 PRs, review_time should be non-null (unless the
+        # review_time generation itself happened to null via the
+        # independent null injection). Allow some nulls from injection
+        # but not ALL — that would indicate the threshold is wrong.
+        if eligible_2_to_4 > 0:
+            suppressed_pct = suppressed_2_to_4 / eligible_2_to_4
+            assert suppressed_pct < 0.5, (
+                f"{suppressed_2_to_4}/{eligible_2_to_4} "
+                f"({suppressed_pct:.0%}) single-dim slices with 2-4 PRs "
+                f"have null review_time — threshold likely too high"
+            )

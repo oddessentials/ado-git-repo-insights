@@ -1167,8 +1167,8 @@
       "cycle_time_p50": null,
       "cycle_time_p90": null,
       "pr_count": 4,
-      "review_time_p50": null,
-      "review_time_p90": null,
+      "review_time_p50": 293.094,
+      "review_time_p90": 862.095,
       "reviewers_count": 3
     },
     "auth-service": {
@@ -1194,8 +1194,8 @@
       "cycle_time_p50": null,
       "cycle_time_p90": null,
       "pr_count": 3,
-      "review_time_p50": null,
-      "review_time_p90": null,
+      "review_time_p50": 1240.259,
+      "review_time_p90": 3651.161,
       "reviewers_count": 2
     },
     "design-system": {
@@ -1221,8 +1221,8 @@
       "cycle_time_p50": null,
       "cycle_time_p90": null,
       "pr_count": 4,
-      "review_time_p50": null,
-      "review_time_p90": null,
+      "review_time_p50": 2220.816,
+      "review_time_p90": 6252.883,
       "reviewers_count": 3
     },
     "gateway-core": {
@@ -1230,8 +1230,8 @@
       "cycle_time_p50": null,
       "cycle_time_p90": null,
       "pr_count": 4,
-      "review_time_p50": null,
-      "review_time_p90": null,
+      "review_time_p50": 484.934,
+      "review_time_p90": 753.314,
       "reviewers_count": 3
     },
     "inference-service": {
@@ -1239,8 +1239,8 @@
       "cycle_time_p50": null,
       "cycle_time_p90": null,
       "pr_count": 3,
-      "review_time_p50": null,
-      "review_time_p90": null,
+      "review_time_p50": 1906.204,
+      "review_time_p90": 2646.187,
       "reviewers_count": 2
     },
     "ios-app": {
@@ -1266,8 +1266,8 @@
       "cycle_time_p50": null,
       "cycle_time_p90": null,
       "pr_count": 2,
-      "review_time_p50": null,
-      "review_time_p90": null,
+      "review_time_p50": 298.04,
+      "review_time_p90": 526.711,
       "reviewers_count": 2
     },
     "react-shell": {
@@ -1284,8 +1284,8 @@
       "cycle_time_p50": null,
       "cycle_time_p90": null,
       "pr_count": 2,
-      "review_time_p50": null,
-      "review_time_p90": null,
+      "review_time_p50": 2238.12,
+      "review_time_p90": 3779.135,
       "reviewers_count": 2
     },
     "user-service": {

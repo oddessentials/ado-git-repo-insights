@@ -1407,8 +1407,8 @@
       "cycle_time_p50": null,
       "cycle_time_p90": null,
       "pr_count": 3,
-      "review_time_p50": null,
-      "review_time_p90": null,
+      "review_time_p50": 21.438,
+      "review_time_p90": 3414.157,
       "reviewers_count": 2
     },
     "auth-service": {
@@ -1425,8 +1425,8 @@
       "cycle_time_p50": null,
       "cycle_time_p90": null,
       "pr_count": 2,
-      "review_time_p50": null,
-      "review_time_p90": null,
+      "review_time_p50": 777.486,
+      "review_time_p90": 1175.125,
       "reviewers_count": 2
     },
     "data-warehouse": {
@@ -1443,8 +1443,8 @@
       "cycle_time_p50": null,
       "cycle_time_p90": null,
       "pr_count": 4,
-      "review_time_p50": null,
-      "review_time_p90": null,
+      "review_time_p50": 45.392,
+      "review_time_p90": 84.576,
       "reviewers_count": 3
     },
     "etl-jobs": {
@@ -1461,8 +1461,8 @@
       "cycle_time_p50": null,
       "cycle_time_p90": null,
       "pr_count": 3,
-      "review_time_p50": null,
-      "review_time_p90": null,
+      "review_time_p50": 2277.298,
+      "review_time_p90": 2759.081,
       "reviewers_count": 2
     },
     "gateway-core": {
@@ -1479,8 +1479,8 @@
       "cycle_time_p50": null,
       "cycle_time_p90": null,
       "pr_count": 2,
-      "review_time_p50": null,
-      "review_time_p90": null,
+      "review_time_p50": 967.914,
+      "review_time_p90": 1196.062,
       "reviewers_count": 2
     },
     "ios-app": {
@@ -1506,8 +1506,8 @@
       "cycle_time_p50": null,
       "cycle_time_p90": null,
       "pr_count": 3,
-      "review_time_p50": null,
-      "review_time_p90": null,
+      "review_time_p50": 719.297,
+      "review_time_p90": 1420.732,
       "reviewers_count": 2
     },
     "react-shell": {
@@ -1524,8 +1524,8 @@
       "cycle_time_p50": null,
       "cycle_time_p90": null,
       "pr_count": 4,
-      "review_time_p50": null,
-      "review_time_p90": null,
+      "review_time_p50": 485.339,
+      "review_time_p90": 857.538,
       "reviewers_count": 3
     },
     "user-service": {

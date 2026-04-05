@@ -1356,8 +1356,8 @@
       "cycle_time_p50": null,
       "cycle_time_p90": null,
       "pr_count": 3,
-      "review_time_p50": null,
-      "review_time_p90": null,
+      "review_time_p50": 41.355,
+      "review_time_p90": 150.812,
       "reviewers_count": 2
     },
     "auth-service": {
@@ -1392,8 +1392,8 @@
       "cycle_time_p50": null,
       "cycle_time_p90": null,
       "pr_count": 2,
-      "review_time_p50": null,
-      "review_time_p90": null,
+      "review_time_p50": 159.977,
+      "review_time_p90": 274.052,
       "reviewers_count": 2
     },
     "etl-jobs": {
@@ -1455,8 +1455,8 @@
       "cycle_time_p50": null,
       "cycle_time_p90": null,
       "pr_count": 3,
-      "review_time_p50": null,
-      "review_time_p90": null,
+      "review_time_p50": 58.258,
+      "review_time_p90": 301.371,
       "reviewers_count": 2
     },
     "react-shell": {

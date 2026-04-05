@@ -976,8 +976,8 @@
       "cycle_time_p50": null,
       "cycle_time_p90": null,
       "pr_count": 2,
-      "review_time_p50": null,
-      "review_time_p90": null,
+      "review_time_p50": 1886.342,
+      "review_time_p90": 3384.728,
       "reviewers_count": 2
     },
     "auth-service": {
@@ -985,8 +985,8 @@
       "cycle_time_p50": null,
       "cycle_time_p90": null,
       "pr_count": 4,
-      "review_time_p50": null,
-      "review_time_p90": null,
+      "review_time_p50": 1710.711,
+      "review_time_p90": 3664.616,
       "reviewers_count": 3
     },
     "dashboard-api": {
@@ -994,8 +994,8 @@
       "cycle_time_p50": null,
       "cycle_time_p90": null,
       "pr_count": 2,
-      "review_time_p50": null,
-      "review_time_p90": null,
+      "review_time_p50": 231.794,
+      "review_time_p90": 280.986,
       "reviewers_count": 2
     },
     "data-warehouse": {
@@ -1012,8 +1012,8 @@
       "cycle_time_p50": null,
       "cycle_time_p90": null,
       "pr_count": 2,
-      "review_time_p50": null,
-      "review_time_p90": null,
+      "review_time_p50": 78.107,
+      "review_time_p90": 78.477,
       "reviewers_count": 2
     },
     "etl-jobs": {
@@ -1030,8 +1030,8 @@
       "cycle_time_p50": null,
       "cycle_time_p90": null,
       "pr_count": 2,
-      "review_time_p50": null,
-      "review_time_p90": null,
+      "review_time_p50": 4119.052,
+      "review_time_p90": 6449.718,
       "reviewers_count": 2
     },
     "gateway-core": {
@@ -1039,8 +1039,8 @@
       "cycle_time_p50": null,
       "cycle_time_p90": null,
       "pr_count": 2,
-      "review_time_p50": null,
-      "review_time_p90": null,
+      "review_time_p50": 382.521,
+      "review_time_p90": 581.162,
       "reviewers_count": 2
     },
     "inference-service": {
@@ -1093,8 +1093,8 @@
       "cycle_time_p50": null,
       "cycle_time_p90": null,
       "pr_count": 3,
-      "review_time_p50": null,
-      "review_time_p90": null,
+      "review_time_p50": 1098.854,
+      "review_time_p90": 6078.136,
       "reviewers_count": 2
     },
     "user-service": {

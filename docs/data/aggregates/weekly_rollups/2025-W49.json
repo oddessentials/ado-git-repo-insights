@@ -1255,8 +1255,8 @@
       "cycle_time_p50": null,
       "cycle_time_p90": null,
       "pr_count": 3,
-      "review_time_p50": null,
-      "review_time_p90": null,
+      "review_time_p50": 75.241,
+      "review_time_p90": 128.485,
       "reviewers_count": 2
     },
     "auth-service": {
@@ -1274,7 +1274,7 @@
       "cycle_time_p90": null,
       "pr_count": 3,
       "review_time_p50": null,
-      "review_time_p90": null,
+      "review_time_p90": 432.857,
       "reviewers_count": 2
     },
     "data-warehouse": {
@@ -1282,8 +1282,8 @@
       "cycle_time_p50": null,
       "cycle_time_p90": null,
       "pr_count": 3,
-      "review_time_p50": null,
-      "review_time_p90": null,
+      "review_time_p50": 1221.554,
+      "review_time_p90": 2652.431,
       "reviewers_count": 2
     },
     "design-system": {
@@ -1318,8 +1318,8 @@
       "cycle_time_p50": null,
       "cycle_time_p90": null,
       "pr_count": 3,
-      "review_time_p50": null,
-      "review_time_p90": null,
+      "review_time_p50": 197.263,
+      "review_time_p90": 200.765,
       "reviewers_count": 2
     },
     "inference-service": {
@@ -1327,8 +1327,8 @@
       "cycle_time_p50": null,
       "cycle_time_p90": null,
       "pr_count": 4,
-      "review_time_p50": null,
-      "review_time_p90": null,
+      "review_time_p50": 265.647,
+      "review_time_p90": 3028.149,
       "reviewers_count": 3
     },
     "ios-app": {
@@ -1354,8 +1354,8 @@
       "cycle_time_p50": null,
       "cycle_time_p90": null,
       "pr_count": 2,
-      "review_time_p50": null,
-      "review_time_p90": null,
+      "review_time_p50": 186.734,
+      "review_time_p90": 307.036,
       "reviewers_count": 2
     },
     "react-shell": {
@@ -1372,7 +1372,7 @@
       "cycle_time_p50": null,
       "cycle_time_p90": null,
       "pr_count": 2,
-      "review_time_p50": null,
+      "review_time_p50": 662.096,
       "review_time_p90": null,
       "reviewers_count": 2
     },

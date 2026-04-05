@@ -1164,8 +1164,8 @@
       "cycle_time_p50": null,
       "cycle_time_p90": null,
       "pr_count": 2,
-      "review_time_p50": null,
-      "review_time_p90": null,
+      "review_time_p50": 24.401,
+      "review_time_p90": 35.062,
       "reviewers_count": 2
     },
     "auth-service": {
@@ -1182,8 +1182,8 @@
       "cycle_time_p50": null,
       "cycle_time_p90": null,
       "pr_count": 2,
-      "review_time_p50": null,
-      "review_time_p90": null,
+      "review_time_p50": 352.905,
+      "review_time_p90": 557.068,
       "reviewers_count": 2
     },
     "data-warehouse": {
@@ -1191,8 +1191,8 @@
       "cycle_time_p50": null,
       "cycle_time_p90": null,
       "pr_count": 2,
-      "review_time_p50": null,
-      "review_time_p90": null,
+      "review_time_p50": 1681.492,
+      "review_time_p90": 2998.993,
       "reviewers_count": 2
     },
     "design-system": {
@@ -1227,8 +1227,8 @@
       "cycle_time_p50": null,
       "cycle_time_p90": null,
       "pr_count": 2,
-      "review_time_p50": null,
-      "review_time_p90": null,
+      "review_time_p50": 365.364,
+      "review_time_p90": 620.147,
       "reviewers_count": 2
     },
     "inference-service": {
@@ -1236,8 +1236,8 @@
       "cycle_time_p50": null,
       "cycle_time_p90": null,
       "pr_count": 4,
-      "review_time_p50": null,
-      "review_time_p90": null,
+      "review_time_p50": 363.587,
+      "review_time_p90": 7688.854,
       "reviewers_count": 3
     },
     "ios-app": {
@@ -1263,8 +1263,8 @@
       "cycle_time_p50": null,
       "cycle_time_p90": null,
       "pr_count": 3,
-      "review_time_p50": null,
-      "review_time_p90": null,
+      "review_time_p50": 168.539,
+      "review_time_p90": 226.115,
       "reviewers_count": 2
     },
     "react-shell": {
@@ -1578,8 +1578,8 @@
       "cycle_time_p50": null,
       "cycle_time_p90": null,
       "pr_count": 2,
-      "review_time_p50": null,
-      "review_time_p90": null,
+      "review_time_p50": 488.635,
+      "review_time_p90": 608.827,
       "reviewers_count": 2
     },
     "ML Team": {

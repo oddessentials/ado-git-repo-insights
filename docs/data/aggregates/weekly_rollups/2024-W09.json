@@ -1199,7 +1199,7 @@
       "cycle_time_p90": null,
       "pr_count": 3,
       "review_time_p50": null,
-      "review_time_p90": null,
+      "review_time_p90": 401.299,
       "reviewers_count": 2
     },
     "auth-service": {
@@ -1216,8 +1216,8 @@
       "cycle_time_p50": null,
       "cycle_time_p90": null,
       "pr_count": 2,
-      "review_time_p50": null,
-      "review_time_p90": null,
+      "review_time_p50": 295.091,
+      "review_time_p90": 394.058,
       "reviewers_count": 2
     },
     "data-warehouse": {
@@ -1226,7 +1226,7 @@
       "cycle_time_p90": null,
       "pr_count": 3,
       "review_time_p50": null,
-      "review_time_p90": null,
+      "review_time_p90": 2216.301,
       "reviewers_count": 2
     },
     "design-system": {
@@ -1234,7 +1234,7 @@
       "cycle_time_p50": null,
       "cycle_time_p90": null,
       "pr_count": 2,
-      "review_time_p50": null,
+      "review_time_p50": 41.74,
       "review_time_p90": null,
       "reviewers_count": 2
     },
@@ -1261,7 +1261,7 @@
       "cycle_time_p50": null,
       "cycle_time_p90": null,
       "pr_count": 3,
-      "review_time_p50": null,
+      "review_time_p50": 412.325,
       "review_time_p90": null,
       "reviewers_count": 2
     },
@@ -1270,8 +1270,8 @@
       "cycle_time_p50": null,
       "cycle_time_p90": null,
       "pr_count": 3,
-      "review_time_p50": null,
-      "review_time_p90": null,
+      "review_time_p50": 415.217,
+      "review_time_p90": 995.366,
       "reviewers_count": 2
     },
     "ios-app": {
@@ -1298,7 +1298,7 @@
       "cycle_time_p90": null,
       "pr_count": 3,
       "review_time_p50": null,
-      "review_time_p90": null,
+      "review_time_p90": 1374.499,
       "reviewers_count": 2
     },
     "react-shell": {
@@ -1315,8 +1315,8 @@
       "cycle_time_p50": null,
       "cycle_time_p90": null,
       "pr_count": 2,
-      "review_time_p50": null,
-      "review_time_p90": null,
+      "review_time_p50": 4852.673,
+      "review_time_p90": 6403.961,
       "reviewers_count": 2
     },
     "user-service": {

@@ -1234,8 +1234,8 @@
       "cycle_time_p50": null,
       "cycle_time_p90": null,
       "pr_count": 2,
-      "review_time_p50": null,
-      "review_time_p90": null,
+      "review_time_p50": 96.73,
+      "review_time_p90": 161.584,
       "reviewers_count": 2
     },
     "etl-jobs": {
@@ -1243,8 +1243,8 @@
       "cycle_time_p50": null,
       "cycle_time_p90": null,
       "pr_count": 4,
-      "review_time_p50": null,
-      "review_time_p90": null,
+      "review_time_p50": 2670.351,
+      "review_time_p90": 4083.819,
       "reviewers_count": 3
     },
     "feature-store": {
@@ -1261,7 +1261,7 @@
       "cycle_time_p50": null,
       "cycle_time_p90": null,
       "pr_count": 4,
-      "review_time_p50": null,
+      "review_time_p50": 61.484,
       "review_time_p90": null,
       "reviewers_count": 3
     },
@@ -1297,8 +1297,8 @@
       "cycle_time_p50": null,
       "cycle_time_p90": null,
       "pr_count": 2,
-      "review_time_p50": null,
-      "review_time_p90": null,
+      "review_time_p50": 100.199,
+      "review_time_p90": 154.93,
       "reviewers_count": 2
     },
     "react-shell": {
@@ -1652,8 +1652,8 @@
       "cycle_time_p50": null,
       "cycle_time_p90": null,
       "pr_count": 4,
-      "review_time_p50": null,
-      "review_time_p90": null,
+      "review_time_p50": 499.477,
+      "review_time_p90": 828.767,
       "reviewers_count": 3
     },
     "Frontend Team": {

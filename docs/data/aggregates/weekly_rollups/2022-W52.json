@@ -593,8 +593,8 @@
       "cycle_time_p50": null,
       "cycle_time_p90": null,
       "pr_count": 2,
-      "review_time_p50": null,
-      "review_time_p90": null,
+      "review_time_p50": 312.426,
+      "review_time_p90": 533.075,
       "reviewers_count": 2
     },
     "inference-service": {
@@ -620,7 +620,7 @@
       "cycle_time_p50": null,
       "cycle_time_p90": null,
       "pr_count": 2,
-      "review_time_p50": null,
+      "review_time_p50": 872.719,
       "review_time_p90": null,
       "reviewers_count": 2
     },
@@ -760,8 +760,8 @@
       "cycle_time_p50": null,
       "cycle_time_p90": null,
       "pr_count": 3,
-      "review_time_p50": null,
-      "review_time_p90": null,
+      "review_time_p50": 98.706,
+      "review_time_p90": 99.857,
       "reviewers_count": 2
     },
     "Frontend Team": {
@@ -779,7 +779,7 @@
       "cycle_time_p90": null,
       "pr_count": 4,
       "review_time_p50": null,
-      "review_time_p90": null,
+      "review_time_p90": 1034.65,
       "reviewers_count": 3
     },
     "Platform Team": {

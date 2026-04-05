@@ -1084,8 +1084,8 @@
       "cycle_time_p50": null,
       "cycle_time_p90": null,
       "pr_count": 2,
-      "review_time_p50": null,
-      "review_time_p90": null,
+      "review_time_p50": 8.537,
+      "review_time_p90": 11.09,
       "reviewers_count": 2
     },
     "auth-service": {
@@ -1111,8 +1111,8 @@
       "cycle_time_p50": null,
       "cycle_time_p90": null,
       "pr_count": 3,
-      "review_time_p50": null,
-      "review_time_p90": null,
+      "review_time_p50": 1513.707,
+      "review_time_p90": 1803.004,
       "reviewers_count": 2
     },
     "design-system": {
@@ -1120,7 +1120,7 @@
       "cycle_time_p50": null,
       "cycle_time_p90": null,
       "pr_count": 3,
-      "review_time_p50": null,
+      "review_time_p50": 138.304,
       "review_time_p90": null,
       "reviewers_count": 2
     },
@@ -1138,8 +1138,8 @@
       "cycle_time_p50": null,
       "cycle_time_p90": null,
       "pr_count": 2,
-      "review_time_p50": null,
-      "review_time_p90": null,
+      "review_time_p50": 4471.065,
+      "review_time_p90": 6105.719,
       "reviewers_count": 2
     },
     "gateway-core": {
@@ -1147,8 +1147,8 @@
       "cycle_time_p50": null,
       "cycle_time_p90": null,
       "pr_count": 4,
-      "review_time_p50": null,
-      "review_time_p90": null,
+      "review_time_p50": 329.996,
+      "review_time_p90": 926.785,
       "reviewers_count": 3
     },
     "inference-service": {
@@ -1174,8 +1174,8 @@
       "cycle_time_p50": null,
       "cycle_time_p90": null,
       "pr_count": 4,
-      "review_time_p50": null,
-      "review_time_p90": null,
+      "review_time_p50": 371.876,
+      "review_time_p90": 741.481,
       "reviewers_count": 3
     },
     "notification-service": {
@@ -1183,8 +1183,8 @@
       "cycle_time_p50": null,
       "cycle_time_p90": null,
       "pr_count": 2,
-      "review_time_p50": null,
-      "review_time_p90": null,
+      "review_time_p50": 1800.297,
+      "review_time_p90": 3014.661,
       "reviewers_count": 2
     },
     "react-shell": {
@@ -1201,8 +1201,8 @@
       "cycle_time_p50": null,
       "cycle_time_p90": null,
       "pr_count": 2,
-      "review_time_p50": null,
-      "review_time_p90": null,
+      "review_time_p50": 1908.642,
+      "review_time_p90": 2978.651,
       "reviewers_count": 2
     },
     "user-service": {

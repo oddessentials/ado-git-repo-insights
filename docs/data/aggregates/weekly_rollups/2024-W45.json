@@ -1258,8 +1258,8 @@
       "cycle_time_p50": null,
       "cycle_time_p90": null,
       "pr_count": 3,
-      "review_time_p50": null,
-      "review_time_p90": null,
+      "review_time_p50": 222.404,
+      "review_time_p90": 419.209,
       "reviewers_count": 2
     },
     "auth-service": {
@@ -1276,8 +1276,8 @@
       "cycle_time_p50": null,
       "cycle_time_p90": null,
       "pr_count": 2,
-      "review_time_p50": null,
-      "review_time_p90": null,
+      "review_time_p50": 1770.193,
+      "review_time_p90": 3041.84,
       "reviewers_count": 2
     },
     "data-warehouse": {
@@ -1321,8 +1321,8 @@
       "cycle_time_p50": null,
       "cycle_time_p90": null,
       "pr_count": 3,
-      "review_time_p50": null,
-      "review_time_p90": null,
+      "review_time_p50": 2909.775,
+      "review_time_p90": 7929.514,
       "reviewers_count": 2
     },
     "inference-service": {
@@ -1330,8 +1330,8 @@
       "cycle_time_p50": null,
       "cycle_time_p90": null,
       "pr_count": 4,
-      "review_time_p50": null,
-      "review_time_p90": null,
+      "review_time_p50": 324.976,
+      "review_time_p90": 616.441,
       "reviewers_count": 3
     },
     "ios-app": {
@@ -1357,8 +1357,8 @@
       "cycle_time_p50": null,
       "cycle_time_p90": null,
       "pr_count": 3,
-      "review_time_p50": null,
-      "review_time_p90": null,
+      "review_time_p50": 280.769,
+      "review_time_p90": 1355.229,
       "reviewers_count": 2
     },
     "react-shell": {
@@ -1375,8 +1375,8 @@
       "cycle_time_p50": null,
       "cycle_time_p90": null,
       "pr_count": 4,
-      "review_time_p50": null,
-      "review_time_p90": null,
+      "review_time_p50": 2825.606,
+      "review_time_p90": 4494.859,
       "reviewers_count": 3
     },
     "user-service": {
@@ -1721,8 +1721,8 @@
       "cycle_time_p50": null,
       "cycle_time_p90": null,
       "pr_count": 4,
-      "review_time_p50": null,
-      "review_time_p90": null,
+      "review_time_p50": 26.763,
+      "review_time_p90": 549.547,
       "reviewers_count": 3
     },
     "ML Team": {

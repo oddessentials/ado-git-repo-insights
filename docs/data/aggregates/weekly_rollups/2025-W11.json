@@ -1487,8 +1487,8 @@
       "cycle_time_p50": null,
       "cycle_time_p90": null,
       "pr_count": 3,
-      "review_time_p50": null,
-      "review_time_p90": null,
+      "review_time_p50": 124.271,
+      "review_time_p90": 906.88,
       "reviewers_count": 2
     },
     "auth-service": {
@@ -1505,8 +1505,8 @@
       "cycle_time_p50": null,
       "cycle_time_p90": null,
       "pr_count": 3,
-      "review_time_p50": null,
-      "review_time_p90": null,
+      "review_time_p50": 179.03,
+      "review_time_p90": 971.772,
       "reviewers_count": 2
     },
     "data-warehouse": {
@@ -1523,8 +1523,8 @@
       "cycle_time_p50": null,
       "cycle_time_p90": null,
       "pr_count": 4,
-      "review_time_p50": null,
-      "review_time_p90": null,
+      "review_time_p50": 52.992,
+      "review_time_p90": 170.496,
       "reviewers_count": 3
     },
     "etl-jobs": {
@@ -1541,8 +1541,8 @@
       "cycle_time_p50": null,
       "cycle_time_p90": null,
       "pr_count": 2,
-      "review_time_p50": null,
-      "review_time_p90": null,
+      "review_time_p50": 972.117,
+      "review_time_p90": 1533.819,
       "reviewers_count": 2
     },
     "gateway-core": {
@@ -1550,8 +1550,8 @@
       "cycle_time_p50": null,
       "cycle_time_p90": null,
       "pr_count": 3,
-      "review_time_p50": null,
-      "review_time_p90": null,
+      "review_time_p50": 343.714,
+      "review_time_p90": 2515.026,
       "reviewers_count": 2
     },
     "inference-service": {
@@ -1586,8 +1586,8 @@
       "cycle_time_p50": null,
       "cycle_time_p90": null,
       "pr_count": 4,
-      "review_time_p50": null,
-      "review_time_p90": null,
+      "review_time_p50": 284.986,
+      "review_time_p90": 844.038,
       "reviewers_count": 3
     },
     "react-shell": {
@@ -1604,8 +1604,8 @@
       "cycle_time_p50": null,
       "cycle_time_p90": null,
       "pr_count": 4,
-      "review_time_p50": null,
-      "review_time_p90": null,
+      "review_time_p50": 2007.728,
+      "review_time_p90": 2890.035,
       "reviewers_count": 3
     },
     "user-service": {

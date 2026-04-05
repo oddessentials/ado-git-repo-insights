@@ -1570,8 +1570,8 @@
       "cycle_time_p50": null,
       "cycle_time_p90": null,
       "pr_count": 3,
-      "review_time_p50": null,
-      "review_time_p90": null,
+      "review_time_p50": 28.398,
+      "review_time_p90": 37.928,
       "reviewers_count": 2
     },
     "auth-service": {
@@ -1588,8 +1588,8 @@
       "cycle_time_p50": null,
       "cycle_time_p90": null,
       "pr_count": 3,
-      "review_time_p50": null,
-      "review_time_p90": null,
+      "review_time_p50": 150.112,
+      "review_time_p90": 203.881,
       "reviewers_count": 2
     },
     "data-warehouse": {
@@ -1606,8 +1606,8 @@
       "cycle_time_p50": null,
       "cycle_time_p90": null,
       "pr_count": 3,
-      "review_time_p50": null,
-      "review_time_p90": null,
+      "review_time_p50": 31.877,
+      "review_time_p90": 35.352,
       "reviewers_count": 2
     },
     "etl-jobs": {
@@ -1633,8 +1633,8 @@
       "cycle_time_p50": null,
       "cycle_time_p90": null,
       "pr_count": 4,
-      "review_time_p50": null,
-      "review_time_p90": null,
+      "review_time_p50": 104.553,
+      "review_time_p90": 1296.547,
       "reviewers_count": 3
     },
     "inference-service": {
@@ -1643,7 +1643,7 @@
       "cycle_time_p90": null,
       "pr_count": 4,
       "review_time_p50": null,
-      "review_time_p90": null,
+      "review_time_p90": 1940.879,
       "reviewers_count": 3
     },
     "ios-app": {
@@ -1687,8 +1687,8 @@
       "cycle_time_p50": null,
       "cycle_time_p90": null,
       "pr_count": 4,
-      "review_time_p50": null,
-      "review_time_p90": null,
+      "review_time_p50": 2169.067,
+      "review_time_p90": 6091.565,
       "reviewers_count": 3
     },
     "user-service": {

@@ -1080,8 +1080,8 @@
       "cycle_time_p50": null,
       "cycle_time_p90": null,
       "pr_count": 2,
-      "review_time_p50": null,
-      "review_time_p90": null,
+      "review_time_p50": 62.944,
+      "review_time_p90": 79.019,
       "reviewers_count": 2
     },
     "auth-service": {
@@ -1134,8 +1134,8 @@
       "cycle_time_p50": null,
       "cycle_time_p90": null,
       "pr_count": 2,
-      "review_time_p50": null,
-      "review_time_p90": null,
+      "review_time_p50": 3246.925,
+      "review_time_p90": 4876.767,
       "reviewers_count": 2
     },
     "gateway-core": {
@@ -1143,8 +1143,8 @@
       "cycle_time_p50": null,
       "cycle_time_p90": null,
       "pr_count": 3,
-      "review_time_p50": null,
-      "review_time_p90": null,
+      "review_time_p50": 411.185,
+      "review_time_p90": 561.629,
       "reviewers_count": 2
     },
     "inference-service": {
@@ -1179,7 +1179,7 @@
       "cycle_time_p50": null,
       "cycle_time_p90": null,
       "pr_count": 4,
-      "review_time_p50": null,
+      "review_time_p50": 148.163,
       "review_time_p90": null,
       "reviewers_count": 3
     },
@@ -1197,8 +1197,8 @@
       "cycle_time_p50": null,
       "cycle_time_p90": null,
       "pr_count": 3,
-      "review_time_p50": null,
-      "review_time_p90": null,
+      "review_time_p50": 701.364,
+      "review_time_p90": 2433.001,
       "reviewers_count": 2
     },
     "user-service": {
@@ -1487,7 +1487,7 @@
       "cycle_time_p50": null,
       "cycle_time_p90": null,
       "pr_count": 2,
-      "review_time_p50": null,
+      "review_time_p50": 52.564,
       "review_time_p90": null,
       "reviewers_count": 2
     },

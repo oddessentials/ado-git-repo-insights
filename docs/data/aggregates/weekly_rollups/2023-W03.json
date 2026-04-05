@@ -1002,8 +1002,8 @@
       "cycle_time_p50": null,
       "cycle_time_p90": null,
       "pr_count": 2,
-      "review_time_p50": null,
-      "review_time_p90": null,
+      "review_time_p50": 93.066,
+      "review_time_p90": 141.069,
       "reviewers_count": 2
     },
     "auth-service": {
@@ -1020,8 +1020,8 @@
       "cycle_time_p50": null,
       "cycle_time_p90": null,
       "pr_count": 2,
-      "review_time_p50": null,
-      "review_time_p90": null,
+      "review_time_p50": 1317.164,
+      "review_time_p90": 1589.832,
       "reviewers_count": 2
     },
     "data-warehouse": {
@@ -1038,8 +1038,8 @@
       "cycle_time_p50": null,
       "cycle_time_p90": null,
       "pr_count": 2,
-      "review_time_p50": null,
-      "review_time_p90": null,
+      "review_time_p50": 60.725,
+      "review_time_p90": 95.819,
       "reviewers_count": 2
     },
     "etl-jobs": {
@@ -1047,8 +1047,8 @@
       "cycle_time_p50": null,
       "cycle_time_p90": null,
       "pr_count": 3,
-      "review_time_p50": null,
-      "review_time_p90": null,
+      "review_time_p50": 1438.274,
+      "review_time_p90": 6072.131,
       "reviewers_count": 2
     },
     "feature-store": {
@@ -1065,8 +1065,8 @@
       "cycle_time_p50": null,
       "cycle_time_p90": null,
       "pr_count": 2,
-      "review_time_p50": null,
-      "review_time_p90": null,
+      "review_time_p50": 435.665,
+      "review_time_p90": 633.972,
       "reviewers_count": 2
     },
     "inference-service": {
@@ -1101,8 +1101,8 @@
       "cycle_time_p50": null,
       "cycle_time_p90": null,
       "pr_count": 4,
-      "review_time_p50": null,
-      "review_time_p90": null,
+      "review_time_p50": 180.898,
+      "review_time_p90": 355.97,
       "reviewers_count": 3
     },
     "react-shell": {
@@ -1386,8 +1386,8 @@
       "cycle_time_p50": null,
       "cycle_time_p90": null,
       "pr_count": 3,
-      "review_time_p50": null,
-      "review_time_p90": null,
+      "review_time_p50": 112.476,
+      "review_time_p90": 161.921,
       "reviewers_count": 2
     },
     "Frontend Team": {

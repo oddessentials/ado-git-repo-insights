@@ -1407,8 +1407,8 @@
       "cycle_time_p50": null,
       "cycle_time_p90": null,
       "pr_count": 4,
-      "review_time_p50": null,
-      "review_time_p90": null,
+      "review_time_p50": 62.452,
+      "review_time_p90": 89.751,
       "reviewers_count": 3
     },
     "auth-service": {
@@ -1425,8 +1425,8 @@
       "cycle_time_p50": null,
       "cycle_time_p90": null,
       "pr_count": 2,
-      "review_time_p50": null,
-      "review_time_p90": null,
+      "review_time_p50": 240.965,
+      "review_time_p90": 374.435,
       "reviewers_count": 2
     },
     "data-warehouse": {
@@ -1434,8 +1434,8 @@
       "cycle_time_p50": null,
       "cycle_time_p90": null,
       "pr_count": 4,
-      "review_time_p50": null,
-      "review_time_p90": null,
+      "review_time_p50": 4514.874,
+      "review_time_p90": 10410.087,
       "reviewers_count": 3
     },
     "design-system": {
@@ -1443,8 +1443,8 @@
       "cycle_time_p50": null,
       "cycle_time_p90": null,
       "pr_count": 2,
-      "review_time_p50": null,
-      "review_time_p90": null,
+      "review_time_p50": 69.114,
+      "review_time_p90": 80.362,
       "reviewers_count": 2
     },
     "etl-jobs": {
@@ -1470,8 +1470,8 @@
       "cycle_time_p50": null,
       "cycle_time_p90": null,
       "pr_count": 4,
-      "review_time_p50": null,
-      "review_time_p90": null,
+      "review_time_p50": 267.24,
+      "review_time_p90": 677.111,
       "reviewers_count": 3
     },
     "inference-service": {
@@ -1506,8 +1506,8 @@
       "cycle_time_p50": null,
       "cycle_time_p90": null,
       "pr_count": 2,
-      "review_time_p50": null,
-      "review_time_p90": null,
+      "review_time_p50": 41.327,
+      "review_time_p90": 64.332,
       "reviewers_count": 2
     },
     "react-shell": {
@@ -1524,8 +1524,8 @@
       "cycle_time_p50": null,
       "cycle_time_p90": null,
       "pr_count": 2,
-      "review_time_p50": null,
-      "review_time_p90": null,
+      "review_time_p50": 1286.412,
+      "review_time_p90": 1828.714,
       "reviewers_count": 2
     },
     "user-service": {

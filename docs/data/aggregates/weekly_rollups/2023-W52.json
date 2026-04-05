@@ -589,7 +589,7 @@
       "cycle_time_p90": null,
       "pr_count": 3,
       "review_time_p50": null,
-      "review_time_p90": null,
+      "review_time_p90": 278.37,
       "reviewers_count": 2
     },
     "data-warehouse": {
@@ -597,8 +597,8 @@
       "cycle_time_p50": null,
       "cycle_time_p90": null,
       "pr_count": 2,
-      "review_time_p50": null,
-      "review_time_p90": null,
+      "review_time_p50": 88.991,
+      "review_time_p90": 91.153,
       "reviewers_count": 2
     },
     "design-system": {
@@ -624,7 +624,7 @@
       "cycle_time_p50": null,
       "cycle_time_p90": null,
       "pr_count": 2,
-      "review_time_p50": null,
+      "review_time_p50": 2442.899,
       "review_time_p90": null,
       "reviewers_count": 2
     },
@@ -642,8 +642,8 @@
       "cycle_time_p50": null,
       "cycle_time_p90": null,
       "pr_count": 4,
-      "review_time_p50": null,
-      "review_time_p90": null,
+      "review_time_p50": 78.946,
+      "review_time_p90": 269.867,
       "reviewers_count": 3
     },
     "model-training": {
@@ -669,8 +669,8 @@
       "cycle_time_p50": null,
       "cycle_time_p90": null,
       "pr_count": 4,
-      "review_time_p50": null,
-      "review_time_p90": null,
+      "review_time_p50": 166.003,
+      "review_time_p90": 255.894,
       "reviewers_count": 3
     },
     "stream-processor": {
@@ -687,8 +687,8 @@
       "cycle_time_p50": null,
       "cycle_time_p90": null,
       "pr_count": 4,
-      "review_time_p50": null,
-      "review_time_p90": null,
+      "review_time_p50": 246.661,
+      "review_time_p90": 314.703,
       "reviewers_count": 3
     }
   },
@@ -833,7 +833,7 @@
       "cycle_time_p90": null,
       "pr_count": 3,
       "review_time_p50": null,
-      "review_time_p90": null,
+      "review_time_p90": 197.571,
       "reviewers_count": 2
     }
   },

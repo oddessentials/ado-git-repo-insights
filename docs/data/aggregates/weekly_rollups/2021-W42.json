@@ -1044,8 +1044,8 @@
       "cycle_time_p50": null,
       "cycle_time_p90": null,
       "pr_count": 2,
-      "review_time_p50": null,
-      "review_time_p90": null,
+      "review_time_p50": 99.917,
+      "review_time_p90": 158.781,
       "reviewers_count": 2
     },
     "auth-service": {
@@ -1062,8 +1062,8 @@
       "cycle_time_p50": null,
       "cycle_time_p90": null,
       "pr_count": 2,
-      "review_time_p50": null,
-      "review_time_p90": null,
+      "review_time_p50": 2083.543,
+      "review_time_p90": 3489.878,
       "reviewers_count": 2
     },
     "data-warehouse": {
@@ -1071,8 +1071,8 @@
       "cycle_time_p50": null,
       "cycle_time_p90": null,
       "pr_count": 2,
-      "review_time_p50": null,
-      "review_time_p90": null,
+      "review_time_p50": 1933.201,
+      "review_time_p90": 2542.335,
       "reviewers_count": 2
     },
     "design-system": {
@@ -1080,8 +1080,8 @@
       "cycle_time_p50": null,
       "cycle_time_p90": null,
       "pr_count": 3,
-      "review_time_p50": null,
-      "review_time_p90": null,
+      "review_time_p50": 142.349,
+      "review_time_p90": 2517.558,
       "reviewers_count": 2
     },
     "etl-jobs": {
@@ -1089,8 +1089,8 @@
       "cycle_time_p50": null,
       "cycle_time_p90": null,
       "pr_count": 4,
-      "review_time_p50": null,
-      "review_time_p90": null,
+      "review_time_p50": 1898.428,
+      "review_time_p90": 6208.289,
       "reviewers_count": 3
     },
     "feature-store": {
@@ -1107,8 +1107,8 @@
       "cycle_time_p50": null,
       "cycle_time_p90": null,
       "pr_count": 2,
-      "review_time_p50": null,
-      "review_time_p90": null,
+      "review_time_p50": 624.359,
+      "review_time_p90": 924.454,
       "reviewers_count": 2
     },
     "inference-service": {
@@ -1143,8 +1143,8 @@
       "cycle_time_p50": null,
       "cycle_time_p90": null,
       "pr_count": 3,
-      "review_time_p50": null,
-      "review_time_p90": null,
+      "review_time_p50": 24.394,
+      "review_time_p90": 76.651,
       "reviewers_count": 2
     },
     "react-shell": {

@@ -1045,8 +1045,8 @@
       "cycle_time_p50": null,
       "cycle_time_p90": null,
       "pr_count": 2,
-      "review_time_p50": null,
-      "review_time_p90": null,
+      "review_time_p50": 37.612,
+      "review_time_p90": 53.185,
       "reviewers_count": 2
     },
     "auth-service": {
@@ -1054,8 +1054,8 @@
       "cycle_time_p50": null,
       "cycle_time_p90": null,
       "pr_count": 4,
-      "review_time_p50": null,
-      "review_time_p90": null,
+      "review_time_p50": 119.569,
+      "review_time_p90": 334.304,
       "reviewers_count": 3
     },
     "dashboard-api": {
@@ -1082,7 +1082,7 @@
       "cycle_time_p90": null,
       "pr_count": 2,
       "review_time_p50": null,
-      "review_time_p90": null,
+      "review_time_p90": 57.275,
       "reviewers_count": 2
     },
     "etl-jobs": {
@@ -1099,8 +1099,8 @@
       "cycle_time_p50": null,
       "cycle_time_p90": null,
       "pr_count": 4,
-      "review_time_p50": null,
-      "review_time_p90": null,
+      "review_time_p50": 1885.685,
+      "review_time_p90": 7015.447,
       "reviewers_count": 3
     },
     "gateway-core": {
@@ -1108,8 +1108,8 @@
       "cycle_time_p50": null,
       "cycle_time_p90": null,
       "pr_count": 2,
-      "review_time_p50": null,
-      "review_time_p90": null,
+      "review_time_p50": 322.886,
+      "review_time_p90": 396.206,
       "reviewers_count": 2
     },
     "inference-service": {
@@ -1117,8 +1117,8 @@
       "cycle_time_p50": null,
       "cycle_time_p90": null,
       "pr_count": 3,
-      "review_time_p50": null,
-      "review_time_p90": null,
+      "review_time_p50": 1447.422,
+      "review_time_p90": 4788.158,
       "reviewers_count": 2
     },
     "ios-app": {
@@ -1144,8 +1144,8 @@
       "cycle_time_p50": null,
       "cycle_time_p90": null,
       "pr_count": 2,
-      "review_time_p50": null,
-      "review_time_p90": null,
+      "review_time_p50": 616.122,
+      "review_time_p90": 878.277,
       "reviewers_count": 2
     },
     "react-shell": {
@@ -1473,8 +1473,8 @@
       "cycle_time_p50": null,
       "cycle_time_p90": null,
       "pr_count": 4,
-      "review_time_p50": null,
-      "review_time_p90": null,
+      "review_time_p50": 90.786,
+      "review_time_p90": 2384.075,
       "reviewers_count": 3
     },
     "ML Team": {

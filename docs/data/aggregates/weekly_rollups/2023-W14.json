@@ -1236,8 +1236,8 @@
       "cycle_time_p50": null,
       "cycle_time_p90": null,
       "pr_count": 2,
-      "review_time_p50": null,
-      "review_time_p90": null,
+      "review_time_p50": 194.694,
+      "review_time_p90": 242.086,
       "reviewers_count": 2
     },
     "auth-service": {
@@ -1254,8 +1254,8 @@
       "cycle_time_p50": null,
       "cycle_time_p90": null,
       "pr_count": 2,
-      "review_time_p50": null,
-      "review_time_p90": null,
+      "review_time_p50": 327.163,
+      "review_time_p90": 340.717,
       "reviewers_count": 2
     },
     "data-warehouse": {
@@ -1272,8 +1272,8 @@
       "cycle_time_p50": null,
       "cycle_time_p90": null,
       "pr_count": 2,
-      "review_time_p50": null,
-      "review_time_p90": null,
+      "review_time_p50": 14.533,
+      "review_time_p90": 20.3,
       "reviewers_count": 2
     },
     "etl-jobs": {
@@ -1299,8 +1299,8 @@
       "cycle_time_p50": null,
       "cycle_time_p90": null,
       "pr_count": 2,
-      "review_time_p50": null,
-      "review_time_p90": null,
+      "review_time_p50": 244.961,
+      "review_time_p90": 393.085,
       "reviewers_count": 2
     },
     "inference-service": {
@@ -1308,8 +1308,8 @@
       "cycle_time_p50": null,
       "cycle_time_p90": null,
       "pr_count": 4,
-      "review_time_p50": null,
-      "review_time_p90": null,
+      "review_time_p50": 2572.673,
+      "review_time_p90": 3512.314,
       "reviewers_count": 3
     },
     "ios-app": {
@@ -1335,8 +1335,8 @@
       "cycle_time_p50": null,
       "cycle_time_p90": null,
       "pr_count": 3,
-      "review_time_p50": null,
-      "review_time_p90": null,
+      "review_time_p50": 83.291,
+      "review_time_p90": 122.126,
       "reviewers_count": 2
     },
     "react-shell": {
@@ -1720,8 +1720,8 @@
       "cycle_time_p50": null,
       "cycle_time_p90": null,
       "pr_count": 2,
-      "review_time_p50": null,
-      "review_time_p90": null,
+      "review_time_p50": 84.198,
+      "review_time_p90": 109.991,
       "reviewers_count": 2
     },
     "ML Team": {

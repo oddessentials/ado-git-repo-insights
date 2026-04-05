@@ -946,8 +946,8 @@
       "cycle_time_p50": null,
       "cycle_time_p90": null,
       "pr_count": 2,
-      "review_time_p50": null,
-      "review_time_p90": null,
+      "review_time_p50": 98.647,
+      "review_time_p90": 155.175,
       "reviewers_count": 2
     },
     "auth-service": {
@@ -964,8 +964,8 @@
       "cycle_time_p50": null,
       "cycle_time_p90": null,
       "pr_count": 2,
-      "review_time_p50": null,
-      "review_time_p90": null,
+      "review_time_p50": 360.727,
+      "review_time_p90": 621.223,
       "reviewers_count": 2
     },
     "data-warehouse": {
@@ -1009,8 +1009,8 @@
       "cycle_time_p50": null,
       "cycle_time_p90": null,
       "pr_count": 2,
-      "review_time_p50": null,
-      "review_time_p90": null,
+      "review_time_p50": 230.069,
+      "review_time_p90": 400.764,
       "reviewers_count": 2
     },
     "inference-service": {
@@ -1036,8 +1036,8 @@
       "cycle_time_p50": null,
       "cycle_time_p90": null,
       "pr_count": 4,
-      "review_time_p50": null,
-      "review_time_p90": null,
+      "review_time_p50": 2087.094,
+      "review_time_p90": 4126.03,
       "reviewers_count": 3
     },
     "notification-service": {
@@ -1045,8 +1045,8 @@
       "cycle_time_p50": null,
       "cycle_time_p90": null,
       "pr_count": 3,
-      "review_time_p50": null,
-      "review_time_p90": null,
+      "review_time_p50": 391.556,
+      "review_time_p90": 724.331,
       "reviewers_count": 2
     },
     "react-shell": {
@@ -1063,8 +1063,8 @@
       "cycle_time_p50": null,
       "cycle_time_p90": null,
       "pr_count": 3,
-      "review_time_p50": null,
-      "review_time_p90": null,
+      "review_time_p50": 847.896,
+      "review_time_p90": 5518.012,
       "reviewers_count": 2
     },
     "user-service": {
@@ -1320,8 +1320,8 @@
       "cycle_time_p50": null,
       "cycle_time_p90": null,
       "pr_count": 4,
-      "review_time_p50": null,
-      "review_time_p90": null,
+      "review_time_p50": 101.386,
+      "review_time_p90": 410.998,
       "reviewers_count": 3
     },
     "Platform Team": {

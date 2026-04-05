@@ -1367,8 +1367,8 @@
       "cycle_time_p50": null,
       "cycle_time_p90": null,
       "pr_count": 3,
-      "review_time_p50": null,
-      "review_time_p90": null,
+      "review_time_p50": 200.772,
+      "review_time_p90": 249.973,
       "reviewers_count": 2
     },
     "auth-service": {
@@ -1385,8 +1385,8 @@
       "cycle_time_p50": null,
       "cycle_time_p90": null,
       "pr_count": 2,
-      "review_time_p50": null,
-      "review_time_p90": null,
+      "review_time_p50": 5021.502,
+      "review_time_p90": 8204.7,
       "reviewers_count": 2
     },
     "data-warehouse": {
@@ -1403,8 +1403,8 @@
       "cycle_time_p50": null,
       "cycle_time_p90": null,
       "pr_count": 3,
-      "review_time_p50": null,
-      "review_time_p90": null,
+      "review_time_p50": 31.402,
+      "review_time_p90": 273.639,
       "reviewers_count": 2
     },
     "etl-jobs": {
@@ -1421,8 +1421,8 @@
       "cycle_time_p50": null,
       "cycle_time_p90": null,
       "pr_count": 4,
-      "review_time_p50": null,
-      "review_time_p90": null,
+      "review_time_p50": 124.605,
+      "review_time_p90": 222.52,
       "reviewers_count": 3
     },
     "gateway-core": {
@@ -1430,8 +1430,8 @@
       "cycle_time_p50": null,
       "cycle_time_p90": null,
       "pr_count": 3,
-      "review_time_p50": null,
-      "review_time_p90": null,
+      "review_time_p50": 90.694,
+      "review_time_p90": 114.815,
       "reviewers_count": 2
     },
     "inference-service": {
@@ -1439,8 +1439,8 @@
       "cycle_time_p50": null,
       "cycle_time_p90": null,
       "pr_count": 3,
-      "review_time_p50": null,
-      "review_time_p90": null,
+      "review_time_p50": 306.71,
+      "review_time_p90": 1977.711,
       "reviewers_count": 2
     },
     "ios-app": {
@@ -1466,8 +1466,8 @@
       "cycle_time_p50": null,
       "cycle_time_p90": null,
       "pr_count": 3,
-      "review_time_p50": null,
-      "review_time_p90": null,
+      "review_time_p50": 307.34,
+      "review_time_p90": 463.792,
       "reviewers_count": 2
     },
     "react-shell": {
