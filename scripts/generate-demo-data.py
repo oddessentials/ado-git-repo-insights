@@ -219,10 +219,11 @@ def init_random(seed: int = SEED) -> random.Random:
 # Global random generator (initialized at module load)
 RNG = init_random(SEED)
 
-# Dedicated RNG for review-time derivation.  Isolated from the main
+# Seed offset for the review-time RNG stream.  Isolated from the main
 # stream so adding/removing review-time fields does not perturb
-# pr_count, cycle_time, or allocation draws.
-_REVIEW_TIME_RNG = random.Random(SEED + 1_000_000)
+# pr_count, cycle_time, or allocation draws.  A fresh RNG is created
+# per generate_weekly_rollups() call for in-process determinism.
+_REVIEW_TIME_SEED_OFFSET = 1_000_000
 
 
 def _box_muller_normal(rng: random.Random) -> float:
@@ -602,6 +603,7 @@ def _allocate_author_repo_entries(
     team_pool: list[SyntheticUser],
     author_slices: dict[str, list[SliceMetrics]],
     by_author_and_repo: dict[str, dict[str, SliceMetrics]],
+    rt_rng: random.Random,
 ) -> None:
     """Allocate team-repo activity across deterministic author slices."""
     repo_prs = int(repo_entry["pr_count"])
@@ -668,7 +670,9 @@ def _allocate_author_repo_entries(
             assert p90 is not None
             author_entry["cycle_time_p50"] = p50 * factor
             author_entry["cycle_time_p90"] = p90 * factor
-            a_rt_p50, a_rt_p90 = _derive_review_time_pair(p50 * factor, p90 * factor)
+            a_rt_p50, a_rt_p90 = _derive_review_time_pair(
+                p50 * factor, p90 * factor, rt_rng
+            )
             author_entry["review_time_p50"] = a_rt_p50
             author_entry["review_time_p90"] = a_rt_p90
 
@@ -1047,6 +1051,7 @@ REVIEW_TIME_NULL_RATE = 0.10
 def _derive_review_time_pair(
     cycle_time_p50: float | None,
     cycle_time_p90: float | None,
+    rt_rng: random.Random,
 ) -> tuple[float | None, float | None]:
     """Derive review time p50/p90 from cycle time using a single shared ratio.
 
@@ -1057,13 +1062,13 @@ def _derive_review_time_pair(
     always both-null or both-non-null.  Null injection (~10% rate) is coupled:
     one coin flip determines both.
     """
-    ratio = _REVIEW_TIME_RNG.uniform(REVIEW_TIME_RATIO_LOW, REVIEW_TIME_RATIO_HIGH)
+    ratio = rt_rng.uniform(REVIEW_TIME_RATIO_LOW, REVIEW_TIME_RATIO_HIGH)
 
     if cycle_time_p50 is None and cycle_time_p90 is None:
         return None, None
 
     # Coupled null injection: both null or both present
-    if _REVIEW_TIME_RNG.random() < REVIEW_TIME_NULL_RATE:
+    if rt_rng.random() < REVIEW_TIME_NULL_RATE:
         return None, None
 
     rt_p50: float | None = (
@@ -1100,6 +1105,9 @@ def generate_weekly_rollups(
 ) -> list[WeeklyRollup]:
     """Generate 260 weekly rollups with seasonal variation."""
     rollups = []
+    # Fresh review-time RNG per call for in-process determinism.
+    # Isolated seed keeps the review-time stream independent of the main RNG.
+    rt_rng = random.Random(SEED + _REVIEW_TIME_SEED_OFFSET)
     team_author_pools = build_team_author_pools(users, teams)
 
     for year in range(START_YEAR, END_YEAR + 1):
@@ -1130,7 +1138,7 @@ def generate_weekly_rollups(
             p90: float | None = calculate_percentile(cycle_times, 90)
 
             # Derive review time from cycle time (single ratio, per-percentile null independence)
-            rt_p50, rt_p90 = _derive_review_time_pair(p50, p90)
+            rt_p50, rt_p90 = _derive_review_time_pair(p50, p90, rt_rng)
 
             # Authors and reviewers at root level
             authors_count = max(1, int(pr_count * AUTHOR_RATIO))
@@ -1170,7 +1178,9 @@ def generate_weekly_rollups(
                     min(team.member_count, int(team_pr_count**SUBLINEAR_EXPONENT) + 1),
                 )
 
-                team_rt_p50, team_rt_p90 = _derive_review_time_pair(team_p50, team_p90)
+                team_rt_p50, team_rt_p90 = _derive_review_time_pair(
+                    team_p50, team_p90, rt_rng
+                )
                 by_team[team.team_name] = {
                     "pr_count": team_pr_count,
                     "cycle_time_p50": team_p50,
@@ -1262,7 +1272,9 @@ def generate_weekly_rollups(
                     r_cts = generate_cycle_times(r_prs, r_mu_factor)
                     r_p50 = calculate_percentile(r_cts, 50)
                     r_p90 = calculate_percentile(r_cts, 90)
-                    tr_rt_p50, tr_rt_p90 = _derive_review_time_pair(r_p50, r_p90)
+                    tr_rt_p50, tr_rt_p90 = _derive_review_time_pair(
+                        r_p50, r_p90, rt_rng
+                    )
                     team_repo_entries[rname] = {
                         "pr_count": r_prs,
                         "cycle_time_p50": r_p50,
@@ -1286,6 +1298,7 @@ def generate_weekly_rollups(
                             team_pool=team_pool,
                             author_slices=author_slices,
                             by_author_and_repo=by_author_and_repo,
+                            rt_rng=rt_rng,
                         )
 
             by_repository: dict[str, SliceMetrics] = {}
@@ -1303,7 +1316,9 @@ def generate_weekly_rollups(
                 repo_reviewers = max(
                     1, min(repo_pr_count, int(repo_pr_count**SUBLINEAR_EXPONENT) + 1)
                 )
-                repo_rt_p50, repo_rt_p90 = _derive_review_time_pair(repo_p50, repo_p90)
+                repo_rt_p50, repo_rt_p90 = _derive_review_time_pair(
+                    repo_p50, repo_p90, rt_rng
+                )
                 by_repository[repo_name] = {
                     "pr_count": repo_pr_count,
                     "cycle_time_p50": repo_p50,
@@ -1640,7 +1655,8 @@ def main(argv: list[str] | None = None) -> int:
     print("Generating demo data with seed=42...")
     print(f"Output directory: {output_dir}")
 
-    # Reset random state for consistent generation
+    # Reset random state for consistent generation across repeated
+    # in-process calls (test harnesses, orchestrators).
     global RNG
     RNG = init_random(SEED)
 

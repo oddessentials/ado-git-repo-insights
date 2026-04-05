@@ -12,6 +12,8 @@ guards against schema widening that doesn't update all producers atomically.
 from __future__ import annotations
 
 from dataclasses import fields as dc_fields
+from pathlib import Path
+from types import ModuleType
 
 from ado_git_repo_insights.transform.aggregators import WeeklyRollup
 from ado_git_repo_insights.types import (
@@ -162,3 +164,91 @@ class TestProducerSchemaConsistency:
             f"SliceMetrics fields changed. Update all producers and this test. "
             f"Added: {actual - expected}, Removed: {expected - actual}"
         )
+
+
+def _load_demo_module() -> ModuleType:
+    """Import the demo generator script as a module."""
+    import importlib.util
+    import sys
+
+    script_path = (
+        Path(__file__).resolve().parent.parent.parent
+        / "scripts"
+        / "generate-demo-data.py"
+    )
+    spec = importlib.util.spec_from_file_location("generate_demo_data", script_path)
+    assert spec is not None
+    assert spec.loader is not None
+    mod = importlib.util.module_from_spec(spec)
+    # Register before exec so dataclass introspection can resolve the module.
+    sys.modules[spec.name] = mod
+    spec.loader.exec_module(mod)
+    return mod
+
+
+class TestDemoGeneratorInProcessDeterminism:
+    """Calling the demo generator twice in the same process must produce
+    byte-identical output.
+
+    Regression: _REVIEW_TIME_RNG was a module-global mutable RNG seeded only
+    at import time.  The second in-process call consumed RNG state left over
+    from the first run, producing different review_time values.
+    """
+
+    def test_main_in_process_determinism(self, tmp_path: Path) -> None:
+        """Two in-process main() calls must produce byte-identical output."""
+        import hashlib
+
+        mod = _load_demo_module()
+
+        def _run_and_hash(output_dir: Path) -> dict[str, str]:
+            mod.main(["--output-root", str(output_dir)])
+            hashes: dict[str, str] = {}
+            for p in sorted(output_dir.rglob("*.json")):
+                hashes[str(p.relative_to(output_dir))] = hashlib.sha256(
+                    p.read_bytes()
+                ).hexdigest()
+            return hashes
+
+        hashes_a = _run_and_hash(tmp_path / "run_a")
+        hashes_b = _run_and_hash(tmp_path / "run_b")
+
+        assert hashes_a == hashes_b, (
+            "In-process repeated demo generation produced different output — "
+            "check that all RNGs are reset in main()"
+        )
+
+    def test_generate_weekly_rollups_in_process_determinism(self) -> None:
+        """Two in-process generate_weekly_rollups() calls with identical
+        inputs must produce identical review_time values.
+
+        This is the actual entry surface called out in the bug report —
+        generate_weekly_rollups reads RNG state directly, not through main().
+        """
+        from dataclasses import asdict
+
+        mod = _load_demo_module()
+
+        # Reset main RNG to known state (same as main() does).
+        mod.RNG = mod.init_random(mod.SEED)
+        repos = mod.generate_repositories(mod.generate_projects())
+        teams = mod.generate_teams(mod.generate_projects())
+        users = mod.generate_users()
+
+        # Call 1
+        mod.RNG = mod.init_random(mod.SEED)
+        rollups_a = mod.generate_weekly_rollups(repos, teams, users)
+
+        # Call 2 — same inputs, same main RNG state
+        mod.RNG = mod.init_random(mod.SEED)
+        rollups_b = mod.generate_weekly_rollups(repos, teams, users)
+
+        assert len(rollups_a) == len(rollups_b)
+        for i, (a, b) in enumerate(zip(rollups_a, rollups_b, strict=True)):
+            a_dict = asdict(a)
+            b_dict = asdict(b)
+            assert a_dict == b_dict, (
+                f"Week {i} ({a.week}) differs between calls — "
+                f"review_time_p50: {a.review_time_p50} vs {b.review_time_p50}, "
+                f"review_time_p90: {a.review_time_p90} vs {b.review_time_p90}"
+            )

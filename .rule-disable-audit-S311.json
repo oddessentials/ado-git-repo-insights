@@ -10,8 +10,8 @@
     },
     {
       "file": "scripts/generate-demo-data.py",
-      "line": 225,
-      "code": "_REVIEW_TIME_RNG = random.Random(SEED + 1_000_000)",
+      "line": 1108,
+      "code": "rt_rng = random.Random(SEED + _REVIEW_TIME_SEED_OFFSET)",
       "purpose": "deterministic-seeded"
     },
     {
