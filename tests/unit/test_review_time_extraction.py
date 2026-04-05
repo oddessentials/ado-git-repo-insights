@@ -820,7 +820,11 @@ class TestTriggerScope:
                 content="Reviewer A voted 10",
                 created_at="2026-01-15T12:00:00Z",
             )
-            # Only 1 completed PR (r1-1), and it has threads → full
+            # Only 1 completed PR (r1-1), mark it as extraction-covered.
+            db.execute(
+                "UPDATE pull_requests SET comments_extracted_at = "
+                "'2026-01-10T00:00:00Z' WHERE pull_request_uid = 'r1-1'"
+            )
 
             from ado_git_repo_insights.transform.aggregators import (
                 AggregateGenerator,
@@ -946,6 +950,11 @@ class TestTriggerScope:
                 "VALUES (1, '2026-01-10T00:00:00Z', 30, 0, 0, 0)"
             )
             _seed_pr(db)
+            # Per-PR marker: extraction visited the PR even though zero threads.
+            db.execute(
+                "UPDATE pull_requests SET comments_extracted_at = "
+                "'2026-01-10T00:00:00Z' WHERE pull_request_uid = 'r1-1'"
+            )
 
             from ado_git_repo_insights.transform.aggregators import (
                 AggregateGenerator,
@@ -956,6 +965,66 @@ class TestTriggerScope:
             coverage = gen._get_comments_coverage()
             assert coverage["status"] == "full", (
                 "Extraction processed all PRs — zero threads is full coverage"
+            )
+        finally:
+            db.close()
+
+    def test_incremental_extraction_preserves_full_coverage(
+        self, tmp_path: Path
+    ) -> None:
+        """Full historical extraction → incremental batch → coverage stays full.
+
+        Regression: _get_comments_coverage used the batch-scoped
+        comments_extraction_metadata.prs_processed (overwritten each run) to
+        derive global coverage.  After a full run (1000 PRs), a small
+        incremental run (5 PRs) overwrote prs_processed to 5, incorrectly
+        downgrading coverage to "partial".  Dataset-level coverage must be
+        derived from per-PR comments_extracted_at markers, not batch metadata.
+        """
+        db = _create_test_db(tmp_path)
+        try:
+            # _seed_pr inserts FK references (org, project, repo, user).
+            _seed_pr(db, pr_uid="r1-1", creation_date="2026-01-15T10:00:00Z")
+            db.execute(
+                "UPDATE pull_requests SET comments_extracted_at = "
+                "'2026-01-20T00:00:00Z' WHERE pull_request_uid = 'r1-1'"
+            )
+            # Seed additional completed PRs (FK entities already exist).
+            for i in range(2, 4):
+                uid = f"r1-{i}"
+                db.execute(
+                    "INSERT OR IGNORE INTO pull_requests "
+                    "(pull_request_uid, pull_request_id, organization_name, "
+                    "project_name, repository_id, user_id, title, status, "
+                    "creation_date, comments_extracted_at) "
+                    "VALUES (?, ?, 'org', 'proj', 'r1', 'u1', ?, 'completed', "
+                    "'2026-01-15T10:00:00Z', '2026-01-20T00:00:00Z')",
+                    (uid, i, f"PR {i}"),
+                )
+
+            # Simulate incremental run that only processed 1 new PR.
+            # Metadata is overwritten with the small batch size.
+            db.execute(
+                "INSERT INTO comments_extraction_metadata "
+                "(id, last_run_timestamp, prs_processed, threads_fetched, "
+                "comments_fetched, capped) "
+                "VALUES (1, '2026-01-25T00:00:00Z', 1, 0, 0, 0)"
+            )
+
+            from ado_git_repo_insights.transform.aggregators import (
+                AggregateGenerator,
+            )
+
+            output = tmp_path / "agg_out"
+            gen = AggregateGenerator(db, output)
+            coverage = gen._get_comments_coverage()
+
+            # All 3 completed PRs have comments_extracted_at set from the
+            # historical run — coverage must remain "full" regardless of
+            # the small batch metadata.
+            assert coverage["status"] == "full", (
+                "Incremental batch must not degrade coverage when all "
+                "completed PRs have per-PR extraction markers"
             )
         finally:
             db.close()

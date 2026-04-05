@@ -169,7 +169,7 @@ class TestMigrationV1ToV2:
         finally:
             db.close()
 
-    def test_advances_schema_version_to_2(self, tmp_path: Path) -> None:
+    def test_advances_schema_version_to_latest(self, tmp_path: Path) -> None:
         db_path = tmp_path / "test.db"
         _create_v1_database(db_path)
 
@@ -178,7 +178,8 @@ class TestMigrationV1ToV2:
         db = DatabaseManager(db_path)
         db.connect()
         try:
-            assert db.get_schema_version() == 2
+            # All pending migrations applied: v1→v2→v3
+            assert db.get_schema_version() == 3
         finally:
             db.close()
 
@@ -220,20 +221,20 @@ class TestMigrationIdempotency:
         db.connect()
         db.close()
 
-        assert _get_schema_version(db_path) == 2
+        assert _get_schema_version(db_path) == 3
 
         # Second connect: should be a no-op
         db2 = DatabaseManager(db_path)
         db2.connect()
         try:
-            assert db2.get_schema_version() == 2
+            assert db2.get_schema_version() == 3
             assert "reviewed_at" in _get_column_names(db_path, "reviewers")
         finally:
             db2.close()
 
 
 class TestFreshInstall:
-    """T006: new database starts at v2 with both columns."""
+    """T006: new database starts at v3 with all columns."""
 
     def test_fresh_db_has_reviewed_at(self, tmp_path: Path) -> None:
         db_path = tmp_path / "fresh.db"
@@ -253,11 +254,22 @@ class TestFreshInstall:
         finally:
             db.close()
 
-    def test_fresh_db_starts_at_version_2(self, tmp_path: Path) -> None:
+    def test_fresh_db_has_comments_extracted_at(self, tmp_path: Path) -> None:
         db_path = tmp_path / "fresh.db"
         db = DatabaseManager(db_path)
         db.connect()
         try:
-            assert db.get_schema_version() == 2
+            assert "comments_extracted_at" in _get_column_names(
+                db_path, "pull_requests"
+            )
+        finally:
+            db.close()
+
+    def test_fresh_db_starts_at_version_3(self, tmp_path: Path) -> None:
+        db_path = tmp_path / "fresh.db"
+        db = DatabaseManager(db_path)
+        db.connect()
+        try:
+            assert db.get_schema_version() == 3
         finally:
             db.close()

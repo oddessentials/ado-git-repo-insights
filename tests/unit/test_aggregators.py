@@ -435,15 +435,18 @@ class TestAggregateGenerator:
             created_at="2026-01-06T14:40:00Z",
             last_updated="2026-01-06T15:00:00Z",
         )
-        # prs_processed must cover all completed PRs in sample_db (4) for
-        # "full" status — extraction visited every PR even though only one
-        # had threads.
         repo.update_comments_extraction_metadata(
             last_run_timestamp="2026-01-07T00:00:00Z",
             prs_processed=4,
             threads_fetched=1,
             comments_fetched=1,
             capped=False,
+        )
+        # Stamp all 4 completed PRs as extraction-covered so dataset-level
+        # coverage resolves to "full".
+        db.execute(
+            "UPDATE pull_requests SET comments_extracted_at = '2026-01-07T00:00:00Z' "
+            "WHERE status = 'completed'"
         )
         db.connection.commit()
 
@@ -512,6 +515,11 @@ class TestAggregateGenerator:
             threads_fetched=0,
             comments_fetched=0,
             capped=False,
+        )
+        # Per-PR marker: all completed PRs were visited by extraction.
+        db.execute(
+            "UPDATE pull_requests SET comments_extracted_at = '2026-01-07T00:00:00Z' "
+            "WHERE status = 'completed'"
         )
         db.connection.commit()
 

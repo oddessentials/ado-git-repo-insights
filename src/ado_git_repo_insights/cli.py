@@ -552,6 +552,15 @@ def _extract_comments(
 
             stats["prs_processed"] = int(stats["prs_processed"]) + 1
 
+            # Mark this PR as having been processed by comment extraction,
+            # regardless of how many threads were found.  This per-PR marker
+            # drives dataset-level coverage and is monotonic across runs.
+            db.execute(
+                "UPDATE pull_requests SET comments_extracted_at = ? "
+                "WHERE pull_request_uid = ?",
+                (datetime.now(UTC).isoformat(), pr_uid),
+            )
+
         except ExtractionError as e:
             from .utils.run_summary import normalize_error_message
 

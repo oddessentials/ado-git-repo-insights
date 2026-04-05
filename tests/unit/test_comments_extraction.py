@@ -358,6 +358,12 @@ class TestCommentsCoverage:
             "VALUES (1, ?, 1, 1, 0, 0)",
             (now,),
         )
+        # Mark the PR as extraction-covered (dataset-level coverage).
+        db.execute(
+            "UPDATE pull_requests SET comments_extracted_at = ? "
+            "WHERE pull_request_uid = 'repo1-1'",
+            (now,),
+        )
         db.connection.commit()
 
         output_dir = tmp_path / "output"

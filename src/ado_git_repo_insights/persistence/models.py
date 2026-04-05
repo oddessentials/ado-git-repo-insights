@@ -83,6 +83,7 @@ CREATE TABLE IF NOT EXISTS pull_requests (
     closed_date TEXT,             -- ISO 8601
     cycle_time_minutes REAL,
     review_time_minutes REAL,    -- DB-internal: earliest approval − creation_date
+    comments_extracted_at TEXT,   -- DB-internal: ISO 8601, set when comment extraction processes this PR
     raw_json TEXT,                -- Original ADO response for auditing
     FOREIGN KEY (repository_id) REFERENCES repositories(repository_id),
     FOREIGN KEY (user_id) REFERENCES users(user_id)
@@ -174,9 +175,9 @@ CREATE TABLE IF NOT EXISTS schema_version (
     applied_at TEXT NOT NULL
 );
 
--- Insert initial schema version (v2: includes reviewed_at + review_time_minutes)
+-- Insert initial schema version (v3: includes reviewed_at + review_time_minutes + comments_extracted_at)
 INSERT OR IGNORE INTO schema_version (version, applied_at)
-VALUES (2, datetime('now'));
+VALUES (3, datetime('now'));
 """
 
 # CSV column order contract (NON-NEGOTIABLE per Invariants 1-4)

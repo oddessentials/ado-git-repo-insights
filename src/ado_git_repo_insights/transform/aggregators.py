@@ -1473,19 +1473,18 @@ class AggregateGenerator:
             prs_with_threads = 0
             metadata_row = None
 
-        # Status rules (priority order):
-        #   1. extraction ran + capped → partial (incomplete sweep)
-        #   2. extraction ran + uncapped + processed ≥ completed → full
-        #      (some PRs may have zero threads; that is a legitimate result,
-        #       not a coverage gap)
-        #   3. extraction ran + uncapped + processed < completed → partial
-        #      (new PRs added after last comment extraction)
-        #   4. no extraction but content exists (legacy import) → partial
-        #   5. no content and no extraction → disabled
+        # Coverage is derived from per-PR markers (comments_extracted_at),
+        # NOT from the batch-scoped comments_extraction_metadata.prs_processed
+        # which only records the most recent --include-comments run.
+        #
+        # Status rules:
+        #   full    = every completed PR has comments_extracted_at set
+        #   partial = at least one completed PR lacks comments_extracted_at
+        #   disabled = no evidence that comment extraction ever ran
+        has_content = thread_count > 0 or comment_count > 0
         extraction_ran = (
             metadata_row is not None and int(metadata_row["prs_processed"]) > 0
         )
-        has_content = thread_count > 0 or comment_count > 0
 
         try:
             total_row = self.db.execute(
@@ -1495,20 +1494,32 @@ class AggregateGenerator:
         except Exception:
             total_completed = 0
 
-        if extraction_ran and bool(metadata_row["capped"]):
-            status = "partial"
-        elif extraction_ran:
-            # Extraction ran and was not capped.  Base coverage on the number
-            # of PRs the extractor actually visited (prs_processed), NOT on
-            # how many produced stored threads — a PR with zero threads is
-            # still fully covered.
-            prs_processed = int(metadata_row["prs_processed"])
-            if total_completed > 0 and prs_processed < total_completed:
-                status = "partial"
-            else:
+        # Count completed PRs that have been processed by comment extraction.
+        # comments_extracted_at is set per-PR during extraction and survives
+        # across incremental runs — it is monotonic (never regresses).
+        try:
+            covered_row = self.db.execute(
+                "SELECT COUNT(*) AS cnt FROM pull_requests "
+                "WHERE status = 'completed' AND comments_extracted_at IS NOT NULL"
+            ).fetchone()
+            covered_count = int(covered_row["cnt"]) if covered_row else 0
+        except Exception:
+            # Legacy DB may not have comments_extracted_at column yet.
+            # Fall back to extraction_ran heuristic.
+            covered_count = -1
+
+        if covered_count >= 0:
+            # Per-PR marker available — authoritative coverage signal.
+            if covered_count == 0 and not extraction_ran and not has_content:
+                status = "disabled"
+            elif total_completed > 0 and covered_count >= total_completed:
                 status = "full"
-        elif has_content:
-            # Content exists but no extraction metadata — legacy or partial import
+            else:
+                status = "partial"
+        elif extraction_ran and bool(metadata_row["capped"]):
+            # Legacy DB without per-PR marker, batch was capped.
+            status = "partial"
+        elif extraction_ran or has_content:
             status = "partial"
         else:
             status = "disabled"
