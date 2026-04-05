@@ -841,18 +841,16 @@ class TestTriggerScope:
         finally:
             db.close()
 
-    def test_coverage_full_zero_threads_but_extraction_ran(
+    def test_coverage_disabled_when_extraction_found_nothing(
         self, tmp_path: Path
     ) -> None:
-        """Uncapped extraction with zero threads reports full, not disabled.
+        """Uncapped extraction with zero threads/comments → disabled, not full.
 
-        Regression: thread_count == 0 check returned disabled even when
-        metadata showed prs_processed > 0 and capped = false, meaning
-        extraction ran successfully but every PR had zero threads.
+        Invariant: full ⇒ usable comment data exists. If extraction ran
+        but found nothing, there's no data for review-time metrics.
         """
         db = _create_test_db(tmp_path)
         try:
-            # Extraction ran, processed 30 PRs, uncapped, zero threads found
             db.execute(
                 "INSERT INTO comments_extraction_metadata "
                 "(id, last_run_timestamp, prs_processed, threads_fetched, "
@@ -868,8 +866,8 @@ class TestTriggerScope:
             output = tmp_path / "agg_out"
             gen = AggregateGenerator(db, output)
             coverage = gen._get_comments_coverage()
-            assert coverage["status"] == "full", (
-                "Zero-thread successful extraction must be full, not disabled"
+            assert coverage["status"] == "disabled", (
+                "Zero content must not report full — no usable data exists"
             )
         finally:
             db.close()

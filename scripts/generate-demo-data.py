@@ -219,6 +219,11 @@ def init_random(seed: int = SEED) -> random.Random:
 # Global random generator (initialized at module load)
 RNG = init_random(SEED)
 
+# Dedicated RNG for review-time derivation.  Isolated from the main
+# stream so adding/removing review-time fields does not perturb
+# pr_count, cycle_time, or allocation draws.
+_REVIEW_TIME_RNG = random.Random(SEED + 1_000_000)
+
 
 def _box_muller_normal(rng: random.Random) -> float:
     """Generate standard normal variate using Box-Muller transform.
@@ -1052,13 +1057,13 @@ def _derive_review_time_pair(
     always both-null or both-non-null.  Null injection (~10% rate) is coupled:
     one coin flip determines both.
     """
-    ratio = RNG.uniform(REVIEW_TIME_RATIO_LOW, REVIEW_TIME_RATIO_HIGH)
+    ratio = _REVIEW_TIME_RNG.uniform(REVIEW_TIME_RATIO_LOW, REVIEW_TIME_RATIO_HIGH)
 
     if cycle_time_p50 is None and cycle_time_p90 is None:
         return None, None
 
     # Coupled null injection: both null or both present
-    if RNG.random() < REVIEW_TIME_NULL_RATE:
+    if _REVIEW_TIME_RNG.random() < REVIEW_TIME_NULL_RATE:
         return None, None
 
     rt_p50: float | None = (
