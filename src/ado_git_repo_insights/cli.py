@@ -494,7 +494,10 @@ def _extract_comments(
             )
 
             # Apply max_threads_per_pr limit
-            if max_threads_per_pr > 0 and len(threads) > max_threads_per_pr:
+            pr_threads_truncated = (
+                max_threads_per_pr > 0 and len(threads) > max_threads_per_pr
+            )
+            if pr_threads_truncated:
                 threads = threads[:max_threads_per_pr]
 
             for thread in threads:
@@ -552,14 +555,16 @@ def _extract_comments(
 
             stats["prs_processed"] = int(stats["prs_processed"]) + 1
 
-            # Mark this PR as having been processed by comment extraction,
-            # regardless of how many threads were found.  This per-PR marker
-            # drives dataset-level coverage and is monotonic across runs.
-            db.execute(
-                "UPDATE pull_requests SET comments_extracted_at = ? "
-                "WHERE pull_request_uid = ?",
-                (datetime.now(UTC).isoformat(), pr_uid),
-            )
+            # Mark this PR as fully processed by comment extraction ONLY
+            # if the thread fetch was not truncated.  A truncated fetch may
+            # have skipped threads containing vote events, so the PR's
+            # review-time data is incomplete and must not count as covered.
+            if not pr_threads_truncated:
+                db.execute(
+                    "UPDATE pull_requests SET comments_extracted_at = ? "
+                    "WHERE pull_request_uid = ?",
+                    (datetime.now(UTC).isoformat(), pr_uid),
+                )
 
         except ExtractionError as e:
             from .utils.run_summary import normalize_error_message

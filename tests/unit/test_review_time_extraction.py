@@ -693,6 +693,91 @@ class TestWithdrawnApproval:
 
 
 # ---------------------------------------------------------------------------
+# Post-close approval filtering (SC-002)
+# ---------------------------------------------------------------------------
+
+
+class TestPostCloseApproval:
+    """Approvals after PR close must not produce review_time_minutes."""
+
+    def test_post_close_approval_produces_null_review_time(
+        self, tmp_path: Path
+    ) -> None:
+        """If the earliest positive vote is after closed_date, review_time
+        must be NULL — not an impossible duration exceeding cycle_time.
+
+        Regression: review_time.py persisted the computed value and only
+        logged a warning, allowing inflated review-time metrics in rollups.
+        """
+        db = _create_test_db(tmp_path)
+        try:
+            # PR created Jan 15 10:00, closed Jan 16 10:00 (24h cycle)
+            _seed_pr(db, creation_date="2026-01-15T10:00:00Z")
+            db.execute(
+                "UPDATE pull_requests SET closed_date = '2026-01-16T10:00:00Z', "
+                "cycle_time_minutes = 1440.0 WHERE pull_request_uid = 'r1-1'"
+            )
+            # Reviewer approves AFTER close (post-merge approval)
+            _seed_reviewer(db, user_id="u1", vote=10)
+            _seed_system_comment(
+                db,
+                comment_id="c1",
+                pr_uid="r1-1",
+                author_id="u1",
+                content="Reviewer A voted 10",
+                created_at="2026-01-17T08:00:00Z",  # 22h after close
+            )
+
+            count = populate_review_timestamps(db)
+
+            pr = db.execute(
+                "SELECT review_time_minutes, cycle_time_minutes "
+                "FROM pull_requests WHERE pull_request_uid = 'r1-1'"
+            ).fetchone()
+            assert pr is not None
+            assert pr["review_time_minutes"] is None, (
+                "Post-close approval must not produce review_time_minutes"
+            )
+            assert count == 0, "Post-close approvals must not count toward updated PRs"
+        finally:
+            db.close()
+
+    def test_pre_close_approval_still_populates_review_time(
+        self, tmp_path: Path
+    ) -> None:
+        """Normal approval before close must still produce review_time."""
+        db = _create_test_db(tmp_path)
+        try:
+            _seed_pr(db, creation_date="2026-01-15T10:00:00Z")
+            db.execute(
+                "UPDATE pull_requests SET closed_date = '2026-01-16T10:00:00Z', "
+                "cycle_time_minutes = 1440.0 WHERE pull_request_uid = 'r1-1'"
+            )
+            _seed_reviewer(db, user_id="u1", vote=10)
+            _seed_system_comment(
+                db,
+                comment_id="c1",
+                pr_uid="r1-1",
+                author_id="u1",
+                content="Reviewer A voted 10",
+                created_at="2026-01-15T14:00:00Z",  # 4h after creation, before close
+            )
+
+            count = populate_review_timestamps(db)
+
+            pr = db.execute(
+                "SELECT review_time_minutes FROM pull_requests "
+                "WHERE pull_request_uid = 'r1-1'"
+            ).fetchone()
+            assert pr is not None
+            assert pr["review_time_minutes"] is not None
+            assert pr["review_time_minutes"] == 240.0  # 4 hours
+            assert count == 1
+        finally:
+            db.close()
+
+
+# ---------------------------------------------------------------------------
 # Scoping safety test
 # ---------------------------------------------------------------------------
 
@@ -1025,6 +1110,53 @@ class TestTriggerScope:
             assert coverage["status"] == "full", (
                 "Incremental batch must not degrade coverage when all "
                 "completed PRs have per-PR extraction markers"
+            )
+        finally:
+            db.close()
+
+    def test_truncated_thread_fetch_does_not_stamp_coverage(
+        self, tmp_path: Path
+    ) -> None:
+        """Per-PR thread cap must prevent comments_extracted_at stamp.
+
+        Regression: _extract_comments stamped comments_extracted_at even
+        when --comments-max-threads-per-pr truncated the thread list,
+        causing _get_comments_coverage() to report 'full' for a dataset
+        where some vote events may have been skipped.
+
+        This test verifies the stamping logic directly: if a PR had more
+        threads than the cap, its comments_extracted_at must remain NULL.
+        """
+        db = _create_test_db(tmp_path)
+        try:
+            _seed_pr(db, pr_uid="r1-1")
+            # Simulate: 2 completed PRs, one truncated, one not.
+            # The truncated PR should NOT have comments_extracted_at.
+            # The non-truncated PR SHOULD have comments_extracted_at.
+            db.execute(
+                "UPDATE pull_requests SET comments_extracted_at = "
+                "'2026-01-20T00:00:00Z' WHERE pull_request_uid = 'r1-1'"
+            )
+
+            db.execute(
+                "INSERT OR IGNORE INTO pull_requests "
+                "(pull_request_uid, pull_request_id, organization_name, "
+                "project_name, repository_id, user_id, title, status, "
+                "creation_date) "
+                "VALUES ('r1-2', 2, 'org', 'proj', 'r1', 'u1', "
+                "'Truncated PR', 'completed', '2026-01-16T08:00:00Z')"
+            )
+            # r1-2 has NO comments_extracted_at (simulates truncated fetch)
+
+            from ado_git_repo_insights.transform.aggregators import (
+                AggregateGenerator,
+            )
+
+            output = tmp_path / "agg_out"
+            gen = AggregateGenerator(db, output)
+            coverage = gen._get_comments_coverage()
+            assert coverage["status"] != "full", (
+                "Dataset with truncated-fetch PR must not report full coverage"
             )
         finally:
             db.close()

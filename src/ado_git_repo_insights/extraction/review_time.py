@@ -146,6 +146,8 @@ def populate_review_timestamps(db: DatabaseManager) -> int:
     pr_uids_with_votes = {pr_uid for pr_uid, _ in earliest_votes}
     updated_count = 0
 
+    dropped_post_close = 0
+
     for pr_uid in pr_uids_with_votes:
         # Only consider reviewers whose CURRENT vote is still positive.
         # A reviewer who approved then withdrew (vote → 0/-10) must not
@@ -154,6 +156,7 @@ def populate_review_timestamps(db: DatabaseManager) -> int:
             """
             SELECT
                 p.creation_date,
+                p.closed_date,
                 MIN(r.reviewed_at) AS earliest_reviewed_at
             FROM pull_requests p
             JOIN reviewers r ON r.pull_request_uid = p.pull_request_uid
@@ -169,7 +172,25 @@ def populate_review_timestamps(db: DatabaseManager) -> int:
             continue
 
         creation_date: str | None = result["creation_date"]
+        closed_date: str | None = result["closed_date"]
         earliest_reviewed_at: str | None = result["earliest_reviewed_at"]
+
+        # SC-002: Drop post-close approvals.  If the earliest positive
+        # vote arrived after the PR was already closed, the resulting
+        # review_time_minutes would exceed cycle_time_minutes — an
+        # impossible duration that must not enter aggregates.
+        reviewed_dt = parse_iso_datetime(earliest_reviewed_at)
+        closed_dt = parse_iso_datetime(closed_date)
+        if (
+            reviewed_dt is not None
+            and closed_dt is not None
+            and reviewed_dt > closed_dt
+        ):
+            dropped_post_close += 1
+            # review_time_minutes was already cleared to NULL in Step 2;
+            # leaving it NULL is the correct outcome.
+            continue
+
         review_minutes = calculate_review_time_minutes(
             creation_date, earliest_reviewed_at
         )
@@ -181,19 +202,10 @@ def populate_review_timestamps(db: DatabaseManager) -> int:
         )
         updated_count += 1
 
-    # Step 7: SC-002 invariant check — review_time should not exceed cycle_time.
-    invariant_row = db.execute(
-        "SELECT COUNT(*) AS count FROM pull_requests "
-        "WHERE review_time_minutes IS NOT NULL "
-        "AND cycle_time_minutes IS NOT NULL "
-        "AND review_time_minutes > cycle_time_minutes"
-    ).fetchone()
-    violation_count = int(invariant_row["count"]) if invariant_row else 0
-    if violation_count > 0:
-        logger.warning(
-            f"SC-002 invariant: {violation_count} PR(s) have "
-            f"review_time_minutes > cycle_time_minutes "
-            f"(possible post-merge approval votes)"
+    if dropped_post_close > 0:
+        logger.info(
+            f"Dropped {dropped_post_close} PR(s) with post-close approvals "
+            f"(review_time_minutes set to NULL)"
         )
 
     logger.info(
