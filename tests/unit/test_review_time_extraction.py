@@ -694,15 +694,24 @@ class TestWithdrawnApproval:
             assert pr1 is not None
             assert pr1["review_time_minutes"] is not None
 
-            # Reviewer withdraws approval: vote changes to 0
+            # Reviewer withdraws approval: ADO creates a new "voted 0"
+            # system comment and the reviewer's vote changes to 0.
             db.execute(
                 "UPDATE reviewers SET vote = 0 "
                 "WHERE pull_request_uid = 'r1-1' AND user_id = 'u1'"
             )
+            _seed_system_comment(
+                db,
+                comment_id="c2",
+                pr_uid="r1-1",
+                author_id="u1",
+                content="Reviewer A voted 0",
+                created_at="2026-01-15T14:00:00Z",
+            )
 
-            # Recompute: reviewed_at still set (historical fact), but
-            # review_time_minutes must be NULL because current vote is
-            # no longer positive.
+            # Recompute: the latest vote event for u1 is "voted 0", so
+            # their earlier approval is withdrawn and must not contribute
+            # to review_time_minutes.
             populate_review_timestamps(db)
             pr2 = db.execute(
                 "SELECT review_time_minutes FROM pull_requests "
@@ -711,6 +720,65 @@ class TestWithdrawnApproval:
             assert pr2 is not None
             assert pr2["review_time_minutes"] is None, (
                 "Withdrawn approval must NULL review_time_minutes"
+            )
+        finally:
+            db.close()
+
+    def test_removed_reviewer_does_not_contribute_review_time(
+        self, tmp_path: Path
+    ) -> None:
+        """Reviewer removed from PR must not contribute review_time.
+
+        Regression: the reviewers table never deletes rows for removed
+        reviewers, so a stale vote=10 row survived incremental re-extracts.
+        The old code joined reviewers and filtered on r.vote IN (5, 10),
+        which matched the stale row.  The fix derives review_time solely
+        from pr_comments vote events, bypassing the stale reviewers table.
+        """
+        db = _create_test_db(tmp_path)
+        try:
+            _seed_pr(db, creation_date="2026-01-15T10:00:00Z")
+            # Only reviewer: u1 approved.
+            _seed_reviewer(db, user_id="u1", vote=10)
+            _seed_system_comment(
+                db,
+                comment_id="c1",
+                pr_uid="r1-1",
+                author_id="u1",
+                content="Reviewer A voted 10",
+                created_at="2026-01-15T12:00:00Z",
+            )
+            db.connection.commit()
+
+            # First run: review_time computed from u1's approval.
+            count1 = populate_review_timestamps(db)
+            assert count1 == 1
+            pr1 = db.execute(
+                "SELECT review_time_minutes FROM pull_requests "
+                "WHERE pull_request_uid = 'r1-1'"
+            ).fetchone()
+            assert pr1 is not None
+            assert pr1["review_time_minutes"] is not None
+
+            # u1 is removed from the PR in ADO.  Next extraction will NOT
+            # update u1's reviewer row (it's just skipped), so vote stays 10.
+            # But their vote event comment is deleted in ADO and the local
+            # copy is marked as deleted.
+            db.execute("UPDATE pr_comments SET is_deleted = 1 WHERE comment_id = 'c1'")
+            db.connection.commit()
+
+            # Recompute: c1 is deleted, so no positive vote events exist.
+            # review_time_minutes must be NULL even though reviewers.vote=10.
+            count2 = populate_review_timestamps(db)
+            assert count2 == 0
+            pr2 = db.execute(
+                "SELECT review_time_minutes FROM pull_requests "
+                "WHERE pull_request_uid = 'r1-1'"
+            ).fetchone()
+            assert pr2 is not None
+            assert pr2["review_time_minutes"] is None, (
+                "Removed reviewer's stale vote=10 must not contribute "
+                "review_time after their vote event is deleted"
             )
         finally:
             db.close()

@@ -98,9 +98,14 @@ def populate_review_timestamps(db: DatabaseManager) -> int:
         """
     ).fetchall()
 
-    # Step 4: Parse vote events and collect earliest positive vote per
-    # (pull_request_uid, author_id).
-    earliest_votes: dict[tuple[str, str], tuple[datetime, str]] = {}
+    # Step 4: Parse vote events.
+    #
+    # Collect earliest positive vote AND latest vote (any value) per
+    # (pull_request_uid, author_id).  A reviewer whose latest vote is
+    # negative/neutral has withdrawn their approval — they must not
+    # contribute to review_time even if an earlier positive vote exists.
+    earliest_positive: dict[tuple[str, str], tuple[datetime, str]] = {}
+    latest_vote: dict[tuple[str, str], tuple[datetime, int]] = {}
 
     for row in rows:
         content = row["content"]
@@ -108,8 +113,6 @@ def populate_review_timestamps(db: DatabaseManager) -> int:
         if not match:
             continue
         vote_value = int(match.group(2))
-        if vote_value not in _POSITIVE_VOTES:
-            continue
 
         pr_uid = row["pull_request_uid"]
         author_id = row["author_id"]
@@ -119,8 +122,22 @@ def populate_review_timestamps(db: DatabaseManager) -> int:
             continue
         key = (pr_uid, author_id)
 
-        if key not in earliest_votes or vote_dt < earliest_votes[key][0]:
-            earliest_votes[key] = (vote_dt, vote_ts_raw)
+        # Track latest vote (any value) for withdrawal detection.
+        if key not in latest_vote or vote_dt > latest_vote[key][0]:
+            latest_vote[key] = (vote_dt, vote_value)
+
+        # Track earliest positive vote.
+        if vote_value not in _POSITIVE_VOTES:
+            continue
+        if key not in earliest_positive or vote_dt < earliest_positive[key][0]:
+            earliest_positive[key] = (vote_dt, vote_ts_raw)
+
+    # Exclude reviewers whose latest vote withdrew the approval.
+    earliest_votes: dict[tuple[str, str], tuple[datetime, str]] = {
+        key: val
+        for key, val in earliest_positive.items()
+        if latest_vote[key][1] in _POSITIVE_VOTES
+    }
 
     if not earliest_votes:
         logger.info(
@@ -141,30 +158,27 @@ def populate_review_timestamps(db: DatabaseManager) -> int:
             (vote_ts_raw, pr_uid, author_id),
         )
 
-    # Step 6: Compute review_time_minutes on each PR from the earliest
-    # positive reviewed_at across all its reviewers.
-    pr_uids_with_votes = {pr_uid for pr_uid, _ in earliest_votes}
-    updated_count = 0
+    # Step 6: Compute review_time_minutes from the earliest positive vote
+    # per PR, using the earliest_votes dict (derived from pr_comments) as
+    # the sole authority.  We do NOT join the reviewers table here because
+    # removed reviewers are never deleted from it — a stale vote=10 row
+    # would keep a removed reviewer's approval alive after incremental
+    # re-extracts.  The earliest_votes dict already filters to positive
+    # vote events and handles withdrawn approvals via convergence (Steps 2+5).
 
+    # Aggregate to earliest vote per PR.
+    pr_earliest: dict[str, tuple[datetime, str]] = {}
+    for (pr_uid, _author_id), (vote_dt, vote_ts_raw) in earliest_votes.items():
+        if pr_uid not in pr_earliest or vote_dt < pr_earliest[pr_uid][0]:
+            pr_earliest[pr_uid] = (vote_dt, vote_ts_raw)
+
+    updated_count = 0
     dropped_post_close = 0
 
-    for pr_uid in pr_uids_with_votes:
-        # Only consider reviewers whose CURRENT vote is still positive.
-        # A reviewer who approved then withdrew (vote → 0/-10) must not
-        # contribute to review_time_minutes.
+    for pr_uid, (_vote_dt, vote_ts_raw) in pr_earliest.items():
         result = db.execute(
-            """
-            SELECT
-                p.creation_date,
-                p.closed_date,
-                MIN(r.reviewed_at) AS earliest_reviewed_at
-            FROM pull_requests p
-            JOIN reviewers r ON r.pull_request_uid = p.pull_request_uid
-            WHERE p.pull_request_uid = ?
-              AND r.reviewed_at IS NOT NULL
-              AND r.vote IN (5, 10)
-            GROUP BY p.pull_request_uid
-            """,
+            "SELECT creation_date, closed_date FROM pull_requests "
+            "WHERE pull_request_uid = ?",
             (pr_uid,),
         ).fetchone()
 
@@ -173,13 +187,12 @@ def populate_review_timestamps(db: DatabaseManager) -> int:
 
         creation_date: str | None = result["creation_date"]
         closed_date: str | None = result["closed_date"]
-        earliest_reviewed_at: str | None = result["earliest_reviewed_at"]
 
         # SC-002: Drop post-close approvals.  If the earliest positive
         # vote arrived after the PR was already closed, the resulting
         # review_time_minutes would exceed cycle_time_minutes — an
         # impossible duration that must not enter aggregates.
-        reviewed_dt = parse_iso_datetime(earliest_reviewed_at)
+        reviewed_dt = parse_iso_datetime(vote_ts_raw)
         closed_dt = parse_iso_datetime(closed_date)
         if (
             reviewed_dt is not None
@@ -191,9 +204,7 @@ def populate_review_timestamps(db: DatabaseManager) -> int:
             # leaving it NULL is the correct outcome.
             continue
 
-        review_minutes = calculate_review_time_minutes(
-            creation_date, earliest_reviewed_at
-        )
+        review_minutes = calculate_review_time_minutes(creation_date, vote_ts_raw)
 
         db.execute(
             "UPDATE pull_requests SET review_time_minutes = ? "
