@@ -24,6 +24,7 @@ if TYPE_CHECKING:
     from .config import Config
     from .extractor.ado_client import ADOClient
     from .persistence.database import DatabaseManager
+    from .types import AdoThread
 
 logger = logging.getLogger(__name__)
 
@@ -562,29 +563,30 @@ def _extract_comments(
             #
             # Three cases:
             #   1. No truncation → stamp with current time (complete fetch).
-            #   2. Truncated AND dropped threads have unseen updates (or no
-            #      prior data exists) → clear stamp (local data incomplete).
-            #   3. Truncated BUT all dropped threads are already stored and
-            #      unchanged → leave stamp as-is (local data still complete
-            #      from a prior full run).
+            #   2. Truncated AND any dropped thread is missing locally or
+            #      has a newer API version than stored → clear stamp.
+            #   3. Truncated BUT every dropped thread exists locally with
+            #      a last_updated ≥ the API lastUpdatedDate → no-op
+            #      (local data still complete from prior runs).
             if not pr_threads_truncated:
                 db.execute(
                     "UPDATE pull_requests SET comments_extracted_at = ? "
                     "WHERE pull_request_uid = ?",
                     (datetime.now(UTC).isoformat(), pr_uid),
                 )
-            elif last_updated is None or any(
-                (t.get("lastUpdatedDate", "") or "") > last_updated
-                for t in all_threads[max_threads_per_pr:]
+            elif _dropped_threads_all_stored(
+                db, pr_uid, all_threads[max_threads_per_pr:]
             ):
-                # Truncation hides unseen data → invalidate coverage.
+                # Every dropped thread is already stored and current.
+                # Prior stamp (if any) correctly reflects completeness.
+                pass
+            else:
+                # At least one dropped thread is missing or stale locally.
                 db.execute(
                     "UPDATE pull_requests SET comments_extracted_at = NULL "
                     "WHERE pull_request_uid = ?",
                     (pr_uid,),
                 )
-            # else: truncated but all dropped threads unchanged — no-op,
-            # prior stamp (if any) correctly reflects local completeness.
 
         except ExtractionError as e:
             from .utils.run_summary import normalize_error_message
@@ -902,6 +904,44 @@ def _backfill_review_timestamps_if_needed(db: DatabaseManager) -> None:
     count = populate_review_timestamps(db)
     if isinstance(count, int) and count > 0:
         logger.info(f"Review time computed for {count} PRs")
+
+
+def _dropped_threads_all_stored(
+    db: DatabaseManager,
+    pr_uid: str,
+    dropped_threads: list[AdoThread],
+) -> bool:
+    """Return True only if every dropped thread exists locally and is current.
+
+    For each thread in *dropped_threads*, checks that a matching row
+    exists in ``pr_threads`` with ``last_updated >= lastUpdatedDate``.
+    Returns False if ANY thread is missing or stale — meaning truncation
+    hid data that is not already stored.
+    """
+    if not dropped_threads:
+        return True
+
+    for thread in dropped_threads:
+        tid = str(thread.get("id", ""))
+        api_updated: str = thread.get("lastUpdatedDate", "") or ""
+        if not tid:
+            return False
+
+        row = db.execute(
+            "SELECT last_updated FROM pr_threads WHERE thread_id = ?",
+            (tid,),
+        ).fetchone()
+
+        if row is None:
+            # Thread not stored locally at all.
+            return False
+
+        local_updated: str = row["last_updated"] or ""
+        if api_updated > local_updated:
+            # API has a newer version than what we stored.
+            return False
+
+    return True
 
 
 def _is_real_row(row: object) -> bool:

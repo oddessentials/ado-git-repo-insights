@@ -1247,6 +1247,66 @@ class TestTriggerScope:
         finally:
             db.close()
 
+    def test_dropped_thread_missing_locally_clears_stamp(self, tmp_path: Path) -> None:
+        """Dropped thread absent locally must invalidate stamp even if
+        its lastUpdatedDate is older than the stored PR-wide max.
+
+        Regression: the preservation check compared dropped threads'
+        lastUpdatedDate against MAX(last_updated) of stored threads.
+        A dropped thread with an older timestamp than some other stored
+        thread was treated as "unchanged" even though it was never stored.
+
+        Scenario:
+        - PR r1-1 previously stamped as fully covered
+        - Stored thread t1 with last_updated = 2026-01-10
+        - Dropped thread t2 (NOT stored) with lastUpdatedDate = 2026-01-09
+        - Old check: "2026-01-09" <= "2026-01-10" → no-op (wrong!)
+        - New check: t2 missing from pr_threads → invalidate (correct)
+        """
+        db = _create_test_db(tmp_path)
+        try:
+            _seed_pr(db, pr_uid="r1-1")
+            db.execute(
+                "UPDATE pull_requests SET comments_extracted_at = "
+                "'2026-01-20T00:00:00Z' WHERE pull_request_uid = 'r1-1'"
+            )
+            db.execute(
+                "INSERT INTO comments_extraction_metadata "
+                "(id, last_run_timestamp, prs_processed, threads_fetched, "
+                "comments_fetched, capped) "
+                "VALUES (1, '2026-01-20T00:00:00Z', 1, 1, 0, 0)"
+            )
+
+            # t1 is stored locally with a newer timestamp.
+            db.execute(
+                "INSERT INTO pr_threads (thread_id, pull_request_uid, "
+                "status, last_updated, created_at) "
+                "VALUES ('t1', 'r1-1', 'active', '2026-01-10T00:00:00Z', "
+                "'2026-01-09T00:00:00Z')"
+            )
+
+            # Now test _dropped_threads_all_stored directly.
+            # t2 is NOT stored but has an older timestamp than t1.
+            from ado_git_repo_insights.cli import _dropped_threads_all_stored
+
+            dropped = [{"id": "t2", "lastUpdatedDate": "2026-01-09T00:00:00Z"}]
+            assert not _dropped_threads_all_stored(db, "r1-1", dropped), (
+                "Thread t2 is missing locally — must not be treated as stored"
+            )
+
+            # Verify: if t2 WERE stored, the check would pass.
+            db.execute(
+                "INSERT INTO pr_threads (thread_id, pull_request_uid, "
+                "status, last_updated, created_at) "
+                "VALUES ('t2', 'r1-1', 'active', '2026-01-09T00:00:00Z', "
+                "'2026-01-08T00:00:00Z')"
+            )
+            assert _dropped_threads_all_stored(db, "r1-1", dropped), (
+                "Thread t2 is now stored and current — should pass"
+            )
+        finally:
+            db.close()
+
     def test_backfill_helper_populates_review_time(self, tmp_path: Path) -> None:
         """DB with pr_comments but no review_time_minutes gets backfilled
         when _backfill_review_timestamps_if_needed() runs.
