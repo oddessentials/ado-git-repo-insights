@@ -412,3 +412,223 @@ class TestLegacyCoverageFallback:
             assert coverage["status"] == "partial"
         finally:
             db.close()
+
+
+# ---------------------------------------------------------------------------
+# P3d: prs_comment_failures counter + coverage invariant
+# ---------------------------------------------------------------------------
+
+
+class TestPrsCommentFailuresCounter:
+    """Failed PR extractions must increment counter and not stamp coverage."""
+
+    def test_api_failure_increments_counter(self, tmp_path: Path) -> None:
+        """ExtractionError on get_pr_threads increments counter, other PRs work."""
+        from ado_git_repo_insights.cli import _extract_comments
+        from ado_git_repo_insights.extractor.ado_client import ExtractionError
+
+        db = _create_db_with_pr(tmp_path, pr_uid="r1-1")
+        # Add a second PR.
+        db.execute(
+            "INSERT INTO pull_requests "
+            "(pull_request_uid, pull_request_id, organization_name, project_name, "
+            "repository_id, user_id, title, status, creation_date, closed_date) "
+            "VALUES ('r1-2', 2, 'org', 'proj', 'r1', 'u1', 'PR2', 'completed', "
+            "'2026-01-17T10:00:00Z', '2026-01-18T10:00:00Z')"
+        )
+        db.connection.commit()
+
+        client = MagicMock()
+        call_count = 0
+
+        def _side_effect(*args: object, **kwargs: object) -> list[dict[str, object]]:
+            nonlocal call_count
+            call_count += 1
+            if call_count == 1:
+                raise ExtractionError("API timeout")
+            return [_make_thread(1)]
+
+        client.get_pr_threads.side_effect = _side_effect
+        try:
+            stats = _extract_comments(client, db, _mock_config(), 100, 0)
+            db.connection.commit()
+            assert int(stats["prs_comment_failures"]) == 1
+            # prs_processed only counts successful extractions.
+            assert int(stats["prs_processed"]) == 1
+        finally:
+            db.close()
+
+    def test_multiple_failures_accumulate(self, tmp_path: Path) -> None:
+        """Two failing PRs → counter == 2."""
+        from ado_git_repo_insights.cli import _extract_comments
+        from ado_git_repo_insights.extractor.ado_client import ExtractionError
+
+        db = _create_db_with_pr(tmp_path, pr_uid="r1-1")
+        db.execute(
+            "INSERT INTO pull_requests "
+            "(pull_request_uid, pull_request_id, organization_name, project_name, "
+            "repository_id, user_id, title, status, creation_date, closed_date) "
+            "VALUES ('r1-2', 2, 'org', 'proj', 'r1', 'u1', 'PR2', 'completed', "
+            "'2026-01-17T10:00:00Z', '2026-01-18T10:00:00Z')"
+        )
+        db.connection.commit()
+
+        client = MagicMock()
+        client.get_pr_threads.side_effect = ExtractionError("fail")
+        try:
+            stats = _extract_comments(client, db, _mock_config(), 100, 0)
+            db.connection.commit()
+            assert int(stats["prs_comment_failures"]) == 2
+        finally:
+            db.close()
+
+    def test_failed_pr_not_stamped(self, tmp_path: Path) -> None:
+        """Failing PR does NOT get comments_extracted_at set."""
+        from ado_git_repo_insights.cli import _extract_comments
+        from ado_git_repo_insights.extractor.ado_client import ExtractionError
+
+        db = _create_db_with_pr(tmp_path, pr_uid="r1-1")
+        db.connection.commit()
+
+        client = MagicMock()
+        client.get_pr_threads.side_effect = ExtractionError("fail")
+        try:
+            _extract_comments(client, db, _mock_config(), 100, 0)
+            db.connection.commit()
+            assert _get_stamp(db, "r1-1") is None, (
+                "Failed PR must NOT get comments_extracted_at stamped"
+            )
+        finally:
+            db.close()
+
+
+# ---------------------------------------------------------------------------
+# P3e: _get_comments_coverage exception fallback tests
+# ---------------------------------------------------------------------------
+
+
+class TestCoverageFallbackExceptionPaths:
+    """Tests for the except Exception blocks in _get_comments_coverage.
+
+    In v4+ databases these paths should be unreachable in practice
+    (all tables/columns exist by schema guarantee), but they guard
+    against manual DB corruption or partial schema states.
+    """
+
+    def test_no_comments_tables_returns_disabled(self, tmp_path: Path) -> None:
+        """DB without pr_threads/pr_comments → line 1469 except → disabled."""
+        from ado_git_repo_insights.transform.aggregators import AggregateGenerator
+
+        db = DatabaseManager(tmp_path / "no_comments.db")
+        db.connect()
+        try:
+            # Drop the comment-related tables.
+            db.execute("DROP TABLE IF EXISTS pr_comments")
+            db.execute("DROP TABLE IF EXISTS pr_threads")
+            db.execute("DROP TABLE IF EXISTS comments_extraction_metadata")
+            db.connection.commit()
+
+            gen = AggregateGenerator(db, tmp_path / "out")
+            coverage = gen._get_comments_coverage()
+            assert coverage["status"] == "disabled"
+            assert coverage["threads_fetched"] == 0
+            assert coverage["comments_fetched"] == 0
+        finally:
+            db.close()
+
+    def test_no_pull_requests_returns_partial_when_data_exists(
+        self, tmp_path: Path
+    ) -> None:
+        """Comment tables have data but pull_requests absent → partial."""
+        from ado_git_repo_insights.transform.aggregators import AggregateGenerator
+
+        db = DatabaseManager(tmp_path / "no_prs.db")
+        db.connect()
+        try:
+            # Disable FK enforcement to insert thread without parent PR.
+            db.execute("PRAGMA foreign_keys = OFF")
+            db.execute(
+                "INSERT INTO pr_threads "
+                "(thread_id, pull_request_uid, status, last_updated, created_at) "
+                "VALUES ('1', 'r1-1', 'active', '2026-01-16T00:00:00Z', "
+                "'2026-01-16T00:00:00Z')"
+            )
+            db.execute(
+                "INSERT INTO comments_extraction_metadata "
+                "(id, last_run_timestamp, prs_processed, threads_fetched, "
+                "comments_fetched, capped) "
+                "VALUES (1, '2026-01-20T00:00:00Z', 1, 1, 0, 0)"
+            )
+            # Drop pull_requests to trigger line 1494 except.
+            db.execute("DROP TABLE pull_requests")
+            db.connection.commit()
+
+            gen = AggregateGenerator(db, tmp_path / "out")
+            coverage = gen._get_comments_coverage()
+            # has_content=True → "partial" (not "disabled")
+            assert coverage["status"] == "partial"
+        finally:
+            db.close()
+
+
+# ---------------------------------------------------------------------------
+# P3f: Corrupted metadata tests
+# ---------------------------------------------------------------------------
+
+
+class TestCorruptedMetadata:
+    """Corrupted comments_extraction_metadata should not crash coverage."""
+
+    def test_corrupted_metadata_with_thread_data_returns_partial(
+        self, tmp_path: Path
+    ) -> None:
+        """Wrong metadata schema + existing thread data → partial."""
+        from ado_git_repo_insights.transform.aggregators import AggregateGenerator
+
+        db = DatabaseManager(tmp_path / "corrupt_meta.db")
+        db.connect()
+        try:
+            # Disable FK enforcement to insert thread without parent PR.
+            db.execute("PRAGMA foreign_keys = OFF")
+            db.execute(
+                "INSERT INTO pr_threads "
+                "(thread_id, pull_request_uid, status, last_updated, created_at) "
+                "VALUES ('1', 'r1-1', 'active', '2026-01-16T00:00:00Z', "
+                "'2026-01-16T00:00:00Z')"
+            )
+            # Replace metadata table with wrong schema.
+            db.execute("DROP TABLE comments_extraction_metadata")
+            db.execute(
+                "CREATE TABLE comments_extraction_metadata "
+                "(id INTEGER PRIMARY KEY, junk TEXT)"
+            )
+            db.execute("INSERT INTO comments_extraction_metadata VALUES (1, 'bad')")
+            db.connection.commit()
+
+            gen = AggregateGenerator(db, tmp_path / "out")
+            coverage = gen._get_comments_coverage()
+            # Thread data exists → "partial", not "disabled"
+            assert coverage["status"] == "partial"
+        finally:
+            db.close()
+
+    def test_corrupted_metadata_no_data_returns_disabled(self, tmp_path: Path) -> None:
+        """Wrong metadata schema + no thread/comment data → disabled."""
+        from ado_git_repo_insights.transform.aggregators import AggregateGenerator
+
+        db = DatabaseManager(tmp_path / "corrupt_empty.db")
+        db.connect()
+        try:
+            db.execute("DROP TABLE comments_extraction_metadata")
+            db.execute(
+                "CREATE TABLE comments_extraction_metadata "
+                "(id INTEGER PRIMARY KEY, junk TEXT)"
+            )
+            db.execute("INSERT INTO comments_extraction_metadata VALUES (1, 'bad')")
+            db.connection.commit()
+
+            gen = AggregateGenerator(db, tmp_path / "out")
+            coverage = gen._get_comments_coverage()
+            assert coverage["status"] == "disabled"
+        finally:
+            db.close()

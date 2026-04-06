@@ -14,6 +14,8 @@ safe for ADD COLUMN which is atomic in SQLite.
 from __future__ import annotations
 
 import logging
+import re
+from collections import defaultdict
 from collections.abc import Callable
 from typing import TYPE_CHECKING
 
@@ -22,9 +24,23 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger(__name__)
 
+# Valid SQL identifier: starts with letter/underscore, contains only
+# alphanumerics and underscores.  Used to guard f-string PRAGMA queries
+# against injection — PRAGMA does not support parameterized identifiers.
+_IDENTIFIER_RE = re.compile(r"^[a-zA-Z_][a-zA-Z0-9_]*$")
+
 
 def _column_exists(conn: Connection, table: str, column: str) -> bool:
-    """Check whether *column* already exists on *table* via PRAGMA."""
+    """Check whether *column* already exists on *table* via PRAGMA.
+
+    Raises ``ValueError`` if *table* or *column* is not a valid SQL
+    identifier.  PRAGMA queries do not support parameterized identifiers,
+    so the names must be validated before interpolation.
+    """
+    if not _IDENTIFIER_RE.match(table):
+        raise ValueError(f"Invalid table identifier: {table!r}")
+    if not _IDENTIFIER_RE.match(column):
+        raise ValueError(f"Invalid column identifier: {column!r}")
     cursor = conn.execute(f"PRAGMA table_info({table})")
     return any(row[1] == column for row in cursor.fetchall())
 
@@ -170,9 +186,17 @@ def migrate_v3_to_v4(conn: Connection) -> None:
     copy (if present) or created fresh (if absent).  This ensures the
     migration succeeds on partial schemas (e.g. pr_threads exists but
     pr_comments was never created due to an interrupted rollout).
+
+    FK enforcement is disabled during the rebuild because SQLite renames
+    update FK targets — dropping the old table would fail if another
+    table already references it via a FK constraint.
     """
-    _ensure_v4_pr_threads(conn)
-    _ensure_v4_pr_comments(conn)
+    conn.execute("PRAGMA foreign_keys = OFF")
+    try:
+        _ensure_v4_pr_threads(conn)
+        _ensure_v4_pr_comments(conn)
+    finally:
+        conn.execute("PRAGMA foreign_keys = ON")
 
     conn.execute(
         "INSERT OR IGNORE INTO schema_version (version, applied_at) "
@@ -226,85 +250,15 @@ def _table_exists(conn: Connection, name: str) -> bool:
     return row is not None
 
 
-def _ensure_v4_pr_threads(conn: Connection) -> None:
-    """Ensure pr_threads has composite PK (pull_request_uid, thread_id)."""
-    if not _table_exists(conn, "pr_threads"):
-        conn.execute(_V4_PR_THREADS_DDL)
-        conn.execute(
-            "CREATE INDEX IF NOT EXISTS idx_pr_threads_updated "
-            "ON pr_threads(last_updated)"
-        )
-        logger.info("Created pr_threads with composite PK (was absent)")
-        return
-
-    pk_info = conn.execute("PRAGMA table_info(pr_threads)").fetchall()
-    pk_cols = [row[1] for row in pk_info if row[5] > 0]
-    if len(pk_cols) > 1:
-        return  # Already composite
-
-    conn.execute("ALTER TABLE pr_threads RENAME TO _pr_threads_v3")
-    conn.execute(_V4_PR_THREADS_DDL)
-    conn.execute(
-        """
-        INSERT OR IGNORE INTO pr_threads
-            (thread_id, pull_request_uid, status, thread_context,
-             last_updated, created_at, is_deleted)
-        SELECT thread_id, pull_request_uid, status, thread_context,
-               last_updated, created_at, is_deleted
-        FROM _pr_threads_v3
-        """
-    )
-    conn.execute("DROP TABLE _pr_threads_v3")
+def _ensure_pr_threads_indexes(conn: Connection) -> None:
+    """Create required pr_threads indexes if missing (idempotent)."""
     conn.execute(
         "CREATE INDEX IF NOT EXISTS idx_pr_threads_updated ON pr_threads(last_updated)"
     )
-    logger.info("Rebuilt pr_threads with composite PK")
 
 
-def _ensure_v4_pr_comments(conn: Connection) -> None:
-    """Ensure pr_comments references composite FK on pr_threads."""
-    if not _table_exists(conn, "pr_comments"):
-        conn.execute(_V4_PR_COMMENTS_DDL)
-        conn.execute(
-            "CREATE INDEX IF NOT EXISTS idx_pr_comments_thread "
-            "ON pr_comments(pull_request_uid, thread_id)"
-        )
-        conn.execute(
-            "CREATE INDEX IF NOT EXISTS idx_pr_comments_pr "
-            "ON pr_comments(pull_request_uid)"
-        )
-        conn.execute(
-            "CREATE INDEX IF NOT EXISTS idx_pr_comments_author "
-            "ON pr_comments(author_id)"
-        )
-        logger.info("Created pr_comments with composite FK (was absent)")
-        return
-
-    # Check if the FK already references the composite PK by inspecting
-    # the foreign_key_list pragma.  If the FK target is already
-    # (pull_request_uid, thread_id), skip rebuild.
-    fk_info = conn.execute("PRAGMA foreign_key_list(pr_comments)").fetchall()
-    thread_fk_targets = [
-        row[4]
-        for row in fk_info
-        if row[2] == "pr_threads"  # col 4 = to-column
-    ]
-    if "pull_request_uid" in thread_fk_targets and "thread_id" in thread_fk_targets:
-        return  # Already has composite FK
-
-    conn.execute("ALTER TABLE pr_comments RENAME TO _pr_comments_v3")
-    conn.execute(_V4_PR_COMMENTS_DDL)
-    conn.execute(
-        """
-        INSERT OR IGNORE INTO pr_comments
-            (comment_id, thread_id, pull_request_uid, author_id,
-             content, comment_type, created_at, last_updated, is_deleted)
-        SELECT comment_id, thread_id, pull_request_uid, author_id,
-               content, comment_type, created_at, last_updated, is_deleted
-        FROM _pr_comments_v3
-        """
-    )
-    conn.execute("DROP TABLE _pr_comments_v3")
+def _ensure_pr_comments_indexes(conn: Connection) -> None:
+    """Create required pr_comments indexes if missing (idempotent)."""
     conn.execute(
         "CREATE INDEX IF NOT EXISTS idx_pr_comments_thread "
         "ON pr_comments(pull_request_uid, thread_id)"
@@ -315,6 +269,191 @@ def _ensure_v4_pr_comments(conn: Connection) -> None:
     conn.execute(
         "CREATE INDEX IF NOT EXISTS idx_pr_comments_author ON pr_comments(author_id)"
     )
+
+
+def _ensure_v4_pr_threads(conn: Connection) -> None:
+    """Ensure pr_threads has composite PK (pull_request_uid, thread_id).
+
+    Handles three recovery scenarios beyond normal migration:
+    - Stale ``_pr_threads_v3`` from an interrupted prior run
+    - Duplicate ``(pull_request_uid, thread_id)`` rows (v3 single-PK collision)
+    - Recovered table that needs full rebuild (never trusted as-is)
+    """
+    # -- Stale artifact cleanup (F2) --
+    # A prior interrupted migration may have left _pr_threads_v3 behind.
+    # Recover or discard it, then fall through to the normal rebuild path.
+    if _table_exists(conn, "_pr_threads_v3"):
+        if not _table_exists(conn, "pr_threads"):
+            conn.execute("ALTER TABLE _pr_threads_v3 RENAME TO pr_threads")
+            logger.warning(
+                "Recovered stale _pr_threads_v3 → pr_threads "
+                "(prior migration interrupted before rebuild)"
+            )
+            # Fall through — recovered table still needs composite-PK rebuild.
+        else:
+            conn.execute("DROP TABLE _pr_threads_v3")
+            logger.warning(
+                "Dropped stale _pr_threads_v3 "
+                "(prior migration completed but cleanup was interrupted)"
+            )
+
+    if not _table_exists(conn, "pr_threads"):
+        conn.execute(_V4_PR_THREADS_DDL)
+        _ensure_pr_threads_indexes(conn)
+        logger.info("Created pr_threads with composite PK (was absent)")
+        return
+
+    pk_info = conn.execute("PRAGMA table_info(pr_threads)").fetchall()
+    pk_cols = [row[1] for row in pk_info if row[5] > 0]
+    if len(pk_cols) > 1:
+        # Already composite PK — ensure indexes exist even if a prior
+        # interrupted migration created the table but died before indexes.
+        _ensure_pr_threads_indexes(conn)
+        return
+
+    # -- Rename → dedup → rebuild (F1) --
+    source_count: int = conn.execute("SELECT COUNT(*) FROM pr_threads").fetchone()[0]
+
+    conn.execute("ALTER TABLE pr_threads RENAME TO _pr_threads_v3")
+    conn.execute(_V4_PR_THREADS_DDL)
+
+    # Deterministic dedup: prefer non-deleted rows over deleted ones,
+    # then newest last_updated, then highest rowid as final tiebreaker.
+    conn.execute(
+        """
+        INSERT INTO pr_threads
+            (thread_id, pull_request_uid, status, thread_context,
+             last_updated, created_at, is_deleted)
+        SELECT thread_id, pull_request_uid, status, thread_context,
+               last_updated, created_at, is_deleted
+        FROM (
+            SELECT *, ROW_NUMBER() OVER (
+                PARTITION BY pull_request_uid, thread_id
+                ORDER BY is_deleted ASC, last_updated DESC, rowid DESC
+            ) AS rn
+            FROM _pr_threads_v3
+        ) WHERE rn = 1
+        """
+    )
+    inserted_count: int = conn.execute("SELECT COUNT(*) FROM pr_threads").fetchone()[0]
+    dup_count = source_count - inserted_count
+    if dup_count > 0:
+        logger.warning(
+            "Merged %d duplicate (pull_request_uid, thread_id) rows "
+            "during v3→v4 migration (kept newest non-deleted)",
+            dup_count,
+        )
+
+    conn.execute("DROP TABLE _pr_threads_v3")
+    _ensure_pr_threads_indexes(conn)
+    logger.info("Rebuilt pr_threads with composite PK")
+
+
+def _ensure_v4_pr_comments(conn: Connection) -> None:
+    """Ensure pr_comments references composite FK on pr_threads.
+
+    Handles stale ``_pr_comments_v3`` artifacts, deduplicates by
+    ``comment_id`` (preferring non-deleted rows), and validates the
+    FK constraint structurally — not just by column name presence.
+    """
+    # -- Stale artifact cleanup (F2) --
+    if _table_exists(conn, "_pr_comments_v3"):
+        if not _table_exists(conn, "pr_comments"):
+            conn.execute("ALTER TABLE _pr_comments_v3 RENAME TO pr_comments")
+            logger.warning(
+                "Recovered stale _pr_comments_v3 → pr_comments "
+                "(prior migration interrupted before rebuild)"
+            )
+        else:
+            conn.execute("DROP TABLE _pr_comments_v3")
+            logger.warning(
+                "Dropped stale _pr_comments_v3 "
+                "(prior migration completed but cleanup was interrupted)"
+            )
+
+    if not _table_exists(conn, "pr_comments"):
+        conn.execute(_V4_PR_COMMENTS_DDL)
+        _ensure_pr_comments_indexes(conn)
+        logger.info("Created pr_comments with composite FK (was absent)")
+        return
+
+    # -- FK validation (F3) --
+    # Check if the FK already references the composite PK by grouping
+    # PRAGMA foreign_key_list rows by constraint id.  Two separate
+    # single-column FKs targeting pr_threads would not satisfy this —
+    # both columns must belong to a single FK constraint.
+    fk_info = conn.execute("PRAGMA foreign_key_list(pr_comments)").fetchall()
+    fk_groups: dict[int, list[tuple[str, str]]] = defaultdict(list)
+    for row in fk_info:
+        # row[0]=id, row[2]=table, row[3]=from-col, row[4]=to-col
+        fk_groups[int(row[0])].append((str(row[2]), str(row[4])))
+
+    for constraint_cols in fk_groups.values():
+        tables = {t for t, _ in constraint_cols}
+        if tables != {"pr_threads"}:
+            continue
+        to_cols = {c for _, c in constraint_cols}
+        if to_cols == {"pull_request_uid", "thread_id"}:
+            # Already composite FK — ensure indexes exist even if a prior
+            # interrupted migration created the table but died before indexes.
+            _ensure_pr_comments_indexes(conn)
+            return
+
+    # -- Rename → dedup → rebuild (F1) --
+    source_count: int = conn.execute("SELECT COUNT(*) FROM pr_comments").fetchone()[0]
+
+    conn.execute("ALTER TABLE pr_comments RENAME TO _pr_comments_v3")
+    conn.execute(_V4_PR_COMMENTS_DDL)
+
+    # Deterministic dedup by comment_id: prefer non-deleted, then
+    # newest last_updated (NULLS LAST), then highest rowid.
+    conn.execute(
+        """
+        INSERT INTO pr_comments
+            (comment_id, thread_id, pull_request_uid, author_id,
+             content, comment_type, created_at, last_updated, is_deleted)
+        SELECT comment_id, thread_id, pull_request_uid, author_id,
+               content, comment_type, created_at, last_updated, is_deleted
+        FROM (
+            SELECT *, ROW_NUMBER() OVER (
+                PARTITION BY comment_id
+                ORDER BY is_deleted ASC,
+                         CASE WHEN last_updated IS NULL THEN 1 ELSE 0 END,
+                         last_updated DESC,
+                         rowid DESC
+            ) AS rn
+            FROM _pr_comments_v3
+        ) WHERE rn = 1
+        """
+    )
+    inserted_count: int = conn.execute("SELECT COUNT(*) FROM pr_comments").fetchone()[0]
+    dup_count = source_count - inserted_count
+    if dup_count > 0:
+        logger.warning(
+            "Merged %d duplicate comment_id rows during v3→v4 migration "
+            "(kept newest non-deleted)",
+            dup_count,
+        )
+
+    # Check for orphaned comments whose parent thread was removed by dedup.
+    orphan_count: int = conn.execute(
+        "SELECT COUNT(*) FROM pr_comments c "
+        "WHERE NOT EXISTS ("
+        "  SELECT 1 FROM pr_threads t "
+        "  WHERE t.pull_request_uid = c.pull_request_uid "
+        "  AND t.thread_id = c.thread_id"
+        ")"
+    ).fetchone()[0]
+    if orphan_count > 0:
+        logger.warning(
+            "%d pr_comments rows reference threads removed during dedup "
+            "— FK enforcement is deferred; orphans will be re-fetched "
+            "on next --include-comments run",
+            orphan_count,
+        )
+
+    conn.execute("DROP TABLE _pr_comments_v3")
+    _ensure_pr_comments_indexes(conn)
     logger.info("Rebuilt pr_comments with composite FK")
 
 

@@ -592,13 +592,13 @@ jobs:
           fi
 
           # Phase 2: Validate test results using JUnit XML parsing
-          # MIN_COLLECTED: 1233 = cross-platform minimum (Linux/macOS count)
+          # MIN_COLLECTED: must match --min-collected below (cross-platform minimum)
           # Windows collects 4 more (test_*_windows.py); conftest.py excludes them
           # on non-Windows so they are never skipped — only uncollected.
           # MAX_SKIPS: Maximum allowed skipped tests (0 = no skips allowed in CI)
           python .github/scripts/validate-test-results.py \
             test-results.xml \
-            --min-collected=1577 \
+            --min-collected=1607 \
             --max-skips=0
         shell: bash
 

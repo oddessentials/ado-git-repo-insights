@@ -1590,3 +1590,122 @@ class TestTriggerScope:
             )
         finally:
             db.close()
+
+
+# ---------------------------------------------------------------------------
+# F6: Malformed timestamp handling
+# ---------------------------------------------------------------------------
+
+
+class TestMalformedTimestamp:
+    """Malformed created_at on vote comments must be safely skipped."""
+
+    def test_malformed_created_at_skipped_gracefully(self, tmp_path: Path) -> None:
+        """Vote comment with unparseable timestamp → no crash, reviewed_at NULL."""
+        db = _create_test_db(tmp_path)
+        try:
+            _seed_pr(db)
+            _seed_reviewer(db)
+            _seed_system_comment(
+                db, "c1", "r1-1", "u1", "Reviewer A voted 10", "NOT-A-DATE"
+            )
+            db.connection.commit()
+
+            count = populate_review_timestamps(db)
+            assert count == 0
+
+            reviewer = db.execute(
+                "SELECT reviewed_at FROM reviewers "
+                "WHERE pull_request_uid = 'r1-1' AND user_id = 'u1'"
+            ).fetchone()
+            assert reviewer is not None
+            assert reviewer["reviewed_at"] is None
+        finally:
+            db.close()
+
+    def test_malformed_among_valid_uses_valid(self, tmp_path: Path) -> None:
+        """Same reviewer: one malformed + one valid → valid timestamp used."""
+        db = _create_test_db(tmp_path)
+        try:
+            _seed_pr(db)
+            _seed_reviewer(db)
+            _seed_system_comment(
+                db, "c1", "r1-1", "u1", "Reviewer A voted 10", "NOT-A-DATE"
+            )
+            _seed_system_comment(
+                db,
+                "c2",
+                "r1-1",
+                "u1",
+                "Reviewer A voted 10",
+                "2026-01-16T14:00:00Z",
+            )
+            db.connection.commit()
+
+            count = populate_review_timestamps(db)
+            assert count == 1
+
+            reviewer = db.execute(
+                "SELECT reviewed_at FROM reviewers "
+                "WHERE pull_request_uid = 'r1-1' AND user_id = 'u1'"
+            ).fetchone()
+            assert reviewer is not None
+            assert reviewer["reviewed_at"] == "2026-01-16T14:00:00Z"
+        finally:
+            db.close()
+
+    def test_malformed_does_not_corrupt_other_reviewers(self, tmp_path: Path) -> None:
+        """Reviewer A malformed, reviewer B valid → B correct, A NULL.
+
+        Ensures malformed data on one reviewer doesn't propagate to
+        another reviewer's calculations or to review_time_minutes.
+        """
+        db = _create_test_db(tmp_path)
+        try:
+            _seed_pr(db)
+            _seed_reviewer(db, user_id="u1")
+            _seed_reviewer(db, user_id="u2")
+            # u1 has only a malformed timestamp.
+            _seed_system_comment(
+                db, "c1", "r1-1", "u1", "Reviewer A voted 10", "GARBAGE"
+            )
+            # u2 has a valid timestamp.
+            _seed_system_comment(
+                db,
+                "c2",
+                "r1-1",
+                "u2",
+                "Reviewer B voted 10",
+                "2026-01-16T14:00:00Z",
+            )
+            db.connection.commit()
+
+            count = populate_review_timestamps(db)
+            assert count == 1
+
+            # u1's reviewed_at should be NULL (malformed skipped).
+            r1 = db.execute(
+                "SELECT reviewed_at FROM reviewers "
+                "WHERE pull_request_uid = 'r1-1' AND user_id = 'u1'"
+            ).fetchone()
+            assert r1 is not None
+            assert r1["reviewed_at"] is None
+
+            # u2's reviewed_at should be set correctly.
+            r2 = db.execute(
+                "SELECT reviewed_at FROM reviewers "
+                "WHERE pull_request_uid = 'r1-1' AND user_id = 'u2'"
+            ).fetchone()
+            assert r2 is not None
+            assert r2["reviewed_at"] == "2026-01-16T14:00:00Z"
+
+            # review_time_minutes should be computed from u2's valid timestamp.
+            pr = db.execute(
+                "SELECT review_time_minutes FROM pull_requests "
+                "WHERE pull_request_uid = 'r1-1'"
+            ).fetchone()
+            assert pr is not None
+            assert pr["review_time_minutes"] is not None
+            assert pr["review_time_minutes"] > 0
+        finally:
+            db.close()

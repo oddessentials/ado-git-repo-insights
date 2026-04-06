@@ -1458,6 +1458,16 @@ class AggregateGenerator:
             prs_with_threads = (
                 int(prs_with_threads_row["cnt"]) if prs_with_threads_row else 0
             )
+        except Exception:
+            # Legacy DB may not have comments tables at all.
+            thread_count = 0
+            comment_count = 0
+            prs_with_threads = 0
+
+        # Metadata query is separate: a corrupted or missing metadata
+        # table must not zero out thread/comment counts (which determine
+        # has_content below).
+        try:
             metadata_cursor = self.db.execute(
                 """
                 SELECT prs_processed, capped
@@ -1467,10 +1477,6 @@ class AggregateGenerator:
             )
             metadata_row = metadata_cursor.fetchone()
         except Exception:
-            # Legacy DB may not have comments tables
-            thread_count = 0
-            comment_count = 0
-            prs_with_threads = 0
             metadata_row = None
 
         # Coverage is derived from per-PR markers (comments_extracted_at),

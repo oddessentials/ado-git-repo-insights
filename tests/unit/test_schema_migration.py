@@ -8,6 +8,7 @@ Covers three scenarios per US3 acceptance criteria:
 
 from __future__ import annotations
 
+import logging
 import sqlite3
 from pathlib import Path
 
@@ -755,3 +756,1001 @@ class TestMigrationV2ToV3CoverageBackfill:
             assert comment["content"] == "LGTM"
         finally:
             db.close()
+
+
+class TestMigrationV3ToV4DedupAndRecovery:
+    """v3→v4 migration: dedup, stale artifact recovery, and FK validation.
+
+    Tests cover the three critical correctness fixes:
+    F1 — Duplicate rows merged deterministically (prefer non-deleted, newest)
+    F2 — Stale _pr_threads_v3 / _pr_comments_v3 recovered or dropped
+    F3 — Composite FK validated structurally, not just by column name
+    """
+
+    # v3 schema: v2 + comments_extracted_at column, version=3.
+    # pr_threads still has thread_id TEXT PRIMARY KEY (single-column PK)
+    # to trigger the v3→v4 rebuild.
+    _V3_SCHEMA_SQL = """
+        CREATE TABLE extraction_metadata (
+            id INTEGER PRIMARY KEY CHECK (id = 1),
+            organization_name TEXT NOT NULL,
+            project_name TEXT NOT NULL,
+            last_extraction_date TEXT NOT NULL,
+            last_extraction_timestamp TEXT NOT NULL
+        );
+        CREATE TABLE organizations (organization_name TEXT PRIMARY KEY);
+        CREATE TABLE projects (
+            project_name TEXT PRIMARY KEY,
+            organization_name TEXT NOT NULL
+        );
+        CREATE TABLE repositories (
+            repository_id TEXT PRIMARY KEY,
+            repository_name TEXT NOT NULL,
+            project_name TEXT NOT NULL,
+            organization_name TEXT NOT NULL
+        );
+        CREATE TABLE users (
+            user_id TEXT PRIMARY KEY,
+            display_name TEXT NOT NULL,
+            email TEXT
+        );
+        CREATE TABLE pull_requests (
+            pull_request_uid TEXT PRIMARY KEY,
+            pull_request_id INTEGER NOT NULL,
+            organization_name TEXT NOT NULL,
+            project_name TEXT NOT NULL,
+            repository_id TEXT NOT NULL,
+            user_id TEXT NOT NULL,
+            title TEXT NOT NULL,
+            status TEXT NOT NULL,
+            description TEXT,
+            creation_date TEXT NOT NULL,
+            closed_date TEXT,
+            cycle_time_minutes REAL,
+            review_time_minutes REAL,
+            comments_extracted_at TEXT,
+            raw_json TEXT
+        );
+        CREATE TABLE reviewers (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            pull_request_uid TEXT NOT NULL,
+            user_id TEXT NOT NULL,
+            vote INTEGER NOT NULL,
+            repository_id TEXT NOT NULL,
+            reviewed_at TEXT,
+            UNIQUE(pull_request_uid, user_id)
+        );
+        CREATE TABLE pr_threads (
+            thread_id TEXT PRIMARY KEY,
+            pull_request_uid TEXT NOT NULL,
+            status TEXT,
+            thread_context TEXT,
+            last_updated TEXT NOT NULL,
+            created_at TEXT NOT NULL,
+            is_deleted INTEGER DEFAULT 0
+        );
+        CREATE TABLE pr_comments (
+            comment_id TEXT PRIMARY KEY,
+            thread_id TEXT NOT NULL,
+            pull_request_uid TEXT NOT NULL,
+            author_id TEXT NOT NULL,
+            content TEXT,
+            comment_type TEXT,
+            created_at TEXT NOT NULL,
+            last_updated TEXT,
+            is_deleted INTEGER DEFAULT 0
+        );
+        CREATE TABLE comments_extraction_metadata (
+            id INTEGER PRIMARY KEY CHECK (id = 1),
+            last_run_timestamp TEXT NOT NULL,
+            prs_processed INTEGER NOT NULL DEFAULT 0,
+            threads_fetched INTEGER NOT NULL DEFAULT 0,
+            comments_fetched INTEGER NOT NULL DEFAULT 0,
+            capped INTEGER NOT NULL DEFAULT 0
+        );
+        CREATE TABLE schema_version (
+            version INTEGER PRIMARY KEY,
+            applied_at TEXT NOT NULL
+        );
+        INSERT INTO schema_version (version, applied_at)
+        VALUES (3, datetime('now'));
+    """
+
+    def _create_v3_db(self, path: Path) -> sqlite3.Connection:
+        """Create a v3 database with shared FK entities."""
+        conn = sqlite3.connect(str(path))
+        conn.execute("PRAGMA foreign_keys = OFF")
+        conn.executescript(self._V3_SCHEMA_SQL)
+        conn.execute("INSERT INTO users (user_id, display_name) VALUES ('u1', 'Alice')")
+        conn.execute("INSERT INTO users (user_id, display_name) VALUES ('u2', 'Bob')")
+        conn.execute(
+            "INSERT INTO repositories (repository_id, repository_name, "
+            "project_name, organization_name) "
+            "VALUES ('r1', 'repo', 'proj', 'org')"
+        )
+        conn.execute(
+            "INSERT INTO pull_requests (pull_request_uid, pull_request_id, "
+            "organization_name, project_name, repository_id, user_id, "
+            "title, status, creation_date) "
+            "VALUES ('r1-1', 1, 'org', 'proj', 'r1', 'u1', 'PR 1', "
+            "'completed', '2026-01-15T10:00:00Z')"
+        )
+        conn.execute(
+            "INSERT INTO pull_requests (pull_request_uid, pull_request_id, "
+            "organization_name, project_name, repository_id, user_id, "
+            "title, status, creation_date) "
+            "VALUES ('r1-2', 2, 'org', 'proj', 'r1', 'u1', 'PR 2', "
+            "'completed', '2026-01-16T10:00:00Z')"
+        )
+        return conn
+
+    # -- F1: Dedup tests --
+    # In v3, thread_id TEXT PRIMARY KEY prevents true duplicates within
+    # the table. However, a recovered _pr_threads_v3 from an interrupted
+    # migration may lack PK constraints, and defense-in-depth requires
+    # the dedup to handle this. We test by creating _pr_threads_v3
+    # directly (simulating stale artifact with duplicates).
+
+    def test_duplicate_threads_keeps_newest_nondel(self, tmp_path: Path) -> None:
+        """Newer deleted + older active: active row survives (is_deleted ASC).
+
+        Simulates a stale _pr_threads_v3 artifact with duplicate
+        (pull_request_uid, thread_id) rows — the recovery path renames
+        it back to pr_threads, which then goes through the full rebuild
+        with dedup.
+        """
+        db_path = tmp_path / "dedup_del.db"
+        conn = self._create_v3_db(db_path)
+        conn.execute("DROP TABLE pr_threads")
+
+        # Create _pr_threads_v3 WITHOUT PK (simulates corrupted/recovered state).
+        conn.execute(
+            """
+            CREATE TABLE _pr_threads_v3 (
+                thread_id TEXT NOT NULL,
+                pull_request_uid TEXT NOT NULL,
+                status TEXT,
+                thread_context TEXT,
+                last_updated TEXT NOT NULL,
+                created_at TEXT NOT NULL,
+                is_deleted INTEGER DEFAULT 0
+            )
+            """
+        )
+        # Two rows same (pr_uid, thread_id): older active, newer deleted.
+        conn.execute(
+            "INSERT INTO _pr_threads_v3 VALUES "
+            "('1', 'r1-1', 'active', NULL, "
+            "'2026-01-16T00:00:00Z', '2026-01-15T12:00:00Z', 0)"
+        )
+        conn.execute(
+            "INSERT INTO _pr_threads_v3 VALUES "
+            "('1', 'r1-1', 'closed', NULL, "
+            "'2026-01-17T00:00:00Z', '2026-01-15T12:00:00Z', 1)"
+        )
+        conn.commit()
+        conn.close()
+
+        db = DatabaseManager(db_path)
+        db.connect()
+        try:
+            assert db.get_schema_version() == 4
+
+            rows = db.execute(
+                "SELECT * FROM pr_threads "
+                "WHERE pull_request_uid = 'r1-1' AND thread_id = '1'"
+            ).fetchall()
+            assert len(rows) == 1
+            # Active (is_deleted=0) row kept, not the newer deleted one.
+            assert rows[0]["is_deleted"] == 0
+            assert rows[0]["status"] == "active"
+        finally:
+            db.close()
+
+    def test_duplicate_threads_keeps_newest_when_both_active(
+        self, tmp_path: Path
+    ) -> None:
+        """Two active rows with same composite key: newest last_updated wins."""
+        db_path = tmp_path / "dedup_active.db"
+        conn = self._create_v3_db(db_path)
+        conn.execute("DROP TABLE pr_threads")
+
+        conn.execute(
+            """
+            CREATE TABLE _pr_threads_v3 (
+                thread_id TEXT NOT NULL,
+                pull_request_uid TEXT NOT NULL,
+                status TEXT,
+                thread_context TEXT,
+                last_updated TEXT NOT NULL,
+                created_at TEXT NOT NULL,
+                is_deleted INTEGER DEFAULT 0
+            )
+            """
+        )
+        conn.execute(
+            "INSERT INTO _pr_threads_v3 VALUES "
+            "('1', 'r1-1', 'active', NULL, "
+            "'2026-01-16T00:00:00Z', '2026-01-15T12:00:00Z', 0)"
+        )
+        conn.execute(
+            "INSERT INTO _pr_threads_v3 VALUES "
+            "('1', 'r1-1', 'fixed', NULL, "
+            "'2026-01-18T00:00:00Z', '2026-01-15T12:00:00Z', 0)"
+        )
+        conn.commit()
+        conn.close()
+
+        db = DatabaseManager(db_path)
+        db.connect()
+        try:
+            rows = db.execute(
+                "SELECT * FROM pr_threads "
+                "WHERE pull_request_uid = 'r1-1' AND thread_id = '1'"
+            ).fetchall()
+            assert len(rows) == 1
+            # Newest last_updated wins.
+            assert rows[0]["status"] == "fixed"
+            assert rows[0]["last_updated"] == "2026-01-18T00:00:00Z"
+        finally:
+            db.close()
+
+    def test_duplicate_comments_keeps_newest(self, tmp_path: Path) -> None:
+        """Duplicate comment_id rows: newest non-deleted survives."""
+        db_path = tmp_path / "dedup_comments.db"
+        conn = self._create_v3_db(db_path)
+
+        # Need a thread for FK context.
+        conn.execute(
+            "INSERT INTO pr_threads "
+            "(thread_id, pull_request_uid, status, last_updated, created_at) "
+            "VALUES ('1', 'r1-1', 'active', '2026-01-16T00:00:00Z', "
+            "'2026-01-15T12:00:00Z')"
+        )
+        # Drop pr_comments and create _pr_comments_v3 without PK.
+        conn.execute("DROP TABLE pr_comments")
+        conn.execute(
+            """
+            CREATE TABLE _pr_comments_v3 (
+                comment_id TEXT NOT NULL,
+                thread_id TEXT NOT NULL,
+                pull_request_uid TEXT NOT NULL,
+                author_id TEXT NOT NULL,
+                content TEXT,
+                comment_type TEXT,
+                created_at TEXT NOT NULL,
+                last_updated TEXT,
+                is_deleted INTEGER DEFAULT 0
+            )
+            """
+        )
+        conn.execute(
+            "INSERT INTO _pr_comments_v3 VALUES "
+            "('c1', '1', 'r1-1', 'u1', 'old content', 'text', "
+            "'2026-01-16T01:00:00Z', '2026-01-16T01:00:00Z', 0)"
+        )
+        conn.execute(
+            "INSERT INTO _pr_comments_v3 VALUES "
+            "('c1', '1', 'r1-1', 'u1', 'new content', 'text', "
+            "'2026-01-17T01:00:00Z', '2026-01-17T01:00:00Z', 0)"
+        )
+        conn.commit()
+        conn.close()
+
+        db = DatabaseManager(db_path)
+        db.connect()
+        try:
+            rows = db.execute(
+                "SELECT * FROM pr_comments WHERE comment_id = 'c1'"
+            ).fetchall()
+            assert len(rows) == 1
+            assert rows[0]["content"] == "new content"
+            assert rows[0]["last_updated"] == "2026-01-17T01:00:00Z"
+        finally:
+            db.close()
+
+    # -- F2: Stale artifact recovery tests --
+
+    def test_stale_pr_threads_v3_recovered_then_normalized(
+        self, tmp_path: Path
+    ) -> None:
+        """_pr_threads_v3 exists, pr_threads absent: recover then rebuild."""
+        db_path = tmp_path / "stale_threads.db"
+        conn = self._create_v3_db(db_path)
+
+        conn.execute(
+            "INSERT INTO pr_threads "
+            "(thread_id, pull_request_uid, status, last_updated, created_at) "
+            "VALUES ('1', 'r1-1', 'active', '2026-01-16T00:00:00Z', "
+            "'2026-01-16T00:00:00Z')"
+        )
+        # Simulate interrupted migration: rename happened, but rebuild didn't.
+        conn.execute("ALTER TABLE pr_threads RENAME TO _pr_threads_v3")
+        conn.commit()
+        conn.close()
+
+        db = DatabaseManager(db_path)
+        db.connect()
+        try:
+            assert db.get_schema_version() == 4
+
+            # Must have composite PK (not just recovered with old single PK).
+            pk_info = db.execute("PRAGMA table_info(pr_threads)").fetchall()
+            pk_cols = [row["name"] for row in pk_info if row["pk"] > 0]
+            assert set(pk_cols) == {"pull_request_uid", "thread_id"}
+
+            # Data preserved.
+            row = db.execute(
+                "SELECT * FROM pr_threads "
+                "WHERE pull_request_uid = 'r1-1' AND thread_id = '1'"
+            ).fetchone()
+            assert row is not None
+            assert row["status"] == "active"
+
+            # Stale table cleaned up.
+            assert not db.execute(
+                "SELECT 1 FROM sqlite_master "
+                "WHERE type='table' AND name='_pr_threads_v3'"
+            ).fetchone()
+        finally:
+            db.close()
+
+    def test_stale_pr_threads_v3_dropped_when_pr_threads_present(
+        self, tmp_path: Path
+    ) -> None:
+        """Both pr_threads and _pr_threads_v3 exist: drop stale artifact."""
+        db_path = tmp_path / "stale_both.db"
+        conn = self._create_v3_db(db_path)
+
+        conn.execute(
+            "INSERT INTO pr_threads "
+            "(thread_id, pull_request_uid, status, last_updated, created_at) "
+            "VALUES ('1', 'r1-1', 'active', '2026-01-16T00:00:00Z', "
+            "'2026-01-16T00:00:00Z')"
+        )
+        # Create stale artifact alongside existing table.
+        conn.execute(
+            "CREATE TABLE _pr_threads_v3 ("
+            "  thread_id TEXT PRIMARY KEY, "
+            "  pull_request_uid TEXT NOT NULL, "
+            "  status TEXT, thread_context TEXT, "
+            "  last_updated TEXT NOT NULL, "
+            "  created_at TEXT NOT NULL, "
+            "  is_deleted INTEGER DEFAULT 0"
+            ")"
+        )
+        conn.commit()
+        conn.close()
+
+        db = DatabaseManager(db_path)
+        db.connect()
+        try:
+            assert db.get_schema_version() == 4
+            # Stale artifact must be gone.
+            assert not db.execute(
+                "SELECT 1 FROM sqlite_master "
+                "WHERE type='table' AND name='_pr_threads_v3'"
+            ).fetchone()
+            # Original data preserved.
+            assert db.execute(
+                "SELECT 1 FROM pr_threads "
+                "WHERE pull_request_uid = 'r1-1' AND thread_id = '1'"
+            ).fetchone()
+        finally:
+            db.close()
+
+    def test_stale_pr_comments_v3_recovered_then_normalized(
+        self, tmp_path: Path
+    ) -> None:
+        """_pr_comments_v3 exists, pr_comments absent: recover then rebuild."""
+        db_path = tmp_path / "stale_comments.db"
+        conn = self._create_v3_db(db_path)
+
+        conn.execute(
+            "INSERT INTO pr_threads "
+            "(thread_id, pull_request_uid, status, last_updated, created_at) "
+            "VALUES ('1', 'r1-1', 'active', '2026-01-16T00:00:00Z', "
+            "'2026-01-16T00:00:00Z')"
+        )
+        conn.execute(
+            "INSERT INTO pr_comments "
+            "(comment_id, thread_id, pull_request_uid, author_id, "
+            "content, comment_type, created_at) "
+            "VALUES ('c1', '1', 'r1-1', 'u1', 'LGTM', 'text', "
+            "'2026-01-16T01:00:00Z')"
+        )
+        # Simulate interrupted migration on comments only.
+        conn.execute("ALTER TABLE pr_comments RENAME TO _pr_comments_v3")
+        conn.commit()
+        conn.close()
+
+        db = DatabaseManager(db_path)
+        db.connect()
+        try:
+            assert db.get_schema_version() == 4
+
+            # FK must reference composite PK.
+            fk_info = db.execute("PRAGMA foreign_key_list(pr_comments)").fetchall()
+            thread_fk_cols = [
+                row["to"] for row in fk_info if row["table"] == "pr_threads"
+            ]
+            assert "pull_request_uid" in thread_fk_cols
+            assert "thread_id" in thread_fk_cols
+
+            # Data preserved.
+            assert db.execute(
+                "SELECT 1 FROM pr_comments WHERE comment_id = 'c1'"
+            ).fetchone()
+
+            # Stale table gone.
+            assert not db.execute(
+                "SELECT 1 FROM sqlite_master "
+                "WHERE type='table' AND name='_pr_comments_v3'"
+            ).fetchone()
+        finally:
+            db.close()
+
+    def test_stale_pr_comments_v3_dropped_when_pr_comments_present(
+        self, tmp_path: Path
+    ) -> None:
+        """Both pr_comments and _pr_comments_v3 exist: drop stale artifact."""
+        db_path = tmp_path / "stale_both_comments.db"
+        conn = self._create_v3_db(db_path)
+
+        conn.execute(
+            "INSERT INTO pr_threads "
+            "(thread_id, pull_request_uid, status, last_updated, created_at) "
+            "VALUES ('1', 'r1-1', 'active', '2026-01-16T00:00:00Z', "
+            "'2026-01-16T00:00:00Z')"
+        )
+        conn.execute(
+            "INSERT INTO pr_comments "
+            "(comment_id, thread_id, pull_request_uid, author_id, "
+            "content, comment_type, created_at) "
+            "VALUES ('c1', '1', 'r1-1', 'u1', 'LGTM', 'text', "
+            "'2026-01-16T01:00:00Z')"
+        )
+        conn.execute(
+            "CREATE TABLE _pr_comments_v3 ("
+            "  comment_id TEXT PRIMARY KEY, "
+            "  thread_id TEXT NOT NULL, "
+            "  pull_request_uid TEXT NOT NULL, "
+            "  author_id TEXT NOT NULL, "
+            "  content TEXT, comment_type TEXT, "
+            "  created_at TEXT NOT NULL, "
+            "  last_updated TEXT, "
+            "  is_deleted INTEGER DEFAULT 0"
+            ")"
+        )
+        conn.commit()
+        conn.close()
+
+        db = DatabaseManager(db_path)
+        db.connect()
+        try:
+            assert db.get_schema_version() == 4
+            assert not db.execute(
+                "SELECT 1 FROM sqlite_master "
+                "WHERE type='table' AND name='_pr_comments_v3'"
+            ).fetchone()
+            assert db.execute(
+                "SELECT 1 FROM pr_comments WHERE comment_id = 'c1'"
+            ).fetchone()
+        finally:
+            db.close()
+
+    # -- F3: FK validation test --
+
+    def test_fk_validation_detects_separate_single_column_fks(
+        self, tmp_path: Path
+    ) -> None:
+        """Two separate single-column FKs to pr_threads (not composite): rebuild.
+
+        This is the gap the flat-list check missed — both column names appear
+        in PRAGMA foreign_key_list but belong to different constraints.
+        """
+        db_path = tmp_path / "separate_fks.db"
+        conn = self._create_v3_db(db_path)
+
+        conn.execute(
+            "INSERT INTO pr_threads "
+            "(thread_id, pull_request_uid, status, last_updated, created_at) "
+            "VALUES ('1', 'r1-1', 'active', '2026-01-16T00:00:00Z', "
+            "'2026-01-16T00:00:00Z')"
+        )
+        # Drop existing pr_comments (single PK, no FK) and create one
+        # with two separate single-column FKs to pr_threads.
+        conn.execute("DROP TABLE pr_comments")
+        conn.execute(
+            """
+            CREATE TABLE pr_comments (
+                comment_id TEXT PRIMARY KEY,
+                thread_id TEXT NOT NULL,
+                pull_request_uid TEXT NOT NULL,
+                author_id TEXT NOT NULL,
+                content TEXT,
+                comment_type TEXT,
+                created_at TEXT NOT NULL,
+                last_updated TEXT,
+                is_deleted INTEGER DEFAULT 0,
+                FOREIGN KEY (pull_request_uid)
+                    REFERENCES pr_threads(pull_request_uid),
+                FOREIGN KEY (thread_id)
+                    REFERENCES pr_threads(thread_id)
+            )
+            """
+        )
+        conn.execute(
+            "INSERT INTO pr_comments "
+            "(comment_id, thread_id, pull_request_uid, author_id, "
+            "content, comment_type, created_at) "
+            "VALUES ('c1', '1', 'r1-1', 'u1', 'LGTM', 'text', "
+            "'2026-01-16T01:00:00Z')"
+        )
+        conn.commit()
+        conn.close()
+
+        db = DatabaseManager(db_path)
+        db.connect()
+        try:
+            assert db.get_schema_version() == 4
+
+            # After migration, FK must be a single composite constraint.
+            fk_info = db.execute("PRAGMA foreign_key_list(pr_comments)").fetchall()
+            # Group by constraint id to verify single composite FK.
+            from collections import defaultdict
+
+            fk_groups: dict[int, set[str]] = defaultdict(set)
+            for row in fk_info:
+                if row["table"] == "pr_threads":
+                    fk_groups[row["id"]].add(row["to"])
+            composite = [
+                cols
+                for cols in fk_groups.values()
+                if cols == {"pull_request_uid", "thread_id"}
+            ]
+            assert len(composite) == 1, (
+                "Expected exactly one composite FK to pr_threads"
+            )
+
+            # Data preserved.
+            assert db.execute(
+                "SELECT 1 FROM pr_comments WHERE comment_id = 'c1'"
+            ).fetchone()
+        finally:
+            db.close()
+
+    # -- Orphan warning test --
+
+    def test_orphaned_comments_after_thread_dedup_warning(
+        self, tmp_path: Path, caplog: pytest.LogCaptureFixture
+    ) -> None:
+        """Comment referencing nonexistent thread after rebuild → warning."""
+        db_path = tmp_path / "orphan.db"
+        conn = self._create_v3_db(db_path)
+
+        # Thread exists for (r1-1, '1').
+        conn.execute(
+            "INSERT INTO pr_threads "
+            "(thread_id, pull_request_uid, status, last_updated, created_at) "
+            "VALUES ('1', 'r1-1', 'active', '2026-01-16T00:00:00Z', "
+            "'2026-01-16T00:00:00Z')"
+        )
+        # Comment references (r1-1, '99') — a thread that doesn't exist.
+        # After rebuild the orphan check should detect this.
+        conn.execute(
+            "INSERT INTO pr_comments "
+            "(comment_id, thread_id, pull_request_uid, author_id, "
+            "content, comment_type, created_at) "
+            "VALUES ('c_orphan', '99', 'r1-1', 'u1', 'orphan', 'text', "
+            "'2026-01-16T01:00:00Z')"
+        )
+        conn.commit()
+        conn.close()
+
+        with caplog.at_level(logging.WARNING):
+            db = DatabaseManager(db_path)
+            db.connect()
+        try:
+            assert db.get_schema_version() == 4
+            assert any(
+                "pr_comments rows reference threads removed" in msg
+                for msg in caplog.messages
+            )
+        finally:
+            db.close()
+
+    # -- Integration test --
+
+    def test_integrated_dedup_recovery_fk_rebuild(
+        self, tmp_path: Path, caplog: pytest.LogCaptureFixture
+    ) -> None:
+        """Full integration: stale artifacts + duplicates + FK rebuild.
+
+        Validates that a single migrate_v3_to_v4() call handles all three
+        scenarios together: recovery, dedup, and FK validation.
+        """
+        db_path = tmp_path / "integrated.db"
+        conn = self._create_v3_db(db_path)
+
+        # Drop the PK-constrained tables and create stale artifacts with dups.
+        conn.execute("DROP TABLE pr_comments")
+        conn.execute("DROP TABLE pr_threads")
+
+        # Stale _pr_threads_v3 with duplicate (r1-1, '1') rows.
+        conn.execute(
+            """
+            CREATE TABLE _pr_threads_v3 (
+                thread_id TEXT NOT NULL,
+                pull_request_uid TEXT NOT NULL,
+                status TEXT,
+                thread_context TEXT,
+                last_updated TEXT NOT NULL,
+                created_at TEXT NOT NULL,
+                is_deleted INTEGER DEFAULT 0
+            )
+            """
+        )
+        conn.execute(
+            "INSERT INTO _pr_threads_v3 VALUES "
+            "('1', 'r1-1', 'active', NULL, "
+            "'2026-01-18T00:00:00Z', '2026-01-15T12:00:00Z', 0)"
+        )
+        conn.execute(
+            "INSERT INTO _pr_threads_v3 VALUES "
+            "('1', 'r1-1', 'closed', NULL, "
+            "'2026-01-16T00:00:00Z', '2026-01-15T12:00:00Z', 1)"
+        )
+
+        # Stale _pr_comments_v3 with a valid comment.
+        conn.execute(
+            """
+            CREATE TABLE _pr_comments_v3 (
+                comment_id TEXT NOT NULL,
+                thread_id TEXT NOT NULL,
+                pull_request_uid TEXT NOT NULL,
+                author_id TEXT NOT NULL,
+                content TEXT,
+                comment_type TEXT,
+                created_at TEXT NOT NULL,
+                last_updated TEXT,
+                is_deleted INTEGER DEFAULT 0
+            )
+            """
+        )
+        conn.execute(
+            "INSERT INTO _pr_comments_v3 VALUES "
+            "('c1', '1', 'r1-1', 'u1', 'LGTM', 'text', "
+            "'2026-01-16T01:00:00Z', NULL, 0)"
+        )
+        conn.commit()
+        conn.close()
+
+        with caplog.at_level(logging.WARNING):
+            db = DatabaseManager(db_path)
+            db.connect()
+        try:
+            assert db.get_schema_version() == 4
+
+            # Composite PK on pr_threads.
+            pk_info = db.execute("PRAGMA table_info(pr_threads)").fetchall()
+            pk_cols = [row["name"] for row in pk_info if row["pk"] > 0]
+            assert set(pk_cols) == {"pull_request_uid", "thread_id"}
+
+            # Dedup: only one thread row for (r1-1, '1').
+            thread_rows = db.execute(
+                "SELECT * FROM pr_threads "
+                "WHERE pull_request_uid = 'r1-1' AND thread_id = '1'"
+            ).fetchall()
+            assert len(thread_rows) == 1
+            assert thread_rows[0]["is_deleted"] == 0  # Non-deleted won
+
+            # Comment preserved.
+            assert db.execute(
+                "SELECT 1 FROM pr_comments WHERE comment_id = 'c1'"
+            ).fetchone()
+
+            # Stale artifacts cleaned up.
+            assert not db.execute(
+                "SELECT 1 FROM sqlite_master "
+                "WHERE type='table' AND name='_pr_threads_v3'"
+            ).fetchone()
+            assert not db.execute(
+                "SELECT 1 FROM sqlite_master "
+                "WHERE type='table' AND name='_pr_comments_v3'"
+            ).fetchone()
+
+            # Composite FK on pr_comments.
+            fk_info = db.execute("PRAGMA foreign_key_list(pr_comments)").fetchall()
+            from collections import defaultdict
+
+            fk_groups: dict[int, set[str]] = defaultdict(set)
+            for row in fk_info:
+                if row["table"] == "pr_threads":
+                    fk_groups[row["id"]].add(row["to"])
+            assert any(
+                cols == {"pull_request_uid", "thread_id"} for cols in fk_groups.values()
+            )
+
+            # Dedup warning logged.
+            assert any("duplicate" in msg.lower() for msg in caplog.messages)
+            # Stale artifact warning logged.
+            assert any("stale" in msg.lower() for msg in caplog.messages)
+        finally:
+            db.close()
+
+    # -- End-to-end: migration → aggregation → coverage --
+
+    def test_migrate_then_aggregate_coverage_consistent(self, tmp_path: Path) -> None:
+        """v3 DB → migrate v4 → _get_comments_coverage → consistent status."""
+        db_path = tmp_path / "e2e.db"
+        conn = self._create_v3_db(db_path)
+
+        # PR r1-1 has threads and comments_extracted_at set.
+        conn.execute(
+            "UPDATE pull_requests SET comments_extracted_at = "
+            "'2026-01-20T00:00:00Z' WHERE pull_request_uid = 'r1-1'"
+        )
+        conn.execute(
+            "INSERT INTO pr_threads "
+            "(thread_id, pull_request_uid, status, last_updated, created_at) "
+            "VALUES ('1', 'r1-1', 'active', '2026-01-16T00:00:00Z', "
+            "'2026-01-16T00:00:00Z')"
+        )
+        conn.execute(
+            "INSERT INTO pr_comments "
+            "(comment_id, thread_id, pull_request_uid, author_id, "
+            "content, comment_type, created_at) "
+            "VALUES ('c1', '1', 'r1-1', 'u1', 'LGTM', 'text', "
+            "'2026-01-16T01:00:00Z')"
+        )
+        # PR r1-2 has no comments_extracted_at → partial coverage.
+        conn.execute(
+            "INSERT INTO comments_extraction_metadata "
+            "(id, last_run_timestamp, prs_processed, threads_fetched, "
+            "comments_fetched, capped) "
+            "VALUES (1, '2026-01-20T00:00:00Z', 1, 1, 1, 0)"
+        )
+        conn.commit()
+        conn.close()
+
+        db = DatabaseManager(db_path)
+        db.connect()
+        try:
+            assert db.get_schema_version() == 4
+
+            from ado_git_repo_insights.transform.aggregators import (
+                AggregateGenerator,
+            )
+
+            output = tmp_path / "output"
+            gen = AggregateGenerator(db, output)
+            coverage = gen._get_comments_coverage()
+
+            # r1-1 is stamped, r1-2 is not → partial.
+            assert coverage["status"] == "partial"
+            assert coverage["threads_fetched"] == 1
+            assert coverage["comments_fetched"] == 1
+        finally:
+            db.close()
+
+    def test_partial_v4_with_missing_indexes_recovers(self, tmp_path: Path) -> None:
+        """v4 tables with correct PK/FK but missing indexes get indexes on rerun.
+
+        Regression: the structural fast-path (already composite PK/FK)
+        returned before creating indexes, leaving partially recovered
+        databases in a slower and inconsistent state.
+        """
+        db_path = tmp_path / "partial_v4.db"
+        conn = self._create_v3_db(db_path)
+
+        # Build v4-shaped tables manually WITHOUT indexes.
+        conn.execute("DROP TABLE pr_comments")
+        conn.execute("DROP TABLE pr_threads")
+        conn.execute(
+            """
+            CREATE TABLE pr_threads (
+                thread_id TEXT NOT NULL,
+                pull_request_uid TEXT NOT NULL,
+                status TEXT,
+                thread_context TEXT,
+                last_updated TEXT NOT NULL,
+                created_at TEXT NOT NULL,
+                is_deleted INTEGER DEFAULT 0,
+                PRIMARY KEY (pull_request_uid, thread_id),
+                FOREIGN KEY (pull_request_uid)
+                    REFERENCES pull_requests(pull_request_uid)
+            )
+            """
+        )
+        conn.execute(
+            """
+            CREATE TABLE pr_comments (
+                comment_id TEXT PRIMARY KEY,
+                thread_id TEXT NOT NULL,
+                pull_request_uid TEXT NOT NULL,
+                author_id TEXT NOT NULL,
+                content TEXT,
+                comment_type TEXT,
+                created_at TEXT NOT NULL,
+                last_updated TEXT,
+                is_deleted INTEGER DEFAULT 0,
+                FOREIGN KEY (pull_request_uid, thread_id)
+                    REFERENCES pr_threads(pull_request_uid, thread_id),
+                FOREIGN KEY (pull_request_uid)
+                    REFERENCES pull_requests(pull_request_uid),
+                FOREIGN KEY (author_id) REFERENCES users(user_id)
+            )
+            """
+        )
+        # NO indexes created — simulates interrupted migration after table
+        # creation but before index creation.
+        conn.commit()
+        conn.close()
+
+        # Open with DatabaseManager to trigger v3→v4 migration.
+        db = DatabaseManager(db_path)
+        db.connect()
+        try:
+            assert db.get_schema_version() == 4
+
+            # All four required indexes must now exist.
+            indexes = db.execute(
+                "SELECT name FROM sqlite_master "
+                "WHERE type='index' AND name NOT LIKE 'sqlite_autoindex_%'"
+            ).fetchall()
+            index_names = {row["name"] for row in indexes}
+            required = {
+                "idx_pr_threads_updated",
+                "idx_pr_comments_thread",
+                "idx_pr_comments_pr",
+                "idx_pr_comments_author",
+            }
+            assert required.issubset(index_names), (
+                f"Missing indexes: {required - index_names}"
+            )
+        finally:
+            db.close()
+
+
+class TestColumnExistsValidation:
+    """F5: _column_exists must reject non-identifier table/column names."""
+
+    def test_rejects_injection_in_table(self, tmp_path: Path) -> None:
+        from ado_git_repo_insights.persistence.migrations import _column_exists
+
+        conn = sqlite3.connect(str(tmp_path / "test.db"))
+        with pytest.raises(ValueError, match="Invalid table identifier"):
+            _column_exists(conn, "users; DROP TABLE users", "user_id")
+        conn.close()
+
+    def test_rejects_injection_in_column(self, tmp_path: Path) -> None:
+        from ado_git_repo_insights.persistence.migrations import _column_exists
+
+        conn = sqlite3.connect(str(tmp_path / "test.db"))
+        with pytest.raises(ValueError, match="Invalid column identifier"):
+            _column_exists(conn, "users", "user_id; DROP TABLE users")
+        conn.close()
+
+    def test_accepts_valid_identifiers(self, tmp_path: Path) -> None:
+        from ado_git_repo_insights.persistence.migrations import _column_exists
+
+        conn = sqlite3.connect(str(tmp_path / "test.db"))
+        conn.execute("CREATE TABLE users (user_id TEXT PRIMARY KEY)")
+        assert _column_exists(conn, "users", "user_id") is True
+        assert _column_exists(conn, "users", "nonexistent") is False
+        conn.close()
+
+    def test_rejects_empty_table_name(self, tmp_path: Path) -> None:
+        from ado_git_repo_insights.persistence.migrations import _column_exists
+
+        conn = sqlite3.connect(str(tmp_path / "test.db"))
+        with pytest.raises(ValueError, match="Invalid table identifier"):
+            _column_exists(conn, "", "user_id")
+        conn.close()
+
+
+# ---------------------------------------------------------------------------
+# F4: Index parity between fresh install and migrated DB
+# ---------------------------------------------------------------------------
+
+
+def _get_user_indexes(path: Path) -> set[tuple[str, str, str]]:
+    """Get all user-created indexes as (name, table, normalized_sql) tuples.
+
+    Excludes autoindexes created by SQLite for PRIMARY KEY / UNIQUE
+    constraints.  The SQL is normalized (lowercased, whitespace collapsed)
+    so comparisons are deterministic across SQLite versions.
+    """
+    conn = sqlite3.connect(str(path))
+    rows = conn.execute(
+        "SELECT name, tbl_name, sql FROM sqlite_master "
+        "WHERE type='index' AND name NOT LIKE 'sqlite_autoindex_%' "
+        "AND sql IS NOT NULL"
+    ).fetchall()
+    conn.close()
+    result: set[tuple[str, str, str]] = set()
+    for row in rows:
+        name: str = row[0]
+        tbl_name: str = row[1]
+        raw_sql: str = row[2]
+        normalized = " ".join(raw_sql.lower().split())
+        result.add((name, tbl_name, normalized))
+    return result
+
+
+class TestIndexParity:
+    """F4: Fresh install and migrated DB must produce identical indexes
+    on the tables affected by the v3→v4 migration (pr_threads, pr_comments).
+    """
+
+    _MIGRATION_TABLES = {"pr_threads", "pr_comments"}
+
+    @staticmethod
+    def _filter_migration_indexes(
+        indexes: set[tuple[str, str, str]],
+    ) -> set[tuple[str, str, str]]:
+        return {
+            (name, tbl, sql)
+            for name, tbl, sql in indexes
+            if tbl in TestIndexParity._MIGRATION_TABLES
+        }
+
+    def test_fresh_and_migrated_v1_produce_same_thread_comment_indexes(
+        self, tmp_path: Path
+    ) -> None:
+        """v1 → v4 migrated DB has same pr_threads/pr_comments indexes as fresh."""
+        fresh_path = tmp_path / "fresh.db"
+        fresh_db = DatabaseManager(fresh_path)
+        fresh_db.connect()
+        fresh_db.close()
+
+        migrated_path = tmp_path / "migrated.db"
+        _create_v1_database(migrated_path)
+        migrated_db = DatabaseManager(migrated_path)
+        migrated_db.connect()
+        migrated_db.close()
+
+        fresh = self._filter_migration_indexes(_get_user_indexes(fresh_path))
+        migrated = self._filter_migration_indexes(_get_user_indexes(migrated_path))
+        assert fresh == migrated, (
+            f"Index mismatch on pr_threads/pr_comments:\n"
+            f"  Fresh only: {fresh - migrated}\n"
+            f"  Migrated only: {migrated - fresh}"
+        )
+
+    def test_fresh_and_migrated_v2_produce_same_thread_comment_indexes(
+        self, tmp_path: Path
+    ) -> None:
+        """v2 → v4 migrated DB (with old pr_threads/pr_comments) matches fresh."""
+        fresh_path = tmp_path / "fresh.db"
+        fresh_db = DatabaseManager(fresh_path)
+        fresh_db.connect()
+        fresh_db.close()
+
+        migrated_path = tmp_path / "migrated_v2.db"
+        # Use the v3 test class schema (inherits v2 structure + comments_extracted_at).
+        # Since v3→v4 is the only remaining migration, this exercises the same
+        # rebuild path and index creation as a v2→v3→v4 migration.
+        conn = sqlite3.connect(str(migrated_path))
+        conn.execute("PRAGMA foreign_keys = OFF")
+        conn.executescript(TestMigrationV3ToV4DedupAndRecovery._V3_SCHEMA_SQL)
+        conn.execute("INSERT INTO users (user_id, display_name) VALUES ('u1', 'Alice')")
+        conn.execute(
+            "INSERT INTO repositories (repository_id, repository_name, "
+            "project_name, organization_name) "
+            "VALUES ('r1', 'repo', 'proj', 'org')"
+        )
+        conn.commit()
+        conn.close()
+        migrated_db = DatabaseManager(migrated_path)
+        migrated_db.connect()
+        migrated_db.close()
+
+        fresh = self._filter_migration_indexes(_get_user_indexes(fresh_path))
+        migrated = self._filter_migration_indexes(_get_user_indexes(migrated_path))
+        assert fresh == migrated, (
+            f"Index mismatch on pr_threads/pr_comments:\n"
+            f"  Fresh only: {fresh - migrated}\n"
+            f"  Migrated only: {migrated - fresh}"
+        )

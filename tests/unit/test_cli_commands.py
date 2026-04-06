@@ -779,3 +779,46 @@ class TestValidateServeFlags:
 
         with pytest.raises(ValueError, match="Missing required argument"):
             _validate_serve_flags(args)
+
+
+class TestIsRealRow:
+    """P3c: Dedicated tests for _is_real_row guard function."""
+
+    def test_none_returns_false(self) -> None:
+        from ado_git_repo_insights.cli import _is_real_row
+
+        assert _is_real_row(None) is False
+
+    def test_sqlite_row_returns_true(self, tmp_path: Path) -> None:
+        import sqlite3
+
+        from ado_git_repo_insights.cli import _is_real_row
+
+        conn = sqlite3.connect(str(tmp_path / "test.db"))
+        conn.row_factory = sqlite3.Row
+        conn.execute("CREATE TABLE t (id INTEGER)")
+        conn.execute("INSERT INTO t VALUES (1)")
+        row = conn.execute("SELECT * FROM t").fetchone()
+        conn.close()
+        assert _is_real_row(row) is True
+
+    def test_tuple_returns_true(self) -> None:
+        from ado_git_repo_insights.cli import _is_real_row
+
+        assert _is_real_row((1,)) is True
+
+    def test_mock_returns_false(self) -> None:
+        from ado_git_repo_insights.cli import _is_real_row
+
+        assert _is_real_row(MagicMock()) is False
+
+    def test_tuple_containing_mock_returns_false(self) -> None:
+        """(MagicMock(),) has __getitem__ but element is not a scalar type."""
+        from ado_git_repo_insights.cli import _is_real_row
+
+        assert _is_real_row((MagicMock(),)) is False
+
+    def test_object_without_getitem_returns_false(self) -> None:
+        from ado_git_repo_insights.cli import _is_real_row
+
+        assert _is_real_row(object()) is False
