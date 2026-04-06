@@ -13,6 +13,7 @@ import pytest
 
 from ado_git_repo_insights.extraction.review_time import populate_review_timestamps
 from ado_git_repo_insights.persistence.database import DatabaseManager
+from ado_git_repo_insights.types import AdoThread
 from ado_git_repo_insights.utils.datetime_utils import calculate_review_time_minutes
 
 # ---------------------------------------------------------------------------
@@ -96,6 +97,22 @@ def _seed_system_comment(
         "comment_type, created_at, is_deleted) "
         "VALUES (?, ?, ?, ?, ?, 'system', ?, ?)",
         (comment_id, thread_id, pr_uid, author_id, content, created_at, is_deleted),
+    )
+
+
+def _make_ado_thread(
+    tid: int | str,
+    last_updated: str,
+    published: str = "2026-01-01T00:00:00Z",
+) -> AdoThread:
+    """Build a minimal AdoThread dict for _dropped_threads_all_stored tests."""
+    return AdoThread(
+        id=int(tid) if isinstance(tid, str) else tid,
+        status="active",
+        lastUpdatedDate=last_updated,
+        publishedDate=published,
+        isDeleted=False,
+        comments=[],
     )
 
 
@@ -1284,32 +1301,32 @@ class TestTriggerScope:
                 "VALUES (1, '2026-01-20T00:00:00Z', 1, 1, 0, 0)"
             )
 
-            # t1 is stored locally with a newer timestamp.
+            # Thread 1 is stored locally with a newer timestamp.
             db.execute(
                 "INSERT INTO pr_threads (thread_id, pull_request_uid, "
                 "status, last_updated, created_at) "
-                "VALUES ('t1', 'r1-1', 'active', '2026-01-10T00:00:00Z', "
+                "VALUES ('1', 'r1-1', 'active', '2026-01-10T00:00:00Z', "
                 "'2026-01-09T00:00:00Z')"
             )
 
             # Now test _dropped_threads_all_stored directly.
-            # t2 is NOT stored but has an older timestamp than t1.
+            # Thread 2 is NOT stored but has an older timestamp than thread 1.
             from ado_git_repo_insights.cli import _dropped_threads_all_stored
 
-            dropped = [{"id": "t2", "lastUpdatedDate": "2026-01-09T00:00:00Z"}]
+            dropped = [_make_ado_thread(2, "2026-01-09T00:00:00Z")]
             assert not _dropped_threads_all_stored(db, "r1-1", dropped), (
-                "Thread t2 is missing locally — must not be treated as stored"
+                "Thread 2 is missing locally — must not be treated as stored"
             )
 
-            # Verify: if t2 WERE stored, the check would pass.
+            # Verify: if thread 2 WERE stored, the check would pass.
             db.execute(
                 "INSERT INTO pr_threads (thread_id, pull_request_uid, "
                 "status, last_updated, created_at) "
-                "VALUES ('t2', 'r1-1', 'active', '2026-01-09T00:00:00Z', "
+                "VALUES ('2', 'r1-1', 'active', '2026-01-09T00:00:00Z', "
                 "'2026-01-08T00:00:00Z')"
             )
             assert _dropped_threads_all_stored(db, "r1-1", dropped), (
-                "Thread t2 is now stored and current — should pass"
+                "Thread 2 is now stored and current — should pass"
             )
         finally:
             db.close()
@@ -1327,14 +1344,14 @@ class TestTriggerScope:
             db.execute(
                 "INSERT INTO pr_threads (thread_id, pull_request_uid, "
                 "status, last_updated, created_at) "
-                "VALUES ('t1', 'r1-1', 'active', '2026-01-08T00:00:00Z', "
+                "VALUES ('1', 'r1-1', 'active', '2026-01-08T00:00:00Z', "
                 "'2026-01-07T00:00:00Z')"
             )
 
             from ado_git_repo_insights.cli import _dropped_threads_all_stored
 
             # API has a newer version of this thread.
-            dropped = [{"id": "t1", "lastUpdatedDate": "2026-01-10T00:00:00Z"}]
+            dropped = [_make_ado_thread(1, "2026-01-10T00:00:00Z")]
             assert not _dropped_threads_all_stored(db, "r1-1", dropped), (
                 "Local thread is stale (API updated 01-10, local 01-08) — "
                 "must not treat as current"
@@ -1343,7 +1360,7 @@ class TestTriggerScope:
             # After updating the local thread, it should pass.
             db.execute(
                 "UPDATE pr_threads SET last_updated = '2026-01-10T00:00:00Z' "
-                "WHERE thread_id = 't1' AND pull_request_uid = 'r1-1'"
+                "WHERE thread_id = '1' AND pull_request_uid = 'r1-1'"
             )
             assert _dropped_threads_all_stored(db, "r1-1", dropped), (
                 "Local thread now current — should pass"
@@ -1383,7 +1400,7 @@ class TestTriggerScope:
             from ado_git_repo_insights.cli import _dropped_threads_all_stored
 
             # Dropped thread "1" for PR r1-1.  Only r1-2 has it stored.
-            dropped = [{"id": 1, "lastUpdatedDate": "2026-01-15T00:00:00Z"}]
+            dropped = [_make_ado_thread(1, "2026-01-15T00:00:00Z")]
             assert not _dropped_threads_all_stored(db, "r1-1", dropped), (
                 "Thread '1' exists for r1-2 but NOT r1-1 — must not match"
             )

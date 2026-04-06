@@ -229,18 +229,21 @@ class TestDemoGeneratorInProcessDeterminism:
 
         mod = _load_demo_module()
 
+        init_random = mod.init_random
+        seed = mod.SEED
+
         # Reset main RNG to known state (same as main() does).
-        mod.RNG = mod.init_random(mod.SEED)
+        mod.RNG = init_random(seed)
         repos = mod.generate_repositories(mod.generate_projects())
         teams = mod.generate_teams(mod.generate_projects())
         users = mod.generate_users()
 
         # Call 1
-        mod.RNG = mod.init_random(mod.SEED)
+        mod.RNG = init_random(seed)
         rollups_a = mod.generate_weekly_rollups(repos, teams, users)
 
         # Call 2 — same inputs, same main RNG state
-        mod.RNG = mod.init_random(mod.SEED)
+        mod.RNG = init_random(seed)
         rollups_b = mod.generate_weekly_rollups(repos, teams, users)
 
         assert len(rollups_a) == len(rollups_b)
