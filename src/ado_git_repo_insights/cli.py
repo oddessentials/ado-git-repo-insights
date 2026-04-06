@@ -555,16 +555,19 @@ def _extract_comments(
 
             stats["prs_processed"] = int(stats["prs_processed"]) + 1
 
-            # Mark this PR as fully processed by comment extraction ONLY
-            # if the thread fetch was not truncated.  A truncated fetch may
-            # have skipped threads containing vote events, so the PR's
-            # review-time data is incomplete and must not count as covered.
-            if not pr_threads_truncated:
-                db.execute(
-                    "UPDATE pull_requests SET comments_extracted_at = ? "
-                    "WHERE pull_request_uid = ?",
-                    (datetime.now(UTC).isoformat(), pr_uid),
-                )
+            # Update per-PR coverage marker.  A truncated thread fetch
+            # must clear any prior stamp — a PR that was fully covered on
+            # an earlier run is no longer fully covered if the current run
+            # skipped threads.  Coverage treats non-NULL as authoritative,
+            # so stale stamps from prior runs must not survive truncation.
+            extracted_stamp: str | None = (
+                None if pr_threads_truncated else datetime.now(UTC).isoformat()
+            )
+            db.execute(
+                "UPDATE pull_requests SET comments_extracted_at = ? "
+                "WHERE pull_request_uid = ?",
+                (extracted_stamp, pr_uid),
+            )
 
         except ExtractionError as e:
             from .utils.run_summary import normalize_error_message

@@ -1161,6 +1161,59 @@ class TestTriggerScope:
         finally:
             db.close()
 
+    def test_truncated_rerun_clears_prior_full_stamp(self, tmp_path: Path) -> None:
+        """Truncated rerun must clear a prior full-coverage stamp.
+
+        Regression: the truncation guard only skipped writing a new stamp
+        but left the old stamp intact.  _get_comments_coverage() treats
+        any non-NULL comments_extracted_at as authoritative, so a PR that
+        was stamped by an earlier full run remained falsely "fully covered"
+        after a truncated rerun.
+
+        Simulate: stamp PR via prior full run → rerun with truncation →
+        assert stamp cleared and coverage no longer reports full.
+        """
+        db = _create_test_db(tmp_path)
+        try:
+            _seed_pr(db, pr_uid="r1-1")
+            # Prior full run stamped this PR as covered.
+            db.execute(
+                "UPDATE pull_requests SET comments_extracted_at = "
+                "'2026-01-20T00:00:00Z' WHERE pull_request_uid = 'r1-1'"
+            )
+
+            # Verify: single completed PR, fully stamped → "full".
+            db.execute(
+                "INSERT INTO comments_extraction_metadata "
+                "(id, last_run_timestamp, prs_processed, threads_fetched, "
+                "comments_fetched, capped) "
+                "VALUES (1, '2026-01-20T00:00:00Z', 1, 5, 10, 0)"
+            )
+
+            from ado_git_repo_insights.transform.aggregators import (
+                AggregateGenerator,
+            )
+
+            output = tmp_path / "agg_out"
+            gen = AggregateGenerator(db, output)
+            assert gen._get_comments_coverage()["status"] == "full"
+
+            # Simulate truncated rerun: clear the stamp (as cli.py now does
+            # when pr_threads_truncated is True).
+            db.execute(
+                "UPDATE pull_requests SET comments_extracted_at = NULL "
+                "WHERE pull_request_uid = 'r1-1'"
+            )
+
+            # Coverage must no longer be "full".
+            coverage = gen._get_comments_coverage()
+            assert coverage["status"] != "full", (
+                "Truncated rerun must invalidate prior full stamp — "
+                "coverage should be partial or disabled, not full"
+            )
+        finally:
+            db.close()
+
     def test_backfill_helper_populates_review_time(self, tmp_path: Path) -> None:
         """DB with pr_comments but no review_time_minutes gets backfilled
         when _backfill_review_timestamps_if_needed() runs.
