@@ -501,6 +501,43 @@ class TestPrsCommentFailuresCounter:
         finally:
             db.close()
 
+    def test_previously_covered_pr_retains_stamp_on_failure(
+        self, tmp_path: Path
+    ) -> None:
+        """A prior-success stamp survives a later ExtractionError.
+
+        Semantics decision: a failed refresh does not invalidate data from
+        a prior successful extraction.  Clearing the stamp on transient
+        errors (timeouts, rate-limits) would cause coverage to flap between
+        "full" and "partial", which is noisier than reporting the still-valid
+        prior state.  Aggregation gates review_time_minutes on
+        comments_extracted_at IS NOT NULL, so stale-but-stamped PRs remain
+        consistent with the dashboard contract.
+        """
+        from ado_git_repo_insights.cli import _extract_comments
+        from ado_git_repo_insights.extractor.ado_client import ExtractionError
+
+        db = _create_db_with_pr(tmp_path, pr_uid="r1-1")
+        # Simulate a prior successful extraction.
+        prior_stamp = "2026-01-20T00:00:00Z"
+        db.execute(
+            "UPDATE pull_requests SET comments_extracted_at = ? "
+            "WHERE pull_request_uid = ?",
+            (prior_stamp, "r1-1"),
+        )
+        db.connection.commit()
+
+        client = MagicMock()
+        client.get_pr_threads.side_effect = ExtractionError("API timeout")
+        try:
+            _extract_comments(client, db, _mock_config(), 100, 0)
+            db.connection.commit()
+            assert _get_stamp(db, "r1-1") == prior_stamp, (
+                "Prior-success stamp must survive a later ExtractionError"
+            )
+        finally:
+            db.close()
+
 
 # ---------------------------------------------------------------------------
 # P3e: _get_comments_coverage exception fallback tests

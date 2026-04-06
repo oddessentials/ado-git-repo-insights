@@ -590,7 +590,9 @@ class AggregateGenerator:
             SELECT
                 pr.closed_date,
                 pr.cycle_time_minutes,
-                pr.review_time_minutes,
+                CASE WHEN pr.comments_extracted_at IS NOT NULL
+                     THEN pr.review_time_minutes
+                END AS review_time_minutes,
                 pr.user_id,
                 pr.pull_request_uid,
                 pr.repository_id,

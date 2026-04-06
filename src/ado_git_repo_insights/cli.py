@@ -597,7 +597,19 @@ def _extract_comments(
                 normalize_error_message(str(e)),
             )
             stats["prs_comment_failures"] = int(stats["prs_comment_failures"]) + 1
-            # Continue with other PRs - don't fail entire run
+            # Continue with other PRs - don't fail entire run.
+            #
+            # Semantics decision: we intentionally do NOT clear
+            # comments_extracted_at here.  A failed refresh does not
+            # invalidate data from a prior successful extraction —
+            # no pr_comments/pr_threads rows were modified.  Clearing
+            # the stamp on transient errors (timeouts, rate-limits)
+            # would cause coverage to flap between "full" and "partial"
+            # on every intermittent failure, which is noisier and more
+            # misleading than reporting the (still-valid) prior state.
+            # Aggregation already gates review_time_minutes on
+            # comments_extracted_at IS NOT NULL, so incomplete PRs
+            # cannot contribute stale metrics.
 
     db.connection.commit()
     repo.update_comments_extraction_metadata(

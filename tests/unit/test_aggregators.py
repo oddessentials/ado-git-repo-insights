@@ -4096,6 +4096,15 @@ def review_time_db(tmp_path: Path) -> Iterator[tuple[DatabaseManager, Path]]:
             (pr_uid,),
         )
 
+    # Mark PRs with review_time as having complete comment coverage.
+    # Aggregation now gates review_time_minutes on comments_extracted_at.
+    for pr_uid in ("repo1-1", "repo1-2", "repo1-3", "repo2-2"):
+        db.execute(
+            "UPDATE pull_requests SET comments_extracted_at = '2026-01-20T00:00:00Z' "
+            "WHERE pull_request_uid = ?",
+            (pr_uid,),
+        )
+
     db.connection.commit()
     yield db, tmp_path
     db.close()
@@ -4168,6 +4177,56 @@ class TestReviewTimeBaseRollup:
         assert week2["pr_count"] == 3  # All PRs counted
         # p50 computed from (720, 1440) only, not from 3 values
         assert week2["review_time_p50"] == pytest.approx(1080.0)
+
+
+class TestIncompleteCommentCoverageExcluded:
+    """PRs with incomplete comment coverage must not contribute review_time."""
+
+    def test_incomplete_pr_excluded_from_review_time_rollup(
+        self, review_time_db: tuple[DatabaseManager, Path]
+    ) -> None:
+        """PR with review_time_minutes but NULL comments_extracted_at is excluded.
+
+        Regression: aggregation included review_time_minutes from PRs whose
+        thread fetch was truncated (comments_extracted_at cleared), allowing
+        metrics computed from partial vote data to skew dashboard P50/P90.
+        """
+        db, tmp_path = review_time_db
+        output_dir = tmp_path / "output_incomplete"
+
+        # Add a PR with review_time_minutes set but comments_extracted_at NULL
+        # (simulates truncated fetch → review_time computed from partial data).
+        db.execute(
+            "INSERT INTO pull_requests "
+            "(pull_request_uid, pull_request_id, organization_name, "
+            "project_name, repository_id, user_id, title, status, "
+            "creation_date, closed_date, cycle_time_minutes, "
+            "review_time_minutes, comments_extracted_at) "
+            "VALUES ('incomplete-1', 99, 'org1', 'proj1', 'repo1', 'u1', "
+            "'Incomplete PR', 'completed', '2026-01-06T08:00:00Z', "
+            "'2026-01-07T08:00:00Z', 1440.0, 9999.0, NULL)"
+        )
+        db.execute(
+            "INSERT INTO reviewers "
+            "(pull_request_uid, user_id, vote, repository_id) "
+            "VALUES ('incomplete-1', 'u1', 10, 'repo1')"
+        )
+        db.connection.commit()
+
+        generator = AggregateGenerator(db, output_dir)
+        generator.generate_all()
+
+        week2_path = output_dir / "aggregates" / "weekly_rollups" / "2026-W02.json"
+        with week2_path.open() as f:
+            week2 = json.load(f)
+
+        # The incomplete PR adds to pr_count but NOT to review_time.
+        assert week2["pr_count"] == 4  # 3 original + 1 incomplete
+        # p50 should still be (720, 1440) = 1080, not skewed by 9999.
+        assert week2["review_time_p50"] == pytest.approx(1080.0), (
+            "Incomplete PR (comments_extracted_at=NULL) must not "
+            "contribute review_time_minutes=9999 to rollup"
+        )
 
 
 class TestReviewTimeDimensionSlices:
