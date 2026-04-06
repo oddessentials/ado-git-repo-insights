@@ -642,3 +642,59 @@ class TestMigrationV2ToV3CoverageBackfill:
             assert row2["comments_extracted_at"] is None
         finally:
             db.close()
+
+    def test_migration_succeeds_with_pr_threads_but_no_pr_comments(
+        self, tmp_path: Path
+    ) -> None:
+        """v3→v4 must not crash when pr_threads exists but pr_comments is absent.
+
+        Regression: the migration unconditionally ran ALTER TABLE pr_comments
+        RENAME after checking only pr_threads existence.  A partial schema
+        (interrupted rollout, manual repair) could have pr_threads without
+        pr_comments.
+        """
+        db_path = tmp_path / "v2_partial.db"
+        conn = self._create_v2_db(db_path)
+
+        # Insert a PR and a thread, but do NOT create pr_comments.
+        conn.execute(
+            "INSERT INTO pull_requests (pull_request_uid, pull_request_id, "
+            "organization_name, project_name, repository_id, user_id, "
+            "title, status, creation_date) "
+            "VALUES ('r1-1', 1, 'org', 'proj', 'r1', 'u1', 'PR 1', "
+            "'completed', '2026-01-15T10:00:00Z')"
+        )
+        conn.execute(
+            "INSERT INTO pr_threads (thread_id, pull_request_uid, status, "
+            "last_updated, created_at) "
+            "VALUES ('1', 'r1-1', 'active', '2026-01-16T00:00:00Z', "
+            "'2026-01-16T00:00:00Z')"
+        )
+        # Drop pr_comments to simulate partial schema.
+        conn.execute("DROP TABLE IF EXISTS pr_comments")
+        conn.commit()
+        conn.close()
+
+        db = DatabaseManager(db_path)
+        db.connect()
+        try:
+            assert db.get_schema_version() == 4
+
+            # pr_threads must have composite PK now.
+            pk_info = db.execute("PRAGMA table_info(pr_threads)").fetchall()
+            pk_cols = [row["name"] for row in pk_info if row["pk"] > 0]
+            assert len(pk_cols) > 1, "pr_threads must have composite PK after migration"
+
+            # pr_comments must exist (created fresh).
+            row = db.execute(
+                "SELECT 1 FROM sqlite_master WHERE type='table' AND name='pr_comments'"
+            ).fetchone()
+            assert row is not None, "pr_comments must be created by migration"
+
+            # Thread data preserved.
+            thread = db.execute(
+                "SELECT * FROM pr_threads WHERE pull_request_uid = 'r1-1'"
+            ).fetchone()
+            assert thread is not None
+        finally:
+            db.close()

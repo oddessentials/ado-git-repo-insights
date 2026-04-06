@@ -166,51 +166,84 @@ def migrate_v3_to_v4(conn: Connection) -> None:
     could collide across PRs.  This migration rebuilds the table with
     a composite primary key and updates the pr_comments foreign key.
 
-    Data is preserved: all rows are copied to the new table structure.
+    Each table is handled independently: either rebuilt from its old
+    copy (if present) or created fresh (if absent).  This ensures the
+    migration succeeds on partial schemas (e.g. pr_threads exists but
+    pr_comments was never created due to an interrupted rollout).
     """
-    # Check if pr_threads table exists.  Legacy v1 databases and
-    # databases that never ran comment extraction won't have it.
-    table_exists = conn.execute(
-        "SELECT 1 FROM sqlite_master WHERE type='table' AND name='pr_threads'"
+    _ensure_v4_pr_threads(conn)
+    _ensure_v4_pr_comments(conn)
+
+    conn.execute(
+        "INSERT OR IGNORE INTO schema_version (version, applied_at) "
+        "VALUES (4, datetime('now'))"
+    )
+    logger.info("Applied migration v3 → v4: PR-scoped thread identity")
+
+
+# -- v4 table helpers (called by migrate_v3_to_v4) --
+
+_V4_PR_THREADS_DDL = """
+    CREATE TABLE pr_threads (
+        thread_id TEXT NOT NULL,
+        pull_request_uid TEXT NOT NULL,
+        status TEXT,
+        thread_context TEXT,
+        last_updated TEXT NOT NULL,
+        created_at TEXT NOT NULL,
+        is_deleted INTEGER DEFAULT 0,
+        PRIMARY KEY (pull_request_uid, thread_id),
+        FOREIGN KEY (pull_request_uid)
+            REFERENCES pull_requests(pull_request_uid)
+    )
+"""
+
+_V4_PR_COMMENTS_DDL = """
+    CREATE TABLE pr_comments (
+        comment_id TEXT PRIMARY KEY,
+        thread_id TEXT NOT NULL,
+        pull_request_uid TEXT NOT NULL,
+        author_id TEXT NOT NULL,
+        content TEXT,
+        comment_type TEXT,
+        created_at TEXT NOT NULL,
+        last_updated TEXT,
+        is_deleted INTEGER DEFAULT 0,
+        FOREIGN KEY (pull_request_uid, thread_id)
+            REFERENCES pr_threads(pull_request_uid, thread_id),
+        FOREIGN KEY (pull_request_uid)
+            REFERENCES pull_requests(pull_request_uid),
+        FOREIGN KEY (author_id) REFERENCES users(user_id)
+    )
+"""
+
+
+def _table_exists(conn: Connection, name: str) -> bool:
+    row = conn.execute(
+        "SELECT 1 FROM sqlite_master WHERE type='table' AND name=?",
+        (name,),
     ).fetchone()
-    if not table_exists:
+    return row is not None
+
+
+def _ensure_v4_pr_threads(conn: Connection) -> None:
+    """Ensure pr_threads has composite PK (pull_request_uid, thread_id)."""
+    if not _table_exists(conn, "pr_threads"):
+        conn.execute(_V4_PR_THREADS_DDL)
         conn.execute(
-            "INSERT OR IGNORE INTO schema_version (version, applied_at) "
-            "VALUES (4, datetime('now'))"
+            "CREATE INDEX IF NOT EXISTS idx_pr_threads_updated "
+            "ON pr_threads(last_updated)"
         )
-        logger.info("Applied migration v3 → v4: pr_threads absent, skipping rebuild")
+        logger.info("Created pr_threads with composite PK (was absent)")
         return
 
-    # Check if migration is needed by inspecting the PK structure.
-    # If the table already has a composite PK, skip.
     pk_info = conn.execute("PRAGMA table_info(pr_threads)").fetchall()
-    pk_cols = [row[1] for row in pk_info if row[5] > 0]  # col 5 = pk flag
+    pk_cols = [row[1] for row in pk_info if row[5] > 0]
     if len(pk_cols) > 1:
-        # Already composite — skip rebuild.
-        conn.execute(
-            "INSERT OR IGNORE INTO schema_version (version, applied_at) "
-            "VALUES (4, datetime('now'))"
-        )
-        logger.info("Applied migration v3 → v4: already composite PK, skipping")
-        return
+        return  # Already composite
 
     conn.execute("ALTER TABLE pr_threads RENAME TO _pr_threads_v3")
-    conn.execute(
-        """
-        CREATE TABLE pr_threads (
-            thread_id TEXT NOT NULL,
-            pull_request_uid TEXT NOT NULL,
-            status TEXT,
-            thread_context TEXT,
-            last_updated TEXT NOT NULL,
-            created_at TEXT NOT NULL,
-            is_deleted INTEGER DEFAULT 0,
-            PRIMARY KEY (pull_request_uid, thread_id),
-            FOREIGN KEY (pull_request_uid)
-                REFERENCES pull_requests(pull_request_uid)
-        )
-        """
-    )
+    conn.execute(_V4_PR_THREADS_DDL)
     conn.execute(
         """
         INSERT OR IGNORE INTO pr_threads
@@ -225,29 +258,42 @@ def migrate_v3_to_v4(conn: Connection) -> None:
     conn.execute(
         "CREATE INDEX IF NOT EXISTS idx_pr_threads_updated ON pr_threads(last_updated)"
     )
+    logger.info("Rebuilt pr_threads with composite PK")
 
-    # Rebuild pr_comments to update the FK reference.
-    conn.execute("ALTER TABLE pr_comments RENAME TO _pr_comments_v3")
-    conn.execute(
-        """
-        CREATE TABLE pr_comments (
-            comment_id TEXT PRIMARY KEY,
-            thread_id TEXT NOT NULL,
-            pull_request_uid TEXT NOT NULL,
-            author_id TEXT NOT NULL,
-            content TEXT,
-            comment_type TEXT,
-            created_at TEXT NOT NULL,
-            last_updated TEXT,
-            is_deleted INTEGER DEFAULT 0,
-            FOREIGN KEY (pull_request_uid, thread_id)
-                REFERENCES pr_threads(pull_request_uid, thread_id),
-            FOREIGN KEY (pull_request_uid)
-                REFERENCES pull_requests(pull_request_uid),
-            FOREIGN KEY (author_id) REFERENCES users(user_id)
+
+def _ensure_v4_pr_comments(conn: Connection) -> None:
+    """Ensure pr_comments references composite FK on pr_threads."""
+    if not _table_exists(conn, "pr_comments"):
+        conn.execute(_V4_PR_COMMENTS_DDL)
+        conn.execute(
+            "CREATE INDEX IF NOT EXISTS idx_pr_comments_thread "
+            "ON pr_comments(pull_request_uid, thread_id)"
         )
-        """
-    )
+        conn.execute(
+            "CREATE INDEX IF NOT EXISTS idx_pr_comments_pr "
+            "ON pr_comments(pull_request_uid)"
+        )
+        conn.execute(
+            "CREATE INDEX IF NOT EXISTS idx_pr_comments_author "
+            "ON pr_comments(author_id)"
+        )
+        logger.info("Created pr_comments with composite FK (was absent)")
+        return
+
+    # Check if the FK already references the composite PK by inspecting
+    # the foreign_key_list pragma.  If the FK target is already
+    # (pull_request_uid, thread_id), skip rebuild.
+    fk_info = conn.execute("PRAGMA foreign_key_list(pr_comments)").fetchall()
+    thread_fk_targets = [
+        row[4]
+        for row in fk_info
+        if row[2] == "pr_threads"  # col 4 = to-column
+    ]
+    if "pull_request_uid" in thread_fk_targets and "thread_id" in thread_fk_targets:
+        return  # Already has composite FK
+
+    conn.execute("ALTER TABLE pr_comments RENAME TO _pr_comments_v3")
+    conn.execute(_V4_PR_COMMENTS_DDL)
     conn.execute(
         """
         INSERT OR IGNORE INTO pr_comments
@@ -269,12 +315,7 @@ def migrate_v3_to_v4(conn: Connection) -> None:
     conn.execute(
         "CREATE INDEX IF NOT EXISTS idx_pr_comments_author ON pr_comments(author_id)"
     )
-
-    conn.execute(
-        "INSERT OR IGNORE INTO schema_version (version, applied_at) "
-        "VALUES (4, datetime('now'))"
-    )
-    logger.info("Applied migration v3 → v4: PR-scoped thread identity")
+    logger.info("Rebuilt pr_comments with composite FK")
 
 
 # Version-keyed migration registry.  Keys are the *target* version;

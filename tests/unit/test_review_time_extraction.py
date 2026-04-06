@@ -1471,20 +1471,18 @@ class TestTriggerScope:
         )
         conn.close()
 
-        # The CLI guard checks sqlite_master before querying pr_comments.
-        # Simulate what cli.py does:
+        # After connect, migrations run and create empty comment tables.
+        # The CLI backfill guard must still degrade gracefully (no crash,
+        # no backfill on empty tables).
         db = DatabaseManager(db_path)
         db.connect()
         try:
-            comments_table_exists = (
-                db.execute(
-                    "SELECT 1 FROM sqlite_master "
-                    "WHERE type='table' AND name='pr_comments'"
-                ).fetchone()
-                is not None
+            from ado_git_repo_insights.cli import (
+                _backfill_review_timestamps_if_needed,
             )
-            assert not comments_table_exists
-            # No crash — graceful degradation
+
+            # Must not crash — empty comment tables are a no-op.
+            _backfill_review_timestamps_if_needed(db)
         finally:
             db.close()
 
