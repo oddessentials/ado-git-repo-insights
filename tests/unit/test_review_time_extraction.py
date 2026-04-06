@@ -1161,28 +1161,22 @@ class TestTriggerScope:
         finally:
             db.close()
 
-    def test_truncated_rerun_clears_prior_full_stamp(self, tmp_path: Path) -> None:
-        """Truncated rerun must clear a prior full-coverage stamp.
+    def test_truncated_rerun_preserves_stamp_when_no_changes(
+        self, tmp_path: Path
+    ) -> None:
+        """Truncated rerun with no unseen thread updates must keep stamp.
 
-        Regression: the truncation guard only skipped writing a new stamp
-        but left the old stamp intact.  _get_comments_coverage() treats
-        any non-NULL comments_extracted_at as authoritative, so a PR that
-        was stamped by an earlier full run remained falsely "fully covered"
-        after a truncated rerun.
-
-        Simulate: stamp PR via prior full run → rerun with truncation →
-        assert stamp cleared and coverage no longer reports full.
+        If a PR was fully extracted before and the dropped threads have
+        no updates since the last extraction, local data is still complete.
+        The stamp must survive so coverage stays correct.
         """
         db = _create_test_db(tmp_path)
         try:
             _seed_pr(db, pr_uid="r1-1")
-            # Prior full run stamped this PR as covered.
             db.execute(
                 "UPDATE pull_requests SET comments_extracted_at = "
                 "'2026-01-20T00:00:00Z' WHERE pull_request_uid = 'r1-1'"
             )
-
-            # Verify: single completed PR, fully stamped → "full".
             db.execute(
                 "INSERT INTO comments_extraction_metadata "
                 "(id, last_run_timestamp, prs_processed, threads_fetched, "
@@ -1198,18 +1192,57 @@ class TestTriggerScope:
             gen = AggregateGenerator(db, output)
             assert gen._get_comments_coverage()["status"] == "full"
 
-            # Simulate truncated rerun: clear the stamp (as cli.py now does
-            # when pr_threads_truncated is True).
+            # Simulate truncated rerun where all dropped threads are
+            # unchanged (no-op path in cli.py).  Stamp must survive.
+            # (No DB changes — stamp stays as-is.)
+
+            assert gen._get_comments_coverage()["status"] == "full", (
+                "Truncated rerun with no unseen updates must preserve stamp"
+            )
+        finally:
+            db.close()
+
+    def test_truncated_rerun_clears_stamp_when_updates_hidden(
+        self, tmp_path: Path
+    ) -> None:
+        """Truncated rerun with unseen thread updates must clear stamp.
+
+        If a PR was fully extracted before but the truncated rerun dropped
+        threads that have updates newer than what is stored, local data is
+        now incomplete.  The stamp must be cleared.
+        """
+        db = _create_test_db(tmp_path)
+        try:
+            _seed_pr(db, pr_uid="r1-1")
+            db.execute(
+                "UPDATE pull_requests SET comments_extracted_at = "
+                "'2026-01-20T00:00:00Z' WHERE pull_request_uid = 'r1-1'"
+            )
+            db.execute(
+                "INSERT INTO comments_extraction_metadata "
+                "(id, last_run_timestamp, prs_processed, threads_fetched, "
+                "comments_fetched, capped) "
+                "VALUES (1, '2026-01-20T00:00:00Z', 1, 5, 10, 0)"
+            )
+
+            from ado_git_repo_insights.transform.aggregators import (
+                AggregateGenerator,
+            )
+
+            output = tmp_path / "agg_out"
+            gen = AggregateGenerator(db, output)
+            assert gen._get_comments_coverage()["status"] == "full"
+
+            # Simulate: truncation hid threads with unseen updates.
+            # cli.py clears stamp in this case.
             db.execute(
                 "UPDATE pull_requests SET comments_extracted_at = NULL "
                 "WHERE pull_request_uid = 'r1-1'"
             )
 
-            # Coverage must no longer be "full".
             coverage = gen._get_comments_coverage()
             assert coverage["status"] != "full", (
-                "Truncated rerun must invalidate prior full stamp — "
-                "coverage should be partial or disabled, not full"
+                "Truncated rerun with hidden updates must invalidate stamp"
             )
         finally:
             db.close()
