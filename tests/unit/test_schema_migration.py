@@ -698,3 +698,60 @@ class TestMigrationV2ToV3CoverageBackfill:
             assert thread is not None
         finally:
             db.close()
+
+    def test_normal_v3_to_v4_rebuild_both_tables(self, tmp_path: Path) -> None:
+        """v3→v4 with both old pr_threads and pr_comments present must rebuild
+        both tables to composite PK/FK and preserve all data.
+        """
+        db_path = tmp_path / "v2_both.db"
+        conn = self._create_v2_db(db_path)
+
+        # Insert PRs, threads, and comments (old single-column PK schema).
+        conn.execute(
+            "INSERT INTO pull_requests (pull_request_uid, pull_request_id, "
+            "organization_name, project_name, repository_id, user_id, "
+            "title, status, creation_date) "
+            "VALUES ('r1-1', 1, 'org', 'proj', 'r1', 'u1', 'PR 1', "
+            "'completed', '2026-01-15T10:00:00Z')"
+        )
+        conn.execute(
+            "INSERT INTO pr_threads (thread_id, pull_request_uid, status, "
+            "last_updated, created_at) "
+            "VALUES ('1', 'r1-1', 'active', '2026-01-16T00:00:00Z', "
+            "'2026-01-16T00:00:00Z')"
+        )
+        conn.execute(
+            "INSERT INTO pr_comments (comment_id, thread_id, "
+            "pull_request_uid, author_id, content, comment_type, "
+            "created_at) "
+            "VALUES ('c1', '1', 'r1-1', 'u1', 'LGTM', 'text', "
+            "'2026-01-16T01:00:00Z')"
+        )
+        conn.commit()
+        conn.close()
+
+        db = DatabaseManager(db_path)
+        db.connect()
+        try:
+            assert db.get_schema_version() == 4
+
+            # pr_threads must have composite PK.
+            pk_info = db.execute("PRAGMA table_info(pr_threads)").fetchall()
+            pk_cols = [row["name"] for row in pk_info if row["pk"] > 0]
+            assert set(pk_cols) == {"pull_request_uid", "thread_id"}
+
+            # Data preserved.
+            thread = db.execute(
+                "SELECT * FROM pr_threads "
+                "WHERE pull_request_uid = 'r1-1' AND thread_id = '1'"
+            ).fetchone()
+            assert thread is not None
+            assert thread["status"] == "active"
+
+            comment = db.execute(
+                "SELECT * FROM pr_comments WHERE comment_id = 'c1'"
+            ).fetchone()
+            assert comment is not None
+            assert comment["content"] == "LGTM"
+        finally:
+            db.close()

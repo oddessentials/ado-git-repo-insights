@@ -485,6 +485,13 @@ class TestCalculateReviewTimeMinutes:
         )
         assert result == pytest.approx(7.38)
 
+    def test_same_timestamp_yields_floor(self) -> None:
+        """reviewed_at == creation_date produces the 1.0-minute floor."""
+        result = calculate_review_time_minutes(
+            "2026-01-15T10:00:00Z", "2026-01-15T10:00:00Z"
+        )
+        assert result == pytest.approx(1.0)
+
 
 # ---------------------------------------------------------------------------
 # T020: upsert_reviewer preserves reviewed_at
@@ -1303,6 +1310,43 @@ class TestTriggerScope:
             )
             assert _dropped_threads_all_stored(db, "r1-1", dropped), (
                 "Thread t2 is now stored and current — should pass"
+            )
+        finally:
+            db.close()
+
+    def test_stale_local_thread_fails_dropped_check(self, tmp_path: Path) -> None:
+        """Stored thread with older last_updated than API must return False.
+
+        The thread exists locally but the API has a newer version.
+        _dropped_threads_all_stored must detect the staleness.
+        """
+        db = _create_test_db(tmp_path)
+        try:
+            _seed_pr(db, pr_uid="r1-1")
+            # Thread stored locally with older timestamp.
+            db.execute(
+                "INSERT INTO pr_threads (thread_id, pull_request_uid, "
+                "status, last_updated, created_at) "
+                "VALUES ('t1', 'r1-1', 'active', '2026-01-08T00:00:00Z', "
+                "'2026-01-07T00:00:00Z')"
+            )
+
+            from ado_git_repo_insights.cli import _dropped_threads_all_stored
+
+            # API has a newer version of this thread.
+            dropped = [{"id": "t1", "lastUpdatedDate": "2026-01-10T00:00:00Z"}]
+            assert not _dropped_threads_all_stored(db, "r1-1", dropped), (
+                "Local thread is stale (API updated 01-10, local 01-08) — "
+                "must not treat as current"
+            )
+
+            # After updating the local thread, it should pass.
+            db.execute(
+                "UPDATE pr_threads SET last_updated = '2026-01-10T00:00:00Z' "
+                "WHERE thread_id = 't1' AND pull_request_uid = 'r1-1'"
+            )
+            assert _dropped_threads_all_stored(db, "r1-1", dropped), (
+                "Local thread now current — should pass"
             )
         finally:
             db.close()
