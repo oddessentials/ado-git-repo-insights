@@ -4229,6 +4229,128 @@ class TestIncompleteCommentCoverageExcluded:
         )
 
 
+class TestReviewTimeMinSampleBoundary:
+    """Boundary test: 1 PR with review_time is below _ROLLUP_MIN_SAMPLE=2."""
+
+    def test_single_pr_review_time_below_threshold(self, tmp_path: Path) -> None:
+        """One non-null review_time_minutes must produce null p50/p90.
+
+        Regression guard: if the threshold check changed from >= to >,
+        a single-PR week would incorrectly produce a percentile.
+        """
+        db_path = tmp_path / "single_rt.sqlite"
+        db = DatabaseManager(db_path)
+        db.connect()
+
+        db.execute("INSERT INTO organizations (organization_name) VALUES ('org1')")
+        db.execute(
+            "INSERT INTO projects (organization_name, project_name) "
+            "VALUES ('org1', 'proj1')"
+        )
+        db.execute(
+            "INSERT INTO repositories "
+            "(repository_id, repository_name, project_name, organization_name) "
+            "VALUES ('r1', 'Repo', 'proj1', 'org1')"
+        )
+        db.execute("INSERT INTO users (user_id, display_name) VALUES ('u1', 'Alice')")
+        db.execute("INSERT INTO users (user_id, display_name) VALUES ('u2', 'Bob')")
+
+        # PR 1: has review_time (the boundary case — only 1 non-null)
+        db.execute(
+            "INSERT INTO pull_requests "
+            "(pull_request_uid, pull_request_id, organization_name, "
+            "project_name, repository_id, user_id, title, status, "
+            "creation_date, closed_date, cycle_time_minutes, "
+            "review_time_minutes, comments_extracted_at) "
+            "VALUES ('r1-1', 1, 'org1', 'proj1', 'r1', 'u1', 'PR 1', "
+            "'completed', '2026-01-06T08:00:00Z', '2026-01-07T08:00:00Z', "
+            "1440.0, 720.0, '2026-01-20T00:00:00Z')"
+        )
+        # PR 2: NULL review_time (so total non-null count = 1)
+        db.execute(
+            "INSERT INTO pull_requests "
+            "(pull_request_uid, pull_request_id, organization_name, "
+            "project_name, repository_id, user_id, title, status, "
+            "creation_date, closed_date, cycle_time_minutes, "
+            "review_time_minutes, comments_extracted_at) "
+            "VALUES ('r1-2', 2, 'org1', 'proj1', 'r1', 'u2', 'PR 2', "
+            "'completed', '2026-01-06T10:00:00Z', '2026-01-08T10:00:00Z', "
+            "2880.0, NULL, '2026-01-20T00:00:00Z')"
+        )
+        for pr_uid in ("r1-1", "r1-2"):
+            db.execute(
+                "INSERT INTO reviewers "
+                "(pull_request_uid, user_id, vote, repository_id) "
+                "VALUES (?, 'u1', 10, 'r1')",
+                (pr_uid,),
+            )
+        db.connection.commit()
+
+        output_dir = tmp_path / "output"
+        generator = AggregateGenerator(db, output_dir)
+        generator.generate_all()
+
+        week_path = output_dir / "aggregates" / "weekly_rollups" / "2026-W02.json"
+        with week_path.open() as f:
+            data = json.load(f)
+
+        # 1 non-null < _ROLLUP_MIN_SAMPLE=2 → must be null
+        assert data["review_time_p50"] is None, (
+            "Single non-null review_time must not produce p50 "
+            "(below _ROLLUP_MIN_SAMPLE=2)"
+        )
+        assert data["review_time_p90"] is None, (
+            "Single non-null review_time must not produce p90 "
+            "(below _ROLLUP_MIN_SAMPLE=2)"
+        )
+        # cycle_time has 2 PRs → should still be present
+        assert data["cycle_time_p50"] is not None
+
+        db.close()
+
+
+class TestReviewTimeP50LeP90Invariant:
+    """Aggregator must never produce p50 > p90."""
+
+    def test_review_time_p50_le_p90(
+        self, review_time_db: tuple[DatabaseManager, Path]
+    ) -> None:
+        """p50 must be <= p90 across all weeks and dimension slices."""
+        db, tmp_path = review_time_db
+        output_dir = tmp_path / "output"
+
+        generator = AggregateGenerator(db, output_dir)
+        generator.generate_all()
+
+        rollup_dir = output_dir / "aggregates" / "weekly_rollups"
+        for week_path in sorted(rollup_dir.glob("*.json")):
+            with week_path.open() as f:
+                data = json.load(f)
+
+            # Base rollup
+            p50 = data.get("review_time_p50")
+            p90 = data.get("review_time_p90")
+            if p50 is not None and p90 is not None:
+                assert p50 <= p90, f"{week_path.name} base: p50={p50} > p90={p90}"
+
+            # Dimension slices
+            for dim_key in (
+                "by_repository",
+                "by_author",
+                "by_team",
+                "by_reviewer",
+            ):
+                dim = data.get(dim_key) or {}
+                for name, entry in dim.items():
+                    sp50 = entry.get("review_time_p50")
+                    sp90 = entry.get("review_time_p90")
+                    if sp50 is not None and sp90 is not None:
+                        assert sp50 <= sp90, (
+                            f"{week_path.name} {dim_key}[{name}]: "
+                            f"p50={sp50} > p90={sp90}"
+                        )
+
+
 class TestReviewTimeDimensionSlices:
     """T031-T036: Dimension slice review_time aggregation."""
 

@@ -219,6 +219,11 @@ class PRRepository:
         Invariant 8: UPSERT semantics ensure idempotent updates.
         Invariant 14: pull_request_uid = {repository_id}-{pull_request_id}.
 
+        Uses ON CONFLICT to preserve ``review_time_minutes`` and
+        ``comments_extracted_at`` when the PR extraction pass re-upserts
+        an existing row.  The old INSERT OR REPLACE would delete-then-insert,
+        wiping any previously populated review-time data and coverage stamps.
+
         Args:
             pull_request_uid: Unique identifier (repo_id-pr_id).
             pull_request_id: ADO PR ID.
@@ -236,11 +241,24 @@ class PRRepository:
         """
         self.db.execute(
             """
-            INSERT OR REPLACE INTO pull_requests (
+            INSERT INTO pull_requests (
                 pull_request_uid, pull_request_id, organization_name, project_name,
                 repository_id, user_id, title, status, description,
                 creation_date, closed_date, cycle_time_minutes, raw_json
             ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ON CONFLICT(pull_request_uid) DO UPDATE SET
+                pull_request_id = excluded.pull_request_id,
+                organization_name = excluded.organization_name,
+                project_name = excluded.project_name,
+                repository_id = excluded.repository_id,
+                user_id = excluded.user_id,
+                title = excluded.title,
+                status = excluded.status,
+                description = excluded.description,
+                creation_date = excluded.creation_date,
+                closed_date = excluded.closed_date,
+                cycle_time_minutes = excluded.cycle_time_minutes,
+                raw_json = excluded.raw_json
             """,
             (
                 pull_request_uid,

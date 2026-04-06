@@ -1,6 +1,6 @@
 {
   "rule": "S603",
-  "total_call_sites": 81,
+  "total_call_sites": 84,
   "unsafe_count": 12,
   "call_sites": [
     {
@@ -26,6 +26,30 @@
       "shell_true": false,
       "literal_list": false,
       "safety": "unsafe-non-literal-command"
+    },
+    {
+      "file": "scripts/build-demo-dataset.py",
+      "line": 224,
+      "code": "result = subprocess.run(",
+      "shell_true": false,
+      "literal_list": true,
+      "safety": "safe-literal-list"
+    },
+    {
+      "file": "scripts/build-demo-dataset.py",
+      "line": 262,
+      "code": "root_check = subprocess.run(",
+      "shell_true": false,
+      "literal_list": true,
+      "safety": "safe-literal-list"
+    },
+    {
+      "file": "scripts/build-demo-dataset.py",
+      "line": 270,
+      "code": "result = subprocess.run(",
+      "shell_true": false,
+      "literal_list": true,
+      "safety": "safe-literal-list"
     },
     {
       "file": "scripts/build_demo.py",

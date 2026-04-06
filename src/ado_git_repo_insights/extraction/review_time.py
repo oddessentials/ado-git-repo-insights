@@ -66,6 +66,31 @@ def populate_review_timestamps(db: DatabaseManager) -> int:
         f"Review time recompute scope: {len(scoped_pr_uids)} PRs with comment data"
     )
 
+    # Wrap all mutations in a transaction so a crash between clearing
+    # (Step 2) and repopulating (Steps 5-6) never leaves the DB with
+    # wiped timestamps.  The connection uses isolation_level=None
+    # (autocommit), so BEGIN/COMMIT must be explicit.
+    db.execute("BEGIN TRANSACTION")
+    try:
+        updated_count = _recompute_review_timestamps(db, scoped_pr_uids)
+        db.execute("COMMIT")
+    except BaseException:
+        db.execute("ROLLBACK")
+        raise
+
+    return updated_count
+
+
+def _recompute_review_timestamps(
+    db: DatabaseManager,
+    scoped_pr_uids: list[str],
+) -> int:
+    """Recompute review timestamps within an active transaction.
+
+    Separated from :func:`populate_review_timestamps` so the caller
+    can wrap the full clear-then-repopulate cycle in a single
+    transaction, preventing a partial-clear state on crash.
+    """
     # Step 2: Clear prior review timestamps for ALL scoped PRs.
     # This ensures convergence: if a vote was deleted since last run,
     # the old reviewed_at/review_time_minutes won't persist.

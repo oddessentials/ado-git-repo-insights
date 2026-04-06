@@ -233,17 +233,20 @@ class TestDemoGeneratorInProcessDeterminism:
         seed = mod.SEED
 
         # Reset main RNG to known state (same as main() does).
-        mod.RNG = init_random(seed)
+        # Use setattr because the module is dynamically loaded and mypy
+        # cannot verify attributes on types.ModuleType.
+        rng_attr = "RNG"
+        setattr(mod, rng_attr, init_random(seed))
         repos = mod.generate_repositories(mod.generate_projects())
         teams = mod.generate_teams(mod.generate_projects())
         users = mod.generate_users()
 
         # Call 1
-        mod.RNG = init_random(seed)
+        setattr(mod, rng_attr, init_random(seed))
         rollups_a = mod.generate_weekly_rollups(repos, teams, users)
 
         # Call 2 — same inputs, same main RNG state
-        mod.RNG = init_random(seed)
+        setattr(mod, rng_attr, init_random(seed))
         rollups_b = mod.generate_weekly_rollups(repos, teams, users)
 
         assert len(rollups_a) == len(rollups_b)
