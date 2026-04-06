@@ -928,8 +928,9 @@ def _dropped_threads_all_stored(
             return False
 
         row = db.execute(
-            "SELECT last_updated FROM pr_threads WHERE thread_id = ?",
-            (tid,),
+            "SELECT last_updated FROM pr_threads "
+            "WHERE pull_request_uid = ? AND thread_id = ?",
+            (pr_uid, tid),
         ).fetchone()
 
         if row is None:

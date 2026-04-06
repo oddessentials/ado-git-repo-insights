@@ -1307,6 +1307,56 @@ class TestTriggerScope:
         finally:
             db.close()
 
+    def test_cross_pr_thread_id_does_not_preserve_stamp(self, tmp_path: Path) -> None:
+        """Thread stored for PR B must not make PR A pass the dropped check.
+
+        Regression: _dropped_threads_all_stored queried pr_threads by
+        thread_id alone.  ADO thread IDs are PR-scoped integers, so two
+        PRs can share the same numeric thread_id.  A match on the wrong
+        PR falsely preserved coverage.
+        """
+        db = _create_test_db(tmp_path)
+        try:
+            _seed_pr(db, pr_uid="r1-1")
+            # Seed a second PR with its own FK references.
+            db.execute(
+                "INSERT OR IGNORE INTO pull_requests "
+                "(pull_request_uid, pull_request_id, organization_name, "
+                "project_name, repository_id, user_id, title, status, "
+                "creation_date) "
+                "VALUES ('r1-2', 2, 'org', 'proj', 'r1', 'u1', "
+                "'PR 2', 'completed', '2026-01-16T08:00:00Z')"
+            )
+
+            # Thread "1" stored for PR r1-2 only.
+            db.execute(
+                "INSERT INTO pr_threads (thread_id, pull_request_uid, "
+                "status, last_updated, created_at) "
+                "VALUES ('1', 'r1-2', 'active', '2026-01-16T00:00:00Z', "
+                "'2026-01-16T00:00:00Z')"
+            )
+
+            from ado_git_repo_insights.cli import _dropped_threads_all_stored
+
+            # Dropped thread "1" for PR r1-1.  Only r1-2 has it stored.
+            dropped = [{"id": 1, "lastUpdatedDate": "2026-01-15T00:00:00Z"}]
+            assert not _dropped_threads_all_stored(db, "r1-1", dropped), (
+                "Thread '1' exists for r1-2 but NOT r1-1 — must not match"
+            )
+
+            # If r1-1 also has the thread stored, it should pass.
+            db.execute(
+                "INSERT INTO pr_threads (thread_id, pull_request_uid, "
+                "status, last_updated, created_at) "
+                "VALUES ('1', 'r1-1', 'active', '2026-01-15T00:00:00Z', "
+                "'2026-01-15T00:00:00Z')"
+            )
+            assert _dropped_threads_all_stored(db, "r1-1", dropped), (
+                "Thread '1' now stored for r1-1 — should pass"
+            )
+        finally:
+            db.close()
+
     def test_backfill_helper_populates_review_time(self, tmp_path: Path) -> None:
         """DB with pr_comments but no review_time_minutes gets backfilled
         when _backfill_review_timestamps_if_needed() runs.

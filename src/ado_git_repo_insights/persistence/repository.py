@@ -545,7 +545,7 @@ class PRRepository:
                 thread_id, pull_request_uid, status, thread_context,
                 last_updated, created_at, is_deleted
             ) VALUES (?, ?, ?, ?, ?, ?, ?)
-            ON CONFLICT(thread_id) DO UPDATE SET
+            ON CONFLICT(pull_request_uid, thread_id) DO UPDATE SET
                 status = excluded.status,
                 thread_context = excluded.thread_context,
                 last_updated = excluded.last_updated,

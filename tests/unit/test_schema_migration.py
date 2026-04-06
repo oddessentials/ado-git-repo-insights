@@ -178,8 +178,8 @@ class TestMigrationV1ToV2:
         db = DatabaseManager(db_path)
         db.connect()
         try:
-            # All pending migrations applied: v1→v2→v3
-            assert db.get_schema_version() == 3
+            # All pending migrations applied: v1→v2→v3→v4
+            assert db.get_schema_version() == 4
         finally:
             db.close()
 
@@ -221,20 +221,20 @@ class TestMigrationIdempotency:
         db.connect()
         db.close()
 
-        assert _get_schema_version(db_path) == 3
+        assert _get_schema_version(db_path) == 4
 
         # Second connect: should be a no-op
         db2 = DatabaseManager(db_path)
         db2.connect()
         try:
-            assert db2.get_schema_version() == 3
+            assert db2.get_schema_version() == 4
             assert "reviewed_at" in _get_column_names(db_path, "reviewers")
         finally:
             db2.close()
 
 
 class TestFreshInstall:
-    """T006: new database starts at v3 with all columns."""
+    """T006: new database starts at v4 with all columns."""
 
     def test_fresh_db_has_reviewed_at(self, tmp_path: Path) -> None:
         db_path = tmp_path / "fresh.db"
@@ -265,12 +265,12 @@ class TestFreshInstall:
         finally:
             db.close()
 
-    def test_fresh_db_starts_at_version_3(self, tmp_path: Path) -> None:
+    def test_fresh_db_starts_at_version_4(self, tmp_path: Path) -> None:
         db_path = tmp_path / "fresh.db"
         db = DatabaseManager(db_path)
         db.connect()
         try:
-            assert db.get_schema_version() == 3
+            assert db.get_schema_version() == 4
         finally:
             db.close()
 
@@ -425,7 +425,7 @@ class TestMigrationV2ToV3CoverageBackfill:
         db = DatabaseManager(db_path)
         db.connect()
         try:
-            assert db.get_schema_version() == 3
+            assert db.get_schema_version() == 4
 
             # Only the 1 PR with evidence should be stamped.
             row = db.execute(
@@ -562,7 +562,7 @@ class TestMigrationV2ToV3CoverageBackfill:
         db = DatabaseManager(db_path)
         db.connect()
         try:
-            assert db.get_schema_version() == 3
+            assert db.get_schema_version() == 4
 
             # Only 2 PRs with evidence should be stamped.
             row = db.execute(
@@ -621,7 +621,7 @@ class TestMigrationV2ToV3CoverageBackfill:
         db = DatabaseManager(db_path)
         db.connect()
         try:
-            assert db.get_schema_version() == 3
+            assert db.get_schema_version() == 4
 
             # r1-1 must be stamped from evidence despite missing metadata.
             row = db.execute(
