@@ -629,28 +629,6 @@ class PRRepository:
             ),
         )
 
-    def get_thread_last_updated(self, pull_request_uid: str) -> str | None:
-        """Get the most recent thread update time for a PR.
-
-        §6: Used for incremental sync to avoid refetching unchanged threads.
-
-        Args:
-            pull_request_uid: PR unique identifier.
-
-        Returns:
-            ISO 8601 timestamp of most recent update, or None.
-        """
-        cursor = self.db.execute(
-            """
-            SELECT MAX(last_updated) as max_updated
-            FROM pr_threads
-            WHERE pull_request_uid = ?
-            """,
-            (pull_request_uid,),
-        )
-        row = cursor.fetchone()
-        return row["max_updated"] if row and row["max_updated"] else None
-
     def get_thread_count(self, pull_request_uid: str | None = None) -> int:
         """Get thread count, optionally filtered by PR.
 

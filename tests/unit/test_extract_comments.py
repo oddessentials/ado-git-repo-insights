@@ -216,6 +216,94 @@ class TestExtractCommentsStamping:
             db.close()
 
 
+class TestPerThreadIncrementalSync:
+    """Regression: coarse MAX(last_updated) skip could miss never-fetched threads."""
+
+    def test_never_stored_threads_not_skipped_by_incremental_sync(
+        self, tmp_path: Path
+    ) -> None:
+        """Threads absent from pr_threads must be fetched even if older than stored max.
+
+        Scenario: A prior truncated run stored threads 1-3 but dropped 4-5.
+        Thread 3 was recently updated (newest MAX). Threads 4-5 are older.
+        A subsequent non-truncated run must still fetch 4-5 and stamp coverage.
+        The old MAX(last_updated) check would skip 4-5 because their
+        lastUpdatedDate was <= thread 3's last_updated.
+        """
+        db = _create_db_with_pr(tmp_path)
+        try:
+            # Simulate prior truncated run: store threads 1-3 only.
+            # Thread 3 has the newest last_updated.
+            truncated_threads = [
+                _make_thread(1, updated="2026-01-10T00:00:00Z"),
+                _make_thread(2, updated="2026-01-11T00:00:00Z"),
+                _make_thread(3, updated="2026-01-15T00:00:00Z"),  # newest
+            ]
+            _run_extract(db, truncated_threads, max_threads_per_pr=0)
+            assert _get_stamp(db) is not None  # 3 threads, no truncation
+
+            # Clear the stamp to simulate a prior truncated state where
+            # threads 4-5 were dropped and stamp was cleared.
+            db.execute(
+                "UPDATE pull_requests SET comments_extracted_at = NULL "
+                "WHERE pull_request_uid = 'r1-1'"
+            )
+            db.connection.commit()
+            assert _get_stamp(db) is None
+
+            # Now run with all 5 threads (non-truncated).
+            # Threads 4-5 have lastUpdatedDate OLDER than thread 3.
+            all_threads = [
+                _make_thread(1, updated="2026-01-10T00:00:00Z"),
+                _make_thread(2, updated="2026-01-11T00:00:00Z"),
+                _make_thread(3, updated="2026-01-15T00:00:00Z"),
+                _make_thread(4, updated="2026-01-08T00:00:00Z"),  # older
+                _make_thread(5, updated="2026-01-09T00:00:00Z"),  # older
+            ]
+            stats = _run_extract(db, all_threads, max_threads_per_pr=0)
+
+            # Threads 1-3 should be skipped (unchanged), 4-5 should be stored.
+            assert int(stats["threads"]) == 2, (
+                "Threads 4 and 5 must be stored — they were never fetched, "
+                "even though their lastUpdatedDate < stored MAX"
+            )
+
+            # Coverage must be stamped (non-truncated, all threads accounted for).
+            assert _get_stamp(db) is not None, (
+                "Non-truncated run with all threads stored must stamp coverage"
+            )
+
+            # Verify threads 4 and 5 are actually in pr_threads.
+            for tid in ("4", "5"):
+                row = db.execute(
+                    "SELECT thread_id FROM pr_threads "
+                    "WHERE pull_request_uid = 'r1-1' AND thread_id = ?",
+                    (tid,),
+                ).fetchone()
+                assert row is not None, f"Thread {tid} must be stored in pr_threads"
+        finally:
+            db.close()
+
+    def test_unchanged_stored_threads_still_skipped(self, tmp_path: Path) -> None:
+        """Per-thread check must still skip threads that exist and are current."""
+        db = _create_db_with_pr(tmp_path)
+        try:
+            threads = [
+                _make_thread(1, updated="2026-01-10T00:00:00Z"),
+                _make_thread(2, updated="2026-01-11T00:00:00Z"),
+            ]
+            _run_extract(db, threads, max_threads_per_pr=0)
+            assert int(db.execute("SELECT COUNT(*) FROM pr_threads").fetchone()[0]) == 2
+
+            # Re-run with same threads — both should be skipped.
+            stats = _run_extract(db, threads, max_threads_per_pr=0)
+            assert int(stats["threads"]) == 0, (
+                "Unchanged stored threads must still be skipped by per-thread check"
+            )
+        finally:
+            db.close()
+
+
 # ---------------------------------------------------------------------------
 # P2: End-to-end pipeline test
 # ---------------------------------------------------------------------------

@@ -203,14 +203,15 @@ class TestExtractComments:
         self, db: DatabaseManager, mock_client: MagicMock, mock_config: MagicMock
     ) -> None:
         """Test that unchanged threads are skipped (§6 incremental sync)."""
-        # Insert existing thread with a timestamp
+        # Insert existing thread with a timestamp.
+        # Thread id "1" matches the API id used below (str(thread["id"])).
         # Note: repo1-5 has closed_date 2026-01-14, so it will be processed first in DESC order
         now = datetime.now(UTC).isoformat()
         db.execute(
             """INSERT INTO pr_threads
             (thread_id, pull_request_uid, status, last_updated, created_at)
             VALUES (?, ?, ?, ?, ?)""",
-            ("thread1", "repo1-5", "active", "2026-01-14T12:00:00Z", now),
+            ("1", "repo1-5", "active", "2026-01-14T12:00:00Z", now),
         )
         db.connection.commit()
 
@@ -221,7 +222,7 @@ class TestExtractComments:
                 "status": "active",
                 "lastUpdatedDate": "2026-01-14T10:00:00Z",
                 "comments": [],
-            },  # Older - skip
+            },  # Older, already stored — skip
             {
                 "id": 2,
                 "status": "fixed",

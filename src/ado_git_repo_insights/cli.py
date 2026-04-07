@@ -483,9 +483,6 @@ def _extract_comments(
         repo_id = pr_row["repository_id"]
         project_name = pr_row["project_name"]
 
-        # §6: Incremental sync - check last_updated
-        last_updated = repo.get_thread_last_updated(pr_uid)
-
         try:
             # Fetch threads from API
             threads = client.get_pr_threads(
@@ -510,8 +507,20 @@ def _extract_comments(
                 thread_created = thread.get("publishedDate", thread_updated)
                 thread_status = thread.get("status", "unknown")
 
-                # §6: Skip unchanged threads (incremental sync)
-                if last_updated and thread_updated <= last_updated:
+                # §6: Per-thread incremental sync — skip only if this
+                # specific thread exists locally and is current.  The old
+                # MAX(last_updated) check could skip threads that were
+                # NEVER fetched (e.g. after a prior truncated run where
+                # dropped threads had older lastUpdatedDate).
+                local_thread = db.execute(
+                    "SELECT last_updated FROM pr_threads "
+                    "WHERE pull_request_uid = ? AND thread_id = ?",
+                    (pr_uid, thread_id),
+                ).fetchone()
+                if (
+                    local_thread is not None
+                    and thread_updated <= local_thread["last_updated"]
+                ):
                     continue
 
                 # Serialize thread context
