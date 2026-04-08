@@ -131,7 +131,7 @@ def test_manifest_schema_validation():
     # Validate schema versions
     assert manifest_data["manifest_schema_version"] == 1
     assert manifest_data["dataset_schema_version"] == 1
-    assert manifest_data["aggregates_schema_version"] == 2
+    assert manifest_data["aggregates_schema_version"] == 3
 
     # Validate required fields
     assert "generated_at" in manifest_data
@@ -912,3 +912,157 @@ class TestDemoDataRealism:
         assert checksums_a == checksums_b, (
             "Generator output is not deterministic — files differ between runs"
         )
+
+
+@pytest.mark.parametrize("seed", [42, 123, 9999])
+def test_review_time_p50_le_p90_across_seeds(seed: int) -> None:
+    """Synthetic review_time_p50 must never exceed review_time_p90.
+
+    Regression: independent ratio draws per percentile caused p50 > p90
+    for some seeds when ct_p50/ct_p90 gap was narrow and ratios diverged.
+    """
+    output_dir = run_generator(
+        pr_count=1000, weeks=52, seed=seed, include_comments=True
+    )
+    rollup_dir = output_dir / "aggregates" / "weekly_rollups"
+
+    violations = 0
+    checked = 0
+    for rollup_path in sorted(rollup_dir.glob("*.json")):
+        with rollup_path.open() as f:
+            data = json.load(f)
+
+        # Root level
+        p50 = data.get("review_time_p50")
+        p90 = data.get("review_time_p90")
+        if p50 is not None and p90 is not None:
+            checked += 1
+            if p50 > p90:
+                violations += 1
+
+        # Breakdown entries
+        for dim in ("by_repository", "by_team"):
+            for entry in data.get(dim, {}).values():
+                ep50 = entry.get("review_time_p50")
+                ep90 = entry.get("review_time_p90")
+                if ep50 is not None and ep90 is not None:
+                    checked += 1
+                    if ep50 > ep90:
+                        violations += 1
+
+    assert checked > 0, f"No p50/p90 pairs found for seed {seed}"
+    assert violations == 0, (
+        f"seed={seed}: {violations}/{checked} pairs have "
+        f"review_time_p50 > review_time_p90"
+    )
+
+
+def test_undersampled_slices_null_review_time() -> None:
+    """Synthetic slices with pr_count < 2 must emit null review_time.
+
+    Regression: by_team and by_repository entries always emitted numeric
+    review_time regardless of PR count, contradicting production semantics
+    where _ROLLUP_MIN_SAMPLE=2 nulls undersampled slices.
+    """
+    # Use a small dataset where some slices will have < 2 PRs
+    output_dir = run_generator(pr_count=100, weeks=52, seed=42)
+    rollup_dir = output_dir / "aggregates" / "weekly_rollups"
+
+    undersampled_with_value = 0
+    undersampled_total = 0
+
+    for rollup_path in sorted(rollup_dir.glob("*.json")):
+        with rollup_path.open() as f:
+            data = json.load(f)
+
+        for dim in ("by_repository", "by_team"):
+            for entry in data.get(dim, {}).values():
+                pr_count = entry.get("pr_count", 0)
+                if pr_count < 2:
+                    undersampled_total += 1
+                    rt_p50 = entry.get("review_time_p50")
+                    rt_p90 = entry.get("review_time_p90")
+                    if rt_p50 is not None or rt_p90 is not None:
+                        undersampled_with_value += 1
+
+    # With 100 PRs across 52 weeks and multiple repos, some slices
+    # will have < 2 PRs. Those must not emit numeric review_time.
+    if undersampled_total > 0:
+        assert undersampled_with_value == 0, (
+            f"{undersampled_with_value}/{undersampled_total} undersampled slices "
+            f"(pr_count < 2) have non-null review_time — should be null"
+        )
+
+
+def test_no_review_time_without_include_comments() -> None:
+    """Without --include-comments, all review_time fields must be null.
+
+    Regression: generator emitted numeric review_time even when comments
+    feature was disabled, making synthetic fixtures diverge from production
+    where review timestamps require thread extraction.
+    """
+    output_dir = run_generator(pr_count=1000, weeks=12, seed=42)
+    rollup_dir = output_dir / "aggregates" / "weekly_rollups"
+
+    nonnull_count = 0
+    for rollup_path in sorted(rollup_dir.glob("*.json")):
+        with rollup_path.open() as f:
+            data = json.load(f)
+        if data.get("review_time_p50") is not None:
+            nonnull_count += 1
+        if data.get("review_time_p90") is not None:
+            nonnull_count += 1
+        for dim in ("by_repository", "by_team"):
+            for entry in data.get(dim, {}).values():
+                if entry.get("review_time_p50") is not None:
+                    nonnull_count += 1
+                if entry.get("review_time_p90") is not None:
+                    nonnull_count += 1
+
+    assert nonnull_count == 0, (
+        f"Without --include-comments, found {nonnull_count} non-null "
+        f"review_time values — should all be null"
+    )
+
+
+def test_root_review_time_matches_production_gating() -> None:
+    """Root review_time_p50 and _p90 must always be both-null or both-non-null.
+
+    Production gates both percentiles from the same sample count check
+    (review_time_minutes.notna().sum() >= 2). No impossible mixed states
+    (one null, one numeric) are allowed. Additionally, weeks with fewer
+    than 2 PRs must always emit null for both.
+    """
+    output_dir = run_generator(pr_count=100, weeks=52, seed=42)
+    rollup_dir = output_dir / "aggregates" / "weekly_rollups"
+
+    mixed_states = 0
+    undersampled_with_value = 0
+    total = 0
+    for rollup_path in sorted(rollup_dir.glob("*.json")):
+        with rollup_path.open() as f:
+            data = json.load(f)
+        total += 1
+        rt_p50 = data.get("review_time_p50")
+        rt_p90 = data.get("review_time_p90")
+        pr_count = data.get("pr_count", 0)
+
+        # No impossible mixed states: both null or both non-null
+        p50_null = rt_p50 is None
+        p90_null = rt_p90 is None
+        if p50_null != p90_null:
+            mixed_states += 1
+
+        # Undersampled weeks must be null
+        if pr_count < 2 and (rt_p50 is not None or rt_p90 is not None):
+            undersampled_with_value += 1
+
+    assert total > 0
+    assert mixed_states == 0, (
+        f"{mixed_states}/{total} root rollups have mixed null state "
+        f"(one null, one numeric) — production never allows this"
+    )
+    assert undersampled_with_value == 0, (
+        f"{undersampled_with_value} root rollups with pr_count < 2 "
+        f"have non-null review_time"
+    )

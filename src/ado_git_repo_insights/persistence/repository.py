@@ -219,6 +219,11 @@ class PRRepository:
         Invariant 8: UPSERT semantics ensure idempotent updates.
         Invariant 14: pull_request_uid = {repository_id}-{pull_request_id}.
 
+        Uses ON CONFLICT to preserve ``review_time_minutes`` and
+        ``comments_extracted_at`` when the PR extraction pass re-upserts
+        an existing row.  The old INSERT OR REPLACE would delete-then-insert,
+        wiping any previously populated review-time data and coverage stamps.
+
         Args:
             pull_request_uid: Unique identifier (repo_id-pr_id).
             pull_request_id: ADO PR ID.
@@ -236,11 +241,24 @@ class PRRepository:
         """
         self.db.execute(
             """
-            INSERT OR REPLACE INTO pull_requests (
+            INSERT INTO pull_requests (
                 pull_request_uid, pull_request_id, organization_name, project_name,
                 repository_id, user_id, title, status, description,
                 creation_date, closed_date, cycle_time_minutes, raw_json
             ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ON CONFLICT(pull_request_uid) DO UPDATE SET
+                pull_request_id = excluded.pull_request_id,
+                organization_name = excluded.organization_name,
+                project_name = excluded.project_name,
+                repository_id = excluded.repository_id,
+                user_id = excluded.user_id,
+                title = excluded.title,
+                status = excluded.status,
+                description = excluded.description,
+                creation_date = excluded.creation_date,
+                closed_date = excluded.closed_date,
+                cycle_time_minutes = excluded.cycle_time_minutes,
+                raw_json = excluded.raw_json
             """,
             (
                 pull_request_uid,
@@ -270,6 +288,11 @@ class PRRepository:
     ) -> None:
         """Insert or update a reviewer.
 
+        Uses ON CONFLICT to preserve ``reviewed_at`` when the PR extraction
+        pass re-upserts an existing reviewer (only vote and repository_id
+        are updated).  The old INSERT OR REPLACE would delete-then-insert,
+        wiping any previously populated ``reviewed_at`` timestamp.
+
         Args:
             pull_request_uid: PR unique identifier.
             user_id: Reviewer user ID.
@@ -278,9 +301,12 @@ class PRRepository:
         """
         self.db.execute(
             """
-            INSERT OR REPLACE INTO reviewers
-            (pull_request_uid, user_id, vote, repository_id)
+            INSERT INTO reviewers
+                (pull_request_uid, user_id, vote, repository_id)
             VALUES (?, ?, ?, ?)
+            ON CONFLICT(pull_request_uid, user_id) DO UPDATE SET
+                vote = excluded.vote,
+                repository_id = excluded.repository_id
             """,
             (pull_request_uid, user_id, vote, repository_id),
         )
@@ -537,7 +563,7 @@ class PRRepository:
                 thread_id, pull_request_uid, status, thread_context,
                 last_updated, created_at, is_deleted
             ) VALUES (?, ?, ?, ?, ?, ?, ?)
-            ON CONFLICT(thread_id) DO UPDATE SET
+            ON CONFLICT(pull_request_uid, thread_id) DO UPDATE SET
                 status = excluded.status,
                 thread_context = excluded.thread_context,
                 last_updated = excluded.last_updated,
@@ -602,28 +628,6 @@ class PRRepository:
                 1 if is_deleted else 0,
             ),
         )
-
-    def get_thread_last_updated(self, pull_request_uid: str) -> str | None:
-        """Get the most recent thread update time for a PR.
-
-        §6: Used for incremental sync to avoid refetching unchanged threads.
-
-        Args:
-            pull_request_uid: PR unique identifier.
-
-        Returns:
-            ISO 8601 timestamp of most recent update, or None.
-        """
-        cursor = self.db.execute(
-            """
-            SELECT MAX(last_updated) as max_updated
-            FROM pr_threads
-            WHERE pull_request_uid = ?
-            """,
-            (pull_request_uid,),
-        )
-        row = cursor.fetchone()
-        return row["max_updated"] if row and row["max_updated"] else None
 
     def get_thread_count(self, pull_request_uid: str | None = None) -> int:
         """Get thread count, optionally filtered by PR.

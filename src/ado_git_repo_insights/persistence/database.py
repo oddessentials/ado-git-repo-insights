@@ -15,6 +15,7 @@ from typing import TYPE_CHECKING
 
 from ado_git_repo_insights.types import SqliteParam
 
+from .migrations import MIGRATIONS
 from .models import SCHEMA_SQL
 
 if TYPE_CHECKING:
@@ -87,6 +88,7 @@ class DatabaseManager:
             else:
                 logger.info(f"Connected to existing database at {self.db_path}")
                 self._validate_schema()
+                self._apply_migrations()
 
         except sqlite3.Error as e:
             self.close()  # Ensure connection is closed on error
@@ -137,6 +139,22 @@ class DatabaseManager:
                 f"Database schema invalid. Missing tables: {missing}. "
                 "Consider creating a fresh database."
             )
+
+    def _apply_migrations(self) -> None:
+        """Apply pending schema migrations based on current version.
+
+        Compares the stored schema version against the MIGRATIONS registry
+        and applies each pending migration in order.  Idempotent — if the
+        database is already at the latest version, this is a no-op.
+        """
+        current = self.get_schema_version()
+        pending = sorted(v for v in MIGRATIONS if v > current)
+        if not pending:
+            return
+        for version in pending:
+            logger.info(f"Applying schema migration to v{version}")
+            MIGRATIONS[version](self.connection)
+        logger.info(f"Schema migrations complete: v{current} → v{pending[-1]}")
 
     @contextmanager
     def transaction(self) -> Iterator[Cursor]:

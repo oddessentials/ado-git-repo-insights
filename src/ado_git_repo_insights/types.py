@@ -266,6 +266,8 @@ class SliceMetrics(TypedDict):
     pr_count: int
     cycle_time_p50: float | None
     cycle_time_p90: float | None
+    review_time_p50: float | None
+    review_time_p90: float | None
     authors_count: int
     reviewers_count: int
 

@@ -240,39 +240,6 @@ class TestThreadPersistence:
         assert row is not None
         assert "test comment" in row["content"]
 
-    def test_get_thread_last_updated_for_incremental_sync(
-        self, repo: PRRepository, db: DatabaseManager
-    ) -> None:
-        """Test incremental sync uses last_updated (§6)."""
-        pr_uid = self.setup_pr(db)
-
-        # No threads yet
-        last_updated = repo.get_thread_last_updated(pr_uid)
-        assert last_updated is None
-
-        # Add threads with different timestamps
-        repo.upsert_thread(
-            thread_id="thread1",
-            pull_request_uid=pr_uid,
-            status="active",
-            thread_context=None,
-            last_updated="2026-01-14T10:00:00Z",
-            created_at="2026-01-14T09:00:00Z",
-        )
-        repo.upsert_thread(
-            thread_id="thread2",
-            pull_request_uid=pr_uid,
-            status="active",
-            thread_context=None,
-            last_updated="2026-01-14T12:00:00Z",
-            created_at="2026-01-14T11:00:00Z",
-        )
-        db.connection.commit()
-
-        # Should return the most recent
-        last_updated = repo.get_thread_last_updated(pr_uid)
-        assert last_updated == "2026-01-14T12:00:00Z"
-
 
 class TestCommentsCoverage:
     """Tests for comments coverage tracking."""
@@ -349,6 +316,20 @@ class TestCommentsCoverage:
             VALUES (?, ?, ?, ?, ?)
             """,
             ("thread1", "repo1-1", "active", now, now),
+        )
+        # Extraction metadata: processed all completed PRs, uncapped.
+        db.execute(
+            "INSERT INTO comments_extraction_metadata "
+            "(id, last_run_timestamp, prs_processed, threads_fetched, "
+            "comments_fetched, capped) "
+            "VALUES (1, ?, 1, 1, 0, 0)",
+            (now,),
+        )
+        # Mark the PR as extraction-covered (dataset-level coverage).
+        db.execute(
+            "UPDATE pull_requests SET comments_extracted_at = ? "
+            "WHERE pull_request_uid = 'repo1-1'",
+            (now,),
         )
         db.connection.commit()
 

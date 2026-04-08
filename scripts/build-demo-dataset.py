@@ -10,7 +10,7 @@ import shutil
 import subprocess
 import sys
 import time
-from collections.abc import Mapping, Sequence
+from collections.abc import Callable, Mapping, Sequence
 from pathlib import Path
 from typing import TYPE_CHECKING, TypedDict
 
@@ -207,6 +207,85 @@ def list_relative_files(root: Path) -> list[str]:
     )
 
 
+def _gitignored_copytree_ignore(
+    source_root: Path,
+) -> Callable[[str, list[str]], set[str]]:
+    """Return a ``shutil.copytree`` *ignore* callback that skips gitignored files.
+
+    Queries ``git check-ignore`` once per directory visited by copytree.
+    """
+
+    def _ignore(directory: str, contents: list[str]) -> set[str]:
+        dir_path = Path(directory)
+        children = [str(dir_path / name) for name in contents]
+        if not children:
+            return set()
+        input_bytes = "\n".join(children).encode("utf-8")
+        result = subprocess.run(
+            ["git", "check-ignore", "--stdin"],
+            input=input_bytes,
+            capture_output=True,
+            cwd=str(source_root),
+        )
+        if result.returncode not in (0, 1):
+            return set()
+        # Git quotes and double-escapes backslashes on Windows.
+        # Normalize via Path() to get consistent OS-native separators.
+        ignored_abs: set[Path] = set()
+        for raw_line in result.stdout.decode("utf-8", errors="replace").splitlines():
+            cleaned = raw_line.strip().strip('"').replace("\\\\", "\\")
+            if cleaned:
+                ignored_abs.add(Path(cleaned))
+        return {name for name in contents if (dir_path / name) in ignored_abs}
+
+    return _ignore
+
+
+def _filter_gitignored(root: Path, paths: list[str]) -> list[str]:
+    """Remove gitignored paths from *paths* (relative to *root*).
+
+    Uses ``git check-ignore --stdin`` so that untracked artifacts left by
+    other pipelines (e.g. an ``.sqlite`` from a real extraction run) do
+    not trip the manifest addressability validator.
+
+    If *root* itself is inside a gitignored directory (e.g. a temp
+    directory used in tests), filtering is skipped entirely — otherwise
+    every file would be classified as ignored.
+
+    Uses bytes-mode stdin to avoid Windows text-mode ``\\r\\n`` corruption
+    that silently breaks newline-separated batch input.
+    """
+    if not paths:
+        return paths
+    # If the root dir itself is gitignored, all children would be too.
+    # Skip filtering so the validator still checks actual files.
+    root_check = subprocess.run(
+        ["git", "check-ignore", "-q", str(root.resolve())],
+        capture_output=True,
+    )
+    if root_check.returncode == 0:
+        # root is gitignored — skip filtering
+        return paths
+    input_bytes = "\n".join(paths).encode("utf-8")
+    result = subprocess.run(
+        ["git", "check-ignore", "--stdin"],
+        input=input_bytes,
+        capture_output=True,
+        cwd=str(root),
+    )
+    if result.returncode not in (0, 1):
+        # 0 = some ignored, 1 = none ignored; anything else is an error.
+        return paths
+    ignored_rel: set[str] = set()
+    for raw_line in result.stdout.decode("utf-8", errors="replace").splitlines():
+        cleaned = raw_line.strip().strip('"').replace("\\", "/")
+        if cleaned:
+            ignored_rel.add(cleaned)
+    if not ignored_rel:
+        return paths
+    return [f for f in paths if f not in ignored_rel]
+
+
 def list_relative_dirs(root: Path) -> list[str]:
     """List all directories below root using forward slashes."""
     return sorted(
@@ -277,7 +356,7 @@ def validate_manifest_addressability(data_dir: Path) -> None:
     for distribution in narrow_sequence(agg_index.get("distributions", [])):
         indexed_files.add(narrow_mapping(distribution)["path"])
 
-    actual_files = list_relative_files(data_dir)
+    actual_files = _filter_gitignored(data_dir, list_relative_files(data_dir))
     unmatched = []
     for rel_path in actual_files:
         if rel_path in declared_direct or rel_path in indexed_files:
@@ -986,7 +1065,12 @@ def main(argv: list[str] | None = None) -> int:
 
     if args.validate_only:
         print("[demo-build] validate-only: using committed docs/data")
-        shutil.copytree(DOCS_DATA_DIR, ARTIFACT_DATA_DIR, dirs_exist_ok=True)
+        shutil.copytree(
+            DOCS_DATA_DIR,
+            ARTIFACT_DATA_DIR,
+            dirs_exist_ok=True,
+            ignore=_gitignored_copytree_ignore(DOCS_DATA_DIR),
+        )
         active_mode = VALIDATED_COMMITTED_DEMO_MODE
     else:
         require_demo_generation_baseline(CANONICAL_COMMITTED_DEMO_SCRIPT)

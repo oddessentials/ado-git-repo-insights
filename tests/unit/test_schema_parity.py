@@ -26,11 +26,9 @@ ROLLUP_SCHEMA_TS = REPO_ROOT / "extension" / "ui" / "schemas" / "rollup.schema.t
 
 # Fields that exist in TypeScript schema but are intentionally NOT produced
 # by the Python backend. Each entry must have a comment explaining why.
-TS_ONLY_FORWARD_COMPAT_FIELDS = {
-    # Reserved for future review-time metrics; TS normalizer defaults to null.
-    "review_time_p50",
-    "review_time_p90",
-}
+TS_ONLY_FORWARD_COMPAT_FIELDS: set[str] = set()
+# review_time_p50 and review_time_p90 removed — now produced by Python
+# backend as of 052-review-time-pipeline.
 
 
 def _extract_ts_set_fields(ts_source: str, set_name: str) -> set[str]:

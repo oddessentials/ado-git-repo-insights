@@ -4,6 +4,10 @@ Reads field names from the canonical TypeScript schema (rollup.schema.ts)
 and verifies that generated demo data contains all non-deprecated fields.
 No duplicate field list is maintained — this test reads from the single
 source of truth per Contract 1.
+
+TestAggregatesVersionParity (added in 052-review-time-pipeline) ensures
+the Python AGGREGATES_SCHEMA_VERSION constant matches the TS validators
+in both dataset-loader.ts and artifact-client.ts.
 """
 
 from __future__ import annotations
@@ -13,6 +17,8 @@ import re
 from pathlib import Path
 
 import pytest
+
+from ado_git_repo_insights.transform.schema_versions import AGGREGATES_SCHEMA_VERSION
 
 SCHEMA_FILE = (
     Path(__file__).parent.parent.parent
@@ -36,7 +42,9 @@ DATASET_LOADER_FILE = (
 )
 
 # Fields that exist in the schema but are not generated (deprecated/forward-compat)
-DEPRECATED_FIELDS = {"review_time_p50", "review_time_p90"}
+DEPRECATED_FIELDS: set[str] = set()
+# review_time_p50 and review_time_p90 removed — now produced by demo
+# generators as of 052-review-time-pipeline.
 OPTIONAL_ROOT_FIELDS = {"by_reviewer"}
 
 
@@ -176,4 +184,40 @@ class TestManifestSchemaVersion:
         missing = required_fields - set(fixtures)
         assert not missing, (
             f"reviewer_fixtures missing required fields: {sorted(missing)}"
+        )
+
+
+REPO_ROOT = Path(__file__).parent.parent.parent
+DATASET_LOADER_TS = REPO_ROOT / "extension" / "ui" / "dataset-loader.ts"
+ARTIFACT_CLIENT_TS = REPO_ROOT / "extension" / "ui" / "artifact-client.ts"
+
+
+def _extract_ts_supported_version(ts_path: Path) -> int:
+    """Extract SUPPORTED_AGGREGATES_VERSION from a TypeScript source file."""
+    source = ts_path.read_text(encoding="utf-8")
+    match = re.search(r"SUPPORTED_AGGREGATES_VERSION\s*=\s*(\d+)", source)
+    assert match, f"SUPPORTED_AGGREGATES_VERSION not found in {ts_path.name}"
+    return int(match.group(1))
+
+
+class TestAggregatesVersionParity:
+    """Backend AGGREGATES_SCHEMA_VERSION must match extension validators.
+
+    Prevents drift where Python emits a version that the extension rejects.
+    """
+
+    def test_dataset_loader_accepts_current_version(self) -> None:
+        ts_version = _extract_ts_supported_version(DATASET_LOADER_TS)
+        assert ts_version >= AGGREGATES_SCHEMA_VERSION, (
+            f"dataset-loader.ts SUPPORTED_AGGREGATES_VERSION={ts_version} "
+            f"< Python AGGREGATES_SCHEMA_VERSION={AGGREGATES_SCHEMA_VERSION}. "
+            f"Extension will reject newly generated manifests."
+        )
+
+    def test_artifact_client_accepts_current_version(self) -> None:
+        ts_version = _extract_ts_supported_version(ARTIFACT_CLIENT_TS)
+        assert ts_version >= AGGREGATES_SCHEMA_VERSION, (
+            f"artifact-client.ts SUPPORTED_AGGREGATES_VERSION={ts_version} "
+            f"< Python AGGREGATES_SCHEMA_VERSION={AGGREGATES_SCHEMA_VERSION}. "
+            f"Extension will reject newly generated manifests."
         )

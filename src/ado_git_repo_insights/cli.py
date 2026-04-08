@@ -24,6 +24,7 @@ if TYPE_CHECKING:
     from .config import Config
     from .extractor.ado_client import ADOClient
     from .persistence.database import DatabaseManager
+    from .types import AdoThread
 
 logger = logging.getLogger(__name__)
 
@@ -482,9 +483,6 @@ def _extract_comments(
         repo_id = pr_row["repository_id"]
         project_name = pr_row["project_name"]
 
-        # §6: Incremental sync - check last_updated
-        last_updated = repo.get_thread_last_updated(pr_uid)
-
         try:
             # Fetch threads from API
             threads = client.get_pr_threads(
@@ -493,9 +491,15 @@ def _extract_comments(
                 pull_request_id=pr_id,
             )
 
-            # Apply max_threads_per_pr limit
-            if max_threads_per_pr > 0 and len(threads) > max_threads_per_pr:
-                threads = threads[:max_threads_per_pr]
+            # Apply max_threads_per_pr limit.  Keep a reference to the
+            # full API response so we can check whether dropped threads
+            # have unseen updates (needed for the coverage stamp decision).
+            all_threads = threads
+            pr_threads_truncated = (
+                max_threads_per_pr > 0 and len(all_threads) > max_threads_per_pr
+            )
+            if pr_threads_truncated:
+                threads = all_threads[:max_threads_per_pr]
 
             for thread in threads:
                 thread_id = str(thread.get("id", ""))
@@ -503,8 +507,20 @@ def _extract_comments(
                 thread_created = thread.get("publishedDate", thread_updated)
                 thread_status = thread.get("status", "unknown")
 
-                # §6: Skip unchanged threads (incremental sync)
-                if last_updated and thread_updated <= last_updated:
+                # §6: Per-thread incremental sync — skip only if this
+                # specific thread exists locally and is current.  The old
+                # MAX(last_updated) check could skip threads that were
+                # NEVER fetched (e.g. after a prior truncated run where
+                # dropped threads had older lastUpdatedDate).
+                local_thread = db.execute(
+                    "SELECT last_updated FROM pr_threads "
+                    "WHERE pull_request_uid = ? AND thread_id = ?",
+                    (pr_uid, thread_id),
+                ).fetchone()
+                if (
+                    local_thread is not None
+                    and thread_updated <= local_thread["last_updated"]
+                ):
                     continue
 
                 # Serialize thread context
@@ -552,6 +568,35 @@ def _extract_comments(
 
             stats["prs_processed"] = int(stats["prs_processed"]) + 1
 
+            # Update per-PR coverage marker based on fetch completeness.
+            #
+            # Three cases:
+            #   1. No truncation → stamp with current time (complete fetch).
+            #   2. Truncated AND any dropped thread is missing locally or
+            #      has a newer API version than stored → clear stamp.
+            #   3. Truncated BUT every dropped thread exists locally with
+            #      a last_updated ≥ the API lastUpdatedDate → no-op
+            #      (local data still complete from prior runs).
+            if not pr_threads_truncated:
+                db.execute(
+                    "UPDATE pull_requests SET comments_extracted_at = ? "
+                    "WHERE pull_request_uid = ?",
+                    (datetime.now(UTC).isoformat(), pr_uid),
+                )
+            elif _dropped_threads_all_stored(
+                db, pr_uid, all_threads[max_threads_per_pr:]
+            ):
+                # Every dropped thread is already stored and current.
+                # Prior stamp (if any) correctly reflects completeness.
+                pass
+            else:
+                # At least one dropped thread is missing or stale locally.
+                db.execute(
+                    "UPDATE pull_requests SET comments_extracted_at = NULL "
+                    "WHERE pull_request_uid = ?",
+                    (pr_uid,),
+                )
+
         except ExtractionError as e:
             from .utils.run_summary import normalize_error_message
 
@@ -561,7 +606,19 @@ def _extract_comments(
                 normalize_error_message(str(e)),
             )
             stats["prs_comment_failures"] = int(stats["prs_comment_failures"]) + 1
-            # Continue with other PRs - don't fail entire run
+            # Continue with other PRs - don't fail entire run.
+            #
+            # Semantics decision: we intentionally do NOT clear
+            # comments_extracted_at here.  A failed refresh does not
+            # invalidate data from a prior successful extraction —
+            # no pr_comments/pr_threads rows were modified.  Clearing
+            # the stamp on transient errors (timeouts, rate-limits)
+            # would cause coverage to flap between "full" and "partial"
+            # on every intermittent failure, which is noisier and more
+            # misleading than reporting the (still-valid) prior state.
+            # Aggregation already gates review_time_minutes on
+            # comments_extracted_at IS NOT NULL, so incomplete PRs
+            # cannot contribute stale metrics.
 
     db.connection.commit()
     repo.update_comments_extraction_metadata(
@@ -704,6 +761,43 @@ def cmd_extract(args: Namespace) -> int:
                         f"Comments extraction capped at {args.comments_max_prs_per_run} PRs"
                     )
 
+            # Recompute review timestamps whenever stored comment data exists,
+            # regardless of whether --include-comments was passed this run.
+            # This ensures convergence: creation_date changes, reviewer edits,
+            # or comment deletions are reflected without re-fetching threads.
+            # Recompute review timestamps from stored comment data.
+            _backfill_review_timestamps_if_needed(db)
+
+            # Informational warning when --include-comments is off.
+            # Coverage metadata is NOT mutated here — ground-truth
+            # coverage is determined at aggregation time by
+            # _get_comments_coverage() in aggregators.py.
+            include_comments = getattr(args, "include_comments", False)
+            if not include_comments:
+                comments_table_exists = (
+                    db.execute(
+                        "SELECT 1 FROM sqlite_master "
+                        "WHERE type='table' AND name='pr_comments'"
+                    ).fetchone()
+                    is not None
+                )
+                has_any_comments = comments_table_exists and (
+                    db.execute("SELECT 1 FROM pr_comments LIMIT 1").fetchone()
+                    is not None
+                )
+                if has_any_comments:
+                    logger.warning(
+                        "Thread extraction not enabled for this run. "
+                        "Newly extracted PRs will not have review time "
+                        "data. Use --include-comments to include them."
+                    )
+                elif not comments_table_exists or not has_any_comments:
+                    logger.warning(
+                        "Review time metrics unavailable: no thread "
+                        "data stored. Use --include-comments to "
+                        "extract review timestamps."
+                    )
+
             timing.total_seconds = time.perf_counter() - start_time
 
             # Write success summary
@@ -796,6 +890,101 @@ def cmd_generate_csv(args: Namespace) -> int:
         return 1
 
 
+def _backfill_review_timestamps_if_needed(db: DatabaseManager) -> None:
+    """Run review-time recomputation if stored comment data exists.
+
+    Safe to call from any command path (extract, generate-aggregates, build).
+    Guards against legacy DBs without the pr_comments table.
+    Idempotent: clear-then-repopulate ensures no double-counting.
+
+    Every intermediate result is validated for concrete scalar types so that
+    a ``MagicMock`` passed as *db* in tests fails closed (returns without
+    side-effects) instead of flowing into ``populate_review_timestamps``.
+    """
+    from .extraction.review_time import populate_review_timestamps
+
+    if not hasattr(db, "execute"):
+        return
+
+    # Guard 1: pr_comments table must exist.
+    # A real fetchone() returns sqlite3.Row / tuple / None.
+    # A MagicMock returns another MagicMock which passes truthiness checks.
+    # We probe the row with ``[0]`` and require a concrete int back — this
+    # rejects mocks whose __getitem__ returns yet another mock.
+    table_row = db.execute(
+        "SELECT 1 FROM sqlite_master WHERE type='table' AND name='pr_comments'"
+    ).fetchone()
+    if not _is_real_row(table_row):
+        return
+
+    # Guard 2: at least one comment row must exist.
+    comment_row = db.execute("SELECT 1 FROM pr_comments LIMIT 1").fetchone()
+    if not _is_real_row(comment_row):
+        return
+
+    count = populate_review_timestamps(db)
+    if isinstance(count, int) and count > 0:
+        logger.info(f"Review time computed for {count} PRs")
+
+
+def _dropped_threads_all_stored(
+    db: DatabaseManager,
+    pr_uid: str,
+    dropped_threads: list[AdoThread],
+) -> bool:
+    """Return True only if every dropped thread exists locally and is current.
+
+    For each thread in *dropped_threads*, checks that a matching row
+    exists in ``pr_threads`` with ``last_updated >= lastUpdatedDate``.
+    Returns False if ANY thread is missing or stale — meaning truncation
+    hid data that is not already stored.
+    """
+    if not dropped_threads:
+        return True
+
+    for thread in dropped_threads:
+        tid = str(thread.get("id", ""))
+        api_updated: str = thread.get("lastUpdatedDate", "") or ""
+        if not tid:
+            return False
+
+        row = db.execute(
+            "SELECT last_updated FROM pr_threads "
+            "WHERE pull_request_uid = ? AND thread_id = ?",
+            (pr_uid, tid),
+        ).fetchone()
+
+        if row is None:
+            # Thread not stored locally at all.
+            return False
+
+        local_updated: str = row["last_updated"] or ""
+        if api_updated > local_updated:
+            # API has a newer version than what we stored.
+            return False
+
+    return True
+
+
+def _is_real_row(row: object) -> bool:
+    """Return True only if *row* is a genuine database result row.
+
+    Rejects ``None`` (no match) and ``MagicMock`` (test double).
+    A real ``sqlite3.Row`` or tuple supports ``row[0]`` and yields a
+    concrete scalar (``int``, ``str``, …) — never another mock.
+    """
+    if row is None:
+        return False
+    getter = getattr(row, "__getitem__", None)
+    if getter is None:
+        return False
+    try:
+        val: object = getter(0)
+    except (TypeError, IndexError, KeyError):
+        return False
+    return isinstance(val, (int, float, str, bytes))
+
+
 def cmd_generate_aggregates(args: Namespace) -> int:
     """Execute the generate-aggregates command (Phase 3 + Phase 5 ML)."""
     from .persistence.database import DatabaseError, DatabaseManager
@@ -849,6 +1038,12 @@ def cmd_generate_aggregates(args: Namespace) -> int:
         db.connect()
 
         try:
+            # Ensure review timestamps are populated before aggregation.
+            # Handles upgrade path: DB has pr_comments from prior extraction
+            # but review_time_minutes was never computed (e.g., user ran
+            # generate-aggregates without a fresh extract after upgrading).
+            _backfill_review_timestamps_if_needed(db)
+
             generator = AggregateGenerator(
                 db=db,
                 output_dir=args.output,
@@ -1008,6 +1203,8 @@ def cmd_build_aggregates(args: Namespace) -> int:
         db.connect()
 
         try:
+            _backfill_review_timestamps_if_needed(db)
+
             generator = AggregateGenerator(
                 db=db,
                 output_dir=args.out,

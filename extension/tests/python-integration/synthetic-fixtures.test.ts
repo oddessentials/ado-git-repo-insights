@@ -199,7 +199,7 @@ describe("Synthetic Fixture Consumer Validation", () => {
       const manifest = await loader.loadManifest();
       expect(manifest).toBeDefined();
       expect(manifest.manifest_schema_version).toBe(1);
-      expect(manifest.aggregates_schema_version).toBe(2);
+      expect(manifest.aggregates_schema_version).toBe(3);
       expect(manifest.aggregate_index!.weekly_rollups).toBeInstanceOf(Array);
       expect(manifest.aggregate_index!.weekly_rollups!.length).toBeGreaterThan(0);
     },
@@ -214,7 +214,7 @@ describe("Synthetic Fixture Consumer Validation", () => {
 
       expect(manifest.manifest_schema_version).toBe(1);
       expect(manifest.dataset_schema_version).toBe(1);
-      expect(manifest.aggregates_schema_version).toBe(2);
+      expect(manifest.aggregates_schema_version).toBe(3);
     },
   );
 

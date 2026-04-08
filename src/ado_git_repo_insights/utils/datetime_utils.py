@@ -85,6 +85,34 @@ def calculate_cycle_time_minutes(
     return None
 
 
+def calculate_review_time_minutes(
+    creation_date: str | None, reviewed_at: str | None
+) -> float | None:
+    """Calculate PR review time in minutes.
+
+    Review time is the duration from PR creation to the earliest positive
+    reviewer vote (approve or approve-with-suggestions).
+    Minimum value is 1 minute to avoid zero/negative values.
+
+    Args:
+        creation_date: ISO 8601 creation date string.
+        reviewed_at: ISO 8601 earliest positive vote timestamp string.
+
+    Returns:
+        Review time in minutes (minimum 1.0), or None if dates are invalid.
+    """
+    created = parse_iso_datetime(creation_date)
+    reviewed = parse_iso_datetime(reviewed_at)
+
+    if created and reviewed:
+        delta_seconds = (reviewed - created).total_seconds()
+        minutes = delta_seconds / 60
+        # Minimum 1 minute, rounded to 2 decimal places
+        return max(1.0, round(minutes, 2))
+
+    return None
+
+
 def format_date_for_api(dt: datetime) -> str:
     """Format a datetime for ADO API queries.
 

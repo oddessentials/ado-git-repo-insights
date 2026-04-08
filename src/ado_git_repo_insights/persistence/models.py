@@ -82,6 +82,8 @@ CREATE TABLE IF NOT EXISTS pull_requests (
     creation_date TEXT NOT NULL,  -- ISO 8601
     closed_date TEXT,             -- ISO 8601
     cycle_time_minutes REAL,
+    review_time_minutes REAL,    -- DB-internal: earliest approval − creation_date
+    comments_extracted_at TEXT,   -- DB-internal: ISO 8601, set when comment extraction processes this PR
     raw_json TEXT,                -- Original ADO response for auditing
     FOREIGN KEY (repository_id) REFERENCES repositories(repository_id),
     FOREIGN KEY (user_id) REFERENCES users(user_id)
@@ -98,11 +100,7 @@ CREATE TABLE IF NOT EXISTS reviewers (
     user_id TEXT NOT NULL,
     vote INTEGER NOT NULL,
     repository_id TEXT NOT NULL,
-    -- Phase 2 reviewer latency design note:
-    -- add reviewed_at TEXT (ISO 8601) only when extraction can persist a stable
-    -- final review event timestamp and backfill existing datasets. Reviewer
-    -- Phase 1 intentionally excludes latency metrics until that migration is
-    -- designed, extracted, and versioned end-to-end.
+    reviewed_at TEXT,  -- ISO 8601, earliest positive vote timestamp from PR threads
     FOREIGN KEY (pull_request_uid) REFERENCES pull_requests(pull_request_uid),
     FOREIGN KEY (user_id) REFERENCES users(user_id),
     UNIQUE(pull_request_uid, user_id)  -- One vote per reviewer per PR
@@ -140,17 +138,19 @@ CREATE INDEX IF NOT EXISTS idx_team_members_user ON team_members(user_id);
 
 -- Phase 3.4: PR Threads/Comments (feature-flagged)
 -- Normalized tables indexed by PR UID and update time
+-- ADO thread IDs are PR-scoped (small integers starting from 1 per PR),
+-- so the primary key must include pull_request_uid.
 CREATE TABLE IF NOT EXISTS pr_threads (
-    thread_id TEXT PRIMARY KEY,
+    thread_id TEXT NOT NULL,
     pull_request_uid TEXT NOT NULL,
     status TEXT,  -- active, fixed, closed, etc.
     thread_context TEXT,  -- JSON: file path, line range, etc.
     last_updated TEXT NOT NULL,  -- ISO 8601, used for incremental sync
     created_at TEXT NOT NULL,
     is_deleted INTEGER DEFAULT 0,
+    PRIMARY KEY (pull_request_uid, thread_id),
     FOREIGN KEY (pull_request_uid) REFERENCES pull_requests(pull_request_uid)
 );
-CREATE INDEX IF NOT EXISTS idx_pr_threads_pr ON pr_threads(pull_request_uid);
 CREATE INDEX IF NOT EXISTS idx_pr_threads_updated ON pr_threads(last_updated);
 
 CREATE TABLE IF NOT EXISTS pr_comments (
@@ -163,11 +163,11 @@ CREATE TABLE IF NOT EXISTS pr_comments (
     created_at TEXT NOT NULL,
     last_updated TEXT,
     is_deleted INTEGER DEFAULT 0,
-    FOREIGN KEY (thread_id) REFERENCES pr_threads(thread_id),
+    FOREIGN KEY (pull_request_uid, thread_id) REFERENCES pr_threads(pull_request_uid, thread_id),
     FOREIGN KEY (pull_request_uid) REFERENCES pull_requests(pull_request_uid),
     FOREIGN KEY (author_id) REFERENCES users(user_id)
 );
-CREATE INDEX IF NOT EXISTS idx_pr_comments_thread ON pr_comments(thread_id);
+CREATE INDEX IF NOT EXISTS idx_pr_comments_thread ON pr_comments(pull_request_uid, thread_id);
 CREATE INDEX IF NOT EXISTS idx_pr_comments_pr ON pr_comments(pull_request_uid);
 CREATE INDEX IF NOT EXISTS idx_pr_comments_author ON pr_comments(author_id);
 
@@ -177,9 +177,9 @@ CREATE TABLE IF NOT EXISTS schema_version (
     applied_at TEXT NOT NULL
 );
 
--- Insert initial schema version
+-- Insert initial schema version (v4: PR-scoped thread identity + comments_extracted_at)
 INSERT OR IGNORE INTO schema_version (version, applied_at)
-VALUES (1, datetime('now'));
+VALUES (4, datetime('now'));
 """
 
 # CSV column order contract (NON-NEGOTIABLE per Invariants 1-4)
