@@ -9,8 +9,8 @@ importers:
   .:
     dependencies:
       azure-devops-extension-api:
-        specifier: ^4.0.0
-        version: 4.269.1(azure-devops-extension-sdk@4.2.0)
+        specifier: ^4.270.0
+        version: 4.270.0(azure-devops-extension-sdk@4.2.0)
       azure-devops-extension-sdk:
         specifier: ^4.0.2
         version: 4.2.0
@@ -1023,8 +1023,8 @@ packages:
     resolution: {integrity: sha512-wvUjBtSGN7+7SjNpq/9M2Tg350UZD3q62IFZLbRAR1bSMlCo1ZaeW+BJ+D090e4hIIZLBcTDWe4Mh4jvUDajzQ==}
     engines: {node: '>= 0.4'}
 
-  azure-devops-extension-api@4.269.1:
-    resolution: {integrity: sha512-m3RA2DbR5qDvPMy3wCHnl06q+F7im0q/JRpIvrfd4Q5/xJVDfZc43NgJSr+8Wy4bd4XIpXqNOr3nlHRYJIEQrQ==}
+  azure-devops-extension-api@4.270.0:
+    resolution: {integrity: sha512-FR3bC8pe0ngMa1jE3PMxXvYIqb275RlTNrJBX6IdOXHB6yUh0ePeOpHbknLvRiljgaldGxWRdHjCbGmGcImhwg==}
     peerDependencies:
       azure-devops-extension-sdk: ^2 || ^3 || ^4
 
@@ -4224,7 +4224,7 @@ snapshots:
     dependencies:
       possible-typed-array-names: 1.1.0
 
-  azure-devops-extension-api@4.269.1(azure-devops-extension-sdk@4.2.0):
+  azure-devops-extension-api@4.270.0(azure-devops-extension-sdk@4.2.0):
     dependencies:
       azure-devops-extension-sdk: 4.2.0
       whatwg-fetch: 3.0.1
