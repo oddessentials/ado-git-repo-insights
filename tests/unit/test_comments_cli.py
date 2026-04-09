@@ -89,6 +89,83 @@ class TestCommentsCliFlags:
         )
         assert args.comments_max_threads_per_pr == 25
 
+    @pytest.mark.parametrize(
+        "flag",
+        ["--comments-max-prs-per-run", "--comments-max-threads-per-pr"],
+    )
+    def test_negative_numeric_flags_rejected(
+        self,
+        flag: str,
+        capsys: pytest.CaptureFixture[str],
+    ) -> None:
+        """Negative values on the comment numeric flags must be rejected.
+
+        Locks parity with the Node task wrapper's validateNonNegativeInt so
+        local CLI invocations and pipeline invocations share one contract.
+        """
+        parser = create_parser()
+        with pytest.raises(SystemExit) as excinfo:
+            parser.parse_args(
+                [
+                    "extract",
+                    "--pat",
+                    "test-pat",
+                    "--config",
+                    "test.yaml",
+                    flag,
+                    "-1",
+                ]
+            )
+        assert excinfo.value.code != 0
+        stderr = capsys.readouterr().err
+        assert "must be >= 0" in stderr
+
+    @pytest.mark.parametrize(
+        "flag",
+        ["--comments-max-prs-per-run", "--comments-max-threads-per-pr"],
+    )
+    def test_non_integer_numeric_flags_rejected(
+        self,
+        flag: str,
+        capsys: pytest.CaptureFixture[str],
+    ) -> None:
+        """Non-integer values on the comment numeric flags must be rejected."""
+        parser = create_parser()
+        with pytest.raises(SystemExit) as excinfo:
+            parser.parse_args(
+                [
+                    "extract",
+                    "--pat",
+                    "test-pat",
+                    "--config",
+                    "test.yaml",
+                    flag,
+                    "abc",
+                ]
+            )
+        assert excinfo.value.code != 0
+        stderr = capsys.readouterr().err
+        assert "not a valid integer" in stderr
+
+    def test_zero_is_accepted_for_numeric_flags(self) -> None:
+        """Zero is explicitly valid (e.g. 0 = unlimited threads)."""
+        parser = create_parser()
+        args = parser.parse_args(
+            [
+                "extract",
+                "--pat",
+                "test-pat",
+                "--config",
+                "test.yaml",
+                "--comments-max-prs-per-run",
+                "0",
+                "--comments-max-threads-per-pr",
+                "0",
+            ]
+        )
+        assert args.comments_max_prs_per_run == 0
+        assert args.comments_max_threads_per_pr == 0
+
 
 class TestExtractComments:
     """Tests for _extract_comments helper function."""

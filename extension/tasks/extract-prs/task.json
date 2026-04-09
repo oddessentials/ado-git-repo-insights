@@ -8,7 +8,7 @@
     "author": "Odd Essentials, LLC",
     "version": {
         "Major": 2,
-        "Minor": 4,
+        "Minor": 5,
         "Patch": 0
     },
     "instanceNameFormat": "Extract PR Metrics",
@@ -70,6 +70,32 @@
             "label": "Backfill Days (Optional)",
             "required": false,
             "helpMarkDown": "Number of days to backfill for convergence (e.g., 60)"
+        },
+        {
+            "name": "includeComments",
+            "type": "boolean",
+            "label": "Extract PR Comments",
+            "required": false,
+            "defaultValue": "false",
+            "helpMarkDown": "Extract PR thread comments to compute review_time metrics. Off by default."
+        },
+        {
+            "name": "commentsMaxPrsPerRun",
+            "type": "string",
+            "label": "Max PRs for Comment Extraction",
+            "required": false,
+            "defaultValue": "100",
+            "visibleRule": "includeComments = true",
+            "helpMarkDown": "Maximum PRs to fetch comments for per run. Must be a non-negative integer. Defaults to 100 for rate-limit protection."
+        },
+        {
+            "name": "commentsMaxThreadsPerPr",
+            "type": "string",
+            "label": "Max Threads per PR",
+            "required": false,
+            "defaultValue": "50",
+            "visibleRule": "includeComments = true",
+            "helpMarkDown": "Maximum threads to fetch per PR. Non-negative integer; 0 means unlimited."
         },
         {
             "name": "generateAggregates",

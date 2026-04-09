@@ -36,6 +36,21 @@ def _get_runtime_version() -> str:
     return resolve_version()
 
 
+def _non_negative_int(value: str) -> int:
+    """argparse type for numeric flags that must be >= 0.
+
+    Mirrors the validateNonNegativeInt check in the Node task wrapper so the
+    CLI and pipeline task enforce an identical contract.
+    """
+    try:
+        parsed = int(value)
+    except (TypeError, ValueError) as exc:
+        raise argparse.ArgumentTypeError(f"{value!r} is not a valid integer") from exc
+    if parsed < 0:
+        raise argparse.ArgumentTypeError(f"{value!r} must be >= 0")
+    return parsed
+
+
 def create_parser() -> argparse.ArgumentParser:
     """Create the argument parser for the CLI."""
     parser = argparse.ArgumentParser(
@@ -121,15 +136,15 @@ def create_parser() -> argparse.ArgumentParser:
     )
     extract_parser.add_argument(
         "--comments-max-prs-per-run",
-        type=int,
+        type=_non_negative_int,
         default=100,
         help="Max PRs to fetch comments for per run (rate limit protection)",
     )
     extract_parser.add_argument(
         "--comments-max-threads-per-pr",
-        type=int,
+        type=_non_negative_int,
         default=50,
-        help="Max threads to fetch per PR (optional limit)",
+        help="Max threads to fetch per PR (optional limit; 0 = unlimited)",
     )
 
     # Generate CSV command
