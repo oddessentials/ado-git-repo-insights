@@ -59,6 +59,6 @@ describe("stage-task-deps", () => {
   it("tfx-cli is declared as a devDependency", () => {
     const pkgPath = path.join(__dirname, "../package.json");
     const pkg = JSON.parse(_fs.readFileSync(pkgPath, "utf8"));
-    expect(pkg.devDependencies["tfx-cli"]).toBe("0.17.0");
+    expect(pkg.devDependencies["tfx-cli"]).toBe("0.23.1");
   });
 });
