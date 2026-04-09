@@ -343,18 +343,46 @@ function testValidateNonNegativeInt() {
   assert.strictEqual(validateNonNegativeInt("x", undefined), null);
   assert.strictEqual(validateNonNegativeInt("x", ""), null);
 
-  // Valid non-negative integers
+  // Valid non-negative integers. Production only ever passes strings (from
+  // tl.getInput), so the test mirrors that — no numeric-input exercise.
   mockTl._reset();
   assert.strictEqual(validateNonNegativeInt("x", "0"), 0);
   assert.strictEqual(validateNonNegativeInt("x", "100"), 100);
-  assert.strictEqual(validateNonNegativeInt("x", 42), 42);
   assert.strictEqual(
     mockTl._lastResult,
     null,
     "No setResult should fire on valid values",
   );
 
-  // Negative → undefined sentinel + Failed tl.setResult
+  // Strict parity with Python's _non_negative_int: every input that the
+  // Python side rejects must also be rejected here. Keep this list in
+  // lockstep with _STRICT_INVALID_INPUTS in tests/unit/test_comments_cli.py.
+  const strictInvalid = [
+    "-1", // negative
+    "abc", // non-numeric
+    "1.5", // float
+    "+1", // leading sign
+    " 1", // leading whitespace
+    "1 ", // trailing whitespace
+    "1_000", // underscore separator
+    "१२३", // Devanagari digits — \d in JS regex is ASCII-only w/o 'u' flag
+  ];
+  for (const bad of strictInvalid) {
+    mockTl._reset();
+    assert.strictEqual(
+      validateNonNegativeInt("x", bad),
+      undefined,
+      `Expected ${JSON.stringify(bad)} to be rejected`,
+    );
+    assert(
+      mockTl._lastResult,
+      `Expected tl.setResult on input ${JSON.stringify(bad)}`,
+    );
+    assert.strictEqual(mockTl._lastResult.result, mockTl.TaskResult.Failed);
+  }
+
+  // Error message shape (use one representative bad input so we don't
+  // duplicate the strictInvalid loop's coverage).
   mockTl._reset();
   const neg = validateNonNegativeInt("myInput", "-1");
   assert.strictEqual(neg, undefined, "Negative must return undefined sentinel");
@@ -368,14 +396,6 @@ function testValidateNonNegativeInt() {
     /non-negative integer/.test(mockTl._lastResult.message),
     "Error message must state the contract",
   );
-
-  // Non-integer → undefined sentinel + Failed
-  mockTl._reset();
-  assert.strictEqual(validateNonNegativeInt("x", "abc"), undefined);
-  assert(mockTl._lastResult, "tl.setResult must have been called on 'abc'");
-  mockTl._reset();
-  assert.strictEqual(validateNonNegativeInt("x", "1.5"), undefined);
-  assert(mockTl._lastResult, "tl.setResult must have been called on '1.5'");
 
   console.log("  ✓ Passed\n");
 }
