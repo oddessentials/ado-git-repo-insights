@@ -317,7 +317,7 @@ jobs:
           RETRY_DELAY=10
           for ((i=1; i<=MAX_RETRIES; i++)); do
             echo "Publish attempt $i of $MAX_RETRIES..."
-            if npx --yes tfx-cli@0.17.0 extension publish \
+            if npx --yes tfx-cli@0.23.1 extension publish \
                 --vsix "$VSIX_FILE" \
                 --token "$VS_MARKETPLACE_PAT" \
                 --no-prompt \
