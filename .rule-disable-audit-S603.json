@@ -1,6 +1,6 @@
 {
   "rule": "S603",
-  "total_call_sites": 86,
+  "total_call_sites": 85,
   "unsafe_count": 12,
   "call_sites": [
     {
@@ -517,15 +517,7 @@
     },
     {
       "file": "tests/unit/test_ci_parity_drift.py",
-      "line": 485,
-      "code": "result = subprocess.run(",
-      "shell_true": false,
-      "literal_list": true,
-      "safety": "safe-literal-list"
-    },
-    {
-      "file": "tests/unit/test_ci_parity_drift.py",
-      "line": 530,
+      "line": 484,
       "code": "result = subprocess.run(",
       "shell_true": false,
       "literal_list": true,
