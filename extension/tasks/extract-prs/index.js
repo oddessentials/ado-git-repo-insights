@@ -528,15 +528,11 @@ function runPython(pythonCmd, args, extraEnv = {}) {
   });
 }
 
-// Export pure helpers for unit tests. `run()` is still invoked when the file
-// is loaded as the task entrypoint; tests set process.env.ADO_INSIGHTS_SKIP_RUN
-// to import without triggering the ADO task runner.
 module.exports = {
   buildExtractArgs,
   validateNonNegativeInt,
 };
 
-// Execute (skipped when loaded by tests)
-if (!process.env.ADO_INSIGHTS_SKIP_RUN) {
+if (require.main === module) {
   run();
 }

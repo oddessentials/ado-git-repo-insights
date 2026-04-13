@@ -47,8 +47,6 @@ Module._load = function interceptedLoad(request, parent, ...rest) {
   return originalModuleLoad.call(this, request, parent, ...rest);
 };
 
-// Skip the run() invocation when loading the module under test.
-process.env.ADO_INSIGHTS_SKIP_RUN = "1";
 const { buildExtractArgs, validateNonNegativeInt } = require("./index.js");
 
 // Test helper to simulate getInput behavior
