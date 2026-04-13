@@ -1,3 +1,20 @@
+# [101.5.0](https://github.com/oddessentials/ado-git-repo-insights/compare/v101.4.0...v101.5.0) (2026-04-13)
+
+
+### Bug Fixes
+
+* **task:** replace env-var entrypoint guard with require.main === module ([1f8881e](https://github.com/oddessentials/ado-git-repo-insights/commit/1f8881e749b76810870dc2168445e0ce784b83b3))
+
+
+### Features
+
+* **task:** wire --include-comments through ExtractPullRequests@2 ([#260](https://github.com/oddessentials/ado-git-repo-insights/issues/260)) ([ff8e468](https://github.com/oddessentials/ado-git-repo-insights/commit/ff8e4681168350ac72cdfd786750ad5bcffe1d60))
+
+
+### Reverts
+
+* **task:** undo manual version bump — semantic-release owns versioning ([e7860b1](https://github.com/oddessentials/ado-git-repo-insights/commit/e7860b1f02ca1b47e317149a79cf0bb9431838a4))
+
 # [101.4.0](https://github.com/oddessentials/ado-git-repo-insights/compare/v101.3.0...v101.4.0) (2026-04-08)
 
 
