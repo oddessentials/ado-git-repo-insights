@@ -83,9 +83,7 @@ var PRInsightsArtifactClient = (() => {
         return { response, version };
       }
       if (response.status === 400 || options.isListEndpoint && response.status === 404) {
-        lastError = new Error(
-          `API api-version=${version}: ${response.status}`
-        );
+        lastError = new Error(`API api-version=${version}: ${response.status}`);
         continue;
       }
       return { response, version };
@@ -290,9 +288,7 @@ var PRInsightsArtifactClient = (() => {
         throw createPermissionDeniedError("list build artifacts");
       }
       if (response.status === 404) {
-        throw new Error(
-          `Build ${buildId} not found or has been deleted`
-        );
+        throw new Error(`Build ${buildId} not found or has been deleted`);
       }
       if (!response.ok) {
         throw new Error(`Failed to list artifacts: ${response.status}`);
@@ -364,7 +360,9 @@ var PRInsightsArtifactClient = (() => {
      */
     async _authenticatedFetch(url, options = {}) {
       if (!this.tokenProvider) {
-        throw new Error("ArtifactClient not initialized. Call initialize() first.");
+        throw new Error(
+          "ArtifactClient not initialized. Call initialize() first."
+        );
       }
       const token = await this.tokenProvider();
       const headers = {

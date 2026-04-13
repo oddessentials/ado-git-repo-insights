@@ -14,7 +14,10 @@ import {
   BUCKET_COLOR_MAP,
 } from "../../../ui/modules/charts/cycle-time";
 import type { Rollup } from "../../../ui/dataset-loader";
-import type { DataAvailabilitySignal, DistributionData } from "../../../ui/types";
+import type {
+  DataAvailabilitySignal,
+  DistributionData,
+} from "../../../ui/types";
 
 describe("cycle-time module", () => {
   let container: HTMLElement;
@@ -258,16 +261,19 @@ describe("cycle-time module", () => {
       });
 
       it("triggers classifier with filters and empty data", () => {
-        const unfilteredRollups: Rollup[] = Array.from({ length: 4 }, (_, i) => ({
-          week: `2025-W${String(i + 1).padStart(2, "0")}`,
-          pr_count: 10,
-          cycle_time_p50: 60,
-          cycle_time_p90: 120,
-          authors_count: 5,
-          reviewers_count: 3,
-          by_repository: null,
-          by_team: null,
-        }));
+        const unfilteredRollups: Rollup[] = Array.from(
+          { length: 4 },
+          (_, i) => ({
+            week: `2025-W${String(i + 1).padStart(2, "0")}`,
+            pr_count: 10,
+            cycle_time_p50: 60,
+            cycle_time_p90: 120,
+            authors_count: 5,
+            reviewers_count: 3,
+            by_repository: null,
+            by_team: null,
+          }),
+        );
 
         renderCycleDistribution(container, [], {
           availability: { ...baseAvailability, cycleTimePresent: true },
@@ -288,16 +294,18 @@ describe("cycle-time module", () => {
 
     describe("renderCycleTimeTrend with options.availability", () => {
       it("triggers classifier when availability provided and insufficient data", () => {
-        const singleRollup: Rollup[] = [{
-          week: "2025-W01",
-          pr_count: 10,
-          cycle_time_p50: 60,
-          cycle_time_p90: 120,
-          authors_count: 5,
-          reviewers_count: 3,
-          by_repository: null,
-          by_team: null,
-        }];
+        const singleRollup: Rollup[] = [
+          {
+            week: "2025-W01",
+            pr_count: 10,
+            cycle_time_p50: 60,
+            cycle_time_p90: 120,
+            authors_count: 5,
+            reviewers_count: 3,
+            by_repository: null,
+            by_team: null,
+          },
+        ];
 
         renderCycleTimeTrend(container, singleRollup, {
           availability: { ...baseAvailability, cycleTimePresent: true },

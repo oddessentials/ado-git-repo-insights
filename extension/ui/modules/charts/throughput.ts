@@ -11,11 +11,7 @@ import type { Rollup } from "../../dataset-loader";
 import type { DataAvailabilitySignal } from "../../types";
 import type { FilterState } from "../filters";
 import { calculateMovingAverage } from "../metrics";
-import {
-  escapeHtml,
-  renderNoData,
-  renderTrustedHtml,
-} from "../shared/render";
+import { escapeHtml, renderNoData, renderTrustedHtml } from "../shared/render";
 import { renderTruncationIndicator } from "../shared/chart-layout";
 import { addChartTooltips, clearChartTooltips } from "../charts";
 import { classifyEmptyState } from "../empty-state-classifier";
@@ -51,7 +47,12 @@ export function renderThroughputChart(
     const classification = options
       ? classifyEmptyState({
           chartType: "throughput",
-          filters: options.filters ?? { repos: [], teams: [], reviewers: [], authors: [] },
+          filters: options.filters ?? {
+            repos: [],
+            teams: [],
+            reviewers: [],
+            authors: [],
+          },
           unfilteredRollups: options.unfilteredRollups ?? [],
           filteredRollups: rollups ?? [],
           availability: options.availability ?? {
@@ -67,7 +68,8 @@ export function renderThroughputChart(
     renderNoData(
       container,
       classification?.message ?? "No data for selected range",
-      classification?.hint ?? "Try widening the date range or adjusting repository/team filters.",
+      classification?.hint ??
+        "Try widening the date range or adjusting repository/team filters.",
     );
     return;
   }
@@ -104,7 +106,10 @@ export function renderThroughputChart(
   const trendResult = renderTrendLine(displayRollups, movingAvg, maxCount);
 
   // Truncation indicator
-  const truncationHtml = renderTruncationIndicator(truncated, MAX_THROUGHPUT_POINTS);
+  const truncationHtml = renderTruncationIndicator(
+    truncated,
+    MAX_THROUGHPUT_POINTS,
+  );
 
   // Legend — trend line entry is conditional on whether the trend actually rendered
   const trendLegendItem = trendResult.rendered

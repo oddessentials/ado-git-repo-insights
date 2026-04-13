@@ -36,7 +36,8 @@ export function createSdkMock(options: SdkMockOptions = {}) {
       witInputs: {},
     }),
     notifyLoadSucceeded: () => {},
-    notifyLoadFailed: (error: unknown) => console.error("SDK Load Failed:", error),
+    notifyLoadFailed: (error: unknown) =>
+      console.error("SDK Load Failed:", error),
     resize: () => {},
   };
 }
@@ -144,7 +145,9 @@ export function createBuildApiMock(scenario: string = "SUCCESS") {
   return {
     getBuilds: async () => {
       if (scenarioData?.error) {
-        const err = new Error(scenarioData.error.message) as Error & { status: number };
+        const err = new Error(scenarioData.error.message) as Error & {
+          status: number;
+        };
         err.status = scenarioData.error.status;
         throw err;
       }
@@ -153,7 +156,9 @@ export function createBuildApiMock(scenario: string = "SUCCESS") {
 
     getArtifacts: async () => {
       if (scenarioData?.error) {
-        const err = new Error(scenarioData.error.message) as Error & { status: number };
+        const err = new Error(scenarioData.error.message) as Error & {
+          status: number;
+        };
         err.status = scenarioData.error.status;
         throw err;
       }

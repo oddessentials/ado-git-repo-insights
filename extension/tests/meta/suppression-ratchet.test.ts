@@ -7,7 +7,11 @@
  */
 
 import * as path from "path";
-import { pathExists, readJsonFile, readTextFile } from "../helpers/fs-test-utils";
+import {
+  pathExists,
+  readJsonFile,
+  readTextFile,
+} from "../helpers/fs-test-utils";
 
 // Matches eslint-disable (block or line), @ts-ignore, @ts-expect-error
 const SUPPRESSION_PATTERN =

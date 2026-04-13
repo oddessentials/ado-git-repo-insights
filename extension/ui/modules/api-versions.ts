@@ -53,10 +53,11 @@ export async function fetchWithVersionFallback(
     }
 
     // Version probing: 400 always retries; 404 retries only for list endpoints
-    if (response.status === 400 || (options.isListEndpoint && response.status === 404)) {
-      lastError = new Error(
-        `API api-version=${version}: ${response.status}`,
-      );
+    if (
+      response.status === 400 ||
+      (options.isListEndpoint && response.status === 404)
+    ) {
+      lastError = new Error(`API api-version=${version}: ${response.status}`);
       continue;
     }
 

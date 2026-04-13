@@ -15,11 +15,7 @@ import {
   extractSparklineData,
   type CalculatedMetrics,
 } from "../metrics";
-import {
-  renderDelta,
-  renderSparkline,
-  getLookbackWeekCount,
-} from "../charts";
+import { renderDelta, renderSparkline, getLookbackWeekCount } from "../charts";
 import { formatDuration } from "../shared/format";
 import {
   LOW_SAMPLE_THRESHOLD,
@@ -172,8 +168,14 @@ export function renderSummaryCards(options: RenderSummaryCardsOptions): void {
   // metric-specific week count — a dataset with only P50 data must not
   // make the P90 card visible (and vice versa). Runs AFTER renderMetricValues
   // so it can clear any "-" placeholders written for null metrics.
-  toggleReviewTimeCard(containers.reviewTimeP50, current.reviewTimeP50WeekCount > 0);
-  toggleReviewTimeCard(containers.reviewTimeP90, current.reviewTimeP90WeekCount > 0);
+  toggleReviewTimeCard(
+    containers.reviewTimeP50,
+    current.reviewTimeP50WeekCount > 0,
+  );
+  toggleReviewTimeCard(
+    containers.reviewTimeP90,
+    current.reviewTimeP90WeekCount > 0,
+  );
 
   if (metricsCollector) {
     metricsCollector.mark("render-summary-cards-end");
@@ -193,11 +195,16 @@ export function renderSummaryCards(options: RenderSummaryCardsOptions): void {
  */
 function metricWeekCount(metrics: CalculatedMetrics, key: string): number {
   switch (key) {
-    case "cycleP50": return metrics.cycleP50WeekCount;
-    case "cycleP90": return metrics.cycleP90WeekCount;
-    case "reviewTimeP50": return metrics.reviewTimeP50WeekCount;
-    case "reviewTimeP90": return metrics.reviewTimeP90WeekCount;
-    default: return metrics.weekCount; // totalPrs, authorsCount, reviewersCount
+    case "cycleP50":
+      return metrics.cycleP50WeekCount;
+    case "cycleP90":
+      return metrics.cycleP90WeekCount;
+    case "reviewTimeP50":
+      return metrics.reviewTimeP50WeekCount;
+    case "reviewTimeP90":
+      return metrics.reviewTimeP90WeekCount;
+    default:
+      return metrics.weekCount; // totalPrs, authorsCount, reviewersCount
   }
 }
 
@@ -207,8 +214,12 @@ function metricWeekCount(metrics: CalculatedMetrics, key: string): number {
  * temporal "weeks" wording since the data points may skip calendar weeks.
  */
 function isSparseMetric(key: string): boolean {
-  return key === "cycleP50" || key === "cycleP90"
-    || key === "reviewTimeP50" || key === "reviewTimeP90";
+  return (
+    key === "cycleP50" ||
+    key === "cycleP90" ||
+    key === "reviewTimeP50" ||
+    key === "reviewTimeP90"
+  );
 }
 
 /**
@@ -237,8 +248,10 @@ function renderSampleSize(
   containers: SummaryCardsContainers,
   metrics: CalculatedMetrics,
 ): void {
-  const weekLabel = (n: number) => `From ${n} ${n === 1 ? "week" : "weeks"} of data`;
-  const pointLabel = (n: number) => `From ${n} data ${n === 1 ? "point" : "points"}`;
+  const weekLabel = (n: number) =>
+    `From ${n} ${n === 1 ? "week" : "weeks"} of data`;
+  const pointLabel = (n: number) =>
+    `From ${n} data ${n === 1 ? "point" : "points"}`;
 
   const config: Array<{
     el: HTMLElement | null;
@@ -378,10 +391,7 @@ function renderSparklineLabels(
  * Show or hide a single review-time card based on its metric-specific data availability.
  * Clears stale content from hidden cards to prevent "-" placeholders in the DOM.
  */
-function toggleReviewTimeCard(
-  el: HTMLElement | null,
-  visible: boolean,
-): void {
+function toggleReviewTimeCard(el: HTMLElement | null, visible: boolean): void {
   const card = el?.closest(".card") as HTMLElement | null;
   if (!card) return;
   card.style.display = visible ? "" : "none";
@@ -462,7 +472,11 @@ function renderSparklines(
  * because their non-null counts don't imply contiguous calendar weeks.
  * Contiguous-window metrics use specific "vs prior N weeks" when counts match.
  */
-function deltaPeriodLabel(current: CalculatedMetrics, previous: CalculatedMetrics, key: string): string {
+function deltaPeriodLabel(
+  current: CalculatedMetrics,
+  previous: CalculatedMetrics,
+  key: string,
+): string {
   // Sparse metrics can never safely claim a specific week window
   if (isSparseMetric(key)) return "vs prior period";
   const cur = metricWeekCount(current, key);
@@ -596,7 +610,9 @@ function attachInfoIcons(
     if (!title) continue;
 
     // Remove old info icon and its listeners on re-render
-    const existing = title.querySelector(".info-icon-btn") as HTMLElement | null;
+    const existing = title.querySelector(
+      ".info-icon-btn",
+    ) as HTMLElement | null;
     if (existing) {
       infoIconControllers.get(existing)?.abort();
       infoIconControllers.delete(existing);
@@ -621,33 +637,45 @@ function attachInfoIcons(
     btn.textContent = "\u2139"; // Unicode info symbol ⓘ
 
     // Use pointer events for cross-device support (mouse, touch, pen)
-    btn.addEventListener("pointerenter", () => {
-      showInfoTooltip(btn, explanation);
-    }, { signal });
-    btn.addEventListener("pointerleave", () => {
-      dismissAllTooltips();
-    }, { signal });
-    btn.addEventListener("click", (e) => {
-      e.stopPropagation();
-      // Toggle: if info tooltip already showing for this button, dismiss it;
-      // otherwise show it. This handles touch devices where pointerleave
-      // doesn't fire after a tap.
-      const existing = document.querySelector(".info-tooltip");
-      if (existing) {
-        dismissAllTooltips();
-      } else {
+    btn.addEventListener(
+      "pointerenter",
+      () => {
         showInfoTooltip(btn, explanation);
-        // Add one-time document click listener to dismiss on tap-elsewhere.
-        // Deferred to next frame so this click doesn't immediately trigger it.
-        requestAnimationFrame(() => {
-          const dismissOnce = () => {
-            dismissAllTooltips();
-            document.removeEventListener("click", dismissOnce);
-          };
-          document.addEventListener("click", dismissOnce);
-        });
-      }
-    }, { signal });
+      },
+      { signal },
+    );
+    btn.addEventListener(
+      "pointerleave",
+      () => {
+        dismissAllTooltips();
+      },
+      { signal },
+    );
+    btn.addEventListener(
+      "click",
+      (e) => {
+        e.stopPropagation();
+        // Toggle: if info tooltip already showing for this button, dismiss it;
+        // otherwise show it. This handles touch devices where pointerleave
+        // doesn't fire after a tap.
+        const existing = document.querySelector(".info-tooltip");
+        if (existing) {
+          dismissAllTooltips();
+        } else {
+          showInfoTooltip(btn, explanation);
+          // Add one-time document click listener to dismiss on tap-elsewhere.
+          // Deferred to next frame so this click doesn't immediately trigger it.
+          requestAnimationFrame(() => {
+            const dismissOnce = () => {
+              dismissAllTooltips();
+              document.removeEventListener("click", dismissOnce);
+            };
+            document.addEventListener("click", dismissOnce);
+          });
+        }
+      },
+      { signal },
+    );
 
     infoIconControllers.set(btn, controller);
     title.appendChild(btn);

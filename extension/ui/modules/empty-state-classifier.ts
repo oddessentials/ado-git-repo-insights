@@ -59,10 +59,8 @@ export const EMPTY_STATE_HINTS = {
     "Ensure the data pipeline is configured to capture reviewer information.",
   NOT_EXTRACTED_CYCLE_TIME:
     "Cycle time data requires PR completion timestamps in the extraction pipeline.",
-  FILTER_CAUSED:
-    "Try removing some filters or widening the date range.",
-  MINIMUM_TREND:
-    "At least 2 weeks of data are needed to show trends.",
+  FILTER_CAUSED: "Try removing some filters or widening the date range.",
+  MINIMUM_TREND: "At least 2 weeks of data are needed to show trends.",
   MINIMUM_GENERIC: "Try widening the date range.",
   DATE_RANGE: "Try widening the date range or selecting a different period.",
 } as const;

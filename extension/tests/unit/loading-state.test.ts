@@ -277,16 +277,25 @@ describe("No-op state change does not trigger loading", () => {
   });
 
   it("hasStateChanged returns true for different filters", () => {
-    const s2 = makeState({ filters: { repos: ["my-repo"], teams: [], reviewers: [], authors: [] } });
+    const s2 = makeState({
+      filters: { repos: ["my-repo"], teams: [], reviewers: [], authors: [] },
+    });
     expect(hasStateChanged(makeState(), s2)).toBe(true);
   });
 
   it("hasStateChanged returns true for different date range", () => {
-    expect(hasStateChanged(makeState(), makeState({ endDate: "2026-06-01T00:00:00.000Z" }))).toBe(true);
+    expect(
+      hasStateChanged(
+        makeState(),
+        makeState({ endDate: "2026-06-01T00:00:00.000Z" }),
+      ),
+    ).toBe(true);
   });
 
   it("hasStateChanged returns true for different comparison mode", () => {
-    expect(hasStateChanged(makeState(), makeState({ comparisonMode: true }))).toBe(true);
+    expect(
+      hasStateChanged(makeState(), makeState({ comparisonMode: true })),
+    ).toBe(true);
   });
 
   it("hasStateChanged returns true when previous state is null (first load)", () => {
@@ -331,7 +340,11 @@ describe("Regression: older refresh cannot render after a newer refresh starts",
     const statusEl = createMockElement();
 
     const oldId = startRefresh(ms, regions, makeState());
-    const newId = startRefresh(ms, regions, makeState({ comparisonMode: true }));
+    const newId = startRefresh(
+      ms,
+      regions,
+      makeState({ comparisonMode: true }),
+    );
 
     expect(endRefresh(oldId, ms, regions, statusEl)).toBe(false);
     await flushMicrotasks();
@@ -612,13 +625,17 @@ describe("Edge cases", () => {
   it("endRefresh with empty regions array does not throw", () => {
     const ms = createMockElement();
     const id = startRefresh(ms, [], makeState());
-    expect(() => { endRefresh(id, ms, [], null); }).not.toThrow();
+    expect(() => {
+      endRefresh(id, ms, [], null);
+    }).not.toThrow();
   });
 
   it("failRefresh with empty regions array does not throw", () => {
     const ms = createMockElement();
     const id = startRefresh(ms, [], makeState());
-    expect(() => { failRefresh(id, ms, [], null); }).not.toThrow();
+    expect(() => {
+      failRefresh(id, ms, [], null);
+    }).not.toThrow();
   });
 
   it("multiple rapid starts all increment cycle ID", () => {
@@ -627,7 +644,11 @@ describe("Edge cases", () => {
 
     const t1 = startRefresh(ms, regions, makeState());
     const t2 = startRefresh(ms, regions, makeState({ comparisonMode: true }));
-    const t3 = startRefresh(ms, regions, makeState({ endDate: "2027-01-01T00:00:00.000Z" }));
+    const t3 = startRefresh(
+      ms,
+      regions,
+      makeState({ endDate: "2027-01-01T00:00:00.000Z" }),
+    );
 
     expect(t1).toBeLessThan(t2);
     expect(t2).toBeLessThan(t3);

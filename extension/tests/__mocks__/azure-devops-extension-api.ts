@@ -3,9 +3,7 @@
  * Loaded via moduleNameMapper in jest.config.ts.
  */
 export { mockApiModule as default } from "../harness/vss-sdk-mock";
-export {
-  mockApiModule,
-} from "../harness/vss-sdk-mock";
+export { mockApiModule } from "../harness/vss-sdk-mock";
 
 import { mockApiModule } from "../harness/vss-sdk-mock";
 

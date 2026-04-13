@@ -3,9 +3,7 @@
  * Loaded via moduleNameMapper in jest.config.ts.
  */
 export { mockSdkModule as default } from "../harness/vss-sdk-mock";
-export {
-  mockSdkModule,
-} from "../harness/vss-sdk-mock";
+export { mockSdkModule } from "../harness/vss-sdk-mock";
 
 // Re-export named functions from the mock module for direct imports
 import { mockSdkModule } from "../harness/vss-sdk-mock";

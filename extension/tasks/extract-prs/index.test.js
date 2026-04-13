@@ -303,7 +303,11 @@ function testBuildExtractArgsWithComments() {
   assert.strictEqual(args[prsIdx + 1], "200", "prs-per-run value mismatch");
   const threadsIdx = args.indexOf("--comments-max-threads-per-pr");
   assert(threadsIdx >= 0, "--comments-max-threads-per-pr missing");
-  assert.strictEqual(args[threadsIdx + 1], "25", "threads-per-pr value mismatch");
+  assert.strictEqual(
+    args[threadsIdx + 1],
+    "25",
+    "threads-per-pr value mismatch",
+  );
 
   console.log("  ✓ Passed\n");
 }

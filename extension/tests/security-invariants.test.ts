@@ -118,7 +118,6 @@ describe("Security Invariants", () => {
       const lines = content.split("\n");
 
       lines.forEach((line, index) => {
-
         // Check for innerHTML with template literals
         if (/\.innerHTML\s*\+?=\s*`/.test(line) && /\$\{[^}]+\}/.test(line)) {
           // Extract all interpolations
@@ -262,9 +261,7 @@ describe("Security Invariants", () => {
 
       lines.forEach((line, index) => {
         if (/document\.write(ln)?\s*\(/.test(line)) {
-          violations.push(
-            `${file}:${index + 1}: document.write is forbidden`,
-          );
+          violations.push(`${file}:${index + 1}: document.write is forbidden`);
         }
       });
     }

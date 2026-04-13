@@ -12,7 +12,9 @@
 
 import * as path from "path";
 import * as _fsOriginal from "fs";
-function _loadFs(): typeof _fsOriginal { return _fsOriginal; }
+function _loadFs(): typeof _fsOriginal {
+  return _fsOriginal;
+}
 const _fs = _loadFs();
 
 interface Contribution {
@@ -116,17 +118,13 @@ describe("Dev manifest parity", () => {
     it("production featureId uses production publisher.id", () => {
       const hub = prod.contributions.find((c) => c.id === "pr-insights-hub");
       const featureId = hub?.constraints?.at(0)?.properties?.featureId;
-      expect(featureId).toBe(
-        `${prod.publisher}.${prod.id}.gri.dashboard-hub`,
-      );
+      expect(featureId).toBe(`${prod.publisher}.${prod.id}.gri.dashboard-hub`);
     });
 
     it("dev featureId uses dev publisher.id", () => {
       const hub = dev.contributions.find((c) => c.id === "pr-insights-hub");
       const featureId = hub?.constraints?.at(0)?.properties?.featureId;
-      expect(featureId).toBe(
-        `${dev.publisher}.${dev.id}.gri.dashboard-hub`,
-      );
+      expect(featureId).toBe(`${dev.publisher}.${dev.id}.gri.dashboard-hub`);
     });
   });
 });

@@ -10,7 +10,9 @@ import type * as fsTypes from "fs";
 //   2. ImportBinding → ImportDeclaration
 // A plain function return is neither, so _fs is opaque to the rule.
 import * as _fsOriginal from "fs";
-function _loadFs(): typeof _fsOriginal { return _fsOriginal; }
+function _loadFs(): typeof _fsOriginal {
+  return _fsOriginal;
+}
 const _fs = _loadFs();
 
 /**

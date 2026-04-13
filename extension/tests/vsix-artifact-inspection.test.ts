@@ -11,7 +11,9 @@
  * Invariant: If a VSIX is shipped, CI must have inspected its contents.
  */
 import * as _fsOriginal from "fs";
-function _loadFs(): typeof _fsOriginal { return _fsOriginal; }
+function _loadFs(): typeof _fsOriginal {
+  return _fsOriginal;
+}
 const _fs = _loadFs();
 import * as path from "path";
 import { execSync } from "child_process";

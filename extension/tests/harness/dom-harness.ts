@@ -209,7 +209,9 @@ export function setupFixtureMocks(
   }
 
   // Configure fetch mock to return fixtures
-  (mockFetch as jest.Mock<(input: string | URL | Request) => Promise<Response>>).mockImplementation((input) => {
+  (
+    mockFetch as jest.Mock<(input: string | URL | Request) => Promise<Response>>
+  ).mockImplementation((input) => {
     const url = String(input);
     const filename = url.split("/").pop() || "";
     const matchingFixture = Object.entries(fixtureMap).find(
@@ -247,7 +249,9 @@ export function loadManifestFixture(
   variant: "default" | "extension-artifacts" = "default",
 ): unknown {
   return variant === "extension-artifacts"
-    ? loadJsonFixture(path.join(extensionArtifactsRoot, "dataset-manifest.json"))
+    ? loadJsonFixture(
+        path.join(extensionArtifactsRoot, "dataset-manifest.json"),
+      )
     : loadJsonFixture(path.join(fixtureRoot, "dataset-manifest.json"));
 }
 
@@ -302,7 +306,9 @@ export function loadPredictionsFixture(
 export function loadLegacyRollupFixture(
   version: "v1.0" | "v1.1" | "v1.2",
 ): unknown {
-  return loadJsonFixture(path.join(legacyDatasetsRoot, `${version}-rollup.json`));
+  return loadJsonFixture(
+    path.join(legacyDatasetsRoot, `${version}-rollup.json`),
+  );
 }
 
 /**

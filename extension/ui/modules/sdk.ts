@@ -10,9 +10,7 @@
  */
 
 import * as SDK from "azure-devops-extension-sdk";
-import type {
-  ILocationService,
-} from "azure-devops-extension-api";
+import type { ILocationService } from "azure-devops-extension-api";
 import { EXTENSION_DATA_API_VERSION } from "./api-versions";
 
 // CommonServiceIds is a const enum (inlined by tsc, invisible to esbuild).
@@ -176,14 +174,12 @@ export async function initializeAdoSdk(
     }, timeout);
   });
 
-  initPromise = Promise.race([initSequence(), timeoutPromise]).finally(
-    () => {
-      if (timeoutId !== undefined) {
-        clearTimeout(timeoutId);
-      }
-      initPromise = null;
-    },
-  );
+  initPromise = Promise.race([initSequence(), timeoutPromise]).finally(() => {
+    if (timeoutId !== undefined) {
+      clearTimeout(timeoutId);
+    }
+    initPromise = null;
+  });
 
   return initPromise;
 }
@@ -204,7 +200,11 @@ export interface ExtensionDataOptions {
  */
 export interface ExtensionDataClient {
   getValue<T>(key: string, documentOptions?: ExtensionDataOptions): Promise<T>;
-  setValue<T>(key: string, value: T, documentOptions?: ExtensionDataOptions): Promise<T>;
+  setValue<T>(
+    key: string,
+    value: T,
+    documentOptions?: ExtensionDataOptions,
+  ): Promise<T>;
 }
 
 /**
@@ -269,7 +269,11 @@ export async function getExtensionDataService(): Promise<ExtensionDataClient> {
       return doc as T;
     },
 
-    async setValue<T>(key: string, value: T, options?: ExtensionDataOptions): Promise<T> {
+    async setValue<T>(
+      key: string,
+      value: T,
+      options?: ExtensionDataOptions,
+    ): Promise<T> {
       const accessToken = await getAccessToken();
       const headers: HeadersInit = {
         Authorization: `Bearer ${accessToken}`,
@@ -333,9 +337,8 @@ export function getWebContext(): WebContext | undefined {
  */
 export async function getCollectionUri(): Promise<string> {
   if (cachedCollectionUri) return cachedCollectionUri;
-  const locationService = await SDK.getService<ILocationService>(
-    LocationServiceId,
-  );
+  const locationService =
+    await SDK.getService<ILocationService>(LocationServiceId);
   const raw = await locationService.getResourceAreaLocation(
     CORE_RESOURCE_AREA_ID,
   );
@@ -394,8 +397,7 @@ declare const DATASET_PATH: string | undefined;
  */
 export function isLocalMode(): boolean {
   return (
-    typeof LOCAL_DASHBOARD_MODE !== "undefined" &&
-    LOCAL_DASHBOARD_MODE === true
+    typeof LOCAL_DASHBOARD_MODE !== "undefined" && LOCAL_DASHBOARD_MODE === true
   );
 }
 

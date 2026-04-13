@@ -9,9 +9,7 @@
  * - No-data message for empty rollups
  */
 
-import {
-  renderThroughputChart,
-} from "../../../ui/modules/charts/throughput";
+import { renderThroughputChart } from "../../../ui/modules/charts/throughput";
 import type { Rollup } from "../../../ui/dataset-loader";
 
 /** Shared test fixture: create N rollups with predictable values. */

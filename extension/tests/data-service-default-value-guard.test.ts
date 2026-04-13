@@ -13,7 +13,9 @@
 
 import * as path from "path";
 import * as _fsOriginal from "fs";
-function _loadFs(): typeof _fsOriginal { return _fsOriginal; }
+function _loadFs(): typeof _fsOriginal {
+  return _fsOriginal;
+}
 const _fs = _loadFs();
 
 const UI_DIR = path.join(__dirname, "../ui");

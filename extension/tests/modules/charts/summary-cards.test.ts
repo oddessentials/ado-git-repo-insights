@@ -14,7 +14,6 @@ import {
   type SummaryCardsContainers,
 } from "../../../ui/modules/charts/summary-cards";
 
-
 describe("summary-cards module", () => {
   /**
    * Create mock container elements for testing.
@@ -267,8 +266,8 @@ describe("summary-cards module", () => {
           pr_count: 10,
           cycle_time_p50: 60,
           cycle_time_p90: 120,
-          review_time_p50: 90,   // 1.5h
-          review_time_p90: 240,  // 4.0h
+          review_time_p50: 90, // 1.5h
+          review_time_p90: 240, // 4.0h
           authors_count: 5,
           reviewers_count: 3,
           by_repository: null,
@@ -327,8 +326,8 @@ describe("summary-cards module", () => {
         pr_count: 10,
         cycle_time_p50: 60,
         cycle_time_p90: 120,
-        review_time_p50: 30 + i * 15,   // minutes
-        review_time_p90: 60 + i * 30,   // minutes
+        review_time_p50: 30 + i * 15, // minutes
+        review_time_p90: 60 + i * 30, // minutes
         authors_count: 5,
         reviewers_count: 3,
         by_repository: null,
@@ -444,7 +443,11 @@ describe("summary-cards module", () => {
         },
       ];
 
-      renderSummaryCards({ rollups: filteredRollups, containers, unfilteredRollups });
+      renderSummaryCards({
+        rollups: filteredRollups,
+        containers,
+        unfilteredRollups,
+      });
 
       // Cards must be hidden — filtered slice has no review_time data.
       // Showing blank "-" KPIs is worse than hiding for unsupported slices.
@@ -623,12 +626,18 @@ describe("summary-cards module", () => {
       card.appendChild(containers.totalPrs!);
       document.body.appendChild(card);
 
-      const rollups = [{
-        week: "2025-W01", pr_count: 1,
-        cycle_time_p50: 60, cycle_time_p90: 120,
-        authors_count: 1, reviewers_count: 1,
-        by_repository: null, by_team: null,
-      }];
+      const rollups = [
+        {
+          week: "2025-W01",
+          pr_count: 1,
+          cycle_time_p50: 60,
+          cycle_time_p90: 120,
+          authors_count: 1,
+          reviewers_count: 1,
+          by_repository: null,
+          by_team: null,
+        },
+      ];
 
       renderSummaryCards({ rollups, containers });
 
@@ -672,12 +681,18 @@ describe("summary-cards module", () => {
       card.appendChild(containers.totalPrs!);
       document.body.appendChild(card);
 
-      const rollups = [{
-        week: "2025-W01", pr_count: 5,
-        cycle_time_p50: 60, cycle_time_p90: 120,
-        authors_count: 2, reviewers_count: 1,
-        by_repository: null, by_team: null,
-      }];
+      const rollups = [
+        {
+          week: "2025-W01",
+          pr_count: 5,
+          cycle_time_p50: 60,
+          cycle_time_p90: 120,
+          authors_count: 2,
+          reviewers_count: 1,
+          by_repository: null,
+          by_team: null,
+        },
+      ];
 
       renderSummaryCards({ rollups, containers });
 
@@ -722,10 +737,54 @@ describe("summary-cards module", () => {
 
       // 4 rollups, 2 with non-null review_time_p50
       const rollups = [
-        { week: "2025-W01", pr_count: 20, cycle_time_p50: 60, cycle_time_p90: 120, review_time_p50: 30, review_time_p90: 60, authors_count: 5, reviewers_count: 3, by_repository: null, by_team: null },
-        { week: "2025-W02", pr_count: 25, cycle_time_p50: 45, cycle_time_p90: 90, review_time_p50: null, review_time_p90: null, authors_count: 7, reviewers_count: 4, by_repository: null, by_team: null },
-        { week: "2025-W03", pr_count: 15, cycle_time_p50: 50, cycle_time_p90: 100, review_time_p50: 45, review_time_p90: 90, authors_count: 6, reviewers_count: 3, by_repository: null, by_team: null },
-        { week: "2025-W04", pr_count: 30, cycle_time_p50: 55, cycle_time_p90: 110, review_time_p50: null, review_time_p90: null, authors_count: 8, reviewers_count: 5, by_repository: null, by_team: null },
+        {
+          week: "2025-W01",
+          pr_count: 20,
+          cycle_time_p50: 60,
+          cycle_time_p90: 120,
+          review_time_p50: 30,
+          review_time_p90: 60,
+          authors_count: 5,
+          reviewers_count: 3,
+          by_repository: null,
+          by_team: null,
+        },
+        {
+          week: "2025-W02",
+          pr_count: 25,
+          cycle_time_p50: 45,
+          cycle_time_p90: 90,
+          review_time_p50: null,
+          review_time_p90: null,
+          authors_count: 7,
+          reviewers_count: 4,
+          by_repository: null,
+          by_team: null,
+        },
+        {
+          week: "2025-W03",
+          pr_count: 15,
+          cycle_time_p50: 50,
+          cycle_time_p90: 100,
+          review_time_p50: 45,
+          review_time_p90: 90,
+          authors_count: 6,
+          reviewers_count: 3,
+          by_repository: null,
+          by_team: null,
+        },
+        {
+          week: "2025-W04",
+          pr_count: 30,
+          cycle_time_p50: 55,
+          cycle_time_p90: 110,
+          review_time_p50: null,
+          review_time_p90: null,
+          authors_count: 8,
+          reviewers_count: 5,
+          by_repository: null,
+          by_team: null,
+        },
       ];
 
       renderSummaryCards({ rollups, containers });
@@ -761,8 +820,8 @@ describe("summary-cards module", () => {
         pr_count: 10,
         cycle_time_p50: 60,
         cycle_time_p90: 120,
-        review_time_p50: i < 3 ? 30 + i * 10 : null as number | null,
-        review_time_p90: i < 3 ? 60 + i * 20 : null as number | null,
+        review_time_p50: i < 3 ? 30 + i * 10 : (null as number | null),
+        review_time_p90: i < 3 ? 60 + i * 20 : (null as number | null),
         authors_count: 5,
         reviewers_count: 3,
         by_repository: null,
@@ -800,9 +859,42 @@ describe("summary-cards module", () => {
       // P50 non-null on weeks 1,3 (2 weeks). P90 non-null on weeks 1,2 (2 weeks).
       // Different weeks but same count — ensures independence is wired, not coincidental.
       const rollups = [
-        { week: "2025-W01", pr_count: 10, cycle_time_p50: 60, cycle_time_p90: 120, review_time_p50: 30, review_time_p90: 60, authors_count: 5, reviewers_count: 3, by_repository: null, by_team: null },
-        { week: "2025-W02", pr_count: 15, cycle_time_p50: 45, cycle_time_p90: 90, review_time_p50: null, review_time_p90: 90, authors_count: 7, reviewers_count: 4, by_repository: null, by_team: null },
-        { week: "2025-W03", pr_count: 20, cycle_time_p50: 50, cycle_time_p90: 100, review_time_p50: 45, review_time_p90: null, authors_count: 6, reviewers_count: 3, by_repository: null, by_team: null },
+        {
+          week: "2025-W01",
+          pr_count: 10,
+          cycle_time_p50: 60,
+          cycle_time_p90: 120,
+          review_time_p50: 30,
+          review_time_p90: 60,
+          authors_count: 5,
+          reviewers_count: 3,
+          by_repository: null,
+          by_team: null,
+        },
+        {
+          week: "2025-W02",
+          pr_count: 15,
+          cycle_time_p50: 45,
+          cycle_time_p90: 90,
+          review_time_p50: null,
+          review_time_p90: 90,
+          authors_count: 7,
+          reviewers_count: 4,
+          by_repository: null,
+          by_team: null,
+        },
+        {
+          week: "2025-W03",
+          pr_count: 20,
+          cycle_time_p50: 50,
+          cycle_time_p90: 100,
+          review_time_p50: 45,
+          review_time_p90: null,
+          authors_count: 6,
+          reviewers_count: 3,
+          by_repository: null,
+          by_team: null,
+        },
       ];
 
       renderSummaryCards({ rollups, containers });
@@ -833,10 +925,46 @@ describe("summary-cards module", () => {
 
       // P50 non-null on weeks 1,2 (2 weeks). P90 non-null on weeks 1,2,3,4 (4 weeks).
       const rollups = [
-        { week: "2025-W01", pr_count: 10, cycle_time_p50: 60, cycle_time_p90: 120, authors_count: 5, reviewers_count: 3, by_repository: null, by_team: null },
-        { week: "2025-W02", pr_count: 15, cycle_time_p50: 45, cycle_time_p90: 90, authors_count: 7, reviewers_count: 4, by_repository: null, by_team: null },
-        { week: "2025-W03", pr_count: 20, cycle_time_p50: null, cycle_time_p90: 100, authors_count: 6, reviewers_count: 3, by_repository: null, by_team: null },
-        { week: "2025-W04", pr_count: 12, cycle_time_p50: null, cycle_time_p90: 140, authors_count: 4, reviewers_count: 2, by_repository: null, by_team: null },
+        {
+          week: "2025-W01",
+          pr_count: 10,
+          cycle_time_p50: 60,
+          cycle_time_p90: 120,
+          authors_count: 5,
+          reviewers_count: 3,
+          by_repository: null,
+          by_team: null,
+        },
+        {
+          week: "2025-W02",
+          pr_count: 15,
+          cycle_time_p50: 45,
+          cycle_time_p90: 90,
+          authors_count: 7,
+          reviewers_count: 4,
+          by_repository: null,
+          by_team: null,
+        },
+        {
+          week: "2025-W03",
+          pr_count: 20,
+          cycle_time_p50: null,
+          cycle_time_p90: 100,
+          authors_count: 6,
+          reviewers_count: 3,
+          by_repository: null,
+          by_team: null,
+        },
+        {
+          week: "2025-W04",
+          pr_count: 12,
+          cycle_time_p50: null,
+          cycle_time_p90: 140,
+          authors_count: 4,
+          reviewers_count: 2,
+          by_repository: null,
+          by_team: null,
+        },
       ];
 
       renderSummaryCards({ rollups, containers });
@@ -856,7 +984,10 @@ describe("summary-cards module", () => {
       const containers = createContainers();
 
       // Contiguous-window cards (authors, reviewers)
-      const contiguousEls = [containers.authorsCount!, containers.reviewersCount!];
+      const contiguousEls = [
+        containers.authorsCount!,
+        containers.reviewersCount!,
+      ];
       const contiguousCards: HTMLElement[] = [];
       for (const el of contiguousEls) {
         const card = document.createElement("div");
@@ -882,11 +1013,13 @@ describe("summary-cards module", () => {
       renderSummaryCards({ rollups: createRollups(8), containers });
 
       for (const card of contiguousCards) {
-        const label = card.querySelector(".metric-sample-size")?.textContent ?? "";
+        const label =
+          card.querySelector(".metric-sample-size")?.textContent ?? "";
         expect(label).toContain("weeks of data");
       }
       for (const card of sparseCards) {
-        const label = card.querySelector(".metric-sample-size")?.textContent ?? "";
+        const label =
+          card.querySelector(".metric-sample-size")?.textContent ?? "";
         expect(label).toContain("data points");
       }
     });
@@ -901,8 +1034,26 @@ describe("summary-cards module", () => {
 
       // All rollups have null review_time_p50 → reviewTimeP50WeekCount = 0
       const rollups = [
-        { week: "2025-W01", pr_count: 10, cycle_time_p50: 60, cycle_time_p90: 120, authors_count: 5, reviewers_count: 3, by_repository: null, by_team: null },
-        { week: "2025-W02", pr_count: 15, cycle_time_p50: 80, cycle_time_p90: 160, authors_count: 7, reviewers_count: 4, by_repository: null, by_team: null },
+        {
+          week: "2025-W01",
+          pr_count: 10,
+          cycle_time_p50: 60,
+          cycle_time_p90: 120,
+          authors_count: 5,
+          reviewers_count: 3,
+          by_repository: null,
+          by_team: null,
+        },
+        {
+          week: "2025-W02",
+          pr_count: 15,
+          cycle_time_p50: 80,
+          cycle_time_p90: 160,
+          authors_count: 7,
+          reviewers_count: 4,
+          by_repository: null,
+          by_team: null,
+        },
       ];
 
       renderSummaryCards({ rollups, containers });
@@ -974,12 +1125,18 @@ describe("summary-cards module", () => {
     });
 
     it("PR-based tier boundaries: 9 low, 10 moderate, 30 adequate", () => {
-      const makeRollup = (prCount: number) => [{
-        week: "2025-W01", pr_count: prCount,
-        cycle_time_p50: 60, cycle_time_p90: 120,
-        authors_count: 5, reviewers_count: 3,
-        by_repository: null, by_team: null,
-      }];
+      const makeRollup = (prCount: number) => [
+        {
+          week: "2025-W01",
+          pr_count: prCount,
+          cycle_time_p50: 60,
+          cycle_time_p90: 120,
+          authors_count: 5,
+          reviewers_count: 3,
+          by_repository: null,
+          by_team: null,
+        },
+      ];
 
       for (const { prCount, expected } of [
         { prCount: 9, expected: "low-sample" },
@@ -1060,8 +1217,12 @@ describe("summary-cards module", () => {
 
       expect(containers.totalPrsDelta!.innerHTML).toContain("vs prior period");
       // Must NOT claim a specific week count
-      expect(containers.totalPrsDelta!.innerHTML).not.toContain("vs prior 5 weeks");
-      expect(containers.totalPrsDelta!.innerHTML).not.toContain("vs prior 8 weeks");
+      expect(containers.totalPrsDelta!.innerHTML).not.toContain(
+        "vs prior 5 weeks",
+      );
+      expect(containers.totalPrsDelta!.innerHTML).not.toContain(
+        "vs prior 8 weeks",
+      );
     });
 
     it("falls back to generic label on off-by-one mismatch (no tolerance for sparse counts)", () => {
@@ -1079,7 +1240,9 @@ describe("summary-cards module", () => {
       renderSummaryCards({ rollups, prevRollups, containers });
 
       expect(containers.totalPrsDelta!.innerHTML).toContain("vs prior period");
-      expect(containers.totalPrsDelta!.innerHTML).not.toContain("vs prior 7 weeks");
+      expect(containers.totalPrsDelta!.innerHTML).not.toContain(
+        "vs prior 7 weeks",
+      );
     });
 
     it("sparse off-by-one: does not claim specific prior coverage", () => {
@@ -1093,21 +1256,61 @@ describe("summary-cards module", () => {
 
       // Current: 1 non-null cycle_time_p50 week
       const rollups = [
-        { week: "2025-W01", pr_count: 10, cycle_time_p50: 60, cycle_time_p90: 120, authors_count: 5, reviewers_count: 3, by_repository: null, by_team: null },
-        { week: "2025-W02", pr_count: 10, cycle_time_p50: null as number | null, cycle_time_p90: null as number | null, authors_count: 5, reviewers_count: 3, by_repository: null, by_team: null },
+        {
+          week: "2025-W01",
+          pr_count: 10,
+          cycle_time_p50: 60,
+          cycle_time_p90: 120,
+          authors_count: 5,
+          reviewers_count: 3,
+          by_repository: null,
+          by_team: null,
+        },
+        {
+          week: "2025-W02",
+          pr_count: 10,
+          cycle_time_p50: null as number | null,
+          cycle_time_p90: null as number | null,
+          authors_count: 5,
+          reviewers_count: 3,
+          by_repository: null,
+          by_team: null,
+        },
       ];
       // Previous: 2 non-null cycle_time_p50 weeks
       const prevRollups = [
-        { week: "2024-W50", pr_count: 8, cycle_time_p50: 55, cycle_time_p90: 110, authors_count: 4, reviewers_count: 2, by_repository: null, by_team: null },
-        { week: "2024-W51", pr_count: 8, cycle_time_p50: 65, cycle_time_p90: 130, authors_count: 4, reviewers_count: 2, by_repository: null, by_team: null },
+        {
+          week: "2024-W50",
+          pr_count: 8,
+          cycle_time_p50: 55,
+          cycle_time_p90: 110,
+          authors_count: 4,
+          reviewers_count: 2,
+          by_repository: null,
+          by_team: null,
+        },
+        {
+          week: "2024-W51",
+          pr_count: 8,
+          cycle_time_p50: 65,
+          cycle_time_p90: 130,
+          authors_count: 4,
+          reviewers_count: 2,
+          by_repository: null,
+          by_team: null,
+        },
       ];
 
       renderSummaryCards({ rollups, prevRollups, containers });
 
       // cycleP50WeekCount: current=1, previous=2 → mismatch → generic label
       expect(containers.cycleP50Delta!.innerHTML).toContain("vs prior period");
-      expect(containers.cycleP50Delta!.innerHTML).not.toContain("vs prior 2 weeks");
-      expect(containers.cycleP50Delta!.innerHTML).not.toContain("vs prior 1 week");
+      expect(containers.cycleP50Delta!.innerHTML).not.toContain(
+        "vs prior 2 weeks",
+      );
+      expect(containers.cycleP50Delta!.innerHTML).not.toContain(
+        "vs prior 1 week",
+      );
     });
 
     it("clears deltas and label when prevRollups is empty", () => {
@@ -1120,12 +1323,19 @@ describe("summary-cards module", () => {
       document.body.appendChild(card);
 
       // Pre-populate delta
-      containers.totalPrsDelta!.innerHTML = '<span class="delta-label">old</span>';
+      containers.totalPrsDelta!.innerHTML =
+        '<span class="delta-label">old</span>';
 
-      renderSummaryCards({ rollups: createRollups(4), prevRollups: [], containers });
+      renderSummaryCards({
+        rollups: createRollups(4),
+        prevRollups: [],
+        containers,
+      });
 
       expect(containers.totalPrsDelta!.innerHTML).toBe("");
-      expect(containers.totalPrsDelta!.querySelector(".delta-label")).toBeNull();
+      expect(
+        containers.totalPrsDelta!.querySelector(".delta-label"),
+      ).toBeNull();
     });
 
     it("sparse series: all labels match metric-specific coverage, not raw window", () => {
@@ -1181,7 +1391,9 @@ describe("summary-cards module", () => {
       expect(cycleSparkline!.textContent).toBe("2 data points");
       // Sparse metrics never claim specific week windows
       expect(containers.cycleP50Delta!.innerHTML).toContain("vs prior period");
-      expect(containers.cycleP50Delta!.innerHTML).not.toContain("vs prior 2 weeks");
+      expect(containers.cycleP50Delta!.innerHTML).not.toContain(
+        "vs prior 2 weeks",
+      );
 
       // Authors card: contiguous window — all 8 weeks
       const authSample = authCard.querySelector(".metric-sample-size");
@@ -1204,19 +1416,29 @@ describe("summary-cards module", () => {
       // Unfiltered rollups have review_time data
       const unfilteredRollups = Array.from({ length: 4 }, (_, i) => ({
         week: `2025-W${(i + 1).toString().padStart(2, "0")}`,
-        pr_count: 10, cycle_time_p50: 60, cycle_time_p90: 120,
-        review_time_p50: 900 + i * 100, review_time_p90: 1800 + i * 200,
-        authors_count: 5, reviewers_count: 3,
-        by_repository: null, by_team: null,
+        pr_count: 10,
+        cycle_time_p50: 60,
+        cycle_time_p90: 120,
+        review_time_p50: 900 + i * 100,
+        review_time_p90: 1800 + i * 200,
+        authors_count: 5,
+        reviewers_count: 3,
+        by_repository: null,
+        by_team: null,
       }));
 
       // Filtered rollups have NO review_time data (e.g., reviewer filter zeros them)
       const rollups = Array.from({ length: 4 }, (_, i) => ({
         week: `2025-W${(i + 1).toString().padStart(2, "0")}`,
-        pr_count: 5, cycle_time_p50: null, cycle_time_p90: null,
-        review_time_p50: null as number | null, review_time_p90: null as number | null,
-        authors_count: 3, reviewers_count: 2,
-        by_repository: null, by_team: null,
+        pr_count: 5,
+        cycle_time_p50: null,
+        cycle_time_p90: null,
+        review_time_p50: null as number | null,
+        review_time_p90: null as number | null,
+        authors_count: 3,
+        reviewers_count: 2,
+        by_repository: null,
+        by_team: null,
       }));
 
       renderSummaryCards({ rollups, unfilteredRollups, containers });
@@ -1237,10 +1459,15 @@ describe("summary-cards module", () => {
 
       const rollups = Array.from({ length: 4 }, (_, i) => ({
         week: `2025-W${(i + 1).toString().padStart(2, "0")}`,
-        pr_count: 10, cycle_time_p50: 60, cycle_time_p90: 120,
-        review_time_p50: 900 + i * 100, review_time_p90: 1800,
-        authors_count: 5, reviewers_count: 3,
-        by_repository: null, by_team: null,
+        pr_count: 10,
+        cycle_time_p50: 60,
+        cycle_time_p90: 120,
+        review_time_p50: 900 + i * 100,
+        review_time_p90: 1800,
+        authors_count: 5,
+        reviewers_count: 3,
+        by_repository: null,
+        by_team: null,
       }));
 
       renderSummaryCards({ rollups, containers });
@@ -1260,21 +1487,34 @@ describe("summary-cards module", () => {
 
       const noReviewTimeRollups = Array.from({ length: 4 }, (_, i) => ({
         week: `2025-W${(i + 1).toString().padStart(2, "0")}`,
-        pr_count: 10, cycle_time_p50: 60, cycle_time_p90: 120,
-        authors_count: 5, reviewers_count: 3,
-        by_repository: null, by_team: null,
+        pr_count: 10,
+        cycle_time_p50: 60,
+        cycle_time_p90: 120,
+        authors_count: 5,
+        reviewers_count: 3,
+        by_repository: null,
+        by_team: null,
       }));
 
       const withReviewTimeRollups = Array.from({ length: 4 }, (_, i) => ({
         week: `2025-W${(i + 1).toString().padStart(2, "0")}`,
-        pr_count: 10, cycle_time_p50: 60, cycle_time_p90: 120,
-        review_time_p50: 900, review_time_p90: 1800,
-        authors_count: 5, reviewers_count: 3,
-        by_repository: null, by_team: null,
+        pr_count: 10,
+        cycle_time_p50: 60,
+        cycle_time_p90: 120,
+        review_time_p50: 900,
+        review_time_p90: 1800,
+        authors_count: 5,
+        reviewers_count: 3,
+        by_repository: null,
+        by_team: null,
       }));
 
       // Case 1: unfilteredRollups have data, filtered don't → hidden
-      renderSummaryCards({ rollups: noReviewTimeRollups, unfilteredRollups: withReviewTimeRollups, containers });
+      renderSummaryCards({
+        rollups: noReviewTimeRollups,
+        unfilteredRollups: withReviewTimeRollups,
+        containers,
+      });
       expect(rtCard.style.display).toBe("none");
 
       // Case 2: no unfilteredRollups passed, filtered don't have data → still hidden
@@ -1299,36 +1539,49 @@ describe("summary-cards module", () => {
       // Only P50 data present, no P90
       const p50Only = Array.from({ length: 4 }, (_, i) => ({
         week: `2025-W${(i + 1).toString().padStart(2, "0")}`,
-        pr_count: 10, cycle_time_p50: 60, cycle_time_p90: 120,
+        pr_count: 10,
+        cycle_time_p50: 60,
+        cycle_time_p90: 120,
         review_time_p50: 900 + i * 100,
-        authors_count: 5, reviewers_count: 3,
-        by_repository: null, by_team: null,
+        authors_count: 5,
+        reviewers_count: 3,
+        by_repository: null,
+        by_team: null,
       }));
       renderSummaryCards({ rollups: p50Only, containers });
-      expect(p50Card.style.display).toBe("");    // visible
+      expect(p50Card.style.display).toBe(""); // visible
       expect(p90Card.style.display).toBe("none"); // hidden
       expect(containers.reviewTimeP90!.textContent).toBe(""); // no stale "-"
 
       // Only P90 data present, no P50
       const p90Only = Array.from({ length: 4 }, (_, i) => ({
         week: `2025-W${(i + 1).toString().padStart(2, "0")}`,
-        pr_count: 10, cycle_time_p50: 60, cycle_time_p90: 120,
+        pr_count: 10,
+        cycle_time_p50: 60,
+        cycle_time_p90: 120,
         review_time_p90: 1800 + i * 200,
-        authors_count: 5, reviewers_count: 3,
-        by_repository: null, by_team: null,
+        authors_count: 5,
+        reviewers_count: 3,
+        by_repository: null,
+        by_team: null,
       }));
       renderSummaryCards({ rollups: p90Only, containers });
       expect(p50Card.style.display).toBe("none"); // hidden
-      expect(p90Card.style.display).toBe("");      // visible
+      expect(p90Card.style.display).toBe(""); // visible
       expect(containers.reviewTimeP50!.textContent).toBe(""); // no stale "-"
 
       // Both present
       const both = Array.from({ length: 4 }, (_, i) => ({
         week: `2025-W${(i + 1).toString().padStart(2, "0")}`,
-        pr_count: 10, cycle_time_p50: 60, cycle_time_p90: 120,
-        review_time_p50: 900, review_time_p90: 1800,
-        authors_count: 5, reviewers_count: 3,
-        by_repository: null, by_team: null,
+        pr_count: 10,
+        cycle_time_p50: 60,
+        cycle_time_p90: 120,
+        review_time_p50: 900,
+        review_time_p90: 1800,
+        authors_count: 5,
+        reviewers_count: 3,
+        by_repository: null,
+        by_team: null,
       }));
       renderSummaryCards({ rollups: both, containers });
       expect(p50Card.style.display).toBe(""); // visible
@@ -1337,9 +1590,13 @@ describe("summary-cards module", () => {
       // Neither present
       const neither = Array.from({ length: 4 }, (_, i) => ({
         week: `2025-W${(i + 1).toString().padStart(2, "0")}`,
-        pr_count: 10, cycle_time_p50: 60, cycle_time_p90: 120,
-        authors_count: 5, reviewers_count: 3,
-        by_repository: null, by_team: null,
+        pr_count: 10,
+        cycle_time_p50: 60,
+        cycle_time_p90: 120,
+        authors_count: 5,
+        reviewers_count: 3,
+        by_repository: null,
+        by_team: null,
       }));
       renderSummaryCards({ rollups: neither, containers });
       expect(p50Card.style.display).toBe("none"); // hidden

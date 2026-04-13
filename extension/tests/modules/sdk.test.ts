@@ -190,7 +190,8 @@ describe("SDK Module", () => {
       await initializeAdoSdk({
         onReady: () => {
           resizeHost(undefined, 500);
-          resizeCalledDuringOnReady = mockSdkModule.resize.mock.calls.length > 0;
+          resizeCalledDuringOnReady =
+            mockSdkModule.resize.mock.calls.length > 0;
         },
       });
 
@@ -225,9 +226,7 @@ describe("SDK Module", () => {
     });
 
     it("rejects on timeout", async () => {
-      mockSdkModule.ready.mockImplementation(
-        () => new Promise<void>(() => {}),
-      );
+      mockSdkModule.ready.mockImplementation(() => new Promise<void>(() => {}));
       resetSdkState();
 
       await expect(initializeAdoSdk({ timeout: 50 })).rejects.toThrow(
@@ -328,9 +327,7 @@ describe("SDK Module", () => {
 
     it("allows retry after timeout", async () => {
       // First attempt: ready hangs, times out
-      mockSdkModule.ready.mockImplementation(
-        () => new Promise<void>(() => {}),
-      );
+      mockSdkModule.ready.mockImplementation(() => new Promise<void>(() => {}));
       resetSdkState();
 
       await expect(initializeAdoSdk({ timeout: 50 })).rejects.toThrow(
@@ -444,7 +441,10 @@ describe("SDK Module", () => {
       const opts = call?.[1] as RequestInit;
       expect(url).toContain("my-key");
       expect(opts.method).toBe("PUT");
-      expect(JSON.parse(opts.body as string)).toEqual({ id: "my-key", value: 42 });
+      expect(JSON.parse(opts.body as string)).toEqual({
+        id: "my-key",
+        value: 42,
+      });
     });
 
     it("getValue throws on non-ok, non-404 response", async () => {
@@ -468,7 +468,9 @@ describe("SDK Module", () => {
         json: () => Promise.resolve("raw-string-value"),
       });
 
-      const result = await client.getValue<string>("key", { scopeType: "User" });
+      const result = await client.getValue<string>("key", {
+        scopeType: "User",
+      });
       expect(result).toBe("raw-string-value");
     });
 
@@ -546,9 +548,7 @@ describe("SDK Module", () => {
         "https://tfs.example.com:8080/tfs/DefaultCollection/",
       );
       const uri = await getCollectionUri();
-      expect(uri).toBe(
-        "https://tfs.example.com:8080/tfs/DefaultCollection/",
-      );
+      expect(uri).toBe("https://tfs.example.com:8080/tfs/DefaultCollection/");
     });
 
     it("normalizes Server-style path without trailing slash", async () => {
@@ -556,9 +556,7 @@ describe("SDK Module", () => {
         "https://tfs.example.com:8080/tfs/DefaultCollection",
       );
       const uri = await getCollectionUri();
-      expect(uri).toBe(
-        "https://tfs.example.com:8080/tfs/DefaultCollection/",
-      );
+      expect(uri).toBe("https://tfs.example.com:8080/tfs/DefaultCollection/");
     });
 
     it("caches the resolved URI and does not call getService again", async () => {
@@ -594,7 +592,9 @@ describe("SDK Module", () => {
     it("deduplicates concurrent calls within the same tick", async () => {
       let resolveToken: (value: string) => void;
       mockSdkModule.getAccessToken.mockReturnValueOnce(
-        new Promise<string>((resolve) => { resolveToken = resolve; }),
+        new Promise<string>((resolve) => {
+          resolveToken = resolve;
+        }),
       );
 
       // Two concurrent calls before the first resolves

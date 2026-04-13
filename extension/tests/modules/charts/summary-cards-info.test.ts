@@ -8,11 +8,12 @@
 
 // jsdom lacks PointerEvent — polyfill for tests
 if (typeof PointerEvent === "undefined") {
-  (globalThis as Record<string, unknown>).PointerEvent = class PointerEvent extends MouseEvent {
-    constructor(type: string, init?: PointerEventInit) {
-      super(type, init);
-    }
-  };
+  (globalThis as Record<string, unknown>).PointerEvent =
+    class PointerEvent extends MouseEvent {
+      constructor(type: string, init?: PointerEventInit) {
+        super(type, init);
+      }
+    };
 }
 
 import {
@@ -88,9 +89,9 @@ describe("Summary Cards Info Icons (attachInfoIcons)", () => {
   afterEach(() => {
     document.body.innerHTML = "";
     // Clean up any tooltips
-    document.querySelectorAll(".info-tooltip, .chart-tooltip").forEach(
-      (el) => el.remove(),
-    );
+    document
+      .querySelectorAll(".info-tooltip, .chart-tooltip")
+      .forEach((el) => el.remove());
   });
 
   it("renders info icon for each of 7 summary cards", () => {
@@ -119,12 +120,20 @@ describe("Summary Cards Info Icons (attachInfoIcons)", () => {
     const firstIcon = document.querySelector(".info-icon-btn") as HTMLElement;
     // Mock getBoundingClientRect for positioning
     firstIcon.getBoundingClientRect = () => ({
-      top: 100, left: 100, bottom: 120, right: 120,
-      width: 20, height: 20, x: 100, y: 100,
+      top: 100,
+      left: 100,
+      bottom: 120,
+      right: 120,
+      width: 20,
+      height: 20,
+      x: 100,
+      y: 100,
       toJSON: () => ({}),
     });
 
-    firstIcon.dispatchEvent(new PointerEvent("pointerenter", { bubbles: true }));
+    firstIcon.dispatchEvent(
+      new PointerEvent("pointerenter", { bubbles: true }),
+    );
 
     const tooltip = document.querySelector(".info-tooltip");
     expect(tooltip).not.toBeNull();
@@ -141,17 +150,27 @@ describe("Summary Cards Info Icons (attachInfoIcons)", () => {
 
     const firstIcon = document.querySelector(".info-icon-btn") as HTMLElement;
     firstIcon.getBoundingClientRect = () => ({
-      top: 100, left: 100, bottom: 120, right: 120,
-      width: 20, height: 20, x: 100, y: 100,
+      top: 100,
+      left: 100,
+      bottom: 120,
+      right: 120,
+      width: 20,
+      height: 20,
+      x: 100,
+      y: 100,
       toJSON: () => ({}),
     });
 
     // Show tooltip
-    firstIcon.dispatchEvent(new PointerEvent("pointerenter", { bubbles: true }));
+    firstIcon.dispatchEvent(
+      new PointerEvent("pointerenter", { bubbles: true }),
+    );
     expect(document.querySelector(".info-tooltip")).not.toBeNull();
 
     // Hide tooltip
-    firstIcon.dispatchEvent(new PointerEvent("pointerleave", { bubbles: true }));
+    firstIcon.dispatchEvent(
+      new PointerEvent("pointerleave", { bubbles: true }),
+    );
     expect(document.querySelector(".info-tooltip")).toBeNull();
   });
 
@@ -178,10 +197,18 @@ describe("Summary Cards Info Icons (attachInfoIcons)", () => {
     renderSummaryCards({ rollups, containers });
 
     // Capture the first icon from first render
-    const firstRenderIcon = document.querySelector(".info-icon-btn") as HTMLElement;
+    const firstRenderIcon = document.querySelector(
+      ".info-icon-btn",
+    ) as HTMLElement;
     firstRenderIcon.getBoundingClientRect = () => ({
-      top: 100, left: 100, bottom: 120, right: 120,
-      width: 20, height: 20, x: 100, y: 100,
+      top: 100,
+      left: 100,
+      bottom: 120,
+      right: 120,
+      width: 20,
+      height: 20,
+      x: 100,
+      y: 100,
       toJSON: () => ({}),
     });
 
@@ -190,7 +217,9 @@ describe("Summary Cards Info Icons (attachInfoIcons)", () => {
 
     // The old icon was removed from DOM, so pointer events on it
     // should not create tooltips (AbortController aborted its listeners)
-    firstRenderIcon.dispatchEvent(new PointerEvent("pointerenter", { bubbles: true }));
+    firstRenderIcon.dispatchEvent(
+      new PointerEvent("pointerenter", { bubbles: true }),
+    );
     expect(document.querySelector(".info-tooltip")).toBeNull();
   });
 
@@ -200,8 +229,14 @@ describe("Summary Cards Info Icons (attachInfoIcons)", () => {
 
     const firstIcon = document.querySelector(".info-icon-btn") as HTMLElement;
     firstIcon.getBoundingClientRect = () => ({
-      top: 100, left: 100, bottom: 120, right: 120,
-      width: 20, height: 20, x: 100, y: 100,
+      top: 100,
+      left: 100,
+      bottom: 120,
+      right: 120,
+      width: 20,
+      height: 20,
+      x: 100,
+      y: 100,
       toJSON: () => ({}),
     });
 
@@ -257,8 +292,14 @@ describe("Summary Cards Info Icons (attachInfoIcons)", () => {
 
     const firstIcon = document.querySelector(".info-icon-btn") as HTMLElement;
     firstIcon.getBoundingClientRect = () => ({
-      top: 100, left: 100, bottom: 120, right: 120,
-      width: 20, height: 20, x: 100, y: 100,
+      top: 100,
+      left: 100,
+      bottom: 120,
+      right: 120,
+      width: 20,
+      height: 20,
+      x: 100,
+      y: 100,
       toJSON: () => ({}),
     });
 
@@ -322,11 +363,17 @@ describe("Summary Cards Info Icons (attachInfoIcons)", () => {
 
   it("reviewer tooltip switches to 'reviews' when reviewerFilterActive is true", () => {
     const containers = createContainersWithCards();
-    renderSummaryCards({ rollups: createSampleRollups(), containers, reviewerFilterActive: true });
+    renderSummaryCards({
+      rollups: createSampleRollups(),
+      containers,
+      reviewerFilterActive: true,
+    });
 
     // Find the info icon on the reviewers card
     const reviewersCard = containers.reviewersCount!.closest(".card");
-    const icon = reviewersCard?.querySelector(".info-icon-btn") as HTMLElement | null;
+    const icon = reviewersCard?.querySelector(
+      ".info-icon-btn",
+    ) as HTMLElement | null;
     expect(icon).not.toBeNull();
 
     // Trigger pointerenter to show tooltip — the explanation passed to showInfoTooltip
@@ -339,10 +386,16 @@ describe("Summary Cards Info Icons (attachInfoIcons)", () => {
 
   it("reviewer tooltip shows 'reviewers' when reviewerFilterActive is false", () => {
     const containers = createContainersWithCards();
-    renderSummaryCards({ rollups: createSampleRollups(), containers, reviewerFilterActive: false });
+    renderSummaryCards({
+      rollups: createSampleRollups(),
+      containers,
+      reviewerFilterActive: false,
+    });
 
     const reviewersCard = containers.reviewersCount!.closest(".card");
-    const icon = reviewersCard?.querySelector(".info-icon-btn") as HTMLElement | null;
+    const icon = reviewersCard?.querySelector(
+      ".info-icon-btn",
+    ) as HTMLElement | null;
     expect(icon).not.toBeNull();
 
     icon!.dispatchEvent(new Event("pointerenter"));
@@ -352,7 +405,12 @@ describe("Summary Cards Info Icons (attachInfoIcons)", () => {
 
   describe("median-of-medians disclosure", () => {
     it("median metrics include aggregation disclosure", () => {
-      for (const key of ["cycleP50", "cycleP90", "reviewTimeP50", "reviewTimeP90"]) {
+      for (const key of [
+        "cycleP50",
+        "cycleP90",
+        "reviewTimeP50",
+        "reviewTimeP90",
+      ]) {
         const text = METRIC_EXPLANATIONS.get(key) ?? "";
         expect(text).toContain("Aggregated from weekly values");
       }

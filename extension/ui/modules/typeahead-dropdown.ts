@@ -102,7 +102,11 @@ export function initTypeaheadDropdown(
    *  Used by renderChips, getSelected, normalizeAndEmit, updateInputDisplay.
    *  Compares against options.length (full set), never filteredOptions.length. */
   function isAllSelected(): boolean {
-    return config.mode === "multi" && selected.length > 0 && selected.length === options.length;
+    return (
+      config.mode === "multi" &&
+      selected.length > 0 &&
+      selected.length === options.length
+    );
   }
 
   // --- Render helpers ---
@@ -128,10 +132,14 @@ export function initTypeaheadDropdown(
       remove.type = "button";
       remove.setAttribute("aria-label", `Remove ${opt.displayName}`);
       remove.textContent = "\u00d7"; // ×
-      remove.addEventListener("click", (e) => {
-        e.stopPropagation();
-        deselectOption(id);
-      }, { signal });
+      remove.addEventListener(
+        "click",
+        (e) => {
+          e.stopPropagation();
+          deselectOption(id);
+        },
+        { signal },
+      );
 
       chip.appendChild(label);
       chip.appendChild(remove);
@@ -155,7 +163,10 @@ export function initTypeaheadDropdown(
       const item = document.createElement("div");
       item.className = "typeahead-option";
       item.setAttribute("role", "option");
-      item.setAttribute("aria-selected", selected.includes(opt.id) ? "true" : "false");
+      item.setAttribute(
+        "aria-selected",
+        selected.includes(opt.id) ? "true" : "false",
+      );
       item.setAttribute("data-testid", `typeahead-option-${opt.id}`);
       item.dataset.optionId = opt.id;
 
@@ -189,10 +200,14 @@ export function initTypeaheadDropdown(
         item.textContent = opt.displayName;
       }
 
-      item.addEventListener("pointerdown", (e) => {
-        e.preventDefault(); // Prevent input blur
-        toggleOption(opt.id);
-      }, { signal });
+      item.addEventListener(
+        "pointerdown",
+        (e) => {
+          e.preventDefault(); // Prevent input blur
+          toggleOption(opt.id);
+        },
+        { signal },
+      );
 
       dropdown.appendChild(item);
     });
@@ -315,68 +330,93 @@ export function initTypeaheadDropdown(
 
   // --- Event handlers ---
 
-  input.addEventListener("focus", () => {
-    if (config.mode === "single") {
-      input.value = "";
-    }
-    openDropdown();
-  }, { signal });
+  input.addEventListener(
+    "focus",
+    () => {
+      if (config.mode === "single") {
+        input.value = "";
+      }
+      openDropdown();
+    },
+    { signal },
+  );
 
-  input.addEventListener("blur", () => {
-    // Defer to next frame so pointerdown handlers on dropdown options
-    // complete before the dropdown is removed. closeDropdown() is
-    // idempotent (guards with isOpen check) so double-call is safe.
-    requestAnimationFrame(() => {
-      closeDropdown();
-    });
-  }, { signal });
+  input.addEventListener(
+    "blur",
+    () => {
+      // Defer to next frame so pointerdown handlers on dropdown options
+      // complete before the dropdown is removed. closeDropdown() is
+      // idempotent (guards with isOpen check) so double-call is safe.
+      requestAnimationFrame(() => {
+        closeDropdown();
+      });
+    },
+    { signal },
+  );
 
-  input.addEventListener("input", () => {
-    if (debounceTimer !== null) clearTimeout(debounceTimer);
-    debounceTimer = setTimeout(() => {
-      filterOptions(input.value);
-      if (!isOpen) openDropdown();
-    }, DEBOUNCE_MS);
-  }, { signal });
-
-  input.addEventListener("keydown", (e: KeyboardEvent) => {
-    const items = dropdown.querySelectorAll(".typeahead-option");
-    if (e.key === "ArrowDown") {
-      e.preventDefault();
-      highlightIndex = Math.min(highlightIndex + 1, items.length - 1);
-      updateHighlight(items);
-    } else if (e.key === "ArrowUp") {
-      e.preventDefault();
-      highlightIndex = Math.max(highlightIndex - 1, 0);
-      updateHighlight(items);
-    } else if (e.key === "Enter") {
-      e.preventDefault();
-      // Flush pending debounce to ensure filteredOptions is current
-      if (debounceTimer !== null) {
-        clearTimeout(debounceTimer);
-        debounceTimer = null;
+  input.addEventListener(
+    "input",
+    () => {
+      if (debounceTimer !== null) clearTimeout(debounceTimer);
+      debounceTimer = setTimeout(() => {
         filterOptions(input.value);
+        if (!isOpen) openDropdown();
+      }, DEBOUNCE_MS);
+    },
+    { signal },
+  );
+
+  input.addEventListener(
+    "keydown",
+    (e: KeyboardEvent) => {
+      const items = dropdown.querySelectorAll(".typeahead-option");
+      if (e.key === "ArrowDown") {
+        e.preventDefault();
+        highlightIndex = Math.min(highlightIndex + 1, items.length - 1);
+        updateHighlight(items);
+      } else if (e.key === "ArrowUp") {
+        e.preventDefault();
+        highlightIndex = Math.max(highlightIndex - 1, 0);
+        updateHighlight(items);
+      } else if (e.key === "Enter") {
+        e.preventDefault();
+        // Flush pending debounce to ensure filteredOptions is current
+        if (debounceTimer !== null) {
+          clearTimeout(debounceTimer);
+          debounceTimer = null;
+          filterOptions(input.value);
+        }
+        if (highlightIndex >= 0 && highlightIndex < filteredOptions.length) {
+          const opt = filteredOptions.at(highlightIndex);
+          if (opt) toggleOption(opt.id);
+        }
+      } else if (e.key === "Escape") {
+        closeDropdown();
+        input.blur();
+      } else if (
+        e.key === "Backspace" &&
+        input.value === "" &&
+        config.mode === "multi" &&
+        selected.length > 0
+      ) {
+        // Remove last chip on backspace in empty input
+        const last = selected[selected.length - 1];
+        if (last) deselectOption(last);
       }
-      if (highlightIndex >= 0 && highlightIndex < filteredOptions.length) {
-        const opt = filteredOptions.at(highlightIndex);
-        if (opt) toggleOption(opt.id);
-      }
-    } else if (e.key === "Escape") {
-      closeDropdown();
-      input.blur();
-    } else if (e.key === "Backspace" && input.value === "" && config.mode === "multi" && selected.length > 0) {
-      // Remove last chip on backspace in empty input
-      const last = selected[selected.length - 1];
-      if (last) deselectOption(last);
-    }
-  }, { signal });
+    },
+    { signal },
+  );
 
   // Close on outside click
-  document.addEventListener("pointerdown", (e: PointerEvent) => {
-    if (!container.contains(e.target as Node)) {
-      closeDropdown();
-    }
-  }, { signal });
+  document.addEventListener(
+    "pointerdown",
+    (e: PointerEvent) => {
+      if (!container.contains(e.target as Node)) {
+        closeDropdown();
+      }
+    },
+    { signal },
+  );
 
   function updateHighlight(items: NodeListOf<Element>): void {
     items.forEach((item, i) => {
@@ -386,7 +426,9 @@ export function initTypeaheadDropdown(
       );
     });
     // Scroll highlighted item into view
-    const highlighted = Array.from(items).at(highlightIndex) as HTMLElement | undefined;
+    const highlighted = Array.from(items).at(highlightIndex) as
+      | HTMLElement
+      | undefined;
     highlighted?.scrollIntoView({ block: "nearest" });
   }
 

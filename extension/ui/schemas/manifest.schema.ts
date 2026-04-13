@@ -1127,7 +1127,13 @@ function validateReviewerFixtureExample(
     return { errors, warnings };
   }
 
-  const requiredStringFields = ["reviewer_id", "reviewer_name", "week", "mode", "reason"];
+  const requiredStringFields = [
+    "reviewer_id",
+    "reviewer_name",
+    "week",
+    "mode",
+    "reason",
+  ];
   for (const field of requiredStringFields) {
     const required = validateRequired(data, field, path);
     if (required) {
@@ -1513,8 +1519,9 @@ export function normalizeManifest(data: unknown): DatasetManifest {
       max_distribution_files: 5,
     },
     demo_profile: obj.demo_profile as DemoProfile | undefined,
-    generation_provenance:
-      obj.generation_provenance as GenerationProvenance | undefined,
+    generation_provenance: obj.generation_provenance as
+      | GenerationProvenance
+      | undefined,
     published_files: obj.published_files as PublishedFiles | undefined,
     features: (obj.features as Features) ?? {},
     capabilities: (obj.capabilities as Capabilities) ?? {},

@@ -22,9 +22,6 @@ export interface Point {
 export function buildLinePath(points: Point[]): string {
   if (points.length < 2) return "";
   return points
-    .map(
-      (p, i) =>
-        `${i === 0 ? "M" : "L"} ${p.x.toFixed(1)} ${p.y.toFixed(1)}`,
-    )
+    .map((p, i) => `${i === 0 ? "M" : "L"} ${p.x.toFixed(1)} ${p.y.toFixed(1)}`)
     .join(" ");
 }

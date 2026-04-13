@@ -35,7 +35,17 @@ describe("Dashboard Rendering", () => {
     // Import functions after DOM is set up
     const createRenderPredictions = () => {
       // Inline the rendering logic for testing
-      return function renderPredictions(container: HTMLElement | null, predictions: { synthetic_warning?: boolean; is_stub?: boolean; forecasts?: Array<{ metric: string }> } | null | undefined) {
+      return function renderPredictions(
+        container: HTMLElement | null,
+        predictions:
+          | {
+              synthetic_warning?: boolean;
+              is_stub?: boolean;
+              forecasts?: Array<{ metric: string }>;
+            }
+          | null
+          | undefined,
+      ) {
         if (!container) return;
 
         const content = document.createElement("div");
@@ -121,7 +131,16 @@ describe("Dashboard Rendering", () => {
 
   describe("renderAIInsights", () => {
     const createRenderAIInsights = () => {
-      return function renderAIInsights(container: HTMLElement | null, insights: { is_stub?: boolean; insights?: Array<{ severity: string; title: string }> } | null | undefined) {
+      return function renderAIInsights(
+        container: HTMLElement | null,
+        insights:
+          | {
+              is_stub?: boolean;
+              insights?: Array<{ severity: string; title: string }>;
+            }
+          | null
+          | undefined,
+      ) {
         if (!container) return;
 
         const content = document.createElement("div");
@@ -138,11 +157,17 @@ describe("Dashboard Rendering", () => {
         if (insights && insights.insights) {
           // Group by severity
           const severityOrder = ["critical", "warning", "info"];
-          const grouped = new Map<string, Array<{ severity: string; title: string }>>();
-          insights.insights.forEach((insight: { severity: string; title: string }) => {
-            if (!grouped.has(insight.severity)) grouped.set(insight.severity, []);
-            grouped.get(insight.severity)!.push(insight);
-          });
+          const grouped = new Map<
+            string,
+            Array<{ severity: string; title: string }>
+          >();
+          insights.insights.forEach(
+            (insight: { severity: string; title: string }) => {
+              if (!grouped.has(insight.severity))
+                grouped.set(insight.severity, []);
+              grouped.get(insight.severity)!.push(insight);
+            },
+          );
 
           severityOrder.forEach((severity) => {
             if (!grouped.has(severity)) return;
@@ -151,9 +176,11 @@ describe("Dashboard Rendering", () => {
             section.className = `severity-section severity-${severity}`;
             section.setAttribute("data-severity", severity);
             section.innerHTML = `<h4>${severity}</h4>`;
-            grouped.get(severity)!.forEach((insight: { severity: string; title: string }) => {
-              section.innerHTML += `<div class="insight-card">${insight.title}</div>`;
-            });
+            grouped
+              .get(severity)!
+              .forEach((insight: { severity: string; title: string }) => {
+                section.innerHTML += `<div class="insight-card">${insight.title}</div>`;
+              });
             content.appendChild(section);
           });
         }
@@ -223,7 +250,11 @@ describe("Dashboard Rendering", () => {
 
   describe("Error State Rendering", () => {
     const createRenderPredictionsError = () => {
-      return function renderPredictionsError(container: HTMLElement | null, errorCode: string, message: string) {
+      return function renderPredictionsError(
+        container: HTMLElement | null,
+        errorCode: string,
+        message: string,
+      ) {
         if (!container) return;
 
         const unavailable = container.querySelector(".feature-unavailable");
@@ -256,7 +287,11 @@ describe("Dashboard Rendering", () => {
     };
 
     const createRenderInsightsError = () => {
-      return function renderInsightsError(container: HTMLElement | null, errorCode: string, message: string) {
+      return function renderInsightsError(
+        container: HTMLElement | null,
+        errorCode: string,
+        message: string,
+      ) {
         if (!container) return;
 
         const unavailable = container.querySelector(".feature-unavailable");
@@ -507,7 +542,9 @@ describe("Dashboard Rendering", () => {
       /**
        * Simulates applyCustomDates logic for testing threshold behavior.
        */
-      const createApplyCustomDates = (showWarningFn: (days: number) => Promise<boolean>) => {
+      const createApplyCustomDates = (
+        showWarningFn: (days: number) => Promise<boolean>,
+      ) => {
         return async function applyCustomDates(startDate: Date, endDate: Date) {
           const daysDiff = Math.floor(
             (endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24),
@@ -565,7 +602,9 @@ describe("Dashboard Rendering", () => {
         const result = await applyCustomDates(start, end);
 
         expect(result.proceeded).toBe(false);
-        expect((result as { proceeded: false; reason: string }).reason).toBe("user-cancelled");
+        expect((result as { proceeded: false; reason: string }).reason).toBe(
+          "user-cancelled",
+        );
       });
     });
   });
@@ -655,7 +694,9 @@ describe("Sprint 1: Trend Deltas & Metrics", () => {
   /**
    * Calculate metrics from rollups (mirrors dashboard.js calculateMetrics)
    */
-  const createCalculateMetrics = (medianFn: (arr: number[]) => number | null) => {
+  const createCalculateMetrics = (
+    medianFn: (arr: number[]) => number | null,
+  ) => {
     return function calculateMetrics(rollups: Partial<Rollup>[]) {
       if (!rollups || !rollups.length) {
         return {
@@ -819,8 +860,15 @@ describe("Sprint 1: Trend Deltas & Metrics", () => {
     });
 
     it("handles null/undefined rollups", () => {
-      expect(createCalculateMetrics(median)(null as unknown as Partial<Rollup>[]).totalPrs).toBe(0);
-      expect(createCalculateMetrics(median)(undefined as unknown as Partial<Rollup>[]).totalPrs).toBe(0);
+      expect(
+        createCalculateMetrics(median)(null as unknown as Partial<Rollup>[])
+          .totalPrs,
+      ).toBe(0);
+      expect(
+        createCalculateMetrics(median)(
+          undefined as unknown as Partial<Rollup>[],
+        ).totalPrs,
+      ).toBe(0);
     });
 
     it("handles missing fields in rollups", () => {
@@ -1009,7 +1057,9 @@ describe("Sprint 3: Sparklines & Moving Average", () => {
    * Extract sparkline data from rollups (mirrors dashboard.js extractSparklineData)
    */
   const createExtractSparklineData = () => {
-    return function extractSparklineData(rollups: Partial<Rollup>[] | null | undefined) {
+    return function extractSparklineData(
+      rollups: Partial<Rollup>[] | null | undefined,
+    ) {
       if (!rollups || !rollups.length) {
         return { prCounts: [], p50s: [], p90s: [], authors: [], reviewers: [] };
       }
@@ -1315,7 +1365,8 @@ describe("Sprint 4: Charts & Tooltips", () => {
 
     it("attaches event listeners to chart dots", () => {
       const container = document.getElementById("chart-container")!;
-      const contentFn = (dot: Element) => `<div>Week: ${(dot as HTMLElement).dataset.week}</div>`;
+      const contentFn = (dot: Element) =>
+        `<div>Week: ${(dot as HTMLElement).dataset.week}</div>`;
 
       addChartTooltips(container, contentFn);
 
@@ -1333,7 +1384,8 @@ describe("Sprint 4: Charts & Tooltips", () => {
 
     it("hides tooltip on mouseleave", () => {
       const container = document.getElementById("chart-container")!;
-      const contentFn = (dot: Element) => `<div>Week: ${(dot as HTMLElement).dataset.week}</div>`;
+      const contentFn = (dot: Element) =>
+        `<div>Week: ${(dot as HTMLElement).dataset.week}</div>`;
 
       addChartTooltips(container, contentFn);
 
@@ -1509,7 +1561,10 @@ describe("Sprint 5: Comparison Mode & Export", () => {
   });
 
   describe("exportToCsv", () => {
-    const createExportToCsv = (cachedRollups: Partial<Rollup>[] | null, showToastFn: (msg: string, type: string) => void) => {
+    const createExportToCsv = (
+      cachedRollups: Partial<Rollup>[] | null,
+      showToastFn: (msg: string, type: string) => void,
+    ) => {
       return function exportToCsv() {
         if (!cachedRollups || cachedRollups.length === 0) {
           showToastFn("No data to export", "error");
@@ -1608,7 +1663,10 @@ describe("Sprint 5: Comparison Mode & Export", () => {
      */
     const createMockArtifactClient = (
       options: {
-        artifact?: { name?: string; resource?: { downloadUrl?: string } } | null;
+        artifact?: {
+          name?: string;
+          resource?: { downloadUrl?: string };
+        } | null;
         fetchOk?: boolean;
         fetchStatus?: number;
         statusText?: string;
@@ -1703,7 +1761,9 @@ describe("Sprint 5: Comparison Mode & Export", () => {
       const result = await downloadRawDataZip();
 
       expect(result.success).toBe(false);
-      expect((result as { success: false; reason: string }).reason).toBe("no-build-id");
+      expect((result as { success: false; reason: string }).reason).toBe(
+        "no-build-id",
+      );
       expect(showToast).toHaveBeenCalledWith(
         "Raw data not available in direct URL mode",
         "error",
@@ -1723,7 +1783,9 @@ describe("Sprint 5: Comparison Mode & Export", () => {
       const result = await downloadRawDataZip();
 
       expect(result.success).toBe(false);
-      expect((result as { success: false; reason: string }).reason).toBe("no-artifact");
+      expect((result as { success: false; reason: string }).reason).toBe(
+        "no-artifact",
+      );
       expect(showToast).toHaveBeenCalledWith(
         "Raw CSV artifact not found in this pipeline run",
         "error",
@@ -1745,7 +1807,9 @@ describe("Sprint 5: Comparison Mode & Export", () => {
       const result = await downloadRawDataZip();
 
       expect(result.success).toBe(false);
-      expect((result as { success: false; reason: string }).reason).toBe("no-url");
+      expect((result as { success: false; reason: string }).reason).toBe(
+        "no-url",
+      );
       expect(showToast).toHaveBeenCalledWith(
         "Download URL not available",
         "error",
@@ -1772,7 +1836,9 @@ describe("Sprint 5: Comparison Mode & Export", () => {
       const result = await downloadRawDataZip();
 
       expect(result.success).toBe(true);
-      expect((result as { success: true; zipUrl: string }).zipUrl).toContain("format=zip");
+      expect((result as { success: true; zipUrl: string }).zipUrl).toContain(
+        "format=zip",
+      );
       expect(artifactClient._authenticatedFetch).toHaveBeenCalledWith(
         expect.stringContaining("format=zip"),
       );
@@ -1797,7 +1863,13 @@ describe("Sprint 5: Comparison Mode & Export", () => {
 
       expect(result.success).toBe(true);
       // Should not have double format=zip
-      expect(((result as { success: true; zipUrl: string }).zipUrl.match(/format=zip/g) || []).length).toBe(1);
+      expect(
+        (
+          (result as { success: true; zipUrl: string }).zipUrl.match(
+            /format=zip/g,
+          ) || []
+        ).length,
+      ).toBe(1);
     });
 
     it("handles 403 permission denied", async () => {
@@ -1887,7 +1959,9 @@ describe("Sprint 5: Comparison Mode & Export", () => {
           resource: { downloadUrl: "https://example.com/artifact" },
         },
       });
-      const exportMenu = { classList: { add: jest.fn() } } as unknown as HTMLElement;
+      const exportMenu = {
+        classList: { add: jest.fn() },
+      } as unknown as HTMLElement;
       const downloadRawDataZip = createDownloadRawDataZip(
         123,
         artifactClient,
@@ -1994,7 +2068,13 @@ describe("Sprint 5: Comparison Mode & Export", () => {
 
   describe("URL State Management", () => {
     const createUpdateUrlState = () => {
-      return function updateUrlState(state: { start?: Date; end?: Date; repos?: string[]; teams?: string[]; compare?: boolean }) {
+      return function updateUrlState(state: {
+        start?: Date;
+        end?: Date;
+        repos?: string[];
+        teams?: string[];
+        compare?: boolean;
+      }) {
         const params = new URLSearchParams();
 
         if (state.start) {
@@ -2088,7 +2168,9 @@ describe("Client-Side Filtering (applyFiltersToRollups)", () => {
         if (filters.repos.length && rollup.by_repository) {
           const selectedRepos = filters.repos
             .map((repoId) => {
-              const byRepoMap = new Map<string, unknown>(Object.entries(rollup.by_repository!));
+              const byRepoMap = new Map<string, unknown>(
+                Object.entries(rollup.by_repository!),
+              );
               const repoData = byRepoMap.get(repoId);
               if (repoData) return repoData;
               return Object.entries(rollup.by_repository!).find(
@@ -2139,7 +2221,9 @@ describe("Client-Side Filtering (applyFiltersToRollups)", () => {
         }
 
         if (filters.teams.length && rollup.by_team) {
-          const byTeamMap = new Map<string, unknown>(Object.entries(rollup.by_team));
+          const byTeamMap = new Map<string, unknown>(
+            Object.entries(rollup.by_team),
+          );
           const selectedTeams = filters.teams
             .map((teamId) => byTeamMap.get(teamId))
             .filter(Boolean) as Array<Record<string, number | null>>;
@@ -2415,7 +2499,10 @@ describe("Sprint 2: Filter Management", () => {
       const clearBtn = document.getElementById("clear-filters")!;
       const activeFilters = document.getElementById("active-filters")!;
 
-      const currentFilters: { repos: string[]; teams: string[] } = { repos: ["backend"], teams: [] };
+      const currentFilters: { repos: string[]; teams: string[] } = {
+        repos: ["backend"],
+        teams: [],
+      };
       const hasFilters =
         currentFilters.repos.length > 0 || currentFilters.teams.length > 0;
 
@@ -2430,7 +2517,10 @@ describe("Sprint 2: Filter Management", () => {
       const clearBtn = document.getElementById("clear-filters")!;
       const activeFilters = document.getElementById("active-filters")!;
 
-      const currentFilters: { repos: string[]; teams: string[] } = { repos: [], teams: [] };
+      const currentFilters: { repos: string[]; teams: string[] } = {
+        repos: [],
+        teams: [],
+      };
       const hasFilters =
         currentFilters.repos.length > 0 || currentFilters.teams.length > 0;
 
@@ -2459,7 +2549,10 @@ describe("Sprint 2: Filter Management", () => {
       ).selected = true;
 
       // Clear filters
-      const currentFilters: { repos: string[]; teams: string[] } = { repos: [], teams: [] };
+      const currentFilters: { repos: string[]; teams: string[] } = {
+        repos: [],
+        teams: [],
+      };
       Array.from(repoFilter.options).forEach(
         (o) => (o.selected = o.value === ""),
       );
@@ -2535,7 +2628,10 @@ describe("Sprint 2: Filter Management", () => {
     it("restores repo filters from URL params", () => {
       const params = new URLSearchParams("repos=backend,frontend");
       const reposParam = params.get("repos");
-      const currentFilters: { repos: string[]; teams: string[] } = { repos: [], teams: [] };
+      const currentFilters: { repos: string[]; teams: string[] } = {
+        repos: [],
+        teams: [],
+      };
 
       if (reposParam) {
         currentFilters.repos = reposParam.split(",").filter((v) => v);
@@ -2569,7 +2665,10 @@ describe("Sprint 2: Filter Management", () => {
     it("restores team filters from URL params", () => {
       const params = new URLSearchParams("teams=platform");
       const teamsParam = params.get("teams");
-      const currentFilters: { repos: string[]; teams: string[] } = { repos: [], teams: [] };
+      const currentFilters: { repos: string[]; teams: string[] } = {
+        repos: [],
+        teams: [],
+      };
 
       if (teamsParam) {
         currentFilters.teams = teamsParam.split(",").filter((v) => v);
@@ -2587,7 +2686,10 @@ describe("Sprint 2: Filter Management", () => {
 
     it("handles missing URL params gracefully", () => {
       const params = new URLSearchParams("");
-      const currentFilters: { repos: string[]; teams: string[] } = { repos: [], teams: [] };
+      const currentFilters: { repos: string[]; teams: string[] } = {
+        repos: [],
+        teams: [],
+      };
 
       const reposParam = params.get("repos");
       const teamsParam = params.get("teams");
@@ -2607,8 +2709,14 @@ describe("Sprint 2: Filter Management", () => {
       // URL contains 'nonexistent' repo which is not in the dropdown
       const params = new URLSearchParams("repos=backend,nonexistent,frontend");
       const reposParam = params.get("repos");
-      const currentFilters: { repos: string[]; teams: string[] } = { repos: [], teams: [] };
-      const validFilters: { repos: string[]; teams: string[] } = { repos: [], teams: [] };
+      const currentFilters: { repos: string[]; teams: string[] } = {
+        repos: [],
+        teams: [],
+      };
+      const validFilters: { repos: string[]; teams: string[] } = {
+        repos: [],
+        teams: [],
+      };
 
       if (reposParam) {
         currentFilters.repos = reposParam.split(",").filter((v) => v);
@@ -2641,7 +2749,10 @@ describe("Sprint 2: Filter Management", () => {
       const params = new URLSearchParams(
         "foo=bar&repos=backend&baz=qux&teams=platform",
       );
-      const currentFilters: { repos: string[]; teams: string[] } = { repos: [], teams: [] };
+      const currentFilters: { repos: string[]; teams: string[] } = {
+        repos: [],
+        teams: [],
+      };
 
       const reposParam = params.get("repos");
       const teamsParam = params.get("teams");
@@ -2664,7 +2775,10 @@ describe("Sprint 2: Filter Management", () => {
     it("handles malformed URL params gracefully", () => {
       // Empty values, trailing commas, multiple commas
       const params = new URLSearchParams("repos=,,backend,,&teams=");
-      const currentFilters: { repos: string[]; teams: string[] } = { repos: [], teams: [] };
+      const currentFilters: { repos: string[]; teams: string[] } = {
+        repos: [],
+        teams: [],
+      };
 
       const reposParam = params.get("repos");
       const teamsParam = params.get("teams");
@@ -2688,7 +2802,13 @@ describe("Sprint 2: Filter Management", () => {
      * This ensures URL state can be restored exactly after page reload.
      */
     const createUpdateUrlState = () => {
-      return function updateUrlState(state: { start?: Date; end?: Date; repos?: string[]; teams?: string[]; compare?: boolean }) {
+      return function updateUrlState(state: {
+        start?: Date;
+        end?: Date;
+        repos?: string[];
+        teams?: string[];
+        compare?: boolean;
+      }) {
         const params = new URLSearchParams();
 
         if (state.start) {
@@ -2715,7 +2835,13 @@ describe("Sprint 2: Filter Management", () => {
 
     const parseUrlState = (queryString: string) => {
       const params = new URLSearchParams(queryString);
-      const state: { start?: Date; end?: Date; repos?: string[]; teams?: string[]; compare?: boolean } = {};
+      const state: {
+        start?: Date;
+        end?: Date;
+        repos?: string[];
+        teams?: string[];
+        compare?: boolean;
+      } = {};
 
       const startParam = params.get("start");
       const endParam = params.get("end");
@@ -2848,7 +2974,16 @@ describe("Sprint 2: Filter Management", () => {
      * IMPORTANT: Filter values use repository_name/team_name because that's how
      * the by_repository and by_team slices in weekly rollups are keyed.
      */
-    const populateFilterDropdowns = (dimensions: { repositories?: { repository_name: string }[]; teams?: { team_name: string }[]; authors?: { author_name: string; author_id: string }[] } | null | undefined) => {
+    const populateFilterDropdowns = (
+      dimensions:
+        | {
+            repositories?: { repository_name: string }[];
+            teams?: { team_name: string }[];
+            authors?: { author_name: string; author_id: string }[];
+          }
+        | null
+        | undefined,
+    ) => {
       if (!dimensions) return;
 
       // Populate repository filter
@@ -2856,7 +2991,11 @@ describe("Sprint 2: Filter Management", () => {
         "repo-filter",
       ) as HTMLSelectElement | null;
       const repoFilterGroup = document.getElementById("repo-filter-group");
-      if (repoFilter && dimensions.repositories && dimensions.repositories.length > 0) {
+      if (
+        repoFilter &&
+        dimensions.repositories &&
+        dimensions.repositories.length > 0
+      ) {
         repoFilter.innerHTML = '<option value="">All</option>';
         dimensions.repositories.forEach((repo: { repository_name: string }) => {
           const option = document.createElement("option");
@@ -2893,15 +3032,21 @@ describe("Sprint 2: Filter Management", () => {
       const authorOptions = document.getElementById(
         "author-filter-options",
       ) as HTMLDataListElement | null;
-      if (authorOptions && dimensions.authors && dimensions.authors.length > 0) {
+      if (
+        authorOptions &&
+        dimensions.authors &&
+        dimensions.authors.length > 0
+      ) {
         authorOptions.innerHTML = "";
-        dimensions.authors.forEach((author: { author_name: string; author_id: string }) => {
-          const option = document.createElement("option");
-          option.value = author.author_name;
-          option.label = author.author_id;
-          option.dataset.authorId = author.author_id;
-          authorOptions.appendChild(option);
-        });
+        dimensions.authors.forEach(
+          (author: { author_name: string; author_id: string }) => {
+            const option = document.createElement("option");
+            option.value = author.author_name;
+            option.label = author.author_id;
+            option.dataset.authorId = author.author_id;
+            authorOptions.appendChild(option);
+          },
+        );
         authorFilterGroup?.classList.remove("hidden");
       } else {
         authorFilterGroup?.classList.add("hidden");
@@ -3056,7 +3201,14 @@ describe("Sprint 2: Filter Management", () => {
       };
 
       // Sample weekly rollup with by_repository keyed by repository_name
-      const weeklyRollup: { week: string; pr_count: number; by_repository: Record<string, { pr_count: number; cycle_time_p50: number }> } = {
+      const weeklyRollup: {
+        week: string;
+        pr_count: number;
+        by_repository: Record<
+          string,
+          { pr_count: number; cycle_time_p50: number }
+        >;
+      } = {
         week: "2025-W01",
         pr_count: 10,
         by_repository: {
@@ -3096,7 +3248,11 @@ describe("Sprint 2: Filter Management", () => {
       };
 
       // Sample weekly rollup with by_team keyed by team_name
-      const weeklyRollup: { week: string; pr_count: number; by_team: Record<string, { pr_count: number; cycle_time_p50: number }> } = {
+      const weeklyRollup: {
+        week: string;
+        pr_count: number;
+        by_team: Record<string, { pr_count: number; cycle_time_p50: number }>;
+      } = {
         week: "2025-W01",
         pr_count: 10,
         by_team: {
@@ -3272,16 +3428,12 @@ describe("Version Adapter Pattern", () => {
     return {
       ...r,
       pr_count: r.pr_count ?? ROLLUP_FIELD_DEFAULTS.pr_count,
-      cycle_time_p50:
-        r.cycle_time_p50 ?? ROLLUP_FIELD_DEFAULTS.cycle_time_p50,
-      cycle_time_p90:
-        r.cycle_time_p90 ?? ROLLUP_FIELD_DEFAULTS.cycle_time_p90,
-      authors_count:
-        r.authors_count ?? ROLLUP_FIELD_DEFAULTS.authors_count,
+      cycle_time_p50: r.cycle_time_p50 ?? ROLLUP_FIELD_DEFAULTS.cycle_time_p50,
+      cycle_time_p90: r.cycle_time_p90 ?? ROLLUP_FIELD_DEFAULTS.cycle_time_p90,
+      authors_count: r.authors_count ?? ROLLUP_FIELD_DEFAULTS.authors_count,
       reviewers_count:
         r.reviewers_count ?? ROLLUP_FIELD_DEFAULTS.reviewers_count,
-      by_repository:
-        r.by_repository !== undefined ? r.by_repository : null,
+      by_repository: r.by_repository !== undefined ? r.by_repository : null,
       by_team: r.by_team !== undefined ? r.by_team : null,
     };
   };

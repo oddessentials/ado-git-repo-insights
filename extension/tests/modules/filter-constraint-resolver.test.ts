@@ -12,9 +12,7 @@
  *   Rule 4: Reviewer + Repo (notice only)
  */
 
-import {
-  resolveFilterConstraints,
-} from "../../ui/modules/filter-constraint-resolver";
+import { resolveFilterConstraints } from "../../ui/modules/filter-constraint-resolver";
 import type { FilterState } from "../../ui/modules/filters";
 
 function makeFilters(overrides: Partial<FilterState> = {}): FilterState {
@@ -93,7 +91,9 @@ describe("Filter Constraint Resolver", () => {
       );
       expect(result.effectiveState.authors).toEqual(["auth-1"]);
       expect(result.effectiveState.reviewers).toEqual([]);
-      expect(result.constraintsApplied.some((n) => n.type === "author_reviewer")).toBe(true);
+      expect(
+        result.constraintsApplied.some((n) => n.type === "author_reviewer"),
+      ).toBe(true);
     });
 
     it("clears author when lastChanged='reviewers' (reviewer wins)", () => {
@@ -103,7 +103,9 @@ describe("Filter Constraint Resolver", () => {
       );
       expect(result.effectiveState.authors).toEqual([]);
       expect(result.effectiveState.reviewers).toEqual(["rev-1"]);
-      expect(result.constraintsApplied.some((n) => n.type === "author_reviewer")).toBe(true);
+      expect(
+        result.constraintsApplied.some((n) => n.type === "author_reviewer"),
+      ).toBe(true);
     });
 
     it("clears author when lastChanged=undefined (URL restore default)", () => {
@@ -134,7 +136,11 @@ describe("Filter Constraint Resolver", () => {
 
     it("preserves repos when author+reviewer constrained", () => {
       const result = resolveFilterConstraints(
-        makeFilters({ authors: ["auth-1"], reviewers: ["rev-1"], repos: ["repo-a"] }),
+        makeFilters({
+          authors: ["auth-1"],
+          reviewers: ["rev-1"],
+          repos: ["repo-a"],
+        }),
       );
       expect(result.effectiveState.repos).toEqual(["repo-a"]);
     });
@@ -151,7 +157,9 @@ describe("Filter Constraint Resolver", () => {
       );
       expect(result.effectiveState.authors).toEqual(["auth-1"]);
       expect(result.effectiveState.teams).toEqual(["team-x"]);
-      expect(result.constraintsApplied.some((n) => n.type === "author_team")).toBe(true);
+      expect(
+        result.constraintsApplied.some((n) => n.type === "author_team"),
+      ).toBe(true);
     });
 
     it("retains multiple teams in state with author", () => {
@@ -163,7 +171,11 @@ describe("Filter Constraint Resolver", () => {
 
     it("preserves repos alongside author + team", () => {
       const result = resolveFilterConstraints(
-        makeFilters({ authors: ["auth-1"], teams: ["team-x"], repos: ["repo-a"] }),
+        makeFilters({
+          authors: ["auth-1"],
+          teams: ["team-x"],
+          repos: ["repo-a"],
+        }),
       );
       expect(result.effectiveState.repos).toEqual(["repo-a"]);
       expect(result.effectiveState.teams).toEqual(["team-x"]);
@@ -182,7 +194,9 @@ describe("Filter Constraint Resolver", () => {
       );
       expect(result.effectiveState.reviewers).toEqual(["rev-1"]);
       expect(result.effectiveState.teams).toEqual([]);
-      expect(result.constraintsApplied.some((n) => n.type === "reviewer_team")).toBe(true);
+      expect(
+        result.constraintsApplied.some((n) => n.type === "reviewer_team"),
+      ).toBe(true);
     });
   });
 
@@ -197,7 +211,9 @@ describe("Filter Constraint Resolver", () => {
       );
       expect(result.effectiveState.reviewers).toEqual(["rev-1"]);
       expect(result.effectiveState.repos).toEqual(["repo-a"]);
-      expect(result.constraintsApplied.some((n) => n.type === "reviewer_repo")).toBe(true);
+      expect(
+        result.constraintsApplied.some((n) => n.type === "reviewer_repo"),
+      ).toBe(true);
     });
   });
 
@@ -208,34 +224,56 @@ describe("Filter Constraint Resolver", () => {
   describe("Three-way: Author + Reviewer + Team", () => {
     it("lastChanged='authors': reviewer cleared, teams retained (Rule 3 does NOT fire)", () => {
       const result = resolveFilterConstraints(
-        makeFilters({ authors: ["auth-1"], reviewers: ["rev-1"], teams: ["team-x"] }),
+        makeFilters({
+          authors: ["auth-1"],
+          reviewers: ["rev-1"],
+          teams: ["team-x"],
+        }),
         "authors",
       );
       expect(result.effectiveState.authors).toEqual(["auth-1"]);
       expect(result.effectiveState.reviewers).toEqual([]); // Rule 1: reviewer cleared
       expect(result.effectiveState.teams).toEqual(["team-x"]); // Rule 2: notice only
       // Rule 3 must NOT fire (reviewer was cleared by Rule 1)
-      expect(result.constraintsApplied.some((n) => n.type === "reviewer_team")).toBe(false);
-      expect(result.constraintsApplied.some((n) => n.type === "author_reviewer")).toBe(true);
-      expect(result.constraintsApplied.some((n) => n.type === "author_team")).toBe(true);
+      expect(
+        result.constraintsApplied.some((n) => n.type === "reviewer_team"),
+      ).toBe(false);
+      expect(
+        result.constraintsApplied.some((n) => n.type === "author_reviewer"),
+      ).toBe(true);
+      expect(
+        result.constraintsApplied.some((n) => n.type === "author_team"),
+      ).toBe(true);
     });
 
     it("lastChanged='reviewers': author cleared, teams cleared (Rule 3 fires)", () => {
       const result = resolveFilterConstraints(
-        makeFilters({ authors: ["auth-1"], reviewers: ["rev-1"], teams: ["team-x"] }),
+        makeFilters({
+          authors: ["auth-1"],
+          reviewers: ["rev-1"],
+          teams: ["team-x"],
+        }),
         "reviewers",
       );
       expect(result.effectiveState.authors).toEqual([]); // Rule 1: author cleared
       expect(result.effectiveState.reviewers).toEqual(["rev-1"]);
       expect(result.effectiveState.teams).toEqual([]); // Rule 3: teams cleared
       // Rule 2 must NOT fire (author was cleared by Rule 1)
-      expect(result.constraintsApplied.some((n) => n.type === "author_team")).toBe(false);
-      expect(result.constraintsApplied.some((n) => n.type === "reviewer_team")).toBe(true);
+      expect(
+        result.constraintsApplied.some((n) => n.type === "author_team"),
+      ).toBe(false);
+      expect(
+        result.constraintsApplied.some((n) => n.type === "reviewer_team"),
+      ).toBe(true);
     });
 
     it("lastChanged='teams': author cleared (default), teams cleared (Rule 3)", () => {
       const result = resolveFilterConstraints(
-        makeFilters({ authors: ["auth-1"], reviewers: ["rev-1"], teams: ["team-x"] }),
+        makeFilters({
+          authors: ["auth-1"],
+          reviewers: ["rev-1"],
+          teams: ["team-x"],
+        }),
         "teams",
       );
       expect(result.effectiveState.authors).toEqual([]); // Rule 1: default → author cleared
@@ -245,7 +283,11 @@ describe("Filter Constraint Resolver", () => {
 
     it("lastChanged=undefined (URL restore): author cleared, teams cleared", () => {
       const result = resolveFilterConstraints(
-        makeFilters({ authors: ["auth-1"], reviewers: ["rev-1"], teams: ["team-x"] }),
+        makeFilters({
+          authors: ["auth-1"],
+          reviewers: ["rev-1"],
+          teams: ["team-x"],
+        }),
       );
       expect(result.effectiveState.authors).toEqual([]);
       expect(result.effectiveState.reviewers).toEqual(["rev-1"]);
@@ -256,24 +298,36 @@ describe("Filter Constraint Resolver", () => {
   describe("Three-way: Author + Reviewer + Repo", () => {
     it("lastChanged='authors': reviewer cleared, repo retained", () => {
       const result = resolveFilterConstraints(
-        makeFilters({ authors: ["auth-1"], reviewers: ["rev-1"], repos: ["repo-a"] }),
+        makeFilters({
+          authors: ["auth-1"],
+          reviewers: ["rev-1"],
+          repos: ["repo-a"],
+        }),
         "authors",
       );
       expect(result.effectiveState.authors).toEqual(["auth-1"]);
       expect(result.effectiveState.reviewers).toEqual([]);
       expect(result.effectiveState.repos).toEqual(["repo-a"]);
       // Rule 4 must NOT fire (reviewer was cleared)
-      expect(result.constraintsApplied.some((n) => n.type === "reviewer_repo")).toBe(false);
+      expect(
+        result.constraintsApplied.some((n) => n.type === "reviewer_repo"),
+      ).toBe(false);
     });
 
     it("lastChanged=undefined: author cleared, reviewer+repo both retained with notice", () => {
       const result = resolveFilterConstraints(
-        makeFilters({ authors: ["auth-1"], reviewers: ["rev-1"], repos: ["repo-a"] }),
+        makeFilters({
+          authors: ["auth-1"],
+          reviewers: ["rev-1"],
+          repos: ["repo-a"],
+        }),
       );
       expect(result.effectiveState.authors).toEqual([]);
       expect(result.effectiveState.reviewers).toEqual(["rev-1"]);
       expect(result.effectiveState.repos).toEqual(["repo-a"]);
-      expect(result.constraintsApplied.some((n) => n.type === "reviewer_repo")).toBe(true);
+      expect(
+        result.constraintsApplied.some((n) => n.type === "reviewer_repo"),
+      ).toBe(true);
     });
   });
 
@@ -355,20 +409,30 @@ describe("Filter Constraint Resolver", () => {
       // With lastChanged='authors': Rule 1 clears reviewer.
       // Rule 3 (reviewer+team) must NOT fire because reviewer is now empty.
       const result = resolveFilterConstraints(
-        makeFilters({ authors: ["auth-1"], reviewers: ["rev-1"], teams: ["team-x"] }),
+        makeFilters({
+          authors: ["auth-1"],
+          reviewers: ["rev-1"],
+          teams: ["team-x"],
+        }),
         "authors",
       );
       // If rules were parallel (not sequential), Rule 3 would see the
       // original reviewer and clear teams. Sequential execution prevents this.
       expect(result.effectiveState.teams).toEqual(["team-x"]);
-      expect(result.constraintsApplied.some((n) => n.type === "reviewer_team")).toBe(false);
+      expect(
+        result.constraintsApplied.some((n) => n.type === "reviewer_team"),
+      ).toBe(false);
     });
 
     it("constraintsApplied order matches rule execution order", () => {
       // Author+Reviewer+Team with lastChanged=undefined:
       // Rule 1 fires (author cleared), Rule 3 fires (teams cleared)
       const result = resolveFilterConstraints(
-        makeFilters({ authors: ["auth-1"], reviewers: ["rev-1"], teams: ["team-x"] }),
+        makeFilters({
+          authors: ["auth-1"],
+          reviewers: ["rev-1"],
+          teams: ["team-x"],
+        }),
       );
       const types = result.constraintsApplied.map((n) => n.type);
       const r1idx = types.indexOf("author_reviewer");

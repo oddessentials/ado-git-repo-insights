@@ -1010,7 +1010,13 @@ var PRInsightsDatasetLoader = (() => {
       errors.push(createError(path, "object", getTypeName(data)));
       return { errors, warnings };
     }
-    const requiredStringFields = ["reviewer_id", "reviewer_name", "week", "mode", "reason"];
+    const requiredStringFields = [
+      "reviewer_id",
+      "reviewer_name",
+      "week",
+      "mode",
+      "reason"
+    ];
     for (const field of requiredStringFields) {
       const required = validateRequired(data, field, path);
       if (required) {

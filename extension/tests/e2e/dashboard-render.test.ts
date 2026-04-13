@@ -37,8 +37,14 @@ function makeIntegrationRollups(count: number = 12): Rollup[] {
     cycle_time_p90: 90 + i * 10,
     authors_count: 4 + (i % 3),
     reviewers_count: 3 + (i % 2),
-    by_repository: { "repo-alpha": { pr_count: 8 + i }, "repo-beta": { pr_count: 7 } },
-    by_team: { "Team Alpha": { pr_count: 10 + i }, "Team Beta": { pr_count: 5 } },
+    by_repository: {
+      "repo-alpha": { pr_count: 8 + i },
+      "repo-beta": { pr_count: 7 },
+    },
+    by_team: {
+      "Team Alpha": { pr_count: 10 + i },
+      "Team Beta": { pr_count: 5 },
+    },
   }));
 }
 
@@ -120,7 +126,10 @@ describe("Dashboard E2E render (composited)", () => {
 
     renderThroughputChart(containers["throughput-chart"] ?? null, rollups);
     renderCycleTimeTrend(containers["cycle-time-trend"] ?? null, rollups);
-    renderCycleDistribution(containers["cycle-distribution"] ?? null, distributions);
+    renderCycleDistribution(
+      containers["cycle-distribution"] ?? null,
+      distributions,
+    );
     renderReviewerActivity(containers["reviewer-activity"] ?? null, rollups);
 
     // 1. No console.error calls
@@ -136,12 +145,8 @@ describe("Dashboard E2E render (composited)", () => {
     expect(
       containers["throughput-chart"]!.querySelectorAll(".bar-container").length,
     ).toBeGreaterThan(0);
-    expect(
-      containers["cycle-time-trend"]!.querySelector("svg"),
-    ).not.toBeNull();
-    expect(
-      containers["cycle-distribution"]!.innerHTML,
-    ).toContain("dist-row");
+    expect(containers["cycle-time-trend"]!.querySelector("svg")).not.toBeNull();
+    expect(containers["cycle-distribution"]!.innerHTML).toContain("dist-row");
     expect(
       containers["reviewer-activity"]!.querySelectorAll(".h-bar-row").length,
     ).toBeGreaterThan(0);
@@ -153,7 +158,10 @@ describe("Dashboard E2E render (composited)", () => {
 
     renderThroughputChart(containers["throughput-chart"] ?? null, rollups);
     renderCycleTimeTrend(containers["cycle-time-trend"] ?? null, rollups);
-    renderCycleDistribution(containers["cycle-distribution"] ?? null, distributions);
+    renderCycleDistribution(
+      containers["cycle-distribution"] ?? null,
+      distributions,
+    );
     renderReviewerActivity(containers["reviewer-activity"] ?? null, rollups);
 
     for (const [, el] of Object.entries(containers)) {
@@ -181,12 +189,12 @@ describe("Dashboard E2E render (composited)", () => {
     renderThroughputChart(containers["throughput-chart"] ?? null, rollups);
     renderCycleTimeTrend(containers["cycle-time-trend"] ?? null, rollups);
 
-    const throughputBars = containers["throughput-chart"]!.querySelectorAll(
-      ".bar-container",
-    ).length;
-    const cycleTimeDots = containers["cycle-time-trend"]!.querySelectorAll(
-      ".line-chart-dot",
-    ).length;
+    const throughputBars =
+      containers["throughput-chart"]!.querySelectorAll(".bar-container").length;
+    const cycleTimeDots =
+      containers["cycle-time-trend"]!.querySelectorAll(
+        ".line-chart-dot",
+      ).length;
 
     // Throughput renders one bar per week
     expect(throughputBars).toBe(12);

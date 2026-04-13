@@ -98,7 +98,9 @@ describe("Filter consistency (FR-028)", () => {
     // Render unfiltered
     renderSummaryCards({ rollups, containers });
     const unfilteredTotalPrs = containers.totalPrs!.textContent;
-    const unfilteredSample = document.querySelector(".metric-sample-size")?.textContent;
+    const unfilteredSample = document.querySelector(
+      ".metric-sample-size",
+    )?.textContent;
 
     // Total PRs should be 50 + 40 = 90
     expect(unfilteredTotalPrs).toBe("90");
@@ -112,7 +114,9 @@ describe("Filter consistency (FR-028)", () => {
     renderSummaryCards({ rollups: filtered, containers });
 
     const filteredTotalPrs = containers.totalPrs!.textContent;
-    const filteredSample = document.querySelector(".metric-sample-size")?.textContent;
+    const filteredSample = document.querySelector(
+      ".metric-sample-size",
+    )?.textContent;
 
     // After filter: repo-a has 20 + 15 = 35 PRs
     expect(filteredTotalPrs).toBe("35");
@@ -250,8 +254,8 @@ describe("End-to-end: approval rate, reviewer scope, and review-time visibility 
       pr_count: 20,
       cycle_time_p50: 60 + i * 5,
       cycle_time_p90: 120 + i * 10,
-      review_time_p50: i < 4 ? (900 + i * 100) : (null as number | null),
-      review_time_p90: i < 4 ? (1800 + i * 200) : (null as number | null),
+      review_time_p50: i < 4 ? 900 + i * 100 : (null as number | null),
+      review_time_p90: i < 4 ? 1800 + i * 200 : (null as number | null),
       authors_count: 5,
       reviewers_count: 4,
       by_repository: null,
@@ -275,7 +279,12 @@ describe("End-to-end: approval rate, reviewer scope, and review-time visibility 
     }));
 
     // Multi-select reviewer filter: alice first, bob second
-    const filters = { repos: [], teams: [], reviewers: ["alice-id", "bob-id"], authors: [] };
+    const filters = {
+      repos: [],
+      teams: [],
+      reviewers: ["alice-id", "bob-id"],
+      authors: [],
+    };
     const filteredRollups = applyFiltersToRollups(rawRollups, filters);
 
     // Render summary cards with filtered data
@@ -305,7 +314,9 @@ describe("End-to-end: approval rate, reviewer scope, and review-time visibility 
 
     // ASSERTION 3: Review-time cards hidden
     // Reviewer filter zeros review_time in filtered rollups, cards must not be visible
-    const rtCard = containers.reviewTimeP50?.closest(".card") as HTMLElement | null;
+    const rtCard = containers.reviewTimeP50?.closest(
+      ".card",
+    ) as HTMLElement | null;
     expect(rtCard?.style.display).toBe("none");
     // No stale content
     expect(containers.reviewTimeP50?.textContent).toBe("");

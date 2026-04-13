@@ -10,10 +10,7 @@
 
 import { clearElement, renderTrustedHtml } from "./shared/render";
 import { buildLinePath } from "./shared/svg-path";
-import {
-  dismissAllTooltips,
-  showChartTooltip,
-} from "./tooltip-manager";
+import { dismissAllTooltips, showChartTooltip } from "./tooltip-manager";
 
 /** Pixel movement threshold to cancel a tap-to-tooltip gesture (scroll detection). */
 export const SCROLL_CANCEL_THRESHOLD = 10;

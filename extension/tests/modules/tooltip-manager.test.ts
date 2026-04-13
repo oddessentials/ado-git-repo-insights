@@ -190,8 +190,15 @@ describe("Tooltip Manager", () => {
       const target = document.createElement("div");
       document.body.appendChild(target);
       target.getBoundingClientRect = () => ({
-        top: 100, left: 100, bottom: 120, right: 120,
-        width: 20, height: 20, x: 100, y: 100, toJSON: () => ({}),
+        top: 100,
+        left: 100,
+        bottom: 120,
+        right: 120,
+        width: 20,
+        height: 20,
+        x: 100,
+        y: 100,
+        toJSON: () => ({}),
       });
 
       showChartTooltip(target, "Test scroll dismiss");
@@ -206,8 +213,15 @@ describe("Tooltip Manager", () => {
       const target = document.createElement("button");
       document.body.appendChild(target);
       target.getBoundingClientRect = () => ({
-        top: 50, left: 50, bottom: 70, right: 70,
-        width: 20, height: 20, x: 50, y: 50, toJSON: () => ({}),
+        top: 50,
+        left: 50,
+        bottom: 70,
+        right: 70,
+        width: 20,
+        height: 20,
+        x: 50,
+        y: 50,
+        toJSON: () => ({}),
       });
 
       showInfoTooltip(target, "Test resize dismiss");
@@ -222,8 +236,15 @@ describe("Tooltip Manager", () => {
       const target = document.createElement("div");
       document.body.appendChild(target);
       target.getBoundingClientRect = () => ({
-        top: 100, left: 100, bottom: 120, right: 120,
-        width: 20, height: 20, x: 100, y: 100, toJSON: () => ({}),
+        top: 100,
+        left: 100,
+        bottom: 120,
+        right: 120,
+        width: 20,
+        height: 20,
+        x: 100,
+        y: 100,
+        toJSON: () => ({}),
       });
 
       // Show then dismiss via scroll
@@ -295,7 +316,9 @@ describe("Tooltip Manager", () => {
       assertTooltipStructure();
 
       expect(consoleWarnSpy).toHaveBeenCalledWith(
-        expect.stringContaining("[tooltip-manager] Positioned ancestor with transform detected"),
+        expect.stringContaining(
+          "[tooltip-manager] Positioned ancestor with transform detected",
+        ),
       );
 
       window.getComputedStyle = originalGetComputedStyle;
@@ -326,13 +349,23 @@ describe("Tooltip Manager", () => {
       // Target near bottom: top=0 so tooltip placed below at bottom+gap=28.
       // Make tooltip tall enough to overflow innerHeight.
       target.getBoundingClientRect = () => ({
-        top: 0, left: 100, bottom: 20, right: 120,
-        width: 20, height: 20, x: 100, y: 0, toJSON: () => ({}),
+        top: 0,
+        left: 100,
+        bottom: 20,
+        right: 120,
+        width: 20,
+        height: 20,
+        x: 100,
+        y: 0,
+        toJSON: () => ({}),
       });
 
       // Mock innerHeight to a small value so tooltip overflows bottom
       const origInnerHeight = window.innerHeight;
-      Object.defineProperty(window, "innerHeight", { value: 50, configurable: true });
+      Object.defineProperty(window, "innerHeight", {
+        value: 50,
+        configurable: true,
+      });
 
       showChartTooltip(target, "<span>Tall tooltip content</span>");
 
@@ -341,7 +374,10 @@ describe("Tooltip Manager", () => {
       const top = parseFloat(tooltip.style.top);
       expect(top).toBeLessThanOrEqual(50);
 
-      Object.defineProperty(window, "innerHeight", { value: origInnerHeight, configurable: true });
+      Object.defineProperty(window, "innerHeight", {
+        value: origInnerHeight,
+        configurable: true,
+      });
     });
 
     it("clamps tooltip left edge to minimum of 4px (line 76)", () => {
@@ -350,8 +386,15 @@ describe("Tooltip Manager", () => {
 
       // Target at far left so centered tooltip would go negative
       target.getBoundingClientRect = () => ({
-        top: 100, left: 0, bottom: 120, right: 5,
-        width: 5, height: 20, x: 0, y: 100, toJSON: () => ({}),
+        top: 100,
+        left: 0,
+        bottom: 120,
+        right: 5,
+        width: 5,
+        height: 20,
+        x: 0,
+        y: 100,
+        toJSON: () => ({}),
       });
 
       showInfoTooltip(target, "Left edge test");
@@ -367,15 +410,29 @@ describe("Tooltip Manager", () => {
       const target1 = document.createElement("div");
       document.body.appendChild(target1);
       target1.getBoundingClientRect = () => ({
-        top: 100, left: 100, bottom: 120, right: 120,
-        width: 20, height: 20, x: 100, y: 100, toJSON: () => ({}),
+        top: 100,
+        left: 100,
+        bottom: 120,
+        right: 120,
+        width: 20,
+        height: 20,
+        x: 100,
+        y: 100,
+        toJSON: () => ({}),
       });
 
       const target2 = document.createElement("button");
       document.body.appendChild(target2);
       target2.getBoundingClientRect = () => ({
-        top: 200, left: 200, bottom: 220, right: 220,
-        width: 20, height: 20, x: 200, y: 200, toJSON: () => ({}),
+        top: 200,
+        left: 200,
+        bottom: 220,
+        right: 220,
+        width: 20,
+        height: 20,
+        x: 200,
+        y: 200,
+        toJSON: () => ({}),
       });
 
       // Show chart tooltip
@@ -404,8 +461,15 @@ describe("Tooltip Manager", () => {
       const target = document.createElement("div");
       document.body.appendChild(target);
       target.getBoundingClientRect = () => ({
-        top: 100, left: 100, bottom: 120, right: 120,
-        width: 20, height: 20, x: 100, y: 100, toJSON: () => ({}),
+        top: 100,
+        left: 100,
+        bottom: 120,
+        right: 120,
+        width: 20,
+        height: 20,
+        x: 100,
+        y: 100,
+        toJSON: () => ({}),
       });
 
       showChartTooltip(target, "Test");

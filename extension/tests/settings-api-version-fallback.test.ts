@@ -7,7 +7,9 @@
 
 import * as path from "path";
 import * as _fsOriginal from "fs";
-function _loadFs(): typeof _fsOriginal { return _fsOriginal; }
+function _loadFs(): typeof _fsOriginal {
+  return _fsOriginal;
+}
 const _fs = _loadFs();
 
 const SETTINGS_PATH = path.join(__dirname, "../ui/settings.ts");
@@ -42,9 +44,7 @@ describe("Settings API version fallback", () => {
 
   it("reuses the discovered version for pagination", () => {
     // Pagination URL must use workingVersion, not a hardcoded version
-    expect(settingsCode).toMatch(
-      /api-version=\$\{workingVersion\}/,
-    );
+    expect(settingsCode).toMatch(/api-version=\$\{workingVersion\}/);
     // Must NOT have a hardcoded 7.1 in the pagination path
     const paginationSection = settingsCode.slice(
       settingsCode.indexOf("Paginate remaining pages"),
@@ -60,7 +60,9 @@ describe("Settings API version fallback", () => {
       settingsCode.indexOf("let continuationToken = await processPage"),
     );
     // Must have try/catch around response.json()
-    expect(processPageBlock).toMatch(/try\s*\{[\s\S]*?await response\.json\(\)/);
+    expect(processPageBlock).toMatch(
+      /try\s*\{[\s\S]*?await response\.json\(\)/,
+    );
     expect(processPageBlock).toMatch(/\}\s*catch\s*\{/);
     // Must return null in the catch path (terminates pagination)
     expect(processPageBlock).toMatch(/catch\s*\{[\s\S]*?return null/);
@@ -69,8 +71,6 @@ describe("Settings API version fallback", () => {
   it("throws on non-ok responses from the probe (server errors not swallowed)", () => {
     // After the shared probe returns, settings must check !firstResponse.ok
     // and throw — not silently continue
-    expect(settingsCode).toMatch(
-      /if\s*\(\s*!firstResponse\.ok\s*\)/,
-    );
+    expect(settingsCode).toMatch(/if\s*\(\s*!firstResponse\.ok\s*\)/);
   });
 });

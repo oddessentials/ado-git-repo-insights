@@ -56,44 +56,50 @@ describe("Local Mode Integration", () => {
         `;
 
     // Mock fetch responses — cast partial objects as Response (standard Jest pattern)
-    globalScope.fetch.mockImplementation(async (input: string | URL | Request) => {
-      const url = String(input);
-      if (url.includes("dataset-manifest.json")) {
-        if (!manifestExists) {
-          return { ok: false, status: 404, statusText: "Not Found" } as Response;
+    globalScope.fetch.mockImplementation(
+      async (input: string | URL | Request) => {
+        const url = String(input);
+        if (url.includes("dataset-manifest.json")) {
+          if (!manifestExists) {
+            return {
+              ok: false,
+              status: 404,
+              statusText: "Not Found",
+            } as Response;
+          }
+          return {
+            ok: true,
+            status: 200,
+            json: async () => ({
+              manifest_schema_version: 1,
+              dataset_schema_version: 1,
+              aggregates_schema_version: 1,
+              coverage: {
+                total_prs: 100,
+                date_range: { min: "2025-01-01", max: "2025-12-31" },
+              },
+              features: {},
+              defaults: { default_date_range_days: 90 },
+              aggregate_index: { weekly_rollups: [], distributions: [] },
+            }),
+          } as Response;
         }
-        return {
-          ok: true,
-          status: 200,
-          json: async () => ({
-            manifest_schema_version: 1,
-            dataset_schema_version: 1,
-            aggregates_schema_version: 1,
-            coverage: {
-              total_prs: 100,
+        if (url.includes("dimensions.json")) {
+          return {
+            ok: true,
+            status: 200,
+            json: async () => ({
+              repositories: [],
+              users: [],
+              projects: [],
+              teams: [],
               date_range: { min: "2025-01-01", max: "2025-12-31" },
-            },
-            features: {},
-            defaults: { default_date_range_days: 90 },
-            aggregate_index: { weekly_rollups: [], distributions: [] },
-          }),
-        } as Response;
-      }
-      if (url.includes("dimensions.json")) {
-        return {
-          ok: true,
-          status: 200,
-          json: async () => ({
-            repositories: [],
-            users: [],
-            projects: [],
-            teams: [],
-            date_range: { min: "2025-01-01", max: "2025-12-31" },
-          }),
-        } as Response;
-      }
-      return { ok: false, status: 404, statusText: "Not Found" } as Response;
-    });
+            }),
+          } as Response;
+        }
+        return { ok: false, status: 404, statusText: "Not Found" } as Response;
+      },
+    );
   }
 
   describe("UI State Changes", () => {

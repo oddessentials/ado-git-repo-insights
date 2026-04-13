@@ -10,7 +10,9 @@
  */
 
 import * as _fsOriginal from "fs";
-function _loadFs(): typeof _fsOriginal { return _fsOriginal; }
+function _loadFs(): typeof _fsOriginal {
+  return _fsOriginal;
+}
 const _fs = _loadFs();
 import * as path from "path";
 
@@ -116,11 +118,18 @@ describe("SDK Bundling Integrity (post-migration)", () => {
 
   describe("resize bridge", () => {
     it("host-resize.ts uses resizeHost from sdk.ts, not globalThis.VSS", () => {
-      const hostResizePath = path.join(UI_DIR, "modules", "shared", "host-resize.ts");
+      const hostResizePath = path.join(
+        UI_DIR,
+        "modules",
+        "shared",
+        "host-resize.ts",
+      );
       const content = _fs.readFileSync(hostResizePath, "utf8");
 
       // Must import resizeHost from the SDK abstraction
-      expect(content).toMatch(/import\s*\{[^}]*resizeHost[^}]*\}\s*from\s*["']\.\.\/sdk["']/);
+      expect(content).toMatch(
+        /import\s*\{[^}]*resizeHost[^}]*\}\s*from\s*["']\.\.\/sdk["']/,
+      );
       // Must not reference the legacy globalThis.VSS pattern
       expect(content).not.toMatch(/globalThis.*VSS/);
       expect(content).not.toMatch(/VSS\?\.resize/);

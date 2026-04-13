@@ -48,8 +48,7 @@ describe("MOBILE_BREAKPOINT parity (FR-014)", () => {
 
   it("no stray 480px magic numbers outside @media rules", () => {
     const allMatches = stylesContent.match(/480px/g) ?? [];
-    const mediaMatches =
-      stylesContent.match(/@media[^{]*480px/g) ?? [];
+    const mediaMatches = stylesContent.match(/@media[^{]*480px/g) ?? [];
     expect(allMatches.length).toBe(mediaMatches.length);
   });
 });
@@ -66,17 +65,19 @@ describe("T042: Mobile distribution row stacking", () => {
     const container = document.createElement("div");
     document.body.appendChild(container);
 
-    const distributions: DistributionData[] = [{
-      year: "2025",
-      cycle_time_buckets: {
-        "0-1h": 5,
-        "1-4h": 10,
-        "4-24h": 8,
-        "1-3d": 3,
-        "3-7d": 2,
-        "7d+": 1,
+    const distributions: DistributionData[] = [
+      {
+        year: "2025",
+        cycle_time_buckets: {
+          "0-1h": 5,
+          "1-4h": 10,
+          "4-24h": 8,
+          "1-3d": 3,
+          "3-7d": 2,
+          "7d+": 1,
+        },
       },
-    }];
+    ];
 
     renderCycleDistribution(container, distributions);
 
@@ -115,7 +116,9 @@ describe("T050: Mobile truncation banner", () => {
     // Parse into DOM to verify structure
     const wrapper = document.createElement("div");
     wrapper.innerHTML = html;
-    const indicator = wrapper.querySelector(".truncation-indicator.truncation-badge");
+    const indicator = wrapper.querySelector(
+      ".truncation-indicator.truncation-badge",
+    );
 
     expect(indicator).not.toBeNull();
     expect(indicator!.textContent).toBe("Showing last 104 weeks");

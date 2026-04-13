@@ -56,8 +56,7 @@ describe("DatasetLoader", () => {
         ],
       };
 
-      const result =
-        loader.validatePredictionsSchemaForTest(validPredictions);
+      const result = loader.validatePredictionsSchemaForTest(validPredictions);
       expect(result).toEqual({ valid: true });
     });
 
@@ -86,8 +85,7 @@ describe("DatasetLoader", () => {
         forecasts: [],
       };
 
-      const result =
-        loader.validatePredictionsSchemaForTest(futurePredictions);
+      const result = loader.validatePredictionsSchemaForTest(futurePredictions);
       expect(result.valid).toBe(false);
       expect(result.error).toContain("version");
     });

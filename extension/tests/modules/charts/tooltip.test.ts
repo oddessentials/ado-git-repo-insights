@@ -12,15 +12,16 @@ import {
 
 // Polyfill PointerEvent for JSDOM (not available by default)
 if (typeof globalThis.PointerEvent === "undefined") {
-  (globalThis as unknown as Record<string, unknown>).PointerEvent = class PointerEvent extends MouseEvent {
-    readonly pointerId: number;
-    readonly pointerType: string;
-    constructor(type: string, params: PointerEventInit & EventInit = {}) {
-      super(type, params);
-      this.pointerId = params.pointerId ?? 0;
-      this.pointerType = params.pointerType ?? "";
-    }
-  };
+  (globalThis as unknown as Record<string, unknown>).PointerEvent =
+    class PointerEvent extends MouseEvent {
+      readonly pointerId: number;
+      readonly pointerType: string;
+      constructor(type: string, params: PointerEventInit & EventInit = {}) {
+        super(type, params);
+        this.pointerId = params.pointerId ?? 0;
+        this.pointerType = params.pointerType ?? "";
+      }
+    };
 }
 
 describe("addChartTooltips click/tap support", () => {

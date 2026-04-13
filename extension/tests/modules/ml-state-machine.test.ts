@@ -330,14 +330,20 @@ describe("ML State Machine", () => {
 
     it("returns false for ready", () => {
       expect(
-        isErrorState({ type: "ready", data: { forecasts: [] } as PredictionsRenderData }),
+        isErrorState({
+          type: "ready",
+          data: { forecasts: [] } as PredictionsRenderData,
+        }),
       ).toBe(false);
     });
   });
 
   describe("isReadyState", () => {
     it("returns true for ready state", () => {
-      const state = { type: "ready" as const, data: { forecasts: [] } as PredictionsRenderData };
+      const state = {
+        type: "ready" as const,
+        data: { forecasts: [] } as PredictionsRenderData,
+      };
       expect(isReadyState(state)).toBe(true);
     });
 

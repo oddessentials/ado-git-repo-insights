@@ -83,9 +83,24 @@ describe("metrics module", () => {
 
     it("extracts reviewTimeP50/P90 median from non-null values", () => {
       const rollups = [
-        { week: "2026-W01", pr_count: 10, review_time_p50: 1800, review_time_p90: 3600 } as Rollup,
-        { week: "2026-W02", pr_count: 15, review_time_p50: 2400, review_time_p90: 5400 } as Rollup,
-        { week: "2026-W03", pr_count: 12, review_time_p50: 3000, review_time_p90: 7200 } as Rollup,
+        {
+          week: "2026-W01",
+          pr_count: 10,
+          review_time_p50: 1800,
+          review_time_p90: 3600,
+        } as Rollup,
+        {
+          week: "2026-W02",
+          pr_count: 15,
+          review_time_p50: 2400,
+          review_time_p90: 5400,
+        } as Rollup,
+        {
+          week: "2026-W03",
+          pr_count: 12,
+          review_time_p50: 3000,
+          review_time_p90: 7200,
+        } as Rollup,
       ];
       const result = calculateMetrics(rollups);
       expect(result.reviewTimeP50).toBe(2400); // median of [1800, 2400, 3000]
@@ -94,8 +109,18 @@ describe("metrics module", () => {
 
     it("skips null review_time values in median calculation", () => {
       const rollups = [
-        { week: "2026-W01", pr_count: 10, review_time_p50: 1800, review_time_p90: null } as Rollup,
-        { week: "2026-W02", pr_count: 15, review_time_p50: null, review_time_p90: 5400 } as Rollup,
+        {
+          week: "2026-W01",
+          pr_count: 10,
+          review_time_p50: 1800,
+          review_time_p90: null,
+        } as Rollup,
+        {
+          week: "2026-W02",
+          pr_count: 15,
+          review_time_p50: null,
+          review_time_p90: 5400,
+        } as Rollup,
       ];
       const result = calculateMetrics(rollups);
       expect(result.reviewTimeP50).toBe(1800); // only one non-null value
@@ -104,7 +129,12 @@ describe("metrics module", () => {
 
     it("returns null reviewTime when all values are null", () => {
       const rollups = [
-        { week: "2026-W01", pr_count: 10, review_time_p50: null, review_time_p90: null } as Rollup,
+        {
+          week: "2026-W01",
+          pr_count: 10,
+          review_time_p50: null,
+          review_time_p90: null,
+        } as Rollup,
         { week: "2026-W02", pr_count: 15 } as Rollup, // undefined, not null
       ];
       const result = calculateMetrics(rollups);
@@ -114,7 +144,12 @@ describe("metrics module", () => {
 
     it("extracts reviewTime from single-week dataset", () => {
       const rollups = [
-        { week: "2026-W01", pr_count: 5, review_time_p50: 900, review_time_p90: 1800 } as Rollup,
+        {
+          week: "2026-W01",
+          pr_count: 5,
+          review_time_p50: 900,
+          review_time_p90: 1800,
+        } as Rollup,
       ];
       const result = calculateMetrics(rollups);
       expect(result.reviewTimeP50).toBe(900);
@@ -124,14 +159,66 @@ describe("metrics module", () => {
     it("exposes independent P50 and P90 week counts", () => {
       // P50 and P90 have deliberately different null patterns to test independence
       const rollups = [
-        { week: "2026-W01", pr_count: 5, cycle_time_p50: 60, cycle_time_p90: 120, review_time_p50: 900, review_time_p90: null } as Rollup,
-        { week: "2026-W02", pr_count: 8, cycle_time_p50: 80, cycle_time_p90: null, review_time_p50: null, review_time_p90: 1800 } as Rollup,
-        { week: "2026-W03", pr_count: 3, cycle_time_p50: null, cycle_time_p90: 200, review_time_p50: 1200, review_time_p90: 2400 } as Rollup,
-        { week: "2026-W04", pr_count: 6, cycle_time_p50: 70, cycle_time_p90: 140, review_time_p50: null, review_time_p90: null } as Rollup,
-        { week: "2026-W05", pr_count: 4, cycle_time_p50: null, cycle_time_p90: null } as Rollup,
-        { week: "2026-W06", pr_count: 7, cycle_time_p50: 90, cycle_time_p90: 180, review_time_p50: 600, review_time_p90: 1200 } as Rollup,
-        { week: "2026-W07", pr_count: 2, cycle_time_p50: 50, cycle_time_p90: null, review_time_p50: null, review_time_p90: 900 } as Rollup,
-        { week: "2026-W08", pr_count: 9, cycle_time_p50: null, cycle_time_p90: 300 } as Rollup,
+        {
+          week: "2026-W01",
+          pr_count: 5,
+          cycle_time_p50: 60,
+          cycle_time_p90: 120,
+          review_time_p50: 900,
+          review_time_p90: null,
+        } as Rollup,
+        {
+          week: "2026-W02",
+          pr_count: 8,
+          cycle_time_p50: 80,
+          cycle_time_p90: null,
+          review_time_p50: null,
+          review_time_p90: 1800,
+        } as Rollup,
+        {
+          week: "2026-W03",
+          pr_count: 3,
+          cycle_time_p50: null,
+          cycle_time_p90: 200,
+          review_time_p50: 1200,
+          review_time_p90: 2400,
+        } as Rollup,
+        {
+          week: "2026-W04",
+          pr_count: 6,
+          cycle_time_p50: 70,
+          cycle_time_p90: 140,
+          review_time_p50: null,
+          review_time_p90: null,
+        } as Rollup,
+        {
+          week: "2026-W05",
+          pr_count: 4,
+          cycle_time_p50: null,
+          cycle_time_p90: null,
+        } as Rollup,
+        {
+          week: "2026-W06",
+          pr_count: 7,
+          cycle_time_p50: 90,
+          cycle_time_p90: 180,
+          review_time_p50: 600,
+          review_time_p90: 1200,
+        } as Rollup,
+        {
+          week: "2026-W07",
+          pr_count: 2,
+          cycle_time_p50: 50,
+          cycle_time_p90: null,
+          review_time_p50: null,
+          review_time_p90: 900,
+        } as Rollup,
+        {
+          week: "2026-W08",
+          pr_count: 9,
+          cycle_time_p50: null,
+          cycle_time_p90: 300,
+        } as Rollup,
       ];
       const result = calculateMetrics(rollups);
       expect(result.weekCount).toBe(8);
@@ -792,8 +879,20 @@ describe("metrics module", () => {
 
     it("aggregateReviewerEntries returns null when all entries have zero reviewed_prs", () => {
       const entries: ReviewerBreakdownEntry[] = [
-        { reviewed_prs: 0, reviews_count: 5, approval_rate: 0.8, authors_count: 1, repositories_count: 1 },
-        { reviewed_prs: 0, reviews_count: 3, approval_rate: 0.5, authors_count: 1, repositories_count: 1 },
+        {
+          reviewed_prs: 0,
+          reviews_count: 5,
+          approval_rate: 0.8,
+          authors_count: 1,
+          repositories_count: 1,
+        },
+        {
+          reviewed_prs: 0,
+          reviews_count: 3,
+          approval_rate: 0.5,
+          authors_count: 1,
+          repositories_count: 1,
+        },
       ];
       const result = aggregateReviewerEntries(entries);
       expect(result.approval_rate).toBeNull();
@@ -2474,7 +2573,7 @@ describe("review_time filter propagation (044)", () => {
       },
     },
     by_author: {
-      "alice": {
+      alice: {
         pr_count: 30,
         cycle_time_p50: 45,
         cycle_time_p90: 90,
@@ -2485,7 +2584,7 @@ describe("review_time filter propagation (044)", () => {
       },
     },
     by_reviewer: {
-      "bob": {
+      bob: {
         reviewed_prs: 20,
         reviews_count: 25,
         approval_rate: 0.8,
@@ -2501,7 +2600,9 @@ describe("review_time filter propagation (044)", () => {
     expect(result[0]!.review_time_p50).toBe(1800);
     expect(result[0]!.review_time_p90).toBe(3600);
     // Must NOT be the global 3600/7200
-    expect(result[0]!.review_time_p50).not.toBe(rollupWithReviewTime.review_time_p50);
+    expect(result[0]!.review_time_p50).not.toBe(
+      rollupWithReviewTime.review_time_p50,
+    );
   });
 
   it("team filter uses slice review_time, not global", () => {

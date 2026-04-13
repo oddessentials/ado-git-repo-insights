@@ -645,10 +645,8 @@ export function applyFiltersToRollups(
             pr_count: cdPr,
             cycle_time_p50: cdP50WPr > 0 ? cdP50WSum / cdP50WPr : null,
             cycle_time_p90: cdP90WPr > 0 ? cdP90WSum / cdP90WPr : null,
-            review_time_p50:
-              cdRtP50WPr > 0 ? cdRtP50WSum / cdRtP50WPr : null,
-            review_time_p90:
-              cdRtP90WPr > 0 ? cdRtP90WSum / cdRtP90WPr : null,
+            review_time_p50: cdRtP50WPr > 0 ? cdRtP50WSum / cdRtP50WPr : null,
+            review_time_p90: cdRtP90WPr > 0 ? cdRtP90WSum / cdRtP90WPr : null,
             authors_count: cdAuthors,
             reviewers_count: cdReviewers,
           });
@@ -803,10 +801,8 @@ export function applyFiltersToRollups(
             pr_count: cdPr,
             cycle_time_p50: cdP50WPr > 0 ? cdP50WSum / cdP50WPr : null,
             cycle_time_p90: cdP90WPr > 0 ? cdP90WSum / cdP90WPr : null,
-            review_time_p50:
-              cdRtP50WPr > 0 ? cdRtP50WSum / cdRtP50WPr : null,
-            review_time_p90:
-              cdRtP90WPr > 0 ? cdRtP90WSum / cdRtP90WPr : null,
+            review_time_p50: cdRtP50WPr > 0 ? cdRtP50WSum / cdRtP50WPr : null,
+            review_time_p90: cdRtP90WPr > 0 ? cdRtP90WSum / cdRtP90WPr : null,
             authors_count: cdAuthors,
             reviewers_count: cdReviewers,
           });
