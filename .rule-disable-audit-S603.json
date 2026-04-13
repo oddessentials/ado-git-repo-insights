@@ -1,6 +1,6 @@
 {
   "rule": "S603",
-  "total_call_sites": 84,
+  "total_call_sites": 86,
   "unsafe_count": 12,
   "call_sites": [
     {
@@ -197,7 +197,7 @@
     },
     {
       "file": "scripts/run_pr_preflight.py",
-      "line": 470,
+      "line": 475,
       "code": "probe = subprocess.run(",
       "shell_true": false,
       "literal_list": true,
@@ -205,7 +205,7 @@
     },
     {
       "file": "scripts/run_pr_preflight.py",
-      "line": 493,
+      "line": 498,
       "code": "completed = subprocess.run(",
       "shell_true": false,
       "literal_list": false,
@@ -213,7 +213,7 @@
     },
     {
       "file": "scripts/run_pr_preflight.py",
-      "line": 570,
+      "line": 575,
       "code": "probe = subprocess.run(",
       "shell_true": false,
       "literal_list": true,
@@ -221,7 +221,7 @@
     },
     {
       "file": "scripts/run_pr_preflight.py",
-      "line": 652,
+      "line": 657,
       "code": "probe = subprocess.run(",
       "shell_true": false,
       "literal_list": true,
@@ -510,6 +510,22 @@
     {
       "file": "tests/unit/test_audit_suppressions.py",
       "line": 1115,
+      "code": "result = subprocess.run(",
+      "shell_true": false,
+      "literal_list": true,
+      "safety": "safe-literal-list"
+    },
+    {
+      "file": "tests/unit/test_ci_parity_drift.py",
+      "line": 485,
+      "code": "result = subprocess.run(",
+      "shell_true": false,
+      "literal_list": true,
+      "safety": "safe-literal-list"
+    },
+    {
+      "file": "tests/unit/test_ci_parity_drift.py",
+      "line": 530,
       "code": "result = subprocess.run(",
       "shell_true": false,
       "literal_list": true,
