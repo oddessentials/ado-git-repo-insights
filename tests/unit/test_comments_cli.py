@@ -89,6 +89,77 @@ class TestCommentsCliFlags:
         )
         assert args.comments_max_threads_per_pr == 25
 
+    # Every input the strict validator must reject. Kept in one list so the
+    # Python CLI and the Node task wrapper's /^\d+$/ rejection surface are
+    # provably in parity — if the Node regex grows or shrinks, this list
+    # should change in lockstep.
+    _STRICT_INVALID_INPUTS = [
+        "-1",  # negative
+        "abc",  # non-numeric
+        "1.5",  # float
+        "+1",  # leading sign
+        " 1",  # leading whitespace
+        "1 ",  # trailing whitespace
+        "1_000",  # underscore separator (python int() accepts; we don't)
+        "१२३",  # Devanagari digits — non-ASCII, rejected by [0-9]+
+    ]
+
+    @pytest.mark.parametrize(
+        "flag",
+        ["--comments-max-prs-per-run", "--comments-max-threads-per-pr"],
+    )
+    @pytest.mark.parametrize("bad_value", _STRICT_INVALID_INPUTS)
+    def test_strict_invalid_inputs_rejected(
+        self,
+        flag: str,
+        bad_value: str,
+        capsys: pytest.CaptureFixture[str],
+    ) -> None:
+        """Strict parity with Node /^\\d+$/: reject every non-digit-only input.
+
+        The previous _non_negative_int used Python int(), which silently
+        accepts leading '+', surrounding whitespace, underscore separators,
+        and non-ASCII digits. The Node task wrapper's regex-based validator
+        rejected all of those. This test locks the tightened Python side
+        against that looseness so local CLI and pipeline enforce one
+        contract. Quality checks are tightened, never loosened.
+        """
+        parser = create_parser()
+        with pytest.raises(SystemExit) as excinfo:
+            parser.parse_args(
+                [
+                    "extract",
+                    "--pat",
+                    "test-pat",
+                    "--config",
+                    "test.yaml",
+                    flag,
+                    bad_value,
+                ]
+            )
+        assert excinfo.value.code != 0
+        stderr = capsys.readouterr().err
+        assert "not a valid non-negative integer" in stderr
+
+    def test_zero_is_accepted_for_numeric_flags(self) -> None:
+        """Zero is explicitly valid (e.g. 0 = unlimited threads)."""
+        parser = create_parser()
+        args = parser.parse_args(
+            [
+                "extract",
+                "--pat",
+                "test-pat",
+                "--config",
+                "test.yaml",
+                "--comments-max-prs-per-run",
+                "0",
+                "--comments-max-threads-per-pr",
+                "0",
+            ]
+        )
+        assert args.comments_max_prs_per_run == 0
+        assert args.comments_max_threads_per_pr == 0
+
 
 class TestExtractComments:
     """Tests for _extract_comments helper function."""

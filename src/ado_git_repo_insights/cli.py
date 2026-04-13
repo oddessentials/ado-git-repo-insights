@@ -5,6 +5,7 @@ from __future__ import annotations
 import argparse
 import importlib.util
 import logging
+import re
 import shutil
 import sys
 import time
@@ -34,6 +35,35 @@ def _get_runtime_version() -> str:
     from .utils.version import resolve_version
 
     return resolve_version()
+
+
+# Strict ASCII-digits-only pattern. [0-9]+ (not \d+) avoids matching Unicode
+# digit categories like Devanagari numerals, so this matches JavaScript's
+# /^\d+$/ regex byte-for-byte.
+_NON_NEGATIVE_INT_RE = re.compile(r"[0-9]+")
+
+
+def _non_negative_int(value: str) -> int:
+    """argparse type for numeric flags that must be non-negative integers.
+
+    Strict parity with the Node task wrapper's ``validateNonNegativeInt``
+    (``/^\\d+$/``): only accepts digit-only ASCII strings. Explicitly rejects:
+
+    * leading sign (``+1``, ``-1``)
+    * surrounding or embedded whitespace (``" 1"``, ``"1 "``)
+    * underscore separators (``"1_000"``)
+    * non-numeric strings (``"abc"``, ``"1.5"``)
+    * non-ASCII digits
+
+    Both entry points (this CLI type and the Node wrapper) reject identical
+    inputs so local invocations and pipeline invocations cannot diverge.
+    """
+    if not isinstance(value, str) or _NON_NEGATIVE_INT_RE.fullmatch(value) is None:
+        raise argparse.ArgumentTypeError(
+            f"{value!r} is not a valid non-negative integer "
+            "(digits only, no sign, no whitespace)"
+        )
+    return int(value)
 
 
 def create_parser() -> argparse.ArgumentParser:
@@ -121,15 +151,15 @@ def create_parser() -> argparse.ArgumentParser:
     )
     extract_parser.add_argument(
         "--comments-max-prs-per-run",
-        type=int,
+        type=_non_negative_int,
         default=100,
         help="Max PRs to fetch comments for per run (rate limit protection)",
     )
     extract_parser.add_argument(
         "--comments-max-threads-per-pr",
-        type=int,
+        type=_non_negative_int,
         default=50,
-        help="Max threads to fetch per PR (optional limit)",
+        help="Max threads to fetch per PR (optional limit; 0 = unlimited)",
     )
 
     # Generate CSV command

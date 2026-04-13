@@ -21,6 +21,90 @@ const PACKAGE_NAME = "ado-git-repo-insights";
 const CLI_MODULE = "ado_git_repo_insights.cli";
 
 /**
+ * Build the argument vector passed to `python -m ado_git_repo_insights.cli extract`.
+ *
+ * Exported so unit tests can exercise the real production function rather
+ * than a duplicated mock. Pure: no side effects, no process / tl access.
+ *
+ * @param {Object} config
+ * @param {string} config.organization
+ * @param {string} config.projects          Raw multi-line input (will be newline→comma normalized)
+ * @param {string} config.pat
+ * @param {string} config.databasePath
+ * @param {string=} config.startDate
+ * @param {string=} config.endDate
+ * @param {string=} config.backfillDays
+ * @param {boolean=} config.includeComments
+ * @param {number|null=} config.commentsMaxPrsPerRun    null when not overridden
+ * @param {number|null=} config.commentsMaxThreadsPerPr null when not overridden
+ * @returns {string[]}
+ */
+function buildExtractArgs(config) {
+  const args = [
+    "-m",
+    CLI_MODULE,
+    "extract",
+    "--organization",
+    config.organization,
+    "--projects",
+    config.projects.replace(/\n/g, ","),
+    "--pat",
+    config.pat,
+    "--database",
+    config.databasePath,
+  ];
+
+  if (config.startDate) args.push("--start-date", config.startDate);
+  if (config.endDate) args.push("--end-date", config.endDate);
+  if (config.backfillDays) args.push("--backfill-days", config.backfillDays);
+
+  if (config.includeComments) {
+    args.push("--include-comments");
+    if (config.commentsMaxPrsPerRun != null) {
+      args.push(
+        "--comments-max-prs-per-run",
+        String(config.commentsMaxPrsPerRun),
+      );
+    }
+    if (config.commentsMaxThreadsPerPr != null) {
+      args.push(
+        "--comments-max-threads-per-pr",
+        String(config.commentsMaxThreadsPerPr),
+      );
+    }
+  }
+
+  return args;
+}
+
+/**
+ * Parse a non-negative integer input. Mirrors the Python _non_negative_int
+ * argparse type so the Node task wrapper and the CLI enforce one contract.
+ *
+ * - null/undefined/empty string → null  (caller treats as "use CLI default")
+ * - valid non-negative integer   → parsed number
+ * - invalid                      → calls tl.setResult(Failed, ...) and returns
+ *                                  the sentinel `undefined` so the caller can
+ *                                  bail out of `run()` without throwing.
+ *
+ * @param {string} name  Input name for error messages
+ * @param {string|null|undefined} raw
+ * @returns {number|null|undefined}
+ */
+function validateNonNegativeInt(name, raw) {
+  if (raw == null || raw === "") return null;
+  const str = String(raw);
+  if (!/^\d+$/.test(str)) {
+    tl.setResult(
+      tl.TaskResult.Failed,
+      `Invalid ${name}: "${raw}". Must be a non-negative integer.`,
+    );
+    return undefined;
+  }
+  return parseInt(str, 10);
+}
+
+/**
  * Validate Python environment meets requirements.
  * Invariant 18: Fail-fast with actionable error message.
  */
@@ -157,6 +241,27 @@ async function run() {
     const startDate = tl.getInput("startDate", false);
     const endDate = tl.getInput("endDate", false);
     const backfillDays = tl.getInput("backfillDays", false);
+    // #260: PR comments extraction (feeds review_time metrics)
+    const includeComments = tl.getBoolInput("includeComments", false);
+    const commentsMaxPrsPerRunRaw = tl.getInput("commentsMaxPrsPerRun", false);
+    const commentsMaxThreadsPerPrRaw = tl.getInput(
+      "commentsMaxThreadsPerPr",
+      false,
+    );
+    let commentsMaxPrsPerRun = null;
+    let commentsMaxThreadsPerPr = null;
+    if (includeComments) {
+      commentsMaxPrsPerRun = validateNonNegativeInt(
+        "commentsMaxPrsPerRun",
+        commentsMaxPrsPerRunRaw,
+      );
+      if (commentsMaxPrsPerRun === undefined) return;
+      commentsMaxThreadsPerPr = validateNonNegativeInt(
+        "commentsMaxThreadsPerPr",
+        commentsMaxThreadsPerPrRaw,
+      );
+      if (commentsMaxThreadsPerPr === undefined) return;
+    }
     // Phase 3: Aggregates generation
     const generateAggregates = tl.getBoolInput("generateAggregates", false);
     const aggregatesDirInput =
@@ -234,6 +339,13 @@ async function run() {
     if (startDate) console.log(`Start Date: ${startDate}`);
     if (endDate) console.log(`End Date: ${endDate}`);
     if (backfillDays) console.log(`Backfill Days: ${backfillDays}`);
+    if (includeComments) {
+      console.log(`Extract Comments: true`);
+      if (commentsMaxPrsPerRun != null)
+        console.log(`  Max PRs / run: ${commentsMaxPrsPerRun}`);
+      if (commentsMaxThreadsPerPr != null)
+        console.log(`  Max threads / PR: ${commentsMaxThreadsPerPr}`);
+    }
     if (generateAggregates) {
       console.log(`Generate Aggregates: true`);
       console.log(`Aggregates Dir: ${aggregatesDir}`);
@@ -282,24 +394,20 @@ async function run() {
       return;
     }
 
-    // Build extraction command
-    const extractArgs = [
-      "-m",
-      CLI_MODULE,
-      "extract",
-      "--organization",
+    // Build extraction command via the shared, exported function so unit
+    // tests exercise the exact code path used in production.
+    const extractArgs = buildExtractArgs({
       organization,
-      "--projects",
-      projects.replace(/\n/g, ","),
-      "--pat",
+      projects,
       pat,
-      "--database",
       databasePath,
-    ];
-
-    if (startDate) extractArgs.push("--start-date", startDate);
-    if (endDate) extractArgs.push("--end-date", endDate);
-    if (backfillDays) extractArgs.push("--backfill-days", backfillDays);
+      startDate,
+      endDate,
+      backfillDays,
+      includeComments,
+      commentsMaxPrsPerRun,
+      commentsMaxThreadsPerPr,
+    });
 
     // Run extraction
     const totalSteps = generateAggregates ? 3 : 2;
@@ -420,5 +528,11 @@ function runPython(pythonCmd, args, extraEnv = {}) {
   });
 }
 
-// Execute
-run();
+module.exports = {
+  buildExtractArgs,
+  validateNonNegativeInt,
+};
+
+if (require.main === module) {
+  run();
+}

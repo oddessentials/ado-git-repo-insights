@@ -95,6 +95,7 @@ csv_output/
 
 # Azure DevOps extension
 *.vsix
+.taskkey
 node_modules/
 
 # OS files
