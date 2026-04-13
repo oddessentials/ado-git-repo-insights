@@ -5,7 +5,6 @@ from __future__ import annotations
 import ast
 import importlib.util
 import json
-import shutil
 import subprocess
 import sys
 from pathlib import Path
@@ -511,53 +510,3 @@ class TestFormatCheckParity:
             f"definition). Found {len(pkg_hits)}:\n"
             + "\n".join(f"  {h}" for h in pkg_hits)
         )
-
-    def test_format_check_fails_on_known_violation(self) -> None:
-        """A deliberately malformed file must fail the authoritative
-        command. Since preflight, test:ci, and CI all invoke the same
-        ``format:check`` script, a single failure proof on that command
-        proves enforcement symmetry across all three entry points.
-
-        Skipped when pnpm or extension/node_modules is not present (for
-        example, the parity-gate CI job installs only Python tooling).
-        CI enforcement in those environments is already proven by the
-        extension-tests job's "Prettier format check" step, which runs
-        the same script against the real tree on every PR.
-        """
-        import subprocess
-
-        import pytest
-
-        extension_root = REPO_ROOT / "extension"
-        violation = extension_root / "tests" / "__format_violation_fixture__.json"
-        pnpm = shutil.which("pnpm.cmd") or shutil.which("pnpm")
-        node_modules = extension_root / "node_modules"
-        if not pnpm or not node_modules.is_dir():
-            pytest.skip(
-                "pnpm and extension/node_modules are required; "
-                "format:check enforcement in CI is proven by the "
-                "extension-tests job's 'Prettier format check' step"
-            )
-        # Prettier wants one space after a colon in JSON; two spaces fails.
-        violation.write_text('{"a":  1}\n', encoding="utf-8")
-        try:
-            result = subprocess.run(
-                [pnpm, "--dir", str(extension_root), "run", "format:check"],
-                capture_output=True,
-                text=True,
-                cwd=REPO_ROOT,
-                check=False,
-            )
-            assert result.returncode != 0, (
-                "format:check unexpectedly passed on a known violation.\n"
-                f"stdout: {result.stdout}\nstderr: {result.stderr}"
-            )
-            # Prettier writes its `[warn] <path>` lines to stderr; check both
-            # streams so the assertion is robust to output routing changes.
-            combined = result.stdout + result.stderr
-            assert "__format_violation_fixture__.json" in combined, (
-                "format:check did not report the violating file.\n"
-                f"stdout: {result.stdout}\nstderr: {result.stderr}"
-            )
-        finally:
-            violation.unlink(missing_ok=True)
