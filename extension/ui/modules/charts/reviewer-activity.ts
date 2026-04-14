@@ -13,11 +13,7 @@ import type { DataAvailabilitySignal } from "../../types";
 import type { FilterState } from "../filters";
 import { classifyEmptyState } from "../empty-state-classifier";
 import { renderTruncationIndicator } from "../shared/chart-layout";
-import {
-  escapeHtml,
-  renderNoData,
-  renderTrustedHtml,
-} from "../shared/render";
+import { escapeHtml, renderNoData, renderTrustedHtml } from "../shared/render";
 
 import type { ReviewerBreakdownEntry } from "../../schemas/rollup.schema";
 
@@ -45,7 +41,11 @@ function computeApprovalRate(
 
   for (const rollup of rollups) {
     if (!rollup.by_reviewer || typeof rollup.by_reviewer !== "object") continue;
-    const reviewerMap = new Map(Object.entries(rollup.by_reviewer as Record<string, ReviewerBreakdownEntry>));
+    const reviewerMap = new Map(
+      Object.entries(
+        rollup.by_reviewer as Record<string, ReviewerBreakdownEntry>,
+      ),
+    );
     let weekContributed = false;
     for (const id of reviewerIds) {
       const entry = reviewerMap.get(id);
@@ -103,7 +103,12 @@ export function renderReviewerActivity(
     const classification = options.availability
       ? classifyEmptyState({
           chartType: "reviewer_activity",
-          filters: options.filters ?? { repos: [], teams: [], reviewers: [], authors: [] },
+          filters: options.filters ?? {
+            repos: [],
+            teams: [],
+            reviewers: [],
+            authors: [],
+          },
           unfilteredRollups: options.unfilteredRollups ?? [],
           filteredRollups: rollups ?? [],
           availability: options.availability,
@@ -135,7 +140,12 @@ export function renderReviewerActivity(
     const classification = options.availability
       ? classifyEmptyState({
           chartType: "reviewer_activity",
-          filters: options.filters ?? { repos: [], teams: [], reviewers: [], authors: [] },
+          filters: options.filters ?? {
+            repos: [],
+            teams: [],
+            reviewers: [],
+            authors: [],
+          },
           unfilteredRollups: options.unfilteredRollups ?? [],
           filteredRollups: rollups,
           availability: options.availability,
@@ -176,7 +186,10 @@ export function renderReviewerActivity(
     .join("");
 
   // Truncation indicator
-  const truncationHtml = renderTruncationIndicator(truncated, MAX_REVIEWER_WEEKS);
+  const truncationHtml = renderTruncationIndicator(
+    truncated,
+    MAX_REVIEWER_WEEKS,
+  );
 
   // Approval rate: always rendered when reviewer filter is active.
   // Uses recentRollups (the truncated 8-week window) so the badge reflects the
@@ -191,13 +204,17 @@ export function renderReviewerActivity(
     // both this site and applyFiltersToRollups must move together.
     const firstReviewer = options.filters?.reviewers?.[0];
     const reviewerIds = firstReviewer ? [firstReviewer] : [];
-    const { rate: approvalRate, weeksWithData } = computeApprovalRate(recentRollups, reviewerIds);
+    const { rate: approvalRate, weeksWithData } = computeApprovalRate(
+      recentRollups,
+      reviewerIds,
+    );
     // Badge label uses metric-specific coverage (weeks that actually contributed
     // to the approval rate), not the visual chart window — consistent with the
     // sample-size convention on summary cards.
-    const coverageLabel = weeksWithData > 0
-      ? `(from ${weeksWithData} ${weeksWithData === 1 ? "week" : "weeks"} of data)`
-      : "";
+    const coverageLabel =
+      weeksWithData > 0
+        ? `(from ${weeksWithData} ${weeksWithData === 1 ? "week" : "weeks"} of data)`
+        : "";
     if (approvalRate !== null) {
       const pct = Math.round(approvalRate * 100);
       approvalHtml = `<p class="approval-rate" data-weeks="${weeksWithData}">Approval Rate: ${pct}% ${escapeHtml(coverageLabel)}</p>`;

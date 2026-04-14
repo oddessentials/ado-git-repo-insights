@@ -6,7 +6,9 @@
  */
 
 import * as _fsOriginal from "fs";
-function _loadFs(): typeof _fsOriginal { return _fsOriginal; }
+function _loadFs(): typeof _fsOriginal {
+  return _fsOriginal;
+}
 const _fs = _loadFs();
 import path from "path";
 import {
@@ -260,14 +262,13 @@ describe("Filter URL Serialization Round-Trip", () => {
     it("dashboard.ts must not contain inline filter serialization", () => {
       // Grep-based guard: no .set("repos", or .set("teams", in dashboard.ts
       // outside of comments. This prevents reintroduction of inline serialization.
-      const dashboardPath = path.resolve(
-        __dirname,
-        "../../ui/dashboard.ts",
-      );
+      const dashboardPath = path.resolve(__dirname, "../../ui/dashboard.ts");
       const content = _fs.readFileSync(dashboardPath, "utf-8");
 
       // Remove comments before scanning
-      const noComments = content.replace(/\/\/.*$/gm, "").replace(/\/\*[\s\S]*?\*\//g, "");
+      const noComments = content
+        .replace(/\/\/.*$/gm, "")
+        .replace(/\/\*[\s\S]*?\*\//g, "");
 
       // These patterns indicate inline filter serialization bypassing serializeFiltersToUrl
       const inlineReposWrite = /newParams\.set\(\s*["']repos["']\s*,/;

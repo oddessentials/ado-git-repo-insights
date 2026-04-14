@@ -236,9 +236,7 @@ describe("Large history truncation visibility", () => {
     const indicator = container.querySelector(".truncation-indicator");
     expect(indicator).not.toBeNull();
     expect(indicator!.textContent).toContain("Showing last");
-    expect(indicator!.textContent).toContain(
-      String(MAX_REVIEWER_WEEKS),
-    );
+    expect(indicator!.textContent).toContain(String(MAX_REVIEWER_WEEKS));
   });
 
   it("reviewer-activity does NOT show .truncation-indicator when within limit", () => {
@@ -306,9 +304,7 @@ describe("Synthetic vs degraded-prod mismatch detection", () => {
     renderThroughputChart(degradedContainer, degradedRollups);
 
     // Outputs must differ (proving the test isn't vacuous)
-    expect(syntheticContainer.innerHTML).not.toBe(
-      degradedContainer.innerHTML,
-    );
+    expect(syntheticContainer.innerHTML).not.toBe(degradedContainer.innerHTML);
 
     // Both must contain valid chart structure
     expect(

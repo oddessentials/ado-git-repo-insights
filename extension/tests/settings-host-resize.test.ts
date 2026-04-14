@@ -75,7 +75,8 @@ describe("host-resize module", () => {
     // Install mocks
     (globalThis as Record<string, unknown>).ResizeObserver = MockResizeObserver;
     (globalThis as Record<string, unknown>).requestAnimationFrame = mockRaf;
-    (globalThis as Record<string, unknown>).cancelAnimationFrame = mockCancelRaf;
+    (globalThis as Record<string, unknown>).cancelAnimationFrame =
+      mockCancelRaf;
     rafCallbacks = [];
     lastObserverCallback = null;
     lastObservedElement = null;
@@ -113,7 +114,8 @@ describe("host-resize module", () => {
     flushRaf();
 
     expect(mockSdkModule.resize).toHaveBeenCalledTimes(1);
-    const height = (mockSdkModule.resize as jest.Mock).mock.calls[0][1] as number;
+    const height = (mockSdkModule.resize as jest.Mock).mock
+      .calls[0][1] as number;
     expect(height).toBeGreaterThan(0);
   });
 
@@ -205,7 +207,10 @@ describe("host-resize module", () => {
 
   it("syncHostHeight passes undefined width and computed height", () => {
     syncHostHeight();
-    expect(mockSdkModule.resize).toHaveBeenCalledWith(undefined, expect.any(Number));
+    expect(mockSdkModule.resize).toHaveBeenCalledWith(
+      undefined,
+      expect.any(Number),
+    );
   });
 
   it("does not call resize after teardown", () => {
@@ -250,7 +255,10 @@ describe("host-resize module", () => {
     syncHostHeight();
 
     expect(mockSdkModule.resize).toHaveBeenCalledTimes(1);
-    expect(mockSdkModule.resize).toHaveBeenCalledWith(undefined, expect.any(Number));
+    expect(mockSdkModule.resize).toHaveBeenCalledWith(
+      undefined,
+      expect.any(Number),
+    );
   });
 
   it("final resize fires after async settings content renders (no ResizeObserver)", async () => {
@@ -276,7 +284,9 @@ describe("host-resize module", () => {
     syncHostHeight();
 
     // Must have been called at least twice — once post-init, once post-render
-    expect((mockSdkModule.resize as jest.Mock).mock.calls.length).toBeGreaterThanOrEqual(2);
+    expect(
+      (mockSdkModule.resize as jest.Mock).mock.calls.length,
+    ).toBeGreaterThanOrEqual(2);
     // Last call should use the updated height
     const lastCall = (mockSdkModule.resize as jest.Mock).mock.calls.at(-1);
     expect(lastCall?.[1]).toBe(900);

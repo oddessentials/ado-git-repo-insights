@@ -10,7 +10,9 @@
  */
 
 import * as _fsOriginal from "fs";
-function _loadFs(): typeof _fsOriginal { return _fsOriginal; }
+function _loadFs(): typeof _fsOriginal {
+  return _fsOriginal;
+}
 const _fs = _loadFs();
 import * as path from "path";
 import { isLocalMode, getLocalDatasetPath } from "../../ui/modules/sdk";
@@ -28,12 +30,15 @@ describe("Mode Detection (behavioral)", () => {
   afterEach(() => {
     // Restore original window state
     if (originalMode !== undefined) {
-      (window as unknown as Record<string, unknown>).LOCAL_DASHBOARD_MODE = originalMode;
+      (window as unknown as Record<string, unknown>).LOCAL_DASHBOARD_MODE =
+        originalMode;
     } else {
-      delete (window as unknown as Record<string, unknown>).LOCAL_DASHBOARD_MODE;
+      delete (window as unknown as Record<string, unknown>)
+        .LOCAL_DASHBOARD_MODE;
     }
     if (originalPath !== undefined) {
-      (window as unknown as Record<string, unknown>).DATASET_PATH = originalPath;
+      (window as unknown as Record<string, unknown>).DATASET_PATH =
+        originalPath;
     } else {
       delete (window as unknown as Record<string, unknown>).DATASET_PATH;
     }
@@ -50,7 +55,8 @@ describe("Mode Detection (behavioral)", () => {
   });
 
   it("isLocalMode() returns false for string 'true' (strict equality guard)", () => {
-    (window as unknown as Record<string, unknown>).LOCAL_DASHBOARD_MODE = "true";
+    (window as unknown as Record<string, unknown>).LOCAL_DASHBOARD_MODE =
+      "true";
     expect(isLocalMode()).toBe(false);
   });
 

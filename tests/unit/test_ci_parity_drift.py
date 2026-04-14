@@ -5,6 +5,7 @@ from __future__ import annotations
 import ast
 import importlib.util
 import json
+import subprocess
 import sys
 from pathlib import Path
 
@@ -46,6 +47,7 @@ CI_STEP_TO_GATE = {
     ): "Extension test config parity",
     ("extension-tests", "ESLint (production)"): "Extension lint",
     ("extension-tests", "ESLint (tests)"): "Extension test lint",
+    ("extension-tests", "Prettier format check"): "Extension format check",
 }
 
 
@@ -400,3 +402,111 @@ class TestPreflightCiParity:
             "secret-scan",
         ):
             assert job_name in jobs
+
+
+class TestFormatCheckParity:
+    """Parity-drift coverage for the Prettier format:check gate.
+
+    Contract: all call sites invoke the ``format:check`` script by name;
+    no call site invokes ``prettier`` directly, passes a config path, or
+    passes a glob. Invocation form is determined by cwd — ``pnpm run
+    format:check`` when cwd is ``extension/`` (via
+    ``cwd=EXTENSION_ROOT``, ``working-directory: extension``, or a script
+    in ``extension/package.json``); ``pnpm --dir extension run
+    format:check`` otherwise.
+    """
+
+    def test_format_check_script_uses_repo_root_prettierignore(self) -> None:
+        """Lock the authoritative flags in the ``format:check`` script so
+        no call site can silently drift on config or ignore-file path."""
+        ext_pkg = json.loads(
+            (REPO_ROOT / "extension" / "package.json").read_text(encoding="utf-8")
+        )
+        script = ext_pkg.get("scripts", {}).get("format:check", "")
+        assert script.startswith("prettier --check"), (
+            f"format:check must invoke `prettier --check`; got: {script!r}"
+        )
+        assert "--ignore-path ../.prettierignore" in script, (
+            "format:check must use the repo-root .prettierignore via "
+            f"`--ignore-path ../.prettierignore`; got: {script!r}"
+        )
+        assert '"**/*.{ts,js,json,md}"' in script, (
+            "format:check glob must be locked to the current scope "
+            f"(ts/js/json/md); got: {script!r}"
+        )
+
+    def test_preflight_has_extension_format_check_spec(self) -> None:
+        """Preflight runs inside ``extension/`` via ``cwd=EXTENSION_ROOT``,
+        so the authoritative form is ``pnpm run format:check`` (inside
+        form, expressed as the CommandSpec tuple)."""
+        preflight = _normalized_preflight_commands()
+        assert "Extension format check" in preflight, (
+            "Preflight must define an 'Extension format check' CommandSpec"
+        )
+        assert preflight["Extension format check"] == "__PNPM__ run format:check", (
+            f"Preflight format-check command must be `pnpm run format:check`; "
+            f"got: {preflight['Extension format check']!r}"
+        )
+
+    def test_test_ci_includes_format_check(self) -> None:
+        """The ``test:ci`` script runs inside ``extension/`` by definition
+        (it is a script in ``extension/package.json``), so the authoritative
+        form is ``pnpm run format:check`` (inside form)."""
+        ext_pkg = json.loads(
+            (REPO_ROOT / "extension" / "package.json").read_text(encoding="utf-8")
+        )
+        test_ci = ext_pkg.get("scripts", {}).get("test:ci", "")
+        assert "pnpm run format:check" in test_ci, (
+            f"extension test:ci must invoke `pnpm run format:check`; got: {test_ci!r}"
+        )
+
+    def test_ci_workflow_format_check_step(self) -> None:
+        """The CI ``extension-tests`` job sets ``working-directory:
+        extension`` on every step, so the authoritative form is ``pnpm
+        run format:check`` (inside form via ``working-directory``)."""
+        step = _find_ci_step("extension-tests", "Prettier format check")
+        assert step.get("working-directory") == "extension", (
+            f"CI step must set `working-directory: extension`; "
+            f"got: {step.get('working-directory')!r}"
+        )
+        assert str(step.get("run", "")).strip() == "pnpm run format:check", (
+            f"CI step must run `pnpm run format:check` (inside form via "
+            f"working-directory); got: {step.get('run')!r}"
+        )
+
+    def test_no_direct_prettier_check_outside_authoritative_script(self) -> None:
+        """Only one file may contain the literal ``prettier --check``:
+        the ``format:check`` script definition in
+        ``extension/package.json``. All other call sites must go through
+        ``pnpm run format:check`` (inside form) or ``pnpm --dir extension
+        run format:check`` (outside form).
+        """
+        result = subprocess.run(
+            ["git", "grep", "-n", "--fixed-strings", "prettier --check"],
+            capture_output=True,
+            text=True,
+            cwd=REPO_ROOT,
+            check=False,
+        )
+        hits = [line for line in result.stdout.splitlines() if line]
+
+        allowed_prefixes = (
+            "extension/package.json:",
+            "tests/unit/test_ci_parity_drift.py:",
+        )
+        disallowed = [h for h in hits if not h.startswith(allowed_prefixes)]
+        assert not disallowed, (
+            "Direct `prettier --check` invocation found outside the "
+            "authoritative script. All call sites must use `pnpm run "
+            "format:check` (inside form) or `pnpm --dir extension run "
+            "format:check` (outside form).\n"
+            "Disallowed hits:\n" + "\n".join(f"  {h}" for h in disallowed)
+        )
+
+        pkg_hits = [h for h in hits if h.startswith("extension/package.json:")]
+        assert len(pkg_hits) == 1, (
+            "extension/package.json must contain exactly one "
+            "`prettier --check` occurrence (the format:check script "
+            f"definition). Found {len(pkg_hits)}:\n"
+            + "\n".join(f"  {h}" for h in pkg_hits)
+        )

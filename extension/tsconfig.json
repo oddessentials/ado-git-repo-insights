@@ -25,11 +25,6 @@
       "module": "CommonJS"
     }
   },
-  "include": [
-    "ui/**/*.ts",
-    "scripts/**/*.ts",
-    "tasks/_shared/**/*.ts",
-    "*.ts"
-  ],
+  "include": ["ui/**/*.ts", "scripts/**/*.ts", "tasks/_shared/**/*.ts", "*.ts"],
   "exclude": ["node_modules", "dist", "tests"]
 }

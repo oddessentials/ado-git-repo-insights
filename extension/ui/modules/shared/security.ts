@@ -43,7 +43,8 @@ export function safeHtml(
   ...values: unknown[]
 ): string {
   return strings.reduce((result, str, i) => {
-    const value = i < values.length ? escapeHtml(String(values.at(i) ?? "")) : "";
+    const value =
+      i < values.length ? escapeHtml(String(values.at(i) ?? "")) : "";
     return result + str + value;
   }, "");
 }

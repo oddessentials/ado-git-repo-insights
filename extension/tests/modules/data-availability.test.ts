@@ -47,9 +47,7 @@ describe("deriveAvailabilitySignal", () => {
     });
 
     it("by_reviewer: undefined -> reviewerDataPresent: false", () => {
-      const rollups = [
-        makeRollup({ by_reviewer: undefined }),
-      ];
+      const rollups = [makeRollup({ by_reviewer: undefined })];
 
       const signal: DataAvailabilitySignal = deriveAvailabilitySignal(rollups);
 
@@ -157,7 +155,10 @@ describe("deriveAvailabilitySignal", () => {
     it("uses default capabilities when null passed", () => {
       const rollups = [makeRollup()];
 
-      const signal: DataAvailabilitySignal = deriveAvailabilitySignal(rollups, null);
+      const signal: DataAvailabilitySignal = deriveAvailabilitySignal(
+        rollups,
+        null,
+      );
 
       expect(signal.reviewerRepoMode).toBe("constrained");
       expect(signal.commentsStatus).toBe("disabled");
@@ -166,7 +167,10 @@ describe("deriveAvailabilitySignal", () => {
     it("uses default capabilities when undefined passed", () => {
       const rollups = [makeRollup()];
 
-      const signal: DataAvailabilitySignal = deriveAvailabilitySignal(rollups, undefined);
+      const signal: DataAvailabilitySignal = deriveAvailabilitySignal(
+        rollups,
+        undefined,
+      );
 
       expect(signal.reviewerRepoMode).toBe("constrained");
       expect(signal.commentsStatus).toBe("disabled");
@@ -193,7 +197,10 @@ describe("deriveAvailabilitySignal", () => {
         crossDimensionalAvailable: true,
       };
 
-      const signal: DataAvailabilitySignal = deriveAvailabilitySignal(rollups, capabilities);
+      const signal: DataAvailabilitySignal = deriveAvailabilitySignal(
+        rollups,
+        capabilities,
+      );
 
       expect(signal.reviewerRepoMode).toBe("exact");
       expect(signal.commentsStatus).toBe("full");
@@ -211,7 +218,10 @@ describe("deriveAvailabilitySignal", () => {
         crossDimensionalAvailable: false,
       };
 
-      const signal: DataAvailabilitySignal = deriveAvailabilitySignal(rollups, capabilities);
+      const signal: DataAvailabilitySignal = deriveAvailabilitySignal(
+        rollups,
+        capabilities,
+      );
 
       expect(signal.reviewerRepoMode).toBe("disallowed");
       expect(signal.commentsStatus).toBe("partial");

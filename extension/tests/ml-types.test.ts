@@ -6,10 +6,7 @@
  */
 
 import { hasMLMethods } from "../ui/types";
-import type {
-  PredictionsData,
-  InsightsData,
-} from "../ui/types";
+import type { PredictionsData, InsightsData } from "../ui/types";
 
 describe("hasMLMethods type guard", () => {
   // Mock minimal loader without ML methods

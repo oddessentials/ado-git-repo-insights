@@ -1,183 +1,163 @@
 {
-    "manifestVersion": 1,
-    "id": "ado-git-repo-insights-staging",
-    "name": "Git Repo Insights (Dev)",
-    "version": "0.0.0",
-    "publisher": "OddEssentials-Dev",
-    "targets": [
-        {
-            "id": "Microsoft.VisualStudio.Services"
-        }
-    ],
-    "description": "Pull request analytics for Azure DevOps — built-in dashboard with cycle time, throughput, and reviewer metrics. Includes optional ML predictions and AI insights.",
-    "categories": [
-        "Azure Pipelines",
-        "Azure Repos"
-    ],
-    "galleryFlags": [
-        "Preview"
-    ],
-    "tags": [
-        "Pull Requests",
-        "PR Metrics",
-        "Cycle Time",
-        "Code Review",
-        "Engineering Metrics",
-        "DORA Metrics",
-        "Dashboard",
-        "Analytics",
-        "PowerBI",
-        "Throughput",
-        "AI Insights",
-        "Forecasting"
-    ],
-    "galleryBanner": {
-        "color": "#0078d4",
-        "theme": "dark"
+  "manifestVersion": 1,
+  "id": "ado-git-repo-insights-staging",
+  "name": "Git Repo Insights (Dev)",
+  "version": "0.0.0",
+  "publisher": "OddEssentials-Dev",
+  "targets": [
+    {
+      "id": "Microsoft.VisualStudio.Services"
+    }
+  ],
+  "description": "Pull request analytics for Azure DevOps — built-in dashboard with cycle time, throughput, and reviewer metrics. Includes optional ML predictions and AI insights.",
+  "categories": ["Azure Pipelines", "Azure Repos"],
+  "galleryFlags": ["Preview"],
+  "tags": [
+    "Pull Requests",
+    "PR Metrics",
+    "Cycle Time",
+    "Code Review",
+    "Engineering Metrics",
+    "DORA Metrics",
+    "Dashboard",
+    "Analytics",
+    "PowerBI",
+    "Throughput",
+    "AI Insights",
+    "Forecasting"
+  ],
+  "galleryBanner": {
+    "color": "#0078d4",
+    "theme": "dark"
+  },
+  "scopes": ["vso.build", "vso.project", "vso.settings"],
+  "icons": {
+    "default": "images/icon.png"
+  },
+  "content": {
+    "details": {
+      "path": "overview.md"
+    }
+  },
+  "files": [
+    {
+      "path": "tasks/extract-prs"
     },
-    "scopes": [
-        "vso.build",
-        "vso.project",
-        "vso.settings"
-    ],
-    "icons": {
-        "default": "images/icon.png"
+    {
+      "path": "dist/ui",
+      "addressable": true
+    }
+  ],
+  "contributions": [
+    {
+      "id": "extract-prs-task",
+      "type": "ms.vss-distributed-task.task",
+      "targets": ["ms.vss-distributed-task.tasks"],
+      "properties": {
+        "name": "tasks/extract-prs"
+      }
     },
-    "content": {
-        "details": {
-            "path": "overview.md"
-        }
+    {
+      "id": "gri.dashboard-hub",
+      "type": "ms.vss-web.feature",
+      "targets": ["ms.vss-web.managed-features"],
+      "description": "Controls visibility of the PR Insights dashboard hub",
+      "properties": {
+        "name": "[GRI] PR Insights Dashboard",
+        "defaultState": false,
+        "userConfigurable": false,
+        "hostConfigurable": true,
+        "hostScopes": ["project", null]
+      }
     },
-    "files": [
+    {
+      "id": "pr-insights-hub",
+      "type": "ms.vss-web.hub",
+      "targets": ["ms.vss-code-web.code-hub-group"],
+      "constraints": [
         {
-            "path": "tasks/extract-prs"
-        },
-        {
-            "path": "dist/ui",
-            "addressable": true
+          "name": "Feature",
+          "properties": {
+            "featureId": "OddEssentials-Dev.ado-git-repo-insights-staging.gri.dashboard-hub"
+          }
         }
-    ],
-    "contributions": [
-        {
-            "id": "extract-prs-task",
-            "type": "ms.vss-distributed-task.task",
-            "targets": [
-                "ms.vss-distributed-task.tasks"
-            ],
-            "properties": {
-                "name": "tasks/extract-prs"
-            }
-        },
-        {
-            "id": "gri.dashboard-hub",
-            "type": "ms.vss-web.feature",
-            "targets": [
-                "ms.vss-web.managed-features"
-            ],
-            "description": "Controls visibility of the PR Insights dashboard hub",
-            "properties": {
-                "name": "[GRI] PR Insights Dashboard",
-                "defaultState": false,
-                "userConfigurable": false,
-                "hostConfigurable": true,
-                "hostScopes": [
-                    "project",
-                    null
-                ]
-            }
-        },
-        {
-            "id": "pr-insights-hub",
-            "type": "ms.vss-web.hub",
-            "targets": [
-                "ms.vss-code-web.code-hub-group"
-            ],
-            "constraints": [
-                {
-                    "name": "Feature",
-                    "properties": {
-                        "featureId": "OddEssentials-Dev.ado-git-repo-insights-staging.gri.dashboard-hub"
-                    }
-                }
-            ],
-            "properties": {
-                "name": "PR Insights",
-                "order": 99,
-                "uri": "dist/ui/index.html",
-                "iconName": "Chart"
-            }
-        },
-        {
-            "id": "pr-insights-settings",
-            "type": "ms.vss-web.hub",
-            "targets": [
-                "ms.vss-web.project-admin-hub-group"
-            ],
-            "properties": {
-                "name": "PR Insights Settings",
-                "order": 50,
-                "uri": "dist/ui/settings.html"
-            }
-        }
-    ],
-    "screenshots": [
-        {
-            "path": "screenshots/dashboard-overview.png"
-        },
-        {
-            "path": "screenshots/filtering-comparison.png"
-        },
-        {
-            "path": "screenshots/pipeline-task.png"
-        },
-        {
-            "path": "screenshots/settings-page.png"
-        },
-        {
-            "path": "screenshots/ml-predictions.png"
-        },
-        {
-            "path": "screenshots/ai-insights.png"
-        }
-    ],
-    "links": {
-        "home": {
-            "uri": "https://oddessentials.github.io/ado-git-repo-insights/"
-        },
-        "repository": {
-            "uri": "https://github.com/oddessentials/ado-git-repo-insights"
-        },
-        "issues": {
-            "uri": "https://github.com/oddessentials/ado-git-repo-insights/issues"
-        },
-        "support": {
-            "uri": "https://github.com/oddessentials/ado-git-repo-insights/issues"
-        },
-        "license": {
-            "uri": "https://github.com/oddessentials/ado-git-repo-insights/blob/main/LICENSE"
-        },
-        "getstarted": {
-            "uri": "https://github.com/oddessentials/ado-git-repo-insights/blob/main/docs/user-guide/extension.md"
-        }
+      ],
+      "properties": {
+        "name": "PR Insights",
+        "order": 99,
+        "uri": "dist/ui/index.html",
+        "iconName": "Chart"
+      }
     },
-    "badges": [
-        {
-            "href": "https://github.com/oddessentials/ado-git-repo-insights/releases",
-            "uri": "https://img.shields.io/github/v/release/oddessentials/ado-git-repo-insights?label=version",
-            "description": "Latest release version"
-        },
-        {
-            "href": "https://github.com/oddessentials/ado-git-repo-insights/blob/main/LICENSE",
-            "uri": "https://img.shields.io/github/license/oddessentials/ado-git-repo-insights",
-            "description": "MIT License"
-        }
-    ],
-    "CustomerQnASupport": {
-        "enableqna": true,
-        "url": "https://github.com/oddessentials/ado-git-repo-insights/issues"
+    {
+      "id": "pr-insights-settings",
+      "type": "ms.vss-web.hub",
+      "targets": ["ms.vss-web.project-admin-hub-group"],
+      "properties": {
+        "name": "PR Insights Settings",
+        "order": 50,
+        "uri": "dist/ui/settings.html"
+      }
+    }
+  ],
+  "screenshots": [
+    {
+      "path": "screenshots/dashboard-overview.png"
+    },
+    {
+      "path": "screenshots/filtering-comparison.png"
+    },
+    {
+      "path": "screenshots/pipeline-task.png"
+    },
+    {
+      "path": "screenshots/settings-page.png"
+    },
+    {
+      "path": "screenshots/ml-predictions.png"
+    },
+    {
+      "path": "screenshots/ai-insights.png"
+    }
+  ],
+  "links": {
+    "home": {
+      "uri": "https://oddessentials.github.io/ado-git-repo-insights/"
     },
     "repository": {
-        "type": "git",
-        "uri": "https://github.com/oddessentials/ado-git-repo-insights.git"
+      "uri": "https://github.com/oddessentials/ado-git-repo-insights"
+    },
+    "issues": {
+      "uri": "https://github.com/oddessentials/ado-git-repo-insights/issues"
+    },
+    "support": {
+      "uri": "https://github.com/oddessentials/ado-git-repo-insights/issues"
+    },
+    "license": {
+      "uri": "https://github.com/oddessentials/ado-git-repo-insights/blob/main/LICENSE"
+    },
+    "getstarted": {
+      "uri": "https://github.com/oddessentials/ado-git-repo-insights/blob/main/docs/user-guide/extension.md"
     }
+  },
+  "badges": [
+    {
+      "href": "https://github.com/oddessentials/ado-git-repo-insights/releases",
+      "uri": "https://img.shields.io/github/v/release/oddessentials/ado-git-repo-insights?label=version",
+      "description": "Latest release version"
+    },
+    {
+      "href": "https://github.com/oddessentials/ado-git-repo-insights/blob/main/LICENSE",
+      "uri": "https://img.shields.io/github/license/oddessentials/ado-git-repo-insights",
+      "description": "MIT License"
+    }
+  ],
+  "CustomerQnASupport": {
+    "enableqna": true,
+    "url": "https://github.com/oddessentials/ado-git-repo-insights/issues"
+  },
+  "repository": {
+    "type": "git",
+    "uri": "https://github.com/oddessentials/ado-git-repo-insights.git"
+  }
 }

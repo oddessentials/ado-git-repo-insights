@@ -31,7 +31,9 @@ const SETTINGS_KEY_PIPELINE = "pr-insights-pipeline-id";
 async function downloadRawDataContract(
   lastValidation: { valid: boolean; buildId?: number } | null,
   deps: {
-    dataService: { getValue: jest.Mock<(key: string, options?: unknown) => unknown> };
+    dataService: {
+      getValue: jest.Mock<(key: string, options?: unknown) => unknown>;
+    };
     webContext: { project?: { id: string } };
     collectionUri: string;
     artifactClient: {
@@ -131,8 +133,9 @@ async function downloadRawDataContract(
       }
       const collectionOrigin = new URL(deps.collectionUri).origin;
       const isCollectionHost = parsed.origin === collectionOrigin;
-      const isAzureArtifactHost =
-        parsed.hostname.endsWith(".artifacts.visualstudio.com");
+      const isAzureArtifactHost = parsed.hostname.endsWith(
+        ".artifacts.visualstudio.com",
+      );
       if (!isCollectionHost && !isAzureArtifactHost) {
         return {
           outcome: "invalid-url",

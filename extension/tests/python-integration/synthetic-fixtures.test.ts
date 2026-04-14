@@ -55,7 +55,9 @@ class TestDatasetLoader extends DatasetLoader {
 }
 
 const testGlobal = global as typeof globalThis & {
-  fetch: { mockImplementation: (impl: (url: string) => Promise<Response>) => void };
+  fetch: {
+    mockImplementation: (impl: (url: string) => Promise<Response>) => void;
+  };
 };
 
 const pythonSubprocessSupport = probePythonSubprocessSupport();
@@ -90,7 +92,11 @@ describe("Synthetic Fixture Consumer Validation", () => {
           } as Response;
         } catch (error) {
           if ((error as NodeJS.ErrnoException).code === "ENOENT") {
-            return { ok: false, status: 404, statusText: "Not Found" } as Response;
+            return {
+              ok: false,
+              status: 404,
+              statusText: "Not Found",
+            } as Response;
           }
           throw error;
         }
@@ -201,7 +207,9 @@ describe("Synthetic Fixture Consumer Validation", () => {
       expect(manifest.manifest_schema_version).toBe(1);
       expect(manifest.aggregates_schema_version).toBe(3);
       expect(manifest.aggregate_index!.weekly_rollups).toBeInstanceOf(Array);
-      expect(manifest.aggregate_index!.weekly_rollups!.length).toBeGreaterThan(0);
+      expect(manifest.aggregate_index!.weekly_rollups!.length).toBeGreaterThan(
+        0,
+      );
     },
   );
 
@@ -337,8 +345,9 @@ describe("Synthetic Fixture Consumer Validation", () => {
         expect(teamNames.length).toBeGreaterThan(0);
 
         const firstTeam = teamNames[0]!;
-        const teamRepoEntries = Object.entries(byTeamAndRepo)
-          .filter(([teamName]) => teamName === firstTeam);
+        const teamRepoEntries = Object.entries(byTeamAndRepo).filter(
+          ([teamName]) => teamName === firstTeam,
+        );
         expect(teamRepoEntries.length).toBe(1);
 
         const [, teamRepos] = teamRepoEntries[0]!;
@@ -382,9 +391,10 @@ describe("Synthetic Fixture Consumer Validation", () => {
           )) {
             if (teamName.startsWith("_")) continue;
 
-            const crossDimSum = Object.values(
-              repoEntries,
-            ).reduce((sum, entry) => sum + (entry.pr_count || 0), 0);
+            const crossDimSum = Object.values(repoEntries).reduce(
+              (sum, entry) => sum + (entry.pr_count || 0),
+              0,
+            );
             const teamEntry = Object.entries(rollupData.by_team).find(
               ([candidateTeamName]) => candidateTeamName === teamName,
             );

@@ -68,7 +68,8 @@ const ARTIFACT_NAME_CSV = "csv-output";
 const BLOB_CLEANUP_TIMEOUT_MS = 10_000;
 
 // State
-let dataService: Awaited<ReturnType<typeof getExtensionDataService>> | null = null;
+let dataService: Awaited<ReturnType<typeof getExtensionDataService>> | null =
+  null;
 let projectDropdownAvailable = false;
 let projectList: VSSProject[] = [];
 let lastValidation: { valid: boolean; buildId?: number } | null = null;
@@ -418,14 +419,16 @@ async function updateStatus(): Promise<void> {
     let savedProjectId = "";
     let savedPipelineId = 0;
     try {
-      savedProjectId = await dataService.getValue<string>(
-        SETTINGS_KEY_PROJECT,
-        { scopeType: "User", defaultValue: "" },
-      ) || "";
-      savedPipelineId = await dataService.getValue<number>(
-        SETTINGS_KEY_PIPELINE,
-        { scopeType: "User", defaultValue: 0 },
-      ) || 0;
+      savedProjectId =
+        (await dataService.getValue<string>(SETTINGS_KEY_PROJECT, {
+          scopeType: "User",
+          defaultValue: "",
+        })) || "";
+      savedPipelineId =
+        (await dataService.getValue<number>(SETTINGS_KEY_PIPELINE, {
+          scopeType: "User",
+          defaultValue: 0,
+        })) || 0;
     } catch (readError: unknown) {
       console.warn("Could not read saved settings:", readError);
     }
@@ -585,10 +588,11 @@ async function downloadRawData(): Promise<void> {
     }
     let savedProjectId = "";
     try {
-      savedProjectId = await dataService.getValue<string>(
-        SETTINGS_KEY_PROJECT,
-        { scopeType: "User", defaultValue: "" },
-      ) || "";
+      savedProjectId =
+        (await dataService.getValue<string>(SETTINGS_KEY_PROJECT, {
+          scopeType: "User",
+          defaultValue: "",
+        })) || "";
     } catch {
       console.warn("Could not read saved project setting for download");
     }
@@ -642,8 +646,9 @@ async function downloadRawData(): Promise<void> {
       }
       const collectionOrigin = new URL(collectionUri).origin;
       const isCollectionHost = parsed.origin === collectionOrigin;
-      const isAzureArtifactHost =
-        parsed.hostname.endsWith(".artifacts.visualstudio.com");
+      const isAzureArtifactHost = parsed.hostname.endsWith(
+        ".artifacts.visualstudio.com",
+      );
       if (!isCollectionHost && !isAzureArtifactHost) {
         showToast("Invalid download URL", "error");
         return;

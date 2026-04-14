@@ -45,10 +45,7 @@ export function dismissAllTooltips(): void {
  * Default: centered horizontally above the target with 8px gap.
  * Flips below if overflow top; clamps left/right if overflow edges.
  */
-function positionTooltip(
-  tooltip: HTMLElement,
-  targetRect: DOMRect,
-): void {
+function positionTooltip(tooltip: HTMLElement, targetRect: DOMRect): void {
   // Append temporarily to measure dimensions
   tooltip.style.visibility = "hidden";
   tooltip.style.position = "fixed";

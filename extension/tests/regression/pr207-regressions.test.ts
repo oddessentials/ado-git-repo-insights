@@ -16,9 +16,7 @@ import {
   parseFiltersFromUrl,
   serializeFiltersToUrl,
 } from "../../ui/modules/filters";
-import {
-  resolveFilterConstraints,
-} from "../../ui/modules/filter-constraint-resolver";
+import { resolveFilterConstraints } from "../../ui/modules/filter-constraint-resolver";
 import type { FilterState } from "../../ui/modules/filters";
 import {
   classifyEmptyState,
@@ -146,7 +144,12 @@ describe("Regression: filter_caused detects zeroed metrics from applyFiltersToRo
 
     const result = classifyEmptyState({
       chartType: "throughput",
-      filters: { repos: ["nonexistent-repo"], teams: [], reviewers: [], authors: [] },
+      filters: {
+        repos: ["nonexistent-repo"],
+        teams: [],
+        reviewers: [],
+        authors: [],
+      },
       unfilteredRollups,
       filteredRollups,
       availability: defaultAvailability,
@@ -162,18 +165,19 @@ describe("Regression: filter_caused detects zeroed metrics from applyFiltersToRo
   it("classifies as filter_caused even when filteredRollups.length > 0 but all zeroed", () => {
     // This is the exact scenario that was unreachable before the fix:
     // applyFiltersToRollups returns same-length array with zeroed fields
-    const unfilteredRollups = [
-      makeRollup({ week: "2025-W01", pr_count: 42 }),
-    ];
-    const filteredRollups = [
-      makeZeroedRollup("2025-W01"),
-    ];
+    const unfilteredRollups = [makeRollup({ week: "2025-W01", pr_count: 42 })];
+    const filteredRollups = [makeZeroedRollup("2025-W01")];
 
     expect(filteredRollups).toHaveLength(1); // Same length — NOT empty
 
     const result = classifyEmptyState({
       chartType: "throughput",
-      filters: { repos: ["filtered-repo"], teams: [], reviewers: [], authors: [] },
+      filters: {
+        repos: ["filtered-repo"],
+        teams: [],
+        reviewers: [],
+        authors: [],
+      },
       unfilteredRollups,
       filteredRollups,
       availability: defaultAvailability,
@@ -215,13 +219,16 @@ describe("Regression: filter_caused detects zeroed metrics from applyFiltersToRo
     const unfilteredRollups = [
       makeRollup({ week: "2025-W01", pr_count: 20, reviewers_count: 5 }),
     ];
-    const filteredRollups = [
-      makeZeroedRollup("2025-W01"),
-    ];
+    const filteredRollups = [makeZeroedRollup("2025-W01")];
 
     const result = classifyEmptyState({
       chartType: "reviewer_activity",
-      filters: { repos: [], teams: [], reviewers: ["unknown-reviewer"], authors: [] },
+      filters: {
+        repos: [],
+        teams: [],
+        reviewers: ["unknown-reviewer"],
+        authors: [],
+      },
       unfilteredRollups,
       filteredRollups,
       availability: defaultAvailability,
@@ -294,9 +301,12 @@ describe("Regression: author selection replaces reviewer when author is last tou
   });
 
   it("URL restore defaults to reviewer precedence (no lastChanged)", () => {
-    const result = resolveFilterConstraints(
-      { repos: [], teams: [], reviewers: ["rev-1"], authors: ["auth-1"] },
-    );
+    const result = resolveFilterConstraints({
+      repos: [],
+      teams: [],
+      reviewers: ["rev-1"],
+      authors: ["auth-1"],
+    });
     expect(result.effectiveState.authors).toEqual([]);
     expect(result.effectiveState.reviewers).toEqual(["rev-1"]);
   });
@@ -308,18 +318,26 @@ describe("Regression: author selection replaces reviewer when author is last tou
 
 describe("Regression: team chips preserved when author filter is applied", () => {
   it("teams remain in effectiveState with author active", () => {
-    const result = resolveFilterConstraints(
-      { repos: [], teams: ["team-x", "team-y"], reviewers: [], authors: ["auth-1"] },
-    );
+    const result = resolveFilterConstraints({
+      repos: [],
+      teams: ["team-x", "team-y"],
+      reviewers: [],
+      authors: ["auth-1"],
+    });
     expect(result.effectiveState.teams).toEqual(["team-x", "team-y"]);
     expect(result.effectiveState.authors).toEqual(["auth-1"]);
-    expect(result.constraintsApplied.some((n) => n.type === "author_team")).toBe(true);
+    expect(
+      result.constraintsApplied.some((n) => n.type === "author_team"),
+    ).toBe(true);
   });
 
   it("teams in URL are preserved on restore with author", () => {
-    const result = resolveFilterConstraints(
-      { repos: [], teams: ["backend"], reviewers: [], authors: ["alice"] },
-    );
+    const result = resolveFilterConstraints({
+      repos: [],
+      teams: ["backend"],
+      reviewers: [],
+      authors: ["alice"],
+    });
     expect(result.effectiveState.teams).toEqual(["backend"]);
     expect(result.effectiveState.authors).toEqual(["alice"]);
   });
@@ -332,17 +350,23 @@ describe("Regression: team chips preserved when author filter is applied", () =>
 describe("Regression: chip removal clears stale reviewer notice via resolver", () => {
   it("removing repo from reviewer+repo state clears reviewer_repo notice", () => {
     // State: reviewer + repo → resolver emits reviewer_repo notice
-    const withRepo = resolveFilterConstraints(
-      { repos: ["api"], teams: [], reviewers: ["bob"], authors: [] },
-    );
+    const withRepo = resolveFilterConstraints({
+      repos: ["api"],
+      teams: [],
+      reviewers: ["bob"],
+      authors: [],
+    });
     expect(
       withRepo.constraintsApplied.some((n) => n.type === "reviewer_repo"),
     ).toBe(true);
 
     // Simulate chip removal: remove repo, re-resolve
-    const withoutRepo = resolveFilterConstraints(
-      { repos: [], teams: [], reviewers: ["bob"], authors: [] },
-    );
+    const withoutRepo = resolveFilterConstraints({
+      repos: [],
+      teams: [],
+      reviewers: ["bob"],
+      authors: [],
+    });
     // reviewer_repo notice should be gone — no conflict remains
     expect(
       withoutRepo.constraintsApplied.some((n) => n.type === "reviewer_repo"),
@@ -351,23 +375,32 @@ describe("Regression: chip removal clears stale reviewer notice via resolver", (
   });
 
   it("removing reviewer from reviewer+team state clears reviewer_team notice", () => {
-    const withReviewer = resolveFilterConstraints(
-      { repos: [], teams: ["platform"], reviewers: ["bob"], authors: [] },
-    );
+    const withReviewer = resolveFilterConstraints({
+      repos: [],
+      teams: ["platform"],
+      reviewers: ["bob"],
+      authors: [],
+    });
     expect(
       withReviewer.constraintsApplied.some((n) => n.type === "reviewer_team"),
     ).toBe(true);
 
-    const withoutReviewer = resolveFilterConstraints(
-      { repos: [], teams: ["platform"], reviewers: [], authors: [] },
-    );
+    const withoutReviewer = resolveFilterConstraints({
+      repos: [],
+      teams: ["platform"],
+      reviewers: [],
+      authors: [],
+    });
     expect(withoutReviewer.constraintsApplied).toHaveLength(0);
   });
 
   it("clearing all filters produces zero notices", () => {
-    const result = resolveFilterConstraints(
-      { repos: [], teams: [], reviewers: [], authors: [] },
-    );
+    const result = resolveFilterConstraints({
+      repos: [],
+      teams: [],
+      reviewers: [],
+      authors: [],
+    });
     expect(result.constraintsApplied).toHaveLength(0);
   });
 });

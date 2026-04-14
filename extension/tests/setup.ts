@@ -89,8 +89,7 @@ if (!performanceScope.measure) {
     endMark: string,
   ) => {
     const startTime = performanceMarks.get(startMark) || 0;
-    const endTime =
-      performanceMarks.get(endMark) || performanceScope.now();
+    const endTime = performanceMarks.get(endMark) || performanceScope.now();
     const entry: MeasureEntry = {
       name,
       duration: endTime - startTime,
@@ -109,10 +108,7 @@ if (!performanceScope.measure) {
 }
 
 if (!performanceScope.getEntriesByName) {
-  performanceScope.getEntriesByName = ((
-    name: string,
-    type: string,
-  ) => {
+  performanceScope.getEntriesByName = ((name: string, type: string) => {
     if (type === "measure") {
       return performanceMeasures.filter(
         (entry) => entry.name === name,
@@ -146,10 +142,7 @@ beforeEach(() => {
 });
 
 // Helper to create mock fetch responses
-global.mockFetchResponse = (
-  data: unknown,
-  options: MockFetchOptions = {},
-) => {
+global.mockFetchResponse = (data: unknown, options: MockFetchOptions = {}) => {
   const { status = 200, ok = true } = options;
   return Promise.resolve({
     ok,

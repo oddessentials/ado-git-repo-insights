@@ -23,10 +23,7 @@ import {
 import { DatasetLoader } from "../../ui/dataset-loader";
 import type { Rollup } from "../../ui/dataset-loader";
 import type { ManifestSchema } from "../../ui/types";
-import {
-  pathExists,
-  readJsonFile,
-} from "../helpers/fs-test-utils";
+import { pathExists, readJsonFile } from "../helpers/fs-test-utils";
 
 type RealDataManifest = ManifestSchema & {
   coverage: { total_prs: number; date_range: { min: string; max: string } };

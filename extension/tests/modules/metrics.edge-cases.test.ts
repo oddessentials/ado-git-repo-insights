@@ -273,18 +273,27 @@ describe("FR-025: Batch execution - state isolation", () => {
     // Run 1: Collect results
     // Using safeClone() which correctly handles NaN, Infinity, -Infinity
     const run1Results = TEST_CASES.map((tc) => {
-      const inputCopy = safeClone(tc.input) as Record<string, { pr_count: unknown }>;
+      const inputCopy = safeClone(tc.input) as Record<
+        string,
+        { pr_count: unknown }
+      >;
       const rollup = createRollupWithBreakdown(inputCopy);
       const filtered = applyFiltersToRollups([rollup], {
         repos: Object.keys(tc.input),
         teams: [],
       });
-      return { id: tc.id, actual: filtered[0]!.pr_count, inputAfter: inputCopy };
+      return {
+        id: tc.id,
+        actual: filtered[0]!.pr_count,
+        inputAfter: inputCopy,
+      };
     });
 
     // Run 2: Same process, same order
     const run2Results = TEST_CASES.map((tc) => {
-      const rollup = createRollupWithBreakdown(safeClone(tc.input) as Record<string, { pr_count: unknown }>);
+      const rollup = createRollupWithBreakdown(
+        safeClone(tc.input) as Record<string, { pr_count: unknown }>,
+      );
       const filtered = applyFiltersToRollups([rollup], {
         repos: Object.keys(tc.input),
         teams: [],
@@ -311,8 +320,12 @@ describe("FR-025: Batch execution - state isolation", () => {
       expect(Object.keys(inputAfter)).toEqual(Object.keys(originalInput));
 
       // Compare values, handling NaN specially
-      for (const [entryKey, entry] of Object.entries(originalInput as Record<string, { pr_count: unknown }>)) {
-        const afterMap = new Map(Object.entries(inputAfter as Record<string, { pr_count: unknown }>));
+      for (const [entryKey, entry] of Object.entries(
+        originalInput as Record<string, { pr_count: unknown }>,
+      )) {
+        const afterMap = new Map(
+          Object.entries(inputAfter as Record<string, { pr_count: unknown }>),
+        );
         const afterVal = afterMap.get(entryKey)!.pr_count;
         const origVal = entry.pr_count;
 

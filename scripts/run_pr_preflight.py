@@ -283,6 +283,11 @@ def build_commands(
             cwd=EXTENSION_ROOT,
         ),
         CommandSpec(
+            "Extension format check",
+            (PNPM_SENTINEL, "run", "format:check"),
+            cwd=EXTENSION_ROOT,
+        ),
+        CommandSpec(
             "Extension UI bundle",
             (PNPM_SENTINEL, "run", "build:ui"),
             cwd=EXTENSION_ROOT,

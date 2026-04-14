@@ -10,10 +10,7 @@
  */
 
 import type { Rollup } from "../dataset-loader";
-import type {
-  DataAvailabilitySignal,
-  DatasetCapabilityState,
-} from "../types";
+import type { DataAvailabilitySignal, DatasetCapabilityState } from "../types";
 
 /** Default capability state when manifest is unavailable. */
 const DEFAULT_CAPABILITIES: DatasetCapabilityState = {

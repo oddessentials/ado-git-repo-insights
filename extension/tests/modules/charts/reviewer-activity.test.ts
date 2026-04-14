@@ -284,7 +284,11 @@ describe("reviewer-activity module", () => {
       }));
 
       renderReviewerActivity(container, rollups, {
-        availability: { ...baseAvailability, reviewerDataPresent: true, reviewerDataEmpty: true },
+        availability: {
+          ...baseAvailability,
+          reviewerDataPresent: true,
+          reviewerDataEmpty: true,
+        },
         unfilteredRollups: rollups,
       });
 
@@ -485,25 +489,39 @@ describe("reviewer-activity module", () => {
       const rollups = [
         {
           week: "2025-W01",
-          pr_count: 5, cycle_time_p50: 60, cycle_time_p90: 120,
-          authors_count: 3, reviewers_count: 2,
-          by_repository: null, by_team: null,
+          pr_count: 5,
+          cycle_time_p50: 60,
+          cycle_time_p90: 120,
+          authors_count: 3,
+          reviewers_count: 2,
+          by_repository: null,
+          by_team: null,
           by_reviewer: {
             "alice-id": {
-              reviewed_prs: 1, reviews_count: 10,
-              approval_rate: 1.0, authors_count: 1, repositories_count: 1,
+              reviewed_prs: 1,
+              reviews_count: 10,
+              approval_rate: 1.0,
+              authors_count: 1,
+              repositories_count: 1,
             },
           },
         },
         {
           week: "2025-W02",
-          pr_count: 15, cycle_time_p50: 80, cycle_time_p90: 160,
-          authors_count: 5, reviewers_count: 3,
-          by_repository: null, by_team: null,
+          pr_count: 15,
+          cycle_time_p50: 80,
+          cycle_time_p90: 160,
+          authors_count: 5,
+          reviewers_count: 3,
+          by_repository: null,
+          by_team: null,
           by_reviewer: {
             "alice-id": {
-              reviewed_prs: 10, reviews_count: 10,
-              approval_rate: 0.0, authors_count: 5, repositories_count: 3,
+              reviewed_prs: 10,
+              reviews_count: 10,
+              approval_rate: 0.0,
+              authors_count: 5,
+              repositories_count: 3,
             },
           },
         },
@@ -561,8 +579,13 @@ describe("reviewer-activity module", () => {
       // All 8 visible weeks have approval_rate → badge says "(from 8 weeks of data)"
       const rollups = createRollupsWithReviewer(0.85);
       const longRollups = [
-        ...rollups, ...rollups, ...rollups, // 12 weeks
-      ].map((r, i) => ({ ...r, week: `2025-W${(i + 1).toString().padStart(2, "0")}` }));
+        ...rollups,
+        ...rollups,
+        ...rollups, // 12 weeks
+      ].map((r, i) => ({
+        ...r,
+        week: `2025-W${(i + 1).toString().padStart(2, "0")}`,
+      }));
 
       renderReviewerActivity(container, longRollups, {
         reviewerFilterActive: true,
@@ -600,15 +623,18 @@ describe("reviewer-activity module", () => {
         reviewers_count: 3,
         by_repository: null,
         by_team: null,
-        by_reviewer: i < 3 ? {
-          "alice-id": {
-            reviewed_prs: 5,
-            reviews_count: 6,
-            approval_rate: 0.8,
-            authors_count: 3,
-            repositories_count: 2,
-          },
-        } : null,
+        by_reviewer:
+          i < 3
+            ? {
+                "alice-id": {
+                  reviewed_prs: 5,
+                  reviews_count: 6,
+                  approval_rate: 0.8,
+                  authors_count: 3,
+                  repositories_count: 2,
+                },
+              }
+            : null,
       }));
 
       renderReviewerActivity(container, rollups, {
@@ -627,27 +653,44 @@ describe("reviewer-activity module", () => {
     });
 
     it("approval badge uses first reviewer only when multiple are selected", () => {
-      const rollups = [{
-        week: "2025-W01",
-        pr_count: 20, cycle_time_p50: 60, cycle_time_p90: 120,
-        authors_count: 5, reviewers_count: 4,
-        by_repository: null, by_team: null,
-        by_reviewer: {
-          "alice-id": {
-            reviewed_prs: 5, reviews_count: 5,
-            approval_rate: 0.8, authors_count: 3, repositories_count: 2,
-          },
-          "bob-id": {
-            reviewed_prs: 5, reviews_count: 5,
-            approval_rate: 0.2, authors_count: 3, repositories_count: 2,
+      const rollups = [
+        {
+          week: "2025-W01",
+          pr_count: 20,
+          cycle_time_p50: 60,
+          cycle_time_p90: 120,
+          authors_count: 5,
+          reviewers_count: 4,
+          by_repository: null,
+          by_team: null,
+          by_reviewer: {
+            "alice-id": {
+              reviewed_prs: 5,
+              reviews_count: 5,
+              approval_rate: 0.8,
+              authors_count: 3,
+              repositories_count: 2,
+            },
+            "bob-id": {
+              reviewed_prs: 5,
+              reviews_count: 5,
+              approval_rate: 0.2,
+              authors_count: 3,
+              repositories_count: 2,
+            },
           },
         },
-      }];
+      ];
 
       // Multi-select: alice first
       renderReviewerActivity(container, rollups, {
         reviewerFilterActive: true,
-        filters: { repos: [], teams: [], reviewers: ["alice-id", "bob-id"], authors: [] },
+        filters: {
+          repos: [],
+          teams: [],
+          reviewers: ["alice-id", "bob-id"],
+          authors: [],
+        },
         unfilteredRollups: rollups,
       });
 
@@ -658,27 +701,44 @@ describe("reviewer-activity module", () => {
     });
 
     it("only first reviewer is used — explicit scope lock", () => {
-      const rollups = [{
-        week: "2025-W01",
-        pr_count: 20, cycle_time_p50: 60, cycle_time_p90: 120,
-        authors_count: 5, reviewers_count: 4,
-        by_repository: null, by_team: null,
-        by_reviewer: {
-          "alice-id": {
-            reviewed_prs: 5, reviews_count: 5,
-            approval_rate: 0.8, authors_count: 3, repositories_count: 2,
-          },
-          "bob-id": {
-            reviewed_prs: 5, reviews_count: 5,
-            approval_rate: 0.2, authors_count: 3, repositories_count: 2,
+      const rollups = [
+        {
+          week: "2025-W01",
+          pr_count: 20,
+          cycle_time_p50: 60,
+          cycle_time_p90: 120,
+          authors_count: 5,
+          reviewers_count: 4,
+          by_repository: null,
+          by_team: null,
+          by_reviewer: {
+            "alice-id": {
+              reviewed_prs: 5,
+              reviews_count: 5,
+              approval_rate: 0.8,
+              authors_count: 3,
+              repositories_count: 2,
+            },
+            "bob-id": {
+              reviewed_prs: 5,
+              reviews_count: 5,
+              approval_rate: 0.2,
+              authors_count: 3,
+              repositories_count: 2,
+            },
           },
         },
-      }];
+      ];
 
       // Bob first this time
       renderReviewerActivity(container, rollups, {
         reviewerFilterActive: true,
-        filters: { repos: [], teams: [], reviewers: ["bob-id", "alice-id"], authors: [] },
+        filters: {
+          repos: [],
+          teams: [],
+          reviewers: ["bob-id", "alice-id"],
+          authors: [],
+        },
         unfilteredRollups: rollups,
       });
 

@@ -4,7 +4,9 @@
  * Locks rendering constants and verifies CSS touch-target rules via stylesheet text.
  */
 import * as _fsOriginal from "fs";
-function _loadFs(): typeof _fsOriginal { return _fsOriginal; }
+function _loadFs(): typeof _fsOriginal {
+  return _fsOriginal;
+}
 const _fs = _loadFs();
 import { resolve } from "path";
 import { MAX_VISIBLE_LABELS } from "../../ui/modules/charts/throughput";

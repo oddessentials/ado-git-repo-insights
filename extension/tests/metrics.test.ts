@@ -53,7 +53,9 @@ describe("Metrics Collector (Phase 4)", () => {
 
   it("Production mode ignores __DASHBOARD_DEBUG__", () => {
     // Set production environment
-    testGlobals.process = { env: { NODE_ENV: "production" } } as unknown as NodeJS.Process;
+    testGlobals.process = {
+      env: { NODE_ENV: "production" },
+    } as unknown as NodeJS.Process;
     testGlobals.window = { __DASHBOARD_DEBUG__: true } as DebugWindow;
 
     // Re-evaluate the metrics collector logic
@@ -70,7 +72,9 @@ describe("Metrics Collector (Phase 4)", () => {
   });
 
   it("Production mode ignores ?debug param", () => {
-    testGlobals.process = { env: { NODE_ENV: "production" } } as unknown as NodeJS.Process;
+    testGlobals.process = {
+      env: { NODE_ENV: "production" },
+    } as unknown as NodeJS.Process;
     testGlobals.window = {
       location: { search: "?debug" },
     } as DebugWindow;
@@ -91,7 +95,9 @@ describe("Metrics Collector (Phase 4)", () => {
     const originalDashboardDebug = window.__DASHBOARD_DEBUG__;
 
     // Set development environment on process
-    testGlobals.process = { env: { NODE_ENV: "development" } } as unknown as NodeJS.Process;
+    testGlobals.process = {
+      env: { NODE_ENV: "development" },
+    } as unknown as NodeJS.Process;
     window.__DASHBOARD_DEBUG__ = true;
 
     const IS_PRODUCTION =
@@ -111,7 +117,9 @@ describe("Metrics Collector (Phase 4)", () => {
   it("Debug mode enables metrics with ?debug param", () => {
     // For testing URL query params, we need to use history API or jsdom's URL setup
     // Since we can't easily change window.location.search, we test the URLSearchParams logic directly
-    testGlobals.process = { env: { NODE_ENV: "development" } } as unknown as NodeJS.Process;
+    testGlobals.process = {
+      env: { NODE_ENV: "development" },
+    } as unknown as NodeJS.Process;
 
     const IS_PRODUCTION =
       typeof process !== "undefined" && process.env.NODE_ENV === "production";
@@ -147,8 +155,8 @@ describe("Metrics Collector (Phase 4)", () => {
 
   it("Metrics collector measure() creates performance measure", () => {
     // Test collector behavior with our polyfill (no guards needed in test env)
-      const collector = {
-        marks: new Map<string, number>(),
+    const collector = {
+      marks: new Map<string, number>(),
       measures: [] as MetricMeasure[],
       mark(name: string) {
         testGlobals.performance.mark(name);
@@ -181,8 +189,8 @@ describe("Metrics Collector (Phase 4)", () => {
 
   it("Metrics collector reset() clears all metrics", () => {
     // Test collector behavior with our polyfill (no guards needed in test env)
-      const collector = {
-        marks: new Map<string, number>(),
+    const collector = {
+      marks: new Map<string, number>(),
       measures: [] as MetricMeasure[],
       mark(name: string) {
         testGlobals.performance.mark(name);

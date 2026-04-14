@@ -9,7 +9,9 @@
  * Tests catch "bundled but breaks at runtime" regressions.
  */
 import * as _fsOriginal from "fs";
-function _loadFs(): typeof _fsOriginal { return _fsOriginal; }
+function _loadFs(): typeof _fsOriginal {
+  return _fsOriginal;
+}
 const _fs = _loadFs();
 import * as path from "path";
 import { JSDOM } from "jsdom";
@@ -139,7 +141,10 @@ describe("Smoke Render Tests (ADO Simulation)", () => {
       ];
 
       for (const script of scripts) {
-        const content = _fs.readFileSync(path.join(distUiPath, script), "utf-8");
+        const content = _fs.readFileSync(
+          path.join(distUiPath, script),
+          "utf-8",
+        );
         expect(() => dom.window.eval(content)).not.toThrow();
       }
 
@@ -186,7 +191,10 @@ describe("Smoke Render Tests (ADO Simulation)", () => {
       ];
 
       for (const script of scripts) {
-        const content = _fs.readFileSync(path.join(distUiPath, script), "utf-8");
+        const content = _fs.readFileSync(
+          path.join(distUiPath, script),
+          "utf-8",
+        );
         dom.window.eval(content);
       }
 

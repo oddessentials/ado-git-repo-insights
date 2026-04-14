@@ -17,11 +17,12 @@ if (!Element.prototype.scrollIntoView) {
 }
 if (typeof PointerEvent === "undefined") {
   // Minimal PointerEvent polyfill based on MouseEvent
-  (globalThis as Record<string, unknown>).PointerEvent = class PointerEvent extends MouseEvent {
-    constructor(type: string, init?: PointerEventInit) {
-      super(type, init);
-    }
-  };
+  (globalThis as Record<string, unknown>).PointerEvent =
+    class PointerEvent extends MouseEvent {
+      constructor(type: string, init?: PointerEventInit) {
+        super(type, init);
+      }
+    };
 }
 
 const sampleOptions: TypeaheadOption[] = [
@@ -60,17 +61,13 @@ describe("Typeahead Dropdown", () => {
 
   describe("Initialization", () => {
     it("returns null when container not found", () => {
-      const instance = initTypeaheadDropdown(
-        makeConfig("nonexistent"),
-      );
+      const instance = initTypeaheadDropdown(makeConfig("nonexistent"));
       expect(instance).toBeNull();
     });
 
     it("creates typeahead structure in container", () => {
       createContainer("test-filter");
-      const instance = initTypeaheadDropdown(
-        makeConfig("test-filter"),
-      );
+      const instance = initTypeaheadDropdown(makeConfig("test-filter"));
       expect(instance).not.toBeNull();
 
       const container = document.getElementById("test-filter")!;
@@ -83,7 +80,9 @@ describe("Typeahead Dropdown", () => {
       createContainer("test-filter");
       initTypeaheadDropdown(makeConfig("test-filter"));
 
-      const input = document.querySelector(".typeahead-input") as HTMLInputElement;
+      const input = document.querySelector(
+        ".typeahead-input",
+      ) as HTMLInputElement;
       expect(input.getAttribute("role")).toBe("combobox");
       expect(input.getAttribute("aria-expanded")).toBe("false");
       expect(input.getAttribute("aria-autocomplete")).toBe("list");
@@ -112,7 +111,9 @@ describe("Typeahead Dropdown", () => {
       );
 
       instance!.setSelected(["beta"]);
-      const input = document.querySelector(".typeahead-input") as HTMLInputElement;
+      const input = document.querySelector(
+        ".typeahead-input",
+      ) as HTMLInputElement;
       expect(input.value).toBe("Beta");
     });
   });
@@ -261,9 +262,7 @@ describe("Typeahead Dropdown", () => {
 
     it("setSelected drops invalid IDs", () => {
       createContainer("api-invalid");
-      const instance = initTypeaheadDropdown(
-        makeConfig("api-invalid"),
-      );
+      const instance = initTypeaheadDropdown(makeConfig("api-invalid"));
 
       instance!.setSelected(["alpha", "nonexistent", "beta"]);
       expect(instance!.getSelected()).toEqual(["alpha", "beta"]);
@@ -302,9 +301,7 @@ describe("Typeahead Dropdown", () => {
 
     it("destroy cleans up DOM and listeners", () => {
       createContainer("api-destroy");
-      const instance = initTypeaheadDropdown(
-        makeConfig("api-destroy"),
-      );
+      const instance = initTypeaheadDropdown(makeConfig("api-destroy"));
 
       instance!.destroy();
       const container = document.getElementById("api-destroy")!;
@@ -326,71 +323,111 @@ describe("Typeahead Dropdown", () => {
       createContainer("kbd-down");
       initTypeaheadDropdown(makeConfig("kbd-down"));
 
-      const input = document.querySelector(".typeahead-input") as HTMLInputElement;
+      const input = document.querySelector(
+        ".typeahead-input",
+      ) as HTMLInputElement;
       // Focus opens dropdown
       input.dispatchEvent(new Event("focus"));
 
       // ArrowDown once — first option highlighted
-      input.dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowDown", bubbles: true }));
+      input.dispatchEvent(
+        new KeyboardEvent("keydown", { key: "ArrowDown", bubbles: true }),
+      );
       const items = document.querySelectorAll(".typeahead-option");
-      expect(items[0]?.classList.contains("typeahead-option-highlighted")).toBe(true);
+      expect(items[0]?.classList.contains("typeahead-option-highlighted")).toBe(
+        true,
+      );
 
       // ArrowDown again — second option highlighted
-      input.dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowDown", bubbles: true }));
-      expect(items[0]?.classList.contains("typeahead-option-highlighted")).toBe(false);
-      expect(items[1]?.classList.contains("typeahead-option-highlighted")).toBe(true);
+      input.dispatchEvent(
+        new KeyboardEvent("keydown", { key: "ArrowDown", bubbles: true }),
+      );
+      expect(items[0]?.classList.contains("typeahead-option-highlighted")).toBe(
+        false,
+      );
+      expect(items[1]?.classList.contains("typeahead-option-highlighted")).toBe(
+        true,
+      );
     });
 
     it("ArrowUp moves highlight state upward", () => {
       createContainer("kbd-up");
       initTypeaheadDropdown(makeConfig("kbd-up"));
 
-      const input = document.querySelector(".typeahead-input") as HTMLInputElement;
+      const input = document.querySelector(
+        ".typeahead-input",
+      ) as HTMLInputElement;
       input.dispatchEvent(new Event("focus"));
 
       // Move down twice
-      input.dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowDown", bubbles: true }));
-      input.dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowDown", bubbles: true }));
+      input.dispatchEvent(
+        new KeyboardEvent("keydown", { key: "ArrowDown", bubbles: true }),
+      );
+      input.dispatchEvent(
+        new KeyboardEvent("keydown", { key: "ArrowDown", bubbles: true }),
+      );
 
       // Move up once — first option highlighted again
-      input.dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowUp", bubbles: true }));
+      input.dispatchEvent(
+        new KeyboardEvent("keydown", { key: "ArrowUp", bubbles: true }),
+      );
       const items = document.querySelectorAll(".typeahead-option");
-      expect(items[0]?.classList.contains("typeahead-option-highlighted")).toBe(true);
-      expect(items[1]?.classList.contains("typeahead-option-highlighted")).toBe(false);
+      expect(items[0]?.classList.contains("typeahead-option-highlighted")).toBe(
+        true,
+      );
+      expect(items[1]?.classList.contains("typeahead-option-highlighted")).toBe(
+        false,
+      );
     });
 
     it("ArrowDown does not exceed last option", () => {
       createContainer("kbd-clamp");
       initTypeaheadDropdown(makeConfig("kbd-clamp"));
 
-      const input = document.querySelector(".typeahead-input") as HTMLInputElement;
+      const input = document.querySelector(
+        ".typeahead-input",
+      ) as HTMLInputElement;
       input.dispatchEvent(new Event("focus"));
 
       // Press down more times than options exist
       for (let i = 0; i < 10; i++) {
-        input.dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowDown", bubbles: true }));
+        input.dispatchEvent(
+          new KeyboardEvent("keydown", { key: "ArrowDown", bubbles: true }),
+        );
       }
 
       const items = document.querySelectorAll(".typeahead-option");
       // Last item should be highlighted
-      expect(items[items.length - 1]?.classList.contains("typeahead-option-highlighted")).toBe(true);
+      expect(
+        items[items.length - 1]?.classList.contains(
+          "typeahead-option-highlighted",
+        ),
+      ).toBe(true);
     });
 
     it("ArrowUp does not go below index 0", () => {
       createContainer("kbd-floor");
       initTypeaheadDropdown(makeConfig("kbd-floor"));
 
-      const input = document.querySelector(".typeahead-input") as HTMLInputElement;
+      const input = document.querySelector(
+        ".typeahead-input",
+      ) as HTMLInputElement;
       input.dispatchEvent(new Event("focus"));
 
       // Move down once, then up many times
-      input.dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowDown", bubbles: true }));
+      input.dispatchEvent(
+        new KeyboardEvent("keydown", { key: "ArrowDown", bubbles: true }),
+      );
       for (let i = 0; i < 5; i++) {
-        input.dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowUp", bubbles: true }));
+        input.dispatchEvent(
+          new KeyboardEvent("keydown", { key: "ArrowUp", bubbles: true }),
+        );
       }
 
       const items = document.querySelectorAll(".typeahead-option");
-      expect(items[0]?.classList.contains("typeahead-option-highlighted")).toBe(true);
+      expect(items[0]?.classList.contains("typeahead-option-highlighted")).toBe(
+        true,
+      );
     });
 
     it("Enter selects the highlighted option", () => {
@@ -400,13 +437,19 @@ describe("Typeahead Dropdown", () => {
         makeConfig("kbd-enter", { mode: "multi", onChange }),
       );
 
-      const input = document.querySelector(".typeahead-input") as HTMLInputElement;
+      const input = document.querySelector(
+        ".typeahead-input",
+      ) as HTMLInputElement;
       input.dispatchEvent(new Event("focus"));
 
       // Highlight first option (Alpha)
-      input.dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowDown", bubbles: true }));
+      input.dispatchEvent(
+        new KeyboardEvent("keydown", { key: "ArrowDown", bubbles: true }),
+      );
       // Select it
-      input.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", bubbles: true }));
+      input.dispatchEvent(
+        new KeyboardEvent("keydown", { key: "Enter", bubbles: true }),
+      );
 
       expect(instance!.getSelected()).toEqual(["alpha"]);
       expect(onChange).toHaveBeenCalledWith(["alpha"]);
@@ -419,7 +462,9 @@ describe("Typeahead Dropdown", () => {
         makeConfig("kbd-enter-debounce", { mode: "multi", onChange }),
       );
 
-      const input = document.querySelector(".typeahead-input") as HTMLInputElement;
+      const input = document.querySelector(
+        ".typeahead-input",
+      ) as HTMLInputElement;
       input.dispatchEvent(new Event("focus"));
 
       // Type "Gam" which should filter to Gamma, but don't wait for debounce
@@ -430,7 +475,9 @@ describe("Typeahead Dropdown", () => {
       // Enter flushes the debounce (calls filterOptions which resets highlightIndex).
       // So we press Enter once to flush, then ArrowDown to highlight the
       // first (and only) filtered option, then Enter to select it.
-      input.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", bubbles: true }));
+      input.dispatchEvent(
+        new KeyboardEvent("keydown", { key: "Enter", bubbles: true }),
+      );
 
       // After flush, only "Gamma" remains in filteredOptions
       const options = document.querySelectorAll(".typeahead-option");
@@ -438,8 +485,12 @@ describe("Typeahead Dropdown", () => {
       expect(options[0]?.textContent).toContain("Gamma");
 
       // Now navigate down and select
-      input.dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowDown", bubbles: true }));
-      input.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", bubbles: true }));
+      input.dispatchEvent(
+        new KeyboardEvent("keydown", { key: "ArrowDown", bubbles: true }),
+      );
+      input.dispatchEvent(
+        new KeyboardEvent("keydown", { key: "Enter", bubbles: true }),
+      );
 
       expect(instance!.getSelected()).toEqual(["gamma"]);
     });
@@ -448,16 +499,22 @@ describe("Typeahead Dropdown", () => {
       createContainer("kbd-esc");
       initTypeaheadDropdown(makeConfig("kbd-esc"));
 
-      const input = document.querySelector(".typeahead-input") as HTMLInputElement;
+      const input = document.querySelector(
+        ".typeahead-input",
+      ) as HTMLInputElement;
       input.dispatchEvent(new Event("focus"));
 
       // Dropdown should be open
-      const dropdown = document.querySelector(".typeahead-dropdown") as HTMLElement;
+      const dropdown = document.querySelector(
+        ".typeahead-dropdown",
+      ) as HTMLElement;
       expect(dropdown.style.display).toBe("");
       expect(input.getAttribute("aria-expanded")).toBe("true");
 
       // Press Escape
-      input.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true }));
+      input.dispatchEvent(
+        new KeyboardEvent("keydown", { key: "Escape", bubbles: true }),
+      );
 
       expect(dropdown.style.display).toBe("none");
       expect(input.getAttribute("aria-expanded")).toBe("false");
@@ -474,10 +531,14 @@ describe("Typeahead Dropdown", () => {
         }),
       );
 
-      const input = document.querySelector(".typeahead-input") as HTMLInputElement;
+      const input = document.querySelector(
+        ".typeahead-input",
+      ) as HTMLInputElement;
       input.value = "";
 
-      input.dispatchEvent(new KeyboardEvent("keydown", { key: "Backspace", bubbles: true }));
+      input.dispatchEvent(
+        new KeyboardEvent("keydown", { key: "Backspace", bubbles: true }),
+      );
 
       // "gamma" (last) should be removed
       expect(instance!.getSelected()).toEqual(["alpha", "beta"]);
@@ -492,10 +553,14 @@ describe("Typeahead Dropdown", () => {
         }),
       );
 
-      const input = document.querySelector(".typeahead-input") as HTMLInputElement;
+      const input = document.querySelector(
+        ".typeahead-input",
+      ) as HTMLInputElement;
       input.value = "some text";
 
-      input.dispatchEvent(new KeyboardEvent("keydown", { key: "Backspace", bubbles: true }));
+      input.dispatchEvent(
+        new KeyboardEvent("keydown", { key: "Backspace", bubbles: true }),
+      );
 
       // Nothing removed
       expect(instance!.getSelected()).toEqual(["alpha", "beta"]);
@@ -507,18 +572,24 @@ describe("Typeahead Dropdown", () => {
       createContainer("outside-click");
       initTypeaheadDropdown(makeConfig("outside-click"));
 
-      const input = document.querySelector(".typeahead-input") as HTMLInputElement;
+      const input = document.querySelector(
+        ".typeahead-input",
+      ) as HTMLInputElement;
       input.dispatchEvent(new Event("focus"));
 
-      const dropdown = document.querySelector(".typeahead-dropdown") as HTMLElement;
+      const dropdown = document.querySelector(
+        ".typeahead-dropdown",
+      ) as HTMLElement;
       expect(dropdown.style.display).toBe("");
 
       // Simulate a click outside the container
       const outsideElement = document.createElement("div");
       document.body.appendChild(outsideElement);
-      document.dispatchEvent(new PointerEvent("pointerdown", {
-        bubbles: true,
-      }));
+      document.dispatchEvent(
+        new PointerEvent("pointerdown", {
+          bubbles: true,
+        }),
+      );
 
       expect(dropdown.style.display).toBe("none");
     });
@@ -527,17 +598,23 @@ describe("Typeahead Dropdown", () => {
       createContainer("inside-click");
       initTypeaheadDropdown(makeConfig("inside-click"));
 
-      const input = document.querySelector(".typeahead-input") as HTMLInputElement;
+      const input = document.querySelector(
+        ".typeahead-input",
+      ) as HTMLInputElement;
       input.dispatchEvent(new Event("focus"));
 
-      const dropdown = document.querySelector(".typeahead-dropdown") as HTMLElement;
+      const dropdown = document.querySelector(
+        ".typeahead-dropdown",
+      ) as HTMLElement;
       expect(dropdown.style.display).toBe("");
 
       // Simulate pointerdown inside the container
       const container = document.getElementById("inside-click")!;
-      container.dispatchEvent(new PointerEvent("pointerdown", {
-        bubbles: true,
-      }));
+      container.dispatchEvent(
+        new PointerEvent("pointerdown", {
+          bubbles: true,
+        }),
+      );
 
       expect(dropdown.style.display).toBe("");
     });
@@ -556,7 +633,9 @@ describe("Typeahead Dropdown", () => {
       createContainer("debounce-filter");
       initTypeaheadDropdown(makeConfig("debounce-filter"));
 
-      const input = document.querySelector(".typeahead-input") as HTMLInputElement;
+      const input = document.querySelector(
+        ".typeahead-input",
+      ) as HTMLInputElement;
       input.dispatchEvent(new Event("focus"));
 
       // Type search query
@@ -578,7 +657,9 @@ describe("Typeahead Dropdown", () => {
       createContainer("debounce-zero");
       initTypeaheadDropdown(makeConfig("debounce-zero"));
 
-      const input = document.querySelector(".typeahead-input") as HTMLInputElement;
+      const input = document.querySelector(
+        ".typeahead-input",
+      ) as HTMLInputElement;
       input.dispatchEvent(new Event("focus"));
 
       input.value = "xyznonexistent";
@@ -594,8 +675,12 @@ describe("Typeahead Dropdown", () => {
       createContainer("debounce-open");
       initTypeaheadDropdown(makeConfig("debounce-open"));
 
-      const input = document.querySelector(".typeahead-input") as HTMLInputElement;
-      const dropdown = document.querySelector(".typeahead-dropdown") as HTMLElement;
+      const input = document.querySelector(
+        ".typeahead-input",
+      ) as HTMLInputElement;
+      const dropdown = document.querySelector(
+        ".typeahead-dropdown",
+      ) as HTMLElement;
 
       // Dropdown starts closed
       expect(dropdown.style.display).toBe("none");
@@ -614,7 +699,9 @@ describe("Typeahead Dropdown", () => {
       createContainer("scroll-view");
       initTypeaheadDropdown(makeConfig("scroll-view"));
 
-      const input = document.querySelector(".typeahead-input") as HTMLInputElement;
+      const input = document.querySelector(
+        ".typeahead-input",
+      ) as HTMLInputElement;
       input.dispatchEvent(new Event("focus"));
 
       // Mock scrollIntoView on the first option
@@ -622,7 +709,9 @@ describe("Typeahead Dropdown", () => {
       const scrollMock = jest.fn();
       (items[0] as HTMLElement).scrollIntoView = scrollMock;
 
-      input.dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowDown", bubbles: true }));
+      input.dispatchEvent(
+        new KeyboardEvent("keydown", { key: "ArrowDown", bubbles: true }),
+      );
 
       expect(scrollMock).toHaveBeenCalledWith({ block: "nearest" });
     });
@@ -649,11 +738,11 @@ describe("Typeahead Dropdown", () => {
 
     it("updates dropdown when open during setOptions", () => {
       createContainer("stale-open");
-      const instance = initTypeaheadDropdown(
-        makeConfig("stale-open"),
-      );
+      const instance = initTypeaheadDropdown(makeConfig("stale-open"));
 
-      const input = document.querySelector(".typeahead-input") as HTMLInputElement;
+      const input = document.querySelector(
+        ".typeahead-input",
+      ) as HTMLInputElement;
       input.dispatchEvent(new Event("focus"));
 
       const optionsBefore = document.querySelectorAll(".typeahead-option");
@@ -677,7 +766,9 @@ describe("Typeahead Dropdown", () => {
       );
 
       instance!.setSelected(["gamma"]);
-      const input = document.querySelector(".typeahead-input") as HTMLInputElement;
+      const input = document.querySelector(
+        ".typeahead-input",
+      ) as HTMLInputElement;
       expect(input.value).toBe("Gamma");
     });
 
@@ -688,7 +779,9 @@ describe("Typeahead Dropdown", () => {
       );
 
       instance!.setSelected(["beta"]);
-      const input = document.querySelector(".typeahead-input") as HTMLInputElement;
+      const input = document.querySelector(
+        ".typeahead-input",
+      ) as HTMLInputElement;
       expect(input.value).toBe("Beta");
 
       // Focus clears input for search
@@ -703,14 +796,18 @@ describe("Typeahead Dropdown", () => {
       );
 
       instance!.setSelected(["alpha"]);
-      const input = document.querySelector(".typeahead-input") as HTMLInputElement;
+      const input = document.querySelector(
+        ".typeahead-input",
+      ) as HTMLInputElement;
 
       // Open (clears input)
       input.dispatchEvent(new Event("focus"));
       expect(input.value).toBe("");
 
       // Close via Escape (restores display name)
-      input.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true }));
+      input.dispatchEvent(
+        new KeyboardEvent("keydown", { key: "Escape", bubbles: true }),
+      );
       expect(input.value).toBe("Alpha");
     });
   });
@@ -726,11 +823,11 @@ describe("Typeahead Dropdown", () => {
 
     it("destroy clears pending debounce timer", () => {
       createContainer("destroy-timer");
-      const instance = initTypeaheadDropdown(
-        makeConfig("destroy-timer"),
-      );
+      const instance = initTypeaheadDropdown(makeConfig("destroy-timer"));
 
-      const input = document.querySelector(".typeahead-input") as HTMLInputElement;
+      const input = document.querySelector(
+        ".typeahead-input",
+      ) as HTMLInputElement;
       input.dispatchEvent(new Event("focus"));
       input.value = "test";
       input.dispatchEvent(new Event("input"));
@@ -754,7 +851,9 @@ describe("Typeahead Dropdown", () => {
       // Dispatching events on the destroyed container's former input should not call onChange
       // (The container is cleared so we can't get input, but document-level listeners should be aborted)
       onChange.mockClear();
-      document.dispatchEvent(new PointerEvent("pointerdown", { bubbles: true }));
+      document.dispatchEvent(
+        new PointerEvent("pointerdown", { bubbles: true }),
+      );
 
       // onChange should NOT have been called
       expect(onChange).not.toHaveBeenCalled();
@@ -807,7 +906,9 @@ describe("Typeahead Dropdown", () => {
       );
       // Select all
       instance!.setSelected(["alpha", "beta", "gamma", "delta"]);
-      expect(document.querySelectorAll("#allsel-desel .typeahead-chip")).toHaveLength(0);
+      expect(
+        document.querySelectorAll("#allsel-desel .typeahead-chip"),
+      ).toHaveLength(0);
 
       // Open dropdown and deselect one by clicking its option
       const input = document.querySelector(
@@ -926,9 +1027,7 @@ describe("Typeahead Dropdown", () => {
 
     it("closes dropdown after blur", () => {
       createContainer("blur-close");
-      initTypeaheadDropdown(
-        makeConfig("blur-close", { mode: "single" }),
-      );
+      initTypeaheadDropdown(makeConfig("blur-close", { mode: "single" }));
 
       const input = document.querySelector(
         "#blur-close .typeahead-input",
@@ -967,9 +1066,7 @@ describe("Typeahead Dropdown", () => {
 
     it("closeDropdown is idempotent (safe to call twice)", () => {
       createContainer("blur-idem");
-      initTypeaheadDropdown(
-        makeConfig("blur-idem", { mode: "single" }),
-      );
+      initTypeaheadDropdown(makeConfig("blur-idem", { mode: "single" }));
 
       const input = document.querySelector(
         "#blur-idem .typeahead-input",
@@ -1029,7 +1126,9 @@ describe("Typeahead Dropdown", () => {
         new PointerEvent("pointerdown", { bubbles: true }),
       );
 
-      let chips = document.querySelectorAll("#qa-all-selected-user .typeahead-chip");
+      let chips = document.querySelectorAll(
+        "#qa-all-selected-user .typeahead-chip",
+      );
       expect(chips).toHaveLength(1);
       // BUG: selectOption() doesn't call updateInputDisplay() for multi-select
       // So placeholder won't change. After fix, should show "Search..."
@@ -1048,7 +1147,9 @@ describe("Typeahead Dropdown", () => {
         new PointerEvent("pointerdown", { bubbles: true }),
       );
 
-      chips = document.querySelectorAll("#qa-all-selected-user .typeahead-chip");
+      chips = document.querySelectorAll(
+        "#qa-all-selected-user .typeahead-chip",
+      );
       expect(chips).toHaveLength(2);
 
       // User clicks option 3 (Gamma)
@@ -1063,7 +1164,9 @@ describe("Typeahead Dropdown", () => {
         new PointerEvent("pointerdown", { bubbles: true }),
       );
 
-      chips = document.querySelectorAll("#qa-all-selected-user .typeahead-chip");
+      chips = document.querySelectorAll(
+        "#qa-all-selected-user .typeahead-chip",
+      );
       expect(chips).toHaveLength(3);
 
       // User clicks option 4 (Delta) — now all 4 are selected
@@ -1080,7 +1183,9 @@ describe("Typeahead Dropdown", () => {
 
       // FR-011: All selected = canonical empty state
       // Chips should vanish
-      chips = document.querySelectorAll("#qa-all-selected-user .typeahead-chip");
+      chips = document.querySelectorAll(
+        "#qa-all-selected-user .typeahead-chip",
+      );
       expect(chips).toHaveLength(0);
 
       // Placeholder should show "All selected" indicator
@@ -1108,7 +1213,9 @@ describe("Typeahead Dropdown", () => {
       instance!.setSelected(["alpha", "beta", "gamma", "delta"]);
       onChange.mockClear();
 
-      let chips = document.querySelectorAll("#qa-desel-from-all .typeahead-chip");
+      let chips = document.querySelectorAll(
+        "#qa-desel-from-all .typeahead-chip",
+      );
       expect(chips).toHaveLength(0); // All selected = no chips
 
       // Open dropdown
@@ -1125,7 +1232,9 @@ describe("Typeahead Dropdown", () => {
 
       // Before click: alpha option should have aria-selected="true" and selected class
       expect(alphaOption!.getAttribute("aria-selected")).toBe("true");
-      expect(alphaOption!.classList.contains("typeahead-option-selected")).toBe(true);
+      expect(alphaOption!.classList.contains("typeahead-option-selected")).toBe(
+        true,
+      );
 
       alphaOption!.dispatchEvent(
         new PointerEvent("pointerdown", { bubbles: true }),
@@ -1183,7 +1292,9 @@ describe("Typeahead Dropdown", () => {
       ) as HTMLElement | undefined;
 
       expect(alphaOption?.getAttribute("aria-selected")).toBe("true");
-      expect(alphaOption?.classList.contains("typeahead-option-selected")).toBe(true);
+      expect(alphaOption?.classList.contains("typeahead-option-selected")).toBe(
+        true,
+      );
 
       // Deselect alpha by clicking it
       alphaOption!.dispatchEvent(
@@ -1201,7 +1312,9 @@ describe("Typeahead Dropdown", () => {
       expect(chips).toHaveLength(3); // All except alpha
       const selected = instance!.getSelected();
       expect(selected).not.toContain("alpha");
-      expect(selected).toEqual(expect.arrayContaining(["beta", "gamma", "delta"]));
+      expect(selected).toEqual(
+        expect.arrayContaining(["beta", "gamma", "delta"]),
+      );
     });
 
     it("subsequent toggles maintain correct selection state (verified via chips and getSelected)", () => {
@@ -1233,9 +1346,7 @@ describe("Typeahead Dropdown", () => {
       expect(chips).toHaveLength(1);
 
       // Select beta
-      options = document.querySelectorAll(
-        "#qa-multi-toggle [role='option']",
-      );
+      options = document.querySelectorAll("#qa-multi-toggle [role='option']");
       const betaOption = Array.from(options).find(
         (o) => (o as HTMLElement).dataset.optionId === "beta",
       ) as HTMLElement | undefined;
@@ -1250,9 +1361,7 @@ describe("Typeahead Dropdown", () => {
       expect(selected).toEqual(expect.arrayContaining(["alpha", "beta"]));
 
       // Deselect alpha
-      options = document.querySelectorAll(
-        "#qa-multi-toggle [role='option']",
-      );
+      options = document.querySelectorAll("#qa-multi-toggle [role='option']");
       alphaOption = Array.from(options).find(
         (o) => (o as HTMLElement).dataset.optionId === "alpha",
       ) as HTMLElement | undefined;
@@ -1288,7 +1397,11 @@ describe("Typeahead Dropdown", () => {
 
       // Simulate constraint resolver result with author_team notice
       interface NoticeType {
-        type: "author_reviewer" | "author_team" | "reviewer_repo" | "reviewer_team";
+        type:
+          | "author_reviewer"
+          | "author_team"
+          | "reviewer_repo"
+          | "reviewer_team";
         message: string;
       }
       const constraintsApplied: NoticeType[] = [
@@ -1313,7 +1426,11 @@ describe("Typeahead Dropdown", () => {
     it("reviewer+repo notice SHOULD populate reviewerFilterNoticeMessage", () => {
       // Simulate constraint resolver result with reviewer_repo notice
       interface NoticeType {
-        type: "author_reviewer" | "author_team" | "reviewer_repo" | "reviewer_team";
+        type:
+          | "author_reviewer"
+          | "author_team"
+          | "reviewer_repo"
+          | "reviewer_team";
         message: string;
       }
       const constraintsApplied: NoticeType[] = [
@@ -1340,7 +1457,11 @@ describe("Typeahead Dropdown", () => {
     it("author_reviewer notice SHOULD populate reviewerFilterNoticeMessage", () => {
       // Verify author_reviewer is in the allowed types for reviewer notice area
       interface NoticeType {
-        type: "author_reviewer" | "author_team" | "reviewer_repo" | "reviewer_team";
+        type:
+          | "author_reviewer"
+          | "author_team"
+          | "reviewer_repo"
+          | "reviewer_team";
         message: string;
       }
       const constraintsApplied: NoticeType[] = [
@@ -1364,7 +1485,11 @@ describe("Typeahead Dropdown", () => {
     it("reviewer_team notice SHOULD populate reviewerFilterNoticeMessage", () => {
       // Verify reviewer_team is in the allowed types
       interface NoticeType {
-        type: "author_reviewer" | "author_team" | "reviewer_repo" | "reviewer_team";
+        type:
+          | "author_reviewer"
+          | "author_team"
+          | "reviewer_repo"
+          | "reviewer_team";
         message: string;
       }
       const constraintsApplied: NoticeType[] = [
@@ -1388,7 +1513,11 @@ describe("Typeahead Dropdown", () => {
     it("mixed notices: only reviewer-type notices extracted, others ignored", () => {
       // Real-world scenario: multiple constraints applied, only some are reviewer-relevant
       interface NoticeType {
-        type: "author_reviewer" | "author_team" | "reviewer_repo" | "reviewer_team";
+        type:
+          | "author_reviewer"
+          | "author_team"
+          | "reviewer_repo"
+          | "reviewer_team";
         message: string;
       }
       const constraintsApplied: NoticeType[] = [
@@ -1425,7 +1554,11 @@ describe("Typeahead Dropdown", () => {
     it("no reviewer notices: reviewerFilterNoticeMessage should be null", () => {
       // When only non-reviewer constraints are present
       interface NoticeType {
-        type: "author_reviewer" | "author_team" | "reviewer_repo" | "reviewer_team";
+        type:
+          | "author_reviewer"
+          | "author_team"
+          | "reviewer_repo"
+          | "reviewer_team";
         message: string;
       }
       const constraintsApplied: NoticeType[] = [
@@ -1474,7 +1607,9 @@ describe("Typeahead Dropdown", () => {
         '#desel-aria [data-option-id="alpha"]',
       ) as HTMLElement;
       expect(alphaOption.getAttribute("aria-selected")).toBe("true");
-      expect(alphaOption.classList.contains("typeahead-option-selected")).toBe(true);
+      expect(alphaOption.classList.contains("typeahead-option-selected")).toBe(
+        true,
+      );
 
       // Deselect alpha by clicking it
       alphaOption.dispatchEvent(
@@ -1486,7 +1621,9 @@ describe("Typeahead Dropdown", () => {
         '#desel-aria [data-option-id="alpha"]',
       ) as HTMLElement;
       expect(alphaAfter.getAttribute("aria-selected")).toBe("false");
-      expect(alphaAfter.classList.contains("typeahead-option-selected")).toBe(false);
+      expect(alphaAfter.classList.contains("typeahead-option-selected")).toBe(
+        false,
+      );
     });
 
     it("placeholder updates when transitioning from partial to all-selected via click", () => {
@@ -1619,7 +1756,9 @@ describe("Typeahead Dropdown", () => {
         '#setsel-dropdown [data-option-id="alpha"]',
       ) as HTMLElement;
       expect(alphaAfter.getAttribute("aria-selected")).toBe("false");
-      expect(alphaAfter.classList.contains("typeahead-option-selected")).toBe(false);
+      expect(alphaAfter.classList.contains("typeahead-option-selected")).toBe(
+        false,
+      );
     });
 
     it("programmatic setSelected with new values updates open dropdown checkmarks", () => {

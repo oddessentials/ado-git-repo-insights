@@ -216,7 +216,9 @@ describe("DatasetLoader Nested Layout Resolution", () => {
       await loader.resolveDatasetRoot();
 
       // Access protected method via type assertion for testing
-      const resolved = (loader as unknown as { resolvePath: (path: string) => string }).resolvePath("test.json");
+      const resolved = (
+        loader as unknown as { resolvePath: (path: string) => string }
+      ).resolvePath("test.json");
 
       expect(resolved).toBe("./run_artifacts/aggregates/test.json");
     });
@@ -229,7 +231,9 @@ describe("DatasetLoader Nested Layout Resolution", () => {
 
       await loader.resolveDatasetRoot();
 
-      const resolved = (loader as unknown as { resolvePath: (path: string) => string }).resolvePath("test.json");
+      const resolved = (
+        loader as unknown as { resolvePath: (path: string) => string }
+      ).resolvePath("test.json");
 
       // Falls back to base URL when no nested layout found
       expect(resolved).toBe("./run_artifacts/test.json");

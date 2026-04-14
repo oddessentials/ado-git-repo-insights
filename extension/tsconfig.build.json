@@ -3,8 +3,5 @@
   "compilerOptions": {
     "module": "CommonJS"
   },
-  "include": [
-    "scripts/**/*.ts",
-    "tasks/_shared/**/*.ts"
-  ]
+  "include": ["scripts/**/*.ts", "tasks/_shared/**/*.ts"]
 }

@@ -15,11 +15,7 @@ import { classifyEmptyState } from "../empty-state-classifier";
 import { formatDuration } from "../shared/format";
 import { renderTruncationIndicator } from "../shared/chart-layout";
 import { buildLinePath } from "../shared/svg-path";
-import {
-  escapeHtml,
-  renderNoData,
-  renderTrustedHtml,
-} from "../shared/render";
+import { escapeHtml, renderNoData, renderTrustedHtml } from "../shared/render";
 
 /** Maximum data points rendered in the cycle time trend chart (2 years of weekly data). */
 export const MAX_CYCLE_TIME_POINTS = 104;
@@ -63,7 +59,12 @@ export function renderCycleDistribution(
     const classification = options
       ? classifyEmptyState({
           chartType: "cycle_time_distribution",
-          filters: options.filters ?? { repos: [], teams: [], reviewers: [], authors: [] },
+          filters: options.filters ?? {
+            repos: [],
+            teams: [],
+            reviewers: [],
+            authors: [],
+          },
           unfilteredRollups: options.unfilteredRollups ?? [],
           filteredRollups: options.unfilteredRollups ?? [], // Use unfiltered as proxy — distribution data is not dimension-filtered
           availability: options.availability ?? {
@@ -79,7 +80,8 @@ export function renderCycleDistribution(
     renderNoData(
       container,
       classification?.message ?? "No data for selected range",
-      classification?.hint ?? "Try widening the date range or adjusting repository/team filters.",
+      classification?.hint ??
+        "Try widening the date range or adjusting repository/team filters.",
     );
     return;
   }
@@ -100,7 +102,11 @@ export function renderCycleDistribution(
 
   const total = Array.from(buckets.values()).reduce((a, b) => a + b, 0);
   if (total === 0) {
-    renderNoData(container, "No cycle time data", "Try widening the date range or adjusting repository/team filters.");
+    renderNoData(
+      container,
+      "No cycle time data",
+      "Try widening the date range or adjusting repository/team filters.",
+    );
     return;
   }
 
@@ -149,7 +155,12 @@ export function renderCycleTimeTrend(
     const classification = options
       ? classifyEmptyState({
           chartType: "cycle_time_trend",
-          filters: options.filters ?? { repos: [], teams: [], reviewers: [], authors: [] },
+          filters: options.filters ?? {
+            repos: [],
+            teams: [],
+            reviewers: [],
+            authors: [],
+          },
           unfilteredRollups: options.unfilteredRollups ?? [],
           filteredRollups: rollups ?? [],
           availability: options.availability ?? {
@@ -165,7 +176,8 @@ export function renderCycleTimeTrend(
     renderNoData(
       container,
       classification?.message ?? "Not enough data for trend",
-      classification?.hint ?? "At least 2 weeks of data are needed to show trends.",
+      classification?.hint ??
+        "At least 2 weeks of data are needed to show trends.",
     );
     return;
   }
@@ -285,19 +297,30 @@ export function renderCycleTimeTrend(
   // and mark metrics with some data but insufficient points for a trend line.
   const legendItems: string[] = [];
   if (p50Path) {
-    legendItems.push(`<div class="legend-item"><span class="chart-tooltip-dot legend-p50"></span><span>P50 (Median)</span></div>`);
+    legendItems.push(
+      `<div class="legend-item"><span class="chart-tooltip-dot legend-p50"></span><span>P50 (Median)</span></div>`,
+    );
   } else if (p50Data.length > 0) {
-    legendItems.push(`<div class="legend-item legend-insufficient"><span class="chart-tooltip-dot legend-p50 dimmed"></span><span>P50 (Median) — insufficient points</span></div>`);
+    legendItems.push(
+      `<div class="legend-item legend-insufficient"><span class="chart-tooltip-dot legend-p50 dimmed"></span><span>P50 (Median) — insufficient points</span></div>`,
+    );
   }
   if (p90Path) {
-    legendItems.push(`<div class="legend-item"><span class="chart-tooltip-dot legend-p90"></span><span>P90</span></div>`);
+    legendItems.push(
+      `<div class="legend-item"><span class="chart-tooltip-dot legend-p90"></span><span>P90</span></div>`,
+    );
   } else if (p90Data.length > 0) {
-    legendItems.push(`<div class="legend-item legend-insufficient"><span class="chart-tooltip-dot legend-p90 dimmed"></span><span>P90 — insufficient points</span></div>`);
+    legendItems.push(
+      `<div class="legend-item legend-insufficient"><span class="chart-tooltip-dot legend-p90 dimmed"></span><span>P90 — insufficient points</span></div>`,
+    );
   }
   const legendHtml = `<div class="chart-legend">${legendItems.join("")}</div>`;
 
   // Truncation indicator
-  const truncationHtml = renderTruncationIndicator(truncated, MAX_CYCLE_TIME_POINTS);
+  const truncationHtml = renderTruncationIndicator(
+    truncated,
+    MAX_CYCLE_TIME_POINTS,
+  );
 
   // SECURITY: Content is SVG from computed coordinates + escapeHtml'd week values
   renderTrustedHtml(

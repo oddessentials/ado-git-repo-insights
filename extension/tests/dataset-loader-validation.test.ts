@@ -209,7 +209,9 @@ describe("DatasetLoader Validation Integration", () => {
       expect(result.generation_provenance?.generator_script).toBe(
         "scripts/build-demo-dataset.py",
       );
-      expect(result.reviewer_fixtures?.reviewer_filter_examples).toHaveLength(1);
+      expect(result.reviewer_fixtures?.reviewer_filter_examples).toHaveLength(
+        1,
+      );
     });
 
     it("should throw SchemaValidationError when manifest_schema_version is missing", async () => {

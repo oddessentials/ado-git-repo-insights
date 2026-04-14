@@ -987,7 +987,13 @@ var PRInsightsDashboard = (() => {
       errors.push(createError(path, "object", getTypeName(data)));
       return { errors, warnings };
     }
-    const requiredStringFields = ["reviewer_id", "reviewer_name", "week", "mode", "reason"];
+    const requiredStringFields = [
+      "reviewer_id",
+      "reviewer_name",
+      "week",
+      "mode",
+      "reason"
+    ];
     for (const field of requiredStringFields) {
       const required = validateRequired(data, field, path);
       if (required) {
@@ -3146,9 +3152,7 @@ var PRInsightsDashboard = (() => {
         return { response, version };
       }
       if (response.status === 400 || options.isListEndpoint && response.status === 404) {
-        lastError = new Error(
-          `API api-version=${version}: ${response.status}`
-        );
+        lastError = new Error(`API api-version=${version}: ${response.status}`);
         continue;
       }
       return { response, version };
@@ -3353,9 +3357,7 @@ var PRInsightsDashboard = (() => {
         throw createPermissionDeniedError("list build artifacts");
       }
       if (response.status === 404) {
-        throw new Error(
-          `Build ${buildId} not found or has been deleted`
-        );
+        throw new Error(`Build ${buildId} not found or has been deleted`);
       }
       if (!response.ok) {
         throw new Error(`Failed to list artifacts: ${response.status}`);
@@ -3427,7 +3429,9 @@ var PRInsightsDashboard = (() => {
      */
     async _authenticatedFetch(url, options = {}) {
       if (!this.tokenProvider) {
-        throw new Error("ArtifactClient not initialized. Call initialize() first.");
+        throw new Error(
+          "ArtifactClient not initialized. Call initialize() first."
+        );
       }
       const token = await this.tokenProvider();
       const headers = {
@@ -4023,14 +4027,12 @@ var PRInsightsDashboard = (() => {
         reject(new Error("Azure DevOps SDK initialization timed out"));
       }, timeout);
     });
-    initPromise = Promise.race([initSequence(), timeoutPromise]).finally(
-      () => {
-        if (timeoutId !== void 0) {
-          clearTimeout(timeoutId);
-        }
-        initPromise = null;
+    initPromise = Promise.race([initSequence(), timeoutPromise]).finally(() => {
+      if (timeoutId !== void 0) {
+        clearTimeout(timeoutId);
       }
-    );
+      initPromise = null;
+    });
     return initPromise;
   }
   async function getExtensionDataService() {
@@ -4102,9 +4104,7 @@ var PRInsightsDashboard = (() => {
   }
   async function getCollectionUri() {
     if (cachedCollectionUri) return cachedCollectionUri;
-    const locationService = await F(
-      LocationServiceId
-    );
+    const locationService = await F(LocationServiceId);
     const raw = await locationService.getResourceAreaLocation(
       CORE_RESOURCE_AREA_ID
     );
@@ -4180,9 +4180,7 @@ var PRInsightsDashboard = (() => {
   // ../ui/modules/shared/svg-path.ts
   function buildLinePath(points) {
     if (points.length < 2) return "";
-    return points.map(
-      (p2, i2) => `${i2 === 0 ? "M" : "L"} ${p2.x.toFixed(1)} ${p2.y.toFixed(1)}`
-    ).join(" ");
+    return points.map((p2, i2) => `${i2 === 0 ? "M" : "L"} ${p2.x.toFixed(1)} ${p2.y.toFixed(1)}`).join(" ");
   }
 
   // ../ui/modules/metrics.ts
@@ -6073,8 +6071,14 @@ var PRInsightsDashboard = (() => {
     } else {
       clearDeltas(containers);
     }
-    toggleReviewTimeCard(containers.reviewTimeP50, current.reviewTimeP50WeekCount > 0);
-    toggleReviewTimeCard(containers.reviewTimeP90, current.reviewTimeP90WeekCount > 0);
+    toggleReviewTimeCard(
+      containers.reviewTimeP50,
+      current.reviewTimeP50WeekCount > 0
+    );
+    toggleReviewTimeCard(
+      containers.reviewTimeP90,
+      current.reviewTimeP90WeekCount > 0
+    );
     if (metricsCollector2) {
       metricsCollector2.mark("render-summary-cards-end");
       metricsCollector2.mark("first-meaningful-paint");
@@ -6340,7 +6344,9 @@ var PRInsightsDashboard = (() => {
       if (!card) continue;
       const title = card.querySelector("h3");
       if (!title) continue;
-      const existing = title.querySelector(".info-icon-btn");
+      const existing = title.querySelector(
+        ".info-icon-btn"
+      );
       if (existing) {
         infoIconControllers.get(existing)?.abort();
         infoIconControllers.delete(existing);
@@ -6359,28 +6365,40 @@ var PRInsightsDashboard = (() => {
       btn.setAttribute("aria-label", `About this metric`);
       btn.setAttribute("data-info-tooltip", metricId);
       btn.textContent = "\u2139";
-      btn.addEventListener("pointerenter", () => {
-        showInfoTooltip(btn, explanation);
-      }, { signal });
-      btn.addEventListener("pointerleave", () => {
-        dismissAllTooltips();
-      }, { signal });
-      btn.addEventListener("click", (e2) => {
-        e2.stopPropagation();
-        const existing2 = document.querySelector(".info-tooltip");
-        if (existing2) {
-          dismissAllTooltips();
-        } else {
+      btn.addEventListener(
+        "pointerenter",
+        () => {
           showInfoTooltip(btn, explanation);
-          requestAnimationFrame(() => {
-            const dismissOnce = () => {
-              dismissAllTooltips();
-              document.removeEventListener("click", dismissOnce);
-            };
-            document.addEventListener("click", dismissOnce);
-          });
-        }
-      }, { signal });
+        },
+        { signal }
+      );
+      btn.addEventListener(
+        "pointerleave",
+        () => {
+          dismissAllTooltips();
+        },
+        { signal }
+      );
+      btn.addEventListener(
+        "click",
+        (e2) => {
+          e2.stopPropagation();
+          const existing2 = document.querySelector(".info-tooltip");
+          if (existing2) {
+            dismissAllTooltips();
+          } else {
+            showInfoTooltip(btn, explanation);
+            requestAnimationFrame(() => {
+              const dismissOnce = () => {
+                dismissAllTooltips();
+                document.removeEventListener("click", dismissOnce);
+              };
+              document.addEventListener("click", dismissOnce);
+            });
+          }
+        },
+        { signal }
+      );
       infoIconControllers.set(btn, controller);
       title.appendChild(btn);
     }
@@ -6471,7 +6489,12 @@ var PRInsightsDashboard = (() => {
     if (!rollups || !rollups.length) {
       const classification = options ? classifyEmptyState({
         chartType: "throughput",
-        filters: options.filters ?? { repos: [], teams: [], reviewers: [], authors: [] },
+        filters: options.filters ?? {
+          repos: [],
+          teams: [],
+          reviewers: [],
+          authors: []
+        },
         unfilteredRollups: options.unfilteredRollups ?? [],
         filteredRollups: rollups ?? [],
         availability: options.availability ?? {
@@ -6509,7 +6532,10 @@ var PRInsightsDashboard = (() => {
         `;
     }).join("");
     const trendResult = renderTrendLine(displayRollups, movingAvg, maxCount);
-    const truncationHtml = renderTruncationIndicator(truncated, MAX_THROUGHPUT_POINTS);
+    const truncationHtml = renderTruncationIndicator(
+      truncated,
+      MAX_THROUGHPUT_POINTS
+    );
     const trendLegendItem = trendResult.rendered ? `<div class="legend-item"><span class="legend-line"></span><span>4-week avg</span></div>` : `<div class="legend-item legend-insufficient"><span class="legend-line dimmed"></span><span>4-week avg \u2014 needs 4+ weeks</span></div>`;
     const legendHtml = `
         <div class="chart-legend">
@@ -6576,7 +6602,12 @@ var PRInsightsDashboard = (() => {
     if (!distributions || !distributions.length) {
       const classification = options ? classifyEmptyState({
         chartType: "cycle_time_distribution",
-        filters: options.filters ?? { repos: [], teams: [], reviewers: [], authors: [] },
+        filters: options.filters ?? {
+          repos: [],
+          teams: [],
+          reviewers: [],
+          authors: []
+        },
         unfilteredRollups: options.unfilteredRollups ?? [],
         filteredRollups: options.unfilteredRollups ?? [],
         // Use unfiltered as proxy — distribution data is not dimension-filtered
@@ -6612,7 +6643,11 @@ var PRInsightsDashboard = (() => {
     });
     const total = Array.from(buckets.values()).reduce((a2, b2) => a2 + b2, 0);
     if (total === 0) {
-      renderNoData(container, "No cycle time data", "Try widening the date range or adjusting repository/team filters.");
+      renderNoData(
+        container,
+        "No cycle time data",
+        "Try widening the date range or adjusting repository/team filters."
+      );
       return;
     }
     const html = Array.from(buckets.entries()).map(([label, count]) => {
@@ -6637,7 +6672,12 @@ var PRInsightsDashboard = (() => {
     if (!rollups || rollups.length < 2) {
       const classification = options ? classifyEmptyState({
         chartType: "cycle_time_trend",
-        filters: options.filters ?? { repos: [], teams: [], reviewers: [], authors: [] },
+        filters: options.filters ?? {
+          repos: [],
+          teams: [],
+          reviewers: [],
+          authors: []
+        },
         unfilteredRollups: options.unfilteredRollups ?? [],
         filteredRollups: rollups ?? [],
         availability: options.availability ?? {
@@ -6726,17 +6766,28 @@ var PRInsightsDashboard = (() => {
     `;
     const legendItems = [];
     if (p50Path) {
-      legendItems.push(`<div class="legend-item"><span class="chart-tooltip-dot legend-p50"></span><span>P50 (Median)</span></div>`);
+      legendItems.push(
+        `<div class="legend-item"><span class="chart-tooltip-dot legend-p50"></span><span>P50 (Median)</span></div>`
+      );
     } else if (p50Data.length > 0) {
-      legendItems.push(`<div class="legend-item legend-insufficient"><span class="chart-tooltip-dot legend-p50 dimmed"></span><span>P50 (Median) \u2014 insufficient points</span></div>`);
+      legendItems.push(
+        `<div class="legend-item legend-insufficient"><span class="chart-tooltip-dot legend-p50 dimmed"></span><span>P50 (Median) \u2014 insufficient points</span></div>`
+      );
     }
     if (p90Path) {
-      legendItems.push(`<div class="legend-item"><span class="chart-tooltip-dot legend-p90"></span><span>P90</span></div>`);
+      legendItems.push(
+        `<div class="legend-item"><span class="chart-tooltip-dot legend-p90"></span><span>P90</span></div>`
+      );
     } else if (p90Data.length > 0) {
-      legendItems.push(`<div class="legend-item legend-insufficient"><span class="chart-tooltip-dot legend-p90 dimmed"></span><span>P90 \u2014 insufficient points</span></div>`);
+      legendItems.push(
+        `<div class="legend-item legend-insufficient"><span class="chart-tooltip-dot legend-p90 dimmed"></span><span>P90 \u2014 insufficient points</span></div>`
+      );
     }
     const legendHtml = `<div class="chart-legend">${legendItems.join("")}</div>`;
-    const truncationHtml = renderTruncationIndicator(truncated, MAX_CYCLE_TIME_POINTS);
+    const truncationHtml = renderTruncationIndicator(
+      truncated,
+      MAX_CYCLE_TIME_POINTS
+    );
     renderTrustedHtml(
       container,
       `${truncationHtml}<div class="line-chart">${svgContent}</div>${legendHtml}`
@@ -6766,7 +6817,11 @@ var PRInsightsDashboard = (() => {
     let weeksWithData = 0;
     for (const rollup of rollups) {
       if (!rollup.by_reviewer || typeof rollup.by_reviewer !== "object") continue;
-      const reviewerMap = new Map(Object.entries(rollup.by_reviewer));
+      const reviewerMap = new Map(
+        Object.entries(
+          rollup.by_reviewer
+        )
+      );
       let weekContributed = false;
       for (const id of reviewerIds) {
         const entry = reviewerMap.get(id);
@@ -6794,7 +6849,12 @@ var PRInsightsDashboard = (() => {
     if (!rollups || !rollups.length) {
       const classification = options.availability ? classifyEmptyState({
         chartType: "reviewer_activity",
-        filters: options.filters ?? { repos: [], teams: [], reviewers: [], authors: [] },
+        filters: options.filters ?? {
+          repos: [],
+          teams: [],
+          reviewers: [],
+          authors: []
+        },
         unfilteredRollups: options.unfilteredRollups ?? [],
         filteredRollups: rollups ?? [],
         availability: options.availability,
@@ -6816,7 +6876,12 @@ var PRInsightsDashboard = (() => {
     if (maxReviewers === 0) {
       const classification = options.availability ? classifyEmptyState({
         chartType: "reviewer_activity",
-        filters: options.filters ?? { repos: [], teams: [], reviewers: [], authors: [] },
+        filters: options.filters ?? {
+          repos: [],
+          teams: [],
+          reviewers: [],
+          authors: []
+        },
         unfilteredRollups: options.unfilteredRollups ?? [],
         filteredRollups: rollups,
         availability: options.availability,
@@ -6846,12 +6911,18 @@ var PRInsightsDashboard = (() => {
             </div>
         `;
     }).join("");
-    const truncationHtml = renderTruncationIndicator(truncated, MAX_REVIEWER_WEEKS);
+    const truncationHtml = renderTruncationIndicator(
+      truncated,
+      MAX_REVIEWER_WEEKS
+    );
     let approvalHtml = "";
     if (reviewerFilterActive) {
       const firstReviewer = options.filters?.reviewers?.[0];
       const reviewerIds = firstReviewer ? [firstReviewer] : [];
-      const { rate: approvalRate, weeksWithData } = computeApprovalRate(recentRollups, reviewerIds);
+      const { rate: approvalRate, weeksWithData } = computeApprovalRate(
+        recentRollups,
+        reviewerIds
+      );
       const coverageLabel = weeksWithData > 0 ? `(from ${weeksWithData} ${weeksWithData === 1 ? "week" : "weeks"} of data)` : "";
       if (approvalRate !== null) {
         const pct = Math.round(approvalRate * 100);
@@ -7051,10 +7122,14 @@ var PRInsightsDashboard = (() => {
         remove.type = "button";
         remove.setAttribute("aria-label", `Remove ${opt.displayName}`);
         remove.textContent = "\xD7";
-        remove.addEventListener("click", (e2) => {
-          e2.stopPropagation();
-          deselectOption(id);
-        }, { signal });
+        remove.addEventListener(
+          "click",
+          (e2) => {
+            e2.stopPropagation();
+            deselectOption(id);
+          },
+          { signal }
+        );
         chip.appendChild(label);
         chip.appendChild(remove);
         chipsArea.appendChild(chip);
@@ -7074,7 +7149,10 @@ var PRInsightsDashboard = (() => {
         const item = document.createElement("div");
         item.className = "typeahead-option";
         item.setAttribute("role", "option");
-        item.setAttribute("aria-selected", selected.includes(opt.id) ? "true" : "false");
+        item.setAttribute(
+          "aria-selected",
+          selected.includes(opt.id) ? "true" : "false"
+        );
         item.setAttribute("data-testid", `typeahead-option-${opt.id}`);
         item.dataset.optionId = opt.id;
         if (selected.includes(opt.id)) {
@@ -7104,10 +7182,14 @@ var PRInsightsDashboard = (() => {
         } else {
           item.textContent = opt.displayName;
         }
-        item.addEventListener("pointerdown", (e2) => {
-          e2.preventDefault();
-          toggleOption(opt.id);
-        }, { signal });
+        item.addEventListener(
+          "pointerdown",
+          (e2) => {
+            e2.preventDefault();
+            toggleOption(opt.id);
+          },
+          { signal }
+        );
         dropdown.appendChild(item);
       });
     }
@@ -7206,58 +7288,78 @@ var PRInsightsDashboard = (() => {
         updateInputDisplay();
       }
     }
-    input.addEventListener("focus", () => {
-      if (config.mode === "single") {
-        input.value = "";
-      }
-      openDropdown();
-    }, { signal });
-    input.addEventListener("blur", () => {
-      requestAnimationFrame(() => {
-        closeDropdown();
-      });
-    }, { signal });
-    input.addEventListener("input", () => {
-      if (debounceTimer !== null) clearTimeout(debounceTimer);
-      debounceTimer = setTimeout(() => {
-        filterOptions(input.value);
-        if (!isOpen) openDropdown();
-      }, DEBOUNCE_MS);
-    }, { signal });
-    input.addEventListener("keydown", (e2) => {
-      const items = dropdown.querySelectorAll(".typeahead-option");
-      if (e2.key === "ArrowDown") {
-        e2.preventDefault();
-        highlightIndex = Math.min(highlightIndex + 1, items.length - 1);
-        updateHighlight(items);
-      } else if (e2.key === "ArrowUp") {
-        e2.preventDefault();
-        highlightIndex = Math.max(highlightIndex - 1, 0);
-        updateHighlight(items);
-      } else if (e2.key === "Enter") {
-        e2.preventDefault();
-        if (debounceTimer !== null) {
-          clearTimeout(debounceTimer);
-          debounceTimer = null;
+    input.addEventListener(
+      "focus",
+      () => {
+        if (config.mode === "single") {
+          input.value = "";
+        }
+        openDropdown();
+      },
+      { signal }
+    );
+    input.addEventListener(
+      "blur",
+      () => {
+        requestAnimationFrame(() => {
+          closeDropdown();
+        });
+      },
+      { signal }
+    );
+    input.addEventListener(
+      "input",
+      () => {
+        if (debounceTimer !== null) clearTimeout(debounceTimer);
+        debounceTimer = setTimeout(() => {
           filterOptions(input.value);
+          if (!isOpen) openDropdown();
+        }, DEBOUNCE_MS);
+      },
+      { signal }
+    );
+    input.addEventListener(
+      "keydown",
+      (e2) => {
+        const items = dropdown.querySelectorAll(".typeahead-option");
+        if (e2.key === "ArrowDown") {
+          e2.preventDefault();
+          highlightIndex = Math.min(highlightIndex + 1, items.length - 1);
+          updateHighlight(items);
+        } else if (e2.key === "ArrowUp") {
+          e2.preventDefault();
+          highlightIndex = Math.max(highlightIndex - 1, 0);
+          updateHighlight(items);
+        } else if (e2.key === "Enter") {
+          e2.preventDefault();
+          if (debounceTimer !== null) {
+            clearTimeout(debounceTimer);
+            debounceTimer = null;
+            filterOptions(input.value);
+          }
+          if (highlightIndex >= 0 && highlightIndex < filteredOptions.length) {
+            const opt = filteredOptions.at(highlightIndex);
+            if (opt) toggleOption(opt.id);
+          }
+        } else if (e2.key === "Escape") {
+          closeDropdown();
+          input.blur();
+        } else if (e2.key === "Backspace" && input.value === "" && config.mode === "multi" && selected.length > 0) {
+          const last = selected[selected.length - 1];
+          if (last) deselectOption(last);
         }
-        if (highlightIndex >= 0 && highlightIndex < filteredOptions.length) {
-          const opt = filteredOptions.at(highlightIndex);
-          if (opt) toggleOption(opt.id);
+      },
+      { signal }
+    );
+    document.addEventListener(
+      "pointerdown",
+      (e2) => {
+        if (!container.contains(e2.target)) {
+          closeDropdown();
         }
-      } else if (e2.key === "Escape") {
-        closeDropdown();
-        input.blur();
-      } else if (e2.key === "Backspace" && input.value === "" && config.mode === "multi" && selected.length > 0) {
-        const last = selected[selected.length - 1];
-        if (last) deselectOption(last);
-      }
-    }, { signal });
-    document.addEventListener("pointerdown", (e2) => {
-      if (!container.contains(e2.target)) {
-        closeDropdown();
-      }
-    }, { signal });
+      },
+      { signal }
+    );
     function updateHighlight(items) {
       items.forEach((item, i2) => {
         item.classList.toggle(
@@ -7866,7 +7968,9 @@ var PRInsightsDashboard = (() => {
     elementLists.tabs = document.querySelectorAll(".tab");
     metricsSection = document.getElementById("tab-metrics");
     metricsStatusEl = document.getElementById("metrics-status");
-    const summaryCards = document.querySelector(".summary-cards");
+    const summaryCards = document.querySelector(
+      ".summary-cards"
+    );
     const chartContainers = Array.from(
       document.querySelectorAll(".chart-container")
     );
@@ -8118,11 +8222,15 @@ var PRInsightsDashboard = (() => {
     });
   }
   function renderThroughputChart2(rollups, unfilteredRollups, availability) {
-    renderThroughputChart(elements.get("throughput-chart") ?? null, rollups, {
-      filters: currentFilters,
-      unfilteredRollups,
-      availability
-    });
+    renderThroughputChart(
+      elements.get("throughput-chart") ?? null,
+      rollups,
+      {
+        filters: currentFilters,
+        unfilteredRollups,
+        availability
+      }
+    );
   }
   function renderCycleDistribution2(distributions, unfilteredRollups, availability) {
     renderCycleDistribution(
@@ -8136,19 +8244,27 @@ var PRInsightsDashboard = (() => {
     );
   }
   function renderCycleTimeTrend2(rollups, unfilteredRollups, availability) {
-    renderCycleTimeTrend(elements.get("cycle-time-trend") ?? null, rollups, {
-      filters: currentFilters,
-      unfilteredRollups,
-      availability
-    });
+    renderCycleTimeTrend(
+      elements.get("cycle-time-trend") ?? null,
+      rollups,
+      {
+        filters: currentFilters,
+        unfilteredRollups,
+        availability
+      }
+    );
   }
   function renderReviewerActivity2(rollups, unfilteredRollups, availability) {
-    renderReviewerActivity(elements.get("reviewer-activity") ?? null, rollups, {
-      reviewerFilterActive: currentFilters.reviewers.length > 0,
-      filters: currentFilters,
-      unfilteredRollups,
-      availability
-    });
+    renderReviewerActivity(
+      elements.get("reviewer-activity") ?? null,
+      rollups,
+      {
+        reviewerFilterActive: currentFilters.reviewers.length > 0,
+        filters: currentFilters,
+        unfilteredRollups,
+        availability
+      }
+    );
   }
   function toArtifactLoadResult(loaderResult, artifactPath) {
     if (!loaderResult) {
@@ -8324,7 +8440,10 @@ var PRInsightsDashboard = (() => {
     restoreFiltersFromUrl();
   }
   function applyFilterState(raw, lastChanged) {
-    const { effectiveState, constraintsApplied } = resolveFilterConstraints(raw, lastChanged);
+    const { effectiveState, constraintsApplied } = resolveFilterConstraints(
+      raw,
+      lastChanged
+    );
     const reviewerNotice = constraintsApplied.find(
       (n2) => n2.type === "author_reviewer" || n2.type === "reviewer_team" || n2.type === "reviewer_repo"
     );
@@ -8339,12 +8458,15 @@ var PRInsightsDashboard = (() => {
     void refreshMetrics();
   }
   function handleTypeaheadFilterChange(lastChanged) {
-    applyFilterState({
-      repos: typeaheadRepo?.getSelected() ?? [],
-      teams: typeaheadTeam?.getSelected() ?? [],
-      reviewers: typeaheadReviewer?.getSelected() ?? [],
-      authors: typeaheadAuthor?.getSelected() ?? []
-    }, lastChanged);
+    applyFilterState(
+      {
+        repos: typeaheadRepo?.getSelected() ?? [],
+        teams: typeaheadTeam?.getSelected() ?? [],
+        reviewers: typeaheadReviewer?.getSelected() ?? [],
+        authors: typeaheadAuthor?.getSelected() ?? []
+      },
+      lastChanged
+    );
   }
   function clearAllFilters() {
     applyFilterState({ repos: [], teams: [], reviewers: [], authors: [] });
@@ -8421,9 +8543,7 @@ var PRInsightsDashboard = (() => {
   }
   function getFilterLabel(type, value) {
     if (type === "repo") {
-      return currentDimensions?.repositories?.find(
-        (r2) => r2.repository_name === value
-      )?.repository_name ?? value;
+      return currentDimensions?.repositories?.find((r2) => r2.repository_name === value)?.repository_name ?? value;
     }
     if (type === "team") {
       return currentDimensions?.teams?.find((t2) => t2.team_name === value)?.team_name ?? value;
@@ -8448,10 +8568,7 @@ var PRInsightsDashboard = (() => {
   function updateMetricLabels() {
     const reviewerMode = currentFilters.reviewers.length > 0;
     const authorTeamConstrained = currentFilters.authors.length > 0 && currentFilters.teams.length > 0;
-    elements.get("author-filter-notice")?.classList.toggle(
-      "hidden",
-      !authorTeamConstrained
-    );
+    elements.get("author-filter-notice")?.classList.toggle("hidden", !authorTeamConstrained);
     const reviewerNotice = elements.get("reviewer-filter-notice");
     if (reviewerNotice) {
       if (reviewerFilterNoticeMessage) {
@@ -8543,10 +8660,16 @@ var PRInsightsDashboard = (() => {
       const parsedStart = new Date(startParam);
       const parsedEnd = new Date(endParam);
       if (isNaN(parsedStart.getTime()) || isNaN(parsedEnd.getTime())) {
-        console.debug("Invalid date params in URL, ignoring:", startParam, endParam);
+        console.debug(
+          "Invalid date params in URL, ignoring:",
+          startParam,
+          endParam
+        );
       } else {
         currentDateRange = { start: parsedStart, end: parsedEnd };
-        const dateRangeEl = elements.get("date-range");
+        const dateRangeEl = elements.get(
+          "date-range"
+        );
         if (dateRangeEl) {
           dateRangeEl.value = "custom";
           elements.get("custom-dates")?.classList.remove("hidden");

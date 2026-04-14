@@ -23,7 +23,8 @@ import {
 // Test credentials for ArtifactClient.initialize()
 const TEST_COLLECTION_URI = "https://dev.azure.com/test-org/";
 const TEST_AUTH_TOKEN = "mock-access-token-12345";
-const TEST_TOKEN_PROVIDER = (): Promise<string> => Promise.resolve(TEST_AUTH_TOKEN);
+const TEST_TOKEN_PROVIDER = (): Promise<string> =>
+  Promise.resolve(TEST_AUTH_TOKEN);
 
 describe("ArtifactClient", () => {
   let mockFetch: jest.Mock;
@@ -69,7 +70,10 @@ describe("ArtifactClient", () => {
 
     it("sets auth token and collection URI on initialize()", async () => {
       const client = new ArtifactClient("test-project");
-      const result = await client.initialize(TEST_COLLECTION_URI, TEST_TOKEN_PROVIDER);
+      const result = await client.initialize(
+        TEST_COLLECTION_URI,
+        TEST_TOKEN_PROVIDER,
+      );
 
       expect(result).toBe(client); // Returns this for chaining
     });
@@ -95,14 +99,16 @@ describe("ArtifactClient", () => {
 
     it("only initializes once (idempotent)", async () => {
       const client = new ArtifactClient("test-project");
-      const otherProvider = (): Promise<string> => Promise.resolve("other-token");
+      const otherProvider = (): Promise<string> =>
+        Promise.resolve("other-token");
 
       await client.initialize(TEST_COLLECTION_URI, TEST_TOKEN_PROVIDER);
       await client.initialize("https://other.com/", otherProvider);
 
       // First values are preserved — second call is a no-op
       expect(
-        (client as unknown as { tokenProvider: (() => Promise<string>) | null }).tokenProvider,
+        (client as unknown as { tokenProvider: (() => Promise<string>) | null })
+          .tokenProvider,
       ).toBe(TEST_TOKEN_PROVIDER);
       expect(
         (client as unknown as { collectionUri?: string }).collectionUri,
@@ -112,7 +118,8 @@ describe("ArtifactClient", () => {
 
   describe("token provider per-request resolution", () => {
     it("calls token provider on each request", async () => {
-      const provider = jest.fn<Promise<string>, []>()
+      const provider = jest
+        .fn<Promise<string>, []>()
         .mockResolvedValue(TEST_AUTH_TOKEN);
       const client = new ArtifactClient("test-project");
       await client.initialize(TEST_COLLECTION_URI, provider);
@@ -159,8 +166,14 @@ describe("ArtifactClient", () => {
       expect(provider).toHaveBeenCalledTimes(2);
 
       // Verify different tokens were used in the Authorization headers
-      const headers1 = mockFetch.mock.calls[0]![1].headers as Record<string, string>;
-      const headers2 = mockFetch.mock.calls[1]![1].headers as Record<string, string>;
+      const headers1 = mockFetch.mock.calls[0]![1].headers as Record<
+        string,
+        string
+      >;
+      const headers2 = mockFetch.mock.calls[1]![1].headers as Record<
+        string,
+        string
+      >;
       expect(headers1.Authorization).toBe("Bearer token-1");
       expect(headers2.Authorization).toBe("Bearer token-2");
     });

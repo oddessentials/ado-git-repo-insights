@@ -44,7 +44,9 @@ function mockFetch500() {
   return Promise.resolve({ ok: false, status: 500 } as Response);
 }
 
-type RollupContext = Parameters<DatasetLoader["getWeeklyRollupsWithProgress"]>[2];
+type RollupContext = Parameters<
+  DatasetLoader["getWeeklyRollupsWithProgress"]
+>[2];
 
 class TestDatasetLoader extends DatasetLoader {
   setManifest(manifest: Partial<ManifestSchema>): void {
@@ -267,7 +269,7 @@ describe("Phase 4: Chunked Loading", () => {
 
   describe("getWeeklyRollupsWithProgress", () => {
     it("returns explicit missingWeeks[] for 404s", async () => {
-      globalScope.fetch = (jest.fn((url: string) => {
+      globalScope.fetch = jest.fn((url: string) => {
         if (url.includes("2026-W02")) return mockFetch404();
         if (url.includes("2026-W04")) return mockFetch404();
         const weekMatch = url.match(/(2026-W\d+)/);
@@ -275,7 +277,7 @@ describe("Phase 4: Chunked Loading", () => {
           week: weekMatch ? weekMatch[1] : "2026-W01",
           pr_count: 10,
         });
-      }) as unknown as typeof fetch);
+      }) as unknown as typeof fetch;
 
       const context: RollupContext = {
         org: "test",
@@ -295,14 +297,14 @@ describe("Phase 4: Chunked Loading", () => {
     });
 
     it("returns explicit failedWeeks[] for 5xx after retry", async () => {
-      globalScope.fetch = (jest.fn((url: string) => {
+      globalScope.fetch = jest.fn((url: string) => {
         if (url.includes("2026-W03")) return mockFetch500();
         const weekMatch = url.match(/(2026-W\d+)/);
         return mockFetchResponse({
           week: weekMatch ? weekMatch[1] : "2026-W01",
           pr_count: 10,
         });
-      }) as unknown as typeof fetch);
+      }) as unknown as typeof fetch;
 
       const context: RollupContext = {
         org: "test",
@@ -322,7 +324,9 @@ describe("Phase 4: Chunked Loading", () => {
     });
 
     it("throws AUTH_REQUIRED if authError && data.length === 0", async () => {
-      globalScope.fetch = jest.fn(() => mockFetch401()) as unknown as typeof fetch;
+      globalScope.fetch = jest.fn(() =>
+        mockFetch401(),
+      ) as unknown as typeof fetch;
 
       const context: RollupContext = {
         org: "test",
@@ -340,13 +344,13 @@ describe("Phase 4: Chunked Loading", () => {
     });
 
     it("returns degraded state if partial auth success", async () => {
-      globalScope.fetch = (jest.fn((url: string) => {
+      globalScope.fetch = jest.fn((url: string) => {
         if (url.includes("2026-W01"))
           return mockFetchResponse({ week: "2026-W01", pr_count: 10 });
         if (url.includes("2026-W02"))
           return mockFetchResponse({ week: "2026-W02", pr_count: 15 });
         return mockFetch403();
-      }) as unknown as typeof fetch);
+      }) as unknown as typeof fetch;
 
       const context: RollupContext = {
         org: "test",
@@ -365,13 +369,13 @@ describe("Phase 4: Chunked Loading", () => {
     });
 
     it("calls onProgress with correct semantics", async () => {
-      globalScope.fetch = (jest.fn((url: string) => {
+      globalScope.fetch = jest.fn((url: string) => {
         const weekMatch = url.match(/(2026-W\d+)/);
         return mockFetchResponse({
           week: weekMatch ? weekMatch[1] : "2026-W01",
           pr_count: 10,
         });
-      }) as unknown as typeof fetch);
+      }) as unknown as typeof fetch;
 
       const progressCalls: ProgressEvent[] = [];
       const onProgress = (progress: ProgressEvent) =>
@@ -400,7 +404,7 @@ describe("Phase 4: Chunked Loading", () => {
 
     it("retries go through semaphore", async () => {
       let retryCount = 0;
-      globalScope.fetch = (jest.fn((url: string) => {
+      globalScope.fetch = jest.fn((url: string) => {
         if (url.includes("2026-W02") && retryCount === 0) {
           retryCount++;
           return mockFetch500();
@@ -410,7 +414,7 @@ describe("Phase 4: Chunked Loading", () => {
           week: match ? match[0] : "W01",
           pr_count: 10,
         });
-      }) as unknown as typeof fetch);
+      }) as unknown as typeof fetch;
 
       const originalAcquire = fetchSemaphore.acquire.bind(fetchSemaphore);
       const acquireSpy = jest
@@ -448,7 +452,7 @@ describe("Phase 4: Chunked Loading", () => {
         delays.push(Math.floor(seededRandom() * 100));
       }
 
-      globalScope.fetch = (jest.fn((url: string) => {
+      globalScope.fetch = jest.fn((url: string) => {
         const weekMatch = url.match(/W(\d+)/);
         const weekNum = weekMatch ? parseInt(weekMatch[1]!) : 1;
         const delay = delays[weekNum - 1] || 0;
@@ -464,7 +468,7 @@ describe("Phase 4: Chunked Loading", () => {
             );
           }, delay);
         });
-      }) as unknown as typeof fetch);
+      }) as unknown as typeof fetch;
 
       const context: RollupContext = {
         org: "test",

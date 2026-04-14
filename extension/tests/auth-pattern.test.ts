@@ -11,14 +11,12 @@
  */
 
 import { ArtifactClient } from "../ui/artifact-client";
-import {
-  setupSdkMocks,
-  teardownSdkMocks,
-} from "./harness/vss-sdk-mock";
+import { setupSdkMocks, teardownSdkMocks } from "./harness/vss-sdk-mock";
 
 const TEST_COLLECTION_URI = "https://dev.azure.com/test-org/";
 const TEST_AUTH_TOKEN = "test-bearer-token-abc123";
-const TEST_TOKEN_PROVIDER = (): Promise<string> => Promise.resolve(TEST_AUTH_TOKEN);
+const TEST_TOKEN_PROVIDER = (): Promise<string> =>
+  Promise.resolve(TEST_AUTH_TOKEN);
 
 describe("ArtifactClient Authentication Pattern", () => {
   let originalFetch: typeof fetch;
@@ -47,7 +45,8 @@ describe("ArtifactClient Authentication Pattern", () => {
       await client.initialize(TEST_COLLECTION_URI, TEST_TOKEN_PROVIDER);
 
       expect(
-        (client as unknown as { tokenProvider: (() => Promise<string>) | null }).tokenProvider,
+        (client as unknown as { tokenProvider: (() => Promise<string>) | null })
+          .tokenProvider,
       ).toBe(TEST_TOKEN_PROVIDER);
       expect(
         (client as unknown as { collectionUri?: string }).collectionUri,
@@ -56,13 +55,15 @@ describe("ArtifactClient Authentication Pattern", () => {
 
     it("is idempotent — second call is a no-op", async () => {
       const client = new ArtifactClient("test-project-id");
-      const otherProvider = (): Promise<string> => Promise.resolve("other-token");
+      const otherProvider = (): Promise<string> =>
+        Promise.resolve("other-token");
       await client.initialize(TEST_COLLECTION_URI, TEST_TOKEN_PROVIDER);
       await client.initialize("https://other.com/", otherProvider);
 
       // First values are preserved
       expect(
-        (client as unknown as { tokenProvider: (() => Promise<string>) | null }).tokenProvider,
+        (client as unknown as { tokenProvider: (() => Promise<string>) | null })
+          .tokenProvider,
       ).toBe(TEST_TOKEN_PROVIDER);
     });
   });

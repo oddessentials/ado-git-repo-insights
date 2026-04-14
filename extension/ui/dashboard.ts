@@ -135,9 +135,13 @@ const SETTINGS_KEY_PROJECT = "pr-insights-source-project";
 const SETTINGS_KEY_PIPELINE = "pr-insights-pipeline-id";
 
 // Cached data service — resolved once per session (matches settings.ts pattern)
-let cachedDataService: Awaited<ReturnType<typeof getExtensionDataService>> | null = null;
+let cachedDataService: Awaited<
+  ReturnType<typeof getExtensionDataService>
+> | null = null;
 
-async function getDataService(): Promise<Awaited<ReturnType<typeof getExtensionDataService>>> {
+async function getDataService(): Promise<
+  Awaited<ReturnType<typeof getExtensionDataService>>
+> {
   if (!cachedDataService) {
     cachedDataService = await getExtensionDataService();
   }
@@ -696,7 +700,9 @@ function cacheElements(): void {
   metricsSection = document.getElementById("tab-metrics");
   metricsStatusEl = document.getElementById("metrics-status");
 
-  const summaryCards = document.querySelector(".summary-cards") as HTMLElement | null;
+  const summaryCards = document.querySelector(
+    ".summary-cards",
+  ) as HTMLElement | null;
   const chartContainers = Array.from(
     document.querySelectorAll(".chart-container"),
   ) as HTMLElement[];
@@ -745,7 +751,9 @@ function setupEventListeners(): void {
   // (wired in populateFilterDropdowns → initTypeaheadDropdown)
   elements.get("clear-filters")?.addEventListener("click", clearAllFilters);
 
-  elements.get("compare-toggle")?.addEventListener("click", toggleComparisonMode);
+  elements
+    .get("compare-toggle")
+    ?.addEventListener("click", toggleComparisonMode);
   elements.get("exit-compare")?.addEventListener("click", exitComparisonMode);
 
   elements.get("export-btn")?.addEventListener("click", toggleExportMenu);
@@ -1167,11 +1175,15 @@ function renderThroughputChart(
   unfilteredRollups?: Rollup[],
   availability?: DataAvailabilitySignal,
 ): void {
-  renderThroughputChartModule(elements.get("throughput-chart") ?? null, rollups, {
-    filters: currentFilters,
-    unfilteredRollups,
-    availability,
-  });
+  renderThroughputChartModule(
+    elements.get("throughput-chart") ?? null,
+    rollups,
+    {
+      filters: currentFilters,
+      unfilteredRollups,
+      availability,
+    },
+  );
 }
 
 /**
@@ -1203,11 +1215,15 @@ function renderCycleTimeTrend(
   unfilteredRollups?: Rollup[],
   availability?: DataAvailabilitySignal,
 ): void {
-  renderCycleTimeTrendModule(elements.get("cycle-time-trend") ?? null, rollups, {
-    filters: currentFilters,
-    unfilteredRollups,
-    availability,
-  });
+  renderCycleTimeTrendModule(
+    elements.get("cycle-time-trend") ?? null,
+    rollups,
+    {
+      filters: currentFilters,
+      unfilteredRollups,
+      availability,
+    },
+  );
 }
 
 /**
@@ -1219,12 +1235,16 @@ function renderReviewerActivity(
   unfilteredRollups?: Rollup[],
   availability?: DataAvailabilitySignal,
 ): void {
-  renderReviewerActivityModule(elements.get("reviewer-activity") ?? null, rollups, {
-    reviewerFilterActive: currentFilters.reviewers.length > 0,
-    filters: currentFilters,
-    unfilteredRollups,
-    availability,
-  });
+  renderReviewerActivityModule(
+    elements.get("reviewer-activity") ?? null,
+    rollups,
+    {
+      reviewerFilterActive: currentFilters.reviewers.length > 0,
+      filters: currentFilters,
+      unfilteredRollups,
+      availability,
+    },
+  );
 }
 
 // addChartTooltips is now imported from "./modules/charts"
@@ -1513,8 +1533,10 @@ function applyFilterState(
   lastChanged?: FilterDimension,
 ): void {
   // 1. Resolve constraints (single authority, FR-010)
-  const { effectiveState, constraintsApplied } =
-    resolveFilterConstraints(raw, lastChanged);
+  const { effectiveState, constraintsApplied } = resolveFilterConstraints(
+    raw,
+    lastChanged,
+  );
 
   // 2. Derive notice state (always derived from resolver output, never stored)
   const reviewerNotice = constraintsApplied.find(
@@ -1549,12 +1571,15 @@ function applyFilterState(
  * Reads raw state from typeaheads and delegates to applyFilterState.
  */
 function handleTypeaheadFilterChange(lastChanged?: FilterDimension): void {
-  applyFilterState({
-    repos: typeaheadRepo?.getSelected() ?? [],
-    teams: typeaheadTeam?.getSelected() ?? [],
-    reviewers: typeaheadReviewer?.getSelected() ?? [],
-    authors: typeaheadAuthor?.getSelected() ?? [],
-  }, lastChanged);
+  applyFilterState(
+    {
+      repos: typeaheadRepo?.getSelected() ?? [],
+      teams: typeaheadTeam?.getSelected() ?? [],
+      reviewers: typeaheadReviewer?.getSelected() ?? [],
+      authors: typeaheadAuthor?.getSelected() ?? [],
+    },
+    lastChanged,
+  );
 }
 
 /**
@@ -1670,15 +1695,14 @@ function renderFilterChips(): void {
 function getFilterLabel(type: string, value: string): string {
   if (type === "repo") {
     return (
-      currentDimensions?.repositories?.find(
-        (r) => r.repository_name === value,
-      )?.repository_name ?? value
+      currentDimensions?.repositories?.find((r) => r.repository_name === value)
+        ?.repository_name ?? value
     );
   }
   if (type === "team") {
     return (
-      currentDimensions?.teams?.find((t) => t.team_name === value)
-        ?.team_name ?? value
+      currentDimensions?.teams?.find((t) => t.team_name === value)?.team_name ??
+      value
     );
   }
   if (type === "reviewer") {
@@ -1721,10 +1745,9 @@ function updateMetricLabels(): void {
   const reviewerMode = currentFilters.reviewers.length > 0;
   const authorTeamConstrained =
     currentFilters.authors.length > 0 && currentFilters.teams.length > 0;
-  elements.get("author-filter-notice")?.classList.toggle(
-    "hidden",
-    !authorTeamConstrained,
-  );
+  elements
+    .get("author-filter-notice")
+    ?.classList.toggle("hidden", !authorTeamConstrained);
   const reviewerNotice = elements.get("reviewer-filter-notice");
   if (reviewerNotice) {
     if (reviewerFilterNoticeMessage) {
@@ -1744,7 +1767,9 @@ function updateMetricLabels(): void {
   }
   const authorsLabel = elements.get("authors-count-label");
   if (authorsLabel) {
-    authorsLabel.textContent = reviewerMode ? "Reviewed Authors" : "Contributors";
+    authorsLabel.textContent = reviewerMode
+      ? "Reviewed Authors"
+      : "Contributors";
   }
   const reviewersLabel = elements.get("reviewers-count-label");
   if (reviewersLabel) {
@@ -1752,7 +1777,9 @@ function updateMetricLabels(): void {
   }
   const activityLabel = elements.get("reviewer-activity-label");
   if (activityLabel) {
-    activityLabel.textContent = reviewerMode ? "Review Activity" : "Reviewer Activity";
+    activityLabel.textContent = reviewerMode
+      ? "Review Activity"
+      : "Reviewer Activity";
   }
 }
 
@@ -1840,10 +1867,16 @@ function restoreStateFromUrl(): void {
     const parsedEnd = new Date(endParam);
     // Reject invalid dates — fall through to default date range from manifest.
     if (isNaN(parsedStart.getTime()) || isNaN(parsedEnd.getTime())) {
-      console.debug("Invalid date params in URL, ignoring:", startParam, endParam);
+      console.debug(
+        "Invalid date params in URL, ignoring:",
+        startParam,
+        endParam,
+      );
     } else {
       currentDateRange = { start: parsedStart, end: parsedEnd };
-      const dateRangeEl = elements.get("date-range") as HTMLSelectElement | null;
+      const dateRangeEl = elements.get(
+        "date-range",
+      ) as HTMLSelectElement | null;
       if (dateRangeEl) {
         dateRangeEl.value = "custom";
         elements.get("custom-dates")?.classList.remove("hidden");
@@ -1879,7 +1912,9 @@ function toggleComparisonMode(): void {
   comparisonMode = !comparisonMode;
 
   elements.get("compare-toggle")?.classList.toggle("active", comparisonMode);
-  elements.get("comparison-banner")?.classList.toggle("hidden", !comparisonMode);
+  elements
+    .get("comparison-banner")
+    ?.classList.toggle("hidden", !comparisonMode);
 
   if (comparisonMode) {
     updateComparisonBanner();

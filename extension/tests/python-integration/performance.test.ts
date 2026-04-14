@@ -228,7 +228,10 @@ describe("Performance Baseline Tests (Simplified)", () => {
 
         // Load some rollups
         const rollups: PerfRollup[] = [];
-        for (const entry of manifest.aggregate_index.weekly_rollups.slice(0, 5)) {
+        for (const entry of manifest.aggregate_index.weekly_rollups.slice(
+          0,
+          5,
+        )) {
           const rollupPath = path.join(fixtureDir, entry.path);
           rollups.push(readJsonFile<PerfRollup>(rollupPath));
         }

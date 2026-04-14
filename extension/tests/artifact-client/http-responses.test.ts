@@ -11,10 +11,7 @@
  */
 
 import { ArtifactClient } from "../../ui/artifact-client";
-import {
-  setupSdkMocks,
-  teardownSdkMocks,
-} from "../harness/vss-sdk-mock";
+import { setupSdkMocks, teardownSdkMocks } from "../harness/vss-sdk-mock";
 
 describe("ArtifactClient HTTP Response Handling", () => {
   let mockFetch: jest.Mock;
@@ -36,9 +33,8 @@ describe("ArtifactClient HTTP Response Handling", () => {
 
     // Initialize client with token provider (resolved per-request)
     client = new ArtifactClient("test-project");
-    await client.initialize(
-      "https://dev.azure.com/test-org/",
-      () => Promise.resolve("mock-access-token-12345"),
+    await client.initialize("https://dev.azure.com/test-org/", () =>
+      Promise.resolve("mock-access-token-12345"),
     );
   });
 

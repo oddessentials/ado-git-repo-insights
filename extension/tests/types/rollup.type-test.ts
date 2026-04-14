@@ -156,7 +156,9 @@ function negativeTest_byTeamNotNumber(rollup: WeeklyRollup): void {
  * Verifies that BreakdownEntry is a strict interface, not a loose Record.
  */
 function negativeTest_noArbitraryProperties(_entry: BreakdownEntry): void {
-  expectTypeOf<BreakdownEntry>().not.toMatchTypeOf<{ nonExistentField: unknown }>();
+  expectTypeOf<BreakdownEntry>().not.toMatchTypeOf<{
+    nonExistentField: unknown;
+  }>();
 }
 
 /**
@@ -165,7 +167,9 @@ function negativeTest_noArbitraryProperties(_entry: BreakdownEntry): void {
 function negativeTest_reviewerBreakdownNoCycleTime(
   _entry: ReviewerBreakdownEntry,
 ): void {
-  expectTypeOf<ReviewerBreakdownEntry>().not.toMatchTypeOf<{ cycle_time_p50: unknown }>();
+  expectTypeOf<ReviewerBreakdownEntry>().not.toMatchTypeOf<{
+    cycle_time_p50: unknown;
+  }>();
 }
 
 // ============================================================================

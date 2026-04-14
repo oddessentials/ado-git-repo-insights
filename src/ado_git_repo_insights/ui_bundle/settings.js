@@ -306,9 +306,7 @@ var PRInsightsSettings = (() => {
         return { response, version };
       }
       if (response.status === 400 || options.isListEndpoint && response.status === 404) {
-        lastError = new Error(
-          `API api-version=${version}: ${response.status}`
-        );
+        lastError = new Error(`API api-version=${version}: ${response.status}`);
         continue;
       }
       return { response, version };
@@ -358,14 +356,12 @@ var PRInsightsSettings = (() => {
         reject(new Error("Azure DevOps SDK initialization timed out"));
       }, timeout);
     });
-    initPromise = Promise.race([initSequence(), timeoutPromise]).finally(
-      () => {
-        if (timeoutId !== void 0) {
-          clearTimeout(timeoutId);
-        }
-        initPromise = null;
+    initPromise = Promise.race([initSequence(), timeoutPromise]).finally(() => {
+      if (timeoutId !== void 0) {
+        clearTimeout(timeoutId);
       }
-    );
+      initPromise = null;
+    });
     return initPromise;
   }
   async function getExtensionDataService() {
@@ -437,9 +433,7 @@ var PRInsightsSettings = (() => {
   }
   async function getCollectionUri() {
     if (cachedCollectionUri) return cachedCollectionUri;
-    const locationService = await F(
-      LocationServiceId
-    );
+    const locationService = await F(LocationServiceId);
     const raw = await locationService.getResourceAreaLocation(
       CORE_RESOURCE_AREA_ID
     );
@@ -800,9 +794,7 @@ var PRInsightsSettings = (() => {
         throw createPermissionDeniedError("list build artifacts");
       }
       if (response.status === 404) {
-        throw new Error(
-          `Build ${buildId} not found or has been deleted`
-        );
+        throw new Error(`Build ${buildId} not found or has been deleted`);
       }
       if (!response.ok) {
         throw new Error(`Failed to list artifacts: ${response.status}`);
@@ -874,7 +866,9 @@ var PRInsightsSettings = (() => {
      */
     async _authenticatedFetch(url, options = {}) {
       if (!this.tokenProvider) {
-        throw new Error("ArtifactClient not initialized. Call initialize() first.");
+        throw new Error(
+          "ArtifactClient not initialized. Call initialize() first."
+        );
       }
       const token = await this.tokenProvider();
       const headers = {
@@ -1358,14 +1352,14 @@ var PRInsightsSettings = (() => {
       let savedProjectId = "";
       let savedPipelineId = 0;
       try {
-        savedProjectId = await dataService.getValue(
-          SETTINGS_KEY_PROJECT,
-          { scopeType: "User", defaultValue: "" }
-        ) || "";
-        savedPipelineId = await dataService.getValue(
-          SETTINGS_KEY_PIPELINE,
-          { scopeType: "User", defaultValue: 0 }
-        ) || 0;
+        savedProjectId = await dataService.getValue(SETTINGS_KEY_PROJECT, {
+          scopeType: "User",
+          defaultValue: ""
+        }) || "";
+        savedPipelineId = await dataService.getValue(SETTINGS_KEY_PIPELINE, {
+          scopeType: "User",
+          defaultValue: 0
+        }) || 0;
       } catch (readError) {
         console.warn("Could not read saved settings:", readError);
       }
@@ -1487,10 +1481,10 @@ var PRInsightsSettings = (() => {
       }
       let savedProjectId = "";
       try {
-        savedProjectId = await dataService.getValue(
-          SETTINGS_KEY_PROJECT,
-          { scopeType: "User", defaultValue: "" }
-        ) || "";
+        savedProjectId = await dataService.getValue(SETTINGS_KEY_PROJECT, {
+          scopeType: "User",
+          defaultValue: ""
+        }) || "";
       } catch {
         console.warn("Could not read saved project setting for download");
       }
@@ -1528,7 +1522,9 @@ var PRInsightsSettings = (() => {
         }
         const collectionOrigin = new URL(collectionUri).origin;
         const isCollectionHost = parsed.origin === collectionOrigin;
-        const isAzureArtifactHost = parsed.hostname.endsWith(".artifacts.visualstudio.com");
+        const isAzureArtifactHost = parsed.hostname.endsWith(
+          ".artifacts.visualstudio.com"
+        );
         if (!isCollectionHost && !isAzureArtifactHost) {
           showToast("Invalid download URL", "error");
           return;

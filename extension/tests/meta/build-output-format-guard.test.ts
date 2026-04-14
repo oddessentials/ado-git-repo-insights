@@ -75,9 +75,7 @@ describe("Build Output Format Guard", () => {
     });
 
     it("moduleResolution must be Bundler", () => {
-      expect(buildOpts.moduleResolution).toBe(
-        ts.ModuleResolutionKind.Bundler,
-      );
+      expect(buildOpts.moduleResolution).toBe(ts.ModuleResolutionKind.Bundler);
     });
   });
 

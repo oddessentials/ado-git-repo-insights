@@ -7,14 +7,12 @@
  */
 
 import { ArtifactClient } from "../ui/artifact-client";
-import {
-  setupSdkMocks,
-  teardownSdkMocks,
-} from "./harness/vss-sdk-mock";
+import { setupSdkMocks, teardownSdkMocks } from "./harness/vss-sdk-mock";
 
 const TEST_COLLECTION_URI = "https://dev.azure.com/test-org/";
 const TEST_AUTH_TOKEN = "mock-access-token-12345";
-const TEST_TOKEN_PROVIDER = (): Promise<string> => Promise.resolve(TEST_AUTH_TOKEN);
+const TEST_TOKEN_PROVIDER = (): Promise<string> =>
+  Promise.resolve(TEST_AUTH_TOKEN);
 
 /** Helper: create a mock Response with the given status. */
 function mockResponse(
@@ -52,7 +50,9 @@ describe("ArtifactClient per-endpoint-family version fallback", () => {
 
   /** Extract api-version from the Nth fetch call's URL argument. */
   function versionOfCall(n: number): string {
-    const call = mockFetch.mock.calls.at(n) as [string, ...unknown[]] | undefined;
+    const call = mockFetch.mock.calls.at(n) as
+      | [string, ...unknown[]]
+      | undefined;
     if (!call) return "no-call";
     const url = call[0];
     const match = url.match(/api-version=([^&]+)/);
@@ -233,7 +233,9 @@ describe("ArtifactClient per-endpoint-family version fallback", () => {
       mockFetch
         .mockResolvedValueOnce(mockResponse(404))
         .mockResolvedValueOnce(mockResponse(404))
-        .mockResolvedValueOnce(mockResponse(200, { value: [{ name: "aggregates" }] }));
+        .mockResolvedValueOnce(
+          mockResponse(200, { value: [{ name: "aggregates" }] }),
+        );
 
       const artifacts = await client.getArtifacts(1);
 
@@ -269,7 +271,11 @@ describe("ArtifactClient per-endpoint-family version fallback", () => {
         .mockResolvedValueOnce(mockResponse(400))
         .mockResolvedValueOnce(mockResponse(200, fileData));
 
-      const result = await client.getArtifactFile(1, "aggregates", "manifest.json");
+      const result = await client.getArtifactFile(
+        1,
+        "aggregates",
+        "manifest.json",
+      );
 
       expect(result).toEqual(fileData);
 
@@ -290,7 +296,11 @@ describe("ArtifactClient per-endpoint-family version fallback", () => {
 
       // hasArtifactFile reuses the same "artifact-file" family cache
       mockFetch.mockResolvedValueOnce(mockResponse(200));
-      const exists = await client.hasArtifactFile(1, "aggregates", "other.json");
+      const exists = await client.hasArtifactFile(
+        1,
+        "aggregates",
+        "other.json",
+      );
 
       expect(exists).toBe(true);
 
@@ -311,14 +321,19 @@ describe("ArtifactClient per-endpoint-family version fallback", () => {
 
       // Version must NOT be cached — 404 does not prove the version works
       expect(
-        (client as unknown as { resolvedApiVersions: Map<string, string> })
-          .resolvedApiVersions.get("artifact-file"),
+        (
+          client as unknown as { resolvedApiVersions: Map<string, string> }
+        ).resolvedApiVersions.get("artifact-file"),
       ).toBeUndefined();
 
       // Subsequent successful call re-probes from first version
       const fileData = { test: "found" };
       mockFetch.mockResolvedValueOnce(mockResponse(200, fileData));
-      const result = await client.getArtifactFile(1, "aggregates", "found.json");
+      const result = await client.getArtifactFile(
+        1,
+        "aggregates",
+        "found.json",
+      );
 
       expect(result).toEqual(fileData);
       expect(versionOfCall(1)).toBe("7.1");

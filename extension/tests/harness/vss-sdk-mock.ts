@@ -192,11 +192,8 @@ export function createMockExtensionDataManager(): MockExtensionDataManager {
       mockSettingsStorage.set(key, value);
       return Promise.resolve(value);
     }),
-    getDocument: jest.fn(
-      (collection: string, id: string, _options?: unknown) =>
-        Promise.resolve(
-          mockSettingsStorage.get(`${collection}:${id}`) ?? null,
-        ),
+    getDocument: jest.fn((collection: string, id: string, _options?: unknown) =>
+      Promise.resolve(mockSettingsStorage.get(`${collection}:${id}`) ?? null),
     ),
     setDocument: jest.fn(
       (collection: string, doc: { id: string }, _options?: unknown) => {
@@ -216,15 +213,13 @@ export function createMockExtensionDataManager(): MockExtensionDataManager {
         return Promise.resolve();
       },
     ),
-    getDocuments: jest.fn(
-      (_collection: string, _options?: unknown) => Promise.resolve([]),
+    getDocuments: jest.fn((_collection: string, _options?: unknown) =>
+      Promise.resolve([]),
     ),
     queryCollectionsByName: jest.fn((_collectionNames: string[]) =>
       Promise.resolve([]),
     ),
-    queryCollections: jest.fn((_collections: unknown[]) =>
-      Promise.resolve([]),
-    ),
+    queryCollections: jest.fn((_collections: unknown[]) => Promise.resolve([])),
     updateDocument: jest.fn(
       (collection: string, doc: { id: string }, _options?: unknown) => {
         mockSettingsStorage.set(`${collection}:${doc.id}`, doc);
@@ -333,9 +328,7 @@ export const mockSdkModule = {
     if (contributionId === "ms.vss-features.location-service") {
       return Promise.resolve(getMockLocationService());
     }
-    return Promise.reject(
-      new Error(`Unknown service: ${contributionId}`),
-    );
+    return Promise.reject(new Error(`Unknown service: ${contributionId}`));
   }),
   getConfiguration: jest.fn(() => ({})),
   getContributionId: jest.fn(() => "publisher.extension.contribution"),
@@ -414,13 +407,11 @@ export function resetSdkMocks(): void {
   }
 
   // Re-wire all mock implementations to use fresh state
-  mockSdkModule.init.mockImplementation(
-    (_options?: unknown) => Promise.resolve(),
+  mockSdkModule.init.mockImplementation((_options?: unknown) =>
+    Promise.resolve(),
   );
   mockSdkModule.ready.mockImplementation(() => Promise.resolve());
-  mockSdkModule.notifyLoadSucceeded.mockImplementation(
-    () => Promise.resolve(),
-  );
+  mockSdkModule.notifyLoadSucceeded.mockImplementation(() => Promise.resolve());
   mockSdkModule.getWebContext.mockImplementation(() => currentMockWebContext);
   mockSdkModule.getUser.mockImplementation(() => currentMockUserContext);
   mockSdkModule.getHost.mockImplementation(() => currentMockHostContext);
@@ -438,8 +429,8 @@ export function resetSdkMocks(): void {
       return Promise.reject(new Error(`Unknown service: ${contributionId}`));
     },
   );
-  mockApiModule.getClient.mockImplementation(
-    (_clientClass: unknown) => getMockCoreRestClient(),
+  mockApiModule.getClient.mockImplementation((_clientClass: unknown) =>
+    getMockCoreRestClient(),
   );
 }
 
@@ -476,15 +467,11 @@ export function getMockWebContext(): MockWebContext {
   return { ...currentMockWebContext };
 }
 
-export function setMockUserContext(
-  context: Partial<MockUserContext>,
-): void {
+export function setMockUserContext(context: Partial<MockUserContext>): void {
   currentMockUserContext = { ...defaultMockUserContext, ...context };
 }
 
-export function setMockHostContext(
-  context: Partial<MockHostContext>,
-): void {
+export function setMockHostContext(context: Partial<MockHostContext>): void {
   currentMockHostContext = { ...defaultMockHostContext, ...context };
 }
 
@@ -516,25 +503,23 @@ export function setMockSettingError(key: string, error: Error): void {
   const manager = getMockExtensionDataManager();
   const originalImpl = manager.getValue.getMockImplementation();
 
-  manager.getValue.mockImplementation(
-    ((requestedKey: string, _options?: unknown) => {
-      if (requestedKey === key) {
-        return Promise.reject(error);
-      }
-      if (originalImpl) {
-        return (originalImpl as (k: string, o?: unknown) => Promise<unknown>)(
-          requestedKey,
-        );
-      }
-      return Promise.resolve(mockSettingsStorage.get(requestedKey) ?? null);
-    }) as (key: string, options?: unknown) => Promise<unknown>,
-  );
+  manager.getValue.mockImplementation(((
+    requestedKey: string,
+    _options?: unknown,
+  ) => {
+    if (requestedKey === key) {
+      return Promise.reject(error);
+    }
+    if (originalImpl) {
+      return (originalImpl as (k: string, o?: unknown) => Promise<unknown>)(
+        requestedKey,
+      );
+    }
+    return Promise.resolve(mockSettingsStorage.get(requestedKey) ?? null);
+  }) as (key: string, options?: unknown) => Promise<unknown>);
 }
 
-export function setMockServiceError(
-  serviceId: string,
-  error: Error,
-): void {
+export function setMockServiceError(serviceId: string, error: Error): void {
   const originalImpl = mockSdkModule.getService.getMockImplementation();
 
   mockSdkModule.getService.mockImplementation(
@@ -577,20 +562,23 @@ export function trackMockInitOptions(): () => unknown {
 export function setMockBuilds(builds: unknown[]): void {
   // For tests that mock the build API via getClient
   const client = getMockCoreRestClient();
-  (client as unknown as Record<string, jest.Mock>).getBuilds =
-    jest.fn(() => Promise.resolve(builds));
+  (client as unknown as Record<string, jest.Mock>).getBuilds = jest.fn(() =>
+    Promise.resolve(builds),
+  );
 }
 
 export function setMockBuild(build: unknown): void {
   const client = getMockCoreRestClient();
-  (client as unknown as Record<string, jest.Mock>).getBuild =
-    jest.fn(() => Promise.resolve(build));
+  (client as unknown as Record<string, jest.Mock>).getBuild = jest.fn(() =>
+    Promise.resolve(build),
+  );
 }
 
 export function setMockArtifacts(artifacts: unknown[]): void {
   const client = getMockCoreRestClient();
-  (client as unknown as Record<string, jest.Mock>).getArtifacts =
-    jest.fn(() => Promise.resolve(artifacts));
+  (client as unknown as Record<string, jest.Mock>).getArtifacts = jest.fn(() =>
+    Promise.resolve(artifacts),
+  );
 }
 
 // ============================================================================
@@ -617,18 +605,19 @@ export function configureExtensionDataService(
   const manager = getMockExtensionDataManager();
   const errorKeyMap = new Map(Object.entries(errorKeys));
 
-  manager.getValue.mockImplementation(
-    ((settingKey: string, _options?: unknown) => {
-      if (errorKeyMap.has(settingKey)) {
-        return Promise.reject(errorKeyMap.get(settingKey));
-      }
-      if (missingKeys.includes(settingKey)) {
-        return Promise.resolve(undefined);
-      }
-      const value = mockSettingsStorage.get(settingKey);
-      return Promise.resolve(value ?? null);
-    }) as (key: string, options?: unknown) => Promise<unknown>,
-  );
+  manager.getValue.mockImplementation(((
+    settingKey: string,
+    _options?: unknown,
+  ) => {
+    if (errorKeyMap.has(settingKey)) {
+      return Promise.reject(errorKeyMap.get(settingKey));
+    }
+    if (missingKeys.includes(settingKey)) {
+      return Promise.resolve(undefined);
+    }
+    const value = mockSettingsStorage.get(settingKey);
+    return Promise.resolve(value ?? null);
+  }) as (key: string, options?: unknown) => Promise<unknown>);
 }
 
 export function mockValidDashboardSettings(): void {

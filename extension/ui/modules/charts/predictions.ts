@@ -384,10 +384,7 @@ function extractHistoricalDataResult(
 
   // Map metric names to rollup field getters
   // Note: review_time_minutes removed - it used cycle_time as misleading proxy
-  const metricFieldMap = new Map<
-    string,
-    (r: RollupForChart) => number | null
-  >([
+  const metricFieldMap = new Map<string, (r: RollupForChart) => number | null>([
     ["pr_throughput", (r) => r.pr_count],
     ["cycle_time_minutes", (r) => r.cycle_time_p50],
   ]);

@@ -32,13 +32,19 @@ import { fetchWithVersionFallback } from "./modules/api-versions";
  * Azure DevOps Server deployments may support different API versions
  * on different Build REST routes, so each family resolves independently.
  */
-export type EndpointFamily = "definitions" | "builds" | "artifacts" | "artifact-file";
+export type EndpointFamily =
+  | "definitions"
+  | "builds"
+  | "artifacts"
+  | "artifact-file";
 
 /** List endpoints return { value: [] } for empty results, so 404
  *  genuinely signals "version not supported." Resource endpoints use
  *  404 for "not found" — only 400 triggers version fallback for those. */
 const LIST_ENDPOINT_FAMILIES: ReadonlySet<EndpointFamily> = new Set([
-  "definitions", "builds", "artifacts",
+  "definitions",
+  "builds",
+  "artifacts",
 ]);
 
 export class ArtifactClient {
@@ -288,7 +294,8 @@ export class ArtifactClient {
 
     const response = await this._fetchWithVersionFallback(
       "artifacts",
-      (v) => `${this.collectionUri}${this.projectId}/_apis/build/builds/${buildId}/artifacts?api-version=${v}`,
+      (v) =>
+        `${this.collectionUri}${this.projectId}/_apis/build/builds/${buildId}/artifacts?api-version=${v}`,
     );
 
     if (response.status === 401 || response.status === 403) {
@@ -296,9 +303,7 @@ export class ArtifactClient {
     }
 
     if (response.status === 404) {
-      throw new Error(
-        `Build ${buildId} not found or has been deleted`,
-      );
+      throw new Error(`Build ${buildId} not found or has been deleted`);
     }
 
     if (!response.ok) {
@@ -411,7 +416,9 @@ export class ArtifactClient {
     options: RequestInit = {},
   ): Promise<Response> {
     if (!this.tokenProvider) {
-      throw new Error("ArtifactClient not initialized. Call initialize() first.");
+      throw new Error(
+        "ArtifactClient not initialized. Call initialize() first.",
+      );
     }
     const token = await this.tokenProvider();
     const headers: HeadersInit = {
@@ -712,11 +719,13 @@ export class MockArtifactClient {
   }
 
   async getArtifacts(buildId: number): Promise<VSSBuildArtifact[]> {
-    return (this.mockData.get(`${buildId}/artifacts`) ?? []) as VSSBuildArtifact[];
+    return (this.mockData.get(`${buildId}/artifacts`) ??
+      []) as VSSBuildArtifact[];
   }
 
   async getDefinitions(): Promise<BuildDefinitionReference[]> {
-    return (this.mockData.get("definitions") ?? []) as BuildDefinitionReference[];
+    return (this.mockData.get("definitions") ??
+      []) as BuildDefinitionReference[];
   }
 
   async getBuilds(definitionId: number): Promise<Build[]> {

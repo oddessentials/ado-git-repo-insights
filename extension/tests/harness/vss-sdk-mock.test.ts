@@ -123,9 +123,7 @@ describe("Azure DevOps Extension SDK Mock Harness", () => {
 
   describe("mockApiModule", () => {
     it("exports CommonServiceIds", () => {
-      expect(mockApiModule.CommonServiceIds).toHaveProperty(
-        "LocationService",
-      );
+      expect(mockApiModule.CommonServiceIds).toHaveProperty("LocationService");
     });
 
     it("exports getClient", () => {
@@ -152,9 +150,9 @@ describe("Azure DevOps Extension SDK Mock Harness", () => {
     });
 
     it("rejects for unknown service ID", async () => {
-      await expect(
-        mockSdkModule.getService("unknown-service"),
-      ).rejects.toThrow("Unknown service");
+      await expect(mockSdkModule.getService("unknown-service")).rejects.toThrow(
+        "Unknown service",
+      );
     });
   });
 
@@ -235,7 +233,9 @@ describe("Azure DevOps Extension SDK Mock Harness", () => {
       const service = await mockSdkModule.getService(
         "ms.vss-features.location-service",
       );
-      const location = await (service as MockLocationService).getServiceLocation();
+      const location = await (
+        service as MockLocationService
+      ).getServiceLocation();
       expect(location).toBe("https://custom.azure.com/org/");
     });
   });
@@ -310,7 +310,10 @@ describe("Azure DevOps Extension SDK Mock Harness", () => {
 
     it("getProjects returns default projects", async () => {
       const client = getMockCoreRestClient();
-      const projects = await client.getProjects() as Array<{ name: string; id: string }>;
+      const projects = (await client.getProjects()) as Array<{
+        name: string;
+        id: string;
+      }>;
       expect(projects).toHaveLength(2);
       expect(projects[0]).toHaveProperty("name", "test-project");
     });
@@ -366,7 +369,9 @@ describe("Azure DevOps Extension SDK Mock Harness", () => {
       ];
       setMockBuilds(mockBuilds);
       const client = getMockCoreRestClient();
-      const extended = client as unknown as { getBuilds: () => Promise<unknown[]> };
+      const extended = client as unknown as {
+        getBuilds: () => Promise<unknown[]>;
+      };
       const result = await extended.getBuilds();
       expect(result).toEqual(mockBuilds);
     });
@@ -381,7 +386,9 @@ describe("Azure DevOps Extension SDK Mock Harness", () => {
       const mockBuild = { id: 123, name: "Test Build" };
       setMockBuild(mockBuild);
       const client = getMockCoreRestClient();
-      const extended = client as unknown as { getBuild: () => Promise<unknown> };
+      const extended = client as unknown as {
+        getBuild: () => Promise<unknown>;
+      };
       const result = await extended.getBuild();
       expect(result).toEqual(mockBuild);
     });
@@ -396,7 +403,9 @@ describe("Azure DevOps Extension SDK Mock Harness", () => {
       const mockArtifacts = [{ name: "drop", resource: {} }];
       setMockArtifacts(mockArtifacts);
       const client = getMockCoreRestClient();
-      const extended = client as unknown as { getArtifacts: () => Promise<unknown[]> };
+      const extended = client as unknown as {
+        getArtifacts: () => Promise<unknown[]>;
+      };
       const result = await extended.getArtifacts();
       expect(result).toEqual(mockArtifacts);
     });
@@ -552,9 +561,7 @@ describe("Azure DevOps Extension SDK Mock Harness", () => {
       expect(
         await manager.getValue("pr-insights-source-project"),
       ).toBeUndefined();
-      expect(
-        await manager.getValue("pr-insights-pipeline-id"),
-      ).toBeUndefined();
+      expect(await manager.getValue("pr-insights-pipeline-id")).toBeUndefined();
     });
   });
 
