@@ -177,6 +177,38 @@ class TestParseLcovMalformedFailsClosed:
         with pytest.raises(ValueError, match="no SF records found"):
             gate.parse_lcov_partial_branches(lcov)
 
+    def test_truncated_lcov_missing_end_of_record_raises(
+        self, gate, tmp_path: Path
+    ) -> None:
+        """An SF block without a closing `end_of_record` means the writer
+        was interrupted. Accepting it as parsed would let compare() declare
+        every baseline entry absent from lcov and suggest a baseline
+        shrink — ratcheting the gate downward after a tooling failure.
+        """
+        lcov = _write_lcov(
+            tmp_path,
+            "SF:ui/modules/a.ts\n"
+            "BRDA:10,0,0,1\n"
+            "BRDA:10,0,1,0\n",  # no end_of_record — writer was killed here
+        )
+        with pytest.raises(ValueError, match="still open"):
+            gate.parse_lcov_partial_branches(lcov)
+
+    def test_truncated_lcov_between_files_raises(self, gate, tmp_path: Path) -> None:
+        """Even if an earlier SF block closed cleanly, an unterminated
+        later block must still fail — the writer was still interrupted."""
+        lcov = _write_lcov(
+            tmp_path,
+            "SF:ui/modules/a.ts\n"
+            "BRDA:10,0,0,1\n"
+            "BRDA:10,0,1,0\n"
+            "end_of_record\n"
+            "SF:ui/modules/b.ts\n"
+            "BRDA:20,0,0,1\n",  # second block unterminated
+        )
+        with pytest.raises(ValueError, match="still open"):
+            gate.parse_lcov_partial_branches(lcov)
+
 
 class TestNormalizeSourceFile:
     """Path normalization must anchor on ``extension/ui/`` when present so
@@ -483,3 +515,54 @@ class TestMainCli:
         captured = capsys.readouterr()
         assert "SETUP" in captured.err
         assert "BASELINE_COCHANGE_REQUIRED" not in captured.err
+
+    def test_interrupted_lcov_exits_setup_not_cochange_shrink(
+        self,
+        gate,
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+        capsys: pytest.CaptureFixture[str],
+    ) -> None:
+        """Regression lock for the second P1 review: an lcov with an open
+        SF block at EOF (writer interrupted mid-report) must surface as a
+        SETUP failure, NOT as BASELINE_COCHANGE_REQUIRED with a shrunken
+        suggested baseline. Without this lock, a tooling glitch could
+        ratchet the committed baseline downward and permanently weaken
+        the gate.
+
+        The fixture writes a multi-file lcov whose second SF block is
+        interrupted before `end_of_record`. The baseline has entries for
+        both files; compare() would otherwise treat the second file as
+        absent-from-lcov and emit a co-change patch removing it.
+        """
+        interrupted = _write_lcov(
+            tmp_path,
+            "SF:ui/modules/a.ts\n"
+            "BRDA:10,0,0,1\n"
+            "BRDA:10,0,1,0\n"
+            "end_of_record\n"
+            "SF:ui/modules/b.ts\n"
+            "BRDA:20,0,0,1\n"
+            "BRDA:20,0,1,0\n",  # no end_of_record — writer killed here
+        )
+        baseline = _write_baseline(
+            tmp_path,
+            {
+                "extension/ui/modules/a.ts": 1,
+                "extension/ui/modules/b.ts": 1,
+            },
+        )
+        monkeypatch.setattr(
+            sys,
+            "argv",
+            ["check", "--lcov", str(interrupted), "--baseline", str(baseline)],
+        )
+        assert gate.main() == 1
+        captured = capsys.readouterr()
+        assert "SETUP" in captured.err
+        assert "BASELINE_COCHANGE_REQUIRED" not in captured.err
+        # The gate must NOT print a co-change suggested baseline. The
+        # suggested-baseline emission is keyed on the "Apply this exact
+        # baseline (replaces " prefix; absence of that prefix proves the
+        # gate short-circuited before ever running compare().
+        assert "Apply this exact baseline" not in captured.err

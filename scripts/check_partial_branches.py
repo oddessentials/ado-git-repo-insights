@@ -174,6 +174,19 @@ def parse_lcov_partial_branches(path: Path) -> dict[str, int]:
             f"likely failed to produce a report; re-run "
             f"`pnpm --dir extension run test:coverage` before retrying the gate."
         )
+    if current_file is not None:
+        # An SF: block was opened but never closed by `end_of_record`. The
+        # writer was interrupted (tooling crash, signal, disk full, killed
+        # test process). Accepting this as a "clean" parse would let
+        # ``compare()`` declare every baseline entry after the truncation
+        # point absent-from-lcov and suggest a baseline shrink — effectively
+        # ratcheting the gate downward after a tooling failure. Fail SETUP.
+        raise ValueError(
+            f"Malformed lcov {path}: reached end of file with SF block "
+            f"{current_file!r} still open (no `end_of_record` terminator). "
+            f"The coverage writer was interrupted mid-report; re-run "
+            f"`pnpm --dir extension run test:coverage` before retrying the gate."
+        )
 
     counts: dict[str, int] = {}
     for source_file, lines in per_file_line_state.items():
