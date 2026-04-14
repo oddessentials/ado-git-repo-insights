@@ -2764,3 +2764,297 @@ describe("cross-dim review_time partial-branch closure (#271)", () => {
     expect(result[0]!.review_time_p90).toBe(1800);
   });
 });
+
+/**
+ * Target-file partial-branch closure tests for the "drive 4 files to 0" work.
+ *
+ * Each test targets specific BRDA lines identified from a fresh lcov.info
+ * (pnpm --dir extension run test:coverage). Together with the deletions at
+ * metrics.ts L34/L150/L152 (dead defensive branches) these drive metrics.ts
+ * to zero partial-branch lines.
+ */
+describe("metrics partial-branch lock (054 target-files)", () => {
+  it("calculateMetrics totalPrs coerces falsy pr_count via || 0 (closes L114)", () => {
+    const rollups = [
+      {
+        week: "2026-W01",
+        pr_count: 10,
+        cycle_time_p50: 60,
+        authors_count: 5,
+        reviewers_count: 3,
+      } as Rollup,
+      {
+        week: "2026-W02",
+        pr_count: 0,
+        cycle_time_p50: 45,
+        authors_count: 0,
+        reviewers_count: 0,
+      } as Rollup,
+    ];
+    const result = calculateMetrics(rollups);
+    expect(result.totalPrs).toBe(10); // 10 + 0 via falsy-short-circuit fallback
+    expect(result.weekCount).toBe(2);
+    expect(result.cycleP50).toBe(52.5); // median([60, 45]) — both weeks contribute
+  });
+
+  it("aggregateEntries leaves cycle/review null when all entries have pr_count=0 (closes L251, L266, L296, L312)", () => {
+    // Breakdown entry is finite on every metric but pr_count is 0, so each
+    // entry-filter passes but the denominator sum is 0 — the four `if (X > 0)`
+    // divide-by-zero guards take their falsy side, leaving cycle/review null.
+    const rollup = {
+      week: "2026-W01",
+      pr_count: 100,
+      cycle_time_p50: 60,
+      cycle_time_p90: 120,
+      authors_count: 5,
+      reviewers_count: 3,
+      by_repository: {
+        "repo-a": {
+          pr_count: 0,
+          cycle_time_p50: 10,
+          cycle_time_p90: 20,
+          review_time_p50: 100,
+          review_time_p90: 200,
+          authors_count: 0,
+          reviewers_count: 0,
+        },
+      },
+    } as unknown as Rollup;
+
+    const result = applyFiltersToRollups([rollup], {
+      repos: ["repo-a"],
+      teams: [],
+    });
+
+    // Slice pr_count sums to 0 → buildFilteredRollup zero-leakage guard fires.
+    expect(result[0]!.pr_count).toBe(0);
+    expect(result[0]!.cycle_time_p50).toBeNull();
+    expect(result[0]!.cycle_time_p90).toBeNull();
+    expect(result[0]!.review_time_p50).toBeNull();
+    expect(result[0]!.review_time_p90).toBeNull();
+  });
+
+  it("applyFiltersToRollups cross-dim edges: missing author + truncated map + team-present warning (closes L594, L639, L654)", () => {
+    const rollups = [
+      // W1: by_author_and_repo is present but only holds {_truncated: true}, so
+      //     the authorId lookup returns undefined → `continue` fires (L594 branch 0)
+      //     → cdFound stays 0 → the else-if sees _truncated === true and falls
+      //     through instead of returning zeroed (L654 branch 1 → fall to proportional).
+      {
+        week: "2026-W01",
+        pr_count: 100,
+        by_repository: {
+          "repo-a": {
+            pr_count: 30,
+            cycle_time_p50: 45,
+            cycle_time_p90: 90,
+            authors_count: 3,
+            reviewers_count: 2,
+          },
+        },
+        by_author: {
+          "author-1": {
+            pr_count: 10,
+            cycle_time_p50: 50,
+            cycle_time_p90: 100,
+            authors_count: 1,
+            reviewers_count: 2,
+          },
+        },
+        by_author_and_repo: { _truncated: true },
+      } as unknown as Rollup,
+      // W2: valid cross-dim hit for author-1/repo-a while team filter is also
+      //     active → teamSlice is truthy in the cross-dim success return path,
+      //     emitting the "constrained" warn (L639 branch 0).
+      {
+        week: "2026-W02",
+        pr_count: 100,
+        by_repository: {
+          "repo-a": {
+            pr_count: 30,
+            cycle_time_p50: 45,
+            cycle_time_p90: 90,
+            authors_count: 3,
+            reviewers_count: 2,
+          },
+        },
+        by_team: {
+          "team-x": {
+            pr_count: 40,
+            cycle_time_p50: 50,
+            cycle_time_p90: 100,
+            authors_count: 4,
+            reviewers_count: 3,
+          },
+        },
+        by_author: {
+          "author-1": {
+            pr_count: 10,
+            cycle_time_p50: 50,
+            cycle_time_p90: 100,
+            authors_count: 1,
+            reviewers_count: 2,
+          },
+        },
+        by_author_and_repo: {
+          "author-1": {
+            "repo-a": {
+              pr_count: 10,
+              cycle_time_p50: 50,
+              cycle_time_p90: 100,
+              authors_count: 1,
+              reviewers_count: 2,
+            },
+          },
+        },
+      } as unknown as Rollup,
+    ];
+
+    const warnSpy = jest.spyOn(console, "warn").mockImplementation(() => {});
+    const result = applyFiltersToRollups(rollups, {
+      repos: ["repo-a"],
+      teams: ["team-x"],
+      authors: ["author-1"],
+    });
+    // Capture call count before restoring — mockRestore() clears mock.calls.
+    const warnCalls = warnSpy.mock.calls.length;
+    warnSpy.mockRestore();
+
+    // W1 fell through the cross-dim block (L654 branch 1) and took the
+    // proportional author+repo path at L662 — non-zeroed because pr_count > 0.
+    expect(result[0]!.pr_count).toBeGreaterThan(0);
+    // W2 returned from the cross-dim success path with exact slice values.
+    expect(result[1]!.pr_count).toBe(10);
+    expect(result[1]!.cycle_time_p50).toBe(50);
+    expect(result[1]!.cycle_time_p90).toBe(100);
+    // At least one of the warnings at L640 ("Combined author and team
+    // filtering is constrained") fired — that is the observable signal the
+    // cross-dim success path reached the `if (teamSlice)` branch (L639).
+    expect(warnCalls).toBeGreaterThan(0);
+  });
+
+  it("applyFiltersToRollups proportional author+repo edges: zero-pr early return + mixed null/finite metrics (closes L663, L669, L674, L677, L706, L710, L714, L718)", () => {
+    const rollups = [
+      // W1: rollup.pr_count=0 → `pr_count || 1` takes the falsy side (L663 b1),
+      //     combinedRatio=1 → combinedPrCount=0 → early-return zeroed (L669 b0).
+      {
+        week: "2026-W01",
+        pr_count: 0,
+        authors_count: 3,
+        reviewers_count: 2,
+        by_repository: {
+          "repo-a": {
+            pr_count: 30,
+            cycle_time_p50: 45,
+            cycle_time_p90: 90,
+            authors_count: 3,
+            reviewers_count: 2,
+          },
+        },
+        by_author: {
+          "author-1": {
+            pr_count: 10,
+            cycle_time_p50: 50,
+            cycle_time_p90: 100,
+            authors_count: 1,
+            reviewers_count: 2,
+          },
+        },
+        // No by_author_and_repo → straight to proportional author+repo path.
+      } as unknown as Rollup,
+      // W2: pr_count>0, authors_count=0 (falsy → L674 b1), reviewers_count>0
+      //     (truthy → L677 b0), breakdown entries have null cycle but finite
+      //     review → p50s/p90s empty (L706/L710 b1), rtP50s/rtP90s non-empty
+      //     (L714/L718 b0).
+      {
+        week: "2026-W02",
+        pr_count: 100,
+        authors_count: 0,
+        reviewers_count: 5,
+        by_repository: {
+          "repo-a": {
+            pr_count: 30,
+            cycle_time_p50: null,
+            cycle_time_p90: null,
+            review_time_p50: 300,
+            review_time_p90: 600,
+            authors_count: 3,
+            reviewers_count: 2,
+          },
+        },
+        by_author: {
+          "author-1": {
+            pr_count: 10,
+            cycle_time_p50: null,
+            cycle_time_p90: null,
+            review_time_p50: 400,
+            review_time_p90: 800,
+            authors_count: 1,
+            reviewers_count: 2,
+          },
+        },
+      } as unknown as Rollup,
+    ];
+
+    const result = applyFiltersToRollups(rollups, {
+      repos: ["repo-a"],
+      teams: [],
+      authors: ["author-1"],
+    });
+
+    // W1: zeroed via combinedPrCount=0 early return.
+    expect(result[0]!.pr_count).toBe(0);
+    expect(result[0]!.cycle_time_p50).toBeNull();
+    expect(result[0]!.review_time_p50).toBeNull();
+    // W2: proportional returned non-zero pr_count, null cycle, averaged review.
+    expect(result[1]!.pr_count).toBeGreaterThan(0);
+    expect(result[1]!.cycle_time_p50).toBeNull();
+    expect(result[1]!.cycle_time_p90).toBeNull();
+    // rtP50s = [authorSlice.review_time_p50, repoSlice.review_time_p50] = [400, 300]
+    expect(result[1]!.review_time_p50).toBe((400 + 300) / 2);
+    // rtP90s = [800, 600]
+    expect(result[1]!.review_time_p90).toBe((800 + 600) / 2);
+  });
+
+  it("applyFiltersToRollups proportional team+repo finite review hits divisor branch (closes L877, L881)", () => {
+    const rollup = {
+      week: "2026-W01",
+      pr_count: 100,
+      authors_count: 5,
+      reviewers_count: 4,
+      by_repository: {
+        "repo-a": {
+          pr_count: 30,
+          cycle_time_p50: 45,
+          cycle_time_p90: 90,
+          review_time_p50: 300,
+          review_time_p90: 600,
+          authors_count: 3,
+          reviewers_count: 2,
+        },
+      },
+      by_team: {
+        "team-x": {
+          pr_count: 40,
+          cycle_time_p50: 50,
+          cycle_time_p90: 100,
+          review_time_p50: 400,
+          review_time_p90: 800,
+          authors_count: 4,
+          reviewers_count: 3,
+        },
+      },
+      // No by_team_and_repo → falls through to the proportional repo+team path.
+    } as unknown as Rollup;
+
+    const result = applyFiltersToRollups([rollup], {
+      repos: ["repo-a"],
+      teams: ["team-x"],
+    });
+
+    // rtP50s = [repoSlice.review_time_p50, teamSlice.review_time_p50] = [300, 400]
+    expect(result[0]!.review_time_p50).toBe((300 + 400) / 2);
+    // rtP90s = [600, 800]
+    expect(result[0]!.review_time_p90).toBe((600 + 800) / 2);
+  });
+});

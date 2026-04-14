@@ -386,6 +386,28 @@ class TestCompare:
         assert len(removed) == 1
         assert "extension/ui/gone.ts" in removed[0]
 
+    def test_baseline_explicit_zero_absent_from_lcov_is_clean(self, gate) -> None:
+        """Regression lock for the LOCKED_ZERO_FILES coupling fix: a file
+        recorded with an explicit ``0`` in the baseline must not trigger
+        the ``removed``/``absent-from-lcov`` co-change path when it is
+        missing from the observed map. ``parse_lcov_partial_branches``
+        drops zero-count files, so the only way for compare to see a
+        locked-at-zero file is via an absent-from-observed path. Treating
+        explicit ``0`` as semantically identical to absent removes the
+        brittle coupling where LOCKED_ZERO_FILES would rely on compare's
+        co-change path to reject explicit-zero entries, and lets the
+        baseline file shape carry either encoding interchangeably.
+        """
+        baseline = gate.BaselineFile(
+            schema_version=1,
+            generated_from="x",
+            files={"extension/ui/locked.ts": 0},
+        )
+        regressions, improvements, removed = gate.compare({}, baseline)
+        assert regressions == []
+        assert improvements == []
+        assert removed == []
+
 
 class TestMainCli:
     def test_clean_state_exits_zero(
@@ -566,3 +588,112 @@ class TestMainCli:
         # baseline (replaces " prefix; absence of that prefix proves the
         # gate short-circuited before ever running compare().
         assert "Apply this exact baseline" not in captured.err
+
+
+class TestLockedZeroFiles:
+    """The ``LOCKED_ZERO_FILES`` guard rejects any non-zero baseline entry
+    for the four target files (#271 meta-lock). Absent or explicit-zero is
+    accepted; anything else exits ``SETUP``.
+    """
+
+    def _lcov_zero_partials_for_locked_files(self) -> str:
+        """Build an lcov body whose SF records for each locked file have
+        zero partial-branch lines (both branches taken). This lets the
+        checker reach the baseline-locked-zero check without tripping
+        the regression gate first.
+        """
+        blocks = []
+        for path in (
+            "ui/modules/charts/throughput.ts",
+            "ui/modules/metrics.ts",
+            "ui/modules/sdk.ts",
+            "ui/modules/typeahead-dropdown.ts",
+        ):
+            blocks.append(f"SF:{path}\nBRDA:1,0,0,1\nBRDA:1,0,1,1\nend_of_record\n")
+        return "".join(blocks)
+
+    def test_locked_files_absent_from_baseline_passes(
+        self, gate, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Absent-from-baseline encodes "zero allowed" via the
+        "absent defaults to 0" rule. The locked-zero check accepts any
+        locked file missing from the baseline's ``files`` map.
+        """
+        lcov = _write_lcov(tmp_path, self._lcov_zero_partials_for_locked_files())
+        baseline = _write_baseline(tmp_path, {})  # no entries for anything
+        monkeypatch.setattr(
+            sys, "argv", ["check", "--lcov", str(lcov), "--baseline", str(baseline)]
+        )
+        assert gate.main() == 0
+
+    def test_locked_files_explicit_zero_in_baseline_passes(
+        self, gate, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Explicit ``0`` entries are semantically identical to absent
+        and must be accepted. ``compare()`` treats ``baseline_count == 0``
+        as not-present for the purposes of the absent-from-lcov co-change
+        path, so a maintainer writing ``"metrics.ts": 0`` explicitly into
+        the baseline does not trip a spurious "file removed" signal.
+        """
+        lcov = _write_lcov(tmp_path, self._lcov_zero_partials_for_locked_files())
+        baseline = _write_baseline(
+            tmp_path,
+            {
+                "extension/ui/modules/charts/throughput.ts": 0,
+                "extension/ui/modules/metrics.ts": 0,
+                "extension/ui/modules/sdk.ts": 0,
+                "extension/ui/modules/typeahead-dropdown.ts": 0,
+            },
+        )
+        monkeypatch.setattr(
+            sys, "argv", ["check", "--lcov", str(lcov), "--baseline", str(baseline)]
+        )
+        assert gate.main() == 0
+
+    def test_locked_file_with_positive_baseline_fails_setup(
+        self,
+        gate,
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+        capsys: pytest.CaptureFixture[str],
+    ) -> None:
+        """A maintainer who tries to raise the baseline above zero for any
+        locked file — even when the observed count would legitimately
+        justify it — must be rejected with a SETUP error referencing the
+        file path. This is the backslide guard."""
+        # Observed lcov reports 1 partial line in metrics.ts. The baseline
+        # reflects that observation. Without the lock, the gate would pass
+        # (observed == baseline). With the lock, it must fail SETUP.
+        lcov_body = (
+            "SF:ui/modules/metrics.ts\nBRDA:10,0,0,1\nBRDA:10,0,1,0\nend_of_record\n"
+        )
+        lcov = _write_lcov(tmp_path, lcov_body)
+        baseline = _write_baseline(tmp_path, {"extension/ui/modules/metrics.ts": 1})
+        monkeypatch.setattr(
+            sys, "argv", ["check", "--lcov", str(lcov), "--baseline", str(baseline)]
+        )
+        assert gate.main() == 1
+        captured = capsys.readouterr()
+        assert "SETUP" in captured.err
+        assert "Locked-zero baseline violation" in captured.err
+        assert "extension/ui/modules/metrics.ts" in captured.err
+        # Must short-circuit BEFORE running compare(): no regression or
+        # co-change signals should appear for this failure mode.
+        assert "COVERAGE_REGRESSION" not in captured.err
+        assert "BASELINE_COCHANGE_REQUIRED" not in captured.err
+
+    def test_locked_zero_files_constant_contains_four_expected_paths(
+        self, gate
+    ) -> None:
+        """Structural assertion: the LOCKED_ZERO_FILES frozenset holds
+        exactly the four target files this PR drives to zero. Adding or
+        removing a locked file should be a deliberate, audited change that
+        fails this test first."""
+        assert gate.LOCKED_ZERO_FILES == frozenset(
+            {
+                "extension/ui/modules/charts/throughput.ts",
+                "extension/ui/modules/metrics.ts",
+                "extension/ui/modules/sdk.ts",
+                "extension/ui/modules/typeahead-dropdown.ts",
+            }
+        )

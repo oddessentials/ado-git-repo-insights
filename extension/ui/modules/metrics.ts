@@ -12,33 +12,13 @@ import type {
 } from "../schemas/rollup.schema";
 import { median } from "./shared/format";
 
-const HAS_WINDOW = typeof window !== "undefined";
-const IS_PRODUCTION =
-  typeof process !== "undefined" && process.env.NODE_ENV === "production";
-const SHOULD_WARN_ON_COERCION =
-  !IS_PRODUCTION && HAS_WINDOW && window.__DASHBOARD_DEBUG__ === true;
-let hasWarnedOnMetricCoercion = false;
-
 /**
  * Safely convert any value to a finite number.
  * Returns 0 for undefined, null, NaN, Infinity, or non-numeric values.
- *
- * @param value - Any value to convert
- * @returns A finite number, or 0 if conversion fails
  */
 function toFiniteNumber(value: unknown): number {
   const n = Number(value);
-  if (Number.isFinite(n)) {
-    return n;
-  }
-  if (SHOULD_WARN_ON_COERCION && !hasWarnedOnMetricCoercion) {
-    hasWarnedOnMetricCoercion = true;
-    console.warn(
-      "metrics.ts coerced a non-finite metric value to 0; verify upstream rollup data if this is unexpected.",
-      value,
-    );
-  }
-  return 0;
+  return Number.isFinite(n) ? n : 0;
 }
 
 function getOwnPropertyValue<T>(
@@ -146,10 +126,8 @@ export function calculateMetrics(rollups: Rollup[]): CalculatedMetrics {
     reviewTimeP90: reviewTimeP90Values.length
       ? median(reviewTimeP90Values)
       : null,
-    avgAuthors:
-      rollups.length > 0 ? Math.round(authorsSum / rollups.length) : 0,
-    avgReviewers:
-      rollups.length > 0 ? Math.round(reviewersSum / rollups.length) : 0,
+    avgAuthors: Math.round(authorsSum / rollups.length),
+    avgReviewers: Math.round(reviewersSum / rollups.length),
     weekCount: rollups.length,
     cycleP50WeekCount: p50Values.length,
     cycleP90WeekCount: p90Values.length,

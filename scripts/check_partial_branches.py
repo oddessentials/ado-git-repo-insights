@@ -48,6 +48,31 @@ CATEGORY_SETUP = "SETUP"
 CATEGORY_REGRESSION = "COVERAGE_REGRESSION"
 CATEGORY_COCHANGE = "BASELINE_COCHANGE_REQUIRED"
 
+# Files that must remain at zero partial-branch lines forever. Raising their
+# baseline entry above zero — even via the normal "improvement lowered the
+# count, co-change the baseline" path — is rejected with ``CATEGORY_SETUP``.
+# Combined with the regression gate (which fails when observed > baseline),
+# this locks the four target files against any partial-branch backslide.
+#
+# Both baseline shapes that encode "zero allowed" are accepted: the file
+# may be absent from the baseline ``files`` map (the "absent defaults to 0"
+# rule) or present with an explicit ``0`` entry. :func:`compare` treats
+# ``baseline_count == 0`` as equivalent to absent, so neither shape trips
+# a co-change signal. An explicit non-zero entry is the one shape rejected
+# here; it surfaces immediately as a ``SETUP`` error with a pointer at the
+# offending file.
+#
+# To add a new locked file: append its canonical ``extension/ui/.../*.ts``
+# path here and drive its partial-branch count to zero in the same commit.
+LOCKED_ZERO_FILES: frozenset[str] = frozenset(
+    {
+        "extension/ui/modules/charts/throughput.ts",
+        "extension/ui/modules/metrics.ts",
+        "extension/ui/modules/sdk.ts",
+        "extension/ui/modules/typeahead-dropdown.ts",
+    }
+)
+
 
 class BaselineFile(TypedDict):
     schema_version: int
@@ -255,6 +280,16 @@ def compare(
     Returns (regressions, cochange_improvements, cochange_removed_files) as lists
     of human-readable messages. A non-empty list in any position indicates the
     gate must fail.
+
+    ``baseline_count == 0`` is treated as semantically identical to the file
+    being absent from the baseline map. Both shapes encode "this file is
+    locked at zero partial-branch lines", so an explicit ``0`` entry will
+    not trip the ``removed``/``absent-from-lcov`` co-change path even though
+    :func:`parse_lcov_partial_branches` filters files with zero partials
+    out of the observed map. This keeps the baseline file shape a single
+    consistent surface and removes the brittle coupling where
+    ``LOCKED_ZERO_FILES`` would rely on compare's removed-path to reject
+    explicit-zero entries.
     """
     regressions: list[str] = []
     improvements: list[str] = []
@@ -270,7 +305,14 @@ def compare(
                 f"observed={observed_count} (+{observed_count - baseline_count})"
             )
             continue
-        if source_file not in observed and source_file in baseline_files:
+        if (
+            source_file not in observed
+            and source_file in baseline_files
+            and baseline_count > 0
+        ):
+            # Explicit baseline_count == 0 is equivalent to absent — the
+            # file is still "locked at zero", not removed — so it does not
+            # trigger the co-change patch suggesting a baseline shrink.
             removed.append(
                 f"  {source_file}: baseline={baseline_count} (file absent from "
                 f"current lcov)"
@@ -283,6 +325,25 @@ def compare(
             )
 
     return regressions, improvements, removed
+
+
+def find_locked_zero_violations(baseline: BaselineFile) -> list[str]:
+    """Return human-readable violation messages for locked-zero baseline entries.
+
+    A "locked" file (listed in :data:`LOCKED_ZERO_FILES`) must either be
+    absent from the baseline file (the existing "absent defaults to zero"
+    rule) or present with an explicit count of ``0``. Any other value —
+    even the natural result of a maintainer applying a higher baseline
+    after a coverage improvement regressed — is rejected. This prevents a
+    silent walk-back of the zero invariant for the tracked target files.
+    """
+    return [
+        f"  {locked}: baseline={baseline['files'][locked]} "
+        f"(locked at zero by LOCKED_ZERO_FILES — drop the entry or "
+        f"reset to 0)"
+        for locked in sorted(LOCKED_ZERO_FILES)
+        if baseline["files"].get(locked, 0) != 0
+    ]
 
 
 def build_suggested_baseline(
@@ -369,6 +430,23 @@ def main() -> int:
         return 1
     except ValueError as exc:
         print(f"::error category={CATEGORY_SETUP}::{exc}", file=sys.stderr)
+        return 1
+
+    locked_violations = find_locked_zero_violations(baseline)
+    if locked_violations:
+        print(
+            f"::error category={CATEGORY_SETUP}::"
+            "Locked-zero baseline violation. These files must never carry "
+            "a non-zero partial-branch baseline:",
+            file=sys.stderr,
+        )
+        for entry in locked_violations:
+            print(entry, file=sys.stderr)
+        print(
+            "  Fix: drop the offending file entry from the baseline (or set "
+            "it to 0) and close any new partial-branch lines in the same PR.",
+            file=sys.stderr,
+        )
         return 1
 
     regressions, improvements, removed = compare(observed, baseline)

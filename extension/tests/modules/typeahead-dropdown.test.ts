@@ -116,6 +116,36 @@ describe("Typeahead Dropdown", () => {
       ) as HTMLInputElement;
       expect(input.value).toBe("Beta");
     });
+
+    it("toggles a new option into an empty single selection via pointerdown (closes typeahead-dropdown.ts L290)", () => {
+      // toggleOption's single-mode branch at `selected[0] === id` always hit
+      // the truthy side in existing tests (toggle-same-id clears). With an
+      // empty initial selection, the first pointerdown takes the falsy branch
+      // (`selected[0] !== id`), driving that BRDA to zero.
+      createContainer("single-toggle");
+      const onChange = jest.fn();
+      const instance = initTypeaheadDropdown(
+        makeConfig("single-toggle", {
+          mode: "single",
+          initialSelection: [],
+          onChange,
+        }),
+      );
+      const input = document.querySelector(
+        "#single-toggle .typeahead-input",
+      ) as HTMLInputElement;
+      input.dispatchEvent(new Event("focus"));
+
+      const alphaOption = document.querySelector(
+        "#single-toggle [data-testid='typeahead-option-alpha']",
+      ) as HTMLElement;
+      alphaOption.dispatchEvent(
+        new PointerEvent("pointerdown", { bubbles: true }),
+      );
+
+      expect(instance!.getSelected()).toEqual(["alpha"]);
+      expect(onChange).toHaveBeenCalledWith(["alpha"]);
+    });
   });
 
   describe("Multi-select mode", () => {

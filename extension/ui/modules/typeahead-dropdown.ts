@@ -59,7 +59,12 @@ export function initTypeaheadDropdown(
 
   // Component state
   let options = [...config.options];
-  let selected: string[] = [...config.initialSelection];
+  // Filter initialSelection against the option set so `selected ⊆ options.map(o => o.id)`
+  // is a module-wide invariant. This lets renderChips and updateInputDisplay treat the
+  // result of `options.find(id-match)` as non-optional without runtime guards.
+  let selected: string[] = config.initialSelection.filter((id) =>
+    config.options.some((o) => o.id === id),
+  );
   let filteredOptions: TypeaheadOption[] = [];
   let highlightIndex = -1;
   let isOpen = false;
@@ -117,8 +122,7 @@ export function initTypeaheadDropdown(
     if (isAllSelected()) return; // FR-011: canonical "All" state = no chips
 
     selected.forEach((id) => {
-      const opt = options.find((o) => o.id === id);
-      if (!opt) return;
+      const opt = options.find((o) => o.id === id) as TypeaheadOption;
 
       const chip = document.createElement("span");
       chip.className = "typeahead-chip";
@@ -174,28 +178,27 @@ export function initTypeaheadDropdown(
         item.classList.add("typeahead-option-selected");
       }
 
-      // Highlight matching text using safe DOM construction (no innerHTML)
+      // Highlight matching text using safe DOM construction (no innerHTML).
+      // Invariant: filteredOptions is always the result of filterOptions(input.value),
+      // so every opt.displayName contains `searchVal` and idx is always >= 0 when
+      // searchVal is non-empty. See setOptions for the co-change that preserves this.
       const searchVal = input.value.toLowerCase();
       if (searchVal) {
         const idx = opt.displayName.toLowerCase().indexOf(searchVal);
-        if (idx >= 0) {
-          item.appendChild(
-            document.createTextNode(opt.displayName.substring(0, idx)),
-          );
-          const strong = document.createElement("strong");
-          strong.textContent = opt.displayName.substring(
-            idx,
-            idx + searchVal.length,
-          );
-          item.appendChild(strong);
-          item.appendChild(
-            document.createTextNode(
-              opt.displayName.substring(idx + searchVal.length),
-            ),
-          );
-        } else {
-          item.textContent = opt.displayName;
-        }
+        item.appendChild(
+          document.createTextNode(opt.displayName.substring(0, idx)),
+        );
+        const strong = document.createElement("strong");
+        strong.textContent = opt.displayName.substring(
+          idx,
+          idx + searchVal.length,
+        );
+        item.appendChild(strong);
+        item.appendChild(
+          document.createTextNode(
+            opt.displayName.substring(idx + searchVal.length),
+          ),
+        );
       } else {
         item.textContent = opt.displayName;
       }
@@ -216,8 +219,11 @@ export function initTypeaheadDropdown(
   function updateInputDisplay(): void {
     if (config.mode === "single") {
       if (selected.length > 0) {
-        const opt = options.find((o) => o.id === selected[0]);
-        input.value = opt?.displayName ?? "";
+        // Invariant from constructor filter: selected[0] always matches an option.
+        const opt = options.find(
+          (o) => o.id === selected[0],
+        ) as TypeaheadOption;
+        input.value = opt.displayName;
       } else {
         input.value = "";
       }
@@ -259,20 +265,15 @@ export function initTypeaheadDropdown(
     config.onChange(emitted);
   }
 
+  // Multi-mode only. `toggleOption` is the sole caller and inlines the
+  // single-mode logic itself; it also guarantees `id` is not yet in `selected`
+  // before calling here, so no `.includes` guard is needed.
   function selectOption(id: string): void {
-    if (config.mode === "single") {
-      selected = [id];
-      updateInputDisplay();
-      closeDropdown();
-    } else {
-      if (!selected.includes(id)) {
-        selected.push(id);
-      }
-      input.value = "";
-      filterOptions(""); // calls renderDropdown() — syncs checkmarks
-      renderChips();
-      updateInputDisplay(); // Sync placeholder for partial ↔ all-selected transitions
-    }
+    selected.push(id);
+    input.value = "";
+    filterOptions(""); // calls renderDropdown() — syncs checkmarks
+    renderChips();
+    updateInputDisplay(); // Sync placeholder for partial ↔ all-selected transitions
     normalizeAndEmit();
   }
 
@@ -286,31 +287,34 @@ export function initTypeaheadDropdown(
 
   function toggleOption(id: string): void {
     if (config.mode === "single") {
-      // Single-select: always replace
+      // Single-select: toggling the current selection clears it; anything
+      // else replaces it. Logic is inlined here (rather than dispatching to
+      // selectOption) so the mode check only lives on the caller side.
       if (selected[0] === id) {
         selected = [];
         updateInputDisplay();
       } else {
-        selectOption(id);
-        return;
+        selected = [id];
+        updateInputDisplay();
+        closeDropdown();
       }
-    } else {
-      // Multi-select: toggle
-      if (selected.includes(id)) {
-        deselectOption(id);
-        return;
-      } else {
-        selectOption(id);
-        return;
-      }
+      normalizeAndEmit();
+      return;
     }
-    normalizeAndEmit();
+    // Multi-select: toggle
+    if (selected.includes(id)) {
+      deselectOption(id);
+      return;
+    }
+    selectOption(id);
   }
 
   // --- Dropdown open/close ---
 
   function openDropdown(): void {
-    if (isOpen) return;
+    // Idempotent: setting already-set isOpen/display/aria and re-running
+    // filterOptions with the same input value is safe. Re-entry during an
+    // already-open state is a no-op in observable effect.
     isOpen = true;
     dropdown.style.display = "";
     input.setAttribute("aria-expanded", "true");
@@ -457,10 +461,14 @@ export function initTypeaheadDropdown(
       options = [...newOptions];
       // Remove selections that no longer exist
       selected = selected.filter((id) => options.some((o) => o.id === id));
-      filteredOptions = [...options];
       renderChips();
       updateInputDisplay();
-      if (isOpen) renderDropdown();
+      // filterOptions always rebuilds filteredOptions against the current
+      // input.value and calls renderDropdown(). Calling it unconditionally
+      // keeps the invariant that renderDropdown's inner idx >= 0 check is
+      // trivially satisfied: every opt in filteredOptions is one whose
+      // displayName contains input.value.
+      filterOptions(input.value);
     },
 
     clear(): void {
