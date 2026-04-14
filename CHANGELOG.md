@@ -1,3 +1,12 @@
+## [101.6.2](https://github.com/oddessentials/ado-git-repo-insights/compare/v101.6.1...v101.6.2) (2026-04-14)
+
+
+### Bug Fixes
+
+* **#271:** drive 4 target UI files to 0 partial-branch lines + lock ([dffa91e](https://github.com/oddessentials/ado-git-repo-insights/commit/dffa91e4671faf40aee0d4894a5fade5e30102e7)), closes [#271](https://github.com/oddessentials/ado-git-repo-insights/issues/271) [#271](https://github.com/oddessentials/ado-git-repo-insights/issues/271) [#271](https://github.com/oddessentials/ado-git-repo-insights/issues/271)
+* **#271:** drop dead window default on calculateMovingAverage ([53f4969](https://github.com/oddessentials/ado-git-repo-insights/commit/53f49699adda0db4d4d60466a679c693ee738ed7)), closes [#271](https://github.com/oddessentials/ado-git-repo-insights/issues/271) [#271](https://github.com/oddessentials/ado-git-repo-insights/issues/271)
+* **#271:** preserve async initial selections + guard --update-baseline ([e56b404](https://github.com/oddessentials/ado-git-repo-insights/commit/e56b404e63e45d8315840f57c9cff33135b6ccc3)), closes [#271](https://github.com/oddessentials/ado-git-repo-insights/issues/271) [#271](https://github.com/oddessentials/ado-git-repo-insights/issues/271)
+
 ## [101.6.1](https://github.com/oddessentials/ado-git-repo-insights/compare/v101.6.0...v101.6.1) (2026-04-14)
 
 
