@@ -4,14 +4,14 @@ This document explains the test architecture for the Azure DevOps Git Repo Insig
 
 ## Test Suites
 
-| Command              | Description                                                                                | Requires Python          |
-| -------------------- | ------------------------------------------------------------------------------------------ | ------------------------ |
-| `pnpm test`          | Unit tests (default)                                                                       | No                       |
-| `pnpm test:unit`     | Unit tests (explicit)                                                                      | No                       |
-| `pnpm test:all`      | Unit + integration tests                                                                   | Yes                      |
-| `pnpm test:ci`       | CI mode with JUnit output (chains `test:coverage` and `test:partial-branches`)             | Yes                      |
-| `pnpm test:vsix`     | VSIX artifact inspection                                                                   | No (requires built VSIX) |
-| `pnpm test:watch`    | Watch mode for unit tests                                                                  | No                       |
+| Command              | Description                                                                                               | Requires Python          |
+| -------------------- | --------------------------------------------------------------------------------------------------------- | ------------------------ |
+| `pnpm test`          | Unit tests (default)                                                                                      | No                       |
+| `pnpm test:unit`     | Unit tests (explicit)                                                                                     | No                       |
+| `pnpm test:all`      | Unit + integration tests                                                                                  | Yes                      |
+| `pnpm test:ci`       | CI mode with JUnit output (chains `test:coverage` and `test:partial-branches`)                            | Yes                      |
+| `pnpm test:vsix`     | VSIX artifact inspection                                                                                  | No (requires built VSIX) |
+| `pnpm test:watch`    | Watch mode for unit tests                                                                                 | No                       |
 | `pnpm test:coverage` | Canonical coverage run — every jest test except `vsix-artifact-inspection`, produces `coverage/lcov.info` | Yes                      |
 
 ## Directory Structure
