@@ -787,15 +787,19 @@ class TestLockedZeroFiles:
         assert "extension/ui/modules/metrics.ts" not in updated["files"]
         assert updated["files"].get("extension/ui/modules/other.ts") == 1
 
-    def test_locked_zero_files_constant_contains_four_expected_paths(
-        self, gate
-    ) -> None:
+    def test_locked_zero_files_constant_contains_expected_paths(self, gate) -> None:
         """Structural assertion: the LOCKED_ZERO_FILES frozenset holds
-        exactly the four target files this PR drives to zero. Adding or
-        removing a locked file should be a deliberate, audited change that
-        fails this test first."""
+        exactly the eight target files we have driven to zero — the four
+        from #271 (metrics, sdk, typeahead-dropdown, throughput) plus the
+        four from #277 (cycle-time, predictions, reviewer-activity,
+        summary-cards). Adding or removing a locked file should be a
+        deliberate, audited change that fails this test first."""
         assert gate.LOCKED_ZERO_FILES == frozenset(
             {
+                "extension/ui/modules/charts/cycle-time.ts",
+                "extension/ui/modules/charts/predictions.ts",
+                "extension/ui/modules/charts/reviewer-activity.ts",
+                "extension/ui/modules/charts/summary-cards.ts",
                 "extension/ui/modules/charts/throughput.ts",
                 "extension/ui/modules/metrics.ts",
                 "extension/ui/modules/sdk.ts",
