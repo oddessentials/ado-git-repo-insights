@@ -906,7 +906,7 @@ export function extractSparklineData(rollups: Rollup[]): {
  */
 export function calculateMovingAverage(
   values: number[],
-  window = 4,
+  window: number,
 ): (number | null)[] {
   return values.map((_, i) => {
     if (i < window - 1) return null;

@@ -4733,7 +4733,7 @@ var PRInsightsDashboard = (() => {
       reviewers: rollups.map((r2) => r2.reviewers_count ?? 0)
     };
   }
-  function calculateMovingAverage(values, window2 = 4) {
+  function calculateMovingAverage(values, window2) {
     return values.map((_2, i2) => {
       if (i2 < window2 - 1) return null;
       const slice = values.slice(i2 - window2 + 1, i2 + 1);
