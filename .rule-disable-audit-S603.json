@@ -197,7 +197,7 @@
     },
     {
       "file": "scripts/run_pr_preflight.py",
-      "line": 479,
+      "line": 469,
       "code": "probe = subprocess.run(",
       "shell_true": false,
       "literal_list": true,
@@ -205,7 +205,7 @@
     },
     {
       "file": "scripts/run_pr_preflight.py",
-      "line": 502,
+      "line": 492,
       "code": "completed = subprocess.run(",
       "shell_true": false,
       "literal_list": false,
@@ -213,7 +213,7 @@
     },
     {
       "file": "scripts/run_pr_preflight.py",
-      "line": 579,
+      "line": 569,
       "code": "probe = subprocess.run(",
       "shell_true": false,
       "literal_list": true,
@@ -221,7 +221,7 @@
     },
     {
       "file": "scripts/run_pr_preflight.py",
-      "line": 661,
+      "line": 651,
       "code": "probe = subprocess.run(",
       "shell_true": false,
       "literal_list": true,
@@ -525,7 +525,7 @@
     },
     {
       "file": "tests/unit/test_ci_parity_drift.py",
-      "line": 589,
+      "line": 593,
       "code": "result = subprocess.run(",
       "shell_true": false,
       "literal_list": true,

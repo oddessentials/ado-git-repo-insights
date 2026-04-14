@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "generated_from": "lcov.info on main @ d5ac1645",
+  "generated_from": "pnpm --dir extension run test:coverage on 054-partial-branch-ratchet",
   "files": {
     "extension/ui/artifact-client.ts": 6,
     "extension/ui/dataset-loader.ts": 31,

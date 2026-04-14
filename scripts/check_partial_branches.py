@@ -55,6 +55,44 @@ class BaselineFile(TypedDict):
     files: dict[str, int]
 
 
+def _normalize_source_file(raw: str) -> str:
+    """Normalize an lcov ``SF:`` path to an ``extension/``-rooted forward-slash key.
+
+    Handles the three shapes the project's coverage tooling produces across
+    operating systems:
+
+    - Relative from ``cwd=extension/`` — ``ui/modules/a.ts`` on Unix or
+      ``ui\\modules\\a.ts`` on Windows.
+    - Already canonical — ``extension/ui/modules/a.ts``.
+    - Absolute — ``/home/runner/work/repo/extension/ui/modules/a.ts`` on
+      Linux/macOS or ``C:\\projects\\...\\extension\\ui\\modules\\a.ts`` on
+      Windows.
+
+    The normalization anchors on the **first** occurrence of the substring
+    ``extension/ui/`` in the path. This is the canonical root of every file
+    the gate tracks, so the anchor is a reliable boundary between "outside
+    the repo" and "inside extension/ui/" no matter how the coverage tool
+    spelled the absolute path.
+
+    If no anchor is found (path does not contain ``extension/ui/``), the
+    path is assumed to be relative to the repo root and prefixed with
+    ``extension/`` as a defensive fallback. This matches the Jest default
+    where ``cwd=extension/`` produces SF records like ``ui/modules/a.ts``.
+    """
+    sf = raw.replace("\\", "/")
+    anchor = "extension/ui/"
+    anchor_idx = sf.find(anchor)
+    if anchor_idx >= 0:
+        return sf[anchor_idx:]
+    stripped = sf.lstrip("/")
+    # Drop a Windows drive-letter prefix like "C:..." that survived lstrip.
+    if len(stripped) >= 2 and stripped[1] == ":":
+        stripped = stripped[2:].lstrip("/")
+    if stripped.startswith("extension/"):
+        return stripped
+    return "extension/" + stripped
+
+
 def parse_lcov_partial_branches(path: Path) -> dict[str, int]:
     """Count partial-branch lines per source file in an lcov.info report.
 
@@ -62,8 +100,18 @@ def parse_lcov_partial_branches(path: Path) -> dict[str, int]:
     ``taken == 0`` and at least one BRDA record with ``taken > 0``. BRDA
     records with ``taken == "-"`` (unreached branch point) are ignored.
 
-    Source-file paths are normalized to forward slashes and rooted at
-    ``extension/`` so baseline keys are stable across Windows, macOS, and Linux.
+    Source-file paths are normalized via :func:`_normalize_source_file` so
+    baseline keys are stable across Windows, macOS, and Linux and across
+    relative or absolute SF records.
+
+    **Fails closed on malformed input.** Any structurally invalid BRDA
+    record (wrong field count, non-integer line number, non-integer/non-``-``
+    taken value) or an lcov file with zero ``SF:`` records raises
+    ``ValueError``. ``main()`` catches this and exits with the ``SETUP``
+    error category — the gate never silently returns an empty observation
+    set, which would otherwise be reported as ``BASELINE_COCHANGE_REQUIRED``
+    and tempt a maintainer to commit an empty baseline that disables the
+    ratchet after a coverage tooling break.
     """
     if not path.exists():
         raise FileNotFoundError(f"LCOV file not found: {path}")
@@ -72,40 +120,60 @@ def parse_lcov_partial_branches(path: Path) -> dict[str, int]:
         lambda: defaultdict(lambda: {"missed": 0, "taken": 0})
     )
     current_file: str | None = None
+    sf_record_count = 0
 
     with path.open(encoding="utf-8") as fh:
-        for raw in fh:
+        for lineno, raw in enumerate(fh, start=1):
             line = raw.strip()
             if line.startswith("SF:"):
-                sf = line[3:].replace("\\", "/")
-                if not sf.startswith("extension/"):
-                    sf = "extension/" + sf.lstrip("/")
-                current_file = sf
+                current_file = _normalize_source_file(line[3:])
+                sf_record_count += 1
                 continue
             if line == "end_of_record":
                 current_file = None
                 continue
-            if current_file is None or not line.startswith("BRDA:"):
+            if not line.startswith("BRDA:"):
                 continue
+            if current_file is None:
+                raise ValueError(
+                    f"Malformed lcov {path} at line {lineno}: BRDA record "
+                    f"outside any SF block: {line!r}"
+                )
             parts = line[5:].split(",")
             if len(parts) < 4:
-                continue
+                raise ValueError(
+                    f"Malformed lcov {path} at line {lineno}: BRDA record has "
+                    f"fewer than 4 comma-separated fields: {line!r}"
+                )
             try:
-                lineno = int(parts[0])
-            except ValueError:
-                continue
+                brda_line = int(parts[0])
+            except ValueError as exc:
+                raise ValueError(
+                    f"Malformed lcov {path} at line {lineno}: BRDA line number "
+                    f"is not an integer: {line!r}"
+                ) from exc
             taken_raw = parts[3]
             if taken_raw == "-":
                 continue
             try:
                 taken = int(taken_raw)
-            except ValueError:
-                continue
-            bucket = per_file_line_state[current_file][lineno]
+            except ValueError as exc:
+                raise ValueError(
+                    f"Malformed lcov {path} at line {lineno}: BRDA taken value "
+                    f"is neither '-' nor an integer: {line!r}"
+                ) from exc
+            bucket = per_file_line_state[current_file][brda_line]
             if taken == 0:
                 bucket["missed"] += 1
             else:
                 bucket["taken"] += 1
+
+    if sf_record_count == 0:
+        raise ValueError(
+            f"Malformed lcov {path}: no SF records found. The coverage tool "
+            f"likely failed to produce a report; re-run "
+            f"`pnpm --dir extension run test:coverage` before retrying the gate."
+        )
 
     counts: dict[str, int] = {}
     for source_file, lines in per_file_line_state.items():

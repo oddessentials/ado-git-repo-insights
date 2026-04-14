@@ -548,14 +548,15 @@ class TestPartialBranchesParity:
             "extension test:ci must invoke `pnpm run test:partial-branches`; "
             f"got: {test_ci!r}"
         )
-        jest_index = test_ci.find("jest --ci")
+        coverage_index = test_ci.find("pnpm run test:coverage")
         gate_index = test_ci.find("pnpm run test:partial-branches")
-        assert jest_index != -1, (
-            f"test:ci must invoke `jest --ci` somewhere in its chain; got: {test_ci!r}"
+        assert coverage_index != -1, (
+            "test:ci must invoke `pnpm run test:coverage` (the single canonical "
+            f"lcov-producing command); got: {test_ci!r}"
         )
-        assert gate_index > jest_index, (
-            "test:ci must run test:partial-branches AFTER `jest --ci ... "
-            "--coverage` so lcov.info is available"
+        assert gate_index > coverage_index, (
+            "test:ci must run test:partial-branches AFTER `pnpm run test:coverage` "
+            "so lcov.info is available to the gate"
         )
 
     def test_preflight_has_partial_branches_spec(self) -> None:

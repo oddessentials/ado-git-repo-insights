@@ -126,6 +126,126 @@ class TestParseLcovPartialBranches:
             gate.parse_lcov_partial_branches(tmp_path / "does-not-exist.info")
 
 
+class TestParseLcovMalformedFailsClosed:
+    """The parser must raise ValueError on any structurally invalid lcov
+    input rather than silently returning an empty observation set.
+
+    Silent-empty on malformed input would be reported by main() as
+    BASELINE_COCHANGE_REQUIRED and suggest rewriting the baseline to {},
+    which would effectively disable the ratchet after a coverage tooling
+    break. These tests lock fail-closed behavior against that regression.
+    """
+
+    def test_truncated_brda_record_raises(self, gate, tmp_path: Path) -> None:
+        lcov = _write_lcov(
+            tmp_path,
+            "SF:ui/modules/a.ts\n"
+            "BRDA:10,0\n"  # only 2 fields instead of 4
+            "end_of_record\n",
+        )
+        with pytest.raises(ValueError, match="fewer than 4"):
+            gate.parse_lcov_partial_branches(lcov)
+
+    def test_non_integer_brda_line_number_raises(self, gate, tmp_path: Path) -> None:
+        lcov = _write_lcov(
+            tmp_path,
+            "SF:ui/modules/a.ts\nBRDA:xyz,0,0,1\nend_of_record\n",
+        )
+        with pytest.raises(ValueError, match="line number is not an integer"):
+            gate.parse_lcov_partial_branches(lcov)
+
+    def test_non_integer_brda_taken_value_raises(self, gate, tmp_path: Path) -> None:
+        lcov = _write_lcov(
+            tmp_path,
+            "SF:ui/modules/a.ts\nBRDA:10,0,0,notanumber\nend_of_record\n",
+        )
+        with pytest.raises(ValueError, match="taken value is neither"):
+            gate.parse_lcov_partial_branches(lcov)
+
+    def test_brda_before_any_sf_record_raises(self, gate, tmp_path: Path) -> None:
+        lcov = _write_lcov(tmp_path, "BRDA:10,0,0,1\n")
+        with pytest.raises(ValueError, match="outside any SF block"):
+            gate.parse_lcov_partial_branches(lcov)
+
+    def test_empty_lcov_with_no_sf_records_raises(self, gate, tmp_path: Path) -> None:
+        lcov = _write_lcov(tmp_path, "TN:\n")
+        with pytest.raises(ValueError, match="no SF records found"):
+            gate.parse_lcov_partial_branches(lcov)
+
+    def test_completely_empty_lcov_raises(self, gate, tmp_path: Path) -> None:
+        lcov = _write_lcov(tmp_path, "")
+        with pytest.raises(ValueError, match="no SF records found"):
+            gate.parse_lcov_partial_branches(lcov)
+
+
+class TestNormalizeSourceFile:
+    """Path normalization must anchor on ``extension/ui/`` when present so
+    absolute SF: entries emitted by CI runners match the committed baseline
+    keys, not some path-prefixed frankenstein like
+    ``extension/home/runner/work/repo/extension/ui/a.ts``.
+    """
+
+    def test_relative_unix_path_is_prefixed(self, gate) -> None:
+        assert (
+            gate._normalize_source_file("ui/modules/a.ts")
+            == "extension/ui/modules/a.ts"
+        )
+
+    def test_relative_windows_path_is_normalized(self, gate) -> None:
+        assert (
+            gate._normalize_source_file("ui\\modules\\a.ts")
+            == "extension/ui/modules/a.ts"
+        )
+
+    def test_canonical_path_is_unchanged(self, gate) -> None:
+        assert (
+            gate._normalize_source_file("extension/ui/modules/a.ts")
+            == "extension/ui/modules/a.ts"
+        )
+
+    def test_absolute_linux_path_anchors_on_extension_ui(self, gate) -> None:
+        assert (
+            gate._normalize_source_file(
+                "/home/runner/work/repo/extension/ui/modules/a.ts"
+            )
+            == "extension/ui/modules/a.ts"
+        )
+
+    def test_absolute_macos_path_anchors_on_extension_ui(self, gate) -> None:
+        assert (
+            gate._normalize_source_file(
+                "/Users/dev/code/ado-git-repo-insights/extension/ui/modules/a.ts"
+            )
+            == "extension/ui/modules/a.ts"
+        )
+
+    def test_absolute_windows_forward_slash_path_anchors(self, gate) -> None:
+        assert (
+            gate._normalize_source_file(
+                "C:/projects/ado-git-repo-insights/extension/ui/modules/a.ts"
+            )
+            == "extension/ui/modules/a.ts"
+        )
+
+    def test_absolute_windows_backslash_path_anchors(self, gate) -> None:
+        assert (
+            gate._normalize_source_file(
+                "C:\\projects\\ado-git-repo-insights\\extension\\ui\\modules\\a.ts"
+            )
+            == "extension/ui/modules/a.ts"
+        )
+
+    def test_first_extension_ui_occurrence_wins(self, gate) -> None:
+        """Pathological nested case: the shallowest ``extension/ui/`` is
+        the correct anchor. ``find()`` (not ``rfind()``) guarantees that."""
+        assert (
+            gate._normalize_source_file(
+                "/var/lib/scratch/extension/ui/outer/extension/ui/inner.ts"
+            )
+            == "extension/ui/outer/extension/ui/inner.ts"
+        )
+
+
 class TestLoadBaseline:
     def test_valid_baseline_round_trips(self, gate, tmp_path: Path) -> None:
         path = _write_baseline(tmp_path, {"extension/ui/a.ts": 2})
@@ -309,3 +429,57 @@ class TestMainCli:
         assert gate.main() == 1
         captured = capsys.readouterr()
         assert "SETUP" in captured.err
+
+    def test_malformed_lcov_exits_setup_not_cochange(
+        self,
+        gate,
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+        capsys: pytest.CaptureFixture[str],
+    ) -> None:
+        """Regression lock for P1 review: a truncated lcov must surface
+        as a SETUP failure, not as BASELINE_COCHANGE_REQUIRED with an
+        empty suggested baseline. The latter would trick a maintainer
+        into committing a baseline that effectively disables the ratchet
+        after a coverage tooling break.
+        """
+        truncated = _write_lcov(
+            tmp_path,
+            "SF:ui/modules/a.ts\n"
+            "BRDA:10,0\n",  # truncated mid-record, missing end_of_record too
+        )
+        baseline = _write_baseline(tmp_path, {"extension/ui/modules/a.ts": 3})
+        monkeypatch.setattr(
+            sys,
+            "argv",
+            ["check", "--lcov", str(truncated), "--baseline", str(baseline)],
+        )
+        assert gate.main() == 1
+        captured = capsys.readouterr()
+        assert "SETUP" in captured.err
+        assert "BASELINE_COCHANGE_REQUIRED" not in captured.err
+        assert '"files": {}' not in captured.err
+
+    def test_empty_lcov_exits_setup_not_cochange(
+        self,
+        gate,
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+        capsys: pytest.CaptureFixture[str],
+    ) -> None:
+        """Regression lock for P1 review: an lcov file with zero SF
+        records (coverage tool crashed before emitting any source) must
+        surface as a SETUP failure, not as a co-change that suggests
+        wiping the baseline to {}.
+        """
+        empty = _write_lcov(tmp_path, "TN:\n")
+        baseline = _write_baseline(tmp_path, {"extension/ui/modules/a.ts": 3})
+        monkeypatch.setattr(
+            sys,
+            "argv",
+            ["check", "--lcov", str(empty), "--baseline", str(baseline)],
+        )
+        assert gate.main() == 1
+        captured = capsys.readouterr()
+        assert "SETUP" in captured.err
+        assert "BASELINE_COCHANGE_REQUIRED" not in captured.err

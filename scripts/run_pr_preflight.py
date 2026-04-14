@@ -367,17 +367,7 @@ def build_commands(
         ),
         CommandSpec(
             "Extension Jest CI",
-            (
-                PNPM_SENTINEL,
-                "exec",
-                "jest",
-                "--ci",
-                "--runInBand",
-                "--coverage",
-                "--reporters=default",
-                "--reporters=jest-junit",
-                "--testPathIgnorePatterns=vsix-artifact-inspection",
-            ),
+            (PNPM_SENTINEL, "run", "test:coverage"),
             cwd=EXTENSION_ROOT,
         ),
         CommandSpec(
