@@ -6734,9 +6734,11 @@ var PRInsightsDashboard = (() => {
             ${p90Path ? `<path class="line-chart-p90" d="${p90Path.pathD}" vector-effect="non-scaling-stroke"/>` : ""}
             ${p50Path ? `<path class="line-chart-p50" d="${p50Path.pathD}" vector-effect="non-scaling-stroke"/>` : ""}
 
-            <!-- Dots -->
-            ${p90Path ? p90Path.points.map((p2) => `<circle class="line-chart-dot" cx="${p2.x}" cy="${p2.y}" r="${dotRadius}" fill="var(--warning)" data-week="${escapeHtml(p2.week)}" data-value="${escapeHtml(String(p2.value))}" data-metric="P90"/>`).join("") : ""}
-            ${p50Path ? p50Path.points.map((p2) => `<circle class="line-chart-dot" cx="${p2.x}" cy="${p2.y}" r="${dotRadius}" fill="var(--primary)" data-week="${escapeHtml(p2.week)}" data-value="${escapeHtml(String(p2.value))}" data-metric="P50"/>`).join("") : ""}
+            <!-- Dots. data-tooltip="true" is required so addChartTooltips()
+                 in charts.ts can attach hover/tap listeners \u2014 without it the
+                 tooltip callback below is never invoked. -->
+            ${p90Path ? p90Path.points.map((p2) => `<circle class="line-chart-dot" data-tooltip="true" cx="${p2.x}" cy="${p2.y}" r="${dotRadius}" fill="var(--warning)" data-week="${escapeHtml(p2.week)}" data-value="${escapeHtml(String(p2.value))}" data-metric="P90"/>`).join("") : ""}
+            ${p50Path ? p50Path.points.map((p2) => `<circle class="line-chart-dot" data-tooltip="true" cx="${p2.x}" cy="${p2.y}" r="${dotRadius}" fill="var(--primary)" data-week="${escapeHtml(p2.week)}" data-value="${escapeHtml(String(p2.value))}" data-metric="P50"/>`).join("") : ""}
         </svg>
     `;
     const legendItems = [];
@@ -6767,6 +6769,20 @@ var PRInsightsDashboard = (() => {
       container,
       `${truncationHtml}<div class="line-chart">${svgContent}</div>${legendHtml}`
     );
+    addChartTooltips(container, (dot) => {
+      const week = dot.dataset["week"];
+      const value = parseFloat(dot.dataset["value"]);
+      const metric = dot.dataset["metric"];
+      const legendClass = metric === "P50" ? "legend-p50" : "legend-p90";
+      return `<div class="chart-tooltip-title">${escapeHtml(week)}</div>
+            <div class="chart-tooltip-row">
+              <span class="chart-tooltip-label">
+                <span class="chart-tooltip-dot ${legendClass}"></span>
+                ${escapeHtml(metric)}
+              </span>
+              <span>${formatDuration(value)}</span>
+            </div>`;
+    });
   }
 
   // ../ui/modules/charts/reviewer-activity.ts
