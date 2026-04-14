@@ -6709,16 +6709,12 @@ var PRInsightsDashboard = (() => {
     const chartHeight = height - padding.top - padding.bottom;
     const dotRadius = Math.max(1.5, Math.min(4, 200 / displayRollups.length));
     const generatePath = (data) => {
-      if (displayRollups.length < 2) return { pathD: "", points: [] };
       const points = data.map((d2) => {
         const dataIndex = displayRollups.findIndex((r2) => r2.week === d2.week);
-        if (dataIndex === -1) return null;
         const x2 = padding.left + dataIndex / (displayRollups.length - 1) * chartWidth;
         const y2 = padding.top + chartHeight - (d2.value - minVal) / range * chartHeight;
         return { x: x2, y: y2, week: d2.week, value: d2.value };
-      }).filter(
-        (p2) => p2 !== null
-      );
+      });
       const pathD = buildLinePath(points);
       return { pathD, points };
     };
@@ -6776,21 +6772,6 @@ var PRInsightsDashboard = (() => {
       container,
       `${truncationHtml}<div class="line-chart">${svgContent}</div>${legendHtml}`
     );
-    addChartTooltips(container, (dot) => {
-      const week = dot.dataset["week"] || "";
-      const value = parseFloat(dot.dataset["value"] || "0");
-      const metric = dot.dataset["metric"] || "";
-      return `
-            <div class="chart-tooltip-title">${escapeHtml(week)}</div>
-            <div class="chart-tooltip-row">
-                <span class="chart-tooltip-label">
-                    <span class="chart-tooltip-dot ${metric === "P50" ? "legend-p50" : "legend-p90"}"></span>
-                    ${escapeHtml(metric)}
-                </span>
-                <span>${formatDuration(value)}</span>
-            </div>
-        `;
-    });
   }
 
   // ../ui/modules/charts/reviewer-activity.ts

@@ -10,7 +10,7 @@
 import type { Rollup } from "../../dataset-loader";
 import type { DataAvailabilitySignal, DistributionData } from "../../types";
 import type { FilterState } from "../filters";
-import { addChartTooltips, clearChartTooltips } from "../charts";
+import { clearChartTooltips } from "../charts";
 import { classifyEmptyState } from "../empty-state-classifier";
 import { formatDuration } from "../shared/format";
 import { renderTruncationIndicator } from "../shared/chart-layout";
@@ -228,27 +228,19 @@ export function renderCycleTimeTrend(
   // smaller when many, so they remain visible and clickable.
   const dotRadius = Math.max(1.5, Math.min(4, 200 / displayRollups.length));
 
-  // Generate paths
+  // Generate paths. Callers only reach this block when both rollups.length >= 2
+  // and p50/p90 have >= 2 non-null entries, so displayRollups.length >= 2 and
+  // every d.week in `data` was just derived from displayRollups — findIndex
+  // cannot return -1 here.
   const generatePath = (data: { week: string; value: number }[]) => {
-    // Defensive guard: unreachable in current flow (line 102 catches rollups.length < 2
-    // before we reach here), but kept as safety net if the early check is ever loosened.
-    if (displayRollups.length < 2) return { pathD: "", points: [] };
-    const points = data
-      .map((d) => {
-        const dataIndex = displayRollups.findIndex((r) => r.week === d.week);
-        if (dataIndex === -1) return null;
-        const x =
-          padding.left + (dataIndex / (displayRollups.length - 1)) * chartWidth;
-        const y =
-          padding.top +
-          chartHeight -
-          ((d.value - minVal) / range) * chartHeight;
-        return { x, y, week: d.week, value: d.value };
-      })
-      .filter(
-        (p): p is { x: number; y: number; week: string; value: number } =>
-          p !== null,
-      );
+    const points = data.map((d) => {
+      const dataIndex = displayRollups.findIndex((r) => r.week === d.week);
+      const x =
+        padding.left + (dataIndex / (displayRollups.length - 1)) * chartWidth;
+      const y =
+        padding.top + chartHeight - ((d.value - minVal) / range) * chartHeight;
+      return { x, y, week: d.week, value: d.value };
+    });
     const pathD = buildLinePath(points);
     return { pathD, points };
   };
@@ -327,22 +319,4 @@ export function renderCycleTimeTrend(
     container,
     `${truncationHtml}<div class="line-chart">${svgContent}</div>${legendHtml}`,
   );
-
-  // Add tooltip interactions
-  addChartTooltips(container, (dot: HTMLElement) => {
-    const week = dot.dataset["week"] || "";
-    const value = parseFloat(dot.dataset["value"] || "0");
-    const metric = dot.dataset["metric"] || "";
-    // SECURITY: Escape data attribute values to prevent XSS
-    return `
-            <div class="chart-tooltip-title">${escapeHtml(week)}</div>
-            <div class="chart-tooltip-row">
-                <span class="chart-tooltip-label">
-                    <span class="chart-tooltip-dot ${metric === "P50" ? "legend-p50" : "legend-p90"}"></span>
-                    ${escapeHtml(metric)}
-                </span>
-                <span>${formatDuration(value)}</span>
-            </div>
-        `;
-  });
 }

@@ -480,4 +480,68 @@ describe("cycle-time module", () => {
       // since the Map is initialized with only 6 known labels
     });
   });
+
+  // ────────────────────────────────────────────────────────────────────
+  // Branch coverage completeness: exercise the optional-field fallbacks
+  // and the equal-value range guard so cycle-time.ts stays at 100% branch
+  // coverage when it joins LOCKED_ZERO_FILES.
+  // ────────────────────────────────────────────────────────────────────
+
+  describe("optional-field fallbacks and edge cases", () => {
+    it("renderCycleDistribution with filters-only options uses empty-array/default fallbacks", () => {
+      // Passes options without `unfilteredRollups` or `availability` so the
+      // `?? []` and `?? { ... }` right-hand branches in the classifyEmptyState
+      // argument object are exercised.
+      renderCycleDistribution(container, [], {
+        filters: { repos: ["r1"], teams: [], reviewers: [], authors: [] },
+      });
+
+      expect(container.innerHTML).toContain("no-data");
+    });
+
+    it("renderCycleDistribution handles distribution with undefined cycle_time_buckets", () => {
+      // cycle_time_buckets is optional — the `|| {}` fallback on the
+      // Object.entries call must be exercised.
+      const bareDist: DistributionData = { year: "2025" };
+      renderCycleDistribution(container, [bareDist]);
+
+      // No bucket values → total === 0 → "No cycle time data" branch
+      expect(container.innerHTML).toContain("No cycle time data");
+    });
+
+    it("renderCycleTimeTrend with filters-only options uses empty-array/default fallbacks", () => {
+      // Insufficient rollups + partial options → classifyEmptyState runs
+      // with the `?? []` and `?? { ... }` right-hand branches. We pass
+      // a null `rollups` (cast around the type) so the `rollups ?? []`
+      // runtime guard at filteredRollups is also exercised — this is the
+      // intended safety net for untyped JavaScript callers since the outer
+      // `if (!rollups || rollups.length < 2)` check accepts null.
+      renderCycleTimeTrend(container, null as unknown as Rollup[], {
+        filters: { repos: [], teams: ["team-a"], reviewers: [], authors: [] },
+      });
+
+      expect(container.innerHTML).toContain("no-data");
+    });
+
+    it("renderCycleTimeTrend handles identical cycle time values (range fallback)", () => {
+      // When maxVal === minVal the raw range is 0; the `|| 1` guard must
+      // keep the y-coordinate math finite. Verify no NaN in rendered SVG.
+      const flatRollups: Rollup[] = Array.from({ length: 4 }, (_, i) => ({
+        week: `2025-W${String(i + 1).padStart(2, "0")}`,
+        pr_count: 10,
+        cycle_time_p50: 60,
+        cycle_time_p90: 60,
+        authors_count: 5,
+        reviewers_count: 3,
+        by_repository: null,
+        by_team: null,
+      }));
+
+      renderCycleTimeTrend(container, flatRollups);
+
+      expect(container.innerHTML).toContain("<svg");
+      expect(container.innerHTML).toContain("line-chart-dot");
+      expect(container.innerHTML).not.toContain("NaN");
+    });
+  });
 });
