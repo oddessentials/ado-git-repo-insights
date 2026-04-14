@@ -4920,7 +4920,7 @@ var PRInsightsDashboard = (() => {
     const lowerPath = lowerReversed.map((pt) => `L ${pt.x.toFixed(2)} ${pt.y.toFixed(2)}`).join(" ");
     return `${upperPath} ${lowerPath} Z`;
   }
-  function renderForecastChart(forecast, historicalData, chartHeight = 200) {
+  function renderForecastChart(forecast, historicalData, chartHeight = 200, wasTruncated = false) {
     const rawValues = forecast.values;
     if (!rawValues || rawValues.length === 0) {
       return `<div class="forecast-chart-empty">No forecast data available</div>`;
@@ -4939,7 +4939,7 @@ var PRInsightsDashboard = (() => {
     });
     const maxValue = Math.max(...allValues, 1);
     const minValue = Math.min(...allValues, 0);
-    const range = maxValue - minValue || 1;
+    const range = maxValue - minValue;
     const padding = 10;
     const effectiveHeight = chartHeight - padding * 2;
     const getY = (val) => {
@@ -4982,13 +4982,15 @@ var PRInsightsDashboard = (() => {
       return `<text x="${x2}%" y="${chartHeight - 2}" class="axis-label">${escapeHtml(formatted)}</text>`;
     }).join("");
     const latestValue = values[values.length - 1];
-    const accessibleSummary = latestValue ? `${metricLabel} forecast: ${latestValue.predicted.toFixed(1)} ${forecast.unit}${latestValue.lower_bound != null && latestValue.upper_bound != null ? ` (range ${latestValue.lower_bound.toFixed(1)} to ${latestValue.upper_bound.toFixed(1)})` : ""}` : `${metricLabel} forecast chart`;
+    const rangeClause = latestValue.lower_bound != null && latestValue.upper_bound != null ? ` (range ${latestValue.lower_bound.toFixed(1)} to ${latestValue.upper_bound.toFixed(1)})` : "";
+    const accessibleSummary = `${metricLabel} forecast: ${latestValue.predicted.toFixed(1)} ${forecast.unit}${rangeClause}`;
     const safeMetricId = sanitizeForId(forecast.metric);
     return `
     <div class="forecast-chart" role="region" aria-label="${escapeHtml(metricLabel)} forecast">
       <div class="chart-header">
         <h4 id="chart-${safeMetricId}">${escapeHtml(metricLabel)}</h4>
         <span class="chart-unit">(${escapeHtml(forecast.unit)})</span>
+        ${wasTruncated ? `<span class="truncation-badge" title="Showing last ${MAX_CHART_POINTS} data points">Partial history</span>` : ""}
       </div>
       <div class="chart-svg-container">
         <svg viewBox="0 0 100 ${chartHeight}" preserveAspectRatio="none" class="forecast-svg"
@@ -4999,8 +5001,10 @@ var PRInsightsDashboard = (() => {
           ${bandPath ? `<path class="confidence-band" d="${bandPath}" />` : ""}
           <!-- Historical data line (solid) -->
           ${historicalPath ? `<path class="historical-line" d="${historicalPath}" vector-effect="non-scaling-stroke" />` : ""}
-          <!-- Forecast line (dashed) -->
-          ${forecastPath ? `<path class="forecast-line" d="${forecastPath}" vector-effect="non-scaling-stroke" />` : ""}
+          <!-- Forecast line (dashed). forecastPoints is non-empty whenever we reach
+               this render (values.length >= 1 guaranteed by the early return above),
+               so forecastPath is always truthy \u2014 no conditional needed. -->
+          <path class="forecast-line" d="${forecastPath}" vector-effect="non-scaling-stroke" />
         </svg>
         <svg viewBox="0 0 100 ${chartHeight}" preserveAspectRatio="xMidYMax meet" class="axis-svg" aria-hidden="true">
           ${xAxisLabels}
@@ -5024,19 +5028,15 @@ var PRInsightsDashboard = (() => {
   `;
   }
   function formatWeekLabel(weekStr) {
-    try {
-      const date = new Date(weekStr);
-      if (isNaN(date.getTime())) return weekStr;
-      const month = date.toLocaleString("en-US", { month: "short" });
-      const day = date.getDate();
-      return `${month} ${day}`;
-    } catch {
-      return weekStr;
-    }
+    const date = new Date(weekStr);
+    if (isNaN(date.getTime())) return weekStr;
+    const month = date.toLocaleString("en-US", { month: "short" });
+    const day = date.getDate();
+    return `${month} ${day}`;
   }
   function isoWeekToDate(isoWeek) {
     const match = isoWeek.match(/^(\d{4})-W(\d{2})$/);
-    if (!match || !match[1] || !match[2]) return isoWeek;
+    if (!match) return isoWeek;
     const year = parseInt(match[1], 10);
     const week = parseInt(match[2], 10);
     const jan4 = new Date(year, 0, 4);
@@ -5045,8 +5045,7 @@ var PRInsightsDashboard = (() => {
     firstMonday.setDate(jan4.getDate() - dayOfWeek + 1);
     const targetDate = new Date(firstMonday);
     targetDate.setDate(firstMonday.getDate() + (week - 1) * 7);
-    const isoString = targetDate.toISOString().split("T")[0];
-    return isoString || isoWeek;
+    return targetDate.toISOString().substring(0, 10);
   }
   function extractHistoricalDataResult(rollups, metric) {
     if (!rollups || rollups.length === 0) {
@@ -5061,8 +5060,10 @@ var PRInsightsDashboard = (() => {
       return { data: [], wasTruncated: false };
     }
     const data = rollups.filter((r2) => getter(r2) !== null && getter(r2) !== void 0).map((r2) => ({
-      // Convert ISO week format to date if needed
-      week: r2.week.includes("-W") ? isoWeekToDate(r2.week) : r2.week,
+      // Convert ISO week format to date. isoWeekToDate handles non-ISO
+      // inputs internally by returning them unchanged, so we can funnel
+      // every week string through it without a preliminary format check.
+      week: isoWeekToDate(r2.week),
       value: Number(getter(r2))
     })).sort((a2, b2) => a2.week.localeCompare(b2.week));
     const wasTruncated = data.length > MAX_CHART_POINTS;
@@ -5110,18 +5111,13 @@ var PRInsightsDashboard = (() => {
       const historicalResult = rollups ? extractHistoricalDataResult(rollups, forecast.metric) : void 0;
       const historicalData = historicalResult?.data;
       const wasTruncated = historicalResult?.wasTruncated === true;
-      const chartHtml = renderForecastChart(forecast, historicalData);
+      const chartHtml = renderForecastChart(
+        forecast,
+        historicalData,
+        200,
+        wasTruncated
+      );
       appendTrustedHtml(content, chartHtml);
-      if (wasTruncated) {
-        const badge = document.createElement("span");
-        badge.className = "truncation-badge";
-        badge.title = `Showing last ${MAX_CHART_POINTS} data points`;
-        badge.textContent = "Partial history";
-        const lastHeader = content.querySelector(
-          ".forecast-chart:last-child .chart-header"
-        );
-        if (lastHeader) lastHeader.appendChild(badge);
-      }
     });
     const hasReviewTime = predictions.forecasts.some(
       (f2) => f2.metric === "review_time_minutes"
@@ -6336,11 +6332,10 @@ var PRInsightsDashboard = (() => {
         infoIconControllers.delete(existing);
         existing.remove();
       }
-      let explanation = METRIC_EXPLANATIONS.get(metricId) ?? "";
+      let explanation = METRIC_EXPLANATIONS.get(metricId);
       if (metricId === "reviewersCount" && reviewerFilterActive) {
         explanation = "Average number of reviews per week in this period.";
       }
-      if (!explanation) continue;
       const controller = new AbortController();
       const { signal } = controller;
       const btn = document.createElement("button");
@@ -6709,16 +6704,12 @@ var PRInsightsDashboard = (() => {
     const chartHeight = height - padding.top - padding.bottom;
     const dotRadius = Math.max(1.5, Math.min(4, 200 / displayRollups.length));
     const generatePath = (data) => {
-      if (displayRollups.length < 2) return { pathD: "", points: [] };
       const points = data.map((d2) => {
         const dataIndex = displayRollups.findIndex((r2) => r2.week === d2.week);
-        if (dataIndex === -1) return null;
         const x2 = padding.left + dataIndex / (displayRollups.length - 1) * chartWidth;
         const y2 = padding.top + chartHeight - (d2.value - minVal) / range * chartHeight;
         return { x: x2, y: y2, week: d2.week, value: d2.value };
-      }).filter(
-        (p2) => p2 !== null
-      );
+      });
       const pathD = buildLinePath(points);
       return { pathD, points };
     };
@@ -6776,21 +6767,6 @@ var PRInsightsDashboard = (() => {
       container,
       `${truncationHtml}<div class="line-chart">${svgContent}</div>${legendHtml}`
     );
-    addChartTooltips(container, (dot) => {
-      const week = dot.dataset["week"] || "";
-      const value = parseFloat(dot.dataset["value"] || "0");
-      const metric = dot.dataset["metric"] || "";
-      return `
-            <div class="chart-tooltip-title">${escapeHtml(week)}</div>
-            <div class="chart-tooltip-row">
-                <span class="chart-tooltip-label">
-                    <span class="chart-tooltip-dot ${metric === "P50" ? "legend-p50" : "legend-p90"}"></span>
-                    ${escapeHtml(metric)}
-                </span>
-                <span>${formatDuration(value)}</span>
-            </div>
-        `;
-    });
   }
 
   // ../ui/modules/charts/reviewer-activity.ts
@@ -6828,8 +6804,6 @@ var PRInsightsDashboard = (() => {
   function renderReviewerActivity(container, rollups, options = {}) {
     if (!container) return;
     const { reviewerFilterActive = false } = options;
-    const noun = reviewerFilterActive ? "reviews" : "reviewers";
-    const subtitle = reviewerFilterActive ? `Review activity per week (last ${Math.min(rollups.length, MAX_REVIEWER_WEEKS)} weeks)` : `Active reviewers per week (last ${Math.min(rollups.length, MAX_REVIEWER_WEEKS)} weeks)`;
     if (!rollups || !rollups.length) {
       const classification = options.availability ? classifyEmptyState({
         chartType: "reviewer_activity",
@@ -6840,7 +6814,7 @@ var PRInsightsDashboard = (() => {
           authors: []
         },
         unfilteredRollups: options.unfilteredRollups ?? [],
-        filteredRollups: rollups ?? [],
+        filteredRollups: [],
         availability: options.availability,
         minimumDataPoints: 0
       }) : null;
@@ -6852,6 +6826,8 @@ var PRInsightsDashboard = (() => {
       );
       return;
     }
+    const noun = reviewerFilterActive ? "reviews" : "reviewers";
+    const subtitle = reviewerFilterActive ? `Review activity per week (last ${Math.min(rollups.length, MAX_REVIEWER_WEEKS)} weeks)` : `Active reviewers per week (last ${Math.min(rollups.length, MAX_REVIEWER_WEEKS)} weeks)`;
     const truncated = rollups.length > MAX_REVIEWER_WEEKS;
     const recentRollups = rollups.slice(-MAX_REVIEWER_WEEKS);
     const maxReviewers = Math.max(
@@ -7142,7 +7118,7 @@ var PRInsightsDashboard = (() => {
         if (selected.includes(opt.id)) {
           item.classList.add("typeahead-option-selected");
         }
-        const searchVal = input.value.toLowerCase();
+        const searchVal = input.value.toLowerCase().trim();
         if (searchVal) {
           const idx = opt.displayName.toLowerCase().indexOf(searchVal);
           item.appendChild(

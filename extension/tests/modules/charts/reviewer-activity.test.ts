@@ -747,4 +747,164 @@ describe("reviewer-activity module", () => {
       expect(container.innerHTML).not.toContain("80%");
     });
   });
+
+  // ────────────────────────────────────────────────────────────────────
+  // Branch coverage completeness: exercise every remaining partial so
+  // reviewer-activity.ts can join LOCKED_ZERO_FILES. Each test targets
+  // a specific `??`/ `if` / `<= 0` path that existing tests leave alone.
+  // ────────────────────────────────────────────────────────────────────
+
+  describe("optional-field fallbacks and approval rate edge cases", () => {
+    const baseAvailability: DataAvailabilitySignal = {
+      reviewerDataPresent: true,
+      reviewerDataEmpty: false,
+      cycleTimePresent: true,
+      reviewerRepoMode: "constrained",
+      commentsStatus: "disabled",
+    };
+
+    it("handles null rollups with availability-only options (rollups + unfilteredRollups fallbacks)", () => {
+      // rollups is null and options omits unfilteredRollups, so both
+      // `unfilteredRollups ?? []` and `rollups ?? []` right-hand branches
+      // in the empty-data classifier block fire.
+      renderReviewerActivity(container, null as unknown as Rollup[], {
+        availability: baseAvailability,
+      });
+
+      expect(container.innerHTML).toContain("no-data");
+    });
+
+    it("handles all-zero reviewers_count with availability-only options (unfilteredRollups fallback in second classifier block)", () => {
+      // Non-empty rollups where every reviewers_count is 0 take the
+      // `maxReviewers === 0` branch. Passing availability without
+      // unfilteredRollups exercises the second `options.unfilteredRollups
+      // ?? []` fallback on that path.
+      const zeroRollups: Rollup[] = Array.from({ length: 3 }, (_, i) => ({
+        week: `2025-W${(i + 1).toString().padStart(2, "0")}`,
+        pr_count: 10,
+        cycle_time_p50: 60,
+        cycle_time_p90: 120,
+        authors_count: 5,
+        reviewers_count: 0,
+        by_repository: null,
+        by_team: null,
+      }));
+
+      renderReviewerActivity(container, zeroRollups, {
+        availability: baseAvailability,
+      });
+
+      expect(container.innerHTML).toContain("no-data");
+    });
+
+    it("skips reviewers that are absent from the by_reviewer map", () => {
+      // Filter requests "ghost-id", but the rollup only has alice-id in
+      // its by_reviewer map. computeApprovalRate's `if (!entry) continue`
+      // truthy branch fires, leaving totalPrs at 0 → null rate path.
+      const rollups: Rollup[] = [
+        {
+          week: "2025-W01",
+          pr_count: 10,
+          cycle_time_p50: 60,
+          cycle_time_p90: 120,
+          authors_count: 5,
+          reviewers_count: 3,
+          by_repository: null,
+          by_team: null,
+          by_reviewer: {
+            "alice-id": {
+              reviewed_prs: 8,
+              reviews_count: 10,
+              approval_rate: 0.9,
+              authors_count: 3,
+              repositories_count: 2,
+            },
+          },
+        },
+      ];
+
+      renderReviewerActivity(container, rollups, {
+        reviewerFilterActive: true,
+        filters: { repos: [], teams: [], reviewers: ["ghost-id"], authors: [] },
+        unfilteredRollups: rollups,
+      });
+
+      const el = container.querySelector(".approval-rate");
+      expect(el).not.toBeNull();
+      expect(el!.classList.contains("approval-rate-no-data")).toBe(true);
+    });
+
+    it("skips reviewer entries whose reviewed_prs is zero", () => {
+      // `prs <= 0 → continue` truthy branch. Rate stays null → no-data.
+      const rollups: Rollup[] = [
+        {
+          week: "2025-W01",
+          pr_count: 10,
+          cycle_time_p50: 60,
+          cycle_time_p90: 120,
+          authors_count: 5,
+          reviewers_count: 3,
+          by_repository: null,
+          by_team: null,
+          by_reviewer: {
+            "alice-id": {
+              reviewed_prs: 0,
+              reviews_count: 0,
+              approval_rate: 0.9,
+              authors_count: 3,
+              repositories_count: 2,
+            },
+          },
+        },
+      ];
+
+      renderReviewerActivity(container, rollups, {
+        reviewerFilterActive: true,
+        filters: { repos: [], teams: [], reviewers: ["alice-id"], authors: [] },
+        unfilteredRollups: rollups,
+      });
+
+      const el = container.querySelector(".approval-rate");
+      expect(el).not.toBeNull();
+      expect(el!.classList.contains("approval-rate-no-data")).toBe(true);
+    });
+
+    it("treats reviewer entries with null reviewed_prs as zero via the ?? fallback", () => {
+      // Cast around the schema's `reviewed_prs: number` so we can feed a
+      // nullish value. `?? 0` right side fires, then `0 <= 0` → continue,
+      // leaving the rate at null. Defensive runtime behavior against
+      // partially-malformed rollups from older extracts.
+      const rollups: Rollup[] = [
+        {
+          week: "2025-W01",
+          pr_count: 10,
+          cycle_time_p50: 60,
+          cycle_time_p90: 120,
+          authors_count: 5,
+          reviewers_count: 3,
+          by_repository: null,
+          by_team: null,
+          by_reviewer: {
+            "alice-id": {
+              reviewed_prs: null as unknown as number,
+              reviews_count: 4,
+              approval_rate: 0.9,
+              authors_count: 3,
+              repositories_count: 2,
+            },
+          },
+        },
+      ];
+
+      renderReviewerActivity(container, rollups, {
+        reviewerFilterActive: true,
+        filters: { repos: [], teams: [], reviewers: ["alice-id"], authors: [] },
+        unfilteredRollups: rollups,
+      });
+
+      const el = container.querySelector(".approval-rate");
+      expect(el).not.toBeNull();
+      expect(el!.classList.contains("approval-rate-no-data")).toBe(true);
+    });
+  });
 });

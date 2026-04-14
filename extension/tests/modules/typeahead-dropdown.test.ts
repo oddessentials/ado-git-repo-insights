@@ -1833,6 +1833,96 @@ describe("Typeahead Dropdown", () => {
   });
 
   // ────────────────────────────────────────────────────────────────────
+  // Highlight path mirrors filterOptions whitespace trimming.
+  // filterOptions trims the query; renderDropdown must trim `searchVal`
+  // to the same shape or indexOf() returns -1 and the <strong> highlight
+  // is built from a garbled substring range (regression on branch 055).
+  // ────────────────────────────────────────────────────────────────────
+
+  describe("Search highlight matches trimmed filter query", () => {
+    it("renders correct <strong> highlight when search has leading whitespace", () => {
+      createContainer("highlight-leading");
+      initTypeaheadDropdown(makeConfig("highlight-leading"));
+
+      const input = document.querySelector(
+        "#highlight-leading .typeahead-input",
+      ) as HTMLInputElement;
+
+      // Set input BEFORE focus so openDropdown → filterOptions(" al") runs
+      // synchronously with the untrimmed value that the fix normalizes.
+      input.value = " al";
+      input.dispatchEvent(new Event("focus"));
+
+      const options = document.querySelectorAll(
+        "#highlight-leading .typeahead-option",
+      );
+      // filterOptions trims to "al" → only "Alpha" matches
+      expect(options.length).toBe(1);
+
+      const alphaOpt = options[0] as HTMLElement;
+      const strong = alphaOpt.querySelector("strong");
+      expect(strong).not.toBeNull();
+      // Highlight covers "Al" (case from displayName, length from trimmed query)
+      expect(strong!.textContent).toBe("Al");
+      // Full rendered text is still the intact displayName — no characters lost
+      expect(alphaOpt.textContent).toBe("Alpha");
+      // Three child nodes: prefix text, <strong>, suffix text
+      expect(alphaOpt.childNodes.length).toBe(3);
+      expect(alphaOpt.childNodes.item(0)?.textContent).toBe("");
+      expect(alphaOpt.childNodes.item(2)?.textContent).toBe("pha");
+    });
+
+    it("renders correct <strong> highlight when search has trailing whitespace", () => {
+      createContainer("highlight-trailing");
+      initTypeaheadDropdown(makeConfig("highlight-trailing"));
+
+      const input = document.querySelector(
+        "#highlight-trailing .typeahead-input",
+      ) as HTMLInputElement;
+
+      input.value = "al ";
+      input.dispatchEvent(new Event("focus"));
+
+      const options = document.querySelectorAll(
+        "#highlight-trailing .typeahead-option",
+      );
+      expect(options.length).toBe(1);
+
+      const alphaOpt = options[0] as HTMLElement;
+      const strong = alphaOpt.querySelector("strong");
+      expect(strong).not.toBeNull();
+      expect(strong!.textContent).toBe("Al");
+      expect(alphaOpt.textContent).toBe("Alpha");
+      expect(alphaOpt.childNodes.length).toBe(3);
+      expect(alphaOpt.childNodes.item(0)?.textContent).toBe("");
+      expect(alphaOpt.childNodes.item(2)?.textContent).toBe("pha");
+    });
+
+    it("whitespace-only search renders via plain-text branch (no <strong>)", () => {
+      createContainer("highlight-whitespace-only");
+      initTypeaheadDropdown(makeConfig("highlight-whitespace-only"));
+
+      const input = document.querySelector(
+        "#highlight-whitespace-only .typeahead-input",
+      ) as HTMLInputElement;
+
+      // Trimmed query is "" → filterOptions returns all 4 options,
+      // and renderDropdown must fall through to the textContent branch.
+      input.value = "   ";
+      input.dispatchEvent(new Event("focus"));
+
+      const options = document.querySelectorAll(
+        "#highlight-whitespace-only .typeahead-option",
+      );
+      expect(options.length).toBe(4);
+      options.forEach((opt) => {
+        expect(opt.querySelector("strong")).toBeNull();
+        expect(opt.textContent).toBeTruthy();
+      });
+    });
+  });
+
+  // ────────────────────────────────────────────────────────────────────
   // Single-select toggle-off (lines 273-278)
   // ────────────────────────────────────────────────────────────────────
 

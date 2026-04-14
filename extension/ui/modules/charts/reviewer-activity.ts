@@ -94,11 +94,9 @@ export function renderReviewerActivity(
   if (!container) return;
 
   const { reviewerFilterActive = false } = options;
-  const noun = reviewerFilterActive ? "reviews" : "reviewers";
-  const subtitle = reviewerFilterActive
-    ? `Review activity per week (last ${Math.min(rollups.length, MAX_REVIEWER_WEEKS)} weeks)`
-    : `Active reviewers per week (last ${Math.min(rollups.length, MAX_REVIEWER_WEEKS)} weeks)`;
 
+  // Handle the empty/nullish rollups case before computing any subtitle
+  // string — otherwise `rollups.length` access on null crashes the render.
   if (!rollups || !rollups.length) {
     const classification = options.availability
       ? classifyEmptyState({
@@ -110,7 +108,7 @@ export function renderReviewerActivity(
             authors: [],
           },
           unfilteredRollups: options.unfilteredRollups ?? [],
-          filteredRollups: rollups ?? [],
+          filteredRollups: [],
           availability: options.availability,
           minimumDataPoints: 0,
         })
@@ -128,6 +126,11 @@ export function renderReviewerActivity(
     );
     return;
   }
+
+  const noun = reviewerFilterActive ? "reviews" : "reviewers";
+  const subtitle = reviewerFilterActive
+    ? `Review activity per week (last ${Math.min(rollups.length, MAX_REVIEWER_WEEKS)} weeks)`
+    : `Active reviewers per week (last ${Math.min(rollups.length, MAX_REVIEWER_WEEKS)} weeks)`;
 
   // Take last MAX_REVIEWER_WEEKS weeks for display
   const truncated = rollups.length > MAX_REVIEWER_WEEKS;
