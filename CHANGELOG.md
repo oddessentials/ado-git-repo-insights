@@ -1,3 +1,14 @@
+## [101.6.3](https://github.com/oddessentials/ado-git-repo-insights/compare/v101.6.2...v101.6.3) (2026-04-14)
+
+
+### Bug Fixes
+
+* **#277:** drive charts/cycle-time.ts to 0 partial branches + lock ([eca3257](https://github.com/oddessentials/ado-git-repo-insights/commit/eca3257a76c0267a6ea2a48d4de6c4a13424cb33)), closes [#277](https://github.com/oddessentials/ado-git-repo-insights/issues/277)
+* **#277:** drive charts/predictions.ts to 0 partial branches + lock ([9406ac1](https://github.com/oddessentials/ado-git-repo-insights/commit/9406ac165435aa50ec2e2c0e985cf7ee51b6b900)), closes [#277](https://github.com/oddessentials/ado-git-repo-insights/issues/277)
+* **#277:** drive charts/reviewer-activity.ts to 0 partial branches + lock ([b9a3a9c](https://github.com/oddessentials/ado-git-repo-insights/commit/b9a3a9c3ba578566d944981aef989c5953cc0547)), closes [#277](https://github.com/oddessentials/ado-git-repo-insights/issues/277)
+* **#277:** drive charts/summary-cards.ts to 0 partial branches + lock ([3e4d1f2](https://github.com/oddessentials/ado-git-repo-insights/commit/3e4d1f215d50b11a2de859cafdde40a2f5fcf389)), closes [#277](https://github.com/oddessentials/ado-git-repo-insights/issues/277) [#277](https://github.com/oddessentials/ado-git-repo-insights/issues/277) [#271](https://github.com/oddessentials/ado-git-repo-insights/issues/271)
+* **typeahead:** trim searchVal to match filterOptions whitespace handling ([8ce1bb9](https://github.com/oddessentials/ado-git-repo-insights/commit/8ce1bb94380988bb5eb67a9670117dd9188fe925))
+
 ## [101.6.2](https://github.com/oddessentials/ado-git-repo-insights/compare/v101.6.1...v101.6.2) (2026-04-14)
 
 
