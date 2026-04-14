@@ -1,3 +1,10 @@
+## [101.6.1](https://github.com/oddessentials/ado-git-repo-insights/compare/v101.6.0...v101.6.1) (2026-04-14)
+
+
+### Bug Fixes
+
+* **#271:** close 9 target partial-branch lines from review-time reflow ([b79d312](https://github.com/oddessentials/ado-git-repo-insights/commit/b79d312f0d9c4671a7f121a1f3b7e887042ff788))
+
 # [101.6.0](https://github.com/oddessentials/ado-git-repo-insights/compare/v101.5.0...v101.6.0) (2026-04-14)
 
 
