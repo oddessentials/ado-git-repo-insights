@@ -367,17 +367,7 @@ def build_commands(
         ),
         CommandSpec(
             "Extension Jest CI",
-            (
-                PNPM_SENTINEL,
-                "exec",
-                "jest",
-                "--ci",
-                "--runInBand",
-                "--coverage",
-                "--reporters=default",
-                "--reporters=jest-junit",
-                "--testPathIgnorePatterns=vsix-artifact-inspection",
-            ),
+            (PNPM_SENTINEL, "run", "test:coverage"),
             cwd=EXTENSION_ROOT,
         ),
         CommandSpec(
@@ -415,6 +405,10 @@ def build_commands(
                 "--ts-coverage",
                 "extension/coverage/lcov.info",
             ),
+        ),
+        CommandSpec(
+            "Partial-branch ratchet",
+            (PNPM_SENTINEL, "--dir", "extension", "run", "test:partial-branches"),
         ),
         CommandSpec(
             "Extension VSIX artifact inspection",

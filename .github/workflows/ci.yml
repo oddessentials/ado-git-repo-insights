@@ -962,6 +962,9 @@ jobs:
             --max-skips=0
         shell: bash
 
+      - name: Partial-branch ratchet
+        run: pnpm --dir extension run test:partial-branches
+
       - name: Upload TypeScript Coverage
         uses: codecov/codecov-action@v6
         if: success()

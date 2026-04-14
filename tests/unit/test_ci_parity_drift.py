@@ -510,3 +510,146 @@ class TestFormatCheckParity:
             f"definition). Found {len(pkg_hits)}:\n"
             + "\n".join(f"  {h}" for h in pkg_hits)
         )
+
+
+class TestPartialBranchesParity:
+    """Parity-drift coverage for the per-file partial-branch ratchet (#272).
+
+    Contract: all call sites invoke the ``test:partial-branches`` script by
+    name; no tier invokes ``check_partial_branches.py`` directly. The script
+    in ``extension/package.json`` is the single authoritative surface.
+    """
+
+    def test_test_partial_branches_script_is_exact(self) -> None:
+        """Lock the authoritative flags in the ``test:partial-branches``
+        script so no call site can drift on lcov or baseline path."""
+        ext_pkg = json.loads(
+            (REPO_ROOT / "extension" / "package.json").read_text(encoding="utf-8")
+        )
+        script = ext_pkg.get("scripts", {}).get("test:partial-branches", "")
+        assert script == (
+            "python ../scripts/check_partial_branches.py "
+            "--lcov coverage/lcov.info "
+            "--baseline ../.coverage-partial-branches-baseline.json"
+        ), (
+            "test:partial-branches must invoke check_partial_branches.py with "
+            "locked --lcov and --baseline flags relative to extension/; "
+            f"got: {script!r}"
+        )
+
+    def test_test_ci_includes_partial_branches(self) -> None:
+        """``test:ci`` must run the partial-branch gate after ``jest ...
+        --coverage`` so lcov.info exists when the gate reads it."""
+        ext_pkg = json.loads(
+            (REPO_ROOT / "extension" / "package.json").read_text(encoding="utf-8")
+        )
+        test_ci = ext_pkg.get("scripts", {}).get("test:ci", "")
+        assert "pnpm run test:partial-branches" in test_ci, (
+            "extension test:ci must invoke `pnpm run test:partial-branches`; "
+            f"got: {test_ci!r}"
+        )
+        coverage_index = test_ci.find("pnpm run test:coverage")
+        gate_index = test_ci.find("pnpm run test:partial-branches")
+        assert coverage_index != -1, (
+            "test:ci must invoke `pnpm run test:coverage` (the single canonical "
+            f"lcov-producing command); got: {test_ci!r}"
+        )
+        assert gate_index > coverage_index, (
+            "test:ci must run test:partial-branches AFTER `pnpm run test:coverage` "
+            "so lcov.info is available to the gate"
+        )
+
+    def test_preflight_has_partial_branches_spec(self) -> None:
+        """Preflight invokes the gate via the outside form (``pnpm --dir
+        extension run test:partial-branches``) because preflight runs from
+        the repo root."""
+        preflight = _normalized_preflight_commands()
+        assert "Partial-branch ratchet" in preflight, (
+            "Preflight must define a 'Partial-branch ratchet' CommandSpec"
+        )
+        assert preflight["Partial-branch ratchet"] == (
+            "__PNPM__ --dir extension run test:partial-branches"
+        ), (
+            "Preflight partial-branch command must be `pnpm --dir extension "
+            f"run test:partial-branches`; got: {preflight['Partial-branch ratchet']!r}"
+        )
+
+    def test_ci_workflow_partial_branches_step(self) -> None:
+        """CI dedicated step uses the outside form because the step has no
+        ``working-directory`` key — the ``pnpm --dir extension`` flag
+        keeps the single-authoritative-command pattern."""
+        step = _find_ci_step("extension-tests", "Partial-branch ratchet")
+        assert str(step.get("run", "")).strip() == (
+            "pnpm --dir extension run test:partial-branches"
+        ), (
+            "CI step must run `pnpm --dir extension run test:partial-branches` "
+            f"(outside form, no working-directory); got: {step.get('run')!r}"
+        )
+
+    def test_no_direct_check_partial_branches_outside_script(self) -> None:
+        """Only the ``test:partial-branches`` script in
+        ``extension/package.json`` may reference ``check_partial_branches.py``
+        by path. All other call sites must go through the script name."""
+        result = subprocess.run(
+            ["git", "grep", "-n", "--fixed-strings", "check_partial_branches.py"],
+            capture_output=True,
+            text=True,
+            cwd=REPO_ROOT,
+            check=False,
+        )
+        hits = [line for line in result.stdout.splitlines() if line]
+
+        allowed_prefixes = (
+            "extension/package.json:",
+            "scripts/check_partial_branches.py:",
+            "tests/unit/test_ci_parity_drift.py:",
+            "tests/unit/test_check_partial_branches.py:",
+        )
+        disallowed = [h for h in hits if not h.startswith(allowed_prefixes)]
+        assert not disallowed, (
+            "Direct `check_partial_branches.py` reference found outside the "
+            "authoritative script. All call sites must use `pnpm run "
+            "test:partial-branches` (inside form) or `pnpm --dir extension "
+            "run test:partial-branches` (outside form).\n"
+            "Disallowed hits:\n" + "\n".join(f"  {h}" for h in disallowed)
+        )
+
+        pkg_hits = [h for h in hits if h.startswith("extension/package.json:")]
+        assert len(pkg_hits) == 1, (
+            "extension/package.json must contain exactly one "
+            "`check_partial_branches.py` occurrence (the test:partial-branches "
+            f"script definition). Found {len(pkg_hits)}:\n"
+            + "\n".join(f"  {h}" for h in pkg_hits)
+        )
+
+    def test_partial_branches_baseline_schema(self) -> None:
+        """The committed baseline must match the expected v1 schema."""
+        baseline_path = REPO_ROOT / ".coverage-partial-branches-baseline.json"
+        assert baseline_path.exists(), f"Baseline file must exist at {baseline_path}"
+        data = json.loads(baseline_path.read_text(encoding="utf-8"))
+        assert isinstance(data, dict), "baseline must be a JSON object"
+        assert data.get("schema_version") == 1, (
+            f"baseline schema_version must be 1; got: {data.get('schema_version')!r}"
+        )
+        generated_from = data.get("generated_from")
+        assert isinstance(generated_from, str), (
+            f"baseline 'generated_from' must be a string; got: {generated_from!r}"
+        )
+        assert generated_from, (
+            "baseline 'generated_from' provenance string must be non-empty"
+        )
+        files = data.get("files")
+        assert isinstance(files, dict), "baseline 'files' must be a JSON object"
+        for key, value in files.items():
+            assert isinstance(key, str), (
+                f"baseline file key must be a string; got: {key!r}"
+            )
+            assert key.startswith("extension/"), (
+                f"baseline file key must be an 'extension/'-rooted path; got: {key!r}"
+            )
+            assert isinstance(value, int), (
+                f"baseline file count must be an int; {key!r} -> {value!r}"
+            )
+            assert value > 0, (
+                f"baseline file count must be positive; {key!r} -> {value!r}"
+            )
