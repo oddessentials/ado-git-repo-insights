@@ -6805,8 +6805,6 @@ var PRInsightsDashboard = (() => {
   function renderReviewerActivity(container, rollups, options = {}) {
     if (!container) return;
     const { reviewerFilterActive = false } = options;
-    const noun = reviewerFilterActive ? "reviews" : "reviewers";
-    const subtitle = reviewerFilterActive ? `Review activity per week (last ${Math.min(rollups.length, MAX_REVIEWER_WEEKS)} weeks)` : `Active reviewers per week (last ${Math.min(rollups.length, MAX_REVIEWER_WEEKS)} weeks)`;
     if (!rollups || !rollups.length) {
       const classification = options.availability ? classifyEmptyState({
         chartType: "reviewer_activity",
@@ -6817,7 +6815,7 @@ var PRInsightsDashboard = (() => {
           authors: []
         },
         unfilteredRollups: options.unfilteredRollups ?? [],
-        filteredRollups: rollups ?? [],
+        filteredRollups: [],
         availability: options.availability,
         minimumDataPoints: 0
       }) : null;
@@ -6829,6 +6827,8 @@ var PRInsightsDashboard = (() => {
       );
       return;
     }
+    const noun = reviewerFilterActive ? "reviews" : "reviewers";
+    const subtitle = reviewerFilterActive ? `Review activity per week (last ${Math.min(rollups.length, MAX_REVIEWER_WEEKS)} weeks)` : `Active reviewers per week (last ${Math.min(rollups.length, MAX_REVIEWER_WEEKS)} weeks)`;
     const truncated = rollups.length > MAX_REVIEWER_WEEKS;
     const recentRollups = rollups.slice(-MAX_REVIEWER_WEEKS);
     const maxReviewers = Math.max(
