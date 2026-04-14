@@ -407,6 +407,35 @@ def main() -> int:
         return 1
 
     if args.update_baseline:
+        # LOCKED_ZERO_FILES must hold even on the helper path. Without this
+        # guard, a maintainer running --update-baseline after a locked file
+        # regresses would write a baseline with a non-zero entry for that
+        # file — the very next normal run would then fail SETUP because
+        # find_locked_zero_violations catches it. Rejecting the write here
+        # keeps the helper from generating baselines that are invalid by
+        # construction and surfaces the real problem (the regression) at
+        # the point the maintainer actually runs the tool.
+        locked_observed_violations = sorted(
+            (f, observed[f]) for f in LOCKED_ZERO_FILES if observed.get(f, 0) > 0
+        )
+        if locked_observed_violations:
+            print(
+                f"::error category={CATEGORY_SETUP}::"
+                "Cannot update baseline: locked-zero files have non-zero "
+                "observed partial-branch counts. These files are guarded "
+                "against any partial-branch tolerance, so --update-baseline "
+                "will not write entries for them. Fix the regressions "
+                "(close the new partial-branch lines or delete the dead "
+                "branches) before updating the baseline.",
+                file=sys.stderr,
+            )
+            for locked_file, count in locked_observed_violations:
+                print(
+                    f"  {locked_file}: observed={count}",
+                    file=sys.stderr,
+                )
+            return 1
+
         suggested = build_suggested_baseline(
             observed,
             BaselineFile(

@@ -59,12 +59,15 @@ export function initTypeaheadDropdown(
 
   // Component state
   let options = [...config.options];
-  // Filter initialSelection against the option set so `selected ⊆ options.map(o => o.id)`
-  // is a module-wide invariant. This lets renderChips and updateInputDisplay treat the
-  // result of `options.find(id-match)` as non-optional without runtime guards.
-  let selected: string[] = config.initialSelection.filter((id) =>
-    config.options.some((o) => o.id === id),
-  );
+  // Preserve initialSelection as-is — callers may legitimately construct a
+  // typeahead with saved IDs and deliver matching options later via
+  // setOptions() (async / delayed data sources). renderChips skips
+  // unknown IDs via an `if (!opt) return;` guard; updateInputDisplay
+  // uses `?.` + `??` for the same reason. Once setOptions arrives with
+  // the matching option, both render paths resolve naturally because
+  // setOptions' existing `selected.filter(...)` step keeps only IDs
+  // present in the new option set, and any surviving IDs then render.
+  let selected: string[] = [...config.initialSelection];
   let filteredOptions: TypeaheadOption[] = [];
   let highlightIndex = -1;
   let isOpen = false;
@@ -122,7 +125,13 @@ export function initTypeaheadDropdown(
     if (isAllSelected()) return; // FR-011: canonical "All" state = no chips
 
     selected.forEach((id) => {
-      const opt = options.find((o) => o.id === id) as TypeaheadOption;
+      const opt = options.find((o) => o.id === id);
+      // Defensive: `selected` can legitimately contain IDs not yet in
+      // `options` (async option loading — the caller will deliver the
+      // matching option later via setOptions). Skip silently here so
+      // renderChips can be called at any point in the lifecycle without
+      // crashing on unresolved IDs.
+      if (!opt) return;
 
       const chip = document.createElement("span");
       chip.className = "typeahead-chip";
@@ -219,11 +228,12 @@ export function initTypeaheadDropdown(
   function updateInputDisplay(): void {
     if (config.mode === "single") {
       if (selected.length > 0) {
-        // Invariant from constructor filter: selected[0] always matches an option.
-        const opt = options.find(
-          (o) => o.id === selected[0],
-        ) as TypeaheadOption;
-        input.value = opt.displayName;
+        // `selected[0]` may not yet match an option when the caller has
+        // supplied initialSelection but is still loading options (async
+        // data source). Fall back to empty input until setOptions()
+        // delivers the matching option — see the constructor comment.
+        const opt = options.find((o) => o.id === selected[0]);
+        input.value = opt?.displayName ?? "";
       } else {
         input.value = "";
       }

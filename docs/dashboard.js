@@ -7057,9 +7057,7 @@ var PRInsightsDashboard = (() => {
     const container = document.getElementById(config.containerId);
     if (!container) return null;
     let options = [...config.options];
-    let selected = config.initialSelection.filter(
-      (id) => config.options.some((o2) => o2.id === id)
-    );
+    let selected = [...config.initialSelection];
     let filteredOptions = [];
     let highlightIndex = -1;
     let isOpen = false;
@@ -7097,6 +7095,7 @@ var PRInsightsDashboard = (() => {
       if (isAllSelected()) return;
       selected.forEach((id) => {
         const opt = options.find((o2) => o2.id === id);
+        if (!opt) return;
         const chip = document.createElement("span");
         chip.className = "typeahead-chip";
         const label = document.createElement("span");
@@ -7177,10 +7176,8 @@ var PRInsightsDashboard = (() => {
     function updateInputDisplay() {
       if (config.mode === "single") {
         if (selected.length > 0) {
-          const opt = options.find(
-            (o2) => o2.id === selected[0]
-          );
-          input.value = opt.displayName;
+          const opt = options.find((o2) => o2.id === selected[0]);
+          input.value = opt?.displayName ?? "";
         } else {
           input.value = "";
         }

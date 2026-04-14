@@ -598,7 +598,7 @@ jobs:
           # MAX_SKIPS: Maximum allowed skipped tests (0 = no skips allowed in CI)
           python .github/scripts/validate-test-results.py \
             test-results.xml \
-            --min-collected=1619 \
+            --min-collected=1621 \
             --max-skips=0
         shell: bash
 
@@ -958,7 +958,7 @@ jobs:
           # MAX_SKIPS: Zero tolerance — no skips allowed (parity with Python gate)
           python .github/scripts/validate-test-results.py \
             extension/test-results.xml \
-            --min-collected=2312 \
+            --min-collected=2314 \
             --max-skips=0
         shell: bash
 

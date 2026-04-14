@@ -146,6 +146,40 @@ describe("Typeahead Dropdown", () => {
       expect(instance!.getSelected()).toEqual(["alpha"]);
       expect(onChange).toHaveBeenCalledWith(["alpha"]);
     });
+
+    it("single-mode preserves initial selection as-is when options load async (closes L220 nullish-fallback branch)", () => {
+      // Regression lock for the async/delayed-options pattern: a caller may
+      // construct a typeahead with `initialSelection: ["alpha"]` but empty
+      // `options: []`, expecting to deliver the matching option later via
+      // setOptions(). The previous round of this PR filtered initialSelection
+      // at construction time, which silently dropped IDs that had no matching
+      // option in the initial set — breaking valid usage. This test locks in
+      // the preserve behavior AND exercises updateInputDisplay's
+      // `opt?.displayName ?? ""` nullish-fallback branch (BRDA L220 branch 1).
+      createContainer("single-async");
+      const instance = initTypeaheadDropdown(
+        makeConfig("single-async", {
+          mode: "single",
+          options: [],
+          initialSelection: ["alpha"],
+        }),
+      );
+      const input = document.querySelector(
+        "#single-async .typeahead-input",
+      ) as HTMLInputElement;
+
+      // Pre-setOptions: the id is preserved but no option matches, so the
+      // nullish-fallback branch fires and leaves the input empty.
+      expect(input.value).toBe("");
+      expect(instance!.getSelected()).toEqual(["alpha"]);
+
+      // When the matching option arrives, updateInputDisplay re-runs (via
+      // setOptions) and resolves selected[0] to the real displayName —
+      // this exercises the truthy side of the same ternary.
+      instance!.setOptions([{ id: "alpha", displayName: "Alpha" }]);
+      expect(input.value).toBe("Alpha");
+      expect(instance!.getSelected()).toEqual(["alpha"]);
+    });
   });
 
   describe("Multi-select mode", () => {
@@ -172,6 +206,52 @@ describe("Typeahead Dropdown", () => {
       expect(chips).toHaveLength(2);
       expect(chips[0]?.textContent).toContain("Alpha");
       expect(chips[1]?.textContent).toContain("Gamma");
+    });
+
+    it("preserves unknown initial IDs until matching options arrive via setOptions (closes L121 !opt-return branch)", () => {
+      // Regression lock for the async/delayed-options pattern in multi mode:
+      // renderChips' `if (!opt) return;` guard must take the truthy side
+      // when an initial id has no matching option yet (previously covered
+      // by filtering at the constructor — that was a real regression for
+      // callers that intentionally initialize with saved IDs and deliver
+      // options asynchronously).
+      createContainer("async-delayed-opts");
+      const instance = initTypeaheadDropdown(
+        makeConfig("async-delayed-opts", {
+          mode: "multi",
+          options: [],
+          initialSelection: ["alpha", "beta"],
+        }),
+      );
+
+      // Pre-setOptions: no options exist, so renderChips iterates `selected`
+      // and hits the `!opt` return path for every id. No chips rendered, no
+      // crash, and getSelected preserves the original ids so the caller's
+      // saved state survives until the async option source delivers them.
+      expect(
+        document.querySelectorAll("#async-delayed-opts .typeahead-chip"),
+      ).toHaveLength(0);
+      expect(instance!.getSelected()).toEqual(["alpha", "beta"]);
+
+      // When options finally arrive, setOptions' existing
+      // `selected.filter(...)` step keeps only ids present in the new
+      // option set (both match), then renderChips runs again and this
+      // time the `!opt` guard takes the falsy side for both ids — so
+      // each chip renders. We deliver THREE options (not two) so
+      // `selected.length === options.length` is false and FR-011's
+      // all-selected normalization does not suppress the chips.
+      instance!.setOptions([
+        { id: "alpha", displayName: "Alpha" },
+        { id: "beta", displayName: "Beta" },
+        { id: "gamma", displayName: "Gamma" },
+      ]);
+      const chips = document.querySelectorAll(
+        "#async-delayed-opts .typeahead-chip",
+      );
+      expect(chips).toHaveLength(2);
+      expect(chips[0]?.textContent).toContain("Alpha");
+      expect(chips[1]?.textContent).toContain("Beta");
+      expect(instance!.getSelected()).toEqual(["alpha", "beta"]);
     });
 
     it("removes chip on remove button click", () => {
