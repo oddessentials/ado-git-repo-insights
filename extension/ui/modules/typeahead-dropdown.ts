@@ -387,8 +387,8 @@ export function initTypeaheadDropdown(
           filterOptions(input.value);
         }
         if (highlightIndex >= 0 && highlightIndex < filteredOptions.length) {
-          const opt = filteredOptions.at(highlightIndex);
-          if (opt) toggleOption(opt.id);
+          const opt = filteredOptions.at(highlightIndex) as TypeaheadOption;
+          toggleOption(opt.id);
         }
       } else if (e.key === "Escape") {
         closeDropdown();
@@ -399,9 +399,7 @@ export function initTypeaheadDropdown(
         config.mode === "multi" &&
         selected.length > 0
       ) {
-        // Remove last chip on backspace in empty input
-        const last = selected[selected.length - 1];
-        if (last) deselectOption(last);
+        deselectOption(selected.at(-1) as string);
       }
     },
     { signal },

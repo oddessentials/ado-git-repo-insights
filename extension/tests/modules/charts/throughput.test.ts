@@ -89,6 +89,17 @@ describe("throughput module", () => {
       expect(container.innerHTML).toContain("No data for selected range");
     });
 
+    it("classifies empty state using fallback defaults when options fields undefined (#271)", () => {
+      // Calling with an empty options object drives classifyEmptyState through
+      // the three `??` fallbacks on filters / unfilteredRollups / availability
+      // (throughput.ts:50, 56, 58). The public contract only cares that we
+      // still render the no-data affordance; the interesting part is the
+      // fallback-branch coverage, not the exact classification message.
+      renderThroughputChart(container, [], {});
+
+      expect(container.innerHTML).toContain("no-data");
+    });
+
     it("handles null container gracefully", () => {
       const rollups = makeTestRollups(4);
 

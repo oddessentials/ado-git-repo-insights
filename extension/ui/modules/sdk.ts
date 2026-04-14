@@ -175,9 +175,7 @@ export async function initializeAdoSdk(
   });
 
   initPromise = Promise.race([initSequence(), timeoutPromise]).finally(() => {
-    if (timeoutId !== undefined) {
-      clearTimeout(timeoutId);
-    }
+    clearTimeout(timeoutId);
     initPromise = null;
   });
 

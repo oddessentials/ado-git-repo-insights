@@ -4028,9 +4028,7 @@ var PRInsightsDashboard = (() => {
       }, timeout);
     });
     initPromise = Promise.race([initSequence(), timeoutPromise]).finally(() => {
-      if (timeoutId !== void 0) {
-        clearTimeout(timeoutId);
-      }
+      clearTimeout(timeoutId);
       initPromise = null;
     });
     return initPromise;
@@ -6496,7 +6494,7 @@ var PRInsightsDashboard = (() => {
           authors: []
         },
         unfilteredRollups: options.unfilteredRollups ?? [],
-        filteredRollups: rollups ?? [],
+        filteredRollups: rollups,
         availability: options.availability ?? {
           reviewerDataPresent: false,
           reviewerDataEmpty: false,
@@ -6558,8 +6556,8 @@ var PRInsightsDashboard = (() => {
     `
     );
     addChartTooltips(container, (bar) => {
-      const week = bar.dataset.week ?? "";
-      const count = bar.dataset.count ?? "0";
+      const week = bar.dataset.week;
+      const count = bar.dataset.count;
       return `<div class="chart-tooltip-title">${escapeHtml(week)}</div>
             <div class="chart-tooltip-row">
               <span class="chart-tooltip-label">PRs</span>
@@ -7339,14 +7337,13 @@ var PRInsightsDashboard = (() => {
           }
           if (highlightIndex >= 0 && highlightIndex < filteredOptions.length) {
             const opt = filteredOptions.at(highlightIndex);
-            if (opt) toggleOption(opt.id);
+            toggleOption(opt.id);
           }
         } else if (e2.key === "Escape") {
           closeDropdown();
           input.blur();
         } else if (e2.key === "Backspace" && input.value === "" && config.mode === "multi" && selected.length > 0) {
-          const last = selected[selected.length - 1];
-          if (last) deselectOption(last);
+          deselectOption(selected.at(-1));
         }
       },
       { signal }

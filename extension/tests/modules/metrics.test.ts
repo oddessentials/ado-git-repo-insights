@@ -2643,3 +2643,124 @@ describe("review_time filter propagation (044)", () => {
     expect(result[0]!.review_time_p90).toBe(7200);
   });
 });
+
+/**
+ * Partial-branch gap closure for #271.
+ *
+ * The existing cross-dimensional fixtures populate cycle_time_* on
+ * by_author_and_repo and by_team_and_repo entries but omit review_time_*.
+ * That left the review_time divisor path at metrics.ts:648-649 and 804-805
+ * unexercised, and the cycle_time null-fallback path at 646-647 had the
+ * opposite asymmetry on the author+repo branch. These tests flip both.
+ */
+describe("cross-dim review_time partial-branch closure (#271)", () => {
+  it("author+repo path: null cycle_time falls back while finite review_time divides", () => {
+    const rollup = {
+      week: "2026-W01",
+      pr_count: 100,
+      cycle_time_p50: 60,
+      cycle_time_p90: 120,
+      authors_count: 10,
+      reviewers_count: 5,
+      by_repository: {
+        "repo-a": {
+          pr_count: 30,
+          cycle_time_p50: 45,
+          cycle_time_p90: 90,
+          authors_count: 3,
+          reviewers_count: 2,
+        },
+      },
+      by_author: {
+        "author-1": {
+          pr_count: 10,
+          cycle_time_p50: 50,
+          cycle_time_p90: 100,
+          authors_count: 1,
+          reviewers_count: 2,
+        },
+      },
+      by_author_and_repo: {
+        "author-1": {
+          "repo-a": {
+            pr_count: 10,
+            cycle_time_p50: null,
+            cycle_time_p90: null,
+            review_time_p50: 1500,
+            review_time_p90: 3000,
+            authors_count: 1,
+            reviewers_count: 2,
+          },
+        },
+      },
+    } as unknown as Rollup;
+
+    const result = applyFiltersToRollups([rollup], {
+      repos: ["repo-a"],
+      teams: [],
+      authors: ["author-1"],
+    });
+
+    expect(result[0]!.pr_count).toBe(10);
+    // Zero-weight cycle_time accumulator hits the null fallback (646, 647).
+    expect(result[0]!.cycle_time_p50).toBeNull();
+    expect(result[0]!.cycle_time_p90).toBeNull();
+    // Finite review_time accumulator hits the divisor path (648, 649).
+    expect(result[0]!.review_time_p50).toBe(1500);
+    expect(result[0]!.review_time_p90).toBe(3000);
+  });
+
+  it("team+repo path: finite review_time in by_team_and_repo hits divisor branch", () => {
+    const rollup = {
+      week: "2026-W01",
+      pr_count: 100,
+      cycle_time_p50: 60,
+      cycle_time_p90: 120,
+      authors_count: 10,
+      reviewers_count: 5,
+      by_repository: {
+        "repo-a": {
+          pr_count: 20,
+          cycle_time_p50: 45,
+          cycle_time_p90: 95,
+          authors_count: 3,
+          reviewers_count: 2,
+        },
+      },
+      by_team: {
+        "team-x": {
+          pr_count: 20,
+          cycle_time_p50: 45,
+          cycle_time_p90: 95,
+          authors_count: 3,
+          reviewers_count: 2,
+        },
+      },
+      by_team_and_repo: {
+        "team-x": {
+          "repo-a": {
+            pr_count: 20,
+            cycle_time_p50: 45,
+            cycle_time_p90: 95,
+            review_time_p50: 900,
+            review_time_p90: 1800,
+            authors_count: 3,
+            reviewers_count: 2,
+          },
+        },
+      },
+    } as unknown as Rollup;
+
+    const result = applyFiltersToRollups([rollup], {
+      repos: ["repo-a"],
+      teams: ["team-x"],
+    });
+
+    expect(result[0]!.pr_count).toBe(20);
+    expect(result[0]!.cycle_time_p50).toBe(45);
+    expect(result[0]!.cycle_time_p90).toBe(95);
+    // Finite review_time accumulator on the team+repo path (804, 805).
+    expect(result[0]!.review_time_p50).toBe(900);
+    expect(result[0]!.review_time_p90).toBe(1800);
+  });
+});
