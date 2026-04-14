@@ -4,15 +4,15 @@ This document explains the test architecture for the Azure DevOps Git Repo Insig
 
 ## Test Suites
 
-| Command              | Description               | Requires Python          |
-| -------------------- | ------------------------- | ------------------------ |
-| `pnpm test`          | Unit tests (default)      | No                       |
-| `pnpm test:unit`     | Unit tests (explicit)     | No                       |
-| `pnpm test:all`      | Unit + integration tests  | Yes                      |
-| `pnpm test:ci`       | CI mode with JUnit output | Yes                      |
-| `pnpm test:vsix`     | VSIX artifact inspection  | No (requires built VSIX) |
-| `pnpm test:watch`    | Watch mode for unit tests | No                       |
-| `pnpm test:coverage` | Unit tests with coverage  | No                       |
+| Command              | Description                                                                                | Requires Python          |
+| -------------------- | ------------------------------------------------------------------------------------------ | ------------------------ |
+| `pnpm test`          | Unit tests (default)                                                                       | No                       |
+| `pnpm test:unit`     | Unit tests (explicit)                                                                      | No                       |
+| `pnpm test:all`      | Unit + integration tests                                                                   | Yes                      |
+| `pnpm test:ci`       | CI mode with JUnit output (chains `test:coverage` and `test:partial-branches`)             | Yes                      |
+| `pnpm test:vsix`     | VSIX artifact inspection                                                                   | No (requires built VSIX) |
+| `pnpm test:watch`    | Watch mode for unit tests                                                                  | No                       |
+| `pnpm test:coverage` | Canonical coverage run — every jest test except `vsix-artifact-inspection`, produces `coverage/lcov.info` | Yes                      |
 
 ## Directory Structure
 
@@ -70,11 +70,11 @@ VSIX_REQUIRED=true pnpm test:vsix
 
 ## CI Jobs
 
-| Job                  | Python | Tests           | Purpose                                |
-| -------------------- | ------ | --------------- | -------------------------------------- |
-| `extension-tests`    | Yes    | `test:ci` (all) | Full test coverage with JUnit output   |
-| `fresh-clone-verify` | No     | `test:unit`     | Verify fresh clone works without cache |
-| `build-extension`    | No     | `test:vsix`     | VSIX artifact inspection               |
+| Job                  | Python | Tests                            | Purpose                                                                       |
+| -------------------- | ------ | -------------------------------- | ----------------------------------------------------------------------------- |
+| `extension-tests`    | Yes    | `test:ci` (all + partial-branch) | Full test coverage with JUnit output and per-file partial-branch ratchet gate |
+| `fresh-clone-verify` | No     | `test:unit`                      | Verify fresh clone works without cache                                        |
+| `build-extension`    | No     | `test:vsix`                      | VSIX artifact inspection                                                      |
 
 ## Adding New Tests
 
