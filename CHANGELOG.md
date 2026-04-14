@@ -1,3 +1,16 @@
+# [101.6.0](https://github.com/oddessentials/ado-git-repo-insights/compare/v101.5.0...v101.6.0) (2026-04-14)
+
+
+### Bug Fixes
+
+* **#272:** canonical test:coverage + fail-closed parser + absolute-path anchoring ([3c876ee](https://github.com/oddessentials/ado-git-repo-insights/commit/3c876ee1ca794a6e040c6e69d297192260ce9f05)), closes [#273](https://github.com/oddessentials/ado-git-repo-insights/issues/273) [#274](https://github.com/oddessentials/ado-git-repo-insights/issues/274)
+* **#272:** reject EOF inside an open SF block as SETUP, not co-change ([2d24650](https://github.com/oddessentials/ado-git-repo-insights/commit/2d24650ee7766d6f94419662e8b0609d28a6c11b)), closes [#272](https://github.com/oddessentials/ado-git-repo-insights/issues/272)
+
+
+### Features
+
+* **#272:** enforce per-file partial-branch count as fail-closed ratchet ([6af1f0b](https://github.com/oddessentials/ado-git-repo-insights/commit/6af1f0b3bb5054dbc38a1127e5783419c73dc720)), closes [#271](https://github.com/oddessentials/ado-git-repo-insights/issues/271) [#273](https://github.com/oddessentials/ado-git-repo-insights/issues/273) [#274](https://github.com/oddessentials/ado-git-repo-insights/issues/274) [#272](https://github.com/oddessentials/ado-git-repo-insights/issues/272)
+
 # [101.5.0](https://github.com/oddessentials/ado-git-repo-insights/compare/v101.4.0...v101.5.0) (2026-04-13)
 
 
