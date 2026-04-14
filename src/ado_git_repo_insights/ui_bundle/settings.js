@@ -357,9 +357,7 @@ var PRInsightsSettings = (() => {
       }, timeout);
     });
     initPromise = Promise.race([initSequence(), timeoutPromise]).finally(() => {
-      if (timeoutId !== void 0) {
-        clearTimeout(timeoutId);
-      }
+      clearTimeout(timeoutId);
       initPromise = null;
     });
     return initPromise;

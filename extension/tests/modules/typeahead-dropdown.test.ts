@@ -692,6 +692,43 @@ describe("Typeahead Dropdown", () => {
 
       expect(dropdown.style.display).toBe("");
     });
+
+    it("rapid successive input events clear the pending debounce timer (#271)", () => {
+      createContainer("debounce-rapid");
+      initTypeaheadDropdown(makeConfig("debounce-rapid"));
+
+      const input = document.querySelector(
+        ".typeahead-input",
+      ) as HTMLInputElement;
+      input.dispatchEvent(new Event("focus"));
+
+      // First keystroke: debounceTimer is null, falls through the condition.
+      input.value = "a";
+      input.dispatchEvent(new Event("input"));
+
+      // Advance halfway through the 200ms debounce window.
+      jest.advanceTimersByTime(100);
+
+      // Second keystroke before the first timer fires. This is the branch
+      // that was previously uncovered at typeahead-dropdown.ts:360
+      // (`debounceTimer !== null` → clearTimeout the stale handle).
+      input.value = "al";
+      input.dispatchEvent(new Event("input"));
+
+      // Advance the remainder of the first timer's window. If the first
+      // timer had not been cleared it would fire here and filter to "a"
+      // (which matches Alpha only). But the clearTimeout branch must
+      // cancel it, so no filter has fired yet and all 4 options remain.
+      jest.advanceTimersByTime(100);
+      expect(document.querySelectorAll(".typeahead-option").length).toBe(4);
+
+      // Advance past the second timer's window. The "al" filter should
+      // now run and reduce the option set to Alpha.
+      jest.advanceTimersByTime(100);
+      const finalOptions = document.querySelectorAll(".typeahead-option");
+      expect(finalOptions.length).toBe(1);
+      expect(finalOptions[0]?.textContent).toContain("Alpha");
+    });
   });
 
   describe("Scroll into view on highlight", () => {

@@ -54,7 +54,7 @@ export function renderThroughputChart(
             authors: [],
           },
           unfilteredRollups: options.unfilteredRollups ?? [],
-          filteredRollups: rollups ?? [],
+          filteredRollups: rollups,
           availability: options.availability ?? {
             reviewerDataPresent: false,
             reviewerDataEmpty: false,
@@ -140,8 +140,8 @@ export function renderThroughputChart(
 
   // Add tap/click tooltip support for throughput bars
   addChartTooltips(container, (bar: HTMLElement) => {
-    const week = bar.dataset.week ?? "";
-    const count = bar.dataset.count ?? "0";
+    const week = bar.dataset.week as string;
+    const count = bar.dataset.count as string;
     return `<div class="chart-tooltip-title">${escapeHtml(week)}</div>
             <div class="chart-tooltip-row">
               <span class="chart-tooltip-label">PRs</span>
