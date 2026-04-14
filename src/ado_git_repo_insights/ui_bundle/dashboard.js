@@ -6332,11 +6332,10 @@ var PRInsightsDashboard = (() => {
         infoIconControllers.delete(existing);
         existing.remove();
       }
-      let explanation = METRIC_EXPLANATIONS.get(metricId) ?? "";
+      let explanation = METRIC_EXPLANATIONS.get(metricId);
       if (metricId === "reviewersCount" && reviewerFilterActive) {
         explanation = "Average number of reviews per week in this period.";
       }
-      if (!explanation) continue;
       const controller = new AbortController();
       const { signal } = controller;
       const btn = document.createElement("button");

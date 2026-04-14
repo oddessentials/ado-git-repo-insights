@@ -554,6 +554,26 @@ describe("summary-cards module", () => {
       expect(cycleLabel!.textContent).toBe("8 data points");
     });
 
+    it("shows singular '1 data point' label for sparse metric with count of 1", () => {
+      // Sparse-metric count === 1 branch: one rollup has a non-null
+      // cycle_time_p50 so cycleP50WeekCount resolves to 1, exercising
+      // the singular wording ("1 data point") instead of the plural
+      // "N data points" form.
+      const containers = createContainers();
+      const cycleCard = document.createElement("div");
+      cycleCard.className = "card";
+      cycleCard.appendChild(document.createElement("h3"));
+      cycleCard.appendChild(containers.cycleP50!);
+      cycleCard.appendChild(containers.cycleP50Sparkline!);
+      document.body.appendChild(cycleCard);
+
+      renderSummaryCards({ rollups: createRollups(1), containers });
+
+      const cycleLabel = cycleCard.querySelector(".sparkline-label");
+      expect(cycleLabel).not.toBeNull();
+      expect(cycleLabel!.textContent).toBe("1 data point");
+    });
+
     it("sparkline label N equals min(filteredRollups.length, lookback)", () => {
       // Invariant: the label must reflect the exact filtered dataset,
       // not any unfiltered or global source.

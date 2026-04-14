@@ -619,12 +619,14 @@ function attachInfoIcons(
       existing.remove();
     }
 
-    // Switch reviewer tooltip copy when reviewer filter is active
-    let explanation = METRIC_EXPLANATIONS.get(metricId) ?? "";
+    // Every metricId in METRIC_TO_CONTAINER_KEY has a matching entry in
+    // METRIC_EXPLANATIONS (keys kept in sync above), so the lookup always
+    // returns a non-empty string. Narrow via a typed cast so we do not
+    // need a runtime `??` fallback or a follow-up empty-string guard.
+    let explanation = METRIC_EXPLANATIONS.get(metricId) as string;
     if (metricId === "reviewersCount" && reviewerFilterActive) {
       explanation = "Average number of reviews per week in this period.";
     }
-    if (!explanation) continue;
 
     const controller = new AbortController();
     const { signal } = controller;
