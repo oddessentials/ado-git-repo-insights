@@ -178,6 +178,7 @@ export function renderForecastChart(
   forecast: Forecast,
   historicalData?: Array<{ week: string; value: number }>,
   chartHeight: number = 200,
+  wasTruncated: boolean = false,
 ): string {
   const rawValues = forecast.values;
   if (!rawValues || rawValues.length === 0) {
@@ -200,9 +201,12 @@ export function renderForecastChart(
     if (v.upper_bound != null) allValues.push(v.upper_bound);
   });
 
+  // maxValue is >= 1 and minValue is <= 0 because the trailing `, 1` and
+  // `, 0` baselines are always among the Math.max/Math.min arguments, so
+  // `range` is always >= 1 and never needs a zero-range fallback.
   const maxValue = Math.max(...allValues, 1);
   const minValue = Math.min(...allValues, 0);
-  const range = maxValue - minValue || 1;
+  const range = maxValue - minValue;
 
   // Padding for chart
   const padding = 10;
@@ -271,11 +275,15 @@ export function renderForecastChart(
     })
     .join("");
 
-  // Generate accessible summary for screen readers
-  const latestValue = values[values.length - 1];
-  const accessibleSummary = latestValue
-    ? `${metricLabel} forecast: ${latestValue.predicted.toFixed(1)} ${forecast.unit}${latestValue.lower_bound != null && latestValue.upper_bound != null ? ` (range ${latestValue.lower_bound.toFixed(1)} to ${latestValue.upper_bound.toFixed(1)})` : ""}`
-    : `${metricLabel} forecast chart`;
+  // Generate accessible summary for screen readers. `values` is guaranteed
+  // non-empty by the early return at the top of the function, so the last
+  // element is always defined — narrow the indexed read via a typed cast.
+  const latestValue = values[values.length - 1] as ForecastValue;
+  const rangeClause =
+    latestValue.lower_bound != null && latestValue.upper_bound != null
+      ? ` (range ${latestValue.lower_bound.toFixed(1)} to ${latestValue.upper_bound.toFixed(1)})`
+      : "";
+  const accessibleSummary = `${metricLabel} forecast: ${latestValue.predicted.toFixed(1)} ${forecast.unit}${rangeClause}`;
 
   // Sanitize metric for use in HTML id attributes (prevents XSS in id/aria-* attributes)
   const safeMetricId = sanitizeForId(forecast.metric);
@@ -285,6 +293,7 @@ export function renderForecastChart(
       <div class="chart-header">
         <h4 id="chart-${safeMetricId}">${escapeHtml(metricLabel)}</h4>
         <span class="chart-unit">(${escapeHtml(forecast.unit)})</span>
+        ${wasTruncated ? `<span class="truncation-badge" title="Showing last ${MAX_CHART_POINTS} data points">Partial history</span>` : ""}
       </div>
       <div class="chart-svg-container">
         <svg viewBox="0 0 100 ${chartHeight}" preserveAspectRatio="none" class="forecast-svg"
@@ -295,8 +304,10 @@ export function renderForecastChart(
           ${bandPath ? `<path class="confidence-band" d="${bandPath}" />` : ""}
           <!-- Historical data line (solid) -->
           ${historicalPath ? `<path class="historical-line" d="${historicalPath}" vector-effect="non-scaling-stroke" />` : ""}
-          <!-- Forecast line (dashed) -->
-          ${forecastPath ? `<path class="forecast-line" d="${forecastPath}" vector-effect="non-scaling-stroke" />` : ""}
+          <!-- Forecast line (dashed). forecastPoints is non-empty whenever we reach
+               this render (values.length >= 1 guaranteed by the early return above),
+               so forecastPath is always truthy — no conditional needed. -->
+          <path class="forecast-line" d="${forecastPath}" vector-effect="non-scaling-stroke" />
         </svg>
         <svg viewBox="0 0 100 ${chartHeight}" preserveAspectRatio="xMidYMax meet" class="axis-svg" aria-hidden="true">
           ${xAxisLabels}
@@ -322,29 +333,32 @@ export function renderForecastChart(
 
 /**
  * Format week string to short label (e.g., "2026-01-06" -> "Jan 6").
+ * Invalid date strings are returned as-is via the `isNaN(getTime())` guard;
+ * `new Date`, `.getTime`, `.toLocaleString("en-US")`, and `.getDate` cannot
+ * throw on any string input, so no try/catch is needed.
  */
 function formatWeekLabel(weekStr: string): string {
-  try {
-    const date = new Date(weekStr);
-    if (isNaN(date.getTime())) return weekStr;
-    const month = date.toLocaleString("en-US", { month: "short" });
-    const day = date.getDate();
-    return `${month} ${day}`;
-  } catch {
-    return weekStr;
-  }
+  const date = new Date(weekStr);
+  if (isNaN(date.getTime())) return weekStr;
+  const month = date.toLocaleString("en-US", { month: "short" });
+  const day = date.getDate();
+  return `${month} ${day}`;
 }
 
 /**
  * Convert ISO week string (e.g., "2026-W04") to ISO date string (Monday of that week).
  */
 function isoWeekToDate(isoWeek: string): string {
-  // Handle "YYYY-Www" format
+  // Handle "YYYY-Www" format; non-matching inputs are returned unchanged so
+  // callers can funnel every week string through this helper without a
+  // preliminary format check.
   const match = isoWeek.match(/^(\d{4})-W(\d{2})$/);
-  if (!match || !match[1] || !match[2]) return isoWeek; // Return as-is if not ISO week format
-
-  const year = parseInt(match[1], 10);
-  const week = parseInt(match[2], 10);
+  if (!match) return isoWeek;
+  // Capture groups 1 and 2 are always defined on a successful match against
+  // an anchored regex with two required groups; narrow via typed cast so
+  // downstream parseInt calls do not need redundant undefined guards.
+  const year = parseInt(match[1] as string, 10);
+  const week = parseInt(match[2] as string, 10);
 
   // Calculate the Monday of the given ISO week
   // Jan 4 is always in week 1 of the ISO year
@@ -357,8 +371,10 @@ function isoWeekToDate(isoWeek: string): string {
   const targetDate = new Date(firstMonday);
   targetDate.setDate(firstMonday.getDate() + (week - 1) * 7);
 
-  const isoString = targetDate.toISOString().split("T")[0];
-  return isoString || isoWeek;
+  // `toISOString()` always emits `YYYY-MM-DDTHH:mm:ss.sssZ`, so the first
+  // ten characters are always the date portion — substring is safer than
+  // split("T")[0] because it keeps the return type as `string`.
+  return targetDate.toISOString().substring(0, 10);
 }
 
 /**
@@ -397,8 +413,10 @@ function extractHistoricalDataResult(
   const data = rollups
     .filter((r) => getter(r) !== null && getter(r) !== undefined)
     .map((r) => ({
-      // Convert ISO week format to date if needed
-      week: r.week.includes("-W") ? isoWeekToDate(r.week) : r.week,
+      // Convert ISO week format to date. isoWeekToDate handles non-ISO
+      // inputs internally by returning them unchanged, so we can funnel
+      // every week string through it without a preliminary format check.
+      week: isoWeekToDate(r.week),
       value: Number(getter(r)),
     }))
     .sort((a, b) => a.week.localeCompare(b.week));
@@ -513,28 +531,22 @@ export function renderPredictionsWithCharts(
     return;
   }
 
-  // Render each forecast as a chart with historical data
+  // Render each forecast as a chart with historical data. The truncation
+  // badge is emitted inline by renderForecastChart when wasTruncated is
+  // true, so no post-append querySelector step is needed.
   predictions.forecasts.forEach((forecast: Forecast) => {
-    // Extract historical data for this metric from rollups
     const historicalResult = rollups
       ? extractHistoricalDataResult(rollups, forecast.metric)
       : undefined;
     const historicalData = historicalResult?.data;
     const wasTruncated = historicalResult?.wasTruncated === true;
-    const chartHtml = renderForecastChart(forecast, historicalData);
+    const chartHtml = renderForecastChart(
+      forecast,
+      historicalData,
+      200,
+      wasTruncated,
+    );
     appendTrustedHtml(content, chartHtml);
-
-    // Add truncation badge if historical data was capped
-    if (wasTruncated) {
-      const badge = document.createElement("span");
-      badge.className = "truncation-badge";
-      badge.title = `Showing last ${MAX_CHART_POINTS} data points`;
-      badge.textContent = "Partial history";
-      const lastHeader = content.querySelector(
-        ".forecast-chart:last-child .chart-header",
-      );
-      if (lastHeader) lastHeader.appendChild(badge);
-    }
   });
 
   // Show informational message about review time unavailability (T016)

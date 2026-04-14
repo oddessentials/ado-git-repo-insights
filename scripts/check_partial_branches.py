@@ -67,6 +67,7 @@ CATEGORY_COCHANGE = "BASELINE_COCHANGE_REQUIRED"
 LOCKED_ZERO_FILES: frozenset[str] = frozenset(
     {
         "extension/ui/modules/charts/cycle-time.ts",
+        "extension/ui/modules/charts/predictions.ts",
         "extension/ui/modules/charts/throughput.ts",
         "extension/ui/modules/metrics.ts",
         "extension/ui/modules/sdk.ts",
