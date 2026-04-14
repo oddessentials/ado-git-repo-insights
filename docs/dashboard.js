@@ -4182,23 +4182,9 @@ var PRInsightsDashboard = (() => {
   }
 
   // ../ui/modules/metrics.ts
-  var HAS_WINDOW = typeof window !== "undefined";
-  var IS_PRODUCTION = typeof process !== "undefined" && false;
-  var SHOULD_WARN_ON_COERCION = !IS_PRODUCTION && HAS_WINDOW && window.__DASHBOARD_DEBUG__ === true;
-  var hasWarnedOnMetricCoercion = false;
   function toFiniteNumber(value) {
     const n2 = Number(value);
-    if (Number.isFinite(n2)) {
-      return n2;
-    }
-    if (SHOULD_WARN_ON_COERCION && !hasWarnedOnMetricCoercion) {
-      hasWarnedOnMetricCoercion = true;
-      console.warn(
-        "metrics.ts coerced a non-finite metric value to 0; verify upstream rollup data if this is unexpected.",
-        value
-      );
-    }
-    return 0;
+    return Number.isFinite(n2) ? n2 : 0;
   }
   function getOwnPropertyValue(obj, key) {
     return new Map(Object.entries(obj)).get(key);
@@ -4239,8 +4225,8 @@ var PRInsightsDashboard = (() => {
       cycleP90: p90Values.length ? median(p90Values) : null,
       reviewTimeP50: reviewTimeP50Values.length ? median(reviewTimeP50Values) : null,
       reviewTimeP90: reviewTimeP90Values.length ? median(reviewTimeP90Values) : null,
-      avgAuthors: rollups.length > 0 ? Math.round(authorsSum / rollups.length) : 0,
-      avgReviewers: rollups.length > 0 ? Math.round(reviewersSum / rollups.length) : 0,
+      avgAuthors: Math.round(authorsSum / rollups.length),
+      avgReviewers: Math.round(reviewersSum / rollups.length),
       weekCount: rollups.length,
       cycleP50WeekCount: p50Values.length,
       cycleP90WeekCount: p90Values.length,
@@ -4747,7 +4733,7 @@ var PRInsightsDashboard = (() => {
       reviewers: rollups.map((r2) => r2.reviewers_count ?? 0)
     };
   }
-  function calculateMovingAverage(values, window2 = 4) {
+  function calculateMovingAverage(values, window2) {
     return values.map((_2, i2) => {
       if (i2 < window2 - 1) return null;
       const slice = values.slice(i2 - window2 + 1, i2 + 1);
@@ -7159,24 +7145,20 @@ var PRInsightsDashboard = (() => {
         const searchVal = input.value.toLowerCase();
         if (searchVal) {
           const idx = opt.displayName.toLowerCase().indexOf(searchVal);
-          if (idx >= 0) {
-            item.appendChild(
-              document.createTextNode(opt.displayName.substring(0, idx))
-            );
-            const strong = document.createElement("strong");
-            strong.textContent = opt.displayName.substring(
-              idx,
-              idx + searchVal.length
-            );
-            item.appendChild(strong);
-            item.appendChild(
-              document.createTextNode(
-                opt.displayName.substring(idx + searchVal.length)
-              )
-            );
-          } else {
-            item.textContent = opt.displayName;
-          }
+          item.appendChild(
+            document.createTextNode(opt.displayName.substring(0, idx))
+          );
+          const strong = document.createElement("strong");
+          strong.textContent = opt.displayName.substring(
+            idx,
+            idx + searchVal.length
+          );
+          item.appendChild(strong);
+          item.appendChild(
+            document.createTextNode(
+              opt.displayName.substring(idx + searchVal.length)
+            )
+          );
         } else {
           item.textContent = opt.displayName;
         }
@@ -7227,19 +7209,11 @@ var PRInsightsDashboard = (() => {
       config.onChange(emitted);
     }
     function selectOption(id) {
-      if (config.mode === "single") {
-        selected = [id];
-        updateInputDisplay();
-        closeDropdown();
-      } else {
-        if (!selected.includes(id)) {
-          selected.push(id);
-        }
-        input.value = "";
-        filterOptions("");
-        renderChips();
-        updateInputDisplay();
-      }
+      selected.push(id);
+      input.value = "";
+      filterOptions("");
+      renderChips();
+      updateInputDisplay();
       normalizeAndEmit();
     }
     function deselectOption(id) {
@@ -7255,22 +7229,20 @@ var PRInsightsDashboard = (() => {
           selected = [];
           updateInputDisplay();
         } else {
-          selectOption(id);
-          return;
+          selected = [id];
+          updateInputDisplay();
+          closeDropdown();
         }
-      } else {
-        if (selected.includes(id)) {
-          deselectOption(id);
-          return;
-        } else {
-          selectOption(id);
-          return;
-        }
+        normalizeAndEmit();
+        return;
       }
-      normalizeAndEmit();
+      if (selected.includes(id)) {
+        deselectOption(id);
+        return;
+      }
+      selectOption(id);
     }
     function openDropdown() {
-      if (isOpen) return;
       isOpen = true;
       dropdown.style.display = "";
       input.setAttribute("aria-expanded", "true");
@@ -7383,10 +7355,9 @@ var PRInsightsDashboard = (() => {
       setOptions(newOptions) {
         options = [...newOptions];
         selected = selected.filter((id) => options.some((o2) => o2.id === id));
-        filteredOptions = [...options];
         renderChips();
         updateInputDisplay();
-        if (isOpen) renderDropdown();
+        filterOptions(input.value);
       },
       clear() {
         selected = [];
@@ -7604,8 +7575,8 @@ var PRInsightsDashboard = (() => {
     const descriptor = Object.getOwnPropertyDescriptor(record, key);
     return descriptor?.value;
   }
-  var IS_PRODUCTION2 = typeof window !== "undefined" && window.process?.env?.NODE_ENV === "production";
-  var DEBUG_ENABLED = !IS_PRODUCTION2 && (typeof window !== "undefined" && window.__DASHBOARD_DEBUG__ || typeof window !== "undefined" && new URLSearchParams(window.location.search).has("debug"));
+  var IS_PRODUCTION = typeof window !== "undefined" && window.process?.env?.NODE_ENV === "production";
+  var DEBUG_ENABLED = !IS_PRODUCTION && (typeof window !== "undefined" && window.__DASHBOARD_DEBUG__ || typeof window !== "undefined" && new URLSearchParams(window.location.search).has("debug"));
   var metricsCollector = DEBUG_ENABLED ? {
     marks: /* @__PURE__ */ new Map(),
     measures: [],

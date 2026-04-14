@@ -542,11 +542,6 @@ var PRInsightsSettings = (() => {
     return option;
   }
 
-  // ../ui/modules/metrics.ts
-  var HAS_WINDOW = typeof window !== "undefined";
-  var IS_PRODUCTION = typeof process !== "undefined" && false;
-  var SHOULD_WARN_ON_COERCION = !IS_PRODUCTION && HAS_WINDOW && window.__DASHBOARD_DEBUG__ === true;
-
   // ../ui/error-types.ts
   var ErrorTypes = {
     SETUP_REQUIRED: "setup_required",

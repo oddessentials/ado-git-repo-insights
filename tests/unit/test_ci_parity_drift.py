@@ -5,11 +5,28 @@ from __future__ import annotations
 import ast
 import importlib.util
 import json
+import re
 import subprocess
 import sys
 from pathlib import Path
 
 import yaml
+
+_MIN_COLLECTED_RE = re.compile(r"--min-collected=(\d+)")
+
+
+def _extract_min_collected(text: str) -> int:
+    """Extract the integer value from a ``--min-collected=N`` token in
+    arbitrary command text. Works for both the preflight ``CommandSpec``
+    (where the tuple is space-joined into one string) and the CI YAML
+    ``run`` block (multi-line shell script)."""
+    match = _MIN_COLLECTED_RE.search(text)
+    assert match is not None, (
+        f"No --min-collected=N token found in the command text. "
+        f"Inspected text: {text!r}"
+    )
+    return int(match.group(1))
+
 
 REPO_ROOT = Path(__file__).parent.parent.parent
 PREFLIGHT_SCRIPT = REPO_ROOT / "scripts" / "run_pr_preflight.py"
@@ -653,3 +670,54 @@ class TestPartialBranchesParity:
             assert value > 0, (
                 f"baseline file count must be positive; {key!r} -> {value!r}"
             )
+
+
+class TestTestCountRatchetParity:
+    """Parity lock for the ``--min-collected`` test-count ratchet.
+
+    The ratchet lives in exactly two authoritative locations that must
+    stay in sync:
+
+    - ``scripts/run_pr_preflight.py`` — local preflight ``CommandSpec``
+    - ``.github/workflows/ci.yml`` — CI job shell steps
+
+    Drift between these two surfaces means a test-count regression could
+    pass locally while failing in CI (or vice versa) — exactly the kind of
+    manual-discipline gap the parity suite is designed to catch. This test
+    extracts the Python and Jest ``--min-collected`` values from both
+    sides and asserts they match.
+
+    If this test fails, update BOTH sites in the same commit to the new
+    floor. There is no other authoritative location.
+    """
+
+    def test_min_collected_matches_between_preflight_and_ci(self) -> None:
+        preflight = _normalized_preflight_commands()
+
+        preflight_python = _extract_min_collected(
+            preflight.get("Python test count validation", "")
+        )
+        preflight_extension = _extract_min_collected(
+            preflight.get("Extension test count validation", "")
+        )
+
+        ci_python_step = _find_ci_step("test", "Validate Test Results (Python)")
+        ci_python = _extract_min_collected(str(ci_python_step.get("run", "")))
+
+        ci_extension_step = _find_ci_step(
+            "extension-tests", "Validate Test Results (Extension)"
+        )
+        ci_extension = _extract_min_collected(str(ci_extension_step.get("run", "")))
+
+        assert (preflight_python, preflight_extension) == (
+            ci_python,
+            ci_extension,
+        ), (
+            "Test-count ratchet drift between preflight and CI:\n"
+            f"  Python:    preflight={preflight_python}, CI={ci_python}\n"
+            f"  Extension: preflight={preflight_extension}, CI={ci_extension}\n"
+            "Both --min-collected values must match exactly between "
+            "scripts/run_pr_preflight.py and .github/workflows/ci.yml. "
+            "If you're raising the floor, update both sites in the same "
+            "commit."
+        )

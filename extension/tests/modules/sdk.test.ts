@@ -129,6 +129,31 @@ describe("SDK Module", () => {
     it("returns undefined when SDK is not initialized", () => {
       expect(getWebContext()).toBeUndefined();
     });
+
+    it("maps missing project and team to undefined (closes sdk.ts L314, L317)", async () => {
+      // Host returns a webContext without project/team (organization-level
+      // context or a host that doesn't expose team membership). The two
+      // conditional expressions at L314/L317 must take their falsy branches.
+      mockSdkModule.getWebContext.mockImplementation(
+        () =>
+          ({
+            project: undefined,
+            team: undefined,
+          }) as unknown as {
+            project: { name: string; id: string };
+            team: { name: string; id: string };
+          },
+      );
+      await initializeAdoSdk();
+
+      const result = getWebContext();
+      expect(result).toBeDefined();
+      expect(result?.project).toBeUndefined();
+      expect(result?.team).toBeUndefined();
+      // User and host still come from their default mocks.
+      expect(result?.user.id).toBe("user-789");
+      expect(result?.host.id).toBe("host-001");
+    });
   });
 
   describe("initializeAdoSdk", () => {
@@ -497,6 +522,25 @@ describe("SDK Module", () => {
 
       const result = await client.setValue("key", "val", { scopeType: "User" });
       expect(result).toBe("raw-put-result");
+    });
+
+    it("getValue without options defaults to non-User scope and returns undefined on 404 (closes sdk.ts L229, L230, L252)", async () => {
+      // Call with no options: `options?.scopeType` is undefined (≠ "User")
+      // so the buildUrl ternaries at L229/230 take the "Default"/"Current"
+      // branches. On 404 `options?.defaultValue ?? undefined` takes the
+      // left-nullish branch at L252.
+      const client = await getExtensionDataService();
+      (global.fetch as jest.Mock).mockResolvedValueOnce({
+        ok: false,
+        status: 404,
+        statusText: "Not Found",
+      });
+
+      const result = await client.getValue("missing-key");
+
+      expect(result).toBeUndefined();
+      const url = (global.fetch as jest.Mock).mock.calls.at(-1)?.[0] as string;
+      expect(url).toContain("Scopes/Default/Current");
     });
   });
 
