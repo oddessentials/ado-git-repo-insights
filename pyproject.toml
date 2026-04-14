@@ -152,6 +152,7 @@ module = [
     "build_demo",
     "check_coverage_delta",
     "check_no_any_types",
+    "check_partial_branches",
     "check_patch_coverage",
     "check_rule_disable_invariants",
     "check_threshold_changes",

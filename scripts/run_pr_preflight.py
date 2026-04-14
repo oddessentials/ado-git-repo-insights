@@ -417,6 +417,10 @@ def build_commands(
             ),
         ),
         CommandSpec(
+            "Partial-branch ratchet",
+            (PNPM_SENTINEL, "--dir", "extension", "run", "test:partial-branches"),
+        ),
+        CommandSpec(
             "Extension VSIX artifact inspection",
             (PNPM_SENTINEL, "run", "test:vsix"),
             cwd=EXTENSION_ROOT,
