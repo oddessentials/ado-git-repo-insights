@@ -7142,7 +7142,7 @@ var PRInsightsDashboard = (() => {
         if (selected.includes(opt.id)) {
           item.classList.add("typeahead-option-selected");
         }
-        const searchVal = input.value.toLowerCase();
+        const searchVal = input.value.toLowerCase().trim();
         if (searchVal) {
           const idx = opt.displayName.toLowerCase().indexOf(searchVal);
           item.appendChild(

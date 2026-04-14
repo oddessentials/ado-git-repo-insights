@@ -189,9 +189,12 @@ export function initTypeaheadDropdown(
 
       // Highlight matching text using safe DOM construction (no innerHTML).
       // Invariant: filteredOptions is always the result of filterOptions(input.value),
-      // so every opt.displayName contains `searchVal` and idx is always >= 0 when
-      // searchVal is non-empty. See setOptions for the co-change that preserves this.
-      const searchVal = input.value.toLowerCase();
+      // which trims the query (see filterOptions). `searchVal` must apply the same
+      // trim so leading/trailing whitespace in the input does not desync the two
+      // paths — otherwise indexOf() returns -1 and substring() produces a garbled
+      // highlight. Whitespace-only input trims to "" and falls through to the
+      // plain-text branch. See setOptions for the co-change that preserves this.
+      const searchVal = input.value.toLowerCase().trim();
       if (searchVal) {
         const idx = opt.displayName.toLowerCase().indexOf(searchVal);
         item.appendChild(
