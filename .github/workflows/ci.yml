@@ -598,7 +598,7 @@ jobs:
           # MAX_SKIPS: Maximum allowed skipped tests (0 = no skips allowed in CI)
           python .github/scripts/validate-test-results.py \
             test-results.xml \
-            --min-collected=1717 \
+            --min-collected=1718 \
             --max-skips=0
         shell: bash
 
@@ -1008,7 +1008,8 @@ jobs:
   # pytest collector (same code path as local preflight); Extension count
   # is parsed from the ARTIFACT_TS_TESTS JUnit XML uploaded by the
   # extension-tests job. Bypass markers: [ratchet-realignment] or
-  # [ratchet-test-removal] in any commit message in origin/main..HEAD.
+  # [ratchet-test-removal] in a commit SUBJECT line in origin/main..HEAD
+  # (scanned via `git log --oneline`; markers in bodies are NOT honored).
   ratchet-bump-guard:
     runs-on: ubuntu-latest
     needs: [test, extension-tests]

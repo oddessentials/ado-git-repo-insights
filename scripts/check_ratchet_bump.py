@@ -7,7 +7,9 @@ floor, AND the two authoritative sites — ``scripts/run_pr_preflight.py``
 and ``.github/workflows/ci.yml`` — MUST agree with each other. Any drift
 in either dimension fails the gate.
 
-Bypass markers (any commit message in ``{base-ref}..HEAD``):
+Bypass markers (must appear in a commit SUBJECT line in the range
+``{base-ref}..HEAD``; scanned via ``git log --oneline``, so markers
+placed in commit bodies do NOT take effect):
     [ratchet-realignment]    Floor jumped by more than the test-add delta
                              (catching up on historical drift).
     [ratchet-test-removal]   Floor decreased intentionally for test removal.
@@ -703,8 +705,9 @@ def run_gate(
             print(f"[DRIFT] {msg}", file=sys.stderr)
         print(
             f"[DRIFT] Bypass with {REALIGNMENT_MARKER} or "
-            f"{TEST_REMOVAL_MARKER} in any commit message in "
-            f"{base_ref}..HEAD.",
+            f"{TEST_REMOVAL_MARKER} in a commit SUBJECT line in "
+            f"{base_ref}..HEAD (scanned via `git log --oneline`; "
+            "markers in commit bodies are NOT honored).",
             file=sys.stderr,
         )
         return EXIT_DRIFT

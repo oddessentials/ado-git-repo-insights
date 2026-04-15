@@ -1211,3 +1211,57 @@ def test_t24_marker_scan_reads_subjects_only_via_oneline(
         "against regression. Offending calls: "
         f"{[c.args for c in body_scans]}"
     )
+
+
+# ---------------------------------------------------------------------------
+# T25 — drift remediation hint matches the subject-only scan behavior
+# ---------------------------------------------------------------------------
+
+
+def test_t25_drift_bypass_hint_points_at_commit_subject(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """Drift remediation must tell users the marker goes in a SUBJECT line.
+
+    After T24 locked the subject-only scan convention, the legacy
+    "any commit message" phrasing in the drift error hint became a
+    false-negative trap: a user could follow the outdated remediation,
+    put ``[ratchet-realignment]`` in a commit body, and still fail the
+    gate because the scan never reads bodies. This test locks the
+    hint wording to "subject" so enforcement and remediation stay
+    aligned — if the scan semantics ever change again, either this
+    test fails or T24 fails, and they cannot diverge silently.
+    """
+    exit_code, _ = _run_gate(
+        tmp_path,
+        python_floor=100,
+        ext_floor=200,
+        python_actual=101,  # Force drift so the hint line is emitted.
+        ext_actual=200,
+        monkeypatch=monkeypatch,
+    )
+    assert exit_code == gate.EXIT_DRIFT
+
+    stderr = capsys.readouterr().err.lower()
+    # Positive: the hint must name the correct placement site.
+    assert "subject" in stderr, (
+        "Drift remediation hint must tell users the marker goes in a "
+        f"commit subject line; got: {stderr!r}"
+    )
+    # Negative: the misleading legacy phrasing must be gone. A user
+    # following "any commit message" could place the marker in a
+    # commit body and still fail the gate.
+    assert "any commit message" not in stderr, (
+        "Drift remediation hint must not say 'any commit message' — "
+        "the scan reads only commit subjects via `git log --oneline`, "
+        f"so that phrasing is misleading. Current stderr: {stderr!r}"
+    )
+    # Positive: the hint must name the scan command so users can
+    # verify the contract themselves if the remediation surprises them.
+    assert "git log --oneline" in stderr, (
+        "Drift remediation hint must reference `git log --oneline` "
+        "so users can self-verify the subject-only scan contract; "
+        f"got: {stderr!r}"
+    )
