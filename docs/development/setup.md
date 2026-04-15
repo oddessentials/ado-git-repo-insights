@@ -161,6 +161,9 @@ The commit/push workflow currently includes:
 python scripts/run_repo_hook.py pre-commit
 python scripts/run_repo_hook.py pre-push
 
+# Explicit strict preflight outside the repo-owned hook still needs a base ref
+BASE_REF=main python scripts/run_pr_preflight.py --strict
+
 # Or via the extension package scripts
 cd extension
 pnpm run hooks:precommit

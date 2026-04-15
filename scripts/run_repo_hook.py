@@ -1108,23 +1108,6 @@ def run_asset_validation() -> None:
     raise SystemExit("[pre-push] push blocked: marketplace assets invalid")
 
 
-def _current_branch() -> str:
-    """Return the current git branch name, or empty string on detached HEAD."""
-    git = shutil.which("git")
-    if git is None:
-        return ""
-    try:
-        result = subprocess.run(
-            [git, "rev-parse", "--abbrev-ref", "HEAD"],
-            capture_output=True,
-            text=True,
-            check=True,
-        )
-        return result.stdout.strip()
-    except subprocess.CalledProcessError:
-        return ""
-
-
 def run_version_guard() -> None:
     """Block manual version bumps before push — fail fast."""
     safe_print("[pre-push] running version guard")
@@ -1139,18 +1122,8 @@ def run_pre_push_hook() -> None:
     run_crlf_guard()
     run_asset_validation()
 
-    branch = _current_branch()
-    preflight_cmd = [sys.executable, "scripts/run_pr_preflight.py"]
-    if branch.startswith("refactor/"):
-        safe_print(
-            f"[pre-push] refactor branch '{branch}' detected "
-            "— running strict CI-parity preflight"
-        )
-        preflight_cmd.append("--strict")
-    else:
-        safe_print("[pre-push] running PR preflight")
-
-    run_command(preflight_cmd)
+    safe_print("[pre-push] running PR preflight")
+    run_command([sys.executable, "scripts/run_pr_preflight.py"])
     safe_print("[pre-push] all pre-push checks passed")
 
 

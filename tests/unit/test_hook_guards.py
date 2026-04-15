@@ -32,6 +32,7 @@ require_clean_test_compilation_scope = _hook_module.require_clean_test_compilati
 require_clean_tsconfigs = _hook_module.require_clean_tsconfigs
 require_clean_ui_sources = _hook_module.require_clean_ui_sources
 run_pre_commit_stage = _hook_module.run_pre_commit_stage
+run_pre_push_hook = _hook_module.run_pre_push_hook
 run_staged_suppression_diff_guard = _hook_module.run_staged_suppression_diff_guard
 run_staged_suppression_justification_guard = (
     _hook_module.run_staged_suppression_justification_guard
@@ -230,6 +231,40 @@ class TestPreCommitStageImmutability:
                 run_pre_commit_stage()
 
         run_command_mock.assert_not_called()
+
+
+class TestPrePushPreflightCommand:
+    def test_pre_push_runs_non_strict_preflight(self) -> None:
+        with (
+            patch.object(_hook_module, "run_version_guard"),
+            patch.object(_hook_module, "run_pre_push_pre_commit_checks"),
+            patch.object(_hook_module, "run_crlf_guard"),
+            patch.object(_hook_module, "run_asset_validation"),
+            patch.object(_hook_module, "run_command") as run_command_mock,
+        ):
+            run_pre_push_hook()
+
+        preflight_call = run_command_mock.call_args_list[-1]
+        assert preflight_call.args == ([sys.executable, "scripts/run_pr_preflight.py"],)
+        assert preflight_call.kwargs == {}
+
+    def test_pre_push_does_not_depend_on_branch_name(
+        self,
+    ) -> None:
+        assert not hasattr(_hook_module, "_current_branch")
+
+        with (
+            patch.object(_hook_module, "run_version_guard"),
+            patch.object(_hook_module, "run_pre_push_pre_commit_checks"),
+            patch.object(_hook_module, "run_crlf_guard"),
+            patch.object(_hook_module, "run_asset_validation"),
+            patch.object(_hook_module, "run_command") as run_command_mock,
+        ):
+            run_pre_push_hook()
+
+        assert run_command_mock.call_args_list[-1].args == (
+            [sys.executable, "scripts/run_pr_preflight.py"],
+        )
 
 
 class TestStagedSuppressionGuards:

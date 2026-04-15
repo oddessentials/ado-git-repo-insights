@@ -911,7 +911,7 @@ def parse_args() -> argparse.Namespace:
         "--strict",
         action="store_true",
         help="Run in strict CI-parity mode: suppression increases block the push "
-        "(no --allow-pending-approval). Automatically enabled for refactor/* branches.",
+        "(no --allow-pending-approval).",
     )
     parser.add_argument(
         "--allow-local-degraded",
