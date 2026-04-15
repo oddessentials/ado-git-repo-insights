@@ -607,7 +607,7 @@ jobs:
           # MAX_SKIPS: Maximum allowed skipped tests (0 = no skips allowed in CI)
           python .github/scripts/validate-test-results.py \
             test-results.xml \
-            --min-collected=1761 \
+            --min-collected=1762 \
             --max-skips=0
         shell: bash
 
