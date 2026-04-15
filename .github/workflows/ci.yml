@@ -417,14 +417,17 @@ jobs:
           [ -n "$JEST_THRESHOLD" ] && echo "  Jest: $JEST_THRESHOLD"
           [ -n "$PY_THRESHOLD" ] && echo "  Python: $PY_THRESHOLD"
 
-          # Require explicit [threshold-update] marker in any commit message
+          # Require explicit [threshold-update] marker in a commit SUBJECT
+          # line. Scan is via `git log --oneline` (subjects only), so
+          # markers placed in commit bodies are NOT honored.
           MARKER_FOUND=$(git log --oneline "origin/${BASE_REF}..HEAD" | \
             grep -F "[threshold-update]" || true)
 
           if [ -z "$MARKER_FOUND" ]; then
             echo ""
             echo "::error::Coverage threshold changed without [threshold-update] marker"
-            echo "::error::Add [threshold-update] to a commit message if this change is intentional"
+            echo "::error::Add [threshold-update] to a commit SUBJECT line if this change is intentional"
+            echo "::error::(scanned via \`git log --oneline\`; markers in commit bodies are NOT honored)"
             echo ""
             echo "See: extension/COVERAGE_RATCHET.md for threshold update policy"
             echo "Formula: threshold = floor(actual_coverage - 2.0)"

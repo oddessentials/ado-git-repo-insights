@@ -5,8 +5,10 @@ Fails if any semantic-release managed version fields differ from the
 base branch. Prevents accidental manual version bumps that conflict
 with automated releases.
 
-Bypass: Add [version-override-acknowledged] to a commit message on the
-branch. This works identically in local pre-push and CI.
+Bypass: Add [version-override-acknowledged] to a commit SUBJECT line
+on the branch. Scanned via `git log --oneline`, so markers placed in
+commit bodies are NOT honored. This works identically in local
+pre-push and CI.
 
 Direct pushes to main with version changes are NEVER allowed, even
 with the marker.
@@ -166,7 +168,8 @@ def main() -> int:
         "To fix: revert the version changes and let semantic-release handle versioning."
     )
     print(f"If this is intentional (e.g., marketplace recovery), add {MARKER}")
-    print("to a commit message on this branch.")
+    print("to a commit SUBJECT line on this branch (scanned via")
+    print("`git log --oneline`; markers in commit bodies are NOT honored).")
     print()
     print("MANUAL ONLY: NO AGENT OVERRIDES.")
     print("A human must add this marker by hand after verifying the")

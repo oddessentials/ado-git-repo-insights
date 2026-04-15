@@ -307,7 +307,11 @@ def main() -> int:
     print("intentional, update the baseline with:")
     print("  python scripts/check_coverage_delta.py --update")
     print()
-    print("Baseline changes require [threshold-update] in the commit message.")
+    print(
+        "Baseline changes require [threshold-update] in a commit SUBJECT "
+        "line (scanned via `git log --oneline`; markers in commit bodies "
+        "are NOT honored)."
+    )
     return 1
 
 
