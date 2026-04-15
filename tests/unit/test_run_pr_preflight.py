@@ -234,6 +234,72 @@ class TestMainBehavior:
             )
         )
 
+    def test_extension_artifact_wrapper_is_treated_as_extension_dependent(
+        self,
+    ) -> None:
+        assert _module.is_extension_dependent_command(
+            _module.CommandSpec(
+                "Ratchet bump guard",
+                (
+                    "__PYTHON__",
+                    "scripts/check_ratchet_bump.py",
+                    "--junit-extension",
+                    "extension/test-results.xml",
+                ),
+            )
+        )
+
+    def test_degraded_mode_skips_extension_artifact_wrappers(
+        self,
+        capsys: pytest.CaptureFixture[str],
+    ) -> None:
+        command_specs = (
+            _module.CommandSpec("Python gate", ("__PYTHON__", "-V")),
+            _module.CommandSpec(
+                "Ratchet bump guard",
+                (
+                    "__PYTHON__",
+                    "scripts/check_ratchet_bump.py",
+                    "--junit-extension",
+                    "extension/test-results.xml",
+                ),
+            ),
+        )
+        with (
+            patch.object(
+                _module,
+                "parse_args",
+                return_value=self._args(
+                    allow_local_degraded=True,
+                    self_check=False,
+                ),
+            ),
+            patch.object(
+                _module, "resolve_baseline_python", return_value=sys.executable
+            ),
+            patch.object(_module, "probe_python_version", return_value="3.12"),
+            patch.object(
+                _module,
+                "ensure_required_tools",
+                return_value=(False, "gitleaks"),
+            ),
+            patch.object(_module, "ensure_paths"),
+            patch.object(_module, "resolve_pnpm", return_value="pnpm"),
+            patch.object(_module, "check_runner_self"),
+            patch.object(
+                _module, "main_branch_suppression_baseline", return_value=None
+            ),
+            patch.object(_module, "build_commands", return_value=command_specs),
+            patch.object(_module, "run_command") as run_command_mock,
+        ):
+            assert main() == 0
+
+        executed_names = [call.args[0].name for call in run_command_mock.call_args_list]
+        assert executed_names == ["Python gate"]
+        out = capsys.readouterr().out
+        assert "Ratchet bump guard" in out
+        assert "DEGRADED MODE:" in out
+
     def test_degraded_mode_reports_skipped_node_gates_without_ok_footer(
         self,
         capsys: pytest.CaptureFixture[str],

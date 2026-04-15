@@ -467,6 +467,8 @@ def build_commands(
                 "scripts/check_ratchet_bump.py",
                 "--base-ref",
                 resolve_pr_base_ref(strict=strict),
+                "--junit-extension",
+                "extension/test-results.xml",
             ),
         ),
         CommandSpec(
@@ -604,6 +606,22 @@ def render_command(command: tuple[str, ...] | list[str]) -> str:
 def is_node_dependent_command(spec: CommandSpec) -> bool:
     return bool(spec.command) and (
         PNPM_SENTINEL in spec.command or spec.command[0] == "node"
+    )
+
+
+def is_extension_dependent_command(spec: CommandSpec) -> bool:
+    """Return True when a spec requires extension tooling or artifacts.
+
+    Degraded local preflight intentionally skips extension-backed gates when
+    Node/pnpm is unavailable. That includes both direct Node/pnpm entrypoints
+    and Python wrappers that consume files produced by skipped extension steps,
+    such as ``extension/test-results.xml`` or coverage artifacts.
+    """
+    if is_node_dependent_command(spec) or spec.cwd == EXTENSION_ROOT:
+        return True
+
+    return any(
+        arg == "extension" or arg.startswith("extension/") for arg in spec.command
     )
 
 
@@ -947,11 +965,13 @@ def main() -> int:
     )
     degraded_skips: list[str] = []
     for spec in commands:
-        # Degraded mode may skip Node-dependent commands when local Node is broken.
+        # Degraded mode may skip extension-dependent commands when local Node
+        # is broken because those gates either run via Node/pnpm directly or
+        # consume extension artifacts those skipped steps would have produced.
         if (
             args.allow_local_degraded
             and not node_ok
-            and is_node_dependent_command(spec)
+            and is_extension_dependent_command(spec)
         ):
             degraded_skips.append(spec.name)
             continue
