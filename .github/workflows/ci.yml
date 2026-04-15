@@ -958,7 +958,7 @@ jobs:
           # MAX_SKIPS: Zero tolerance — no skips allowed (parity with Python gate)
           python .github/scripts/validate-test-results.py \
             extension/test-results.xml \
-            --min-collected=2314 \
+            --min-collected=2318 \
             --max-skips=0
         shell: bash
 
