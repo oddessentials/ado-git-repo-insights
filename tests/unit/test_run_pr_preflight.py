@@ -119,7 +119,36 @@ class TestBuildCommands:
         assert str(_module.base_temp("python")) in spec.command
         assert spec.extra_env == {"COVERAGE_FILE": str(_module.coverage_file("python"))}
 
-    def test_parity_gates_require_base_ref_even_when_build_commands_is_non_strict(
+    def test_parity_gates_fall_back_to_main_when_build_commands_is_non_strict(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        monkeypatch.delenv("BASE_REF", raising=False)
+        monkeypatch.delenv("GITHUB_BASE_REF", raising=False)
+
+        commands = build_commands(None, strict=False, gitleaks=None)
+        by_name = {spec.name: spec.command for spec in commands}
+
+        assert by_name["Ratchet bump guard"] == (
+            "__PYTHON__",
+            "scripts/check_ratchet_bump.py",
+            "--base-ref",
+            "origin/main",
+            "--junit-extension",
+            "extension/test-results.xml",
+        )
+        assert by_name["Local patch coverage parity"] == (
+            "__PYTHON__",
+            "scripts/check_patch_coverage.py",
+            "--base-ref",
+            "origin/main",
+            "--python-coverage",
+            "coverage.xml",
+            "--ts-coverage",
+            "extension/coverage/lcov.info",
+        )
+
+    def test_parity_gates_fail_closed_when_build_commands_is_strict(
         self,
         monkeypatch: pytest.MonkeyPatch,
         capsys: pytest.CaptureFixture[str],
@@ -128,7 +157,7 @@ class TestBuildCommands:
         monkeypatch.delenv("GITHUB_BASE_REF", raising=False)
 
         with pytest.raises(SystemExit) as exc_info:
-            build_commands(None, gitleaks=None)
+            build_commands(None, strict=True, gitleaks=None)
 
         assert exc_info.value.code == _module.EXIT_SETUP
         combined = capsys.readouterr().out + capsys.readouterr().err
