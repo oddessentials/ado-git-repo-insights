@@ -149,7 +149,7 @@ def main_branch_suppression_baseline(*, allow_local_degraded: bool) -> Path | No
     return baseline_path
 
 
-def resolve_pr_base_ref() -> str:
+def resolve_pr_base_ref(*, strict: bool = False) -> str:
     """Return the ``origin/<branch>`` ref this PR's gates should scan against.
 
     Existence rationale: the ratchet-bump guard (and any future gate
@@ -171,21 +171,21 @@ def resolve_pr_base_ref() -> str:
     2. ``GITHUB_BASE_REF`` — set automatically by GitHub Actions in PR
        context. Included as a safety net in case preflight is ever
        invoked from inside a CI job (e.g., a self-test of preflight).
-    3. **Fail closed.** If neither environment variable is set the
-       resolver raises via :func:`fail_setup` — it does NOT silently
-       fall back to ``origin/main``. Silent fallback was the exact
-       weakness that made the parity contract opt-in: a developer on
-       a release-branch-targeting PR who forgot to export ``BASE_REF``
-       would get a green local preflight (scanning ``origin/main``)
-       followed by a CI failure (scanning ``origin/release-X.Y``)
-       and no hint that the two surfaces even disagreed on the range.
-       Fail-closed turns the implicit contract into an enforced one:
-       every local preflight invocation must name its base ref.
+    3. Non-strict local default: if neither environment variable is
+       set and ``strict`` is false, fall back to ``origin/main`` so
+       repo-default local entrypoints (``python scripts/run_pr_preflight.py``,
+       ``pnpm run test:ci``, ``.husky/pre-push``) keep working without
+       extra shell setup.
+    4. **Fail closed in strict mode.** If neither environment variable
+       is set and ``strict`` is true the resolver raises via
+       :func:`fail_setup`. This preserves an explicit CI-parity mode
+       for callers that need exact PR-target matching, including
+       release-branch-targeting work.
 
     Pure + deterministic: only reads ``os.environ``, returns literal
     strings, no subprocess, no network, no filesystem, no ``gh`` CLI.
-    Raises :class:`SystemExit` via ``fail_setup`` on the fail-closed
-    branch; never logs a warning and continues.
+    Raises :class:`SystemExit` via ``fail_setup`` on the strict
+    fail-closed branch only.
 
     Returns a full ``origin/<branch>`` ref, not a bare branch name,
     so downstream gates can pass it straight through to
@@ -199,6 +199,9 @@ def resolve_pr_base_ref() -> str:
     ci_base = os.environ.get("GITHUB_BASE_REF", "").strip()
     if ci_base:
         return f"origin/{ci_base}"
+
+    if not strict:
+        return "origin/main"
 
     raise fail_setup(
         "Ratchet bump guard (#280): PR base ref cannot be resolved.\n"
@@ -463,7 +466,7 @@ def build_commands(
                 "__PYTHON__",
                 "scripts/check_ratchet_bump.py",
                 "--base-ref",
-                resolve_pr_base_ref(),
+                resolve_pr_base_ref(strict=strict),
             ),
         ),
         CommandSpec(

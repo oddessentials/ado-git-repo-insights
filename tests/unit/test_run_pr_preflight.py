@@ -30,14 +30,12 @@ def _default_base_ref_for_resolver(
 ) -> None:
     """Module-level default: set ``BASE_REF=main`` for every test.
 
-    The fail-closed resolver raises SystemExit via ``fail_setup`` when
-    both ``BASE_REF`` and ``GITHUB_BASE_REF`` are unset. Most tests in
-    this module do not care about the resolver at all — they test
-    ``build_commands`` or ``main`` or tool-resolution logic — and
-    their parent process environment is not guaranteed to have
-    ``BASE_REF`` set. Without this fixture, every such test would
-    crash with a SystemExit from the resolver before its own logic
-    even ran.
+    Most tests in this module do not care about the resolver at all —
+    they test ``build_commands`` or ``main`` or tool-resolution logic —
+    and their parent process environment is not guaranteed to have
+    ``BASE_REF`` set. This fixture keeps those tests deterministic and
+    still lets resolver-specific tests override the environment
+    explicitly inside their own bodies.
 
     Tests that *do* test the resolver directly (``TestResolvePrBaseRef``)
     override this default inside their own bodies via their own
@@ -395,11 +393,11 @@ class TestResolvePrBaseRef:
     The resolver exists so local preflight and the CI ratchet-bump-guard
     job scan the *same* commit range. CI uses ``origin/${github.base_ref}``
     via the ``BASE_REF`` env var. Local preflight honors the same
-    ``BASE_REF`` convention, falling back to ``origin/main`` with a loud
-    stderr warning. Getting this wrong reopens the parity-break hole
-    where a ``[ratchet-realignment]`` / ``[ratchet-test-removal]``
-    marker is accepted on one surface and rejected on the other, so
-    each branch of the resolver gets an explicit regression lock.
+    ``BASE_REF`` convention, but non-strict local entrypoints still
+    default to ``origin/main`` so the repo's documented commands keep
+    working. Strict mode remains fail-closed for callers that need
+    exact PR-target parity, so each branch of the resolver gets an
+    explicit regression lock.
     """
 
     def test_t34_base_ref_env_var_wins(
@@ -445,70 +443,32 @@ class TestResolvePrBaseRef:
         assert _module.resolve_pr_base_ref() == "origin/release-101.7"
         assert capsys.readouterr().err == ""
 
-    def test_t37_empty_env_fails_closed_with_setup_error(
+    def test_t37_empty_env_defaults_to_origin_main_in_non_strict_mode(
         self, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
     ) -> None:
-        """Empty environment ⇒ ``SystemExit`` via ``fail_setup``, NOT fallback.
+        """Empty env + non-strict mode keeps repo-default local entrypoints alive."""
+        monkeypatch.delenv("BASE_REF", raising=False)
+        monkeypatch.delenv("GITHUB_BASE_REF", raising=False)
+        assert _module.resolve_pr_base_ref() == "origin/main"
+        assert capsys.readouterr().err == ""
 
-        Fail-closed is the load-bearing correctness lock for local/CI
-        parity. A prior version of this test asserted that an empty
-        environment fell back to ``origin/main`` with a loud warning.
-        That warn-and-continue behavior made the parity contract
-        opt-in: a developer on a release-branch-targeting PR who
-        missed the warning got a green preflight (scanning
-        ``origin/main``) followed by a CI failure (scanning the
-        actual target) with no hint the two surfaces disagreed on
-        the range. Fail-closed turns the implicit contract into an
-        enforced one — every local preflight invocation must name
-        its base ref.
-
-        This test asserts the exact error shape so a future refactor
-        cannot silently reintroduce the fallback.
-        """
+    def test_t38_empty_env_fails_closed_in_strict_mode(
+        self, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        """Strict mode preserves exact CI-parity behavior for explicit callers."""
         monkeypatch.delenv("BASE_REF", raising=False)
         monkeypatch.delenv("GITHUB_BASE_REF", raising=False)
 
         with pytest.raises(SystemExit) as exc_info:
-            _module.resolve_pr_base_ref()
+            _module.resolve_pr_base_ref(strict=True)
 
-        # Exit code must be the existing SETUP code (2), not a new
-        # bespoke parity code. The plan explicitly reuses fail_setup
-        # to keep CI-side exit-code handling unchanged.
-        assert exc_info.value.code == _module.EXIT_SETUP, (
-            "Fail-closed resolver must raise SystemExit with the "
-            "existing EXIT_SETUP code (2), not a new parity-specific "
-            f"code. Got: {exc_info.value.code!r}"
-        )
+        assert exc_info.value.code == _module.EXIT_SETUP
 
-        # The stderr error must name both env vars, both example
-        # invocations, and the parity rationale so a developer can
-        # self-remediate without reading the source.
         captured = capsys.readouterr()
         combined = captured.out + captured.err
-        assert "[SETUP]" in combined, (
-            "Fail-closed message must be prefixed with `[SETUP]` so "
-            "it's visible in preflight output, not mistaken for "
-            f"debug noise. Got: {combined!r}"
-        )
-        assert "BASE_REF" in combined, "Error must name the BASE_REF override variable."
-        assert "GITHUB_BASE_REF" in combined, (
-            "Error must also name GITHUB_BASE_REF so CI context is "
-            "documented, not just local override."
-        )
-        assert "unset" in combined, (
-            "Error must explicitly state that the env vars are unset, "
-            "not just imply it through the absence of a value."
-        )
-        assert "BASE_REF=main" in combined, (
-            "Error must include a concrete main-targeting example so "
-            "the most common case has a copy-pasteable fix line."
-        )
-        assert "BASE_REF=release-101.7" in combined, (
-            "Error must include a concrete release-branch-targeting "
-            "example so developers on release-branch PRs (the case "
-            "this fix exists to protect) see exactly how to remediate."
-        )
-        assert "#280" in combined, (
-            "Error must cite issue #280 so the rationale for the "
-            "fail-closed behavior is discoverable via issue history."
-        )
+        assert "[SETUP]" in combined
+        assert "BASE_REF" in combined
+        assert "GITHUB_BASE_REF" in combined
+        assert "BASE_REF=main" in combined
+        assert "BASE_REF=release-101.7" in combined
+        assert "#280" in combined

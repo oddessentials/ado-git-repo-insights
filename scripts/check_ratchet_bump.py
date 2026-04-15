@@ -757,8 +757,8 @@ def ensure_base_ref_reachable(base_ref: str) -> None:
 # ---------------------------------------------------------------------------
 
 
-def scan_bypass_marker(base_ref: str) -> str | None:
-    """Return the first bypass marker found in ``base_ref..HEAD``, or None.
+def scan_bypass_marker(base_ref: str, *, marker_range: str | None = None) -> str | None:
+    """Return the first bypass marker found in the configured commit range.
 
     Scans commit SUBJECT lines only via ``git log --oneline``, matching
     the established convention used by
@@ -770,11 +770,17 @@ def scan_bypass_marker(base_ref: str) -> str | None:
     message explaining what the markers are — must never accidentally
     disarm the gate. Markers are only effective when placed in the
     commit subject line, which is an intentional, deliberate act.
+    ``marker_range`` defaults to ``base_ref..HEAD``. CI push jobs on
+    ``main`` can override it with the actual pushed range
+    (for example ``<before>..<after>``) because after a merge
+    ``origin/main..HEAD`` is empty and would miss a marker placed on
+    the newly merged commit itself.
     """
-    result = _run_git("log", "--oneline", f"{base_ref}..HEAD")
+    commit_range = marker_range or f"{base_ref}..HEAD"
+    result = _run_git("log", "--oneline", commit_range)
     if result.returncode != 0:
         raise RatchetSetupError(
-            f"Could not read git log for {base_ref}..HEAD: {result.stderr.strip()}"
+            f"Could not read git log for {commit_range}: {result.stderr.strip()}"
         )
     log_text = result.stdout
     for marker in _BYPASS_MARKERS:
@@ -869,6 +875,7 @@ def run_gate(
     ci_workflow_path: Path,
     junit_extension_path: Path,
     base_ref: str,
+    marker_range: str | None = None,
 ) -> int:
     """Orchestrate the gate with marker-aware exemption discipline.
 
@@ -901,7 +908,7 @@ def run_gate(
     # equality-drift branch below. Do NOT return early on marker
     # presence — parse validation and inter-file parity must still run.
     try:
-        marker = scan_bypass_marker(base_ref)
+        marker = scan_bypass_marker(base_ref, marker_range=marker_range)
     except RatchetSetupError as exc:
         print(f"[SETUP] {exc}", file=sys.stderr)
         return EXIT_SETUP
@@ -925,6 +932,8 @@ def run_gate(
         ci_path=ci_workflow_path,
     )
 
+    display_range = marker_range or f"{base_ref}..HEAD"
+
     # Parity is unconditional. Bypass markers have no authority to
     # waive inter-file agreement — a realignment that only touches one
     # site is exactly the hole this gate is meant to close.
@@ -933,7 +942,7 @@ def run_gate(
             print(f"[DRIFT] {msg}", file=sys.stderr)
         if marker is not None:
             print(
-                f"[DRIFT] {marker} is present in {base_ref}..HEAD but "
+                f"[DRIFT] {marker} is present in {display_range} but "
                 "is ignored for inter-file parity checks — bypass "
                 f"markers ({REALIGNMENT_MARKER} / "
                 f"{TEST_REMOVAL_MARKER}) waive actual-vs-floor "
@@ -952,7 +961,7 @@ def run_gate(
             print(
                 "[OK] Ratchet bump guard: parity checked, equality "
                 f"exempted via {marker} in commit log range "
-                f"{base_ref}..HEAD.\n"
+                f"{display_range}.\n"
                 f"  Parity:    {preflight_path.name} == "
                 f"{ci_workflow_path.name} on both dimensions."
             )
@@ -962,7 +971,7 @@ def run_gate(
         print(
             f"[DRIFT] Bypass with {REALIGNMENT_MARKER} or "
             f"{TEST_REMOVAL_MARKER} in a commit SUBJECT line in "
-            f"{base_ref}..HEAD (scanned via `git log --oneline`; "
+            f"{display_range} (scanned via `git log --oneline`; "
             "markers in commit bodies are NOT honored). The marker "
             "waives actual-vs-floor equality only; inter-file parity "
             "and parse validation continue to run unconditionally.",
@@ -1024,6 +1033,16 @@ def main(argv: list[str] | None = None) -> int:
         default=DEFAULT_EXTENSION_JUNIT,
         help=(f"Path to extension JUnit XML (default: {DEFAULT_EXTENSION_JUNIT})."),
     )
+    parser.add_argument(
+        "--marker-range",
+        help=(
+            "Optional git commit range to scan for bypass markers. "
+            "Defaults to '<base-ref>..HEAD'. Use this on push workflows "
+            "that need to scan the pushed commits directly (for example "
+            "'<before>..<after>' on main) instead of the branch-relative "
+            "default range."
+        ),
+    )
     args = parser.parse_args(argv)
 
     # Normalize --base-ref up front so every downstream consumer
@@ -1043,6 +1062,7 @@ def main(argv: list[str] | None = None) -> int:
         ci_workflow_path=args.ci_workflow,
         junit_extension_path=args.junit_extension,
         base_ref=normalized_base_ref,
+        marker_range=args.marker_range,
     )
 
 

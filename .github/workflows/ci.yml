@@ -1070,11 +1070,19 @@ jobs:
       - name: Run ratchet bump guard
         env:
           BASE_REF: ${{ github.base_ref || 'main' }}
+          MARKER_RANGE: ${{ github.event_name == 'push' && format('{0}..{1}', github.event.before, github.sha) || '' }}
         run: |
           set -euo pipefail
-          python scripts/check_ratchet_bump.py \
-            --base-ref "origin/${BASE_REF}" \
-            --junit-extension ./artifacts/ts/test-results.xml
+          if [ -n "${MARKER_RANGE}" ]; then
+            python scripts/check_ratchet_bump.py \
+              --base-ref "origin/${BASE_REF}" \
+              --marker-range "${MARKER_RANGE}" \
+              --junit-extension ./artifacts/ts/test-results.xml
+          else
+            python scripts/check_ratchet_bump.py \
+              --base-ref "origin/${BASE_REF}" \
+              --junit-extension ./artifacts/ts/test-results.xml
+          fi
         shell: bash
 
   # Scalability Tests (024-dashboard-scalability)

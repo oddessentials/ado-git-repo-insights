@@ -250,6 +250,7 @@ def _run_gate(
     ext_actual: int,
     ci_python_floor: int | None = None,
     ci_ext_floor: int | None = None,
+    marker_range: str | None = None,
     git_responses: dict[tuple[str, ...], _FakeCompleted] | None = None,
     pytest_rc: int = 0,
     pytest_stderr: str = "",
@@ -283,6 +284,7 @@ def _run_gate(
         ci_workflow_path=ci,
         junit_extension_path=junit,
         base_ref="origin/main",
+        marker_range=marker_range,
     )
     return exit_code, recorder
 
@@ -468,6 +470,59 @@ def test_t6_test_removal_marker_exempts(
     )
     assert "equality exempted" in out
     assert "Parity:" in out
+
+
+# ---------------------------------------------------------------------------
+# T6b — explicit marker range is honored for push-to-main workflows
+# ---------------------------------------------------------------------------
+
+
+def test_t6b_explicit_marker_range_overrides_base_relative_log_scan(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    marker_range = "deadbeef..feedface"
+    responses: dict[tuple[str, ...], _FakeCompleted] = {
+        ("log", "--oneline", "origin/main..HEAD"): _FakeCompleted(
+            returncode=0,
+            stdout="abc1234 feat: ordinary merge without marker\n",
+        ),
+        ("rev-list", "--count", "origin/main..HEAD"): _FakeCompleted(
+            returncode=0, stdout="1\n"
+        ),
+        ("log", "--oneline", marker_range): _FakeCompleted(
+            returncode=0,
+            stdout="feedface chore: [ratchet-realignment] merge ratchet update\n",
+        ),
+    }
+    exit_code, recorder = _run_gate(
+        tmp_path,
+        python_floor=100,
+        ext_floor=200,
+        python_actual=150,
+        ext_actual=200,
+        marker_range=marker_range,
+        git_responses=responses,
+        monkeypatch=monkeypatch,
+    )
+    assert exit_code == gate.EXIT_OK
+    out = capsys.readouterr().out
+    assert marker_range in out, (
+        "The success message must report the explicit pushed-commit "
+        "range so main-branch CI makes it obvious which commits were "
+        "scanned for a bypass marker."
+    )
+    matching_logs = [
+        call.args
+        for call in recorder.calls
+        if call.args[:3] == ["git", "log", "--oneline"]
+        and call.args[-1] == marker_range
+    ]
+    assert matching_logs, (
+        "run_gate must scan the explicit marker range when provided; "
+        "otherwise push workflows on main will inspect an empty "
+        "origin/main..HEAD range after merge and miss marker-bearing "
+        "commits that just landed."
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -1886,12 +1941,14 @@ class TestNormalizeBaseRef:
             ci_workflow_path: Path,
             junit_extension_path: Path,
             base_ref: str,
+            marker_range: str | None = None,
         ) -> int:
             # Capture the base_ref value that main() actually hands
             # to run_gate. If normalization ran, this is "origin/main".
             # If normalization was skipped, this is "main" and the
             # assertion below fails with a clear message.
             recorded["base_ref"] = base_ref
+            recorded["marker_range"] = "" if marker_range is None else marker_range
             return gate.EXIT_OK
 
         monkeypatch.setattr(gate, "run_gate", recording_run_gate)
