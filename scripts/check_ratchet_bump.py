@@ -166,6 +166,14 @@ class DriftReport:
     equality: tuple[str, ...]
 
 
+@dataclass(frozen=True)
+class MarkerExpectation:
+    """Describe which bypass marker, if any, matches the drift direction."""
+
+    required_marker: str | None
+    reason: str
+
+
 # ---------------------------------------------------------------------------
 # Preflight floor parsing (AST — no module execution, no side effects)
 # ---------------------------------------------------------------------------
@@ -864,6 +872,47 @@ def compute_drift_report(
     return DriftReport(parity=tuple(parity), equality=tuple(equality))
 
 
+def expected_bypass_marker(
+    *, preflight: FloorReadings, actual: ActualCounts
+) -> MarkerExpectation:
+    """Return the bypass marker compatible with the current drift direction.
+
+    Positive deltas mean actual collected tests increased above the floor,
+    which is a realignment case. Negative deltas mean the declared floor now
+    sits above actual after test removal. Mixed-sign equality drift across the
+    two suites has no single valid bypass marker and must be fixed explicitly.
+    """
+    deltas = (
+        actual.python - preflight.python,
+        actual.extension - preflight.extension,
+    )
+    positive = any(delta > 0 for delta in deltas)
+    negative = any(delta < 0 for delta in deltas)
+
+    if positive and negative:
+        return MarkerExpectation(
+            required_marker=None,
+            reason=(
+                "drift direction is mixed across suites "
+                f"(Python {deltas[0]:+d}, Extension {deltas[1]:+d})"
+            ),
+        )
+    if positive:
+        return MarkerExpectation(
+            required_marker=REALIGNMENT_MARKER,
+            reason="actual collected tests increased above the declared floor",
+        )
+    if negative:
+        return MarkerExpectation(
+            required_marker=TEST_REMOVAL_MARKER,
+            reason="declared floor now exceeds actual collected tests after removal",
+        )
+    return MarkerExpectation(
+        required_marker=None,
+        reason="no equality drift is present",
+    )
+
+
 # ---------------------------------------------------------------------------
 # Orchestration
 # ---------------------------------------------------------------------------
@@ -895,8 +944,9 @@ def run_gate(
     * Inter-file parity (``preflight vs ci``) failures exit DRIFT
       regardless of marker. A note is printed when a marker was present
       so users do not think the marker was silently lost.
-    * Actual-vs-floor equality failures exit DRIFT **unless** a marker
-      is present — that is the only dimension the marker waives.
+    * Actual-vs-floor equality failures exit DRIFT **unless** the
+      marker matches the drift direction. Realignment only waives
+      positive deltas; test-removal only waives negative deltas.
     """
     try:
         ensure_base_ref_reachable(base_ref)
@@ -957,7 +1007,11 @@ def run_gate(
     # so the success path can positively report that parity was
     # evaluated — "parity checked, equality exempted" is the contract.
     if report.equality:
-        if marker is not None:
+        expectation = expected_bypass_marker(
+            preflight=preflight_floors,
+            actual=actual,
+        )
+        if marker is not None and marker == expectation.required_marker:
             print(
                 "[OK] Ratchet bump guard: parity checked, equality "
                 f"exempted via {marker} in commit log range "
@@ -968,6 +1022,23 @@ def run_gate(
             return EXIT_OK
         for msg in report.equality:
             print(f"[DRIFT] {msg}", file=sys.stderr)
+        if marker is not None:
+            if expectation.required_marker is None:
+                print(
+                    f"[DRIFT] {marker} is present in {display_range} but "
+                    "cannot exempt this equality drift because "
+                    f"{expectation.reason}. No bypass marker is valid for "
+                    "mixed-direction drift; update the floors explicitly "
+                    "in both authoritative files.",
+                    file=sys.stderr,
+                )
+            else:
+                print(
+                    f"[DRIFT] {marker} is present in {display_range} but "
+                    f"does not match this drift direction ({expectation.reason}). "
+                    f"Expected marker: {expectation.required_marker}.",
+                    file=sys.stderr,
+                )
         print(
             f"[DRIFT] Bypass with {REALIGNMENT_MARKER} or "
             f"{TEST_REMOVAL_MARKER} in a commit SUBJECT line in "

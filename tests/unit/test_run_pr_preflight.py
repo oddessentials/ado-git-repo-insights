@@ -525,6 +525,15 @@ class TestResolvePrBaseRef:
             f"Unexpected stderr: {captured.err!r}"
         )
 
+    def test_t34a_base_ref_env_var_preserves_qualified_origin_ref(
+        self, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        """``BASE_REF=origin/main`` must pass through unchanged."""
+        monkeypatch.setenv("BASE_REF", "origin/main")
+        monkeypatch.delenv("GITHUB_BASE_REF", raising=False)
+        assert _module.resolve_pr_base_ref() == "origin/main"
+        assert capsys.readouterr().err == ""
+
     def test_t35_github_base_ref_wins_when_base_ref_unset(
         self, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
     ) -> None:
@@ -536,6 +545,15 @@ class TestResolvePrBaseRef:
         """
         monkeypatch.delenv("BASE_REF", raising=False)
         monkeypatch.setenv("GITHUB_BASE_REF", "release-101.7")
+        assert _module.resolve_pr_base_ref() == "origin/release-101.7"
+        assert capsys.readouterr().err == ""
+
+    def test_t35a_github_base_ref_preserves_qualified_origin_ref(
+        self, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        """``GITHUB_BASE_REF=origin/release-101.7`` must pass through unchanged."""
+        monkeypatch.delenv("BASE_REF", raising=False)
+        monkeypatch.setenv("GITHUB_BASE_REF", "origin/release-101.7")
         assert _module.resolve_pr_base_ref() == "origin/release-101.7"
         assert capsys.readouterr().err == ""
 

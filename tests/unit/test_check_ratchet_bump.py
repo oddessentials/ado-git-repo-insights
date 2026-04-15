@@ -473,6 +473,67 @@ def test_t6_test_removal_marker_exempts(
 
 
 # ---------------------------------------------------------------------------
+# T6a — mismatched bypass markers do NOT exempt equality drift
+# ---------------------------------------------------------------------------
+
+
+def test_t6a_test_removal_marker_does_not_exempt_test_addition_drift(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    responses: dict[tuple[str, ...], _FakeCompleted] = {
+        ("log", "--oneline", "origin/main..HEAD"): _FakeCompleted(
+            returncode=0,
+            stdout="def5678 test: [ratchet-test-removal] retire legacy suite\n",
+        ),
+        ("rev-list", "--count", "origin/main..HEAD"): _FakeCompleted(
+            returncode=0, stdout="1\n"
+        ),
+    }
+    exit_code, _ = _run_gate(
+        tmp_path,
+        python_floor=100,
+        ext_floor=200,
+        python_actual=115,
+        ext_actual=200,
+        git_responses=responses,
+        monkeypatch=monkeypatch,
+    )
+    assert exit_code == gate.EXIT_DRIFT
+    stderr = capsys.readouterr().err
+    assert "[ratchet-test-removal]" in stderr
+    assert "Expected marker: [ratchet-realignment]." in stderr
+    assert "actual collected tests increased above the declared floor" in stderr
+
+
+def test_t6aa_realignment_marker_does_not_exempt_test_removal_drift(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    responses: dict[tuple[str, ...], _FakeCompleted] = {
+        ("log", "--oneline", "origin/main..HEAD"): _FakeCompleted(
+            returncode=0,
+            stdout="abc1234 chore: [ratchet-realignment] catch up on drift\n",
+        ),
+        ("rev-list", "--count", "origin/main..HEAD"): _FakeCompleted(
+            returncode=0, stdout="1\n"
+        ),
+    }
+    exit_code, _ = _run_gate(
+        tmp_path,
+        python_floor=100,
+        ext_floor=200,
+        python_actual=85,
+        ext_actual=200,
+        git_responses=responses,
+        monkeypatch=monkeypatch,
+    )
+    assert exit_code == gate.EXIT_DRIFT
+    stderr = capsys.readouterr().err
+    assert "[ratchet-realignment]" in stderr
+    assert "Expected marker: [ratchet-test-removal]." in stderr
+    assert "declared floor now exceeds actual collected tests after removal" in stderr
+
+
+# ---------------------------------------------------------------------------
 # T6b — explicit marker range is honored for push-to-main workflows
 # ---------------------------------------------------------------------------
 

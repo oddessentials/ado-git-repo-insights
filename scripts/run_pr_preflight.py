@@ -192,13 +192,20 @@ def resolve_pr_base_ref(*, strict: bool = False) -> str:
     ``git log``/``git rev-list``/``--base-ref`` without additional
     prefixing logic.
     """
+
+    def normalize_base_ref(value: str) -> str:
+        normalized = value.strip()
+        if normalized.startswith("origin/"):
+            return normalized
+        return f"origin/{normalized}"
+
     explicit = os.environ.get("BASE_REF", "").strip()
     if explicit:
-        return f"origin/{explicit}"
+        return normalize_base_ref(explicit)
 
     ci_base = os.environ.get("GITHUB_BASE_REF", "").strip()
     if ci_base:
-        return f"origin/{ci_base}"
+        return normalize_base_ref(ci_base)
 
     if not strict:
         return "origin/main"
