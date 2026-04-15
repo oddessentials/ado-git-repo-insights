@@ -595,13 +595,17 @@ jobs:
           fi
 
           # Phase 2: Validate test results using JUnit XML parsing
-          # MIN_COLLECTED: must match --min-collected below (cross-platform minimum)
-          # Windows collects 4 more (test_*_windows.py); conftest.py excludes them
-          # on non-Windows so they are never skipped — only uncollected.
+          # MIN_COLLECTED: cross-platform minimum (Windows-filtered). Sourced
+          # from scripts/_platform_test_filters.py::PLATFORM_CONDITIONAL_IGNORE_GLOBS
+          # which both tests/conftest.py and scripts/check_ratchet_bump.py import
+          # so the gate's filter, conftest's collect_ignore_glob, and this floor
+          # all agree. Windows cells collect additional test_*_windows.py items;
+          # the ratchet-bump guard's `local Windows full count` output line
+          # reports the raw Windows number for disambiguation.
           # MAX_SKIPS: Maximum allowed skipped tests (0 = no skips allowed in CI)
           python .github/scripts/validate-test-results.py \
             test-results.xml \
-            --min-collected=1758 \
+            --min-collected=1761 \
             --max-skips=0
         shell: bash
 

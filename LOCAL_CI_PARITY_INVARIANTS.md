@@ -135,16 +135,19 @@ Append-only historical log. Commit SHAs are immutable; dates anchor when the inc
 
 Python CI runs a 3 OS × 3 Python matrix. Some tests are platform-specific (e.g., Windows console handler tests). These must **never** use `pytest.mark.skip`, `pytest.mark.skipIf`, or runtime `pytest.skip()` calls because CI enforces `--max-skips=0`. Any form of skip — declarative or runtime — counts against the zero-tolerance gate.
 
-**Pattern**: Platform-conditional tests live in files named `test_*_windows.py` (or `_linux.py`, `_macos.py`). The root [tests/conftest.py](tests/conftest.py) excludes them from **collection** on non-matching platforms via `collect_ignore_glob`. This means:
+**Pattern**: Platform-conditional tests live in files named `test_*_windows.py` (or `_linux.py`, `_macos.py` when added). The glob patterns that match those files are declared once in [scripts/_platform_test_filters.py](scripts/_platform_test_filters.py) as `PLATFORM_CONDITIONAL_IGNORE_GLOBS` and imported by both [tests/conftest.py](tests/conftest.py) (`collect_ignore_glob` on non-Windows) and [scripts/check_ratchet_bump.py](scripts/check_ratchet_bump.py) (`--ignore-glob` CLI flags for its hermetic subprocess). A parity test in [tests/unit/test_platform_conditional_collection.py](tests/unit/test_platform_conditional_collection.py) asserts at the AST level that **both** call sites import the shared constant — either side dropping the import fails the test immediately, so the filter sets cannot drift.
+
+This means:
 
 - On Windows: all tests are collected (including `test_*_windows.py`)
-- On Linux/macOS: `test_*_windows.py` files are never discovered — they don't count as collected or skipped
-- The `--min-collected` threshold must use the **non-Windows** count (Linux/macOS see fewer tests than Windows by exactly the size of the `test_*_windows.py` set)
+- On Linux/macOS: files matching `PLATFORM_CONDITIONAL_IGNORE_GLOBS` are never discovered — they don't count as collected or skipped
+- The `--min-collected` threshold MUST use the **cross-platform minimum** — the count pytest produces when the shared globs are applied. This is what Linux/macOS cells see and what Windows cells see after the filter is applied.
+
+**Cross-platform minimum vs. local Windows count**: On a Windows machine, a bare `pytest --collect-only` reports a number **larger** than the floor because it sees the platform-conditional files. The ratchet-bump gate prints both numbers — the floor-comparison number is labeled `cross-platform (Windows-filtered)` and the raw local collection is labeled `local Windows full count` — so the Windows-machine developer can reconcile the two. The delta between them is derived at runtime from `scripts._platform_test_filters.count_windows_only_test_functions`, never hardcoded; a Windows-only measured drift test at [tests/unit/test_platform_conditional_collection_windows.py](tests/unit/test_platform_conditional_collection_windows.py) fails if the AST-derived count diverges from the real pytest-measured count (e.g. when a `test_*_windows.py` test is parametrized without updating the helper).
 
 **Adding new platform-conditional tests**:
 
-1. Create a separate file with the platform suffix (e.g., `test_feature_windows.py`)
-2. Do NOT use `pytest.mark.skip` — use the collection exclusion pattern
-3. Re-measure the cross-platform minimum: `pytest --collect-only --no-cov --ignore-glob="**/test_*_windows.py" tests/`
-4. Update `--min-collected` in both [run_pr_preflight.py](scripts/run_pr_preflight.py) and [ci.yml](.github/workflows/ci.yml) to that count
-5. If adding Linux/macOS-only tests, add exclusion rules to `conftest.py` and use the new minimum
+1. Create a file whose name matches one of the patterns in `PLATFORM_CONDITIONAL_IGNORE_GLOBS` (currently `test_*_windows.py`). If you are adding a Linux- or macOS-only test, extend `PLATFORM_CONDITIONAL_IGNORE_GLOBS` with the new pattern — both conftest and the gate pick it up automatically.
+2. Do NOT use `pytest.mark.skip` — use the collection exclusion pattern.
+3. Re-measure the cross-platform minimum. The authoritative method is to run the ratchet-bump guard: `python scripts/check_ratchet_bump.py --base-ref origin/main --junit-extension extension/test-results.xml`. Its output line `actual=N (cross-platform (Windows-filtered))` is the correct floor regardless of the developer's OS. (Bare `pytest --collect-only` on a Windows machine over-reports by the platform delta.)
+4. Update `--min-collected` in both [run_pr_preflight.py](scripts/run_pr_preflight.py) and [ci.yml](.github/workflows/ci.yml) to the reported number in the same commit (per the ratchet-bump discipline in the "Governance" section above).

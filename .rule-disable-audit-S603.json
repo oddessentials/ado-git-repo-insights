@@ -125,7 +125,7 @@
     },
     {
       "file": "scripts/check_ratchet_bump.py",
-      "line": 389,
+      "line": 469,
       "code": "result = subprocess.run(",
       "shell_true": false,
       "literal_list": true,
@@ -133,7 +133,7 @@
     },
     {
       "file": "scripts/check_ratchet_bump.py",
-      "line": 635,
+      "line": 728,
       "code": "return subprocess.run(",
       "shell_true": false,
       "literal_list": true,
@@ -213,7 +213,7 @@
     },
     {
       "file": "scripts/run_pr_preflight.py",
-      "line": 555,
+      "line": 567,
       "code": "probe = subprocess.run(",
       "shell_true": false,
       "literal_list": true,
@@ -221,7 +221,7 @@
     },
     {
       "file": "scripts/run_pr_preflight.py",
-      "line": 578,
+      "line": 590,
       "code": "completed = subprocess.run(",
       "shell_true": false,
       "literal_list": false,
@@ -229,7 +229,7 @@
     },
     {
       "file": "scripts/run_pr_preflight.py",
-      "line": 655,
+      "line": 683,
       "code": "probe = subprocess.run(",
       "shell_true": false,
       "literal_list": true,
@@ -237,7 +237,7 @@
     },
     {
       "file": "scripts/run_pr_preflight.py",
-      "line": 737,
+      "line": 765,
       "code": "probe = subprocess.run(",
       "shell_true": false,
       "literal_list": true,

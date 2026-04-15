@@ -57,11 +57,12 @@ from defusedxml.ElementTree import ParseError as XMLParseError
 from defusedxml.ElementTree import parse as parse_xml
 
 if TYPE_CHECKING:
-    # Static import for mypy. `mypy_path = ["scripts"]` in pyproject.toml
-    # makes `_ci_yaml_parser` resolve as a top-level module here; the
+    # Static imports for mypy. `mypy_path = ["scripts"]` in pyproject.toml
+    # makes the sibling helpers resolve as top-level modules here; the
     # runtime else-branch below is invocation-mode-aware loading that
     # mypy never executes, so the call sites stay precisely typed.
     import _ci_yaml_parser as _ci_parser
+    from _platform_test_filters import PLATFORM_CONDITIONAL_IGNORE_GLOBS
 else:
     # Runtime: prefer a relative import. Under
     # `python -m scripts.check_ratchet_bump`, Python resolves `scripts`
@@ -84,8 +85,10 @@ else:
     # package semantics.
     try:
         from . import _ci_yaml_parser as _ci_parser
+        from ._platform_test_filters import PLATFORM_CONDITIONAL_IGNORE_GLOBS
     except ImportError:
         import _ci_yaml_parser as _ci_parser
+        from _platform_test_filters import PLATFORM_CONDITIONAL_IGNORE_GLOBS
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 DEFAULT_PREFLIGHT_SCRIPT = REPO_ROOT / "scripts" / "run_pr_preflight.py"
@@ -99,6 +102,15 @@ EXIT_SETUP = 2
 REALIGNMENT_MARKER = "[ratchet-realignment]"
 TEST_REMOVAL_MARKER = "[ratchet-test-removal]"
 _BYPASS_MARKERS: tuple[str, ...] = (REALIGNMENT_MARKER, TEST_REMOVAL_MARKER)
+
+# Label used wherever the gate prints the Python actual count. The floor is
+# always the cross-platform minimum (Linux/macOS see exactly this count; Windows
+# sees it plus the Windows-only tests filtered out by
+# scripts._platform_test_filters.PLATFORM_CONDITIONAL_IGNORE_GLOBS). The label
+# makes the number self-describing so a developer running bare
+# ``pytest --collect-only`` on Windows and seeing a larger number does not
+# wonder why the gate reports a smaller one.
+_PYTHON_ACTUAL_LABEL = "cross-platform (Windows-filtered)"
 
 _PYTHON_SPEC_NAME = "Python test count validation"
 _EXTENSION_SPEC_NAME = "Extension test count validation"
@@ -321,6 +333,14 @@ def _extract_ci_flag(
 def measure_python_count() -> int:
     """Invoke ``pytest --collect-only`` via a hermetic subprocess.
 
+    Returns the **cross-platform minimum** — the count pytest sees when
+    :data:`_platform_filters.PLATFORM_CONDITIONAL_IGNORE_GLOBS` are
+    applied via ``--ignore-glob``. On non-Windows this matches what
+    ``tests/conftest.py``'s ``collect_ignore_glob`` already excludes; on
+    Windows this undercuts the raw local collection by exactly the set
+    of Windows-only tests, giving a platform-agnostic floor that matches
+    what Linux/macOS CI cells will see.
+
     The subprocess runs with ``PYTEST_DISABLE_PLUGIN_AUTOLOAD=1`` and
     ``-o addopts=`` so third-party plugins installed on the dev machine
     (pytest-randomly, pytest-xdist, pytest-sugar, etc.) cannot skew the
@@ -330,6 +350,50 @@ def measure_python_count() -> int:
     env variable took effect. The count is written to a tempfile by the
     committed :mod:`scripts._pytest_count_collector` plugin, so no
     stdout parsing is involved anywhere in the happy path.
+    """
+    return _run_collect_subprocess(apply_platform_filters=True)
+
+
+def measure_windows_full_count() -> int | None:
+    """Return the raw local pytest count on Windows, ``None`` elsewhere.
+
+    On Windows, runs the same hermetic ``--collect-only`` subprocess as
+    :func:`measure_python_count` but WITHOUT the
+    :data:`_platform_filters.PLATFORM_CONDITIONAL_IGNORE_GLOBS` filters,
+    yielding the total count a developer would see from a bare
+    ``pytest --collect-only`` in their shell. The difference between
+    this value and :func:`measure_python_count` is exactly the set of
+    Windows-only tests that ``tests/conftest.py`` excludes on
+    Linux/macOS.
+
+    On non-Windows platforms this returns ``None``: ``collect_ignore_glob``
+    in ``tests/conftest.py`` applies the platform filter at collection
+    time, so there is no distinct "full count" to measure — a second
+    subprocess would return the same number as the filtered run. The
+    gate's display logic treats ``None`` as "not applicable on this
+    platform" and omits the corresponding output line.
+
+    Used purely for display in :func:`run_gate`'s output: the
+    authoritative ``actual`` comparison always runs against the
+    filtered count returned by :func:`measure_python_count`.
+    """
+    if sys.platform != "win32":
+        return None
+    return _run_collect_subprocess(apply_platform_filters=False)
+
+
+def _run_collect_subprocess(*, apply_platform_filters: bool) -> int:
+    """Shared hermetic ``pytest --collect-only`` invocation.
+
+    ``apply_platform_filters`` toggles the
+    :func:`_platform_filters.ignore_glob_cli_args` set on/off so the
+    same code path produces both the cross-platform minimum
+    (:func:`measure_python_count`, ``True``) and — on Windows only —
+    the raw local count (:func:`measure_windows_full_count`, ``False``).
+    Every other aspect — plugin-autoload suppression, scrubbed
+    environment, tempfile-based IPC with
+    ``scripts._pytest_count_collector``, best-effort cleanup retry —
+    is identical between the two callers.
 
     The collector IPC file is created via :func:`tempfile.mkstemp` with
     a PID-scoped prefix (not :class:`tempfile.TemporaryDirectory`): the
@@ -352,7 +416,7 @@ def measure_python_count() -> int:
     def _best_effort_unlink(path: Path) -> None:
         """Unlink ``path`` with bounded retries for transient Windows locks.
 
-        Nested inside :func:`measure_python_count` so it cannot be
+        Nested inside :func:`_run_collect_subprocess` so it cannot be
         imported or reused elsewhere — the retry policy and the narrow
         :class:`PermissionError`-only catch are tuned specifically for
         the short-lived collector tempfile IPC, not a general
@@ -393,6 +457,14 @@ def measure_python_count() -> int:
                 "COVERAGE_RCFILE": os.devnull,
             }
         )
+        ignore_args: tuple[str, ...] = (
+            tuple(
+                f"--ignore-glob={pattern}"
+                for pattern in PLATFORM_CONDITIONAL_IGNORE_GLOBS
+            )
+            if apply_platform_filters
+            else ()
+        )
         try:
             result = subprocess.run(
                 [
@@ -417,7 +489,7 @@ def measure_python_count() -> int:
                     "-p",
                     "scripts._pytest_count_collector",
                     "--import-mode=importlib",
-                    "--ignore-glob=**/test_*_windows.py",
+                    *ignore_args,
                     "tests/",
                 ],
                 env=scrubbed_env,
@@ -852,7 +924,8 @@ def compute_drift_report(
 
     if actual.python != preflight.python:
         equality.append(
-            f"Python ratchet drift: actual={actual.python}, "
+            f"Python ratchet drift: actual={actual.python} "
+            f"({_PYTHON_ACTUAL_LABEL}), "
             f"floor={preflight.python}.\n"
             f"  Delta: {actual.python - preflight.python:+d}\n"
             f"  Fix: update {_MIN_COLLECTED_FLAG}={actual.python} in BOTH:\n"
@@ -966,12 +1039,18 @@ def run_gate(
         preflight_floors = read_preflight_floors(preflight_path)
         ci_floors = read_ci_floors(ci_workflow_path)
         python_actual = measure_python_count()
+        python_windows_full = measure_windows_full_count()
         extension_actual = measure_extension_count(junit_extension_path)
     except RatchetSetupError as exc:
         print(f"[SETUP] {exc}", file=sys.stderr)
         return EXIT_SETUP
 
     actual = ActualCounts(python=python_actual, extension=extension_actual)
+    windows_full_suffix = (
+        f"\n             local Windows full count: {python_windows_full}"
+        if python_windows_full is not None
+        else ""
+    )
 
     report = compute_drift_report(
         preflight=preflight_floors,
@@ -1026,6 +1105,14 @@ def run_gate(
             return EXIT_OK
         for msg in report.equality:
             print(f"[DRIFT] {msg}", file=sys.stderr)
+        if python_windows_full is not None:
+            print(
+                f"[DRIFT] Local Windows full count: {python_windows_full} "
+                f"(raw ``pytest --collect-only`` on this machine; the "
+                f"{_PYTHON_ACTUAL_LABEL} number above is what "
+                "Linux/macOS cells collect and is the authoritative floor).",
+                file=sys.stderr,
+            )
         if markers:
             markers_text = " / ".join(sorted(markers))
             if expectation.required_marker is None:
@@ -1059,7 +1146,9 @@ def run_gate(
 
     print(
         "[OK] Ratchet bump guard aligned:\n"
-        f"  Python:    floor={preflight_floors.python}, actual={actual.python}\n"
+        f"  Python:    floor={preflight_floors.python}, "
+        f"actual={actual.python} ({_PYTHON_ACTUAL_LABEL})"
+        f"{windows_full_suffix}\n"
         f"  Extension: floor={preflight_floors.extension}, "
         f"actual={actual.extension}\n"
         f"  Parity:    {preflight_path.name} == {ci_workflow_path.name} "

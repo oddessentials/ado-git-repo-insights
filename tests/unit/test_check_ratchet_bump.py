@@ -1173,8 +1173,16 @@ def test_t19_cleanup_retries_on_permission_error_then_succeeds(
     Simulates the Windows AV / deferred-close window: the first unlink
     attempt on the collector tempfile raises PermissionError, the
     second succeeds. The gate must still exit 0 AND the attempt
-    counter must stop at exactly 2 — the loop uses an explicit `break`
-    on success so a third iteration is forbidden.
+    counter must stop at exactly 2 per tempfile — the loop uses an
+    explicit ``break`` on success so a third iteration is forbidden.
+
+    On Windows, ``run_gate`` spawns two collection subprocesses per
+    invocation (one through :func:`measure_python_count` for the
+    cross-platform floor and one through :func:`measure_windows_full_count`
+    for the display-only raw Windows count), so two independent
+    tempfile-cleanup sequences are expected. On Linux/macOS,
+    :func:`measure_windows_full_count` short-circuits to ``None`` before
+    touching a subprocess, so exactly one tempfile is expected.
     """
     real_unlink = Path.unlink
     call_counts: dict[str, int] = {}
@@ -1202,15 +1210,19 @@ def test_t19_cleanup_retries_on_permission_error_then_succeeds(
         monkeypatch=monkeypatch,
     )
     assert exit_code == gate.EXIT_OK
-    assert len(call_counts) == 1, (
-        f"Expected exactly one ratchet-count-* tempfile unlink sequence; "
-        f"got: {call_counts!r}"
+    expected_sequences = 2 if sys.platform == "win32" else 1
+    assert len(call_counts) == expected_sequences, (
+        f"Expected exactly {expected_sequences} ratchet-count-* tempfile "
+        f"unlink sequence(s) on {sys.platform}; got: {call_counts!r}. "
+        f"measure_python_count always runs; measure_windows_full_count "
+        f"runs on Windows only."
     )
-    attempts = next(iter(call_counts.values()))
-    assert attempts == 2, (
-        "Retry loop must break immediately on success — expected 2 "
-        f"unlink attempts (1 transient fail + 1 retry success), got {attempts}"
-    )
+    for tempfile_name, attempts in call_counts.items():
+        assert attempts == 2, (
+            "Retry loop must break immediately on success — expected 2 "
+            f"unlink attempts (1 transient fail + 1 retry success) for "
+            f"{tempfile_name!r}, got {attempts}"
+        )
 
 
 # ---------------------------------------------------------------------------
@@ -1225,8 +1237,15 @@ def test_t20_cleanup_permission_error_exhausted_does_not_propagate(
 
     Every unlink attempt raises PermissionError. The gate must still
     return exit 0 (cleanup failure is not a gate failure), and the
-    attempt counter must cap exactly at _CLEANUP_RETRY_ATTEMPTS — the
-    loop must never retry beyond its bound even if all attempts fail.
+    attempt counter must cap exactly at ``_CLEANUP_RETRY_ATTEMPTS`` per
+    tempfile — the loop must never retry beyond its bound even if all
+    attempts fail.
+
+    On Windows, two tempfiles are produced per ``run_gate`` invocation
+    (see the T19 docstring). Each independently exercises the bounded
+    retry loop. On Linux/macOS, the Windows-only display measurement
+    short-circuits to ``None`` before touching a subprocess, so exactly
+    one tempfile is produced.
     """
     real_unlink = Path.unlink
     call_counts: dict[str, int] = {}
@@ -1250,15 +1269,19 @@ def test_t20_cleanup_permission_error_exhausted_does_not_propagate(
         monkeypatch=monkeypatch,
     )
     assert exit_code == gate.EXIT_OK
-    assert len(call_counts) == 1, (
-        f"Expected exactly one ratchet-count-* tempfile unlink sequence; "
-        f"got: {call_counts!r}"
+    expected_sequences = 2 if sys.platform == "win32" else 1
+    assert len(call_counts) == expected_sequences, (
+        f"Expected exactly {expected_sequences} ratchet-count-* tempfile "
+        f"unlink sequence(s) on {sys.platform}; got: {call_counts!r}. "
+        f"measure_python_count always runs; measure_windows_full_count "
+        f"runs on Windows only."
     )
-    attempts = next(iter(call_counts.values()))
-    assert attempts == gate._CLEANUP_RETRY_ATTEMPTS, (
-        f"Retry loop must cap at _CLEANUP_RETRY_ATTEMPTS="
-        f"{gate._CLEANUP_RETRY_ATTEMPTS}; got {attempts} attempts"
-    )
+    for tempfile_name, attempts in call_counts.items():
+        assert attempts == gate._CLEANUP_RETRY_ATTEMPTS, (
+            f"Retry loop must cap at _CLEANUP_RETRY_ATTEMPTS="
+            f"{gate._CLEANUP_RETRY_ATTEMPTS} for {tempfile_name!r}; "
+            f"got {attempts} attempts"
+        )
 
 
 # ---------------------------------------------------------------------------

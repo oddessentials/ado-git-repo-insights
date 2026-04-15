@@ -150,6 +150,7 @@ warn_return_any = false
 [[tool.mypy.overrides]]
 module = [
     "_ci_yaml_parser",
+    "_platform_test_filters",
     "_pytest_count_collector",
     "build_demo",
     "check_coverage_delta",
