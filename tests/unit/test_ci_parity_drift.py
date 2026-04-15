@@ -775,7 +775,8 @@ class TestRatchetBumpGuardParity:
             "between run_pr_preflight.py and ci.yml."
         )
         assert preflight["Ratchet bump guard"] == (
-            "__PYTHON__ scripts/check_ratchet_bump.py --base-ref origin/main"
+            "__PYTHON__ scripts/check_ratchet_bump.py --base-ref origin/main "
+            "--junit-extension extension/test-results.xml"
         ), (
             "Preflight 'Ratchet bump guard' command must invoke "
             "check_ratchet_bump.py with --base-ref origin/main when "
@@ -887,6 +888,122 @@ class TestRatchetBumpGuardParity:
         assert callee.id == "resolve_pr_base_ref", (
             "Ratchet bump guard --base-ref must be routed through "
             "`resolve_pr_base_ref()` (issue #280 local/CI parity lock). "
+            f"Got a call to: {callee.id!r}"
+        )
+
+
+class TestPatchCoverageParity:
+    """Parity lock for the local patch-coverage preview gate (#281).
+
+    ``check_patch_coverage.py`` is intentionally local-only, but it still
+    must compute its diff against the same PR base ref a contributor's real
+    target branch implies. Hardcoding ``origin/main`` silently breaks preview
+    accuracy for release/hotfix PRs, so the CommandSpec must route through the
+    same base-ref resolver as the ratchet gate.
+    """
+
+    def test_preflight_has_patch_coverage_parity_command_spec(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        monkeypatch.setenv("BASE_REF", "main")
+        monkeypatch.delenv("GITHUB_BASE_REF", raising=False)
+        preflight = _normalized_preflight_commands()
+
+        assert "Local patch coverage parity" in preflight, (
+            "Preflight must declare a 'Local patch coverage parity' CommandSpec "
+            "(issue #281) so contributors can preview Codecov-style patch "
+            "coverage against the same PR base branch they will submit to."
+        )
+        assert preflight["Local patch coverage parity"] == (
+            "__PYTHON__ scripts/check_patch_coverage.py --base-ref origin/main "
+            "--python-coverage coverage.xml --ts-coverage extension/coverage/lcov.info"
+        ), (
+            "Preflight 'Local patch coverage parity' command must invoke "
+            "check_patch_coverage.py with --base-ref origin/main when "
+            "BASE_REF=main is set; got: "
+            f"{preflight['Local patch coverage parity']!r}"
+        )
+
+    def test_t39_preflight_patch_coverage_routes_base_ref_through_resolver(
+        self,
+    ) -> None:
+        source = PREFLIGHT_SCRIPT.read_text(encoding="utf-8")
+        tree = ast.parse(source, filename=str(PREFLIGHT_SCRIPT))
+
+        patch_specs: list[ast.Call] = []
+        for node in ast.walk(tree):
+            if not isinstance(node, ast.Call):
+                continue
+            func = node.func
+            if not (isinstance(func, ast.Name) and func.id == "CommandSpec"):
+                continue
+            if not node.args:
+                continue
+            name_arg = node.args[0]
+            if not (
+                isinstance(name_arg, ast.Constant)
+                and isinstance(name_arg.value, str)
+                and name_arg.value == "Local patch coverage parity"
+            ):
+                continue
+            patch_specs.append(node)
+
+        assert len(patch_specs) == 1, (
+            f"Expected exactly one CommandSpec named 'Local patch coverage "
+            f"parity' in {PREFLIGHT_SCRIPT.name}; found {len(patch_specs)}. "
+            "If the gate was renamed or moved, update this test."
+        )
+
+        command_tuple = patch_specs[0].args[1]
+        assert isinstance(command_tuple, ast.Tuple), (
+            "Local patch coverage parity CommandSpec second arg must be a tuple "
+            "literal (not a variable) so static analysis can verify its shape. "
+            f"Got: {type(command_tuple).__name__}"
+        )
+
+        flag_index: int | None = None
+        for i, element in enumerate(command_tuple.elts):
+            if (
+                isinstance(element, ast.Constant)
+                and isinstance(element.value, str)
+                and element.value == "--base-ref"
+            ):
+                flag_index = i
+                break
+
+        assert flag_index is not None, (
+            "Local patch coverage parity CommandSpec must pass a `--base-ref` "
+            "flag; none found in the tuple literal."
+        )
+        assert flag_index + 1 < len(command_tuple.elts), (
+            "`--base-ref` flag has no value element after it in the CommandSpec tuple."
+        )
+        value_node = command_tuple.elts[flag_index + 1]
+
+        assert not (
+            isinstance(value_node, ast.Constant) and isinstance(value_node.value, str)
+        ), (
+            "Local patch coverage parity --base-ref MUST NOT be a hardcoded "
+            "string literal. Hardcoding breaks the local patch-coverage preview "
+            "for non-main-targeting PRs by diffing against the wrong base range. "
+            "Route the value through `resolve_pr_base_ref()` so the preview uses "
+            "the contributor's actual PR target branch. "
+            f"Current value node: {ast.dump(value_node)}"
+        )
+
+        assert isinstance(value_node, ast.Call), (
+            "Local patch coverage parity --base-ref must be a Call node "
+            "(to resolve_pr_base_ref); got "
+            f"{type(value_node).__name__}: {ast.dump(value_node)}"
+        )
+        callee = value_node.func
+        assert isinstance(callee, ast.Name), (
+            "Local patch coverage parity --base-ref Call must be to a bare "
+            f"function name; got: {ast.dump(callee)}"
+        )
+        assert callee.id == "resolve_pr_base_ref", (
+            "Local patch coverage parity --base-ref must be routed through "
+            "`resolve_pr_base_ref()` (issue #281 local parity lock). "
             f"Got a call to: {callee.id!r}"
         )
 

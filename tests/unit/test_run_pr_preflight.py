@@ -119,6 +119,22 @@ class TestBuildCommands:
         assert str(_module.base_temp("python")) in spec.command
         assert spec.extra_env == {"COVERAGE_FILE": str(_module.coverage_file("python"))}
 
+    def test_parity_gates_require_base_ref_even_when_build_commands_is_non_strict(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+        capsys: pytest.CaptureFixture[str],
+    ) -> None:
+        monkeypatch.delenv("BASE_REF", raising=False)
+        monkeypatch.delenv("GITHUB_BASE_REF", raising=False)
+
+        with pytest.raises(SystemExit) as exc_info:
+            build_commands(None, gitleaks=None)
+
+        assert exc_info.value.code == _module.EXIT_SETUP
+        combined = capsys.readouterr().out + capsys.readouterr().err
+        assert "PR base ref cannot be resolved" in combined
+        assert "BASE_REF" in combined
+
 
 class TestMainBehavior:
     """The default CLI path must be authoritative, with explicit degraded mode."""
