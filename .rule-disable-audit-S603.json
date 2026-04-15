@@ -85,7 +85,7 @@
     },
     {
       "file": "scripts/check-version-unchanged.py",
-      "line": 55,
+      "line": 57,
       "code": "result = subprocess.run(",
       "shell_true": false,
       "literal_list": true,
@@ -93,7 +93,7 @@
     },
     {
       "file": "scripts/check-version-unchanged.py",
-      "line": 85,
+      "line": 87,
       "code": "result = subprocess.run(",
       "shell_true": false,
       "literal_list": true,
@@ -125,7 +125,7 @@
     },
     {
       "file": "scripts/check_ratchet_bump.py",
-      "line": 279,
+      "line": 364,
       "code": "result = subprocess.run(",
       "shell_true": false,
       "literal_list": true,
@@ -133,7 +133,7 @@
     },
     {
       "file": "scripts/check_ratchet_bump.py",
-      "line": 409,
+      "line": 504,
       "code": "return subprocess.run(",
       "shell_true": false,
       "literal_list": true,

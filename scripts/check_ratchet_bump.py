@@ -51,15 +51,41 @@ import tempfile
 import time
 from dataclasses import dataclass
 from pathlib import Path
+from typing import TYPE_CHECKING
 
-from _ci_yaml_parser import (
-    CiYamlParseError,
-    extract_flag_value,
-    extract_shell_commands,
-    load_ci_run_block,
-)
 from defusedxml.ElementTree import ParseError as XMLParseError
 from defusedxml.ElementTree import parse as parse_xml
+
+if TYPE_CHECKING:
+    # Static import for mypy. `mypy_path = ["scripts"]` in pyproject.toml
+    # makes `_ci_yaml_parser` resolve as a top-level module here; the
+    # runtime else-branch below is invocation-mode-aware loading that
+    # mypy never executes, so the call sites stay precisely typed.
+    import _ci_yaml_parser as _ci_parser
+else:
+    # Runtime: prefer a relative import. Under
+    # `python -m scripts.check_ratchet_bump`, Python resolves `scripts`
+    # as a PEP 420 namespace package (no `scripts/__init__.py` — its
+    # absence is enforced by tests/unit/test_mypy_crossfile_enforcement.py
+    # ::test_scripts_init_py_does_not_exist) and sets
+    # `__package__ = "scripts"`, so `from . import _ci_yaml_parser`
+    # resolves cleanly. The same path works when a test loads the gate
+    # via `from scripts import check_ratchet_bump` /
+    # `importlib.import_module("scripts.check_ratchet_bump")`.
+    #
+    # Fall back to a plain top-level import when the gate is invoked
+    # as a script path (`python scripts/check_ratchet_bump.py`) — runpy
+    # puts the script's directory at `sys.path[0]`, so the sibling
+    # helper resolves as a top-level module without any package
+    # context. No `sys.path` mutation (forbidden by the
+    # `--check-syspath` compensating guardrail in
+    # check_rule_disable_invariants.py) and no
+    # `importlib.util.spec_from_file_location` — both branches honor
+    # package semantics.
+    try:
+        from . import _ci_yaml_parser as _ci_parser
+    except ImportError:
+        import _ci_yaml_parser as _ci_parser
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 DEFAULT_PREFLIGHT_SCRIPT = REPO_ROOT / "scripts" / "run_pr_preflight.py"
@@ -218,22 +244,24 @@ def _extract_min_collected(text: str, *, source: Path, context: str) -> int:
 def read_ci_floors(ci_yaml_path: Path) -> FloorReadings:
     """Parse ``--min-collected`` floors from the two validate-test-results steps.
 
-    Navigates the YAML defensively via :func:`load_ci_run_block` — every
-    missing key / wrong type raises :class:`CiYamlParseError` with context
-    rather than AttributeError. The shell ``run`` block is then folded
-    via :func:`extract_shell_commands` so backslash-continuation flags
-    are not silently lost before the regex search.
+    Navigates the YAML defensively via
+    :func:`_ci_parser.load_ci_run_block` — every missing key / wrong
+    type raises :class:`_ci_parser.CiYamlParseError` with context
+    rather than AttributeError. The shell ``run`` block is then
+    folded via :func:`_ci_parser.extract_shell_commands` so
+    backslash-continuation flags are not silently lost before the
+    regex search.
     """
     try:
-        py_run = load_ci_run_block(ci_yaml_path, _CI_PY_JOB, _CI_PY_STEP)
-        ext_run = load_ci_run_block(ci_yaml_path, _CI_EXT_JOB, _CI_EXT_STEP)
-    except CiYamlParseError as exc:
+        py_run = _ci_parser.load_ci_run_block(ci_yaml_path, _CI_PY_JOB, _CI_PY_STEP)
+        ext_run = _ci_parser.load_ci_run_block(ci_yaml_path, _CI_EXT_JOB, _CI_EXT_STEP)
+    except _ci_parser.CiYamlParseError as exc:
         raise RatchetSetupError(str(exc)) from exc
 
     try:
         py_floor = _extract_ci_flag(py_run, ci_yaml_path, _CI_PY_JOB, _CI_PY_STEP)
         ext_floor = _extract_ci_flag(ext_run, ci_yaml_path, _CI_EXT_JOB, _CI_EXT_STEP)
-    except CiYamlParseError as exc:
+    except _ci_parser.CiYamlParseError as exc:
         raise RatchetSetupError(str(exc)) from exc
 
     return FloorReadings(python=py_floor, extension=ext_floor)
@@ -242,14 +270,14 @@ def read_ci_floors(ci_yaml_path: Path) -> FloorReadings:
 def _extract_ci_flag(
     run_block: str, ci_yaml_path: Path, job_name: str, step_name: str
 ) -> int:
-    commands = extract_shell_commands(run_block)
+    commands = _ci_parser.extract_shell_commands(run_block)
     if not commands:
-        raise CiYamlParseError(
+        raise _ci_parser.CiYamlParseError(
             f"{ci_yaml_path}: job {job_name!r} step {step_name!r} has no "
             f"python/pnpm/mypy command after folding"
         )
     folded = " ".join(commands)
-    return extract_flag_value(folded, _MIN_COLLECTED_FLAG)
+    return _ci_parser.extract_flag_value(folded, _MIN_COLLECTED_FLAG)
 
 
 # ---------------------------------------------------------------------------

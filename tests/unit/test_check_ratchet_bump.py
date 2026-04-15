@@ -9,44 +9,33 @@ so the gate's logic is verified without running real collection.
 
 from __future__ import annotations
 
-import importlib.util
+import importlib
 import subprocess
 import sys
 from dataclasses import dataclass
 from pathlib import Path
-from types import ModuleType
 
 import pytest
 
-REPO_ROOT = Path(__file__).resolve().parent.parent.parent
-_GATE_PATH = REPO_ROOT / "scripts" / "check_ratchet_bump.py"
-_YAML_PARSER_PATH = REPO_ROOT / "scripts" / "_ci_yaml_parser.py"
-
-
-def _load_script_module(module_name: str, script_path: Path) -> ModuleType:
-    spec = importlib.util.spec_from_file_location(module_name, script_path)
-    assert spec is not None
-    assert spec.loader is not None
-    module = importlib.util.module_from_spec(spec)
-    # The gate does `from _ci_yaml_parser import ...` which will fail under
-    # test import unless _ci_yaml_parser is pre-registered as a top-level
-    # module. Register it eagerly so either import order works.
-    if "_ci_yaml_parser" not in sys.modules:
-        yaml_spec = importlib.util.spec_from_file_location(
-            "_ci_yaml_parser", _YAML_PARSER_PATH
-        )
-        assert yaml_spec is not None
-        assert yaml_spec.loader is not None
-        yaml_module = importlib.util.module_from_spec(yaml_spec)
-        sys.modules["_ci_yaml_parser"] = yaml_module
-        yaml_spec.loader.exec_module(yaml_module)
-    sys.modules[module_name] = module
-    spec.loader.exec_module(module)
-    return module
-
-
-gate = _load_script_module("check_ratchet_bump", _GATE_PATH)
-yaml_parser = sys.modules["_ci_yaml_parser"]
+# Load the gate under its dotted package name so Python sets
+# ``__package__ = "scripts"`` on the module. That context is what lets the
+# gate's runtime ``from . import _ci_yaml_parser`` branch resolve cleanly
+# here without any ``sys.path`` or ``sys.modules`` manipulation. ``scripts``
+# is a PEP 420 namespace package (no ``scripts/__init__.py``), so the
+# dotted name works without a package marker on disk — the absence of the
+# marker is enforced by test_mypy_crossfile_enforcement.py
+# ::test_scripts_init_py_does_not_exist.
+#
+# The runtime ``importlib.import_module`` form is used in place of a
+# static ``from scripts import check_ratchet_bump`` because the latter
+# makes mypy resolve ``check_ratchet_bump`` under *two* names at once
+# (both ``check_ratchet_bump`` via ``mypy_path = ["scripts"]`` AND
+# ``scripts.check_ratchet_bump`` via the dotted import), which mypy
+# rejects with a "source file found twice" error. The string argument
+# to ``import_module`` is opaque to mypy, so the dual-name conflict
+# never arises at type-check time while the runtime package context is
+# still established for the relative import in the gate.
+gate = importlib.import_module("scripts.check_ratchet_bump")
 
 
 @dataclass
