@@ -361,7 +361,7 @@ def build_commands(
                 "__PYTHON__",
                 ".github/scripts/validate-test-results.py",
                 "test-results.xml",
-                "--min-collected=1691",
+                "--min-collected=1711",
                 "--max-skips=0",
             ),
         ),
@@ -378,6 +378,15 @@ def build_commands(
                 "extension/test-results.xml",
                 "--min-collected=2366",
                 "--max-skips=0",
+            ),
+        ),
+        CommandSpec(
+            "Ratchet bump guard",
+            (
+                "__PYTHON__",
+                "scripts/check_ratchet_bump.py",
+                "--base-ref",
+                "origin/main",
             ),
         ),
         CommandSpec(

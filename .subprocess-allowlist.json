@@ -33,7 +33,7 @@
     },
     {
       "file": "scripts/run_pr_preflight.py",
-      "line": 492,
+      "line": 501,
       "code": "completed = subprocess.run(",
       "reason": "CommandSpec-driven command list from build_commands()"
     },

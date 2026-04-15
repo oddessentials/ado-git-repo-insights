@@ -149,11 +149,14 @@ warn_return_any = false
 # every valid-identifier script module appears here.
 [[tool.mypy.overrides]]
 module = [
+    "_ci_yaml_parser",
+    "_pytest_count_collector",
     "build_demo",
     "check_coverage_delta",
     "check_no_any_types",
     "check_partial_branches",
     "check_patch_coverage",
+    "check_ratchet_bump",
     "check_rule_disable_invariants",
     "check_threshold_changes",
     "check_tool_versions",

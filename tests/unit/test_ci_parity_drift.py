@@ -721,3 +721,107 @@ class TestTestCountRatchetParity:
             "If you're raising the floor, update both sites in the same "
             "commit."
         )
+
+
+class TestRatchetBumpGuardParity:
+    """Parity lock for the per-commit ratchet-bump discipline gate (#280).
+
+    The gate ships as ``scripts/check_ratchet_bump.py`` and must be wired
+    into both ``run_pr_preflight.py`` (CommandSpec) and ``ci.yml`` (a
+    dedicated top-level job). These tests pin the exact shapes so a
+    future edit cannot silently drop one surface or change the gate's
+    exemption semantics.
+    """
+
+    def test_preflight_has_ratchet_bump_guard_command_spec(self) -> None:
+        preflight = _normalized_preflight_commands()
+        assert "Ratchet bump guard" in preflight, (
+            "Preflight must declare a 'Ratchet bump guard' CommandSpec "
+            "(issue #280). It enforces actual == --min-collected floor "
+            "at HEAD for Python and Extension and inter-file parity "
+            "between run_pr_preflight.py and ci.yml."
+        )
+        assert preflight["Ratchet bump guard"] == (
+            "__PYTHON__ scripts/check_ratchet_bump.py --base-ref origin/main"
+        ), (
+            "Preflight 'Ratchet bump guard' command must invoke "
+            "check_ratchet_bump.py with --base-ref origin/main; "
+            f"got: {preflight['Ratchet bump guard']!r}"
+        )
+
+    def test_ci_ratchet_bump_guard_job_is_wired_correctly(self) -> None:
+        jobs = _load_ci_jobs()
+        assert "ratchet-bump-guard" in jobs, (
+            "CI workflow must declare a 'ratchet-bump-guard' top-level "
+            "job (issue #280). Local parity lives in the 'Ratchet bump "
+            "guard' preflight CommandSpec; CI parity is this dedicated "
+            "job so a failing/skipped sibling cannot silently unguard "
+            "the gate."
+        )
+        job = jobs["ratchet-bump-guard"]
+
+        needs = job.get("needs")
+        assert needs == ["test", "extension-tests"], (
+            "ratchet-bump-guard must declare `needs: [test, extension-tests]` "
+            "so the gate cannot run before both sibling jobs have produced "
+            f"their baselines; got: {needs!r}"
+        )
+
+        if_expr = str(job.get("if", "")).strip()
+        assert if_expr == "always() && !cancelled()", (
+            "ratchet-bump-guard must use `if: always() && !cancelled()` so "
+            "the liveness-assert step runs even when a sibling fails, "
+            "surfacing the reason instead of silently skipping via "
+            f"needs-propagation; got: {if_expr!r}"
+        )
+
+        step_names: list[str] = []
+        for step in job.get("steps", []):
+            if isinstance(step, dict):
+                name = step.get("name")
+                if isinstance(name, str):
+                    step_names.append(name)
+
+        for required in (
+            "Assert sibling jobs succeeded (liveness)",
+            "Download Extension JUnit artifact",
+            "Assert Extension JUnit artifact present",
+            "Run ratchet bump guard",
+        ):
+            assert required in step_names, (
+                f"ratchet-bump-guard missing required step {required!r}; "
+                f"have: {step_names}"
+            )
+
+        assert not any(
+            "Python JUnit" in name or "Python artifact" in name for name in step_names
+        ), (
+            "ratchet-bump-guard MUST NOT download or assert the Python "
+            "JUnit artifact — the gate measures Python in-job via the "
+            "subprocess-isolated pytest collector, identical to local "
+            "preflight. Asserting an unused artifact would create false "
+            "failures unrelated to the gate's logic. Offending steps: "
+            f"{[n for n in step_names if 'Python' in n]}"
+        )
+
+        gate_step = _find_ci_step("ratchet-bump-guard", "Run ratchet bump guard")
+        run_block = str(gate_step.get("run", ""))
+        commands = _extract_shell_commands(run_block)
+        assert len(commands) == 1, (
+            "ratchet-bump-guard 'Run ratchet bump guard' step must invoke "
+            "check_ratchet_bump.py exactly once; "
+            f"got: {commands!r}"
+        )
+        invocation = commands[0]
+        # The base-ref value is shell-quoted ("origin/${BASE_REF}") so the
+        # BASE_REF env variable expands safely even if it ever contained a
+        # space or shell metacharacter. Do NOT drop the quotes.
+        assert invocation == (
+            "python scripts/check_ratchet_bump.py "
+            '--base-ref "origin/${BASE_REF}" '
+            "--junit-extension ./artifacts/ts/test-results.xml"
+        ), (
+            "ratchet-bump-guard invocation must pass --base-ref and "
+            "--junit-extension with the exact values the plan locks; "
+            f"got: {invocation!r}"
+        )
