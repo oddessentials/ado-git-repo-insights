@@ -533,6 +533,65 @@ def test_t6aa_realignment_marker_does_not_exempt_test_removal_drift(
     assert "declared floor now exceeds actual collected tests after removal" in stderr
 
 
+def test_t6ab_required_marker_exempts_even_when_unrelated_marker_is_also_present(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    responses: dict[tuple[str, ...], _FakeCompleted] = {
+        ("log", "--oneline", "origin/main..HEAD"): _FakeCompleted(
+            returncode=0,
+            stdout=(
+                "abc1234 chore: [ratchet-realignment] prior floor catch-up\n"
+                "def5678 test: [ratchet-test-removal] retire legacy suite\n"
+            ),
+        ),
+        ("rev-list", "--count", "origin/main..HEAD"): _FakeCompleted(
+            returncode=0, stdout="2\n"
+        ),
+    }
+    exit_code, _ = _run_gate(
+        tmp_path,
+        python_floor=100,
+        ext_floor=200,
+        python_actual=85,
+        ext_actual=200,
+        git_responses=responses,
+        monkeypatch=monkeypatch,
+    )
+    assert exit_code == gate.EXIT_OK
+    out = capsys.readouterr().out
+    assert "[ratchet-test-removal]" in out
+    assert "parity checked" in out
+    assert "equality exempted" in out
+
+
+def test_t6ac_unrelated_extra_marker_is_ignored_when_required_marker_is_missing(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    responses: dict[tuple[str, ...], _FakeCompleted] = {
+        ("log", "--oneline", "origin/main..HEAD"): _FakeCompleted(
+            returncode=0,
+            stdout="abc1234 chore: [ratchet-realignment] prior floor catch up\n",
+        ),
+        ("rev-list", "--count", "origin/main..HEAD"): _FakeCompleted(
+            returncode=0, stdout="1\n"
+        ),
+    }
+    exit_code, _ = _run_gate(
+        tmp_path,
+        python_floor=100,
+        ext_floor=200,
+        python_actual=85,
+        ext_actual=200,
+        git_responses=responses,
+        monkeypatch=monkeypatch,
+    )
+    assert exit_code == gate.EXIT_DRIFT
+    stderr = capsys.readouterr().err
+    assert "[ratchet-realignment]" in stderr
+    assert "Expected marker: [ratchet-test-removal]." in stderr
+    assert "declared floor now exceeds actual collected tests after removal" in stderr
+
+
 # ---------------------------------------------------------------------------
 # T6b — explicit marker range is honored for push-to-main workflows
 # ---------------------------------------------------------------------------
@@ -1578,6 +1637,39 @@ def test_t28_test_removal_marker_does_not_waive_parity(
     )
     stderr = capsys.readouterr().err
     assert "Inter-file parity violation" in stderr
+    assert "[ratchet-test-removal]" in stderr
+    assert "ignored for inter-file parity" in stderr
+
+
+def test_t28a_both_markers_still_do_not_waive_parity(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    responses: dict[tuple[str, ...], _FakeCompleted] = {
+        ("log", "--oneline", "origin/main..HEAD"): _FakeCompleted(
+            returncode=0,
+            stdout=(
+                "abc1234 chore: [ratchet-realignment] move floors\n"
+                "def5678 test: [ratchet-test-removal] retire legacy suite\n"
+            ),
+        ),
+        ("rev-list", "--count", "origin/main..HEAD"): _FakeCompleted(
+            returncode=0, stdout="2\n"
+        ),
+    }
+    exit_code, _ = _run_gate(
+        tmp_path,
+        python_floor=100,
+        ext_floor=200,
+        python_actual=100,
+        ext_actual=200,
+        ci_python_floor=99,
+        git_responses=responses,
+        monkeypatch=monkeypatch,
+    )
+    assert exit_code == gate.EXIT_DRIFT
+    stderr = capsys.readouterr().err
+    assert "Inter-file parity violation" in stderr
+    assert "[ratchet-realignment]" in stderr
     assert "[ratchet-test-removal]" in stderr
     assert "ignored for inter-file parity" in stderr
 

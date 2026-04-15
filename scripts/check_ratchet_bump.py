@@ -765,8 +765,10 @@ def ensure_base_ref_reachable(base_ref: str) -> None:
 # ---------------------------------------------------------------------------
 
 
-def scan_bypass_marker(base_ref: str, *, marker_range: str | None = None) -> str | None:
-    """Return the first bypass marker found in the configured commit range.
+def scan_bypass_marker(
+    base_ref: str, *, marker_range: str | None = None
+) -> frozenset[str]:
+    """Return all bypass markers found in the configured commit range.
 
     Scans commit SUBJECT lines only via ``git log --oneline``, matching
     the established convention used by
@@ -791,10 +793,7 @@ def scan_bypass_marker(base_ref: str, *, marker_range: str | None = None) -> str
             f"Could not read git log for {commit_range}: {result.stderr.strip()}"
         )
     log_text = result.stdout
-    for marker in _BYPASS_MARKERS:
-        if marker in log_text:
-            return marker
-    return None
+    return frozenset(marker for marker in _BYPASS_MARKERS if marker in log_text)
 
 
 # ---------------------------------------------------------------------------
@@ -958,7 +957,7 @@ def run_gate(
     # equality-drift branch below. Do NOT return early on marker
     # presence — parse validation and inter-file parity must still run.
     try:
-        marker = scan_bypass_marker(base_ref, marker_range=marker_range)
+        markers = scan_bypass_marker(base_ref, marker_range=marker_range)
     except RatchetSetupError as exc:
         print(f"[SETUP] {exc}", file=sys.stderr)
         return EXIT_SETUP
@@ -990,10 +989,12 @@ def run_gate(
     if report.parity:
         for msg in report.parity:
             print(f"[DRIFT] {msg}", file=sys.stderr)
-        if marker is not None:
+        if markers:
+            markers_text = " / ".join(sorted(markers))
             print(
-                f"[DRIFT] {marker} is present in {display_range} but "
-                "is ignored for inter-file parity checks — bypass "
+                f"[DRIFT] Bypass marker(s) {markers_text} are present in "
+                f"{display_range} but "
+                "are ignored for inter-file parity checks — bypass "
                 f"markers ({REALIGNMENT_MARKER} / "
                 f"{TEST_REMOVAL_MARKER}) waive actual-vs-floor "
                 "equality only. Update both authoritative sites to "
@@ -1011,10 +1012,13 @@ def run_gate(
             preflight=preflight_floors,
             actual=actual,
         )
-        if marker is not None and marker == expectation.required_marker:
+        if (
+            expectation.required_marker is not None
+            and expectation.required_marker in markers
+        ):
             print(
                 "[OK] Ratchet bump guard: parity checked, equality "
-                f"exempted via {marker} in commit log range "
+                f"exempted via {expectation.required_marker} in commit log range "
                 f"{display_range}.\n"
                 f"  Parity:    {preflight_path.name} == "
                 f"{ci_workflow_path.name} on both dimensions."
@@ -1022,10 +1026,12 @@ def run_gate(
             return EXIT_OK
         for msg in report.equality:
             print(f"[DRIFT] {msg}", file=sys.stderr)
-        if marker is not None:
+        if markers:
+            markers_text = " / ".join(sorted(markers))
             if expectation.required_marker is None:
                 print(
-                    f"[DRIFT] {marker} is present in {display_range} but "
+                    f"[DRIFT] Bypass marker(s) {markers_text} are present in "
+                    f"{display_range} but "
                     "cannot exempt this equality drift because "
                     f"{expectation.reason}. No bypass marker is valid for "
                     "mixed-direction drift; update the floors explicitly "
@@ -1034,7 +1040,8 @@ def run_gate(
                 )
             else:
                 print(
-                    f"[DRIFT] {marker} is present in {display_range} but "
+                    f"[DRIFT] Bypass marker(s) {markers_text} are present in "
+                    f"{display_range} but "
                     f"does not match this drift direction ({expectation.reason}). "
                     f"Expected marker: {expectation.required_marker}.",
                     file=sys.stderr,
