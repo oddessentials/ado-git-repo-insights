@@ -600,8 +600,10 @@ jobs:
           # which both tests/conftest.py and scripts/check_ratchet_bump.py import
           # so the gate's filter, conftest's collect_ignore_glob, and this floor
           # all agree. Windows cells collect additional test_*_windows.py items;
-          # the ratchet-bump guard's `local Windows full count` output line
-          # reports the raw Windows number for disambiguation.
+          # the ratchet-bump guard's `Windows hermetic full count (no platform
+          # filter)` output line reports the un-filtered hermetic number for
+          # disambiguation (same hermetic code path as the floor, just without
+          # --ignore-glob applied — matches what Windows CI cells actually see).
           # MAX_SKIPS: Maximum allowed skipped tests (0 = no skips allowed in CI)
           python .github/scripts/validate-test-results.py \
             test-results.xml \

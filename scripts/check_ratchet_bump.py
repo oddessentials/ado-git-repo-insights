@@ -337,9 +337,9 @@ def measure_python_count() -> int:
     :data:`_platform_filters.PLATFORM_CONDITIONAL_IGNORE_GLOBS` are
     applied via ``--ignore-glob``. On non-Windows this matches what
     ``tests/conftest.py``'s ``collect_ignore_glob`` already excludes; on
-    Windows this undercuts the raw local collection by exactly the set
-    of Windows-only tests, giving a platform-agnostic floor that matches
-    what Linux/macOS CI cells will see.
+    Windows this undercuts the hermetic full collection by exactly the
+    set of Windows-only tests, giving a platform-agnostic floor that
+    matches what Linux/macOS CI cells will see.
 
     The subprocess runs with ``PYTEST_DISABLE_PLUGIN_AUTOLOAD=1`` and
     ``-o addopts=`` so third-party plugins installed on the dev machine
@@ -355,16 +355,24 @@ def measure_python_count() -> int:
 
 
 def measure_windows_full_count() -> int | None:
-    """Return the raw local pytest count on Windows, ``None`` elsewhere.
+    """Return the Windows hermetic full count (no platform filter), ``None`` elsewhere.
 
     On Windows, runs the same hermetic ``--collect-only`` subprocess as
     :func:`measure_python_count` but WITHOUT the
-    :data:`_platform_filters.PLATFORM_CONDITIONAL_IGNORE_GLOBS` filters,
-    yielding the total count a developer would see from a bare
-    ``pytest --collect-only`` in their shell. The difference between
-    this value and :func:`measure_python_count` is exactly the set of
-    Windows-only tests that ``tests/conftest.py`` excludes on
-    Linux/macOS.
+    :data:`_platform_filters.PLATFORM_CONDITIONAL_IGNORE_GLOBS` filters.
+    The number reported is the hermetic collection count (all third-
+    party plugins disabled, ``PYTEST_ADDOPTS`` / ``PYTEST_PLUGINS``
+    scrubbed, ``addopts`` cleared via ``-o addopts=``) without the
+    platform filter applied — NOT what a bare ``pytest --collect-only``
+    in an arbitrarily-configured developer shell would return. This
+    matches what the Windows CI cells see, which is the relevant
+    comparison point for the ratchet-bump gate's disambiguation: CI
+    and the local gate compute identical numbers even when a
+    developer's shell has collection-affecting plugins or addopts.
+
+    The difference between this value and :func:`measure_python_count`
+    is exactly the set of Windows-only tests that ``tests/conftest.py``
+    excludes on Linux/macOS.
 
     On non-Windows platforms this returns ``None``: ``collect_ignore_glob``
     in ``tests/conftest.py`` applies the platform filter at collection
@@ -385,15 +393,18 @@ def measure_windows_full_count() -> int | None:
 def _run_collect_subprocess(*, apply_platform_filters: bool) -> int:
     """Shared hermetic ``pytest --collect-only`` invocation.
 
-    ``apply_platform_filters`` toggles the
-    :func:`_platform_filters.ignore_glob_cli_args` set on/off so the
-    same code path produces both the cross-platform minimum
-    (:func:`measure_python_count`, ``True``) and — on Windows only —
-    the raw local count (:func:`measure_windows_full_count`, ``False``).
+    ``apply_platform_filters`` toggles the platform-conditional
+    ``--ignore-glob`` flag set on/off so the same code path produces
+    both the cross-platform minimum (:func:`measure_python_count`,
+    ``True``) and — on Windows only — the hermetic full count without
+    platform filter (:func:`measure_windows_full_count`, ``False``).
     Every other aspect — plugin-autoload suppression, scrubbed
     environment, tempfile-based IPC with
     ``scripts._pytest_count_collector``, best-effort cleanup retry —
-    is identical between the two callers.
+    is identical between the two callers. Both values are hermetic;
+    neither reflects arbitrary developer shell state. That is the
+    point: the gate and CI must compute the same numbers regardless
+    of a developer's local pytest configuration.
 
     The collector IPC file is created via :func:`tempfile.mkstemp` with
     a PID-scoped prefix (not :class:`tempfile.TemporaryDirectory`): the
@@ -1047,7 +1058,8 @@ def run_gate(
 
     actual = ActualCounts(python=python_actual, extension=extension_actual)
     windows_full_suffix = (
-        f"\n             local Windows full count: {python_windows_full}"
+        "\n             Windows hermetic full count "
+        f"(no platform filter): {python_windows_full}"
         if python_windows_full is not None
         else ""
     )
@@ -1107,10 +1119,14 @@ def run_gate(
             print(f"[DRIFT] {msg}", file=sys.stderr)
         if python_windows_full is not None:
             print(
-                f"[DRIFT] Local Windows full count: {python_windows_full} "
-                f"(raw ``pytest --collect-only`` on this machine; the "
-                f"{_PYTHON_ACTUAL_LABEL} number above is what "
-                "Linux/macOS cells collect and is the authoritative floor).",
+                f"[DRIFT] Windows hermetic full count "
+                f"(no platform filter): {python_windows_full} "
+                "(the same hermetic collection as the actual count "
+                "above but WITHOUT the platform-conditional "
+                "--ignore-glob flags — matches what the Windows CI "
+                f"cells see; the {_PYTHON_ACTUAL_LABEL} number above "
+                "is what Linux/macOS cells collect and is the "
+                "authoritative floor).",
                 file=sys.stderr,
             )
         if markers:

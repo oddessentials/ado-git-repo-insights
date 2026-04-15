@@ -1179,7 +1179,7 @@ def test_t19_cleanup_retries_on_permission_error_then_succeeds(
     On Windows, ``run_gate`` spawns two collection subprocesses per
     invocation (one through :func:`measure_python_count` for the
     cross-platform floor and one through :func:`measure_windows_full_count`
-    for the display-only raw Windows count), so two independent
+    for the display-only Windows hermetic full count), so two independent
     tempfile-cleanup sequences are expected. On Linux/macOS,
     :func:`measure_windows_full_count` short-circuits to ``None`` before
     touching a subprocess, so exactly one tempfile is expected.

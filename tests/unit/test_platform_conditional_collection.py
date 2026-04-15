@@ -37,16 +37,16 @@ if TYPE_CHECKING:
     # ``scripts/_platform_test_filters.py``.
     from _platform_test_filters import (
         PLATFORM_CONDITIONAL_IGNORE_GLOBS,
-        count_windows_only_test_functions,
-        glob_windows_only_test_files,
+        count_platform_conditional_test_functions,
+        glob_platform_conditional_test_files,
     )
 else:
     # Runtime: ``scripts`` is an importable PEP 420 namespace package
     # from the project root.
     from scripts._platform_test_filters import (
         PLATFORM_CONDITIONAL_IGNORE_GLOBS,
-        count_windows_only_test_functions,
-        glob_windows_only_test_files,
+        count_platform_conditional_test_functions,
+        glob_platform_conditional_test_files,
     )
 
 _REPO_ROOT = Path(__file__).resolve().parents[2]
@@ -137,14 +137,19 @@ def test_ratchet_bump_gate_imports_shared_platform_conditional_globs() -> None:
 def test_platform_delta_is_mechanically_derived_from_file_tree() -> None:
     """The Windows-delta is computed at runtime from the file tree.
 
-    The gate prints ``local Windows full count: N`` on Windows. The
-    difference ``N - cross_platform_minimum`` is the number of
-    platform-conditional tests. That number is never hardcoded in source
-    or docs — it is derived from ``count_windows_only_test_functions``,
-    which AST-walks every file matching
-    ``PLATFORM_CONDITIONAL_IGNORE_GLOBS``. A new ``test_*_windows.py``
-    file or a new ``def test_*`` inside an existing one self-updates the
-    expected delta without touching any documentation.
+    The gate prints ``Windows hermetic full count (no platform filter):
+    N`` on Windows. The difference ``N - cross_platform_minimum`` is
+    the number of platform-conditional tests. That number is never
+    hardcoded in source
+    or docs — it is derived from
+    :func:`count_platform_conditional_test_functions`, which AST-walks
+    every file matching :data:`PLATFORM_CONDITIONAL_IGNORE_GLOBS`. The
+    helper iterates over the full tuple, so adding a new OS convention
+    (``**/test_*_linux.py``, ``**/test_*_macos.py``) to the constant
+    automatically expands the count without any second edit. A new
+    platform-conditional file or a new ``def test_*`` inside an
+    existing one self-updates the expected delta with no documentation
+    change required.
 
     The assertion here is intentionally weak (``> 0``): the strong
     drift-catcher is the Windows-only measured test in
@@ -157,34 +162,38 @@ def test_platform_delta_is_mechanically_derived_from_file_tree() -> None:
     """
     assert PLATFORM_CONDITIONAL_IGNORE_GLOBS, (
         "PLATFORM_CONDITIONAL_IGNORE_GLOBS must not be empty; at least "
-        "one pattern is required for the gate's ignore_glob_cli_args() "
-        "helper to have a meaningful effect."
+        "one pattern is required for the ratchet-bump gate's "
+        "--ignore-glob CLI flags and conftest's collect_ignore_glob to "
+        "have anything to exclude."
     )
-    delta = count_windows_only_test_functions(_TESTS_ROOT)
+    delta = count_platform_conditional_test_functions(_TESTS_ROOT)
     assert delta > 0, (
         f"Expected at least one platform-conditional test function under "
         f"{_TESTS_ROOT.relative_to(_REPO_ROOT)}, but "
-        f"count_windows_only_test_functions returned {delta}. Either the "
-        f"file tree lost every test_*_windows.py file (check `git log -- "
-        f"tests/**/test_*_windows.py`), or the glob pattern "
-        f"{PLATFORM_CONDITIONAL_IGNORE_GLOBS!r} no longer matches the "
-        "naming convention used by those files."
+        f"count_platform_conditional_test_functions returned {delta}. "
+        f"Either the file tree lost every file matched by "
+        f"{PLATFORM_CONDITIONAL_IGNORE_GLOBS!r} (check `git log -- tests/`) "
+        f"or the glob patterns in the shared constant no longer match "
+        f"the naming convention used by those files."
     )
-    files = glob_windows_only_test_files(_TESTS_ROOT)
+    files = glob_platform_conditional_test_files(_TESTS_ROOT)
     assert files, (
-        f"glob_windows_only_test_files returned no files even though "
-        f"count_windows_only_test_functions returned {delta}; the two "
-        f"helpers must agree. Check scripts/_platform_test_filters.py."
+        f"glob_platform_conditional_test_files returned no files even "
+        f"though count_platform_conditional_test_functions returned "
+        f"{delta}; the two helpers must agree. Check "
+        f"scripts/_platform_test_filters.py."
     )
     for file in files:
         name = file.name
         relative = file.relative_to(_REPO_ROOT)
         assert name.startswith("test_"), (
             f"Platform-conditional file {relative} must start with "
-            f"'test_' so pytest's default test discovery finds it."
+            f"'test_' so pytest's default test discovery finds it. A "
+            f"matched file that doesn't begin with 'test_' suggests "
+            f"PLATFORM_CONDITIONAL_IGNORE_GLOBS has been broadened to "
+            f"include non-test files."
         )
-        assert name.endswith("_windows.py"), (
-            f"Platform-conditional file {relative} must end with "
-            f"'_windows.py' so conftest's collect_ignore_glob and the "
-            f"gate's --ignore-glob patterns match it."
+        assert name.endswith(".py"), (
+            f"Platform-conditional file {relative} must have a .py "
+            f"extension; pytest only collects .py files."
         )

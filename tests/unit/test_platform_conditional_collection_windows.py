@@ -3,7 +3,7 @@
 Runs the ratchet-bump gate's real subprocess-isolated collectors twice —
 once with ``PLATFORM_CONDITIONAL_IGNORE_GLOBS`` applied and once without —
 and asserts the measured delta equals the AST-derived count from
-:func:`scripts._platform_test_filters.count_windows_only_test_functions`.
+:func:`scripts._platform_test_filters.count_platform_conditional_test_functions`.
 This is the mechanical drift catcher the plan calls for: if someone adds
 a ``@pytest.mark.parametrize`` to an existing ``test_*_windows.py`` test
 without updating the AST helper, this test fails on the first Windows CI
@@ -46,10 +46,12 @@ if TYPE_CHECKING:
     # trigger — the exact same workaround test_check_ratchet_bump.py
     # uses for the same file.
     import check_ratchet_bump as _gate
-    from _platform_test_filters import count_windows_only_test_functions
+    from _platform_test_filters import count_platform_conditional_test_functions
 else:
     _gate = importlib.import_module("scripts.check_ratchet_bump")
-    from scripts._platform_test_filters import count_windows_only_test_functions
+    from scripts._platform_test_filters import (
+        count_platform_conditional_test_functions,
+    )
 
 measure_python_count = _gate.measure_python_count
 measure_windows_full_count = _gate.measure_windows_full_count
@@ -65,28 +67,34 @@ def test_raw_windows_count_minus_filtered_equals_ast_delta() -> None:
 
     1. :func:`measure_windows_full_count` returns a concrete integer on
        Windows (not ``None``). The gate's output logic keys on this to
-       decide whether to print the ``local Windows full count`` line, and
+       decide whether to print the
+       ``Windows hermetic full count (no platform filter)`` line, and
        a regression that makes the helper return ``None`` on Windows
        would silently disable the cross-platform labeling.
 
-    2. The raw pytest collection (no ``--ignore-glob``) exceeds the
-       filtered collection by exactly the number of
+    2. The hermetic pytest collection without ``--ignore-glob`` exceeds
+       the filtered collection by exactly the number of
        ``def test_*`` / ``async def test_*`` definitions inside
-       platform-conditional files. Any mismatch means either:
+       platform-conditional files. Both measurements use the same
+       hermetic code path — plugins disabled, ``PYTEST_ADDOPTS``
+       scrubbed, ``-o addopts=`` applied — so the delta reflects only
+       the platform filter, not developer shell state. Any mismatch
+       means either:
 
        * A ``test_*_windows.py`` test was parametrized without updating
-         :func:`count_windows_only_test_functions` (which does NOT expand
-         parametrize — documented limitation).
-       * A new ``test_*_windows.py`` file was added but is not being
+         :func:`count_platform_conditional_test_functions` (which does
+         NOT expand parametrize — documented limitation).
+       * A new platform-conditional file was added but is not being
          collected (glob pattern drift).
        * The shared glob constant is out of sync with what conftest is
          applying.
 
     3. :func:`measure_python_count` returns the cross-platform minimum
        (i.e. conftest's non-Windows collection equivalent), and the
-       difference to the raw Windows count is a positive integer — a
-       zero delta would mean the platform-conditional filter matches
-       nothing on disk, which is a regression worth failing on.
+       difference to the hermetic Windows full count is a positive
+       integer — a zero delta would mean the platform-conditional
+       filter matches nothing on disk, which is a regression worth
+       failing on.
     """
     assert sys.platform == "win32", (
         "This file is named test_platform_conditional_collection_windows.py "
@@ -102,27 +110,28 @@ def test_raw_windows_count_minus_filtered_equals_ast_delta() -> None:
     assert raw_windows_total is not None, (
         "measure_windows_full_count() must return a concrete int on "
         "Windows; got None. The gate's output label logic depends on "
-        "this value to decide whether to show the 'local Windows full "
-        "count' line, and a regression here silently disables the "
-        "cross-platform disambiguation."
+        "this value to decide whether to show the 'Windows hermetic "
+        "full count (no platform filter)' line, and a regression here "
+        "silently disables the cross-platform disambiguation."
     )
 
     measured_delta = raw_windows_total - cross_platform_minimum
-    ast_delta = count_windows_only_test_functions(_TESTS_ROOT)
+    ast_delta = count_platform_conditional_test_functions(_TESTS_ROOT)
 
     assert measured_delta == ast_delta, (
         f"Platform-conditional collection delta mismatch.\n"
         f"  measure_python_count()          = {cross_platform_minimum} "
-        f"(cross-platform minimum, Windows-filtered)\n"
+        f"(cross-platform minimum, Windows-filtered; hermetic)\n"
         f"  measure_windows_full_count()    = {raw_windows_total} "
-        f"(raw Windows collection, no filter)\n"
-        f"  measured delta (raw - filtered) = {measured_delta}\n"
-        f"  count_windows_only_test_functions = {ast_delta} "
-        f"(AST walk of test_*_windows.py)\n"
+        f"(Windows hermetic full count, no platform filter)\n"
+        f"  measured delta (full - filtered) = {measured_delta}\n"
+        f"  count_platform_conditional_test_functions = {ast_delta} "
+        f"(AST walk of every file matched by "
+        f"PLATFORM_CONDITIONAL_IGNORE_GLOBS)\n"
         f"\n"
         f"If measured > ast: a test_*_windows.py test was parametrized "
-        f"without updating count_windows_only_test_functions, which does "
-        f"NOT expand parametrize decorators.\n"
+        f"without updating count_platform_conditional_test_functions, "
+        f"which does NOT expand parametrize decorators.\n"
         f"If measured < ast: a def test_* inside a test_*_windows.py file "
         f"is being skipped at collection time (conditional skip, import "
         f"error, etc.).\n"
@@ -135,7 +144,7 @@ def test_raw_windows_count_minus_filtered_equals_ast_delta() -> None:
         f"Expected a positive Windows-vs-cross-platform delta, got "
         f"{measured_delta}. A zero delta means the platform-conditional "
         f"filter matches nothing on disk, which would make the gate's "
-        f"'local Windows full count' output line redundant and suggest "
-        f"the shared PLATFORM_CONDITIONAL_IGNORE_GLOBS constant is out of "
-        f"sync with the test suite."
+        f"'Windows hermetic full count (no platform filter)' output line "
+        f"redundant and suggest the shared PLATFORM_CONDITIONAL_IGNORE_GLOBS "
+        f"constant is out of sync with the test suite."
     )
