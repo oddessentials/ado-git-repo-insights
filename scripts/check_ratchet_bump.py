@@ -46,6 +46,7 @@ import re
 import subprocess
 import sys
 import tempfile
+import time
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -80,6 +81,14 @@ _CI_EXT_STEP = "Validate Test Results (Extension)"
 
 _MIN_COLLECTED_FLAG = "--min-collected"
 _MIN_COLLECTED_RE = re.compile(re.escape(_MIN_COLLECTED_FLAG) + r"=(\d+)")
+
+# Cleanup retry policy for the collector tempfile. Windows antivirus /
+# deferred-close handles can briefly fail an unlink just after the child
+# process writes the file; a small bounded retry absorbs the transient
+# lock without masking real filesystem bugs. Module-level so tests can
+# monkeypatch the sleep to 0 for speed without patching the loop body.
+_CLEANUP_RETRY_ATTEMPTS = 3
+_CLEANUP_RETRY_SLEEP_SECONDS = 0.05
 
 
 class RatchetSetupError(RuntimeError):
@@ -258,9 +267,55 @@ def measure_python_count() -> int:
     env variable took effect. The count is written to a tempfile by the
     committed :mod:`scripts._pytest_count_collector` plugin, so no
     stdout parsing is involved anywhere in the happy path.
+
+    The collector IPC file is created via :func:`tempfile.mkstemp` with
+    a PID-scoped prefix (not :class:`tempfile.TemporaryDirectory`): the
+    #280 post-merge review established that ``TemporaryDirectory``
+    cleanup is fragile on Windows when antivirus or deferred-close
+    handles still hold the just-written file at ``__exit__`` time —
+    empty ``ratchet-collect-*`` directories were observed leaking in
+    ``/tmp`` and, on stricter Windows environments, the same failure
+    escalates into a ``PermissionError`` traceback that escapes the
+    preflight wrapper. Using a single-file mkstemp + explicit
+    ``try/finally`` lets cleanup happen outside any context manager so
+    it cannot mask the measurement verdict.
     """
-    with tempfile.TemporaryDirectory(prefix="ratchet-collect-") as tmp:
-        count_file = Path(tmp) / "count.txt"
+    fd, count_path_str = tempfile.mkstemp(
+        prefix=f"ratchet-count-{os.getpid()}-", suffix=".txt"
+    )
+    os.close(fd)
+    count_file = Path(count_path_str)
+
+    def _best_effort_unlink(path: Path) -> None:
+        """Unlink ``path`` with bounded retries for transient Windows locks.
+
+        Nested inside :func:`measure_python_count` so it cannot be
+        imported or reused elsewhere — the retry policy and the narrow
+        :class:`PermissionError`-only catch are tuned specifically for
+        the short-lived collector tempfile IPC, not a general
+        file-cleanup helper. Only :class:`PermissionError` is
+        swallowed; other :class:`OSError` subclasses (``ENOSPC``,
+        missing parent-dir permissions, I/O errors, etc.) propagate
+        because they indicate real filesystem bugs that must not be
+        hidden.
+        """
+        for attempt in range(_CLEANUP_RETRY_ATTEMPTS):
+            try:
+                path.unlink(missing_ok=True)
+                # SUCCESS — break immediately. The loop must not run
+                # the next iteration; counting "attempts" depends on
+                # this early exit to stay accurate.
+                break
+            except PermissionError:
+                if attempt + 1 < _CLEANUP_RETRY_ATTEMPTS:
+                    time.sleep(_CLEANUP_RETRY_SLEEP_SECONDS)
+        # Falls through on success (via break) or on retries exhausted
+        # (loop ends naturally after the final failed attempt without
+        # sleeping). Never raises: the OS reclaims %TEMP% on its own
+        # schedule; cleanup failure must not mask the measurement
+        # verdict or propagate into the preflight wrapper.
+
+    try:
         scrubbed_env = {
             key: value
             for key, value in os.environ.items()
@@ -334,12 +389,22 @@ def measure_python_count() -> int:
             raise RatchetSetupError(
                 f"Could not read ratchet count output {count_file}: {exc}"
             ) from exc
+        if not raw:
+            raise RatchetSetupError(
+                f"Ratchet count output is empty at {count_file}. This "
+                "indicates either a partial write from the collector "
+                "plugin, a permission issue on the parent temp "
+                "directory, or a plugin-load failure that pytest did "
+                "not surface via its exit code."
+            )
         try:
             return int(raw)
         except ValueError as exc:
             raise RatchetSetupError(
                 f"Ratchet count output is not an integer: {raw!r}"
             ) from exc
+    finally:
+        _best_effort_unlink(count_file)
 
 
 # ---------------------------------------------------------------------------
@@ -494,8 +559,20 @@ def ensure_base_ref_reachable(base_ref: str) -> None:
 
 
 def scan_bypass_marker(base_ref: str) -> str | None:
-    """Return the first bypass marker found in ``base_ref..HEAD``, or None."""
-    result = _run_git("log", "--format=%s%n%b", f"{base_ref}..HEAD")
+    """Return the first bypass marker found in ``base_ref..HEAD``, or None.
+
+    Scans commit SUBJECT lines only via ``git log --oneline``, matching
+    the established convention used by
+    :file:`scripts/check_threshold_changes.py` (``[threshold-update]``)
+    and :file:`scripts/check-version-unchanged.py`
+    (``[version-override-acknowledged]``). Body paragraphs are
+    deliberately NOT scanned: feature-documentation text that cites
+    the marker string in prose — including this gate's own commit
+    message explaining what the markers are — must never accidentally
+    disarm the gate. Markers are only effective when placed in the
+    commit subject line, which is an intentional, deliberate act.
+    """
+    result = _run_git("log", "--oneline", f"{base_ref}..HEAD")
     if result.returncode != 0:
         raise RatchetSetupError(
             f"Could not read git log for {base_ref}..HEAD: {result.stderr.strip()}"

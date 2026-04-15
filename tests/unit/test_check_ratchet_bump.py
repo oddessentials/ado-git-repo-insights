@@ -75,11 +75,13 @@ class _GitFakeRecorder:
         pytest_collected: int | None = None,
         pytest_rc: int = 0,
         pytest_stderr: str = "",
+        pytest_empty_output: bool = False,
     ) -> None:
         self.git_responses: dict[tuple[str, ...], _FakeCompleted] = git_responses or {}
         self.pytest_collected = pytest_collected
         self.pytest_rc = pytest_rc
         self.pytest_stderr = pytest_stderr
+        self.pytest_empty_output = pytest_empty_output
         self.calls: list[_FakeRunCall] = []
 
     def __call__(
@@ -117,10 +119,15 @@ class _GitFakeRecorder:
             output_path = None
             if env_dict is not None:
                 output_path = env_dict.get("RATCHET_COUNT_OUTPUT")
-            if output_path and self.pytest_collected is not None:
-                Path(output_path).write_text(
-                    f"{self.pytest_collected}\n", encoding="utf-8"
-                )
+            if output_path is not None:
+                if self.pytest_empty_output:
+                    # Simulate a partial write / plugin-load failure:
+                    # the file exists but is empty. Exercises T23.
+                    Path(output_path).write_text("", encoding="utf-8")
+                elif self.pytest_collected is not None:
+                    Path(output_path).write_text(
+                        f"{self.pytest_collected}\n", encoding="utf-8"
+                    )
             return _FakeCompleted(returncode=0, stdout="", stderr="")
 
         raise AssertionError(f"Unexpected subprocess invocation: {normalized!r}")
@@ -223,7 +230,15 @@ def _write_extension_junit(tmp_path: Path, count: int) -> Path:
 
 
 def _default_git_responses() -> dict[tuple[str, ...], _FakeCompleted]:
-    """Return git responses that make ensure_base_ref_reachable pass."""
+    """Return git responses that make ensure_base_ref_reachable pass.
+
+    Marker scanning uses ``git log --oneline`` (subject-only) — same
+    key as the range-consistency check — so a single response covers
+    both call sites. Subject-only scanning is the project convention
+    (cf. check_threshold_changes.py / check-version-unchanged.py) and
+    prevents feature-documentation text in commit bodies from
+    disarming the gate.
+    """
     return {
         ("rev-parse", "--verify", "origin/main^{commit}"): _FakeCompleted(
             returncode=0, stdout="deadbeef\n"
@@ -233,9 +248,6 @@ def _default_git_responses() -> dict[tuple[str, ...], _FakeCompleted]:
         ),
         ("rev-list", "--count", "origin/main..HEAD"): _FakeCompleted(
             returncode=0, stdout="1\n"
-        ),
-        ("log", "--format=%s%n%b", "origin/main..HEAD"): _FakeCompleted(
-            returncode=0, stdout="feat: stub\n\n"
         ),
     }
 
@@ -252,6 +264,7 @@ def _run_gate(
     git_responses: dict[tuple[str, ...], _FakeCompleted] | None = None,
     pytest_rc: int = 0,
     pytest_stderr: str = "",
+    pytest_empty_output: bool = False,
     monkeypatch: pytest.MonkeyPatch,
 ) -> tuple[int, _GitFakeRecorder]:
     """Spin up all fixtures and run the gate; return (exit_code, recorder)."""
@@ -272,6 +285,7 @@ def _run_gate(
         pytest_collected=python_actual,
         pytest_rc=pytest_rc,
         pytest_stderr=pytest_stderr,
+        pytest_empty_output=pytest_empty_output,
     )
     _install_recorder(monkeypatch, recorder)
 
@@ -385,9 +399,12 @@ def test_t5_realignment_marker_exempts(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
 ) -> None:
     responses: dict[tuple[str, ...], _FakeCompleted] = {
-        ("log", "--format=%s%n%b", "origin/main..HEAD"): _FakeCompleted(
+        ("log", "--oneline", "origin/main..HEAD"): _FakeCompleted(
             returncode=0,
-            stdout="chore: catch up on accumulated drift\n\n[ratchet-realignment]\n",
+            stdout="abc1234 chore: [ratchet-realignment] catch up on drift\n",
+        ),
+        ("rev-list", "--count", "origin/main..HEAD"): _FakeCompleted(
+            returncode=0, stdout="1\n"
         ),
     }
     exit_code, _ = _run_gate(
@@ -414,9 +431,12 @@ def test_t6_test_removal_marker_exempts(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
 ) -> None:
     responses: dict[tuple[str, ...], _FakeCompleted] = {
-        ("log", "--format=%s%n%b", "origin/main..HEAD"): _FakeCompleted(
+        ("log", "--oneline", "origin/main..HEAD"): _FakeCompleted(
             returncode=0,
-            stdout="test: retire legacy suite\n\n[ratchet-test-removal]\n",
+            stdout="def5678 test: [ratchet-test-removal] retire legacy suite\n",
+        ),
+        ("rev-list", "--count", "origin/main..HEAD"): _FakeCompleted(
+            returncode=0, stdout="1\n"
         ),
     }
     exit_code, _ = _run_gate(
@@ -913,3 +933,281 @@ jobs:
     message = str(exc_info.value)
     assert "missing or non-string 'run'" in message
     assert "Validate Test Results (Python)" in message
+
+
+# ---------------------------------------------------------------------------
+# T19 — cleanup retries transient PermissionError and succeeds
+# ---------------------------------------------------------------------------
+
+
+def test_t19_cleanup_retries_on_permission_error_then_succeeds(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Transient PermissionError on unlink is retried and absorbed.
+
+    Simulates the Windows AV / deferred-close window: the first unlink
+    attempt on the collector tempfile raises PermissionError, the
+    second succeeds. The gate must still exit 0 AND the attempt
+    counter must stop at exactly 2 — the loop uses an explicit `break`
+    on success so a third iteration is forbidden.
+    """
+    real_unlink = Path.unlink
+    call_counts: dict[str, int] = {}
+
+    def flaky_unlink(self: Path, missing_ok: bool = False) -> None:
+        # Only intercept unlinks on the gate's own tempfile; leave
+        # tmp_path fixture cleanup and unrelated paths to the real impl.
+        if not self.name.startswith("ratchet-count-"):
+            real_unlink(self, missing_ok=missing_ok)
+            return
+        call_counts[self.name] = call_counts.get(self.name, 0) + 1
+        if call_counts[self.name] == 1:
+            raise PermissionError(f"simulated transient AV hold on {self.name}")
+        real_unlink(self, missing_ok=missing_ok)
+
+    monkeypatch.setattr(Path, "unlink", flaky_unlink)
+    monkeypatch.setattr(gate, "_CLEANUP_RETRY_SLEEP_SECONDS", 0.0)
+
+    exit_code, _ = _run_gate(
+        tmp_path,
+        python_floor=100,
+        ext_floor=200,
+        python_actual=100,
+        ext_actual=200,
+        monkeypatch=monkeypatch,
+    )
+    assert exit_code == gate.EXIT_OK
+    assert len(call_counts) == 1, (
+        f"Expected exactly one ratchet-count-* tempfile unlink sequence; "
+        f"got: {call_counts!r}"
+    )
+    attempts = next(iter(call_counts.values()))
+    assert attempts == 2, (
+        "Retry loop must break immediately on success — expected 2 "
+        f"unlink attempts (1 transient fail + 1 retry success), got {attempts}"
+    )
+
+
+# ---------------------------------------------------------------------------
+# T20 — cleanup retries exhausted do NOT propagate and are bounded
+# ---------------------------------------------------------------------------
+
+
+def test_t20_cleanup_permission_error_exhausted_does_not_propagate(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Persistent PermissionError must not mask the measurement verdict.
+
+    Every unlink attempt raises PermissionError. The gate must still
+    return exit 0 (cleanup failure is not a gate failure), and the
+    attempt counter must cap exactly at _CLEANUP_RETRY_ATTEMPTS — the
+    loop must never retry beyond its bound even if all attempts fail.
+    """
+    real_unlink = Path.unlink
+    call_counts: dict[str, int] = {}
+
+    def always_fail_unlink(self: Path, missing_ok: bool = False) -> None:
+        if not self.name.startswith("ratchet-count-"):
+            real_unlink(self, missing_ok=missing_ok)
+            return
+        call_counts[self.name] = call_counts.get(self.name, 0) + 1
+        raise PermissionError(f"simulated persistent lock on {self.name}")
+
+    monkeypatch.setattr(Path, "unlink", always_fail_unlink)
+    monkeypatch.setattr(gate, "_CLEANUP_RETRY_SLEEP_SECONDS", 0.0)
+
+    exit_code, _ = _run_gate(
+        tmp_path,
+        python_floor=100,
+        ext_floor=200,
+        python_actual=100,
+        ext_actual=200,
+        monkeypatch=monkeypatch,
+    )
+    assert exit_code == gate.EXIT_OK
+    assert len(call_counts) == 1, (
+        f"Expected exactly one ratchet-count-* tempfile unlink sequence; "
+        f"got: {call_counts!r}"
+    )
+    attempts = next(iter(call_counts.values()))
+    assert attempts == gate._CLEANUP_RETRY_ATTEMPTS, (
+        f"Retry loop must cap at _CLEANUP_RETRY_ATTEMPTS="
+        f"{gate._CLEANUP_RETRY_ATTEMPTS}; got {attempts} attempts"
+    )
+
+
+# ---------------------------------------------------------------------------
+# T21 — non-PermissionError OSError MUST propagate (narrow catch contract)
+# ---------------------------------------------------------------------------
+
+
+def test_t21_cleanup_non_permission_oserror_propagates(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Disk-full / I/O errors on unlink must NOT be swallowed.
+
+    The cleanup helper catches only PermissionError — all other
+    OSError subclasses indicate real filesystem bugs that must surface
+    instead of being silently hidden. This test uses ENOSPC (disk
+    full) which is a plain OSError subclass, not a PermissionError,
+    and asserts the error escapes the gate.
+    """
+    real_unlink = Path.unlink
+
+    def enospc_unlink(self: Path, missing_ok: bool = False) -> None:
+        if not self.name.startswith("ratchet-count-"):
+            real_unlink(self, missing_ok=missing_ok)
+            return
+        # ENOSPC = 28. OSError(errno, strerror) is a plain OSError,
+        # NOT a PermissionError subclass — must propagate.
+        raise OSError(28, "simulated disk full (ENOSPC)")
+
+    monkeypatch.setattr(Path, "unlink", enospc_unlink)
+    monkeypatch.setattr(gate, "_CLEANUP_RETRY_SLEEP_SECONDS", 0.0)
+
+    with pytest.raises(OSError, match="simulated disk full") as exc_info:
+        _run_gate(
+            tmp_path,
+            python_floor=100,
+            ext_floor=200,
+            python_actual=100,
+            ext_actual=200,
+            monkeypatch=monkeypatch,
+        )
+    # Positive guard: the escaping error is genuinely OSError and NOT
+    # a PermissionError (otherwise the narrow-catch contract is broken).
+    assert not isinstance(exc_info.value, PermissionError), (
+        "Cleanup helper must catch PermissionError only; a plain "
+        "OSError (ENOSPC / I/O error) was incorrectly swallowed"
+    )
+
+
+# ---------------------------------------------------------------------------
+# T22 — gate leaves zero tempfile or tempdir artifacts after a clean run
+# ---------------------------------------------------------------------------
+
+
+def test_t22_gate_leaves_no_temp_artifacts_in_isolated_dir(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Post-run temp dir must be empty — regression lock for #280 v3.
+
+    Redirects ``tempfile.tempdir`` to a subdir owned exclusively by
+    this test so the assertion cannot be tripped by unrelated
+    ratchet-count-* files from earlier runs, parallel test processes,
+    or CI matrix legs. After a successful gate run the isolated dir
+    must be empty — proving both that the mkstemp file was unlinked
+    AND that no ``ratchet-collect-*`` subdirectory was reintroduced
+    (the TemporaryDirectory pattern must never come back).
+    """
+    import tempfile as stdlib_tempfile
+
+    isolated_tmp = tmp_path / "isolated-temp"
+    isolated_tmp.mkdir()
+    # tempfile.tempdir is the module-level cache that gettempdir()
+    # returns first. Setting it here forces mkstemp (which the gate
+    # calls with dir=None) to create its files inside isolated_tmp
+    # instead of the real %TEMP%.
+    monkeypatch.setattr(stdlib_tempfile, "tempdir", str(isolated_tmp))
+
+    exit_code, _ = _run_gate(
+        tmp_path,
+        python_floor=100,
+        ext_floor=200,
+        python_actual=100,
+        ext_actual=200,
+        monkeypatch=monkeypatch,
+    )
+    assert exit_code == gate.EXIT_OK
+
+    leftovers = sorted(p.name for p in isolated_tmp.iterdir())
+    assert not leftovers, (
+        f"Gate must leave no artifacts in its temp dir; found: "
+        f"{leftovers}. This locks both (a) successful unlink of the "
+        "mkstemp collector file AND (b) no reintroduction of "
+        "tempfile.TemporaryDirectory (which would leak a "
+        "ratchet-collect-* subdirectory on Windows cleanup failure)."
+    )
+
+
+# ---------------------------------------------------------------------------
+# T23 — empty collector output is a setup error (partial-write guard)
+# ---------------------------------------------------------------------------
+
+
+def test_t23_empty_count_file_is_setup_error(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """Empty count file must raise a setup error, not pass int('').
+
+    If the collector plugin starts writing but fails mid-write (or
+    Windows flushes late), the tempfile can exist but contain an
+    empty string. The gate must flag this as EXIT_SETUP with a
+    message that distinguishes "empty" from the generic "not an
+    integer" path, so reviewers can tell at a glance whether they
+    hit a partial-write / plugin-load issue vs. a corrupt count.
+    """
+    exit_code, _ = _run_gate(
+        tmp_path,
+        python_floor=100,
+        ext_floor=200,
+        python_actual=100,  # Ignored: pytest_empty_output overrides
+        ext_actual=200,
+        pytest_empty_output=True,
+        monkeypatch=monkeypatch,
+    )
+    assert exit_code == gate.EXIT_SETUP
+    stderr = capsys.readouterr().err
+    assert "empty" in stderr.lower()
+    assert "partial write" in stderr.lower()
+
+
+# ---------------------------------------------------------------------------
+# T24 — marker scan reads subjects only (no body-text false positives)
+# ---------------------------------------------------------------------------
+
+
+def test_t24_marker_scan_reads_subjects_only_via_oneline(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The marker scan must invoke ``git log --oneline``, never
+    ``git log --format=%s%n%b``.
+
+    Commit bodies frequently mention the bypass marker strings for
+    documentation purposes — e.g., the #280 gate's own commit message
+    explains what ``[ratchet-realignment]`` and
+    ``[ratchet-test-removal]`` mean. If the scan read bodies, those
+    prose references would falsely exempt subsequent commits from
+    the drift check. The convention (shared with
+    ``check_threshold_changes.py`` and ``check-version-unchanged.py``)
+    is to scan subject lines only via ``--oneline``, so markers only
+    take effect when placed deliberately in a commit subject.
+    """
+    exit_code, recorder = _run_gate(
+        tmp_path,
+        python_floor=100,
+        ext_floor=200,
+        python_actual=100,
+        ext_actual=200,
+        monkeypatch=monkeypatch,
+    )
+    assert exit_code == gate.EXIT_OK
+
+    git_log_calls = [call for call in recorder.calls if call.args[:2] == ["git", "log"]]
+    subject_scans = [c for c in git_log_calls if "--oneline" in c.args]
+    body_scans = [c for c in git_log_calls if any("--format=" in a for a in c.args)]
+
+    assert subject_scans, (
+        "Gate must invoke `git log --oneline` at least once for marker "
+        "scanning (subject-only convention); observed git log calls: "
+        f"{[c.args for c in git_log_calls]}"
+    )
+    assert not body_scans, (
+        "Gate must NOT use `git log --format=%s%n%b` (or any --format "
+        "variant) — body-text mentions of bypass markers would trigger "
+        "false exemptions. This locks the subject-only convention "
+        "against regression. Offending calls: "
+        f"{[c.args for c in body_scans]}"
+    )
