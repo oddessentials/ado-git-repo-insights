@@ -948,21 +948,28 @@ class TestRatchetBumpGuardParity:
         gate_step = _find_ci_step("ratchet-bump-guard", "Run ratchet bump guard")
         run_block = str(gate_step.get("run", ""))
         commands = _extract_shell_commands(run_block)
-        assert len(commands) == 1, (
-            "ratchet-bump-guard 'Run ratchet bump guard' step must invoke "
-            "check_ratchet_bump.py exactly once; "
+        assert len(commands) == 2, (
+            "ratchet-bump-guard 'Run ratchet bump guard' step must expose "
+            "exactly two allowed shell command shapes: one PR/default path "
+            "without --marker-range and one push path with --marker-range; "
             f"got: {commands!r}"
         )
-        invocation = commands[0]
-        # The base-ref value is shell-quoted ("origin/${BASE_REF}") so the
-        # BASE_REF env variable expands safely even if it ever contained a
-        # space or shell metacharacter. Do NOT drop the quotes.
-        assert invocation == (
-            "python scripts/check_ratchet_bump.py "
-            '--base-ref "origin/${BASE_REF}" '
-            "--junit-extension ./artifacts/ts/test-results.xml"
+        expected_common_prefix = (
+            'python scripts/check_ratchet_bump.py --base-ref "origin/${BASE_REF}" '
+        )
+        expected_common_suffix = "--junit-extension ./artifacts/ts/test-results.xml"
+        expected_without_marker = expected_common_prefix + expected_common_suffix
+        expected_with_marker = (
+            expected_common_prefix
+            + '--marker-range "${MARKER_RANGE}" '
+            + expected_common_suffix
+        )
+        assert sorted(commands) == sorted(
+            [expected_without_marker, expected_with_marker]
         ), (
-            "ratchet-bump-guard invocation must pass --base-ref and "
-            "--junit-extension with the exact values the plan locks; "
-            f"got: {invocation!r}"
+            "ratchet-bump-guard invocation must allow exactly the two "
+            "command shapes locked by the workflow plan: shared --base-ref "
+            "and --junit-extension flags in both branches, with "
+            "--marker-range present only in the push branch; "
+            f"got: {commands!r}"
         )
