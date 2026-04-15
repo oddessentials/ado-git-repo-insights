@@ -10,6 +10,7 @@ import subprocess
 import sys
 from pathlib import Path
 
+import pytest
 import yaml
 
 _MIN_COLLECTED_RE = re.compile(r"--min-collected=(\d+)")
@@ -733,7 +734,16 @@ class TestRatchetBumpGuardParity:
     exemption semantics.
     """
 
-    def test_preflight_has_ratchet_bump_guard_command_spec(self) -> None:
+    def test_preflight_has_ratchet_bump_guard_command_spec(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        # Force the resolver into its fallback branch so the normalized
+        # command string is deterministic regardless of how the test
+        # environment is launched. A CI job that sets BASE_REF for its
+        # own purposes would otherwise change the observed command and
+        # produce a spurious parity failure.
+        monkeypatch.delenv("BASE_REF", raising=False)
+        monkeypatch.delenv("GITHUB_BASE_REF", raising=False)
         preflight = _normalized_preflight_commands()
         assert "Ratchet bump guard" in preflight, (
             "Preflight must declare a 'Ratchet bump guard' CommandSpec "
@@ -745,8 +755,116 @@ class TestRatchetBumpGuardParity:
             "__PYTHON__ scripts/check_ratchet_bump.py --base-ref origin/main"
         ), (
             "Preflight 'Ratchet bump guard' command must invoke "
-            "check_ratchet_bump.py with --base-ref origin/main; "
-            f"got: {preflight['Ratchet bump guard']!r}"
+            "check_ratchet_bump.py with --base-ref origin/main when no "
+            "BASE_REF / GITHUB_BASE_REF env vars are set (the resolver's "
+            f"documented fallback); got: {preflight['Ratchet bump guard']!r}"
+        )
+
+    def test_t38_preflight_ratchet_bump_routes_base_ref_through_resolver(
+        self,
+    ) -> None:
+        """The CommandSpec MUST call ``resolve_pr_base_ref()`` for its ``--base-ref``
+        argument, not hardcode a string literal.
+
+        This is the AST-level lock that closes the preflight-vs-CI
+        parity hole. The earlier shape test above only verifies the
+        *default* value (``origin/main``) that the resolver returns
+        when no env vars are set — a future refactor could silently
+        revert the CommandSpec back to a hardcoded ``"origin/main"``
+        string literal and that shape test would still pass, because
+        the normalized command text is identical either way.
+
+        Walking the AST instead of the runtime value is the only way
+        to lock the *mechanism*: the ``--base-ref`` argument in the
+        ``CommandSpec(...)`` tuple must be a ``Call`` node whose
+        callee is named ``resolve_pr_base_ref``. If anyone replaces
+        it with an ``ast.Constant`` string, this test fails immediately
+        with a message naming the exact regression.
+        """
+        source = PREFLIGHT_SCRIPT.read_text(encoding="utf-8")
+        tree = ast.parse(source, filename=str(PREFLIGHT_SCRIPT))
+
+        ratchet_specs: list[ast.Call] = []
+        for node in ast.walk(tree):
+            if not isinstance(node, ast.Call):
+                continue
+            func = node.func
+            if not (isinstance(func, ast.Name) and func.id == "CommandSpec"):
+                continue
+            if not node.args:
+                continue
+            name_arg = node.args[0]
+            if not (
+                isinstance(name_arg, ast.Constant)
+                and isinstance(name_arg.value, str)
+                and name_arg.value == "Ratchet bump guard"
+            ):
+                continue
+            ratchet_specs.append(node)
+
+        assert len(ratchet_specs) == 1, (
+            f"Expected exactly one CommandSpec named 'Ratchet bump "
+            f"guard' in {PREFLIGHT_SCRIPT.name}; found "
+            f"{len(ratchet_specs)}. If the gate was renamed or moved, "
+            "update this test."
+        )
+
+        command_tuple = ratchet_specs[0].args[1]
+        assert isinstance(command_tuple, ast.Tuple), (
+            "Ratchet bump guard CommandSpec second arg must be a tuple "
+            "literal (not a variable) so static analysis can verify "
+            f"its shape. Got: {type(command_tuple).__name__}"
+        )
+
+        # Find the --base-ref flag and its value.
+        flag_index: int | None = None
+        for i, element in enumerate(command_tuple.elts):
+            if (
+                isinstance(element, ast.Constant)
+                and isinstance(element.value, str)
+                and element.value == "--base-ref"
+            ):
+                flag_index = i
+                break
+        assert flag_index is not None, (
+            "Ratchet bump guard CommandSpec must pass a `--base-ref` "
+            "flag; none found in the tuple literal."
+        )
+        assert flag_index + 1 < len(command_tuple.elts), (
+            "`--base-ref` flag has no value element after it in the CommandSpec tuple."
+        )
+        value_node = command_tuple.elts[flag_index + 1]
+
+        # Negative assertion first — the exact regression we are
+        # locking against is a string-literal base ref.
+        assert not (
+            isinstance(value_node, ast.Constant) and isinstance(value_node.value, str)
+        ), (
+            "Ratchet bump guard --base-ref MUST NOT be a hardcoded "
+            "string literal. Hardcoding breaks preflight-vs-CI parity "
+            "for any PR targeting a non-main branch: CI uses "
+            "`origin/${github.base_ref}` but preflight would scan "
+            "whatever literal is baked in. Route the value through "
+            "`resolve_pr_base_ref()` so local preflight and the CI "
+            "ratchet-bump-guard job compute the same commit range. "
+            f"Current value node: {ast.dump(value_node)}"
+        )
+
+        # Positive assertion — it must be a Call to resolve_pr_base_ref.
+        assert isinstance(value_node, ast.Call), (
+            "Ratchet bump guard --base-ref must be a Call node "
+            "(to resolve_pr_base_ref); got "
+            f"{type(value_node).__name__}: {ast.dump(value_node)}"
+        )
+        callee = value_node.func
+        assert isinstance(callee, ast.Name), (
+            "Ratchet bump guard --base-ref Call must be to a bare "
+            f"function name; got: {ast.dump(callee)}"
+        )
+        assert callee.id == "resolve_pr_base_ref", (
+            "Ratchet bump guard --base-ref must be routed through "
+            "`resolve_pr_base_ref()` (issue #280 local/CI parity lock). "
+            f"Got a call to: {callee.id!r}"
         )
 
     def test_ci_ratchet_bump_guard_job_is_wired_correctly(self) -> None:

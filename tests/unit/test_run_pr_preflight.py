@@ -363,3 +363,113 @@ class TestMainBehavior:
         ):
             with pytest.raises(SystemExit, match="Could not fetch origin/main"):
                 main()
+
+
+class TestResolvePrBaseRef:
+    """Lock the PR-base-ref resolver used by the Ratchet bump guard gate.
+
+    The resolver exists so local preflight and the CI ratchet-bump-guard
+    job scan the *same* commit range. CI uses ``origin/${github.base_ref}``
+    via the ``BASE_REF`` env var. Local preflight honors the same
+    ``BASE_REF`` convention, falling back to ``origin/main`` with a loud
+    stderr warning. Getting this wrong reopens the parity-break hole
+    where a ``[ratchet-realignment]`` / ``[ratchet-test-removal]``
+    marker is accepted on one surface and rejected on the other, so
+    each branch of the resolver gets an explicit regression lock.
+    """
+
+    def test_t34_base_ref_env_var_wins(
+        self, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        """``BASE_REF=release-101.7`` must resolve to ``origin/release-101.7``."""
+        monkeypatch.setenv("BASE_REF", "release-101.7")
+        monkeypatch.delenv("GITHUB_BASE_REF", raising=False)
+        assert _module.resolve_pr_base_ref() == "origin/release-101.7"
+        captured = capsys.readouterr()
+        assert captured.err == "", (
+            "BASE_REF explicit path must NOT emit a fallback warning — "
+            "the warning only fires on the origin/main default. "
+            f"Unexpected stderr: {captured.err!r}"
+        )
+
+    def test_t35_github_base_ref_wins_when_base_ref_unset(
+        self, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        """GitHub Actions sets ``GITHUB_BASE_REF`` in PR context.
+
+        Preflight running inside a CI job (e.g., a self-test of preflight)
+        should honor that automatically without the developer needing to
+        plumb ``BASE_REF`` through the workflow.
+        """
+        monkeypatch.delenv("BASE_REF", raising=False)
+        monkeypatch.setenv("GITHUB_BASE_REF", "release-101.7")
+        assert _module.resolve_pr_base_ref() == "origin/release-101.7"
+        assert capsys.readouterr().err == ""
+
+    def test_t36_base_ref_takes_precedence_over_github_base_ref(
+        self, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        """Both env vars set ⇒ ``BASE_REF`` wins (documented precedence).
+
+        Rationale: a developer running preflight inside a CI job
+        (unusual, but possible for self-testing) can still override
+        GitHub's PR context by setting ``BASE_REF`` explicitly. The
+        more-specific variable wins over the context-inherited one.
+        """
+        monkeypatch.setenv("BASE_REF", "release-101.7")
+        monkeypatch.setenv("GITHUB_BASE_REF", "main")
+        assert _module.resolve_pr_base_ref() == "origin/release-101.7"
+        assert capsys.readouterr().err == ""
+
+    def test_t37_fallback_to_origin_main_emits_loud_stderr_warning(
+        self, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        """Empty environment ⇒ fallback to ``origin/main`` + loud warning.
+
+        The warning is the whole point of the fallback: silent defaults
+        are exactly what let the local/CI parity break hide in the
+        first place. A developer on a release-branch-targeting PR who
+        misses this warning will see a green preflight followed by a
+        CI failure they cannot explain, so the warning must be visible
+        and name the fix.
+        """
+        monkeypatch.delenv("BASE_REF", raising=False)
+        monkeypatch.delenv("GITHUB_BASE_REF", raising=False)
+        assert _module.resolve_pr_base_ref() == "origin/main"
+        captured = capsys.readouterr()
+        # Positive: the warning must be present, prefixed, and point
+        # at the override mechanism with a concrete example.
+        assert "[WARNING]" in captured.err, (
+            "Fallback must emit a `[WARNING]` prefix to stderr so the "
+            "message is visible in normal preflight output and not "
+            f"mistaken for debug noise. Got: {captured.err!r}"
+        )
+        assert "BASE_REF" in captured.err, (
+            "Warning must name the override variable so a developer "
+            "can fix local/CI parity without reading the source."
+        )
+        assert "origin/main" in captured.err, (
+            "Warning must name the ref being used as the fallback so "
+            "the developer sees exactly which range preflight will scan."
+        )
+        # Positive: name the CI counterpart so the parity invariant is
+        # visible in the warning (not just the local fix).
+        assert "github.base_ref" in captured.err, (
+            "Warning must reference `github.base_ref` so the developer "
+            "sees that CI will use a different value unless BASE_REF is "
+            "set explicitly."
+        )
+        # Positive: include a concrete example command so the fix is
+        # copy-pasteable. Split into two asserts per ruff PT018 — the
+        # intent is "both tokens must appear" but each side is
+        # independently load-bearing (without BASE_REF= the example is
+        # wrong; without python the example is not an invocation).
+        assert "BASE_REF=" in captured.err, (
+            "Warning must include a `BASE_REF=...` assignment in the "
+            "example invocation so the copy-paste fix is complete."
+        )
+        assert "python" in captured.err, (
+            "Warning must include a `python` invocation in the example "
+            "so it's recognizable as a shell command rather than a "
+            "fragment."
+        )

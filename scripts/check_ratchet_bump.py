@@ -564,17 +564,35 @@ def _range_history_consistent(base_ref: str) -> bool:
 
 
 def ensure_base_ref_reachable(base_ref: str) -> None:
-    """Guarantee ``base_ref`` is reachable with full history, or fail.
+    """Refresh ``base_ref`` from origin and guarantee it is fully reachable.
 
-    Never uses ``--depth=N``. Exactly one fetch attempt: ``--unshallow``
-    if the clone is shallow, plain refspec fetch otherwise. After the
-    single attempt, both the rev-parse check and the log/rev-list
-    consistency check must pass; otherwise raise :class:`RatchetSetupError`
-    so the gate exits 2 with an actionable diagnostic.
+    Always fetches. There is no short-circuit path that trusts an
+    existing local ``origin/<name>`` ref, because a stale local ref is
+    indistinguishable from a fresh one by existence or range
+    consistency alone: both may be internally valid while the remote
+    has moved on. That discrepancy is not theoretical — a
+    ``[ratchet-realignment]`` or ``[ratchet-test-removal]`` commit that
+    has already merged upstream will still live inside the local
+    ``origin/main..HEAD`` range until the next fetch, and
+    ``scan_bypass_marker`` would silently exempt an unrelated PR on
+    that basis. Determinism beats the few hundred milliseconds of
+    network latency an incremental fetch costs.
+
+    Fetch discipline:
+
+    * Exactly one fetch attempt per call. ``--unshallow`` is used iff
+      ``.git/shallow`` exists, plain refspec fetch otherwise.
+    * ``--no-tags`` so the refresh does not drag in release-tag refs
+      the gate does not need.
+    * Never ``--depth=N``. Determinism means either full history or
+      a loud SETUP error; there is no silent fallback.
+
+    After the fetch, both ``rev-parse --verify`` and the log/rev-list
+    consistency check must still pass. A fetch that succeeds but leaves
+    the ref unreachable (e.g., wrong remote name, ref deleted upstream)
+    surfaces as a second SETUP error with a distinct remediation
+    message so the user can tell the two failure modes apart.
     """
-    if _base_ref_present(base_ref) and _range_history_consistent(base_ref):
-        return
-
     ref_name = base_ref.removeprefix("origin/")
     refspec = f"+refs/heads/{ref_name}:refs/remotes/origin/{ref_name}"
     is_shallow = (REPO_ROOT / ".git" / "shallow").exists()
@@ -592,11 +610,18 @@ def ensure_base_ref_reachable(base_ref: str) -> None:
 
     if fetch_result.returncode != 0:
         raise RatchetSetupError(
-            f"Failed to fetch full history for {base_ref}.\n"
+            f"Failed to refresh base ref {base_ref}.\n"
             f"  command: {fetch_cmd_display}\n"
             f"  stderr: {fetch_result.stderr.strip()}\n"
-            f"  CI fix: actions/checkout@v4 with fetch-depth: 0.\n"
-            f"  Local fix: git fetch --unshallow origin {ref_name}."
+            f"  Local fix: run `git fetch origin {ref_name}` manually "
+            "and retry (network outage or wrong remote name).\n"
+            f"  CI fix: actions/checkout@v4 with fetch-depth: 0 "
+            "(already set on main CI jobs).\n"
+            "  The gate refuses to scan bypass markers on a stale "
+            f"local {base_ref} because a {REALIGNMENT_MARKER} or "
+            f"{TEST_REMOVAL_MARKER} subject from an already-merged "
+            "commit could otherwise exempt an unrelated PR on a "
+            "different branch."
         )
 
     if not _base_ref_present(base_ref) or not _range_history_consistent(base_ref):

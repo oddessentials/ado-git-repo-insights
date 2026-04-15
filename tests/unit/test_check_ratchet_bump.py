@@ -609,6 +609,23 @@ def test_t10_simultaneous_drift_reports_both(
 def test_t11_shallow_clone_unshallow_succeeds(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
+    """Shallow-clone path: fetch --unshallow is used and the gate passes.
+
+    Note on semantics after the always-fetch refactor
+    (``ensure_base_ref_reachable`` no longer short-circuits on a pre-existing
+    ref): the old T11 used to assert that rev-parse fired *twice* —
+    once before the unshallow fetch, once after — because the old
+    control flow called ``_base_ref_present`` first and only fetched
+    if that failed. That shortcut is gone: the gate now fetches
+    unconditionally (stale-ref correctness), so rev-parse is called
+    exactly once, *after* the fetch. The invariant this test now
+    locks is narrower and more accurate:
+
+    - The shallow marker is honored (``--unshallow`` is in the fetch
+      argv, not ``--depth=N``).
+    - After the shallow recovery fetch, the post-fetch rev-parse /
+      log / rev-list checks succeed and the gate returns EXIT_OK.
+    """
     preflight = _write_preflight(tmp_path, python_floor=100, ext_floor=200)
     ci = _write_ci_yaml(tmp_path, python_floor=100, ext_floor=200)
     junit = _write_extension_junit(tmp_path, 200)
@@ -619,9 +636,7 @@ def test_t11_shallow_clone_unshallow_succeeds(
     shallow_marker.write_text("", encoding="utf-8")
     monkeypatch.setattr(gate, "REPO_ROOT", tmp_path)
 
-    # Initial rev-parse fails (shallow), log returns empty, rev-list too.
-    # After fetch --unshallow, every git check starts succeeding.
-    call_counter = {"rev_parse": 0, "log_oneline": 0, "rev_list": 0}
+    call_counter = {"fetch_unshallow": 0, "rev_parse": 0}
 
     def responsive_run(
         args: list[str] | tuple[str, ...], **kwargs: object
@@ -631,18 +646,26 @@ def test_t11_shallow_clone_unshallow_succeeds(
             rest = normalized[1:]
             if rest[:3] == ["rev-parse", "--verify", "origin/main^{commit}"]:
                 call_counter["rev_parse"] += 1
-                if call_counter["rev_parse"] == 1:
-                    return _FakeCompleted(returncode=1, stdout="", stderr="unknown")
                 return _FakeCompleted(returncode=0, stdout="deadbeef\n")
             if rest[:3] == ["log", "--oneline", "origin/main..HEAD"]:
-                call_counter["log_oneline"] += 1
                 return _FakeCompleted(returncode=0, stdout="abc feat\n")
             if rest[:3] == ["rev-list", "--count", "origin/main..HEAD"]:
-                call_counter["rev_list"] += 1
                 return _FakeCompleted(returncode=0, stdout="1\n")
             if rest[:2] == ["log", "--format=%s%n%b"]:
                 return _FakeCompleted(returncode=0, stdout="feat: noop\n")
             if rest[:2] == ["fetch", "--no-tags"]:
+                # Positive lock: shallow recovery MUST include --unshallow
+                # and MUST NOT fall back to --depth=N.
+                assert "--unshallow" in rest, (
+                    "Shallow-clone recovery must use `--unshallow` so the "
+                    "fetch is deterministic; found: " + repr(rest)
+                )
+                assert not any(arg.startswith("--depth") for arg in rest), (
+                    "Shallow-clone recovery must not fall back to "
+                    "`--depth=N`; the only deterministic option is "
+                    "`--unshallow`. Found: " + repr(rest)
+                )
+                call_counter["fetch_unshallow"] += 1
                 return _FakeCompleted(returncode=0, stdout="", stderr="")
             return _FakeCompleted(returncode=0)
         if _is_pytest_collect(normalized):
@@ -664,9 +687,13 @@ def test_t11_shallow_clone_unshallow_succeeds(
         base_ref="origin/main",
     )
     assert exit_code == gate.EXIT_OK
-    assert call_counter["rev_parse"] >= 2, (
-        "rev-parse should be called twice: once before the unshallow fetch "
-        "(fails) and once after (succeeds)"
+    assert call_counter["fetch_unshallow"] == 1, (
+        "Shallow recovery should issue exactly one `fetch --unshallow`; "
+        f"got {call_counter['fetch_unshallow']}"
+    )
+    assert call_counter["rev_parse"] >= 1, (
+        "rev-parse should be called at least once AFTER the unshallow "
+        "fetch as the post-fetch reachability check"
     )
 
 
@@ -863,7 +890,12 @@ def test_t15_shallow_clone_unshallow_failure_is_setup_error(
     )
     assert exit_code == gate.EXIT_SETUP
     stderr = capsys.readouterr().err
-    assert "Failed to fetch full history" in stderr
+    # Message wording updated in the always-fetch refactor: the old
+    # "Failed to fetch full history" was the pre-fetch-shortcut phrasing;
+    # the new wording "Failed to refresh base ref" names the invariant
+    # being enforced (base ref freshness) and is the string T33 also
+    # asserts on for the non-shallow fetch-failure path.
+    assert "Failed to refresh base ref" in stderr
     assert "fetch-depth: 0" in stderr
     assert "--unshallow" in stderr
 
@@ -1536,3 +1568,182 @@ def test_t30_simultaneous_parity_and_equality_drift_reports_both(
         "makes the equality comparison semantically meaningless. "
         f"Current stderr: {stderr!r}"
     )
+
+
+# ---------------------------------------------------------------------------
+# T31 — ensure_base_ref_reachable ALWAYS issues git fetch even on a clean repo
+#
+# Regression lock for the stale-local-origin/main hole: the old
+# ensure_base_ref_reachable short-circuited when the ref was already present
+# and the range was internally consistent, trusting a stale ref. That gave
+# wrong verdicts locally when a [ratchet-realignment] or [ratchet-test-removal]
+# commit had been merged to main upstream but the developer had not fetched
+# — the merged marker would still live in the stale origin/main..HEAD range
+# and silently exempt an unrelated PR. The fix removes the short-circuit;
+# this test locks that the fetch is unconditional.
+# ---------------------------------------------------------------------------
+
+
+def test_t31_fetch_is_unconditional_even_on_clean_repo(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A fully aligned repo still issues one `git fetch` during the gate run."""
+    exit_code, recorder = _run_gate(
+        tmp_path,
+        python_floor=100,
+        ext_floor=200,
+        python_actual=100,
+        ext_actual=200,
+        monkeypatch=monkeypatch,
+    )
+    assert exit_code == gate.EXIT_OK
+    fetch_calls = [call for call in recorder.calls if call.args[:2] == ["git", "fetch"]]
+    assert len(fetch_calls) >= 1, (
+        "ensure_base_ref_reachable must issue a `git fetch` on every "
+        "invocation, even when the base ref is already present and the "
+        "rev-range is internally consistent. Locking this prevents a "
+        "future refactor from re-introducing the stale-ref short-circuit "
+        "that allowed merged bypass-marker commits to exempt unrelated "
+        "PRs locally. Recorded calls: "
+        f"{[call.args for call in recorder.calls]}"
+    )
+    # Positive: the fetch is for the exact refspec we care about, not
+    # a generic `git fetch` (which would drag in everything and may
+    # silently skip the ref if it wasn't already tracked).
+    fetch_argv = fetch_calls[0].args
+    assert "--no-tags" in fetch_argv, (
+        "Refresh fetch must use --no-tags so release tag refs don't "
+        f"come along for the ride. Got: {fetch_argv!r}"
+    )
+    refspec_tokens = [
+        token
+        for token in fetch_argv
+        if token.startswith("+refs/heads/main:refs/remotes/origin/main")
+    ]
+    assert refspec_tokens, (
+        "Refresh fetch must pass an explicit refspec that forces "
+        "origin/main to track remotes/origin/main so the local ref is "
+        f"guaranteed to advance. Got: {fetch_argv!r}"
+    )
+
+
+# ---------------------------------------------------------------------------
+# T32 — fetch is sequenced strictly before the marker scan's git log
+#
+# The real invariant behind T31 is ordering: the fetch must happen BEFORE
+# any git log --oneline origin/main..HEAD call that the marker scanner
+# reads. If a future refactor moved the fetch to after the marker scan,
+# the gate would silently reopen the stale-ref hole because the log
+# would still be computed against the pre-fetch ref. This test locks
+# the ordering explicitly by inspecting the recorder's call sequence.
+# ---------------------------------------------------------------------------
+
+
+def test_t32_fetch_is_sequenced_before_marker_scan_log(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """`git fetch` must precede every `git log --oneline base..HEAD` call."""
+    exit_code, recorder = _run_gate(
+        tmp_path,
+        python_floor=100,
+        ext_floor=200,
+        python_actual=100,
+        ext_actual=200,
+        monkeypatch=monkeypatch,
+    )
+    assert exit_code == gate.EXIT_OK
+
+    fetch_index: int | None = None
+    log_index: int | None = None
+    for i, call in enumerate(recorder.calls):
+        if fetch_index is None and call.args[:2] == ["git", "fetch"]:
+            fetch_index = i
+        if (
+            log_index is None
+            and call.args[:3] == ["git", "log", "--oneline"]
+            and any(arg.endswith("..HEAD") or ".." in arg for arg in call.args[3:])
+        ):
+            log_index = i
+        if fetch_index is not None and log_index is not None:
+            break
+
+    assert fetch_index is not None, (
+        "Expected at least one `git fetch` call in the recorder; got none"
+    )
+    assert log_index is not None, (
+        "Expected at least one `git log --oneline <range>` call; got none"
+    )
+    assert fetch_index < log_index, (
+        "`git fetch` must be sequenced strictly before the first "
+        "`git log --oneline base..HEAD` call. This ordering is the "
+        "load-bearing invariant that closes the stale-ref hole: if "
+        "the marker scanner's `git log` runs first, it reads a stale "
+        "range and can honor a merged [ratchet-realignment] / "
+        "[ratchet-test-removal] subject from an unrelated PR. "
+        f"fetch_index={fetch_index}, log_index={log_index}, "
+        f"calls={[call.args for call in recorder.calls]}"
+    )
+
+
+# ---------------------------------------------------------------------------
+# T33 — fetch failure → EXIT_SETUP with explicit remediation
+#
+# The old short-circuit never even attempted a fetch on a clean repo, so
+# a network outage was indistinguishable from success. After always-fetch,
+# a failed fetch becomes a SETUP error with a loud actionable message
+# pointing at the manual fix. T33 locks both the exit code and the
+# remediation wording so a future refactor cannot silently swallow the
+# failure.
+# ---------------------------------------------------------------------------
+
+
+def test_t33_fetch_failure_surfaces_as_setup_error(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """A failed `git fetch origin <ref>` exits SETUP with remediation text."""
+    preflight = _write_preflight(tmp_path, python_floor=100, ext_floor=200)
+    ci = _write_ci_yaml(tmp_path, python_floor=100, ext_floor=200)
+    junit = _write_extension_junit(tmp_path, 200)
+
+    def responsive_run(
+        args: list[str] | tuple[str, ...], **kwargs: object
+    ) -> _FakeCompleted:
+        normalized = list(args)
+        if normalized[:2] == ["git", "fetch"]:
+            return _FakeCompleted(
+                returncode=128,
+                stdout="",
+                stderr="fatal: Could not read from remote repository.",
+            )
+        if normalized[:1] == ["git"]:
+            # Every other git call succeeds — we are isolating the
+            # fetch-failure path, not the shallow-recovery path.
+            return _FakeCompleted(returncode=0, stdout="", stderr="")
+        raise AssertionError(f"Unexpected run: {normalized!r}")
+
+    monkeypatch.setattr(gate.subprocess, "run", responsive_run)
+    monkeypatch.setattr(subprocess, "run", responsive_run)
+
+    exit_code = gate.run_gate(
+        preflight_path=preflight,
+        ci_workflow_path=ci,
+        junit_extension_path=junit,
+        base_ref="origin/main",
+    )
+    assert exit_code == gate.EXIT_SETUP, (
+        "A failed refresh fetch must exit SETUP (not DRIFT, not OK) so "
+        "the gate is unambiguous about 'I could not produce a verdict' "
+        "vs 'I produced a verdict and it's bad'."
+    )
+    stderr = capsys.readouterr().err
+    assert "[SETUP]" in stderr
+    assert "Failed to refresh base ref" in stderr
+    assert "git fetch origin main" in stderr, (
+        "Remediation text must name the exact command the user should "
+        "run to fix this locally; bare 'run git fetch' is not actionable."
+    )
+    # Named the marker strings so a user who sees this error understands
+    # why a stale ref is refused instead of just dismissing the failure
+    # as a network blip.
+    assert "ratchet-realignment" in stderr
+    assert "ratchet-test-removal" in stderr

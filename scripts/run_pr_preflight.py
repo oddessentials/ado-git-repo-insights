@@ -149,6 +149,70 @@ def main_branch_suppression_baseline(*, allow_local_degraded: bool) -> Path | No
     return baseline_path
 
 
+def resolve_pr_base_ref() -> str:
+    """Return the ``origin/<branch>`` ref this PR's gates should scan against.
+
+    Existence rationale: the ratchet-bump guard (and any future gate
+    that scans a commit range) must use the *same* base ref locally in
+    preflight and remotely in the CI job, or their commit-range scans
+    diverge. CI's ``ratchet-bump-guard`` job uses
+    ``origin/${github.base_ref}`` (see ``.github/workflows/ci.yml`` —
+    env var name ``BASE_REF``). This resolver lets local preflight
+    honor the same ``BASE_REF`` convention, so a developer running
+    ``python scripts/run_pr_preflight.py`` on a branch whose PR
+    targets ``release-101.7`` scans the release-branch range and
+    matches what CI will do when the same PR is submitted.
+
+    Resolution order (highest precedence first):
+
+    1. ``BASE_REF`` environment variable — the same name CI uses at
+       ``ci.yml:1072``. Developers who set it locally get exact
+       parity with CI without learning a second variable.
+    2. ``GITHUB_BASE_REF`` — set automatically by GitHub Actions in PR
+       context. Included as a safety net in case preflight is ever
+       invoked from inside a CI job (e.g., a self-test of preflight).
+    3. ``origin/main`` fallback with a loud STDERR warning. This is
+       the common case — most PRs target main — but the warning is
+       intentionally visible so a developer on a non-main-targeting
+       branch sees *immediately* that they need to set ``BASE_REF``
+       to avoid a local/CI parity break. Silent fallback would
+       reproduce the exact hole this resolver was added to close.
+
+    Pure + deterministic: only reads ``os.environ``, returns literal
+    strings, no subprocess, no network, no filesystem access. The
+    fallback warning is written to ``sys.stderr`` but the function
+    itself never raises. Callers treat the return value as-is.
+
+    Returns a full ``origin/<branch>`` ref, not a bare branch name,
+    so downstream gates can pass it straight through to
+    ``git log``/``git rev-list``/``--base-ref`` without additional
+    prefixing logic.
+    """
+    explicit = os.environ.get("BASE_REF", "").strip()
+    if explicit:
+        return f"origin/{explicit}"
+
+    ci_base = os.environ.get("GITHUB_BASE_REF", "").strip()
+    if ci_base:
+        return f"origin/{ci_base}"
+
+    # Loud fallback — the warning is the whole point. A developer on a
+    # release-branch-targeting PR who ignores this message will get a
+    # green local preflight followed by a CI failure they will not
+    # understand until they re-read this message. Keep the wording
+    # actionable and name the fix explicitly.
+    print(
+        "[WARNING] Ratchet bump guard: BASE_REF not set; falling back "
+        "to origin/main for marker scanning. If this PR targets a "
+        "branch other than main, export BASE_REF=<branch> (matching "
+        "CI's github.base_ref) so local preflight and CI scan the "
+        "same commit range. Example: BASE_REF=release-101.7 python "
+        "scripts/run_pr_preflight.py.",
+        file=sys.stderr,
+    )
+    return "origin/main"
+
+
 def build_commands(
     suppression_baseline: Path | None,
     *,
@@ -361,7 +425,7 @@ def build_commands(
                 "__PYTHON__",
                 ".github/scripts/validate-test-results.py",
                 "test-results.xml",
-                "--min-collected=1723",
+                "--min-collected=1731",
                 "--max-skips=0",
             ),
         ),
@@ -386,7 +450,7 @@ def build_commands(
                 "__PYTHON__",
                 "scripts/check_ratchet_bump.py",
                 "--base-ref",
-                "origin/main",
+                resolve_pr_base_ref(),
             ),
         ),
         CommandSpec(
