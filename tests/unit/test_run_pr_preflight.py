@@ -24,6 +24,30 @@ main = _module.main
 PNPM_SENTINEL = _module.PNPM_SENTINEL
 
 
+@pytest.fixture(autouse=True)
+def _default_base_ref_for_resolver(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Module-level default: set ``BASE_REF=main`` for every test.
+
+    The fail-closed resolver raises SystemExit via ``fail_setup`` when
+    both ``BASE_REF`` and ``GITHUB_BASE_REF`` are unset. Most tests in
+    this module do not care about the resolver at all — they test
+    ``build_commands`` or ``main`` or tool-resolution logic — and
+    their parent process environment is not guaranteed to have
+    ``BASE_REF`` set. Without this fixture, every such test would
+    crash with a SystemExit from the resolver before its own logic
+    even ran.
+
+    Tests that *do* test the resolver directly (``TestResolvePrBaseRef``)
+    override this default inside their own bodies via their own
+    ``monkeypatch.setenv`` / ``monkeypatch.delenv`` calls, which run
+    AFTER this autouse fixture, so the precedence is correct.
+    """
+    monkeypatch.setenv("BASE_REF", "main")
+    monkeypatch.delenv("GITHUB_BASE_REF", raising=False)
+
+
 class TestEnsureRequiredTools:
     """Authoritative mode must fail closed when hard-gate tooling is missing."""
 
@@ -421,55 +445,70 @@ class TestResolvePrBaseRef:
         assert _module.resolve_pr_base_ref() == "origin/release-101.7"
         assert capsys.readouterr().err == ""
 
-    def test_t37_fallback_to_origin_main_emits_loud_stderr_warning(
+    def test_t37_empty_env_fails_closed_with_setup_error(
         self, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
     ) -> None:
-        """Empty environment ⇒ fallback to ``origin/main`` + loud warning.
+        """Empty environment ⇒ ``SystemExit`` via ``fail_setup``, NOT fallback.
 
-        The warning is the whole point of the fallback: silent defaults
-        are exactly what let the local/CI parity break hide in the
-        first place. A developer on a release-branch-targeting PR who
-        misses this warning will see a green preflight followed by a
-        CI failure they cannot explain, so the warning must be visible
-        and name the fix.
+        Fail-closed is the load-bearing correctness lock for local/CI
+        parity. A prior version of this test asserted that an empty
+        environment fell back to ``origin/main`` with a loud warning.
+        That warn-and-continue behavior made the parity contract
+        opt-in: a developer on a release-branch-targeting PR who
+        missed the warning got a green preflight (scanning
+        ``origin/main``) followed by a CI failure (scanning the
+        actual target) with no hint the two surfaces disagreed on
+        the range. Fail-closed turns the implicit contract into an
+        enforced one — every local preflight invocation must name
+        its base ref.
+
+        This test asserts the exact error shape so a future refactor
+        cannot silently reintroduce the fallback.
         """
         monkeypatch.delenv("BASE_REF", raising=False)
         monkeypatch.delenv("GITHUB_BASE_REF", raising=False)
-        assert _module.resolve_pr_base_ref() == "origin/main"
+
+        with pytest.raises(SystemExit) as exc_info:
+            _module.resolve_pr_base_ref()
+
+        # Exit code must be the existing SETUP code (2), not a new
+        # bespoke parity code. The plan explicitly reuses fail_setup
+        # to keep CI-side exit-code handling unchanged.
+        assert exc_info.value.code == _module.EXIT_SETUP, (
+            "Fail-closed resolver must raise SystemExit with the "
+            "existing EXIT_SETUP code (2), not a new parity-specific "
+            f"code. Got: {exc_info.value.code!r}"
+        )
+
+        # The stderr error must name both env vars, both example
+        # invocations, and the parity rationale so a developer can
+        # self-remediate without reading the source.
         captured = capsys.readouterr()
-        # Positive: the warning must be present, prefixed, and point
-        # at the override mechanism with a concrete example.
-        assert "[WARNING]" in captured.err, (
-            "Fallback must emit a `[WARNING]` prefix to stderr so the "
-            "message is visible in normal preflight output and not "
-            f"mistaken for debug noise. Got: {captured.err!r}"
+        combined = captured.out + captured.err
+        assert "[SETUP]" in combined, (
+            "Fail-closed message must be prefixed with `[SETUP]` so "
+            "it's visible in preflight output, not mistaken for "
+            f"debug noise. Got: {combined!r}"
         )
-        assert "BASE_REF" in captured.err, (
-            "Warning must name the override variable so a developer "
-            "can fix local/CI parity without reading the source."
+        assert "BASE_REF" in combined, "Error must name the BASE_REF override variable."
+        assert "GITHUB_BASE_REF" in combined, (
+            "Error must also name GITHUB_BASE_REF so CI context is "
+            "documented, not just local override."
         )
-        assert "origin/main" in captured.err, (
-            "Warning must name the ref being used as the fallback so "
-            "the developer sees exactly which range preflight will scan."
+        assert "unset" in combined, (
+            "Error must explicitly state that the env vars are unset, "
+            "not just imply it through the absence of a value."
         )
-        # Positive: name the CI counterpart so the parity invariant is
-        # visible in the warning (not just the local fix).
-        assert "github.base_ref" in captured.err, (
-            "Warning must reference `github.base_ref` so the developer "
-            "sees that CI will use a different value unless BASE_REF is "
-            "set explicitly."
+        assert "BASE_REF=main" in combined, (
+            "Error must include a concrete main-targeting example so "
+            "the most common case has a copy-pasteable fix line."
         )
-        # Positive: include a concrete example command so the fix is
-        # copy-pasteable. Split into two asserts per ruff PT018 — the
-        # intent is "both tokens must appear" but each side is
-        # independently load-bearing (without BASE_REF= the example is
-        # wrong; without python the example is not an invocation).
-        assert "BASE_REF=" in captured.err, (
-            "Warning must include a `BASE_REF=...` assignment in the "
-            "example invocation so the copy-paste fix is complete."
+        assert "BASE_REF=release-101.7" in combined, (
+            "Error must include a concrete release-branch-targeting "
+            "example so developers on release-branch PRs (the case "
+            "this fix exists to protect) see exactly how to remediate."
         )
-        assert "python" in captured.err, (
-            "Warning must include a `python` invocation in the example "
-            "so it's recognizable as a shell command rather than a "
-            "fragment."
+        assert "#280" in combined, (
+            "Error must cite issue #280 so the rationale for the "
+            "fail-closed behavior is discoverable via issue history."
         )

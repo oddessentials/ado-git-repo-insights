@@ -35,6 +35,27 @@ REPO_HOOK_SCRIPT = REPO_ROOT / "scripts" / "run_repo_hook.py"
 CI_WORKFLOW = REPO_ROOT / ".github" / "workflows" / "ci.yml"
 PARITY_BASELINE_PATH = Path("parity-artifacts") / "main-baseline.json"
 
+
+@pytest.fixture(autouse=True)
+def _default_base_ref_for_resolver(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Module-level default: set ``BASE_REF=main`` so the resolver resolves.
+
+    Most tests in this module exercise ``_normalized_preflight_commands``
+    which internally calls ``build_commands`` -> ``resolve_pr_base_ref``.
+    Post the #280 fail-closed refactor, the resolver raises SystemExit
+    when neither ``BASE_REF`` nor ``GITHUB_BASE_REF`` is set. Pinning
+    ``BASE_REF=main`` as the default gives every test a deterministic
+    resolver return value without each test having to set it by hand.
+    The ``test_preflight_has_ratchet_bump_guard_command_spec`` test
+    already asserts against this exact value; the T38 AST lock reads
+    source directly and does not care about the env.
+    """
+    monkeypatch.setenv("BASE_REF", "main")
+    monkeypatch.delenv("GITHUB_BASE_REF", raising=False)
+
+
 HOOK_FUNCTION_TO_GATE = {
     "run_extension_typecheck": "Extension build check",
     "run_extension_test_typecheck": "Extension test type check",
@@ -737,12 +758,14 @@ class TestRatchetBumpGuardParity:
     def test_preflight_has_ratchet_bump_guard_command_spec(
         self, monkeypatch: pytest.MonkeyPatch
     ) -> None:
-        # Force the resolver into its fallback branch so the normalized
-        # command string is deterministic regardless of how the test
-        # environment is launched. A CI job that sets BASE_REF for its
-        # own purposes would otherwise change the observed command and
-        # produce a spurious parity failure.
-        monkeypatch.delenv("BASE_REF", raising=False)
+        # Pin BASE_REF=main so the resolver returns a deterministic
+        # value and we can check the normalized command string. We
+        # can NOT use the empty-env path here: as of the fail-closed
+        # refactor, empty env raises SystemExit via fail_setup, and
+        # the resolver never returns. Setting BASE_REF=main exercises
+        # the happy path for the main-targeting-PR case, which is
+        # what most developers will run against.
+        monkeypatch.setenv("BASE_REF", "main")
         monkeypatch.delenv("GITHUB_BASE_REF", raising=False)
         preflight = _normalized_preflight_commands()
         assert "Ratchet bump guard" in preflight, (
@@ -755,9 +778,9 @@ class TestRatchetBumpGuardParity:
             "__PYTHON__ scripts/check_ratchet_bump.py --base-ref origin/main"
         ), (
             "Preflight 'Ratchet bump guard' command must invoke "
-            "check_ratchet_bump.py with --base-ref origin/main when no "
-            "BASE_REF / GITHUB_BASE_REF env vars are set (the resolver's "
-            f"documented fallback); got: {preflight['Ratchet bump guard']!r}"
+            "check_ratchet_bump.py with --base-ref origin/main when "
+            "BASE_REF=main is set; got: "
+            f"{preflight['Ratchet bump guard']!r}"
         )
 
     def test_t38_preflight_ratchet_bump_routes_base_ref_through_resolver(

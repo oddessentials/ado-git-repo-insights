@@ -171,17 +171,21 @@ def resolve_pr_base_ref() -> str:
     2. ``GITHUB_BASE_REF`` — set automatically by GitHub Actions in PR
        context. Included as a safety net in case preflight is ever
        invoked from inside a CI job (e.g., a self-test of preflight).
-    3. ``origin/main`` fallback with a loud STDERR warning. This is
-       the common case — most PRs target main — but the warning is
-       intentionally visible so a developer on a non-main-targeting
-       branch sees *immediately* that they need to set ``BASE_REF``
-       to avoid a local/CI parity break. Silent fallback would
-       reproduce the exact hole this resolver was added to close.
+    3. **Fail closed.** If neither environment variable is set the
+       resolver raises via :func:`fail_setup` — it does NOT silently
+       fall back to ``origin/main``. Silent fallback was the exact
+       weakness that made the parity contract opt-in: a developer on
+       a release-branch-targeting PR who forgot to export ``BASE_REF``
+       would get a green local preflight (scanning ``origin/main``)
+       followed by a CI failure (scanning ``origin/release-X.Y``)
+       and no hint that the two surfaces even disagreed on the range.
+       Fail-closed turns the implicit contract into an enforced one:
+       every local preflight invocation must name its base ref.
 
     Pure + deterministic: only reads ``os.environ``, returns literal
-    strings, no subprocess, no network, no filesystem access. The
-    fallback warning is written to ``sys.stderr`` but the function
-    itself never raises. Callers treat the return value as-is.
+    strings, no subprocess, no network, no filesystem, no ``gh`` CLI.
+    Raises :class:`SystemExit` via ``fail_setup`` on the fail-closed
+    branch; never logs a warning and continues.
 
     Returns a full ``origin/<branch>`` ref, not a bare branch name,
     so downstream gates can pass it straight through to
@@ -196,21 +200,30 @@ def resolve_pr_base_ref() -> str:
     if ci_base:
         return f"origin/{ci_base}"
 
-    # Loud fallback — the warning is the whole point. A developer on a
-    # release-branch-targeting PR who ignores this message will get a
-    # green local preflight followed by a CI failure they will not
-    # understand until they re-read this message. Keep the wording
-    # actionable and name the fix explicitly.
-    print(
-        "[WARNING] Ratchet bump guard: BASE_REF not set; falling back "
-        "to origin/main for marker scanning. If this PR targets a "
-        "branch other than main, export BASE_REF=<branch> (matching "
-        "CI's github.base_ref) so local preflight and CI scan the "
-        "same commit range. Example: BASE_REF=release-101.7 python "
-        "scripts/run_pr_preflight.py.",
-        file=sys.stderr,
+    raise fail_setup(
+        "Ratchet bump guard (#280): PR base ref cannot be resolved.\n"
+        "  BASE_REF env var: unset\n"
+        "  GITHUB_BASE_REF env var: unset\n"
+        "\n"
+        "  Fix (local): export BASE_REF=<target-branch> before "
+        "running preflight. Examples:\n"
+        "    BASE_REF=main python scripts/run_pr_preflight.py\n"
+        "    BASE_REF=release-101.7 python scripts/run_pr_preflight.py\n"
+        "\n"
+        "  Fix (CI): GITHUB_BASE_REF is set automatically by GitHub "
+        "Actions in PR context; no action required there.\n"
+        "\n"
+        "  Rationale: the Ratchet bump guard scans "
+        "origin/${BASE_REF}..HEAD for bypass markers and must scan "
+        "the same commit range as CI's ratchet-bump-guard job "
+        "(ci.yml:1072). Silently defaulting to origin/main would "
+        "make local preflight accept or reject a "
+        "[ratchet-realignment] / [ratchet-test-removal] marker that "
+        "CI sees differently — the exact parity hole #280 was filed "
+        "to close. Set BASE_REF once in your shell profile (e.g. "
+        "~/.bashrc) and every subsequent preflight run will match "
+        "whichever branch the PR targets."
     )
-    return "origin/main"
 
 
 def build_commands(
@@ -425,7 +438,7 @@ def build_commands(
                 "__PYTHON__",
                 ".github/scripts/validate-test-results.py",
                 "test-results.xml",
-                "--min-collected=1731",
+                "--min-collected=1743",
                 "--max-skips=0",
             ),
         ),

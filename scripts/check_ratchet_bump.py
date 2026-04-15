@@ -521,6 +521,125 @@ def _parse_int_attr(raw: str, junit_path: Path, context: str) -> int:
 
 
 # ---------------------------------------------------------------------------
+# Base-ref normalization (CLI hygiene — enforce origin/<name> form)
+# ---------------------------------------------------------------------------
+
+
+# A git short or full SHA is 7-40 hex characters. Branch names that happen
+# to be entirely hex are rare and ambiguous; the normalizer rejects them
+# at the CLI boundary so a user who meant a SHA gets a clearer error than
+# "remote ref not found" (which is what the fetch step would otherwise
+# report several layers deeper). A developer with a legitimately hex-named
+# branch can still pass it via the explicit ``origin/<name>`` form, which
+# bypasses the bare-name SHA check.
+_SHA_RE = re.compile(r"^[0-9a-fA-F]{7,40}$")
+
+
+def _normalize_base_ref(raw: str) -> str:
+    """Normalize ``--base-ref`` input to an ``origin/<branch>`` remote ref.
+
+    Accepts:
+        * ``origin/<name>`` — passes through unchanged. Nested names
+          like ``origin/release/v1.7`` are allowed because git
+          supports slashes in branch names and release-branch
+          layouts that use them are a legitimate pattern.
+        * ``<name>`` (bare branch) — normalized to ``origin/<name>``.
+          The bare form accepts **any** name that is not already
+          ``origin/``-prefixed, including names containing slashes
+          (``release/v1.7``) and names that happen to look like other
+          remotes (``upstream/main``). The rule is simple: the
+          ``origin/`` prefix is the *only* remote-qualifier the gate
+          recognizes; everything else is a bare branch name, slashes
+          and all. If the resulting ``origin/<name>`` does not exist
+          on origin, the fetch step will surface that as a distinct
+          SETUP error with actionable remediation.
+
+    Rejects via :class:`RatchetSetupError` (exit 2):
+        * Empty or whitespace-only input.
+        * ``HEAD`` or ``@`` — not branch refs.
+        * Full ref paths like ``refs/heads/main`` or
+          ``refs/remotes/origin/main``.
+        * ``origin/`` with no branch name after the slash.
+        * Bare git SHAs (7-40 hex chars). See :data:`_SHA_RE`. A
+          developer with a legitimately hex-named branch can still
+          pass it via the explicit ``origin/<name>`` form, which
+          skips the SHA check entirely.
+
+    Rationale: :func:`ensure_base_ref_reachable` always fetches into
+    ``refs/remotes/origin/<name>``, but without up-front normalization
+    the subsequent ``git rev-parse --verify <raw>`` and
+    ``git log <raw>..HEAD`` calls run against whatever string the
+    caller passed. A caller that passes ``--base-ref main`` would
+    fetch ``origin/main`` and then scan the **local** ``main``
+    branch, which on a typical worktree that tracks a feature branch
+    is either stale (behind remote) or nonexistent (never checked
+    out locally). Normalizing up front pins every downstream call
+    to the remote-tracking ref and closes that hole.
+
+    Pure + deterministic: no subprocess, no filesystem, no network,
+    no argparse coupling. Unit-testable in isolation (T39-T48).
+    """
+    text = raw.strip()
+    if not text:
+        raise RatchetSetupError(
+            "--base-ref cannot be empty or whitespace-only; expected "
+            "'origin/<branch>' or a bare '<branch>' name."
+        )
+    if text in ("HEAD", "@"):
+        raise RatchetSetupError(
+            f"--base-ref={raw!r} is not a branch ref. The ratchet-bump "
+            "guard scans `base..HEAD` for bypass markers and compares "
+            "actual vs floor; that only makes sense against a branch, "
+            "not HEAD itself. Pass 'origin/<branch>' or a bare "
+            "'<branch>' name (e.g., 'main' or 'release-101.7')."
+        )
+    if text.startswith("refs/"):
+        raise RatchetSetupError(
+            f"--base-ref={raw!r} must not be a full ref path. Pass the "
+            "short form 'origin/<branch>' or a bare '<branch>' name; "
+            "the gate expands it to 'refs/remotes/origin/<branch>' "
+            "internally for the refspec fetch."
+        )
+    # The ``origin/`` prefix is the only remote-qualifier we recognize.
+    # Anything else — including names that happen to contain slashes
+    # like ``release/v1.7`` or that look like another remote's form
+    # like ``upstream/main`` — is treated as a bare branch name. Git
+    # allows slashes in branch names, so a "has a slash therefore it
+    # must be remote-qualified" rule would incorrectly reject legitimate
+    # release-branch names. If a caller passes ``upstream/main`` they
+    # get ``origin/upstream/main``, which the fetch step will cleanly
+    # fail with "remote ref not found" — a distinct, actionable setup
+    # error rather than a normalization surprise.
+    if text.startswith("origin/"):
+        name = text[len("origin/") :]
+        if not name:
+            raise RatchetSetupError(
+                f"--base-ref={raw!r} is missing a branch name after "
+                "'origin/'. Expected something like 'origin/main' or "
+                "'origin/release-101.7'."
+            )
+        return text
+
+    # Bare branch name. SHA rejection runs only on bare inputs, and
+    # only on purely-hex strings of 7-40 characters — the regex is
+    # anchored on both ends so ``feat-abc123`` and ``abcdef`` (below
+    # the SHA minimum) and ``release/v1.7`` (contains a slash) all
+    # pass through cleanly. A legitimately hex-named branch can
+    # still be passed explicitly via ``origin/<name>``, which skips
+    # this check because it takes the ``startswith("origin/")``
+    # branch above.
+    if _SHA_RE.match(text):
+        raise RatchetSetupError(
+            f"--base-ref={raw!r} looks like a git SHA, not a branch "
+            "name. The ratchet-bump guard only scans branch-relative "
+            "ranges. If you meant a branch that happens to be named "
+            "entirely in hex, pass it in the explicit form "
+            f"'origin/{text}' to bypass this check."
+        )
+    return f"origin/{text}"
+
+
+# ---------------------------------------------------------------------------
 # Shallow-clone guard (deterministic --unshallow, never --depth=N)
 # ---------------------------------------------------------------------------
 
@@ -874,8 +993,17 @@ def main(argv: list[str] | None = None) -> int:
         "--base-ref",
         default="origin/main",
         help=(
-            "Base git ref for marker scan and shallow-clone guard "
-            "(default: origin/main)."
+            "Base git ref for marker scan and shallow-clone guard. "
+            "Accepts 'origin/<branch>' (pass-through) or a bare "
+            "'<branch>' name; bare names are normalized to "
+            "'origin/<branch>' up front, and names containing "
+            "slashes (e.g. 'release/v1.7') are treated as single "
+            "bare branch names rather than remote-qualified refs. "
+            "Only the literal 'origin/' prefix is recognized as a "
+            "remote qualifier. HEAD, '@', full ref paths "
+            "('refs/heads/main'), bare SHAs, and empty values are "
+            "rejected with an explicit setup error. Default: "
+            "origin/main."
         ),
     )
     parser.add_argument(
@@ -898,11 +1026,23 @@ def main(argv: list[str] | None = None) -> int:
     )
     args = parser.parse_args(argv)
 
+    # Normalize --base-ref up front so every downstream consumer
+    # (ensure_base_ref_reachable, scan_bypass_marker, the marker-range
+    # log/rev-list calls) operates on the canonical remote-tracking
+    # ref. Without this step, a caller passing ``--base-ref main``
+    # would fetch ``origin/main`` but scan the (possibly stale or
+    # nonexistent) local ``main`` branch.
+    try:
+        normalized_base_ref = _normalize_base_ref(args.base_ref)
+    except RatchetSetupError as exc:
+        print(f"[SETUP] {exc}", file=sys.stderr)
+        return EXIT_SETUP
+
     return run_gate(
         preflight_path=args.preflight_script,
         ci_workflow_path=args.ci_workflow,
         junit_extension_path=args.junit_extension,
-        base_ref=args.base_ref,
+        base_ref=normalized_base_ref,
     )
 
 

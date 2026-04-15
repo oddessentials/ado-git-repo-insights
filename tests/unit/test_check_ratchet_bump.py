@@ -1747,3 +1747,215 @@ def test_t33_fetch_failure_surfaces_as_setup_error(
     # as a network blip.
     assert "ratchet-realignment" in stderr
     assert "ratchet-test-removal" in stderr
+
+
+# ---------------------------------------------------------------------------
+# T39-T48 — _normalize_base_ref() contract
+#
+# The gate's --base-ref CLI flag must be normalized to origin/<branch> up
+# front, before ensure_base_ref_reachable / scan_bypass_marker /
+# compute_drift_report ever see the value. The motivating hole:
+# `--base-ref main` would fetch `origin/main` but then run
+# `git rev-parse --verify main` and `git log main..HEAD`, which resolve
+# against the LOCAL `main` branch — potentially stale or nonexistent.
+# Normalizing up front pins every downstream call to the remote-tracking
+# ref. T39-T48 lock both the pass-through and the rejection paths so a
+# future refactor cannot silently reopen the bare-local-branch hole.
+# ---------------------------------------------------------------------------
+
+
+class TestNormalizeBaseRef:
+    """Contract lock for ``_normalize_base_ref`` (issue #280 CLI hygiene)."""
+
+    def test_t39_origin_main_passes_through_unchanged(self) -> None:
+        assert gate._normalize_base_ref("origin/main") == "origin/main"
+
+    def test_t40_bare_main_is_normalized_to_origin_main(self) -> None:
+        assert gate._normalize_base_ref("main") == "origin/main"
+
+    def test_t41_bare_release_branch_with_dots_and_hyphens_is_normalized(
+        self,
+    ) -> None:
+        """Release branch names with non-alphanumeric chars work as-is."""
+        assert gate._normalize_base_ref("release-101.7") == "origin/release-101.7"
+
+    def test_t41b_nested_origin_branch_passes_through(self) -> None:
+        """Nested branch names like origin/release/v1.7 are allowed.
+
+        Git supports nested branch names and release-branch layouts
+        that use slashes are a legitimate pattern. The normalizer
+        treats anything after the ``origin/`` prefix as the full
+        branch name, so ``origin/release/v1.7`` round-trips as-is.
+        """
+        assert gate._normalize_base_ref("origin/release/v1.7") == "origin/release/v1.7"
+
+    def test_t42_bare_slash_name_is_normalized_to_origin_prefix(self) -> None:
+        """A bare branch name containing a slash is normalized, not rejected.
+
+        Regression lock for the "any slash means remote-qualified"
+        bug in the initial normalizer. Git supports branch names
+        with slashes (``release/v1.7``, ``feat/auth-refactor``) and
+        the normalizer must accept them in their bare form. The
+        rule is simple and symmetric with the ``origin/``-prefixed
+        case: only the literal ``origin/`` prefix is treated as a
+        remote qualifier. Everything else — slashes or no — is a
+        bare branch name that gets normalized to ``origin/<name>``.
+
+        The reviewer flagged that ``--base-ref release/v1.7`` was
+        being parsed as ``remote=release, rest=v1.7`` and rejected
+        with a confusing "must use the 'origin' remote" error,
+        despite the docstring and CLI help advertising bare
+        ``<branch>`` support. This test is the explicit fix lock.
+        """
+        assert gate._normalize_base_ref("release/v1.7") == "origin/release/v1.7", (
+            "Bare branch names containing slashes (e.g., 'release/v1.7') "
+            "must be normalized to 'origin/<name>' like any other bare "
+            "name. Rejecting them would contradict the CLI contract "
+            "that advertises bare branch support and would break "
+            "release-branch workflows that use slash-delimited names."
+        )
+        # Second positive case: a nested feature-branch layout.
+        assert (
+            gate._normalize_base_ref("feat/auth-refactor")
+            == "origin/feat/auth-refactor"
+        )
+
+    def test_t43_head_ref_is_rejected(self) -> None:
+        """HEAD is a ref but not a branch; scanning HEAD..HEAD is nonsense."""
+        for raw in ("HEAD", "@"):
+            with pytest.raises(gate.RatchetSetupError) as exc_info:
+                gate._normalize_base_ref(raw)
+            assert "not a branch ref" in str(exc_info.value), (
+                f"HEAD / @ rejection must say 'not a branch ref'; "
+                f"got: {exc_info.value!s}"
+            )
+
+    def test_t44_full_ref_path_is_rejected(self) -> None:
+        """refs/heads/... and refs/remotes/... are rejected up front."""
+        for raw in (
+            "refs/heads/main",
+            "refs/remotes/origin/main",
+            "refs/tags/v1.0",
+        ):
+            with pytest.raises(gate.RatchetSetupError) as exc_info:
+                gate._normalize_base_ref(raw)
+            message = str(exc_info.value)
+            assert "full ref path" in message, (
+                f"Full-ref-path rejection must name 'full ref path'; got: {message!r}"
+            )
+            assert raw in message, "Rejection must quote the offending input."
+
+    def test_t45_empty_or_whitespace_is_rejected(self) -> None:
+        for raw in ("", "   ", "\t", "\n"):
+            with pytest.raises(gate.RatchetSetupError) as exc_info:
+                gate._normalize_base_ref(raw)
+            assert "empty" in str(exc_info.value), (
+                f"Empty/whitespace rejection must say 'empty'; got: {exc_info.value!s}"
+            )
+
+    def test_t46_origin_without_branch_name_is_rejected(self) -> None:
+        """'origin/' with no branch name after the slash is malformed."""
+        with pytest.raises(gate.RatchetSetupError) as exc_info:
+            gate._normalize_base_ref("origin/")
+        message = str(exc_info.value)
+        assert "missing a branch name" in message, (
+            f"origin/ rejection must say 'missing a branch name'; got: {message!r}"
+        )
+        assert "origin/main" in message or "origin/release" in message, (
+            "Rejection message must include a concrete example of a "
+            "valid input so the user sees how to fix it."
+        )
+
+    def test_t47_main_normalizes_base_ref_before_run_gate(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """End-to-end lock: gate.main(['--base-ref', 'main', ...]) normalizes.
+
+        This is the integration lock that proves the normalizer
+        actually runs inside main() and its result is threaded through
+        to run_gate. Without this test, a future refactor could add
+        the helper, wire up the tests, and silently forget to call it
+        from main() — the unit tests on _normalize_base_ref would pass
+        while the real CLI still scanned the stale local branch.
+        """
+        recorded: dict[str, str] = {}
+
+        def recording_run_gate(
+            *,
+            preflight_path: Path,
+            ci_workflow_path: Path,
+            junit_extension_path: Path,
+            base_ref: str,
+        ) -> int:
+            # Capture the base_ref value that main() actually hands
+            # to run_gate. If normalization ran, this is "origin/main".
+            # If normalization was skipped, this is "main" and the
+            # assertion below fails with a clear message.
+            recorded["base_ref"] = base_ref
+            return gate.EXIT_OK
+
+        monkeypatch.setattr(gate, "run_gate", recording_run_gate)
+
+        exit_code = gate.main(["--base-ref", "main"])
+        assert exit_code == gate.EXIT_OK
+        assert recorded.get("base_ref") == "origin/main", (
+            "main() must normalize --base-ref before calling run_gate. "
+            "A bare 'main' input to the CLI should become 'origin/main' "
+            "on the run_gate call path. If this assertion fires, a "
+            "refactor has broken the wiring between argparse and "
+            f"run_gate. Got: base_ref={recorded.get('base_ref')!r}"
+        )
+
+    def test_t48_bare_sha_is_rejected_explicitly(self) -> None:
+        """Bare SHA-like inputs are rejected with a SHA-specific message.
+
+        The reviewer asked for explicit rejection rather than waiting
+        for the fetch step to say 'remote ref not found'. This test
+        locks both the rejection itself and the wording, so a future
+        refactor cannot silently drop the explicit check (which would
+        make the failure message misleading) or change the SHA regex
+        in a way that accepts hex strings as bare branch names.
+        """
+        # 7-char short SHA
+        with pytest.raises(gate.RatchetSetupError) as exc_info:
+            gate._normalize_base_ref("abc1234")
+        assert "SHA" in str(exc_info.value), (
+            "Short SHA rejection must mention 'SHA' in the message "
+            "so the user understands why a 7-char hex string was "
+            f"refused; got: {exc_info.value!s}"
+        )
+
+        # 40-char full SHA
+        with pytest.raises(gate.RatchetSetupError) as exc_info:
+            gate._normalize_base_ref("abc1234def567890abc1234def567890abc12345")
+        assert "SHA" in str(exc_info.value)
+
+        # Mixed case hex (git accepts both)
+        with pytest.raises(gate.RatchetSetupError) as exc_info:
+            gate._normalize_base_ref("ABC1234")
+        assert "SHA" in str(exc_info.value)
+
+        # Rejection message must point at the escape hatch so a user
+        # with a legitimately hex-named branch can still get past it.
+        message = str(exc_info.value)
+        assert "origin/" in message, (
+            "SHA rejection must document the explicit 'origin/<name>' "
+            "escape hatch, so a user with a legitimately hex-named "
+            f"branch can bypass the bare-SHA check; got: {message!r}"
+        )
+
+    def test_t48b_non_sha_hex_adjacent_names_still_work(self) -> None:
+        """Branch names that are 'mostly hex' but not entirely hex pass.
+
+        Regression lock for the regex boundary: the SHA regex is
+        ``^[0-9a-fA-F]{7,40}$`` — anchored on both ends. A branch
+        named ``feat-abc123`` contains hex but is not entirely hex
+        (because of the ``feat-`` prefix), so it must pass. Similarly
+        ``123-feature`` mixes digits and letters outside the hex set.
+        """
+        assert gate._normalize_base_ref("feat-abc123") == "origin/feat-abc123"
+        assert gate._normalize_base_ref("123-feature") == "origin/123-feature"
+        # Six hex chars (below the 7-char SHA minimum) — branch, not SHA.
+        assert gate._normalize_base_ref("abcdef") == "origin/abcdef"
+        # 41 hex chars (above the 40-char SHA maximum) — also not a SHA.
+        assert gate._normalize_base_ref("a" * 41) == f"origin/{'a' * 41}"
