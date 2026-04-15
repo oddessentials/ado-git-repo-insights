@@ -125,7 +125,7 @@
     },
     {
       "file": "scripts/check_ratchet_bump.py",
-      "line": 364,
+      "line": 389,
       "code": "result = subprocess.run(",
       "shell_true": false,
       "literal_list": true,
@@ -133,7 +133,7 @@
     },
     {
       "file": "scripts/check_ratchet_bump.py",
-      "line": 504,
+      "line": 529,
       "code": "return subprocess.run(",
       "shell_true": false,
       "literal_list": true,

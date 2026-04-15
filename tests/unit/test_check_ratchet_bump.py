@@ -408,7 +408,25 @@ def test_t5_realignment_marker_exempts(
     assert exit_code == gate.EXIT_OK
     out = capsys.readouterr().out
     assert "[ratchet-realignment]" in out
-    assert "exempted" in out
+    # The success message must positively prove that parity was
+    # evaluated before the equality exemption fired. "parity checked,
+    # equality exempted" is the exact contract that closes the
+    # short-circuit hole — a bare "exempted" keyword used to match
+    # even when run_gate short-circuited before parsing the sources
+    # at all. Keep both assertions so a regression is unambiguous.
+    assert "parity checked" in out, (
+        "Realignment marker success message must say 'parity checked' "
+        "to prove inter-file parity was actually evaluated before the "
+        "equality exemption fired. This is the regression lock for the "
+        "original marker short-circuit hole where run_gate returned "
+        "EXIT_OK without ever parsing run_pr_preflight.py or ci.yml."
+    )
+    assert "equality exempted" in out
+    assert "Parity:" in out, (
+        "Success message must include the 'Parity:' summary line "
+        "describing which two files were checked, matching the clean "
+        "aligned-path output."
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -438,7 +456,18 @@ def test_t6_test_removal_marker_exempts(
         monkeypatch=monkeypatch,
     )
     assert exit_code == gate.EXIT_OK
-    assert "[ratchet-test-removal]" in capsys.readouterr().out
+    out = capsys.readouterr().out
+    assert "[ratchet-test-removal]" in out
+    # Symmetric lock with T5 — the test-removal marker success path
+    # must also positively prove that parity was evaluated before the
+    # equality exemption fired.
+    assert "parity checked" in out, (
+        "Test-removal marker success message must say 'parity checked' "
+        "to prove inter-file parity was actually evaluated before the "
+        "equality exemption fired."
+    )
+    assert "equality exempted" in out
+    assert "Parity:" in out
 
 
 # ---------------------------------------------------------------------------
@@ -1253,4 +1282,257 @@ def test_t25_drift_bypass_hint_points_at_commit_subject(
         "Drift remediation hint must reference `git log --oneline` "
         "so users can self-verify the subject-only scan contract; "
         f"got: {stderr!r}"
+    )
+
+
+# ---------------------------------------------------------------------------
+# T26 — [ratchet-realignment] marker + Python inter-file parity drift → exit 1
+#
+# Regression lock for the original v1 short-circuit hole: run_gate used to
+# return EXIT_OK as soon as a bypass marker was detected, before ever parsing
+# run_pr_preflight.py or ci.yml. A realignment PR that updated only one
+# authoritative site was silently accepted even though the two sites
+# disagreed — exactly the regression #280 was filed to prevent. The fix
+# moves parity validation in front of the marker exemption, and this test
+# locks the new behavior so the hole cannot reopen.
+# ---------------------------------------------------------------------------
+
+
+def test_t26_realignment_marker_does_not_waive_python_parity(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """A [ratchet-realignment] marker must NOT waive inter-file parity.
+
+    Preflight says python_floor=100 but ci.yml says python_floor=101. Both
+    sites match on the extension dimension and the actual count lines up
+    with the preflight floor, so equality drift is clean. Only the parity
+    check fails. The marker in the commit log must NOT rescue this — the
+    gate must still exit DRIFT and must explicitly print that the marker
+    was ignored for parity.
+    """
+    responses: dict[tuple[str, ...], _FakeCompleted] = {
+        ("log", "--oneline", "origin/main..HEAD"): _FakeCompleted(
+            returncode=0,
+            stdout="abc1234 chore: [ratchet-realignment] realign python floor\n",
+        ),
+        ("rev-list", "--count", "origin/main..HEAD"): _FakeCompleted(
+            returncode=0, stdout="1\n"
+        ),
+    }
+    exit_code, _ = _run_gate(
+        tmp_path,
+        python_floor=100,
+        ext_floor=200,
+        python_actual=100,
+        ext_actual=200,
+        ci_python_floor=101,  # Parity violation only; equality clean
+        git_responses=responses,
+        monkeypatch=monkeypatch,
+    )
+    assert exit_code == gate.EXIT_DRIFT, (
+        "Marker must not waive inter-file parity; parity-only drift with "
+        "a marker present must still exit DRIFT."
+    )
+    stderr = capsys.readouterr().err
+    assert "Inter-file parity violation" in stderr
+    assert "Python floor mismatch" in stderr
+    # The user-facing message must explain that the marker was
+    # deliberately ignored for this check — silently suppressing it
+    # would be surprising to someone who added the marker in good
+    # faith, and the message documents the invariant.
+    assert "[ratchet-realignment]" in stderr, (
+        "Stderr must name the marker that was present so the user "
+        "sees why the gate flagged this despite the exemption attempt."
+    )
+    assert "ignored for inter-file parity" in stderr, (
+        "Stderr must explicitly say the marker was 'ignored for "
+        "inter-file parity', documenting that bypass markers only "
+        "waive actual-vs-floor equality drift."
+    )
+
+
+# ---------------------------------------------------------------------------
+# T27 — [ratchet-realignment] marker + Extension inter-file parity drift → exit 1
+# ---------------------------------------------------------------------------
+
+
+def test_t27_realignment_marker_does_not_waive_extension_parity(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """Same hole as T26, exercised on the extension dimension.
+
+    Separate T-case because run_gate has two independent parity checks
+    (Python and Extension) and a single-dimension regression could
+    hide in either branch. Locking both dimensions explicitly keeps
+    them symmetric.
+    """
+    responses: dict[tuple[str, ...], _FakeCompleted] = {
+        ("log", "--oneline", "origin/main..HEAD"): _FakeCompleted(
+            returncode=0,
+            stdout="bcd2345 chore: [ratchet-realignment] realign extension floor\n",
+        ),
+        ("rev-list", "--count", "origin/main..HEAD"): _FakeCompleted(
+            returncode=0, stdout="1\n"
+        ),
+    }
+    exit_code, _ = _run_gate(
+        tmp_path,
+        python_floor=100,
+        ext_floor=200,
+        python_actual=100,
+        ext_actual=200,
+        ci_ext_floor=201,  # Parity violation only; equality clean
+        git_responses=responses,
+        monkeypatch=monkeypatch,
+    )
+    assert exit_code == gate.EXIT_DRIFT
+    stderr = capsys.readouterr().err
+    assert "Inter-file parity violation" in stderr
+    assert "Extension floor mismatch" in stderr
+    assert "[ratchet-realignment]" in stderr
+    assert "ignored for inter-file parity" in stderr
+
+
+# ---------------------------------------------------------------------------
+# T28 — [ratchet-test-removal] marker + inter-file parity drift → exit 1
+#
+# Symmetry lock: the two bypass markers behave identically on the parity
+# axis. A future refactor that accidentally carves out a special case for
+# one marker but not the other would break this test.
+# ---------------------------------------------------------------------------
+
+
+def test_t28_test_removal_marker_does_not_waive_parity(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    responses: dict[tuple[str, ...], _FakeCompleted] = {
+        ("log", "--oneline", "origin/main..HEAD"): _FakeCompleted(
+            returncode=0,
+            stdout="cde3456 test: [ratchet-test-removal] retire legacy suite\n",
+        ),
+        ("rev-list", "--count", "origin/main..HEAD"): _FakeCompleted(
+            returncode=0, stdout="1\n"
+        ),
+    }
+    exit_code, _ = _run_gate(
+        tmp_path,
+        python_floor=100,
+        ext_floor=200,
+        python_actual=100,
+        ext_actual=200,
+        ci_python_floor=99,  # Parity violation only; equality clean
+        git_responses=responses,
+        monkeypatch=monkeypatch,
+    )
+    assert exit_code == gate.EXIT_DRIFT, (
+        "The test-removal marker must behave symmetrically with the "
+        "realignment marker: neither waives inter-file parity."
+    )
+    stderr = capsys.readouterr().err
+    assert "Inter-file parity violation" in stderr
+    assert "[ratchet-test-removal]" in stderr
+    assert "ignored for inter-file parity" in stderr
+
+
+# ---------------------------------------------------------------------------
+# T29 — bypass marker present + malformed ci.yml → exit 2 (setup error)
+#
+# Regression lock for the "parse validation not exempted" half of the
+# original short-circuit hole. If a realignment PR corrupts ci.yml — by
+# deleting the jobs key, renaming a step, or otherwise breaking the YAML
+# navigation the gate depends on — that must surface as a SETUP error
+# regardless of the marker. Silently accepting an unparseable ci.yml
+# would defeat the entire point of the gate, because subsequent CI
+# runs on main would fail with no record of what changed.
+# ---------------------------------------------------------------------------
+
+
+def test_t29_marker_does_not_exempt_malformed_ci_yaml(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    preflight = _write_preflight(tmp_path, python_floor=100, ext_floor=200)
+    # Malformed ci.yml — missing the `jobs` key entirely. T16 already
+    # locks this as a function-level parse error; T29 locks the
+    # end-to-end run_gate contract that a marker does NOT rescue it.
+    ci_path = tmp_path / "ci.yml"
+    ci_path.write_text(
+        "name: CI\non: [push]\n# Missing 'jobs' section entirely\n",
+        encoding="utf-8",
+    )
+    junit = _write_extension_junit(tmp_path, count=200)
+
+    responses = _default_git_responses()
+    responses[("log", "--oneline", "origin/main..HEAD")] = _FakeCompleted(
+        returncode=0,
+        stdout="def4567 chore: [ratchet-realignment] move floors\n",
+    )
+    recorder = _GitFakeRecorder(
+        git_responses=responses,
+        pytest_collected=100,
+    )
+    _install_recorder(monkeypatch, recorder)
+
+    exit_code = gate.run_gate(
+        preflight_path=preflight,
+        ci_workflow_path=ci_path,
+        junit_extension_path=junit,
+        base_ref="origin/main",
+    )
+    assert exit_code == gate.EXIT_SETUP, (
+        "A bypass marker must NOT exempt parse failures. An unparseable "
+        "ci.yml in a realignment commit is still a setup error — the "
+        "gate cannot produce a verdict when it cannot read the "
+        "authoritative sources."
+    )
+    stderr = capsys.readouterr().err
+    assert "[SETUP]" in stderr
+    assert "missing or malformed 'jobs'" in stderr
+
+
+# ---------------------------------------------------------------------------
+# T30 — no marker + both parity and equality drift → exit 1 with both categories
+#
+# Regression lock for the DriftReport bucket split. Without this test a
+# future refactor could collapse parity and equality back into a single
+# list and silently lose one bucket; T30 ensures both categories appear
+# in the reported stderr when both fail at once.
+# ---------------------------------------------------------------------------
+
+
+def test_t30_simultaneous_parity_and_equality_drift_reports_both(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    exit_code, _ = _run_gate(
+        tmp_path,
+        python_floor=100,
+        ext_floor=200,
+        python_actual=105,  # Python equality drift (+5)
+        ext_actual=200,
+        ci_python_floor=101,  # AND Python parity drift (preflight=100, ci=101)
+        monkeypatch=monkeypatch,
+    )
+    assert exit_code == gate.EXIT_DRIFT
+    stderr = capsys.readouterr().err
+    # Parity is reported even when equality also drifts — the gate
+    # surfaces the first bucket (parity) with its own message set
+    # because parity failure is unconditional and equality
+    # exemption-eligible; they should not bleed together.
+    assert "Inter-file parity violation" in stderr, (
+        "Parity violation must be surfaced even when equality also "
+        "drifts in the same run — the DriftReport split must keep "
+        "both categories visible to the user."
+    )
+    assert "Python floor mismatch" in stderr
+    # When parity fails, the gate exits immediately on parity — this
+    # is deliberate: a broken parity configuration makes any equality
+    # comparison meaningless, so the parity bucket wins priority.
+    # The equality messages are NOT printed in that case; locking
+    # that behavior here prevents a future refactor from accidentally
+    # printing both buckets and confusing the user about which one
+    # actually blocked the commit.
+    assert "ratchet drift" not in stderr, (
+        "When parity fails, the equality bucket must NOT be printed "
+        "— parity wins priority because a broken parity configuration "
+        "makes the equality comparison semantically meaningless. "
+        f"Current stderr: {stderr!r}"
     )

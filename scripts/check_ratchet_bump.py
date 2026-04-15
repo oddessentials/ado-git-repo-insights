@@ -141,6 +141,31 @@ class ActualCounts:
     extension: int
 
 
+@dataclass(frozen=True)
+class DriftReport:
+    """Structured drift analysis split into two independent buckets.
+
+    ``parity`` — inter-file drift between the two authoritative sites
+    (run_pr_preflight.py vs ci.yml). This bucket is **never** waived
+    by a bypass marker: a realignment or test-removal commit that
+    updates only one site is exactly the regression issue #280 exists
+    to catch, and silently accepting it would reopen that hole.
+
+    ``equality`` — ``actual != floor`` drift on either language. This
+    bucket **is** waived by ``[ratchet-realignment]`` or
+    ``[ratchet-test-removal]`` markers in a commit SUBJECT line in
+    ``base..HEAD``. A realignment legitimately moves the floor past
+    current actual; a test-removal legitimately drops it below.
+
+    Each bucket is a tuple of human-readable messages; empty tuple
+    means "clean on this dimension". The split is load-bearing — see
+    ``run_gate`` for how the two buckets drive exit code selection.
+    """
+
+    parity: tuple[str, ...]
+    equality: tuple[str, ...]
+
+
 # ---------------------------------------------------------------------------
 # Preflight floor parsing (AST — no module execution, no side effects)
 # ---------------------------------------------------------------------------
@@ -619,29 +644,40 @@ def scan_bypass_marker(base_ref: str) -> str | None:
 # ---------------------------------------------------------------------------
 
 
-def drift_messages(
+def compute_drift_report(
     *,
     preflight: FloorReadings,
     ci: FloorReadings,
     actual: ActualCounts,
     preflight_path: Path,
     ci_path: Path,
-) -> list[str]:
-    """Return zero or more drift messages. Empty list means the gate passes.
+) -> DriftReport:
+    """Categorize drift into the parity bucket and the equality bucket.
 
-    Two drift categories are checked:
+    Two drift categories are checked and returned as separate tuples so
+    ``run_gate`` can apply the marker exemption selectively:
 
-    1. Inter-file parity — the two authoritative sites must agree exactly.
-       This is the self-contained parity assertion that makes the gate
-       independent of the external ``TestTestCountRatchetParity`` test.
-    2. Strict equality — ``actual == floor`` on both sides. A positive
-       delta means tests were added without a floor bump; a negative
-       delta means tests were removed without a floor decrease.
+    1. **Parity** — inter-file drift between the two authoritative
+       sites. Every marker-bearing PR must still keep
+       ``run_pr_preflight.py`` and ``.github/workflows/ci.yml`` in
+       lockstep, because a realignment commit that edits only one site
+       is the exact regression this gate exists to catch.
+    2. **Equality** — ``actual != floor`` drift on either language. A
+       positive delta means tests were added without a floor bump; a
+       negative delta means tests were removed without a floor
+       decrease. Marker-bearing PRs are allowed to produce this kind
+       of drift in a controlled way — see ``run_gate`` for the
+       exemption logic.
+
+    The caller is responsible for printing messages and selecting an
+    exit code. This function is pure: same inputs, same
+    :class:`DriftReport`, no I/O.
     """
-    messages: list[str] = []
+    parity: list[str] = []
+    equality: list[str] = []
 
     if preflight.python != ci.python:
-        messages.append(
+        parity.append(
             "Inter-file parity violation — Python floor mismatch:\n"
             f"  {preflight_path}: {_MIN_COLLECTED_FLAG}={preflight.python}\n"
             f"  {ci_path}: {_MIN_COLLECTED_FLAG}={ci.python}\n"
@@ -649,7 +685,7 @@ def drift_messages(
             "same commit."
         )
     if preflight.extension != ci.extension:
-        messages.append(
+        parity.append(
             "Inter-file parity violation — Extension floor mismatch:\n"
             f"  {preflight_path}: {_MIN_COLLECTED_FLAG}={preflight.extension}\n"
             f"  {ci_path}: {_MIN_COLLECTED_FLAG}={ci.extension}\n"
@@ -658,7 +694,7 @@ def drift_messages(
         )
 
     if actual.python != preflight.python:
-        messages.append(
+        equality.append(
             f"Python ratchet drift: actual={actual.python}, "
             f"floor={preflight.python}.\n"
             f"  Delta: {actual.python - preflight.python:+d}\n"
@@ -667,7 +703,7 @@ def drift_messages(
             f"    {ci_path}"
         )
     if actual.extension != preflight.extension:
-        messages.append(
+        equality.append(
             f"Extension ratchet drift: actual={actual.extension}, "
             f"floor={preflight.extension}.\n"
             f"  Delta: {actual.extension - preflight.extension:+d}\n"
@@ -675,7 +711,7 @@ def drift_messages(
             f"    {preflight_path}\n"
             f"    {ci_path}"
         )
-    return messages
+    return DriftReport(parity=tuple(parity), equality=tuple(equality))
 
 
 # ---------------------------------------------------------------------------
@@ -690,24 +726,41 @@ def run_gate(
     junit_extension_path: Path,
     base_ref: str,
 ) -> int:
+    """Orchestrate the gate with marker-aware exemption discipline.
+
+    Control-flow invariants enforced by this function:
+
+    * Shallow-clone / base-ref reachability is validated first. Failure
+      is a SETUP error regardless of any marker.
+    * The bypass marker is scanned and captured, but **not** acted on
+      immediately. The gate never short-circuits on marker alone: both
+      ``run_pr_preflight.py`` and ``.github/workflows/ci.yml`` must
+      still be parseable, and their floors must still agree with each
+      other. A realignment PR that breaks the parser input or updates
+      only one authoritative site is exactly the regression #280 exists
+      to catch, and the original v1 control flow silently accepted
+      both of those failure modes when any marker was present.
+    * Parse / measurement failures exit SETUP regardless of marker.
+    * Inter-file parity (``preflight vs ci``) failures exit DRIFT
+      regardless of marker. A note is printed when a marker was present
+      so users do not think the marker was silently lost.
+    * Actual-vs-floor equality failures exit DRIFT **unless** a marker
+      is present — that is the only dimension the marker waives.
+    """
     try:
         ensure_base_ref_reachable(base_ref)
     except RatchetSetupError as exc:
         print(f"[SETUP] {exc}", file=sys.stderr)
         return EXIT_SETUP
 
+    # Capture the marker now; actioning it happens only on the
+    # equality-drift branch below. Do NOT return early on marker
+    # presence — parse validation and inter-file parity must still run.
     try:
         marker = scan_bypass_marker(base_ref)
     except RatchetSetupError as exc:
         print(f"[SETUP] {exc}", file=sys.stderr)
         return EXIT_SETUP
-
-    if marker is not None:
-        print(
-            f"[OK] Ratchet bump guard exempted via {marker} in commit log "
-            f"range {base_ref}..HEAD."
-        )
-        return EXIT_OK
 
     try:
         preflight_floors = read_preflight_floors(preflight_path)
@@ -720,7 +773,7 @@ def run_gate(
 
     actual = ActualCounts(python=python_actual, extension=extension_actual)
 
-    messages = drift_messages(
+    report = compute_drift_report(
         preflight=preflight_floors,
         ci=ci_floors,
         actual=actual,
@@ -728,14 +781,47 @@ def run_gate(
         ci_path=ci_workflow_path,
     )
 
-    if messages:
-        for msg in messages:
+    # Parity is unconditional. Bypass markers have no authority to
+    # waive inter-file agreement — a realignment that only touches one
+    # site is exactly the hole this gate is meant to close.
+    if report.parity:
+        for msg in report.parity:
+            print(f"[DRIFT] {msg}", file=sys.stderr)
+        if marker is not None:
+            print(
+                f"[DRIFT] {marker} is present in {base_ref}..HEAD but "
+                "is ignored for inter-file parity checks — bypass "
+                f"markers ({REALIGNMENT_MARKER} / "
+                f"{TEST_REMOVAL_MARKER}) waive actual-vs-floor "
+                "equality only. Update both authoritative sites to "
+                "the same value in the same commit.",
+                file=sys.stderr,
+            )
+        return EXIT_DRIFT
+
+    # Equality drift is exempted when a marker is present. The
+    # exemption runs only after parity has been verified clean above,
+    # so the success path can positively report that parity was
+    # evaluated — "parity checked, equality exempted" is the contract.
+    if report.equality:
+        if marker is not None:
+            print(
+                "[OK] Ratchet bump guard: parity checked, equality "
+                f"exempted via {marker} in commit log range "
+                f"{base_ref}..HEAD.\n"
+                f"  Parity:    {preflight_path.name} == "
+                f"{ci_workflow_path.name} on both dimensions."
+            )
+            return EXIT_OK
+        for msg in report.equality:
             print(f"[DRIFT] {msg}", file=sys.stderr)
         print(
             f"[DRIFT] Bypass with {REALIGNMENT_MARKER} or "
             f"{TEST_REMOVAL_MARKER} in a commit SUBJECT line in "
             f"{base_ref}..HEAD (scanned via `git log --oneline`; "
-            "markers in commit bodies are NOT honored).",
+            "markers in commit bodies are NOT honored). The marker "
+            "waives actual-vs-floor equality only; inter-file parity "
+            "and parse validation continue to run unconditionally.",
             file=sys.stderr,
         )
         return EXIT_DRIFT

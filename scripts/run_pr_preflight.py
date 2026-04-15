@@ -361,7 +361,7 @@ def build_commands(
                 "__PYTHON__",
                 ".github/scripts/validate-test-results.py",
                 "test-results.xml",
-                "--min-collected=1718",
+                "--min-collected=1723",
                 "--max-skips=0",
             ),
         ),
