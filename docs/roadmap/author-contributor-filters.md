@@ -1,6 +1,7 @@
 # Author & Contributor Filter Implementation Status
 
-> Last reviewed: 2026-03-21
+> Status snapshot. For verification timing, see the git history of this file
+> rather than a duplicated date here.
 
 ## Summary
 

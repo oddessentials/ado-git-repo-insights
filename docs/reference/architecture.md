@@ -151,7 +151,7 @@ flowchart LR
 | **queryTimeRangeType=closed** | Use `closedDate` field for date filtering | ✅ **Date range filter** - Queries by when PR was closed |
 | **closedDate** | Timestamp when PR reached a terminal state (completed OR abandoned) | ✅ Used for date range and cycle time calculation |
 
-**Key Insight**: The API URL in `ado_client.py` line 245-252 uses:
+**Key Insight**: The API URL construction in `ado_client.py` uses:
 ```
 ?searchCriteria.status=completed
 &searchCriteria.queryTimeRangeType=closed
@@ -287,7 +287,7 @@ flowchart LR
     end
 
     subgraph Conditions["Publish Conditions"]
-        SUCCESS_ONLY["Only on success<br/>(Invariant 7)"]
+        SUCCESS_ONLY["Only on success<br/>(No publish-on-failure)"]
     end
 
     DOWNLOAD --> EXTRACT
@@ -296,6 +296,39 @@ flowchart LR
     SUCCESS_ONLY -->|Pass| PUBLISH
     SUCCESS_ONLY -->|Fail| ABORT["Abort - No Publish"]
 ```
+
+---
+
+## Consumer Entry Points
+
+Three consumers read the dataset produced by the pipeline. All three MUST
+conform to the [Dataset Contract](dataset-contract.md):
+
+| Consumer | Reads | Renders |
+|----------|-------|---------|
+| Extension UI | Dataset manifest + aggregates | Interactive dashboard inside Azure DevOps |
+| CLI dashboard | Dataset manifest + aggregates | Local web dashboard (`ado-insights dashboard`) |
+| PowerBI | CSV exports from the core contract | Custom reports and analytics |
+
+The extension UI surface lives in three layers. **Contributors edit only
+the first; the other two are generated mirrors that CI enforces.**
+
+| Layer | Path | Role | Who writes it |
+|-------|------|------|---------------|
+| Source | `extension/ui/` | TypeScript, static HTML, CSS | Contributors (hand-edited) |
+| Build output | `extension/dist/ui/` | Compiled JS + the static HTML/CSS copied from source | esbuild / build pipeline (via `pnpm run build:ui`) |
+| Packaged mirror | `src/ado_git_repo_insights/ui_bundle/` | Whole-directory mirror of `extension/dist/ui/` (allowed extensions only: `.js`, `.css`, `.html`) | `scripts/sync_ui_bundle.py` (default `--source extension/dist/ui`, `--bundle src/ado_git_repo_insights/ui_bundle`); logic in `src/ado_git_repo_insights/utils/ui_sync.py` |
+
+The demo surface under `docs/` is a **different flow**: `scripts/publish-demo-surface.py`
+pulls the shell content (e.g. `index.html`, `settings.html`) from `extension/ui/`
+and built asset files from `extension/dist/ui/`. It does not read from
+`src/ado_git_repo_insights/ui_bundle/`.
+
+**CI enforces the generated mirrors**, not direct source-file identity. Do
+not hand-edit `extension/dist/ui/` or `src/ado_git_repo_insights/ui_bundle/`
+-- they are regenerated on every build/sync and any manual edit is lost.
+See [Generated UI and Demo Artifacts](../../CONTRIBUTING.md#generated-ui-and-demo-artifacts)
+for the workflow.
 
 ---
 

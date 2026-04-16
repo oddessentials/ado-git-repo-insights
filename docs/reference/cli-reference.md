@@ -4,12 +4,63 @@ Complete reference for all `ado-insights` commands and options.
 
 ---
 
+## Authority
+
+`ado-insights <command> --help` is the authoritative source for flags and
+defaults. This reference is a curated overview; if it disagrees with `--help`,
+the CLI wins and this file is stale.
+
+---
+
 ## Global Options
 
-| Option | Description |
-|--------|-------------|
-| `--version` | Show version and exit |
-| `--help` | Show help message and exit |
+These flags apply to every subcommand but **must appear before the subcommand
+token**. They are registered on the top-level parser, so argparse consumes them
+before the subcommand is resolved; placing them after the subcommand fails
+with an argparse error.
+
+| Option | Default | Description |
+|--------|---------|-------------|
+| `--version` | — | Show version and exit |
+| `--help` | — | Show help message and exit |
+| `--log-format FORMAT` | `console` | `console` or `jsonl` |
+| `--artifacts-dir DIR` | `run_artifacts` | Output directory for logs/summary |
+
+**Correct:**
+
+```bash
+ado-insights --log-format jsonl extract --organization MyOrg --projects P1 --pat $PAT
+ado-insights --artifacts-dir ./out build-aggregates --db ./ado-insights.sqlite
+```
+
+**Incorrect (argparse error):**
+
+```bash
+ado-insights extract --log-format jsonl --organization MyOrg ...   # fails
+ado-insights build-aggregates --artifacts-dir ./out --db ...       # fails
+```
+
+---
+
+## Subcommand Flag Differences
+
+> `extract` and `stage-artifacts` use **different flag names** for the same
+> concepts. Do not mix them.
+
+| Concept | `extract` | `stage-artifacts` |
+|---------|-----------|-------------------|
+| Organization | `--organization` | `--org` |
+| Project | `--projects` (plural, comma-separated) | `--project` (singular) |
+| Output path | `--database` (default: `./ado-insights.sqlite`) | `--out` (default: `./run_artifacts`) |
+
+## PAT Scopes
+
+| Command | Required PAT Scope |
+|---------|-------------------|
+| `extract` | Code (Read) |
+| `stage-artifacts` | Build (Read) |
+| `build-aggregates` | None (local only) |
+| `dashboard` | None (local only) |
 
 ---
 
@@ -21,18 +72,18 @@ Extract Pull Request data from Azure DevOps.
 ado-insights extract [OPTIONS]
 ```
 
-### Required Options (one of)
+### Required Options
+
+`--pat` is always required. Provide either `--config` (a YAML file describing
+the org/projects) or `--organization` + `--projects`; runtime enforces the
+mutual exclusion.
 
 | Option | Description |
 |--------|-------------|
-| `--config FILE` | Path to YAML configuration file |
-| `--organization ORG` | Azure DevOps organization name |
-
-If using `--organization`, also required:
-| Option | Description |
-|--------|-------------|
-| `--projects PROJECTS` | Comma-separated project names |
 | `--pat PAT` | Personal Access Token with Code (Read) scope |
+| `--config FILE` | Path to YAML configuration file |
+| `--organization ORG` | Azure DevOps organization name (alternative to `--config`) |
+| `--projects PROJECTS` | Comma-separated project names (required when using `--organization`) |
 
 ### Optional Options
 
@@ -45,8 +96,12 @@ If using `--organization`, also required:
 | `--include-comments` | `false` | Extract PR discussion threads and comments into SQLite for auxiliary analytics outputs |
 | `--comments-max-prs-per-run N` | `100` | Cap how many PRs are scanned for comments in one extraction run |
 | `--comments-max-threads-per-pr N` | `50` | Cap how many discussion threads are fetched per PR |
-| `--log-format FORMAT` | `text` | `text` or `jsonl` |
-| `--artifacts-dir DIR` | `./run_artifacts` | Output directory for logs/summary |
+
+**When to use backfill:** Incremental extraction (the default) only fetches
+PRs closed since the last run. Late-arriving changes (review votes, state
+updates after initial close) can cause drift. `--backfill-days N` overrides
+incremental mode and re-fetches the last N days, UPSERTing over existing
+records to converge state.
 
 ### Examples
 
@@ -122,7 +177,12 @@ ado-insights generate-csv [OPTIONS]
 | Option | Description |
 |--------|-------------|
 | `--database FILE` | Path to SQLite database |
-| `--output DIR` | Output directory for CSV files |
+
+### Optional Options
+
+| Option | Default | Description |
+|--------|---------|-------------|
+| `--output DIR` | `csv_output` | Output directory for CSV files |
 
 ### Examples
 
@@ -154,6 +214,47 @@ These files are additive and are not part of the core PowerBI CSV contract.
 
 ---
 
+## generate-aggregates
+
+Generate the chunked JSON aggregates the dashboard UI reads. This is the
+pipeline command; `build-aggregates` below is a local convenience wrapper
+that calls the same code path.
+
+```bash
+ado-insights generate-aggregates [OPTIONS]
+```
+
+### Required Options
+
+| Option | Description |
+|--------|-------------|
+| `--database FILE` | Path to SQLite database |
+
+### Optional Options
+
+| Option | Default | Description |
+|--------|---------|-------------|
+| `--output DIR` | `aggregates_output` | Output directory for aggregate files |
+| `--run-id ID` | `""` | Pipeline run ID written into the dataset manifest |
+| `--enable-ml-stubs` | `false` | Generate stub predictions/insights; requires `ALLOW_ML_STUBS=1` in the environment |
+| `--seed-base STR` | `""` | Base string for deterministic stub seeding |
+| `--enable-predictions` | `false` | Enable Prophet-based trend forecasting (requires `prophet`) |
+| `--enable-insights` | `false` | Enable OpenAI-based insights (requires `openai` and `OPENAI_API_KEY`) |
+| `--insights-max-tokens N` | `1000` | Max tokens for the OpenAI insights response |
+| `--insights-cache-ttl-hours N` | `24` | Cache TTL for insights in hours |
+| `--insights-dry-run` | `false` | Produce the prompt artifact without calling OpenAI |
+
+### Examples
+
+```bash
+ado-insights generate-aggregates \
+  --database ./ado-insights.sqlite \
+  --output ./aggregates_output \
+  --run-id $BUILD_BUILDID
+```
+
+---
+
 ## build-aggregates
 
 Generate dashboard-compatible aggregate files.
@@ -167,14 +268,18 @@ ado-insights build-aggregates [OPTIONS]
 | Option | Description |
 |--------|-------------|
 | `--db FILE` | Path to SQLite database |
-| `--out DIR` | Output directory for aggregates |
 
 ### Optional Options
 
 | Option | Default | Description |
 |--------|---------|-------------|
-| `--enable-predictions` | `false` | Generate ML predictions |
-| `--enable-insights` | `false` | Generate AI insights (requires OpenAI API key) |
+| `--out DIR` | `dataset` | Output directory for aggregate files |
+| `--run-id ID` | `local` | Run identifier written into dataset manifest metadata |
+| `--enable-predictions` | `false` | Generate ML predictions (Prophet if installed, else NumPy regression) |
+| `--enable-insights` | `false` | Generate AI insights (requires `OPENAI_API_KEY`) |
+| `--insights-max-tokens N` | `1000` | Max tokens for the OpenAI insights response |
+| `--insights-cache-ttl-hours N` | `24` | Cache TTL for insights in hours |
+| `--insights-dry-run` | `false` | Produce the prompt artifact without calling OpenAI |
 | `--serve` | `false` | Start local dashboard server after building |
 | `--open` | `false` | Open browser automatically (requires `--serve`) |
 | `--port PORT` | `8080` | Local server port (requires `--serve`) |
@@ -333,16 +438,11 @@ Serve the PR Insights dashboard locally.
 ado-insights dashboard [OPTIONS]
 ```
 
-### Required Options
-
-| Option | Description |
-|--------|-------------|
-| `--dataset DIR` | Path to aggregates directory |
-
 ### Optional Options
 
 | Option | Default | Description |
 |--------|---------|-------------|
+| `--dataset DIR` | `./run_artifacts` | Path to aggregates directory |
 | `--port PORT` | `8080` | HTTP server port |
 | `--open` | `false` | Automatically open browser |
 
@@ -360,6 +460,59 @@ ado-insights dashboard --dataset ./dataset --port 3000 --open
 
 - The local dashboard provides the same visualizations as the ADO extension hub
 - "Download Raw Data (ZIP)" export is unavailable in local mode (no pipeline artifacts)
+
+---
+
+## setup-path
+
+Configure the shell `PATH` so `ado-insights` is callable after a `pip install`
+into a user site-packages directory. Not needed for `pipx` or `uv tool
+install`, which manage `PATH` themselves.
+
+```bash
+ado-insights setup-path [OPTIONS]
+```
+
+### Optional Options
+
+| Option | Default | Description |
+|--------|---------|-------------|
+| `--print-only` | `false` | Print the PATH command without modifying any shell config file |
+| `--remove` | `false` | Remove a previously added PATH configuration |
+
+### Examples
+
+```bash
+# Print the command that would be added (preview)
+ado-insights setup-path --print-only
+
+# Apply the PATH change to the current shell's config file
+ado-insights setup-path
+
+# Undo a previous setup
+ado-insights setup-path --remove
+```
+
+---
+
+## doctor
+
+Diagnose installation problems (multiple installations, broken `PATH`,
+mismatched Python interpreter, etc.). Takes no arguments.
+
+```bash
+ado-insights doctor
+```
+
+### Examples
+
+```bash
+# Run diagnostics
+ado-insights doctor
+```
+
+Use this when `ado-insights` behaves unexpectedly or when upgrading from
+a previous install method (pip → pipx/uv migration).
 
 ---
 
@@ -409,8 +562,7 @@ backfill:
 | Variable | Description |
 |----------|-------------|
 | `PYTHONLOGLEVEL` | Set to `DEBUG` for verbose logging |
-
----
+| `ALLOW_ML_STUBS` | Set to `1` to permit `generate-aggregates --enable-ml-stubs`; the flag errors out without it |
 
 ---
 
@@ -495,3 +647,4 @@ ado-insights build-aggregates --db data.db --out ./dataset --enable-insights
 - [CSV Schema](csv-schema.md) — Output file format details
 - [Troubleshooting](../user-guide/troubleshooting.md) — Common issues
 - [Enable ML Features](../internal/enable-ml-features.md) — Detailed ML setup guide
+- [Manual Testing Walkthrough](../internal/manual-walkthrough.md) — End-to-end CLI scenarios

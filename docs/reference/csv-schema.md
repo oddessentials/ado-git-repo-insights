@@ -6,7 +6,7 @@ PowerBI-compatible CSV output format specification.
 
 ## Overview
 
-The CSV output is a **hard contract** designed for PowerBI compatibility. Schema changes require explicit version bumps and migration plans (Invariant 2).
+The CSV output is a **hard contract** designed for PowerBI compatibility. Schema changes require explicit version bumps and migration plans (No breaking CSV changes without version bump — see `agents/INVARIANTS.md`).
 
 **Guarantees:**
 - Exact column names and order

@@ -210,7 +210,7 @@ ado-insights dashboard --dataset ./artifacts/demo-enterprise/data --open
 ```
 
 `docs/data/` is the published GitHub Pages mirror of the same canonical dataset.
-Use [DEMO-DATA-VERSIONING.md](E:/projects/ado-git-repo-insights/docs/DEMO-DATA-VERSIONING.md)
+Use [DEMO-DATA-VERSIONING.md](../DEMO-DATA-VERSIONING.md)
 for the generation and promotion policy.
 
 Dashboard options:

@@ -1,4 +1,4 @@
-# agents/victory-gate.md — ado-git-repo-insights
+# agents/victory-gates.md — ado-git-repo-insights
 
 This document defines the **Victory Gate** for ado-git-repo-insights.
 A phase is not complete until **every step below passes without manual intervention**.
@@ -25,7 +25,6 @@ source .venv/bin/activate
 pip install -e .[dev]
 ```
 
-````
 
 ### 1.2 Unit & Contract Tests
 
@@ -34,11 +33,12 @@ pip install -e .[dev]
 ruff check .
 ruff format --check .
 
-# Type checking (if enabled)
+# Type checking (mypy strict mode on src/; preflight extends scope
+# to tests/, scripts/, .github/scripts/ — see LOCAL_CI_PARITY_INVARIANTS.md Row 10)
 mypy src/
 
-# Unit tests
-pytest tests/unit
+# Unit tests (use the launcher for coverage-path safety on Windows)
+python scripts/run_pytest.py tests/unit
 ```
 
 **Gate:** All unit tests pass, no warnings, no skipped contract tests.
@@ -48,7 +48,7 @@ pytest tests/unit
 ### 1.3 Integration: SQLite → CSV Determinism
 
 ```bash
-pytest tests/integration/test_golden_outputs.py
+python scripts/run_pytest.py tests/integration/test_golden_outputs.py
 ```
 
 **Gate:**
@@ -61,7 +61,7 @@ pytest tests/integration/test_golden_outputs.py
 ### 1.4 Integration: Incremental Extraction
 
 ```bash
-pytest tests/integration/test_incremental_run.py
+python scripts/run_pytest.py tests/integration/test_incremental_run.py
 ```
 
 **Gate:**
@@ -75,7 +75,7 @@ pytest tests/integration/test_incremental_run.py
 ### 1.5 Integration: Backfill Convergence
 
 ```bash
-pytest tests/integration/test_backfill_convergence.py
+python scripts/run_pytest.py tests/integration/test_backfill_convergence.py
 ```
 
 **Gate:**
@@ -180,7 +180,7 @@ ado-insights generate-csv \
 
 ```bash
 cd extension
-tfx extension create --manifest-globs vss-extension.json
+pnpm run package:vsix
 ```
 
 **Gate:**
@@ -274,4 +274,3 @@ If a gate fails:
 - **Invariants:** agents/INVARIANTS.md
 - **Completion Criteria:** agents/definition-of-done.md
 - **Final Verification:** this document
-````

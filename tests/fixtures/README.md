@@ -2,15 +2,13 @@
 
 This directory contains test fixtures for ado-git-repo-insights.
 
-## Golden Fixtures (DoD 1.3)
+## Directory Contents
 
-- `golden_db.sqlite` - Reference SQLite database with known data
-- `expected_*.csv` - Expected CSV outputs for the golden database
-
-## Sample Data
-
-- `sample_pr_response.json` - Sample ADO API response for mocking
-- `sample_config.yaml` - Sample configuration for testing
+| Path | Purpose |
+|------|---------|
+| `golden/` | Golden reference data for regression tests (e.g., `constant-series-forecast.json`) |
+| `nested_artifacts/` | Fixtures simulating nested artifact layouts for staging normalization tests |
+| `staged_artifacts/` | Fixtures simulating staged pipeline artifacts (manifest + aggregates) |
 
 ## Usage
 
@@ -18,5 +16,10 @@ This directory contains test fixtures for ado-git-repo-insights.
 from pathlib import Path
 
 FIXTURES_DIR = Path(__file__).parent
-GOLDEN_DB = FIXTURES_DIR / "golden_db.sqlite"
 ```
+
+## Notes
+
+Golden output tests (`tests/integration/test_golden_outputs.py`) use **dynamic fixtures** --
+they create temporary SQLite databases and generate CSVs at test time rather than
+comparing against pre-baked files on disk.

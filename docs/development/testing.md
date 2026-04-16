@@ -18,8 +18,9 @@ tests/
 │   ├── test_incremental_run.py
 │   └── ...
 └── fixtures/              # Test data
-    ├── golden_db.sqlite   # Golden database for regression
-    ├── expected/          # Expected output files
+    ├── golden/            # Golden reference data
+    ├── nested_artifacts/  # Staging normalization fixtures
+    ├── staged_artifacts/  # Pipeline artifact fixtures
     └── README.md          # Fixtures documentation
 ```
 
@@ -96,22 +97,9 @@ CI guards that prevent documentation from going stale.
 ## Golden Tests
 
 The `test_golden_outputs.py` tests verify CSV output against known-good baselines.
-
-**Golden fixtures:**
-- `tests/fixtures/golden_db.sqlite` — Reference database
-- `tests/fixtures/expected/*.csv` — Expected CSV output
-
-**Updating golden fixtures:**
-
-```bash
-# Regenerate expected outputs
-pytest tests/integration/test_golden_outputs.py --golden-update
-
-# Or manually:
-ado-insights generate-csv \
-  --database tests/fixtures/golden_db.sqlite \
-  --output tests/fixtures/expected
-```
+Golden tests use **dynamic fixtures** — they create temporary SQLite databases and
+generate CSVs at test time, then validate schema, determinism, and column contracts
+without pre-baked reference files on disk.
 
 ---
 
@@ -148,9 +136,14 @@ jest.mock('azure-devops-extension-sdk', () => ({
 
 ### Python CI Matrix
 
-Tests run across:
-- 3 operating systems (Ubuntu, Windows, macOS)
-- 3 Python versions (3.12, 3.13, 3.14)
+Tests run across the full OS x Python version matrix defined in
+[`.github/workflows/ci.yml`](/.github/workflows/ci.yml). The
+`requires-python` floor in `pyproject.toml` defines packaging
+compatibility; CI validates a specific subset of that range.
+
+The test count floor is defined in
+[`.test-floor-contract.json`](/.test-floor-contract.json) — both pre-push
+hooks and CI read this file to enforce minimum test collection counts.
 
 ### Local CI Parity
 
@@ -188,6 +181,29 @@ Requirements:
 For the current machine, treat a missing interpreter as a blocker rather than a
 warning if you need CI-grade confidence before pushing.
 
+### Gate Hierarchy
+
+Three escalating gate scopes run between your editor and CI:
+
+| Gate | Trigger | Scope | What it runs |
+|------|---------|-------|--------------|
+| Pre-commit | `git commit` | **Staged files only** | Hooks declared with `stages: [pre-commit]` in [`.pre-commit-config.yaml`](/.pre-commit-config.yaml), plus the pre-commit branch of [`scripts/run_repo_hook.py`](/scripts/run_repo_hook.py) |
+| Pre-push | `git push` | **All files (full worktree)** | Hooks declared with `stages: [pre-push]` run on all files, plus the pre-push-only guards in `scripts/run_repo_hook.py` (see `run_pre_push_hook`); **preflight is invoked within the same pre-push run** before the push completes |
+| Preflight | Embedded inside pre-push, or standalone via `python scripts/run_pr_preflight.py` | **Full worktree** | Authoritative CI-parity gate (see [`scripts/run_pr_preflight.py`](/scripts/run_pr_preflight.py) docstring for the current gate list) |
+
+**Stages are distinct.** Pre-commit and pre-push use separate `stages` entries
+in `.pre-commit-config.yaml` — not all hooks run at both stages. Some auto-fix
+hooks run only on commit; some stricter checks run only on push. A small set
+of framework-provided hooks intentionally registers for **both** stages
+(e.g. `detect-private-key`, `check-added-large-files`, `check-merge-conflict`,
+`env-guard`, `tool-version-parity`) so they fire regardless of which invocation
+triggered; `.pre-commit-config.yaml` is authoritative for the current list.
+If a push fails when the commit passed, that's a pre-push-only hook catching
+something staged-only checks intentionally skip. Treat `.pre-commit-config.yaml`
+**and** `scripts/run_repo_hook.py` as co-authoritative: the YAML declares which
+hooks run at each stage; the Python script orchestrates the stage-specific
+custom guards that aren't expressible as plain pre-commit hooks.
+
 ### Local PR Preflight
 
 Before any push that is expected to keep an open PR green, run the repo-owned
@@ -197,17 +213,11 @@ preflight:
 python scripts/run_pr_preflight.py
 ```
 
-What it verifies:
-- `mypy src/ tests/ scripts/ .github/scripts/`
-- `tests/demo/` with `--no-cov` so demo dashboard validation is exercised
-- full Python suite with coverage
-- extension `build:check`
-- extension production lint for `ui/`, `scripts/`, and `tasks/_shared/`
-- extension UI build
-- managed generated artifact parity
-- extension type tests
-- extension Jest CI
-- extension smoke tests
+What it verifies: the full set of CI-parity gates — lint/type/test/build/parity
+checks across Python and the VS Code extension — as declared in the
+`CommandSpec` list inside [`scripts/run_pr_preflight.py`](/scripts/run_pr_preflight.py).
+Treat that script as the source for the current gate inventory; this document
+intentionally does not enumerate the list to avoid drift.
 
 Why this exists:
 - it uses stable temp/cache/coverage paths under the OS temp directory
@@ -238,14 +248,26 @@ Recommended workflow:
 
 All PRs must pass:
 
-| Check | Purpose |
-|-------|---------|
-| Secret scanning (gitleaks) | No secrets in code |
-| Line ending checks | No CRLF in Unix files |
-| UI bundle sync | Dashboard files synchronized |
-| Python tests | Full test suite |
-| Extension tests | Jest test suite |
-| Pre-commit hooks | Ruff linting/formatting |
+CI runs each gate as a **separate job** (not as a single "pre-commit" step).
+The authoritative list lives in
+[`.github/workflows/ci.yml`](/.github/workflows/ci.yml); this section points
+at categories, not an enumerated job list.
+
+| Category | What it covers |
+|----------|----------------|
+| Security scanning | e.g. gitleaks |
+| Repository policy gates | line endings, pnpm lockfile, UI bundle parity, invariant guards, version guards, commitlint, etc. |
+| Python tests | full OS/Python matrix declared in the workflow |
+| Extension tests | Jest, type-tests, smoke |
+| Lint/format/suppression audits | one CI step invokes `pre-commit run --all-files` alongside standalone jobs |
+| Release packaging checks | VSIX, Python package build |
+
+To reproduce a specific CI failure locally, consult the failing job's steps
+in the workflow -- some map to `pre-commit run --all-files --hook-stage
+pre-push`, others to `python scripts/run_repo_hook.py pre-push`, and the
+authoritative full check is `python scripts/run_pr_preflight.py`. See
+[`LOCAL_CI_PARITY_INVARIANTS.md`](/LOCAL_CI_PARITY_INVARIANTS.md) for the
+gate-by-gate parity contract.
 
 ---
 
@@ -255,9 +277,15 @@ All PRs must pass:
 
 **Check coverage:**
 ```bash
-pytest --cov=src --cov-report=html
+python scripts/run_pytest.py --cov=src --cov-report=html
 open htmlcov/index.html
 ```
+(The launcher accepts arbitrary pytest args and forwards them to pytest,
+while adding launcher-managed coverage settings when needed — e.g. a
+per-run `COVERAGE_FILE` under the OS temp directory and
+`--cov-fail-under=0` for subset runs like `-k`, `-m`, `--lf`, or an
+explicit test path. Full-suite runs, preflight, and CI still enforce the
+real coverage floor.)
 
 ---
 
@@ -282,7 +310,7 @@ Many tests verify system invariants:
 
 ```python
 def test_pat_not_logged(caplog):
-    """Invariant 19: PAT is never logged."""
+    """PATs must never be logged (see agents/INVARIANTS.md)."""
     # ... test implementation
 ```
 
@@ -292,13 +320,16 @@ Reference `agents/INVARIANTS.md` for the full list.
 
 ## Fixtures
 
-### Test Database
+### Golden Test Data
 
-`tests/fixtures/golden_db.sqlite` contains sample data for testing.
+Golden output tests use dynamic fixtures -- temporary SQLite databases are created
+and populated at test time. See `tests/fixtures/golden/` for reference data such as
+constant-series forecasts.
 
-### Expected Outputs
+### Staging Fixtures
 
-`tests/fixtures/expected/` contains expected CSV outputs.
+`tests/fixtures/nested_artifacts/` and `tests/fixtures/staged_artifacts/` contain
+artifact layout fixtures for staging normalization and pipeline artifact loading tests.
 
 ### Legacy Datasets
 

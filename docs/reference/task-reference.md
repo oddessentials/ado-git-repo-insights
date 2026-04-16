@@ -226,7 +226,7 @@ stages:
 On failure:
 - Task returns non-zero exit code
 - Pipeline is marked failed
-- No artifacts are published (Invariant 7)
+- No artifacts are published (No publish-on-failure; see `agents/INVARIANTS.md`)
 - `##vso[task.logissue type=error]` is emitted
 
 ---

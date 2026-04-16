@@ -1,4 +1,3 @@
-```md
 # agents/definition-of-done.md — ado-git-repo-insights
 
 This document defines the Definition of Done (DoD) for ado-git-repo-insights.
@@ -26,12 +25,13 @@ Work is not “done” until the checks below are implemented, automated where p
 
 **Evidence:** `tests/unit/test_csv_determinism.py` + artifact hash comparison.
 
-### 1.3 “Golden Fixture” Compatibility (Manual Once + Automated Thereafter)
+### 1.3 Golden Output Verification (Automated)
 
-- ✅ Maintain a small golden SQLite fixture and the exact expected CSV outputs.
-- ✅ CI verifies that generating CSVs from the fixture matches expected outputs.
+- ✅ Golden tests generate a temporary SQLite database with known data at test time.
+- ✅ CSVs are produced from that database and validated for schema compliance, deterministic output, column ordering, and stable formatting.
+- ✅ CI verifies these properties on every run without relying on committed fixture files.
 
-**Evidence:** `tests/fixtures/golden_db.sqlite` + expected CSV files + `tests/integration/test_golden_outputs.py`.
+**Evidence:** `tests/integration/test_golden_outputs.py` (dynamic fixtures).
 
 ---
 
@@ -130,7 +130,7 @@ Work is not “done” until the checks below are implemented, automated where p
   - counts extracted
   - artifact paths used
 
-**Evidence:** documented pipeline run steps + screenshot/log excerpt in `docs/runbook.md`.
+**Evidence:** documented pipeline run steps + screenshot/log excerpt in `docs/operations/runbook.md`.
 
 ### 5.2 Secrets Never Logged (CI Required)
 
@@ -146,7 +146,7 @@ Work is not “done” until the checks below are implemented, automated where p
 ### 6.1 CI Must Gate Merge
 
 - ✅ Lint + format checks pass.
-- ✅ Type checking passes (if enabled).
+- ✅ Type checking passes (mypy strict mode on `src/`; see `pyproject.toml`). Preflight extends this to `tests/`, `scripts/`, `.github/scripts/` with relaxed overrides — see [LOCAL_CI_PARITY_INVARIANTS.md](../LOCAL_CI_PARITY_INVARIANTS.md) Row 10.
 - ✅ Unit + integration tests pass.
 - ✅ Coverage threshold is enforced per project standards.
 
@@ -158,7 +158,7 @@ Work is not “done” until the checks below are implemented, automated where p
 - ✅ VSIX extension builds successfully.
 - ✅ Release workflow outputs artifacts and is reproducible from tags.
 
-**Evidence:** `.github/workflows/release.yml` + documented `tfx extension create` steps.
+**Evidence:** `.github/workflows/release.yml` + documented `pnpm run package:vsix` steps.
 
 ---
 
@@ -166,7 +166,7 @@ Work is not “done” until the checks below are implemented, automated where p
 
 ### 7.1 Runbook (Required)
 
-- ✅ `docs/runbook.md` includes:
+- ✅ `docs/operations/runbook.md` includes:
   - first-run behavior
   - missing/expired artifact behavior
   - how to run daily vs backfill
@@ -191,4 +191,3 @@ Work is not “done” until the checks below are implemented, automated where p
 - ✅ Schema + determinism tests passing in CI
 - ✅ Pagination + backfill convergence tests in place
 - ✅ Runbook exists and matches real behavior
-```

@@ -63,12 +63,17 @@ python scripts/run_ci_parity.py
 python scripts/run_ci_parity.py --mode full
 ```
 
+`run_pytest.py` isolates coverage paths to avoid Windows repo-root lock
+issues. See [Testing Guide](docs/development/testing.md#running-tests)
+for the full rationale and when to use bare `pytest` instead.
+
 `run_pr_preflight.py` resolves Python 3.12 explicitly, so it stays on a
 supported baseline interpreter even if your shell default points elsewhere.
 It is authoritative by default: if CI-hard local tooling such as Node-backed
 extension gates or `gitleaks` is unavailable, the command fails instead of
 silently degrading. Use `--allow-local-degraded` only for diagnostics on a
-broken workstation.
+broken workstation. Pre-push hooks invoke the preflight automatically; run
+it standalone when pushing from an environment that skips hooks.
 
 **Detailed testing:** [Testing Guide](docs/development/testing.md)
 
@@ -82,15 +87,45 @@ broken workstation.
 4. **Keep PRs focused** — one feature or fix per PR
 5. **Update documentation** if behavior changes
 
+### Documentation Drift Prevention
+
+When updating docs, never hardcode values that are derived from a source of truth
+elsewhere. Hardcoded counts, line numbers, and matrix dimensions rot silently.
+
+| Instead of | Do this |
+|------------|---------|
+| Counting items ("26 invariants") | Describe the property; the linked file has the count |
+| Line number references ("line 245") | Name the function or code block; lines shift on every edit |
+| Derived totals ("9 OS/version combos") | Describe the property + link to source ("see CI workflow") |
+| Enumerating volatile lists ("ruff, mypy, ...") | Point to the authoritative script or config |
+
+Prerequisite versions users must install (Node.js 22, Python 3.12+) are fine to state
+directly — they are actionable requirements, not derived counts.
+
 ### CI Checks
 
-All PRs must pass:
-- Secret scanning (gitleaks)
-- Line ending checks
-- UI bundle synchronization
-- Python tests (9 OS/version combinations)
-- Extension tests
-- Pre-commit hooks (ruff)
+All PRs must pass the discrete CI jobs declared in
+[`.github/workflows/ci.yml`](/.github/workflows/ci.yml). The workflow is the
+source of truth; the list is intentionally not enumerated here to avoid drift.
+Gate families that land on PRs include:
+
+- Security scanning (e.g. gitleaks)
+- Repository policy gates (line endings, pnpm lockfile, UI bundle parity,
+  invariant guards, version guards, commitlint, etc.)
+- Python tests across the OS/Python matrix declared in the workflow
+- Extension tests (Jest, type-tests, smoke)
+- Lint/format/suppression audits (one CI step invokes `pre-commit run
+  --all-files` alongside standalone jobs)
+- Release packaging checks
+
+CI enforces each of these as a **separate job**, not as a single "pre-commit"
+step. To reproduce a given failure locally, look up the failing job name in
+the workflow and run its documented local equivalent -- some map to
+`pre-commit run --all-files --hook-stage pre-push`, others to `python
+scripts/run_repo_hook.py pre-push`, and the authoritative full check is
+`python scripts/run_pr_preflight.py`. See
+[`LOCAL_CI_PARITY_INVARIANTS.md`](/LOCAL_CI_PARITY_INVARIANTS.md) for the
+gate-by-gate parity contract.
 
 ---
 
@@ -214,11 +249,20 @@ The base package must function without ML dependencies.
 
 ## Governance
 
+Internal development principles (for agents and maintainers):
+
 | Document | Description |
 |----------|-------------|
-| [Invariants](agents/INVARIANTS.md) | 25 non-negotiable system invariants |
+| [Invariants](agents/INVARIANTS.md) | Non-negotiable system invariants |
 | [Definition of Done](agents/definition-of-done.md) | Completion criteria |
 | [Victory Gates](agents/victory-gates.md) | Verification checkpoints |
+
+**How to use these docs:** Invariants are organized by category (Output
+Contract, Persistence, Extraction, etc.) — read the category that matches
+your change area. Definition of Done maps each category to its evidence
+(test files and CI gates), so use it to find which tests cover your change.
+Victory Gates is the end-to-end verification checklist to run before
+declaring a feature complete.
 
 ---
 

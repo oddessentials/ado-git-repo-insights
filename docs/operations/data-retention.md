@@ -81,6 +81,7 @@ How long data persists depends on **how the system is run**.
 | User info | Yes | Display name, email, user ID |
 | Reviewer votes | Yes | Vote value per reviewer |
 | PR descriptions | Yes | May be empty |
+| Comments/threads | Opt-in | Stored when `--include-comments` is used; auxiliary, not stored by default |
 | Source code | No | Never extracted |
 | Secrets/credentials | No | Never stored |
 | PAT | No | Runtime only |
@@ -89,7 +90,6 @@ How long data persists depends on **how the system is run**.
 
 - Source code or file contents
 - Commit history or diffs
-- Comments or discussions
 - Work item links
 - Authentication tokens
 
