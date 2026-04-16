@@ -323,9 +323,11 @@ ado-insights extract ...
 
 **JSONL logging:**
 ```bash
-ado-insights extract --log-format jsonl ...
+ado-insights --log-format jsonl extract ...
 # Check run_artifacts/logs.jsonl
 ```
+(`--log-format` is a global flag and must precede the subcommand — see
+[CLI Reference § Global Options](../reference/cli-reference.md#global-options).)
 
 ### Run summary location
 

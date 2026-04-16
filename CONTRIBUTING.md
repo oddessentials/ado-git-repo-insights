@@ -104,13 +104,28 @@ directly — they are actionable requirements, not derived counts.
 
 ### CI Checks
 
-All PRs must pass:
-- Secret scanning (gitleaks)
-- Line ending checks
-- UI bundle synchronization
-- Python tests (full OS/Python version matrix -- see [CI workflow](/.github/workflows/ci.yml))
-- Extension tests
-- Pre-commit hooks (pre-commit stage, full worktree -- see [CI workflow](/.github/workflows/ci.yml))
+All PRs must pass the discrete CI jobs declared in
+[`.github/workflows/ci.yml`](/.github/workflows/ci.yml). The workflow is the
+source of truth; the list is intentionally not enumerated here to avoid drift.
+Gate families that land on PRs include:
+
+- Security scanning (e.g. gitleaks)
+- Repository policy gates (line endings, pnpm lockfile, UI bundle parity,
+  invariant guards, version guards, commitlint, etc.)
+- Python tests across the OS/Python matrix declared in the workflow
+- Extension tests (Jest, type-tests, smoke)
+- Lint/format/suppression audits (one CI step invokes `pre-commit run
+  --all-files` alongside standalone jobs)
+- Release packaging checks
+
+CI enforces each of these as a **separate job**, not as a single "pre-commit"
+step. To reproduce a given failure locally, look up the failing job name in
+the workflow and run its documented local equivalent -- some map to
+`pre-commit run --all-files --hook-stage pre-push`, others to `python
+scripts/run_repo_hook.py pre-push`, and the authoritative full check is
+`python scripts/run_pr_preflight.py`. See
+[`LOCAL_CI_PARITY_INVARIANTS.md`](/LOCAL_CI_PARITY_INVARIANTS.md) for the
+gate-by-gate parity contract.
 
 ---
 

@@ -310,10 +310,24 @@ conform to the [Dataset Contract](dataset-contract.md):
 | CLI dashboard | Dataset manifest + aggregates | Local web dashboard (`ado-insights dashboard`) |
 | PowerBI | CSV exports from the core contract | Custom reports and analytics |
 
-The extension UI source lives in `extension/ui/` and is synced to the pip
-package bundle via managed artifact sync (see
-[Generated UI and Demo Artifacts](../../CONTRIBUTING.md#generated-ui-and-demo-artifacts)).
-CI enforces that the two copies stay identical.
+The extension UI surface lives in three layers. **Contributors edit only
+the first; the other two are generated mirrors that CI enforces.**
+
+| Layer | Path | Role | Who writes it |
+|-------|------|------|---------------|
+| Source | `extension/ui/` | TypeScript, static HTML, CSS | Contributors (hand-edited) |
+| Build output | `extension/dist/ui/` | Compiled JS bundles | `esbuild` (via `pnpm run build:ui`) |
+| Packaged mirror | `src/ado_git_repo_insights/ui_bundle/` | Static files from source + compiled JS from build | `scripts/sync_ui_bundle.py` (default `--source extension/dist/ui`, `--bundle src/ado_git_repo_insights/ui_bundle`) |
+
+The demo surface under `docs/` pulls the shell from `extension/ui/` and
+built assets from `extension/dist/ui/` (see
+`scripts/publish-demo-surface.py`).
+
+**CI enforces the generated mirrors**, not direct source-file identity. Do
+not hand-edit `extension/dist/ui/` or `src/ado_git_repo_insights/ui_bundle/`
+-- they are regenerated on every build/sync and any manual edit is lost.
+See [Generated UI and Demo Artifacts](../../CONTRIBUTING.md#generated-ui-and-demo-artifacts)
+for the workflow.
 
 ---
 

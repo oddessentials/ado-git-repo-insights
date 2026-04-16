@@ -193,12 +193,16 @@ Three escalating gate scopes run between your editor and CI:
 
 **Stages are distinct.** Pre-commit and pre-push use separate `stages` entries
 in `.pre-commit-config.yaml` — not all hooks run at both stages. Some auto-fix
-hooks run only on commit; some stricter checks run only on push. If a push
-fails when the commit passed, that's a pre-push-only hook catching something
-staged-only checks intentionally skip. Treat `.pre-commit-config.yaml` **and**
-`scripts/run_repo_hook.py` as co-authoritative: the YAML declares which hooks
-run at each stage; the Python script orchestrates the stage-specific custom
-guards that aren't expressible as plain pre-commit hooks.
+hooks run only on commit; some stricter checks run only on push. A small set
+of framework-provided hooks intentionally registers for **both** stages
+(e.g. `detect-private-key`, `check-added-large-files`, `check-merge-conflict`,
+`env-guard`, `tool-version-parity`) so they fire regardless of which invocation
+triggered; `.pre-commit-config.yaml` is authoritative for the current list.
+If a push fails when the commit passed, that's a pre-push-only hook catching
+something staged-only checks intentionally skip. Treat `.pre-commit-config.yaml`
+**and** `scripts/run_repo_hook.py` as co-authoritative: the YAML declares which
+hooks run at each stage; the Python script orchestrates the stage-specific
+custom guards that aren't expressible as plain pre-commit hooks.
 
 ### Local PR Preflight
 
@@ -244,14 +248,26 @@ Recommended workflow:
 
 All PRs must pass:
 
-| Check | Purpose |
-|-------|---------|
-| Secret scanning (gitleaks) | No secrets in code |
-| Line ending checks | No CRLF in Unix files |
-| UI bundle sync | Dashboard files synchronized |
-| Python tests | Full test suite |
-| Extension tests | Jest test suite |
-| Pre-commit hooks | Pre-commit stage hooks over the full worktree (see [CI workflow](/.github/workflows/ci.yml)) |
+CI runs each gate as a **separate job** (not as a single "pre-commit" step).
+The authoritative list lives in
+[`.github/workflows/ci.yml`](/.github/workflows/ci.yml); this section points
+at categories, not an enumerated job list.
+
+| Category | What it covers |
+|----------|----------------|
+| Security scanning | e.g. gitleaks |
+| Repository policy gates | line endings, pnpm lockfile, UI bundle parity, invariant guards, version guards, commitlint, etc. |
+| Python tests | full OS/Python matrix declared in the workflow |
+| Extension tests | Jest, type-tests, smoke |
+| Lint/format/suppression audits | one CI step invokes `pre-commit run --all-files` alongside standalone jobs |
+| Release packaging checks | VSIX, Python package build |
+
+To reproduce a specific CI failure locally, consult the failing job's steps
+in the workflow -- some map to `pre-commit run --all-files --hook-stage
+pre-push`, others to `python scripts/run_repo_hook.py pre-push`, and the
+authoritative full check is `python scripts/run_pr_preflight.py`. See
+[`LOCAL_CI_PARITY_INVARIANTS.md`](/LOCAL_CI_PARITY_INVARIANTS.md) for the
+gate-by-gate parity contract.
 
 ---
 
@@ -261,9 +277,12 @@ All PRs must pass:
 
 **Check coverage:**
 ```bash
-pytest --cov=src --cov-report=html
+python scripts/run_pytest.py --cov=src --cov-report=html
 open htmlcov/index.html
 ```
+(The launcher forwards arbitrary pytest args verbatim; using it here keeps
+coverage files out of the repo root, matching the Windows-safe path policy
+documented under [Running Tests](#running-tests).)
 
 ---
 

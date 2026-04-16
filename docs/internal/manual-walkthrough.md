@@ -86,7 +86,7 @@ uv run ado-insights extract `
   --projects hospitality,marketing,engineering,oddessentials `
   --include-comments `
   --comments-max-prs-per-run 50 `
-  --comments-max-threads-per-pr 0
+  --comments-max-threads-per-pr 0  # 0 = unlimited threads per PR
 
 # Full extraction (all PRs with comments, no cap)
 uv run ado-insights extract `
@@ -95,7 +95,7 @@ uv run ado-insights extract `
   --projects hospitality,marketing,engineering,oddessentials `
   --include-comments `
   --comments-max-prs-per-run 999999 `
-  --comments-max-threads-per-pr 0
+  --comments-max-threads-per-pr 0  # 0 = unlimited threads per PR
 
 # Build and view
 uv run ado-insights build-aggregates `

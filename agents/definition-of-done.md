@@ -146,7 +146,7 @@ Work is not “done” until the checks below are implemented, automated where p
 ### 6.1 CI Must Gate Merge
 
 - ✅ Lint + format checks pass.
-- ✅ Type checking passes (mypy strict mode on `src/`; see `pyproject.toml`).
+- ✅ Type checking passes (mypy strict mode on `src/`; see `pyproject.toml`). Preflight extends this to `tests/`, `scripts/`, `.github/scripts/` with relaxed overrides — see [LOCAL_CI_PARITY_INVARIANTS.md](../LOCAL_CI_PARITY_INVARIANTS.md) Row 10.
 - ✅ Unit + integration tests pass.
 - ✅ Coverage threshold is enforced per project standards.
 

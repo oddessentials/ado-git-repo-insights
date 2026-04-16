@@ -33,11 +33,12 @@ pip install -e .[dev]
 ruff check .
 ruff format --check .
 
-# Type checking (mypy strict mode on src/; see pyproject.toml)
+# Type checking (mypy strict mode on src/; preflight extends scope
+# to tests/, scripts/, .github/scripts/ — see LOCAL_CI_PARITY_INVARIANTS.md Row 10)
 mypy src/
 
-# Unit tests
-pytest tests/unit
+# Unit tests (use the launcher for coverage-path safety on Windows)
+python scripts/run_pytest.py tests/unit
 ```
 
 **Gate:** All unit tests pass, no warnings, no skipped contract tests.
@@ -47,7 +48,7 @@ pytest tests/unit
 ### 1.3 Integration: SQLite → CSV Determinism
 
 ```bash
-pytest tests/integration/test_golden_outputs.py
+python scripts/run_pytest.py tests/integration/test_golden_outputs.py
 ```
 
 **Gate:**
@@ -60,7 +61,7 @@ pytest tests/integration/test_golden_outputs.py
 ### 1.4 Integration: Incremental Extraction
 
 ```bash
-pytest tests/integration/test_incremental_run.py
+python scripts/run_pytest.py tests/integration/test_incremental_run.py
 ```
 
 **Gate:**
@@ -74,7 +75,7 @@ pytest tests/integration/test_incremental_run.py
 ### 1.5 Integration: Backfill Convergence
 
 ```bash
-pytest tests/integration/test_backfill_convergence.py
+python scripts/run_pytest.py tests/integration/test_backfill_convergence.py
 ```
 
 **Gate:**

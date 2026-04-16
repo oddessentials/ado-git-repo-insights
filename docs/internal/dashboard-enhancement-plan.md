@@ -9,7 +9,19 @@
 >
 > **This snapshot will go stale.** `extension/ui/` is the source of truth for
 > what's shipped. Before relying on any status line above, verify against the
-> code. If the snapshot is older than a month, assume it's wrong.
+> code. If the snapshot is older than a month, assume it's wrong. Quick
+> re-verify commands:
+>
+> ```bash
+> # Side-by-side comparison layout (D.1)
+> grep -R "side-by-side\|sideBySide\|grid-template-columns.*comparison" extension/ui/
+>
+> # PNG export (D.2)
+> grep -R "html2canvas\|dom-to-image\|\.png\b" extension/ui/
+>
+> # Saved views (D.3)
+> grep -R "savedView\|saved-view\|preset" extension/ui/
+> ```
 >
 > **Reading guide:** The gap analysis, "Current State" tables, and sprint
 > estimates below describe the **pre-implementation planning state** and are
@@ -342,7 +354,18 @@ Ensure dashboard works well on various screen sizes:
 
 ---
 
-## Implementation Priority Matrix
+## Archived Planning Content
+
+> **This section preserves the pre-implementation design work verbatim.**
+> Sprint estimates, priority labels (P0-P4), implementation order, mockups,
+> and the conclusion below reflect the planning-phase intent, not the current
+> UI. Do not read them as live status or roadmap. For what is shipped today,
+> see the status banner at the top of this file and treat `extension/ui/` as
+> the source of truth.
+
+---
+
+### Implementation Priority Matrix
 
 | Feature | User Value | Effort | Data Ready | Priority |
 |---------|------------|--------|------------|----------|
@@ -361,7 +384,7 @@ Ensure dashboard works well on various screen sizes:
 
 ---
 
-## Recommended Implementation Order
+### Recommended Implementation Order
 
 ### Sprint 1: Quick Wins (Phase A.1 + A.2)
 - Add trend deltas to existing 4 summary cards
@@ -392,7 +415,7 @@ Ensure dashboard works well on various screen sizes:
 
 ---
 
-## Success Metrics
+### Success Metrics
 
 After full implementation, the dashboard should enable users to answer:
 
@@ -413,7 +436,7 @@ After full implementation, the dashboard should enable users to answer:
 
 ---
 
-## Technical Considerations
+### Technical Considerations
 
 ### No Schema Changes Required
 All features in this plan use existing data from:
@@ -433,7 +456,7 @@ All features in this plan use existing data from:
 
 ---
 
-## Appendix: Mockups
+### Appendix: Mockups
 
 ### Summary Cards with Trends (Phase A Complete)
 
@@ -481,7 +504,7 @@ All features in this plan use existing data from:
 
 ---
 
-## Conclusion
+### Conclusion (original plan text)
 
 This plan transforms the default dashboard from a basic metrics display into an interactive, insight-rich analytics tool. By leveraging data we already collect and following a phased approach, we can deliver incremental value while building toward the comprehensive experience users expect.
 
