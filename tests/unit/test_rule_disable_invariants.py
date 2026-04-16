@@ -731,3 +731,172 @@ class TestCmdRegenerateAllowlistPrunesOrphans:
         )
         reasons = sorted(e["reason"] for e in written["entries"])
         assert reasons == ["dup-A", "dup-B"]
+
+
+class TestAllowlistOrphanDetection:
+    """Issue #273: verify_subprocess_allowlist_entries detects stale entries.
+
+    Three orphan categories:
+      file-removed        — target file deleted
+      line-shifted        — file exists but code not on expected line
+      refactored-to-safe  — code on line but call is now safe (literal list)
+    """
+
+    TMP_ROOT = (
+        Path(__file__).parent.parent.parent / "tmp_test_work" / "allowlist-orphan"
+    )
+
+    def _build_case(
+        self,
+        name: str,
+        entries: list[dict[str, str | int]],
+        files: dict[str, str] | None = None,
+    ) -> Path:
+        self.TMP_ROOT.mkdir(parents=True, exist_ok=True)
+        case_dir = self.TMP_ROOT / name
+        shutil.rmtree(case_dir, ignore_errors=True)
+        case_dir.mkdir(parents=True)
+        (case_dir / ".subprocess-allowlist.json").write_text(
+            json.dumps({"description": "test", "entries": entries}, indent=2) + "\n",
+            encoding="utf-8",
+        )
+        for rel_path, content in (files or {}).items():
+            full = case_dir / rel_path
+            full.parent.mkdir(parents=True, exist_ok=True)
+            full.write_text(content, encoding="utf-8")
+        return case_dir
+
+    def test_file_removed_detected(self) -> None:
+        """Entry pointing at a non-existent file is category file-removed."""
+        case_dir = self._build_case(
+            "file-removed",
+            [
+                {
+                    "file": "gone.py",
+                    "line": 1,
+                    "code": "subprocess.run(",
+                    "reason": "test",
+                }
+            ],
+        )
+        orphans = _mod.verify_subprocess_allowlist_entries(case_dir)
+        assert len(orphans) == 1
+        assert orphans[0]["category"] == "file-removed"
+        assert orphans[0]["file"] == "gone.py"
+
+    def test_line_shifted_detected(self) -> None:
+        """Entry with wrong line number is category line-shifted."""
+        case_dir = self._build_case(
+            "line-shifted",
+            [
+                {
+                    "file": "s.py",
+                    "line": 1,
+                    "code": "result = subprocess.run(cmd)",
+                    "reason": "test",
+                }
+            ],
+            files={
+                "s.py": "import subprocess\n# padding\nresult = subprocess.run(cmd)\n"
+            },
+        )
+        orphans = _mod.verify_subprocess_allowlist_entries(case_dir)
+        assert len(orphans) == 1
+        assert orphans[0]["category"] == "line-shifted"
+
+    def test_refactored_to_safe_detected(self) -> None:
+        """Entry where call was refactored to literal list is refactored-to-safe."""
+        case_dir = self._build_case(
+            "refactored-safe",
+            [
+                {
+                    "file": "s.py",
+                    "line": 2,
+                    "code": "result = subprocess.run(",
+                    "reason": "test",
+                }
+            ],
+            files={
+                "s.py": (
+                    "import subprocess\n"
+                    "result = subprocess.run(\n"
+                    '    ["git", "status"],\n'
+                    ")\n"
+                ),
+            },
+        )
+        orphans = _mod.verify_subprocess_allowlist_entries(case_dir)
+        assert len(orphans) == 1
+        assert orphans[0]["category"] == "refactored-to-safe"
+
+    def test_live_entry_not_flagged(self) -> None:
+        """Entry matching a real unsafe violation returns empty list."""
+        case_dir = self._build_case(
+            "live",
+            [
+                {
+                    "file": "s.py",
+                    "line": 2,
+                    "code": "result = subprocess.run(cmd)",
+                    "reason": "test",
+                }
+            ],
+            files={"s.py": "import subprocess\nresult = subprocess.run(cmd)\n"},
+        )
+        orphans = _mod.verify_subprocess_allowlist_entries(case_dir)
+        assert len(orphans) == 0
+
+    def test_missing_allowlist_returns_empty(self) -> None:
+        """No allowlist file returns empty list, not an error."""
+        self.TMP_ROOT.mkdir(parents=True, exist_ok=True)
+        case_dir = self.TMP_ROOT / "no-allowlist"
+        shutil.rmtree(case_dir, ignore_errors=True)
+        case_dir.mkdir(parents=True)
+        orphans = _mod.verify_subprocess_allowlist_entries(case_dir)
+        assert orphans == []
+
+    def test_committed_allowlist_is_clean(self) -> None:
+        """The repo's committed .subprocess-allowlist.json has zero orphans."""
+        repo_root = Path(__file__).parent.parent.parent
+        orphans = _mod.verify_subprocess_allowlist_entries(repo_root)
+        assert orphans == [], (
+            f"Committed allowlist has {len(orphans)} orphan(s): "
+            + ", ".join(f"{o['file']}:{o['line']} ({o['category']})" for o in orphans)
+        )
+
+    def test_verify_artifacts_fails_on_orphan(
+        self, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        """--verify-artifacts returns non-zero when orphans exist."""
+        case_dir = self._build_case(
+            "verify-integration",
+            [
+                {
+                    "file": "gone.py",
+                    "line": 1,
+                    "code": "subprocess.run(",
+                    "reason": "test",
+                }
+            ],
+        )
+        fresh_s603 = _mod.generate_subprocess_artifact(
+            Path(__file__).parent.parent.parent
+        )
+        fresh_s311 = _mod.generate_random_artifact(Path(__file__).parent.parent.parent)
+        (case_dir / ".rule-disable-audit-S603.json").write_text(
+            json.dumps(fresh_s603, indent=2) + "\n",
+            encoding="utf-8",
+        )
+        (case_dir / ".rule-disable-audit-S311.json").write_text(
+            json.dumps(fresh_s311, indent=2) + "\n",
+            encoding="utf-8",
+        )
+        with (
+            patch.object(_mod, "generate_subprocess_artifact", return_value=fresh_s603),
+            patch.object(_mod, "generate_random_artifact", return_value=fresh_s311),
+        ):
+            rc = _mod.verify_artifacts(case_dir)
+        assert rc == 1
+        out = capsys.readouterr().out
+        assert "orphan" in out.lower()
+        assert "--regenerate-allowlist" in out
