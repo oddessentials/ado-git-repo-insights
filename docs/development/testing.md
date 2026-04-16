@@ -198,7 +198,7 @@ python scripts/run_pr_preflight.py
 ```
 
 What it verifies:
-- `mypy src/ tests/ scripts/`
+- `mypy src/ tests/ scripts/ .github/scripts/`
 - `tests/demo/` with `--no-cov` so demo dashboard validation is exercised
 - full Python suite with coverage
 - extension `build:check`

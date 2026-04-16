@@ -864,6 +864,20 @@ class TestInvariantContractInventory:
             assert review.reason
 
 
+class TestPythonTypeCheckParity:
+    """Lock the mypy scope for repo-owned Python automation."""
+
+    def test_preflight_python_type_check_includes_github_scripts(self) -> None:
+        preflight = _normalized_preflight_commands()
+        assert preflight["Python type check"] == (
+            "__PYTHON__ -m mypy src/ tests/ scripts/ .github/scripts/"
+        ), (
+            "Preflight mypy must cover .github/scripts/ alongside src/, tests/, "
+            "and scripts/. CI-owned Python automation should not sit outside the "
+            "authoritative typed gate."
+        )
+
+
 class TestRatchetBumpGuardParity:
     """Parity lock for the per-commit ratchet-bump discipline gate (#280).
 

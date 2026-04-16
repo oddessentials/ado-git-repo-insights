@@ -17,12 +17,32 @@ Dependencies:
 import json
 import sys
 from pathlib import Path
+from typing import TypedDict, TypeGuard, cast
 
 from defusedxml.ElementTree import ParseError as XMLParseError
 from defusedxml.ElementTree import parse as parse_xml
 
 
-def parse_junit_xml(xml_path: str) -> dict:
+class ParsedJUnitMetrics(TypedDict):
+    collected: int
+    failures: int
+    errors: int
+    skipped: int
+    time: float
+
+
+class ParsedJUnitError(TypedDict):
+    error: str
+
+
+ParsedJUnitResult = ParsedJUnitMetrics | ParsedJUnitError
+
+
+def is_junit_error(result: ParsedJUnitResult) -> TypeGuard[ParsedJUnitError]:
+    return "error" in result
+
+
+def parse_junit_xml(xml_path: str) -> ParsedJUnitResult:
     """Parse JUnit XML and extract test metrics.
 
     Handles multiple JUnit XML formats:
@@ -81,7 +101,7 @@ def parse_junit_xml(xml_path: str) -> dict:
 
 
 def validate_results(
-    results: dict,
+    results: ParsedJUnitMetrics,
     min_collected: int,
     max_skips: int = 0,
     allow_deselect: bool = False,
@@ -94,9 +114,6 @@ def validate_results(
     """
     messages = []
     passed = True
-
-    if "error" in results:
-        return False, [f"::error::Parse error: {results['error']}"]
 
     collected = results["collected"]
     failures = results["failures"]
@@ -165,7 +182,7 @@ def load_min_collected_from_artifact(artifact_path: Path, suite: str) -> int:
     return value
 
 
-def main():
+def main() -> None:
     import argparse
 
     parser = argparse.ArgumentParser(description="Validate pytest JUnit XML results")
@@ -210,12 +227,12 @@ def main():
 
     results = parse_junit_xml(args.xml_file)
 
-    if "error" in results:
+    if is_junit_error(results):
         print(f"::error::{results['error']}")
         sys.exit(2)
-
+    metrics = cast(ParsedJUnitMetrics, results)
     passed, messages = validate_results(
-        results,
+        metrics,
         min_collected=min_collected,
         max_skips=args.max_skips,
     )
@@ -224,14 +241,14 @@ def main():
     print(f"\n{'=' * 60}")
     print("Test Results Summary")
     print(f"{'=' * 60}")
-    print(f"  Collected: {results['collected']}")
+    print(f"  Collected: {metrics['collected']}")
     print(
-        f"  Passed:    {results['collected'] - results['failures'] - results['errors'] - results['skipped']}"
+        f"  Passed:    {metrics['collected'] - metrics['failures'] - metrics['errors'] - metrics['skipped']}"
     )
-    print(f"  Failed:    {results['failures']}")
-    print(f"  Errors:    {results['errors']}")
-    print(f"  Skipped:   {results['skipped']}")
-    print(f"  Time:      {results['time']:.2f}s")
+    print(f"  Failed:    {metrics['failures']}")
+    print(f"  Errors:    {metrics['errors']}")
+    print(f"  Skipped:   {metrics['skipped']}")
+    print(f"  Time:      {metrics['time']:.2f}s")
     print(f"{'=' * 60}\n")
 
     # Print validation messages

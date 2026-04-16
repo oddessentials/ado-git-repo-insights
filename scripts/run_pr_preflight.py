@@ -289,7 +289,15 @@ def build_commands(
         ),
         CommandSpec(
             "Python type check",
-            ("__PYTHON__", "-m", "mypy", "src/", "tests/", "scripts/"),
+            (
+                "__PYTHON__",
+                "-m",
+                "mypy",
+                "src/",
+                "tests/",
+                "scripts/",
+                ".github/scripts/",
+            ),
         ),
         CommandSpec(
             "No typing.Any in src/, tests/, scripts/ (QG-40)",
