@@ -13,6 +13,7 @@ import importlib
 import json
 import subprocess
 import sys
+from contextlib import contextmanager
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -37,6 +38,8 @@ import pytest
 # never arises at type-check time while the runtime package context is
 # still established for the relative import in the gate.
 gate = importlib.import_module("scripts.check_ratchet_bump")
+
+_UNSET = object()
 
 
 @dataclass
@@ -285,6 +288,7 @@ def _run_gate(
     pytest_rc: int = 0,
     pytest_stderr: str = "",
     pytest_empty_output: bool = False,
+    python_commit_accounting: object = _UNSET,
     monkeypatch: pytest.MonkeyPatch,
 ) -> tuple[int, _GitFakeRecorder]:
     """Spin up all fixtures and run the gate; return (exit_code, recorder)."""
@@ -308,6 +312,12 @@ def _run_gate(
         pytest_empty_output=pytest_empty_output,
     )
     _install_recorder(monkeypatch, recorder)
+    if python_commit_accounting is not _UNSET:
+        monkeypatch.setattr(
+            gate,
+            "evaluate_python_commit_accounting",
+            lambda base_ref, *, marker_range=None: python_commit_accounting,
+        )
 
     exit_code = gate.run_gate(
         preflight_path=preflight,
@@ -435,6 +445,7 @@ def test_t5_realignment_marker_exempts(
         python_actual=150,  # Huge drift that would normally fail
         ext_actual=200,
         git_responses=responses,
+        python_commit_accounting=None,
         monkeypatch=monkeypatch,
     )
     assert exit_code == gate.EXIT_OK
@@ -485,6 +496,7 @@ def test_t6_test_removal_marker_exempts(
         python_actual=85,  # Intentional reduction below floor
         ext_actual=200,
         git_responses=responses,
+        python_commit_accounting=None,
         monkeypatch=monkeypatch,
     )
     assert exit_code == gate.EXIT_OK
@@ -510,6 +522,19 @@ def test_t6_test_removal_marker_exempts(
 def test_t6a_test_removal_marker_does_not_exempt_test_addition_drift(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
 ) -> None:
+    failure = gate.CommitFailure(
+        commit_sha="def5678",
+        commit_subject="test: [ratchet-test-removal] retire legacy suite",
+        parent_sha="abc1234",
+        suite="python",
+        failure_class="delta mismatch",
+        detail=(
+            "  floor delta:  +0\n"
+            "  actual delta: +15\n"
+            "  marker(s):    [ratchet-test-removal]\n"
+            "  expected marker for this commit: [ratchet-realignment]"
+        ),
+    )
     responses: dict[tuple[str, ...], _FakeCompleted] = {
         ("log", "--oneline", "origin/main..HEAD"): _FakeCompleted(
             returncode=0,
@@ -526,18 +551,34 @@ def test_t6a_test_removal_marker_does_not_exempt_test_addition_drift(
         python_actual=115,
         ext_actual=200,
         git_responses=responses,
+        python_commit_accounting=failure,
         monkeypatch=monkeypatch,
     )
     assert exit_code == gate.EXIT_DRIFT
     stderr = capsys.readouterr().err
+    assert "Python per-commit ratchet accounting failed" in stderr
+    assert "suite: python" in stderr
+    assert "failure class: delta mismatch" in stderr
     assert "[ratchet-test-removal]" in stderr
-    assert "Expected marker: [ratchet-realignment]." in stderr
-    assert "actual collected tests increased above the declared floor" in stderr
+    assert "expected marker for this commit: [ratchet-realignment]" in stderr
 
 
 def test_t6aa_realignment_marker_does_not_exempt_test_removal_drift(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
 ) -> None:
+    failure = gate.CommitFailure(
+        commit_sha="abc1234",
+        commit_subject="chore: [ratchet-realignment] catch up on drift",
+        parent_sha="feedface",
+        suite="python",
+        failure_class="delta mismatch",
+        detail=(
+            "  floor delta:  +0\n"
+            "  actual delta: -15\n"
+            "  marker(s):    [ratchet-realignment]\n"
+            "  expected marker for this commit: [ratchet-test-removal]"
+        ),
+    )
     responses: dict[tuple[str, ...], _FakeCompleted] = {
         ("log", "--oneline", "origin/main..HEAD"): _FakeCompleted(
             returncode=0,
@@ -554,13 +595,16 @@ def test_t6aa_realignment_marker_does_not_exempt_test_removal_drift(
         python_actual=85,
         ext_actual=200,
         git_responses=responses,
+        python_commit_accounting=failure,
         monkeypatch=monkeypatch,
     )
     assert exit_code == gate.EXIT_DRIFT
     stderr = capsys.readouterr().err
+    assert "Python per-commit ratchet accounting failed" in stderr
+    assert "suite: python" in stderr
+    assert "failure class: delta mismatch" in stderr
     assert "[ratchet-realignment]" in stderr
-    assert "Expected marker: [ratchet-test-removal]." in stderr
-    assert "declared floor now exceeds actual collected tests after removal" in stderr
+    assert "expected marker for this commit: [ratchet-test-removal]" in stderr
 
 
 def test_t6ab_required_marker_exempts_even_when_unrelated_marker_is_also_present(
@@ -585,6 +629,7 @@ def test_t6ab_required_marker_exempts_even_when_unrelated_marker_is_also_present
         python_actual=85,
         ext_actual=200,
         git_responses=responses,
+        python_commit_accounting=None,
         monkeypatch=monkeypatch,
     )
     assert exit_code == gate.EXIT_OK
@@ -597,6 +642,19 @@ def test_t6ab_required_marker_exempts_even_when_unrelated_marker_is_also_present
 def test_t6ac_unrelated_extra_marker_is_ignored_when_required_marker_is_missing(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
 ) -> None:
+    failure = gate.CommitFailure(
+        commit_sha="abc1234",
+        commit_subject="chore: [ratchet-realignment] prior floor catch up",
+        parent_sha="deadbeef",
+        suite="python",
+        failure_class="delta mismatch",
+        detail=(
+            "  floor delta:  +0\n"
+            "  actual delta: -15\n"
+            "  marker(s):    [ratchet-realignment]\n"
+            "  expected marker for this commit: [ratchet-test-removal]"
+        ),
+    )
     responses: dict[tuple[str, ...], _FakeCompleted] = {
         ("log", "--oneline", "origin/main..HEAD"): _FakeCompleted(
             returncode=0,
@@ -613,13 +671,16 @@ def test_t6ac_unrelated_extra_marker_is_ignored_when_required_marker_is_missing(
         python_actual=85,
         ext_actual=200,
         git_responses=responses,
+        python_commit_accounting=failure,
         monkeypatch=monkeypatch,
     )
     assert exit_code == gate.EXIT_DRIFT
     stderr = capsys.readouterr().err
+    assert "Python per-commit ratchet accounting failed" in stderr
+    assert "suite: python" in stderr
+    assert "failure class: delta mismatch" in stderr
     assert "[ratchet-realignment]" in stderr
-    assert "Expected marker: [ratchet-test-removal]." in stderr
-    assert "declared floor now exceeds actual collected tests after removal" in stderr
+    assert "expected marker for this commit: [ratchet-test-removal]" in stderr
 
 
 # ---------------------------------------------------------------------------
@@ -652,6 +713,7 @@ def test_t6b_explicit_marker_range_overrides_base_relative_log_scan(
         ext_actual=200,
         marker_range=marker_range,
         git_responses=responses,
+        python_commit_accounting=None,
         monkeypatch=monkeypatch,
     )
     assert exit_code == gate.EXIT_OK
@@ -673,6 +735,67 @@ def test_t6b_explicit_marker_range_overrides_base_relative_log_scan(
         "origin/main..HEAD range after merge and miss marker-bearing "
         "commits that just landed."
     )
+
+
+def test_t6c_python_marker_accounting_setup_failure_exits_setup(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    responses: dict[tuple[str, ...], _FakeCompleted] = {
+        ("log", "--oneline", "origin/main..HEAD"): _FakeCompleted(
+            returncode=0,
+            stdout="abc1234 chore: [ratchet-realignment] catch up on drift\n",
+        ),
+        ("rev-list", "--count", "origin/main..HEAD"): _FakeCompleted(
+            returncode=0, stdout="1\n"
+        ),
+    }
+
+    def boom(base_ref: str, *, marker_range: str | None = None) -> None:
+        raise gate.RatchetSetupError("historical snapshot unavailable")
+
+    monkeypatch.setattr(gate, "evaluate_python_commit_accounting", boom)
+    exit_code, _ = _run_gate(
+        tmp_path,
+        python_floor=100,
+        ext_floor=200,
+        python_actual=150,
+        ext_actual=200,
+        git_responses=responses,
+        monkeypatch=monkeypatch,
+    )
+    assert exit_code == gate.EXIT_SETUP
+    stderr = capsys.readouterr().err
+    assert "[SETUP] Python per-commit ratchet accounting failed" in stderr
+    assert "historical snapshot unavailable" in stderr
+
+
+def test_t6d_extension_marker_cannot_waive_equality_drift(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    responses: dict[tuple[str, ...], _FakeCompleted] = {
+        ("log", "--oneline", "origin/main..HEAD"): _FakeCompleted(
+            returncode=0,
+            stdout="abc1234 chore: [ratchet-realignment] catch up on drift\n",
+        ),
+        ("rev-list", "--count", "origin/main..HEAD"): _FakeCompleted(
+            returncode=0, stdout="1\n"
+        ),
+    }
+    exit_code, _ = _run_gate(
+        tmp_path,
+        python_floor=100,
+        ext_floor=200,
+        python_actual=100,
+        ext_actual=205,
+        git_responses=responses,
+        monkeypatch=monkeypatch,
+    )
+    assert exit_code == gate.EXIT_DRIFT
+    stderr = capsys.readouterr().err
+    assert "Extension equality drift cannot be waived by a marker" in stderr
+    assert "suite: extension" in stderr
+    assert "failure class: setup failure" in stderr
+    assert "extension/test-results.xml" in stderr
 
 
 # ---------------------------------------------------------------------------
@@ -2321,3 +2444,96 @@ class TestNormalizeBaseRef:
         assert gate._normalize_base_ref("abcdef") == "origin/abcdef"
         # 41 hex chars (above the 40-char SHA maximum) — also not a SHA.
         assert gate._normalize_base_ref("a" * 41) == f"origin/{'a' * 41}"
+
+
+def test_t49_python_commit_accounting_uses_first_parent_snapshot_deltas(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    parent_root = tmp_path / "parent"
+    commit_root = tmp_path / "commit"
+    parent_root.mkdir()
+    commit_root.mkdir()
+
+    monkeypatch.setattr(
+        gate,
+        "list_first_parent_commits",
+        lambda base_ref, *, marker_range=None: ("childsha",),
+    )
+    monkeypatch.setattr(gate, "commit_first_parent", lambda commit_sha: "parentsha")
+    monkeypatch.setattr(gate, "commit_subject", lambda commit_sha: "feat: add tests")
+
+    @contextmanager
+    def fake_snapshot(commit_sha: str):
+        yield parent_root if commit_sha == "parentsha" else commit_root
+
+    monkeypatch.setattr(gate, "materialize_commit_snapshot", fake_snapshot)
+
+    def fake_preflight(path: Path, *, repo_root: Path = gate.REPO_ROOT):
+        if repo_root == parent_root:
+            return gate.FloorReadings(python=100, extension=200)
+        return gate.FloorReadings(python=102, extension=200)
+
+    def fake_ci(path: Path, *, repo_root: Path = gate.REPO_ROOT):
+        if repo_root == parent_root:
+            return gate.FloorReadings(python=100, extension=200)
+        return gate.FloorReadings(python=102, extension=200)
+
+    def fake_python_count(*, repo_root: Path = gate.REPO_ROOT) -> int:
+        return 100 if repo_root == parent_root else 102
+
+    monkeypatch.setattr(gate, "read_preflight_floors", fake_preflight)
+    monkeypatch.setattr(gate, "read_ci_floors", fake_ci)
+    monkeypatch.setattr(gate, "measure_python_count", fake_python_count)
+
+    failure = gate.evaluate_python_commit_accounting("origin/main")
+    assert failure is None
+
+
+def test_t50_python_commit_accounting_parent_authority_mismatch_is_not_waived(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    parent_root = tmp_path / "parent"
+    commit_root = tmp_path / "commit"
+    parent_root.mkdir()
+    commit_root.mkdir()
+
+    monkeypatch.setattr(
+        gate,
+        "list_first_parent_commits",
+        lambda base_ref, *, marker_range=None: ("childsha",),
+    )
+    monkeypatch.setattr(gate, "commit_first_parent", lambda commit_sha: "parentsha")
+    monkeypatch.setattr(
+        gate,
+        "commit_subject",
+        lambda commit_sha: "feat: [ratchet-realignment] add tests",
+    )
+
+    @contextmanager
+    def fake_snapshot(commit_sha: str):
+        yield parent_root if commit_sha == "parentsha" else commit_root
+
+    monkeypatch.setattr(gate, "materialize_commit_snapshot", fake_snapshot)
+
+    def fake_preflight(path: Path, *, repo_root: Path = gate.REPO_ROOT):
+        if repo_root == parent_root:
+            return gate.FloorReadings(python=100, extension=200)
+        return gate.FloorReadings(python=102, extension=200)
+
+    def fake_ci(path: Path, *, repo_root: Path = gate.REPO_ROOT):
+        if repo_root == parent_root:
+            return gate.FloorReadings(python=101, extension=200)
+        return gate.FloorReadings(python=102, extension=200)
+
+    def fake_python_count(*, repo_root: Path = gate.REPO_ROOT) -> int:
+        return 100 if repo_root == parent_root else 102
+
+    monkeypatch.setattr(gate, "read_preflight_floors", fake_preflight)
+    monkeypatch.setattr(gate, "read_ci_floors", fake_ci)
+    monkeypatch.setattr(gate, "measure_python_count", fake_python_count)
+
+    failure = gate.evaluate_python_commit_accounting("origin/main")
+    assert failure is not None
+    assert failure.suite == "python"
+    assert failure.failure_class == "authority mismatch"
+    assert "parent snapshot authority mismatch" in failure.detail

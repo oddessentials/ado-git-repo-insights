@@ -43,14 +43,17 @@ from __future__ import annotations
 
 import argparse
 import ast
+import contextlib
 import json
 import os
 import re
 import shlex
+import shutil
 import subprocess
 import sys
 import tempfile
 import time
+from collections.abc import Iterator
 from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING
@@ -200,12 +203,24 @@ class MarkerExpectation:
     reason: str
 
 
+@dataclass(frozen=True)
+class CommitFailure:
+    commit_sha: str
+    commit_subject: str
+    parent_sha: str
+    suite: str
+    failure_class: str
+    detail: str
+
+
 # ---------------------------------------------------------------------------
 # Preflight floor parsing (AST — no module execution, no side effects)
 # ---------------------------------------------------------------------------
 
 
-def read_preflight_floors(preflight_path: Path) -> FloorReadings:
+def read_preflight_floors(
+    preflight_path: Path, *, repo_root: Path = REPO_ROOT
+) -> FloorReadings:
     """Parse ``--min-collected`` floors from ``run_pr_preflight.py``.
 
     Uses :mod:`ast` rather than importing the module so the gate never
@@ -262,6 +277,7 @@ def read_preflight_floors(preflight_path: Path) -> FloorReadings:
             source=preflight_path,
             context=f"CommandSpec {spec_name!r}",
             suite=suite_key,
+            repo_root=repo_root,
         )
         if spec_name == _PYTHON_SPEC_NAME:
             py_floor = value
@@ -289,7 +305,9 @@ def _join_tuple_literal(command_node: ast.Tuple) -> str:
     return " ".join(parts)
 
 
-def _extract_min_collected(text: str, *, source: Path, context: str, suite: str) -> int:
+def _extract_min_collected(
+    text: str, *, source: Path, context: str, suite: str, repo_root: Path = REPO_ROOT
+) -> int:
     match = _MIN_COLLECTED_RE.search(text)
     if match is not None:
         return int(match.group(1))
@@ -302,7 +320,7 @@ def _extract_min_collected(text: str, *, source: Path, context: str, suite: str)
         )
     try:
         artifact_index = tokens.index("--min-collected-artifact")
-        artifact_path = REPO_ROOT / tokens[artifact_index + 1]
+        artifact_path = repo_root / tokens[artifact_index + 1]
     except (IndexError, ValueError) as exc:
         raise RatchetSetupError(
             f"{source}: {context} has malformed --min-collected-artifact usage"
@@ -337,7 +355,7 @@ def _extract_min_collected(text: str, *, source: Path, context: str, suite: str)
 # ---------------------------------------------------------------------------
 
 
-def read_ci_floors(ci_yaml_path: Path) -> FloorReadings:
+def read_ci_floors(ci_yaml_path: Path, *, repo_root: Path = REPO_ROOT) -> FloorReadings:
     """Parse ``--min-collected`` floors from the two validate-test-results steps.
 
     Navigates the YAML defensively via
@@ -355,8 +373,12 @@ def read_ci_floors(ci_yaml_path: Path) -> FloorReadings:
         raise RatchetSetupError(str(exc)) from exc
 
     try:
-        py_floor = _extract_ci_flag(py_run, ci_yaml_path, _CI_PY_JOB, _CI_PY_STEP)
-        ext_floor = _extract_ci_flag(ext_run, ci_yaml_path, _CI_EXT_JOB, _CI_EXT_STEP)
+        py_floor = _extract_ci_flag(
+            py_run, ci_yaml_path, _CI_PY_JOB, _CI_PY_STEP, repo_root=repo_root
+        )
+        ext_floor = _extract_ci_flag(
+            ext_run, ci_yaml_path, _CI_EXT_JOB, _CI_EXT_STEP, repo_root=repo_root
+        )
     except _ci_parser.CiYamlParseError as exc:
         raise RatchetSetupError(str(exc)) from exc
 
@@ -364,7 +386,12 @@ def read_ci_floors(ci_yaml_path: Path) -> FloorReadings:
 
 
 def _extract_ci_flag(
-    run_block: str, ci_yaml_path: Path, job_name: str, step_name: str
+    run_block: str,
+    ci_yaml_path: Path,
+    job_name: str,
+    step_name: str,
+    *,
+    repo_root: Path = REPO_ROOT,
 ) -> int:
     commands = _ci_parser.extract_shell_commands(run_block)
     if not commands:
@@ -379,6 +406,7 @@ def _extract_ci_flag(
         source=ci_yaml_path,
         context=f"job {job_name!r} step {step_name!r}",
         suite=suite,
+        repo_root=repo_root,
     )
 
 
@@ -387,7 +415,7 @@ def _extract_ci_flag(
 # ---------------------------------------------------------------------------
 
 
-def measure_python_count() -> int:
+def measure_python_count(*, repo_root: Path = REPO_ROOT) -> int:
     """Invoke ``pytest --collect-only`` via a hermetic subprocess.
 
     Returns the **cross-platform minimum** — the count pytest sees when
@@ -408,10 +436,12 @@ def measure_python_count() -> int:
     committed :mod:`scripts._pytest_count_collector` plugin, so no
     stdout parsing is involved anywhere in the happy path.
     """
-    return collect_python_snapshot(apply_platform_filters=True).count
+    return collect_python_snapshot(
+        apply_platform_filters=True, repo_root=repo_root
+    ).count
 
 
-def measure_windows_full_count() -> int | None:
+def measure_windows_full_count(*, repo_root: Path = REPO_ROOT) -> int | None:
     """Return the Windows hermetic full count (no platform filter), ``None`` elsewhere.
 
     On Windows, runs the same hermetic ``--collect-only`` subprocess as
@@ -444,11 +474,13 @@ def measure_windows_full_count() -> int | None:
     """
     if sys.platform != "win32":
         return None
-    return collect_python_snapshot(apply_platform_filters=False).count
+    return collect_python_snapshot(
+        apply_platform_filters=False, repo_root=repo_root
+    ).count
 
 
 def collect_python_snapshot(
-    *, apply_platform_filters: bool
+    *, apply_platform_filters: bool, repo_root: Path = REPO_ROOT
 ) -> PythonCollectionSnapshot:
     """Return the hermetic collected count and node IDs for the Python suite.
 
@@ -569,7 +601,7 @@ def collect_python_snapshot(
                     "tests/",
                 ],
                 env=scrubbed_env,
-                cwd=REPO_ROOT,
+                cwd=repo_root,
                 capture_output=True,
                 text=True,
                 encoding="utf-8",
@@ -830,10 +862,10 @@ def _normalize_base_ref(raw: str) -> str:
 # ---------------------------------------------------------------------------
 
 
-def _run_git(*args: str) -> subprocess.CompletedProcess[str]:
+def _run_git(*args: str, cwd: Path = REPO_ROOT) -> subprocess.CompletedProcess[str]:
     return subprocess.run(
         ["git", *args],
-        cwd=REPO_ROOT,
+        cwd=cwd,
         capture_output=True,
         text=True,
         encoding="utf-8",
@@ -974,6 +1006,71 @@ def scan_bypass_marker(
     return frozenset(marker for marker in _BYPASS_MARKERS if marker in log_text)
 
 
+def _effective_commit_range(base_ref: str, marker_range: str | None = None) -> str:
+    return marker_range or f"{base_ref}..HEAD"
+
+
+def list_first_parent_commits(
+    base_ref: str, *, marker_range: str | None = None
+) -> tuple[str, ...]:
+    commit_range = _effective_commit_range(base_ref, marker_range)
+    result = _run_git("rev-list", "--reverse", "--first-parent", commit_range)
+    if result.returncode != 0:
+        raise RatchetSetupError(
+            f"Could not enumerate first-parent commits for {commit_range}: "
+            f"{result.stderr.strip()}"
+        )
+    return tuple(line.strip() for line in result.stdout.splitlines() if line.strip())
+
+
+def commit_first_parent(commit_sha: str) -> str:
+    result = _run_git("rev-parse", "--verify", f"{commit_sha}^1")
+    if result.returncode != 0:
+        raise RatchetSetupError(
+            f"Could not resolve first parent for commit {commit_sha}: "
+            f"{result.stderr.strip()}"
+        )
+    return result.stdout.strip()
+
+
+def commit_subject(commit_sha: str) -> str:
+    result = _run_git("show", "--quiet", "--format=%s", commit_sha)
+    if result.returncode != 0:
+        raise RatchetSetupError(
+            f"Could not read commit subject for {commit_sha}: {result.stderr.strip()}"
+        )
+    return result.stdout.strip()
+
+
+def markers_in_subject(subject: str) -> frozenset[str]:
+    return frozenset(marker for marker in _BYPASS_MARKERS if marker in subject)
+
+
+@contextlib.contextmanager
+def materialize_commit_snapshot(commit_sha: str) -> Iterator[Path]:
+    snapshot_root = Path(tempfile.mkdtemp(prefix=f"ratchet-snapshot-{commit_sha[:8]}-"))
+    add_result = _run_git(
+        "worktree",
+        "add",
+        "--detach",
+        "--force",
+        str(snapshot_root),
+        commit_sha,
+    )
+    if add_result.returncode != 0:
+        shutil.rmtree(snapshot_root, ignore_errors=True)
+        raise RatchetSetupError(
+            f"Could not materialize commit snapshot {commit_sha}: "
+            f"{add_result.stderr.strip()}"
+        )
+    try:
+        yield snapshot_root
+    finally:
+        remove_result = _run_git("worktree", "remove", "--force", str(snapshot_root))
+        if remove_result.returncode != 0:
+            shutil.rmtree(snapshot_root, ignore_errors=True)
+
+
 # ---------------------------------------------------------------------------
 # Drift comparison
 # ---------------------------------------------------------------------------
@@ -1091,6 +1188,122 @@ def expected_bypass_marker(
     )
 
 
+def _failure_summary(failure: CommitFailure) -> str:
+    return (
+        f"commit={failure.commit_sha} ({failure.commit_subject})\n"
+        f"  first-parent: {failure.parent_sha}\n"
+        f"  suite: {failure.suite}\n"
+        f"  failure class: {failure.failure_class}\n"
+        f"{failure.detail}"
+    )
+
+
+def evaluate_python_commit_accounting(
+    base_ref: str, *, marker_range: str | None = None
+) -> CommitFailure | None:
+    commits = list_first_parent_commits(base_ref, marker_range=marker_range)
+    for commit_sha in commits:
+        parent_sha = commit_first_parent(commit_sha)
+        subject = commit_subject(commit_sha)
+        subject_markers = markers_in_subject(subject)
+        with materialize_commit_snapshot(parent_sha) as parent_root:
+            try:
+                parent_preflight = read_preflight_floors(
+                    parent_root / "scripts" / "run_pr_preflight.py",
+                    repo_root=parent_root,
+                )
+                parent_ci = read_ci_floors(
+                    parent_root / ".github" / "workflows" / "ci.yml",
+                    repo_root=parent_root,
+                )
+                parent_actual = measure_python_count(repo_root=parent_root)
+            except RatchetSetupError as exc:
+                return CommitFailure(
+                    commit_sha=commit_sha,
+                    commit_subject=subject,
+                    parent_sha=parent_sha,
+                    suite="python",
+                    failure_class="setup failure",
+                    detail=f"  parent snapshot error: {exc}",
+                )
+        if parent_preflight.python != parent_ci.python:
+            return CommitFailure(
+                commit_sha=commit_sha,
+                commit_subject=subject,
+                parent_sha=parent_sha,
+                suite="python",
+                failure_class="authority mismatch",
+                detail=(
+                    "  parent snapshot authority mismatch:\n"
+                    f"    preflight floor: {parent_preflight.python}\n"
+                    f"    ci floor:        {parent_ci.python}\n"
+                    "  markers never waive inter-file authority mismatch."
+                ),
+            )
+        with materialize_commit_snapshot(commit_sha) as commit_root:
+            try:
+                current_preflight = read_preflight_floors(
+                    commit_root / "scripts" / "run_pr_preflight.py",
+                    repo_root=commit_root,
+                )
+                current_ci = read_ci_floors(
+                    commit_root / ".github" / "workflows" / "ci.yml",
+                    repo_root=commit_root,
+                )
+                current_actual = measure_python_count(repo_root=commit_root)
+            except RatchetSetupError as exc:
+                return CommitFailure(
+                    commit_sha=commit_sha,
+                    commit_subject=subject,
+                    parent_sha=parent_sha,
+                    suite="python",
+                    failure_class="setup failure",
+                    detail=f"  commit snapshot error: {exc}",
+                )
+
+        if current_preflight.python != current_ci.python:
+            return CommitFailure(
+                commit_sha=commit_sha,
+                commit_subject=subject,
+                parent_sha=parent_sha,
+                suite="python",
+                failure_class="authority mismatch",
+                detail=(
+                    f"  preflight floor: {current_preflight.python}\n"
+                    f"  ci floor:        {current_ci.python}\n"
+                    "  markers never waive inter-file authority mismatch."
+                ),
+            )
+
+        floor_delta = current_preflight.python - parent_preflight.python
+        actual_delta = current_actual - parent_actual
+        if floor_delta == actual_delta:
+            continue
+
+        if actual_delta > floor_delta and REALIGNMENT_MARKER in subject_markers:
+            continue
+        if actual_delta < floor_delta and TEST_REMOVAL_MARKER in subject_markers:
+            continue
+
+        expected_marker = (
+            REALIGNMENT_MARKER if actual_delta > floor_delta else TEST_REMOVAL_MARKER
+        )
+        return CommitFailure(
+            commit_sha=commit_sha,
+            commit_subject=subject,
+            parent_sha=parent_sha,
+            suite="python",
+            failure_class="delta mismatch",
+            detail=(
+                f"  floor delta:  {floor_delta:+d}\n"
+                f"  actual delta: {actual_delta:+d}\n"
+                f"  marker(s):    {' / '.join(sorted(subject_markers)) or 'none'}\n"
+                f"  expected marker for this commit: {expected_marker}"
+            ),
+        )
+    return None
+
+
 # ---------------------------------------------------------------------------
 # Orchestration
 # ---------------------------------------------------------------------------
@@ -1189,27 +1402,7 @@ def run_gate(
             )
         return EXIT_DRIFT
 
-    # Equality drift is exempted when a marker is present. The
-    # exemption runs only after parity has been verified clean above,
-    # so the success path can positively report that parity was
-    # evaluated — "parity checked, equality exempted" is the contract.
     if report.equality:
-        expectation = expected_bypass_marker(
-            preflight=preflight_floors,
-            actual=actual,
-        )
-        if (
-            expectation.required_marker is not None
-            and expectation.required_marker in markers
-        ):
-            print(
-                "[OK] Ratchet bump guard: parity checked, equality "
-                f"exempted via {expectation.required_marker} in commit log range "
-                f"{display_range}.\n"
-                f"  Parity:    {preflight_path.name} == "
-                f"{ci_workflow_path.name} on both dimensions."
-            )
-            return EXIT_OK
         for msg in report.equality:
             print(f"[DRIFT] {msg}", file=sys.stderr)
         if python_windows_full is not None:
@@ -1224,35 +1417,53 @@ def run_gate(
                 "authoritative floor).",
                 file=sys.stderr,
             )
-        if markers:
+        python_exempted = False
+        if markers and actual.python != preflight_floors.python:
+            try:
+                python_failure = evaluate_python_commit_accounting(
+                    base_ref, marker_range=marker_range
+                )
+            except RatchetSetupError as exc:
+                print(
+                    f"[SETUP] Python per-commit ratchet accounting failed: {exc}",
+                    file=sys.stderr,
+                )
+                return EXIT_SETUP
+            if python_failure is not None:
+                print(
+                    "[DRIFT] Python per-commit ratchet accounting failed:\n"
+                    f"{_failure_summary(python_failure)}",
+                    file=sys.stderr,
+                )
+                return EXIT_DRIFT
+            python_exempted = True
+        if markers and actual.extension != preflight_floors.extension:
+            print(
+                "[DRIFT] Extension equality drift cannot be waived by a marker.\n"
+                "  suite: extension\n"
+                "  failure class: setup failure\n"
+                "  detail: per-commit extension accounting is disabled until a "
+                "committed historical extension authority exists in each "
+                "evaluated snapshot. `extension/test-results.xml` is not tracked "
+                "in git, so markers are ignored for extension equality drift.",
+                file=sys.stderr,
+            )
+            return EXIT_DRIFT
+        if python_exempted:
             markers_text = " / ".join(sorted(markers))
-            if expectation.required_marker is None:
-                print(
-                    f"[DRIFT] Bypass marker(s) {markers_text} are present in "
-                    f"{display_range} but "
-                    "cannot exempt this equality drift because "
-                    f"{expectation.reason}. No bypass marker is valid for "
-                    "mixed-direction drift; update the floors explicitly "
-                    "in both authoritative files.",
-                    file=sys.stderr,
-                )
-            else:
-                print(
-                    f"[DRIFT] Bypass marker(s) {markers_text} are present in "
-                    f"{display_range} but "
-                    f"does not match this drift direction ({expectation.reason}). "
-                    f"Expected marker: {expectation.required_marker}.",
-                    file=sys.stderr,
-                )
-        print(
-            f"[DRIFT] Bypass with {REALIGNMENT_MARKER} or "
-            f"{TEST_REMOVAL_MARKER} in a commit SUBJECT line in "
-            f"{display_range} (scanned via `git log --oneline`; "
-            "markers in commit bodies are NOT honored). The marker "
-            "waives actual-vs-floor equality only; inter-file parity "
-            "and parse validation continue to run unconditionally.",
-            file=sys.stderr,
-        )
+            print(
+                "[OK] Ratchet bump guard parity checked; equality exempted "
+                f"via commit-local marker accounting in {display_range}.\n"
+                f"  Marker(s): {markers_text}\n"
+                f"  Python:    floor={preflight_floors.python}, "
+                f"actual={actual.python} ({_PYTHON_ACTUAL_LABEL})"
+                f"{windows_full_suffix}\n"
+                f"  Extension: floor={preflight_floors.extension}, "
+                f"actual={actual.extension}\n"
+                f"  Parity:    {preflight_path.name} == {ci_workflow_path.name} "
+                "on both dimensions.",
+            )
+            return EXIT_OK
         return EXIT_DRIFT
 
     print(
