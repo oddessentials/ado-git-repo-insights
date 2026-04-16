@@ -1,3 +1,18 @@
+# [101.8.0](https://github.com/oddessentials/ado-git-repo-insights/compare/v101.7.0...v101.8.0) (2026-04-16)
+
+
+### Bug Fixes
+
+* **#273:** close fail-open path in allowlist verification ([b09f0fd](https://github.com/oddessentials/ado-git-repo-insights/commit/b09f0fd58ac5f05c9d449fc9c45dd655829348b4))
+* **#273:** reject malformed allowlist shapes at the validation boundary ([9b7391d](https://github.com/oddessentials/ado-git-repo-insights/commit/9b7391d05d21bb4cd65bf93964c7750ab012fd06)), closes [#273](https://github.com/oddessentials/ado-git-repo-insights/issues/273)
+* **#273:** validate top-level JSON shape before attribute access ([04e259f](https://github.com/oddessentials/ado-git-repo-insights/commit/04e259f52c6fdf6e7ff8cf313cc38621442bf5ac)), closes [#273](https://github.com/oddessentials/ado-git-repo-insights/issues/273)
+* remove hardcoded floor value from parity test ([ea0eb77](https://github.com/oddessentials/ado-git-repo-insights/commit/ea0eb7748b8f5997725ce85aed9ea1c6c61388e8))
+
+
+### Features
+
+* **#273:** gate semantically verifies .subprocess-allowlist.json entries ([1681389](https://github.com/oddessentials/ado-git-repo-insights/commit/16813898f4c20268105dfb76f8037aff4d44ec99)), closes [#273](https://github.com/oddessentials/ado-git-repo-insights/issues/273)
+
 # [101.7.0](https://github.com/oddessentials/ado-git-repo-insights/compare/v101.6.3...v101.7.0) (2026-04-16)
 
 
