@@ -10,7 +10,7 @@ Entry points:
   --check-subprocess  Detect unsafe subprocess patterns (compensates S603/S607)
   --check-random      Detect unsafe random patterns (compensates S311)
   --check-syspath     Detect sys.path.insert/append (enforces importlib-only)
-  --verify-artifacts  Verify committed proof artifacts match codebase
+  --verify-artifacts  Verify proof artifacts and subprocess allowlist match codebase
   --generate-artifacts Generate proof artifacts for rule-disable justification
 
 All checks use tokenize.generate_tokens for accuracy (no string-literal
@@ -899,7 +899,7 @@ def main() -> int:
     parser.add_argument(
         "--verify-artifacts",
         action="store_true",
-        help="Verify committed proof artifacts match codebase",
+        help="Verify proof artifacts and subprocess allowlist match codebase",
     )
     parser.add_argument(
         "--generate-artifacts",
