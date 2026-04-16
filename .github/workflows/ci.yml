@@ -726,8 +726,8 @@ jobs:
 
       - name: Run mypy type check
         run: |
-          echo "Running mypy on src/ tests/ scripts/ with strict mode per pyproject.toml..."
-          mypy src/ tests/ scripts/
+          echo "Running mypy on src/ tests/ scripts/ .github/scripts/ with strict mode per pyproject.toml..."
+          mypy src/ tests/ scripts/ .github/scripts/
           echo "[OK] mypy type check passed - all Python type errors resolved"
 
       - name: No typing.Any in src/, tests/, scripts/ (QG-40)

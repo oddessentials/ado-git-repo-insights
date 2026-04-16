@@ -762,7 +762,7 @@ class TestTestCountRatchetParity:
         assert "--suite extension" in ci_extension_run
 
         assert floor_contract["schema_version"] == 1
-        assert floor_contract["python"]["min_collected"] == 1778
+        assert floor_contract["python"]["min_collected"] == 1780
         assert floor_contract["extension"]["min_collected"] > 0
 
     def test_preflight_and_ci_require_explicit_floor_contract_validation(self) -> None:
@@ -895,6 +895,14 @@ class TestPythonTypeCheckParity:
             "Preflight mypy must cover .github/scripts/ alongside src/, tests/, "
             "and scripts/. CI-owned Python automation should not sit outside the "
             "authoritative typed gate."
+        )
+
+    def test_ci_python_type_check_matches_preflight_scope(self) -> None:
+        step = _find_ci_step("mypy", "Run mypy type check")
+        run_block = str(step.get("run", ""))
+        assert "mypy src/ tests/ scripts/ .github/scripts/" in run_block, (
+            "CI mypy must match local preflight scope exactly, including "
+            ".github/scripts/, or local/CI parity is broken."
         )
 
 
