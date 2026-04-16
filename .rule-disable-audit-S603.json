@@ -1,7 +1,7 @@
 {
   "rule": "S603",
-  "total_call_sites": 87,
-  "unsafe_count": 9,
+  "total_call_sites": 88,
+  "unsafe_count": 8,
   "call_sites": [
     {
       "file": "scripts/audit-suppressions.py",
@@ -29,7 +29,7 @@
     },
     {
       "file": "scripts/build-demo-dataset.py",
-      "line": 224,
+      "line": 245,
       "code": "result = subprocess.run(",
       "shell_true": false,
       "literal_list": true,
@@ -37,7 +37,7 @@
     },
     {
       "file": "scripts/build-demo-dataset.py",
-      "line": 262,
+      "line": 283,
       "code": "root_check = subprocess.run(",
       "shell_true": false,
       "literal_list": true,
@@ -45,7 +45,7 @@
     },
     {
       "file": "scripts/build-demo-dataset.py",
-      "line": 270,
+      "line": 291,
       "code": "result = subprocess.run(",
       "shell_true": false,
       "literal_list": true,
@@ -125,7 +125,7 @@
     },
     {
       "file": "scripts/check_ratchet_bump.py",
-      "line": 544,
+      "line": 597,
       "code": "result = subprocess.run(",
       "shell_true": false,
       "literal_list": true,
@@ -133,7 +133,7 @@
     },
     {
       "file": "scripts/check_ratchet_bump.py",
-      "line": 833,
+      "line": 886,
       "code": "return subprocess.run(",
       "shell_true": false,
       "literal_list": true,
@@ -213,7 +213,7 @@
     },
     {
       "file": "scripts/run_pr_preflight.py",
-      "line": 573,
+      "line": 592,
       "code": "probe = subprocess.run(",
       "shell_true": false,
       "literal_list": true,
@@ -221,7 +221,7 @@
     },
     {
       "file": "scripts/run_pr_preflight.py",
-      "line": 596,
+      "line": 615,
       "code": "completed = subprocess.run(",
       "shell_true": false,
       "literal_list": true,
@@ -229,7 +229,7 @@
     },
     {
       "file": "scripts/run_pr_preflight.py",
-      "line": 689,
+      "line": 708,
       "code": "probe = subprocess.run(",
       "shell_true": false,
       "literal_list": true,
@@ -237,7 +237,7 @@
     },
     {
       "file": "scripts/run_pr_preflight.py",
-      "line": 771,
+      "line": 790,
       "code": "probe = subprocess.run(",
       "shell_true": false,
       "literal_list": true,
@@ -245,7 +245,7 @@
     },
     {
       "file": "scripts/run_repo_hook.py",
-      "line": 111,
+      "line": 115,
       "code": "result = subprocess.run(",
       "shell_true": false,
       "literal_list": true,
@@ -253,7 +253,7 @@
     },
     {
       "file": "scripts/run_repo_hook.py",
-      "line": 206,
+      "line": 210,
       "code": "result = subprocess.run(",
       "shell_true": false,
       "literal_list": true,
@@ -261,7 +261,7 @@
     },
     {
       "file": "scripts/run_repo_hook.py",
-      "line": 366,
+      "line": 371,
       "code": "result = subprocess.run(",
       "shell_true": false,
       "literal_list": true,
@@ -269,7 +269,7 @@
     },
     {
       "file": "scripts/run_repo_hook.py",
-      "line": 390,
+      "line": 395,
       "code": "fetch = subprocess.run(",
       "shell_true": false,
       "literal_list": true,
@@ -277,7 +277,7 @@
     },
     {
       "file": "scripts/run_repo_hook.py",
-      "line": 410,
+      "line": 415,
       "code": "result = subprocess.run(",
       "shell_true": false,
       "literal_list": true,
@@ -325,15 +325,7 @@
     },
     {
       "file": "tests/demo/test_regeneration.py",
-      "line": 91,
-      "code": "result = subprocess.run(",
-      "shell_true": false,
-      "literal_list": false,
-      "safety": "unsafe-non-literal-command"
-    },
-    {
-      "file": "tests/demo/test_regeneration.py",
-      "line": 219,
+      "line": 123,
       "code": "result = subprocess.run(",
       "shell_true": false,
       "literal_list": true,
@@ -341,7 +333,23 @@
     },
     {
       "file": "tests/demo/test_regeneration.py",
-      "line": 257,
+      "line": 136,
+      "code": "result = subprocess.run(",
+      "shell_true": false,
+      "literal_list": true,
+      "safety": "safe-literal-list"
+    },
+    {
+      "file": "tests/demo/test_regeneration.py",
+      "line": 286,
+      "code": "result = subprocess.run(",
+      "shell_true": false,
+      "literal_list": true,
+      "safety": "safe-literal-list"
+    },
+    {
+      "file": "tests/demo/test_regeneration.py",
+      "line": 324,
       "code": "result = subprocess.run(",
       "shell_true": false,
       "literal_list": true,
@@ -525,7 +533,7 @@
     },
     {
       "file": "tests/unit/test_ci_parity_drift.py",
-      "line": 526,
+      "line": 558,
       "code": "result = subprocess.run(",
       "shell_true": false,
       "literal_list": true,
@@ -533,7 +541,7 @@
     },
     {
       "file": "tests/unit/test_ci_parity_drift.py",
-      "line": 635,
+      "line": 667,
       "code": "result = subprocess.run(",
       "shell_true": false,
       "literal_list": true,

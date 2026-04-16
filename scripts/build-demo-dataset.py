@@ -175,18 +175,22 @@ def reset_canonical_artifact_root() -> None:
 
 
 def prepare_validate_only_artifact_root() -> None:
-    """Refresh validate-only artifacts without deleting the shared data root first.
+    """Prepare an isolated validate-only artifact root from committed docs/data.
 
-    Windows can keep files under ``artifacts/demo-enterprise/data`` transiently
-    locked between repeated subprocess builds. Validate-only mode does not need a
-    destructive reset of the canonical data root because committed ``docs/data``
-    is the source of truth. Instead, sync docs/data into the artifact data root
-    and rebuild report/metadata outputs from scratch.
+    Validate-only mode treats ``docs/data`` as the committed source of truth and
+    rebuilds the artifact surface from that snapshot. The copy step must exclude
+    gitignored files such as local ``*.sqlite`` extraction remnants, otherwise
+    manifest addressability checks would fail on files that are not part of the
+    canonical published demo surface.
     """
-    ARTIFACT_DATA_DIR.mkdir(parents=True, exist_ok=True)
-    promote_data(DOCS_DATA_DIR, ARTIFACT_DATA_DIR)
+    _remove_tree(ARTIFACT_DATA_DIR)
     _remove_tree(ARTIFACT_REPORT_DIR)
     _remove_tree(ARTIFACT_METADATA_DIR)
+    shutil.copytree(
+        DOCS_DATA_DIR,
+        ARTIFACT_DATA_DIR,
+        ignore=_gitignored_copytree_ignore(DOCS_DATA_DIR),
+    )
     ARTIFACT_REPORT_DIR.mkdir(parents=True, exist_ok=True)
     ARTIFACT_METADATA_DIR.mkdir(parents=True, exist_ok=True)
 
