@@ -26,19 +26,19 @@ Source: `src/ado_git_repo_insights/persistence/migrations.py:78-92` (`comments_e
 
 ### 1.2 `pr_threads` row (write target via helper)
 
-Composite PK `(pull_request_uid, thread_id)` (migrations.py:274-349). Helper upserts via `repo.upsert_thread` (existing method at `cli.py:562-570` usage site).
+Composite PK `(pull_request_uid, thread_id)` (migrations.py:274-349). Helper upserts via `repo.upsert_thread` (existing method at `cli.py:573-581` usage site).
 
 ### 1.3 `pr_comments` row (write target via helper)
 
-Composite FK → `pr_threads(pull_request_uid, thread_id)` (migrations.py:226-249). Helper upserts via `repo.upsert_comment` (existing method at `cli.py:586-596` usage site).
+Composite FK → `pr_threads(pull_request_uid, thread_id)` (migrations.py:226-249). Helper upserts via `repo.upsert_comment` (existing method at `cli.py:597-607` usage site).
 
 ### 1.4 `users` row (write target via helper)
 
-Helper upserts via `repo.upsert_user` (existing method at `cli.py:580-584` usage site) before each `pr_comments` insert to preserve FK integrity.
+Helper upserts via `repo.upsert_user` (existing method at `cli.py:591-595` usage site) before each `pr_comments` insert to preserve FK integrity.
 
 ### 1.5 Legacy-schema detection (FR-017)
 
-Pre-loop check: both `pr_threads` and `pr_comments` tables MUST exist in the database's `sqlite_master`. Pattern (mirrors existing extract-flow check at `cli.py:807-813`):
+Pre-loop check: both `pr_threads` and `pr_comments` tables MUST exist in the database's `sqlite_master`. Pattern (mirrors existing extract-flow check at `cli.py:826-832`):
 
 ```python
 def _legacy_schema_missing_thread_tables(db: DatabaseManager) -> bool:
@@ -95,15 +95,21 @@ The two NULL states (never-set vs cleared-after-truncation) are indistinguishabl
 
 The transition `NULL → NULL (unchanged; Processed)` in the row "fetch completed without error, marker unchanged" is the latent infinite-loop bug. Backfill's rule prevents this by making the second row above (truncation-verified-complete) ALWAYS set the marker. The marker is unchanged ONLY on the third row (truncation-clear) and the fourth row (Failed), both of which are intentional outcomes on the Outcome Taxonomy.
 
-### 2.3 Extract's per-PR transitions (3-outcome rule; preserved unchanged by this feature, FR-025)
+### 2.3 Extract's per-PR transitions (3-outcome rule with Case 2 sub-branch; preserved unchanged by this feature, FR-025)
 
-Extract keeps its existing logic at `cli.py:610-628` — full-success set / truncation-preserve `pass` / truncation-clear NULL — without modification under this feature. Extract's observable behavior is locked by `tests/unit/test_extract_comments.py` (830 LOC, 20 tests, FR-034).
+Extract keeps its post-fix logic at `cli.py:621-647` — full-success SET (Case 1) / truncation-verified-complete with pre-iteration sub-decision (Case 2a: preiteration-NULL → SET; Case 2b: preiteration-non-NULL → preserve) / truncation-clear NULL (Case 3) — without modification under this feature. The pre-iteration snapshot read at `cli.py:517-526` MUST also be preserved bit-for-bit. Extract's observable behavior is locked by `tests/unit/test_extract_comments.py` (830 LOC, 20 tests, FR-034).
 
-**Coverage precision on the preserve branch** (called out so that planning / tasks do not overclaim): the existing test `TestExtractCommentsStamping::test_truncated_fetch_preserves_stamp_when_dropped_stored` (lines 141-160) locks the preserve-when-**set** case — pre-iteration stamp non-null, post-iteration stamp non-null. **No existing test exercises the preserve-when-null case.** The current `pass` behavior on preserve-when-null is not locked as intentional by any assertion. This is a latent bug shape for any caller whose selection predicate filters on `comments_extracted_at IS NULL` (the shape backfill uses) — backfill sidesteps it by construction via the simplified 2-outcome rule (§2.1). Whether extract's own workload ever reaches preserve-when-null in practice is **not known** and **not audited by this feature**. The audit is tracked in follow-up issue [#289](https://github.com/oddessentials/ado-git-repo-insights/issues/289). Extract's preserve-when-null `pass` behavior MUST be left bit-for-bit unchanged by 058 tasks.
+**Coverage precision on the preserve branch (post-fix, both sub-cases locked by tests)**: the previously-latent preserve-when-null case was fixed in commit `740810fd` (issue #289). Three tests in `TestExtractCommentsStamping` now lock the post-fix behavior:
+
+- `test_truncated_fetch_preserves_stamp_when_dropped_stored_preiteration_set` (renamed from the pre-fix method; test file lines 141-161) locks preserve-when-**set** with the stricter `stamp_after == stamp_before` assertion (pre-fix was `stamp_after is not None`).
+- `test_truncated_fetch_sets_completion_marker_when_dropped_stored_preiteration_null` (NEW in `740810fd`; test file lines 163-198) locks preserve-when-**null → SET**.
+- `test_manual_marker_reset_does_not_loop_when_dropped_threads_already_stored` (NEW in `740810fd`; test file lines 201-230) locks the operator-reset recovery path documented in backfill's quickstart.
+
+**Implication for backfill**: backfill's 2-outcome rule (§2.1) still sidesteps the preserve branch entirely for clarity/locality reasons, but the processed-but-no-progress infinite-loop outcome is now eliminated at BOTH levels: backfill's caller-side rule never enters Case 2, AND extract's post-fix Case 2a would also set the marker if it ever did. Defense-in-depth. Extract's post-fix preserve-when-null → SET behavior MUST be left bit-for-bit unchanged by 058 tasks — this is the primary tooth against accidental regression of the #289 fix during the 058 refactor (FR-034 regression lock covers it).
 
 ## 3. New dataclass: `FetchOutcome`
 
-Placed in `cli.py` between the existing `_extract_comments` (cli.py:457-662) and `_dropped_threads_all_stored` (cli.py:960-996). Frozen dataclass; immutable by contract.
+Placed in `cli.py` between the existing `_extract_comments` (cli.py:457-681) and `_dropped_threads_all_stored` (cli.py:979-1015). Frozen dataclass; immutable by contract.
 
 ```python
 @dataclass(frozen=True)
@@ -121,7 +127,7 @@ class FetchOutcome:
 | Field | Type | Meaning |
 |---|---|---|
 | `status` | `Literal["ok", "failed"]` | `"ok"` when the fetch completed without raising. `"failed"` is an internal enum value — the helper does NOT return `status="failed"`; it RAISES `ExtractionError` instead. The enum value exists in the shape for future-proofing (e.g., if a later feature decides to return a failure descriptor instead of raising). On HEAD, every non-raising return has `status="ok"` |
-| `truncated` | `bool` | `True` iff `max_threads_per_pr > 0 AND len(all_threads) > max_threads_per_pr` (identical condition to current `pr_threads_truncated` at cli.py:528-530) |
+| `truncated` | `bool` | `True` iff `max_threads_per_pr > 0 AND len(all_threads) > max_threads_per_pr` (identical condition to current `pr_threads_truncated` at cli.py:539-541) |
 | `dropped_threads` | `list[AdoThread]` | Slice `all_threads[max_threads_per_pr:]` — the threads the helper did NOT upsert because of the truncation cap. Empty list when `truncated=False`. Required input to `_dropped_threads_all_stored(db, pr_uid, dropped_threads)` for the caller's stamp decision |
 
 **Why `Literal["ok", "failed"]` and not `Literal["ok"]`**: keeps the dataclass shape future-compatible without constraining HEAD's behavior. FR-030j's forbidden-claim scan does not flag `"ok"`/`"failed"` strings — they are machine tokens, not operator-facing prose.
@@ -274,7 +280,7 @@ Invariants:
 | INV-3 | Each per-PR iteration is a single atomic DB unit: all-or-nothing | `db.connection.commit()` / `db.connection.rollback()` in caller; FR-030b test |
 | INV-4 | Interrupted iteration leaves DB bit-identical to pre-iteration state; committed iterations persist | SQLite transaction semantics + caller commit boundary; FR-030c test |
 | INV-5 | Backfill's stamp decision never traverses the preserve branch → preserved-unset outcome unreachable | Caller's simplified 2-outcome rule; FR-031 truncation-verified-complete tests (both sub-cases) |
-| INV-6 | Extract's observable behavior unchanged | `test_extract_comments.py` passes bit-for-bit (FR-034); `test_run_summary_snapshot.py` golden match |
+| INV-6 | Extract's post-fix observable behavior unchanged (including the pre-iteration snapshot read at cli.py:517-526 and Case 2 sub-decision at cli.py:627-640 from commit `740810fd`) | `test_extract_comments.py` passes bit-for-bit (FR-034) — including the 2 new tests locking preserve-when-null→SET and operator-reset recovery; `test_run_summary_snapshot.py` golden match |
 | INV-7 | Every terminated backfill run writes a `run_summary.json` | Try/except envelope in `cmd_backfill_comments` + `main()` interrupt handler; FR-019a/b/c |
 | INV-8 | Every backfill artifact carries at least one `"backfill-comments: "` warning entry (first-class discriminator) | Mechanism: **single shared helper** `_append_backfill_warning(warnings, body)` backed by module-level constant `_BACKFILL_WARNING_PREFIX`; all 8 code sites (plan §4 A / B / C / D1–D5) MUST route through it. Enforcement layers: **(a)** AST parity test #19a (`TestBackfillWarningEmissionParity::test_discriminator_prefix_literal_appears_only_inside_helper`) asserts the discriminator literal appears only inside the helper — catches any site that copy-pastes the inline prefix; **(b)** FR-030e artifact-state test #34 drives every backfill artifact state and asserts `is_backfill_artifact()` returns True — catches any site that forgets to emit. Layers overlap deliberately: the AST test prevents drift at code time; the artifact test prevents drift at runtime. A missing site fails both. |
 | INV-9 | Progress line carries the post-commit/rollback outcome token (never the optimistic token) | Ordering: commit/rollback ─► outcome_token set ─► logger.info; FR-030h test |

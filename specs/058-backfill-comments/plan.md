@@ -10,9 +10,9 @@ Deliver a new `backfill-comments` CLI subcommand that drains historical PR threa
 
 **Technical approach** (locked in spec Pass 4 and pre-plan deliverables; no remaining architectural branching):
 
-1. **Refactor** the existing per-PR body at `cli.py:510-651` into `_fetch_and_upsert_threads_for_pr(client, db, repo, pr_row, max_threads_per_pr) -> FetchOutcome`. The helper performs thread/comment/user upserts through `repo` but does **not** apply the coverage-marker update and does **not** call `db.connection.commit()`. Both the stamp decision and the commit boundary are caller-side responsibilities.
-2. **Preserve** extract's observable behavior by keeping extract's existing 3-case stamp logic inline in `_extract_comments` and its existing end-of-loop `db.connection.commit()` at `cli.py:653`. The `test_extract_comments.py` regression-lock suite (830 LOC, 20 tests) MUST pass unchanged (FR-034).
-3. **Introduce** `cmd_backfill_comments` + its argparse subparser. Its per-iteration body calls the shared helper, applies a simplified 2-outcome stamp decision (set if untruncated or every dropped thread is already stored-and-current; else leave unchanged), commits per-PR, and rolls back on `ExtractionError`. The simplified decision never traverses extract's "preserve" branch, making the latent preserved-unset infinite-loop outcome unreachable by construction.
+1. **Refactor** the existing per-PR body at `cli.py:510-670` into `_fetch_and_upsert_threads_for_pr(client, db, repo, pr_row, max_threads_per_pr) -> FetchOutcome`. The helper performs thread/comment/user upserts through `repo` but does **not** apply the coverage-marker update and does **not** call `db.connection.commit()`. Both the stamp decision and the commit boundary are caller-side responsibilities.
+2. **Preserve** extract's post-fix observable behavior by keeping extract's 3-case stamp logic inline in `_extract_comments` (Case 2 now carries a pre-iteration-NULL sub-decision landed by commit `740810fd`, the #289 fix) and its existing end-of-loop `db.connection.commit()` at `cli.py:672`. The `test_extract_comments.py` regression-lock suite (830 LOC, 20 tests) MUST pass unchanged (FR-034).
+3. **Introduce** `cmd_backfill_comments` + its argparse subparser. Its per-iteration body calls the shared helper, applies a simplified 2-outcome stamp decision (set if untruncated or every dropped thread is already stored-and-current; else leave unchanged), commits per-PR, and rolls back on `ExtractionError`. The simplified decision never traverses extract's "preserve" branch, making the preserved-unset infinite-loop outcome unreachable by construction at backfill's side (defense-in-depth with extract's own post-fix Case 2a from commit `740810fd`, which also eliminates the outcome at the source for preiteration-NULL inputs).
 4. **Enforce** the FR-019b failure-line warnings, FR-017a legacy-schema-skip discriminator, and a new first-class artifact invariant: **every backfill-produced `run_summary.json` — including fatal pre-loop aborts — carries at least one `warnings` entry whose literal prefix is `"backfill-comments: "`**. This is the authoritative discriminator between backfill and extract artifacts (pre-plan deliverable 2).
 5. **Lock** every test from FR-030a–j to a named test file and a specific invariant. Collection-stable definitions (Principle XXVI). Python test floor at `.test-floor-contract.json::python::min_collected = 1814` bumps by exactly N in the same commit that adds N tests (QG-43).
 
@@ -157,36 +157,33 @@ The enforcement teeth that catch deviation: FR-034 regression lock (`tests/unit/
 
 | Risk | Surface | Mitigation |
 |---|---|---|
-| Extract's loop behavior diverges from pre-refactor (any of the four stamp branches reaches a different end-state for any reachable input) | `_extract_comments` loop body + extract's caller-side stamp block | FR-034 regression lock: `tests/unit/test_extract_comments.py` (20 tests, 830 LOC) MUST pass bit-for-bit unchanged. Zero assertion edits, zero tests added/removed/skipped, zero gating introduced. Pre-push gate catches any test failure |
+| Extract's loop behavior diverges from pre-refactor (any of the 5 post-fix stamp transitions — Case 1 SET / Case 2a preiteration-NULL→SET / Case 2b preiteration-non-NULL→preserve / Case 3 CLEAR / ExtractionError→unchanged — reaches a different end-state for any reachable input) | `_extract_comments` loop body + extract's caller-side stamp block (including the pre-iteration snapshot read) | FR-034 regression lock: `tests/unit/test_extract_comments.py` (20 tests, 830 LOC) MUST pass bit-for-bit unchanged. Zero assertion edits, zero tests added/removed/skipped, zero gating introduced. Pre-push gate catches any test failure |
 | Extract's artifact producer drifts (`RunSummary.to_dict`, `create_minimal_summary`, `normalize_error_message`) | `src/ado_git_repo_insights/utils/run_summary.py` (untouched by this feature) | FR-030f golden-snapshot test (`tests/unit/test_run_summary_snapshot.py`, NEW) asserts rendered JSON equality against a committed golden across all three producer surfaces. Catches any accidental behavior drift caused by refactor side effects or untouched-module regressions |
-| Extract's end-of-loop commit boundary drifts (i.e., changes from "commit once after loop" to something else) | `_extract_comments` bottom — specifically `db.connection.commit()` at current cli.py:653 | Structural: plan mandates the commit line at `cli.py:653` is bit-for-bit preserved; only the per-PR loop body (cli.py:510-651) is refactored. Visual inspection during Pass 3 + regression via FR-034 |
-| Backfill's simplified 2-outcome rule accidentally enters extract's preserve branch (reintroducing the infinite-loop outcome in backfill) | `cmd_backfill_comments` loop body | FR-031 truncation-verified-complete tests run both sub-cases (pre-iteration marker NULL + pre-iteration marker set) and assert post-iteration marker is non-null in both |
+| Extract's end-of-loop commit boundary drifts (i.e., changes from "commit once after loop" to something else) | `_extract_comments` bottom — specifically `db.connection.commit()` at current cli.py:672 | Structural: plan mandates the commit line at `cli.py:672` is bit-for-bit preserved; only the per-PR loop body (cli.py:510-670) is refactored. Visual inspection during Pass 3 + regression via FR-034 |
+| Backfill's simplified 2-outcome rule diverges from extract's post-fix behavior for some input (would matter if backfill's selection ever delivered a pre-iteration non-NULL marker — backfill's predicate forbids this, but a future selection-predicate change could regress the invariant) | `cmd_backfill_comments` loop body + selection predicate | FR-031 truncation-verified-complete tests run both sub-cases (pre-iteration marker NULL + pre-iteration marker set) and assert post-iteration marker is non-null in both |
 | Backfill's per-PR commit boundary leaks state across PRs | `cmd_backfill_comments` loop body | FR-030b atomicity test + FR-030c interrupt-safety tests drive failures at upsert and commit boundaries, asserting DB is bit-identical to pre-iteration state on the failure path |
 
 **Extract-parity proof ownership** (who attests extract's observable behavior is unchanged):
 
 | Proof surface | Owner (test file) | Binding FR / principle |
 |---|---|---|
-| Extract's four stamp outcomes on every reachable input | `tests/unit/test_extract_comments.py` (UNCHANGED) | FR-034 (hard regression lock) |
+| Extract's 5 post-fix stamp transitions (Case 1 / Case 2a / Case 2b / Case 3 / error-unchanged) on every reachable input | `tests/unit/test_extract_comments.py` (UNCHANGED; 20 methods post-#289-fix) | FR-034 (hard regression lock) |
 | Extract's artifact producer output (all three public surfaces) | `tests/unit/test_run_summary_snapshot.py` (NEW) | FR-030f / FR-025c (golden snapshot) |
 | Extract's cross-flow artifact shape vs backfill's | `tests/unit/test_run_summary_parity.py` (NEW) | FR-030e / FR-025b (shape parity) |
 | Extract's end-of-loop commit boundary unchanged | Structural inspection; no dedicated test (the refactor diff must leave `db.connection.commit()` at the same logical position) | FR-025a |
 
-**Latent bug shape in extract's shared preserve branch (out-of-scope for 058, tracked as a follow-up)**: the truncation-preserve branch at `cli.py:616-621` does `pass` when `_dropped_threads_all_stored` returns True. For any caller whose selection predicate filters on `comments_extracted_at IS NULL` (the shape backfill uses), a PR that enters this branch with a NULL stamp exits with a NULL stamp — and gets reselected on every subsequent invocation, producing a Processed-but-no-progress infinite loop. Evidence of the bug shape is in the spec (FR-015 forbids the preserved-unset outcome for backfill); backfill sidesteps it by construction (§1 Path 3 decision).
+**Extract's preserve-when-null case — FIXED** (commit `740810fd`, previously tracked as [issue #289](https://github.com/oddessentials/ado-git-repo-insights/issues/289)). The previously-latent preserve-when-null outcome in `_extract_comments` is no longer reachable: extract now reads a pre-iteration snapshot of `comments_extracted_at` at the top of each per-PR iteration (`cli.py:517-526`), and the truncation-verified-complete branch at `cli.py:627-640` sets the marker to the current timestamp when the pre-iteration value was `NULL` (Case 2a), while still preserving a pre-existing non-`NULL` marker (Case 2b).
 
-What the evidence says about extract itself, stated precisely:
+What the evidence now says about extract (all locked by the regression suite):
 
-- **The preserve branch is exercised by extract's test suite**, but only in the preserve-when-**set** case. `tests/unit/test_extract_comments.py::TestExtractCommentsStamping::test_truncated_fetch_preserves_stamp_when_dropped_stored` (lines 141-160) enters with a non-null stamp (asserted at line 150-151) and asserts the post-iteration stamp is non-null. No existing test exercises the preserve-when-**null** case; no test locks the current `pass` behavior as intentional when the pre-iteration stamp is NULL.
-- **Extract's selection query at `cli.py:495-504` does not filter on `comments_extracted_at`**, so it visits both stamped and unstamped PRs. A preserve-when-null hit under extract's workload would require both (a) pr_threads rows stored for thread IDs beyond the current cap AND (b) `comments_extracted_at IS NULL` on the same PR. That combination is not the common extract path (cap-shrinking between runs, prior manual state, or post-migration artefacts could reach it — we have not audited every pathway).
-- **The correct statement is therefore**: the preserve-when-null case is **not known to be exercised by the current extract workload, and is not locked by any existing test as an intentional behavior.** Stronger claims ("unreachable in practice", "unreachable by construction") are not supported by the evidence and should not appear in planning docs.
+- **Both sub-cases of the preserve branch are locked by tests.** `TestExtractCommentsStamping::test_truncated_fetch_preserves_stamp_when_dropped_stored_preiteration_set` (renamed from the pre-fix method; test file lines 141-161) locks preserve-when-**set** with a stricter `stamp_after == stamp_before` assertion. `test_truncated_fetch_sets_completion_marker_when_dropped_stored_preiteration_null` (NEW in `740810fd`; test file lines 163-198) locks preserve-when-**null → SET**. `test_manual_marker_reset_does_not_loop_when_dropped_threads_already_stored` (NEW in `740810fd`; test file lines 201-230) locks the operator-reset recovery path documented in backfill's quickstart.
+- **The "processed-but-no-progress" infinite-loop outcome is eliminated at BOTH levels for backfill's workload.** Backfill's selection predicate (`comments_extracted_at IS NULL`) + extract's post-fix Case 2a (preiteration-NULL → SET) means: even if some future refactor accidentally routed backfill's work through extract's preserve branch, the post-fix logic would still set the marker. Defense-in-depth: backfill's 2-outcome caller-side rule (locality) + extract's post-fix Case 2a (source-side elimination).
 
-**Tracked follow-up**: see GitHub issue [#289](https://github.com/oddessentials/ado-git-repo-insights/issues/289) ("Latent preserve-when-null outcome in `_extract_comments` — audit reachability under extract workload"). The issue carries the code reference, the existing-test coverage gap, the repro sketch, and the acceptance criteria for a proper extract-side fix (consumer audit + new test locking the intended behavior for both preserve sub-cases).
-
-**Scope fence for 058**: this feature MUST NOT fix the preserve-when-null case in extract. Tasks that touch `_fetch_and_upsert_threads_for_pr` or the stamp decision in extract's caller-side block MUST leave extract's observable stamp behavior bit-for-bit unchanged — including the current preserve-when-null `pass` semantics, even though they are not separately locked. The FR-034 regression lock catches any drift in the preserve-when-set case (which IS locked); the preserve-when-null case is left visually inspected during Pass 3 of planning and at code review of the implementation diff.
+**Scope fence for 058 (restated for the post-fix world)**: this feature MUST preserve extract's **post-fix** observable behavior bit-for-bit. T002 (helper extraction) and T003 (extract caller refactor) MUST NOT regress the preserve-when-null → SET behavior, must preserve the pre-iteration snapshot read, and must preserve the Case 2 sub-branch structure. The 20-method `test_extract_comments.py` regression-lock suite (FR-034) catches any drift in either sub-case. The `test_truncated_fetch_sets_completion_marker_when_dropped_stored_preiteration_null` test is the primary tooth against accidental regression of the #289 fix; any refactor that alters extract's Case 2a behavior will fail this specific test.
 
 ---
 
-**Introduce** a module-level dataclass and helper in `cli.py`, placed between `_extract_comments` (current end at line 662) and `_dropped_threads_all_stored` (current definition at line 960). Both pieces of code relate to PR-thread processing; this is the natural insertion point.
+**Introduce** a module-level dataclass and helper in `cli.py`, placed between `_extract_comments` (current end at line 681) and `_dropped_threads_all_stored` (current definition at line 979). Both pieces of code relate to PR-thread processing; this is the natural insertion point.
 
 ```python
 @dataclass(frozen=True)
@@ -217,39 +214,62 @@ def _fetch_and_upsert_threads_for_pr(
     """
 ```
 
-**Behavior preserved bit-for-bit from the existing inline body at `cli.py:510-651`**:
+**Behavior preserved bit-for-bit from the existing inline body at `cli.py:510-670`** (post-fix; the #289 fix added a pre-iteration snapshot read at cli.py:517-526):
 
-- Per-thread incremental sync check (`local_thread is not None and thread_updated <= local_thread["last_updated"]: continue`, currently at cli.py:550-554)
-- Thread upsert via `repo.upsert_thread` (currently at cli.py:562-570)
-- Comment upsert via `repo.upsert_comment`, preceded by `repo.upsert_user` for FK integrity (currently at cli.py:579-596)
-- Truncation flag computation (currently at cli.py:528-532)
-- Dropped-threads slice (currently at cli.py:617, `all_threads[max_threads_per_pr:]`)
+- Pre-iteration coverage-marker snapshot (`pre_iteration_comments_extracted_at`, currently at cli.py:517-526 — added by the #289 fix; MUST be preserved so the Case 2 sub-decision remains stable across the iteration)
+- Per-thread incremental sync check (`local_thread is not None and thread_updated <= local_thread["last_updated"]: continue`, currently at cli.py:561-565)
+- Thread upsert via `repo.upsert_thread` (currently at cli.py:573-581)
+- Comment upsert via `repo.upsert_comment`, preceded by `repo.upsert_user` for FK integrity (currently at cli.py:591-607)
+- Truncation flag computation (currently at cli.py:539-541)
+- Dropped-threads slice (currently at cli.py:628, `all_threads[max_threads_per_pr:]`)
 
 **Removed from the helper (migrated to callers)**:
 
-- The 3-case `if/elif/else` stamp block at `cli.py:610-628` (full-success set / preserve pass / truncation-clear null)
-- The ExtractionError handler at `cli.py:630-651` (warning emission + failure counter increment)
-- The final `db.connection.commit()` at `cli.py:653` (caller decides commit boundary)
+- The 3-case `if/elif/else` stamp block at `cli.py:621-647` with Case 2 sub-decision (full-success SET / Case 2a preiteration-NULL→SET, Case 2b preiteration-non-NULL→preserve / truncation-clear NULL) — post-fix structure from commit `740810fd`
+- The ExtractionError handler at `cli.py:649-670` (warning emission + failure counter increment)
+- The final `db.connection.commit()` at `cli.py:672` (caller decides commit boundary)
 
-**Extract caller's new shape** (`_extract_comments` body replaces current `cli.py:510-651`, commit at 653 preserved unchanged):
+**Extract caller's new shape** (`_extract_comments` body replaces current `cli.py:510-670`, commit at `cli.py:672` preserved unchanged):
 
 ```python
 for pr_row in prs_to_process:
     pr_uid = pr_row["pull_request_uid"]
     try:
+        # Pre-iteration coverage-marker snapshot — added by #289 fix (commit 740810fd).
+        # MUST be preserved by the refactor so Case 2's sub-decision stays stable.
+        pre_iteration_stamp_row = db.execute(
+            "SELECT comments_extracted_at FROM pull_requests "
+            "WHERE pull_request_uid = ?",
+            (pr_uid,),
+        ).fetchone()
+        pre_iteration_comments_extracted_at = (
+            pre_iteration_stamp_row["comments_extracted_at"]
+            if pre_iteration_stamp_row is not None
+            else None
+        )
+
         outcome = _fetch_and_upsert_threads_for_pr(
             client, db, repo, pr_row, max_threads_per_pr
         )
-        # Extract's existing 3-case stamp logic — preserved bit-for-bit.
+        # Extract's post-fix 3-case stamp logic — preserved bit-for-bit from 740810fd.
+        # Case 2 carries a sub-decision (Case 2a/2b) on pre_iteration_comments_extracted_at.
         if not outcome.truncated:
+            # Case 1: full success → SET.
             db.execute(
                 "UPDATE pull_requests SET comments_extracted_at = ? "
                 "WHERE pull_request_uid = ?",
                 (datetime.now(UTC).isoformat(), pr_uid),
             )
         elif _dropped_threads_all_stored(db, pr_uid, outcome.dropped_threads):
-            pass  # Preserve existing stamp (extract-specific branch)
+            # Case 2a (pre-iteration NULL) → SET; Case 2b (pre-iteration non-NULL) → preserve.
+            if pre_iteration_comments_extracted_at is None:
+                db.execute(
+                    "UPDATE pull_requests SET comments_extracted_at = ? "
+                    "WHERE pull_request_uid = ?",
+                    (datetime.now(UTC).isoformat(), pr_uid),
+                )
         else:
+            # Case 3: truncation-clear → CLEAR to NULL.
             db.execute(
                 "UPDATE pull_requests SET comments_extracted_at = NULL "
                 "WHERE pull_request_uid = ?",
@@ -305,7 +325,7 @@ for ordinal, pr_row in enumerate(selection_snapshot, start=1):
     )
 ```
 
-**Why the preserved-unset outcome is unreachable**: backfill's rule never enters extract's `pass` branch. If `outcome.truncated` is True and `_dropped_threads_all_stored` returns True, backfill **sets** the stamp (refreshes to now). The truncation-verified-complete branch always produces a non-null stamp post-iteration; FR-015's forbidden outcome cannot arise.
+**Why the preserved-unset outcome is unreachable**: backfill's rule never enters extract's Case 2b (preserve) branch. If `outcome.truncated` is True and `_dropped_threads_all_stored` returns True, backfill **sets** the stamp (refreshes to now). The truncation-verified-complete branch always produces a non-null stamp post-iteration; FR-015's forbidden outcome cannot arise. Post-fix defense-in-depth: extract itself (commit `740810fd`) also eliminates the preserved-unset outcome for preiteration-NULL via its new Case 2a (preiteration-NULL → SET) — so even if a future refactor accidentally routed backfill through extract's caller-side logic, the outcome would still be SET, not unset.
 
 ### §2 — Argparse subcommand (FR-020–024, FR-024a, Issue #285)
 
@@ -356,8 +376,8 @@ This invariant is enforced at **eight concrete code sites** inside `cmd_backfill
 | **D1** | Outer `except ConfigurationError as e:` handler (wraps the function body) | `load_config(...)` raises — invalid `--organization`, missing/malformed config | `f"backfill-comments: fatal-abort: Configuration error: {normalize_error_message(str(e))}"` | Fatal pre-loop abort: invalid configuration |
 | **D2** | Outer `except DatabaseError as e:` handler | `DatabaseManager(path)` / `db.connect()` raises — DB file missing, unopenable, corrupted header | `f"backfill-comments: fatal-abort: Database error: {normalize_error_message(str(e))}"` | Fatal pre-loop abort: unopenable / missing DB |
 | **D3** | Outer `except ExtractionError as e:` handler — catches `ExtractionError` raised BEFORE the loop begins (the per-PR loop body has its own narrower `except ExtractionError` at Site A that catches and does NOT re-raise) | `ADOClient.test_connection(...)` raises — auth failure, unreachable org, PAT revoked | `f"backfill-comments: fatal-abort: Extraction error: {normalize_error_message(str(e))}"` | Fatal pre-loop abort: authentication failure or upstream unreachable |
-| **D4** | Outer `except KeyboardInterrupt:` handler installed by `cmd_backfill_comments` itself (NOT delegated to `main()`) | Ctrl-C / SIGINT at any point during the subcommand, including mid-iteration (per FR-013a any in-flight transaction has rolled back by the time this handler runs) | `"backfill-comments: fatal-abort: Operation cancelled by user"` — writes summary with this entry, then **re-raises** `KeyboardInterrupt` so `main()`'s existing handler at `cli.py:2161-2172` sees `summary_path.exists()` is True (skips its own write) and returns exit code 130 | Mid-run Ctrl-C / SIGINT / SIGTERM |
-| **D5** | Outer `except Exception as e:` handler installed by `cmd_backfill_comments` itself | Any non-anticipated exception type not matched by A/D1–D4 (e.g., a bug, an un-caught `OSError`, a dependency failure) | `f"backfill-comments: fatal-abort: {normalize_error_message(str(e))}"` — writes summary, then **re-raises** so `main()`'s existing handler at `cli.py:2174-2184` sees the summary already on disk and returns exit code 1 | Mid-run unexpected exception |
+| **D4** | Outer `except KeyboardInterrupt:` handler installed by `cmd_backfill_comments` itself (NOT delegated to `main()`) | Ctrl-C / SIGINT at any point during the subcommand, including mid-iteration (per FR-013a any in-flight transaction has rolled back by the time this handler runs) | `"backfill-comments: fatal-abort: Operation cancelled by user"` — writes summary with this entry, then **re-raises** `KeyboardInterrupt` so `main()`'s existing handler at `cli.py:2180-2191` sees `summary_path.exists()` is True (skips its own write) and returns exit code 130 | Mid-run Ctrl-C / SIGINT / SIGTERM |
+| **D5** | Outer `except Exception as e:` handler installed by `cmd_backfill_comments` itself | Any non-anticipated exception type not matched by A/D1–D4 (e.g., a bug, an un-caught `OSError`, a dependency failure) | `f"backfill-comments: fatal-abort: {normalize_error_message(str(e))}"` — writes summary, then **re-raises** so `main()`'s existing handler at `cli.py:2193-2203` sees the summary already on disk and returns exit code 1 | Mid-run unexpected exception |
 
 #### Shared emission utility — mandatory single-source-of-truth for the discriminator (non-negotiable)
 
@@ -494,7 +514,7 @@ This test fires on every commit that adds a new inline `"backfill-comments: ..."
 
 #### Why `cmd_backfill_comments` owns its own KeyboardInterrupt + Exception handlers (Sites D4 + D5)
 
-`main()`'s existing handlers at `cli.py:2161-2184` write a bare-minimum summary via `create_minimal_summary()` and do NOT know about backfill's discriminator prefix. If the backfill subcommand let `KeyboardInterrupt` or an unexpected exception propagate unhandled, `main()` would write an artifact with `warnings=[]` — **invariant violated**. Sites D4 and D5 intercept first, attach the discriminator entry to the summary, write the artifact, then re-raise. `main()`'s `if not summary_path.exists()` guard (cli.py:2165 and cli.py:2178) sees the summary is already on disk and skips its own write; the exit-code semantics remain owned by `main()` (130 for KeyboardInterrupt, 1 for Exception) — Sites D4/D5 do not compete with `main()` for exit-code ownership.
+`main()`'s existing handlers at `cli.py:2180-2203` write a bare-minimum summary via `create_minimal_summary()` and do NOT know about backfill's discriminator prefix. If the backfill subcommand let `KeyboardInterrupt` or an unexpected exception propagate unhandled, `main()` would write an artifact with `warnings=[]` — **invariant violated**. Sites D4 and D5 intercept first, attach the discriminator entry to the summary, write the artifact, then re-raise. `main()`'s `if not summary_path.exists()` guard (cli.py:2184 and cli.py:2197) sees the summary is already on disk and skips its own write; the exit-code semantics remain owned by `main()` (130 for KeyboardInterrupt, 1 for Exception) — Sites D4/D5 do not compete with `main()` for exit-code ownership.
 
 #### Site-to-state coverage matrix (for task-level verification + the FR-030e test)
 
@@ -515,7 +535,7 @@ This test fires on every commit that adds a new inline `"backfill-comments: ..."
 
 #### FR-025a compliance (Sites D1–D5)
 
-Each fatal-handler site constructs a base `RunSummary` via `create_minimal_summary(error_message, args.artifacts_dir)` — exactly as extract does at `cli.py:858-878` — then **mutates the returned summary's `warnings` list** to append the discriminator entry before calling `.write()`. The helper's observable behavior (return a `RunSummary` with `warnings=[]`) is preserved; the backfill caller composes on top of the helper's return. Extract's identical call sites at `cli.py:856-878` and `cli.py:2166, 2179` are not touched.
+Each fatal-handler site constructs a base `RunSummary` via `create_minimal_summary(error_message, args.artifacts_dir)` — exactly as extract does at `cli.py:877-897` — then **mutates the returned summary's `warnings` list** to append the discriminator entry before calling `.write()`. The helper's observable behavior (return a `RunSummary` with `warnings=[]`) is preserved; the backfill caller composes on top of the helper's return. Extract's identical call sites at `cli.py:875-897` and `cli.py:2185, 2198` are not touched.
 
 **Enforcement tooth**: the FR-030f golden-snapshot test exercises `create_minimal_summary()` **directly** against its deterministic input and locks its return's rendered JSON. Any future change that alters the helper's default `warnings=[]` return would break the snapshot, forcing an explicit review before merge.
 

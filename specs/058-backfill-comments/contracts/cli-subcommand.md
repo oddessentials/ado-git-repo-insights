@@ -268,7 +268,7 @@ INFO  backfill-comments: covered PR <pr_uid> (<N> of <T>) [Failed]
 WARNING  Failed to extract comments for PR <pr_uid>: <normalized_error>
 ```
 
-Existing shape from `_extract_comments`'s per-PR ExtractionError handler (`cli.py:633-637`) — mirrored here for consistency. Emitted **in addition to** the FR-018b progress line, not in place of it.
+Existing shape from `_extract_comments`'s per-PR ExtractionError handler (`cli.py:652-656`) — mirrored here for consistency. Emitted **in addition to** the FR-018b progress line, not in place of it.
 
 ### 6.4 Legacy-schema warning (FR-017)
 

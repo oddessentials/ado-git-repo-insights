@@ -17,7 +17,7 @@ Ripgrep sweep of the repository for readers of `run_summary.json` and its produc
 ### Producer-side (not consumers)
 
 - `src/ado_git_repo_insights/utils/run_summary.py` — the producer surface. `RunSummary` / `RunCounts` / `RunTimings` dataclasses; `RunSummary.to_dict()` serialization; `create_minimal_summary()`; `normalize_error_message()`; `get_tool_version()`; `get_git_sha()`. FR-025a forbids behavior changes to any of these. FR-030f golden-snapshot test enforces.
-- `src/ado_git_repo_insights/cli.py:671-878, 2135-2182` — extract flow (`cmd_extract`) constructs and writes the artifact; `main()` writes the minimal-summary variant on `KeyboardInterrupt` and unexpected exception. FR-025 forbids modifying extract's behavior.
+- `src/ado_git_repo_insights/cli.py:690-897, 2154-2201` — extract flow (`cmd_extract`) constructs and writes the artifact; `main()` writes the minimal-summary variant on `KeyboardInterrupt` and unexpected exception. FR-025 forbids modifying extract's behavior.
 - `src/ado_git_repo_insights/types.py:50` — `RunSummaryDict` TypedDict consumed by the producer.
 
 ### Three-bucket classification of every reader
@@ -62,7 +62,7 @@ Evaluate each candidate (A) warnings-prefix, (B) `rows_per_csv` shape, (C) joint
 | Candidate | Loop-complete zero-failure | Loop-complete partial/100% failure | Empty-selection | Legacy-schema no-op | Fatal pre-loop abort |
 |---|---|---|---|---|---|
 | (A) warnings-prefix `"backfill-comments: "` | ❌ empty by default (no FR-019b entries) | ✅ FR-019b entries fire | ❌ empty by default | ✅ FR-017a entry fires | ❌ `create_minimal_summary` hardcodes `warnings=[]` |
-| (B) `rows_per_csv == {}` | ✅ | ✅ | ✅ | ✅ | ❌ **also true for extract failure summary** — `cmd_extract` at `cli.py:748-762` uses default `RunCounts()` → `rows_per_csv={}` on project failure |
+| (B) `rows_per_csv == {}` | ✅ | ✅ | ✅ | ✅ | ❌ **also true for extract failure summary** — `cmd_extract` at `cli.py:767-781` uses default `RunCounts()` → `rows_per_csv={}` on project failure |
 | (C) `prs_fetched==0 AND prs_updated>0` | ✅ (Processed > 0) | ❌ `prs_updated=0` when 100% failure | ❌ `prs_updated=0` on empty selection | ❌ `prs_updated=0` on legacy-schema | ❌ both fields are 0 |
 
 No candidate is reliable out-of-the-box.
@@ -105,32 +105,32 @@ Cross-check every cli.py line reference and every external-file reference the sp
 
 ### Findings
 
-Zero material drift. Every cited location is current.
+Zero material drift at the time of research (2026-04-16). Line-reference state refreshed below to reflect post-#289-fix structure (commit `740810fd` added +19 net lines inside `_extract_comments`).
 
 | Spec claim | Cited location | HEAD location | Status |
 |---|---|---|---|
-| Truncation-preserve branch (latent bug, FR-015) | `cli.py:616-621` (within 3-case block `cli.py:601-628`) | Preserve branch at `cli.py:616-621` (`elif _dropped_threads_all_stored(...): pass` + comment `# Prior stamp (if any) correctly reflects completeness` at line 620), inside the 3-case block `cli.py:610-628` | ✅ Exact match |
-| `counts.prs_fetched = summary.total_prs` | `cli.py:725` | `cli.py:725` | ✅ Exact match |
-| `_extract_comments` per-PR body (refactor target, FR-015a) | `cli.py:510-651` | Function definition at `cli.py:457`; per-PR loop body at `cli.py:510-651`; function returns at `cli.py:662` | ✅ Confirmed |
-| `_dropped_threads_all_stored` helper (pure; safe to share, FR-015a) | — | `cli.py:960-996` — pure predicate; reads DB only for lookup, no side effects | ✅ Confirmed |
+| Truncation-verified-complete branch (Case 2 post-fix; previously-latent bug FIXED in commit `740810fd` → issue #289 closed) | `cli.py:627-640` (within 3-case block `cli.py:621-647`) | Case 2 branch at `cli.py:627-640`: `elif _dropped_threads_all_stored(...)` enters; sub-decision `if pre_iteration_comments_extracted_at is None:` SETS marker (Case 2a), else preserves (Case 2b); pre-iteration snapshot read is at `cli.py:517-526` | ✅ Post-fix structure; both Case 2 sub-cases locked by `TestExtractCommentsStamping` methods at test file lines 141 (renamed, stricter assertion), 163 (NEW), 201 (NEW) |
+| `counts.prs_fetched = summary.total_prs` | `cli.py:744` | `cli.py:744` | ✅ Exact match (post-fix) |
+| `_extract_comments` per-PR body (refactor target, FR-015a) | `cli.py:510-670` | Function definition at `cli.py:457`; per-PR loop body at `cli.py:510-670` (post-fix includes pre-iteration snapshot read at 517-526 and Case 2 sub-decision at 627-640); function returns at `cli.py:681` | ✅ Confirmed (post-fix) |
+| `_dropped_threads_all_stored` helper (pure; safe to share, FR-015a) | — | `cli.py:979-1015` — pure predicate; reads DB only for lookup, no side effects | ✅ Confirmed (post-fix) |
 | `pr_threads` / `pr_comments` table-creation migrations (legacy-schema detection target, FR-017) | — | `src/ado_git_repo_insights/persistence/migrations.py`: `CREATE TABLE pr_threads` at line 211, `CREATE TABLE pr_comments` at line 226; `_ensure_v4_pr_threads` at line 274; `_ensure_v4_pr_comments` at line 352 | ✅ Confirmed |
 | `comments_extracted_at` column (coverage marker, FR-002/FR-015) | — | `migrations.py:78-92` (`ALTER TABLE pull_requests ADD COLUMN comments_extracted_at TEXT`) | ✅ Confirmed |
 | `test_extract_comments.py` regression-lock (FR-034) | — | 830 LOC, 20 test methods across 7 test classes (`TestExtractCommentsStamping`, `TestPerThreadIncrementalSync`, `TestExtractBackfillAggregatePipeline`, `TestLegacyCoverageFallback`, `TestPrsCommentFailuresCounter`, `TestCoverageFallbackExceptionPaths`, `TestCorruptedMetadata`) — locks all three stamp branches + failure counter + end-to-end pipeline | ✅ Confirmed; FR-015a's refactor must not alter any assertion in this file |
 | `run_summary.py` dataclass field set (FR-019d, FR-025a) | — | `RunSummary` dataclass at `run_summary.py:61-76`; `to_dict()` at `run_summary.py:83-109` produces exactly the field set the spec enumerates | ✅ Confirmed |
 | Constitution v1.5.0 | `.specify/memory/constitution.md` | First version block: `Version Change: 1.4.0 → 1.5.0`; line 607: `**Version**: 1.5.0 \| **Ratified**: 2026-01-26 \| **Last Amended**: 2026-04-16` | ✅ Confirmed |
-| Python test floor | 1814 | `.test-floor-contract.json::python::min_collected = 1814` (with `authority: scripts.check_ratchet_bump.collect_python_snapshot(apply_platform_filters=True)`) | ✅ Confirmed |
+| Python test floor | 1816 | `.test-floor-contract.json::python::min_collected = 1816` (with `authority: scripts.check_ratchet_bump.collect_python_snapshot(apply_platform_filters=True)`) — bumped from 1814 by commit `740810fd` for the +2 tests added by the #289 fix | ✅ Confirmed (post-fix) |
 
 ## Research area 4 — Commit-boundary discovery (surfaced during HEAD re-verification)
 
 ### Finding
 
-Extract's current `_extract_comments` function (`cli.py:457-662`) commits **once** at the end of the per-PR loop (`db.connection.commit()` at `cli.py:653`). This is not per-PR atomicity in the sense FR-012 requires; extract's commit boundary is the **entire loop**, not an individual PR.
+Extract's current `_extract_comments` function (`cli.py:457-681`) commits **once** at the end of the per-PR loop (`db.connection.commit()` at `cli.py:672`). This is not per-PR atomicity in the sense FR-012 requires; extract's commit boundary is the **entire loop**, not an individual PR.
 
 ### Consequence for FR-015a/b helper shape
 
 The plan-locked `_fetch_and_upsert_threads_for_pr(client, db, repo, pr_row, max_threads_per_pr) -> FetchOutcome` helper MUST perform thread/comment/user upserts but MUST NOT call `db.connection.commit()`. The commit boundary is a **caller-side responsibility** — in parallel to the stamp-decision responsibility FR-015a already locked:
 
-- **Extract's caller** (`_extract_comments` loop body): calls the helper, applies the existing 3-case stamp logic inline, continues the loop; preserves the existing single `db.connection.commit()` at end-of-loop. No observable change to extract (FR-025).
+- **Extract's caller** (`_extract_comments` loop body): captures the pre-iteration coverage-marker snapshot (post-#289-fix behavior from commit `740810fd`), calls the helper, applies the existing post-fix 3-case stamp logic inline (Case 1 SET / Case 2a preiteration-NULL→SET / Case 2b preiteration-non-NULL→preserve / Case 3 CLEAR), continues the loop; preserves the existing single `db.connection.commit()` at end-of-loop. No observable change to extract (FR-025) — preserves post-fix behavior bit-for-bit.
 - **Backfill's caller** (`cmd_backfill_comments` loop body): calls the helper, applies the simplified 2-outcome stamp logic, **commits per-PR** inside each iteration on the `ok` path; **rolls back per-PR** on `ExtractionError`. Satisfies FR-012 (atomic write set) + FR-013 (full roll-back) + FR-013a (interrupt leaves pre-iteration state).
 
 ### Rationale for surfacing here
