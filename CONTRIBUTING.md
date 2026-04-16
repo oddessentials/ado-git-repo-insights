@@ -110,7 +110,7 @@ All PRs must pass:
 - UI bundle synchronization
 - Python tests (full OS/Python version matrix -- see [CI workflow](/.github/workflows/ci.yml))
 - Extension tests
-- Pre-commit hooks (full gate suite -- see `scripts/run_repo_hook.py`)
+- Pre-commit hooks (pre-commit stage, full worktree -- see [CI workflow](/.github/workflows/ci.yml))
 
 ---
 

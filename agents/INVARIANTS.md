@@ -1,4 +1,3 @@
-```md
 # agents/invariants.md — ado-git-repo-insights
 
 This document defines the non-negotiable invariants for ado-git-repo-insights.
@@ -135,4 +134,3 @@ the change must be treated as a design break and escalated.
 - Primary persistence: **Azure DevOps Pipeline Artifacts (SQLite file)**
 - Historical migration: **No MongoDB migration** (fresh extraction from configured start date)
 - Output compatibility: **100% PowerBI CSV parity is mandatory**
-```

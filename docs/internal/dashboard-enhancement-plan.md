@@ -1,12 +1,19 @@
 # Default Dashboard Enhancement Plan
 
-> **Status (2026-04-16):** Phases A-C and most of Phase D are shipped in the current
-> extension source. See `extension/ui/` for the implementation. Remaining work:
-> D.1 (comparison mode) is partial, D.3 (saved views) is not started.
+> **Status (snapshot — 2026-04-16, not auto-maintained):** Phases A, B, and C
+> are fully shipped in the current `extension/ui/` source. Phase D is partial:
+> D.1 (comparison mode) ships a toggle and banner but not the side-by-side
+> layout this plan describes; D.2 ships CSV / shareable link / raw-ZIP export
+> but not PNG; D.3 (saved views) is not started; D.4 (responsive layout) is
+> shipped.
 >
-> **Reading guide:** The gap analysis, "Current State" tables, and sprint estimates
-> below describe the **pre-implementation planning state** and are preserved verbatim.
-> Do not treat them as live status.
+> **This snapshot will go stale.** `extension/ui/` is the source of truth for
+> what's shipped. Before relying on any status line above, verify against the
+> code. If the snapshot is older than a month, assume it's wrong.
+>
+> **Reading guide:** The gap analysis, "Current State" tables, and sprint
+> estimates below describe the **pre-implementation planning state** and are
+> preserved verbatim. Do not treat them as live status.
 
 This document outlines a multi-phase implementation plan to enhance the default dashboard, making it more useful and impressive based on existing data and our initial vision.
 

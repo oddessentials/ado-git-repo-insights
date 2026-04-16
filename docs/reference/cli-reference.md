@@ -4,12 +4,24 @@ Complete reference for all `ado-insights` commands and options.
 
 ---
 
+## Authority
+
+`ado-insights <command> --help` is the authoritative source for flags and
+defaults. This reference is a curated overview; if it disagrees with `--help`,
+the CLI wins and this file is stale.
+
+---
+
 ## Global Options
 
-| Option | Description |
-|--------|-------------|
-| `--version` | Show version and exit |
-| `--help` | Show help message and exit |
+These flags are accepted by every subcommand.
+
+| Option | Default | Description |
+|--------|---------|-------------|
+| `--version` | — | Show version and exit |
+| `--help` | — | Show help message and exit |
+| `--log-format FORMAT` | `console` | `console` or `jsonl` |
+| `--artifacts-dir DIR` | `run_artifacts` | Output directory for logs/summary |
 
 ---
 
@@ -43,18 +55,18 @@ Extract Pull Request data from Azure DevOps.
 ado-insights extract [OPTIONS]
 ```
 
-### Required Options (one of)
+### Required Options
+
+`--pat` is always required. Provide either `--config` (a YAML file describing
+the org/projects) or `--organization` + `--projects`; runtime enforces the
+mutual exclusion.
 
 | Option | Description |
 |--------|-------------|
-| `--config FILE` | Path to YAML configuration file |
-| `--organization ORG` | Azure DevOps organization name |
-
-If using `--organization`, also required:
-| Option | Description |
-|--------|-------------|
-| `--projects PROJECTS` | Comma-separated project names |
 | `--pat PAT` | Personal Access Token with Code (Read) scope |
+| `--config FILE` | Path to YAML configuration file |
+| `--organization ORG` | Azure DevOps organization name (alternative to `--config`) |
+| `--projects PROJECTS` | Comma-separated project names (required when using `--organization`) |
 
 ### Optional Options
 
@@ -67,8 +79,6 @@ If using `--organization`, also required:
 | `--include-comments` | `false` | Extract PR discussion threads and comments into SQLite for auxiliary analytics outputs |
 | `--comments-max-prs-per-run N` | `100` | Cap how many PRs are scanned for comments in one extraction run |
 | `--comments-max-threads-per-pr N` | `50` | Cap how many discussion threads are fetched per PR |
-| `--log-format FORMAT` | `text` | `text` or `jsonl` |
-| `--artifacts-dir DIR` | `./run_artifacts` | Output directory for logs/summary |
 
 **When to use backfill:** Incremental extraction (the default) only fetches
 PRs closed since the last run. Late-arriving changes (review votes, state
@@ -361,16 +371,11 @@ Serve the PR Insights dashboard locally.
 ado-insights dashboard [OPTIONS]
 ```
 
-### Required Options
-
-| Option | Description |
-|--------|-------------|
-| `--dataset DIR` | Path to aggregates directory |
-
 ### Optional Options
 
 | Option | Default | Description |
 |--------|---------|-------------|
+| `--dataset DIR` | `./run_artifacts` | Path to aggregates directory |
 | `--port PORT` | `8080` | HTTP server port |
 | `--open` | `false` | Automatically open browser |
 

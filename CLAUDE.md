@@ -17,7 +17,7 @@ tests/
 ## Commands
 
 ```bash
-pytest                                    # Python tests
+python scripts/run_pytest.py              # Python tests (coverage-safe launcher)
 cd extension && pnpm test                 # Extension tests
 python scripts/run_pr_preflight.py        # Authoritative local PR gate
 ```

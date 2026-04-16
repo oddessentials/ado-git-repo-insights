@@ -187,20 +187,18 @@ Three escalating gate scopes run between your editor and CI:
 
 | Gate | Trigger | Scope | What it runs |
 |------|---------|-------|--------------|
-| Pre-commit | `git commit` | **Staged files only** | Fast lint/format fixes and selective extension checks (see [`.pre-commit-config.yaml`](/.pre-commit-config.yaml) pre-commit stage) |
-| Pre-push | `git push` | **All files (full worktree)** | The same hook definitions as pre-commit, but applied to **all files** (`--all-files`), plus version/baseline/CRLF/asset guards, then invokes the preflight gate below |
-| Preflight | Manual or via pre-push | **Full worktree** | Authoritative CI-parity gate (see [`scripts/run_pr_preflight.py`](/scripts/run_pr_preflight.py) docstring for the current gate list) |
+| Pre-commit | `git commit` | **Staged files only** | Hooks declared with `stages: [pre-commit]` in [`.pre-commit-config.yaml`](/.pre-commit-config.yaml), plus the pre-commit branch of [`scripts/run_repo_hook.py`](/scripts/run_repo_hook.py) |
+| Pre-push | `git push` | **All files (full worktree)** | Hooks declared with `stages: [pre-push]` run on all files, plus the pre-push-only guards in `scripts/run_repo_hook.py` (see `run_pre_push_hook`); **preflight is invoked within the same pre-push run** before the push completes |
+| Preflight | Embedded inside pre-push, or standalone via `python scripts/run_pr_preflight.py` | **Full worktree** | Authoritative CI-parity gate (see [`scripts/run_pr_preflight.py`](/scripts/run_pr_preflight.py) docstring for the current gate list) |
 
-**Scope matters:** Pre-commit and pre-push run the same hook *definitions*
-but at different scopes. Pre-commit checks only staged files (fast feedback
-during development). Pre-push re-checks the entire worktree, catching issues
-that staged-only checking intentionally skips.
-
-**Preflight is embedded in pre-push.** When you push, the pre-push hook
-invokes `run_pr_preflight.py` automatically. The standalone command
-(`python scripts/run_pr_preflight.py`) exists for environments that skip
-git hooks — IDE push buttons, CI reruns, or re-checking after a fix without
-pushing again.
+**Stages are distinct.** Pre-commit and pre-push use separate `stages` entries
+in `.pre-commit-config.yaml` — not all hooks run at both stages. Some auto-fix
+hooks run only on commit; some stricter checks run only on push. If a push
+fails when the commit passed, that's a pre-push-only hook catching something
+staged-only checks intentionally skip. Treat `.pre-commit-config.yaml` **and**
+`scripts/run_repo_hook.py` as co-authoritative: the YAML declares which hooks
+run at each stage; the Python script orchestrates the stage-specific custom
+guards that aren't expressible as plain pre-commit hooks.
 
 ### Local PR Preflight
 
@@ -211,17 +209,11 @@ preflight:
 python scripts/run_pr_preflight.py
 ```
 
-What it verifies:
-- `mypy src/ tests/ scripts/ .github/scripts/`
-- `tests/demo/` with `--no-cov` so demo dashboard validation is exercised
-- full Python suite with coverage
-- extension `build:check`
-- extension production lint for `ui/`, `scripts/`, and `tasks/_shared/`
-- extension UI build
-- managed generated artifact parity
-- extension type tests
-- extension Jest CI
-- extension smoke tests
+What it verifies: the full set of CI-parity gates — lint/type/test/build/parity
+checks across Python and the VS Code extension — as declared in the
+`CommandSpec` list inside [`scripts/run_pr_preflight.py`](/scripts/run_pr_preflight.py).
+Treat that script as the source for the current gate inventory; this document
+intentionally does not enumerate the list to avoid drift.
 
 Why this exists:
 - it uses stable temp/cache/coverage paths under the OS temp directory
@@ -259,7 +251,7 @@ All PRs must pass:
 | UI bundle sync | Dashboard files synchronized |
 | Python tests | Full test suite |
 | Extension tests | Jest test suite |
-| Pre-commit hooks | Full gate suite (see `scripts/run_repo_hook.py`) |
+| Pre-commit hooks | Pre-commit stage hooks over the full worktree (see [CI workflow](/.github/workflows/ci.yml)) |
 
 ---
 
@@ -296,7 +288,7 @@ Many tests verify system invariants:
 
 ```python
 def test_pat_not_logged(caplog):
-    """Invariant 19: PAT is never logged."""
+    """PATs must never be logged (see agents/INVARIANTS.md)."""
     # ... test implementation
 ```
 

@@ -201,7 +201,7 @@ ado-insights extract ...
 
 ### PAT Security Guarantees
 
-- PAT is never logged (Invariant 19)
+- PAT is never logged (PATs are secrets — see `agents/INVARIANTS.md`)
 - PAT is not stored in database
 - PAT is masked in config output: `PAT: ********`
 - Secrets are redacted at log formatter level

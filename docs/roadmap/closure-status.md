@@ -1,7 +1,8 @@
 # Roadmap Closure Status
 
-> All roadmap items below were completed and verified on 2026-03-21.
-> Evidence packs are in `specs/034-roadmap-closure/evidence/`.
+> All roadmap items below are closed. Evidence packs live in
+> `specs/034-roadmap-closure/evidence/` — see git history on those files
+> for the verification timeline rather than duplicating dates here.
 
 ## Closure Status
 

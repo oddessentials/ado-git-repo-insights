@@ -1,8 +1,10 @@
 # Manual Testing Walkthrough
 
-Manual tests for the full product surface. CLI subcommands (sections 1-4, 6) were
-validated against the current argument parser. Script and pnpm entrypoints (section 5)
-were verified against their package definitions.
+Manual tests for the full product surface. CLI subcommand sections were
+validated against the current argument parser; the extension-manual-tests
+section was verified against its package definitions. Neither set was
+executed end-to-end against a live ADO instance in this audit — treat the
+"Verify:" lines below as expected outcomes, not proof.
 
 > **Flag asymmetry warning:** `extract` uses `--organization` / `--projects` (plural).
 > `stage-artifacts` uses `--org` / `--project` (singular). Do not mix them.
@@ -29,7 +31,7 @@ See [Development Setup](../development/setup.md) for the full environment guide.
 
 ## 1. Synthetic Demo Dashboard
 
-Proves the dashboard renders from the canonical enterprise demo dataset.
+Intended scenario: dashboard renders from the canonical enterprise demo dataset.
 No PAT or network access needed.
 
 ```powershell
@@ -44,7 +46,8 @@ Verify: Dashboard loads with review time data, filters work, all tabs render.
 
 > **PAT scope:** Code (Read)
 
-Proves extract -> build-aggregates -> dashboard works against a real org.
+Intended scenario: extract -> build-aggregates -> dashboard against a real org.
+The `oddessentials` org/project values below are maintainer examples — substitute your own.
 
 ```powershell
 $env:PAT="<your-pat>"
@@ -73,7 +76,7 @@ Verify: SQLite created, aggregates generated, dashboard shows real data.
 
 > **PAT scope:** Code (Read)
 
-Proves multi-project extraction and comment caps work correctly.
+Intended scenario: multi-project extraction with comment caps. The project list below is org-specific — substitute your own.
 
 ```powershell
 # Bounded extraction (50 PRs with comments)
@@ -112,7 +115,7 @@ dashboard run info.
 
 > **PAT scope:** Build (Read)
 
-Proves the stage-artifacts -> dashboard flow works against a real ADO pipeline.
+Intended scenario: stage-artifacts -> dashboard against a real ADO pipeline. `--pipeline-id 15` below is a maintainer example — substitute your pipeline ID.
 
 ```powershell
 uv run ado-insights stage-artifacts `
@@ -151,7 +154,7 @@ Verify: `.vsix` file produced in `extension/` directory.
 
 ## 6. Standalone CLI Install Test
 
-Proves the package installs and runs as a standalone tool (outside the repo venv).
+Intended scenario: the package installs and runs as a standalone tool (outside the repo venv).
 This is a separate context from the `uv sync` development environment used above.
 
 ```powershell

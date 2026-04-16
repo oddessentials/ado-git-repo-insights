@@ -1,4 +1,4 @@
-# agents/victory-gate.md — ado-git-repo-insights
+# agents/victory-gates.md — ado-git-repo-insights
 
 This document defines the **Victory Gate** for ado-git-repo-insights.
 A phase is not complete until **every step below passes without manual intervention**.
@@ -25,7 +25,6 @@ source .venv/bin/activate
 pip install -e .[dev]
 ```
 
-````
 
 ### 1.2 Unit & Contract Tests
 
@@ -34,7 +33,7 @@ pip install -e .[dev]
 ruff check .
 ruff format --check .
 
-# Type checking (if enabled)
+# Type checking (mypy strict mode on src/; see pyproject.toml)
 mypy src/
 
 # Unit tests
@@ -274,4 +273,3 @@ If a gate fails:
 - **Invariants:** agents/INVARIANTS.md
 - **Completion Criteria:** agents/definition-of-done.md
 - **Final Verification:** this document
-````

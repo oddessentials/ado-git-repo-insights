@@ -287,7 +287,7 @@ flowchart LR
     end
 
     subgraph Conditions["Publish Conditions"]
-        SUCCESS_ONLY["Only on success<br/>(Invariant 7)"]
+        SUCCESS_ONLY["Only on success<br/>(No publish-on-failure)"]
     end
 
     DOWNLOAD --> EXTRACT
